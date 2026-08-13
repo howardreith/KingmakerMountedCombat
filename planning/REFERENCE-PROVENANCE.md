@@ -1,6 +1,8 @@
 # Reference provenance
 
-Status: PASS for snapshot identity; reuse review remains per-fragment.
+Status: PASS
+
+Snapshot identity is complete; reuse review remains per-fragment.
 
 Captured at 2026-08-13T16:44:09Z. All source repositories were inspected read-only. Each is a clean standalone primary worktree with no linked-worktree or reparse-point relationship to another active product.
 

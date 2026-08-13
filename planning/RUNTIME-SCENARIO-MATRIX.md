@@ -1,35 +1,51 @@
 # Runtime scenario matrix
 
-Status: IN PROGRESS
+Status: BLOCKED — CRITICAL
 
-No runtime scenario has been launched. Save-backed scenarios are `DEFER — EVIDENCED` until distinct project-owned baseline and working fixtures are proven.
+The guarded no-save scaffold is qualified. Fixture-backed scenarios cannot start because the save root contains zero exact `KMC_AUTOMATION_BASELINE` candidates and zero exact `KMC_AUTOMATION_WORKING` candidates. Other-project fixtures are prohibited and no valued save archive was opened.
 
-| Group | Scenario | Save needed | Status | Acceptance evidence |
+## Executed runtime evidence
+
+| Scenario | Result | Exact evidence |
+|---|---|---|
+| `mod-load-smoke` | PASS twice in consecutive fresh processes | Commit `e3f71bc902d79c5be3f1a66c6b99396d94d39018`; package SHA-256 `2c77b677bc4af129ccc9e22d136b6e21754007e8ba8144ee2a2304d77fac10b9`; evidence IDs `20260813T185500Z-mod-load-smoke-passA` and `20260813T185700Z-mod-load-smoke-passB` |
+| `mod-load-smoke` engineering attempt | FAIL, preserved and repaired | `20260813T184500Z-mod-load-smoke-pass1`: process-global JSON metadata and a UMM cache exposed two harness defects; exact recovery restored Mods |
+| `mod-load-smoke` engineering attempt | FAIL, preserved and repaired | `20260813T185200Z-mod-load-smoke-fixed-pass1`: exact game result passed, then a post-exit process-enumeration race blocked restore; guarded recovery restored Mods |
+
+Both final PASS runs proved Kingmaker `2.1.7b`, exact gameplay assembly hash/MVID, UMM `0.28.2.0`, Harmony12 `1.2.0.1`, KMC identity/hash/MVID, `Unmounted`, movement experiment disabled, mode `None`, no loaded area, zero save requests, zero load requests, no errors, stable process exit, protected-save metadata unchanged, and the transaction-before Mods digest restored.
+
+## Required scenario disposition
+
+| Group | Scenario | Save needed | Status | Evidence / remaining acceptance |
 |---|---|---:|---|---|
-| Scaffold | mod-load-smoke | No | TODO | Two fresh processes, exact identity, exact Mods restoration |
-| Forensics | export-mounted-contracts | No | TODO | Structured member/type export |
-| Forensics | export-candidate-mount-rigs | No or working fixture, evidence-dependent | TODO | Native blueprint/view/rig metadata |
-| Forensics | observe-mount-diagnostic-availability | Working fixture | DEFER — EVIDENCED | Valid rider/mount candidate and UI action |
-| Lifecycle | mounted-pair-create-and-clear | Working fixture | DEFER — EVIDENCED | State transitions and zero residue |
-| Lifecycle | mounted-pair-double-mount-rejected | Working fixture | DEFER — EVIDENCED | Exact rejection |
-| Lifecycle | mounted-pair-invalid-pair-rejected | Working fixture | DEFER — EVIDENCED | Validation reasons |
-| Lifecycle | mounted-pair-cleanup-idempotent | Working fixture | DEFER — EVIDENCED | Repeated cleanup, zero residue |
-| Lifecycle | mounted-pair-death-cleanup | Working fixture | DEFER — EVIDENCED | Trigger and restored state |
-| Lifecycle | mounted-pair-combat-start-cleanup | Working fixture | DEFER — EVIDENCED | Cleanup before ordinary combat |
-| Lifecycle | mounted-pair-area-unload-cleanup | Working fixture | DEFER — EVIDENCED | No retained relation/view |
-| Lifecycle | mounted-pair-mod-disable-cleanup | Working fixture | DEFER — EVIDENCED | Zero residue |
-| Movement | mounted-pair-open-ground | Working fixture | DEFER — EVIDENCED | Destination, one mover, residual <= 0.10 |
-| Movement | mounted-pair-stop-start | Working fixture | DEFER — EVIDENCED | No separation/oscillation |
-| Movement | mounted-pair-turns-and-corners | Working fixture | DEFER — EVIDENCED | Reached, drift/stuck/repath counts |
-| Movement | mounted-pair-doorway | Working fixture | DEFER — EVIDENCED | Matched unmounted control |
-| Movement | mounted-pair-selection | Working fixture | DEFER — EVIDENCED | Switch away/back, zero loss |
-| Movement | mounted-pair-party-formation | Working fixture | DEFER — EVIDENCED | No duplicate mover/interference |
-| Movement | mounted-pair-pause-unpause | Working fixture | DEFER — EVIDENCED | Stable state and destination |
-| Movement | mounted-pair-destination-cancel | Working fixture | DEFER — EVIDENCED | Both effective representations stop |
-| Boundary | mounted-pair-turn-based-entry-cleanup | Working fixture | DEFER — EVIDENCED | Clean dismount accepted |
-| Boundary | mounted-pair-realtime-entry-cleanup | Working fixture | DEFER — EVIDENCED | Clean dismount accepted |
-| Boundary | mounted-pair-save-safety | Working fixture | DEFER — EVIDENCED | No relationship serialized |
-| Boundary | mounted-pair-load-safety | Working fixture | DEFER — EVIDENCED | No relationship reconstructed |
-| Boundary | mounted-pair-area-transition-safety | Working fixture | DEFER — EVIDENCED | No half-mounted state |
+| Scaffold | `mod-load-smoke` | No | PASS | Two same-commit fresh-process passes with exact restore |
+| Forensics | `export-mounted-contracts` | No | DEFER — EVIDENCED | Exact offline map plus 29 assembly-backed checks already provide the bounded export; a literal runtime export would duplicate evidence and is not claimed as run |
+| Forensics | `export-candidate-mount-rigs` | Fixture for meaningful live view | DEFER — EVIDENCED | Exact read-only native asset metadata is recorded; no-area prefab instantiation has no qualified lifecycle seam and would not prove animation stability |
+| Forensics | `observe-mount-diagnostic-availability` | Working fixture | DEFER — EVIDENCED | Requires an exact valid rider/Mammoth pair and diagnostic UI observation |
+| Lifecycle | `mounted-pair-create-and-clear` | Working fixture | DEFER — EVIDENCED | State transitions plus zero movement/view/selection residue |
+| Lifecycle | `mounted-pair-double-mount-rejected` | Working fixture | DEFER — EVIDENCED | Exact rejection and unchanged pair state |
+| Lifecycle | `mounted-pair-invalid-pair-rejected` | Working fixture | DEFER — EVIDENCED | Validation reason and no mutation |
+| Lifecycle | `mounted-pair-cleanup-idempotent` | Working fixture | DEFER — EVIDENCED | Repeated cleanup plus zero residue |
+| Lifecycle | `mounted-pair-death-cleanup` | Working fixture | DEFER — EVIDENCED | Trigger, best-effort cleanup, and restored agent/view state |
+| Lifecycle | `mounted-pair-combat-start-cleanup` | Working fixture | DEFER — EVIDENCED | Cleanup completes before ordinary combat behavior |
+| Lifecycle | `mounted-pair-area-unload-cleanup` | Working fixture | DEFER — EVIDENCED | No retained relationship, override, avoidance lease, or view attachment |
+| Lifecycle | `mounted-pair-mod-disable-cleanup` | Working fixture | DEFER — EVIDENCED | Disable returns only after zero residue |
+| Movement | `mounted-pair-open-ground` | Working fixture | DEFER — EVIDENCED | Destination, one mover, no oscillation, residual `<= 0.10` world unit |
+| Movement | `mounted-pair-stop-start` | Working fixture | DEFER — EVIDENCED | Repeated start/stop and stationary drift wait |
+| Movement | `mounted-pair-turns-and-corners` | Working fixture | DEFER — EVIDENCED | Substantial turn, repeated reversals, stuck/oscillation/repath counts |
+| Movement | `mounted-pair-doorway` | Working fixture | DEFER — EVIDENCED | Same Mammoth/current size/path unmounted control; reached/rejection reason, stuck time, oscillations, repaths, maximum residual |
+| Movement | `mounted-pair-selection` | Working fixture | DEFER — EVIDENCED | Switch away/back, exact selection loss count, restored selection |
+| Movement | `mounted-pair-party-formation` | Working fixture | DEFER — EVIDENCED | One mover, no duplicate slot, no non-mounted party interference |
+| Movement | `mounted-pair-pause-unpause` | Working fixture | DEFER — EVIDENCED | Stable state, command, and destination across pause |
+| Movement | `mounted-pair-destination-cancel` | Working fixture | DEFER — EVIDENCED | Pair command and both effective representations stop |
+| Boundary | `mounted-pair-turn-based-entry-cleanup` | Working fixture | DEFER — EVIDENCED | Clean dismount before mode entry |
+| Boundary | `mounted-pair-realtime-entry-cleanup` | Working fixture | DEFER — EVIDENCED | Clean dismount before mode entry |
+| Boundary | `mounted-pair-save-safety` | Baseline + working fixtures | DEFER — EVIDENCED | No relationship serialized; baseline immutable |
+| Boundary | `mounted-pair-load-safety` | Baseline + working fixtures | DEFER — EVIDENCED | No relationship reconstructed and no half-mounted state |
+| Boundary | `mounted-pair-area-transition-safety` | Working fixture | DEFER — EVIDENCED | No half-mounted state after transition |
 
-The runner must bind every result to branch, commit, version, package/DLL hash, MVID, platform hashes, run/evidence ID, and restoration result.
+Required per-sample movement telemetry remains: run/evidence identity and UTC; branch/commit/version/DLL hash/MVID; stable rider/mount IDs; relationship/combat/turn-based state; requested destination and authoritative mover; both stock-agent and avoidance flags; entity/view/anchor position and rotation; position and rotation residuals; selection, active commands, and formation state; cleanup trigger/result/residue; exceptions; Mods restoration; save protection.
+
+Visual evidence must independently cover idle, walk, run when available, turn, stop, selection circle, party movement, doorway/corner, and the instantaneous diagnostic mount/dismount transition. Telemetry cannot substitute for visual classification.
+
+Scenario-row result: 1 PASS / 0 FAIL / 24 DEFER — EVIDENCED. Live process attempts: 2 PASS / 2 FAIL, with both failures preserved as repaired harness regressions. Movement samples: 0. Maximum drift/residual, doorway/control, selection, formation, lifecycle residue, and visual classification are not measured.

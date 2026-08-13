@@ -1,14 +1,15 @@
 # Autonomous resume
 
-Updated: 2026-08-13T17:17:18Z
+Updated: 2026-08-13T19:05:53Z
 
-- Exact branch / HEAD: `codex/mounted-combat-feasibility` / `3801345720241eeab75f2944d91948f182ca26aa`.
-- Working status: the three contract-map files and this checkpoint record are modified; the standalone scaffold (`Info.json`, solution, `src`, `tests`, `version.json`) plus `.gitignore`/path-example changes are not yet committed. `LocalGamePaths.props` is ignored.
+- Exact checkpoint branch / HEAD: `codex/mounted-combat-feasibility` / `e3f71bc902d79c5be3f1a66c6b99396d94d39018`.
+- Working status at checkpoint: final planning/report/blocker/resume/journal updates are in progress; production/runtime code is committed and clean at the checkpoint HEAD.
 - Active version: `0.0.1-feasibility`.
-- Last successful gate: exact Wrath/Kingmaker contract responsibility map PASS; asset/presentation gate and all runtime gates remain IN PROGRESS.
-- Current failure/hypothesis: no active build failure. Release build and 7 deterministic protocol tests pass. Hypothesis: one native Kingmaker Large quadruped has a usable stable transform/offset for a bounded mount-authoritative diagnostic slice.
-- Exact files being changed: `planning/ASSEMBLY-CONTRACT-MATRIX.md`, `planning/MOUNTED-SUBSYSTEM-DEPENDENCY-GRAPH.md`, `planning/KINGMAKER-WRATH-TYPE-MAP.json`, project scaffold under `src` and `tests`, root identity/build files.
-- Exact next command: validate the candidate asset inventory, parse all JSON, then implement and run original source/build/package validators before committing the standalone diagnostic scaffold.
-- Analysis profile: bounded exact-type outputs exist only under ignored lab `analysis-cache`; no bulk decompilation or proprietary asset export was committed.
-- Runtime profile: no KMC harness transaction or game process; save-backed runtime is not authorized because `KMC_AUTOMATION_BASELINE` and `KMC_AUTOMATION_WORKING` have not been proven.
-- Unrestored external state: none.
+- Last successful gate: two consecutive fresh-process `mod-load-smoke` runs from exact commit/package, each with exact platform/no-save assertions and live Mods restoration.
+- Current blocker: zero exact KMC baseline candidates and zero exact KMC working candidates; mission §26.2 prevents any fixture-backed load or movement/lifecycle/visual qualification.
+- Exact files being changed: `AUTONOMOUS-BLOCKERS.md`, `AUTONOMOUS-RESUME.md`, `MOUNTED-COMBAT-JOURNAL.md`; all five `docs/PHASE-*.md` reports; and `planning/ARCHITECTURE-OPTIONS.md`, `ASSEMBLY-CONTRACT-MATRIX.md`, `ASSET-RIG-ANIMATION-INVENTORY.md`, `KINGMAKER-WRATH-TYPE-MAP.json`, `MOUNTED-SUBSYSTEM-DEPENDENCY-GRAPH.md`, `REFERENCE-PROVENANCE.md`, `RISK-AND-KILL-CRITERIA.md`, and `RUNTIME-SCENARIO-MATRIX.md`.
+- Exact next command once project-owned fixtures are made available: `Get-ChildItem -LiteralPath 'C:\Users\Howie\AppData\LocalLow\Owlcat Games\Pathfinder Kingmaker\Saved Games' -File | Where-Object Name -Match '^Manual_[0-9]+_KMC_AUTOMATION_(BASELINE|WORKING)\.zks$' | Select-Object Name,Length,LastWriteTimeUtc`.
+- Analysis profile: exact bounded decompilation remains only under ignored `analysis-cache`; no proprietary source/assets are committed or packaged.
+- Runtime profile: scenario-row result 1 PASS / 0 FAIL / 24 DEFER — EVIDENCED; live process attempts 2 PASS / 2 repaired FAIL; movement samples 0. Evidence IDs and transactions are preserved under ignored lab runtime roots.
+- Package profile: diagnostic ZIP SHA-256 `2c77b677bc4af129ccc9e22d136b6e21754007e8ba8144ee2a2304d77fac10b9`; DLL SHA-256 `fb3651cd1a32148a0d897ce69dc1834ed94a261ccd9ac85639feacbc89bd4237`; MVID `52ed4032-aa4b-4f9d-b2a9-97771fd72c52`; package binds commit `e3f71bc902d79c5be3f1a66c6b99396d94d39018`.
+- External state: all four live transactions are durably restored; live Mods digest `e62320bbe7d4b83edc128a62f9f5852b0669c5549859602c335c649318578d47`; save metadata digest `b7ebd08e982f2af3d529ed775fca5893838d1a47f767f0c5116daf11bb586f14`; no lock/sentinel/game process; unrestored external state: none.

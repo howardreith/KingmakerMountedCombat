@@ -1,27 +1,36 @@
 # Risk and kill criteria
 
-Status: IN PROGRESS
+Status: BLOCKED — CRITICAL
 
-| ID | Risk / kill criterion | Current evidence | Status | Required control |
+No architecture kill criterion has fired. A separate external-state hard stop under mission §26.2 prevents the fixture-backed movement and lifecycle qualification needed to decide Architecture B versus a C/D pivot.
+
+| ID | Risk / kill criterion | Final Phase 1 evidence | Status | Remaining control |
 |---|---|---|---|---|
-| K1 | Two active nav agents collide, oscillate, or diverge | Default-off adapter stops/disables rider `AgentASP`, owns one avoidance lease, and leaves only the mount stock agent authoritative; runtime behavior not run | IN PROGRESS | Movement telemetry and fresh-process fixture scenarios |
-| K2 | No scoped authoritative-mover control point | Exact `AgentOverride`, rider ASP suppression, and private command-recipient rewrite seam established | PASS | Runtime-qualify exact active-pair guards; reject global tick patch |
-| K3 | Pair fails valid turns/doorways passed by unmounted control | Not run | TODO | Matched control and mounted telemetry |
-| K4 | Selection/formation cannot restore | Exact public selection APIs and formation-row behavior mapped; runtime unproven | IN PROGRESS | Snapshot/restore tests and runtime scenarios |
-| K5 | Cleanup leaves movement, avoidance, selection, command, or view residue | Explicit coordinator, rollback, retryable ownership records, and deterministic cleanup tests pass; game residue not measured | IN PROGRESS | Runtime lifecycle suite and post-cleanup telemetry |
-| K6 | Broad global movement patch affects other units | Current default-off prototype patches eight exact entry/control seams with active-pair guards; 28 exact assembly checks pass; no global movement tick is patched | IN PROGRESS | Runtime non-mounted isolation proof |
-| K7 | Save/load/area retains half-mounted state | Relationship is ordinary in-memory state; exact save/load and lifecycle guards force cleanup and block save/load on residue; runtime timing unproven | IN PROGRESS | Runtime boundary scenarios with exact fixture |
-| K8 | Presentation requires Wrath assets | Wrath assets prohibited and unused; native Mammoth metadata supplies a bounded experiment but no acceptable presentation is proven | IN PROGRESS | Kingmaker-native candidate only; runtime/manual visual review |
-| K9 | No native candidate is remotely plausible | Riding horse has strong rig but is not a companion and is rejected; native Mammoth has exact AddPet linkage and a plausible back-anchor hypothesis | IN PROGRESS | Metadata gate passed; runtime visual review remains mandatory; do not weaken companion invariant |
-| K10 | Fresh-process tests remain flaky | Not run | TODO | Two consecutive passes required |
-| K11 | Solution depends on Wrath runtime assembly | Production project references exact Kingmaker/UMM/Harmony12 assemblies only; source validator passes | PASS | Keep package/reference allowlists |
-| K12 | External state cannot be restored exactly | Token/sentinel-owned pre-stage, backup verification, unknown-tree refusal, idempotent restore, stale recovery, and fault tests pass; live WhatIf/runtime unproven | IN PROGRESS | Prove zero-mutation WhatIf, then two live restore passes |
+| K1 | Two active nav agents collide, oscillate, or diverge | Default-off adapter stops/disables rider `AgentASP`, owns one avoidance lease, and leaves mount stock movement authoritative; no mounted runtime sample exists | IN PROGRESS | Fixture-backed movement telemetry |
+| K2 | No scoped authoritative-mover control point | Exact `AgentOverride`, stock rider suppression, `CountingGuard`, and private command-recipient rewrite seams are proven | PASS | Retain exact MVID/token guards |
+| K3 | Pair fails valid turns/doorways passed by unmounted control | No qualifying fixture; no traversal run | DEFER — EVIDENCED | Matched Mammoth control and mounted run |
+| K4 | Selection/formation cannot restore | Public selection seams and pair-scoped routing exist; deterministic command decisions pass; game behavior unmeasured | IN PROGRESS | Fixture selection/formation suite |
+| K5 | Cleanup leaves movement, avoidance, selection, command, or view residue | Coordinator, rollback, retryable ownership, best-effort cleanup, and deterministic cleanup tests pass; game residue unmeasured | IN PROGRESS | Runtime lifecycle and residue telemetry |
+| K6 | Broad global movement patch affects other units | Eight exact guarded entry/control patches, exact MVID gate, 29 assembly-backed checks, no movement-tick replacement; no party-area isolation run | IN PROGRESS | Fixture non-mounted-isolation proof |
+| K7 | Save/load/area retains half-mounted state | Runtime-only domain; save/load prefixes clean and block on residue; no relationship JSON; timing unmeasured | IN PROGRESS | Working/baseline fixture boundary suite |
+| K8 | Presentation requires Wrath assets | No Wrath asset/code dependency or payload exists; whether acceptable presentation needs unavailable assets is not knowable without visual review | IN PROGRESS | Native Mammoth-only visual review |
+| K9 | No native candidate is remotely plausible | Riding horse rejected as non-companion; rank-7+ Mammoth has exact AddPet linkage and bounded `Spine` anchor hypothesis; no rider pose evidence | IN PROGRESS | Fixture-backed anchor/clipping capture |
+| K10 | Fresh-process tests remain nondeterministically unstable | Scaffold smoke passes twice consecutively from exact commit/package; movement suite did not run | IN PROGRESS | Two-pass lifecycle/movement suite |
+| K11 | Solution depends on Wrath runtime assembly | Source/package allowlists and exact references prove Kingmaker/UMM/Harmony12 only | PASS | Preserve validators |
+| K12 | External state cannot be restored exactly | WhatIf purity passes; two repaired failure transactions and two final PASS transactions all restored their exact transaction-baseline Mods digest `e62320...`; no protected-save mutation | PASS | Preserve token/sentinel/quarantine/stable-exit guards |
 
-## Intake risks
+## Proven critical hard stop
 
-- Installed UMM is exact `0.28.2.0`, not the expected `0.32.x`. This is an observed target difference, not a reason to substitute binaries.
-- No unique `KMC_AUTOMATION_BASELINE` or `KMC_AUTOMATION_WORKING` fixture is proven. Save-backed runtime work is unauthorized.
-- The live Mods tree contains valued third-party/user state and must be transactionally restored byte-for-byte.
-- The reference harness is incomplete and unlicensed as a snapshot; KMC will implement original tooling.
+Status: BLOCKED — CRITICAL
 
-No critical hard stop is presently proven. The exact contract plus native-candidate pre-code gate is PASS for a default-off, bounded relationship/movement experiment. Runtime enablement still requires pure state-machine tests, package/harness gates, and exact fixture availability.
+The save root contains 269 entries but zero exact KMC baseline candidates and zero exact KMC working candidates. Existing KBP/KMG fixtures belong to other projects and are prohibited substitutes. No valued save archive was opened. Creating a fresh campaign cannot safely synthesize the required exact Medium rider with an active rank-7+ Mammoth, and copying/renaming/editing a protected or foreign save would violate the mission boundary.
+
+The current harness also intentionally rejects all save-backed requests. Even after project-owned fixtures exist, a KMC-only filename-prefiltered descriptor guard and save-backed scenario host must be implemented and tested before loading anything.
+
+This proves mission §26.2: baseline and working fixture identity cannot be distinguished. It blocks movement, lifecycle, doorway, selection, formation, boundary, drift, and visual evidence, so no truthful Phase 2 architecture recommendation can be issued.
+
+Exact first safe command after project-owned fixtures are made available:
+
+```powershell
+Get-ChildItem -LiteralPath 'C:\Users\Howie\AppData\LocalLow\Owlcat Games\Pathfinder Kingmaker\Saved Games' -File | Where-Object Name -Match '^Manual_[0-9]+_KMC_AUTOMATION_(BASELINE|WORKING)\.zks$' | Select-Object Name,Length,LastWriteTimeUtc
+```

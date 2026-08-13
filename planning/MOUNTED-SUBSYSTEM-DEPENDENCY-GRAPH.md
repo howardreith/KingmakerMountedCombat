@@ -1,8 +1,10 @@
 # Mounted subsystem dependency graph
 
-Status: PASS for exact Phase 1 responsibility/dependency coverage; runtime edges remain unqualified.
+Status: PASS
 
-The solid Wrath nodes below are exact local types. Dashed labels describe responsibilities still being traced. Kingmaker has no direct rider/saddled/controller types; its candidate seams are older movement, command, selection, formation, entity/view, and lifecycle primitives.
+Exact Phase 1 responsibility/dependency coverage is complete; fixture-backed runtime edges remain unqualified.
+
+The solid Wrath nodes below are exact local types. Dashed labels describe runtime edges and adapters that remain unqualified in Kingmaker. Kingmaker has no direct rider/saddled/controller types; its candidate seams are older movement, command, selection, formation, entity/view, and lifecycle primitives.
 
 ```mermaid
 flowchart TD

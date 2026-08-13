@@ -1,6 +1,8 @@
 # Asset, rig, and animation inventory
 
-Status: IN PROGRESS. The metadata candidate and bounded-anchor gate is PASS; runtime stability and visual classification remain unproven.
+Status: IN PROGRESS
+
+The metadata candidate and bounded-anchor subgate is PASS; runtime stability and visual classification remain unproven.
 
 No proprietary object was copied, extracted, or committed. The inventory was produced by read-only, in-memory UnityFS/type-tree parsing of exact local Kingmaker files. Only factual metadata, identifiers, hashes, and original conclusions appear here.
 

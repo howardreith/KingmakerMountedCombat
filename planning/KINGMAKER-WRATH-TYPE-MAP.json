@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "status": "PASS — CONTRACT MAP; RUNTIME UNQUALIFIED",
+  "status": "PASS",
   "authority": {
     "kingmakerAssembly": "Assembly-CSharp, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null",
     "kingmakerMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7",

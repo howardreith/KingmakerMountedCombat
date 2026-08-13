@@ -1,6 +1,8 @@
 # Assembly contract matrix
 
-Status: PASS for the Phase 1 pre-code responsibility map; runtime behavior remains to be qualified.
+Status: PASS
+
+The Phase 1 pre-code responsibility map is complete; fixture-backed runtime behavior remains unqualified.
 
 Authority fingerprints are in `planning/ENVIRONMENT-FINGERPRINT.json`. Bounded decompilation is retained only under the ignored lab `analysis-cache`; this document records original summaries, signatures, and evidence.
 
