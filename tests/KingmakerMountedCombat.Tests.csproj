@@ -35,12 +35,16 @@
   <ItemGroup>
     <Compile Include="Program.cs" />
     <Compile Include="MountedRelationshipTests.cs" />
+    <Compile Include="RuntimeSaveAuthorizationTests.cs" />
     <Compile Include="TestRunner.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\DiagnosticSettings.cs">
       <Link>Shared\DiagnosticSettings.cs</Link>
     </Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\RuntimeProtocol.cs">
       <Link>Shared\RuntimeProtocol.cs</Link>
+    </Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\RuntimeSaveAuthorization.cs">
+      <Link>Shared\RuntimeSaveAuthorization.cs</Link>
     </Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\CleanupTrigger.cs"><Link>Shared\Domain\CleanupTrigger.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\CommandRouting.cs"><Link>Shared\Domain\CommandRouting.cs</Link></Compile>

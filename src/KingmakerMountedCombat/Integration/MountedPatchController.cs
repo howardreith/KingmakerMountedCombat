@@ -21,9 +21,11 @@ namespace KingmakerMountedCombat.Integration
         private readonly HarmonyInstance harmony;
         private bool disposed;
 
-        public MountedPatchController(GameMountedRelationshipService service, IModLogger logger)
+        public MountedPatchController(GameMountedRelationshipService service, RuntimeSaveAuthorization saveAuthorization, IModLogger logger)
         {
             PatchBridge.Service = service ?? throw new ArgumentNullException(nameof(service));
+            PatchBridge.SaveAuthorization = saveAuthorization ?? throw new ArgumentNullException(nameof(saveAuthorization));
+            PatchBridge.Logger = logger ?? throw new ArgumentNullException(nameof(logger));
             harmony = HarmonyInstance.Create(HarmonyId);
             try
             {
@@ -39,8 +41,8 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(SelectionManagerBase), "Stop", 0x060000B9, Type.EmptyTypes, nameof(PatchMethods.StopOrHoldPrefix));
                 PatchExact(typeof(SelectionManagerBase), "Hold", 0x060000BA, Type.EmptyTypes, nameof(PatchMethods.StopOrHoldPrefix));
                 PatchExact(typeof(UnitMoveContiniously), "Init", 0x060026F0, new[] { typeof(UnitEntityData) }, nameof(PatchMethods.ContinuousMovePrefix));
-                PatchExact(typeof(SaveManager), "SaveRoutine", 0x06008029, null, nameof(PatchMethods.SavePrefix));
-                PatchExact(typeof(SaveManager), "LoadRoutine", 0x0600802C, null, nameof(PatchMethods.LoadPrefix));
+                PatchExact(typeof(SaveManager), "SaveRoutine", 0x06008029, new[] { typeof(SaveInfo), typeof(bool) }, nameof(PatchMethods.SavePrefix));
+                PatchExact(typeof(SaveManager), "LoadRoutine", 0x0600802C, new[] { typeof(SaveInfo), typeof(bool) }, nameof(PatchMethods.LoadPrefix));
                 logger.Info("Installed eight exact-token Harmony12 active-pair guards; global movement ticks remain unpatched.");
             }
             catch
@@ -52,6 +54,8 @@ namespace KingmakerMountedCombat.Integration
                 finally
                 {
                     PatchBridge.Service = null;
+                    PatchBridge.SaveAuthorization = null;
+                    PatchBridge.Logger = null;
                 }
                 throw;
             }
@@ -66,6 +70,8 @@ namespace KingmakerMountedCombat.Integration
             }
             harmony.UnpatchAll(HarmonyId);
             PatchBridge.Service = null;
+            PatchBridge.SaveAuthorization = null;
+            PatchBridge.Logger = null;
             disposed = true;
         }
 
@@ -94,6 +100,8 @@ namespace KingmakerMountedCombat.Integration
         private static class PatchBridge
         {
             internal static GameMountedRelationshipService Service;
+            internal static RuntimeSaveAuthorization SaveAuthorization;
+            internal static IModLogger Logger;
         }
 
         private static class PatchMethods
@@ -123,25 +131,73 @@ namespace KingmakerMountedCombat.Integration
                 PatchBridge.Service?.HandleUnexpectedPairCommand(executor);
             }
 
-            internal static bool SavePrefix(ref IEnumerator<object> __result)
+            internal static bool SavePrefix(SaveManager __instance, SaveInfo saveInfo, bool forceAuto, ref IEnumerator<object> __result)
             {
                 RuntimeAutomationHost.ObserveSaveRequest();
-                if (PatchBridge.Service == null || PatchBridge.Service.GuardBoundary(CleanupTrigger.SaveRequested))
+                if (PatchBridge.Service != null && !PatchBridge.Service.GuardBoundary(CleanupTrigger.SaveRequested))
                 {
-                    return true;
+                    PatchBridge.SaveAuthorization?.ReportBoundaryFailure(RuntimeSaveOperation.Write, "relationship service reported residue");
+                    __result = EmptyRoutine();
+                    return false;
                 }
-                __result = EmptyRoutine();
-                return false;
+
+                return AuthorizeSaveBoundary(RuntimeSaveOperation.Write, __instance, saveInfo, ref __result);
             }
 
-            internal static bool LoadPrefix(ref IEnumerator<object> __result)
+            internal static bool LoadPrefix(SaveManager __instance, SaveInfo saveInfo, bool isSmokeTest, ref IEnumerator<object> __result)
             {
                 RuntimeAutomationHost.ObserveLoadRequest();
-                if (PatchBridge.Service == null || PatchBridge.Service.GuardBoundary(CleanupTrigger.LoadRequested))
+                if (PatchBridge.Service != null && !PatchBridge.Service.GuardBoundary(CleanupTrigger.LoadRequested))
+                {
+                    PatchBridge.SaveAuthorization?.ReportBoundaryFailure(RuntimeSaveOperation.Load, "relationship service reported residue");
+                    __result = EmptyRoutine();
+                    return false;
+                }
+
+                return AuthorizeSaveBoundary(RuntimeSaveOperation.Load, __instance, saveInfo, ref __result);
+            }
+
+            private static bool AuthorizeSaveBoundary(RuntimeSaveOperation operation, SaveManager saveManager, SaveInfo saveInfo, ref IEnumerator<object> result)
+            {
+                var authorization = PatchBridge.SaveAuthorization;
+                if (authorization == null || !authorization.IsActive)
                 {
                     return true;
                 }
-                __result = EmptyRoutine();
+
+                RuntimeSaveAuthorizationDecision decision;
+                try
+                {
+                    var target = saveInfo == null
+                        ? null
+                        : new RuntimeSaveTarget
+                        {
+                            InternalName = saveInfo.Name,
+                            FileName = saveInfo.FileName,
+                            FullPath = saveInfo.FolderName,
+                            SaveType = saveInfo.Type.ToString(),
+                            GameId = saveInfo.GameId,
+                            GameName = saveInfo.GameName,
+                            Area = saveInfo.Area == null ? null : saveInfo.Area.AssetGuidThreadSafe
+                        };
+                    var saveRoot = saveManager == null ? null : saveManager.SavePath;
+                    decision = authorization.Authorize(operation, target, saveRoot);
+                }
+                catch (Exception exception)
+                {
+                    authorization.ReportFatalViolation(operation, "SaveInfo projection failed (" + exception.GetType().Name + ").");
+                    PatchBridge.Logger?.Exception("FATAL runtime save authorization projection", exception);
+                    result = EmptyRoutine();
+                    return false;
+                }
+
+                if (decision.Allowed)
+                {
+                    return true;
+                }
+
+                PatchBridge.Logger?.Error("FATAL runtime save authorization violation: " + decision.Reason);
+                result = EmptyRoutine();
                 return false;
             }
 

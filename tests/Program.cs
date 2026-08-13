@@ -25,6 +25,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("result rejects incomplete fixture restoration", ResultRejectsIncompleteFixtureRestoration);
             runner.Run("result rejects inconsistent subscenario totals", ResultRejectsInconsistentSubscenarioTotals);
             MountedRelationshipTests.Register(runner);
+            RuntimeSaveAuthorizationTests.Register(runner);
             return runner.Complete();
         }
 

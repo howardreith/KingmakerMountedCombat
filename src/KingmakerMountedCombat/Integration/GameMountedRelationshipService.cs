@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Kingmaker;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.UI.Selection;
 using Kingmaker.View;
@@ -60,6 +61,71 @@ namespace KingmakerMountedCombat.Integration
             if (mount == null)
             {
                 return Record(new TransitionResult(false, coordinator.State, null, new[] { "Selected rider has no active companion." }, false, false));
+            }
+
+            runtime.Prepare(rider, mount);
+            var result = coordinator.Mount(runtime.CreateCandidate());
+            if (!result.Succeeded)
+            {
+                runtime.ClearPreparedPairWhenUnmounted();
+            }
+            return Record(result);
+        }
+
+        public bool TryResolveAutomationPair(out UnitEntityData rider, out UnitEntityData mount, out string error)
+        {
+            ThrowIfDisposed();
+            rider = null;
+            mount = null;
+            error = null;
+            var party = Game.Instance?.Player?.Party;
+            if (party == null)
+            {
+                error = "Loaded party is unavailable.";
+                return false;
+            }
+
+            var candidates = party.Where(unit =>
+                unit != null && unit.Descriptor?.Pet != null && unit.Descriptor.Pet.Blueprint != null &&
+                string.Equals(unit.Descriptor.Pet.Blueprint.AssetGuid, KingmakerMountedPairRuntime.MammothBlueprintGuid, StringComparison.Ordinal)).ToList();
+            if (candidates.Count != 1)
+            {
+                error = "Expected exactly one party rider with the exact Mammoth active companion; observed " + candidates.Count + ".";
+                return false;
+            }
+
+            rider = candidates[0];
+            mount = rider.Descriptor.Pet;
+            var candidate = KingmakerMountedPairRuntime.CreateCandidate(rider, mount);
+            error = candidate == null ? "Automation pair candidate could not be created." : candidate.Validate();
+            if (error != null)
+            {
+                rider = null;
+                mount = null;
+                return false;
+            }
+
+            return true;
+        }
+
+        public TransitionResult MountAutomationPair()
+        {
+            ThrowIfDisposed();
+            if (!settings.EnableUnsafeMovementExperiment)
+            {
+                return Record(new TransitionResult(false, coordinator.State, null, new[] { "Movement experiment is disabled." }, false, false));
+            }
+            if (coordinator.State != RelationshipState.Unmounted)
+            {
+                return Record(coordinator.Mount(null));
+            }
+
+            UnitEntityData rider;
+            UnitEntityData mount;
+            string error;
+            if (!TryResolveAutomationPair(out rider, out mount, out error))
+            {
+                return Record(new TransitionResult(false, coordinator.State, null, new[] { error }, false, false));
             }
 
             runtime.Prepare(rider, mount);

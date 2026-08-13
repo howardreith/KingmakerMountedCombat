@@ -62,28 +62,38 @@ namespace KingmakerMountedCombat.Integration
                 return null;
             }
 
-            var riderState = rider.Descriptor?.State;
-            var mountState = mount.Descriptor?.State;
-            var exactCompanion = rider.Descriptor?.Pet == mount && mount.Descriptor?.Master.Value == rider && mount.Descriptor.IsPet;
-            var exactMammoth = mount.Blueprint != null && string.Equals(mount.Blueprint.AssetGuid, MammothBlueprintGuid, StringComparison.Ordinal);
-            return new MountedPairCandidate(rider.UniqueId, mount.UniqueId)
+            return CreateCandidate(rider, mount);
+        }
+
+        internal static MountedPairCandidate CreateCandidate(UnitEntityData riderUnit, UnitEntityData mountUnit)
+        {
+            if (riderUnit == null || mountUnit == null)
             {
-                RiderIsDirectlyControllable = rider.IsInGame && rider.IsDirectlyControllable,
-                MountIsDirectlyControllable = mount.IsInGame && mount.IsDirectlyControllable,
+                return null;
+            }
+
+            var riderState = riderUnit.Descriptor?.State;
+            var mountState = mountUnit.Descriptor?.State;
+            var exactCompanion = riderUnit.Descriptor?.Pet == mountUnit && mountUnit.Descriptor?.Master.Value == riderUnit && mountUnit.Descriptor.IsPet;
+            var exactMammoth = mountUnit.Blueprint != null && string.Equals(mountUnit.Blueprint.AssetGuid, MammothBlueprintGuid, StringComparison.Ordinal);
+            return new MountedPairCandidate(riderUnit.UniqueId, mountUnit.UniqueId)
+            {
+                RiderIsDirectlyControllable = riderUnit.IsInGame && riderUnit.IsDirectlyControllable,
+                MountIsDirectlyControllable = mountUnit.IsInGame && mountUnit.IsDirectlyControllable,
                 RiderIsAliveAndConscious = riderState != null && riderState.IsConscious && !riderState.IsFinallyDead,
                 MountIsAliveAndConscious = mountState != null && mountState.IsConscious && !mountState.IsFinallyDead,
                 ExactReciprocalCompanionRelationship = exactCompanion && exactMammoth,
-                RiderIsInCombat = rider.IsInCombat,
-                MountIsInCombat = mount.IsInCombat,
+                RiderIsInCombat = riderUnit.IsInCombat,
+                MountIsInCombat = mountUnit.IsInCombat,
                 PartyIsInCombat = Game.Instance?.Player?.IsInCombat ?? false,
                 RiderSizeOrdinal = riderState == null ? int.MaxValue : (int)riderState.Size,
                 MountSizeOrdinal = mountState == null ? int.MinValue : (int)mountState.Size,
-                RiderViewAndStockAgentAvailable = rider.View != null && rider.View.AgentASP != null,
-                MountViewAndStockAgentAvailable = mount.View != null && mount.View.AgentASP != null,
-                RiderStockAgentEnabled = rider.View != null && rider.View.AgentASP != null && rider.View.AgentASP.enabled,
-                MountStockAgentEnabled = mount.View != null && mount.View.AgentASP != null && mount.View.AgentASP.enabled,
-                RiderAgentOverrideAvailable = rider.View != null && rider.View.AgentOverride == null,
-                MountAgentOverrideAvailable = mount.View != null && mount.View.AgentOverride == null,
+                RiderViewAndStockAgentAvailable = riderUnit.View != null && riderUnit.View.AgentASP != null,
+                MountViewAndStockAgentAvailable = mountUnit.View != null && mountUnit.View.AgentASP != null,
+                RiderStockAgentEnabled = riderUnit.View != null && riderUnit.View.AgentASP != null && riderUnit.View.AgentASP.enabled,
+                MountStockAgentEnabled = mountUnit.View != null && mountUnit.View.AgentASP != null && mountUnit.View.AgentASP.enabled,
+                RiderAgentOverrideAvailable = riderUnit.View != null && riderUnit.View.AgentOverride == null,
+                MountAgentOverrideAvailable = mountUnit.View != null && mountUnit.View.AgentOverride == null,
                 RiderIsExactlyMedium = riderState != null && (int)riderState.Size == 4,
                 DefaultGameMode = Game.Instance != null && Game.Instance.CurrentMode == GameModeType.Default
             };

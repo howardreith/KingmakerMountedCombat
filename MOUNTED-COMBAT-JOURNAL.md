@@ -208,3 +208,17 @@
 - Current uncertainty: the launcher and in-process host do not yet consume v2; proactive SaveRoutine/LoadRoutine denial and exact Working loading remain to implement and test.
 - External state/restoration result: PASS; no external state mutation.
 - Exact next action: commit protocol v2, then wire the in-process exact-Working authorization service, loader, and external Working transaction into the guarded launcher.
+
+## 2026-08-13T20:43:00Z — proactive Working-only engine boundary
+
+- Branch / exact HEAD: `codex/mounted-combat-feasibility` / `3d0c332`; save-policy, loader, and automation-pair resolver changes are intentionally uncommitted at this checkpoint.
+- Active version: `0.0.1-feasibility`.
+- Work completed: added a leased in-process save authorization service and exact-signature Harmony12 prefixes. When inactive they preserve ordinary game behavior beyond the already-required mounted cleanup. When active they permit only the exact request-bound Manual Working SaveInfo under the exact engine SavePath with matching GameId/GameName/Area; Working writes also require explicit scenario authorization. Baseline, foreign, auto, quick, new, path-aliased, or identity-mismatched requests return an empty coroutine and fatal telemetry. Added a direct exact-Working loader that verifies file hash/length/timestamp and SaveInfo identity, uses `LoadZipSave` + `Game.LoadGame`, and verifies live Player/main-character/Area identity without enumerating any save list. Added unique Mammoth-pair inspection/mount entry points and exact assembly-token regression gates for every new loader contract.
+- Commands/tests run: complete `scripts/Test.ps1 -Configuration Release`; `git diff --check`; bounded exact contract verification already recorded in ignored analysis cache.
+- Exact PASS/FAIL counts: source 21/0; build 1/0; pure/component 53/0, including 10 new save-authorization cases; harness 37/0; request/game/final validator mutation suites 24/0, 24/0, and 23/0; assembly-backed 33/0 (Kingmaker 22, Wrath 11).
+- Runtime evidence IDs/paths: none created; the loader is implemented but not invoked because the canonical Working filename is still absent.
+- Hashes/MVIDs: dirty-checkpoint DLL SHA-256 `5bf186f1978f4eb1625dc9e201a79fb536608963657af4f26f82ebd2e1c5be20`, MVID `b414a0d7-77f1-4d25-b715-1466142d3e81`; no package generated.
+- Rejected theories: postflight metadata alone is not a write allowlist; a filename or display name alone is not a trusted SaveInfo identity; UI save-slot enumeration would inspect foreign descriptors and is not used.
+- Current uncertainty: host/launcher activation and transaction composition are not yet wired; the exact live pair has not been observed.
+- External state/restoration result: PASS; no runtime process, Mods transaction, or save access occurred.
+- Exact next action: commit this engine boundary, then integrate protocol-v2 activation plus the Working transaction into the host and launcher before any real load.

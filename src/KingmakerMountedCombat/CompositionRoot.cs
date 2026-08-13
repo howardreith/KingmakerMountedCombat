@@ -11,6 +11,7 @@ namespace KingmakerMountedCombat
     {
         private readonly IModLogger logger;
         private readonly RuntimeAutomationHost runtimeAutomation;
+        private readonly RuntimeSaveAuthorization saveAuthorization;
         private readonly DiagnosticSettings settings;
         private readonly GameMountedRelationshipService relationship;
         private readonly MountedLifecycleSubscriber lifecycle;
@@ -26,7 +27,8 @@ namespace KingmakerMountedCombat
                 settings = new DiagnosticSettings();
                 relationship = new GameMountedRelationshipService(logger, settings);
                 lifecycle = new MountedLifecycleSubscriber(relationship);
-                patches = new MountedPatchController(relationship, logger);
+                saveAuthorization = new RuntimeSaveAuthorization();
+                patches = new MountedPatchController(relationship, saveAuthorization, logger);
                 runtimeAutomation = RuntimeAutomationHost.CreateFromCommandLine(
                     logger,
                     loadedModId,
@@ -54,6 +56,8 @@ namespace KingmakerMountedCombat
         }
 
         public bool IsEnabled { get; private set; }
+
+        internal RuntimeSaveAuthorization SaveAuthorization => saveAuthorization;
 
         public bool SetEnabled(bool enabled)
         {

@@ -80,6 +80,8 @@
     <Compile Include="Diagnostics\MovementTelemetryWriter.cs" />
     <Compile Include="Diagnostics\RuntimeAutomationHost.cs" />
     <Compile Include="Diagnostics\RuntimeProtocol.cs" />
+    <Compile Include="Diagnostics\WorkingFixtureLoader.cs" />
+    <Compile Include="Diagnostics\RuntimeSaveAuthorization.cs" />
     <Compile Include="Domain\CleanupTrigger.cs" />
     <Compile Include="Domain\CommandRouting.cs" />
     <Compile Include="Domain\IMountedPairRuntime.cs" />
