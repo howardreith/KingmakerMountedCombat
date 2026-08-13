@@ -68,7 +68,7 @@ This is exact Wrath behavior. Kingmaker has every primitive except relationship 
 | Movement authority | Mount ordinary agent and movement-controller sync traced | One enabled authoritative mount mover | PASS |
 | Avoidance/collision | Rider guard and other-agent exclusion traced | Reversible rider-only guard | PASS |
 | Entity position | Per-tick mount-to-rider copy traced | Isolated active-pair synchronization | PASS |
-| View attachment | Wrath root/IK lifecycle traced | Native transform anchor or bounded offset | IN PROGRESS |
+| View attachment | Wrath root/IK lifecycle traced | Exact Mammoth `Spine` transform supports a bounded anchor-transform experiment; pose/stability remains runtime-only | IN PROGRESS |
 | Selection | Click/box redirection traced | Snapshot, rider selection, restore | PASS |
 | Formation | Mount exclusion and rider offset mirroring traced | Effective-unit mapping | PASS |
 | Combat/action coupling | Target redirection and paired turn state traced | Phase 1 cleanup boundary only | PASS |

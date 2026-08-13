@@ -32,7 +32,7 @@ Authority fingerprints are in `planning/ENVIRONMENT-FINGERPRINT.json`. Bounded d
 | Mod disable / exception / process exit | Wrath subsystem is engine-owned. | Installed UMM 0.28.2 exposes `OnToggle`, `OnUnload`, and `OnSessionStop`; process exit beyond managed callbacks is not guaranteed. | USABLE CONTROL POINT | Composition root owns coordinator; disable/unload/session-stop call cleanup in `finally`; every mutation has a restoration record. | high |
 | Save/load | Valid Wrath reciprocal parts persist. `UnitEntityData` post-load token `0x0600A107` repairs orphan parts/stale mount ability. Commands and turn state also serialize mounted fields. | `UnitEntityData.Position` and descriptor relationships serialize. `SaveManager.SaveRoutine` `0x06008029` calls state/player `PreSave`; `LoadRoutine` `0x0600802C` disposes current state. | ABSENT — SIMPLIFY | KMC state is ordinary in-memory code only, never an entity part. Harness scenarios force cleanup before save/load; no relationship reconstruction. Position mutation still requires cleanup before save. | high |
 | Targeting/action economy | Wrath retargets ordinary hostile rider targets to mount and treats pair as one turn with coupled commands/resources. | No mounted target/turn concepts. | ABSENT — SIMPLIFY | Explicitly excluded from Phase 1. Combat start cleans up. | high |
-| Animation / native anchor | `MountOffsets`, rider-race/size configs, mounted clip alternatives, and full-body IK are dedicated systems. Missing offsets can leave logical mount without presentation. | No mounted offset/IK/clip types. Native candidate rig metadata is not yet inventoried. | ABSENT — SIMPLIFY | One crude Kingmaker-native anchor/offset experiment only after metadata inventory; no Wrath assets or animation code. | high |
+| Animation / native anchor | `MountOffsets`, rider-race/size configs, mounted clip alternatives, and full-body IK are dedicated systems. Missing offsets can leave logical mount without presentation. | No mounted offset/IK/clip types. Exact native metadata identifies the active-companion Mammoth, idle/walk/run clips, and a bounded `Spine` position-anchor hypothesis; no saddle/rider transform or mounted pose exists. | ABSENT — SIMPLIFY | One crude Kingmaker-native Mammoth position-anchor experiment; no Wrath assets or animation code. Runtime stability and pose quality remain unknown. | high for absence/metadata; low for presentation |
 
 ## Wrath state, entry, exit, and failure summary
 
@@ -59,7 +59,7 @@ The contract portion of the gate is PASS for a bounded, diagnostic movement slic
 - all lifecycle and save boundaries have observable cleanup hooks or defensive invariant checks;
 - no custom relationship serialization is required.
 
-The asset/presentation portion remains IN PROGRESS. Production relationship code may begin only after one native candidate and bounded anchor strategy are identified. Any ordinary-click Harmony hook must validate exact signatures/tokens and be inert when no active pair exists.
+The asset/presentation metadata gate is PASS for one bounded experiment: only the exact active `AnimalCompanionUnitMammoth`, currently larger than a Medium rider (normally rank 7+), with a `Spine` position-anchor hypothesis. Runtime stability and visual classification remain IN PROGRESS. Any ordinary-click Harmony hook must validate exact signatures/tokens and be inert when no active pair exists.
 
 ## Kingmaker movement caveats that constrain implementation
 

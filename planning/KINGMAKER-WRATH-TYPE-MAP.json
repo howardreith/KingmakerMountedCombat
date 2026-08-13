@@ -244,9 +244,9 @@
         "members": ["root transform, animator, animation manager, and recursive transform primitives only"],
         "evidence": ["exact type inventory contains no mounted offsets, mounted IK, or mounted clip selector"]
       },
-      "proposedStrategy": "one native quadruped anchor/offset diagnostic only; no Wrath assets or animation code",
+    "proposedStrategy": "exact active Mammoth companion only; bounded Spine position-anchor diagnostic with runtime-calibrated offset; no Wrath assets or animation code",
       "risks": ["anchor instability", "severe clipping", "presentation may force Architecture C or D"],
-      "confidence": "high for absence; low pending candidate metadata/runtime"
+    "confidence": "high for absence and Mammoth metadata; low pending anchor/runtime presentation"
     },
     {
       "responsibility": "hostile targeting and action economy",
