@@ -244,6 +244,10 @@ function Read-KmcFixtureHeader {
 
     $before = Get-Item -LiteralPath $fullPath
     if ($before.Length -le 0 -or $before.Length -gt 256MB) { throw "KMC $Kind fixture size is outside the guarded range." }
+    # Windows PowerShell 5.1 does not load the assembly that owns
+    # ZipArchive/ZipArchiveMode when only FileSystem is requested. The broad
+    # harness tests previously masked this by exercising Compress-Archive first.
+    Add-Type -AssemblyName System.IO.Compression
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $archive = $null
     $fileStream = $null

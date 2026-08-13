@@ -285,6 +285,27 @@ try {
     New-TestSaveArchive -Path $fixtureWorking -Name 'KMC_AUTOMATION_WORKING'
     [IO.File]::WriteAllText($fixtureForeign, 'not a zip and must never be opened')
 
+    Invoke-HarnessTest 'fixture guard loads ZIP contracts in a cold PowerShell process' {
+        $env:KMC_COLD_COMMON = Join-Path $repoRoot 'scripts\runtime\RuntimeHarness.Common.ps1'
+        $env:KMC_COLD_FIXTURES = $fixtureRoot
+        try {
+            $childCommand = '$ErrorActionPreference=''Stop''; . $env:KMC_COLD_COMMON; $pair=Get-KmcValidatedFixturePair -SaveRoot $env:KMC_COLD_FIXTURES; if ($pair.baseline.name -cne ''KMC_AUTOMATION_BASELINE'' -or $pair.working.name -cne ''KMC_AUTOMATION_WORKING'') { throw ''cold-process fixture identity mismatch'' }'
+            $childOutput = @(& powershell.exe -NoProfile -ExecutionPolicy Bypass -Command $childCommand 2>&1)
+            Assert-Test ($LASTEXITCODE -eq 0) ("cold-process fixture guard failed: " + ($childOutput -join ' '))
+        }
+        finally {
+            Remove-Item Env:KMC_COLD_COMMON -ErrorAction SilentlyContinue
+            Remove-Item Env:KMC_COLD_FIXTURES -ErrorAction SilentlyContinue
+        }
+    }
+
+    Invoke-HarnessTest 'standalone fixture guard rejects a concurrent game process before archive access' {
+        $guardSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'scripts\runtime\Test-KmcFixtureGuard.ps1')
+        $processGuard = $guardSource.IndexOf('Assert-KmcNoGameProcesses', [StringComparison]::Ordinal)
+        $candidateAudit = $guardSource.IndexOf('Get-KmcFixtureCandidateAudit', [StringComparison]::Ordinal)
+        Assert-Test ($processGuard -ge 0 -and $candidateAudit -gt $processGuard) 'fixture guard does not assert zero game processes before candidate/archive inspection'
+    }
+
     Invoke-HarnessTest 'fixture guard opens only exact KMC candidates' {
         $pair = Assert-KmcFixturePair -SaveRoot $fixtureRoot -QualificationPath $fixtureQualification -InitializeQualification
         Assert-Test ([string]$pair.baseline.name -ceq 'KMC_AUTOMATION_BASELINE') 'baseline internal name differs'

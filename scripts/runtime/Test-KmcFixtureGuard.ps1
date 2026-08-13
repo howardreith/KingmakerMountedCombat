@@ -17,6 +17,7 @@ if (-not (Test-Path -LiteralPath $fullStateRoot -PathType Container)) {
 }
 Assert-KmcNotReparsePoint $fullStateRoot 'runtime state root'
 $qualificationPath = Assert-KmcChildPath (Join-Path $fullStateRoot 'fixture-qualification.json') $fullStateRoot 'fixture qualification'
+Assert-KmcNoGameProcesses
 $audit = Get-KmcFixtureCandidateAudit $SaveRoot
 Write-Host "Exact filename audit: baseline=$($audit.baselineCount); working=$($audit.workingCount)."
 if ($audit.rejectedKmcLookingNames.Count -ne 0) {
