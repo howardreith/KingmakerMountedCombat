@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using System.Security.Cryptography;
+using System.Text;
 using KingmakerMountedCombat.Logging;
 using KingmakerMountedCombat.Integration;
 using Newtonsoft.Json;
@@ -17,6 +18,7 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         private const string RequestArgument = "-kmcRuntimeRequest";
         private const string TokenArgument = "-kmcRuntimeToken";
+        private const string RequestHashArgument = "-kmcRuntimeRequestSha256";
         private static readonly JsonSerializerSettings JsonSettings = new JsonSerializerSettings
         {
             ContractResolver = new CamelCasePropertyNamesContractResolver(),
@@ -53,6 +55,10 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool fixtureScenarioCompleted;
         private IReadOnlyList<RuntimeSubscenarioResult> subscenarioResults;
         private RuntimeLifecycleScenarioEngine lifecycleEngine;
+        private RuntimeMovementScenarioEngine movementEngine;
+        private RuntimeBoundaryScenarioEngine boundaryEngine;
+        private readonly List<string> scenarioEngineErrors = new List<string>();
+        private bool completionStarted;
 
         private static RuntimeAutomationHost active;
 
@@ -61,6 +67,8 @@ namespace KingmakerMountedCombat.Diagnostics
         public string Scenario => request.Scenario;
 
         public string RunId => request.RunId;
+
+        internal RuntimeRequest Request => request;
 
         private RuntimeAutomationHost(
             IModLogger logger,
@@ -133,7 +141,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 throw new InvalidOperationException("Runtime request must use the exact runtime-request.json filename.");
             }
 
-            var json = File.ReadAllText(fullRequestPath);
+            var requestBytes = File.ReadAllBytes(fullRequestPath);
+            var commandLineRequestHash = FindSingleArgument(arguments, RequestHashArgument);
+            if (commandLineRequestHash == null || !string.Equals(commandLineRequestHash, ComputeSha256(requestBytes), StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException("Runtime request bytes do not match the command-line SHA-256 binding.");
+            }
+            var json = new UTF8Encoding(false, true).GetString(requestBytes);
             var request = JsonConvert.DeserializeObject<RuntimeRequest>(json, JsonSettings);
             if (request == null)
             {
@@ -190,13 +204,19 @@ namespace KingmakerMountedCombat.Diagnostics
                 var arguments = Environment.GetCommandLineArgs();
                 var requestPath = FindSingleArgument(arguments, RequestArgument);
                 var token = FindSingleArgument(arguments, TokenArgument);
-                if (requestPath == null || token == null)
+                var requestHash = FindSingleArgument(arguments, RequestHashArgument);
+                if (requestPath == null || token == null || requestHash == null)
                 {
                     return false;
                 }
 
                 var fullRequestPath = Path.GetFullPath(requestPath);
-                var request = JsonConvert.DeserializeObject<RuntimeRequest>(File.ReadAllText(fullRequestPath), JsonSettings);
+                var requestBytes = File.ReadAllBytes(fullRequestPath);
+                if (!string.Equals(requestHash, ComputeSha256(requestBytes), StringComparison.Ordinal))
+                {
+                    return false;
+                }
+                var request = JsonConvert.DeserializeObject<RuntimeRequest>(new UTF8Encoding(false, true).GetString(requestBytes), JsonSettings);
                 if (request == null || request.Validate().Count != 0 || !string.Equals(token, request.TransactionToken, StringComparison.Ordinal) ||
                     !string.Equals(Path.GetFullPath(request.EvidenceRoot).TrimEnd(Path.DirectorySeparatorChar), Path.GetDirectoryName(fullRequestPath).TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase))
                 {
@@ -293,9 +313,13 @@ namespace KingmakerMountedCombat.Diagnostics
 
             try
             {
-                if (elapsedSeconds > 120.0d)
+                if (elapsedSeconds > 300.0d)
                 {
-                    Complete("FAIL", new[] { "Runtime automation exceeded the bounded 120-second in-process deadline." });
+                    if (Kingmaker.EntitySystem.Persistence.LoadingProcess.Instance.IsLoadingInProcess)
+                    {
+                        return;
+                    }
+                    Complete("FAIL", new[] { "Runtime automation exceeded the bounded 300-second in-process deadline." });
                     return;
                 }
 
@@ -379,6 +403,51 @@ namespace KingmakerMountedCombat.Diagnostics
                     return;
                 }
                 subscenarioResults = lifecycleEngine.Results;
+                CollectEngineErrors(lifecycleEngine.Errors, "Lifecycle");
+                try { lifecycleEngine.Dispose(); }
+                catch (Exception exception) { scenarioEngineErrors.Add("Lifecycle engine disposal failed: " + exception.GetType().Name + ": " + exception.Message); }
+                CollectEngineErrors(lifecycleEngine.Errors, "Lifecycle");
+                lifecycleEngine = null;
+            }
+            else if (RuntimeMovementScenarioEngine.SupportsScenario(request.Scenario))
+            {
+                if (movementEngine == null)
+                {
+                    movementEngine = new RuntimeMovementScenarioEngine(request, relationship, diagnosticSettings,
+                        logger, request.EvidenceRoot);
+                    movementEngine.Start();
+                }
+                movementEngine.Update();
+                if (!movementEngine.IsCompleted)
+                {
+                    return;
+                }
+                subscenarioResults = movementEngine.Results;
+                CollectEngineErrors(movementEngine.Errors, "Movement");
+                try { movementEngine.Dispose(); }
+                catch (Exception exception) { scenarioEngineErrors.Add("Movement engine disposal failed: " + exception.GetType().Name + ": " + exception.Message); }
+                CollectEngineErrors(movementEngine.Errors, "Movement");
+                movementEngine = null;
+            }
+            else if (RuntimeBoundaryScenarioEngine.SupportsScenario(request.Scenario))
+            {
+                if (boundaryEngine == null)
+                {
+                    boundaryEngine = new RuntimeBoundaryScenarioEngine(request, relationship, lifecycle, saveAuthorization,
+                        fixtureLoader, diagnosticSettings, logger);
+                    boundaryEngine.Start();
+                }
+                boundaryEngine.Update();
+                if (!boundaryEngine.IsCompleted)
+                {
+                    return;
+                }
+                subscenarioResults = boundaryEngine.Results;
+                CollectEngineErrors(boundaryEngine.Errors, "Boundary");
+                try { boundaryEngine.Dispose(); }
+                catch (Exception exception) { scenarioEngineErrors.Add("Boundary engine disposal failed: " + exception.GetType().Name + ": " + exception.Message); }
+                CollectEngineErrors(boundaryEngine.Errors, "Boundary");
+                boundaryEngine = null;
             }
             else if (string.Equals(request.Scenario, "fixture-intake", StringComparison.Ordinal))
             {
@@ -429,7 +498,24 @@ namespace KingmakerMountedCombat.Diagnostics
                     failures.AddRange(result.Errors);
                 }
             }
+            failures.AddRange(scenarioEngineErrors);
             Complete(failures.Count == 0 ? "PASS" : "FAIL", failures);
+        }
+
+        private void CollectEngineErrors(IReadOnlyList<string> source, string prefix)
+        {
+            if (source == null)
+            {
+                return;
+            }
+            foreach (var error in source)
+            {
+                var message = prefix + " engine: " + error;
+                if (!scenarioEngineErrors.Contains(message))
+                {
+                    scenarioEngineErrors.Add(message);
+                }
+            }
         }
 
         private void ActivateSaveBackedBoundary()
@@ -440,10 +526,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 throw new InvalidOperationException("Save-backed automation must start at the main menu with no loaded area.");
             }
 
-            var allowExplicitWrites = string.Equals(request.Scenario, "mounted-pair-save-safety", StringComparison.Ordinal) ||
-                string.Equals(request.Scenario, "boundary-suite", StringComparison.Ordinal) ||
-                string.Equals(request.Scenario, "phase-1-runtime-suite", StringComparison.Ordinal);
-            saveAuthorizationLease = saveAuthorization.Activate(request.Fixture, game.SaveManager.SavePath, allowExplicitWrites);
+            // Phase 1 never invokes Kingmaker's stock SaveRoutine. That routine writes a
+            // newly allocated temporary save leaf before replacing the requested slot,
+            // which is not a crash-safe exact-path write boundary. Loads may update the
+            // already-transactional Working header; every SaveRoutine request stays denied.
+            saveAuthorizationLease = saveAuthorization.Activate(request.Fixture, game.SaveManager.SavePath, false);
             fixtureLoader = new WorkingFixtureLoader(request, logger);
         }
 
@@ -543,6 +630,10 @@ namespace KingmakerMountedCombat.Diagnostics
             disposed = true;
             lifecycleEngine?.Dispose();
             lifecycleEngine = null;
+            movementEngine?.Dispose();
+            movementEngine = null;
+            boundaryEngine?.Dispose();
+            boundaryEngine = null;
             saveAuthorizationLease?.Dispose();
             saveAuthorizationLease = null;
             if (ReferenceEquals(active, this)) { active = null; }
@@ -557,16 +648,61 @@ namespace KingmakerMountedCombat.Diagnostics
 
             if (request.SchemaVersion == RuntimeRequest.SaveBackedSchemaVersion)
             {
-                CompleteSaveBacked(status, errors);
+                CompleteSaveBackedSafely(status, errors);
                 return;
             }
+
+            CompleteNoSaveSafely(status, errors);
+        }
+
+        private void CompleteNoSaveSafely(string status, IReadOnlyList<string> errors)
+        {
+            if (completionStarted)
+            {
+                return;
+            }
+
+            completionStarted = true;
+            try
+            {
+                WriteJsonAtomic(resultPath, CreateNoSaveResult(status, errors));
+                logger.Info("Runtime automation result committed: " + status);
+            }
+            catch (Exception exception)
+            {
+                logger.Exception("No-save runtime completion", exception);
+                if (!File.Exists(resultPath))
+                {
+                    try
+                    {
+                        WriteJsonAtomic(resultPath, CreateNoSaveResult("FAIL", new[]
+                        {
+                            "Runtime completion failed: " + exception.GetType().FullName + ": " + exception.Message
+                        }));
+                    }
+                    catch (Exception writeException)
+                    {
+                        logger.Exception("Emergency no-save runtime result", writeException);
+                    }
+                }
+            }
+            finally
+            {
+                completed = true;
+                try { Application.Quit(); }
+                catch (Exception exception) { logger.Exception("No-save runtime quit", exception); }
+            }
+        }
+
+        private RuntimeGameResult CreateNoSaveResult(string status, IReadOnlyList<string> errors)
+        {
 
             var modAssembly = typeof(Main).Assembly;
             var gameAssembly = typeof(Kingmaker.Game).Assembly;
             var ummAssembly = typeof(UnityModManager).Assembly;
             var ummDirectory = Path.GetDirectoryName(ummAssembly.Location);
             var harmonyPath = Path.Combine(ummDirectory, "0Harmony12.dll");
-            var result = new RuntimeGameResult
+            return new RuntimeGameResult
             {
                 SchemaVersion = 1,
                 RunId = request.RunId,
@@ -599,20 +735,37 @@ namespace KingmakerMountedCombat.Diagnostics
                 ElapsedSeconds = elapsedSeconds,
                 Errors = errors
             };
+        }
 
-            WriteJsonAtomic(resultPath, result);
-            completed = true;
+        private void CompleteSaveBackedSafely(string status, IReadOnlyList<string> errors)
+        {
+            if (completionStarted)
+            {
+                return;
+            }
+
+            completionStarted = true;
             try
             {
-                logger.Info("Runtime automation result committed: " + status);
+                CompleteSaveBackedCore(status, errors);
+            }
+            catch (Exception exception)
+            {
+                logger.Exception("Save-backed runtime completion", exception);
+                if (!File.Exists(resultPath))
+                {
+                    TryWriteEmergencySaveBackedFailure(exception);
+                }
             }
             finally
             {
-                Application.Quit();
+                completed = true;
+                try { Application.Quit(); }
+                catch (Exception exception) { logger.Exception("Save-backed runtime quit", exception); }
             }
         }
 
-        private void CompleteSaveBacked(string status, IReadOnlyList<string> errors)
+        private void CompleteSaveBackedCore(string status, IReadOnlyList<string> errors)
         {
             var finalErrors = errors == null ? new List<string>() : new List<string>(errors);
             diagnosticSettings.EnableUnsafeMovementExperiment = false;
@@ -735,9 +888,43 @@ namespace KingmakerMountedCombat.Diagnostics
             };
 
             WriteJsonAtomic(resultPath, resultPayload);
-            completed = true;
-            try { logger.Info("Runtime automation result committed: " + status); }
-            finally { Application.Quit(); }
+            logger.Info("Runtime automation result committed: " + status);
+        }
+
+        private void TryWriteEmergencySaveBackedFailure(Exception exception)
+        {
+            try
+            {
+                var modAssembly = typeof(Main).Assembly;
+                var gameAssembly = typeof(Kingmaker.Game).Assembly;
+                var ummAssembly = typeof(UnityModManager).Assembly;
+                var harmonyPath = Path.Combine(Path.GetDirectoryName(ummAssembly.Location), "0Harmony12.dll");
+                var now = DateTimeOffset.UtcNow;
+                var failureText = "Runtime completion failed: " + exception.GetType().FullName + ": " + exception.Message;
+                var failureName = RuntimeRequest.IsMissionScenario(request.Scenario)
+                    ? request.Scenario
+                    : "observe-mount-diagnostic-availability";
+                var emergency = CreateBootstrapFailureV2(request, loadedModId, modAssembly, gameAssembly, ummAssembly,
+                    harmonyPath, now, failureName, failureText);
+                emergency.StartedAtUtc = startedAt.ToString("o");
+                emergency.FrameCount = frameCount;
+                emergency.ElapsedSeconds = elapsedSeconds;
+                emergency.SaveRequestCount = saveRequestCount;
+                emergency.LoadRequestCount = loadRequestCount;
+                emergency.FixtureIdentityVerified = fixtureIdentityVerified;
+                emergency.BaselineLoadRequestCount = saveAuthorization.BaselineLoadRequestCount;
+                emergency.WorkingLoadRequestCount = saveAuthorization.AuthorizedLoadCount;
+                emergency.WorkingSaveRequestCount = saveAuthorization.AuthorizedWriteCount;
+                emergency.UnauthorizedLoadRequestCount = saveAuthorization.UnauthorizedLoadCount;
+                emergency.UnauthorizedSaveRequestCount = saveAuthorization.UnauthorizedWriteCount;
+                try { emergency.RelationshipState = relationshipStateProvider() ?? "Unavailable"; } catch { emergency.RelationshipState = "Unavailable"; }
+                try { emergency.MovementExperimentEnabled = movementExperimentProvider(); } catch { emergency.MovementExperimentEnabled = false; }
+                WriteJsonAtomic(resultPath, emergency);
+            }
+            catch (Exception writeException)
+            {
+                logger.Exception("Emergency save-backed runtime result", writeException);
+            }
         }
 
         private static IReadOnlyList<RuntimeSubscenarioResult> ReplaceFirstWithFailure(
@@ -868,6 +1055,14 @@ namespace KingmakerMountedCombat.Diagnostics
             using (var stream = File.OpenRead(path))
             {
                 return BitConverter.ToString(algorithm.ComputeHash(stream)).Replace("-", string.Empty).ToLowerInvariant();
+            }
+        }
+
+        private static string ComputeSha256(byte[] bytes)
+        {
+            using (var algorithm = SHA256.Create())
+            {
+                return BitConverter.ToString(algorithm.ComputeHash(bytes)).Replace("-", string.Empty).ToLowerInvariant();
             }
         }
 

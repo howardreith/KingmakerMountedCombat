@@ -95,7 +95,7 @@ namespace KingmakerMountedCombat.Integration
                 RiderAgentOverrideAvailable = riderUnit.View != null && riderUnit.View.AgentOverride == null,
                 MountAgentOverrideAvailable = mountUnit.View != null && mountUnit.View.AgentOverride == null,
                 RiderIsExactlyMedium = riderState != null && (int)riderState.Size == 4,
-                DefaultGameMode = Game.Instance != null && IsSafeMovementMode(Game.Instance.CurrentMode)
+                SafeMovementMode = Game.Instance != null && IsSafeMovementMode(Game.Instance.CurrentMode)
             };
         }
 
@@ -218,14 +218,15 @@ namespace KingmakerMountedCombat.Integration
             TryReleasePreparedReferences();
         }
 
-        public void RestoreMovementAuthority(MountedPair pair)
+        public void RestoreMovementAuthority(MountedPair pair, CleanupTrigger trigger)
         {
             Exception first = null;
             try
             {
                 mount?.Commands?.InterruptMove();
-                mountView?.StopMoving();
                 rider?.Commands?.InterruptMove();
+                if (mountView != null) { mountView.StopMoving(); }
+                if (riderView != null) { riderView.StopMoving(); }
             }
             catch (Exception exception)
             {
@@ -300,7 +301,7 @@ namespace KingmakerMountedCombat.Integration
 
             try
             {
-                if (rider != null && mount != null && riderView != null && mountView != null)
+                if (ShouldPlaceRiderAfterCleanup(trigger) && rider != null && mount != null && riderView != null && mountView != null)
                 {
                     var radius = Math.Max(rider.Corpulence, mount.Corpulence) + 0.25f;
                     if (global::AstarPath.active != null)
@@ -314,7 +315,7 @@ namespace KingmakerMountedCombat.Integration
                         rider.Translocate(mount.Position + side, mount.Orientation);
                     }
                 }
-                else if (rider != null && riderView != null)
+                else if (ShouldPlaceRiderAfterCleanup(trigger) && rider != null && riderView != null)
                 {
                     rider.Translocate(preMountRiderPosition, preMountRiderOrientation);
                 }
@@ -399,6 +400,14 @@ namespace KingmakerMountedCombat.Integration
         private static bool IsSafeMovementMode(GameModeType mode)
         {
             return mode == GameModeType.Default || mode == GameModeType.Pause;
+        }
+
+        private static bool ShouldPlaceRiderAfterCleanup(CleanupTrigger trigger)
+        {
+            return trigger != CleanupTrigger.AreaUnloading &&
+                trigger != CleanupTrigger.ViewDetached &&
+                trigger != CleanupTrigger.LoadRequested &&
+                trigger != CleanupTrigger.ProcessTeardown;
         }
     }
 }

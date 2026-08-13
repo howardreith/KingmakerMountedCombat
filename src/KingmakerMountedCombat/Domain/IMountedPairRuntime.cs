@@ -8,6 +8,6 @@ namespace KingmakerMountedCombat.Domain
 
         void RestorePresentation(MountedPair pair);
 
-        void RestoreMovementAuthority(MountedPair pair);
+        void RestoreMovementAuthority(MountedPair pair, CleanupTrigger trigger);
     }
 }

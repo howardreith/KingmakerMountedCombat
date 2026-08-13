@@ -563,6 +563,14 @@ try {
         Assert-Test ([string]$payload.writeAuthorization.mode -ceq 'working-only' -and [string]$payload.writeAuthorization.allowedInternalName -ceq 'KMC_AUTOMATION_WORKING' -and $payload.writeAuthorization.baselineImmutable) 'fixture payload write authorization differs'
     }
 
+    Invoke-HarnessTest 'runtime request bytes are bound to the launched process' {
+        $launcherSource = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'runtime\Invoke-KingmakerRuntimeScenario.ps1')
+        $hostSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeAutomationHost.cs')
+        Assert-Test ($launcherSource.Contains("'-kmcRuntimeRequestSha256',`$requestHash")) 'launcher does not pass the exact request-file SHA-256'
+        Assert-Test ($hostSource.Contains('RequestHashArgument = "-kmcRuntimeRequestSha256"')) 'in-process host does not require the request SHA-256 argument'
+        Assert-Test ($hostSource.Contains('ComputeSha256(requestBytes)')) 'in-process host does not hash the exact bytes it deserializes'
+    }
+
     Invoke-HarnessTest 'schema-v2 final result recomputes subscenario totals from validated game evidence' {
         $fixture = [ordered]@{
             baseline=[ordered]@{internalName='KMC_AUTOMATION_BASELINE';fileName='Manual_1_KMC_AUTOMATION_BASELINE.zks';sha256=('11'*32);length=1;lastWriteTimeUtcTicks=1;gameId='11111111-2222-3333-4444-555555555555';gameName='KMC Test Campaign';area='0123456789abcdef0123456789abcdef'}

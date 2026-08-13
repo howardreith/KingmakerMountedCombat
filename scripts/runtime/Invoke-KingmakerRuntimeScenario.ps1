@@ -12,7 +12,7 @@ param(
         'movement-suite','boundary-suite','phase-1-runtime-suite'
     )][string]$Scenario='mod-load-smoke',
     [ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$RunId,
-    [ValidateRange(180,900)][int]$TimeoutSeconds=180,
+    [ValidateRange(360,900)][int]$TimeoutSeconds=360,
     [switch]$SaveAccessAllowed,
     [string]$PackagePath,
     [string]$SteamPath='C:\Program Files (x86)\Steam\steam.exe'
@@ -161,7 +161,8 @@ try{
     }
     Write-KmcJsonAtomic $orchestrationPath $orchestration
     Assert-KmcNoGameProcesses
-    $arguments=@('-applaunch','640820','-kmcRuntimeRequest',('"'+$requestPath+'"'),'-kmcRuntimeToken',[string]$lock.Token)
+    $requestHash=Get-KmcSha256 $requestPath
+    $arguments=@('-applaunch','640820','-kmcRuntimeRequest',('"'+$requestPath+'"'),'-kmcRuntimeToken',[string]$lock.Token,'-kmcRuntimeRequestSha256',$requestHash)
     [void](Start-Process -FilePath $SteamPath -ArgumentList $arguments -PassThru)
     $launchIssued=$true
     $launchDeadline=[DateTimeOffset]::UtcNow.AddSeconds(60)

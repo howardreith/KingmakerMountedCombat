@@ -129,7 +129,7 @@ namespace KingmakerMountedCombat.Domain
             {
                 try
                 {
-                    runtime.RestoreMovementAuthority(pair);
+                    runtime.RestoreMovementAuthority(pair, trigger);
                     movementAuthorityAcquired = false;
                 }
                 catch (Exception exception)

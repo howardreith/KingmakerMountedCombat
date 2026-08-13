@@ -37,6 +37,8 @@ namespace KingmakerMountedCombat.Integration
 
         public string LastResult { get; private set; } = "No diagnostic action has run.";
 
+        public TransitionResult LastTransition { get; private set; }
+
         public TransitionResult MountSelectedRider()
         {
             ThrowIfDisposed();
@@ -304,6 +306,7 @@ namespace KingmakerMountedCombat.Integration
 
         private TransitionResult Record(TransitionResult result)
         {
+            LastTransition = result;
             LastResult = result.Succeeded
                 ? "PASS: state=" + result.State + (result.Trigger.HasValue ? ", trigger=" + result.Trigger.Value : string.Empty)
                 : "FAIL: state=" + result.State + ", errors=" + string.Join(" | ", result.Errors.ToArray());

@@ -40,7 +40,7 @@ namespace KingmakerMountedCombat
                     settings);
                 if (runtimeAutomation != null)
                 {
-                    movementTelemetry = new MovementTelemetryWriter(runtimeAutomation.EvidenceRoot, runtimeAutomation.Scenario, runtimeAutomation.RunId, relationship.Runtime, () => relationship.State.ToString(), settings.TelemetryIntervalSeconds);
+                    movementTelemetry = new MovementTelemetryWriter(runtimeAutomation.Request, relationship.Runtime, () => relationship.State.ToString(), settings.TelemetryIntervalSeconds);
                 }
             }
             catch (Exception constructionException)

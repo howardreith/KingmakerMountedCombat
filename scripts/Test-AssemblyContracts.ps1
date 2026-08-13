@@ -38,7 +38,15 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.EntitySystem.Persistence.SaveManager',0x0600802C,'LoadRoutine'),@('Kingmaker.EntitySystem.Persistence.SaveManager',0x06008030,'AddCallbackAfterLoad'),
         @('Kingmaker.Game',0x06000CE0,'LoadGame'),@('Kingmaker.Blueprints.BlueprintScriptableObject',0x06009637,'get_AssetGuidThreadSafe'),
         @('Kingmaker.Controllers.Units.UnitMoveController',0x06009183,'Tick'),@('Kingmaker.View.UnitEntityView',0x0600184D,'MoveTo'),
-        @('Kingmaker.View.UnitMovementAgent',0x060018C2,'Stop'),@('Kingmaker.EntitySystem.Entities.UnitEntityData',0x06008345,'Translocate'))
+        @('Kingmaker.View.UnitMovementAgent',0x060018C2,'Stop'),@('Kingmaker.EntitySystem.Entities.UnitEntityData',0x06008345,'Translocate'),
+        @('Kingmaker.Controllers.Clicks.Handlers.ClickGroundHandler',0x060093DA,'MoveSelectedUnitsToPoint'),
+        @('Kingmaker.UnitLogic.Commands.UnitCommands',0x0600269F,'get_Move'),@('Kingmaker.UnitLogic.Commands.UnitMoveTo',0x060026F4,'get_Target'),
+        @('Kingmaker.View.UnitMovementAgent',0x060018A8,'FindPath'),@('Kingmaker.UI.Selection.SelectionManager',0x060034E2,'get_Instance'),
+        @('Kingmaker.UI.Selection.SelectionManager',0x060034E4,'get_SelectedUnits'),@('Kingmaker.Game',0x06000C9A,'get_IsPaused'),
+        @('Kingmaker.Game',0x06000C9B,'set_IsPaused'),@('Kingmaker.Game',0x06000CD6,'ReloadArea'),
+        @('Kingmaker.Game',0x06000CE4,'SaveGame'),@('Kingmaker.Game',0x06000CE9,'GetCamera'),
+        @('Kingmaker.EntitySystem.Persistence.LoadingProcess',0x06007FBC,'get_IsLoadingInProcess'),
+        @('Kingmaker.Utility.Screenshot',0x06001D41,'CapturePNG'),@('Kingmaker.View.MapObjects.StandardDoor',0x06001AA0,'get_IsOpen'))
     foreach($check in $checks){$member=@(Find-Token $check[0] $check[1]);$matches=$member.Count -eq 1;if($matches){$matches=[string]$member[0].Name -ceq [string]$check[2]};Assert-Contract $matches "token $($check[1].ToString('X8')) $($check[0]).$($check[2])"}
 }else{
     Assert-Contract ((Get-FileHash -Algorithm SHA256 -LiteralPath $assemblyPath).Hash.ToLowerInvariant()-ceq'2cb7160b7154d4ffacc77b9c51b1eb26199e1294300f04fdfc073367b2ef8953') 'Assembly-CSharp SHA-256'

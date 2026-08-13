@@ -14,7 +14,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("relationship invalid size relationship", InvalidSizeRelationship);
             runner.Run("relationship invalid non-companion pair", InvalidNonCompanionPair);
             runner.Run("relationship invalid non-Medium rider", InvalidNonMediumRider);
-            runner.Run("relationship invalid non-default game mode", InvalidNonDefaultMode);
+            runner.Run("relationship invalid unsafe game mode", InvalidNonDefaultMode);
             runner.Run("relationship invalid mount override", InvalidMountOverride);
             runner.Run("relationship double mount rejection", DoubleMountRejection);
             runner.Run("relationship dismount idempotence", DismountIdempotence);
@@ -95,7 +95,7 @@ namespace KingmakerMountedCombat.Tests
         private static void InvalidNonDefaultMode()
         {
             var candidate = ValidCandidate();
-            candidate.DefaultGameMode = false;
+            candidate.SafeMovementMode = false;
             AssertRejected(candidate);
         }
 
@@ -160,6 +160,7 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(result.Succeeded, trigger + " cleanup failed.");
             TestRunner.Equal(RelationshipState.Unmounted, coordinator.State, trigger + " did not unmount.");
             TestRunner.Equal(trigger, result.Trigger.Value, "Cleanup trigger mismatch.");
+            TestRunner.Equal(trigger, runtime.LastRestoreTrigger.Value, "Runtime cleanup did not receive the exact trigger.");
             TestRunner.True(!result.MovementAuthorityResidual && !result.PresentationResidual, "Cleanup left residue.");
         }
 
@@ -349,7 +350,7 @@ namespace KingmakerMountedCombat.Tests
                 RiderAgentOverrideAvailable = true,
                 MountAgentOverrideAvailable = true,
                 RiderIsExactlyMedium = true,
-                DefaultGameMode = true
+                SafeMovementMode = true
             };
         }
 
@@ -374,7 +375,7 @@ namespace KingmakerMountedCombat.Tests
                 RiderAgentOverrideAvailable = source.RiderAgentOverrideAvailable,
                 MountAgentOverrideAvailable = source.MountAgentOverrideAvailable,
                 RiderIsExactlyMedium = source.RiderIsExactlyMedium,
-                DefaultGameMode = source.DefaultGameMode
+                SafeMovementMode = source.SafeMovementMode
             };
         }
 
@@ -386,6 +387,7 @@ namespace KingmakerMountedCombat.Tests
             public int RestoreAuthorityCalls { get; private set; }
             public bool ThrowOnAttach { get; set; }
             public bool ThrowOnRestorePresentation { get; set; }
+            public CleanupTrigger? LastRestoreTrigger { get; private set; }
             public Action OnAcquire { get; set; }
 
             public void AcquireMovementAuthority(MountedPair pair)
@@ -406,9 +408,10 @@ namespace KingmakerMountedCombat.Tests
                 if (ThrowOnRestorePresentation) { throw new InvalidOperationException("restore presentation failed"); }
             }
 
-            public void RestoreMovementAuthority(MountedPair pair)
+            public void RestoreMovementAuthority(MountedPair pair, CleanupTrigger trigger)
             {
                 RestoreAuthorityCalls++;
+                LastRestoreTrigger = trigger;
             }
         }
     }

@@ -48,7 +48,7 @@ namespace KingmakerMountedCombat.Domain
 
         public bool RiderIsExactlyMedium { get; set; }
 
-        public bool DefaultGameMode { get; set; }
+        public bool SafeMovementMode { get; set; }
 
         public string Validate()
         {
@@ -112,9 +112,9 @@ namespace KingmakerMountedCombat.Domain
                 return "Phase 1 accepts exactly one Medium rider only.";
             }
 
-            if (!DefaultGameMode)
+            if (!SafeMovementMode)
             {
-                return "Phase 1 mounting is available only in the ordinary Default game mode.";
+                return "Phase 1 mounting is available only in Default or Pause game mode.";
             }
 
             return null;

@@ -310,7 +310,7 @@ namespace KingmakerMountedCombat.Diagnostics
             else if (string.Equals(currentRow, "mounted-pair-death-cleanup", StringComparison.Ordinal))
             {
                 lifecycle.HandleUnitDeath(snapshot.Rider);
-                assertions.Check(relationship.LastResult.IndexOf("trigger=Death", StringComparison.Ordinal) >= 0,
+                assertions.Check(HasExactSuccessfulTrigger(CleanupTrigger.Death),
                     "Death lifecycle handler requested the Death cleanup trigger.",
                     "Death lifecycle handler did not report the Death cleanup trigger: " + relationship.LastResult);
                 AwaitCleanupFrame();
@@ -318,7 +318,7 @@ namespace KingmakerMountedCombat.Diagnostics
             else if (string.Equals(currentRow, "mounted-pair-combat-start-cleanup", StringComparison.Ordinal))
             {
                 lifecycle.HandlePartyCombatStateChanged(true);
-                assertions.Check(relationship.LastResult.IndexOf("trigger=CombatStarted", StringComparison.Ordinal) >= 0,
+                assertions.Check(HasExactSuccessfulTrigger(CleanupTrigger.CombatStarted),
                     "Combat lifecycle handler requested the CombatStarted cleanup trigger.",
                     "Combat lifecycle handler did not report the CombatStarted cleanup trigger: " + relationship.LastResult);
                 AwaitCleanupFrame();
@@ -326,7 +326,7 @@ namespace KingmakerMountedCombat.Diagnostics
             else if (string.Equals(currentRow, "mounted-pair-area-unload-cleanup", StringComparison.Ordinal))
             {
                 lifecycle.OnAreaBeginUnloading();
-                assertions.Check(relationship.LastResult.IndexOf("trigger=AreaUnloading", StringComparison.Ordinal) >= 0,
+                assertions.Check(HasExactSuccessfulTrigger(CleanupTrigger.AreaUnloading),
                     "Area lifecycle handler requested the AreaUnloading cleanup trigger.",
                     "Area lifecycle handler did not report the AreaUnloading cleanup trigger: " + relationship.LastResult);
                 AwaitCleanupFrame();
@@ -440,6 +440,9 @@ namespace KingmakerMountedCombat.Diagnostics
             assertions.Check(ReferenceEquals(snapshot.RiderView.AgentOverride, snapshot.RiderOverride),
                 "Rider AgentOverride was restored to its exact prior reference.",
                 "Rider AgentOverride retained or replaced an override after cleanup.");
+            assertions.Check(snapshot.RiderView.GetComponents<RiderMovementAgent>().Length == snapshot.RiderOverrideComponentCount,
+                "Owned RiderMovementAgent component count returned to its exact prior value.",
+                "A RiderMovementAgent component remained or disappeared after cleanup.");
             assertions.Check(snapshot.MountView.AgentASP == snapshot.MountStockAgent,
                 "Exact mount stock-agent reference was preserved.",
                 "Mount stock-agent reference changed after cleanup.");
@@ -604,6 +607,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 : string.Join(" | ", result.Errors);
         }
 
+        private bool HasExactSuccessfulTrigger(CleanupTrigger trigger)
+        {
+            var result = relationship.LastTransition;
+            return result != null && result.Succeeded && result.Trigger == trigger &&
+                !result.MovementAuthorityResidual && !result.PresentationResidual;
+        }
+
         private void ThrowIfDisposed()
         {
             if (disposed)
@@ -646,6 +656,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
             public object MountOverride { get; private set; }
 
+            public int RiderOverrideComponentCount { get; private set; }
+
             public static PairSnapshot TryCreate(UnitEntityData rider, UnitEntityData mount, out string error)
             {
                 error = null;
@@ -669,7 +681,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     RiderAvoidanceWasDisabled = rider.View.AgentASP.AvoidanceDisabled,
                     MountAvoidanceWasDisabled = mount.View.AgentASP.AvoidanceDisabled,
                     RiderOverride = rider.View.AgentOverride,
-                    MountOverride = mount.View.AgentOverride
+                    MountOverride = mount.View.AgentOverride,
+                    RiderOverrideComponentCount = rider.View.GetComponents<RiderMovementAgent>().Length
                 };
             }
         }
