@@ -40,8 +40,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "fixture-intake",
             "lifecycle-suite",
             "movement-suite",
-            "boundary-suite",
-            "phase-1-runtime-suite"
+            "boundary-suite"
         };
 
         public int SchemaVersion { get; set; }
@@ -505,6 +504,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
         public int AssertionFailCount { get; set; }
 
+        public string EvidenceManifestSha256 { get; set; }
+
         public IReadOnlyList<RuntimeSubscenarioResult> SubscenarioResults { get; set; }
 
         public IReadOnlyList<string> Validate()
@@ -592,6 +593,8 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 errors.Add("restoredSaveInventoryDigest must be an exact SHA-256.");
             }
+
+            RuntimeRequest.RequireSha256(errors, EvidenceManifestSha256, "evidenceManifestSha256");
 
             ValidateSubscenarioTotals(errors, Scenario, SubscenarioResults, SubscenarioTotal, SubscenarioPassCount,
                 SubscenarioFailCount, AssertionPassCount, AssertionFailCount);

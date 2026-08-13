@@ -121,7 +121,7 @@
         "mounted-pair-party-formation", "mounted-pair-pause-unpause", "mounted-pair-destination-cancel",
         "mounted-pair-turn-based-entry-cleanup", "mounted-pair-realtime-entry-cleanup", "mounted-pair-save-safety",
         "mounted-pair-load-safety", "mounted-pair-area-transition-safety", "fixture-intake", "lifecycle-suite",
-        "movement-suite", "boundary-suite", "phase-1-runtime-suite"
+        "movement-suite", "boundary-suite"
       ]
     },
     "runId": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,120}$" },

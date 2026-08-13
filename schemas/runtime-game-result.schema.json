@@ -64,7 +64,7 @@
         "baselineLoadRequestCount", "workingLoadRequestCount", "workingSaveRequestCount",
         "unauthorizedLoadRequestCount", "unauthorizedSaveRequestCount", "subscenarioTotal",
         "subscenarioPassCount", "subscenarioFailCount", "assertionPassCount", "assertionFailCount",
-        "subscenarioResults"
+        "evidenceManifestSha256", "subscenarioResults"
       ],
       "properties": {
         "schemaVersion": { "const": 2 },
@@ -109,6 +109,7 @@
         "subscenarioFailCount": { "type": "integer", "minimum": 0 },
         "assertionPassCount": { "type": "integer", "minimum": 0 },
         "assertionFailCount": { "type": "integer", "minimum": 0 },
+        "evidenceManifestSha256": { "$ref": "#/definitions/sha256" },
         "subscenarioResults": {
           "type": "array",
           "minItems": 1,
@@ -204,7 +205,7 @@
         "mounted-pair-party-formation", "mounted-pair-pause-unpause", "mounted-pair-destination-cancel",
         "mounted-pair-turn-based-entry-cleanup", "mounted-pair-realtime-entry-cleanup", "mounted-pair-save-safety",
         "mounted-pair-load-safety", "mounted-pair-area-transition-safety", "fixture-intake", "lifecycle-suite",
-        "movement-suite", "boundary-suite", "phase-1-runtime-suite"
+        "movement-suite", "boundary-suite"
       ]
     },
     "status": { "enum": ["PASS", "FAIL"] },

@@ -243,7 +243,11 @@ namespace KingmakerMountedCombat.Integration
                 else if (overrideInstalled && riderView != null && riderView.AgentOverride == riderOverride)
                 {
                     riderView.AgentOverride = null;
-                    if (riderView.AgentOverride == riderOverride)
+                    // UnitEntityView's setter destroys the prior component. Unity's
+                    // destroyed-object equality makes that retained reference compare
+                    // equal to null, so the postcondition must inspect the property,
+                    // not compare it with the now-destroyed owned reference.
+                    if (riderView.AgentOverride != null)
                     {
                         throw new InvalidOperationException("Owned rider AgentOverride remained installed after clear.");
                     }

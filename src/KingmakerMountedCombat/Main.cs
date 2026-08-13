@@ -89,10 +89,7 @@ namespace KingmakerMountedCombat
                 modEntry.Logger.LogException("OnUpdate", exception);
                 try
                 {
-                    if (root != null && !root.SetEnabled(false))
-                    {
-                        modEntry.Logger.Error("OnUpdate cleanup retained mounted residue; safety hooks remain installed.");
-                    }
+                    root?.HandleUpdateFailure(exception);
                 }
                 catch (Exception cleanupException)
                 {

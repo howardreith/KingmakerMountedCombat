@@ -35,6 +35,94 @@ function Assert-NoDuplicateJsonObjectProperties {
     finally { if ($null -ne $reader) { $reader.Dispose() } }
 }
 
+function Test-ExactJsonInteger {
+    param($Value)
+    return $Value -is [sbyte] -or $Value -is [byte] -or
+        $Value -is [int16] -or $Value -is [uint16] -or
+        $Value -is [int32] -or $Value -is [uint32] -or
+        $Value -is [int64] -or $Value -is [uint64]
+}
+
+function Assert-RuntimeArtifactManifest {
+    param(
+        [Parameter(Mandatory = $true)]$Request,
+        [Parameter(Mandatory = $true)]$ExpectedSha256
+    )
+
+    if ($ExpectedSha256 -isnot [string] -or $ExpectedSha256 -cnotmatch '^[0-9a-f]{64}$') {
+        throw 'Runtime game-result evidenceManifestSha256 is not an exact lowercase SHA-256.'
+    }
+
+    if ($Request.evidenceRoot -isnot [string] -or $Request.runId -isnot [string] -or
+        $Request.scenario -isnot [string]) {
+        throw 'Runtime artifact manifest request context must contain exact JSON strings.'
+    }
+
+    $evidenceRoot = [IO.Path]::GetFullPath($Request.evidenceRoot).TrimEnd('\')
+    Assert-KmcNotReparsePoint $evidenceRoot 'runtime evidence root'
+    $manifestPath = Assert-KmcChildPath (Join-Path $evidenceRoot 'runtime-artifacts.json') $evidenceRoot 'runtime artifact manifest'
+    if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
+        throw 'Runtime artifact manifest is missing.'
+    }
+    Assert-KmcNotReparsePoint $manifestPath 'runtime artifact manifest'
+    Assert-KmcNotHardLink $manifestPath 'runtime artifact manifest'
+    if ((Get-KmcSha256 $manifestPath) -cne $ExpectedSha256) {
+        throw 'Runtime artifact manifest hash does not match the runtime game result.'
+    }
+
+    Assert-NoDuplicateJsonObjectProperties $manifestPath 'runtime artifact manifest'
+    $manifest = Read-KmcJson $manifestPath
+    Assert-KmcExactProperties $manifest @('schemaVersion','runId','scenario','createdAtUtc','artifacts') 'runtime artifact manifest'
+    if (-not (Test-ExactJsonInteger $manifest.schemaVersion) -or [long]$manifest.schemaVersion -ne 1) {
+        throw 'Runtime artifact manifest schemaVersion must be the exact integral value 1.'
+    }
+    if ($manifest.runId -isnot [string] -or $manifest.scenario -isnot [string] -or
+        $manifest.createdAtUtc -isnot [string] -or
+        $manifest.runId -cne [string]$Request.runId -or
+        $manifest.scenario -cne [string]$Request.scenario) {
+        throw 'Runtime artifact manifest identity does not match its request.'
+    }
+    $createdAt = [DateTimeOffset]::MinValue
+    if (-not [DateTimeOffset]::TryParse([string]$manifest.createdAtUtc, [ref]$createdAt)) {
+        throw 'Runtime artifact manifest createdAtUtc is invalid.'
+    }
+    if ($manifest.artifacts -isnot [Array]) {
+        throw 'Runtime artifact manifest artifacts must be an actual JSON array.'
+    }
+
+    $seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    foreach ($artifact in @($manifest.artifacts)) {
+        if ($null -eq $artifact) { throw 'Runtime artifact manifest contains a null artifact.' }
+        Assert-KmcExactProperties $artifact @('relativePath','kind','length','sha256') 'runtime artifact manifest record'
+        if ($artifact.relativePath -isnot [string] -or $artifact.kind -isnot [string] -or
+            $artifact.sha256 -isnot [string]) {
+            throw 'Runtime artifact manifest record paths, kinds, and hashes must be JSON strings.'
+        }
+        $relativePath = $artifact.relativePath
+        $kind = $artifact.kind
+        if (-not $seen.Add($relativePath)) { throw "Runtime artifact manifest contains duplicate path: $relativePath" }
+
+        $allowed = ($relativePath -ceq 'movement-telemetry.jsonl' -and $kind -ceq 'telemetry') -or
+            ($relativePath -ceq 'movement-scenario-evidence.jsonl' -and $kind -ceq 'scenario-evidence') -or
+            ($relativePath -cmatch '^movement-visuals/[A-Za-z0-9._-]+\.png$' -and $kind -ceq 'screenshot')
+        if (-not $allowed) { throw "Runtime artifact manifest record is outside the exact allowlist: $relativePath ($kind)" }
+        if (-not (Test-ExactJsonInteger $artifact.length) -or [long]$artifact.length -le 0 -or
+            $artifact.sha256 -cnotmatch '^[0-9a-f]{64}$') {
+            throw "Runtime artifact manifest record has invalid length or SHA-256: $relativePath"
+        }
+
+        $artifactPath = Assert-KmcChildPath (Join-Path $evidenceRoot $relativePath.Replace('/', '\')) $evidenceRoot 'runtime artifact'
+        if (-not (Test-Path -LiteralPath $artifactPath -PathType Leaf)) { throw "Runtime artifact is missing: $relativePath" }
+        Assert-KmcNotReparsePoint (Split-Path -Parent $artifactPath) "runtime artifact parent $relativePath"
+        Assert-KmcNotReparsePoint $artifactPath "runtime artifact $relativePath"
+        Assert-KmcNotHardLink $artifactPath "runtime artifact $relativePath"
+        $artifactFile = Get-Item -LiteralPath $artifactPath -Force
+        if ([long]$artifactFile.Length -ne [long]$artifact.length -or (Get-KmcSha256 $artifactPath) -cne [string]$artifact.sha256) {
+            throw "Runtime artifact bytes do not match the manifest: $relativePath"
+        }
+    }
+}
+
 function Assert-FixtureEcho {
     param($Actual, $Expected)
     Assert-KmcExactProperties $Actual @('baseline','working','writeAuthorization') 'runtime game-result fixture'
@@ -108,7 +196,7 @@ if ($schemaVersion -eq 1) {
     Assert-KmcExactProperties $game $commonRequired 'runtime game result v1'
 }
 elseif ($schemaVersion -eq 2) {
-    $v2Fields = @('fixture','fixtureIdentityVerified','baselineLoadRequestCount','workingLoadRequestCount','workingSaveRequestCount','unauthorizedLoadRequestCount','unauthorizedSaveRequestCount','subscenarioTotal','subscenarioPassCount','subscenarioFailCount','assertionPassCount','assertionFailCount','subscenarioResults')
+    $v2Fields = @('fixture','fixtureIdentityVerified','baselineLoadRequestCount','workingLoadRequestCount','workingSaveRequestCount','unauthorizedLoadRequestCount','unauthorizedSaveRequestCount','subscenarioTotal','subscenarioPassCount','subscenarioFailCount','assertionPassCount','assertionFailCount','evidenceManifestSha256','subscenarioResults')
     Assert-KmcExactProperties $game @($commonRequired + $v2Fields) 'runtime game result v2'
 }
 else { throw 'Runtime game-result request schema is unsupported.' }
@@ -149,12 +237,19 @@ if ($schemaVersion -eq 1) {
 }
 
 Assert-FixtureEcho $game.fixture $request.fixture
+Assert-RuntimeArtifactManifest $request $game.evidenceManifestSha256
 if ([int]$game.loadRequestCount -ne ([int]$game.baselineLoadRequestCount + [int]$game.workingLoadRequestCount + [int]$game.unauthorizedLoadRequestCount) -or
     [int]$game.saveRequestCount -ne ([int]$game.workingSaveRequestCount + [int]$game.unauthorizedSaveRequestCount)) { throw 'Save-backed runtime aggregate save/load counters do not reconcile.' }
 Assert-SubscenarioResults $game
 if ([string]$game.status -ceq 'PASS') {
     if ($game.fixtureIdentityVerified -ne $true -or [string]$game.relationshipState -cne 'Unmounted') { throw 'Save-backed PASS did not finish with verified fixture identity and an unmounted relationship.' }
-    if ([int]$game.baselineLoadRequestCount -ne 0 -or [int]$game.unauthorizedLoadRequestCount -ne 0 -or [int]$game.unauthorizedSaveRequestCount -ne 0 -or [int]$game.workingLoadRequestCount -lt 1) { throw 'Save-backed PASS crossed its exact load/save allowlist.' }
+    $expectedWorkingLoads = if ([string]$game.scenario -cin @('mounted-pair-load-safety','boundary-suite')) { 2 } else { 1 }
+    if ([int]$game.baselineLoadRequestCount -ne 0 -or [int]$game.unauthorizedLoadRequestCount -ne 0 -or
+        [int]$game.unauthorizedSaveRequestCount -ne 0 -or [int]$game.workingLoadRequestCount -ne $expectedWorkingLoads -or
+        [int]$game.loadRequestCount -ne $expectedWorkingLoads -or [int]$game.workingSaveRequestCount -ne 0 -or
+        [int]$game.saveRequestCount -ne 0) { throw 'Save-backed PASS crossed its exact scenario-bound load/save quota.' }
+    if ($game.movementExperimentEnabled -ne $false -or $game.loadedAreaPresent -ne $true -or
+        [string]$game.currentGameMode -cne 'Default') { throw 'Save-backed PASS did not restore its exact game-mode and diagnostic-setting boundary.' }
     if ([int]$game.subscenarioFailCount -ne 0 -or [int]$game.assertionFailCount -ne 0) { throw 'PASS runtime game result contains subscenario failures.' }
 }
 else {

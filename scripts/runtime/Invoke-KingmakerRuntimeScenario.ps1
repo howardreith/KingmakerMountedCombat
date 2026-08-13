@@ -9,7 +9,7 @@ param(
         'mounted-pair-party-formation','mounted-pair-pause-unpause','mounted-pair-destination-cancel',
         'mounted-pair-turn-based-entry-cleanup','mounted-pair-realtime-entry-cleanup','mounted-pair-save-safety',
         'mounted-pair-load-safety','mounted-pair-area-transition-safety','fixture-intake','lifecycle-suite',
-        'movement-suite','boundary-suite','phase-1-runtime-suite'
+        'movement-suite','boundary-suite'
     )][string]$Scenario='mod-load-smoke',
     [ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$RunId,
     [ValidateRange(360,900)][int]$TimeoutSeconds=360,
@@ -149,7 +149,7 @@ try{
     }
     $combinedStatePath=New-KmcRunTransactionState -Lock $lock -Mode $(if($isSaveBacked){'save-backed-v2'}else{'no-save-v1'}) -LiveModsRoot $liveMods -SaveRoot $saveRoot -StateRoot $runtimeState -ModsBefore $beforeRoots[4] -SavesBefore $beforeSaves
     if($isSaveBacked){
-        [void](Enter-KmcWorkingSaveTransaction -Lock $lock -Pair $lockedPair -SaveRoot $saveRoot -StateRoot $runtimeState -BackupRoot $runtimeBackups -StagingRoot $runtimeStaging)
+        [void](Enter-KmcWorkingSaveTransaction -Lock $lock -Pair $lockedPair -SaveRoot $saveRoot -StateRoot $runtimeState -BackupRoot $runtimeBackups -StagingRoot $runtimeStaging -Scenario $Scenario)
     }
     [void](Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $liveMods -PackagePath $PackagePath -StateRoot $runtimeState -BackupRoot $runtimeBackups -StagingRoot $runtimeStaging)
     Write-KmcJsonAtomic $requestPath $request

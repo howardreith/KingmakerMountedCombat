@@ -24,6 +24,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("result accepts restored save-backed PASS", ResultAcceptsRestoredSaveBackedPass);
             runner.Run("result rejects incomplete fixture restoration", ResultRejectsIncompleteFixtureRestoration);
             runner.Run("result rejects inconsistent subscenario totals", ResultRejectsInconsistentSubscenarioTotals);
+            runner.Run("result requires lowercase evidence manifest SHA-256", ResultRequiresEvidenceManifestSha256);
             MountedRelationshipTests.Register(runner);
             RuntimeSaveAuthorizationTests.Register(runner);
             return runner.Complete();
@@ -119,6 +120,16 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(result.Validate().Count > 0, "Inconsistent subscenario totals were accepted.");
         }
 
+        private static void ResultRequiresEvidenceManifestSha256()
+        {
+            var result = ValidSaveBackedResult();
+            result.EvidenceManifestSha256 = null;
+            TestRunner.True(result.Validate().Count > 0, "Missing evidence manifest SHA-256 was accepted.");
+
+            result.EvidenceManifestSha256 = Sha.ToUpperInvariant();
+            TestRunner.True(result.Validate().Count > 0, "Uppercase evidence manifest SHA-256 was accepted.");
+        }
+
         private static RuntimeRequest ValidRequest()
         {
             return new RuntimeRequest
@@ -209,6 +220,7 @@ namespace KingmakerMountedCombat.Tests
                 SubscenarioFailCount = 0,
                 AssertionPassCount = 3,
                 AssertionFailCount = 0,
+                EvidenceManifestSha256 = Sha,
                 SubscenarioResults = new[]
                 {
                     new RuntimeSubscenarioResult

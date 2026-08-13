@@ -68,30 +68,64 @@ namespace KingmakerMountedCombat
         public bool SetEnabled(bool enabled)
         {
             ThrowIfDisposed();
-            if (IsEnabled == enabled)
+            if (enabled)
             {
+                if (IsEnabled) { return true; }
+                IsEnabled = true;
+                logger.Info("Diagnostic services enabled.");
                 return true;
             }
 
-            if (!enabled)
+            // Always execute idempotent cleanup on a disable request. A prior
+            // update failure may already have cleared IsEnabled while a partial
+            // runtime operation still needs best-effort cleanup.
+            var result = relationship.Dismount(CleanupTrigger.ModDisabled);
+            if (!result.Succeeded || result.MovementAuthorityResidual || result.PresentationResidual)
             {
-                var result = relationship.Dismount(CleanupTrigger.ModDisabled);
-                if (!result.Succeeded || result.MovementAuthorityResidual || result.PresentationResidual)
-                {
-                    logger.Error("Diagnostic services could not be disabled because mounted cleanup retained residue.");
-                    return false;
-                }
+                logger.Error("Diagnostic services could not be disabled because mounted cleanup retained residue.");
+                return false;
             }
-            IsEnabled = enabled;
-            logger.Info(enabled ? "Diagnostic services enabled." : "Diagnostic services disabled; no mounted state is retained.");
+            IsEnabled = false;
+            logger.Info("Diagnostic services disabled; no mounted state is retained.");
             return true;
+        }
+
+        public void HandleUpdateFailure(Exception exception)
+        {
+            ThrowIfDisposed();
+            Exception first = null;
+            try { runtimeAutomation?.Abort(exception); }
+            catch (Exception abortException) { first = abortException; }
+
+            try
+            {
+                settings.EnableUnsafeMovementExperiment = false;
+                var cleanup = relationship.Dismount(CleanupTrigger.Exception);
+                if (!cleanup.Succeeded || cleanup.MovementAuthorityResidual || cleanup.PresentationResidual)
+                {
+                    throw new InvalidOperationException("Update-failure cleanup retained mounted runtime residue.");
+                }
+                IsEnabled = false;
+            }
+            catch (Exception cleanupException)
+            {
+                first = first ?? cleanupException;
+            }
+
+            if (first != null)
+            {
+                throw new InvalidOperationException("Runtime update failure could not be handled without residue.", first);
+            }
         }
 
         public void Update(float deltaTime)
         {
             ThrowIfDisposed();
             runtimeAutomation?.Update(deltaTime);
-            movementTelemetry?.Update(deltaTime);
+            if (runtimeAutomation == null || !runtimeAutomation.IsCompleted)
+            {
+                movementTelemetry?.Update(deltaTime);
+            }
             if (!IsEnabled)
             {
                 return;

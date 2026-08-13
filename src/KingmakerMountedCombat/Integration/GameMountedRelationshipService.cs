@@ -17,6 +17,8 @@ namespace KingmakerMountedCombat.Integration
         private readonly DiagnosticSettings settings;
         private readonly KingmakerMountedPairRuntime runtime;
         private readonly MountedRelationshipCoordinator coordinator;
+        private bool cleanupRetryRequired;
+        private CleanupTrigger cleanupRetryTrigger = CleanupTrigger.Exception;
         private bool disposed;
 
         public GameMountedRelationshipService(IModLogger logger, DiagnosticSettings settings)
@@ -67,6 +69,7 @@ namespace KingmakerMountedCombat.Integration
 
             runtime.Prepare(rider, mount);
             var result = coordinator.Mount(runtime.CreateCandidate());
+            ObserveCleanupState(result);
             if (!result.Succeeded)
             {
                 runtime.ClearPreparedPairWhenUnmounted();
@@ -132,6 +135,7 @@ namespace KingmakerMountedCombat.Integration
 
             runtime.Prepare(rider, mount);
             var result = coordinator.Mount(runtime.CreateCandidate());
+            ObserveCleanupState(result);
             if (!result.Succeeded)
             {
                 runtime.ClearPreparedPairWhenUnmounted();
@@ -159,6 +163,7 @@ namespace KingmakerMountedCombat.Integration
             }
 
             var result = coordinator.Dismount(trigger);
+            ObserveCleanupState(result);
             runtime.ClearPreparedPairWhenUnmounted();
             return Record(result);
         }
@@ -252,6 +257,11 @@ namespace KingmakerMountedCombat.Integration
 
         public void ValidateActivePair()
         {
+            if (cleanupRetryRequired || coordinator.State == RelationshipState.Faulted)
+            {
+                RetryFailedCleanupOrThrow();
+            }
+
             if (coordinator.State != RelationshipState.Mounted)
             {
                 return;
@@ -262,6 +272,37 @@ namespace KingmakerMountedCombat.Integration
             {
                 logger.Warning("Mounted invariant invalidated: " + error);
                 Dismount(CleanupTrigger.CompanionInvalidated);
+                if (cleanupRetryRequired || coordinator.State == RelationshipState.Faulted)
+                {
+                    RetryFailedCleanupOrThrow();
+                }
+            }
+        }
+
+        private void ObserveCleanupState(TransitionResult result)
+        {
+            if (result.State == RelationshipState.Unmounted && !result.MovementAuthorityResidual && !result.PresentationResidual)
+            {
+                cleanupRetryRequired = false;
+                cleanupRetryTrigger = CleanupTrigger.Exception;
+            }
+            else if (result.State == RelationshipState.Faulted)
+            {
+                cleanupRetryRequired = true;
+                cleanupRetryTrigger = result.Trigger ?? CleanupTrigger.Exception;
+            }
+        }
+
+        private void RetryFailedCleanupOrThrow()
+        {
+            var trigger = cleanupRetryTrigger;
+            logger.Warning("Retrying a failed mounted cleanup before any further relationship work.");
+            var retry = Dismount(trigger);
+            if (!retry.Succeeded || retry.MovementAuthorityResidual || retry.PresentationResidual ||
+                coordinator.State != RelationshipState.Unmounted)
+            {
+                throw new InvalidOperationException("Mounted cleanup retry retained runtime residue: " +
+                    string.Join(" | ", retry.Errors.ToArray()));
             }
         }
 

@@ -27,6 +27,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("relationship mod-disable cleanup", ModDisableCleanup);
             runner.Run("relationship exception cleanup", ExceptionCleanup);
             runner.Run("relationship partial dismount continues best effort", PartialDismountContinuesBestEffort);
+            runner.Run("relationship faulted cleanup can be retried idempotently", FaultedCleanupCanBeRetried);
             runner.Run("command routing rewrites only active rider", CommandRoutingRewritesOnlyActiveRider);
             runner.Run("command routing suppresses only duplicate mount", CommandRoutingSuppressesOnlyDuplicateMount);
             runner.Run("cleanup trigger priority is deterministic", CleanupTriggerPriorityIsDeterministic);
@@ -195,6 +196,22 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(result.PresentationResidual, "Presentation residue was not reported.");
             TestRunner.True(!result.MovementAuthorityResidual, "Movement cleanup did not continue after presentation failure.");
             TestRunner.Equal(1, runtime.RestoreAuthorityCalls, "Best-effort authority cleanup was skipped.");
+        }
+
+        private static void FaultedCleanupCanBeRetried()
+        {
+            var runtime = new FakeRuntime { RestorePresentationFailuresRemaining = 1 };
+            var coordinator = Mounted(runtime);
+            var first = coordinator.Dismount(CleanupTrigger.CombatStarted);
+            TestRunner.Equal(RelationshipState.Faulted, first.State, "First transient cleanup failure did not retain a retryable Faulted state.");
+            TestRunner.True(first.PresentationResidual, "First transient cleanup failure lost its presentation residue.");
+
+            var retry = coordinator.Dismount(CleanupTrigger.CombatStarted);
+            TestRunner.True(retry.Succeeded, "Second bounded cleanup attempt did not recover a transient failure.");
+            TestRunner.Equal(RelationshipState.Unmounted, coordinator.State, "Cleanup retry did not reach Unmounted.");
+            TestRunner.True(!retry.PresentationResidual && !retry.MovementAuthorityResidual, "Cleanup retry retained residue.");
+            TestRunner.Equal(2, runtime.RestorePresentationCalls, "Cleanup retry did not reattempt only the retained presentation operation.");
+            TestRunner.Equal(1, runtime.RestoreAuthorityCalls, "Already-restored movement authority was repeated during cleanup retry.");
         }
 
         private static void CommandRoutingRewritesOnlyActiveRider()
@@ -387,6 +404,7 @@ namespace KingmakerMountedCombat.Tests
             public int RestoreAuthorityCalls { get; private set; }
             public bool ThrowOnAttach { get; set; }
             public bool ThrowOnRestorePresentation { get; set; }
+            public int RestorePresentationFailuresRemaining { get; set; }
             public CleanupTrigger? LastRestoreTrigger { get; private set; }
             public Action OnAcquire { get; set; }
 
@@ -405,6 +423,11 @@ namespace KingmakerMountedCombat.Tests
             public void RestorePresentation(MountedPair pair)
             {
                 RestorePresentationCalls++;
+                if (RestorePresentationFailuresRemaining > 0)
+                {
+                    RestorePresentationFailuresRemaining--;
+                    throw new InvalidOperationException("restore presentation failed");
+                }
                 if (ThrowOnRestorePresentation) { throw new InvalidOperationException("restore presentation failed"); }
             }
 

@@ -95,7 +95,7 @@ $missionScenarios = @(
     'mounted-pair-turn-based-entry-cleanup', 'mounted-pair-realtime-entry-cleanup', 'mounted-pair-save-safety',
     'mounted-pair-load-safety', 'mounted-pair-area-transition-safety'
 )
-$aggregateScenarios = @('fixture-intake','lifecycle-suite','movement-suite','boundary-suite','phase-1-runtime-suite')
+$aggregateScenarios = @('fixture-intake','lifecycle-suite','movement-suite','boundary-suite')
 
 if ([string]$request.runId -cnotmatch '^[A-Za-z0-9._-]{1,120}$') { throw 'Runtime request runId is invalid.' }
 if ([string]$request.branch -cnotmatch '^codex/mounted-combat-[A-Za-z0-9._/-]+$') { throw 'Runtime request branch is outside the KMC prefix.' }

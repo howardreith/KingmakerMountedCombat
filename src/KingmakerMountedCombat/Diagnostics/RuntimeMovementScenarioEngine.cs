@@ -29,7 +29,11 @@ namespace KingmakerMountedCombat.Diagnostics
     /// </summary>
     internal sealed class RuntimeMovementScenarioEngine : IDisposable
     {
-        private const double SuiteTimeoutSeconds = 105.0d;
+        // The host has a 300-second monotonic deadline and the launcher allows
+        // another bounded exit/restoration window. Eight rows can legitimately
+        // include several 12-second path legs, so keep a useful cleanup margin
+        // without pre-empting the ordinary suite envelope.
+        private const double SuiteTimeoutSeconds = 250.0d;
         private const double RowTimeoutSeconds = 42.0d;
         private const double PathProbeTimeoutSeconds = 4.0d;
         private const double MovementTimeoutSeconds = 12.0d;
@@ -118,6 +122,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool completed;
         private bool disposed;
         private bool fatalResidue;
+        private bool abortAfterVerifiedCleanup;
 
         private readonly List<Vector3> probeCandidates = new List<Vector3>();
         private readonly List<string> probeRejections = new List<string>();
@@ -260,11 +265,23 @@ namespace KingmakerMountedCombat.Diagnostics
             frameNumber++;
             try
             {
-                if (suiteClock.Elapsed.TotalSeconds > SuiteTimeoutSeconds)
+                if (suiteClock.Elapsed.TotalSeconds > SuiteTimeoutSeconds && !abortAfterVerifiedCleanup)
                 {
-                    FailCurrent("Movement suite exceeded its " + SuiteTimeoutSeconds.ToString("0", CultureInfo.InvariantCulture) + " second monotonic deadline.");
-                    BeginCleanup(CleanupTrigger.Exception);
-                    return;
+                    const string timeoutMessage = "Movement suite exceeded its bounded monotonic deadline.";
+                    if (currentRow == null)
+                    {
+                        CompleteRemainingAsNotRun(timeoutMessage);
+                        Complete();
+                        return;
+                    }
+
+                    FailCurrent(timeoutMessage);
+                    abortAfterVerifiedCleanup = true;
+                    if (step != EngineStep.AwaitCleanupFrame)
+                    {
+                        BeginCleanup(CleanupTrigger.Exception);
+                        return;
+                    }
                 }
                 if (currentRow != null && rowClock.Elapsed.TotalSeconds > RowTimeoutSeconds && step == EngineStep.ExecuteRow)
                 {
@@ -317,9 +334,8 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             finally
             {
+                CloseEvidenceWriter();
                 RestoreSettings();
-                evidenceWriter?.Dispose();
-                evidenceWriter = null;
                 suiteClock.Stop();
                 rowClock.Stop();
                 phaseClock.Stop();
@@ -1380,6 +1396,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 fatalResidue = true;
             }
             FinishCurrentRow();
+            if (abortAfterVerifiedCleanup)
+            {
+                CompleteRemainingAsNotRun("Further movement was suppressed after the suite deadline and verified cleanup.");
+                Complete();
+                return;
+            }
             if (fatalResidue)
             {
                 CompleteRemainingAsNotRun("Further movement was suppressed because cleanup residue was observed.");
@@ -1478,15 +1500,32 @@ namespace KingmakerMountedCombat.Diagnostics
             BestEffortDismount(CleanupTrigger.Exception);
             RestorePause();
             RestoreSelection();
+            CloseEvidenceWriter();
             RestoreSettings();
-            evidenceWriter?.Flush();
-            evidenceWriter?.Dispose();
-            evidenceWriter = null;
             suiteClock.Stop();
             rowClock.Stop();
             phaseClock.Stop();
             completed = true;
             logger.Info("Movement runtime engine completed with " + results.Count + " row result(s).");
+        }
+
+        private void CloseEvidenceWriter()
+        {
+            if (evidenceWriter == null) { return; }
+            try
+            {
+                evidenceWriter.Flush();
+                evidenceWriter.Dispose();
+            }
+            catch (Exception exception)
+            {
+                errors.Add("Movement evidence finalization threw " + exception.GetType().Name + ": " + exception.Message);
+                logger.Exception("Movement evidence finalization threw", exception);
+            }
+            finally
+            {
+                evidenceWriter = null;
+            }
         }
 
         private void AssertExpectedSelection(bool condition)

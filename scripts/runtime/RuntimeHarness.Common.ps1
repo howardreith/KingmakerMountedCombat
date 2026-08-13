@@ -148,20 +148,27 @@ function Get-KmcSaveMetadataInventory {
     $fullRoot = [IO.Path]::GetFullPath($SaveRoot).TrimEnd('\')
     if (-not (Test-Path -LiteralPath $fullRoot -PathType Container)) { throw "Save root is missing: $fullRoot" }
     $records = @()
-    foreach ($file in @(Get-ChildItem -LiteralPath $fullRoot -File -Recurse -Force | Sort-Object FullName)) {
+    # Kingmaker save slots and DotNetZip recovery artifacts are direct children.
+    # Recording directory entries (without traversing them) detects unknown/reparse
+    # additions without reading any foreign save payload.
+    foreach ($item in @(Get-ChildItem -LiteralPath $fullRoot -Force | Sort-Object FullName)) {
+        $kind = if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) { 'reparse' }
+            elseif ($item.PSIsContainer) { 'directory' }
+            else { 'file' }
         $records += [pscustomobject]@{
-            path = $file.FullName.Substring($fullRoot.Length + 1).Replace('\', '/')
-            length = [long]$file.Length
-            lastWriteTimeUtcTicks = $file.LastWriteTimeUtc.Ticks
+            kind = $kind
+            path = $item.FullName.Substring($fullRoot.Length + 1).Replace('\', '/')
+            length = if ($kind -ceq 'file') { [long]$item.Length } else { [long]0 }
+            lastWriteTimeUtcTicks = $item.LastWriteTimeUtc.Ticks
         }
     }
     $totalBytes = [long]0
-    foreach ($record in $records) { $totalBytes += [long]$record.length }
-    $canonical = ($records | ForEach-Object { '{0}|{1}|{2}' -f $_.path, $_.length, $_.lastWriteTimeUtcTicks }) -join "`n"
+    foreach ($record in @($records | Where-Object kind -eq 'file')) { $totalBytes += [long]$record.length }
+    $canonical = ($records | ForEach-Object { '{0}|{1}|{2}|{3}' -f $_.kind, $_.path, $_.length, $_.lastWriteTimeUtcTicks }) -join "`n"
     return [pscustomobject]@{
-        schemaVersion = 1
+        schemaVersion = 2
         root = $fullRoot
-        fileCount = $records.Count
+        fileCount = @($records | Where-Object kind -eq 'file').Count
         totalBytes = $totalBytes
         digest = Get-KmcTextSha256 $canonical
         entries = @($records)
@@ -172,7 +179,7 @@ function Get-KmcProtectedSaveMetadata {
     param([Parameter(Mandatory = $true)][string]$SaveRoot)
     $inventory = Get-KmcSaveMetadataInventory $SaveRoot
     return [pscustomobject]@{
-        schemaVersion = 1
+        schemaVersion = 2
         fileCount = $inventory.fileCount
         totalBytes = $inventory.totalBytes
         digest = $inventory.digest
@@ -208,7 +215,8 @@ function Read-KmcFixtureHeader {
     param(
         [Parameter(Mandatory = $true)][string]$Path,
         [Parameter(Mandatory = $true)][ValidateSet('baseline','working')][string]$Kind,
-        [Parameter(Mandatory = $true)][string]$SaveRoot
+        [Parameter(Mandatory = $true)][string]$SaveRoot,
+        [string]$PermittedFileNamePattern
     )
     $fullRoot = [IO.Path]::GetFullPath($SaveRoot).TrimEnd('\')
     $fullPath = Assert-KmcChildPath $Path $fullRoot "KMC $Kind fixture"
@@ -217,14 +225,22 @@ function Read-KmcFixtureHeader {
     Assert-KmcNotHardLink $fullPath "KMC $Kind fixture"
 
     $expectedName = if ($Kind -ceq 'baseline') { 'KMC_AUTOMATION_BASELINE' } else { 'KMC_AUTOMATION_WORKING' }
-    $expectedFilePattern = if ($Kind -ceq 'baseline') {
+    $expectedFilePattern = if (-not [string]::IsNullOrEmpty($PermittedFileNamePattern)) {
+        if ($Kind -cne 'working') { throw 'Only a Working artifact may use an alternate guarded filename pattern.' }
+        $PermittedFileNamePattern
+    }
+    elseif ($Kind -ceq 'baseline') {
         '^Manual_[0-9]+_KMC_AUTOMATION_BASELINE\.zks$'
     }
     else {
         '^Manual_[0-9]+_KMC_AUTOMATION_WORKING\.zks$'
     }
     $leaf = [IO.Path]::GetFileName($fullPath)
-    if ($leaf -cnotmatch $expectedFilePattern) { throw "KMC $Kind fixture filename is not exact: $leaf" }
+    $filenameMatches = if (-not [string]::IsNullOrEmpty($PermittedFileNamePattern)) {
+        $leaf -match $expectedFilePattern
+    }
+    else { $leaf -cmatch $expectedFilePattern }
+    if (-not $filenameMatches) { throw "KMC $Kind fixture filename is not exact: $leaf" }
 
     $before = Get-Item -LiteralPath $fullPath
     if ($before.Length -le 0 -or $before.Length -gt 256MB) { throw "KMC $Kind fixture size is outside the guarded range." }
@@ -410,7 +426,7 @@ function Assert-KmcSaveWriteAllowlist {
         [Parameter(Mandatory = $true)]$After,
         [Parameter(Mandatory = $true)][string]$WorkingPath
     )
-    if ([int]$Before.schemaVersion -ne 1 -or [int]$After.schemaVersion -ne 1 -or
+    if ([int]$Before.schemaVersion -ne 2 -or [int]$After.schemaVersion -ne 2 -or
         -not [string]::Equals([string]$Before.root, [string]$After.root, [StringComparison]::OrdinalIgnoreCase)) {
         throw 'Save metadata inventories are not comparable.'
     }
@@ -423,7 +439,7 @@ function Assert-KmcSaveWriteAllowlist {
     $changed = New-Object 'System.Collections.Generic.List[string]'
     foreach ($path in $paths) {
         $left = $beforeMap[$path]; $right = $afterMap[$path]
-        if ($null -eq $left -or $null -eq $right -or [long]$left.length -ne [long]$right.length -or
+        if ($null -eq $left -or $null -eq $right -or [string]$left.kind -cne [string]$right.kind -or [long]$left.length -ne [long]$right.length -or
             [long]$left.lastWriteTimeUtcTicks -ne [long]$right.lastWriteTimeUtcTicks) { $changed.Add($path) }
     }
     $prohibited = @($changed | Where-Object { -not [string]::Equals($_, $workingRelative, [StringComparison]::OrdinalIgnoreCase) })
@@ -437,6 +453,199 @@ function Get-KmcSaveTransactionStatePath {
     return Assert-KmcChildPath (Join-Path $transactionRoot ($RunId + '.json')) $transactionRoot 'save transaction state'
 }
 
+function Write-KmcJsonDurable {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)]$Value
+    )
+    Write-KmcJsonAtomic -Path $Path -Value $Value
+    $stream = New-Object IO.FileStream([IO.Path]::GetFullPath($Path), [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::Read)
+    try { $stream.Flush($true) }
+    finally { $stream.Dispose() }
+}
+
+function Get-KmcRuntimeArchiveWriteLimit {
+    param([Parameter(Mandatory = $true)][string]$Scenario)
+    if ($Scenario -ceq 'phase-1-runtime-suite') {
+        throw 'phase-1-runtime-suite has no proven bounded LoadRoutine write count and cannot own a save transaction.'
+    }
+    if (@(Get-KmcSaveBackedRuntimeScenarios | Where-Object { $_ -ceq $Scenario }).Count -ne 1) {
+        throw "Scenario is not an exact save-backed runtime scenario: $Scenario"
+    }
+    if ($Scenario -cin @('mounted-pair-load-safety','boundary-suite')) { return 2 }
+    return 1
+}
+
+function Get-KmcSaveArtifactPlanDigest {
+    param([Parameter(Mandatory = $true)]$ArtifactPlan)
+    $lines = @(@($ArtifactPlan) | Sort-Object sourceRelativePath | ForEach-Object {
+        '{0}|{1}|{2}|{3}|{4}|{5}' -f [string]$_.kind, [string]$_.sourceRelativePath,
+            [string]$_.quarantinePath, [long]$_.length, [long]$_.lastWriteTimeUtcTicks, [string]$_.sha256
+    })
+    return Get-KmcTextSha256 ($lines -join "`n")
+}
+
+function Test-KmcInventoryEntryExact {
+    param($Left, $Right)
+    return $null -ne $Left -and $null -ne $Right -and
+        [string]$Left.kind -ceq [string]$Right.kind -and [string]$Left.path -ceq [string]$Right.path -and
+        [long]$Left.length -eq [long]$Right.length -and
+        [long]$Left.lastWriteTimeUtcTicks -eq [long]$Right.lastWriteTimeUtcTicks
+}
+
+function Get-KmcWorkingSaveRecoveryPlan {
+    param(
+        [Parameter(Mandatory = $true)]$State,
+        [Parameter(Mandatory = $true)][string]$SaveRoot,
+        [Parameter(Mandatory = $true)][string]$StagingRoot
+    )
+    $fullSaveRoot = [IO.Path]::GetFullPath($SaveRoot).TrimEnd('\')
+    $workingPath = Assert-KmcChildPath ([string]$State.workingPath) $fullSaveRoot 'recorded KMC working save'
+    $workingLeaf = [IO.Path]::GetFileName($workingPath)
+    $workingRelative = $workingLeaf
+    $maximumWrites = [int]$State.maxRuntimeArchiveWrites
+    if ($maximumWrites -lt 1 -or $maximumWrites -gt 2) { throw 'Recorded runtime archive-write bound is outside the Phase 1 range.' }
+
+    $before = $State.beforeInventory
+    $current = Get-KmcSaveMetadataInventory $fullSaveRoot
+    $beforeMap = @{}; foreach ($entry in @($before.entries)) { $beforeMap[[string]$entry.path] = $entry }
+    $currentMap = @{}; foreach ($entry in @($current.entries)) { $currentMap[[string]$entry.path] = $entry }
+    $allPaths = @($beforeMap.Keys + $currentMap.Keys | Sort-Object -Unique)
+    $changed = @($allPaths | Where-Object { -not (Test-KmcInventoryEntryExact $beforeMap[$_] $currentMap[$_]) })
+
+    $artifactRoot = Assert-KmcChildPath ([string]$State.artifactQuarantineRoot) (Join-Path ([IO.Path]::GetFullPath($StagingRoot)) 'save-transactions') 'recorded save-artifact quarantine root'
+    $plan = New-Object 'System.Collections.Generic.List[object]'
+    $unknown = New-Object 'System.Collections.Generic.List[string]'
+    $counts = @{ 'working-current'=0; 'dotnetzip-temp'=0; 'working-sidecar'=0 }
+    $workingDisposition = 'unchanged'
+    $sidecarPattern = '^' + [Regex]::Escape($workingLeaf) + '\.[a-z0-9]{8}\.[a-z0-9]{3}$'
+    $canonicalPattern = '^Manual_[0-9]+_KMC_AUTOMATION_WORKING\.zks$'
+    $tempPattern = '^DotNetZip-[a-z0-9]{8}\.tmp$'
+
+    # Metadata inventories deliberately avoid reading foreign saves. Working is
+    # the single authorized content boundary, so close the same-size/same-time
+    # substitution gap by hashing it explicitly.
+    if ($currentMap.ContainsKey($workingRelative) -and
+        -not ($changed -contains $workingRelative) -and
+        (Get-KmcSha256 $workingPath) -cne [string]$State.workingSha256) {
+        $changed = @($changed + $workingRelative | Sort-Object -Unique)
+    }
+
+    foreach ($relativePath in $changed) {
+        $beforeEntry = $beforeMap[$relativePath]
+        $currentEntry = $currentMap[$relativePath]
+        if ([string]::Equals([string]$relativePath, $workingRelative, [StringComparison]::OrdinalIgnoreCase)) {
+            if ($null -eq $currentEntry) {
+                $workingDisposition = 'missing'
+                continue
+            }
+            $kind = 'working-current'
+            $workingDisposition = 'modified'
+        }
+        elseif ($null -ne $beforeEntry) {
+            $unknown.Add([string]$relativePath)
+            continue
+        }
+        elseif ([string]$relativePath -match '/') {
+            $unknown.Add([string]$relativePath)
+            continue
+        }
+        elseif ([string]$relativePath -match $tempPattern) { $kind = 'dotnetzip-temp' }
+        elseif ([string]$relativePath -match $sidecarPattern) { $kind = 'working-sidecar' }
+        elseif ([string]$relativePath -cmatch $canonicalPattern) {
+            # Phase 1 denies every SaveRoutine call. Unlike DotNetZip's bounded
+            # LoadRoutine temp/sidecar files, a second canonical slot can never
+            # be attributed to this transaction.
+            $unknown.Add([string]$relativePath)
+            continue
+        }
+        else {
+            $unknown.Add([string]$relativePath)
+            continue
+        }
+
+        $sourcePath = Assert-KmcChildPath (Join-Path $fullSaveRoot ([string]$relativePath)) $fullSaveRoot 'runtime save artifact'
+        if (-not [string]::Equals((Split-Path -Parent $sourcePath), $fullSaveRoot, [StringComparison]::OrdinalIgnoreCase)) {
+            throw "Runtime save artifact is not a direct child of the save root: $relativePath"
+        }
+        Assert-KmcNotReparsePoint $sourcePath 'runtime save artifact'
+        Assert-KmcNotHardLink $sourcePath 'runtime save artifact'
+        $item = Get-Item -LiteralPath $sourcePath -Force
+        if ($item.PSIsContainer -or $item.Length -gt 256MB) { throw "Runtime save artifact is not a bounded ordinary file: $relativePath" }
+
+        if ($kind -cne 'dotnetzip-temp') {
+            $permittedPattern = if ($kind -ceq 'working-sidecar') { $sidecarPattern } else { $canonicalPattern }
+            $descriptor = Read-KmcFixtureHeader -Path $sourcePath -Kind working -SaveRoot $fullSaveRoot -PermittedFileNamePattern $permittedPattern
+            if ([string]$descriptor.gameName -cne [string]$State.expectedGameName -or
+                [string]$descriptor.gameId -cne [string]$State.expectedGameId -or
+                [string]$descriptor.area -cne [string]$State.expectedArea) {
+                throw "Runtime Working artifact has a foreign campaign identity: $relativePath"
+            }
+            $sha256 = [string]$descriptor.sha256
+        }
+        else { $sha256 = Get-KmcSha256 $sourcePath }
+
+        $counts[$kind]++
+        $index = $plan.Count
+        $quarantinePath = Assert-KmcChildPath (Join-Path $artifactRoot ('{0:D2}-{1}' -f $index, [IO.Path]::GetFileName($sourcePath))) $artifactRoot 'planned save-artifact quarantine'
+        $plan.Add([pscustomobject][ordered]@{
+            kind = $kind
+            sourcePath = $sourcePath
+            sourceRelativePath = [string]$relativePath
+            quarantinePath = $quarantinePath
+            length = [long]$item.Length
+            lastWriteTimeUtcTicks = [long]$item.LastWriteTimeUtc.Ticks
+            sha256 = $sha256
+        })
+    }
+    if ($unknown.Count -ne 0) { throw "Save inventory contains non-owned drift: $($unknown -join ', ')" }
+    foreach ($boundedKind in @('dotnetzip-temp','working-sidecar')) {
+        if ([int]$counts[$boundedKind] -gt $maximumWrites) {
+            throw "Runtime save artifact count exceeds the scenario bound for $boundedKind`: $($counts[$boundedKind]) > $maximumWrites."
+        }
+    }
+    if ([int]$counts['working-current'] -gt 1 -or $plan.Count -gt (1 + (2 * $maximumWrites))) {
+        throw 'Runtime Working slot-family artifact count exceeds the Phase 1 transaction bound.'
+    }
+
+    $afterValidation = Get-KmcSaveMetadataInventory $fullSaveRoot
+    if ([string]$afterValidation.digest -cne [string]$current.digest) {
+        throw 'Save inventory changed while its recovery plan was being validated.'
+    }
+    return [pscustomobject]@{
+        currentInventoryDigest = [string]$current.digest
+        workingDisposition = $workingDisposition
+        artifacts = $plan.ToArray()
+        digest = Get-KmcSaveArtifactPlanDigest -ArtifactPlan ($plan.ToArray())
+    }
+}
+
+function Initialize-KmcWorkingSaveRecoveryPlan {
+    param(
+        [Parameter(Mandatory = $true)]$Lock,
+        [Parameter(Mandatory = $true)][string]$StatePath,
+        [Parameter(Mandatory = $true)][string]$SaveRoot,
+        [Parameter(Mandatory = $true)][string]$StagingRoot
+    )
+    [void](Assert-KmcRuntimeLockOwner $Lock)
+    Assert-KmcNoGameProcesses
+    $state = Read-KmcJson $StatePath
+    if ($state.PSObject.Properties['artifactPlan']) { return $state }
+    $recovery = Get-KmcWorkingSaveRecoveryPlan -State $state -SaveRoot $SaveRoot -StagingRoot $StagingRoot
+    $state.phase = 'recovery-planned'
+    foreach ($entry in ([ordered]@{
+        restoreStartedAtUtc = [DateTimeOffset]::UtcNow.ToString('o')
+        saveWriteAllowlistPassed = $true
+        runtimeInventoryDigest = [string]$recovery.currentInventoryDigest
+        workingDisposition = [string]$recovery.workingDisposition
+        artifactPlan = @($recovery.artifacts)
+        artifactPlanDigest = [string]$recovery.digest
+        recoveryPlannedAtUtc = [DateTimeOffset]::UtcNow.ToString('o')
+    }).GetEnumerator()) { $state | Add-Member -NotePropertyName $entry.Key -NotePropertyValue $entry.Value -Force }
+    Write-KmcJsonDurable -Path $StatePath -Value $state
+    return Read-KmcJson $StatePath
+}
+
 function Enter-KmcWorkingSaveTransaction {
     param(
         [Parameter(Mandatory = $true)]$Lock,
@@ -444,11 +653,13 @@ function Enter-KmcWorkingSaveTransaction {
         [Parameter(Mandatory = $true)][string]$SaveRoot,
         [Parameter(Mandatory = $true)][string]$StateRoot,
         [Parameter(Mandatory = $true)][string]$BackupRoot,
-        [Parameter(Mandatory = $true)][string]$StagingRoot
+        [Parameter(Mandatory = $true)][string]$StagingRoot,
+        [Parameter(Mandatory = $true)][string]$Scenario
     )
     [void](Assert-KmcRuntimeLockOwner $Lock)
     Assert-KmcNoGameProcesses
     $runId = [string]$Lock.RunId
+    $maximumWrites = Get-KmcRuntimeArchiveWriteLimit $Scenario
     $fullSaveRoot = [IO.Path]::GetFullPath($SaveRoot).TrimEnd('\')
     $workingPath = Assert-KmcChildPath ([string]$Pair.working.path) $fullSaveRoot 'qualified KMC working save'
     $baselinePath = Assert-KmcChildPath ([string]$Pair.baseline.path) $fullSaveRoot 'qualified KMC baseline save'
@@ -488,7 +699,7 @@ function Enter-KmcWorkingSaveTransaction {
     New-Item -ItemType Directory -Path $backupRun -Force | Out-Null
     New-Item -ItemType Directory -Path $stagingRun -Force | Out-Null
     $backupPath = Join-Path $backupRun 'KMC_AUTOMATION_WORKING.original.zks'
-    $quarantinePath = Join-Path $stagingRun 'KMC_AUTOMATION_WORKING.after.zks'
+    $artifactQuarantineRoot = Join-Path $stagingRun ('save-artifacts-' + [string]$Lock.Token)
     Copy-Item -LiteralPath $workingPath -Destination $backupPath
     Assert-KmcNotReparsePoint $backupPath 'frozen KMC working-save backup'
     Assert-KmcNotHardLink $backupPath 'frozen KMC working-save backup'
@@ -507,16 +718,21 @@ function Enter-KmcWorkingSaveTransaction {
     }
     $beforeInventory = Get-KmcSaveMetadataInventory $fullSaveRoot
     $state = [ordered]@{
-        schemaVersion = 1
+        schemaVersion = 2
         runId = $runId
         token = [string]$Lock.Token
         phase = 'prepared'
         preparedAtUtc = [DateTimeOffset]::UtcNow.ToString('o')
+        scenario = $Scenario
+        maxRuntimeArchiveWrites = $maximumWrites
         saveRoot = $fullSaveRoot
         baselinePath = $baselinePath
         baselineSha256 = [string]$freshBaseline.sha256
         baselineLength = [long]$freshBaseline.length
         baselineLastWriteTimeUtcTicks = [long]$freshBaseline.lastWriteTimeUtcTicks
+        expectedGameName = [string]$freshWorking.gameName
+        expectedGameId = [string]$freshWorking.gameId
+        expectedArea = [string]$freshWorking.area
         workingPath = $workingPath
         workingSha256 = [string]$freshWorking.sha256
         workingLength = [long]$freshWorking.length
@@ -524,10 +740,10 @@ function Enter-KmcWorkingSaveTransaction {
         backupPath = $backupPath
         backupSha256 = $backupHash
         backupLength = $backupLength
-        quarantinePath = $quarantinePath
+        artifactQuarantineRoot = $artifactQuarantineRoot
         beforeInventory = $beforeInventory
     }
-    Write-KmcJsonAtomic $statePath $state
+    Write-KmcJsonDurable $statePath $state
     return $statePath
 }
 
@@ -542,14 +758,29 @@ function Restore-KmcWorkingSaveTransaction {
     [void](Assert-KmcRuntimeLockOwner $Lock)
     Assert-KmcNoGameProcesses
     $state = Read-KmcJson $StatePath
-    $required = @('schemaVersion','runId','token','phase','preparedAtUtc','saveRoot','baselinePath','baselineSha256','baselineLength','baselineLastWriteTimeUtcTicks','workingPath','workingSha256','workingLength','workingLastWriteTimeUtcTicks','backupPath','backupSha256','backupLength','quarantinePath','beforeInventory')
-    $allowed = @($required + @('restoreStartedAtUtc','workingQuarantinedAtUtc','workingRestoredAtUtc','baselineImmutable','saveWriteAllowlistPassed','restoredInventoryDigest','restoredAtUtc'))
+    $required = @(
+        'schemaVersion','runId','token','phase','preparedAtUtc','scenario','maxRuntimeArchiveWrites','saveRoot',
+        'baselinePath','baselineSha256','baselineLength','baselineLastWriteTimeUtcTicks',
+        'expectedGameName','expectedGameId','expectedArea',
+        'workingPath','workingSha256','workingLength','workingLastWriteTimeUtcTicks',
+        'backupPath','backupSha256','backupLength','artifactQuarantineRoot','beforeInventory'
+    )
+    $recoveryFields = @(
+        'restoreStartedAtUtc','runtimeInventoryDigest','workingDisposition','artifactPlan','artifactPlanDigest',
+        'recoveryPlannedAtUtc','artifactsQuarantinedAtUtc','workingRestoredAtUtc','baselineImmutable',
+        'saveWriteAllowlistPassed','restoredInventoryDigest','restoredAtUtc'
+    )
+    $allowed = @($required + $recoveryFields)
     $actual = @($state.PSObject.Properties.Name)
     if (@($required | Where-Object { $_ -cnotin $actual }).Count -ne 0 -or @($actual | Where-Object { $_ -cnotin $allowed }).Count -ne 0) {
         throw 'Save transaction state property set is missing required fields or contains unknown fields.'
     }
-    if ([int]$state.schemaVersion -ne 1 -or [string]$state.runId -cne [string]$Lock.RunId -or [string]$state.token -cne [string]$Lock.Token) {
+    if ([int]$state.schemaVersion -ne 2 -or [string]$state.runId -cne [string]$Lock.RunId -or [string]$state.token -cne [string]$Lock.Token) {
         throw 'Save transaction state ownership does not match the open lock.'
+    }
+    if ([string]$state.phase -cnotin @('prepared','recovery-planned','artifacts-quarantined','restored') -or
+        [int]$state.maxRuntimeArchiveWrites -ne (Get-KmcRuntimeArchiveWriteLimit ([string]$state.scenario))) {
+        throw 'Save transaction scenario, phase, or archive-write bound is invalid.'
     }
     $fullSaveRoot = [IO.Path]::GetFullPath($SaveRoot).TrimEnd('\')
     if (-not [string]::Equals($fullSaveRoot, [IO.Path]::GetFullPath([string]$state.saveRoot).TrimEnd('\'), [StringComparison]::OrdinalIgnoreCase)) {
@@ -560,7 +791,7 @@ function Restore-KmcWorkingSaveTransaction {
     $backupParent = Join-Path ([IO.Path]::GetFullPath($BackupRoot)) 'save-transactions'
     $stagingParent = Join-Path ([IO.Path]::GetFullPath($StagingRoot)) 'save-transactions'
     $backupPath = Assert-KmcChildPath ([string]$state.backupPath) $backupParent 'recorded working-save backup'
-    $quarantinePath = Assert-KmcChildPath ([string]$state.quarantinePath) $stagingParent 'recorded working-save quarantine'
+    $artifactRoot = Assert-KmcChildPath ([string]$state.artifactQuarantineRoot) $stagingParent 'recorded save-artifact quarantine root'
     Assert-KmcNotReparsePoint $baselinePath 'recorded KMC baseline save'
     Assert-KmcNotHardLink $baselinePath 'recorded KMC baseline save'
     if (Test-Path -LiteralPath $workingPath) {
@@ -569,10 +800,7 @@ function Restore-KmcWorkingSaveTransaction {
     }
     Assert-KmcNotReparsePoint $backupPath 'recorded working-save backup'
     Assert-KmcNotHardLink $backupPath 'recorded working-save backup'
-    if (Test-Path -LiteralPath $quarantinePath) {
-        Assert-KmcNotReparsePoint $quarantinePath 'recorded working-save quarantine'
-        Assert-KmcNotHardLink $quarantinePath 'recorded working-save quarantine'
-    }
+    Assert-KmcNotReparsePoint $artifactRoot 'recorded save-artifact quarantine root'
 
     $baselineImmutable = $false
     if (Test-Path -LiteralPath $baselinePath -PathType Leaf) {
@@ -583,38 +811,143 @@ function Restore-KmcWorkingSaveTransaction {
     }
     $state | Add-Member -NotePropertyName baselineImmutable -NotePropertyValue $baselineImmutable -Force
 
+    if (-not $baselineImmutable) {
+        Write-KmcJsonDurable $StatePath $state
+        throw 'KMC baseline immutability verification failed; no save artifact was moved and the baseline was not restored or overwritten.'
+    }
+
     if (-not (Test-Path -LiteralPath $backupPath -PathType Leaf) -or
         (Get-KmcSha256 $backupPath) -cne [string]$state.backupSha256 -or
         (Get-Item -LiteralPath $backupPath).Length -ne [long]$state.backupLength -or
         [string]$state.backupSha256 -cne [string]$state.workingSha256 -or
         [long]$state.backupLength -ne [long]$state.workingLength) {
-        Write-KmcJsonAtomic $StatePath $state
+        Write-KmcJsonDurable $StatePath $state
         throw 'KMC working-save backup is missing or corrupt; live save state was not changed.'
     }
 
-    $beforeRestore = Get-KmcSaveMetadataInventory $fullSaveRoot
-    $allowlistPassed = $true
-    $allowlistError = $null
-    try { [void](Assert-KmcSaveWriteAllowlist -Before $state.beforeInventory -After $beforeRestore -WorkingPath $workingPath) }
-    catch { $allowlistPassed = $false; $allowlistError = $_.Exception }
-    $state | Add-Member -NotePropertyName saveWriteAllowlistPassed -NotePropertyValue $allowlistPassed -Force
-    $state | Add-Member -NotePropertyName restoreStartedAtUtc -NotePropertyValue ([DateTimeOffset]::UtcNow.ToString('o')) -Force
-    Write-KmcJsonAtomic $StatePath $state
+    $state = Initialize-KmcWorkingSaveRecoveryPlan -Lock $Lock -StatePath $StatePath -SaveRoot $fullSaveRoot -StagingRoot $StagingRoot
+    $state | Add-Member -NotePropertyName baselineImmutable -NotePropertyValue $true -Force
+    $plan = @($state.artifactPlan)
+    if ((Get-KmcSaveArtifactPlanDigest $plan) -cne [string]$state.artifactPlanDigest) {
+        throw 'Durable save-artifact recovery plan digest is invalid.'
+    }
+    $planCounts = @{ 'working-current'=0; 'dotnetzip-temp'=0; 'working-sidecar'=0 }
+    foreach ($artifact in $plan) {
+        if ([string]$artifact.kind -cnotin @($planCounts.Keys)) { throw 'Durable recovery plan contains an unknown artifact kind.' }
+        $planCounts[[string]$artifact.kind]++
+    }
+    foreach ($boundedKind in @('dotnetzip-temp','working-sidecar')) {
+        if ([int]$planCounts[$boundedKind] -gt [int]$state.maxRuntimeArchiveWrites) {
+            throw "Durable recovery plan exceeds its recorded bound for $boundedKind."
+        }
+    }
+    if ([int]$planCounts['working-current'] -gt 1 -or $plan.Count -gt (1 + (2 * [int]$state.maxRuntimeArchiveWrites))) {
+        throw 'Durable recovery plan exceeds the Phase 1 slot-family artifact bound.'
+    }
+    $expectedArtifactRoot = Join-Path (Join-Path $stagingParent ([string]$state.runId)) ('save-artifacts-' + [string]$state.token)
+    if (-not [string]::Equals($artifactRoot, [IO.Path]::GetFullPath($expectedArtifactRoot), [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Save-artifact quarantine root is not owned by the exact run and token.'
+    }
+
+    # Re-check the complete direct-child inventory before moving anything. A retry
+    # may legitimately find planned sources already moved and Working restored,
+    # but every non-Working preflight entry must remain metadata-exact and every
+    # new live entry must be named in the durable plan.
+    $beforeMap = @{}; foreach ($entry in @($state.beforeInventory.entries)) { $beforeMap[[string]$entry.path] = $entry }
+    $currentInventory = Get-KmcSaveMetadataInventory $fullSaveRoot
+    $currentMap = @{}; foreach ($entry in @($currentInventory.entries)) { $currentMap[[string]$entry.path] = $entry }
+    $plannedRelative = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
+    foreach ($artifact in $plan) { [void]$plannedRelative.Add([string]$artifact.sourceRelativePath) }
+    $workingRelative = [IO.Path]::GetFileName($workingPath)
+    foreach ($beforeEntry in @($state.beforeInventory.entries)) {
+        if ([string]::Equals([string]$beforeEntry.path, $workingRelative, [StringComparison]::OrdinalIgnoreCase)) { continue }
+        if (-not (Test-KmcInventoryEntryExact $beforeEntry $currentMap[[string]$beforeEntry.path])) {
+            throw "A protected save inventory entry drifted after recovery planning: $($beforeEntry.path)"
+        }
+    }
+    foreach ($currentEntry in @($currentInventory.entries)) {
+        if ($beforeMap.ContainsKey([string]$currentEntry.path)) { continue }
+        if (-not $plannedRelative.Contains([string]$currentEntry.path)) {
+            throw "An unplanned save inventory entry appeared after recovery planning: $($currentEntry.path)"
+        }
+    }
+    if (-not (Test-Path -LiteralPath $artifactRoot -PathType Container)) {
+        New-Item -ItemType Directory -Path $artifactRoot | Out-Null
+    }
+    Assert-KmcNotReparsePoint $artifactRoot 'recorded save-artifact quarantine root'
+
+    $seenSources = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
+    $seenQuarantines = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
+    foreach ($artifact in $plan) {
+        Assert-KmcExactProperties $artifact @('kind','sourcePath','sourceRelativePath','quarantinePath','length','lastWriteTimeUtcTicks','sha256') 'save-artifact recovery entry'
+        if ([string]$artifact.kind -cnotin @('working-current','dotnetzip-temp','working-sidecar') -or
+            [string]$artifact.sha256 -cnotmatch '^[0-9a-f]{64}$' -or [long]$artifact.length -lt 0 -or [long]$artifact.length -gt 256MB) {
+            throw 'Save-artifact recovery entry contains an invalid kind or fingerprint.'
+        }
+        $sourcePath = Assert-KmcChildPath ([string]$artifact.sourcePath) $fullSaveRoot 'planned runtime save artifact'
+        $quarantinePath = Assert-KmcChildPath ([string]$artifact.quarantinePath) $artifactRoot 'planned runtime save-artifact quarantine'
+        $expectedSourcePath = [IO.Path]::GetFullPath((Join-Path $fullSaveRoot ([string]$artifact.sourceRelativePath).Replace('/','\')))
+        if (-not [string]::Equals($sourcePath, $expectedSourcePath, [StringComparison]::OrdinalIgnoreCase) -or
+            -not [string]::Equals((Split-Path -Parent $sourcePath), $fullSaveRoot, [StringComparison]::OrdinalIgnoreCase) -or
+            -not [string]::Equals((Split-Path -Parent $quarantinePath), $artifactRoot, [StringComparison]::OrdinalIgnoreCase) -or
+            -not $seenSources.Add($sourcePath) -or -not $seenQuarantines.Add($quarantinePath)) {
+            throw 'Save-artifact recovery plan contains a duplicate or non-direct-child path.'
+        }
+        $sourcePresent = Test-Path -LiteralPath $sourcePath -PathType Leaf
+        $quarantinePresent = Test-Path -LiteralPath $quarantinePath -PathType Leaf
+        if ($sourcePresent) {
+            Assert-KmcNotReparsePoint $sourcePath 'planned runtime save artifact'
+            Assert-KmcNotHardLink $sourcePath 'planned runtime save artifact'
+        }
+        if ($quarantinePresent) {
+            Assert-KmcNotReparsePoint $quarantinePath 'quarantined runtime save artifact'
+            Assert-KmcNotHardLink $quarantinePath 'quarantined runtime save artifact'
+        }
+
+        function Test-PlannedArtifact([string]$Path, $PlanEntry) {
+            if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $false }
+            $file = Get-Item -LiteralPath $Path -Force
+            return $file.Length -eq [long]$PlanEntry.length -and
+                $file.LastWriteTimeUtc.Ticks -eq [long]$PlanEntry.lastWriteTimeUtcTicks -and
+                (Get-KmcSha256 $Path) -ceq [string]$PlanEntry.sha256
+        }
+
+        if ($quarantinePresent -and -not (Test-PlannedArtifact $quarantinePath $artifact)) {
+            throw "Quarantined runtime save artifact differs from its durable plan: $($artifact.sourceRelativePath)"
+        }
+        if ($sourcePresent -and $quarantinePresent) {
+            $sourceIsRestoredWorking = [string]::Equals($sourcePath, $workingPath, [StringComparison]::OrdinalIgnoreCase) -and
+                (Get-Item -LiteralPath $sourcePath).Length -eq [long]$state.workingLength -and
+                (Get-KmcSha256 $sourcePath) -ceq [string]$state.workingSha256
+            if (-not $sourceIsRestoredWorking) { throw "A planned runtime artifact exists both live and quarantined: $($artifact.sourceRelativePath)" }
+            continue
+        }
+        if ($sourcePresent) {
+            if (-not (Test-PlannedArtifact $sourcePath $artifact)) {
+                throw "Runtime save artifact changed after its recovery plan was persisted: $($artifact.sourceRelativePath)"
+            }
+            Move-Item -LiteralPath $sourcePath -Destination $quarantinePath
+            if (-not (Test-PlannedArtifact $quarantinePath $artifact)) {
+                throw "Runtime save artifact quarantine verification failed: $($artifact.sourceRelativePath)"
+            }
+        }
+        elseif (-not $quarantinePresent) {
+            throw "A planned runtime save artifact is missing from both live and quarantine paths: $($artifact.sourceRelativePath)"
+        }
+    }
+    $state.phase = 'artifacts-quarantined'
+    $state | Add-Member -NotePropertyName artifactsQuarantinedAtUtc -NotePropertyValue ([DateTimeOffset]::UtcNow.ToString('o')) -Force
+    Write-KmcJsonDurable $StatePath $state
 
     $workingIsOriginal = $false
     if (Test-Path -LiteralPath $workingPath -PathType Leaf) {
+        Assert-KmcNotReparsePoint $workingPath 'restored KMC working save'
+        Assert-KmcNotHardLink $workingPath 'restored KMC working save'
         $workingFile = Get-Item -LiteralPath $workingPath
         $workingIsOriginal = $workingFile.Length -eq [long]$state.workingLength -and (Get-KmcSha256 $workingPath) -ceq [string]$state.workingSha256
-        if (-not $workingIsOriginal) {
-            if (Test-Path -LiteralPath $quarantinePath) { throw 'Working-save quarantine already exists while the live Working save still differs.' }
-            Move-Item -LiteralPath $workingPath -Destination $quarantinePath
-            $state | Add-Member -NotePropertyName workingQuarantinedAtUtc -NotePropertyValue ([DateTimeOffset]::UtcNow.ToString('o')) -Force
-            Write-KmcJsonAtomic $StatePath $state
-        }
+        if (-not $workingIsOriginal) { throw 'An unplanned live Working save remains after artifact quarantine.' }
     }
-    if (-not $workingIsOriginal) {
-        Copy-Item -LiteralPath $backupPath -Destination $workingPath
-    }
+    if (-not $workingIsOriginal) { Copy-Item -LiteralPath $backupPath -Destination $workingPath }
     (Get-Item -LiteralPath $workingPath).LastWriteTimeUtc = [DateTime]::new([long]$state.workingLastWriteTimeUtcTicks, [DateTimeKind]::Utc)
     $restoredWorking = Get-Item -LiteralPath $workingPath
     if ($restoredWorking.Length -ne [long]$state.workingLength -or
@@ -629,17 +962,9 @@ function Restore-KmcWorkingSaveTransaction {
         Write-KmcJsonAtomic $StatePath $state
         throw 'Save-root metadata differs after exact Working restoration; protected state was not altered by recovery.'
     }
-    if (-not $baselineImmutable) {
-        Write-KmcJsonAtomic $StatePath $state
-        throw 'KMC baseline immutability verification failed; the baseline was not restored or overwritten.'
-    }
-    if (-not $allowlistPassed) {
-        Write-KmcJsonAtomic $StatePath $state
-        throw [InvalidOperationException]::new('A save outside the exact Working allowlist changed during runtime.', $allowlistError)
-    }
     $state.phase = 'restored'
     $state | Add-Member -NotePropertyName restoredAtUtc -NotePropertyValue ([DateTimeOffset]::UtcNow.ToString('o')) -Force
-    Write-KmcJsonAtomic $StatePath $state
+    Write-KmcJsonDurable $StatePath $state
     return [pscustomobject]@{
         schemaVersion = 1
         baselineImmutable = $true
@@ -1002,8 +1327,68 @@ function Get-KmcSaveBackedRuntimeScenarios {
         'mounted-pair-party-formation', 'mounted-pair-pause-unpause', 'mounted-pair-destination-cancel',
         'mounted-pair-turn-based-entry-cleanup', 'mounted-pair-realtime-entry-cleanup', 'mounted-pair-save-safety',
         'mounted-pair-load-safety', 'mounted-pair-area-transition-safety', 'fixture-intake', 'lifecycle-suite',
-        'movement-suite', 'boundary-suite', 'phase-1-runtime-suite'
+        'movement-suite', 'boundary-suite'
     )
+}
+
+function Get-KmcValidatedOrchestrationArtifactManifestHash {
+    param([Parameter(Mandatory = $true)]$Request)
+    $evidenceRoot = [IO.Path]::GetFullPath([string]$Request.evidenceRoot).TrimEnd('\')
+    if (-not (Test-Path -LiteralPath $evidenceRoot -PathType Container)) {
+        New-Item -ItemType Directory -Path $evidenceRoot -Force | Out-Null
+    }
+    Assert-KmcNotReparsePoint $evidenceRoot 'runtime evidence root'
+    $manifestPath = Assert-KmcChildPath (Join-Path $evidenceRoot 'runtime-artifacts.json') $evidenceRoot 'orchestration artifact manifest'
+    if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
+        $manifest = [ordered]@{
+            schemaVersion = 1
+            runId = [string]$Request.runId
+            scenario = [string]$Request.scenario
+            createdAtUtc = [DateTimeOffset]::UtcNow.ToString('o')
+            artifacts = @()
+        }
+        Write-KmcJsonDurable -Path $manifestPath -Value $manifest
+    }
+    Assert-KmcNotReparsePoint $manifestPath 'orchestration artifact manifest'
+    Assert-KmcNotHardLink $manifestPath 'orchestration artifact manifest'
+    $before = Get-Item -LiteralPath $manifestPath -Force
+    $manifestValue = Read-KmcJson $manifestPath
+    Assert-KmcExactProperties $manifestValue @('schemaVersion','runId','scenario','createdAtUtc','artifacts') 'orchestration artifact manifest'
+    if ([int]$manifestValue.schemaVersion -ne 1 -or [string]$manifestValue.runId -cne [string]$Request.runId -or
+        [string]$manifestValue.scenario -cne [string]$Request.scenario -or $manifestValue.artifacts -isnot [Array]) {
+        throw 'Orchestration artifact manifest identity or shape is invalid.'
+    }
+    $createdAt = [DateTimeOffset]::MinValue
+    if (-not [DateTimeOffset]::TryParse([string]$manifestValue.createdAtUtc, [ref]$createdAt)) {
+        throw 'Orchestration artifact manifest timestamp is invalid.'
+    }
+    $seen = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
+    foreach ($artifact in @($manifestValue.artifacts)) {
+        Assert-KmcExactProperties $artifact @('relativePath','kind','length','sha256') 'orchestration artifact manifest record'
+        $relative = [string]$artifact.relativePath
+        $kind = [string]$artifact.kind
+        $allowed = ($relative -ceq 'movement-telemetry.jsonl' -and $kind -ceq 'telemetry') -or
+            ($relative -ceq 'movement-scenario-evidence.jsonl' -and $kind -ceq 'scenario-evidence') -or
+            ($relative -cmatch '^movement-visuals/[A-Za-z0-9._-]+\.png$' -and $kind -ceq 'screenshot')
+        if (-not $seen.Add($relative) -or -not $allowed -or [long]$artifact.length -le 0 -or
+            [string]$artifact.sha256 -cnotmatch '^[0-9a-f]{64}$') {
+            throw 'Orchestration artifact manifest contains an invalid or duplicate record.'
+        }
+        $artifactPath = Assert-KmcChildPath (Join-Path $evidenceRoot $relative.Replace('/','\')) $evidenceRoot 'orchestration runtime artifact'
+        if (-not (Test-Path -LiteralPath $artifactPath -PathType Leaf)) { throw "Orchestration runtime artifact is missing: $relative" }
+        Assert-KmcNotReparsePoint $artifactPath 'orchestration runtime artifact'
+        Assert-KmcNotHardLink $artifactPath 'orchestration runtime artifact'
+        $file = Get-Item -LiteralPath $artifactPath -Force
+        if ($file.Length -ne [long]$artifact.length -or (Get-KmcSha256 $artifactPath) -cne [string]$artifact.sha256) {
+            throw "Orchestration runtime artifact differs from its manifest: $relative"
+        }
+    }
+    $hash = Get-KmcSha256 $manifestPath
+    $after = Get-Item -LiteralPath $manifestPath -Force
+    if ($after.Length -ne $before.Length -or $after.LastWriteTimeUtc.Ticks -ne $before.LastWriteTimeUtc.Ticks) {
+        throw 'Orchestration artifact manifest changed while being validated.'
+    }
+    return $hash
 }
 
 function New-KmcRuntimeFixturePayload {
@@ -1208,6 +1593,10 @@ function New-KmcRuntimeResultV2 {
     )
     $subscenarios = New-Object 'System.Collections.Generic.List[object]'
     if ($null -ne $ValidatedGameResult) {
+        if ([string]$ValidatedGameResult.evidenceManifestSha256 -cnotmatch '^[0-9a-f]{64}$') {
+            throw 'Structurally validated game result lacks an exact evidence-manifest SHA-256.'
+        }
+        $evidenceManifestSha256 = [string]$ValidatedGameResult.evidenceManifestSha256
         foreach ($item in @($ValidatedGameResult.subscenarioResults)) {
             $subscenarios.Add([ordered]@{
                 name = [string]$item.name
@@ -1221,7 +1610,7 @@ function New-KmcRuntimeResultV2 {
     }
     else {
         $fallbackName = if (@(Get-KmcSaveBackedRuntimeScenarios | Where-Object { $_ -ceq [string]$Request.scenario }).Count -eq 1 -and
-            [string]$Request.scenario -notin @('fixture-intake','lifecycle-suite','movement-suite','boundary-suite','phase-1-runtime-suite')) {
+            [string]$Request.scenario -notin @('fixture-intake','lifecycle-suite','movement-suite','boundary-suite')) {
             [string]$Request.scenario
         } else { 'observe-mount-diagnostic-availability' }
         $fallbackErrors = if (@($Errors).Count -eq 0) { @('Runtime game result was unavailable or invalid.') } else { @($Errors) }
@@ -1233,6 +1622,7 @@ function New-KmcRuntimeResultV2 {
             errors = @($fallbackErrors)
         })
         $fixture = $Request.fixture
+        $evidenceManifestSha256 = Get-KmcValidatedOrchestrationArtifactManifestHash $Request
     }
     $subscenarioArray = $subscenarios.ToArray()
     $subscenarioPassCount = @($subscenarioArray | Where-Object { [string]$_.status -ceq 'PASS' }).Count
@@ -1274,6 +1664,7 @@ function New-KmcRuntimeResultV2 {
         subscenarioFailCount = $subscenarioFailCount
         assertionPassCount = $assertionPassCount
         assertionFailCount = $assertionFailCount
+        evidenceManifestSha256 = $evidenceManifestSha256
         subscenarioResults = $subscenarioArray
     }
 }

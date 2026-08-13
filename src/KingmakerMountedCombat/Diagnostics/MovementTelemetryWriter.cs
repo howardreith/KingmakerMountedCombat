@@ -36,7 +36,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly KingmakerMountedPairRuntime runtime;
         private readonly Func<string> relationshipState;
         private readonly double intervalSeconds;
-        private StreamWriter writer;
+        private bool created;
         private readonly Stopwatch clock = Stopwatch.StartNew();
         private double lastSampleSeconds;
         private long sequence;
@@ -67,10 +67,6 @@ namespace KingmakerMountedCombat.Diagnostics
             var mount = runtime.Mount;
             var agent = runtime.MovementAgent;
             if (rider == null || mount == null || agent == null || !agent.IsConfigured) { return; }
-            if (writer == null)
-            {
-                writer = new StreamWriter(new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.Read), new System.Text.UTF8Encoding(false));
-            }
             var expected = agent.ExpectedPosition;
             var expectedRotation = agent.ExpectedRotation;
             var selected = SelectionManager.Instance?.SelectedUnits;
@@ -162,14 +158,22 @@ namespace KingmakerMountedCombat.Diagnostics
                 maximumResidualWorldUnits = agent.MaximumResidualWorldUnits,
                 maximumRotationResidualDegrees = agent.MaximumRotationResidualDegrees
             };
-            writer.WriteLine(JsonConvert.SerializeObject(sample, JsonSettings));
-            writer.Flush();
+            // Close every diagnostic sample before returning. Runtime completion
+            // hashes the evidence while the process is still alive; retaining a
+            // write handle would prevent both the host and external validator from
+            // opening the file under Windows sharing rules.
+            var mode = created ? FileMode.Append : FileMode.CreateNew;
+            using (var sampleWriter = new StreamWriter(new FileStream(path, mode, FileAccess.Write, FileShare.Read), new System.Text.UTF8Encoding(false)))
+            {
+                sampleWriter.WriteLine(JsonConvert.SerializeObject(sample, JsonSettings));
+                sampleWriter.Flush();
+            }
+            created = true;
         }
 
         public void Dispose()
         {
-            writer?.Dispose();
-            writer = null;
+            // Each sample is independently flushed and closed.
         }
 
         private static string ComputeSha256(string filePath)

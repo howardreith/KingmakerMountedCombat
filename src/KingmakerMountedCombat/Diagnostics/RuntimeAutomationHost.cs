@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
@@ -68,7 +69,19 @@ namespace KingmakerMountedCombat.Diagnostics
 
         public string RunId => request.RunId;
 
+        public bool IsCompleted => completed;
+
         internal RuntimeRequest Request => request;
+
+        public void Abort(Exception exception)
+        {
+            if (disposed || completed)
+            {
+                return;
+            }
+
+            TryCompleteFailure(exception ?? new InvalidOperationException("Runtime automation was aborted after an unspecified update failure."));
+        }
 
         private RuntimeAutomationHost(
             IModLogger logger,
@@ -768,6 +781,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private void CompleteSaveBackedCore(string status, IReadOnlyList<string> errors)
         {
             var finalErrors = errors == null ? new List<string>() : new List<string>(errors);
+            FinalizeActiveScenarioEngines(finalErrors);
             diagnosticSettings.EnableUnsafeMovementExperiment = false;
             var cleanup = relationship.Dismount(Domain.CleanupTrigger.Exception);
             if (!cleanup.Succeeded || cleanup.MovementAuthorityResidual || cleanup.PresentationResidual ||
@@ -840,6 +854,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var ummAssembly = typeof(UnityModManager).Assembly;
             var harmonyPath = Path.Combine(Path.GetDirectoryName(ummAssembly.Location), "0Harmony12.dll");
             var game = Kingmaker.Game.Instance;
+            var evidenceManifestSha256 = EnsureRuntimeArtifactManifest();
             var resultPayload = new RuntimeGameResultV2
             {
                 SchemaVersion = RuntimeRequest.SaveBackedSchemaVersion,
@@ -884,11 +899,53 @@ namespace KingmakerMountedCombat.Diagnostics
                 SubscenarioFailCount = subscenarioFailCount,
                 AssertionPassCount = assertionPassCount,
                 AssertionFailCount = assertionFailCount,
+                EvidenceManifestSha256 = evidenceManifestSha256,
                 SubscenarioResults = results
             };
 
             WriteJsonAtomic(resultPath, resultPayload);
             logger.Info("Runtime automation result committed: " + status);
+        }
+
+        private void FinalizeActiveScenarioEngines(List<string> finalErrors)
+        {
+            if (lifecycleEngine != null)
+            {
+                var engine = lifecycleEngine;
+                lifecycleEngine = null;
+                if (!engine.IsCompleted) { finalErrors.Add("Lifecycle engine was interrupted before completing its selected rows."); }
+                if ((subscenarioResults == null || subscenarioResults.Count == 0) && engine.Results.Count != 0) { subscenarioResults = engine.Results; }
+                CollectEngineErrors(engine.Errors, "Lifecycle");
+                try { engine.Dispose(); }
+                catch (Exception exception) { finalErrors.Add("Lifecycle engine disposal failed: " + exception.GetType().Name + ": " + exception.Message); }
+                CollectEngineErrors(engine.Errors, "Lifecycle");
+            }
+            if (movementEngine != null)
+            {
+                var engine = movementEngine;
+                movementEngine = null;
+                if (!engine.IsCompleted) { finalErrors.Add("Movement engine was interrupted before completing its selected rows."); }
+                if ((subscenarioResults == null || subscenarioResults.Count == 0) && engine.Results.Count != 0) { subscenarioResults = engine.Results; }
+                CollectEngineErrors(engine.Errors, "Movement");
+                try { engine.Dispose(); }
+                catch (Exception exception) { finalErrors.Add("Movement engine disposal failed: " + exception.GetType().Name + ": " + exception.Message); }
+                CollectEngineErrors(engine.Errors, "Movement");
+            }
+            if (boundaryEngine != null)
+            {
+                var engine = boundaryEngine;
+                boundaryEngine = null;
+                if (!engine.IsCompleted) { finalErrors.Add("Boundary engine was interrupted before completing its selected rows."); }
+                if ((subscenarioResults == null || subscenarioResults.Count == 0) && engine.Results.Count != 0) { subscenarioResults = engine.Results; }
+                CollectEngineErrors(engine.Errors, "Boundary");
+                try { engine.Dispose(); }
+                catch (Exception exception) { finalErrors.Add("Boundary engine disposal failed: " + exception.GetType().Name + ": " + exception.Message); }
+                CollectEngineErrors(engine.Errors, "Boundary");
+            }
+            foreach (var engineError in scenarioEngineErrors)
+            {
+                if (!finalErrors.Contains(engineError)) { finalErrors.Add(engineError); }
+            }
         }
 
         private void TryWriteEmergencySaveBackedFailure(Exception exception)
@@ -917,6 +974,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 emergency.WorkingSaveRequestCount = saveAuthorization.AuthorizedWriteCount;
                 emergency.UnauthorizedLoadRequestCount = saveAuthorization.UnauthorizedLoadCount;
                 emergency.UnauthorizedSaveRequestCount = saveAuthorization.UnauthorizedWriteCount;
+                emergency.EvidenceManifestSha256 = EnsureRuntimeArtifactManifest();
                 try { emergency.RelationshipState = relationshipStateProvider() ?? "Unavailable"; } catch { emergency.RelationshipState = "Unavailable"; }
                 try { emergency.MovementExperimentEnabled = movementExperimentProvider(); } catch { emergency.MovementExperimentEnabled = false; }
                 WriteJsonAtomic(resultPath, emergency);
@@ -1012,6 +1070,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 SubscenarioFailCount = 1,
                 AssertionPassCount = 0,
                 AssertionFailCount = 1,
+                EvidenceManifestSha256 = EnsureRuntimeArtifactManifest(request),
                 SubscenarioResults = new[] { failedSubscenario }
             };
         }
@@ -1064,6 +1123,83 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 return BitConverter.ToString(algorithm.ComputeHash(bytes)).Replace("-", string.Empty).ToLowerInvariant();
             }
+        }
+
+        private string EnsureRuntimeArtifactManifest()
+        {
+            return EnsureRuntimeArtifactManifest(request);
+        }
+
+        private static string EnsureRuntimeArtifactManifest(RuntimeRequest request)
+        {
+            var manifestPath = Path.Combine(request.EvidenceRoot, "runtime-artifacts.json");
+            if (File.Exists(manifestPath))
+            {
+                return ComputeSha256(manifestPath);
+            }
+
+            var artifacts = new List<RuntimeArtifactRecord>();
+            AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, "movement-telemetry.jsonl", "telemetry");
+            AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, "movement-scenario-evidence.jsonl", "scenario-evidence");
+
+            var visualRoot = Path.Combine(request.EvidenceRoot, "movement-visuals");
+            if (Directory.Exists(visualRoot))
+            {
+                if ((File.GetAttributes(visualRoot) & FileAttributes.ReparsePoint) != 0)
+                {
+                    throw new InvalidOperationException("Movement visual evidence directory is a reparse point.");
+                }
+                foreach (var path in Directory.GetFiles(visualRoot).OrderBy(value => value, StringComparer.Ordinal))
+                {
+                    var leaf = Path.GetFileName(path);
+                    if (!leaf.EndsWith(".png", StringComparison.Ordinal) ||
+                        leaf.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+                    {
+                        throw new InvalidOperationException("Movement visual evidence contains a non-allowlisted file.");
+                    }
+                    AddRuntimeArtifact(artifacts, path, "movement-visuals/" + leaf, "screenshot");
+                }
+                if (Directory.GetDirectories(visualRoot).Length != 0)
+                {
+                    throw new InvalidOperationException("Movement visual evidence contains a nested directory.");
+                }
+            }
+
+            var manifest = new RuntimeArtifactManifest
+            {
+                SchemaVersion = 1,
+                RunId = request.RunId,
+                Scenario = request.Scenario,
+                CreatedAtUtc = DateTimeOffset.UtcNow.ToString("o"),
+                Artifacts = artifacts
+            };
+            WriteJsonAtomic(manifestPath, manifest);
+            return ComputeSha256(manifestPath);
+        }
+
+        private static void AddRuntimeArtifactIfPresent(List<RuntimeArtifactRecord> records, string root, string leaf, string kind)
+        {
+            var path = Path.Combine(root, leaf);
+            if (File.Exists(path))
+            {
+                AddRuntimeArtifact(records, path, leaf, kind);
+            }
+        }
+
+        private static void AddRuntimeArtifact(List<RuntimeArtifactRecord> records, string path, string relativePath, string kind)
+        {
+            var item = new FileInfo(path);
+            if (!item.Exists || (item.Attributes & FileAttributes.ReparsePoint) != 0 || item.Length <= 0)
+            {
+                throw new InvalidOperationException("Runtime artifact is missing, empty, or a reparse point: " + relativePath + ".");
+            }
+            records.Add(new RuntimeArtifactRecord
+            {
+                RelativePath = relativePath,
+                Kind = kind,
+                Length = item.Length,
+                Sha256 = ComputeSha256(item.FullName)
+            });
         }
 
         private static void WriteJsonAtomic(string path, object value)
@@ -1172,7 +1308,25 @@ namespace KingmakerMountedCombat.Diagnostics
             public int SubscenarioFailCount { get; set; }
             public int AssertionPassCount { get; set; }
             public int AssertionFailCount { get; set; }
+            public string EvidenceManifestSha256 { get; set; }
             public IReadOnlyList<RuntimeSubscenarioResult> SubscenarioResults { get; set; }
+        }
+
+        private sealed class RuntimeArtifactManifest
+        {
+            public int SchemaVersion { get; set; }
+            public string RunId { get; set; }
+            public string Scenario { get; set; }
+            public string CreatedAtUtc { get; set; }
+            public IReadOnlyList<RuntimeArtifactRecord> Artifacts { get; set; }
+        }
+
+        private sealed class RuntimeArtifactRecord
+        {
+            public string RelativePath { get; set; }
+            public string Kind { get; set; }
+            public long Length { get; set; }
+            public string Sha256 { get; set; }
         }
     }
 }

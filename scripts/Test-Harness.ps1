@@ -8,6 +8,8 @@ Set-StrictMode -Version Latest
 $repoRoot = Get-KmcRepositoryRoot
 $testParent = [IO.Path]::GetFullPath((Join-Path $repoRoot 'obj\harness-tests'))
 $testRoot = Assert-KmcChildPath (Join-Path $testParent ([Guid]::NewGuid().ToString('N'))) $testParent 'harness test root'
+$runtimeEvidenceParent = [IO.Path]::GetFullPath((Join-Path (Get-KmcLabRoot) 'runtime-evidence'))
+$runtimeEvidenceTestRoot = Assert-KmcChildPath (Join-Path $runtimeEvidenceParent ('harness-test-' + [Guid]::NewGuid().ToString('N'))) $runtimeEvidenceParent 'harness runtime-evidence test root'
 $passed = 0
 $failed = 0
 
@@ -68,6 +70,24 @@ function New-TestRawSaveArchive {
     finally {
         if (Test-Path -LiteralPath $source) { Remove-Item -LiteralPath $source -Recurse -Force }
     }
+}
+
+function New-TestArtifactManifest {
+    param(
+        [Parameter(Mandatory = $true)][string]$EvidenceRoot,
+        [Parameter(Mandatory = $true)][string]$RunId,
+        [Parameter(Mandatory = $true)][string]$Scenario
+    )
+    New-Item -ItemType Directory -Path $EvidenceRoot -Force | Out-Null
+    $path = Join-Path $EvidenceRoot 'runtime-artifacts.json'
+    Write-KmcJsonDurable -Path $path -Value ([ordered]@{
+        schemaVersion = 1
+        runId = $RunId
+        scenario = $Scenario
+        createdAtUtc = [DateTimeOffset]::UtcNow.ToString('o')
+        artifacts = @()
+    })
+    return Get-KmcSha256 $path
 }
 
 New-Item -ItemType Directory -Path $testRoot | Out-Null
@@ -410,7 +430,7 @@ try {
         $originalHash = $pair.working.sha256
         $lock = Open-KmcRuntimeLock -StateRoot $stateRoot -RunId 'save-transaction-test'
         try {
-            $saveState = Enter-KmcWorkingSaveTransaction -Lock $lock -Pair $pair -SaveRoot $transactionSaveRoot -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging
+            $saveState = Enter-KmcWorkingSaveTransaction -Lock $lock -Pair $pair -SaveRoot $transactionSaveRoot -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging -Scenario fixture-intake
             New-TestSaveArchive -Path $transactionWorking -Name 'KMC_AUTOMATION_WORKING' -ExtraEntry
             $restored = Restore-KmcWorkingSaveTransaction -Lock $lock -StatePath $saveState -SaveRoot $transactionSaveRoot -BackupRoot $backup -StagingRoot $staging
             Assert-Test ($restored.baselineImmutable -and $restored.workingRestored -and $restored.saveWriteAllowlistPassed) 'save transaction result flags differ'
@@ -434,7 +454,7 @@ try {
         try {
             $statePath = Get-KmcSaveTransactionStatePath $stateRoot $lock.RunId
             $threw = $false
-            try { Enter-KmcWorkingSaveTransaction -Lock $lock -Pair $pair -SaveRoot $entryDriftRoot -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging | Out-Null } catch { $threw = $true }
+            try { Enter-KmcWorkingSaveTransaction -Lock $lock -Pair $pair -SaveRoot $entryDriftRoot -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging -Scenario fixture-intake | Out-Null } catch { $threw = $true }
             Assert-Test $threw 'Working drift between qualification and transaction entry was accepted'
             Assert-Test (-not (Test-Path -LiteralPath $statePath)) 'a transaction state was created for stale fixture identity'
         }
@@ -451,7 +471,7 @@ try {
         $pair = Get-KmcValidatedFixturePair $corruptSaveRoot
         $lock = Open-KmcRuntimeLock -StateRoot $stateRoot -RunId 'corrupt-save-backup-test'
         try {
-            $saveState = Enter-KmcWorkingSaveTransaction -Lock $lock -Pair $pair -SaveRoot $corruptSaveRoot -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging
+            $saveState = Enter-KmcWorkingSaveTransaction -Lock $lock -Pair $pair -SaveRoot $corruptSaveRoot -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging -Scenario fixture-intake
             $state = Read-KmcJson $saveState
             [IO.File]::AppendAllText([string]$state.backupPath, 'corrupt')
             $liveBefore = Get-KmcSha256 $corruptWorking
@@ -477,7 +497,7 @@ try {
         $pair = Get-KmcValidatedFixturePair $driftSaveRoot
         $lock = Open-KmcRuntimeLock -StateRoot $stateRoot -RunId 'baseline-drift-test'
         try {
-            $saveState = Enter-KmcWorkingSaveTransaction -Lock $lock -Pair $pair -SaveRoot $driftSaveRoot -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging
+            $saveState = Enter-KmcWorkingSaveTransaction -Lock $lock -Pair $pair -SaveRoot $driftSaveRoot -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging -Scenario fixture-intake
             New-TestSaveArchive -Path $driftBaseline -Name 'KMC_AUTOMATION_BASELINE' -ExtraEntry
             $driftHash = Get-KmcSha256 $driftBaseline
             $threw = $false
@@ -489,6 +509,250 @@ try {
             Restore-KmcWorkingSaveTransaction -Lock $lock -StatePath $saveState -SaveRoot $driftSaveRoot -BackupRoot $backup -StagingRoot $staging | Out-Null
         }
         finally { Close-KmcRuntimeLock $lock }
+    }
+
+    Invoke-HarnessTest 'Working slot-family recovery plans and preserves every bounded artifact before exact restore' {
+        $artifactSaveRoot = Join-Path $testRoot 'slot-family-artifacts'
+        New-Item -ItemType Directory -Path $artifactSaveRoot | Out-Null
+        $artifactBaseline = Join-Path $artifactSaveRoot 'Manual_1_KMC_AUTOMATION_BASELINE.zks'
+        $artifactWorking = Join-Path $artifactSaveRoot 'Manual_2_KMC_AUTOMATION_WORKING.zks'
+        New-TestSaveArchive -Path $artifactBaseline -Name 'KMC_AUTOMATION_BASELINE'
+        New-TestSaveArchive -Path $artifactWorking -Name 'KMC_AUTOMATION_WORKING'
+        $pair = Get-KmcValidatedFixturePair $artifactSaveRoot
+        $before = Get-KmcSaveMetadataInventory $artifactSaveRoot
+        $lock = Open-KmcRuntimeLock -StateRoot $stateRoot -RunId 'slot-family-artifact-test'
+        try {
+            $saveStatePath = Enter-KmcWorkingSaveTransaction -Lock $lock -Pair $pair -SaveRoot $artifactSaveRoot -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging -Scenario boundary-suite
+            New-TestSaveArchive -Path $artifactWorking -Name 'KMC_AUTOMATION_WORKING' -ExtraEntry
+            foreach ($sidecar in @(($artifactWorking + '.abcdefgh.xyz'), ($artifactWorking + '.bcdefghi.uvw'))) {
+                New-TestSaveArchive -Path $sidecar -Name 'KMC_AUTOMATION_WORKING'
+            }
+            [IO.File]::WriteAllBytes((Join-Path $artifactSaveRoot 'DotNetZip-abcdefgh.tmp'), [Text.Encoding]::UTF8.GetBytes('partial-one'))
+            [IO.File]::WriteAllBytes((Join-Path $artifactSaveRoot 'DotNetZip-bcdefghi.tmp'), [Text.Encoding]::UTF8.GetBytes('partial-two'))
+
+            $planned = Initialize-KmcWorkingSaveRecoveryPlan -Lock $lock -StatePath $saveStatePath -SaveRoot $artifactSaveRoot -StagingRoot $staging
+            Assert-Test ([string]$planned.phase -ceq 'recovery-planned' -and @($planned.artifactPlan).Count -eq 5) 'complete bounded artifact delta was not durably planned'
+            Assert-Test (-not (Test-Path -LiteralPath ([string]$planned.artifactQuarantineRoot))) 'artifact moves began before the recovery plan was durably persisted'
+            $plannedHashes = @{}; foreach ($entry in @($planned.artifactPlan)) { $plannedHashes[[string]$entry.quarantinePath] = [string]$entry.sha256 }
+
+            $restored = Restore-KmcWorkingSaveTransaction -Lock $lock -StatePath $saveStatePath -SaveRoot $artifactSaveRoot -BackupRoot $backup -StagingRoot $staging
+            Assert-Test ($restored.baselineImmutable -and $restored.workingRestored -and $restored.saveWriteAllowlistPassed) 'slot-family restoration flags differ'
+            Assert-Test ([string]$restored.restoredInventoryDigest -ceq [string]$before.digest) 'slot-family restoration did not reproduce the exact metadata digest'
+            Assert-Test (@(Get-ChildItem -LiteralPath ([string]$planned.artifactQuarantineRoot) -File -Force).Count -eq 5) 'one or more owned artifacts were deleted instead of quarantined'
+            foreach ($quarantine in $plannedHashes.Keys) {
+                Assert-Test ((Get-KmcSha256 $quarantine) -ceq [string]$plannedHashes[$quarantine]) 'a quarantined artifact did not retain its planned bytes'
+            }
+        }
+        finally { Close-KmcRuntimeLock $lock }
+    }
+
+    Invoke-HarnessTest 'Working slot-family recovery resumes after an unrecorded artifact move and is idempotent' {
+        $resumeRoot = Join-Path $testRoot 'slot-family-interruption'
+        New-Item -ItemType Directory -Path $resumeRoot | Out-Null
+        $resumeBaseline = Join-Path $resumeRoot 'Manual_1_KMC_AUTOMATION_BASELINE.zks'
+        $resumeWorking = Join-Path $resumeRoot 'Manual_2_KMC_AUTOMATION_WORKING.zks'
+        New-TestSaveArchive -Path $resumeBaseline -Name 'KMC_AUTOMATION_BASELINE'
+        New-TestSaveArchive -Path $resumeWorking -Name 'KMC_AUTOMATION_WORKING'
+        $pair = Get-KmcValidatedFixturePair $resumeRoot
+        $before = Get-KmcSaveMetadataInventory $resumeRoot
+        $lock = Open-KmcRuntimeLock -StateRoot $stateRoot -RunId 'slot-family-interruption-test'
+        try {
+            $saveStatePath = Enter-KmcWorkingSaveTransaction -Lock $lock -Pair $pair -SaveRoot $resumeRoot -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging -Scenario fixture-intake
+            New-TestSaveArchive -Path $resumeWorking -Name 'KMC_AUTOMATION_WORKING' -ExtraEntry
+            [IO.File]::WriteAllText((Join-Path $resumeRoot 'DotNetZip-abcdefgh.tmp'), 'interrupted-temp')
+            $planned = Initialize-KmcWorkingSaveRecoveryPlan -Lock $lock -StatePath $saveStatePath -SaveRoot $resumeRoot -StagingRoot $staging
+            New-Item -ItemType Directory -Path ([string]$planned.artifactQuarantineRoot) | Out-Null
+            $firstArtifact = @($planned.artifactPlan)[0]
+            Move-Item -LiteralPath ([string]$firstArtifact.sourcePath) -Destination ([string]$firstArtifact.quarantinePath)
+
+            $restored = Restore-KmcWorkingSaveTransaction -Lock $lock -StatePath $saveStatePath -SaveRoot $resumeRoot -BackupRoot $backup -StagingRoot $staging
+            Assert-Test ([string]$restored.restoredInventoryDigest -ceq [string]$before.digest) 'interrupted recovery did not restore the exact inventory'
+            $again = Restore-KmcWorkingSaveTransaction -Lock $lock -StatePath $saveStatePath -SaveRoot $resumeRoot -BackupRoot $backup -StagingRoot $staging
+            Assert-Test ($again.workingRestored -and [string]$again.restoredInventoryDigest -ceq [string]$before.digest) 'replayed completed recovery was not idempotent'
+        }
+        finally { Close-KmcRuntimeLock $lock }
+    }
+
+    Invoke-HarnessTest 'Working slot-family recovery rejects unknown and foreign drift before any move' {
+        $unknownRoot = Join-Path $testRoot 'slot-family-unknown'
+        New-Item -ItemType Directory -Path $unknownRoot | Out-Null
+        $unknownBaseline = Join-Path $unknownRoot 'Manual_1_KMC_AUTOMATION_BASELINE.zks'
+        $unknownWorking = Join-Path $unknownRoot 'Manual_2_KMC_AUTOMATION_WORKING.zks'
+        $foreign = Join-Path $unknownRoot 'Manual_9_PERSONAL.zks'
+        New-TestSaveArchive -Path $unknownBaseline -Name 'KMC_AUTOMATION_BASELINE'
+        New-TestSaveArchive -Path $unknownWorking -Name 'KMC_AUTOMATION_WORKING'
+        [IO.File]::WriteAllText($foreign, 'protected-before')
+        $pair = Get-KmcValidatedFixturePair $unknownRoot
+        $lock = Open-KmcRuntimeLock -StateRoot $stateRoot -RunId 'slot-family-unknown-test'
+        try {
+            $saveStatePath = Enter-KmcWorkingSaveTransaction -Lock $lock -Pair $pair -SaveRoot $unknownRoot -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging -Scenario fixture-intake
+            New-TestSaveArchive -Path $unknownWorking -Name 'KMC_AUTOMATION_WORKING' -ExtraEntry
+            $workingAfterHash = Get-KmcSha256 $unknownWorking
+            [IO.File]::AppendAllText($foreign, '-drift')
+            [IO.File]::WriteAllText((Join-Path $unknownRoot 'Quicksave_1_FOREIGN.zks'), 'unknown')
+            $threw = $false
+            try { Restore-KmcWorkingSaveTransaction -Lock $lock -StatePath $saveStatePath -SaveRoot $unknownRoot -BackupRoot $backup -StagingRoot $staging | Out-Null } catch { $threw = $true }
+            Assert-Test $threw 'unknown and foreign save drift was accepted'
+            Assert-Test ((Get-KmcSha256 $unknownWorking) -ceq $workingAfterHash) 'Working was moved before unknown/foreign drift rejection'
+            $state = Read-KmcJson $saveStatePath
+            Assert-Test ($null -eq $state.PSObject.Properties['artifactPlan'] -and -not (Test-Path -LiteralPath ([string]$state.artifactQuarantineRoot))) 'a recovery plan or artifact move survived rejected preclassification'
+        }
+        finally { Close-KmcRuntimeLock $lock }
+    }
+
+    Invoke-HarnessTest 'Working slot-family recovery rejects foreign-identity sidecars and excess artifacts before any move' {
+        $boundedRoot = Join-Path $testRoot 'slot-family-bounds'
+        New-Item -ItemType Directory -Path $boundedRoot | Out-Null
+        $boundedBaseline = Join-Path $boundedRoot 'Manual_1_KMC_AUTOMATION_BASELINE.zks'
+        $boundedWorking = Join-Path $boundedRoot 'Manual_2_KMC_AUTOMATION_WORKING.zks'
+        New-TestSaveArchive -Path $boundedBaseline -Name 'KMC_AUTOMATION_BASELINE'
+        New-TestSaveArchive -Path $boundedWorking -Name 'KMC_AUTOMATION_WORKING'
+        $pair = Get-KmcValidatedFixturePair $boundedRoot
+        $lock = Open-KmcRuntimeLock -StateRoot $stateRoot -RunId 'slot-family-bounds-test'
+        try {
+            $saveStatePath = Enter-KmcWorkingSaveTransaction -Lock $lock -Pair $pair -SaveRoot $boundedRoot -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging -Scenario fixture-intake
+            $foreignSidecar = $boundedWorking + '.abcdefgh.xyz'
+            New-TestSaveArchive -Path $foreignSidecar -Name 'KMC_AUTOMATION_WORKING' -GameId 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
+            $threw = $false
+            try { Restore-KmcWorkingSaveTransaction -Lock $lock -StatePath $saveStatePath -SaveRoot $boundedRoot -BackupRoot $backup -StagingRoot $staging | Out-Null } catch { $threw = $true }
+            Assert-Test $threw 'a Working sidecar with foreign campaign identity was accepted'
+            Assert-Test (Test-Path -LiteralPath $foreignSidecar -PathType Leaf) 'foreign-identity sidecar was moved before rejection'
+        }
+        finally { Close-KmcRuntimeLock $lock }
+
+        $excessRoot = Join-Path $testRoot 'slot-family-excess'
+        New-Item -ItemType Directory -Path $excessRoot | Out-Null
+        $excessBaseline = Join-Path $excessRoot 'Manual_1_KMC_AUTOMATION_BASELINE.zks'
+        $excessWorking = Join-Path $excessRoot 'Manual_2_KMC_AUTOMATION_WORKING.zks'
+        New-TestSaveArchive -Path $excessBaseline -Name 'KMC_AUTOMATION_BASELINE'
+        New-TestSaveArchive -Path $excessWorking -Name 'KMC_AUTOMATION_WORKING'
+        $pair = Get-KmcValidatedFixturePair $excessRoot
+        $lock = Open-KmcRuntimeLock -StateRoot $stateRoot -RunId 'slot-family-excess-test'
+        try {
+            $saveStatePath = Enter-KmcWorkingSaveTransaction -Lock $lock -Pair $pair -SaveRoot $excessRoot -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging -Scenario boundary-suite
+            foreach ($leaf in @('DotNetZip-abcdefgh.tmp','DotNetZip-bcdefghi.tmp','DotNetZip-cdefghij.tmp')) { [IO.File]::WriteAllText((Join-Path $excessRoot $leaf), $leaf) }
+            $threw = $false
+            try { Restore-KmcWorkingSaveTransaction -Lock $lock -StatePath $saveStatePath -SaveRoot $excessRoot -BackupRoot $backup -StagingRoot $staging | Out-Null } catch { $threw = $true }
+            Assert-Test $threw 'artifact count beyond the two-load boundary-suite bound was accepted'
+            Assert-Test (@(Get-ChildItem -LiteralPath $excessRoot -Filter 'DotNetZip-*.tmp' -File).Count -eq 3) 'excess artifacts were moved before bound rejection'
+        }
+        finally { Close-KmcRuntimeLock $lock }
+    }
+
+    Invoke-HarnessTest 'Working slot-family recovery rejects an extra canonical slot before any move' {
+        $duplicateRoot = Join-Path $testRoot 'slot-family-duplicate-canonical'
+        New-Item -ItemType Directory -Path $duplicateRoot | Out-Null
+        $duplicateBaseline = Join-Path $duplicateRoot 'Manual_1_KMC_AUTOMATION_BASELINE.zks'
+        $duplicateWorking = Join-Path $duplicateRoot 'Manual_2_KMC_AUTOMATION_WORKING.zks'
+        New-TestSaveArchive -Path $duplicateBaseline -Name 'KMC_AUTOMATION_BASELINE'
+        New-TestSaveArchive -Path $duplicateWorking -Name 'KMC_AUTOMATION_WORKING'
+        $pair = Get-KmcValidatedFixturePair $duplicateRoot
+        $lock = Open-KmcRuntimeLock -StateRoot $stateRoot -RunId 'slot-family-duplicate-canonical-test'
+        try {
+            $saveStatePath = Enter-KmcWorkingSaveTransaction -Lock $lock -Pair $pair -SaveRoot $duplicateRoot -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging -Scenario fixture-intake
+            New-TestSaveArchive -Path $duplicateWorking -Name 'KMC_AUTOMATION_WORKING' -ExtraEntry
+            $workingAfterHash = Get-KmcSha256 $duplicateWorking
+            $extraCanonical = Join-Path $duplicateRoot 'Manual_3_KMC_AUTOMATION_WORKING.zks'
+            New-TestSaveArchive -Path $extraCanonical -Name 'KMC_AUTOMATION_WORKING'
+            $threw = $false
+            try { Restore-KmcWorkingSaveTransaction -Lock $lock -StatePath $saveStatePath -SaveRoot $duplicateRoot -BackupRoot $backup -StagingRoot $staging | Out-Null } catch { $threw = $true }
+            Assert-Test $threw 'second canonical Working slot was inferred to be transaction-owned'
+            Assert-Test ((Get-KmcSha256 $duplicateWorking) -ceq $workingAfterHash -and (Test-Path -LiteralPath $extraCanonical -PathType Leaf)) 'an artifact moved before duplicate-canonical rejection'
+        }
+        finally { Close-KmcRuntimeLock $lock }
+    }
+
+    Invoke-HarnessTest 'Working recovery detects same-length same-time content drift' {
+        $contentRoot = Join-Path $testRoot 'working-content-drift'
+        New-Item -ItemType Directory -Path $contentRoot | Out-Null
+        $contentBaseline = Join-Path $contentRoot 'Manual_1_KMC_AUTOMATION_BASELINE.zks'
+        $contentWorking = Join-Path $contentRoot 'Manual_2_KMC_AUTOMATION_WORKING.zks'
+        New-TestSaveArchive -Path $contentBaseline -Name 'KMC_AUTOMATION_BASELINE'
+        New-TestSaveArchive -Path $contentWorking -Name 'KMC_AUTOMATION_WORKING'
+        $pair = Get-KmcValidatedFixturePair $contentRoot
+        $originalTime = (Get-Item -LiteralPath $contentWorking).LastWriteTimeUtc
+        $originalBytes = [IO.File]::ReadAllBytes($contentWorking)
+        $mutatedBytes = New-Object byte[] $originalBytes.Length
+        [Array]::Copy($originalBytes, $mutatedBytes, $originalBytes.Length)
+        $mutatedBytes[$mutatedBytes.Length - 1] = $mutatedBytes[$mutatedBytes.Length - 1] -bxor 1
+        $lock = Open-KmcRuntimeLock -StateRoot $stateRoot -RunId 'working-content-drift-test'
+        try {
+            $saveStatePath = Enter-KmcWorkingSaveTransaction -Lock $lock -Pair $pair -SaveRoot $contentRoot -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging -Scenario fixture-intake
+            [IO.File]::WriteAllBytes($contentWorking, $mutatedBytes)
+            (Get-Item -LiteralPath $contentWorking).LastWriteTimeUtc = $originalTime
+            $planned = Initialize-KmcWorkingSaveRecoveryPlan -Lock $lock -StatePath $saveStatePath -SaveRoot $contentRoot -StagingRoot $staging
+            Assert-Test (@($planned.artifactPlan | Where-Object kind -eq 'working-current').Count -eq 1) 'same-metadata Working substitution was omitted from the recovery plan'
+            $restored = Restore-KmcWorkingSaveTransaction -Lock $lock -StatePath $saveStatePath -SaveRoot $contentRoot -BackupRoot $backup -StagingRoot $staging
+            Assert-Test ((Get-KmcSha256 $contentWorking) -ceq [string]$pair.working.sha256) 'same-metadata Working substitution was not exactly restored'
+        }
+        finally { Close-KmcRuntimeLock $lock }
+    }
+
+    Invoke-HarnessTest 'DotNetZip temp and sidecar suffix classification is case-insensitive' {
+        $caseRoot = Join-Path $testRoot 'slot-family-case'
+        New-Item -ItemType Directory -Path $caseRoot | Out-Null
+        $caseBaseline = Join-Path $caseRoot 'Manual_1_KMC_AUTOMATION_BASELINE.zks'
+        $caseWorking = Join-Path $caseRoot 'Manual_2_KMC_AUTOMATION_WORKING.zks'
+        New-TestSaveArchive -Path $caseBaseline -Name 'KMC_AUTOMATION_BASELINE'
+        New-TestSaveArchive -Path $caseWorking -Name 'KMC_AUTOMATION_WORKING'
+        $pair = Get-KmcValidatedFixturePair $caseRoot
+        $lock = Open-KmcRuntimeLock -StateRoot $stateRoot -RunId 'slot-family-case-test'
+        try {
+            $saveStatePath = Enter-KmcWorkingSaveTransaction -Lock $lock -Pair $pair -SaveRoot $caseRoot -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging -Scenario fixture-intake
+            New-TestSaveArchive -Path ($caseWorking + '.AbCdEfGh.XyZ') -Name 'KMC_AUTOMATION_WORKING'
+            [IO.File]::WriteAllText((Join-Path $caseRoot 'DotNetZip-AbCdEfGh.TmP'), 'case-temp')
+            $restored = Restore-KmcWorkingSaveTransaction -Lock $lock -StatePath $saveStatePath -SaveRoot $caseRoot -BackupRoot $backup -StagingRoot $staging
+            Assert-Test $restored.workingRestored 'mixed-case DotNetZip artifacts were not recovered'
+        }
+        finally { Close-KmcRuntimeLock $lock }
+    }
+
+    Invoke-HarnessTest 'Working slot-family recovery rejects hard-link and reparse artifacts before any move' {
+        $linkRoot = Join-Path $testRoot 'slot-family-links'
+        New-Item -ItemType Directory -Path $linkRoot | Out-Null
+        $linkBaseline = Join-Path $linkRoot 'Manual_1_KMC_AUTOMATION_BASELINE.zks'
+        $linkWorking = Join-Path $linkRoot 'Manual_2_KMC_AUTOMATION_WORKING.zks'
+        New-TestSaveArchive -Path $linkBaseline -Name 'KMC_AUTOMATION_BASELINE'
+        New-TestSaveArchive -Path $linkWorking -Name 'KMC_AUTOMATION_WORKING'
+        $pair = Get-KmcValidatedFixturePair $linkRoot
+        $lock = Open-KmcRuntimeLock -StateRoot $stateRoot -RunId 'slot-family-hardlink-test'
+        try {
+            $saveStatePath = Enter-KmcWorkingSaveTransaction -Lock $lock -Pair $pair -SaveRoot $linkRoot -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging -Scenario fixture-intake
+            $hardLink = Join-Path $linkRoot 'Manual_3_KMC_AUTOMATION_WORKING.zks'
+            New-Item -ItemType HardLink -Path $hardLink -Target $linkWorking | Out-Null
+            $threw = $false
+            try { Restore-KmcWorkingSaveTransaction -Lock $lock -StatePath $saveStatePath -SaveRoot $linkRoot -BackupRoot $backup -StagingRoot $staging | Out-Null } catch { $threw = $true }
+            Assert-Test $threw 'hard-linked canonical Working artifact was accepted'
+            Assert-Test (Test-Path -LiteralPath $hardLink -PathType Leaf) 'hard-linked artifact was moved before rejection'
+        }
+        finally { Close-KmcRuntimeLock $lock }
+
+        $reparseRoot = Join-Path $testRoot 'slot-family-reparse'
+        $reparseTarget = Join-Path $testRoot 'slot-family-reparse-target'
+        New-Item -ItemType Directory -Path $reparseRoot,$reparseTarget | Out-Null
+        $reparseBaseline = Join-Path $reparseRoot 'Manual_1_KMC_AUTOMATION_BASELINE.zks'
+        $reparseWorking = Join-Path $reparseRoot 'Manual_2_KMC_AUTOMATION_WORKING.zks'
+        New-TestSaveArchive -Path $reparseBaseline -Name 'KMC_AUTOMATION_BASELINE'
+        New-TestSaveArchive -Path $reparseWorking -Name 'KMC_AUTOMATION_WORKING'
+        $pair = Get-KmcValidatedFixturePair $reparseRoot
+        $lock = Open-KmcRuntimeLock -StateRoot $stateRoot -RunId 'slot-family-reparse-test'
+        try {
+            $saveStatePath = Enter-KmcWorkingSaveTransaction -Lock $lock -Pair $pair -SaveRoot $reparseRoot -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging -Scenario fixture-intake
+            $junction = Join-Path $reparseRoot 'DotNetZip-abcdefgh.tmp'
+            New-Item -ItemType Junction -Path $junction -Target $reparseTarget | Out-Null
+            $threw = $false
+            try { Restore-KmcWorkingSaveTransaction -Lock $lock -StatePath $saveStatePath -SaveRoot $reparseRoot -BackupRoot $backup -StagingRoot $staging | Out-Null } catch { $threw = $true }
+            Assert-Test $threw 'reparse-point save artifact was accepted'
+            Assert-Test ((Get-Item -LiteralPath $junction -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) 'reparse artifact was moved before rejection'
+        }
+        finally { Close-KmcRuntimeLock $lock }
+    }
+
+    Invoke-HarnessTest 'aggregate runtime suite is excluded until its archive-write count is proven' {
+        Assert-Test (@(Get-KmcSaveBackedRuntimeScenarios | Where-Object { $_ -ceq 'phase-1-runtime-suite' }).Count -eq 0) 'unsupported aggregate suite remains in the save-backed allowlist'
+        $threw = $false
+        try { Get-KmcRuntimeArchiveWriteLimit 'phase-1-runtime-suite' | Out-Null } catch { $threw = $true }
+        Assert-Test $threw 'unsupported aggregate suite received an inferred archive-write bound'
     }
 
     Invoke-HarnessTest 'combined runtime transaction restores Working and Mods under one lock' {
@@ -507,7 +771,7 @@ try {
         $lock = Open-KmcRuntimeLock -StateRoot $stateRoot -RunId 'combined-transaction-test'
         try {
             $combinedState = New-KmcRunTransactionState -Lock $lock -Mode save-backed-v2 -LiveModsRoot $combinedLive -SaveRoot $combinedSaveRoot -StateRoot $stateRoot -ModsBefore $combinedModsBefore -SavesBefore $combinedSavesBefore
-            Enter-KmcWorkingSaveTransaction -Lock $lock -Pair $combinedPair -SaveRoot $combinedSaveRoot -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging | Out-Null
+            Enter-KmcWorkingSaveTransaction -Lock $lock -Pair $combinedPair -SaveRoot $combinedSaveRoot -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging -Scenario fixture-intake | Out-Null
             Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $combinedLive -PackagePath $package -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging | Out-Null
             New-TestSaveArchive -Path $combinedWorking -Name 'KMC_AUTOMATION_WORKING' -ExtraEntry
             $restoration = Restore-KmcRuntimeTransactions -Lock $lock -CombinedStatePath $combinedState -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging
@@ -537,7 +801,7 @@ try {
         $lock = Open-KmcRuntimeLock -StateRoot $stateRoot -RunId 'independent-restoration-test'
         try {
             $combinedState = New-KmcRunTransactionState -Lock $lock -Mode save-backed-v2 -LiveModsRoot $independentLive -SaveRoot $independentSaveRoot -StateRoot $stateRoot -ModsBefore $independentModsBefore -SavesBefore $independentSavesBefore
-            $saveStatePath = Enter-KmcWorkingSaveTransaction -Lock $lock -Pair $independentPair -SaveRoot $independentSaveRoot -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging
+            $saveStatePath = Enter-KmcWorkingSaveTransaction -Lock $lock -Pair $independentPair -SaveRoot $independentSaveRoot -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging -Scenario fixture-intake
             Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $independentLive -PackagePath $package -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging | Out-Null
             $saveState = Read-KmcJson $saveStatePath
             [IO.File]::AppendAllText([string]$saveState.backupPath, 'corrupt')
@@ -571,17 +835,45 @@ try {
         Assert-Test ($hostSource.Contains('ComputeSha256(requestBytes)')) 'in-process host does not hash the exact bytes it deserializes'
     }
 
+    Invoke-HarnessTest 'runtime update failures abort automation and always execute cleanup' {
+        $mainSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Main.cs')
+        $rootSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\CompositionRoot.cs')
+        $hostSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeAutomationHost.cs')
+        $serviceSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\GameMountedRelationshipService.cs')
+        Assert-Test ($mainSource.Contains('root?.HandleUpdateFailure(exception);')) 'OnUpdate does not delegate every escaped failure to the fail-closed composition boundary'
+        Assert-Test ($rootSource.Contains('runtimeAutomation?.Abort(exception);')) 'composition boundary does not abort active automation after an update failure'
+        Assert-Test ($rootSource.Contains('relationship.Dismount(CleanupTrigger.Exception)')) 'composition boundary does not force update-failure relationship cleanup'
+        Assert-Test ($rootSource.Contains('Always execute idempotent cleanup on a disable request')) 'repeated disable requests can bypass idempotent cleanup'
+        Assert-Test ($hostSource.Contains('TryCompleteFailure(exception ??')) 'runtime abort does not commit a bounded FAIL result and quit'
+        Assert-Test ($serviceSource.Contains('cleanupRetryRequired || coordinator.State == RelationshipState.Faulted')) 'frame validation does not detect a prior lifecycle cleanup failure'
+        Assert-Test ($serviceSource.Contains('RetryFailedCleanupOrThrow();')) 'faulted lifecycle cleanup is not retried or escalated into the fail-closed update boundary'
+    }
+
     Invoke-HarnessTest 'schema-v2 final result recomputes subscenario totals from validated game evidence' {
         $fixture = [ordered]@{
             baseline=[ordered]@{internalName='KMC_AUTOMATION_BASELINE';fileName='Manual_1_KMC_AUTOMATION_BASELINE.zks';sha256=('11'*32);length=1;lastWriteTimeUtcTicks=1;gameId='11111111-2222-3333-4444-555555555555';gameName='KMC Test Campaign';area='0123456789abcdef0123456789abcdef'}
             working=[ordered]@{internalName='KMC_AUTOMATION_WORKING';fileName='Manual_2_KMC_AUTOMATION_WORKING.zks';sha256=('22'*32);length=1;lastWriteTimeUtcTicks=1;gameId='11111111-2222-3333-4444-555555555555';gameName='KMC Test Campaign';area='0123456789abcdef0123456789abcdef'}
             writeAuthorization=[ordered]@{mode='working-only';allowedInternalName='KMC_AUTOMATION_WORKING';allowedFileName='Manual_2_KMC_AUTOMATION_WORKING.zks';baselineImmutable=$true}
         }
-        $v2Request=[pscustomobject]@{runId='recompute-test';scenario='fixture-intake';branch='codex/mounted-combat-feasibility';commit=('0'*40);productVersion='0.0.1-feasibility';dllSha256=('a'*64);dllMvid=[Guid]::Empty.ToString();transactionToken=('b'*64);fixture=$fixture}
-        $game=[pscustomobject]@{status='PASS';fixture=$fixture;subscenarioTotal=99;subscenarioPassCount=0;subscenarioFailCount=99;assertionPassCount=0;assertionFailCount=99;subscenarioResults=@([pscustomobject]@{name='observe-mount-diagnostic-availability';status='PASS';assertionPassCount=4;assertionFailCount=0;errors=@()})}
+        $recomputeEvidence = Join-Path $runtimeEvidenceTestRoot 'recompute-evidence'
+        $v2Request=[pscustomobject]@{runId='recompute-test';scenario='fixture-intake';branch='codex/mounted-combat-feasibility';commit=('0'*40);productVersion='0.0.1-feasibility';dllSha256=('a'*64);dllMvid=[Guid]::Empty.ToString();transactionToken=('b'*64);evidenceRoot=$recomputeEvidence;fixture=$fixture}
+        $recomputeManifestHash = New-TestArtifactManifest -EvidenceRoot $recomputeEvidence -RunId $v2Request.runId -Scenario $v2Request.scenario
+        $game=[pscustomobject]@{status='PASS';fixture=$fixture;evidenceManifestSha256=$recomputeManifestHash;subscenarioTotal=99;subscenarioPassCount=0;subscenarioFailCount=99;assertionPassCount=0;assertionFailCount=99;subscenarioResults=@([pscustomobject]@{name='observe-mount-diagnostic-availability';status='PASS';assertionPassCount=4;assertionFailCount=0;errors=@()})}
         $final=New-KmcRuntimeResultV2 -Request $v2Request -ValidatedGameResult $game -StartedAtUtc ([DateTimeOffset]::UtcNow) -ModsRestored $true -BaselineImmutable $true -WorkingRestored $true -SaveWriteAllowlistPassed $true -RestoredSaveInventoryDigest ('c'*64) -GameResultSha256 ('d'*64)
         Assert-Test ([int]$final.subscenarioTotal -eq 1 -and [int]$final.subscenarioPassCount -eq 1 -and [int]$final.subscenarioFailCount -eq 0) 'final result copied untrusted aggregate subscenario totals'
         Assert-Test ([int]$final.assertionPassCount -eq 4 -and [int]$final.assertionFailCount -eq 0 -and [string]$final.status -ceq 'PASS') 'final result did not recompute assertion totals and status'
+        Assert-Test ([string]$final.evidenceManifestSha256 -ceq $recomputeManifestHash) 'final result did not echo the structurally validated game-result evidence manifest hash'
+    }
+
+    Invoke-HarnessTest 'schema-v2 fallback creates and binds a validated orchestration artifact manifest' {
+        $fallbackEvidence = Join-Path $runtimeEvidenceTestRoot 'fallback-evidence'
+        $fallbackRequest=[pscustomobject]@{runId='fallback-test';scenario='fixture-intake';branch='codex/mounted-combat-feasibility';commit=('0'*40);productVersion='0.0.1-feasibility';dllSha256=('a'*64);dllMvid=[Guid]::Empty.ToString();transactionToken=('b'*64);evidenceRoot=$fallbackEvidence;fixture=[ordered]@{baseline=[ordered]@{};working=[ordered]@{};writeAuthorization=[ordered]@{}}}
+        $final=New-KmcRuntimeResultV2 -Request $fallbackRequest -ValidatedGameResult $null -StartedAtUtc ([DateTimeOffset]::UtcNow) -ModsRestored $true -BaselineImmutable $true -WorkingRestored $true -SaveWriteAllowlistPassed $true -RestoredSaveInventoryDigest ('c'*64) -GameResultSha256 $null -Errors @('synthetic missing game result')
+        $manifestPath = Join-Path $fallbackEvidence 'runtime-artifacts.json'
+        Assert-Test ([string]$final.status -ceq 'FAIL') 'missing game result did not force final FAIL'
+        Assert-Test ((Get-KmcSha256 $manifestPath) -ceq [string]$final.evidenceManifestSha256) 'fallback result did not bind the independently created orchestration manifest'
+        $manifest = Read-KmcJson $manifestPath
+        Assert-Test ($manifest.artifacts -is [Array] -and @($manifest.artifacts).Count -eq 0) 'fallback orchestration manifest is not an exact empty artifact array'
     }
 
     $validPackageSource = Join-Path $testRoot 'valid-package\KingmakerMountedCombat'
@@ -624,7 +916,7 @@ try {
         productVersion = '0.0.1-feasibility'; dllSha256 = ('ab' * 32)
         dllMvid = '07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'
         transactionToken = ('cd' * 32)
-        evidenceRoot = (Join-Path (Get-KmcLabRoot) 'runtime-evidence\schema-test')
+        evidenceRoot = (Join-Path $runtimeEvidenceTestRoot 'schema-test')
         saveAccessAllowed = $false; saveName = $null
     }
     Write-KmcJsonAtomic $requestPath $request
@@ -695,7 +987,7 @@ try {
     $v2Request = [ordered]@{
         schemaVersion=2;runId='schema-v2-test';scenario='fixture-intake';branch=$request.branch;commit=$request.commit
         productVersion=$request.productVersion;dllSha256=$request.dllSha256;dllMvid=$request.dllMvid;transactionToken=$request.transactionToken
-        evidenceRoot=(Join-Path (Get-KmcLabRoot) 'runtime-evidence\schema-v2-test');fixture=$v2Fixture
+        evidenceRoot=(Join-Path $runtimeEvidenceTestRoot 'schema-v2-test');fixture=$v2Fixture
     }
     Write-KmcJsonAtomic $v2RequestPath $v2Request
     Invoke-HarnessTest 'runtime request schema accepts exact save-backed fixture payload' {
@@ -703,6 +995,7 @@ try {
     }
 
     $v2GameResultPath = Join-Path $testRoot 'runtime-game-result-v2.json'
+    $v2EvidenceManifestHash = New-TestArtifactManifest -EvidenceRoot $v2Request.evidenceRoot -RunId $v2Request.runId -Scenario $v2Request.scenario
     $v2Subscenario = [ordered]@{name='observe-mount-diagnostic-availability';status='PASS';assertionPassCount=3;assertionFailCount=0;errors=@()}
     $v2GameResult = [ordered]@{
         schemaVersion=2;runId=$v2Request.runId;scenario=$v2Request.scenario;status='PASS';branch=$v2Request.branch;commit=$v2Request.commit
@@ -713,7 +1006,7 @@ try {
         relationshipState='Unmounted';movementExperimentEnabled=$false;processId=$PID;currentGameMode='Default';loadedAreaPresent=$true
         saveRequestCount=0;loadRequestCount=1;frameCount=10;elapsedSeconds=1.0;errors=@();fixture=$v2Fixture;fixtureIdentityVerified=$true
         baselineLoadRequestCount=0;workingLoadRequestCount=1;workingSaveRequestCount=0;unauthorizedLoadRequestCount=0;unauthorizedSaveRequestCount=0
-        subscenarioTotal=1;subscenarioPassCount=1;subscenarioFailCount=0;assertionPassCount=3;assertionFailCount=0;subscenarioResults=@($v2Subscenario)
+        subscenarioTotal=1;subscenarioPassCount=1;subscenarioFailCount=0;assertionPassCount=3;assertionFailCount=0;evidenceManifestSha256=$v2EvidenceManifestHash;subscenarioResults=@($v2Subscenario)
     }
     Write-KmcJsonAtomic $v2GameResultPath $v2GameResult
     Invoke-HarnessTest 'runtime game-result schema accepts exact save-backed PASS' {
@@ -772,6 +1065,13 @@ finally {
             throw 'Harness cleanup target escaped the test parent.'
         }
         Remove-Item -LiteralPath $resolved -Recurse -Force
+    }
+    if (Test-Path -LiteralPath $runtimeEvidenceTestRoot) {
+        $resolvedEvidence = [IO.Path]::GetFullPath($runtimeEvidenceTestRoot)
+        if (-not $resolvedEvidence.StartsWith($runtimeEvidenceParent + '\', [StringComparison]::OrdinalIgnoreCase)) {
+            throw 'Harness runtime-evidence cleanup target escaped its test parent.'
+        }
+        Remove-Item -LiteralPath $resolvedEvidence -Recurse -Force
     }
 }
 
