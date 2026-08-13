@@ -1,0 +1,162 @@
+{
+  "schemaVersion": 1,
+  "generatedAtUtc": "2026-08-13T16:44:09.7884669Z",
+  "repository": {
+    "name": "KingmakerMountedCombat",
+    "branch": "codex/mounted-combat-feasibility",
+    "head": "d2aaecaf81d92238ce0309e2914c3bd2ec6516a0",
+    "origin": "https://github.com/howardreith/KingmakerMountedCombat.git"
+  },
+  "host": {
+    "operatingSystem": "Microsoft Windows NT 10.0.19045.0",
+    "powerShell": "5.1.19041.6456",
+    "is64BitOperatingSystem": true
+  },
+  "kingmaker": {
+    "storefront": "Steam",
+    "appId": 640820,
+    "steamBuildId": "6757524",
+    "displayVersion": "2.1.7b",
+    "files": [
+      {
+        "role": "executable",
+        "name": "Kingmaker.exe",
+        "length": 650752,
+        "fileVersion": "2018.4.10.10503941",
+        "sha256": "94a779c5423199fcb0470bd89884a3b3875dee2072eb1a7b1d7bc8e67accb1a1"
+      },
+      {
+        "role": "gameplayAssembly",
+        "name": "Assembly-CSharp.dll",
+        "identity": "Assembly-CSharp, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null",
+        "mvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7",
+        "length": 7262208,
+        "sha256": "3b6450ffec440e296e586f71c711b195aed144b28d53e1cbb29406d18fef5afb"
+      },
+      {
+        "role": "firstPassAssembly",
+        "name": "Assembly-CSharp-firstpass.dll",
+        "identity": "Assembly-CSharp-firstpass, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null",
+        "mvid": "57f03756-55de-42f5-8bb3-e983306082b2",
+        "length": 3867136,
+        "sha256": "069a7362ce5e3ccd597206174aec13743c2db5a1bfbc2a42f15a5fbd1ea30d30"
+      },
+      {
+        "role": "unityCore",
+        "name": "UnityEngine.CoreModule.dll",
+        "mvid": "bd5ffe06-494e-4588-a068-c8443cc48c47",
+        "length": 848896,
+        "sha256": "3a76df7f709d465e3273502e08edbffb536b1c2f78c3a132b8668e59fddd2803"
+      },
+      {
+        "role": "unityAnimation",
+        "name": "UnityEngine.AnimationModule.dll",
+        "length": 137216,
+        "sha256": "18636cc226c7e6299e80210d4ae808eb2552cbcdb92c8713caee6a7f0e1be1a5"
+      },
+      {
+        "role": "unityAssetBundle",
+        "name": "UnityEngine.AssetBundleModule.dll",
+        "length": 20992,
+        "sha256": "a11128e604a59eadd61ea870f2017ea18d4c19240dd1c1b8b6d4ffb7976b569b"
+      },
+      {
+        "role": "unityUi",
+        "name": "UnityEngine.UI.dll",
+        "length": 252928,
+        "sha256": "4dee942e8974492511733e5482f89fde39e3964008f072ec9c12d05e40a9080d"
+      },
+      {
+        "role": "umm",
+        "name": "UnityModManager.dll",
+        "identity": "UnityModManager, Version=0.28.2.0, Culture=neutral, PublicKeyToken=null",
+        "mvid": "edf4be29-0c88-4482-876d-e946a0f9e363",
+        "length": 184320,
+        "sha256": "75b96e25a3a9fbadb47dd14a4ab490cb8c98143a6242aff3bba6145cd3047f39"
+      },
+      {
+        "role": "harmony",
+        "name": "0Harmony12.dll",
+        "identity": "0Harmony12, Version=1.2.0.1, Culture=neutral, PublicKeyToken=null",
+        "mvid": "918c071f-383e-46dc-a374-6879300cbe15",
+        "length": 102400,
+        "sha256": "aa1cd48317254985d8b700cc74953477d1b40c3022ce9aa4c95ed2b8327e1292"
+      }
+    ]
+  },
+  "wrath": {
+    "storefront": "Steam",
+    "appId": 1184370,
+    "steamBuildId": "20212986",
+    "displayVersion": "2.7.0x",
+    "files": [
+      {
+        "role": "executable",
+        "name": "Wrath.exe",
+        "length": 653824,
+        "fileVersion": "2020.3.48.12060081",
+        "productVersion": "2020.3.48f1 (b805b124c6b7)",
+        "sha256": "e82781ef9c1e1438719b0aa39c6ec5a8b6c51875f279e98f3ee31d45e3fb7ddd"
+      },
+      {
+        "role": "gameplayAssembly",
+        "name": "Assembly-CSharp.dll",
+        "identity": "Assembly-CSharp, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null",
+        "mvid": "90a9869c-2792-4c7b-bfb7-5a8b33da7c82",
+        "length": 11891712,
+        "sha256": "2cb7160b7154d4ffacc77b9c51b1eb26199e1294300f04fdfc073367b2ef8953"
+      },
+      {
+        "role": "firstPassAssembly",
+        "name": "Assembly-CSharp-firstpass.dll",
+        "identity": "Assembly-CSharp-firstpass, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null",
+        "mvid": "2e3c8821-e400-4fd5-9570-5c87269896b6",
+        "length": 3314176,
+        "sha256": "9dde7392853e8d6194905b3b3eef8c5f8d7dc277733951a4c21f6edd4343d390"
+      },
+      {
+        "role": "unityCore",
+        "name": "UnityEngine.CoreModule.dll",
+        "mvid": "4fae2288-737c-4dfd-a349-689bbefabfcc",
+        "length": 1167384,
+        "sha256": "b040598ec99a249779661605123e1a09aeb845c2d7cf623940ab07a775440365"
+      },
+      {
+        "role": "unityAnimation",
+        "name": "UnityEngine.AnimationModule.dll",
+        "length": 161304,
+        "sha256": "deb1b739c1844571c8fd365757fdd51218d79fad38e7087f2f411dffef500c74"
+      },
+      {
+        "role": "unityAssetBundle",
+        "name": "UnityEngine.AssetBundleModule.dll",
+        "length": 33304,
+        "sha256": "944bb1ea3b32fdd73815fdcc3d50fda2b07a7791c6feb2015a96bc5332b470d9"
+      },
+      {
+        "role": "unityUi",
+        "name": "UnityEngine.UI.dll",
+        "length": 233472,
+        "sha256": "69252b96d36fcbc307dbf197fef3c0bdd57cc36db7b24710df680e0b3af3f930"
+      }
+    ]
+  },
+  "toolchain": {
+    "visualStudioMsBuild": "17.14.51.32402",
+    "dotnetSdk": "10.0.400",
+    "netFramework47TargetingPack": true,
+    "roslynSupportsCSharp73": true,
+    "ilspycmd": "10.1.1.8388"
+  },
+  "safety": {
+    "gameProcessesAtIntake": 0,
+    "wrathLaunched": false,
+    "modsMutated": false,
+    "savesMutated": false,
+    "kmcRuntimeTransactionPresent": false,
+    "kmcAutomationFixturesProven": false
+  },
+  "observedExpectationDifferences": [
+    "Installed UMM is 0.28.2.0, not the mission's expected 0.32.x baseline; the exact installed assembly remains the build authority."
+  ]
+}

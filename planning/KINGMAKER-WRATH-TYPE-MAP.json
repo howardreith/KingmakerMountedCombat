@@ -1,0 +1,197 @@
+{
+  "schemaVersion": 1,
+  "status": "IN PROGRESS",
+  "authority": {
+    "kingmakerMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7",
+    "wrathMvid": "90a9869c-2792-4c7b-bfb7-5a8b33da7c82"
+  },
+  "entries": [
+    {
+      "responsibility": "mounted relationship rider state",
+      "wrath": {
+        "types": ["Kingmaker.UnitLogic.Parts.UnitPartRider"],
+        "members": [],
+        "evidence": ["exact type inventory", "analysis-cache/wrath-bounded/Kingmaker.UnitLogic.Parts.UnitPartRider.decompiled.cs"]
+      },
+      "kingmaker": {
+        "classification": "ABSENT — REIMPLEMENT",
+        "types": [],
+        "members": [],
+        "evidence": ["exact type inventory found no rider, saddled, or mount relationship type"]
+      },
+      "proposedStrategy": "runtime-only relationship domain",
+      "risks": ["serialization leakage", "partial transition residue"],
+      "confidence": "medium"
+    },
+    {
+      "responsibility": "mounted relationship mount state",
+      "wrath": {
+        "types": ["Kingmaker.UnitLogic.Parts.UnitPartSaddled"],
+        "members": [],
+        "evidence": ["exact type inventory", "analysis-cache/wrath-bounded/Kingmaker.UnitLogic.Parts.UnitPartSaddled.decompiled.cs"]
+      },
+      "kingmaker": {
+        "classification": "ABSENT — REIMPLEMENT",
+        "types": [],
+        "members": [],
+        "evidence": ["exact type inventory"]
+      },
+      "proposedStrategy": "runtime-only paired state owned outside game serialization",
+      "risks": ["stale reverse reference"],
+      "confidence": "medium"
+    },
+    {
+      "responsibility": "authoritative movement delegation",
+      "wrath": {
+        "types": ["Kingmaker.Controllers.Units.SaddledUnitController", "Kingmaker.View.UnitMovementAgentBase"],
+        "members": [],
+        "evidence": ["bounded exact-type decompilation"]
+      },
+      "kingmaker": {
+        "classification": "PARTIAL PRIMITIVE",
+        "types": ["Kingmaker.View.UnitMovementAgentBase", "Kingmaker.View.UnitMovementAgent", "Kingmaker.View.UnitMovementAgentContinious"],
+        "members": [],
+        "evidence": ["bounded exact-type decompilation"]
+      },
+      "proposedStrategy": "adapter pending exact member trace",
+      "risks": ["dual-agent collision", "global movement effects", "logical/view divergence"],
+      "confidence": "low"
+    },
+    {
+      "responsibility": "rider movement command routing",
+      "wrath": {
+        "types": ["Kingmaker.UnitLogic.Commands.UnitCommands", "Kingmaker.UnitLogic.Commands.Base.UnitCommand", "Kingmaker.UnitLogic.Parts.UnitPartRider"],
+        "members": [],
+        "evidence": ["bounded exact-type decompilation"]
+      },
+      "kingmaker": {
+        "classification": "USABLE CONTROL POINT",
+        "types": ["Kingmaker.UnitLogic.Commands.UnitCommands", "Kingmaker.UnitLogic.Commands.Base.UnitCommand", "Kingmaker.Controllers.Clicks.Handlers.ClickGroundHandler"],
+        "members": [],
+        "evidence": ["bounded exact-type decompilation"]
+      },
+      "proposedStrategy": "scoped command-routing adapter",
+      "risks": ["broad Harmony patch", "cancel/stop mismatch"],
+      "confidence": "low"
+    },
+    {
+      "responsibility": "party group movement and formation",
+      "wrath": {
+        "types": ["Kingmaker.Formations.PartyFormationManager", "Kingmaker.Formations.PartyFormationAuto"],
+        "members": [],
+        "evidence": ["exact type inventory"]
+      },
+      "kingmaker": {
+        "classification": "OLDER EQUIVALENT",
+        "types": ["Kingmaker.Formations.PartyFormationHelper", "Kingmaker.Formations.CustomPartyFormation", "Kingmaker.Controllers.Units.GroupCommandsController"],
+        "members": [],
+        "evidence": ["bounded exact-type decompilation"]
+      },
+      "proposedStrategy": "formation adapter after exact slot trace",
+      "risks": ["duplicate formation slot", "non-mounted party interference"],
+      "confidence": "low"
+    },
+    {
+      "responsibility": "selection and active-unit control",
+      "wrath": {
+        "types": ["Kingmaker.Controllers.SelectionCharacterController"],
+        "members": [],
+        "evidence": ["bounded exact-type decompilation"]
+      },
+      "kingmaker": {
+        "classification": "PARTIAL PRIMITIVE",
+        "types": ["Kingmaker.UI.Selection.SelectionManager"],
+        "members": [],
+        "evidence": ["bounded exact-type decompilation"]
+      },
+      "proposedStrategy": "selection snapshot and restore adapter",
+      "risks": ["selection loss", "camera/portrait mismatch"],
+      "confidence": "low"
+    },
+    {
+      "responsibility": "entity and view alignment",
+      "wrath": {
+        "types": ["Kingmaker.Controllers.Units.SaddledUnitController", "Kingmaker.EntitySystem.Entities.UnitEntityData", "Kingmaker.View.UnitEntityView", "Kingmaker.Visual.Mounts.MountOffsets"],
+        "members": [],
+        "evidence": ["bounded exact-type decompilation"]
+      },
+      "kingmaker": {
+        "classification": "PARTIAL PRIMITIVE",
+        "types": ["Kingmaker.EntitySystem.Entities.UnitEntityData", "Kingmaker.View.UnitEntityView"],
+        "members": [],
+        "evidence": ["bounded exact-type decompilation"]
+      },
+      "proposedStrategy": "view attachment adapter plus minimum evidence-backed logical synchronization",
+      "risks": ["cumulative drift", "teleport artifacts", "detached view residue"],
+      "confidence": "low"
+    },
+    {
+      "responsibility": "qualifying pet/master relationship",
+      "wrath": {
+        "types": ["Kingmaker.UnitLogic.Parts.UnitPartPet", "Kingmaker.UnitLogic.Parts.UnitPartPetMaster"],
+        "members": [],
+        "evidence": ["exact type inventory"]
+      },
+      "kingmaker": {
+        "classification": "PARTIAL PRIMITIVE",
+        "types": ["Kingmaker.UnitLogic.FactLogic.AddPet", "Kingmaker.EntitySystem.Entities.UnitEntityData"],
+        "members": [],
+        "evidence": ["Kingmaker has no UnitPartPet type; bounded AddPet and entity decompilation"]
+      },
+      "proposedStrategy": "exact descriptor/player relationship adapter",
+      "risks": ["accepting non-active or non-owned companions"],
+      "confidence": "low"
+    },
+    {
+      "responsibility": "combat boundary",
+      "wrath": {
+        "types": ["Kingmaker.Controllers.Combat.UnitCombatState"],
+        "members": [],
+        "evidence": ["bounded exact-type decompilation"]
+      },
+      "kingmaker": {
+        "classification": "USABLE CONTROL POINT",
+        "types": ["Kingmaker.Controllers.Combat.UnitCombatState"],
+        "members": [],
+        "evidence": ["bounded exact-type decompilation"]
+      },
+      "proposedStrategy": "event-driven forced cleanup before Phase 1 combat",
+      "risks": ["late cleanup after combat begins"],
+      "confidence": "low"
+    },
+    {
+      "responsibility": "mounted relationship serialization",
+      "wrath": {
+        "types": ["Kingmaker.UnitLogic.Parts.UnitPartRider", "Kingmaker.UnitLogic.Parts.UnitPartSaddled"],
+        "members": [],
+        "evidence": ["bounded exact-type decompilation"]
+      },
+      "kingmaker": {
+        "classification": "ABSENT — SIMPLIFY",
+        "types": [],
+        "members": [],
+        "evidence": ["Phase 1 policy excludes persistence"]
+      },
+      "proposedStrategy": "do not attach custom serializable entity parts; clear before save/load/transition",
+      "risks": ["half-mounted state if cleanup hook is missed"],
+      "confidence": "medium"
+    },
+    {
+      "responsibility": "native mount animation and anchor presentation",
+      "wrath": {
+        "types": ["Kingmaker.Visual.Mounts.MountOffsets"],
+        "members": [],
+        "evidence": ["bounded exact-type decompilation"]
+      },
+      "kingmaker": {
+        "classification": "UNKNOWN — MORE EVIDENCE REQUIRED",
+        "types": ["Kingmaker.View.UnitEntityView"],
+        "members": [],
+        "evidence": ["candidate assets and transform metadata not yet exported"]
+      },
+      "proposedStrategy": "one Kingmaker-native candidate; no Wrath assets",
+      "risks": ["no stable anchor", "unacceptable clipping", "animation mismatch"],
+      "confidence": "low"
+    }
+  ]
+}
