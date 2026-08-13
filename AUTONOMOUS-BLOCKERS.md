@@ -2,17 +2,17 @@
 
 Status: BLOCKED — CRITICAL
 
-## Critical blocker: KMC fixture identity unavailable
+## Critical blocker: exact KMC Working filename unavailable
 
-The exact save root contains 269 files but zero exact filename candidates for `KMC_AUTOMATION_BASELINE` and zero for `KMC_AUTOMATION_WORKING`. Other-project KBP/KMG automation saves exist but are prohibited evidence sources and were not opened, copied, renamed, or loaded. No valued save archive was opened.
+The resumed exact filename audit at `2026-08-13T19:51Z` found exactly one canonical baseline, `Manual_298_KMC_AUTOMATION_BASELINE.zks`, but zero canonical working candidates. Filename-only metadata shows one rejected near-match, `Manual_299_KMC_AUTOMATION_WORKING_.zks`, whose trailing underscore is outside the documented exact regex. Other-project KBP/KMG, ordinary, auto, quick, and other saves were not opened, copied, renamed, or loaded. Neither KMC archive was opened because the filename gate failed first.
 
-There is no conservative autonomous creation path for the required fixture: a new campaign does not produce a directly controllable exact Medium rider with an active rank-7+ Mammoth, while editing or deriving protected/foreign state would violate separation and save safety. Baseline and working fixture identity therefore cannot be distinguished, proving mission §26.2.
+Exact Kingmaker `SaveManager.PrepareSave` evidence shows a fresh exact `KMC_AUTOMATION_WORKING` name produces no trailing underscore. A trailing underscore can reflect an originally non-alphanumeric suffix or a stale filename after overwrite. It is therefore not evidence of the exact internal name and cannot be silently accepted or renamed by automation.
 
-Fixture presence alone will not authorize loading. The current runtime protocol intentionally supports only no-save `mod-load-smoke` and rejects `-SaveAccessAllowed`. A future KMC-owned guard must first open only exact filename-prefiltered KMC archives and prove exactly one baseline and one working file, distinct paths, exact internal names, matching intended GameId/GameName/Area, and baseline immutability.
+An original KMC fixture guard and Working-only transaction are now implemented in the dirty checkpoint. Fourteen fixture-specific deterministic tests pass: exact candidates only, near-match rejection before open, extra-shadow rejection, campaign mismatch, duplicate/case-ambiguous JSON rejection, wrong JSON primitive rejection, hard-link rejection, baseline and Working drift, post-qualification entry drift, Working-only write allowlist, exact Working restore/idempotence, corrupt-backup refusal, and no baseline repair. The content-free protected-save inventory combines path/length/timestamp evidence with the forthcoming in-process deny guard; it intentionally does not open or hash non-KMC archives, so an adversarial same-length/same-timestamp external rewrite is outside its standalone detection power. The live guard cannot inspect descriptors or write durable qualification until the exact filename audit reaches 1/1.
 
 Blocked work: live pair availability, movement, drift, turns, doorway control, selection, formation, lifecycle residue, save/load/area boundaries, and visual classification. This also blocks a truthful final B/C/D architecture decision.
 
-Exact first safe command after project-owned fixtures exist:
+Exact first safe command after the Working fixture is corrected manually through Kingmaker:
 
 ```powershell
 Get-ChildItem -LiteralPath 'C:\Users\Howie\AppData\LocalLow\Owlcat Games\Pathfinder Kingmaker\Saved Games' -File | Where-Object Name -Match '^Manual_[0-9]+_KMC_AUTOMATION_(BASELINE|WORKING)\.zks$' | Select-Object Name,Length,LastWriteTimeUtc

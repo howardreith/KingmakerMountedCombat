@@ -77,6 +77,47 @@ function Assert-KmcExactProperties {
     }
 }
 
+function Assert-KmcJsonObjectMembersUnique {
+    param(
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Json,
+        [Parameter(Mandatory = $true)][string]$Description
+    )
+    Add-Type -AssemblyName System.Runtime.Serialization
+    $reader = $null
+    try {
+        $bytes = [Text.Encoding]::UTF8.GetBytes($Json)
+        $reader = [Runtime.Serialization.Json.JsonReaderWriterFactory]::CreateJsonReader(
+            $bytes,
+            [Xml.XmlDictionaryReaderQuotas]::Max)
+        $document = New-Object Xml.XmlDocument
+        $document.Load($reader)
+        $objects = @($document.SelectNodes('//*[@type="object"]'))
+        foreach ($object in $objects) {
+            $names = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
+            foreach ($member in @($object.ChildNodes | Where-Object NodeType -eq ([Xml.XmlNodeType]::Element))) {
+                if (-not $names.Add([string]$member.Name)) {
+                    throw "$Description contains a duplicate or case-ambiguous JSON object member: $($member.Name)"
+                }
+            }
+        }
+    }
+    catch [Xml.XmlException] {
+        throw "$Description is not valid bounded JSON: $($_.Exception.Message)"
+    }
+    finally {
+        if ($null -ne $reader) { $reader.Dispose() }
+    }
+}
+
+function Assert-KmcNotHardLink {
+    param([Parameter(Mandatory = $true)][string]$Path, [Parameter(Mandatory = $true)][string]$Description)
+    $item = Get-Item -LiteralPath $Path -Force
+    $linkTypeProperty = $item.PSObject.Properties['LinkType']
+    if ($null -ne $linkTypeProperty -and [string]$linkTypeProperty.Value -ceq 'HardLink') {
+        throw "$Description is a hard link and cannot establish independent fixture identity: $($item.FullName)"
+    }
+}
+
 function Get-KmcDirectoryManifest {
     param([Parameter(Mandatory = $true)][string]$Root)
     $fullRoot = [IO.Path]::GetFullPath($Root).TrimEnd('\')
@@ -102,7 +143,7 @@ function Get-KmcDirectoryManifest {
     }
 }
 
-function Get-KmcProtectedSaveMetadata {
+function Get-KmcSaveMetadataInventory {
     param([Parameter(Mandatory = $true)][string]$SaveRoot)
     $fullRoot = [IO.Path]::GetFullPath($SaveRoot).TrimEnd('\')
     if (-not (Test-Path -LiteralPath $fullRoot -PathType Container)) { throw "Save root is missing: $fullRoot" }
@@ -117,7 +158,495 @@ function Get-KmcProtectedSaveMetadata {
     $totalBytes = [long]0
     foreach ($record in $records) { $totalBytes += [long]$record.length }
     $canonical = ($records | ForEach-Object { '{0}|{1}|{2}' -f $_.path, $_.length, $_.lastWriteTimeUtcTicks }) -join "`n"
-    return [pscustomobject]@{ schemaVersion = 1; fileCount = $records.Count; totalBytes = $totalBytes; digest = Get-KmcTextSha256 $canonical }
+    return [pscustomobject]@{
+        schemaVersion = 1
+        root = $fullRoot
+        fileCount = $records.Count
+        totalBytes = $totalBytes
+        digest = Get-KmcTextSha256 $canonical
+        entries = @($records)
+    }
+}
+
+function Get-KmcProtectedSaveMetadata {
+    param([Parameter(Mandatory = $true)][string]$SaveRoot)
+    $inventory = Get-KmcSaveMetadataInventory $SaveRoot
+    return [pscustomobject]@{
+        schemaVersion = 1
+        fileCount = $inventory.fileCount
+        totalBytes = $inventory.totalBytes
+        digest = $inventory.digest
+    }
+}
+
+function Get-KmcFixtureCandidateAudit {
+    param([Parameter(Mandatory = $true)][string]$SaveRoot)
+    $fullRoot = [IO.Path]::GetFullPath($SaveRoot).TrimEnd('\')
+    if (-not (Test-Path -LiteralPath $fullRoot -PathType Container)) { throw "Save root is missing: $fullRoot" }
+    Assert-KmcNotReparsePoint $fullRoot 'Kingmaker save root'
+
+    $files = @(Get-ChildItem -LiteralPath $fullRoot -File -Force)
+    $baseline = @($files | Where-Object { $_.Name -cmatch '^Manual_[0-9]+_KMC_AUTOMATION_BASELINE\.zks$' })
+    $working = @($files | Where-Object { $_.Name -cmatch '^Manual_[0-9]+_KMC_AUTOMATION_WORKING\.zks$' })
+    $recognized = @($baseline + $working | ForEach-Object FullName)
+    $rejected = @($files | Where-Object {
+        $_.Name -match 'KMC_AUTOMATION' -and $_.FullName -cnotin $recognized
+    } | ForEach-Object Name | Sort-Object)
+
+    return [pscustomobject]@{
+        schemaVersion = 1
+        saveRoot = $fullRoot
+        baselineCount = $baseline.Count
+        workingCount = $working.Count
+        baselinePaths = @($baseline | ForEach-Object FullName)
+        workingPaths = @($working | ForEach-Object FullName)
+        rejectedKmcLookingNames = $rejected
+    }
+}
+
+function Read-KmcFixtureHeader {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][ValidateSet('baseline','working')][string]$Kind,
+        [Parameter(Mandatory = $true)][string]$SaveRoot
+    )
+    $fullRoot = [IO.Path]::GetFullPath($SaveRoot).TrimEnd('\')
+    $fullPath = Assert-KmcChildPath $Path $fullRoot "KMC $Kind fixture"
+    if (-not (Test-Path -LiteralPath $fullPath -PathType Leaf)) { throw "KMC $Kind fixture is missing: $fullPath" }
+    Assert-KmcNotReparsePoint $fullPath "KMC $Kind fixture"
+    Assert-KmcNotHardLink $fullPath "KMC $Kind fixture"
+
+    $expectedName = if ($Kind -ceq 'baseline') { 'KMC_AUTOMATION_BASELINE' } else { 'KMC_AUTOMATION_WORKING' }
+    $expectedFilePattern = if ($Kind -ceq 'baseline') {
+        '^Manual_[0-9]+_KMC_AUTOMATION_BASELINE\.zks$'
+    }
+    else {
+        '^Manual_[0-9]+_KMC_AUTOMATION_WORKING\.zks$'
+    }
+    $leaf = [IO.Path]::GetFileName($fullPath)
+    if ($leaf -cnotmatch $expectedFilePattern) { throw "KMC $Kind fixture filename is not exact: $leaf" }
+
+    $before = Get-Item -LiteralPath $fullPath
+    if ($before.Length -le 0 -or $before.Length -gt 256MB) { throw "KMC $Kind fixture size is outside the guarded range." }
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $archive = $null
+    $fileStream = $null
+    $reader = $null
+    try {
+        $fileStream = New-Object IO.FileStream($fullPath, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
+        $archive = New-Object IO.Compression.ZipArchive($fileStream, [IO.Compression.ZipArchiveMode]::Read, $false)
+        $headers = @($archive.Entries | Where-Object { $_.FullName -ceq 'header.json' })
+        if ($headers.Count -ne 1) { throw "KMC $Kind fixture must contain exactly one root header.json entry." }
+        $headerEntry = $headers[0]
+        if ($headerEntry.Length -le 0 -or $headerEntry.Length -gt 1MB) { throw "KMC $Kind header.json size is outside the guarded range." }
+        $reader = New-Object IO.StreamReader($headerEntry.Open(), (New-Object Text.UTF8Encoding($false, $true)), $true)
+        $headerJson = $reader.ReadToEnd()
+        Assert-KmcJsonObjectMembersUnique -Json $headerJson -Description "KMC $Kind header"
+        $header = $headerJson | ConvertFrom-Json
+    }
+    catch [IO.InvalidDataException] {
+        throw "KMC $Kind fixture archive is unreadable: $leaf"
+    }
+    finally {
+        if ($null -ne $reader) { $reader.Dispose() }
+        if ($null -ne $archive) { $archive.Dispose() }
+        if ($null -ne $fileStream) { $fileStream.Dispose() }
+    }
+
+    if ($header -isnot [pscustomobject]) { throw "KMC $Kind header root is not a JSON object." }
+    $required = @('Name','GameName','GameId','Area','Type','CompatibilityVersion')
+    $actual = @($header.PSObject.Properties.Name)
+    if (@($required | Where-Object { $_ -cnotin $actual }).Count -ne 0) { throw "KMC $Kind header is missing an identity field." }
+    foreach ($stringField in @('Name','GameName','GameId','Area','Type')) {
+        if ($header.$stringField -isnot [string]) { throw "KMC $Kind header field $stringField is not an exact JSON string." }
+    }
+    $compatibility = $header.CompatibilityVersion
+    if (($compatibility -isnot [int] -and $compatibility -isnot [long]) -or [long]$compatibility -ne 1) {
+        throw "KMC $Kind compatibility version is not the exact integral value 1."
+    }
+    $name = [string]$header.Name
+    $gameName = [string]$header.GameName
+    $gameId = [string]$header.GameId
+    $area = [string]$header.Area
+    if ($name -cne $expectedName) { throw "KMC $Kind internal save name is not exact." }
+    if ([string]::IsNullOrWhiteSpace($gameName) -or [string]::IsNullOrWhiteSpace($gameId) -or [string]::IsNullOrWhiteSpace($area)) {
+        throw "KMC $Kind header contains an empty campaign identity field."
+    }
+    $parsedGameId = [Guid]::Empty
+    if (-not [Guid]::TryParse($gameId, [ref]$parsedGameId)) { throw "KMC $Kind GameId is not a GUID." }
+    if ([string]$header.Type -cne 'Manual') { throw "KMC $Kind save type is not Manual." }
+    if ($area -cnotmatch '^[0-9a-f]{32}$') { throw "KMC $Kind Area is not an exact lowercase blueprint GUID." }
+
+    $after = Get-Item -LiteralPath $fullPath
+    if ($after.Length -ne $before.Length -or $after.LastWriteTimeUtc.Ticks -ne $before.LastWriteTimeUtc.Ticks) {
+        throw "KMC $Kind fixture changed while its descriptor was being read."
+    }
+    $hash = Get-KmcSha256 $fullPath
+    $final = Get-Item -LiteralPath $fullPath
+    if ($final.Length -ne $before.Length -or $final.LastWriteTimeUtc.Ticks -ne $before.LastWriteTimeUtc.Ticks) {
+        throw "KMC $Kind fixture changed while it was being hashed."
+    }
+
+    return [pscustomobject]@{
+        schemaVersion = 1
+        kind = $Kind
+        name = $name
+        fileName = $leaf
+        path = $fullPath
+        sha256 = $hash
+        length = [long]$final.Length
+        lastWriteTimeUtcTicks = [long]$final.LastWriteTimeUtc.Ticks
+        gameName = $gameName
+        gameId = $gameId
+        area = $area
+    }
+}
+
+function Get-KmcValidatedFixturePair {
+    param(
+        [Parameter(Mandatory = $true)][string]$SaveRoot
+    )
+    $audit = Get-KmcFixtureCandidateAudit $SaveRoot
+    if ($audit.baselineCount -ne 1 -or $audit.workingCount -ne 1 -or $audit.rejectedKmcLookingNames.Count -ne 0) {
+        $rejected = if ($audit.rejectedKmcLookingNames.Count -eq 0) { '<none>' } else { $audit.rejectedKmcLookingNames -join ', ' }
+        throw "Exact KMC filename audit failed: baseline=$($audit.baselineCount); working=$($audit.workingCount); rejected KMC-looking names=$rejected."
+    }
+
+    $baseline = Read-KmcFixtureHeader -Path $audit.baselinePaths[0] -Kind baseline -SaveRoot $audit.saveRoot
+    $working = Read-KmcFixtureHeader -Path $audit.workingPaths[0] -Kind working -SaveRoot $audit.saveRoot
+    if ([string]::Equals($baseline.path, $working.path, [StringComparison]::OrdinalIgnoreCase)) { throw 'KMC baseline and working fixture paths are not distinct.' }
+    if ($baseline.gameId -cne $working.gameId -or $baseline.gameName -cne $working.gameName -or $baseline.area -cne $working.area) {
+        throw 'KMC fixture GameId, GameName, and Area identities do not match exactly.'
+    }
+
+    return [pscustomobject]@{
+        schemaVersion = 1
+        baseline = $baseline
+        working = $working
+        expectedGameName = $working.gameName
+        expectedGameId = $working.gameId
+        expectedArea = $working.area
+        writableSaveNames = @('KMC_AUTOMATION_WORKING')
+    }
+}
+
+function Assert-KmcFixtureQualification {
+    param(
+        [Parameter(Mandatory = $true)]$Pair,
+        [Parameter(Mandatory = $true)][string]$QualificationPath,
+        [switch]$InitializeQualification
+    )
+    $baseline = $Pair.baseline
+    $working = $Pair.working
+
+    $fullQualification = [IO.Path]::GetFullPath($QualificationPath)
+    $qualification = [ordered]@{
+        schemaVersion = 1
+        baselineName = $baseline.name
+        baselineFileName = $baseline.fileName
+        baselinePath = $baseline.path
+        baselineSha256 = $baseline.sha256
+        baselineLength = $baseline.length
+        baselineLastWriteTimeUtcTicks = $baseline.lastWriteTimeUtcTicks
+        workingName = $working.name
+        workingFileName = $working.fileName
+        workingPath = $working.path
+        initialWorkingSha256 = $working.sha256
+        initialWorkingLength = $working.length
+        initialWorkingLastWriteTimeUtcTicks = $working.lastWriteTimeUtcTicks
+        expectedGameName = $working.gameName
+        expectedGameId = $working.gameId
+        expectedArea = $working.area
+        qualifiedAtUtc = [DateTimeOffset]::UtcNow.ToString('o')
+        writableSaveNames = @('KMC_AUTOMATION_WORKING')
+    }
+    if (Test-Path -LiteralPath $fullQualification -PathType Leaf) {
+        $recorded = Read-KmcJson $fullQualification
+        Assert-KmcExactProperties $recorded @($qualification.Keys) 'KMC fixture qualification'
+        if ([int]$recorded.schemaVersion -ne 1 -or
+            [string]$recorded.baselineName -cne $baseline.name -or
+            [string]$recorded.baselineFileName -cne $baseline.fileName -or
+            -not [string]::Equals([string]$recorded.baselinePath, $baseline.path, [StringComparison]::OrdinalIgnoreCase) -or
+            [string]$recorded.baselineSha256 -cne $baseline.sha256 -or
+            [long]$recorded.baselineLength -ne $baseline.length -or
+            [long]$recorded.baselineLastWriteTimeUtcTicks -ne $baseline.lastWriteTimeUtcTicks -or
+            [string]$recorded.workingName -cne $working.name -or
+            [string]$recorded.workingFileName -cne $working.fileName -or
+            -not [string]::Equals([string]$recorded.workingPath, $working.path, [StringComparison]::OrdinalIgnoreCase) -or
+            [string]$recorded.initialWorkingSha256 -cne $working.sha256 -or
+            [long]$recorded.initialWorkingLength -ne $working.length -or
+            [long]$recorded.initialWorkingLastWriteTimeUtcTicks -ne $working.lastWriteTimeUtcTicks -or
+            [string]$recorded.expectedGameName -cne $working.gameName -or
+            [string]$recorded.expectedGameId -cne $working.gameId -or
+            [string]$recorded.expectedArea -cne $working.area -or
+            @($recorded.writableSaveNames).Count -ne 1 -or [string]@($recorded.writableSaveNames)[0] -cne 'KMC_AUTOMATION_WORKING') {
+            throw 'KMC fixture pair differs from the durable qualification or the baseline is no longer immutable.'
+        }
+    }
+    elseif ($InitializeQualification) {
+        Write-KmcJsonAtomic $fullQualification $qualification
+    }
+    else {
+        throw "KMC fixture qualification is missing: $fullQualification"
+    }
+
+    $Pair | Add-Member -NotePropertyName qualificationPath -NotePropertyValue $fullQualification -Force
+    return $Pair
+}
+
+function Assert-KmcFixturePair {
+    param(
+        [Parameter(Mandatory = $true)][string]$SaveRoot,
+        [Parameter(Mandatory = $true)][string]$QualificationPath,
+        [switch]$InitializeQualification
+    )
+    $pair = Get-KmcValidatedFixturePair -SaveRoot $SaveRoot
+    return Assert-KmcFixtureQualification -Pair $pair -QualificationPath $QualificationPath -InitializeQualification:$InitializeQualification
+}
+
+function Assert-KmcSaveWriteAllowlist {
+    param(
+        [Parameter(Mandatory = $true)]$Before,
+        [Parameter(Mandatory = $true)]$After,
+        [Parameter(Mandatory = $true)][string]$WorkingPath
+    )
+    if ([int]$Before.schemaVersion -ne 1 -or [int]$After.schemaVersion -ne 1 -or
+        -not [string]::Equals([string]$Before.root, [string]$After.root, [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Save metadata inventories are not comparable.'
+    }
+    $root = [IO.Path]::GetFullPath([string]$Before.root).TrimEnd('\')
+    $working = Assert-KmcChildPath $WorkingPath $root 'writable KMC working save'
+    $workingRelative = $working.Substring($root.Length + 1).Replace('\','/')
+    $beforeMap = @{}; foreach ($entry in @($Before.entries)) { $beforeMap[[string]$entry.path] = $entry }
+    $afterMap = @{}; foreach ($entry in @($After.entries)) { $afterMap[[string]$entry.path] = $entry }
+    $paths = @($beforeMap.Keys + $afterMap.Keys | Sort-Object -Unique)
+    $changed = New-Object 'System.Collections.Generic.List[string]'
+    foreach ($path in $paths) {
+        $left = $beforeMap[$path]; $right = $afterMap[$path]
+        if ($null -eq $left -or $null -eq $right -or [long]$left.length -ne [long]$right.length -or
+            [long]$left.lastWriteTimeUtcTicks -ne [long]$right.lastWriteTimeUtcTicks) { $changed.Add($path) }
+    }
+    $prohibited = @($changed | Where-Object { -not [string]::Equals($_, $workingRelative, [StringComparison]::OrdinalIgnoreCase) })
+    if ($prohibited.Count -ne 0) { throw "Save write allowlist violation: $($prohibited -join ', ')" }
+    return [pscustomobject]@{ schemaVersion=1; workingChanged=($changed.Count -eq 1); changedPaths=@($changed) }
+}
+
+function Get-KmcSaveTransactionStatePath {
+    param([Parameter(Mandatory = $true)][string]$StateRoot, [Parameter(Mandatory = $true)][string]$RunId)
+    $transactionRoot = Join-Path ([IO.Path]::GetFullPath($StateRoot)) 'save-transactions'
+    return Assert-KmcChildPath (Join-Path $transactionRoot ($RunId + '.json')) $transactionRoot 'save transaction state'
+}
+
+function Enter-KmcWorkingSaveTransaction {
+    param(
+        [Parameter(Mandatory = $true)]$Lock,
+        [Parameter(Mandatory = $true)]$Pair,
+        [Parameter(Mandatory = $true)][string]$SaveRoot,
+        [Parameter(Mandatory = $true)][string]$StateRoot,
+        [Parameter(Mandatory = $true)][string]$BackupRoot,
+        [Parameter(Mandatory = $true)][string]$StagingRoot
+    )
+    [void](Assert-KmcRuntimeLockOwner $Lock)
+    Assert-KmcNoGameProcesses
+    $runId = [string]$Lock.RunId
+    $fullSaveRoot = [IO.Path]::GetFullPath($SaveRoot).TrimEnd('\')
+    $workingPath = Assert-KmcChildPath ([string]$Pair.working.path) $fullSaveRoot 'qualified KMC working save'
+    $baselinePath = Assert-KmcChildPath ([string]$Pair.baseline.path) $fullSaveRoot 'qualified KMC baseline save'
+    if ([string]::Equals($workingPath, $baselinePath, [StringComparison]::OrdinalIgnoreCase)) { throw 'Save transaction paths are not distinct.' }
+    Assert-KmcNotReparsePoint $workingPath 'qualified KMC working save'
+    Assert-KmcNotReparsePoint $baselinePath 'qualified KMC baseline save'
+    Assert-KmcNotHardLink $workingPath 'qualified KMC working save'
+    Assert-KmcNotHardLink $baselinePath 'qualified KMC baseline save'
+
+    # Re-read only the two exact KMC descriptors immediately before freezing Working.
+    # This closes the gap between initial qualification and transaction ownership.
+    $freshBaseline = Read-KmcFixtureHeader -Path $baselinePath -Kind baseline -SaveRoot $fullSaveRoot
+    $freshWorking = Read-KmcFixtureHeader -Path $workingPath -Kind working -SaveRoot $fullSaveRoot
+    foreach ($descriptorName in @('baseline','working')) {
+        $recorded = $Pair.$descriptorName
+        $fresh = if ($descriptorName -ceq 'baseline') { $freshBaseline } else { $freshWorking }
+        if ([string]$recorded.name -cne [string]$fresh.name -or
+            [string]$recorded.fileName -cne [string]$fresh.fileName -or
+            -not [string]::Equals([string]$recorded.path, [string]$fresh.path, [StringComparison]::OrdinalIgnoreCase) -or
+            [string]$recorded.sha256 -cne [string]$fresh.sha256 -or
+            [long]$recorded.length -ne [long]$fresh.length -or
+            [long]$recorded.lastWriteTimeUtcTicks -ne [long]$fresh.lastWriteTimeUtcTicks -or
+            [string]$recorded.gameName -cne [string]$fresh.gameName -or
+            [string]$recorded.gameId -cne [string]$fresh.gameId -or
+            [string]$recorded.area -cne [string]$fresh.area) {
+            throw "KMC $descriptorName fixture changed after qualification and before transaction entry."
+        }
+    }
+
+    $statePath = Get-KmcSaveTransactionStatePath $StateRoot $runId
+    if (Test-Path -LiteralPath $statePath) { throw "Run ID already has save transaction state: $runId" }
+    $backupParent = Join-Path ([IO.Path]::GetFullPath($BackupRoot)) 'save-transactions'
+    $stagingParent = Join-Path ([IO.Path]::GetFullPath($StagingRoot)) 'save-transactions'
+    $backupRun = Assert-KmcChildPath (Join-Path $backupParent $runId) $backupParent 'save transaction backup'
+    $stagingRun = Assert-KmcChildPath (Join-Path $stagingParent $runId) $stagingParent 'save transaction staging'
+    if ((Test-Path -LiteralPath $backupRun) -or (Test-Path -LiteralPath $stagingRun)) { throw "Run ID already has save backup or staging state: $runId" }
+    New-Item -ItemType Directory -Path $backupRun -Force | Out-Null
+    New-Item -ItemType Directory -Path $stagingRun -Force | Out-Null
+    $backupPath = Join-Path $backupRun 'KMC_AUTOMATION_WORKING.original.zks'
+    $quarantinePath = Join-Path $stagingRun 'KMC_AUTOMATION_WORKING.after.zks'
+    Copy-Item -LiteralPath $workingPath -Destination $backupPath
+    Assert-KmcNotReparsePoint $backupPath 'frozen KMC working-save backup'
+    Assert-KmcNotHardLink $backupPath 'frozen KMC working-save backup'
+    $backupHash = Get-KmcSha256 $backupPath
+    $backupLength = [long](Get-Item -LiteralPath $backupPath).Length
+    if ($backupHash -cne [string]$freshWorking.sha256 -or $backupLength -ne [long]$freshWorking.length) {
+        throw 'Frozen KMC working-save backup differs from the freshly revalidated fixture.'
+    }
+    $workingAfterCopy = Read-KmcFixtureHeader -Path $workingPath -Kind working -SaveRoot $fullSaveRoot
+    $baselineAfterCopy = Read-KmcFixtureHeader -Path $baselinePath -Kind baseline -SaveRoot $fullSaveRoot
+    if ([string]$workingAfterCopy.sha256 -cne [string]$freshWorking.sha256 -or
+        [long]$workingAfterCopy.lastWriteTimeUtcTicks -ne [long]$freshWorking.lastWriteTimeUtcTicks -or
+        [string]$baselineAfterCopy.sha256 -cne [string]$freshBaseline.sha256 -or
+        [long]$baselineAfterCopy.lastWriteTimeUtcTicks -ne [long]$freshBaseline.lastWriteTimeUtcTicks) {
+        throw 'A KMC fixture changed while the Working backup was being frozen.'
+    }
+    $beforeInventory = Get-KmcSaveMetadataInventory $fullSaveRoot
+    $state = [ordered]@{
+        schemaVersion = 1
+        runId = $runId
+        token = [string]$Lock.Token
+        phase = 'prepared'
+        preparedAtUtc = [DateTimeOffset]::UtcNow.ToString('o')
+        saveRoot = $fullSaveRoot
+        baselinePath = $baselinePath
+        baselineSha256 = [string]$freshBaseline.sha256
+        baselineLength = [long]$freshBaseline.length
+        baselineLastWriteTimeUtcTicks = [long]$freshBaseline.lastWriteTimeUtcTicks
+        workingPath = $workingPath
+        workingSha256 = [string]$freshWorking.sha256
+        workingLength = [long]$freshWorking.length
+        workingLastWriteTimeUtcTicks = [long]$freshWorking.lastWriteTimeUtcTicks
+        backupPath = $backupPath
+        backupSha256 = $backupHash
+        backupLength = $backupLength
+        quarantinePath = $quarantinePath
+        beforeInventory = $beforeInventory
+    }
+    Write-KmcJsonAtomic $statePath $state
+    return $statePath
+}
+
+function Restore-KmcWorkingSaveTransaction {
+    param(
+        [Parameter(Mandatory = $true)]$Lock,
+        [Parameter(Mandatory = $true)][string]$StatePath,
+        [Parameter(Mandatory = $true)][string]$SaveRoot,
+        [Parameter(Mandatory = $true)][string]$BackupRoot,
+        [Parameter(Mandatory = $true)][string]$StagingRoot
+    )
+    [void](Assert-KmcRuntimeLockOwner $Lock)
+    Assert-KmcNoGameProcesses
+    $state = Read-KmcJson $StatePath
+    $required = @('schemaVersion','runId','token','phase','preparedAtUtc','saveRoot','baselinePath','baselineSha256','baselineLength','baselineLastWriteTimeUtcTicks','workingPath','workingSha256','workingLength','workingLastWriteTimeUtcTicks','backupPath','backupSha256','backupLength','quarantinePath','beforeInventory')
+    $allowed = @($required + @('restoreStartedAtUtc','workingQuarantinedAtUtc','workingRestoredAtUtc','baselineImmutable','saveWriteAllowlistPassed','restoredInventoryDigest','restoredAtUtc'))
+    $actual = @($state.PSObject.Properties.Name)
+    if (@($required | Where-Object { $_ -cnotin $actual }).Count -ne 0 -or @($actual | Where-Object { $_ -cnotin $allowed }).Count -ne 0) {
+        throw 'Save transaction state property set is missing required fields or contains unknown fields.'
+    }
+    if ([int]$state.schemaVersion -ne 1 -or [string]$state.runId -cne [string]$Lock.RunId -or [string]$state.token -cne [string]$Lock.Token) {
+        throw 'Save transaction state ownership does not match the open lock.'
+    }
+    $fullSaveRoot = [IO.Path]::GetFullPath($SaveRoot).TrimEnd('\')
+    if (-not [string]::Equals($fullSaveRoot, [IO.Path]::GetFullPath([string]$state.saveRoot).TrimEnd('\'), [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Save transaction root does not match.'
+    }
+    $workingPath = Assert-KmcChildPath ([string]$state.workingPath) $fullSaveRoot 'recorded KMC working save'
+    $baselinePath = Assert-KmcChildPath ([string]$state.baselinePath) $fullSaveRoot 'recorded KMC baseline save'
+    $backupParent = Join-Path ([IO.Path]::GetFullPath($BackupRoot)) 'save-transactions'
+    $stagingParent = Join-Path ([IO.Path]::GetFullPath($StagingRoot)) 'save-transactions'
+    $backupPath = Assert-KmcChildPath ([string]$state.backupPath) $backupParent 'recorded working-save backup'
+    $quarantinePath = Assert-KmcChildPath ([string]$state.quarantinePath) $stagingParent 'recorded working-save quarantine'
+    Assert-KmcNotReparsePoint $baselinePath 'recorded KMC baseline save'
+    Assert-KmcNotHardLink $baselinePath 'recorded KMC baseline save'
+    if (Test-Path -LiteralPath $workingPath) {
+        Assert-KmcNotReparsePoint $workingPath 'recorded KMC working save'
+        Assert-KmcNotHardLink $workingPath 'recorded KMC working save'
+    }
+    Assert-KmcNotReparsePoint $backupPath 'recorded working-save backup'
+    Assert-KmcNotHardLink $backupPath 'recorded working-save backup'
+    if (Test-Path -LiteralPath $quarantinePath) {
+        Assert-KmcNotReparsePoint $quarantinePath 'recorded working-save quarantine'
+        Assert-KmcNotHardLink $quarantinePath 'recorded working-save quarantine'
+    }
+
+    $baselineImmutable = $false
+    if (Test-Path -LiteralPath $baselinePath -PathType Leaf) {
+        $baselineFile = Get-Item -LiteralPath $baselinePath
+        $baselineImmutable = $baselineFile.Length -eq [long]$state.baselineLength -and
+            $baselineFile.LastWriteTimeUtc.Ticks -eq [long]$state.baselineLastWriteTimeUtcTicks -and
+            (Get-KmcSha256 $baselinePath) -ceq [string]$state.baselineSha256
+    }
+    $state | Add-Member -NotePropertyName baselineImmutable -NotePropertyValue $baselineImmutable -Force
+
+    if (-not (Test-Path -LiteralPath $backupPath -PathType Leaf) -or
+        (Get-KmcSha256 $backupPath) -cne [string]$state.backupSha256 -or
+        (Get-Item -LiteralPath $backupPath).Length -ne [long]$state.backupLength -or
+        [string]$state.backupSha256 -cne [string]$state.workingSha256 -or
+        [long]$state.backupLength -ne [long]$state.workingLength) {
+        Write-KmcJsonAtomic $StatePath $state
+        throw 'KMC working-save backup is missing or corrupt; live save state was not changed.'
+    }
+
+    $beforeRestore = Get-KmcSaveMetadataInventory $fullSaveRoot
+    $allowlistPassed = $true
+    $allowlistError = $null
+    try { [void](Assert-KmcSaveWriteAllowlist -Before $state.beforeInventory -After $beforeRestore -WorkingPath $workingPath) }
+    catch { $allowlistPassed = $false; $allowlistError = $_.Exception }
+    $state | Add-Member -NotePropertyName saveWriteAllowlistPassed -NotePropertyValue $allowlistPassed -Force
+    $state | Add-Member -NotePropertyName restoreStartedAtUtc -NotePropertyValue ([DateTimeOffset]::UtcNow.ToString('o')) -Force
+    Write-KmcJsonAtomic $StatePath $state
+
+    $workingIsOriginal = $false
+    if (Test-Path -LiteralPath $workingPath -PathType Leaf) {
+        $workingFile = Get-Item -LiteralPath $workingPath
+        $workingIsOriginal = $workingFile.Length -eq [long]$state.workingLength -and (Get-KmcSha256 $workingPath) -ceq [string]$state.workingSha256
+        if (-not $workingIsOriginal) {
+            if (Test-Path -LiteralPath $quarantinePath) { throw 'Working-save quarantine already exists while the live Working save still differs.' }
+            Move-Item -LiteralPath $workingPath -Destination $quarantinePath
+            $state | Add-Member -NotePropertyName workingQuarantinedAtUtc -NotePropertyValue ([DateTimeOffset]::UtcNow.ToString('o')) -Force
+            Write-KmcJsonAtomic $StatePath $state
+        }
+    }
+    if (-not $workingIsOriginal) {
+        Copy-Item -LiteralPath $backupPath -Destination $workingPath
+    }
+    (Get-Item -LiteralPath $workingPath).LastWriteTimeUtc = [DateTime]::new([long]$state.workingLastWriteTimeUtcTicks, [DateTimeKind]::Utc)
+    $restoredWorking = Get-Item -LiteralPath $workingPath
+    if ($restoredWorking.Length -ne [long]$state.workingLength -or
+        $restoredWorking.LastWriteTimeUtc.Ticks -ne [long]$state.workingLastWriteTimeUtcTicks -or
+        (Get-KmcSha256 $workingPath) -cne [string]$state.workingSha256) {
+        throw 'KMC working-save restoration verification failed.'
+    }
+    $state | Add-Member -NotePropertyName workingRestoredAtUtc -NotePropertyValue ([DateTimeOffset]::UtcNow.ToString('o')) -Force
+    $restoredInventory = Get-KmcSaveMetadataInventory $fullSaveRoot
+    $state | Add-Member -NotePropertyName restoredInventoryDigest -NotePropertyValue $restoredInventory.digest -Force
+    if ($restoredInventory.digest -cne [string]$state.beforeInventory.digest) {
+        Write-KmcJsonAtomic $StatePath $state
+        throw 'Save-root metadata differs after exact Working restoration; protected state was not altered by recovery.'
+    }
+    if (-not $baselineImmutable) {
+        Write-KmcJsonAtomic $StatePath $state
+        throw 'KMC baseline immutability verification failed; the baseline was not restored or overwritten.'
+    }
+    if (-not $allowlistPassed) {
+        Write-KmcJsonAtomic $StatePath $state
+        throw [InvalidOperationException]::new('A save outside the exact Working allowlist changed during runtime.', $allowlistError)
+    }
+    $state.phase = 'restored'
+    $state | Add-Member -NotePropertyName restoredAtUtc -NotePropertyValue ([DateTimeOffset]::UtcNow.ToString('o')) -Force
+    Write-KmcJsonAtomic $StatePath $state
+    return [pscustomobject]@{
+        schemaVersion = 1
+        baselineImmutable = $true
+        workingRestored = $true
+        saveWriteAllowlistPassed = $true
+        restoredInventoryDigest = $restoredInventory.digest
+    }
 }
 
 function Assert-KmcNoGameProcesses {

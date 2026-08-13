@@ -28,6 +28,48 @@ function Assert-Test([bool]$Condition, [string]$Message) {
     if (-not $Condition) { throw $Message }
 }
 
+function New-TestSaveArchive {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$Name,
+        [string]$GameName = 'KMC Test Campaign',
+        [string]$GameId = '11111111-2222-3333-4444-555555555555',
+        [string]$Area = '0123456789abcdef0123456789abcdef',
+        [switch]$ExtraEntry
+    )
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $source = Join-Path $testRoot ('save-source-' + [Guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path $source | Out-Null
+    try {
+        $header = [ordered]@{ Name=$Name; GameName=$GameName; GameId=$GameId; Area=$Area; Type='Manual'; CompatibilityVersion=1 }
+        Write-KmcJsonAtomic (Join-Path $source 'header.json') $header
+        if ($ExtraEntry) { [IO.File]::WriteAllText((Join-Path $source 'extra.bin'), 'changed working fixture') }
+        if (Test-Path -LiteralPath $Path) { [IO.File]::Delete($Path) }
+        [IO.Compression.ZipFile]::CreateFromDirectory($source, $Path)
+    }
+    finally {
+        if (Test-Path -LiteralPath $source) { Remove-Item -LiteralPath $source -Recurse -Force }
+    }
+}
+
+function New-TestRawSaveArchive {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$HeaderJson
+    )
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $source = Join-Path $testRoot ('raw-save-source-' + [Guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path $source | Out-Null
+    try {
+        [IO.File]::WriteAllText((Join-Path $source 'header.json'), $HeaderJson, (New-Object Text.UTF8Encoding($false)))
+        if (Test-Path -LiteralPath $Path) { [IO.File]::Delete($Path) }
+        [IO.Compression.ZipFile]::CreateFromDirectory($source, $Path)
+    }
+    finally {
+        if (Test-Path -LiteralPath $source) { Remove-Item -LiteralPath $source -Recurse -Force }
+    }
+}
+
 New-Item -ItemType Directory -Path $testRoot | Out-Null
 try {
     $emptyRoot = Join-Path $testRoot 'empty-root'
@@ -211,6 +253,242 @@ try {
         [IO.File]::AppendAllText((Join-Path $saves 'protected.zks'), 'changed')
         $after = Get-KmcProtectedSaveMetadata $saves
         Assert-Test ($before.digest -cne $after.digest) 'save metadata mutation was not detected'
+    }
+
+    $fixtureRoot = Join-Path $testRoot 'fixture-saves'
+    New-Item -ItemType Directory -Path $fixtureRoot | Out-Null
+    $fixtureBaseline = Join-Path $fixtureRoot 'Manual_1_KMC_AUTOMATION_BASELINE.zks'
+    $fixtureWorking = Join-Path $fixtureRoot 'Manual_2_KMC_AUTOMATION_WORKING.zks'
+    $fixtureForeign = Join-Path $fixtureRoot 'Manual_3_PERSONAL.zks'
+    $fixtureQualification = Join-Path $stateRoot 'fixture-test-qualification.json'
+    New-TestSaveArchive -Path $fixtureBaseline -Name 'KMC_AUTOMATION_BASELINE'
+    New-TestSaveArchive -Path $fixtureWorking -Name 'KMC_AUTOMATION_WORKING'
+    [IO.File]::WriteAllText($fixtureForeign, 'not a zip and must never be opened')
+
+    Invoke-HarnessTest 'fixture guard opens only exact KMC candidates' {
+        $pair = Assert-KmcFixturePair -SaveRoot $fixtureRoot -QualificationPath $fixtureQualification -InitializeQualification
+        Assert-Test ([string]$pair.baseline.name -ceq 'KMC_AUTOMATION_BASELINE') 'baseline internal name differs'
+        Assert-Test ([string]$pair.working.name -ceq 'KMC_AUTOMATION_WORKING') 'working internal name differs'
+        Assert-Test ([string]$pair.expectedGameId -ceq '11111111-2222-3333-4444-555555555555') 'pair GameId differs'
+        Assert-Test (Test-Path -LiteralPath $fixtureQualification -PathType Leaf) 'durable qualification was not written'
+    }
+
+    Invoke-HarnessTest 'fixture guard rejects near-match before archive open' {
+        $nearRoot = Join-Path $testRoot 'near-match-saves'
+        New-Item -ItemType Directory -Path $nearRoot | Out-Null
+        New-TestSaveArchive -Path (Join-Path $nearRoot 'Manual_1_KMC_AUTOMATION_BASELINE.zks') -Name 'KMC_AUTOMATION_BASELINE'
+        [IO.File]::WriteAllText((Join-Path $nearRoot 'Manual_2_KMC_AUTOMATION_WORKING_.zks'), 'intentionally unreadable near-match')
+        $message = $null
+        try { Assert-KmcFixturePair -SaveRoot $nearRoot -QualificationPath (Join-Path $stateRoot 'near.json') -InitializeQualification | Out-Null }
+        catch { $message = $_.Exception.Message }
+        Assert-Test ($message -like 'Exact KMC filename audit failed:*working=0*') 'near-match was not rejected by filename audit'
+        Assert-Test ($message -like '*Manual_2_KMC_AUTOMATION_WORKING_.zks*') 'near-match rejection did not identify the exact filename'
+    }
+
+    Invoke-HarnessTest 'fixture guard rejects extra KMC-looking name before archive open' {
+        $extraKmcRoot = Join-Path $testRoot 'extra-kmc-saves'
+        New-Item -ItemType Directory -Path $extraKmcRoot | Out-Null
+        New-TestSaveArchive -Path (Join-Path $extraKmcRoot 'Manual_1_KMC_AUTOMATION_BASELINE.zks') -Name 'KMC_AUTOMATION_BASELINE'
+        New-TestSaveArchive -Path (Join-Path $extraKmcRoot 'Manual_2_KMC_AUTOMATION_WORKING.zks') -Name 'KMC_AUTOMATION_WORKING'
+        [IO.File]::WriteAllText((Join-Path $extraKmcRoot 'Manual_3_KMC_AUTOMATION_WORKING_.zks'), 'intentionally unreadable extra near-match')
+        $message = $null
+        try { Assert-KmcFixturePair -SaveRoot $extraKmcRoot -QualificationPath (Join-Path $stateRoot 'extra-kmc.json') -InitializeQualification | Out-Null }
+        catch { $message = $_.Exception.Message }
+        Assert-Test ($message -like 'Exact KMC filename audit failed:*rejected KMC-looking names=Manual_3_KMC_AUTOMATION_WORKING_.zks*') 'extra KMC-looking archive was ignored'
+    }
+
+    Invoke-HarnessTest 'fixture guard rejects campaign identity mismatch' {
+        $mismatchRoot = Join-Path $testRoot 'mismatch-saves'
+        New-Item -ItemType Directory -Path $mismatchRoot | Out-Null
+        New-TestSaveArchive -Path (Join-Path $mismatchRoot 'Manual_1_KMC_AUTOMATION_BASELINE.zks') -Name 'KMC_AUTOMATION_BASELINE'
+        New-TestSaveArchive -Path (Join-Path $mismatchRoot 'Manual_2_KMC_AUTOMATION_WORKING.zks') -Name 'KMC_AUTOMATION_WORKING' -Area 'fedcba9876543210fedcba9876543210'
+        $threw = $false
+        try { Assert-KmcFixturePair -SaveRoot $mismatchRoot -QualificationPath (Join-Path $stateRoot 'mismatch.json') -InitializeQualification | Out-Null } catch { $threw = $true }
+        Assert-Test $threw 'mismatched fixture identity was accepted'
+    }
+
+    Invoke-HarnessTest 'fixture guard rejects duplicate or case-ambiguous header members' {
+        $duplicateRoot = Join-Path $testRoot 'duplicate-header-saves'
+        New-Item -ItemType Directory -Path $duplicateRoot | Out-Null
+        $duplicateBaseline = Join-Path $duplicateRoot 'Manual_1_KMC_AUTOMATION_BASELINE.zks'
+        $duplicateWorking = Join-Path $duplicateRoot 'Manual_2_KMC_AUTOMATION_WORKING.zks'
+        New-TestRawSaveArchive -Path $duplicateBaseline -HeaderJson '{"Name":"WRONG","Name":"KMC_AUTOMATION_BASELINE","GameName":"KMC Test Campaign","GameId":"11111111-2222-3333-4444-555555555555","Area":"0123456789abcdef0123456789abcdef","Type":"Manual","CompatibilityVersion":1}'
+        New-TestSaveArchive -Path $duplicateWorking -Name 'KMC_AUTOMATION_WORKING'
+        $message = $null
+        try { Get-KmcValidatedFixturePair $duplicateRoot | Out-Null } catch { $message = $_.Exception.Message }
+        Assert-Test ($message -like '*duplicate or case-ambiguous JSON object member: Name*') 'duplicate exact-case header member was accepted'
+
+        New-TestRawSaveArchive -Path $duplicateBaseline -HeaderJson '{"name":"WRONG","Name":"KMC_AUTOMATION_BASELINE","GameName":"KMC Test Campaign","GameId":"11111111-2222-3333-4444-555555555555","Area":"0123456789abcdef0123456789abcdef","Type":"Manual","CompatibilityVersion":1}'
+        $message = $null
+        try { Get-KmcValidatedFixturePair $duplicateRoot | Out-Null } catch { $message = $_.Exception.Message }
+        Assert-Test ($message -like '*duplicate or case-ambiguous JSON object member: Name*') 'case-ambiguous header member was accepted'
+    }
+
+    Invoke-HarnessTest 'fixture guard rejects coercible non-primitive identity fields' {
+        $wrongTypeRoot = Join-Path $testRoot 'wrong-type-header-saves'
+        New-Item -ItemType Directory -Path $wrongTypeRoot | Out-Null
+        $wrongTypeBaseline = Join-Path $wrongTypeRoot 'Manual_1_KMC_AUTOMATION_BASELINE.zks'
+        $wrongTypeWorking = Join-Path $wrongTypeRoot 'Manual_2_KMC_AUTOMATION_WORKING.zks'
+        New-TestSaveArchive -Path $wrongTypeWorking -Name 'KMC_AUTOMATION_WORKING'
+        $invalidHeaders = @(
+            '{"Name":["KMC_AUTOMATION_BASELINE"],"GameName":"KMC Test Campaign","GameId":"11111111-2222-3333-4444-555555555555","Area":"0123456789abcdef0123456789abcdef","Type":"Manual","CompatibilityVersion":1}',
+            '{"Name":"KMC_AUTOMATION_BASELINE","GameName":["KMC Test Campaign"],"GameId":"11111111-2222-3333-4444-555555555555","Area":"0123456789abcdef0123456789abcdef","Type":"Manual","CompatibilityVersion":1}',
+            '{"Name":"KMC_AUTOMATION_BASELINE","GameName":"KMC Test Campaign","GameId":["11111111-2222-3333-4444-555555555555"],"Area":"0123456789abcdef0123456789abcdef","Type":"Manual","CompatibilityVersion":1}',
+            '{"Name":"KMC_AUTOMATION_BASELINE","GameName":"KMC Test Campaign","GameId":"11111111-2222-3333-4444-555555555555","Area":["0123456789abcdef0123456789abcdef"],"Type":"Manual","CompatibilityVersion":1}',
+            '{"Name":"KMC_AUTOMATION_BASELINE","GameName":"KMC Test Campaign","GameId":"11111111-2222-3333-4444-555555555555","Area":"0123456789abcdef0123456789abcdef","Type":["Manual"],"CompatibilityVersion":1}',
+            '{"Name":"KMC_AUTOMATION_BASELINE","GameName":"KMC Test Campaign","GameId":"11111111-2222-3333-4444-555555555555","Area":"0123456789abcdef0123456789abcdef","Type":"Manual","CompatibilityVersion":true}',
+            '{"Name":"KMC_AUTOMATION_BASELINE","GameName":"KMC Test Campaign","GameId":"11111111-2222-3333-4444-555555555555","Area":"0123456789abcdef0123456789abcdef","Type":"Manual","CompatibilityVersion":"1"}'
+        )
+        foreach ($invalidHeader in $invalidHeaders) {
+            New-TestRawSaveArchive -Path $wrongTypeBaseline -HeaderJson $invalidHeader
+            $threw = $false
+            try { Get-KmcValidatedFixturePair $wrongTypeRoot | Out-Null } catch { $threw = $true }
+            Assert-Test $threw 'a coercible non-primitive identity field was accepted'
+        }
+    }
+
+    Invoke-HarnessTest 'fixture guard rejects hard-linked canonical candidates before archive access' {
+        $hardLinkRoot = Join-Path $testRoot 'hard-link-saves'
+        New-Item -ItemType Directory -Path $hardLinkRoot | Out-Null
+        $hardLinkBaseline = Join-Path $hardLinkRoot 'Manual_1_KMC_AUTOMATION_BASELINE.zks'
+        $hardLinkWorking = Join-Path $hardLinkRoot 'Manual_2_KMC_AUTOMATION_WORKING.zks'
+        New-TestSaveArchive -Path $hardLinkBaseline -Name 'KMC_AUTOMATION_BASELINE'
+        New-Item -ItemType HardLink -Path $hardLinkWorking -Target $hardLinkBaseline | Out-Null
+        $message = $null
+        try { Get-KmcValidatedFixturePair $hardLinkRoot | Out-Null } catch { $message = $_.Exception.Message }
+        Assert-Test ($message -like '*is a hard link and cannot establish independent fixture identity*') 'hard-linked fixture candidates were accepted or opened'
+    }
+
+    Invoke-HarnessTest 'fixture qualification detects untransactional working drift' {
+        New-TestSaveArchive -Path $fixtureWorking -Name 'KMC_AUTOMATION_WORKING' -ExtraEntry
+        $threw = $false
+        try { Assert-KmcFixturePair -SaveRoot $fixtureRoot -QualificationPath $fixtureQualification | Out-Null } catch { $threw = $true }
+        Assert-Test $threw 'untransactional working drift passed durable qualification'
+        New-TestSaveArchive -Path $fixtureWorking -Name 'KMC_AUTOMATION_WORKING'
+    }
+
+    Invoke-HarnessTest 'fixture qualification detects baseline mutation' {
+        $immutableRoot = Join-Path $testRoot 'immutable-saves'
+        New-Item -ItemType Directory -Path $immutableRoot | Out-Null
+        $immutableBaseline = Join-Path $immutableRoot 'Manual_1_KMC_AUTOMATION_BASELINE.zks'
+        $immutableWorking = Join-Path $immutableRoot 'Manual_2_KMC_AUTOMATION_WORKING.zks'
+        $immutableState = Join-Path $stateRoot 'immutable.json'
+        New-TestSaveArchive -Path $immutableBaseline -Name 'KMC_AUTOMATION_BASELINE'
+        New-TestSaveArchive -Path $immutableWorking -Name 'KMC_AUTOMATION_WORKING'
+        Assert-KmcFixturePair -SaveRoot $immutableRoot -QualificationPath $immutableState -InitializeQualification | Out-Null
+        New-TestSaveArchive -Path $immutableBaseline -Name 'KMC_AUTOMATION_BASELINE' -ExtraEntry
+        $threw = $false
+        try { Assert-KmcFixturePair -SaveRoot $immutableRoot -QualificationPath $immutableState | Out-Null } catch { $threw = $true }
+        Assert-Test $threw 'mutated baseline passed immutable qualification'
+    }
+
+    Invoke-HarnessTest 'save write allowlist permits only exact working path' {
+        $allowRoot = Join-Path $testRoot 'allowlist-saves'
+        New-Item -ItemType Directory -Path $allowRoot | Out-Null
+        $allowWorking = Join-Path $allowRoot 'Manual_2_KMC_AUTOMATION_WORKING.zks'
+        $allowForeign = Join-Path $allowRoot 'Manual_3_PERSONAL.zks'
+        [IO.File]::WriteAllText($allowWorking, 'working')
+        [IO.File]::WriteAllText($allowForeign, 'protected')
+        $before = Get-KmcSaveMetadataInventory $allowRoot
+        [IO.File]::AppendAllText($allowWorking, '-changed')
+        $workingOnly = Assert-KmcSaveWriteAllowlist -Before $before -After (Get-KmcSaveMetadataInventory $allowRoot) -WorkingPath $allowWorking
+        Assert-Test $workingOnly.workingChanged 'working mutation was not reported'
+        [IO.File]::AppendAllText($allowForeign, '-changed')
+        $threw = $false
+        try { Assert-KmcSaveWriteAllowlist -Before $before -After (Get-KmcSaveMetadataInventory $allowRoot) -WorkingPath $allowWorking | Out-Null } catch { $threw = $true }
+        Assert-Test $threw 'protected save mutation passed the write allowlist'
+    }
+
+    Invoke-HarnessTest 'working-save transaction restores exact mutable fixture' {
+        $transactionSaveRoot = Join-Path $testRoot 'transaction-saves'
+        New-Item -ItemType Directory -Path $transactionSaveRoot | Out-Null
+        $transactionBaseline = Join-Path $transactionSaveRoot 'Manual_1_KMC_AUTOMATION_BASELINE.zks'
+        $transactionWorking = Join-Path $transactionSaveRoot 'Manual_2_KMC_AUTOMATION_WORKING.zks'
+        New-TestSaveArchive -Path $transactionBaseline -Name 'KMC_AUTOMATION_BASELINE'
+        New-TestSaveArchive -Path $transactionWorking -Name 'KMC_AUTOMATION_WORKING'
+        $pair = Get-KmcValidatedFixturePair $transactionSaveRoot
+        $originalHash = $pair.working.sha256
+        $lock = Open-KmcRuntimeLock -StateRoot $stateRoot -RunId 'save-transaction-test'
+        try {
+            $saveState = Enter-KmcWorkingSaveTransaction -Lock $lock -Pair $pair -SaveRoot $transactionSaveRoot -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging
+            New-TestSaveArchive -Path $transactionWorking -Name 'KMC_AUTOMATION_WORKING' -ExtraEntry
+            $restored = Restore-KmcWorkingSaveTransaction -Lock $lock -StatePath $saveState -SaveRoot $transactionSaveRoot -BackupRoot $backup -StagingRoot $staging
+            Assert-Test ($restored.baselineImmutable -and $restored.workingRestored -and $restored.saveWriteAllowlistPassed) 'save transaction result flags differ'
+            Assert-Test ((Get-KmcSha256 $transactionWorking) -ceq $originalHash) 'Working fixture hash was not exactly restored'
+            $again = Restore-KmcWorkingSaveTransaction -Lock $lock -StatePath $saveState -SaveRoot $transactionSaveRoot -BackupRoot $backup -StagingRoot $staging
+            Assert-Test $again.workingRestored 'idempotent save restore failed'
+        }
+        finally { Close-KmcRuntimeLock $lock }
+    }
+
+    Invoke-HarnessTest 'working-save transaction rejects drift after qualification before creating state' {
+        $entryDriftRoot = Join-Path $testRoot 'entry-drift-saves'
+        New-Item -ItemType Directory -Path $entryDriftRoot | Out-Null
+        $entryDriftBaseline = Join-Path $entryDriftRoot 'Manual_1_KMC_AUTOMATION_BASELINE.zks'
+        $entryDriftWorking = Join-Path $entryDriftRoot 'Manual_2_KMC_AUTOMATION_WORKING.zks'
+        New-TestSaveArchive -Path $entryDriftBaseline -Name 'KMC_AUTOMATION_BASELINE'
+        New-TestSaveArchive -Path $entryDriftWorking -Name 'KMC_AUTOMATION_WORKING'
+        $pair = Get-KmcValidatedFixturePair $entryDriftRoot
+        New-TestSaveArchive -Path $entryDriftWorking -Name 'KMC_AUTOMATION_WORKING' -ExtraEntry
+        $lock = Open-KmcRuntimeLock -StateRoot $stateRoot -RunId 'save-entry-drift-test'
+        try {
+            $statePath = Get-KmcSaveTransactionStatePath $stateRoot $lock.RunId
+            $threw = $false
+            try { Enter-KmcWorkingSaveTransaction -Lock $lock -Pair $pair -SaveRoot $entryDriftRoot -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging | Out-Null } catch { $threw = $true }
+            Assert-Test $threw 'Working drift between qualification and transaction entry was accepted'
+            Assert-Test (-not (Test-Path -LiteralPath $statePath)) 'a transaction state was created for stale fixture identity'
+        }
+        finally { Close-KmcRuntimeLock $lock }
+    }
+
+    Invoke-HarnessTest 'working-save transaction rejects corrupt backup before mutation' {
+        $corruptSaveRoot = Join-Path $testRoot 'corrupt-save-backup'
+        New-Item -ItemType Directory -Path $corruptSaveRoot | Out-Null
+        $corruptBaseline = Join-Path $corruptSaveRoot 'Manual_1_KMC_AUTOMATION_BASELINE.zks'
+        $corruptWorking = Join-Path $corruptSaveRoot 'Manual_2_KMC_AUTOMATION_WORKING.zks'
+        New-TestSaveArchive -Path $corruptBaseline -Name 'KMC_AUTOMATION_BASELINE'
+        New-TestSaveArchive -Path $corruptWorking -Name 'KMC_AUTOMATION_WORKING'
+        $pair = Get-KmcValidatedFixturePair $corruptSaveRoot
+        $lock = Open-KmcRuntimeLock -StateRoot $stateRoot -RunId 'corrupt-save-backup-test'
+        try {
+            $saveState = Enter-KmcWorkingSaveTransaction -Lock $lock -Pair $pair -SaveRoot $corruptSaveRoot -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging
+            $state = Read-KmcJson $saveState
+            [IO.File]::AppendAllText([string]$state.backupPath, 'corrupt')
+            $liveBefore = Get-KmcSha256 $corruptWorking
+            $threw = $false
+            try { Restore-KmcWorkingSaveTransaction -Lock $lock -StatePath $saveState -SaveRoot $corruptSaveRoot -BackupRoot $backup -StagingRoot $staging | Out-Null } catch { $threw = $true }
+            Assert-Test $threw 'corrupt Working backup was accepted'
+            Assert-Test ((Get-KmcSha256 $corruptWorking) -ceq $liveBefore) 'live Working changed before corrupt-backup rejection'
+            [IO.File]::WriteAllBytes([string]$state.backupPath, [IO.File]::ReadAllBytes($corruptWorking))
+            Restore-KmcWorkingSaveTransaction -Lock $lock -StatePath $saveState -SaveRoot $corruptSaveRoot -BackupRoot $backup -StagingRoot $staging | Out-Null
+        }
+        finally { Close-KmcRuntimeLock $lock }
+    }
+
+    Invoke-HarnessTest 'working-save transaction never repairs baseline drift' {
+        $driftSaveRoot = Join-Path $testRoot 'baseline-drift-saves'
+        New-Item -ItemType Directory -Path $driftSaveRoot | Out-Null
+        $driftBaseline = Join-Path $driftSaveRoot 'Manual_1_KMC_AUTOMATION_BASELINE.zks'
+        $driftWorking = Join-Path $driftSaveRoot 'Manual_2_KMC_AUTOMATION_WORKING.zks'
+        New-TestSaveArchive -Path $driftBaseline -Name 'KMC_AUTOMATION_BASELINE'
+        New-TestSaveArchive -Path $driftWorking -Name 'KMC_AUTOMATION_WORKING'
+        $baselineOriginalBytes = [IO.File]::ReadAllBytes($driftBaseline)
+        $baselineOriginalTime = (Get-Item -LiteralPath $driftBaseline).LastWriteTimeUtc
+        $pair = Get-KmcValidatedFixturePair $driftSaveRoot
+        $lock = Open-KmcRuntimeLock -StateRoot $stateRoot -RunId 'baseline-drift-test'
+        try {
+            $saveState = Enter-KmcWorkingSaveTransaction -Lock $lock -Pair $pair -SaveRoot $driftSaveRoot -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging
+            New-TestSaveArchive -Path $driftBaseline -Name 'KMC_AUTOMATION_BASELINE' -ExtraEntry
+            $driftHash = Get-KmcSha256 $driftBaseline
+            $threw = $false
+            try { Restore-KmcWorkingSaveTransaction -Lock $lock -StatePath $saveState -SaveRoot $driftSaveRoot -BackupRoot $backup -StagingRoot $staging | Out-Null } catch { $threw = $true }
+            Assert-Test $threw 'baseline drift did not fail the transaction'
+            Assert-Test ((Get-KmcSha256 $driftBaseline) -ceq $driftHash) 'guard attempted to repair or overwrite baseline drift'
+            [IO.File]::WriteAllBytes($driftBaseline, $baselineOriginalBytes)
+            (Get-Item -LiteralPath $driftBaseline).LastWriteTimeUtc = $baselineOriginalTime
+            Restore-KmcWorkingSaveTransaction -Lock $lock -StatePath $saveState -SaveRoot $driftSaveRoot -BackupRoot $backup -StagingRoot $staging | Out-Null
+        }
+        finally { Close-KmcRuntimeLock $lock }
     }
 
     $validPackageSource = Join-Path $testRoot 'valid-package\KingmakerMountedCombat'
