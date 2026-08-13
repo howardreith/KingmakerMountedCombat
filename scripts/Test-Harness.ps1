@@ -30,6 +30,19 @@ function Assert-Test([bool]$Condition, [string]$Message) {
 
 New-Item -ItemType Directory -Path $testRoot | Out-Null
 try {
+    $emptyRoot = Join-Path $testRoot 'empty-root'
+    New-Item -ItemType Directory -Path $emptyRoot -Force | Out-Null
+    Invoke-HarnessTest 'tree manifest represents an empty root' {
+        $emptyManifest = Get-KmcDirectoryManifest $emptyRoot
+        Assert-Test ($emptyManifest.fileCount -eq 0 -and $emptyManifest.directoryCount -eq 0 -and $emptyManifest.totalBytes -eq 0) 'empty tree totals are not exact'
+        Assert-Test (-not [string]::IsNullOrWhiteSpace([string]$emptyManifest.digest)) 'empty tree digest is missing'
+    }
+    Invoke-HarnessTest 'protected-save metadata represents an empty root' {
+        $emptySaveMetadata = Get-KmcProtectedSaveMetadata $emptyRoot
+        Assert-Test ($emptySaveMetadata.fileCount -eq 0 -and $emptySaveMetadata.totalBytes -eq 0) 'empty save metadata totals are not exact'
+        Assert-Test (-not [string]::IsNullOrWhiteSpace([string]$emptySaveMetadata.digest)) 'empty save metadata digest is missing'
+    }
+
     $manifestRoot = Join-Path $testRoot 'manifest'
     New-Item -ItemType Directory -Path (Join-Path $manifestRoot 'empty') -Force | Out-Null
     [IO.File]::WriteAllText((Join-Path $manifestRoot 'one.txt'), 'one')

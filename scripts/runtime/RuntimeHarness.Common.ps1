@@ -19,7 +19,7 @@ function Get-KmcSha256 {
 }
 
 function Get-KmcTextSha256 {
-    param([Parameter(Mandatory = $true)][string]$Text)
+    param([Parameter(Mandatory = $true)][AllowEmptyString()][string]$Text)
     $algorithm = [Security.Cryptography.SHA256]::Create()
     try {
         return ([BitConverter]::ToString($algorithm.ComputeHash([Text.Encoding]::UTF8.GetBytes($Text)))).Replace('-', '').ToLowerInvariant()
@@ -89,12 +89,15 @@ function Get-KmcDirectoryManifest {
         $records.Add([pscustomobject]@{ kind = 'file'; path = $file.FullName.Substring($fullRoot.Length + 1).Replace('\', '/'); length = [long]$file.Length; sha256 = Get-KmcSha256 $file.FullName })
     }
     $ordered = @($records | Sort-Object kind, path)
+    $fileRecords = @($ordered | Where-Object kind -eq 'file')
+    $totalBytes = [long]0
+    foreach ($fileRecord in $fileRecords) { $totalBytes += [long]$fileRecord.length }
     $canonical = ($ordered | ForEach-Object { '{0}|{1}|{2}|{3}' -f $_.kind, $_.path, $_.length, $_.sha256 }) -join "`n"
     return [pscustomobject]@{
         schemaVersion = 1; root = $fullRoot
         directoryCount = @($ordered | Where-Object kind -eq 'directory').Count
-        fileCount = @($ordered | Where-Object kind -eq 'file').Count
-        totalBytes = [long](($ordered | Where-Object kind -eq 'file' | Measure-Object length -Sum).Sum)
+        fileCount = $fileRecords.Count
+        totalBytes = $totalBytes
         digest = Get-KmcTextSha256 $canonical; entries = $ordered
     }
 }
@@ -111,8 +114,10 @@ function Get-KmcProtectedSaveMetadata {
             lastWriteTimeUtcTicks = $file.LastWriteTimeUtc.Ticks
         }
     }
+    $totalBytes = [long]0
+    foreach ($record in $records) { $totalBytes += [long]$record.length }
     $canonical = ($records | ForEach-Object { '{0}|{1}|{2}' -f $_.path, $_.length, $_.lastWriteTimeUtcTicks }) -join "`n"
-    return [pscustomobject]@{ schemaVersion = 1; fileCount = $records.Count; totalBytes = [long](($records | Measure-Object length -Sum).Sum); digest = Get-KmcTextSha256 $canonical }
+    return [pscustomobject]@{ schemaVersion = 1; fileCount = $records.Count; totalBytes = $totalBytes; digest = Get-KmcTextSha256 $canonical }
 }
 
 function Assert-KmcNoGameProcesses {

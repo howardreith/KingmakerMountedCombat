@@ -55,7 +55,7 @@
 - External state/restoration: no game, live Mods, saves, Steam, or Wrath state was mutated; no restoration was required. The valued save archives were not opened.
 - Exact next action: commit the native-candidate and architecture record, commit the guarded prototype, regenerate a clean-HEAD package, and execute the zero-mutation runtime `-WhatIf` gate before considering a no-save game process.
 
-## 2026-08-13T18:44:00Z — isolated assembly qualification repair
+## 2026-08-13T18:40:48Z — isolated assembly qualification repair
 
 - Branch / HEAD: `codex/mounted-combat-feasibility` / `ba069b8c4288cc5ba17996d77ba060db7a90caef`; the qualification repair is intentionally uncommitted at this checkpoint.
 - Active version: `0.0.1-feasibility`.
@@ -68,3 +68,31 @@
 - Current uncertainty: zero-mutation `-WhatIf`, live mod load, all pair movement/lifecycle behavior, anchor drift, and visual presentation remain unproven.
 - External state/restoration: repository-local build/test outputs only; no Mods, save, Steam, game, or Wrath mutation; restoration not required.
 - Exact next action: rerun the complete suite with the quiet negative-test wrapper, commit this repair, then build a clean-HEAD diagnostic package and execute the zero-mutation `-WhatIf` gate.
+
+## 2026-08-13T18:42:13Z — first real WhatIf attempt, safely rejected
+
+- Branch / HEAD: `codex/mounted-combat-feasibility` / `f8bb856a3caa196e63e971776241ecda36a97edb`.
+- Active version: `0.0.1-feasibility`.
+- Work completed: generated the first clean-HEAD allowlisted diagnostic ZIP and invoked the actual guarded `mod-load-smoke -WhatIf` path. Preflight stopped before mutation because `Get-KmcDirectoryManifest` assumed `Measure-Object -Sum` always exposes a `Sum` property for an empty root under strict mode. Added explicit zero-byte accumulation for empty file sets and deterministic regression coverage for empty runtime and save-metadata roots.
+- Commands/tests run: clean `scripts/Package.ps1`; one invalid CLI spelling of `-Confirm:$false` rejected by PowerShell parameter binding; one real `-WhatIf` preflight; post-failure read-only inspection of all runtime roots and game processes.
+- Exact PASS/FAIL counts: clean package source validation 21 PASS / 0 FAIL; package validation 10 PASS / 0 FAIL; `-WhatIf` attempts 0 PASS / 1 implementation FAIL / 1 command-line rejection. The failure occurred before `ShouldProcess` and before any transaction state. Regression tests are added but not yet executed at this checkpoint.
+- Runtime evidence IDs/paths: none; `runtime-state`, `runtime-staging`, `runtime-backups`, and `runtime-evidence` each remained empty (0 entries), and no game process existed.
+- Hashes/MVIDs: package SHA-256 `8ea9e6c1633a59ef26a29155a5e2ccb897b9d5e5759310d0d43ede6fc896a70c`; packaged DLL SHA-256 `80766391105a2199b74b92fe1236fbed86a2ad937ae030ba5681a4d11b7ea6ad`, MVID `930b818d-26b4-4ac5-936a-f8f59fd91082`.
+- Rejected theories: the WhatIf failure did not indicate external-state drift; it was an empty-input aggregation defect reached before the harness captured baseline manifests or created any state.
+- Current uncertainty: repaired WhatIf purity, live load, fixture availability, movement/lifecycle behavior, and presentation remain unproven.
+- External state/restoration: no transaction, lock, process, Mods, save, Steam, or Wrath mutation occurred; all four KMC runtime roots were verified empty after failure; no restoration required.
+- Exact next action: run the complete repository-local test suite, commit the empty-root repair, regenerate the clean package, and rerun the actual `-WhatIf` path.
+
+## 2026-08-13T18:43:02Z — empty-root regression qualification
+
+- Branch / HEAD: `codex/mounted-combat-feasibility` / `f8bb8560bfc077acd38d7f66c5a09a13a5c42368`; the empty-root repair is intentionally uncommitted at this checkpoint.
+- Active version: `0.0.1-feasibility`.
+- Work completed: made text hashing explicitly accept the canonical empty string, replaced nullable aggregate access with explicit 64-bit accumulation, and covered both an empty runtime tree and an empty protected-save metadata root.
+- Commands/tests run: complete `scripts/Test.ps1 -Configuration Release` after one regression run exposed the empty-string binder edge case.
+- Exact PASS/FAIL counts: final source validation 21 PASS / 0 FAIL; Release build 1 PASS / 0 FAIL; pure/component tests 34 PASS / 0 FAIL; top-level harness tests 21 PASS / 0 FAIL; assembly-backed checks 28 PASS / 0 FAIL (Kingmaker 17, Wrath 11). The preceding regression run was 19 PASS / 2 FAIL in the harness and directly produced the `AllowEmptyString` fix.
+- Runtime evidence IDs/paths: none; no game launched and no transaction opened.
+- Hashes/MVIDs: diagnostic DLL SHA-256 `80766391105a2199b74b92fe1236fbed86a2ad937ae030ba5681a4d11b7ea6ad`, MVID `930b818d-26b4-4ac5-936a-f8f59fd91082`.
+- Rejected theories: manually seeding normally empty lab directories is not an acceptable workaround; empty roots are a valid initial harness state and now have a deterministic SHA-256 manifest.
+- Current uncertainty: real WhatIf purity, live load, fixture availability, movement/lifecycle behavior, and presentation remain unproven.
+- External state/restoration: repository-local tests only; no live Mods, save, process, Steam, or Wrath mutation; restoration not required.
+- Exact next action: commit the regression fix, regenerate a clean-HEAD diagnostic package, and rerun the actual `mod-load-smoke -WhatIf` path.
