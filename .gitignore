@@ -4,3 +4,13 @@ obj/
 .vs/
 *.user
 *.suo
+TestResults/
+*.nupkg
+
+# Runtime and analysis evidence live in guarded lab roots, never in Git.
+runtime-state/
+runtime-staging/
+runtime-evidence/
+runtime-backups/
+analysis-cache/
+artifacts/

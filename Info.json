@@ -1,0 +1,11 @@
+{
+  "Id": "KingmakerMountedCombat",
+  "DisplayName": "Kingmaker Mounted Combat",
+  "Author": "Howie Reith",
+  "Version": "0.0.1-feasibility",
+  "ManagerVersion": "0.28.2",
+  "GameVersion": "2.1.7",
+  "AssemblyName": "KingmakerMountedCombat.dll",
+  "EntryMethod": "KingmakerMountedCombat.Main.Load",
+  "Requirements": []
+}

@@ -1,0 +1,154 @@
+using System;
+using System.Collections.Generic;
+using System.Reflection;
+using Harmony12;
+using Kingmaker.Controllers.Clicks.Handlers;
+using Kingmaker.EntitySystem.Entities;
+using Kingmaker.EntitySystem.Persistence;
+using Kingmaker.UI.Selection;
+using Kingmaker.UnitLogic.Commands;
+using Kingmaker.View;
+using KingmakerMountedCombat.Domain;
+using KingmakerMountedCombat.Diagnostics;
+using KingmakerMountedCombat.Logging;
+
+namespace KingmakerMountedCombat.Integration
+{
+    internal sealed class MountedPatchController : IDisposable
+    {
+        private const string HarmonyId = "KingmakerMountedCombat.Feasibility";
+        private static readonly Guid ExpectedKingmakerMvid = new Guid("07fa1e4d-8618-41b3-9b8d-faa17d3b26f7");
+        private readonly HarmonyInstance harmony;
+        private bool disposed;
+
+        public MountedPatchController(GameMountedRelationshipService service, IModLogger logger)
+        {
+            PatchBridge.Service = service ?? throw new ArgumentNullException(nameof(service));
+            harmony = HarmonyInstance.Create(HarmonyId);
+            try
+            {
+                var observedMvid = typeof(UnitEntityData).Assembly.ManifestModule.ModuleVersionId;
+                if (observedMvid != ExpectedKingmakerMvid)
+                {
+                    throw new InvalidOperationException("Exact Kingmaker Assembly-CSharp MVID mismatch: " + observedMvid + ".");
+                }
+
+                PatchExact(typeof(ClickGroundHandler), "RunCommand", 0x060093DC, new[] { typeof(UnitEntityData), typeof(UnityEngine.Vector3), typeof(float?), typeof(float), typeof(float), typeof(bool) }, nameof(PatchMethods.GroundCommandPrefix));
+                PatchExact(typeof(SelectionManager), "SelectUnit", 0x060034F0, new[] { typeof(UnitEntityView), typeof(bool), typeof(bool), typeof(bool) }, nameof(PatchMethods.SelectUnitPrefix));
+                PatchExact(typeof(SelectionManager), "MultiSelect", 0x060034F5, new[] { typeof(IEnumerable<UnitEntityView>), typeof(bool) }, nameof(PatchMethods.MultiSelectPrefix));
+                PatchExact(typeof(SelectionManagerBase), "Stop", 0x060000B9, Type.EmptyTypes, nameof(PatchMethods.StopOrHoldPrefix));
+                PatchExact(typeof(SelectionManagerBase), "Hold", 0x060000BA, Type.EmptyTypes, nameof(PatchMethods.StopOrHoldPrefix));
+                PatchExact(typeof(UnitMoveContiniously), "Init", 0x060026F0, new[] { typeof(UnitEntityData) }, nameof(PatchMethods.ContinuousMovePrefix));
+                PatchExact(typeof(SaveManager), "SaveRoutine", 0x06008029, null, nameof(PatchMethods.SavePrefix));
+                PatchExact(typeof(SaveManager), "LoadRoutine", 0x0600802C, null, nameof(PatchMethods.LoadPrefix));
+                logger.Info("Installed eight exact-token Harmony12 active-pair guards; global movement ticks remain unpatched.");
+            }
+            catch
+            {
+                try
+                {
+                    harmony.UnpatchAll(HarmonyId);
+                }
+                finally
+                {
+                    PatchBridge.Service = null;
+                }
+                throw;
+            }
+        }
+
+        public void Dispose()
+        {
+            if (disposed) { return; }
+            if (PatchBridge.Service != null && !PatchBridge.Service.GuardBoundary(CleanupTrigger.ModDisabled))
+            {
+                throw new InvalidOperationException("Harmony guards cannot be removed while mounted cleanup residue remains.");
+            }
+            harmony.UnpatchAll(HarmonyId);
+            PatchBridge.Service = null;
+            disposed = true;
+        }
+
+        private void PatchExact(Type type, string name, int expectedToken, Type[] parameters, string prefixName)
+        {
+            MethodInfo original;
+            if (parameters == null)
+            {
+                var candidates = type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static);
+                original = Array.Find(candidates, method => string.Equals(method.Name, name, StringComparison.Ordinal) && method.MetadataToken == expectedToken);
+            }
+            else
+            {
+                original = type.GetMethod(name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static, null, parameters, null);
+            }
+
+            if (original == null || original.MetadataToken != expectedToken)
+            {
+                throw new MissingMethodException(type.FullName, name + " exact token " + expectedToken.ToString("X8"));
+            }
+
+            var prefix = typeof(PatchMethods).GetMethod(prefixName, BindingFlags.Static | BindingFlags.NonPublic);
+            harmony.Patch(original, new HarmonyMethod(prefix));
+        }
+
+        private static class PatchBridge
+        {
+            internal static GameMountedRelationshipService Service;
+        }
+
+        private static class PatchMethods
+        {
+            internal static bool GroundCommandPrefix(ref UnitEntityData unit)
+            {
+                return PatchBridge.Service == null || PatchBridge.Service.RouteGroundCommand(ref unit);
+            }
+
+            internal static bool SelectUnitPrefix(ref UnitEntityView unit, bool single)
+            {
+                return PatchBridge.Service == null || PatchBridge.Service.NormalizeSingleSelection(ref unit, single);
+            }
+
+            internal static void MultiSelectPrefix(ref IEnumerable<UnitEntityView> views)
+            {
+                PatchBridge.Service?.NormalizeMultiSelection(ref views);
+            }
+
+            internal static void StopOrHoldPrefix()
+            {
+                PatchBridge.Service?.ForwardStopOrHold();
+            }
+
+            internal static void ContinuousMovePrefix(UnitEntityData executor)
+            {
+                PatchBridge.Service?.HandleUnexpectedPairCommand(executor);
+            }
+
+            internal static bool SavePrefix(ref IEnumerator<object> __result)
+            {
+                RuntimeAutomationHost.ObserveSaveRequest();
+                if (PatchBridge.Service == null || PatchBridge.Service.GuardBoundary(CleanupTrigger.SaveRequested))
+                {
+                    return true;
+                }
+                __result = EmptyRoutine();
+                return false;
+            }
+
+            internal static bool LoadPrefix(ref IEnumerator<object> __result)
+            {
+                RuntimeAutomationHost.ObserveLoadRequest();
+                if (PatchBridge.Service == null || PatchBridge.Service.GuardBoundary(CleanupTrigger.LoadRequested))
+                {
+                    return true;
+                }
+                __result = EmptyRoutine();
+                return false;
+            }
+
+            private static IEnumerator<object> EmptyRoutine()
+            {
+                yield break;
+            }
+        }
+    }
+}

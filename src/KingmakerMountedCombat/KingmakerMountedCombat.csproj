@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" Condition="false" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{7D75EF65-8DA8-48B8-9C5F-2D95DF70AA41}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <RootNamespace>KingmakerMountedCombat</RootNamespace>
+    <AssemblyName>KingmakerMountedCombat</AssemblyName>
+    <TargetFrameworkVersion>v4.7</TargetFrameworkVersion>
+    <LangVersion>7.3</LangVersion>
+    <Prefer32Bit>false</Prefer32Bit>
+    <Deterministic>true</Deterministic>
+    <!-- UMM 0.28.2 itself references its co-installed net48 Harmony2, but KMC
+         targets net47 and references only the legacy Harmony12 API surface. -->
+    <ResolveAssemblyReferenceIgnoreTargetFrameworkAttributeVersionMismatch>true</ResolveAssemblyReferenceIgnoreTargetFrameworkAttributeVersionMismatch>
+    <FileAlignment>512</FileAlignment>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>..\..\bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>none</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>..\..\bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <WarningLevel>4</WarningLevel>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <Import Project="..\..\LocalGamePaths.props" Condition="Exists('..\..\LocalGamePaths.props')" />
+  <Target Name="RequireLocalGamePaths" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="!Exists('$(KingmakerManagedDir)\Assembly-CSharp.dll')" Text="LocalGamePaths.props must point to the exact local Kingmaker Managed directory." />
+    <Error Condition="!Exists('$(UnityModManagerDir)\UnityModManager.dll')" Text="UnityModManagerDir must contain the exact installed UnityModManager.dll." />
+  </Target>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(KingmakerManagedDir)\Assembly-CSharp.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Assembly-CSharp-firstpass">
+      <HintPath>$(KingmakerManagedDir)\Assembly-CSharp-firstpass.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine">
+      <HintPath>$(KingmakerManagedDir)\UnityEngine.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(KingmakerManagedDir)\UnityEngine.CoreModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.IMGUIModule">
+      <HintPath>$(KingmakerManagedDir)\UnityEngine.IMGUIModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityModManager">
+      <HintPath>$(UnityModManagerDir)\UnityModManager.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>$(KingmakerManagedDir)\Newtonsoft.Json.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="0Harmony12">
+      <HintPath>$(UnityModManagerDir)\0Harmony12.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="CompositionRoot.cs" />
+    <Compile Include="Diagnostics\DiagnosticSettings.cs" />
+    <Compile Include="Diagnostics\MovementTelemetryWriter.cs" />
+    <Compile Include="Diagnostics\RuntimeAutomationHost.cs" />
+    <Compile Include="Diagnostics\RuntimeProtocol.cs" />
+    <Compile Include="Domain\CleanupTrigger.cs" />
+    <Compile Include="Domain\CommandRouting.cs" />
+    <Compile Include="Domain\IMountedPairRuntime.cs" />
+    <Compile Include="Domain\MountedPair.cs" />
+    <Compile Include="Domain\MountedPairCandidate.cs" />
+    <Compile Include="Domain\MountedRelationshipCoordinator.cs" />
+    <Compile Include="Domain\MovementTelemetry.cs" />
+    <Compile Include="Domain\RelationshipState.cs" />
+    <Compile Include="Domain\TransitionResult.cs" />
+    <Compile Include="Integration\GameMountedRelationshipService.cs" />
+    <Compile Include="Integration\KingmakerMountedPairRuntime.cs" />
+    <Compile Include="Integration\MountedLifecycleSubscriber.cs" />
+    <Compile Include="Integration\MountedPatchController.cs" />
+    <Compile Include="Integration\RiderMovementAgent.cs" />
+    <Compile Include="Logging\IModLogger.cs" />
+    <Compile Include="Logging\UmmLogger.cs" />
+    <Compile Include="Main.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>

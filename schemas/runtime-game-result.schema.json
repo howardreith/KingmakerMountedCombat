@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://kingmakermountedcombat.invalid/schema/runtime-game-result-v1.json",
+  "title": "Kingmaker Mounted Combat in-process runtime result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion", "runId", "scenario", "status", "branch", "commit", "productVersion",
+    "dllSha256", "dllMvid", "transactionToken", "startedAtUtc", "completedAtUtc", "loadedModId",
+    "gameVersion", "gameAssemblySha256", "gameAssemblyMvid", "ummVersion", "ummSha256",
+    "harmony12Version", "harmony12Sha256", "relationshipState", "movementExperimentEnabled",
+    "processId", "currentGameMode", "loadedAreaPresent", "saveRequestCount", "loadRequestCount",
+    "frameCount", "elapsedSeconds", "errors"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "runId": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,120}$" },
+    "scenario": { "const": "mod-load-smoke" },
+    "status": { "enum": ["PASS", "FAIL"] },
+    "branch": { "type": "string" },
+    "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "productVersion": { "const": "0.0.1-feasibility" },
+    "dllSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "dllMvid": { "type": "string", "format": "uuid" },
+    "transactionToken": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "loadedModId": { "const": "KingmakerMountedCombat" },
+    "relationshipState": { "const": "Unmounted" },
+    "movementExperimentEnabled": { "const": false },
+    "loadedAreaPresent": { "const": false },
+    "saveRequestCount": { "const": 0 },
+    "loadRequestCount": { "const": 0 },
+    "frameCount": { "type": "integer", "minimum": 10 },
+    "elapsedSeconds": { "type": "number", "minimum": 1 },
+    "errors": { "type": "array", "items": { "type": "string" } }
+  }
+}

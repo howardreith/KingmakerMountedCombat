@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://kingmakermountedcombat.invalid/schema/runtime-result-v1.json",
+  "title": "Kingmaker Mounted Combat runtime result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "runId", "scenario", "status", "branch", "commit", "productVersion", "dllSha256", "dllMvid", "transactionToken", "startedAtUtc", "completedAtUtc", "modsRestored", "saveProtectionPassed", "gameResultSha256", "errors"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "runId": { "type": "string", "minLength": 1 },
+    "scenario": { "type": "string", "minLength": 1 },
+    "status": { "enum": ["PASS", "FAIL"] },
+    "branch": { "type": "string", "pattern": "^codex/mounted-combat-" },
+    "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "productVersion": { "const": "0.0.1-feasibility" },
+    "dllSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "dllMvid": { "type": "string", "format": "uuid" },
+    "transactionToken": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "startedAtUtc": { "type": "string", "format": "date-time" },
+    "completedAtUtc": { "type": "string", "format": "date-time" },
+    "modsRestored": { "type": "boolean" },
+    "saveProtectionPassed": { "type": "boolean" },
+    "gameResultSha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+    "errors": { "type": "array", "items": { "type": "string" } }
+  }
+}

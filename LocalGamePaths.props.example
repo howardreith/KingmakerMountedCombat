@@ -1,6 +1,7 @@
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
-    <KingmakerInstallDir>C:\Program Files (x86)\Steam\steamapps\common\Pathfinder Kingmaker</KingmakerInstallDir>
-    <WrathInstallDir>C:\Program Files (x86)\Steam\steamapps\common\Pathfinder Second Adventure</WrathInstallDir>
+    <KingmakerInstallDir>C:\Path\To\Pathfinder Kingmaker</KingmakerInstallDir>
+    <KingmakerManagedDir>$(KingmakerInstallDir)\Kingmaker_Data\Managed</KingmakerManagedDir>
+    <UnityModManagerDir>$(KingmakerManagedDir)\UnityModManager</UnityModManagerDir>
   </PropertyGroup>
 </Project>

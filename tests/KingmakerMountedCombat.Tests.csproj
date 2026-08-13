@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{1B64D9A4-5994-49FA-863B-6C9C5CFE6FBF}</ProjectGuid>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>KingmakerMountedCombat.Tests</RootNamespace>
+    <AssemblyName>KingmakerMountedCombat.Tests</AssemblyName>
+    <TargetFrameworkVersion>v4.7</TargetFrameworkVersion>
+    <LangVersion>7.3</LangVersion>
+    <Prefer32Bit>false</Prefer32Bit>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>..\bin\Tests\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>none</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>..\bin\Tests\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <WarningLevel>4</WarningLevel>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="MountedRelationshipTests.cs" />
+    <Compile Include="TestRunner.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\DiagnosticSettings.cs">
+      <Link>Shared\DiagnosticSettings.cs</Link>
+    </Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\RuntimeProtocol.cs">
+      <Link>Shared\RuntimeProtocol.cs</Link>
+    </Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\CleanupTrigger.cs"><Link>Shared\Domain\CleanupTrigger.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\CommandRouting.cs"><Link>Shared\Domain\CommandRouting.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\IMountedPairRuntime.cs"><Link>Shared\Domain\IMountedPairRuntime.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedPair.cs"><Link>Shared\Domain\MountedPair.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedPairCandidate.cs"><Link>Shared\Domain\MountedPairCandidate.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedRelationshipCoordinator.cs"><Link>Shared\Domain\MountedRelationshipCoordinator.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MovementTelemetry.cs"><Link>Shared\Domain\MovementTelemetry.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\RelationshipState.cs"><Link>Shared\Domain\RelationshipState.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\TransitionResult.cs"><Link>Shared\Domain\TransitionResult.cs</Link></Compile>
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>

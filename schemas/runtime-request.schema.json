@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://kingmakermountedcombat.invalid/schema/runtime-request-v1.json",
+  "title": "Kingmaker Mounted Combat runtime request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "runId", "scenario", "branch", "commit", "productVersion", "dllSha256", "dllMvid", "transactionToken", "saveAccessAllowed", "saveName", "evidenceRoot"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "runId": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,120}$" },
+    "scenario": { "const": "mod-load-smoke" },
+    "branch": { "type": "string", "pattern": "^codex/mounted-combat-[A-Za-z0-9._/-]+$" },
+    "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "productVersion": { "const": "0.0.1-feasibility" },
+    "dllSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "dllMvid": { "type": "string", "format": "uuid" },
+    "transactionToken": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "saveAccessAllowed": { "const": false },
+    "saveName": { "type": "null" },
+    "evidenceRoot": { "type": "string", "minLength": 1 }
+  }
+}
