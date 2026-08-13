@@ -306,3 +306,17 @@
 - Current uncertainty: durable qualification has not yet been written; no save has been loaded; live rider/Mammoth availability and all mounted behavior remain unknown.
 - External state/restoration result: PASS. Baseline and Working were opened read-only only after the exact 1/1/no-near-match gate. No save bytes/metadata, Mods tree, process, lock, sentinel, or qualification record changed; unrestored external state is none.
 - Exact next action: commit the cold-process/process-exclusion guard repair, then run `Test-KmcFixtureGuard.ps1 -InitializeQualification` once to write the durable qualification and immediately rerun it without initialization to prove exact pinned identity before any runtime launch.
+
+## 2026-08-13T22:45:30Z — durable fixture qualification
+
+- Branch / exact HEAD: `codex/mounted-combat-feasibility` / `9862a55`; the guard repair is committed, while this qualification journal/blocker checkpoint is uncommitted.
+- Active version: `0.0.1-feasibility`.
+- Work completed: created the one authorized durable fixture-qualification record after the exact guard passed; immediately reran the guard without initialization and proved the qualification SHA, length, timestamp, and both KMC save length/timestamps unchanged. The guard verified exact internal names, distinct paths, shared campaign/GameId/Area, immutable Baseline fingerprint, and Working-only authorization.
+- Commands/tests run: guarded `Test-KmcFixtureGuard.ps1 -InitializeQualification -Confirm:$false`; validation-only guard rerun; qualification and save metadata equality checks; zero-game-process checks.
+- Exact PASS/FAIL counts: durable qualification 1/0; validation-only reuse 1/0; fixture metadata equality 1/0. One wrapper execution-policy rejection occurred before script load or mutation and was repaired by the standard Bypass host. Offline gate remains source 21/0, build 1/0, pure/component 56/0, harness/protocol 60/0, assembly 47/0.
+- Runtime evidence IDs/paths: `C:\Dev\KingmakerMountedCombatLab\runtime-state\fixture-qualification.json`, SHA-256 `c1e33c75004212039258d6d90ba20e43c37c50966c94e685dbad1ca0e653654f`, length 1,272 bytes.
+- Hashes/MVIDs: Baseline SHA-256 `c29d965c9ff5dc0f971659d9ae154877aa4a9a461ca220d1ce28e7c7fd9d2512`; Working SHA-256 `a5f7a7fb77f0465df1591360ecd1730e2c28215d83e27aafc70efef3110e6dc5`; campaign `cvb`; GameId `d41185be-edc1-47c0-b9d5-e1d7a9c8e65f`; Area `9d1278a2f599b2a4daab53abdfe88d2e`.
+- Rejected theories: a filename-only pass is sufficient authorization; a newly written qualification need not be verified for no-op reuse; an execution-policy rejection implies partial guard execution.
+- Current uncertainty: live fixture contents beyond the guarded identity header, exact pair availability, movement, cleanup, formation, doorway, and visuals remain unobserved.
+- External state/restoration result: PASS. Only the project-owned qualification JSON was created. Both saves remained length/time-identical; no game process, Mods transaction, lock, or sentinel; unrestored external state is none.
+- Exact next action: commit this admission record, rerun the complete gate on a clean commit, create a clean qualification package bound to that commit, then run the save-backed fixture-intake `-WhatIf` purity gate before any launch.

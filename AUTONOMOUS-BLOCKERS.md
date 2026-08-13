@@ -1,16 +1,18 @@
 # Autonomous blockers
 
-Status: BLOCKED — CRITICAL
+Status: IN PROGRESS
 
-## Critical blocker: exact KMC Working filename unavailable
+## Cleared blocker: exact KMC fixture identity
 
-The exact filename audit rerun at `2026-08-13T21:52Z` found exactly one canonical baseline, `Manual_298_KMC_AUTOMATION_BASELINE.zks`, but zero canonical Working candidates. Filename-only metadata shows one rejected near-match, `Manual_299_KMC_AUTOMATION_WORKING_.zks`, whose trailing underscore is outside the documented exact regex. Other-project KBP/KMG, ordinary, auto, quick, and other saves were not opened, copied, renamed, or loaded. Neither KMC archive was opened because the filename gate failed first.
+Status: PASS
 
-Exact Kingmaker `SaveManager.PrepareSave` evidence shows a fresh exact `KMC_AUTOMATION_WORKING` name produces no trailing underscore. A trailing underscore can reflect an originally non-alphanumeric suffix or a stale filename after overwrite. It is therefore not evidence of the exact internal name and cannot be silently accepted or renamed by automation.
+The exact filename audit rerun on `2026-08-13` found exactly one canonical Baseline, `Manual_298_KMC_AUTOMATION_BASELINE.zks`, exactly one canonical Working, `Manual_299_KMC_AUTOMATION_WORKING.zks`, and zero KMC-looking near-matches. The prior trailing-underscore near-match is absent. Other-project KBP/KMG, ordinary, auto, quick, and other saves were not opened, copied, renamed, or loaded.
 
-The original KMC fixture guard, proactive in-process Working-only authorization, direct exact-Working loader, schema-v2 request/result protocol, evidence-manifest binding, combined Working/Mods transaction, bounded DotNetZip artifact recovery, and lifecycle/movement/boundary engines are implemented and offline-qualified. The complete current gate, rerun from committed implementation `811c2d3bef88e789eebf5154fca0c85b72280b9e`, is source 21/0, build 1/0, pure/component 56/0, guarded harness/protocol 58/0, and assembly-backed 47/0 (Kingmaker 36, Wrath 11). Current offline build DLL SHA-256 is `956c95499fdab8044ff438f8e89eb67580d1190a395f52224aeb1ca992dc3694`, MVID `685b9ee8-ff89-4cdc-b4f7-089e481073b0`; it is not packaged or runtime-qualified. Working is the only save whose content the transaction may hash; protected non-KMC saves remain metadata-only and unopened. Proactive engine-boundary denial complements that content-free protected inventory. The live guard cannot inspect descriptors or write durable qualification until the exact filename audit reaches 1/1.
+After repairing and regression-testing a cold-process ZIP assembly-load defect, the guard read only the two canonical archives. It verified exact internal names, distinct non-linked paths, Manual/v1 descriptors, and identical campaign `cvb`, GameId `d41185be-edc1-47c0-b9d5-e1d7a9c8e65f`, and Area `9d1278a2f599b2a4daab53abdfe88d2e`. Baseline SHA-256 is `c29d965c9ff5dc0f971659d9ae154877aa4a9a461ca220d1ce28e7c7fd9d2512`; initial Working SHA-256 is `a5f7a7fb77f0465df1591360ecd1730e2c28215d83e27aafc70efef3110e6dc5`.
 
-Blocked work: live pair availability, movement, drift, turns, doorway control, selection, formation, lifecycle residue, save/load/area boundaries, and visual classification. This also blocks a truthful final B/C/D architecture decision.
+The durable qualification record was written once at `runtime-state/fixture-qualification.json`, SHA-256 `c1e33c75004212039258d6d90ba20e43c37c50966c94e685dbad1ca0e653654f`, and a validation-only rerun proved it and both save metadata records byte/time-stable. Its sole writable allowlist identity is `KMC_AUTOMATION_WORKING`; Baseline is immutable and never a repair target. This clears the mission §26.2 fixture-identity blocker.
+
+Remaining work is the guarded live qualification: pair availability, movement, drift, turns, doorway control, selection, formation, lifecycle residue, save/load/area boundaries, visual classification, and the final B/C/D architecture decision.
 
 The independent pre-live recovery gate is PASS offline: exact Kingmaker `LoadRoutine` and installed DotNetZip replacement behavior are covered by scenario-bound direct-child temp/sidecar classification, a durable token-owned plan, quarantine without deletion, same-size/same-time Working detection, idempotent interruption recovery, and exact preflight metadata restoration. Unknown, foreign, hard-link, reparse, excess, and second-canonical-slot drift fails before a move. The real `SaveRoutine` experiment remains removed; Phase 1 save-safety proves cleanup plus no relationship serialization without invoking that unsafe exact-path surface.
 
