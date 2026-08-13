@@ -38,6 +38,9 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("movement synchronization telemetry preserves pre and post correction residuals", MovementSynchronizationTelemetryPreservesPreAndPostResiduals);
             runner.Run("movement synchronization telemetry separates update phases and corrections", MovementSynchronizationTelemetrySeparatesPhasesAndCorrections);
             runner.Run("movement synchronization telemetry rejects noncontiguous samples", MovementSynchronizationTelemetryRejectsNoncontiguousSamples);
+            runner.Run("movement synchronization qualification excludes initial placement", MovementSynchronizationQualificationExcludesInitialPlacement);
+            runner.Run("movement synchronization qualification gates calibrated phases", MovementSynchronizationQualificationGatesCalibratedPhases);
+            runner.Run("movement synchronization qualification bounds callback cadence", MovementSynchronizationQualificationBoundsCallbackCadence);
         }
 
         private static void ValidMountTransition()
@@ -326,6 +329,48 @@ namespace KingmakerMountedCombat.Tests
 
             TestRunner.True(rejected, "Noncontiguous synchronization sample was accepted.");
             TestRunner.Equal(0L, accumulator.SampleCount, "Rejected synchronization sample mutated the accumulator.");
+        }
+
+        private static void MovementSynchronizationQualificationExcludesInitialPlacement()
+        {
+            var accumulator = new MovementSynchronizationTelemetryAccumulator();
+            accumulator.Observe(new MovementSynchronizationSample(0, MovementSynchronizationPhase.InitialConfiguration, 15.0d, 90.0d, 0.0d, 0.0d));
+            accumulator.Observe(new MovementSynchronizationSample(1, MovementSynchronizationPhase.Update, 0.10d, 0.0d, 0.0d, 0.0d));
+            accumulator.Observe(new MovementSynchronizationSample(2, MovementSynchronizationPhase.LateUpdate, 0.09d, 0.0d, 0.0d, 0.0d));
+
+            var qualification = MovementSynchronizationQualification.Evaluate(accumulator, 1L, 0.10d, 0.10d);
+            TestRunner.Equal(0.10d, qualification.MaximumCalibratedPreCorrectionPositionResidualWorldUnits, "Initial placement polluted the calibrated maximum.");
+            TestRunner.True(qualification.PreCorrectionPositionPassed, "Exact calibrated threshold did not pass.");
+            TestRunner.True(qualification.PostCorrectionPositionPassed, "Post-correction position unexpectedly failed.");
+            TestRunner.True(qualification.PostCorrectionRotationPassed, "Post-correction rotation unexpectedly failed.");
+            TestRunner.True(qualification.CorrectionCadencePassed, "Ordinary callback cadence unexpectedly failed.");
+        }
+
+        private static void MovementSynchronizationQualificationGatesCalibratedPhases()
+        {
+            var accumulator = new MovementSynchronizationTelemetryAccumulator();
+            accumulator.Observe(new MovementSynchronizationSample(0, MovementSynchronizationPhase.InitialConfiguration, 0.0d, 0.0d, 0.0d, 0.0d));
+            accumulator.Observe(new MovementSynchronizationSample(1, MovementSynchronizationPhase.Update, 0.100001d, 0.0d, 0.0d, 0.0d));
+            accumulator.Observe(new MovementSynchronizationSample(2, MovementSynchronizationPhase.LateUpdate, 0.0d, 0.0d, 0.11d, 0.11d));
+
+            var qualification = MovementSynchronizationQualification.Evaluate(accumulator, 1L, 0.10d, 0.10d);
+            TestRunner.True(!qualification.PreCorrectionPositionPassed, "Above-threshold Update residual passed.");
+            TestRunner.True(!qualification.PostCorrectionPositionPassed, "Above-threshold post-correction position passed.");
+            TestRunner.True(!qualification.PostCorrectionRotationPassed, "Above-threshold post-correction rotation passed.");
+        }
+
+        private static void MovementSynchronizationQualificationBoundsCallbackCadence()
+        {
+            var accumulator = new MovementSynchronizationTelemetryAccumulator();
+            for (var sequence = 0; sequence < 4; sequence++)
+            {
+                accumulator.Observe(new MovementSynchronizationSample(sequence, MovementSynchronizationPhase.Update, 0.01d, 0.0d, 0.0d, 0.0d));
+            }
+
+            var qualification = MovementSynchronizationQualification.Evaluate(accumulator, 1L, 0.10d, 0.10d);
+            TestRunner.Equal(3L, qualification.MaximumSamplesPerPhase, "Callback cadence allowance differs.");
+            TestRunner.Equal(6L, qualification.MaximumCorrectionsAcrossCalibratedPhases, "Correction-count allowance differs.");
+            TestRunner.True(!qualification.CorrectionCadencePassed, "Unbounded Update callback cadence passed.");
         }
 
         private static void AssertRejected(MountedPairCandidate candidate)

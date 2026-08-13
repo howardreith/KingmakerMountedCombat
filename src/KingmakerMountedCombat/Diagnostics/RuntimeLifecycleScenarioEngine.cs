@@ -1,11 +1,21 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
+using System.IO;
+using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
+using Kingmaker;
 using Kingmaker.EntitySystem.Entities;
+using Kingmaker.UI.Selection;
 using Kingmaker.View;
 using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Integration;
 using KingmakerMountedCombat.Logging;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Serialization;
+using UnityEngine;
 
 namespace KingmakerMountedCombat.Diagnostics
 {
@@ -18,6 +28,17 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         private const double RowTimeoutSeconds = 15.0d;
         private const double SuiteTimeoutSeconds = 120.0d;
+        private const string EvidenceFileName = "lifecycle-scenario-evidence.jsonl";
+
+        private static readonly JsonSerializerSettings EvidenceJsonSettings = new JsonSerializerSettings
+        {
+            ContractResolver = new CamelCasePropertyNamesContractResolver(),
+            Formatting = Formatting.None,
+            MetadataPropertyHandling = MetadataPropertyHandling.Ignore,
+            PreserveReferencesHandling = PreserveReferencesHandling.None,
+            ReferenceLoopHandling = ReferenceLoopHandling.Error,
+            TypeNameHandling = TypeNameHandling.None
+        };
 
         private static readonly string[] SuiteRows =
         {
@@ -40,20 +61,32 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly List<string> errors = new List<string>();
         private readonly Stopwatch suiteClock = new Stopwatch();
         private readonly Stopwatch rowClock = new Stopwatch();
+        private readonly string evidencePath;
+        private readonly string dllSha256;
+        private readonly string dllMvid;
 
         private IReadOnlyList<string> selectedRows;
         private AssertionRecorder assertions;
         private PairSnapshot snapshot;
+        private PairSnapshot evidenceSnapshot;
+        private TransitionResult lastCleanupTransition;
         private string currentRow;
+        private string lastEvidenceRow;
         private int rowIndex;
         private int frameNumber;
         private int cleanupFrame;
+        private long evidenceSequence;
         private EngineStep step;
         private bool originalUnsafeExperimentSetting;
         private bool settingLeaseOwned;
         private bool started;
         private bool completed;
         private bool disposed;
+        private bool evidenceCreated;
+        private bool evidenceFailed;
+        private string evidenceFailureMessage;
+        private bool evidenceFinalized;
+        private bool cleanupFrameEvidenceWritten;
 
         public RuntimeLifecycleScenarioEngine(
             RuntimeRequest request,
@@ -67,6 +100,10 @@ namespace KingmakerMountedCombat.Diagnostics
             this.lifecycle = lifecycle ?? throw new ArgumentNullException(nameof(lifecycle));
             this.settings = settings ?? throw new ArgumentNullException(nameof(settings));
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            evidencePath = Path.Combine(request.EvidenceRoot, EvidenceFileName);
+            var assembly = typeof(Main).Assembly;
+            dllSha256 = ComputeSha256(assembly.Location);
+            dllMvid = assembly.ManifestModule.ModuleVersionId.ToString();
         }
 
         public bool IsCompleted => completed;
@@ -152,12 +189,19 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
+            if (started && !completed)
+            {
+                errors.Add("Lifecycle engine was disposed before completing its selected rows.");
+            }
+
+            TransitionResult teardownCleanup = null;
             try
             {
                 if (relationship.State != RelationshipState.Unmounted && relationship.State != RelationshipState.Disposed)
                 {
-                    var cleanup = relationship.Dismount(CleanupTrigger.ProcessTeardown);
-                    if (!cleanup.Succeeded || cleanup.MovementAuthorityResidual || cleanup.PresentationResidual)
+                    teardownCleanup = relationship.Dismount(CleanupTrigger.ProcessTeardown);
+                    lastCleanupTransition = teardownCleanup;
+                    if (!teardownCleanup.Succeeded || teardownCleanup.MovementAuthorityResidual || teardownCleanup.PresentationResidual)
                     {
                         errors.Add("Process-teardown cleanup retained mounted runtime residue.");
                     }
@@ -170,6 +214,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             finally
             {
+                FinalizeEvidence(teardownCleanup ?? lastCleanupTransition);
                 RestoreSettings();
                 suiteClock.Stop();
                 rowClock.Stop();
@@ -207,14 +252,18 @@ namespace KingmakerMountedCombat.Diagnostics
             }
 
             currentRow = selectedRows[rowIndex];
+            lastEvidenceRow = currentRow;
             assertions = new AssertionRecorder();
             snapshot = null;
+            lastCleanupTransition = null;
+            cleanupFrameEvidenceWritten = false;
             rowClock.Restart();
             assertions.Check(relationship.State == RelationshipState.Unmounted,
                 "Relationship began the row Unmounted.",
                 "Relationship began the row in " + relationship.State + " rather than Unmounted.");
             if (relationship.State != RelationshipState.Unmounted)
             {
+                TryWriteEvidence("pre-mount", null, null);
                 RequestCleanup(CleanupTrigger.Exception);
                 return;
             }
@@ -228,6 +277,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Exact automation pair did not resolve: " + (resolutionError ?? "unknown error"));
             if (!resolved)
             {
+                TryWriteEvidence("pre-mount", null, null);
                 RequestCleanup(CleanupTrigger.Exception);
                 return;
             }
@@ -239,7 +289,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Pre-mount stock movement state could not be captured: " + (snapshotError ?? "unknown error"));
             if (snapshot == null)
             {
+                TryWriteEvidence("pre-mount", null, null);
                 RequestCleanup(CleanupTrigger.Exception);
+                return;
+            }
+            evidenceSnapshot = snapshot;
+            if (!TryWriteEvidence("pre-mount", null, null))
+            {
+                FinishCurrentRow();
                 return;
             }
 
@@ -275,6 +332,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void ExerciseMountedRow()
         {
+            TryWriteEvidence("mounted-next-frame", null, null);
             assertions.Check(relationship.State == RelationshipState.Mounted,
                 "Relationship remained Mounted for at least one game frame.",
                 "Relationship did not remain Mounted through the next game frame; observed " + relationship.State + ".");
@@ -310,6 +368,7 @@ namespace KingmakerMountedCombat.Diagnostics
             else if (string.Equals(currentRow, "mounted-pair-death-cleanup", StringComparison.Ordinal))
             {
                 lifecycle.HandleUnitDeath(snapshot.Rider);
+                lastCleanupTransition = relationship.LastTransition;
                 assertions.Check(HasExactSuccessfulTrigger(CleanupTrigger.Death),
                     "Death lifecycle handler requested the Death cleanup trigger.",
                     "Death lifecycle handler did not report the Death cleanup trigger: " + relationship.LastResult);
@@ -318,6 +377,7 @@ namespace KingmakerMountedCombat.Diagnostics
             else if (string.Equals(currentRow, "mounted-pair-combat-start-cleanup", StringComparison.Ordinal))
             {
                 lifecycle.HandlePartyCombatStateChanged(true);
+                lastCleanupTransition = relationship.LastTransition;
                 assertions.Check(HasExactSuccessfulTrigger(CleanupTrigger.CombatStarted),
                     "Combat lifecycle handler requested the CombatStarted cleanup trigger.",
                     "Combat lifecycle handler did not report the CombatStarted cleanup trigger: " + relationship.LastResult);
@@ -326,6 +386,7 @@ namespace KingmakerMountedCombat.Diagnostics
             else if (string.Equals(currentRow, "mounted-pair-area-unload-cleanup", StringComparison.Ordinal))
             {
                 lifecycle.OnAreaBeginUnloading();
+                lastCleanupTransition = relationship.LastTransition;
                 assertions.Check(HasExactSuccessfulTrigger(CleanupTrigger.AreaUnloading),
                     "Area lifecycle handler requested the AreaUnloading cleanup trigger.",
                     "Area lifecycle handler did not report the AreaUnloading cleanup trigger: " + relationship.LastResult);
@@ -350,8 +411,20 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
-            AssertUnmountedAndRestored();
+            try
+            {
+                AssertUnmountedAndRestored();
+            }
+            catch (Exception exception)
+            {
+                FailCurrent("Post-cleanup verification threw " + exception.GetType().Name + ": " + exception.Message);
+                WriteCleanupFrameEvidenceOnce();
+                FinishCurrentRow();
+                return;
+            }
+            WriteCleanupFrameEvidenceOnce();
             var repeated = relationship.Dismount(CleanupTrigger.Manual);
+            lastCleanupTransition = repeated;
             assertions.Check(repeated.Succeeded,
                 "Repeated cleanup succeeded.",
                 "Repeated cleanup failed: " + FormatTransitionErrors(repeated));
@@ -371,7 +444,15 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
-            AssertUnmountedAndRestored();
+            try
+            {
+                AssertUnmountedAndRestored();
+            }
+            catch (Exception exception)
+            {
+                FailCurrent("Post-cleanup verification threw " + exception.GetType().Name + ": " + exception.Message);
+            }
+            WriteCleanupFrameEvidenceOnce();
             FinishCurrentRow();
         }
 
@@ -396,6 +477,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void AssertCleanupTransition(TransitionResult result, CleanupTrigger expectedTrigger)
         {
+            lastCleanupTransition = result;
             assertions.Check(result.Succeeded,
                 expectedTrigger + " cleanup transition succeeded.",
                 expectedTrigger + " cleanup transition failed: " + FormatTransitionErrors(result));
@@ -425,36 +507,62 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
-            assertions.Check(snapshot.Rider.View == snapshot.RiderView && snapshot.Mount.View == snapshot.MountView,
+            var riderViewAlive = snapshot.RiderView != null;
+            var mountViewAlive = snapshot.MountView != null;
+            assertions.Check(riderViewAlive && mountViewAlive,
+                "Retained rider and mount views remained alive for cleanup verification.",
+                "Rider or mount view was destroyed before cleanup verification.");
+            var currentRiderView = snapshot.Rider == null ? null : snapshot.Rider.View;
+            var currentMountView = snapshot.Mount == null ? null : snapshot.Mount.View;
+            assertions.Check(riderViewAlive && mountViewAlive &&
+                    currentRiderView != null && currentMountView != null &&
+                    ReferenceEquals(currentRiderView, snapshot.RiderView) &&
+                    ReferenceEquals(currentMountView, snapshot.MountView),
                 "Exact rider and mount views remained attached during the bounded lifecycle row.",
                 "Rider or mount view identity changed during the bounded lifecycle row.");
-            assertions.Check(snapshot.RiderView.AgentASP == snapshot.RiderStockAgent,
-                "Exact rider stock-agent reference was restored.",
-                "Rider stock-agent reference changed after cleanup.");
-            assertions.Check(snapshot.RiderStockAgent.enabled == snapshot.RiderAgentWasEnabled,
-                "Rider stock-agent enabled flag was restored.",
-                "Rider stock-agent enabled flag was not restored.");
-            assertions.Check(snapshot.RiderStockAgent.AvoidanceDisabled == snapshot.RiderAvoidanceWasDisabled,
-                "Rider avoidance flag was restored.",
-                "Rider avoidance flag was not restored.");
-            assertions.Check(ReferenceEquals(snapshot.RiderView.AgentOverride, snapshot.RiderOverride),
-                "Rider AgentOverride was restored to its exact prior reference.",
-                "Rider AgentOverride retained or replaced an override after cleanup.");
-            assertions.Check(snapshot.RiderView.GetComponents<RiderMovementAgent>().Length == snapshot.RiderOverrideComponentCount,
-                "Owned RiderMovementAgent component count returned to its exact prior value.",
-                "A RiderMovementAgent component remained or disappeared after cleanup.");
-            assertions.Check(snapshot.MountView.AgentASP == snapshot.MountStockAgent,
-                "Exact mount stock-agent reference was preserved.",
-                "Mount stock-agent reference changed after cleanup.");
-            assertions.Check(snapshot.MountStockAgent.enabled == snapshot.MountAgentWasEnabled,
-                "Mount stock-agent enabled flag was preserved.",
-                "Mount stock-agent enabled flag changed after cleanup.");
-            assertions.Check(snapshot.MountStockAgent.AvoidanceDisabled == snapshot.MountAvoidanceWasDisabled,
-                "Mount avoidance flag was preserved.",
-                "Mount avoidance flag changed after cleanup.");
-            assertions.Check(ReferenceEquals(snapshot.MountView.AgentOverride, snapshot.MountOverride),
-                "Mount AgentOverride was preserved.",
-                "Mount AgentOverride changed after cleanup.");
+
+            var riderStockAgentAlive = snapshot.RiderStockAgent != null;
+            assertions.Check(riderStockAgentAlive,
+                "Retained rider stock agent remained alive for cleanup verification.",
+                "Rider stock agent was destroyed before cleanup verification.");
+            if (riderViewAlive && riderStockAgentAlive)
+            {
+                assertions.Check(ReferenceEquals(snapshot.RiderView.AgentASP, snapshot.RiderStockAgent),
+                    "Exact rider stock-agent reference was restored.",
+                    "Rider stock-agent reference changed after cleanup.");
+                assertions.Check(snapshot.RiderStockAgent.enabled == snapshot.RiderAgentWasEnabled,
+                    "Rider stock-agent enabled flag was restored.",
+                    "Rider stock-agent enabled flag was not restored.");
+                assertions.Check(snapshot.RiderStockAgent.AvoidanceDisabled == snapshot.RiderAvoidanceWasDisabled,
+                    "Rider avoidance flag was restored.",
+                    "Rider avoidance flag was not restored.");
+                assertions.Check(ReferenceEquals(snapshot.RiderView.AgentOverride, snapshot.RiderOverride),
+                    "Rider AgentOverride was restored to its exact prior reference.",
+                    "Rider AgentOverride retained or replaced an override after cleanup.");
+                assertions.Check(snapshot.RiderView.GetComponents<RiderMovementAgent>().Length == snapshot.RiderOverrideComponentCount,
+                    "Owned RiderMovementAgent component count returned to its exact prior value.",
+                    "A RiderMovementAgent component remained or disappeared after cleanup.");
+            }
+
+            var mountStockAgentAlive = snapshot.MountStockAgent != null;
+            assertions.Check(mountStockAgentAlive,
+                "Retained mount stock agent remained alive for cleanup verification.",
+                "Mount stock agent was destroyed before cleanup verification.");
+            if (mountViewAlive && mountStockAgentAlive)
+            {
+                assertions.Check(ReferenceEquals(snapshot.MountView.AgentASP, snapshot.MountStockAgent),
+                    "Exact mount stock-agent reference was preserved.",
+                    "Mount stock-agent reference changed after cleanup.");
+                assertions.Check(snapshot.MountStockAgent.enabled == snapshot.MountAgentWasEnabled,
+                    "Mount stock-agent enabled flag was preserved.",
+                    "Mount stock-agent enabled flag changed after cleanup.");
+                assertions.Check(snapshot.MountStockAgent.AvoidanceDisabled == snapshot.MountAvoidanceWasDisabled,
+                    "Mount avoidance flag was preserved.",
+                    "Mount avoidance flag changed after cleanup.");
+                assertions.Check(ReferenceEquals(snapshot.MountView.AgentOverride, snapshot.MountOverride),
+                    "Mount AgentOverride was preserved.",
+                    "Mount AgentOverride changed after cleanup.");
+            }
         }
 
         private void RequestCleanup(CleanupTrigger trigger)
@@ -462,6 +570,7 @@ namespace KingmakerMountedCombat.Diagnostics
             try
             {
                 var cleanup = relationship.Dismount(trigger);
+                lastCleanupTransition = cleanup;
                 if (!cleanup.Succeeded || cleanup.MovementAuthorityResidual || cleanup.PresentationResidual)
                 {
                     FailCurrent(trigger + " best-effort cleanup failed or reported residue: " + FormatTransitionErrors(cleanup));
@@ -480,6 +589,17 @@ namespace KingmakerMountedCombat.Diagnostics
             step = EngineStep.AwaitCleanupFrame;
         }
 
+        private void WriteCleanupFrameEvidenceOnce()
+        {
+            if (cleanupFrameEvidenceWritten)
+            {
+                return;
+            }
+
+            cleanupFrameEvidenceWritten = true;
+            TryWriteEvidence("cleanup-next-frame", lastCleanupTransition, null);
+        }
+
         private void FailCurrent(string message)
         {
             if (assertions == null)
@@ -491,6 +611,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void FinishCurrentRow()
         {
+            TryWriteEvidence("row-finish", lastCleanupTransition,
+                assertions == null ? null : assertions.Errors);
             var rowResult = new RuntimeSubscenarioResult
             {
                 Name = currentRow,
@@ -545,12 +667,14 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void Complete()
         {
+            TransitionResult finalCleanup = null;
             if (relationship.State != RelationshipState.Unmounted && relationship.State != RelationshipState.Disposed)
             {
                 try
                 {
-                    var cleanup = relationship.Dismount(CleanupTrigger.Exception);
-                    if (!cleanup.Succeeded || cleanup.MovementAuthorityResidual || cleanup.PresentationResidual)
+                    finalCleanup = relationship.Dismount(CleanupTrigger.Exception);
+                    lastCleanupTransition = finalCleanup;
+                    if (!finalCleanup.Succeeded || finalCleanup.MovementAuthorityResidual || finalCleanup.PresentationResidual)
                     {
                         errors.Add("Final lifecycle-engine cleanup retained mounted runtime residue.");
                     }
@@ -562,11 +686,249 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
             }
 
+            FinalizeEvidence(finalCleanup ?? lastCleanupTransition);
             RestoreSettings();
             suiteClock.Stop();
             rowClock.Stop();
             completed = true;
             logger.Info("Lifecycle runtime engine completed with " + results.Count + " row result(s).");
+        }
+
+        private void FinalizeEvidence(TransitionResult cleanup)
+        {
+            if (evidenceFinalized)
+            {
+                return;
+            }
+
+            TryWriteEvidence("engine-finalization", cleanup, errors);
+            evidenceFinalized = true;
+        }
+
+        private bool TryWriteEvidence(
+            string phase,
+            TransitionResult cleanup,
+            IReadOnlyList<string> recordErrors)
+        {
+            if (evidenceFailed || (evidenceFinalized && !string.Equals(phase, "engine-finalization", StringComparison.Ordinal)))
+            {
+                if (assertions != null && !string.IsNullOrEmpty(evidenceFailureMessage) &&
+                    !assertions.Errors.Contains(evidenceFailureMessage))
+                {
+                    assertions.Fail(evidenceFailureMessage);
+                }
+                return false;
+            }
+
+            try
+            {
+                var record = CreateEvidenceRecord(phase, cleanup, recordErrors);
+                var json = JsonConvert.SerializeObject(record, EvidenceJsonSettings);
+                var mode = evidenceCreated ? FileMode.Append : FileMode.CreateNew;
+                using (var stream = new FileStream(evidencePath, mode, FileAccess.Write, FileShare.Read))
+                {
+                    using (var writer = new StreamWriter(stream, new UTF8Encoding(false), 1024, true))
+                    {
+                        writer.WriteLine(json);
+                        writer.Flush();
+                    }
+                    stream.Flush(true);
+                }
+                evidenceCreated = true;
+                return true;
+            }
+            catch (Exception exception)
+            {
+                evidenceFailed = true;
+                evidenceFailureMessage = "Lifecycle structured evidence write failed: " +
+                    exception.GetType().Name + ": " + exception.Message;
+                if (assertions != null)
+                {
+                    assertions.Fail(evidenceFailureMessage);
+                }
+                else
+                {
+                    errors.Add(evidenceFailureMessage);
+                }
+                logger.Exception("Lifecycle structured evidence write failed", exception);
+                return false;
+            }
+        }
+
+        private LifecycleEvidenceRecord CreateEvidenceRecord(
+            string phase,
+            TransitionResult cleanup,
+            IReadOnlyList<string> recordErrors)
+        {
+            var pair = snapshot ?? evidenceSnapshot;
+            var rider = pair == null ? relationship.Rider : pair.Rider;
+            var mount = pair == null ? relationship.Mount : pair.Mount;
+            var selection = SelectionManager.Instance == null ? null : SelectionManager.Instance.SelectedUnits;
+            var riderSelected = selection == null || rider == null ? (bool?)null : selection.Contains(rider);
+            var mountSelected = selection == null || mount == null ? (bool?)null : selection.Contains(mount);
+            var agent = relationship.Runtime.MovementAgent;
+            var mountView = pair == null ? mount?.View : pair.MountView;
+            var riderView = pair == null ? rider?.View : pair.RiderView;
+            var spine = mountView == null ? null : FindTransform(mountView.transform, "Spine");
+            var game = Game.Instance;
+
+            PositionEvidence expectedPosition = null;
+            RotationEvidence expectedRotation = null;
+            double? currentPositionResidual = null;
+            double? currentRotationResidual = null;
+            if (agent != null && agent.IsConfigured)
+            {
+                var expected = agent.ExpectedPosition;
+                var expectedQuaternion = agent.ExpectedRotation;
+                expectedPosition = PositionEvidence.From(expected);
+                expectedRotation = RotationEvidence.From(expectedQuaternion);
+                if (riderView != null)
+                {
+                    currentPositionResidual = MovementTelemetrySample.CalculateDistance(
+                        expected.x, expected.y, expected.z,
+                        riderView.transform.position.x, riderView.transform.position.y, riderView.transform.position.z);
+                    currentRotationResidual = Quaternion.Angle(expectedQuaternion, riderView.transform.rotation);
+                }
+            }
+
+            return new LifecycleEvidenceRecord
+            {
+                SchemaVersion = 1,
+                RunId = request.RunId,
+                Scenario = request.Scenario,
+                Row = currentRow ?? lastEvidenceRow,
+                Phase = phase,
+                UtcTimestamp = DateTimeOffset.UtcNow.ToString("o", CultureInfo.InvariantCulture),
+                Branch = request.Branch,
+                Commit = request.Commit,
+                ProductVersion = request.ProductVersion,
+                DllSha256 = dllSha256,
+                DllMvid = dllMvid,
+                Sequence = evidenceSequence++,
+                Frame = frameNumber,
+                RelationshipState = relationship.State.ToString(),
+                RowStatus = string.Equals(phase, "row-finish", StringComparison.Ordinal) && assertions != null
+                    ? (assertions.FailureCount == 0 ? "PASS" : "FAIL")
+                    : null,
+                AssertionPassCount = string.Equals(phase, "row-finish", StringComparison.Ordinal) && assertions != null
+                    ? (int?)assertions.PassCount
+                    : null,
+                AssertionFailCount = string.Equals(phase, "row-finish", StringComparison.Ordinal) && assertions != null
+                    ? (int?)assertions.FailureCount
+                    : null,
+                Cleanup = CleanupEvidence.From(cleanup),
+                PartyCombat = game?.Player?.IsInCombat,
+                RiderCombat = rider == null ? (bool?)null : rider.IsInCombat,
+                MountCombat = mount == null ? (bool?)null : mount.IsInCombat,
+                TurnBased = TurnBased.Controllers.CombatController.IsInTurnBasedCombat(),
+                Paused = game?.IsPaused,
+                CurrentGameMode = game == null ? null : game.CurrentMode.ToString(),
+                Rider = CreateUnitEvidence(rider, pair, true, riderSelected),
+                Mount = CreateUnitEvidence(mount, pair, false, mountSelected),
+                Selection = new SelectionEvidence
+                {
+                    Available = selection != null,
+                    RiderSelected = riderSelected,
+                    MountSelected = mountSelected,
+                    SelectedUnitIds = selection == null
+                        ? new string[0]
+                        : selection.Where(unit => unit != null).Select(unit => unit.UniqueId == null ? null : unit.UniqueId.ToString()).ToArray()
+                },
+                Spine = spine == null ? null : new TransformEvidence
+                {
+                    Name = spine.name,
+                    WorldPosition = PositionEvidence.From(spine.position),
+                    WorldRotation = RotationEvidence.From(spine.rotation)
+                },
+                Anchor = new AnchorEvidence
+                {
+                    Name = agent == null ? null : agent.AnchorName,
+                    ExpectedPosition = expectedPosition,
+                    ExpectedRotation = expectedRotation,
+                    CurrentPositionResidualWorldUnits = currentPositionResidual,
+                    CurrentRotationResidualDegrees = currentRotationResidual,
+                    PreCorrectionPositionResidualWorldUnits = agent == null ? (double?)null : agent.LatestPreCorrectionPositionResidualWorldUnits,
+                    PreCorrectionRotationResidualDegrees = agent == null ? (double?)null : agent.LatestPreCorrectionRotationResidualDegrees,
+                    PostCorrectionPositionResidualWorldUnits = agent == null ? (double?)null : agent.LatestPostCorrectionPositionResidualWorldUnits,
+                    PostCorrectionRotationResidualDegrees = agent == null ? (double?)null : agent.LatestPostCorrectionRotationResidualDegrees
+                },
+                RecordErrors = recordErrors == null ? new string[0] : recordErrors.ToArray()
+            };
+        }
+
+        private static UnitEvidence CreateUnitEvidence(
+            UnitEntityData unit,
+            PairSnapshot pair,
+            bool rider,
+            bool? selected)
+        {
+            if (unit == null)
+            {
+                return null;
+            }
+
+            var view = pair == null
+                ? unit.View
+                : (rider ? pair.RiderView : pair.MountView);
+            var stockAgent = pair == null
+                ? view?.AgentASP
+                : (rider ? pair.RiderStockAgent : pair.MountStockAgent);
+            var move = unit.Commands == null ? null : unit.Commands.Move;
+            var state = unit.Descriptor == null ? null : unit.Descriptor.State;
+            return new UnitEvidence
+            {
+                UniqueId = unit.UniqueId == null ? null : unit.UniqueId.ToString(),
+                SizeOrdinal = state == null ? (int?)null : (int)state.Size,
+                InCombat = unit.IsInCombat,
+                StockAgentEnabled = stockAgent == null ? (bool?)null : stockAgent.enabled,
+                AvoidanceDisabled = stockAgent == null ? (bool?)null : stockAgent.AvoidanceDisabled,
+                AgentOverrideType = view == null || view.AgentOverride == null
+                    ? null
+                    : view.AgentOverride.GetType().FullName,
+                OverrideComponentCount = view == null
+                    ? (int?)null
+                    : view.GetComponents<RiderMovementAgent>().Length,
+                EntityPosition = PositionEvidence.From(unit.Position),
+                EntityRotationDegrees = unit.Orientation,
+                ViewPosition = view == null ? null : PositionEvidence.From(view.transform.position),
+                ViewRotation = view == null ? null : RotationEvidence.From(view.transform.rotation),
+                MoveCommandType = move == null ? null : move.GetType().FullName,
+                MoveTarget = move == null ? null : PositionEvidence.From(move.Target),
+                ActiveCommandTypes = unit.Commands == null || unit.Commands.Raw == null
+                    ? new string[0]
+                    : unit.Commands.Raw.Where(command => command != null).Select(command => command.GetType().FullName).ToArray(),
+                Selected = selected
+            };
+        }
+
+        private static Transform FindTransform(Transform root, string exactName)
+        {
+            if (root == null)
+            {
+                return null;
+            }
+            if (string.Equals(root.name, exactName, StringComparison.Ordinal))
+            {
+                return root;
+            }
+            for (var index = 0; index < root.childCount; index++)
+            {
+                var found = FindTransform(root.GetChild(index), exactName);
+                if (found != null)
+                {
+                    return found;
+                }
+            }
+            return null;
+        }
+
+        private static string ComputeSha256(string filePath)
+        {
+            using (var algorithm = SHA256.Create())
+            using (var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+            {
+                return BitConverter.ToString(algorithm.ComputeHash(stream)).Replace("-", string.Empty).ToLowerInvariant();
+            }
         }
 
         private void RestoreSettings()
@@ -628,6 +990,140 @@ namespace KingmakerMountedCombat.Diagnostics
             AwaitMountedFrame,
             AwaitFirstIdempotentCleanupFrame,
             AwaitCleanupFrame
+        }
+
+        private sealed class LifecycleEvidenceRecord
+        {
+            public int SchemaVersion { get; set; }
+            public string RunId { get; set; }
+            public string Scenario { get; set; }
+            public string Row { get; set; }
+            public string Phase { get; set; }
+            public string UtcTimestamp { get; set; }
+            public string Branch { get; set; }
+            public string Commit { get; set; }
+            public string ProductVersion { get; set; }
+            public string DllSha256 { get; set; }
+            public string DllMvid { get; set; }
+            public long Sequence { get; set; }
+            public int Frame { get; set; }
+            public string RelationshipState { get; set; }
+            public string RowStatus { get; set; }
+            public int? AssertionPassCount { get; set; }
+            public int? AssertionFailCount { get; set; }
+            public CleanupEvidence Cleanup { get; set; }
+            public bool? PartyCombat { get; set; }
+            public bool? RiderCombat { get; set; }
+            public bool? MountCombat { get; set; }
+            public bool? TurnBased { get; set; }
+            public bool? Paused { get; set; }
+            public string CurrentGameMode { get; set; }
+            public UnitEvidence Rider { get; set; }
+            public UnitEvidence Mount { get; set; }
+            public SelectionEvidence Selection { get; set; }
+            public TransformEvidence Spine { get; set; }
+            public AnchorEvidence Anchor { get; set; }
+            public IReadOnlyList<string> RecordErrors { get; set; }
+        }
+
+        private sealed class CleanupEvidence
+        {
+            public string Trigger { get; set; }
+            public string Result { get; set; }
+            public bool? Succeeded { get; set; }
+            public string State { get; set; }
+            public bool? MovementAuthorityResidual { get; set; }
+            public bool? PresentationResidual { get; set; }
+            public IReadOnlyList<string> Errors { get; set; }
+
+            public static CleanupEvidence From(TransitionResult result)
+            {
+                var cleanUnmounted = result != null && result.Succeeded &&
+                    result.State == RelationshipState.Unmounted &&
+                    !result.MovementAuthorityResidual && !result.PresentationResidual;
+                return new CleanupEvidence
+                {
+                    Trigger = result == null || !result.Trigger.HasValue ? null : result.Trigger.Value.ToString(),
+                    Result = result == null ? null : (cleanUnmounted ? "PASS" : "FAIL"),
+                    Succeeded = result == null ? (bool?)null : result.Succeeded,
+                    State = result == null ? null : result.State.ToString(),
+                    MovementAuthorityResidual = result == null ? (bool?)null : result.MovementAuthorityResidual,
+                    PresentationResidual = result == null ? (bool?)null : result.PresentationResidual,
+                    Errors = result == null || result.Errors == null ? new string[0] : result.Errors.ToArray()
+                };
+            }
+        }
+
+        private sealed class UnitEvidence
+        {
+            public string UniqueId { get; set; }
+            public int? SizeOrdinal { get; set; }
+            public bool? InCombat { get; set; }
+            public bool? StockAgentEnabled { get; set; }
+            public bool? AvoidanceDisabled { get; set; }
+            public string AgentOverrideType { get; set; }
+            public int? OverrideComponentCount { get; set; }
+            public PositionEvidence EntityPosition { get; set; }
+            public float? EntityRotationDegrees { get; set; }
+            public PositionEvidence ViewPosition { get; set; }
+            public RotationEvidence ViewRotation { get; set; }
+            public string MoveCommandType { get; set; }
+            public PositionEvidence MoveTarget { get; set; }
+            public IReadOnlyList<string> ActiveCommandTypes { get; set; }
+            public bool? Selected { get; set; }
+        }
+
+        private sealed class SelectionEvidence
+        {
+            public bool Available { get; set; }
+            public bool? RiderSelected { get; set; }
+            public bool? MountSelected { get; set; }
+            public IReadOnlyList<string> SelectedUnitIds { get; set; }
+        }
+
+        private sealed class TransformEvidence
+        {
+            public string Name { get; set; }
+            public PositionEvidence WorldPosition { get; set; }
+            public RotationEvidence WorldRotation { get; set; }
+        }
+
+        private sealed class AnchorEvidence
+        {
+            public string Name { get; set; }
+            public PositionEvidence ExpectedPosition { get; set; }
+            public RotationEvidence ExpectedRotation { get; set; }
+            public double? CurrentPositionResidualWorldUnits { get; set; }
+            public double? CurrentRotationResidualDegrees { get; set; }
+            public double? PreCorrectionPositionResidualWorldUnits { get; set; }
+            public double? PreCorrectionRotationResidualDegrees { get; set; }
+            public double? PostCorrectionPositionResidualWorldUnits { get; set; }
+            public double? PostCorrectionRotationResidualDegrees { get; set; }
+        }
+
+        private sealed class PositionEvidence
+        {
+            public float X { get; set; }
+            public float Y { get; set; }
+            public float Z { get; set; }
+
+            public static PositionEvidence From(Vector3 value)
+            {
+                return new PositionEvidence { X = value.x, Y = value.y, Z = value.z };
+            }
+        }
+
+        private sealed class RotationEvidence
+        {
+            public float X { get; set; }
+            public float Y { get; set; }
+            public float Z { get; set; }
+            public float W { get; set; }
+
+            public static RotationEvidence From(Quaternion value)
+            {
+                return new RotationEvidence { X = value.x, Y = value.y, Z = value.z, W = value.w };
+            }
         }
 
         private sealed class PairSnapshot

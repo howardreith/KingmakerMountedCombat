@@ -77,6 +77,7 @@
   <ItemGroup>
     <Compile Include="CompositionRoot.cs" />
     <Compile Include="Diagnostics\DiagnosticSettings.cs" />
+    <Compile Include="Diagnostics\BoundaryFailureDrain.cs" />
     <Compile Include="Diagnostics\MovementTelemetryWriter.cs" />
     <Compile Include="Diagnostics\RuntimeAutomationHost.cs" />
     <Compile Include="Diagnostics\RuntimeBoundaryScenarioEngine.cs" />

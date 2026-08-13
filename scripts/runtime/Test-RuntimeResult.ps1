@@ -98,7 +98,8 @@ function Assert-RuntimeArtifactManifest {
         $kind = $artifact.kind
         if (-not $seen.Add($relativePath)) { throw "Runtime artifact manifest contains duplicate path: $relativePath" }
 
-        $allowed = ($relativePath -ceq 'movement-telemetry.jsonl' -and $kind -ceq 'telemetry') -or
+        $allowed = ($relativePath -ceq 'lifecycle-scenario-evidence.jsonl' -and $kind -ceq 'scenario-evidence') -or
+            ($relativePath -ceq 'movement-telemetry.jsonl' -and $kind -ceq 'telemetry') -or
             ($relativePath -ceq 'movement-scenario-evidence.jsonl' -and $kind -ceq 'scenario-evidence') -or
             ($relativePath -cmatch '^movement-visuals/[A-Za-z0-9._-]+\.png$' -and $kind -ceq 'screenshot')
         if (-not $allowed) { throw "Runtime artifact manifest record is outside the exact allowlist: $relativePath ($kind)" }
@@ -235,5 +236,7 @@ if ($result.baselineImmutable -ne $true -or $result.workingRestored -ne $true -o
 if ($result.saveProtectionPassed -ne ($result.baselineImmutable -and $result.workingRestored -and $result.saveWriteAllowlistPassed)) { throw 'Runtime result saveProtectionPassed does not equal its three fixture safety proofs.' }
 if ([string]$result.restoredSaveInventoryDigest -cnotmatch '^[0-9a-f]{64}$') { throw 'Runtime result lacks the restored save inventory digest.' }
 Assert-SubscenarioResults $result
+$validatedArtifactManifest = Read-KmcJson (Join-Path ([IO.Path]::GetFullPath([string]$request.evidenceRoot)) 'runtime-artifacts.json')
+Assert-KmcLifecycleScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status) -SubscenarioResults $result.subscenarioResults
 if ([string]$result.status -ceq 'PASS' -and ([int]$result.subscenarioFailCount -ne 0 -or [int]$result.assertionFailCount -ne 0)) { throw 'PASS runtime result contains subscenario failures.' }
 Write-Host 'TOTAL PASS=29 FAIL=0'

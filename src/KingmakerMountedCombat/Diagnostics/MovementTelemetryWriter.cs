@@ -147,6 +147,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 maximumPreCorrectionRotationResidualDegrees = agent.MaximumPreCorrectionRotationResidualDegrees,
                 maximumPostCorrectionPositionResidualWorldUnits = agent.MaximumPostCorrectionPositionResidualWorldUnits,
                 maximumPostCorrectionRotationResidualDegrees = agent.MaximumPostCorrectionRotationResidualDegrees,
+                maximumInitialConfigurationPreCorrectionPositionResidualWorldUnits = agent.MaximumInitialConfigurationPreCorrectionPositionResidualWorldUnits,
                 maximumUpdatePreCorrectionPositionResidualWorldUnits = agent.MaximumUpdatePreCorrectionPositionResidualWorldUnits,
                 maximumUpdatePreCorrectionRotationResidualDegrees = agent.MaximumUpdatePreCorrectionRotationResidualDegrees,
                 maximumUpdatePostCorrectionPositionResidualWorldUnits = agent.MaximumUpdatePostCorrectionPositionResidualWorldUnits,

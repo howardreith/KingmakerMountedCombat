@@ -37,6 +37,7 @@
     <Compile Include="MountedRelationshipTests.cs" />
     <Compile Include="RuntimeSaveAuthorizationTests.cs" />
     <Compile Include="WorkingFixtureLoadWatchdogTests.cs" />
+    <Compile Include="BoundaryFailureDrainTests.cs" />
     <Compile Include="TestRunner.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\DiagnosticSettings.cs">
       <Link>Shared\DiagnosticSettings.cs</Link>
@@ -49,6 +50,9 @@
     </Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\WorkingFixtureLoadWatchdog.cs">
       <Link>Shared\WorkingFixtureLoadWatchdog.cs</Link>
+    </Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\BoundaryFailureDrain.cs">
+      <Link>Shared\BoundaryFailureDrain.cs</Link>
     </Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\CleanupTrigger.cs"><Link>Shared\Domain\CleanupTrigger.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\CommandRouting.cs"><Link>Shared\Domain\CommandRouting.cs</Link></Compile>

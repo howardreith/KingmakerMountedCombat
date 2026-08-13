@@ -44,15 +44,19 @@ namespace KingmakerMountedCombat.Diagnostics
         private const float EndpointTolerance = 1.5f;
         private const float ReachTolerance = 1.25f;
         private const float StationaryTolerance = 0.15f;
+        private const double MaximumPostCorrectionRotationResidualDegrees = 0.10d;
         private const int MaximumOscillations = 2;
         private const int MaximumUnexpectedRepaths = 2;
 
         private static readonly string[] SuiteRows =
         {
+            // Door selection is bounded to nearby geometry. Run its matched
+            // unmounted control before any earlier row can move the fixture away
+            // from the authored doorway.
+            "mounted-pair-doorway",
             "mounted-pair-open-ground",
             "mounted-pair-stop-start",
             "mounted-pair-turns-and-corners",
-            "mounted-pair-doorway",
             "mounted-pair-selection",
             "mounted-pair-party-formation",
             "mounted-pair-pause-unpause",
@@ -93,6 +97,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly List<RuntimeSubscenarioResult> results = new List<RuntimeSubscenarioResult>();
         private readonly List<string> errors = new List<string>();
         private readonly List<ScreenshotEvidence> screenshots = new List<ScreenshotEvidence>();
+        private readonly List<PendingScreenshot> pendingScreenshots = new List<PendingScreenshot>();
         private readonly List<string> captureErrors = new List<string>();
         private readonly Dictionary<string, int> captureCounts = new Dictionary<string, int>(StringComparer.Ordinal);
         private readonly List<UnitEntityData> touchedUnits = new List<UnitEntityData>();
@@ -104,6 +109,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private AssertionRecorder assertions;
         private SelectionSnapshot selectionSnapshot;
         private PairSnapshot pairSnapshot;
+        private NonPairSnapshot nonPairSnapshot;
+        private CleanupStateEvidence cleanupBefore;
+        private CleanupStateEvidence cleanupAfter;
         private StreamWriter evidenceWriter;
         private UnitEntityData rider;
         private UnitEntityData mount;
@@ -123,6 +131,10 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool disposed;
         private bool fatalResidue;
         private bool abortAfterVerifiedCleanup;
+        private CleanupTrigger pendingCleanupTrigger;
+        private string cleanupResult;
+        private bool cleanupAttemptSucceeded;
+        private bool cleanupResidual;
 
         private readonly List<Vector3> probeCandidates = new List<Vector3>();
         private readonly List<string> probeRejections = new List<string>();
@@ -168,10 +180,17 @@ namespace KingmakerMountedCombat.Diagnostics
         private Vector3 nonPairStart;
         private Vector3 nonPairTarget;
         private double nonPairMovedDistance;
+        private double nonPairBestTargetDistance;
+        private double nonPairFinalTargetDistance;
+        private double mountFinalTargetDistance;
         private double minimumPairNonPairSeparation;
+        private double requiredPairNonPairSeparation;
         private Dictionary<UnitEntityData, object> uninvolvedCommands;
 
         private double rowMaximumPreCorrectionResidual;
+        private double rowMaximumInitialConfigurationResidual;
+        private double rowMaximumUpdatePreCorrectionResidual;
+        private double rowMaximumLateUpdatePreCorrectionResidual;
         private double rowMaximumPostCorrectionResidual;
         private double rowMaximumPostCorrectionRotation;
         private double rowMaximumStationaryDrift;
@@ -183,6 +202,12 @@ namespace KingmakerMountedCombat.Diagnostics
         private int rowWaypointCount;
         private double rowMaximumTurnDegrees;
         private int rowNonPairInterferenceCount;
+        private long rowSynchronizationObservationCount;
+        private long rowUpdateSampleCount;
+        private long rowLateUpdateSampleCount;
+        private long rowUpdateCorrectionCount;
+        private long rowLateUpdateCorrectionCount;
+        private bool rowSynchronizationFailureRecorded;
         private bool rowUnmountedDoorControlPassed;
         private Vector3 previousLegDirection;
         private StandardDoor selectedDoor;
@@ -265,6 +290,7 @@ namespace KingmakerMountedCombat.Diagnostics
             frameNumber++;
             try
             {
+                FlushReadyScreenshots();
                 if (suiteClock.Elapsed.TotalSeconds > SuiteTimeoutSeconds && !abortAfterVerifiedCleanup)
                 {
                     const string timeoutMessage = "Movement suite exceeded its bounded monotonic deadline.";
@@ -277,7 +303,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
                     FailCurrent(timeoutMessage);
                     abortAfterVerifiedCleanup = true;
-                    if (step != EngineStep.AwaitCleanupFrame)
+                    if (step == EngineStep.BeginRow || step == EngineStep.ExecuteRow)
                     {
                         BeginCleanup(CleanupTrigger.Exception);
                         return;
@@ -298,8 +324,14 @@ namespace KingmakerMountedCombat.Diagnostics
                     case EngineStep.ExecuteRow:
                         AdvanceCurrentRow();
                         break;
+                    case EngineStep.AwaitPreCleanupCaptures:
+                        ContinueCleanupAfterCaptures();
+                        break;
                     case EngineStep.AwaitCleanupFrame:
                         VerifyCleanupAndFinishRow();
+                        break;
+                    case EngineStep.AwaitFinalCaptures:
+                        FinishRowAfterCaptures();
                         break;
                     default:
                         throw new InvalidOperationException("Unexpected movement engine step: " + step + ".");
@@ -357,11 +389,18 @@ namespace KingmakerMountedCombat.Diagnostics
             originalPause = Game.Instance != null && Game.Instance.IsPaused;
             pauseLeaseOwned = true;
             pairSnapshot = null;
+            nonPairSnapshot = null;
+            cleanupBefore = null;
+            cleanupAfter = null;
+            cleanupResult = null;
+            cleanupAttemptSucceeded = false;
+            cleanupResidual = false;
             rider = null;
             mount = null;
             nonPairUnit = null;
             touchedUnits.Clear();
             screenshots.Clear();
+            pendingScreenshots.Clear();
             captureErrors.Clear();
             captureCounts.Clear();
             ResetRowMetrics();
@@ -620,7 +659,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 assertions.Check(selection.SelectedUnits.Count == 1 && selection.SelectedUnits[0] == rider && !selection.SelectedUnits.Contains(mount),
                     "Selecting the mounted Mammoth normalized to the rider.",
                     "Mounted mount-to-rider selection normalization failed.");
-                nonPairUnit = FindNonPairControllable();
+                nonPairUnit = FindIdleNonPairControllable();
                 assertions.Check(nonPairUnit != null,
                     "A directly controllable non-pair unit was available for selection switching.",
                     "No directly controllable non-pair unit was available for the required away/back selection switch.");
@@ -629,6 +668,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     BeginCleanup(CleanupTrigger.Manual);
                     return;
                 }
+                nonPairSnapshot = NonPairSnapshot.Capture(nonPairUnit);
+                assertions.Check(nonPairSnapshot != null,
+                    "Idle non-pair movement snapshot was captured before selection switching.",
+                    "Idle non-pair movement snapshot could not be captured.");
                 selection.SelectUnit(nonPairUnit.View, true, false, false);
                 assertions.Check(selection.SelectedUnits.Count == 1 && selection.SelectedUnits[0] == nonPairUnit,
                     "Selection switched away from the mounted pair.",
@@ -660,7 +703,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (rowPhase == 0)
             {
-                nonPairUnit = FindNonPairControllable();
+                nonPairUnit = FindIdleNonPairControllable();
                 assertions.Check(nonPairUnit != null,
                     "A directly controllable non-pair formation member was available.",
                     "No directly controllable non-pair unit was available for formation qualification.");
@@ -669,6 +712,11 @@ namespace KingmakerMountedCombat.Diagnostics
                     BeginCleanup(CleanupTrigger.Manual);
                     return;
                 }
+                nonPairSnapshot = NonPairSnapshot.Capture(nonPairUnit);
+                assertions.Check(nonPairSnapshot != null,
+                    "Idle non-pair movement snapshot was captured before formation movement.",
+                    "Idle non-pair movement snapshot could not be captured.");
+                requiredPairNonPairSeparation = Math.Max(0.10d, mount.Corpulence + nonPairUnit.Corpulence);
 
                 RequireSelectionManager().MultiSelect(new[] { rider.View, nonPairUnit.View }, false);
                 assertions.Check(RequireSelectionManager().SelectedUnits.Contains(rider) && RequireSelectionManager().SelectedUnits.Contains(nonPairUnit) && !RequireSelectionManager().SelectedUnits.Contains(mount),
@@ -688,9 +736,18 @@ namespace KingmakerMountedCombat.Diagnostics
                 assertions.Check(rowNonPairInterferenceCount == 0,
                     "No unselected non-pair movement command was changed.",
                     "Observed " + rowNonPairInterferenceCount + " unselected non-pair command interference event(s).");
-                assertions.Check(minimumPairNonPairSeparation > 0.10d,
-                    "Formation member did not collapse onto the mount entity position.",
-                    "Formation member collapsed onto the mount entity position.");
+                assertions.Check(mountFinalTargetDistance <= ReachTolerance && navigationBestDistance <= ReachTolerance,
+                    "Authoritative mount finished within the calibrated formation target tolerance.",
+                    "Authoritative mount formation target distances were final=" + mountFinalTargetDistance.ToString("0.000", CultureInfo.InvariantCulture) +
+                    ", best=" + navigationBestDistance.ToString("0.000", CultureInfo.InvariantCulture) + ".");
+                assertions.Check(nonPairFinalTargetDistance <= ReachTolerance && nonPairBestTargetDistance <= ReachTolerance,
+                    "Selected non-pair member finished within the calibrated formation target tolerance.",
+                    "Non-pair formation target distances were final=" + nonPairFinalTargetDistance.ToString("0.000", CultureInfo.InvariantCulture) +
+                    ", best=" + nonPairBestTargetDistance.ToString("0.000", CultureInfo.InvariantCulture) + ".");
+                assertions.Check(minimumPairNonPairSeparation >= requiredPairNonPairSeparation,
+                    "Formation members retained non-overlap clearance derived from both units' corpulence.",
+                    "Minimum pair/non-pair separation was " + minimumPairNonPairSeparation.ToString("0.000", CultureInfo.InvariantCulture) +
+                    " but combined corpulence requires " + requiredPairNonPairSeparation.ToString("0.000", CultureInfo.InvariantCulture) + ".");
                 AssertRowMovementQuality();
                 BeginCleanup(CleanupTrigger.Manual);
             }
@@ -1103,6 +1160,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (nonPairUnit.Commands.Move != null)
                 {
                     nonPairTarget = nonPairUnit.Commands.Move.Target;
+                    nonPairBestTargetDistance = PlanarDistance(nonPairUnit.Position, nonPairTarget);
                 }
             }
 
@@ -1177,6 +1235,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (navigationMode == NavigationMode.Formation && nonPairUnit != null)
             {
                 nonPairMovedDistance = Math.Max(nonPairMovedDistance, PlanarDistance(nonPairStart, nonPairUnit.Position));
+                nonPairBestTargetDistance = Math.Min(nonPairBestTargetDistance, PlanarDistance(nonPairUnit.Position, nonPairTarget));
                 minimumPairNonPairSeparation = Math.Min(minimumPairNonPairSeparation, PlanarDistance(mount.Position, nonPairUnit.Position));
             }
 
@@ -1195,8 +1254,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     return false;
                 }
-                var mountReached = mount.Commands.Move == null || PlanarDistance(mount.Position, ((Kingmaker.UnitLogic.Commands.UnitMoveTo)navigationCommand).Target) <= ReachTolerance;
-                var otherReached = nonPairUnit.Commands.Move == null || PlanarDistance(nonPairUnit.Position, nonPairTarget) <= ReachTolerance;
+                mountFinalTargetDistance = PlanarDistance(mount.Position, navigationDestination);
+                nonPairFinalTargetDistance = PlanarDistance(nonPairUnit.Position, nonPairTarget);
+                var mountReached = mountFinalTargetDistance <= ReachTolerance && navigationBestDistance <= ReachTolerance;
+                var otherReached = nonPairFinalTargetDistance <= ReachTolerance && nonPairBestTargetDistance <= ReachTolerance;
                 return mountReached && otherReached && navigationMovedDistance >= 1.0d && nonPairMovedDistance >= 1.0d;
             }
             return PlanarDistance(mount.Position, navigationDestination) <= ReachTolerance ||
@@ -1216,6 +1277,11 @@ namespace KingmakerMountedCombat.Diagnostics
             rowMaximumStationaryDrift = Math.Max(rowMaximumStationaryDrift, navigationMaximumStationaryDrift);
             rowMaximumStuckSeconds = Math.Max(rowMaximumStuckSeconds, navigationMaximumStuckSeconds);
             rowWaypointCount++;
+            mountFinalTargetDistance = PlanarDistance(mount.Position, navigationDestination);
+            if (navigationMode == NavigationMode.Formation && nonPairUnit != null)
+            {
+                nonPairFinalTargetDistance = PlanarDistance(nonPairUnit.Position, nonPairTarget);
+            }
             if (previousLegDirection.sqrMagnitude > 0.01f)
             {
                 rowMaximumTurnDegrees = Math.Max(rowMaximumTurnDegrees, Vector3.Angle(previousLegDirection, PlanarDirection(navigationStart, navigationDestination)));
@@ -1248,12 +1314,31 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 return;
             }
+            rowSynchronizationObservationCount++;
             rowMaximumPreCorrectionResidual = Math.Max(rowMaximumPreCorrectionResidual, agent.MaximumPreCorrectionPositionResidualWorldUnits);
+            rowMaximumInitialConfigurationResidual = Math.Max(rowMaximumInitialConfigurationResidual,
+                agent.MaximumInitialConfigurationPreCorrectionPositionResidualWorldUnits);
+            rowMaximumUpdatePreCorrectionResidual = Math.Max(rowMaximumUpdatePreCorrectionResidual, agent.MaximumUpdatePreCorrectionPositionResidualWorldUnits);
+            rowMaximumLateUpdatePreCorrectionResidual = Math.Max(rowMaximumLateUpdatePreCorrectionResidual, agent.MaximumLateUpdatePreCorrectionPositionResidualWorldUnits);
             rowMaximumPostCorrectionResidual = Math.Max(rowMaximumPostCorrectionResidual, agent.MaximumPostCorrectionPositionResidualWorldUnits);
             rowMaximumPostCorrectionRotation = Math.Max(rowMaximumPostCorrectionRotation, agent.MaximumPostCorrectionRotationResidualDegrees);
-            if (agent.MaximumPostCorrectionPositionResidualWorldUnits > settings.MaximumAnchorResidualWorldUnits)
+            rowUpdateSampleCount = agent.UpdateSampleCount;
+            rowLateUpdateSampleCount = agent.LateUpdateSampleCount;
+            rowUpdateCorrectionCount = agent.UpdateCorrectionCount;
+            rowLateUpdateCorrectionCount = agent.LateUpdateCorrectionCount;
+            var qualification = agent.QualifySynchronization(
+                rowSynchronizationObservationCount,
+                settings.MaximumAnchorResidualWorldUnits,
+                MaximumPostCorrectionRotationResidualDegrees);
+            if (!rowSynchronizationFailureRecorded && (!qualification.PreCorrectionPositionPassed ||
+                !qualification.PostCorrectionPositionPassed || !qualification.PostCorrectionRotationPassed))
             {
-                FailCurrent("Post-correction anchor residual exceeded " + settings.MaximumAnchorResidualWorldUnits.ToString("0.000", CultureInfo.InvariantCulture) + " world units.");
+                rowSynchronizationFailureRecorded = true;
+                FailCurrent("Calibrated synchronization residual gate failed: Update=" +
+                    agent.MaximumUpdatePreCorrectionPositionResidualWorldUnits.ToString("0.000000", CultureInfo.InvariantCulture) +
+                    ", LateUpdate=" + agent.MaximumLateUpdatePreCorrectionPositionResidualWorldUnits.ToString("0.000000", CultureInfo.InvariantCulture) +
+                    ", post-position=" + agent.MaximumPostCorrectionPositionResidualWorldUnits.ToString("0.000000", CultureInfo.InvariantCulture) +
+                    ", post-rotation=" + agent.MaximumPostCorrectionRotationResidualDegrees.ToString("0.000000", CultureInfo.InvariantCulture) + ".");
                 navigationStage = NavigationStage.Failed;
             }
         }
@@ -1275,18 +1360,35 @@ namespace KingmakerMountedCombat.Diagnostics
         private void AssertRowMovementQuality()
         {
             var agent = relationship.Runtime.MovementAgent;
+            var qualification = agent == null
+                ? null
+                : agent.QualifySynchronization(
+                    rowSynchronizationObservationCount,
+                    settings.MaximumAnchorResidualWorldUnits,
+                    MaximumPostCorrectionRotationResidualDegrees);
             assertions.Check(rowWaypointCount > 0,
                 "At least one validated navigation leg completed.",
                 "No validated navigation leg completed.");
-            assertions.Check(rowMaximumPostCorrectionResidual <= settings.MaximumAnchorResidualWorldUnits,
+            assertions.Check(qualification != null && qualification.PreCorrectionPositionPassed &&
+                rowMaximumUpdatePreCorrectionResidual <= settings.MaximumAnchorResidualWorldUnits &&
+                rowMaximumLateUpdatePreCorrectionResidual <= settings.MaximumAnchorResidualWorldUnits,
+                "Maximum calibrated Update and LateUpdate pre-correction anchor residuals remained within the configured threshold; initial placement was excluded.",
+                "Calibrated pre-correction residuals were Update=" + rowMaximumUpdatePreCorrectionResidual.ToString("0.000000", CultureInfo.InvariantCulture) +
+                ", LateUpdate=" + rowMaximumLateUpdatePreCorrectionResidual.ToString("0.000000", CultureInfo.InvariantCulture) + ".");
+            assertions.Check(qualification != null && qualification.PostCorrectionPositionPassed && rowMaximumPostCorrectionResidual <= settings.MaximumAnchorResidualWorldUnits,
                 "Maximum post-correction anchor residual remained within the configured threshold.",
                 "Maximum post-correction anchor residual was " + rowMaximumPostCorrectionResidual.ToString("0.000000", CultureInfo.InvariantCulture) + ".");
-            assertions.Check(rowMaximumPostCorrectionRotation <= 0.10d,
+            assertions.Check(qualification != null && qualification.PostCorrectionRotationPassed && rowMaximumPostCorrectionRotation <= MaximumPostCorrectionRotationResidualDegrees,
                 "Maximum post-correction rotation residual remained within 0.10 degrees.",
                 "Maximum post-correction rotation residual was " + rowMaximumPostCorrectionRotation.ToString("0.000000", CultureInfo.InvariantCulture) + " degrees.");
             assertions.Check(agent != null && agent.UpdateSampleCount > 0 && agent.LateUpdateSampleCount > 0,
                 "Synchronization was sampled in both Update and LateUpdate phases.",
                 "Synchronization did not produce both Update and LateUpdate samples.");
+            assertions.Check(qualification != null && qualification.CorrectionCadencePassed,
+                "Synchronization samples and corrections remained within the bounded once-per-phase callback cadence.",
+                "Synchronization cadence exceeded its bound: observations=" + rowSynchronizationObservationCount +
+                ", Update samples/corrections=" + (agent == null ? "missing" : agent.UpdateSampleCount + "/" + agent.UpdateCorrectionCount) +
+                ", LateUpdate samples/corrections=" + (agent == null ? "missing" : agent.LateUpdateSampleCount + "/" + agent.LateUpdateCorrectionCount) + ".");
             assertions.Check(rowOscillations <= MaximumOscillations * Math.Max(1, rowWaypointCount),
                 "Row oscillation count remained bounded.",
                 "Row oscillation count was " + rowOscillations + ".");
@@ -1301,7 +1403,22 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void BeginCleanup(CleanupTrigger trigger)
         {
-            if (step == EngineStep.AwaitCleanupFrame)
+            if (step == EngineStep.AwaitPreCleanupCaptures || step == EngineStep.AwaitCleanupFrame || step == EngineStep.AwaitFinalCaptures)
+            {
+                return;
+            }
+            pendingCleanupTrigger = trigger;
+            cleanupBefore = CleanupStateEvidence.Capture(trigger, relationship, rider, mount, Game.Instance);
+            step = EngineStep.AwaitPreCleanupCaptures;
+            if (pendingScreenshots.Count == 0)
+            {
+                ContinueCleanupAfterCaptures();
+            }
+        }
+
+        private void ContinueCleanupAfterCaptures()
+        {
+            if (pendingScreenshots.Count != 0)
             {
                 return;
             }
@@ -1309,9 +1426,11 @@ namespace KingmakerMountedCombat.Diagnostics
             probePending = false;
             navigationStage = NavigationStage.None;
             StopTouchedMovement();
-            var clean = BestEffortDismount(trigger);
+            var clean = BestEffortDismount(pendingCleanupTrigger);
             RestorePause();
             RestoreSelection();
+            cleanupAfter = CleanupStateEvidence.Capture(pendingCleanupTrigger, relationship, rider, mount, Game.Instance);
+            cleanupResidual = !clean || cleanupAfter.HasMountedResidual;
             cleanupFrame = frameNumber;
             step = EngineStep.AwaitCleanupFrame;
             if (!clean)
@@ -1324,6 +1443,8 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (relationship.State == RelationshipState.Unmounted)
             {
+                cleanupAttemptSucceeded = true;
+                cleanupResult = "Already Unmounted; idempotent cleanup required no transition.";
                 return true;
             }
             if (relationship.State == RelationshipState.Disposed)
@@ -1334,6 +1455,8 @@ namespace KingmakerMountedCombat.Diagnostics
             try
             {
                 var result = relationship.Dismount(trigger);
+                cleanupAttemptSucceeded = result.Succeeded;
+                cleanupResult = FormatTransitionErrors(result);
                 if (!result.Succeeded || result.MovementAuthorityResidual || result.PresentationResidual)
                 {
                     RecordCleanupFailure("Cleanup retained mounted movement or presentation residue: " + FormatTransitionErrors(result));
@@ -1344,6 +1467,8 @@ namespace KingmakerMountedCombat.Diagnostics
             catch (Exception exception)
             {
                 RecordCleanupFailure("Cleanup threw " + exception.GetType().Name + ": " + exception.Message);
+                cleanupAttemptSucceeded = false;
+                cleanupResult = exception.GetType().Name + ": " + exception.Message;
                 logger.Exception("Movement cleanup threw", exception);
                 return false;
             }
@@ -1384,6 +1509,12 @@ namespace KingmakerMountedCombat.Diagnostics
             assertions.Check(SelectionMatchesSnapshot(),
                 "Selection state was restored.",
                 "Selection state was not restored after movement cleanup.");
+            if (nonPairSnapshot != null)
+            {
+                assertions.Check(nonPairSnapshot.MatchesRestoredStoppedState(),
+                    "Chosen idle non-pair unit returned to its captured movement lease state and remained stopped.",
+                    "Chosen non-pair unit retained movement or a changed agent/avoidance/override state after cleanup.");
+            }
             var failuresBeforeTouchedVerification = assertions.FailureCount;
             AssertTouchedMovementStopped();
             if (assertions.FailureCount != failuresBeforeTouchedVerification)
@@ -1394,6 +1525,20 @@ namespace KingmakerMountedCombat.Diagnostics
             if (!clean)
             {
                 fatalResidue = true;
+            }
+            if (pendingScreenshots.Count != 0)
+            {
+                step = EngineStep.AwaitFinalCaptures;
+                return;
+            }
+            FinishRowAfterCaptures();
+        }
+
+        private void FinishRowAfterCaptures()
+        {
+            if (pendingScreenshots.Count != 0)
+            {
+                return;
             }
             FinishCurrentRow();
             if (abortAfterVerifiedCleanup)
@@ -1434,8 +1579,16 @@ namespace KingmakerMountedCombat.Diagnostics
                 assertionPassCount = result.AssertionPassCount,
                 assertionFailCount = result.AssertionFailCount,
                 maximumPreCorrectionResidualWorldUnits = rowMaximumPreCorrectionResidual,
+                maximumInitialConfigurationResidualWorldUnits = rowMaximumInitialConfigurationResidual,
+                maximumUpdatePreCorrectionResidualWorldUnits = rowMaximumUpdatePreCorrectionResidual,
+                maximumLateUpdatePreCorrectionResidualWorldUnits = rowMaximumLateUpdatePreCorrectionResidual,
                 maximumPostCorrectionResidualWorldUnits = rowMaximumPostCorrectionResidual,
                 maximumPostCorrectionRotationResidualDegrees = rowMaximumPostCorrectionRotation,
+                synchronizationObservationCount = rowSynchronizationObservationCount,
+                updateSynchronizationSampleCount = rowUpdateSampleCount,
+                lateUpdateSynchronizationSampleCount = rowLateUpdateSampleCount,
+                updateSynchronizationCorrectionCount = rowUpdateCorrectionCount,
+                lateUpdateSynchronizationCorrectionCount = rowLateUpdateCorrectionCount,
                 maximumStationaryDriftWorldUnits = rowMaximumStationaryDrift,
                 maximumStuckSeconds = rowMaximumStuckSeconds,
                 oscillationCount = rowOscillations,
@@ -1445,7 +1598,20 @@ namespace KingmakerMountedCombat.Diagnostics
                 waypointCount = rowWaypointCount,
                 maximumTurnDegrees = rowMaximumTurnDegrees,
                 nonPairInterferenceCount = rowNonPairInterferenceCount,
+                mountFinalTargetDistanceWorldUnits = mountFinalTargetDistance,
+                nonPairBestTargetDistanceWorldUnits = nonPairBestTargetDistance,
+                nonPairFinalTargetDistanceWorldUnits = nonPairFinalTargetDistance,
+                minimumPairNonPairSeparationWorldUnits = minimumPairNonPairSeparation,
+                requiredPairNonPairSeparationWorldUnits = requiredPairNonPairSeparation,
                 unmountedDoorControlPassed = rowUnmountedDoorControlPassed,
+                cleanupTrigger = pendingCleanupTrigger.ToString(),
+                cleanupSucceeded = cleanupAttemptSucceeded,
+                cleanupResult,
+                cleanupResidual,
+                cleanupBefore,
+                cleanupAfter,
+                selectionCoverage = "SelectionManager.SelectedUnits and scoped mount-to-rider normalization only; active portrait and camera-follow state are not asserted by this row.",
+                formationCoverage = "Stock group-command recipients, final/best target distance, corpulence clearance, and uninvolved command identity only; authored formation-slot persistence is not asserted.",
                 door = selectedDoor == null ? null : BuildHierarchyName(selectedDoor.transform),
                 doorNear = PositionEvidence.From(doorNearPoint),
                 doorFar = PositionEvidence.From(doorFarPoint),
@@ -1592,7 +1758,7 @@ namespace KingmakerMountedCombat.Diagnostics
             return captured;
         }
 
-        private UnitEntityData FindNonPairControllable()
+        private UnitEntityData FindIdleNonPairControllable()
         {
             var controllable = Game.Instance?.Player?.ControllableCharacters;
             if (controllable == null)
@@ -1601,7 +1767,10 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             foreach (var unit in controllable)
             {
-                if (unit != null && unit != rider && unit != mount && unit.IsInGame && unit.IsDirectlyControllable && unit.View != null && unit.View.AgentASP != null)
+                var agent = unit?.View?.AgentASP;
+                if (unit != null && unit != rider && unit != mount && unit.IsInGame && unit.IsDirectlyControllable &&
+                    unit.Commands != null && unit.Commands.Move == null && agent != null && agent.enabled &&
+                    !agent.WantsToMove && !agent.IsReallyMoving)
                 {
                     return unit;
                 }
@@ -1857,13 +2026,37 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 return;
             }
+            pendingScreenshots.Add(new PendingScreenshot
+            {
+                Row = currentRow,
+                Milestone = milestone,
+                ReadyFrame = frameNumber + 1
+            });
+        }
+
+        private void FlushReadyScreenshots()
+        {
+            for (var index = pendingScreenshots.Count - 1; index >= 0; index--)
+            {
+                var pending = pendingScreenshots[index];
+                if (frameNumber < pending.ReadyFrame)
+                {
+                    continue;
+                }
+                pendingScreenshots.RemoveAt(index);
+                CaptureMilestoneNow(pending.Row, pending.Milestone);
+            }
+        }
+
+        private void CaptureMilestoneNow(string row, string milestone)
+        {
             try
             {
                 int captureCount;
                 captureCounts.TryGetValue(milestone, out captureCount);
                 captureCount++;
                 captureCounts[milestone] = captureCount;
-                var fileName = GetRowToken(currentRow) + "-" + milestone + "-" + captureCount.ToString("00", CultureInfo.InvariantCulture) + ".png";
+                var fileName = GetRowToken(row) + "-" + milestone + "-" + captureCount.ToString("00", CultureInfo.InvariantCulture) + ".png";
                 var visualsRoot = Path.Combine(evidenceRoot, "movement-visuals");
                 Directory.CreateDirectory(visualsRoot);
                 var path = Path.Combine(visualsRoot, fileName);
@@ -1906,6 +2099,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private void ResetRowMetrics()
         {
             rowMaximumPreCorrectionResidual = 0.0d;
+            rowMaximumInitialConfigurationResidual = 0.0d;
+            rowMaximumUpdatePreCorrectionResidual = 0.0d;
+            rowMaximumLateUpdatePreCorrectionResidual = 0.0d;
             rowMaximumPostCorrectionResidual = 0.0d;
             rowMaximumPostCorrectionRotation = 0.0d;
             rowMaximumStationaryDrift = 0.0d;
@@ -1917,12 +2113,19 @@ namespace KingmakerMountedCombat.Diagnostics
             rowWaypointCount = 0;
             rowMaximumTurnDegrees = 0.0d;
             rowNonPairInterferenceCount = 0;
+            rowSynchronizationObservationCount = 0L;
+            rowUpdateSampleCount = 0L;
+            rowLateUpdateSampleCount = 0L;
+            rowUpdateCorrectionCount = 0L;
+            rowLateUpdateCorrectionCount = 0L;
+            rowSynchronizationFailureRecorded = false;
             rowUnmountedDoorControlPassed = false;
             previousLegDirection = Vector3.zero;
             selectedDoor = null;
             doorNearPoint = Vector3.zero;
             doorFarPoint = Vector3.zero;
             uninvolvedCommands = null;
+            requiredPairNonPairSeparation = 0.0d;
         }
 
         private void ResetNavigationMetrics()
@@ -1954,6 +2157,9 @@ namespace KingmakerMountedCombat.Diagnostics
             nonPairStart = Vector3.zero;
             nonPairTarget = Vector3.zero;
             nonPairMovedDistance = 0.0d;
+            nonPairBestTargetDistance = double.MaxValue;
+            nonPairFinalTargetDistance = double.MaxValue;
+            mountFinalTargetDistance = double.MaxValue;
             minimumPairNonPairSeparation = double.MaxValue;
         }
 
@@ -2099,7 +2305,9 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             BeginRow,
             ExecuteRow,
-            AwaitCleanupFrame
+            AwaitPreCleanupCaptures,
+            AwaitCleanupFrame,
+            AwaitFinalCaptures
         }
 
         private enum NavigationMode
@@ -2120,6 +2328,84 @@ namespace KingmakerMountedCombat.Diagnostics
             Stabilizing,
             Complete,
             Failed
+        }
+
+        private sealed class CleanupStateEvidence
+        {
+            public string Trigger { get; set; }
+            public string RelationshipState { get; set; }
+            public bool HasMountedResidual { get; set; }
+            public bool? RiderStockAgentEnabled { get; set; }
+            public bool? MountStockAgentEnabled { get; set; }
+            public bool? RiderAvoidanceDisabled { get; set; }
+            public bool? MountAvoidanceDisabled { get; set; }
+            public bool RiderOverridePresent { get; set; }
+            public bool MountOverridePresent { get; set; }
+            public bool RiderSelected { get; set; }
+            public bool MountSelected { get; set; }
+            public string[] SelectedUnitIds { get; set; }
+            public bool? Paused { get; set; }
+
+            public static CleanupStateEvidence Capture(
+                CleanupTrigger trigger,
+                GameMountedRelationshipService relationship,
+                UnitEntityData rider,
+                UnitEntityData mount,
+                Game game)
+            {
+                var selected = SelectionManager.Instance?.SelectedUnits;
+                return new CleanupStateEvidence
+                {
+                    Trigger = trigger.ToString(),
+                    RelationshipState = relationship.State.ToString(),
+                    HasMountedResidual = relationship.State != KingmakerMountedCombat.Domain.RelationshipState.Unmounted || relationship.Rider != null ||
+                        relationship.Mount != null || relationship.Runtime.MovementAgent != null,
+                    RiderStockAgentEnabled = rider?.View?.AgentASP?.enabled,
+                    MountStockAgentEnabled = mount?.View?.AgentASP?.enabled,
+                    RiderAvoidanceDisabled = rider?.View?.AgentASP?.AvoidanceDisabled,
+                    MountAvoidanceDisabled = mount?.View?.AgentASP?.AvoidanceDisabled,
+                    RiderOverridePresent = rider?.View?.AgentOverride != null,
+                    MountOverridePresent = mount?.View?.AgentOverride != null,
+                    RiderSelected = selected != null && rider != null && selected.Contains(rider),
+                    MountSelected = selected != null && mount != null && selected.Contains(mount),
+                    SelectedUnitIds = selected == null ? new string[0] : selected.Where(unit => unit != null).Select(unit => unit.UniqueId).ToArray(),
+                    Paused = game == null ? (bool?)null : game.IsPaused
+                };
+            }
+        }
+
+        private sealed class NonPairSnapshot
+        {
+            private UnitEntityData Unit { get; set; }
+            private UnitMovementAgent Agent { get; set; }
+            private bool AgentEnabled { get; set; }
+            private bool AvoidanceDisabled { get; set; }
+            private object Override { get; set; }
+
+            public static NonPairSnapshot Capture(UnitEntityData unit)
+            {
+                if (unit?.View?.AgentASP == null || unit.Commands == null)
+                {
+                    return null;
+                }
+                return new NonPairSnapshot
+                {
+                    Unit = unit,
+                    Agent = unit.View.AgentASP,
+                    AgentEnabled = unit.View.AgentASP.enabled,
+                    AvoidanceDisabled = unit.View.AgentASP.AvoidanceDisabled,
+                    Override = unit.View.AgentOverride
+                };
+            }
+
+            public bool MatchesRestoredStoppedState()
+            {
+                return Unit != null && Unit.View != null && Unit.Commands != null &&
+                    ReferenceEquals(Unit.View.AgentASP, Agent) && Agent != null &&
+                    Agent.enabled == AgentEnabled && Agent.AvoidanceDisabled == AvoidanceDisabled &&
+                    ReferenceEquals(Unit.View.AgentOverride, Override) && Unit.Commands.Move == null &&
+                    !Agent.WantsToMove && !Agent.IsReallyMoving;
+            }
         }
 
         private sealed class PairSnapshot
@@ -2248,6 +2534,13 @@ namespace KingmakerMountedCombat.Diagnostics
             public string RelativePath { get; set; }
             public long Length { get; set; }
             public string Sha256 { get; set; }
+        }
+
+        private sealed class PendingScreenshot
+        {
+            public string Row { get; set; }
+            public string Milestone { get; set; }
+            public int ReadyFrame { get; set; }
         }
 
         private sealed class PositionEvidence

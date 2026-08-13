@@ -95,8 +95,13 @@ function Assert-KmcJsonObjectMembersUnique {
         foreach ($object in $objects) {
             $names = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
             foreach ($member in @($object.ChildNodes | Where-Object NodeType -eq ([Xml.XmlNodeType]::Element))) {
-                if (-not $names.Add([string]$member.Name)) {
-                    throw "$Description contains a duplicate or case-ambiguous JSON object member: $($member.Name)"
+                $memberName = if ($member.LocalName -ceq 'item' -and $null -ne $member.Attributes['item']) {
+                    [string]$member.Attributes['item'].Value
+                } else {
+                    [string]$member.LocalName
+                }
+                if (-not $names.Add($memberName)) {
+                    throw "$Description contains a duplicate or case-ambiguous JSON object member: $memberName"
                 }
             }
         }
@@ -1455,6 +1460,299 @@ function Get-KmcSaveBackedRuntimeScenarios {
     )
 }
 
+function Get-KmcLifecycleRuntimeRows {
+    return @(
+        'mounted-pair-create-and-clear',
+        'mounted-pair-double-mount-rejected',
+        'mounted-pair-invalid-pair-rejected',
+        'mounted-pair-cleanup-idempotent',
+        'mounted-pair-death-cleanup',
+        'mounted-pair-combat-start-cleanup',
+        'mounted-pair-area-unload-cleanup',
+        'mounted-pair-mod-disable-cleanup'
+    )
+}
+
+function Test-KmcLifecycleRuntimeScenario {
+    param([AllowNull()][string]$Scenario)
+    return [string]$Scenario -ceq 'lifecycle-suite' -or
+        @(Get-KmcLifecycleRuntimeRows | Where-Object { $_ -ceq [string]$Scenario }).Count -eq 1
+}
+
+function Test-KmcExactJsonInteger {
+    param($Value)
+    return $Value -is [sbyte] -or $Value -is [byte] -or
+        $Value -is [int16] -or $Value -is [uint16] -or
+        $Value -is [int32] -or $Value -is [uint32] -or
+        $Value -is [int64] -or $Value -is [uint64]
+}
+
+function Test-KmcJsonNumber {
+    param($Value)
+    return (Test-KmcExactJsonInteger $Value) -or $Value -is [single] -or
+        $Value -is [double] -or $Value -is [decimal]
+}
+
+function Assert-KmcNullableJsonBoolean {
+    param($Value, [Parameter(Mandatory = $true)][string]$Description)
+    if ($null -ne $Value -and $Value -isnot [bool]) { throw "$Description must be a JSON boolean or null." }
+}
+
+function Assert-KmcJsonStringArray {
+    param($Value, [Parameter(Mandatory = $true)][string]$Description)
+    if ($Value -isnot [Array]) { throw "$Description must be an actual JSON array." }
+    foreach ($item in @($Value)) {
+        if ($item -isnot [string]) { throw "$Description must contain only JSON strings." }
+    }
+}
+
+function Assert-KmcLifecyclePosition {
+    param($Value, [Parameter(Mandatory = $true)][string]$Description, [switch]$AllowNull)
+    if ($null -eq $Value) {
+        if ($AllowNull) { return }
+        throw "$Description is required."
+    }
+    Assert-KmcExactProperties $Value @('x','y','z') $Description
+    foreach ($name in @('x','y','z')) {
+        if (-not (Test-KmcJsonNumber $Value.$name)) { throw "$Description.$name must be a JSON number." }
+    }
+}
+
+function Assert-KmcLifecycleRotation {
+    param($Value, [Parameter(Mandatory = $true)][string]$Description, [switch]$AllowNull)
+    if ($null -eq $Value) {
+        if ($AllowNull) { return }
+        throw "$Description is required."
+    }
+    Assert-KmcExactProperties $Value @('x','y','z','w') $Description
+    foreach ($name in @('x','y','z','w')) {
+        if (-not (Test-KmcJsonNumber $Value.$name)) { throw "$Description.$name must be a JSON number." }
+    }
+}
+
+function Assert-KmcLifecycleUnitEvidence {
+    param($Value, [Parameter(Mandatory = $true)][string]$Description, [switch]$RequireComplete)
+    if ($null -eq $Value) {
+        if ($RequireComplete) { throw "$Description is required for a PASS lifecycle record." }
+        return
+    }
+    Assert-KmcExactProperties $Value @(
+        'uniqueId','sizeOrdinal','inCombat','stockAgentEnabled','avoidanceDisabled','agentOverrideType',
+        'overrideComponentCount','entityPosition','entityRotationDegrees','viewPosition','viewRotation',
+        'moveCommandType','moveTarget','activeCommandTypes','selected') $Description
+    if ($Value.uniqueId -isnot [string] -or [string]::IsNullOrWhiteSpace([string]$Value.uniqueId)) {
+        throw "$Description.uniqueId must be a nonempty JSON string."
+    }
+    if (-not (Test-KmcExactJsonInteger $Value.sizeOrdinal)) { throw "$Description.sizeOrdinal must be an exact JSON integer." }
+    foreach ($name in @('inCombat','stockAgentEnabled','avoidanceDisabled','selected')) {
+        Assert-KmcNullableJsonBoolean $Value.$name "$Description.$name"
+    }
+    foreach ($name in @('agentOverrideType','moveCommandType')) {
+        if ($null -ne $Value.$name -and $Value.$name -isnot [string]) { throw "$Description.$name must be a JSON string or null." }
+    }
+    if ($null -ne $Value.overrideComponentCount -and -not (Test-KmcExactJsonInteger $Value.overrideComponentCount)) {
+        throw "$Description.overrideComponentCount must be an exact JSON integer or null."
+    }
+    if (-not (Test-KmcJsonNumber $Value.entityRotationDegrees)) { throw "$Description.entityRotationDegrees must be a JSON number." }
+    Assert-KmcLifecyclePosition $Value.entityPosition "$Description.entityPosition"
+    Assert-KmcLifecyclePosition $Value.viewPosition "$Description.viewPosition" -AllowNull
+    Assert-KmcLifecycleRotation $Value.viewRotation "$Description.viewRotation" -AllowNull
+    Assert-KmcLifecyclePosition $Value.moveTarget "$Description.moveTarget" -AllowNull
+    Assert-KmcJsonStringArray $Value.activeCommandTypes "$Description.activeCommandTypes"
+}
+
+function Assert-KmcLifecycleEvidenceRecord {
+    param(
+        [Parameter(Mandatory = $true)]$Record,
+        [Parameter(Mandatory = $true)]$Request,
+        [Parameter(Mandatory = $true)][long]$ExpectedSequence,
+        [Parameter(Mandatory = $true)][string[]]$ExpectedRows,
+        [Parameter(Mandatory = $true)][bool]$RequireComplete
+    )
+    Assert-KmcExactProperties $Record @(
+        'schemaVersion','runId','scenario','row','phase','utcTimestamp','branch','commit','productVersion',
+        'dllSha256','dllMvid','sequence','frame','relationshipState','rowStatus','assertionPassCount',
+        'assertionFailCount','cleanup','partyCombat','riderCombat','mountCombat','turnBased','paused',
+        'currentGameMode','rider','mount','selection','spine','anchor','recordErrors') 'lifecycle evidence record'
+    if (-not (Test-KmcExactJsonInteger $Record.schemaVersion) -or [long]$Record.schemaVersion -ne 1) {
+        throw 'Lifecycle evidence schemaVersion must be the exact integral value 1.'
+    }
+    foreach ($name in @('runId','scenario','branch','commit','productVersion','dllSha256','dllMvid')) {
+        if ($Record.$name -isnot [string] -or [string]$Record.$name -cne [string]$Request.$name) {
+            throw "Lifecycle evidence identity mismatch: $name"
+        }
+    }
+    if ([string]$Record.dllSha256 -cnotmatch '^[0-9a-f]{64}$') { throw 'Lifecycle evidence DLL SHA-256 is not exact lowercase hexadecimal.' }
+    if ([string]$Record.dllMvid -cnotmatch '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') { throw 'Lifecycle evidence DLL MVID is not exact lowercase GUID text.' }
+    if (-not (Test-KmcExactJsonInteger $Record.sequence) -or [long]$Record.sequence -ne $ExpectedSequence) {
+        throw "Lifecycle evidence sequence is not contiguous at $ExpectedSequence."
+    }
+    if (-not (Test-KmcExactJsonInteger $Record.frame) -or [long]$Record.frame -lt 0) { throw 'Lifecycle evidence frame must be a nonnegative exact integer.' }
+    if ($Record.row -isnot [string] -or @($ExpectedRows | Where-Object { $_ -ceq [string]$Record.row }).Count -ne 1) { throw "Lifecycle evidence row is outside the exact scenario row set: $($Record.row)" }
+    if ($Record.phase -isnot [string] -or [string]$Record.phase -cnotin @('pre-mount','mounted-next-frame','cleanup-next-frame','row-finish','engine-finalization')) { throw "Lifecycle evidence phase is invalid: $($Record.phase)" }
+    if ($Record.utcTimestamp -isnot [string]) { throw 'Lifecycle evidence UTC timestamp must be a JSON string.' }
+    $timestamp = [DateTimeOffset]::MinValue
+    if (-not [DateTimeOffset]::TryParse([string]$Record.utcTimestamp, [ref]$timestamp) -or $timestamp.Offset -ne [TimeSpan]::Zero) { throw 'Lifecycle evidence UTC timestamp is invalid or not UTC.' }
+    if ($Record.relationshipState -isnot [string] -or [string]$Record.relationshipState -cnotin @('Unmounted','Validating','Mounting','Mounted','Dismounting','Faulted','Disposed')) { throw 'Lifecycle evidence relationshipState is invalid.' }
+    foreach ($name in @('partyCombat','riderCombat','mountCombat','turnBased','paused')) { Assert-KmcNullableJsonBoolean $Record.$name "lifecycle evidence $name" }
+    if ($null -ne $Record.currentGameMode -and $Record.currentGameMode -isnot [string]) { throw 'Lifecycle evidence currentGameMode must be a JSON string or null.' }
+
+    if ($null -eq $Record.cleanup) { throw 'Lifecycle evidence cleanup object is required.' }
+    Assert-KmcExactProperties $Record.cleanup @('trigger','result','succeeded','state','movementAuthorityResidual','presentationResidual','errors') 'lifecycle evidence cleanup'
+    Assert-KmcJsonStringArray $Record.cleanup.errors 'lifecycle evidence cleanup.errors'
+    if ($null -eq $Record.cleanup.result) {
+        if ($null -ne $Record.cleanup.trigger -or $null -ne $Record.cleanup.succeeded -or $null -ne $Record.cleanup.state -or
+            $null -ne $Record.cleanup.movementAuthorityResidual -or $null -ne $Record.cleanup.presentationResidual -or
+            @($Record.cleanup.errors).Count -ne 0) { throw 'Lifecycle evidence null cleanup result contains non-null transition state.' }
+    }
+    else {
+        if ($Record.cleanup.result -isnot [string] -or [string]$Record.cleanup.result -cnotin @('PASS','FAIL') -or
+            $Record.cleanup.trigger -isnot [string] -or $Record.cleanup.succeeded -isnot [bool] -or
+            $Record.cleanup.state -isnot [string] -or $Record.cleanup.movementAuthorityResidual -isnot [bool] -or
+            $Record.cleanup.presentationResidual -isnot [bool]) { throw 'Lifecycle evidence cleanup result has invalid primitive types.' }
+        $isCleanUnmounted = $Record.cleanup.succeeded -eq $true -and [string]$Record.cleanup.state -ceq 'Unmounted' -and
+            $Record.cleanup.movementAuthorityResidual -eq $false -and $Record.cleanup.presentationResidual -eq $false
+        if (([string]$Record.cleanup.result -ceq 'PASS') -ne $isCleanUnmounted) { throw 'Lifecycle evidence cleanup result does not exactly represent successful residue-free Unmounted cleanup.' }
+    }
+
+    if ([string]$Record.phase -ceq 'row-finish') {
+        if ($Record.rowStatus -isnot [string] -or [string]$Record.rowStatus -cnotin @('PASS','FAIL') -or
+            -not (Test-KmcExactJsonInteger $Record.assertionPassCount) -or
+            -not (Test-KmcExactJsonInteger $Record.assertionFailCount) -or
+            [long]$Record.assertionPassCount -lt 0 -or [long]$Record.assertionFailCount -lt 0) { throw 'Lifecycle row-finish status or assertion totals are invalid.' }
+    }
+    elseif ($null -ne $Record.rowStatus -or $null -ne $Record.assertionPassCount -or $null -ne $Record.assertionFailCount) {
+        throw 'Lifecycle non-row-finish record contains row result fields.'
+    }
+    Assert-KmcJsonStringArray $Record.recordErrors 'lifecycle evidence recordErrors'
+    Assert-KmcLifecycleUnitEvidence $Record.rider 'lifecycle evidence rider' -RequireComplete:$RequireComplete
+    Assert-KmcLifecycleUnitEvidence $Record.mount 'lifecycle evidence mount' -RequireComplete:$RequireComplete
+
+    if ($null -eq $Record.selection) { throw 'Lifecycle evidence selection object is required.' }
+    Assert-KmcExactProperties $Record.selection @('available','riderSelected','mountSelected','selectedUnitIds') 'lifecycle evidence selection'
+    if ($Record.selection.available -isnot [bool]) { throw 'Lifecycle evidence selection.available must be a JSON boolean.' }
+    Assert-KmcNullableJsonBoolean $Record.selection.riderSelected 'lifecycle evidence selection.riderSelected'
+    Assert-KmcNullableJsonBoolean $Record.selection.mountSelected 'lifecycle evidence selection.mountSelected'
+    Assert-KmcJsonStringArray $Record.selection.selectedUnitIds 'lifecycle evidence selection.selectedUnitIds'
+
+    if ($null -ne $Record.spine) {
+        Assert-KmcExactProperties $Record.spine @('name','worldPosition','worldRotation') 'lifecycle evidence Spine'
+        if ($Record.spine.name -isnot [string]) { throw 'Lifecycle evidence Spine name must be a JSON string.' }
+        Assert-KmcLifecyclePosition $Record.spine.worldPosition 'lifecycle evidence Spine worldPosition'
+        Assert-KmcLifecycleRotation $Record.spine.worldRotation 'lifecycle evidence Spine worldRotation'
+    }
+    elseif ($RequireComplete) { throw 'Lifecycle PASS evidence does not contain the Spine world transform.' }
+
+    if ($null -eq $Record.anchor) { throw 'Lifecycle evidence anchor object is required.' }
+    Assert-KmcExactProperties $Record.anchor @('name','expectedPosition','expectedRotation','currentPositionResidualWorldUnits','currentRotationResidualDegrees','preCorrectionPositionResidualWorldUnits','preCorrectionRotationResidualDegrees','postCorrectionPositionResidualWorldUnits','postCorrectionRotationResidualDegrees') 'lifecycle evidence anchor'
+    if ($null -ne $Record.anchor.name -and $Record.anchor.name -isnot [string]) { throw 'Lifecycle evidence anchor name must be a JSON string or null.' }
+    Assert-KmcLifecyclePosition $Record.anchor.expectedPosition 'lifecycle evidence anchor.expectedPosition' -AllowNull
+    Assert-KmcLifecycleRotation $Record.anchor.expectedRotation 'lifecycle evidence anchor.expectedRotation' -AllowNull
+    foreach ($name in @('currentPositionResidualWorldUnits','currentRotationResidualDegrees','preCorrectionPositionResidualWorldUnits','preCorrectionRotationResidualDegrees','postCorrectionPositionResidualWorldUnits','postCorrectionRotationResidualDegrees')) {
+        if ($null -ne $Record.anchor.$name -and -not (Test-KmcJsonNumber $Record.anchor.$name)) { throw "Lifecycle evidence anchor.$name must be a JSON number or null." }
+    }
+}
+
+function Assert-KmcKnownRuntimeArtifactsManifested {
+    param(
+        [Parameter(Mandatory = $true)][string]$EvidenceRoot,
+        [Parameter(Mandatory = $true)]$Manifest
+    )
+    $manifested = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
+    foreach ($artifact in @($Manifest.artifacts)) { [void]$manifested.Add([string]$artifact.relativePath) }
+    foreach ($leaf in @('lifecycle-scenario-evidence.jsonl','movement-telemetry.jsonl','movement-scenario-evidence.jsonl')) {
+        if ((Test-Path -LiteralPath (Join-Path $EvidenceRoot $leaf) -PathType Leaf) -and -not $manifested.Contains($leaf)) {
+            throw "Known runtime artifact exists without a manifest record: $leaf"
+        }
+    }
+    $visualRoot = Join-Path $EvidenceRoot 'movement-visuals'
+    if (Test-Path -LiteralPath $visualRoot -PathType Container) {
+        foreach ($path in @(Get-ChildItem -LiteralPath $visualRoot -File -Force)) {
+            $relative = 'movement-visuals/' + $path.Name
+            if (-not $manifested.Contains($relative)) { throw "Known runtime artifact exists without a manifest record: $relative" }
+        }
+    }
+}
+
+function Assert-KmcLifecycleScenarioEvidence {
+    param(
+        [Parameter(Mandatory = $true)]$Request,
+        [Parameter(Mandatory = $true)]$Manifest,
+        [AllowNull()][string]$Status,
+        $SubscenarioResults
+    )
+    $evidenceRoot = [IO.Path]::GetFullPath([string]$Request.evidenceRoot).TrimEnd('\')
+    Assert-KmcKnownRuntimeArtifactsManifested $evidenceRoot $Manifest
+    $isLifecycle = Test-KmcLifecycleRuntimeScenario ([string]$Request.scenario)
+    $lifecycleRecords = @($Manifest.artifacts | Where-Object { [string]$_.relativePath -ceq 'lifecycle-scenario-evidence.jsonl' })
+    $requireComplete = $isLifecycle -and [string]$Status -ceq 'PASS'
+    if ($requireComplete -and $lifecycleRecords.Count -ne 1) { throw 'PASS lifecycle scenario requires exactly one manifested lifecycle JSONL artifact.' }
+    if ($lifecycleRecords.Count -eq 0) { return }
+    if ($lifecycleRecords.Count -ne 1 -or [string]$lifecycleRecords[0].kind -cne 'scenario-evidence') { throw 'Lifecycle JSONL manifest identity is not exact.' }
+    if (-not $isLifecycle) { throw 'Lifecycle JSONL is present for a non-lifecycle runtime scenario.' }
+
+    $allRows = @(Get-KmcLifecycleRuntimeRows)
+    [string[]]$expectedRows = if ([string]$Request.scenario -ceq 'lifecycle-suite') { @($allRows) } else { @([string]$Request.scenario) }
+    $path = Assert-KmcChildPath (Join-Path $evidenceRoot 'lifecycle-scenario-evidence.jsonl') $evidenceRoot 'lifecycle scenario evidence'
+    Assert-KmcNotReparsePoint $path 'lifecycle scenario evidence'
+    Assert-KmcNotHardLink $path 'lifecycle scenario evidence'
+    $lines = @([IO.File]::ReadAllLines($path, (New-Object Text.UTF8Encoding($false, $true))))
+    $records = New-Object 'Collections.Generic.List[object]'
+    foreach ($line in $lines) {
+        if ([string]::IsNullOrWhiteSpace($line)) { continue }
+        Assert-KmcJsonObjectMembersUnique $line 'lifecycle scenario evidence line'
+        try { $record = $line | ConvertFrom-Json }
+        catch { throw "Lifecycle scenario evidence line is malformed JSON: $($_.Exception.Message)" }
+        Assert-KmcLifecycleEvidenceRecord $record $Request $records.Count $expectedRows $requireComplete
+        $records.Add($record)
+    }
+    if ($records.Count -eq 0) { throw 'Lifecycle scenario evidence contains no nonblank JSON records.' }
+
+    $lastRowIndex = -1
+    $lastPhaseByRow = @{}
+    $phasesByRow = @{}
+    $engineFinalizationCount = 0
+    for ($index = 0; $index -lt $records.Count; $index++) {
+        $record = $records[$index]
+        $rowIndex = [Array]::IndexOf([string[]]$expectedRows, [string]$record.row)
+        if ($rowIndex -lt $lastRowIndex) { throw 'Lifecycle scenario evidence row order regressed.' }
+        $lastRowIndex = $rowIndex
+        if ([string]$record.phase -ceq 'engine-finalization') {
+            $engineFinalizationCount++
+            if ($index -ne $records.Count - 1) { throw 'Lifecycle engine-finalization must be the final JSONL record.' }
+            continue
+        }
+        $phaseOrder = [Array]::IndexOf(@('pre-mount','mounted-next-frame','cleanup-next-frame','row-finish'), [string]$record.phase)
+        $prior = if ($lastPhaseByRow.ContainsKey([string]$record.row)) { [int]$lastPhaseByRow[[string]$record.row] } else { -1 }
+        if ($phaseOrder -le $prior) { throw "Lifecycle evidence phase order or uniqueness failed for row $($record.row)." }
+        $lastPhaseByRow[[string]$record.row] = $phaseOrder
+        if (-not $phasesByRow.ContainsKey([string]$record.row)) { $phasesByRow[[string]$record.row] = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal) }
+        [void]$phasesByRow[[string]$record.row].Add([string]$record.phase)
+    }
+
+    if ($requireComplete) {
+        if ($engineFinalizationCount -ne 1 -or [string]$records[$records.Count - 1].row -cne [string]$expectedRows[$expectedRows.Count - 1]) { throw 'PASS lifecycle evidence lacks one final engine-finalization bound to the final expected row.' }
+        foreach ($row in $expectedRows) {
+            if (-not $phasesByRow.ContainsKey($row) -or -not $phasesByRow[$row].Contains('pre-mount') -or -not $phasesByRow[$row].Contains('row-finish')) { throw "PASS lifecycle evidence lacks pre-mount or row-finish coverage for $row." }
+            if ($row -cne 'mounted-pair-invalid-pair-rejected' -and
+                (-not $phasesByRow[$row].Contains('mounted-next-frame') -or -not $phasesByRow[$row].Contains('cleanup-next-frame'))) { throw "PASS lifecycle evidence lacks mounted-next-frame or cleanup-next-frame coverage for $row." }
+        }
+    }
+
+    if ($null -ne $SubscenarioResults) {
+        $subresults = @($SubscenarioResults)
+        foreach ($record in @($records | Where-Object { [string]$_.phase -ceq 'row-finish' })) {
+            $matches = @($subresults | Where-Object { [string]$_.name -ceq [string]$record.row })
+            if ($matches.Count -ne 1) { throw "Lifecycle row-finish does not map to exactly one game subresult: $($record.row)" }
+            $subresult = $matches[0]
+            if ([string]$record.rowStatus -cne [string]$subresult.status -or
+                [long]$record.assertionPassCount -ne [long]$subresult.assertionPassCount -or
+                [long]$record.assertionFailCount -ne [long]$subresult.assertionFailCount -or
+                (@($record.recordErrors) -join "`n") -cne (@($subresult.errors) -join "`n")) { throw "Lifecycle row-finish result does not reconcile with the game subresult: $($record.row)" }
+        }
+    }
+}
+
 function Get-KmcValidatedOrchestrationArtifactManifestHash {
     param([Parameter(Mandatory = $true)]$Request)
     $evidenceRoot = [IO.Path]::GetFullPath([string]$Request.evidenceRoot).TrimEnd('\')
@@ -1491,7 +1789,8 @@ function Get-KmcValidatedOrchestrationArtifactManifestHash {
         Assert-KmcExactProperties $artifact @('relativePath','kind','length','sha256') 'orchestration artifact manifest record'
         $relative = [string]$artifact.relativePath
         $kind = [string]$artifact.kind
-        $allowed = ($relative -ceq 'movement-telemetry.jsonl' -and $kind -ceq 'telemetry') -or
+        $allowed = ($relative -ceq 'lifecycle-scenario-evidence.jsonl' -and $kind -ceq 'scenario-evidence') -or
+            ($relative -ceq 'movement-telemetry.jsonl' -and $kind -ceq 'telemetry') -or
             ($relative -ceq 'movement-scenario-evidence.jsonl' -and $kind -ceq 'scenario-evidence') -or
             ($relative -cmatch '^movement-visuals/[A-Za-z0-9._-]+\.png$' -and $kind -ceq 'screenshot')
         if (-not $seen.Add($relative) -or -not $allowed -or [long]$artifact.length -le 0 -or
@@ -1507,6 +1806,7 @@ function Get-KmcValidatedOrchestrationArtifactManifestHash {
             throw "Orchestration runtime artifact differs from its manifest: $relative"
         }
     }
+    Assert-KmcLifecycleScenarioEvidence -Request $Request -Manifest $manifestValue
     $hash = Get-KmcSha256 $manifestPath
     $after = Get-Item -LiteralPath $manifestPath -Force
     if ($after.Length -ne $before.Length -or $after.LastWriteTimeUtc.Ticks -ne $before.LastWriteTimeUtc.Ticks) {

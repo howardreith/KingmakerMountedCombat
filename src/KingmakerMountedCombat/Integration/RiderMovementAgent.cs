@@ -65,6 +65,8 @@ namespace KingmakerMountedCombat.Integration
 
         public double MaximumPostCorrectionRotationResidualDegrees => telemetry.MaximumPostCorrectionRotationResidualDegrees;
 
+        public double MaximumInitialConfigurationPreCorrectionPositionResidualWorldUnits => telemetry.MaximumInitialConfigurationPreCorrectionPositionResidualWorldUnits;
+
         public double MaximumUpdatePreCorrectionPositionResidualWorldUnits => telemetry.MaximumUpdatePreCorrectionPositionResidualWorldUnits;
 
         public double MaximumUpdatePreCorrectionRotationResidualDegrees => telemetry.MaximumUpdatePreCorrectionRotationResidualDegrees;
@@ -82,6 +84,18 @@ namespace KingmakerMountedCombat.Integration
         public double MaximumLateUpdatePostCorrectionRotationResidualDegrees => telemetry.MaximumLateUpdatePostCorrectionRotationResidualDegrees;
 
         public bool IsConfigured => configured;
+
+        public MovementSynchronizationQualification QualifySynchronization(
+            long observedUpdateFrames,
+            double maximumPositionResidualWorldUnits,
+            double maximumPostCorrectionRotationResidualDegrees)
+        {
+            return MovementSynchronizationQualification.Evaluate(
+                telemetry,
+                observedUpdateFrames,
+                maximumPositionResidualWorldUnits,
+                maximumPostCorrectionRotationResidualDegrees);
+        }
 
         public string AnchorName => anchor == null ? null : anchor.name;
 

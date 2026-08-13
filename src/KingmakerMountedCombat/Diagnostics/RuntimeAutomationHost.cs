@@ -1139,6 +1139,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
 
             var artifacts = new List<RuntimeArtifactRecord>();
+            AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, "lifecycle-scenario-evidence.jsonl", "scenario-evidence");
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, "movement-telemetry.jsonl", "telemetry");
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, "movement-scenario-evidence.jsonl", "scenario-evidence");
 

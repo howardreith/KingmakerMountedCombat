@@ -102,7 +102,8 @@ function Assert-RuntimeArtifactManifest {
         $kind = $artifact.kind
         if (-not $seen.Add($relativePath)) { throw "Runtime artifact manifest contains duplicate path: $relativePath" }
 
-        $allowed = ($relativePath -ceq 'movement-telemetry.jsonl' -and $kind -ceq 'telemetry') -or
+        $allowed = ($relativePath -ceq 'lifecycle-scenario-evidence.jsonl' -and $kind -ceq 'scenario-evidence') -or
+            ($relativePath -ceq 'movement-telemetry.jsonl' -and $kind -ceq 'telemetry') -or
             ($relativePath -ceq 'movement-scenario-evidence.jsonl' -and $kind -ceq 'scenario-evidence') -or
             ($relativePath -cmatch '^movement-visuals/[A-Za-z0-9._-]+\.png$' -and $kind -ceq 'screenshot')
         if (-not $allowed) { throw "Runtime artifact manifest record is outside the exact allowlist: $relativePath ($kind)" }
@@ -241,6 +242,8 @@ Assert-RuntimeArtifactManifest $request $game.evidenceManifestSha256
 if ([int]$game.loadRequestCount -ne ([int]$game.baselineLoadRequestCount + [int]$game.workingLoadRequestCount + [int]$game.unauthorizedLoadRequestCount) -or
     [int]$game.saveRequestCount -ne ([int]$game.workingSaveRequestCount + [int]$game.unauthorizedSaveRequestCount)) { throw 'Save-backed runtime aggregate save/load counters do not reconcile.' }
 Assert-SubscenarioResults $game
+$validatedArtifactManifest = Read-KmcJson (Join-Path ([IO.Path]::GetFullPath([string]$request.evidenceRoot)) 'runtime-artifacts.json')
+Assert-KmcLifecycleScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -SubscenarioResults $game.subscenarioResults
 if ([string]$game.status -ceq 'PASS') {
     if ($game.fixtureIdentityVerified -ne $true -or [string]$game.relationshipState -cne 'Unmounted') { throw 'Save-backed PASS did not finish with verified fixture identity and an unmounted relationship.' }
     $expectedWorkingLoads = if ([string]$game.scenario -cin @('mounted-pair-load-safety','boundary-suite')) { 2 } else { 1 }

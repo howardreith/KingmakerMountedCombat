@@ -76,7 +76,8 @@ function New-TestArtifactManifest {
     param(
         [Parameter(Mandatory = $true)][string]$EvidenceRoot,
         [Parameter(Mandatory = $true)][string]$RunId,
-        [Parameter(Mandatory = $true)][string]$Scenario
+        [Parameter(Mandatory = $true)][string]$Scenario,
+        [array]$Artifacts = @()
     )
     New-Item -ItemType Directory -Path $EvidenceRoot -Force | Out-Null
     $path = Join-Path $EvidenceRoot 'runtime-artifacts.json'
@@ -85,9 +86,78 @@ function New-TestArtifactManifest {
         runId = $RunId
         scenario = $Scenario
         createdAtUtc = [DateTimeOffset]::UtcNow.ToString('o')
-        artifacts = @()
+        artifacts = @($Artifacts)
     })
     return Get-KmcSha256 $path
+}
+
+function New-TestLifecycleUnitEvidence {
+    param([Parameter(Mandatory = $true)][string]$UniqueId, [Parameter(Mandatory = $true)][int]$SizeOrdinal)
+    return [ordered]@{
+        uniqueId=$UniqueId;sizeOrdinal=$SizeOrdinal;inCombat=$false;stockAgentEnabled=$true;avoidanceDisabled=$false
+        agentOverrideType=$null;overrideComponentCount=0
+        entityPosition=[ordered]@{x=1.0;y=2.0;z=3.0};entityRotationDegrees=45.0
+        viewPosition=[ordered]@{x=1.0;y=2.0;z=3.0};viewRotation=[ordered]@{x=0.0;y=0.0;z=0.0;w=1.0}
+        moveCommandType=$null;moveTarget=$null;activeCommandTypes=@();selected=$false
+    }
+}
+
+function New-TestLifecycleEvidenceRecord {
+    param(
+        [Parameter(Mandatory = $true)]$Request,
+        [Parameter(Mandatory = $true)][long]$Sequence,
+        [Parameter(Mandatory = $true)][string]$Row,
+        [Parameter(Mandatory = $true)][string]$Phase,
+        [Parameter(Mandatory = $true)][string]$RelationshipState,
+        [switch]$WithCleanup,
+        [AllowNull()]$RowStatus,
+        [AllowNull()]$AssertionPassCount,
+        [AllowNull()]$AssertionFailCount,
+        [string[]]$RecordErrors = @()
+    )
+    $cleanup = if ($WithCleanup) {
+        [ordered]@{trigger='Manual';result='PASS';succeeded=$true;state='Unmounted';movementAuthorityResidual=$false;presentationResidual=$false;errors=@()}
+    } else {
+        [ordered]@{trigger=$null;result=$null;succeeded=$null;state=$null;movementAuthorityResidual=$null;presentationResidual=$null;errors=@()}
+    }
+    $mounted = $Phase -ceq 'mounted-next-frame'
+    return [ordered]@{
+        schemaVersion=1;runId=[string]$Request.runId;scenario=[string]$Request.scenario;row=$Row;phase=$Phase
+        utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o');branch=[string]$Request.branch;commit=[string]$Request.commit
+        productVersion=[string]$Request.productVersion;dllSha256=[string]$Request.dllSha256;dllMvid=[string]$Request.dllMvid
+        sequence=$Sequence;frame=[int]($Sequence + 1);relationshipState=$RelationshipState;rowStatus=$RowStatus
+        assertionPassCount=$AssertionPassCount;assertionFailCount=$AssertionFailCount;cleanup=$cleanup
+        partyCombat=$false;riderCombat=$false;mountCombat=$false;turnBased=$false;paused=$false;currentGameMode='Default'
+        rider=(New-TestLifecycleUnitEvidence 'rider-id' 4);mount=(New-TestLifecycleUnitEvidence 'mount-id' 6)
+        selection=[ordered]@{available=$true;riderSelected=$true;mountSelected=$false;selectedUnitIds=@('rider-id')}
+        spine=[ordered]@{name='Spine';worldPosition=[ordered]@{x=1.0;y=2.0;z=3.0};worldRotation=[ordered]@{x=0.0;y=0.0;z=0.0;w=1.0}}
+        anchor=[ordered]@{
+            name=$(if($mounted){'Spine'}else{$null})
+            expectedPosition=$(if($mounted){[ordered]@{x=1.0;y=2.5;z=3.0}}else{$null})
+            expectedRotation=$(if($mounted){[ordered]@{x=0.0;y=0.0;z=0.0;w=1.0}}else{$null})
+            currentPositionResidualWorldUnits=$(if($mounted){0.0}else{$null});currentRotationResidualDegrees=$(if($mounted){0.0}else{$null})
+            preCorrectionPositionResidualWorldUnits=$(if($mounted){0.01}else{$null});preCorrectionRotationResidualDegrees=$(if($mounted){0.1}else{$null})
+            postCorrectionPositionResidualWorldUnits=$(if($mounted){0.0}else{$null});postCorrectionRotationResidualDegrees=$(if($mounted){0.0}else{$null})
+        }
+        recordErrors=@($RecordErrors)
+    }
+}
+
+function Write-TestLifecycleEvidence {
+    param(
+        [Parameter(Mandatory = $true)][string]$EvidenceRoot,
+        [Parameter(Mandatory = $true)]$Request,
+        [Parameter(Mandatory = $true)][array]$Records,
+        [switch]$OmitManifestRecord
+    )
+    New-Item -ItemType Directory -Path $EvidenceRoot -Force | Out-Null
+    $path = Join-Path $EvidenceRoot 'lifecycle-scenario-evidence.jsonl'
+    $lines = @($Records | ForEach-Object { $_ | ConvertTo-Json -Compress -Depth 15 })
+    [IO.File]::WriteAllText($path, ($lines -join [Environment]::NewLine) + [Environment]::NewLine, (New-Object Text.UTF8Encoding($false)))
+    $artifacts = if ($OmitManifestRecord) { @() } else {
+        @([ordered]@{relativePath='lifecycle-scenario-evidence.jsonl';kind='scenario-evidence';length=(Get-Item -LiteralPath $path).Length;sha256=(Get-KmcSha256 $path)})
+    }
+    return New-TestArtifactManifest -EvidenceRoot $EvidenceRoot -RunId $Request.runId -Scenario $Request.scenario -Artifacts $artifacts
 }
 
 New-Item -ItemType Directory -Path $testRoot | Out-Null
@@ -981,6 +1051,18 @@ try {
         Assert-Test ($serviceSource.Contains('RetryFailedCleanupOrThrow();')) 'faulted lifecycle cleanup is not retried or escalated into the fail-closed update boundary'
     }
 
+    Invoke-HarnessTest 'lifecycle evidence is a durable pre-mount gate with bounded cleanup observation' {
+        $source = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeLifecycleScenarioEngine.cs')
+        $evidenceGate = $source.IndexOf('if (!TryWriteEvidence("pre-mount", null, null))', [StringComparison]::Ordinal)
+        $mountCall = $source.IndexOf('var mounted = relationship.MountAutomationPair();', [StringComparison]::Ordinal)
+        Assert-Test ($evidenceGate -ge 0 -and $mountCall -gt $evidenceGate) 'valid-pair mounting is not gated by durable pre-mount evidence'
+        Assert-Test ($source.Contains('stream.Flush(true);')) 'lifecycle JSONL records are not durably flushed before their handles close'
+        Assert-Test ($source.Contains('Post-cleanup verification threw')) 'post-cleanup observation is not converted to a bounded failed row'
+        Assert-Test ($source.Contains('var cleanUnmounted = result != null && result.Succeeded')) 'cleanup PASS is not derived from the exact successful Unmounted transition contract'
+        Assert-Test ($source.Contains('result.State == RelationshipState.Unmounted')) 'cleanup PASS does not require Unmounted state'
+        Assert-Test ($source.Contains('!result.MovementAuthorityResidual && !result.PresentationResidual')) 'cleanup PASS does not require zero owned residue'
+    }
+
     Invoke-HarnessTest 'schema-v2 final result recomputes subscenario totals from validated game evidence' {
         $fixture = [ordered]@{
             baseline=[ordered]@{internalName='KMC_AUTOMATION_BASELINE';fileName='Manual_1_KMC_AUTOMATION_BASELINE.zks';sha256=('11'*32);length=1;lastWriteTimeUtcTicks=1;gameId='11111111-2222-3333-4444-555555555555';gameName='KMC Test Campaign';area='0123456789abcdef0123456789abcdef'}
@@ -1117,7 +1199,7 @@ try {
         writeAuthorization=[ordered]@{mode='working-only';allowedInternalName='KMC_AUTOMATION_WORKING';allowedFileName='Manual_2_KMC_AUTOMATION_WORKING.zks';baselineImmutable=$true}
     }
     $v2Request = [ordered]@{
-        schemaVersion=2;runId='schema-v2-test';scenario='fixture-intake';branch=$request.branch;commit=$request.commit
+        schemaVersion=2;runId='schema-v2-test';scenario='mounted-pair-create-and-clear';branch=$request.branch;commit=$request.commit
         productVersion=$request.productVersion;dllSha256=$request.dllSha256;dllMvid=$request.dllMvid;transactionToken=$request.transactionToken
         evidenceRoot=(Join-Path $runtimeEvidenceTestRoot 'schema-v2-test');fixture=$v2Fixture
     }
@@ -1127,8 +1209,17 @@ try {
     }
 
     $v2GameResultPath = Join-Path $testRoot 'runtime-game-result-v2.json'
-    $v2EvidenceManifestHash = New-TestArtifactManifest -EvidenceRoot $v2Request.evidenceRoot -RunId $v2Request.runId -Scenario $v2Request.scenario
-    $v2Subscenario = [ordered]@{name='observe-mount-diagnostic-availability';status='PASS';assertionPassCount=3;assertionFailCount=0;errors=@()}
+    $lifecycleEvidencePath = Join-Path $v2Request.evidenceRoot 'lifecycle-scenario-evidence.jsonl'
+    $lifecycleRow = 'mounted-pair-create-and-clear'
+    $validLifecycleRecords = @(
+        (New-TestLifecycleEvidenceRecord $v2Request 0 $lifecycleRow 'pre-mount' 'Unmounted'),
+        (New-TestLifecycleEvidenceRecord $v2Request 1 $lifecycleRow 'mounted-next-frame' 'Mounted'),
+        (New-TestLifecycleEvidenceRecord $v2Request 2 $lifecycleRow 'cleanup-next-frame' 'Unmounted' -WithCleanup),
+        (New-TestLifecycleEvidenceRecord $v2Request 3 $lifecycleRow 'row-finish' 'Unmounted' -WithCleanup -RowStatus 'PASS' -AssertionPassCount 3 -AssertionFailCount 0),
+        (New-TestLifecycleEvidenceRecord $v2Request 4 $lifecycleRow 'engine-finalization' 'Unmounted' -WithCleanup)
+    )
+    $v2EvidenceManifestHash = Write-TestLifecycleEvidence -EvidenceRoot $v2Request.evidenceRoot -Request $v2Request -Records $validLifecycleRecords
+    $v2Subscenario = [ordered]@{name=$lifecycleRow;status='PASS';assertionPassCount=3;assertionFailCount=0;errors=@()}
     $v2GameResult = [ordered]@{
         schemaVersion=2;runId=$v2Request.runId;scenario=$v2Request.scenario;status='PASS';branch=$v2Request.branch;commit=$v2Request.commit
         productVersion=$v2Request.productVersion;dllSha256=$v2Request.dllSha256;dllMvid=$v2Request.dllMvid;transactionToken=$v2Request.transactionToken
@@ -1144,21 +1235,167 @@ try {
     Invoke-HarnessTest 'runtime game-result schema accepts exact save-backed PASS' {
         & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeGameResult.ps1') -GameResultPath $v2GameResultPath -RequestPath $v2RequestPath -FingerprintPath $fingerprintPath -ExpectedProcessId $PID -NotBeforeUtc $gameStarted.AddSeconds(-1) -RequirePass
     }
-    Invoke-HarnessTest 'runtime game-result schema preserves exact save-backed FAIL evidence' {
-        $v2GameResult.status='FAIL';$v2GameResult.errors=@('synthetic save-backed failure');$v2GameResult.fixtureIdentityVerified=$false
-        $v2GameResult.loadRequestCount=0;$v2GameResult.workingLoadRequestCount=0
-        $v2GameResult.subscenarioPassCount=0;$v2GameResult.subscenarioFailCount=1;$v2GameResult.assertionPassCount=0;$v2GameResult.assertionFailCount=1
-        $v2GameResult.subscenarioResults=@([ordered]@{name='observe-mount-diagnostic-availability';status='FAIL';assertionPassCount=0;assertionFailCount=1;errors=@('synthetic save-backed failure')})
+    Invoke-HarnessTest 'runtime game-result artifact allowlist rejects lifecycle evidence under the wrong kind' {
+        $manifestPath = Join-Path $v2Request.evidenceRoot 'runtime-artifacts.json'
+        $manifest = Read-KmcJson $manifestPath
+        $manifest.artifacts[0].kind = 'telemetry'
+        Write-KmcJsonDurable -Path $manifestPath -Value $manifest
+        $v2GameResult.evidenceManifestSha256 = Get-KmcSha256 $manifestPath
         Write-KmcJsonAtomic $v2GameResultPath $v2GameResult
-        & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeGameResult.ps1') -GameResultPath $v2GameResultPath -RequestPath $v2RequestPath -FingerprintPath $fingerprintPath -ExpectedProcessId $PID -NotBeforeUtc $gameStarted.AddSeconds(-1)
         $threw=$false
-        try { & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeGameResult.ps1') -GameResultPath $v2GameResultPath -RequestPath $v2RequestPath -FingerprintPath $fingerprintPath -ExpectedProcessId $PID -NotBeforeUtc $gameStarted.AddSeconds(-1) -RequirePass } catch { $threw=$true }
-        Assert-Test $threw 'RequirePass accepted a structured schema-v2 runtime FAIL'
-        $v2GameResult.status='PASS';$v2GameResult.errors=@();$v2GameResult.fixtureIdentityVerified=$true
-        $v2GameResult.loadRequestCount=1;$v2GameResult.workingLoadRequestCount=1
-        $v2GameResult.subscenarioPassCount=1;$v2GameResult.subscenarioFailCount=0;$v2GameResult.assertionPassCount=3;$v2GameResult.assertionFailCount=0
-        $v2GameResult.subscenarioResults=@($v2Subscenario)
+        try { & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeGameResult.ps1') -GameResultPath $v2GameResultPath -RequestPath $v2RequestPath -FingerprintPath $fingerprintPath -ExpectedProcessId $PID -NotBeforeUtc $gameStarted.AddSeconds(-1) } catch { $threw=$true }
+        Assert-Test $threw 'lifecycle JSONL under the telemetry kind passed the exact artifact allowlist'
+        $manifest.artifacts[0].kind = 'scenario-evidence'
+        Write-KmcJsonDurable -Path $manifestPath -Value $manifest
+        $v2EvidenceManifestHash = Get-KmcSha256 $manifestPath
+        $v2GameResult.evidenceManifestSha256 = $v2EvidenceManifestHash
         Write-KmcJsonAtomic $v2GameResultPath $v2GameResult
+    }
+    Invoke-HarnessTest 'PASS lifecycle scenario rejects missing lifecycle evidence' {
+        try {
+            [IO.File]::Delete($lifecycleEvidencePath)
+            $v2GameResult.evidenceManifestSha256 = New-TestArtifactManifest -EvidenceRoot $v2Request.evidenceRoot -RunId $v2Request.runId -Scenario $v2Request.scenario
+            Write-KmcJsonAtomic $v2GameResultPath $v2GameResult
+            $threw=$false
+            try { & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeGameResult.ps1') -GameResultPath $v2GameResultPath -RequestPath $v2RequestPath -FingerprintPath $fingerprintPath -ExpectedProcessId $PID -NotBeforeUtc $gameStarted.AddSeconds(-1) } catch { $threw=$true }
+            Assert-Test $threw 'PASS lifecycle scenario accepted a missing lifecycle artifact'
+        }
+        finally {
+            $v2EvidenceManifestHash = Write-TestLifecycleEvidence -EvidenceRoot $v2Request.evidenceRoot -Request $v2Request -Records $validLifecycleRecords
+            $v2GameResult.evidenceManifestSha256 = $v2EvidenceManifestHash
+            Write-KmcJsonAtomic $v2GameResultPath $v2GameResult
+        }
+    }
+    Invoke-HarnessTest 'validators reject an unmanifested known lifecycle artifact' {
+        try {
+            $v2GameResult.evidenceManifestSha256 = Write-TestLifecycleEvidence -EvidenceRoot $v2Request.evidenceRoot -Request $v2Request -Records $validLifecycleRecords -OmitManifestRecord
+            Write-KmcJsonAtomic $v2GameResultPath $v2GameResult
+            $gameThrew=$false
+            try { & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeGameResult.ps1') -GameResultPath $v2GameResultPath -RequestPath $v2RequestPath -FingerprintPath $fingerprintPath -ExpectedProcessId $PID -NotBeforeUtc $gameStarted.AddSeconds(-1) } catch { $gameThrew=$true }
+            $orchestrationThrew=$false
+            try { Get-KmcValidatedOrchestrationArtifactManifestHash ([pscustomobject]$v2Request) | Out-Null } catch { $orchestrationThrew=$true }
+            Assert-Test ($gameThrew -and $orchestrationThrew) 'game or orchestration validator accepted an unmanifested known lifecycle artifact'
+        }
+        finally {
+            $v2EvidenceManifestHash = Write-TestLifecycleEvidence -EvidenceRoot $v2Request.evidenceRoot -Request $v2Request -Records $validLifecycleRecords
+            $v2GameResult.evidenceManifestSha256 = $v2EvidenceManifestHash
+            Write-KmcJsonAtomic $v2GameResultPath $v2GameResult
+        }
+    }
+    Invoke-HarnessTest 'lifecycle validator rejects malformed JSONL' {
+        try {
+            [IO.File]::WriteAllText($lifecycleEvidencePath, '{' + [Environment]::NewLine, (New-Object Text.UTF8Encoding($false)))
+            $badArtifact = [ordered]@{relativePath='lifecycle-scenario-evidence.jsonl';kind='scenario-evidence';length=(Get-Item -LiteralPath $lifecycleEvidencePath).Length;sha256=(Get-KmcSha256 $lifecycleEvidencePath)}
+            $v2GameResult.evidenceManifestSha256 = New-TestArtifactManifest -EvidenceRoot $v2Request.evidenceRoot -RunId $v2Request.runId -Scenario $v2Request.scenario -Artifacts @($badArtifact)
+            Write-KmcJsonAtomic $v2GameResultPath $v2GameResult
+            $threw=$false
+            try { & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeGameResult.ps1') -GameResultPath $v2GameResultPath -RequestPath $v2RequestPath -FingerprintPath $fingerprintPath -ExpectedProcessId $PID -NotBeforeUtc $gameStarted.AddSeconds(-1) } catch { $threw=$true }
+            Assert-Test $threw 'malformed lifecycle JSONL passed validation'
+        }
+        finally {
+            $v2EvidenceManifestHash = Write-TestLifecycleEvidence -EvidenceRoot $v2Request.evidenceRoot -Request $v2Request -Records $validLifecycleRecords
+            $v2GameResult.evidenceManifestSha256 = $v2EvidenceManifestHash
+            Write-KmcJsonAtomic $v2GameResultPath $v2GameResult
+        }
+    }
+    Invoke-HarnessTest 'lifecycle validator rejects noncontiguous sequence' {
+        try {
+            $validLifecycleRecords[2].sequence = 7
+            $v2GameResult.evidenceManifestSha256 = Write-TestLifecycleEvidence -EvidenceRoot $v2Request.evidenceRoot -Request $v2Request -Records $validLifecycleRecords
+            Write-KmcJsonAtomic $v2GameResultPath $v2GameResult
+            $threw=$false
+            try { & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeGameResult.ps1') -GameResultPath $v2GameResultPath -RequestPath $v2RequestPath -FingerprintPath $fingerprintPath -ExpectedProcessId $PID -NotBeforeUtc $gameStarted.AddSeconds(-1) } catch { $threw=$true }
+            Assert-Test $threw 'noncontiguous lifecycle evidence sequence passed validation'
+        }
+        finally {
+            $validLifecycleRecords[2].sequence = 2
+            $v2EvidenceManifestHash = Write-TestLifecycleEvidence -EvidenceRoot $v2Request.evidenceRoot -Request $v2Request -Records $validLifecycleRecords
+            $v2GameResult.evidenceManifestSha256 = $v2EvidenceManifestHash
+            Write-KmcJsonAtomic $v2GameResultPath $v2GameResult
+        }
+    }
+    Invoke-HarnessTest 'PASS lifecycle validator rejects incomplete mounted-row phase coverage' {
+        try {
+            $incomplete = @(
+                (New-TestLifecycleEvidenceRecord $v2Request 0 $lifecycleRow 'pre-mount' 'Unmounted'),
+                (New-TestLifecycleEvidenceRecord $v2Request 1 $lifecycleRow 'mounted-next-frame' 'Mounted'),
+                (New-TestLifecycleEvidenceRecord $v2Request 2 $lifecycleRow 'row-finish' 'Unmounted' -WithCleanup -RowStatus 'PASS' -AssertionPassCount 3 -AssertionFailCount 0),
+                (New-TestLifecycleEvidenceRecord $v2Request 3 $lifecycleRow 'engine-finalization' 'Unmounted' -WithCleanup)
+            )
+            $v2GameResult.evidenceManifestSha256 = Write-TestLifecycleEvidence -EvidenceRoot $v2Request.evidenceRoot -Request $v2Request -Records $incomplete
+            Write-KmcJsonAtomic $v2GameResultPath $v2GameResult
+            $threw=$false
+            try { & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeGameResult.ps1') -GameResultPath $v2GameResultPath -RequestPath $v2RequestPath -FingerprintPath $fingerprintPath -ExpectedProcessId $PID -NotBeforeUtc $gameStarted.AddSeconds(-1) } catch { $threw=$true }
+            Assert-Test $threw 'incomplete mounted lifecycle row passed validation'
+        }
+        finally {
+            $v2EvidenceManifestHash = Write-TestLifecycleEvidence -EvidenceRoot $v2Request.evidenceRoot -Request $v2Request -Records $validLifecycleRecords
+            $v2GameResult.evidenceManifestSha256 = $v2EvidenceManifestHash
+            Write-KmcJsonAtomic $v2GameResultPath $v2GameResult
+        }
+    }
+    Invoke-HarnessTest 'lifecycle-suite requires the exact eight-row order and coverage' {
+        $suiteRows = @(Get-KmcLifecycleRuntimeRows)
+        $suiteRequest = [pscustomobject][ordered]@{
+            runId='lifecycle-suite-test';scenario='lifecycle-suite';branch=$v2Request.branch;commit=$v2Request.commit
+            productVersion=$v2Request.productVersion;dllSha256=$v2Request.dllSha256;dllMvid=$v2Request.dllMvid
+            evidenceRoot=(Join-Path $runtimeEvidenceTestRoot 'lifecycle-suite-test')
+        }
+        $newSuiteRecords = {
+            param([string[]]$Rows)
+            $records = New-Object 'Collections.Generic.List[object]'
+            $sequence = 0
+            foreach ($row in $Rows) {
+                $records.Add((New-TestLifecycleEvidenceRecord $suiteRequest ($sequence++) $row 'pre-mount' 'Unmounted'))
+                if ($row -cne 'mounted-pair-invalid-pair-rejected') {
+                    $records.Add((New-TestLifecycleEvidenceRecord $suiteRequest ($sequence++) $row 'mounted-next-frame' 'Mounted'))
+                }
+                $records.Add((New-TestLifecycleEvidenceRecord $suiteRequest ($sequence++) $row 'cleanup-next-frame' 'Unmounted' -WithCleanup))
+                $records.Add((New-TestLifecycleEvidenceRecord $suiteRequest ($sequence++) $row 'row-finish' 'Unmounted' -WithCleanup -RowStatus 'PASS' -AssertionPassCount 1 -AssertionFailCount 0))
+            }
+            $records.Add((New-TestLifecycleEvidenceRecord $suiteRequest $sequence $Rows[$Rows.Count - 1] 'engine-finalization' 'Unmounted' -WithCleanup))
+            return $records.ToArray()
+        }
+        $suiteSubresults = @($suiteRows | ForEach-Object { [pscustomobject][ordered]@{name=$_;status='PASS';assertionPassCount=1;assertionFailCount=0;errors=@()} })
+        $suiteRecords = & $newSuiteRecords $suiteRows
+        [void](Write-TestLifecycleEvidence -EvidenceRoot $suiteRequest.evidenceRoot -Request $suiteRequest -Records $suiteRecords)
+        $suiteManifest = Read-KmcJson (Join-Path $suiteRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcLifecycleScenarioEvidence -Request $suiteRequest -Manifest $suiteManifest -Status 'PASS' -SubscenarioResults $suiteSubresults
+
+        $incompleteSuiteRecords = & $newSuiteRecords @($suiteRows[0..6])
+        [void](Write-TestLifecycleEvidence -EvidenceRoot $suiteRequest.evidenceRoot -Request $suiteRequest -Records $incompleteSuiteRecords)
+        $suiteManifest = Read-KmcJson (Join-Path $suiteRequest.evidenceRoot 'runtime-artifacts.json')
+        $threw=$false
+        try { Assert-KmcLifecycleScenarioEvidence -Request $suiteRequest -Manifest $suiteManifest -Status 'PASS' -SubscenarioResults $suiteSubresults } catch { $threw=$true }
+        Assert-Test $threw 'lifecycle-suite PASS accepted fewer than the exact eight ordered rows'
+    }
+    Invoke-HarnessTest 'runtime game-result schema preserves exact save-backed FAIL evidence' {
+        try {
+            $failedLifecycleRecords = @(
+                (New-TestLifecycleEvidenceRecord $v2Request 0 $lifecycleRow 'pre-mount' 'Unmounted'),
+                (New-TestLifecycleEvidenceRecord $v2Request 1 $lifecycleRow 'row-finish' 'Unmounted' -WithCleanup -RowStatus 'FAIL' -AssertionPassCount 0 -AssertionFailCount 1 -RecordErrors @('synthetic save-backed failure')),
+                (New-TestLifecycleEvidenceRecord $v2Request 2 $lifecycleRow 'engine-finalization' 'Unmounted' -WithCleanup -RecordErrors @('synthetic save-backed failure'))
+            )
+            $v2GameResult.evidenceManifestSha256 = Write-TestLifecycleEvidence -EvidenceRoot $v2Request.evidenceRoot -Request $v2Request -Records $failedLifecycleRecords
+            $v2GameResult.status='FAIL';$v2GameResult.errors=@('synthetic save-backed failure');$v2GameResult.fixtureIdentityVerified=$false
+            $v2GameResult.loadRequestCount=0;$v2GameResult.workingLoadRequestCount=0
+            $v2GameResult.subscenarioPassCount=0;$v2GameResult.subscenarioFailCount=1;$v2GameResult.assertionPassCount=0;$v2GameResult.assertionFailCount=1
+            $v2GameResult.subscenarioResults=@([ordered]@{name=$lifecycleRow;status='FAIL';assertionPassCount=0;assertionFailCount=1;errors=@('synthetic save-backed failure')})
+            Write-KmcJsonAtomic $v2GameResultPath $v2GameResult
+            & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeGameResult.ps1') -GameResultPath $v2GameResultPath -RequestPath $v2RequestPath -FingerprintPath $fingerprintPath -ExpectedProcessId $PID -NotBeforeUtc $gameStarted.AddSeconds(-1)
+            $threw=$false
+            try { & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeGameResult.ps1') -GameResultPath $v2GameResultPath -RequestPath $v2RequestPath -FingerprintPath $fingerprintPath -ExpectedProcessId $PID -NotBeforeUtc $gameStarted.AddSeconds(-1) -RequirePass } catch { $threw=$true }
+            Assert-Test $threw 'RequirePass accepted a structured schema-v2 runtime FAIL'
+        }
+        finally {
+            $v2EvidenceManifestHash = Write-TestLifecycleEvidence -EvidenceRoot $v2Request.evidenceRoot -Request $v2Request -Records $validLifecycleRecords
+            $v2GameResult.evidenceManifestSha256=$v2EvidenceManifestHash
+            $v2GameResult.status='PASS';$v2GameResult.errors=@();$v2GameResult.fixtureIdentityVerified=$true
+            $v2GameResult.loadRequestCount=1;$v2GameResult.workingLoadRequestCount=1
+            $v2GameResult.subscenarioPassCount=1;$v2GameResult.subscenarioFailCount=0;$v2GameResult.assertionPassCount=3;$v2GameResult.assertionFailCount=0
+            $v2GameResult.subscenarioResults=@($v2Subscenario)
+            Write-KmcJsonAtomic $v2GameResultPath $v2GameResult
+        }
     }
 
     $v2ResultPath = Join-Path $testRoot 'runtime-result-v2.json'

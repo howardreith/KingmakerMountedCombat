@@ -164,6 +164,8 @@ namespace KingmakerMountedCombat.Domain
 
         public double MaximumPostCorrectionRotationResidualDegrees { get; private set; }
 
+        public double MaximumInitialConfigurationPreCorrectionPositionResidualWorldUnits { get; private set; }
+
         public double MaximumUpdatePreCorrectionPositionResidualWorldUnits { get; private set; }
 
         public double MaximumUpdatePreCorrectionRotationResidualDegrees { get; private set; }
@@ -204,6 +206,7 @@ namespace KingmakerMountedCombat.Domain
                 case MovementSynchronizationPhase.InitialConfiguration:
                     InitialConfigurationSampleCount++;
                     if (sample.CorrectionRequired) { InitialConfigurationCorrectionCount++; }
+                    MaximumInitialConfigurationPreCorrectionPositionResidualWorldUnits = Math.Max(MaximumInitialConfigurationPreCorrectionPositionResidualWorldUnits, sample.PreCorrectionPositionResidualWorldUnits);
                     break;
                 case MovementSynchronizationPhase.Update:
                     UpdateSampleCount++;
@@ -228,6 +231,78 @@ namespace KingmakerMountedCombat.Domain
             if (sample.CorrectionRequired)
             {
                 CorrectionCount++;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Pure qualification of the synchronization loop. Initial placement is
+    /// deliberately excluded from the calibrated pre-correction gate: it is a
+    /// one-time mount transition, not evidence about steady-state drift.
+    /// </summary>
+    public sealed class MovementSynchronizationQualification
+    {
+        private MovementSynchronizationQualification()
+        {
+        }
+
+        public double MaximumCalibratedPreCorrectionPositionResidualWorldUnits { get; private set; }
+
+        public bool PreCorrectionPositionPassed { get; private set; }
+
+        public bool PostCorrectionPositionPassed { get; private set; }
+
+        public bool PostCorrectionRotationPassed { get; private set; }
+
+        public bool CorrectionCadencePassed { get; private set; }
+
+        public long MaximumSamplesPerPhase { get; private set; }
+
+        public long MaximumCorrectionsAcrossCalibratedPhases { get; private set; }
+
+        public static MovementSynchronizationQualification Evaluate(
+            MovementSynchronizationTelemetryAccumulator telemetry,
+            long observedUpdateFrames,
+            double maximumPositionResidualWorldUnits,
+            double maximumPostCorrectionRotationResidualDegrees)
+        {
+            if (telemetry == null) { throw new ArgumentNullException(nameof(telemetry)); }
+            if (observedUpdateFrames < 0) { throw new ArgumentOutOfRangeException(nameof(observedUpdateFrames)); }
+            RequireFinitePositive(maximumPositionResidualWorldUnits, nameof(maximumPositionResidualWorldUnits));
+            RequireFinitePositive(maximumPostCorrectionRotationResidualDegrees, nameof(maximumPostCorrectionRotationResidualDegrees));
+
+            // Update and LateUpdate can each run once after the last engine
+            // observation because of Unity callback ordering. A second frame of
+            // slack covers the mount-configuration frame without making an
+            // unbounded extra synchronization loop pass qualification.
+            var maximumSamplesPerPhase = checked(observedUpdateFrames + 2L);
+            var maximumCorrections = checked(maximumSamplesPerPhase * 2L);
+            var calibratedPreCorrectionMaximum = Math.Max(
+                telemetry.MaximumUpdatePreCorrectionPositionResidualWorldUnits,
+                telemetry.MaximumLateUpdatePreCorrectionPositionResidualWorldUnits);
+            var calibratedCorrectionCount = checked(telemetry.UpdateCorrectionCount + telemetry.LateUpdateCorrectionCount);
+
+            return new MovementSynchronizationQualification
+            {
+                MaximumCalibratedPreCorrectionPositionResidualWorldUnits = calibratedPreCorrectionMaximum,
+                PreCorrectionPositionPassed = calibratedPreCorrectionMaximum <= maximumPositionResidualWorldUnits,
+                PostCorrectionPositionPassed = telemetry.MaximumPostCorrectionPositionResidualWorldUnits <= maximumPositionResidualWorldUnits,
+                PostCorrectionRotationPassed = telemetry.MaximumPostCorrectionRotationResidualDegrees <= maximumPostCorrectionRotationResidualDegrees,
+                CorrectionCadencePassed = telemetry.UpdateSampleCount <= maximumSamplesPerPhase &&
+                    telemetry.LateUpdateSampleCount <= maximumSamplesPerPhase &&
+                    telemetry.UpdateCorrectionCount <= telemetry.UpdateSampleCount &&
+                    telemetry.LateUpdateCorrectionCount <= telemetry.LateUpdateSampleCount &&
+                    calibratedCorrectionCount <= maximumCorrections,
+                MaximumSamplesPerPhase = maximumSamplesPerPhase,
+                MaximumCorrectionsAcrossCalibratedPhases = maximumCorrections
+            };
+        }
+
+        private static void RequireFinitePositive(double value, string parameterName)
+        {
+            if (double.IsNaN(value) || double.IsInfinity(value) || value <= 0.0d)
+            {
+                throw new ArgumentOutOfRangeException(parameterName);
             }
         }
     }

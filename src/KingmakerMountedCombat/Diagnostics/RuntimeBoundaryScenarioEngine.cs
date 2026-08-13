@@ -45,6 +45,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly List<string> errors = new List<string>();
         private readonly Stopwatch suiteClock = new Stopwatch();
         private readonly Stopwatch rowClock = new Stopwatch();
+        private readonly BoundaryFailureDrain failureDrain = new BoundaryFailureDrain();
 
         private IReadOnlyList<string> selectedRows;
         private AssertionRecorder assertions;
@@ -155,6 +156,12 @@ namespace KingmakerMountedCombat.Diagnostics
             frameNumber++;
             try
             {
+                if (failureDrain.State != BoundaryFailureDrainState.Inactive)
+                {
+                    DrainPendingFailure();
+                    return;
+                }
+
                 if (suiteClock.Elapsed.TotalSeconds > SuiteTimeoutSeconds)
                 {
                     AbortSuite("Boundary suite exceeded its " + SuiteTimeoutSeconds + " second monotonic deadline.");
@@ -280,6 +287,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 AbortSuite("Pair movement state could not be retained for residue verification.");
                 return;
             }
+            assertions.Check(!snapshot.RiderAvoidanceWasDisabled && !snapshot.MountAvoidanceWasDisabled,
+                "Fresh rider and mount both began with ordinary avoidance enabled.",
+                "Fresh rider or mount began with AvoidanceDisabled=true before KMC acquired authority.");
+            if (snapshot.RiderAvoidanceWasDisabled || snapshot.MountAvoidanceWasDisabled)
+            {
+                AbortSuite("Refused to mount a pair with pre-existing avoidance suppression.");
+                return;
+            }
 
             var mounted = relationship.MountAutomationPair();
             assertions.Check(mounted.Succeeded,
@@ -387,6 +402,23 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void BeginExactWorkingLoad()
         {
+            FileIdentitySnapshot beforeDescriptorRead;
+            string identityError;
+            if (!FileIdentitySnapshot.TryCapture(fixtureLoader.WorkingPath, out beforeDescriptorRead, out identityError))
+            {
+                assertions.Fail("Exact Working identity could not be captured before LoadZipSave: " + identityError);
+                AbortSuite("Refused load because exact Working identity could not be captured.");
+                return;
+            }
+            assertions.Check(beforeDescriptorRead.Matches(request.Fixture.Working),
+                "Exact Working length, timestamp, and SHA-256 matched the qualified request before LoadZipSave.",
+                "Exact Working length, timestamp, or SHA-256 differed from the qualified request before LoadZipSave.");
+            if (!beforeDescriptorRead.Matches(request.Fixture.Working))
+            {
+                AbortSuite("Refused load because exact Working bytes or metadata changed after fixture qualification.");
+                return;
+            }
+
             SaveInfo descriptor;
             string descriptorError;
             if (!TryReadExactWorkingDescriptor(out descriptor, out descriptorError))
@@ -398,6 +430,22 @@ namespace KingmakerMountedCombat.Diagnostics
             assertions.Check(true,
                 "Direct descriptor read opened only the exact Working path.",
                 "Direct descriptor read unexpectedly failed.");
+
+            FileIdentitySnapshot beforeDispatch;
+            if (!FileIdentitySnapshot.TryCapture(fixtureLoader.WorkingPath, out beforeDispatch, out identityError))
+            {
+                assertions.Fail("Exact Working identity could not be recaptured before load dispatch: " + identityError);
+                AbortSuite("Refused load because exact Working identity could not be recaptured after LoadZipSave.");
+                return;
+            }
+            assertions.Check(beforeDispatch.Equals(beforeDescriptorRead) && beforeDispatch.Matches(request.Fixture.Working),
+                "LoadZipSave left exact Working length, timestamp, and SHA-256 unchanged through dispatch.",
+                "Exact Working length, timestamp, or SHA-256 changed between LoadZipSave and dispatch.");
+            if (!beforeDispatch.Equals(beforeDescriptorRead) || !beforeDispatch.Matches(request.Fixture.Working))
+            {
+                AbortSuite("Refused load dispatch because LoadZipSave changed exact Working bytes or metadata.");
+                return;
+            }
 
             Game.Instance.SaveManager.AddCallbackAfterLoad(HandleAsynchronousCallback);
             Game.Instance.LoadGame(descriptor);
@@ -483,6 +531,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Exact Working load completion was not observed.");
             AssertAuthorizationCounts(1, 0);
             AssertLoadedFixtureIdentity();
+            AssertExactWorkingFileIdentity("post-load");
             AssertFreshWorldHasNoMountedState("post-load");
             FinishCurrentRow();
         }
@@ -624,7 +673,9 @@ namespace KingmakerMountedCombat.Diagnostics
             }
 
             var clean = rider.View != null && mount.View != null && rider.View.AgentASP != null && mount.View.AgentASP != null &&
-                rider.View.AgentASP.enabled && mount.View.AgentASP.enabled && rider.View.AgentOverride == null && mount.View.AgentOverride == null;
+                rider.View.AgentASP.enabled && mount.View.AgentASP.enabled &&
+                !rider.View.AgentASP.AvoidanceDisabled && !mount.View.AgentASP.AvoidanceDisabled &&
+                rider.View.AgentOverride == null && mount.View.AgentOverride == null;
             assertions.Check(clean,
                 phase + " fresh pair exposed enabled stock agents, ordinary avoidance, and no overrides.",
                 phase + " fresh pair exposed movement-agent, avoidance, or override residue.");
@@ -642,6 +693,16 @@ namespace KingmakerMountedCombat.Diagnostics
             assertions.Check(valid,
                 "Loaded GameId, GameName, and Area remained the qualified Working identity.",
                 "Loaded GameId, GameName, or Area differed from the qualified Working identity.");
+        }
+
+        private void AssertExactWorkingFileIdentity(string phase)
+        {
+            FileIdentitySnapshot observed;
+            string error;
+            var captured = FileIdentitySnapshot.TryCapture(fixtureLoader.WorkingPath, out observed, out error);
+            assertions.Check(captured && observed.Matches(request.Fixture.Working),
+                phase + " exact Working length, timestamp, and SHA-256 remained equal to the qualified request.",
+                phase + " exact Working file identity changed or could not be read: " + (error ?? "identity mismatch"));
         }
 
         private void AssertAuthorizationCounts(int expectedLoadDelta, int expectedWriteDelta)
@@ -766,14 +827,57 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 assertions = new AssertionRecorder();
             }
-            assertions.Fail(message);
-            BestEffortCleanup();
-            CompleteRemainingAsNotRun("Boundary suite stopped after a safety-significant row failure.");
-            Complete();
+            if (failureDrain.State == BoundaryFailureDrainState.Inactive)
+            {
+                assertions.Fail(message);
+                failureDrain.Request(message, IsLoading());
+                rowClock.Stop();
+                if (failureDrain.State == BoundaryFailureDrainState.DrainingActiveLoad)
+                {
+                    logger.Warning("Boundary failure is pending until the active Kingmaker loading pipeline stops: " + message);
+                    return;
+                }
+            }
+
+            DrainPendingFailure();
         }
 
-        private void BestEffortCleanup()
+        private void DrainPendingFailure()
         {
+            if (failureDrain.Observe(IsLoading()) == BoundaryFailureDrainState.DrainingActiveLoad)
+            {
+                return;
+            }
+            if (failureDrain.State != BoundaryFailureDrainState.ReadyToFinalize)
+            {
+                return;
+            }
+
+            // This is the only failure-finalization path. It is deliberately
+            // unreachable while LoadingProcess remains active so cleanup cannot
+            // race Kingmaker's entity/view disposal and the host cannot observe
+            // IsCompleted early and quit the process under an active load.
+            var cleanupSucceeded = BestEffortCleanup();
+            assertions.Check(cleanupSucceeded &&
+                (relationship.State == RelationshipState.Unmounted || relationship.State == RelationshipState.Disposed) &&
+                relationship.Rider == null && relationship.Mount == null && relationship.Runtime.MovementAgent == null,
+                "Pending boundary failure drained, then cleanup left no KMC relationship residue.",
+                "Pending boundary failure drained, but cleanup left KMC relationship residue.");
+            if (snapshot != null && relationship.State != RelationshipState.Disposed)
+            {
+                AssertUnmountedAndRestored(snapshot, true);
+            }
+            CompleteRemainingAsNotRun("Boundary suite stopped after a safety-significant row failure: " + failureDrain.Failure);
+            CompleteCore();
+        }
+
+        private bool BestEffortCleanup()
+        {
+            if (IsLoading())
+            {
+                return false;
+            }
+
             try
             {
                 if (relationship.State != RelationshipState.Unmounted && relationship.State != RelationshipState.Disposed)
@@ -782,13 +886,16 @@ namespace KingmakerMountedCombat.Diagnostics
                     if (!cleanup.Succeeded || cleanup.MovementAuthorityResidual || cleanup.PresentationResidual)
                     {
                         errors.Add("Boundary-engine best-effort cleanup retained mounted runtime residue.");
+                        return false;
                     }
                 }
+                return relationship.State == RelationshipState.Unmounted || relationship.State == RelationshipState.Disposed;
             }
             catch (Exception exception)
             {
                 errors.Add("Boundary-engine best-effort cleanup threw " + exception.GetType().Name + ": " + exception.Message);
                 logger.Exception("Boundary-engine best-effort cleanup threw", exception);
+                return false;
             }
         }
 
@@ -847,6 +954,17 @@ namespace KingmakerMountedCombat.Diagnostics
         }
 
         private void Complete()
+        {
+            if (IsLoading())
+            {
+                AbortSuite("Boundary engine reached completion while Kingmaker loading was still active.");
+                return;
+            }
+
+            CompleteCore();
+        }
+
+        private void CompleteCore()
         {
             BestEffortCleanup();
             RestoreSettings();
@@ -918,6 +1036,57 @@ namespace KingmakerMountedCombat.Diagnostics
             AwaitLoadCompletion,
             AwaitAreaCleanup,
             AwaitAreaCompletion
+        }
+
+        private sealed class FileIdentitySnapshot
+        {
+            public long Length { get; private set; }
+
+            public long LastWriteTimeUtcTicks { get; private set; }
+
+            public string Sha256 { get; private set; }
+
+            public static bool TryCapture(string path, out FileIdentitySnapshot snapshot, out string error)
+            {
+                snapshot = null;
+                error = null;
+                try
+                {
+                    var file = new FileInfo(path);
+                    if (!file.Exists || (file.Attributes & FileAttributes.ReparsePoint) != 0)
+                    {
+                        error = "path was missing or a reparse point";
+                        return false;
+                    }
+
+                    snapshot = new FileIdentitySnapshot
+                    {
+                        Length = file.Length,
+                        LastWriteTimeUtcTicks = file.LastWriteTimeUtc.Ticks,
+                        Sha256 = ComputeSha256(path)
+                    };
+                    return true;
+                }
+                catch (Exception exception)
+                {
+                    error = exception.GetType().Name + ": " + exception.Message;
+                    return false;
+                }
+            }
+
+            public bool Matches(RuntimeSaveDescriptor expected)
+            {
+                return expected != null && Length == expected.Length &&
+                    LastWriteTimeUtcTicks == expected.LastWriteTimeUtcTicks &&
+                    string.Equals(Sha256, expected.Sha256, StringComparison.Ordinal);
+            }
+
+            public bool Equals(FileIdentitySnapshot other)
+            {
+                return other != null && Length == other.Length &&
+                    LastWriteTimeUtcTicks == other.LastWriteTimeUtcTicks &&
+                    string.Equals(Sha256, other.Sha256, StringComparison.Ordinal);
+            }
         }
 
         private sealed class PairSnapshot
