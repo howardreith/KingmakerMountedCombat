@@ -1,0 +1,6 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <KingmakerInstallDir>C:\Program Files (x86)\Steam\steamapps\common\Pathfinder Kingmaker</KingmakerInstallDir>
+    <WrathInstallDir>C:\Program Files (x86)\Steam\steamapps\common\Pathfinder Second Adventure</WrathInstallDir>
+  </PropertyGroup>
+</Project>

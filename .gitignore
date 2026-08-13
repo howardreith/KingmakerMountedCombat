@@ -1,0 +1,6 @@
+LocalGamePaths.props
+bin/
+obj/
+.vs/
+*.user
+*.suo
