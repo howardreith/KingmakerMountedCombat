@@ -4,7 +4,7 @@ Status: BLOCKED — CRITICAL
 
 ## Outcome
 
-The contract-first and scaffold portions of Phase 1 are complete. Exact local evidence supports a bounded Architecture B experiment—authoritative mount movement plus rider logical/view proxy—but the movement vertical slice cannot be qualified because no project-owned KMC baseline or working save exists. There are zero exact KMC candidates for each fixture. No architecture kill criterion has fired, so neither `PROCEED RECOMMENDED` nor `PIVOT RECOMMENDED` would be truthful.
+The contract-first, scaffold, and offline implementation portions of Phase 1 are complete. Exact local evidence supports a bounded Architecture B experiment—authoritative mount movement plus rider logical/view proxy—but the movement vertical slice cannot be qualified because the exact filename audit reports one canonical baseline and zero canonical Working candidates. The baseline is `Manual_298_KMC_AUTOMATION_BASELINE.zks`; `Manual_299_KMC_AUTOMATION_WORKING_.zks` is a rejected trailing-underscore near-match and provides no authority to inspect, rename, or load it. No architecture kill criterion has fired, so neither `PROCEED RECOMMENDED` nor `PIVOT RECOMMENDED` would be truthful.
 
 ## Exact targets
 
@@ -30,9 +30,9 @@ Kingmaker has no rider part, saddled part, mounted controller, paired command, m
 - exact ground-command recipient, selection, stop/hold, continuous-movement, save/load, and lifecycle seams;
 - normal entity/view commit and a pair-local `LateUpdate` presentation adapter.
 
-Relationship state, command projection, rider synchronization, cleanup ownership, telemetry, and visual attachment therefore require original implementation. Combat/action coupling is deliberately simplified to immediate cleanup. Persistence is rejected for Phase 1.
+Relationship state, command projection, rider synchronization, cleanup ownership, telemetry, and visual attachment therefore require original implementation. The default-off relationship, fixture-bound protocol, exact descriptor guard, Working-only transaction recovery, lifecycle/movement/boundary scenario engines, and evidence-manifest binding are implemented and offline-qualified. Combat/action coupling is deliberately simplified to immediate cleanup. Persistence is rejected for Phase 1. The filename gate stopped before any real descriptor or archive was opened, so none of this current implementation is live-qualified.
 
-Coverage is recorded as 21 responsibility rows in the assembly matrix, 15 machine-readable map entries, and 11 dependency-closure concerns (10 PASS, 1 view/presentation IN PROGRESS). Exact assembly-backed qualification is 29 PASS / 0 FAIL.
+Coverage is recorded as 21 responsibility rows in the assembly matrix, 15 machine-readable map entries, and 11 dependency-closure concerns (10 PASS, 1 view/presentation IN PROGRESS). The current offline gate is source validation 21 PASS / 0 FAIL, build 1 PASS / 0 FAIL, pure/component 56 PASS / 0 FAIL, guarded harness/protocol 58 PASS / 0 FAIL, and assembly-backed qualification 47 PASS / 0 FAIL (Kingmaker 36, Wrath 11).
 
 ## Candidate and presentation
 
@@ -50,6 +50,6 @@ No mounted pair was created. Movement samples, maximum residual/drift, doorway c
 
 ## Critical blocker
 
-The save root has 269 entries and no exact `KMC_AUTOMATION_BASELINE` or `KMC_AUTOMATION_WORKING` file. Foreign KBP/KMG fixtures are prohibited. No valued archive was opened. There is no safe autonomous way to create the required Medium rider plus rank-7+ Mammoth campaign state. Mission §26.2 therefore stops the investigation before fixture-backed runtime work.
+The exact filename audit reports one canonical baseline, `Manual_298_KMC_AUTOMATION_BASELINE.zks`, and zero canonical Working candidates. The only Working-looking filename is the rejected `Manual_299_KMC_AUTOMATION_WORKING_.zks` near-match. Foreign KBP/KMG fixtures are prohibited, filenames alone do not establish internal identity, and neither KMC archive nor any valued archive was opened. The implemented descriptor guard therefore cannot inspect or durably qualify the fixture pair. Mission §26.2 stops the investigation before fixture-backed runtime work because baseline and Working identity cannot be distinguished safely.
 
 Load-bearing details: `planning/ASSEMBLY-CONTRACT-MATRIX.md`, `planning/MOUNTED-SUBSYSTEM-DEPENDENCY-GRAPH.md`, `planning/KINGMAKER-WRATH-TYPE-MAP.json`, `planning/ASSET-RIG-ANIMATION-INVENTORY.md`, and `planning/RISK-AND-KILL-CRITERIA.md`.

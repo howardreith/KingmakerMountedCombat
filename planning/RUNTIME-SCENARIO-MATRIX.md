@@ -2,7 +2,9 @@
 
 Status: BLOCKED — CRITICAL
 
-The guarded no-save scaffold is qualified. Fixture-backed scenarios cannot start because the save root contains zero exact `KMC_AUTOMATION_BASELINE` candidates and zero exact `KMC_AUTOMATION_WORKING` candidates. Other-project fixtures are prohibited and no valued save archive was opened.
+The guarded no-save scaffold is qualified. Fixture-backed scenarios cannot start because the exact filename audit currently reports one canonical Baseline candidate, zero canonical Working candidates, and one rejected trailing-underscore near-match: `Manual_299_KMC_AUTOMATION_WORKING_.zks`. The exact Baseline is `Manual_298_KMC_AUTOMATION_BASELINE.zks`. The filename-first gate stopped before either KMC archive was opened; other-project and personal fixtures remain prohibited.
+
+Offline gate ledger: source validation 21 PASS / 0 FAIL; pure/component 56 PASS / 0 FAIL; guarded harness/protocol 58 PASS / 0 FAIL; assembly-backed 47 PASS / 0 FAIL (Kingmaker 36, Wrath 11). These are implementation and protocol qualifications, not fixture-backed runtime proof.
 
 ## Executed runtime evidence
 
@@ -19,16 +21,16 @@ Both final PASS runs proved Kingmaker `2.1.7b`, exact gameplay assembly hash/MVI
 | Group | Scenario | Save needed | Status | Evidence / remaining acceptance |
 |---|---|---:|---|---|
 | Scaffold | `mod-load-smoke` | No | PASS | Two same-commit fresh-process passes with exact restore |
-| Forensics | `export-mounted-contracts` | No | DEFER — EVIDENCED | Exact offline map plus 29 assembly-backed checks already provide the bounded export; a literal runtime export would duplicate evidence and is not claimed as run |
-| Forensics | `export-candidate-mount-rigs` | Fixture for meaningful live view | DEFER — EVIDENCED | Exact read-only native asset metadata is recorded; no-area prefab instantiation has no qualified lifecycle seam and would not prove animation stability |
+| Forensics | `export-mounted-contracts` | Working fixture under the schema-v2 host | DEFER — EVIDENCED | Exact offline map plus 47 assembly-backed checks already provide the bounded contract evidence; a literal runtime export is not claimed as run |
+| Forensics | `export-candidate-mount-rigs` | Working fixture for a meaningful live view | DEFER — EVIDENCED | Exact read-only native asset metadata is recorded; no-area prefab instantiation would not prove animation stability |
 | Forensics | `observe-mount-diagnostic-availability` | Working fixture | DEFER — EVIDENCED | Requires an exact valid rider/Mammoth pair and diagnostic UI observation |
 | Lifecycle | `mounted-pair-create-and-clear` | Working fixture | DEFER — EVIDENCED | State transitions plus zero movement/view/selection residue |
 | Lifecycle | `mounted-pair-double-mount-rejected` | Working fixture | DEFER — EVIDENCED | Exact rejection and unchanged pair state |
 | Lifecycle | `mounted-pair-invalid-pair-rejected` | Working fixture | DEFER — EVIDENCED | Validation reason and no mutation |
 | Lifecycle | `mounted-pair-cleanup-idempotent` | Working fixture | DEFER — EVIDENCED | Repeated cleanup plus zero residue |
-| Lifecycle | `mounted-pair-death-cleanup` | Working fixture | DEFER — EVIDENCED | Trigger, best-effort cleanup, and restored agent/view state |
-| Lifecycle | `mounted-pair-combat-start-cleanup` | Working fixture | DEFER — EVIDENCED | Cleanup completes before ordinary combat behavior |
-| Lifecycle | `mounted-pair-area-unload-cleanup` | Working fixture | DEFER — EVIDENCED | No retained relationship, override, avoidance lease, or view attachment |
+| Lifecycle | `mounted-pair-death-cleanup` | Working fixture | DEFER — EVIDENCED | Engine invokes the exact lifecycle handler directly, then checks next-frame restored agent/view state; EventBus delivery is not yet runtime-proven |
+| Lifecycle | `mounted-pair-combat-start-cleanup` | Working fixture | DEFER — EVIDENCED | Engine invokes the exact lifecycle handler directly and requires cleanup before continuing; live EventBus ordering is not yet runtime-proven |
+| Lifecycle | `mounted-pair-area-unload-cleanup` | Working fixture | DEFER — EVIDENCED | Direct area-unload handler probe requires no retained relationship, override, or avoidance lease; live EventBus delivery is not yet runtime-proven |
 | Lifecycle | `mounted-pair-mod-disable-cleanup` | Working fixture | DEFER — EVIDENCED | Disable returns only after zero residue |
 | Movement | `mounted-pair-open-ground` | Working fixture | DEFER — EVIDENCED | Destination, one mover, no oscillation, residual `<= 0.10` world unit |
 | Movement | `mounted-pair-stop-start` | Working fixture | DEFER — EVIDENCED | Repeated start/stop and stationary drift wait |
@@ -38,14 +40,14 @@ Both final PASS runs proved Kingmaker `2.1.7b`, exact gameplay assembly hash/MVI
 | Movement | `mounted-pair-party-formation` | Working fixture | DEFER — EVIDENCED | One mover, no duplicate slot, no non-mounted party interference |
 | Movement | `mounted-pair-pause-unpause` | Working fixture | DEFER — EVIDENCED | Stable state, command, and destination across pause |
 | Movement | `mounted-pair-destination-cancel` | Working fixture | DEFER — EVIDENCED | Pair command and both effective representations stop |
-| Boundary | `mounted-pair-turn-based-entry-cleanup` | Working fixture | DEFER — EVIDENCED | Clean dismount before mode entry |
-| Boundary | `mounted-pair-realtime-entry-cleanup` | Working fixture | DEFER — EVIDENCED | Clean dismount before mode entry |
-| Boundary | `mounted-pair-save-safety` | Baseline + working fixtures | DEFER — EVIDENCED | No relationship serialized; baseline immutable |
-| Boundary | `mounted-pair-load-safety` | Baseline + working fixtures | DEFER — EVIDENCED | No relationship reconstructed and no half-mounted state |
-| Boundary | `mounted-pair-area-transition-safety` | Working fixture | DEFER — EVIDENCED | No half-mounted state after transition |
+| Boundary | `mounted-pair-turn-based-entry-cleanup` | Working fixture | DEFER — EVIDENCED | Direct turn-based lifecycle-handler probe requires clean dismount; a real controller/EventBus transition is not yet runtime-proven |
+| Boundary | `mounted-pair-realtime-entry-cleanup` | Working fixture | DEFER — EVIDENCED | Direct realtime lifecycle-handler probe requires clean dismount; a real controller/EventBus transition is not yet runtime-proven |
+| Boundary | `mounted-pair-save-safety` | Baseline + Working fixtures | DEFER — EVIDENCED | Proves mounted cleanup, unchanged Working bytes, zero stock-save requests, and absence of custom relationship serialization. It deliberately does not invoke unsafe `SaveRoutine` and does not prove a completed stock-save cycle |
+| Boundary | `mounted-pair-load-safety` | Baseline + Working fixtures | DEFER — EVIDENCED | Uses the exact qualified Working reload through the real guarded load boundary; requires no reconstructed or half-mounted state |
+| Boundary | `mounted-pair-area-transition-safety` | Working fixture | DEFER — EVIDENCED | Direct cleanup-handler invocation precedes real `ReloadArea(AutoSaveMode.None)`; this proves the adapter boundary only if run, not independent EventBus delivery timing |
 
 Required per-sample movement telemetry remains: run/evidence identity and UTC; branch/commit/version/DLL hash/MVID; stable rider/mount IDs; relationship/combat/turn-based state; requested destination and authoritative mover; both stock-agent and avoidance flags; entity/view/anchor position and rotation; position and rotation residuals; selection, active commands, and formation state; cleanup trigger/result/residue; exceptions; Mods restoration; save protection.
 
 Visual evidence must independently cover idle, walk, run when available, turn, stop, selection circle, party movement, doorway/corner, and the instantaneous diagnostic mount/dismount transition. Telemetry cannot substitute for visual classification.
 
-Scenario-row result: 1 PASS / 0 FAIL / 24 DEFER — EVIDENCED. Live process attempts: 2 PASS / 2 FAIL, with both failures preserved as repaired harness regressions. Movement samples: 0. Maximum drift/residual, doorway/control, selection, formation, lifecycle residue, and visual classification are not measured.
+Scenario-row result: 1 PASS / 0 FAIL / 24 DEFER — EVIDENCED. Live process attempts: 2 PASS / 2 FAIL, with both failures preserved as repaired harness regressions. Movement samples: 0. Maximum drift/residual, doorway/control, selection, formation, lifecycle residue, and visual classification are not measured. No fixture-backed row, direct-handler boundary probe, guarded load, or save-safety row has run.
