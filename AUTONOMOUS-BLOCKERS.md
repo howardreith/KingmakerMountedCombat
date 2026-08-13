@@ -2,6 +2,16 @@
 
 Status: IN PROGRESS
 
+## Active runtime blocker: native main-menu fixture bootstrap
+
+Status: IN PROGRESS
+
+The first guarded save-backed run, `20260813T225000Z-fixture-intake-pass1`, authorized exactly one load of the qualified Working fixture but failed before the load callback. Kingmaker logged `InvalidOperationException: Sequence contains no matching element` in `Player.PostLoad`; exact local assembly analysis maps this to the main-character identity not being present in deserialized `CrossSceneState.AllEntityData`. The result is a truthful FAIL with `CurrentMode=None`, no loaded area, and no fixture identity verification.
+
+The harness restored every external surface exactly: live Mods digest `c292c5c62a232a0ad7b32ed489139a8d135caa18e38151677f619bf7555c70cb`; save metadata digest `58a54974423316041e29d32b1093c5d6775dbd67fe2b37ffaea3c9ae27de19be`; immutable Baseline SHA-256 `c29d965c9ff5dc0f971659d9ae154877aa4a9a461ca220d1ce28e7c7fd9d2512`; restored Working SHA-256 `a5f7a7fb77f0465df1591360ecd1730e2c28215d83e27aafc70efef3110e6dc5`. The sole runtime-mutated Working was quarantined, not deleted. No process, lock, sentinel, or live residue remains.
+
+Exact tracing found the first implementation defect: `WorkingFixtureLoader` called `Game.LoadGame` directly from the title screen. The native PC path is `MainMenu.LoadGame` -> `EnterGame` -> `LoadBaseMechanics` -> `Game.Initialize` -> `Game.LoadGameFromMainMenu`. The bounded repair now uses that path and fails early when `LoadingProcess` becomes inactive before the registered callback; it passes 3 deterministic watchdog tests and 11 new exact assembly-backed contract checks. The presence of installed-mod data in the fixture is retained only as a secondary hypothesis; no installed-mod overlay will be attempted unless the native bootstrap retry fails and a separate safety/independence audit permits it.
+
 ## Cleared blocker: exact KMC fixture identity
 
 Status: PASS

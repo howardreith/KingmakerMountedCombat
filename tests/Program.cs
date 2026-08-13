@@ -27,6 +27,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("result requires lowercase evidence manifest SHA-256", ResultRequiresEvidenceManifestSha256);
             MountedRelationshipTests.Register(runner);
             RuntimeSaveAuthorizationTests.Register(runner);
+            WorkingFixtureLoadWatchdogTests.Register(runner);
             return runner.Complete();
         }
 

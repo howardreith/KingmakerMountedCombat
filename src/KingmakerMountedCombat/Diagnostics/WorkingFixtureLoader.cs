@@ -5,7 +5,9 @@ using System.Security.Cryptography;
 using Kingmaker;
 using Kingmaker.EntitySystem.Persistence;
 using Kingmaker.GameModes;
+using Kingmaker.UI.LoadingScreen;
 using KingmakerMountedCombat.Logging;
+using UnityEngine.SceneManagement;
 
 namespace KingmakerMountedCombat.Diagnostics
 {
@@ -29,6 +31,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private SaveInfo descriptor;
         private bool loadRoutineCompleted;
         private int stableReadyFrames;
+        private readonly WorkingFixtureLoadWatchdog loadWatchdog = new WorkingFixtureLoadWatchdog();
 
         public WorkingFixtureLoader(RuntimeRequest request, IModLogger logger)
         {
@@ -72,6 +75,18 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     throw new InvalidOperationException("Working fixture loader refuses to replace an already loaded area.");
                 }
+                if (!game.IsControllerMouse || !SceneManager.GetSceneByName(SceneName.MainMenu).isLoaded)
+                {
+                    throw new InvalidOperationException("Working fixture loader requires the exact PC main-menu scene.");
+                }
+                if (game.UI == null || game.UI.MainMenu == null || LoadingScreen.Instance == null)
+                {
+                    throw new InvalidOperationException("Kingmaker native main-menu or loading-screen bootstrap is unavailable.");
+                }
+                if (LoadingProcess.Instance.IsLoadingInProcess)
+                {
+                    throw new InvalidOperationException("Working fixture loader refuses to overlap an active Kingmaker loading process.");
+                }
 
                 var root = Path.GetFullPath(game.SaveManager.SavePath).TrimEnd(Path.DirectorySeparatorChar);
                 var working = request.Fixture.Working;
@@ -108,10 +123,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     throw new InvalidOperationException("Exact Working fixture changed between descriptor inspection and load authorization.");
                 }
 
-                game.SaveManager.AddCallbackAfterLoad(HandleLoadRoutineCompleted);
                 State = WorkingFixtureLoadState.Loading;
-                game.LoadGame(descriptor);
-                logger.Info("Requested direct load of the exact qualified KMC Working fixture.");
+                game.SaveManager.AddCallbackAfterLoad(HandleLoadRoutineCompleted);
+                game.UI.MainMenu.LoadGame(descriptor);
+                logger.Info("Requested native main-menu load of the exact qualified KMC Working fixture.");
             }
             catch (Exception exception)
             {
@@ -126,13 +141,23 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 return true;
             }
-            if (State != WorkingFixtureLoadState.Loading || !loadRoutineCompleted)
+            if (State != WorkingFixtureLoadState.Loading)
             {
                 return false;
             }
 
             try
             {
+                var watchdogState = loadWatchdog.Observe(LoadingProcess.Instance.IsLoadingInProcess, loadRoutineCompleted);
+                if (watchdogState == WorkingFixtureLoadWatchdogState.PipelineStoppedBeforeCallback)
+                {
+                    throw new InvalidOperationException("Kingmaker loading pipeline stopped before the exact Working load callback completed.");
+                }
+                if (watchdogState != WorkingFixtureLoadWatchdogState.CallbackCompleted)
+                {
+                    return false;
+                }
+
                 var game = Game.Instance;
                 if (game == null || game.CurrentlyLoadedArea == null || game.Player == null || game.Player.MainCharacter.Value == null ||
                     game.CurrentMode != GameModeType.Default || LoadingProcess.Instance.IsLoadingInProcess)
