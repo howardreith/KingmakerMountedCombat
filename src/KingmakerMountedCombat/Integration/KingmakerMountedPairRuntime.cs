@@ -95,7 +95,7 @@ namespace KingmakerMountedCombat.Integration
                 RiderAgentOverrideAvailable = riderUnit.View != null && riderUnit.View.AgentOverride == null,
                 MountAgentOverrideAvailable = mountUnit.View != null && mountUnit.View.AgentOverride == null,
                 RiderIsExactlyMedium = riderState != null && (int)riderState.Size == 4,
-                DefaultGameMode = Game.Instance != null && Game.Instance.CurrentMode == GameModeType.Default
+                DefaultGameMode = Game.Instance != null && IsSafeMovementMode(Game.Instance.CurrentMode)
             };
         }
 
@@ -141,7 +141,7 @@ namespace KingmakerMountedCombat.Integration
             }
 
             if (rider.IsInCombat || mount.IsInCombat || (Game.Instance?.Player?.IsInCombat ?? false) ||
-                Game.Instance == null || Game.Instance.CurrentMode != GameModeType.Default)
+                Game.Instance == null || !IsSafeMovementMode(Game.Instance.CurrentMode))
             {
                 return "Mounted combat or game-mode boundary was crossed.";
             }
@@ -394,6 +394,11 @@ namespace KingmakerMountedCombat.Integration
             }
 
             return null;
+        }
+
+        private static bool IsSafeMovementMode(GameModeType mode)
+        {
+            return mode == GameModeType.Default || mode == GameModeType.Pause;
         }
     }
 }

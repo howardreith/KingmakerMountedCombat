@@ -4,7 +4,8 @@ param(
     [Parameter(Mandatory = $true)][string]$RequestPath,
     [Parameter(Mandatory = $true)][string]$FingerprintPath,
     [Parameter(Mandatory = $true)][int]$ExpectedProcessId,
-    [Parameter(Mandatory = $true)][DateTimeOffset]$NotBeforeUtc
+    [Parameter(Mandatory = $true)][DateTimeOffset]$NotBeforeUtc,
+    [switch]$RequirePass
 )
 
 $ErrorActionPreference = 'Stop'
@@ -123,14 +124,22 @@ if (-not [DateTimeOffset]::TryParse([string]$game.startedAtUtc,[ref]$started) -o
 $gameAuthority = @($fingerprint.kingmaker.files | Where-Object role -eq 'gameplayAssembly')[0]
 $umm = @($fingerprint.kingmaker.files | Where-Object role -eq 'umm')[0]
 $harmony = @($fingerprint.kingmaker.files | Where-Object role -eq 'harmony')[0]
-if ([string]$game.status -cne 'PASS' -or [string]$game.loadedModId -cne 'KingmakerMountedCombat' -or
+if ([string]$game.status -cnotin @('PASS','FAIL') -or [string]$game.loadedModId -cne 'KingmakerMountedCombat' -or
     [string]$game.gameVersion -cne [string]$fingerprint.kingmaker.displayVersion -or
     [string]$game.gameAssemblySha256 -cne [string]$gameAuthority.sha256 -or [string]$game.gameAssemblyMvid -cne [string]$gameAuthority.mvid -or
     [string]$game.ummVersion -cne '0.28.2.0' -or [string]$game.ummSha256 -cne [string]$umm.sha256 -or
     [string]$game.harmony12Version -cne '1.2.0.1' -or [string]$game.harmony12Sha256 -cne [string]$harmony.sha256) { throw 'Runtime game-result platform identity is not exact.' }
 if ([int]$game.processId -ne $ExpectedProcessId -or [string]::IsNullOrWhiteSpace([string]$game.currentGameMode) -or
-    [int]$game.frameCount -lt 10 -or [double]$game.elapsedSeconds -lt 1.0 -or
-    $null -eq $game.errors -or $game.errors -is [string] -or @($game.errors).Count -ne 0) { throw 'Runtime game-result process, timing, mode, or error state is invalid.' }
+    [int]$game.frameCount -lt 0 -or [double]$game.elapsedSeconds -lt 0.0 -or
+    $null -eq $game.errors -or $game.errors -is [string]) { throw 'Runtime game-result process, timing, mode, or error shape is invalid.' }
+if ([string]$game.status -ceq 'PASS' -and
+    ([int]$game.frameCount -lt 10 -or [double]$game.elapsedSeconds -lt 1.0 -or @($game.errors).Count -ne 0)) {
+    throw 'PASS runtime game result does not satisfy timing or zero-error qualification.'
+}
+if ([string]$game.status -ceq 'FAIL' -and @($game.errors).Count -eq 0) {
+    throw 'FAIL runtime game result does not contain a structured error.'
+}
+if ($RequirePass -and [string]$game.status -cne 'PASS') { throw 'Runtime game result did not qualify as PASS.' }
 
 if ($schemaVersion -eq 1) {
     if ([string]$game.relationshipState -cne 'Unmounted' -or $game.movementExperimentEnabled -ne $false -or
@@ -140,10 +149,15 @@ if ($schemaVersion -eq 1) {
 }
 
 Assert-FixtureEcho $game.fixture $request.fixture
-if ($game.fixtureIdentityVerified -ne $true -or [string]$game.relationshipState -cne 'Unmounted') { throw 'Save-backed runtime did not finish with verified fixture identity and an unmounted relationship.' }
-if ([int]$game.baselineLoadRequestCount -ne 0 -or [int]$game.unauthorizedLoadRequestCount -ne 0 -or [int]$game.unauthorizedSaveRequestCount -ne 0 -or [int]$game.workingLoadRequestCount -lt 1) { throw 'Save-backed runtime crossed its exact load/save allowlist.' }
 if ([int]$game.loadRequestCount -ne ([int]$game.baselineLoadRequestCount + [int]$game.workingLoadRequestCount + [int]$game.unauthorizedLoadRequestCount) -or
     [int]$game.saveRequestCount -ne ([int]$game.workingSaveRequestCount + [int]$game.unauthorizedSaveRequestCount)) { throw 'Save-backed runtime aggregate save/load counters do not reconcile.' }
 Assert-SubscenarioResults $game
-if ([int]$game.subscenarioFailCount -ne 0 -or [int]$game.assertionFailCount -ne 0) { throw 'PASS runtime game result contains subscenario failures.' }
-Write-Host 'TOTAL PASS=39 FAIL=0'
+if ([string]$game.status -ceq 'PASS') {
+    if ($game.fixtureIdentityVerified -ne $true -or [string]$game.relationshipState -cne 'Unmounted') { throw 'Save-backed PASS did not finish with verified fixture identity and an unmounted relationship.' }
+    if ([int]$game.baselineLoadRequestCount -ne 0 -or [int]$game.unauthorizedLoadRequestCount -ne 0 -or [int]$game.unauthorizedSaveRequestCount -ne 0 -or [int]$game.workingLoadRequestCount -lt 1) { throw 'Save-backed PASS crossed its exact load/save allowlist.' }
+    if ([int]$game.subscenarioFailCount -ne 0 -or [int]$game.assertionFailCount -ne 0) { throw 'PASS runtime game result contains subscenario failures.' }
+}
+else {
+    if ([int]$game.subscenarioFailCount -lt 1 -or [int]$game.assertionFailCount -lt 1) { throw 'FAIL runtime game result lacks a failed subscenario assertion.' }
+}
+Write-Host "TOTAL PASS=$(if([string]$game.status -ceq 'PASS'){39}else{34}) FAIL=0"

@@ -46,8 +46,8 @@
         "loadedAreaPresent": { "const": false },
         "saveRequestCount": { "const": 0 },
         "loadRequestCount": { "const": 0 },
-        "frameCount": { "type": "integer", "minimum": 10 },
-        "elapsedSeconds": { "type": "number", "minimum": 1 },
+        "frameCount": { "type": "integer", "minimum": 0 },
+        "elapsedSeconds": { "type": "number", "minimum": 0 },
         "errors": { "$ref": "#/definitions/errors" }
       }
     },
@@ -94,8 +94,8 @@
         "loadedAreaPresent": { "type": "boolean" },
         "saveRequestCount": { "type": "integer", "minimum": 0 },
         "loadRequestCount": { "type": "integer", "minimum": 0 },
-        "frameCount": { "type": "integer", "minimum": 10 },
-        "elapsedSeconds": { "type": "number", "minimum": 1 },
+        "frameCount": { "type": "integer", "minimum": 0 },
+        "elapsedSeconds": { "type": "number", "minimum": 0 },
         "errors": { "$ref": "#/definitions/errors" },
         "fixture": { "$ref": "#/definitions/fixture" },
         "fixtureIdentityVerified": { "type": "boolean" },

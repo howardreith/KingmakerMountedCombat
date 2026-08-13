@@ -33,7 +33,11 @@ namespace KingmakerMountedCombat
                     logger,
                     loadedModId,
                     () => relationship.State.ToString(),
-                    () => settings.EnableUnsafeMovementExperiment);
+                    () => settings.EnableUnsafeMovementExperiment,
+                    saveAuthorization,
+                    relationship,
+                    lifecycle,
+                    settings);
                 if (runtimeAutomation != null)
                 {
                     movementTelemetry = new MovementTelemetryWriter(runtimeAutomation.EvidenceRoot, runtimeAutomation.Scenario, runtimeAutomation.RunId, relationship.Runtime, () => relationship.State.ToString(), settings.TelemetryIntervalSeconds);
@@ -42,11 +46,11 @@ namespace KingmakerMountedCombat
             catch (Exception constructionException)
             {
                 Exception rollbackException = null;
-                try { patches?.Dispose(); } catch (Exception exception) { rollbackException = exception; }
+                try { movementTelemetry?.Dispose(); } catch (Exception exception) { rollbackException = exception; }
+                try { runtimeAutomation?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
+                try { patches?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { lifecycle?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { relationship?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
-                try { runtimeAutomation?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
-                try { movementTelemetry?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 if (rollbackException != null)
                 {
                     throw new AggregateException("Composition-root construction and rollback both failed.", constructionException, rollbackException);
@@ -58,6 +62,8 @@ namespace KingmakerMountedCombat
         public bool IsEnabled { get; private set; }
 
         internal RuntimeSaveAuthorization SaveAuthorization => saveAuthorization;
+
+        internal MountedLifecycleSubscriber Lifecycle => lifecycle;
 
         public bool SetEnabled(bool enabled)
         {
@@ -127,10 +133,10 @@ namespace KingmakerMountedCombat
                 throw new InvalidOperationException("Composition root cannot dispose while mounted cleanup residue remains.");
             }
 
+            movementTelemetry?.Dispose();
+            runtimeAutomation?.Dispose();
             patches.Dispose();
             lifecycle.Dispose();
-            runtimeAutomation?.Dispose();
-            movementTelemetry?.Dispose();
             relationship.Dispose();
             IsEnabled = false;
             disposed = true;

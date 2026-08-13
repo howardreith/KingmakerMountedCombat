@@ -51,6 +51,11 @@ namespace KingmakerMountedCombat.Diagnostics
         private int generation;
         private int fatalViolationCount;
         private string lastFatalViolation;
+        private int authorizedLoadCount;
+        private int authorizedWriteCount;
+        private int unauthorizedLoadCount;
+        private int unauthorizedWriteCount;
+        private int baselineLoadRequestCount;
 
         public event Action<string> FatalViolation;
 
@@ -87,6 +92,16 @@ namespace KingmakerMountedCombat.Diagnostics
             }
         }
 
+        public int AuthorizedLoadCount { get { lock (sync) { return authorizedLoadCount; } } }
+
+        public int AuthorizedWriteCount { get { lock (sync) { return authorizedWriteCount; } } }
+
+        public int UnauthorizedLoadCount { get { lock (sync) { return unauthorizedLoadCount; } } }
+
+        public int UnauthorizedWriteCount { get { lock (sync) { return unauthorizedWriteCount; } } }
+
+        public int BaselineLoadRequestCount { get { lock (sync) { return baselineLoadRequestCount; } } }
+
         public IDisposable Activate(RuntimeFixtureIdentity fixture, string saveRoot, bool allowWorkingWrites)
         {
             if (fixture == null)
@@ -122,6 +137,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 generation++;
                 fatalViolationCount = 0;
                 lastFatalViolation = null;
+                authorizedLoadCount = 0;
+                authorizedWriteCount = 0;
+                unauthorizedLoadCount = 0;
+                unauthorizedWriteCount = 0;
+                baselineLoadRequestCount = 0;
                 return new AuthorizationLease(this, generation);
             }
         }
@@ -142,7 +162,29 @@ namespace KingmakerMountedCombat.Diagnostics
             var rejection = ValidateActiveRequest(scope, operation, target, observedSaveRoot);
             if (rejection == null)
             {
+                lock (sync)
+                {
+                    if (operation == RuntimeSaveOperation.Load) { authorizedLoadCount++; }
+                    else { authorizedWriteCount++; }
+                }
                 return new RuntimeSaveAuthorizationDecision(true, false, "Exact KMC Working save target authorized.");
+            }
+
+            lock (sync)
+            {
+                if (operation == RuntimeSaveOperation.Load)
+                {
+                    if (target != null && (string.Equals(target.InternalName, RuntimeRequest.BaselineSaveName, StringComparison.Ordinal) ||
+                        string.Equals(target.FileName, scope.BaselineFileName, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        baselineLoadRequestCount++;
+                    }
+                    else
+                    {
+                        unauthorizedLoadCount++;
+                    }
+                }
+                else { unauthorizedWriteCount++; }
             }
 
             ReportFatal(rejection);
@@ -162,6 +204,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     return;
                 }
+
+                if (operation == RuntimeSaveOperation.Load) { unauthorizedLoadCount++; }
+                else { unauthorizedWriteCount++; }
             }
 
             ReportFatal("Blocked " + OperationName(operation) + ": " + reason);

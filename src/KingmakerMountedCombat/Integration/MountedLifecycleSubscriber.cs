@@ -50,12 +50,12 @@ namespace KingmakerMountedCombat.Integration
 
         public void OnGameModeStart(GameModeType gameMode)
         {
-            if (gameMode != GameModeType.Default) { service.Dismount(CleanupTrigger.AreaUnloading); }
+            if (gameMode != GameModeType.Default && gameMode != GameModeType.Pause) { service.Dismount(CleanupTrigger.AreaUnloading); }
         }
 
         public void OnGameModeStop(GameModeType gameMode)
         {
-            if (gameMode != GameModeType.Default) { service.Dismount(CleanupTrigger.AreaUnloading); }
+            if (gameMode != GameModeType.Default && gameMode != GameModeType.Pause) { service.Dismount(CleanupTrigger.AreaUnloading); }
         }
 
         public void OnAreaBeginUnloading()

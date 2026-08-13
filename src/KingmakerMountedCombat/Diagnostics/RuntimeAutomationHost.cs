@@ -5,6 +5,7 @@ using System.IO;
 using System.Reflection;
 using System.Security.Cryptography;
 using KingmakerMountedCombat.Logging;
+using KingmakerMountedCombat.Integration;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
 using UnityEngine;
@@ -32,14 +33,26 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly string loadedModId;
         private readonly Func<string> relationshipStateProvider;
         private readonly Func<bool> movementExperimentProvider;
+        private readonly RuntimeSaveAuthorization saveAuthorization;
+        private readonly GameMountedRelationshipService relationship;
+        private readonly MountedLifecycleSubscriber lifecycle;
+        private readonly DiagnosticSettings diagnosticSettings;
         private readonly string resultPath;
         private readonly DateTimeOffset startedAt;
+        private readonly Stopwatch runtimeClock;
         private int frameCount;
         private double elapsedSeconds;
         private bool completed;
         private bool disposed;
         private int saveRequestCount;
         private int loadRequestCount;
+        private IDisposable saveAuthorizationLease;
+        private WorkingFixtureLoader fixtureLoader;
+        private bool fixtureLoaderStarted;
+        private bool fixtureIdentityVerified;
+        private bool fixtureScenarioCompleted;
+        private IReadOnlyList<RuntimeSubscenarioResult> subscenarioResults;
+        private RuntimeLifecycleScenarioEngine lifecycleEngine;
 
         private static RuntimeAutomationHost active;
 
@@ -49,19 +62,54 @@ namespace KingmakerMountedCombat.Diagnostics
 
         public string RunId => request.RunId;
 
-        private RuntimeAutomationHost(IModLogger logger, RuntimeRequest request, string loadedModId, Func<string> relationshipStateProvider, Func<bool> movementExperimentProvider)
+        private RuntimeAutomationHost(
+            IModLogger logger,
+            RuntimeRequest request,
+            string loadedModId,
+            Func<string> relationshipStateProvider,
+            Func<bool> movementExperimentProvider,
+            RuntimeSaveAuthorization saveAuthorization,
+            GameMountedRelationshipService relationship,
+            MountedLifecycleSubscriber lifecycle,
+            DiagnosticSettings diagnosticSettings)
         {
             this.logger = logger;
             this.request = request;
             this.loadedModId = loadedModId;
             this.relationshipStateProvider = relationshipStateProvider;
             this.movementExperimentProvider = movementExperimentProvider;
+            this.saveAuthorization = saveAuthorization ?? throw new ArgumentNullException(nameof(saveAuthorization));
+            this.relationship = relationship ?? throw new ArgumentNullException(nameof(relationship));
+            this.lifecycle = lifecycle ?? throw new ArgumentNullException(nameof(lifecycle));
+            this.diagnosticSettings = diagnosticSettings ?? throw new ArgumentNullException(nameof(diagnosticSettings));
             resultPath = Path.Combine(request.EvidenceRoot, "runtime-game-result.json");
             startedAt = DateTimeOffset.UtcNow;
-            active = this;
+            runtimeClock = Stopwatch.StartNew();
+            try
+            {
+                if (request.SchemaVersion == RuntimeRequest.SaveBackedSchemaVersion)
+                {
+                    ActivateSaveBackedBoundary();
+                }
+                active = this;
+            }
+            catch
+            {
+                saveAuthorizationLease?.Dispose();
+                saveAuthorizationLease = null;
+                throw;
+            }
         }
 
-        public static RuntimeAutomationHost CreateFromCommandLine(IModLogger logger, string loadedModId, Func<string> relationshipStateProvider, Func<bool> movementExperimentProvider)
+        public static RuntimeAutomationHost CreateFromCommandLine(
+            IModLogger logger,
+            string loadedModId,
+            Func<string> relationshipStateProvider,
+            Func<bool> movementExperimentProvider,
+            RuntimeSaveAuthorization saveAuthorization,
+            GameMountedRelationshipService relationship,
+            MountedLifecycleSubscriber lifecycle,
+            DiagnosticSettings diagnosticSettings)
         {
             if (logger == null)
             {
@@ -121,7 +169,8 @@ namespace KingmakerMountedCombat.Diagnostics
             }
 
             logger.Info("Runtime automation request accepted: " + request.RunId + " / " + request.Scenario);
-            return new RuntimeAutomationHost(logger, request, loadedModId, relationshipStateProvider, movementExperimentProvider);
+            return new RuntimeAutomationHost(logger, request, loadedModId, relationshipStateProvider, movementExperimentProvider,
+                saveAuthorization, relationship, lifecycle, diagnosticSettings);
         }
 
         internal static void ObserveSaveRequest()
@@ -165,6 +214,18 @@ namespace KingmakerMountedCombat.Diagnostics
                 var ummAssembly = typeof(UnityModManager).Assembly;
                 var harmonyPath = Path.Combine(Path.GetDirectoryName(ummAssembly.Location), "0Harmony12.dll");
                 var now = DateTimeOffset.UtcNow;
+                if (request.SchemaVersion == RuntimeRequest.SaveBackedSchemaVersion)
+                {
+                    var failureName = RuntimeRequest.IsMissionScenario(request.Scenario)
+                        ? request.Scenario
+                        : "observe-mount-diagnostic-availability";
+                    var failureText = exception.GetType().FullName + ": " + exception.Message;
+                    var resultV2 = CreateBootstrapFailureV2(request, loadedModId, modAssembly, gameAssembly, ummAssembly, harmonyPath, now, failureName, failureText);
+                    WriteJsonAtomic(Path.Combine(request.EvidenceRoot, "runtime-game-result.json"), resultV2);
+                    logger.Warning("Runtime bootstrap failure evidence committed; requesting clean process exit.");
+                    return true;
+                }
+
                 var result = new RuntimeGameResult
                 {
                     SchemaVersion = 1,
@@ -185,12 +246,12 @@ namespace KingmakerMountedCombat.Diagnostics
                     GameAssemblyMvid = gameAssembly.ManifestModule.ModuleVersionId.ToString(),
                     UmmVersion = ummAssembly.GetName().Version.ToString(),
                     UmmSha256 = ComputeSha256(ummAssembly.Location),
-                    Harmony12Version = File.Exists(harmonyPath) ? AssemblyName.GetAssemblyName(harmonyPath).Version.ToString() : null,
-                    Harmony12Sha256 = File.Exists(harmonyPath) ? ComputeSha256(harmonyPath) : null,
+                    Harmony12Version = File.Exists(harmonyPath) ? AssemblyName.GetAssemblyName(harmonyPath).Version.ToString() : "Unavailable",
+                    Harmony12Sha256 = File.Exists(harmonyPath) ? ComputeSha256(harmonyPath) : new string('0', 64),
                     RelationshipState = "Unmounted",
                     MovementExperimentEnabled = false,
                     ProcessId = Process.GetCurrentProcess().Id,
-                    CurrentGameMode = Kingmaker.Game.Instance == null ? null : Kingmaker.Game.Instance.CurrentMode.ToString(),
+                    CurrentGameMode = Kingmaker.Game.Instance == null ? "Unavailable" : Kingmaker.Game.Instance.CurrentMode.ToString(),
                     LoadedAreaPresent = Kingmaker.Game.Instance != null && Kingmaker.Game.Instance.CurrentlyLoadedArea != null,
                     SaveRequestCount = 0,
                     LoadRequestCount = 0,
@@ -224,7 +285,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
 
             frameCount++;
-            elapsedSeconds += Math.Max(0.0f, deltaTime);
+            elapsedSeconds = runtimeClock.Elapsed.TotalSeconds;
             if (frameCount < 10 || elapsedSeconds < 1.0d)
             {
                 return;
@@ -232,9 +293,21 @@ namespace KingmakerMountedCombat.Diagnostics
 
             try
             {
+                if (elapsedSeconds > 120.0d)
+                {
+                    Complete("FAIL", new[] { "Runtime automation exceeded the bounded 120-second in-process deadline." });
+                    return;
+                }
+
+                if (request.SchemaVersion == RuntimeRequest.SaveBackedSchemaVersion)
+                {
+                    UpdateSaveBackedScenario();
+                    return;
+                }
+
                 if (!string.Equals(request.Scenario, "mod-load-smoke", StringComparison.Ordinal))
                 {
-                    Complete("FAIL", new[] { "This diagnostic build currently implements only mod-load-smoke." });
+                    Complete("FAIL", new[] { "Schema-v1 diagnostic build implements only mod-load-smoke." });
                     return;
                 }
 
@@ -262,9 +335,216 @@ namespace KingmakerMountedCombat.Diagnostics
             }
         }
 
+        private void UpdateSaveBackedScenario()
+        {
+            if (saveAuthorizationLease == null || fixtureLoader == null)
+            {
+                throw new InvalidOperationException("Save-backed authorization was not activated during host construction.");
+            }
+
+            if (!fixtureLoaderStarted)
+            {
+                fixtureLoaderStarted = true;
+                fixtureLoader.Start();
+                return;
+            }
+
+            if (saveAuthorization.FatalViolationCount != 0)
+            {
+                Complete("FAIL", new[] { saveAuthorization.LastFatalViolation ?? "Runtime save authorization reported an unspecified fatal violation." });
+                return;
+            }
+
+            if (fixtureLoader == null || !fixtureLoader.TryCompleteVerification())
+            {
+                return;
+            }
+
+            fixtureIdentityVerified = true;
+            if (fixtureScenarioCompleted)
+            {
+                return;
+            }
+
+            if (RuntimeLifecycleScenarioEngine.SupportsScenario(request.Scenario))
+            {
+                if (lifecycleEngine == null)
+                {
+                    lifecycleEngine = new RuntimeLifecycleScenarioEngine(request, relationship, lifecycle, diagnosticSettings, logger);
+                    lifecycleEngine.Start();
+                }
+                lifecycleEngine.Update();
+                if (!lifecycleEngine.IsCompleted)
+                {
+                    return;
+                }
+                subscenarioResults = lifecycleEngine.Results;
+            }
+            else if (string.Equals(request.Scenario, "fixture-intake", StringComparison.Ordinal))
+            {
+                subscenarioResults = new[]
+                {
+                    EvaluateMountedContracts(),
+                    EvaluateCandidateRig(),
+                    EvaluateDiagnosticAvailability()
+                };
+            }
+            else if (string.Equals(request.Scenario, "export-mounted-contracts", StringComparison.Ordinal))
+            {
+                subscenarioResults = new[] { EvaluateMountedContracts() };
+            }
+            else if (string.Equals(request.Scenario, "export-candidate-mount-rigs", StringComparison.Ordinal))
+            {
+                subscenarioResults = new[] { EvaluateCandidateRig() };
+            }
+            else if (string.Equals(request.Scenario, "observe-mount-diagnostic-availability", StringComparison.Ordinal))
+            {
+                subscenarioResults = new[] { EvaluateDiagnosticAvailability() };
+            }
+            else
+            {
+                var name = RuntimeRequest.IsMissionScenario(request.Scenario)
+                    ? request.Scenario
+                    : "observe-mount-diagnostic-availability";
+                subscenarioResults = new[]
+                {
+                    new RuntimeSubscenarioResult
+                    {
+                        Name = name,
+                        Status = "FAIL",
+                        AssertionPassCount = 0,
+                        AssertionFailCount = 1,
+                        Errors = new[] { "This diagnostic build does not yet implement the requested save-backed scenario engine." }
+                    }
+                };
+            }
+
+            fixtureScenarioCompleted = true;
+
+            var failures = new List<string>();
+            foreach (var result in subscenarioResults)
+            {
+                if (!string.Equals(result.Status, "PASS", StringComparison.Ordinal))
+                {
+                    failures.AddRange(result.Errors);
+                }
+            }
+            Complete(failures.Count == 0 ? "PASS" : "FAIL", failures);
+        }
+
+        private void ActivateSaveBackedBoundary()
+        {
+            var game = Kingmaker.Game.Instance;
+            if (game == null || game.SaveManager == null || game.CurrentlyLoadedArea != null)
+            {
+                throw new InvalidOperationException("Save-backed automation must start at the main menu with no loaded area.");
+            }
+
+            var allowExplicitWrites = string.Equals(request.Scenario, "mounted-pair-save-safety", StringComparison.Ordinal) ||
+                string.Equals(request.Scenario, "boundary-suite", StringComparison.Ordinal) ||
+                string.Equals(request.Scenario, "phase-1-runtime-suite", StringComparison.Ordinal);
+            saveAuthorizationLease = saveAuthorization.Activate(request.Fixture, game.SaveManager.SavePath, allowExplicitWrites);
+            fixtureLoader = new WorkingFixtureLoader(request, logger);
+        }
+
+        private RuntimeSubscenarioResult EvaluateMountedContracts()
+        {
+            var errors = new List<string>();
+            var passed = 0;
+            var failed = 0;
+            AssertRuntime(errors, typeof(Kingmaker.Game).Assembly.ManifestModule.ModuleVersionId == new Guid("07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"),
+                "Loaded Kingmaker Assembly-CSharp MVID differs from the qualified contract.", ref passed, ref failed);
+            AssertRuntime(errors, typeof(Kingmaker.EntitySystem.Persistence.SaveManager).GetMethod("LoadZipSave", new[] { typeof(string) }) != null,
+                "Exact SaveManager.LoadZipSave(string) seam is unavailable.", ref passed, ref failed);
+            AssertRuntime(errors, typeof(Kingmaker.Controllers.Units.UnitMoveController).GetMethod("Tick", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic) != null,
+                "Exact Kingmaker unit-movement controller seam is unavailable.", ref passed, ref failed);
+            return BuildSubscenario("export-mounted-contracts", passed, failed, errors);
+        }
+
+        private RuntimeSubscenarioResult EvaluateCandidateRig()
+        {
+            var errors = new List<string>();
+            var passed = 0;
+            var failed = 0;
+            Kingmaker.EntitySystem.Entities.UnitEntityData rider;
+            Kingmaker.EntitySystem.Entities.UnitEntityData mount;
+            string pairError;
+            var pairResolved = relationship.TryResolveAutomationPair(out rider, out mount, out pairError);
+            AssertRuntime(errors, pairResolved, pairError ?? "Exact Mammoth pair was not resolved.", ref passed, ref failed);
+            if (pairResolved)
+            {
+                AssertRuntime(errors, mount.Blueprint != null && string.Equals(mount.Blueprint.AssetGuid, KingmakerMountedPairRuntime.MammothBlueprintGuid, StringComparison.Ordinal),
+                    "Resolved mount is not the exact Mammoth blueprint.", ref passed, ref failed);
+                AssertRuntime(errors, mount.View != null && mount.View.AgentASP != null && mount.View.AgentASP.enabled,
+                    "Mammoth stock movement agent is unavailable or disabled.", ref passed, ref failed);
+                AssertRuntime(errors, mount.View != null && FindTransform(mount.View.transform, "Spine") != null,
+                    "Mammoth runtime view has no exact Spine anchor.", ref passed, ref failed);
+            }
+            return BuildSubscenario("export-candidate-mount-rigs", passed, failed, errors);
+        }
+
+        private RuntimeSubscenarioResult EvaluateDiagnosticAvailability()
+        {
+            var errors = new List<string>();
+            var passed = 0;
+            var failed = 0;
+            Kingmaker.EntitySystem.Entities.UnitEntityData rider;
+            Kingmaker.EntitySystem.Entities.UnitEntityData mount;
+            string pairError;
+            var resolved = relationship.TryResolveAutomationPair(out rider, out mount, out pairError);
+            AssertRuntime(errors, resolved, pairError ?? "Exact automation pair is unavailable.", ref passed, ref failed);
+            if (resolved)
+            {
+                AssertRuntime(errors, rider != mount, "Resolved rider and mount are the same unit.", ref passed, ref failed);
+                AssertRuntime(errors, (int)rider.Descriptor.State.Size == 4,
+                    "Resolved rider is not currently Medium.", ref passed, ref failed);
+                AssertRuntime(errors, (int)mount.Descriptor.State.Size > (int)rider.Descriptor.State.Size,
+                    "Resolved Mammoth is not currently larger than the rider.", ref passed, ref failed);
+                AssertRuntime(errors, !rider.IsInCombat && !mount.IsInCombat && !(Kingmaker.Game.Instance.Player?.IsInCombat ?? false),
+                    "Resolved pair or party is in combat.", ref passed, ref failed);
+                AssertRuntime(errors, Kingmaker.Game.Instance.CurrentMode == Kingmaker.GameModes.GameModeType.Default,
+                    "Loaded fixture is not in Default game mode.", ref passed, ref failed);
+            }
+            return BuildSubscenario("observe-mount-diagnostic-availability", passed, failed, errors);
+        }
+
+        private static RuntimeSubscenarioResult BuildSubscenario(string name, int passed, int failed, IReadOnlyList<string> errors)
+        {
+            return new RuntimeSubscenarioResult
+            {
+                Name = name,
+                Status = failed == 0 ? "PASS" : "FAIL",
+                AssertionPassCount = passed,
+                AssertionFailCount = failed,
+                Errors = errors
+            };
+        }
+
+        private static void AssertRuntime(List<string> errors, bool condition, string message, ref int passed, ref int failed)
+        {
+            if (condition) { passed++; }
+            else { failed++; errors.Add(message); }
+        }
+
+        private static Transform FindTransform(Transform current, string exactName)
+        {
+            if (current == null) { return null; }
+            if (string.Equals(current.name, exactName, StringComparison.Ordinal)) { return current; }
+            for (var index = 0; index < current.childCount; index++)
+            {
+                var found = FindTransform(current.GetChild(index), exactName);
+                if (found != null) { return found; }
+            }
+            return null;
+        }
+
         public void Dispose()
         {
             disposed = true;
+            lifecycleEngine?.Dispose();
+            lifecycleEngine = null;
+            saveAuthorizationLease?.Dispose();
+            saveAuthorizationLease = null;
             if (ReferenceEquals(active, this)) { active = null; }
         }
 
@@ -272,6 +552,12 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (completed)
             {
+                return;
+            }
+
+            if (request.SchemaVersion == RuntimeRequest.SaveBackedSchemaVersion)
+            {
+                CompleteSaveBacked(status, errors);
                 return;
             }
 
@@ -324,6 +610,223 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 Application.Quit();
             }
+        }
+
+        private void CompleteSaveBacked(string status, IReadOnlyList<string> errors)
+        {
+            var finalErrors = errors == null ? new List<string>() : new List<string>(errors);
+            diagnosticSettings.EnableUnsafeMovementExperiment = false;
+            var cleanup = relationship.Dismount(Domain.CleanupTrigger.Exception);
+            if (!cleanup.Succeeded || cleanup.MovementAuthorityResidual || cleanup.PresentationResidual ||
+                relationship.State != Domain.RelationshipState.Unmounted)
+            {
+                finalErrors.Add("Final runtime cleanup retained mounted movement or presentation residue.");
+                status = "FAIL";
+            }
+
+            var results = subscenarioResults;
+            if (results == null || results.Count == 0)
+            {
+                var name = RuntimeRequest.IsMissionScenario(request.Scenario)
+                    ? request.Scenario
+                    : "observe-mount-diagnostic-availability";
+                results = new[]
+                {
+                    new RuntimeSubscenarioResult
+                    {
+                        Name = name,
+                        Status = "FAIL",
+                        AssertionPassCount = 0,
+                        AssertionFailCount = 1,
+                        Errors = finalErrors.Count == 0
+                            ? (IReadOnlyList<string>)new[] { "Save-backed runtime failed before producing a named result." }
+                            : finalErrors
+                    }
+                };
+            }
+
+            if (finalErrors.Count != 0 && string.Equals(status, "PASS", StringComparison.Ordinal))
+            {
+                status = "FAIL";
+            }
+
+            if (string.Equals(status, "FAIL", StringComparison.Ordinal))
+            {
+                var hasFailedResult = false;
+                for (var index = 0; index < results.Count; index++)
+                {
+                    if (!string.Equals(results[index].Status, "PASS", StringComparison.Ordinal))
+                    {
+                        hasFailedResult = true;
+                        break;
+                    }
+                }
+                if (!hasFailedResult)
+                {
+                    var first = results[0];
+                    results = ReplaceFirstWithFailure(results, first, finalErrors.Count == 0
+                        ? (IReadOnlyList<string>)new[] { "Runtime ended in FAIL without a prior failed named assertion." }
+                        : finalErrors);
+                }
+            }
+
+            var subscenarioPassCount = 0;
+            var subscenarioFailCount = 0;
+            var assertionPassCount = 0;
+            var assertionFailCount = 0;
+            foreach (var result in results)
+            {
+                if (string.Equals(result.Status, "PASS", StringComparison.Ordinal)) { subscenarioPassCount++; }
+                else { subscenarioFailCount++; }
+                assertionPassCount += result.AssertionPassCount;
+                assertionFailCount += result.AssertionFailCount;
+            }
+
+            var modAssembly = typeof(Main).Assembly;
+            var gameAssembly = typeof(Kingmaker.Game).Assembly;
+            var ummAssembly = typeof(UnityModManager).Assembly;
+            var harmonyPath = Path.Combine(Path.GetDirectoryName(ummAssembly.Location), "0Harmony12.dll");
+            var game = Kingmaker.Game.Instance;
+            var resultPayload = new RuntimeGameResultV2
+            {
+                SchemaVersion = RuntimeRequest.SaveBackedSchemaVersion,
+                RunId = request.RunId,
+                Scenario = request.Scenario,
+                Status = status,
+                Branch = request.Branch,
+                Commit = request.Commit,
+                ProductVersion = request.ProductVersion,
+                DllSha256 = ComputeSha256(modAssembly.Location),
+                DllMvid = modAssembly.ManifestModule.ModuleVersionId.ToString(),
+                TransactionToken = request.TransactionToken,
+                StartedAtUtc = startedAt.ToString("o"),
+                CompletedAtUtc = DateTimeOffset.UtcNow.ToString("o"),
+                LoadedModId = loadedModId,
+                GameVersion = Kingmaker.GameVersion.GetVersion(),
+                GameAssemblySha256 = ComputeSha256(gameAssembly.Location),
+                GameAssemblyMvid = gameAssembly.ManifestModule.ModuleVersionId.ToString(),
+                UmmVersion = ummAssembly.GetName().Version.ToString(),
+                UmmSha256 = ComputeSha256(ummAssembly.Location),
+                Harmony12Version = File.Exists(harmonyPath) ? AssemblyName.GetAssemblyName(harmonyPath).Version.ToString() : null,
+                Harmony12Sha256 = File.Exists(harmonyPath) ? ComputeSha256(harmonyPath) : null,
+                RelationshipState = relationshipStateProvider(),
+                MovementExperimentEnabled = movementExperimentProvider(),
+                ProcessId = Process.GetCurrentProcess().Id,
+                CurrentGameMode = game == null ? null : game.CurrentMode.ToString(),
+                LoadedAreaPresent = game != null && game.CurrentlyLoadedArea != null,
+                SaveRequestCount = saveRequestCount,
+                LoadRequestCount = loadRequestCount,
+                FrameCount = frameCount,
+                ElapsedSeconds = elapsedSeconds,
+                Errors = finalErrors,
+                Fixture = request.Fixture,
+                FixtureIdentityVerified = fixtureIdentityVerified,
+                BaselineLoadRequestCount = saveAuthorization.BaselineLoadRequestCount,
+                WorkingLoadRequestCount = saveAuthorization.AuthorizedLoadCount,
+                WorkingSaveRequestCount = saveAuthorization.AuthorizedWriteCount,
+                UnauthorizedLoadRequestCount = saveAuthorization.UnauthorizedLoadCount,
+                UnauthorizedSaveRequestCount = saveAuthorization.UnauthorizedWriteCount,
+                SubscenarioTotal = results.Count,
+                SubscenarioPassCount = subscenarioPassCount,
+                SubscenarioFailCount = subscenarioFailCount,
+                AssertionPassCount = assertionPassCount,
+                AssertionFailCount = assertionFailCount,
+                SubscenarioResults = results
+            };
+
+            WriteJsonAtomic(resultPath, resultPayload);
+            completed = true;
+            try { logger.Info("Runtime automation result committed: " + status); }
+            finally { Application.Quit(); }
+        }
+
+        private static IReadOnlyList<RuntimeSubscenarioResult> ReplaceFirstWithFailure(
+            IReadOnlyList<RuntimeSubscenarioResult> source,
+            RuntimeSubscenarioResult first,
+            IReadOnlyList<string> failureErrors)
+        {
+            var replaced = new List<RuntimeSubscenarioResult>(source.Count);
+            replaced.Add(new RuntimeSubscenarioResult
+            {
+                Name = first.Name,
+                Status = "FAIL",
+                AssertionPassCount = first.AssertionPassCount,
+                AssertionFailCount = Math.Max(1, first.AssertionFailCount),
+                Errors = failureErrors
+            });
+            for (var index = 1; index < source.Count; index++)
+            {
+                replaced.Add(source[index]);
+            }
+            return replaced;
+        }
+
+        private static RuntimeGameResultV2 CreateBootstrapFailureV2(
+            RuntimeRequest request,
+            string loadedModId,
+            Assembly modAssembly,
+            Assembly gameAssembly,
+            Assembly ummAssembly,
+            string harmonyPath,
+            DateTimeOffset now,
+            string failureName,
+            string failureText)
+        {
+            var failedSubscenario = new RuntimeSubscenarioResult
+            {
+                Name = failureName,
+                Status = "FAIL",
+                AssertionPassCount = 0,
+                AssertionFailCount = 1,
+                Errors = new[] { failureText }
+            };
+            var game = Kingmaker.Game.Instance;
+            return new RuntimeGameResultV2
+            {
+                SchemaVersion = RuntimeRequest.SaveBackedSchemaVersion,
+                RunId = request.RunId,
+                Scenario = request.Scenario,
+                Status = "FAIL",
+                Branch = request.Branch,
+                Commit = request.Commit,
+                ProductVersion = request.ProductVersion,
+                DllSha256 = ComputeSha256(modAssembly.Location),
+                DllMvid = modAssembly.ManifestModule.ModuleVersionId.ToString(),
+                TransactionToken = request.TransactionToken,
+                StartedAtUtc = now.ToString("o"),
+                CompletedAtUtc = now.ToString("o"),
+                LoadedModId = loadedModId,
+                GameVersion = Kingmaker.GameVersion.GetVersion(),
+                GameAssemblySha256 = ComputeSha256(gameAssembly.Location),
+                GameAssemblyMvid = gameAssembly.ManifestModule.ModuleVersionId.ToString(),
+                UmmVersion = ummAssembly.GetName().Version.ToString(),
+                UmmSha256 = ComputeSha256(ummAssembly.Location),
+                Harmony12Version = File.Exists(harmonyPath) ? AssemblyName.GetAssemblyName(harmonyPath).Version.ToString() : "Unavailable",
+                Harmony12Sha256 = File.Exists(harmonyPath) ? ComputeSha256(harmonyPath) : new string('0', 64),
+                RelationshipState = "Unavailable",
+                MovementExperimentEnabled = false,
+                ProcessId = Process.GetCurrentProcess().Id,
+                CurrentGameMode = game == null ? "Unavailable" : game.CurrentMode.ToString(),
+                LoadedAreaPresent = game != null && game.CurrentlyLoadedArea != null,
+                SaveRequestCount = 0,
+                LoadRequestCount = 0,
+                FrameCount = 0,
+                ElapsedSeconds = 0.0d,
+                Errors = new[] { failureText },
+                Fixture = request.Fixture,
+                FixtureIdentityVerified = false,
+                BaselineLoadRequestCount = 0,
+                WorkingLoadRequestCount = 0,
+                WorkingSaveRequestCount = 0,
+                UnauthorizedLoadRequestCount = 0,
+                UnauthorizedSaveRequestCount = 0,
+                SubscenarioTotal = 1,
+                SubscenarioPassCount = 0,
+                SubscenarioFailCount = 1,
+                AssertionPassCount = 0,
+                AssertionFailCount = 1,
+                SubscenarioResults = new[] { failedSubscenario }
+            };
         }
 
         private void TryCompleteFailure(Exception exception)
@@ -428,6 +931,53 @@ namespace KingmakerMountedCombat.Diagnostics
             public int FrameCount { get; set; }
             public double ElapsedSeconds { get; set; }
             public IReadOnlyList<string> Errors { get; set; }
+        }
+
+        private sealed class RuntimeGameResultV2
+        {
+            public int SchemaVersion { get; set; }
+            public string RunId { get; set; }
+            public string Scenario { get; set; }
+            public string Status { get; set; }
+            public string Branch { get; set; }
+            public string Commit { get; set; }
+            public string ProductVersion { get; set; }
+            public string DllSha256 { get; set; }
+            public string DllMvid { get; set; }
+            public string TransactionToken { get; set; }
+            public string StartedAtUtc { get; set; }
+            public string CompletedAtUtc { get; set; }
+            public string LoadedModId { get; set; }
+            public string GameVersion { get; set; }
+            public string GameAssemblySha256 { get; set; }
+            public string GameAssemblyMvid { get; set; }
+            public string UmmVersion { get; set; }
+            public string UmmSha256 { get; set; }
+            public string Harmony12Version { get; set; }
+            public string Harmony12Sha256 { get; set; }
+            public string RelationshipState { get; set; }
+            public bool MovementExperimentEnabled { get; set; }
+            public int ProcessId { get; set; }
+            public string CurrentGameMode { get; set; }
+            public bool LoadedAreaPresent { get; set; }
+            public int SaveRequestCount { get; set; }
+            public int LoadRequestCount { get; set; }
+            public int FrameCount { get; set; }
+            public double ElapsedSeconds { get; set; }
+            public IReadOnlyList<string> Errors { get; set; }
+            public RuntimeFixtureIdentity Fixture { get; set; }
+            public bool FixtureIdentityVerified { get; set; }
+            public int BaselineLoadRequestCount { get; set; }
+            public int WorkingLoadRequestCount { get; set; }
+            public int WorkingSaveRequestCount { get; set; }
+            public int UnauthorizedLoadRequestCount { get; set; }
+            public int UnauthorizedSaveRequestCount { get; set; }
+            public int SubscenarioTotal { get; set; }
+            public int SubscenarioPassCount { get; set; }
+            public int SubscenarioFailCount { get; set; }
+            public int AssertionPassCount { get; set; }
+            public int AssertionFailCount { get; set; }
+            public IReadOnlyList<RuntimeSubscenarioResult> SubscenarioResults { get; set; }
         }
     }
 }

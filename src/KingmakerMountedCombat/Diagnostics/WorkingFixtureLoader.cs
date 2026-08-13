@@ -28,6 +28,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly List<string> errors = new List<string>();
         private SaveInfo descriptor;
         private bool loadRoutineCompleted;
+        private int stableReadyFrames;
 
         public WorkingFixtureLoader(RuntimeRequest request, IModLogger logger)
         {
@@ -100,6 +101,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
                 VerifyDescriptor(descriptor, working, candidate);
 
+                file.Refresh();
+                if (!file.Exists || file.Length != working.Length || file.LastWriteTimeUtc.Ticks != working.LastWriteTimeUtcTicks ||
+                    !string.Equals(ComputeSha256(candidate), working.Sha256, StringComparison.Ordinal))
+                {
+                    throw new InvalidOperationException("Exact Working fixture changed between descriptor inspection and load authorization.");
+                }
+
                 game.SaveManager.AddCallbackAfterLoad(HandleLoadRoutineCompleted);
                 State = WorkingFixtureLoadState.Loading;
                 game.LoadGame(descriptor);
@@ -127,8 +135,9 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 var game = Game.Instance;
                 if (game == null || game.CurrentlyLoadedArea == null || game.Player == null || game.Player.MainCharacter.Value == null ||
-                    game.CurrentMode != GameModeType.Default)
+                    game.CurrentMode != GameModeType.Default || LoadingProcess.Instance.IsLoadingInProcess)
                 {
+                    stableReadyFrames = 0;
                     return false;
                 }
 
@@ -144,6 +153,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!string.Equals(game.CurrentlyLoadedArea.AssetGuidThreadSafe, fixture.Area, StringComparison.Ordinal))
                 {
                     throw new InvalidOperationException("Loaded area identity differs from the qualified Working descriptor.");
+                }
+
+                stableReadyFrames++;
+                if (stableReadyFrames < 10)
+                {
+                    return false;
                 }
 
                 State = WorkingFixtureLoadState.LoadedAndVerified;

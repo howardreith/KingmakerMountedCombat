@@ -222,3 +222,17 @@
 - Current uncertainty: host/launcher activation and transaction composition are not yet wired; the exact live pair has not been observed.
 - External state/restoration result: PASS; no runtime process, Mods transaction, or save access occurred.
 - Exact next action: commit this engine boundary, then integrate protocol-v2 activation plus the Working transaction into the host and launcher before any real load.
+
+## 2026-08-13T20:57:34Z — save-backed orchestration and lifecycle engine qualification
+
+- Branch / exact HEAD: `codex/mounted-combat-feasibility` / `85ea08113eb875150edd1511f045f226f7a913d0`; this orchestration/lifecycle checkpoint is intentionally uncommitted.
+- Active version: `0.0.1-feasibility`.
+- Work completed: integrated schema-v2 host activation, direct exact-Working loading, fail-closed save authorization counters, monotonic host/load deadlines, stable post-load readiness, structured bootstrap/failure evidence, combined Working/Mods transactions and recovery under one token, explicit `-SaveAccessAllowed`, and eight frame-driven lifecycle rows with next-frame movement/avoidance/override residue checks. Corrected Pause mode handling so pause/unpause preserves the pair. Added a side-effect-free live-domain invalid-pair rejection probe. No real save was opened because the exact filename gate still reports baseline=1 / working=0; the only Working-looking filename remains the rejected trailing-underscore near-match.
+- Commands/tests run: repeated documented exact filename audit plus KMC filename-metadata audit; complete `scripts/Test.ps1 -Configuration Release`; PowerShell parse/WhatIf-oriented synthetic transaction tests; `git diff --check`.
+- Exact PASS/FAIL counts: source 21/0; build 1/0; pure/component 54/0; harness 46/0; assembly-backed 33/0 (Kingmaker 22, Wrath 11). Runtime fixture scenarios remain 0/0 because the filename prefilter stopped before archive access.
+- Runtime evidence IDs/paths: none created in this checkpoint; no process or external transaction was started.
+- Hashes/MVIDs: dirty-checkpoint DLL SHA-256 `6f8ac4a7af4c7e067a990bb34ed7daf87a9f0e48b96b966e8db0a5c87ce5801e`, MVID `a30d689f-0457-4384-a1b2-56f098500d14`; no qualification package generated.
+- Rejected theories: a schema-valid FAIL must not be discarded as malformed; baseline and generic unauthorized loads are disjoint counters; Unity `deltaTime` is not a safe timeout clock while paused; SaveManager callback alone is not proof that area/view spawning settled; Pause is not an unsafe game-mode boundary in this movement-only prototype.
+- Current uncertainty: the real fixture descriptors remain unread; lifecycle code is offline-qualified but unrun; movement, formation, doorway, selection, visual pose, save/load, and area-transition results remain unknown.
+- External state/restoration result: PASS. Filename metadata only was read. No KMC or foreign archive content was opened, no process launched, and no Mods/save/lock/sentinel state changed.
+- Exact next action: commit this save-backed orchestration checkpoint, implement the bounded movement/selection/doorway engine, then rerun the exact filename gate before any guarded fixture qualification.

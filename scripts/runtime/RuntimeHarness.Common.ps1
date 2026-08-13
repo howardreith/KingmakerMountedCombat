@@ -991,3 +991,289 @@ function Restore-KmcModsTransaction {
     $state.phase='restored'; $state | Add-Member -NotePropertyName restoredAtUtc -NotePropertyValue ([DateTime]::UtcNow.ToString('o')) -Force; $state | Add-Member -NotePropertyName restoredDigest -NotePropertyValue $restored.digest -Force; Write-KmcJsonAtomic $StatePath $state
     return $restored
 }
+
+function Get-KmcSaveBackedRuntimeScenarios {
+    return @(
+        'export-mounted-contracts', 'export-candidate-mount-rigs', 'observe-mount-diagnostic-availability',
+        'mounted-pair-create-and-clear', 'mounted-pair-double-mount-rejected', 'mounted-pair-invalid-pair-rejected',
+        'mounted-pair-cleanup-idempotent', 'mounted-pair-death-cleanup', 'mounted-pair-combat-start-cleanup',
+        'mounted-pair-area-unload-cleanup', 'mounted-pair-mod-disable-cleanup', 'mounted-pair-open-ground',
+        'mounted-pair-stop-start', 'mounted-pair-turns-and-corners', 'mounted-pair-doorway', 'mounted-pair-selection',
+        'mounted-pair-party-formation', 'mounted-pair-pause-unpause', 'mounted-pair-destination-cancel',
+        'mounted-pair-turn-based-entry-cleanup', 'mounted-pair-realtime-entry-cleanup', 'mounted-pair-save-safety',
+        'mounted-pair-load-safety', 'mounted-pair-area-transition-safety', 'fixture-intake', 'lifecycle-suite',
+        'movement-suite', 'boundary-suite', 'phase-1-runtime-suite'
+    )
+}
+
+function New-KmcRuntimeFixturePayload {
+    param([Parameter(Mandatory = $true)]$Pair)
+
+    function New-Descriptor($Value) {
+        return [ordered]@{
+            internalName = [string]$Value.name
+            fileName = [string]$Value.fileName
+            sha256 = [string]$Value.sha256
+            length = [long]$Value.length
+            lastWriteTimeUtcTicks = [long]$Value.lastWriteTimeUtcTicks
+            gameId = [string]$Value.gameId
+            gameName = [string]$Value.gameName
+            area = [string]$Value.area
+        }
+    }
+
+    return [ordered]@{
+        baseline = New-Descriptor $Pair.baseline
+        working = New-Descriptor $Pair.working
+        writeAuthorization = [ordered]@{
+            mode = 'working-only'
+            allowedInternalName = 'KMC_AUTOMATION_WORKING'
+            allowedFileName = [string]$Pair.working.fileName
+            baselineImmutable = $true
+        }
+    }
+}
+
+function Get-KmcRunTransactionStatePath {
+    param(
+        [Parameter(Mandatory = $true)][string]$StateRoot,
+        [Parameter(Mandatory = $true)][string]$RunId
+    )
+    $transactionRoot = Join-Path ([IO.Path]::GetFullPath($StateRoot)) 'run-transactions'
+    return Assert-KmcChildPath (Join-Path $transactionRoot ($RunId + '.json')) $transactionRoot 'combined runtime transaction state'
+}
+
+function New-KmcRunTransactionState {
+    param(
+        [Parameter(Mandatory = $true)]$Lock,
+        [Parameter(Mandatory = $true)][ValidateSet('no-save-v1','save-backed-v2')][string]$Mode,
+        [Parameter(Mandatory = $true)][string]$LiveModsRoot,
+        [Parameter(Mandatory = $true)][string]$SaveRoot,
+        [Parameter(Mandatory = $true)][string]$StateRoot,
+        [Parameter(Mandatory = $true)]$ModsBefore,
+        [Parameter(Mandatory = $true)]$SavesBefore
+    )
+    [void](Assert-KmcRuntimeLockOwner $Lock)
+    Assert-KmcNoGameProcesses
+    $statePath = Get-KmcRunTransactionStatePath $StateRoot ([string]$Lock.RunId)
+    if (Test-Path -LiteralPath $statePath) { throw "Run ID already has combined transaction state: $($Lock.RunId)" }
+    $state = [ordered]@{
+        schemaVersion = 1
+        runId = [string]$Lock.RunId
+        token = [string]$Lock.Token
+        mode = $Mode
+        phase = 'prepared'
+        preparedAtUtc = [DateTimeOffset]::UtcNow.ToString('o')
+        liveModsRoot = [IO.Path]::GetFullPath($LiveModsRoot).TrimEnd('\')
+        saveRoot = [IO.Path]::GetFullPath($SaveRoot).TrimEnd('\')
+        modsDigestBefore = [string]$ModsBefore.digest
+        saveInventoryDigestBefore = [string]$SavesBefore.digest
+    }
+    Write-KmcJsonAtomic $statePath $state
+    return $statePath
+}
+
+function Read-KmcRunTransactionState {
+    param(
+        [Parameter(Mandatory = $true)][string]$StatePath,
+        $Lock
+    )
+    $state = Read-KmcJson $StatePath
+    $required = @(
+        'schemaVersion','runId','token','mode','phase','preparedAtUtc','liveModsRoot','saveRoot',
+        'modsDigestBefore','saveInventoryDigestBefore'
+    )
+    $allowed = @($required + @(
+        'restoreAttemptedAtUtc','modsRestored','saveProtectionPassed','baselineImmutable','workingRestored',
+        'saveWriteAllowlistPassed','restoredModsDigest','restoredSaveInventoryDigest','restorationErrors','restoredAtUtc'
+    ))
+    $actual = @($state.PSObject.Properties.Name)
+    if (@($required | Where-Object { $_ -cnotin $actual }).Count -ne 0 -or
+        @($actual | Where-Object { $_ -cnotin $allowed }).Count -ne 0) {
+        throw 'Combined runtime transaction state is missing required fields or contains unknown fields.'
+    }
+    if ([int]$state.schemaVersion -ne 1 -or [string]$state.runId -cnotmatch '^[A-Za-z0-9._-]{1,120}$' -or
+        [string]$state.token -cnotmatch '^[0-9a-f]{64}$' -or
+        [string]$state.mode -cnotin @('no-save-v1','save-backed-v2') -or
+        [string]$state.phase -cnotin @('prepared','restoration-attempted','restored') -or
+        [string]$state.modsDigestBefore -cnotmatch '^[0-9a-f]{64}$' -or
+        [string]$state.saveInventoryDigestBefore -cnotmatch '^[0-9a-f]{64}$') {
+        throw 'Combined runtime transaction state contains an invalid identity, mode, phase, or digest.'
+    }
+    if ($null -ne $Lock -and ([string]$state.runId -cne [string]$Lock.RunId -or [string]$state.token -cne [string]$Lock.Token)) {
+        throw 'Combined runtime transaction state ownership does not match the lock.'
+    }
+    return $state
+}
+
+function Restore-KmcRuntimeTransactions {
+    param(
+        [Parameter(Mandatory = $true)]$Lock,
+        [Parameter(Mandatory = $true)][string]$CombinedStatePath,
+        [Parameter(Mandatory = $true)][string]$StateRoot,
+        [Parameter(Mandatory = $true)][string]$BackupRoot,
+        [Parameter(Mandatory = $true)][string]$StagingRoot
+    )
+    [void](Assert-KmcRuntimeLockOwner $Lock)
+    Assert-KmcNoGameProcesses
+    $state = Read-KmcRunTransactionState -StatePath $CombinedStatePath -Lock $Lock
+    $liveModsRoot = [IO.Path]::GetFullPath([string]$state.liveModsRoot).TrimEnd('\')
+    $saveRoot = [IO.Path]::GetFullPath([string]$state.saveRoot).TrimEnd('\')
+    $modsStatePath = Get-KmcTransactionStatePath $StateRoot ([string]$Lock.RunId)
+    $saveStatePath = Get-KmcSaveTransactionStatePath $StateRoot ([string]$Lock.RunId)
+    $errors = New-Object 'System.Collections.Generic.List[string]'
+    $modsRestored = $false
+    $baselineImmutable = $false
+    $workingRestored = $false
+    $saveWriteAllowlistPassed = $false
+    $restoredModsDigest = '0' * 64
+    $restoredSaveDigest = '0' * 64
+
+    # Save and Mods restoration are deliberately independent. Failure in one must
+    # not prevent the other owned external tree from being put back when safe.
+    try {
+        if (Test-Path -LiteralPath $saveStatePath -PathType Leaf) {
+            $save = Restore-KmcWorkingSaveTransaction -Lock $Lock -StatePath $saveStatePath -SaveRoot $saveRoot -BackupRoot $BackupRoot -StagingRoot $StagingRoot
+            $baselineImmutable = [bool]$save.baselineImmutable
+            $workingRestored = [bool]$save.workingRestored
+            $saveWriteAllowlistPassed = [bool]$save.saveWriteAllowlistPassed
+            $restoredSaveDigest = [string]$save.restoredInventoryDigest
+        }
+        else {
+            $currentSaves = Get-KmcSaveMetadataInventory $saveRoot
+            $restoredSaveDigest = [string]$currentSaves.digest
+            $saveExact = $restoredSaveDigest -ceq [string]$state.saveInventoryDigestBefore
+            $baselineImmutable = $saveExact
+            $workingRestored = $saveExact
+            $saveWriteAllowlistPassed = $saveExact
+            if (-not $saveExact) { throw 'Save metadata changed although no owned Working-save transaction state exists.' }
+        }
+    }
+    catch { $errors.Add('Working-save restoration failed: ' + $_.Exception.Message) }
+
+    try {
+        if (Test-Path -LiteralPath $modsStatePath -PathType Leaf) {
+            $mods = Restore-KmcModsTransaction -Lock $Lock -StatePath $modsStatePath -LiveModsRoot $liveModsRoot -BackupRoot $BackupRoot -StagingRoot $StagingRoot
+        }
+        else { $mods = Get-KmcDirectoryManifest $liveModsRoot }
+        $restoredModsDigest = [string]$mods.digest
+        $modsRestored = $restoredModsDigest -ceq [string]$state.modsDigestBefore
+        if (-not $modsRestored) { throw 'Restored Mods digest differs from the combined preflight digest.' }
+    }
+    catch { $errors.Add('Mods restoration failed: ' + $_.Exception.Message) }
+
+    $saveProtectionPassed = $baselineImmutable -and $workingRestored -and $saveWriteAllowlistPassed -and
+        $restoredSaveDigest -ceq [string]$state.saveInventoryDigestBefore
+    $state.phase = if ($modsRestored -and $saveProtectionPassed -and $errors.Count -eq 0) { 'restored' } else { 'restoration-attempted' }
+    foreach ($entry in ([ordered]@{
+        restoreAttemptedAtUtc = [DateTimeOffset]::UtcNow.ToString('o')
+        modsRestored = $modsRestored
+        saveProtectionPassed = $saveProtectionPassed
+        baselineImmutable = $baselineImmutable
+        workingRestored = $workingRestored
+        saveWriteAllowlistPassed = $saveWriteAllowlistPassed
+        restoredModsDigest = $restoredModsDigest
+        restoredSaveInventoryDigest = $restoredSaveDigest
+        restorationErrors = $errors.ToArray()
+    }).GetEnumerator()) { $state | Add-Member -NotePropertyName $entry.Key -NotePropertyValue $entry.Value -Force }
+    if ([string]$state.phase -ceq 'restored') {
+        $state | Add-Member -NotePropertyName restoredAtUtc -NotePropertyValue ([DateTimeOffset]::UtcNow.ToString('o')) -Force
+    }
+    Write-KmcJsonAtomic $CombinedStatePath $state
+    return [pscustomobject]@{
+        schemaVersion = 1
+        modsRestored = $modsRestored
+        saveProtectionPassed = $saveProtectionPassed
+        baselineImmutable = $baselineImmutable
+        workingRestored = $workingRestored
+        saveWriteAllowlistPassed = $saveWriteAllowlistPassed
+        restoredModsDigest = $restoredModsDigest
+        restoredSaveInventoryDigest = $restoredSaveDigest
+        errors = $errors.ToArray()
+    }
+}
+
+function New-KmcRuntimeResultV2 {
+    param(
+        [Parameter(Mandatory = $true)]$Request,
+        $ValidatedGameResult,
+        [Parameter(Mandatory = $true)][DateTimeOffset]$StartedAtUtc,
+        [Parameter(Mandatory = $true)][bool]$ModsRestored,
+        [Parameter(Mandatory = $true)][bool]$BaselineImmutable,
+        [Parameter(Mandatory = $true)][bool]$WorkingRestored,
+        [Parameter(Mandatory = $true)][bool]$SaveWriteAllowlistPassed,
+        [Parameter(Mandatory = $true)][string]$RestoredSaveInventoryDigest,
+        [AllowNull()][string]$GameResultSha256,
+        [string[]]$Errors = @()
+    )
+    $subscenarios = New-Object 'System.Collections.Generic.List[object]'
+    if ($null -ne $ValidatedGameResult) {
+        foreach ($item in @($ValidatedGameResult.subscenarioResults)) {
+            $subscenarios.Add([ordered]@{
+                name = [string]$item.name
+                status = [string]$item.status
+                assertionPassCount = [int]$item.assertionPassCount
+                assertionFailCount = [int]$item.assertionFailCount
+                errors = @($item.errors | ForEach-Object { [string]$_ })
+            })
+        }
+        $fixture = $ValidatedGameResult.fixture
+    }
+    else {
+        $fallbackName = if (@(Get-KmcSaveBackedRuntimeScenarios | Where-Object { $_ -ceq [string]$Request.scenario }).Count -eq 1 -and
+            [string]$Request.scenario -notin @('fixture-intake','lifecycle-suite','movement-suite','boundary-suite','phase-1-runtime-suite')) {
+            [string]$Request.scenario
+        } else { 'observe-mount-diagnostic-availability' }
+        $fallbackErrors = if (@($Errors).Count -eq 0) { @('Runtime game result was unavailable or invalid.') } else { @($Errors) }
+        $subscenarios.Add([ordered]@{
+            name = $fallbackName
+            status = 'FAIL'
+            assertionPassCount = 0
+            assertionFailCount = 1
+            errors = @($fallbackErrors)
+        })
+        $fixture = $Request.fixture
+    }
+    $subscenarioArray = $subscenarios.ToArray()
+    $subscenarioPassCount = @($subscenarioArray | Where-Object { [string]$_.status -ceq 'PASS' }).Count
+    $subscenarioFailCount = $subscenarios.Count - $subscenarioPassCount
+    $assertionPassCount = 0
+    $assertionFailCount = 0
+    foreach ($item in $subscenarioArray) {
+        $assertionPassCount += [int]$item.assertionPassCount
+        $assertionFailCount += [int]$item.assertionFailCount
+    }
+    $saveProtectionPassed = $BaselineImmutable -and $WorkingRestored -and $SaveWriteAllowlistPassed
+    $status = if ($null -ne $ValidatedGameResult -and [string]$ValidatedGameResult.status -ceq 'PASS' -and
+        $ModsRestored -and $saveProtectionPassed -and @($Errors).Count -eq 0 -and
+        $subscenarioFailCount -eq 0 -and $assertionFailCount -eq 0) { 'PASS' } else { 'FAIL' }
+    return [ordered]@{
+        schemaVersion = 2
+        runId = [string]$Request.runId
+        scenario = [string]$Request.scenario
+        status = $status
+        branch = [string]$Request.branch
+        commit = [string]$Request.commit
+        productVersion = [string]$Request.productVersion
+        dllSha256 = [string]$Request.dllSha256
+        dllMvid = [string]$Request.dllMvid
+        transactionToken = [string]$Request.transactionToken
+        startedAtUtc = $StartedAtUtc.ToString('o')
+        completedAtUtc = [DateTimeOffset]::UtcNow.ToString('o')
+        modsRestored = $ModsRestored
+        saveProtectionPassed = $saveProtectionPassed
+        gameResultSha256 = $GameResultSha256
+        errors = @($Errors)
+        fixture = $fixture
+        baselineImmutable = $BaselineImmutable
+        workingRestored = $WorkingRestored
+        saveWriteAllowlistPassed = $SaveWriteAllowlistPassed
+        restoredSaveInventoryDigest = $RestoredSaveInventoryDigest
+        subscenarioTotal = $subscenarios.Count
+        subscenarioPassCount = $subscenarioPassCount
+        subscenarioFailCount = $subscenarioFailCount
+        assertionPassCount = $assertionPassCount
+        assertionFailCount = $assertionFailCount
+        subscenarioResults = $subscenarioArray
+    }
+}

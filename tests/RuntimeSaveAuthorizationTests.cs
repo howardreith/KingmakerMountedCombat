@@ -25,6 +25,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("save authorization requires exact campaign identity", CampaignIdentityMustBeExact);
             runner.Run("save authorization requires direct SaveManager child path", TargetMustBeDirectSaveRootChild);
             runner.Run("save authorization reports fatal telemetry", RejectionReportsFatalTelemetry);
+            runner.Run("save authorization counters reconcile disjoint outcomes", CountersReconcileDisjointOutcomes);
             runner.Run("save authorization activation is exclusive and leased", ActivationIsExclusiveAndLeased);
         }
 
@@ -188,6 +189,32 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(
                 authorization.Authorize(RuntimeSaveOperation.Write, null, null).Allowed,
                 "Deactivated authorization did not restore ordinary pass-through behavior.");
+        }
+
+        private static void CountersReconcileDisjointOutcomes()
+        {
+            var authorization = new RuntimeSaveAuthorization();
+            using (authorization.Activate(ValidFixture(), SaveRoot, true))
+            {
+                authorization.Authorize(RuntimeSaveOperation.Load, WorkingTarget(), SaveRoot);
+
+                var baseline = WorkingTarget();
+                baseline.InternalName = RuntimeRequest.BaselineSaveName;
+                baseline.FileName = BaselineFileName;
+                baseline.FullPath = Path.Combine(SaveRoot, BaselineFileName);
+                authorization.Authorize(RuntimeSaveOperation.Load, baseline, SaveRoot);
+
+                var foreign = WorkingTarget();
+                foreign.InternalName = "FOREIGN";
+                authorization.Authorize(RuntimeSaveOperation.Load, foreign, SaveRoot);
+                authorization.ReportFatalViolation(RuntimeSaveOperation.Load, "projection failed");
+                authorization.ReportBoundaryFailure(RuntimeSaveOperation.Write, "cleanup residue");
+
+                TestRunner.Equal(1, authorization.AuthorizedLoadCount, "Working load count differs.");
+                TestRunner.Equal(1, authorization.BaselineLoadRequestCount, "Baseline load was not classified separately.");
+                TestRunner.Equal(2, authorization.UnauthorizedLoadCount, "Generic unauthorized load count differs.");
+                TestRunner.Equal(1, authorization.UnauthorizedWriteCount, "Boundary write rejection was not counted.");
+            }
         }
 
         private static void AssertFatalRejection(RuntimeSaveAuthorizationDecision decision, string context)

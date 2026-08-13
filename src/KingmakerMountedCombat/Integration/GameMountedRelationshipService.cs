@@ -137,6 +137,18 @@ namespace KingmakerMountedCombat.Integration
             return Record(result);
         }
 
+        internal TransitionResult RejectSyntheticInvalidPairForAutomation()
+        {
+            ThrowIfDisposed();
+            if (coordinator.State != RelationshipState.Unmounted)
+            {
+                return Record(new TransitionResult(false, coordinator.State, null,
+                    new[] { "Synthetic invalid-pair probe requires Unmounted state." }, false, false));
+            }
+
+            return Record(coordinator.Mount(new MountedPairCandidate("kmc-invalid-same-unit", "kmc-invalid-same-unit")));
+        }
+
         public TransitionResult Dismount(CleanupTrigger trigger)
         {
             if (disposed && coordinator.State == RelationshipState.Disposed)
