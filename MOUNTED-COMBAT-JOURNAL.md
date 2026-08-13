@@ -180,3 +180,17 @@
 - Current uncertainty: internal descriptors remain deliberately unread because the filename gate is not 1/1; all pair movement/lifecycle/visual behavior remains unrun.
 - External state/restoration result: PASS. No archive content, Mods tree, save file, process, transaction, lock, or sentinel was changed by the resumed audit or synthetic tests.
 - Exact next action: continue implementing protocol/schema v2 and proactive in-process exact-Working save/load enforcement without launching; after the Working filename is corrected manually through Kingmaker, rerun the exact filename audit and guard `-WhatIf` before durable qualification.
+
+## 2026-08-13T20:31:00Z — movement contention telemetry correction
+
+- Branch / exact HEAD: `codex/mounted-combat-feasibility` / `f0cbfbb7a9b422f591b1e270f2e97a10ed156996`; movement telemetry changes are intentionally uncommitted at this checkpoint.
+- Active version: `0.0.1-feasibility`.
+- Work completed: replaced the structurally post-write-only rider residual metric with pre-correction and post-correction position plus full-quaternion rotation observations. Added independent InitialConfiguration, Update, and LateUpdate sample/correction counters and maxima so controller-order contention and one-frame lag are visible. JSONL telemetry now exports the phase-specific aggregate. No movement threshold was weakened.
+- Commands/tests run: focused Release build/component suite; integrated complete `scripts/Test.ps1 -Configuration Release`; `git diff --check`.
+- Exact PASS/FAIL counts: source 21/0; build 1/0; pure/component 43/0 in the integrated dirty tree, including three new movement-synchronization regressions; assembly-backed 29/0. Runtime movement samples remain 0 because the real Working filename gate is closed.
+- Runtime evidence IDs/paths: none created; no process launched.
+- Hashes/MVIDs: integrated dirty-tree DLL SHA-256 `e8af3c72e2b73aa8cd1640f37867efbd627850ca499ac195194fb739f04d428a`, MVID `a3d2f2ef-0fbf-4ca8-9afb-6fa0ce7a2fca`; this identity also includes concurrent protocol-v2 changes and is not a runtime qualification artifact.
+- Rejected theories: measuring residual only after assigning the expected transform cannot expose competing engine writes; yaw-only error cannot characterize an animated Spine anchor that may pitch or roll.
+- Current uncertainty: exact runtime correction frequency, maximum pre-correction residual, drift, oscillation, and visual pose remain unmeasured.
+- External state/restoration result: PASS; source/tests only, with no Mods/save/process mutation.
+- Exact next action: commit the telemetry correction, then integrate and commit protocol v2 before implementing the in-process Working loader and authorization policy.

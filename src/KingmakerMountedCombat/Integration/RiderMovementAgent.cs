@@ -13,9 +13,7 @@ namespace KingmakerMountedCombat.Integration
         private Vector3 anchorLocalOffset;
         private Vector3 localEulerRotation;
         private bool configured;
-        private double maximumResidualWorldUnits;
-        private double maximumRotationResidualDegrees;
-        private long sampleCount;
+        private MovementSynchronizationTelemetryAccumulator telemetry = new MovementSynchronizationTelemetryAccumulator();
 
         public override bool WantsToMove => configured && mount?.View?.AgentASP != null && mount.View.AgentASP.WantsToMove;
 
@@ -29,11 +27,59 @@ namespace KingmakerMountedCombat.Integration
             set { }
         }
 
-        public double MaximumResidualWorldUnits => maximumResidualWorldUnits;
+        public double MaximumResidualWorldUnits => telemetry.MaximumPreCorrectionPositionResidualWorldUnits;
 
-        public double MaximumRotationResidualDegrees => maximumRotationResidualDegrees;
+        public double MaximumRotationResidualDegrees => telemetry.MaximumPreCorrectionRotationResidualDegrees;
 
-        public long SampleCount => sampleCount;
+        public long SampleCount => telemetry.SampleCount;
+
+        public long CorrectionCount => telemetry.CorrectionCount;
+
+        public long InitialConfigurationSampleCount => telemetry.InitialConfigurationSampleCount;
+
+        public long InitialConfigurationCorrectionCount => telemetry.InitialConfigurationCorrectionCount;
+
+        public long UpdateSampleCount => telemetry.UpdateSampleCount;
+
+        public long UpdateCorrectionCount => telemetry.UpdateCorrectionCount;
+
+        public long LateUpdateSampleCount => telemetry.LateUpdateSampleCount;
+
+        public long LateUpdateCorrectionCount => telemetry.LateUpdateCorrectionCount;
+
+        public MovementSynchronizationPhase LatestSynchronizationPhase => telemetry.LatestPhase;
+
+        public double LatestPreCorrectionPositionResidualWorldUnits => telemetry.LatestPreCorrectionPositionResidualWorldUnits;
+
+        public double LatestPreCorrectionRotationResidualDegrees => telemetry.LatestPreCorrectionRotationResidualDegrees;
+
+        public double LatestPostCorrectionPositionResidualWorldUnits => telemetry.LatestPostCorrectionPositionResidualWorldUnits;
+
+        public double LatestPostCorrectionRotationResidualDegrees => telemetry.LatestPostCorrectionRotationResidualDegrees;
+
+        public double MaximumPreCorrectionPositionResidualWorldUnits => telemetry.MaximumPreCorrectionPositionResidualWorldUnits;
+
+        public double MaximumPreCorrectionRotationResidualDegrees => telemetry.MaximumPreCorrectionRotationResidualDegrees;
+
+        public double MaximumPostCorrectionPositionResidualWorldUnits => telemetry.MaximumPostCorrectionPositionResidualWorldUnits;
+
+        public double MaximumPostCorrectionRotationResidualDegrees => telemetry.MaximumPostCorrectionRotationResidualDegrees;
+
+        public double MaximumUpdatePreCorrectionPositionResidualWorldUnits => telemetry.MaximumUpdatePreCorrectionPositionResidualWorldUnits;
+
+        public double MaximumUpdatePreCorrectionRotationResidualDegrees => telemetry.MaximumUpdatePreCorrectionRotationResidualDegrees;
+
+        public double MaximumUpdatePostCorrectionPositionResidualWorldUnits => telemetry.MaximumUpdatePostCorrectionPositionResidualWorldUnits;
+
+        public double MaximumUpdatePostCorrectionRotationResidualDegrees => telemetry.MaximumUpdatePostCorrectionRotationResidualDegrees;
+
+        public double MaximumLateUpdatePreCorrectionPositionResidualWorldUnits => telemetry.MaximumLateUpdatePreCorrectionPositionResidualWorldUnits;
+
+        public double MaximumLateUpdatePreCorrectionRotationResidualDegrees => telemetry.MaximumLateUpdatePreCorrectionRotationResidualDegrees;
+
+        public double MaximumLateUpdatePostCorrectionPositionResidualWorldUnits => telemetry.MaximumLateUpdatePostCorrectionPositionResidualWorldUnits;
+
+        public double MaximumLateUpdatePostCorrectionRotationResidualDegrees => telemetry.MaximumLateUpdatePostCorrectionRotationResidualDegrees;
 
         public bool IsConfigured => configured;
 
@@ -50,10 +96,8 @@ namespace KingmakerMountedCombat.Integration
             anchorLocalOffset = offset;
             localEulerRotation = eulerRotation;
             configured = true;
-            maximumResidualWorldUnits = 0.0d;
-            maximumRotationResidualDegrees = 0.0d;
-            sampleCount = 0;
-            Synchronize();
+            telemetry = new MovementSynchronizationTelemetryAccumulator();
+            Synchronize(MovementSynchronizationPhase.InitialConfiguration);
         }
 
         public void Deconfigure()
@@ -69,7 +113,7 @@ namespace KingmakerMountedCombat.Integration
         public override void TickMovement(float deltaTime)
         {
             UpdateVelocity();
-            Synchronize();
+            Synchronize(MovementSynchronizationPhase.Update);
         }
 
         public override void UpdateVelocity()
@@ -101,11 +145,11 @@ namespace KingmakerMountedCombat.Integration
         {
             if (configured)
             {
-                Synchronize();
+                Synchronize(MovementSynchronizationPhase.LateUpdate);
             }
         }
 
-        private void Synchronize()
+        private void Synchronize(MovementSynchronizationPhase phase)
         {
             if (Unit == null || Unit.EntityData == null || mount == null || mount.View == null || anchor == null)
             {
@@ -114,17 +158,23 @@ namespace KingmakerMountedCombat.Integration
 
             var expectedPosition = anchor.TransformPoint(anchorLocalOffset);
             var expectedRotation = anchor.rotation * Quaternion.Euler(localEulerRotation);
+            var preCorrectionPosition = Unit.transform.position;
+            var preCorrectionPositionResidual = MovementTelemetrySample.CalculateDistance(expectedPosition.x, expectedPosition.y, expectedPosition.z, preCorrectionPosition.x, preCorrectionPosition.y, preCorrectionPosition.z);
+            var preCorrectionRotationResidual = Quaternion.Angle(expectedRotation, Unit.transform.rotation);
             Unit.transform.position = expectedPosition;
             Unit.transform.rotation = expectedRotation;
             Unit.EntityData.Position = expectedPosition;
             Unit.EntityData.Orientation = expectedRotation.eulerAngles.y;
-            var observedPosition = Unit.transform.position;
-            var observedYaw = Unit.transform.rotation.eulerAngles.y;
-            var residual = MovementTelemetrySample.CalculateDistance(expectedPosition.x, expectedPosition.y, expectedPosition.z, observedPosition.x, observedPosition.y, observedPosition.z);
-            var rotationResidual = MovementTelemetrySample.CalculateAngleDelta(expectedRotation.eulerAngles.y, observedYaw);
-            maximumResidualWorldUnits = System.Math.Max(maximumResidualWorldUnits, residual);
-            maximumRotationResidualDegrees = System.Math.Max(maximumRotationResidualDegrees, rotationResidual);
-            sampleCount++;
+            var postCorrectionPosition = Unit.transform.position;
+            var postCorrectionPositionResidual = MovementTelemetrySample.CalculateDistance(expectedPosition.x, expectedPosition.y, expectedPosition.z, postCorrectionPosition.x, postCorrectionPosition.y, postCorrectionPosition.z);
+            var postCorrectionRotationResidual = Quaternion.Angle(expectedRotation, Unit.transform.rotation);
+            telemetry.Observe(new MovementSynchronizationSample(
+                telemetry.SampleCount,
+                phase,
+                preCorrectionPositionResidual,
+                preCorrectionRotationResidual,
+                postCorrectionPositionResidual,
+                postCorrectionRotationResidual));
         }
 
         private void ResetVelocity()

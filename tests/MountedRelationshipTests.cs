@@ -34,6 +34,9 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("movement residual threshold is inclusive", MovementResidualThresholdIsInclusive);
             runner.Run("rotation residual wraps at 360 degrees", RotationResidualWrapsAt360Degrees);
             runner.Run("movement telemetry accumulator records maxima and violations", MovementTelemetryAccumulatorRecordsMaxima);
+            runner.Run("movement synchronization telemetry preserves pre and post correction residuals", MovementSynchronizationTelemetryPreservesPreAndPostResiduals);
+            runner.Run("movement synchronization telemetry separates update phases and corrections", MovementSynchronizationTelemetrySeparatesPhasesAndCorrections);
+            runner.Run("movement synchronization telemetry rejects noncontiguous samples", MovementSynchronizationTelemetryRejectsNoncontiguousSamples);
         }
 
         private static void ValidMountTransition()
@@ -245,6 +248,66 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.Equal(0.2d, accumulator.MaximumPositionResidualWorldUnits, "Maximum position residual differs.");
             TestRunner.Equal(5.0d, accumulator.MaximumRotationResidualDegrees, "Maximum rotation residual differs.");
             TestRunner.Equal(1, accumulator.PositionThresholdViolationCount, "Threshold violation count differs.");
+        }
+
+        private static void MovementSynchronizationTelemetryPreservesPreAndPostResiduals()
+        {
+            var accumulator = new MovementSynchronizationTelemetryAccumulator();
+            accumulator.Observe(new MovementSynchronizationSample(0, MovementSynchronizationPhase.Update, 0.25d, 12.0d, 0.01d, 0.5d));
+            accumulator.Observe(new MovementSynchronizationSample(1, MovementSynchronizationPhase.LateUpdate, 0.05d, 2.0d, 0.0d, 0.0d));
+
+            TestRunner.Equal(0.05d, accumulator.LatestPreCorrectionPositionResidualWorldUnits, "Latest pre-correction position residual differs.");
+            TestRunner.Equal(2.0d, accumulator.LatestPreCorrectionRotationResidualDegrees, "Latest pre-correction rotation residual differs.");
+            TestRunner.Equal(0.0d, accumulator.LatestPostCorrectionPositionResidualWorldUnits, "Latest post-correction position residual differs.");
+            TestRunner.Equal(0.0d, accumulator.LatestPostCorrectionRotationResidualDegrees, "Latest post-correction rotation residual differs.");
+            TestRunner.Equal(0.25d, accumulator.MaximumPreCorrectionPositionResidualWorldUnits, "Pre-correction position maximum was lost.");
+            TestRunner.Equal(12.0d, accumulator.MaximumPreCorrectionRotationResidualDegrees, "Pre-correction rotation maximum was lost.");
+            TestRunner.Equal(0.01d, accumulator.MaximumPostCorrectionPositionResidualWorldUnits, "Post-correction position maximum differs.");
+            TestRunner.Equal(0.5d, accumulator.MaximumPostCorrectionRotationResidualDegrees, "Post-correction rotation maximum differs.");
+        }
+
+        private static void MovementSynchronizationTelemetrySeparatesPhasesAndCorrections()
+        {
+            var accumulator = new MovementSynchronizationTelemetryAccumulator();
+            accumulator.Observe(new MovementSynchronizationSample(0, MovementSynchronizationPhase.InitialConfiguration, 0.0d, 0.0d, 0.0d, 0.0d));
+            accumulator.Observe(new MovementSynchronizationSample(1, MovementSynchronizationPhase.Update, 0.2d, 0.0d, 0.0d, 0.0d));
+            accumulator.Observe(new MovementSynchronizationSample(2, MovementSynchronizationPhase.Update, 0.0d, 0.0d, 0.0d, 0.0d));
+            accumulator.Observe(new MovementSynchronizationSample(3, MovementSynchronizationPhase.LateUpdate, 0.0d, 3.0d, 0.0d, 0.0d));
+
+            TestRunner.Equal(4L, accumulator.SampleCount, "Synchronization sample count differs.");
+            TestRunner.Equal(2L, accumulator.CorrectionCount, "Synchronization correction count differs.");
+            TestRunner.Equal(1L, accumulator.InitialConfigurationSampleCount, "Initial-configuration sample count differs.");
+            TestRunner.Equal(0L, accumulator.InitialConfigurationCorrectionCount, "Initial-configuration correction count differs.");
+            TestRunner.Equal(2L, accumulator.UpdateSampleCount, "Update sample count differs.");
+            TestRunner.Equal(1L, accumulator.UpdateCorrectionCount, "Update correction count differs.");
+            TestRunner.Equal(1L, accumulator.LateUpdateSampleCount, "LateUpdate sample count differs.");
+            TestRunner.Equal(1L, accumulator.LateUpdateCorrectionCount, "LateUpdate correction count differs.");
+            TestRunner.Equal(MovementSynchronizationPhase.LateUpdate, accumulator.LatestPhase, "Latest synchronization phase differs.");
+            TestRunner.Equal(0.2d, accumulator.MaximumUpdatePreCorrectionPositionResidualWorldUnits, "Update pre-correction position maximum differs.");
+            TestRunner.Equal(0.0d, accumulator.MaximumUpdatePreCorrectionRotationResidualDegrees, "Update pre-correction rotation maximum differs.");
+            TestRunner.Equal(0.0d, accumulator.MaximumUpdatePostCorrectionPositionResidualWorldUnits, "Update post-correction position maximum differs.");
+            TestRunner.Equal(0.0d, accumulator.MaximumUpdatePostCorrectionRotationResidualDegrees, "Update post-correction rotation maximum differs.");
+            TestRunner.Equal(0.0d, accumulator.MaximumLateUpdatePreCorrectionPositionResidualWorldUnits, "LateUpdate pre-correction position maximum differs.");
+            TestRunner.Equal(3.0d, accumulator.MaximumLateUpdatePreCorrectionRotationResidualDegrees, "LateUpdate pre-correction rotation maximum differs.");
+            TestRunner.Equal(0.0d, accumulator.MaximumLateUpdatePostCorrectionPositionResidualWorldUnits, "LateUpdate post-correction position maximum differs.");
+            TestRunner.Equal(0.0d, accumulator.MaximumLateUpdatePostCorrectionRotationResidualDegrees, "LateUpdate post-correction rotation maximum differs.");
+        }
+
+        private static void MovementSynchronizationTelemetryRejectsNoncontiguousSamples()
+        {
+            var accumulator = new MovementSynchronizationTelemetryAccumulator();
+            var rejected = false;
+            try
+            {
+                accumulator.Observe(new MovementSynchronizationSample(1, MovementSynchronizationPhase.Update, 0.1d, 0.0d, 0.0d, 0.0d));
+            }
+            catch (InvalidOperationException)
+            {
+                rejected = true;
+            }
+
+            TestRunner.True(rejected, "Noncontiguous synchronization sample was accepted.");
+            TestRunner.Equal(0L, accumulator.SampleCount, "Rejected synchronization sample mutated the accumulator.");
         }
 
         private static void AssertRejected(MountedPairCandidate candidate)
