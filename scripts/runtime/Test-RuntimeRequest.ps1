@@ -8,14 +8,84 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'RuntimeHarness.Common.ps1')
 
-$request = Read-KmcJson $RequestPath
-$required = @('schemaVersion', 'runId', 'scenario', 'branch', 'commit', 'productVersion', 'dllSha256', 'dllMvid', 'transactionToken', 'evidenceRoot', 'saveAccessAllowed', 'saveName')
-$actual = @($request.PSObject.Properties.Name | Sort-Object)
-if (($actual -join "`n") -cne (($required | Sort-Object) -join "`n")) {
-    throw "Runtime request property set is not exact: $($actual -join ', ')"
+function Assert-NoDuplicateJsonObjectProperties {
+    param([Parameter(Mandatory = $true)][string]$Path, [Parameter(Mandatory = $true)][string]$Description)
+    Add-Type -AssemblyName System.Runtime.Serialization
+    $reader = $null
+    try {
+        $reader = [Runtime.Serialization.Json.JsonReaderWriterFactory]::CreateJsonReader(
+            [IO.File]::ReadAllBytes([IO.Path]::GetFullPath($Path)),
+            [Xml.XmlDictionaryReaderQuotas]::Max)
+        $document = New-Object Xml.XmlDocument
+        $document.Load($reader)
+        function Test-JsonObjectNode([Xml.XmlNode]$Node, [string]$Location) {
+            if ($Node.NodeType -eq [Xml.XmlNodeType]::Element -and [string]$Node.Attributes['type'].Value -ceq 'object') {
+                $names = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+                foreach ($child in @($Node.ChildNodes | Where-Object NodeType -eq ([Xml.XmlNodeType]::Element))) {
+                    $name = if ($child.LocalName -ceq 'item' -and $null -ne $child.Attributes['item']) { [string]$child.Attributes['item'].Value } else { [string]$child.LocalName }
+                    if (-not $names.Add($name)) { throw "$Description contains duplicate JSON property '$name' at $Location." }
+                }
+            }
+            foreach ($child in @($Node.ChildNodes | Where-Object NodeType -eq ([Xml.XmlNodeType]::Element))) { Test-JsonObjectNode $child ($Location + '/' + $child.LocalName) }
+        }
+        Test-JsonObjectNode $document.DocumentElement '$'
+    }
+    finally { if ($null -ne $reader) { $reader.Dispose() } }
 }
 
-$scenarios = @(
+function Test-JsonInteger($Value) {
+    return $Value -is [byte] -or $Value -is [sbyte] -or $Value -is [int16] -or $Value -is [uint16] -or
+        $Value -is [int32] -or $Value -is [uint32] -or $Value -is [int64] -or $Value -is [uint64]
+}
+
+function Assert-RuntimeSaveDescriptor {
+    param($Descriptor, [string]$Kind)
+    Assert-KmcExactProperties $Descriptor @('internalName','fileName','sha256','length','lastWriteTimeUtcTicks','gameId','gameName','area') "runtime $Kind descriptor"
+    $expectedName = if ($Kind -ceq 'baseline') { 'KMC_AUTOMATION_BASELINE' } else { 'KMC_AUTOMATION_WORKING' }
+    $escapedName = [Regex]::Escape($expectedName)
+    if ([string]$Descriptor.internalName -cne $expectedName) { throw "Runtime $Kind internal name is not exact." }
+    if ([string]$Descriptor.fileName -cnotmatch "^Manual_[0-9]+_$escapedName\.zks$") { throw "Runtime $Kind filename is not a canonical fixture leaf." }
+    if ([string]$Descriptor.sha256 -cnotmatch '^[0-9a-f]{64}$') { throw "Runtime $Kind SHA-256 is invalid." }
+    if (-not (Test-JsonInteger $Descriptor.length) -or [long]$Descriptor.length -le 0) { throw "Runtime $Kind length is invalid." }
+    if (-not (Test-JsonInteger $Descriptor.lastWriteTimeUtcTicks) -or [long]$Descriptor.lastWriteTimeUtcTicks -le 0 -or [long]$Descriptor.lastWriteTimeUtcTicks -gt [DateTime]::MaxValue.Ticks) { throw "Runtime $Kind timestamp ticks are invalid." }
+    $parsedGameId = [Guid]::Empty
+    if (-not [Guid]::TryParse([string]$Descriptor.gameId, [ref]$parsedGameId)) { throw "Runtime $Kind GameId is invalid." }
+    if ([string]::IsNullOrWhiteSpace([string]$Descriptor.gameName)) { throw "Runtime $Kind GameName is empty." }
+    if ([string]$Descriptor.area -cnotmatch '^[0-9a-f]{32}$') { throw "Runtime $Kind Area is not an exact lowercase blueprint GUID." }
+}
+
+function Assert-RuntimeFixture {
+    param($Fixture)
+    Assert-KmcExactProperties $Fixture @('baseline','working','writeAuthorization') 'runtime fixture'
+    Assert-RuntimeSaveDescriptor $Fixture.baseline 'baseline'
+    Assert-RuntimeSaveDescriptor $Fixture.working 'working'
+    if ([string]::Equals([string]$Fixture.baseline.fileName, [string]$Fixture.working.fileName, [StringComparison]::OrdinalIgnoreCase)) { throw 'Runtime fixture leaves are not distinct.' }
+    foreach ($name in @('gameId','gameName','area')) {
+        if ([string]$Fixture.baseline.$name -cne [string]$Fixture.working.$name) { throw "Runtime fixture raw $name values do not match exactly." }
+    }
+    $authorization = $Fixture.writeAuthorization
+    Assert-KmcExactProperties $authorization @('mode','allowedInternalName','allowedFileName','baselineImmutable') 'runtime fixture write authorization'
+    if ([string]$authorization.mode -cne 'working-only' -or
+        [string]$authorization.allowedInternalName -cne 'KMC_AUTOMATION_WORKING' -or
+        [string]$authorization.allowedFileName -cne [string]$Fixture.working.fileName -or
+        $authorization.baselineImmutable -ne $true) {
+        throw 'Runtime fixture does not authorize writes solely to the exact Working descriptor.'
+    }
+}
+
+Assert-NoDuplicateJsonObjectProperties $RequestPath 'runtime request'
+$request = Read-KmcJson $RequestPath
+$schemaVersion = [int]$request.schemaVersion
+$commonRequired = @('schemaVersion','runId','scenario','branch','commit','productVersion','dllSha256','dllMvid','transactionToken','evidenceRoot')
+if ($schemaVersion -eq 1) {
+    Assert-KmcExactProperties $request @($commonRequired + @('saveAccessAllowed','saveName')) 'runtime request v1'
+}
+elseif ($schemaVersion -eq 2) {
+    Assert-KmcExactProperties $request @($commonRequired + @('fixture')) 'runtime request v2'
+}
+else { throw 'Runtime request schemaVersion must be 1 or 2.' }
+
+$missionScenarios = @(
     'mod-load-smoke', 'export-mounted-contracts', 'export-candidate-mount-rigs', 'observe-mount-diagnostic-availability',
     'mounted-pair-create-and-clear', 'mounted-pair-double-mount-rejected', 'mounted-pair-invalid-pair-rejected',
     'mounted-pair-cleanup-idempotent', 'mounted-pair-death-cleanup', 'mounted-pair-combat-start-cleanup',
@@ -25,34 +95,32 @@ $scenarios = @(
     'mounted-pair-turn-based-entry-cleanup', 'mounted-pair-realtime-entry-cleanup', 'mounted-pair-save-safety',
     'mounted-pair-load-safety', 'mounted-pair-area-transition-safety'
 )
+$aggregateScenarios = @('fixture-intake','lifecycle-suite','movement-suite','boundary-suite','phase-1-runtime-suite')
 
-if ([int]$request.schemaVersion -ne 1) { throw 'Runtime request schemaVersion must be 1.' }
-if ([string]$request.runId -notmatch '^[A-Za-z0-9._-]{1,120}$') { throw 'Runtime request runId is invalid.' }
-if ([string]$request.scenario -cne 'mod-load-smoke') { throw 'Only mod-load-smoke is implemented by the no-save runtime host.' }
-if ([string]$request.branch -notmatch '^codex/mounted-combat-[A-Za-z0-9._/-]+$') { throw 'Runtime request branch is outside the KMC prefix.' }
-if ([string]$request.commit -notmatch '^[0-9a-f]{40}$') { throw 'Runtime request commit must be a full lowercase Git SHA.' }
+if ([string]$request.runId -cnotmatch '^[A-Za-z0-9._-]{1,120}$') { throw 'Runtime request runId is invalid.' }
+if ([string]$request.branch -cnotmatch '^codex/mounted-combat-[A-Za-z0-9._/-]+$') { throw 'Runtime request branch is outside the KMC prefix.' }
+if ([string]$request.commit -cnotmatch '^[0-9a-f]{40}$') { throw 'Runtime request commit must be a full lowercase Git SHA.' }
 if ([string]$request.productVersion -cne '0.0.1-feasibility') { throw 'Runtime request product version is not exact.' }
-if ([string]$request.dllSha256 -notmatch '^[0-9a-f]{64}$') { throw 'Runtime request DLL SHA-256 is invalid.' }
-if ([string]$request.transactionToken -notmatch '^[0-9a-f]{64}$') { throw 'Runtime request transaction token is invalid.' }
+if ([string]$request.dllSha256 -cnotmatch '^[0-9a-f]{64}$') { throw 'Runtime request DLL SHA-256 is invalid.' }
+if ([string]$request.transactionToken -cnotmatch '^[0-9a-f]{64}$') { throw 'Runtime request transaction token is invalid.' }
 $parsedMvid = [Guid]::Empty
 if (-not [Guid]::TryParse([string]$request.dllMvid, [ref]$parsedMvid)) { throw 'Runtime request DLL MVID is invalid.' }
 
 $evidenceRoot = [IO.Path]::GetFullPath([string]$request.evidenceRoot)
 $permittedEvidence = [IO.Path]::GetFullPath((Join-Path (Get-KmcLabRoot) 'runtime-evidence')).TrimEnd('\')
-if (-not $evidenceRoot.StartsWith($permittedEvidence + '\', [StringComparison]::OrdinalIgnoreCase)) {
-    throw 'Runtime request evidenceRoot escaped the KMC runtime-evidence root.'
-}
+if (-not $evidenceRoot.StartsWith($permittedEvidence + '\', [StringComparison]::OrdinalIgnoreCase)) { throw 'Runtime request evidenceRoot escaped the KMC runtime-evidence root.' }
 
-if ([bool]$request.saveAccessAllowed) {
-    throw 'Save-backed runtime is not authorized without the exact disposable fixture pair.'
+if ($schemaVersion -eq 1) {
+    if ([string]$request.scenario -cne 'mod-load-smoke') { throw 'Schema-v1 runtime is restricted to mod-load-smoke.' }
+    if ($request.saveAccessAllowed -ne $false -or $null -ne $request.saveName) { throw 'Schema-v1 runtime request is not an exact no-save request.' }
 }
 else {
-    if ($null -ne $request.saveName -and -not [string]::IsNullOrEmpty([string]$request.saveName)) {
-        throw 'No-save request contains a save name.'
-    }
+    if (@($missionScenarios + $aggregateScenarios | Where-Object { $_ -ceq [string]$request.scenario }).Count -ne 1 -or [string]$request.scenario -ceq 'mod-load-smoke') { throw 'Schema-v2 scenario is outside the save-backed Phase 1 allowlist.' }
+    Assert-RuntimeFixture $request.fixture
 }
 
 if (-not [string]::IsNullOrWhiteSpace($PackageManifestPath)) {
+    Assert-NoDuplicateJsonObjectProperties $PackageManifestPath 'package manifest'
     $manifest = Read-KmcJson $PackageManifestPath
     if ([string]$manifest.commit -cne [string]$request.commit -or
         [string]$manifest.branch -cne [string]$request.branch -or
@@ -64,4 +132,5 @@ if (-not [string]::IsNullOrWhiteSpace($PackageManifestPath)) {
     }
 }
 
-Write-Host 'TOTAL PASS=12 FAIL=0'
+$passCount = if ($schemaVersion -eq 1) { 12 } else { 31 }
+Write-Host "TOTAL PASS=$passCount FAIL=0"

@@ -7,6 +7,42 @@ namespace KingmakerMountedCombat.Diagnostics
     public sealed class RuntimeRequest
     {
         public const int CurrentSchemaVersion = 1;
+        public const int SaveBackedSchemaVersion = 2;
+        public const string WorkingSaveName = "KMC_AUTOMATION_WORKING";
+        public const string BaselineSaveName = "KMC_AUTOMATION_BASELINE";
+
+        private static readonly HashSet<string> SaveBackedScenarios = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "export-mounted-contracts",
+            "export-candidate-mount-rigs",
+            "observe-mount-diagnostic-availability",
+            "mounted-pair-create-and-clear",
+            "mounted-pair-double-mount-rejected",
+            "mounted-pair-invalid-pair-rejected",
+            "mounted-pair-cleanup-idempotent",
+            "mounted-pair-death-cleanup",
+            "mounted-pair-combat-start-cleanup",
+            "mounted-pair-area-unload-cleanup",
+            "mounted-pair-mod-disable-cleanup",
+            "mounted-pair-open-ground",
+            "mounted-pair-stop-start",
+            "mounted-pair-turns-and-corners",
+            "mounted-pair-doorway",
+            "mounted-pair-selection",
+            "mounted-pair-party-formation",
+            "mounted-pair-pause-unpause",
+            "mounted-pair-destination-cancel",
+            "mounted-pair-turn-based-entry-cleanup",
+            "mounted-pair-realtime-entry-cleanup",
+            "mounted-pair-save-safety",
+            "mounted-pair-load-safety",
+            "mounted-pair-area-transition-safety",
+            "fixture-intake",
+            "lifecycle-suite",
+            "movement-suite",
+            "boundary-suite",
+            "phase-1-runtime-suite"
+        };
 
         public int SchemaVersion { get; set; }
 
@@ -28,14 +64,17 @@ namespace KingmakerMountedCombat.Diagnostics
 
         public string EvidenceRoot { get; set; }
 
+        // Schema v1 compatibility fields. Schema v2 deliberately omits both.
         public bool SaveAccessAllowed { get; set; }
 
         public string SaveName { get; set; }
 
+        public RuntimeFixtureIdentity Fixture { get; set; }
+
         public IReadOnlyList<string> Validate()
         {
             var errors = new List<string>();
-            if (SchemaVersion != CurrentSchemaVersion)
+            if (SchemaVersion != CurrentSchemaVersion && SchemaVersion != SaveBackedSchemaVersion)
             {
                 errors.Add("Unsupported request schemaVersion.");
             }
@@ -70,22 +109,26 @@ namespace KingmakerMountedCombat.Diagnostics
                 errors.Add("productVersion does not match this diagnostic build.");
             }
 
-            if (SaveAccessAllowed && !string.Equals(SaveName, "KMC_AUTOMATION_WORKING", StringComparison.Ordinal))
+            if (SchemaVersion == CurrentSchemaVersion)
             {
-                errors.Add("Save-backed requests may name only KMC_AUTOMATION_WORKING.");
+                ValidateLegacyNoSaveRequest(errors);
             }
-
-            if (!SaveAccessAllowed && !string.IsNullOrEmpty(SaveName))
+            else if (SchemaVersion == SaveBackedSchemaVersion)
             {
-                errors.Add("No-save requests must not include saveName.");
-            }
-
-            if (!SaveAccessAllowed && !string.Equals(Scenario, "mod-load-smoke", StringComparison.Ordinal))
-            {
-                errors.Add("Only mod-load-smoke is implemented as a no-save runtime scenario.");
+                ValidateSaveBackedRequest(errors);
             }
 
             return errors;
+        }
+
+        public static bool IsMissionScenario(string scenario)
+        {
+            return RuntimeSubscenarioResult.IsMissionScenario(scenario);
+        }
+
+        public static bool IsSaveBackedScenario(string scenario)
+        {
+            return !string.IsNullOrEmpty(scenario) && SaveBackedScenarios.Contains(scenario);
         }
 
         internal static void Require(List<string> errors, string value, string name)
@@ -98,20 +141,9 @@ namespace KingmakerMountedCombat.Diagnostics
 
         internal static void RequireSha256(List<string> errors, string value, string name)
         {
-            if (string.IsNullOrEmpty(value) || value.Length != 64)
+            if (!IsLowerHex(value, 64))
             {
-                errors.Add(name + " must be a 64-character hexadecimal SHA-256.");
-                return;
-            }
-
-            for (var index = 0; index < value.Length; index++)
-            {
-                var character = value[index];
-                if (!((character >= '0' && character <= '9') || (character >= 'a' && character <= 'f')))
-                {
-                    errors.Add(name + " must be hexadecimal.");
-                    return;
-                }
+                errors.Add(name + " must be a 64-character lowercase hexadecimal SHA-256.");
             }
         }
 
@@ -124,7 +156,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
         }
 
-        private static bool IsLowerHex(string value, int length)
+        internal static bool IsLowerHex(string value, int length)
         {
             if (string.IsNullOrEmpty(value) || value.Length != length)
             {
@@ -142,11 +174,284 @@ namespace KingmakerMountedCombat.Diagnostics
 
             return true;
         }
+
+        private void ValidateLegacyNoSaveRequest(List<string> errors)
+        {
+            if (SaveAccessAllowed)
+            {
+                errors.Add("Schema v1 never authorizes save access.");
+            }
+
+            if (!string.IsNullOrEmpty(SaveName))
+            {
+                errors.Add("No-save requests must not include saveName.");
+            }
+
+            if (Fixture != null)
+            {
+                errors.Add("Schema v1 requests must not include fixture identity.");
+            }
+
+            if (!string.Equals(Scenario, "mod-load-smoke", StringComparison.Ordinal))
+            {
+                errors.Add("Only mod-load-smoke is implemented as a schema-v1 no-save scenario.");
+            }
+        }
+
+        private void ValidateSaveBackedRequest(List<string> errors)
+        {
+            if (SaveAccessAllowed || !string.IsNullOrEmpty(SaveName))
+            {
+                errors.Add("Schema v2 uses only its exact fixture write authorization.");
+            }
+
+            if (!IsSaveBackedScenario(Scenario))
+            {
+                errors.Add("scenario is outside the save-backed Phase 1 allowlist.");
+            }
+
+            if (Fixture == null)
+            {
+                errors.Add("fixture is required for schema-v2 requests.");
+                return;
+            }
+
+            errors.AddRange(Fixture.Validate());
+        }
+    }
+
+    public sealed class RuntimeFixtureIdentity
+    {
+        public RuntimeSaveDescriptor Baseline { get; set; }
+
+        public RuntimeSaveDescriptor Working { get; set; }
+
+        public RuntimeSaveWriteAuthorization WriteAuthorization { get; set; }
+
+        public IReadOnlyList<string> Validate()
+        {
+            var errors = new List<string>();
+            if (Baseline == null)
+            {
+                errors.Add("fixture.baseline is required.");
+            }
+            else
+            {
+                errors.AddRange(Baseline.Validate("fixture.baseline", RuntimeRequest.BaselineSaveName, "^Manual_[0-9]+_KMC_AUTOMATION_BASELINE\\.zks$"));
+            }
+
+            if (Working == null)
+            {
+                errors.Add("fixture.working is required.");
+            }
+            else
+            {
+                errors.AddRange(Working.Validate("fixture.working", RuntimeRequest.WorkingSaveName, "^Manual_[0-9]+_KMC_AUTOMATION_WORKING\\.zks$"));
+            }
+
+            if (Baseline != null && Working != null)
+            {
+                if (string.Equals(Baseline.FileName, Working.FileName, StringComparison.OrdinalIgnoreCase))
+                {
+                    errors.Add("fixture save leaves must be distinct.");
+                }
+
+                if (!string.Equals(Baseline.GameId, Working.GameId, StringComparison.Ordinal) ||
+                    !string.Equals(Baseline.GameName, Working.GameName, StringComparison.Ordinal) ||
+                    !string.Equals(Baseline.Area, Working.Area, StringComparison.Ordinal))
+                {
+                    errors.Add("fixture GameId, GameName, and Area must match as raw ordinal strings.");
+                }
+            }
+
+            if (WriteAuthorization == null)
+            {
+                errors.Add("fixture.writeAuthorization is required.");
+            }
+            else
+            {
+                errors.AddRange(WriteAuthorization.Validate(Working));
+            }
+
+            return errors;
+        }
+    }
+
+    public sealed class RuntimeSaveDescriptor
+    {
+        public string InternalName { get; set; }
+
+        public string FileName { get; set; }
+
+        public string Sha256 { get; set; }
+
+        public long Length { get; set; }
+
+        public long LastWriteTimeUtcTicks { get; set; }
+
+        public string GameId { get; set; }
+
+        public string GameName { get; set; }
+
+        public string Area { get; set; }
+
+        internal IReadOnlyList<string> Validate(string prefix, string expectedName, string fileNamePattern)
+        {
+            var errors = new List<string>();
+            if (!string.Equals(InternalName, expectedName, StringComparison.Ordinal))
+            {
+                errors.Add(prefix + ".internalName is not exact.");
+            }
+
+            if (string.IsNullOrEmpty(FileName) || !Regex.IsMatch(FileName, fileNamePattern, RegexOptions.CultureInvariant))
+            {
+                errors.Add(prefix + ".fileName is not a canonical KMC fixture leaf.");
+            }
+
+            RuntimeRequest.RequireSha256(errors, Sha256, prefix + ".sha256");
+            if (Length <= 0)
+            {
+                errors.Add(prefix + ".length must be positive.");
+            }
+
+            if (LastWriteTimeUtcTicks <= 0 || LastWriteTimeUtcTicks > DateTime.MaxValue.Ticks)
+            {
+                errors.Add(prefix + ".lastWriteTimeUtcTicks is outside the DateTime range.");
+            }
+
+            RuntimeRequest.RequireGuid(errors, GameId, prefix + ".gameId");
+            RuntimeRequest.Require(errors, GameName, prefix + ".gameName");
+            if (!RuntimeRequest.IsLowerHex(Area, 32))
+            {
+                errors.Add(prefix + ".area must be an exact lowercase 32-character blueprint GUID.");
+            }
+
+            return errors;
+        }
+    }
+
+    public sealed class RuntimeSaveWriteAuthorization
+    {
+        public string Mode { get; set; }
+
+        public string AllowedInternalName { get; set; }
+
+        public string AllowedFileName { get; set; }
+
+        public bool BaselineImmutable { get; set; }
+
+        internal IReadOnlyList<string> Validate(RuntimeSaveDescriptor working)
+        {
+            var errors = new List<string>();
+            if (!string.Equals(Mode, "working-only", StringComparison.Ordinal))
+            {
+                errors.Add("fixture.writeAuthorization.mode must be working-only.");
+            }
+
+            if (!string.Equals(AllowedInternalName, RuntimeRequest.WorkingSaveName, StringComparison.Ordinal))
+            {
+                errors.Add("fixture.writeAuthorization.allowedInternalName is not exact.");
+            }
+
+            if (working == null || !string.Equals(AllowedFileName, working.FileName, StringComparison.Ordinal))
+            {
+                errors.Add("fixture.writeAuthorization.allowedFileName does not match Working.");
+            }
+
+            if (!BaselineImmutable)
+            {
+                errors.Add("fixture.writeAuthorization must require baseline immutability.");
+            }
+
+            return errors;
+        }
+    }
+
+    public sealed class RuntimeSubscenarioResult
+    {
+        private static readonly HashSet<string> MissionScenarios = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "mod-load-smoke",
+            "export-mounted-contracts",
+            "export-candidate-mount-rigs",
+            "observe-mount-diagnostic-availability",
+            "mounted-pair-create-and-clear",
+            "mounted-pair-double-mount-rejected",
+            "mounted-pair-invalid-pair-rejected",
+            "mounted-pair-cleanup-idempotent",
+            "mounted-pair-death-cleanup",
+            "mounted-pair-combat-start-cleanup",
+            "mounted-pair-area-unload-cleanup",
+            "mounted-pair-mod-disable-cleanup",
+            "mounted-pair-open-ground",
+            "mounted-pair-stop-start",
+            "mounted-pair-turns-and-corners",
+            "mounted-pair-doorway",
+            "mounted-pair-selection",
+            "mounted-pair-party-formation",
+            "mounted-pair-pause-unpause",
+            "mounted-pair-destination-cancel",
+            "mounted-pair-turn-based-entry-cleanup",
+            "mounted-pair-realtime-entry-cleanup",
+            "mounted-pair-save-safety",
+            "mounted-pair-load-safety",
+            "mounted-pair-area-transition-safety"
+        };
+
+        public string Name { get; set; }
+
+        public string Status { get; set; }
+
+        public int AssertionPassCount { get; set; }
+
+        public int AssertionFailCount { get; set; }
+
+        public IReadOnlyList<string> Errors { get; set; }
+
+        public static bool IsMissionScenario(string name)
+        {
+            return !string.IsNullOrEmpty(name) && MissionScenarios.Contains(name);
+        }
+
+        internal IReadOnlyList<string> Validate()
+        {
+            var errors = new List<string>();
+            if (!IsMissionScenario(Name))
+            {
+                errors.Add("subscenario name is outside the exact mission-row allowlist.");
+            }
+
+            if (!string.Equals(Status, "PASS", StringComparison.Ordinal) && !string.Equals(Status, "FAIL", StringComparison.Ordinal))
+            {
+                errors.Add("subscenario status must be PASS or FAIL.");
+            }
+
+            if (AssertionPassCount < 0 || AssertionFailCount < 0 || AssertionPassCount + AssertionFailCount == 0)
+            {
+                errors.Add("subscenario assertion totals must be nonnegative and nonempty.");
+            }
+
+            if (Errors == null)
+            {
+                errors.Add("subscenario errors is required.");
+            }
+            else if (string.Equals(Status, "PASS", StringComparison.Ordinal) && (AssertionFailCount != 0 || Errors.Count != 0))
+            {
+                errors.Add("PASS subscenario contains failures or errors.");
+            }
+            else if (string.Equals(Status, "FAIL", StringComparison.Ordinal) && AssertionFailCount == 0)
+            {
+                errors.Add("FAIL subscenario has no failed assertion.");
+            }
+
+            return errors;
+        }
     }
 
     public sealed class RuntimeResult
     {
         public const int CurrentSchemaVersion = 1;
+        public const int SaveBackedSchemaVersion = 2;
 
         public int SchemaVersion { get; set; }
 
@@ -180,10 +485,32 @@ namespace KingmakerMountedCombat.Diagnostics
 
         public IReadOnlyList<string> Errors { get; set; }
 
+        public RuntimeFixtureIdentity Fixture { get; set; }
+
+        public bool BaselineImmutable { get; set; }
+
+        public bool WorkingRestored { get; set; }
+
+        public bool SaveWriteAllowlistPassed { get; set; }
+
+        public string RestoredSaveInventoryDigest { get; set; }
+
+        public int SubscenarioTotal { get; set; }
+
+        public int SubscenarioPassCount { get; set; }
+
+        public int SubscenarioFailCount { get; set; }
+
+        public int AssertionPassCount { get; set; }
+
+        public int AssertionFailCount { get; set; }
+
+        public IReadOnlyList<RuntimeSubscenarioResult> SubscenarioResults { get; set; }
+
         public IReadOnlyList<string> Validate()
         {
             var errors = new List<string>();
-            if (SchemaVersion != CurrentSchemaVersion)
+            if (SchemaVersion != CurrentSchemaVersion && SchemaVersion != SaveBackedSchemaVersion)
             {
                 errors.Add("Unsupported result schemaVersion.");
             }
@@ -198,20 +525,39 @@ namespace KingmakerMountedCombat.Diagnostics
             RuntimeRequest.RequireGuid(errors, DllMvid, "dllMvid");
             RuntimeRequest.RequireSha256(errors, TransactionToken, "transactionToken");
 
-            DateTimeOffset timestamp;
-            if (!DateTimeOffset.TryParse(StartedAtUtc, out timestamp))
+            DateTimeOffset started;
+            DateTimeOffset completed;
+            if (!DateTimeOffset.TryParse(StartedAtUtc, out started))
             {
                 errors.Add("startedAtUtc must be an ISO-8601 timestamp.");
             }
 
-            if (!DateTimeOffset.TryParse(CompletedAtUtc, out timestamp))
+            if (!DateTimeOffset.TryParse(CompletedAtUtc, out completed))
             {
                 errors.Add("completedAtUtc must be an ISO-8601 timestamp.");
+            }
+            else if (DateTimeOffset.TryParse(StartedAtUtc, out started) && completed < started)
+            {
+                errors.Add("completedAtUtc precedes startedAtUtc.");
             }
 
             if (!string.Equals(Status, "PASS", StringComparison.Ordinal) && !string.Equals(Status, "FAIL", StringComparison.Ordinal))
             {
                 errors.Add("status must be PASS or FAIL.");
+            }
+
+            if (Errors == null)
+            {
+                errors.Add("errors is required.");
+            }
+
+            if (SchemaVersion == SaveBackedSchemaVersion)
+            {
+                ValidateSaveBackedResult(errors);
+            }
+            else if (SchemaVersion == CurrentSchemaVersion && Fixture != null)
+            {
+                errors.Add("Schema-v1 result must not contain fixture identity.");
             }
 
             if (string.Equals(Status, "PASS", StringComparison.Ordinal))
@@ -224,6 +570,105 @@ namespace KingmakerMountedCombat.Diagnostics
             }
 
             return errors;
+        }
+
+        private void ValidateSaveBackedResult(List<string> errors)
+        {
+            if (!RuntimeRequest.IsSaveBackedScenario(Scenario))
+            {
+                errors.Add("scenario is outside the save-backed Phase 1 allowlist.");
+            }
+
+            if (Fixture == null)
+            {
+                errors.Add("fixture is required for schema-v2 results.");
+            }
+            else
+            {
+                errors.AddRange(Fixture.Validate());
+            }
+
+            if (!RuntimeRequest.IsLowerHex(RestoredSaveInventoryDigest, 64))
+            {
+                errors.Add("restoredSaveInventoryDigest must be an exact SHA-256.");
+            }
+
+            ValidateSubscenarioTotals(errors, Scenario, SubscenarioResults, SubscenarioTotal, SubscenarioPassCount,
+                SubscenarioFailCount, AssertionPassCount, AssertionFailCount);
+
+            if (string.Equals(Status, "PASS", StringComparison.Ordinal) &&
+                (!BaselineImmutable || !WorkingRestored || !SaveWriteAllowlistPassed ||
+                 SubscenarioFailCount != 0 || AssertionFailCount != 0))
+            {
+                errors.Add("Schema-v2 PASS requires immutable Baseline, restored Working, the write allowlist, and no subscenario failures.");
+            }
+
+            if (SaveProtectionPassed != (BaselineImmutable && WorkingRestored && SaveWriteAllowlistPassed))
+            {
+                errors.Add("saveProtectionPassed does not equal its three exact fixture safety proofs.");
+            }
+        }
+
+        internal static void ValidateSubscenarioTotals(
+            List<string> errors,
+            string scenario,
+            IReadOnlyList<RuntimeSubscenarioResult> results,
+            int total,
+            int passCount,
+            int failCount,
+            int assertionPassCount,
+            int assertionFailCount)
+        {
+            if (results == null)
+            {
+                errors.Add("subscenarioResults is required.");
+                return;
+            }
+
+            var names = new HashSet<string>(StringComparer.Ordinal);
+            var observedPass = 0;
+            var observedFail = 0;
+            var observedAssertionPass = 0;
+            var observedAssertionFail = 0;
+            for (var index = 0; index < results.Count; index++)
+            {
+                var result = results[index];
+                if (result == null)
+                {
+                    errors.Add("subscenarioResults contains null.");
+                    continue;
+                }
+
+                errors.AddRange(result.Validate());
+                if (!names.Add(result.Name ?? string.Empty))
+                {
+                    errors.Add("subscenarioResults contains a duplicate name.");
+                }
+
+                if (string.Equals(result.Status, "PASS", StringComparison.Ordinal))
+                {
+                    observedPass++;
+                }
+                else if (string.Equals(result.Status, "FAIL", StringComparison.Ordinal))
+                {
+                    observedFail++;
+                }
+
+                observedAssertionPass += result.AssertionPassCount;
+                observedAssertionFail += result.AssertionFailCount;
+            }
+
+            if (results.Count == 0 || total != results.Count || passCount != observedPass || failCount != observedFail ||
+                passCount + failCount != total || assertionPassCount != observedAssertionPass ||
+                assertionFailCount != observedAssertionFail)
+            {
+                errors.Add("subscenario and assertion totals do not match the named results.");
+            }
+
+            if (RuntimeSubscenarioResult.IsMissionScenario(scenario) && !names.Contains(scenario))
+            {
+                errors.Add("An individual mission scenario must report its own named subscenario result.");
+            }
         }
     }
 }

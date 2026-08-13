@@ -1,36 +1,216 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://kingmakermountedcombat.invalid/schema/runtime-game-result-v1.json",
+  "$id": "https://kingmakermountedcombat.invalid/schema/runtime-game-result-v2.json",
   "title": "Kingmaker Mounted Combat in-process runtime result",
-  "type": "object",
-  "additionalProperties": false,
-  "required": [
-    "schemaVersion", "runId", "scenario", "status", "branch", "commit", "productVersion",
-    "dllSha256", "dllMvid", "transactionToken", "startedAtUtc", "completedAtUtc", "loadedModId",
-    "gameVersion", "gameAssemblySha256", "gameAssemblyMvid", "ummVersion", "ummSha256",
-    "harmony12Version", "harmony12Sha256", "relationshipState", "movementExperimentEnabled",
-    "processId", "currentGameMode", "loadedAreaPresent", "saveRequestCount", "loadRequestCount",
-    "frameCount", "elapsedSeconds", "errors"
+  "oneOf": [
+    { "$ref": "#/definitions/noSaveV1" },
+    { "$ref": "#/definitions/saveBackedV2" }
   ],
-  "properties": {
-    "schemaVersion": { "const": 1 },
-    "runId": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,120}$" },
-    "scenario": { "const": "mod-load-smoke" },
+  "definitions": {
+    "noSaveV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion", "runId", "scenario", "status", "branch", "commit", "productVersion",
+        "dllSha256", "dllMvid", "transactionToken", "startedAtUtc", "completedAtUtc", "loadedModId",
+        "gameVersion", "gameAssemblySha256", "gameAssemblyMvid", "ummVersion", "ummSha256",
+        "harmony12Version", "harmony12Sha256", "relationshipState", "movementExperimentEnabled",
+        "processId", "currentGameMode", "loadedAreaPresent", "saveRequestCount", "loadRequestCount",
+        "frameCount", "elapsedSeconds", "errors"
+      ],
+      "properties": {
+        "schemaVersion": { "const": 1 },
+        "runId": { "$ref": "#/definitions/runId" },
+        "scenario": { "const": "mod-load-smoke" },
+        "status": { "$ref": "#/definitions/status" },
+        "branch": { "type": "string" },
+        "commit": { "$ref": "#/definitions/commit" },
+        "productVersion": { "const": "0.0.1-feasibility" },
+        "dllSha256": { "$ref": "#/definitions/sha256" },
+        "dllMvid": { "type": "string", "format": "uuid" },
+        "transactionToken": { "$ref": "#/definitions/sha256" },
+        "startedAtUtc": { "type": "string", "format": "date-time" },
+        "completedAtUtc": { "type": "string", "format": "date-time" },
+        "loadedModId": { "const": "KingmakerMountedCombat" },
+        "gameVersion": { "type": "string", "minLength": 1 },
+        "gameAssemblySha256": { "$ref": "#/definitions/sha256" },
+        "gameAssemblyMvid": { "type": "string", "format": "uuid" },
+        "ummVersion": { "type": "string", "minLength": 1 },
+        "ummSha256": { "$ref": "#/definitions/sha256" },
+        "harmony12Version": { "type": "string", "minLength": 1 },
+        "harmony12Sha256": { "$ref": "#/definitions/sha256" },
+        "relationshipState": { "const": "Unmounted" },
+        "movementExperimentEnabled": { "const": false },
+        "processId": { "type": "integer", "minimum": 1 },
+        "currentGameMode": { "type": "string", "minLength": 1 },
+        "loadedAreaPresent": { "const": false },
+        "saveRequestCount": { "const": 0 },
+        "loadRequestCount": { "const": 0 },
+        "frameCount": { "type": "integer", "minimum": 10 },
+        "elapsedSeconds": { "type": "number", "minimum": 1 },
+        "errors": { "$ref": "#/definitions/errors" }
+      }
+    },
+    "saveBackedV2": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion", "runId", "scenario", "status", "branch", "commit", "productVersion",
+        "dllSha256", "dllMvid", "transactionToken", "startedAtUtc", "completedAtUtc", "loadedModId",
+        "gameVersion", "gameAssemblySha256", "gameAssemblyMvid", "ummVersion", "ummSha256",
+        "harmony12Version", "harmony12Sha256", "relationshipState", "movementExperimentEnabled",
+        "processId", "currentGameMode", "loadedAreaPresent", "saveRequestCount", "loadRequestCount",
+        "frameCount", "elapsedSeconds", "errors", "fixture", "fixtureIdentityVerified",
+        "baselineLoadRequestCount", "workingLoadRequestCount", "workingSaveRequestCount",
+        "unauthorizedLoadRequestCount", "unauthorizedSaveRequestCount", "subscenarioTotal",
+        "subscenarioPassCount", "subscenarioFailCount", "assertionPassCount", "assertionFailCount",
+        "subscenarioResults"
+      ],
+      "properties": {
+        "schemaVersion": { "const": 2 },
+        "runId": { "$ref": "#/definitions/runId" },
+        "scenario": { "$ref": "#/definitions/saveBackedScenario" },
+        "status": { "$ref": "#/definitions/status" },
+        "branch": { "type": "string" },
+        "commit": { "$ref": "#/definitions/commit" },
+        "productVersion": { "const": "0.0.1-feasibility" },
+        "dllSha256": { "$ref": "#/definitions/sha256" },
+        "dllMvid": { "type": "string", "format": "uuid" },
+        "transactionToken": { "$ref": "#/definitions/sha256" },
+        "startedAtUtc": { "type": "string", "format": "date-time" },
+        "completedAtUtc": { "type": "string", "format": "date-time" },
+        "loadedModId": { "const": "KingmakerMountedCombat" },
+        "gameVersion": { "type": "string", "minLength": 1 },
+        "gameAssemblySha256": { "$ref": "#/definitions/sha256" },
+        "gameAssemblyMvid": { "type": "string", "format": "uuid" },
+        "ummVersion": { "type": "string", "minLength": 1 },
+        "ummSha256": { "$ref": "#/definitions/sha256" },
+        "harmony12Version": { "type": "string", "minLength": 1 },
+        "harmony12Sha256": { "$ref": "#/definitions/sha256" },
+        "relationshipState": { "type": "string", "minLength": 1 },
+        "movementExperimentEnabled": { "type": "boolean" },
+        "processId": { "type": "integer", "minimum": 1 },
+        "currentGameMode": { "type": "string", "minLength": 1 },
+        "loadedAreaPresent": { "type": "boolean" },
+        "saveRequestCount": { "type": "integer", "minimum": 0 },
+        "loadRequestCount": { "type": "integer", "minimum": 0 },
+        "frameCount": { "type": "integer", "minimum": 10 },
+        "elapsedSeconds": { "type": "number", "minimum": 1 },
+        "errors": { "$ref": "#/definitions/errors" },
+        "fixture": { "$ref": "#/definitions/fixture" },
+        "fixtureIdentityVerified": { "type": "boolean" },
+        "baselineLoadRequestCount": { "type": "integer", "minimum": 0 },
+        "workingLoadRequestCount": { "type": "integer", "minimum": 0 },
+        "workingSaveRequestCount": { "type": "integer", "minimum": 0 },
+        "unauthorizedLoadRequestCount": { "type": "integer", "minimum": 0 },
+        "unauthorizedSaveRequestCount": { "type": "integer", "minimum": 0 },
+        "subscenarioTotal": { "type": "integer", "minimum": 1 },
+        "subscenarioPassCount": { "type": "integer", "minimum": 0 },
+        "subscenarioFailCount": { "type": "integer", "minimum": 0 },
+        "assertionPassCount": { "type": "integer", "minimum": 0 },
+        "assertionFailCount": { "type": "integer", "minimum": 0 },
+        "subscenarioResults": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/definitions/subscenarioResult" }
+        }
+      }
+    },
+    "fixture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["baseline", "working", "writeAuthorization"],
+      "properties": {
+        "baseline": { "$ref": "#/definitions/baselineDescriptor" },
+        "working": { "$ref": "#/definitions/workingDescriptor" },
+        "writeAuthorization": { "$ref": "#/definitions/writeAuthorization" }
+      }
+    },
+    "baselineDescriptor": {
+      "allOf": [
+        { "$ref": "#/definitions/saveDescriptor" },
+        { "properties": {
+          "internalName": { "const": "KMC_AUTOMATION_BASELINE" },
+          "fileName": { "type": "string", "pattern": "^Manual_[0-9]+_KMC_AUTOMATION_BASELINE\\.zks$" }
+        } }
+      ]
+    },
+    "workingDescriptor": {
+      "allOf": [
+        { "$ref": "#/definitions/saveDescriptor" },
+        { "properties": {
+          "internalName": { "const": "KMC_AUTOMATION_WORKING" },
+          "fileName": { "type": "string", "pattern": "^Manual_[0-9]+_KMC_AUTOMATION_WORKING\\.zks$" }
+        } }
+      ]
+    },
+    "saveDescriptor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["internalName", "fileName", "sha256", "length", "lastWriteTimeUtcTicks", "gameId", "gameName", "area"],
+      "properties": {
+        "internalName": { "type": "string" },
+        "fileName": { "type": "string" },
+        "sha256": { "$ref": "#/definitions/sha256" },
+        "length": { "type": "integer", "minimum": 1 },
+        "lastWriteTimeUtcTicks": { "type": "integer", "minimum": 1, "maximum": 3155378975999999999 },
+        "gameId": { "type": "string", "format": "uuid" },
+        "gameName": { "type": "string", "minLength": 1 },
+        "area": { "type": "string", "pattern": "^[0-9a-f]{32}$" }
+      }
+    },
+    "writeAuthorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "allowedInternalName", "allowedFileName", "baselineImmutable"],
+      "properties": {
+        "mode": { "const": "working-only" },
+        "allowedInternalName": { "const": "KMC_AUTOMATION_WORKING" },
+        "allowedFileName": { "type": "string", "pattern": "^Manual_[0-9]+_KMC_AUTOMATION_WORKING\\.zks$" },
+        "baselineImmutable": { "const": true }
+      }
+    },
+    "subscenarioResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "status", "assertionPassCount", "assertionFailCount", "errors"],
+      "properties": {
+        "name": { "$ref": "#/definitions/missionScenario" },
+        "status": { "$ref": "#/definitions/status" },
+        "assertionPassCount": { "type": "integer", "minimum": 0 },
+        "assertionFailCount": { "type": "integer", "minimum": 0 },
+        "errors": { "$ref": "#/definitions/errors" }
+      }
+    },
+    "missionScenario": {
+      "enum": [
+        "mod-load-smoke", "export-mounted-contracts", "export-candidate-mount-rigs", "observe-mount-diagnostic-availability",
+        "mounted-pair-create-and-clear", "mounted-pair-double-mount-rejected", "mounted-pair-invalid-pair-rejected",
+        "mounted-pair-cleanup-idempotent", "mounted-pair-death-cleanup", "mounted-pair-combat-start-cleanup",
+        "mounted-pair-area-unload-cleanup", "mounted-pair-mod-disable-cleanup", "mounted-pair-open-ground",
+        "mounted-pair-stop-start", "mounted-pair-turns-and-corners", "mounted-pair-doorway", "mounted-pair-selection",
+        "mounted-pair-party-formation", "mounted-pair-pause-unpause", "mounted-pair-destination-cancel",
+        "mounted-pair-turn-based-entry-cleanup", "mounted-pair-realtime-entry-cleanup", "mounted-pair-save-safety",
+        "mounted-pair-load-safety", "mounted-pair-area-transition-safety"
+      ]
+    },
+    "saveBackedScenario": {
+      "enum": [
+        "export-mounted-contracts", "export-candidate-mount-rigs", "observe-mount-diagnostic-availability",
+        "mounted-pair-create-and-clear", "mounted-pair-double-mount-rejected", "mounted-pair-invalid-pair-rejected",
+        "mounted-pair-cleanup-idempotent", "mounted-pair-death-cleanup", "mounted-pair-combat-start-cleanup",
+        "mounted-pair-area-unload-cleanup", "mounted-pair-mod-disable-cleanup", "mounted-pair-open-ground",
+        "mounted-pair-stop-start", "mounted-pair-turns-and-corners", "mounted-pair-doorway", "mounted-pair-selection",
+        "mounted-pair-party-formation", "mounted-pair-pause-unpause", "mounted-pair-destination-cancel",
+        "mounted-pair-turn-based-entry-cleanup", "mounted-pair-realtime-entry-cleanup", "mounted-pair-save-safety",
+        "mounted-pair-load-safety", "mounted-pair-area-transition-safety", "fixture-intake", "lifecycle-suite",
+        "movement-suite", "boundary-suite", "phase-1-runtime-suite"
+      ]
+    },
     "status": { "enum": ["PASS", "FAIL"] },
-    "branch": { "type": "string" },
+    "errors": { "type": "array", "items": { "type": "string" } },
+    "runId": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,120}$" },
     "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
-    "productVersion": { "const": "0.0.1-feasibility" },
-    "dllSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
-    "dllMvid": { "type": "string", "format": "uuid" },
-    "transactionToken": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
-    "loadedModId": { "const": "KingmakerMountedCombat" },
-    "relationshipState": { "const": "Unmounted" },
-    "movementExperimentEnabled": { "const": false },
-    "loadedAreaPresent": { "const": false },
-    "saveRequestCount": { "const": 0 },
-    "loadRequestCount": { "const": 0 },
-    "frameCount": { "type": "integer", "minimum": 10 },
-    "elapsedSeconds": { "type": "number", "minimum": 1 },
-    "errors": { "type": "array", "items": { "type": "string" } }
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
   }
 }

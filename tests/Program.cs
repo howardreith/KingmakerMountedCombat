@@ -16,8 +16,14 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("request rejects valued save", RequestRejectsValuedSave);
             runner.Run("request rejects save name in no-save mode", RequestRejectsSaveNameInNoSaveMode);
             runner.Run("request requires exact hash and MVID formats", RequestRequiresBuildIdentity);
+            runner.Run("request accepts exact save-backed fixture", RequestAcceptsExactSaveBackedFixture);
+            runner.Run("request rejects mismatched fixture identity", RequestRejectsMismatchedFixtureIdentity);
+            runner.Run("request rejects non-Working write authorization", RequestRejectsNonWorkingAuthorization);
             runner.Run("result accepts complete PASS", ResultAcceptsCompletePass);
             runner.Run("result rejects non-terminal status", ResultRejectsNonTerminalStatus);
+            runner.Run("result accepts restored save-backed PASS", ResultAcceptsRestoredSaveBackedPass);
+            runner.Run("result rejects incomplete fixture restoration", ResultRejectsIncompleteFixtureRestoration);
+            runner.Run("result rejects inconsistent subscenario totals", ResultRejectsInconsistentSubscenarioTotals);
             MountedRelationshipTests.Register(runner);
             return runner.Complete();
         }
@@ -72,6 +78,46 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(result.Validate().Count > 0, "Non-terminal result status was accepted.");
         }
 
+        private static void RequestAcceptsExactSaveBackedFixture()
+        {
+            var request = ValidSaveBackedRequest();
+            TestRunner.Equal(0, request.Validate().Count, "Valid save-backed fixture request was rejected.");
+        }
+
+        private static void RequestRejectsMismatchedFixtureIdentity()
+        {
+            var request = ValidSaveBackedRequest();
+            request.Fixture.Working.Area = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+            TestRunner.True(request.Validate().Count > 0, "Mismatched fixture campaign identity was accepted.");
+        }
+
+        private static void RequestRejectsNonWorkingAuthorization()
+        {
+            var request = ValidSaveBackedRequest();
+            request.Fixture.WriteAuthorization.AllowedInternalName = "KMC_AUTOMATION_BASELINE";
+            TestRunner.True(request.Validate().Count > 0, "Baseline write authorization was accepted.");
+        }
+
+        private static void ResultAcceptsRestoredSaveBackedPass()
+        {
+            var result = ValidSaveBackedResult();
+            TestRunner.Equal(0, result.Validate().Count, "Valid restored save-backed result was rejected.");
+        }
+
+        private static void ResultRejectsIncompleteFixtureRestoration()
+        {
+            var result = ValidSaveBackedResult();
+            result.WorkingRestored = false;
+            TestRunner.True(result.Validate().Count > 0, "Incomplete Working restoration was accepted.");
+        }
+
+        private static void ResultRejectsInconsistentSubscenarioTotals()
+        {
+            var result = ValidSaveBackedResult();
+            result.AssertionPassCount++;
+            TestRunner.True(result.Validate().Count > 0, "Inconsistent subscenario totals were accepted.");
+        }
+
         private static RuntimeRequest ValidRequest()
         {
             return new RuntimeRequest
@@ -111,6 +157,104 @@ namespace KingmakerMountedCombat.Tests
                 SaveProtectionPassed = true,
                 GameResultSha256 = Sha,
                 Errors = new string[0]
+            };
+        }
+
+        private static RuntimeRequest ValidSaveBackedRequest()
+        {
+            return new RuntimeRequest
+            {
+                SchemaVersion = RuntimeRequest.SaveBackedSchemaVersion,
+                RunId = "kmc-fixture-001",
+                Scenario = "fixture-intake",
+                Branch = "codex/mounted-combat-feasibility",
+                Commit = "3801345720241eeab75f2944d91948f182ca26aa",
+                ProductVersion = "0.0.1-feasibility",
+                DllSha256 = Sha,
+                DllMvid = Mvid,
+                EvidenceRoot = "runtime-evidence/kmc-fixture-001",
+                TransactionToken = Sha,
+                Fixture = ValidFixture()
+            };
+        }
+
+        private static RuntimeResult ValidSaveBackedResult()
+        {
+            return new RuntimeResult
+            {
+                SchemaVersion = RuntimeResult.SaveBackedSchemaVersion,
+                RunId = "kmc-fixture-001",
+                Scenario = "fixture-intake",
+                Status = "PASS",
+                Branch = "codex/mounted-combat-feasibility",
+                Commit = "3801345720241eeab75f2944d91948f182ca26aa",
+                ProductVersion = "0.0.1-feasibility",
+                DllSha256 = Sha,
+                DllMvid = Mvid,
+                TransactionToken = Sha,
+                StartedAtUtc = "2026-08-13T16:00:00Z",
+                CompletedAtUtc = "2026-08-13T16:00:01Z",
+                ModsRestored = true,
+                SaveProtectionPassed = true,
+                GameResultSha256 = Sha,
+                Errors = new string[0],
+                Fixture = ValidFixture(),
+                BaselineImmutable = true,
+                WorkingRestored = true,
+                SaveWriteAllowlistPassed = true,
+                RestoredSaveInventoryDigest = Sha,
+                SubscenarioTotal = 1,
+                SubscenarioPassCount = 1,
+                SubscenarioFailCount = 0,
+                AssertionPassCount = 3,
+                AssertionFailCount = 0,
+                SubscenarioResults = new[]
+                {
+                    new RuntimeSubscenarioResult
+                    {
+                        Name = "observe-mount-diagnostic-availability",
+                        Status = "PASS",
+                        AssertionPassCount = 3,
+                        AssertionFailCount = 0,
+                        Errors = new string[0]
+                    }
+                }
+            };
+        }
+
+        private static RuntimeFixtureIdentity ValidFixture()
+        {
+            return new RuntimeFixtureIdentity
+            {
+                Baseline = new RuntimeSaveDescriptor
+                {
+                    InternalName = "KMC_AUTOMATION_BASELINE",
+                    FileName = "Manual_298_KMC_AUTOMATION_BASELINE.zks",
+                    Sha256 = Sha,
+                    Length = 686605,
+                    LastWriteTimeUtcTicks = 638907120000000000L,
+                    GameId = Mvid,
+                    GameName = "KMC Fixture",
+                    Area = "0123456789abcdef0123456789abcdef"
+                },
+                Working = new RuntimeSaveDescriptor
+                {
+                    InternalName = "KMC_AUTOMATION_WORKING",
+                    FileName = "Manual_299_KMC_AUTOMATION_WORKING.zks",
+                    Sha256 = "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+                    Length = 684085,
+                    LastWriteTimeUtcTicks = 638907120010000000L,
+                    GameId = Mvid,
+                    GameName = "KMC Fixture",
+                    Area = "0123456789abcdef0123456789abcdef"
+                },
+                WriteAuthorization = new RuntimeSaveWriteAuthorization
+                {
+                    Mode = "working-only",
+                    AllowedInternalName = "KMC_AUTOMATION_WORKING",
+                    AllowedFileName = "Manual_299_KMC_AUTOMATION_WORKING.zks",
+                    BaselineImmutable = true
+                }
             };
         }
     }

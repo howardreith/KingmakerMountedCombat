@@ -1,22 +1,132 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://kingmakermountedcombat.invalid/schema/runtime-request-v1.json",
+  "$id": "https://kingmakermountedcombat.invalid/schema/runtime-request-v2.json",
   "title": "Kingmaker Mounted Combat runtime request",
-  "type": "object",
-  "additionalProperties": false,
-  "required": ["schemaVersion", "runId", "scenario", "branch", "commit", "productVersion", "dllSha256", "dllMvid", "transactionToken", "saveAccessAllowed", "saveName", "evidenceRoot"],
-  "properties": {
-    "schemaVersion": { "const": 1 },
+  "oneOf": [
+    { "$ref": "#/definitions/noSaveV1" },
+    { "$ref": "#/definitions/saveBackedV2" }
+  ],
+  "definitions": {
+    "noSaveV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion", "runId", "scenario", "branch", "commit", "productVersion",
+        "dllSha256", "dllMvid", "transactionToken", "evidenceRoot", "saveAccessAllowed", "saveName"
+      ],
+      "properties": {
+        "schemaVersion": { "const": 1 },
+        "runId": { "$ref": "#/definitions/runId" },
+        "scenario": { "const": "mod-load-smoke" },
+        "branch": { "$ref": "#/definitions/branch" },
+        "commit": { "$ref": "#/definitions/commit" },
+        "productVersion": { "const": "0.0.1-feasibility" },
+        "dllSha256": { "$ref": "#/definitions/sha256" },
+        "dllMvid": { "type": "string", "format": "uuid" },
+        "transactionToken": { "$ref": "#/definitions/sha256" },
+        "evidenceRoot": { "type": "string", "minLength": 1 },
+        "saveAccessAllowed": { "const": false },
+        "saveName": { "type": "null" }
+      }
+    },
+    "saveBackedV2": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion", "runId", "scenario", "branch", "commit", "productVersion",
+        "dllSha256", "dllMvid", "transactionToken", "evidenceRoot", "fixture"
+      ],
+      "properties": {
+        "schemaVersion": { "const": 2 },
+        "runId": { "$ref": "#/definitions/runId" },
+        "scenario": { "$ref": "#/definitions/saveBackedScenario" },
+        "branch": { "$ref": "#/definitions/branch" },
+        "commit": { "$ref": "#/definitions/commit" },
+        "productVersion": { "const": "0.0.1-feasibility" },
+        "dllSha256": { "$ref": "#/definitions/sha256" },
+        "dllMvid": { "type": "string", "format": "uuid" },
+        "transactionToken": { "$ref": "#/definitions/sha256" },
+        "evidenceRoot": { "type": "string", "minLength": 1 },
+        "fixture": { "$ref": "#/definitions/fixture" }
+      }
+    },
+    "fixture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["baseline", "working", "writeAuthorization"],
+      "properties": {
+        "baseline": { "$ref": "#/definitions/baselineDescriptor" },
+        "working": { "$ref": "#/definitions/workingDescriptor" },
+        "writeAuthorization": { "$ref": "#/definitions/writeAuthorization" }
+      }
+    },
+    "baselineDescriptor": {
+      "allOf": [
+        { "$ref": "#/definitions/saveDescriptor" },
+        {
+          "properties": {
+            "internalName": { "const": "KMC_AUTOMATION_BASELINE" },
+            "fileName": { "type": "string", "pattern": "^Manual_[0-9]+_KMC_AUTOMATION_BASELINE\\.zks$" }
+          }
+        }
+      ]
+    },
+    "workingDescriptor": {
+      "allOf": [
+        { "$ref": "#/definitions/saveDescriptor" },
+        {
+          "properties": {
+            "internalName": { "const": "KMC_AUTOMATION_WORKING" },
+            "fileName": { "type": "string", "pattern": "^Manual_[0-9]+_KMC_AUTOMATION_WORKING\\.zks$" }
+          }
+        }
+      ]
+    },
+    "saveDescriptor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "internalName", "fileName", "sha256", "length", "lastWriteTimeUtcTicks",
+        "gameId", "gameName", "area"
+      ],
+      "properties": {
+        "internalName": { "type": "string" },
+        "fileName": { "type": "string" },
+        "sha256": { "$ref": "#/definitions/sha256" },
+        "length": { "type": "integer", "minimum": 1 },
+        "lastWriteTimeUtcTicks": { "type": "integer", "minimum": 1, "maximum": 3155378975999999999 },
+        "gameId": { "type": "string", "format": "uuid" },
+        "gameName": { "type": "string", "minLength": 1 },
+        "area": { "type": "string", "pattern": "^[0-9a-f]{32}$" }
+      }
+    },
+    "writeAuthorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "allowedInternalName", "allowedFileName", "baselineImmutable"],
+      "properties": {
+        "mode": { "const": "working-only" },
+        "allowedInternalName": { "const": "KMC_AUTOMATION_WORKING" },
+        "allowedFileName": { "type": "string", "pattern": "^Manual_[0-9]+_KMC_AUTOMATION_WORKING\\.zks$" },
+        "baselineImmutable": { "const": true }
+      }
+    },
+    "saveBackedScenario": {
+      "enum": [
+        "export-mounted-contracts", "export-candidate-mount-rigs", "observe-mount-diagnostic-availability",
+        "mounted-pair-create-and-clear", "mounted-pair-double-mount-rejected", "mounted-pair-invalid-pair-rejected",
+        "mounted-pair-cleanup-idempotent", "mounted-pair-death-cleanup", "mounted-pair-combat-start-cleanup",
+        "mounted-pair-area-unload-cleanup", "mounted-pair-mod-disable-cleanup", "mounted-pair-open-ground",
+        "mounted-pair-stop-start", "mounted-pair-turns-and-corners", "mounted-pair-doorway", "mounted-pair-selection",
+        "mounted-pair-party-formation", "mounted-pair-pause-unpause", "mounted-pair-destination-cancel",
+        "mounted-pair-turn-based-entry-cleanup", "mounted-pair-realtime-entry-cleanup", "mounted-pair-save-safety",
+        "mounted-pair-load-safety", "mounted-pair-area-transition-safety", "fixture-intake", "lifecycle-suite",
+        "movement-suite", "boundary-suite", "phase-1-runtime-suite"
+      ]
+    },
     "runId": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,120}$" },
-    "scenario": { "const": "mod-load-smoke" },
     "branch": { "type": "string", "pattern": "^codex/mounted-combat-[A-Za-z0-9._/-]+$" },
     "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
-    "productVersion": { "const": "0.0.1-feasibility" },
-    "dllSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
-    "dllMvid": { "type": "string", "format": "uuid" },
-    "transactionToken": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
-    "saveAccessAllowed": { "const": false },
-    "saveName": { "type": "null" },
-    "evidenceRoot": { "type": "string", "minLength": 1 }
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
   }
 }

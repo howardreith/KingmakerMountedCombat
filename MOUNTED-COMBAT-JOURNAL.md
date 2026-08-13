@@ -194,3 +194,17 @@
 - Current uncertainty: exact runtime correction frequency, maximum pre-correction residual, drift, oscillation, and visual pose remain unmeasured.
 - External state/restoration result: PASS; source/tests only, with no Mods/save/process mutation.
 - Exact next action: commit the telemetry correction, then integrate and commit protocol v2 before implementing the in-process Working loader and authorization policy.
+
+## 2026-08-13T20:33:00Z — runtime protocol v2 fixture binding
+
+- Branch / exact HEAD: `codex/mounted-combat-feasibility` / `4e8a3f1`; protocol-v2 changes are intentionally uncommitted at this checkpoint.
+- Active version: `0.0.1-feasibility`.
+- Work completed: added a strict save-backed protocol v2 while preserving schema-v1 `mod-load-smoke`. Requests now bind the exact baseline and Working descriptor identities, raw matching GameId/GameName/Area, hashes/length/timestamps, canonical leaves, baseline immutability, and the sole Working write authorization. Game/final results bind fixture verification, authorized and blocked operation counters, exact restoration booleans, unique mission-row subresults, and recomputed assertion totals. Aggregate lifecycle/movement/boundary suite names are allowed only as bounded orchestration containers; child results remain restricted to mission rows.
+- Commands/tests run: Release build; pure/component suite; all three PowerShell protocol validators against valid and mutated fixtures; complete `scripts/Test.ps1 -Configuration Release`; `git diff --check`.
+- Exact PASS/FAIL counts: six new C# protocol regressions PASS / 0 FAIL; integrated pure/component 43/0; runtime request validator mutation suite 24/0; game-result validator mutation suite 24/0; final-result validator mutation suite 23/0; full source 21/0 and assembly-backed 29/0.
+- Runtime evidence IDs/paths: none created; protocol qualification used only synthetic JSON.
+- Hashes/MVIDs: integrated dirty-tree DLL SHA-256 `e8af3c72e2b73aa8cd1640f37867efbd627850ca499ac195194fb739f04d428a`, MVID `a3d2f2ef-0fbf-4ca8-9afb-6fa0ce7a2fca`; no package generated and no runtime claim is attached.
+- Rejected theories: a boolean save-access flag and a save display name do not authorize file access; aggregate PASS counts without named child results cannot qualify mission rows.
+- Current uncertainty: the launcher and in-process host do not yet consume v2; proactive SaveRoutine/LoadRoutine denial and exact Working loading remain to implement and test.
+- External state/restoration result: PASS; no external state mutation.
+- Exact next action: commit protocol v2, then wire the in-process exact-Working authorization service, loader, and external Working transaction into the guarded launcher.
