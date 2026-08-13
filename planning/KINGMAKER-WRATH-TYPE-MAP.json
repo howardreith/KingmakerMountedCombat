@@ -1,197 +1,269 @@
 {
   "schemaVersion": 1,
-  "status": "IN PROGRESS",
+  "status": "PASS — CONTRACT MAP; RUNTIME UNQUALIFIED",
   "authority": {
+    "kingmakerAssembly": "Assembly-CSharp, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null",
     "kingmakerMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7",
-    "wrathMvid": "90a9869c-2792-4c7b-bfb7-5a8b33da7c82"
+    "kingmakerSha256": "3b6450ffec440e296e586f71c711b195aed144b28d53e1cbb29406d18fef5afb",
+    "wrathAssembly": "Assembly-CSharp, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "wrathMvid": "90a9869c-2792-4c7b-bfb7-5a8b33da7c82",
+    "wrathSha256": "2cb7160b7154d4ffacc77b9c51b1eb26199e1294300f04fdfc073367b2ef8953"
   },
   "entries": [
     {
-      "responsibility": "mounted relationship rider state",
+      "responsibility": "reciprocal mounted relationship state",
       "wrath": {
-        "types": ["Kingmaker.UnitLogic.Parts.UnitPartRider"],
-        "members": [],
-        "evidence": ["exact type inventory", "analysis-cache/wrath-bounded/Kingmaker.UnitLogic.Parts.UnitPartRider.decompiled.cs"]
+        "types": ["Kingmaker.UnitLogic.Parts.UnitPartRider", "Kingmaker.UnitLogic.Parts.UnitPartSaddled"],
+        "members": ["UnitPartRider.m_SaddledUnitRef field 0x04008376", "UnitPartSaddled.m_RiderRef field 0x04008382", "UnitPartRider.Mount 0x0600C263", "UnitPartRider.Dismount 0x0600C264"],
+        "evidence": ["analysis-cache/wrath-bounded/Kingmaker.UnitLogic.Parts.UnitPartRider.decompiled.cs", "analysis-cache/wrath-bounded/Kingmaker.UnitLogic.Parts.UnitPartSaddled.decompiled.cs"]
       },
       "kingmaker": {
         "classification": "ABSENT — REIMPLEMENT",
         "types": [],
         "members": [],
-        "evidence": ["exact type inventory found no rider, saddled, or mount relationship type"]
+        "evidence": ["exact type inventory contains no Rider, Saddled, or mounted-controller responsibility"]
       },
-      "proposedStrategy": "runtime-only relationship domain",
-      "risks": ["serialization leakage", "partial transition residue"],
-      "confidence": "medium"
+      "proposedStrategy": "one runtime-only relationship object outside serializable entity parts",
+      "risks": ["partial transition residue", "accidental serialization"],
+      "confidence": "high"
     },
     {
-      "responsibility": "mounted relationship mount state",
+      "responsibility": "pair qualification and size",
       "wrath": {
-        "types": ["Kingmaker.UnitLogic.Parts.UnitPartSaddled"],
-        "members": [],
-        "evidence": ["exact type inventory", "analysis-cache/wrath-bounded/Kingmaker.UnitLogic.Parts.UnitPartSaddled.decompiled.cs"]
-      },
-      "kingmaker": {
-        "classification": "ABSENT — REIMPLEMENT",
-        "types": [],
-        "members": [],
-        "evidence": ["exact type inventory"]
-      },
-      "proposedStrategy": "runtime-only paired state owned outside game serialization",
-      "risks": ["stale reverse reference"],
-      "confidence": "medium"
-    },
-    {
-      "responsibility": "authoritative movement delegation",
-      "wrath": {
-        "types": ["Kingmaker.Controllers.Units.SaddledUnitController", "Kingmaker.View.UnitMovementAgentBase"],
-        "members": [],
-        "evidence": ["bounded exact-type decompilation"]
-      },
-      "kingmaker": {
-        "classification": "PARTIAL PRIMITIVE",
-        "types": ["Kingmaker.View.UnitMovementAgentBase", "Kingmaker.View.UnitMovementAgent", "Kingmaker.View.UnitMovementAgentContinious"],
-        "members": [],
-        "evidence": ["bounded exact-type decompilation"]
-      },
-      "proposedStrategy": "adapter pending exact member trace",
-      "risks": ["dual-agent collision", "global movement effects", "logical/view divergence"],
-      "confidence": "low"
-    },
-    {
-      "responsibility": "rider movement command routing",
-      "wrath": {
-        "types": ["Kingmaker.UnitLogic.Commands.UnitCommands", "Kingmaker.UnitLogic.Commands.Base.UnitCommand", "Kingmaker.UnitLogic.Parts.UnitPartRider"],
-        "members": [],
+        "types": ["Kingmaker.UnitLogic.Abilities.Components.TargetCheckers.AbilityTargetIsSuitableMount", "Kingmaker.UnitLogic.Abilities.Components.TargetCheckers.AbilityTargetIsSuitableMountSize"],
+        "members": ["AbilityTargetIsSuitableMount.CanMount 0x0600D7FF", "AbilityTargetIsSuitableMountSize.CanMount 0x0600D803"],
         "evidence": ["bounded exact-type decompilation"]
       },
       "kingmaker": {
         "classification": "USABLE CONTROL POINT",
-        "types": ["Kingmaker.UnitLogic.Commands.UnitCommands", "Kingmaker.UnitLogic.Commands.Base.UnitCommand", "Kingmaker.Controllers.Clicks.Handlers.ClickGroundHandler"],
-        "members": [],
-        "evidence": ["bounded exact-type decompilation"]
+        "types": ["Kingmaker.UnitLogic.UnitDescriptor", "Kingmaker.EntitySystem.Entities.UnitEntityData"],
+        "members": ["UnitDescriptor.Master field 0x04001567", "UnitDescriptor.Pet 0x1700065C", "UnitDescriptor.IsPet 0x17000656", "UnitState.Size 0x1700068A", "UnitEntityData.IsDirectlyControllable 0x06008328"],
+        "evidence": ["analysis-cache/kingmaker-bounded/Kingmaker.UnitLogic.UnitDescriptor.decompiled.cs", "analysis-cache/kingmaker-bounded/Kingmaker.EntitySystem.Entities.UnitEntityData.decompiled.cs"]
       },
-      "proposedStrategy": "scoped command-routing adapter",
-      "risks": ["broad Harmony patch", "cancel/stop mismatch"],
-      "confidence": "low"
+      "proposedStrategy": "validate current reciprocal rider/pet identity, controllability, consciousness, views, stock agents, out-of-combat state, and strictly larger current mount size",
+      "risks": ["stale companion reference", "runtime size change"],
+      "confidence": "high"
     },
     {
-      "responsibility": "party group movement and formation",
+      "responsibility": "authoritative movement delegation",
       "wrath": {
-        "types": ["Kingmaker.Formations.PartyFormationManager", "Kingmaker.Formations.PartyFormationAuto"],
-        "members": [],
-        "evidence": ["exact type inventory"]
+        "types": ["Kingmaker.Controllers.Units.SaddledUnitController", "Kingmaker.UnitLogic.Commands.UnitCommands"],
+        "members": ["SaddledUnitController.TickDelegateRiderToMount 0x0600AB06", "UnitCommands.AddRiderCommand 0x0600CA6B", "UnitCommands.AddMountCommand 0x0600CA6C"],
+        "evidence": ["analysis-cache/wrath-bounded/Kingmaker.Controllers.Units.SaddledUnitController.decompiled.cs"]
       },
       "kingmaker": {
-        "classification": "OLDER EQUIVALENT",
-        "types": ["Kingmaker.Formations.PartyFormationHelper", "Kingmaker.Formations.CustomPartyFormation", "Kingmaker.Controllers.Units.GroupCommandsController"],
-        "members": [],
-        "evidence": ["bounded exact-type decompilation"]
+        "classification": "USABLE CONTROL POINT",
+        "types": ["Kingmaker.Controllers.Clicks.Handlers.ClickGroundHandler", "Kingmaker.UnitLogic.Commands.UnitCommands", "Kingmaker.UnitLogic.Commands.UnitMoveTo"],
+        "members": ["ClickGroundHandler.RunCommand 0x060093DC", "UnitCommands.Run 0x060026B2", "UnitCommands.InterruptMove 0x060026C2"],
+        "evidence": ["analysis-cache/kingmaker-bounded/Kingmaker.Controllers.Clicks.Handlers.ClickGroundHandler.decompiled.cs", "analysis-cache/kingmaker-bounded/Kingmaker.UnitLogic.Commands.UnitCommands.decompiled.cs"]
       },
-      "proposedStrategy": "formation adapter after exact slot trace",
-      "risks": ["duplicate formation slot", "non-mounted party interference"],
-      "confidence": "low"
+      "proposedStrategy": "rewrite only the active rider's private ground-command recipient to the mount and suppress only the active mount's duplicate formation-row command",
+      "risks": ["exact-token fragility", "unhandled gamepad continuous movement", "stop forwarding"],
+      "confidence": "medium-high"
+    },
+    {
+      "responsibility": "rider path suppression",
+      "wrath": {
+        "types": ["Kingmaker.UnitLogic.Commands.Base.UnitCommand"],
+        "members": ["UnitCommand.TickApproaching 0x0600CA7E"],
+        "evidence": ["rider branch returns before View.MoveTo"]
+      },
+      "kingmaker": {
+        "classification": "ABSENT — REIMPLEMENT",
+        "types": ["Kingmaker.UnitLogic.Commands.Base.UnitCommand", "Kingmaker.View.UnitEntityView"],
+        "members": ["UnitCommand.TickApproaching 0x060027A6", "UnitEntityView.MoveTo 0x0600184D", "UnitEntityView.AgentASP 0x17000518"],
+        "evidence": ["MoveTo bypasses AgentOverride and calls AgentASP.PathTo"]
+      },
+      "proposedStrategy": "never create rider move commands while active; stop and disable rider AgentASP and dismount before unexpected rider commands",
+      "risks": ["bypassing continuous movement", "queued command residue"],
+      "confidence": "high"
+    },
+    {
+      "responsibility": "movement-agent ownership and entity position",
+      "wrath": {
+        "types": ["Kingmaker.Controllers.Units.UnitMoveController", "Kingmaker.View.UnitMovementAgentBase"],
+        "members": ["UnitMoveController.TickUnit 0x0600ABAA"],
+        "evidence": ["copies mount position/orientation into rider entity and rider view every tick"]
+      },
+      "kingmaker": {
+        "classification": "USABLE CONTROL POINT",
+        "types": ["Kingmaker.Controllers.Units.UnitMoveController", "Kingmaker.View.UnitEntityView", "Kingmaker.View.UnitMovementAgentBase"],
+        "members": ["UnitMoveController.Tick 0x06009183", "UnitEntityView.AgentOverride 0x17000519", "UnitEntityView.MovementAgent 0x1700051A", "UnitEntityData.Position 0x1700169F"],
+        "evidence": ["UnitMoveController ticks AgentOverride when present and commits view position to entity"]
+      },
+      "proposedStrategy": "project-owned rider AgentOverride mirrors mount movement and pair-local LateUpdate enforces the anchor transform; never patch the global movement tick",
+      "risks": ["awake-unit order", "override ownership conflict", "per-tick synchronization may fail runtime acceptance"],
+      "confidence": "medium-high"
+    },
+    {
+      "responsibility": "avoidance and collision",
+      "wrath": {
+        "types": ["Kingmaker.UnitLogic.Parts.UnitPartRider", "Kingmaker.View.UnitMovementAgent"],
+        "members": ["UnitPartRider.SetAvoidanceEnabled 0x0600C269", "UnitMovementAgent.UpdateUnitAvoidance 0x06001EEF"],
+        "evidence": ["other agents ignore avoidance-disabled riders"]
+      },
+      "kingmaker": {
+        "classification": "DIRECT EQUIVALENT",
+        "types": ["Kingmaker.View.UnitMovementAgent"],
+        "members": ["UnitMovementAgent.AvoidanceDisabled 0x17000536", "UnitMovementAgent.UpdateUnitAvoidance 0x060018B2", "UnitMovementAgent.Stop 0x060018C2"],
+        "evidence": ["AvoidanceDisabled is a reference-counted CountingGuard and other agents skip it"]
+      },
+      "proposedStrategy": "acquire one rider-only avoidance lease, disable rider stock agent, keep mount stock agent ordinary, and release exactly once",
+      "risks": ["unbalanced CountingGuard", "pre-existing external lease"],
+      "confidence": "high"
+    },
+    {
+      "responsibility": "path clearance and physical footprint",
+      "wrath": {
+        "types": ["Kingmaker.View.UnitMovementAgent", "Kingmaker.View.UnitEntityView"],
+        "members": ["ordinary mount PathTo and Corpulence contracts"],
+        "evidence": ["mount remains the pathing entity"]
+      },
+      "kingmaker": {
+        "classification": "DIRECT EQUIVALENT",
+        "types": ["Kingmaker.View.UnitMovementAgent", "Kingmaker.View.UnitEntityView"],
+        "members": ["UnitMovementAgent.PathTo 0x060018A3", "UnitEntityView.Corpulence"],
+        "evidence": ["path seeker clearance uses mount view corpulence times two"]
+      },
+      "proposedStrategy": "retain native mount clearance and path rejection; never shrink the footprint",
+      "risks": ["native mount cannot pass candidate doorway"],
+      "confidence": "high"
     },
     {
       "responsibility": "selection and active-unit control",
       "wrath": {
         "types": ["Kingmaker.Controllers.SelectionCharacterController"],
-        "members": [],
-        "evidence": ["bounded exact-type decompilation"]
-      },
-      "kingmaker": {
-        "classification": "PARTIAL PRIMITIVE",
-        "types": ["Kingmaker.UI.Selection.SelectionManager"],
-        "members": [],
-        "evidence": ["bounded exact-type decompilation"]
-      },
-      "proposedStrategy": "selection snapshot and restore adapter",
-      "risks": ["selection loss", "camera/portrait mismatch"],
-      "confidence": "low"
-    },
-    {
-      "responsibility": "entity and view alignment",
-      "wrath": {
-        "types": ["Kingmaker.Controllers.Units.SaddledUnitController", "Kingmaker.EntitySystem.Entities.UnitEntityData", "Kingmaker.View.UnitEntityView", "Kingmaker.Visual.Mounts.MountOffsets"],
-        "members": [],
-        "evidence": ["bounded exact-type decompilation"]
-      },
-      "kingmaker": {
-        "classification": "PARTIAL PRIMITIVE",
-        "types": ["Kingmaker.EntitySystem.Entities.UnitEntityData", "Kingmaker.View.UnitEntityView"],
-        "members": [],
-        "evidence": ["bounded exact-type decompilation"]
-      },
-      "proposedStrategy": "view attachment adapter plus minimum evidence-backed logical synchronization",
-      "risks": ["cumulative drift", "teleport artifacts", "detached view residue"],
-      "confidence": "low"
-    },
-    {
-      "responsibility": "qualifying pet/master relationship",
-      "wrath": {
-        "types": ["Kingmaker.UnitLogic.Parts.UnitPartPet", "Kingmaker.UnitLogic.Parts.UnitPartPetMaster"],
-        "members": [],
-        "evidence": ["exact type inventory"]
-      },
-      "kingmaker": {
-        "classification": "PARTIAL PRIMITIVE",
-        "types": ["Kingmaker.UnitLogic.FactLogic.AddPet", "Kingmaker.EntitySystem.Entities.UnitEntityData"],
-        "members": [],
-        "evidence": ["Kingmaker has no UnitPartPet type; bounded AddPet and entity decompilation"]
-      },
-      "proposedStrategy": "exact descriptor/player relationship adapter",
-      "risks": ["accepting non-active or non-owned companions"],
-      "confidence": "low"
-    },
-    {
-      "responsibility": "combat boundary",
-      "wrath": {
-        "types": ["Kingmaker.Controllers.Combat.UnitCombatState"],
-        "members": [],
-        "evidence": ["bounded exact-type decompilation"]
+        "members": ["mounted click redirection and box-selection exclusion"],
+        "evidence": ["bounded caller/callee inspection"]
       },
       "kingmaker": {
         "classification": "USABLE CONTROL POINT",
-        "types": ["Kingmaker.Controllers.Combat.UnitCombatState"],
-        "members": [],
-        "evidence": ["bounded exact-type decompilation"]
+        "types": ["Kingmaker.UI.Selection.SelectionManager"],
+        "members": ["SelectionManager.SelectUnit 0x060034F0", "SelectionManager.MultiSelect 0x060034F5", "SelectionManager.SelectAll 0x060034FE"],
+        "evidence": ["public APIs maintain decals/events; direct list mutation is unsafe"]
       },
-      "proposedStrategy": "event-driven forced cleanup before Phase 1 combat",
-      "risks": ["late cleanup after combat begins"],
-      "confidence": "low"
+      "proposedStrategy": "redirect only active mount selection to rider and restore through public APIs",
+      "risks": ["camera/portrait mismatch", "duplicate selection during multi-select"],
+      "confidence": "medium-high"
     },
     {
-      "responsibility": "mounted relationship serialization",
+      "responsibility": "party group movement and formation",
       "wrath": {
-        "types": ["Kingmaker.UnitLogic.Parts.UnitPartRider", "Kingmaker.UnitLogic.Parts.UnitPartSaddled"],
-        "members": [],
-        "evidence": ["bounded exact-type decompilation"]
+        "types": ["Kingmaker.Formations.PartyFormationManager", "Kingmaker.Formations.PartyFormationAuto"],
+        "members": ["saddled mount exclusion and rider-offset mirroring"],
+        "evidence": ["exact assembly call graph"]
+      },
+      "kingmaker": {
+        "classification": "OLDER EQUIVALENT",
+        "types": ["Kingmaker.Formations.PartyFormationHelper", "Kingmaker.Controllers.Clicks.Handlers.ClickGroundHandler"],
+        "members": ["PartyFormationHelper.FillFormationPositions 0x06007E1A", "ClickGroundHandler.MoveSelectedUnitsToPoint 0x060093DB"],
+        "evidence": ["both rider and pet naturally occupy controllable-character formation rows"]
+      },
+      "proposedStrategy": "route rider row to mount and suppress mount row; preserve unrelated destinations and record the empty-slot compromise",
+      "risks": ["empty formation slot", "non-mounted party interference"],
+      "confidence": "medium"
+    },
+    {
+      "responsibility": "stop, hold, and destination cancellation",
+      "wrath": {
+        "types": ["Kingmaker.UnitLogic.Parts.UnitPartRider", "Kingmaker.Controllers.Units.SaddledUnitController"],
+        "members": ["paired cancellation and movement completion propagation"],
+        "evidence": ["bounded exact controller trace"]
+      },
+      "kingmaker": {
+        "classification": "PARTIAL PRIMITIVE",
+        "types": ["Kingmaker.UI.Selection.SelectionManagerBase", "Kingmaker.UnitLogic.Commands.UnitCommands", "Kingmaker.View.UnitEntityView"],
+        "members": ["SelectionManagerBase.Stop 0x060000B9", "SelectionManagerBase.Hold 0x060000BA", "UnitCommands.InterruptMove 0x060026C2", "UnitEntityView.StopMoving 0x06001851"],
+        "evidence": ["stock selection stop/hold does not reach a command owned by another unit"]
+      },
+      "proposedStrategy": "active-pair forwarding to mount InterruptMove and StopMoving with unchanged behavior otherwise",
+      "risks": ["stale group command", "double interruption"],
+      "confidence": "medium-high"
+    },
+    {
+      "responsibility": "combat and mode boundaries",
+      "wrath": {
+        "types": ["Kingmaker.Controllers.Units.SaddledUnitController", "TurnBased.Controllers.TurnController"],
+        "members": ["paired combat command/turn integration"],
+        "evidence": ["Wrath remains mounted and couples initiative/actions"]
+      },
+      "kingmaker": {
+        "classification": "USABLE CONTROL POINT",
+        "types": ["Kingmaker.PubSubSystem.IUnitCombatHandler", "Kingmaker.PubSubSystem.IPartyCombatHandler", "Kingmaker.PubSubSystem.ITurnBasedModeEnabledHandler"],
+        "members": ["IUnitCombatHandler.HandleUnitJoinCombat 0x06007613", "IPartyCombatHandler.HandlePartyCombatStateChanged 0x0600750F", "ITurnBasedModeEnabledHandler.HandleTurnBasedModeStateChanged 0x0600751F"],
+        "evidence": ["exact event interfaces and JoinCombat event timing"]
+      },
+      "proposedStrategy": "best-effort dismount/clear immediately at combat or mode boundary; no combat delegation",
+      "risks": ["cleanup after combat flag has already changed"],
+      "confidence": "high"
+    },
+    {
+      "responsibility": "life, view, area, and mod lifecycle cleanup",
+      "wrath": {
+        "types": ["Kingmaker.Controllers.Units.SaddledUnitController", "Kingmaker.UnitLogic.Parts.UnitPartRider"],
+        "members": ["controller invariant cleanup and view avoidance toggles"],
+        "evidence": ["exact controller and part trace"]
+      },
+      "kingmaker": {
+        "classification": "USABLE CONTROL POINT",
+        "types": ["Kingmaker.PubSubSystem.IUnitLifeStateChanged", "Kingmaker.PubSubSystem.IUnitHandler", "Kingmaker.PubSubSystem.ISceneHandler", "UnityModManagerNet.UnityModManager.ModEntry"],
+        "members": ["IUnitLifeStateChanged.HandleUnitLifeStateChanged 0x06007620", "IUnitHandler.HandleUnitDestroyed", "ISceneHandler.OnAreaBeginUnloading", "ModEntry.OnToggle", "ModEntry.OnUnload", "ModEntry.OnSessionStop"],
+        "evidence": ["exact event interfaces and installed UMM 0.28.2 contract"]
+      },
+      "proposedStrategy": "event-driven cleanup plus owned view component OnDisable/OnDestroy and defensive pair invariant polling",
+      "risks": ["no symmetric public view-detach event", "process termination bypasses managed callbacks"],
+      "confidence": "medium-high"
+    },
+    {
+      "responsibility": "mounted relationship serialization and load repair",
+      "wrath": {
+        "types": ["Kingmaker.UnitLogic.Parts.UnitPartRider", "Kingmaker.UnitLogic.Parts.UnitPartSaddled", "Kingmaker.EntitySystem.Entities.UnitEntityData"],
+        "members": ["serialized reciprocal EntityPartRef fields", "UnitEntityData post-load repair 0x0600A107"],
+        "evidence": ["valid Wrath pairs intentionally persist and orphan halves are repaired"]
+      },
+      "kingmaker": {
+        "classification": "ABSENT — SIMPLIFY",
+        "types": ["Kingmaker.EntitySystem.Persistence.SaveManager", "Kingmaker.EntitySystem.Entities.UnitEntityData"],
+        "members": ["SaveManager.SaveRoutine 0x06008029", "SaveManager.LoadRoutine 0x0600802C", "UnitEntityData.Position 0x1700169F"],
+        "evidence": ["commands, view override, and paths are not unit JSON; co-located positions are serialized"]
+      },
+      "proposedStrategy": "no entity part or freeform persistence; dismount before every save/load/area transition and never reconstruct",
+      "risks": ["iterator-prefix timing", "overlap if cleanup hook is missed"],
+      "confidence": "high for risk, medium for untested hook"
+    },
+    {
+      "responsibility": "view attachment, pose, and animation",
+      "wrath": {
+        "types": ["Kingmaker.Visual.Mounts.MountOffsets", "Kingmaker.Visual.Animation.IKController"],
+        "members": ["IKController.SetupIk 0x06001A4B", "IKController.MountedCombatIk 0x06001A4C", "IKController.DoUpdate 0x06001A4F"],
+        "evidence": ["Wrath uses dedicated roots, pelvis/leg/hand targets, race/size configurations, and mounted clips"]
+      },
+      "kingmaker": {
+        "classification": "ABSENT — SIMPLIFY",
+        "types": ["Kingmaker.View.UnitEntityView"],
+        "members": ["root transform, animator, animation manager, and recursive transform primitives only"],
+        "evidence": ["exact type inventory contains no mounted offsets, mounted IK, or mounted clip selector"]
+      },
+      "proposedStrategy": "one native quadruped anchor/offset diagnostic only; no Wrath assets or animation code",
+      "risks": ["anchor instability", "severe clipping", "presentation may force Architecture C or D"],
+      "confidence": "high for absence; low pending candidate metadata/runtime"
+    },
+    {
+      "responsibility": "hostile targeting and action economy",
+      "wrath": {
+        "types": ["Kingmaker.UnitLogic.Commands.UnitCommands", "TurnBased.Controllers.TurnController"],
+        "members": ["UnitCommands.FixTargetIfTargetOnMount 0x0600C935", "paired turn/command state"],
+        "evidence": ["hostile rider targets are retargeted to the mount; the pair shares coupled combat state"]
       },
       "kingmaker": {
         "classification": "ABSENT — SIMPLIFY",
         "types": [],
         "members": [],
-        "evidence": ["Phase 1 policy excludes persistence"]
+        "evidence": ["no mounted targeting, paired command, or paired initiative concept"]
       },
-      "proposedStrategy": "do not attach custom serializable entity parts; clear before save/load/transition",
-      "risks": ["half-mounted state if cleanup hook is missed"],
-      "confidence": "medium"
-    },
-    {
-      "responsibility": "native mount animation and anchor presentation",
-      "wrath": {
-        "types": ["Kingmaker.Visual.Mounts.MountOffsets"],
-        "members": [],
-        "evidence": ["bounded exact-type decompilation"]
-      },
-      "kingmaker": {
-        "classification": "UNKNOWN — MORE EVIDENCE REQUIRED",
-        "types": ["Kingmaker.View.UnitEntityView"],
-        "members": [],
-        "evidence": ["candidate assets and transform metadata not yet exported"]
-      },
-      "proposedStrategy": "one Kingmaker-native candidate; no Wrath assets",
-      "risks": ["no stable anchor", "unacceptable clipping", "animation mismatch"],
-      "confidence": "low"
+      "proposedStrategy": "explicit Phase 1 exclusion; clear before combat",
+      "risks": ["Architecture A parity would require extensive future cross-cutting work"],
+      "confidence": "high"
     }
   ]
 }

@@ -1,6 +1,6 @@
 # Mounted subsystem dependency graph
 
-Status: IN PROGRESS
+Status: PASS for exact Phase 1 responsibility/dependency coverage; runtime edges remain unqualified.
 
 The solid Wrath nodes below are exact local types. Dashed labels describe responsibilities still being traced. Kingmaker has no direct rider/saddled/controller types; its candidate seams are older movement, command, selection, formation, entity/view, and lifecycle primitives.
 
@@ -39,18 +39,50 @@ flowchart LR
     View --> Cleanup
 ```
 
+## Exact movement sequence
+
+```mermaid
+sequenceDiagram
+    participant Input as Rider player intent
+    participant Router as SaddledUnitController
+    participant MountCmd as Mount UnitMoveTo
+    participant Agent as Mount movement agent
+    participant MoveTick as UnitMoveController
+    participant Rider as Rider entity/view
+    Input->>Router: unfinished rider command
+    Router->>MountCmd: create and cross-link command
+    MountCmd->>Agent: ordinary path request
+    Agent->>MoveTick: next mount position/orientation
+    MoveTick->>Rider: copy position/orientation every tick
+    Note over Rider: rider avoidance disabled
+```
+
+This is exact Wrath behavior. Kingmaker has every primitive except relationship state, command pairing, and the final pair-sync block.
+
 ## Required trace closure
 
 | Concern | Wrath closure | Kingmaker closure | Status |
 |---|---|---|---|
-| Relationship state | Exact part fields/transitions/callers | Original runtime-only domain | IN PROGRESS |
-| Command delegation | Rider helper and command call sites | Narrow routing decision and guard | IN PROGRESS |
-| Movement authority | Controller-to-agent behavior | One enabled authoritative mover | IN PROGRESS |
-| Avoidance/collision | Mounted flag/agent behavior | Reversible scoped override | IN PROGRESS |
-| Entity position | Rider and mount entity semantics | Minimum logical synchronization | IN PROGRESS |
-| View attachment | Offset/anchor lifecycle | Native transform anchor or bounded offset | IN PROGRESS |
-| Selection | Mounted selection redirection | Stable restoration | IN PROGRESS |
-| Formation | Mounted pair slot semantics | Single effective party mover | IN PROGRESS |
-| Combat/action coupling | Future contract only | Phase 1 cleanup boundary | IN PROGRESS |
-| Serialization | Part/reference persistence | No custom serialization in Phase 1 | IN PROGRESS |
-| Lifecycle cleanup | All invalidation sources | Idempotent coordinator hooks | IN PROGRESS |
+| Relationship state | Exact serialized reciprocal parts and repair traced | Original runtime-only domain | PASS |
+| Command delegation | Bidirectional paired commands and rider approach suppression traced | Origin-level movement router; no combat pairs | PASS |
+| Movement authority | Mount ordinary agent and movement-controller sync traced | One enabled authoritative mount mover | PASS |
+| Avoidance/collision | Rider guard and other-agent exclusion traced | Reversible rider-only guard | PASS |
+| Entity position | Per-tick mount-to-rider copy traced | Isolated active-pair synchronization | PASS |
+| View attachment | Wrath root/IK lifecycle traced | Native transform anchor or bounded offset | IN PROGRESS |
+| Selection | Click/box redirection traced | Snapshot, rider selection, restore | PASS |
+| Formation | Mount exclusion and rider offset mirroring traced | Effective-unit mapping | PASS |
+| Combat/action coupling | Target redirection and paired turn state traced | Phase 1 cleanup boundary only | PASS |
+| Serialization | Reciprocal parts/position/command/turn persistence and repair traced | No custom serialization; pre-save cleanup | PASS |
+| Lifecycle cleanup | Wrath invalidations and Kingmaker events traced | Event-driven plus defensive invariant cleanup | PASS |
+
+## Patch-surface decision
+
+No global replacement of `UnitMoveController.Tick`, `UnitCommand.TickApproaching`, `UnitCommands.Run`, selection methods, formation helper, or save routines is justified. The bounded slice may use:
+
+1. one project-owned rider `AgentOverride` plus a pair-local `LateUpdate` component; both touch only the active rider;
+2. a prefix on exact private `ClickGroundHandler.RunCommand` token `0x060093DC` that rewrites/skips only active-pair arguments;
+3. pair-scoped selection and Stop/Hold forwarding with identity guards;
+4. existing event-bus interfaces for cleanup, plus cleanup-only save/load and continuous-control guards whose timing must be runtime-qualified;
+5. UMM lifecycle callbacks for composition-root cleanup.
+
+This keeps non-mounted paths on their original code.
