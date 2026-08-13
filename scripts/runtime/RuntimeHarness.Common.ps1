@@ -397,7 +397,7 @@ function Restore-KmcModsTransaction {
     [void](Assert-KmcRuntimeLockOwner $Lock); Assert-KmcNoGameProcesses
     $state = Read-KmcJson $StatePath
     $requiredState = @('schemaVersion','runId','token','phase','preparedAtUtc','liveModsRoot','originalBackup','stagedReady','stagedAfter','frozenPackage','packageSha256','beforeDigest','beforeFileCount','beforeDirectoryCount','beforeTotalBytes','stagedDigest','stagedFileCount','stagedDirectoryCount','stagedTotalBytes')
-    $allowedState = @($requiredState + @('stagedAtUtc','restoredAtUtc','restoredDigest'))
+    $allowedState = @($requiredState + @('stagedAtUtc','stagedAfterDigest','stagedAfterFileCount','stagedAfterDirectoryCount','stagedAfterTotalBytes','stagedTreeChangedAtRuntime','restoredAtUtc','restoredDigest'))
     $actualState = @($state.PSObject.Properties.Name)
     if (@($requiredState | Where-Object { $_ -cnotin $actualState }).Count -ne 0 -or @($actualState | Where-Object { $_ -cnotin $allowedState }).Count -ne 0) {
         throw 'Transaction state property set is missing required fields or contains unknown fields.'
@@ -423,8 +423,14 @@ function Restore-KmcModsTransaction {
     if (Test-Path -LiteralPath $fullLive -PathType Container) {
         $sentinel=Read-KmcLiveSentinel $fullLive
         if ($null -eq $sentinel -or [string]$sentinel.runId -cne [string]$Lock.RunId -or [string]$sentinel.token -cne [string]$Lock.Token) { throw 'Live Mods is occupied by an unknown tree; restoration refused.' }
-        Assert-KmcManifestMatchesState (Get-KmcDirectoryManifest $fullLive) $state 'staged'
         if (Test-Path -LiteralPath $stagedAfter) { throw 'Owned staged-after quarantine already exists; restoration is ambiguous.' }
+        $runtimeStaged=Get-KmcDirectoryManifest $fullLive
+        $state | Add-Member -NotePropertyName stagedAfterDigest -NotePropertyValue $runtimeStaged.digest -Force
+        $state | Add-Member -NotePropertyName stagedAfterFileCount -NotePropertyValue $runtimeStaged.fileCount -Force
+        $state | Add-Member -NotePropertyName stagedAfterDirectoryCount -NotePropertyValue $runtimeStaged.directoryCount -Force
+        $state | Add-Member -NotePropertyName stagedAfterTotalBytes -NotePropertyValue $runtimeStaged.totalBytes -Force
+        $state | Add-Member -NotePropertyName stagedTreeChangedAtRuntime -NotePropertyValue ($runtimeStaged.digest -cne [string]$state.stagedDigest) -Force
+        Write-KmcJsonAtomic $StatePath $state
         Move-Item -LiteralPath $fullLive -Destination $stagedAfter
     }
     Move-Item -LiteralPath $backup -Destination $fullLive

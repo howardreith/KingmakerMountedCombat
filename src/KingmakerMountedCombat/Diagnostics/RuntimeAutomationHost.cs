@@ -20,7 +20,11 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             ContractResolver = new CamelCasePropertyNamesContractResolver(),
             Formatting = Formatting.Indented,
-            MissingMemberHandling = MissingMemberHandling.Error
+            MissingMemberHandling = MissingMemberHandling.Error,
+            MetadataPropertyHandling = MetadataPropertyHandling.Ignore,
+            PreserveReferencesHandling = PreserveReferencesHandling.None,
+            ReferenceLoopHandling = ReferenceLoopHandling.Error,
+            TypeNameHandling = TypeNameHandling.None
         };
 
         private readonly IModLogger logger;
@@ -176,7 +180,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     StartedAtUtc = now.ToString("o"),
                     CompletedAtUtc = now.ToString("o"),
                     LoadedModId = loadedModId,
-                    GameVersion = Application.version,
+                    GameVersion = Kingmaker.GameVersion.GetVersion(),
                     GameAssemblySha256 = ComputeSha256(gameAssembly.Location),
                     GameAssemblyMvid = gameAssembly.ManifestModule.ModuleVersionId.ToString(),
                     UmmVersion = ummAssembly.GetName().Version.ToString(),
@@ -291,7 +295,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 StartedAtUtc = startedAt.ToString("o"),
                 CompletedAtUtc = DateTimeOffset.UtcNow.ToString("o"),
                 LoadedModId = loadedModId,
-                GameVersion = Application.version,
+                GameVersion = Kingmaker.GameVersion.GetVersion(),
                 GameAssemblySha256 = ComputeSha256(gameAssembly.Location),
                 GameAssemblyMvid = gameAssembly.ManifestModule.ModuleVersionId.ToString(),
                 UmmVersion = ummAssembly.GetName().Version.ToString(),

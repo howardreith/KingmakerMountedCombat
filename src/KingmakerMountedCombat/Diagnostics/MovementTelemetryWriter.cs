@@ -14,7 +14,11 @@ namespace KingmakerMountedCombat.Diagnostics
         private static readonly JsonSerializerSettings JsonSettings = new JsonSerializerSettings
         {
             ContractResolver = new CamelCasePropertyNamesContractResolver(),
-            Formatting = Formatting.None
+            Formatting = Formatting.None,
+            MetadataPropertyHandling = MetadataPropertyHandling.Ignore,
+            PreserveReferencesHandling = PreserveReferencesHandling.None,
+            ReferenceLoopHandling = ReferenceLoopHandling.Error,
+            TypeNameHandling = TypeNameHandling.None
         };
 
         private readonly string path;

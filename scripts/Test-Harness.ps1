@@ -128,6 +128,24 @@ try {
         Assert-Test ([string]$state.restoredDigest -ceq $original.digest) 'durable restored digest differs'
     }
 
+    Invoke-HarnessTest 'owned runtime additions are quarantined before exact restore' {
+        $mutationLive = Join-Path $testRoot 'mutation-game\Mods'
+        New-Item -ItemType Directory -Path (Join-Path $mutationLive 'ExistingMod') -Force | Out-Null
+        [IO.File]::WriteAllText((Join-Path $mutationLive 'ExistingMod\payload.txt'), 'preserve-me')
+        $mutationOriginal = Get-KmcDirectoryManifest $mutationLive
+        $lock = Open-KmcRuntimeLock -StateRoot $stateRoot -RunId 'runtime-mutation-test'
+        try {
+            $statePath = Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $mutationLive -PackagePath $package -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging
+            [IO.File]::WriteAllText((Join-Path $mutationLive 'KingmakerMountedCombat\runtime-owned.cache'), 'runtime cache')
+            $restored = Restore-KmcModsTransaction -Lock $lock -StatePath $statePath -LiveModsRoot $mutationLive -BackupRoot $backup -StagingRoot $staging
+            Assert-Test ($restored.digest -ceq $mutationOriginal.digest) 'runtime-mutated transaction did not restore exact original'
+            $state = Read-KmcJson $statePath
+            Assert-Test ($state.stagedTreeChangedAtRuntime -eq $true) 'runtime mutation was not durably recorded'
+            Assert-Test (Test-Path -LiteralPath (Join-Path ([string]$state.stagedAfter) 'KingmakerMountedCombat\runtime-owned.cache')) 'runtime mutation was not preserved in quarantine'
+        }
+        finally { Close-KmcRuntimeLock $lock }
+    }
+
     Invoke-HarnessTest 'mismatched live ownership sentinel blocks restore' {
         $liveSentinelTest = Join-Path $testRoot 'sentinel-game\Mods'
         New-Item -ItemType Directory -Path (Join-Path $liveSentinelTest 'ExistingMod') -Force | Out-Null
