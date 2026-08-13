@@ -129,6 +129,30 @@ function Assert-KmcNoGameProcesses {
     }
 }
 
+function Wait-KmcStableNoKingmakerProcess {
+    param(
+        [ValidateRange(0, 2147483647)][int]$ExpectedProcessId = 0,
+        [ValidateRange(1, 100)][int]$StableSamples = 8,
+        [ValidateRange(1, 10000)][int]$IntervalMilliseconds = 250,
+        [ValidateRange(1, 60)][int]$TimeoutSeconds = 10
+    )
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
+    $stable = 0
+    do {
+        $remaining = @(Get-Process -Name Kingmaker -ErrorAction SilentlyContinue)
+        if ($remaining.Count -gt 1 -or ($remaining.Count -eq 1 -and ($ExpectedProcessId -eq 0 -or $remaining[0].Id -ne $ExpectedProcessId))) {
+            throw 'An unexpected Kingmaker process appeared while waiting for a stable post-exit state.'
+        }
+        if (@(Get-KmcSuspiciousWindows).Count -ne 0) {
+            throw 'Unexpected Steam/account UI appeared while waiting for a stable post-exit state.'
+        }
+        if ($remaining.Count -eq 0) { $stable++ } else { $stable = 0 }
+        if ($stable -ge $StableSamples) { return $true }
+        if ([DateTimeOffset]::UtcNow -ge $deadline) { return $false }
+        Start-Sleep -Milliseconds $IntervalMilliseconds
+    } while ($true)
+}
+
 function Assert-KmcChildPath {
     param(
         [Parameter(Mandatory = $true)][string]$Path,

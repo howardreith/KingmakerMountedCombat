@@ -124,3 +124,17 @@
 - Current uncertainty: fresh-process runtime confirmation of the JSON/version fixes; all fixture-backed mounted-pair behavior and visual presentation.
 - External state/restoration: live Mods remain exactly restored at digest `e62320bbe7d4b83edc128a62f9f5852b0669c5549859602c335c649318578d47`; no lock/sentinel/game process; save metadata unchanged; no new external mutation.
 - Exact next action: commit the runtime repair, regenerate the clean-HEAD package, rerun WhatIf, then execute two fresh no-save smoke processes with exact restoration verification after each.
+
+## 2026-08-13T18:54:11Z — post-exit race preserved and repaired
+
+- Branch / HEAD: `codex/mounted-combat-feasibility` / `866c836e257027bd6367b3894ac68a5fbe6a7177`; stable-exit repair is intentionally uncommitted at this checkpoint.
+- Active version: `0.0.1-feasibility`.
+- Work completed: clean package and WhatIf passed; the repaired fresh-process smoke then passed all 24 game-result identity/no-save assertions, proving the Newtonsoft and `GameVersion` fixes. Windows still exposed the attributed Kingmaker PID for one poll after `Process.HasExited`, so the harness conservatively marked process state ambiguous and left the transaction locked. Seconds later there were zero game processes; guarded recovery restored the exact original tree. Added a bounded 10-second post-exit verifier requiring eight consecutive empty process samples, rejecting a different/new PID or suspicious UI.
+- Commands/tests run: clean package; WhatIf; one fresh-process live smoke; read-only process/transaction inspection; guarded recovery; complete `scripts/Test.ps1 -Configuration Release` with the stable-exit regression.
+- Exact PASS/FAIL counts: source validation 21 PASS / 0 FAIL; build 1 PASS / 0 FAIL; pure/component 34 PASS / 0 FAIL; harness 23 PASS / 0 FAIL; assembly-backed 29 PASS / 0 FAIL. Live runtime scenarios cumulative 0 PASS / 2 FAIL; this run's game-result contract 24 PASS / 0 FAIL. Movement scenarios remain 0 PASS / 0 FAIL.
+- Runtime evidence IDs/paths: `runtime-evidence\20260813T185200Z-mod-load-smoke-fixed-pass1`; game-result SHA-256 `77d538515992e716ff65b7e33f92880fe688c52b716510a71f715a167d61c4d9`; final FAIL SHA-256 `aca001c22106066573da5e206b3cf93d835f34db00b63d6819db8a68895e67e9`; restored transaction-state SHA-256 `ebd5caa67f6de26bbc74aab82e95c5d5852a2b41168aa9e0c96f5ace04d6cb67`.
+- Hashes/MVIDs: package SHA-256 `1dfa06fae212ea7a4cd4e2e9c8455ccab623bce84020b27e9ce20ea9e00f7baf`; DLL SHA-256 `fb3651cd1a32148a0d897ce69dc1834ed94a261ccd9ac85639feacbc89bd4237`, MVID `52ed4032-aa4b-4f9d-b2a9-97771fd72c52`.
+- Rejected theories: an attributed process reporting `HasExited` does not immediately guarantee `Get-Process -Name Kingmaker` is empty. A single instantaneous post-exit sample is therefore neither a failure nor sufficient restoration authority.
+- Current uncertainty: the stable-interval change needs two same-commit fresh-process smoke passes; all fixture-backed pair and visual behavior remains unavailable.
+- External state/restoration: PASS after guarded recovery; original live Mods digest `e62320bbe7d4b83edc128a62f9f5852b0669c5549859602c335c649318578d47`; lock and sentinel absent; zero game processes. Save metadata was not modified and no save archive was opened.
+- Exact next action: commit the stable-exit repair, regenerate the package, rerun WhatIf, and run two consecutive fresh-process smokes from that exact clean commit.

@@ -95,7 +95,12 @@ finally{
         }catch{$errors.Add('Process exit verification failed: '+$_.Exception.Message)}
     }elseif(-not$launchIssued){$processExited=$true}
     else{$errors.Add('Launch was issued without a captured process; late-launch ambiguity blocks restoration.')}
-    if($processExited-and@(Get-Process -Name Kingmaker -ErrorAction SilentlyContinue).Count-ne0){$processExited=$false;$errors.Add('A Kingmaker process remains after attributed process exit.')}
+    if($processExited){
+        try{
+            $expectedExitedProcessId=if($null-eq$process){0}else{$process.Id}
+            if(-not(Wait-KmcStableNoKingmakerProcess -ExpectedProcessId $expectedExitedProcessId)){$processExited=$false;$errors.Add('Kingmaker did not reach a stable no-process state after attributed exit.')}
+        }catch{$processExited=$false;$errors.Add('Stable post-exit verification failed: '+$_.Exception.Message)}
+    }
     if($null-ne$transactionState-and(Test-Path -LiteralPath $transactionState)-and$processExited){
         try{$restored=Restore-KmcModsTransaction -Lock $lock -StatePath $transactionState -LiveModsRoot $liveMods -BackupRoot $runtimeBackups -StagingRoot $runtimeStaging;$modsRestored=($restored.digest-ceq$beforeRoots[4].digest);if(-not$modsRestored){$errors.Add('Restored Mods digest differs from preflight.')}}catch{$errors.Add('Mods restoration failed: '+$_.Exception.Message)}
     }elseif($processExited){try{$modsRestored=((Get-KmcDirectoryManifest $liveMods).digest-ceq$beforeRoots[4].digest)}catch{$errors.Add('Unmutated Mods verification failed: '+$_.Exception.Message)}}else{$errors.Add('Kingmaker process state is ambiguous; Mods restoration was intentionally not attempted.')}

@@ -42,6 +42,9 @@ try {
         Assert-Test ($emptySaveMetadata.fileCount -eq 0 -and $emptySaveMetadata.totalBytes -eq 0) 'empty save metadata totals are not exact'
         Assert-Test (-not [string]::IsNullOrWhiteSpace([string]$emptySaveMetadata.digest)) 'empty save metadata digest is missing'
     }
+    Invoke-HarnessTest 'stable no-game-process wait accepts consecutive empty samples' {
+        Assert-Test (Wait-KmcStableNoKingmakerProcess -StableSamples 2 -IntervalMilliseconds 1 -TimeoutSeconds 1) 'stable empty process interval was not accepted'
+    }
 
     $manifestRoot = Join-Path $testRoot 'manifest'
     New-Item -ItemType Directory -Path (Join-Path $manifestRoot 'empty') -Force | Out-Null
