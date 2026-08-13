@@ -278,3 +278,17 @@
 - Current uncertainty: exact Working internal identity, live rider identity, pair availability, one-mover stability, residual/drift, doorway control, selection/formation behavior, cleanup residue, and presentation all remain unobserved.
 - External state/restoration result: PASS. No archive opened; no process launched; no Mods/save transaction, lock, sentinel, or qualification record created; all prior Mods transactions remain restored and unrestored external state is none.
 - Exact next action: after manual recreation of an exact canonical Working fixture through Kingmaker, rerun `Get-ChildItem -LiteralPath 'C:\Users\Howie\AppData\LocalLow\Owlcat Games\Pathfinder Kingmaker\Saved Games' -File | Where-Object Name -Match '^Manual_[0-9]+_KMC_AUTOMATION_(BASELINE|WORKING)\.zks$' | Select-Object Name,Length,LastWriteTimeUtc`; do not inspect or load either archive unless it reports exactly one candidate per role and no KMC-looking near-match remains.
+
+## 2026-08-13T22:09:19Z — guarded feasibility-branch publication
+
+- Branch / exact HEAD: `codex/mounted-combat-feasibility` / `f1e68429ced0bf25d249cc11c3ef20956adf6025`.
+- Active version: `0.0.1-feasibility`.
+- Work completed: committed the critical-stop reports, ran the final project-owned guarded push preflight, and published only the current feasibility branch to the standalone origin. The first live helper invocation failed before Git because nested PowerShell passed `-Confirm:$false` as a string; command-mode binding repaired the invocation without changing helper policy. The guarded helper then advanced the remote from `cdc16e2d22bc6d5bf22ec91c1f22dbc179866cd6` to the exact local SHA and verified equality. No release, tag, package deployment, game launch, or save access occurred.
+- Commands/tests run: guarded helper `-WhatIf`; one rejected pre-Git `-File` switch-binding invocation; corrected guarded helper live invocation; `git rev-parse HEAD`; `git rev-parse origin/codex/mounted-combat-feasibility`; status/process/lock checks.
+- Exact PASS/FAIL counts: guarded preflight 1 PASS / 0 FAIL; guarded Git publication 1 PASS / 0 FAIL; wrapper invocation 0 PASS / 1 repaired pre-Git binding failure. Offline qualification remains source 21/0, build 1/0, pure/component 56/0, harness/protocol 58/0, assembly-backed 47/0. Runtime scenario evidence is unchanged.
+- Runtime evidence IDs/paths: none created.
+- Hashes/MVIDs: local SHA = remote SHA = `f1e68429ced0bf25d249cc11c3ef20956adf6025`; guarded helper SHA-256 `57551c6c4359b4fbb8a0c5b0ba6f0e5e50553dc62c3a88e2aaa0dc92a6f72846`; DLL/package identities unchanged from the prior checkpoint.
+- Rejected theories: a failed wrapper parameter bind is not a failed or partial Git push; direct `git push` was not used.
+- Current uncertainty: unchanged—canonical Working identity and all mounted-pair runtime evidence remain unavailable.
+- External state/restoration result: PASS. Git remote publication is the only external mutation. Runtime lock=false; fixture qualification=false; no Kingmaker/Wrath/UMM process; no Mods/save state changed; unrestored external state is none.
+- Exact next action: after manual recreation of the exact canonical Working fixture, rerun the documented filename audit; do not open either archive unless it reports exactly one Baseline and one Working candidate and no KMC-looking near-match.
