@@ -168,15 +168,25 @@ try {
     $original = Get-KmcDirectoryManifest $live
     $script:transactionState = $null
 
-    Invoke-HarnessTest 'transaction stages only package and restores exact tree' {
+    Invoke-HarnessTest 'transaction stages exact live clone plus KMC overlay and restores exact tree' {
         $lock = Open-KmcRuntimeLock -StateRoot $stateRoot -RunId 'transaction-test'
         try {
             $script:transactionState = Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $live -PackagePath $package -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging
             $staged = Get-KmcDirectoryManifest $live
-            Assert-Test ($staged.fileCount -eq 3) 'staged file count including ownership sentinel was not exact'
+            Assert-Test ($staged.fileCount -eq ($original.fileCount + 3)) 'staged file count did not preserve the live payload plus two KMC files and ownership sentinel'
+            Assert-Test ($staged.directoryCount -eq ($original.directoryCount + 1)) 'staged directory count did not preserve live directories plus the KMC root'
+            Assert-Test ((Get-Content -Raw -LiteralPath (Join-Path $live 'ExistingMod\payload.txt')) -ceq 'preserve-me') 'existing live mod payload was not preserved in the staged clone'
+            Assert-Test (Test-Path -LiteralPath (Join-Path $live 'EmptyMod') -PathType Container) 'empty live mod directory was not preserved in the staged clone'
             Assert-Test (Test-Path -LiteralPath (Join-Path $live 'KingmakerMountedCombat\Info.json')) 'KMC package root missing'
             $sentinel = Read-KmcLiveSentinel $live
             Assert-Test ([string]$sentinel.token -ceq [string]$lock.Token) 'live sentinel does not bind the lock token'
+            $prepared = Read-KmcJson $script:transactionState
+            Assert-Test ([int]$prepared.schemaVersion -eq 3) 'new Mods transaction did not use schema 3'
+            Assert-Test ([string]$prepared.stagingMode -ceq 'live-clone-plus-kmc-overlay') 'new Mods transaction did not record its exact staging mode'
+            Assert-Test ([string]$prepared.cloneBaseDigest -ceq [string]$prepared.beforeDigest) 'durable state does not prove an exact clone base digest'
+            Assert-Test ([int]$prepared.cloneBaseFileCount -eq [int]$prepared.beforeFileCount) 'durable clone base file count differs from preflight'
+            Assert-Test ([int]$prepared.cloneBaseDirectoryCount -eq [int]$prepared.beforeDirectoryCount) 'durable clone base directory count differs from preflight'
+            Assert-Test ([long]$prepared.cloneBaseTotalBytes -eq [long]$prepared.beforeTotalBytes) 'durable clone base byte count differs from preflight'
             $restored = Restore-KmcModsTransaction -Lock $lock -StatePath $script:transactionState -LiveModsRoot $live -BackupRoot $backup -StagingRoot $staging
             Assert-Test ($restored.digest -ceq $original.digest) 'restored digest differs'
             $again = Restore-KmcModsTransaction -Lock $lock -StatePath $script:transactionState -LiveModsRoot $live -BackupRoot $backup -StagingRoot $staging
@@ -193,6 +203,104 @@ try {
         Assert-Test ([string]$state.restoredDigest -ceq $original.digest) 'durable restored digest differs'
     }
 
+    Invoke-HarnessTest 'case-insensitive existing KMC collision is rejected before live mutation' {
+        $collisionLive = Join-Path $testRoot 'collision-game\Mods'
+        New-Item -ItemType Directory -Path (Join-Path $collisionLive 'kingmakermountedcombat') -Force | Out-Null
+        [IO.File]::WriteAllText((Join-Path $collisionLive 'kingmakermountedcombat\unknown.txt'), 'unknown prior KMC tree')
+        $collisionBefore = Get-KmcDirectoryManifest $collisionLive
+        $lock = Open-KmcRuntimeLock -StateRoot $stateRoot -RunId 'collision-test'
+        try {
+            $threw = $false
+            try { Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $collisionLive -PackagePath $package -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging | Out-Null } catch { $threw = $true }
+            Assert-Test $threw 'case-insensitive existing KMC collision was accepted'
+            Assert-Test ((Get-KmcDirectoryManifest $collisionLive).digest -ceq $collisionBefore.digest) 'collision rejection changed live Mods'
+            Assert-Test (-not (Test-Path -LiteralPath (Get-KmcTransactionStatePath $stateRoot 'collision-test'))) 'collision rejection wrote transaction state'
+            Assert-Test (-not (Test-Path -LiteralPath (Join-Path $backup 'collision-test'))) 'collision rejection created a backup run'
+            Assert-Test (-not (Test-Path -LiteralPath (Join-Path $staging 'collision-test'))) 'collision rejection created a staging run'
+        }
+        finally { Close-KmcRuntimeLock $lock }
+    }
+
+    Invoke-HarnessTest 'descendant reparse point is rejected before live mutation' {
+        $reparseLive = Join-Path $testRoot 'reparse-game\Mods'
+        $reparseMod = Join-Path $reparseLive 'ExistingMod'
+        $reparseTarget = Join-Path $testRoot 'reparse-target'
+        New-Item -ItemType Directory -Path $reparseMod -Force | Out-Null
+        New-Item -ItemType Directory -Path $reparseTarget -Force | Out-Null
+        $junction = Join-Path $reparseMod 'linked-content'
+        New-Item -ItemType Junction -Path $junction -Target $reparseTarget | Out-Null
+        Assert-Test (((Get-Item -LiteralPath $junction -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) 'test junction was not a detectable reparse point'
+        $lock = Open-KmcRuntimeLock -StateRoot $stateRoot -RunId 'reparse-test'
+        try {
+            $threw = $false
+            try { Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $reparseLive -PackagePath $package -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging | Out-Null } catch { $threw = $true }
+            Assert-Test $threw 'descendant reparse point was accepted for cloning'
+            Assert-Test (-not (Test-Path -LiteralPath (Get-KmcTransactionStatePath $stateRoot 'reparse-test'))) 'reparse rejection wrote transaction state'
+        }
+        finally { Close-KmcRuntimeLock $lock }
+    }
+
+    Invoke-HarnessTest 'detectable descendant hard link is rejected before live mutation' {
+        $hardLinkLive = Join-Path $testRoot 'hardlink-game\Mods'
+        $hardLinkMod = Join-Path $hardLinkLive 'ExistingMod'
+        New-Item -ItemType Directory -Path $hardLinkMod -Force | Out-Null
+        $hardLinkSource = Join-Path $hardLinkMod 'source.txt'
+        $hardLinkAlias = Join-Path $hardLinkMod 'alias.txt'
+        [IO.File]::WriteAllText($hardLinkSource, 'linked payload')
+        New-Item -ItemType HardLink -Path $hardLinkAlias -Target $hardLinkSource | Out-Null
+        $linkTypeProperty = (Get-Item -LiteralPath $hardLinkAlias -Force).PSObject.Properties['LinkType']
+        Assert-Test ($null -ne $linkTypeProperty -and [string]$linkTypeProperty.Value -ceq 'HardLink') 'test hard link was not detectable through the guarded PowerShell surface'
+        $lock = Open-KmcRuntimeLock -StateRoot $stateRoot -RunId 'hardlink-test'
+        try {
+            $threw = $false
+            try { Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $hardLinkLive -PackagePath $package -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging | Out-Null } catch { $threw = $true }
+            Assert-Test $threw 'detectable descendant hard link was accepted for cloning'
+            Assert-Test (-not (Test-Path -LiteralPath (Get-KmcTransactionStatePath $stateRoot 'hardlink-test'))) 'hard-link rejection wrote transaction state'
+        }
+        finally { Close-KmcRuntimeLock $lock }
+    }
+
+    Invoke-HarnessTest 'clone and source manifest mismatches are rejected by entry proofs' {
+        $mismatchSource = Join-Path $testRoot 'clone-mismatch-source'
+        $mismatchClone = Join-Path $testRoot 'clone-mismatch-result'
+        New-Item -ItemType Directory -Path (Join-Path $mismatchSource 'EmptyMod') -Force | Out-Null
+        [IO.File]::WriteAllText((Join-Path $mismatchSource 'payload.txt'), 'before')
+        $mismatchBefore = Get-KmcDirectoryManifest $mismatchSource
+        $mismatchCopied = Copy-KmcDirectoryTreeExact -SourceRoot $mismatchSource -DestinationRoot $mismatchClone
+        Assert-KmcDirectoryManifestsEqual $mismatchBefore $mismatchCopied 'synthetic exact clone'
+        [IO.File]::AppendAllText((Join-Path $mismatchClone 'payload.txt'), '-clone-change')
+        $cloneThrew = $false
+        try { Assert-KmcDirectoryManifestsEqual $mismatchBefore (Get-KmcDirectoryManifest $mismatchClone) 'synthetic changed clone' } catch { $cloneThrew = $true }
+        Assert-Test $cloneThrew 'changed clone manifest was accepted'
+        [IO.File]::AppendAllText((Join-Path $mismatchSource 'payload.txt'), '-source-change')
+        $sourceThrew = $false
+        try { Assert-KmcDirectoryManifestsEqual $mismatchBefore (Get-KmcDirectoryManifest $mismatchSource) 'synthetic changed source' } catch { $sourceThrew = $true }
+        Assert-Test $sourceThrew 'changed source manifest was accepted before activation'
+    }
+
+    Invoke-HarnessTest 'historical schema-2 Mods state remains recoverable' {
+        $legacyLive = Join-Path $testRoot 'legacy-schema-game\Mods'
+        New-Item -ItemType Directory -Path (Join-Path $legacyLive 'ExistingMod') -Force | Out-Null
+        [IO.File]::WriteAllText((Join-Path $legacyLive 'ExistingMod\payload.txt'), 'legacy-preserve')
+        $legacyOriginal = Get-KmcDirectoryManifest $legacyLive
+        $lock = Open-KmcRuntimeLock -StateRoot $stateRoot -RunId 'legacy-schema-test'
+        try {
+            $legacyStatePath = Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $legacyLive -PackagePath $package -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging
+            $legacyState = Read-KmcJson $legacyStatePath
+            $legacyState.schemaVersion = 2
+            foreach ($property in @('stagingMode','cloneBaseDigest','cloneBaseFileCount','cloneBaseDirectoryCount','cloneBaseTotalBytes')) {
+                $legacyState.PSObject.Properties.Remove($property)
+            }
+            Write-KmcJsonAtomic $legacyStatePath $legacyState
+            $restored = Restore-KmcModsTransaction -Lock $lock -StatePath $legacyStatePath -LiveModsRoot $legacyLive -BackupRoot $backup -StagingRoot $staging
+            Assert-Test ($restored.digest -ceq $legacyOriginal.digest) 'historical schema-2 state did not restore the original Mods tree'
+            Assert-Test ((Get-Content -Raw -LiteralPath (Join-Path $legacyLive 'ExistingMod\payload.txt')) -ceq 'legacy-preserve') 'schema-2 restoration lost the original existing mod payload'
+            $restoredState = Read-KmcJson $legacyStatePath
+            Assert-Test ([int]$restoredState.schemaVersion -eq 2 -and [string]$restoredState.phase -ceq 'restored') 'schema-2 restoration did not remain historical and durably restored'
+        }
+        finally { Close-KmcRuntimeLock $lock }
+    }
+
     Invoke-HarnessTest 'owned runtime additions are quarantined before exact restore' {
         $mutationLive = Join-Path $testRoot 'mutation-game\Mods'
         New-Item -ItemType Directory -Path (Join-Path $mutationLive 'ExistingMod') -Force | Out-Null
@@ -201,12 +309,15 @@ try {
         $lock = Open-KmcRuntimeLock -StateRoot $stateRoot -RunId 'runtime-mutation-test'
         try {
             $statePath = Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $mutationLive -PackagePath $package -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging
+            Assert-Test (Test-Path -LiteralPath (Join-Path $mutationLive 'ExistingMod\payload.txt')) 'runtime staged tree omitted the existing mod payload before mutation'
             [IO.File]::WriteAllText((Join-Path $mutationLive 'KingmakerMountedCombat\runtime-owned.cache'), 'runtime cache')
+            [IO.File]::WriteAllText((Join-Path $mutationLive 'ExistingMod\runtime-owned.cache'), 'foreign mod runtime cache')
             $restored = Restore-KmcModsTransaction -Lock $lock -StatePath $statePath -LiveModsRoot $mutationLive -BackupRoot $backup -StagingRoot $staging
             Assert-Test ($restored.digest -ceq $mutationOriginal.digest) 'runtime-mutated transaction did not restore exact original'
             $state = Read-KmcJson $statePath
             Assert-Test ($state.stagedTreeChangedAtRuntime -eq $true) 'runtime mutation was not durably recorded'
             Assert-Test (Test-Path -LiteralPath (Join-Path ([string]$state.stagedAfter) 'KingmakerMountedCombat\runtime-owned.cache')) 'runtime mutation was not preserved in quarantine'
+            Assert-Test (Test-Path -LiteralPath (Join-Path ([string]$state.stagedAfter) 'ExistingMod\runtime-owned.cache')) 'existing-mod runtime mutation was not preserved in quarantine'
         }
         finally { Close-KmcRuntimeLock $lock }
     }

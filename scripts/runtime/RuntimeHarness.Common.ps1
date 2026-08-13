@@ -118,6 +118,83 @@ function Assert-KmcNotHardLink {
     }
 }
 
+function Assert-KmcDirectoryTreeCloneable {
+    param(
+        [Parameter(Mandatory = $true)][string]$Root,
+        [Parameter(Mandatory = $true)][string]$Description
+    )
+    $fullRoot = [IO.Path]::GetFullPath($Root).TrimEnd('\')
+    if (-not (Test-Path -LiteralPath $fullRoot -PathType Container)) { throw "$Description is missing: $fullRoot" }
+    Assert-KmcNotReparsePoint $fullRoot $Description
+    $pending = New-Object 'Collections.Generic.Queue[string]'
+    $pending.Enqueue($fullRoot)
+    while ($pending.Count -ne 0) {
+        $current = $pending.Dequeue()
+        foreach ($item in @(Get-ChildItem -LiteralPath $current -Force | Sort-Object Name)) {
+            if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+                throw "$Description contains a descendant reparse point: $($item.FullName)"
+            }
+            if ($item.PSIsContainer) {
+                $pending.Enqueue($item.FullName)
+                continue
+            }
+            $linkTypeProperty = $item.PSObject.Properties['LinkType']
+            if ($null -ne $linkTypeProperty -and [string]$linkTypeProperty.Value -ceq 'HardLink') {
+                throw "$Description contains a detectable descendant hard link: $($item.FullName)"
+            }
+        }
+    }
+}
+
+function Copy-KmcDirectoryTreeExact {
+    param(
+        [Parameter(Mandatory = $true)][string]$SourceRoot,
+        [Parameter(Mandatory = $true)][string]$DestinationRoot
+    )
+    $fullSource = [IO.Path]::GetFullPath($SourceRoot).TrimEnd('\')
+    $fullDestination = [IO.Path]::GetFullPath($DestinationRoot).TrimEnd('\')
+    if (Test-Path -LiteralPath $fullDestination) { throw "Exact clone destination already exists: $fullDestination" }
+    Assert-KmcDirectoryTreeCloneable $fullSource 'exact clone source'
+    New-Item -ItemType Directory -Path $fullDestination | Out-Null
+    $pending = New-Object Collections.Queue
+    $pending.Enqueue([pscustomobject]@{ Source = $fullSource; Destination = $fullDestination })
+    while ($pending.Count -ne 0) {
+        $pair = $pending.Dequeue()
+        foreach ($item in @(Get-ChildItem -LiteralPath ([string]$pair.Source) -Force | Sort-Object Name)) {
+            if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+                throw "Exact clone source gained a descendant reparse point: $($item.FullName)"
+            }
+            $target = Assert-KmcChildPath (Join-Path ([string]$pair.Destination) $item.Name) $fullDestination 'exact clone entry'
+            if ($item.PSIsContainer) {
+                New-Item -ItemType Directory -Path $target | Out-Null
+                $pending.Enqueue([pscustomobject]@{ Source = $item.FullName; Destination = $target })
+                continue
+            }
+            $linkTypeProperty = $item.PSObject.Properties['LinkType']
+            if ($null -ne $linkTypeProperty -and [string]$linkTypeProperty.Value -ceq 'HardLink') {
+                throw "Exact clone source gained a detectable descendant hard link: $($item.FullName)"
+            }
+            Copy-Item -LiteralPath $item.FullName -Destination $target
+        }
+    }
+    Assert-KmcDirectoryTreeCloneable $fullDestination 'exact clone result'
+    return (Get-KmcDirectoryManifest $fullDestination)
+}
+
+function Assert-KmcDirectoryManifestsEqual {
+    param(
+        [Parameter(Mandatory = $true)]$Expected,
+        [Parameter(Mandatory = $true)]$Actual,
+        [Parameter(Mandatory = $true)][string]$Description
+    )
+    if ([string]$Actual.digest -cne [string]$Expected.digest -or
+        [int]$Actual.fileCount -ne [int]$Expected.fileCount -or
+        [int]$Actual.directoryCount -ne [int]$Expected.directoryCount -or
+        [long]$Actual.totalBytes -ne [long]$Expected.totalBytes) {
+        throw "$Description manifests differ."
+    }
+}
+
 function Get-KmcDirectoryManifest {
     param([Parameter(Mandatory = $true)][string]$Root)
     $fullRoot = [IO.Path]::GetFullPath($Root).TrimEnd('\')
@@ -1220,6 +1297,12 @@ function Enter-KmcModsTransaction {
     if (-not (Test-Path -LiteralPath $fullLive -PathType Container)) { throw "Live Mods root is missing: $fullLive" }
     Assert-KmcNotReparsePoint $fullLive 'live Mods root'
     if ($null -ne (Read-KmcLiveSentinel $fullLive)) { throw 'Live Mods already contains a KMC transaction sentinel.' }
+    Assert-KmcDirectoryTreeCloneable $fullLive 'live Mods tree'
+    $kmcCollisions = @(Get-ChildItem -LiteralPath $fullLive -Force | Where-Object {
+        [string]::Equals($_.Name, 'KingmakerMountedCombat', [StringComparison]::OrdinalIgnoreCase)
+    })
+    if ($kmcCollisions.Count -ne 0) { throw 'Live Mods already contains a case-insensitive KingmakerMountedCombat entry; overlay identity is ambiguous.' }
+    $before = Get-KmcDirectoryManifest $fullLive
     $statePath = Get-KmcTransactionStatePath $StateRoot $runId
     if (Test-Path -LiteralPath $statePath) { throw "Run ID already has transaction state: $runId" }
     $backupRun = Assert-KmcChildPath (Join-Path ([IO.Path]::GetFullPath($BackupRoot)) $runId) $BackupRoot 'transaction backup'
@@ -1229,23 +1312,48 @@ function Enter-KmcModsTransaction {
     $originalBackup = Join-Path $backupRun 'Mods-original'
     $ready = Join-Path $stagingRun 'Mods-ready'
     $stagedAfter = Join-Path $stagingRun 'Mods-staged-after'
+    $packageOverlay = Join-Path $stagingRun 'package-overlay'
     $frozenPackage = Join-Path $stagingRun 'package.zip'
-    Copy-Item -LiteralPath $PackagePath -Destination $frozenPackage
     $packageHash = Get-KmcSha256 $PackagePath
-    if ((Get-KmcSha256 $frozenPackage) -cne $packageHash) { throw 'Frozen runtime package hash differs from the qualified package.' }
-    Expand-Archive -LiteralPath $frozenPackage -DestinationPath $ready
-    $expectedRoot = Join-Path $ready 'KingmakerMountedCombat'
+    Copy-Item -LiteralPath $PackagePath -Destination $frozenPackage
+    if ((Get-KmcSha256 $frozenPackage) -cne $packageHash -or (Get-KmcSha256 $PackagePath) -cne $packageHash) {
+        throw 'Frozen runtime package hash differs from the qualified package or the package changed while freezing.'
+    }
+    Expand-Archive -LiteralPath $frozenPackage -DestinationPath $packageOverlay
+    Assert-KmcDirectoryTreeCloneable $packageOverlay 'frozen package overlay'
+    $overlayManifest = Get-KmcDirectoryManifest $packageOverlay
+    $actualOverlayEntries = @($overlayManifest.entries | ForEach-Object { '{0}|{1}' -f $_.kind, $_.path } | Sort-Object)
+    $expectedOverlayEntries = @(
+        'directory|KingmakerMountedCombat',
+        'file|KingmakerMountedCombat/Info.json',
+        'file|KingmakerMountedCombat/KingmakerMountedCombat.dll'
+    ) | Sort-Object
+    if (($actualOverlayEntries -join "`n") -cne ($expectedOverlayEntries -join "`n")) {
+        throw "Frozen package overlay entry set is not exact: $($actualOverlayEntries -join ', ')"
+    }
+    $expectedRoot = Join-Path $packageOverlay 'KingmakerMountedCombat'
     if (-not (Test-Path -LiteralPath (Join-Path $expectedRoot 'Info.json')) -or -not (Test-Path -LiteralPath (Join-Path $expectedRoot 'KingmakerMountedCombat.dll'))) {
         throw 'Pre-staged package does not contain the exact KMC mod root.'
     }
+    $cloneBase = Copy-KmcDirectoryTreeExact -SourceRoot $fullLive -DestinationRoot $ready
+    Assert-KmcDirectoryManifestsEqual $before $cloneBase 'Pre-overlay live Mods clone'
+    Assert-KmcDirectoryTreeCloneable $fullLive 'live Mods tree after cloning'
+    Assert-KmcDirectoryManifestsEqual $before (Get-KmcDirectoryManifest $fullLive) 'Live Mods source after cloning'
+    $stagedKmcRoot = Join-Path $ready 'KingmakerMountedCombat'
+    if (Test-Path -LiteralPath $stagedKmcRoot) { throw 'Pre-overlay clone unexpectedly contains a KingmakerMountedCombat collision.' }
+    Move-Item -LiteralPath $expectedRoot -Destination $stagedKmcRoot
     $sentinel = [ordered]@{ schemaVersion=1; runId=$runId; token=[string]$Lock.Token; packageSha256=$packageHash }
     Write-KmcJsonAtomic (Join-Path $ready '.kmc-runtime-sentinel.json') $sentinel
-    $before = Get-KmcDirectoryManifest $fullLive; $staged = Get-KmcDirectoryManifest $ready
+    $staged = Get-KmcDirectoryManifest $ready
+    Assert-KmcDirectoryTreeCloneable $fullLive 'live Mods tree before activation'
+    Assert-KmcDirectoryManifestsEqual $before (Get-KmcDirectoryManifest $fullLive) 'Live Mods source immediately before activation'
     $state = [ordered]@{
-        schemaVersion=2; runId=$runId; token=[string]$Lock.Token; phase='prepared'; preparedAtUtc=[DateTime]::UtcNow.ToString('o')
+        schemaVersion=3; runId=$runId; token=[string]$Lock.Token; phase='prepared'; preparedAtUtc=[DateTime]::UtcNow.ToString('o')
+        stagingMode='live-clone-plus-kmc-overlay'
         liveModsRoot=$fullLive; originalBackup=$originalBackup; stagedReady=$ready; stagedAfter=$stagedAfter
         frozenPackage=$frozenPackage; packageSha256=$packageHash
         beforeDigest=$before.digest; beforeFileCount=$before.fileCount; beforeDirectoryCount=$before.directoryCount; beforeTotalBytes=$before.totalBytes
+        cloneBaseDigest=$cloneBase.digest; cloneBaseFileCount=$cloneBase.fileCount; cloneBaseDirectoryCount=$cloneBase.directoryCount; cloneBaseTotalBytes=$cloneBase.totalBytes
         stagedDigest=$staged.digest; stagedFileCount=$staged.fileCount; stagedDirectoryCount=$staged.directoryCount; stagedTotalBytes=$staged.totalBytes
     }
     Write-KmcJsonAtomic $statePath $state
@@ -1279,12 +1387,24 @@ function Restore-KmcModsTransaction {
     [void](Assert-KmcRuntimeLockOwner $Lock); Assert-KmcNoGameProcesses
     $state = Read-KmcJson $StatePath
     $requiredState = @('schemaVersion','runId','token','phase','preparedAtUtc','liveModsRoot','originalBackup','stagedReady','stagedAfter','frozenPackage','packageSha256','beforeDigest','beforeFileCount','beforeDirectoryCount','beforeTotalBytes','stagedDigest','stagedFileCount','stagedDirectoryCount','stagedTotalBytes')
+    $schemaVersion = [int]$state.schemaVersion
+    if ($schemaVersion -eq 3) {
+        $requiredState = @($requiredState + @('stagingMode','cloneBaseDigest','cloneBaseFileCount','cloneBaseDirectoryCount','cloneBaseTotalBytes'))
+    }
+    elseif ($schemaVersion -ne 2) { throw 'Transaction state schema is neither historical schema 2 nor current schema 3.' }
     $allowedState = @($requiredState + @('stagedAtUtc','stagedAfterDigest','stagedAfterFileCount','stagedAfterDirectoryCount','stagedAfterTotalBytes','stagedTreeChangedAtRuntime','restoredAtUtc','restoredDigest'))
     $actualState = @($state.PSObject.Properties.Name)
     if (@($requiredState | Where-Object { $_ -cnotin $actualState }).Count -ne 0 -or @($actualState | Where-Object { $_ -cnotin $allowedState }).Count -ne 0) {
         throw 'Transaction state property set is missing required fields or contains unknown fields.'
     }
-    if ([int]$state.schemaVersion -ne 2 -or [string]$state.runId -cne [string]$Lock.RunId -or [string]$state.token -cne [string]$Lock.Token) { throw 'Transaction state ownership does not match the open lock.' }
+    if ([string]$state.runId -cne [string]$Lock.RunId -or [string]$state.token -cne [string]$Lock.Token) { throw 'Transaction state ownership does not match the open lock.' }
+    if ($schemaVersion -eq 3 -and ([string]$state.stagingMode -cne 'live-clone-plus-kmc-overlay' -or
+        [string]$state.cloneBaseDigest -cne [string]$state.beforeDigest -or
+        [int]$state.cloneBaseFileCount -ne [int]$state.beforeFileCount -or
+        [int]$state.cloneBaseDirectoryCount -ne [int]$state.beforeDirectoryCount -or
+        [long]$state.cloneBaseTotalBytes -ne [long]$state.beforeTotalBytes)) {
+        throw 'Schema-3 transaction state does not prove an exact pre-overlay clone of live Mods.'
+    }
     $fullLive=[IO.Path]::GetFullPath($LiveModsRoot).TrimEnd('\')
     if (-not $fullLive.Equals([IO.Path]::GetFullPath([string]$state.liveModsRoot).TrimEnd('\'),[StringComparison]::OrdinalIgnoreCase)) { throw 'Transaction live Mods path does not match.' }
     $backup=Assert-KmcChildPath ([string]$state.originalBackup) $BackupRoot 'recorded transaction backup'
