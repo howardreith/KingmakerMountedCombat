@@ -34,8 +34,11 @@ if (-not (Test-Path -LiteralPath $dll -PathType Leaf)) {
 }
 
 $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $dll).Hash.ToLowerInvariant()
-$assembly = [Reflection.Assembly]::ReflectionOnlyLoadFrom($dll)
+$powerShellExe = Join-Path $PSHOME 'powershell.exe'
+$identityJson = & $powerShellExe -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Get-AssemblyIdentity.ps1') -AssemblyPath $dll
+if ($LASTEXITCODE -ne 0) { throw 'Isolated assembly identity inspection failed.' }
+$identity = $identityJson | ConvertFrom-Json
 Write-Host "PASS build $Configuration"
 Write-Host "DLL=$dll"
 Write-Host "SHA256=$hash"
-Write-Host "MVID=$($assembly.ManifestModule.ModuleVersionId)"
+Write-Host "MVID=$($identity.mvid)"

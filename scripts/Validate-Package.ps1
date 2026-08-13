@@ -53,13 +53,14 @@ try {
     $dllInput = $dllEntry.Open(); $dllOutput = [IO.File]::Create($dllPath)
     try { $dllInput.CopyTo($dllOutput) }
     finally { $dllOutput.Dispose(); $dllInput.Dispose() }
-    $assemblyName = [Reflection.AssemblyName]::GetAssemblyName($dllPath)
-    $assembly = [Reflection.Assembly]::ReflectionOnlyLoad([IO.File]::ReadAllBytes($dllPath))
-    if ([string]$assemblyName.Name -cne 'KingmakerMountedCombat' -or [string]$assemblyName.Version -cne '0.0.1.0') { throw 'Packaged DLL assembly identity is not exact.' }
-    $targetFramework = @($assembly.CustomAttributes | Where-Object AttributeType -eq ([Runtime.Versioning.TargetFrameworkAttribute]) | Select-Object -First 1)
-    if ($targetFramework.Count -ne 1 -or [string]$targetFramework[0].ConstructorArguments[0].Value -cne '.NETFramework,Version=v4.7') { throw 'Packaged DLL does not target exact .NET Framework 4.7.' }
+    $powerShellExe = Join-Path $PSHOME 'powershell.exe'
+    $identityJson = & $powerShellExe -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Get-AssemblyIdentity.ps1') -AssemblyPath $dllPath
+    if ($LASTEXITCODE -ne 0) { throw 'Isolated packaged assembly inspection failed.' }
+    $identity = $identityJson | ConvertFrom-Json
+    if ([string]$identity.name -cne 'KingmakerMountedCombat' -or [string]$identity.version -cne '0.0.1.0') { throw 'Packaged DLL assembly identity is not exact.' }
+    if ([string]$identity.targetFramework -cne '.NETFramework,Version=v4.7') { throw 'Packaged DLL does not target exact .NET Framework 4.7.' }
     $allowedReferences = @('mscorlib','System','System.Core','Assembly-CSharp','Assembly-CSharp-firstpass','UnityEngine','UnityEngine.CoreModule','UnityEngine.IMGUIModule','UnityModManager','Newtonsoft.Json','0Harmony12')
-    $references = @($assembly.GetReferencedAssemblies() | ForEach-Object Name | Sort-Object)
+    $references = @($identity.references | Sort-Object)
     $unexpected = @($references | Where-Object { $_ -cnotin $allowedReferences })
     if ($unexpected.Count -ne 0 -or $references -contains '0Harmony' -or @($references | Where-Object { $_ -match '(?i)Wrath|BuffPlanner|Gunslinger|Tabletop|CallOfTheWild' }).Count -ne 0) {
         throw "Packaged DLL dependency allowlist mismatch: $($unexpected -join ', ')"
@@ -67,7 +68,7 @@ try {
     $dllRecord = @($entryRecords | Where-Object path -ceq 'KingmakerMountedCombat/KingmakerMountedCombat.dll')[0]
     $result = [pscustomobject]@{
         schemaVersion=1; packagePath=$resolvedPackage; packageSha256=(Get-FileHash -Algorithm SHA256 -LiteralPath $resolvedPackage).Hash.ToLowerInvariant()
-        dllSha256=[string]$dllRecord.sha256; dllMvid=$assembly.ManifestModule.ModuleVersionId.ToString(); entries=@($entryRecords | Sort-Object path); references=$references
+        dllSha256=[string]$dllRecord.sha256; dllMvid=[string]$identity.mvid; entries=@($entryRecords | Sort-Object path); references=$references
     }
 }
 finally {

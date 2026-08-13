@@ -208,7 +208,7 @@ try {
         $badPackage = Join-Path $testRoot 'bad-package.zip'
         Compress-Archive -LiteralPath $badSource -DestinationPath $badPackage
         $threw=$false
-        try { & (Join-Path $PSScriptRoot 'Validate-Package.ps1') -PackagePath $badPackage } catch { $threw=$true }
+        try { & (Join-Path $PSScriptRoot 'Validate-Package.ps1') -PackagePath $badPackage 2>$null | Out-Null } catch { $threw=$true }
         Assert-Test $threw 'arbitrary DLL bytes passed validation'
     }
 

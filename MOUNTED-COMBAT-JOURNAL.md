@@ -54,3 +54,17 @@
 - Current uncertainty: live mod load, patch application, UMM behavior, Mammoth fixture availability, movement/selection/formation, lifecycle cleanup, save timing, anchor drift, and visual quality are all runtime-unproven.
 - External state/restoration: no game, live Mods, saves, Steam, or Wrath state was mutated; no restoration was required. The valued save archives were not opened.
 - Exact next action: commit the native-candidate and architecture record, commit the guarded prototype, regenerate a clean-HEAD package, and execute the zero-mutation runtime `-WhatIf` gate before considering a no-save game process.
+
+## 2026-08-13T18:44:00Z — isolated assembly qualification repair
+
+- Branch / HEAD: `codex/mounted-combat-feasibility` / `ba069b8c4288cc5ba17996d77ba060db7a90caef`; the qualification repair is intentionally uncommitted at this checkpoint.
+- Active version: `0.0.1-feasibility`.
+- Work completed: reproduced the full-suite package-validation failure caused by loading the same assembly identity from two temporary paths in one PowerShell AppDomain; moved build/package metadata inspection into a project-owned child-process helper; bound the helper launch to the exact Windows PowerShell executable under `$PSHOME`; retained the malformed-DLL negative test while suppressing its expected child-process error stream.
+- Commands/tests run: direct isolated identity inspection; complete `scripts/Test.ps1 -Configuration Release` after the repair.
+- Exact PASS/FAIL counts: source validation 21 PASS / 0 FAIL; Release build 1 PASS / 0 FAIL; pure/component tests 34 PASS / 0 FAIL; top-level harness tests 19 PASS / 0 FAIL; assembly-backed checks 28 PASS / 0 FAIL (Kingmaker 17, Wrath 11). One pre-repair full-suite run failed at the valid-package test because of the same-AppDomain identity collision; the repaired full suite exited 0. The malformed-DLL rejection emitted an expected child diagnostic, now suppressed by the test wrapper.
+- Runtime evidence IDs/paths: none; no game launched and no runtime transaction opened.
+- Hashes/MVIDs: diagnostic DLL SHA-256 `80766391105a2199b74b92fe1236fbed86a2ad937ae030ba5681a4d11b7ea6ad`, MVID `930b818d-26b4-4ac5-936a-f8f59fd91082`; game authority identities unchanged.
+- Rejected theories: package validation was not failing because the ZIP payload changed; the failure was deterministic PowerShell load-context contamination between otherwise valid extracted DLL paths.
+- Current uncertainty: zero-mutation `-WhatIf`, live mod load, all pair movement/lifecycle behavior, anchor drift, and visual presentation remain unproven.
+- External state/restoration: repository-local build/test outputs only; no Mods, save, Steam, game, or Wrath mutation; restoration not required.
+- Exact next action: rerun the complete suite with the quiet negative-test wrapper, commit this repair, then build a clean-HEAD diagnostic package and execute the zero-mutation `-WhatIf` gate.
