@@ -21,6 +21,13 @@ param(
     [ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$ExpectedPriorSaveTransactionRunId,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPriorSaveTransactionStateSha256,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPriorSaveMetadataDigest,
+    [string]$ProtectedSaveContinuityAuthorityPath,
+    [ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$ExpectedProtectedSaveContinuityEpochId,
+    [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedProtectedSaveContinuityAuthoritySha256,
+    [string]$ExpectedProtectedAutoSaveName,
+    [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedProtectedAutoSaveSha256,
+    [string]$ExpectedProtectedQuickSaveName,
+    [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedProtectedQuickSaveSha256,
     [string]$SteamPath='C:\Program Files (x86)\Steam\steam.exe'
 )
 
@@ -45,7 +52,10 @@ $expectedGameExecutableHash=[string](@($fingerprint.kingmaker.files|Where-Object
 $isSaveBacked=[string]$Scenario -cne 'mod-load-smoke'
 $continuityPinNames=@(
     'ExpectedCurrentQualificationSha256','ExpectedSupersededWorkingSha256','PriorSaveTransactionStatePath',
-    'ExpectedPriorSaveTransactionRunId','ExpectedPriorSaveTransactionStateSha256','ExpectedPriorSaveMetadataDigest'
+    'ExpectedPriorSaveTransactionRunId','ExpectedPriorSaveTransactionStateSha256','ExpectedPriorSaveMetadataDigest',
+    'ProtectedSaveContinuityAuthorityPath','ExpectedProtectedSaveContinuityEpochId',
+    'ExpectedProtectedSaveContinuityAuthoritySha256','ExpectedProtectedAutoSaveName','ExpectedProtectedAutoSaveSha256',
+    'ExpectedProtectedQuickSaveName','ExpectedProtectedQuickSaveSha256'
 )
 $boundContinuityPinNames=@($continuityPinNames|Where-Object{$PSBoundParameters.ContainsKey($_)})
 [void](Assert-KmcRuntimeContinuityPinCombination `
@@ -56,7 +66,14 @@ $boundContinuityPinNames=@($continuityPinNames|Where-Object{$PSBoundParameters.C
     -PriorSaveTransactionStatePath $PriorSaveTransactionStatePath `
     -ExpectedPriorSaveTransactionRunId $ExpectedPriorSaveTransactionRunId `
     -ExpectedPriorSaveTransactionStateSha256 $ExpectedPriorSaveTransactionStateSha256 `
-    -ExpectedPriorSaveMetadataDigest $ExpectedPriorSaveMetadataDigest)
+    -ExpectedPriorSaveMetadataDigest $ExpectedPriorSaveMetadataDigest `
+    -ProtectedSaveContinuityAuthorityPath $ProtectedSaveContinuityAuthorityPath `
+    -ExpectedProtectedSaveContinuityEpochId $ExpectedProtectedSaveContinuityEpochId `
+    -ExpectedProtectedSaveContinuityAuthoritySha256 $ExpectedProtectedSaveContinuityAuthoritySha256 `
+    -ExpectedProtectedAutoSaveName $ExpectedProtectedAutoSaveName `
+    -ExpectedProtectedAutoSaveSha256 $ExpectedProtectedAutoSaveSha256 `
+    -ExpectedProtectedQuickSaveName $ExpectedProtectedQuickSaveName `
+    -ExpectedProtectedQuickSaveSha256 $ExpectedProtectedQuickSaveSha256)
 
 if($isSaveBacked -and -not $SaveAccessAllowed){
     throw 'A save-backed Phase 1 scenario requires the explicit -SaveAccessAllowed operator gate; it authorizes only the exact qualified Working fixture.'
@@ -87,7 +104,7 @@ $preflightContinuity=$null
 $preflightPair=$null
 $fixturePayload=$null
 if($isSaveBacked){
-    $preflightContinuity=Assert-KmcQualifiedWorkingPriorInventoryContinuity `
+    $preflightContinuity=Assert-KmcQualifiedWorkingProtectedSaveContinuity `
         -SaveRoot $saveRoot `
         -StateRoot $runtimeState `
         -QualificationPath $qualificationPath `
@@ -96,7 +113,14 @@ if($isSaveBacked){
         -PriorSaveTransactionStatePath $PriorSaveTransactionStatePath `
         -ExpectedPriorSaveTransactionRunId $ExpectedPriorSaveTransactionRunId `
         -ExpectedPriorSaveTransactionStateSha256 $ExpectedPriorSaveTransactionStateSha256 `
-        -ExpectedPriorSaveMetadataDigest $ExpectedPriorSaveMetadataDigest
+        -ExpectedPriorSaveMetadataDigest $ExpectedPriorSaveMetadataDigest `
+        -ProtectedSaveContinuityAuthorityPath $ProtectedSaveContinuityAuthorityPath `
+        -ExpectedProtectedSaveContinuityEpochId $ExpectedProtectedSaveContinuityEpochId `
+        -ExpectedProtectedSaveContinuityAuthoritySha256 $ExpectedProtectedSaveContinuityAuthoritySha256 `
+        -ExpectedProtectedAutoSaveName $ExpectedProtectedAutoSaveName `
+        -ExpectedProtectedAutoSaveSha256 $ExpectedProtectedAutoSaveSha256 `
+        -ExpectedProtectedQuickSaveName $ExpectedProtectedQuickSaveName `
+        -ExpectedProtectedQuickSaveSha256 $ExpectedProtectedQuickSaveSha256
     $preflightPair=$preflightContinuity.pair
     $fixturePayload=New-KmcRuntimeFixturePayload $preflightPair
 }
@@ -117,7 +141,7 @@ $action=if($isSaveBacked){"run guarded KMC $Scenario against Working fixture onl
 if(-not $PSCmdlet.ShouldProcess('Steam App 640820, exact live Kingmaker Mods, and guarded KMC save policy',$action)){
     $WhatIfPreference=$false
     if($isSaveBacked){
-        $whatIfContinuity=Assert-KmcQualifiedWorkingPriorInventoryContinuity `
+        $whatIfContinuity=Assert-KmcQualifiedWorkingProtectedSaveContinuity `
             -SaveRoot $saveRoot `
             -StateRoot $runtimeState `
             -QualificationPath $qualificationPath `
@@ -126,7 +150,14 @@ if(-not $PSCmdlet.ShouldProcess('Steam App 640820, exact live Kingmaker Mods, an
             -PriorSaveTransactionStatePath $PriorSaveTransactionStatePath `
             -ExpectedPriorSaveTransactionRunId $ExpectedPriorSaveTransactionRunId `
             -ExpectedPriorSaveTransactionStateSha256 $ExpectedPriorSaveTransactionStateSha256 `
-            -ExpectedPriorSaveMetadataDigest $ExpectedPriorSaveMetadataDigest
+            -ExpectedPriorSaveMetadataDigest $ExpectedPriorSaveMetadataDigest `
+            -ProtectedSaveContinuityAuthorityPath $ProtectedSaveContinuityAuthorityPath `
+            -ExpectedProtectedSaveContinuityEpochId $ExpectedProtectedSaveContinuityEpochId `
+            -ExpectedProtectedSaveContinuityAuthoritySha256 $ExpectedProtectedSaveContinuityAuthoritySha256 `
+            -ExpectedProtectedAutoSaveName $ExpectedProtectedAutoSaveName `
+            -ExpectedProtectedAutoSaveSha256 $ExpectedProtectedAutoSaveSha256 `
+            -ExpectedProtectedQuickSaveName $ExpectedProtectedQuickSaveName `
+            -ExpectedProtectedQuickSaveSha256 $ExpectedProtectedQuickSaveSha256
         if((New-KmcRuntimeFixturePayload $whatIfContinuity.pair|ConvertTo-Json -Depth 10 -Compress)-cne
             ($fixturePayload|ConvertTo-Json -Depth 10 -Compress)){
             throw 'KMC fixture identity changed during runtime WhatIf continuity validation.'
@@ -201,7 +232,7 @@ try{
         # only transition under this lock before any durable run-state mutation.
         [void](Assert-KmcRuntimeLockOwner $lock)
         Assert-KmcNoGameProcesses
-        $lockedContinuity=Assert-KmcQualifiedWorkingPriorInventoryContinuity `
+        $lockedContinuity=Assert-KmcQualifiedWorkingProtectedSaveContinuity `
             -SaveRoot $saveRoot `
             -StateRoot $runtimeState `
             -QualificationPath $qualificationPath `
@@ -210,7 +241,14 @@ try{
             -PriorSaveTransactionStatePath $PriorSaveTransactionStatePath `
             -ExpectedPriorSaveTransactionRunId $ExpectedPriorSaveTransactionRunId `
             -ExpectedPriorSaveTransactionStateSha256 $ExpectedPriorSaveTransactionStateSha256 `
-            -ExpectedPriorSaveMetadataDigest $ExpectedPriorSaveMetadataDigest
+            -ExpectedPriorSaveMetadataDigest $ExpectedPriorSaveMetadataDigest `
+            -ProtectedSaveContinuityAuthorityPath $ProtectedSaveContinuityAuthorityPath `
+            -ExpectedProtectedSaveContinuityEpochId $ExpectedProtectedSaveContinuityEpochId `
+            -ExpectedProtectedSaveContinuityAuthoritySha256 $ExpectedProtectedSaveContinuityAuthoritySha256 `
+            -ExpectedProtectedAutoSaveName $ExpectedProtectedAutoSaveName `
+            -ExpectedProtectedAutoSaveSha256 $ExpectedProtectedAutoSaveSha256 `
+            -ExpectedProtectedQuickSaveName $ExpectedProtectedQuickSaveName `
+            -ExpectedProtectedQuickSaveSha256 $ExpectedProtectedQuickSaveSha256
         $lockedPair=$lockedContinuity.pair
         $lockedWorkingPath=[IO.Path]::GetFullPath([string]$lockedPair.working.path)
         $lockedPayload=New-KmcRuntimeFixturePayload $lockedPair

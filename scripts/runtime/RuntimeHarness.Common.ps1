@@ -492,6 +492,8 @@ function Read-KmcPriorSaveTransactionAuthority {
         runId = $ExpectedRunId
         inventory = $inventory
         inventoryDigest = $ExpectedInventoryDigest
+        baselineSha256 = $ExpectedBaselineSha256
+        supersededWorkingSha256 = $ExpectedSupersededWorkingSha256
         workingRelativePath = $workingRelative
         priorWorkingLength = [long]$state.workingLength
         priorWorkingLastWriteTimeUtcTicks = [long]$state.workingLastWriteTimeUtcTicks
@@ -566,7 +568,14 @@ function Assert-KmcRuntimeContinuityPinCombination {
         [string]$PriorSaveTransactionStatePath,
         [string]$ExpectedPriorSaveTransactionRunId,
         [string]$ExpectedPriorSaveTransactionStateSha256,
-        [string]$ExpectedPriorSaveMetadataDigest
+        [string]$ExpectedPriorSaveMetadataDigest,
+        [string]$ProtectedSaveContinuityAuthorityPath,
+        [string]$ExpectedProtectedSaveContinuityEpochId,
+        [string]$ExpectedProtectedSaveContinuityAuthoritySha256,
+        [string]$ExpectedProtectedAutoSaveName,
+        [string]$ExpectedProtectedAutoSaveSha256,
+        [string]$ExpectedProtectedQuickSaveName,
+        [string]$ExpectedProtectedQuickSaveSha256
     )
     $values = @(
         $ExpectedCurrentQualificationSha256,
@@ -574,7 +583,14 @@ function Assert-KmcRuntimeContinuityPinCombination {
         $PriorSaveTransactionStatePath,
         $ExpectedPriorSaveTransactionRunId,
         $ExpectedPriorSaveTransactionStateSha256,
-        $ExpectedPriorSaveMetadataDigest
+        $ExpectedPriorSaveMetadataDigest,
+        $ProtectedSaveContinuityAuthorityPath,
+        $ExpectedProtectedSaveContinuityEpochId,
+        $ExpectedProtectedSaveContinuityAuthoritySha256,
+        $ExpectedProtectedAutoSaveName,
+        $ExpectedProtectedAutoSaveSha256,
+        $ExpectedProtectedQuickSaveName,
+        $ExpectedProtectedQuickSaveSha256
     )
     $pinNames = @(
         'ExpectedCurrentQualificationSha256',
@@ -582,7 +598,14 @@ function Assert-KmcRuntimeContinuityPinCombination {
         'PriorSaveTransactionStatePath',
         'ExpectedPriorSaveTransactionRunId',
         'ExpectedPriorSaveTransactionStateSha256',
-        'ExpectedPriorSaveMetadataDigest'
+        'ExpectedPriorSaveMetadataDigest',
+        'ProtectedSaveContinuityAuthorityPath',
+        'ExpectedProtectedSaveContinuityEpochId',
+        'ExpectedProtectedSaveContinuityAuthoritySha256',
+        'ExpectedProtectedAutoSaveName',
+        'ExpectedProtectedAutoSaveSha256',
+        'ExpectedProtectedQuickSaveName',
+        'ExpectedProtectedQuickSaveSha256'
     )
     $unknownOrDuplicateNames = @($BoundContinuityPinNames | Group-Object | Where-Object {
         $group = $_
@@ -675,6 +698,350 @@ function Assert-KmcQualifiedWorkingPriorInventoryContinuity {
         currentInventoryDigest = [string]$transition.currentInventoryDigest
         changedPath = [string]$transition.changedPath
     }
+}
+
+function New-KmcProtectedSaveContinuityAuthorityRecord {
+    param(
+        [Parameter(Mandatory = $true)]$CurrentPair,
+        [Parameter(Mandatory = $true)]$PriorAuthority,
+        [Parameter(Mandatory = $true)]$CurrentInventory,
+        [Parameter(Mandatory = $true)][string]$SaveRoot,
+        [Parameter(Mandatory = $true)][string]$QualificationPath,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$CurrentQualificationSha256,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$EpochId,
+        [Parameter(Mandatory = $true)][string]$AuthorizedAtUtc,
+        [Parameter(Mandatory = $true)][string]$AutoSaveName,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$AutoSaveSha256,
+        [Parameter(Mandatory = $true)][long]$AutoSaveLength,
+        [Parameter(Mandatory = $true)][long]$AutoSaveLastWriteTimeUtcTicks,
+        [Parameter(Mandatory = $true)][string]$QuickSaveName,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$QuickSaveSha256,
+        [Parameter(Mandatory = $true)][long]$QuickSaveLength,
+        [Parameter(Mandatory = $true)][long]$QuickSaveLastWriteTimeUtcTicks
+    )
+    $fullSaveRoot = [IO.Path]::GetFullPath($SaveRoot).TrimEnd('\')
+    $fullQualificationPath = [IO.Path]::GetFullPath($QualificationPath)
+    $authorizedAt = [DateTimeOffset]::MinValue
+    if (-not [DateTimeOffset]::TryParseExact(
+        $AuthorizedAtUtc,
+        'o',
+        [Globalization.CultureInfo]::InvariantCulture,
+        [Globalization.DateTimeStyles]::RoundtripKind,
+        [ref]$authorizedAt)) {
+        throw 'Protected-save continuity authority timestamp is not an exact round-trip timestamp.'
+    }
+    if ($AutoSaveName -cnotmatch '^Auto_[0-9]+\.zks$' -or
+        $QuickSaveName -cnotmatch '^Quick_[0-9]+\.zks$' -or
+        [string]::Equals($AutoSaveName, $QuickSaveName, [StringComparison]::OrdinalIgnoreCase) -or
+        $AutoSaveLength -le 0 -or $QuickSaveLength -le 0 -or
+        $AutoSaveLastWriteTimeUtcTicks -le 0 -or $QuickSaveLastWriteTimeUtcTicks -le 0) {
+        throw 'Protected-save continuity authority requires one exact distinct autosave and quicksave fingerprint.'
+    }
+    [void](Assert-KmcSaveMetadataInventorySchema `
+        -Inventory $CurrentInventory `
+        -ExpectedSaveRoot $fullSaveRoot `
+        -ExpectedDigest ([string]$CurrentInventory.digest) `
+        -Description 'protected-save continuity current inventory')
+    if ([int]$CurrentPair.schemaVersion -ne 1 -or
+        @($CurrentPair.writableSaveNames).Count -ne 1 -or
+        [string]@($CurrentPair.writableSaveNames)[0] -cne 'KMC_AUTOMATION_WORKING' -or
+        [string]$CurrentPair.baseline.name -cne 'KMC_AUTOMATION_BASELINE' -or
+        [string]$CurrentPair.working.name -cne 'KMC_AUTOMATION_WORKING') {
+        throw 'Protected-save continuity authority requires the exact qualified pair and Working-only allowlist.'
+    }
+    Assert-KmcRecoveryLeafNoLinks $fullQualificationPath 'protected-save continuity fixture qualification'
+    if ((Get-KmcSha256 $fullQualificationPath) -cne $CurrentQualificationSha256) {
+        throw 'Protected-save continuity fixture qualification differs from its explicit SHA-256 pin.'
+    }
+
+    $priorMap = @{}
+    foreach ($entry in @($PriorAuthority.inventory.entries)) { $priorMap[[string]$entry.path] = $entry }
+    $currentMap = @{}
+    foreach ($entry in @($CurrentInventory.entries)) { $currentMap[[string]$entry.path] = $entry }
+    $allPaths = @($priorMap.Keys + $currentMap.Keys | Sort-Object -Unique)
+    $changedPaths = @($allPaths | Where-Object {
+        $prior = $priorMap[$_]
+        $current = $currentMap[$_]
+        $null -eq $prior -or $null -eq $current -or
+            [string]$prior.kind -cne [string]$current.kind -or
+            [string]$prior.path -cne [string]$current.path -or
+            [long]$prior.length -ne [long]$current.length -or
+            [long]$prior.lastWriteTimeUtcTicks -ne [long]$current.lastWriteTimeUtcTicks
+    })
+    $workingName = [string]$PriorAuthority.workingRelativePath
+    $expectedChanges = @(@($AutoSaveName, $workingName, $QuickSaveName) | Sort-Object)
+    if (($changedPaths -join "`n") -cne ($expectedChanges -join "`n")) {
+        $description = if ($changedPaths.Count -eq 0) { '<none>' } else { $changedPaths -join ', ' }
+        throw "Protected-save epoch transition must contain exactly revised Working plus the attested Auto/Quick files; changed: $description"
+    }
+
+    $currentWorking = $currentMap[$workingName]
+    if ($null -eq $currentWorking -or [string]$currentWorking.kind -cne 'file' -or
+        [string]$currentWorking.path -cne [IO.Path]::GetFileName([string]$CurrentPair.working.path) -or
+        [long]$currentWorking.length -ne [long]$CurrentPair.working.length -or
+        [long]$currentWorking.lastWriteTimeUtcTicks -ne [long]$CurrentPair.working.lastWriteTimeUtcTicks) {
+        throw 'Protected-save epoch transition does not contain the exact revised Working metadata.'
+    }
+
+    $transitionRecords = New-Object 'Collections.Generic.List[object]'
+    foreach ($specification in @(
+        [pscustomobject]@{ name=$AutoSaveName; sha256=$AutoSaveSha256; length=$AutoSaveLength; ticks=$AutoSaveLastWriteTimeUtcTicks },
+        [pscustomobject]@{ name=$QuickSaveName; sha256=$QuickSaveSha256; length=$QuickSaveLength; ticks=$QuickSaveLastWriteTimeUtcTicks }
+    )) {
+        $prior = $priorMap[[string]$specification.name]
+        $current = $currentMap[[string]$specification.name]
+        if ($null -eq $prior -or $null -eq $current -or
+            [string]$prior.kind -cne 'file' -or [string]$current.kind -cne 'file' -or
+            [string]$prior.path -cne [string]$specification.name -or
+            [string]$current.path -cne [string]$specification.name -or
+            [long]$current.length -ne [long]$specification.length -or
+            [long]$current.lastWriteTimeUtcTicks -ne [long]$specification.ticks) {
+            throw "Protected-save epoch metadata differs for $($specification.name)."
+        }
+        $protectedPath = Assert-KmcChildPath (Join-Path $fullSaveRoot ([string]$specification.name)) $fullSaveRoot 'attested protected save'
+        if (-not [string]::Equals((Split-Path -Parent $protectedPath), $fullSaveRoot, [StringComparison]::OrdinalIgnoreCase)) {
+            throw 'Attested protected save is not an exact direct child of the save root.'
+        }
+        Assert-KmcRecoveryLeafNoLinks $protectedPath 'attested protected save'
+        $file = Get-Item -LiteralPath $protectedPath -Force
+        if ($file.Length -ne [long]$specification.length -or
+            $file.LastWriteTimeUtc.Ticks -ne [long]$specification.ticks -or
+            (Get-KmcSha256 $protectedPath) -cne [string]$specification.sha256) {
+            throw "Attested protected save bytes or filesystem metadata differ for $($specification.name)."
+        }
+        $transitionRecords.Add([ordered]@{
+            fileName = [string]$specification.name
+            priorKind = [string]$prior.kind
+            priorLength = [long]$prior.length
+            priorLastWriteTimeUtcTicks = [long]$prior.lastWriteTimeUtcTicks
+            currentKind = [string]$current.kind
+            currentLength = [long]$current.length
+            currentLastWriteTimeUtcTicks = [long]$current.lastWriteTimeUtcTicks
+            currentSha256 = [string]$specification.sha256
+        })
+    }
+
+    return [ordered]@{
+        schemaVersion = 1
+        authorityKind = 'user-attested-protected-save-continuity'
+        epochId = $EpochId
+        authorizedAtUtc = $AuthorizedAtUtc
+        attestationScope = 'external-user-fixture-preparation-auto-quicksave-baseline-only'
+        saveRoot = $fullSaveRoot
+        priorAuthority = [ordered]@{
+            statePath = [string]$PriorAuthority.statePath
+            runId = [string]$PriorAuthority.runId
+            stateSha256 = [string]$PriorAuthority.stateSha256
+            inventoryDigest = [string]$PriorAuthority.inventoryDigest
+            baselineSha256 = [string]$PriorAuthority.baselineSha256
+            supersededWorkingSha256 = [string]$PriorAuthority.supersededWorkingSha256
+        }
+        currentQualification = [ordered]@{ path=$fullQualificationPath; sha256=$CurrentQualificationSha256 }
+        baseline = [ordered]@{
+            path=[string]$CurrentPair.baseline.path;fileName=[string]$CurrentPair.baseline.fileName
+            sha256=[string]$CurrentPair.baseline.sha256;length=[long]$CurrentPair.baseline.length
+            lastWriteTimeUtcTicks=[long]$CurrentPair.baseline.lastWriteTimeUtcTicks
+        }
+        working = [ordered]@{
+            path=[string]$CurrentPair.working.path;fileName=[string]$CurrentPair.working.fileName
+            sha256=[string]$CurrentPair.working.sha256;length=[long]$CurrentPair.working.length
+            lastWriteTimeUtcTicks=[long]$CurrentPair.working.lastWriteTimeUtcTicks
+        }
+        writableSaveNames = @('KMC_AUTOMATION_WORKING')
+        authorizedProtectedTransitions = $transitionRecords.ToArray()
+        currentInventory = $CurrentInventory
+    }
+}
+
+function Read-KmcProtectedSaveContinuityAuthority {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$StateRoot,
+        [Parameter(Mandatory = $true)][string]$SaveRoot,
+        [Parameter(Mandatory = $true)][string]$QualificationPath,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$ExpectedEpochId,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedAuthoritySha256,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedCurrentQualificationSha256,
+        [Parameter(Mandatory = $true)][string]$ExpectedPriorSaveTransactionStatePath,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$ExpectedPriorSaveTransactionRunId,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPriorSaveTransactionStateSha256,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPriorSaveMetadataDigest,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedSupersededWorkingSha256,
+        [Parameter(Mandatory = $true)][string]$ExpectedAutoSaveName,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedAutoSaveSha256,
+        [Parameter(Mandatory = $true)][string]$ExpectedQuickSaveName,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedQuickSaveSha256
+    )
+    $fullStateRoot = [IO.Path]::GetFullPath($StateRoot).TrimEnd('\')
+    $authorityRoot = Assert-KmcChildPath (Join-Path $fullStateRoot 'protected-save-authorities') $fullStateRoot 'protected-save authority root'
+    if (-not (Test-Path -LiteralPath $authorityRoot -PathType Container)) { throw 'Protected-save authority root is missing.' }
+    Assert-KmcNotReparsePoint $authorityRoot 'protected-save authority root'
+    $expectedPath = Assert-KmcChildPath (Join-Path $authorityRoot ($ExpectedEpochId + '.json')) $authorityRoot 'protected-save authority'
+    $fullPath = [IO.Path]::GetFullPath($Path)
+    if (-not [string]::Equals($fullPath, $expectedPath, [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Protected-save authority path differs from the caller-pinned epoch identity.'
+    }
+    Assert-KmcRecoveryLeafNoLinks $fullPath 'protected-save authority'
+    $before = Get-Item -LiteralPath $fullPath -Force
+    if ($before.Length -le 0 -or $before.Length -gt 2MB -or (Get-KmcSha256 $fullPath) -cne $ExpectedAuthoritySha256) {
+        throw 'Protected-save authority size or SHA-256 differs from the explicit pin.'
+    }
+    $bytes = [IO.File]::ReadAllBytes($fullPath)
+    $strictUtf8 = New-Object Text.UTF8Encoding($false, $true)
+    try { $json = $strictUtf8.GetString($bytes) }
+    catch [Text.DecoderFallbackException] { throw 'Protected-save authority is not strict UTF-8.' }
+    Assert-KmcJsonObjectMembersUnique -Json $json -Description 'protected-save authority'
+    $record = $json | ConvertFrom-Json
+    $after = Get-Item -LiteralPath $fullPath -Force
+    if ($after.Length -ne $before.Length -or $after.LastWriteTimeUtc.Ticks -ne $before.LastWriteTimeUtc.Ticks -or
+        (Get-KmcSha256 $fullPath) -cne $ExpectedAuthoritySha256) {
+        throw 'Protected-save authority changed while it was being read.'
+    }
+    if ($record -isnot [pscustomobject]) { throw 'Protected-save authority is not an exact JSON object.' }
+    Assert-KmcExactProperties $record @(
+        'schemaVersion','authorityKind','epochId','authorizedAtUtc','attestationScope','saveRoot','priorAuthority',
+        'currentQualification','baseline','working','writableSaveNames','authorizedProtectedTransitions','currentInventory'
+    ) 'protected-save authority'
+    if ((($record.schemaVersion -isnot [int]) -and ($record.schemaVersion -isnot [long])) -or
+        [long]$record.schemaVersion -ne 1 -or $record.authorityKind -isnot [string] -or
+        [string]$record.authorityKind -cne 'user-attested-protected-save-continuity' -or
+        $record.epochId -isnot [string] -or [string]$record.epochId -cne $ExpectedEpochId -or
+        $record.authorizedAtUtc -isnot [string] -or $record.attestationScope -isnot [string] -or
+        [string]$record.attestationScope -cne 'external-user-fixture-preparation-auto-quicksave-baseline-only' -or
+        $record.saveRoot -isnot [string] -or $record.priorAuthority -isnot [pscustomobject] -or
+        $record.currentQualification -isnot [pscustomobject] -or $record.baseline -isnot [pscustomobject] -or
+        $record.working -isnot [pscustomobject] -or $record.writableSaveNames -isnot [Array] -or
+        $record.authorizedProtectedTransitions -isnot [Array]) {
+        throw 'Protected-save authority top-level schema or types are invalid.'
+    }
+    Assert-KmcExactProperties $record.priorAuthority @(
+        'statePath','runId','stateSha256','inventoryDigest','baselineSha256','supersededWorkingSha256'
+    ) 'protected-save authority prior source'
+    Assert-KmcExactProperties $record.currentQualification @('path','sha256') 'protected-save authority qualification'
+    foreach ($name in @('baseline','working')) {
+        Assert-KmcExactProperties $record.$name @('path','fileName','sha256','length','lastWriteTimeUtcTicks') "protected-save authority $name"
+    }
+    if (@($record.writableSaveNames).Count -ne 1 -or [string]@($record.writableSaveNames)[0] -cne 'KMC_AUTOMATION_WORKING' -or
+        @($record.authorizedProtectedTransitions).Count -ne 2) {
+        throw 'Protected-save authority allowlist or authorized transition count is invalid.'
+    }
+    foreach ($transition in @($record.authorizedProtectedTransitions)) {
+        if ($transition -isnot [pscustomobject]) { throw 'Protected-save authority transition is not an exact object.' }
+        Assert-KmcExactProperties $transition @(
+            'fileName','priorKind','priorLength','priorLastWriteTimeUtcTicks','currentKind','currentLength',
+            'currentLastWriteTimeUtcTicks','currentSha256'
+        ) 'protected-save authority transition'
+        foreach ($field in @('fileName','priorKind','currentKind','currentSha256')) {
+            if ($transition.$field -isnot [string]) { throw "Protected-save authority transition $field type is invalid." }
+        }
+        foreach ($field in @('priorLength','priorLastWriteTimeUtcTicks','currentLength','currentLastWriteTimeUtcTicks')) {
+            if (($transition.$field -isnot [int]) -and ($transition.$field -isnot [long])) {
+                throw "Protected-save authority transition $field type is invalid."
+            }
+        }
+    }
+    foreach ($container in @($record.priorAuthority,$record.currentQualification,$record.baseline,$record.working)) {
+        foreach ($property in @($container.PSObject.Properties)) {
+            if ($property.Name -in @('length','lastWriteTimeUtcTicks')) {
+                if (($property.Value -isnot [int]) -and ($property.Value -isnot [long])) { throw 'Protected-save authority identity integral type is invalid.' }
+            }
+            elseif ($property.Value -isnot [string]) { throw 'Protected-save authority identity string type is invalid.' }
+        }
+    }
+
+    $pair = Assert-KmcFixturePair -SaveRoot $SaveRoot -QualificationPath $QualificationPath
+    if ((Get-KmcSha256 $QualificationPath) -cne $ExpectedCurrentQualificationSha256 -or
+        [string]$record.currentQualification.sha256 -cne $ExpectedCurrentQualificationSha256 -or
+        -not [string]::Equals([IO.Path]::GetFullPath([string]$record.currentQualification.path), [IO.Path]::GetFullPath($QualificationPath), [StringComparison]::OrdinalIgnoreCase) -or
+        [string]$record.priorAuthority.statePath -cne [IO.Path]::GetFullPath($ExpectedPriorSaveTransactionStatePath) -or
+        [string]$record.priorAuthority.runId -cne $ExpectedPriorSaveTransactionRunId -or
+        [string]$record.priorAuthority.stateSha256 -cne $ExpectedPriorSaveTransactionStateSha256 -or
+        [string]$record.priorAuthority.inventoryDigest -cne $ExpectedPriorSaveMetadataDigest -or
+        [string]$record.priorAuthority.supersededWorkingSha256 -cne $ExpectedSupersededWorkingSha256) {
+        throw 'Protected-save authority qualification or prior-source caller pins do not reconcile.'
+    }
+    $priorAuthority = Read-KmcPriorSaveTransactionAuthority `
+        -Path $ExpectedPriorSaveTransactionStatePath `
+        -StateRoot $StateRoot `
+        -SaveRoot $SaveRoot `
+        -ExpectedRunId $ExpectedPriorSaveTransactionRunId `
+        -ExpectedStateSha256 $ExpectedPriorSaveTransactionStateSha256 `
+        -ExpectedInventoryDigest $ExpectedPriorSaveMetadataDigest `
+        -ExpectedBaselineSha256 ([string]$pair.baseline.sha256) `
+        -ExpectedSupersededWorkingSha256 $ExpectedSupersededWorkingSha256 `
+        -CurrentPair $pair
+    $autoTransition = @($record.authorizedProtectedTransitions | Where-Object { [string]$_.fileName -ceq $ExpectedAutoSaveName })
+    $quickTransition = @($record.authorizedProtectedTransitions | Where-Object { [string]$_.fileName -ceq $ExpectedQuickSaveName })
+    if ($autoTransition.Count -ne 1 -or $quickTransition.Count -ne 1 -or
+        [string]$autoTransition[0].currentSha256 -cne $ExpectedAutoSaveSha256 -or
+        [string]$quickTransition[0].currentSha256 -cne $ExpectedQuickSaveSha256) {
+        throw 'Protected-save authority does not contain the exact caller-pinned Auto/Quick fingerprints.'
+    }
+    $liveInventory = Get-KmcSaveMetadataInventory $SaveRoot
+    $expectedRecord = New-KmcProtectedSaveContinuityAuthorityRecord `
+        -CurrentPair $pair -PriorAuthority $priorAuthority -CurrentInventory $liveInventory -SaveRoot $SaveRoot `
+        -QualificationPath $QualificationPath -CurrentQualificationSha256 $ExpectedCurrentQualificationSha256 `
+        -EpochId $ExpectedEpochId -AuthorizedAtUtc ([string]$record.authorizedAtUtc) `
+        -AutoSaveName $ExpectedAutoSaveName -AutoSaveSha256 $ExpectedAutoSaveSha256 `
+        -AutoSaveLength ([long]$autoTransition[0].currentLength) `
+        -AutoSaveLastWriteTimeUtcTicks ([long]$autoTransition[0].currentLastWriteTimeUtcTicks) `
+        -QuickSaveName $ExpectedQuickSaveName -QuickSaveSha256 $ExpectedQuickSaveSha256 `
+        -QuickSaveLength ([long]$quickTransition[0].currentLength) `
+        -QuickSaveLastWriteTimeUtcTicks ([long]$quickTransition[0].currentLastWriteTimeUtcTicks)
+    if (($record | ConvertTo-Json -Depth 30 -Compress) -cne ($expectedRecord | ConvertTo-Json -Depth 30 -Compress)) {
+        throw 'Protected-save authority content does not exactly reconcile to prior, current, and attested state.'
+    }
+    return [pscustomobject]@{
+        schemaVersion=1;path=$fullPath;sha256=$ExpectedAuthoritySha256;epochId=$ExpectedEpochId
+        pair=$pair;saveMetadata=$liveInventory;record=$record
+    }
+}
+
+function Assert-KmcQualifiedWorkingProtectedSaveContinuity {
+    param(
+        [Parameter(Mandatory = $true)][string]$SaveRoot,
+        [Parameter(Mandatory = $true)][string]$StateRoot,
+        [Parameter(Mandatory = $true)][string]$QualificationPath,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedCurrentQualificationSha256,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedSupersededWorkingSha256,
+        [Parameter(Mandatory = $true)][string]$PriorSaveTransactionStatePath,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$ExpectedPriorSaveTransactionRunId,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPriorSaveTransactionStateSha256,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPriorSaveMetadataDigest,
+        [Parameter(Mandatory = $true)][string]$ProtectedSaveContinuityAuthorityPath,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$ExpectedProtectedSaveContinuityEpochId,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedProtectedSaveContinuityAuthoritySha256,
+        [Parameter(Mandatory = $true)][string]$ExpectedProtectedAutoSaveName,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedProtectedAutoSaveSha256,
+        [Parameter(Mandatory = $true)][string]$ExpectedProtectedQuickSaveName,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedProtectedQuickSaveSha256
+    )
+    $fullSaveRoot = [IO.Path]::GetFullPath($SaveRoot).TrimEnd('\')
+    $fullStateRoot = [IO.Path]::GetFullPath($StateRoot).TrimEnd('\')
+    Assert-KmcPathsDoNotOverlap -First $fullSaveRoot -Second $fullStateRoot -Description 'KMC save and runtime-state roots'
+    Assert-KmcNoGameProcesses
+    $authorityArguments = @{
+        Path=$ProtectedSaveContinuityAuthorityPath;StateRoot=$StateRoot;SaveRoot=$SaveRoot;QualificationPath=$QualificationPath
+        ExpectedEpochId=$ExpectedProtectedSaveContinuityEpochId
+        ExpectedAuthoritySha256=$ExpectedProtectedSaveContinuityAuthoritySha256
+        ExpectedCurrentQualificationSha256=$ExpectedCurrentQualificationSha256
+        ExpectedPriorSaveTransactionStatePath=$PriorSaveTransactionStatePath
+        ExpectedPriorSaveTransactionRunId=$ExpectedPriorSaveTransactionRunId
+        ExpectedPriorSaveTransactionStateSha256=$ExpectedPriorSaveTransactionStateSha256
+        ExpectedPriorSaveMetadataDigest=$ExpectedPriorSaveMetadataDigest
+        ExpectedSupersededWorkingSha256=$ExpectedSupersededWorkingSha256
+        ExpectedAutoSaveName=$ExpectedProtectedAutoSaveName;ExpectedAutoSaveSha256=$ExpectedProtectedAutoSaveSha256
+        ExpectedQuickSaveName=$ExpectedProtectedQuickSaveName;ExpectedQuickSaveSha256=$ExpectedProtectedQuickSaveSha256
+    }
+    $first = Read-KmcProtectedSaveContinuityAuthority @authorityArguments
+    Assert-KmcNoGameProcesses
+    $second = Read-KmcProtectedSaveContinuityAuthority @authorityArguments
+    Assert-KmcSaveMetadataInventoriesEqual -Before $first.saveMetadata -After $second.saveMetadata -Description 'protected-save continuity live metadata'
+    if ((New-KmcRuntimeFixturePayload $first.pair | ConvertTo-Json -Depth 10 -Compress) -cne
+        (New-KmcRuntimeFixturePayload $second.pair | ConvertTo-Json -Depth 10 -Compress)) {
+        throw 'KMC fixture identity changed during protected-save continuity validation.'
+    }
+    return $second
 }
 
 function Assert-KmcPathsDoNotOverlap {
@@ -2217,6 +2584,32 @@ function Write-KmcJsonDurable {
     )
     $json = $Value | ConvertTo-Json -Depth 30
     Write-KmcBytesDurableAtomic -Path $Path -Bytes ([Text.Encoding]::UTF8.GetBytes($json))
+}
+
+function Write-KmcJsonCreateNewDurable {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)]$Value
+    )
+    $fullPath = [IO.Path]::GetFullPath($Path)
+    $parent = Split-Path -Parent $fullPath
+    if (-not (Test-Path -LiteralPath $parent -PathType Container)) { throw "Create-new durable JSON parent is missing: $parent" }
+    Assert-KmcNotReparsePoint $parent 'create-new durable JSON parent'
+    if (Test-Path -LiteralPath $fullPath) { throw "Create-new durable JSON target already exists: $fullPath" }
+    $temporary = Join-Path $parent ('.' + [IO.Path]::GetFileName($fullPath) + '.' + [Guid]::NewGuid().ToString('N') + '.tmp')
+    try {
+        $bytes = [Text.Encoding]::UTF8.GetBytes(($Value | ConvertTo-Json -Depth 30))
+        $stream = New-Object IO.FileStream($temporary, [IO.FileMode]::CreateNew, [IO.FileAccess]::ReadWrite, [IO.FileShare]::Read)
+        try { $stream.Write($bytes, 0, $bytes.Length); $stream.Flush($true) }
+        finally { $stream.Dispose() }
+        [IO.File]::Move($temporary, $fullPath)
+        $target = New-Object IO.FileStream($fullPath, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::Read)
+        try { $target.Flush($true) }
+        finally { $target.Dispose() }
+    }
+    finally {
+        if (Test-Path -LiteralPath $temporary -PathType Leaf) { Remove-Item -LiteralPath $temporary -Force }
+    }
 }
 
 function Get-KmcRuntimeArchiveWriteLimit {

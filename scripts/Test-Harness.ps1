@@ -144,6 +144,40 @@ function New-TestPendingWorkingRequalification {
     }
 }
 
+function New-TestAuthorizedProtectedSaveEpoch {
+    param([Parameter(Mandatory = $true)][string]$Name)
+    $fixture = New-TestPendingWorkingRequalification $Name
+    $guardPath = Join-Path $repoRoot 'scripts\runtime\Test-KmcFixtureGuard.ps1'
+    & $guardPath `
+        -SaveRoot $fixture.saveRoot `
+        -StateRoot $fixture.stateRoot `
+        -RequalifyWorking `
+        -ExpectedExistingQualificationSha256 $fixture.oldQualificationSha256 `
+        -ExpectedBaselineSha256 $fixture.baselineSha256 `
+        -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 `
+        -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+        -PriorSaveTransactionStatePath $fixture.priorSaveTransactionStatePath `
+        -ExpectedPriorSaveTransactionRunId $fixture.priorSaveTransactionRunId `
+        -ExpectedPriorSaveTransactionStateSha256 $fixture.priorSaveTransactionStateSha256 `
+        -ExpectedPriorSaveMetadataDigest $fixture.priorSaveMetadataDigest `
+        -Confirm:$false | Out-Null
+    $autoPath = Join-Path $fixture.saveRoot 'Auto_1.zks'
+    $quickPath = Join-Path $fixture.saveRoot 'Quick_1.zks'
+    [IO.File]::AppendAllText($autoPath, '-user-authorized-auto-epoch')
+    [IO.File]::AppendAllText($quickPath, '-user-authorized-quick-epoch')
+    $auto = Get-Item -LiteralPath $autoPath -Force
+    $quick = Get-Item -LiteralPath $quickPath -Force
+    return [pscustomobject]@{
+        fixture=$fixture
+        epochId=('protected-epoch-' + $Name)
+        qualificationSha256=(Get-KmcSha256 $fixture.qualificationPath)
+        autoPath=$autoPath;autoName=$auto.Name;autoSha256=(Get-KmcSha256 $autoPath)
+        autoLength=[long]$auto.Length;autoTicks=[long]$auto.LastWriteTimeUtc.Ticks
+        quickPath=$quickPath;quickName=$quick.Name;quickSha256=(Get-KmcSha256 $quickPath)
+        quickLength=[long]$quick.Length;quickTicks=[long]$quick.LastWriteTimeUtc.Ticks
+    }
+}
+
 function Set-TestRuntimeLockOwnerDead {
     param([Parameter(Mandatory = $true)][string]$Path)
     $payload = Read-KmcJson $Path
@@ -1532,6 +1566,84 @@ try {
         $message = $null
         try { Read-KmcPriorSaveTransactionAuthority @authorityArguments | Out-Null } catch { $message = $_.Exception.Message }
         Assert-Test ($message -like '*not strict UTF-8*') 'prior save-inventory authority did not reject malformed UTF-8 before JSON parsing'
+    }
+
+    Invoke-HarnessTest 'protected-save continuity authority WhatIf is pure and exact' {
+        $epoch = New-TestAuthorizedProtectedSaveEpoch 'protected-authority-whatif'
+        $fixture = $epoch.fixture
+        $scriptPath = Join-Path $repoRoot 'scripts\runtime\New-KmcProtectedSaveContinuityAuthority.ps1'
+        $stateBefore = Get-KmcDirectoryManifest $fixture.stateRoot
+        $savesBefore = Get-KmcSaveMetadataInventory $fixture.saveRoot
+        $output = @(& $scriptPath `
+            -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -EpochId $epoch.epochId `
+            -ExpectedCurrentQualificationSha256 $epoch.qualificationSha256 `
+            -ExpectedBaselineSha256 $fixture.baselineSha256 `
+            -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 `
+            -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+            -PriorSaveTransactionStatePath $fixture.priorSaveTransactionStatePath `
+            -ExpectedPriorSaveTransactionRunId $fixture.priorSaveTransactionRunId `
+            -ExpectedPriorSaveTransactionStateSha256 $fixture.priorSaveTransactionStateSha256 `
+            -ExpectedPriorSaveMetadataDigest $fixture.priorSaveMetadataDigest `
+            -AutoSaveName $epoch.autoName -ExpectedAutoSaveSha256 $epoch.autoSha256 `
+            -ExpectedAutoSaveLength $epoch.autoLength -ExpectedAutoSaveLastWriteTimeUtcTicks $epoch.autoTicks `
+            -QuickSaveName $epoch.quickName -ExpectedQuickSaveSha256 $epoch.quickSha256 `
+            -ExpectedQuickSaveLength $epoch.quickLength -ExpectedQuickSaveLastWriteTimeUtcTicks $epoch.quickTicks `
+            -WhatIf 6>&1)
+        Assert-Test (($output -join "`n") -like '*Protected-save continuity authority WhatIf PASS*') 'protected-save authority WhatIf did not report PASS'
+        Assert-KmcSaveMetadataInventoriesEqual -Before $savesBefore -After (Get-KmcSaveMetadataInventory $fixture.saveRoot) -Description 'protected-save authority WhatIf saves'
+        Assert-Test ((Get-KmcDirectoryManifest $fixture.stateRoot).digest -ceq $stateBefore.digest) 'protected-save authority WhatIf changed runtime state'
+        Assert-Test (-not (Test-Path -LiteralPath (Join-Path $fixture.stateRoot 'protected-save-authorities'))) 'protected-save authority WhatIf created its authority root'
+    }
+
+    Invoke-HarnessTest 'protected-save continuity authority binds exact protected bytes and every other entry' {
+        $epoch = New-TestAuthorizedProtectedSaveEpoch 'protected-authority-commit'
+        $fixture = $epoch.fixture
+        $scriptPath = Join-Path $repoRoot 'scripts\runtime\New-KmcProtectedSaveContinuityAuthority.ps1'
+        & $scriptPath `
+            -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -EpochId $epoch.epochId `
+            -ExpectedCurrentQualificationSha256 $epoch.qualificationSha256 `
+            -ExpectedBaselineSha256 $fixture.baselineSha256 `
+            -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 `
+            -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+            -PriorSaveTransactionStatePath $fixture.priorSaveTransactionStatePath `
+            -ExpectedPriorSaveTransactionRunId $fixture.priorSaveTransactionRunId `
+            -ExpectedPriorSaveTransactionStateSha256 $fixture.priorSaveTransactionStateSha256 `
+            -ExpectedPriorSaveMetadataDigest $fixture.priorSaveMetadataDigest `
+            -AutoSaveName $epoch.autoName -ExpectedAutoSaveSha256 $epoch.autoSha256 `
+            -ExpectedAutoSaveLength $epoch.autoLength -ExpectedAutoSaveLastWriteTimeUtcTicks $epoch.autoTicks `
+            -QuickSaveName $epoch.quickName -ExpectedQuickSaveSha256 $epoch.quickSha256 `
+            -ExpectedQuickSaveLength $epoch.quickLength -ExpectedQuickSaveLastWriteTimeUtcTicks $epoch.quickTicks `
+            -Confirm:$false | Out-Null
+        $authorityPath = Join-Path (Join-Path $fixture.stateRoot 'protected-save-authorities') ($epoch.epochId + '.json')
+        $authoritySha256 = Get-KmcSha256 $authorityPath
+        $continuityArguments = @{
+            SaveRoot=$fixture.saveRoot;StateRoot=$fixture.stateRoot;QualificationPath=$fixture.qualificationPath
+            ExpectedCurrentQualificationSha256=$epoch.qualificationSha256
+            ExpectedSupersededWorkingSha256=$fixture.supersededWorkingSha256
+            PriorSaveTransactionStatePath=$fixture.priorSaveTransactionStatePath
+            ExpectedPriorSaveTransactionRunId=$fixture.priorSaveTransactionRunId
+            ExpectedPriorSaveTransactionStateSha256=$fixture.priorSaveTransactionStateSha256
+            ExpectedPriorSaveMetadataDigest=$fixture.priorSaveMetadataDigest
+            ProtectedSaveContinuityAuthorityPath=$authorityPath
+            ExpectedProtectedSaveContinuityEpochId=$epoch.epochId
+            ExpectedProtectedSaveContinuityAuthoritySha256=$authoritySha256
+            ExpectedProtectedAutoSaveName=$epoch.autoName;ExpectedProtectedAutoSaveSha256=$epoch.autoSha256
+            ExpectedProtectedQuickSaveName=$epoch.quickName;ExpectedProtectedQuickSaveSha256=$epoch.quickSha256
+        }
+        $validated = Assert-KmcQualifiedWorkingProtectedSaveContinuity @continuityArguments
+        Assert-Test ([string]$validated.sha256 -ceq $authoritySha256) 'protected-save authority validation returned the wrong authority SHA-256'
+        $wrongHashArguments = @{}
+        foreach ($key in $continuityArguments.Keys) { $wrongHashArguments[$key] = $continuityArguments[$key] }
+        $wrongHashArguments.ExpectedProtectedAutoSaveSha256 = '0' * 64
+        $threw = $false
+        try { Assert-KmcQualifiedWorkingProtectedSaveContinuity @wrongHashArguments | Out-Null } catch { $threw = $true }
+        Assert-Test $threw 'protected-save authority accepted a wrong caller-pinned autosave hash'
+        $foreignPath = Join-Path $fixture.saveRoot 'Manual_3_PERSONAL.zks'
+        $foreignTicks = (Get-Item -LiteralPath $foreignPath -Force).LastWriteTimeUtc
+        [IO.File]::SetLastWriteTimeUtc($foreignPath, $foreignTicks.AddTicks(1))
+        $threw = $false
+        try { Assert-KmcQualifiedWorkingProtectedSaveContinuity @continuityArguments | Out-Null } catch { $threw = $true }
+        Assert-Test $threw 'protected-save authority accepted subsequent metadata drift in another protected save'
     }
 
     Invoke-HarnessTest 'Working requalification rejects every incorrect explicit pin' {
@@ -2987,7 +3099,10 @@ try {
     Invoke-HarnessTest 'runtime launcher continuity pins fail closed before approval, lock, or staging' {
         $pinNames = @(
             'ExpectedCurrentQualificationSha256','ExpectedSupersededWorkingSha256','PriorSaveTransactionStatePath',
-            'ExpectedPriorSaveTransactionRunId','ExpectedPriorSaveTransactionStateSha256','ExpectedPriorSaveMetadataDigest'
+            'ExpectedPriorSaveTransactionRunId','ExpectedPriorSaveTransactionStateSha256','ExpectedPriorSaveMetadataDigest',
+            'ProtectedSaveContinuityAuthorityPath','ExpectedProtectedSaveContinuityEpochId',
+            'ExpectedProtectedSaveContinuityAuthoritySha256','ExpectedProtectedAutoSaveName','ExpectedProtectedAutoSaveSha256',
+            'ExpectedProtectedQuickSaveName','ExpectedProtectedQuickSaveSha256'
         )
         $allPinArguments = @{
             IsSaveBacked = $true
@@ -2998,6 +3113,13 @@ try {
             ExpectedPriorSaveTransactionRunId = 'synthetic-prior-run'
             ExpectedPriorSaveTransactionStateSha256 = 'c' * 64
             ExpectedPriorSaveMetadataDigest = 'd' * 64
+            ProtectedSaveContinuityAuthorityPath = 'synthetic-protected-authority.json'
+            ExpectedProtectedSaveContinuityEpochId = 'synthetic-protected-epoch'
+            ExpectedProtectedSaveContinuityAuthoritySha256 = 'e' * 64
+            ExpectedProtectedAutoSaveName = 'Auto_1.zks'
+            ExpectedProtectedAutoSaveSha256 = 'f' * 64
+            ExpectedProtectedQuickSaveName = 'Quick_1.zks'
+            ExpectedProtectedQuickSaveSha256 = '1' * 64
         }
         [void](Assert-KmcRuntimeContinuityPinCombination @allPinArguments)
         $missingArguments = @{}
@@ -3028,7 +3150,7 @@ try {
         $enterModsIndex = $launcherSource.IndexOf('    [void](Enter-KmcModsTransaction', [StringComparison]::Ordinal)
         $continuityCalls = @([regex]::Matches(
             $launcherSource,
-            '(?m)^\s*\$(?:preflightContinuity|whatIfContinuity|lockedContinuity)=Assert-KmcQualifiedWorkingPriorInventoryContinuity'))
+            '(?m)^\s*\$(?:preflightContinuity|whatIfContinuity|lockedContinuity)=Assert-KmcQualifiedWorkingProtectedSaveContinuity'))
         Assert-Test ($pinGateIndex -ge 0 -and $pinGateIndex -lt $validateSourceIndex -and $pinGateIndex -lt $shouldProcessIndex) `
             'runtime launcher does not reject incomplete/no-save pin combinations before validation or ShouldProcess'
         Assert-Test ($continuityCalls.Count -eq 3) 'runtime launcher does not perform exactly preflight, WhatIf, and locked continuity proofs'
