@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using Kingmaker;
 using Kingmaker.Utility;
 using KingmakerMountedCombat.Logging;
 using UnityEngine;
@@ -162,7 +163,12 @@ namespace KingmakerMountedCombat.Diagnostics
             try
             {
                 activeLease.VerifyCaptureReady();
-                bytes = Screenshot.CapturePNG();
+                var camera = Game.GetCamera();
+                if (!camera)
+                {
+                    throw new InvalidOperationException("Kingmaker gameplay camera is missing at screenshot capture.");
+                }
+                bytes = Screenshot.CapturePNG(camera);
                 if (bytes == null || bytes.Length == 0)
                 {
                     throw new InvalidOperationException("Screenshot encoder returned no bytes.");

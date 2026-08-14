@@ -2450,9 +2450,27 @@ try {
         Assert-Test ($observeBlock.Contains('TrackTouched(pair.Key);')) 'accidentally commanded unselected recipients are not enrolled in fail-closed stop/cleanup verification'
         Assert-Test ($engineSource.Contains('if (navigationMode != NavigationMode.StopEarly)') -and
             $engineSource.Contains('rowEndpointQualifiedWaypointCount++;') -and
-            $engineSource.Contains('mountFinalTargetDistance <= ReachTolerance && navigationBestDistance <= ReachTolerance') -and
+            $engineSource.Contains('new NavigationEndpointDistanceTracker(ProgressClockHysteresis)') -and
+            $engineSource.Contains('navigationEndpointDistance.Observe(mountFinalTargetDistance, suiteClock.Elapsed.TotalSeconds);') -and
+            $engineSource.Contains('mountFinalTargetDistance <= ReachTolerance') -and
+            $engineSource.Contains('navigationEndpointDistance.MinimumObservedDistance <= ReachTolerance') -and
+            -not $engineSource.Contains('navigationBestDistance') -and
             $commonSource.Contains("'mounted-pair-stop-start' { 1L; break }") -and
             $commonSource.Contains("'mounted-pair-destination-cancel' { 0L; break }")) 'ordinary completed movement legs do not retain exact final/best 1.25 endpoint proof with bounded stop/cancel exemptions'
+        $pollStart = $engineSource.IndexOf('private bool PollNavigation()', [StringComparison]::Ordinal)
+        $pollEnd = $engineSource.IndexOf('private bool PollPathProbe()', $pollStart, [StringComparison]::Ordinal)
+        $pollBlock = $engineSource.Substring($pollStart, $pollEnd - $pollStart)
+        $boundaryIndex = $pollBlock.IndexOf('if (!ContinueAfterNavigationBoundary())', [StringComparison]::Ordinal)
+        $deadlineIndex = $pollBlock.IndexOf('Authoritative mount movement exceeded its ', [StringComparison]::Ordinal)
+        Assert-Test ($boundaryIndex -ge 0 -and $deadlineIndex -gt $boundaryIndex -and
+            $engineSource.Contains('MovementNavigationBoundaryPolicy.SuppressesRemainingOutOfCombatRows(action);') -and
+            $engineSource.Contains('BeginCleanup(CleanupTrigger.CombatStarted);') -and
+            $engineSource.Contains('Selection snapshot was restored at the cleanup boundary before the proven active-combat controller rewrote it.')) 'proven CombatStarted cleanup can still age into a stale movement deadline or be mislabeled as mounted selection residue'
+        $turnsStart = $engineSource.IndexOf('private void AdvanceTurnsAndCorners()', [StringComparison]::Ordinal)
+        $turnsEnd = $engineSource.IndexOf('private void AdvanceDoorway()', $turnsStart, [StringComparison]::Ordinal)
+        $turnsBlock = $engineSource.Substring($turnsStart, $turnsEnd - $turnsStart)
+        Assert-Test ([regex]::Matches($turnsBlock, '(?s)BeginRadialNavigation\(.*?true\);').Count -eq 3 -and
+            $engineSource.Contains('MovementRadialDistanceOrder.CreateLocalFirst(MinimumRadialDistance, 8.0f, MaximumRadialDistance)')) 'turns/corners does not use the unchanged bounded radial distances in local-first order for all three legs'
         Assert-Test ($engineSource.Contains('assertions.Check(rowSelectionLosses == 0,') -and
             $engineSource.Contains('selectionLossCount = rowSelectionLosses')) 'zero selection-loss is not both asserted generically and serialized for every movement row'
         Assert-Test ($engineSource.Contains('if (!probeDoorStrict && direct < MinimumRadialDistance - 1.0f)') -and

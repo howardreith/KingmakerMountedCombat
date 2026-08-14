@@ -44,6 +44,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private const float EndpointTolerance = 1.5f;
         private const float ReachTolerance = 1.25f;
         private const float StationaryTolerance = 0.15f;
+        private const double ProgressClockHysteresis = 0.10d;
         private const double MaximumPostCorrectionRotationResidualDegrees = 0.10d;
         private const int MaximumOscillations = 2;
         private const int MaximumUnexpectedRepaths = 2;
@@ -104,6 +105,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly Stopwatch suiteClock = new Stopwatch();
         private readonly Stopwatch rowClock = new Stopwatch();
         private readonly Stopwatch phaseClock = new Stopwatch();
+        private readonly NavigationEndpointDistanceTracker navigationEndpointDistance =
+            new NavigationEndpointDistanceTracker(ProgressClockHysteresis);
 
         private IReadOnlyList<string> selectedRows;
         private AssertionRecorder assertions;
@@ -132,6 +135,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool disposed;
         private bool fatalResidue;
         private bool abortAfterVerifiedCleanup;
+        private bool abortAfterExternalCombatCleanup;
+        private bool selectionRestoredAtCleanupBoundary;
+        private MovementNavigationBoundaryAction navigationBoundaryAction;
         private CleanupTrigger pendingCleanupTrigger;
         private string cleanupResult;
         private bool cleanupAttemptSucceeded;
@@ -159,9 +165,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private object navigationCommand;
         private object navigationPath;
         private double navigationStartedAt;
-        private double navigationLastProgressAt;
         private double navigationStableStartedAt;
-        private double navigationBestDistance;
         private double navigationPreviousDistance;
         private double navigationMovedDistance;
         private double navigationMaximumStationaryDrift;
@@ -499,6 +503,9 @@ namespace KingmakerMountedCombat.Diagnostics
             cleanupResult = null;
             cleanupAttemptSucceeded = false;
             cleanupResidual = false;
+            abortAfterExternalCombatCleanup = false;
+            selectionRestoredAtCleanupBoundary = false;
+            navigationBoundaryAction = MovementNavigationBoundaryAction.Continue;
             rider = null;
             mount = null;
             nonPairUnit = null;
@@ -666,7 +673,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (rowPhase == 0)
             {
-                BeginRadialNavigation(NavigationMode.Normal, null, "moving");
+                BeginRadialNavigation(NavigationMode.Normal, null, "moving", true);
                 rowPhase = 1;
                 return;
             }
@@ -678,7 +685,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     var direction = PlanarDirection(mount.Position, candidate);
                     var dot = Vector3.Dot(previousLegDirection, direction);
                     return dot > -0.35f && dot < 0.35f;
-                }, "corner");
+                }, "corner", true);
                 rowPhase = 2;
                 return;
             }
@@ -687,7 +694,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 var direction = PlanarDirection(navigationStart, navigationDestination);
                 rowMaximumTurnDegrees = Math.Max(rowMaximumTurnDegrees, Vector3.Angle(previousLegDirection, direction));
                 previousLegDirection = direction;
-                BeginRadialNavigation(NavigationMode.Normal, candidate => Vector3.Dot(previousLegDirection, PlanarDirection(mount.Position, candidate)) < -0.55f, "corner");
+                BeginRadialNavigation(
+                    NavigationMode.Normal,
+                    candidate => Vector3.Dot(previousLegDirection, PlanarDirection(mount.Position, candidate)) < -0.55f,
+                    "corner",
+                    true);
                 rowPhase = 3;
                 return;
             }
@@ -855,10 +866,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 assertions.Check(rowNonPairInterferenceCount == 0,
                     "No unselected non-pair movement command was changed.",
                     "Observed " + rowNonPairInterferenceCount + " unselected non-pair command interference event(s).");
-                assertions.Check(mountFinalTargetDistance <= ReachTolerance && navigationBestDistance <= ReachTolerance,
+                assertions.Check(
+                    mountFinalTargetDistance <= ReachTolerance &&
+                    navigationEndpointDistance.MinimumObservedDistance <= ReachTolerance,
                     "Authoritative mount finished within the calibrated formation target tolerance.",
                     "Authoritative mount formation target distances were final=" + mountFinalTargetDistance.ToString("0.000", CultureInfo.InvariantCulture) +
-                    ", best=" + navigationBestDistance.ToString("0.000", CultureInfo.InvariantCulture) + ".");
+                    ", best=" + navigationEndpointDistance.MinimumObservedDistance.ToString("0.000", CultureInfo.InvariantCulture) + ".");
                 assertions.Check(nonPairFinalTargetDistance <= ReachTolerance && nonPairBestTargetDistance <= ReachTolerance,
                     "Selected non-pair member finished within the calibrated formation target tolerance.",
                     "Non-pair formation target distances were final=" + nonPairFinalTargetDistance.ToString("0.000", CultureInfo.InvariantCulture) +
@@ -954,9 +967,13 @@ namespace KingmakerMountedCombat.Diagnostics
             return true;
         }
 
-        private void BeginRadialNavigation(NavigationMode mode, Func<Vector3, bool> directionFilter, string movingMilestone)
+        private void BeginRadialNavigation(
+            NavigationMode mode,
+            Func<Vector3, bool> directionFilter,
+            string movingMilestone,
+            bool preferLocalCandidates = false)
         {
-            var candidates = BuildRadialCandidates(mount.Position, mount.Orientation);
+            var candidates = BuildRadialCandidates(mount.Position, mount.Orientation, preferLocalCandidates);
             BeginNavigation(mode, candidates, directionFilter, false, movingMilestone);
         }
 
@@ -997,6 +1014,11 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private bool PollNavigation()
         {
+            if (!ContinueAfterNavigationBoundary())
+            {
+                return false;
+            }
+
             if (navigationStage == NavigationStage.Failed)
             {
                 BeginCleanup(CleanupTrigger.Exception);
@@ -1171,6 +1193,42 @@ namespace KingmakerMountedCombat.Diagnostics
             return false;
         }
 
+        private bool ContinueAfterNavigationBoundary()
+        {
+            var transition = relationship.LastTransition;
+            var pairUnitInCombat = (rider != null && rider.IsInCombat) || (mount != null && mount.IsInCombat);
+            var partyInCombat = Game.Instance != null && Game.Instance.Player != null && Game.Instance.Player.IsInCombat;
+            var relationshipMounted = relationship.State == RelationshipState.Mounted;
+            var action = MovementNavigationBoundaryPolicy.Classify(
+                navigationMode != NavigationMode.UnmountedControl,
+                relationshipMounted,
+                pairUnitInCombat,
+                partyInCombat,
+                transition != null && transition.Succeeded,
+                transition == null ? (CleanupTrigger?)null : transition.Trigger);
+            if (action == MovementNavigationBoundaryAction.Continue)
+            {
+                return true;
+            }
+
+            navigationBoundaryAction = action;
+            navigationStage = NavigationStage.Failed;
+            if (action == MovementNavigationBoundaryAction.AbortExternalCombat)
+            {
+                abortAfterExternalCombatCleanup =
+                    MovementNavigationBoundaryPolicy.SuppressesRemainingOutOfCombatRows(action);
+                FailCurrent(
+                    "Out-of-combat movement was invalidated by proven CombatStarted cleanup; pairCombat=" + pairUnitInCombat +
+                    ", partyCombat=" + partyInCombat + ", lastResult=" + relationship.LastResult + ".");
+                BeginCleanup(CleanupTrigger.CombatStarted);
+                return false;
+            }
+
+            FailCurrent("Expected-mounted navigation lost its mounted relationship; lastResult=" + relationship.LastResult + ".");
+            BeginCleanup(CleanupTrigger.Exception);
+            return false;
+        }
+
         private void OnPathProbeCompleted(int generation, Vector3 requested, Pathfinding.Path path)
         {
             if (generation != probeGeneration || completed || disposed)
@@ -1251,9 +1309,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 navigationDestination = mount.Commands.Move.Target;
             }
             navigationStart = mount.Position;
-            navigationBestDistance = PlanarDistance(mount.Position, navigationDestination);
-            navigationPreviousDistance = navigationBestDistance;
-            navigationLastProgressAt = suiteClock.Elapsed.TotalSeconds;
+            var initialTargetDistance = PlanarDistance(mount.Position, navigationDestination);
+            navigationEndpointDistance.Start(initialTargetDistance, suiteClock.Elapsed.TotalSeconds);
+            navigationPreviousDistance = initialTargetDistance;
             navigationStartedAt = suiteClock.Elapsed.TotalSeconds;
             navigationPath = mount.View.AgentASP.Path;
 
@@ -1313,11 +1371,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var position = mount.Position;
             var distance = PlanarDistance(position, navigationDestination);
             navigationMovedDistance = Math.Max(navigationMovedDistance, PlanarDistance(navigationStart, position));
-            if (distance + 0.10d < navigationBestDistance)
-            {
-                navigationBestDistance = distance;
-                navigationLastProgressAt = suiteClock.Elapsed.TotalSeconds;
-            }
+            navigationEndpointDistance.Observe(distance, suiteClock.Elapsed.TotalSeconds);
             if (distance + 0.05d < navigationPreviousDistance)
             {
                 navigationWasApproaching = true;
@@ -1355,9 +1409,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 navigationCommand = currentCommand;
             }
 
-            if ((mount.View.AgentASP.WantsToMove || mount.View.AgentASP.IsReallyMoving) && suiteClock.Elapsed.TotalSeconds - navigationLastProgressAt > 2.0d)
+            if ((mount.View.AgentASP.WantsToMove || mount.View.AgentASP.IsReallyMoving) &&
+                suiteClock.Elapsed.TotalSeconds - navigationEndpointDistance.LastProgressAtSeconds > 2.0d)
             {
-                navigationMaximumStuckSeconds = Math.Max(navigationMaximumStuckSeconds, suiteClock.Elapsed.TotalSeconds - navigationLastProgressAt);
+                navigationMaximumStuckSeconds = Math.Max(
+                    navigationMaximumStuckSeconds,
+                    suiteClock.Elapsed.TotalSeconds - navigationEndpointDistance.LastProgressAtSeconds);
             }
 
             ObserveExpectedSelection();
@@ -1386,12 +1443,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
                 mountFinalTargetDistance = PlanarDistance(mount.Position, navigationDestination);
                 nonPairFinalTargetDistance = PlanarDistance(nonPairUnit.Position, nonPairTarget);
-                var mountReached = mountFinalTargetDistance <= ReachTolerance && navigationBestDistance <= ReachTolerance;
+                var mountReached = mountFinalTargetDistance <= ReachTolerance &&
+                    navigationEndpointDistance.MinimumObservedDistance <= ReachTolerance;
                 var otherReached = nonPairFinalTargetDistance <= ReachTolerance && nonPairBestTargetDistance <= ReachTolerance;
                 return mountReached && otherReached && navigationMovedDistance >= 1.0d && nonPairMovedDistance >= 1.0d;
             }
             return PlanarDistance(mount.Position, navigationDestination) <= ReachTolerance ||
-                (mount.Commands.Move == null && navigationBestDistance <= EndpointTolerance);
+                (mount.Commands.Move == null && navigationEndpointDistance.MinimumObservedDistance <= EndpointTolerance);
         }
 
         private void CompleteNavigationLeg()
@@ -1408,9 +1466,14 @@ namespace KingmakerMountedCombat.Diagnostics
             rowMaximumStuckSeconds = Math.Max(rowMaximumStuckSeconds, navigationMaximumStuckSeconds);
             rowWaypointCount++;
             mountFinalTargetDistance = PlanarDistance(mount.Position, navigationDestination);
+            navigationEndpointDistance.Observe(mountFinalTargetDistance, suiteClock.Elapsed.TotalSeconds);
             if (navigationMode == NavigationMode.Formation && nonPairUnit != null)
             {
                 nonPairFinalTargetDistance = PlanarDistance(nonPairUnit.Position, nonPairTarget);
+                nonPairBestTargetDistance = Math.Min(nonPairBestTargetDistance, nonPairFinalTargetDistance);
+                minimumPairNonPairSeparation = Math.Min(
+                    minimumPairNonPairSeparation,
+                    PlanarDistance(mount.Position, nonPairUnit.Position));
             }
             if (navigationMode != NavigationMode.StopEarly)
             {
@@ -1420,13 +1483,14 @@ namespace KingmakerMountedCombat.Diagnostics
                     mountFinalTargetDistance);
                 rowMaximumCompletedLegBestTargetDistance = Math.Max(
                     rowMaximumCompletedLegBestTargetDistance,
-                    navigationBestDistance);
+                    navigationEndpointDistance.MinimumObservedDistance);
                 assertions.Check(
-                    mountFinalTargetDistance <= ReachTolerance && navigationBestDistance <= ReachTolerance,
+                    mountFinalTargetDistance <= ReachTolerance &&
+                    navigationEndpointDistance.MinimumObservedDistance <= ReachTolerance,
                     "Movement leg finished within the calibrated final and best target-distance tolerance.",
                     "Movement leg target distances exceeded the calibrated tolerance: final=" +
                     mountFinalTargetDistance.ToString("0.000", CultureInfo.InvariantCulture) +
-                    ", best=" + navigationBestDistance.ToString("0.000", CultureInfo.InvariantCulture) + ".");
+                    ", best=" + navigationEndpointDistance.MinimumObservedDistance.ToString("0.000", CultureInfo.InvariantCulture) + ".");
             }
             if (previousLegDirection.sqrMagnitude > 0.01f)
             {
@@ -1727,6 +1791,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var clean = BestEffortDismount(pendingCleanupTrigger);
             RestorePause();
             RestoreSelection();
+            selectionRestoredAtCleanupBoundary = SelectionMatchesSnapshot();
             cleanupAfter = CleanupStateEvidence.Capture(pendingCleanupTrigger, relationship, rider, mount, Game.Instance);
             cleanupResidual = !clean || cleanupAfter.HasMountedResidual;
             cleanupFrame = frameNumber;
@@ -1984,9 +2049,20 @@ namespace KingmakerMountedCombat.Diagnostics
                 assertions.Check(PauseMatchesSnapshot(),
                     "Pause state was restored.",
                     "Pause state was not restored after movement cleanup.");
-                assertions.Check(SelectionMatchesSnapshot(),
-                    "Selection state was restored.",
+                var selectionMatchesAfterCleanupFrame = SelectionMatchesSnapshot();
+                var combatControllerRewroteSelection = MovementNavigationBoundaryPolicy.IsCombatControllerSelectionRewrite(
+                    navigationBoundaryAction,
+                    selectionRestoredAtCleanupBoundary,
+                    selectionMatchesAfterCleanupFrame);
+                assertions.Check(selectionMatchesAfterCleanupFrame || combatControllerRewroteSelection,
+                    combatControllerRewroteSelection
+                        ? "Selection snapshot was restored at the cleanup boundary before the proven active-combat controller rewrote it."
+                        : "Selection state was restored.",
                     "Selection state was not restored after movement cleanup.");
+                if (combatControllerRewroteSelection)
+                {
+                    logger.Info("Movement cleanup restored its selection snapshot; the proven active-combat controller owned the subsequent next-frame selection rewrite.");
+                }
                 if (nonPairSnapshot != null)
                 {
                     assertions.Check(nonPairSnapshot.MatchesRestoredStoppedState(),
@@ -2033,6 +2109,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
             FinishCurrentRow();
+            if (abortAfterExternalCombatCleanup)
+            {
+                CompleteRemainingAsNotRun("Further out-of-combat movement was suppressed after a proven CombatStarted invalidation and verified cleanup.");
+                Complete();
+                return;
+            }
             if (abortAfterVerifiedCleanup)
             {
                 CompleteRemainingAsNotRun("Further movement was suppressed after the suite deadline and verified cleanup.");
@@ -2440,7 +2522,7 @@ namespace KingmakerMountedCombat.Diagnostics
             return false;
         }
 
-        private IReadOnlyList<Vector3> BuildRadialCandidates(Vector3 origin, float orientation)
+        private IReadOnlyList<Vector3> BuildRadialCandidates(Vector3 origin, float orientation, bool preferLocalCandidates)
         {
             var forward = Quaternion.Euler(0f, orientation, 0f) * Vector3.forward;
             forward = PlanarNormalized(forward);
@@ -2457,7 +2539,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 PlanarNormalized(forward - right)
             };
             var candidates = new List<Vector3>();
-            foreach (var distance in new[] { MaximumRadialDistance, 8.0f, MinimumRadialDistance })
+            var distances = preferLocalCandidates
+                ? MovementRadialDistanceOrder.CreateLocalFirst(MinimumRadialDistance, 8.0f, MaximumRadialDistance)
+                : new[] { MaximumRadialDistance, 8.0f, MinimumRadialDistance };
+            foreach (var distance in distances)
             {
                 foreach (var direction in directions)
                 {
@@ -2863,9 +2948,8 @@ namespace KingmakerMountedCombat.Diagnostics
             navigationCommand = null;
             navigationPath = null;
             navigationStartedAt = 0.0d;
-            navigationLastProgressAt = 0.0d;
             navigationStableStartedAt = 0.0d;
-            navigationBestDistance = double.MaxValue;
+            navigationEndpointDistance.Reset();
             navigationPreviousDistance = double.MaxValue;
             navigationMovedDistance = 0.0d;
             navigationMaximumStationaryDrift = 0.0d;

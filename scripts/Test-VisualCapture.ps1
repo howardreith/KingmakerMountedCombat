@@ -56,12 +56,17 @@ Assert-VisualCapture ($engine.Contains('screenshotCapture.Pump(frameNumber);') -
 Assert-VisualCapture (-not $engine.Contains('Screenshot.CapturePNG') -and
     -not $engine.Contains('pendingScreenshots') -and
     -not $engine.Contains('FlushReadyScreenshots')) 'movement engine cannot capture from Update or remove work before render-boundary completion'
-$captureIndex = $coordinator.IndexOf('Screenshot.CapturePNG();', [StringComparison]::Ordinal)
+$cameraResolveIndex = $coordinator.IndexOf('var camera = Game.GetCamera();', [StringComparison]::Ordinal)
+$cameraGuardIndex = $coordinator.IndexOf('if (!camera)', $cameraResolveIndex, [StringComparison]::Ordinal)
+$captureIndex = $coordinator.IndexOf('Screenshot.CapturePNG(camera);', [StringComparison]::Ordinal)
 $captureValidationIndex = $coordinator.LastIndexOf('activeLease.VerifyCaptureReady();', $captureIndex, [StringComparison]::Ordinal)
 $captureRestorationIndex = $coordinator.IndexOf('activeLease?.Dispose();', $captureIndex, [StringComparison]::Ordinal)
-Assert-VisualCapture ([regex]::Matches($coordinator, 'Screenshot\.CapturePNG\(\)').Count -eq 1 -and
+Assert-VisualCapture ([regex]::Matches($coordinator, 'Screenshot\.CapturePNG\(').Count -eq 1 -and
+    $cameraResolveIndex -ge 0 -and $cameraResolveIndex -lt $cameraGuardIndex -and
+    $cameraGuardIndex -lt $captureIndex -and
+    $coordinator.Contains('Kingmaker gameplay camera is missing at screenshot capture.') -and
     $captureValidationIndex -ge 0 -and $captureValidationIndex -lt $captureIndex -and
-    $captureRestorationIndex -gt $captureIndex) 'single screenshot call is bracketed by overlay validation and exact-state restoration'
+    $captureRestorationIndex -gt $captureIndex) 'single screenshot call resolves and guards the gameplay camera and is bracketed by overlay validation and exact-state restoration'
 
 Write-Host "TOTAL PASS=$passes FAIL=$($failures.Count)"
 if ($failures.Count -ne 0) {

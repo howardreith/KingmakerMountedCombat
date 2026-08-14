@@ -81,6 +81,9 @@
     <Compile Include="Diagnostics\MovementScreenshotCaptureCoordinator.cs" />
     <Compile Include="Diagnostics\MovementScreenshotCaptureState.cs" />
     <Compile Include="Diagnostics\MovementTelemetryWriter.cs" />
+    <Compile Include="Diagnostics\MovementNavigationBoundaryPolicy.cs" />
+    <Compile Include="Diagnostics\MovementRadialDistanceOrder.cs" />
+    <Compile Include="Diagnostics\NavigationEndpointDistanceTracker.cs" />
     <Compile Include="Diagnostics\RuntimeAutomationHost.cs" />
     <Compile Include="Diagnostics\RuntimeBoundaryScenarioEngine.cs" />
     <Compile Include="Diagnostics\RuntimeLifecycleScenarioEngine.cs" />

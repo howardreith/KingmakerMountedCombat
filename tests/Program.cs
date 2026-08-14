@@ -30,6 +30,9 @@ namespace KingmakerMountedCombat.Tests
             WorkingFixtureLoadWatchdogTests.Register(runner);
             BoundaryFailureDrainTests.Register(runner);
             MovementScreenshotCaptureTests.Register(runner);
+            MovementNavigationBoundaryPolicyTests.Register(runner);
+            MovementRadialDistanceOrderTests.Register(runner);
+            NavigationEndpointDistanceTrackerTests.Register(runner);
             return runner.Complete();
         }
 

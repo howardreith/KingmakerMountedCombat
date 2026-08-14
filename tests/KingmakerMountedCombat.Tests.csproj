@@ -39,6 +39,9 @@
     <Compile Include="WorkingFixtureLoadWatchdogTests.cs" />
     <Compile Include="BoundaryFailureDrainTests.cs" />
     <Compile Include="MovementScreenshotCaptureTests.cs" />
+    <Compile Include="MovementNavigationBoundaryPolicyTests.cs" />
+    <Compile Include="MovementRadialDistanceOrderTests.cs" />
+    <Compile Include="NavigationEndpointDistanceTrackerTests.cs" />
     <Compile Include="TestRunner.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\DiagnosticSettings.cs">
       <Link>Shared\DiagnosticSettings.cs</Link>
@@ -57,6 +60,15 @@
     </Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\MovementScreenshotCaptureState.cs">
       <Link>Shared\MovementScreenshotCaptureState.cs</Link>
+    </Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\MovementNavigationBoundaryPolicy.cs">
+      <Link>Shared\MovementNavigationBoundaryPolicy.cs</Link>
+    </Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\MovementRadialDistanceOrder.cs">
+      <Link>Shared\MovementRadialDistanceOrder.cs</Link>
+    </Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\NavigationEndpointDistanceTracker.cs">
+      <Link>Shared\NavigationEndpointDistanceTracker.cs</Link>
     </Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\CleanupTrigger.cs"><Link>Shared\Domain\CleanupTrigger.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\CommandRouting.cs"><Link>Shared\Domain\CommandRouting.cs</Link></Compile>
