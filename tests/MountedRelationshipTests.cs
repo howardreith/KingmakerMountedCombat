@@ -41,6 +41,10 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("movement synchronization qualification excludes initial placement", MovementSynchronizationQualificationExcludesInitialPlacement);
             runner.Run("movement synchronization qualification gates calibrated phases", MovementSynchronizationQualificationGatesCalibratedPhases);
             runner.Run("movement synchronization qualification bounds callback cadence", MovementSynchronizationQualificationBoundsCallbackCadence);
+            runner.Run("view attachment lease restores exact captured transform state", ViewAttachmentLeaseRestoresExactState);
+            runner.Run("view attachment lease cleanup is idempotent", ViewAttachmentLeaseCleanupIsIdempotent);
+            runner.Run("view attachment lease retains snapshot for cleanup retry", ViewAttachmentLeaseRetainsSnapshotForRetry);
+            runner.Run("view attachment lease uses injected bounded restoration comparers", ViewAttachmentLeaseUsesInjectedBoundedComparers);
         }
 
         private static void ValidMountTransition()
@@ -341,6 +345,7 @@ namespace KingmakerMountedCombat.Tests
             var qualification = MovementSynchronizationQualification.Evaluate(accumulator, 1L, 0.10d, 0.10d);
             TestRunner.Equal(0.10d, qualification.MaximumCalibratedPreCorrectionPositionResidualWorldUnits, "Initial placement polluted the calibrated maximum.");
             TestRunner.True(qualification.PreCorrectionPositionPassed, "Exact calibrated threshold did not pass.");
+            TestRunner.True(qualification.PreCorrectionRotationPassed, "Initial-placement rotation polluted the calibrated rotation gate.");
             TestRunner.True(qualification.PostCorrectionPositionPassed, "Post-correction position unexpectedly failed.");
             TestRunner.True(qualification.PostCorrectionRotationPassed, "Post-correction rotation unexpectedly failed.");
             TestRunner.True(qualification.CorrectionCadencePassed, "Ordinary callback cadence unexpectedly failed.");
@@ -350,11 +355,12 @@ namespace KingmakerMountedCombat.Tests
         {
             var accumulator = new MovementSynchronizationTelemetryAccumulator();
             accumulator.Observe(new MovementSynchronizationSample(0, MovementSynchronizationPhase.InitialConfiguration, 0.0d, 0.0d, 0.0d, 0.0d));
-            accumulator.Observe(new MovementSynchronizationSample(1, MovementSynchronizationPhase.Update, 0.100001d, 0.0d, 0.0d, 0.0d));
+            accumulator.Observe(new MovementSynchronizationSample(1, MovementSynchronizationPhase.Update, 0.100001d, 160.0d, 0.0d, 0.0d));
             accumulator.Observe(new MovementSynchronizationSample(2, MovementSynchronizationPhase.LateUpdate, 0.0d, 0.0d, 0.11d, 0.11d));
 
             var qualification = MovementSynchronizationQualification.Evaluate(accumulator, 1L, 0.10d, 0.10d);
             TestRunner.True(!qualification.PreCorrectionPositionPassed, "Above-threshold Update residual passed.");
+            TestRunner.True(!qualification.PreCorrectionRotationPassed, "Above-threshold ongoing Update rotation snap passed.");
             TestRunner.True(!qualification.PostCorrectionPositionPassed, "Above-threshold post-correction position passed.");
             TestRunner.True(!qualification.PostCorrectionRotationPassed, "Above-threshold post-correction rotation passed.");
         }
@@ -371,6 +377,195 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.Equal(3L, qualification.MaximumSamplesPerPhase, "Callback cadence allowance differs.");
             TestRunner.Equal(6L, qualification.MaximumCorrectionsAcrossCalibratedPhases, "Correction-count allowance differs.");
             TestRunner.True(!qualification.CorrectionCadencePassed, "Unbounded Update callback cadence passed.");
+        }
+
+        private static void ViewAttachmentLeaseRestoresExactState()
+        {
+            var originalParent = new FakeTransformNode("original-parent");
+            var attachmentParent = new FakeTransformNode("attachment-parent");
+            var rider = new FakeTransformNode("rider")
+            {
+                Parent = originalParent,
+                SiblingIndex = 3,
+                WorldPosition = "position-before",
+                WorldRotation = "rotation-before",
+                LocalScale = "scale-before"
+            };
+            var lease = CreateFakeAttachmentLease();
+
+            lease.Acquire(rider, attachmentParent);
+            TestRunner.True(lease.IsAcquired, "Attachment lease was not acquired.");
+            TestRunner.Equal(attachmentParent, rider.Parent, "Rider was not parented to the attachment anchor.");
+            rider.SiblingIndex = 0;
+            rider.WorldPosition = "position-mounted";
+            rider.WorldRotation = "rotation-mounted";
+            rider.LocalScale = "scale-mounted";
+
+            lease.Restore();
+            TestRunner.True(!lease.IsAcquired, "Successful restore retained the active lease.");
+            TestRunner.True(lease.LastRestoreVerified, "Successful restore was not verified.");
+            TestRunner.Equal(originalParent, rider.Parent, "Original parent was not restored.");
+            TestRunner.Equal(3, rider.SiblingIndex, "Original sibling index was not restored.");
+            TestRunner.Equal("position-before", rider.WorldPosition, "Original world position was not restored.");
+            TestRunner.Equal("rotation-before", rider.WorldRotation, "Original world rotation was not restored.");
+            TestRunner.Equal("scale-before", rider.LocalScale, "Original local scale was not restored.");
+        }
+
+        private static void ViewAttachmentLeaseCleanupIsIdempotent()
+        {
+            var rider = new FakeTransformNode("rider")
+            {
+                Parent = new FakeTransformNode("original-parent"),
+                WorldPosition = "position",
+                WorldRotation = "rotation",
+                LocalScale = "scale"
+            };
+            var lease = CreateFakeAttachmentLease();
+            lease.Acquire(rider, new FakeTransformNode("attachment-parent"));
+            lease.Restore();
+            lease.Restore();
+            TestRunner.True(!lease.IsAcquired && lease.LastRestoreVerified, "Repeated restore changed successful cleanup state.");
+        }
+
+        private static void ViewAttachmentLeaseRetainsSnapshotForRetry()
+        {
+            var rider = new FakeTransformNode("rider")
+            {
+                Parent = new FakeTransformNode("original-parent"),
+                SiblingIndex = 2,
+                WorldPosition = "position-before",
+                WorldRotation = "rotation-before",
+                LocalScale = "scale-before",
+                FailNextRotationWrite = true
+            };
+            var lease = CreateFakeAttachmentLease();
+            lease.Acquire(rider, new FakeTransformNode("attachment-parent"));
+            var failed = false;
+            try
+            {
+                lease.Restore();
+            }
+            catch (AggregateException)
+            {
+                failed = true;
+            }
+            TestRunner.True(failed, "Injected transform restore failure was not reported.");
+            TestRunner.True(lease.IsAcquired && !lease.LastRestoreVerified, "Failed restore discarded the retryable snapshot.");
+
+            lease.Restore();
+            TestRunner.True(!lease.IsAcquired && lease.LastRestoreVerified, "Cleanup retry did not verify exact restoration.");
+            TestRunner.Equal("rotation-before", rider.WorldRotation, "Cleanup retry did not restore world rotation.");
+        }
+
+        private static void ViewAttachmentLeaseUsesInjectedBoundedComparers()
+        {
+            var rider = new FakeTransformNode("rider")
+            {
+                Parent = new FakeTransformNode("original-parent"),
+                WorldPosition = "1.0000",
+                WorldRotation = "20.000",
+                LocalScale = "1.0000",
+                PositionWriteBias = 0.00005d,
+                RotationWriteBias = 0.005d,
+                ScaleWriteBias = 0.00005d
+            };
+            var lease = CreateNumericFakeAttachmentLease();
+            lease.Acquire(rider, new FakeTransformNode("attachment-parent"));
+            lease.Restore();
+            TestRunner.True(!lease.IsAcquired && lease.LastRestoreVerified, "Bounded float restoration drift caused a false residue failure.");
+
+            rider.PositionWriteBias = 0.01d;
+            lease.Acquire(rider, new FakeTransformNode("attachment-parent"));
+            var failed = false;
+            try { lease.Restore(); }
+            catch (AggregateException) { failed = true; }
+            TestRunner.True(failed && lease.IsAcquired, "Material transform mismatch did not retain retryable residue.");
+            rider.PositionWriteBias = 0.0d;
+            rider.RotationWriteBias = 0.0d;
+            rider.ScaleWriteBias = 0.0d;
+            lease.Restore();
+            TestRunner.True(!lease.IsAcquired && lease.LastRestoreVerified, "Bounded-comparer mismatch did not support an exact cleanup retry.");
+        }
+
+        private static ScopedTransformAttachmentLease<FakeTransformNode, string, string, string> CreateFakeAttachmentLease()
+        {
+            return new ScopedTransformAttachmentLease<FakeTransformNode, string, string, string>(
+                node => node.Parent,
+                node => node.SiblingIndex,
+                node => node.WorldPosition,
+                node => node.WorldRotation,
+                node => node.LocalScale,
+                (node, parent, worldPositionStays) => node.Parent = parent,
+                (node, siblingIndex) => node.SiblingIndex = siblingIndex,
+                (node, position) => node.WorldPosition = position,
+                (node, rotation) =>
+                {
+                    if (node.FailNextRotationWrite)
+                    {
+                        node.FailNextRotationWrite = false;
+                        throw new InvalidOperationException("injected rotation failure");
+                    }
+                    node.WorldRotation = rotation;
+                },
+                (node, scale) => node.LocalScale = scale);
+        }
+
+        private static ScopedTransformAttachmentLease<FakeTransformNode, double, double, double> CreateNumericFakeAttachmentLease()
+        {
+            return new ScopedTransformAttachmentLease<FakeTransformNode, double, double, double>(
+                node => node.Parent,
+                node => node.SiblingIndex,
+                node => double.Parse(node.WorldPosition, System.Globalization.CultureInfo.InvariantCulture),
+                node => double.Parse(node.WorldRotation, System.Globalization.CultureInfo.InvariantCulture),
+                node => double.Parse(node.LocalScale, System.Globalization.CultureInfo.InvariantCulture),
+                (node, parent, worldPositionStays) => node.Parent = parent,
+                (node, siblingIndex) => node.SiblingIndex = siblingIndex,
+                (node, position) => node.WorldPosition = (position + node.PositionWriteBias).ToString("R", System.Globalization.CultureInfo.InvariantCulture),
+                (node, rotation) => node.WorldRotation = (rotation + node.RotationWriteBias).ToString("R", System.Globalization.CultureInfo.InvariantCulture),
+                (node, scale) => node.LocalScale = (scale + node.ScaleWriteBias).ToString("R", System.Globalization.CultureInfo.InvariantCulture),
+                null,
+                new BoundedDoubleComparer(0.0001d),
+                new BoundedDoubleComparer(0.01d),
+                new BoundedDoubleComparer(0.0001d));
+        }
+
+        private sealed class BoundedDoubleComparer : System.Collections.Generic.IEqualityComparer<double>
+        {
+            private readonly double tolerance;
+
+            public BoundedDoubleComparer(double tolerance)
+            {
+                this.tolerance = tolerance;
+            }
+
+            public bool Equals(double first, double second)
+            {
+                return Math.Abs(first - second) <= tolerance;
+            }
+
+            public int GetHashCode(double value)
+            {
+                return 0;
+            }
+        }
+
+        private sealed class FakeTransformNode
+        {
+            public FakeTransformNode(string name)
+            {
+                Name = name;
+            }
+
+            public string Name { get; }
+            public FakeTransformNode Parent { get; set; }
+            public int SiblingIndex { get; set; }
+            public string WorldPosition { get; set; }
+            public string WorldRotation { get; set; }
+            public string LocalScale { get; set; }
+            public bool FailNextRotationWrite { get; set; }
+            public double PositionWriteBias { get; set; }
+            public double RotationWriteBias { get; set; }
+            public double ScaleWriteBias { get; set; }
         }
 
         private static void AssertRejected(MountedPairCandidate candidate)

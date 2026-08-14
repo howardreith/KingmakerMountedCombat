@@ -248,7 +248,11 @@ namespace KingmakerMountedCombat.Domain
 
         public double MaximumCalibratedPreCorrectionPositionResidualWorldUnits { get; private set; }
 
+        public double MaximumCalibratedPreCorrectionRotationResidualDegrees { get; private set; }
+
         public bool PreCorrectionPositionPassed { get; private set; }
+
+        public bool PreCorrectionRotationPassed { get; private set; }
 
         public bool PostCorrectionPositionPassed { get; private set; }
 
@@ -264,12 +268,12 @@ namespace KingmakerMountedCombat.Domain
             MovementSynchronizationTelemetryAccumulator telemetry,
             long observedUpdateFrames,
             double maximumPositionResidualWorldUnits,
-            double maximumPostCorrectionRotationResidualDegrees)
+            double maximumRotationResidualDegrees)
         {
             if (telemetry == null) { throw new ArgumentNullException(nameof(telemetry)); }
             if (observedUpdateFrames < 0) { throw new ArgumentOutOfRangeException(nameof(observedUpdateFrames)); }
             RequireFinitePositive(maximumPositionResidualWorldUnits, nameof(maximumPositionResidualWorldUnits));
-            RequireFinitePositive(maximumPostCorrectionRotationResidualDegrees, nameof(maximumPostCorrectionRotationResidualDegrees));
+            RequireFinitePositive(maximumRotationResidualDegrees, nameof(maximumRotationResidualDegrees));
 
             // Update and LateUpdate can each run once after the last engine
             // observation because of Unity callback ordering. A second frame of
@@ -280,14 +284,19 @@ namespace KingmakerMountedCombat.Domain
             var calibratedPreCorrectionMaximum = Math.Max(
                 telemetry.MaximumUpdatePreCorrectionPositionResidualWorldUnits,
                 telemetry.MaximumLateUpdatePreCorrectionPositionResidualWorldUnits);
+            var calibratedPreCorrectionRotationMaximum = Math.Max(
+                telemetry.MaximumUpdatePreCorrectionRotationResidualDegrees,
+                telemetry.MaximumLateUpdatePreCorrectionRotationResidualDegrees);
             var calibratedCorrectionCount = checked(telemetry.UpdateCorrectionCount + telemetry.LateUpdateCorrectionCount);
 
             return new MovementSynchronizationQualification
             {
                 MaximumCalibratedPreCorrectionPositionResidualWorldUnits = calibratedPreCorrectionMaximum,
+                MaximumCalibratedPreCorrectionRotationResidualDegrees = calibratedPreCorrectionRotationMaximum,
                 PreCorrectionPositionPassed = calibratedPreCorrectionMaximum <= maximumPositionResidualWorldUnits,
+                PreCorrectionRotationPassed = calibratedPreCorrectionRotationMaximum <= maximumRotationResidualDegrees,
                 PostCorrectionPositionPassed = telemetry.MaximumPostCorrectionPositionResidualWorldUnits <= maximumPositionResidualWorldUnits,
-                PostCorrectionRotationPassed = telemetry.MaximumPostCorrectionRotationResidualDegrees <= maximumPostCorrectionRotationResidualDegrees,
+                PostCorrectionRotationPassed = telemetry.MaximumPostCorrectionRotationResidualDegrees <= maximumRotationResidualDegrees,
                 CorrectionCadencePassed = telemetry.UpdateSampleCount <= maximumSamplesPerPhase &&
                     telemetry.LateUpdateSampleCount <= maximumSamplesPerPhase &&
                     telemetry.UpdateCorrectionCount <= telemetry.UpdateSampleCount &&

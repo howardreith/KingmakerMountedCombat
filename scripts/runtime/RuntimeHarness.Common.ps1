@@ -1781,6 +1781,13 @@ function Test-KmcFiniteNonnegativeJsonNumber {
     return -not [double]::IsNaN($number) -and -not [double]::IsInfinity($number) -and $number -ge 0.0
 }
 
+function Test-KmcFiniteJsonNumber {
+    param($Value)
+    if (-not (Test-KmcJsonNumber $Value)) { return $false }
+    $number = [double]$Value
+    return -not [double]::IsNaN($number) -and -not [double]::IsInfinity($number)
+}
+
 function Assert-KmcMovementVector3 {
     param($Value, [Parameter(Mandatory = $true)][string]$Description, [switch]$AllowNull)
     if ($null -eq $Value) {
@@ -1836,29 +1843,43 @@ function Assert-KmcMovementCleanupState {
     Assert-KmcExactProperties $Value @(
         'trigger','relationshipState','hasMountedResidual','riderStockAgentEnabled','mountStockAgentEnabled',
         'riderAvoidanceDisabled','mountAvoidanceDisabled','riderOverridePresent','mountOverridePresent',
-        'riderSelected','mountSelected','selectedUnitIds','paused') $Description
+        'riderSelected','mountSelected','selectedUnitIds','paused','riderForbidRotation','attachmentLeaseActive','attachmentRestoreVerified',
+        'attachmentResidue','riderParentMatchesAttachment','riderParent','attachmentParent','sourceAnchor','attachmentRiskState') $Description
     if ($Value.trigger -isnot [string] -or [string]::IsNullOrWhiteSpace([string]$Value.trigger)) { throw "$Description.trigger must be a nonempty JSON string." }
     if ($Value.relationshipState -isnot [string] -or [string]$Value.relationshipState -cnotin @('Unmounted','Validating','Mounting','Mounted','Dismounting','Faulted','Disposed')) {
         throw "$Description.relationshipState is invalid."
     }
-    foreach ($name in @('hasMountedResidual','riderOverridePresent','mountOverridePresent','riderSelected','mountSelected')) {
+    foreach ($name in @('hasMountedResidual','riderOverridePresent','mountOverridePresent','riderSelected','mountSelected',
+        'attachmentLeaseActive','attachmentRestoreVerified','attachmentResidue','riderParentMatchesAttachment')) {
         if ($Value.$name -isnot [bool]) { throw "$Description.$name must be a JSON boolean." }
     }
-    foreach ($name in @('riderStockAgentEnabled','mountStockAgentEnabled','riderAvoidanceDisabled','mountAvoidanceDisabled','paused')) {
+    foreach ($name in @('riderStockAgentEnabled','mountStockAgentEnabled','riderAvoidanceDisabled','mountAvoidanceDisabled','paused','riderForbidRotation')) {
         Assert-KmcNullableJsonBoolean $Value.$name "$Description.$name"
     }
     Assert-KmcJsonStringArray $Value.selectedUnitIds "$Description.selectedUnitIds"
+    foreach ($name in @('riderParent','attachmentParent','sourceAnchor','attachmentRiskState')) {
+        if ($null -ne $Value.$name -and $Value.$name -isnot [string]) { throw "$Description.$name must be a JSON string or null." }
+    }
     if ($RequireComplete -and $Phase -ceq 'before') {
         if ([string]$Value.relationshipState -cne 'Mounted' -or $Value.hasMountedResidual -ne $true -or
             $Value.riderStockAgentEnabled -ne $false -or $Value.mountStockAgentEnabled -ne $true -or
             $Value.riderAvoidanceDisabled -ne $true -or $Value.riderOverridePresent -ne $true -or
-            $Value.mountOverridePresent -ne $false) {
+            $Value.mountOverridePresent -ne $false -or $Value.attachmentLeaseActive -ne $true -or
+            $Value.riderForbidRotation -ne $true -or
+            $Value.attachmentRestoreVerified -ne $false -or $Value.attachmentResidue -ne $true -or
+            $Value.riderParentMatchesAttachment -ne $true -or [string]$Value.attachmentParent -cne 'KMC_RiderPositionAnchor' -or
+            [string]$Value.sourceAnchor -cne 'Spine' -or [string]$Value.attachmentRiskState -cne 'active and internally consistent') {
             throw 'PASS movement cleanup-before evidence does not prove the exact mounted movement-authority lease.'
         }
     }
     if ($RequireComplete -and $Phase -ceq 'after') {
         if ([string]$Value.relationshipState -cne 'Unmounted' -or $Value.hasMountedResidual -ne $false -or
-            $Value.riderOverridePresent -ne $false -or $Value.mountOverridePresent -ne $false) {
+            $Value.riderOverridePresent -ne $false -or $Value.mountOverridePresent -ne $false -or
+            $Value.riderForbidRotation -ne $false -or
+            $Value.attachmentLeaseActive -ne $false -or $Value.attachmentRestoreVerified -ne $true -or
+            $Value.attachmentResidue -ne $false -or $Value.riderParentMatchesAttachment -ne $false -or
+            $null -ne $Value.attachmentParent -or $null -ne $Value.sourceAnchor -or
+            [string]$Value.attachmentRiskState -cne 'none') {
             throw 'PASS movement cleanup-after evidence does not prove residue-free Unmounted cleanup.'
         }
     }
@@ -1877,8 +1898,11 @@ function Assert-KmcMovementTelemetryRecord {
         'riderId','mountId','relationshipState','combat','partyCombat','currentGameMode','paused','turnBased','authoritativeMover',
         'requestedDestination','riderStockAgentEnabled','mountStockAgentEnabled','riderAvoidanceDisabled','mountAvoidanceDisabled',
         'riderEntityPosition','mountEntityPosition','riderEntityOrientation','mountEntityOrientation','riderViewPosition','mountViewPosition',
-        'riderViewRotation','mountViewRotation','anchor','expectedAnchorPosition','expectedAnchorRotation','residualPositionWorldUnits',
-        'residualRotationDegrees','riderSelected','mountSelected','selectedUnitIds','riderCommandCount','mountCommandCount',
+        'riderViewRotation','mountViewRotation','anchor','sourceAnchor','attachmentLeaseActive','attachmentParent',
+        'riderParentMatchesAttachment','attachmentRiskState','riderViewParent','presentationPositionStrategy','presentationRotationStrategy',
+        'expectedAnchorPosition','expectedAnchorRotation','residualPositionWorldUnits','residualRotationDegrees',
+        'riderViewPositionResidualWorldUnits','riderEntityPositionResidualWorldUnits','riderViewRotationResidualDegrees',
+        'riderEntityRotationResidualDegrees','riderSelected','mountSelected','selectedUnitIds','riderCommandCount','mountCommandCount',
         'riderActiveCommandTypes','mountActiveCommandTypes','mountIsReallyMoving','mountVelocity','mountSpeed','mountMoveDirection',
         'mountPathId','mountPathFailed','mountRepathNeeded','mountPathError','mountPathErrorLog','mountPathPointCount','mountPathLength',
         'synchronizationPhase','synchronizationSampleCount','synchronizationCorrectionCount',
@@ -1893,10 +1917,11 @@ function Assert-KmcMovementTelemetryRecord {
         'maximumLateUpdatePreCorrectionRotationResidualDegrees','maximumLateUpdatePostCorrectionPositionResidualWorldUnits',
         'maximumLateUpdatePostCorrectionRotationResidualDegrees','maximumResidualWorldUnits','maximumRotationResidualDegrees') 'movement telemetry record'
     Assert-KmcMovementCommonIdentity $Record $Request $ExpectedSequence $ExpectedRows 'Movement telemetry'
-    foreach ($name in @('riderId','mountId','relationshipState','authoritativeMover','anchor','synchronizationPhase')) {
+    foreach ($name in @('riderId','mountId','relationshipState','authoritativeMover','anchor','sourceAnchor','attachmentParent',
+        'attachmentRiskState','riderViewParent','presentationPositionStrategy','presentationRotationStrategy','synchronizationPhase')) {
         if ($Record.$name -isnot [string] -or [string]::IsNullOrWhiteSpace([string]$Record.$name)) { throw "Movement telemetry $name must be a nonempty JSON string." }
     }
-    foreach ($name in @('combat','turnBased','riderSelected','mountSelected')) {
+    foreach ($name in @('combat','turnBased','riderSelected','mountSelected','attachmentLeaseActive','riderParentMatchesAttachment')) {
         if ($Record.$name -isnot [bool]) { throw "Movement telemetry $name must be a JSON boolean." }
     }
     foreach ($name in @('partyCombat','paused','riderStockAgentEnabled','mountStockAgentEnabled','riderAvoidanceDisabled','mountAvoidanceDisabled','mountIsReallyMoving','mountPathFailed','mountRepathNeeded')) {
@@ -1906,7 +1931,11 @@ function Assert-KmcMovementTelemetryRecord {
     foreach ($name in @('requestedDestination','riderEntityPosition','mountEntityPosition','riderViewPosition','mountViewPosition','riderViewRotation','mountViewRotation','expectedAnchorPosition','expectedAnchorRotation','mountVelocity','mountMoveDirection')) {
         Assert-KmcMovementVector3 $Record.$name "movement telemetry $name" -AllowNull:($name -in @('requestedDestination','riderViewPosition','mountViewPosition','riderViewRotation','mountViewRotation','mountVelocity','mountMoveDirection'))
     }
-    foreach ($name in @('riderEntityOrientation','mountEntityOrientation','residualPositionWorldUnits','residualRotationDegrees','mountSpeed','mountPathLength',
+    foreach ($name in @('riderEntityOrientation','mountEntityOrientation')) {
+        if ($null -ne $Record.$name -and -not (Test-KmcFiniteJsonNumber $Record.$name)) { throw "Movement telemetry $name must be a finite JSON number or null." }
+    }
+    foreach ($name in @('residualPositionWorldUnits','residualRotationDegrees','riderViewPositionResidualWorldUnits',
+        'riderEntityPositionResidualWorldUnits','riderViewRotationResidualDegrees','riderEntityRotationResidualDegrees','mountSpeed','mountPathLength',
         'preCorrectionPositionResidualWorldUnits','preCorrectionRotationResidualDegrees','postCorrectionPositionResidualWorldUnits','postCorrectionRotationResidualDegrees',
         'maximumPreCorrectionPositionResidualWorldUnits','maximumPreCorrectionRotationResidualDegrees','maximumPostCorrectionPositionResidualWorldUnits',
         'maximumPostCorrectionRotationResidualDegrees','maximumInitialConfigurationPreCorrectionPositionResidualWorldUnits',
@@ -1924,17 +1953,26 @@ function Assert-KmcMovementTelemetryRecord {
     Assert-KmcJsonStringArray $Record.selectedUnitIds 'movement telemetry selectedUnitIds'
     Assert-KmcJsonStringArray $Record.riderActiveCommandTypes 'movement telemetry riderActiveCommandTypes'
     Assert-KmcJsonStringArray $Record.mountActiveCommandTypes 'movement telemetry mountActiveCommandTypes'
-    if ($null -ne $Record.mountPathError -and $Record.mountPathError -isnot [string] -and -not (Test-KmcExactJsonInteger $Record.mountPathError)) { throw 'Movement telemetry mountPathError must be a string, integer, or null.' }
+    if ($null -ne $Record.mountPathError -and $Record.mountPathError -isnot [bool] -and $Record.mountPathError -isnot [string] -and -not (Test-KmcExactJsonInteger $Record.mountPathError)) { throw 'Movement telemetry mountPathError must be a boolean, string, integer, or null.' }
     if ($null -ne $Record.mountPathErrorLog -and $Record.mountPathErrorLog -isnot [string]) { throw 'Movement telemetry mountPathErrorLog must be a string or null.' }
     if ($RequireComplete) {
         if ([string]$Record.relationshipState -cne 'Mounted' -or [string]$Record.authoritativeMover -cne 'mount' -or
             $Record.combat -ne $false -or $Record.partyCombat -ne $false -or $Record.turnBased -ne $false -or
             [string]$Record.currentGameMode -cne 'Default' -or $Record.riderStockAgentEnabled -ne $false -or
-            $Record.mountStockAgentEnabled -ne $true -or $Record.riderAvoidanceDisabled -ne $true) {
+            $Record.mountStockAgentEnabled -ne $true -or $Record.riderAvoidanceDisabled -ne $true -or
+            $Record.attachmentLeaseActive -ne $true -or $Record.riderParentMatchesAttachment -ne $true -or
+            [string]$Record.anchor -cne 'KMC_RiderPositionAnchor' -or [string]$Record.sourceAnchor -cne 'Spine' -or
+            [string]$Record.attachmentParent -cne 'KMC_RiderPositionAnchor' -or
+            [string]$Record.riderViewParent -cne 'KMC_RiderPositionAnchor' -or
+            [string]$Record.attachmentRiskState -cne 'active and internally consistent' -or
+            [string]$Record.presentationPositionStrategy -cne 'Mammoth-root static point projected from Spine at lease acquisition' -or
+            [string]$Record.presentationRotationStrategy -cne 'upright authoritative-mount-root yaw plus configured rider yaw') {
             throw 'PASS movement telemetry does not prove the exact safe mounted movement-authority state.'
         }
         if ([double]$Record.maximumUpdatePreCorrectionPositionResidualWorldUnits -gt 0.10 -or
             [double]$Record.maximumLateUpdatePreCorrectionPositionResidualWorldUnits -gt 0.10 -or
+            [double]$Record.maximumUpdatePreCorrectionRotationResidualDegrees -gt 0.10 -or
+            [double]$Record.maximumLateUpdatePreCorrectionRotationResidualDegrees -gt 0.10 -or
             [double]$Record.maximumPostCorrectionPositionResidualWorldUnits -gt 0.10 -or
             [double]$Record.maximumPostCorrectionRotationResidualDegrees -gt 0.10) {
             throw 'PASS movement telemetry exceeds the calibrated residual thresholds.'
@@ -1964,7 +2002,8 @@ function Assert-KmcMovementScenarioRecord {
         Assert-KmcExactProperties $Record ($common + @(
             'status','assertionPassCount','assertionFailCount','maximumPreCorrectionResidualWorldUnits',
             'maximumInitialConfigurationResidualWorldUnits','maximumUpdatePreCorrectionResidualWorldUnits',
-            'maximumLateUpdatePreCorrectionResidualWorldUnits','maximumPostCorrectionResidualWorldUnits',
+            'maximumLateUpdatePreCorrectionResidualWorldUnits','maximumUpdatePreCorrectionRotationResidualDegrees',
+            'maximumLateUpdatePreCorrectionRotationResidualDegrees','maximumPostCorrectionResidualWorldUnits',
             'maximumPostCorrectionRotationResidualDegrees','synchronizationObservationCount','updateSynchronizationSampleCount',
             'lateUpdateSynchronizationSampleCount','updateSynchronizationCorrectionCount','lateUpdateSynchronizationCorrectionCount',
             'maximumStationaryDriftWorldUnits','maximumStuckSeconds','oscillationCount','unexpectedRepathCount',
@@ -1991,6 +2030,7 @@ function Assert-KmcMovementScenarioRecord {
     }
     foreach ($name in @('maximumPreCorrectionResidualWorldUnits','maximumInitialConfigurationResidualWorldUnits',
         'maximumUpdatePreCorrectionResidualWorldUnits','maximumLateUpdatePreCorrectionResidualWorldUnits',
+        'maximumUpdatePreCorrectionRotationResidualDegrees','maximumLateUpdatePreCorrectionRotationResidualDegrees',
         'maximumPostCorrectionResidualWorldUnits','maximumPostCorrectionRotationResidualDegrees','maximumStationaryDriftWorldUnits',
         'maximumStuckSeconds','maximumTurnDegrees','mountFinalTargetDistanceWorldUnits','nonPairBestTargetDistanceWorldUnits',
         'nonPairFinalTargetDistanceWorldUnits','minimumPairNonPairSeparationWorldUnits','requiredPairNonPairSeparationWorldUnits')) {
@@ -2029,6 +2069,8 @@ function Assert-KmcMovementScenarioRecord {
         }
         if ([double]$Record.maximumUpdatePreCorrectionResidualWorldUnits -gt 0.10 -or
             [double]$Record.maximumLateUpdatePreCorrectionResidualWorldUnits -gt 0.10 -or
+            [double]$Record.maximumUpdatePreCorrectionRotationResidualDegrees -gt 0.10 -or
+            [double]$Record.maximumLateUpdatePreCorrectionRotationResidualDegrees -gt 0.10 -or
             [double]$Record.maximumPostCorrectionResidualWorldUnits -gt 0.10 -or
             [double]$Record.maximumPostCorrectionRotationResidualDegrees -gt 0.10) {
             throw 'PASS movement row-result exceeds the calibrated residual thresholds.'
@@ -2038,6 +2080,13 @@ function Assert-KmcMovementScenarioRecord {
             [long]$Record.updateSynchronizationCorrectionCount -gt [long]$Record.updateSynchronizationSampleCount -or
             [long]$Record.lateUpdateSynchronizationCorrectionCount -gt [long]$Record.lateUpdateSynchronizationSampleCount -or
             [long]$Record.waypointCount -le 0) { throw 'PASS movement row-result lacks bounded synchronization or navigation samples.' }
+        $maximumPhaseSamples = [long]$Record.synchronizationObservationCount + 2L
+        $maximumCalibratedCorrections = $maximumPhaseSamples * 2L
+        if ([long]$Record.updateSynchronizationSampleCount -gt $maximumPhaseSamples -or
+            [long]$Record.lateUpdateSynchronizationSampleCount -gt $maximumPhaseSamples -or
+            ([long]$Record.updateSynchronizationCorrectionCount + [long]$Record.lateUpdateSynchronizationCorrectionCount) -gt $maximumCalibratedCorrections) {
+            throw 'PASS movement row-result exceeds the bounded synchronization callback cadence.'
+        }
         if ([string]$Record.row -ceq 'mounted-pair-doorway' -and
             ($Record.unmountedDoorControlPassed -ne $true -or [string]::IsNullOrWhiteSpace([string]$Record.door))) {
             throw 'PASS doorway row does not contain the required matched unmounted control and exact door identity.'

@@ -81,6 +81,18 @@ namespace KingmakerMountedCombat.Diagnostics
             var mountAgent = mount.View?.AgentASP;
             var mountPath = mountAgent?.Path;
             var move = mount.Commands?.Move;
+            var riderViewPositionResidual = rider.View == null ? (double?)null : Domain.MovementTelemetrySample.CalculateDistance(
+                expected.x, expected.y, expected.z, rider.View.transform.position.x, rider.View.transform.position.y, rider.View.transform.position.z);
+            var riderEntityPositionResidual = Domain.MovementTelemetrySample.CalculateDistance(
+                expected.x, expected.y, expected.z, rider.Position.x, rider.Position.y, rider.Position.z);
+            var riderViewRotationResidual = rider.View == null ? (double?)null : UnityEngine.Quaternion.Angle(expectedRotation, rider.View.transform.rotation);
+            var riderEntityRotationResidual = Domain.MovementTelemetrySample.CalculateAngleDelta(expectedRotation.eulerAngles.y, rider.Orientation);
+            var conservativePositionResidual = riderViewPositionResidual.HasValue
+                ? System.Math.Max(riderViewPositionResidual.Value, riderEntityPositionResidual)
+                : riderEntityPositionResidual;
+            var conservativeRotationResidual = riderViewRotationResidual.HasValue
+                ? System.Math.Max(riderViewRotationResidual.Value, riderEntityRotationResidual)
+                : riderEntityRotationResidual;
             var sample = new
             {
                 schemaVersion = 1,
@@ -117,10 +129,22 @@ namespace KingmakerMountedCombat.Diagnostics
                 riderViewRotation = rider.View == null ? null : VectorEvidence.From(rider.View.transform.rotation.eulerAngles),
                 mountViewRotation = mount.View == null ? null : VectorEvidence.From(mount.View.transform.rotation.eulerAngles),
                 anchor = agent.AnchorName,
+                sourceAnchor = runtime.PresentationSourceAnchorName,
+                attachmentLeaseActive = runtime.PresentationAttachmentLeaseActive,
+                attachmentParent = runtime.PresentationAttachmentParentName,
+                riderParentMatchesAttachment = runtime.RiderParentMatchesAttachment,
+                attachmentRiskState = runtime.PresentationAttachmentRiskState,
+                riderViewParent = rider.View?.transform.parent == null ? null : rider.View.transform.parent.name,
+                presentationPositionStrategy = "Mammoth-root static point projected from Spine at lease acquisition",
+                presentationRotationStrategy = "upright authoritative-mount-root yaw plus configured rider yaw",
                 expectedAnchorPosition = VectorEvidence.From(expected),
                 expectedAnchorRotation = VectorEvidence.From(expectedRotation.eulerAngles),
-                residualPositionWorldUnits = Domain.MovementTelemetrySample.CalculateDistance(expected.x, expected.y, expected.z, rider.View.transform.position.x, rider.View.transform.position.y, rider.View.transform.position.z),
-                residualRotationDegrees = UnityEngine.Quaternion.Angle(expectedRotation, rider.View.transform.rotation),
+                residualPositionWorldUnits = conservativePositionResidual,
+                residualRotationDegrees = conservativeRotationResidual,
+                riderViewPositionResidualWorldUnits = riderViewPositionResidual,
+                riderEntityPositionResidualWorldUnits = riderEntityPositionResidual,
+                riderViewRotationResidualDegrees = riderViewRotationResidual,
+                riderEntityRotationResidualDegrees = riderEntityRotationResidual,
                 riderSelected = selected != null && selected.Contains(rider),
                 mountSelected = selected != null && selected.Contains(mount),
                 selectedUnitIds = selected == null ? new string[0] : selected.Where(unit => unit != null).Select(unit => unit.UniqueId).ToArray(),

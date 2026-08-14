@@ -175,8 +175,14 @@ function New-TestMovementTelemetryRecord {
         currentGameMode='Default';paused=$false;turnBased=$false;authoritativeMover='mount';requestedDestination=$vector
         riderStockAgentEnabled=$false;mountStockAgentEnabled=$true;riderAvoidanceDisabled=$true;mountAvoidanceDisabled=$false
         riderEntityPosition=$vector;mountEntityPosition=$vector;riderEntityOrientation=0.0;mountEntityOrientation=0.0
-        riderViewPosition=$vector;mountViewPosition=$vector;riderViewRotation=$vector;mountViewRotation=$vector;anchor='Spine'
+        riderViewPosition=$vector;mountViewPosition=$vector;riderViewRotation=$vector;mountViewRotation=$vector;anchor='KMC_RiderPositionAnchor'
+        sourceAnchor='Spine';attachmentLeaseActive=$true;attachmentParent='KMC_RiderPositionAnchor';riderParentMatchesAttachment=$true
+        attachmentRiskState='active and internally consistent';riderViewParent='KMC_RiderPositionAnchor'
+        presentationPositionStrategy='Mammoth-root static point projected from Spine at lease acquisition'
+        presentationRotationStrategy='upright authoritative-mount-root yaw plus configured rider yaw'
         expectedAnchorPosition=$vector;expectedAnchorRotation=$vector;residualPositionWorldUnits=0.0;residualRotationDegrees=0.0
+        riderViewPositionResidualWorldUnits=0.0;riderEntityPositionResidualWorldUnits=0.0
+        riderViewRotationResidualDegrees=0.0;riderEntityRotationResidualDegrees=0.0
         riderSelected=$true;mountSelected=$false;selectedUnitIds=@('movement-rider');riderCommandCount=0;mountCommandCount=1
         riderActiveCommandTypes=@();mountActiveCommandTypes=@('Kingmaker.UnitLogic.Commands.UnitMoveTo');mountIsReallyMoving=$true
         mountVelocity=$vector;mountSpeed=3.0;mountMoveDirection=$vector;mountPathId=1;mountPathFailed=$false;mountRepathNeeded=$false
@@ -220,12 +226,17 @@ function New-TestMovementRowRecord {
     $before = [ordered]@{
         trigger='Manual';relationshipState='Mounted';hasMountedResidual=$true;riderStockAgentEnabled=$false;mountStockAgentEnabled=$true
         riderAvoidanceDisabled=$true;mountAvoidanceDisabled=$false;riderOverridePresent=$true;mountOverridePresent=$false
-        riderSelected=$true;mountSelected=$false;selectedUnitIds=@('movement-rider');paused=$false
+        riderSelected=$true;mountSelected=$false;selectedUnitIds=@('movement-rider');paused=$false;riderForbidRotation=$true
+        attachmentLeaseActive=$true;attachmentRestoreVerified=$false;attachmentResidue=$true;riderParentMatchesAttachment=$true
+        riderParent='MastodonPet/KMC_RiderPositionAnchor';attachmentParent='KMC_RiderPositionAnchor';sourceAnchor='Spine'
+        attachmentRiskState='active and internally consistent'
     }
     $after = [ordered]@{
         trigger='Manual';relationshipState='Unmounted';hasMountedResidual=$false;riderStockAgentEnabled=$true;mountStockAgentEnabled=$true
         riderAvoidanceDisabled=$false;mountAvoidanceDisabled=$false;riderOverridePresent=$false;mountOverridePresent=$false
-        riderSelected=$true;mountSelected=$false;selectedUnitIds=@('movement-rider');paused=$false
+        riderSelected=$true;mountSelected=$false;selectedUnitIds=@('movement-rider');paused=$false;riderForbidRotation=$false
+        attachmentLeaseActive=$false;attachmentRestoreVerified=$true;attachmentResidue=$false;riderParentMatchesAttachment=$false
+        riderParent='Area/Units/Rider';attachmentParent=$null;sourceAnchor=$null;attachmentRiskState='none'
     }
     $formation = $Row -ceq 'mounted-pair-party-formation'
     $doorway = $Row -ceq 'mounted-pair-doorway'
@@ -236,6 +247,7 @@ function New-TestMovementRowRecord {
         kind='movement-row-result';status='PASS';assertionPassCount=$AssertionPassCount;assertionFailCount=0
         maximumPreCorrectionResidualWorldUnits=1.0;maximumInitialConfigurationResidualWorldUnits=1.0
         maximumUpdatePreCorrectionResidualWorldUnits=0.01;maximumLateUpdatePreCorrectionResidualWorldUnits=0.01
+        maximumUpdatePreCorrectionRotationResidualDegrees=0.01;maximumLateUpdatePreCorrectionRotationResidualDegrees=0.01
         maximumPostCorrectionResidualWorldUnits=0.0;maximumPostCorrectionRotationResidualDegrees=0.0
         synchronizationObservationCount=12;updateSynchronizationSampleCount=10;lateUpdateSynchronizationSampleCount=10
         updateSynchronizationCorrectionCount=1;lateUpdateSynchronizationCorrectionCount=1;maximumStationaryDriftWorldUnits=0.01
@@ -1522,6 +1534,30 @@ try {
         try { Assert-KmcMovementScenarioEvidence -Request $movementRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($movementSubresult) } catch { $threw=$true }
         Assert-Test $threw 'individual movement telemetry accepted a foreign row identity'
     }
+    Invoke-HarnessTest 'movement telemetry accepts signed orientations but rejects non-finite values' {
+        $telemetry = New-TestMovementTelemetryRecord $movementRequest $movementRow 0
+        $telemetry.riderEntityOrientation = -59.3691864
+        $telemetry.mountEntityOrientation = -179.999
+        $scenario = @((New-TestMovementPathProbeRecord $movementRequest $movementRow 0),(New-TestMovementRowRecord $movementRequest $movementRow 1))
+        [void](Write-TestMovementEvidence $movementRequest.evidenceRoot $movementRequest @($telemetry) $scenario)
+        $manifest = Read-KmcJson (Join-Path $movementRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcMovementScenarioEvidence -Request $movementRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($movementSubresult)
+
+        $telemetry.mountEntityOrientation = 'NaN'
+        [void](Write-TestMovementEvidence $movementRequest.evidenceRoot $movementRequest @($telemetry) $scenario)
+        $manifest = Read-KmcJson (Join-Path $movementRequest.evidenceRoot 'runtime-artifacts.json')
+        $threw=$false
+        try { Assert-KmcMovementScenarioEvidence -Request $movementRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($movementSubresult) } catch { $threw=$true }
+        Assert-Test $threw 'movement telemetry accepted a non-finite signed orientation'
+    }
+    Invoke-HarnessTest 'movement telemetry accepts exact boolean path error state' {
+        $telemetry = New-TestMovementTelemetryRecord $movementRequest $movementRow 0
+        $telemetry.mountPathError = $false
+        $scenario = @((New-TestMovementPathProbeRecord $movementRequest $movementRow 0),(New-TestMovementRowRecord $movementRequest $movementRow 1))
+        [void](Write-TestMovementEvidence $movementRequest.evidenceRoot $movementRequest @($telemetry) $scenario)
+        $manifest = Read-KmcJson (Join-Path $movementRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcMovementScenarioEvidence -Request $movementRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($movementSubresult)
+    }
     Invoke-HarnessTest 'PASS movement validator rejects calibrated residual threshold mutation' {
         $telemetry = @((New-TestMovementTelemetryRecord $movementRequest $movementRow 0))
         $rowRecord = New-TestMovementRowRecord $movementRequest $movementRow 1
@@ -1532,6 +1568,35 @@ try {
         $threw=$false
         try { Assert-KmcMovementScenarioEvidence -Request $movementRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($movementSubresult) } catch { $threw=$true }
         Assert-Test $threw 'movement evidence accepted a calibrated residual above 0.10 world units'
+    }
+    Invoke-HarnessTest 'PASS movement validator rejects calibrated rotation and attachment mutations' {
+        $telemetry = New-TestMovementTelemetryRecord $movementRequest $movementRow 0
+        $telemetry.maximumLateUpdatePreCorrectionRotationResidualDegrees = 0.100001
+        $scenario = @((New-TestMovementPathProbeRecord $movementRequest $movementRow 0),(New-TestMovementRowRecord $movementRequest $movementRow 1))
+        [void](Write-TestMovementEvidence $movementRequest.evidenceRoot $movementRequest @($telemetry) $scenario)
+        $manifest = Read-KmcJson (Join-Path $movementRequest.evidenceRoot 'runtime-artifacts.json')
+        $threw=$false
+        try { Assert-KmcMovementScenarioEvidence -Request $movementRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($movementSubresult) } catch { $threw=$true }
+        Assert-Test $threw 'movement telemetry accepted an ongoing rotation residual above 0.10 degrees'
+
+        $telemetry = New-TestMovementTelemetryRecord $movementRequest $movementRow 0
+        $rowRecord = New-TestMovementRowRecord $movementRequest $movementRow 1
+        $rowRecord.maximumLateUpdatePreCorrectionRotationResidualDegrees = 0.100001
+        $scenario = @((New-TestMovementPathProbeRecord $movementRequest $movementRow 0),$rowRecord)
+        [void](Write-TestMovementEvidence $movementRequest.evidenceRoot $movementRequest @($telemetry) $scenario)
+        $manifest = Read-KmcJson (Join-Path $movementRequest.evidenceRoot 'runtime-artifacts.json')
+        $threw=$false
+        try { Assert-KmcMovementScenarioEvidence -Request $movementRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($movementSubresult) } catch { $threw=$true }
+        Assert-Test $threw 'movement row evidence accepted an ongoing rotation residual above 0.10 degrees'
+
+        $rowRecord = New-TestMovementRowRecord $movementRequest $movementRow 1
+        $rowRecord.cleanupAfter.attachmentRestoreVerified = $false
+        $scenario = @((New-TestMovementPathProbeRecord $movementRequest $movementRow 0),$rowRecord)
+        [void](Write-TestMovementEvidence $movementRequest.evidenceRoot $movementRequest @($telemetry) $scenario)
+        $manifest = Read-KmcJson (Join-Path $movementRequest.evidenceRoot 'runtime-artifacts.json')
+        $threw=$false
+        try { Assert-KmcMovementScenarioEvidence -Request $movementRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($movementSubresult) } catch { $threw=$true }
+        Assert-Test $threw 'movement cleanup evidence accepted an unverified attachment restoration'
     }
     Invoke-HarnessTest 'PASS movement validator rejects cleanup-after residue mutation' {
         $telemetry = @((New-TestMovementTelemetryRecord $movementRequest $movementRow 0))
@@ -1589,7 +1654,16 @@ try {
     Invoke-HarnessTest 'movement source binds telemetry to rows and finalizes destroyed-view cleanup failures' {
         $writerSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\MovementTelemetryWriter.cs'))
         $engineSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeMovementScenarioEngine.cs'))
+        $agentSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\RiderMovementAgent.cs'))
         Assert-Test ($writerSource.Contains('row = movementRow()')) 'movement telemetry is not bound to the active engine row'
+        Assert-Test ($writerSource.Contains('System.Math.Max(riderViewPositionResidual.Value, riderEntityPositionResidual)') -and
+            $writerSource.Contains('System.Math.Max(riderViewRotationResidual.Value, riderEntityRotationResidual)')) 'interval telemetry reports only cosmetic view residual instead of conservative entity/view residual'
+        Assert-Test ($agentSource.Contains('preCorrectionEntityPositionResidual') -and $agentSource.Contains('preCorrectionEntityRotationResidual') -and
+            $agentSource.Contains('System.Math.Max(preCorrectionViewPositionResidual, preCorrectionEntityPositionResidual)') -and
+            $agentSource.Contains('System.Math.Max(preCorrectionViewRotationResidual, preCorrectionEntityRotationResidual)')) 'movement synchronization can pass by gating only the rider view while logical entity state lags'
+        $runtimeSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\KingmakerMountedPairRuntime.cs'))
+        Assert-Test ($runtimeSource.Contains('riderAvoidanceWasDisabled = riderStockAgent.AvoidanceDisabled;') -and
+            $runtimeSource.Contains('riderStockAgent.AvoidanceDisabled != riderAvoidanceWasDisabled')) 'runtime does not verify its counted avoidance lease restores the captured effective state'
         Assert-Test ($engineSource.Contains('Post-cleanup verification threw')) 'post-cleanup Unity observation exceptions are not recorded as failed evidence'
         Assert-Test ($engineSource.Contains('CompleteRemainingAsNotRun("Further movement was suppressed because post-cleanup verification could not prove restoration."')) 'destroyed-view cleanup failures can still loop instead of bounded finalization'
         Assert-Test ($engineSource.Contains('RiderStateRestored()') -and $engineSource.Contains('MountStateRestored()')) 'destroyed Unity view/agent checks are not fail-closed'

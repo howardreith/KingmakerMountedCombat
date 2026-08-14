@@ -62,6 +62,7 @@
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedRelationshipCoordinator.cs"><Link>Shared\Domain\MountedRelationshipCoordinator.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MovementTelemetry.cs"><Link>Shared\Domain\MovementTelemetry.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\RelationshipState.cs"><Link>Shared\Domain\RelationshipState.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\ScopedTransformAttachmentLease.cs"><Link>Shared\Domain\ScopedTransformAttachmentLease.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\TransitionResult.cs"><Link>Shared\Domain\TransitionResult.cs</Link></Compile>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

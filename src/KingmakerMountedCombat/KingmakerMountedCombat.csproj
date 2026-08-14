@@ -95,6 +95,7 @@
     <Compile Include="Domain\MountedRelationshipCoordinator.cs" />
     <Compile Include="Domain\MovementTelemetry.cs" />
     <Compile Include="Domain\RelationshipState.cs" />
+    <Compile Include="Domain\ScopedTransformAttachmentLease.cs" />
     <Compile Include="Domain\TransitionResult.cs" />
     <Compile Include="Integration\GameMountedRelationshipService.cs" />
     <Compile Include="Integration\KingmakerMountedPairRuntime.cs" />

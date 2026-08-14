@@ -193,6 +193,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private double rowMaximumInitialConfigurationResidual;
         private double rowMaximumUpdatePreCorrectionResidual;
         private double rowMaximumLateUpdatePreCorrectionResidual;
+        private double rowMaximumUpdatePreCorrectionRotation;
+        private double rowMaximumLateUpdatePreCorrectionRotation;
         private double rowMaximumPostCorrectionResidual;
         private double rowMaximumPostCorrectionRotation;
         private double rowMaximumStationaryDrift;
@@ -827,6 +829,9 @@ namespace KingmakerMountedCombat.Diagnostics
             assertions.Check(pairSnapshot.RiderView.AgentOverride == runtime.MovementAgent && runtime.MovementAgent != null,
                 "Rider owns only the scoped synchronization override.",
                 "Rider synchronization override is missing or replaced.");
+            assertions.Check(runtime.PresentationAttachmentLeaseActive && runtime.RiderParentMatchesAttachment,
+                "Rider view owns one scoped root-projected position attachment lease.",
+                "Rider view position attachment lease is missing or has the wrong parent.");
             assertions.Check(pairSnapshot.MountView.AgentASP == pairSnapshot.MountStockAgent && pairSnapshot.MountStockAgent.enabled && pairSnapshot.MountView.AgentOverride == null,
                 "Mammoth stock agent is the sole authoritative mover.",
                 "Mammoth stock movement authority is unavailable or overridden.");
@@ -1323,6 +1328,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 agent.MaximumInitialConfigurationPreCorrectionPositionResidualWorldUnits);
             rowMaximumUpdatePreCorrectionResidual = Math.Max(rowMaximumUpdatePreCorrectionResidual, agent.MaximumUpdatePreCorrectionPositionResidualWorldUnits);
             rowMaximumLateUpdatePreCorrectionResidual = Math.Max(rowMaximumLateUpdatePreCorrectionResidual, agent.MaximumLateUpdatePreCorrectionPositionResidualWorldUnits);
+            rowMaximumUpdatePreCorrectionRotation = Math.Max(rowMaximumUpdatePreCorrectionRotation, agent.MaximumUpdatePreCorrectionRotationResidualDegrees);
+            rowMaximumLateUpdatePreCorrectionRotation = Math.Max(rowMaximumLateUpdatePreCorrectionRotation, agent.MaximumLateUpdatePreCorrectionRotationResidualDegrees);
             rowMaximumPostCorrectionResidual = Math.Max(rowMaximumPostCorrectionResidual, agent.MaximumPostCorrectionPositionResidualWorldUnits);
             rowMaximumPostCorrectionRotation = Math.Max(rowMaximumPostCorrectionRotation, agent.MaximumPostCorrectionRotationResidualDegrees);
             rowUpdateSampleCount = agent.UpdateSampleCount;
@@ -1333,13 +1340,15 @@ namespace KingmakerMountedCombat.Diagnostics
                 rowSynchronizationObservationCount,
                 settings.MaximumAnchorResidualWorldUnits,
                 MaximumPostCorrectionRotationResidualDegrees);
-            if (!rowSynchronizationFailureRecorded && (!qualification.PreCorrectionPositionPassed ||
+            if (!rowSynchronizationFailureRecorded && (!qualification.PreCorrectionPositionPassed || !qualification.PreCorrectionRotationPassed ||
                 !qualification.PostCorrectionPositionPassed || !qualification.PostCorrectionRotationPassed))
             {
                 rowSynchronizationFailureRecorded = true;
                 FailCurrent("Calibrated synchronization residual gate failed: Update=" +
                     agent.MaximumUpdatePreCorrectionPositionResidualWorldUnits.ToString("0.000000", CultureInfo.InvariantCulture) +
                     ", LateUpdate=" + agent.MaximumLateUpdatePreCorrectionPositionResidualWorldUnits.ToString("0.000000", CultureInfo.InvariantCulture) +
+                    ", Update rotation=" + agent.MaximumUpdatePreCorrectionRotationResidualDegrees.ToString("0.000000", CultureInfo.InvariantCulture) +
+                    ", LateUpdate rotation=" + agent.MaximumLateUpdatePreCorrectionRotationResidualDegrees.ToString("0.000000", CultureInfo.InvariantCulture) +
                     ", post-position=" + agent.MaximumPostCorrectionPositionResidualWorldUnits.ToString("0.000000", CultureInfo.InvariantCulture) +
                     ", post-rotation=" + agent.MaximumPostCorrectionRotationResidualDegrees.ToString("0.000000", CultureInfo.InvariantCulture) + ".");
                 navigationStage = NavigationStage.Failed;
@@ -1355,6 +1364,9 @@ namespace KingmakerMountedCombat.Diagnostics
             assertions.Check(rider.View.AgentOverride == runtime.MovementAgent && runtime.MovementAgent != null,
                 "Rider synchronization override remains scoped and active.",
                 "Rider synchronization override changed during movement.");
+            assertions.Check(runtime.PresentationAttachmentLeaseActive && runtime.RiderParentMatchesAttachment,
+                "Rider root-projected position attachment remains scoped and active.",
+                "Rider position attachment lease changed during movement.");
             assertions.Check(mount.View.AgentASP == pairSnapshot.MountStockAgent && mount.View.AgentASP.enabled && mount.View.AgentOverride == null,
                 "Mammoth stock agent remains authoritative.",
                 "Mammoth movement authority changed during movement.");
@@ -1378,6 +1390,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Maximum calibrated Update and LateUpdate pre-correction anchor residuals remained within the configured threshold; initial placement was excluded.",
                 "Calibrated pre-correction residuals were Update=" + rowMaximumUpdatePreCorrectionResidual.ToString("0.000000", CultureInfo.InvariantCulture) +
                 ", LateUpdate=" + rowMaximumLateUpdatePreCorrectionResidual.ToString("0.000000", CultureInfo.InvariantCulture) + ".");
+            assertions.Check(qualification != null && qualification.PreCorrectionRotationPassed &&
+                rowMaximumUpdatePreCorrectionRotation <= MaximumPostCorrectionRotationResidualDegrees &&
+                rowMaximumLateUpdatePreCorrectionRotation <= MaximumPostCorrectionRotationResidualDegrees,
+                "Maximum calibrated Update and LateUpdate pre-correction rotation residuals remained within 0.10 degrees; initial placement was excluded.",
+                "Calibrated pre-correction rotation residuals were Update=" + rowMaximumUpdatePreCorrectionRotation.ToString("0.000000", CultureInfo.InvariantCulture) +
+                ", LateUpdate=" + rowMaximumLateUpdatePreCorrectionRotation.ToString("0.000000", CultureInfo.InvariantCulture) + " degrees.");
             assertions.Check(qualification != null && qualification.PostCorrectionPositionPassed && rowMaximumPostCorrectionResidual <= settings.MaximumAnchorResidualWorldUnits,
                 "Maximum post-correction anchor residual remained within the configured threshold.",
                 "Maximum post-correction anchor residual was " + rowMaximumPostCorrectionResidual.ToString("0.000000", CultureInfo.InvariantCulture) + ".");
@@ -1501,6 +1519,11 @@ namespace KingmakerMountedCombat.Diagnostics
                     assertions.Check(pairSnapshot.RiderOverrideComponentCountRestored(),
                         "Owned RiderMovementAgent component count returned to its exact prior value.",
                         "A RiderMovementAgent component remained/disappeared, or its Unity view was destroyed after cleanup.");
+                    assertions.Check(pairSnapshot.RiderAttachmentStateRestored() &&
+                        relationship.Runtime.PresentationAttachmentRestoreVerified &&
+                        !relationship.Runtime.PresentationAttachmentLeaseActive && !relationship.Runtime.HasPresentationAttachmentResidue,
+                        "Rider attachment restored its exact parent, sibling index, and local scale; the lease verified captured world pose before nav-safe dismount placement.",
+                        "Rider attachment retained parent/carrier residue, lost its Unity view, or did not verify the captured transform state.");
                 }
                 assertions.Check(PauseMatchesSnapshot(),
                     "Pause state was restored.",
@@ -1593,6 +1616,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 maximumInitialConfigurationResidualWorldUnits = rowMaximumInitialConfigurationResidual,
                 maximumUpdatePreCorrectionResidualWorldUnits = rowMaximumUpdatePreCorrectionResidual,
                 maximumLateUpdatePreCorrectionResidualWorldUnits = rowMaximumLateUpdatePreCorrectionResidual,
+                maximumUpdatePreCorrectionRotationResidualDegrees = rowMaximumUpdatePreCorrectionRotation,
+                maximumLateUpdatePreCorrectionRotationResidualDegrees = rowMaximumLateUpdatePreCorrectionRotation,
                 maximumPostCorrectionResidualWorldUnits = rowMaximumPostCorrectionResidual,
                 maximumPostCorrectionRotationResidualDegrees = rowMaximumPostCorrectionRotation,
                 synchronizationObservationCount = rowSynchronizationObservationCount,
@@ -2144,6 +2169,8 @@ namespace KingmakerMountedCombat.Diagnostics
             rowMaximumInitialConfigurationResidual = 0.0d;
             rowMaximumUpdatePreCorrectionResidual = 0.0d;
             rowMaximumLateUpdatePreCorrectionResidual = 0.0d;
+            rowMaximumUpdatePreCorrectionRotation = 0.0d;
+            rowMaximumLateUpdatePreCorrectionRotation = 0.0d;
             rowMaximumPostCorrectionResidual = 0.0d;
             rowMaximumPostCorrectionRotation = 0.0d;
             rowMaximumStationaryDrift = 0.0d;
@@ -2387,6 +2414,15 @@ namespace KingmakerMountedCombat.Diagnostics
             public bool MountSelected { get; set; }
             public string[] SelectedUnitIds { get; set; }
             public bool? Paused { get; set; }
+            public bool? RiderForbidRotation { get; set; }
+            public bool AttachmentLeaseActive { get; set; }
+            public bool AttachmentRestoreVerified { get; set; }
+            public bool AttachmentResidue { get; set; }
+            public bool RiderParentMatchesAttachment { get; set; }
+            public string RiderParent { get; set; }
+            public string AttachmentParent { get; set; }
+            public string SourceAnchor { get; set; }
+            public string AttachmentRiskState { get; set; }
 
             public static CleanupStateEvidence Capture(
                 CleanupTrigger trigger,
@@ -2401,7 +2437,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     Trigger = trigger.ToString(),
                     RelationshipState = relationship.State.ToString(),
                     HasMountedResidual = relationship.State != KingmakerMountedCombat.Domain.RelationshipState.Unmounted || relationship.Rider != null ||
-                        relationship.Mount != null || relationship.Runtime.MovementAgent != null,
+                        relationship.Mount != null || relationship.Runtime.MovementAgent != null || relationship.Runtime.HasPresentationAttachmentResidue,
                     RiderStockAgentEnabled = rider?.View?.AgentASP?.enabled,
                     MountStockAgentEnabled = mount?.View?.AgentASP?.enabled,
                     RiderAvoidanceDisabled = rider?.View?.AgentASP?.AvoidanceDisabled,
@@ -2411,7 +2447,16 @@ namespace KingmakerMountedCombat.Diagnostics
                     RiderSelected = selected != null && rider != null && selected.Contains(rider),
                     MountSelected = selected != null && mount != null && selected.Contains(mount),
                     SelectedUnitIds = selected == null ? new string[0] : selected.Where(unit => unit != null).Select(unit => unit.UniqueId).ToArray(),
-                    Paused = game == null ? (bool?)null : game.IsPaused
+                    Paused = game == null ? (bool?)null : game.IsPaused,
+                    RiderForbidRotation = rider?.View == null ? (bool?)null : rider.View.ForbidRotation,
+                    AttachmentLeaseActive = relationship.Runtime.PresentationAttachmentLeaseActive,
+                    AttachmentRestoreVerified = relationship.Runtime.PresentationAttachmentRestoreVerified,
+                    AttachmentResidue = relationship.Runtime.HasPresentationAttachmentResidue,
+                    RiderParentMatchesAttachment = relationship.Runtime.RiderParentMatchesAttachment,
+                    RiderParent = rider?.View?.transform.parent == null ? null : BuildHierarchyName(rider.View.transform.parent),
+                    AttachmentParent = relationship.Runtime.PresentationAttachmentParentName,
+                    SourceAnchor = relationship.Runtime.PresentationSourceAnchorName,
+                    AttachmentRiskState = relationship.Runtime.PresentationAttachmentRiskState
                 };
             }
         }
@@ -2472,6 +2517,10 @@ namespace KingmakerMountedCombat.Diagnostics
             public object RiderOverride { get; private set; }
             public object MountOverride { get; private set; }
             public int RiderOverrideComponentCount { get; private set; }
+            public Transform RiderParent { get; private set; }
+            public int RiderSiblingIndex { get; private set; }
+            public Vector3 RiderLocalScale { get; private set; }
+            public bool RiderForbidRotationWasEnabled { get; private set; }
 
             public static PairSnapshot Capture(UnitEntityData rider, UnitEntityData mount)
             {
@@ -2494,7 +2543,11 @@ namespace KingmakerMountedCombat.Diagnostics
                     MountAvoidanceWasDisabled = mount.View.AgentASP.AvoidanceDisabled,
                     RiderOverride = rider.View.AgentOverride,
                     MountOverride = mount.View.AgentOverride,
-                    RiderOverrideComponentCount = rider.View.GetComponents<RiderMovementAgent>().Length
+                    RiderOverrideComponentCount = rider.View.GetComponents<RiderMovementAgent>().Length,
+                    RiderParent = rider.View.transform.parent,
+                    RiderSiblingIndex = rider.View.transform.GetSiblingIndex(),
+                    RiderLocalScale = rider.View.transform.localScale,
+                    RiderForbidRotationWasEnabled = rider.View.ForbidRotation
                 };
             }
 
@@ -2506,7 +2559,8 @@ namespace KingmakerMountedCombat.Diagnostics
                         Rider.View == RiderView && RiderView.AgentASP == RiderStockAgent &&
                         RiderStockAgent.enabled == RiderAgentWasEnabled &&
                         RiderStockAgent.AvoidanceDisabled == RiderAvoidanceWasDisabled &&
-                        ReferenceEquals(RiderView.AgentOverride, RiderOverride);
+                        ReferenceEquals(RiderView.AgentOverride, RiderOverride) &&
+                        RiderView.ForbidRotation == RiderForbidRotationWasEnabled;
                 }
                 catch (Exception)
                 {
@@ -2535,6 +2589,20 @@ namespace KingmakerMountedCombat.Diagnostics
                 try
                 {
                     return RiderView != null && RiderView.GetComponents<RiderMovementAgent>().Length == RiderOverrideComponentCount;
+                }
+                catch (Exception)
+                {
+                    return false;
+                }
+            }
+
+            public bool RiderAttachmentStateRestored()
+            {
+                try
+                {
+                    return RiderView != null && RiderView.transform.parent == RiderParent &&
+                        RiderView.transform.GetSiblingIndex() == RiderSiblingIndex &&
+                        RiderView.transform.localScale == RiderLocalScale;
                 }
                 catch (Exception)
                 {

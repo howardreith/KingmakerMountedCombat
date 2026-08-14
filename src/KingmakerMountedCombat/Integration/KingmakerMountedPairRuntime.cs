@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Kingmaker;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.GameModes;
@@ -16,18 +17,24 @@ namespace KingmakerMountedCombat.Integration
 
         private readonly IModLogger logger;
         private readonly DiagnosticSettings settings;
+        private readonly ScopedTransformAttachmentLease<Transform, Vector3, Quaternion, Vector3> riderAttachmentLease;
         private UnitEntityData rider;
         private UnitEntityData mount;
         private UnitEntityView riderView;
         private UnitEntityView mountView;
         private UnitMovementAgent riderStockAgent;
         private bool riderStockAgentWasEnabled;
+        private bool riderAvoidanceWasDisabled;
         private bool avoidanceLeaseOwned;
         private RiderMovementAgent riderOverride;
         private bool overrideComponentOwned;
         private bool overrideInstalled;
         private bool movementAuthorityConfigured;
-        private Transform anchor;
+        private bool riderForbidRotationWasEnabled;
+        private bool riderForbidRotationLeaseOwned;
+        private Transform sourceAnchor;
+        private GameObject positionAnchorObject;
+        private Transform positionAnchor;
         private bool presentationConfigured;
         private Vector3 preMountRiderPosition;
         private float preMountRiderOrientation;
@@ -36,6 +43,21 @@ namespace KingmakerMountedCombat.Integration
         {
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
             this.settings = settings ?? throw new ArgumentNullException(nameof(settings));
+            riderAttachmentLease = new ScopedTransformAttachmentLease<Transform, Vector3, Quaternion, Vector3>(
+                transform => transform.parent,
+                transform => transform.GetSiblingIndex(),
+                transform => transform.position,
+                transform => transform.rotation,
+                transform => transform.localScale,
+                (transform, parent, worldPositionStays) => transform.SetParent(parent, worldPositionStays),
+                (transform, siblingIndex) => transform.SetSiblingIndex(siblingIndex),
+                (transform, position) => transform.position = position,
+                (transform, rotation) => transform.rotation = rotation,
+                (transform, scale) => transform.localScale = scale,
+                null,
+                new BoundedVector3Comparer(0.0001f),
+                new BoundedQuaternionComparer(0.01f),
+                new BoundedVector3Comparer(0.0001f));
         }
 
         public UnitEntityData Rider => rider;
@@ -43,6 +65,46 @@ namespace KingmakerMountedCombat.Integration
         public UnitEntityData Mount => mount;
 
         public RiderMovementAgent MovementAgent => riderOverride;
+
+        public bool PresentationAttachmentLeaseActive => riderAttachmentLease.IsAcquired;
+
+        public bool PresentationAttachmentRestoreVerified => riderAttachmentLease.LastRestoreVerified;
+
+        public string PresentationAttachmentParentName => positionAnchor == null ? null : positionAnchor.name;
+
+        public string PresentationSourceAnchorName => sourceAnchor == null ? null : sourceAnchor.name;
+
+        public bool RiderParentMatchesAttachment => riderView != null && positionAnchor != null && riderView.transform.parent == positionAnchor;
+
+        public bool HasPresentationAttachmentResidue => riderAttachmentLease.IsAcquired || positionAnchorObject != null || positionAnchor != null;
+
+        public string PresentationAttachmentRiskState
+        {
+            get
+            {
+                if (!riderAttachmentLease.IsAcquired)
+                {
+                    return HasPresentationAttachmentResidue ? "owned anchor exists without an active lease" : "none";
+                }
+                if (riderView == null)
+                {
+                    return "rider view was destroyed or detached while its parent lease remained active";
+                }
+                if (mountView == null)
+                {
+                    return "mount view was destroyed or detached while the rider parent lease remained active";
+                }
+                if (positionAnchor == null || positionAnchorObject == null)
+                {
+                    return "owned attachment anchor was destroyed while its rider lease remained active";
+                }
+                if (riderView.transform.parent != positionAnchor)
+                {
+                    return "rider parent changed outside the owned attachment lease";
+                }
+                return "active and internally consistent";
+            }
+        }
 
         public void Prepare(UnitEntityData riderUnit, UnitEntityData mountUnit)
         {
@@ -148,7 +210,7 @@ namespace KingmakerMountedCombat.Integration
 
             if (!movementAuthorityConfigured || riderView.AgentASP != riderStockAgent || riderStockAgent == null ||
                 riderStockAgent.enabled || !avoidanceLeaseOwned || riderOverride == null || !overrideInstalled ||
-                riderView.AgentOverride != riderOverride)
+                riderView.AgentOverride != riderOverride || !riderForbidRotationLeaseOwned || !riderView.ForbidRotation)
             {
                 return "Owned rider movement-authority state no longer matches the mounted invariant.";
             }
@@ -158,9 +220,11 @@ namespace KingmakerMountedCombat.Integration
                 return "The authoritative mount movement agent changed.";
             }
 
-            if (!presentationConfigured || anchor == null)
+            if (!presentationConfigured || sourceAnchor == null || positionAnchor == null ||
+                positionAnchor.parent != mountView.transform || !riderAttachmentLease.IsAcquired ||
+                riderView.transform.parent != positionAnchor)
             {
-                return "The Mammoth position-anchor presentation is unavailable.";
+                return "The scoped Mammoth root-projected position attachment is unavailable or changed.";
             }
 
             return null;
@@ -173,6 +237,8 @@ namespace KingmakerMountedCombat.Integration
             mountView = mount.View;
             riderStockAgent = riderView.AgentASP;
             riderStockAgentWasEnabled = riderStockAgent.enabled;
+            riderAvoidanceWasDisabled = riderStockAgent.AvoidanceDisabled;
+            riderForbidRotationWasEnabled = riderView.ForbidRotation;
             preMountRiderPosition = rider.Position;
             preMountRiderOrientation = rider.Orientation;
             movementAuthorityConfigured = true;
@@ -184,6 +250,8 @@ namespace KingmakerMountedCombat.Integration
             riderStockAgent.AvoidanceDisabled = true;
             avoidanceLeaseOwned = true;
             riderStockAgent.enabled = false;
+            riderView.ForbidRotation = true;
+            riderForbidRotationLeaseOwned = true;
 
             riderOverride = riderView.gameObject.AddComponent<RiderMovementAgent>();
             overrideComponentOwned = true;
@@ -196,30 +264,116 @@ namespace KingmakerMountedCombat.Integration
         public void AttachPresentation(MountedPair pair)
         {
             RequirePreparedPair(pair);
-            anchor = FindTransform(mountView.transform, "Spine");
-            if (anchor == null)
+            sourceAnchor = FindTransform(mountView.transform, "Spine");
+            if (sourceAnchor == null)
             {
                 throw new InvalidOperationException("Selected Mammoth view has no exact Spine transform.");
             }
 
-            riderOverride.Configure(mount, anchor, new Vector3(settings.RiderOffsetX, settings.RiderOffsetY, settings.RiderOffsetZ), new Vector3(0f, settings.RiderYawDegrees, 0f));
+            // Pilot evidence showed the animated Spine moved 0.113 world units
+            // between the engine Update and LateUpdate phases, and inheriting its
+            // full quaternion rolled the humanoid root by about 161 degrees every
+            // frame. Project the observed Spine point into a fixed child of the
+            // authoritative mount root instead. Parenting makes mount translation
+            // and yaw continuous without another nav agent; the static root-local
+            // point intentionally does not inherit gait-driven bone rotation.
+            var desiredWorldPosition = sourceAnchor.TransformPoint(new Vector3(
+                settings.RiderOffsetX,
+                settings.RiderOffsetY,
+                settings.RiderOffsetZ));
+            positionAnchorObject = new GameObject("KMC_RiderPositionAnchor");
+            positionAnchorObject.hideFlags = HideFlags.HideAndDontSave;
+            positionAnchor = positionAnchorObject.transform;
+            positionAnchor.SetParent(mountView.transform, false);
+            positionAnchor.localPosition = mountView.transform.InverseTransformPoint(desiredWorldPosition);
+            positionAnchor.localRotation = Quaternion.identity;
+            positionAnchor.localScale = Vector3.one;
+
+            riderAttachmentLease.Acquire(riderView.transform, positionAnchor);
+            riderOverride.Configure(
+                mount,
+                positionAnchor,
+                Vector3.zero,
+                new Vector3(0f, settings.RiderYawDegrees, 0f));
             presentationConfigured = true;
-            logger.Info("Rider presentation synchronized to Mammoth Spine diagnostic anchor.");
+            logger.Info("Rider presentation attached through an owned Mammoth-root position lease projected from Spine; orientation is upright mount yaw only.");
         }
 
         public void RestorePresentation(MountedPair pair)
         {
-            if (riderOverride != null)
+            Exception first = null;
+            try
             {
-                riderOverride.Deconfigure();
+                if (riderOverride != null)
+                {
+                    riderOverride.Deconfigure();
+                }
             }
+            catch (Exception exception)
+            {
+                first = exception;
+            }
+
+            try
+            {
+                riderAttachmentLease.Restore();
+            }
+            catch (Exception exception)
+            {
+                first = first ?? exception;
+            }
+
+            // Never destroy an attachment parent while a failed lease may still
+            // own a rider beneath it. A coordinator retry will repeat restoration.
+            if (!riderAttachmentLease.IsAcquired)
+            {
+                try
+                {
+                    if (positionAnchorObject != null)
+                    {
+                        if (riderView != null && riderView.transform.parent == positionAnchor)
+                        {
+                            throw new InvalidOperationException("Refusing to destroy an owned attachment anchor while the rider remains parented beneath it.");
+                        }
+                        positionAnchor.SetParent(null, true);
+                        UnityEngine.Object.Destroy(positionAnchorObject);
+                    }
+                    positionAnchor = null;
+                    positionAnchorObject = null;
+                    sourceAnchor = null;
+                }
+                catch (Exception exception)
+                {
+                    first = first ?? exception;
+                }
+            }
+
+            if (first != null || riderAttachmentLease.IsAcquired || positionAnchorObject != null || positionAnchor != null)
+            {
+                throw new InvalidOperationException("Best-effort rider presentation restoration retained attachment residue.", first);
+            }
+
             presentationConfigured = false;
-            anchor = null;
+            // MountedRelationshipCoordinator always invokes this presentation
+            // restoration before RestoreMovementAuthority. Therefore the rider is
+            // detached and its captured world pose is verified before the stock
+            // agent/avoidance lease is restored and nav-safe dismount placement is
+            // attempted.
             TryReleasePreparedReferences();
         }
 
         public void RestoreMovementAuthority(MountedPair pair, CleanupTrigger trigger)
         {
+            if (riderAttachmentLease.IsAcquired || positionAnchorObject != null || positionAnchor != null)
+            {
+                // The coordinator performs best-effort cleanup even after a
+                // presentation failure. Do not re-enable the rider nav agent or
+                // place the logical rider while its view may still be parented
+                // under the owned carrier. Both coordinator residue flags remain
+                // set, and its ordinary retry must first restore presentation.
+                throw new InvalidOperationException("Movement authority cannot be restored while the rider presentation attachment retains residue: " + PresentationAttachmentRiskState + ".");
+            }
+
             Exception first = null;
             try
             {
@@ -277,6 +431,27 @@ namespace KingmakerMountedCombat.Integration
 
             try
             {
+                if (riderForbidRotationLeaseOwned)
+                {
+                    if (riderView == null)
+                    {
+                        throw new InvalidOperationException("Rider view was destroyed before its rotation lease could be restored.");
+                    }
+                    riderView.ForbidRotation = riderForbidRotationWasEnabled;
+                    if (riderView.ForbidRotation != riderForbidRotationWasEnabled)
+                    {
+                        throw new InvalidOperationException("Rider ForbidRotation did not return to its captured value.");
+                    }
+                    riderForbidRotationLeaseOwned = false;
+                }
+            }
+            catch (Exception exception)
+            {
+                first = first ?? exception;
+            }
+
+            try
+            {
                 if (riderStockAgent != null)
                 {
                     riderStockAgent.enabled = riderStockAgentWasEnabled;
@@ -293,7 +468,14 @@ namespace KingmakerMountedCombat.Integration
                 {
                     if (riderStockAgent != null)
                     {
+                        // AvoidanceDisabled is backed by a CountingGuard. Release
+                        // exactly the single KMC lease; assigning a captured true
+                        // value would acquire a second lease instead of restoring.
                         riderStockAgent.AvoidanceDisabled = false;
+                        if (riderStockAgent.AvoidanceDisabled != riderAvoidanceWasDisabled)
+                        {
+                            throw new InvalidOperationException("Rider avoidance state did not return to its captured effective value after releasing the KMC lease.");
+                        }
                     }
                     avoidanceLeaseOwned = false;
                 }
@@ -348,7 +530,8 @@ namespace KingmakerMountedCombat.Integration
 
         public void ClearPreparedPairWhenUnmounted()
         {
-            if (!movementAuthorityConfigured && !presentationConfigured && !avoidanceLeaseOwned && !overrideInstalled && !overrideComponentOwned)
+            if (!movementAuthorityConfigured && !presentationConfigured && !avoidanceLeaseOwned && !riderForbidRotationLeaseOwned && !overrideInstalled && !overrideComponentOwned &&
+                !riderAttachmentLease.IsAcquired && positionAnchorObject == null && positionAnchor == null)
             {
                 TryReleasePreparedReferences();
             }
@@ -356,7 +539,8 @@ namespace KingmakerMountedCombat.Integration
 
         private void TryReleasePreparedReferences()
         {
-            if (movementAuthorityConfigured || presentationConfigured || avoidanceLeaseOwned || overrideInstalled || overrideComponentOwned)
+            if (movementAuthorityConfigured || presentationConfigured || avoidanceLeaseOwned || riderForbidRotationLeaseOwned || overrideInstalled || overrideComponentOwned ||
+                riderAttachmentLease.IsAcquired || positionAnchorObject != null || positionAnchor != null)
             {
                 return;
             }
@@ -412,6 +596,46 @@ namespace KingmakerMountedCombat.Integration
                 trigger != CleanupTrigger.ViewDetached &&
                 trigger != CleanupTrigger.LoadRequested &&
                 trigger != CleanupTrigger.ProcessTeardown;
+        }
+
+        private sealed class BoundedVector3Comparer : IEqualityComparer<Vector3>
+        {
+            private readonly float maximumDistance;
+
+            public BoundedVector3Comparer(float maximumDistance)
+            {
+                this.maximumDistance = maximumDistance;
+            }
+
+            public bool Equals(Vector3 first, Vector3 second)
+            {
+                return Vector3.Distance(first, second) <= maximumDistance;
+            }
+
+            public int GetHashCode(Vector3 value)
+            {
+                return 0;
+            }
+        }
+
+        private sealed class BoundedQuaternionComparer : IEqualityComparer<Quaternion>
+        {
+            private readonly float maximumAngleDegrees;
+
+            public BoundedQuaternionComparer(float maximumAngleDegrees)
+            {
+                this.maximumAngleDegrees = maximumAngleDegrees;
+            }
+
+            public bool Equals(Quaternion first, Quaternion second)
+            {
+                return Quaternion.Angle(first, second) <= maximumAngleDegrees;
+            }
+
+            public int GetHashCode(Quaternion value)
+            {
+                return 0;
+            }
         }
     }
 }

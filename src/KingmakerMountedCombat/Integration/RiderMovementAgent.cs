@@ -88,13 +88,13 @@ namespace KingmakerMountedCombat.Integration
         public MovementSynchronizationQualification QualifySynchronization(
             long observedUpdateFrames,
             double maximumPositionResidualWorldUnits,
-            double maximumPostCorrectionRotationResidualDegrees)
+            double maximumRotationResidualDegrees)
         {
             return MovementSynchronizationQualification.Evaluate(
                 telemetry,
                 observedUpdateFrames,
                 maximumPositionResidualWorldUnits,
-                maximumPostCorrectionRotationResidualDegrees);
+                maximumRotationResidualDegrees);
         }
 
         public string AnchorName => anchor == null ? null : anchor.name;
@@ -173,15 +173,25 @@ namespace KingmakerMountedCombat.Integration
             var expectedPosition = anchor.TransformPoint(anchorLocalOffset);
             var expectedRotation = anchor.rotation * Quaternion.Euler(localEulerRotation);
             var preCorrectionPosition = Unit.transform.position;
-            var preCorrectionPositionResidual = MovementTelemetrySample.CalculateDistance(expectedPosition.x, expectedPosition.y, expectedPosition.z, preCorrectionPosition.x, preCorrectionPosition.y, preCorrectionPosition.z);
-            var preCorrectionRotationResidual = Quaternion.Angle(expectedRotation, Unit.transform.rotation);
+            var preCorrectionEntityPosition = Unit.EntityData.Position;
+            var preCorrectionViewPositionResidual = MovementTelemetrySample.CalculateDistance(expectedPosition.x, expectedPosition.y, expectedPosition.z, preCorrectionPosition.x, preCorrectionPosition.y, preCorrectionPosition.z);
+            var preCorrectionEntityPositionResidual = MovementTelemetrySample.CalculateDistance(expectedPosition.x, expectedPosition.y, expectedPosition.z, preCorrectionEntityPosition.x, preCorrectionEntityPosition.y, preCorrectionEntityPosition.z);
+            var preCorrectionPositionResidual = System.Math.Max(preCorrectionViewPositionResidual, preCorrectionEntityPositionResidual);
+            var preCorrectionViewRotationResidual = Quaternion.Angle(expectedRotation, Unit.transform.rotation);
+            var preCorrectionEntityRotationResidual = MovementTelemetrySample.CalculateAngleDelta(expectedRotation.eulerAngles.y, Unit.EntityData.Orientation);
+            var preCorrectionRotationResidual = System.Math.Max(preCorrectionViewRotationResidual, preCorrectionEntityRotationResidual);
             Unit.transform.position = expectedPosition;
             Unit.transform.rotation = expectedRotation;
             Unit.EntityData.Position = expectedPosition;
             Unit.EntityData.Orientation = expectedRotation.eulerAngles.y;
             var postCorrectionPosition = Unit.transform.position;
-            var postCorrectionPositionResidual = MovementTelemetrySample.CalculateDistance(expectedPosition.x, expectedPosition.y, expectedPosition.z, postCorrectionPosition.x, postCorrectionPosition.y, postCorrectionPosition.z);
-            var postCorrectionRotationResidual = Quaternion.Angle(expectedRotation, Unit.transform.rotation);
+            var postCorrectionEntityPosition = Unit.EntityData.Position;
+            var postCorrectionViewPositionResidual = MovementTelemetrySample.CalculateDistance(expectedPosition.x, expectedPosition.y, expectedPosition.z, postCorrectionPosition.x, postCorrectionPosition.y, postCorrectionPosition.z);
+            var postCorrectionEntityPositionResidual = MovementTelemetrySample.CalculateDistance(expectedPosition.x, expectedPosition.y, expectedPosition.z, postCorrectionEntityPosition.x, postCorrectionEntityPosition.y, postCorrectionEntityPosition.z);
+            var postCorrectionPositionResidual = System.Math.Max(postCorrectionViewPositionResidual, postCorrectionEntityPositionResidual);
+            var postCorrectionViewRotationResidual = Quaternion.Angle(expectedRotation, Unit.transform.rotation);
+            var postCorrectionEntityRotationResidual = MovementTelemetrySample.CalculateAngleDelta(expectedRotation.eulerAngles.y, Unit.EntityData.Orientation);
+            var postCorrectionRotationResidual = System.Math.Max(postCorrectionViewRotationResidual, postCorrectionEntityRotationResidual);
             telemetry.Observe(new MovementSynchronizationSample(
                 telemetry.SampleCount,
                 phase,
