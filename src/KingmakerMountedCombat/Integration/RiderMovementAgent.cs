@@ -8,12 +8,14 @@ namespace KingmakerMountedCombat.Integration
 {
     internal sealed class RiderMovementAgent : UnitMovementAgentBase
     {
+        private const double MaximumYawResidualDegrees = 0.10d;
         private UnitEntityData mount;
         private Transform anchor;
         private Vector3 anchorLocalOffset;
         private Vector3 localEulerRotation;
         private bool configured;
         private MovementSynchronizationTelemetryAccumulator telemetry = new MovementSynchronizationTelemetryAccumulator();
+        private MovementYawPhaseTracker yawPhaseTracker = new MovementYawPhaseTracker();
 
         public override bool WantsToMove => configured && mount?.View?.AgentASP != null && mount.View.AgentASP.WantsToMove;
 
@@ -53,6 +55,8 @@ namespace KingmakerMountedCombat.Integration
 
         public double LatestPreCorrectionRotationResidualDegrees => telemetry.LatestPreCorrectionRotationResidualDegrees;
 
+        public double LatestPreCorrectionFullViewCurrentRotationResidualDegrees => telemetry.LatestPreCorrectionFullViewCurrentRotationResidualDegrees;
+
         public double LatestPostCorrectionPositionResidualWorldUnits => telemetry.LatestPostCorrectionPositionResidualWorldUnits;
 
         public double LatestPostCorrectionRotationResidualDegrees => telemetry.LatestPostCorrectionRotationResidualDegrees;
@@ -83,6 +87,48 @@ namespace KingmakerMountedCombat.Integration
 
         public double MaximumLateUpdatePostCorrectionRotationResidualDegrees => telemetry.MaximumLateUpdatePostCorrectionRotationResidualDegrees;
 
+        public MovementYawPhaseObservation LatestYawObservation => telemetry.LatestYawObservation;
+
+        public double MaximumCalibratedViewCurrentYawResidualDegrees => telemetry.MaximumCalibratedViewCurrentYawResidualDegrees;
+
+        public double MaximumCalibratedFullViewCurrentRotationResidualDegrees => telemetry.MaximumCalibratedFullViewCurrentRotationResidualDegrees;
+
+        public double MaximumCalibratedMountEntityRootYawResidualDegrees => telemetry.MaximumCalibratedMountEntityRootYawResidualDegrees;
+
+        public double MaximumCalibratedEntityRawCurrentYawResidualDegrees => telemetry.MaximumCalibratedEntityRawCurrentYawResidualDegrees;
+
+        public double MaximumCalibratedEntityPreviousAuthoritativeYawResidualDegrees => telemetry.MaximumCalibratedEntityPreviousAuthoritativeYawResidualDegrees;
+
+        public double MaximumCalibratedEntityPhaseAdjustedYawResidualDegrees => telemetry.MaximumCalibratedEntityPhaseAdjustedYawResidualDegrees;
+
+        public double MaximumAuthoritativeYawDeltaDegrees => telemetry.MaximumAuthoritativeYawDeltaDegrees;
+
+        public double MaximumEntityRawLagExcessDegrees => telemetry.MaximumEntityRawLagExcessDegrees;
+
+        public long PhaseLagObservedCount => telemetry.PhaseLagObservedCount;
+
+        public long PhaseLagPermittedCount => telemetry.PhaseLagPermittedCount;
+
+        public long PhaseLagSameFrameUpdateReferenceCount => telemetry.PhaseLagSameFrameUpdateReferenceCount;
+
+        public long PhaseLagEligibleReferenceCount => telemetry.PhaseLagEligibleReferenceCount;
+
+        public long PhaseLagViolationCount => telemetry.PhaseLagViolationCount;
+
+        public long PhaseLagRecoveryRequiredCount => telemetry.PhaseLagRecoveryRequiredCount;
+
+        public long PhaseLagRecoveryUpdateCount => telemetry.PhaseLagRecoveryUpdateCount;
+
+        public long PhaseLagRecoverySatisfiedCount => telemetry.PhaseLagRecoverySatisfiedCount;
+
+        public long PhaseLagRecoveryViolationCount => telemetry.PhaseLagRecoveryViolationCount;
+
+        public long StationaryYawCorrectionViolationCount => telemetry.StationaryYawCorrectionViolationCount;
+
+        public long OutstandingPhaseLagRecoveryCount => telemetry.OutstandingPhaseLagRecoveryCount;
+
+        public long MaximumConsecutiveUnrecoveredPhaseLagCount => telemetry.MaximumConsecutiveUnrecoveredPhaseLagCount;
+
         public bool IsConfigured => configured;
 
         public MovementSynchronizationQualification QualifySynchronization(
@@ -103,6 +149,31 @@ namespace KingmakerMountedCombat.Integration
 
         public Quaternion ExpectedRotation => anchor == null ? Quaternion.identity : anchor.rotation * Quaternion.Euler(localEulerRotation);
 
+        public MovementSynchronizationBoundarySnapshot CaptureBoundarySnapshot()
+        {
+            if (!configured || Unit == null || Unit.EntityData == null || mount == null || mount.View == null || anchor == null)
+            {
+                throw new System.InvalidOperationException("Mounted synchronization boundary is not fully configured.");
+            }
+
+            var expectedPosition = ExpectedPosition;
+            var expectedRotation = ExpectedRotation;
+            var viewPosition = Unit.transform.position;
+            var entityPosition = Unit.EntityData.Position;
+            var viewPositionResidual = MovementTelemetrySample.CalculateDistance(
+                expectedPosition.x, expectedPosition.y, expectedPosition.z,
+                viewPosition.x, viewPosition.y, viewPosition.z);
+            var entityPositionResidual = MovementTelemetrySample.CalculateDistance(
+                expectedPosition.x, expectedPosition.y, expectedPosition.z,
+                entityPosition.x, entityPosition.y, entityPosition.z);
+            return new MovementSynchronizationBoundarySnapshot(
+                System.Math.Max(viewPositionResidual, entityPositionResidual),
+                Quaternion.Angle(expectedRotation, Unit.transform.rotation),
+                MovementTelemetrySample.CalculateAngleDelta(expectedRotation.eulerAngles.y, Unit.transform.rotation.eulerAngles.y),
+                MovementTelemetrySample.CalculateAngleDelta(expectedRotation.eulerAngles.y, Unit.EntityData.Orientation),
+                MovementTelemetrySample.CalculateAngleDelta(expectedRotation.eulerAngles.y, mount.Orientation + localEulerRotation.y));
+        }
+
         public void Configure(UnitEntityData mountUnit, Transform mountAnchor, Vector3 offset, Vector3 eulerRotation)
         {
             mount = mountUnit;
@@ -111,6 +182,7 @@ namespace KingmakerMountedCombat.Integration
             localEulerRotation = eulerRotation;
             configured = true;
             telemetry = new MovementSynchronizationTelemetryAccumulator();
+            yawPhaseTracker = new MovementYawPhaseTracker();
             Synchronize(MovementSynchronizationPhase.InitialConfiguration);
         }
 
@@ -177,9 +249,15 @@ namespace KingmakerMountedCombat.Integration
             var preCorrectionViewPositionResidual = MovementTelemetrySample.CalculateDistance(expectedPosition.x, expectedPosition.y, expectedPosition.z, preCorrectionPosition.x, preCorrectionPosition.y, preCorrectionPosition.z);
             var preCorrectionEntityPositionResidual = MovementTelemetrySample.CalculateDistance(expectedPosition.x, expectedPosition.y, expectedPosition.z, preCorrectionEntityPosition.x, preCorrectionEntityPosition.y, preCorrectionEntityPosition.z);
             var preCorrectionPositionResidual = System.Math.Max(preCorrectionViewPositionResidual, preCorrectionEntityPositionResidual);
-            var preCorrectionViewRotationResidual = Quaternion.Angle(expectedRotation, Unit.transform.rotation);
-            var preCorrectionEntityRotationResidual = MovementTelemetrySample.CalculateAngleDelta(expectedRotation.eulerAngles.y, Unit.EntityData.Orientation);
-            var preCorrectionRotationResidual = System.Math.Max(preCorrectionViewRotationResidual, preCorrectionEntityRotationResidual);
+            var preCorrectionFullViewRotationResidual = Quaternion.Angle(expectedRotation, Unit.transform.rotation);
+            var yawObservation = yawPhaseTracker.Observe(
+                Time.frameCount,
+                phase,
+                expectedRotation.eulerAngles.y,
+                mount.Orientation + localEulerRotation.y,
+                Unit.transform.rotation.eulerAngles.y,
+                Unit.EntityData.Orientation,
+                MaximumYawResidualDegrees);
             Unit.transform.position = expectedPosition;
             Unit.transform.rotation = expectedRotation;
             Unit.EntityData.Position = expectedPosition;
@@ -191,14 +269,15 @@ namespace KingmakerMountedCombat.Integration
             var postCorrectionPositionResidual = System.Math.Max(postCorrectionViewPositionResidual, postCorrectionEntityPositionResidual);
             var postCorrectionViewRotationResidual = Quaternion.Angle(expectedRotation, Unit.transform.rotation);
             var postCorrectionEntityRotationResidual = MovementTelemetrySample.CalculateAngleDelta(expectedRotation.eulerAngles.y, Unit.EntityData.Orientation);
-            var postCorrectionRotationResidual = System.Math.Max(postCorrectionViewRotationResidual, postCorrectionEntityRotationResidual);
             telemetry.Observe(new MovementSynchronizationSample(
                 telemetry.SampleCount,
                 phase,
                 preCorrectionPositionResidual,
-                preCorrectionRotationResidual,
+                yawObservation,
+                preCorrectionFullViewRotationResidual,
                 postCorrectionPositionResidual,
-                postCorrectionRotationResidual));
+                postCorrectionViewRotationResidual,
+                postCorrectionEntityRotationResidual));
         }
 
         private void ResetVelocity()

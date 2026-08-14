@@ -77,6 +77,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (rider == null || mount == null || agent == null || !agent.IsConfigured || string.IsNullOrEmpty(row)) { return; }
             var expected = agent.ExpectedPosition;
             var expectedRotation = agent.ExpectedRotation;
+            var yaw = agent.LatestYawObservation;
             var selected = SelectionManager.Instance?.SelectedUnits;
             var mountAgent = mount.View?.AgentASP;
             var mountPath = mountAgent?.Path;
@@ -145,6 +146,43 @@ namespace KingmakerMountedCombat.Diagnostics
                 riderEntityPositionResidualWorldUnits = riderEntityPositionResidual,
                 riderViewRotationResidualDegrees = riderViewRotationResidual,
                 riderEntityRotationResidualDegrees = riderEntityRotationResidual,
+                latestSynchronizationFrame = yaw?.Frame,
+                latestAuthoritativeYawSequence = yaw?.AuthoritativeYawSequence,
+                latestCurrentAuthoritativeYawDegrees = yaw?.CurrentAuthoritativeYawDegrees,
+                latestCurrentMountEntityAuthoritativeYawDegrees = yaw?.MountEntityAuthoritativeYawDegrees,
+                latestMountEntityRootYawResidualDegrees = yaw?.MountEntityRootYawResidualDegrees,
+                latestPreviousAuthoritativeYawSequence = yaw?.PreviousAuthoritativeYawSequence,
+                latestPreviousAuthoritativeYawDegrees = yaw?.PreviousAuthoritativeYawDegrees,
+                latestPreviousAuthoritativeFrame = yaw?.PreviousAuthoritativeFrame,
+                latestPreviousAuthoritativePhase = yaw?.PreviousAuthoritativePhase?.ToString(),
+                latestPreviousAuthoritativeReferenceKind = yaw == null
+                    ? null
+                    : yaw.PreviousAuthoritativeSameFrame && yaw.PreviousAuthoritativePhase == Domain.MovementSynchronizationPhase.Update
+                        ? "same-frame-update"
+                        : yaw.PreviousAuthoritativePhase == Domain.MovementSynchronizationPhase.Update
+                            ? "prior-frame-update"
+                            : "none",
+                latestPreviousAuthoritativeSameFrame = yaw?.PreviousAuthoritativeSameFrame,
+                latestPreviousAuthoritativeReferenceEligible = yaw?.PreviousAuthoritativeReferenceEligible,
+                latestAuthoritativeYawDeltaDegrees = yaw?.AuthoritativeYawDeltaDegrees,
+                latestViewCurrentYawResidualDegrees = yaw?.ViewCurrentYawResidualDegrees,
+                latestFullViewCurrentRotationResidualDegrees = agent.LatestPreCorrectionFullViewCurrentRotationResidualDegrees,
+                latestEntityRawCurrentYawResidualDegrees = yaw?.EntityRawCurrentYawResidualDegrees,
+                latestEntityPreviousAuthoritativeYawResidualDegrees = yaw?.EntityPreviousAuthoritativeYawResidualDegrees,
+                latestEntityPhaseAdjustedYawResidualDegrees = yaw?.EntityPhaseAdjustedYawResidualDegrees,
+                latestEntityRawLagBoundDegrees = yaw?.EntityRawLagBoundDegrees,
+                latestEntityRawLagExcessDegrees = yaw?.EntityRawLagExcessDegrees,
+                latestEntityYawAuthorityAgeSteps = yaw?.EntityYawAuthorityAgeSteps,
+                latestPhaseLagObserved = yaw?.PhaseLagObserved,
+                latestPhaseLagPermitted = yaw?.PhaseLagPermitted,
+                latestPhaseLagViolation = yaw?.PhaseLagViolation,
+                latestRecoveryRequiredBeforeSample = yaw?.RecoveryRequiredBeforeSample,
+                latestRecoveryUpdateObserved = yaw?.RecoveryUpdateObserved,
+                latestRecoverySatisfied = yaw?.RecoverySatisfied,
+                latestRecoveryViolation = yaw?.RecoveryViolation,
+                latestRecoveryPendingAfterSample = yaw?.RecoveryPendingAfterSample,
+                latestStationaryAuthority = yaw?.StationaryAuthority,
+                latestStationaryYawCorrectionViolation = yaw?.StationaryYawCorrectionViolation,
                 riderSelected = selected != null && selected.Contains(rider),
                 mountSelected = selected != null && selected.Contains(mount),
                 selectedUnitIds = selected == null ? new string[0] : selected.Where(unit => unit != null).Select(unit => unit.UniqueId).ToArray(),
@@ -189,6 +227,27 @@ namespace KingmakerMountedCombat.Diagnostics
                 maximumLateUpdatePreCorrectionRotationResidualDegrees = agent.MaximumLateUpdatePreCorrectionRotationResidualDegrees,
                 maximumLateUpdatePostCorrectionPositionResidualWorldUnits = agent.MaximumLateUpdatePostCorrectionPositionResidualWorldUnits,
                 maximumLateUpdatePostCorrectionRotationResidualDegrees = agent.MaximumLateUpdatePostCorrectionRotationResidualDegrees,
+                maximumCalibratedViewCurrentYawResidualDegrees = agent.MaximumCalibratedViewCurrentYawResidualDegrees,
+                maximumCalibratedFullViewCurrentRotationResidualDegrees = agent.MaximumCalibratedFullViewCurrentRotationResidualDegrees,
+                maximumCalibratedMountEntityRootYawResidualDegrees = agent.MaximumCalibratedMountEntityRootYawResidualDegrees,
+                maximumCalibratedEntityRawCurrentYawResidualDegrees = agent.MaximumCalibratedEntityRawCurrentYawResidualDegrees,
+                maximumCalibratedEntityPreviousAuthoritativeYawResidualDegrees = agent.MaximumCalibratedEntityPreviousAuthoritativeYawResidualDegrees,
+                maximumCalibratedEntityPhaseAdjustedYawResidualDegrees = agent.MaximumCalibratedEntityPhaseAdjustedYawResidualDegrees,
+                maximumAuthoritativeYawDeltaDegrees = agent.MaximumAuthoritativeYawDeltaDegrees,
+                maximumEntityRawLagExcessDegrees = agent.MaximumEntityRawLagExcessDegrees,
+                entityRawLagArithmeticCoherenceEpsilonDegrees = Domain.MovementYawPhaseTracker.RawLagArithmeticCoherenceEpsilonDegrees,
+                phaseLagObservedCount = agent.PhaseLagObservedCount,
+                phaseLagPermittedCount = agent.PhaseLagPermittedCount,
+                phaseLagSameFrameUpdateReferenceCount = agent.PhaseLagSameFrameUpdateReferenceCount,
+                phaseLagEligibleReferenceCount = agent.PhaseLagEligibleReferenceCount,
+                phaseLagViolationCount = agent.PhaseLagViolationCount,
+                phaseLagRecoveryRequiredCount = agent.PhaseLagRecoveryRequiredCount,
+                phaseLagRecoveryUpdateCount = agent.PhaseLagRecoveryUpdateCount,
+                phaseLagRecoverySatisfiedCount = agent.PhaseLagRecoverySatisfiedCount,
+                phaseLagRecoveryViolationCount = agent.PhaseLagRecoveryViolationCount,
+                stationaryYawCorrectionViolationCount = agent.StationaryYawCorrectionViolationCount,
+                outstandingPhaseLagRecoveryCount = agent.OutstandingPhaseLagRecoveryCount,
+                maximumConsecutiveUnrecoveredPhaseLagCount = agent.MaximumConsecutiveUnrecoveredPhaseLagCount,
                 maximumResidualWorldUnits = agent.MaximumResidualWorldUnits,
                 maximumRotationResidualDegrees = agent.MaximumRotationResidualDegrees
             };
