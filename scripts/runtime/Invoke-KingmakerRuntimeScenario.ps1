@@ -15,6 +15,12 @@ param(
     [ValidateRange(360,900)][int]$TimeoutSeconds=360,
     [switch]$SaveAccessAllowed,
     [string]$PackagePath,
+    [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedCurrentQualificationSha256,
+    [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedSupersededWorkingSha256,
+    [string]$PriorSaveTransactionStatePath,
+    [ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$ExpectedPriorSaveTransactionRunId,
+    [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPriorSaveTransactionStateSha256,
+    [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPriorSaveMetadataDigest,
     [string]$SteamPath='C:\Program Files (x86)\Steam\steam.exe'
 )
 
@@ -37,6 +43,20 @@ $saveRoot=[string]$intake.requestedLayout.kingmakerSaveRoot
 $gameExecutable=Join-Path ([string]$intake.requestedLayout.kingmakerInstallDir) 'Kingmaker.exe'
 $expectedGameExecutableHash=[string](@($fingerprint.kingmaker.files|Where-Object role -eq 'executable')[0].sha256)
 $isSaveBacked=[string]$Scenario -cne 'mod-load-smoke'
+$continuityPinNames=@(
+    'ExpectedCurrentQualificationSha256','ExpectedSupersededWorkingSha256','PriorSaveTransactionStatePath',
+    'ExpectedPriorSaveTransactionRunId','ExpectedPriorSaveTransactionStateSha256','ExpectedPriorSaveMetadataDigest'
+)
+$boundContinuityPinNames=@($continuityPinNames|Where-Object{$PSBoundParameters.ContainsKey($_)})
+[void](Assert-KmcRuntimeContinuityPinCombination `
+    -IsSaveBacked $isSaveBacked `
+    -BoundContinuityPinNames $boundContinuityPinNames `
+    -ExpectedCurrentQualificationSha256 $ExpectedCurrentQualificationSha256 `
+    -ExpectedSupersededWorkingSha256 $ExpectedSupersededWorkingSha256 `
+    -PriorSaveTransactionStatePath $PriorSaveTransactionStatePath `
+    -ExpectedPriorSaveTransactionRunId $ExpectedPriorSaveTransactionRunId `
+    -ExpectedPriorSaveTransactionStateSha256 $ExpectedPriorSaveTransactionStateSha256 `
+    -ExpectedPriorSaveMetadataDigest $ExpectedPriorSaveMetadataDigest)
 
 if($isSaveBacked -and -not $SaveAccessAllowed){
     throw 'A save-backed Phase 1 scenario requires the explicit -SaveAccessAllowed operator gate; it authorizes only the exact qualified Working fixture.'
@@ -63,10 +83,21 @@ if(Test-Path -LiteralPath (Join-Path $runtimeState 'active-transaction.lock')){t
 # before ShouldProcess so WhatIf proves descriptor validation without granting a
 # load or mutation solely from a filename or scenario name.
 $qualificationPath=Assert-KmcChildPath (Join-Path $runtimeState 'fixture-qualification.json') $runtimeState 'fixture qualification'
+$preflightContinuity=$null
 $preflightPair=$null
 $fixturePayload=$null
 if($isSaveBacked){
-    $preflightPair=Assert-KmcFixturePair -SaveRoot $saveRoot -QualificationPath $qualificationPath
+    $preflightContinuity=Assert-KmcQualifiedWorkingPriorInventoryContinuity `
+        -SaveRoot $saveRoot `
+        -StateRoot $runtimeState `
+        -QualificationPath $qualificationPath `
+        -ExpectedCurrentQualificationSha256 $ExpectedCurrentQualificationSha256 `
+        -ExpectedSupersededWorkingSha256 $ExpectedSupersededWorkingSha256 `
+        -PriorSaveTransactionStatePath $PriorSaveTransactionStatePath `
+        -ExpectedPriorSaveTransactionRunId $ExpectedPriorSaveTransactionRunId `
+        -ExpectedPriorSaveTransactionStateSha256 $ExpectedPriorSaveTransactionStateSha256 `
+        -ExpectedPriorSaveMetadataDigest $ExpectedPriorSaveMetadataDigest
+    $preflightPair=$preflightContinuity.pair
     $fixturePayload=New-KmcRuntimeFixturePayload $preflightPair
 }
 $beforeRoots=@(
@@ -75,10 +106,36 @@ $beforeRoots=@(
     (Get-KmcDirectoryManifest $liveMods)
 )
 $beforeSaves=Get-KmcSaveMetadataInventory $saveRoot
+if($isSaveBacked){
+    Assert-KmcSaveMetadataInventoriesEqual `
+        -Before $preflightContinuity.saveMetadata `
+        -After $beforeSaves `
+        -Description 'runtime preflight fixture-continuity save metadata'
+}
 $WhatIfPreference=$requestedWhatIf
 $action=if($isSaveBacked){"run guarded KMC $Scenario against Working fixture only"}else{'run guarded KMC mod-load-smoke'}
 if(-not $PSCmdlet.ShouldProcess('Steam App 640820, exact live Kingmaker Mods, and guarded KMC save policy',$action)){
     $WhatIfPreference=$false
+    if($isSaveBacked){
+        $whatIfContinuity=Assert-KmcQualifiedWorkingPriorInventoryContinuity `
+            -SaveRoot $saveRoot `
+            -StateRoot $runtimeState `
+            -QualificationPath $qualificationPath `
+            -ExpectedCurrentQualificationSha256 $ExpectedCurrentQualificationSha256 `
+            -ExpectedSupersededWorkingSha256 $ExpectedSupersededWorkingSha256 `
+            -PriorSaveTransactionStatePath $PriorSaveTransactionStatePath `
+            -ExpectedPriorSaveTransactionRunId $ExpectedPriorSaveTransactionRunId `
+            -ExpectedPriorSaveTransactionStateSha256 $ExpectedPriorSaveTransactionStateSha256 `
+            -ExpectedPriorSaveMetadataDigest $ExpectedPriorSaveMetadataDigest
+        if((New-KmcRuntimeFixturePayload $whatIfContinuity.pair|ConvertTo-Json -Depth 10 -Compress)-cne
+            ($fixturePayload|ConvertTo-Json -Depth 10 -Compress)){
+            throw 'KMC fixture identity changed during runtime WhatIf continuity validation.'
+        }
+        Assert-KmcSaveMetadataInventoriesEqual `
+            -Before $beforeSaves `
+            -After $whatIfContinuity.saveMetadata `
+            -Description 'runtime WhatIf fixture-continuity save metadata'
+    }
     $afterRoots=@(
         (Get-KmcDirectoryManifest $runtimeState),(Get-KmcDirectoryManifest $runtimeBackups),
         (Get-KmcDirectoryManifest $runtimeStaging),(Get-KmcDirectoryManifest $runtimeEvidence),
@@ -138,19 +195,41 @@ try{
     }
     if($isSaveBacked){$request['fixture']=$fixturePayload}else{$request['saveAccessAllowed']=$false;$request['saveName']=$null}
 
-    # Re-run the exact fixture qualification while holding the runtime lock, then
-    # freeze Working before Mods staging. Enter-KmcWorkingSaveTransaction performs
-    # a third immediate descriptor check before its backup becomes authoritative.
     if($isSaveBacked){
-        $lockedPair=Assert-KmcFixturePair -SaveRoot $saveRoot -QualificationPath $qualificationPath
+        # Recovery can restore an interrupted transaction, but never confers
+        # runtime admission. Re-prove the caller-pinned prior-to-current Working-
+        # only transition under this lock before any durable run-state mutation.
+        [void](Assert-KmcRuntimeLockOwner $lock)
+        Assert-KmcNoGameProcesses
+        $lockedContinuity=Assert-KmcQualifiedWorkingPriorInventoryContinuity `
+            -SaveRoot $saveRoot `
+            -StateRoot $runtimeState `
+            -QualificationPath $qualificationPath `
+            -ExpectedCurrentQualificationSha256 $ExpectedCurrentQualificationSha256 `
+            -ExpectedSupersededWorkingSha256 $ExpectedSupersededWorkingSha256 `
+            -PriorSaveTransactionStatePath $PriorSaveTransactionStatePath `
+            -ExpectedPriorSaveTransactionRunId $ExpectedPriorSaveTransactionRunId `
+            -ExpectedPriorSaveTransactionStateSha256 $ExpectedPriorSaveTransactionStateSha256 `
+            -ExpectedPriorSaveMetadataDigest $ExpectedPriorSaveMetadataDigest
+        $lockedPair=$lockedContinuity.pair
         $lockedWorkingPath=[IO.Path]::GetFullPath([string]$lockedPair.working.path)
         $lockedPayload=New-KmcRuntimeFixturePayload $lockedPair
         if(($lockedPayload|ConvertTo-Json -Depth 10 -Compress)-cne($fixturePayload|ConvertTo-Json -Depth 10 -Compress)){
             throw 'KMC fixture identity changed between preflight and locked transaction entry.'
         }
+        Assert-KmcSaveMetadataInventoriesEqual `
+            -Before $beforeSaves `
+            -After $lockedContinuity.saveMetadata `
+            -Description 'runtime locked fixture-continuity save metadata'
     }
     $combinedStatePath=New-KmcRunTransactionState -Lock $lock -Mode $(if($isSaveBacked){'save-backed-v2'}else{'no-save-v1'}) -LiveModsRoot $liveMods -SaveRoot $saveRoot -StateRoot $runtimeState -ModsBefore $beforeRoots[4] -SavesBefore $beforeSaves
     if($isSaveBacked){
+        [void](Assert-KmcRuntimeLockOwner $lock)
+        Assert-KmcNoGameProcesses
+        Assert-KmcSaveMetadataInventoriesEqual `
+            -Before $beforeSaves `
+            -After (Get-KmcSaveMetadataInventory $saveRoot) `
+            -Description 'runtime immediate pre-save-transaction metadata'
         [void](Enter-KmcWorkingSaveTransaction -Lock $lock -Pair $lockedPair -SaveRoot $saveRoot -StateRoot $runtimeState -BackupRoot $runtimeBackups -StagingRoot $runtimeStaging -Scenario $Scenario)
     }
     [void](Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $liveMods -PackagePath $PackagePath -StateRoot $runtimeState -BackupRoot $runtimeBackups -StagingRoot $runtimeStaging)

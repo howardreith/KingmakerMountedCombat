@@ -302,6 +302,381 @@ function Assert-KmcSaveMetadataInventoriesEqual {
     }
 }
 
+function Assert-KmcSaveMetadataInventorySchema {
+    param(
+        [Parameter(Mandatory = $true)]$Inventory,
+        [Parameter(Mandatory = $true)][string]$ExpectedSaveRoot,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedDigest,
+        [Parameter(Mandatory = $true)][string]$Description
+    )
+    if ($Inventory -isnot [pscustomobject]) { throw "$Description is not an exact JSON object." }
+    Assert-KmcExactProperties $Inventory @('schemaVersion','root','fileCount','totalBytes','digest','entries') $Description
+    if ((($Inventory.schemaVersion -isnot [int]) -and ($Inventory.schemaVersion -isnot [long])) -or
+        [long]$Inventory.schemaVersion -ne 2 -or
+        $Inventory.root -isnot [string] -or
+        (($Inventory.fileCount -isnot [int]) -and ($Inventory.fileCount -isnot [long])) -or
+        (($Inventory.totalBytes -isnot [int]) -and ($Inventory.totalBytes -isnot [long])) -or
+        $Inventory.digest -isnot [string] -or
+        $Inventory.entries -isnot [Array]) {
+        throw "$Description schema types are not exact."
+    }
+
+    $fullSaveRoot = [IO.Path]::GetFullPath($ExpectedSaveRoot).TrimEnd('\')
+    $recordedRoot = $null
+    try { $recordedRoot = [IO.Path]::GetFullPath([string]$Inventory.root).TrimEnd('\') }
+    catch { throw "$Description save root is not a valid absolute path." }
+    if (-not [IO.Path]::IsPathRooted([string]$Inventory.root) -or
+        -not [string]::Equals($recordedRoot, $fullSaveRoot, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "$Description save root does not match the caller-pinned save root."
+    }
+
+    $seen = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
+    $fileCount = [long]0
+    $totalBytes = [long]0
+    foreach ($entry in @($Inventory.entries)) {
+        if ($entry -isnot [pscustomobject]) { throw "$Description contains a non-object entry." }
+        Assert-KmcExactProperties $entry @('kind','path','length','lastWriteTimeUtcTicks') "$Description entry"
+        if ($entry.kind -isnot [string] -or $entry.path -isnot [string] -or
+            (($entry.length -isnot [int]) -and ($entry.length -isnot [long])) -or
+            (($entry.lastWriteTimeUtcTicks -isnot [int]) -and ($entry.lastWriteTimeUtcTicks -isnot [long]))) {
+            throw "$Description contains an entry with non-exact schema types."
+        }
+        $kind = [string]$entry.kind
+        $relativePath = [string]$entry.path
+        if ($kind -cnotin @('file','directory','reparse') -or
+            [string]::IsNullOrWhiteSpace($relativePath) -or
+            [IO.Path]::IsPathRooted($relativePath) -or
+            $relativePath.Contains('/') -or $relativePath.Contains('\') -or
+            [IO.Path]::GetFileName($relativePath) -cne $relativePath) {
+            throw "$Description contains an invalid direct-child entry: $relativePath"
+        }
+        $resolvedPath = Assert-KmcChildPath (Join-Path $fullSaveRoot $relativePath) $fullSaveRoot "$Description entry"
+        if (-not [string]::Equals((Split-Path -Parent $resolvedPath), $fullSaveRoot, [StringComparison]::OrdinalIgnoreCase) -or
+            -not $seen.Add($relativePath)) {
+            throw "$Description contains an ambiguous or duplicate entry path: $relativePath"
+        }
+        if ([long]$entry.length -lt 0 -or [long]$entry.lastWriteTimeUtcTicks -le 0 -or
+            ($kind -cne 'file' -and [long]$entry.length -ne 0)) {
+            throw "$Description contains invalid metadata for entry: $relativePath"
+        }
+        if ($kind -ceq 'file') {
+            $fileCount++
+            $totalBytes += [long]$entry.length
+        }
+    }
+
+    $canonical = (@($Inventory.entries) | ForEach-Object {
+        '{0}|{1}|{2}|{3}' -f [string]$_.kind, [string]$_.path, [long]$_.length, [long]$_.lastWriteTimeUtcTicks
+    }) -join "`n"
+    $actualDigest = Get-KmcTextSha256 $canonical
+    if ([long]$Inventory.fileCount -ne $fileCount -or
+        [long]$Inventory.totalBytes -ne $totalBytes -or
+        [string]$Inventory.digest -cne $actualDigest -or
+        [string]$Inventory.digest -cne $ExpectedDigest) {
+        throw "$Description counts, byte total, canonical digest, or caller digest pin do not match."
+    }
+    return $Inventory
+}
+
+function Read-KmcPriorSaveTransactionAuthority {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$StateRoot,
+        [Parameter(Mandatory = $true)][string]$SaveRoot,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$ExpectedRunId,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedStateSha256,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedInventoryDigest,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedBaselineSha256,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedSupersededWorkingSha256,
+        [Parameter(Mandatory = $true)]$CurrentPair
+    )
+    $fullStateRoot = [IO.Path]::GetFullPath($StateRoot).TrimEnd('\')
+    $transactionRoot = Assert-KmcChildPath (Join-Path $fullStateRoot 'save-transactions') $fullStateRoot 'prior save-transaction authority root'
+    if (-not (Test-Path -LiteralPath $transactionRoot -PathType Container)) {
+        throw "Prior save-transaction authority root is missing: $transactionRoot"
+    }
+    Assert-KmcNotReparsePoint $transactionRoot 'prior save-transaction authority root'
+    $expectedPath = Assert-KmcChildPath (Join-Path $transactionRoot ($ExpectedRunId + '.json')) $transactionRoot 'prior save-transaction authority'
+    $fullPath = [IO.Path]::GetFullPath($Path)
+    if (-not [string]::Equals($fullPath, $expectedPath, [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Prior save-transaction authority path does not match the exact caller-pinned run identity.'
+    }
+    Assert-KmcRecoveryLeafNoLinks $fullPath 'prior save-transaction authority'
+    $metadataBefore = Get-Item -LiteralPath $fullPath -Force
+    if ($metadataBefore.Length -le 0 -or $metadataBefore.Length -gt 4MB -or
+        (Get-KmcSha256 $fullPath) -cne $ExpectedStateSha256) {
+        throw 'Prior save-transaction authority size or SHA-256 differs from the explicit pin.'
+    }
+    $authorityBytes = [IO.File]::ReadAllBytes($fullPath)
+    if ($authorityBytes.Length -ne $metadataBefore.Length) {
+        throw 'Prior save-transaction authority length changed while its bytes were being captured.'
+    }
+    $strictUtf8 = New-Object Text.UTF8Encoding($false, $true)
+    try { $json = $strictUtf8.GetString($authorityBytes) }
+    catch [Text.DecoderFallbackException] { throw 'Prior save-transaction authority is not strict UTF-8.' }
+    Assert-KmcJsonObjectMembersUnique -Json $json -Description 'prior save-transaction authority'
+    $state = $json | ConvertFrom-Json
+    $metadataAfter = Get-Item -LiteralPath $fullPath -Force
+    if ($metadataAfter.Length -ne $metadataBefore.Length -or
+        $metadataAfter.LastWriteTimeUtc.Ticks -ne $metadataBefore.LastWriteTimeUtc.Ticks -or
+        (Get-KmcSha256 $fullPath) -cne $ExpectedStateSha256) {
+        throw 'Prior save-transaction authority changed while it was being validated.'
+    }
+
+    $properties = @(
+        'schemaVersion','runId','token','phase','preparedAtUtc','scenario','maxRuntimeArchiveWrites','saveRoot',
+        'baselinePath','baselineSha256','baselineLength','baselineLastWriteTimeUtcTicks',
+        'expectedGameName','expectedGameId','expectedArea','workingPath','workingSha256','workingLength',
+        'workingLastWriteTimeUtcTicks','backupPath','backupSha256','backupLength','artifactQuarantineRoot',
+        'beforeInventory','restoreStartedAtUtc','saveWriteAllowlistPassed','runtimeInventoryDigest','workingDisposition',
+        'artifactPlan','artifactPlanDigest','recoveryPlannedAtUtc','baselineImmutable','artifactsQuarantinedAtUtc',
+        'workingRestoredAtUtc','restoredInventoryDigest','restoredAtUtc'
+    )
+    if ($state -isnot [pscustomobject]) { throw 'Prior save-transaction authority is not an exact JSON object.' }
+    Assert-KmcExactProperties $state $properties 'prior save-transaction authority'
+    if ((($state.schemaVersion -isnot [int]) -and ($state.schemaVersion -isnot [long])) -or
+        [long]$state.schemaVersion -ne 2 -or
+        $state.runId -isnot [string] -or [string]$state.runId -cne $ExpectedRunId -or
+        $state.phase -isnot [string] -or [string]$state.phase -cne 'restored' -or
+        $state.saveRoot -isnot [string] -or
+        $state.baselinePath -isnot [string] -or $state.workingPath -isnot [string] -or
+        $state.baselineSha256 -isnot [string] -or $state.workingSha256 -isnot [string] -or
+        $state.restoredInventoryDigest -isnot [string] -or
+        $state.baselineImmutable -isnot [bool] -or -not [bool]$state.baselineImmutable -or
+        $state.saveWriteAllowlistPassed -isnot [bool] -or -not [bool]$state.saveWriteAllowlistPassed) {
+        throw 'Prior save-transaction authority schema, terminal phase, identity, or restoration flags are invalid.'
+    }
+
+    $fullSaveRoot = [IO.Path]::GetFullPath($SaveRoot).TrimEnd('\')
+    $recordedSaveRoot = $null
+    try { $recordedSaveRoot = [IO.Path]::GetFullPath([string]$state.saveRoot).TrimEnd('\') }
+    catch { throw 'Prior save-transaction authority contains an invalid save root.' }
+    if (-not [string]::Equals($recordedSaveRoot, $fullSaveRoot, [StringComparison]::OrdinalIgnoreCase) -or
+        -not [string]::Equals([IO.Path]::GetFullPath([string]$state.baselinePath), [string]$CurrentPair.baseline.path, [StringComparison]::OrdinalIgnoreCase) -or
+        -not [string]::Equals([IO.Path]::GetFullPath([string]$state.workingPath), [string]$CurrentPair.working.path, [StringComparison]::OrdinalIgnoreCase) -or
+        [string]$state.baselineSha256 -cne $ExpectedBaselineSha256 -or
+        [string]$CurrentPair.baseline.sha256 -cne $ExpectedBaselineSha256 -or
+        [string]$state.workingSha256 -cne $ExpectedSupersededWorkingSha256 -or
+        [string]$state.backupSha256 -cne $ExpectedSupersededWorkingSha256 -or
+        [long]$state.backupLength -ne [long]$state.workingLength -or
+        [string]$state.restoredInventoryDigest -cne $ExpectedInventoryDigest) {
+        throw 'Prior save-transaction authority root, paths, Baseline, Working, backup, or inventory pins do not match.'
+    }
+
+    $inventory = Assert-KmcSaveMetadataInventorySchema `
+        -Inventory $state.beforeInventory `
+        -ExpectedSaveRoot $fullSaveRoot `
+        -ExpectedDigest $ExpectedInventoryDigest `
+        -Description 'prior save-transaction metadata inventory'
+    $map = @{}
+    foreach ($entry in @($inventory.entries)) { $map[[string]$entry.path] = $entry }
+    $baselineRelative = [IO.Path]::GetFileName([string]$CurrentPair.baseline.path)
+    $workingRelative = [IO.Path]::GetFileName([string]$CurrentPair.working.path)
+    $priorBaseline = $map[$baselineRelative]
+    $priorWorking = $map[$workingRelative]
+    if ($null -eq $priorBaseline -or $null -eq $priorWorking -or
+        [string]$priorBaseline.kind -cne 'file' -or [string]$priorBaseline.path -cne $baselineRelative -or
+        [long]$priorBaseline.length -ne [long]$state.baselineLength -or
+        [long]$priorBaseline.lastWriteTimeUtcTicks -ne [long]$state.baselineLastWriteTimeUtcTicks -or
+        [long]$priorBaseline.length -ne [long]$CurrentPair.baseline.length -or
+        [long]$priorBaseline.lastWriteTimeUtcTicks -ne [long]$CurrentPair.baseline.lastWriteTimeUtcTicks -or
+        [string]$priorWorking.kind -cne 'file' -or [string]$priorWorking.path -cne $workingRelative -or
+        [long]$priorWorking.length -ne [long]$state.workingLength -or
+        [long]$priorWorking.lastWriteTimeUtcTicks -ne [long]$state.workingLastWriteTimeUtcTicks) {
+        throw 'Prior save-transaction inventory does not contain the exact pinned Baseline and superseded Working metadata.'
+    }
+    return [pscustomobject]@{
+        schemaVersion = 1
+        statePath = $fullPath
+        stateSha256 = $ExpectedStateSha256
+        runId = $ExpectedRunId
+        inventory = $inventory
+        inventoryDigest = $ExpectedInventoryDigest
+        workingRelativePath = $workingRelative
+        priorWorkingLength = [long]$state.workingLength
+        priorWorkingLastWriteTimeUtcTicks = [long]$state.workingLastWriteTimeUtcTicks
+    }
+}
+
+function Assert-KmcWorkingOnlyPriorInventoryTransition {
+    param(
+        [Parameter(Mandatory = $true)]$PriorAuthority,
+        [Parameter(Mandatory = $true)]$CurrentInventory,
+        [Parameter(Mandatory = $true)]$CurrentPair,
+        [Parameter(Mandatory = $true)][string]$SaveRoot,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedRevisedWorkingSha256
+    )
+    [void](Assert-KmcSaveMetadataInventorySchema `
+        -Inventory $CurrentInventory `
+        -ExpectedSaveRoot $SaveRoot `
+        -ExpectedDigest ([string]$CurrentInventory.digest) `
+        -Description 'current save metadata inventory')
+    if ([string]$CurrentPair.working.sha256 -cne $ExpectedRevisedWorkingSha256) {
+        throw 'Current Working SHA-256 differs from the explicit revised pin during inventory continuity validation.'
+    }
+    $allowlist = Assert-KmcSaveWriteAllowlist `
+        -Before $PriorAuthority.inventory `
+        -After $CurrentInventory `
+        -WorkingPath ([string]$CurrentPair.working.path)
+    if (-not [bool]$allowlist.workingChanged -or @($allowlist.changedPaths).Count -ne 1 -or
+        [string]@($allowlist.changedPaths)[0] -cne [string]$PriorAuthority.workingRelativePath) {
+        throw 'Pinned prior-to-current save metadata does not contain exactly one Working-path transition.'
+    }
+
+    $priorMap = @{}
+    foreach ($entry in @($PriorAuthority.inventory.entries)) { $priorMap[[string]$entry.path] = $entry }
+    $currentMap = @{}
+    foreach ($entry in @($CurrentInventory.entries)) { $currentMap[[string]$entry.path] = $entry }
+    $allPaths = @($priorMap.Keys + $currentMap.Keys | Sort-Object -Unique)
+    $changed = @($allPaths | Where-Object {
+        $prior = $priorMap[$_]
+        $current = $currentMap[$_]
+        $null -eq $prior -or $null -eq $current -or
+            [string]$prior.kind -cne [string]$current.kind -or
+            [string]$prior.path -cne [string]$current.path -or
+            [long]$prior.length -ne [long]$current.length -or
+            [long]$prior.lastWriteTimeUtcTicks -ne [long]$current.lastWriteTimeUtcTicks
+    })
+    $workingRelative = [string]$PriorAuthority.workingRelativePath
+    if ($changed.Count -ne 1 -or [string]$changed[0] -cne $workingRelative) {
+        $description = if ($changed.Count -eq 0) { '<none>' } else { $changed -join ', ' }
+        throw "Pinned prior-to-current save metadata contains unauthorized or ambiguous drift; expected only $workingRelative, changed: $description"
+    }
+    $currentWorking = $currentMap[$workingRelative]
+    if ($null -eq $currentWorking -or [string]$currentWorking.kind -cne 'file' -or
+        [string]$currentWorking.path -cne $workingRelative -or
+        [long]$currentWorking.length -ne [long]$CurrentPair.working.length -or
+        [long]$currentWorking.lastWriteTimeUtcTicks -ne [long]$CurrentPair.working.lastWriteTimeUtcTicks) {
+        throw 'Current save inventory does not contain the exact revised Working metadata.'
+    }
+    return [pscustomobject]@{
+        schemaVersion = 1
+        priorInventoryDigest = [string]$PriorAuthority.inventoryDigest
+        currentInventoryDigest = [string]$CurrentInventory.digest
+        changedPath = $workingRelative
+    }
+}
+
+function Assert-KmcRuntimeContinuityPinCombination {
+    param(
+        [Parameter(Mandatory = $true)][bool]$IsSaveBacked,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][string[]]$BoundContinuityPinNames,
+        [string]$ExpectedCurrentQualificationSha256,
+        [string]$ExpectedSupersededWorkingSha256,
+        [string]$PriorSaveTransactionStatePath,
+        [string]$ExpectedPriorSaveTransactionRunId,
+        [string]$ExpectedPriorSaveTransactionStateSha256,
+        [string]$ExpectedPriorSaveMetadataDigest
+    )
+    $values = @(
+        $ExpectedCurrentQualificationSha256,
+        $ExpectedSupersededWorkingSha256,
+        $PriorSaveTransactionStatePath,
+        $ExpectedPriorSaveTransactionRunId,
+        $ExpectedPriorSaveTransactionStateSha256,
+        $ExpectedPriorSaveMetadataDigest
+    )
+    $pinNames = @(
+        'ExpectedCurrentQualificationSha256',
+        'ExpectedSupersededWorkingSha256',
+        'PriorSaveTransactionStatePath',
+        'ExpectedPriorSaveTransactionRunId',
+        'ExpectedPriorSaveTransactionStateSha256',
+        'ExpectedPriorSaveMetadataDigest'
+    )
+    $unknownOrDuplicateNames = @($BoundContinuityPinNames | Group-Object | Where-Object {
+        $group = $_
+        $group.Count -ne 1 -or @($pinNames | Where-Object { $_ -ceq [string]$group.Name }).Count -ne 1
+    })
+    if ($unknownOrDuplicateNames.Count -ne 0) {
+        throw 'Runtime fixture-continuity bound-parameter identity is invalid or ambiguous.'
+    }
+    $present = @($values | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }).Count
+    if ($IsSaveBacked -and ($present -ne $values.Count -or $BoundContinuityPinNames.Count -ne $pinNames.Count)) {
+        throw 'A save-backed runtime scenario requires every exact fixture-continuity pin.'
+    }
+    if (-not $IsSaveBacked -and ($present -ne 0 -or $BoundContinuityPinNames.Count -ne 0)) {
+        throw 'A no-save runtime scenario rejects every fixture-continuity pin.'
+    }
+    return $true
+}
+
+function Assert-KmcQualifiedWorkingPriorInventoryContinuity {
+    param(
+        [Parameter(Mandatory = $true)][string]$SaveRoot,
+        [Parameter(Mandatory = $true)][string]$StateRoot,
+        [Parameter(Mandatory = $true)][string]$QualificationPath,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedCurrentQualificationSha256,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedSupersededWorkingSha256,
+        [Parameter(Mandatory = $true)][string]$PriorSaveTransactionStatePath,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$ExpectedPriorSaveTransactionRunId,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPriorSaveTransactionStateSha256,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPriorSaveMetadataDigest
+    )
+    $fullSaveRoot = [IO.Path]::GetFullPath($SaveRoot).TrimEnd('\')
+    $fullStateRoot = [IO.Path]::GetFullPath($StateRoot).TrimEnd('\')
+    Assert-KmcPathsDoNotOverlap -First $fullSaveRoot -Second $fullStateRoot -Description 'KMC save and runtime-state roots'
+    $fullQualificationPath = [IO.Path]::GetFullPath($QualificationPath)
+    $expectedQualificationPath = Assert-KmcChildPath (Join-Path $fullStateRoot 'fixture-qualification.json') $fullStateRoot 'fixture qualification'
+    if (-not [string]::Equals($fullQualificationPath, $expectedQualificationPath, [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Fixture-continuity qualification path is not the exact runtime-state fixture-qualification.json.'
+    }
+    Assert-KmcNoGameProcesses
+    Assert-KmcRecoveryLeafNoLinks $fullQualificationPath 'current KMC fixture qualification'
+    $qualificationBefore = Get-Item -LiteralPath $fullQualificationPath -Force
+    if ((Get-KmcSha256 $fullQualificationPath) -cne $ExpectedCurrentQualificationSha256) {
+        throw 'Current KMC fixture qualification SHA-256 differs from the explicit runtime pin.'
+    }
+
+    $pair = Assert-KmcFixturePair -SaveRoot $fullSaveRoot -QualificationPath $fullQualificationPath
+    if ([string]$pair.working.sha256 -ceq $ExpectedSupersededWorkingSha256) {
+        throw 'Current and superseded Working SHA-256 pins do not establish a revised fixture.'
+    }
+    $authority = Read-KmcPriorSaveTransactionAuthority `
+        -Path $PriorSaveTransactionStatePath `
+        -StateRoot $fullStateRoot `
+        -SaveRoot $fullSaveRoot `
+        -ExpectedRunId $ExpectedPriorSaveTransactionRunId `
+        -ExpectedStateSha256 $ExpectedPriorSaveTransactionStateSha256 `
+        -ExpectedInventoryDigest $ExpectedPriorSaveMetadataDigest `
+        -ExpectedBaselineSha256 ([string]$pair.baseline.sha256) `
+        -ExpectedSupersededWorkingSha256 $ExpectedSupersededWorkingSha256 `
+        -CurrentPair $pair
+    $currentInventory = Get-KmcSaveMetadataInventory $fullSaveRoot
+    $transition = Assert-KmcWorkingOnlyPriorInventoryTransition `
+        -PriorAuthority $authority `
+        -CurrentInventory $currentInventory `
+        -CurrentPair $pair `
+        -SaveRoot $fullSaveRoot `
+        -ExpectedRevisedWorkingSha256 ([string]$pair.working.sha256)
+
+    Assert-KmcNoGameProcesses
+    $pairAfter = Assert-KmcFixturePair -SaveRoot $fullSaveRoot -QualificationPath $fullQualificationPath
+    $currentInventoryAfter = Get-KmcSaveMetadataInventory $fullSaveRoot
+    Assert-KmcSaveMetadataInventoriesEqual `
+        -Before $currentInventory `
+        -After $currentInventoryAfter `
+        -Description 'fixture-continuity live save metadata'
+    if ((New-KmcRuntimeFixturePayload $pairAfter | ConvertTo-Json -Depth 10 -Compress) -cne
+        (New-KmcRuntimeFixturePayload $pair | ConvertTo-Json -Depth 10 -Compress)) {
+        throw 'KMC fixture identity changed while prior-inventory continuity was being validated.'
+    }
+    $qualificationAfter = Get-Item -LiteralPath $fullQualificationPath -Force
+    if ((Get-KmcSha256 $fullQualificationPath) -cne $ExpectedCurrentQualificationSha256 -or
+        $qualificationAfter.Length -ne $qualificationBefore.Length -or
+        $qualificationAfter.LastWriteTimeUtc.Ticks -ne $qualificationBefore.LastWriteTimeUtc.Ticks) {
+        throw 'Current KMC fixture qualification changed while prior-inventory continuity was being validated.'
+    }
+    return [pscustomobject]@{
+        schemaVersion = 1
+        pair = $pair
+        saveMetadata = $currentInventory
+        priorInventoryDigest = [string]$transition.priorInventoryDigest
+        currentInventoryDigest = [string]$transition.currentInventoryDigest
+        changedPath = [string]$transition.changedPath
+    }
+}
+
 function Assert-KmcPathsDoNotOverlap {
     param(
         [Parameter(Mandatory = $true)][string]$First,
@@ -710,6 +1085,8 @@ function New-KmcWorkingFixtureRequalification {
         existingQualificationSha256 = $actualQualificationSha256
         priorQualifiedAtUtc = [string]$recorded.qualifiedAtUtc
         supersededWorkingSha256 = [string]$recorded.initialWorkingSha256
+        supersededWorkingLength = [long]$recorded.initialWorkingLength
+        supersededWorkingLastWriteTimeUtcTicks = [long]$recorded.initialWorkingLastWriteTimeUtcTicks
         revisedWorkingSha256 = [string]$Pair.working.sha256
         qualification = $replacement
     }
@@ -725,6 +1102,10 @@ function Invoke-KmcWorkingFixtureRequalificationTransaction {
         [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedBaselineSha256,
         [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedSupersededWorkingSha256,
         [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedRevisedWorkingSha256,
+        [Parameter(Mandatory = $true)][string]$PriorSaveTransactionStatePath,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$ExpectedPriorSaveTransactionRunId,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPriorSaveTransactionStateSha256,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPriorSaveMetadataDigest,
         [scriptblock]$BeforeReplacementProbe,
         [scriptblock]$AfterReplacementWriteBeforeStateProbe,
         [scriptblock]$PostWriteProbe,
@@ -762,6 +1143,26 @@ function Invoke-KmcWorkingFixtureRequalificationTransaction {
             -ExpectedBaselineSha256 $ExpectedBaselineSha256 `
             -ExpectedSupersededWorkingSha256 $ExpectedSupersededWorkingSha256 `
             -ExpectedRevisedWorkingSha256 $ExpectedRevisedWorkingSha256
+        $priorAuthority = Read-KmcPriorSaveTransactionAuthority `
+            -Path $PriorSaveTransactionStatePath `
+            -StateRoot $StateRoot `
+            -SaveRoot $SaveRoot `
+            -ExpectedRunId $ExpectedPriorSaveTransactionRunId `
+            -ExpectedStateSha256 $ExpectedPriorSaveTransactionStateSha256 `
+            -ExpectedInventoryDigest $ExpectedPriorSaveMetadataDigest `
+            -ExpectedBaselineSha256 $ExpectedBaselineSha256 `
+            -ExpectedSupersededWorkingSha256 $ExpectedSupersededWorkingSha256 `
+            -CurrentPair $pair
+        if ([long]$priorAuthority.priorWorkingLength -ne [long]$requalification.supersededWorkingLength -or
+            [long]$priorAuthority.priorWorkingLastWriteTimeUtcTicks -ne [long]$requalification.supersededWorkingLastWriteTimeUtcTicks) {
+            throw 'Prior save-transaction Working metadata differs from the superseded durable qualification.'
+        }
+        [void](Assert-KmcWorkingOnlyPriorInventoryTransition `
+            -PriorAuthority $priorAuthority `
+            -CurrentInventory $saveMetadataBefore `
+            -CurrentPair $pair `
+            -SaveRoot $SaveRoot `
+            -ExpectedRevisedWorkingSha256 $ExpectedRevisedWorkingSha256)
 
         $qualificationMetadataBefore = Get-Item -LiteralPath $QualificationPath -Force
         $qualificationBytesBefore = [IO.File]::ReadAllBytes([IO.Path]::GetFullPath($QualificationPath))
@@ -855,6 +1256,22 @@ function Invoke-KmcWorkingFixtureRequalificationTransaction {
         $state['saveMetadataDigestAfter'] = [string]$saveMetadataAfter.digest
         Write-KmcJsonDurable -Path $statePath -Value $state
         if ($null -ne $AfterCommittedStateProbe) { & $AfterCommittedStateProbe $lock $statePath }
+        [void](Assert-KmcRuntimeLockOwner $lock)
+        Assert-KmcNoGameProcesses
+        $postCommitContinuity = Assert-KmcQualifiedWorkingPriorInventoryContinuity `
+            -SaveRoot $SaveRoot `
+            -StateRoot $StateRoot `
+            -QualificationPath $QualificationPath `
+            -ExpectedCurrentQualificationSha256 ([string]$state.committedQualificationSha256) `
+            -ExpectedSupersededWorkingSha256 $ExpectedSupersededWorkingSha256 `
+            -PriorSaveTransactionStatePath $PriorSaveTransactionStatePath `
+            -ExpectedPriorSaveTransactionRunId $ExpectedPriorSaveTransactionRunId `
+            -ExpectedPriorSaveTransactionStateSha256 $ExpectedPriorSaveTransactionStateSha256 `
+            -ExpectedPriorSaveMetadataDigest $ExpectedPriorSaveMetadataDigest
+        Assert-KmcSaveMetadataInventoriesEqual `
+            -Before $saveMetadataAfter `
+            -After $postCommitContinuity.saveMetadata `
+            -Description 'Working fixture requalification post-commit save metadata'
         [void](Assert-KmcRuntimeLockOwner $lock)
         Assert-KmcNoGameProcesses
         Close-KmcRuntimeLock $lock

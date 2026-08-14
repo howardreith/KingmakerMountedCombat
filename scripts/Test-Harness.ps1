@@ -95,6 +95,32 @@ function New-TestPendingWorkingRequalification {
         -InitializeQualification
     $oldQualification = Read-KmcJson $qualificationPath
     $oldQualificationSha256 = Get-KmcSha256 $qualificationPath
+    $priorSaveMetadata = Get-KmcSaveMetadataInventory $saveRoot
+    $priorSaveTransactionRunId = 'prior-save-authority'
+    $priorSaveTransactionStatePath = $null
+    $priorLock = Open-KmcRuntimeLock -StateRoot $fixtureStateRoot -RunId $priorSaveTransactionRunId
+    try {
+        $priorSaveTransactionStatePath = Enter-KmcWorkingSaveTransaction `
+            -Lock $priorLock `
+            -Pair $initialPair `
+            -SaveRoot $saveRoot `
+            -StateRoot $fixtureStateRoot `
+            -BackupRoot (Join-Path $root 'backups') `
+            -StagingRoot (Join-Path $root 'staging') `
+            -Scenario 'mounted-pair-open-ground'
+        [void](Restore-KmcWorkingSaveTransaction `
+            -Lock $priorLock `
+            -StatePath $priorSaveTransactionStatePath `
+            -SaveRoot $saveRoot `
+            -BackupRoot (Join-Path $root 'backups') `
+            -StagingRoot (Join-Path $root 'staging'))
+    }
+    finally { Close-KmcRuntimeLock $priorLock }
+    Assert-KmcSaveMetadataInventoriesEqual `
+        -Before $priorSaveMetadata `
+        -After (Get-KmcSaveMetadataInventory $saveRoot) `
+        -Description 'synthetic prior save-transaction authority restoration'
+    $priorSaveTransactionStateSha256 = Get-KmcSha256 $priorSaveTransactionStatePath
     New-TestSaveArchive -Path $workingPath -Name 'KMC_AUTOMATION_WORKING' -ExtraEntry
     $revisedPair = Get-KmcValidatedFixturePair $saveRoot
     return [pscustomobject]@{
@@ -111,6 +137,10 @@ function New-TestPendingWorkingRequalification {
         baselineSha256 = [string]$initialPair.baseline.sha256
         supersededWorkingSha256 = [string]$initialPair.working.sha256
         revisedWorkingSha256 = [string]$revisedPair.working.sha256
+        priorSaveTransactionStatePath = $priorSaveTransactionStatePath
+        priorSaveTransactionRunId = $priorSaveTransactionRunId
+        priorSaveTransactionStateSha256 = $priorSaveTransactionStateSha256
+        priorSaveMetadataDigest = [string]$priorSaveMetadata.digest
     }
 }
 
@@ -1294,6 +1324,10 @@ try {
             -ExpectedBaselineSha256 $fixture.baselineSha256 `
             -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 `
             -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+            -PriorSaveTransactionStatePath $fixture.priorSaveTransactionStatePath `
+            -ExpectedPriorSaveTransactionRunId $fixture.priorSaveTransactionRunId `
+            -ExpectedPriorSaveTransactionStateSha256 $fixture.priorSaveTransactionStateSha256 `
+            -ExpectedPriorSaveMetadataDigest $fixture.priorSaveMetadataDigest `
             -WhatIf 6>&1)
         $qualificationAfter = Get-Item -LiteralPath $fixture.qualificationPath -Force
         Assert-Test (($output -join "`n") -like '*Working fixture requalification WhatIf PASS*') 'requalification WhatIf did not report its exact pure result'
@@ -1322,6 +1356,10 @@ try {
             -ExpectedBaselineSha256 $fixture.baselineSha256 `
             -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 `
             -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+            -PriorSaveTransactionStatePath $fixture.priorSaveTransactionStatePath `
+            -ExpectedPriorSaveTransactionRunId $fixture.priorSaveTransactionRunId `
+            -ExpectedPriorSaveTransactionStateSha256 $fixture.priorSaveTransactionStateSha256 `
+            -ExpectedPriorSaveMetadataDigest $fixture.priorSaveMetadataDigest `
             -Confirm:$false 6>&1)
         Assert-Test (($output -join "`n") -like '*Working fixture requalification PASS*') 'requalification did not report PASS'
         $newQualification = Read-KmcJson $fixture.qualificationPath
@@ -1346,6 +1384,22 @@ try {
         Assert-KmcSaveMetadataInventoriesEqual -Before $savesBefore -After (Get-KmcSaveMetadataInventory $fixture.saveRoot) -Description 'successful synthetic requalification save metadata'
         $normalOutput = @(& $guardPath -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot 6>&1)
         Assert-Test (($normalOutput -join "`n") -like '*KMC fixture guard PASS*') 'standalone normal guard did not revalidate successful Working requalification'
+        $currentQualificationSha256 = Get-KmcSha256 $fixture.qualificationPath
+        $continuityOutput = @(& $guardPath `
+            -SaveRoot $fixture.saveRoot `
+            -StateRoot $fixture.stateRoot `
+            -AuditWorkingContinuity `
+            -ExpectedCurrentQualificationSha256 $currentQualificationSha256 `
+            -ExpectedBaselineSha256 $fixture.baselineSha256 `
+            -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 `
+            -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+            -PriorSaveTransactionStatePath $fixture.priorSaveTransactionStatePath `
+            -ExpectedPriorSaveTransactionRunId $fixture.priorSaveTransactionRunId `
+            -ExpectedPriorSaveTransactionStateSha256 $fixture.priorSaveTransactionStateSha256 `
+            -ExpectedPriorSaveMetadataDigest $fixture.priorSaveMetadataDigest `
+            -WhatIf 6>&1)
+        Assert-Test (($continuityOutput -join "`n") -like '*Working fixture continuity audit WhatIf PASS*') 'standalone committed-fixture continuity audit did not report pure PASS'
+        Assert-Test ((Get-KmcSha256 $fixture.qualificationPath) -ceq $currentQualificationSha256) 'continuity audit changed committed qualification bytes'
         Assert-Test (-not (Test-Path -LiteralPath (Join-Path $fixture.stateRoot 'active-transaction.lock'))) 'successful Working requalification left a runtime lock'
         $requalificationStates = @(Get-ChildItem -LiteralPath (Join-Path $fixture.stateRoot 'fixture-requalifications') -Filter '*.json' |
             Where-Object { $_.Name -notlike '*.prior.json' })
@@ -1362,6 +1416,122 @@ try {
         Assert-Test ([string]$committedReplay.disposition -ceq 'already-committed') 'committed no-lock recovery was not read-only and idempotent'
         Assert-Test ((Get-KmcSha256 $requalificationStates[0].FullName) -ceq $committedStateHash -and
             -not (Test-Path -LiteralPath (Join-Path $fixture.stateRoot 'active-transaction.lock'))) 'committed no-lock replay mutated state or created a lock'
+
+        $continuityArguments = @{
+            SaveRoot = $fixture.saveRoot
+            StateRoot = $fixture.stateRoot
+            QualificationPath = $fixture.qualificationPath
+            ExpectedCurrentQualificationSha256 = $currentQualificationSha256
+            ExpectedSupersededWorkingSha256 = $fixture.supersededWorkingSha256
+            PriorSaveTransactionStatePath = $fixture.priorSaveTransactionStatePath
+            ExpectedPriorSaveTransactionRunId = $fixture.priorSaveTransactionRunId
+            ExpectedPriorSaveTransactionStateSha256 = $fixture.priorSaveTransactionStateSha256
+            ExpectedPriorSaveMetadataDigest = $fixture.priorSaveMetadataDigest
+        }
+        $wrong = '0' * 64
+        foreach ($mutation in @(
+            @{ name='current qualification SHA'; key='ExpectedCurrentQualificationSha256'; value=$wrong },
+            @{ name='superseded Working SHA'; key='ExpectedSupersededWorkingSha256'; value=$wrong },
+            @{ name='prior state path'; key='PriorSaveTransactionStatePath'; value=$fixture.qualificationPath },
+            @{ name='prior run ID'; key='ExpectedPriorSaveTransactionRunId'; value='wrong-prior-run' },
+            @{ name='prior state SHA'; key='ExpectedPriorSaveTransactionStateSha256'; value=$wrong },
+            @{ name='prior inventory digest'; key='ExpectedPriorSaveMetadataDigest'; value=$wrong }
+        )) {
+            $arguments = @{}
+            foreach ($key in $continuityArguments.Keys) { $arguments[$key] = $continuityArguments[$key] }
+            $arguments[[string]$mutation.key] = [string]$mutation.value
+            $threw = $false
+            try { Assert-KmcQualifiedWorkingPriorInventoryContinuity @arguments | Out-Null } catch { $threw = $true }
+            Assert-Test $threw "runtime continuity accepted wrong $($mutation.name) pin"
+        }
+        [IO.File]::WriteAllText((Join-Path $fixture.saveRoot 'Auto_1.zks'), 'unauthorized-auto-after-qualification')
+        [IO.File]::WriteAllText((Join-Path $fixture.saveRoot 'Quick_1.zks'), 'unauthorized-quick-after-qualification')
+        $driftMessage = $null
+        try { Assert-KmcQualifiedWorkingPriorInventoryContinuity @continuityArguments | Out-Null }
+        catch { $driftMessage = $_.Exception.Message }
+        Assert-Test ($driftMessage -like '*Save write allowlist violation: Auto_1.zks, Quick_1.zks*') `
+            'runtime continuity admitted or failed to attribute Auto/Quick drift after committed requalification'
+    }
+
+    Invoke-HarnessTest 'Working requalification rejects foreign save drift through the standalone entry point' {
+        $fixture = New-TestPendingWorkingRequalification 'foreign-prior-drift'
+        $guardPath = Join-Path $repoRoot 'scripts\runtime\Test-KmcFixtureGuard.ps1'
+        [IO.File]::WriteAllText((Join-Path $fixture.saveRoot 'Auto_1.zks'), 'unauthorized-auto-drift')
+        [IO.File]::WriteAllText((Join-Path $fixture.saveRoot 'Quick_1.zks'), 'unauthorized-quick-drift')
+        $qualificationBefore = Get-Item -LiteralPath $fixture.qualificationPath -Force
+        $qualificationSha256Before = Get-KmcSha256 $fixture.qualificationPath
+        $stateManifestBefore = Get-KmcDirectoryManifest $fixture.stateRoot
+        $message = $null
+        try {
+            & $guardPath `
+                -SaveRoot $fixture.saveRoot `
+                -StateRoot $fixture.stateRoot `
+                -RequalifyWorking `
+                -ExpectedExistingQualificationSha256 $fixture.oldQualificationSha256 `
+                -ExpectedBaselineSha256 $fixture.baselineSha256 `
+                -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 `
+                -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+                -PriorSaveTransactionStatePath $fixture.priorSaveTransactionStatePath `
+                -ExpectedPriorSaveTransactionRunId $fixture.priorSaveTransactionRunId `
+                -ExpectedPriorSaveTransactionStateSha256 $fixture.priorSaveTransactionStateSha256 `
+                -ExpectedPriorSaveMetadataDigest $fixture.priorSaveMetadataDigest `
+                -Confirm:$false | Out-Null
+        }
+        catch { $message = $_.Exception.Message }
+        $qualificationAfter = Get-Item -LiteralPath $fixture.qualificationPath -Force
+        Assert-Test ($message -like '*Save write allowlist violation: Auto_1.zks, Quick_1.zks*') 'standalone requalification did not attribute exact Auto/Quick drift'
+        Assert-Test ((Get-KmcSha256 $fixture.qualificationPath) -ceq $qualificationSha256Before -and
+            $qualificationAfter.Length -eq $qualificationBefore.Length -and
+            $qualificationAfter.LastWriteTimeUtc.Ticks -eq $qualificationBefore.LastWriteTimeUtc.Ticks) 'foreign-drift rejection changed qualification bytes or metadata'
+        Assert-Test ((Get-KmcDirectoryManifest $fixture.stateRoot).digest -ceq $stateManifestBefore.digest -and
+            -not (Test-Path -LiteralPath (Join-Path $fixture.stateRoot 'active-transaction.lock'))) 'foreign-drift rejection changed runtime state or created a lock'
+    }
+
+    Invoke-HarnessTest 'Prior save-inventory authority rejects wrong identity, nonterminal state, and malformed UTF-8' {
+        $fixture = New-TestPendingWorkingRequalification 'prior-authority-mutations'
+        $authorityArguments = @{
+            Path = $fixture.priorSaveTransactionStatePath
+            StateRoot = $fixture.stateRoot
+            SaveRoot = $fixture.saveRoot
+            ExpectedRunId = $fixture.priorSaveTransactionRunId
+            ExpectedStateSha256 = $fixture.priorSaveTransactionStateSha256
+            ExpectedInventoryDigest = $fixture.priorSaveMetadataDigest
+            ExpectedBaselineSha256 = $fixture.baselineSha256
+            ExpectedSupersededWorkingSha256 = $fixture.supersededWorkingSha256
+            CurrentPair = $fixture.revisedPair
+        }
+        $wrong = '0' * 64
+        foreach ($mutation in @(
+            @{ name='path'; key='Path'; value=$fixture.qualificationPath },
+            @{ name='run ID'; key='ExpectedRunId'; value='wrong-authority-run' },
+            @{ name='state SHA'; key='ExpectedStateSha256'; value=$wrong },
+            @{ name='inventory digest'; key='ExpectedInventoryDigest'; value=$wrong }
+        )) {
+            $arguments = @{}
+            foreach ($key in $authorityArguments.Keys) { $arguments[$key] = $authorityArguments[$key] }
+            $arguments[[string]$mutation.key] = [string]$mutation.value
+            $threw = $false
+            try { Read-KmcPriorSaveTransactionAuthority @arguments | Out-Null } catch { $threw = $true }
+            Assert-Test $threw "prior save-inventory authority accepted wrong $($mutation.name)"
+        }
+
+        $terminalBytes = [IO.File]::ReadAllBytes($fixture.priorSaveTransactionStatePath)
+        $terminalTimestamp = (Get-Item -LiteralPath $fixture.priorSaveTransactionStatePath -Force).LastWriteTimeUtc
+        $nonterminal = Read-KmcJson $fixture.priorSaveTransactionStatePath
+        $nonterminal.phase = 'prepared'
+        Write-KmcJsonDurable -Path $fixture.priorSaveTransactionStatePath -Value $nonterminal
+        $authorityArguments.ExpectedStateSha256 = Get-KmcSha256 $fixture.priorSaveTransactionStatePath
+        $threw = $false
+        try { Read-KmcPriorSaveTransactionAuthority @authorityArguments | Out-Null } catch { $threw = $true }
+        Assert-Test $threw 'prior save-inventory authority accepted a nonterminal transaction state'
+
+        Write-KmcBytesDurableAtomic -Path $fixture.priorSaveTransactionStatePath -Bytes $terminalBytes
+        [IO.File]::SetLastWriteTimeUtc($fixture.priorSaveTransactionStatePath, $terminalTimestamp)
+        [IO.File]::WriteAllBytes($fixture.priorSaveTransactionStatePath, [byte[]](0x7b,0xff,0x7d))
+        $authorityArguments.ExpectedStateSha256 = Get-KmcSha256 $fixture.priorSaveTransactionStatePath
+        $message = $null
+        try { Read-KmcPriorSaveTransactionAuthority @authorityArguments | Out-Null } catch { $message = $_.Exception.Message }
+        Assert-Test ($message -like '*not strict UTF-8*') 'prior save-inventory authority did not reject malformed UTF-8 before JSON parsing'
     }
 
     Invoke-HarnessTest 'Working requalification rejects every incorrect explicit pin' {
@@ -1405,6 +1575,10 @@ try {
                     -ExpectedBaselineSha256 $lockedFixture.baselineSha256 `
                     -ExpectedSupersededWorkingSha256 $lockedFixture.supersededWorkingSha256 `
                     -ExpectedRevisedWorkingSha256 $lockedFixture.revisedWorkingSha256 `
+                    -PriorSaveTransactionStatePath $lockedFixture.priorSaveTransactionStatePath `
+                    -ExpectedPriorSaveTransactionRunId $lockedFixture.priorSaveTransactionRunId `
+                    -ExpectedPriorSaveTransactionStateSha256 $lockedFixture.priorSaveTransactionStateSha256 `
+                    -ExpectedPriorSaveMetadataDigest $lockedFixture.priorSaveMetadataDigest `
                     -Confirm:$false | Out-Null
             }
             catch { $threw = $true }
@@ -1426,6 +1600,10 @@ try {
                 -ExpectedBaselineSha256 $baselineFixture.baselineSha256 `
                 -ExpectedSupersededWorkingSha256 $baselineFixture.supersededWorkingSha256 `
                 -ExpectedRevisedWorkingSha256 $baselineFixture.revisedWorkingSha256 `
+                -PriorSaveTransactionStatePath $baselineFixture.priorSaveTransactionStatePath `
+                -ExpectedPriorSaveTransactionRunId $baselineFixture.priorSaveTransactionRunId `
+                -ExpectedPriorSaveTransactionStateSha256 $baselineFixture.priorSaveTransactionStateSha256 `
+                -ExpectedPriorSaveMetadataDigest $baselineFixture.priorSaveMetadataDigest `
                 -Confirm:$false | Out-Null
         }
         catch { $threw = $true }
@@ -1459,6 +1637,10 @@ try {
                 -ExpectedBaselineSha256 $fixture.baselineSha256 `
                 -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 `
                 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+                -PriorSaveTransactionStatePath $fixture.priorSaveTransactionStatePath `
+                -ExpectedPriorSaveTransactionRunId $fixture.priorSaveTransactionRunId `
+                -ExpectedPriorSaveTransactionStateSha256 $fixture.priorSaveTransactionStateSha256 `
+                -ExpectedPriorSaveMetadataDigest $fixture.priorSaveMetadataDigest `
                 -PostWriteProbe $postWriteProbe | Out-Null
         }
         catch { $message = $_.Exception.Message }
@@ -1486,6 +1668,8 @@ try {
                 SaveRoot=$fixture.saveRoot;StateRoot=$fixture.stateRoot;QualificationPath=$fixture.qualificationPath;RunId=$runId
                 ExpectedExistingQualificationSha256=$fixture.oldQualificationSha256;ExpectedBaselineSha256=$fixture.baselineSha256
                 ExpectedSupersededWorkingSha256=$fixture.supersededWorkingSha256;ExpectedRevisedWorkingSha256=$fixture.revisedWorkingSha256
+                PriorSaveTransactionStatePath=$fixture.priorSaveTransactionStatePath;ExpectedPriorSaveTransactionRunId=$fixture.priorSaveTransactionRunId
+                ExpectedPriorSaveTransactionStateSha256=$fixture.priorSaveTransactionStateSha256;ExpectedPriorSaveMetadataDigest=$fixture.priorSaveMetadataDigest
                 AfterReplacementWriteBeforeStateProbe={ throw 'forced replacement write pre-marker failure' }
             }
             if ($rollbackFails) { $arguments['BeforeRollbackProbe'] = { throw 'forced pre-marker rollback failure' } }
@@ -1525,6 +1709,8 @@ try {
                 -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -QualificationPath $fixture.qualificationPath -RunId $runId `
                 -ExpectedExistingQualificationSha256 $fixture.oldQualificationSha256 -ExpectedBaselineSha256 $fixture.baselineSha256 `
                 -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+                -PriorSaveTransactionStatePath $fixture.priorSaveTransactionStatePath -ExpectedPriorSaveTransactionRunId $fixture.priorSaveTransactionRunId `
+                -ExpectedPriorSaveTransactionStateSha256 $fixture.priorSaveTransactionStateSha256 -ExpectedPriorSaveMetadataDigest $fixture.priorSaveMetadataDigest `
                 -AfterCommittedStateProbe { throw 'forced late committed-state failure' } | Out-Null
         }
         catch { $message = $_.Exception.Message }
@@ -1551,6 +1737,10 @@ try {
                 -ExpectedBaselineSha256 $fixture.baselineSha256 `
                 -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 `
                 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+                -PriorSaveTransactionStatePath $fixture.priorSaveTransactionStatePath `
+                -ExpectedPriorSaveTransactionRunId $fixture.priorSaveTransactionRunId `
+                -ExpectedPriorSaveTransactionStateSha256 $fixture.priorSaveTransactionStateSha256 `
+                -ExpectedPriorSaveMetadataDigest $fixture.priorSaveMetadataDigest `
                 -PostWriteProbe { throw 'forced primary failure' } `
                 -BeforeRollbackProbe { throw 'forced rollback failure' } | Out-Null
         }
@@ -1597,6 +1787,10 @@ try {
                 -ExpectedBaselineSha256 $fixture.baselineSha256 `
                 -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 `
                 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+                -PriorSaveTransactionStatePath $fixture.priorSaveTransactionStatePath `
+                -ExpectedPriorSaveTransactionRunId $fixture.priorSaveTransactionRunId `
+                -ExpectedPriorSaveTransactionStateSha256 $fixture.priorSaveTransactionStateSha256 `
+                -ExpectedPriorSaveMetadataDigest $fixture.priorSaveMetadataDigest `
                 -PostWriteProbe {
                     param($heldLock, $statePath)
                     $heldLock.Stream.Dispose()
@@ -1629,6 +1823,8 @@ try {
                 -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -QualificationPath $fixture.qualificationPath -RunId $runId `
                 -ExpectedExistingQualificationSha256 $fixture.oldQualificationSha256 -ExpectedBaselineSha256 $fixture.baselineSha256 `
                 -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+                -PriorSaveTransactionStatePath $fixture.priorSaveTransactionStatePath -ExpectedPriorSaveTransactionRunId $fixture.priorSaveTransactionRunId `
+                -ExpectedPriorSaveTransactionStateSha256 $fixture.priorSaveTransactionStateSha256 -ExpectedPriorSaveMetadataDigest $fixture.priorSaveMetadataDigest `
                 -PostWriteProbe { throw 'force rollback authority probe' } `
                 -BeforeRollbackProbe { param($heldLock,$ignored); $heldLock.Stream.Dispose() } | Out-Null
         }
@@ -1658,6 +1854,8 @@ try {
                 -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -QualificationPath $fixture.qualificationPath -RunId $runId `
                 -ExpectedExistingQualificationSha256 $fixture.oldQualificationSha256 -ExpectedBaselineSha256 $fixture.baselineSha256 `
                 -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+                -PriorSaveTransactionStatePath $fixture.priorSaveTransactionStatePath -ExpectedPriorSaveTransactionRunId $fixture.priorSaveTransactionRunId `
+                -ExpectedPriorSaveTransactionStateSha256 $fixture.priorSaveTransactionStateSha256 -ExpectedPriorSaveMetadataDigest $fixture.priorSaveMetadataDigest `
                 -BeforeReplacementProbe { param($heldLock,$ignored); $heldLock.Stream.Dispose(); throw 'forced prewrite authority loss' } | Out-Null
         }
         catch { $message = $_.Exception.Message }
@@ -1702,7 +1900,9 @@ try {
             Invoke-KmcWorkingFixtureRequalificationTransaction `
                 -SaveRoot $fixture.saveRoot -StateRoot $nestedState -QualificationPath $nestedQualification -RunId 'overlap-helper-test' `
                 -ExpectedExistingQualificationSha256 $fixture.oldQualificationSha256 -ExpectedBaselineSha256 $fixture.baselineSha256 `
-                -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 | Out-Null
+                -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+                -PriorSaveTransactionStatePath $fixture.priorSaveTransactionStatePath -ExpectedPriorSaveTransactionRunId $fixture.priorSaveTransactionRunId `
+                -ExpectedPriorSaveTransactionStateSha256 $fixture.priorSaveTransactionStateSha256 -ExpectedPriorSaveMetadataDigest $fixture.priorSaveMetadataDigest | Out-Null
         }
         catch { $threw = $true }
         Assert-Test $threw 'transaction helper accepted overlapping save and state roots'
@@ -1716,7 +1916,9 @@ try {
             Invoke-KmcWorkingFixtureRequalificationTransaction `
                 -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -QualificationPath $alternateQualification -RunId 'alternate-path-test' `
                 -ExpectedExistingQualificationSha256 $fixture.oldQualificationSha256 -ExpectedBaselineSha256 $fixture.baselineSha256 `
-                -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 | Out-Null
+                -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+                -PriorSaveTransactionStatePath $fixture.priorSaveTransactionStatePath -ExpectedPriorSaveTransactionRunId $fixture.priorSaveTransactionRunId `
+                -ExpectedPriorSaveTransactionStateSha256 $fixture.priorSaveTransactionStateSha256 -ExpectedPriorSaveMetadataDigest $fixture.priorSaveMetadataDigest | Out-Null
         }
         catch { $threw = $true }
         Assert-Test $threw 'transaction helper accepted a noncanonical qualification path'
@@ -1792,6 +1994,8 @@ try {
                 -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -QualificationPath $fixture.qualificationPath -RunId $runId `
                 -ExpectedExistingQualificationSha256 $fixture.oldQualificationSha256 -ExpectedBaselineSha256 $fixture.baselineSha256 `
                 -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+                -PriorSaveTransactionStatePath $fixture.priorSaveTransactionStatePath -ExpectedPriorSaveTransactionRunId $fixture.priorSaveTransactionRunId `
+                -ExpectedPriorSaveTransactionStateSha256 $fixture.priorSaveTransactionStateSha256 -ExpectedPriorSaveMetadataDigest $fixture.priorSaveMetadataDigest `
                 -PostWriteProbe { throw 'synthetic crash primary' } -BeforeRollbackProbe { throw 'synthetic crash before rollback' } | Out-Null
         }
         catch { }
@@ -1822,6 +2026,8 @@ try {
                 -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -QualificationPath $fixture.qualificationPath -RunId $runId `
                 -ExpectedExistingQualificationSha256 $fixture.oldQualificationSha256 -ExpectedBaselineSha256 $fixture.baselineSha256 `
                 -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+                -PriorSaveTransactionStatePath $fixture.priorSaveTransactionStatePath -ExpectedPriorSaveTransactionRunId $fixture.priorSaveTransactionRunId `
+                -ExpectedPriorSaveTransactionStateSha256 $fixture.priorSaveTransactionStateSha256 -ExpectedPriorSaveMetadataDigest $fixture.priorSaveMetadataDigest `
                 -PostWriteProbe { throw 'synthetic crash after qualification replacement' } `
                 -BeforeRollbackProbe { throw 'synthetic process termination before rollback' } | Out-Null
         }
@@ -1850,6 +2056,8 @@ try {
                 -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -QualificationPath $fixture.qualificationPath -RunId $runId `
                 -ExpectedExistingQualificationSha256 $fixture.oldQualificationSha256 -ExpectedBaselineSha256 $fixture.baselineSha256 `
                 -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+                -PriorSaveTransactionStatePath $fixture.priorSaveTransactionStatePath -ExpectedPriorSaveTransactionRunId $fixture.priorSaveTransactionRunId `
+                -ExpectedPriorSaveTransactionStateSha256 $fixture.priorSaveTransactionStateSha256 -ExpectedPriorSaveMetadataDigest $fixture.priorSaveMetadataDigest `
                 -PostWriteProbe { throw 'retain revised qualification for split-restore test' } `
                 -BeforeRollbackProbe { throw 'defer split restore to recovery' } | Out-Null
         }
@@ -1891,6 +2099,8 @@ try {
             -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -RequalifyWorking `
             -ExpectedExistingQualificationSha256 $fixture.oldQualificationSha256 -ExpectedBaselineSha256 $fixture.baselineSha256 `
             -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+            -PriorSaveTransactionStatePath $fixture.priorSaveTransactionStatePath -ExpectedPriorSaveTransactionRunId $fixture.priorSaveTransactionRunId `
+            -ExpectedPriorSaveTransactionStateSha256 $fixture.priorSaveTransactionStateSha256 -ExpectedPriorSaveMetadataDigest $fixture.priorSaveMetadataDigest `
             -Confirm:$false 6>&1)
         $statePath = @(Get-ChildItem -LiteralPath (Join-Path $fixture.stateRoot 'fixture-requalifications') -Filter '*.json' |
             Where-Object { $_.Name -notlike '*.prior.json' })[0].FullName
@@ -2123,6 +2333,8 @@ try {
             -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -RequalifyWorking `
             -ExpectedExistingQualificationSha256 $fixture.oldQualificationSha256 -ExpectedBaselineSha256 $fixture.baselineSha256 `
             -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+            -PriorSaveTransactionStatePath $fixture.priorSaveTransactionStatePath -ExpectedPriorSaveTransactionRunId $fixture.priorSaveTransactionRunId `
+            -ExpectedPriorSaveTransactionStateSha256 $fixture.priorSaveTransactionStateSha256 -ExpectedPriorSaveMetadataDigest $fixture.priorSaveMetadataDigest `
             -Confirm:$false 6>&1)
         $statePath = @(Get-ChildItem -LiteralPath (Join-Path $fixture.stateRoot 'fixture-requalifications') -Filter '*.json' |
             Where-Object { $_.Name -notlike '*.prior.json' })[0].FullName
@@ -2189,6 +2401,8 @@ try {
                 -SaveRoot $priorFixture.saveRoot -StateRoot $priorFixture.stateRoot -QualificationPath $priorFixture.qualificationPath -RunId $priorRunId `
                 -ExpectedExistingQualificationSha256 $priorFixture.oldQualificationSha256 -ExpectedBaselineSha256 $priorFixture.baselineSha256 `
                 -ExpectedSupersededWorkingSha256 $priorFixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $priorFixture.revisedWorkingSha256 `
+                -PriorSaveTransactionStatePath $priorFixture.priorSaveTransactionStatePath -ExpectedPriorSaveTransactionRunId $priorFixture.priorSaveTransactionRunId `
+                -ExpectedPriorSaveTransactionStateSha256 $priorFixture.priorSaveTransactionStateSha256 -ExpectedPriorSaveMetadataDigest $priorFixture.priorSaveMetadataDigest `
                 -PostWriteProbe { throw 'force exact rollback for timestamp test' } | Out-Null
         }
         catch { }
@@ -2237,6 +2451,8 @@ try {
                     -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -QualificationPath $fixture.qualificationPath -RunId $runId `
                     -ExpectedExistingQualificationSha256 $fixture.oldQualificationSha256 -ExpectedBaselineSha256 $fixture.baselineSha256 `
                     -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+                    -PriorSaveTransactionStatePath $fixture.priorSaveTransactionStatePath -ExpectedPriorSaveTransactionRunId $fixture.priorSaveTransactionRunId `
+                    -ExpectedPriorSaveTransactionStateSha256 $fixture.priorSaveTransactionStateSha256 -ExpectedPriorSaveMetadataDigest $fixture.priorSaveMetadataDigest `
                     -PostWriteProbe { throw 'synthetic crash for recovery authority test' } `
                     -BeforeRollbackProbe { throw 'retain revised qualification for recovery authority test' } | Out-Null
             }
@@ -2294,6 +2510,8 @@ try {
                 -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -QualificationPath $fixture.qualificationPath -RunId $runId `
                 -ExpectedExistingQualificationSha256 $fixture.oldQualificationSha256 -ExpectedBaselineSha256 $fixture.baselineSha256 `
                 -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+                -PriorSaveTransactionStatePath $fixture.priorSaveTransactionStatePath -ExpectedPriorSaveTransactionRunId $fixture.priorSaveTransactionRunId `
+                -ExpectedPriorSaveTransactionStateSha256 $fixture.priorSaveTransactionStateSha256 -ExpectedPriorSaveMetadataDigest $fixture.priorSaveMetadataDigest `
                 -PostWriteProbe { throw 'retain fixture for debris race' } -BeforeRollbackProbe { throw 'retain lock for debris race' } | Out-Null
         }
         catch { }
@@ -2764,6 +2982,82 @@ try {
         Assert-Test ($launcherSource.Contains("'-kmcRuntimeRequestSha256',`$requestHash")) 'launcher does not pass the exact request-file SHA-256'
         Assert-Test ($hostSource.Contains('RequestHashArgument = "-kmcRuntimeRequestSha256"')) 'in-process host does not require the request SHA-256 argument'
         Assert-Test ($hostSource.Contains('ComputeSha256(requestBytes)')) 'in-process host does not hash the exact bytes it deserializes'
+    }
+
+    Invoke-HarnessTest 'runtime launcher continuity pins fail closed before approval, lock, or staging' {
+        $pinNames = @(
+            'ExpectedCurrentQualificationSha256','ExpectedSupersededWorkingSha256','PriorSaveTransactionStatePath',
+            'ExpectedPriorSaveTransactionRunId','ExpectedPriorSaveTransactionStateSha256','ExpectedPriorSaveMetadataDigest'
+        )
+        $allPinArguments = @{
+            IsSaveBacked = $true
+            BoundContinuityPinNames = $pinNames
+            ExpectedCurrentQualificationSha256 = 'a' * 64
+            ExpectedSupersededWorkingSha256 = 'b' * 64
+            PriorSaveTransactionStatePath = 'synthetic-prior-state.json'
+            ExpectedPriorSaveTransactionRunId = 'synthetic-prior-run'
+            ExpectedPriorSaveTransactionStateSha256 = 'c' * 64
+            ExpectedPriorSaveMetadataDigest = 'd' * 64
+        }
+        [void](Assert-KmcRuntimeContinuityPinCombination @allPinArguments)
+        $missingArguments = @{}
+        foreach ($key in $allPinArguments.Keys) { $missingArguments[$key] = $allPinArguments[$key] }
+        $missingArguments.BoundContinuityPinNames = @($pinNames | Where-Object { $_ -cne 'ExpectedPriorSaveMetadataDigest' })
+        $threw = $false
+        try { Assert-KmcRuntimeContinuityPinCombination @missingArguments | Out-Null } catch { $threw = $true }
+        Assert-Test $threw 'save-backed runtime pin gate accepted a syntactically missing pin'
+        $noSaveArguments = @{
+            IsSaveBacked = $false
+            BoundContinuityPinNames = @('PriorSaveTransactionStatePath')
+            PriorSaveTransactionStatePath = ''
+        }
+        $threw = $false
+        try { Assert-KmcRuntimeContinuityPinCombination @noSaveArguments | Out-Null } catch { $threw = $true }
+        Assert-Test $threw 'no-save runtime pin gate accepted an explicitly bound empty continuity pin'
+
+        $launcherSource = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'runtime\Invoke-KingmakerRuntimeScenario.ps1')
+        foreach ($pinName in $pinNames) {
+            Assert-Test ($launcherSource -cmatch ('\$' + [regex]::Escape($pinName) + '(?:\s|,)')) "runtime launcher does not expose $pinName"
+        }
+        $pinGateIndex = $launcherSource.IndexOf('[void](Assert-KmcRuntimeContinuityPinCombination', [StringComparison]::Ordinal)
+        $validateSourceIndex = $launcherSource.IndexOf("& (Join-Path `$repoRoot 'scripts\Validate-Source.ps1')", [StringComparison]::Ordinal)
+        $shouldProcessIndex = $launcherSource.IndexOf("if(-not `$PSCmdlet.ShouldProcess", [StringComparison]::Ordinal)
+        $lockIndex = $launcherSource.IndexOf('    $lock=Open-KmcRuntimeLock', [StringComparison]::Ordinal)
+        $combinedStateIndex = $launcherSource.IndexOf('    $combinedStatePath=New-KmcRunTransactionState', [StringComparison]::Ordinal)
+        $enterSaveIndex = $launcherSource.IndexOf('        [void](Enter-KmcWorkingSaveTransaction', [StringComparison]::Ordinal)
+        $enterModsIndex = $launcherSource.IndexOf('    [void](Enter-KmcModsTransaction', [StringComparison]::Ordinal)
+        $continuityCalls = @([regex]::Matches(
+            $launcherSource,
+            '(?m)^\s*\$(?:preflightContinuity|whatIfContinuity|lockedContinuity)=Assert-KmcQualifiedWorkingPriorInventoryContinuity'))
+        Assert-Test ($pinGateIndex -ge 0 -and $pinGateIndex -lt $validateSourceIndex -and $pinGateIndex -lt $shouldProcessIndex) `
+            'runtime launcher does not reject incomplete/no-save pin combinations before validation or ShouldProcess'
+        Assert-Test ($continuityCalls.Count -eq 3) 'runtime launcher does not perform exactly preflight, WhatIf, and locked continuity proofs'
+        Assert-Test ($continuityCalls[0].Index -lt $shouldProcessIndex -and
+            $continuityCalls[1].Index -gt $shouldProcessIndex -and $continuityCalls[1].Index -lt $lockIndex -and
+            $continuityCalls[2].Index -gt $lockIndex -and $continuityCalls[2].Index -lt $combinedStateIndex) `
+            'runtime launcher continuity proofs are not ordered before approval, during WhatIf, and under lock before durable state'
+        Assert-Test ($combinedStateIndex -gt $continuityCalls[2].Index -and
+            $enterSaveIndex -gt $combinedStateIndex -and $enterModsIndex -gt $enterSaveIndex) `
+            'runtime launcher can stage durable run state, Mods, or Working before locked continuity succeeds'
+        Assert-Test ($launcherSource.Contains('Recovery can restore an interrupted transaction, but never confers')) `
+            'runtime launcher does not state that recovery never confers runtime admission'
+
+        $commonSource = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'runtime\RuntimeHarness.Common.ps1')
+        $committedProbeIndex = $commonSource.IndexOf(
+            'if ($null -ne $AfterCommittedStateProbe) { & $AfterCommittedStateProbe $lock $statePath }',
+            [StringComparison]::Ordinal)
+        $postCommitContinuityIndex = $commonSource.IndexOf(
+            '$postCommitContinuity = Assert-KmcQualifiedWorkingPriorInventoryContinuity',
+            $committedProbeIndex,
+            [StringComparison]::Ordinal)
+        $postCommitEqualityIndex = $commonSource.IndexOf(
+            "-Description 'Working fixture requalification post-commit save metadata'",
+            $postCommitContinuityIndex,
+            [StringComparison]::Ordinal)
+        $postCommitCloseIndex = $commonSource.IndexOf('Close-KmcRuntimeLock $lock', $postCommitEqualityIndex, [StringComparison]::Ordinal)
+        Assert-Test ($committedProbeIndex -ge 0 -and $postCommitContinuityIndex -gt $committedProbeIndex -and
+            $postCommitEqualityIndex -gt $postCommitContinuityIndex -and $postCommitCloseIndex -gt $postCommitEqualityIndex) `
+            'requalification can close its lock after the committed-state probe without re-proving exact save continuity'
     }
 
     Invoke-HarnessTest 'runtime update failures abort automation and always execute cleanup' {
