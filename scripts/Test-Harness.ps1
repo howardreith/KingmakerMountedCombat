@@ -72,6 +72,65 @@ function New-TestRawSaveArchive {
     }
 }
 
+function New-TestPendingWorkingRequalification {
+    param([Parameter(Mandatory = $true)][string]$Name)
+    $root = Join-Path $testRoot ('working-requalification-' + $Name)
+    $saveRoot = Join-Path $root 'saves'
+    $fixtureStateRoot = Join-Path $root 'state'
+    New-Item -ItemType Directory -Path $saveRoot -Force | Out-Null
+    New-Item -ItemType Directory -Path $fixtureStateRoot -Force | Out-Null
+    $baselinePath = Join-Path $saveRoot 'Manual_1_KMC_AUTOMATION_BASELINE.zks'
+    $workingPath = Join-Path $saveRoot 'Manual_2_KMC_AUTOMATION_WORKING.zks'
+    New-TestSaveArchive -Path $baselinePath -Name 'KMC_AUTOMATION_BASELINE'
+    New-TestSaveArchive -Path $workingPath -Name 'KMC_AUTOMATION_WORKING'
+    foreach ($foreignName in @(
+        'Manual_3_PERSONAL.zks','Manual_4_KBP.zks','Manual_5_KMG.zks','Auto_1.zks','Quick_1.zks'
+    )) {
+        [IO.File]::WriteAllText((Join-Path $saveRoot $foreignName), "protected-$foreignName")
+    }
+    $qualificationPath = Join-Path $fixtureStateRoot 'fixture-qualification.json'
+    $initialPair = Assert-KmcFixturePair `
+        -SaveRoot $saveRoot `
+        -QualificationPath $qualificationPath `
+        -InitializeQualification
+    $oldQualification = Read-KmcJson $qualificationPath
+    $oldQualificationSha256 = Get-KmcSha256 $qualificationPath
+    New-TestSaveArchive -Path $workingPath -Name 'KMC_AUTOMATION_WORKING' -ExtraEntry
+    $revisedPair = Get-KmcValidatedFixturePair $saveRoot
+    return [pscustomobject]@{
+        root = $root
+        saveRoot = $saveRoot
+        stateRoot = $fixtureStateRoot
+        qualificationPath = $qualificationPath
+        baselinePath = $baselinePath
+        workingPath = $workingPath
+        initialPair = $initialPair
+        revisedPair = $revisedPair
+        oldQualification = $oldQualification
+        oldQualificationSha256 = $oldQualificationSha256
+        baselineSha256 = [string]$initialPair.baseline.sha256
+        supersededWorkingSha256 = [string]$initialPair.working.sha256
+        revisedWorkingSha256 = [string]$revisedPair.working.sha256
+    }
+}
+
+function Set-TestRuntimeLockOwnerDead {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    $payload = Read-KmcJson $Path
+    $payload.ownerProcessId = 2147483646
+    Write-KmcJsonAtomic -Path $Path -Value $payload
+}
+
+function Select-TestObjectProperties {
+    param(
+        [Parameter(Mandatory = $true)]$Value,
+        [Parameter(Mandatory = $true)][string[]]$Names
+    )
+    $selected = [ordered]@{}
+    foreach ($name in $Names) { $selected[$name] = $Value.$name }
+    return [pscustomobject]$selected
+}
+
 function New-TestArtifactManifest {
     param(
         [Parameter(Mandatory = $true)][string]$EvidenceRoot,
@@ -1219,6 +1278,1059 @@ try {
         $threw = $false
         try { Assert-KmcFixturePair -SaveRoot $immutableRoot -QualificationPath $immutableState | Out-Null } catch { $threw = $true }
         Assert-Test $threw 'mutated baseline passed immutable qualification'
+    }
+
+    Invoke-HarnessTest 'Working requalification WhatIf is exact and pure' {
+        $fixture = New-TestPendingWorkingRequalification 'whatif'
+        $guardPath = Join-Path $repoRoot 'scripts\runtime\Test-KmcFixtureGuard.ps1'
+        $qualificationBefore = Get-Item -LiteralPath $fixture.qualificationPath -Force
+        $qualificationHashBefore = Get-KmcSha256 $fixture.qualificationPath
+        $savesBefore = Get-KmcSaveMetadataInventory $fixture.saveRoot
+        $output = @(& $guardPath `
+            -SaveRoot $fixture.saveRoot `
+            -StateRoot $fixture.stateRoot `
+            -RequalifyWorking `
+            -ExpectedExistingQualificationSha256 $fixture.oldQualificationSha256 `
+            -ExpectedBaselineSha256 $fixture.baselineSha256 `
+            -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 `
+            -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+            -WhatIf 6>&1)
+        $qualificationAfter = Get-Item -LiteralPath $fixture.qualificationPath -Force
+        Assert-Test (($output -join "`n") -like '*Working fixture requalification WhatIf PASS*') 'requalification WhatIf did not report its exact pure result'
+        Assert-Test ((Get-KmcSha256 $fixture.qualificationPath) -ceq $qualificationHashBefore) 'requalification WhatIf changed qualification bytes'
+        Assert-Test ($qualificationAfter.Length -eq $qualificationBefore.Length -and
+            $qualificationAfter.LastWriteTimeUtc.Ticks -eq $qualificationBefore.LastWriteTimeUtc.Ticks) 'requalification WhatIf changed qualification metadata'
+        Assert-KmcSaveMetadataInventoriesEqual -Before $savesBefore -After (Get-KmcSaveMetadataInventory $fixture.saveRoot) -Description 'synthetic WhatIf save metadata'
+        Assert-Test (-not (Test-Path -LiteralPath (Join-Path $fixture.stateRoot 'active-transaction.lock'))) 'requalification WhatIf left a runtime lock'
+        $threw = $false
+        try { Assert-KmcFixturePair -SaveRoot $fixture.saveRoot -QualificationPath $fixture.qualificationPath | Out-Null } catch { $threw = $true }
+        Assert-Test $threw 'requalification WhatIf silently admitted revised Working'
+    }
+
+    Invoke-HarnessTest 'Working requalification changes only the fingerprint and timestamp' {
+        $fixture = New-TestPendingWorkingRequalification 'success'
+        $guardPath = Join-Path $repoRoot 'scripts\runtime\Test-KmcFixtureGuard.ps1'
+        $savesBefore = Get-KmcSaveMetadataInventory $fixture.saveRoot
+        $baselineBefore = Read-KmcFixtureHeader -Path $fixture.baselinePath -Kind baseline -SaveRoot $fixture.saveRoot
+        $foreignBefore = Get-KmcSha256 (Join-Path $fixture.saveRoot 'Manual_3_PERSONAL.zks')
+        $oldQualification = Read-KmcJson $fixture.qualificationPath
+        $output = @(& $guardPath `
+            -SaveRoot $fixture.saveRoot `
+            -StateRoot $fixture.stateRoot `
+            -RequalifyWorking `
+            -ExpectedExistingQualificationSha256 $fixture.oldQualificationSha256 `
+            -ExpectedBaselineSha256 $fixture.baselineSha256 `
+            -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 `
+            -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+            -Confirm:$false 6>&1)
+        Assert-Test (($output -join "`n") -like '*Working fixture requalification PASS*') 'requalification did not report PASS'
+        $newQualification = Read-KmcJson $fixture.qualificationPath
+        $allowedChanges = @('initialWorkingSha256','initialWorkingLength','initialWorkingLastWriteTimeUtcTicks','qualifiedAtUtc')
+        foreach ($property in @($oldQualification.PSObject.Properties.Name)) {
+            if ($property -notin $allowedChanges) {
+                Assert-Test ((($oldQualification.$property | ConvertTo-Json -Depth 5 -Compress) -ceq
+                    ($newQualification.$property | ConvertTo-Json -Depth 5 -Compress))) "protected qualification field changed: $property"
+            }
+        }
+        Assert-Test ([string]$newQualification.initialWorkingSha256 -ceq [string]$fixture.revisedPair.working.sha256) 'revised Working SHA was not recorded'
+        Assert-Test ([long]$newQualification.initialWorkingLength -eq [long]$fixture.revisedPair.working.length) 'revised Working length was not recorded'
+        Assert-Test ([long]$newQualification.initialWorkingLastWriteTimeUtcTicks -eq [long]$fixture.revisedPair.working.lastWriteTimeUtcTicks) 'revised Working timestamp was not recorded'
+        Assert-Test ((Get-KmcSha256 $fixture.qualificationPath) -cne $fixture.oldQualificationSha256) 'successful requalification did not replace qualification bytes'
+        $validated = Assert-KmcFixturePair -SaveRoot $fixture.saveRoot -QualificationPath $fixture.qualificationPath
+        Assert-Test ([string]$validated.working.sha256 -ceq $fixture.revisedWorkingSha256) 'normal guard did not revalidate revised Working'
+        $baselineAfter = Read-KmcFixtureHeader -Path $fixture.baselinePath -Kind baseline -SaveRoot $fixture.saveRoot
+        Assert-Test ([string]$baselineAfter.sha256 -ceq [string]$baselineBefore.sha256 -and
+            [long]$baselineAfter.length -eq [long]$baselineBefore.length -and
+            [long]$baselineAfter.lastWriteTimeUtcTicks -eq [long]$baselineBefore.lastWriteTimeUtcTicks) 'successful Working requalification changed Baseline'
+        Assert-Test ((Get-KmcSha256 (Join-Path $fixture.saveRoot 'Manual_3_PERSONAL.zks')) -ceq $foreignBefore) 'successful Working requalification changed a foreign save'
+        Assert-KmcSaveMetadataInventoriesEqual -Before $savesBefore -After (Get-KmcSaveMetadataInventory $fixture.saveRoot) -Description 'successful synthetic requalification save metadata'
+        $normalOutput = @(& $guardPath -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot 6>&1)
+        Assert-Test (($normalOutput -join "`n") -like '*KMC fixture guard PASS*') 'standalone normal guard did not revalidate successful Working requalification'
+        Assert-Test (-not (Test-Path -LiteralPath (Join-Path $fixture.stateRoot 'active-transaction.lock'))) 'successful Working requalification left a runtime lock'
+        $requalificationStates = @(Get-ChildItem -LiteralPath (Join-Path $fixture.stateRoot 'fixture-requalifications') -Filter '*.json' |
+            Where-Object { $_.Name -notlike '*.prior.json' })
+        Assert-Test ($requalificationStates.Count -eq 1) 'successful Working requalification did not retain exactly one durable state record'
+        $requalificationState = Read-KmcJson $requalificationStates[0].FullName
+        Assert-Test ([string]$requalificationState.phase -ceq 'committed') 'successful Working requalification state is not committed'
+        Assert-Test ((Get-KmcSha256 ([string]$requalificationState.priorQualificationBackupPath)) -ceq $fixture.oldQualificationSha256) 'successful Working requalification did not retain exact prior qualification bytes'
+        $committedStateHash = Get-KmcSha256 $requalificationStates[0].FullName
+        $committedReplay = Invoke-KmcWorkingFixtureRequalificationRecovery `
+            -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -QualificationPath $fixture.qualificationPath `
+            -RunId ([string]$requalificationState.runId) -ExpectedPriorQualificationSha256 $fixture.oldQualificationSha256 `
+            -ExpectedBaselineSha256 $fixture.baselineSha256 -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 `
+            -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256
+        Assert-Test ([string]$committedReplay.disposition -ceq 'already-committed') 'committed no-lock recovery was not read-only and idempotent'
+        Assert-Test ((Get-KmcSha256 $requalificationStates[0].FullName) -ceq $committedStateHash -and
+            -not (Test-Path -LiteralPath (Join-Path $fixture.stateRoot 'active-transaction.lock'))) 'committed no-lock replay mutated state or created a lock'
+    }
+
+    Invoke-HarnessTest 'Working requalification rejects every incorrect explicit pin' {
+        $fixture = New-TestPendingWorkingRequalification 'wrong-pins'
+        $wrong = '0' * 64
+        $attempts = @(
+            @{ qualification=$wrong; baseline=$fixture.baselineSha256; old=$fixture.supersededWorkingSha256; revised=$fixture.revisedWorkingSha256 },
+            @{ qualification=$fixture.oldQualificationSha256; baseline=$wrong; old=$fixture.supersededWorkingSha256; revised=$fixture.revisedWorkingSha256 },
+            @{ qualification=$fixture.oldQualificationSha256; baseline=$fixture.baselineSha256; old=$wrong; revised=$fixture.revisedWorkingSha256 },
+            @{ qualification=$fixture.oldQualificationSha256; baseline=$fixture.baselineSha256; old=$fixture.supersededWorkingSha256; revised=$wrong }
+        )
+        foreach ($attempt in $attempts) {
+            $threw = $false
+            try {
+                New-KmcWorkingFixtureRequalification `
+                    -Pair $fixture.revisedPair `
+                    -QualificationPath $fixture.qualificationPath `
+                    -ExpectedExistingQualificationSha256 $attempt.qualification `
+                    -ExpectedBaselineSha256 $attempt.baseline `
+                    -ExpectedSupersededWorkingSha256 $attempt.old `
+                    -ExpectedRevisedWorkingSha256 $attempt.revised | Out-Null
+            }
+            catch { $threw = $true }
+            Assert-Test $threw 'Working requalification accepted an incorrect explicit pin'
+            Assert-Test ((Get-KmcSha256 $fixture.qualificationPath) -ceq $fixture.oldQualificationSha256) 'incorrect requalification pin changed the durable qualification'
+        }
+    }
+
+    Invoke-HarnessTest 'Working requalification rejects Baseline mutation and active transaction lock' {
+        $guardPath = Join-Path $repoRoot 'scripts\runtime\Test-KmcFixtureGuard.ps1'
+        $lockedFixture = New-TestPendingWorkingRequalification 'active-lock'
+        $heldLock = Open-KmcRuntimeLock -StateRoot $lockedFixture.stateRoot -RunId 'held-requalification-test'
+        try {
+            $threw = $false
+            try {
+                & $guardPath `
+                    -SaveRoot $lockedFixture.saveRoot `
+                    -StateRoot $lockedFixture.stateRoot `
+                    -RequalifyWorking `
+                    -ExpectedExistingQualificationSha256 $lockedFixture.oldQualificationSha256 `
+                    -ExpectedBaselineSha256 $lockedFixture.baselineSha256 `
+                    -ExpectedSupersededWorkingSha256 $lockedFixture.supersededWorkingSha256 `
+                    -ExpectedRevisedWorkingSha256 $lockedFixture.revisedWorkingSha256 `
+                    -Confirm:$false | Out-Null
+            }
+            catch { $threw = $true }
+            Assert-Test $threw 'Working requalification accepted an actually held runtime transaction lock'
+            [void](Assert-KmcRuntimeLockOwner $heldLock)
+        }
+        finally { Close-KmcRuntimeLock $heldLock }
+        Assert-Test ((Get-KmcSha256 $lockedFixture.qualificationPath) -ceq $lockedFixture.oldQualificationSha256) 'lock rejection changed the durable qualification'
+
+        $baselineFixture = New-TestPendingWorkingRequalification 'baseline-drift'
+        New-TestSaveArchive -Path $baselineFixture.baselinePath -Name 'KMC_AUTOMATION_BASELINE' -ExtraEntry
+        $threw = $false
+        try {
+            & $guardPath `
+                -SaveRoot $baselineFixture.saveRoot `
+                -StateRoot $baselineFixture.stateRoot `
+                -RequalifyWorking `
+                -ExpectedExistingQualificationSha256 $baselineFixture.oldQualificationSha256 `
+                -ExpectedBaselineSha256 $baselineFixture.baselineSha256 `
+                -ExpectedSupersededWorkingSha256 $baselineFixture.supersededWorkingSha256 `
+                -ExpectedRevisedWorkingSha256 $baselineFixture.revisedWorkingSha256 `
+                -Confirm:$false | Out-Null
+        }
+        catch { $threw = $true }
+        Assert-Test $threw 'Working requalification admitted a mutated Baseline'
+        Assert-Test ((Get-KmcSha256 $baselineFixture.qualificationPath) -ceq $baselineFixture.oldQualificationSha256) 'Baseline rejection changed the durable qualification'
+    }
+
+    Invoke-HarnessTest 'Working requalification rolls back an exact post-write failure under its held lock' {
+        $fixture = New-TestPendingWorkingRequalification 'post-write-rollback'
+        $qualificationBefore = Get-Item -LiteralPath $fixture.qualificationPath -Force
+        $qualificationBytesBefore = [IO.File]::ReadAllBytes($fixture.qualificationPath)
+        $saveMetadataBefore = Get-KmcSaveMetadataInventory $fixture.saveRoot
+        $script:requalificationLockObserved = $false
+        $script:concurrentRequalificationLockRejected = $false
+        $postWriteProbe = {
+            param($heldLock, $statePath)
+            [void](Assert-KmcRuntimeLockOwner $heldLock)
+            $script:requalificationLockObserved = Test-Path -LiteralPath $heldLock.Path -PathType Leaf
+            try { Open-KmcRuntimeLock -StateRoot $fixture.stateRoot -RunId 'concurrent-requalification-test' | Out-Null }
+            catch { $script:concurrentRequalificationLockRejected = $true }
+            throw 'forced post-write validation failure'
+        }
+        $message = $null
+        try {
+            Invoke-KmcWorkingFixtureRequalificationTransaction `
+                -SaveRoot $fixture.saveRoot `
+                -StateRoot $fixture.stateRoot `
+                -QualificationPath $fixture.qualificationPath `
+                -RunId 'post-write-rollback-test' `
+                -ExpectedExistingQualificationSha256 $fixture.oldQualificationSha256 `
+                -ExpectedBaselineSha256 $fixture.baselineSha256 `
+                -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 `
+                -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+                -PostWriteProbe $postWriteProbe | Out-Null
+        }
+        catch { $message = $_.Exception.Message }
+        Assert-Test ($message -like '*prior qualification was restored exactly*forced post-write validation failure*') 'forced post-write failure did not report exact rollback'
+        Assert-Test ($script:requalificationLockObserved -and $script:concurrentRequalificationLockRejected) 'post-write validation was not covered by an exclusive held lock'
+        $qualificationAfter = Get-Item -LiteralPath $fixture.qualificationPath -Force
+        Assert-Test ([Linq.Enumerable]::SequenceEqual([byte[]]$qualificationBytesBefore, [byte[]][IO.File]::ReadAllBytes($fixture.qualificationPath))) 'rollback did not restore exact prior qualification bytes'
+        Assert-Test ($qualificationAfter.Length -eq $qualificationBefore.Length -and
+            $qualificationAfter.LastWriteTimeUtc.Ticks -eq $qualificationBefore.LastWriteTimeUtc.Ticks) 'rollback did not restore exact prior qualification metadata'
+        Assert-KmcSaveMetadataInventoriesEqual -Before $saveMetadataBefore -After (Get-KmcSaveMetadataInventory $fixture.saveRoot) -Description 'post-write rollback save metadata'
+        $normalAccepted = $true
+        try { Assert-KmcFixturePair -SaveRoot $fixture.saveRoot -QualificationPath $fixture.qualificationPath | Out-Null } catch { $normalAccepted = $false }
+        Assert-Test (-not $normalAccepted) 'rolled-back prior qualification admitted revised Working'
+        Assert-Test (-not (Test-Path -LiteralPath (Join-Path $fixture.stateRoot 'active-transaction.lock'))) 'successful rollback left a runtime lock'
+        $state = Read-KmcJson (Join-Path $fixture.stateRoot 'fixture-requalifications\post-write-rollback-test.json')
+        Assert-Test ([string]$state.phase -ceq 'rolled-back') 'post-write failure state was not durably marked rolled-back'
+    }
+
+    Invoke-HarnessTest 'Working requalification records exact pre-marker write-attempt failure phases' {
+        foreach ($rollbackFails in @($false,$true)) {
+            $suffix = if ($rollbackFails) { 'rollback-fails' } else { 'rollback-succeeds' }
+            $fixture = New-TestPendingWorkingRequalification ('pre-marker-' + $suffix)
+            $runId = 'pre-marker-' + $suffix
+            $arguments = @{
+                SaveRoot=$fixture.saveRoot;StateRoot=$fixture.stateRoot;QualificationPath=$fixture.qualificationPath;RunId=$runId
+                ExpectedExistingQualificationSha256=$fixture.oldQualificationSha256;ExpectedBaselineSha256=$fixture.baselineSha256
+                ExpectedSupersededWorkingSha256=$fixture.supersededWorkingSha256;ExpectedRevisedWorkingSha256=$fixture.revisedWorkingSha256
+                AfterReplacementWriteBeforeStateProbe={ throw 'forced replacement write pre-marker failure' }
+            }
+            if ($rollbackFails) { $arguments['BeforeRollbackProbe'] = { throw 'forced pre-marker rollback failure' } }
+            $message = $null
+            try { Invoke-KmcWorkingFixtureRequalificationTransaction @arguments | Out-Null }
+            catch { $message = $_.Exception.Message }
+            Assert-Test ($message -like '*forced replacement write pre-marker failure*') 'pre-marker replacement failure was not surfaced'
+            $statePath = Join-Path $fixture.stateRoot ('fixture-requalifications\' + $runId + '.json')
+            $state = Read-KmcJson $statePath
+            [void](Assert-KmcWorkingFixtureRequalificationStateSchema $state)
+            $expectedPhase = if ($rollbackFails) { 'replacement-write-attempt-rollback-failed' } else { 'replacement-write-attempt-rolled-back' }
+            Assert-Test ([string]$state.phase -ceq $expectedPhase) "pre-marker producer did not emit exact phase $expectedPhase"
+            $lockPath = Join-Path $fixture.stateRoot 'active-transaction.lock'
+            if ($rollbackFails) {
+                Assert-Test ((Get-KmcSha256 $fixture.qualificationPath) -ceq $fixture.revisedWorkingSha256 -or
+                    (Get-KmcSha256 $fixture.qualificationPath) -cne $fixture.oldQualificationSha256) 'pre-marker rollback failure unexpectedly retained only the prior qualification'
+                Set-TestRuntimeLockOwnerDead $lockPath
+                $recovered = Invoke-KmcWorkingFixtureRequalificationRecovery `
+                    -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -QualificationPath $fixture.qualificationPath -RunId $runId `
+                    -ExpectedPriorQualificationSha256 $fixture.oldQualificationSha256 -ExpectedBaselineSha256 $fixture.baselineSha256 `
+                    -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256
+                Assert-Test ([string]$recovered.disposition -ceq 'prior-restored') 'pre-marker rollback-failed phase was not recoverable'
+            }
+            else {
+                Assert-Test ((Get-KmcSha256 $fixture.qualificationPath) -ceq $fixture.oldQualificationSha256 -and
+                    -not (Test-Path -LiteralPath $lockPath)) 'pre-marker rollback-success phase did not restore and release exactly'
+            }
+        }
+    }
+
+    Invoke-HarnessTest 'Working requalification normalizes a late committed-state failure before rollback' {
+        $fixture = New-TestPendingWorkingRequalification 'late-commit-failure'
+        $runId = 'late-commit-failure-test'
+        $message = $null
+        try {
+            Invoke-KmcWorkingFixtureRequalificationTransaction `
+                -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -QualificationPath $fixture.qualificationPath -RunId $runId `
+                -ExpectedExistingQualificationSha256 $fixture.oldQualificationSha256 -ExpectedBaselineSha256 $fixture.baselineSha256 `
+                -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+                -AfterCommittedStateProbe { throw 'forced late committed-state failure' } | Out-Null
+        }
+        catch { $message = $_.Exception.Message }
+        Assert-Test ($message -like '*prior qualification was restored exactly*forced late committed-state failure*') 'late committed-state failure was not rolled back exactly'
+        $statePath = Join-Path $fixture.stateRoot ('fixture-requalifications\' + $runId + '.json')
+        $state = Read-KmcJson $statePath
+        [void](Assert-KmcWorkingFixtureRequalificationStateSchema $state)
+        Assert-Test ([string]$state.phase -ceq 'rolled-back' -and
+            $null -eq $state.PSObject.Properties['committedAtUtc']) 'late committed-state failure retained illegal committed fields in rolled-back state'
+        Assert-Test ((Get-KmcSha256 $fixture.qualificationPath) -ceq $fixture.oldQualificationSha256 -and
+            -not (Test-Path -LiteralPath (Join-Path $fixture.stateRoot 'active-transaction.lock'))) 'late committed-state rollback did not restore qualification and release lock'
+    }
+
+    Invoke-HarnessTest 'Working requalification rollback failure retains its runtime lock' {
+        $fixture = New-TestPendingWorkingRequalification 'rollback-failure'
+        $message = $null
+        try {
+            Invoke-KmcWorkingFixtureRequalificationTransaction `
+                -SaveRoot $fixture.saveRoot `
+                -StateRoot $fixture.stateRoot `
+                -QualificationPath $fixture.qualificationPath `
+                -RunId 'rollback-failure-test' `
+                -ExpectedExistingQualificationSha256 $fixture.oldQualificationSha256 `
+                -ExpectedBaselineSha256 $fixture.baselineSha256 `
+                -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 `
+                -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+                -PostWriteProbe { throw 'forced primary failure' } `
+                -BeforeRollbackProbe { throw 'forced rollback failure' } | Out-Null
+        }
+        catch { $message = $_.Exception.Message }
+        $retainedLockPath = Join-Path $fixture.stateRoot 'active-transaction.lock'
+        Assert-Test ($message -like '*forced primary failure*forced rollback failure*active runtime lock was retained*') 'rollback failure did not surface both failures and lock retention'
+        Assert-Test (Test-Path -LiteralPath $retainedLockPath -PathType Leaf) 'rollback failure did not retain its runtime lock'
+        $rollbackStatePath = Join-Path $fixture.stateRoot 'fixture-requalifications\rollback-failure-test.json'
+        $state = Read-KmcJson $rollbackStatePath
+        Assert-Test ([string]$state.phase -ceq 'rollback-failed') 'rollback failure state was not durably marked rollback-failed'
+        Set-TestRuntimeLockOwnerDead $retainedLockPath
+        $qualificationBak = Join-Path $fixture.stateRoot ('.fixture-qualification.json.' + [Guid]::NewGuid().ToString('N') + '.bak')
+        $stateBak = Join-Path (Split-Path -Parent $rollbackStatePath) ('.rollback-failure-test.json.' + [Guid]::NewGuid().ToString('N') + '.bak')
+        Copy-Item -LiteralPath $fixture.qualificationPath -Destination $qualificationBak
+        Copy-Item -LiteralPath $rollbackStatePath -Destination $stateBak
+        $debrisPlan = Get-KmcWorkingFixtureRequalificationRecoveryPlan `
+            -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -QualificationPath $fixture.qualificationPath `
+            -RunId 'rollback-failure-test' -ExpectedPriorQualificationSha256 $fixture.oldQualificationSha256 `
+            -ExpectedBaselineSha256 $fixture.baselineSha256 -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 `
+            -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256
+        Assert-Test (@($debrisPlan.atomicDebris).Count -eq 2) 'bounded legacy atomic backups were not classified before recovery'
+        $recovered = Invoke-KmcWorkingFixtureRequalificationRecovery `
+            -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -QualificationPath $fixture.qualificationPath `
+            -RunId 'rollback-failure-test' -ExpectedPriorQualificationSha256 $fixture.oldQualificationSha256 `
+            -ExpectedBaselineSha256 $fixture.baselineSha256 -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 `
+            -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256
+        Assert-Test ([string]$recovered.disposition -ceq 'prior-restored') 'rollback-failed recovery did not restore the prior qualification'
+        Assert-Test (-not (Test-Path -LiteralPath $retainedLockPath) -and
+            -not (Test-Path -LiteralPath $qualificationBak) -and -not (Test-Path -LiteralPath $stateBak)) 'rollback-failed recovery did not reconcile owned debris and clear its adopted lock'
+        $recoveredState = Read-KmcJson $rollbackStatePath
+        Assert-Test ([string]$recoveredState.phase -ceq 'recovered-rolled-back') 'rollback-failed recovery did not write an exact terminal state'
+    }
+
+    Invoke-HarnessTest 'Working requalification does not roll back after lock authority is lost' {
+        $fixture = New-TestPendingWorkingRequalification 'lost-lock-authority'
+        $message = $null
+        try {
+            Invoke-KmcWorkingFixtureRequalificationTransaction `
+                -SaveRoot $fixture.saveRoot `
+                -StateRoot $fixture.stateRoot `
+                -QualificationPath $fixture.qualificationPath `
+                -RunId 'lost-lock-authority-test' `
+                -ExpectedExistingQualificationSha256 $fixture.oldQualificationSha256 `
+                -ExpectedBaselineSha256 $fixture.baselineSha256 `
+                -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 `
+                -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+                -PostWriteProbe {
+                    param($heldLock, $statePath)
+                    $heldLock.Stream.Dispose()
+                    throw 'forced lost-lock primary failure'
+                } | Out-Null
+        }
+        catch { $message = $_.Exception.Message }
+        $retainedLockPath = Join-Path $fixture.stateRoot 'active-transaction.lock'
+        Assert-Test ($message -like '*forced lost-lock primary failure*runtime lock handle is not readable*retained*') 'lost lock authority did not surface primary, rollback, and retention errors'
+        Assert-Test (Test-Path -LiteralPath $retainedLockPath -PathType Leaf) 'lost lock authority did not retain the runtime sentinel'
+        $validated = Assert-KmcFixturePair -SaveRoot $fixture.saveRoot -QualificationPath $fixture.qualificationPath
+        Assert-Test ([string]$validated.working.sha256 -ceq $fixture.revisedWorkingSha256) 'qualification was mutated during ambiguous lost-lock rollback'
+        $state = Read-KmcJson (Join-Path $fixture.stateRoot 'fixture-requalifications\lost-lock-authority-test.json')
+        Assert-Test ([string]$state.phase -ceq 'replacement-written') 'lost-lock rollback regressed the last authority-proven state'
+        Set-TestRuntimeLockOwnerDead $retainedLockPath
+        $recovered = Invoke-KmcWorkingFixtureRequalificationRecovery `
+            -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -QualificationPath $fixture.qualificationPath `
+            -RunId 'lost-lock-authority-test' -ExpectedPriorQualificationSha256 $fixture.oldQualificationSha256 `
+            -ExpectedBaselineSha256 $fixture.baselineSha256 -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 `
+            -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256
+        Assert-Test ([string]$recovered.disposition -ceq 'prior-restored') 'lost-lock rollback-failed state was not safely recovered'
+    }
+
+    Invoke-HarnessTest 'Working requalification rechecks authority after the rollback probe' {
+        $fixture = New-TestPendingWorkingRequalification 'rollback-probe-authority'
+        $runId = 'rollback-probe-authority-test'
+        $message = $null
+        try {
+            Invoke-KmcWorkingFixtureRequalificationTransaction `
+                -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -QualificationPath $fixture.qualificationPath -RunId $runId `
+                -ExpectedExistingQualificationSha256 $fixture.oldQualificationSha256 -ExpectedBaselineSha256 $fixture.baselineSha256 `
+                -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+                -PostWriteProbe { throw 'force rollback authority probe' } `
+                -BeforeRollbackProbe { param($heldLock,$ignored); $heldLock.Stream.Dispose() } | Out-Null
+        }
+        catch { $message = $_.Exception.Message }
+        $lockPath = Join-Path $fixture.stateRoot 'active-transaction.lock'
+        Assert-Test ($message -like '*force rollback authority probe*runtime lock handle is not readable*retained*') 'lost authority after rollback probe did not fail closed'
+        Assert-Test ((Get-KmcSha256 $fixture.qualificationPath) -cne $fixture.oldQualificationSha256 -and
+            (Test-Path -LiteralPath $lockPath -PathType Leaf)) 'rollback wrote the prior qualification after its probe lost authority'
+        $statePath = Join-Path $fixture.stateRoot ('fixture-requalifications\' + $runId + '.json')
+        $state = Read-KmcJson $statePath
+        [void](Assert-KmcWorkingFixtureRequalificationStateSchema $state)
+        Assert-Test ([string]$state.phase -ceq 'replacement-written') 'rollback-probe authority failure regressed the last authority-proven state'
+        Set-TestRuntimeLockOwnerDead $lockPath
+        $recovered = Invoke-KmcWorkingFixtureRequalificationRecovery `
+            -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -QualificationPath $fixture.qualificationPath -RunId $runId `
+            -ExpectedPriorQualificationSha256 $fixture.oldQualificationSha256 -ExpectedBaselineSha256 $fixture.baselineSha256 `
+            -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256
+        Assert-Test ([string]$recovered.disposition -ceq 'prior-restored') 'rollback-probe authority failure was not safely recoverable'
+    }
+
+    Invoke-HarnessTest 'Working requalification preserves prepared state when pre-write authority is lost' {
+        $fixture = New-TestPendingWorkingRequalification 'prewrite-authority'
+        $runId = 'prewrite-authority-test'
+        $message = $null
+        try {
+            Invoke-KmcWorkingFixtureRequalificationTransaction `
+                -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -QualificationPath $fixture.qualificationPath -RunId $runId `
+                -ExpectedExistingQualificationSha256 $fixture.oldQualificationSha256 -ExpectedBaselineSha256 $fixture.baselineSha256 `
+                -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+                -BeforeReplacementProbe { param($heldLock,$ignored); $heldLock.Stream.Dispose(); throw 'forced prewrite authority loss' } | Out-Null
+        }
+        catch { $message = $_.Exception.Message }
+        $lockPath = Join-Path $fixture.stateRoot 'active-transaction.lock'
+        $statePath = Join-Path $fixture.stateRoot ('fixture-requalifications\' + $runId + '.json')
+        Assert-Test ($message -like '*forced prewrite authority loss*runtime lock handle is not readable*') 'prewrite authority loss did not surface both errors'
+        Assert-Test ((Get-KmcSha256 $fixture.qualificationPath) -ceq $fixture.oldQualificationSha256 -and
+            (Test-Path -LiteralPath $lockPath -PathType Leaf)) 'prewrite authority loss changed qualification or removed its fail-closed lock'
+        $state = Read-KmcJson $statePath
+        [void](Assert-KmcWorkingFixtureRequalificationStateSchema $state)
+        Assert-Test ([string]$state.phase -ceq 'prepared') 'prewrite authority loss regressed the last authority-proven state'
+        Set-TestRuntimeLockOwnerDead $lockPath
+        $recovered = Invoke-KmcWorkingFixtureRequalificationRecovery `
+            -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -QualificationPath $fixture.qualificationPath -RunId $runId `
+            -ExpectedPriorQualificationSha256 $fixture.oldQualificationSha256 -ExpectedBaselineSha256 $fixture.baselineSha256 `
+            -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256
+        Assert-Test ([string]$recovered.disposition -ceq 'prior-restored') 'prewrite authority-loss state was not safely recoverable'
+    }
+
+    Invoke-HarnessTest 'Working requalification rejects overlapping save and state roots' {
+        $root = Join-Path $testRoot 'requalification-root-overlap'
+        $child = Join-Path $root 'child'
+        New-Item -ItemType Directory -Path $child -Force | Out-Null
+        foreach ($pair in @(
+            @($root, $root),
+            @($root, $child),
+            @($child, $root)
+        )) {
+            $threw = $false
+            try { Assert-KmcPathsDoNotOverlap -First $pair[0] -Second $pair[1] -Description 'synthetic roots' } catch { $threw = $true }
+            Assert-Test $threw 'Working requalification accepted equal or nested save/state roots'
+        }
+
+        $fixture = New-TestPendingWorkingRequalification 'overlap-helper'
+        $nestedState = Join-Path $fixture.saveRoot 'nested-state'
+        New-Item -ItemType Directory -Path $nestedState | Out-Null
+        $nestedQualification = Join-Path $nestedState 'fixture-qualification.json'
+        [IO.File]::WriteAllBytes($nestedQualification, [IO.File]::ReadAllBytes($fixture.qualificationPath))
+        $nestedQualificationHash = Get-KmcSha256 $nestedQualification
+        $threw = $false
+        try {
+            Invoke-KmcWorkingFixtureRequalificationTransaction `
+                -SaveRoot $fixture.saveRoot -StateRoot $nestedState -QualificationPath $nestedQualification -RunId 'overlap-helper-test' `
+                -ExpectedExistingQualificationSha256 $fixture.oldQualificationSha256 -ExpectedBaselineSha256 $fixture.baselineSha256 `
+                -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 | Out-Null
+        }
+        catch { $threw = $true }
+        Assert-Test $threw 'transaction helper accepted overlapping save and state roots'
+        Assert-Test (-not (Test-Path -LiteralPath (Join-Path $nestedState 'active-transaction.lock'))) 'overlap rejection created a runtime lock'
+        Assert-Test ((Get-KmcSha256 $nestedQualification) -ceq $nestedQualificationHash) 'overlap rejection changed qualification bytes'
+
+        $alternateQualification = Join-Path $fixture.stateRoot 'alternate-qualification.json'
+        [IO.File]::WriteAllBytes($alternateQualification, [IO.File]::ReadAllBytes($fixture.qualificationPath))
+        $threw = $false
+        try {
+            Invoke-KmcWorkingFixtureRequalificationTransaction `
+                -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -QualificationPath $alternateQualification -RunId 'alternate-path-test' `
+                -ExpectedExistingQualificationSha256 $fixture.oldQualificationSha256 -ExpectedBaselineSha256 $fixture.baselineSha256 `
+                -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 | Out-Null
+        }
+        catch { $threw = $true }
+        Assert-Test $threw 'transaction helper accepted a noncanonical qualification path'
+        Assert-Test (-not (Test-Path -LiteralPath (Join-Path $fixture.stateRoot 'active-transaction.lock'))) 'qualification-path rejection created a runtime lock'
+    }
+
+    Invoke-HarnessTest 'reparse guard rejects a regular path beneath a junction ancestor' {
+        $realParent = Join-Path $testRoot 'requalification-ancestor-real'
+        $realState = Join-Path $realParent 'state'
+        $junctionParent = Join-Path $testRoot 'requalification-ancestor-junction'
+        New-Item -ItemType Directory -Path $realState -Force | Out-Null
+        New-Item -ItemType Junction -Path $junctionParent -Target $realParent | Out-Null
+        $aliasedState = Join-Path $junctionParent 'state'
+        Assert-Test (Test-Path -LiteralPath $aliasedState -PathType Container) 'ancestor-junction fixture did not resolve to its regular child'
+        $message = $null
+        try { Assert-KmcNotReparsePoint $aliasedState 'synthetic aliased state root' } catch { $message = $_.Exception.Message }
+        Assert-Test ($message -like '*resolves through a reparse point*requalification-ancestor-junction*') 'regular state path beneath a junction ancestor passed containment guard'
+    }
+
+    Invoke-HarnessTest 'Working requalification recovery clears a state-less crash without mutation' {
+        $fixture = New-TestPendingWorkingRequalification 'recover-no-state'
+        $runId = 'recover-no-state-test'
+        $lock = Open-KmcRuntimeLock -StateRoot $fixture.stateRoot -RunId $runId -Purpose 'fixture-requalification'
+        Abandon-KmcRuntimeLock $lock
+        $lockPath = Join-Path $fixture.stateRoot 'active-transaction.lock'
+        Set-TestRuntimeLockOwnerDead $lockPath
+        $transactionRoot = Join-Path $fixture.stateRoot 'fixture-requalifications'
+        New-Item -ItemType Directory -Path $transactionRoot | Out-Null
+        [IO.File]::WriteAllBytes((Join-Path $transactionRoot ($runId + '.prior.json')), [IO.File]::ReadAllBytes($fixture.qualificationPath))
+        $qualificationBefore = Get-Item -LiteralPath $fixture.qualificationPath -Force
+        $saveBefore = Get-KmcSaveMetadataInventory $fixture.saveRoot
+        $lockHashBefore = Get-KmcSha256 $lockPath
+        $guardPath = Join-Path $repoRoot 'scripts\runtime\Test-KmcFixtureGuard.ps1'
+        $whatIfOutput = @(& $guardPath `
+            -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -RecoverWorkingRequalification -RequalificationRunId $runId `
+            -ExpectedExistingQualificationSha256 $fixture.oldQualificationSha256 -ExpectedBaselineSha256 $fixture.baselineSha256 `
+            -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+            -WhatIf 6>&1)
+        Assert-Test (($whatIfOutput -join "`n") -like '*recovery WhatIf PASS*clear-prepared-lock*') 'state-less recovery WhatIf did not report its exact pure action'
+        Assert-Test ((Get-KmcSha256 $lockPath) -ceq $lockHashBefore) 'recovery WhatIf changed the stale lock'
+        $result = @(& $guardPath `
+            -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -RecoverWorkingRequalification -RequalificationRunId $runId `
+            -ExpectedExistingQualificationSha256 $fixture.oldQualificationSha256 -ExpectedBaselineSha256 $fixture.baselineSha256 `
+            -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+            -Confirm:$false 6>&1)
+        Assert-Test (($result -join "`n") -like '*recovery PASS: prior-restored*') 'state-less recovery did not pass with prior qualification retained'
+        Assert-Test (-not (Test-Path -LiteralPath $lockPath)) 'state-less recovery did not clear its stale lock'
+        $qualificationAfter = Get-Item -LiteralPath $fixture.qualificationPath -Force
+        Assert-Test ((Get-KmcSha256 $fixture.qualificationPath) -ceq $fixture.oldQualificationSha256 -and
+            $qualificationAfter.LastWriteTimeUtc.Ticks -eq $qualificationBefore.LastWriteTimeUtc.Ticks) 'state-less recovery changed prior qualification'
+        Assert-KmcSaveMetadataInventoriesEqual -Before $saveBefore -After (Get-KmcSaveMetadataInventory $fixture.saveRoot) -Description 'state-less recovery saves'
+        $statePath = Join-Path $transactionRoot ($runId + '.json')
+        Assert-Test (Test-Path -LiteralPath $statePath -PathType Leaf) 'state-less recovery claimed no durable audit state'
+        $terminal = Read-KmcJson $statePath
+        [void](Assert-KmcWorkingFixtureRequalificationStateSchema $terminal)
+        Assert-Test ([string]$terminal.phase -ceq 'recovered-rolled-back' -and
+            [string]$terminal.recoveryAction -ceq 'prior-retained-state-less') 'state-less recovery audit state is not exact and truthful'
+        $terminalHash = Get-KmcSha256 $statePath
+        $replay = @(& $guardPath `
+            -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -RecoverWorkingRequalification -RequalificationRunId $runId `
+            -ExpectedExistingQualificationSha256 $fixture.oldQualificationSha256 -ExpectedBaselineSha256 $fixture.baselineSha256 `
+            -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+            -Confirm:$false 6>&1)
+        Assert-Test (($replay -join "`n") -like '*recovery PASS: already-recovered-prior*') 'completed state-less recovery was not terminally idempotent'
+        Assert-Test ((Get-KmcSha256 $statePath) -ceq $terminalHash -and -not (Test-Path -LiteralPath $lockPath)) 'terminal state-less replay mutated state or recreated a lock'
+    }
+
+    Invoke-HarnessTest 'Working requalification recovery restores replacement-written crash' {
+        $fixture = New-TestPendingWorkingRequalification 'recover-prepared'
+        $runId = 'recover-prepared-test'
+        try {
+            Invoke-KmcWorkingFixtureRequalificationTransaction `
+                -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -QualificationPath $fixture.qualificationPath -RunId $runId `
+                -ExpectedExistingQualificationSha256 $fixture.oldQualificationSha256 -ExpectedBaselineSha256 $fixture.baselineSha256 `
+                -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+                -PostWriteProbe { throw 'synthetic crash primary' } -BeforeRollbackProbe { throw 'synthetic crash before rollback' } | Out-Null
+        }
+        catch { }
+        $statePath = Join-Path $fixture.stateRoot ('fixture-requalifications\' + $runId + '.json')
+        $state = Read-KmcJson $statePath
+        $state.phase = 'replacement-written'
+        $state = Select-TestObjectProperties $state @(Get-KmcWorkingFixtureRequalificationStatePropertyNames 'replacement-written')
+        Write-KmcJsonDurable -Path $statePath -Value $state
+        $lockPath = Join-Path $fixture.stateRoot 'active-transaction.lock'
+        Set-TestRuntimeLockOwnerDead $lockPath
+        $result = Invoke-KmcWorkingFixtureRequalificationRecovery `
+            -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -QualificationPath $fixture.qualificationPath -RunId $runId `
+            -ExpectedPriorQualificationSha256 $fixture.oldQualificationSha256 -ExpectedBaselineSha256 $fixture.baselineSha256 `
+            -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256
+        Assert-Test ([string]$result.disposition -ceq 'prior-restored') 'replacement-written crash did not restore prior qualification'
+        Assert-Test ((Get-KmcSha256 $fixture.qualificationPath) -ceq $fixture.oldQualificationSha256) 'replacement-written crash recovery did not restore exact prior bytes'
+        Assert-Test (-not (Test-Path -LiteralPath $lockPath)) 'replacement-written crash recovery did not clear stale lock'
+        $normalAccepted = $true
+        try { Assert-KmcFixturePair -SaveRoot $fixture.saveRoot -QualificationPath $fixture.qualificationPath | Out-Null } catch { $normalAccepted = $false }
+        Assert-Test (-not $normalAccepted) 'replacement-written crash recovery admitted revised Working'
+    }
+
+    Invoke-HarnessTest 'Working requalification recovery restores a prepared-state replacement crash window' {
+        $fixture = New-TestPendingWorkingRequalification 'recover-prepared-write-window'
+        $runId = 'recover-prepared-write-window-test'
+        try {
+            Invoke-KmcWorkingFixtureRequalificationTransaction `
+                -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -QualificationPath $fixture.qualificationPath -RunId $runId `
+                -ExpectedExistingQualificationSha256 $fixture.oldQualificationSha256 -ExpectedBaselineSha256 $fixture.baselineSha256 `
+                -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+                -PostWriteProbe { throw 'synthetic crash after qualification replacement' } `
+                -BeforeRollbackProbe { throw 'synthetic process termination before rollback' } | Out-Null
+        }
+        catch { }
+        $statePath = Join-Path $fixture.stateRoot ('fixture-requalifications\' + $runId + '.json')
+        $state = Read-KmcJson $statePath
+        $state.phase = 'prepared'
+        $state = Select-TestObjectProperties $state @(Get-KmcWorkingFixtureRequalificationStatePropertyNames 'prepared')
+        Write-KmcJsonDurable -Path $statePath -Value $state
+        $lockPath = Join-Path $fixture.stateRoot 'active-transaction.lock'
+        Set-TestRuntimeLockOwnerDead $lockPath
+        $result = Invoke-KmcWorkingFixtureRequalificationRecovery `
+            -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -QualificationPath $fixture.qualificationPath -RunId $runId `
+            -ExpectedPriorQualificationSha256 $fixture.oldQualificationSha256 -ExpectedBaselineSha256 $fixture.baselineSha256 `
+            -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256
+        Assert-Test ([string]$result.disposition -ceq 'prior-restored') 'prepared-state replacement window did not restore prior qualification'
+        Assert-Test ((Get-KmcSha256 $fixture.qualificationPath) -ceq $fixture.oldQualificationSha256 -and
+            -not (Test-Path -LiteralPath $lockPath)) 'prepared-state replacement window was not recovered exactly'
+    }
+
+    Invoke-HarnessTest 'Working requalification recovery resumes between prior bytes and timestamp restoration' {
+        $fixture = New-TestPendingWorkingRequalification 'recover-between-bytes-and-time'
+        $runId = 'recover-between-bytes-and-time-test'
+        try {
+            Invoke-KmcWorkingFixtureRequalificationTransaction `
+                -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -QualificationPath $fixture.qualificationPath -RunId $runId `
+                -ExpectedExistingQualificationSha256 $fixture.oldQualificationSha256 -ExpectedBaselineSha256 $fixture.baselineSha256 `
+                -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+                -PostWriteProbe { throw 'retain revised qualification for split-restore test' } `
+                -BeforeRollbackProbe { throw 'defer split restore to recovery' } | Out-Null
+        }
+        catch { }
+        $lockPath = Join-Path $fixture.stateRoot 'active-transaction.lock'
+        Set-TestRuntimeLockOwnerDead $lockPath
+        $message = $null
+        try {
+            Invoke-KmcWorkingFixtureRequalificationRecovery `
+                -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -QualificationPath $fixture.qualificationPath -RunId $runId `
+                -ExpectedPriorQualificationSha256 $fixture.oldQualificationSha256 -ExpectedBaselineSha256 $fixture.baselineSha256 `
+                -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+                -AfterRecoveryBytesBeforeTimestampProbe { throw 'synthetic crash between bytes and timestamp' } | Out-Null
+        }
+        catch { $message = $_.Exception.Message }
+        Assert-Test ($message -like '*synthetic crash between bytes and timestamp*' -and
+            $message -like '*retained the runtime lock*') 'split restore crash did not fail closed'
+        $statePath = Join-Path $fixture.stateRoot ('fixture-requalifications\' + $runId + '.json')
+        $state = Read-KmcJson $statePath
+        Assert-Test ([string]$state.phase -ceq 'recovery-restore-prepared') 'split restore did not durably record its resumable phase before qualification mutation'
+        $qualification = Get-Item -LiteralPath $fixture.qualificationPath -Force
+        Assert-Test ((Get-KmcSha256 $fixture.qualificationPath) -ceq $fixture.oldQualificationSha256 -and
+            $qualification.LastWriteTimeUtc.Ticks -ne [long]$state.priorQualificationLastWriteTimeUtcTicks) 'split restore fixture did not reach exact-prior-bytes/incomplete-metadata state'
+        Set-TestRuntimeLockOwnerDead $lockPath
+        $recovered = Invoke-KmcWorkingFixtureRequalificationRecovery `
+            -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -QualificationPath $fixture.qualificationPath -RunId $runId `
+            -ExpectedPriorQualificationSha256 $fixture.oldQualificationSha256 -ExpectedBaselineSha256 $fixture.baselineSha256 `
+            -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256
+        $qualification = Get-Item -LiteralPath $fixture.qualificationPath -Force
+        Assert-Test ([string]$recovered.disposition -ceq 'prior-restored' -and
+            $qualification.LastWriteTimeUtc.Ticks -eq [long]$state.priorQualificationLastWriteTimeUtcTicks -and
+            -not (Test-Path -LiteralPath $lockPath)) 'split restore recovery did not repair exact prior metadata and clear its lock'
+    }
+
+    Invoke-HarnessTest 'Working requalification recovery accepts exact committed crash' {
+        $fixture = New-TestPendingWorkingRequalification 'recover-committed'
+        $guardPath = Join-Path $repoRoot 'scripts\runtime\Test-KmcFixtureGuard.ps1'
+        [void]@(& $guardPath `
+            -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -RequalifyWorking `
+            -ExpectedExistingQualificationSha256 $fixture.oldQualificationSha256 -ExpectedBaselineSha256 $fixture.baselineSha256 `
+            -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+            -Confirm:$false 6>&1)
+        $statePath = @(Get-ChildItem -LiteralPath (Join-Path $fixture.stateRoot 'fixture-requalifications') -Filter '*.json' |
+            Where-Object { $_.Name -notlike '*.prior.json' })[0].FullName
+        $state = Read-KmcJson $statePath
+        $runId = [string]$state.runId
+        $lock = Open-KmcRuntimeLock -StateRoot $fixture.stateRoot -RunId $runId -Purpose 'fixture-requalification'
+        $state.token = [string]$lock.Token
+        Write-KmcJsonDurable -Path $statePath -Value $state
+        Abandon-KmcRuntimeLock $lock
+        $lockPath = Join-Path $fixture.stateRoot 'active-transaction.lock'
+        Set-TestRuntimeLockOwnerDead $lockPath
+        $result = Invoke-KmcWorkingFixtureRequalificationRecovery `
+            -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -QualificationPath $fixture.qualificationPath -RunId $runId `
+            -ExpectedPriorQualificationSha256 $fixture.oldQualificationSha256 -ExpectedBaselineSha256 $fixture.baselineSha256 `
+            -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256
+        Assert-Test ([string]$result.disposition -ceq 'committed') 'exact committed crash was not accepted'
+        $validated = Assert-KmcFixturePair -SaveRoot $fixture.saveRoot -QualificationPath $fixture.qualificationPath
+        Assert-Test ([string]$validated.working.sha256 -ceq $fixture.revisedWorkingSha256) 'committed crash recovery lost revised Working qualification'
+        Assert-Test (-not (Test-Path -LiteralPath $lockPath)) 'committed crash recovery did not clear stale lock'
+        $terminalHash = Get-KmcSha256 $statePath
+        $replay = Invoke-KmcWorkingFixtureRequalificationRecovery `
+            -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -QualificationPath $fixture.qualificationPath -RunId $runId `
+            -ExpectedPriorQualificationSha256 $fixture.oldQualificationSha256 -ExpectedBaselineSha256 $fixture.baselineSha256 `
+            -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256
+        Assert-Test ([string]$replay.disposition -ceq 'already-recovered-committed') 'completed committed recovery was not terminally idempotent'
+        Assert-Test ((Get-KmcSha256 $statePath) -ceq $terminalHash -and -not (Test-Path -LiteralPath $lockPath)) 'terminal committed replay mutated state or recreated a lock'
+    }
+
+    Invoke-HarnessTest 'Working requalification recovery rejects an unbound or wrong-kind stale sentinel' {
+        $unbound = New-TestPendingWorkingRequalification 'recover-unbound-lock'
+        $runId = 'recover-unbound-lock-test'
+        $lock = Open-KmcRuntimeLock -StateRoot $unbound.stateRoot -RunId $runId
+        Abandon-KmcRuntimeLock $lock
+        $lockPath = Join-Path $unbound.stateRoot 'active-transaction.lock'
+        Set-TestRuntimeLockOwnerDead $lockPath
+        $lockHash = Get-KmcSha256 $lockPath
+        $qualificationHash = Get-KmcSha256 $unbound.qualificationPath
+        $message = $null
+        try {
+            Get-KmcWorkingFixtureRequalificationRecoveryPlan `
+                -SaveRoot $unbound.saveRoot -StateRoot $unbound.stateRoot -QualificationPath $unbound.qualificationPath -RunId $runId `
+                -ExpectedPriorQualificationSha256 $unbound.oldQualificationSha256 -ExpectedBaselineSha256 $unbound.baselineSha256 `
+                -ExpectedSupersededWorkingSha256 $unbound.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $unbound.revisedWorkingSha256 | Out-Null
+        }
+        catch { $message = $_.Exception.Message }
+        Assert-Test ($message -like '*requalification recovery lock*property set is not exact*') 'unpurposed stale sentinel was treated as fixture requalification'
+        Assert-Test ((Get-KmcSha256 $lockPath) -ceq $lockHash -and
+            (Get-KmcSha256 $unbound.qualificationPath) -ceq $qualificationHash) 'unbound lock rejection mutated lock or qualification'
+        Remove-Item -LiteralPath $lockPath -Force
+
+        $bound = New-TestPendingWorkingRequalification 'recover-purpose-bound-earliest'
+        $boundRunId = 'recover-purpose-bound-earliest-test'
+        $boundLock = Open-KmcRuntimeLock -StateRoot $bound.stateRoot -RunId $boundRunId -Purpose 'fixture-requalification'
+        Abandon-KmcRuntimeLock $boundLock
+        $boundLockPath = Join-Path $bound.stateRoot 'active-transaction.lock'
+        Set-TestRuntimeLockOwnerDead $boundLockPath
+        $boundTmp = Join-Path $bound.stateRoot ('.fixture-qualification.json.' + [Guid]::NewGuid().ToString('N') + '.tmp')
+        [IO.File]::WriteAllText($boundTmp, 'partial owned candidate from interrupted atomic write')
+        $boundPlan = Get-KmcWorkingFixtureRequalificationRecoveryPlan `
+            -SaveRoot $bound.saveRoot -StateRoot $bound.stateRoot -QualificationPath $bound.qualificationPath -RunId $boundRunId `
+            -ExpectedPriorQualificationSha256 $bound.oldQualificationSha256 -ExpectedBaselineSha256 $bound.baselineSha256 `
+            -ExpectedSupersededWorkingSha256 $bound.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $bound.revisedWorkingSha256
+        Assert-Test ([string]$boundPlan.action -ceq 'prepare-purpose-bound-lock' -and
+            @($boundPlan.atomicDebris).Count -eq 1) 'earliest purpose-bound crash and its atomic temp were not recognized before backup/state creation'
+        $boundResult = Invoke-KmcWorkingFixtureRequalificationRecovery `
+            -SaveRoot $bound.saveRoot -StateRoot $bound.stateRoot -QualificationPath $bound.qualificationPath -RunId $boundRunId `
+            -ExpectedPriorQualificationSha256 $bound.oldQualificationSha256 -ExpectedBaselineSha256 $bound.baselineSha256 `
+            -ExpectedSupersededWorkingSha256 $bound.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $bound.revisedWorkingSha256
+        $boundTransactionRoot = Join-Path $bound.stateRoot 'fixture-requalifications'
+        Assert-Test ([string]$boundResult.disposition -ceq 'prior-restored' -and
+            (Test-Path -LiteralPath (Join-Path $boundTransactionRoot ($boundRunId + '.prior.json')) -PathType Leaf) -and
+            (Test-Path -LiteralPath (Join-Path $boundTransactionRoot ($boundRunId + '.json')) -PathType Leaf) -and
+            -not (Test-Path -LiteralPath $boundLockPath) -and -not (Test-Path -LiteralPath $boundTmp)) 'earliest purpose-bound crash did not reconcile temp, create exact durable recovery records, and clear its lock'
+
+        $saveRace = New-TestPendingWorkingRequalification 'recover-purpose-save-race'
+        $saveRaceRunId = 'recover-purpose-save-race-test'
+        $saveRaceLock = Open-KmcRuntimeLock -StateRoot $saveRace.stateRoot -RunId $saveRaceRunId -Purpose 'fixture-requalification'
+        Abandon-KmcRuntimeLock $saveRaceLock
+        $saveRaceLockPath = Join-Path $saveRace.stateRoot 'active-transaction.lock'
+        Set-TestRuntimeLockOwnerDead $saveRaceLockPath
+        $saveBefore = Get-KmcSaveMetadataInventory $saveRace.saveRoot
+        $message = $null
+        try {
+            Invoke-KmcWorkingFixtureRequalificationRecovery `
+                -SaveRoot $saveRace.saveRoot -StateRoot $saveRace.stateRoot -QualificationPath $saveRace.qualificationPath -RunId $saveRaceRunId `
+                -ExpectedPriorQualificationSha256 $saveRace.oldQualificationSha256 -ExpectedBaselineSha256 $saveRace.baselineSha256 `
+                -ExpectedSupersededWorkingSha256 $saveRace.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $saveRace.revisedWorkingSha256 `
+                -AfterPurposeBoundBackupProbe {
+                    [IO.File]::AppendAllText((Join-Path $saveRace.saveRoot 'Manual_3_PERSONAL.zks'), '-foreign-race')
+                } | Out-Null
+        }
+        catch { $message = $_.Exception.Message }
+        $saveRaceStatePath = Join-Path $saveRace.stateRoot ('fixture-requalifications\' + $saveRaceRunId + '.json')
+        $saveRaceState = Read-KmcJson $saveRaceStatePath
+        Assert-Test (($message -like '*save digest are invalid*' -or $message -like '*save metadata*') -and
+            $message -like '*retained the runtime lock*') 'foreign save race during purpose-bound backup became a new baseline'
+        Assert-Test ([string]$saveRaceState.saveMetadataDigestBefore -ceq [string]$saveBefore.digest -and
+            [string]$saveRaceState.saveMetadataDigestBefore -cne [string](Get-KmcSaveMetadataInventory $saveRace.saveRoot).digest -and
+            (Test-Path -LiteralPath $saveRaceLockPath -PathType Leaf)) 'purpose-bound recovery did not durably preserve first-owned save metadata after a race'
+
+        $debrisRace = New-TestPendingWorkingRequalification 'recover-new-debris-race'
+        $debrisRaceRunId = 'recover-new-debris-race-test'
+        $debrisRaceLock = Open-KmcRuntimeLock -StateRoot $debrisRace.stateRoot -RunId $debrisRaceRunId -Purpose 'fixture-requalification'
+        Abandon-KmcRuntimeLock $debrisRaceLock
+        $debrisRaceLockPath = Join-Path $debrisRace.stateRoot 'active-transaction.lock'
+        Set-TestRuntimeLockOwnerDead $debrisRaceLockPath
+        $initialDebris = Join-Path $debrisRace.stateRoot ('.fixture-qualification.json.' + [Guid]::NewGuid().ToString('N') + '.tmp')
+        [IO.File]::WriteAllText($initialDebris, 'initial bounded temp')
+        $newDebris = Join-Path $debrisRace.stateRoot ('.fixture-qualification.json.' + [Guid]::NewGuid().ToString('N') + '.tmp')
+        $message = $null
+        try {
+            Invoke-KmcWorkingFixtureRequalificationRecovery `
+                -SaveRoot $debrisRace.saveRoot -StateRoot $debrisRace.stateRoot -QualificationPath $debrisRace.qualificationPath -RunId $debrisRaceRunId `
+                -ExpectedPriorQualificationSha256 $debrisRace.oldQualificationSha256 -ExpectedBaselineSha256 $debrisRace.baselineSha256 `
+                -ExpectedSupersededWorkingSha256 $debrisRace.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $debrisRace.revisedWorkingSha256 `
+                -AfterDebrisReconciliationProbe { [IO.File]::WriteAllText($newDebris, 'new debris after cleanup') } | Out-Null
+        }
+        catch { $message = $_.Exception.Message }
+        Assert-Test ($message -like '*atomic debris changed during guarded reconciliation*' -and
+            $message -like '*retained the runtime lock*') 'new debris during reconciliation was silently carried through PASS'
+        Assert-Test (-not (Test-Path -LiteralPath $initialDebris) -and
+            (Test-Path -LiteralPath $newDebris -PathType Leaf) -and
+            (Test-Path -LiteralPath $debrisRaceLockPath -PathType Leaf)) 'debris convergence failure did not retain the exact new debris and fail-closed lock'
+
+        $unknownDebris = New-TestPendingWorkingRequalification 'recover-unknown-debris'
+        $unknownRunId = 'recover-unknown-debris-test'
+        $unknownLock = Open-KmcRuntimeLock -StateRoot $unknownDebris.stateRoot -RunId $unknownRunId -Purpose 'fixture-requalification'
+        Abandon-KmcRuntimeLock $unknownLock
+        $unknownLockPath = Join-Path $unknownDebris.stateRoot 'active-transaction.lock'
+        Set-TestRuntimeLockOwnerDead $unknownLockPath
+        $unknownPath = Join-Path $unknownDebris.stateRoot '.fixture-qualification.json.not-a-guid.tmp'
+        [IO.File]::WriteAllText($unknownPath, 'unrecognized debris')
+        $message = $null
+        try {
+            Get-KmcWorkingFixtureRequalificationRecoveryPlan `
+                -SaveRoot $unknownDebris.saveRoot -StateRoot $unknownDebris.stateRoot -QualificationPath $unknownDebris.qualificationPath -RunId $unknownRunId `
+                -ExpectedPriorQualificationSha256 $unknownDebris.oldQualificationSha256 -ExpectedBaselineSha256 $unknownDebris.baselineSha256 `
+                -ExpectedSupersededWorkingSha256 $unknownDebris.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $unknownDebris.revisedWorkingSha256 | Out-Null
+        }
+        catch { $message = $_.Exception.Message }
+        Assert-Test ($message -like '*unrecognized atomic debris*') 'unrecognized atomic debris entered guarded reconciliation'
+        Assert-Test (Test-Path -LiteralPath $unknownLockPath -PathType Leaf) 'unknown debris rejection cleared its purpose-bound lock'
+
+        foreach ($kind in @('lock-directory','state-directory','backup-directory')) {
+            $fixture = New-TestPendingWorkingRequalification ('recover-wrong-kind-' + $kind)
+            $kindRunId = 'recover-wrong-kind-' + $kind
+            $kindLockPath = Join-Path $fixture.stateRoot 'active-transaction.lock'
+            $transactionRoot = Join-Path $fixture.stateRoot 'fixture-requalifications'
+            New-Item -ItemType Directory -Path $transactionRoot -Force | Out-Null
+            if ($kind -ceq 'lock-directory') {
+                New-Item -ItemType Directory -Path $kindLockPath | Out-Null
+            }
+            else {
+                $kindLock = Open-KmcRuntimeLock -StateRoot $fixture.stateRoot -RunId $kindRunId
+                Abandon-KmcRuntimeLock $kindLock
+                Set-TestRuntimeLockOwnerDead $kindLockPath
+                $wrongPath = if ($kind -ceq 'state-directory') {
+                    Join-Path $transactionRoot ($kindRunId + '.json')
+                } else { Join-Path $transactionRoot ($kindRunId + '.prior.json') }
+                New-Item -ItemType Directory -Path $wrongPath | Out-Null
+            }
+            $threw = $false
+            try {
+                Get-KmcWorkingFixtureRequalificationRecoveryPlan `
+                    -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -QualificationPath $fixture.qualificationPath -RunId $kindRunId `
+                    -ExpectedPriorQualificationSha256 $fixture.oldQualificationSha256 -ExpectedBaselineSha256 $fixture.baselineSha256 `
+                    -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 | Out-Null
+            }
+            catch { $threw = $true }
+            Assert-Test $threw "wrong-kind $kind path was treated as absent or recoverable"
+            Assert-Test ((Get-KmcSha256 $fixture.qualificationPath) -ceq $fixture.oldQualificationSha256) "wrong-kind $kind rejection changed qualification"
+        }
+    }
+
+    Invoke-HarnessTest 'Working requalification recovery rejects linked containment and identity files' {
+        $linkedLock = New-TestPendingWorkingRequalification 'recover-linked-lock'
+        $lockTarget = Join-Path $linkedLock.stateRoot 'foreign-lock-target.json'
+        Write-KmcJsonAtomic -Path $lockTarget -Value ([ordered]@{
+            schemaVersion=1;runId='recover-linked-lock-test';token=('1' * 64);ownerProcessId=2147483646;createdAtUtc=[DateTime]::UtcNow.ToString('o')
+        })
+        $lockPath = Join-Path $linkedLock.stateRoot 'active-transaction.lock'
+        New-Item -ItemType HardLink -Path $lockPath -Target $lockTarget | Out-Null
+        $message = $null
+        try {
+            Get-KmcWorkingFixtureRequalificationRecoveryPlan `
+                -SaveRoot $linkedLock.saveRoot -StateRoot $linkedLock.stateRoot -QualificationPath $linkedLock.qualificationPath -RunId 'recover-linked-lock-test' `
+                -ExpectedPriorQualificationSha256 $linkedLock.oldQualificationSha256 -ExpectedBaselineSha256 $linkedLock.baselineSha256 `
+                -ExpectedSupersededWorkingSha256 $linkedLock.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $linkedLock.revisedWorkingSha256 | Out-Null
+        }
+        catch { $message = $_.Exception.Message }
+        Assert-Test ($message -like '*hard link*') 'hard-linked stale lock was accepted for adoption'
+
+        $linkedQualification = New-TestPendingWorkingRequalification 'recover-linked-qualification'
+        $qualificationTarget = Join-Path $linkedQualification.stateRoot 'qualification-target.json'
+        Move-Item -LiteralPath $linkedQualification.qualificationPath -Destination $qualificationTarget
+        New-Item -ItemType HardLink -Path $linkedQualification.qualificationPath -Target $qualificationTarget | Out-Null
+        $message = $null
+        try {
+            Get-KmcWorkingFixtureRequalificationRecoveryPlan `
+                -SaveRoot $linkedQualification.saveRoot -StateRoot $linkedQualification.stateRoot -QualificationPath $linkedQualification.qualificationPath -RunId 'recover-linked-qualification-test' `
+                -ExpectedPriorQualificationSha256 $linkedQualification.oldQualificationSha256 -ExpectedBaselineSha256 $linkedQualification.baselineSha256 `
+                -ExpectedSupersededWorkingSha256 $linkedQualification.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $linkedQualification.revisedWorkingSha256 | Out-Null
+        }
+        catch { $message = $_.Exception.Message }
+        Assert-Test ($message -like '*hard link*') 'hard-linked qualification was accepted for recovery'
+
+        $junctionFixture = New-TestPendingWorkingRequalification 'recover-junction-root'
+        $junctionRunId = 'recover-junction-root-test'
+        $junctionLock = Open-KmcRuntimeLock -StateRoot $junctionFixture.stateRoot -RunId $junctionRunId
+        Abandon-KmcRuntimeLock $junctionLock
+        Set-TestRuntimeLockOwnerDead (Join-Path $junctionFixture.stateRoot 'active-transaction.lock')
+        $junctionTarget = Join-Path $junctionFixture.root 'outside-transaction-root'
+        New-Item -ItemType Directory -Path $junctionTarget | Out-Null
+        New-Item -ItemType Junction -Path (Join-Path $junctionFixture.stateRoot 'fixture-requalifications') -Target $junctionTarget | Out-Null
+        $threw = $false
+        try {
+            Get-KmcWorkingFixtureRequalificationRecoveryPlan `
+                -SaveRoot $junctionFixture.saveRoot -StateRoot $junctionFixture.stateRoot -QualificationPath $junctionFixture.qualificationPath -RunId $junctionRunId `
+                -ExpectedPriorQualificationSha256 $junctionFixture.oldQualificationSha256 -ExpectedBaselineSha256 $junctionFixture.baselineSha256 `
+                -ExpectedSupersededWorkingSha256 $junctionFixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $junctionFixture.revisedWorkingSha256 | Out-Null
+        }
+        catch { $threw = $true }
+        Assert-Test $threw 'reparse transaction-root ancestor was accepted for recovery reads or writes'
+    }
+
+    Invoke-HarnessTest 'Working requalification recovery enforces exact phase schemas and prior metadata' {
+        $fixture = New-TestPendingWorkingRequalification 'recover-schema-mutations'
+        $guardPath = Join-Path $repoRoot 'scripts\runtime\Test-KmcFixtureGuard.ps1'
+        [void]@(& $guardPath `
+            -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -RequalifyWorking `
+            -ExpectedExistingQualificationSha256 $fixture.oldQualificationSha256 -ExpectedBaselineSha256 $fixture.baselineSha256 `
+            -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+            -Confirm:$false 6>&1)
+        $statePath = @(Get-ChildItem -LiteralPath (Join-Path $fixture.stateRoot 'fixture-requalifications') -Filter '*.json' |
+            Where-Object { $_.Name -notlike '*.prior.json' })[0].FullName
+        $originalStateBytes = [IO.File]::ReadAllBytes($statePath)
+        $state = Read-KmcJson $statePath
+        $runId = [string]$state.runId
+        $lock = Open-KmcRuntimeLock -StateRoot $fixture.stateRoot -RunId $runId -Purpose 'fixture-requalification'
+        $state.token = [string]$lock.Token
+        Write-KmcJsonDurable -Path $statePath -Value $state
+        $exactStateBytes = [IO.File]::ReadAllBytes($statePath)
+        Abandon-KmcRuntimeLock $lock
+        $lockPath = Join-Path $fixture.stateRoot 'active-transaction.lock'
+        Set-TestRuntimeLockOwnerDead $lockPath
+
+        $mutated = Read-KmcJson $statePath
+        $mutated.PSObject.Properties.Remove('committedAtUtc')
+        Write-KmcJsonDurable -Path $statePath -Value $mutated
+        $threw = $false
+        try {
+            Get-KmcWorkingFixtureRequalificationRecoveryPlan `
+                -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -QualificationPath $fixture.qualificationPath -RunId $runId `
+                -ExpectedPriorQualificationSha256 $fixture.oldQualificationSha256 -ExpectedBaselineSha256 $fixture.baselineSha256 `
+                -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 | Out-Null
+        }
+        catch { $threw = $true }
+        Assert-Test $threw 'committed phase accepted a missing required mutation field'
+        Write-KmcBytesDurableAtomic -Path $statePath -Bytes $exactStateBytes
+        $mutated = Read-KmcJson $statePath
+        $mutated | Add-Member -NotePropertyName illegalPhaseField -NotePropertyValue 'forbidden'
+        Write-KmcJsonDurable -Path $statePath -Value $mutated
+        $threw = $false
+        try {
+            Get-KmcWorkingFixtureRequalificationRecoveryPlan `
+                -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -QualificationPath $fixture.qualificationPath -RunId $runId `
+                -ExpectedPriorQualificationSha256 $fixture.oldQualificationSha256 -ExpectedBaselineSha256 $fixture.baselineSha256 `
+                -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 | Out-Null
+        }
+        catch { $threw = $true }
+        Assert-Test $threw 'committed phase accepted an extraneous mutation field'
+        Write-KmcBytesDurableAtomic -Path $statePath -Bytes $exactStateBytes
+        [void](Invoke-KmcWorkingFixtureRequalificationRecovery `
+            -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -QualificationPath $fixture.qualificationPath -RunId $runId `
+            -ExpectedPriorQualificationSha256 $fixture.oldQualificationSha256 -ExpectedBaselineSha256 $fixture.baselineSha256 `
+            -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256)
+        $terminalBytes = [IO.File]::ReadAllBytes($statePath)
+        $terminalMutation = Read-KmcJson $statePath
+        $terminalMutation.PSObject.Properties.Remove('recoverySaveMetadataDigest')
+        Write-KmcJsonDurable -Path $statePath -Value $terminalMutation
+        $threw = $false
+        try {
+            Get-KmcWorkingFixtureRequalificationRecoveryPlan `
+                -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -QualificationPath $fixture.qualificationPath -RunId $runId `
+                -ExpectedPriorQualificationSha256 $fixture.oldQualificationSha256 -ExpectedBaselineSha256 $fixture.baselineSha256 `
+                -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 | Out-Null
+        }
+        catch { $threw = $true }
+        Assert-Test $threw 'terminal recovered-committed phase accepted a missing recovery proof field'
+        Write-KmcBytesDurableAtomic -Path $statePath -Bytes $terminalBytes
+
+        $priorFixture = New-TestPendingWorkingRequalification 'recover-prior-timestamp-drift'
+        $priorRunId = 'recover-prior-timestamp-drift-test'
+        try {
+            Invoke-KmcWorkingFixtureRequalificationTransaction `
+                -SaveRoot $priorFixture.saveRoot -StateRoot $priorFixture.stateRoot -QualificationPath $priorFixture.qualificationPath -RunId $priorRunId `
+                -ExpectedExistingQualificationSha256 $priorFixture.oldQualificationSha256 -ExpectedBaselineSha256 $priorFixture.baselineSha256 `
+                -ExpectedSupersededWorkingSha256 $priorFixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $priorFixture.revisedWorkingSha256 `
+                -PostWriteProbe { throw 'force exact rollback for timestamp test' } | Out-Null
+        }
+        catch { }
+        $priorStatePath = Join-Path $priorFixture.stateRoot ('fixture-requalifications\' + $priorRunId + '.json')
+        $priorState = Read-KmcJson $priorStatePath
+        $priorLock = Open-KmcRuntimeLock -StateRoot $priorFixture.stateRoot -RunId $priorRunId -Purpose 'fixture-requalification'
+        $priorState.token = [string]$priorLock.Token
+        Write-KmcJsonDurable -Path $priorStatePath -Value $priorState
+        Abandon-KmcRuntimeLock $priorLock
+        $priorLockPath = Join-Path $priorFixture.stateRoot 'active-transaction.lock'
+        Set-TestRuntimeLockOwnerDead $priorLockPath
+        $priorQualification = Get-Item -LiteralPath $priorFixture.qualificationPath -Force
+        [IO.File]::SetLastWriteTimeUtc($priorFixture.qualificationPath, $priorQualification.LastWriteTimeUtc.AddSeconds(2))
+        $driftPlan = Get-KmcWorkingFixtureRequalificationRecoveryPlan `
+            -SaveRoot $priorFixture.saveRoot -StateRoot $priorFixture.stateRoot -QualificationPath $priorFixture.qualificationPath -RunId $priorRunId `
+            -ExpectedPriorQualificationSha256 $priorFixture.oldQualificationSha256 -ExpectedBaselineSha256 $priorFixture.baselineSha256 `
+            -ExpectedSupersededWorkingSha256 $priorFixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $priorFixture.revisedWorkingSha256
+        Assert-Test ([string]$driftPlan.action -ceq 'restore-prior' -and
+            (Test-Path -LiteralPath $priorLockPath -PathType Leaf)) 'nonterminal prior timestamp drift was not classified for guarded repair'
+        $recovered = Invoke-KmcWorkingFixtureRequalificationRecovery `
+            -SaveRoot $priorFixture.saveRoot -StateRoot $priorFixture.stateRoot -QualificationPath $priorFixture.qualificationPath -RunId $priorRunId `
+            -ExpectedPriorQualificationSha256 $priorFixture.oldQualificationSha256 -ExpectedBaselineSha256 $priorFixture.baselineSha256 `
+            -ExpectedSupersededWorkingSha256 $priorFixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $priorFixture.revisedWorkingSha256
+        $repairedQualification = Get-Item -LiteralPath $priorFixture.qualificationPath -Force
+        Assert-Test ([string]$recovered.disposition -ceq 'prior-restored' -and
+            $repairedQualification.LastWriteTimeUtc.Ticks -eq [long]$priorState.priorQualificationLastWriteTimeUtcTicks -and
+            -not (Test-Path -LiteralPath $priorLockPath)) 'nonterminal prior timestamp drift was not repaired exactly'
+        [IO.File]::SetLastWriteTimeUtc($priorFixture.qualificationPath, $repairedQualification.LastWriteTimeUtc.AddSeconds(2))
+        $threw = $false
+        try {
+            Get-KmcWorkingFixtureRequalificationRecoveryPlan `
+                -SaveRoot $priorFixture.saveRoot -StateRoot $priorFixture.stateRoot -QualificationPath $priorFixture.qualificationPath -RunId $priorRunId `
+                -ExpectedPriorQualificationSha256 $priorFixture.oldQualificationSha256 -ExpectedBaselineSha256 $priorFixture.baselineSha256 `
+                -ExpectedSupersededWorkingSha256 $priorFixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $priorFixture.revisedWorkingSha256 | Out-Null
+        }
+        catch { $threw = $true }
+        Assert-Test $threw 'terminal no-lock prior timestamp drift was silently accepted or repaired'
+    }
+
+    Invoke-HarnessTest 'Working requalification recovery rechecks lock authority before each mutation' {
+        foreach ($probePoint in @('restore','state-write')) {
+            $fixture = New-TestPendingWorkingRequalification ('recover-authority-' + $probePoint)
+            $runId = 'recover-authority-' + $probePoint
+            try {
+                Invoke-KmcWorkingFixtureRequalificationTransaction `
+                    -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -QualificationPath $fixture.qualificationPath -RunId $runId `
+                    -ExpectedExistingQualificationSha256 $fixture.oldQualificationSha256 -ExpectedBaselineSha256 $fixture.baselineSha256 `
+                    -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+                    -PostWriteProbe { throw 'synthetic crash for recovery authority test' } `
+                    -BeforeRollbackProbe { throw 'retain revised qualification for recovery authority test' } | Out-Null
+            }
+            catch { }
+            $statePath = Join-Path $fixture.stateRoot ('fixture-requalifications\' + $runId + '.json')
+            $state = Read-KmcJson $statePath
+            $state.phase = 'replacement-written'
+            $state = Select-TestObjectProperties $state @(Get-KmcWorkingFixtureRequalificationStatePropertyNames 'replacement-written')
+            Write-KmcJsonDurable -Path $statePath -Value $state
+            $stateHashBefore = Get-KmcSha256 $statePath
+            $qualificationHashBefore = Get-KmcSha256 $fixture.qualificationPath
+            $lockPath = Join-Path $fixture.stateRoot 'active-transaction.lock'
+            Set-TestRuntimeLockOwnerDead $lockPath
+            $message = $null
+            try {
+                $arguments = @{
+                    SaveRoot=$fixture.saveRoot;StateRoot=$fixture.stateRoot;QualificationPath=$fixture.qualificationPath;RunId=$runId
+                    ExpectedPriorQualificationSha256=$fixture.oldQualificationSha256;ExpectedBaselineSha256=$fixture.baselineSha256
+                    ExpectedSupersededWorkingSha256=$fixture.supersededWorkingSha256;ExpectedRevisedWorkingSha256=$fixture.revisedWorkingSha256
+                }
+                if ($probePoint -ceq 'restore') {
+                    $arguments['BeforeRestoreProbe'] = { param($heldLock,$ignored); $heldLock.Stream.Dispose() }
+                }
+                else {
+                    $arguments['BeforeRecoveryStateWriteProbe'] = { param($heldLock,$ignored); $heldLock.Stream.Dispose() }
+                }
+                Invoke-KmcWorkingFixtureRequalificationRecovery @arguments | Out-Null
+            }
+            catch { $message = $_.Exception.Message }
+            Assert-Test ($message -like '*retained the runtime lock*runtime lock handle is not readable*') "lost authority at $probePoint did not fail closed"
+            Assert-Test (Test-Path -LiteralPath $lockPath -PathType Leaf) "lost authority at $probePoint did not retain the runtime sentinel"
+            if ($probePoint -ceq 'restore') {
+                Assert-Test ((Get-KmcSha256 $statePath) -ceq $stateHashBefore) 'lost authority before restore wrote any recovery state'
+                Assert-Test ((Get-KmcSha256 $fixture.qualificationPath) -ceq $qualificationHashBefore) 'lost authority before restore changed qualification'
+            }
+            else {
+                $preparedState = Read-KmcJson $statePath
+                Assert-Test ([string]$preparedState.phase -ceq 'recovery-restore-prepared') 'lost authority before terminal state write did not retain the exact resumable restore phase'
+                Assert-Test ((Get-KmcSha256 $fixture.qualificationPath) -ceq $fixture.oldQualificationSha256) 'state-write authority failure occurred before exact qualification restore'
+            }
+            Set-TestRuntimeLockOwnerDead $lockPath
+            $recovered = Invoke-KmcWorkingFixtureRequalificationRecovery `
+                -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -QualificationPath $fixture.qualificationPath -RunId $runId `
+                -ExpectedPriorQualificationSha256 $fixture.oldQualificationSha256 -ExpectedBaselineSha256 $fixture.baselineSha256 `
+                -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256
+            Assert-Test ([string]$recovered.disposition -ceq 'prior-restored') "recovery could not safely resume after $probePoint authority failure"
+        }
+    }
+
+    Invoke-HarnessTest 'Working requalification revalidates canonical state before deleting debris' {
+        $fixture = New-TestPendingWorkingRequalification 'recover-debris-race'
+        $runId = 'recover-debris-race-test'
+        try {
+            Invoke-KmcWorkingFixtureRequalificationTransaction `
+                -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -QualificationPath $fixture.qualificationPath -RunId $runId `
+                -ExpectedExistingQualificationSha256 $fixture.oldQualificationSha256 -ExpectedBaselineSha256 $fixture.baselineSha256 `
+                -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+                -PostWriteProbe { throw 'retain fixture for debris race' } -BeforeRollbackProbe { throw 'retain lock for debris race' } | Out-Null
+        }
+        catch { }
+        $statePath = Join-Path $fixture.stateRoot ('fixture-requalifications\' + $runId + '.json')
+        $debrisPath = Join-Path (Split-Path -Parent $statePath) ('.' + [IO.Path]::GetFileName($statePath) + '.' + [Guid]::NewGuid().ToString('N') + '.bak')
+        Copy-Item -LiteralPath $statePath -Destination $debrisPath
+        $lockPath = Join-Path $fixture.stateRoot 'active-transaction.lock'
+        Set-TestRuntimeLockOwnerDead $lockPath
+        $message = $null
+        try {
+            Invoke-KmcWorkingFixtureRequalificationRecovery `
+                -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -QualificationPath $fixture.qualificationPath -RunId $runId `
+                -ExpectedPriorQualificationSha256 $fixture.oldQualificationSha256 -ExpectedBaselineSha256 $fixture.baselineSha256 `
+                -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+                -AfterAdoptBeforeOwnedPlanProbe {
+                    $value = Read-KmcJson $statePath
+                    $value | Add-Member -NotePropertyName racedCanonicalMutation -NotePropertyValue 'must block debris deletion'
+                    Write-KmcJsonDurable -Path $statePath -Value $value
+                } | Out-Null
+        }
+        catch { $message = $_.Exception.Message }
+        Assert-Test ($message -like '*property set is not exact*' -and
+            $message -like '*retained the runtime lock*') 'canonical state race did not fail before reconciliation'
+        Assert-Test ((Test-Path -LiteralPath $debrisPath -PathType Leaf) -and
+            (Test-Path -LiteralPath $lockPath -PathType Leaf)) 'pre-adoption debris snapshot was deleted before owned canonical revalidation'
+    }
+
+    Invoke-HarnessTest 'exact save-metadata equality rejects a foreign mutation' {
+        $root = Join-Path $testRoot 'requalification-save-metadata-mutation'
+        New-Item -ItemType Directory -Path $root | Out-Null
+        $foreign = Join-Path $root 'Manual_1_PERSONAL.zks'
+        [IO.File]::WriteAllText($foreign, 'protected')
+        $before = Get-KmcSaveMetadataInventory $root
+        [IO.File]::AppendAllText($foreign, '-changed')
+        $threw = $false
+        try { Assert-KmcSaveMetadataInventoriesEqual -Before $before -After (Get-KmcSaveMetadataInventory $root) -Description 'synthetic foreign save' } catch { $threw = $true }
+        Assert-Test $threw 'exact save-metadata equality accepted a foreign save mutation'
     }
 
     Invoke-HarnessTest 'save write allowlist permits only exact working path' {

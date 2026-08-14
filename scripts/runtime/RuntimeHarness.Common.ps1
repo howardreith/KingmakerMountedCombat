@@ -58,6 +58,36 @@ function Write-KmcJsonAtomic {
     finally { if (Test-Path -LiteralPath $temporary) { Remove-Item -LiteralPath $temporary -Force } }
 }
 
+function Write-KmcBytesDurableAtomic {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][byte[]]$Bytes
+    )
+    $fullPath = [IO.Path]::GetFullPath($Path)
+    $parent = Split-Path -Parent $fullPath
+    if (-not (Test-Path -LiteralPath $parent -PathType Container)) {
+        New-Item -ItemType Directory -Path $parent -Force | Out-Null
+    }
+    Assert-KmcNotReparsePoint $parent 'durable byte-write parent'
+    $temporary = Join-Path $parent ('.' + [IO.Path]::GetFileName($fullPath) + '.' + [Guid]::NewGuid().ToString('N') + '.tmp')
+    try {
+        [IO.File]::WriteAllBytes($temporary, $Bytes)
+        $temporaryStream = New-Object IO.FileStream($temporary, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::Read)
+        try { $temporaryStream.Flush($true) }
+        finally { $temporaryStream.Dispose() }
+        if (Test-Path -LiteralPath $fullPath -PathType Leaf) {
+            $replacementBackup = Join-Path $parent ('.' + [IO.Path]::GetFileName($fullPath) + '.' + [Guid]::NewGuid().ToString('N') + '.bak')
+            try { [IO.File]::Replace($temporary, $fullPath, $replacementBackup) }
+            finally { if (Test-Path -LiteralPath $replacementBackup) { Remove-Item -LiteralPath $replacementBackup -Force } }
+        }
+        else { [IO.File]::Move($temporary, $fullPath) }
+        $targetStream = New-Object IO.FileStream($fullPath, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::Read)
+        try { $targetStream.Flush($true) }
+        finally { $targetStream.Dispose() }
+    }
+    finally { if (Test-Path -LiteralPath $temporary) { Remove-Item -LiteralPath $temporary -Force } }
+}
+
 function Read-KmcJson {
     param([Parameter(Mandatory = $true)][string]$Path)
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { throw "JSON file is missing: $Path" }
@@ -254,6 +284,36 @@ function Get-KmcSaveMetadataInventory {
         totalBytes = $totalBytes
         digest = Get-KmcTextSha256 $canonical
         entries = @($records)
+    }
+}
+
+function Assert-KmcSaveMetadataInventoriesEqual {
+    param(
+        [Parameter(Mandatory = $true)]$Before,
+        [Parameter(Mandatory = $true)]$After,
+        [Parameter(Mandatory = $true)][string]$Description
+    )
+    if ([int]$Before.schemaVersion -ne 2 -or [int]$After.schemaVersion -ne 2 -or
+        -not [string]::Equals([string]$Before.root, [string]$After.root, [StringComparison]::OrdinalIgnoreCase) -or
+        [int]$Before.fileCount -ne [int]$After.fileCount -or
+        [long]$Before.totalBytes -ne [long]$After.totalBytes -or
+        [string]$Before.digest -cne [string]$After.digest) {
+        throw "$Description changed."
+    }
+}
+
+function Assert-KmcPathsDoNotOverlap {
+    param(
+        [Parameter(Mandatory = $true)][string]$First,
+        [Parameter(Mandatory = $true)][string]$Second,
+        [Parameter(Mandatory = $true)][string]$Description
+    )
+    $firstFull = [IO.Path]::GetFullPath($First).TrimEnd('\')
+    $secondFull = [IO.Path]::GetFullPath($Second).TrimEnd('\')
+    if ([string]::Equals($firstFull, $secondFull, [StringComparison]::OrdinalIgnoreCase) -or
+        $firstFull.StartsWith($secondFull + '\', [StringComparison]::OrdinalIgnoreCase) -or
+        $secondFull.StartsWith($firstFull + '\', [StringComparison]::OrdinalIgnoreCase)) {
+        throw "$Description overlap: $firstFull / $secondFull"
     }
 }
 
@@ -496,6 +556,1200 @@ function Assert-KmcFixtureQualification {
     return $Pair
 }
 
+function New-KmcWorkingFixtureRequalification {
+    param(
+        [Parameter(Mandatory = $true)]$Pair,
+        [Parameter(Mandatory = $true)][string]$QualificationPath,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedExistingQualificationSha256,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedBaselineSha256,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedSupersededWorkingSha256,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedRevisedWorkingSha256
+    )
+    $fullQualification = [IO.Path]::GetFullPath($QualificationPath)
+    if (-not (Test-Path -LiteralPath $fullQualification -PathType Leaf)) {
+        throw "Existing KMC fixture qualification is missing: $fullQualification"
+    }
+    Assert-KmcNotReparsePoint $fullQualification 'existing KMC fixture qualification'
+    Assert-KmcNotHardLink $fullQualification 'existing KMC fixture qualification'
+    $qualificationBefore = Get-Item -LiteralPath $fullQualification -Force
+    if ($qualificationBefore.Length -le 0 -or $qualificationBefore.Length -gt 64KB) {
+        throw 'Existing KMC fixture qualification size is outside the guarded range.'
+    }
+    $actualQualificationSha256 = Get-KmcSha256 $fullQualification
+    if ($actualQualificationSha256 -cne $ExpectedExistingQualificationSha256) {
+        throw 'Existing KMC fixture qualification SHA-256 differs from the explicit requalification pin.'
+    }
+    $recorded = Read-KmcJson $fullQualification
+    $qualificationAfter = Get-Item -LiteralPath $fullQualification -Force
+    if ($qualificationAfter.Length -ne $qualificationBefore.Length -or
+        $qualificationAfter.LastWriteTimeUtc.Ticks -ne $qualificationBefore.LastWriteTimeUtc.Ticks -or
+        (Get-KmcSha256 $fullQualification) -cne $actualQualificationSha256) {
+        throw 'Existing KMC fixture qualification changed while it was being validated.'
+    }
+
+    $properties = @(
+        'schemaVersion','baselineName','baselineFileName','baselinePath','baselineSha256','baselineLength',
+        'baselineLastWriteTimeUtcTicks','workingName','workingFileName','workingPath','initialWorkingSha256',
+        'initialWorkingLength','initialWorkingLastWriteTimeUtcTicks','expectedGameName','expectedGameId',
+        'expectedArea','qualifiedAtUtc','writableSaveNames'
+    )
+    Assert-KmcExactProperties $recorded $properties 'existing KMC fixture qualification'
+    if (($recorded -isnot [pscustomobject]) -or
+        (($recorded.schemaVersion -isnot [int]) -and ($recorded.schemaVersion -isnot [long])) -or
+        [long]$recorded.schemaVersion -ne 1 -or
+        $recorded.writableSaveNames -isnot [Array]) {
+        throw 'Existing KMC fixture qualification schema types are not exact.'
+    }
+    foreach ($field in @(
+        'baselineName','baselineFileName','baselinePath','baselineSha256','workingName','workingFileName','workingPath',
+        'initialWorkingSha256','expectedGameName','expectedGameId','expectedArea','qualifiedAtUtc'
+    )) {
+        if ($recorded.$field -isnot [string]) {
+            throw "Existing KMC fixture qualification field $field is not an exact JSON string."
+        }
+    }
+    foreach ($field in @('baselineLength','baselineLastWriteTimeUtcTicks','initialWorkingLength','initialWorkingLastWriteTimeUtcTicks')) {
+        if (($recorded.$field -isnot [int]) -and ($recorded.$field -isnot [long])) {
+            throw "Existing KMC fixture qualification field $field is not an exact integral JSON value."
+        }
+    }
+    $priorQualifiedAt = [DateTimeOffset]::MinValue
+    if (-not [DateTimeOffset]::TryParseExact(
+        [string]$recorded.qualifiedAtUtc,
+        'o',
+        [Globalization.CultureInfo]::InvariantCulture,
+        [Globalization.DateTimeStyles]::RoundtripKind,
+        [ref]$priorQualifiedAt)) {
+        throw 'Existing KMC fixture qualification timestamp is not an exact round-trip timestamp.'
+    }
+    if ([string]$recorded.baselineSha256 -cnotmatch '^[0-9a-f]{64}$' -or
+        [string]$recorded.initialWorkingSha256 -cnotmatch '^[0-9a-f]{64}$' -or
+        [long]$recorded.baselineLength -le 0 -or [long]$recorded.initialWorkingLength -le 0 -or
+        [long]$recorded.baselineLastWriteTimeUtcTicks -le 0 -or [long]$recorded.initialWorkingLastWriteTimeUtcTicks -le 0 -or
+        @($recorded.writableSaveNames).Count -ne 1 -or
+        [string]@($recorded.writableSaveNames)[0] -cne 'KMC_AUTOMATION_WORKING') {
+        throw 'Existing KMC fixture qualification pins or Working-only allowlist are invalid.'
+    }
+
+    if ([int]$Pair.schemaVersion -ne 1 -or
+        @($Pair.writableSaveNames).Count -ne 1 -or
+        [string]@($Pair.writableSaveNames)[0] -cne 'KMC_AUTOMATION_WORKING' -or
+        [string]$Pair.baseline.name -cne 'KMC_AUTOMATION_BASELINE' -or
+        [string]$Pair.working.name -cne 'KMC_AUTOMATION_WORKING' -or
+        [string]::Equals([string]$Pair.baseline.path, [string]$Pair.working.path, [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Revised KMC fixture pair does not retain exact distinct identities and the Working-only allowlist.'
+    }
+    if ([string]$Pair.baseline.gameId -cne [string]$Pair.working.gameId -or
+        [string]$Pair.baseline.gameName -cne [string]$Pair.working.gameName -or
+        [string]$Pair.baseline.area -cne [string]$Pair.working.area) {
+        throw 'Revised KMC fixture pair does not retain exact shared campaign identity.'
+    }
+
+    if ([string]$recorded.baselineSha256 -cne $ExpectedBaselineSha256 -or
+        [string]$Pair.baseline.sha256 -cne $ExpectedBaselineSha256 -or
+        [string]$recorded.baselineName -cne [string]$Pair.baseline.name -or
+        [string]$recorded.baselineFileName -cne [string]$Pair.baseline.fileName -or
+        -not [string]::Equals([string]$recorded.baselinePath, [string]$Pair.baseline.path, [StringComparison]::OrdinalIgnoreCase) -or
+        [long]$recorded.baselineLength -ne [long]$Pair.baseline.length -or
+        [long]$recorded.baselineLastWriteTimeUtcTicks -ne [long]$Pair.baseline.lastWriteTimeUtcTicks) {
+        throw 'KMC Baseline differs from the explicit immutable pin or existing durable qualification.'
+    }
+    if ([string]$recorded.workingName -cne [string]$Pair.working.name -or
+        [string]$recorded.workingFileName -cne [string]$Pair.working.fileName -or
+        -not [string]::Equals([string]$recorded.workingPath, [string]$Pair.working.path, [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Revised KMC Working stable name, filename, or path differs from the existing durable qualification.'
+    }
+    if ([string]$recorded.expectedGameName -cne [string]$Pair.expectedGameName -or
+        [string]$recorded.expectedGameId -cne [string]$Pair.expectedGameId -or
+        [string]$recorded.expectedArea -cne [string]$Pair.expectedArea) {
+        throw 'Revised KMC Working campaign identity differs from the existing durable qualification.'
+    }
+    if ([string]$recorded.initialWorkingSha256 -cne $ExpectedSupersededWorkingSha256) {
+        throw 'Superseded KMC Working SHA-256 differs from the explicit prior pin.'
+    }
+    if ([string]$Pair.working.sha256 -cne $ExpectedRevisedWorkingSha256) {
+        throw 'Revised KMC Working SHA-256 differs from the explicit replacement pin.'
+    }
+    if ($ExpectedSupersededWorkingSha256 -ceq $ExpectedRevisedWorkingSha256) {
+        throw 'KMC Working requalification requires a distinct revised SHA-256.'
+    }
+
+    $replacement = [ordered]@{
+        schemaVersion = $recorded.schemaVersion
+        baselineName = $recorded.baselineName
+        baselineFileName = $recorded.baselineFileName
+        baselinePath = $recorded.baselinePath
+        baselineSha256 = $recorded.baselineSha256
+        baselineLength = $recorded.baselineLength
+        baselineLastWriteTimeUtcTicks = $recorded.baselineLastWriteTimeUtcTicks
+        workingName = $recorded.workingName
+        workingFileName = $recorded.workingFileName
+        workingPath = $recorded.workingPath
+        initialWorkingSha256 = [string]$Pair.working.sha256
+        initialWorkingLength = [long]$Pair.working.length
+        initialWorkingLastWriteTimeUtcTicks = [long]$Pair.working.lastWriteTimeUtcTicks
+        expectedGameName = $recorded.expectedGameName
+        expectedGameId = $recorded.expectedGameId
+        expectedArea = $recorded.expectedArea
+        qualifiedAtUtc = [DateTimeOffset]::UtcNow.ToString('o')
+        writableSaveNames = @($recorded.writableSaveNames)
+    }
+    Assert-KmcExactProperties ([pscustomobject]$replacement) $properties 'replacement KMC fixture qualification'
+    $allowedChanges = @(
+        'initialWorkingSha256','initialWorkingLength','initialWorkingLastWriteTimeUtcTicks','qualifiedAtUtc'
+    )
+    foreach ($property in $properties) {
+        if ($property -notin $allowedChanges -and
+            (($recorded.$property | ConvertTo-Json -Depth 5 -Compress) -cne ($replacement[$property] | ConvertTo-Json -Depth 5 -Compress))) {
+            throw "KMC Working requalification attempted to change protected qualification field $property."
+        }
+    }
+
+    return [pscustomobject]@{
+        schemaVersion = 1
+        existingQualificationSha256 = $actualQualificationSha256
+        priorQualifiedAtUtc = [string]$recorded.qualifiedAtUtc
+        supersededWorkingSha256 = [string]$recorded.initialWorkingSha256
+        revisedWorkingSha256 = [string]$Pair.working.sha256
+        qualification = $replacement
+    }
+}
+
+function Invoke-KmcWorkingFixtureRequalificationTransaction {
+    param(
+        [Parameter(Mandatory = $true)][string]$SaveRoot,
+        [Parameter(Mandatory = $true)][string]$StateRoot,
+        [Parameter(Mandatory = $true)][string]$QualificationPath,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$RunId,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedExistingQualificationSha256,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedBaselineSha256,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedSupersededWorkingSha256,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedRevisedWorkingSha256,
+        [scriptblock]$BeforeReplacementProbe,
+        [scriptblock]$AfterReplacementWriteBeforeStateProbe,
+        [scriptblock]$PostWriteProbe,
+        [scriptblock]$AfterCommittedStateProbe,
+        [scriptblock]$BeforeRollbackProbe
+    )
+    $fullStateRoot = [IO.Path]::GetFullPath($StateRoot).TrimEnd('\')
+    $fullQualificationPath = [IO.Path]::GetFullPath($QualificationPath)
+    $expectedQualificationPath = [IO.Path]::GetFullPath((Join-Path $fullStateRoot 'fixture-qualification.json'))
+    Assert-KmcPathsDoNotOverlap -First $SaveRoot -Second $fullStateRoot -Description 'KMC save and runtime-state roots'
+    if (-not [string]::Equals($fullQualificationPath, $expectedQualificationPath, [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Working fixture requalification path is not the exact runtime-state fixture-qualification.json.'
+    }
+    # The caller performs every pure preflight before ShouldProcess. Opening the
+    # exclusive runtime lock is deliberately this transaction's first mutation.
+    $lock = Open-KmcRuntimeLock -StateRoot $StateRoot -RunId $RunId -Purpose 'fixture-requalification'
+    $writeAttempted = $false
+    $replacementProven = $false
+    $state = $null
+    $statePath = $null
+    $priorBackupPath = $null
+    $saveMetadataBefore = $null
+    $qualificationMetadataBefore = $null
+    $qualificationBytesBefore = $null
+    try {
+        [void](Assert-KmcRuntimeLockOwner $lock)
+        Assert-KmcNoGameProcesses
+        Assert-KmcPathsDoNotOverlap -First $SaveRoot -Second $StateRoot -Description 'KMC save and runtime-state roots'
+        $saveMetadataBefore = Get-KmcSaveMetadataInventory $SaveRoot
+        $pair = Get-KmcValidatedFixturePair -SaveRoot $SaveRoot
+        $requalification = New-KmcWorkingFixtureRequalification `
+            -Pair $pair `
+            -QualificationPath $QualificationPath `
+            -ExpectedExistingQualificationSha256 $ExpectedExistingQualificationSha256 `
+            -ExpectedBaselineSha256 $ExpectedBaselineSha256 `
+            -ExpectedSupersededWorkingSha256 $ExpectedSupersededWorkingSha256 `
+            -ExpectedRevisedWorkingSha256 $ExpectedRevisedWorkingSha256
+
+        $qualificationMetadataBefore = Get-Item -LiteralPath $QualificationPath -Force
+        $qualificationBytesBefore = [IO.File]::ReadAllBytes([IO.Path]::GetFullPath($QualificationPath))
+        if ($qualificationBytesBefore.Length -ne $qualificationMetadataBefore.Length -or
+            (Get-KmcSha256 $QualificationPath) -cne $ExpectedExistingQualificationSha256) {
+            throw 'Existing KMC fixture qualification changed while its rollback bytes were being captured.'
+        }
+
+        $transactionRoot = Assert-KmcChildPath `
+            (Join-Path ([IO.Path]::GetFullPath($StateRoot)) 'fixture-requalifications') `
+            ([IO.Path]::GetFullPath($StateRoot)) `
+            'Working fixture requalification transaction root'
+        if (-not (Test-Path -LiteralPath $transactionRoot -PathType Container)) {
+            New-Item -ItemType Directory -Path $transactionRoot | Out-Null
+        }
+        Assert-KmcNotReparsePoint $transactionRoot 'Working fixture requalification transaction root'
+        $statePath = Assert-KmcChildPath (Join-Path $transactionRoot ($RunId + '.json')) $transactionRoot 'Working fixture requalification state'
+        $priorBackupPath = Assert-KmcChildPath (Join-Path $transactionRoot ($RunId + '.prior.json')) $transactionRoot 'prior fixture qualification backup'
+        if ((Test-Path -LiteralPath $statePath) -or (Test-Path -LiteralPath $priorBackupPath)) {
+            throw 'Working fixture requalification run ID already has durable state or prior bytes.'
+        }
+        Write-KmcBytesDurableAtomic -Path $priorBackupPath -Bytes $qualificationBytesBefore
+        if ((Get-KmcSha256 $priorBackupPath) -cne $ExpectedExistingQualificationSha256 -or
+            (Get-Item -LiteralPath $priorBackupPath -Force).Length -ne $qualificationMetadataBefore.Length) {
+            throw 'Durable prior fixture qualification backup does not match the explicit existing pin.'
+        }
+        $state = [ordered]@{
+            schemaVersion = 1
+            runId = $RunId
+            token = [string]$lock.Token
+            phase = 'prepared'
+            preparedAtUtc = [DateTimeOffset]::UtcNow.ToString('o')
+            saveRoot = [IO.Path]::GetFullPath($SaveRoot).TrimEnd('\')
+            qualificationPath = [IO.Path]::GetFullPath($QualificationPath)
+            priorQualificationBackupPath = $priorBackupPath
+            priorQualificationSha256 = $ExpectedExistingQualificationSha256
+            priorQualificationLength = [long]$qualificationMetadataBefore.Length
+            priorQualificationLastWriteTimeUtcTicks = [long]$qualificationMetadataBefore.LastWriteTimeUtc.Ticks
+            baselineSha256 = $ExpectedBaselineSha256
+            supersededWorkingSha256 = $ExpectedSupersededWorkingSha256
+            revisedWorkingSha256 = $ExpectedRevisedWorkingSha256
+            saveMetadataDigestBefore = [string]$saveMetadataBefore.digest
+        }
+        Write-KmcJsonDurable -Path $statePath -Value $state
+
+        if ($null -ne $BeforeReplacementProbe) { & $BeforeReplacementProbe $lock $statePath }
+        [void](Assert-KmcRuntimeLockOwner $lock)
+        Assert-KmcNoGameProcesses
+        Assert-KmcSaveMetadataInventoriesEqual `
+            -Before $saveMetadataBefore `
+            -After (Get-KmcSaveMetadataInventory $SaveRoot) `
+            -Description 'Working fixture requalification pre-write save metadata'
+        $pair = Get-KmcValidatedFixturePair -SaveRoot $SaveRoot
+        $requalification = New-KmcWorkingFixtureRequalification `
+            -Pair $pair `
+            -QualificationPath $QualificationPath `
+            -ExpectedExistingQualificationSha256 $ExpectedExistingQualificationSha256 `
+            -ExpectedBaselineSha256 $ExpectedBaselineSha256 `
+            -ExpectedSupersededWorkingSha256 $ExpectedSupersededWorkingSha256 `
+            -ExpectedRevisedWorkingSha256 $ExpectedRevisedWorkingSha256
+
+        [void](Assert-KmcRuntimeLockOwner $lock)
+        Assert-KmcNoGameProcesses
+        Assert-KmcRecoveryLeafNoLinks $QualificationPath 'Working fixture requalification qualification before replacement'
+        [void](Assert-KmcRuntimeLockOwner $lock)
+        Assert-KmcNoGameProcesses
+        $writeAttempted = $true
+        Write-KmcJsonDurable -Path $QualificationPath -Value $requalification.qualification
+        if ($null -ne $AfterReplacementWriteBeforeStateProbe) { & $AfterReplacementWriteBeforeStateProbe $lock $statePath }
+        $state['phase'] = 'replacement-written'
+        $state['replacementWrittenAtUtc'] = [DateTimeOffset]::UtcNow.ToString('o')
+        $state['replacementQualificationSha256'] = Get-KmcSha256 $QualificationPath
+        $replacementProven = $true
+        Write-KmcJsonDurable -Path $statePath -Value $state
+        if ($null -ne $PostWriteProbe) { & $PostWriteProbe $lock $statePath }
+
+        [void](Assert-KmcRuntimeLockOwner $lock)
+        Assert-KmcNoGameProcesses
+        $pair = Get-KmcValidatedFixturePair -SaveRoot $SaveRoot
+        $pair = Assert-KmcFixtureQualification -Pair $pair -QualificationPath $QualificationPath
+        $saveMetadataAfter = Get-KmcSaveMetadataInventory $SaveRoot
+        Assert-KmcSaveMetadataInventoriesEqual `
+            -Before $saveMetadataBefore `
+            -After $saveMetadataAfter `
+            -Description 'Working fixture requalification final save metadata'
+        [void](Assert-KmcRuntimeLockOwner $lock)
+        Assert-KmcNoGameProcesses
+        $state['phase'] = 'committed'
+        $state['committedAtUtc'] = [DateTimeOffset]::UtcNow.ToString('o')
+        $state['committedQualificationSha256'] = Get-KmcSha256 $QualificationPath
+        $state['saveMetadataDigestAfter'] = [string]$saveMetadataAfter.digest
+        Write-KmcJsonDurable -Path $statePath -Value $state
+        if ($null -ne $AfterCommittedStateProbe) { & $AfterCommittedStateProbe $lock $statePath }
+        [void](Assert-KmcRuntimeLockOwner $lock)
+        Assert-KmcNoGameProcesses
+        Close-KmcRuntimeLock $lock
+        $lock = $null
+        return [pscustomobject]@{
+            schemaVersion = 1
+            pair = $pair
+            supersededWorkingSha256 = $ExpectedSupersededWorkingSha256
+            revisedWorkingSha256 = $ExpectedRevisedWorkingSha256
+            qualificationSha256 = [string]$state.committedQualificationSha256
+            saveMetadataDigest = [string]$state.saveMetadataDigestAfter
+            transactionStatePath = $statePath
+            priorQualificationBackupPath = $priorBackupPath
+        }
+    }
+    catch {
+        $primaryError = $_.Exception.Message
+        if ($writeAttempted) {
+            try {
+                [void](Assert-KmcRuntimeLockOwner $lock)
+                Assert-KmcNoGameProcesses
+                if ($null -ne $BeforeRollbackProbe) { & $BeforeRollbackProbe $lock $statePath }
+                [void](Assert-KmcRuntimeLockOwner $lock)
+                Assert-KmcNoGameProcesses
+                Assert-KmcRecoveryLeafNoLinks $QualificationPath 'Working fixture requalification qualification immediately before rollback'
+                Write-KmcBytesDurableAtomic -Path $QualificationPath -Bytes $qualificationBytesBefore
+                [IO.File]::SetLastWriteTimeUtc(
+                    [IO.Path]::GetFullPath($QualificationPath),
+                    [DateTime]$qualificationMetadataBefore.LastWriteTimeUtc)
+                $restoredQualification = Get-Item -LiteralPath $QualificationPath -Force
+                if ($restoredQualification.Length -ne $qualificationMetadataBefore.Length -or
+                    $restoredQualification.LastWriteTimeUtc.Ticks -ne $qualificationMetadataBefore.LastWriteTimeUtc.Ticks -or
+                    (Get-KmcSha256 $QualificationPath) -cne $ExpectedExistingQualificationSha256) {
+                    throw 'Prior KMC fixture qualification bytes or metadata were not restored exactly.'
+                }
+                [void](Assert-KmcRuntimeLockOwner $lock)
+                Assert-KmcNoGameProcesses
+                Assert-KmcSaveMetadataInventoriesEqual `
+                    -Before $saveMetadataBefore `
+                    -After (Get-KmcSaveMetadataInventory $SaveRoot) `
+                    -Description 'Working fixture requalification rollback save metadata'
+                $revisedPair = Get-KmcValidatedFixturePair -SaveRoot $SaveRoot
+                [void](New-KmcWorkingFixtureRequalification `
+                    -Pair $revisedPair `
+                    -QualificationPath $QualificationPath `
+                    -ExpectedExistingQualificationSha256 $ExpectedExistingQualificationSha256 `
+                    -ExpectedBaselineSha256 $ExpectedBaselineSha256 `
+                    -ExpectedSupersededWorkingSha256 $ExpectedSupersededWorkingSha256 `
+                    -ExpectedRevisedWorkingSha256 $ExpectedRevisedWorkingSha256)
+                $normalQualificationAccepted = $false
+                try {
+                    [void](Assert-KmcFixtureQualification -Pair $revisedPair -QualificationPath $QualificationPath)
+                    $normalQualificationAccepted = $true
+                }
+                catch { }
+                if ($normalQualificationAccepted) {
+                    throw 'Rolled-back prior qualification unexpectedly admitted revised Working.'
+                }
+                $rollbackPhase = if ($replacementProven) { 'rolled-back' } else { 'replacement-write-attempt-rolled-back' }
+                $state = New-KmcWorkingFixtureRequalificationPhaseState `
+                    -SourceState $state `
+                    -Phase $rollbackPhase `
+                    -AdditionalValues ([ordered]@{
+                        rolledBackAtUtc = [DateTimeOffset]::UtcNow.ToString('o')
+                        failure = $primaryError
+                        restoredQualificationSha256 = Get-KmcSha256 $QualificationPath
+                    })
+                [void](Assert-KmcRuntimeLockOwner $lock)
+                Assert-KmcNoGameProcesses
+                Write-KmcJsonDurable -Path $statePath -Value $state
+                [void](Assert-KmcRuntimeLockOwner $lock)
+                Close-KmcRuntimeLock $lock
+                $lock = $null
+                throw "Working fixture requalification failed after replacement; the prior qualification was restored exactly: $primaryError"
+            }
+            catch {
+                $rollbackError = $_.Exception.Message
+                if ($rollbackError -like 'Working fixture requalification failed after replacement; the prior qualification was restored exactly:*') {
+                    throw
+                }
+                try {
+                    # A rollback can fail specifically because ownership was lost or a
+                    # game process appeared.  In that case the last proven durable
+                    # phase is already sufficient for recovery and must not be raced
+                    # or regressed by an unauthorised failure-marker write.
+                    [void](Assert-KmcRuntimeLockOwner $lock)
+                    Assert-KmcNoGameProcesses
+                    if ($null -ne $state -and $null -ne $statePath) {
+                        $rollbackFailurePhase = if ($replacementProven) { 'rollback-failed' } else { 'replacement-write-attempt-rollback-failed' }
+                        $state = New-KmcWorkingFixtureRequalificationPhaseState `
+                            -SourceState $state `
+                            -Phase $rollbackFailurePhase `
+                            -AdditionalValues ([ordered]@{
+                                rollbackFailedAtUtc = [DateTimeOffset]::UtcNow.ToString('o')
+                                failure = $primaryError
+                                rollbackFailure = $rollbackError
+                            })
+                        [void](Assert-KmcRuntimeLockOwner $lock)
+                        Assert-KmcNoGameProcesses
+                        Write-KmcJsonDurable -Path $statePath -Value $state
+                    }
+                }
+                catch { $rollbackError += '; durable rollback-failure state also failed: ' + $_.Exception.Message }
+                if ($null -ne $lock) {
+                    try { Abandon-KmcRuntimeLock $lock }
+                    catch { $rollbackError += '; runtime lock abandonment also failed: ' + $_.Exception.Message }
+                    finally { $lock = $null }
+                }
+                throw "Working fixture requalification failed after replacement: $primaryError; prior qualification rollback failed: $rollbackError. The active runtime lock was retained to block runtime."
+            }
+        }
+
+        if ($null -ne $state -and $null -ne $statePath) {
+            try {
+                [void](Assert-KmcRuntimeLockOwner $lock)
+                Assert-KmcNoGameProcesses
+                $state = New-KmcWorkingFixtureRequalificationPhaseState `
+                    -SourceState $state `
+                    -Phase 'aborted-before-replacement' `
+                    -AdditionalValues ([ordered]@{
+                        abortedAtUtc = [DateTimeOffset]::UtcNow.ToString('o')
+                        failure = $primaryError
+                    })
+                [void](Assert-KmcRuntimeLockOwner $lock)
+                Assert-KmcNoGameProcesses
+                Write-KmcJsonDurable -Path $statePath -Value $state
+            }
+            catch { $primaryError += '; durable abort state also failed: ' + $_.Exception.Message }
+        }
+        if ($null -ne $lock) {
+            try { Close-KmcRuntimeLock $lock }
+            catch {
+                $primaryError += '; runtime lock cleanup failed after the pre-replacement abort: ' + $_.Exception.Message
+                try { Abandon-KmcRuntimeLock $lock }
+                catch { $primaryError += '; runtime lock abandonment also failed: ' + $_.Exception.Message }
+            }
+            finally { $lock = $null }
+        }
+        throw $primaryError
+    }
+    finally {
+        # Any unanticipated control path fails closed. Abandon keeps the durable
+        # sentinel so no runtime scenario can enter without an explicit audit.
+        if ($null -ne $lock) {
+            try { Abandon-KmcRuntimeLock $lock }
+            catch { }
+            finally { $lock = $null }
+        }
+    }
+}
+
+function Get-KmcWorkingFixtureRequalificationStatePropertyNames {
+    param([Parameter(Mandatory = $true)][string]$Phase)
+    $base = @(
+        'schemaVersion','runId','token','phase','preparedAtUtc','saveRoot','qualificationPath',
+        'priorQualificationBackupPath','priorQualificationSha256','priorQualificationLength',
+        'priorQualificationLastWriteTimeUtcTicks','baselineSha256','supersededWorkingSha256',
+        'revisedWorkingSha256','saveMetadataDigestBefore'
+    )
+    $replacement = @('replacementWrittenAtUtc','replacementQualificationSha256')
+    $extra = switch -CaseSensitive ($Phase) {
+        'prepared' { @(); break }
+        'replacement-written' { $replacement; break }
+        'committed' { @($replacement + @('committedAtUtc','committedQualificationSha256','saveMetadataDigestAfter')); break }
+        'rolled-back' { @($replacement + @('rolledBackAtUtc','failure','restoredQualificationSha256')); break }
+        'rollback-failed' { @($replacement + @('rollbackFailedAtUtc','failure','rollbackFailure')); break }
+        'replacement-write-attempt-rolled-back' { @('rolledBackAtUtc','failure','restoredQualificationSha256'); break }
+        'replacement-write-attempt-rollback-failed' { @('rollbackFailedAtUtc','failure','rollbackFailure'); break }
+        'aborted-before-replacement' { @('abortedAtUtc','failure'); break }
+        'purpose-bound-recovery-prepared' { @('recoveryPreparedAtUtc'); break }
+        'recovery-restore-prepared' { @('recoveryPreparedAtUtc'); break }
+        'recovered-rolled-back' { @('recoveredAtUtc','recoveryAction','recoveryQualificationSha256','recoverySaveMetadataDigest'); break }
+        'recovered-committed' {
+            @($replacement + @(
+                'committedAtUtc','committedQualificationSha256','saveMetadataDigestAfter',
+                'recoveredAtUtc','recoveryAction','recoveryQualificationSha256','recoverySaveMetadataDigest'
+            ))
+            break
+        }
+        default { throw "Unknown Working fixture requalification phase: $Phase" }
+    }
+    return @($base + @($extra))
+}
+
+function Assert-KmcWorkingFixtureRequalificationStateSchema {
+    param([Parameter(Mandatory = $true)]$State)
+    if ($State -isnot [pscustomobject]) {
+        throw 'Working fixture requalification recovery state is not an exact JSON object.'
+    }
+    $phaseProperty = $State.PSObject.Properties['phase']
+    if ($null -eq $phaseProperty -or $phaseProperty.Value -isnot [string]) {
+        throw 'Working fixture requalification recovery phase is not an exact JSON string.'
+    }
+    $phase = [string]$phaseProperty.Value
+    $expectedProperties = @(Get-KmcWorkingFixtureRequalificationStatePropertyNames $phase)
+    Assert-KmcExactProperties $State $expectedProperties "Working fixture requalification $phase state"
+    if ((($State.schemaVersion -isnot [int]) -and ($State.schemaVersion -isnot [long])) -or
+        [long]$State.schemaVersion -ne 1 -or
+        (($State.priorQualificationLength -isnot [int]) -and ($State.priorQualificationLength -isnot [long])) -or
+        (($State.priorQualificationLastWriteTimeUtcTicks -isnot [int]) -and ($State.priorQualificationLastWriteTimeUtcTicks -isnot [long])) -or
+        [long]$State.priorQualificationLength -le 0 -or
+        [long]$State.priorQualificationLastWriteTimeUtcTicks -le 0) {
+        throw 'Working fixture requalification recovery state numeric fields are invalid.'
+    }
+    foreach ($name in @($expectedProperties | Where-Object {
+        $_ -notin @('schemaVersion','priorQualificationLength','priorQualificationLastWriteTimeUtcTicks')
+    })) {
+        if ($State.$name -isnot [string] -or [string]::IsNullOrWhiteSpace([string]$State.$name)) {
+            throw "Working fixture requalification recovery state field $name is not an exact non-empty JSON string."
+        }
+    }
+    if ([string]$State.runId -cnotmatch '^[A-Za-z0-9._-]{1,120}$' -or
+        [string]$State.token -cnotmatch '^[0-9a-f]{64}$') {
+        throw 'Working fixture requalification recovery state run or token identity is invalid.'
+    }
+    foreach ($name in @(
+        'priorQualificationSha256','baselineSha256','supersededWorkingSha256','revisedWorkingSha256',
+        'saveMetadataDigestBefore','replacementQualificationSha256','committedQualificationSha256',
+        'saveMetadataDigestAfter','restoredQualificationSha256','recoveryQualificationSha256',
+        'recoverySaveMetadataDigest'
+    )) {
+        if ($null -ne $State.PSObject.Properties[$name] -and [string]$State.$name -cnotmatch '^[0-9a-f]{64}$') {
+            throw "Working fixture requalification recovery state field $name is not a lowercase SHA-256."
+        }
+    }
+    foreach ($name in @($expectedProperties | Where-Object { $_ -clike '*AtUtc' })) {
+        $parsed = [DateTimeOffset]::MinValue
+        if (-not [DateTimeOffset]::TryParseExact(
+            [string]$State.$name,
+            'o',
+            [Globalization.CultureInfo]::InvariantCulture,
+            [Globalization.DateTimeStyles]::RoundtripKind,
+            [ref]$parsed) -or $parsed.Offset -ne [TimeSpan]::Zero) {
+            throw "Working fixture requalification recovery state timestamp $name is not exact UTC round-trip form."
+        }
+    }
+    if ($phase -ceq 'recovered-rolled-back' -and
+        [string]$State.recoveryAction -cnotin @('prior-restored','prior-confirmed','prior-retained-state-less')) {
+        throw 'Recovered rolled-back Working fixture state has an invalid recovery action.'
+    }
+    if ($phase -ceq 'recovered-committed' -and [string]$State.recoveryAction -cne 'committed') {
+        throw 'Recovered committed Working fixture state has an invalid recovery action.'
+    }
+    return $State
+}
+
+function Assert-KmcRecoveryLeafNoLinks {
+    param([Parameter(Mandatory = $true)][string]$Path, [Parameter(Mandatory = $true)][string]$Description)
+    if (-not (Test-Path -LiteralPath $Path)) { throw "$Description is missing: $Path" }
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { throw "$Description is not an exact file: $Path" }
+    Assert-KmcNotReparsePoint $Path $Description
+    Assert-KmcNotHardLink $Path $Description
+}
+
+function New-KmcWorkingFixtureRequalificationPhaseState {
+    param(
+        [Parameter(Mandatory = $true)]$SourceState,
+        [Parameter(Mandatory = $true)][string]$Phase,
+        [Collections.IDictionary]$AdditionalValues = @{}
+    )
+    $result = [ordered]@{}
+    foreach ($name in @(Get-KmcWorkingFixtureRequalificationStatePropertyNames $Phase)) {
+        if ($name -ceq 'phase') { $result[$name] = $Phase; continue }
+        if ($AdditionalValues.Contains($name)) { $result[$name] = $AdditionalValues[$name]; continue }
+        if ($SourceState -is [Collections.IDictionary] -and $SourceState.Contains($name)) {
+            $result[$name] = $SourceState[$name]
+            continue
+        }
+        $property = $SourceState.PSObject.Properties[$name]
+        if ($null -eq $property) { throw "Cannot construct Working fixture phase $Phase without field $name." }
+        $result[$name] = $property.Value
+    }
+    $value = [pscustomobject]$result
+    [void](Assert-KmcWorkingFixtureRequalificationStateSchema $value)
+    return $value
+}
+
+function Get-KmcWorkingFixtureRequalificationAtomicDebris {
+    param([Parameter(Mandatory = $true)][string[]]$TargetPaths)
+    $records = New-Object 'Collections.Generic.List[object]'
+    foreach ($targetPathValue in @($TargetPaths | Select-Object -Unique)) {
+        $targetPath = [IO.Path]::GetFullPath($targetPathValue)
+        $parent = Split-Path -Parent $targetPath
+        if (-not (Test-Path -LiteralPath $parent -PathType Container)) { continue }
+        Assert-KmcNotReparsePoint $parent 'Working fixture requalification atomic-debris parent'
+        $leaf = [IO.Path]::GetFileName($targetPath)
+        $escapedLeaf = [Regex]::Escape($leaf)
+        foreach ($item in @(Get-ChildItem -LiteralPath $parent -Force | Where-Object {
+            $_.Name -cmatch ('^\.' + $escapedLeaf + '\..+\.(tmp|bak)$')
+        })) {
+            if ($item.Name -cnotmatch ('^\.' + $escapedLeaf + '\.[0-9a-f]{32}\.(tmp|bak)$')) {
+                throw "Working fixture requalification has unrecognized atomic debris: $($item.FullName)"
+            }
+            $kind = [string]$Matches[1]
+            if ($item.PSIsContainer) { throw "Working fixture requalification atomic debris is not a file: $($item.FullName)" }
+            Assert-KmcNotReparsePoint $item.FullName 'Working fixture requalification atomic debris'
+            Assert-KmcNotHardLink $item.FullName 'Working fixture requalification atomic debris'
+            if ([long]$item.Length -gt 256KB) { throw "Working fixture requalification atomic debris is oversized: $($item.FullName)" }
+            if ($kind -ceq 'bak' -and -not (Test-Path -LiteralPath $targetPath -PathType Leaf)) {
+                throw "Working fixture requalification backup debris lacks its canonical target: $($item.FullName)"
+            }
+            $records.Add([pscustomobject]@{
+                schemaVersion = 1; targetPath = $targetPath; path = [IO.Path]::GetFullPath($item.FullName)
+                kind = $kind; length = [long]$item.Length
+                lastWriteTimeUtcTicks = [long]$item.LastWriteTimeUtc.Ticks
+                sha256 = Get-KmcSha256 $item.FullName
+            })
+        }
+    }
+    if ($records.Count -gt 6) { throw 'Working fixture requalification atomic debris exceeds the bounded recovery limit.' }
+    return @($records | Sort-Object path)
+}
+
+function Remove-KmcWorkingFixtureRequalificationAtomicDebris {
+    param(
+        [Parameter(Mandatory = $true)]$Lock,
+        [Parameter(Mandatory = $true)][array]$Debris
+    )
+    [void](Assert-KmcRuntimeLockOwner $Lock)
+    Assert-KmcNoGameProcesses
+    $targets = New-Object 'Collections.Generic.List[string]'
+    foreach ($record in @($Debris)) {
+        Assert-KmcExactProperties $record @('schemaVersion','targetPath','path','kind','length','lastWriteTimeUtcTicks','sha256') 'Working fixture requalification atomic-debris record'
+        if ([int]$record.schemaVersion -ne 1 -or [string]$record.kind -cnotin @('tmp','bak') -or
+            [string]$record.sha256 -cnotmatch '^[0-9a-f]{64}$') { throw 'Working fixture requalification atomic-debris record is invalid.' }
+        $path = [IO.Path]::GetFullPath([string]$record.path)
+        $targetPath = [IO.Path]::GetFullPath([string]$record.targetPath)
+        $parent = Split-Path -Parent $targetPath
+        if (-not [string]::Equals((Split-Path -Parent $path), $parent, [StringComparison]::OrdinalIgnoreCase)) {
+            throw 'Working fixture requalification atomic debris escaped its canonical target parent.'
+        }
+        Assert-KmcRecoveryLeafNoLinks $path 'Working fixture requalification atomic debris before removal'
+        $item = Get-Item -LiteralPath $path -Force
+        if ([long]$item.Length -ne [long]$record.length -or
+            [long]$item.LastWriteTimeUtc.Ticks -ne [long]$record.lastWriteTimeUtcTicks -or
+            (Get-KmcSha256 $path) -cne [string]$record.sha256) {
+            throw 'Working fixture requalification atomic debris changed after its guarded snapshot.'
+        }
+        if ([string]$record.kind -ceq 'bak' -and -not (Test-Path -LiteralPath $targetPath -PathType Leaf)) {
+            throw 'Working fixture requalification backup debris lost its canonical target.'
+        }
+        [void](Assert-KmcRuntimeLockOwner $Lock)
+        Assert-KmcNoGameProcesses
+        Remove-Item -LiteralPath $path -Force
+        $targets.Add($targetPath)
+    }
+    $remaining = @(Get-KmcWorkingFixtureRequalificationAtomicDebris @($targets))
+    if ($remaining.Count -ne 0) { throw 'Working fixture requalification atomic debris was not reconciled completely.' }
+}
+
+function New-KmcRecoveredWorkingFixtureRequalificationState {
+    param(
+        [Parameter(Mandatory = $true)]$SourceState,
+        [Parameter(Mandatory = $true)][ValidateSet('recovered-rolled-back','recovered-committed')][string]$Phase,
+        [Parameter(Mandatory = $true)][string]$RecoveryAction,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$QualificationSha256,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$SaveMetadataDigest
+    )
+    $baseNames = @(Get-KmcWorkingFixtureRequalificationStatePropertyNames 'prepared')
+    $terminal = [ordered]@{}
+    foreach ($name in $baseNames) {
+        $terminal[$name] = if ($name -ceq 'phase') { $Phase } else { $SourceState.$name }
+    }
+    if ($Phase -ceq 'recovered-committed') {
+        foreach ($name in @(
+            'replacementWrittenAtUtc','replacementQualificationSha256','committedAtUtc',
+            'committedQualificationSha256','saveMetadataDigestAfter'
+        )) { $terminal[$name] = $SourceState.$name }
+    }
+    $terminal['recoveredAtUtc'] = [DateTimeOffset]::UtcNow.ToString('o')
+    $terminal['recoveryAction'] = $RecoveryAction
+    $terminal['recoveryQualificationSha256'] = $QualificationSha256
+    $terminal['recoverySaveMetadataDigest'] = $SaveMetadataDigest
+    $result = [pscustomobject]$terminal
+    [void](Assert-KmcWorkingFixtureRequalificationStateSchema $result)
+    return $result
+}
+
+function Get-KmcWorkingFixtureRequalificationRecoveryPlan {
+    param(
+        [Parameter(Mandatory = $true)][string]$SaveRoot,
+        [Parameter(Mandatory = $true)][string]$StateRoot,
+        [Parameter(Mandatory = $true)][string]$QualificationPath,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$RunId,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPriorQualificationSha256,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedBaselineSha256,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedSupersededWorkingSha256,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedRevisedWorkingSha256,
+        $OwnedLock
+    )
+    Assert-KmcNoGameProcesses
+    $fullStateRoot = [IO.Path]::GetFullPath($StateRoot).TrimEnd('\')
+    $fullQualificationPath = [IO.Path]::GetFullPath($QualificationPath)
+    $expectedQualificationPath = [IO.Path]::GetFullPath((Join-Path $fullStateRoot 'fixture-qualification.json'))
+    Assert-KmcPathsDoNotOverlap -First $SaveRoot -Second $fullStateRoot -Description 'KMC save and runtime-state roots'
+    if (-not (Test-Path -LiteralPath $fullStateRoot)) { throw "Runtime state root is missing: $fullStateRoot" }
+    if (-not (Test-Path -LiteralPath $fullStateRoot -PathType Container)) { throw 'Runtime state root is not an exact directory.' }
+    Assert-KmcNotReparsePoint $fullStateRoot 'runtime state root'
+    if (-not [string]::Equals($fullQualificationPath, $expectedQualificationPath, [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Working fixture requalification recovery path is not the exact runtime-state fixture-qualification.json.'
+    }
+    Assert-KmcRecoveryLeafNoLinks $fullQualificationPath 'Working fixture requalification recovery qualification'
+
+    $transactionRoot = Assert-KmcChildPath (Join-Path $fullStateRoot 'fixture-requalifications') $fullStateRoot 'Working fixture requalification transaction root'
+    $transactionRootExists = Test-Path -LiteralPath $transactionRoot
+    if ($transactionRootExists) {
+        if (-not (Test-Path -LiteralPath $transactionRoot -PathType Container)) {
+            throw 'Working fixture requalification transaction root is not an exact directory.'
+        }
+        Assert-KmcNotReparsePoint $transactionRoot 'Working fixture requalification transaction root'
+    }
+    $statePath = Assert-KmcChildPath (Join-Path $transactionRoot ($RunId + '.json')) $transactionRoot 'Working fixture requalification recovery state'
+    $priorBackupPath = Assert-KmcChildPath (Join-Path $transactionRoot ($RunId + '.prior.json')) $transactionRoot 'Working fixture prior qualification backup'
+    $stateExists = Test-Path -LiteralPath $statePath
+    $backupExists = Test-Path -LiteralPath $priorBackupPath
+    if ($stateExists) { Assert-KmcRecoveryLeafNoLinks $statePath 'Working fixture requalification recovery state' }
+    if ($backupExists) { Assert-KmcRecoveryLeafNoLinks $priorBackupPath 'Working fixture prior qualification backup' }
+    $atomicDebris = @(Get-KmcWorkingFixtureRequalificationAtomicDebris @(
+        $fullQualificationPath,$statePath,$priorBackupPath
+    ))
+
+    $lockPath = Assert-KmcChildPath (Join-Path $fullStateRoot 'active-transaction.lock') $fullStateRoot 'Working fixture requalification recovery lock'
+    $lockExists = Test-Path -LiteralPath $lockPath
+    $rawLock = $null
+    if ($lockExists) {
+        Assert-KmcRecoveryLeafNoLinks $lockPath 'Working fixture requalification recovery lock'
+        $rawLock = if ($null -ne $OwnedLock) {
+            [void](Assert-KmcRuntimeLockOwner $OwnedLock)
+            Read-KmcOpenLockPayload $OwnedLock
+        } else { Read-KmcJson $lockPath }
+        Assert-KmcExactProperties $rawLock @('schemaVersion','runId','token','ownerProcessId','createdAtUtc','purpose') 'Working fixture requalification recovery lock'
+        if ((($rawLock.schemaVersion -isnot [int]) -and ($rawLock.schemaVersion -isnot [long])) -or
+            [long]$rawLock.schemaVersion -ne 1 -or $rawLock.runId -isnot [string] -or
+            [string]$rawLock.runId -cne $RunId -or $rawLock.token -isnot [string] -or
+            [string]$rawLock.token -cnotmatch '^[0-9a-f]{64}$' -or
+            (($rawLock.ownerProcessId -isnot [int]) -and ($rawLock.ownerProcessId -isnot [long])) -or
+            $rawLock.createdAtUtc -isnot [string] -or $rawLock.purpose -isnot [string] -or
+            [string]$rawLock.purpose -cne 'fixture-requalification') {
+            throw 'Working fixture requalification recovery lock identity or types are invalid.'
+        }
+        $lockCreatedAt = [DateTimeOffset]::MinValue
+        if ([int]$rawLock.ownerProcessId -le 0 -or -not [DateTimeOffset]::TryParseExact(
+            [string]$rawLock.createdAtUtc,
+            'o',
+            [Globalization.CultureInfo]::InvariantCulture,
+            [Globalization.DateTimeStyles]::RoundtripKind,
+            [ref]$lockCreatedAt) -or $lockCreatedAt.Offset -ne [TimeSpan]::Zero) {
+            throw 'Working fixture requalification recovery lock process or timestamp is invalid.'
+        }
+        if ($null -ne $OwnedLock) {
+            if (-not [string]::Equals([IO.Path]::GetFullPath([string]$OwnedLock.Path), $lockPath, [StringComparison]::OrdinalIgnoreCase) -or
+                [string]$OwnedLock.RunId -cne $RunId -or [string]$OwnedLock.Token -cne [string]$rawLock.token) {
+                throw 'Adopted Working fixture requalification lock does not match the recovery request.'
+            }
+        }
+        elseif ($null -ne (Get-Process -Id ([int]$rawLock.ownerProcessId) -ErrorAction SilentlyContinue) -or
+            [int]$rawLock.ownerProcessId -eq $PID) {
+            throw 'Working fixture requalification recovery lock owner is not proven dead.'
+        }
+    }
+    elseif ($null -ne $OwnedLock) { throw 'Adopted Working fixture requalification lock disappeared.' }
+    if (-not $lockExists -and $atomicDebris.Count -ne 0) {
+        throw 'Working fixture requalification terminal state has atomic debris but no stale lock for guarded reconciliation.'
+    }
+
+    $pair = Get-KmcValidatedFixturePair -SaveRoot $SaveRoot
+    $saveMetadata = Get-KmcSaveMetadataInventory $SaveRoot
+    $qualificationHash = Get-KmcSha256 $fullQualificationPath
+    $qualificationMetadata = Get-Item -LiteralPath $fullQualificationPath -Force
+
+    if (-not $stateExists) {
+        if (-not $lockExists) { throw 'Working fixture requalification recovery has neither a stale lock nor a terminal state.' }
+        foreach ($otherRootName in @('transactions','save-transactions','run-transactions')) {
+            $otherState = Join-Path (Join-Path $fullStateRoot $otherRootName) ($RunId + '.json')
+            if (Test-Path -LiteralPath $otherState) {
+                throw "State-less fixture requalification recovery collides with another runtime transaction record: $otherState"
+            }
+        }
+        if ($qualificationHash -cne $ExpectedPriorQualificationSha256) {
+            throw 'A state-less stale requalification lock is recoverable only while the prior qualification remains exact.'
+        }
+        [void](New-KmcWorkingFixtureRequalification `
+            -Pair $pair `
+            -QualificationPath $fullQualificationPath `
+            -ExpectedExistingQualificationSha256 $ExpectedPriorQualificationSha256 `
+            -ExpectedBaselineSha256 $ExpectedBaselineSha256 `
+            -ExpectedSupersededWorkingSha256 $ExpectedSupersededWorkingSha256 `
+            -ExpectedRevisedWorkingSha256 $ExpectedRevisedWorkingSha256)
+        if ($backupExists) {
+            $backupMetadata = Get-Item -LiteralPath $priorBackupPath -Force
+            if ((Get-KmcSha256 $priorBackupPath) -cne $ExpectedPriorQualificationSha256 -or
+                $backupMetadata.Length -ne $qualificationMetadata.Length) {
+                throw 'State-less stale requalification prior backup differs from the explicit prior qualification.'
+            }
+            [void](New-KmcWorkingFixtureRequalification `
+                -Pair $pair `
+                -QualificationPath $priorBackupPath `
+                -ExpectedExistingQualificationSha256 $ExpectedPriorQualificationSha256 `
+                -ExpectedBaselineSha256 $ExpectedBaselineSha256 `
+                -ExpectedSupersededWorkingSha256 $ExpectedSupersededWorkingSha256 `
+                -ExpectedRevisedWorkingSha256 $ExpectedRevisedWorkingSha256)
+        }
+        return [pscustomobject]@{
+            schemaVersion = 1; action = $(if ($backupExists) { 'clear-prepared-lock' } else { 'prepare-purpose-bound-lock' }); pair = $pair; lock = $rawLock
+            saveMetadata = $saveMetadata; qualificationSha256 = $qualificationHash
+            qualificationLength = [long]$qualificationMetadata.Length
+            qualificationLastWriteTimeUtcTicks = [long]$qualificationMetadata.LastWriteTimeUtc.Ticks
+            state = $null; statePath = $statePath; priorBackupPath = $priorBackupPath
+            atomicDebris = $atomicDebris
+        }
+    }
+
+    $state = Read-KmcJson $statePath
+    [void](Assert-KmcWorkingFixtureRequalificationStateSchema $state)
+    $phase = [string]$state.phase
+    if ([string]$state.runId -cne $RunId -or
+        ($lockExists -and [string]$state.token -cne [string]$rawLock.token) -or
+        -not [string]::Equals([IO.Path]::GetFullPath([string]$state.saveRoot).TrimEnd('\'), [IO.Path]::GetFullPath($SaveRoot).TrimEnd('\'), [StringComparison]::OrdinalIgnoreCase) -or
+        -not [string]::Equals([IO.Path]::GetFullPath([string]$state.qualificationPath), $fullQualificationPath, [StringComparison]::OrdinalIgnoreCase) -or
+        -not [string]::Equals([IO.Path]::GetFullPath([string]$state.priorQualificationBackupPath), $priorBackupPath, [StringComparison]::OrdinalIgnoreCase) -or
+        [string]$state.priorQualificationSha256 -cne $ExpectedPriorQualificationSha256 -or
+        [string]$state.baselineSha256 -cne $ExpectedBaselineSha256 -or
+        [string]$state.supersededWorkingSha256 -cne $ExpectedSupersededWorkingSha256 -or
+        [string]$state.revisedWorkingSha256 -cne $ExpectedRevisedWorkingSha256 -or
+        [string]$state.saveMetadataDigestBefore -cne [string]$saveMetadata.digest) {
+        throw 'Working fixture requalification recovery state identity, pins, roots, or save digest are invalid.'
+    }
+    if (-not $backupExists -and $phase -cne 'purpose-bound-recovery-prepared') {
+        throw 'Working fixture requalification recovery state lacks its exact prior qualification backup.'
+    }
+    if ($backupExists) {
+        if ((Get-KmcSha256 $priorBackupPath) -cne $ExpectedPriorQualificationSha256 -or
+            (Get-Item -LiteralPath $priorBackupPath -Force).Length -ne [long]$state.priorQualificationLength) {
+            throw 'Working fixture prior qualification backup differs from its durable pins.'
+        }
+        [void](New-KmcWorkingFixtureRequalification `
+            -Pair $pair `
+            -QualificationPath $priorBackupPath `
+            -ExpectedExistingQualificationSha256 $ExpectedPriorQualificationSha256 `
+            -ExpectedBaselineSha256 $ExpectedBaselineSha256 `
+            -ExpectedSupersededWorkingSha256 $ExpectedSupersededWorkingSha256 `
+            -ExpectedRevisedWorkingSha256 $ExpectedRevisedWorkingSha256)
+    }
+
+    $qualificationDisposition = 'unknown'
+    if ($qualificationHash -ceq $ExpectedPriorQualificationSha256) {
+        if ([long]$qualificationMetadata.Length -ne [long]$state.priorQualificationLength -or
+            [long]$qualificationMetadata.LastWriteTimeUtc.Ticks -ne [long]$state.priorQualificationLastWriteTimeUtcTicks) {
+            if ($lockExists -and $phase -cnotin @('recovered-rolled-back','recovered-committed')) {
+                $qualificationDisposition = 'prior-metadata-incomplete'
+            }
+            else { throw 'Prior Working fixture qualification length or timestamp differs from its durable state pins.' }
+        }
+        else {
+            [void](New-KmcWorkingFixtureRequalification `
+                -Pair $pair `
+                -QualificationPath $fullQualificationPath `
+                -ExpectedExistingQualificationSha256 $ExpectedPriorQualificationSha256 `
+                -ExpectedBaselineSha256 $ExpectedBaselineSha256 `
+                -ExpectedSupersededWorkingSha256 $ExpectedSupersededWorkingSha256 `
+                -ExpectedRevisedWorkingSha256 $ExpectedRevisedWorkingSha256)
+            $qualificationDisposition = 'prior'
+        }
+    }
+    else {
+        try {
+            [void](Assert-KmcFixtureQualification -Pair $pair -QualificationPath $fullQualificationPath)
+            if ([string]$pair.working.sha256 -ceq $ExpectedRevisedWorkingSha256) {
+                $qualificationDisposition = 'revised'
+            }
+        }
+        catch { }
+    }
+    if ($null -ne $state.PSObject.Properties['replacementQualificationSha256'] -and
+        [string]$state.replacementQualificationSha256 -ceq $ExpectedPriorQualificationSha256) {
+        throw 'Replacement-written Working fixture state records the prior qualification as its replacement.'
+    }
+    if ($phase -ceq 'purpose-bound-recovery-prepared') {
+        if ($qualificationDisposition -cne 'prior') {
+            throw 'Purpose-bound prepared recovery requires the exact prior qualification and metadata.'
+        }
+        $action = if ($backupExists) { 'confirm-prior' } else { 'prepare-purpose-bound-lock' }
+    }
+    elseif ($phase -cin @('committed','recovered-committed')) {
+        if ($qualificationDisposition -cne 'revised' -or
+            [string]$state.replacementQualificationSha256 -cne $qualificationHash -or
+            [string]$state.committedQualificationSha256 -cne $qualificationHash -or
+            [string]$state.saveMetadataDigestAfter -cne [string]$saveMetadata.digest) {
+            throw 'Committed Working fixture requalification state does not match an exact normally qualified revised fixture.'
+        }
+        if ($phase -ceq 'recovered-committed') {
+            if ([string]$state.recoveryQualificationSha256 -cne $qualificationHash -or
+                [string]$state.recoverySaveMetadataDigest -cne [string]$saveMetadata.digest) {
+                throw 'Recovered committed Working fixture state does not match its terminal recovery proof.'
+            }
+            $action = if ($lockExists) { 'complete-terminal-committed' } else { 'already-recovered-committed' }
+        }
+        else { $action = if ($lockExists) { 'accept-committed' } else { 'already-committed' } }
+    }
+    elseif ($phase -ceq 'recovered-rolled-back') {
+        if ($qualificationDisposition -cne 'prior' -or
+            [string]$state.recoveryQualificationSha256 -cne $qualificationHash -or
+            [string]$state.recoverySaveMetadataDigest -cne [string]$saveMetadata.digest) {
+            throw 'Recovered rolled-back Working fixture state does not match its exact terminal recovery proof.'
+        }
+        $action = if ($lockExists) { 'complete-terminal-prior' } else { 'already-recovered-prior' }
+    }
+    elseif (-not $lockExists) {
+        throw 'Nonterminal Working fixture requalification state has no exact stale runtime lock.'
+    }
+    elseif ($phase -cin @('rolled-back','replacement-write-attempt-rolled-back','aborted-before-replacement') -and
+        $qualificationDisposition -cnotin @('prior','prior-metadata-incomplete')) {
+        throw "Working fixture requalification phase $phase requires the exact prior qualification."
+    }
+    elseif ($phase -cin @('rolled-back','replacement-write-attempt-rolled-back') -and
+        [string]$state.restoredQualificationSha256 -cne $ExpectedPriorQualificationSha256) {
+        throw 'Rolled-back Working fixture requalification state lacks the exact restored prior hash.'
+    }
+    elseif ($qualificationDisposition -ceq 'prior') { $action = 'confirm-prior' }
+    else { $action = 'restore-prior' }
+
+    return [pscustomobject]@{
+        schemaVersion = 1; action = $action; pair = $pair; lock = $rawLock
+        saveMetadata = $saveMetadata; qualificationSha256 = $qualificationHash
+        qualificationLength = [long]$qualificationMetadata.Length
+        qualificationLastWriteTimeUtcTicks = [long]$qualificationMetadata.LastWriteTimeUtc.Ticks
+        state = $state; statePath = $statePath; priorBackupPath = $priorBackupPath
+        atomicDebris = $atomicDebris
+    }
+}
+
+function Invoke-KmcWorkingFixtureRequalificationRecovery {
+    param(
+        [Parameter(Mandatory = $true)][string]$SaveRoot,
+        [Parameter(Mandatory = $true)][string]$StateRoot,
+        [Parameter(Mandatory = $true)][string]$QualificationPath,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$RunId,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPriorQualificationSha256,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedBaselineSha256,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedSupersededWorkingSha256,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedRevisedWorkingSha256,
+        [scriptblock]$AfterAdoptBeforeOwnedPlanProbe,
+        [scriptblock]$AfterDebrisReconciliationProbe,
+        [scriptblock]$AfterPurposeBoundBackupProbe,
+        [scriptblock]$BeforeRestoreProbe,
+        [scriptblock]$AfterRecoveryBytesBeforeTimestampProbe,
+        [scriptblock]$BeforeRecoveryStateWriteProbe
+    )
+    Assert-KmcPathsDoNotOverlap -First $SaveRoot -Second $StateRoot -Description 'KMC save and runtime-state roots'
+    $initialPlan = Get-KmcWorkingFixtureRequalificationRecoveryPlan `
+        -SaveRoot $SaveRoot -StateRoot $StateRoot -QualificationPath $QualificationPath -RunId $RunId `
+        -ExpectedPriorQualificationSha256 $ExpectedPriorQualificationSha256 `
+        -ExpectedBaselineSha256 $ExpectedBaselineSha256 `
+        -ExpectedSupersededWorkingSha256 $ExpectedSupersededWorkingSha256 `
+        -ExpectedRevisedWorkingSha256 $ExpectedRevisedWorkingSha256
+    if ([string]$initialPlan.action -cin @('already-recovered-prior','already-recovered-committed','already-committed')) {
+        return [pscustomobject]@{
+            schemaVersion = 1; disposition = [string]$initialPlan.action
+            qualificationSha256 = [string]$initialPlan.qualificationSha256
+            saveMetadataDigest = [string]$initialPlan.saveMetadata.digest
+            statePath = [string]$initialPlan.statePath
+        }
+    }
+    $lock = Adopt-KmcStaleRuntimeLock -StateRoot $StateRoot -ExpectedPurpose 'fixture-requalification'
+    try {
+        [void](Assert-KmcRuntimeLockOwner $lock)
+        Assert-KmcNoGameProcesses
+        if ($null -ne $AfterAdoptBeforeOwnedPlanProbe) { & $AfterAdoptBeforeOwnedPlanProbe $lock }
+        [void](Assert-KmcRuntimeLockOwner $lock)
+        Assert-KmcNoGameProcesses
+        $plan = Get-KmcWorkingFixtureRequalificationRecoveryPlan `
+            -SaveRoot $SaveRoot -StateRoot $StateRoot -QualificationPath $QualificationPath -RunId $RunId `
+            -ExpectedPriorQualificationSha256 $ExpectedPriorQualificationSha256 `
+            -ExpectedBaselineSha256 $ExpectedBaselineSha256 `
+            -ExpectedSupersededWorkingSha256 $ExpectedSupersededWorkingSha256 `
+            -ExpectedRevisedWorkingSha256 $ExpectedRevisedWorkingSha256 `
+            -OwnedLock $lock
+        $ownedSaveMetadataBefore = $plan.saveMetadata
+        $wasStateLess = $null -eq $plan.state
+        if ($wasStateLess) {
+            $transactionRoot = Split-Path -Parent ([string]$plan.statePath)
+            if (Test-Path -LiteralPath $transactionRoot) {
+                if (-not (Test-Path -LiteralPath $transactionRoot -PathType Container)) { throw 'Purpose-bound recovery transaction root is not an exact directory.' }
+            }
+            else { New-Item -ItemType Directory -Path $transactionRoot | Out-Null }
+            Assert-KmcNotReparsePoint $transactionRoot 'Working fixture requalification transaction root'
+            $purposeSourceState = [pscustomobject][ordered]@{
+                schemaVersion = 1; runId = $RunId; token = [string]$lock.Token; phase = 'prepared'
+                preparedAtUtc = [DateTimeOffset]::UtcNow.ToString('o')
+                saveRoot = [IO.Path]::GetFullPath($SaveRoot).TrimEnd('\')
+                qualificationPath = [IO.Path]::GetFullPath($QualificationPath)
+                priorQualificationBackupPath = [string]$plan.priorBackupPath
+                priorQualificationSha256 = $ExpectedPriorQualificationSha256
+                priorQualificationLength = [long]$plan.qualificationLength
+                priorQualificationLastWriteTimeUtcTicks = [long]$plan.qualificationLastWriteTimeUtcTicks
+                baselineSha256 = $ExpectedBaselineSha256
+                supersededWorkingSha256 = $ExpectedSupersededWorkingSha256
+                revisedWorkingSha256 = $ExpectedRevisedWorkingSha256
+                saveMetadataDigestBefore = [string]$ownedSaveMetadataBefore.digest
+            }
+            $purposePreparedState = New-KmcWorkingFixtureRequalificationPhaseState `
+                -SourceState $purposeSourceState -Phase 'purpose-bound-recovery-prepared' `
+                -AdditionalValues ([ordered]@{ recoveryPreparedAtUtc = [DateTimeOffset]::UtcNow.ToString('o') })
+            [void](Assert-KmcRuntimeLockOwner $lock)
+            Assert-KmcNoGameProcesses
+            Write-KmcJsonDurable -Path ([string]$plan.statePath) -Value $purposePreparedState
+            $plan = Get-KmcWorkingFixtureRequalificationRecoveryPlan `
+                -SaveRoot $SaveRoot -StateRoot $StateRoot -QualificationPath $QualificationPath -RunId $RunId `
+                -ExpectedPriorQualificationSha256 $ExpectedPriorQualificationSha256 `
+                -ExpectedBaselineSha256 $ExpectedBaselineSha256 `
+                -ExpectedSupersededWorkingSha256 $ExpectedSupersededWorkingSha256 `
+                -ExpectedRevisedWorkingSha256 $ExpectedRevisedWorkingSha256 -OwnedLock $lock
+            Assert-KmcSaveMetadataInventoriesEqual -Before $ownedSaveMetadataBefore -After $plan.saveMetadata -Description 'Working fixture purpose-bound recovery-state save metadata'
+        }
+        if (@($plan.atomicDebris).Count -ne 0) {
+            Remove-KmcWorkingFixtureRequalificationAtomicDebris -Lock $lock -Debris @($plan.atomicDebris)
+            if ($null -ne $AfterDebrisReconciliationProbe) { & $AfterDebrisReconciliationProbe $lock }
+            $plan = Get-KmcWorkingFixtureRequalificationRecoveryPlan `
+                -SaveRoot $SaveRoot -StateRoot $StateRoot -QualificationPath $QualificationPath -RunId $RunId `
+                -ExpectedPriorQualificationSha256 $ExpectedPriorQualificationSha256 `
+                -ExpectedBaselineSha256 $ExpectedBaselineSha256 `
+                -ExpectedSupersededWorkingSha256 $ExpectedSupersededWorkingSha256 `
+                -ExpectedRevisedWorkingSha256 $ExpectedRevisedWorkingSha256 -OwnedLock $lock
+            Assert-KmcSaveMetadataInventoriesEqual -Before $ownedSaveMetadataBefore -After $plan.saveMetadata -Description 'Working fixture requalification debris-recovery save metadata'
+            if (@($plan.atomicDebris).Count -ne 0) {
+                throw 'Working fixture requalification atomic debris changed during guarded reconciliation.'
+            }
+        }
+        if ([string]$plan.action -ceq 'prepare-purpose-bound-lock') {
+            [void](Assert-KmcRuntimeLockOwner $lock)
+            Assert-KmcNoGameProcesses
+            $transactionRoot = Split-Path -Parent ([string]$plan.priorBackupPath)
+            if (Test-Path -LiteralPath $transactionRoot) {
+                if (-not (Test-Path -LiteralPath $transactionRoot -PathType Container)) { throw 'Purpose-bound recovery transaction root is not an exact directory.' }
+            }
+            else { New-Item -ItemType Directory -Path $transactionRoot | Out-Null }
+            Assert-KmcNotReparsePoint $transactionRoot 'Working fixture requalification transaction root'
+            Assert-KmcRecoveryLeafNoLinks $QualificationPath 'purpose-bound prior qualification source'
+            $priorMetadata = Get-Item -LiteralPath $QualificationPath -Force
+            if ((Get-KmcSha256 $QualificationPath) -cne $ExpectedPriorQualificationSha256 -or
+                [long]$priorMetadata.Length -ne [long]$plan.qualificationLength -or
+                [long]$priorMetadata.LastWriteTimeUtc.Ticks -ne [long]$plan.qualificationLastWriteTimeUtcTicks) {
+                throw 'Purpose-bound prior qualification changed before durable backup creation.'
+            }
+            $priorBytes = [IO.File]::ReadAllBytes([IO.Path]::GetFullPath($QualificationPath))
+            [void](Assert-KmcRuntimeLockOwner $lock)
+            Assert-KmcNoGameProcesses
+            Write-KmcBytesDurableAtomic -Path ([string]$plan.priorBackupPath) -Bytes $priorBytes
+            if ($null -ne $AfterPurposeBoundBackupProbe) { & $AfterPurposeBoundBackupProbe $lock }
+            $plan = Get-KmcWorkingFixtureRequalificationRecoveryPlan `
+                -SaveRoot $SaveRoot -StateRoot $StateRoot -QualificationPath $QualificationPath -RunId $RunId `
+                -ExpectedPriorQualificationSha256 $ExpectedPriorQualificationSha256 `
+                -ExpectedBaselineSha256 $ExpectedBaselineSha256 `
+                -ExpectedSupersededWorkingSha256 $ExpectedSupersededWorkingSha256 `
+                -ExpectedRevisedWorkingSha256 $ExpectedRevisedWorkingSha256 -OwnedLock $lock
+            Assert-KmcSaveMetadataInventoriesEqual -Before $ownedSaveMetadataBefore -After $plan.saveMetadata -Description 'Working fixture purpose-bound backup save metadata'
+            if ([string]$plan.action -cne 'confirm-prior') { throw 'Purpose-bound requalification backup did not revalidate exactly.' }
+            if (@($plan.atomicDebris).Count -ne 0) { throw 'Purpose-bound requalification backup left atomic debris.' }
+        }
+        if ([string]$plan.action -ceq 'restore-prior') {
+            if ($null -ne $BeforeRestoreProbe) { & $BeforeRestoreProbe $lock ([string]$plan.statePath) }
+            [void](Assert-KmcRuntimeLockOwner $lock)
+            Assert-KmcNoGameProcesses
+            if ([string]$plan.state.phase -cne 'recovery-restore-prepared') {
+                $restorePreparedState = New-KmcWorkingFixtureRequalificationPhaseState `
+                    -SourceState $plan.state `
+                    -Phase 'recovery-restore-prepared' `
+                    -AdditionalValues ([ordered]@{ recoveryPreparedAtUtc = [DateTimeOffset]::UtcNow.ToString('o') })
+                $restoreStateParent = Split-Path -Parent ([string]$plan.statePath)
+                Assert-KmcNotReparsePoint $restoreStateParent 'Working fixture requalification transaction root'
+                Assert-KmcRecoveryLeafNoLinks ([string]$plan.statePath) 'Working fixture requalification recovery state'
+                [void](Assert-KmcRuntimeLockOwner $lock)
+                Assert-KmcNoGameProcesses
+                Write-KmcJsonDurable -Path ([string]$plan.statePath) -Value $restorePreparedState
+                $plan = Get-KmcWorkingFixtureRequalificationRecoveryPlan `
+                    -SaveRoot $SaveRoot -StateRoot $StateRoot -QualificationPath $QualificationPath -RunId $RunId `
+                    -ExpectedPriorQualificationSha256 $ExpectedPriorQualificationSha256 `
+                    -ExpectedBaselineSha256 $ExpectedBaselineSha256 `
+                    -ExpectedSupersededWorkingSha256 $ExpectedSupersededWorkingSha256 `
+                    -ExpectedRevisedWorkingSha256 $ExpectedRevisedWorkingSha256 -OwnedLock $lock
+                if ([string]$plan.action -cne 'restore-prior') { throw 'Prepared qualification restoration did not remain exact.' }
+            }
+            Assert-KmcRecoveryLeafNoLinks $QualificationPath 'Working fixture requalification recovery qualification'
+            Assert-KmcRecoveryLeafNoLinks ([string]$plan.priorBackupPath) 'Working fixture prior qualification backup'
+            $priorBytes = [IO.File]::ReadAllBytes([string]$plan.priorBackupPath)
+            [void](Assert-KmcRuntimeLockOwner $lock)
+            Assert-KmcNoGameProcesses
+            Assert-KmcRecoveryLeafNoLinks $QualificationPath 'Working fixture requalification recovery qualification immediately before restore'
+            Write-KmcBytesDurableAtomic -Path $QualificationPath -Bytes $priorBytes
+            if ($null -ne $AfterRecoveryBytesBeforeTimestampProbe) { & $AfterRecoveryBytesBeforeTimestampProbe $lock ([string]$plan.statePath) }
+            [void](Assert-KmcRuntimeLockOwner $lock)
+            Assert-KmcNoGameProcesses
+            [IO.File]::SetLastWriteTimeUtc(
+                [IO.Path]::GetFullPath($QualificationPath),
+                (New-Object DateTime -ArgumentList ([long]$plan.state.priorQualificationLastWriteTimeUtcTicks), ([DateTimeKind]::Utc)))
+        }
+        $finalPlan = Get-KmcWorkingFixtureRequalificationRecoveryPlan `
+            -SaveRoot $SaveRoot -StateRoot $StateRoot -QualificationPath $QualificationPath -RunId $RunId `
+            -ExpectedPriorQualificationSha256 $ExpectedPriorQualificationSha256 `
+            -ExpectedBaselineSha256 $ExpectedBaselineSha256 `
+            -ExpectedSupersededWorkingSha256 $ExpectedSupersededWorkingSha256 `
+            -ExpectedRevisedWorkingSha256 $ExpectedRevisedWorkingSha256 `
+            -OwnedLock $lock
+        if (@($finalPlan.atomicDebris).Count -ne 0) { throw 'Working fixture requalification recovery produced unresolved atomic debris.' }
+        if ([string]$plan.action -cin @('accept-committed','complete-terminal-committed')) {
+            if ([string]$finalPlan.action -cnotin @('accept-committed','complete-terminal-committed')) { throw 'Committed requalification recovery did not remain exact.' }
+            $recoveryDisposition = 'committed'
+        }
+        else {
+            if ([string]$finalPlan.action -cnotin @('confirm-prior','clear-prepared-lock','complete-terminal-prior')) {
+                throw 'Working fixture requalification recovery did not restore or retain the exact prior qualification.'
+            }
+            $recoveryDisposition = 'prior-restored'
+        }
+        Assert-KmcSaveMetadataInventoriesEqual -Before $ownedSaveMetadataBefore -After $finalPlan.saveMetadata -Description 'Working fixture requalification recovery save metadata'
+        $terminalAlreadyWritten = [string]$finalPlan.action -cin @('complete-terminal-prior','complete-terminal-committed')
+        if (-not $terminalAlreadyWritten) {
+            $sourceState = $finalPlan.state
+            $recoveryAction = if ($recoveryDisposition -ceq 'committed') { 'committed' }
+                elseif ($wasStateLess) { 'prior-retained-state-less' }
+                elseif ([string]$plan.action -ceq 'restore-prior') { 'prior-restored' }
+                else { 'prior-confirmed' }
+            if ($null -eq $sourceState) {
+                $sourceState = [pscustomobject][ordered]@{
+                    schemaVersion = 1; runId = $RunId; token = [string]$lock.Token; phase = 'prepared'
+                    preparedAtUtc = [DateTimeOffset]::UtcNow.ToString('o')
+                    saveRoot = [IO.Path]::GetFullPath($SaveRoot).TrimEnd('\')
+                    qualificationPath = [IO.Path]::GetFullPath($QualificationPath)
+                    priorQualificationBackupPath = [string]$finalPlan.priorBackupPath
+                    priorQualificationSha256 = $ExpectedPriorQualificationSha256
+                    priorQualificationLength = [long]$finalPlan.qualificationLength
+                    priorQualificationLastWriteTimeUtcTicks = [long]$finalPlan.qualificationLastWriteTimeUtcTicks
+                    baselineSha256 = $ExpectedBaselineSha256
+                    supersededWorkingSha256 = $ExpectedSupersededWorkingSha256
+                    revisedWorkingSha256 = $ExpectedRevisedWorkingSha256
+                    saveMetadataDigestBefore = [string]$finalPlan.saveMetadata.digest
+                }
+            }
+            $terminalPhase = if ($recoveryDisposition -ceq 'committed') { 'recovered-committed' } else { 'recovered-rolled-back' }
+            $terminalState = New-KmcRecoveredWorkingFixtureRequalificationState `
+                -SourceState $sourceState -Phase $terminalPhase -RecoveryAction $recoveryAction `
+                -QualificationSha256 (Get-KmcSha256 $QualificationPath) `
+                -SaveMetadataDigest ([string]$finalPlan.saveMetadata.digest)
+            if ($null -ne $BeforeRecoveryStateWriteProbe) { & $BeforeRecoveryStateWriteProbe $lock ([string]$finalPlan.statePath) }
+            [void](Assert-KmcRuntimeLockOwner $lock)
+            Assert-KmcNoGameProcesses
+            $transactionRoot = Split-Path -Parent ([string]$finalPlan.statePath)
+            if (-not (Test-Path -LiteralPath $transactionRoot -PathType Container)) { throw 'Recovery transaction root disappeared before terminal state write.' }
+            Assert-KmcNotReparsePoint $transactionRoot 'Working fixture requalification transaction root'
+            if (Test-Path -LiteralPath ([string]$finalPlan.statePath)) {
+                Assert-KmcRecoveryLeafNoLinks ([string]$finalPlan.statePath) 'Working fixture requalification recovery state'
+            }
+            [void](Assert-KmcRuntimeLockOwner $lock)
+            Assert-KmcNoGameProcesses
+            Write-KmcJsonDurable -Path ([string]$finalPlan.statePath) -Value $terminalState
+        }
+        $verifiedPlan = Get-KmcWorkingFixtureRequalificationRecoveryPlan `
+            -SaveRoot $SaveRoot -StateRoot $StateRoot -QualificationPath $QualificationPath -RunId $RunId `
+            -ExpectedPriorQualificationSha256 $ExpectedPriorQualificationSha256 `
+            -ExpectedBaselineSha256 $ExpectedBaselineSha256 `
+            -ExpectedSupersededWorkingSha256 $ExpectedSupersededWorkingSha256 `
+            -ExpectedRevisedWorkingSha256 $ExpectedRevisedWorkingSha256 -OwnedLock $lock
+        $expectedTerminalAction = if ($recoveryDisposition -ceq 'committed') { 'complete-terminal-committed' } else { 'complete-terminal-prior' }
+        if ([string]$verifiedPlan.action -cne $expectedTerminalAction) { throw 'Working fixture recovery terminal state did not revalidate exactly.' }
+        if (@($verifiedPlan.atomicDebris).Count -ne 0) { throw 'Working fixture requalification terminal proof retained atomic debris.' }
+        Assert-KmcSaveMetadataInventoriesEqual -Before $ownedSaveMetadataBefore -After $verifiedPlan.saveMetadata -Description 'Working fixture requalification terminal save metadata'
+        [void](Assert-KmcRuntimeLockOwner $lock)
+        Assert-KmcNoGameProcesses
+        Close-KmcRuntimeLock $lock
+        $lock = $null
+        return [pscustomobject]@{
+            schemaVersion = 1; disposition = $recoveryDisposition
+            qualificationSha256 = [string]$verifiedPlan.qualificationSha256
+            saveMetadataDigest = [string]$verifiedPlan.saveMetadata.digest
+            statePath = [string]$verifiedPlan.statePath
+        }
+    }
+    catch {
+        $recoveryError = $_.Exception.Message
+        if ($null -ne $lock) {
+            try { Abandon-KmcRuntimeLock $lock }
+            catch { $recoveryError += '; adopted lock abandonment also failed: ' + $_.Exception.Message }
+            finally { $lock = $null }
+        }
+        throw "Working fixture requalification recovery failed and retained the runtime lock: $recoveryError"
+    }
+    finally {
+        if ($null -ne $lock) {
+            try { Abandon-KmcRuntimeLock $lock }
+            catch { }
+            finally { $lock = $null }
+        }
+    }
+}
+
 function Assert-KmcFixturePair {
     param(
         [Parameter(Mandatory = $true)][string]$SaveRoot,
@@ -544,10 +1798,8 @@ function Write-KmcJsonDurable {
         [Parameter(Mandatory = $true)][string]$Path,
         [Parameter(Mandatory = $true)]$Value
     )
-    Write-KmcJsonAtomic -Path $Path -Value $Value
-    $stream = New-Object IO.FileStream([IO.Path]::GetFullPath($Path), [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::Read)
-    try { $stream.Flush($true) }
-    finally { $stream.Dispose() }
+    $json = $Value | ConvertTo-Json -Depth 30
+    Write-KmcBytesDurableAtomic -Path $Path -Bytes ([Text.Encoding]::UTF8.GetBytes($json))
 }
 
 function Get-KmcRuntimeArchiveWriteLimit {
@@ -1114,8 +2366,13 @@ function Assert-KmcNotReparsePoint {
     param([Parameter(Mandatory = $true)][string]$Path, [Parameter(Mandatory = $true)][string]$Description)
     $current = [IO.Path]::GetFullPath($Path)
     while (-not (Test-Path -LiteralPath $current) -and (Split-Path -Parent $current) -ne $current) { $current = Split-Path -Parent $current }
-    if ((Get-Item -LiteralPath $current -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) {
-        throw "$Description resolves through a reparse point: $current"
+    while (-not [string]::IsNullOrWhiteSpace($current)) {
+        if ((Get-Item -LiteralPath $current -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) {
+            throw "$Description resolves through a reparse point: $current"
+        }
+        $parent = Split-Path -Parent $current
+        if ([string]::IsNullOrWhiteSpace($parent) -or [string]::Equals($parent, $current, [StringComparison]::OrdinalIgnoreCase)) { break }
+        $current = $parent
     }
 }
 
@@ -1139,9 +2396,13 @@ function Read-KmcOpenLockPayload {
 function Assert-KmcRuntimeLockOwner {
     param([Parameter(Mandatory = $true)]$Lock)
     $payload = Read-KmcOpenLockPayload $Lock
-    Assert-KmcExactProperties $payload @('schemaVersion','runId','token','ownerProcessId','createdAtUtc') 'runtime lock'
+    $purposeProperty = $Lock.PSObject.Properties['Purpose']
+    $expectedProperties = @('schemaVersion','runId','token','ownerProcessId','createdAtUtc')
+    if ($null -ne $purposeProperty) { $expectedProperties += 'purpose' }
+    Assert-KmcExactProperties $payload $expectedProperties 'runtime lock'
     if ([int]$payload.schemaVersion -ne 1 -or [string]$payload.runId -cne [string]$Lock.RunId -or
-        [string]$payload.token -cne [string]$Lock.Token -or [int]$payload.ownerProcessId -ne $PID) {
+        [string]$payload.token -cne [string]$Lock.Token -or [int]$payload.ownerProcessId -ne $PID -or
+        ($null -ne $purposeProperty -and [string]$payload.purpose -cne [string]$purposeProperty.Value)) {
         throw 'Runtime lock ownership does not match the current harness process.'
     }
     return $payload
@@ -1150,7 +2411,8 @@ function Assert-KmcRuntimeLockOwner {
 function Open-KmcRuntimeLock {
     param(
         [Parameter(Mandatory = $true)][string]$StateRoot,
-        [Parameter(Mandatory = $true)][ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$RunId
+        [Parameter(Mandatory = $true)][ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$RunId,
+        [ValidateSet('fixture-requalification')][string]$Purpose
     )
     $fullState = [IO.Path]::GetFullPath($StateRoot)
     if (-not (Test-Path -LiteralPath $fullState)) { New-Item -ItemType Directory -Path $fullState -Force | Out-Null }
@@ -1159,11 +2421,15 @@ function Open-KmcRuntimeLock {
     if (Test-Path -LiteralPath $lockPath) { throw "A runtime lock already exists and is stale or active: $lockPath" }
     $token = New-KmcRandomToken
     $payload = [ordered]@{ schemaVersion = 1; runId = $RunId; token = $token; ownerProcessId = $PID; createdAtUtc = [DateTime]::UtcNow.ToString('o') }
+    if (-not [string]::IsNullOrWhiteSpace($Purpose)) { $payload['purpose'] = $Purpose }
     $stream = New-Object IO.FileStream($lockPath, [IO.FileMode]::CreateNew, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
     try {
         $bytes = [Text.Encoding]::UTF8.GetBytes(($payload | ConvertTo-Json -Compress))
         $stream.Write($bytes, 0, $bytes.Length); $stream.Flush($true)
         $lock = [pscustomobject]@{ Path = $lockPath; Stream = $stream; RunId = $RunId; Token = $token }
+        if (-not [string]::IsNullOrWhiteSpace($Purpose)) {
+            $lock | Add-Member -NotePropertyName Purpose -NotePropertyValue $Purpose
+        }
         [void](Assert-KmcRuntimeLockOwner $lock)
         return $lock
     }
@@ -1185,21 +2451,39 @@ function Abandon-KmcRuntimeLock {
 }
 
 function Adopt-KmcStaleRuntimeLock {
-    param([Parameter(Mandatory = $true)][string]$StateRoot)
+    param(
+        [Parameter(Mandatory = $true)][string]$StateRoot,
+        [ValidateSet('fixture-requalification')][string]$ExpectedPurpose
+    )
     Assert-KmcNoGameProcesses
-    $lockPath=Join-Path ([IO.Path]::GetFullPath($StateRoot)) 'active-transaction.lock'
-    if(-not(Test-Path -LiteralPath $lockPath -PathType Leaf)){throw 'No stale KMC runtime lock exists.'}
+    $fullStateRoot=[IO.Path]::GetFullPath($StateRoot).TrimEnd('\')
+    if(-not(Test-Path -LiteralPath $fullStateRoot -PathType Container)){throw 'Runtime-state root is missing during stale lock adoption.'}
+    Assert-KmcNotReparsePoint $fullStateRoot 'runtime-state root during stale lock adoption'
+    $lockPath=Assert-KmcChildPath (Join-Path $fullStateRoot 'active-transaction.lock') $fullStateRoot 'stale runtime lock'
+    Assert-KmcRecoveryLeafNoLinks $lockPath 'stale runtime lock'
     $stream=New-Object IO.FileStream($lockPath,[IO.FileMode]::Open,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
     try{
+        Assert-KmcNotReparsePoint $fullStateRoot 'runtime-state root during stale lock adoption'
+        Assert-KmcRecoveryLeafNoLinks $lockPath 'opened stale runtime lock'
         $probe=[pscustomobject]@{Path=$lockPath;Stream=$stream;RunId='';Token=''}
         $payload=Read-KmcOpenLockPayload $probe
-        Assert-KmcExactProperties $payload @('schemaVersion','runId','token','ownerProcessId','createdAtUtc') 'stale runtime lock'
+        $expectedProperties = @('schemaVersion','runId','token','ownerProcessId','createdAtUtc')
+        if (-not [string]::IsNullOrWhiteSpace($ExpectedPurpose)) { $expectedProperties += 'purpose' }
+        Assert-KmcExactProperties $payload $expectedProperties 'stale runtime lock'
         if([int]$payload.schemaVersion-ne1-or[string]$payload.runId-notmatch'^[A-Za-z0-9._-]{1,120}$'-or[string]$payload.token-notmatch'^[0-9a-f]{64}$'){throw 'Stale runtime lock payload is invalid.'}
+        if (-not [string]::IsNullOrWhiteSpace($ExpectedPurpose) -and [string]$payload.purpose -cne $ExpectedPurpose) { throw 'Stale runtime lock purpose is invalid.' }
         if($null-ne(Get-Process -Id ([int]$payload.ownerProcessId) -ErrorAction SilentlyContinue)){throw 'Recorded runtime-lock owner process is still active.'}
+        Assert-KmcNoGameProcesses
+        Assert-KmcRecoveryLeafNoLinks $lockPath 'opened stale runtime lock'
         $payload.ownerProcessId=$PID
         $bytes=[Text.Encoding]::UTF8.GetBytes(($payload|ConvertTo-Json -Compress));$stream.SetLength(0);$stream.Position=0;$stream.Write($bytes,0,$bytes.Length);$stream.Flush($true)
         $lock=[pscustomobject]@{Path=$lockPath;Stream=$stream;RunId=[string]$payload.runId;Token=[string]$payload.token}
-        [void](Assert-KmcRuntimeLockOwner $lock);return $lock
+        if (-not [string]::IsNullOrWhiteSpace($ExpectedPurpose)) {
+            $lock | Add-Member -NotePropertyName Purpose -NotePropertyValue $ExpectedPurpose
+        }
+        [void](Assert-KmcRuntimeLockOwner $lock)
+        Assert-KmcRecoveryLeafNoLinks $lockPath 'adopted runtime lock'
+        return $lock
     }catch{$stream.Dispose();throw}
 }
 
