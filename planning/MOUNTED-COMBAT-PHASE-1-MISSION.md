@@ -1547,3 +1547,36 @@ The visual classification is `MECHANICALLY VIABLE, NEW ANIMATION/POSE WORK REQUI
 The mission nevertheless ends at `BLOCKED — CRITICAL` because its mandatory doorway, selection, and party-formation rows cannot be proven with the current fixture. This is neither a Proceed decision nor a Pivot decision, and Phase 2 is not authorized. Resolution requires a revised disposable Working fixture with a combat-neutral valid doorway and an eligible third controllable unit.
 
 Runtime is frozen for closure. Final external state is restored exactly: Mods digest `c292c5c62a232a0ad7b32ed489139a8d135caa18e38151677f619bf7555c70cb`, full save-metadata digest `58a54974423316041e29d32b1093c5d6775dbd67fe2b37ffaea3c9ae27de19be`, original canonical fixture identities, and no Kingmaker process, active lock, sentinel, live KMC tree, or restoration error.
+
+---
+
+# 30. Final F1 completion record
+
+This section supersedes only the fixture-limited disposition in §29. It preserves all F0 evidence and claim limits and records the separately admitted F1 completion epoch.
+
+## 30.1 Exact F1 identity and rows
+
+```text
+Branch:                 codex/mounted-combat-feasibility
+Runtime-evidence HEAD:  d5bd7fa9c434f04c6f8487b61ea49e3cf983c397
+Package SHA-256:        5ce3bd7d98a090ee05405cc4b4725fa58f13f1926958a69905ba478374c75a4d
+Manifest SHA-256:       0494f1892b58f00b4e9fa36a0e33a0b16a3030840e6232d0f52503d49e8fa90b
+DLL SHA-256:            202701ed9232e4f5a4d5ff65c468c684d1ed1dd53e4a8030be93b960a7cd202a
+DLL MVID:               a702808c-e8a0-4755-bc24-5ed4e945866a
+Named scenarios:        25 PASS / 0 attributable FAIL / 0 DEFER
+Final status:           PHASE 1 COMPLETE — PROCEED RECOMMENDED
+```
+
+The revised Working fixture and user-attested protected-save authority passed exact admission. Doorway `20260814T150000Z-doorway-passA` / `20260814T151500Z-doorway-passB` passed `60/0` each with the same-current-Mammoth unmounted matched control and mounted strict traversal. Selection `20260814T153000Z-selection-passA` / `20260814T154500Z-selection-passB` passed `54/0` each with the same real eligible third unit and exact away/back behavior. Party formation `20260814T160000Z-formation-passA` / `20260814T161500Z-formation-passB` passed `58/0` each using a meaningful stock group command with target arrival, corpulence clearance, and zero non-pair interference.
+
+The six fresh processes total `344 PASS / 0 FAIL` runtime assertions. Every process passed request/game/final validation `31/0`, `39/0`, and `29/0`. All 18 combined/Mods/save transaction records are `restored` with no errors.
+
+## 30.2 Final architecture disposition
+
+No K1–K12 criterion fired. The final A/B/C/D scores are `41/71/77/89`. Architecture B is selected because it is the only live-qualified visible rider/mount pair; D's higher structural score reflects abandoning that product intent, while C and D remain explicit later pivots.
+
+The final visual classification remains `MECHANICALLY VIABLE, NEW ANIMATION/POSE WORK REQUIRED`. Doorway is limited to the selected open StandardDoor; selection does not prove active portrait or camera-follow state; formation does not prove authored slot persistence; no mounted combat, persistence, uninstall, or production animation claim is made.
+
+Final protected inventory is exact at digest `973f203e16aad29d7e4865bae6f81149d959a4ac179953c87781a06d1c71898d`, `271` files, `3178473776` bytes. Baseline, Working, Auto, and Quick match their exact pins; live Mods digest is `e62320bbe7d4b83edc128a62f9f5852b0669c5549859602c335c649318578d47`; and no game process, active lock, sentinel, live KMC tree, or unrestored transaction remains.
+
+Phase 1 is complete. This record recommends Architecture B for a separately authorized Phase 2; it does not authorize Phase 2 execution or a public release.

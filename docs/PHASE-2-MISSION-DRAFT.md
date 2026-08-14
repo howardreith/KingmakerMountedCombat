@@ -1,29 +1,28 @@
 # Phase 2 mission draft
 
-Status: BLOCKED — CRITICAL
+Status: PHASE 1 COMPLETE — PROCEED RECOMMENDED
 
-This is a conditional draft only. It does not authorize Phase 2 implementation, fixture mutation, combat work, animation production, packaging, deployment, publication, or release. A separate mission and new user authorization are required after Phase 1 reaches a truthful completion status.
+This is a draft for a future, separately authorized mission. It does not authorize Phase 2 implementation, fixture mutation, combat work, animation production, packaging, deployment, publication, or release. Phase 1 is complete, but execution still requires a new user-approved mission.
 
-## Phase 1 prerequisites still open
+## Frozen Phase 1 entry evidence
 
-The existing canonical fixtures and guarded runtime system are qualified. Do not repeat completed forensics, fixture admission, lifecycle A/B, pair-only movement A/B, boundary qualification, or no-save work except as unchanged regression gates.
+Architecture B is the final Phase 1 recommendation. The named-row ledger is `25 PASS / 0 attributable FAIL / 0 DEFER`; no K1–K12 criterion fired. Lifecycle and all eight movement rows have the required repeatability, and five boundary rows retain their exact claim-limited qualification. Do not repeat completed forensics, fixture admission, lifecycle A/B, movement A/B, boundary qualification, or no-save work except where a narrow Phase 2 regression gate requires it.
 
-Before this draft can be activated:
+The F1 completion rows are:
 
-1. Through Kingmaker and only within the project-owned Working fixture, establish a combat-neutral doorway/corner route suitable for an exact same-Mammoth unmounted control followed by mounted traversal. Do not use a combat-contaminated run as a control.
-2. Add or expose one eligible directly controllable non-pair unit in Working. It must support the required selection away/back row and a two-recipient formation command without substituting the mount or fabricating state.
-3. Re-run the canonical filename/near-match audit and exact descriptor/authorization guard before opening the revised Working fixture. Baseline remains immutable; only Working may be changed.
-4. Run only `mounted-pair-doorway`, `mounted-pair-selection`, and `mounted-pair-party-formation` twice in fresh guarded processes with unchanged thresholds, exact structured evidence, and exact external restoration.
-5. Reconcile the complete 25-row ledger and reapply K1–K12. Publish `PHASE 1 COMPLETE — PROCEED RECOMMENDED` or `PHASE 1 COMPLETE — PIVOT RECOMMENDED` only if the evidence supports it. Retain `BLOCKED — CRITICAL` if mandatory proof remains unobtainable.
-6. Preserve all existing claim limits exactly: `Direct HandleTurnBasedModeStateChanged(true) invocation only; native mode-event delivery was not exercised.`; `Direct HandleTurnBasedModeStateChanged(false) invocation only; native mode-event delivery was not exercised.`; `Direct GuardBoundary(SaveRequested) service invocation only; stock SaveRoutine and serialization were not exercised.`; `Real Game.LoadGame of the exact Working descriptor exercised the native LoadRoutine prefix; no UI load request was exercised.`; and `Direct OnAreaBeginUnloading cleanup was latched before real Game.ReloadArea; native area-event delivery was not independently observed or qualified.`
+- doorway `20260814T150000Z-doorway-passA` / `20260814T151500Z-doorway-passB`, `60/0` each;
+- selection `20260814T153000Z-selection-passA` / `20260814T154500Z-selection-passB`, `54/0` each; and
+- party formation `20260814T160000Z-formation-passA` / `20260814T161500Z-formation-passB`, `58/0` each.
 
-The current evidence commit is `fc7215481acf97ce1863eb1c75b3433889d2af7d`; package SHA-256 is `2c47d7ad4e82942bd303ab848ab82b9163a76ba9db79d52aaf8bfb0f028d80fc`; DLL SHA-256/MVID are `202701ed9232e4f5a4d5ff65c468c684d1ed1dd53e4a8030be93b960a7cd202a` / `a702808c-e8a0-4755-bc24-5ed4e945866a`. These identify the Phase 1 evidence and are not advance authorization for Phase 2.
+Preserve all existing claim limits exactly: `Direct HandleTurnBasedModeStateChanged(true) invocation only; native mode-event delivery was not exercised.`; `Direct HandleTurnBasedModeStateChanged(false) invocation only; native mode-event delivery was not exercised.`; `Direct GuardBoundary(SaveRequested) service invocation only; stock SaveRoutine and serialization were not exercised.`; `Real Game.LoadGame of the exact Working descriptor exercised the native LoadRoutine prefix; no UI load request was exercised.`; and `Direct OnAreaBeginUnloading cleanup was latched before real Game.ReloadArea; native area-event delivery was not independently observed or qualified.`
 
-## Conditional objective if Architecture B proceeds
+The completion evidence commit is `d5bd7fa9c434f04c6f8487b61ea49e3cf983c397`; package SHA-256 is `5ce3bd7d98a090ee05405cc4b4725fa58f13f1926958a69905ba478374c75a4d`; manifest SHA-256 is `0494f1892b58f00b4e9fa36a0e33a0b16a3030840e6232d0f52503d49e8fa90b`; DLL SHA-256/MVID are `202701ed9232e4f5a4d5ff65c468c684d1ed1dd53e4a8030be93b960a7cd202a` / `a702808c-e8a0-4755-bc24-5ed4e945866a`. These identify the Phase 1 evidence and are not advance authorization for Phase 2.
+
+## Objective if separately authorized
 
 Build the smallest combat-capable, mount-authoritative pair while retaining stock mount pathfinding, reversible rider synchronization, default-off rollout, and fail-closed cleanup. Do not assume persistence, targeting, action economy, animation, EventBus delivery, UI, save, or mode behavior beyond the exact Phase 1 evidence.
 
-Architecture B is only the provisional product-fit leader. Static A/B/C/D scores remain `41/66/77/89`; no K1–K12 criterion has fired. If the missing Phase 1 rows produce an attributable B failure, rescore and write a new C/D mission rather than broadening this draft implicitly.
+Architecture B is the selected product-fit architecture. Final A/B/C/D scores are `41/71/77/89`; D's higher structural score does not satisfy the visible two-entity product intent, while B is the only live-qualified pair. C and D remain explicit pivots if new Phase 2 evidence fires a documented criterion.
 
 ## Required pose, animation, and presentation tranche
 
@@ -39,7 +38,7 @@ This work may use only original code and legally permissible metadata observatio
 
 ## Conditional implementation order
 
-If Phase 1 later authorizes Architecture B, proceed in separately reviewable gates:
+If a separate mission authorizes Architecture B, proceed in separately reviewable gates:
 
 1. explicit runtime/persistence policy, uninstall behavior, and orphan repair contract;
 2. pose/animation and presentation baseline;
@@ -58,4 +57,4 @@ If Phase 1 later authorizes Architecture B, proceed in separately reviewable gat
 
 Every stage requires exact Kingmaker contract mapping, deterministic regressions, guarded A/B runtime evidence, non-mounted isolation, and exact external restoration. No stage authorizes public release. A qualifying failure of movement authority, cleanup, save safety, presentation safety, or restoration stops the stage and invokes only the documented pivot process.
 
-If Phase 1 selects C or D, discard the Architecture B order above and author a new bounded mission. Do not execute any part of this draft under the present status.
+If later evidence selects C or D through a documented pivot, discard the Architecture B order above and author a new bounded mission. Do not execute any part of this draft without separate user authorization.

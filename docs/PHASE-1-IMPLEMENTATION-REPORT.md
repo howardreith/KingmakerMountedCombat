@@ -1,6 +1,6 @@
 # Phase 1 implementation report
 
-Status: BLOCKED — CRITICAL
+Status: PHASE 1 COMPLETE — PROCEED RECOMMENDED
 
 ## Delivered default-off diagnostic implementation
 
@@ -13,6 +13,7 @@ Status: BLOCKED — CRITICAL
 - Harmony12 and EventBus/UMM lifecycle integration for combat, life state, area unload, mode changes, save/load cleanup, disable, unload, session stop, and exception recovery.
 - Default-off diagnostics, frame-driven lifecycle/movement/boundary engines, render-boundary screenshot capture, exact subscenario results, JSONL evidence, and artifact-manifest binding.
 - Schema-v2 request/result contracts, canonical fixture guard, exact descriptor validation, Baseline immutability, Working-only authorization, transactional Working recovery, DotNetZip artifact quarantine, and exact external restoration.
+- Append-only protected-save continuity authority with read-only content/metadata pins for user-authorized `Auto_1120.zks` and `Quick_438.zks`; every save-backed launcher invocation revalidates the full protected inventory before ShouldProcess, in WhatIf, and under the runtime lock. These two files remain non-writable.
 - Boundary evidence is append-only and durable per record. It records exact request/post-initial/pre-dispatch/current file identity, descriptor identity, authorization counters, relationship authority, synchronous cleanup primitives, loading progression, and fresh-world residue state.
 - Active-load failures are latched until Kingmaker's loading pipeline stops; CompositionRoot suppresses movement telemetry and pair validation while that drain is active. The engine never reopens the Working archive during an active load phase.
 
@@ -20,10 +21,10 @@ This remains a movement-only feasibility prototype. It adds no mounted attacks, 
 
 ## Qualified artifact
 
-- Evidence/source commit: `fc7215481acf97ce1863eb1c75b3433889d2af7d`.
+- Evidence/source commit: `d5bd7fa9c434f04c6f8487b61ea49e3cf983c397`.
 - Diagnostic ZIP: `artifacts/KingmakerMountedCombat-0.0.1-feasibility-diagnostic.zip`.
-- ZIP SHA-256: `2c47d7ad4e82942bd303ab848ab82b9163a76ba9db79d52aaf8bfb0f028d80fc`.
-- Manifest SHA-256: `89cd9b94dcbe3c9aa98a28a49a5516e31da98c351cb020d9b6f08de8e79a3c75`.
+- ZIP SHA-256: `5ce3bd7d98a090ee05405cc4b4725fa58f13f1926958a69905ba478374c75a4d`.
+- Manifest SHA-256: `0494f1892b58f00b4e9fa36a0e33a0b16a3030840e6232d0f52503d49e8fa90b`.
 - DLL SHA-256: `202701ed9232e4f5a4d5ff65c468c684d1ed1dd53e4a8030be93b960a7cd202a`.
 - DLL MVID: `a702808c-e8a0-4755-bc24-5ed4e945866a`.
 
@@ -45,6 +46,16 @@ Lifecycle A/B each passed eight rows and `339/0` assertions. Pair-only movement 
 
 The repaired stop/start runs distinguish a benign aligned LateUpdate lag from a real stationary-boundary failure without weakening any threshold or schema.
 
+The revised F1 fixture completed the three previously deferred rows twice in fresh processes:
+
+| Row | Pass A | Pass B | Assertions per run |
+|---|---|---|---:|
+| Doorway matched control | `20260814T150000Z-doorway-passA` | `20260814T151500Z-doorway-passB` | `60/0` |
+| Selection away/back | `20260814T153000Z-selection-passA` | `20260814T154500Z-selection-passB` | `54/0` |
+| Party formation | `20260814T160000Z-formation-passA` | `20260814T161500Z-formation-passB` | `58/0` |
+
+Doorway used the same current-size Mammoth for the unmounted matched control and mounted strict traversal. Selection used the same real eligible third unit for mount-to-rider normalization and away/back switching. Formation used Kingmaker's stock group movement command, preserved non-pair isolation, and met the corpulence separation gate. The six processes total `344 PASS / 0 FAIL` runtime assertions and each passed request/game/final validation at `31/0`, `39/0`, and `29/0`.
+
 ## Boundary qualification and claim scope
 
 The fixed artifact is `boundary-scenario-evidence.jsonl`; JSON `artifactKind` is `boundary-scenario-evidence`, and manifest kind is `boundary-evidence`. The exact suite order is turn-based entry, realtime entry, save safety, load safety, and area transition. Every assertion failure terminates the current row and suppresses subsequent rows; no failed row can be followed by an executed row.
@@ -65,13 +76,13 @@ Boundary aggregate: `259 PASS / 0 FAIL` assertions. Each run separately passed r
 - Release build: PASS, zero warnings/errors.
 - Pure/component tests: `112 PASS / 0 FAIL`.
 - Visual capture tests: `12 PASS / 0 FAIL`.
-- Guarded harness/protocol tests: `105 PASS / 0 FAIL`.
+- Guarded harness/protocol tests: `134 PASS / 0 FAIL`.
 - Assembly-backed checks: `69 PASS / 0 FAIL`.
 - Package validation and guarded WhatIf purity: PASS.
 - Independent producer/validator integration audit: no remaining P0/P1 finding.
 
 ## Not delivered or claimed
 
-The doorway row is not qualified because native combat contaminated the available matched-control attempt. Selection and formation are not qualified because the current fixture has no eligible directly controllable non-pair unit. Camera-only screenshots do not prove UI/portrait selection or camera-follow behavior. Presentation is mechanically viable but needs new pose/animation work.
+The final named-row ledger is `25 PASS / 0 attributable FAIL / 0 DEFER`, and no K1–K12 kill criterion fired. Architecture B is selected for a separately authorized Phase 2, but this implementation remains default-off and diagnostic.
 
-The final named-row ledger is `22 PASS / 0 attributable FAIL / 3 DEFER — EVIDENCED`. No K1–K12 kill criterion fired, but mandatory §27.7 coverage is incomplete. The implementation is not a public release, Phase 1 is not complete, and Phase 2 execution is not authorized.
+Doorway evidence is limited to the selected open StandardDoor and does not prove broad indoor, ceiling, closed-door, or alternate-map compatibility. Structured selection evidence proves away/back switching, not active portrait or camera-follow behavior. Formation evidence proves stock command recipients, arrival, and clearance, not authored formation-slot persistence. Presentation remains `MECHANICALLY VIABLE, NEW ANIMATION/POSE WORK REQUIRED`; camera-only screenshots do not prove all UI state. Mounted combat, persistence, uninstall, production animation, public release, and Phase 2 execution remain outside this artifact and current authorization.

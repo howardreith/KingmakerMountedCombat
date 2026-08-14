@@ -1,8 +1,8 @@
 # Runtime scenario matrix
 
-Status: IN PROGRESS
+Status: PHASE 1 COMPLETE — PROCEED RECOMMENDED
 
-The guarded F1 descriptor and protected-save authority gates are PASS. The exact audit reports one canonical `KMC_AUTOMATION_BASELINE`, one canonical `KMC_AUTOMATION_WORKING`, and zero KMC-looking near-matches. It verified distinct paths, exact internal names, shared campaign/area identity, immutable Baseline, and Working-only write authorization. The user-attested Auto/Quick transition is now an exact protected baseline, never project write authority. No runtime scenario has executed against F1.
+The guarded F1 descriptor and protected-save authority gates are PASS. The exact audit reports one canonical `KMC_AUTOMATION_BASELINE`, one canonical `KMC_AUTOMATION_WORKING`, and zero KMC-looking near-matches. It verified distinct paths, exact internal names, shared campaign/area identity, immutable Baseline, and Working-only write authorization. The user-attested Auto/Quick transition is an exact protected baseline, never project write authority. The six missing F1 processes passed, completing the named-row ledger at `25 PASS / 0 attributable FAIL / 0 DEFER`.
 
 Frozen F0 offline gate ledger: source validation 21 PASS / 0 FAIL; Release build PASS; pure/component 112 PASS / 0 FAIL; visual-capture contracts 12 PASS / 0 FAIL; guarded harness/protocol 105 PASS / 0 FAIL; assembly-backed 69 PASS / 0 FAIL (Kingmaker 58, Wrath 11).
 
@@ -12,7 +12,7 @@ Protected-save authority implementation commit `6abc293f12bacbc250fc4c012fbced05
 
 F0 is the frozen runtime epoch at commit `fc7215481acf97ce1863eb1c75b3433889d2af7d`. It used Working SHA-256 `a5f7a7fb77f0465df1591360ecd1730e2c28215d83e27aafc70efef3110e6dc5`, length `718821`, ticks `639222573406912936`; all executed evidence below belongs to F0 unless explicitly stated otherwise. Its named-row ledger remains `22 PASS / 0 attributable FAIL / 3 DEFER — EVIDENCED`.
 
-F1 is descriptor-requalified and admitted for the six missing Phase 1 processes. Transaction `fixture-requalification-20260814T1140026497594Z` committed at `2026-08-14T11:40:02.8457604+00:00`. Qualification SHA-256/length/ticks are `95e9a3c6203f11cfdd7e615849eb61ebc060131075f6a7f40771dcd7eeb68a7a` / `1272` / `639223044028647586`; phase-`committed` state SHA-256/length/ticks are `68fdc0f759e7f7daffaffaeb27996357e74c8f5861c5bf9345005edbefa66cce` / `1707` / `639223044029797599`. The exact F0 qualification backup is SHA-256 `c1e33c75004212039258d6d90ba20e43c37c50966c94e685dbad1ca0e653654f`, length `1272`.
+F1 is descriptor-requalified and runtime-qualified for the Phase 1 slice. Transaction `fixture-requalification-20260814T1140026497594Z` committed at `2026-08-14T11:40:02.8457604+00:00`. Qualification SHA-256/length/ticks are `95e9a3c6203f11cfdd7e615849eb61ebc060131075f6a7f40771dcd7eeb68a7a` / `1272` / `639223044028647586`; phase-`committed` state SHA-256/length/ticks are `68fdc0f759e7f7daffaffaeb27996357e74c8f5861c5bf9345005edbefa66cce` / `1707` / `639223044029797599`. The exact F0 qualification backup is SHA-256 `c1e33c75004212039258d6d90ba20e43c37c50966c94e685dbad1ca0e653654f`, length `1272`.
 
 F1 retains unchanged Baseline SHA-256/length/ticks `c29d965c9ff5dc0f971659d9ae154877aa4a9a461ca220d1ce28e7c7fd9d2512` / `686605` / `639222474845172002` and descriptor-qualifies only revised Working `5eb4e0b4cbd8d60dc879a02ff71aadfde3f517304754857f0cc68d0f9a93f1c6` / `816452` / `639222975870964407`. The 1/1/0 audit, exact names, distinct paths, Manual/v1 descriptors, and shared `cvb` / `d41185be-edc1-47c0-b9d5-e1d7a9c8e65f` / `9d1278a2f599b2a4daab53abdfe88d2e` identity passed. Working alone is writable. The requalification transaction preserved its current before/after inventory at digest `973f203e16aad29d7e4865bae6f81149d959a4ac179953c87781a06d1c71898d`, `271` files, `3178473776` bytes. Normal guard and recovery `-WhatIf` passed, with no process, lock, sentinel, live KMC tree, or transaction debris.
 
@@ -27,6 +27,18 @@ Frozen F0 inventory was digest `58a54974423316041e29d32b1093c5d6775dbd67fe2b37ff
 The user attested that Auto and Quick changed during the external Kingmaker fixture-preparation session, not in a KMC transaction. Their current exact bytes and metadata are protected baselines only. The project must not restore or mutate either save.
 
 The append-only authority is `C:\Dev\KingmakerMountedCombatLab\runtime-state\protected-save-authorities\20260814T1445257441387Z-user-fixture-preparation.json`, epoch `20260814T1445257441387Z-user-fixture-preparation`, SHA-256 `77fd415d177423dd7da58e3685e418f38cf954dead75068424a717e2be6b3ca9`, length `119319`, ticks `639223155954515237`. It binds current inventory digest `973f203e16aad29d7e4865bae6f81149d959a4ac179953c87781a06d1c71898d`, Auto SHA-256 `9599e9e15bdd04cde7b15d47795510b95cd8e1333f107f2e3b64469ebf3330fc`, and Quick SHA-256 `e26dc2ce00e6ed68953c2c9b1e89584ae3c3bd50f4cf698ecc2c624e21d10575`. Creation WhatIf, append-only actual creation, and independent continuity validation passed with no save mutation or residue.
+
+## Executed F1 completion evidence
+
+All six rows used commit `d5bd7fa9c434f04c6f8487b61ea49e3cf983c397`, package SHA-256 `5ce3bd7d98a090ee05405cc4b4725fa58f13f1926958a69905ba478374c75a4d`, DLL SHA-256 `202701ed9232e4f5a4d5ff65c468c684d1ed1dd53e4a8030be93b960a7cd202a`, and MVID `a702808c-e8a0-4755-bc24-5ed4e945866a`. Each passed request/game/final validation `31/0`, `39/0`, and `29/0`.
+
+| Scenario | Process A | Process B | Qualified evidence |
+|---|---|---|---|
+| `mounted-pair-doorway` | `20260814T150000Z-doorway-passA`, 60/0 | `20260814T151500Z-doorway-passB`, 60/0 | Same open `DoorHolder/dwarf_dungeon_door_01`; same-current-Mammoth unmounted control true; approach legitimately skipped because start was already near; 2/2 strict path legs; max final/best `1.2317738508` / `1.2061703079`; no instability or residue |
+| `mounted-pair-selection` | `20260814T153000Z-selection-passA`, 54/0 | `20260814T154500Z-selection-passB`, 54/0 | Same non-pair `d17c8fd0-6627-40c4-bf9a-024cf001c1f7`; mount normalized to rider; away/back true; 1/1 routed endpoint at `1.1999048650` / `1.2147087582`; zero selection loss/interference |
+| `mounted-pair-party-formation` | `20260814T160000Z-formation-passA`, 58/0 | `20260814T161500Z-formation-passB`, 58/0 | Stock group movement; normalized rider+non-pair selection; mount final `1.2357761832` / `1.2424143584`; non-pair final `0.0239113005` / `0.0450875333`; minimum separation `2.0965969637` / `2.0840256324` above required `1.5606060028`; zero interference/replacement/loss |
+
+F1 runtime assertions total `344 PASS / 0 FAIL`. Every row has exact final synchronization and residue-free cleanup. Every combined/Mods/save transaction is `restored` with all five restoration flags true and no errors. Live Mods are exact pre/post digest `e62320bbe7d4b83edc128a62f9f5852b0669c5549859602c335c649318578d47` (`348` files / `44` directories / `69797076` bytes); protected save inventory remains exact digest `973f203e16aad29d7e4865bae6f81149d959a4ac179953c87781a06d1c71898d` (`271` files / `3178473776` bytes).
 
 ## Executed F0 runtime evidence
 
@@ -83,15 +95,15 @@ Historical engineering FAIL results remain preserved. They include fixture boots
 | Boundary | `mounted-pair-load-safety` | PASS | Real exact-Working load and native prefix; clean fresh world |
 | Boundary | `mounted-pair-area-transition-safety` | PASS | Direct pre-clean then real reload; native area-event delivery not independently qualified |
 
-## F1 execution queue
+## F1 completion queue
 
 | Order | Scenario | F1 status | Required control |
 |---|---|---|---|
-| 1 | `mounted-pair-doorway` A/B | TODO | Exact same current-size Mammoth unmounted matched control, then mounted route, each in a fresh process |
-| 2 | `mounted-pair-selection` A/B | TODO | Select away to the eligible directly controllable third unit and back, each in a fresh process |
-| 3 | `mounted-pair-party-formation` A/B | TODO | Meaningful stock group movement command with the eligible third unit, each in a fresh process |
+| 1 | `mounted-pair-doorway` A/B | PASS | Exact same current-size Mammoth unmounted matched control, then mounted route, each in a fresh process |
+| 2 | `mounted-pair-selection` A/B | PASS | Select away to the eligible directly controllable third unit and back, each in a fresh process |
+| 3 | `mounted-pair-party-formation` A/B | PASS | Meaningful stock group movement command with the eligible third unit, each in a fresh process |
 
-Exact next action is to commit and publish the protected-save authority checkpoint, package the exact clean evidence HEAD, then run the queue with the authority pins and an immediate WhatIf before each live process. Do not rerun completed archaeology, lifecycle/boundary suites, or previously qualified movement rows absent a narrow regression gate. Do not synthesize units, change geometry during a run, weaken thresholds, or execute Phase 2.
+The queue is complete. Do not rerun completed archaeology, lifecycle/boundary suites, or movement rows absent a narrow regression gate. Do not synthesize units, weaken thresholds, or execute Phase 2 under this mission.
 
 ## Measured F0 movement and visual disposition
 
@@ -99,4 +111,4 @@ All runnable pair-only rows passed twice with final synchronization, zero cleanu
 
 Usable game-camera frames classify presentation `MECHANICALLY VIABLE, NEW ANIMATION/POSE WORK REQUIRED`. The silhouette is stable and readable, but the rider is rigidly upright with the lower body intersecting or occluded by the Mammoth back and has no saddle, reins, or seated pose. Some later-state frames are black or clipped; camera-only evidence does not prove portrait state, camera follow, UI selection, away/back selection, or party formation.
 
-Frozen F0 named-row disposition: **22 PASS / 0 attributable FAIL / 3 DEFER — EVIDENCED**. F1 descriptor and protected-save admission do not change those results and supply no runtime result. No kill criterion has fired. The controlling status is `IN PROGRESS` until the three mandatory rows complete twice and the ledger is reconciled.
+Frozen F0 named-row disposition remains **22 PASS / 0 attributable FAIL / 3 DEFER — EVIDENCED** for provenance. F1 supersedes each deferral with repeatable PASS evidence. The final Phase 1 named-row disposition is **25 PASS / 0 attributable FAIL / 0 DEFER**. No kill criterion fired; the controlling status is `PHASE 1 COMPLETE — PROCEED RECOMMENDED` with Architecture B.

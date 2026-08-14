@@ -1,14 +1,14 @@
 # Phase 1 feasibility report
 
-Status: BLOCKED — CRITICAL
+Status: PHASE 1 COMPLETE — PROCEED RECOMMENDED
 
 ## Outcome
 
-Phase 1 has established that a Kingmaker movement-only mounted pair is mechanically feasible under the bounded Architecture B seam: the mount remains the sole pathfinding authority while KMC synchronizes the rider's logical and view state and owns reversible cleanup. The canonical fixture guard, exact Working load, lifecycle suites, five pair-only movement rows, five boundary rows, visual capture, and external-state restoration all produced qualified evidence.
+Phase 1 establishes that a Kingmaker movement-only mounted pair is mechanically feasible under the bounded Architecture B seam: the mount remains the sole pathfinding authority while KMC synchronizes the rider's logical and view state and owns reversible cleanup. The canonical fixture guard, protected-save authority, exact Working load, lifecycle suites, all eight movement rows, five boundary rows, visual capture, and external-state restoration produced qualified evidence.
 
-The final named-row ledger is `22 PASS / 0 attributable FAIL / 3 DEFER — EVIDENCED`. The three deferrals are mandatory mission §27.7 rows: doorway control, selection, and party formation. The current fixture cannot provide a combat-neutral matched doorway control, and it contains no eligible directly controllable non-pair unit for the selection or formation rows. These are fixture/control limitations, not Architecture B failures, but they prevent the Phase 1 definition of done. Therefore neither `PHASE 1 COMPLETE — PROCEED RECOMMENDED` nor `PHASE 1 COMPLETE — PIVOT RECOMMENDED` is truthful.
+The final named-row ledger is `25 PASS / 0 attributable FAIL / 0 DEFER`. The revised F1 fixture supplied the three previously unavailable mission §27.7 rows: doorway matched control, selection away/back, and stock party formation. Each passed twice in a fresh process under unchanged gates. No K1–K12 criterion fired, so the truthful disposition is `PHASE 1 COMPLETE — PROCEED RECOMMENDED` with Architecture B.
 
-Evidence is frozen at branch `codex/mounted-combat-feasibility`, commit `fc7215481acf97ce1863eb1c75b3433889d2af7d`. The qualified diagnostic package SHA-256 is `2c47d7ad4e82942bd303ab848ab82b9163a76ba9db79d52aaf8bfb0f028d80fc`; packaged DLL SHA-256 is `202701ed9232e4f5a4d5ff65c468c684d1ed1dd53e4a8030be93b960a7cd202a`, MVID `a702808c-e8a0-4755-bc24-5ed4e945866a`.
+Completion evidence is frozen on branch `codex/mounted-combat-feasibility` at runtime commit `d5bd7fa9c434f04c6f8487b61ea49e3cf983c397`. The qualified diagnostic package SHA-256 is `5ce3bd7d98a090ee05405cc4b4725fa58f13f1926958a69905ba478374c75a4d`; packaged DLL SHA-256 is `202701ed9232e4f5a4d5ff65c468c684d1ed1dd53e4a8030be93b960a7cd202a`, MVID `a702808c-e8a0-4755-bc24-5ed4e945866a`. Earlier F0 evidence remains bound to its original commit/package and is not rewritten.
 
 ## Exact targets
 
@@ -26,7 +26,7 @@ No reference source, Wrath assembly, or proprietary extracted asset is reused in
 
 Wrath's mounted subsystem is cross-cutting engine behavior rather than a cosmetic attachment: reciprocal state, mount-authoritative commands, rider path suppression, avoidance ownership, entity/view synchronization, selection/formation projection, lifecycle cleanup, and persistence repair cooperate as one system. Kingmaker lacks those mounted types but exposes enough narrow primitives for the Phase 1 slice: exact pet/master and controllability checks, current size, stock mount pathfinding, rider `AgentOverride`, reference-counted avoidance, command-routing seams, selection/stop/cancel seams, lifecycle boundaries, and reversible view transforms.
 
-Static weighted scores remain A/B/C/D = `41/66/77/89`. Architecture B is the provisional product-fit leader because live evidence now proves its one-mover movement, synchronization, cleanup, and guarded boundary seams without a broad engine replacement. A remains rejected as too cross-cutting; C and D remain bounded pivots if later evidence fires an existing kill criterion. No K1–K12 kill criterion fired. This is a provisional disposition, not authorization to execute Phase 2 while the mandatory rows remain deferred.
+Final weighted scores are A/B/C/D = `41/71/77/89`. The totals measure engineering safety rather than product desirability: D remains structurally safest because it abandons the visible two-entity product, while B is the only runtime-qualified pair and is selected for product fit. Live evidence proves one-mover movement, matched doorway traversal, selection/formation routing, synchronization, cleanup, and guarded boundaries without a broad engine replacement. A remains rejected as too cross-cutting; C and D remain explicit pivots if a later combat/persistence criterion fires. No K1–K12 kill criterion fired.
 
 ## Qualified runtime evidence
 
@@ -35,6 +35,16 @@ Static weighted scores remain A/B/C/D = `41/66/77/89`. Architecture B is the pro
 - Lifecycle A/B runs `20260814T034950Z-lifecycle-suite-passA` and `20260814T035800Z-lifecycle-suite-passB` each passed `8/8` named rows and `339/0` assertions. Directly invoked lifecycle handlers prove their handler/service behavior and exact cleanup, not independent EventBus delivery.
 - Pair-only movement repeated A/B with strict evidence and exact restoration: pause/unpause `49/0` each, destination-cancel `49/0` each, open-ground `47/0` each, stop/start `61/0` each, and turns/corners `74/0` each. The open-ground B endpoint retained `0.0033627902` margin inside the unchanged `1.25` endpoint gate.
 - Every qualified movement row preserved one authoritative mover, bounded entity/view/anchor synchronization, no oscillation/repath/stuck/selection-loss violation, exact stopped-boundary closure, residue-free dismount, and unchanged external state.
+
+### F1 completion evidence
+
+| Row | Evidence A / B | Assertions | Qualified result |
+|---|---|---:|---|
+| Doorway matched control | `20260814T150000Z-doorway-passA` / `20260814T151500Z-doorway-passB` | `60/0` each | Same open StandardDoor; same-current-Mammoth unmounted control; 2/2 strict legs; max final/best `1.2317738508` / `1.2061703079`; exact cleanup |
+| Selection away/back | `20260814T153000Z-selection-passA` / `20260814T154500Z-selection-passB` | `54/0` each | Same real third unit; mount-to-rider normalization; away/back true; routed movement 1/1; zero selection loss/interference |
+| Party formation | `20260814T160000Z-formation-passA` / `20260814T161500Z-formation-passB` | `58/0` each | Stock group command; pair and third unit reach targets; separation above corpulence bound; zero interference/replacement/loss |
+
+The six F1 processes total `344/0` runtime assertions. Each also passed request/game/final validation `31/0`, `39/0`, and `29/0`. All 18 combined/Mods/save transaction records are `restored`; protected inventory remains exact at digest `973f203e16aad29d7e4865bae6f81149d959a4ac179953c87781a06d1c71898d`, `271` files, `3178473776` bytes.
 
 ### Boundary evidence
 
@@ -52,10 +62,12 @@ The boundary aggregate is `259 PASS / 0 FAIL` assertions. Every individual run a
 
 Usable explicit-camera frames support the classification `MECHANICALLY VIABLE, NEW ANIMATION/POSE WORK REQUIRED`. The rider remains rigidly upright and the lower body intersects or is occluded by the Mammoth back. That does not fire K9, but it is not presentation-complete. Some later-state captures are black or otherwise unusable, and camera-only evidence does not prove portrait state, UI selection state, or camera-follow behavior.
 
-## Remaining critical blocker
+## Remaining limitations and authorization boundary
 
-- Doorway: the available attempt was contaminated by native combat after initial control/traversal observations, so the current fixture does not provide the required combat-neutral matched Mammoth control.
-- Selection: no eligible directly controllable non-pair unit exists for the mandatory away/back test.
-- Formation: the same missing third controllable unit prevents a meaningful group-command/formation test.
+- Presentation remains `MECHANICALLY VIABLE, NEW ANIMATION/POSE WORK REQUIRED`; the rider is visibly rigid/intersecting and needs original pose/animation work.
+- Doorway evidence covers the selected open StandardDoor and does not prove broad indoor, ceiling, closed-door, or alternate-map compatibility.
+- Selection evidence proves `SelectionManager.SelectedUnits` and scoped normalization, not active portrait or camera-follow behavior.
+- Formation evidence proves stock group-command recipients, movement, target arrival, clearance, and uninvolved-command identity, not authored formation-slot persistence.
+- Phase 1 does not prove mounted attacks, targeting, reach, action economy, persistence, uninstall, enemy riders, multiple mount species, or production readiness.
 
-Completing those rows requires a project-owned Working fixture with a combat-neutral doorway/control route and an eligible third directly controllable unit. Pose/animation work also requires an explicitly scoped next mission. Until the three mandatory rows are proven or fail attributable criteria, Phase 1 remains `BLOCKED — CRITICAL` and Phase 2 remains unauthorized.
+Architecture B may proceed only under a separately authorized Phase 2 mission. This report does not execute Phase 2 and does not authorize a public release.

@@ -2,7 +2,7 @@
 
 Status: PASS
 
-Exact Phase 1 responsibility/dependency coverage is complete. Bounded movement and cleanup edges qualified at runtime; doorway, selection, and formation remain fixture-limited.
+Exact Phase 1 responsibility/dependency coverage is complete. Bounded movement, doorway, selection, formation, cleanup, and boundary edges qualified at runtime under their stated claim limits.
 
 The solid Wrath nodes below are exact local types. Kingmaker has no direct rider/saddled/controller types; its candidate seams are older movement, command, selection, formation, entity/view, and lifecycle primitives. Runtime qualification and exact claim limits are summarized after the graph.
 
@@ -71,8 +71,8 @@ This is exact Wrath behavior. Kingmaker has every primitive except relationship 
 | Avoidance/collision | Rider guard and other-agent exclusion traced | Reversible rider-only guard | PASS |
 | Entity position | Per-tick mount-to-rider copy traced | Isolated active-pair synchronization | PASS |
 | View attachment | Wrath root/IK lifecycle traced | Exact Mammoth `Spine` attachment is mechanically viable; a seated pose/animation is absent | PASS |
-| Selection | Click/box redirection traced | Contract is mapped; mandatory away/back runtime row lacks an eligible non-pair fixture unit | DEFER — EVIDENCED |
-| Formation | Mount exclusion and rider offset mirroring traced | Contract is mapped; mandatory non-pair group runtime row lacks an eligible third controllable unit | DEFER — EVIDENCED |
+| Selection | Click/box redirection traced | F1 away/back row passes A/B with exact mount-to-rider normalization, real third-unit switch, routed movement, and zero interference | PASS |
+| Formation | Mount exclusion and rider offset mirroring traced | F1 stock group-command row passes A/B with both recipients reaching targets, corpulence clearance, and zero non-pair interference | PASS |
 | Combat/action coupling | Target redirection and paired turn state traced | Phase 1 cleanup boundary only | PASS |
 | Serialization | Reciprocal parts/position/command/turn persistence and repair traced | No custom serialization; direct pre-save cleanup qualified, without stock `SaveRoutine`/serialization exercise | PASS |
 | Lifecycle cleanup | Wrath invalidations and Kingmaker events traced | Event-driven plus defensive invariant cleanup; direct lifecycle and bounded load/area cleanup qualified | PASS |
@@ -93,6 +93,6 @@ This keeps non-mounted paths on their original code.
 
 - Movement A/B passes: open ground, stop/start, turns/corners, pause/unpause, and destination cancellation. The mount remains the sole authoritative mover; tested synchronization, cleanup, and external restoration are exact.
 - Lifecycle A/B passes in direct service/handler scope. Boundary rows pass 259/0 assertions across turn-based, realtime, save, load, and area. Turn-based/realtime do not prove native event delivery; save does not exercise stock `SaveRoutine` or serialization; load performs real exact-Working `Game.LoadGame` and observes the native `LoadRoutine` prefix without a UI request; area performs direct pre-cleanup plus real `ReloadArea` without independently qualifying native area-event delivery.
-- Doorway is `DEFER — EVIDENCED` because the available valid route becomes hostile. Selection and formation are `DEFER — EVIDENCED` because no eligible directly controllable non-pair exists in the fixture. Overall: 22 PASS, 0 attributable FAIL, 3 deferred.
-- Presentation is `MECHANICALLY VIABLE, NEW ANIMATION/POSE WORK REQUIRED`. No K1–K12 kill criterion fired, and no K13 exists. Scores remain A/B/C/D = 41/66/77/89; Architecture B remains provisional.
-- Final status is `BLOCKED — CRITICAL`: the graph and tested seams support Architecture B, but the missing mandatory fixture-backed doorway, selection, and formation proofs prevent Proceed and do not establish Pivot. Phase 2 is not authorized.
+- F1 doorway, selection, and formation each pass twice in fresh processes under unchanged gates. Overall: 25 PASS, 0 attributable FAIL, 0 deferred.
+- Presentation is `MECHANICALLY VIABLE, NEW ANIMATION/POSE WORK REQUIRED`. No K1–K12 kill criterion fired, and no K13 exists. Final A/B/C/D scores are 41/71/77/89; Architecture B is selected.
+- Final status is `PHASE 1 COMPLETE — PROCEED RECOMMENDED`. The graph and tested seams support Architecture B within the recorded claim limits. Phase 2 still requires a separate mission and authorization.

@@ -1,6 +1,6 @@
 # Autonomous blockers
 
-Status: IN PROGRESS
+Status: PHASE 1 COMPLETE — PROCEED RECOMMENDED
 
 Branch: `codex/mounted-combat-feasibility`
 
@@ -8,7 +8,7 @@ Active safety implementation commit: `6abc293f12bacbc250fc4c012fbced05b3763881`
 
 ## Evidence epochs
 
-F0 remains the frozen runtime-evidence epoch at `fc7215481acf97ce1863eb1c75b3433889d2af7d`, with `22 PASS / 0 attributable FAIL / 3 DEFER — EVIDENCED`. F1 is the intentionally revised Working fixture. It is descriptor-qualified and, after the explicit user-attested protected-save epoch transition below, admitted only for the six missing Phase 1 processes. No F1 runtime row has executed yet.
+F0 remains the frozen runtime-evidence epoch at `fc7215481acf97ce1863eb1c75b3433889d2af7d`, with `22 PASS / 0 attributable FAIL / 3 DEFER — EVIDENCED`. F1 is the intentionally revised Working fixture. It independently supersedes the three F0 deferrals with six fresh-process PASS results, producing the final `25 PASS / 0 attributable FAIL / 0 DEFER` ledger.
 
 ## Cleared blocker: F1 descriptor and Baseline identity
 
@@ -44,24 +44,30 @@ Commit `6abc293f12bacbc250fc4c012fbced05b3763881` changes `scripts/runtime/Runti
 
 Exact file SHA-256 values are `59e24b0156f3f8c44ebd99c7bb403952108a7cef505bf55d633ca173f47d0ee1`, `9a5b983a7863b54457bbb4b869a5346b8d41d5744f901536ded647fb8127b2f3`, `b425fce49d329ccea6cba04dd423c242a656d4aff15ed63234f248c559db16d4`, and `cd6f3aa14e5c08211cc39d6e51fe86e304140993e137a5b8ed2c66fd1a41cf8`. Gates passed AST `4/4`, source `21/0`, Release build, component `112/0`, visual `12/0`, harness `134/0`, assembly-backed `69/0`, and diff check. DLL remains SHA-256 `202701ed9232e4f5a4d5ff65c468c684d1ed1dd53e4a8030be93b960a7cd202a`, MVID `a702808c-e8a0-4755-bc24-5ed4e945866a`.
 
-## Remaining mandatory F1 qualification
+## Cleared blocker: mandatory F1 qualification
 
-Status: TODO
+Status: PASS
 
-The frozen F0 named-row ledger remains `22 PASS / 0 attributable FAIL / 3 DEFER — EVIDENCED`. The only missing mandatory rows must each run twice in fresh processes under unchanged gates:
+The frozen F0 ledger remains preserved for provenance. The three missing rows each passed twice in fresh processes under unchanged gates:
 
-1. `mounted-pair-doorway`: exact same-current-Mammoth unmounted matched control, then mounted traversal.
-2. `mounted-pair-selection`: selection away to the eligible directly controllable third unit and back.
-3. `mounted-pair-party-formation`: a meaningful stock group movement command with the eligible third unit.
+1. `mounted-pair-doorway`: `20260814T150000Z-doorway-passA` / `20260814T151500Z-doorway-passB`, `60/0` each; exact same-current-Mammoth unmounted matched control, then 2/2 strict mounted legs.
+2. `mounted-pair-selection`: `20260814T153000Z-selection-passA` / `20260814T154500Z-selection-passB`, `54/0` each; exact real third-unit away/back selection and routed movement.
+3. `mounted-pair-party-formation`: `20260814T160000Z-formation-passA` / `20260814T161500Z-formation-passB`, `58/0` each; meaningful stock group movement with target arrival, clearance, and isolation.
 
-Do not synthesize units, change geometry during a run, weaken thresholds, or rerun broad completed archaeology, lifecycle, boundary, or previously qualified movement suites absent a narrow regression requirement.
+The six processes total `344/0` runtime assertions. Every process passed strict request/game/final validation at `31/0`, `39/0`, and `29/0`; all 18 transaction states are restored; protected inventory and live Mods are exact; no process, lock, sentinel, or KMC deployment remains.
 
 ## Visual and architecture state
 
-Status: IN PROGRESS
+Status: PASS
 
-The visual classification remains `MECHANICALLY VIABLE, NEW ANIMATION/POSE WORK REQUIRED`. No K1–K12 kill criterion has fired. Architecture B remains the provisional product-fit leader, while C and D remain documented pivots. Proceed/Pivot can be finalized only after the six F1 process results are reconciled. Phase 2 and a public release are not authorized.
+The visual classification remains `MECHANICALLY VIABLE, NEW ANIMATION/POSE WORK REQUIRED`. No K1–K12 kill criterion fired. Architecture B is selected with final A/B/C/D scores `41/71/77/89`; C and D remain documented pivots if later evidence fires a criterion. Phase 2 and a public release remain unauthorized.
+
+## Active Phase 1 blockers
+
+Status: PASS
+
+No active Phase 1 evidence, safety, restoration, or publication blocker remains. The rider still needs original pose/animation work, but that is a scoped Phase 2 prerequisite rather than a Phase 1 kill or evidence gap.
 
 ## Exact next action
 
-Commit the user-attested authority record in the repository ledgers, run the complete offline gate, package the exact clean evidence HEAD, and publish that safety checkpoint only through the guarded non-force helper. Then execute the six bounded F1 processes with exact authority pins and audit protected continuity/restoration after each. Stop immediately on any unauthorized save drift, dialog/process ambiguity, validator failure, cleanup residue, or restoration mismatch.
+Run the complete offline gate over the final record-only closure, commit those records without rebuilding the runtime package, and publish the closure only through the guarded non-force helper. Verify remote equality and exact protected/Mods/runtime state, then stop. Do not execute Phase 2 or create a public release.

@@ -75,7 +75,7 @@ This proves native idle/walk/run/stop coverage for the horse. It does not prove 
 | `AnimalCompanionUnitMammoth` | `e7aa96d15a45238438ae4cfb476f6bb9` | `7b53a073462398d419f504d542083085` | Selected native companion at companion rank 7+. `AnimalCompanionFeatureMammoth` GUID `6adc3aab7cde56b40aa189a797254271` contains `AddPet` linking exactly to this unit; `SetMaster` supplies the reciprocal runtime relationship. `AnimalCompanionUpgradeMammoth` GUID `6a23d16a4476af644af89d91f9f96790` applies size delta +1 at rank 7. |
 | `AnimalCompanionUnitSmilodon` | `8a6986e17799d7d4b90f0c158b31c5b9` | `fab2f65ceb662cd4c972b76ec52fefde` | Native companion; not selected because its bounded rig/anchor metadata was not qualified as completely as the Mammoth's. |
 
-No Wrath model, clip, controller, material, texture, or offset was imported or proposed for redistribution. The Mammoth lacks the horse's authored stirrups and riding-specific rig. The matched unmounted Mammoth doorway control passed, and mounted traversal was accepted and stable before native combat forced correct cleanup; repeatable combat-neutral doorway qualification remains `DEFER — EVIDENCED`. The Mammoth remains the conservative invariant-correct candidate. The vertical slice must never substitute the horse by weakening companion validation.
+No Wrath model, clip, controller, material, texture, or offset was imported or proposed for redistribution. The Mammoth lacks the horse's authored stirrups and riding-specific rig. In the revised F1 fixture, the same-current-Mammoth unmounted matched control and mounted doorway traversal pass twice under unchanged gates. The Mammoth remains the conservative invariant-correct candidate. The vertical slice must never substitute the horse by weakening companion validation.
 
 ### Mammoth exact size and ownership boundary
 
@@ -111,21 +111,21 @@ The guarded Working fixture resolved exactly one valid pair:
 - exact active-companion ownership and blueprint identity;
 - valid stock agents, views, out-of-combat state, Default mode, and `Spine`-derived anchor.
 
-Lifecycle A/B and the runnable movement A/B rows qualify the root-local attachment across create/clear, idle, open movement, pause, cancel, stop/restart, repeated turns/corners, and cleanup. Current visible-view position/full rotation and phase-adjusted logical position/yaw remained inside the unchanged `0.10` gates; raw phase lag was bounded and recovered; stationary drift and final outstanding recovery were zero. Cleanup restored the original rider parent, sibling, world pose, local scale, `ForbidRotation` value, stock agent, avoidance lease, and selection without attachment residue.
+Lifecycle A/B and all movement A/B rows qualify the root-local attachment across create/clear, idle, open movement, doorway traversal, selection away/back, stock group formation, pause, cancel, stop/restart, repeated turns/corners, and cleanup. Current visible-view position/full rotation and phase-adjusted logical position/yaw remained inside the unchanged `0.10` gates; raw phase lag was bounded and recovered; stationary drift and final outstanding recovery were zero. Cleanup restored the original rider parent, sibling, world pose, local scale, `ForbidRotation` value, stock agent, avoidance lease, and selection without attachment residue.
 
-Five usable explicit-camera frames show a stable, readable humanoid-on-Mammoth silhouette at ordinary game distance. They also show the decisive presentation defect: the dwarf remains rigidly upright, the lower body is embedded or occluded by the Mammoth back, and there is no seated pose, saddle, or reins. Other late-state frames are black, clipped at the frame edge, or otherwise unusable. Camera-only evidence does not prove portrait state, camera-follow behavior, pause UI, selection away/back, or party-formation presentation.
+Usable explicit-camera frames across F0 and F1 show a stable, readable humanoid-on-Mammoth silhouette at ordinary game distance, including doorway, selection, and formation contexts. They also show the decisive presentation defect: the dwarf remains rigidly upright, the lower body is embedded or occluded by the Mammoth back, and there is no seated pose, saddle, or reins. Some historical late-state frames are black, clipped at the frame edge, or otherwise unusable. Camera-only evidence does not prove portrait state, camera-follow behavior, pause UI, or the structured away/back selection state.
 
-The matched doorway control proves the current Mammoth can traverse the selected geometry unmounted. Mounted traversal was accepted and stable, but native hostiles triggered correct `CombatStarted` cleanup before the corrected repeat completed. This leaves repeatable doorway/ceiling presentation `DEFER — EVIDENCED` rather than establishing an indoor visual failure.
+The F1 matched doorway control proves the current Mammoth can traverse the selected open StandardDoor geometry unmounted, and mounted traversal passes twice. This is bounded doorway presentation evidence, not proof of broad ceilings, closed doors, alternate maps, or clipping-free indoor compatibility.
 
 The following remain intentionally unqualified:
 
 - the rider's exact body/skeleton and animator-controller resource identity;
 - a polished rider offset, seated pose, hand/weapon/foot placement, saddle, or reins;
 - body, weapon, foot, door, and ceiling clipping across the full required state matrix;
-- portrait, camera-follow, selection-circle, away/back selection, and party-formation UI behavior;
+- portrait, camera-follow, selection-circle, and party-formation UI behavior beyond the structured world-state evidence;
 - broad indoor behavior, additional rider bodies/sizes, and additional mount species;
 - combat, hit, attack, charge, and mounted action animations.
 
 No generated proprietary metadata output exists to hash: inspection was read-only and in-memory. No Wrath asset was imported, copied, or required.
 
-Visual classification: `MECHANICALLY VIABLE, NEW ANIMATION/POSE WORK REQUIRED`. This proves one remotely plausible Kingmaker-native presentation and prevents K9 from firing; it does not authorize Phase 2 or erase the mandatory doorway, selection, and formation evidence gaps.
+Visual classification: `MECHANICALLY VIABLE, NEW ANIMATION/POSE WORK REQUIRED`. This proves one remotely plausible Kingmaker-native presentation and prevents K9 from firing. The mandatory Phase 1 doorway, selection, and formation rows are now complete, but pose/animation quality remains a separately scoped Phase 2 prerequisite. This record does not authorize Phase 2.
