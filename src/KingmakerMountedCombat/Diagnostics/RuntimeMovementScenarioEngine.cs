@@ -48,7 +48,6 @@ namespace KingmakerMountedCombat.Diagnostics
         private const double MaximumPostCorrectionRotationResidualDegrees = 0.10d;
         private const int MaximumOscillations = 2;
         private const int MaximumUnexpectedRepaths = 2;
-        private const long MaximumCleanupSynchronizationRecoveryWaitFrames = 2L;
 
         private static readonly string[] SuiteRows =
         {
@@ -198,6 +197,30 @@ namespace KingmakerMountedCombat.Diagnostics
         private double rowMaximumLateUpdatePreCorrectionRotation;
         private double rowMaximumPostCorrectionResidual;
         private double rowMaximumPostCorrectionRotation;
+        private double rowMaximumRawCurrentPositionResidual;
+        private double rowMaximumUpdateRawCurrentPositionResidual;
+        private double rowMaximumLateUpdateRawCurrentPositionResidual;
+        private double rowMaximumViewCurrentPositionResidual;
+        private double rowMaximumEntityRawCurrentPositionResidual;
+        private double rowMaximumEntityPreviousAuthoritativePositionResidual;
+        private double rowMaximumEntityPhaseAdjustedPositionResidual;
+        private double rowMaximumAuthoritativePositionDelta;
+        private double rowMaximumEntityRawPositionLagExcess;
+        private long rowPositionPhaseLagObservedCount;
+        private long rowPositionPhaseLagPermittedCount;
+        private long rowPositionPhaseLagSameFrameUpdateReferenceCount;
+        private long rowPositionPhaseLagEligibleReferenceCount;
+        private long rowPositionPhaseLagViolationCount;
+        private long rowPositionPhaseLagRecoveryRequiredCount;
+        private long rowPositionPhaseLagRecoveryUpdateCount;
+        private long rowPositionPhaseLagRecoverySatisfiedCount;
+        private long rowPositionPhaseLagRecoveryRequiredEffectiveCount;
+        private long rowPositionPhaseLagRecoveryUpdateOrBoundaryEffectiveCount;
+        private long rowPositionPhaseLagRecoverySatisfiedEffectiveCount;
+        private long rowPositionPhaseLagRecoveryViolationCount;
+        private long rowStationaryPositionCorrectionViolationCount;
+        private long rowOutstandingPositionPhaseLagRecoveryCount;
+        private long rowMaximumConsecutiveUnrecoveredPositionPhaseLagCount;
         private double rowMaximumViewCurrentYawResidual;
         private double rowMaximumFullViewCurrentRotationResidual;
         private double rowMaximumMountEntityRootYawResidual;
@@ -214,23 +237,46 @@ namespace KingmakerMountedCombat.Diagnostics
         private long rowPhaseLagRecoveryRequiredCount;
         private long rowPhaseLagRecoveryUpdateCount;
         private long rowPhaseLagRecoverySatisfiedCount;
+        private long rowPhaseLagRecoveryRequiredEffectiveCount;
+        private long rowPhaseLagRecoveryUpdateOrBoundaryEffectiveCount;
+        private long rowPhaseLagRecoverySatisfiedEffectiveCount;
         private long rowPhaseLagRecoveryViolationCount;
         private long rowStationaryYawCorrectionViolationCount;
         private long rowOutstandingPhaseLagRecoveryCount;
         private long rowMaximumConsecutiveUnrecoveredPhaseLagCount;
+        private long rowStationaryBoundaryClosureAttemptCount;
+        private long rowStationaryBoundaryClosureSucceededCount;
+        private long rowStationaryBoundaryClosureFailedCount;
+        private long rowYawPhaseLagStationaryBoundaryClosureCount;
+        private long rowPositionPhaseLagStationaryBoundaryClosureCount;
         private bool finalSynchronizationSnapshotCaptured;
         private long finalSynchronizationSnapshotFrame;
         private long finalSynchronizationAgentFrame;
         private long finalSynchronizationSampleCount;
         private long finalSynchronizationOutstandingRecoveryCount;
-        private long finalSynchronizationRecoveryWaitFrames;
+        private long finalSynchronizationOutstandingPositionRecoveryCount;
         private bool finalSynchronizationQualificationPassed;
         private double finalSynchronizationBoundaryPositionResidual;
         private double finalSynchronizationBoundaryFullViewRotationResidual;
         private double finalSynchronizationBoundaryViewYawResidual;
         private double finalSynchronizationBoundaryEntityCurrentYawResidual;
         private double finalSynchronizationBoundaryMountEntityRootYawResidual;
-        private long cleanupSynchronizationRecoveryWaitStartFrame;
+        private double finalSynchronizationBoundaryViewPositionResidual;
+        private double finalSynchronizationBoundaryEntityPositionResidual;
+        private double finalSynchronizationBoundaryAuthoritativePositionAdvance;
+        private double finalSynchronizationBoundaryAuthoritativeYawAdvance;
+        private bool finalSynchronizationBoundaryMovementCommandAbsent;
+        private bool finalSynchronizationBoundaryWantsToMove;
+        private bool finalSynchronizationBoundaryIsReallyMoving;
+        private bool finalSynchronizationBoundaryClosureAttempted;
+        private bool finalSynchronizationBoundaryClosureSucceeded;
+        private string finalSynchronizationBoundaryClosureReason;
+        private long finalSynchronizationBoundaryYawPendingBefore;
+        private long finalSynchronizationBoundaryPositionPendingBefore;
+        private long finalSynchronizationBoundaryYawClosedCount;
+        private long finalSynchronizationBoundaryPositionClosedCount;
+        private long finalSynchronizationBoundaryYawPendingAfter;
+        private long finalSynchronizationBoundaryPositionPendingAfter;
         private bool cleanupMovementStoppedBeforeFinalSynchronization;
         private double rowMaximumStationaryDrift;
         private double rowMaximumStuckSeconds;
@@ -1367,6 +1413,30 @@ namespace KingmakerMountedCombat.Diagnostics
             rowMaximumLateUpdatePreCorrectionRotation = Math.Max(rowMaximumLateUpdatePreCorrectionRotation, agent.MaximumLateUpdatePreCorrectionRotationResidualDegrees);
             rowMaximumPostCorrectionResidual = Math.Max(rowMaximumPostCorrectionResidual, agent.MaximumPostCorrectionPositionResidualWorldUnits);
             rowMaximumPostCorrectionRotation = Math.Max(rowMaximumPostCorrectionRotation, agent.MaximumPostCorrectionRotationResidualDegrees);
+            rowMaximumRawCurrentPositionResidual = Math.Max(rowMaximumRawCurrentPositionResidual, agent.MaximumPreCorrectionRawCurrentPositionResidualWorldUnits);
+            rowMaximumUpdateRawCurrentPositionResidual = Math.Max(rowMaximumUpdateRawCurrentPositionResidual, agent.MaximumUpdatePreCorrectionRawCurrentPositionResidualWorldUnits);
+            rowMaximumLateUpdateRawCurrentPositionResidual = Math.Max(rowMaximumLateUpdateRawCurrentPositionResidual, agent.MaximumLateUpdatePreCorrectionRawCurrentPositionResidualWorldUnits);
+            rowMaximumViewCurrentPositionResidual = Math.Max(rowMaximumViewCurrentPositionResidual, agent.MaximumCalibratedViewCurrentPositionResidualWorldUnits);
+            rowMaximumEntityRawCurrentPositionResidual = Math.Max(rowMaximumEntityRawCurrentPositionResidual, agent.MaximumCalibratedEntityRawCurrentPositionResidualWorldUnits);
+            rowMaximumEntityPreviousAuthoritativePositionResidual = Math.Max(rowMaximumEntityPreviousAuthoritativePositionResidual, agent.MaximumCalibratedEntityPreviousAuthoritativePositionResidualWorldUnits);
+            rowMaximumEntityPhaseAdjustedPositionResidual = Math.Max(rowMaximumEntityPhaseAdjustedPositionResidual, agent.MaximumCalibratedEntityPhaseAdjustedPositionResidualWorldUnits);
+            rowMaximumAuthoritativePositionDelta = Math.Max(rowMaximumAuthoritativePositionDelta, agent.MaximumAuthoritativePositionDeltaWorldUnits);
+            rowMaximumEntityRawPositionLagExcess = Math.Max(rowMaximumEntityRawPositionLagExcess, agent.MaximumEntityRawPositionLagExcessWorldUnits);
+            rowPositionPhaseLagObservedCount = agent.PositionPhaseLagObservedCount;
+            rowPositionPhaseLagPermittedCount = agent.PositionPhaseLagPermittedCount;
+            rowPositionPhaseLagSameFrameUpdateReferenceCount = agent.PositionPhaseLagSameFrameUpdateReferenceCount;
+            rowPositionPhaseLagEligibleReferenceCount = agent.PositionPhaseLagEligibleReferenceCount;
+            rowPositionPhaseLagViolationCount = agent.PositionPhaseLagViolationCount;
+            rowPositionPhaseLagRecoveryRequiredCount = agent.PositionPhaseLagRecoveryRequiredCount;
+            rowPositionPhaseLagRecoveryUpdateCount = agent.PositionPhaseLagRecoveryUpdateCount;
+            rowPositionPhaseLagRecoverySatisfiedCount = agent.PositionPhaseLagRecoverySatisfiedCount;
+            rowPositionPhaseLagRecoveryRequiredEffectiveCount = agent.EffectivePositionPhaseLagRecoveryRequiredCount;
+            rowPositionPhaseLagRecoveryUpdateOrBoundaryEffectiveCount = agent.EffectivePositionPhaseLagRecoveryUpdateOrBoundaryCount;
+            rowPositionPhaseLagRecoverySatisfiedEffectiveCount = agent.EffectivePositionPhaseLagRecoverySatisfiedCount;
+            rowPositionPhaseLagRecoveryViolationCount = agent.PositionPhaseLagRecoveryViolationCount;
+            rowStationaryPositionCorrectionViolationCount = agent.StationaryPositionCorrectionViolationCount;
+            rowOutstandingPositionPhaseLagRecoveryCount = agent.OutstandingPositionPhaseLagRecoveryCount;
+            rowMaximumConsecutiveUnrecoveredPositionPhaseLagCount = agent.MaximumConsecutiveUnrecoveredPositionPhaseLagCount;
             rowMaximumViewCurrentYawResidual = Math.Max(rowMaximumViewCurrentYawResidual, agent.MaximumCalibratedViewCurrentYawResidualDegrees);
             rowMaximumFullViewCurrentRotationResidual = Math.Max(
                 rowMaximumFullViewCurrentRotationResidual,
@@ -1385,10 +1455,18 @@ namespace KingmakerMountedCombat.Diagnostics
             rowPhaseLagRecoveryRequiredCount = agent.PhaseLagRecoveryRequiredCount;
             rowPhaseLagRecoveryUpdateCount = agent.PhaseLagRecoveryUpdateCount;
             rowPhaseLagRecoverySatisfiedCount = agent.PhaseLagRecoverySatisfiedCount;
+            rowPhaseLagRecoveryRequiredEffectiveCount = agent.EffectivePhaseLagRecoveryRequiredCount;
+            rowPhaseLagRecoveryUpdateOrBoundaryEffectiveCount = agent.EffectivePhaseLagRecoveryUpdateOrBoundaryCount;
+            rowPhaseLagRecoverySatisfiedEffectiveCount = agent.EffectivePhaseLagRecoverySatisfiedCount;
             rowPhaseLagRecoveryViolationCount = agent.PhaseLagRecoveryViolationCount;
             rowStationaryYawCorrectionViolationCount = agent.StationaryYawCorrectionViolationCount;
             rowOutstandingPhaseLagRecoveryCount = agent.OutstandingPhaseLagRecoveryCount;
             rowMaximumConsecutiveUnrecoveredPhaseLagCount = agent.MaximumConsecutiveUnrecoveredPhaseLagCount;
+            rowStationaryBoundaryClosureAttemptCount = agent.StationaryBoundaryClosureAttemptCount;
+            rowStationaryBoundaryClosureSucceededCount = agent.StationaryBoundaryClosureSucceededCount;
+            rowStationaryBoundaryClosureFailedCount = agent.StationaryBoundaryClosureFailedCount;
+            rowYawPhaseLagStationaryBoundaryClosureCount = agent.YawPhaseLagStationaryBoundaryClosureCount;
+            rowPositionPhaseLagStationaryBoundaryClosureCount = agent.PositionPhaseLagStationaryBoundaryClosureCount;
             rowUpdateSampleCount = agent.UpdateSampleCount;
             rowLateUpdateSampleCount = agent.LateUpdateSampleCount;
             rowUpdateCorrectionCount = agent.UpdateCorrectionCount;
@@ -1397,13 +1475,21 @@ namespace KingmakerMountedCombat.Diagnostics
                 rowSynchronizationObservationCount,
                 settings.MaximumAnchorResidualWorldUnits,
                 MaximumPostCorrectionRotationResidualDegrees);
-            if (!rowSynchronizationFailureRecorded && (!qualification.PreCorrectionPositionPassed || !qualification.PhaseOrderYawSafetyPassed ||
+            if (!rowSynchronizationFailureRecorded && (!qualification.PhaseOrderPositionSafetyPassed || !qualification.PhaseOrderYawSafetyPassed ||
                 !qualification.PostCorrectionPositionPassed || !qualification.PostCorrectionRotationPassed))
             {
                 rowSynchronizationFailureRecorded = true;
                 FailCurrent("Calibrated synchronization residual gate failed: Update=" +
                     agent.MaximumUpdatePreCorrectionPositionResidualWorldUnits.ToString("0.000000", CultureInfo.InvariantCulture) +
                     ", LateUpdate=" + agent.MaximumLateUpdatePreCorrectionPositionResidualWorldUnits.ToString("0.000000", CultureInfo.InvariantCulture) +
+                    ", raw Update/LateUpdate position=" + agent.MaximumUpdatePreCorrectionRawCurrentPositionResidualWorldUnits.ToString("0.000000", CultureInfo.InvariantCulture) + "/" +
+                    agent.MaximumLateUpdatePreCorrectionRawCurrentPositionResidualWorldUnits.ToString("0.000000", CultureInfo.InvariantCulture) +
+                    ", view-current position=" + agent.MaximumCalibratedViewCurrentPositionResidualWorldUnits.ToString("0.000000", CultureInfo.InvariantCulture) +
+                    ", entity-raw-current position=" + agent.MaximumCalibratedEntityRawCurrentPositionResidualWorldUnits.ToString("0.000000", CultureInfo.InvariantCulture) +
+                    ", entity-phase-adjusted position=" + agent.MaximumCalibratedEntityPhaseAdjustedPositionResidualWorldUnits.ToString("0.000000", CultureInfo.InvariantCulture) +
+                    ", position raw-lag excess=" + agent.MaximumEntityRawPositionLagExcessWorldUnits.ToString("0.000000", CultureInfo.InvariantCulture) +
+                    ", position lag observed/permitted/violations=" + agent.PositionPhaseLagObservedCount + "/" + agent.PositionPhaseLagPermittedCount + "/" + agent.PositionPhaseLagViolationCount +
+                    ", position recovery raw required/satisfied/violations=" + agent.PositionPhaseLagRecoveryRequiredCount + "/" + agent.PositionPhaseLagRecoverySatisfiedCount + "/" + agent.PositionPhaseLagRecoveryViolationCount +
                     ", Update rotation=" + agent.MaximumUpdatePreCorrectionRotationResidualDegrees.ToString("0.000000", CultureInfo.InvariantCulture) +
                     ", LateUpdate rotation=" + agent.MaximumLateUpdatePreCorrectionRotationResidualDegrees.ToString("0.000000", CultureInfo.InvariantCulture) +
                     ", view-current yaw=" + agent.MaximumCalibratedViewCurrentYawResidualDegrees.ToString("0.000000", CultureInfo.InvariantCulture) +
@@ -1451,13 +1537,39 @@ namespace KingmakerMountedCombat.Diagnostics
             assertions.Check(rowWaypointCount > 0,
                 "At least one validated navigation leg completed.",
                 "No validated navigation leg completed.");
-            assertions.Check(qualification != null && qualification.PreCorrectionPositionPassed &&
+            assertions.Check(qualification != null && qualification.PhaseOrderPositionSafetyPassed &&
                 rowMaximumUpdatePreCorrectionResidual <= settings.MaximumAnchorResidualWorldUnits &&
-                rowMaximumLateUpdatePreCorrectionResidual <= settings.MaximumAnchorResidualWorldUnits,
-                "Maximum calibrated Update and LateUpdate pre-correction anchor residuals remained within the configured threshold; initial placement was excluded.",
-                "Calibrated pre-correction residuals were Update=" + rowMaximumUpdatePreCorrectionResidual.ToString("0.000000", CultureInfo.InvariantCulture) +
-                ", LateUpdate=" + rowMaximumLateUpdatePreCorrectionResidual.ToString("0.000000", CultureInfo.InvariantCulture) + ".");
-            assertions.Check(qualification != null && qualification.PreCorrectionRotationPassed &&
+                rowMaximumLateUpdatePreCorrectionResidual <= settings.MaximumAnchorResidualWorldUnits &&
+                rowMaximumViewCurrentPositionResidual <= settings.MaximumAnchorResidualWorldUnits &&
+                rowMaximumEntityPhaseAdjustedPositionResidual <= settings.MaximumAnchorResidualWorldUnits &&
+                rowMaximumEntityRawPositionLagExcess <= MovementPositionPhaseTracker.RawLagArithmeticCoherenceEpsilonWorldUnits &&
+                rowPositionPhaseLagViolationCount == 0L &&
+                rowPositionPhaseLagRecoveryViolationCount == 0L &&
+                rowStationaryPositionCorrectionViolationCount == 0L &&
+                rowMaximumConsecutiveUnrecoveredPositionPhaseLagCount <= 1L &&
+                rowOutstandingPositionPhaseLagRecoveryCount <= 1L &&
+                rowPositionPhaseLagObservedCount == rowPositionPhaseLagPermittedCount &&
+                rowPositionPhaseLagPermittedCount == rowPositionPhaseLagSameFrameUpdateReferenceCount &&
+                rowPositionPhaseLagPermittedCount == rowPositionPhaseLagEligibleReferenceCount &&
+                rowPositionPhaseLagRecoveryRequiredCount == rowPositionPhaseLagRecoveryUpdateCount &&
+                rowPositionPhaseLagRecoveryUpdateCount == rowPositionPhaseLagRecoverySatisfiedCount &&
+                rowPositionPhaseLagPermittedCount == rowPositionPhaseLagRecoverySatisfiedCount + rowOutstandingPositionPhaseLagRecoveryCount,
+                "Visible rider position remained current; logical entity position was current or the immediately previous same-frame anchor with bounded raw lag and at most one pending recovery.",
+                "Phase-aware position gate failed: effective Update/LateUpdate=" + rowMaximumUpdatePreCorrectionResidual.ToString("0.000000", CultureInfo.InvariantCulture) + "/" +
+                rowMaximumLateUpdatePreCorrectionResidual.ToString("0.000000", CultureInfo.InvariantCulture) +
+                ", raw Update/LateUpdate=" + rowMaximumUpdateRawCurrentPositionResidual.ToString("0.000000", CultureInfo.InvariantCulture) + "/" +
+                rowMaximumLateUpdateRawCurrentPositionResidual.ToString("0.000000", CultureInfo.InvariantCulture) +
+                ", view-current=" + rowMaximumViewCurrentPositionResidual.ToString("0.000000", CultureInfo.InvariantCulture) +
+                ", entity-raw-current=" + rowMaximumEntityRawCurrentPositionResidual.ToString("0.000000", CultureInfo.InvariantCulture) +
+                ", entity-previous=" + rowMaximumEntityPreviousAuthoritativePositionResidual.ToString("0.000000", CultureInfo.InvariantCulture) +
+                ", entity-adjusted=" + rowMaximumEntityPhaseAdjustedPositionResidual.ToString("0.000000", CultureInfo.InvariantCulture) +
+                ", authority-delta=" + rowMaximumAuthoritativePositionDelta.ToString("0.000000", CultureInfo.InvariantCulture) +
+                ", raw-lag-excess=" + rowMaximumEntityRawPositionLagExcess.ToString("0.000000", CultureInfo.InvariantCulture) +
+                ", lag observed/permitted/violations=" + rowPositionPhaseLagObservedCount + "/" + rowPositionPhaseLagPermittedCount + "/" + rowPositionPhaseLagViolationCount +
+                ", recovery raw required/update/satisfied/violations=" + rowPositionPhaseLagRecoveryRequiredCount + "/" + rowPositionPhaseLagRecoveryUpdateCount + "/" + rowPositionPhaseLagRecoverySatisfiedCount + "/" + rowPositionPhaseLagRecoveryViolationCount +
+                ", stationary violations=" + rowStationaryPositionCorrectionViolationCount +
+                ", outstanding/max-consecutive=" + rowOutstandingPositionPhaseLagRecoveryCount + "/" + rowMaximumConsecutiveUnrecoveredPositionPhaseLagCount + ".");
+            assertions.Check(qualification != null && qualification.PhaseOrderYawSafetyPassed &&
                 rowMaximumUpdatePreCorrectionRotation <= MaximumPostCorrectionRotationResidualDegrees &&
                 rowMaximumLateUpdatePreCorrectionRotation <= MaximumPostCorrectionRotationResidualDegrees &&
                 rowMaximumViewCurrentYawResidual <= MaximumPostCorrectionRotationResidualDegrees &&
@@ -1469,14 +1581,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 rowPhaseLagRecoveryViolationCount == 0L &&
                 rowStationaryYawCorrectionViolationCount == 0L &&
                 rowMaximumConsecutiveUnrecoveredPhaseLagCount <= 1L &&
-                rowOutstandingPhaseLagRecoveryCount == 0L &&
+                rowOutstandingPhaseLagRecoveryCount <= 1L &&
                 rowPhaseLagObservedCount == rowPhaseLagPermittedCount &&
                 rowPhaseLagPermittedCount == rowPhaseLagSameFrameUpdateReferenceCount &&
                 rowPhaseLagPermittedCount == rowPhaseLagEligibleReferenceCount &&
-                rowPhaseLagPermittedCount == rowPhaseLagRecoveryRequiredCount &&
-                rowPhaseLagPermittedCount == rowPhaseLagRecoveryUpdateCount &&
-                rowPhaseLagPermittedCount == rowPhaseLagRecoverySatisfiedCount,
-                "Visible rider yaw remained current; logical entity yaw was current or the immediately previous same-frame authority value with bounded raw lag and next-Update recovery.",
+                rowPhaseLagRecoveryRequiredCount == rowPhaseLagRecoveryUpdateCount &&
+                rowPhaseLagRecoveryUpdateCount == rowPhaseLagRecoverySatisfiedCount &&
+                rowPhaseLagPermittedCount == rowPhaseLagRecoverySatisfiedCount + rowOutstandingPhaseLagRecoveryCount,
+                "Visible rider yaw remained current; logical entity yaw was current or the immediately previous same-frame authority value with bounded raw lag and at most one pending recovery.",
                 "Phase-aware yaw gate failed: adjusted Update=" + rowMaximumUpdatePreCorrectionRotation.ToString("0.000000", CultureInfo.InvariantCulture) +
                 ", adjusted LateUpdate=" + rowMaximumLateUpdatePreCorrectionRotation.ToString("0.000000", CultureInfo.InvariantCulture) +
                 ", view-current=" + rowMaximumViewCurrentYawResidual.ToString("0.000000", CultureInfo.InvariantCulture) +
@@ -1580,36 +1692,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 finalSynchronizationAgentFrame = 0L;
                 finalSynchronizationSampleCount = 0L;
                 finalSynchronizationOutstandingRecoveryCount = 0L;
+                finalSynchronizationOutstandingPositionRecoveryCount = 0L;
                 finalSynchronizationQualificationPassed = false;
                 assertions.Fail("Final pre-dismount synchronization snapshot could not resolve the mounted RiderMovementAgent.");
                 return true;
             }
 
             ObserveSynchronization();
-            var qualification = agent.QualifySynchronization(
-                rowSynchronizationObservationCount,
-                settings.MaximumAnchorResidualWorldUnits,
-                MaximumPostCorrectionRotationResidualDegrees);
-            if (agent.OutstandingPhaseLagRecoveryCount > 0L && qualification.PhaseOrderYawSafetyPassed &&
-                agent.PhaseLagRecoveryViolationCount == 0L)
-            {
-                if (cleanupSynchronizationRecoveryWaitStartFrame < 0L)
-                {
-                    cleanupSynchronizationRecoveryWaitStartFrame = frameNumber;
-                }
-                finalSynchronizationRecoveryWaitFrames = frameNumber - cleanupSynchronizationRecoveryWaitStartFrame;
-                if (finalSynchronizationRecoveryWaitFrames < MaximumCleanupSynchronizationRecoveryWaitFrames)
-                {
-                    return false;
-                }
-                assertions.Fail("Final pre-dismount synchronization still had " + agent.OutstandingPhaseLagRecoveryCount +
-                    " outstanding phase-lag recovery after " + finalSynchronizationRecoveryWaitFrames + " bounded frame(s).");
-            }
-            else if (cleanupSynchronizationRecoveryWaitStartFrame >= 0L)
-            {
-                finalSynchronizationRecoveryWaitFrames = frameNumber - cleanupSynchronizationRecoveryWaitStartFrame;
-            }
-
             MovementSynchronizationBoundarySnapshot boundary;
             try
             {
@@ -1622,41 +1711,92 @@ namespace KingmakerMountedCombat.Diagnostics
                 finalSynchronizationAgentFrame = agent.LatestYawObservation == null ? 0L : agent.LatestYawObservation.Frame;
                 finalSynchronizationSampleCount = agent.SampleCount;
                 finalSynchronizationOutstandingRecoveryCount = agent.OutstandingPhaseLagRecoveryCount;
+                finalSynchronizationOutstandingPositionRecoveryCount = agent.OutstandingPositionPhaseLagRecoveryCount;
                 finalSynchronizationQualificationPassed = false;
                 assertions.Fail("Final pre-dismount synchronization boundary capture threw " + exception.GetType().Name + ": " + exception.Message);
                 return true;
             }
+
+            var closure = agent.ClosePendingRecoveryAtStationaryBoundary(
+                boundary,
+                settings.MaximumAnchorResidualWorldUnits,
+                MaximumPostCorrectionRotationResidualDegrees);
+            rowOutstandingPhaseLagRecoveryCount = agent.OutstandingPhaseLagRecoveryCount;
+            rowOutstandingPositionPhaseLagRecoveryCount = agent.OutstandingPositionPhaseLagRecoveryCount;
+            rowPhaseLagRecoveryRequiredEffectiveCount = agent.EffectivePhaseLagRecoveryRequiredCount;
+            rowPhaseLagRecoveryUpdateOrBoundaryEffectiveCount = agent.EffectivePhaseLagRecoveryUpdateOrBoundaryCount;
+            rowPhaseLagRecoverySatisfiedEffectiveCount = agent.EffectivePhaseLagRecoverySatisfiedCount;
+            rowPositionPhaseLagRecoveryRequiredEffectiveCount = agent.EffectivePositionPhaseLagRecoveryRequiredCount;
+            rowPositionPhaseLagRecoveryUpdateOrBoundaryEffectiveCount = agent.EffectivePositionPhaseLagRecoveryUpdateOrBoundaryCount;
+            rowPositionPhaseLagRecoverySatisfiedEffectiveCount = agent.EffectivePositionPhaseLagRecoverySatisfiedCount;
+            rowStationaryBoundaryClosureAttemptCount = agent.StationaryBoundaryClosureAttemptCount;
+            rowStationaryBoundaryClosureSucceededCount = agent.StationaryBoundaryClosureSucceededCount;
+            rowStationaryBoundaryClosureFailedCount = agent.StationaryBoundaryClosureFailedCount;
+            rowYawPhaseLagStationaryBoundaryClosureCount = agent.YawPhaseLagStationaryBoundaryClosureCount;
+            rowPositionPhaseLagStationaryBoundaryClosureCount = agent.PositionPhaseLagStationaryBoundaryClosureCount;
+            var qualification = agent.QualifySynchronization(
+                rowSynchronizationObservationCount,
+                settings.MaximumAnchorResidualWorldUnits,
+                MaximumPostCorrectionRotationResidualDegrees);
 
             finalSynchronizationSnapshotCaptured = true;
             finalSynchronizationSnapshotFrame = frameNumber;
             finalSynchronizationAgentFrame = agent.LatestYawObservation == null ? 0L : agent.LatestYawObservation.Frame;
             finalSynchronizationSampleCount = agent.SampleCount;
             finalSynchronizationOutstandingRecoveryCount = agent.OutstandingPhaseLagRecoveryCount;
+            finalSynchronizationOutstandingPositionRecoveryCount = agent.OutstandingPositionPhaseLagRecoveryCount;
             finalSynchronizationBoundaryPositionResidual = boundary.PositionResidualWorldUnits;
+            finalSynchronizationBoundaryViewPositionResidual = boundary.ViewCurrentPositionResidualWorldUnits;
+            finalSynchronizationBoundaryEntityPositionResidual = boundary.EntityCurrentPositionResidualWorldUnits;
             finalSynchronizationBoundaryFullViewRotationResidual = boundary.FullViewCurrentRotationResidualDegrees;
             finalSynchronizationBoundaryViewYawResidual = boundary.ViewCurrentYawResidualDegrees;
             finalSynchronizationBoundaryEntityCurrentYawResidual = boundary.EntityCurrentYawResidualDegrees;
             finalSynchronizationBoundaryMountEntityRootYawResidual = boundary.MountEntityRootYawResidualDegrees;
-            finalSynchronizationQualificationPassed = IsStrictSynchronizationQualificationPassed(agent, qualification) &&
+            finalSynchronizationBoundaryAuthoritativePositionAdvance = boundary.AuthoritativePositionAdvanceWorldUnits;
+            finalSynchronizationBoundaryAuthoritativeYawAdvance = boundary.AuthoritativeYawAdvanceDegrees;
+            finalSynchronizationBoundaryMovementCommandAbsent = boundary.MovementCommandAbsent;
+            finalSynchronizationBoundaryWantsToMove = boundary.WantsToMove;
+            finalSynchronizationBoundaryIsReallyMoving = boundary.IsReallyMoving;
+            finalSynchronizationBoundaryClosureAttempted = closure.Attempted;
+            finalSynchronizationBoundaryClosureSucceeded = closure.Succeeded;
+            finalSynchronizationBoundaryClosureReason = closure.Reason;
+            finalSynchronizationBoundaryYawPendingBefore = closure.YawPendingBefore;
+            finalSynchronizationBoundaryPositionPendingBefore = closure.PositionPendingBefore;
+            finalSynchronizationBoundaryYawClosedCount = closure.YawClosedCount;
+            finalSynchronizationBoundaryPositionClosedCount = closure.PositionClosedCount;
+            finalSynchronizationBoundaryYawPendingAfter = closure.YawPendingAfter;
+            finalSynchronizationBoundaryPositionPendingAfter = closure.PositionPendingAfter;
+            finalSynchronizationQualificationPassed = closure.Succeeded && IsStrictSynchronizationQualificationPassed(agent, qualification) &&
                 finalSynchronizationBoundaryPositionResidual <= settings.MaximumAnchorResidualWorldUnits &&
                 finalSynchronizationBoundaryFullViewRotationResidual <= MaximumPostCorrectionRotationResidualDegrees &&
                 finalSynchronizationBoundaryViewYawResidual <= MaximumPostCorrectionRotationResidualDegrees &&
                 finalSynchronizationBoundaryEntityCurrentYawResidual <= MaximumPostCorrectionRotationResidualDegrees &&
-                finalSynchronizationBoundaryMountEntityRootYawResidual <= MaximumPostCorrectionRotationResidualDegrees;
+                finalSynchronizationBoundaryMountEntityRootYawResidual <= MaximumPostCorrectionRotationResidualDegrees &&
+                finalSynchronizationBoundaryMovementCommandAbsent &&
+                !finalSynchronizationBoundaryWantsToMove &&
+                !finalSynchronizationBoundaryIsReallyMoving &&
+                finalSynchronizationBoundaryAuthoritativePositionAdvance <= MovementPositionPhaseTracker.StationaryAuthorityEpsilonWorldUnits &&
+                finalSynchronizationBoundaryAuthoritativeYawAdvance <= MovementYawPhaseTracker.StationaryAuthorityEpsilonDegrees;
             assertions.Check(
                 finalSynchronizationQualificationPassed,
-                "Final synchronization snapshot was frozen after pre-cleanup captures and before deconfiguration with no pending recovery or residual violation.",
+                "Final synchronization snapshot was frozen at the stopped stationary boundary; any single pending position/yaw lag was closed separately before immediate dismount.",
                 "Final pre-dismount synchronization snapshot failed: samples=" + finalSynchronizationSampleCount +
                 ", agent-frame=" + finalSynchronizationAgentFrame +
                 ", full-view-current=" + rowMaximumFullViewCurrentRotationResidual.ToString("0.000000", CultureInfo.InvariantCulture) +
                 ", boundary position=" + finalSynchronizationBoundaryPositionResidual.ToString("0.000000", CultureInfo.InvariantCulture) +
+                " (view/entity=" + finalSynchronizationBoundaryViewPositionResidual.ToString("0.000000", CultureInfo.InvariantCulture) + "/" +
+                finalSynchronizationBoundaryEntityPositionResidual.ToString("0.000000", CultureInfo.InvariantCulture) + ")" +
                 ", boundary full-view/current-entity=" + finalSynchronizationBoundaryFullViewRotationResidual.ToString("0.000000", CultureInfo.InvariantCulture) + "/" +
                 finalSynchronizationBoundaryEntityCurrentYawResidual.ToString("0.000000", CultureInfo.InvariantCulture) +
                 ", adjusted entity=" + rowMaximumEntityPhaseAdjustedYawResidual.ToString("0.000000", CultureInfo.InvariantCulture) +
                 ", raw-lag excess=" + rowMaximumEntityRawLagExcess.ToString("0.000000", CultureInfo.InvariantCulture) +
-                ", outstanding recovery=" + finalSynchronizationOutstandingRecoveryCount +
-                ", recovery permitted/required/update/satisfied=" + rowPhaseLagPermittedCount + "/" + rowPhaseLagRecoveryRequiredCount + "/" +
-                rowPhaseLagRecoveryUpdateCount + "/" + rowPhaseLagRecoverySatisfiedCount + ".");
+                ", authority position/yaw advance=" + finalSynchronizationBoundaryAuthoritativePositionAdvance.ToString("0.000000", CultureInfo.InvariantCulture) + "/" +
+                finalSynchronizationBoundaryAuthoritativeYawAdvance.ToString("0.000000", CultureInfo.InvariantCulture) +
+                ", stopped command/wants/really=" + finalSynchronizationBoundaryMovementCommandAbsent + "/" + finalSynchronizationBoundaryWantsToMove + "/" + finalSynchronizationBoundaryIsReallyMoving +
+                ", closure=" + finalSynchronizationBoundaryClosureAttempted + "/" + finalSynchronizationBoundaryClosureSucceeded + "/" + finalSynchronizationBoundaryClosureReason +
+                ", yaw pending/closed/after=" + finalSynchronizationBoundaryYawPendingBefore + "/" + finalSynchronizationBoundaryYawClosedCount + "/" + finalSynchronizationBoundaryYawPendingAfter +
+                ", position pending/closed/after=" + finalSynchronizationBoundaryPositionPendingBefore + "/" + finalSynchronizationBoundaryPositionClosedCount + "/" + finalSynchronizationBoundaryPositionPendingAfter +
+                ", outstanding yaw/position=" + finalSynchronizationOutstandingRecoveryCount + "/" + finalSynchronizationOutstandingPositionRecoveryCount + ".");
             return true;
         }
 
@@ -1673,6 +1813,22 @@ namespace KingmakerMountedCombat.Diagnostics
                 agent.UpdateSampleCount > 0L && agent.LateUpdateSampleCount > 0L &&
                 rowMaximumUpdatePreCorrectionResidual <= settings.MaximumAnchorResidualWorldUnits &&
                 rowMaximumLateUpdatePreCorrectionResidual <= settings.MaximumAnchorResidualWorldUnits &&
+                rowMaximumViewCurrentPositionResidual <= settings.MaximumAnchorResidualWorldUnits &&
+                rowMaximumEntityPhaseAdjustedPositionResidual <= settings.MaximumAnchorResidualWorldUnits &&
+                rowMaximumEntityRawPositionLagExcess <= MovementPositionPhaseTracker.RawLagArithmeticCoherenceEpsilonWorldUnits &&
+                rowPositionPhaseLagViolationCount == 0L &&
+                rowPositionPhaseLagRecoveryViolationCount == 0L &&
+                rowStationaryPositionCorrectionViolationCount == 0L &&
+                rowMaximumConsecutiveUnrecoveredPositionPhaseLagCount <= 1L &&
+                rowOutstandingPositionPhaseLagRecoveryCount == 0L &&
+                rowPositionPhaseLagObservedCount == rowPositionPhaseLagPermittedCount &&
+                rowPositionPhaseLagPermittedCount == rowPositionPhaseLagSameFrameUpdateReferenceCount &&
+                rowPositionPhaseLagPermittedCount == rowPositionPhaseLagEligibleReferenceCount &&
+                rowPositionPhaseLagRecoveryRequiredCount == rowPositionPhaseLagRecoveryUpdateCount &&
+                rowPositionPhaseLagRecoveryUpdateCount == rowPositionPhaseLagRecoverySatisfiedCount &&
+                rowPositionPhaseLagPermittedCount == agent.EffectivePositionPhaseLagRecoveryRequiredCount &&
+                rowPositionPhaseLagPermittedCount == agent.EffectivePositionPhaseLagRecoveryUpdateOrBoundaryCount &&
+                rowPositionPhaseLagPermittedCount == agent.EffectivePositionPhaseLagRecoverySatisfiedCount &&
                 rowMaximumUpdatePreCorrectionRotation <= MaximumPostCorrectionRotationResidualDegrees &&
                 rowMaximumLateUpdatePreCorrectionRotation <= MaximumPostCorrectionRotationResidualDegrees &&
                 rowMaximumViewCurrentYawResidual <= MaximumPostCorrectionRotationResidualDegrees &&
@@ -1688,9 +1844,16 @@ namespace KingmakerMountedCombat.Diagnostics
                 rowPhaseLagObservedCount == rowPhaseLagPermittedCount &&
                 rowPhaseLagPermittedCount == rowPhaseLagSameFrameUpdateReferenceCount &&
                 rowPhaseLagPermittedCount == rowPhaseLagEligibleReferenceCount &&
-                rowPhaseLagPermittedCount == rowPhaseLagRecoveryRequiredCount &&
-                rowPhaseLagPermittedCount == rowPhaseLagRecoveryUpdateCount &&
-                rowPhaseLagPermittedCount == rowPhaseLagRecoverySatisfiedCount;
+                rowPhaseLagRecoveryRequiredCount == rowPhaseLagRecoveryUpdateCount &&
+                rowPhaseLagRecoveryUpdateCount == rowPhaseLagRecoverySatisfiedCount &&
+                rowPhaseLagPermittedCount == agent.EffectivePhaseLagRecoveryRequiredCount &&
+                rowPhaseLagPermittedCount == agent.EffectivePhaseLagRecoveryUpdateOrBoundaryCount &&
+                rowPhaseLagPermittedCount == agent.EffectivePhaseLagRecoverySatisfiedCount &&
+                agent.StationaryBoundaryClosureAttemptCount == agent.StationaryBoundaryClosureSucceededCount + agent.StationaryBoundaryClosureFailedCount &&
+                agent.StationaryBoundaryClosureFailedCount == 0L &&
+                agent.StationaryBoundaryClosureSucceededCount <= 1L &&
+                agent.YawPhaseLagStationaryBoundaryClosureCount <= 1L &&
+                agent.PositionPhaseLagStationaryBoundaryClosureCount <= 1L;
         }
 
         private bool BestEffortDismount(CleanupTrigger trigger)
@@ -1853,6 +2016,31 @@ namespace KingmakerMountedCombat.Diagnostics
                 maximumLateUpdatePreCorrectionRotationResidualDegrees = rowMaximumLateUpdatePreCorrectionRotation,
                 maximumPostCorrectionResidualWorldUnits = rowMaximumPostCorrectionResidual,
                 maximumPostCorrectionRotationResidualDegrees = rowMaximumPostCorrectionRotation,
+                maximumRawCurrentPositionResidualWorldUnits = rowMaximumRawCurrentPositionResidual,
+                maximumUpdateRawCurrentPositionResidualWorldUnits = rowMaximumUpdateRawCurrentPositionResidual,
+                maximumLateUpdateRawCurrentPositionResidualWorldUnits = rowMaximumLateUpdateRawCurrentPositionResidual,
+                maximumViewCurrentPositionResidualWorldUnits = rowMaximumViewCurrentPositionResidual,
+                maximumEntityRawCurrentPositionResidualWorldUnits = rowMaximumEntityRawCurrentPositionResidual,
+                maximumEntityPreviousAuthoritativePositionResidualWorldUnits = rowMaximumEntityPreviousAuthoritativePositionResidual,
+                maximumEntityPhaseAdjustedPositionResidualWorldUnits = rowMaximumEntityPhaseAdjustedPositionResidual,
+                maximumAuthoritativePositionDeltaWorldUnits = rowMaximumAuthoritativePositionDelta,
+                maximumEntityRawPositionLagExcessWorldUnits = rowMaximumEntityRawPositionLagExcess,
+                entityRawPositionLagArithmeticCoherenceEpsilonWorldUnits = MovementPositionPhaseTracker.RawLagArithmeticCoherenceEpsilonWorldUnits,
+                positionPhaseLagObservedCount = rowPositionPhaseLagObservedCount,
+                positionPhaseLagPermittedCount = rowPositionPhaseLagPermittedCount,
+                positionPhaseLagSameFrameUpdateReferenceCount = rowPositionPhaseLagSameFrameUpdateReferenceCount,
+                positionPhaseLagEligibleReferenceCount = rowPositionPhaseLagEligibleReferenceCount,
+                positionPhaseLagViolationCount = rowPositionPhaseLagViolationCount,
+                positionPhaseLagRecoveryRequiredRawCount = rowPositionPhaseLagRecoveryRequiredCount,
+                positionPhaseLagRecoveryUpdateRawCount = rowPositionPhaseLagRecoveryUpdateCount,
+                positionPhaseLagRecoverySatisfiedRawCount = rowPositionPhaseLagRecoverySatisfiedCount,
+                positionPhaseLagRecoveryRequiredEffectiveCount = rowPositionPhaseLagRecoveryRequiredEffectiveCount,
+                positionPhaseLagRecoveryUpdateOrBoundaryEffectiveCount = rowPositionPhaseLagRecoveryUpdateOrBoundaryEffectiveCount,
+                positionPhaseLagRecoverySatisfiedEffectiveCount = rowPositionPhaseLagRecoverySatisfiedEffectiveCount,
+                positionPhaseLagRecoveryViolationCount = rowPositionPhaseLagRecoveryViolationCount,
+                stationaryPositionCorrectionViolationCount = rowStationaryPositionCorrectionViolationCount,
+                outstandingPositionPhaseLagRecoveryCount = rowOutstandingPositionPhaseLagRecoveryCount,
+                maximumConsecutiveUnrecoveredPositionPhaseLagCount = rowMaximumConsecutiveUnrecoveredPositionPhaseLagCount,
                 maximumViewCurrentYawResidualDegrees = rowMaximumViewCurrentYawResidual,
                 maximumFullViewCurrentRotationResidualDegrees = rowMaximumFullViewCurrentRotationResidual,
                 maximumMountEntityRootYawResidualDegrees = rowMaximumMountEntityRootYawResidual,
@@ -1870,6 +2058,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 phaseLagRecoveryRequiredCount = rowPhaseLagRecoveryRequiredCount,
                 phaseLagRecoveryUpdateCount = rowPhaseLagRecoveryUpdateCount,
                 phaseLagRecoverySatisfiedCount = rowPhaseLagRecoverySatisfiedCount,
+                phaseLagRecoveryRequiredRawCount = rowPhaseLagRecoveryRequiredCount,
+                phaseLagRecoveryUpdateRawCount = rowPhaseLagRecoveryUpdateCount,
+                phaseLagRecoverySatisfiedRawCount = rowPhaseLagRecoverySatisfiedCount,
+                phaseLagRecoveryRequiredEffectiveCount = rowPhaseLagRecoveryRequiredEffectiveCount,
+                phaseLagRecoveryUpdateOrBoundaryEffectiveCount = rowPhaseLagRecoveryUpdateOrBoundaryEffectiveCount,
+                phaseLagRecoverySatisfiedEffectiveCount = rowPhaseLagRecoverySatisfiedEffectiveCount,
                 phaseLagRecoveryViolationCount = rowPhaseLagRecoveryViolationCount,
                 stationaryYawCorrectionViolationCount = rowStationaryYawCorrectionViolationCount,
                 outstandingPhaseLagRecoveryCount = rowOutstandingPhaseLagRecoveryCount,
@@ -1880,15 +2074,35 @@ namespace KingmakerMountedCombat.Diagnostics
                 finalSynchronizationAgentFrame,
                 finalSynchronizationSampleCount,
                 finalSynchronizationOutstandingRecoveryCount,
-                finalSynchronizationRecoveryWaitFrames,
-                maximumCleanupSynchronizationRecoveryWaitFrames = MaximumCleanupSynchronizationRecoveryWaitFrames,
+                finalSynchronizationOutstandingPositionRecoveryCount,
                 finalSynchronizationQualificationPassed,
                 finalSynchronizationMovementStoppedBeforeSnapshot = cleanupMovementStoppedBeforeFinalSynchronization,
                 finalSynchronizationBoundaryPositionResidualWorldUnits = finalSynchronizationBoundaryPositionResidual,
+                finalSynchronizationBoundaryViewPositionResidualWorldUnits = finalSynchronizationBoundaryViewPositionResidual,
+                finalSynchronizationBoundaryEntityPositionResidualWorldUnits = finalSynchronizationBoundaryEntityPositionResidual,
                 finalSynchronizationBoundaryFullViewRotationResidualDegrees = finalSynchronizationBoundaryFullViewRotationResidual,
                 finalSynchronizationBoundaryViewYawResidualDegrees = finalSynchronizationBoundaryViewYawResidual,
                 finalSynchronizationBoundaryEntityCurrentYawResidualDegrees = finalSynchronizationBoundaryEntityCurrentYawResidual,
                 finalSynchronizationBoundaryMountEntityRootYawResidualDegrees = finalSynchronizationBoundaryMountEntityRootYawResidual,
+                finalSynchronizationBoundaryAuthoritativePositionAdvanceWorldUnits = finalSynchronizationBoundaryAuthoritativePositionAdvance,
+                finalSynchronizationBoundaryAuthoritativeYawAdvanceDegrees = finalSynchronizationBoundaryAuthoritativeYawAdvance,
+                finalSynchronizationBoundaryMovementCommandAbsent,
+                finalSynchronizationBoundaryWantsToMove,
+                finalSynchronizationBoundaryIsReallyMoving,
+                finalSynchronizationBoundaryClosureAttempted,
+                finalSynchronizationBoundaryClosureSucceeded,
+                finalSynchronizationBoundaryClosureReason,
+                finalSynchronizationBoundaryYawPendingBefore,
+                finalSynchronizationBoundaryPositionPendingBefore,
+                finalSynchronizationBoundaryYawClosedCount,
+                finalSynchronizationBoundaryPositionClosedCount,
+                finalSynchronizationBoundaryYawPendingAfter,
+                finalSynchronizationBoundaryPositionPendingAfter,
+                stationaryBoundaryClosureAttemptCount = rowStationaryBoundaryClosureAttemptCount,
+                stationaryBoundaryClosureSucceededCount = rowStationaryBoundaryClosureSucceededCount,
+                stationaryBoundaryClosureFailedCount = rowStationaryBoundaryClosureFailedCount,
+                yawPhaseLagStationaryBoundaryClosureCount = rowYawPhaseLagStationaryBoundaryClosureCount,
+                positionPhaseLagStationaryBoundaryClosureCount = rowPositionPhaseLagStationaryBoundaryClosureCount,
                 synchronizationObservationCount = rowSynchronizationObservationCount,
                 updateSynchronizationSampleCount = rowUpdateSampleCount,
                 lateUpdateSynchronizationSampleCount = rowLateUpdateSampleCount,
@@ -2442,6 +2656,30 @@ namespace KingmakerMountedCombat.Diagnostics
             rowMaximumLateUpdatePreCorrectionRotation = 0.0d;
             rowMaximumPostCorrectionResidual = 0.0d;
             rowMaximumPostCorrectionRotation = 0.0d;
+            rowMaximumRawCurrentPositionResidual = 0.0d;
+            rowMaximumUpdateRawCurrentPositionResidual = 0.0d;
+            rowMaximumLateUpdateRawCurrentPositionResidual = 0.0d;
+            rowMaximumViewCurrentPositionResidual = 0.0d;
+            rowMaximumEntityRawCurrentPositionResidual = 0.0d;
+            rowMaximumEntityPreviousAuthoritativePositionResidual = 0.0d;
+            rowMaximumEntityPhaseAdjustedPositionResidual = 0.0d;
+            rowMaximumAuthoritativePositionDelta = 0.0d;
+            rowMaximumEntityRawPositionLagExcess = 0.0d;
+            rowPositionPhaseLagObservedCount = 0L;
+            rowPositionPhaseLagPermittedCount = 0L;
+            rowPositionPhaseLagSameFrameUpdateReferenceCount = 0L;
+            rowPositionPhaseLagEligibleReferenceCount = 0L;
+            rowPositionPhaseLagViolationCount = 0L;
+            rowPositionPhaseLagRecoveryRequiredCount = 0L;
+            rowPositionPhaseLagRecoveryUpdateCount = 0L;
+            rowPositionPhaseLagRecoverySatisfiedCount = 0L;
+            rowPositionPhaseLagRecoveryRequiredEffectiveCount = 0L;
+            rowPositionPhaseLagRecoveryUpdateOrBoundaryEffectiveCount = 0L;
+            rowPositionPhaseLagRecoverySatisfiedEffectiveCount = 0L;
+            rowPositionPhaseLagRecoveryViolationCount = 0L;
+            rowStationaryPositionCorrectionViolationCount = 0L;
+            rowOutstandingPositionPhaseLagRecoveryCount = 0L;
+            rowMaximumConsecutiveUnrecoveredPositionPhaseLagCount = 0L;
             rowMaximumViewCurrentYawResidual = 0.0d;
             rowMaximumFullViewCurrentRotationResidual = 0.0d;
             rowMaximumMountEntityRootYawResidual = 0.0d;
@@ -2458,23 +2696,46 @@ namespace KingmakerMountedCombat.Diagnostics
             rowPhaseLagRecoveryRequiredCount = 0L;
             rowPhaseLagRecoveryUpdateCount = 0L;
             rowPhaseLagRecoverySatisfiedCount = 0L;
+            rowPhaseLagRecoveryRequiredEffectiveCount = 0L;
+            rowPhaseLagRecoveryUpdateOrBoundaryEffectiveCount = 0L;
+            rowPhaseLagRecoverySatisfiedEffectiveCount = 0L;
             rowPhaseLagRecoveryViolationCount = 0L;
             rowStationaryYawCorrectionViolationCount = 0L;
             rowOutstandingPhaseLagRecoveryCount = 0L;
             rowMaximumConsecutiveUnrecoveredPhaseLagCount = 0L;
+            rowStationaryBoundaryClosureAttemptCount = 0L;
+            rowStationaryBoundaryClosureSucceededCount = 0L;
+            rowStationaryBoundaryClosureFailedCount = 0L;
+            rowYawPhaseLagStationaryBoundaryClosureCount = 0L;
+            rowPositionPhaseLagStationaryBoundaryClosureCount = 0L;
             finalSynchronizationSnapshotCaptured = false;
             finalSynchronizationSnapshotFrame = 0L;
             finalSynchronizationAgentFrame = 0L;
             finalSynchronizationSampleCount = 0L;
             finalSynchronizationOutstandingRecoveryCount = 0L;
-            finalSynchronizationRecoveryWaitFrames = 0L;
+            finalSynchronizationOutstandingPositionRecoveryCount = 0L;
             finalSynchronizationQualificationPassed = false;
             finalSynchronizationBoundaryPositionResidual = 0.0d;
             finalSynchronizationBoundaryFullViewRotationResidual = 0.0d;
             finalSynchronizationBoundaryViewYawResidual = 0.0d;
             finalSynchronizationBoundaryEntityCurrentYawResidual = 0.0d;
             finalSynchronizationBoundaryMountEntityRootYawResidual = 0.0d;
-            cleanupSynchronizationRecoveryWaitStartFrame = -1L;
+            finalSynchronizationBoundaryViewPositionResidual = 0.0d;
+            finalSynchronizationBoundaryEntityPositionResidual = 0.0d;
+            finalSynchronizationBoundaryAuthoritativePositionAdvance = 0.0d;
+            finalSynchronizationBoundaryAuthoritativeYawAdvance = 0.0d;
+            finalSynchronizationBoundaryMovementCommandAbsent = false;
+            finalSynchronizationBoundaryWantsToMove = false;
+            finalSynchronizationBoundaryIsReallyMoving = false;
+            finalSynchronizationBoundaryClosureAttempted = false;
+            finalSynchronizationBoundaryClosureSucceeded = false;
+            finalSynchronizationBoundaryClosureReason = "not-captured";
+            finalSynchronizationBoundaryYawPendingBefore = 0L;
+            finalSynchronizationBoundaryPositionPendingBefore = 0L;
+            finalSynchronizationBoundaryYawClosedCount = 0L;
+            finalSynchronizationBoundaryPositionClosedCount = 0L;
+            finalSynchronizationBoundaryYawPendingAfter = 0L;
+            finalSynchronizationBoundaryPositionPendingAfter = 0L;
             cleanupMovementStoppedBeforeFinalSynchronization = false;
             rowMaximumStationaryDrift = 0.0d;
             rowMaximumStuckSeconds = 0.0d;

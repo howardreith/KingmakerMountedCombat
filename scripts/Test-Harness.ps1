@@ -183,6 +183,20 @@ function New-TestMovementTelemetryRecord {
         expectedAnchorPosition=$vector;expectedAnchorRotation=$vector;residualPositionWorldUnits=0.0;residualRotationDegrees=0.0
         riderViewPositionResidualWorldUnits=0.0;riderEntityPositionResidualWorldUnits=0.0
         riderViewRotationResidualDegrees=0.0;riderEntityRotationResidualDegrees=0.0
+        latestAuthoritativePositionSequence=1;latestCurrentAuthoritativeAnchorX=1.0;latestCurrentAuthoritativeAnchorY=2.0
+        latestCurrentAuthoritativeAnchorZ=3.0;latestPreviousAuthoritativePositionSequence=$null
+        latestPreviousAuthoritativeAnchorX=$null;latestPreviousAuthoritativeAnchorY=$null;latestPreviousAuthoritativeAnchorZ=$null
+        latestPreviousAuthoritativePositionFrame=$null;latestPreviousAuthoritativePositionPhase=$null
+        latestPreviousAuthoritativePositionReferenceKind='none';latestPreviousAuthoritativePositionSameFrame=$false
+        latestPreviousAuthoritativePositionReferenceEligible=$false;latestAuthoritativePositionDeltaWorldUnits=0.0
+        latestViewCurrentPositionResidualWorldUnits=0.0;latestEntityRawCurrentPositionResidualWorldUnits=0.0
+        latestEntityPreviousAuthoritativePositionResidualWorldUnits=$null;latestEntityPhaseAdjustedPositionResidualWorldUnits=0.0
+        latestEntityRawPositionLagBoundWorldUnits=0.0;latestEntityRawPositionLagExcessWorldUnits=0.0
+        latestEntityPositionAuthorityAgeSteps=0;latestPositionPhaseLagObserved=$false;latestPositionPhaseLagPermitted=$false
+        latestPositionPhaseLagViolation=$false;latestPositionRecoveryRequiredBeforeSample=$true
+        latestPositionRecoveryUpdateObserved=$true;latestPositionRecoverySatisfied=$true;latestPositionRecoveryViolation=$false
+        latestPositionRecoveryPendingAfterSample=$false;latestPositionStationaryAuthority=$true
+        latestStationaryPositionCorrectionViolation=$false
         latestSynchronizationFrame=12;latestAuthoritativeYawSequence=1;latestCurrentAuthoritativeYawDegrees=8.0
         latestCurrentMountEntityAuthoritativeYawDegrees=8.0;latestMountEntityRootYawResidualDegrees=0.0
         latestPreviousAuthoritativeYawSequence=$null;latestPreviousAuthoritativeYawDegrees=$null;latestPreviousAuthoritativeFrame=$null
@@ -201,15 +215,30 @@ function New-TestMovementTelemetryRecord {
         mountPathError=0;mountPathErrorLog=$null;mountPathPointCount=2;mountPathLength=5.0;synchronizationPhase='Update'
         synchronizationSampleCount=6;synchronizationCorrectionCount=2;initialConfigurationSynchronizationSampleCount=1
         initialConfigurationSynchronizationCorrectionCount=1;updateSynchronizationSampleCount=3;updateSynchronizationCorrectionCount=1
-        lateUpdateSynchronizationSampleCount=2;lateUpdateSynchronizationCorrectionCount=0;preCorrectionPositionResidualWorldUnits=0.01
+        lateUpdateSynchronizationSampleCount=2;lateUpdateSynchronizationCorrectionCount=0;preCorrectionPositionResidualWorldUnits=0.0
+        preCorrectionRawCurrentPositionResidualWorldUnits=0.0;preCorrectionViewCurrentPositionResidualWorldUnits=0.0
         preCorrectionRotationResidualDegrees=0.01;postCorrectionPositionResidualWorldUnits=0.0;postCorrectionRotationResidualDegrees=0.0
-        maximumPreCorrectionPositionResidualWorldUnits=1.0;maximumPreCorrectionRotationResidualDegrees=10.0
+        maximumPreCorrectionPositionResidualWorldUnits=1.0;maximumPreCorrectionRawCurrentPositionResidualWorldUnits=1.0
+        maximumPreCorrectionRotationResidualDegrees=10.0
         maximumPostCorrectionPositionResidualWorldUnits=0.0;maximumPostCorrectionRotationResidualDegrees=0.0
         maximumInitialConfigurationPreCorrectionPositionResidualWorldUnits=1.0;maximumUpdatePreCorrectionPositionResidualWorldUnits=0.01
+        maximumUpdatePreCorrectionRawCurrentPositionResidualWorldUnits=0.20
         maximumUpdatePreCorrectionRotationResidualDegrees=0.01;maximumUpdatePostCorrectionPositionResidualWorldUnits=0.0
         maximumUpdatePostCorrectionRotationResidualDegrees=0.0;maximumLateUpdatePreCorrectionPositionResidualWorldUnits=0.01
+        maximumLateUpdatePreCorrectionRawCurrentPositionResidualWorldUnits=0.20
         maximumLateUpdatePreCorrectionRotationResidualDegrees=0.01;maximumLateUpdatePostCorrectionPositionResidualWorldUnits=0.0
-        maximumLateUpdatePostCorrectionRotationResidualDegrees=0.0;maximumCalibratedViewCurrentYawResidualDegrees=0.0
+        maximumLateUpdatePostCorrectionRotationResidualDegrees=0.0;maximumCalibratedViewCurrentPositionResidualWorldUnits=0.0
+        maximumCalibratedEntityRawCurrentPositionResidualWorldUnits=0.20
+        maximumCalibratedEntityPreviousAuthoritativePositionResidualWorldUnits=0.0
+        maximumCalibratedEntityPhaseAdjustedPositionResidualWorldUnits=0.0;maximumAuthoritativePositionDeltaWorldUnits=0.20
+        maximumEntityRawPositionLagExcessWorldUnits=0.0;entityRawPositionLagArithmeticCoherenceEpsilonWorldUnits=0.0001
+        positionPhaseLagObservedCount=1;positionPhaseLagPermittedCount=1;positionPhaseLagSameFrameUpdateReferenceCount=1
+        positionPhaseLagEligibleReferenceCount=1;positionPhaseLagViolationCount=0;positionPhaseLagRecoveryRequiredRawCount=1
+        positionPhaseLagRecoveryUpdateRawCount=1;positionPhaseLagRecoverySatisfiedRawCount=1
+        positionPhaseLagRecoveryRequiredEffectiveCount=1;positionPhaseLagRecoveryUpdateOrBoundaryEffectiveCount=1
+        positionPhaseLagRecoverySatisfiedEffectiveCount=1;positionPhaseLagRecoveryViolationCount=0
+        stationaryPositionCorrectionViolationCount=0;outstandingPositionPhaseLagRecoveryCount=0
+        maximumConsecutiveUnrecoveredPositionPhaseLagCount=1;maximumCalibratedViewCurrentYawResidualDegrees=0.0
         maximumCalibratedFullViewCurrentRotationResidualDegrees=0.0
         maximumCalibratedMountEntityRootYawResidualDegrees=0.0;maximumCalibratedEntityRawCurrentYawResidualDegrees=8.0
         maximumCalibratedEntityPreviousAuthoritativeYawResidualDegrees=0.0;maximumCalibratedEntityPhaseAdjustedYawResidualDegrees=0.0
@@ -217,8 +246,14 @@ function New-TestMovementTelemetryRecord {
         entityRawLagArithmeticCoherenceEpsilonDegrees=0.0001;phaseLagObservedCount=1
         phaseLagPermittedCount=1;phaseLagSameFrameUpdateReferenceCount=1;phaseLagEligibleReferenceCount=1;phaseLagViolationCount=0
         phaseLagRecoveryRequiredCount=1;phaseLagRecoveryUpdateCount=1;phaseLagRecoverySatisfiedCount=1
+        phaseLagRecoveryRequiredRawCount=1;phaseLagRecoveryUpdateRawCount=1;phaseLagRecoverySatisfiedRawCount=1
+        phaseLagRecoveryRequiredEffectiveCount=1;phaseLagRecoveryUpdateOrBoundaryEffectiveCount=1
+        phaseLagRecoverySatisfiedEffectiveCount=1
         phaseLagRecoveryViolationCount=0;stationaryYawCorrectionViolationCount=0;outstandingPhaseLagRecoveryCount=0
-        maximumConsecutiveUnrecoveredPhaseLagCount=1;maximumResidualWorldUnits=0.0;maximumRotationResidualDegrees=0.0
+        maximumConsecutiveUnrecoveredPhaseLagCount=1;stationaryBoundaryClosureAttemptCount=0
+        stationaryBoundaryClosureSucceededCount=0;stationaryBoundaryClosureFailedCount=0
+        yawPhaseLagStationaryBoundaryClosureCount=0;positionPhaseLagStationaryBoundaryClosureCount=0
+        maximumResidualWorldUnits=0.0;maximumRotationResidualDegrees=0.0
     }
 }
 
@@ -270,23 +305,50 @@ function New-TestMovementRowRecord {
         maximumUpdatePreCorrectionResidualWorldUnits=0.01;maximumLateUpdatePreCorrectionResidualWorldUnits=0.01
         maximumUpdatePreCorrectionRotationResidualDegrees=0.01;maximumLateUpdatePreCorrectionRotationResidualDegrees=0.01
         maximumPostCorrectionResidualWorldUnits=0.0;maximumPostCorrectionRotationResidualDegrees=0.0
-        maximumViewCurrentYawResidualDegrees=0.0;maximumFullViewCurrentRotationResidualDegrees=0.0
+        maximumRawCurrentPositionResidualWorldUnits=1.0;maximumUpdateRawCurrentPositionResidualWorldUnits=0.20
+        maximumLateUpdateRawCurrentPositionResidualWorldUnits=0.20;maximumViewCurrentPositionResidualWorldUnits=0.0
+        maximumEntityRawCurrentPositionResidualWorldUnits=0.20
+        maximumEntityPreviousAuthoritativePositionResidualWorldUnits=0.0
+        maximumEntityPhaseAdjustedPositionResidualWorldUnits=0.0;maximumAuthoritativePositionDeltaWorldUnits=0.20
+        maximumEntityRawPositionLagExcessWorldUnits=0.0;entityRawPositionLagArithmeticCoherenceEpsilonWorldUnits=0.0001
+        positionPhaseLagObservedCount=1;positionPhaseLagPermittedCount=1;positionPhaseLagSameFrameUpdateReferenceCount=1
+        positionPhaseLagEligibleReferenceCount=1;positionPhaseLagViolationCount=0;positionPhaseLagRecoveryRequiredRawCount=0
+        positionPhaseLagRecoveryUpdateRawCount=0;positionPhaseLagRecoverySatisfiedRawCount=0
+        positionPhaseLagRecoveryRequiredEffectiveCount=1;positionPhaseLagRecoveryUpdateOrBoundaryEffectiveCount=1
+        positionPhaseLagRecoverySatisfiedEffectiveCount=1;positionPhaseLagRecoveryViolationCount=0
+        stationaryPositionCorrectionViolationCount=0;outstandingPositionPhaseLagRecoveryCount=0
+        maximumConsecutiveUnrecoveredPositionPhaseLagCount=1;maximumViewCurrentYawResidualDegrees=0.0
+        maximumFullViewCurrentRotationResidualDegrees=0.0
         maximumMountEntityRootYawResidualDegrees=0.0
         maximumEntityRawCurrentYawResidualDegrees=8.0;maximumEntityPreviousAuthoritativeYawResidualDegrees=0.0
         maximumEntityPhaseAdjustedYawResidualDegrees=0.0;maximumAuthoritativeYawDeltaDegrees=8.0
         maximumEntityRawLagExcessDegrees=0.0;entityRawLagArithmeticCoherenceEpsilonDegrees=0.0001
         phaseLagObservedCount=1;phaseLagPermittedCount=1
         phaseLagSameFrameUpdateReferenceCount=1;phaseLagEligibleReferenceCount=1;phaseLagViolationCount=0
-        phaseLagRecoveryRequiredCount=1;phaseLagRecoveryUpdateCount=1;phaseLagRecoverySatisfiedCount=1
+        phaseLagRecoveryRequiredCount=0;phaseLagRecoveryUpdateCount=0;phaseLagRecoverySatisfiedCount=0
+        phaseLagRecoveryRequiredRawCount=0;phaseLagRecoveryUpdateRawCount=0;phaseLagRecoverySatisfiedRawCount=0
+        phaseLagRecoveryRequiredEffectiveCount=1;phaseLagRecoveryUpdateOrBoundaryEffectiveCount=1
+        phaseLagRecoverySatisfiedEffectiveCount=1
         phaseLagRecoveryViolationCount=0;stationaryYawCorrectionViolationCount=0;outstandingPhaseLagRecoveryCount=0
         maximumConsecutiveUnrecoveredPhaseLagCount=1;finalSynchronizationSnapshotCaptured=$true
         finalSynchronizationSnapshotStage='pre-dismount-after-captures';finalSynchronizationSnapshotFrame=15
         finalSynchronizationAgentFrame=15;finalSynchronizationSampleCount=21;finalSynchronizationOutstandingRecoveryCount=0
-        finalSynchronizationRecoveryWaitFrames=0;maximumCleanupSynchronizationRecoveryWaitFrames=2
+        finalSynchronizationOutstandingPositionRecoveryCount=0
         finalSynchronizationQualificationPassed=$true;finalSynchronizationMovementStoppedBeforeSnapshot=$true
-        finalSynchronizationBoundaryPositionResidualWorldUnits=0.0
+        finalSynchronizationBoundaryPositionResidualWorldUnits=0.0;finalSynchronizationBoundaryViewPositionResidualWorldUnits=0.0
+        finalSynchronizationBoundaryEntityPositionResidualWorldUnits=0.0
         finalSynchronizationBoundaryFullViewRotationResidualDegrees=0.0;finalSynchronizationBoundaryViewYawResidualDegrees=0.0
         finalSynchronizationBoundaryEntityCurrentYawResidualDegrees=0.0;finalSynchronizationBoundaryMountEntityRootYawResidualDegrees=0.0
+        finalSynchronizationBoundaryAuthoritativePositionAdvanceWorldUnits=0.0
+        finalSynchronizationBoundaryAuthoritativeYawAdvanceDegrees=0.0;finalSynchronizationBoundaryMovementCommandAbsent=$true
+        finalSynchronizationBoundaryWantsToMove=$false;finalSynchronizationBoundaryIsReallyMoving=$false
+        finalSynchronizationBoundaryClosureAttempted=$true;finalSynchronizationBoundaryClosureSucceeded=$true
+        finalSynchronizationBoundaryClosureReason='closed-at-stationary-boundary';finalSynchronizationBoundaryYawPendingBefore=1
+        finalSynchronizationBoundaryPositionPendingBefore=1;finalSynchronizationBoundaryYawClosedCount=1
+        finalSynchronizationBoundaryPositionClosedCount=1;finalSynchronizationBoundaryYawPendingAfter=0
+        finalSynchronizationBoundaryPositionPendingAfter=0;stationaryBoundaryClosureAttemptCount=1
+        stationaryBoundaryClosureSucceededCount=1;stationaryBoundaryClosureFailedCount=0
+        yawPhaseLagStationaryBoundaryClosureCount=1;positionPhaseLagStationaryBoundaryClosureCount=1
         synchronizationObservationCount=12;updateSynchronizationSampleCount=10;lateUpdateSynchronizationSampleCount=10
         updateSynchronizationCorrectionCount=1;lateUpdateSynchronizationCorrectionCount=1;maximumStationaryDriftWorldUnits=0.01
         maximumStuckSeconds=0.1;oscillationCount=0;unexpectedRepathCount=0;commandReplacementCount=0;selectionLossCount=0
@@ -1636,6 +1698,205 @@ try {
         try { Assert-KmcMovementScenarioEvidence -Request $movementRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($movementSubresult) } catch { $threw=$true }
         Assert-Test $threw 'movement cleanup evidence accepted an unverified attachment restoration'
     }
+    Invoke-HarnessTest 'PASS movement validator preserves bounded raw position lag and rejects unsafe position-phase mutations' {
+        $scenario = @((New-TestMovementPathProbeRecord $movementRequest $movementRow 0),(New-TestMovementRowRecord $movementRequest $movementRow 1))
+        $newPermittedPositionTelemetry = {
+            $value = New-TestMovementTelemetryRecord $movementRequest $movementRow 0
+            $value.synchronizationPhase = 'LateUpdate'
+            $value.latestCurrentAuthoritativeAnchorY = 2.2
+            $value.latestAuthoritativePositionSequence = 2
+            $value.latestPreviousAuthoritativePositionSequence = 1
+            $value.latestPreviousAuthoritativeAnchorX = 1.0
+            $value.latestPreviousAuthoritativeAnchorY = 2.0
+            $value.latestPreviousAuthoritativeAnchorZ = 3.0
+            $value.latestPreviousAuthoritativePositionFrame = 12
+            $value.latestPreviousAuthoritativePositionPhase = 'Update'
+            $value.latestPreviousAuthoritativePositionReferenceKind = 'same-frame-update'
+            $value.latestPreviousAuthoritativePositionSameFrame = $true
+            $value.latestPreviousAuthoritativePositionReferenceEligible = $true
+            $value.latestAuthoritativePositionDeltaWorldUnits = 0.2
+            $value.latestViewCurrentPositionResidualWorldUnits = 0.0
+            $value.latestEntityRawCurrentPositionResidualWorldUnits = 0.2
+            $value.latestEntityPreviousAuthoritativePositionResidualWorldUnits = 0.0
+            $value.latestEntityPhaseAdjustedPositionResidualWorldUnits = 0.0
+            $value.latestEntityRawPositionLagBoundWorldUnits = 0.2
+            $value.latestEntityRawPositionLagExcessWorldUnits = 0.0
+            $value.latestEntityPositionAuthorityAgeSteps = 1
+            $value.latestPositionPhaseLagObserved = $true
+            $value.latestPositionPhaseLagPermitted = $true
+            $value.latestPositionPhaseLagViolation = $false
+            $value.latestPositionRecoveryRequiredBeforeSample = $false
+            $value.latestPositionRecoveryUpdateObserved = $false
+            $value.latestPositionRecoverySatisfied = $false
+            $value.latestPositionRecoveryViolation = $false
+            $value.latestPositionRecoveryPendingAfterSample = $true
+            $value.latestPositionStationaryAuthority = $false
+            $value.latestStationaryPositionCorrectionViolation = $false
+            $value.preCorrectionPositionResidualWorldUnits = 0.0
+            $value.preCorrectionRawCurrentPositionResidualWorldUnits = 0.2
+            $value.preCorrectionViewCurrentPositionResidualWorldUnits = 0.0
+            $value.positionPhaseLagRecoveryRequiredRawCount = 0
+            $value.positionPhaseLagRecoveryUpdateRawCount = 0
+            $value.positionPhaseLagRecoverySatisfiedRawCount = 0
+            $value.positionPhaseLagRecoveryRequiredEffectiveCount = 0
+            $value.positionPhaseLagRecoveryUpdateOrBoundaryEffectiveCount = 0
+            $value.positionPhaseLagRecoverySatisfiedEffectiveCount = 0
+            $value.outstandingPositionPhaseLagRecoveryCount = 1
+            $value.latestRecoveryRequiredBeforeSample = $false
+            $value.latestRecoveryUpdateObserved = $false
+            $value.latestRecoverySatisfied = $false
+            $value.latestRecoveryViolation = $false
+            $value.latestRecoveryPendingAfterSample = $false
+            return $value
+        }
+
+        $telemetry = & $newPermittedPositionTelemetry
+        $telemetry.maximumPreCorrectionRawCurrentPositionResidualWorldUnits = 25.0
+        $telemetry.maximumUpdatePreCorrectionRawCurrentPositionResidualWorldUnits = 25.0
+        $telemetry.maximumCalibratedEntityRawCurrentPositionResidualWorldUnits = 25.0
+        $telemetry.maximumAuthoritativePositionDeltaWorldUnits = 25.0
+        [void](Write-TestMovementEvidence $movementRequest.evidenceRoot $movementRequest @($telemetry) $scenario)
+        $manifest = Read-KmcJson (Join-Path $movementRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcMovementScenarioEvidence -Request $movementRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($movementSubresult)
+
+        foreach ($mutation in @('partial-reference','stale-frame','age-two','three-dimensional-delta','visible-view',
+            'previous-residual','adjusted-residual','raw-bound','raw-excess','recovery-state','stationary-lag',
+            'reference-kind','entity-age')) {
+            $telemetry = & $newPermittedPositionTelemetry
+            switch ($mutation) {
+                'partial-reference' { $telemetry.latestPreviousAuthoritativeAnchorZ = $null }
+                'stale-frame' { $telemetry.latestPreviousAuthoritativePositionFrame = 11 }
+                'age-two' { $telemetry.latestAuthoritativePositionSequence = 3 }
+                'three-dimensional-delta' { $telemetry.latestAuthoritativePositionDeltaWorldUnits = 0.19 }
+                'visible-view' {
+                    $telemetry.latestViewCurrentPositionResidualWorldUnits = 0.100001
+                    $telemetry.preCorrectionPositionResidualWorldUnits = 0.100001
+                    $telemetry.preCorrectionRawCurrentPositionResidualWorldUnits = 0.2
+                    $telemetry.preCorrectionViewCurrentPositionResidualWorldUnits = 0.100001
+                }
+                'previous-residual' { $telemetry.latestEntityPreviousAuthoritativePositionResidualWorldUnits = 0.100001 }
+                'adjusted-residual' { $telemetry.latestEntityPhaseAdjustedPositionResidualWorldUnits = 0.2 }
+                'raw-bound' { $telemetry.latestEntityRawPositionLagBoundWorldUnits = 0.19 }
+                'raw-excess' { $telemetry.latestEntityRawPositionLagExcessWorldUnits = 0.000100001 }
+                'recovery-state' { $telemetry.latestPositionRecoveryRequiredBeforeSample = $true }
+                'stationary-lag' {
+                    $telemetry.latestCurrentAuthoritativeAnchorY = 2.0
+                    $telemetry.latestAuthoritativePositionDeltaWorldUnits = 0.0
+                    $telemetry.latestEntityRawPositionLagBoundWorldUnits = 0.0
+                    $telemetry.latestEntityRawPositionLagExcessWorldUnits = 0.2
+                    $telemetry.latestPositionStationaryAuthority = $true
+                }
+                'reference-kind' { $telemetry.latestPreviousAuthoritativePositionReferenceKind = 'prior-frame-update' }
+                'entity-age' { $telemetry.latestEntityPositionAuthorityAgeSteps = 2 }
+            }
+            [void](Write-TestMovementEvidence $movementRequest.evidenceRoot $movementRequest @($telemetry) $scenario)
+            $manifest = Read-KmcJson (Join-Path $movementRequest.evidenceRoot 'runtime-artifacts.json')
+            $threw=$false
+            try { Assert-KmcMovementScenarioEvidence -Request $movementRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($movementSubresult) } catch { $threw=$true }
+            Assert-Test $threw "movement telemetry accepted unsafe position-phase mutation $mutation"
+        }
+
+        foreach ($mutation in @('effective-residual','raw-lag-excess','stale-reference-count','raw-recovery',
+            'effective-recovery','stationary-correction','outstanding-two','epsilon','boundary-count','null-aggregate','null-count')) {
+            $telemetry = New-TestMovementTelemetryRecord $movementRequest $movementRow 0
+            switch ($mutation) {
+                'effective-residual' { $telemetry.maximumCalibratedEntityPhaseAdjustedPositionResidualWorldUnits = 0.100001 }
+                'raw-lag-excess' { $telemetry.maximumEntityRawPositionLagExcessWorldUnits = 0.000100001 }
+                'stale-reference-count' { $telemetry.positionPhaseLagSameFrameUpdateReferenceCount = 0 }
+                'raw-recovery' { $telemetry.positionPhaseLagRecoverySatisfiedRawCount = 0 }
+                'effective-recovery' { $telemetry.positionPhaseLagRecoverySatisfiedEffectiveCount = 0 }
+                'stationary-correction' { $telemetry.stationaryPositionCorrectionViolationCount = 1 }
+                'outstanding-two' { $telemetry.outstandingPositionPhaseLagRecoveryCount = 2 }
+                'epsilon' { $telemetry.entityRawPositionLagArithmeticCoherenceEpsilonWorldUnits = 0.0002 }
+                'boundary-count' { $telemetry.stationaryBoundaryClosureAttemptCount = 1 }
+                'null-aggregate' { $telemetry.maximumEntityRawPositionLagExcessWorldUnits = $null }
+                'null-count' { $telemetry.positionPhaseLagObservedCount = $null }
+            }
+            [void](Write-TestMovementEvidence $movementRequest.evidenceRoot $movementRequest @($telemetry) $scenario)
+            $manifest = Read-KmcJson (Join-Path $movementRequest.evidenceRoot 'runtime-artifacts.json')
+            $threw=$false
+            try { Assert-KmcMovementScenarioEvidence -Request $movementRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($movementSubresult) } catch { $threw=$true }
+            Assert-Test $threw "movement telemetry accepted unsafe position aggregate mutation $mutation"
+        }
+    }
+    Invoke-HarnessTest 'PASS movement row validator reconciles synchronous stationary boundary closure' {
+        $telemetry = New-TestMovementTelemetryRecord $movementRequest $movementRow 0
+        $rowRecord = New-TestMovementRowRecord $movementRequest $movementRow 1
+        $rowRecord.maximumRawCurrentPositionResidualWorldUnits = 25.0
+        $rowRecord.maximumUpdateRawCurrentPositionResidualWorldUnits = 25.0
+        $rowRecord.maximumEntityRawCurrentPositionResidualWorldUnits = 25.0
+        $rowRecord.maximumAuthoritativePositionDeltaWorldUnits = 25.0
+        $scenario = @((New-TestMovementPathProbeRecord $movementRequest $movementRow 0),$rowRecord)
+        [void](Write-TestMovementEvidence $movementRequest.evidenceRoot $movementRequest @($telemetry) $scenario)
+        $manifest = Read-KmcJson (Join-Path $movementRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcMovementScenarioEvidence -Request $movementRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($movementSubresult)
+
+        $noPending = New-TestMovementRowRecord $movementRequest $movementRow 1
+        foreach ($name in @('positionPhaseLagRecoveryRequiredRawCount','positionPhaseLagRecoveryUpdateRawCount',
+            'positionPhaseLagRecoverySatisfiedRawCount','phaseLagRecoveryRequiredCount','phaseLagRecoveryUpdateCount',
+            'phaseLagRecoverySatisfiedCount','phaseLagRecoveryRequiredRawCount','phaseLagRecoveryUpdateRawCount',
+            'phaseLagRecoverySatisfiedRawCount')) { $noPending.$name = 1 }
+        $noPending.finalSynchronizationBoundaryClosureAttempted = $false
+        $noPending.finalSynchronizationBoundaryClosureReason = 'no-pending-recovery'
+        $noPending.finalSynchronizationBoundaryYawPendingBefore = 0
+        $noPending.finalSynchronizationBoundaryPositionPendingBefore = 0
+        $noPending.finalSynchronizationBoundaryYawClosedCount = 0
+        $noPending.finalSynchronizationBoundaryPositionClosedCount = 0
+        $noPending.stationaryBoundaryClosureAttemptCount = 0
+        $noPending.stationaryBoundaryClosureSucceededCount = 0
+        $noPending.yawPhaseLagStationaryBoundaryClosureCount = 0
+        $noPending.positionPhaseLagStationaryBoundaryClosureCount = 0
+        $scenario = @((New-TestMovementPathProbeRecord $movementRequest $movementRow 0),$noPending)
+        [void](Write-TestMovementEvidence $movementRequest.evidenceRoot $movementRequest @($telemetry) $scenario)
+        $manifest = Read-KmcJson (Join-Path $movementRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcMovementScenarioEvidence -Request $movementRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($movementSubresult)
+
+        foreach ($mutation in @('position-effective','position-outstanding','position-stationary','position-epsilon',
+            'boundary-view-position','boundary-entity-position','boundary-position-split','authority-advance','yaw-authority-advance',
+            'command-present','wants-to-move','really-moving','closure-repeat','closure-channel','closure-attempt',
+            'closure-too-many','closure-reason','closure-pending-after','final-position-outstanding')) {
+            $rowRecord = New-TestMovementRowRecord $movementRequest $movementRow 1
+            switch ($mutation) {
+                'position-effective' { $rowRecord.positionPhaseLagRecoverySatisfiedEffectiveCount = 0 }
+                'position-outstanding' { $rowRecord.outstandingPositionPhaseLagRecoveryCount = 1 }
+                'position-stationary' { $rowRecord.stationaryPositionCorrectionViolationCount = 1 }
+                'position-epsilon' { $rowRecord.entityRawPositionLagArithmeticCoherenceEpsilonWorldUnits = 0.0002 }
+                'boundary-view-position' {
+                    $rowRecord.finalSynchronizationBoundaryViewPositionResidualWorldUnits = 0.100001
+                    $rowRecord.finalSynchronizationBoundaryPositionResidualWorldUnits = 0.100001
+                }
+                'boundary-entity-position' {
+                    $rowRecord.finalSynchronizationBoundaryEntityPositionResidualWorldUnits = 0.100001
+                    $rowRecord.finalSynchronizationBoundaryPositionResidualWorldUnits = 0.100001
+                }
+                'boundary-position-split' { $rowRecord.finalSynchronizationBoundaryPositionResidualWorldUnits = 0.01 }
+                'authority-advance' { $rowRecord.finalSynchronizationBoundaryAuthoritativePositionAdvanceWorldUnits = 0.0000011 }
+                'yaw-authority-advance' { $rowRecord.finalSynchronizationBoundaryAuthoritativeYawAdvanceDegrees = 0.0000011 }
+                'command-present' { $rowRecord.finalSynchronizationBoundaryMovementCommandAbsent = $false }
+                'wants-to-move' { $rowRecord.finalSynchronizationBoundaryWantsToMove = $true }
+                'really-moving' { $rowRecord.finalSynchronizationBoundaryIsReallyMoving = $true }
+                'closure-repeat' {
+                    $rowRecord.stationaryBoundaryClosureAttemptCount = 2
+                    $rowRecord.stationaryBoundaryClosureSucceededCount = 2
+                }
+                'closure-channel' { $rowRecord.positionPhaseLagStationaryBoundaryClosureCount = 0 }
+                'closure-attempt' { $rowRecord.finalSynchronizationBoundaryClosureAttempted = $false }
+                'closure-too-many' {
+                    $rowRecord.finalSynchronizationBoundaryPositionPendingBefore = 2
+                    $rowRecord.finalSynchronizationBoundaryPositionClosedCount = 2
+                }
+                'closure-reason' { $rowRecord.finalSynchronizationBoundaryClosureReason = 'no-pending-recovery' }
+                'closure-pending-after' { $rowRecord.finalSynchronizationBoundaryPositionPendingAfter = 1 }
+                'final-position-outstanding' { $rowRecord.finalSynchronizationOutstandingPositionRecoveryCount = 1 }
+            }
+            $scenario = @((New-TestMovementPathProbeRecord $movementRequest $movementRow 0),$rowRecord)
+            [void](Write-TestMovementEvidence $movementRequest.evidenceRoot $movementRequest @($telemetry) $scenario)
+            $manifest = Read-KmcJson (Join-Path $movementRequest.evidenceRoot 'runtime-artifacts.json')
+            $threw=$false
+            try { Assert-KmcMovementScenarioEvidence -Request $movementRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($movementSubresult) } catch { $threw=$true }
+            Assert-Test $threw "movement row evidence accepted unsafe stationary-boundary mutation $mutation"
+        }
+    }
     Invoke-HarnessTest 'PASS movement validator preserves raw yaw lag but rejects unsafe phase-order mutations' {
         $scenario = @((New-TestMovementPathProbeRecord $movementRequest $movementRow 0),(New-TestMovementRowRecord $movementRequest $movementRow 1))
 
@@ -1683,7 +1944,7 @@ try {
             $rowRecord = New-TestMovementRowRecord $movementRequest $movementRow 1
             switch ($mutation) {
                 'pending-recovery' { $rowRecord.outstandingPhaseLagRecoveryCount = 1 }
-                'missing-recovery' { $rowRecord.phaseLagRecoverySatisfiedCount = 0 }
+                'missing-recovery' { $rowRecord.phaseLagRecoverySatisfiedEffectiveCount = 0 }
                 'stationary-lag' { $rowRecord.stationaryYawCorrectionViolationCount = 1 }
                 'adjusted-lag' { $rowRecord.maximumEntityPhaseAdjustedYawResidualDegrees = 0.100001 }
                 'full-view-quaternion' { $rowRecord.maximumFullViewCurrentRotationResidualDegrees = 0.100001 }
@@ -1761,10 +2022,15 @@ try {
         Assert-Test ($writerSource.Contains('row = movementRow()')) 'movement telemetry is not bound to the active engine row'
         Assert-Test ($writerSource.Contains('System.Math.Max(riderViewPositionResidual.Value, riderEntityPositionResidual)') -and
             $writerSource.Contains('System.Math.Max(riderViewRotationResidual.Value, riderEntityRotationResidual)')) 'interval telemetry reports only cosmetic view residual instead of conservative entity/view residual'
-        Assert-Test ($agentSource.Contains('preCorrectionEntityPositionResidual') -and
-            $agentSource.Contains('System.Math.Max(preCorrectionViewPositionResidual, preCorrectionEntityPositionResidual)') -and
+        Assert-Test ($agentSource.Contains('positionPhaseTracker.Observe(') -and
+            $agentSource.Contains('preCorrectionEntityPosition.x') -and
+            $agentSource.Contains('positionObservation,') -and
             $agentSource.Contains('Quaternion.Angle(expectedRotation, Unit.transform.rotation)') -and
             $agentSource.Contains('yawPhaseTracker.Observe(') -and
+            $movementDomainSource.Contains('MaximumCalibratedEntityRawCurrentPositionResidualWorldUnits') -and
+            $movementDomainSource.Contains('MaximumCalibratedEntityPhaseAdjustedPositionResidualWorldUnits') -and
+            $movementDomainSource.Contains('PhaseOrderPositionSafetyPassed') -and
+            $movementDomainSource.Contains('telemetry.OutstandingPositionPhaseLagRecoveryCount == 0L') -and
             $movementDomainSource.Contains('MaximumCalibratedEntityRawCurrentYawResidualDegrees') -and
             $movementDomainSource.Contains('MaximumCalibratedFullViewCurrentRotationResidualDegrees') -and
             $movementDomainSource.Contains('MaximumCalibratedEntityPhaseAdjustedYawResidualDegrees') -and
@@ -1774,8 +2040,36 @@ try {
         Assert-Test ($finalFreeze -ge 0 -and $cleanupDismount -gt $finalFreeze -and
             $engineSource.Contains('finalSynchronizationSnapshotStage = finalSynchronizationSnapshotCaptured ? "pre-dismount-after-captures"')) 'movement cleanup can deconfigure before freezing the final post-capture synchronization snapshot'
         Assert-Test ($engineSource.Contains('finalSynchronizationBoundaryFullViewRotationResidual <= MaximumPostCorrectionRotationResidualDegrees') -and
-            $engineSource.Contains('rowOutstandingPhaseLagRecoveryCount == 0L')) 'final synchronization snapshot does not gate full visible rotation and zero pending recovery'
-        Assert-Test ($movementDomainSource.Contains('RawLagArithmeticCoherenceEpsilonDegrees = 0.0001d')) 'raw-lag arithmetic coherence epsilon is not a named 0.0001-degree constant'
+            $engineSource.Contains('finalSynchronizationBoundaryAuthoritativePositionAdvance <= MovementPositionPhaseTracker.StationaryAuthorityEpsilonWorldUnits') -and
+            $engineSource.Contains('rowOutstandingPositionPhaseLagRecoveryCount == 0L') -and
+            $engineSource.Contains('rowOutstandingPhaseLagRecoveryCount == 0L')) 'final synchronization snapshot does not gate split position, full visible rotation, and zero pending recovery'
+        Assert-Test ($movementDomainSource.Contains('RawLagArithmeticCoherenceEpsilonWorldUnits = 0.0001d') -and
+            $movementDomainSource.Contains('RawLagArithmeticCoherenceEpsilonDegrees = 0.0001d')) 'position/yaw raw-lag arithmetic coherence epsilons are not named 0.0001 constants'
+        Assert-Test (-not $engineSource.Contains('finalSynchronizationRecoveryWaitFrames') -and
+            -not $engineSource.Contains('maximumCleanupSynchronizationRecoveryWaitFrames')) 'obsolete cleanup recovery-wait telemetry remains in the row producer'
+
+        $writerStart = $writerSource.IndexOf('var sample = new', [StringComparison]::Ordinal)
+        $writerEnd = $writerSource.IndexOf('            };', $writerStart, [StringComparison]::Ordinal)
+        $writerBlock = $writerSource.Substring($writerStart, $writerEnd - $writerStart)
+        $telemetryProducerNames = @([regex]::Matches($writerBlock, '(?m)^\s{16}([A-Za-z_]\w*)\s*(?:=|,)') |
+            ForEach-Object { $_.Groups[1].Value })
+        $telemetryFixtureNames = @((New-TestMovementTelemetryRecord $movementRequest $movementRow 0).Keys | ForEach-Object { [string]$_ })
+        Assert-Test ($telemetryProducerNames.Count -eq 217 -and $telemetryFixtureNames.Count -eq 217 -and
+            @($telemetryProducerNames | Where-Object { [Array]::IndexOf($telemetryFixtureNames, $_) -lt 0 }).Count -eq 0 -and
+            @($telemetryFixtureNames | Where-Object { [Array]::IndexOf($telemetryProducerNames, $_) -lt 0 }).Count -eq 0) 'movement telemetry fixture/validator field set is not the exact 217-field producer schema'
+
+        $rowPayloadMarker = $engineSource.IndexOf('kind = "movement-row-result"', [StringComparison]::Ordinal)
+        $rowStart = $engineSource.LastIndexOf('WriteEvidence(new', $rowPayloadMarker, [StringComparison]::Ordinal)
+        $rowEnd = $engineSource.IndexOf('            });', $rowStart, [StringComparison]::Ordinal)
+        $rowBlock = $engineSource.Substring($rowStart, $rowEnd - $rowStart)
+        $rowOwnedNames = @('schemaVersion','runId','scenario','row','branch','commit','productVersion','dllSha256','dllMvid','sequence','utcTimestamp')
+        $rowPayloadNames = @([regex]::Matches($rowBlock, '(?m)^\s{16}([A-Za-z_]\w*)\s*(?:=|,)') |
+            ForEach-Object { $_.Groups[1].Value })
+        $rowProducerNames = @($rowOwnedNames + $rowPayloadNames)
+        $rowFixtureNames = @((New-TestMovementRowRecord $movementRequest $movementRow 1).Keys | ForEach-Object { [string]$_ })
+        Assert-Test ($rowPayloadNames.Count -eq 133 -and $rowProducerNames.Count -eq 144 -and $rowFixtureNames.Count -eq 144 -and
+            @($rowProducerNames | Where-Object { [Array]::IndexOf($rowFixtureNames, $_) -lt 0 }).Count -eq 0 -and
+            @($rowFixtureNames | Where-Object { [Array]::IndexOf($rowProducerNames, $_) -lt 0 }).Count -eq 0) 'movement row fixture/validator field set is not the exact 144-field producer schema'
         $runtimeSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\KingmakerMountedPairRuntime.cs'))
         Assert-Test ($runtimeSource.Contains('riderAvoidanceWasDisabled = riderStockAgent.AvoidanceDisabled;') -and
             $runtimeSource.Contains('riderStockAgent.AvoidanceDisabled != riderAvoidanceWasDisabled')) 'runtime does not verify its counted avoidance lease restores the captured effective state'

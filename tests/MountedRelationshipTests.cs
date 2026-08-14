@@ -41,12 +41,17 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("movement synchronization qualification excludes initial placement", MovementSynchronizationQualificationExcludesInitialPlacement);
             runner.Run("movement synchronization qualification gates calibrated phases", MovementSynchronizationQualificationGatesCalibratedPhases);
             runner.Run("movement synchronization qualification bounds callback cadence", MovementSynchronizationQualificationBoundsCallbackCadence);
+            runner.Run("position phase tracker accepts one same-frame entity lag and next-update recovery", PositionPhaseTrackerAcceptsOneSameFrameLagAndRecovery);
+            runner.Run("position phase tracker rejects stale visible stationary and excess lag", PositionPhaseTrackerRejectsUnsafeLag);
+            runner.Run("position phase-aware qualification retains raw lag while gating effective state", PositionPhaseAwareQualificationRetainsRawLag);
             runner.Run("yaw phase tracker accepts one same-frame entity lag and next-update recovery", YawPhaseTrackerAcceptsOneSameFrameLagAndRecovery);
             runner.Run("yaw phase tracker rejects stale, visible, and stationary lag", YawPhaseTrackerRejectsUnsafeLag);
             runner.Run("yaw phase-aware qualification retains raw lag while gating adjusted state", YawPhaseAwareQualificationRetainsRawLag);
             runner.Run("yaw phase-aware qualification rejects mount entity-root incoherence", YawPhaseAwareQualificationRejectsMountEntityRootIncoherence);
             runner.Run("yaw phase-aware qualification rejects full view quaternion drift", YawPhaseAwareQualificationRejectsFullViewQuaternionDrift);
             runner.Run("movement synchronization boundary snapshot retains final current residuals", MovementSynchronizationBoundarySnapshotRetainsFinalResiduals);
+            runner.Run("stationary boundary closure reconciles pending channels without fabricating update", StationaryBoundaryClosureReconcilesWithoutFabricatedUpdate);
+            runner.Run("stationary boundary closure rejects repeated moving advanced and residual boundaries", StationaryBoundaryClosureRejectsUnsafeBoundaries);
             runner.Run("view attachment lease restores exact captured transform state", ViewAttachmentLeaseRestoresExactState);
             runner.Run("view attachment lease cleanup is idempotent", ViewAttachmentLeaseCleanupIsIdempotent);
             runner.Run("view attachment lease retains snapshot for cleanup retry", ViewAttachmentLeaseRetainsSnapshotForRetry);
@@ -385,6 +390,125 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(!qualification.CorrectionCadencePassed, "Unbounded Update callback cadence passed.");
         }
 
+        private static void PositionPhaseTrackerAcceptsOneSameFrameLagAndRecovery()
+        {
+            var tracker = new MovementPositionPhaseTracker();
+            tracker.Observe(0L, MovementSynchronizationPhase.InitialConfiguration, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
+            tracker.Observe(1L, MovementSynchronizationPhase.Update, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
+            var late = tracker.Observe(1L, MovementSynchronizationPhase.LateUpdate, 0.20d, 0.0d, 0.0d, 0.20d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
+
+            TestRunner.True(late.PhaseLagObserved, "Same-frame logical entity position lag was not observed.");
+            TestRunner.True(late.PhaseLagPermitted, "Immediately previous same-frame anchor position was not permitted.");
+            TestRunner.True(!late.PhaseLagViolation, "Permitted one-phase position lag was marked invalid.");
+            TestRunner.Equal(0.20d, late.EntityRawCurrentPositionResidualWorldUnits, "Raw current entity position lag was not retained.");
+            TestRunner.Equal(0.0d, late.EntityPreviousAuthoritativePositionResidualWorldUnits.Value, "Previous-anchor entity residual differs.");
+            TestRunner.Equal(0.0d, late.EntityPhaseAdjustedPositionResidualWorldUnits, "Phase-adjusted entity position residual differs.");
+            TestRunner.Equal(1L, late.EntityPositionAuthorityAgeSteps.Value, "Entity position was not exactly one authority step old.");
+            TestRunner.True(late.PreviousAuthoritativeSameFrame && late.PreviousAuthoritativeReferenceEligible,
+                "Same-frame immediate Update anchor reference was not eligible.");
+            TestRunner.True(late.RecoveryPendingAfterSample, "Accepted position lag did not require next-Update recovery.");
+
+            var recovered = tracker.Observe(2L, MovementSynchronizationPhase.Update, 0.20d, 0.0d, 0.0d, 0.20d, 0.0d, 0.0d, 0.20d, 0.0d, 0.0d, 0.10d);
+            TestRunner.True(recovered.RecoveryRequiredBeforeSample && recovered.RecoveryUpdateObserved && recovered.RecoverySatisfied,
+                "Current-again position did not satisfy the real next-Update recovery obligation.");
+            TestRunner.True(!recovered.RecoveryViolation && !recovered.RecoveryPendingAfterSample,
+                "Successful position recovery remained pending or was marked invalid.");
+
+            var arithmetic = new MovementPositionPhaseTracker();
+            arithmetic.Observe(0L, MovementSynchronizationPhase.InitialConfiguration, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
+            arithmetic.Observe(1L, MovementSynchronizationPhase.Update, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
+            var coherentRoundoff = arithmetic.Observe(1L, MovementSynchronizationPhase.LateUpdate, 0.20d, 0.0d, 0.0d, 0.20d, 0.0d, 0.0d, -0.00005d, 0.0d, 0.0d, 0.10d);
+            TestRunner.True(coherentRoundoff.EntityRawLagExcessWorldUnits > 0.0d &&
+                coherentRoundoff.EntityRawLagExcessWorldUnits <= MovementPositionPhaseTracker.RawLagArithmeticCoherenceEpsilonWorldUnits,
+                "Synthetic position arithmetic excess did not exercise the named coherence epsilon.");
+            TestRunner.True(coherentRoundoff.PhaseLagPermitted, "Sub-epsilon position arithmetic coherence residual was rejected.");
+        }
+
+        private static void PositionPhaseTrackerRejectsUnsafeLag()
+        {
+            var stale = new MovementPositionPhaseTracker();
+            stale.Observe(0L, MovementSynchronizationPhase.InitialConfiguration, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
+            stale.Observe(1L, MovementSynchronizationPhase.Update, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
+            stale.Observe(1L, MovementSynchronizationPhase.LateUpdate, 0.20d, 0.0d, 0.0d, 0.20d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
+            var staleLate = stale.Observe(2L, MovementSynchronizationPhase.LateUpdate, 0.40d, 0.0d, 0.0d, 0.40d, 0.0d, 0.0d, 0.20d, 0.0d, 0.0d, 0.10d);
+            TestRunner.True(staleLate.PhaseLagViolation && staleLate.RecoveryViolation,
+                "A second position lag without an intervening Update recovery was permitted.");
+            TestRunner.True(!staleLate.PreviousAuthoritativeSameFrame && !staleLate.PreviousAuthoritativeReferenceEligible,
+                "A stale prior-frame Update anchor was eligible for adjustment.");
+
+            var ageTwo = new MovementPositionPhaseTracker();
+            ageTwo.Observe(0L, MovementSynchronizationPhase.InitialConfiguration, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
+            ageTwo.Observe(1L, MovementSynchronizationPhase.Update, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
+            ageTwo.Observe(1L, MovementSynchronizationPhase.InitialConfiguration, 0.20d, 0.0d, 0.0d, 0.20d, 0.0d, 0.0d, 0.20d, 0.0d, 0.0d, 0.10d);
+            var ageTwoLate = ageTwo.Observe(1L, MovementSynchronizationPhase.LateUpdate, 0.40d, 0.0d, 0.0d, 0.40d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
+            TestRunner.True(ageTwoLate.PreviousAuthoritativeSameFrame && !ageTwoLate.PreviousAuthoritativeReferenceEligible && ageTwoLate.PhaseLagViolation,
+                "An age-two position reference was permitted despite sharing the frame.");
+
+            var visible = new MovementPositionPhaseTracker();
+            visible.Observe(0L, MovementSynchronizationPhase.InitialConfiguration, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
+            visible.Observe(1L, MovementSynchronizationPhase.Update, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
+            var visibleLate = visible.Observe(1L, MovementSynchronizationPhase.LateUpdate, 0.20d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
+            TestRunner.True(visibleLate.PhaseLagViolation && !visibleLate.PhaseLagPermitted,
+                "Logical position lag was permitted while the rider view lagged visibly.");
+
+            var stationary = new MovementPositionPhaseTracker();
+            stationary.Observe(0L, MovementSynchronizationPhase.InitialConfiguration, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
+            stationary.Observe(1L, MovementSynchronizationPhase.Update, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
+            var stationaryLate = stationary.Observe(1L, MovementSynchronizationPhase.LateUpdate, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.20d, 0.0d, 0.0d, 0.10d);
+            TestRunner.True(stationaryLate.StationaryAuthority && stationaryLate.StationaryPositionCorrectionViolation && stationaryLate.PhaseLagViolation,
+                "Stationary logical position drift was treated as a permitted phase lag.");
+
+            var excess = new MovementPositionPhaseTracker();
+            excess.Observe(0L, MovementSynchronizationPhase.InitialConfiguration, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
+            excess.Observe(1L, MovementSynchronizationPhase.Update, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
+            var excessLate = excess.Observe(1L, MovementSynchronizationPhase.LateUpdate, 0.20d, 0.0d, 0.0d, 0.20d, 0.0d, 0.0d, -0.0002d, 0.0d, 0.0d, 0.10d);
+            TestRunner.True(excessLate.EntityRawLagExcessWorldUnits > MovementPositionPhaseTracker.RawLagArithmeticCoherenceEpsilonWorldUnits &&
+                excessLate.PhaseLagViolation && !excessLate.PhaseLagPermitted,
+                "Above-epsilon raw position lag excess was permitted.");
+
+            var previousMismatch = new MovementPositionPhaseTracker();
+            previousMismatch.Observe(0L, MovementSynchronizationPhase.InitialConfiguration, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
+            previousMismatch.Observe(1L, MovementSynchronizationPhase.Update, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
+            var mismatchLate = previousMismatch.Observe(1L, MovementSynchronizationPhase.LateUpdate, 0.30d, 0.0d, 0.0d, 0.30d, 0.0d, 0.0d, -0.11d, 0.0d, 0.0d, 0.10d);
+            TestRunner.True(mismatchLate.EntityPreviousAuthoritativePositionResidualWorldUnits.Value > 0.10d && mismatchLate.PhaseLagViolation,
+                "Entity position that did not match the previous anchor was permitted.");
+        }
+
+        private static void PositionPhaseAwareQualificationRetainsRawLag()
+        {
+            var positionTracker = new MovementPositionPhaseTracker();
+            var yawTracker = new MovementYawPhaseTracker();
+            var accumulator = new MovementSynchronizationTelemetryAccumulator();
+            var initialPosition = positionTracker.Observe(0L, MovementSynchronizationPhase.InitialConfiguration, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
+            var initialYaw = yawTracker.Observe(0L, MovementSynchronizationPhase.InitialConfiguration, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
+            accumulator.Observe(new MovementSynchronizationSample(0L, MovementSynchronizationPhase.InitialConfiguration, initialPosition, initialYaw, 0.0d, 0.0d, 0.0d, 0.0d));
+            var updatePosition = positionTracker.Observe(1L, MovementSynchronizationPhase.Update, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
+            var updateYaw = yawTracker.Observe(1L, MovementSynchronizationPhase.Update, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
+            accumulator.Observe(new MovementSynchronizationSample(1L, MovementSynchronizationPhase.Update, updatePosition, updateYaw, 0.0d, 0.0d, 0.0d, 0.0d));
+            var latePosition = positionTracker.Observe(1L, MovementSynchronizationPhase.LateUpdate, 0.20d, 0.0d, 0.0d, 0.20d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
+            var lateYaw = yawTracker.Observe(1L, MovementSynchronizationPhase.LateUpdate, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
+            accumulator.Observe(new MovementSynchronizationSample(2L, MovementSynchronizationPhase.LateUpdate, latePosition, lateYaw, 0.0d, 0.0d, 0.0d, 0.0d));
+
+            var pending = MovementSynchronizationQualification.Evaluate(accumulator, 2L, 0.10d, 0.10d);
+            TestRunner.True(pending.PhaseOrderPositionSafetyPassed && !pending.PhaseOrderPositionPassed,
+                "One pending position lag did not preserve transient safety or incorrectly passed row completion.");
+            TestRunner.Equal(0.20d, accumulator.MaximumCalibratedEntityRawCurrentPositionResidualWorldUnits, "Raw entity position lag was hidden.");
+            TestRunner.Equal(0.0d, accumulator.MaximumCalibratedEntityPhaseAdjustedPositionResidualWorldUnits, "Adjusted entity position residual differs.");
+            TestRunner.Equal(0.0d, accumulator.MaximumLateUpdatePreCorrectionPositionResidualWorldUnits, "Effective pre-correction position did not use the phase-adjusted entity residual.");
+            TestRunner.Equal(0.20d, accumulator.MaximumLateUpdatePreCorrectionRawCurrentPositionResidualWorldUnits, "Raw pre-correction position maximum was not retained.");
+
+            var recoveryPosition = positionTracker.Observe(2L, MovementSynchronizationPhase.Update, 0.20d, 0.0d, 0.0d, 0.20d, 0.0d, 0.0d, 0.20d, 0.0d, 0.0d, 0.10d);
+            var recoveryYaw = yawTracker.Observe(2L, MovementSynchronizationPhase.Update, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
+            accumulator.Observe(new MovementSynchronizationSample(3L, MovementSynchronizationPhase.Update, recoveryPosition, recoveryYaw, 0.0d, 0.0d, 0.0d, 0.0d));
+            var qualification = MovementSynchronizationQualification.Evaluate(accumulator, 2L, 0.10d, 0.10d);
+            TestRunner.True(qualification.PreCorrectionPositionPassed && qualification.PhaseOrderPositionPassed,
+                "Bounded entity-only position lag failed after real next-Update recovery.");
+            TestRunner.Equal(1L, accumulator.PositionPhaseLagRecoveryRequiredCount, "Position recovery-required raw count differs.");
+            TestRunner.Equal(1L, accumulator.PositionPhaseLagRecoveryUpdateCount, "Position recovery-Update raw count differs.");
+            TestRunner.Equal(1L, accumulator.PositionPhaseLagRecoverySatisfiedCount, "Position recovery-satisfied raw count differs.");
+            TestRunner.Equal(0L, accumulator.OutstandingPositionPhaseLagRecoveryCount, "Recovered position lag remained outstanding.");
+        }
+
         private static void YawPhaseTrackerAcceptsOneSameFrameLagAndRecovery()
         {
             var tracker = new MovementYawPhaseTracker();
@@ -569,6 +693,168 @@ namespace KingmakerMountedCombat.Tests
                 rejected = true;
             }
             TestRunner.True(rejected, "Boundary snapshot accepted a negative residual.");
+        }
+
+        private static void StationaryBoundaryClosureReconcilesWithoutFabricatedUpdate()
+        {
+            MovementPositionPhaseTracker positionTracker;
+            MovementYawPhaseTracker yawTracker;
+            var accumulator = CreatePendingDualPhaseAccumulator(out positionTracker, out yawTracker);
+            var sampleCountBefore = accumulator.SampleCount;
+            var updateCountBefore = accumulator.UpdateSampleCount;
+            var boundary = CreateStoppedBoundary(0.0d, 0.0d, 0.0d);
+
+            var closure = accumulator.ClosePendingRecoveryAtStationaryBoundary(
+                boundary,
+                0.10d,
+                0.10d,
+                positionTracker,
+                yawTracker);
+
+            TestRunner.True(closure.Attempted && closure.Succeeded, "Valid stationary boundary closure did not succeed.");
+            TestRunner.Equal(1L, closure.YawPendingBefore, "Yaw pending-before boundary count differs.");
+            TestRunner.Equal(1L, closure.PositionPendingBefore, "Position pending-before boundary count differs.");
+            TestRunner.Equal(1L, closure.YawClosedCount, "Yaw boundary closure channel count differs.");
+            TestRunner.Equal(1L, closure.PositionClosedCount, "Position boundary closure channel count differs.");
+            TestRunner.Equal(0L, closure.YawPendingAfter, "Yaw remained outstanding after boundary closure.");
+            TestRunner.Equal(0L, closure.PositionPendingAfter, "Position remained outstanding after boundary closure.");
+            TestRunner.Equal(sampleCountBefore, accumulator.SampleCount, "Boundary closure fabricated a synchronization sample.");
+            TestRunner.Equal(updateCountBefore, accumulator.UpdateSampleCount, "Boundary closure fabricated a controller Update.");
+            TestRunner.Equal(0L, accumulator.PhaseLagRecoveryRequiredCount, "Boundary closure fabricated a yaw recovery-required count.");
+            TestRunner.Equal(0L, accumulator.PhaseLagRecoveryUpdateCount, "Boundary closure fabricated a yaw recovery-Update count.");
+            TestRunner.Equal(0L, accumulator.PhaseLagRecoverySatisfiedCount, "Boundary closure fabricated a normal yaw recovery satisfaction.");
+            TestRunner.Equal(0L, accumulator.PositionPhaseLagRecoveryRequiredCount, "Boundary closure fabricated a position recovery-required count.");
+            TestRunner.Equal(0L, accumulator.PositionPhaseLagRecoveryUpdateCount, "Boundary closure fabricated a position recovery-Update count.");
+            TestRunner.Equal(0L, accumulator.PositionPhaseLagRecoverySatisfiedCount, "Boundary closure fabricated a normal position recovery satisfaction.");
+            TestRunner.Equal(1L, accumulator.EffectivePhaseLagRecoverySatisfiedCount, "Effective yaw recovery did not include the boundary channel.");
+            TestRunner.Equal(1L, accumulator.EffectivePositionPhaseLagRecoverySatisfiedCount, "Effective position recovery did not include the boundary channel.");
+            TestRunner.True(!yawTracker.RecoveryPending && !positionTracker.RecoveryPending,
+                "Successful boundary closure left a tracker recovery bit pending.");
+
+            var nextPosition = positionTracker.Observe(2L, MovementSynchronizationPhase.LateUpdate, 0.20d, 0.0d, 0.0d, 0.20d, 0.0d, 0.0d, 0.20d, 0.0d, 0.0d, 0.10d);
+            var nextYaw = yawTracker.Observe(2L, MovementSynchronizationPhase.LateUpdate, 8.0d, 8.0d, 8.0d, 8.0d, 0.10d);
+            TestRunner.True(!nextPosition.RecoveryRequiredBeforeSample && !nextPosition.RecoveryViolation &&
+                !nextYaw.RecoveryRequiredBeforeSample && !nextYaw.RecoveryViolation,
+                "A callback after boundary closure resurrected the discharged recovery obligation.");
+
+            var qualification = MovementSynchronizationQualification.Evaluate(accumulator, 2L, 0.10d, 0.10d);
+            TestRunner.True(qualification.PhaseOrderPositionPassed && qualification.PhaseOrderYawPassed,
+                "Separately counted boundary closure did not satisfy strict phase reconciliation.");
+            TestRunner.Equal(
+                accumulator.StationaryBoundaryClosureAttemptCount,
+                accumulator.StationaryBoundaryClosureSucceededCount + accumulator.StationaryBoundaryClosureFailedCount,
+                "Boundary closure attempt counts do not reconcile.");
+        }
+
+        private static void StationaryBoundaryClosureRejectsUnsafeBoundaries()
+        {
+            MovementPositionPhaseTracker repeatedPosition;
+            MovementYawPhaseTracker repeatedYaw;
+            var repeated = CreatePendingDualPhaseAccumulator(out repeatedPosition, out repeatedYaw);
+            var stopped = CreateStoppedBoundary(0.0d, 0.0d, 0.0d);
+            TestRunner.True(repeated.ClosePendingRecoveryAtStationaryBoundary(stopped, 0.10d, 0.10d, repeatedPosition, repeatedYaw).Succeeded,
+                "First stationary boundary closure failed in repeated-call test.");
+            var repeatedClosure = repeated.ClosePendingRecoveryAtStationaryBoundary(stopped, 0.10d, 0.10d, repeatedPosition, repeatedYaw);
+            TestRunner.True(repeatedClosure.Attempted && !repeatedClosure.Succeeded && repeatedClosure.Reason == "repeated-boundary-closure",
+                "Repeated stationary boundary closure was accepted.");
+
+            MovementPositionPhaseTracker movingPosition;
+            MovementYawPhaseTracker movingYaw;
+            var moving = CreatePendingDualPhaseAccumulator(out movingPosition, out movingYaw);
+            var movingBoundary = new MovementSynchronizationBoundarySnapshot(
+                0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d,
+                false, true, true);
+            var movingClosure = moving.ClosePendingRecoveryAtStationaryBoundary(movingBoundary, 0.10d, 0.10d, movingPosition, movingYaw);
+            TestRunner.True(!movingClosure.Succeeded && movingClosure.Reason == "movement-not-stopped",
+                "Active movement boundary was accepted.");
+            TestRunner.True(movingPosition.RecoveryPending && movingYaw.RecoveryPending &&
+                moving.OutstandingPositionPhaseLagRecoveryCount == 1L && moving.OutstandingPhaseLagRecoveryCount == 1L,
+                "Rejected moving boundary partially mutated pending recovery state.");
+
+            MovementPositionPhaseTracker advancedPosition;
+            MovementYawPhaseTracker advancedYaw;
+            var advanced = CreatePendingDualPhaseAccumulator(out advancedPosition, out advancedYaw);
+            var advancedClosure = advanced.ClosePendingRecoveryAtStationaryBoundary(
+                CreateStoppedBoundary(0.000002d, 0.0d, 0.0d),
+                0.10d,
+                0.10d,
+                advancedPosition,
+                advancedYaw);
+            TestRunner.True(!advancedClosure.Succeeded && advancedClosure.Reason == "authority-advanced",
+                "Boundary closure accepted advancing authority.");
+
+            MovementPositionPhaseTracker residualPosition;
+            MovementYawPhaseTracker residualYaw;
+            var residual = CreatePendingDualPhaseAccumulator(out residualPosition, out residualYaw);
+            var residualClosure = residual.ClosePendingRecoveryAtStationaryBoundary(
+                CreateStoppedBoundary(0.0d, 0.0d, 0.100001d),
+                0.10d,
+                0.10d,
+                residualPosition,
+                residualYaw);
+            TestRunner.True(!residualClosure.Succeeded && residualClosure.Reason == "boundary-residual-exceeded",
+                "Boundary closure accepted an above-threshold direct residual.");
+            TestRunner.True(residual.StationaryBoundaryClosureAttemptCount ==
+                residual.StationaryBoundaryClosureSucceededCount + residual.StationaryBoundaryClosureFailedCount,
+                "Rejected boundary attempt counts do not reconcile.");
+
+            var unrecordedPosition = new MovementPositionPhaseTracker();
+            unrecordedPosition.Observe(0L, MovementSynchronizationPhase.InitialConfiguration, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
+            unrecordedPosition.Observe(1L, MovementSynchronizationPhase.Update, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
+            unrecordedPosition.Observe(1L, MovementSynchronizationPhase.LateUpdate, 0.20d, 0.0d, 0.0d, 0.20d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
+            var unrecordedYaw = new MovementYawPhaseTracker();
+            var emptyAccumulator = new MovementSynchronizationTelemetryAccumulator();
+            var mismatchClosure = emptyAccumulator.ClosePendingRecoveryAtStationaryBoundary(
+                stopped,
+                0.10d,
+                0.10d,
+                unrecordedPosition,
+                unrecordedYaw);
+            TestRunner.True(mismatchClosure.Attempted && !mismatchClosure.Succeeded && mismatchClosure.Reason == "tracker-pending-state-mismatch",
+                "No-outstanding branch hid a pending tracker recovery bit.");
+            TestRunner.True(unrecordedPosition.RecoveryPending,
+                "Rejected tracker/count mismatch mutated the unrecorded tracker obligation.");
+        }
+
+        private static MovementSynchronizationTelemetryAccumulator CreatePendingDualPhaseAccumulator(
+            out MovementPositionPhaseTracker positionTracker,
+            out MovementYawPhaseTracker yawTracker)
+        {
+            positionTracker = new MovementPositionPhaseTracker();
+            yawTracker = new MovementYawPhaseTracker();
+            var accumulator = new MovementSynchronizationTelemetryAccumulator();
+
+            var initialPosition = positionTracker.Observe(0L, MovementSynchronizationPhase.InitialConfiguration, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
+            var initialYaw = yawTracker.Observe(0L, MovementSynchronizationPhase.InitialConfiguration, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
+            accumulator.Observe(new MovementSynchronizationSample(0L, MovementSynchronizationPhase.InitialConfiguration, initialPosition, initialYaw, 0.0d, 0.0d, 0.0d, 0.0d));
+
+            var updatePosition = positionTracker.Observe(1L, MovementSynchronizationPhase.Update, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
+            var updateYaw = yawTracker.Observe(1L, MovementSynchronizationPhase.Update, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
+            accumulator.Observe(new MovementSynchronizationSample(1L, MovementSynchronizationPhase.Update, updatePosition, updateYaw, 0.0d, 0.0d, 0.0d, 0.0d));
+
+            var latePosition = positionTracker.Observe(1L, MovementSynchronizationPhase.LateUpdate, 0.20d, 0.0d, 0.0d, 0.20d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
+            var lateYaw = yawTracker.Observe(1L, MovementSynchronizationPhase.LateUpdate, 8.0d, 8.0d, 8.0d, 0.0d, 0.10d);
+            accumulator.Observe(new MovementSynchronizationSample(2L, MovementSynchronizationPhase.LateUpdate, latePosition, lateYaw, 0.0d, 0.0d, 0.0d, 0.0d));
+            return accumulator;
+        }
+
+        private static MovementSynchronizationBoundarySnapshot CreateStoppedBoundary(
+            double authoritativePositionAdvanceWorldUnits,
+            double authoritativeYawAdvanceDegrees,
+            double viewPositionResidualWorldUnits)
+        {
+            return new MovementSynchronizationBoundarySnapshot(
+                viewPositionResidualWorldUnits,
+                0.0d,
+                0.0d,
+                0.0d,
+                0.0d,
+                0.0d,
+                authoritativePositionAdvanceWorldUnits,
+                authoritativeYawAdvanceDegrees,
+                true,
+                false,
+                false);
         }
 
         private static void ViewAttachmentLeaseRestoresExactState()

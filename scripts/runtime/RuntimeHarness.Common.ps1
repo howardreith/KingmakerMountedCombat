@@ -1894,6 +1894,148 @@ function Assert-KmcMovementCleanupState {
     }
 }
 
+function Assert-KmcLatestPositionPhaseSemantics {
+    param([Parameter(Mandatory = $true)]$Record)
+
+    $required = @(
+        'latestSynchronizationFrame','latestAuthoritativePositionSequence','latestCurrentAuthoritativeAnchorX',
+        'latestCurrentAuthoritativeAnchorY','latestCurrentAuthoritativeAnchorZ','latestPreviousAuthoritativePositionReferenceKind',
+        'latestPreviousAuthoritativePositionSameFrame','latestPreviousAuthoritativePositionReferenceEligible',
+        'latestAuthoritativePositionDeltaWorldUnits','latestViewCurrentPositionResidualWorldUnits',
+        'latestEntityRawCurrentPositionResidualWorldUnits','latestEntityPhaseAdjustedPositionResidualWorldUnits',
+        'latestEntityRawPositionLagBoundWorldUnits','latestEntityRawPositionLagExcessWorldUnits',
+        'latestPositionPhaseLagObserved','latestPositionPhaseLagPermitted','latestPositionPhaseLagViolation',
+        'latestPositionRecoveryRequiredBeforeSample','latestPositionRecoveryUpdateObserved',
+        'latestPositionRecoverySatisfied','latestPositionRecoveryViolation','latestPositionRecoveryPendingAfterSample',
+        'latestPositionStationaryAuthority','latestStationaryPositionCorrectionViolation')
+    foreach ($name in $required) {
+        if ($null -eq $Record.$name) { throw "PASS movement telemetry latest position phase-order field $name is null." }
+    }
+
+    $phase = [string]$Record.synchronizationPhase
+    if ($phase -cnotin @('InitialConfiguration','Update','LateUpdate')) {
+        throw 'PASS movement telemetry synchronizationPhase is invalid.'
+    }
+    $calibrated = $phase -ceq 'Update' -or $phase -ceq 'LateUpdate'
+    $rawCurrent = [double]$Record.latestEntityRawCurrentPositionResidualWorldUnits
+    $viewCurrent = [double]$Record.latestViewCurrentPositionResidualWorldUnits
+    $authoritativeDelta = [double]$Record.latestAuthoritativePositionDeltaWorldUnits
+
+    $previousNames = @(
+        'latestPreviousAuthoritativePositionSequence','latestPreviousAuthoritativeAnchorX',
+        'latestPreviousAuthoritativeAnchorY','latestPreviousAuthoritativeAnchorZ',
+        'latestPreviousAuthoritativePositionFrame','latestPreviousAuthoritativePositionPhase',
+        'latestEntityPreviousAuthoritativePositionResidualWorldUnits')
+    $previousPresent = @($previousNames | Where-Object { $null -ne $Record.$_ }).Count
+    if ($previousPresent -ne 0 -and $previousPresent -ne $previousNames.Count) {
+        throw 'PASS movement telemetry previous position-authority reference fields are only partially populated.'
+    }
+    $hasPrevious = $previousPresent -eq $previousNames.Count
+    if ($phase -cne 'LateUpdate' -and $hasPrevious) {
+        throw 'PASS movement telemetry exposes a previous position Update reference outside LateUpdate.'
+    }
+
+    $authorityAge = $null
+    if (-not $hasPrevious) {
+        if ([string]$Record.latestPreviousAuthoritativePositionReferenceKind -cne 'none' -or
+            $Record.latestPreviousAuthoritativePositionSameFrame -ne $false -or
+            $Record.latestPreviousAuthoritativePositionReferenceEligible -ne $false) {
+            throw 'PASS movement telemetry null previous position-authority fields have inconsistent reference flags.'
+        }
+    }
+    else {
+        if ([string]$Record.latestPreviousAuthoritativePositionPhase -cne 'Update') {
+            throw 'PASS movement telemetry previous position-authority reference is not a LateUpdate-to-Update reference.'
+        }
+        $authorityAge = [long]$Record.latestAuthoritativePositionSequence - [long]$Record.latestPreviousAuthoritativePositionSequence
+        if ($authorityAge -lt 0) {
+            throw 'PASS movement telemetry previous position-authority sequence is newer than the current sequence.'
+        }
+        $sameFrame = [long]$Record.latestPreviousAuthoritativePositionFrame -eq [long]$Record.latestSynchronizationFrame
+        $eligible = $sameFrame -and $authorityAge -eq 1L
+        $expectedKind = if ($sameFrame) { 'same-frame-update' } else { 'prior-frame-update' }
+        if ($Record.latestPreviousAuthoritativePositionSameFrame -ne $sameFrame -or
+            $Record.latestPreviousAuthoritativePositionReferenceEligible -ne $eligible -or
+            [string]$Record.latestPreviousAuthoritativePositionReferenceKind -cne $expectedKind) {
+            throw 'PASS movement telemetry previous position-authority kind, frame, eligibility, or sequence age is inconsistent.'
+        }
+        if ($sameFrame) {
+            $dx = [double]$Record.latestCurrentAuthoritativeAnchorX - [double]$Record.latestPreviousAuthoritativeAnchorX
+            $dy = [double]$Record.latestCurrentAuthoritativeAnchorY - [double]$Record.latestPreviousAuthoritativeAnchorY
+            $dz = [double]$Record.latestCurrentAuthoritativeAnchorZ - [double]$Record.latestPreviousAuthoritativeAnchorZ
+            $threeDimensionalAdvance = [math]::Sqrt(($dx * $dx) + ($dy * $dy) + ($dz * $dz))
+            if (-not (Test-KmcApproximatelyEqual $authoritativeDelta $threeDimensionalAdvance)) {
+                throw 'PASS movement telemetry authoritative position delta is not the 3-D displacement from its same-frame Update anchor.'
+            }
+        }
+    }
+
+    $previousResidual = if ($hasPrevious) { [double]$Record.latestEntityPreviousAuthoritativePositionResidualWorldUnits } else { $null }
+    $expectedObserved = $calibrated -and $rawCurrent -gt 0.10
+    $expectedPermitted = $expectedObserved -and $phase -ceq 'LateUpdate' -and $hasPrevious -and
+        $Record.latestPreviousAuthoritativePositionReferenceEligible -eq $true -and $authorityAge -eq 1L -and
+        $previousResidual -le 0.10 -and $viewCurrent -le 0.10 -and
+        [double]$Record.latestEntityRawPositionLagExcessWorldUnits -le 0.0001 -and
+        $Record.latestPositionRecoveryRequiredBeforeSample -eq $false
+    $expectedViolation = $expectedObserved -and -not $expectedPermitted
+    if ($Record.latestPositionPhaseLagObserved -ne $expectedObserved -or
+        $Record.latestPositionPhaseLagPermitted -ne $expectedPermitted -or
+        $Record.latestPositionPhaseLagViolation -ne $expectedViolation) {
+        throw 'PASS movement telemetry latest position observed/permitted/violation flags are inconsistent with its raw residual and reference.'
+    }
+
+    $expectedAdjusted = if ($expectedPermitted) { [math]::Min($rawCurrent, $previousResidual) } else { $rawCurrent }
+    if (-not (Test-KmcApproximatelyEqual ([double]$Record.latestEntityPhaseAdjustedPositionResidualWorldUnits) $expectedAdjusted)) {
+        throw 'PASS movement telemetry latest phase-adjusted entity position does not follow its raw/permitted state.'
+    }
+    if (-not (Test-KmcApproximatelyEqual ([double]$Record.latestEntityRawPositionLagBoundWorldUnits) $authoritativeDelta) -or
+        -not (Test-KmcApproximatelyEqual ([double]$Record.latestEntityRawPositionLagExcessWorldUnits) ([math]::Max(0.0, $rawCurrent - $authoritativeDelta)))) {
+        throw 'PASS movement telemetry latest position raw-lag bound or excess does not reconcile with authoritative displacement.'
+    }
+
+    $expectedEntityAge = if ($rawCurrent -le 0.10) { 0L }
+        elseif ($hasPrevious -and $previousResidual -le 0.10) { $authorityAge }
+        else { $null }
+    if ($null -eq $expectedEntityAge) {
+        if ($null -ne $Record.latestEntityPositionAuthorityAgeSteps) {
+            throw 'PASS movement telemetry assigns an authority age to an unmatched logical position.'
+        }
+    }
+    elseif ($null -eq $Record.latestEntityPositionAuthorityAgeSteps -or
+        [long]$Record.latestEntityPositionAuthorityAgeSteps -ne [long]$expectedEntityAge) {
+        throw 'PASS movement telemetry logical-position authority age is inconsistent with its current/previous residuals.'
+    }
+
+    $recoveryRequired = $Record.latestPositionRecoveryRequiredBeforeSample -eq $true
+    $expectedRecoveryUpdate = $phase -ceq 'Update' -and $recoveryRequired
+    $expectedRecoverySatisfied = $expectedRecoveryUpdate -and $viewCurrent -le 0.10 -and $rawCurrent -le 0.10
+    $expectedRecoveryViolation = $recoveryRequired -and ($phase -cne 'Update' -or -not $expectedRecoverySatisfied)
+    $expectedRecoveryPending = $expectedPermitted -or ($recoveryRequired -and $phase -cne 'Update')
+    if ($Record.latestPositionRecoveryUpdateObserved -ne $expectedRecoveryUpdate -or
+        $Record.latestPositionRecoverySatisfied -ne $expectedRecoverySatisfied -or
+        $Record.latestPositionRecoveryViolation -ne $expectedRecoveryViolation -or
+        $Record.latestPositionRecoveryPendingAfterSample -ne $expectedRecoveryPending) {
+        throw 'PASS movement telemetry latest position recovery flags are inconsistent with phase, prior obligation, and current residuals.'
+    }
+
+    $expectedStationary = $calibrated -and $authoritativeDelta -le 0.000001
+    $expectedStationaryViolation = $expectedStationary -and ($viewCurrent -gt 0.10 -or $rawCurrent -gt 0.10)
+    if ($Record.latestPositionStationaryAuthority -ne $expectedStationary -or
+        $Record.latestStationaryPositionCorrectionViolation -ne $expectedStationaryViolation) {
+        throw 'PASS movement telemetry latest position stationary-authority flags are inconsistent with displacement and residuals.'
+    }
+
+    if (-not (Test-KmcApproximatelyEqual ([double]$Record.preCorrectionViewCurrentPositionResidualWorldUnits) $viewCurrent) -or
+        -not (Test-KmcApproximatelyEqual ([double]$Record.preCorrectionPositionResidualWorldUnits) ([math]::Max($viewCurrent, $expectedAdjusted))) -or
+        -not (Test-KmcApproximatelyEqual ([double]$Record.preCorrectionRawCurrentPositionResidualWorldUnits) ([math]::Max($viewCurrent, $rawCurrent)))) {
+        throw 'PASS movement telemetry latest pre-correction position fields do not reconcile with split view/raw/effective phase evidence.'
+    }
+    if ($viewCurrent -gt 0.10 -or $expectedAdjusted -gt 0.10 -or
+        [double]$Record.latestEntityRawPositionLagExcessWorldUnits -gt 0.0001) {
+        throw 'PASS movement telemetry latest effective position or raw-lag arithmetic exceeds its bound.'
+    }
+}
+
 function Assert-KmcMovementTelemetryRecord {
     param(
         [Parameter(Mandatory = $true)]$Record,
@@ -1911,7 +2053,20 @@ function Assert-KmcMovementTelemetryRecord {
         'riderParentMatchesAttachment','attachmentRiskState','riderViewParent','presentationPositionStrategy','presentationRotationStrategy',
         'expectedAnchorPosition','expectedAnchorRotation','residualPositionWorldUnits','residualRotationDegrees',
         'riderViewPositionResidualWorldUnits','riderEntityPositionResidualWorldUnits','riderViewRotationResidualDegrees',
-        'riderEntityRotationResidualDegrees','latestSynchronizationFrame','latestAuthoritativeYawSequence',
+        'riderEntityRotationResidualDegrees','latestAuthoritativePositionSequence','latestCurrentAuthoritativeAnchorX',
+        'latestCurrentAuthoritativeAnchorY','latestCurrentAuthoritativeAnchorZ','latestPreviousAuthoritativePositionSequence',
+        'latestPreviousAuthoritativeAnchorX','latestPreviousAuthoritativeAnchorY','latestPreviousAuthoritativeAnchorZ',
+        'latestPreviousAuthoritativePositionFrame','latestPreviousAuthoritativePositionPhase',
+        'latestPreviousAuthoritativePositionReferenceKind','latestPreviousAuthoritativePositionSameFrame',
+        'latestPreviousAuthoritativePositionReferenceEligible','latestAuthoritativePositionDeltaWorldUnits',
+        'latestViewCurrentPositionResidualWorldUnits','latestEntityRawCurrentPositionResidualWorldUnits',
+        'latestEntityPreviousAuthoritativePositionResidualWorldUnits','latestEntityPhaseAdjustedPositionResidualWorldUnits',
+        'latestEntityRawPositionLagBoundWorldUnits','latestEntityRawPositionLagExcessWorldUnits',
+        'latestEntityPositionAuthorityAgeSteps','latestPositionPhaseLagObserved','latestPositionPhaseLagPermitted',
+        'latestPositionPhaseLagViolation','latestPositionRecoveryRequiredBeforeSample','latestPositionRecoveryUpdateObserved',
+        'latestPositionRecoverySatisfied','latestPositionRecoveryViolation','latestPositionRecoveryPendingAfterSample',
+        'latestPositionStationaryAuthority','latestStationaryPositionCorrectionViolation',
+        'latestSynchronizationFrame','latestAuthoritativeYawSequence',
         'latestCurrentAuthoritativeYawDegrees','latestCurrentMountEntityAuthoritativeYawDegrees','latestMountEntityRootYawResidualDegrees',
         'latestPreviousAuthoritativeYawSequence','latestPreviousAuthoritativeYawDegrees','latestPreviousAuthoritativeFrame',
         'latestPreviousAuthoritativePhase','latestPreviousAuthoritativeReferenceKind','latestPreviousAuthoritativeSameFrame',
@@ -1928,14 +2083,28 @@ function Assert-KmcMovementTelemetryRecord {
         'synchronizationPhase','synchronizationSampleCount','synchronizationCorrectionCount',
         'initialConfigurationSynchronizationSampleCount','initialConfigurationSynchronizationCorrectionCount',
         'updateSynchronizationSampleCount','updateSynchronizationCorrectionCount','lateUpdateSynchronizationSampleCount',
-        'lateUpdateSynchronizationCorrectionCount','preCorrectionPositionResidualWorldUnits','preCorrectionRotationResidualDegrees',
-        'postCorrectionPositionResidualWorldUnits','postCorrectionRotationResidualDegrees','maximumPreCorrectionPositionResidualWorldUnits',
+        'lateUpdateSynchronizationCorrectionCount','preCorrectionPositionResidualWorldUnits',
+        'preCorrectionRawCurrentPositionResidualWorldUnits','preCorrectionViewCurrentPositionResidualWorldUnits',
+        'preCorrectionRotationResidualDegrees','postCorrectionPositionResidualWorldUnits','postCorrectionRotationResidualDegrees',
+        'maximumPreCorrectionPositionResidualWorldUnits','maximumPreCorrectionRawCurrentPositionResidualWorldUnits',
         'maximumPreCorrectionRotationResidualDegrees','maximumPostCorrectionPositionResidualWorldUnits','maximumPostCorrectionRotationResidualDegrees',
         'maximumInitialConfigurationPreCorrectionPositionResidualWorldUnits','maximumUpdatePreCorrectionPositionResidualWorldUnits',
-        'maximumUpdatePreCorrectionRotationResidualDegrees','maximumUpdatePostCorrectionPositionResidualWorldUnits',
+        'maximumUpdatePreCorrectionRawCurrentPositionResidualWorldUnits','maximumUpdatePreCorrectionRotationResidualDegrees',
+        'maximumUpdatePostCorrectionPositionResidualWorldUnits',
         'maximumUpdatePostCorrectionRotationResidualDegrees','maximumLateUpdatePreCorrectionPositionResidualWorldUnits',
-        'maximumLateUpdatePreCorrectionRotationResidualDegrees','maximumLateUpdatePostCorrectionPositionResidualWorldUnits',
-        'maximumLateUpdatePostCorrectionRotationResidualDegrees','maximumCalibratedViewCurrentYawResidualDegrees',
+        'maximumLateUpdatePreCorrectionRawCurrentPositionResidualWorldUnits','maximumLateUpdatePreCorrectionRotationResidualDegrees',
+        'maximumLateUpdatePostCorrectionPositionResidualWorldUnits','maximumLateUpdatePostCorrectionRotationResidualDegrees',
+        'maximumCalibratedViewCurrentPositionResidualWorldUnits','maximumCalibratedEntityRawCurrentPositionResidualWorldUnits',
+        'maximumCalibratedEntityPreviousAuthoritativePositionResidualWorldUnits',
+        'maximumCalibratedEntityPhaseAdjustedPositionResidualWorldUnits','maximumAuthoritativePositionDeltaWorldUnits',
+        'maximumEntityRawPositionLagExcessWorldUnits','entityRawPositionLagArithmeticCoherenceEpsilonWorldUnits',
+        'positionPhaseLagObservedCount','positionPhaseLagPermittedCount','positionPhaseLagSameFrameUpdateReferenceCount',
+        'positionPhaseLagEligibleReferenceCount','positionPhaseLagViolationCount','positionPhaseLagRecoveryRequiredRawCount',
+        'positionPhaseLagRecoveryUpdateRawCount','positionPhaseLagRecoverySatisfiedRawCount',
+        'positionPhaseLagRecoveryRequiredEffectiveCount','positionPhaseLagRecoveryUpdateOrBoundaryEffectiveCount',
+        'positionPhaseLagRecoverySatisfiedEffectiveCount','positionPhaseLagRecoveryViolationCount',
+        'stationaryPositionCorrectionViolationCount','outstandingPositionPhaseLagRecoveryCount',
+        'maximumConsecutiveUnrecoveredPositionPhaseLagCount','maximumCalibratedViewCurrentYawResidualDegrees',
         'maximumCalibratedFullViewCurrentRotationResidualDegrees',
         'maximumCalibratedMountEntityRootYawResidualDegrees','maximumCalibratedEntityRawCurrentYawResidualDegrees',
         'maximumCalibratedEntityPreviousAuthoritativeYawResidualDegrees','maximumCalibratedEntityPhaseAdjustedYawResidualDegrees',
@@ -1943,8 +2112,14 @@ function Assert-KmcMovementTelemetryRecord {
         'phaseLagObservedCount','phaseLagPermittedCount',
         'phaseLagSameFrameUpdateReferenceCount','phaseLagEligibleReferenceCount','phaseLagViolationCount',
         'phaseLagRecoveryRequiredCount','phaseLagRecoveryUpdateCount','phaseLagRecoverySatisfiedCount',
+        'phaseLagRecoveryRequiredRawCount','phaseLagRecoveryUpdateRawCount','phaseLagRecoverySatisfiedRawCount',
+        'phaseLagRecoveryRequiredEffectiveCount','phaseLagRecoveryUpdateOrBoundaryEffectiveCount',
+        'phaseLagRecoverySatisfiedEffectiveCount',
         'phaseLagRecoveryViolationCount','stationaryYawCorrectionViolationCount','outstandingPhaseLagRecoveryCount',
-        'maximumConsecutiveUnrecoveredPhaseLagCount','maximumResidualWorldUnits','maximumRotationResidualDegrees') 'movement telemetry record'
+        'maximumConsecutiveUnrecoveredPhaseLagCount','stationaryBoundaryClosureAttemptCount',
+        'stationaryBoundaryClosureSucceededCount','stationaryBoundaryClosureFailedCount',
+        'yawPhaseLagStationaryBoundaryClosureCount','positionPhaseLagStationaryBoundaryClosureCount',
+        'maximumResidualWorldUnits','maximumRotationResidualDegrees') 'movement telemetry record'
     Assert-KmcMovementCommonIdentity $Record $Request $ExpectedSequence $ExpectedRows 'Movement telemetry'
     foreach ($name in @('riderId','mountId','relationshipState','authoritativeMover','anchor','sourceAnchor','attachmentParent',
         'attachmentRiskState','riderViewParent','presentationPositionStrategy','presentationRotationStrategy','synchronizationPhase')) {
@@ -1959,12 +2134,22 @@ function Assert-KmcMovementTelemetryRecord {
     foreach ($name in @('latestPreviousAuthoritativeSameFrame','latestPreviousAuthoritativeReferenceEligible','latestPhaseLagObserved',
         'latestPhaseLagPermitted','latestPhaseLagViolation','latestRecoveryRequiredBeforeSample','latestRecoveryUpdateObserved',
         'latestRecoverySatisfied','latestRecoveryViolation','latestRecoveryPendingAfterSample','latestStationaryAuthority',
-        'latestStationaryYawCorrectionViolation')) {
+        'latestStationaryYawCorrectionViolation','latestPreviousAuthoritativePositionSameFrame',
+        'latestPreviousAuthoritativePositionReferenceEligible','latestPositionPhaseLagObserved',
+        'latestPositionPhaseLagPermitted','latestPositionPhaseLagViolation','latestPositionRecoveryRequiredBeforeSample',
+        'latestPositionRecoveryUpdateObserved','latestPositionRecoverySatisfied','latestPositionRecoveryViolation',
+        'latestPositionRecoveryPendingAfterSample','latestPositionStationaryAuthority',
+        'latestStationaryPositionCorrectionViolation')) {
         Assert-KmcNullableJsonBoolean $Record.$name "movement telemetry $name"
     }
     if ($null -ne $Record.currentGameMode -and $Record.currentGameMode -isnot [string]) { throw 'Movement telemetry currentGameMode must be a JSON string or null.' }
     if ($null -ne $Record.latestPreviousAuthoritativePhase -and $Record.latestPreviousAuthoritativePhase -isnot [string]) { throw 'Movement telemetry latestPreviousAuthoritativePhase must be a JSON string or null.' }
-    if ($Record.latestPreviousAuthoritativeReferenceKind -isnot [string] -or [string]$Record.latestPreviousAuthoritativeReferenceKind -cnotin @('none','same-frame-update','prior-frame-update')) { throw 'Movement telemetry latestPreviousAuthoritativeReferenceKind is invalid.' }
+    if ($null -ne $Record.latestPreviousAuthoritativePositionPhase -and $Record.latestPreviousAuthoritativePositionPhase -isnot [string]) { throw 'Movement telemetry latestPreviousAuthoritativePositionPhase must be a JSON string or null.' }
+    foreach ($name in @('latestPreviousAuthoritativeReferenceKind','latestPreviousAuthoritativePositionReferenceKind')) {
+        if ($null -ne $Record.$name -and ($Record.$name -isnot [string] -or [string]$Record.$name -cnotin @('none','same-frame-update','prior-frame-update'))) {
+            throw "Movement telemetry $name is invalid."
+        }
+    }
     foreach ($name in @('requestedDestination','riderEntityPosition','mountEntityPosition','riderViewPosition','mountViewPosition','riderViewRotation','mountViewRotation','expectedAnchorPosition','expectedAnchorRotation','mountVelocity','mountMoveDirection')) {
         Assert-KmcMovementVector3 $Record.$name "movement telemetry $name" -AllowNull:($name -in @('requestedDestination','riderViewPosition','mountViewPosition','riderViewRotation','mountViewRotation','mountVelocity','mountMoveDirection'))
     }
@@ -1978,8 +2163,19 @@ function Assert-KmcMovementTelemetryRecord {
         'maximumPostCorrectionRotationResidualDegrees','maximumInitialConfigurationPreCorrectionPositionResidualWorldUnits',
         'maximumUpdatePreCorrectionPositionResidualWorldUnits','maximumUpdatePreCorrectionRotationResidualDegrees','maximumUpdatePostCorrectionPositionResidualWorldUnits',
         'maximumUpdatePostCorrectionRotationResidualDegrees','maximumLateUpdatePreCorrectionPositionResidualWorldUnits',
-        'maximumLateUpdatePreCorrectionRotationResidualDegrees','maximumLateUpdatePostCorrectionPositionResidualWorldUnits',
+        'maximumLateUpdatePreCorrectionRawCurrentPositionResidualWorldUnits','maximumLateUpdatePreCorrectionRotationResidualDegrees',
+        'maximumLateUpdatePostCorrectionPositionResidualWorldUnits',
         'maximumLateUpdatePostCorrectionRotationResidualDegrees','latestMountEntityRootYawResidualDegrees',
+        'latestAuthoritativePositionDeltaWorldUnits','latestViewCurrentPositionResidualWorldUnits',
+        'latestEntityRawCurrentPositionResidualWorldUnits','latestEntityPreviousAuthoritativePositionResidualWorldUnits',
+        'latestEntityPhaseAdjustedPositionResidualWorldUnits','latestEntityRawPositionLagBoundWorldUnits',
+        'latestEntityRawPositionLagExcessWorldUnits','preCorrectionRawCurrentPositionResidualWorldUnits',
+        'preCorrectionViewCurrentPositionResidualWorldUnits','maximumPreCorrectionRawCurrentPositionResidualWorldUnits',
+        'maximumUpdatePreCorrectionRawCurrentPositionResidualWorldUnits',
+        'maximumCalibratedViewCurrentPositionResidualWorldUnits','maximumCalibratedEntityRawCurrentPositionResidualWorldUnits',
+        'maximumCalibratedEntityPreviousAuthoritativePositionResidualWorldUnits',
+        'maximumCalibratedEntityPhaseAdjustedPositionResidualWorldUnits','maximumAuthoritativePositionDeltaWorldUnits',
+        'maximumEntityRawPositionLagExcessWorldUnits','entityRawPositionLagArithmeticCoherenceEpsilonWorldUnits',
         'latestAuthoritativeYawDeltaDegrees','latestViewCurrentYawResidualDegrees','latestFullViewCurrentRotationResidualDegrees',
         'latestEntityRawCurrentYawResidualDegrees',
         'latestEntityPreviousAuthoritativeYawResidualDegrees','latestEntityPhaseAdjustedYawResidualDegrees','latestEntityRawLagBoundDegrees',
@@ -1994,15 +2190,44 @@ function Assert-KmcMovementTelemetryRecord {
     foreach ($name in @('latestCurrentAuthoritativeYawDegrees','latestCurrentMountEntityAuthoritativeYawDegrees','latestPreviousAuthoritativeYawDegrees')) {
         if ($null -ne $Record.$name -and -not (Test-KmcFiniteJsonNumber $Record.$name)) { throw "Movement telemetry $name must be a finite JSON number or null." }
     }
-    foreach ($name in @('riderCommandCount','mountCommandCount','mountPathId','mountPathPointCount','synchronizationSampleCount','synchronizationCorrectionCount',
+    foreach ($name in @('preCorrectionRawCurrentPositionResidualWorldUnits','preCorrectionViewCurrentPositionResidualWorldUnits',
+        'maximumPreCorrectionRawCurrentPositionResidualWorldUnits','maximumUpdatePreCorrectionRawCurrentPositionResidualWorldUnits',
+        'maximumLateUpdatePreCorrectionRawCurrentPositionResidualWorldUnits',
+        'maximumCalibratedViewCurrentPositionResidualWorldUnits','maximumCalibratedEntityRawCurrentPositionResidualWorldUnits',
+        'maximumCalibratedEntityPreviousAuthoritativePositionResidualWorldUnits',
+        'maximumCalibratedEntityPhaseAdjustedPositionResidualWorldUnits','maximumAuthoritativePositionDeltaWorldUnits',
+        'maximumEntityRawPositionLagExcessWorldUnits','entityRawPositionLagArithmeticCoherenceEpsilonWorldUnits')) {
+        if (-not (Test-KmcFiniteNonnegativeJsonNumber $Record.$name)) { throw "Movement telemetry $name must be a finite nonnegative JSON number." }
+    }
+    foreach ($name in @('latestCurrentAuthoritativeAnchorX','latestCurrentAuthoritativeAnchorY','latestCurrentAuthoritativeAnchorZ',
+        'latestPreviousAuthoritativeAnchorX','latestPreviousAuthoritativeAnchorY','latestPreviousAuthoritativeAnchorZ')) {
+        if ($null -ne $Record.$name -and -not (Test-KmcFiniteJsonNumber $Record.$name)) { throw "Movement telemetry $name must be a finite JSON number or null." }
+    }
+    foreach ($name in @('riderCommandCount','mountCommandCount','mountPathId','mountPathPointCount',
+        'latestSynchronizationFrame','latestAuthoritativeYawSequence','latestPreviousAuthoritativeYawSequence','latestPreviousAuthoritativeFrame',
+        'latestEntityYawAuthorityAgeSteps','latestAuthoritativePositionSequence','latestPreviousAuthoritativePositionSequence',
+        'latestPreviousAuthoritativePositionFrame','latestEntityPositionAuthorityAgeSteps')) {
+        if ($null -ne $Record.$name -and (-not (Test-KmcExactJsonInteger $Record.$name) -or [long]$Record.$name -lt 0)) { throw "Movement telemetry $name must be a nonnegative exact JSON integer or null." }
+    }
+    foreach ($name in @('synchronizationSampleCount','synchronizationCorrectionCount',
         'initialConfigurationSynchronizationSampleCount','initialConfigurationSynchronizationCorrectionCount','updateSynchronizationSampleCount',
         'updateSynchronizationCorrectionCount','lateUpdateSynchronizationSampleCount','lateUpdateSynchronizationCorrectionCount',
-        'latestSynchronizationFrame','latestAuthoritativeYawSequence','latestPreviousAuthoritativeYawSequence','latestPreviousAuthoritativeFrame',
-        'latestEntityYawAuthorityAgeSteps','phaseLagObservedCount','phaseLagPermittedCount','phaseLagSameFrameUpdateReferenceCount',
-        'phaseLagEligibleReferenceCount','phaseLagViolationCount','phaseLagRecoveryRequiredCount','phaseLagRecoveryUpdateCount',
-        'phaseLagRecoverySatisfiedCount','phaseLagRecoveryViolationCount','stationaryYawCorrectionViolationCount',
-        'outstandingPhaseLagRecoveryCount','maximumConsecutiveUnrecoveredPhaseLagCount')) {
-        if ($null -ne $Record.$name -and (-not (Test-KmcExactJsonInteger $Record.$name) -or [long]$Record.$name -lt 0)) { throw "Movement telemetry $name must be a nonnegative exact JSON integer or null." }
+        'positionPhaseLagObservedCount','positionPhaseLagPermittedCount','positionPhaseLagSameFrameUpdateReferenceCount',
+        'positionPhaseLagEligibleReferenceCount','positionPhaseLagViolationCount','positionPhaseLagRecoveryRequiredRawCount',
+        'positionPhaseLagRecoveryUpdateRawCount','positionPhaseLagRecoverySatisfiedRawCount',
+        'positionPhaseLagRecoveryRequiredEffectiveCount','positionPhaseLagRecoveryUpdateOrBoundaryEffectiveCount',
+        'positionPhaseLagRecoverySatisfiedEffectiveCount','positionPhaseLagRecoveryViolationCount',
+        'stationaryPositionCorrectionViolationCount','outstandingPositionPhaseLagRecoveryCount',
+        'maximumConsecutiveUnrecoveredPositionPhaseLagCount','phaseLagObservedCount','phaseLagPermittedCount',
+        'phaseLagSameFrameUpdateReferenceCount','phaseLagEligibleReferenceCount','phaseLagViolationCount',
+        'phaseLagRecoveryRequiredCount','phaseLagRecoveryUpdateCount','phaseLagRecoverySatisfiedCount',
+        'phaseLagRecoveryRequiredRawCount','phaseLagRecoveryUpdateRawCount','phaseLagRecoverySatisfiedRawCount',
+        'phaseLagRecoveryRequiredEffectiveCount','phaseLagRecoveryUpdateOrBoundaryEffectiveCount',
+        'phaseLagRecoverySatisfiedEffectiveCount','phaseLagRecoveryViolationCount','stationaryYawCorrectionViolationCount',
+        'outstandingPhaseLagRecoveryCount','maximumConsecutiveUnrecoveredPhaseLagCount',
+        'stationaryBoundaryClosureAttemptCount','stationaryBoundaryClosureSucceededCount','stationaryBoundaryClosureFailedCount',
+        'yawPhaseLagStationaryBoundaryClosureCount','positionPhaseLagStationaryBoundaryClosureCount')) {
+        if (-not (Test-KmcExactJsonInteger $Record.$name) -or [long]$Record.$name -lt 0) { throw "Movement telemetry $name must be a nonnegative exact JSON integer." }
     }
     Assert-KmcJsonStringArray $Record.selectedUnitIds 'movement telemetry selectedUnitIds'
     Assert-KmcJsonStringArray $Record.riderActiveCommandTypes 'movement telemetry riderActiveCommandTypes'
@@ -2025,6 +2250,9 @@ function Assert-KmcMovementTelemetryRecord {
         }
         if ([double]$Record.maximumUpdatePreCorrectionPositionResidualWorldUnits -gt 0.10 -or
             [double]$Record.maximumLateUpdatePreCorrectionPositionResidualWorldUnits -gt 0.10 -or
+            [double]$Record.maximumCalibratedViewCurrentPositionResidualWorldUnits -gt 0.10 -or
+            [double]$Record.maximumCalibratedEntityPhaseAdjustedPositionResidualWorldUnits -gt 0.10 -or
+            [double]$Record.maximumEntityRawPositionLagExcessWorldUnits -gt 0.0001 -or
             [double]$Record.maximumUpdatePreCorrectionRotationResidualDegrees -gt 0.10 -or
             [double]$Record.maximumLateUpdatePreCorrectionRotationResidualDegrees -gt 0.10 -or
             [double]$Record.maximumCalibratedViewCurrentYawResidualDegrees -gt 0.10 -or
@@ -2036,21 +2264,59 @@ function Assert-KmcMovementTelemetryRecord {
             [double]$Record.maximumPostCorrectionRotationResidualDegrees -gt 0.10) {
             throw 'PASS movement telemetry exceeds the calibrated residual thresholds.'
         }
-        if ([math]::Abs([double]$Record.entityRawLagArithmeticCoherenceEpsilonDegrees - 0.0001) -gt 0.000000000001) {
-            throw 'PASS movement telemetry changed the fixed raw-lag arithmetic coherence epsilon.'
+        if ([math]::Abs([double]$Record.entityRawPositionLagArithmeticCoherenceEpsilonWorldUnits - 0.0001) -gt 0.000000000001 -or
+            [math]::Abs([double]$Record.entityRawLagArithmeticCoherenceEpsilonDegrees - 0.0001) -gt 0.000000000001) {
+            throw 'PASS movement telemetry changed a fixed raw-lag arithmetic coherence epsilon.'
         }
-        if ([long]$Record.phaseLagViolationCount -ne 0 -or [long]$Record.phaseLagRecoveryViolationCount -ne 0 -or
+        if ([long]$Record.positionPhaseLagViolationCount -ne 0 -or [long]$Record.positionPhaseLagRecoveryViolationCount -ne 0 -or
+            [long]$Record.stationaryPositionCorrectionViolationCount -ne 0 -or
+            [long]$Record.outstandingPositionPhaseLagRecoveryCount -gt 1 -or
+            [long]$Record.maximumConsecutiveUnrecoveredPositionPhaseLagCount -gt 1 -or
+            [long]$Record.positionPhaseLagObservedCount -ne [long]$Record.positionPhaseLagPermittedCount -or
+            [long]$Record.positionPhaseLagPermittedCount -ne [long]$Record.positionPhaseLagSameFrameUpdateReferenceCount -or
+            [long]$Record.positionPhaseLagPermittedCount -ne [long]$Record.positionPhaseLagEligibleReferenceCount -or
+            [long]$Record.positionPhaseLagRecoveryRequiredRawCount -ne [long]$Record.positionPhaseLagRecoveryUpdateRawCount -or
+            [long]$Record.positionPhaseLagRecoveryUpdateRawCount -ne [long]$Record.positionPhaseLagRecoverySatisfiedRawCount -or
+            [long]$Record.positionPhaseLagRecoveryRequiredEffectiveCount -ne
+                ([long]$Record.positionPhaseLagRecoveryRequiredRawCount + [long]$Record.positionPhaseLagStationaryBoundaryClosureCount) -or
+            [long]$Record.positionPhaseLagRecoveryUpdateOrBoundaryEffectiveCount -ne
+                ([long]$Record.positionPhaseLagRecoveryUpdateRawCount + [long]$Record.positionPhaseLagStationaryBoundaryClosureCount) -or
+            [long]$Record.positionPhaseLagRecoverySatisfiedEffectiveCount -ne
+                ([long]$Record.positionPhaseLagRecoverySatisfiedRawCount + [long]$Record.positionPhaseLagStationaryBoundaryClosureCount) -or
+            [long]$Record.positionPhaseLagPermittedCount -ne
+                ([long]$Record.positionPhaseLagRecoverySatisfiedEffectiveCount + [long]$Record.outstandingPositionPhaseLagRecoveryCount)) {
+            throw 'PASS movement telemetry violates the bounded same-frame position-lag or recovery contract.'
+        }
+        if ([long]$Record.phaseLagRecoveryRequiredCount -ne [long]$Record.phaseLagRecoveryRequiredRawCount -or
+            [long]$Record.phaseLagRecoveryUpdateCount -ne [long]$Record.phaseLagRecoveryUpdateRawCount -or
+            [long]$Record.phaseLagRecoverySatisfiedCount -ne [long]$Record.phaseLagRecoverySatisfiedRawCount -or
+            [long]$Record.phaseLagViolationCount -ne 0 -or [long]$Record.phaseLagRecoveryViolationCount -ne 0 -or
             [long]$Record.stationaryYawCorrectionViolationCount -ne 0 -or [long]$Record.outstandingPhaseLagRecoveryCount -gt 1 -or
             [long]$Record.maximumConsecutiveUnrecoveredPhaseLagCount -gt 1 -or
             [long]$Record.phaseLagObservedCount -ne [long]$Record.phaseLagPermittedCount -or
             [long]$Record.phaseLagPermittedCount -ne [long]$Record.phaseLagSameFrameUpdateReferenceCount -or
             [long]$Record.phaseLagPermittedCount -ne [long]$Record.phaseLagEligibleReferenceCount -or
-            [long]$Record.phaseLagPermittedCount -lt [long]$Record.phaseLagRecoverySatisfiedCount -or
-            ([long]$Record.phaseLagPermittedCount - [long]$Record.phaseLagRecoverySatisfiedCount) -ne [long]$Record.outstandingPhaseLagRecoveryCount -or
-            [long]$Record.phaseLagRecoveryRequiredCount -ne [long]$Record.phaseLagRecoveryUpdateCount -or
-            [long]$Record.phaseLagRecoveryUpdateCount -ne [long]$Record.phaseLagRecoverySatisfiedCount) {
+            [long]$Record.phaseLagRecoveryRequiredRawCount -ne [long]$Record.phaseLagRecoveryUpdateRawCount -or
+            [long]$Record.phaseLagRecoveryUpdateRawCount -ne [long]$Record.phaseLagRecoverySatisfiedRawCount -or
+            [long]$Record.phaseLagRecoveryRequiredEffectiveCount -ne
+                ([long]$Record.phaseLagRecoveryRequiredRawCount + [long]$Record.yawPhaseLagStationaryBoundaryClosureCount) -or
+            [long]$Record.phaseLagRecoveryUpdateOrBoundaryEffectiveCount -ne
+                ([long]$Record.phaseLagRecoveryUpdateRawCount + [long]$Record.yawPhaseLagStationaryBoundaryClosureCount) -or
+            [long]$Record.phaseLagRecoverySatisfiedEffectiveCount -ne
+                ([long]$Record.phaseLagRecoverySatisfiedRawCount + [long]$Record.yawPhaseLagStationaryBoundaryClosureCount) -or
+            [long]$Record.phaseLagPermittedCount -ne
+                ([long]$Record.phaseLagRecoverySatisfiedEffectiveCount + [long]$Record.outstandingPhaseLagRecoveryCount)) {
             throw 'PASS movement telemetry violates the bounded same-frame phase-lag or recovery contract.'
         }
+        if ([long]$Record.stationaryBoundaryClosureAttemptCount -ne
+                ([long]$Record.stationaryBoundaryClosureSucceededCount + [long]$Record.stationaryBoundaryClosureFailedCount) -or
+            [long]$Record.stationaryBoundaryClosureFailedCount -ne 0 -or
+            [long]$Record.stationaryBoundaryClosureSucceededCount -gt 1 -or
+            [long]$Record.yawPhaseLagStationaryBoundaryClosureCount -gt 1 -or
+            [long]$Record.positionPhaseLagStationaryBoundaryClosureCount -gt 1) {
+            throw 'PASS movement telemetry has inconsistent stationary-boundary closure counts.'
+        }
+        Assert-KmcLatestPositionPhaseSemantics $Record
         if ($Record.latestMountEntityRootYawResidualDegrees -ne $null -and [double]$Record.latestMountEntityRootYawResidualDegrees -gt 0.10) { throw 'PASS movement telemetry latest mount entity/root yaw is incoherent.' }
         if ($Record.latestViewCurrentYawResidualDegrees -ne $null -and [double]$Record.latestViewCurrentYawResidualDegrees -gt 0.10) { throw 'PASS movement telemetry latest rider view yaw is not current.' }
         if ($Record.latestFullViewCurrentRotationResidualDegrees -ne $null -and [double]$Record.latestFullViewCurrentRotationResidualDegrees -gt 0.10) { throw 'PASS movement telemetry latest rider view quaternion is not current.' }
@@ -2195,21 +2461,48 @@ function Assert-KmcMovementScenarioRecord {
             'maximumInitialConfigurationResidualWorldUnits','maximumUpdatePreCorrectionResidualWorldUnits',
             'maximumLateUpdatePreCorrectionResidualWorldUnits','maximumUpdatePreCorrectionRotationResidualDegrees',
             'maximumLateUpdatePreCorrectionRotationResidualDegrees','maximumPostCorrectionResidualWorldUnits',
-            'maximumPostCorrectionRotationResidualDegrees','maximumViewCurrentYawResidualDegrees','maximumFullViewCurrentRotationResidualDegrees',
+            'maximumPostCorrectionRotationResidualDegrees','maximumRawCurrentPositionResidualWorldUnits',
+            'maximumUpdateRawCurrentPositionResidualWorldUnits','maximumLateUpdateRawCurrentPositionResidualWorldUnits',
+            'maximumViewCurrentPositionResidualWorldUnits','maximumEntityRawCurrentPositionResidualWorldUnits',
+            'maximumEntityPreviousAuthoritativePositionResidualWorldUnits',
+            'maximumEntityPhaseAdjustedPositionResidualWorldUnits','maximumAuthoritativePositionDeltaWorldUnits',
+            'maximumEntityRawPositionLagExcessWorldUnits','entityRawPositionLagArithmeticCoherenceEpsilonWorldUnits',
+            'positionPhaseLagObservedCount','positionPhaseLagPermittedCount','positionPhaseLagSameFrameUpdateReferenceCount',
+            'positionPhaseLagEligibleReferenceCount','positionPhaseLagViolationCount','positionPhaseLagRecoveryRequiredRawCount',
+            'positionPhaseLagRecoveryUpdateRawCount','positionPhaseLagRecoverySatisfiedRawCount',
+            'positionPhaseLagRecoveryRequiredEffectiveCount','positionPhaseLagRecoveryUpdateOrBoundaryEffectiveCount',
+            'positionPhaseLagRecoverySatisfiedEffectiveCount','positionPhaseLagRecoveryViolationCount',
+            'stationaryPositionCorrectionViolationCount','outstandingPositionPhaseLagRecoveryCount',
+            'maximumConsecutiveUnrecoveredPositionPhaseLagCount','maximumViewCurrentYawResidualDegrees',
+            'maximumFullViewCurrentRotationResidualDegrees',
             'maximumMountEntityRootYawResidualDegrees','maximumEntityRawCurrentYawResidualDegrees',
             'maximumEntityPreviousAuthoritativeYawResidualDegrees','maximumEntityPhaseAdjustedYawResidualDegrees',
             'maximumAuthoritativeYawDeltaDegrees','maximumEntityRawLagExcessDegrees','entityRawLagArithmeticCoherenceEpsilonDegrees',
             'phaseLagObservedCount','phaseLagPermittedCount',
             'phaseLagSameFrameUpdateReferenceCount','phaseLagEligibleReferenceCount','phaseLagViolationCount',
             'phaseLagRecoveryRequiredCount','phaseLagRecoveryUpdateCount','phaseLagRecoverySatisfiedCount',
+            'phaseLagRecoveryRequiredRawCount','phaseLagRecoveryUpdateRawCount','phaseLagRecoverySatisfiedRawCount',
+            'phaseLagRecoveryRequiredEffectiveCount','phaseLagRecoveryUpdateOrBoundaryEffectiveCount',
+            'phaseLagRecoverySatisfiedEffectiveCount',
             'phaseLagRecoveryViolationCount','stationaryYawCorrectionViolationCount','outstandingPhaseLagRecoveryCount',
             'maximumConsecutiveUnrecoveredPhaseLagCount','finalSynchronizationSnapshotCaptured','finalSynchronizationSnapshotStage',
             'finalSynchronizationSnapshotFrame','finalSynchronizationAgentFrame','finalSynchronizationSampleCount',
-            'finalSynchronizationOutstandingRecoveryCount','finalSynchronizationRecoveryWaitFrames',
-            'maximumCleanupSynchronizationRecoveryWaitFrames','finalSynchronizationQualificationPassed',
+            'finalSynchronizationOutstandingRecoveryCount','finalSynchronizationOutstandingPositionRecoveryCount',
+            'finalSynchronizationQualificationPassed',
             'finalSynchronizationMovementStoppedBeforeSnapshot','finalSynchronizationBoundaryPositionResidualWorldUnits',
+            'finalSynchronizationBoundaryViewPositionResidualWorldUnits','finalSynchronizationBoundaryEntityPositionResidualWorldUnits',
             'finalSynchronizationBoundaryFullViewRotationResidualDegrees','finalSynchronizationBoundaryViewYawResidualDegrees',
             'finalSynchronizationBoundaryEntityCurrentYawResidualDegrees','finalSynchronizationBoundaryMountEntityRootYawResidualDegrees',
+            'finalSynchronizationBoundaryAuthoritativePositionAdvanceWorldUnits',
+            'finalSynchronizationBoundaryAuthoritativeYawAdvanceDegrees','finalSynchronizationBoundaryMovementCommandAbsent',
+            'finalSynchronizationBoundaryWantsToMove','finalSynchronizationBoundaryIsReallyMoving',
+            'finalSynchronizationBoundaryClosureAttempted','finalSynchronizationBoundaryClosureSucceeded',
+            'finalSynchronizationBoundaryClosureReason','finalSynchronizationBoundaryYawPendingBefore',
+            'finalSynchronizationBoundaryPositionPendingBefore','finalSynchronizationBoundaryYawClosedCount',
+            'finalSynchronizationBoundaryPositionClosedCount','finalSynchronizationBoundaryYawPendingAfter',
+            'finalSynchronizationBoundaryPositionPendingAfter','stationaryBoundaryClosureAttemptCount',
+            'stationaryBoundaryClosureSucceededCount','stationaryBoundaryClosureFailedCount',
+            'yawPhaseLagStationaryBoundaryClosureCount','positionPhaseLagStationaryBoundaryClosureCount',
             'synchronizationObservationCount','updateSynchronizationSampleCount',
             'lateUpdateSynchronizationSampleCount','updateSynchronizationCorrectionCount','lateUpdateSynchronizationCorrectionCount',
             'maximumStationaryDriftWorldUnits','maximumStuckSeconds','oscillationCount','unexpectedRepathCount',
@@ -2231,35 +2524,63 @@ function Assert-KmcMovementScenarioRecord {
     if ($Record.status -isnot [string] -or [string]$Record.status -cnotin @('PASS','FAIL')) { throw 'Movement row-result status is invalid.' }
     foreach ($name in @('assertionPassCount','assertionFailCount','synchronizationObservationCount','updateSynchronizationSampleCount',
         'lateUpdateSynchronizationSampleCount','updateSynchronizationCorrectionCount','lateUpdateSynchronizationCorrectionCount',
+        'positionPhaseLagObservedCount','positionPhaseLagPermittedCount','positionPhaseLagSameFrameUpdateReferenceCount',
+        'positionPhaseLagEligibleReferenceCount','positionPhaseLagViolationCount','positionPhaseLagRecoveryRequiredRawCount',
+        'positionPhaseLagRecoveryUpdateRawCount','positionPhaseLagRecoverySatisfiedRawCount',
+        'positionPhaseLagRecoveryRequiredEffectiveCount','positionPhaseLagRecoveryUpdateOrBoundaryEffectiveCount',
+        'positionPhaseLagRecoverySatisfiedEffectiveCount','positionPhaseLagRecoveryViolationCount',
+        'stationaryPositionCorrectionViolationCount','outstandingPositionPhaseLagRecoveryCount',
+        'maximumConsecutiveUnrecoveredPositionPhaseLagCount',
         'phaseLagObservedCount','phaseLagPermittedCount','phaseLagSameFrameUpdateReferenceCount','phaseLagEligibleReferenceCount',
         'phaseLagViolationCount','phaseLagRecoveryRequiredCount','phaseLagRecoveryUpdateCount','phaseLagRecoverySatisfiedCount',
+        'phaseLagRecoveryRequiredRawCount','phaseLagRecoveryUpdateRawCount','phaseLagRecoverySatisfiedRawCount',
+        'phaseLagRecoveryRequiredEffectiveCount','phaseLagRecoveryUpdateOrBoundaryEffectiveCount',
+        'phaseLagRecoverySatisfiedEffectiveCount',
         'phaseLagRecoveryViolationCount','stationaryYawCorrectionViolationCount','outstandingPhaseLagRecoveryCount',
         'maximumConsecutiveUnrecoveredPhaseLagCount','finalSynchronizationSnapshotFrame','finalSynchronizationAgentFrame',
-        'finalSynchronizationSampleCount','finalSynchronizationOutstandingRecoveryCount','finalSynchronizationRecoveryWaitFrames',
-        'maximumCleanupSynchronizationRecoveryWaitFrames','oscillationCount',
+        'finalSynchronizationSampleCount','finalSynchronizationOutstandingRecoveryCount',
+        'finalSynchronizationOutstandingPositionRecoveryCount','finalSynchronizationBoundaryYawPendingBefore',
+        'finalSynchronizationBoundaryPositionPendingBefore','finalSynchronizationBoundaryYawClosedCount',
+        'finalSynchronizationBoundaryPositionClosedCount','finalSynchronizationBoundaryYawPendingAfter',
+        'finalSynchronizationBoundaryPositionPendingAfter','stationaryBoundaryClosureAttemptCount',
+        'stationaryBoundaryClosureSucceededCount','stationaryBoundaryClosureFailedCount',
+        'yawPhaseLagStationaryBoundaryClosureCount','positionPhaseLagStationaryBoundaryClosureCount','oscillationCount',
         'unexpectedRepathCount','commandReplacementCount','selectionLossCount','waypointCount','nonPairInterferenceCount')) {
         if (-not (Test-KmcExactJsonInteger $Record.$name) -or [long]$Record.$name -lt 0) { throw "Movement row-result $name must be a nonnegative exact JSON integer." }
     }
     foreach ($name in @('maximumPreCorrectionResidualWorldUnits','maximumInitialConfigurationResidualWorldUnits',
         'maximumUpdatePreCorrectionResidualWorldUnits','maximumLateUpdatePreCorrectionResidualWorldUnits',
         'maximumUpdatePreCorrectionRotationResidualDegrees','maximumLateUpdatePreCorrectionRotationResidualDegrees',
-        'maximumPostCorrectionResidualWorldUnits','maximumPostCorrectionRotationResidualDegrees','maximumViewCurrentYawResidualDegrees',
+        'maximumPostCorrectionResidualWorldUnits','maximumPostCorrectionRotationResidualDegrees',
+        'maximumRawCurrentPositionResidualWorldUnits','maximumUpdateRawCurrentPositionResidualWorldUnits',
+        'maximumLateUpdateRawCurrentPositionResidualWorldUnits','maximumViewCurrentPositionResidualWorldUnits',
+        'maximumEntityRawCurrentPositionResidualWorldUnits','maximumEntityPreviousAuthoritativePositionResidualWorldUnits',
+        'maximumEntityPhaseAdjustedPositionResidualWorldUnits','maximumAuthoritativePositionDeltaWorldUnits',
+        'maximumEntityRawPositionLagExcessWorldUnits','entityRawPositionLagArithmeticCoherenceEpsilonWorldUnits',
+        'maximumViewCurrentYawResidualDegrees',
         'maximumFullViewCurrentRotationResidualDegrees',
         'maximumMountEntityRootYawResidualDegrees','maximumEntityRawCurrentYawResidualDegrees',
         'maximumEntityPreviousAuthoritativeYawResidualDegrees','maximumEntityPhaseAdjustedYawResidualDegrees',
         'maximumAuthoritativeYawDeltaDegrees','maximumEntityRawLagExcessDegrees','entityRawLagArithmeticCoherenceEpsilonDegrees',
-        'finalSynchronizationBoundaryPositionResidualWorldUnits','finalSynchronizationBoundaryFullViewRotationResidualDegrees',
+        'finalSynchronizationBoundaryPositionResidualWorldUnits','finalSynchronizationBoundaryViewPositionResidualWorldUnits',
+        'finalSynchronizationBoundaryEntityPositionResidualWorldUnits','finalSynchronizationBoundaryFullViewRotationResidualDegrees',
         'finalSynchronizationBoundaryViewYawResidualDegrees','finalSynchronizationBoundaryEntityCurrentYawResidualDegrees',
-        'finalSynchronizationBoundaryMountEntityRootYawResidualDegrees','maximumStationaryDriftWorldUnits',
+        'finalSynchronizationBoundaryMountEntityRootYawResidualDegrees',
+        'finalSynchronizationBoundaryAuthoritativePositionAdvanceWorldUnits',
+        'finalSynchronizationBoundaryAuthoritativeYawAdvanceDegrees','maximumStationaryDriftWorldUnits',
         'maximumStuckSeconds','maximumTurnDegrees','mountFinalTargetDistanceWorldUnits','nonPairBestTargetDistanceWorldUnits',
         'nonPairFinalTargetDistanceWorldUnits','minimumPairNonPairSeparationWorldUnits','requiredPairNonPairSeparationWorldUnits')) {
         if (-not (Test-KmcFiniteNonnegativeJsonNumber $Record.$name)) { throw "Movement row-result $name must be a finite nonnegative JSON number." }
     }
     foreach ($name in @('unmountedDoorControlPassed','cleanupSucceeded','cleanupResidual','finalSynchronizationSnapshotCaptured',
-        'finalSynchronizationQualificationPassed','finalSynchronizationMovementStoppedBeforeSnapshot')) {
+        'finalSynchronizationQualificationPassed','finalSynchronizationMovementStoppedBeforeSnapshot',
+        'finalSynchronizationBoundaryMovementCommandAbsent','finalSynchronizationBoundaryWantsToMove',
+        'finalSynchronizationBoundaryIsReallyMoving','finalSynchronizationBoundaryClosureAttempted',
+        'finalSynchronizationBoundaryClosureSucceeded')) {
         if ($Record.$name -isnot [bool]) { throw "Movement row-result $name must be a JSON boolean." }
     }
-    foreach ($name in @('cleanupTrigger','cleanupResult','selectionCoverage','formationCoverage','finalSynchronizationSnapshotStage')) {
+    foreach ($name in @('cleanupTrigger','cleanupResult','selectionCoverage','formationCoverage','finalSynchronizationSnapshotStage',
+        'finalSynchronizationBoundaryClosureReason')) {
         if ($Record.$name -isnot [string] -or [string]::IsNullOrWhiteSpace([string]$Record.$name)) { throw "Movement row-result $name must be a nonempty JSON string." }
     }
     if ($null -ne $Record.door -and $Record.door -isnot [string]) { throw 'Movement row-result door must be a string or null.' }
@@ -2289,6 +2610,9 @@ function Assert-KmcMovementScenarioRecord {
         }
         if ([double]$Record.maximumUpdatePreCorrectionResidualWorldUnits -gt 0.10 -or
             [double]$Record.maximumLateUpdatePreCorrectionResidualWorldUnits -gt 0.10 -or
+            [double]$Record.maximumViewCurrentPositionResidualWorldUnits -gt 0.10 -or
+            [double]$Record.maximumEntityPhaseAdjustedPositionResidualWorldUnits -gt 0.10 -or
+            [double]$Record.maximumEntityRawPositionLagExcessWorldUnits -gt 0.0001 -or
             [double]$Record.maximumUpdatePreCorrectionRotationResidualDegrees -gt 0.10 -or
             [double]$Record.maximumLateUpdatePreCorrectionRotationResidualDegrees -gt 0.10 -or
             [double]$Record.maximumViewCurrentYawResidualDegrees -gt 0.10 -or
@@ -2297,6 +2621,8 @@ function Assert-KmcMovementScenarioRecord {
             [double]$Record.maximumEntityPhaseAdjustedYawResidualDegrees -gt 0.10 -or
             [double]$Record.maximumEntityRawLagExcessDegrees -gt 0.0001 -or
             [double]$Record.finalSynchronizationBoundaryPositionResidualWorldUnits -gt 0.10 -or
+            [double]$Record.finalSynchronizationBoundaryViewPositionResidualWorldUnits -gt 0.10 -or
+            [double]$Record.finalSynchronizationBoundaryEntityPositionResidualWorldUnits -gt 0.10 -or
             [double]$Record.finalSynchronizationBoundaryFullViewRotationResidualDegrees -gt 0.10 -or
             [double]$Record.finalSynchronizationBoundaryViewYawResidualDegrees -gt 0.10 -or
             [double]$Record.finalSynchronizationBoundaryEntityCurrentYawResidualDegrees -gt 0.10 -or
@@ -2305,15 +2631,51 @@ function Assert-KmcMovementScenarioRecord {
             [double]$Record.maximumPostCorrectionRotationResidualDegrees -gt 0.10) {
             throw 'PASS movement row-result exceeds the calibrated residual thresholds.'
         }
-        if ([long]$Record.phaseLagViolationCount -ne 0 -or [long]$Record.phaseLagRecoveryViolationCount -ne 0 -or
+        if ([math]::Abs([double]$Record.entityRawPositionLagArithmeticCoherenceEpsilonWorldUnits - 0.0001) -gt 0.000000000001 -or
+            [math]::Abs([double]$Record.entityRawLagArithmeticCoherenceEpsilonDegrees - 0.0001) -gt 0.000000000001) {
+            throw 'PASS movement row-result changed a fixed raw-lag arithmetic coherence epsilon.'
+        }
+        if ([long]$Record.positionPhaseLagViolationCount -ne 0 -or
+            [long]$Record.positionPhaseLagRecoveryViolationCount -ne 0 -or
+            [long]$Record.stationaryPositionCorrectionViolationCount -ne 0 -or
+            [long]$Record.outstandingPositionPhaseLagRecoveryCount -ne 0 -or
+            [long]$Record.maximumConsecutiveUnrecoveredPositionPhaseLagCount -gt 1 -or
+            [long]$Record.positionPhaseLagObservedCount -ne [long]$Record.positionPhaseLagPermittedCount -or
+            [long]$Record.positionPhaseLagPermittedCount -ne [long]$Record.positionPhaseLagSameFrameUpdateReferenceCount -or
+            [long]$Record.positionPhaseLagPermittedCount -ne [long]$Record.positionPhaseLagEligibleReferenceCount -or
+            [long]$Record.positionPhaseLagRecoveryRequiredRawCount -ne [long]$Record.positionPhaseLagRecoveryUpdateRawCount -or
+            [long]$Record.positionPhaseLagRecoveryUpdateRawCount -ne [long]$Record.positionPhaseLagRecoverySatisfiedRawCount -or
+            [long]$Record.positionPhaseLagRecoveryRequiredEffectiveCount -ne
+                ([long]$Record.positionPhaseLagRecoveryRequiredRawCount + [long]$Record.positionPhaseLagStationaryBoundaryClosureCount) -or
+            [long]$Record.positionPhaseLagRecoveryUpdateOrBoundaryEffectiveCount -ne
+                ([long]$Record.positionPhaseLagRecoveryUpdateRawCount + [long]$Record.positionPhaseLagStationaryBoundaryClosureCount) -or
+            [long]$Record.positionPhaseLagRecoverySatisfiedEffectiveCount -ne
+                ([long]$Record.positionPhaseLagRecoverySatisfiedRawCount + [long]$Record.positionPhaseLagStationaryBoundaryClosureCount) -or
+            [long]$Record.positionPhaseLagPermittedCount -ne [long]$Record.positionPhaseLagRecoveryRequiredEffectiveCount -or
+            [long]$Record.positionPhaseLagPermittedCount -ne [long]$Record.positionPhaseLagRecoveryUpdateOrBoundaryEffectiveCount -or
+            [long]$Record.positionPhaseLagPermittedCount -ne [long]$Record.positionPhaseLagRecoverySatisfiedEffectiveCount) {
+            throw 'PASS movement row-result does not prove complete same-frame position-lag recovery.'
+        }
+        if ([long]$Record.phaseLagRecoveryRequiredCount -ne [long]$Record.phaseLagRecoveryRequiredRawCount -or
+            [long]$Record.phaseLagRecoveryUpdateCount -ne [long]$Record.phaseLagRecoveryUpdateRawCount -or
+            [long]$Record.phaseLagRecoverySatisfiedCount -ne [long]$Record.phaseLagRecoverySatisfiedRawCount -or
+            [long]$Record.phaseLagViolationCount -ne 0 -or [long]$Record.phaseLagRecoveryViolationCount -ne 0 -or
             [long]$Record.stationaryYawCorrectionViolationCount -ne 0 -or [long]$Record.outstandingPhaseLagRecoveryCount -ne 0 -or
             [long]$Record.maximumConsecutiveUnrecoveredPhaseLagCount -gt 1 -or
             [long]$Record.phaseLagObservedCount -ne [long]$Record.phaseLagPermittedCount -or
             [long]$Record.phaseLagPermittedCount -ne [long]$Record.phaseLagSameFrameUpdateReferenceCount -or
             [long]$Record.phaseLagPermittedCount -ne [long]$Record.phaseLagEligibleReferenceCount -or
-            [long]$Record.phaseLagPermittedCount -ne [long]$Record.phaseLagRecoveryRequiredCount -or
-            [long]$Record.phaseLagRecoveryRequiredCount -ne [long]$Record.phaseLagRecoveryUpdateCount -or
-            [long]$Record.phaseLagRecoveryUpdateCount -ne [long]$Record.phaseLagRecoverySatisfiedCount) {
+            [long]$Record.phaseLagRecoveryRequiredRawCount -ne [long]$Record.phaseLagRecoveryUpdateRawCount -or
+            [long]$Record.phaseLagRecoveryUpdateRawCount -ne [long]$Record.phaseLagRecoverySatisfiedRawCount -or
+            [long]$Record.phaseLagRecoveryRequiredEffectiveCount -ne
+                ([long]$Record.phaseLagRecoveryRequiredRawCount + [long]$Record.yawPhaseLagStationaryBoundaryClosureCount) -or
+            [long]$Record.phaseLagRecoveryUpdateOrBoundaryEffectiveCount -ne
+                ([long]$Record.phaseLagRecoveryUpdateRawCount + [long]$Record.yawPhaseLagStationaryBoundaryClosureCount) -or
+            [long]$Record.phaseLagRecoverySatisfiedEffectiveCount -ne
+                ([long]$Record.phaseLagRecoverySatisfiedRawCount + [long]$Record.yawPhaseLagStationaryBoundaryClosureCount) -or
+            [long]$Record.phaseLagPermittedCount -ne [long]$Record.phaseLagRecoveryRequiredEffectiveCount -or
+            [long]$Record.phaseLagPermittedCount -ne [long]$Record.phaseLagRecoveryUpdateOrBoundaryEffectiveCount -or
+            [long]$Record.phaseLagPermittedCount -ne [long]$Record.phaseLagRecoverySatisfiedEffectiveCount) {
             throw 'PASS movement row-result does not prove complete same-frame phase-lag recovery.'
         }
         if ($Record.finalSynchronizationSnapshotCaptured -ne $true -or
@@ -2324,12 +2686,38 @@ function Assert-KmcMovementScenarioRecord {
             [long]$Record.finalSynchronizationAgentFrame -le 0 -or
             [long]$Record.finalSynchronizationSampleCount -le 0 -or
             [long]$Record.finalSynchronizationOutstandingRecoveryCount -ne 0 -or
-            [long]$Record.maximumCleanupSynchronizationRecoveryWaitFrames -ne 2 -or
-            [long]$Record.finalSynchronizationRecoveryWaitFrames -gt [long]$Record.maximumCleanupSynchronizationRecoveryWaitFrames) {
-            throw 'PASS movement row-result does not prove a bounded final synchronization snapshot immediately before deconfiguration.'
+            [long]$Record.finalSynchronizationOutstandingPositionRecoveryCount -ne 0 -or
+            $Record.finalSynchronizationBoundaryMovementCommandAbsent -ne $true -or
+            $Record.finalSynchronizationBoundaryWantsToMove -ne $false -or
+            $Record.finalSynchronizationBoundaryIsReallyMoving -ne $false -or
+            [double]$Record.finalSynchronizationBoundaryAuthoritativePositionAdvanceWorldUnits -gt 0.000001 -or
+            [double]$Record.finalSynchronizationBoundaryAuthoritativeYawAdvanceDegrees -gt 0.000001) {
+            throw 'PASS movement row-result does not prove an exact stopped stationary snapshot immediately before deconfiguration.'
         }
-        if ([math]::Abs([double]$Record.entityRawLagArithmeticCoherenceEpsilonDegrees - 0.0001) -gt 0.000000000001) {
-            throw 'PASS movement row-result changed the fixed raw-lag arithmetic coherence epsilon.'
+        $expectedBoundaryPositionResidual = [math]::Max(
+            [double]$Record.finalSynchronizationBoundaryViewPositionResidualWorldUnits,
+            [double]$Record.finalSynchronizationBoundaryEntityPositionResidualWorldUnits)
+        if (-not (Test-KmcApproximatelyEqual ([double]$Record.finalSynchronizationBoundaryPositionResidualWorldUnits) $expectedBoundaryPositionResidual)) {
+            throw 'PASS movement row-result final position boundary does not reconcile with its split view/entity residuals.'
+        }
+        $yawPendingBefore = [long]$Record.finalSynchronizationBoundaryYawPendingBefore
+        $positionPendingBefore = [long]$Record.finalSynchronizationBoundaryPositionPendingBefore
+        $expectedClosureAttempted = $yawPendingBefore -gt 0L -or $positionPendingBefore -gt 0L
+        if ($yawPendingBefore -gt 1L -or $positionPendingBefore -gt 1L -or
+            [long]$Record.finalSynchronizationBoundaryYawClosedCount -ne $yawPendingBefore -or
+            [long]$Record.finalSynchronizationBoundaryPositionClosedCount -ne $positionPendingBefore -or
+            [long]$Record.finalSynchronizationBoundaryYawPendingAfter -ne 0L -or
+            [long]$Record.finalSynchronizationBoundaryPositionPendingAfter -ne 0L -or
+            $Record.finalSynchronizationBoundaryClosureAttempted -ne $expectedClosureAttempted -or
+            $Record.finalSynchronizationBoundaryClosureSucceeded -ne $true -or
+            [string]$Record.finalSynchronizationBoundaryClosureReason -cne
+                $(if ($expectedClosureAttempted) { 'closed-at-stationary-boundary' } else { 'no-pending-recovery' }) -or
+            [long]$Record.stationaryBoundaryClosureAttemptCount -ne $(if ($expectedClosureAttempted) { 1L } else { 0L }) -or
+            [long]$Record.stationaryBoundaryClosureSucceededCount -ne $(if ($expectedClosureAttempted) { 1L } else { 0L }) -or
+            [long]$Record.stationaryBoundaryClosureFailedCount -ne 0L -or
+            [long]$Record.yawPhaseLagStationaryBoundaryClosureCount -ne $yawPendingBefore -or
+            [long]$Record.positionPhaseLagStationaryBoundaryClosureCount -ne $positionPendingBefore) {
+            throw 'PASS movement row-result stationary-boundary closure does not reconcile exactly.'
         }
         if ([long]$Record.synchronizationObservationCount -le 0 -or [long]$Record.updateSynchronizationSampleCount -le 0 -or
             [long]$Record.lateUpdateSynchronizationSampleCount -le 0 -or
