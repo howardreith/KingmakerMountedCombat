@@ -1479,6 +1479,27 @@ function Test-KmcLifecycleRuntimeScenario {
         @(Get-KmcLifecycleRuntimeRows | Where-Object { $_ -ceq [string]$Scenario }).Count -eq 1
 }
 
+function Get-KmcMovementRuntimeRows {
+    # This order is part of the evidence contract. The doorway row must retain
+    # its nearby unmounted control before any prior row moves the fixture away.
+    return @(
+        'mounted-pair-doorway',
+        'mounted-pair-open-ground',
+        'mounted-pair-stop-start',
+        'mounted-pair-turns-and-corners',
+        'mounted-pair-selection',
+        'mounted-pair-party-formation',
+        'mounted-pair-pause-unpause',
+        'mounted-pair-destination-cancel'
+    )
+}
+
+function Test-KmcMovementRuntimeScenario {
+    param([AllowNull()][string]$Scenario)
+    return [string]$Scenario -ceq 'movement-suite' -or
+        @(Get-KmcMovementRuntimeRows | Where-Object { $_ -ceq [string]$Scenario }).Count -eq 1
+}
+
 function Test-KmcExactJsonInteger {
     param($Value)
     return $Value -is [sbyte] -or $Value -is [byte] -or
@@ -1753,6 +1774,383 @@ function Assert-KmcLifecycleScenarioEvidence {
     }
 }
 
+function Test-KmcFiniteNonnegativeJsonNumber {
+    param($Value)
+    if (-not (Test-KmcJsonNumber $Value)) { return $false }
+    $number = [double]$Value
+    return -not [double]::IsNaN($number) -and -not [double]::IsInfinity($number) -and $number -ge 0.0
+}
+
+function Assert-KmcMovementVector3 {
+    param($Value, [Parameter(Mandatory = $true)][string]$Description, [switch]$AllowNull)
+    if ($null -eq $Value) {
+        if ($AllowNull) { return }
+        throw "$Description is required."
+    }
+    Assert-KmcExactProperties $Value @('x','y','z') $Description
+    foreach ($name in @('x','y','z')) {
+        if (-not (Test-KmcJsonNumber $Value.$name)) { throw "$Description.$name must be a JSON number." }
+    }
+}
+
+function Assert-KmcMovementCommonIdentity {
+    param(
+        [Parameter(Mandatory = $true)]$Record,
+        [Parameter(Mandatory = $true)]$Request,
+        [Parameter(Mandatory = $true)][long]$ExpectedSequence,
+        [Parameter(Mandatory = $true)][string[]]$ExpectedRows,
+        [Parameter(Mandatory = $true)][string]$Description
+    )
+    if (-not (Test-KmcExactJsonInteger $Record.schemaVersion) -or [long]$Record.schemaVersion -ne 1) {
+        throw "$Description schemaVersion must be the exact integral value 1."
+    }
+    foreach ($name in @('runId','scenario','branch','commit','productVersion','dllSha256','dllMvid')) {
+        if ($Record.$name -isnot [string] -or [string]$Record.$name -cne [string]$Request.$name) {
+            throw "$Description identity mismatch: $name"
+        }
+    }
+    if ([string]$Record.dllSha256 -cnotmatch '^[0-9a-f]{64}$' -or
+        [string]$Record.dllMvid -cnotmatch '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') {
+        throw "$Description DLL identity format is invalid."
+    }
+    if (-not (Test-KmcExactJsonInteger $Record.sequence) -or [long]$Record.sequence -ne $ExpectedSequence) {
+        throw "$Description sequence is not contiguous at $ExpectedSequence."
+    }
+    if ($Record.row -isnot [string] -or @($ExpectedRows | Where-Object { $_ -ceq [string]$Record.row }).Count -ne 1) {
+        throw "$Description row is outside the exact scenario row set: $($Record.row)"
+    }
+    if ($Record.utcTimestamp -isnot [string]) { throw "$Description utcTimestamp must be a JSON string." }
+    $timestamp = [DateTimeOffset]::MinValue
+    if (-not [DateTimeOffset]::TryParse([string]$Record.utcTimestamp, [ref]$timestamp) -or $timestamp.Offset -ne [TimeSpan]::Zero) {
+        throw "$Description utcTimestamp is invalid or not UTC."
+    }
+}
+
+function Assert-KmcMovementCleanupState {
+    param(
+        [Parameter(Mandatory = $true)]$Value,
+        [Parameter(Mandatory = $true)][string]$Description,
+        [Parameter(Mandatory = $true)][ValidateSet('before','after')][string]$Phase,
+        [Parameter(Mandatory = $true)][bool]$RequireComplete
+    )
+    Assert-KmcExactProperties $Value @(
+        'trigger','relationshipState','hasMountedResidual','riderStockAgentEnabled','mountStockAgentEnabled',
+        'riderAvoidanceDisabled','mountAvoidanceDisabled','riderOverridePresent','mountOverridePresent',
+        'riderSelected','mountSelected','selectedUnitIds','paused') $Description
+    if ($Value.trigger -isnot [string] -or [string]::IsNullOrWhiteSpace([string]$Value.trigger)) { throw "$Description.trigger must be a nonempty JSON string." }
+    if ($Value.relationshipState -isnot [string] -or [string]$Value.relationshipState -cnotin @('Unmounted','Validating','Mounting','Mounted','Dismounting','Faulted','Disposed')) {
+        throw "$Description.relationshipState is invalid."
+    }
+    foreach ($name in @('hasMountedResidual','riderOverridePresent','mountOverridePresent','riderSelected','mountSelected')) {
+        if ($Value.$name -isnot [bool]) { throw "$Description.$name must be a JSON boolean." }
+    }
+    foreach ($name in @('riderStockAgentEnabled','mountStockAgentEnabled','riderAvoidanceDisabled','mountAvoidanceDisabled','paused')) {
+        Assert-KmcNullableJsonBoolean $Value.$name "$Description.$name"
+    }
+    Assert-KmcJsonStringArray $Value.selectedUnitIds "$Description.selectedUnitIds"
+    if ($RequireComplete -and $Phase -ceq 'before') {
+        if ([string]$Value.relationshipState -cne 'Mounted' -or $Value.hasMountedResidual -ne $true -or
+            $Value.riderStockAgentEnabled -ne $false -or $Value.mountStockAgentEnabled -ne $true -or
+            $Value.riderAvoidanceDisabled -ne $true -or $Value.riderOverridePresent -ne $true -or
+            $Value.mountOverridePresent -ne $false) {
+            throw 'PASS movement cleanup-before evidence does not prove the exact mounted movement-authority lease.'
+        }
+    }
+    if ($RequireComplete -and $Phase -ceq 'after') {
+        if ([string]$Value.relationshipState -cne 'Unmounted' -or $Value.hasMountedResidual -ne $false -or
+            $Value.riderOverridePresent -ne $false -or $Value.mountOverridePresent -ne $false) {
+            throw 'PASS movement cleanup-after evidence does not prove residue-free Unmounted cleanup.'
+        }
+    }
+}
+
+function Assert-KmcMovementTelemetryRecord {
+    param(
+        [Parameter(Mandatory = $true)]$Record,
+        [Parameter(Mandatory = $true)]$Request,
+        [Parameter(Mandatory = $true)][long]$ExpectedSequence,
+        [Parameter(Mandatory = $true)][string[]]$ExpectedRows,
+        [Parameter(Mandatory = $true)][bool]$RequireComplete
+    )
+    Assert-KmcExactProperties $Record @(
+        'schemaVersion','scenario','row','runId','branch','commit','productVersion','dllSha256','dllMvid','sequence','utcTimestamp',
+        'riderId','mountId','relationshipState','combat','partyCombat','currentGameMode','paused','turnBased','authoritativeMover',
+        'requestedDestination','riderStockAgentEnabled','mountStockAgentEnabled','riderAvoidanceDisabled','mountAvoidanceDisabled',
+        'riderEntityPosition','mountEntityPosition','riderEntityOrientation','mountEntityOrientation','riderViewPosition','mountViewPosition',
+        'riderViewRotation','mountViewRotation','anchor','expectedAnchorPosition','expectedAnchorRotation','residualPositionWorldUnits',
+        'residualRotationDegrees','riderSelected','mountSelected','selectedUnitIds','riderCommandCount','mountCommandCount',
+        'riderActiveCommandTypes','mountActiveCommandTypes','mountIsReallyMoving','mountVelocity','mountSpeed','mountMoveDirection',
+        'mountPathId','mountPathFailed','mountRepathNeeded','mountPathError','mountPathErrorLog','mountPathPointCount','mountPathLength',
+        'synchronizationPhase','synchronizationSampleCount','synchronizationCorrectionCount',
+        'initialConfigurationSynchronizationSampleCount','initialConfigurationSynchronizationCorrectionCount',
+        'updateSynchronizationSampleCount','updateSynchronizationCorrectionCount','lateUpdateSynchronizationSampleCount',
+        'lateUpdateSynchronizationCorrectionCount','preCorrectionPositionResidualWorldUnits','preCorrectionRotationResidualDegrees',
+        'postCorrectionPositionResidualWorldUnits','postCorrectionRotationResidualDegrees','maximumPreCorrectionPositionResidualWorldUnits',
+        'maximumPreCorrectionRotationResidualDegrees','maximumPostCorrectionPositionResidualWorldUnits','maximumPostCorrectionRotationResidualDegrees',
+        'maximumInitialConfigurationPreCorrectionPositionResidualWorldUnits','maximumUpdatePreCorrectionPositionResidualWorldUnits',
+        'maximumUpdatePreCorrectionRotationResidualDegrees','maximumUpdatePostCorrectionPositionResidualWorldUnits',
+        'maximumUpdatePostCorrectionRotationResidualDegrees','maximumLateUpdatePreCorrectionPositionResidualWorldUnits',
+        'maximumLateUpdatePreCorrectionRotationResidualDegrees','maximumLateUpdatePostCorrectionPositionResidualWorldUnits',
+        'maximumLateUpdatePostCorrectionRotationResidualDegrees','maximumResidualWorldUnits','maximumRotationResidualDegrees') 'movement telemetry record'
+    Assert-KmcMovementCommonIdentity $Record $Request $ExpectedSequence $ExpectedRows 'Movement telemetry'
+    foreach ($name in @('riderId','mountId','relationshipState','authoritativeMover','anchor','synchronizationPhase')) {
+        if ($Record.$name -isnot [string] -or [string]::IsNullOrWhiteSpace([string]$Record.$name)) { throw "Movement telemetry $name must be a nonempty JSON string." }
+    }
+    foreach ($name in @('combat','turnBased','riderSelected','mountSelected')) {
+        if ($Record.$name -isnot [bool]) { throw "Movement telemetry $name must be a JSON boolean." }
+    }
+    foreach ($name in @('partyCombat','paused','riderStockAgentEnabled','mountStockAgentEnabled','riderAvoidanceDisabled','mountAvoidanceDisabled','mountIsReallyMoving','mountPathFailed','mountRepathNeeded')) {
+        Assert-KmcNullableJsonBoolean $Record.$name "movement telemetry $name"
+    }
+    if ($null -ne $Record.currentGameMode -and $Record.currentGameMode -isnot [string]) { throw 'Movement telemetry currentGameMode must be a JSON string or null.' }
+    foreach ($name in @('requestedDestination','riderEntityPosition','mountEntityPosition','riderViewPosition','mountViewPosition','riderViewRotation','mountViewRotation','expectedAnchorPosition','expectedAnchorRotation','mountVelocity','mountMoveDirection')) {
+        Assert-KmcMovementVector3 $Record.$name "movement telemetry $name" -AllowNull:($name -in @('requestedDestination','riderViewPosition','mountViewPosition','riderViewRotation','mountViewRotation','mountVelocity','mountMoveDirection'))
+    }
+    foreach ($name in @('riderEntityOrientation','mountEntityOrientation','residualPositionWorldUnits','residualRotationDegrees','mountSpeed','mountPathLength',
+        'preCorrectionPositionResidualWorldUnits','preCorrectionRotationResidualDegrees','postCorrectionPositionResidualWorldUnits','postCorrectionRotationResidualDegrees',
+        'maximumPreCorrectionPositionResidualWorldUnits','maximumPreCorrectionRotationResidualDegrees','maximumPostCorrectionPositionResidualWorldUnits',
+        'maximumPostCorrectionRotationResidualDegrees','maximumInitialConfigurationPreCorrectionPositionResidualWorldUnits',
+        'maximumUpdatePreCorrectionPositionResidualWorldUnits','maximumUpdatePreCorrectionRotationResidualDegrees','maximumUpdatePostCorrectionPositionResidualWorldUnits',
+        'maximumUpdatePostCorrectionRotationResidualDegrees','maximumLateUpdatePreCorrectionPositionResidualWorldUnits',
+        'maximumLateUpdatePreCorrectionRotationResidualDegrees','maximumLateUpdatePostCorrectionPositionResidualWorldUnits',
+        'maximumLateUpdatePostCorrectionRotationResidualDegrees','maximumResidualWorldUnits','maximumRotationResidualDegrees')) {
+        if ($null -ne $Record.$name -and -not (Test-KmcFiniteNonnegativeJsonNumber $Record.$name)) { throw "Movement telemetry $name must be a finite nonnegative JSON number or null." }
+    }
+    foreach ($name in @('riderCommandCount','mountCommandCount','mountPathId','mountPathPointCount','synchronizationSampleCount','synchronizationCorrectionCount',
+        'initialConfigurationSynchronizationSampleCount','initialConfigurationSynchronizationCorrectionCount','updateSynchronizationSampleCount',
+        'updateSynchronizationCorrectionCount','lateUpdateSynchronizationSampleCount','lateUpdateSynchronizationCorrectionCount')) {
+        if ($null -ne $Record.$name -and (-not (Test-KmcExactJsonInteger $Record.$name) -or [long]$Record.$name -lt 0)) { throw "Movement telemetry $name must be a nonnegative exact JSON integer or null." }
+    }
+    Assert-KmcJsonStringArray $Record.selectedUnitIds 'movement telemetry selectedUnitIds'
+    Assert-KmcJsonStringArray $Record.riderActiveCommandTypes 'movement telemetry riderActiveCommandTypes'
+    Assert-KmcJsonStringArray $Record.mountActiveCommandTypes 'movement telemetry mountActiveCommandTypes'
+    if ($null -ne $Record.mountPathError -and $Record.mountPathError -isnot [string] -and -not (Test-KmcExactJsonInteger $Record.mountPathError)) { throw 'Movement telemetry mountPathError must be a string, integer, or null.' }
+    if ($null -ne $Record.mountPathErrorLog -and $Record.mountPathErrorLog -isnot [string]) { throw 'Movement telemetry mountPathErrorLog must be a string or null.' }
+    if ($RequireComplete) {
+        if ([string]$Record.relationshipState -cne 'Mounted' -or [string]$Record.authoritativeMover -cne 'mount' -or
+            $Record.combat -ne $false -or $Record.partyCombat -ne $false -or $Record.turnBased -ne $false -or
+            [string]$Record.currentGameMode -cne 'Default' -or $Record.riderStockAgentEnabled -ne $false -or
+            $Record.mountStockAgentEnabled -ne $true -or $Record.riderAvoidanceDisabled -ne $true) {
+            throw 'PASS movement telemetry does not prove the exact safe mounted movement-authority state.'
+        }
+        if ([double]$Record.maximumUpdatePreCorrectionPositionResidualWorldUnits -gt 0.10 -or
+            [double]$Record.maximumLateUpdatePreCorrectionPositionResidualWorldUnits -gt 0.10 -or
+            [double]$Record.maximumPostCorrectionPositionResidualWorldUnits -gt 0.10 -or
+            [double]$Record.maximumPostCorrectionRotationResidualDegrees -gt 0.10) {
+            throw 'PASS movement telemetry exceeds the calibrated residual thresholds.'
+        }
+        if ([long]$Record.updateSynchronizationCorrectionCount -gt [long]$Record.updateSynchronizationSampleCount -or
+            [long]$Record.lateUpdateSynchronizationCorrectionCount -gt [long]$Record.lateUpdateSynchronizationSampleCount) {
+            throw 'PASS movement telemetry correction counts exceed their phase sample counts.'
+        }
+    }
+}
+
+function Assert-KmcMovementScenarioRecord {
+    param(
+        [Parameter(Mandatory = $true)]$Record,
+        [Parameter(Mandatory = $true)]$Request,
+        [Parameter(Mandatory = $true)][long]$ExpectedSequence,
+        [Parameter(Mandatory = $true)][string[]]$ExpectedRows,
+        [Parameter(Mandatory = $true)][bool]$RequireComplete,
+        [Parameter(Mandatory = $true)]$Manifest
+    )
+    $common = @('schemaVersion','runId','scenario','row','branch','commit','productVersion','dllSha256','dllMvid','sequence','utcTimestamp','kind')
+    if ($Record.kind -isnot [string] -or [string]$Record.kind -cnotin @('path-probe','movement-row-result')) { throw 'Movement scenario evidence kind is invalid.' }
+    if ([string]$Record.kind -ceq 'path-probe') {
+        Assert-KmcExactProperties $Record ($common + @('requested','endpoint','pathLength','accepted','strictDoor')) 'movement path-probe record'
+    }
+    else {
+        Assert-KmcExactProperties $Record ($common + @(
+            'status','assertionPassCount','assertionFailCount','maximumPreCorrectionResidualWorldUnits',
+            'maximumInitialConfigurationResidualWorldUnits','maximumUpdatePreCorrectionResidualWorldUnits',
+            'maximumLateUpdatePreCorrectionResidualWorldUnits','maximumPostCorrectionResidualWorldUnits',
+            'maximumPostCorrectionRotationResidualDegrees','synchronizationObservationCount','updateSynchronizationSampleCount',
+            'lateUpdateSynchronizationSampleCount','updateSynchronizationCorrectionCount','lateUpdateSynchronizationCorrectionCount',
+            'maximumStationaryDriftWorldUnits','maximumStuckSeconds','oscillationCount','unexpectedRepathCount',
+            'commandReplacementCount','selectionLossCount','waypointCount','maximumTurnDegrees','nonPairInterferenceCount',
+            'mountFinalTargetDistanceWorldUnits','nonPairBestTargetDistanceWorldUnits','nonPairFinalTargetDistanceWorldUnits',
+            'minimumPairNonPairSeparationWorldUnits','requiredPairNonPairSeparationWorldUnits','unmountedDoorControlPassed',
+            'cleanupTrigger','cleanupSucceeded','cleanupResult','cleanupResidual','cleanupBefore','cleanupAfter',
+            'selectionCoverage','formationCoverage','door','doorNear','doorFar','screenshots','screenshotCaptureErrors','errors')) 'movement row-result record'
+    }
+    Assert-KmcMovementCommonIdentity $Record $Request $ExpectedSequence $ExpectedRows 'Movement scenario evidence'
+    if ([string]$Record.kind -ceq 'path-probe') {
+        Assert-KmcMovementVector3 $Record.requested 'movement path-probe requested'
+        Assert-KmcMovementVector3 $Record.endpoint 'movement path-probe endpoint'
+        if (-not (Test-KmcFiniteNonnegativeJsonNumber $Record.pathLength) -or $Record.accepted -isnot [bool] -or $Record.strictDoor -isnot [bool]) { throw 'Movement path-probe primitive fields are invalid.' }
+        if ($RequireComplete -and $Record.accepted -ne $true) { throw 'PASS movement path-probe was not accepted.' }
+        return
+    }
+
+    if ($Record.status -isnot [string] -or [string]$Record.status -cnotin @('PASS','FAIL')) { throw 'Movement row-result status is invalid.' }
+    foreach ($name in @('assertionPassCount','assertionFailCount','synchronizationObservationCount','updateSynchronizationSampleCount',
+        'lateUpdateSynchronizationSampleCount','updateSynchronizationCorrectionCount','lateUpdateSynchronizationCorrectionCount','oscillationCount',
+        'unexpectedRepathCount','commandReplacementCount','selectionLossCount','waypointCount','nonPairInterferenceCount')) {
+        if (-not (Test-KmcExactJsonInteger $Record.$name) -or [long]$Record.$name -lt 0) { throw "Movement row-result $name must be a nonnegative exact JSON integer." }
+    }
+    foreach ($name in @('maximumPreCorrectionResidualWorldUnits','maximumInitialConfigurationResidualWorldUnits',
+        'maximumUpdatePreCorrectionResidualWorldUnits','maximumLateUpdatePreCorrectionResidualWorldUnits',
+        'maximumPostCorrectionResidualWorldUnits','maximumPostCorrectionRotationResidualDegrees','maximumStationaryDriftWorldUnits',
+        'maximumStuckSeconds','maximumTurnDegrees','mountFinalTargetDistanceWorldUnits','nonPairBestTargetDistanceWorldUnits',
+        'nonPairFinalTargetDistanceWorldUnits','minimumPairNonPairSeparationWorldUnits','requiredPairNonPairSeparationWorldUnits')) {
+        if (-not (Test-KmcFiniteNonnegativeJsonNumber $Record.$name)) { throw "Movement row-result $name must be a finite nonnegative JSON number." }
+    }
+    foreach ($name in @('unmountedDoorControlPassed','cleanupSucceeded','cleanupResidual')) {
+        if ($Record.$name -isnot [bool]) { throw "Movement row-result $name must be a JSON boolean." }
+    }
+    foreach ($name in @('cleanupTrigger','cleanupResult','selectionCoverage','formationCoverage')) {
+        if ($Record.$name -isnot [string] -or [string]::IsNullOrWhiteSpace([string]$Record.$name)) { throw "Movement row-result $name must be a nonempty JSON string." }
+    }
+    if ($null -ne $Record.door -and $Record.door -isnot [string]) { throw 'Movement row-result door must be a string or null.' }
+    Assert-KmcMovementVector3 $Record.doorNear 'movement row-result doorNear'
+    Assert-KmcMovementVector3 $Record.doorFar 'movement row-result doorFar'
+    Assert-KmcMovementCleanupState $Record.cleanupBefore 'movement row-result cleanupBefore' 'before' $RequireComplete
+    Assert-KmcMovementCleanupState $Record.cleanupAfter 'movement row-result cleanupAfter' 'after' $RequireComplete
+    Assert-KmcJsonStringArray $Record.screenshotCaptureErrors 'movement row-result screenshotCaptureErrors'
+    Assert-KmcJsonStringArray $Record.errors 'movement row-result errors'
+    if ($Record.screenshots -isnot [Array]) { throw 'Movement row-result screenshots must be an actual JSON array.' }
+    foreach ($screenshot in @($Record.screenshots)) {
+        Assert-KmcExactProperties $screenshot @('milestone','relativePath','length','sha256') 'movement screenshot evidence'
+        if ($screenshot.milestone -isnot [string] -or $screenshot.relativePath -isnot [string] -or
+            [string]$screenshot.relativePath -cnotmatch '^movement-visuals/[A-Za-z0-9._-]+\.png$' -or
+            -not (Test-KmcExactJsonInteger $screenshot.length) -or [long]$screenshot.length -le 0 -or
+            [string]$screenshot.sha256 -cnotmatch '^[0-9a-f]{64}$') { throw 'Movement screenshot evidence identity is invalid.' }
+        $matches = @($Manifest.artifacts | Where-Object { [string]$_.relativePath -ceq [string]$screenshot.relativePath -and [string]$_.kind -ceq 'screenshot' })
+        if ($matches.Count -ne 1 -or [long]$matches[0].length -ne [long]$screenshot.length -or [string]$matches[0].sha256 -cne [string]$screenshot.sha256) {
+            throw 'Movement screenshot evidence does not reconcile with exactly one manifest record.'
+        }
+    }
+    if ($RequireComplete) {
+        if ([string]$Record.status -cne 'PASS' -or [long]$Record.assertionPassCount -le 0 -or
+            [long]$Record.assertionFailCount -ne 0 -or @($Record.errors).Count -ne 0 -or
+            $Record.cleanupSucceeded -ne $true -or $Record.cleanupResidual -ne $false) {
+            throw 'PASS movement row-result contains failed assertions, errors, or cleanup residue.'
+        }
+        if ([double]$Record.maximumUpdatePreCorrectionResidualWorldUnits -gt 0.10 -or
+            [double]$Record.maximumLateUpdatePreCorrectionResidualWorldUnits -gt 0.10 -or
+            [double]$Record.maximumPostCorrectionResidualWorldUnits -gt 0.10 -or
+            [double]$Record.maximumPostCorrectionRotationResidualDegrees -gt 0.10) {
+            throw 'PASS movement row-result exceeds the calibrated residual thresholds.'
+        }
+        if ([long]$Record.synchronizationObservationCount -le 0 -or [long]$Record.updateSynchronizationSampleCount -le 0 -or
+            [long]$Record.lateUpdateSynchronizationSampleCount -le 0 -or
+            [long]$Record.updateSynchronizationCorrectionCount -gt [long]$Record.updateSynchronizationSampleCount -or
+            [long]$Record.lateUpdateSynchronizationCorrectionCount -gt [long]$Record.lateUpdateSynchronizationSampleCount -or
+            [long]$Record.waypointCount -le 0) { throw 'PASS movement row-result lacks bounded synchronization or navigation samples.' }
+        if ([string]$Record.row -ceq 'mounted-pair-doorway' -and
+            ($Record.unmountedDoorControlPassed -ne $true -or [string]::IsNullOrWhiteSpace([string]$Record.door))) {
+            throw 'PASS doorway row does not contain the required matched unmounted control and exact door identity.'
+        }
+        if ([string]$Record.row -ceq 'mounted-pair-party-formation' -and
+            ([double]$Record.mountFinalTargetDistanceWorldUnits -gt 1.25 -or
+             [double]$Record.nonPairBestTargetDistanceWorldUnits -gt 1.25 -or
+             [double]$Record.nonPairFinalTargetDistanceWorldUnits -gt 1.25 -or
+             [double]$Record.requiredPairNonPairSeparationWorldUnits -le 0.0 -or
+             [double]$Record.minimumPairNonPairSeparationWorldUnits -lt [double]$Record.requiredPairNonPairSeparationWorldUnits)) {
+            throw 'PASS formation row does not prove both recipients reached their targets with corpulence clearance.'
+        }
+    }
+}
+
+function Assert-KmcMovementScenarioEvidence {
+    param(
+        [Parameter(Mandatory = $true)]$Request,
+        [Parameter(Mandatory = $true)]$Manifest,
+        [AllowNull()][string]$Status,
+        $SubscenarioResults
+    )
+    $evidenceRoot = [IO.Path]::GetFullPath([string]$Request.evidenceRoot).TrimEnd('\')
+    Assert-KmcKnownRuntimeArtifactsManifested $evidenceRoot $Manifest
+    $isMovement = Test-KmcMovementRuntimeScenario ([string]$Request.scenario)
+    $requireComplete = $isMovement -and [string]$Status -ceq 'PASS'
+    $telemetryArtifacts = @($Manifest.artifacts | Where-Object { [string]$_.relativePath -ceq 'movement-telemetry.jsonl' })
+    $scenarioArtifacts = @($Manifest.artifacts | Where-Object { [string]$_.relativePath -ceq 'movement-scenario-evidence.jsonl' })
+    if (-not $isMovement -and ($telemetryArtifacts.Count -ne 0 -or $scenarioArtifacts.Count -ne 0)) { throw 'Movement evidence is present for a non-movement runtime scenario.' }
+    if ($requireComplete -and ($telemetryArtifacts.Count -ne 1 -or $scenarioArtifacts.Count -ne 1)) {
+        throw 'PASS movement scenario requires exactly one manifested telemetry JSONL and one manifested scenario-evidence JSONL.'
+    }
+    if ($telemetryArtifacts.Count -gt 1 -or ($telemetryArtifacts.Count -eq 1 -and [string]$telemetryArtifacts[0].kind -cne 'telemetry')) { throw 'Movement telemetry manifest identity is not exact.' }
+    if ($scenarioArtifacts.Count -gt 1 -or ($scenarioArtifacts.Count -eq 1 -and [string]$scenarioArtifacts[0].kind -cne 'scenario-evidence')) { throw 'Movement scenario-evidence manifest identity is not exact.' }
+    if (-not $isMovement -or ($telemetryArtifacts.Count -eq 0 -and $scenarioArtifacts.Count -eq 0)) { return }
+
+    [string[]]$expectedRows = if ([string]$Request.scenario -ceq 'movement-suite') { @(Get-KmcMovementRuntimeRows) } else { @([string]$Request.scenario) }
+    $telemetryRecords = New-Object 'Collections.Generic.List[object]'
+    if ($telemetryArtifacts.Count -eq 1) {
+        $telemetryPath = Assert-KmcChildPath (Join-Path $evidenceRoot 'movement-telemetry.jsonl') $evidenceRoot 'movement telemetry'
+        Assert-KmcNotReparsePoint $telemetryPath 'movement telemetry'; Assert-KmcNotHardLink $telemetryPath 'movement telemetry'
+        foreach ($line in @([IO.File]::ReadAllLines($telemetryPath, (New-Object Text.UTF8Encoding($false, $true))))) {
+            if ([string]::IsNullOrWhiteSpace($line)) { continue }
+            Assert-KmcJsonObjectMembersUnique $line 'movement telemetry line'
+            try { $record = $line | ConvertFrom-Json } catch { throw "Movement telemetry line is malformed JSON: $($_.Exception.Message)" }
+            Assert-KmcMovementTelemetryRecord $record $Request $telemetryRecords.Count $expectedRows $requireComplete
+            $telemetryRecords.Add($record)
+        }
+    }
+    if ($requireComplete -and $telemetryRecords.Count -eq 0) { throw 'PASS movement telemetry contains no nonblank JSON records.' }
+
+    $scenarioRecords = New-Object 'Collections.Generic.List[object]'
+    if ($scenarioArtifacts.Count -eq 1) {
+        $scenarioPath = Assert-KmcChildPath (Join-Path $evidenceRoot 'movement-scenario-evidence.jsonl') $evidenceRoot 'movement scenario evidence'
+        Assert-KmcNotReparsePoint $scenarioPath 'movement scenario evidence'; Assert-KmcNotHardLink $scenarioPath 'movement scenario evidence'
+        foreach ($line in @([IO.File]::ReadAllLines($scenarioPath, (New-Object Text.UTF8Encoding($false, $true))))) {
+            if ([string]::IsNullOrWhiteSpace($line)) { continue }
+            Assert-KmcJsonObjectMembersUnique $line 'movement scenario evidence line'
+            try { $record = $line | ConvertFrom-Json } catch { throw "Movement scenario evidence line is malformed JSON: $($_.Exception.Message)" }
+            Assert-KmcMovementScenarioRecord $record $Request $scenarioRecords.Count $expectedRows $requireComplete $Manifest
+            $scenarioRecords.Add($record)
+        }
+    }
+    if ($requireComplete -and $scenarioRecords.Count -eq 0) { throw 'PASS movement scenario evidence contains no nonblank JSON records.' }
+
+    $lastTelemetryRow = -1
+    $telemetryRows = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
+    $stableRider = $null; $stableMount = $null
+    foreach ($record in $telemetryRecords) {
+        $rowPosition = [Array]::IndexOf($expectedRows, [string]$record.row)
+        if ($rowPosition -lt $lastTelemetryRow) { throw 'Movement telemetry row order regressed.' }
+        $lastTelemetryRow = $rowPosition; [void]$telemetryRows.Add([string]$record.row)
+        if ($null -eq $stableRider) { $stableRider = [string]$record.riderId; $stableMount = [string]$record.mountId }
+        elseif ([string]$record.riderId -cne $stableRider -or [string]$record.mountId -cne $stableMount) { throw 'Movement telemetry rider or mount stable identity changed within the run.' }
+    }
+
+    $lastScenarioRow = -1
+    $rowResults = New-Object 'Collections.Generic.List[object]'
+    $pathProbeRows = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
+    foreach ($record in $scenarioRecords) {
+        $rowPosition = [Array]::IndexOf($expectedRows, [string]$record.row)
+        if ($rowPosition -lt $lastScenarioRow) { throw 'Movement scenario evidence row order regressed.' }
+        $lastScenarioRow = $rowPosition
+        if ([string]$record.kind -ceq 'movement-row-result') { $rowResults.Add($record) } else { [void]$pathProbeRows.Add([string]$record.row) }
+    }
+    if ($requireComplete) {
+        if ($rowResults.Count -ne $expectedRows.Count) { throw 'PASS movement evidence does not contain exactly one row-result for every expected row.' }
+        for ($index = 0; $index -lt $expectedRows.Count; $index++) {
+            if ([string]$rowResults[$index].row -cne [string]$expectedRows[$index] -or -not $telemetryRows.Contains([string]$expectedRows[$index]) -or
+                -not $pathProbeRows.Contains([string]$expectedRows[$index])) { throw "PASS movement evidence lacks exact ordered row, telemetry, or path-probe coverage for $($expectedRows[$index])." }
+        }
+    }
+    if ($null -ne $SubscenarioResults) {
+        $subresults = @($SubscenarioResults)
+        if ($requireComplete -and $subresults.Count -ne $expectedRows.Count) { throw 'PASS movement subresult count does not equal the exact expected row count.' }
+        for ($index = 0; $index -lt $rowResults.Count; $index++) {
+            $record = $rowResults[$index]
+            $matches = @($subresults | Where-Object { [string]$_.name -ceq [string]$record.row })
+            if ($matches.Count -ne 1) { throw "Movement row-result does not map to exactly one game subresult: $($record.row)" }
+            $subresult = $matches[0]
+            if ([string]$record.status -cne [string]$subresult.status -or
+                [long]$record.assertionPassCount -ne [long]$subresult.assertionPassCount -or
+                [long]$record.assertionFailCount -ne [long]$subresult.assertionFailCount -or
+                (@($record.errors) -join "`n") -cne (@($subresult.errors) -join "`n")) { throw "Movement row-result does not reconcile with the game subresult: $($record.row)" }
+        }
+        if ($requireComplete) {
+            for ($index = 0; $index -lt $expectedRows.Count; $index++) {
+                if ([string]$subresults[$index].name -cne [string]$expectedRows[$index]) { throw 'PASS movement game subresults are not in the exact expected row order.' }
+            }
+        }
+    }
+}
+
 function Get-KmcValidatedOrchestrationArtifactManifestHash {
     param([Parameter(Mandatory = $true)]$Request)
     $evidenceRoot = [IO.Path]::GetFullPath([string]$Request.evidenceRoot).TrimEnd('\')
@@ -1807,6 +2205,7 @@ function Get-KmcValidatedOrchestrationArtifactManifestHash {
         }
     }
     Assert-KmcLifecycleScenarioEvidence -Request $Request -Manifest $manifestValue
+    Assert-KmcMovementScenarioEvidence -Request $Request -Manifest $manifestValue
     $hash = Get-KmcSha256 $manifestPath
     $after = Get-Item -LiteralPath $manifestPath -Force
     if ($after.Length -ne $before.Length -or $after.LastWriteTimeUtc.Ticks -ne $before.LastWriteTimeUtc.Ticks) {

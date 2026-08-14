@@ -35,13 +35,19 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly string dllMvid;
         private readonly KingmakerMountedPairRuntime runtime;
         private readonly Func<string> relationshipState;
+        private readonly Func<string> movementRow;
         private readonly double intervalSeconds;
         private bool created;
         private readonly Stopwatch clock = Stopwatch.StartNew();
         private double lastSampleSeconds;
         private long sequence;
 
-        public MovementTelemetryWriter(RuntimeRequest request, KingmakerMountedPairRuntime runtime, Func<string> relationshipState, double intervalSeconds)
+        public MovementTelemetryWriter(
+            RuntimeRequest request,
+            KingmakerMountedPairRuntime runtime,
+            Func<string> relationshipState,
+            Func<string> movementRow,
+            double intervalSeconds)
         {
             if (request == null) { throw new ArgumentNullException(nameof(request)); }
             scenario = request.Scenario;
@@ -51,6 +57,7 @@ namespace KingmakerMountedCombat.Diagnostics
             productVersion = request.ProductVersion;
             this.runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
             this.relationshipState = relationshipState ?? throw new ArgumentNullException(nameof(relationshipState));
+            this.movementRow = movementRow ?? throw new ArgumentNullException(nameof(movementRow));
             this.intervalSeconds = intervalSeconds;
             var assembly = typeof(Main).Assembly;
             dllSha256 = ComputeSha256(assembly.Location);
@@ -66,7 +73,8 @@ namespace KingmakerMountedCombat.Diagnostics
             var rider = runtime.Rider;
             var mount = runtime.Mount;
             var agent = runtime.MovementAgent;
-            if (rider == null || mount == null || agent == null || !agent.IsConfigured) { return; }
+            var row = movementRow();
+            if (rider == null || mount == null || agent == null || !agent.IsConfigured || string.IsNullOrEmpty(row)) { return; }
             var expected = agent.ExpectedPosition;
             var expectedRotation = agent.ExpectedRotation;
             var selected = SelectionManager.Instance?.SelectedUnits;
@@ -77,6 +85,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 schemaVersion = 1,
                 scenario,
+                row,
                 runId,
                 branch,
                 commit,
@@ -94,22 +103,22 @@ namespace KingmakerMountedCombat.Diagnostics
                 paused = Game.Instance?.IsPaused,
                 turnBased = TurnBased.Controllers.CombatController.IsInTurnBasedCombat(),
                 authoritativeMover = "mount",
-                requestedDestination = move == null ? (UnityEngine.Vector3?)null : move.Target,
+                requestedDestination = move == null ? null : VectorEvidence.From(move.Target),
                 riderStockAgentEnabled = rider.View?.AgentASP?.enabled,
                 mountStockAgentEnabled = mount.View?.AgentASP?.enabled,
                 riderAvoidanceDisabled = rider.View?.AgentASP?.AvoidanceDisabled,
                 mountAvoidanceDisabled = mount.View?.AgentASP?.AvoidanceDisabled,
-                riderEntityPosition = rider.Position,
-                mountEntityPosition = mount.Position,
+                riderEntityPosition = VectorEvidence.From(rider.Position),
+                mountEntityPosition = VectorEvidence.From(mount.Position),
                 riderEntityOrientation = rider.Orientation,
                 mountEntityOrientation = mount.Orientation,
-                riderViewPosition = rider.View?.transform.position,
-                mountViewPosition = mount.View?.transform.position,
-                riderViewRotation = rider.View?.transform.rotation.eulerAngles,
-                mountViewRotation = mount.View?.transform.rotation.eulerAngles,
+                riderViewPosition = rider.View == null ? null : VectorEvidence.From(rider.View.transform.position),
+                mountViewPosition = mount.View == null ? null : VectorEvidence.From(mount.View.transform.position),
+                riderViewRotation = rider.View == null ? null : VectorEvidence.From(rider.View.transform.rotation.eulerAngles),
+                mountViewRotation = mount.View == null ? null : VectorEvidence.From(mount.View.transform.rotation.eulerAngles),
                 anchor = agent.AnchorName,
-                expectedAnchorPosition = expected,
-                expectedAnchorRotation = expectedRotation.eulerAngles,
+                expectedAnchorPosition = VectorEvidence.From(expected),
+                expectedAnchorRotation = VectorEvidence.From(expectedRotation.eulerAngles),
                 residualPositionWorldUnits = Domain.MovementTelemetrySample.CalculateDistance(expected.x, expected.y, expected.z, rider.View.transform.position.x, rider.View.transform.position.y, rider.View.transform.position.z),
                 residualRotationDegrees = UnityEngine.Quaternion.Angle(expectedRotation, rider.View.transform.rotation),
                 riderSelected = selected != null && selected.Contains(rider),
@@ -120,9 +129,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 riderActiveCommandTypes = rider.Commands?.Raw == null ? new string[0] : rider.Commands.Raw.Where(command => command != null).Select(command => command.GetType().FullName).ToArray(),
                 mountActiveCommandTypes = mount.Commands?.Raw == null ? new string[0] : mount.Commands.Raw.Where(command => command != null).Select(command => command.GetType().FullName).ToArray(),
                 mountIsReallyMoving = mountAgent?.IsReallyMoving,
-                mountVelocity = mountAgent?.Velocity,
+                mountVelocity = mountAgent == null ? null : VectorEvidence.From(mountAgent.Velocity),
                 mountSpeed = mountAgent?.Speed,
-                mountMoveDirection = mountAgent?.MoveDirection,
+                mountMoveDirection = mountAgent == null ? null : VectorEvidence.From(mountAgent.MoveDirection),
                 mountPathId = mountPath == null ? (uint?)null : mountPath.pathID,
                 mountPathFailed = mountAgent?.PathFailed,
                 mountRepathNeeded = mountAgent?.RepathNeeded,
@@ -183,6 +192,20 @@ namespace KingmakerMountedCombat.Diagnostics
             using (var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read))
             {
                 return BitConverter.ToString(algorithm.ComputeHash(stream)).Replace("-", string.Empty).ToLowerInvariant();
+            }
+        }
+
+        private sealed class VectorEvidence
+        {
+            public float X { get; set; }
+
+            public float Y { get; set; }
+
+            public float Z { get; set; }
+
+            public static VectorEvidence From(UnityEngine.Vector3 value)
+            {
+                return new VectorEvidence { X = value.x, Y = value.y, Z = value.z };
             }
         }
     }

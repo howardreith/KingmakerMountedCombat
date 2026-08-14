@@ -160,6 +160,118 @@ function Write-TestLifecycleEvidence {
     return New-TestArtifactManifest -EvidenceRoot $EvidenceRoot -RunId $Request.runId -Scenario $Request.scenario -Artifacts $artifacts
 }
 
+function New-TestMovementTelemetryRecord {
+    param(
+        [Parameter(Mandatory = $true)]$Request,
+        [Parameter(Mandatory = $true)][string]$Row,
+        [Parameter(Mandatory = $true)][long]$Sequence
+    )
+    $vector = [ordered]@{x=1.0;y=2.0;z=3.0}
+    return [ordered]@{
+        schemaVersion=1;scenario=[string]$Request.scenario;row=$Row;runId=[string]$Request.runId;branch=[string]$Request.branch
+        commit=[string]$Request.commit;productVersion=[string]$Request.productVersion;dllSha256=[string]$Request.dllSha256
+        dllMvid=[string]$Request.dllMvid;sequence=$Sequence;utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o')
+        riderId='movement-rider';mountId='movement-mount';relationshipState='Mounted';combat=$false;partyCombat=$false
+        currentGameMode='Default';paused=$false;turnBased=$false;authoritativeMover='mount';requestedDestination=$vector
+        riderStockAgentEnabled=$false;mountStockAgentEnabled=$true;riderAvoidanceDisabled=$true;mountAvoidanceDisabled=$false
+        riderEntityPosition=$vector;mountEntityPosition=$vector;riderEntityOrientation=0.0;mountEntityOrientation=0.0
+        riderViewPosition=$vector;mountViewPosition=$vector;riderViewRotation=$vector;mountViewRotation=$vector;anchor='Spine'
+        expectedAnchorPosition=$vector;expectedAnchorRotation=$vector;residualPositionWorldUnits=0.0;residualRotationDegrees=0.0
+        riderSelected=$true;mountSelected=$false;selectedUnitIds=@('movement-rider');riderCommandCount=0;mountCommandCount=1
+        riderActiveCommandTypes=@();mountActiveCommandTypes=@('Kingmaker.UnitLogic.Commands.UnitMoveTo');mountIsReallyMoving=$true
+        mountVelocity=$vector;mountSpeed=3.0;mountMoveDirection=$vector;mountPathId=1;mountPathFailed=$false;mountRepathNeeded=$false
+        mountPathError=0;mountPathErrorLog=$null;mountPathPointCount=2;mountPathLength=5.0;synchronizationPhase='LateUpdate'
+        synchronizationSampleCount=6;synchronizationCorrectionCount=2;initialConfigurationSynchronizationSampleCount=1
+        initialConfigurationSynchronizationCorrectionCount=1;updateSynchronizationSampleCount=3;updateSynchronizationCorrectionCount=1
+        lateUpdateSynchronizationSampleCount=2;lateUpdateSynchronizationCorrectionCount=0;preCorrectionPositionResidualWorldUnits=0.01
+        preCorrectionRotationResidualDegrees=0.01;postCorrectionPositionResidualWorldUnits=0.0;postCorrectionRotationResidualDegrees=0.0
+        maximumPreCorrectionPositionResidualWorldUnits=1.0;maximumPreCorrectionRotationResidualDegrees=10.0
+        maximumPostCorrectionPositionResidualWorldUnits=0.0;maximumPostCorrectionRotationResidualDegrees=0.0
+        maximumInitialConfigurationPreCorrectionPositionResidualWorldUnits=1.0;maximumUpdatePreCorrectionPositionResidualWorldUnits=0.01
+        maximumUpdatePreCorrectionRotationResidualDegrees=0.01;maximumUpdatePostCorrectionPositionResidualWorldUnits=0.0
+        maximumUpdatePostCorrectionRotationResidualDegrees=0.0;maximumLateUpdatePreCorrectionPositionResidualWorldUnits=0.01
+        maximumLateUpdatePreCorrectionRotationResidualDegrees=0.01;maximumLateUpdatePostCorrectionPositionResidualWorldUnits=0.0
+        maximumLateUpdatePostCorrectionRotationResidualDegrees=0.0;maximumResidualWorldUnits=0.0;maximumRotationResidualDegrees=0.0
+    }
+}
+
+function New-TestMovementPathProbeRecord {
+    param(
+        [Parameter(Mandatory = $true)]$Request,
+        [Parameter(Mandatory = $true)][string]$Row,
+        [Parameter(Mandatory = $true)][long]$Sequence
+    )
+    return [ordered]@{
+        schemaVersion=1;runId=[string]$Request.runId;scenario=[string]$Request.scenario;row=$Row;branch=[string]$Request.branch
+        commit=[string]$Request.commit;productVersion=[string]$Request.productVersion;dllSha256=[string]$Request.dllSha256
+        dllMvid=[string]$Request.dllMvid;sequence=$Sequence;utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o')
+        kind='path-probe';requested=[ordered]@{x=1.0;y=2.0;z=3.0};endpoint=[ordered]@{x=4.0;y=2.0;z=3.0}
+        pathLength=3.0;accepted=$true;strictDoor=($Row -ceq 'mounted-pair-doorway')
+    }
+}
+
+function New-TestMovementRowRecord {
+    param(
+        [Parameter(Mandatory = $true)]$Request,
+        [Parameter(Mandatory = $true)][string]$Row,
+        [Parameter(Mandatory = $true)][long]$Sequence,
+        [int]$AssertionPassCount = 20
+    )
+    $before = [ordered]@{
+        trigger='Manual';relationshipState='Mounted';hasMountedResidual=$true;riderStockAgentEnabled=$false;mountStockAgentEnabled=$true
+        riderAvoidanceDisabled=$true;mountAvoidanceDisabled=$false;riderOverridePresent=$true;mountOverridePresent=$false
+        riderSelected=$true;mountSelected=$false;selectedUnitIds=@('movement-rider');paused=$false
+    }
+    $after = [ordered]@{
+        trigger='Manual';relationshipState='Unmounted';hasMountedResidual=$false;riderStockAgentEnabled=$true;mountStockAgentEnabled=$true
+        riderAvoidanceDisabled=$false;mountAvoidanceDisabled=$false;riderOverridePresent=$false;mountOverridePresent=$false
+        riderSelected=$true;mountSelected=$false;selectedUnitIds=@('movement-rider');paused=$false
+    }
+    $formation = $Row -ceq 'mounted-pair-party-formation'
+    $doorway = $Row -ceq 'mounted-pair-doorway'
+    return [ordered]@{
+        schemaVersion=1;runId=[string]$Request.runId;scenario=[string]$Request.scenario;row=$Row;branch=[string]$Request.branch
+        commit=[string]$Request.commit;productVersion=[string]$Request.productVersion;dllSha256=[string]$Request.dllSha256
+        dllMvid=[string]$Request.dllMvid;sequence=$Sequence;utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o')
+        kind='movement-row-result';status='PASS';assertionPassCount=$AssertionPassCount;assertionFailCount=0
+        maximumPreCorrectionResidualWorldUnits=1.0;maximumInitialConfigurationResidualWorldUnits=1.0
+        maximumUpdatePreCorrectionResidualWorldUnits=0.01;maximumLateUpdatePreCorrectionResidualWorldUnits=0.01
+        maximumPostCorrectionResidualWorldUnits=0.0;maximumPostCorrectionRotationResidualDegrees=0.0
+        synchronizationObservationCount=12;updateSynchronizationSampleCount=10;lateUpdateSynchronizationSampleCount=10
+        updateSynchronizationCorrectionCount=1;lateUpdateSynchronizationCorrectionCount=1;maximumStationaryDriftWorldUnits=0.01
+        maximumStuckSeconds=0.1;oscillationCount=0;unexpectedRepathCount=0;commandReplacementCount=0;selectionLossCount=0
+        waypointCount=1;maximumTurnDegrees=45.0;nonPairInterferenceCount=0;mountFinalTargetDistanceWorldUnits=$(if($formation){0.5}else{0.0})
+        nonPairBestTargetDistanceWorldUnits=$(if($formation){0.4}else{0.0});nonPairFinalTargetDistanceWorldUnits=$(if($formation){0.5}else{0.0})
+        minimumPairNonPairSeparationWorldUnits=$(if($formation){3.0}else{0.0});requiredPairNonPairSeparationWorldUnits=$(if($formation){2.0}else{0.0})
+        unmountedDoorControlPassed=$doorway;cleanupTrigger='Manual';cleanupSucceeded=$true;cleanupResult='state=Unmounted'
+        cleanupResidual=$false;cleanupBefore=$before;cleanupAfter=$after
+        selectionCoverage='SelectionManager.SelectedUnits only; active portrait and camera-follow state are not asserted.'
+        formationCoverage='Stock group-command recipients and corpulence clearance only; formation-slot persistence is not asserted.'
+        door=$(if($doorway){'Area/Door'}else{$null});doorNear=[ordered]@{x=1.0;y=2.0;z=3.0};doorFar=[ordered]@{x=4.0;y=2.0;z=3.0}
+        screenshots=@();screenshotCaptureErrors=@();errors=@()
+    }
+}
+
+function Write-TestMovementEvidence {
+    param(
+        [Parameter(Mandatory = $true)][string]$EvidenceRoot,
+        [Parameter(Mandatory = $true)]$Request,
+        [Parameter(Mandatory = $true)][array]$TelemetryRecords,
+        [Parameter(Mandatory = $true)][array]$ScenarioRecords,
+        [switch]$OmitTelemetryManifest,
+        [switch]$OmitScenarioManifest
+    )
+    New-Item -ItemType Directory -Path $EvidenceRoot -Force | Out-Null
+    $telemetryPath = Join-Path $EvidenceRoot 'movement-telemetry.jsonl'
+    $scenarioPath = Join-Path $EvidenceRoot 'movement-scenario-evidence.jsonl'
+    [IO.File]::WriteAllText($telemetryPath, (@($TelemetryRecords | ForEach-Object { $_ | ConvertTo-Json -Compress -Depth 20 }) -join [Environment]::NewLine) + [Environment]::NewLine, (New-Object Text.UTF8Encoding($false)))
+    [IO.File]::WriteAllText($scenarioPath, (@($ScenarioRecords | ForEach-Object { $_ | ConvertTo-Json -Compress -Depth 20 }) -join [Environment]::NewLine) + [Environment]::NewLine, (New-Object Text.UTF8Encoding($false)))
+    $artifacts = New-Object 'Collections.Generic.List[object]'
+    if (-not $OmitTelemetryManifest) { $artifacts.Add([ordered]@{relativePath='movement-telemetry.jsonl';kind='telemetry';length=(Get-Item $telemetryPath).Length;sha256=(Get-KmcSha256 $telemetryPath)}) }
+    if (-not $OmitScenarioManifest) { $artifacts.Add([ordered]@{relativePath='movement-scenario-evidence.jsonl';kind='scenario-evidence';length=(Get-Item $scenarioPath).Length;sha256=(Get-KmcSha256 $scenarioPath)}) }
+    return New-TestArtifactManifest -EvidenceRoot $EvidenceRoot -RunId $Request.runId -Scenario $Request.scenario -Artifacts $artifacts.ToArray()
+}
+
 New-Item -ItemType Directory -Path $testRoot | Out-Null
 try {
     $emptyRoot = Join-Path $testRoot 'empty-root'
@@ -1368,6 +1480,120 @@ try {
         $threw=$false
         try { Assert-KmcLifecycleScenarioEvidence -Request $suiteRequest -Manifest $suiteManifest -Status 'PASS' -SubscenarioResults $suiteSubresults } catch { $threw=$true }
         Assert-Test $threw 'lifecycle-suite PASS accepted fewer than the exact eight ordered rows'
+    }
+
+    $movementRow = 'mounted-pair-open-ground'
+    $movementRequest = [pscustomobject][ordered]@{
+        runId='movement-evidence-test';scenario=$movementRow;branch=$v2Request.branch;commit=$v2Request.commit
+        productVersion=$v2Request.productVersion;dllSha256=$v2Request.dllSha256;dllMvid=$v2Request.dllMvid
+        evidenceRoot=(Join-Path $runtimeEvidenceTestRoot 'movement-evidence-test')
+    }
+    $movementSubresult = [pscustomobject][ordered]@{name=$movementRow;status='PASS';assertionPassCount=20;assertionFailCount=0;errors=@()}
+
+    Invoke-HarnessTest 'PASS movement validator accepts exact telemetry, row evidence, and cleanup proof' {
+        $telemetry = @((New-TestMovementTelemetryRecord $movementRequest $movementRow 0))
+        $scenario = @((New-TestMovementPathProbeRecord $movementRequest $movementRow 0),(New-TestMovementRowRecord $movementRequest $movementRow 1))
+        [void](Write-TestMovementEvidence $movementRequest.evidenceRoot $movementRequest $telemetry $scenario)
+        $manifest = Read-KmcJson (Join-Path $movementRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcMovementScenarioEvidence -Request $movementRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($movementSubresult)
+    }
+    Invoke-HarnessTest 'PASS movement validator requires both exact manifested JSONL artifacts' {
+        $telemetry = @((New-TestMovementTelemetryRecord $movementRequest $movementRow 0))
+        $scenario = @((New-TestMovementPathProbeRecord $movementRequest $movementRow 0),(New-TestMovementRowRecord $movementRequest $movementRow 1))
+        [void](Write-TestMovementEvidence $movementRequest.evidenceRoot $movementRequest $telemetry $scenario -OmitTelemetryManifest)
+        $manifest = Read-KmcJson (Join-Path $movementRequest.evidenceRoot 'runtime-artifacts.json')
+        $threw=$false
+        try { Assert-KmcMovementScenarioEvidence -Request $movementRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($movementSubresult) } catch { $threw=$true }
+        Assert-Test $threw 'PASS movement evidence accepted an unmanifested telemetry artifact'
+    }
+    Invoke-HarnessTest 'movement telemetry validator rejects noncontiguous sequence and row identity mutation' {
+        $telemetry = @((New-TestMovementTelemetryRecord $movementRequest $movementRow 4))
+        $scenario = @((New-TestMovementPathProbeRecord $movementRequest $movementRow 0),(New-TestMovementRowRecord $movementRequest $movementRow 1))
+        [void](Write-TestMovementEvidence $movementRequest.evidenceRoot $movementRequest $telemetry $scenario)
+        $manifest = Read-KmcJson (Join-Path $movementRequest.evidenceRoot 'runtime-artifacts.json')
+        $threw=$false
+        try { Assert-KmcMovementScenarioEvidence -Request $movementRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($movementSubresult) } catch { $threw=$true }
+        Assert-Test $threw 'movement telemetry accepted a noncontiguous sequence'
+
+        $telemetry = @((New-TestMovementTelemetryRecord $movementRequest 'mounted-pair-selection' 0))
+        [void](Write-TestMovementEvidence $movementRequest.evidenceRoot $movementRequest $telemetry $scenario)
+        $manifest = Read-KmcJson (Join-Path $movementRequest.evidenceRoot 'runtime-artifacts.json')
+        $threw=$false
+        try { Assert-KmcMovementScenarioEvidence -Request $movementRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($movementSubresult) } catch { $threw=$true }
+        Assert-Test $threw 'individual movement telemetry accepted a foreign row identity'
+    }
+    Invoke-HarnessTest 'PASS movement validator rejects calibrated residual threshold mutation' {
+        $telemetry = @((New-TestMovementTelemetryRecord $movementRequest $movementRow 0))
+        $rowRecord = New-TestMovementRowRecord $movementRequest $movementRow 1
+        $rowRecord.maximumUpdatePreCorrectionResidualWorldUnits = 0.100001
+        $scenario = @((New-TestMovementPathProbeRecord $movementRequest $movementRow 0),$rowRecord)
+        [void](Write-TestMovementEvidence $movementRequest.evidenceRoot $movementRequest $telemetry $scenario)
+        $manifest = Read-KmcJson (Join-Path $movementRequest.evidenceRoot 'runtime-artifacts.json')
+        $threw=$false
+        try { Assert-KmcMovementScenarioEvidence -Request $movementRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($movementSubresult) } catch { $threw=$true }
+        Assert-Test $threw 'movement evidence accepted a calibrated residual above 0.10 world units'
+    }
+    Invoke-HarnessTest 'PASS movement validator rejects cleanup-after residue mutation' {
+        $telemetry = @((New-TestMovementTelemetryRecord $movementRequest $movementRow 0))
+        $rowRecord = New-TestMovementRowRecord $movementRequest $movementRow 1
+        $rowRecord.cleanupAfter.hasMountedResidual = $true
+        $scenario = @((New-TestMovementPathProbeRecord $movementRequest $movementRow 0),$rowRecord)
+        [void](Write-TestMovementEvidence $movementRequest.evidenceRoot $movementRequest $telemetry $scenario)
+        $manifest = Read-KmcJson (Join-Path $movementRequest.evidenceRoot 'runtime-artifacts.json')
+        $threw=$false
+        try { Assert-KmcMovementScenarioEvidence -Request $movementRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($movementSubresult) } catch { $threw=$true }
+        Assert-Test $threw 'movement evidence accepted cleanup-after mounted residue'
+    }
+    Invoke-HarnessTest 'movement row-result validator rejects subresult reconciliation mutation' {
+        $telemetry = @((New-TestMovementTelemetryRecord $movementRequest $movementRow 0))
+        $scenario = @((New-TestMovementPathProbeRecord $movementRequest $movementRow 0),(New-TestMovementRowRecord $movementRequest $movementRow 1))
+        [void](Write-TestMovementEvidence $movementRequest.evidenceRoot $movementRequest $telemetry $scenario)
+        $manifest = Read-KmcJson (Join-Path $movementRequest.evidenceRoot 'runtime-artifacts.json')
+        $mutated = [pscustomobject][ordered]@{name=$movementRow;status='PASS';assertionPassCount=19;assertionFailCount=0;errors=@()}
+        $threw=$false
+        try { Assert-KmcMovementScenarioEvidence -Request $movementRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($mutated) } catch { $threw=$true }
+        Assert-Test $threw 'movement row-result accepted mismatched subscenario assertion totals'
+    }
+    Invoke-HarnessTest 'movement-suite requires exact eight-row coverage and order in both artifacts' {
+        $suiteRows = @(Get-KmcMovementRuntimeRows)
+        $suiteRequest = [pscustomobject][ordered]@{
+            runId='movement-suite-evidence-test';scenario='movement-suite';branch=$v2Request.branch;commit=$v2Request.commit
+            productVersion=$v2Request.productVersion;dllSha256=$v2Request.dllSha256;dllMvid=$v2Request.dllMvid
+            evidenceRoot=(Join-Path $runtimeEvidenceTestRoot 'movement-suite-evidence-test')
+        }
+        $telemetry = New-Object 'Collections.Generic.List[object]'
+        $scenario = New-Object 'Collections.Generic.List[object]'
+        $subresults = New-Object 'Collections.Generic.List[object]'
+        $scenarioSequence = 0
+        for ($index = 0; $index -lt $suiteRows.Count; $index++) {
+            $row = $suiteRows[$index]
+            $telemetry.Add((New-TestMovementTelemetryRecord $suiteRequest $row $index))
+            $scenario.Add((New-TestMovementPathProbeRecord $suiteRequest $row ($scenarioSequence++)))
+            $scenario.Add((New-TestMovementRowRecord $suiteRequest $row ($scenarioSequence++)))
+            $subresults.Add([pscustomobject][ordered]@{name=$row;status='PASS';assertionPassCount=20;assertionFailCount=0;errors=@()})
+        }
+        [void](Write-TestMovementEvidence $suiteRequest.evidenceRoot $suiteRequest $telemetry.ToArray() $scenario.ToArray())
+        $manifest = Read-KmcJson (Join-Path $suiteRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcMovementScenarioEvidence -Request $suiteRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults $subresults.ToArray()
+
+        $reordered = $scenario.ToArray()
+        $firstPair = @($reordered[0],$reordered[1]); $secondPair = @($reordered[2],$reordered[3])
+        $reordered[0]=$secondPair[0];$reordered[1]=$secondPair[1];$reordered[2]=$firstPair[0];$reordered[3]=$firstPair[1]
+        for ($index=0;$index -lt $reordered.Count;$index++) { $reordered[$index].sequence=$index }
+        [void](Write-TestMovementEvidence $suiteRequest.evidenceRoot $suiteRequest $telemetry.ToArray() $reordered)
+        $manifest = Read-KmcJson (Join-Path $suiteRequest.evidenceRoot 'runtime-artifacts.json')
+        $threw=$false
+        try { Assert-KmcMovementScenarioEvidence -Request $suiteRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults $subresults.ToArray() } catch { $threw=$true }
+        Assert-Test $threw 'movement-suite PASS accepted reordered row evidence'
+    }
+    Invoke-HarnessTest 'movement source binds telemetry to rows and finalizes destroyed-view cleanup failures' {
+        $writerSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\MovementTelemetryWriter.cs'))
+        $engineSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeMovementScenarioEngine.cs'))
+        Assert-Test ($writerSource.Contains('row = movementRow()')) 'movement telemetry is not bound to the active engine row'
+        Assert-Test ($engineSource.Contains('Post-cleanup verification threw')) 'post-cleanup Unity observation exceptions are not recorded as failed evidence'
+        Assert-Test ($engineSource.Contains('CompleteRemainingAsNotRun("Further movement was suppressed because post-cleanup verification could not prove restoration."')) 'destroyed-view cleanup failures can still loop instead of bounded finalization'
+        Assert-Test ($engineSource.Contains('RiderStateRestored()') -and $engineSource.Contains('MountStateRestored()')) 'destroyed Unity view/agent checks are not fail-closed'
+        Assert-Test ($engineSource.Contains('assertions.FailureCount != failuresBeforeCleanupVerification')) 'failed cleanup restoration checks do not suppress the remaining suite rows'
     }
     Invoke-HarnessTest 'runtime game-result schema preserves exact save-backed FAIL evidence' {
         try {

@@ -16,6 +16,7 @@ using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Integration;
 using KingmakerMountedCombat.Logging;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using Newtonsoft.Json.Serialization;
 using UnityEngine;
 
@@ -121,6 +122,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private int rowPhase;
         private int frameNumber;
         private int cleanupFrame;
+        private long evidenceSequence;
         private EngineStep step;
         private bool originalUnsafeMovementSetting;
         private bool settingLeaseOwned;
@@ -237,6 +239,8 @@ namespace KingmakerMountedCombat.Diagnostics
         public IReadOnlyList<RuntimeSubscenarioResult> Results => results;
 
         public IReadOnlyList<string> Errors => errors;
+
+        internal string CurrentRow => currentRow;
 
         internal static bool SupportsScenario(string scenario)
         {
@@ -993,7 +997,6 @@ namespace KingmakerMountedCombat.Diagnostics
                     WriteEvidence(new
                     {
                         kind = "path-probe",
-                        scenario = currentRow,
                         requested = PositionEvidence.From(probeRequested),
                         endpoint = PositionEvidence.From(probeEndpoint),
                         pathLength = probePathLength,
@@ -1480,58 +1483,68 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 return;
             }
-
-            var clean = relationship.State == RelationshipState.Unmounted && relationship.Rider == null && relationship.Mount == null && relationship.Runtime.MovementAgent == null;
-            assertions.Check(clean,
-                "Post-cleanup frame retained no mounted relationship references.",
-                "Post-cleanup frame retained relationship or movement-override residue.");
-            if (pairSnapshot != null)
+            try
             {
-                assertions.Check(pairSnapshot.Rider.View == pairSnapshot.RiderView && pairSnapshot.RiderView.AgentASP == pairSnapshot.RiderStockAgent &&
-                    pairSnapshot.RiderStockAgent.enabled == pairSnapshot.RiderAgentWasEnabled &&
-                    pairSnapshot.RiderStockAgent.AvoidanceDisabled == pairSnapshot.RiderAvoidanceWasDisabled &&
-                    ReferenceEquals(pairSnapshot.RiderView.AgentOverride, pairSnapshot.RiderOverride),
-                    "Rider stock movement, avoidance, view, and override state were restored exactly.",
-                    "Rider retained post-cleanup movement, avoidance, view, or override residue.");
-                assertions.Check(pairSnapshot.Mount.View == pairSnapshot.MountView && pairSnapshot.MountView.AgentASP == pairSnapshot.MountStockAgent &&
-                    pairSnapshot.MountStockAgent.enabled == pairSnapshot.MountAgentWasEnabled &&
-                    pairSnapshot.MountStockAgent.AvoidanceDisabled == pairSnapshot.MountAvoidanceWasDisabled &&
-                    ReferenceEquals(pairSnapshot.MountView.AgentOverride, pairSnapshot.MountOverride),
-                    "Mammoth stock movement, avoidance, view, and override state were restored exactly.",
-                    "Mammoth retained post-cleanup movement, avoidance, view, or override residue.");
-                assertions.Check(pairSnapshot.RiderView.GetComponents<RiderMovementAgent>().Length == pairSnapshot.RiderOverrideComponentCount,
-                    "Owned RiderMovementAgent component count returned to its exact prior value.",
-                    "A RiderMovementAgent component remained or disappeared after cleanup.");
+                var failuresBeforeCleanupVerification = assertions.FailureCount;
+                var clean = relationship.State == RelationshipState.Unmounted && relationship.Rider == null && relationship.Mount == null && relationship.Runtime.MovementAgent == null;
+                assertions.Check(clean,
+                    "Post-cleanup frame retained no mounted relationship references.",
+                    "Post-cleanup frame retained relationship or movement-override residue.");
+                if (pairSnapshot != null)
+                {
+                    assertions.Check(pairSnapshot.RiderStateRestored(),
+                        "Rider stock movement, avoidance, view, and override state were restored exactly.",
+                        "Rider retained post-cleanup movement, avoidance, view, or override residue, or its Unity view/agent was destroyed.");
+                    assertions.Check(pairSnapshot.MountStateRestored(),
+                        "Mammoth stock movement, avoidance, view, and override state were restored exactly.",
+                        "Mammoth retained post-cleanup movement, avoidance, view, or override residue, or its Unity view/agent was destroyed.");
+                    assertions.Check(pairSnapshot.RiderOverrideComponentCountRestored(),
+                        "Owned RiderMovementAgent component count returned to its exact prior value.",
+                        "A RiderMovementAgent component remained/disappeared, or its Unity view was destroyed after cleanup.");
+                }
+                assertions.Check(PauseMatchesSnapshot(),
+                    "Pause state was restored.",
+                    "Pause state was not restored after movement cleanup.");
+                assertions.Check(SelectionMatchesSnapshot(),
+                    "Selection state was restored.",
+                    "Selection state was not restored after movement cleanup.");
+                if (nonPairSnapshot != null)
+                {
+                    assertions.Check(nonPairSnapshot.MatchesRestoredStoppedState(),
+                        "Chosen idle non-pair unit returned to its captured movement lease state and remained stopped.",
+                        "Chosen non-pair unit retained movement, a changed agent/avoidance/override state, or a destroyed Unity view after cleanup.");
+                }
+                AssertTouchedMovementStopped();
+                if (assertions.FailureCount != failuresBeforeCleanupVerification)
+                {
+                    fatalResidue = true;
+                    cleanupResidual = true;
+                }
+                CaptureMilestone("dismounted");
+                if (!clean)
+                {
+                    fatalResidue = true;
+                }
+                if (pendingScreenshots.Count != 0)
+                {
+                    step = EngineStep.AwaitFinalCaptures;
+                    return;
+                }
+                FinishRowAfterCaptures();
             }
-            assertions.Check(PauseMatchesSnapshot(),
-                "Pause state was restored.",
-                "Pause state was not restored after movement cleanup.");
-            assertions.Check(SelectionMatchesSnapshot(),
-                "Selection state was restored.",
-                "Selection state was not restored after movement cleanup.");
-            if (nonPairSnapshot != null)
+            catch (Exception exception)
             {
-                assertions.Check(nonPairSnapshot.MatchesRestoredStoppedState(),
-                    "Chosen idle non-pair unit returned to its captured movement lease state and remained stopped.",
-                    "Chosen non-pair unit retained movement or a changed agent/avoidance/override state after cleanup.");
-            }
-            var failuresBeforeTouchedVerification = assertions.FailureCount;
-            AssertTouchedMovementStopped();
-            if (assertions.FailureCount != failuresBeforeTouchedVerification)
-            {
+                // A destroyed Unity object can throw MissingReferenceException
+                // during a post-cleanup observation. That is failed cleanup
+                // evidence, not permission to re-enter BeginCleanup forever.
+                FailCurrent("Post-cleanup verification threw " + exception.GetType().Name + ": " + exception.Message);
+                cleanupResidual = true;
                 fatalResidue = true;
+                pendingScreenshots.Clear();
+                FinishCurrentRow();
+                CompleteRemainingAsNotRun("Further movement was suppressed because post-cleanup verification could not prove restoration.");
+                Complete();
             }
-            CaptureMilestone("dismounted");
-            if (!clean)
-            {
-                fatalResidue = true;
-            }
-            if (pendingScreenshots.Count != 0)
-            {
-                step = EngineStep.AwaitFinalCaptures;
-                return;
-            }
-            FinishRowAfterCaptures();
         }
 
         private void FinishRowAfterCaptures()
@@ -1573,8 +1586,6 @@ namespace KingmakerMountedCombat.Diagnostics
             WriteEvidence(new
             {
                 kind = "movement-row-result",
-                runId = request.RunId,
-                scenario = currentRow,
                 status = result.Status,
                 assertionPassCount = result.AssertionPassCount,
                 assertionFailCount = result.AssertionFailCount,
@@ -1959,14 +1970,21 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             foreach (var unit in touchedUnits)
             {
-                if (unit == null || unit.View == null || unit.View.AgentASP == null)
+                try
                 {
-                    FailCurrent("A test-issued movement recipient disappeared before stop verification.");
-                    continue;
+                    if (unit == null || unit.View == null || unit.View.AgentASP == null || unit.Commands == null)
+                    {
+                        FailCurrent("A test-issued movement recipient disappeared before stop verification.");
+                        continue;
+                    }
+                    assertions.Check(unit.Commands.Move == null && !unit.View.AgentASP.WantsToMove && !unit.View.AgentASP.IsReallyMoving,
+                        "Test-issued movement was stopped for " + unit.UniqueId + ".",
+                        "Test-issued movement or destination remained active for " + unit.UniqueId + ".");
                 }
-                assertions.Check(unit.Commands.Move == null && !unit.View.AgentASP.WantsToMove && !unit.View.AgentASP.IsReallyMoving,
-                    "Test-issued movement was stopped for " + unit.UniqueId + ".",
-                    "Test-issued movement or destination remained active for " + unit.UniqueId + ".");
+                catch (Exception exception)
+                {
+                    FailCurrent("Touched-unit stop verification threw " + exception.GetType().Name + ": " + exception.Message);
+                }
             }
         }
 
@@ -2092,7 +2110,31 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 return;
             }
-            evidenceWriter.WriteLine(JsonConvert.SerializeObject(value, EvidenceJsonSettings));
+            var serializer = JsonSerializer.Create(EvidenceJsonSettings);
+            var payload = JObject.FromObject(value, serializer);
+            var record = new JObject
+            {
+                { "schemaVersion", 1 },
+                { "runId", request.RunId },
+                { "scenario", request.Scenario },
+                { "row", currentRow },
+                { "branch", request.Branch },
+                { "commit", request.Commit },
+                { "productVersion", request.ProductVersion },
+                { "dllSha256", request.DllSha256 },
+                { "dllMvid", request.DllMvid },
+                { "sequence", evidenceSequence++ },
+                { "utcTimestamp", DateTimeOffset.UtcNow.ToString("o", CultureInfo.InvariantCulture) }
+            };
+            foreach (var property in payload.Properties())
+            {
+                if (record.Property(property.Name) != null)
+                {
+                    throw new InvalidOperationException("Movement evidence payload duplicated an owned identity field: " + property.Name + ".");
+                }
+                record.Add(property.Name, property.Value);
+            }
+            evidenceWriter.WriteLine(record.ToString(Formatting.None));
             evidenceWriter.Flush();
         }
 
@@ -2400,11 +2442,18 @@ namespace KingmakerMountedCombat.Diagnostics
 
             public bool MatchesRestoredStoppedState()
             {
-                return Unit != null && Unit.View != null && Unit.Commands != null &&
-                    ReferenceEquals(Unit.View.AgentASP, Agent) && Agent != null &&
-                    Agent.enabled == AgentEnabled && Agent.AvoidanceDisabled == AvoidanceDisabled &&
-                    ReferenceEquals(Unit.View.AgentOverride, Override) && Unit.Commands.Move == null &&
-                    !Agent.WantsToMove && !Agent.IsReallyMoving;
+                try
+                {
+                    return Unit != null && Unit.View != null && Unit.Commands != null &&
+                        ReferenceEquals(Unit.View.AgentASP, Agent) && Agent != null &&
+                        Agent.enabled == AgentEnabled && Agent.AvoidanceDisabled == AvoidanceDisabled &&
+                        ReferenceEquals(Unit.View.AgentOverride, Override) && Unit.Commands.Move == null &&
+                        !Agent.WantsToMove && !Agent.IsReallyMoving;
+                }
+                catch (Exception)
+                {
+                    return false;
+                }
             }
         }
 
@@ -2447,6 +2496,50 @@ namespace KingmakerMountedCombat.Diagnostics
                     MountOverride = mount.View.AgentOverride,
                     RiderOverrideComponentCount = rider.View.GetComponents<RiderMovementAgent>().Length
                 };
+            }
+
+            public bool RiderStateRestored()
+            {
+                try
+                {
+                    return Rider != null && RiderView != null && RiderStockAgent != null &&
+                        Rider.View == RiderView && RiderView.AgentASP == RiderStockAgent &&
+                        RiderStockAgent.enabled == RiderAgentWasEnabled &&
+                        RiderStockAgent.AvoidanceDisabled == RiderAvoidanceWasDisabled &&
+                        ReferenceEquals(RiderView.AgentOverride, RiderOverride);
+                }
+                catch (Exception)
+                {
+                    return false;
+                }
+            }
+
+            public bool MountStateRestored()
+            {
+                try
+                {
+                    return Mount != null && MountView != null && MountStockAgent != null &&
+                        Mount.View == MountView && MountView.AgentASP == MountStockAgent &&
+                        MountStockAgent.enabled == MountAgentWasEnabled &&
+                        MountStockAgent.AvoidanceDisabled == MountAvoidanceWasDisabled &&
+                        ReferenceEquals(MountView.AgentOverride, MountOverride);
+                }
+                catch (Exception)
+                {
+                    return false;
+                }
+            }
+
+            public bool RiderOverrideComponentCountRestored()
+            {
+                try
+                {
+                    return RiderView != null && RiderView.GetComponents<RiderMovementAgent>().Length == RiderOverrideComponentCount;
+                }
+                catch (Exception)
+                {
+                    return false;
+                }
             }
         }
 

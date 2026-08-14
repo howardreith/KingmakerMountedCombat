@@ -73,6 +73,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
         internal RuntimeRequest Request => request;
 
+        internal string CurrentMovementRow => movementEngine == null ? null : movementEngine.CurrentRow;
+
         public void Abort(Exception exception)
         {
             if (disposed || completed)

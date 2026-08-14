@@ -238,5 +238,6 @@ if ([string]$result.restoredSaveInventoryDigest -cnotmatch '^[0-9a-f]{64}$') { t
 Assert-SubscenarioResults $result
 $validatedArtifactManifest = Read-KmcJson (Join-Path ([IO.Path]::GetFullPath([string]$request.evidenceRoot)) 'runtime-artifacts.json')
 Assert-KmcLifecycleScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status) -SubscenarioResults $result.subscenarioResults
+Assert-KmcMovementScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status) -SubscenarioResults $result.subscenarioResults
 if ([string]$result.status -ceq 'PASS' -and ([int]$result.subscenarioFailCount -ne 0 -or [int]$result.assertionFailCount -ne 0)) { throw 'PASS runtime result contains subscenario failures.' }
 Write-Host 'TOTAL PASS=29 FAIL=0'

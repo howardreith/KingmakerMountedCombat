@@ -244,6 +244,7 @@ if ([int]$game.loadRequestCount -ne ([int]$game.baselineLoadRequestCount + [int]
 Assert-SubscenarioResults $game
 $validatedArtifactManifest = Read-KmcJson (Join-Path ([IO.Path]::GetFullPath([string]$request.evidenceRoot)) 'runtime-artifacts.json')
 Assert-KmcLifecycleScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -SubscenarioResults $game.subscenarioResults
+Assert-KmcMovementScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -SubscenarioResults $game.subscenarioResults
 if ([string]$game.status -ceq 'PASS') {
     if ($game.fixtureIdentityVerified -ne $true -or [string]$game.relationshipState -cne 'Unmounted') { throw 'Save-backed PASS did not finish with verified fixture identity and an unmounted relationship.' }
     $expectedWorkingLoads = if ([string]$game.scenario -cin @('mounted-pair-load-safety','boundary-suite')) { 2 } else { 1 }
