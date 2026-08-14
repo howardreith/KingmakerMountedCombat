@@ -29,6 +29,7 @@ param(
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedProtectedAutoSaveSha256,
     [string]$ExpectedProtectedQuickSaveName,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedProtectedQuickSaveSha256,
+    [switch]$BootstrapOfflineCloudEvidence,
     [string]$SteamPath='C:\Program Files (x86)\Steam\steam.exe'
 )
 
@@ -51,6 +52,9 @@ $saveRoot=[string]$intake.requestedLayout.kingmakerSaveRoot
 $gameExecutable=Join-Path ([string]$intake.requestedLayout.kingmakerInstallDir) 'Kingmaker.exe'
 $expectedGameExecutableHash=[string](@($fingerprint.kingmaker.files|Where-Object role -eq 'executable')[0].sha256)
 $isSaveBacked=[string]$Scenario -cne 'mod-load-smoke'
+if($BootstrapOfflineCloudEvidence -and $isSaveBacked){
+    throw '-BootstrapOfflineCloudEvidence is restricted to the no-save mod-load-smoke scenario.'
+}
 $continuityPinNames=@(
     'ExpectedCurrentQualificationSha256','ExpectedSupersededWorkingSha256','PriorSaveTransactionStatePath',
     'ExpectedPriorSaveTransactionRunId','ExpectedPriorSaveTransactionStateSha256','ExpectedPriorSaveMetadataDigest',
@@ -178,12 +182,13 @@ if(-not $PSCmdlet.ShouldProcess('Steam App 640820, exact live Kingmaker Mods, an
     }
     if((Get-KmcSaveMetadataInventory $saveRoot).digest-cne$beforeSaves.digest){throw 'WhatIf purity failed: save metadata changed.'}
     Assert-KmcNoGameProcesses
+    if($BootstrapOfflineCloudEvidence){[void](Assert-KmcSteamSafety $SteamPath -AllowMissingCurrentSessionCloudState)}
     Write-Host 'Runtime WhatIf purity PASS; exact fixture descriptors were validated when required, and no evidence, lock, transaction, Mods, process, game, or save mutation occurred.'
     return
 }
 $WhatIfPreference=$false
 $ConfirmPreference='None'
-$steamSafety=Assert-KmcSteamSafety $SteamPath
+$steamSafety=Assert-KmcSteamSafety $SteamPath -AllowMissingCurrentSessionCloudState:$BootstrapOfflineCloudEvidence
 $actualRunId=if([string]::IsNullOrWhiteSpace($RunId)){[DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffffffZ')+'-'+$Scenario}else{$RunId}
 $evidenceRoot=Assert-KmcChildPath (Join-Path $runtimeEvidence $actualRunId) $runtimeEvidence 'runtime evidence directory'
 if(Test-Path -LiteralPath $evidenceRoot){throw "Runtime evidence ID already exists: $actualRunId"}

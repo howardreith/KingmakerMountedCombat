@@ -3305,8 +3305,32 @@ function Get-KmcSuspiciousWindows {
     })
 }
 
+function Get-KmcOfflineCloudEvidenceDisposition {
+    param(
+        [AllowNull()][string]$CurrentSessionMessage,
+        [AllowNull()][string]$HistoricalMessage,
+        [switch]$AllowHistoricalBootstrap
+    )
+    if (-not [string]::IsNullOrWhiteSpace($CurrentSessionMessage)) {
+        if ($CurrentSessionMessage -notmatch 'offlineMode=true') {
+            throw 'App 640820 offline-cloud mode is not the final observed cloud state.'
+        }
+        return 'current-session'
+    }
+    if (-not $AllowHistoricalBootstrap) {
+        throw 'App 640820 offline-cloud mode is not the final observed cloud state.'
+    }
+    if ([string]::IsNullOrWhiteSpace($HistoricalMessage) -or $HistoricalMessage -notmatch 'offlineMode=true') {
+        throw 'Offline-cloud bootstrap lacks a prior exact App 640820 offlineMode=true observation.'
+    }
+    return 'historical-bootstrap-only'
+}
+
 function Assert-KmcSteamSafety {
-    param([Parameter(Mandatory = $true)][string]$SteamPath)
+    param(
+        [Parameter(Mandatory = $true)][string]$SteamPath,
+        [switch]$AllowMissingCurrentSessionCloudState
+    )
     Assert-KmcNoGameProcesses
     $fullSteam = [IO.Path]::GetFullPath($SteamPath)
     if (-not (Test-Path -LiteralPath $fullSteam -PathType Leaf)) { throw "Steam executable is missing: $fullSteam" }
@@ -3332,16 +3356,22 @@ function Assert-KmcSteamSafety {
     }
     $connection = @(Read-OrderedSessionLines $connectionLog $clients[0].StartTime)
     $cloud = @(Read-OrderedSessionLines $cloudLog $clients[0].StartTime | Where-Object message -match '\[AppID 640820\]')
+    $historicalCloud = @(Read-OrderedSessionLines $cloudLog ([DateTime]::MinValue) | Where-Object message -match '\[AppID 640820\]')
     $lastConnectionState = @($connection | Where-Object message -match '\[(Logged On|Logging On|Connected|Logged Off|Logging Off),' | Sort-Object stamp,sequence | Select-Object -Last 1)
     if ($lastConnectionState.Count -ne 1 -or $lastConnectionState[0].message -notmatch '\[(Logged Off|Logging Off),') { throw 'Steam Offline Mode is not the final observed current-session connection state.' }
     $lastCloudState = @($cloud | Where-Object message -match 'offlineMode=(true|false)' | Sort-Object stamp,sequence | Select-Object -Last 1)
-    if ($lastCloudState.Count -ne 1 -or $lastCloudState[0].message -notmatch 'offlineMode=true') { throw 'App 640820 offline-cloud mode is not the final observed cloud state.' }
+    $historicalLastCloudState = @($historicalCloud | Where-Object message -match 'offlineMode=(true|false)' | Sort-Object stamp,sequence | Select-Object -Last 1)
+    $cloudEvidenceScope = Get-KmcOfflineCloudEvidenceDisposition `
+        -CurrentSessionMessage $(if($lastCloudState.Count -eq 1){[string]$lastCloudState[0].message}else{$null}) `
+        -HistoricalMessage $(if($historicalLastCloudState.Count -eq 1){[string]$historicalLastCloudState[0].message}else{$null}) `
+        -AllowHistoricalBootstrap:$AllowMissingCurrentSessionCloudState
     $manifestText = Get-Content -Raw -LiteralPath $appManifest
     if ($manifestText -notmatch '"StateFlags"\s+"4"' -or $manifestText -notmatch '"buildid"\s+"6757524"') { throw 'Steam App 640820 is not the qualified fully installed build 6757524.' }
     return [pscustomobject]@{
         processId=$clients[0].Id; processStartedAtUtc=$clients[0].StartTime.ToUniversalTime().ToString('o')
         offlineAtUtc=$lastConnectionState[0].stamp.ToUniversalTime().ToString('o')
-        offlineCloudAtUtc=$lastCloudState[0].stamp.ToUniversalTime().ToString('o')
+        offlineCloudAtUtc=$(if($lastCloudState.Count -eq 1){$lastCloudState[0].stamp.ToUniversalTime().ToString('o')}else{$historicalLastCloudState[0].stamp.ToUniversalTime().ToString('o')})
+        offlineCloudEvidenceScope=$cloudEvidenceScope
         appManifestSha256=Get-KmcSha256 $appManifest
     }
 }

@@ -30,6 +30,12 @@ function Assert-Test([bool]$Condition, [string]$Message) {
     if (-not $Condition) { throw $Message }
 }
 
+function Assert-TestThrows([scriptblock]$Body, [string]$Message) {
+    $threw = $false
+    try { & $Body | Out-Null } catch { $threw = $true }
+    if (-not $threw) { throw $Message }
+}
+
 function New-TestSaveArchive {
     param(
         [Parameter(Mandatory = $true)][string]$Path,
@@ -887,6 +893,21 @@ try {
     }
     Invoke-HarnessTest 'stable no-game-process wait accepts consecutive empty samples' {
         Assert-Test (Wait-KmcStableNoKingmakerProcess -StableSamples 2 -IntervalMilliseconds 1 -TimeoutSeconds 1) 'stable empty process interval was not accepted'
+    }
+    Invoke-HarnessTest 'offline-cloud bootstrap is one-way and never accepts an observed online state' {
+        Assert-Test ((Get-KmcOfflineCloudEvidenceDisposition -CurrentSessionMessage '[AppID 640820] [offlineMode=true]' -HistoricalMessage $null) -ceq 'current-session') 'current offline-cloud evidence was rejected'
+        Assert-Test ((Get-KmcOfflineCloudEvidenceDisposition -CurrentSessionMessage $null -HistoricalMessage '[AppID 640820] [offlineMode=true]' -AllowHistoricalBootstrap) -ceq 'historical-bootstrap-only') 'bounded historical bootstrap evidence was rejected'
+        Assert-TestThrows { Get-KmcOfflineCloudEvidenceDisposition -CurrentSessionMessage $null -HistoricalMessage '[AppID 640820] [offlineMode=true]' } 'normal Steam safety accepted missing current-session cloud evidence'
+        Assert-TestThrows { Get-KmcOfflineCloudEvidenceDisposition -CurrentSessionMessage '[AppID 640820] [offlineMode=false]' -HistoricalMessage '[AppID 640820] [offlineMode=true]' -AllowHistoricalBootstrap } 'bootstrap accepted an observed online cloud state'
+        Assert-TestThrows { Get-KmcOfflineCloudEvidenceDisposition -CurrentSessionMessage $null -HistoricalMessage '[AppID 640820] [offlineMode=false]' -AllowHistoricalBootstrap } 'bootstrap accepted historical online cloud state'
+    }
+    Invoke-HarnessTest 'offline-cloud bootstrap is no-save-only and postflight remains strict' {
+        $launcherSource = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'runtime\Invoke-KingmakerRuntimeScenario.ps1')
+        Assert-Test ($launcherSource.Contains("if(`$BootstrapOfflineCloudEvidence -and `$isSaveBacked)")) 'launcher does not reject bootstrap for every save-backed scenario'
+        Assert-Test ($launcherSource.Contains("throw '-BootstrapOfflineCloudEvidence is restricted to the no-save mod-load-smoke scenario.'")) 'launcher does not expose the exact no-save-only rejection'
+        Assert-Test ($launcherSource.Contains('Assert-KmcSteamSafety $SteamPath -AllowMissingCurrentSessionCloudState:$BootstrapOfflineCloudEvidence')) 'launcher does not scope relaxed preflight evidence to the explicit bootstrap switch'
+        Assert-Test ($launcherSource.Contains('try{if($processExited){[void](Assert-KmcSteamSafety $SteamPath)}}')) 'launcher postflight does not require strict current-session Steam evidence'
+        Assert-Test (@([regex]::Matches($launcherSource, 'Assert-KmcSteamSafety \$SteamPath')).Count -eq 3) 'launcher Steam-safety call surface changed without updating the bootstrap proof'
     }
 
     $manifestRoot = Join-Path $testRoot 'manifest'
