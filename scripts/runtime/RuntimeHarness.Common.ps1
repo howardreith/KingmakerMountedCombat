@@ -1034,7 +1034,10 @@ function Restore-KmcWorkingSaveTransaction {
         if (-not $workingIsOriginal) { throw 'An unplanned live Working save remains after artifact quarantine.' }
     }
     if (-not $workingIsOriginal) { Copy-Item -LiteralPath $backupPath -Destination $workingPath }
-    (Get-Item -LiteralPath $workingPath).LastWriteTimeUtc = [DateTime]::new([long]$state.workingLastWriteTimeUtcTicks, [DateTimeKind]::Utc)
+    $workingFile = Get-Item -LiteralPath $workingPath
+    if ($workingFile.LastWriteTimeUtc.Ticks -ne [long]$state.workingLastWriteTimeUtcTicks) {
+        $workingFile.LastWriteTimeUtc = [DateTime]::new([long]$state.workingLastWriteTimeUtcTicks, [DateTimeKind]::Utc)
+    }
     $restoredWorking = Get-Item -LiteralPath $workingPath
     if ($restoredWorking.Length -ne [long]$state.workingLength -or
         $restoredWorking.LastWriteTimeUtc.Ticks -ne [long]$state.workingLastWriteTimeUtcTicks -or
@@ -1376,7 +1379,9 @@ function Enter-KmcModsTransaction {
     catch {
         $entryException = $_.Exception
         try { Restore-KmcModsTransaction -Lock $Lock -StatePath $statePath -LiveModsRoot $fullLive -BackupRoot $BackupRoot -StagingRoot $StagingRoot | Out-Null }
-        catch { throw new AggregateException('Mods transaction entry and guarded rollback both failed.', $entryException, $_.Exception) }
+        catch {
+            throw "Mods transaction entry failed ($($entryException.Message)) and guarded rollback failed ($($_.Exception.Message))."
+        }
         throw $entryException
     }
 }

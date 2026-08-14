@@ -611,6 +611,36 @@ try {
         Assert-Test ([string]$state.restoredDigest -ceq $original.digest) 'durable restored digest differs'
     }
 
+    Invoke-HarnessTest 'original-moved crash window with absent live Mods is recoverable' {
+        $missingLive = Join-Path $testRoot 'missing-live-game\Mods'
+        New-Item -ItemType Directory -Path (Join-Path $missingLive 'ExistingMod') -Force | Out-Null
+        [IO.File]::WriteAllText((Join-Path $missingLive 'ExistingMod\payload.txt'), 'preserve-missing-live')
+        $missingOriginal = Get-KmcDirectoryManifest $missingLive
+        $lock = Open-KmcRuntimeLock -StateRoot $stateRoot -RunId 'missing-live-test'
+        try {
+            $statePath = Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $missingLive -PackagePath $package -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging
+            $state = Read-KmcJson $statePath
+            Move-Item -LiteralPath $missingLive -Destination ([string]$state.stagedReady)
+            $state.phase = 'original-moved'
+            Write-KmcJsonAtomic $statePath $state
+            Assert-Test (-not (Test-Path -LiteralPath $missingLive)) 'synthetic original-moved window retained a live Mods root'
+            $restored = Restore-KmcModsTransaction -Lock $lock -StatePath $statePath -LiveModsRoot $missingLive -BackupRoot $backup -StagingRoot $staging
+            Assert-Test ($restored.digest -ceq $missingOriginal.digest) 'original-moved crash recovery digest differs'
+            Assert-Test ((Get-Content -Raw -LiteralPath (Join-Path $missingLive 'ExistingMod\payload.txt')) -ceq 'preserve-missing-live') 'original-moved crash recovery lost original content'
+        }
+        finally { Close-KmcRuntimeLock $lock }
+    }
+
+    Invoke-HarnessTest 'recovery wrapper admits only proven absent-live original-moved state' {
+        $recoverySource = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'runtime\Recover-KingmakerRuntimeTransaction.ps1')
+        $transactionCommonSource = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'runtime\RuntimeHarness.Common.ps1')
+        Assert-Test ($recoverySource.Contains('$liveModsExistedBefore=Test-Path')) 'recovery wrapper still unconditionally requires a live Mods manifest'
+        Assert-Test ($recoverySource.Contains("[string]`$modsState.phase-cne'original-moved'")) 'recovery wrapper does not require the exact original-moved phase when live Mods is absent'
+        Assert-Test ($recoverySource.Contains("Assert-KmcManifestMatchesState (Get-KmcDirectoryManifest `$recordedReady) `$modsState 'staged'")) 'recovery wrapper does not prove the unactivated staged tree when live Mods is absent'
+        Assert-Test (-not $transactionCommonSource.Contains('throw new AggregateException')) 'Mods entry rollback still uses invalid PowerShell throw-new syntax'
+        Assert-Test ($transactionCommonSource.Contains('if ($workingFile.LastWriteTimeUtc.Ticks -ne [long]$state.workingLastWriteTimeUtcTicks)')) 'unchanged Working restoration still rewrites an already exact timestamp'
+    }
+
     Invoke-HarnessTest 'case-insensitive existing KMC collision is rejected before live mutation' {
         $collisionLive = Join-Path $testRoot 'collision-game\Mods'
         New-Item -ItemType Directory -Path (Join-Path $collisionLive 'kingmakermountedcombat') -Force | Out-Null

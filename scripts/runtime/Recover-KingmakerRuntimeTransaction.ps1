@@ -40,14 +40,53 @@ elseif(Test-Path -LiteralPath $legacyModsStatePath -PathType Leaf){
     $legacyMode=$true
 }
 else{throw 'Stale lock has no matching combined or legacy durable transaction state; automatic recovery is unsafe.'}
-$beforeMods=Get-KmcDirectoryManifest $liveMods
+$liveModsExistedBefore=Test-Path -LiteralPath $liveMods -PathType Container
+$beforeMods=$null
+if($liveModsExistedBefore){
+    $beforeMods=Get-KmcDirectoryManifest $liveMods
+}
+elseif($legacyMode){
+    throw 'Legacy recovery requires the live Mods root to exist.'
+}
+else{
+    # A process can stop after the original tree is durably moved but before the
+    # staged clone is activated. Prove that exact crash window from the owned
+    # state and intact backup instead of requiring a live tree that should not
+    # exist in this phase.
+    $modsStatePath=Get-KmcTransactionStatePath $stateRoot ([string]$raw.runId)
+    if(-not(Test-Path -LiteralPath $modsStatePath -PathType Leaf)){
+        throw 'Missing live Mods root has no matching owned Mods transaction state.'
+    }
+    $modsState=Read-KmcJson $modsStatePath
+    if([int]$modsState.schemaVersion-cnotin@(2,3)-or
+        [string]$modsState.runId-cne[string]$raw.runId-or
+        [string]$modsState.token-cne[string]$raw.token-or
+        [string]$modsState.phase-cne'original-moved'-or
+        -not[string]::Equals([IO.Path]::GetFullPath([string]$modsState.liveModsRoot).TrimEnd('\'),$liveMods,[StringComparison]::OrdinalIgnoreCase)){
+        throw 'Missing live Mods root is not the exact owned original-moved recovery state.'
+    }
+    $recordedBackup=Assert-KmcChildPath ([string]$modsState.originalBackup) $backupRoot 'recorded transaction backup'
+    if(-not(Test-Path -LiteralPath $recordedBackup -PathType Container)){
+        throw 'Missing live Mods root has no intact recorded original backup.'
+    }
+    Assert-KmcManifestMatchesState (Get-KmcDirectoryManifest $recordedBackup) $modsState 'before'
+    $recordedReady=Assert-KmcChildPath ([string]$modsState.stagedReady) $stagingRoot 'recorded staged Mods tree'
+    $recordedAfter=Assert-KmcChildPath ([string]$modsState.stagedAfter) $stagingRoot 'recorded staged-after quarantine'
+    if(-not(Test-Path -LiteralPath $recordedReady -PathType Container)-or(Test-Path -LiteralPath $recordedAfter)){
+        throw 'Missing live Mods root does not have the exact unactivated staged-tree shape.'
+    }
+    Assert-KmcManifestMatchesState (Get-KmcDirectoryManifest $recordedReady) $modsState 'staged'
+}
 $beforeSaves=Get-KmcSaveMetadataInventory $saveRoot
 $WhatIfPreference=$requestedWhatIf
 $target=if($legacyMode){$liveMods}else{"$liveMods plus the exact guarded Working-save transaction"}
 if(-not$PSCmdlet.ShouldProcess($target,"recover exact KMC transaction $($raw.runId)")){
     $WhatIfPreference=$false
-    if((Get-KmcDirectoryManifest $liveMods).digest-cne$beforeMods.digest-or
-        (Get-KmcSaveMetadataInventory $saveRoot).digest-cne$beforeSaves.digest){
+    $modsChanged=if($liveModsExistedBefore){
+        -not(Test-Path -LiteralPath $liveMods -PathType Container)-or
+        (Get-KmcDirectoryManifest $liveMods).digest-cne$beforeMods.digest
+    }else{Test-Path -LiteralPath $liveMods}
+    if($modsChanged-or(Get-KmcSaveMetadataInventory $saveRoot).digest-cne$beforeSaves.digest){
         throw 'Recovery WhatIf purity failed.'
     }
     Write-Host 'Recovery WhatIf purity PASS; durable state was validated and no external state changed.'
