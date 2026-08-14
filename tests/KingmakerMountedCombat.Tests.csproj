@@ -38,6 +38,7 @@
     <Compile Include="RuntimeSaveAuthorizationTests.cs" />
     <Compile Include="WorkingFixtureLoadWatchdogTests.cs" />
     <Compile Include="BoundaryFailureDrainTests.cs" />
+    <Compile Include="BoundaryScenarioEvidenceContractTests.cs" />
     <Compile Include="MovementScreenshotCaptureTests.cs" />
     <Compile Include="MovementNavigationBoundaryPolicyTests.cs" />
     <Compile Include="MovementRadialDistanceOrderTests.cs" />
@@ -57,6 +58,9 @@
     </Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\BoundaryFailureDrain.cs">
       <Link>Shared\BoundaryFailureDrain.cs</Link>
+    </Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\BoundaryScenarioEvidenceContract.cs">
+      <Link>Shared\BoundaryScenarioEvidenceContract.cs</Link>
     </Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\MovementScreenshotCaptureState.cs">
       <Link>Shared\MovementScreenshotCaptureState.cs</Link>

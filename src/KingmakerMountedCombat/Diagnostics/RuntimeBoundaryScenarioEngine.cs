@@ -1,16 +1,22 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Security.Cryptography;
 using Kingmaker;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.EntitySystem.Persistence;
 using Kingmaker.GameModes;
+using Kingmaker.UI.Selection;
 using Kingmaker.View;
 using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Integration;
 using KingmakerMountedCombat.Logging;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Serialization;
+using UnityEngine;
 
 namespace KingmakerMountedCombat.Diagnostics
 {
@@ -24,14 +30,16 @@ namespace KingmakerMountedCombat.Diagnostics
         private const double RowTimeoutSeconds = 45.0d;
         private const double SuiteTimeoutSeconds = 260.0d;
         private const int StableWorldFramesRequired = 10;
+        private const string AnchorObjectName = "KMC_RiderPositionAnchor";
 
-        private static readonly string[] SuiteRows =
+        private static readonly JsonSerializerSettings EvidenceJsonSettings = new JsonSerializerSettings
         {
-            "mounted-pair-turn-based-entry-cleanup",
-            "mounted-pair-realtime-entry-cleanup",
-            "mounted-pair-save-safety",
-            "mounted-pair-load-safety",
-            "mounted-pair-area-transition-safety"
+            ContractResolver = new CamelCasePropertyNamesContractResolver(),
+            Formatting = Formatting.None,
+            MetadataPropertyHandling = MetadataPropertyHandling.Ignore,
+            PreserveReferencesHandling = PreserveReferencesHandling.None,
+            ReferenceLoopHandling = ReferenceLoopHandling.Error,
+            TypeNameHandling = TypeNameHandling.None
         };
 
         private readonly RuntimeRequest request;
@@ -46,10 +54,25 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly Stopwatch suiteClock = new Stopwatch();
         private readonly Stopwatch rowClock = new Stopwatch();
         private readonly BoundaryFailureDrain failureDrain = new BoundaryFailureDrain();
+        private readonly string evidencePath;
+        private readonly string dllSha256;
+        private readonly string dllMvid;
 
         private IReadOnlyList<string> selectedRows;
+        private BoundaryEvidenceSequenceGuard evidenceSequenceGuard;
+        private BoundaryEvidenceJournal evidenceJournal;
         private AssertionRecorder assertions;
         private PairSnapshot snapshot;
+        private UnitEntityData freshRider;
+        private UnitEntityData freshMount;
+        private FileIdentitySnapshot postInitialLoadWorkingIdentity;
+        private FileIdentitySnapshot currentWorkingIdentityAuthority;
+        private FileIdentitySnapshot rowStartWorkingIdentity;
+        private FileIdentitySnapshot preDispatchWorkingIdentity;
+        private FileIdentitySnapshot completedBoundaryWorkingIdentity;
+        private BoundaryCleanupEvidence cleanupLatch;
+        private FreshWorldEvidence freshWorldEvidence;
+        private DescriptorIdentityEvidence descriptorIdentityForRow;
         private string currentRow;
         private int rowIndex;
         private int frameNumber;
@@ -66,7 +89,19 @@ namespace KingmakerMountedCombat.Diagnostics
         private string fileHashBefore;
         private bool asynchronousCallback;
         private bool loadingObserved;
+        private bool loadingStartObserved;
+        private bool loadingStopObserved;
+        private bool loadingStartEvidenceWritten;
+        private bool loadingStopEvidenceWritten;
         private bool boundaryCleanupVerified;
+        private bool descriptorVerifiedForRow;
+        private bool descriptorVerificationObserved;
+        private bool realWorkingLoadDispatched;
+        private bool realAreaReloadDispatched;
+        private long evidenceSequence;
+        private bool evidenceFailed;
+        private string evidenceFailureMessage;
+        private bool rowStartEvidenceWritten;
         private EngineStep step;
         private bool originalUnsafeExperimentSetting;
         private bool settingLeaseOwned;
@@ -90,9 +125,15 @@ namespace KingmakerMountedCombat.Diagnostics
             this.fixtureLoader = fixtureLoader ?? throw new ArgumentNullException(nameof(fixtureLoader));
             this.settings = settings ?? throw new ArgumentNullException(nameof(settings));
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            evidencePath = Path.Combine(request.EvidenceRoot, BoundaryScenarioEvidenceContract.EvidenceFileName);
+            var assembly = typeof(Main).Assembly;
+            dllSha256 = ComputeSha256(assembly.Location);
+            dllMvid = assembly.ManifestModule.ModuleVersionId.ToString();
         }
 
         public bool IsCompleted => completed;
+
+        internal bool IsFailurePending => failureDrain.IsLatched;
 
         public IReadOnlyList<RuntimeSubscenarioResult> Results => results;
 
@@ -111,7 +152,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 throw new InvalidOperationException("Boundary scenario engine has already started.");
             }
 
-            selectedRows = SelectRows(request.Scenario);
+            selectedRows = BoundaryScenarioEvidenceContract.SelectRows(request.Scenario);
             started = true;
             if (selectedRows == null)
             {
@@ -133,9 +174,18 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
+            string identityError;
+            if (!FileIdentitySnapshot.TryCapture(fixtureLoader.WorkingPath, out postInitialLoadWorkingIdentity, out identityError))
+            {
+                errors.Add("Boundary scenarios could not capture the post-initial-load Working identity: " + identityError + ".");
+                completed = true;
+                return;
+            }
+            currentWorkingIdentityAuthority = postInitialLoadWorkingIdentity;
+
             originalUnsafeExperimentSetting = settings.EnableUnsafeMovementExperiment;
-            settings.EnableUnsafeMovementExperiment = true;
-            settingLeaseOwned = true;
+            evidenceSequenceGuard = new BoundaryEvidenceSequenceGuard(selectedRows);
+            evidenceJournal = new BoundaryEvidenceJournal(evidencePath);
             suiteClock.Start();
             step = EngineStep.BeginRow;
             logger.Info("Boundary runtime engine started for " + request.Scenario + ".");
@@ -179,6 +229,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
 
                 Advance();
+                if (!completed && failureDrain.State == BoundaryFailureDrainState.Inactive &&
+                    currentRow != null && assertions != null && assertions.FailureCount != 0)
+                {
+                    AbortSuite("Boundary row recorded a failed assertion; no later boundary row may execute.");
+                }
             }
             catch (Exception exception)
             {
@@ -223,9 +278,6 @@ namespace KingmakerMountedCombat.Diagnostics
                 case EngineStep.AwaitLoadCompletion:
                     VerifyLoadCompletion();
                     break;
-                case EngineStep.AwaitAreaCleanup:
-                    VerifyAreaCleanup();
-                    break;
                 case EngineStep.AwaitAreaCompletion:
                     VerifyAreaCompletion();
                     break;
@@ -245,12 +297,49 @@ namespace KingmakerMountedCombat.Diagnostics
             currentRow = selectedRows[rowIndex];
             assertions = new AssertionRecorder();
             snapshot = null;
+            freshRider = null;
+            freshMount = null;
+            preDispatchWorkingIdentity = null;
+            rowStartWorkingIdentity = null;
+            completedBoundaryWorkingIdentity = null;
+            cleanupLatch = null;
+            freshWorldEvidence = null;
+            descriptorIdentityForRow = null;
             stableWorldFrames = 0;
             asynchronousCallback = false;
             loadingObserved = false;
+            loadingStartObserved = false;
+            loadingStopObserved = false;
+            loadingStartEvidenceWritten = false;
+            loadingStopEvidenceWritten = false;
             boundaryCleanupVerified = false;
+            descriptorVerifiedForRow = false;
+            descriptorVerificationObserved = false;
+            realWorkingLoadDispatched = false;
+            realAreaReloadDispatched = false;
+            rowStartEvidenceWritten = false;
             CaptureAuthorizationCounts();
             rowClock.Restart();
+
+            var expectedAuthorizedLoadsBefore = 1;
+            for (var priorRowIndex = 0; priorRowIndex < rowIndex; priorRowIndex++)
+            {
+                if (string.Equals(selectedRows[priorRowIndex], "mounted-pair-load-safety", StringComparison.Ordinal))
+                {
+                    expectedAuthorizedLoadsBefore++;
+                }
+            }
+            var authorizationBaselineExact = authorizedLoadsBefore == expectedAuthorizedLoadsBefore &&
+                authorizedWritesBefore == 0 && unauthorizedLoadsBefore == 0 && unauthorizedWritesBefore == 0 &&
+                baselineLoadsBefore == 0 && fatalViolationsBefore == 0;
+            assertions.Check(authorizationBaselineExact,
+                "Save authorization counters proved only the initial exact Working load and prior suite load row, if any.",
+                "Save authorization counters contained an unexpected load, write, Baseline request, or fatal violation before the row.");
+            if (!authorizationBaselineExact)
+            {
+                AbortSuite("Boundary row refused to mutate runtime state from an inexact save-authorization baseline.");
+                return;
+            }
 
             assertions.Check(IsWorldReady(),
                 "Fixture world was stable before the boundary row.",
@@ -296,6 +385,37 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
+            var exactBaseline = snapshot.RiderAgentWasEnabled && snapshot.MountAgentWasEnabled &&
+                snapshot.RiderOverride == null && snapshot.MountOverride == null &&
+                snapshot.RiderOverrideComponentCount == 0 && snapshot.MountOverrideComponentCount == 0 &&
+                !snapshot.RiderForbidRotationWasEnabled && !snapshot.MountForbidRotationWasEnabled &&
+                snapshot.RiderMoveCommand == null && snapshot.MountMoveCommand == null &&
+                !relationship.Runtime.PresentationAttachmentLeaseActive &&
+                !relationship.Runtime.HasPresentationAttachmentResidue && CountKmcAnchorObjects() == 0 &&
+                CountKmcRiderMovementAgents() == 0;
+            assertions.Check(exactBaseline,
+                "Fresh pair began with exact stock movement, rotation, command, component, and attachment state.",
+                "Fresh pair began with movement, rotation, command, component, or attachment residue.");
+            if (!exactBaseline)
+            {
+                AbortSuite("Refused to mount a pair that did not expose the exact clean boundary baseline.");
+                return;
+            }
+
+            // The first CreateNew record is durably flushed after read-only pair
+            // resolution but before this engine changes even the diagnostic
+            // setting that permits a mount. Later rows use the same boundary.
+            if (!CommitRowStartEvidence())
+            {
+                AbortSuite("Boundary row could not commit its durable pre-mutation evidence record.");
+                return;
+            }
+            if (!settingLeaseOwned)
+            {
+                settings.EnableUnsafeMovementExperiment = true;
+                settingLeaseOwned = true;
+            }
+
             var mounted = relationship.MountAutomationPair();
             assertions.Check(mounted.Succeeded,
                 "Valid automation pair mounted before the boundary.",
@@ -330,19 +450,23 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
+            AssertWorkingIdentityEquals(rowStartWorkingIdentity,
+                "Exact Working file identity remained stable from row-start through mounted boundary dispatch.");
+
+            AssertMountedAuthority();
+            if (assertions.FailureCount != 0 || !TryWriteEvidence("mounted", true, false, null, null))
+            {
+                AbortSuite("Mounted boundary authority could not be proven before dispatch.");
+                return;
+            }
+
             if (string.Equals(currentRow, "mounted-pair-turn-based-entry-cleanup", StringComparison.Ordinal))
             {
-                lifecycle.HandleTurnBasedModeStateChanged(true);
-                AssertTrigger(CleanupTrigger.TurnBasedModeChanged);
-                AssertUnmountedAndRestored(snapshot);
-                AwaitSimpleCleanupFrame();
+                BeginDirectModeBoundary(true, CleanupTrigger.TurnBasedModeChanged);
             }
             else if (string.Equals(currentRow, "mounted-pair-realtime-entry-cleanup", StringComparison.Ordinal))
             {
-                lifecycle.HandleTurnBasedModeStateChanged(false);
-                AssertTrigger(CleanupTrigger.RealtimeModeChanged);
-                AssertUnmountedAndRestored(snapshot);
-                AwaitSimpleCleanupFrame();
+                BeginDirectModeBoundary(false, CleanupTrigger.RealtimeModeChanged);
             }
             else if (string.Equals(currentRow, "mounted-pair-save-safety", StringComparison.Ordinal))
             {
@@ -362,18 +486,49 @@ namespace KingmakerMountedCombat.Diagnostics
             }
         }
 
+        private void BeginDirectModeBoundary(bool enabled, CleanupTrigger expected)
+        {
+            if (!TryWriteEvidence("pre-boundary", true, false, null, null))
+            {
+                AbortSuite("Mode boundary pre-dispatch evidence could not be committed.");
+                return;
+            }
+
+            lifecycle.HandleTurnBasedModeStateChanged(enabled);
+            CaptureAndAssertCleanupLatch(expected);
+            if (!TryWriteEvidence("cleanup-latch", true, false, null, null))
+            {
+                AbortSuite("Mode boundary cleanup latch evidence could not be committed.");
+                return;
+            }
+            if (assertions.FailureCount != 0)
+            {
+                AbortSuite("Mode boundary cleanup latch retained runtime residue.");
+                return;
+            }
+
+            AwaitSimpleCleanupFrame();
+        }
+
         private void BeginExactWorkingSave()
         {
             var descriptor = fixtureLoader.Descriptor;
             string descriptorError;
-            assertions.Check(VerifyExactWorkingDescriptor(descriptor, fixtureLoader.WorkingPath, out descriptorError),
+            var descriptorVerified = VerifyExactWorkingDescriptor(
+                descriptor,
+                fixtureLoader.WorkingPath,
+                out descriptorError);
+            assertions.Check(descriptorVerified,
                 "Initial loader descriptor still identified exact Working.",
                 "Initial loader descriptor was not exact Working: " + (descriptorError ?? "unknown error"));
-            if (descriptorError != null)
+            if (!descriptorVerified)
             {
                 AbortSuite("Refused save because the supplied descriptor was not exact Working.");
                 return;
             }
+            descriptorVerificationObserved = true;
+            descriptorVerifiedForRow = true;
+            descriptorIdentityForRow = DescriptorIdentityEvidence.From(descriptor);
 
             var before = new FileInfo(fixtureLoader.WorkingPath);
             if (!before.Exists || (before.Attributes & FileAttributes.ReparsePoint) != 0)
@@ -385,6 +540,12 @@ namespace KingmakerMountedCombat.Diagnostics
             fileWriteTicksBefore = before.LastWriteTimeUtc.Ticks;
             fileHashBefore = ComputeSha256(fixtureLoader.WorkingPath);
 
+            if (!TryWriteEvidence("pre-boundary", true, false, null, null))
+            {
+                AbortSuite("Save boundary pre-dispatch evidence could not be committed.");
+                return;
+            }
+
             // Exercise the same cleanup service used by the exact-token SaveRoutine
             // prefix, but do not enter stock SaveRoutine: Kingmaker allocates a second
             // Working-named leaf before replacing the requested slot, which cannot be
@@ -393,31 +554,36 @@ namespace KingmakerMountedCombat.Diagnostics
             assertions.Check(guarded,
                 "Save boundary cleanup cleared the runtime-only relationship before serialization.",
                 "Save boundary cleanup retained mounted state or residue.");
-            AssertTrigger(CleanupTrigger.SaveRequested);
-            AssertUnmountedAndRestored(snapshot);
-            boundaryCleanupVerified = true;
+            CaptureAndAssertCleanupLatch(CleanupTrigger.SaveRequested);
+            if (!TryWriteEvidence("cleanup-latch", true, false, null, null))
+            {
+                AbortSuite("Save boundary cleanup latch evidence could not be committed.");
+                return;
+            }
+            if (!guarded || assertions.FailureCount != 0)
+            {
+                AbortSuite("Save boundary cleanup latch retained runtime residue.");
+                return;
+            }
             boundaryFrame = frameNumber;
             step = EngineStep.AwaitSimpleCleanupFrame;
         }
 
         private void BeginExactWorkingLoad()
         {
-            FileIdentitySnapshot beforeDescriptorRead;
             string identityError;
-            if (!FileIdentitySnapshot.TryCapture(fixtureLoader.WorkingPath, out beforeDescriptorRead, out identityError))
+            FileIdentitySnapshot beforeDescriptorRead;
+            if (!FileIdentitySnapshot.TryCapture(fixtureLoader.WorkingPath, out beforeDescriptorRead, out identityError) ||
+                !beforeDescriptorRead.Equals(postInitialLoadWorkingIdentity))
             {
-                assertions.Fail("Exact Working identity could not be captured before LoadZipSave: " + identityError);
-                AbortSuite("Refused load because exact Working identity could not be captured.");
+                assertions.Fail("Exact Working identity differed from the captured post-initial-load identity before LoadZipSave: " +
+                    (identityError ?? "length/timestamp/SHA-256 mismatch"));
+                AbortSuite("Refused load because exact Working changed after the verified initial load.");
                 return;
             }
-            assertions.Check(beforeDescriptorRead.Matches(request.Fixture.Working),
-                "Exact Working length, timestamp, and SHA-256 matched the qualified request before LoadZipSave.",
-                "Exact Working length, timestamp, or SHA-256 differed from the qualified request before LoadZipSave.");
-            if (!beforeDescriptorRead.Matches(request.Fixture.Working))
-            {
-                AbortSuite("Refused load because exact Working bytes or metadata changed after fixture qualification.");
-                return;
-            }
+            assertions.Check(true,
+                "Exact Working length, timestamp, and SHA-256 matched the post-initial-load identity before descriptor read.",
+                "Exact Working post-initial-load identity comparison unexpectedly failed.");
 
             SaveInfo descriptor;
             string descriptorError;
@@ -430,27 +596,58 @@ namespace KingmakerMountedCombat.Diagnostics
             assertions.Check(true,
                 "Direct descriptor read opened only the exact Working path.",
                 "Direct descriptor read unexpectedly failed.");
+            descriptorVerificationObserved = true;
+            descriptorVerifiedForRow = true;
+            descriptorIdentityForRow = DescriptorIdentityEvidence.From(descriptor);
 
-            FileIdentitySnapshot beforeDispatch;
-            if (!FileIdentitySnapshot.TryCapture(fixtureLoader.WorkingPath, out beforeDispatch, out identityError))
+            FileIdentitySnapshot afterDescriptorRead;
+            if (!FileIdentitySnapshot.TryCapture(fixtureLoader.WorkingPath, out afterDescriptorRead, out identityError) ||
+                !afterDescriptorRead.Equals(postInitialLoadWorkingIdentity))
             {
-                assertions.Fail("Exact Working identity could not be recaptured before load dispatch: " + identityError);
+                assertions.Fail("Exact Working identity could not be verified after descriptor read: " +
+                    (identityError ?? "length/timestamp/SHA-256 mismatch"));
                 AbortSuite("Refused load because exact Working identity could not be recaptured after LoadZipSave.");
                 return;
             }
-            assertions.Check(beforeDispatch.Equals(beforeDescriptorRead) && beforeDispatch.Matches(request.Fixture.Working),
-                "LoadZipSave left exact Working length, timestamp, and SHA-256 unchanged through dispatch.",
-                "Exact Working length, timestamp, or SHA-256 changed between LoadZipSave and dispatch.");
-            if (!beforeDispatch.Equals(beforeDescriptorRead) || !beforeDispatch.Matches(request.Fixture.Working))
+
+            if (!TryWriteEvidence("pre-boundary", true, false, null, null))
             {
-                AbortSuite("Refused load dispatch because LoadZipSave changed exact Working bytes or metadata.");
+                AbortSuite("Load boundary pre-dispatch evidence could not be committed.");
+                return;
+            }
+
+            // This is intentionally after the durable pre-boundary record and
+            // immediately before dispatch. It compares to the bytes observed
+            // after the harness's first verified Working load, not to the stale
+            // request hash that Kingmaker may have legitimately refreshed.
+            if (!FileIdentitySnapshot.TryCapture(fixtureLoader.WorkingPath, out preDispatchWorkingIdentity, out identityError) ||
+                !preDispatchWorkingIdentity.Equals(postInitialLoadWorkingIdentity))
+            {
+                assertions.Fail("Immediate pre-dispatch Working identity differed from the post-initial-load snapshot: " +
+                    (identityError ?? "length/timestamp/SHA-256 mismatch"));
+                AbortSuite("Refused exact Working load dispatch after immediate identity revalidation failed.");
                 return;
             }
 
             Game.Instance.SaveManager.AddCallbackAfterLoad(HandleAsynchronousCallback);
-            Game.Instance.LoadGame(descriptor);
             boundaryFrame = frameNumber;
             step = EngineStep.AwaitLoadCompletion;
+            realWorkingLoadDispatched = true;
+            Game.Instance.LoadGame(descriptor);
+
+            // LoadRoutine's exact-token Harmony prefix runs synchronously while
+            // the old objects are still inspectable. Capture only primitives so
+            // later validation never dereferences a disposed old-world view.
+            CaptureAndAssertCleanupLatch(CleanupTrigger.LoadRequested);
+            if (!TryWriteEvidence("cleanup-latch", true, false, null, null))
+            {
+                AbortSuite("Load boundary cleanup latch evidence could not be committed.");
+                return;
+            }
+            if (assertions.FailureCount != 0)
+            {
+                AbortSuite("Load boundary cleanup latch retained runtime residue.");
+            }
         }
 
         private void BeginExactAreaReload()
@@ -464,13 +661,29 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
+            if (!TryWriteEvidence("pre-boundary", true, false, null, null))
+            {
+                AbortSuite("Area boundary pre-dispatch evidence could not be committed.");
+                return;
+            }
+
             lifecycle.OnAreaBeginUnloading();
-            AssertTrigger(CleanupTrigger.AreaUnloading);
-            AssertUnmountedAndRestored(snapshot);
-            boundaryCleanupVerified = true;
-            Game.Instance.ReloadArea();
+            CaptureAndAssertCleanupLatch(CleanupTrigger.AreaUnloading);
+            if (!TryWriteEvidence("cleanup-latch", true, false, null, null))
+            {
+                AbortSuite("Area boundary cleanup latch evidence could not be committed.");
+                return;
+            }
+            if (assertions.FailureCount != 0)
+            {
+                AbortSuite("Area boundary cleanup latch retained runtime residue; ReloadArea was suppressed.");
+                return;
+            }
+
             boundaryFrame = frameNumber;
-            step = EngineStep.AwaitAreaCleanup;
+            step = EngineStep.AwaitAreaCompletion;
+            realAreaReloadDispatched = true;
+            Game.Instance.ReloadArea();
         }
 
         private void AwaitSimpleCleanupFrame()
@@ -489,7 +702,15 @@ namespace KingmakerMountedCombat.Diagnostics
 
             AssertUnmountedAndRestored(snapshot);
             snapshot.AssertOverrideComponentCount(assertions);
+            assertions.Check(CountKmcAnchorObjects() == 0,
+                "No KMC rider anchor object remained on the post-boundary frame.",
+                "A KMC rider anchor object remained on the post-boundary frame.");
+            assertions.Check(CountKmcRiderMovementAgents() == 0,
+                "No KMC RiderMovementAgent component remained anywhere in the live object graph.",
+                "A KMC RiderMovementAgent component remained outside the restored pair.");
             AssertAuthorizationCounts(0, 0);
+            AssertWorkingIdentityEquals(rowStartWorkingIdentity,
+                "Exact Working file identity remained stable throughout the non-load boundary row.");
             if (string.Equals(currentRow, "mounted-pair-save-safety", StringComparison.Ordinal))
             {
                 var after = new FileInfo(fixtureLoader.WorkingPath);
@@ -499,19 +720,51 @@ namespace KingmakerMountedCombat.Diagnostics
                     "Save-safety probe left exact Working bytes and metadata unchanged.",
                     "Save-safety probe changed exact Working despite the no-serialization Phase 1 policy.");
             }
+            if (!TryWriteEvidence("post-boundary", true, false, null, null))
+            {
+                AbortSuite("Post-boundary evidence could not be committed.");
+                return;
+            }
             FinishCurrentRow();
         }
 
         private void VerifyLoadCompletion()
         {
-            ObserveDeferredBoundaryCleanup(CleanupTrigger.LoadRequested);
             if (IsLoading())
             {
                 loadingObserved = true;
+                loadingStartObserved = true;
                 stableWorldFrames = 0;
+                if (!loadingStartEvidenceWritten)
+                {
+                    loadingStartEvidenceWritten = true;
+                    if (!TryWriteEvidence("loading-start", true, false, null, null))
+                    {
+                        AbortSuite("Load boundary loading-start evidence could not be committed.");
+                    }
+                }
                 return;
             }
-            if (!asynchronousCallback || !IsWorldReady())
+            if (loadingStartObserved && !loadingStopEvidenceWritten)
+            {
+                loadingStopObserved = true;
+                loadingStopEvidenceWritten = true;
+                if (!asynchronousCallback)
+                {
+                    assertions.Fail("Exact Working loading pipeline stopped before its registered completion callback.");
+                }
+                if (!TryWriteEvidence("loading-stop", true, false, null, null))
+                {
+                    AbortSuite("Load boundary loading-stop evidence could not be committed.");
+                    return;
+                }
+                if (!asynchronousCallback)
+                {
+                    AbortSuite("Load boundary stopped before callback; no fresh-world PASS may be claimed.");
+                    return;
+                }
+            }
+            if (!loadingStartObserved || !loadingStopObserved || !asynchronousCallback || !IsWorldReady())
             {
                 stableWorldFrames = 0;
                 return;
@@ -526,47 +779,19 @@ namespace KingmakerMountedCombat.Diagnostics
             assertions.Check(boundaryCleanupVerified,
                 "Mounted cleanup completed before the exact Working load disposed live state.",
                 "Mounted cleanup was not verified before the exact Working load.");
-            assertions.Check(loadingObserved || asynchronousCallback,
-                "Exact Working load completed through the engine callback.",
-                "Exact Working load completion was not observed.");
+            assertions.Check(loadingObserved && loadingStartObserved && loadingStopObserved && asynchronousCallback,
+                "Exact Working loading start, stop, and completion callback were all observed.",
+                "Exact Working loading start, stop, or completion callback was not observed.");
             AssertAuthorizationCounts(1, 0);
             AssertLoadedFixtureIdentity();
-            AssertExactWorkingFileIdentity("post-load");
-            AssertFreshWorldHasNoMountedState("post-load");
-            FinishCurrentRow();
-        }
-
-        private void ObserveDeferredBoundaryCleanup(CleanupTrigger expected)
-        {
-            if (boundaryCleanupVerified || relationship.State != RelationshipState.Unmounted)
+            CaptureAndAssertFreshWorld("post-load");
+            CaptureCompletedBoundaryWorkingIdentity(false);
+            if (!TryWriteEvidence("fresh-world", true, false, null, null))
             {
+                AbortSuite("Load boundary fresh-world evidence could not be committed.");
                 return;
             }
-
-            AssertTrigger(expected);
-            AssertUnmountedAndRestored(snapshot, expected == CleanupTrigger.LoadRequested);
-            boundaryCleanupVerified = true;
-        }
-
-        private void VerifyAreaCleanup()
-        {
-            if (IsLoading())
-            {
-                loadingObserved = true;
-            }
-
-            if (relationship.State == RelationshipState.Unmounted && !boundaryCleanupVerified)
-            {
-                AssertTrigger(CleanupTrigger.AreaUnloading);
-                AssertUnmountedAndRestored(snapshot, true);
-                boundaryCleanupVerified = true;
-                step = EngineStep.AwaitAreaCompletion;
-            }
-            else if (boundaryCleanupVerified && IsLoading())
-            {
-                loadingObserved = true;
-                step = EngineStep.AwaitAreaCompletion;
-            }
+            FinishCurrentRow();
         }
 
         private void VerifyAreaCompletion()
@@ -574,10 +799,29 @@ namespace KingmakerMountedCombat.Diagnostics
             if (IsLoading())
             {
                 loadingObserved = true;
+                loadingStartObserved = true;
                 stableWorldFrames = 0;
+                if (!loadingStartEvidenceWritten)
+                {
+                    loadingStartEvidenceWritten = true;
+                    if (!TryWriteEvidence("loading-start", true, false, null, null))
+                    {
+                        AbortSuite("Area boundary loading-start evidence could not be committed.");
+                    }
+                }
                 return;
             }
-            if (!loadingObserved || !IsWorldReady())
+            if (loadingStartObserved && !loadingStopEvidenceWritten)
+            {
+                loadingStopObserved = true;
+                loadingStopEvidenceWritten = true;
+                if (!TryWriteEvidence("loading-stop", true, false, null, null))
+                {
+                    AbortSuite("Area boundary loading-stop evidence could not be committed.");
+                    return;
+                }
+            }
+            if (!loadingObserved || !loadingStartObserved || !loadingStopObserved || !IsWorldReady())
             {
                 stableWorldFrames = 0;
                 return;
@@ -592,9 +836,18 @@ namespace KingmakerMountedCombat.Diagnostics
             assertions.Check(boundaryCleanupVerified,
                 "Area-unload lifecycle cleanup completed before reload qualification.",
                 "Area reload completed without observed mounted cleanup.");
+            assertions.Check(loadingObserved && loadingStartObserved && loadingStopObserved,
+                "Area reload loading start and stop were both observed.",
+                "Area reload loading start or stop was not observed.");
             AssertAuthorizationCounts(0, 0);
             AssertLoadedFixtureIdentity();
-            AssertFreshWorldHasNoMountedState("post-area-reload");
+            CaptureAndAssertFreshWorld("post-area-reload");
+            CaptureCompletedBoundaryWorkingIdentity(true);
+            if (!TryWriteEvidence("fresh-world", true, false, null, null))
+            {
+                AbortSuite("Area boundary fresh-world evidence could not be committed.");
+                return;
+            }
             FinishCurrentRow();
         }
 
@@ -609,18 +862,34 @@ namespace KingmakerMountedCombat.Diagnostics
             assertions.Check(snapshot.RiderView.AgentOverride == relationship.Runtime.MovementAgent && relationship.Runtime.MovementAgent != null,
                 "Rider installed only the KMC-owned movement override.",
                 "Rider did not expose the KMC-owned movement override.");
+            assertions.Check(snapshot.RiderView.GetComponents<RiderMovementAgent>().Length == snapshot.RiderOverrideComponentCount + 1,
+                "Mounted rider exposed exactly one KMC-owned RiderMovementAgent component.",
+                "Mounted rider component count did not prove one owned movement override.");
+            assertions.Check(CountKmcRiderMovementAgents() == 1,
+                "The mounted rider owned the only live KMC RiderMovementAgent component.",
+                "The live object graph did not contain exactly one KMC RiderMovementAgent while mounted.");
+            assertions.Check(snapshot.RiderView.ForbidRotation,
+                "Mounted rider held the scoped ForbidRotation lease.",
+                "Mounted rider did not hold ForbidRotation.");
+            assertions.Check(relationship.Runtime.PresentationAttachmentLeaseActive &&
+                relationship.Runtime.RiderParentMatchesAttachment && relationship.Runtime.HasPresentationAttachmentResidue,
+                "Mounted rider held the exact owned presentation attachment lease.",
+                "Mounted rider did not expose the exact presentation attachment ownership state.");
             assertions.Check(snapshot.MountView.AgentASP == snapshot.MountStockAgent && snapshot.MountStockAgent.enabled,
                 "Mount stock movement agent remained authoritative.",
                 "Mount stock movement agent was changed or disabled.");
+            assertions.Check(!snapshot.MountStockAgent.AvoidanceDisabled && ReferenceEquals(snapshot.MountView.AgentOverride, snapshot.MountOverride),
+                "Mount retained ordinary avoidance and its exact prior override reference.",
+                "Mount avoidance or override ownership changed while mounted.");
         }
 
-        private void AssertTrigger(CleanupTrigger expected)
+        private void CaptureAndAssertCleanupLatch(CleanupTrigger expected)
         {
-            var transition = relationship.LastTransition;
-            assertions.Check(transition != null && transition.Trigger == expected && transition.Succeeded &&
-                !transition.MovementAuthorityResidual && !transition.PresentationResidual,
-                expected + " boundary requested the exact cleanup trigger.",
-                expected + " boundary did not report its exact cleanup trigger: " + relationship.LastResult);
+            cleanupLatch = BoundaryCleanupEvidence.Capture(frameNumber, expected, relationship, snapshot);
+            boundaryCleanupVerified = cleanupLatch.AllRestored == true;
+            assertions.Check(cleanupLatch.Captured && cleanupLatch.AllRestored == true,
+                expected + " cleanup was synchronously latched with complete stock/presentation/selection restoration.",
+                expected + " cleanup latch retained movement, presentation, rotation, command, or selection residue.");
         }
 
         private void AssertUnmountedAndRestored(PairSnapshot retained, bool allowDetachedViews = false)
@@ -653,32 +922,24 @@ namespace KingmakerMountedCombat.Diagnostics
             }
         }
 
-        private void AssertFreshWorldHasNoMountedState(string phase)
+        private void CaptureAndAssertFreshWorld(string phase)
         {
-            assertions.Check(relationship.State == RelationshipState.Unmounted && relationship.Rider == null &&
-                relationship.Mount == null && relationship.Runtime.MovementAgent == null,
-                phase + " relationship owner contained no KMC runtime state.",
-                phase + " relationship owner retained KMC runtime state.");
-
-            UnitEntityData rider;
-            UnitEntityData mount;
             string error;
-            var resolved = relationship.TryResolveAutomationPair(out rider, out mount, out error);
+            var resolved = relationship.TryResolveAutomationPair(out freshRider, out freshMount, out error);
+            freshWorldEvidence = FreshWorldEvidence.Capture(
+                IsWorldReady(),
+                resolved,
+                relationship,
+                freshRider,
+                freshMount,
+                snapshot,
+                request.Fixture.Working);
             assertions.Check(resolved,
                 phase + " exact automation pair resolved from fresh live state.",
                 phase + " exact automation pair did not resolve: " + (error ?? "unknown error"));
-            if (!resolved)
-            {
-                return;
-            }
-
-            var clean = rider.View != null && mount.View != null && rider.View.AgentASP != null && mount.View.AgentASP != null &&
-                rider.View.AgentASP.enabled && mount.View.AgentASP.enabled &&
-                !rider.View.AgentASP.AvoidanceDisabled && !mount.View.AgentASP.AvoidanceDisabled &&
-                rider.View.AgentOverride == null && mount.View.AgentOverride == null;
-            assertions.Check(clean,
-                phase + " fresh pair exposed enabled stock agents, ordinary avoidance, and no overrides.",
-                phase + " fresh pair exposed movement-agent, avoidance, or override residue.");
+            assertions.Check(freshWorldEvidence.AllClean == true,
+                phase + " fresh world contained exact Working identity and no relationship, movement, selection, rotation, component, or anchor residue.",
+                phase + " fresh world retained KMC state or differed from the exact Working identity.");
         }
 
         private void AssertLoadedFixtureIdentity()
@@ -693,16 +954,6 @@ namespace KingmakerMountedCombat.Diagnostics
             assertions.Check(valid,
                 "Loaded GameId, GameName, and Area remained the qualified Working identity.",
                 "Loaded GameId, GameName, or Area differed from the qualified Working identity.");
-        }
-
-        private void AssertExactWorkingFileIdentity(string phase)
-        {
-            FileIdentitySnapshot observed;
-            string error;
-            var captured = FileIdentitySnapshot.TryCapture(fixtureLoader.WorkingPath, out observed, out error);
-            assertions.Check(captured && observed.Matches(request.Fixture.Working),
-                phase + " exact Working length, timestamp, and SHA-256 remained equal to the qualified request.",
-                phase + " exact Working file identity changed or could not be read: " + (error ?? "identity mismatch"));
         }
 
         private void AssertAuthorizationCounts(int expectedLoadDelta, int expectedWriteDelta)
@@ -821,6 +1072,379 @@ namespace KingmakerMountedCombat.Diagnostics
             asynchronousCallback = true;
         }
 
+        private bool TryWriteEvidence(
+            string phase,
+            bool executed,
+            bool suppressed,
+            string rowStatus,
+            IReadOnlyList<string> recordErrors,
+            int? assertionPassCount = null,
+            int? assertionFailCount = null)
+        {
+            if (evidenceFailed)
+            {
+                if (assertions != null && !assertions.Errors.Contains(evidenceFailureMessage))
+                {
+                    assertions.Fail(evidenceFailureMessage);
+                }
+                return false;
+            }
+
+            try
+            {
+                var record = CreateEvidenceRecord(
+                    phase,
+                    executed,
+                    suppressed,
+                    rowStatus,
+                    recordErrors,
+                    assertionPassCount,
+                    assertionFailCount);
+                var json = JsonConvert.SerializeObject(record, EvidenceJsonSettings);
+                evidenceSequenceGuard.Accept(currentRow, phase, rowStatus, executed, suppressed);
+                evidenceJournal.AppendSerializedRecord(json);
+                evidenceSequence++;
+                return true;
+            }
+            catch (Exception exception)
+            {
+                evidenceFailed = true;
+                evidenceFailureMessage = "Boundary structured evidence write failed: " +
+                    exception.GetType().Name + ": " + exception.Message;
+                if (assertions != null)
+                {
+                    assertions.Fail(evidenceFailureMessage);
+                }
+                else
+                {
+                    errors.Add(evidenceFailureMessage);
+                }
+                logger.Exception("Boundary structured evidence write failed", exception);
+                return false;
+            }
+        }
+
+        private bool CommitRowStartEvidence()
+        {
+            if (rowStartEvidenceWritten)
+            {
+                return true;
+            }
+
+            string identityError;
+            if (!FileIdentitySnapshot.TryCapture(fixtureLoader.WorkingPath, out rowStartWorkingIdentity, out identityError))
+            {
+                assertions.Fail("Boundary row-start Working identity could not be captured: " + identityError);
+                return false;
+            }
+
+            var matchesCurrentAuthority = currentWorkingIdentityAuthority != null &&
+                rowStartWorkingIdentity.Equals(currentWorkingIdentityAuthority);
+            assertions.Check(matchesCurrentAuthority,
+                "Boundary row-start Working identity continued exactly from the prior qualified segment.",
+                "Boundary row-start Working identity did not continue from the post-initial-load or prior row-result authority.");
+
+            if (!TryWriteEvidence("row-start", true, false, null, null))
+            {
+                return false;
+            }
+
+            rowStartEvidenceWritten = true;
+            return matchesCurrentAuthority;
+        }
+
+        private void AssertWorkingIdentityEquals(FileIdentitySnapshot expected, string success)
+        {
+            FileIdentitySnapshot observed;
+            string identityError = null;
+            var exact = expected != null &&
+                FileIdentitySnapshot.TryCapture(fixtureLoader.WorkingPath, out observed, out identityError) &&
+                observed.Equals(expected);
+            assertions.Check(exact,
+                success,
+                "Exact Working file identity changed or could not be recaptured: " +
+                    (identityError ?? "length/timestamp/SHA-256 mismatch"));
+        }
+
+        private void CaptureCompletedBoundaryWorkingIdentity(bool requireRowStartMatch)
+        {
+            string identityError;
+            if (!FileIdentitySnapshot.TryCapture(
+                fixtureLoader.WorkingPath,
+                out completedBoundaryWorkingIdentity,
+                out identityError))
+            {
+                assertions.Fail("Completed boundary Working identity could not be captured: " + identityError);
+                return;
+            }
+
+            if (requireRowStartMatch)
+            {
+                assertions.Check(completedBoundaryWorkingIdentity.Equals(rowStartWorkingIdentity),
+                    "Area reload left the row-start Working bytes and metadata unchanged.",
+                    "Area reload changed Working bytes or metadata.");
+            }
+        }
+
+        private BoundaryEvidenceRecord CreateEvidenceRecord(
+            string phase,
+            bool executed,
+            bool suppressed,
+            string rowStatus,
+            IReadOnlyList<string> recordErrors,
+            int? assertionPassCount,
+            int? assertionFailCount)
+        {
+            string observedIdentitySource;
+            var observed = CaptureOrSelectObservedWorkingIdentity(phase, out observedIdentitySource);
+
+            UnitEntityData evidenceRider;
+            UnitEntityData evidenceMount;
+            var oldWorldMayBeDisposed = (realWorkingLoadDispatched || realAreaReloadDispatched) &&
+                !string.Equals(phase, "cleanup-latch", StringComparison.Ordinal);
+            if (freshRider != null || freshMount != null)
+            {
+                evidenceRider = freshRider;
+                evidenceMount = freshMount;
+            }
+            else if (oldWorldMayBeDisposed)
+            {
+                evidenceRider = null;
+                evidenceMount = null;
+            }
+            else
+            {
+                evidenceRider = snapshot == null ? relationship.Rider : snapshot.Rider;
+                evidenceMount = snapshot == null ? relationship.Mount : snapshot.Mount;
+            }
+            var captureSelection = !oldWorldMayBeDisposed || evidenceRider != null || evidenceMount != null;
+            var terminal = string.Equals(phase, "row-result", StringComparison.Ordinal);
+            return new BoundaryEvidenceRecord
+            {
+                SchemaVersion = BoundaryScenarioEvidenceContract.SchemaVersion,
+                ArtifactKind = BoundaryScenarioEvidenceContract.ArtifactKind,
+                RunId = request.RunId,
+                Scenario = request.Scenario,
+                Row = currentRow,
+                Phase = phase,
+                UtcTimestamp = DateTimeOffset.UtcNow.ToString("o", CultureInfo.InvariantCulture),
+                Branch = request.Branch,
+                Commit = request.Commit,
+                ProductVersion = request.ProductVersion,
+                DllSha256 = dllSha256,
+                DllMvid = dllMvid,
+                Sequence = evidenceSequence,
+                RowIndex = rowIndex,
+                Frame = frameNumber,
+                Executed = executed,
+                Suppressed = suppressed,
+                RowStatus = terminal ? rowStatus : null,
+                AssertionPassCount = terminal
+                    ? (assertionPassCount ?? (assertions == null ? 0 : assertions.PassCount))
+                    : (int?)null,
+                AssertionFailCount = terminal
+                    ? (assertionFailCount ?? (assertions == null ? 0 : assertions.FailureCount))
+                    : (int?)null,
+                TriggerScope = CreateTriggerScope(),
+                WorkingIdentity = WorkingIdentityEvidence.Create(
+                    request.Fixture.Working,
+                    fixtureLoader.WorkingPath,
+                    postInitialLoadWorkingIdentity,
+                    preDispatchWorkingIdentity,
+                    observed,
+                    observedIdentitySource,
+                    descriptorVerificationObserved ? (bool?)descriptorVerifiedForRow : null,
+                    descriptorIdentityForRow),
+                Authorization = AuthorizationEvidence.Capture(
+                    saveAuthorization,
+                    authorizedLoadsBefore,
+                    authorizedWritesBefore,
+                    unauthorizedLoadsBefore,
+                    unauthorizedWritesBefore,
+                    baselineLoadsBefore,
+                    fatalViolationsBefore),
+                Loading = new LoadingEvidence
+                {
+                    Observed = loadingObserved,
+                    StartObserved = loadingStartObserved,
+                    StopObserved = loadingStopObserved,
+                    CallbackObserved = asynchronousCallback
+                },
+                Relationship = RelationshipEvidence.Capture(
+                    relationship,
+                    evidenceRider,
+                    evidenceMount,
+                    captureSelection),
+                Cleanup = cleanupLatch ?? BoundaryCleanupEvidence.NotCaptured(ExpectedCleanupTrigger()),
+                FreshWorld = freshWorldEvidence ?? FreshWorldEvidence.NotObserved(),
+                RecordErrors = recordErrors == null ? new string[0] : recordErrors.ToArray()
+            };
+        }
+
+        private FileIdentitySnapshot CaptureOrSelectObservedWorkingIdentity(
+            string phase,
+            out string observedIdentitySource)
+        {
+            if (string.Equals(phase, "row-start", StringComparison.Ordinal))
+            {
+                if (rowStartWorkingIdentity == null)
+                {
+                    throw new IOException("Exact row-start Working identity was unavailable for its durable evidence record.");
+                }
+
+                // This is the live snapshot captured immediately before the
+                // first durable row record, not a later recapture.
+                observedIdentitySource = phase;
+                return rowStartWorkingIdentity;
+            }
+
+            var observation = BoundaryScenarioEvidenceContract.SelectWorkingIdentityObservation(
+                currentRow,
+                phase,
+                realWorkingLoadDispatched,
+                realAreaReloadDispatched);
+            if (observation == BoundaryWorkingIdentityObservation.CachedImmediatePreDispatch)
+            {
+                if (preDispatchWorkingIdentity == null)
+                {
+                    throw new IOException("Exact pre-dispatch Working identity was unavailable for the active load phase.");
+                }
+
+                // Reopening or hashing the archive while Kingmaker owns its load
+                // pipeline can contend with the reader or observe a torn file.
+                // This exact snapshot was captured immediately before dispatch;
+                // its explicit source prevents it from being mistaken for a
+                // contemporaneous observation.
+                observedIdentitySource = BoundaryScenarioEvidenceContract.CachedImmediatePreDispatchSource;
+                return preDispatchWorkingIdentity;
+            }
+
+            if (observation == BoundaryWorkingIdentityObservation.CachedRowStart)
+            {
+                if (rowStartWorkingIdentity == null)
+                {
+                    throw new IOException("Exact row-start Working identity was unavailable for the active area-load phase.");
+                }
+
+                observedIdentitySource = BoundaryScenarioEvidenceContract.CachedRowStartSource;
+                return rowStartWorkingIdentity;
+            }
+
+            FileIdentitySnapshot observed;
+            string identityError;
+            if (!FileIdentitySnapshot.TryCapture(fixtureLoader.WorkingPath, out observed, out identityError))
+            {
+                throw new IOException("Exact Working identity capture failed for " + phase + ": " + identityError + ".");
+            }
+
+            observedIdentitySource = ObservedIdentitySource(phase);
+            return observed;
+        }
+
+        private TriggerScopeEvidence CreateTriggerScope()
+        {
+            var scope = new TriggerScopeEvidence
+            {
+                ExpectedCleanupTrigger = ExpectedCleanupTrigger().ToString(),
+                NativeDeliveryObserved = false,
+                StockSaveRoutineInvoked = false,
+                RealWorkingLoadDispatched = realWorkingLoadDispatched,
+                RealAreaReloadDispatched = realAreaReloadDispatched
+            };
+
+            if (string.Equals(currentRow, "mounted-pair-turn-based-entry-cleanup", StringComparison.Ordinal))
+            {
+                scope.InvocationPath = "mounted-lifecycle-handler-direct";
+                scope.ClaimLimit = "Direct HandleTurnBasedModeStateChanged(true) invocation only; native mode-event delivery was not exercised.";
+            }
+            else if (string.Equals(currentRow, "mounted-pair-realtime-entry-cleanup", StringComparison.Ordinal))
+            {
+                scope.InvocationPath = "mounted-lifecycle-handler-direct";
+                scope.ClaimLimit = "Direct HandleTurnBasedModeStateChanged(false) invocation only; native mode-event delivery was not exercised.";
+            }
+            else if (string.Equals(currentRow, "mounted-pair-save-safety", StringComparison.Ordinal))
+            {
+                scope.InvocationPath = "relationship-guard-boundary-direct";
+                scope.ClaimLimit = "Direct GuardBoundary(SaveRequested) service invocation only; stock SaveRoutine and serialization were not exercised.";
+            }
+            else if (string.Equals(currentRow, "mounted-pair-load-safety", StringComparison.Ordinal))
+            {
+                scope.InvocationPath = "game-loadgame-exact-working";
+                // Authorization is called only from the exact-token LoadRoutine
+                // prefix, so its row-local delta proves native prefix delivery;
+                // dispatch intent remains a separate field.
+                scope.NativeDeliveryObserved = saveAuthorization.AuthorizedLoadCount - authorizedLoadsBefore > 0;
+                scope.ClaimLimit = "Real Game.LoadGame of the exact Working descriptor exercised the native LoadRoutine prefix; no UI load request was exercised.";
+            }
+            else
+            {
+                scope.InvocationPath = "lifecycle-area-precleanup-direct+game-reloadarea";
+                scope.ClaimLimit = "Direct OnAreaBeginUnloading cleanup was latched before real Game.ReloadArea; native area-event delivery was not independently observed or qualified.";
+            }
+
+            return scope;
+        }
+
+        private CleanupTrigger ExpectedCleanupTrigger()
+        {
+            if (string.Equals(currentRow, "mounted-pair-turn-based-entry-cleanup", StringComparison.Ordinal))
+            {
+                return CleanupTrigger.TurnBasedModeChanged;
+            }
+            if (string.Equals(currentRow, "mounted-pair-realtime-entry-cleanup", StringComparison.Ordinal))
+            {
+                return CleanupTrigger.RealtimeModeChanged;
+            }
+            if (string.Equals(currentRow, "mounted-pair-save-safety", StringComparison.Ordinal))
+            {
+                return CleanupTrigger.SaveRequested;
+            }
+            if (string.Equals(currentRow, "mounted-pair-load-safety", StringComparison.Ordinal))
+            {
+                return CleanupTrigger.LoadRequested;
+            }
+            return CleanupTrigger.AreaUnloading;
+        }
+
+        private static string ObservedIdentitySource(string phase)
+        {
+            if (string.Equals(phase, "pre-boundary", StringComparison.Ordinal))
+            {
+                return "immediate-pre-dispatch";
+            }
+            if (string.Equals(phase, "cleanup-latch", StringComparison.Ordinal))
+            {
+                return "immediate-post-dispatch";
+            }
+            return phase;
+        }
+
+        private static int CountKmcAnchorObjects()
+        {
+            var count = 0;
+            foreach (var transform in Resources.FindObjectsOfTypeAll<Transform>())
+            {
+                if (transform != null && string.Equals(transform.name, AnchorObjectName, StringComparison.Ordinal))
+                {
+                    count++;
+                }
+            }
+            return count;
+        }
+
+        private static int CountKmcRiderMovementAgents()
+        {
+            var count = 0;
+            foreach (var movementAgent in Resources.FindObjectsOfTypeAll<RiderMovementAgent>())
+            {
+                if (movementAgent != null)
+                {
+                    count++;
+                }
+            }
+            return count;
+        }
+
         private void AbortSuite(string message)
         {
             if (assertions == null)
@@ -829,6 +1453,10 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (failureDrain.State == BoundaryFailureDrainState.Inactive)
             {
+                if (currentRow != null && !rowStartEvidenceWritten && !evidenceFailed)
+                {
+                    CommitRowStartEvidence();
+                }
                 assertions.Fail(message);
                 failureDrain.Request(message, IsLoading());
                 rowClock.Stop();
@@ -901,6 +1529,39 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void FinishCurrentRow()
         {
+            var failed = FinalizeCurrentRowResult();
+            if (failed)
+            {
+                var reason = "Boundary suite stopped after a row assertion or evidence failure.";
+                CompleteRemainingAsNotRun(reason);
+                CompleteCore();
+            }
+        }
+
+        private bool FinalizeCurrentRowResult()
+        {
+            if (rowStartWorkingIdentity != null)
+            {
+                var expectedFinalIdentity = string.Equals(currentRow, "mounted-pair-load-safety", StringComparison.Ordinal)
+                    ? completedBoundaryWorkingIdentity
+                    : rowStartWorkingIdentity;
+                if (expectedFinalIdentity != null)
+                {
+                    AssertWorkingIdentityEquals(expectedFinalIdentity,
+                        "Exact Working file identity remained stable through row-result finalization.");
+                }
+            }
+
+            var statusBeforeEvidence = assertions.FailureCount == 0 ? "PASS" : "FAIL";
+            TryWriteEvidence(
+                "row-result",
+                true,
+                false,
+                statusBeforeEvidence,
+                assertions.Errors,
+                assertions.PassCount,
+                assertions.FailureCount);
+
             var result = new RuntimeSubscenarioResult
             {
                 Name = currentRow,
@@ -910,6 +1571,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 Errors = assertions.Errors
             };
             results.Add(result);
+            if (string.Equals(result.Status, "PASS", StringComparison.Ordinal))
+            {
+                currentWorkingIdentityAuthority = string.Equals(currentRow, "mounted-pair-load-safety", StringComparison.Ordinal)
+                    ? completedBoundaryWorkingIdentity
+                    : rowStartWorkingIdentity;
+            }
             foreach (var error in assertions.Errors)
             {
                 errors.Add(currentRow + ": " + error);
@@ -928,19 +1595,44 @@ namespace KingmakerMountedCombat.Diagnostics
             currentRow = null;
             assertions = null;
             snapshot = null;
+            freshRider = null;
+            freshMount = null;
             rowClock.Reset();
             step = EngineStep.BeginRow;
+            return !string.Equals(result.Status, "PASS", StringComparison.Ordinal);
         }
 
         private void CompleteRemainingAsNotRun(string reason)
         {
             if (currentRow != null)
             {
-                FinishCurrentRow();
+                FinalizeCurrentRowResult();
             }
             while (rowIndex < selectedRows.Count)
             {
-                var row = selectedRows[rowIndex++];
+                currentRow = selectedRows[rowIndex];
+                assertions = new AssertionRecorder();
+                snapshot = null;
+                freshRider = null;
+                freshMount = null;
+                rowStartWorkingIdentity = null;
+                preDispatchWorkingIdentity = null;
+                completedBoundaryWorkingIdentity = null;
+                cleanupLatch = null;
+                freshWorldEvidence = null;
+                descriptorIdentityForRow = null;
+                descriptorVerificationObserved = false;
+                descriptorVerifiedForRow = false;
+                realWorkingLoadDispatched = false;
+                realAreaReloadDispatched = false;
+                asynchronousCallback = false;
+                loadingObserved = false;
+                loadingStartObserved = false;
+                loadingStopObserved = false;
+                rowStartEvidenceWritten = false;
+                CaptureAuthorizationCounts();
+                TryWriteEvidence("row-result", false, true, "FAIL", new[] { reason }, 0, 1);
+                var row = currentRow;
                 results.Add(new RuntimeSubscenarioResult
                 {
                     Name = row,
@@ -950,6 +1642,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     Errors = new[] { reason }
                 });
                 errors.Add(row + ": " + reason);
+                rowIndex++;
+                currentRow = null;
+                assertions = null;
             }
         }
 
@@ -967,6 +1662,10 @@ namespace KingmakerMountedCombat.Diagnostics
         private void CompleteCore()
         {
             BestEffortCleanup();
+            if (evidenceSequenceGuard != null && !evidenceSequenceGuard.IsComplete && !evidenceFailed)
+            {
+                errors.Add("Boundary evidence ended before every selected row received a terminal row-result.");
+            }
             RestoreSettings();
             suiteClock.Stop();
             rowClock.Stop();
@@ -986,18 +1685,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private static IReadOnlyList<string> SelectRows(string scenario)
         {
-            if (string.Equals(scenario, "boundary-suite", StringComparison.Ordinal))
-            {
-                return SuiteRows;
-            }
-            foreach (var row in SuiteRows)
-            {
-                if (string.Equals(row, scenario, StringComparison.Ordinal))
-                {
-                    return new[] { row };
-                }
-            }
-            return null;
+            return BoundaryScenarioEvidenceContract.SelectRows(scenario);
         }
 
         private static string FormatTransitionErrors(TransitionResult result)
@@ -1034,8 +1722,487 @@ namespace KingmakerMountedCombat.Diagnostics
             AwaitMountedFrame,
             AwaitSimpleCleanupFrame,
             AwaitLoadCompletion,
-            AwaitAreaCleanup,
             AwaitAreaCompletion
+        }
+
+        private sealed class BoundaryEvidenceRecord
+        {
+            public int SchemaVersion { get; set; }
+            public string ArtifactKind { get; set; }
+            public string RunId { get; set; }
+            public string Scenario { get; set; }
+            public string Row { get; set; }
+            public string Phase { get; set; }
+            public string UtcTimestamp { get; set; }
+            public string Branch { get; set; }
+            public string Commit { get; set; }
+            public string ProductVersion { get; set; }
+            public string DllSha256 { get; set; }
+            public string DllMvid { get; set; }
+            public long Sequence { get; set; }
+            public int RowIndex { get; set; }
+            public int Frame { get; set; }
+            public bool Executed { get; set; }
+            public bool Suppressed { get; set; }
+            public string RowStatus { get; set; }
+            public int? AssertionPassCount { get; set; }
+            public int? AssertionFailCount { get; set; }
+            public TriggerScopeEvidence TriggerScope { get; set; }
+            public WorkingIdentityEvidence WorkingIdentity { get; set; }
+            public AuthorizationEvidence Authorization { get; set; }
+            public LoadingEvidence Loading { get; set; }
+            public RelationshipEvidence Relationship { get; set; }
+            public BoundaryCleanupEvidence Cleanup { get; set; }
+            public FreshWorldEvidence FreshWorld { get; set; }
+            public IReadOnlyList<string> RecordErrors { get; set; }
+        }
+
+        private sealed class TriggerScopeEvidence
+        {
+            public string ExpectedCleanupTrigger { get; set; }
+            public string InvocationPath { get; set; }
+            public bool NativeDeliveryObserved { get; set; }
+            public bool StockSaveRoutineInvoked { get; set; }
+            public bool RealWorkingLoadDispatched { get; set; }
+            public bool RealAreaReloadDispatched { get; set; }
+            public string ClaimLimit { get; set; }
+        }
+
+        private sealed class WorkingIdentityEvidence
+        {
+            public string InternalName { get; set; }
+            public string FileName { get; set; }
+            public string Path { get; set; }
+            public string GameId { get; set; }
+            public string GameName { get; set; }
+            public string Area { get; set; }
+            public long RequestLength { get; set; }
+            public long RequestLastWriteTimeUtcTicks { get; set; }
+            public string RequestSha256 { get; set; }
+            public long PostInitialLoadLength { get; set; }
+            public long PostInitialLoadLastWriteTimeUtcTicks { get; set; }
+            public string PostInitialLoadSha256 { get; set; }
+            public long? PreDispatchLength { get; set; }
+            public long? PreDispatchLastWriteTimeUtcTicks { get; set; }
+            public string PreDispatchSha256 { get; set; }
+            public long? ObservedLength { get; set; }
+            public long? ObservedLastWriteTimeUtcTicks { get; set; }
+            public string ObservedSha256 { get; set; }
+            public string ObservedSource { get; set; }
+            public bool? MatchesPostInitialLoad { get; set; }
+            public bool? DescriptorVerified { get; set; }
+            public string DescriptorInternalName { get; set; }
+            public string DescriptorFileName { get; set; }
+            public string DescriptorPath { get; set; }
+            public string DescriptorGameId { get; set; }
+            public string DescriptorGameName { get; set; }
+            public string DescriptorArea { get; set; }
+            public string DescriptorSaveType { get; set; }
+            public int? DescriptorCompatibilityVersion { get; set; }
+
+            public static WorkingIdentityEvidence Create(
+                RuntimeSaveDescriptor requested,
+                string path,
+                FileIdentitySnapshot postInitial,
+                FileIdentitySnapshot preDispatch,
+                FileIdentitySnapshot observed,
+                string observedSource,
+                bool? descriptorVerified,
+                DescriptorIdentityEvidence descriptor)
+            {
+                return new WorkingIdentityEvidence
+                {
+                    InternalName = requested.InternalName,
+                    FileName = requested.FileName,
+                    Path = path,
+                    GameId = requested.GameId,
+                    GameName = requested.GameName,
+                    Area = requested.Area,
+                    RequestLength = requested.Length,
+                    RequestLastWriteTimeUtcTicks = requested.LastWriteTimeUtcTicks,
+                    RequestSha256 = requested.Sha256,
+                    PostInitialLoadLength = postInitial.Length,
+                    PostInitialLoadLastWriteTimeUtcTicks = postInitial.LastWriteTimeUtcTicks,
+                    PostInitialLoadSha256 = postInitial.Sha256,
+                    PreDispatchLength = preDispatch == null ? (long?)null : preDispatch.Length,
+                    PreDispatchLastWriteTimeUtcTicks = preDispatch == null ? (long?)null : preDispatch.LastWriteTimeUtcTicks,
+                    PreDispatchSha256 = preDispatch == null ? null : preDispatch.Sha256,
+                    ObservedLength = observed == null ? (long?)null : observed.Length,
+                    ObservedLastWriteTimeUtcTicks = observed == null ? (long?)null : observed.LastWriteTimeUtcTicks,
+                    ObservedSha256 = observed == null ? null : observed.Sha256,
+                    ObservedSource = observedSource,
+                    MatchesPostInitialLoad = observed == null ? (bool?)null : observed.Equals(postInitial),
+                    DescriptorVerified = descriptorVerified,
+                    DescriptorInternalName = descriptor == null ? null : descriptor.InternalName,
+                    DescriptorFileName = descriptor == null ? null : descriptor.FileName,
+                    DescriptorPath = descriptor == null ? null : descriptor.Path,
+                    DescriptorGameId = descriptor == null ? null : descriptor.GameId,
+                    DescriptorGameName = descriptor == null ? null : descriptor.GameName,
+                    DescriptorArea = descriptor == null ? null : descriptor.Area,
+                    DescriptorSaveType = descriptor == null ? null : descriptor.SaveType,
+                    DescriptorCompatibilityVersion = descriptor == null ? (int?)null : descriptor.CompatibilityVersion
+                };
+            }
+        }
+
+        private sealed class DescriptorIdentityEvidence
+        {
+            public string InternalName { get; set; }
+            public string FileName { get; set; }
+            public string Path { get; set; }
+            public string GameId { get; set; }
+            public string GameName { get; set; }
+            public string Area { get; set; }
+            public string SaveType { get; set; }
+            public int CompatibilityVersion { get; set; }
+
+            public static DescriptorIdentityEvidence From(SaveInfo descriptor)
+            {
+                return new DescriptorIdentityEvidence
+                {
+                    InternalName = descriptor.Name,
+                    FileName = descriptor.FileName,
+                    Path = descriptor.FolderName,
+                    GameId = descriptor.GameId,
+                    GameName = descriptor.GameName,
+                    Area = descriptor.Area == null ? null : descriptor.Area.AssetGuidThreadSafe,
+                    SaveType = descriptor.Type.ToString(),
+                    CompatibilityVersion = descriptor.CompatibilityVersion
+                };
+            }
+        }
+
+        private sealed class AuthorizationEvidence
+        {
+            public int AuthorizedLoadsBefore { get; set; }
+            public int AuthorizedLoadsAfter { get; set; }
+            public int AuthorizedLoadsDelta { get; set; }
+            public int AuthorizedWritesBefore { get; set; }
+            public int AuthorizedWritesAfter { get; set; }
+            public int AuthorizedWritesDelta { get; set; }
+            public int UnauthorizedLoadsBefore { get; set; }
+            public int UnauthorizedLoadsAfter { get; set; }
+            public int UnauthorizedLoadsDelta { get; set; }
+            public int UnauthorizedWritesBefore { get; set; }
+            public int UnauthorizedWritesAfter { get; set; }
+            public int UnauthorizedWritesDelta { get; set; }
+            public int BaselineLoadsBefore { get; set; }
+            public int BaselineLoadsAfter { get; set; }
+            public int BaselineLoadsDelta { get; set; }
+            public int FatalViolationsBefore { get; set; }
+            public int FatalViolationsAfter { get; set; }
+            public int FatalViolationsDelta { get; set; }
+
+            public static AuthorizationEvidence Capture(
+                RuntimeSaveAuthorization authorization,
+                int authorizedLoadsBefore,
+                int authorizedWritesBefore,
+                int unauthorizedLoadsBefore,
+                int unauthorizedWritesBefore,
+                int baselineLoadsBefore,
+                int fatalViolationsBefore)
+            {
+                return new AuthorizationEvidence
+                {
+                    AuthorizedLoadsBefore = authorizedLoadsBefore,
+                    AuthorizedLoadsAfter = authorization.AuthorizedLoadCount,
+                    AuthorizedLoadsDelta = authorization.AuthorizedLoadCount - authorizedLoadsBefore,
+                    AuthorizedWritesBefore = authorizedWritesBefore,
+                    AuthorizedWritesAfter = authorization.AuthorizedWriteCount,
+                    AuthorizedWritesDelta = authorization.AuthorizedWriteCount - authorizedWritesBefore,
+                    UnauthorizedLoadsBefore = unauthorizedLoadsBefore,
+                    UnauthorizedLoadsAfter = authorization.UnauthorizedLoadCount,
+                    UnauthorizedLoadsDelta = authorization.UnauthorizedLoadCount - unauthorizedLoadsBefore,
+                    UnauthorizedWritesBefore = unauthorizedWritesBefore,
+                    UnauthorizedWritesAfter = authorization.UnauthorizedWriteCount,
+                    UnauthorizedWritesDelta = authorization.UnauthorizedWriteCount - unauthorizedWritesBefore,
+                    BaselineLoadsBefore = baselineLoadsBefore,
+                    BaselineLoadsAfter = authorization.BaselineLoadRequestCount,
+                    BaselineLoadsDelta = authorization.BaselineLoadRequestCount - baselineLoadsBefore,
+                    FatalViolationsBefore = fatalViolationsBefore,
+                    FatalViolationsAfter = authorization.FatalViolationCount,
+                    FatalViolationsDelta = authorization.FatalViolationCount - fatalViolationsBefore
+                };
+            }
+        }
+
+        private sealed class LoadingEvidence
+        {
+            public bool Observed { get; set; }
+            public bool StartObserved { get; set; }
+            public bool StopObserved { get; set; }
+            public bool CallbackObserved { get; set; }
+        }
+
+        private sealed class RelationshipEvidence
+        {
+            public string State { get; set; }
+            public string RiderUniqueId { get; set; }
+            public string MountUniqueId { get; set; }
+            public bool OwnerReferencesPresent { get; set; }
+            public bool MovementAgentPresent { get; set; }
+            public bool? RiderStockAgentEnabled { get; set; }
+            public bool? MountStockAgentEnabled { get; set; }
+            public bool? RiderAvoidanceDisabled { get; set; }
+            public bool? MountAvoidanceDisabled { get; set; }
+            public bool? RiderOverridePresent { get; set; }
+            public bool? MountOverridePresent { get; set; }
+            public int? RiderMovementAgentComponentCount { get; set; }
+            public int? MountMovementAgentComponentCount { get; set; }
+            public bool? RiderForbidRotation { get; set; }
+            public bool? MountForbidRotation { get; set; }
+            public bool AttachmentLeaseActive { get; set; }
+            public bool AttachmentRestoreVerified { get; set; }
+            public bool AttachmentResidue { get; set; }
+            public bool RiderParentMatchesAttachment { get; set; }
+            public string AttachmentParent { get; set; }
+            public string SourceAnchor { get; set; }
+            public int KmcAnchorObjectCount { get; set; }
+            public int KmcRiderMovementAgentComponentCount { get; set; }
+            public bool? RiderMoveCommandPresent { get; set; }
+            public bool? MountMoveCommandPresent { get; set; }
+            public string[] SelectedUnitIds { get; set; }
+
+            public static RelationshipEvidence Capture(
+                GameMountedRelationshipService relationship,
+                UnitEntityData rider,
+                UnitEntityData mount,
+                bool captureSelection)
+            {
+                var riderView = rider == null ? null : rider.View;
+                var mountView = mount == null ? null : mount.View;
+                return new RelationshipEvidence
+                {
+                    State = relationship.State.ToString(),
+                    RiderUniqueId = rider == null || rider.UniqueId == null ? null : rider.UniqueId.ToString(),
+                    MountUniqueId = mount == null || mount.UniqueId == null ? null : mount.UniqueId.ToString(),
+                    OwnerReferencesPresent = relationship.Rider != null || relationship.Mount != null,
+                    MovementAgentPresent = relationship.Runtime.MovementAgent != null,
+                    RiderStockAgentEnabled = riderView == null || riderView.AgentASP == null ? (bool?)null : riderView.AgentASP.enabled,
+                    MountStockAgentEnabled = mountView == null || mountView.AgentASP == null ? (bool?)null : mountView.AgentASP.enabled,
+                    RiderAvoidanceDisabled = riderView == null || riderView.AgentASP == null ? (bool?)null : riderView.AgentASP.AvoidanceDisabled,
+                    MountAvoidanceDisabled = mountView == null || mountView.AgentASP == null ? (bool?)null : mountView.AgentASP.AvoidanceDisabled,
+                    RiderOverridePresent = riderView == null ? (bool?)null : riderView.AgentOverride != null,
+                    MountOverridePresent = mountView == null ? (bool?)null : mountView.AgentOverride != null,
+                    RiderMovementAgentComponentCount = riderView == null ? (int?)null : riderView.GetComponents<RiderMovementAgent>().Length,
+                    MountMovementAgentComponentCount = mountView == null ? (int?)null : mountView.GetComponents<RiderMovementAgent>().Length,
+                    RiderForbidRotation = riderView == null ? (bool?)null : riderView.ForbidRotation,
+                    MountForbidRotation = mountView == null ? (bool?)null : mountView.ForbidRotation,
+                    AttachmentLeaseActive = relationship.Runtime.PresentationAttachmentLeaseActive,
+                    AttachmentRestoreVerified = relationship.Runtime.PresentationAttachmentRestoreVerified,
+                    AttachmentResidue = relationship.Runtime.HasPresentationAttachmentResidue,
+                    RiderParentMatchesAttachment = relationship.Runtime.RiderParentMatchesAttachment,
+                    AttachmentParent = relationship.Runtime.PresentationAttachmentParentName,
+                    SourceAnchor = relationship.Runtime.PresentationSourceAnchorName,
+                    KmcAnchorObjectCount = CountKmcAnchorObjects(),
+                    KmcRiderMovementAgentComponentCount = CountKmcRiderMovementAgents(),
+                    RiderMoveCommandPresent = rider == null || rider.Commands == null ? (bool?)null : rider.Commands.Move != null,
+                    MountMoveCommandPresent = mount == null || mount.Commands == null ? (bool?)null : mount.Commands.Move != null,
+                    // During an active/disposed-world load phase the global
+                    // selection can still contain old UnitEntityData objects.
+                    // Do not dereference them; selection continuity is proved
+                    // at cleanup-latch and again from the stable fresh world.
+                    SelectedUnitIds = captureSelection ? CaptureSelectedUnitIds() : new string[0]
+                };
+            }
+        }
+
+        private sealed class BoundaryCleanupEvidence
+        {
+            public bool Captured { get; set; }
+            public int? CaptureFrame { get; set; }
+            public string ExpectedTrigger { get; set; }
+            public string ActualTrigger { get; set; }
+            public bool? TransitionSucceeded { get; set; }
+            public bool? MovementAuthorityResidual { get; set; }
+            public bool? PresentationResidual { get; set; }
+            public bool? RelationshipUnmounted { get; set; }
+            public bool? OwnerReferencesReleased { get; set; }
+            public bool? MovementAgentReleased { get; set; }
+            public bool? StockAgentsRestored { get; set; }
+            public bool? AvoidanceRestored { get; set; }
+            public bool? OverridesRestored { get; set; }
+            public bool? RiderMovementAgentComponentsRestored { get; set; }
+            public bool? ForbidRotationRestored { get; set; }
+            public bool? AttachmentRestored { get; set; }
+            public bool? SelectionRestored { get; set; }
+            public bool? MoveCommandsRestored { get; set; }
+            public bool? KmcAnchorObjectsAbsent { get; set; }
+            public bool? AllRestored { get; set; }
+
+            public static BoundaryCleanupEvidence NotCaptured(CleanupTrigger expected)
+            {
+                return new BoundaryCleanupEvidence
+                {
+                    Captured = false,
+                    ExpectedTrigger = expected.ToString()
+                };
+            }
+
+            public static BoundaryCleanupEvidence Capture(
+                int frame,
+                CleanupTrigger expected,
+                GameMountedRelationshipService relationship,
+                PairSnapshot pair)
+            {
+                var transition = relationship.LastTransition;
+                var exactTrigger = transition != null && transition.Trigger == expected;
+                var transitionClean = transition != null && transition.Succeeded &&
+                    !transition.MovementAuthorityResidual && !transition.PresentationResidual;
+                var relationshipUnmounted = relationship.State == RelationshipState.Unmounted;
+                var ownerReleased = relationship.Rider == null && relationship.Mount == null;
+                var movementReleased = relationship.Runtime.MovementAgent == null;
+                var stock = pair != null && pair.StockAgentsRestored();
+                var avoidance = pair != null && pair.AvoidanceRestored();
+                var overrides = pair != null && pair.OverridesRestored();
+                var components = pair != null && pair.OverrideComponentsRestored();
+                var forbid = pair != null && pair.ForbidRotationRestored();
+                var attachment = pair != null && pair.AttachmentTransformRestored() &&
+                    !relationship.Runtime.PresentationAttachmentLeaseActive &&
+                    relationship.Runtime.PresentationAttachmentRestoreVerified &&
+                    !relationship.Runtime.HasPresentationAttachmentResidue;
+                var selection = pair != null && pair.SelectionRestored();
+                var commands = pair != null && pair.MoveCommandsRestored();
+                var anchorsAbsent = CountKmcAnchorObjects() == 0;
+                return new BoundaryCleanupEvidence
+                {
+                    Captured = true,
+                    CaptureFrame = frame,
+                    ExpectedTrigger = expected.ToString(),
+                    ActualTrigger = transition == null || !transition.Trigger.HasValue ? null : transition.Trigger.Value.ToString(),
+                    TransitionSucceeded = transition == null ? (bool?)null : transition.Succeeded,
+                    MovementAuthorityResidual = transition == null ? (bool?)null : transition.MovementAuthorityResidual,
+                    PresentationResidual = transition == null ? (bool?)null : transition.PresentationResidual,
+                    RelationshipUnmounted = relationshipUnmounted,
+                    OwnerReferencesReleased = ownerReleased,
+                    MovementAgentReleased = movementReleased,
+                    StockAgentsRestored = stock,
+                    AvoidanceRestored = avoidance,
+                    OverridesRestored = overrides,
+                    RiderMovementAgentComponentsRestored = components,
+                    ForbidRotationRestored = forbid,
+                    AttachmentRestored = attachment,
+                    SelectionRestored = selection,
+                    MoveCommandsRestored = commands,
+                    KmcAnchorObjectsAbsent = anchorsAbsent,
+                    // Unity destroys both the hidden anchor and the owned
+                    // RiderMovementAgent at the end of the frame. Synchronous
+                    // safety is proved by released override/attachment ownership
+                    // plus exact stock-agent and rider-transform restoration. The
+                    // next/fresh-world phase separately requires zero pair-local
+                    // and global component/anchor objects.
+                    AllRestored = exactTrigger && transitionClean && relationshipUnmounted && ownerReleased && movementReleased &&
+                        stock && avoidance && overrides && forbid && attachment && selection && commands
+                };
+            }
+        }
+
+        private sealed class FreshWorldEvidence
+        {
+            public bool Observed { get; set; }
+            public bool? WorldReady { get; set; }
+            public bool? PairResolved { get; set; }
+            public string GameId { get; set; }
+            public string GameName { get; set; }
+            public string Area { get; set; }
+            public bool? GameIdMatches { get; set; }
+            public bool? GameNameMatches { get; set; }
+            public bool? AreaMatches { get; set; }
+            public bool? RelationshipClean { get; set; }
+            public bool? StockAgentsEnabled { get; set; }
+            public bool? AvoidanceOrdinary { get; set; }
+            public bool? OverridesAbsent { get; set; }
+            public bool? RiderMovementAgentComponentsAbsent { get; set; }
+            public bool? ForbidRotationOrdinary { get; set; }
+            public bool? AttachmentResidueAbsent { get; set; }
+            public bool? SelectionRestored { get; set; }
+            public bool? MoveCommandsAbsent { get; set; }
+            public bool? KmcAnchorObjectsAbsent { get; set; }
+            public bool? AllClean { get; set; }
+
+            public static FreshWorldEvidence NotObserved()
+            {
+                return new FreshWorldEvidence { Observed = false };
+            }
+
+            public static FreshWorldEvidence Capture(
+                bool worldReady,
+                bool pairResolved,
+                GameMountedRelationshipService relationship,
+                UnitEntityData rider,
+                UnitEntityData mount,
+                PairSnapshot prior,
+                RuntimeSaveDescriptor expected)
+            {
+                var game = Game.Instance;
+                var riderView = rider == null ? null : rider.View;
+                var mountView = mount == null ? null : mount.View;
+                var observedGameId = game == null || game.Player == null ? null : game.Player.GameId;
+                var observedGameName = game == null || game.Player == null || game.Player.MainCharacter.Value == null
+                    ? null
+                    : game.Player.MainCharacter.Value.CharacterName;
+                var observedArea = game == null || game.CurrentlyLoadedArea == null
+                    ? null
+                    : game.CurrentlyLoadedArea.AssetGuidThreadSafe;
+                var gameId = string.Equals(observedGameId, expected.GameId, StringComparison.Ordinal);
+                var gameName = string.Equals(observedGameName, expected.GameName, StringComparison.Ordinal);
+                var area = string.Equals(observedArea, expected.Area, StringComparison.Ordinal);
+                var relationshipClean = relationship.State == RelationshipState.Unmounted && relationship.Rider == null &&
+                    relationship.Mount == null && relationship.Runtime.MovementAgent == null;
+                var agents = pairResolved && riderView != null && mountView != null &&
+                    riderView.AgentASP != null && mountView.AgentASP != null &&
+                    riderView.AgentASP.enabled && mountView.AgentASP.enabled;
+                var avoidance = agents && !riderView.AgentASP.AvoidanceDisabled && !mountView.AgentASP.AvoidanceDisabled;
+                var overrides = pairResolved && riderView != null && mountView != null &&
+                    riderView.AgentOverride == null && mountView.AgentOverride == null;
+                var components = pairResolved && riderView != null && mountView != null &&
+                    riderView.GetComponents<RiderMovementAgent>().Length == 0 &&
+                    mountView.GetComponents<RiderMovementAgent>().Length == 0 &&
+                    CountKmcRiderMovementAgents() == 0;
+                var forbid = pairResolved && riderView != null && mountView != null && prior != null &&
+                    riderView.ForbidRotation == prior.RiderForbidRotationWasEnabled &&
+                    mountView.ForbidRotation == prior.MountForbidRotationWasEnabled;
+                var attachment = !relationship.Runtime.PresentationAttachmentLeaseActive &&
+                    !relationship.Runtime.HasPresentationAttachmentResidue;
+                var selection = prior != null && prior.SelectionRestored();
+                var commands = pairResolved && rider != null && mount != null && rider.Commands != null && mount.Commands != null &&
+                    rider.Commands.Move == null && mount.Commands.Move == null;
+                var anchors = CountKmcAnchorObjects() == 0;
+                return new FreshWorldEvidence
+                {
+                    Observed = true,
+                    WorldReady = worldReady,
+                    PairResolved = pairResolved,
+                    GameId = observedGameId,
+                    GameName = observedGameName,
+                    Area = observedArea,
+                    GameIdMatches = gameId,
+                    GameNameMatches = gameName,
+                    AreaMatches = area,
+                    RelationshipClean = relationshipClean,
+                    StockAgentsEnabled = agents,
+                    AvoidanceOrdinary = avoidance,
+                    OverridesAbsent = overrides,
+                    RiderMovementAgentComponentsAbsent = components,
+                    ForbidRotationOrdinary = forbid,
+                    AttachmentResidueAbsent = attachment,
+                    SelectionRestored = selection,
+                    MoveCommandsAbsent = commands,
+                    KmcAnchorObjectsAbsent = anchors,
+                    AllClean = worldReady && pairResolved && gameId && gameName && area && relationshipClean && agents &&
+                        avoidance && overrides && components && forbid && attachment && selection && commands && anchors
+                };
+            }
+        }
+
+        private static string[] CaptureSelectedUnitIds()
+        {
+            var selected = SelectionManager.Instance == null ? null : SelectionManager.Instance.SelectedUnits;
+            return selected == null
+                ? new string[0]
+                : selected.Where(unit => unit != null)
+                    .Select(unit => unit.UniqueId == null ? null : unit.UniqueId.ToString())
+                    .ToArray();
         }
 
         private sealed class FileIdentitySnapshot
@@ -1074,13 +2241,6 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
             }
 
-            public bool Matches(RuntimeSaveDescriptor expected)
-            {
-                return expected != null && Length == expected.Length &&
-                    LastWriteTimeUtcTicks == expected.LastWriteTimeUtcTicks &&
-                    string.Equals(Sha256, expected.Sha256, StringComparison.Ordinal);
-            }
-
             public bool Equals(FileIdentitySnapshot other)
             {
                 return other != null && Length == other.Length &&
@@ -1117,6 +2277,24 @@ namespace KingmakerMountedCombat.Diagnostics
 
             public int RiderOverrideComponentCount { get; private set; }
 
+            public int MountOverrideComponentCount { get; private set; }
+
+            public bool RiderForbidRotationWasEnabled { get; private set; }
+
+            public bool MountForbidRotationWasEnabled { get; private set; }
+
+            public Transform RiderParent { get; private set; }
+
+            public int RiderSiblingIndex { get; private set; }
+
+            public Vector3 RiderLocalScale { get; private set; }
+
+            public object RiderMoveCommand { get; private set; }
+
+            public object MountMoveCommand { get; private set; }
+
+            public string[] SelectedUnitIds { get; private set; }
+
             public static PairSnapshot TryCreate(UnitEntityData rider, UnitEntityData mount, out string error)
             {
                 error = null;
@@ -1141,14 +2319,23 @@ namespace KingmakerMountedCombat.Diagnostics
                     MountAvoidanceWasDisabled = mount.View.AgentASP.AvoidanceDisabled,
                     RiderOverride = rider.View.AgentOverride,
                     MountOverride = mount.View.AgentOverride,
-                    RiderOverrideComponentCount = rider.View.GetComponents<RiderMovementAgent>().Length
+                    RiderOverrideComponentCount = rider.View.GetComponents<RiderMovementAgent>().Length,
+                    MountOverrideComponentCount = mount.View.GetComponents<RiderMovementAgent>().Length,
+                    RiderForbidRotationWasEnabled = rider.View.ForbidRotation,
+                    MountForbidRotationWasEnabled = mount.View.ForbidRotation,
+                    RiderParent = rider.View.transform.parent,
+                    RiderSiblingIndex = rider.View.transform.GetSiblingIndex(),
+                    RiderLocalScale = rider.View.transform.localScale,
+                    RiderMoveCommand = rider.Commands == null ? null : rider.Commands.Move,
+                    MountMoveCommand = mount.Commands == null ? null : mount.Commands.Move,
+                    SelectedUnitIds = CaptureSelectedUnitIds()
                 };
             }
 
             public void AssertOverrideComponentCount(AssertionRecorder recorder)
             {
-                recorder.Check(RiderView != null && RiderView.GetComponents<RiderMovementAgent>().Length == RiderOverrideComponentCount,
-                    "Owned RiderMovementAgent component count returned to its exact prior value on the post-cleanup frame.",
+                recorder.Check(OverrideComponentsRestored(),
+                    "Owned RiderMovementAgent component counts returned to their exact prior values on the post-cleanup frame.",
                     "A RiderMovementAgent component remained or disappeared on the post-cleanup frame.");
             }
 
@@ -1177,6 +2364,117 @@ namespace KingmakerMountedCombat.Diagnostics
                 recorder.Check(MountView != null && ReferenceEquals(MountView.AgentOverride, MountOverride),
                     "Mount AgentOverride was preserved.",
                     "Mount AgentOverride changed.");
+                recorder.Check(OverrideComponentsRestored(),
+                    "Rider and mount RiderMovementAgent component counts were restored.",
+                    "Rider or mount retained a RiderMovementAgent component.");
+                recorder.Check(ForbidRotationRestored(),
+                    "Rider and mount ForbidRotation flags were restored.",
+                    "Rider or mount retained a ForbidRotation change.");
+                recorder.Check(AttachmentTransformRestored(),
+                    "Rider parent, sibling index, and local scale were restored.",
+                    "Rider attachment transform state retained residue.");
+                recorder.Check(SelectionRestored(),
+                    "Selected unit identities were restored exactly.",
+                    "Selected unit identities retained boundary normalization residue.");
+                recorder.Check(MoveCommandsRestored(),
+                    "Rider and mount movement-command references were restored.",
+                    "Rider or mount movement command retained boundary residue.");
+            }
+
+            public bool StockAgentsRestored()
+            {
+                try
+                {
+                    return RiderView != null && MountView != null && RiderStockAgent != null && MountStockAgent != null &&
+                        RiderView.AgentASP == RiderStockAgent && MountView.AgentASP == MountStockAgent &&
+                        RiderStockAgent.enabled == RiderAgentWasEnabled && MountStockAgent.enabled == MountAgentWasEnabled;
+                }
+                catch { return false; }
+            }
+
+            public bool AvoidanceRestored()
+            {
+                try
+                {
+                    return RiderStockAgent != null && MountStockAgent != null &&
+                        RiderStockAgent.AvoidanceDisabled == RiderAvoidanceWasDisabled &&
+                        MountStockAgent.AvoidanceDisabled == MountAvoidanceWasDisabled;
+                }
+                catch { return false; }
+            }
+
+            public bool OverridesRestored()
+            {
+                try
+                {
+                    return RiderView != null && MountView != null &&
+                        ReferenceEquals(RiderView.AgentOverride, RiderOverride) &&
+                        ReferenceEquals(MountView.AgentOverride, MountOverride);
+                }
+                catch { return false; }
+            }
+
+            public bool OverrideComponentsRestored()
+            {
+                try
+                {
+                    return RiderView != null && MountView != null &&
+                        RiderView.GetComponents<RiderMovementAgent>().Length == RiderOverrideComponentCount &&
+                        MountView.GetComponents<RiderMovementAgent>().Length == MountOverrideComponentCount;
+                }
+                catch { return false; }
+            }
+
+            public bool ForbidRotationRestored()
+            {
+                try
+                {
+                    return RiderView != null && MountView != null &&
+                        RiderView.ForbidRotation == RiderForbidRotationWasEnabled &&
+                        MountView.ForbidRotation == MountForbidRotationWasEnabled;
+                }
+                catch { return false; }
+            }
+
+            public bool AttachmentTransformRestored()
+            {
+                try
+                {
+                    return RiderView != null && RiderView.transform.parent == RiderParent &&
+                        RiderView.transform.GetSiblingIndex() == RiderSiblingIndex &&
+                        Vector3.Distance(RiderView.transform.localScale, RiderLocalScale) <= 0.0001f;
+                }
+                catch { return false; }
+            }
+
+            public bool SelectionRestored()
+            {
+                try
+                {
+                    return SelectedUnitIds.SequenceEqual(CaptureSelectedUnitIds(), StringComparer.Ordinal);
+                }
+                catch { return false; }
+            }
+
+            public bool MoveCommandsRestored()
+            {
+                try
+                {
+                    return Rider != null && Mount != null && Rider.Commands != null && Mount.Commands != null &&
+                        ReferenceEquals(Rider.Commands.Move, RiderMoveCommand) &&
+                        ReferenceEquals(Mount.Commands.Move, MountMoveCommand);
+                }
+                catch { return false; }
+            }
+
+            private static string[] CaptureSelectedUnitIds()
+            {
+                var selected = SelectionManager.Instance == null ? null : SelectionManager.Instance.SelectedUnits;
+                return selected == null
+                    ? new string[0]
+                    : selected.Where(unit => unit != null)
+                        .Select(unit => unit.UniqueId == null ? null : unit.UniqueId.ToString())
+                        .ToArray();
             }
         }
 

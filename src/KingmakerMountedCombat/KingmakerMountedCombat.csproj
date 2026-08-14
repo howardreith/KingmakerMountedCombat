@@ -78,6 +78,7 @@
     <Compile Include="CompositionRoot.cs" />
     <Compile Include="Diagnostics\DiagnosticSettings.cs" />
     <Compile Include="Diagnostics\BoundaryFailureDrain.cs" />
+    <Compile Include="Diagnostics\BoundaryScenarioEvidenceContract.cs" />
     <Compile Include="Diagnostics\MovementScreenshotCaptureCoordinator.cs" />
     <Compile Include="Diagnostics\MovementScreenshotCaptureState.cs" />
     <Compile Include="Diagnostics\MovementTelemetryWriter.cs" />

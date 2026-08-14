@@ -101,6 +101,7 @@ function Assert-RuntimeArtifactManifest {
         $allowed = ($relativePath -ceq 'lifecycle-scenario-evidence.jsonl' -and $kind -ceq 'scenario-evidence') -or
             ($relativePath -ceq 'movement-telemetry.jsonl' -and $kind -ceq 'telemetry') -or
             ($relativePath -ceq 'movement-scenario-evidence.jsonl' -and $kind -ceq 'scenario-evidence') -or
+            ($relativePath -ceq 'boundary-scenario-evidence.jsonl' -and $kind -ceq 'boundary-evidence') -or
             ($relativePath -cmatch '^movement-visuals/[A-Za-z0-9._-]+\.png$' -and $kind -ceq 'screenshot')
         if (-not $allowed) { throw "Runtime artifact manifest record is outside the exact allowlist: $relativePath ($kind)" }
         if (-not (Test-ExactJsonInteger $artifact.length) -or [long]$artifact.length -le 0 -or
@@ -218,6 +219,7 @@ if ($schemaVersion -eq 1) {
 Assert-FixtureEcho $result.fixture $request.fixture
 Assert-RuntimeArtifactManifest $request $result.evidenceManifestSha256
 $gameResultPath = Join-Path ([IO.Path]::GetFullPath([string]$request.evidenceRoot)) 'runtime-game-result.json'
+$gameEvidence = $null
 if (Test-Path -LiteralPath $gameResultPath -PathType Leaf) {
     Assert-KmcNotReparsePoint $gameResultPath 'runtime game result evidence'
     Assert-KmcNotHardLink $gameResultPath 'runtime game result evidence'
@@ -239,5 +241,6 @@ Assert-SubscenarioResults $result
 $validatedArtifactManifest = Read-KmcJson (Join-Path ([IO.Path]::GetFullPath([string]$request.evidenceRoot)) 'runtime-artifacts.json')
 Assert-KmcLifecycleScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status) -SubscenarioResults $result.subscenarioResults
 Assert-KmcMovementScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status) -SubscenarioResults $result.subscenarioResults
+Assert-KmcBoundaryScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status) -SubscenarioResults $result.subscenarioResults -GameResult $gameEvidence
 if ([string]$result.status -ceq 'PASS' -and ([int]$result.subscenarioFailCount -ne 0 -or [int]$result.assertionFailCount -ne 0)) { throw 'PASS runtime result contains subscenario failures.' }
 Write-Host 'TOTAL PASS=29 FAIL=0'

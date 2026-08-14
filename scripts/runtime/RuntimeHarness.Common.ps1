@@ -1527,6 +1527,22 @@ function Test-KmcMovementRuntimeScenario {
         @(Get-KmcMovementRuntimeRows | Where-Object { $_ -ceq [string]$Scenario }).Count -eq 1
 }
 
+function Get-KmcBoundaryRuntimeRows {
+    return @(
+        'mounted-pair-turn-based-entry-cleanup',
+        'mounted-pair-realtime-entry-cleanup',
+        'mounted-pair-save-safety',
+        'mounted-pair-load-safety',
+        'mounted-pair-area-transition-safety'
+    )
+}
+
+function Test-KmcBoundaryRuntimeScenario {
+    param([AllowNull()][string]$Scenario)
+    return [string]$Scenario -ceq 'boundary-suite' -or
+        @(Get-KmcBoundaryRuntimeRows | Where-Object { $_ -ceq [string]$Scenario }).Count -eq 1
+}
+
 function Test-KmcExactJsonInteger {
     param($Value)
     return $Value -is [sbyte] -or $Value -is [byte] -or
@@ -1943,7 +1959,7 @@ function Assert-KmcKnownRuntimeArtifactsManifested {
     )
     $manifested = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
     foreach ($artifact in @($Manifest.artifacts)) { [void]$manifested.Add([string]$artifact.relativePath) }
-    foreach ($leaf in @('lifecycle-scenario-evidence.jsonl','movement-telemetry.jsonl','movement-scenario-evidence.jsonl')) {
+    foreach ($leaf in @('lifecycle-scenario-evidence.jsonl','movement-telemetry.jsonl','movement-scenario-evidence.jsonl','boundary-scenario-evidence.jsonl')) {
         if ((Test-Path -LiteralPath (Join-Path $EvidenceRoot $leaf) -PathType Leaf) -and -not $manifested.Contains($leaf)) {
             throw "Known runtime artifact exists without a manifest record: $leaf"
         }
@@ -2045,6 +2061,1016 @@ function Assert-KmcLifecycleScenarioEvidence {
                 [long]$record.assertionFailCount -ne [long]$subresult.assertionFailCount -or
                 (@($record.recordErrors) -join "`n") -cne (@($subresult.errors) -join "`n")) { throw "Lifecycle row-finish result does not reconcile with the game subresult: $($record.row)" }
         }
+    }
+}
+
+function Get-KmcBoundaryExpectedCleanupTrigger {
+    param([Parameter(Mandatory = $true)][string]$Row)
+    switch -CaseSensitive ($Row) {
+        'mounted-pair-turn-based-entry-cleanup' { return 'TurnBasedModeChanged' }
+        'mounted-pair-realtime-entry-cleanup' { return 'RealtimeModeChanged' }
+        'mounted-pair-save-safety' { return 'SaveRequested' }
+        'mounted-pair-load-safety' { return 'LoadRequested' }
+        'mounted-pair-area-transition-safety' { return 'AreaUnloading' }
+        default { throw "No exact boundary cleanup-trigger contract exists for $Row." }
+    }
+}
+
+function Get-KmcBoundaryInvocationPath {
+    param([Parameter(Mandatory = $true)][string]$Row)
+    switch -CaseSensitive ($Row) {
+        'mounted-pair-turn-based-entry-cleanup' { return 'mounted-lifecycle-handler-direct' }
+        'mounted-pair-realtime-entry-cleanup' { return 'mounted-lifecycle-handler-direct' }
+        'mounted-pair-save-safety' { return 'relationship-guard-boundary-direct' }
+        'mounted-pair-load-safety' { return 'game-loadgame-exact-working' }
+        'mounted-pair-area-transition-safety' { return 'lifecycle-area-precleanup-direct+game-reloadarea' }
+        default { throw "No exact boundary invocation-path contract exists for $Row." }
+    }
+}
+
+function Get-KmcBoundaryClaimLimit {
+    param([Parameter(Mandatory = $true)][string]$Row)
+    switch -CaseSensitive ($Row) {
+        'mounted-pair-turn-based-entry-cleanup' { return 'Direct HandleTurnBasedModeStateChanged(true) invocation only; native mode-event delivery was not exercised.' }
+        'mounted-pair-realtime-entry-cleanup' { return 'Direct HandleTurnBasedModeStateChanged(false) invocation only; native mode-event delivery was not exercised.' }
+        'mounted-pair-save-safety' { return 'Direct GuardBoundary(SaveRequested) service invocation only; stock SaveRoutine and serialization were not exercised.' }
+        'mounted-pair-load-safety' { return 'Real Game.LoadGame of the exact Working descriptor exercised the native LoadRoutine prefix; no UI load request was exercised.' }
+        'mounted-pair-area-transition-safety' { return 'Direct OnAreaBeginUnloading cleanup was latched before real Game.ReloadArea; native area-event delivery was not independently observed or qualified.' }
+        default { throw "No exact boundary claim-limit contract exists for $Row." }
+    }
+}
+
+function Get-KmcBoundaryExpectedPhases {
+    param([Parameter(Mandatory = $true)][string]$Row)
+    if ([string]$Row -cin @('mounted-pair-load-safety','mounted-pair-area-transition-safety')) {
+        return @('row-start','mounted','pre-boundary','cleanup-latch','loading-start','loading-stop','fresh-world','row-result')
+    }
+    return @('row-start','mounted','pre-boundary','cleanup-latch','post-boundary','row-result')
+}
+
+function Test-KmcBoundaryObservedIdentityEqual {
+    param($Left, $Right)
+    return $null -ne $Left -and $null -ne $Right -and
+        [long]$Left.observedLength -eq [long]$Right.observedLength -and
+        [long]$Left.observedLastWriteTimeUtcTicks -eq [long]$Right.observedLastWriteTimeUtcTicks -and
+        [string]$Left.observedSha256 -ceq [string]$Right.observedSha256
+}
+
+function Test-KmcBoundaryObservedEqualsPostInitial {
+    param($Value)
+    return $null -ne $Value -and
+        [long]$Value.observedLength -eq [long]$Value.postInitialLoadLength -and
+        [long]$Value.observedLastWriteTimeUtcTicks -eq [long]$Value.postInitialLoadLastWriteTimeUtcTicks -and
+        [string]$Value.observedSha256 -ceq [string]$Value.postInitialLoadSha256
+}
+
+function Test-KmcBoundaryStringArrayOrdinalEqual {
+    param($Left, $Right)
+    [object[]]$leftItems = @($Left)
+    [object[]]$rightItems = @($Right)
+    if ($leftItems.Count -ne $rightItems.Count) { return $false }
+    for ($index = 0; $index -lt $leftItems.Count; $index++) {
+        if ([string]$leftItems[$index] -cne [string]$rightItems[$index]) { return $false }
+    }
+    return $true
+}
+
+function Assert-KmcBoundaryRelationshipEvidence {
+    param($Value, [Parameter(Mandatory = $true)][string]$Description)
+    if ($null -eq $Value) { throw "$Description is required." }
+    Assert-KmcExactProperties $Value @(
+        'state','riderUniqueId','mountUniqueId','ownerReferencesPresent','movementAgentPresent',
+        'riderStockAgentEnabled','mountStockAgentEnabled','riderAvoidanceDisabled','mountAvoidanceDisabled',
+        'riderOverridePresent','mountOverridePresent','riderForbidRotation','mountForbidRotation',
+        'riderMoveCommandPresent','mountMoveCommandPresent','riderMovementAgentComponentCount',
+        'mountMovementAgentComponentCount','kmcRiderMovementAgentComponentCount','attachmentLeaseActive','attachmentRestoreVerified','attachmentResidue',
+        'riderParentMatchesAttachment','attachmentParent','sourceAnchor','kmcAnchorObjectCount','selectedUnitIds') $Description
+    if ($Value.state -isnot [string] -or [string]$Value.state -cnotin @('Unmounted','Validating','Mounting','Mounted','Dismounting','Faulted','Disposed')) {
+        throw "$Description.state is invalid."
+    }
+    foreach ($name in @('riderUniqueId','mountUniqueId','attachmentParent','sourceAnchor')) {
+        if ($null -ne $Value.$name -and $Value.$name -isnot [string]) { throw "$Description.$name must be a JSON string or null." }
+    }
+    foreach ($name in @('ownerReferencesPresent','movementAgentPresent','attachmentLeaseActive','attachmentRestoreVerified',
+        'attachmentResidue','riderParentMatchesAttachment')) {
+        if ($Value.$name -isnot [bool]) { throw "$Description.$name must be a JSON boolean." }
+    }
+    foreach ($name in @('riderStockAgentEnabled','mountStockAgentEnabled','riderAvoidanceDisabled','mountAvoidanceDisabled',
+        'riderOverridePresent','mountOverridePresent','riderForbidRotation','mountForbidRotation',
+        'riderMoveCommandPresent','mountMoveCommandPresent')) {
+        Assert-KmcNullableJsonBoolean $Value.$name "$Description.$name"
+    }
+    foreach ($name in @('riderMovementAgentComponentCount','mountMovementAgentComponentCount')) {
+        if ($null -ne $Value.$name -and (-not (Test-KmcExactJsonInteger $Value.$name) -or [long]$Value.$name -lt 0L)) {
+            throw "$Description.$name must be a nonnegative exact JSON integer or null."
+        }
+    }
+    if (-not (Test-KmcExactJsonInteger $Value.kmcRiderMovementAgentComponentCount) -or
+        [long]$Value.kmcRiderMovementAgentComponentCount -lt 0L) {
+        throw "$Description.kmcRiderMovementAgentComponentCount must be a nonnegative exact JSON integer."
+    }
+    if (-not (Test-KmcExactJsonInteger $Value.kmcAnchorObjectCount) -or [long]$Value.kmcAnchorObjectCount -lt 0L) {
+        throw "$Description.kmcAnchorObjectCount must be a nonnegative exact JSON integer."
+    }
+    Assert-KmcJsonStringArray $Value.selectedUnitIds "$Description.selectedUnitIds"
+    if (($null -eq $Value.riderUniqueId) -ne ($null -eq $Value.mountUniqueId)) {
+        throw "$Description must expose both pair IDs or neither."
+    }
+    if ($null -ne $Value.riderUniqueId) {
+        if ([string]::IsNullOrWhiteSpace([string]$Value.riderUniqueId) -or
+            [string]::IsNullOrWhiteSpace([string]$Value.mountUniqueId) -or
+            [string]$Value.riderUniqueId -ceq [string]$Value.mountUniqueId) {
+            throw "$Description rider and mount identities must be nonempty and distinct."
+        }
+    }
+}
+
+function Assert-KmcBoundaryMountedRelationship {
+    param($Value, [Parameter(Mandatory = $true)][string]$Description)
+    if ([string]$Value.state -cne 'Mounted' -or $null -eq $Value.riderUniqueId -or
+        $Value.ownerReferencesPresent -ne $true -or $Value.movementAgentPresent -ne $true -or
+        $Value.riderStockAgentEnabled -ne $false -or $Value.mountStockAgentEnabled -ne $true -or
+        $Value.riderAvoidanceDisabled -ne $true -or $Value.mountAvoidanceDisabled -ne $false -or
+        $Value.riderOverridePresent -ne $true -or $Value.mountOverridePresent -ne $false -or
+        $Value.riderForbidRotation -ne $true -or $Value.mountForbidRotation -ne $false -or
+        $Value.riderMoveCommandPresent -ne $false -or $Value.mountMoveCommandPresent -ne $false -or
+        -not (Test-KmcExactJsonInteger $Value.riderMovementAgentComponentCount) -or
+        -not (Test-KmcExactJsonInteger $Value.mountMovementAgentComponentCount) -or
+        [long]$Value.riderMovementAgentComponentCount -ne 1L -or
+        [long]$Value.mountMovementAgentComponentCount -ne 0L -or
+        [long]$Value.kmcRiderMovementAgentComponentCount -ne 1L -or
+        $Value.attachmentLeaseActive -ne $true -or $Value.attachmentRestoreVerified -ne $false -or
+        $Value.attachmentResidue -ne $true -or $Value.riderParentMatchesAttachment -ne $true -or
+        [string]$Value.attachmentParent -cne 'KMC_RiderPositionAnchor' -or [string]$Value.sourceAnchor -cne 'Spine' -or
+        [long]$Value.kmcAnchorObjectCount -ne 1L) {
+        throw "$Description does not prove the exact mounted authority and attachment lease."
+    }
+}
+
+function Assert-KmcBoundaryCleanRelationship {
+    param(
+        $Value,
+        [Parameter(Mandatory = $true)][string]$Description,
+        [switch]$RequireRestore,
+        [switch]$AllowDeferredAnchor
+    )
+    $anchorStateClean = if ($AllowDeferredAnchor) {
+        [long]$Value.kmcAnchorObjectCount -le 1L
+    } else {
+        [long]$Value.kmcAnchorObjectCount -eq 0L
+    }
+    $componentStateClean = if ($AllowDeferredAnchor) {
+        [long]$Value.kmcRiderMovementAgentComponentCount -le 1L
+    } else {
+        [long]$Value.kmcRiderMovementAgentComponentCount -eq 0L
+    }
+    $riderComponentStateClean = if ($AllowDeferredAnchor) {
+        [long]$Value.riderMovementAgentComponentCount -le 1L
+    } else {
+        [long]$Value.riderMovementAgentComponentCount -eq 0L
+    }
+    if ([string]$Value.state -cne 'Unmounted' -or $null -eq $Value.riderUniqueId -or
+        $Value.ownerReferencesPresent -ne $false -or $Value.movementAgentPresent -ne $false -or
+        $Value.riderStockAgentEnabled -ne $true -or $Value.mountStockAgentEnabled -ne $true -or
+        $Value.riderAvoidanceDisabled -ne $false -or $Value.mountAvoidanceDisabled -ne $false -or
+        $Value.riderOverridePresent -ne $false -or $Value.mountOverridePresent -ne $false -or
+        $Value.riderForbidRotation -ne $false -or $Value.mountForbidRotation -ne $false -or
+        $Value.riderMoveCommandPresent -ne $false -or $Value.mountMoveCommandPresent -ne $false -or
+        -not (Test-KmcExactJsonInteger $Value.riderMovementAgentComponentCount) -or
+        -not (Test-KmcExactJsonInteger $Value.mountMovementAgentComponentCount) -or
+        -not $riderComponentStateClean -or
+        [long]$Value.mountMovementAgentComponentCount -ne 0L -or
+        -not $componentStateClean -or
+        $Value.attachmentLeaseActive -ne $false -or $Value.attachmentResidue -ne $false -or
+        $Value.riderParentMatchesAttachment -ne $false -or $null -ne $Value.attachmentParent -or
+        $null -ne $Value.sourceAnchor -or -not $anchorStateClean) {
+        throw "$Description does not prove exact residue-free Unmounted relationship state."
+    }
+    if ($RequireRestore -and $Value.attachmentRestoreVerified -ne $true) {
+        throw "$Description does not prove the scoped attachment lease was restored."
+    }
+}
+
+function Assert-KmcBoundaryRowStartRelationship {
+    param($Value, [Parameter(Mandatory = $true)][string]$Description)
+    if ([string]$Value.state -cne 'Unmounted' -or $null -eq $Value.riderUniqueId -or $null -eq $Value.mountUniqueId -or
+        $Value.ownerReferencesPresent -ne $false -or $Value.movementAgentPresent -ne $false -or
+        $Value.riderStockAgentEnabled -ne $true -or $Value.mountStockAgentEnabled -ne $true -or
+        $Value.riderAvoidanceDisabled -ne $false -or $Value.mountAvoidanceDisabled -ne $false -or
+        $Value.riderOverridePresent -ne $false -or $Value.mountOverridePresent -ne $false -or
+        $Value.riderForbidRotation -ne $false -or $Value.mountForbidRotation -ne $false -or
+        $Value.riderMoveCommandPresent -ne $false -or $Value.mountMoveCommandPresent -ne $false -or
+        -not (Test-KmcExactJsonInteger $Value.riderMovementAgentComponentCount) -or
+        -not (Test-KmcExactJsonInteger $Value.mountMovementAgentComponentCount) -or
+        [long]$Value.riderMovementAgentComponentCount -ne 0L -or
+        [long]$Value.mountMovementAgentComponentCount -ne 0L -or
+        [long]$Value.kmcRiderMovementAgentComponentCount -ne 0L -or
+        $Value.attachmentLeaseActive -ne $false -or $Value.attachmentResidue -ne $false -or
+        $Value.riderParentMatchesAttachment -ne $false -or $null -ne $Value.attachmentParent -or
+        $null -ne $Value.sourceAnchor -or [long]$Value.kmcAnchorObjectCount -ne 0L) {
+        throw "$Description does not prove the exact resolved-pair, unowned, residue-free row-start state."
+    }
+}
+
+function Assert-KmcBoundaryLoadingRelationship {
+    param($Value, [Parameter(Mandatory = $true)][string]$Description)
+    $nullablePairFields = @('riderStockAgentEnabled','mountStockAgentEnabled','riderAvoidanceDisabled','mountAvoidanceDisabled',
+        'riderOverridePresent','mountOverridePresent','riderForbidRotation','mountForbidRotation',
+        'riderMoveCommandPresent','mountMoveCommandPresent','riderMovementAgentComponentCount','mountMovementAgentComponentCount')
+    if ([string]$Value.state -cne 'Unmounted' -or $null -ne $Value.riderUniqueId -or $null -ne $Value.mountUniqueId -or
+        $Value.ownerReferencesPresent -ne $false -or $Value.movementAgentPresent -ne $false -or
+        @($nullablePairFields | Where-Object { $null -ne $Value.$_ }).Count -ne 0 -or
+        [long]$Value.kmcRiderMovementAgentComponentCount -ne 0L -or
+        $Value.attachmentLeaseActive -ne $false -or $Value.attachmentRestoreVerified -ne $true -or
+        $Value.attachmentResidue -ne $false -or $Value.riderParentMatchesAttachment -ne $false -or
+        $null -ne $Value.attachmentParent -or $null -ne $Value.sourceAnchor -or
+        [long]$Value.kmcAnchorObjectCount -ne 0L -or @($Value.selectedUnitIds).Count -ne 0) {
+        throw "$Description does not prove exact detached-old-world cleanup during loading."
+    }
+}
+
+function Assert-KmcBoundaryTriggerScope {
+    param(
+        $Value,
+        [Parameter(Mandatory = $true)][string]$Row,
+        [Parameter(Mandatory = $true)][string]$Phase
+    )
+    if ($null -eq $Value) { throw 'Boundary triggerScope is required.' }
+    Assert-KmcExactProperties $Value @(
+        'expectedCleanupTrigger','invocationPath','nativeDeliveryObserved','stockSaveRoutineInvoked',
+        'realWorkingLoadDispatched','realAreaReloadDispatched','claimLimit') 'boundary triggerScope'
+    foreach ($name in @('expectedCleanupTrigger','invocationPath','claimLimit')) {
+        if ($Value.$name -isnot [string]) { throw "Boundary triggerScope.$name must be a JSON string." }
+    }
+    foreach ($name in @('nativeDeliveryObserved','stockSaveRoutineInvoked','realWorkingLoadDispatched','realAreaReloadDispatched')) {
+        if ($Value.$name -isnot [bool]) { throw "Boundary triggerScope.$name must be a JSON boolean." }
+    }
+    if ([string]$Value.expectedCleanupTrigger -cne (Get-KmcBoundaryExpectedCleanupTrigger $Row) -or
+        [string]$Value.invocationPath -cne (Get-KmcBoundaryInvocationPath $Row) -or
+        [string]$Value.claimLimit -cne (Get-KmcBoundaryClaimLimit $Row)) {
+        throw "Boundary trigger scope or claim limit is not exact for $Row."
+    }
+    if ($Value.stockSaveRoutineInvoked -ne $false) { throw 'Boundary evidence may not claim or permit a stock SaveRoutine invocation.' }
+    if ($Row -cne 'mounted-pair-load-safety' -and ($Value.nativeDeliveryObserved -ne $false -or $Value.realWorkingLoadDispatched -ne $false)) {
+        throw "Boundary evidence makes a false native load-delivery claim for $Row/$Phase."
+    }
+    if ($Row -cne 'mounted-pair-area-transition-safety' -and $Value.realAreaReloadDispatched -ne $false) {
+        throw "Boundary evidence makes a false real-area-reload claim for $Row/$Phase."
+    }
+}
+
+function Assert-KmcBoundaryWorkingIdentity {
+    param(
+        $Value,
+        [Parameter(Mandatory = $true)]$Request,
+        [Parameter(Mandatory = $true)][string]$Row,
+        [Parameter(Mandatory = $true)][string]$Phase
+    )
+    if ($null -eq $Value) { throw 'Boundary workingIdentity is required.' }
+    Assert-KmcExactProperties $Value @(
+        'internalName','fileName','path','gameId','gameName','area','requestLength','requestLastWriteTimeUtcTicks',
+        'requestSha256','postInitialLoadLength','postInitialLoadLastWriteTimeUtcTicks','postInitialLoadSha256',
+        'preDispatchLength','preDispatchLastWriteTimeUtcTicks','preDispatchSha256','observedLength',
+        'observedLastWriteTimeUtcTicks','observedSha256','observedSource','matchesPostInitialLoad','descriptorVerified',
+        'descriptorInternalName','descriptorFileName','descriptorPath','descriptorGameId','descriptorGameName','descriptorArea',
+        'descriptorSaveType','descriptorCompatibilityVersion') 'boundary workingIdentity'
+    foreach ($name in @('internalName','fileName','path','gameId','gameName','area','requestSha256','postInitialLoadSha256')) {
+        if ($Value.$name -isnot [string]) { throw "Boundary workingIdentity.$name must be a JSON string." }
+    }
+    foreach ($name in @('requestLength','requestLastWriteTimeUtcTicks','postInitialLoadLength','postInitialLoadLastWriteTimeUtcTicks')) {
+        if (-not (Test-KmcExactJsonInteger $Value.$name) -or [long]$Value.$name -le 0L) {
+            throw "Boundary workingIdentity.$name must be a positive exact JSON integer."
+        }
+    }
+    if ([string]$Value.requestSha256 -cnotmatch '^[0-9a-f]{64}$' -or [string]$Value.postInitialLoadSha256 -cnotmatch '^[0-9a-f]{64}$') {
+        throw 'Boundary Working request/post-initial-load SHA-256 must be exact lowercase hexadecimal.'
+    }
+    $expected = $Request.fixture.working
+    foreach ($name in @('internalName','fileName','gameId','gameName','area')) {
+        if ([string]$Value.$name -cne [string]$expected.$name) { throw "Boundary Working identity mismatch: $name" }
+    }
+    if ([long]$Value.requestLength -ne [long]$expected.length -or
+        [long]$Value.requestLastWriteTimeUtcTicks -ne [long]$expected.lastWriteTimeUtcTicks -or
+        [string]$Value.requestSha256 -cne [string]$expected.sha256) {
+        throw 'Boundary Working request file identity does not match the qualified request.'
+    }
+    if (-not [IO.Path]::IsPathRooted([string]$Value.path) -or
+        [IO.Path]::GetFileName([string]$Value.path) -cne [string]$expected.fileName -or
+        [IO.Path]::GetFullPath([string]$Value.path) -cne [string]$Value.path) {
+        throw 'Boundary Working path is not an exact absolute path ending in the canonical Working leaf.'
+    }
+    foreach ($name in @('observedLength','observedLastWriteTimeUtcTicks')) {
+        if (-not (Test-KmcExactJsonInteger $Value.$name) -or [long]$Value.$name -le 0L) {
+            throw "Boundary workingIdentity.$name must be a positive exact JSON integer."
+        }
+    }
+    if ($Value.observedSha256 -isnot [string] -or [string]$Value.observedSha256 -cnotmatch '^[0-9a-f]{64}$' -or
+        $Value.observedSource -isnot [string] -or $Value.matchesPostInitialLoad -isnot [bool]) {
+        throw 'Boundary observed Working file identity has invalid primitive types.'
+    }
+    foreach ($name in @('preDispatchLength','preDispatchLastWriteTimeUtcTicks')) {
+        if ($null -ne $Value.$name -and (-not (Test-KmcExactJsonInteger $Value.$name) -or [long]$Value.$name -le 0L)) {
+            throw "Boundary workingIdentity.$name must be a positive exact JSON integer or null."
+        }
+    }
+    if ($null -ne $Value.preDispatchSha256 -and
+        ($Value.preDispatchSha256 -isnot [string] -or [string]$Value.preDispatchSha256 -cnotmatch '^[0-9a-f]{64}$')) {
+        throw 'Boundary workingIdentity.preDispatchSha256 must be an exact lowercase SHA-256 or null.'
+    }
+    if (($null -eq $Value.preDispatchLength) -ne ($null -eq $Value.preDispatchLastWriteTimeUtcTicks) -or
+        ($null -eq $Value.preDispatchLength) -ne ($null -eq $Value.preDispatchSha256)) {
+        throw 'Boundary Working pre-dispatch identity must be wholly present or wholly null.'
+    }
+    $expectedSource = if ($Row -ceq 'mounted-pair-load-safety' -and
+        [string]$Phase -cin @('cleanup-latch','loading-start')) {
+        'cached-immediate-pre-dispatch'
+    }
+    elseif ($Row -ceq 'mounted-pair-area-transition-safety' -and [string]$Phase -ceq 'loading-start') {
+        'cached-row-start'
+    }
+    else {
+        switch -CaseSensitive ($Phase) {
+            'pre-boundary' { 'immediate-pre-dispatch'; break }
+            'cleanup-latch' { 'immediate-post-dispatch'; break }
+            default { $Phase; break }
+        }
+    }
+    if ([string]$Value.observedSource -cne $expectedSource) { throw "Boundary Working observedSource is not exact for phase $Phase." }
+    $matches = [long]$Value.observedLength -eq [long]$Value.postInitialLoadLength -and
+        [long]$Value.observedLastWriteTimeUtcTicks -eq [long]$Value.postInitialLoadLastWriteTimeUtcTicks -and
+        [string]$Value.observedSha256 -ceq [string]$Value.postInitialLoadSha256
+    if ($Value.matchesPostInitialLoad -ne $matches) { throw 'Boundary Working matchesPostInitialLoad does not equal its raw length/time/hash comparison.' }
+    Assert-KmcNullableJsonBoolean $Value.descriptorVerified 'boundary workingIdentity.descriptorVerified'
+    $descriptorStringNames = @('descriptorInternalName','descriptorFileName','descriptorPath','descriptorGameId','descriptorGameName',
+        'descriptorArea','descriptorSaveType')
+    foreach ($name in $descriptorStringNames) {
+        if ($null -ne $Value.$name -and $Value.$name -isnot [string]) { throw "Boundary workingIdentity.$name must be a JSON string or null." }
+    }
+    if ($null -ne $Value.descriptorCompatibilityVersion -and -not (Test-KmcExactJsonInteger $Value.descriptorCompatibilityVersion)) {
+        throw 'Boundary workingIdentity.descriptorCompatibilityVersion must be an exact JSON integer or null.'
+    }
+    if ($null -eq $Value.descriptorVerified) {
+        if (@($descriptorStringNames | Where-Object { $null -ne $Value.$_ }).Count -ne 0 -or
+            $null -ne $Value.descriptorCompatibilityVersion) {
+            throw 'Boundary unverified descriptor state contains descriptor identity fields.'
+        }
+    }
+    elseif ($Value.descriptorVerified -ne $true -or
+        [string]$Value.descriptorInternalName -cne [string]$expected.internalName -or
+        [string]$Value.descriptorFileName -cne [string]$expected.fileName -or
+        [string]$Value.descriptorGameId -cne [string]$expected.gameId -or
+        [string]$Value.descriptorGameName -cne [string]$expected.gameName -or
+        [string]$Value.descriptorArea -cne [string]$expected.area -or
+        [string]$Value.descriptorSaveType -cne 'Manual' -or
+        -not (Test-KmcExactJsonInteger $Value.descriptorCompatibilityVersion) -or
+        [long]$Value.descriptorCompatibilityVersion -ne 1L -or
+        -not [IO.Path]::IsPathRooted([string]$Value.descriptorPath) -or
+        [IO.Path]::GetFullPath([string]$Value.descriptorPath) -ine [IO.Path]::GetFullPath([string]$Value.path)) {
+        throw 'Boundary verified descriptor does not match exact Working name/path/campaign/Manual/compatibility identity.'
+    }
+}
+
+function Assert-KmcBoundaryAuthorizationEvidence {
+    param($Value)
+    if ($null -eq $Value) { throw 'Boundary authorization evidence is required.' }
+    $names = @(
+        'authorizedLoadsBefore','authorizedLoadsAfter','authorizedLoadsDelta',
+        'authorizedWritesBefore','authorizedWritesAfter','authorizedWritesDelta',
+        'unauthorizedLoadsBefore','unauthorizedLoadsAfter','unauthorizedLoadsDelta',
+        'unauthorizedWritesBefore','unauthorizedWritesAfter','unauthorizedWritesDelta',
+        'baselineLoadsBefore','baselineLoadsAfter','baselineLoadsDelta',
+        'fatalViolationsBefore','fatalViolationsAfter','fatalViolationsDelta')
+    Assert-KmcExactProperties $Value $names 'boundary authorization'
+    foreach ($name in $names) {
+        if (-not (Test-KmcExactJsonInteger $Value.$name) -or [long]$Value.$name -lt 0L) {
+            throw "Boundary authorization.$name must be a nonnegative exact JSON integer."
+        }
+    }
+    foreach ($prefix in @('authorizedLoads','authorizedWrites','unauthorizedLoads','unauthorizedWrites','baselineLoads','fatalViolations')) {
+        $before = [long]$Value.($prefix + 'Before')
+        $after = [long]$Value.($prefix + 'After')
+        $delta = [long]$Value.($prefix + 'Delta')
+        if ($after -lt $before -or $delta -ne ($after - $before)) {
+            throw "Boundary authorization $prefix counters do not reconcile exactly."
+        }
+    }
+}
+
+function Assert-KmcBoundaryLoadingEvidence {
+    param($Value)
+    if ($null -eq $Value) { throw 'Boundary loading evidence is required.' }
+    Assert-KmcExactProperties $Value @('observed','startObserved','stopObserved','callbackObserved') 'boundary loading'
+    foreach ($name in @('observed','startObserved','stopObserved','callbackObserved')) {
+        if ($Value.$name -isnot [bool]) { throw "Boundary loading.$name must be a JSON boolean." }
+    }
+    if ($Value.stopObserved -and -not $Value.startObserved) { throw 'Boundary loading stop was reported without a start.' }
+    if ($Value.callbackObserved -and -not $Value.startObserved) { throw 'Boundary loading callback was reported without a start.' }
+}
+
+function Assert-KmcBoundaryCleanupEvidence {
+    param(
+        $Value,
+        [Parameter(Mandatory = $true)][string]$ExpectedTrigger
+    )
+    if ($null -eq $Value) { throw 'Boundary cleanup evidence is required.' }
+    Assert-KmcExactProperties $Value @(
+        'captured','captureFrame','expectedTrigger','actualTrigger','transitionSucceeded','movementAuthorityResidual',
+        'presentationResidual','relationshipUnmounted','ownerReferencesReleased','movementAgentReleased',
+        'stockAgentsRestored','avoidanceRestored','overridesRestored','riderMovementAgentComponentsRestored',
+        'forbidRotationRestored','attachmentRestored','selectionRestored','moveCommandsRestored','kmcAnchorObjectsAbsent',
+        'allRestored') 'boundary cleanup'
+    if ($Value.captured -isnot [bool]) { throw 'Boundary cleanup.captured must be a JSON boolean.' }
+    if ($null -ne $Value.captureFrame -and (-not (Test-KmcExactJsonInteger $Value.captureFrame) -or [long]$Value.captureFrame -lt 0L)) {
+        throw 'Boundary cleanup.captureFrame must be a nonnegative exact JSON integer or null.'
+    }
+    foreach ($name in @('expectedTrigger','actualTrigger')) {
+        if ($null -ne $Value.$name -and $Value.$name -isnot [string]) { throw "Boundary cleanup.$name must be a JSON string or null." }
+    }
+    $booleanNames = @('transitionSucceeded','movementAuthorityResidual','presentationResidual','relationshipUnmounted',
+        'ownerReferencesReleased','movementAgentReleased','stockAgentsRestored','avoidanceRestored','overridesRestored',
+        'riderMovementAgentComponentsRestored','forbidRotationRestored','attachmentRestored','selectionRestored',
+        'moveCommandsRestored','kmcAnchorObjectsAbsent','allRestored')
+    foreach ($name in $booleanNames) { Assert-KmcNullableJsonBoolean $Value.$name "boundary cleanup.$name" }
+    if (-not $Value.captured) {
+        if ($null -ne $Value.captureFrame -or $null -ne $Value.actualTrigger -or
+            @($booleanNames | Where-Object { $null -ne $Value.$_ }).Count -ne 0 -or
+            ($null -ne $Value.expectedTrigger -and [string]$Value.expectedTrigger -cne $ExpectedTrigger)) {
+            throw 'Boundary uncaptured cleanup contains post-cleanup state.'
+        }
+        return
+    }
+    if ($null -eq $Value.captureFrame -or [string]$Value.expectedTrigger -cne $ExpectedTrigger -or
+        [string]$Value.actualTrigger -cne $ExpectedTrigger -or
+        @($booleanNames | Where-Object { $Value.$_ -isnot [bool] }).Count -ne 0) {
+        throw 'Boundary captured cleanup lacks exact trigger, frame, or boolean state.'
+    }
+    $derived = $Value.transitionSucceeded -and -not $Value.movementAuthorityResidual -and
+        -not $Value.presentationResidual -and $Value.relationshipUnmounted -and $Value.ownerReferencesReleased -and
+        $Value.movementAgentReleased -and $Value.stockAgentsRestored -and $Value.avoidanceRestored -and
+        $Value.overridesRestored -and $Value.forbidRotationRestored -and
+        $Value.attachmentRestored -and $Value.selectionRestored -and
+        $Value.moveCommandsRestored
+    if ($Value.allRestored -ne $derived) { throw 'Boundary cleanup.allRestored does not equal its raw restoration fields.' }
+}
+
+function Assert-KmcBoundaryFreshWorldEvidence {
+    param($Value, [Parameter(Mandatory = $true)]$Request)
+    if ($null -eq $Value) { throw 'Boundary freshWorld evidence is required.' }
+    $booleanNames = @('worldReady','pairResolved','gameIdMatches','gameNameMatches','areaMatches','relationshipClean',
+        'stockAgentsEnabled','avoidanceOrdinary','overridesAbsent','riderMovementAgentComponentsAbsent',
+        'forbidRotationOrdinary','attachmentResidueAbsent','selectionRestored','moveCommandsAbsent','kmcAnchorObjectsAbsent','allClean')
+    Assert-KmcExactProperties $Value @(@('observed','gameId','gameName','area') + $booleanNames) 'boundary freshWorld'
+    if ($Value.observed -isnot [bool]) { throw 'Boundary freshWorld.observed must be a JSON boolean.' }
+    foreach ($name in $booleanNames) { Assert-KmcNullableJsonBoolean $Value.$name "boundary freshWorld.$name" }
+    foreach ($name in @('gameId','gameName','area')) {
+        if ($null -ne $Value.$name -and $Value.$name -isnot [string]) { throw "Boundary freshWorld.$name must be a JSON string or null." }
+    }
+    if (-not $Value.observed) {
+        if (@($booleanNames | Where-Object { $null -ne $Value.$_ }).Count -ne 0 -or
+            $null -ne $Value.gameId -or $null -ne $Value.gameName -or $null -ne $Value.area) {
+            throw 'Unobserved boundary freshWorld contains claimed state.'
+        }
+        return
+    }
+    if (@($booleanNames | Where-Object { $Value.$_ -isnot [bool] }).Count -ne 0) { throw 'Observed boundary freshWorld lacks exact boolean state.' }
+    $derived = $true
+    foreach ($name in @($booleanNames | Where-Object { $_ -cne 'allClean' })) { $derived = $derived -and [bool]$Value.$name }
+    if ($Value.allClean -ne $derived) { throw 'Boundary freshWorld.allClean does not equal its raw clean-state fields.' }
+    $expected = $Request.fixture.working
+    if ($Value.gameIdMatches -ne ([string]$Value.gameId -ceq [string]$expected.gameId) -or
+        $Value.gameNameMatches -ne ([string]$Value.gameName -ceq [string]$expected.gameName) -or
+        $Value.areaMatches -ne ([string]$Value.area -ceq [string]$expected.area)) {
+        throw 'Boundary freshWorld campaign match booleans do not equal their raw GameId/GameName/Area comparison.'
+    }
+}
+
+function Assert-KmcBoundaryEvidenceRecord {
+    param(
+        [Parameter(Mandatory = $true)]$Record,
+        [Parameter(Mandatory = $true)]$Request,
+        [Parameter(Mandatory = $true)][long]$ExpectedSequence,
+        [Parameter(Mandatory = $true)][string[]]$ExpectedRows
+    )
+    Assert-KmcExactProperties $Record @(
+        'schemaVersion','artifactKind','runId','scenario','row','phase','utcTimestamp','branch','commit','productVersion',
+        'dllSha256','dllMvid','sequence','rowIndex','frame','executed','suppressed','rowStatus','assertionPassCount',
+        'assertionFailCount','triggerScope','workingIdentity','authorization','loading','relationship','cleanup','freshWorld',
+        'recordErrors') 'boundary evidence record'
+    if (-not (Test-KmcExactJsonInteger $Record.schemaVersion) -or [long]$Record.schemaVersion -ne 1L -or
+        $Record.artifactKind -isnot [string] -or [string]$Record.artifactKind -cne 'boundary-scenario-evidence') {
+        throw 'Boundary evidence schemaVersion or artifactKind is not exact.'
+    }
+    foreach ($name in @('runId','scenario','branch','commit','productVersion','dllSha256','dllMvid')) {
+        if ($Record.$name -isnot [string] -or [string]$Record.$name -cne [string]$Request.$name) {
+            throw "Boundary evidence identity mismatch: $name"
+        }
+    }
+    if ([string]$Record.dllSha256 -cnotmatch '^[0-9a-f]{64}$' -or
+        [string]$Record.dllMvid -cnotmatch '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') {
+        throw 'Boundary evidence DLL hash or MVID is not exact lowercase identity text.'
+    }
+    if (-not (Test-KmcExactJsonInteger $Record.sequence) -or [long]$Record.sequence -ne $ExpectedSequence) {
+        throw "Boundary evidence sequence is not contiguous at $ExpectedSequence."
+    }
+    if ($Record.row -isnot [string]) { throw 'Boundary evidence row must be a JSON string.' }
+    $expectedRowIndex = [Array]::IndexOf($ExpectedRows, [string]$Record.row)
+    if ($expectedRowIndex -lt 0 -or -not (Test-KmcExactJsonInteger $Record.rowIndex) -or [long]$Record.rowIndex -ne $expectedRowIndex) {
+        throw 'Boundary evidence row or rowIndex is outside the exact selected row set.'
+    }
+    if ($Record.phase -isnot [string] -or [string]$Record.phase -cnotin @(Get-KmcBoundaryExpectedPhases ([string]$Record.row))) {
+        throw "Boundary evidence phase is invalid for $($Record.row): $($Record.phase)"
+    }
+    if (-not (Test-KmcExactJsonInteger $Record.frame) -or [long]$Record.frame -lt 0L -or
+        $Record.executed -isnot [bool] -or $Record.suppressed -isnot [bool] -or
+        ($Record.executed -and $Record.suppressed) -or (-not $Record.executed -and -not $Record.suppressed)) {
+        throw 'Boundary evidence frame/executed/suppressed state is invalid.'
+    }
+    if ($Record.utcTimestamp -isnot [string]) { throw 'Boundary evidence UTC timestamp must be a JSON string.' }
+    $timestamp = [DateTimeOffset]::MinValue
+    if (-not [DateTimeOffset]::TryParse([string]$Record.utcTimestamp, [ref]$timestamp) -or $timestamp.Offset -ne [TimeSpan]::Zero) {
+        throw 'Boundary evidence UTC timestamp is invalid or not UTC.'
+    }
+    Assert-KmcJsonStringArray $Record.recordErrors 'boundary evidence recordErrors'
+    if ([string]$Record.phase -ceq 'row-result') {
+        if ($Record.rowStatus -isnot [string] -or [string]$Record.rowStatus -cnotin @('PASS','FAIL') -or
+            -not (Test-KmcExactJsonInteger $Record.assertionPassCount) -or
+            -not (Test-KmcExactJsonInteger $Record.assertionFailCount) -or
+            [long]$Record.assertionPassCount -lt 0L -or [long]$Record.assertionFailCount -lt 0L -or
+            [long]$Record.assertionPassCount + [long]$Record.assertionFailCount -le 0L) {
+            throw 'Boundary row-result status or assertion totals are invalid.'
+        }
+        if ([string]$Record.rowStatus -ceq 'PASS' -and
+            ([long]$Record.assertionFailCount -ne 0L -or @($Record.recordErrors).Count -ne 0 -or $Record.suppressed)) {
+            throw 'Boundary PASS row-result contains a failure, error, or suppression claim.'
+        }
+        if ([string]$Record.rowStatus -ceq 'FAIL' -and
+            ([long]$Record.assertionFailCount -lt 1L -or @($Record.recordErrors).Count -lt 1)) {
+            throw 'Boundary FAIL row-result lacks a failed assertion and structured error.'
+        }
+        if ($Record.suppressed -and ($Record.executed -or [long]$Record.assertionPassCount -ne 0L -or
+            [long]$Record.assertionFailCount -ne 1L -or [string]$Record.rowStatus -cne 'FAIL')) {
+            throw 'Boundary suppressed row-result is not an exact unexecuted 0/1 FAIL.'
+        }
+    }
+    elseif ($null -ne $Record.rowStatus -or $null -ne $Record.assertionPassCount -or
+        $null -ne $Record.assertionFailCount -or $Record.suppressed) {
+        throw 'Boundary non-row-result record contains result fields or suppression state.'
+    }
+    Assert-KmcBoundaryTriggerScope $Record.triggerScope ([string]$Record.row) ([string]$Record.phase)
+    Assert-KmcBoundaryWorkingIdentity $Record.workingIdentity $Request ([string]$Record.row) ([string]$Record.phase)
+    Assert-KmcBoundaryAuthorizationEvidence $Record.authorization
+    $nativeLoadObserved = [string]$Record.row -ceq 'mounted-pair-load-safety' -and
+        [long]$Record.authorization.authorizedLoadsDelta -gt 0L
+    if ($Record.triggerScope.nativeDeliveryObserved -ne $nativeLoadObserved) {
+        throw 'Boundary native-delivery claim does not equal the row-local guarded LoadRoutine authorization signal.'
+    }
+    Assert-KmcBoundaryLoadingEvidence $Record.loading
+    Assert-KmcBoundaryRelationshipEvidence $Record.relationship "boundary relationship $($Record.row)/$($Record.phase)"
+    Assert-KmcBoundaryCleanupEvidence $Record.cleanup (Get-KmcBoundaryExpectedCleanupTrigger ([string]$Record.row))
+    Assert-KmcBoundaryFreshWorldEvidence $Record.freshWorld $Request
+}
+
+function Assert-KmcBoundaryPassRowSemantics {
+    param(
+        [Parameter(Mandatory = $true)][object[]]$Records,
+        [Parameter(Mandatory = $true)][string]$Row
+    )
+    [string[]]$expectedPhases = @(Get-KmcBoundaryExpectedPhases $Row)
+    [string[]]$actualPhases = @($Records | ForEach-Object { [string]$_.phase })
+    if (($actualPhases -join '|') -cne ($expectedPhases -join '|')) { throw "PASS boundary phase set/order is not exact for $Row." }
+    if (@($Records | Where-Object { -not $_.executed -or $_.suppressed }).Count -ne 0) { throw "PASS boundary row was not fully executed: $Row" }
+    $result = $Records[$Records.Count - 1]
+    if ([string]$result.rowStatus -cne 'PASS' -or [long]$result.assertionPassCount -le 0L -or
+        [long]$result.assertionFailCount -ne 0L -or @($result.recordErrors).Count -ne 0) {
+        throw "PASS boundary row-result is not an error-free PASS for $Row."
+    }
+    $rowStart = $Records[0]
+    $mounted = @($Records | Where-Object { [string]$_.phase -ceq 'mounted' })[0]
+    $preBoundary = @($Records | Where-Object { [string]$_.phase -ceq 'pre-boundary' })[0]
+    $cleanupLatch = @($Records | Where-Object { [string]$_.phase -ceq 'cleanup-latch' })[0]
+    Assert-KmcBoundaryRowStartRelationship $rowStart.relationship "$Row row-start"
+    Assert-KmcBoundaryMountedRelationship $mounted.relationship "$Row mounted"
+    Assert-KmcBoundaryMountedRelationship $preBoundary.relationship "$Row pre-boundary"
+    Assert-KmcBoundaryCleanRelationship $cleanupLatch.relationship "$Row cleanup-latch" -RequireRestore -AllowDeferredAnchor
+    if (-not $cleanupLatch.cleanup.captured -or $cleanupLatch.cleanup.allRestored -ne $true) {
+        throw "$Row cleanup-latch does not prove exact residue-free boundary cleanup."
+    }
+    Assert-KmcBoundaryCleanRelationship $result.relationship "$Row row-result" -RequireRestore
+    if (-not $result.cleanup.captured -or $result.cleanup.allRestored -ne $true) {
+        throw "$Row row-result does not retain the exact cleanup latch."
+    }
+    foreach ($record in $Records) {
+        $mustMatchPostInitial = $Row -cin @('mounted-pair-turn-based-entry-cleanup','mounted-pair-realtime-entry-cleanup','mounted-pair-save-safety') -or
+            ($Row -ceq 'mounted-pair-load-safety' -and [string]$record.phase -cin @('row-start','mounted','pre-boundary'))
+        if ($mustMatchPostInitial -and $record.workingIdentity.matchesPostInitialLoad -ne $true) {
+            throw "$Row changed the current post-initial-load Working identity before an authorized boundary at $($record.phase)."
+        }
+        if ([long]$record.authorization.authorizedLoadsBefore -lt 1L -or
+            [long]$record.authorization.authorizedWritesBefore -ne 0L -or
+            [long]$record.authorization.authorizedWritesAfter -ne 0L -or
+            [long]$record.authorization.authorizedWritesDelta -ne 0L -or
+            [long]$record.authorization.unauthorizedLoadsBefore -ne 0L -or
+            [long]$record.authorization.unauthorizedLoadsAfter -ne 0L -or
+            [long]$record.authorization.unauthorizedLoadsDelta -ne 0L -or
+            [long]$record.authorization.unauthorizedWritesBefore -ne 0L -or
+            [long]$record.authorization.unauthorizedWritesAfter -ne 0L -or
+            [long]$record.authorization.unauthorizedWritesDelta -ne 0L -or
+            [long]$record.authorization.baselineLoadsBefore -ne 0L -or
+            [long]$record.authorization.baselineLoadsAfter -ne 0L -or
+            [long]$record.authorization.baselineLoadsDelta -ne 0L -or
+            [long]$record.authorization.fatalViolationsBefore -ne 0L -or
+            [long]$record.authorization.fatalViolationsAfter -ne 0L -or
+            [long]$record.authorization.fatalViolationsDelta -ne 0L) {
+            throw "$Row crossed a forbidden save-authorization boundary at $($record.phase)."
+        }
+    }
+    $before = $rowStart.authorization
+    foreach ($record in $Records) {
+        foreach ($prefix in @('authorizedLoads','authorizedWrites','unauthorizedLoads','unauthorizedWrites','baselineLoads','fatalViolations')) {
+            if ([long]$record.authorization.($prefix + 'Before') -ne [long]$before.($prefix + 'Before')) {
+                throw "$Row changed its captured authorization baseline within the row."
+            }
+        }
+    }
+    $expectedLoadDelta = if ($Row -ceq 'mounted-pair-load-safety') { 1L } else { 0L }
+    if ([long]$result.authorization.authorizedLoadsDelta -ne $expectedLoadDelta -or
+        [long]$result.authorization.authorizedWritesDelta -ne 0L) {
+        throw "$Row row-result does not report its exact authorized load/write delta."
+    }
+    $loadOrArea = $Row -cin @('mounted-pair-load-safety','mounted-pair-area-transition-safety')
+    foreach ($record in $Records) {
+        $descriptorExpected = $Row -cin @('mounted-pair-save-safety','mounted-pair-load-safety') -and
+            [Array]::IndexOf($expectedPhases, [string]$record.phase) -ge [Array]::IndexOf($expectedPhases, 'pre-boundary')
+        if ($descriptorExpected) {
+            if ($record.workingIdentity.descriptorVerified -ne $true) { throw "$Row lacks successful exact Working descriptor verification at $($record.phase)." }
+        }
+        elseif ($null -ne $record.workingIdentity.descriptorVerified) {
+            throw "$Row reports descriptor verification outside its exact post-validation phases."
+        }
+        $preDispatchExpected = $Row -ceq 'mounted-pair-load-safety' -and
+            [Array]::IndexOf($expectedPhases, [string]$record.phase) -ge [Array]::IndexOf($expectedPhases, 'cleanup-latch')
+        if ($preDispatchExpected) {
+            if ([long]$record.workingIdentity.preDispatchLength -ne [long]$record.workingIdentity.postInitialLoadLength -or
+                [long]$record.workingIdentity.preDispatchLastWriteTimeUtcTicks -ne [long]$record.workingIdentity.postInitialLoadLastWriteTimeUtcTicks -or
+                [string]$record.workingIdentity.preDispatchSha256 -cne [string]$record.workingIdentity.postInitialLoadSha256) {
+                throw "Load-safety pre-dispatch identity is absent or differs at $($record.phase)."
+            }
+        }
+        elseif ($null -ne $record.workingIdentity.preDispatchLength -or
+            $null -ne $record.workingIdentity.preDispatchLastWriteTimeUtcTicks -or
+            $null -ne $record.workingIdentity.preDispatchSha256) {
+            throw "$Row reports a pre-dispatch Working identity outside exact load post-dispatch phases."
+        }
+        if (-not $loadOrArea -and ($record.loading.observed -or $record.loading.startObserved -or
+            $record.loading.stopObserved -or $record.loading.callbackObserved)) {
+            throw "$Row reports a loading pipeline that it did not exercise."
+        }
+    }
+    if ($Row -ceq 'mounted-pair-load-safety') {
+        $loadingStart = @($Records | Where-Object { [string]$_.phase -ceq 'loading-start' })[0]
+        $loadingStop = @($Records | Where-Object { [string]$_.phase -ceq 'loading-stop' })[0]
+        $fresh = @($Records | Where-Object { [string]$_.phase -ceq 'fresh-world' })[0]
+        Assert-KmcBoundaryLoadingRelationship $loadingStart.relationship 'load-safety loading-start'
+        Assert-KmcBoundaryLoadingRelationship $loadingStop.relationship 'load-safety loading-stop'
+        Assert-KmcBoundaryCleanRelationship $fresh.relationship 'load-safety fresh-world' -RequireRestore
+        if ($result.triggerScope.nativeDeliveryObserved -ne $true -or $result.triggerScope.realWorkingLoadDispatched -ne $true -or
+            $result.triggerScope.realAreaReloadDispatched -ne $false -or -not $loadingStart.loading.startObserved -or
+            -not $loadingStop.loading.stopObserved -or -not $loadingStop.loading.callbackObserved) {
+            throw 'Load-safety row does not prove real exact-Working dispatch, native prefix delivery, and completed callback.'
+        }
+        if (@($Records | Where-Object { [string]$_.phase -cin @('row-start','mounted','pre-boundary') -and
+            ($_.triggerScope.nativeDeliveryObserved -or $_.triggerScope.realWorkingLoadDispatched) }).Count -ne 0) {
+            throw 'Load-safety pre-dispatch evidence claims native delivery before it occurred.'
+        }
+        if (@($Records | Where-Object { [string]$_.phase -cin @('cleanup-latch','loading-start','loading-stop','fresh-world','row-result') -and
+            (-not $_.triggerScope.nativeDeliveryObserved -or -not $_.triggerScope.realWorkingLoadDispatched) }).Count -ne 0) {
+            throw 'Load-safety post-dispatch evidence lost its real/native dispatch claim.'
+        }
+        foreach ($record in $Records) {
+            $beforeLoading = [string]$record.phase -cin @('row-start','mounted','pre-boundary','cleanup-latch')
+            $atLoadingStart = [string]$record.phase -ceq 'loading-start'
+            $afterLoadingStop = [string]$record.phase -cin @('loading-stop','fresh-world','row-result')
+            if (($beforeLoading -and ($record.loading.observed -or $record.loading.startObserved -or
+                    $record.loading.stopObserved -or $record.loading.callbackObserved)) -or
+                ($atLoadingStart -and (-not $record.loading.observed -or -not $record.loading.startObserved -or
+                    $record.loading.stopObserved -or $record.loading.callbackObserved)) -or
+                ($afterLoadingStop -and (-not $record.loading.observed -or -not $record.loading.startObserved -or
+                    -not $record.loading.stopObserved -or -not $record.loading.callbackObserved))) {
+                throw "Load-safety loading flags do not follow exact sticky start/stop/callback progression at $($record.phase)."
+            }
+        }
+        if (-not $fresh.freshWorld.observed -or $fresh.freshWorld.allClean -ne $true -or
+            -not $result.freshWorld.observed -or $result.freshWorld.allClean -ne $true) {
+            throw 'Load-safety row lacks exact clean fresh-world evidence.'
+        }
+    }
+    elseif ($Row -ceq 'mounted-pair-area-transition-safety') {
+        $loadingStart = @($Records | Where-Object { [string]$_.phase -ceq 'loading-start' })[0]
+        $loadingStop = @($Records | Where-Object { [string]$_.phase -ceq 'loading-stop' })[0]
+        $fresh = @($Records | Where-Object { [string]$_.phase -ceq 'fresh-world' })[0]
+        Assert-KmcBoundaryLoadingRelationship $loadingStart.relationship 'area-transition loading-start'
+        Assert-KmcBoundaryLoadingRelationship $loadingStop.relationship 'area-transition loading-stop'
+        Assert-KmcBoundaryCleanRelationship $fresh.relationship 'area-transition fresh-world' -RequireRestore
+        if ($result.triggerScope.nativeDeliveryObserved -ne $false -or $result.triggerScope.realWorkingLoadDispatched -ne $false -or
+            $result.triggerScope.realAreaReloadDispatched -ne $true -or -not $loadingStart.loading.startObserved -or
+            -not $loadingStop.loading.stopObserved -or $loadingStop.loading.callbackObserved) {
+            throw 'Area-transition row does not prove direct pre-cleanup plus completed real ReloadArea with truthful native-delivery scope.'
+        }
+        if (@($Records | Where-Object { [string]$_.phase -cin @('row-start','mounted','pre-boundary','cleanup-latch') -and
+            $_.triggerScope.realAreaReloadDispatched }).Count -ne 0) {
+            throw 'Area-transition evidence claims ReloadArea before the cleanup latch.'
+        }
+        if (@($Records | Where-Object { [string]$_.phase -cin @('loading-start','loading-stop','fresh-world','row-result') -and
+            -not $_.triggerScope.realAreaReloadDispatched }).Count -ne 0) {
+            throw 'Area-transition post-dispatch evidence lost its real ReloadArea claim.'
+        }
+        foreach ($record in $Records) {
+            $beforeLoading = [string]$record.phase -cin @('row-start','mounted','pre-boundary','cleanup-latch')
+            $atLoadingStart = [string]$record.phase -ceq 'loading-start'
+            $afterLoadingStop = [string]$record.phase -cin @('loading-stop','fresh-world','row-result')
+            if (($beforeLoading -and ($record.loading.observed -or $record.loading.startObserved -or
+                    $record.loading.stopObserved -or $record.loading.callbackObserved)) -or
+                ($atLoadingStart -and (-not $record.loading.observed -or -not $record.loading.startObserved -or
+                    $record.loading.stopObserved -or $record.loading.callbackObserved)) -or
+                ($afterLoadingStop -and (-not $record.loading.observed -or -not $record.loading.startObserved -or
+                    -not $record.loading.stopObserved -or $record.loading.callbackObserved))) {
+                throw "Area-transition loading flags do not follow exact sticky start/stop progression at $($record.phase)."
+            }
+        }
+        if (-not $fresh.freshWorld.observed -or $fresh.freshWorld.allClean -ne $true -or
+            -not $result.freshWorld.observed -or $result.freshWorld.allClean -ne $true) {
+            throw 'Area-transition row lacks exact clean fresh-world evidence.'
+        }
+    }
+    else {
+        $post = @($Records | Where-Object { [string]$_.phase -ceq 'post-boundary' })[0]
+        Assert-KmcBoundaryCleanRelationship $post.relationship "$Row post-boundary" -RequireRestore
+        if (-not $post.cleanup.captured -or $post.cleanup.allRestored -ne $true -or
+            $post.freshWorld.observed -or $result.freshWorld.observed) {
+            throw "$Row post-boundary evidence does not prove direct cleanup without an unclaimed fresh-world transition."
+        }
+        if ($result.triggerScope.nativeDeliveryObserved -ne $false -or $result.triggerScope.realWorkingLoadDispatched -ne $false -or
+            $result.triggerScope.realAreaReloadDispatched -ne $false) {
+            throw "$Row row-result exceeds its direct-call claim scope."
+        }
+    }
+}
+
+function Assert-KmcBoundaryLiveTerminalWorkingIdentity {
+    param(
+        [Parameter(Mandatory = $true)]$Record,
+        [Parameter(Mandatory = $true)][string]$ExpectedWorkingPath
+    )
+    $path = [IO.Path]::GetFullPath($ExpectedWorkingPath)
+    if (-not [string]::Equals(
+        [IO.Path]::GetFullPath([string]$Record.workingIdentity.path),
+        $path,
+        [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Boundary evidence Working path differs from the exact transaction-owned live Working path.'
+    }
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+        throw 'Live terminal Working identity cannot be verified because the exact evidence path is missing.'
+    }
+    Assert-KmcNotReparsePoint $path 'live terminal boundary Working save'
+    Assert-KmcNotHardLink $path 'live terminal boundary Working save'
+    $before = Get-Item -LiteralPath $path -Force
+    $sha256 = Get-KmcSha256 $path
+    $after = Get-Item -LiteralPath $path -Force
+    if ($before.Length -ne $after.Length -or
+        $before.LastWriteTimeUtc.Ticks -ne $after.LastWriteTimeUtc.Ticks) {
+        throw 'Live terminal Working changed while its identity was being verified.'
+    }
+    if ($after.Length -ne [long]$Record.workingIdentity.observedLength -or
+        $after.LastWriteTimeUtc.Ticks -ne [long]$Record.workingIdentity.observedLastWriteTimeUtcTicks -or
+        [string]$sha256 -cne [string]$Record.workingIdentity.observedSha256) {
+        throw 'Live terminal Working length/timestamp/SHA-256 differs from the terminal boundary evidence.'
+    }
+}
+
+function Assert-KmcBoundaryScenarioEvidence {
+    param(
+        [Parameter(Mandatory = $true)]$Request,
+        [Parameter(Mandatory = $true)]$Manifest,
+        [AllowNull()][string]$Status,
+        $SubscenarioResults,
+        $GameResult,
+        [switch]$VerifyLiveWorkingIdentity,
+        [AllowNull()][string]$ExpectedLiveWorkingPath
+    )
+    $evidenceRoot = [IO.Path]::GetFullPath([string]$Request.evidenceRoot).TrimEnd('\')
+    Assert-KmcKnownRuntimeArtifactsManifested $evidenceRoot $Manifest
+    $isBoundary = Test-KmcBoundaryRuntimeScenario ([string]$Request.scenario)
+    $artifacts = @($Manifest.artifacts | Where-Object { [string]$_.relativePath -ceq 'boundary-scenario-evidence.jsonl' })
+    $requireComplete = $isBoundary -and [string]$Status -ceq 'PASS'
+    $requireEvidence = $isBoundary -and -not [string]::IsNullOrWhiteSpace($Status)
+    if ($requireEvidence -and $artifacts.Count -ne 1) { throw 'A terminal boundary scenario requires exactly one manifested boundary JSONL artifact.' }
+    if ($artifacts.Count -eq 0) { return }
+    if ($artifacts.Count -ne 1 -or [string]$artifacts[0].kind -cne 'boundary-evidence') { throw 'Boundary JSONL manifest identity is not exact.' }
+    if (-not $isBoundary) { throw 'Boundary JSONL is present for a non-boundary runtime scenario.' }
+    [string[]]$expectedRows = if ([string]$Request.scenario -ceq 'boundary-suite') { @(Get-KmcBoundaryRuntimeRows) } else { @([string]$Request.scenario) }
+    $path = Assert-KmcChildPath (Join-Path $evidenceRoot 'boundary-scenario-evidence.jsonl') $evidenceRoot 'boundary scenario evidence'
+    Assert-KmcNotReparsePoint $path 'boundary scenario evidence'
+    Assert-KmcNotHardLink $path 'boundary scenario evidence'
+    $lines = @([IO.File]::ReadAllLines($path, (New-Object Text.UTF8Encoding($false, $true))))
+    $records = New-Object 'Collections.Generic.List[object]'
+    foreach ($line in $lines) {
+        if ([string]::IsNullOrWhiteSpace($line)) { continue }
+        Assert-KmcJsonObjectMembersUnique $line 'boundary scenario evidence line'
+        try { $record = $line | ConvertFrom-Json }
+        catch { throw "Boundary scenario evidence line is malformed JSON: $($_.Exception.Message)" }
+        Assert-KmcBoundaryEvidenceRecord $record $Request $records.Count $expectedRows
+        $records.Add($record)
+    }
+    if ($records.Count -eq 0) { throw 'Boundary scenario evidence contains no nonblank JSON records.' }
+    $lastFrame = -1L
+    $lastRowIndex = -1
+    $rowResults = New-Object 'Collections.Generic.List[object]'
+    $failureSeen = $false
+    $expectedAuthorizationBefore = @{
+        authorizedLoads = 1L
+        authorizedWrites = 0L
+        unauthorizedLoads = 0L
+        unauthorizedWrites = 0L
+        baselineLoads = 0L
+        fatalViolations = 0L
+    }
+    $expectedRestoreHistory = $false
+    $stableRiderId = $null
+    $stableMountId = $null
+    $workingAuthority = $records[0].workingIdentity
+    $previousTerminalIdentity = $null
+    $previousTerminalSelection = $null
+    foreach ($record in $records) {
+        if ([long]$record.frame -lt $lastFrame) { throw 'Boundary evidence frame order regressed.' }
+        $lastFrame = [long]$record.frame
+        if ([long]$record.rowIndex -lt $lastRowIndex) { throw 'Boundary evidence row order regressed.' }
+        $lastRowIndex = [long]$record.rowIndex
+        if ([string]$record.workingIdentity.path -cne [string]$workingAuthority.path -or
+            [long]$record.workingIdentity.postInitialLoadLength -ne [long]$workingAuthority.postInitialLoadLength -or
+            [long]$record.workingIdentity.postInitialLoadLastWriteTimeUtcTicks -ne [long]$workingAuthority.postInitialLoadLastWriteTimeUtcTicks -or
+            [string]$record.workingIdentity.postInitialLoadSha256 -cne [string]$workingAuthority.postInitialLoadSha256) {
+            throw 'Boundary evidence changed its absolute Working path or post-initial-load identity authority.'
+        }
+        if ($null -ne $record.relationship.riderUniqueId) {
+            if ($null -eq $stableRiderId) {
+                $stableRiderId = [string]$record.relationship.riderUniqueId
+                $stableMountId = [string]$record.relationship.mountUniqueId
+            }
+            elseif ([string]$record.relationship.riderUniqueId -cne $stableRiderId -or
+                [string]$record.relationship.mountUniqueId -cne $stableMountId) {
+                throw 'Boundary evidence changed stable rider or mount identity across phases/rows.'
+            }
+        }
+        if ([string]$record.phase -ceq 'row-result') { $rowResults.Add($record) }
+    }
+    if ($rowResults.Count -ne $expectedRows.Count) { throw 'Boundary evidence does not contain exactly one row-result per selected row.' }
+    for ($rowIndex = 0; $rowIndex -lt $expectedRows.Count; $rowIndex++) {
+        $row = [string]$expectedRows[$rowIndex]
+        $rowRecords = @($records | Where-Object { [string]$_.row -ceq $row })
+        if ($rowRecords.Count -eq 0 -or [string]$rowRecords[$rowRecords.Count - 1].phase -cne 'row-result') {
+            throw "Boundary row does not end in its exact row-result: $row"
+        }
+        $rowResult = $rowRecords[$rowRecords.Count - 1]
+        $rowPassed = [string]$rowResult.rowStatus -ceq 'PASS'
+        $priorDeltas = @{}
+        foreach ($prefix in @('authorizedLoads','authorizedWrites','unauthorizedLoads','unauthorizedWrites','baselineLoads','fatalViolations')) {
+            $priorDeltas[$prefix] = 0L
+        }
+        foreach ($record in $rowRecords) {
+            foreach ($prefix in @('authorizedLoads','authorizedWrites','unauthorizedLoads','unauthorizedWrites','baselineLoads','fatalViolations')) {
+                $beforeName = $prefix + 'Before'
+                $afterName = $prefix + 'After'
+                $deltaName = $prefix + 'Delta'
+                $delta = [long]$record.authorization.$deltaName
+                if ([long]$record.authorization.$beforeName -ne [long]$expectedAuthorizationBefore[$prefix] -or
+                    [long]$record.authorization.$afterName -ne ([long]$expectedAuthorizationBefore[$prefix] + $delta) -or
+                    $delta -lt [long]$priorDeltas[$prefix] -or ($record.suppressed -and $delta -ne 0L)) {
+                    throw "$row does not preserve reconciled monotonic/cross-row $prefix authorization counters at $($record.phase)."
+                }
+                $priorDeltas[$prefix] = $delta
+            }
+            if ($rowPassed) {
+                $loadDelta = [long]$record.authorization.authorizedLoadsDelta
+                if (($row -ceq 'mounted-pair-load-safety' -and $loadDelta -notin @(0L,1L)) -or
+                    ($row -cne 'mounted-pair-load-safety' -and $loadDelta -ne 0L)) {
+                    throw "$row has an impossible authorized-load delta in PASS evidence at $($record.phase)."
+                }
+            }
+        }
+        if ([string]$rowResult.rowStatus -ceq 'PASS') {
+            if ($failureSeen) { throw 'Boundary suite executed a PASS row after a prior failure.' }
+            Assert-KmcBoundaryPassRowSemantics $rowRecords $row
+            $rowStart = $rowRecords[0]
+            if ($null -eq $previousTerminalIdentity) {
+                if (-not (Test-KmcBoundaryObservedEqualsPostInitial $rowStart.workingIdentity)) {
+                    throw "$row row-start does not equal the captured post-initial-load Working identity."
+                }
+            }
+            elseif (-not (Test-KmcBoundaryObservedIdentityEqual $rowStart.workingIdentity $previousTerminalIdentity)) {
+                throw "$row row-start Working identity does not continue from the preceding row-result."
+            }
+            if ($null -ne $previousTerminalSelection -and
+                -not (Test-KmcBoundaryStringArrayOrdinalEqual $rowStart.relationship.selectedUnitIds $previousTerminalSelection)) {
+                throw "$row row-start selected-unit identities do not continue from the preceding row-result."
+            }
+            if ($row -ceq 'mounted-pair-load-safety') {
+                foreach ($phase in @('row-start','mounted','pre-boundary','cleanup-latch','loading-start')) {
+                    $phaseRecord = @($rowRecords | Where-Object { [string]$_.phase -ceq $phase })[0]
+                    if (-not (Test-KmcBoundaryObservedIdentityEqual $phaseRecord.workingIdentity $rowStart.workingIdentity)) {
+                        throw "Load-safety Working identity changed outside the exact completed-load recapture window at $phase."
+                    }
+                }
+                $loadingStop = @($rowRecords | Where-Object { [string]$_.phase -ceq 'loading-stop' })[0]
+                foreach ($phase in @('fresh-world','row-result')) {
+                    $phaseRecord = @($rowRecords | Where-Object { [string]$_.phase -ceq $phase })[0]
+                    if (-not (Test-KmcBoundaryObservedIdentityEqual $phaseRecord.workingIdentity $loadingStop.workingIdentity)) {
+                        throw "Load-safety Working identity was not stable from loading-stop through $phase."
+                    }
+                }
+            }
+            else {
+                foreach ($record in $rowRecords) {
+                    if (-not (Test-KmcBoundaryObservedIdentityEqual $record.workingIdentity $rowStart.workingIdentity)) {
+                        throw "$row changed Working identity despite exercising no authorized archive write/load boundary at $($record.phase)."
+                    }
+                }
+            }
+            [string[]]$selectionPhases = if ($row -cin @('mounted-pair-load-safety','mounted-pair-area-transition-safety')) {
+                @('row-start','mounted','pre-boundary','cleanup-latch','fresh-world','row-result')
+            } else {
+                @(Get-KmcBoundaryExpectedPhases $row)
+            }
+            foreach ($phase in $selectionPhases) {
+                $phaseRecord = @($rowRecords | Where-Object { [string]$_.phase -ceq $phase })[0]
+                if (-not (Test-KmcBoundaryStringArrayOrdinalEqual $phaseRecord.relationship.selectedUnitIds $rowStart.relationship.selectedUnitIds)) {
+                    throw "$row did not preserve exact selected-unit identities at $phase."
+                }
+            }
+            if ($rowRecords[0].relationship.attachmentRestoreVerified -ne $expectedRestoreHistory) {
+                throw "$row row-start attachment restore history does not continue exactly from the preceding boundary row."
+            }
+            $expectedRestoreHistory = $true
+            $previousTerminalIdentity = $rowResult.workingIdentity
+            $previousTerminalSelection = @($rowResult.relationship.selectedUnitIds)
+        }
+        elseif ($rowResult.suppressed) {
+            if (-not $failureSeen -or $rowRecords.Count -ne 1) { throw 'Boundary suppressed row is not the sole row-result after a prior failure.' }
+        }
+        else {
+            if ($failureSeen) { throw 'Boundary suite executed more than one failed row.' }
+            $failureSeen = $true
+            [string[]]$expectedPhases = @(Get-KmcBoundaryExpectedPhases $row)
+            [string[]]$phasePrefix = @($rowRecords | Select-Object -First ($rowRecords.Count - 1) | ForEach-Object { [string]$_.phase })
+            if ($phasePrefix.Count -gt $expectedPhases.Count - 1 -or
+                ($phasePrefix -join '|') -cne (@($expectedPhases | Select-Object -First $phasePrefix.Count) -join '|')) {
+                throw "Executed failed boundary row is not an ordered phase prefix: $row"
+            }
+        }
+        foreach ($prefix in @('authorizedLoads','authorizedWrites','unauthorizedLoads','unauthorizedWrites','baselineLoads','fatalViolations')) {
+            $afterName = $prefix + 'After'
+            $expectedAuthorizationBefore[$prefix] = [long]$rowResult.authorization.$afterName
+        }
+    }
+    if ($requireComplete -and $failureSeen) { throw 'PASS boundary scenario contains a failed or suppressed row.' }
+    if ([string]$Status -ceq 'FAIL' -and -not $failureSeen) { throw 'FAIL boundary scenario evidence contains no failed row.' }
+    if ($null -ne $SubscenarioResults) {
+        $subresults = @($SubscenarioResults)
+        if ($subresults.Count -ne $expectedRows.Count) { throw 'Boundary subresult count does not match the exact selected row set.' }
+        for ($index = 0; $index -lt $expectedRows.Count; $index++) {
+            if ([string]$subresults[$index].name -cne [string]$expectedRows[$index]) { throw 'Boundary subresults do not preserve exact row order.' }
+            $rowResult = $rowResults[$index]
+            if ([string]$rowResult.row -cne [string]$subresults[$index].name -or
+                [string]$rowResult.rowStatus -cne [string]$subresults[$index].status -or
+                [long]$rowResult.assertionPassCount -ne [long]$subresults[$index].assertionPassCount -or
+                [long]$rowResult.assertionFailCount -ne [long]$subresults[$index].assertionFailCount -or
+                (@($rowResult.recordErrors) -join "`n") -cne (@($subresults[$index].errors) -join "`n")) {
+                throw "Boundary row-result does not reconcile with the game subresult: $($expectedRows[$index])"
+            }
+        }
+    }
+    if ($null -ne $GameResult) {
+        $aggregateNames = @('workingLoadRequestCount','workingSaveRequestCount','unauthorizedLoadRequestCount',
+            'unauthorizedSaveRequestCount','baselineLoadRequestCount')
+        foreach ($name in $aggregateNames) {
+            if ($GameResult.PSObject.Properties.Name -cnotcontains $name -or
+                -not (Test-KmcExactJsonInteger $GameResult.$name) -or [long]$GameResult.$name -lt 0L) {
+                throw "Boundary game-result aggregate is missing or invalid: $name"
+            }
+        }
+        $terminalAuthorization = $rowResults[$rowResults.Count - 1].authorization
+        if ([long]$terminalAuthorization.authorizedLoadsAfter -ne [long]$GameResult.workingLoadRequestCount -or
+            [long]$terminalAuthorization.authorizedWritesAfter -ne [long]$GameResult.workingSaveRequestCount -or
+            [long]$terminalAuthorization.unauthorizedLoadsAfter -ne [long]$GameResult.unauthorizedLoadRequestCount -or
+            [long]$terminalAuthorization.unauthorizedWritesAfter -ne [long]$GameResult.unauthorizedSaveRequestCount -or
+            [long]$terminalAuthorization.baselineLoadsAfter -ne [long]$GameResult.baselineLoadRequestCount) {
+            throw 'Boundary terminal authorization evidence does not reconcile with final game-result aggregates.'
+        }
+    }
+    if ($VerifyLiveWorkingIdentity) {
+        if ([string]::IsNullOrWhiteSpace($ExpectedLiveWorkingPath)) {
+            throw 'Opt-in live terminal Working verification requires the exact transaction-owned Working path.'
+        }
+        Assert-KmcBoundaryLiveTerminalWorkingIdentity $rowResults[$rowResults.Count - 1] $ExpectedLiveWorkingPath
     }
 }
 
@@ -3363,6 +4389,7 @@ function Get-KmcValidatedOrchestrationArtifactManifestHash {
         $allowed = ($relative -ceq 'lifecycle-scenario-evidence.jsonl' -and $kind -ceq 'scenario-evidence') -or
             ($relative -ceq 'movement-telemetry.jsonl' -and $kind -ceq 'telemetry') -or
             ($relative -ceq 'movement-scenario-evidence.jsonl' -and $kind -ceq 'scenario-evidence') -or
+            ($relative -ceq 'boundary-scenario-evidence.jsonl' -and $kind -ceq 'boundary-evidence') -or
             ($relative -cmatch '^movement-visuals/[A-Za-z0-9._-]+\.png$' -and $kind -ceq 'screenshot')
         if (-not $seen.Add($relative) -or -not $allowed -or [long]$artifact.length -le 0 -or
             [string]$artifact.sha256 -cnotmatch '^[0-9a-f]{64}$') {
@@ -3379,6 +4406,7 @@ function Get-KmcValidatedOrchestrationArtifactManifestHash {
     }
     Assert-KmcLifecycleScenarioEvidence -Request $Request -Manifest $manifestValue
     Assert-KmcMovementScenarioEvidence -Request $Request -Manifest $manifestValue
+    Assert-KmcBoundaryScenarioEvidence -Request $Request -Manifest $manifestValue
     $hash = Get-KmcSha256 $manifestPath
     $after = Get-Item -LiteralPath $manifestPath -Force
     if ($after.Length -ne $before.Length -or $after.LastWriteTimeUtc.Ticks -ne $before.LastWriteTimeUtc.Ticks) {

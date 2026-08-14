@@ -78,7 +78,8 @@ namespace KingmakerMountedCombat.Diagnostics
         internal string CurrentMovementRow => movementEngine == null ? null : movementEngine.CurrentRow;
 
         internal bool IsSaveBackedFailurePending => request.SchemaVersion == RuntimeRequest.SaveBackedSchemaVersion &&
-            !completed && !saveBackedFailureDrain.MayAdvanceScenario;
+            !completed && (!saveBackedFailureDrain.MayAdvanceScenario ||
+                (boundaryEngine != null && boundaryEngine.IsFailurePending));
 
         public void Abort(Exception exception)
         {
@@ -1227,6 +1228,11 @@ namespace KingmakerMountedCombat.Diagnostics
 
             var artifacts = new List<RuntimeArtifactRecord>();
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, "lifecycle-scenario-evidence.jsonl", "scenario-evidence");
+            AddRuntimeArtifactIfPresent(
+                artifacts,
+                request.EvidenceRoot,
+                BoundaryScenarioEvidenceContract.EvidenceFileName,
+                "boundary-evidence");
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, "movement-telemetry.jsonl", "telemetry");
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, "movement-scenario-evidence.jsonl", "scenario-evidence");
 

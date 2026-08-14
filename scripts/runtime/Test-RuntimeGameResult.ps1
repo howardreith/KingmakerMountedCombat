@@ -5,7 +5,9 @@ param(
     [Parameter(Mandatory = $true)][string]$FingerprintPath,
     [Parameter(Mandatory = $true)][int]$ExpectedProcessId,
     [Parameter(Mandatory = $true)][DateTimeOffset]$NotBeforeUtc,
-    [switch]$RequirePass
+    [switch]$RequirePass,
+    [switch]$VerifyLiveWorkingIdentity,
+    [AllowNull()][string]$ExpectedLiveWorkingPath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -105,6 +107,7 @@ function Assert-RuntimeArtifactManifest {
         $allowed = ($relativePath -ceq 'lifecycle-scenario-evidence.jsonl' -and $kind -ceq 'scenario-evidence') -or
             ($relativePath -ceq 'movement-telemetry.jsonl' -and $kind -ceq 'telemetry') -or
             ($relativePath -ceq 'movement-scenario-evidence.jsonl' -and $kind -ceq 'scenario-evidence') -or
+            ($relativePath -ceq 'boundary-scenario-evidence.jsonl' -and $kind -ceq 'boundary-evidence') -or
             ($relativePath -cmatch '^movement-visuals/[A-Za-z0-9._-]+\.png$' -and $kind -ceq 'screenshot')
         if (-not $allowed) { throw "Runtime artifact manifest record is outside the exact allowlist: $relativePath ($kind)" }
         if (-not (Test-ExactJsonInteger $artifact.length) -or [long]$artifact.length -le 0 -or
@@ -245,6 +248,7 @@ Assert-SubscenarioResults $game
 $validatedArtifactManifest = Read-KmcJson (Join-Path ([IO.Path]::GetFullPath([string]$request.evidenceRoot)) 'runtime-artifacts.json')
 Assert-KmcLifecycleScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -SubscenarioResults $game.subscenarioResults
 Assert-KmcMovementScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -SubscenarioResults $game.subscenarioResults
+Assert-KmcBoundaryScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -SubscenarioResults $game.subscenarioResults -GameResult $game -VerifyLiveWorkingIdentity:$VerifyLiveWorkingIdentity -ExpectedLiveWorkingPath $ExpectedLiveWorkingPath
 if ([string]$game.status -ceq 'PASS') {
     if ($game.fixtureIdentityVerified -ne $true -or [string]$game.relationshipState -cne 'Unmounted') { throw 'Save-backed PASS did not finish with verified fixture identity and an unmounted relationship.' }
     $expectedWorkingLoads = if ([string]$game.scenario -cin @('mounted-pair-load-safety','boundary-suite')) { 2 } else { 1 }

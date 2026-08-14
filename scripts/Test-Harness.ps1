@@ -206,6 +206,255 @@ function Assert-TestLifecycleEvidenceRejected {
     Assert-Test $threw $FailureMessage
 }
 
+function New-TestBoundaryRelationshipEvidence {
+    param(
+        [Parameter(Mandatory = $true)][string]$Phase,
+        [switch]$Suppressed,
+        [switch]$RestoreHistory
+    )
+    $mounted = $Phase -cin @('mounted','pre-boundary') -and -not $Suppressed
+    $rowStart = $Phase -ceq 'row-start'
+    $cleanupLatch = $Phase -ceq 'cleanup-latch' -and -not $Suppressed
+    $loading = $Phase -cin @('loading-start','loading-stop')
+    $pairVisible = -not $Suppressed -and -not $loading
+    $value = [ordered]@{
+        state=$(if($mounted){'Mounted'}else{'Unmounted'})
+        riderUniqueId=$(if($pairVisible){'boundary-rider'}else{$null});mountUniqueId=$(if($pairVisible){'boundary-mount'}else{$null})
+        ownerReferencesPresent=$mounted;movementAgentPresent=$mounted
+        riderStockAgentEnabled=$(if($pairVisible){(-not $mounted)}else{$null});mountStockAgentEnabled=$(if($pairVisible){$true}else{$null})
+        riderAvoidanceDisabled=$(if($pairVisible){$mounted}else{$null});mountAvoidanceDisabled=$(if($pairVisible){$false}else{$null})
+        riderOverridePresent=$(if($pairVisible){$mounted}else{$null});mountOverridePresent=$(if($pairVisible){$false}else{$null})
+        riderForbidRotation=$(if($pairVisible){$mounted}else{$null});mountForbidRotation=$(if($pairVisible){$false}else{$null})
+        riderMoveCommandPresent=$(if($pairVisible){$false}else{$null});mountMoveCommandPresent=$(if($pairVisible){$false}else{$null})
+        riderMovementAgentComponentCount=$(if(-not $pairVisible){$null}elseif($mounted -or $cleanupLatch){1}else{0})
+        mountMovementAgentComponentCount=$(if($pairVisible){0}else{$null})
+        kmcRiderMovementAgentComponentCount=$(if($mounted -or $cleanupLatch){1}else{0})
+        attachmentLeaseActive=$mounted;attachmentRestoreVerified=$(if($rowStart){[bool]$RestoreHistory}else{(-not $mounted)})
+        attachmentResidue=$mounted;riderParentMatchesAttachment=$mounted
+        attachmentParent=$(if($mounted){'KMC_RiderPositionAnchor'}else{$null});sourceAnchor=$(if($mounted){'Spine'}else{$null})
+        kmcAnchorObjectCount=$(if($mounted -or $cleanupLatch){1}else{0})
+        selectedUnitIds=[object[]]::new(0)
+    }
+    if (-not $loading -and -not $Suppressed) { $value.selectedUnitIds = [object[]]@('boundary-rider') }
+    return $value
+}
+
+function New-TestBoundaryCleanupEvidence {
+    param(
+        [Parameter(Mandatory = $true)][string]$Row,
+        [Parameter(Mandatory = $true)][string]$Phase,
+        [Parameter(Mandatory = $true)][long]$Frame,
+        [switch]$Suppressed
+    )
+    $expectedTrigger = Get-KmcBoundaryExpectedCleanupTrigger $Row
+    $phases = @(Get-KmcBoundaryExpectedPhases $Row)
+    $captured = -not $Suppressed -and [Array]::IndexOf($phases,$Phase) -ge [Array]::IndexOf($phases,'cleanup-latch')
+    return [ordered]@{
+        captured=$captured;captureFrame=$(if($captured){$Frame}else{$null});expectedTrigger=$expectedTrigger
+        actualTrigger=$(if($captured){$expectedTrigger}else{$null});transitionSucceeded=$(if($captured){$true}else{$null})
+        movementAuthorityResidual=$(if($captured){$false}else{$null});presentationResidual=$(if($captured){$false}else{$null})
+        relationshipUnmounted=$(if($captured){$true}else{$null});ownerReferencesReleased=$(if($captured){$true}else{$null})
+        movementAgentReleased=$(if($captured){$true}else{$null});stockAgentsRestored=$(if($captured){$true}else{$null})
+        avoidanceRestored=$(if($captured){$true}else{$null});overridesRestored=$(if($captured){$true}else{$null})
+        riderMovementAgentComponentsRestored=$(if($captured){$false}else{$null});forbidRotationRestored=$(if($captured){$true}else{$null})
+        attachmentRestored=$(if($captured){$true}else{$null});selectionRestored=$(if($captured){$true}else{$null})
+        moveCommandsRestored=$(if($captured){$true}else{$null});kmcAnchorObjectsAbsent=$(if($captured){$false}else{$null})
+        allRestored=$(if($captured){$true}else{$null})
+    }
+}
+
+function New-TestBoundaryFreshWorldEvidence {
+    param(
+        [Parameter(Mandatory = $true)]$Request,
+        [Parameter(Mandatory = $true)][string]$Row,
+        [Parameter(Mandatory = $true)][string]$Phase,
+        [switch]$Suppressed
+    )
+    $observed = -not $Suppressed -and $Row -cin @('mounted-pair-load-safety','mounted-pair-area-transition-safety') -and
+        $Phase -cin @('fresh-world','row-result')
+    $value = [ordered]@{
+        observed=$observed
+        gameId=$(if($observed){[string]$Request.fixture.working.gameId}else{$null})
+        gameName=$(if($observed){[string]$Request.fixture.working.gameName}else{$null})
+        area=$(if($observed){[string]$Request.fixture.working.area}else{$null})
+    }
+    foreach ($name in @('worldReady','pairResolved','gameIdMatches','gameNameMatches','areaMatches','relationshipClean',
+        'stockAgentsEnabled','avoidanceOrdinary','overridesAbsent','riderMovementAgentComponentsAbsent','forbidRotationOrdinary',
+        'attachmentResidueAbsent','selectionRestored','moveCommandsAbsent','kmcAnchorObjectsAbsent','allClean')) {
+        $value[$name] = if ($observed) { $true } else { $null }
+    }
+    return $value
+}
+
+function New-TestBoundaryEvidenceRecord {
+    param(
+        [Parameter(Mandatory = $true)]$Request,
+        [Parameter(Mandatory = $true)][string]$Row,
+        [Parameter(Mandatory = $true)][string]$Phase,
+        [Parameter(Mandatory = $true)][long]$Sequence,
+        [Parameter(Mandatory = $true)][int]$RowIndex,
+        [long]$AuthorizedLoadsBefore = 1L,
+        [long]$CurrentWorkingLength = -1L,
+        [long]$CurrentWorkingLastWriteTimeUtcTicks = -1L,
+        [string]$CurrentWorkingSha256,
+        [int]$AssertionPassCount = 12,
+        [switch]$Suppressed
+    )
+    $phases = @(Get-KmcBoundaryExpectedPhases $Row)
+    $phaseIndex = [Array]::IndexOf($phases,$Phase)
+    $cleanupIndex = [Array]::IndexOf($phases,'cleanup-latch')
+    $load = $Row -ceq 'mounted-pair-load-safety'
+    $area = $Row -ceq 'mounted-pair-area-transition-safety'
+    $loadDispatched = -not $Suppressed -and $load -and $phaseIndex -ge $cleanupIndex
+    $areaDispatched = -not $Suppressed -and $area -and $Phase -cin @('loading-start','loading-stop','fresh-world','row-result')
+    $preBoundaryIndex = [Array]::IndexOf($phases,'pre-boundary')
+    $descriptorVerified = if (-not $Suppressed -and $Row -cin @('mounted-pair-save-safety','mounted-pair-load-safety') -and
+        $phaseIndex -ge $preBoundaryIndex) { $true } else { $null }
+    $working = $Request.fixture.working
+    $postInitialLength = [long]$working.length + 7L
+    $postInitialTicks = [long]$working.lastWriteTimeUtcTicks + 7L
+    $postInitialSha = ('5' * 64)
+    $currentLength = if ($CurrentWorkingLength -ge 0L) { $CurrentWorkingLength } else { $postInitialLength }
+    $currentTicks = if ($CurrentWorkingLastWriteTimeUtcTicks -ge 0L) { $CurrentWorkingLastWriteTimeUtcTicks } else { $postInitialTicks }
+    $currentSha = if ([string]::IsNullOrEmpty($CurrentWorkingSha256)) { $postInitialSha } else { $CurrentWorkingSha256 }
+    $postDispatchIdentityChanged = -not $Suppressed -and $load -and $Phase -cin @('loading-stop','fresh-world','row-result')
+    $observedLength = if ($postDispatchIdentityChanged) { $currentLength + 1L } else { $currentLength }
+    $observedTicks = if ($postDispatchIdentityChanged) { $currentTicks + 1L } else { $currentTicks }
+    $observedSha = if ($postDispatchIdentityChanged) { ('6' * 64) } else { $currentSha }
+    $source = if ($load -and $Phase -cin @('cleanup-latch','loading-start')) {
+        'cached-immediate-pre-dispatch'
+    }
+    elseif ($area -and $Phase -ceq 'loading-start') {
+        'cached-row-start'
+    }
+    else {
+        switch -CaseSensitive ($Phase) {
+            'pre-boundary' { 'immediate-pre-dispatch'; break }
+            'cleanup-latch' { 'immediate-post-dispatch'; break }
+            default { $Phase; break }
+        }
+    }
+    $matchesPostInitial = $observedLength -eq $postInitialLength -and $observedTicks -eq $postInitialTicks -and
+        [string]$observedSha -ceq $postInitialSha
+    $loadDelta = if ($loadDispatched) { 1L } else { 0L }
+    $loadingStart = -not $Suppressed -and ($load -or $area) -and $Phase -cin @('loading-start','loading-stop','fresh-world','row-result')
+    $loadingStop = -not $Suppressed -and ($load -or $area) -and $Phase -cin @('loading-stop','fresh-world','row-result')
+    $callback = -not $Suppressed -and $load -and $Phase -cin @('loading-stop','fresh-world','row-result')
+    $frame = [long]($Sequence + 1L)
+    $rowResult = $Phase -ceq 'row-result'
+    $recordErrors = [object[]]::new(0)
+    if ($Suppressed) { $recordErrors = [object[]]@('Suppressed after a prior boundary failure.') }
+    return [ordered]@{
+        schemaVersion=1;artifactKind='boundary-scenario-evidence';runId=[string]$Request.runId;scenario=[string]$Request.scenario
+        row=$Row;phase=$Phase;utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o')
+        branch=[string]$Request.branch;commit=[string]$Request.commit;productVersion=[string]$Request.productVersion
+        dllSha256=[string]$Request.dllSha256;dllMvid=[string]$Request.dllMvid;sequence=$Sequence;rowIndex=$RowIndex;frame=$frame
+        executed=(-not $Suppressed);suppressed=[bool]$Suppressed
+        rowStatus=$(if($rowResult){$(if($Suppressed){'FAIL'}else{'PASS'})}else{$null})
+        assertionPassCount=$(if($rowResult){$(if($Suppressed){0}else{$AssertionPassCount})}else{$null})
+        assertionFailCount=$(if($rowResult){$(if($Suppressed){1}else{0})}else{$null})
+        triggerScope=[ordered]@{
+            expectedCleanupTrigger=(Get-KmcBoundaryExpectedCleanupTrigger $Row);invocationPath=(Get-KmcBoundaryInvocationPath $Row)
+            nativeDeliveryObserved=($loadDelta -gt 0L);stockSaveRoutineInvoked=$false;realWorkingLoadDispatched=$loadDispatched
+            realAreaReloadDispatched=$areaDispatched;claimLimit=(Get-KmcBoundaryClaimLimit $Row)
+        }
+        workingIdentity=[ordered]@{
+            internalName=[string]$working.internalName;fileName=[string]$working.fileName
+            path=('C:\KmcHarnessSaves\' + [string]$working.fileName);gameId=[string]$working.gameId;gameName=[string]$working.gameName
+            area=[string]$working.area;requestLength=[long]$working.length;requestLastWriteTimeUtcTicks=[long]$working.lastWriteTimeUtcTicks
+            requestSha256=[string]$working.sha256;postInitialLoadLength=$postInitialLength
+            postInitialLoadLastWriteTimeUtcTicks=$postInitialTicks;postInitialLoadSha256=$postInitialSha
+            preDispatchLength=$(if($loadDispatched){$postInitialLength}else{$null})
+            preDispatchLastWriteTimeUtcTicks=$(if($loadDispatched){$postInitialTicks}else{$null})
+            preDispatchSha256=$(if($loadDispatched){$postInitialSha}else{$null})
+            observedLength=$observedLength;observedLastWriteTimeUtcTicks=$observedTicks
+            observedSha256=$observedSha;observedSource=$source;matchesPostInitialLoad=$matchesPostInitial
+            descriptorVerified=$descriptorVerified
+            descriptorInternalName=$(if($descriptorVerified){[string]$working.internalName}else{$null})
+            descriptorFileName=$(if($descriptorVerified){[string]$working.fileName}else{$null})
+            descriptorPath=$(if($descriptorVerified){('C:\KmcHarnessSaves\' + [string]$working.fileName)}else{$null})
+            descriptorGameId=$(if($descriptorVerified){[string]$working.gameId}else{$null})
+            descriptorGameName=$(if($descriptorVerified){[string]$working.gameName}else{$null})
+            descriptorArea=$(if($descriptorVerified){[string]$working.area}else{$null})
+            descriptorSaveType=$(if($descriptorVerified){'Manual'}else{$null})
+            descriptorCompatibilityVersion=$(if($descriptorVerified){1}else{$null})
+        }
+        authorization=[ordered]@{
+            authorizedLoadsBefore=$AuthorizedLoadsBefore;authorizedLoadsAfter=($AuthorizedLoadsBefore+$loadDelta);authorizedLoadsDelta=$loadDelta
+            authorizedWritesBefore=0;authorizedWritesAfter=0;authorizedWritesDelta=0
+            unauthorizedLoadsBefore=0;unauthorizedLoadsAfter=0;unauthorizedLoadsDelta=0
+            unauthorizedWritesBefore=0;unauthorizedWritesAfter=0;unauthorizedWritesDelta=0
+            baselineLoadsBefore=0;baselineLoadsAfter=0;baselineLoadsDelta=0
+            fatalViolationsBefore=0;fatalViolationsAfter=0;fatalViolationsDelta=0
+        }
+        loading=[ordered]@{observed=$loadingStart;startObserved=$loadingStart;stopObserved=$loadingStop;callbackObserved=$callback}
+        relationship=(New-TestBoundaryRelationshipEvidence $Phase -Suppressed:$Suppressed -RestoreHistory:($RowIndex -gt 0))
+        cleanup=(New-TestBoundaryCleanupEvidence $Row $Phase $frame -Suppressed:$Suppressed)
+        freshWorld=(New-TestBoundaryFreshWorldEvidence $Request $Row $Phase -Suppressed:$Suppressed)
+        recordErrors=$recordErrors
+    }
+}
+
+function New-TestBoundaryPassRecords {
+    param(
+        [Parameter(Mandatory = $true)]$Request,
+        [Parameter(Mandatory = $true)][string[]]$Rows
+    )
+    $records = New-Object 'Collections.Generic.List[object]'
+    $sequence = 0L
+    $loadsBefore = 1L
+    $currentLength = [long]$Request.fixture.working.length + 7L
+    $currentTicks = [long]$Request.fixture.working.lastWriteTimeUtcTicks + 7L
+    $currentSha = ('5' * 64)
+    for ($rowIndex = 0; $rowIndex -lt $Rows.Count; $rowIndex++) {
+        $row = [string]$Rows[$rowIndex]
+        foreach ($phase in @(Get-KmcBoundaryExpectedPhases $row)) {
+            $records.Add((New-TestBoundaryEvidenceRecord $Request $row $phase ($sequence++) $rowIndex -AuthorizedLoadsBefore $loadsBefore `
+                -CurrentWorkingLength $currentLength -CurrentWorkingLastWriteTimeUtcTicks $currentTicks -CurrentWorkingSha256 $currentSha))
+        }
+        if ($row -ceq 'mounted-pair-load-safety') {
+            $loadsBefore++
+            $currentLength++
+            $currentTicks++
+            $currentSha = ('6' * 64)
+        }
+    }
+    return $records.ToArray()
+}
+
+function Write-TestBoundaryEvidence {
+    param(
+        [Parameter(Mandatory = $true)][string]$EvidenceRoot,
+        [Parameter(Mandatory = $true)]$Request,
+        [Parameter(Mandatory = $true)][array]$Records,
+        [switch]$OmitManifestRecord,
+        [string]$ManifestKind = 'boundary-evidence'
+    )
+    New-Item -ItemType Directory -Path $EvidenceRoot -Force | Out-Null
+    $path = Join-Path $EvidenceRoot 'boundary-scenario-evidence.jsonl'
+    $lines = @($Records | ForEach-Object { $_ | ConvertTo-Json -Compress -Depth 15 })
+    [IO.File]::WriteAllText($path, ($lines -join [Environment]::NewLine) + [Environment]::NewLine, (New-Object Text.UTF8Encoding($false)))
+    $artifacts = if ($OmitManifestRecord) { @() } else {
+        @([ordered]@{relativePath='boundary-scenario-evidence.jsonl';kind=$ManifestKind;length=(Get-Item -LiteralPath $path).Length;sha256=(Get-KmcSha256 $path)})
+    }
+    return New-TestArtifactManifest -EvidenceRoot $EvidenceRoot -RunId $Request.runId -Scenario $Request.scenario -Artifacts $artifacts
+}
+
+function Assert-TestBoundaryEvidenceRejected {
+    param(
+        [Parameter(Mandatory = $true)]$Request,
+        [Parameter(Mandatory = $true)][array]$Records,
+        [Parameter(Mandatory = $true)][array]$SubscenarioResults,
+        [Parameter(Mandatory = $true)][string]$FailureMessage
+    )
+    [void](Write-TestBoundaryEvidence $Request.evidenceRoot $Request $Records)
+    $manifest = Read-KmcJson (Join-Path $Request.evidenceRoot 'runtime-artifacts.json')
+    $threw = $false
+    try { Assert-KmcBoundaryScenarioEvidence -Request $Request -Manifest $manifest -Status 'PASS' -SubscenarioResults $SubscenarioResults }
+    catch { $threw = $true }
+    Assert-Test $threw $FailureMessage
+}
+
 function New-TestMovementTelemetryRecord {
     param(
         [Parameter(Mandatory = $true)]$Request,
@@ -1847,6 +2096,266 @@ try {
         $threw=$false
         try { Assert-KmcLifecycleScenarioEvidence -Request $suiteRequest -Manifest $suiteManifest -Status 'PASS' -SubscenarioResults $suiteSubresults } catch { $threw=$true }
         Assert-Test $threw 'lifecycle-suite PASS accepted fewer than the exact eight ordered rows'
+    }
+
+    $boundaryRow = 'mounted-pair-load-safety'
+    $boundaryRequest = [pscustomobject][ordered]@{
+        schemaVersion=2;runId='boundary-individual-test';scenario=$boundaryRow;branch=$v2Request.branch;commit=$v2Request.commit
+        productVersion=$v2Request.productVersion;dllSha256=$v2Request.dllSha256;dllMvid=$v2Request.dllMvid
+        transactionToken=$v2Request.transactionToken;evidenceRoot=(Join-Path $runtimeEvidenceTestRoot 'boundary-individual-test')
+        fixture=$v2Fixture
+    }
+    $boundarySubresult = [pscustomobject][ordered]@{
+        name=$boundaryRow;status='PASS';assertionPassCount=12;assertionFailCount=0;errors=@()
+    }
+    $boundaryGameAggregates = [pscustomobject][ordered]@{
+        workingLoadRequestCount=2;workingSaveRequestCount=0;unauthorizedLoadRequestCount=0
+        unauthorizedSaveRequestCount=0;baselineLoadRequestCount=0
+    }
+
+    Invoke-HarnessTest 'PASS boundary validator accepts exact individual load evidence' {
+        $records = New-TestBoundaryPassRecords $boundaryRequest @($boundaryRow)
+        [void](Write-TestBoundaryEvidence $boundaryRequest.evidenceRoot $boundaryRequest $records)
+        $manifest = Read-KmcJson (Join-Path $boundaryRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcBoundaryScenarioEvidence -Request $boundaryRequest -Manifest $manifest -Status 'PASS' `
+            -SubscenarioResults @($boundarySubresult) -GameResult $boundaryGameAggregates
+    }
+    Invoke-HarnessTest 'PASS boundary scenario rejects missing and unmanifested evidence' {
+        $records = New-TestBoundaryPassRecords $boundaryRequest @($boundaryRow)
+        $path = Join-Path $boundaryRequest.evidenceRoot 'boundary-scenario-evidence.jsonl'
+        [void](Write-TestBoundaryEvidence $boundaryRequest.evidenceRoot $boundaryRequest $records)
+        [IO.File]::Delete($path)
+        $manifestHash = New-TestArtifactManifest -EvidenceRoot $boundaryRequest.evidenceRoot -RunId $boundaryRequest.runId -Scenario $boundaryRequest.scenario
+        $manifest = Read-KmcJson (Join-Path $boundaryRequest.evidenceRoot 'runtime-artifacts.json')
+        $threw = $false
+        try { Assert-KmcBoundaryScenarioEvidence -Request $boundaryRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($boundarySubresult) } catch { $threw = $true }
+        Assert-Test $threw 'PASS boundary scenario accepted missing structured evidence'
+        $failThrew = $false
+        try { Assert-KmcBoundaryScenarioEvidence -Request $boundaryRequest -Manifest $manifest -Status 'FAIL' } catch { $failThrew = $true }
+        Assert-Test $failThrew 'FAIL boundary scenario accepted missing structured evidence'
+
+        [void](Write-TestBoundaryEvidence $boundaryRequest.evidenceRoot $boundaryRequest $records -OmitManifestRecord)
+        $manifest = Read-KmcJson (Join-Path $boundaryRequest.evidenceRoot 'runtime-artifacts.json')
+        $directThrew = $false
+        try { Assert-KmcBoundaryScenarioEvidence -Request $boundaryRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($boundarySubresult) } catch { $directThrew = $true }
+        $orchestrationThrew = $false
+        try { Get-KmcValidatedOrchestrationArtifactManifestHash $boundaryRequest | Out-Null } catch { $orchestrationThrew = $true }
+        Assert-Test ($directThrew -and $orchestrationThrew) 'boundary evidence existed outside the manifest without failing both validators'
+    }
+    Invoke-HarnessTest 'boundary manifest identity rejects the wrong artifact kind' {
+        $records = New-TestBoundaryPassRecords $boundaryRequest @($boundaryRow)
+        [void](Write-TestBoundaryEvidence $boundaryRequest.evidenceRoot $boundaryRequest $records -ManifestKind 'scenario-evidence')
+        $manifest = Read-KmcJson (Join-Path $boundaryRequest.evidenceRoot 'runtime-artifacts.json')
+        $threw = $false
+        try { Assert-KmcBoundaryScenarioEvidence -Request $boundaryRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($boundarySubresult) } catch { $threw = $true }
+        Assert-Test $threw 'boundary JSONL under the generic scenario-evidence kind passed validation'
+    }
+    Invoke-HarnessTest 'boundary validator rejects malformed and duplicate-property JSONL' {
+        $path = Join-Path $boundaryRequest.evidenceRoot 'boundary-scenario-evidence.jsonl'
+        [IO.File]::WriteAllText($path, '{' + [Environment]::NewLine, (New-Object Text.UTF8Encoding($false)))
+        $artifact = [ordered]@{relativePath='boundary-scenario-evidence.jsonl';kind='boundary-evidence';length=(Get-Item $path).Length;sha256=(Get-KmcSha256 $path)}
+        [void](New-TestArtifactManifest $boundaryRequest.evidenceRoot $boundaryRequest.runId $boundaryRequest.scenario @($artifact))
+        $manifest = Read-KmcJson (Join-Path $boundaryRequest.evidenceRoot 'runtime-artifacts.json')
+        $malformedThrew = $false
+        try { Assert-KmcBoundaryScenarioEvidence -Request $boundaryRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($boundarySubresult) } catch { $malformedThrew = $true }
+        Assert-Test $malformedThrew 'malformed boundary JSONL passed validation'
+
+        $records = New-TestBoundaryPassRecords $boundaryRequest @($boundaryRow)
+        $lines = @($records | ForEach-Object { $_ | ConvertTo-Json -Compress -Depth 15 })
+        $lines[0] = $lines[0].Replace('"phase":"row-start"','"phase":"row-start","phase":"row-start"')
+        [IO.File]::WriteAllText($path, ($lines -join [Environment]::NewLine) + [Environment]::NewLine, (New-Object Text.UTF8Encoding($false)))
+        $artifact.length = (Get-Item $path).Length; $artifact.sha256 = Get-KmcSha256 $path
+        [void](New-TestArtifactManifest $boundaryRequest.evidenceRoot $boundaryRequest.runId $boundaryRequest.scenario @($artifact))
+        $manifest = Read-KmcJson (Join-Path $boundaryRequest.evidenceRoot 'runtime-artifacts.json')
+        $duplicateThrew = $false
+        try { Assert-KmcBoundaryScenarioEvidence -Request $boundaryRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($boundarySubresult) } catch { $duplicateThrew = $true }
+        Assert-Test $duplicateThrew 'duplicate boundary JSON object property passed validation'
+    }
+    Invoke-HarnessTest 'boundary validator rejects identity type sequence and exact-property mutations' {
+        foreach ($mutation in @('sequence','row-index','schema-type','artifact-kind','dll-hash','working-type','extra-property')) {
+            $records = New-TestBoundaryPassRecords $boundaryRequest @($boundaryRow)
+            switch ($mutation) {
+                'sequence' { $records[1].sequence = 9 }
+                'row-index' { $records[1].rowIndex = 1 }
+                'schema-type' { $records[0].schemaVersion = 1.5 }
+                'artifact-kind' { $records[0].artifactKind = 'self-reported-pass' }
+                'dll-hash' { $records[0].dllSha256 = ('0' * 64) }
+                'working-type' { $records[0].workingIdentity.observedLength = '101' }
+                'extra-property' { $records[0].Add('untrustedPass',$true) }
+            }
+            Assert-TestBoundaryEvidenceRejected $boundaryRequest $records @($boundarySubresult) "boundary evidence accepted identity/shape mutation $mutation"
+        }
+    }
+    Invoke-HarnessTest 'PASS boundary validator rejects self-reported semantic mutations' {
+        foreach ($mutation in @('mounted-state','native-before-dispatch','stock-save','missing-load-dispatch','auth-delta',
+            'auth-absolute','forbidden-auth-history','loading-observed','cleanup-residue','fresh-world','fresh-relationship',
+            'selection-identity','global-component','working-identity','descriptor','predispatch-identity','identity-source',
+            'phase-order','subresult')) {
+            $records = New-TestBoundaryPassRecords $boundaryRequest @($boundaryRow)
+            $subresult = [pscustomobject][ordered]@{name=$boundaryRow;status='PASS';assertionPassCount=12;assertionFailCount=0;errors=@()}
+            switch ($mutation) {
+                'mounted-state' { @($records | Where-Object phase -ceq 'mounted')[0].relationship.state = 'Unmounted' }
+                'native-before-dispatch' { @($records | Where-Object phase -ceq 'pre-boundary')[0].triggerScope.nativeDeliveryObserved = $true }
+                'stock-save' { @($records | Where-Object phase -ceq 'row-result')[0].triggerScope.stockSaveRoutineInvoked = $true }
+                'missing-load-dispatch' {
+                    $resultRecord = @($records | Where-Object phase -ceq 'row-result')[0]
+                    $resultRecord.triggerScope.nativeDeliveryObserved = $false
+                    $resultRecord.triggerScope.realWorkingLoadDispatched = $false
+                }
+                'auth-delta' {
+                    $resultRecord = @($records | Where-Object phase -ceq 'row-result')[0]
+                    $resultRecord.authorization.authorizedLoadsAfter = $resultRecord.authorization.authorizedLoadsBefore
+                    $resultRecord.authorization.authorizedLoadsDelta = 0
+                }
+                'auth-absolute' {
+                    $records[0].authorization.authorizedLoadsBefore = 99
+                    $records[0].authorization.authorizedLoadsAfter = 99
+                }
+                'forbidden-auth-history' {
+                    $records[0].authorization.authorizedWritesBefore = 1
+                    $records[0].authorization.authorizedWritesAfter = 1
+                }
+                'loading-observed' { @($records | Where-Object phase -ceq 'loading-stop')[0].loading.observed = $false }
+                'cleanup-residue' { @($records | Where-Object phase -ceq 'row-result')[0].cleanup.movementAuthorityResidual = $true }
+                'fresh-world' { @($records | Where-Object phase -ceq 'fresh-world')[0].freshWorld.relationshipClean = $false }
+                'fresh-relationship' { @($records | Where-Object phase -ceq 'fresh-world')[0].relationship.riderStockAgentEnabled = $false }
+                'selection-identity' { @($records | Where-Object phase -ceq 'fresh-world')[0].relationship.selectedUnitIds = @('different-unit') }
+                'global-component' { @($records | Where-Object phase -ceq 'fresh-world')[0].relationship.kmcRiderMovementAgentComponentCount = 1 }
+                'working-identity' { @($records | Where-Object phase -ceq 'row-result')[0].workingIdentity.observedSha256 = ('3' * 64) }
+                'descriptor' { @($records | Where-Object phase -ceq 'cleanup-latch')[0].workingIdentity.descriptorVerified = $false }
+                'predispatch-identity' { @($records | Where-Object phase -ceq 'cleanup-latch')[0].workingIdentity.preDispatchLength = 102 }
+                'identity-source' { @($records | Where-Object phase -ceq 'cleanup-latch')[0].workingIdentity.observedSource = 'immediate-post-dispatch' }
+                'phase-order' {
+                    $temporary = $records[4]; $records[4] = $records[5]; $records[5] = $temporary
+                    for ($index=0;$index -lt $records.Count;$index++) { $records[$index].sequence=$index; $records[$index].frame=$index+1 }
+                }
+                'subresult' { $subresult.assertionPassCount = 11 }
+            }
+            Assert-TestBoundaryEvidenceRejected $boundaryRequest $records @($subresult) "boundary evidence accepted self-reported semantic mutation $mutation"
+        }
+    }
+    Invoke-HarnessTest 'boundary live terminal identity is opt-in and final aggregates reconcile' {
+        $liveRoot = Join-Path $runtimeEvidenceTestRoot 'boundary-live-identity-test'
+        New-Item -ItemType Directory -Path $liveRoot -Force | Out-Null
+        $livePath = Join-Path $liveRoot ([string]$v2Fixture.working.fileName)
+        [IO.File]::WriteAllText($livePath, 'synthetic terminal Working bytes', (New-Object Text.UTF8Encoding($false)))
+        $liveItem = Get-Item -LiteralPath $livePath -Force
+        $liveSha256 = Get-KmcSha256 $livePath
+        $liveRequest = [pscustomobject][ordered]@{
+            schemaVersion=2;runId='boundary-live-identity-test';scenario=$boundaryRow;branch=$v2Request.branch;commit=$v2Request.commit
+            productVersion=$v2Request.productVersion;dllSha256=$v2Request.dllSha256;dllMvid=$v2Request.dllMvid
+            transactionToken=$v2Request.transactionToken;evidenceRoot=$liveRoot;fixture=$v2Fixture
+        }
+        $records = New-TestBoundaryPassRecords $liveRequest @($boundaryRow)
+        foreach ($record in $records) {
+            $record.workingIdentity.path = $livePath
+            if ($record.workingIdentity.descriptorVerified -eq $true) {
+                $record.workingIdentity.descriptorPath = $livePath
+            }
+        }
+        foreach ($record in @($records | Where-Object { [string]$_.phase -cin @('loading-stop','fresh-world','row-result') })) {
+            $record.workingIdentity.observedLength = [long]$liveItem.Length
+            $record.workingIdentity.observedLastWriteTimeUtcTicks = [long]$liveItem.LastWriteTimeUtc.Ticks
+            $record.workingIdentity.observedSha256 = [string]$liveSha256
+            $record.workingIdentity.matchesPostInitialLoad = $false
+        }
+        [void](Write-TestBoundaryEvidence $liveRoot $liveRequest $records)
+        $manifest = Read-KmcJson (Join-Path $liveRoot 'runtime-artifacts.json')
+        Assert-KmcBoundaryScenarioEvidence -Request $liveRequest -Manifest $manifest -Status 'PASS' `
+            -SubscenarioResults @($boundarySubresult) -GameResult $boundaryGameAggregates -VerifyLiveWorkingIdentity `
+            -ExpectedLiveWorkingPath $livePath
+
+        $pathBindingThrew = $false
+        try {
+            Assert-KmcBoundaryScenarioEvidence -Request $liveRequest -Manifest $manifest -Status 'PASS' `
+                -SubscenarioResults @($boundarySubresult) -GameResult $boundaryGameAggregates -VerifyLiveWorkingIdentity `
+                -ExpectedLiveWorkingPath ($livePath + '.wrong')
+        } catch { $pathBindingThrew = $true }
+        Assert-Test $pathBindingThrew 'opt-in live Working validation trusted the self-reported path over the transaction-owned path'
+
+        $badAggregates = $boundaryGameAggregates | ConvertTo-Json | ConvertFrom-Json
+        $badAggregates.workingLoadRequestCount = 99
+        $aggregateThrew = $false
+        try {
+            Assert-KmcBoundaryScenarioEvidence -Request $liveRequest -Manifest $manifest -Status 'PASS' `
+                -SubscenarioResults @($boundarySubresult) -GameResult $badAggregates
+        } catch { $aggregateThrew = $true }
+        Assert-Test $aggregateThrew 'boundary evidence did not reconcile terminal authorization with the game aggregate'
+
+        [IO.File]::AppendAllText($livePath, '-mutated', (New-Object Text.UTF8Encoding($false)))
+        Assert-KmcBoundaryScenarioEvidence -Request $liveRequest -Manifest $manifest -Status 'PASS' `
+            -SubscenarioResults @($boundarySubresult) -GameResult $boundaryGameAggregates
+        $liveThrew = $false
+        try {
+            Assert-KmcBoundaryScenarioEvidence -Request $liveRequest -Manifest $manifest -Status 'PASS' `
+                -SubscenarioResults @($boundarySubresult) -GameResult $boundaryGameAggregates -VerifyLiveWorkingIdentity `
+                -ExpectedLiveWorkingPath $livePath
+        } catch { $liveThrew = $true }
+        Assert-Test $liveThrew 'opt-in live terminal Working validation accepted changed bytes'
+        $launcherSource = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'runtime\Invoke-KingmakerRuntimeScenario.ps1')
+        $postRestoreValidatorSource = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'runtime\Test-RuntimeResult.ps1')
+        Assert-Test ([regex]::Matches($launcherSource, '(?<![A-Za-z])-VerifyLiveWorkingIdentity(?![A-Za-z])').Count -eq 1) `
+            'live Working verification was not confined to one guarded launcher call site'
+        Assert-Test ($launcherSource -cmatch '\$lockedWorkingPath=\[IO\.Path\]::GetFullPath\(\[string\]\$lockedPair\.working\.path\)' -and
+            $launcherSource -cmatch '-ExpectedLiveWorkingPath \$lockedWorkingPath') `
+            'live Working verification was not bound to the exact transaction-owned Working path'
+        Assert-Test ($postRestoreValidatorSource -cnotmatch 'VerifyLiveWorkingIdentity') `
+            'post-restoration runtime-result replay was coupled to live Working identity'
+    }
+    Invoke-HarnessTest 'boundary-suite accepts exact five-row evidence and rejects reordered rows/subresults' {
+        $suiteRows = @(Get-KmcBoundaryRuntimeRows)
+        $suiteRequest = [pscustomobject][ordered]@{
+            schemaVersion=2;runId='boundary-suite-test';scenario='boundary-suite';branch=$v2Request.branch;commit=$v2Request.commit
+            productVersion=$v2Request.productVersion;dllSha256=$v2Request.dllSha256;dllMvid=$v2Request.dllMvid
+            transactionToken=$v2Request.transactionToken;evidenceRoot=(Join-Path $runtimeEvidenceTestRoot 'boundary-suite-test')
+            fixture=$v2Fixture
+        }
+        $suiteRecords = New-TestBoundaryPassRecords $suiteRequest $suiteRows
+        $suiteSubresults = @($suiteRows | ForEach-Object { [pscustomobject][ordered]@{name=$_;status='PASS';assertionPassCount=12;assertionFailCount=0;errors=@()} })
+        [void](Write-TestBoundaryEvidence $suiteRequest.evidenceRoot $suiteRequest $suiteRecords)
+        $manifest = Read-KmcJson (Join-Path $suiteRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcBoundaryScenarioEvidence -Request $suiteRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults $suiteSubresults
+
+        $reordered = @(
+            @($suiteRecords | Where-Object row -ceq $suiteRows[1])
+            @($suiteRecords | Where-Object row -ceq $suiteRows[0])
+            @($suiteRecords | Where-Object { [Array]::IndexOf($suiteRows,[string]$_.row) -ge 2 })
+        )
+        for ($index=0;$index -lt $reordered.Count;$index++) { $reordered[$index].sequence=$index; $reordered[$index].frame=$index+1 }
+        Assert-TestBoundaryEvidenceRejected $suiteRequest $reordered $suiteSubresults 'boundary-suite accepted reordered row evidence'
+
+        $reorderedSubresults = @($suiteSubresults)
+        $temporary = $reorderedSubresults[0]; $reorderedSubresults[0]=$reorderedSubresults[1]; $reorderedSubresults[1]=$temporary
+        Assert-TestBoundaryEvidenceRejected $suiteRequest $suiteRecords $reorderedSubresults 'boundary-suite accepted reordered subscenario results'
+    }
+    Invoke-HarnessTest 'boundary FAIL evidence permits one executed failure then exact suppressed rows only' {
+        $rows = @(Get-KmcBoundaryRuntimeRows)
+        $failureRequest = [pscustomobject][ordered]@{
+            schemaVersion=2;runId='boundary-failure-test';scenario='boundary-suite';branch=$v2Request.branch;commit=$v2Request.commit
+            productVersion=$v2Request.productVersion;dllSha256=$v2Request.dllSha256;dllMvid=$v2Request.dllMvid
+            transactionToken=$v2Request.transactionToken;evidenceRoot=(Join-Path $runtimeEvidenceTestRoot 'boundary-failure-test')
+            fixture=$v2Fixture
+        }
+        $failureRecords = New-Object 'Collections.Generic.List[object]'
+        $failureRecords.Add((New-TestBoundaryEvidenceRecord $failureRequest $rows[0] 'row-start' 0 0))
+        $failed = New-TestBoundaryEvidenceRecord $failureRequest $rows[0] 'row-result' 1 0
+        $failed.rowStatus='FAIL';$failed.assertionPassCount=1;$failed.assertionFailCount=1;$failed.recordErrors=@('Synthetic boundary failure.')
+        $failed.authorization.unauthorizedWritesAfter=1;$failed.authorization.unauthorizedWritesDelta=1
+        $failureRecords.Add($failed)
+        $subresults = New-Object 'Collections.Generic.List[object]'
+        $subresults.Add([pscustomobject][ordered]@{name=$rows[0];status='FAIL';assertionPassCount=1;assertionFailCount=1;errors=@('Synthetic boundary failure.')})
+        for ($index=1;$index -lt $rows.Count;$index++) {
+            $record = New-TestBoundaryEvidenceRecord $failureRequest $rows[$index] 'row-result' ($index+1) $index -Suppressed
+            $record.authorization.unauthorizedWritesBefore=1;$record.authorization.unauthorizedWritesAfter=1
+            $failureRecords.Add($record)
+            $subresults.Add([pscustomobject][ordered]@{name=$rows[$index];status='FAIL';assertionPassCount=0;assertionFailCount=1;errors=@('Suppressed after a prior boundary failure.')})
+        }
+        [void](Write-TestBoundaryEvidence $failureRequest.evidenceRoot $failureRequest $failureRecords.ToArray())
+        $manifest = Read-KmcJson (Join-Path $failureRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcBoundaryScenarioEvidence -Request $failureRequest -Manifest $manifest -Status 'FAIL' -SubscenarioResults $subresults.ToArray()
+
+        $failureRecords[2].executed=$true;$failureRecords[2].suppressed=$false
+        Assert-TestBoundaryEvidenceRejected $failureRequest $failureRecords.ToArray() $subresults.ToArray() 'boundary-suite accepted an executed row after its first safety failure'
     }
 
     $movementRow = 'mounted-pair-open-ground'

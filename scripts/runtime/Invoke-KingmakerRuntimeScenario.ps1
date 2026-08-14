@@ -119,6 +119,7 @@ $gamePassed=$false
 $validatedGameResult=$null
 $gameResultHash=$null
 $final=$null
+$lockedWorkingPath=$null
 $errors=New-Object 'System.Collections.Generic.List[string]'
 New-Item -ItemType Directory -Path $evidenceRoot|Out-Null
 try{
@@ -142,6 +143,7 @@ try{
     # a third immediate descriptor check before its backup becomes authoritative.
     if($isSaveBacked){
         $lockedPair=Assert-KmcFixturePair -SaveRoot $saveRoot -QualificationPath $qualificationPath
+        $lockedWorkingPath=[IO.Path]::GetFullPath([string]$lockedPair.working.path)
         $lockedPayload=New-KmcRuntimeFixturePayload $lockedPair
         if(($lockedPayload|ConvertTo-Json -Depth 10 -Compress)-cne($fixturePayload|ConvertTo-Json -Depth 10 -Compress)){
             throw 'KMC fixture identity changed between preflight and locked transaction entry.'
@@ -195,7 +197,7 @@ try{
     }
     $candidateHash=Get-KmcSha256 $gameResultPath
     $gameResultHash=$candidateHash
-    & (Join-Path $repoRoot 'scripts\runtime\Test-RuntimeGameResult.ps1') -GameResultPath $gameResultPath -RequestPath $requestPath -FingerprintPath $fingerprintPath -ExpectedProcessId $process.Id -NotBeforeUtc $startedAt
+    & (Join-Path $repoRoot 'scripts\runtime\Test-RuntimeGameResult.ps1') -GameResultPath $gameResultPath -RequestPath $requestPath -FingerprintPath $fingerprintPath -ExpectedProcessId $process.Id -NotBeforeUtc $startedAt -VerifyLiveWorkingIdentity -ExpectedLiveWorkingPath $lockedWorkingPath
     $validatedGameResult=Read-KmcJson $gameResultPath
     $gamePassed=[string]$validatedGameResult.status -ceq 'PASS'
     if(-not$gamePassed){$errors.Add('Game reported FAIL: '+(@($validatedGameResult.errors) -join '; '))}
