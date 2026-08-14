@@ -1864,6 +1864,44 @@ try {
         $manifest = Read-KmcJson (Join-Path $movementRequest.evidenceRoot 'runtime-artifacts.json')
         Assert-KmcMovementScenarioEvidence -Request $movementRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($movementSubresult)
     }
+    Invoke-HarnessTest 'PASS movement telemetry requires exact row-aware pause and game-mode coherence' {
+        $pauseRow = 'mounted-pair-pause-unpause'
+        $pauseRequest = [pscustomobject][ordered]@{
+            runId='movement-pause-coherence-test';scenario=$pauseRow;branch=$v2Request.branch;commit=$v2Request.commit
+            productVersion=$v2Request.productVersion;dllSha256=$v2Request.dllSha256;dllMvid=$v2Request.dllMvid
+            evidenceRoot=(Join-Path $runtimeEvidenceTestRoot 'movement-pause-coherence-test')
+        }
+        $pauseSubresult = [pscustomobject][ordered]@{name=$pauseRow;status='PASS';assertionPassCount=20;assertionFailCount=0;errors=@()}
+        $pauseScenario = @((New-TestMovementPathProbeRecord $pauseRequest $pauseRow 0),(New-TestMovementRowRecord $pauseRequest $pauseRow 1))
+
+        # Preserve both shapes emitted by the pause row: ordinary Default frames
+        # are unpaused, while the bounded pause interval is exactly Pause/true.
+        $defaultTelemetry = New-TestMovementTelemetryRecord $pauseRequest $pauseRow 0
+        $pausedTelemetry = New-TestMovementTelemetryRecord $pauseRequest $pauseRow 1
+        $pausedTelemetry.currentGameMode = 'Pause'
+        $pausedTelemetry.paused = $true
+        [void](Write-TestMovementEvidence $pauseRequest.evidenceRoot $pauseRequest @($defaultTelemetry,$pausedTelemetry) $pauseScenario)
+        $manifest = Read-KmcJson (Join-Path $pauseRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcMovementScenarioEvidence -Request $pauseRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($pauseSubresult)
+
+        $mutations = @(
+            [pscustomobject]@{name='Pause in another movement row';request=$movementRequest;row=$movementRow;mode='Pause';paused=$true;subresult=$movementSubresult},
+            [pscustomobject]@{name='Pause while unpaused';request=$pauseRequest;row=$pauseRow;mode='Pause';paused=$false;subresult=$pauseSubresult},
+            [pscustomobject]@{name='Default while paused';request=$pauseRequest;row=$pauseRow;mode='Default';paused=$true;subresult=$pauseSubresult},
+            [pscustomobject]@{name='non-contract game mode';request=$pauseRequest;row=$pauseRow;mode='Cutscene';paused=$false;subresult=$pauseSubresult}
+        )
+        foreach ($mutation in $mutations) {
+            $telemetry = New-TestMovementTelemetryRecord $mutation.request $mutation.row 0
+            $telemetry.currentGameMode = $mutation.mode
+            $telemetry.paused = $mutation.paused
+            $scenario = @((New-TestMovementPathProbeRecord $mutation.request $mutation.row 0),(New-TestMovementRowRecord $mutation.request $mutation.row 1))
+            [void](Write-TestMovementEvidence $mutation.request.evidenceRoot $mutation.request @($telemetry) $scenario)
+            $manifest = Read-KmcJson (Join-Path $mutation.request.evidenceRoot 'runtime-artifacts.json')
+            $threw = $false
+            try { Assert-KmcMovementScenarioEvidence -Request $mutation.request -Manifest $manifest -Status 'PASS' -SubscenarioResults @($mutation.subresult) } catch { $threw = $true }
+            Assert-Test $threw "PASS movement telemetry accepted incoherent pause state: $($mutation.name)"
+        }
+    }
     Invoke-HarnessTest 'PASS movement validator requires both exact manifested JSONL artifacts' {
         $telemetry = @((New-TestMovementTelemetryRecord $movementRequest $movementRow 0))
         $scenario = @((New-TestMovementPathProbeRecord $movementRequest $movementRow 0),(New-TestMovementRowRecord $movementRequest $movementRow 1))

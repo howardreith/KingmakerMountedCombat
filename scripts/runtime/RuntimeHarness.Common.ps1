@@ -2509,9 +2509,18 @@ function Assert-KmcMovementTelemetryRecord {
     if ($null -ne $Record.mountPathError -and $Record.mountPathError -isnot [bool] -and $Record.mountPathError -isnot [string] -and -not (Test-KmcExactJsonInteger $Record.mountPathError)) { throw 'Movement telemetry mountPathError must be a boolean, string, integer, or null.' }
     if ($null -ne $Record.mountPathErrorLog -and $Record.mountPathErrorLog -isnot [string]) { throw 'Movement telemetry mountPathErrorLog must be a string or null.' }
     if ($RequireComplete) {
+        $isPauseRow = [string]$Record.row -ceq 'mounted-pair-pause-unpause'
+        $gameModeAndPauseAreCoherent = if ($isPauseRow) {
+            $Record.paused -is [bool] -and
+                (($Record.paused -eq $true -and [string]$Record.currentGameMode -ceq 'Pause') -or
+                 ($Record.paused -eq $false -and [string]$Record.currentGameMode -ceq 'Default'))
+        }
+        else {
+            $Record.paused -eq $false -and [string]$Record.currentGameMode -ceq 'Default'
+        }
         if ([string]$Record.relationshipState -cne 'Mounted' -or [string]$Record.authoritativeMover -cne 'mount' -or
             $Record.combat -ne $false -or $Record.partyCombat -ne $false -or $Record.turnBased -ne $false -or
-            [string]$Record.currentGameMode -cne 'Default' -or $Record.riderStockAgentEnabled -ne $false -or
+            -not $gameModeAndPauseAreCoherent -or $Record.riderStockAgentEnabled -ne $false -or
             $Record.mountStockAgentEnabled -ne $true -or $Record.riderAvoidanceDisabled -ne $true -or
             $Record.attachmentLeaseActive -ne $true -or $Record.riderParentMatchesAttachment -ne $true -or
             [string]$Record.anchor -cne 'KMC_RiderPositionAnchor' -or [string]$Record.sourceAnchor -cne 'Spine' -or
