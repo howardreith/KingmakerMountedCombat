@@ -2,9 +2,9 @@
 
 Status: BLOCKED — CRITICAL
 
-Evidence ledger: source 21 PASS / 0 FAIL; pure/component 56 PASS / 0 FAIL; guarded harness/protocol 58 PASS / 0 FAIL; assembly-backed 47 PASS / 0 FAIL (Kingmaker 36, Wrath 11). Runtime mission rows remain 1 PASS / 0 FAIL / 24 DEFER — EVIDENCED. The filename gate is Baseline=1 / Working=0, with rejected near-match `Manual_299_KMC_AUTOMATION_WORKING_.zks`; no fixture archive or mounted-pair runtime sample was opened or produced.
+The exact fixture gate is PASS: one canonical Baseline, one canonical Working, zero KMC-looking near-matches, distinct paths, exact internal identities, matching campaign/area identity, immutable Baseline, and Working-only write authorization. Current gates are source 21 PASS / 0 FAIL; Release build PASS; pure/component 112 PASS / 0 FAIL; visual-capture contracts 12 PASS / 0 FAIL; guarded harness/protocol 105 PASS / 0 FAIL; and assembly-backed 69 PASS / 0 FAIL (Kingmaker 58, Wrath 11). The final named runtime-row ledger is 22 PASS / 0 attributable FAIL / 3 DEFER — EVIDENCED.
 
-Scores use 1 (unacceptable) through 5 (strong evidence). For complexity, patch surface, and compatibility risk, higher means lower burden/risk. Movement, cleanup/save safety, complexity, compatibility, and maintainability are weighted 2. Scores reflect exact contracts and metadata, not unrun runtime behavior.
+Scores use 1 (unacceptable) through 5 (strong evidence). For complexity, patch surface, and compatibility risk, higher means lower burden/risk. Movement, cleanup/save safety, complexity, compatibility, and maintainability are weighted 2. The scores remain unchanged after runtime qualification: the new evidence increases confidence in Architecture B's bounded pair-only behavior, but doorway repeatability, away/back selection, party formation, combat behavior, persistence, and polished presentation remain unproved.
 
 | Criterion | Weight | A: true dual entity | B: mount + rider proxy | C: composite proxy | D: abstract state |
 |---|---:|---:|---:|---:|---:|
@@ -25,9 +25,9 @@ Scores use 1 (unacceptable) through 5 (strong evidence). For complexity, patch s
 | Licensing/asset independence | 1 | 5 | 5 | 5 | 5 |
 | Weighted total / 100 | — | **41** | **66** | **77** | **89** |
 
-The totals measure current engineering safety, not product desirability. B remains the only authorized Phase 1 movement experiment because exact Kingmaker seams support a bounded test. D scores highest because it avoids the unproven two-entity contracts; that is not evidence that the user-facing compromise is acceptable.
+The totals measure engineering safety, not product desirability. D scores highest because it avoids two-entity contracts; that does not establish that its user-facing abstraction is acceptable. B is the only architecture with live pair evidence and remains the provisional product-fit leader. No score is derived from sunk implementation effort.
 
-Score confidence is high for licensing, absence of mounted primitives, patch surface, and relative complexity; medium for command/movement seams; low for B/C presentation and indoor behavior because no fixture-backed view ran. No score is derived from sunk implementation effort.
+Confidence is high for licensing, absence of native mounted primitives, the exact patch surface, one-mover authority, tested pair-only movement, cleanup, and external restoration. Confidence is medium for B's command and attachment seams. It remains low for non-pair selection/formation, repeatable indoor behavior, polished pose, combat/action coupling, and persistence. C and D remain structural paper alternatives rather than runtime-qualified implementations.
 
 ## A. True dual-entity relationship
 
@@ -38,65 +38,67 @@ Score confidence is high for licensing, absence of mounted primitives, patch sur
 - Movement result: not implemented; two co-located ordinary agents violate the pre-code one-mover gate.
 - Selection result: unknown and structurally high risk because both entities remain independently selectable.
 - Cleanup result: deterministic proof absent; residue surface is widest.
-- Visual result: unknown; native assets do not solve two-root synchronization.
-- Future combat feasibility: theoretically strongest independent targeting, but exact Wrath redirects hostile rider targets and uses deep paired commands; A is not Wrath's real architecture.
+- Visual result: native assets do not solve two-root synchronization.
+- Future combat feasibility: theoretically strongest independent targeting, but exact Wrath behavior redirects hostile rider targets and uses deep paired commands; A is not Wrath's actual architecture.
 - Turn-based / real-time: both require extensive paired action and command ownership; unproven.
 - Save strategy: new reciprocal persistent parts plus repair would be required; prohibited for this phase.
 - Known incompatibilities: ordinary avoidance, formation slots, target selection, and mods patching central command/movement code.
-- Licensing/assets: original code and Kingmaker-native assets could remain independent, but no acceptable presentation is proven.
-- Estimated complexity: very high; fatal risks K1/K5/K6/K7/K10; confidence high that A should not be Phase 2.
+- Licensing/assets: original code and Kingmaker-native assets could remain independent.
+- Estimated complexity: very high; confidence is high that A should not be Phase 2.
 
 ## B. Authoritative mount plus rider combat proxy
 
-- Summary: mount owns stock pathfinding/footprint; rider remains principal logical representation; rider stock pathing/avoidance is suppressed and its state/view is synchronized.
-- Exact Kingmaker seams: `AgentOverride`; `AgentASP.Stop`, `AvoidanceDisabled`, `enabled`; exact `ClickGroundHandler.RunCommand`; public selection; pair-local `LateUpdate`; EventBus lifecycle; save/load cleanup.
-- Required subsystems: runtime coordinator, exact pair adapter, owned rider override, command routing, anchor presentation, selection/cancel forwarding, cleanup, telemetry, and later combat proxy rules.
-- Harmony patch surface: eight exact active-pair entry/control guards with an exact Assembly-CSharp MVID gate; no global movement tick replacement.
-- Movement result: implemented default-off but not executed with a pair. Contract predicts one mount mover; stability, drift, doorway, and corners remain unknown.
-- Selection result: routing/snapshot mechanism implemented; runtime selection and formation results unknown.
-- Cleanup result: rollback, retryable residue ownership, and deterministic cleanup tests PASS; in-game pair cleanup unrun.
-- Visual result: rank-7+ Mammoth `Spine` anchor experiment implemented; rider identity, pose, clipping, and animation stability unknown.
+- Summary: the mount owns stock pathfinding and physical footprint; the rider remains the principal logical representation with pair-scoped synchronization and command delegation.
+- Exact Kingmaker seams: `AgentOverride`; `AgentASP.Stop`, `AvoidanceDisabled`, and `enabled`; exact `ClickGroundHandler.RunCommand`; public selection; pair-local `LateUpdate`; EventBus lifecycle; and save/load cleanup.
+- Required subsystems: runtime coordinator, exact pair adapter, owned rider override, command routing, root-local anchor presentation, selection/cancel forwarding, cleanup, telemetry, and later combat proxy rules.
+- Harmony patch surface: eight exact active-pair entry/control guards with an exact Assembly-CSharp MVID gate; no global movement-tick replacement.
+- Movement result: PASS for the runnable pair-only subset. Open ground, stop/start, turns/corners, pause/unpause, and destination cancellation each passed A/B in fresh processes. The Mammoth alone remained authoritative; synchronization, oscillation, stuck, command-replacement, selection-loss, and cleanup-residue gates passed. Repeatable doorway qualification remains DEFER — EVIDENCED because native hostiles forced the correct combat cleanup after successful unmounted control and stable mounted entry.
+- Selection result: pair selection retention and cleanup restoration passed repeatedly. Required away/back selection and party formation are DEFER — EVIDENCED because the exact Working fixture has no eligible directly controllable non-pair unit; non-mounted party isolation is therefore not proven.
+- Cleanup result: lifecycle suites A/B each passed all 8 rows and 339 assertions. Movement and five individual boundary runs ended Unmounted with stock agents, avoidance, override/component state, `ForbidRotation`, attachment parent/lease, commands, pause state, and selection restored without residue. Lifecycle death/combat/area rows remain scoped to direct handler calls unless native delivery was separately observed.
+- Visual result: `MECHANICALLY VIABLE, NEW ANIMATION/POSE WORK REQUIRED`. Usable game-camera frames show a stable readable humanoid-on-Mammoth silhouette, but the rider remains rigidly upright with the lower body intersecting or occluded by the Mammoth back and has no seated pose, reins, or saddle. This does not fire K9.
 - Future combat feasibility: closest to Wrath's physical/logical split, but targeting, paired attacks, initiative, reach, and action economy remain Phase 2 contracts.
-- Turn-based / real-time: both plausible from exact seams; Phase 1 clears at mode/combat boundaries. The offline boundary engine directly invokes the exact mode handlers, which tests adapter behavior but does not prove real controller/EventBus delivery timing; neither mode is proven while mounted.
-- Save strategy: no entity part or mounted JSON; exact save/load prefixes clean before the guarded boundary; the area scenario pre-cleans before real `ReloadArea(AutoSaveMode.None)`. The save-safety row deliberately issues no stock save and can prove only cleanup, unchanged Working bytes, zero save requests, and no KMC relationship serialization—not a completed Kingmaker save cycle.
+- Turn-based / real-time: both individual boundary rows PASS only for direct lifecycle-handler cleanup; `nativeDeliveryObserved=false`, so real controller/EventBus delivery is not claimed.
+- Save strategy: no entity part or mounted JSON. Save-safety PASS directly calls `GuardBoundary(SaveRequested)` and invokes no stock `SaveRoutine` or serialization. Load-safety PASS performs a real exact-Working `Game.LoadGame` through the native `LoadRoutine` prefix. Area-transition PASS directly latches `OnAreaBeginUnloading` cleanup before real `ReloadArea(AutoSaveMode.None)`; native area-event delivery is not independently qualified.
 - Known incompatibilities: pre-existing rider override, continuous/gamepad movement, non-Medium rider, non-larger Mammoth, indoor geometry, or another mod patching the same private click seam.
-- Licensing/assets: original implementation, Kingmaker-native Mammoth only, no Wrath/runtime mod dependency.
-- Estimated complexity: high but bounded; fatal risks K3/K4/K5/K7/K9/K10; confidence medium in the seam and low in runtime outcome.
+- Licensing/assets: original implementation and Kingmaker-native Mammoth only; no Wrath runtime or asset dependency.
+- Estimated complexity: high but bounded. Confidence is high in the qualified movement/cleanup subset, medium in the architecture seam, and low in the mandatory fixture-limited and future-combat contracts.
 
 ## C. Composite proxy
 
 - Summary: one visible/controllable composite represents the pair while companion state is hidden or suspended.
-- Exact Kingmaker seams: one ordinary unit mover/view, visibility/entity lifecycle, selection, companion resource bookkeeping, damage/target forwarding.
-- Required subsystems: composite presentation, hidden-companion lifecycle, damage/action proxy, restoration and uninstall policy.
+- Exact Kingmaker seams: one ordinary unit mover/view, visibility/entity lifecycle, selection, companion resource bookkeeping, and damage/target forwarding.
+- Required subsystems: composite presentation, hidden-companion lifecycle, damage/action proxy, restoration, and uninstall policy.
 - Harmony patch surface: narrower movement/formation interception than B, broader entity/resource/target redirection.
 - Movement result: not implemented; one ordinary mover is structurally favorable.
 - Selection result: not implemented; one selection/formation slot is structurally favorable.
 - Cleanup result: unknown; hidden-companion leakage is the load-bearing risk.
 - Visual result: unknown; no native ready-made rider/Mammoth composite exists.
-- Future combat feasibility: viable through one principal entity, with explicit compromise to independent mount attacks/targeting.
-- Turn-based / real-time: likely simpler than B because one command owner; unproven.
+- Future combat feasibility: viable through one principal entity, with an explicit compromise to independent mount attacks/targeting.
+- Turn-based / real-time: likely simpler than B because there is one command owner; unproven.
 - Save strategy: early versions must reconstitute before save; future proxy persistence requires a separate contract.
 - Known incompatibilities: companion-dependent mechanics and mods expecting a visible/live pet entity.
-- Licensing/assets: must use original/Kingmaker-native presentation; Wrath assets remain forbidden.
+- Licensing/assets: must use original or Kingmaker-native presentation; Wrath assets remain forbidden.
 - Estimated complexity: high; fatal risks are presentation availability and hidden-state residue; confidence medium-low.
 
 ## D. Abstract mounted state
 
-- Summary: rider receives bounded mechanics and optional cosmetic representation; no full two-entity movement simulation.
-- Exact Kingmaker seams: rider speed/state modifiers, one ordinary command agent, eligibility/resource checks, cleanup events, optional view child.
-- Required subsystems: abstract rules state, companion eligibility/resource accounting, cosmetic presentation, uninstall cleanup.
+- Summary: the rider receives bounded mechanics and optional cosmetic representation; there is no full two-entity movement simulation.
+- Exact Kingmaker seams: rider speed/state modifiers, one ordinary command agent, eligibility/resource checks, cleanup events, and an optional view child.
+- Required subsystems: abstract rules state, companion eligibility/resource accounting, cosmetic presentation, and uninstall cleanup.
 - Harmony patch surface: narrowest; no dual-agent or formation delegation.
 - Movement result: not implemented, but inherits ordinary rider movement.
 - Selection result: inherits ordinary rider selection/formation.
 - Cleanup result: structurally simplest; no pair override has to be restored.
-- Visual result: likely weakest Wrath resemblance; a generic horse cosmetic would be an explicit non-identical representation compromise, while Mammoth identity remains visually unproven.
+- Visual result: weakest Wrath resemblance; a cosmetic representation is an explicit product compromise.
 - Future combat feasibility: simplified mounted bonuses/restrictions are possible; independent mount actions or true dual targeting cannot be claimed.
 - Turn-based / real-time: most likely to share ordinary game behavior; still requires rule-specific qualification.
 - Save strategy: runtime fact cleared at boundaries or a small explicit future state with uninstall handling.
 - Known incompatibilities: product expectation may reject the abstraction; companion mechanics may not align with cosmetic state.
 - Licensing/assets: original rules and Kingmaker-native cosmetic only.
-- Estimated complexity: low; few technical fatal risks; confidence high in stability, low in player acceptance.
+- Estimated complexity: low; confidence high in structural stability and low in player acceptance.
 
 ## Decision
 
-No final Phase 2 architecture is authorized. The correct outcome is `BLOCKED — CRITICAL`, not a proceed or pivot claim: Architecture B has a plausible scoped seam and a default-off implementation, but zero pair samples; no B kill criterion has fired, and C/D have not been prototyped. The guard is implemented and offline-qualified, but the exact audit is Baseline=1 / Working=0 because the only Working-looking file has a prohibited trailing underscore. After an exact Working fixture is recreated manually and the 1/1 filename plus descriptor gate passes, resume B only for the bounded Phase 1 movement/lifecycle matrix. A B failure at a listed kill criterion must disable it and rescore C/D; a full B qualification may support a later proceed recommendation.
+No kill criterion fired, so the evidence-backed pivot path is unavailable. Architecture B remains the provisional product-fit leader, but Phase 2 is not authorized. The correct top-level status is `BLOCKED — CRITICAL`, not Proceed, Pivot, or Manual Visual Review: the mission's mandatory doorway-with-control, away/back selection, and party-formation rows remain `DEFER — EVIDENCED` under the exact Working fixture. The pair-only movement, lifecycle, visual, boundary, fixture, and restoration evidence cannot substitute for those three core rows or for runtime non-mounted-party isolation.
+
+Unblocking requires a manually prepared Working fixture in the same qualified campaign/area with an eligible directly controllable non-pair unit and a combat-neutral Mammoth-valid doorway. Baseline remains immutable. Only after the exact fixture gate is requalified and those three rows pass their required fresh-process evidence can Architecture B receive an unconditional Phase 2 recommendation.

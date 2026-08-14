@@ -2,42 +2,76 @@
 
 Status: BLOCKED — CRITICAL
 
-## Delivered, default-off diagnostic implementation
+## Delivered default-off diagnostic implementation
 
-- Independent net47/C# 7.3/AnyCPU UMM mod identity: `KingmakerMountedCombat` / `KingmakerMountedCombat.dll`, version `0.0.1-feasibility`.
-- Explicit relationship coordinator with `Unmounted`, `Validating`, `Mounting`, `Mounted`, `Dismounting`, `Faulted`, and `Disposed` states; one-pair invariant; rollback; idempotent/best-effort cleanup; retryable residue ownership.
-- Exact Mammoth-only Kingmaker adapter requiring a distinct Medium controllable rider, exact reciprocal active companion, conscious/alive pair, larger current mount size, default game mode, no combat, valid views/stock agents, and no pre-existing override.
-- Mount-authoritative movement adapter: rider stock movement stopped/disabled, one owned avoidance lease, project-owned rider override, `Spine.TransformPoint(offset)` plus anchor rotation, entity/view synchronization, and residual telemetry.
-- Eight exact-token/MVID-gated Harmony12 entry/control guards for ground command routing, selection, stop/hold, continuous movement invalidation, and save/load cleanup. No global movement-tick replacement exists.
-- EventBus and UMM lifecycle cleanup for combat, death/life state, area unload, view replacement, disable, unload, session stop, and exceptions.
-- Diagnostic UI actions and settings. The unsafe movement experiment defaults off; no combat bonuses, attacks, charge, feats, AI riders, persistence, or automatic remount were added.
-- Schema-v2 request/result contracts bind exact baseline/Working descriptors, campaign and area identity, operation counters, named mission rows, and a validated evidence-manifest SHA. Schema v1 remains isolated for the no-save smoke.
-- A filename-first fixture guard, exact internal-header validator, Working-only write allowlist, token-scoped Working transaction, bounded DotNetZip artifact-family quarantine, and idempotent recovery preserve baseline immutability and exact Working restoration.
-- Frame-driven lifecycle, movement, selection, formation, doorway-control, and boundary engines emit structured telemetry and bounded evidence. They are offline-qualified but have not run against a real pair.
-- Deterministic component runner, assembly-contract verifier, source/package validators, clean build/package scripts, and original guarded runtime harness.
+- Independent .NET Framework 4.7/C# 7.3/AnyCPU UMM mod identity: `KingmakerMountedCombat` / `KingmakerMountedCombat.dll`, version `0.0.1-feasibility`.
+- Explicit relationship coordinator with `Unmounted`, `Validating`, `Mounting`, `Mounted`, `Dismounting`, `Faulted`, and `Disposed` states; one-pair ownership, rollback, idempotent best-effort cleanup, and retryable residue handling.
+- Exact Mammoth-only adapter requiring a distinct Medium directly controllable rider, exact reciprocal active companion, conscious/alive pair, larger current mount size, Default game mode, no combat, valid views/stock agents, and no pre-existing movement override.
+- Mount-authoritative movement: the mount retains its exact stock pathfinding agent; the rider stock agent is stopped and disabled under one avoidance lease; one KMC-owned `RiderMovementAgent` synchronizes rider entity/view/anchor position and rotation.
+- Pair-scoped command routing, stop/hold/cancel handling, selection normalization, and cleanup-boundary restoration. No global replacement of Kingmaker's movement tick, command system, selection manager, or formation helper was added.
+- Reversible presentation attachment with exact transform snapshot/restore, global anchor/component residue detection, and structured position/yaw phase telemetry.
+- Harmony12 and EventBus/UMM lifecycle integration for combat, life state, area unload, mode changes, save/load cleanup, disable, unload, session stop, and exception recovery.
+- Default-off diagnostics, frame-driven lifecycle/movement/boundary engines, render-boundary screenshot capture, exact subscenario results, JSONL evidence, and artifact-manifest binding.
+- Schema-v2 request/result contracts, canonical fixture guard, exact descriptor validation, Baseline immutability, Working-only authorization, transactional Working recovery, DotNetZip artifact quarantine, and exact external restoration.
+- Boundary evidence is append-only and durable per record. It records exact request/post-initial/pre-dispatch/current file identity, descriptor identity, authorization counters, relationship authority, synchronous cleanup primitives, loading progression, and fresh-world residue state.
+- Active-load failures are latched until Kingmaker's loading pipeline stops; CompositionRoot suppresses movement telemetry and pair validation while that drain is active. The engine never reopens the Working archive during an active load phase.
 
-## Harness implementation
+This remains a movement-only feasibility prototype. It adds no mounted attacks, combat action economy, charge, feats, enemy riders, persistence, broad animation system, or public-release surface.
 
-The harness binds request/result to branch, commit, version, DLL SHA/MVID, exact platform hashes, run token, process identity, timestamps, fixture identities, and evidence-manifest hash. It freezes and validates the package; pre-stages outside live Mods; uses an exclusive JSON lock plus token-matched live sentinel; verifies the original backup before mutation; quarantines loader-created files; waits for a stable zero-process interval; restores in `finally`; verifies live Mods and authorized Working content plus protected-save metadata; rejects stale/unknown state; never kills processes; and supports a proven zero-mutation WhatIf path. Exact filename, path, header, GameId, GameName, Area, link/reparse, baseline-immutability, and Working-write checks fail closed before a load. Current fixture recovery and save-backed orchestration are qualified only with synthetic/offline cases because the canonical Working filename is absent.
+## Qualified artifact
 
-UMM creates a byte-identical `.cache` beside the project DLL. Runtime-mutated sentinel-owned trees are preserved in per-run quarantine and never treated as the original backup. Two early smoke failures exposed this behavior, Owlcat's global Newtonsoft settings, Unity's unusable `Application.version`, and a post-exit process race. Each defect has a regression test or guarded scenario; both failed transactions were exactly recovered.
+- Evidence/source commit: `fc7215481acf97ce1863eb1c75b3433889d2af7d`.
+- Diagnostic ZIP: `artifacts/KingmakerMountedCombat-0.0.1-feasibility-diagnostic.zip`.
+- ZIP SHA-256: `2c47d7ad4e82942bd303ab848ab82b9163a76ba9db79d52aaf8bfb0f028d80fc`.
+- Manifest SHA-256: `89cd9b94dcbe3c9aa98a28a49a5516e31da98c351cb020d9b6f08de8e79a3c75`.
+- DLL SHA-256: `202701ed9232e4f5a4d5ff65c468c684d1ed1dd53e4a8030be93b960a7cd202a`.
+- DLL MVID: `a702808c-e8a0-4755-bc24-5ed4e945866a`.
 
-## Verification
+The package contains only the project-owned `Info.json` and `KingmakerMountedCombat.dll`; it includes no game DLL, dependency DLL, save, runtime evidence, credential, or proprietary asset.
 
-- Source validation: 21 PASS / 0 FAIL.
-- Clean Release build: PASS.
-- Pure/component tests: 56 PASS / 0 FAIL.
-- Guarded harness/protocol aggregate: 58 PASS / 0 FAIL.
-- Assembly-backed checks: 47 PASS / 0 FAIL (Kingmaker 36, Wrath 11).
-- Package validation: 10 PASS / 0 FAIL.
-- WhatIf purity: PASS.
-- Final fresh-process scaffold smoke: 2 PASS / 0 FAIL from the same commit/package.
-- Historical repaired runtime attempts: 0 PASS / 2 FAIL, preserved as evidence.
+## Runtime qualification
 
-Prior no-save-qualified diagnostic artifact: `C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.0.1-feasibility-diagnostic.zip`, SHA-256 `2c77b677bc4af129ccc9e22d136b6e21754007e8ba8144ee2a2304d77fac10b9`; manifest SHA-256 `77cbbeac8c06ebcb39b1e4ea9ecec5aa2675d93dd32a54225e28d539515248f1`; packaged DLL SHA-256 `fb3651cd1a32148a0d897ce69dc1834ed94a261ccd9ac85639feacbc89bd4237`, MVID `52ed4032-aa4b-4f9d-b2a9-97771fd72c52`. It contains exactly project-owned `Info.json` and `KingmakerMountedCombat.dll` and binds source commit `e3f71bc902d79c5be3f1a66c6b99396d94d39018`. It proves the earlier no-save scaffold only; it does not package or runtime-qualify the current fixture guard, recovery, protocol, or scenario-engine hardening.
+The canonical Baseline/Working fixture pair passed the pre-open filename audit and project-owned descriptor guard. Only Working was load/write-authorized; Baseline remained immutable. The exact live Mods context was cloned transactionally, KMC was overlaid, and every admitted run restored Mods, Working, protected-save metadata, locks, and sentinels exactly.
+
+Lifecycle A/B each passed eight rows and `339/0` assertions. Pair-only movement A/B passed:
+
+| Row | Pass A | Pass B | Assertions per run |
+|---|---|---|---:|
+| Pause/unpause | `20260814T053000Z-pause-passA-qualified` | `20260814T054800Z-pause-passB-qualified` | `49/0` |
+| Destination cancel | `20260814T060500Z-cancel-passA-qualified` | `20260814T062200Z-cancel-passB-qualified` | `49/0` |
+| Open ground | `20260814T064000Z-open-ground-passA-qualified` | `20260814T065700Z-open-ground-passB-qualified` | `47/0` |
+| Stop/start | `20260814T073500Z-stop-start-recovery-passA` | `20260814T075000Z-stop-start-recovery-passB` | `61/0` |
+| Turns/corners | `20260814T081500Z-turns-corners-passA` | `20260814T083000Z-turns-corners-passB` | `74/0` |
+
+The repaired stop/start runs distinguish a benign aligned LateUpdate lag from a real stationary-boundary failure without weakening any threshold or schema.
+
+## Boundary qualification and claim scope
+
+The fixed artifact is `boundary-scenario-evidence.jsonl`; JSON `artifactKind` is `boundary-scenario-evidence`, and manifest kind is `boundary-evidence`. The exact suite order is turn-based entry, realtime entry, save safety, load safety, and area transition. Every assertion failure terminates the current row and suppresses subsequent rows; no failed row can be followed by an executed row.
+
+| Evidence ID | Runtime result | Exact supported claim |
+|---|---:|---|
+| `20260814T090000Z-boundary-tb-pass` | `56/0` | `Direct HandleTurnBasedModeStateChanged(true) invocation only; native mode-event delivery was not exercised.` |
+| `20260814T091500Z-boundary-rt-pass` | `56/0` | `Direct HandleTurnBasedModeStateChanged(false) invocation only; native mode-event delivery was not exercised.` |
+| `20260814T093000Z-boundary-save-pass` | `59/0` | `Direct GuardBoundary(SaveRequested) service invocation only; stock SaveRoutine and serialization were not exercised.` |
+| `20260814T094500Z-boundary-load-pass` | `44/0` | `Real Game.LoadGame of the exact Working descriptor exercised the native LoadRoutine prefix; no UI load request was exercised.` |
+| `20260814T100000Z-boundary-area-pass` | `44/0` | `Direct OnAreaBeginUnloading cleanup was latched before real Game.ReloadArea; native area-event delivery was not independently observed or qualified.` |
+
+Boundary aggregate: `259 PASS / 0 FAIL` assertions. Each run separately passed request `31/0`, game result `39/0`, and final result `29/0` validation. Save safety invoked no stock `SaveRoutine` and authorized no write. Load safety authorized exactly the second Working load and proved loading start, stop, callback, new-world campaign identity, and zero KMC residue. Area safety latched direct cleanup before real `ReloadArea` and proved clean stable-world completion.
+
+## Verification gates
+
+- Source validation: `21 PASS / 0 FAIL`.
+- Release build: PASS, zero warnings/errors.
+- Pure/component tests: `112 PASS / 0 FAIL`.
+- Visual capture tests: `12 PASS / 0 FAIL`.
+- Guarded harness/protocol tests: `105 PASS / 0 FAIL`.
+- Assembly-backed checks: `69 PASS / 0 FAIL`.
+- Package validation and guarded WhatIf purity: PASS.
+- Independent producer/validator integration audit: no remaining P0/P1 finding.
 
 ## Not delivered or claimed
 
-No pair was mounted in a live campaign. There is no movement, drift, doorway, corner, formation, selection, mounted cleanup, save/load, area-transition, or visual proof. The code is a default-off feasibility prototype, not mounted combat and not a public release.
+The doorway row is not qualified because native combat contaminated the available matched-control attempt. Selection and formation are not qualified because the current fixture has no eligible directly controllable non-pair unit. Camera-only screenshots do not prove UI/portrait selection or camera-follow behavior. Presentation is mechanically viable but needs new pose/animation work.
 
-The exact blocker is canonical filename identity: one baseline candidate exists, but no canonical Working candidate exists; the trailing-underscore near-match is rejected. The KMC-only descriptor guard, schema-v2 host, Working transaction/recovery, and scenario engines are implemented and offline-qualified. They deliberately fail before archive inspection or launch until the filename audit reaches exactly one candidate per role with no KMC-looking near-match, after which the guard must still prove distinct paths, exact internal names, matching GameId/GameName/Area, baseline immutability, and Working-only authorization.
+The final named-row ledger is `22 PASS / 0 attributable FAIL / 3 DEFER — EVIDENCED`. No K1–K12 kill criterion fired, but mandatory §27.7 coverage is incomplete. The implementation is not a public release, Phase 1 is not complete, and Phase 2 execution is not authorized.

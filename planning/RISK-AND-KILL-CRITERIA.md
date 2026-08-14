@@ -2,39 +2,51 @@
 
 Status: BLOCKED — CRITICAL
 
-No architecture kill criterion has fired. A separate external-state hard stop under mission §26.2 prevents the fixture-backed movement and lifecycle qualification needed to decide Architecture B versus a C/D pivot.
+No architecture kill criterion fired. Architecture B's runnable pair-only movement, lifecycle, cleanup, boundary, native-asset, and external-restoration evidence is positive. The controlling stop is instead mission §26.6: a truthful unconditional recommendation cannot be made while three mandatory Proceed rows are unobtainable from the exact Working fixture.
 
-Current offline gate ledger: source 21 PASS / 0 FAIL; pure/component 56 PASS / 0 FAIL; guarded harness/protocol 58 PASS / 0 FAIL; assembly-backed 47 PASS / 0 FAIL (Kingmaker 36, Wrath 11). Runtime mission rows remain 1 PASS / 0 FAIL / 24 DEFER — EVIDENCED, with zero mounted-pair samples.
+Current gate ledger: source 21 PASS / 0 FAIL; Release build PASS; pure/component 112 PASS / 0 FAIL; visual-capture contracts 12 PASS / 0 FAIL; guarded harness/protocol 105 PASS / 0 FAIL; assembly-backed 69 PASS / 0 FAIL (Kingmaker 58, Wrath 11). The final named runtime-row disposition is 22 PASS / 0 attributable FAIL / 3 DEFER — EVIDENCED. Historical runner, validator, capture, and instrumentation failures remain preserved but are not architecture kills.
 
 | ID | Risk / kill criterion | Final Phase 1 evidence | Status | Remaining control |
 |---|---|---|---|---|
-| K1 | Two active nav agents collide, oscillate, or diverge | Default-off adapter stops/disables rider `AgentASP`, owns one avoidance lease, and leaves mount stock movement authoritative; no mounted runtime sample exists | IN PROGRESS | Fixture-backed movement telemetry |
-| K2 | No scoped authoritative-mover control point | Exact `AgentOverride`, stock rider suppression, `CountingGuard`, and private command-recipient rewrite seams are proven | PASS | Retain exact MVID/token guards |
-| K3 | Pair fails valid turns/doorways passed by unmounted control | No qualifying fixture; no traversal run | DEFER — EVIDENCED | Matched Mammoth control and mounted run |
-| K4 | Selection/formation cannot restore | Public selection seams and pair-scoped routing exist; deterministic command decisions pass; game behavior unmeasured | IN PROGRESS | Fixture selection/formation suite |
-| K5 | Cleanup leaves movement, avoidance, selection, command, or view residue | Coordinator, rollback, retryable ownership, best-effort cleanup, and deterministic cleanup tests pass; game residue unmeasured | IN PROGRESS | Runtime lifecycle and residue telemetry |
-| K6 | Broad global movement patch affects other units | Eight exact guarded entry/control patches, exact MVID gate, 47 assembly-backed checks (Kingmaker 36, Wrath 11), no movement-tick replacement; no party-area isolation run | IN PROGRESS | Fixture non-mounted-isolation proof |
-| K7 | Save/load/area retains half-mounted state | Runtime-only domain; save/load prefixes clean and block on residue; no relationship JSON. Boundary engines are offline-qualified, but mode/lifecycle rows call handlers directly, area transition pre-cleans before real reload, and save-safety deliberately performs no stock save | IN PROGRESS | Working/Baseline fixture boundary suite plus claim-scoped live evidence |
-| K8 | Presentation requires Wrath assets | No Wrath asset/code dependency or payload exists; whether acceptable presentation needs unavailable assets is not knowable without visual review | IN PROGRESS | Native Mammoth-only visual review |
-| K9 | No native candidate is remotely plausible | Riding horse rejected as non-companion; rank-7+ Mammoth has exact AddPet linkage and bounded `Spine` anchor hypothesis; no rider pose evidence | IN PROGRESS | Fixture-backed anchor/clipping capture |
-| K10 | Fresh-process tests remain nondeterministically unstable | Scaffold smoke passes twice consecutively from exact commit/package; movement suite did not run | IN PROGRESS | Two-pass lifecycle/movement suite |
-| K11 | Solution depends on Wrath runtime assembly | Source/package allowlists and exact references prove Kingmaker/UMM/Harmony12 only | PASS | Preserve validators |
-| K12 | External state cannot be restored exactly | WhatIf purity passes; two repaired failure transactions and two final PASS transactions all restored their exact transaction-baseline Mods digest `e62320...`; no protected-save mutation | PASS | Preserve token/sentinel/quarantine/stable-exit guards |
+| K1 | Two active nav agents collide, oscillate, or diverge | Open ground, stop/start, turns/corners, pause/unpause, and destination-cancel passed A/B with the Mammoth as the sole authoritative mover; zero oscillation, stuck, unexpected-repath, command-replacement, synchronization-violation, or cleanup-residue counts | PASS | Preserve one-mover and fixed synchronization gates |
+| K2 | No scoped authoritative-mover control point | Exact `AgentOverride`, stock rider suppression, `CountingGuard`, private command-recipient rewrite, and live routed movement are proven without a global tick replacement | PASS | Retain exact MVID/token/active-pair guards |
+| K3 | Pair fails valid turns/doorways passed by unmounted control | Turns/corners passed A/B. The unmounted Mammoth passed the doorway control and the mounted route was accepted and stable; native hostiles then triggered correct `CombatStarted` cleanup before a corrected repeat completed. This is fixture contamination, not an attributable traversal failure | DEFER — EVIDENCED | Combat-neutral Mammoth-valid doorway and two fresh-process passes |
+| K4 | Selection/formation cannot restore | Pair selection retention and every cleanup restoration passed. Away/back selection and group formation cannot execute because Working contains no eligible directly controllable non-pair; no restoration failure occurred | DEFER — EVIDENCED | Working fixture with an eligible third controllable unit; run selection and formation A/B |
+| K5 | Cleanup leaves movement, avoidance, selection, command, or view residue | Lifecycle A/B passed 8/8 rows and 339/0 assertions each. All qualified movement and boundary rows ended Unmounted with stock agents, avoidance, overrides/components, `ForbidRotation`, attachment parent/lease, commands, pause, and selection restored without residue | PASS | Preserve direct-handler claim labels and residue validators |
+| K6 | Broad global movement patch affects other units | Eight exact active-pair guards and no movement-tick replacement prove B does not require a broad global patch. No material non-pair mutation was observed, but the absent third unit prevents the mandatory formation/isolation runtime proof | PASS | Retain narrow guards; complete non-pair formation/isolation row before Proceed |
+| K7 | Save/load/area retains half-mounted state | All five individual boundary rows passed with exact evidence and restoration. Save is cleanup-only with no stock save/serialization; load performs real exact-Working `Game.LoadGame` through the native prefix; area directly pre-cleans before real `ReloadArea`. No relationship reconstructed and no old/fresh-world residue remained | PASS | Do not broaden claims to native TB/RT/area delivery, stock save round-trip, persistence, or uninstall |
+| K8 | Presentation requires Wrath assets | Original code plus the native Kingmaker Mammoth produces a readable mounted silhouette; no Wrath code, runtime assembly, model, clip, controller, material, texture, or offset is required or shipped | PASS | Any new pose/animation work must remain original or Kingmaker-native |
+| K9 | No native candidate is remotely plausible | Usable camera frames classify the pair `MECHANICALLY VIABLE, NEW ANIMATION/POSE WORK REQUIRED`. The standing/intersecting pose is not polished, but it is remotely plausible and explicitly does not fire K9 | PASS | New seated pose/animation and clipping review in a separately authorized phase |
+| K10 | Fresh-process tests remain nondeterministically unstable | Lifecycle passed A/B; each runnable pair-only movement row passed A/B from its same clean commit/package. Earlier failures were bounded, explained instrumentation/harness defects with regressions; fixture unavailability is deterministic | PASS | Preserve same-commit/package repeatability and narrow endpoint margin |
+| K11 | Solution depends on Wrath runtime assembly | Source/package allowlists and exact references prove Kingmaker/UMM/Harmony12 only | PASS | Preserve source/package/assembly validators |
+| K12 | External state cannot be restored exactly | Every admitted live transaction restored exact live Mods and save metadata; Baseline remained immutable; Working was restored byte/time-exact; no process, lock, sentinel, live KMC tree, or unrestored transaction remained | PASS | Preserve token/sentinel/quarantine/stable-exit guards |
+
+There is no K13. The stop/start recovery false negative was an evidence-state-machine defect: two corrected A/B passes proved the unchanged thresholds and recovery contract. It did not create a new kill criterion.
+
+## Claim-scoped boundary qualification
+
+The following individual runs are PASS:
+
+- `20260814T090000Z-boundary-tb-pass`: 1 PASS / 0 FAIL rows, 56/0 assertions; direct turn-based lifecycle-handler cleanup only, with native delivery false.
+- `20260814T091500Z-boundary-rt-pass`: 1 PASS / 0 FAIL rows, 56/0 assertions; direct real-time lifecycle-handler cleanup only, with native delivery false.
+- `20260814T093000Z-boundary-save-pass`: 1 PASS / 0 FAIL rows, 59/0 assertions; direct `GuardBoundary(SaveRequested)` cleanup, zero stock `SaveRoutine` or serialization.
+- `20260814T094500Z-boundary-load-pass`: 1 PASS / 0 FAIL rows, 44/0 assertions; real exact-Working `Game.LoadGame` plus native `LoadRoutine`-prefix authorization, clean fresh world, no UI-load claim.
+- `20260814T100000Z-boundary-area-pass`: 1 PASS / 0 FAIL rows, 44/0 assertions; direct `OnAreaBeginUnloading` cleanup latch before real `ReloadArea(AutoSaveMode.None)`, with native area-event delivery not independently qualified.
+
+These passes close K7 only for the Phase 1 runtime-only/no-save design. They do not establish persistence, stock save round-trip, native mode/area event delivery, or uninstall behavior.
 
 ## Proven critical hard stop
 
 Status: BLOCKED — CRITICAL
 
-The exact filename audit reports one canonical Baseline candidate, `Manual_298_KMC_AUTOMATION_BASELINE.zks`, zero canonical Working candidates, and one rejected trailing-underscore near-match, `Manual_299_KMC_AUTOMATION_WORKING_.zks`. The near-match is not authorization to inspect, rename, copy, or load it. Existing KBP/KMG fixtures belong to other projects and remain prohibited substitutes. The filename-first gate stopped before either KMC archive or any valued save archive was opened.
+Fixture identity and external-state admission are no longer blockers. The exact audit is Baseline=1 / Working=1 / KMC-looking near-match=0. The guard verified distinct non-linked paths, exact internal names, shared `GameId`/`GameName`/`Area` identity, Baseline immutability, and Working-only write authorization.
 
-The KMC-only filename-prefiltered descriptor guard, schema-v2 host, exact Working loader, proactive Working-only load authorization, all-stock-save denial, combined Mods/Working transaction, and token-owned recovery are implemented and offline-qualified. They cannot inspect descriptors, create durable fixture qualification, or launch while the exact filename gate remains Baseline=1 / Working=0 with a rejected KMC-looking near-match.
+The exact Working fixture nevertheless cannot supply three mandatory Proceed rows:
 
-This proves mission §26.2: an exact eligible Baseline/Working pair cannot be established. It blocks movement, lifecycle, doorway, selection, formation, boundary, drift, and visual evidence, so no truthful Phase 2 architecture recommendation can be issued.
+1. its only qualified doorway route is contaminated by native hostiles after the unmounted control passes and mounted traversal begins;
+2. it contains no eligible directly controllable non-pair for selection away/back;
+3. the same missing unit prevents a meaningful party-formation and non-mounted-isolation run.
 
-Boundary claim scope is intentionally narrow. Direct lifecycle-handler probes test KMC cleanup behavior but do not prove real EventBus/controller delivery ordering. The area-transition row pre-invokes cleanup and then uses real `ReloadArea(AutoSaveMode.None)`. The save-safety row proves cleanup, unchanged Working bytes, zero stock-save requests, and no custom relationship serialization; it does not invoke or qualify Kingmaker's unsafe temporary-leaf `SaveRoutine` path.
+All three remain `DEFER — EVIDENCED`. They are not K3/K4 failures and therefore do not authorize the Pivot path, but mission §§18 and 27.7 do not allow them to be converted into Proceed passes. The visual classification also does not substitute for mechanical qualification. Architecture B remains the provisional product-fit leader and stays default-off; Phase 2 is not authorized.
 
-Exact first safe command after project-owned fixtures are made available:
-
-```powershell
-Get-ChildItem -LiteralPath 'C:\Users\Howie\AppData\LocalLow\Owlcat Games\Pathfinder Kingmaker\Saved Games' -File | Where-Object Name -Match '^Manual_[0-9]+_KMC_AUTOMATION_(BASELINE|WORKING)\.zks$' | Select-Object Name,Length,LastWriteTimeUtc
-```
+The next safe unblock is manual recreation of only `KMC_AUTOMATION_WORKING` in the same qualified campaign/area with an eligible third directly controllable unit and a combat-neutral Mammoth-valid doorway. Baseline must remain immutable. The exact filename and descriptor guard must be requalified before those three rows are rerun.

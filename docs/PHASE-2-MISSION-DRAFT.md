@@ -2,40 +2,60 @@
 
 Status: BLOCKED — CRITICAL
 
-This is a conditional planning draft, not authorization. No final architecture has been selected and no Phase 2 work may be executed under the current status. The immediate work remains a bounded Phase 1 resume from the missing canonical Working-fixture gate.
+This is a conditional draft only. It does not authorize Phase 2 implementation, fixture mutation, combat work, animation production, packaging, deployment, publication, or release. A separate mission and new user authorization are required after Phase 1 reaches a truthful completion status.
 
-## Admission gate: finish Phase 1 first
+## Phase 1 prerequisites still open
 
-1. Through Kingmaker, create a canonical `KMC_AUTOMATION_WORKING` fixture. Rerun the documented exact filename audit and require exactly one Baseline candidate and exactly one Working candidate. Reject near-matches; do not rename, copy, open, or infer internal identity from filenames.
-2. Re-run the existing offline guard/recovery/protocol regression gates. Do not redesign or claim these components as pending: the KMC-owned fixture guard, crash-safe recovery transaction, v2 schemas and artifact binding, scenario host, and movement/lifecycle engines are already implemented and qualified offline.
-3. Before loading either KMC candidate, apply the implemented descriptor guard. It must prove distinct non-linked paths, exact internal names, matching `GameId`/`GameName`/`Area`, Baseline immutability, and a write allowlist admitting only Working. Open no non-KMC archive.
-4. Prove in Working that the exact Medium rider has the exact active rank-7+ Mammoth pet, the current Mammoth size is larger, both views and stock agents are valid, the game mode is Default, and combat is inactive.
-5. Run the lifecycle, movement, doorway control, selection, formation, pause/cancel, boundary, and visual scenarios twice in fresh processes with exact Mods and Working-fixture restoration evidence.
-6. Keep evidence claims scoped. Direct invocation of turn-based/real-time subscriber methods proves handler cleanup only, not real EventBus delivery. Pre-cleaning before real area reload proves cleanup plus reload invocation, not event delivery. Add real transition evidence where safely obtainable or retain an explicit limitation.
-7. Continue to deny every stock `SaveRoutine` call in Phase 1. Qualify save safety through cleanup-before-boundary, no custom mounted serialization, unchanged/restored Working evidence, and protected Baseline evidence; do not describe this as a stock save or save-round-trip.
-8. Apply the existing kill criteria, disable B on a qualifying failure, rescore A/B/C/D, and publish the final Phase 1 proceed, pivot, manual-review, or stop decision before authorizing Phase 2.
+The existing canonical fixtures and guarded runtime system are qualified. Do not repeat completed forensics, fixture admission, lifecycle A/B, pair-only movement A/B, boundary qualification, or no-save work except as unchanged regression gates.
 
-## Conditional Phase 2 objective if Architecture B proceeds
+Before this draft can be activated:
 
-Build the smallest combat-capable mount-authoritative pair without assuming any unproven persistence, action, targeting, animation, EventBus, save, or mode contract.
+1. Through Kingmaker and only within the project-owned Working fixture, establish a combat-neutral doorway/corner route suitable for an exact same-Mammoth unmounted control followed by mounted traversal. Do not use a combat-contaminated run as a control.
+2. Add or expose one eligible directly controllable non-pair unit in Working. It must support the required selection away/back row and a two-recipient formation command without substituting the mount or fabricating state.
+3. Re-run the canonical filename/near-match audit and exact descriptor/authorization guard before opening the revised Working fixture. Baseline remains immutable; only Working may be changed.
+4. Run only `mounted-pair-doorway`, `mounted-pair-selection`, and `mounted-pair-party-formation` twice in fresh guarded processes with unchanged thresholds, exact structured evidence, and exact external restoration.
+5. Reconcile the complete 25-row ledger and reapply K1–K12. Publish `PHASE 1 COMPLETE — PROCEED RECOMMENDED` or `PHASE 1 COMPLETE — PIVOT RECOMMENDED` only if the evidence supports it. Retain `BLOCKED — CRITICAL` if mandatory proof remains unobtainable.
+6. Preserve all existing claim limits exactly: `Direct HandleTurnBasedModeStateChanged(true) invocation only; native mode-event delivery was not exercised.`; `Direct HandleTurnBasedModeStateChanged(false) invocation only; native mode-event delivery was not exercised.`; `Direct GuardBoundary(SaveRequested) service invocation only; stock SaveRoutine and serialization were not exercised.`; `Real Game.LoadGame of the exact Working descriptor exercised the native LoadRoutine prefix; no UI load request was exercised.`; and `Direct OnAreaBeginUnloading cleanup was latched before real Game.ReloadArea; native area-event delivery was not independently observed or qualified.`
 
-Order of work:
+The current evidence commit is `fc7215481acf97ce1863eb1c75b3433889d2af7d`; package SHA-256 is `2c47d7ad4e82942bd303ab848ab82b9163a76ba9db79d52aaf8bfb0f028d80fc`; DLL SHA-256/MVID are `202701ed9232e4f5a4d5ff65c468c684d1ed1dd53e4a8030be93b960a7cd202a` / `a702808c-e8a0-4755-bc24-5ed4e945866a`. These identify the Phase 1 evidence and are not advance authorization for Phase 2.
 
-1. explicit mounted-pair persistence policy and uninstall/repair behavior;
-2. rider basic melee attack;
-3. mount basic natural attack;
-4. movement/action economy;
-5. combat start/end behavior;
-6. death, unconsciousness, prone, and forced movement;
-7. turn-based and real-time parity;
+## Conditional objective if Architecture B proceeds
+
+Build the smallest combat-capable, mount-authoritative pair while retaining stock mount pathfinding, reversible rider synchronization, default-off rollout, and fail-closed cleanup. Do not assume persistence, targeting, action economy, animation, EventBus delivery, UI, save, or mode behavior beyond the exact Phase 1 evidence.
+
+Architecture B is only the provisional product-fit leader. Static A/B/C/D scores remain `41/66/77/89`; no K1–K12 criterion has fired. If the missing Phase 1 rows produce an attributable B failure, rescore and write a new C/D mission rather than broadening this draft implicitly.
+
+## Required pose, animation, and presentation tranche
+
+Phase 1 visual evidence is `MECHANICALLY VIABLE, NEW ANIMATION/POSE WORK REQUIRED`. Before combat expansion, a separately authorized tranche must:
+
+- define an original rider pose/animation strategy without importing Wrath code or assets;
+- correct the rigid upright rider and lower-body intersection/occlusion on the Mammoth;
+- qualify idle, walk, turn, stop, mount, and dismount presentation with usable non-black frames;
+- observe UI selection, portrait state, selection circle, and camera follow directly rather than inferring them from gameplay-camera screenshots;
+- retain exact view-transform restoration and prove no animation/pose residue after every cleanup boundary.
+
+This work may use only original code and legally permissible metadata observations. It may not extract or ship proprietary Wrath or Kingmaker assets.
+
+## Conditional implementation order
+
+If Phase 1 later authorizes Architecture B, proceed in separately reviewable gates:
+
+1. explicit runtime/persistence policy, uninstall behavior, and orphan repair contract;
+2. pose/animation and presentation baseline;
+3. rider basic melee attack;
+4. mount basic natural attack;
+5. movement/action economy and targeting ownership;
+6. combat start/end, death, unconsciousness, prone, and forced movement;
+7. turn-based and realtime parity through native-delivery evidence where obtainable;
 8. charge;
 9. reach and attacks of opportunity;
 10. ranged/spellcasting restrictions;
 11. mounted feats;
 12. additional mounts/rider sizes;
-13. UI and presentation polish;
-14. compatibility and hardening.
+13. UI/presentation polish;
+14. compatibility, save/uninstall safety, and hardening.
 
-Every stage requires exact Kingmaker contract mapping, deterministic tests, two-pass runtime scenarios, save/uninstall safety, non-mounted isolation, and a narrow Harmony surface. Failure of movement authority, cleanup, save safety, presentation, or external-state restoration triggers a C/D pivot; no broader workaround is authorized implicitly.
+Every stage requires exact Kingmaker contract mapping, deterministic regressions, guarded A/B runtime evidence, non-mounted isolation, and exact external restoration. No stage authorizes public release. A qualifying failure of movement authority, cleanup, save safety, presentation safety, or restoration stops the stage and invokes only the documented pivot process.
 
-If Phase 1 selects C or D, discard the B combat order and write a new mission for the selected simplified architecture. If Phase 1 cannot select an architecture responsibly, stop. Do not execute any part of this draft under the current blocked status.
+If Phase 1 selects C or D, discard the Architecture B order above and author a new bounded mission. Do not execute any part of this draft under the present status.

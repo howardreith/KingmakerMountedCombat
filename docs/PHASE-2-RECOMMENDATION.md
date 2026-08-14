@@ -4,48 +4,45 @@ Status: BLOCKED — CRITICAL
 
 ## Decision
 
-There is no final architecture recommendation and Phase 2 is not authorized. Phase 1 stopped at the fixture-admission boundary: the exact filename audit found one canonical `KMC_AUTOMATION_BASELINE` candidate and zero canonical `KMC_AUTOMATION_WORKING` candidates. The only Working-like filename was `Manual_299_KMC_AUTOMATION_WORKING_.zks`; it was rejected as a near-match and its archive was not opened. A filename cannot establish its internal identity, and renaming or substituting that file is not authorized.
+Phase 2 is not authorized. Phase 1 produced substantial live evidence for Architecture B, but three mandatory §27.7 rows remain unproven with the obtainable current fixture: doorway control, selection, and party formation. The truthful final ledger is `22 PASS / 0 attributable FAIL / 3 DEFER — EVIDENCED`, not a completed proceed or pivot result.
 
-Architecture B remains a default-off experimental candidate whose movement and presentation have not been qualified. Architecture D is the lowest-risk fallback in the current paper scoring, C remains a presentation-focused fallback, and A should not proceed on existing evidence. None of those observations is a Phase 2 selection.
+Architecture B is the provisional product-fit leader. It preserves Kingmaker's stock mount pathfinding and confines rider synchronization and ownership to the validated pair. Lifecycle and the runnable pair-only movement rows have repeatable A/B evidence; save safety, load safety, and area transition each have one independently qualified boundary run. Static scores remain A/B/C/D = `41/66/77/89`; they are not a substitute for the missing mandatory runtime rows. A remains too cross-cutting, while C and D remain bounded pivots if later evidence fires an existing criterion.
 
-Confidence is medium that B has a scoped Kingmaker movement seam and low that its movement or presentation will be acceptable. Confidence is high that no responsible architecture decision can be made without save-admitted pair telemetry and the required fresh-process runs.
+No K1–K12 kill criterion fired. The evidence does not justify inventing another criterion, weakening a gate, or treating fixture ineligibility as an Architecture B failure.
 
-## Implemented and qualified offline
+## Evidence supporting the provisional B disposition
 
-- The KMC-owned fixture guard is implemented and covered by deterministic harness tests. It requires distinct canonical paths, exact internal save names, matching `GameId`/`GameName`/`Area` identity, baseline immutability, and a write allowlist limited to `KMC_AUTOMATION_WORKING`.
-- Crash-safe Working-fixture recovery is implemented with a durable recovery plan, exact hash/length/time and metadata checks, narrowly recognized temporary/sidecar names, quarantine instead of deletion, and idempotent interrupted-move restoration. It never repairs or overwrites Baseline.
-- The v2 request/game-result/final-result protocol, artifact-manifest binding, schema validation, scenario-bound load accounting, and host completion/failure paths are implemented and qualified offline.
-- The movement/lifecycle engines, telemetry writer, bounded abort path, cleanup retry, and default-off experiment are implemented and pass their offline regression gates.
-- Exact Kingmaker/Wrath contracts, deterministic relationship rollback/cleanup, package/source guards, and transactional Mods restoration have already been qualified to their documented non-save boundaries.
+- Exact fixture admission passed: Baseline=1, Working=1, near-match=0; exact internal/campaign/area identity; Baseline immutable; Working-only authorization.
+- Lifecycle A/B each passed eight rows and `339/0` assertions under their stated direct-handler/service scope.
+- Pair-only movement A/B passed open ground `47/0`, stop/start `61/0`, turns/corners `74/0`, pause/unpause `49/0`, and destination cancel `49/0` per run.
+- The mount remained the single pathfinding authority; rider entity/view/anchor synchronization remained within unchanged gates; cleanup left no KMC movement-agent, avoidance, attachment, rotation, command, or selection residue.
+- Five independent boundary runs passed `259/0` aggregate assertions. Save did not invoke stock `SaveRoutine`; load used the real exact Working descriptor and native prefix; area used direct pre-clean before real `ReloadArea`.
+- Every run passed strict result validation and restored exact Mods, Working, protected-save metadata, process, lock, and sentinel state.
+- Usable visual evidence is `MECHANICALLY VIABLE, NEW ANIMATION/POSE WORK REQUIRED`; the rigid upright rider and lower-body intersection are known work, not a fired visual kill criterion.
 
-These are implementation and offline-test results, not evidence that either KMC fixture passed its internal descriptor guard and not runtime proof of mounted movement.
+Evidence is bound to commit `fc7215481acf97ce1863eb1c75b3433889d2af7d`, package SHA-256 `2c47d7ad4e82942bd303ab848ab82b9163a76ba9db79d52aaf8bfb0f028d80fc`, DLL SHA-256 `202701ed9232e4f5a4d5ff65c468c684d1ed1dd53e4a8030be93b960a7cd202a`, and MVID `a702808c-e8a0-4755-bc24-5ed4e945866a`.
 
-## Runtime evidence boundaries
+## Claim boundaries that remain in force
 
-- The turn-based and real-time boundary scenario code directly invokes the subscribed handler methods. It qualifies the cleanup service and handler boundary, but does not prove that a real Kingmaker EventBus transition delivered those callbacks.
-- The area-reload scenario pre-cleans the relationship and then invokes the real reload operation. Its claims must distinguish cleanup behavior from event-delivery behavior.
-- Every stock `SaveRoutine` invocation is denied in Phase 1. The save-safety design can prove pre-boundary cleanup, absence of custom mounted serialization, and an unchanged Working fixture; it cannot be reported as a successful stock engine save or save-round-trip.
-- No save-backed lifecycle, movement, selection, formation, doorway, visual, or two-pass fresh-process run has been executed because the canonical Working candidate is absent.
+- Turn-based: `Direct HandleTurnBasedModeStateChanged(true) invocation only; native mode-event delivery was not exercised.`
+- Realtime: `Direct HandleTurnBasedModeStateChanged(false) invocation only; native mode-event delivery was not exercised.`
+- Save: `Direct GuardBoundary(SaveRequested) service invocation only; stock SaveRoutine and serialization were not exercised.`
+- Load: `Real Game.LoadGame of the exact Working descriptor exercised the native LoadRoutine prefix; no UI load request was exercised.`
+- Area: `Direct OnAreaBeginUnloading cleanup was latched before real Game.ReloadArea; native area-event delivery was not independently observed or qualified.`
+- Camera-only screenshots do not prove portrait state, UI selection, or camera-follow behavior. Some later-state frames are black/unusable.
+- Phase 1 does not prove mounted attacks, targeting, reach, action economy, persistence, enemy riders, or production-quality animation.
 
-## Proven contracts
+## Prerequisites for a completion decision
 
-- Wrath mount-authoritative command, movement, avoidance, entity/view, selection, formation, lifecycle, and persistence responsibilities.
-- Kingmaker pair validation, stock mount movement, rider suppression/avoidance, command origin, selection/cancel, lifecycle, and save/load cleanup control points.
-- Default-off relationship state, deterministic rollback/cleanup, exact patches, telemetry, build/package/runtime transaction safety, and fixture recovery behavior at the offline boundary.
-- Native rank-7+ Mammoth ownership/size metadata and the bounded `Spine` anchor hypothesis.
+Before any proceed or pivot recommendation:
 
-## Contracts still requiring runtime evidence
+1. Prepare a project-owned Working fixture with a combat-neutral doorway/corner route and preserve the exact same-Mammoth unmounted control requirement.
+2. Add one eligible directly controllable non-pair unit so selection away/back and two-recipient formation can execute honestly.
+3. Rerun doorway, selection, and formation twice under the existing thresholds, evidence schema, guard, and restoration contract.
+4. Reapply K1–K12 to the complete row set. A qualifying B failure may trigger the documented C/D pivot; fixture/control absence may not.
 
-- actual one-mover stability, avoidance behavior, drift, stop/start, turns, doorway control, formation, selection, pause/cancel;
-- view-root side effects, rider pose/scale/offset, clipping, camera and selection-circle presentation;
-- in-game cleanup residue on combat, death, view, area, mode, save, load, disable, and failure boundaries;
-- actual EventBus delivery for mode and lifecycle transitions where only direct-handler coverage currently exists;
-- turn-based and real-time mounted action ownership, targeting, attacks, reach, action economy, and any future persistence policy.
+## Phase 2 boundary
 
-## Required next gate
+Even if those three rows pass and B becomes the final recommendation, Phase 2 execution requires a separate mission and new authorization. That mission must explicitly scope pose/animation work for the Mammoth rider, capture UI/portrait/camera-follow behavior, define persistence/uninstall policy before serialized state exists, and then approach combat one bounded contract at a time.
 
-The user must create a canonical Working fixture through Kingmaker. Phase 1 then resumes by rerunning the exact filename audit, requiring exactly one Baseline and exactly one Working candidate, and applying the implemented internal descriptor guard before either save is loaded. Baseline remains immutable; only Working may be admitted for writable runtime qualification.
-
-After admission, run the bounded Architecture B movement/lifecycle suite twice in fresh processes, preserve exact restoration evidence, obtain visual evidence or require manual visual review, and apply the existing kill criteria. Only that evidence may produce a proceed, pivot, manual-review, or stop recommendation.
-
-Explicit non-goals remain full mounted combat, Cavalier, feats, charge, attacks of opportunity/reach, ranged combat/spellcasting, enemy riders, multiple mounts or rider sizes, polymorph, broad indoor support, mounted persistence, and public release.
+Until then, the final status remains `BLOCKED — CRITICAL`; this document is a recommendation record, not execution authority.

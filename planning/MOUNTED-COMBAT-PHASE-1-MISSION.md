@@ -1510,3 +1510,40 @@ Exact blocker and next command only when blocked
 ```
 
 Do not claim tests that were not run. Do not describe a planned feature as delivered. Do not call a cosmetic attachment mounted combat. Summarize the load-bearing evidence rather than asking the user to infer it from logs.
+
+---
+
+# 29. Frozen Phase 1 execution record
+
+This section records the final evidence obtained under this mission; it does not weaken the definition of done or authorize Phase 2.
+
+## 29.1 Frozen build and runtime ledger
+
+```text
+Branch:                 codex/mounted-combat-feasibility
+Runtime-evidence HEAD:  fc7215481acf97ce1863eb1c75b3433889d2af7d
+Package SHA-256:        2c47d7ad4e82942bd303ab848ab82b9163a76ba9db79d52aaf8bfb0f028d80fc
+DLL SHA-256:            202701ed9232e4f5a4d5ff65c468c684d1ed1dd53e4a8030be93b960a7cd202a
+DLL MVID:               a702808c-e8a0-4755-bc24-5ed4e945866a
+Named scenarios:        22 PASS / 0 attributable FAIL / 3 DEFER — EVIDENCED
+Final status:           BLOCKED — CRITICAL
+```
+
+Lifecycle passed twice in fresh processes in direct service/handler scope. Open ground, stop/start, turns/corners, pause/unpause, and destination cancellation each passed twice in fresh processes. Boundary rows passed as follows: turn-based `20260814T090000Z-boundary-tb-pass` 56/0, realtime `20260814T091500Z-boundary-rt-pass` 56/0, save `20260814T093000Z-boundary-save-pass` 59/0, load `20260814T094500Z-boundary-load-pass` 44/0, and area `20260814T100000Z-boundary-area-pass` 44/0, for 259/0 boundary assertions. Every boundary run also passed strict request/game/final validation at 31/0, 39/0, and 29/0 and restored applicable terminal and external state exactly; load and area additionally proved clean fresh-world state.
+
+## 29.2 Qualification limits
+
+- Turn-based and realtime rows invoke lifecycle handlers directly; native event delivery was not exercised.
+- Save invokes direct cleanup only; stock `SaveRoutine` and relationship serialization were not exercised.
+- Load performs a real exact-Working `Game.LoadGame` and observes the native `LoadRoutine` prefix; no UI load request was exercised.
+- Area performs direct pre-cleanup followed by real `ReloadArea`; native area-event delivery was not independently observed or qualified.
+- Doorway is `DEFER — EVIDENCED`: the unmounted control and mounted entry are stable, but native hostile combat contaminates the route.
+- Selection and party formation are `DEFER — EVIDENCED`: the fixture contains no eligible directly controllable non-pair unit.
+
+## 29.3 Architecture and stop disposition
+
+The visual classification is `MECHANICALLY VIABLE, NEW ANIMATION/POSE WORK REQUIRED`. No K1–K12 kill criterion fired, and no K13 exists. Architecture scores remain A/B/C/D = 41/66/77/89; Architecture B is the provisional product-fit leader.
+
+The mission nevertheless ends at `BLOCKED — CRITICAL` because its mandatory doorway, selection, and party-formation rows cannot be proven with the current fixture. This is neither a Proceed decision nor a Pivot decision, and Phase 2 is not authorized. Resolution requires a revised disposable Working fixture with a combat-neutral valid doorway and an eligible third controllable unit.
+
+Runtime is frozen for closure. Final external state is restored exactly: Mods digest `c292c5c62a232a0ad7b32ed489139a8d135caa18e38151677f619bf7555c70cb`, full save-metadata digest `58a54974423316041e29d32b1093c5d6775dbd67fe2b37ffaea3c9ae27de19be`, original canonical fixture identities, and no Kingmaker process, active lock, sentinel, live KMC tree, or restoration error.
