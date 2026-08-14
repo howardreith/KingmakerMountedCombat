@@ -2,19 +2,49 @@
 
 Status: BLOCKED — CRITICAL
 
-Evidence/source commit: `fc7215481acf97ce1863eb1c75b3433889d2af7d`
+Frozen F0 evidence/source commit: `fc7215481acf97ce1863eb1c75b3433889d2af7d`
 
-Qualified package SHA-256: `2c47d7ad4e82942bd303ab848ab82b9163a76ba9db79d52aaf8bfb0f028d80fc`
+Frozen F0 qualified package SHA-256: `2c47d7ad4e82942bd303ab848ab82b9163a76ba9db79d52aaf8bfb0f028d80fc`
 
-Qualified DLL SHA-256 / MVID: `202701ed9232e4f5a4d5ff65c468c684d1ed1dd53e4a8030be93b960a7cd202a` / `a702808c-e8a0-4755-bc24-5ed4e945866a`
+Frozen F0 qualified DLL SHA-256 / MVID: `202701ed9232e4f5a4d5ff65c468c684d1ed1dd53e4a8030be93b960a7cd202a` / `a702808c-e8a0-4755-bc24-5ed4e945866a`
+
+## Evidence-epoch boundary
+
+The completed `22 PASS / 0 attributable FAIL / 3 DEFER — EVIDENCED` row ledger is frozen F0 runtime evidence. F0 used Working SHA-256 `a5f7a7fb77f0465df1591360ecd1730e2c28215d83e27aafc70efef3110e6dc5`, length `718821`, ticks `639222573406912936`. It remains truthful historical evidence and is not retroactively rebound to a different archive.
+
+F1 is descriptor-requalified at execution HEAD `15bbf0e2029ebc43d8bada48b83b4f55d43f8db0`, but it is not admitted for runtime. Cross-epoch comparison exposed unauthorized metadata changes to two valued non-KMC saves. No runtime scenario has executed against F1. Consequently the top-level status remains `BLOCKED — CRITICAL`, and the three missing mandatory rows retain their frozen F0 disposition.
+
+## F1 descriptor requalification
+
+Status: PASS
+
+Transaction `fixture-requalification-20260814T1140026497594Z` committed at `qualifiedAtUtc` `2026-08-14T11:40:02.8457604+00:00`. The descriptor qualification record is SHA-256 `95e9a3c6203f11cfdd7e615849eb61ebc060131075f6a7f40771dcd7eeb68a7a`, length `1272`, ticks `639223044028647586`; transaction state is phase `committed`, SHA-256 `68fdc0f759e7f7daffaffaeb27996357e74c8f5861c5bf9345005edbefa66cce`, length `1707`, ticks `639223044029797599`. The durable prior-record backup is the exact F0 qualification, SHA-256 `c1e33c75004212039258d6d90ba20e43c37c50966c94e685dbad1ca0e653654f`, length `1272`.
+
+The audit proved exactly Baseline 1 / Working 1 / near-match 0; exact internal names; distinct paths; Manual/v1 descriptors; and shared GameName `cvb`, GameId `d41185be-edc1-47c0-b9d5-e1d7a9c8e65f`, and Area `9d1278a2f599b2a4daab53abdfe88d2e`. Baseline is byte-for-byte unchanged at SHA-256 `c29d965c9ff5dc0f971659d9ae154877aa4a9a461ca220d1ce28e7c7fd9d2512`, length `686605`, ticks `639222474845172002`. Revised Working alone was descriptor-requalified at SHA-256 `5eb4e0b4cbd8d60dc879a02ff71aadfde3f517304754857f0cc68d0f9a93f1c6`, length `816452`, ticks `639222975870964407`; no other save was authorized.
+
+The requalification transaction preserved its current before/after save inventory at digest `973f203e16aad29d7e4865bae6f81149d959a4ac179953c87781a06d1c71898d`, `271` files, `3178473776` bytes. The normal guard passed and the recovery `-WhatIf` passed in already-committed mode. No Kingmaker/Wrath/UMM process, active lock, sentinel, live KMC tree, non-restored transaction, or requalification debris remains. This is a descriptor-transaction PASS only; it does not clear cross-epoch runtime admission.
+
+## Active P0 blocker: cross-epoch valued-save drift
+
+Status: BLOCKED — CRITICAL
+
+Frozen F0 inventory was digest `58a54974423316041e29d32b1093c5d6775dbd67fe2b37ffaea3c9ae27de19be`, `271` files, `3178063612` bytes. Current F1 inventory differs in exactly three entries and no others:
+
+| Entry | Authorization | F0 length / ticks | Current F1 length / ticks |
+|---|---|---|---|
+| Working | Authorized | `718821` / `639222573406912936` | `816452` / `639222975870964407` |
+| `Auto_1120` | Unauthorized | `204829` / `639222474628040540` | `333208` / `639222975467301685` |
+| `Quick_438` | Unauthorized | `625411` / `639220694761623881` | `809565` / `639222975512345112` |
+
+The Working delta is within the user's explicit replacement authorization. The `Auto_1120` and `Quick_438` deltas are not. The project does not infer who or what changed them, and the successful requalification pre/post equality proves only that the requalification transaction itself did not change the then-current inventory. F1 remains non-admitted for runtime. Commit only this corrected six-file blocker ledger as a local docs-only safety checkpoint; do not package, run `-WhatIf`, publish, launch Kingmaker, restore either valued save, or mutate either valued save. User-owned resolution or explicit authority for both valued saves is required before runtime admission can be reconsidered.
 
 ## Cleared blocker: exact KMC fixture identity
 
 Status: PASS
 
-The canonical audit proved exactly one `KMC_AUTOMATION_BASELINE`, exactly one `KMC_AUTOMATION_WORKING`, and zero other KMC near-matches. The guard opened only those canonical archives and verified distinct non-linked direct-child paths, exact internal names, Manual/v1 descriptors, and shared campaign identity: GameName `cvb`, GameId `d41185be-edc1-47c0-b9d5-e1d7a9c8e65f`, Area `9d1278a2f599b2a4daab53abdfe88d2e`.
+The frozen F0 canonical audit proved exactly one `KMC_AUTOMATION_BASELINE`, exactly one `KMC_AUTOMATION_WORKING`, and zero other KMC near-matches. The guard opened only those canonical archives and verified distinct non-linked direct-child paths, exact internal names, Manual/v1 descriptors, and shared campaign identity: GameName `cvb`, GameId `d41185be-edc1-47c0-b9d5-e1d7a9c8e65f`, Area `9d1278a2f599b2a4daab53abdfe88d2e`.
 
-Baseline SHA-256 is `c29d965c9ff5dc0f971659d9ae154877aa4a9a461ca220d1ce28e7c7fd9d2512`; qualified Working SHA-256 is `a5f7a7fb77f0465df1591360ecd1730e2c28215d83e27aafc70efef3110e6dc5`. Baseline is immutable and never a repair target. The sole writable allowlist identity is exact Working. Other-project, ordinary, auto, quick, and foreign saves were not admitted.
+Baseline SHA-256 is `c29d965c9ff5dc0f971659d9ae154877aa4a9a461ca220d1ce28e7c7fd9d2512`; frozen F0 Working SHA-256 is `a5f7a7fb77f0465df1591360ecd1730e2c28215d83e27aafc70efef3110e6dc5`. Baseline is immutable and never a repair target. The sole writable allowlist identity is exact Working. Other-project, ordinary, auto, quick, and foreign saves were not admitted.
 
 ## Cleared blocker: fixture load context and pair availability
 
@@ -35,31 +65,37 @@ Status: PASS
 
 The exact claim limits are: `Direct HandleTurnBasedModeStateChanged(true) invocation only; native mode-event delivery was not exercised.`; `Direct HandleTurnBasedModeStateChanged(false) invocation only; native mode-event delivery was not exercised.`; `Direct GuardBoundary(SaveRequested) service invocation only; stock SaveRoutine and serialization were not exercised.`; `Real Game.LoadGame of the exact Working descriptor exercised the native LoadRoutine prefix; no UI load request was exercised.`; and `Direct OnAreaBeginUnloading cleanup was latched before real Game.ReloadArea; native area-event delivery was not independently observed or qualified.`
 
-## Active critical blocker: mandatory §27.7 fixture/control coverage
+## Downstream blocker: mandatory §27.7 F1 runtime coverage
 
 Status: BLOCKED — CRITICAL
 
-The final named-row ledger is `22 PASS / 0 attributable FAIL / 3 DEFER — EVIDENCED`. The remaining rows are mandatory and cannot be waived:
+The frozen F0 named-row ledger is `22 PASS / 0 attributable FAIL / 3 DEFER — EVIDENCED`. F1 descriptor requalification does not prove scene contents or any runtime row, and the P0 valued-save hold currently forbids execution. Doorway, selection, and formation remain mandatory and cannot be waived:
 
 ### Doorway control
 
-Status: DEFER — EVIDENCED
+Frozen F0 status: DEFER — EVIDENCED
 
-The available doorway attempt was contaminated by native combat after initial control/traversal observations. The current fixture therefore cannot provide the required combat-neutral same-Mammoth unmounted control and mounted comparison. The attempt is neither an attributable Architecture B failure nor a qualifying PASS. Do not rerun it unchanged and do not weaken the matched-control requirement.
+Current F1 status: TODO
+
+The F0 doorway attempt was contaminated by native combat after initial control/traversal observations. It is neither an attributable Architecture B failure nor a qualifying PASS. F1 must now run the exact same-Mammoth unmounted control and mounted comparison twice in fresh processes without weakening the matched-control requirement.
 
 ### Selection away/back
 
-Status: DEFER — EVIDENCED
+Frozen F0 status: DEFER — EVIDENCED
 
-The current Working fixture has no eligible directly controllable non-pair unit. The mandatory away/back selection test cannot execute honestly. Do not synthesize a third unit, substitute the mount, or infer UI/portrait selection from camera-only evidence.
+Current F1 status: TODO
+
+F0 Working had no eligible directly controllable non-pair unit. F1 must prove selection away to an eligible third unit and back twice in fresh processes. Do not synthesize a unit, substitute the mount, or infer UI/portrait selection from camera-only evidence.
 
 ### Party formation
 
-Status: DEFER — EVIDENCED
+Frozen F0 status: DEFER — EVIDENCED
 
-Formation has the same missing third-unit prerequisite. A pair-only command cannot prove that KMC preserves an uninvolved party member's stock formation target and command identity.
+Current F1 status: TODO
 
-Unblocking requires a project-owned Working fixture with both a combat-neutral doorway/control route and one eligible directly controllable non-pair unit. Baseline remains immutable. The canonical audit and descriptor/authorization guard must rerun before the revised Working fixture is opened, followed by strict A/B execution of only these three missing rows.
+F0 formation had the same missing third-unit prerequisite. F1 must issue a meaningful stock group movement command twice and prove the third unit's stock command/formation behavior and non-pair isolation. A pair-only command remains insufficient.
+
+The revised project-owned Working descriptor is qualified and Baseline remains immutable, but F1 is not admitted for runtime. Strict A/B execution of these rows remains downstream work only after the valued-save safety hold is resolved.
 
 ## Evidence-backed visual finding
 
@@ -71,14 +107,14 @@ This closes the Phase 1 visual-classification requirement without adding another
 
 ## Runtime safety state
 
-Status: PASS
+Status: BLOCKED — CRITICAL
 
-The final source/build gates are source `21/0`, component `112/0`, visual `12/0`, harness `105/0`, and assembly-backed `69/0`. Every admitted live run restored exact Mods, authorized Working, protected-save metadata, process state, lock, sentinel, and deployed KMC state. No Kingmaker, Wrath, or UMM process and no active KMC transaction residue remains at closure.
+The frozen F0 source/build gates are source `21/0`, component `112/0`, visual `12/0`, harness `105/0`, and assembly-backed `69/0`. Every F0 admitted live run restored exact Mods, then-authorized Working, protected-save metadata, process state, lock, sentinel, and deployed KMC state. F1 requalification preserved its current pre/post inventory and left no process or transaction residue, but cross-epoch comparison shows unauthorized changes to `Auto_1120` and `Quick_438`. Runtime safety admission therefore remains blocked even though no F1 scenario executed.
 
 ## Architecture and authorization state
 
 Status: BLOCKED — CRITICAL
 
-Static scores remain A/B/C/D = `41/66/77/89`. Architecture B is the provisional product-fit leader; C/D remain documented pivots and A remains rejected as too cross-cutting. No K1–K12 kill criterion fired. The three mandatory deferrals nevertheless prevent a truthful proceed or pivot completion status.
+Static scores remain A/B/C/D = `41/66/77/89`. Architecture B is the provisional product-fit leader; C/D remain documented pivots and A remains rejected as too cross-cutting. No K1–K12 kill criterion fired. The three F0 mandatory deferrals and absence of F1 runtime results nevertheless prevent a truthful proceed or pivot completion status.
 
-Phase 2 remains a draft only. Executing it, preparing a new fixture, or beginning pose/animation work requires the applicable new authorization; public release requires separate explicit authorization.
+Phase 2 remains a draft only. Exact next action: commit only this corrected six-file blocker ledger as a local docs-only safety checkpoint, then HOLD without package, `-WhatIf`, publication, or game launch while the user owns resolution or grants explicit authority for changed valued saves `Auto_1120` and `Quick_438`. The project must not restore or mutate them. Executing Phase 2 or beginning pose/animation work is not authorized.
