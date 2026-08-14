@@ -59,6 +59,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private RuntimeMovementScenarioEngine movementEngine;
         private RuntimeBoundaryScenarioEngine boundaryEngine;
         private readonly List<string> scenarioEngineErrors = new List<string>();
+        private readonly BoundaryFailureDrain saveBackedFailureDrain = new BoundaryFailureDrain();
+        private IReadOnlyList<string> saveBackedFailureErrors;
         private bool completionStarted;
 
         private static RuntimeAutomationHost active;
@@ -74,6 +76,9 @@ namespace KingmakerMountedCombat.Diagnostics
         internal RuntimeRequest Request => request;
 
         internal string CurrentMovementRow => movementEngine == null ? null : movementEngine.CurrentRow;
+
+        internal bool IsSaveBackedFailurePending => request.SchemaVersion == RuntimeRequest.SaveBackedSchemaVersion &&
+            !completed && !saveBackedFailureDrain.MayAdvanceScenario;
 
         public void Abort(Exception exception)
         {
@@ -321,16 +326,20 @@ namespace KingmakerMountedCombat.Diagnostics
 
             frameCount++;
             elapsedSeconds = runtimeClock.Elapsed.TotalSeconds;
-            if (frameCount < 10 || elapsedSeconds < 1.0d)
-            {
-                return;
-            }
-
             try
             {
+                if (request.SchemaVersion == RuntimeRequest.SaveBackedSchemaVersion && !saveBackedFailureDrain.MayAdvanceScenario)
+                {
+                    DrainSaveBackedFailure();
+                    return;
+                }
+                if (frameCount < 10 || elapsedSeconds < 1.0d)
+                {
+                    return;
+                }
                 if (elapsedSeconds > 300.0d)
                 {
-                    if (Kingmaker.EntitySystem.Persistence.LoadingProcess.Instance.IsLoadingInProcess)
+                    if (IsLoadingProcessActive())
                     {
                         return;
                     }
@@ -759,6 +768,76 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
+            if (saveBackedFailureDrain.IsLatched)
+            {
+                DrainSaveBackedFailure();
+                return;
+            }
+            if (IsLoadingProcessActive())
+            {
+                RequestSaveBackedFailureDrain(status, errors);
+                return;
+            }
+
+            CompleteSaveBackedWhenIdle(status, errors);
+        }
+
+        private void RequestSaveBackedFailureDrain(string requestedStatus, IReadOnlyList<string> errors)
+        {
+            if (!saveBackedFailureDrain.IsLatched)
+            {
+                var retainedErrors = new List<string>();
+                if (errors != null)
+                {
+                    foreach (var error in errors)
+                    {
+                        if (!string.IsNullOrWhiteSpace(error))
+                        {
+                            retainedErrors.Add(error);
+                        }
+                    }
+                }
+                if (retainedErrors.Count == 0)
+                {
+                    retainedErrors.Add("Save-backed runtime requested " + requestedStatus + " completion while Kingmaker loading was active.");
+                }
+                retainedErrors.Add("Save-backed completion, cleanup, engine disposal, and process quit are deferred until the active Kingmaker loading pipeline stops.");
+                saveBackedFailureErrors = retainedErrors.ToArray();
+                saveBackedFailureDrain.Request(retainedErrors[0], IsLoadingProcessActive());
+            }
+
+            DrainSaveBackedFailure();
+        }
+
+        private void DrainSaveBackedFailure()
+        {
+            if (saveBackedFailureDrain.Observe(IsLoadingProcessActive()) == BoundaryFailureDrainState.DrainingActiveLoad)
+            {
+                return;
+            }
+            if (saveBackedFailureDrain.State != BoundaryFailureDrainState.ReadyToFinalize)
+            {
+                return;
+            }
+
+            var retainedErrors = saveBackedFailureErrors ?? (IReadOnlyList<string>)new[]
+            {
+                saveBackedFailureDrain.Failure ?? "Save-backed runtime failure drain did not retain an exact cause."
+            };
+            CompleteSaveBackedWhenIdle("FAIL", retainedErrors);
+        }
+
+        private void CompleteSaveBackedWhenIdle(string status, IReadOnlyList<string> errors)
+        {
+            if (completionStarted)
+            {
+                return;
+            }
+            if (IsLoadingProcessActive())
+            {
+                throw new InvalidOperationException("Save-backed runtime completion was invoked while Kingmaker loading was active.");
+            }
+
             completionStarted = true;
             try
             {
@@ -778,6 +857,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 try { Application.Quit(); }
                 catch (Exception exception) { logger.Exception("Save-backed runtime quit", exception); }
             }
+        }
+
+        private static bool IsLoadingProcessActive()
+        {
+            var loading = Kingmaker.EntitySystem.Persistence.LoadingProcess.Instance;
+            return loading != null && loading.IsLoadingInProcess;
         }
 
         private void CompleteSaveBackedCore(string status, IReadOnlyList<string> errors)

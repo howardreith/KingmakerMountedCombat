@@ -29,6 +29,7 @@ namespace KingmakerMountedCombat.Tests
             RuntimeSaveAuthorizationTests.Register(runner);
             WorkingFixtureLoadWatchdogTests.Register(runner);
             BoundaryFailureDrainTests.Register(runner);
+            MovementScreenshotCaptureTests.Register(runner);
             return runner.Complete();
         }
 

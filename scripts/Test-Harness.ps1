@@ -92,10 +92,16 @@ function New-TestArtifactManifest {
 }
 
 function New-TestLifecycleUnitEvidence {
-    param([Parameter(Mandatory = $true)][string]$UniqueId, [Parameter(Mandatory = $true)][int]$SizeOrdinal)
+    param(
+        [Parameter(Mandatory = $true)][string]$UniqueId,
+        [Parameter(Mandatory = $true)][int]$SizeOrdinal,
+        [switch]$MountedRider
+    )
     return [ordered]@{
-        uniqueId=$UniqueId;sizeOrdinal=$SizeOrdinal;inCombat=$false;stockAgentEnabled=$true;avoidanceDisabled=$false
-        agentOverrideType=$null;overrideComponentCount=0
+        uniqueId=$UniqueId;sizeOrdinal=$SizeOrdinal;inCombat=$false;stockAgentEnabled=$(if($MountedRider){$false}else{$true})
+        avoidanceDisabled=$(if($MountedRider){$true}else{$false});forbidRotation=$(if($MountedRider){$true}else{$false})
+        agentOverrideType=$(if($MountedRider){'KingmakerMountedCombat.Integration.RiderMovementAgent'}else{$null})
+        overrideComponentCount=$(if($MountedRider){1}else{0})
         entityPosition=[ordered]@{x=1.0;y=2.0;z=3.0};entityRotationDegrees=45.0
         viewPosition=[ordered]@{x=1.0;y=2.0;z=3.0};viewRotation=[ordered]@{x=0.0;y=0.0;z=0.0;w=1.0}
         moveCommandType=$null;moveTarget=$null;activeCommandTypes=@();selected=$false
@@ -115,20 +121,32 @@ function New-TestLifecycleEvidenceRecord {
         [AllowNull()]$AssertionFailCount,
         [string[]]$RecordErrors = @()
     )
+    $expectedTrigger = Get-KmcLifecycleExpectedCleanupTrigger $Row
+    $invocationPath = Get-KmcLifecycleInvocationPath $Row
     $cleanup = if ($WithCleanup) {
-        [ordered]@{trigger='Manual';result='PASS';succeeded=$true;state='Unmounted';movementAuthorityResidual=$false;presentationResidual=$false;errors=@()}
+        [ordered]@{trigger=$expectedTrigger;result='PASS';succeeded=$true;state='Unmounted';movementAuthorityResidual=$false;presentationResidual=$false;errors=@()}
     } else {
         [ordered]@{trigger=$null;result=$null;succeeded=$null;state=$null;movementAuthorityResidual=$null;presentationResidual=$null;errors=@()}
     }
     $mounted = $Phase -ceq 'mounted-next-frame'
+    $restored = $WithCleanup -and $Row -cne 'mounted-pair-invalid-pair-rejected'
+    $frame = [int]($Sequence + 1)
+    if ($Phase -ceq 'row-finish' -and $Row -cne 'mounted-pair-cleanup-idempotent') { $frame = [int]$Sequence }
+    $originalParent = 'Scene/Units/Rider'
+    $currentParent = if ($mounted) { 'Scene/Mount/KMC_RiderPositionAnchor' } else { $originalParent }
     return [ordered]@{
-        schemaVersion=1;runId=[string]$Request.runId;scenario=[string]$Request.scenario;row=$Row;phase=$Phase
+        schemaVersion=2;runId=[string]$Request.runId;scenario=[string]$Request.scenario;row=$Row;phase=$Phase
         utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o');branch=[string]$Request.branch;commit=[string]$Request.commit
         productVersion=[string]$Request.productVersion;dllSha256=[string]$Request.dllSha256;dllMvid=[string]$Request.dllMvid
-        sequence=$Sequence;frame=[int]($Sequence + 1);relationshipState=$RelationshipState;rowStatus=$RowStatus
+        sequence=$Sequence;frame=$frame;relationshipState=$RelationshipState
+        triggerScope=[ordered]@{
+            expectedCleanupTrigger=$expectedTrigger;invocationPath=$invocationPath;nativeDeliveryObserved=$false
+            claimLimit='Direct service/handler invocation only; native EventBus/UMM delivery was not exercised.'
+        }
+        rowStatus=$RowStatus
         assertionPassCount=$AssertionPassCount;assertionFailCount=$AssertionFailCount;cleanup=$cleanup
         partyCombat=$false;riderCombat=$false;mountCombat=$false;turnBased=$false;paused=$false;currentGameMode='Default'
-        rider=(New-TestLifecycleUnitEvidence 'rider-id' 4);mount=(New-TestLifecycleUnitEvidence 'mount-id' 6)
+        rider=(New-TestLifecycleUnitEvidence 'rider-id' 4 -MountedRider:$mounted);mount=(New-TestLifecycleUnitEvidence 'mount-id' 6)
         selection=[ordered]@{available=$true;riderSelected=$true;mountSelected=$false;selectedUnitIds=@('rider-id')}
         spine=[ordered]@{name='Spine';worldPosition=[ordered]@{x=1.0;y=2.0;z=3.0};worldRotation=[ordered]@{x=0.0;y=0.0;z=0.0;w=1.0}}
         anchor=[ordered]@{
@@ -138,6 +156,15 @@ function New-TestLifecycleEvidenceRecord {
             currentPositionResidualWorldUnits=$(if($mounted){0.0}else{$null});currentRotationResidualDegrees=$(if($mounted){0.0}else{$null})
             preCorrectionPositionResidualWorldUnits=$(if($mounted){0.01}else{$null});preCorrectionRotationResidualDegrees=$(if($mounted){0.1}else{$null})
             postCorrectionPositionResidualWorldUnits=$(if($mounted){0.0}else{$null});postCorrectionRotationResidualDegrees=$(if($mounted){0.0}else{$null})
+        }
+        attachment=[ordered]@{
+            leaseContract='parent+sibling+world-position+world-rotation+local-scale'
+            leaseActive=$mounted;restoreVerified=$restored;residue=$mounted;riderParentMatchesAttachment=$mounted
+            currentRiderParent=$currentParent;originalRiderParent=$originalParent;riderParentMatchesOriginal=(-not $mounted)
+            currentRiderSiblingIndex=2;originalRiderSiblingIndex=2;riderSiblingIndexMatchesOriginal=$true
+            currentRiderLocalScale=[ordered]@{x=1.0;y=1.0;z=1.0};originalRiderLocalScale=[ordered]@{x=1.0;y=1.0;z=1.0}
+            riderLocalScaleMatchesOriginal=$true;attachmentParent=$(if($mounted){'KMC_RiderPositionAnchor'}else{$null})
+            sourceAnchor=$(if($mounted){'Spine'}else{$null});riskState=$(if($mounted){'active and internally consistent'}else{'none'})
         }
         recordErrors=@($RecordErrors)
     }
@@ -158,6 +185,25 @@ function Write-TestLifecycleEvidence {
         @([ordered]@{relativePath='lifecycle-scenario-evidence.jsonl';kind='scenario-evidence';length=(Get-Item -LiteralPath $path).Length;sha256=(Get-KmcSha256 $path)})
     }
     return New-TestArtifactManifest -EvidenceRoot $EvidenceRoot -RunId $Request.runId -Scenario $Request.scenario -Artifacts $artifacts
+}
+
+function Assert-TestLifecycleEvidenceRejected {
+    param(
+        [Parameter(Mandatory = $true)]$Request,
+        [Parameter(Mandatory = $true)][array]$Records,
+        [Parameter(Mandatory = $true)][array]$SubscenarioResults,
+        [Parameter(Mandatory = $true)][string]$FailureMessage
+    )
+    [void](Write-TestLifecycleEvidence -EvidenceRoot $Request.evidenceRoot -Request $Request -Records $Records)
+    $manifest = Read-KmcJson (Join-Path $Request.evidenceRoot 'runtime-artifacts.json')
+    $threw = $false
+    try {
+        Assert-KmcLifecycleScenarioEvidence -Request $Request -Manifest $manifest -Status 'PASS' -SubscenarioResults $SubscenarioResults
+    }
+    catch {
+        $threw = $true
+    }
+    Assert-Test $threw $FailureMessage
 }
 
 function New-TestMovementTelemetryRecord {
@@ -261,15 +307,58 @@ function New-TestMovementPathProbeRecord {
     param(
         [Parameter(Mandatory = $true)]$Request,
         [Parameter(Mandatory = $true)][string]$Row,
-        [Parameter(Mandatory = $true)][long]$Sequence
+        [Parameter(Mandatory = $true)][long]$Sequence,
+        [ValidateSet('Generic','DoorNear','DoorFar')][string]$Target = 'Generic',
+        [bool]$StrictDoor = $false
     )
+    $requested = switch ($Target) {
+        'DoorNear' { [ordered]@{x=1.0;y=2.0;z=3.0}; break }
+        'DoorFar' { [ordered]@{x=4.0;y=2.0;z=3.0}; break }
+        default { [ordered]@{x=1.0;y=2.0;z=3.0}; break }
+    }
     return [ordered]@{
         schemaVersion=1;runId=[string]$Request.runId;scenario=[string]$Request.scenario;row=$Row;branch=[string]$Request.branch
         commit=[string]$Request.commit;productVersion=[string]$Request.productVersion;dllSha256=[string]$Request.dllSha256
         dllMvid=[string]$Request.dllMvid;sequence=$Sequence;utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o')
-        kind='path-probe';requested=[ordered]@{x=1.0;y=2.0;z=3.0};endpoint=[ordered]@{x=4.0;y=2.0;z=3.0}
-        pathLength=3.0;accepted=$true;strictDoor=($Row -ceq 'mounted-pair-doorway')
+        kind='path-probe';requested=$requested;endpoint=$requested
+        pathLength=3.0;accepted=$true;strictDoor=$StrictDoor
     }
+}
+
+function Get-TestMovementScreenshotMilestones {
+    param([Parameter(Mandatory = $true)][string]$Row, [bool]$DoorApproachSkipped = $false)
+    switch ($Row) {
+        'mounted-pair-doorway' {
+            if ($DoorApproachSkipped) { return @('door-control','door-mounted','door-mounted','dismounted') }
+            return @('door-control','door-control','door-mounted','door-mounted','dismounted')
+        }
+        'mounted-pair-open-ground' { return @('mounted-idle','moving','stopped','dismounted') }
+        'mounted-pair-stop-start' { return @('mounted-idle','moving','stopped','restarted','dismounted') }
+        'mounted-pair-turns-and-corners' { return @('mounted-idle','moving','corner','corner','dismounted') }
+        'mounted-pair-selection' { return @('mounted-idle','selection','moving','dismounted') }
+        'mounted-pair-party-formation' { return @('mounted-idle','formation','formation','dismounted') }
+        'mounted-pair-pause-unpause' { return @('mounted-idle','moving','paused','dismounted') }
+        'mounted-pair-destination-cancel' { return @('mounted-idle','moving','cancelled','dismounted') }
+        default { throw "No test screenshot contract exists for movement row $Row." }
+    }
+}
+
+function New-TestMovementScreenshotRecords {
+    param([Parameter(Mandatory = $true)][string]$Row, [bool]$DoorApproachSkipped = $false)
+    $counts = @{}
+    $records = New-Object 'Collections.Generic.List[object]'
+    $rowToken = $Row.Substring('mounted-pair-'.Length)
+    foreach ($milestone in @(Get-TestMovementScreenshotMilestones $Row $DoorApproachSkipped)) {
+        $count = if ($counts.ContainsKey($milestone)) { [int]$counts[$milestone] + 1 } else { 1 }
+        $counts[$milestone] = $count
+        $relativePath = 'movement-visuals/' + $rowToken + '-' + $milestone + '-' + $count.ToString('00') + '.png'
+        $bytes = [Text.Encoding]::UTF8.GetBytes($relativePath)
+        $sha = [Security.Cryptography.SHA256]::Create()
+        try { $hash = ([BitConverter]::ToString($sha.ComputeHash($bytes))).Replace('-','').ToLowerInvariant() }
+        finally { $sha.Dispose() }
+        $records.Add([ordered]@{milestone=$milestone;relativePath=$relativePath;length=[long]$bytes.LongLength;sha256=$hash})
+    }
+    return $records.ToArray()
 }
 
 function New-TestMovementRowRecord {
@@ -296,6 +385,13 @@ function New-TestMovementRowRecord {
     }
     $formation = $Row -ceq 'mounted-pair-party-formation'
     $doorway = $Row -ceq 'mounted-pair-doorway'
+    $stopStart = $Row -ceq 'mounted-pair-stop-start'
+    $turns = $Row -ceq 'mounted-pair-turns-and-corners'
+    $selection = $Row -ceq 'mounted-pair-selection'
+    $pause = $Row -ceq 'mounted-pair-pause-unpause'
+    $cancel = $Row -ceq 'mounted-pair-destination-cancel'
+    $waypointCount = if ($doorway -or $turns) { 3 } elseif ($stopStart) { 2 } else { 1 }
+    $endpointQualifiedWaypointCount = if ($cancel) { 0 } elseif ($stopStart) { 1 } else { $waypointCount }
     return [ordered]@{
         schemaVersion=1;runId=[string]$Request.runId;scenario=[string]$Request.scenario;row=$Row;branch=[string]$Request.branch
         commit=[string]$Request.commit;productVersion=[string]$Request.productVersion;dllSha256=[string]$Request.dllSha256
@@ -352,15 +448,24 @@ function New-TestMovementRowRecord {
         synchronizationObservationCount=12;updateSynchronizationSampleCount=10;lateUpdateSynchronizationSampleCount=10
         updateSynchronizationCorrectionCount=1;lateUpdateSynchronizationCorrectionCount=1;maximumStationaryDriftWorldUnits=0.01
         maximumStuckSeconds=0.1;oscillationCount=0;unexpectedRepathCount=0;commandReplacementCount=0;selectionLossCount=0
-        waypointCount=1;maximumTurnDegrees=45.0;nonPairInterferenceCount=0;mountFinalTargetDistanceWorldUnits=$(if($formation){0.5}else{0.0})
+        waypointCount=$waypointCount;endpointQualifiedWaypointCount=$endpointQualifiedWaypointCount
+        maximumCompletedLegFinalTargetDistanceWorldUnits=$(if($cancel){0.0}else{0.5})
+        maximumCompletedLegBestTargetDistanceWorldUnits=$(if($cancel){0.0}else{0.4})
+        maximumTurnDegrees=$(if($turns){90.0}else{0.0});nonPairInterferenceCount=0
+        nonPairUnitId=$(if($selection -or $formation){'movement-non-pair'}else{$null});mountFinalTargetDistanceWorldUnits=$(if($cancel){0.0}else{0.5})
         nonPairBestTargetDistanceWorldUnits=$(if($formation){0.4}else{0.0});nonPairFinalTargetDistanceWorldUnits=$(if($formation){0.5}else{0.0})
         minimumPairNonPairSeparationWorldUnits=$(if($formation){3.0}else{0.0});requiredPairNonPairSeparationWorldUnits=$(if($formation){2.0}else{0.0})
-        unmountedDoorControlPassed=$doorway;cleanupTrigger='Manual';cleanupSucceeded=$true;cleanupResult='state=Unmounted'
+        unmountedDoorControlPassed=$doorway;doorApproachSkipped=$false;stopCommandIssuedCount=$(if($stopStart -or $cancel){1}else{0})
+        restartCompleted=$stopStart;selectionMountNormalized=$selection;selectionSwitchedAway=$selection;selectionSwitchedBack=$selection
+        formationSelectionNormalized=$formation;pauseEntered=$pause;pauseObservationSeconds=$(if($pause){1.1}else{0.0})
+        pauseMaximumDriftWorldUnits=$(if($pause){0.01}else{0.0});pauseExited=$pause
+        destinationCancelCommandAbsent=$cancel;destinationCancelRelationshipPreserved=$cancel
+        cleanupTrigger='Manual';cleanupSucceeded=$true;cleanupResult='state=Unmounted'
         cleanupResidual=$false;cleanupBefore=$before;cleanupAfter=$after
         selectionCoverage='SelectionManager.SelectedUnits only; active portrait and camera-follow state are not asserted.'
         formationCoverage='Stock group-command recipients and corpulence clearance only; formation-slot persistence is not asserted.'
         door=$(if($doorway){'Area/Door'}else{$null});doorNear=[ordered]@{x=1.0;y=2.0;z=3.0};doorFar=[ordered]@{x=4.0;y=2.0;z=3.0}
-        screenshots=@();screenshotCaptureErrors=@();errors=@()
+        screenshots=@(New-TestMovementScreenshotRecords $Row $false);screenshotCaptureErrors=@();errors=@()
     }
 }
 
@@ -381,6 +486,15 @@ function Write-TestMovementEvidence {
     $artifacts = New-Object 'Collections.Generic.List[object]'
     if (-not $OmitTelemetryManifest) { $artifacts.Add([ordered]@{relativePath='movement-telemetry.jsonl';kind='telemetry';length=(Get-Item $telemetryPath).Length;sha256=(Get-KmcSha256 $telemetryPath)}) }
     if (-not $OmitScenarioManifest) { $artifacts.Add([ordered]@{relativePath='movement-scenario-evidence.jsonl';kind='scenario-evidence';length=(Get-Item $scenarioPath).Length;sha256=(Get-KmcSha256 $scenarioPath)}) }
+    foreach ($rowRecord in @($ScenarioRecords | Where-Object { [string]$_.kind -ceq 'movement-row-result' })) {
+        foreach ($screenshot in @($rowRecord.screenshots)) {
+            $screenshotPath = Join-Path $EvidenceRoot ([string]$screenshot.relativePath).Replace('/', '\')
+            $screenshotDirectory = Split-Path -Parent $screenshotPath
+            New-Item -ItemType Directory -Path $screenshotDirectory -Force | Out-Null
+            [IO.File]::WriteAllBytes($screenshotPath, [Text.Encoding]::UTF8.GetBytes([string]$screenshot.relativePath))
+            $artifacts.Add([ordered]@{relativePath=[string]$screenshot.relativePath;kind='screenshot';length=(Get-Item $screenshotPath).Length;sha256=(Get-KmcSha256 $screenshotPath)})
+        }
+    }
     return New-TestArtifactManifest -EvidenceRoot $EvidenceRoot -RunId $Request.runId -Scenario $Request.scenario -Artifacts $artifacts.ToArray()
 }
 
@@ -1558,6 +1672,104 @@ try {
             Write-KmcJsonAtomic $v2GameResultPath $v2GameResult
         }
     }
+    Invoke-HarnessTest 'PASS lifecycle validator rejects trigger-scope and cleanup-trigger mutations' {
+        try {
+            $validLifecycleRecords[2].cleanup.trigger = 'Death'
+            Assert-TestLifecycleEvidenceRejected $v2Request $validLifecycleRecords @($v2Subscenario) 'lifecycle evidence accepted a cleanup trigger outside the exact row map'
+            $validLifecycleRecords[2].cleanup.trigger = 'Manual'
+
+            $validLifecycleRecords[1].triggerScope.nativeDeliveryObserved = $true
+            Assert-TestLifecycleEvidenceRejected $v2Request $validLifecycleRecords @($v2Subscenario) 'lifecycle evidence falsely claiming native delivery passed validation'
+            $validLifecycleRecords[1].triggerScope.nativeDeliveryObserved = $false
+
+            $validLifecycleRecords[1].triggerScope.invocationPath = 'lifecycle-handler-direct'
+            Assert-TestLifecycleEvidenceRejected $v2Request $validLifecycleRecords @($v2Subscenario) 'manual lifecycle evidence passed with the wrong direct invocation path'
+        }
+        finally {
+            $validLifecycleRecords[2].cleanup.trigger = 'Manual'
+            $validLifecycleRecords[1].triggerScope.nativeDeliveryObserved = $false
+            $validLifecycleRecords[1].triggerScope.invocationPath = 'relationship-service-direct'
+            $v2EvidenceManifestHash = Write-TestLifecycleEvidence -EvidenceRoot $v2Request.evidenceRoot -Request $v2Request -Records $validLifecycleRecords
+            $v2GameResult.evidenceManifestSha256 = $v2EvidenceManifestHash
+            Write-KmcJsonAtomic $v2GameResultPath $v2GameResult
+        }
+    }
+    Invoke-HarnessTest 'PASS lifecycle validator rejects phase frame and relationship-state mutations' {
+        try {
+            $validLifecycleRecords[1].frame = $validLifecycleRecords[0].frame
+            Assert-TestLifecycleEvidenceRejected $v2Request $validLifecycleRecords @($v2Subscenario) 'same-frame pre-mount and mounted lifecycle phases passed validation'
+            $validLifecycleRecords[1].frame = 2
+
+            $validLifecycleRecords[2].frame = $validLifecycleRecords[1].frame
+            Assert-TestLifecycleEvidenceRejected $v2Request $validLifecycleRecords @($v2Subscenario) 'same-frame mounted and cleanup lifecycle phases passed validation'
+            $validLifecycleRecords[2].frame = 3
+
+            $validLifecycleRecords[1].relationshipState = 'Unmounted'
+            Assert-TestLifecycleEvidenceRejected $v2Request $validLifecycleRecords @($v2Subscenario) 'mounted-next-frame evidence passed with Unmounted relationship state'
+        }
+        finally {
+            $validLifecycleRecords[1].frame = 2
+            $validLifecycleRecords[2].frame = 3
+            $validLifecycleRecords[1].relationshipState = 'Mounted'
+            $v2EvidenceManifestHash = Write-TestLifecycleEvidence -EvidenceRoot $v2Request.evidenceRoot -Request $v2Request -Records $validLifecycleRecords
+            $v2GameResult.evidenceManifestSha256 = $v2EvidenceManifestHash
+            Write-KmcJsonAtomic $v2GameResultPath $v2GameResult
+        }
+    }
+    Invoke-HarnessTest 'PASS lifecycle validator rejects mounted and restored authority mutations' {
+        try {
+            $validLifecycleRecords[1].rider.stockAgentEnabled = $true
+            Assert-TestLifecycleEvidenceRejected $v2Request $validLifecycleRecords @($v2Subscenario) 'mounted lifecycle evidence passed with the rider stock agent enabled'
+            $validLifecycleRecords[1].rider.stockAgentEnabled = $false
+
+            $validLifecycleRecords[1].rider.overrideComponentCount = 2
+            Assert-TestLifecycleEvidenceRejected $v2Request $validLifecycleRecords @($v2Subscenario) 'mounted lifecycle evidence passed with multiple rider override components'
+            $validLifecycleRecords[1].rider.overrideComponentCount = 1
+
+            $validLifecycleRecords[2].rider.avoidanceDisabled = $true
+            Assert-TestLifecycleEvidenceRejected $v2Request $validLifecycleRecords @($v2Subscenario) 'cleanup lifecycle evidence passed with rider avoidance still leased'
+            $validLifecycleRecords[2].rider.avoidanceDisabled = $false
+
+            $validLifecycleRecords[2].mount.agentOverrideType = 'Foreign.Override'
+            Assert-TestLifecycleEvidenceRejected $v2Request $validLifecycleRecords @($v2Subscenario) 'cleanup lifecycle evidence passed with a mount override residue'
+        }
+        finally {
+            $validLifecycleRecords[1].rider.stockAgentEnabled = $false
+            $validLifecycleRecords[1].rider.overrideComponentCount = 1
+            $validLifecycleRecords[2].rider.avoidanceDisabled = $false
+            $validLifecycleRecords[2].mount.agentOverrideType = $null
+            $v2EvidenceManifestHash = Write-TestLifecycleEvidence -EvidenceRoot $v2Request.evidenceRoot -Request $v2Request -Records $validLifecycleRecords
+            $v2GameResult.evidenceManifestSha256 = $v2EvidenceManifestHash
+            Write-KmcJsonAtomic $v2GameResultPath $v2GameResult
+        }
+    }
+    Invoke-HarnessTest 'PASS lifecycle validator rejects attachment lease and restore mutations' {
+        try {
+            $validLifecycleRecords[1].attachment.leaseActive = $false
+            Assert-TestLifecycleEvidenceRejected $v2Request $validLifecycleRecords @($v2Subscenario) 'mounted lifecycle evidence passed without an active attachment lease'
+            $validLifecycleRecords[1].attachment.leaseActive = $true
+
+            $validLifecycleRecords[2].attachment.restoreVerified = $false
+            Assert-TestLifecycleEvidenceRejected $v2Request $validLifecycleRecords @($v2Subscenario) 'cleanup lifecycle evidence passed without verified scoped-lease restoration'
+            $validLifecycleRecords[2].attachment.restoreVerified = $true
+
+            $validLifecycleRecords[2].attachment.currentRiderParent = 'Scene/ForeignParent'
+            Assert-TestLifecycleEvidenceRejected $v2Request $validLifecycleRecords @($v2Subscenario) 'cleanup lifecycle evidence passed with a changed rider parent'
+            $validLifecycleRecords[2].attachment.currentRiderParent = 'Scene/Units/Rider'
+
+            $validLifecycleRecords[2].attachment.riderLocalScaleMatchesOriginal = $false
+            Assert-TestLifecycleEvidenceRejected $v2Request $validLifecycleRecords @($v2Subscenario) 'cleanup lifecycle evidence passed without restored rider local scale'
+        }
+        finally {
+            $validLifecycleRecords[1].attachment.leaseActive = $true
+            $validLifecycleRecords[2].attachment.restoreVerified = $true
+            $validLifecycleRecords[2].attachment.currentRiderParent = 'Scene/Units/Rider'
+            $validLifecycleRecords[2].attachment.riderLocalScaleMatchesOriginal = $true
+            $v2EvidenceManifestHash = Write-TestLifecycleEvidence -EvidenceRoot $v2Request.evidenceRoot -Request $v2Request -Records $validLifecycleRecords
+            $v2GameResult.evidenceManifestSha256 = $v2EvidenceManifestHash
+            Write-KmcJsonAtomic $v2GameResultPath $v2GameResult
+        }
+    }
     Invoke-HarnessTest 'lifecycle-suite requires the exact eight-row order and coverage' {
         $suiteRows = @(Get-KmcLifecycleRuntimeRows)
         $suiteRequest = [pscustomobject][ordered]@{
@@ -1585,6 +1797,19 @@ try {
         [void](Write-TestLifecycleEvidence -EvidenceRoot $suiteRequest.evidenceRoot -Request $suiteRequest -Records $suiteRecords)
         $suiteManifest = Read-KmcJson (Join-Path $suiteRequest.evidenceRoot 'runtime-artifacts.json')
         Assert-KmcLifecycleScenarioEvidence -Request $suiteRequest -Manifest $suiteManifest -Status 'PASS' -SubscenarioResults $suiteSubresults
+
+        $deathCleanupRecord = @($suiteRecords | Where-Object {
+            [string]$_.row -ceq 'mounted-pair-death-cleanup' -and [string]$_.phase -ceq 'cleanup-next-frame'
+        })[0]
+        $deathCleanupRecord.cleanup.trigger = 'Manual'
+        Assert-TestLifecycleEvidenceRejected $suiteRequest $suiteRecords $suiteSubresults 'lifecycle-suite accepted Manual in the Death cleanup row'
+        $deathCleanupRecord.cleanup.trigger = 'Death'
+
+        $reorderedSubresults = @($suiteSubresults)
+        $firstSubresult = $reorderedSubresults[0]
+        $reorderedSubresults[0] = $reorderedSubresults[1]
+        $reorderedSubresults[1] = $firstSubresult
+        Assert-TestLifecycleEvidenceRejected $suiteRequest $suiteRecords $reorderedSubresults 'lifecycle-suite accepted reordered subscenario results'
 
         $incompleteSuiteRecords = & $newSuiteRecords @($suiteRows[0..6])
         [void](Write-TestLifecycleEvidence -EvidenceRoot $suiteRequest.evidenceRoot -Request $suiteRequest -Records $incompleteSuiteRecords)
@@ -1996,7 +2221,17 @@ try {
         for ($index = 0; $index -lt $suiteRows.Count; $index++) {
             $row = $suiteRows[$index]
             $telemetry.Add((New-TestMovementTelemetryRecord $suiteRequest $row $index))
-            $scenario.Add((New-TestMovementPathProbeRecord $suiteRequest $row ($scenarioSequence++)))
+            if ($row -ceq 'mounted-pair-doorway') {
+                $scenario.Add((New-TestMovementPathProbeRecord $suiteRequest $row ($scenarioSequence++) 'DoorNear' $false))
+                $scenario.Add((New-TestMovementPathProbeRecord $suiteRequest $row ($scenarioSequence++) 'DoorFar' $true))
+                $scenario.Add((New-TestMovementPathProbeRecord $suiteRequest $row ($scenarioSequence++) 'DoorNear' $true))
+            }
+            else {
+                $probeCount = if ($row -ceq 'mounted-pair-stop-start') { 2 } elseif ($row -ceq 'mounted-pair-turns-and-corners') { 3 } else { 1 }
+                for ($probeIndex = 0; $probeIndex -lt $probeCount; $probeIndex++) {
+                    $scenario.Add((New-TestMovementPathProbeRecord $suiteRequest $row ($scenarioSequence++)))
+                }
+            }
             $scenario.Add((New-TestMovementRowRecord $suiteRequest $row ($scenarioSequence++)))
             $subresults.Add([pscustomobject][ordered]@{name=$row;status='PASS';assertionPassCount=20;assertionFailCount=0;errors=@()})
         }
@@ -2004,9 +2239,98 @@ try {
         $manifest = Read-KmcJson (Join-Path $suiteRequest.evidenceRoot 'runtime-artifacts.json')
         Assert-KmcMovementScenarioEvidence -Request $suiteRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults $subresults.ToArray()
 
-        $reordered = $scenario.ToArray()
-        $firstPair = @($reordered[0],$reordered[1]); $secondPair = @($reordered[2],$reordered[3])
-        $reordered[0]=$secondPair[0];$reordered[1]=$secondPair[1];$reordered[2]=$firstPair[0];$reordered[3]=$firstPair[1]
+        $rowMutationCases = @(
+            @('mounted-pair-open-ground','commandReplacementCount',1),
+            @('mounted-pair-open-ground','selectionLossCount',1),
+            @('mounted-pair-party-formation','nonPairInterferenceCount',1),
+            @('mounted-pair-stop-start','stopCommandIssuedCount',0),
+            @('mounted-pair-turns-and-corners','maximumTurnDegrees',74.9),
+            @('mounted-pair-selection','selectionSwitchedBack',$false),
+            @('mounted-pair-party-formation','formationSelectionNormalized',$false),
+            @('mounted-pair-pause-unpause','pauseEntered',$false),
+            @('mounted-pair-destination-cancel','destinationCancelCommandAbsent',$false),
+            @('mounted-pair-doorway','unmountedDoorControlPassed',$false),
+            @('mounted-pair-open-ground','waypointCount',2),
+            @('mounted-pair-open-ground','endpointQualifiedWaypointCount',0),
+            @('mounted-pair-open-ground','maximumCompletedLegFinalTargetDistanceWorldUnits',1.250001),
+            @('mounted-pair-open-ground','maximumCompletedLegBestTargetDistanceWorldUnits',1.250001),
+            @('mounted-pair-destination-cancel','endpointQualifiedWaypointCount',1)
+        )
+        foreach ($mutation in $rowMutationCases) {
+            $record = @($scenario.ToArray() | Where-Object { [string]$_.kind -ceq 'movement-row-result' -and [string]$_.row -ceq [string]$mutation[0] })[0]
+            $property = [string]$mutation[1]
+            $original = $record[$property]
+            try {
+                $record[$property] = $mutation[2]
+                $threw = $false
+                try { Assert-KmcMovementScenarioRecord $record $suiteRequest ([long]$record.sequence) $suiteRows $true $manifest } catch { $threw = $true }
+                Assert-Test $threw "PASS movement row accepted semantic mutation $($mutation[0])/$property"
+            }
+            finally { $record[$property] = $original }
+        }
+
+        $openGroundRecord = @($scenario.ToArray() | Where-Object { [string]$_.kind -ceq 'movement-row-result' -and [string]$_.row -ceq 'mounted-pair-open-ground' })[0]
+        $originalScreenshots = @($openGroundRecord.screenshots)
+        try {
+            $openGroundRecord.screenshots = @($originalScreenshots[0..($originalScreenshots.Count - 2)])
+            $threw = $false
+            try { Assert-KmcMovementScenarioRecord $openGroundRecord $suiteRequest ([long]$openGroundRecord.sequence) $suiteRows $true $manifest } catch { $threw = $true }
+            Assert-Test $threw 'PASS movement row accepted incomplete screenshot milestone/count coverage'
+        }
+        finally { $openGroundRecord.screenshots = $originalScreenshots }
+
+        $pauseRecord = @($scenario.ToArray() | Where-Object { [string]$_.kind -ceq 'movement-row-result' -and [string]$_.row -ceq 'mounted-pair-pause-unpause' })[0]
+        $originalPauseScreenshots = @($pauseRecord.screenshots)
+        try {
+            $mutatedOpenScreenshots = @($originalScreenshots)
+            $mutatedPauseScreenshots = @($originalPauseScreenshots)
+            $mutatedOpenScreenshots[1] = $originalPauseScreenshots[1]
+            $mutatedPauseScreenshots[1] = $originalScreenshots[1]
+            $openGroundRecord.screenshots = $mutatedOpenScreenshots
+            $pauseRecord.screenshots = $mutatedPauseScreenshots
+            $threw = $false
+            try { Assert-KmcMovementScenarioRecord $openGroundRecord $suiteRequest ([long]$openGroundRecord.sequence) $suiteRows $true $manifest } catch { $threw = $true }
+            Assert-Test $threw 'PASS movement rows accepted cross-row substitution of a shared screenshot milestone'
+        }
+        finally {
+            $openGroundRecord.screenshots = $originalScreenshots
+            $pauseRecord.screenshots = $originalPauseScreenshots
+        }
+
+        $doorStrictProbe = @($scenario.ToArray() | Where-Object { [string]$_.kind -ceq 'path-probe' -and [string]$_.row -ceq 'mounted-pair-doorway' })[1]
+        try {
+            $doorStrictProbe.strictDoor = $false
+            [void](Write-TestMovementEvidence $suiteRequest.evidenceRoot $suiteRequest $telemetry.ToArray() $scenario.ToArray())
+            $mutatedManifest = Read-KmcJson (Join-Path $suiteRequest.evidenceRoot 'runtime-artifacts.json')
+            $threw = $false
+            try { Assert-KmcMovementScenarioEvidence -Request $suiteRequest -Manifest $mutatedManifest -Status 'PASS' -SubscenarioResults $subresults.ToArray() } catch { $threw = $true }
+            Assert-Test $threw 'PASS doorway accepted a non-strict same-geometry crossing probe'
+        }
+        finally { $doorStrictProbe.strictDoor = $true }
+
+        [void](Write-TestMovementEvidence $suiteRequest.evidenceRoot $suiteRequest $telemetry.ToArray() $scenario.ToArray())
+        $manifest = Read-KmcJson (Join-Path $suiteRequest.evidenceRoot 'runtime-artifacts.json')
+        $orphanRelativePath = 'movement-visuals/orphan-manifested.png'
+        $orphanPath = Join-Path $suiteRequest.evidenceRoot $orphanRelativePath.Replace('/', '\')
+        [IO.File]::WriteAllBytes($orphanPath, [Text.Encoding]::UTF8.GetBytes($orphanRelativePath))
+        try {
+            $manifest.artifacts = @($manifest.artifacts) + @([pscustomobject][ordered]@{
+                relativePath=$orphanRelativePath;kind='screenshot';length=(Get-Item $orphanPath).Length;sha256=(Get-KmcSha256 $orphanPath)
+            })
+            $threw = $false
+            try { Assert-KmcMovementScenarioEvidence -Request $suiteRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults $subresults.ToArray() } catch { $threw = $true }
+            Assert-Test $threw 'PASS movement evidence accepted an orphan manifested screenshot'
+        }
+        finally { if (Test-Path -LiteralPath $orphanPath -PathType Leaf) { Remove-Item -LiteralPath $orphanPath -Force } }
+
+        [void](Write-TestMovementEvidence $suiteRequest.evidenceRoot $suiteRequest $telemetry.ToArray() $scenario.ToArray())
+        $manifest = Read-KmcJson (Join-Path $suiteRequest.evidenceRoot 'runtime-artifacts.json')
+
+        $reordered = @(
+            @($scenario.ToArray() | Where-Object { [string]$_.row -ceq [string]$suiteRows[1] })
+            @($scenario.ToArray() | Where-Object { [string]$_.row -ceq [string]$suiteRows[0] })
+            @($scenario.ToArray() | Where-Object { [Array]::IndexOf($suiteRows, [string]$_.row) -ge 2 })
+        )
         for ($index=0;$index -lt $reordered.Count;$index++) { $reordered[$index].sequence=$index }
         [void](Write-TestMovementEvidence $suiteRequest.evidenceRoot $suiteRequest $telemetry.ToArray() $reordered)
         $manifest = Read-KmcJson (Join-Path $suiteRequest.evidenceRoot 'runtime-artifacts.json')
@@ -2019,6 +2343,7 @@ try {
         $engineSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeMovementScenarioEngine.cs'))
         $agentSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\RiderMovementAgent.cs'))
         $movementDomainSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MovementTelemetry.cs'))
+        $commonSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\runtime\RuntimeHarness.Common.ps1'))
         Assert-Test ($writerSource.Contains('row = movementRow()')) 'movement telemetry is not bound to the active engine row'
         Assert-Test ($writerSource.Contains('System.Math.Max(riderViewPositionResidual.Value, riderEntityPositionResidual)') -and
             $writerSource.Contains('System.Math.Max(riderViewRotationResidual.Value, riderEntityRotationResidual)')) 'interval telemetry reports only cosmetic view residual instead of conservative entity/view residual'
@@ -2067,9 +2392,9 @@ try {
             ForEach-Object { $_.Groups[1].Value })
         $rowProducerNames = @($rowOwnedNames + $rowPayloadNames)
         $rowFixtureNames = @((New-TestMovementRowRecord $movementRequest $movementRow 1).Keys | ForEach-Object { [string]$_ })
-        Assert-Test ($rowPayloadNames.Count -eq 133 -and $rowProducerNames.Count -eq 144 -and $rowFixtureNames.Count -eq 144 -and
+        Assert-Test ($rowPayloadNames.Count -eq 150 -and $rowProducerNames.Count -eq 161 -and $rowFixtureNames.Count -eq 161 -and
             @($rowProducerNames | Where-Object { [Array]::IndexOf($rowFixtureNames, $_) -lt 0 }).Count -eq 0 -and
-            @($rowFixtureNames | Where-Object { [Array]::IndexOf($rowProducerNames, $_) -lt 0 }).Count -eq 0) 'movement row fixture/validator field set is not the exact 144-field producer schema'
+            @($rowFixtureNames | Where-Object { [Array]::IndexOf($rowProducerNames, $_) -lt 0 }).Count -eq 0) 'movement row fixture/validator field set is not the exact 161-field producer schema'
         $runtimeSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\KingmakerMountedPairRuntime.cs'))
         Assert-Test ($runtimeSource.Contains('riderAvoidanceWasDisabled = riderStockAgent.AvoidanceDisabled;') -and
             $runtimeSource.Contains('riderStockAgent.AvoidanceDisabled != riderAvoidanceWasDisabled')) 'runtime does not verify its counted avoidance lease restores the captured effective state'
@@ -2077,6 +2402,32 @@ try {
         Assert-Test ($engineSource.Contains('CompleteRemainingAsNotRun("Further movement was suppressed because post-cleanup verification could not prove restoration."')) 'destroyed-view cleanup failures can still loop instead of bounded finalization'
         Assert-Test ($engineSource.Contains('RiderStateRestored()') -and $engineSource.Contains('MountStateRestored()')) 'destroyed Unity view/agent checks are not fail-closed'
         Assert-Test ($engineSource.Contains('assertions.FailureCount != failuresBeforeCleanupVerification')) 'failed cleanup restoration checks do not suppress the remaining suite rows'
+        $beginRowStart = $engineSource.IndexOf('private void BeginRow()', [StringComparison]::Ordinal)
+        $beginRowEnd = $engineSource.IndexOf('private void AdvanceCurrentRow()', $beginRowStart, [StringComparison]::Ordinal)
+        $beginRowBlock = $engineSource.Substring($beginRowStart, $beginRowEnd - $beginRowStart)
+        $rowResetIndex = $beginRowBlock.IndexOf('ResetRowMetrics();', [StringComparison]::Ordinal)
+        $navigationResetIndex = $beginRowBlock.IndexOf('ResetNavigationMetrics();', [StringComparison]::Ordinal)
+        Assert-Test ($rowResetIndex -ge 0 -and $navigationResetIndex -gt $rowResetIndex) 'movement row start can retain prior-navigation metrics on an early fixture failure'
+        $issueStart = $engineSource.IndexOf('private void IssueSelectedMovementCommand()', [StringComparison]::Ordinal)
+        $issueEnd = $engineSource.IndexOf('private void ObserveNavigation()', $issueStart, [StringComparison]::Ordinal)
+        $issueBlock = $engineSource.Substring($issueStart, $issueEnd - $issueStart)
+        $clickIndex = $issueBlock.IndexOf('ClickGroundHandler.MoveSelectedUnitsToPoint', [StringComparison]::Ordinal)
+        $immediateObserveIndex = $issueBlock.IndexOf('ObserveUninvolvedCommands();', [StringComparison]::Ordinal)
+        Assert-Test ($clickIndex -ge 0 -and $immediateObserveIndex -gt $clickIndex) 'formation routing does not observe accidental unselected recipients immediately after click dispatch'
+        $observeStart = $engineSource.IndexOf('private void ObserveUninvolvedCommands()', [StringComparison]::Ordinal)
+        $observeEnd = $engineSource.IndexOf('private Dictionary<UnitEntityData, object> CaptureUninvolvedMoveCommands', $observeStart, [StringComparison]::Ordinal)
+        $observeBlock = $engineSource.Substring($observeStart, $observeEnd - $observeStart)
+        Assert-Test ($observeBlock.Contains('TrackTouched(pair.Key);')) 'accidentally commanded unselected recipients are not enrolled in fail-closed stop/cleanup verification'
+        Assert-Test ($engineSource.Contains('if (navigationMode != NavigationMode.StopEarly)') -and
+            $engineSource.Contains('rowEndpointQualifiedWaypointCount++;') -and
+            $engineSource.Contains('mountFinalTargetDistance <= ReachTolerance && navigationBestDistance <= ReachTolerance') -and
+            $commonSource.Contains("'mounted-pair-stop-start' { 1L; break }") -and
+            $commonSource.Contains("'mounted-pair-destination-cancel' { 0L; break }")) 'ordinary completed movement legs do not retain exact final/best 1.25 endpoint proof with bounded stop/cancel exemptions'
+        Assert-Test ($engineSource.Contains('assertions.Check(rowSelectionLosses == 0,') -and
+            $engineSource.Contains('selectionLossCount = rowSelectionLosses')) 'zero selection-loss is not both asserted generically and serialized for every movement row'
+        Assert-Test ($engineSource.Contains('if (!probeDoorStrict && direct < MinimumRadialDistance - 1.0f)') -and
+            $engineSource.Contains('.OrderByDescending(axis => Math.Abs(Vector3.Dot(axis, doorToMount)))') -and
+            $engineSource.Contains('rowDoorApproachSkipped = PlanarDistance(mount.Position, doorNearPoint) < MinimumRadialDistance - 1.0f;')) 'bounded doorway candidate policy still rejects a near-side control or chooses an axis without mount-side quality ranking'
     }
     Invoke-HarnessTest 'runtime game-result schema preserves exact save-backed FAIL evidence' {
         try {

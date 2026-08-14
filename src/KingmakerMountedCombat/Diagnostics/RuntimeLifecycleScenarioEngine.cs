@@ -29,6 +29,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private const double RowTimeoutSeconds = 15.0d;
         private const double SuiteTimeoutSeconds = 120.0d;
         private const string EvidenceFileName = "lifecycle-scenario-evidence.jsonl";
+        private const string DirectInvocationClaimLimit =
+            "Direct service/handler invocation only; native EventBus/UMM delivery was not exercised.";
 
         private static readonly JsonSerializerSettings EvidenceJsonSettings = new JsonSerializerSettings
         {
@@ -87,6 +89,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private string evidenceFailureMessage;
         private bool evidenceFinalized;
         private bool cleanupFrameEvidenceWritten;
+        private bool attachmentLeaseAcquiredThisRow;
 
         public RuntimeLifecycleScenarioEngine(
             RuntimeRequest request,
@@ -257,6 +260,7 @@ namespace KingmakerMountedCombat.Diagnostics
             snapshot = null;
             lastCleanupTransition = null;
             cleanupFrameEvidenceWritten = false;
+            attachmentLeaseAcquiredThisRow = false;
             rowClock.Restart();
             assertions.Check(relationship.State == RelationshipState.Unmounted,
                 "Relationship began the row Unmounted.",
@@ -299,6 +303,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 FinishCurrentRow();
                 return;
             }
+            if (!AssertPreMountBaseline())
+            {
+                RequestCleanup(CleanupTrigger.Exception);
+                return;
+            }
 
             if (string.Equals(currentRow, "mounted-pair-invalid-pair-rejected", StringComparison.Ordinal))
             {
@@ -327,7 +336,21 @@ namespace KingmakerMountedCombat.Diagnostics
             }
 
             AssertMountedAuthority();
+            attachmentLeaseAcquiredThisRow = relationship.Runtime.PresentationAttachmentLeaseActive;
             step = EngineStep.AwaitMountedFrame;
+        }
+
+        private bool AssertPreMountBaseline()
+        {
+            var exact = snapshot.RiderStockAgent.enabled && snapshot.MountStockAgent.enabled &&
+                !snapshot.RiderStockAgent.AvoidanceDisabled && !snapshot.MountStockAgent.AvoidanceDisabled &&
+                !snapshot.RiderView.ForbidRotation && !snapshot.MountView.ForbidRotation &&
+                snapshot.RiderOverride == null && snapshot.MountOverride == null &&
+                snapshot.RiderOverrideComponentCount == 0 && snapshot.MountOverrideComponentCount == 0;
+            assertions.Check(exact,
+                "Exact clean stock-agent, avoidance, rotation, override, and component baseline was captured.",
+                "Pre-mount pair contained disabled stock authority or retained avoidance, rotation, override, or component state.");
+            return exact;
         }
 
         private void ExerciseMountedRow()
@@ -470,9 +493,36 @@ namespace KingmakerMountedCombat.Diagnostics
             assertions.Check(snapshot.RiderView.AgentOverride == relationship.Runtime.MovementAgent && relationship.Runtime.MovementAgent != null,
                 "Rider installed only the owned movement override.",
                 "Rider did not expose the owned movement override.");
+            assertions.Check(snapshot.RiderView.GetComponents<RiderMovementAgent>().Length == snapshot.RiderOverrideComponentCount + 1,
+                "Rider added exactly one owned RiderMovementAgent component.",
+                "Mounted rider did not contain exactly one additional RiderMovementAgent component.");
+            assertions.Check(snapshot.RiderView.ForbidRotation,
+                "Rider rotation was held by the owned mounted lease.",
+                "Rider rotation was not held while mounted.");
             assertions.Check(snapshot.MountView.AgentASP == snapshot.MountStockAgent && snapshot.MountStockAgent.enabled,
                 "Mount stock movement agent remained authoritative.",
                 "Mount stock movement agent was changed or disabled.");
+            assertions.Check(snapshot.MountStockAgent.AvoidanceDisabled == snapshot.MountAvoidanceWasDisabled,
+                "Mount stock avoidance state remained unchanged.",
+                "Mount stock avoidance state changed while mounted.");
+            assertions.Check(ReferenceEquals(snapshot.MountView.AgentOverride, snapshot.MountOverride) && snapshot.MountOverride == null,
+                "Mount retained no movement override.",
+                "Mount gained or changed a movement override while mounted.");
+            assertions.Check(snapshot.MountView.GetComponents<RiderMovementAgent>().Length == snapshot.MountOverrideComponentCount,
+                "Mount RiderMovementAgent component count remained unchanged.",
+                "Mount RiderMovementAgent component count changed while mounted.");
+            assertions.Check(snapshot.MountView.ForbidRotation == snapshot.MountForbidRotationWasEnabled,
+                "Mount rotation state remained unchanged.",
+                "Mount rotation state changed while mounted.");
+            assertions.Check(relationship.Runtime.PresentationAttachmentLeaseActive &&
+                    relationship.Runtime.RiderParentMatchesAttachment &&
+                    relationship.Runtime.HasPresentationAttachmentResidue &&
+                    !relationship.Runtime.PresentationAttachmentRestoreVerified &&
+                    string.Equals(relationship.Runtime.PresentationAttachmentParentName, "KMC_RiderPositionAnchor", StringComparison.Ordinal) &&
+                    string.Equals(relationship.Runtime.PresentationSourceAnchorName, "Spine", StringComparison.Ordinal) &&
+                    string.Equals(relationship.Runtime.PresentationAttachmentRiskState, "active and internally consistent", StringComparison.Ordinal),
+                "Rider owned one internally consistent scoped position-attachment lease.",
+                "Rider scoped position-attachment lease was absent, restored early, or internally inconsistent.");
         }
 
         private void AssertCleanupTransition(TransitionResult result, CleanupTrigger expectedTrigger)
@@ -542,6 +592,18 @@ namespace KingmakerMountedCombat.Diagnostics
                 assertions.Check(snapshot.RiderView.GetComponents<RiderMovementAgent>().Length == snapshot.RiderOverrideComponentCount,
                     "Owned RiderMovementAgent component count returned to its exact prior value.",
                     "A RiderMovementAgent component remained or disappeared after cleanup.");
+                assertions.Check(snapshot.RiderView.ForbidRotation == snapshot.RiderForbidRotationWasEnabled,
+                    "Rider rotation lease returned to its exact prior value.",
+                    "Rider rotation lease remained changed after cleanup.");
+                assertions.Check(snapshot.RiderAttachmentParentRestored() &&
+                        snapshot.RiderAttachmentSiblingIndexRestored() &&
+                        snapshot.RiderAttachmentLocalScaleRestored() &&
+                        (!attachmentLeaseAcquiredThisRow || relationship.Runtime.PresentationAttachmentRestoreVerified) &&
+                        !relationship.Runtime.PresentationAttachmentLeaseActive &&
+                        !relationship.Runtime.HasPresentationAttachmentResidue &&
+                        string.Equals(relationship.Runtime.PresentationAttachmentRiskState, "none", StringComparison.Ordinal),
+                    "Scoped rider attachment restored its captured parent, sibling index, and local scale and verified the full lease contract.",
+                    "Scoped rider attachment did not verify restoration or retained parent/carrier residue.");
             }
 
             var mountStockAgentAlive = snapshot.MountStockAgent != null;
@@ -562,6 +624,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 assertions.Check(ReferenceEquals(snapshot.MountView.AgentOverride, snapshot.MountOverride),
                     "Mount AgentOverride was preserved.",
                     "Mount AgentOverride changed after cleanup.");
+                assertions.Check(snapshot.MountView.GetComponents<RiderMovementAgent>().Length == snapshot.MountOverrideComponentCount,
+                    "Mount RiderMovementAgent component count returned to its exact prior value.",
+                    "Mount RiderMovementAgent component count changed after cleanup.");
+                assertions.Check(snapshot.MountView.ForbidRotation == snapshot.MountForbidRotationWasEnabled,
+                    "Mount rotation state returned to its exact prior value.",
+                    "Mount rotation state changed after cleanup.");
             }
         }
 
@@ -793,7 +861,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
             return new LifecycleEvidenceRecord
             {
-                SchemaVersion = 1,
+                SchemaVersion = 2,
                 RunId = request.RunId,
                 Scenario = request.Scenario,
                 Row = currentRow ?? lastEvidenceRow,
@@ -807,6 +875,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 Sequence = evidenceSequence++,
                 Frame = frameNumber,
                 RelationshipState = relationship.State.ToString(),
+                TriggerScope = CreateTriggerScope(currentRow ?? lastEvidenceRow),
                 RowStatus = string.Equals(phase, "row-finish", StringComparison.Ordinal) && assertions != null
                     ? (assertions.FailureCount == 0 ? "PASS" : "FAIL")
                     : null,
@@ -852,7 +921,46 @@ namespace KingmakerMountedCombat.Diagnostics
                     PostCorrectionPositionResidualWorldUnits = agent == null ? (double?)null : agent.LatestPostCorrectionPositionResidualWorldUnits,
                     PostCorrectionRotationResidualDegrees = agent == null ? (double?)null : agent.LatestPostCorrectionRotationResidualDegrees
                 },
+                Attachment = CreateAttachmentEvidence(pair, riderView),
                 RecordErrors = recordErrors == null ? new string[0] : recordErrors.ToArray()
+            };
+        }
+
+        private TriggerScopeEvidence CreateTriggerScope(string row)
+        {
+            return new TriggerScopeEvidence
+            {
+                ExpectedCleanupTrigger = GetExpectedCleanupTrigger(row).ToString(),
+                InvocationPath = UsesLifecycleHandler(row) ? "lifecycle-handler-direct" : "relationship-service-direct",
+                NativeDeliveryObserved = false,
+                ClaimLimit = DirectInvocationClaimLimit
+            };
+        }
+
+        private AttachmentEvidence CreateAttachmentEvidence(PairSnapshot pair, UnitEntityView riderView)
+        {
+            var riderTransform = riderView == null ? null : riderView.transform;
+            return new AttachmentEvidence
+            {
+                LeaseContract = "parent+sibling+world-position+world-rotation+local-scale",
+                LeaseActive = relationship.Runtime.PresentationAttachmentLeaseActive,
+                RestoreVerified = relationship.Runtime.PresentationAttachmentRestoreVerified,
+                Residue = relationship.Runtime.HasPresentationAttachmentResidue,
+                RiderParentMatchesAttachment = relationship.Runtime.RiderParentMatchesAttachment,
+                CurrentRiderParent = riderTransform == null ? null : BuildHierarchyName(riderTransform.parent),
+                OriginalRiderParent = pair == null ? null : BuildHierarchyName(pair.RiderParent),
+                RiderParentMatchesOriginal = pair != null && riderTransform != null && riderTransform.parent == pair.RiderParent,
+                CurrentRiderSiblingIndex = riderTransform == null ? (int?)null : riderTransform.GetSiblingIndex(),
+                OriginalRiderSiblingIndex = pair == null ? (int?)null : pair.RiderSiblingIndex,
+                RiderSiblingIndexMatchesOriginal = pair != null && riderTransform != null &&
+                    riderTransform.GetSiblingIndex() == pair.RiderSiblingIndex,
+                CurrentRiderLocalScale = riderTransform == null ? null : PositionEvidence.From(riderTransform.localScale),
+                OriginalRiderLocalScale = pair == null ? null : PositionEvidence.From(pair.RiderLocalScale),
+                RiderLocalScaleMatchesOriginal = pair != null && riderTransform != null &&
+                    Vector3.Distance(riderTransform.localScale, pair.RiderLocalScale) <= 0.0001f,
+                AttachmentParent = relationship.Runtime.PresentationAttachmentParentName,
+                SourceAnchor = relationship.Runtime.PresentationSourceAnchorName,
+                RiskState = relationship.Runtime.PresentationAttachmentRiskState
             };
         }
 
@@ -882,6 +990,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 InCombat = unit.IsInCombat,
                 StockAgentEnabled = stockAgent == null ? (bool?)null : stockAgent.enabled,
                 AvoidanceDisabled = stockAgent == null ? (bool?)null : stockAgent.AvoidanceDisabled,
+                ForbidRotation = view == null ? (bool?)null : view.ForbidRotation,
                 AgentOverrideType = view == null || view.AgentOverride == null
                     ? null
                     : view.AgentOverride.GetType().FullName,
@@ -922,6 +1031,22 @@ namespace KingmakerMountedCombat.Diagnostics
             return null;
         }
 
+        private static string BuildHierarchyName(Transform transform)
+        {
+            if (transform == null)
+            {
+                return null;
+            }
+
+            var names = new List<string>();
+            for (var current = transform; current != null; current = current.parent)
+            {
+                names.Add(current.name ?? "<unnamed>");
+            }
+            names.Reverse();
+            return string.Join("/", names.ToArray());
+        }
+
         private static string ComputeSha256(string filePath)
         {
             using (var algorithm = SHA256.Create())
@@ -956,6 +1081,34 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
             }
             return null;
+        }
+
+        private static CleanupTrigger GetExpectedCleanupTrigger(string row)
+        {
+            if (string.Equals(row, "mounted-pair-death-cleanup", StringComparison.Ordinal))
+            {
+                return CleanupTrigger.Death;
+            }
+            if (string.Equals(row, "mounted-pair-combat-start-cleanup", StringComparison.Ordinal))
+            {
+                return CleanupTrigger.CombatStarted;
+            }
+            if (string.Equals(row, "mounted-pair-area-unload-cleanup", StringComparison.Ordinal))
+            {
+                return CleanupTrigger.AreaUnloading;
+            }
+            if (string.Equals(row, "mounted-pair-mod-disable-cleanup", StringComparison.Ordinal))
+            {
+                return CleanupTrigger.ModDisabled;
+            }
+            return CleanupTrigger.Manual;
+        }
+
+        private static bool UsesLifecycleHandler(string row)
+        {
+            return string.Equals(row, "mounted-pair-death-cleanup", StringComparison.Ordinal) ||
+                string.Equals(row, "mounted-pair-combat-start-cleanup", StringComparison.Ordinal) ||
+                string.Equals(row, "mounted-pair-area-unload-cleanup", StringComparison.Ordinal);
         }
 
         private static string FormatTransitionErrors(TransitionResult result)
@@ -1008,6 +1161,7 @@ namespace KingmakerMountedCombat.Diagnostics
             public long Sequence { get; set; }
             public int Frame { get; set; }
             public string RelationshipState { get; set; }
+            public TriggerScopeEvidence TriggerScope { get; set; }
             public string RowStatus { get; set; }
             public int? AssertionPassCount { get; set; }
             public int? AssertionFailCount { get; set; }
@@ -1023,7 +1177,16 @@ namespace KingmakerMountedCombat.Diagnostics
             public SelectionEvidence Selection { get; set; }
             public TransformEvidence Spine { get; set; }
             public AnchorEvidence Anchor { get; set; }
+            public AttachmentEvidence Attachment { get; set; }
             public IReadOnlyList<string> RecordErrors { get; set; }
+        }
+
+        private sealed class TriggerScopeEvidence
+        {
+            public string ExpectedCleanupTrigger { get; set; }
+            public string InvocationPath { get; set; }
+            public bool NativeDeliveryObserved { get; set; }
+            public string ClaimLimit { get; set; }
         }
 
         private sealed class CleanupEvidence
@@ -1061,6 +1224,7 @@ namespace KingmakerMountedCombat.Diagnostics
             public bool? InCombat { get; set; }
             public bool? StockAgentEnabled { get; set; }
             public bool? AvoidanceDisabled { get; set; }
+            public bool? ForbidRotation { get; set; }
             public string AgentOverrideType { get; set; }
             public int? OverrideComponentCount { get; set; }
             public PositionEvidence EntityPosition { get; set; }
@@ -1099,6 +1263,27 @@ namespace KingmakerMountedCombat.Diagnostics
             public double? PreCorrectionRotationResidualDegrees { get; set; }
             public double? PostCorrectionPositionResidualWorldUnits { get; set; }
             public double? PostCorrectionRotationResidualDegrees { get; set; }
+        }
+
+        private sealed class AttachmentEvidence
+        {
+            public string LeaseContract { get; set; }
+            public bool LeaseActive { get; set; }
+            public bool RestoreVerified { get; set; }
+            public bool Residue { get; set; }
+            public bool RiderParentMatchesAttachment { get; set; }
+            public string CurrentRiderParent { get; set; }
+            public string OriginalRiderParent { get; set; }
+            public bool RiderParentMatchesOriginal { get; set; }
+            public int? CurrentRiderSiblingIndex { get; set; }
+            public int? OriginalRiderSiblingIndex { get; set; }
+            public bool RiderSiblingIndexMatchesOriginal { get; set; }
+            public PositionEvidence CurrentRiderLocalScale { get; set; }
+            public PositionEvidence OriginalRiderLocalScale { get; set; }
+            public bool RiderLocalScaleMatchesOriginal { get; set; }
+            public string AttachmentParent { get; set; }
+            public string SourceAnchor { get; set; }
+            public string RiskState { get; set; }
         }
 
         private sealed class PositionEvidence
@@ -1154,6 +1339,33 @@ namespace KingmakerMountedCombat.Diagnostics
 
             public int RiderOverrideComponentCount { get; private set; }
 
+            public int MountOverrideComponentCount { get; private set; }
+
+            public bool RiderForbidRotationWasEnabled { get; private set; }
+
+            public bool MountForbidRotationWasEnabled { get; private set; }
+
+            public Transform RiderParent { get; private set; }
+
+            public int RiderSiblingIndex { get; private set; }
+
+            public Vector3 RiderLocalScale { get; private set; }
+
+            public bool RiderAttachmentParentRestored()
+            {
+                return RiderView != null && RiderView.transform.parent == RiderParent;
+            }
+
+            public bool RiderAttachmentSiblingIndexRestored()
+            {
+                return RiderView != null && RiderView.transform.GetSiblingIndex() == RiderSiblingIndex;
+            }
+
+            public bool RiderAttachmentLocalScaleRestored()
+            {
+                return RiderView != null && Vector3.Distance(RiderView.transform.localScale, RiderLocalScale) <= 0.0001f;
+            }
+
             public static PairSnapshot TryCreate(UnitEntityData rider, UnitEntityData mount, out string error)
             {
                 error = null;
@@ -1178,7 +1390,13 @@ namespace KingmakerMountedCombat.Diagnostics
                     MountAvoidanceWasDisabled = mount.View.AgentASP.AvoidanceDisabled,
                     RiderOverride = rider.View.AgentOverride,
                     MountOverride = mount.View.AgentOverride,
-                    RiderOverrideComponentCount = rider.View.GetComponents<RiderMovementAgent>().Length
+                    RiderOverrideComponentCount = rider.View.GetComponents<RiderMovementAgent>().Length,
+                    MountOverrideComponentCount = mount.View.GetComponents<RiderMovementAgent>().Length,
+                    RiderForbidRotationWasEnabled = rider.View.ForbidRotation,
+                    MountForbidRotationWasEnabled = mount.View.ForbidRotation,
+                    RiderParent = rider.View.transform.parent,
+                    RiderSiblingIndex = rider.View.transform.GetSiblingIndex(),
+                    RiderLocalScale = rider.View.transform.localScale
                 };
             }
         }

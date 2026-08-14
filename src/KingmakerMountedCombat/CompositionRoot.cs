@@ -102,6 +102,12 @@ namespace KingmakerMountedCombat
             try { runtimeAutomation?.Abort(exception); }
             catch (Exception abortException) { first = abortException; }
 
+            if (runtimeAutomation != null && runtimeAutomation.IsSaveBackedFailurePending)
+            {
+                logger.Warning("Save-backed update failure is latched until the active Kingmaker loading pipeline stops; relationship cleanup and process completion remain deferred.");
+                return;
+            }
+
             try
             {
                 settings.EnableUnsafeMovementExperiment = false;
@@ -127,6 +133,10 @@ namespace KingmakerMountedCombat
         {
             ThrowIfDisposed();
             runtimeAutomation?.Update(deltaTime);
+            if (runtimeAutomation != null && runtimeAutomation.IsSaveBackedFailurePending)
+            {
+                return;
+            }
             if (runtimeAutomation == null || !runtimeAutomation.IsCompleted)
             {
                 movementTelemetry?.Update(deltaTime);

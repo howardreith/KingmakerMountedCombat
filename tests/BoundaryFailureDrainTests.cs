@@ -12,6 +12,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("boundary failure becomes finalizable only after loading stops", LoadStopReleasesFailure);
             runner.Run("boundary failure preserves the first safety-significant cause", FirstFailureIsPreserved);
             runner.Run("boundary failure rejects an empty cause", EmptyFailureIsRejected);
+            runner.Run("latched boundary failure forbids scenario advancement", LatchedFailureForbidsScenarioAdvancement);
         }
 
         private static void IdleFailureIsReady()
@@ -69,6 +70,25 @@ namespace KingmakerMountedCombat.Tests
             }
 
             TestRunner.True(threw, "An empty boundary failure cause was accepted.");
+        }
+
+        private static void LatchedFailureForbidsScenarioAdvancement()
+        {
+            var drain = new BoundaryFailureDrain();
+            TestRunner.Equal(true, drain.MayAdvanceScenario,
+                "An inactive failure drain unexpectedly blocked scenario advancement.");
+
+            drain.Request("authorization", true);
+            TestRunner.Equal(true, drain.IsLatched,
+                "An active-load failure was not retained as a latched terminal request.");
+            TestRunner.Equal(false, drain.MayAdvanceScenario,
+                "A scenario could advance after an active-load failure was latched.");
+
+            drain.Observe(false);
+            TestRunner.Equal(BoundaryFailureDrainState.ReadyToFinalize, drain.State,
+                "An idle pipeline did not make the latched failure finalizable.");
+            TestRunner.Equal(false, drain.MayAdvanceScenario,
+                "A scenario could advance after its latched failure became finalizable.");
         }
     }
 }

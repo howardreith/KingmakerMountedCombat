@@ -9,7 +9,6 @@ using Kingmaker;
 using Kingmaker.Controllers.Clicks.Handlers;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.UI.Selection;
-using Kingmaker.Utility;
 using Kingmaker.View;
 using Kingmaker.View.MapObjects;
 using KingmakerMountedCombat.Domain;
@@ -98,9 +97,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly List<RuntimeSubscenarioResult> results = new List<RuntimeSubscenarioResult>();
         private readonly List<string> errors = new List<string>();
         private readonly List<ScreenshotEvidence> screenshots = new List<ScreenshotEvidence>();
-        private readonly List<PendingScreenshot> pendingScreenshots = new List<PendingScreenshot>();
         private readonly List<string> captureErrors = new List<string>();
         private readonly Dictionary<string, int> captureCounts = new Dictionary<string, int>(StringComparer.Ordinal);
+        private readonly MovementScreenshotCaptureCoordinator screenshotCapture;
         private readonly List<UnitEntityData> touchedUnits = new List<UnitEntityData>();
         private readonly Stopwatch suiteClock = new Stopwatch();
         private readonly Stopwatch rowClock = new Stopwatch();
@@ -285,6 +284,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private int rowCommandReplacements;
         private int rowSelectionLosses;
         private int rowWaypointCount;
+        private int rowEndpointQualifiedWaypointCount;
+        private double rowMaximumCompletedLegFinalTargetDistance;
+        private double rowMaximumCompletedLegBestTargetDistance;
         private double rowMaximumTurnDegrees;
         private int rowNonPairInterferenceCount;
         private long rowSynchronizationObservationCount;
@@ -294,6 +296,19 @@ namespace KingmakerMountedCombat.Diagnostics
         private long rowLateUpdateCorrectionCount;
         private bool rowSynchronizationFailureRecorded;
         private bool rowUnmountedDoorControlPassed;
+        private bool rowDoorApproachSkipped;
+        private int rowStopCommandIssuedCount;
+        private bool rowRestartCompleted;
+        private bool rowSelectionMountNormalized;
+        private bool rowSelectionSwitchedAway;
+        private bool rowSelectionSwitchedBack;
+        private bool rowFormationSelectionNormalized;
+        private bool rowPauseEntered;
+        private double rowPauseObservationSeconds;
+        private double rowPauseMaximumDrift;
+        private bool rowPauseExited;
+        private bool rowDestinationCancelCommandAbsent;
+        private bool rowDestinationCancelRelationshipPreserved;
         private Vector3 previousLegDirection;
         private StandardDoor selectedDoor;
         private Vector3 doorNearPoint;
@@ -315,6 +330,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 throw new ArgumentException("Movement evidence root is required.", nameof(evidenceRoot));
             }
             this.evidenceRoot = Path.GetFullPath(evidenceRoot);
+            screenshotCapture = new MovementScreenshotCaptureCoordinator(CommitScreenshot, RecordScreenshotFailure, logger);
         }
 
         public bool IsCompleted => completed;
@@ -377,7 +393,7 @@ namespace KingmakerMountedCombat.Diagnostics
             frameNumber++;
             try
             {
-                FlushReadyScreenshots();
+                screenshotCapture.Pump(frameNumber);
                 if (suiteClock.Elapsed.TotalSeconds > SuiteTimeoutSeconds && !abortAfterVerifiedCleanup)
                 {
                     const string timeoutMessage = "Movement suite exceeded its bounded monotonic deadline.";
@@ -441,6 +457,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
             try
             {
+                screenshotCapture.Dispose();
                 StopTouchedMovement();
                 BestEffortDismount(CleanupTrigger.ProcessTeardown);
                 RestorePause();
@@ -487,10 +504,14 @@ namespace KingmakerMountedCombat.Diagnostics
             nonPairUnit = null;
             touchedUnits.Clear();
             screenshots.Clear();
-            pendingScreenshots.Clear();
             captureErrors.Clear();
             captureCounts.Clear();
+            if (screenshotCapture.PendingCount != 0)
+            {
+                throw new InvalidOperationException("A prior movement row retained pending screenshot work.");
+            }
             ResetRowMetrics();
+            ResetNavigationMetrics();
             ResetPathProbe();
             navigationStage = NavigationStage.None;
             rowPhase = 0;
@@ -632,7 +653,8 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (rowPhase == 2 && PollNavigation())
             {
-                assertions.Check(navigationMovedDistance >= 1.0d,
+                rowRestartCompleted = navigationMovedDistance >= 1.0d;
+                assertions.Check(rowRestartCompleted,
                     "Mount restarted and progressed after stop.",
                     "Mount did not restart after stop.");
                 AssertRowMovementQuality();
@@ -697,8 +719,17 @@ namespace KingmakerMountedCombat.Diagnostics
                 doorNearPoint = candidate.Near;
                 doorFarPoint = candidate.Far;
                 SelectOnly(mount);
-                BeginExactNavigation(NavigationMode.UnmountedControl, doorNearPoint, false, "door-control");
-                rowPhase = 1;
+                rowDoorApproachSkipped = PlanarDistance(mount.Position, doorNearPoint) < MinimumRadialDistance - 1.0f;
+                if (rowDoorApproachSkipped)
+                {
+                    BeginExactNavigation(NavigationMode.UnmountedControl, doorFarPoint, true, "door-control");
+                    rowPhase = 2;
+                }
+                else
+                {
+                    BeginExactNavigation(NavigationMode.UnmountedControl, doorNearPoint, false, "door-control");
+                    rowPhase = 1;
+                }
                 return;
             }
             if (rowPhase == 1 && PollNavigation())
@@ -743,7 +774,8 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 var selection = RequireSelectionManager();
                 selection.SelectUnit(mount.View, true, false, false);
-                assertions.Check(selection.SelectedUnits.Count == 1 && selection.SelectedUnits[0] == rider && !selection.SelectedUnits.Contains(mount),
+                rowSelectionMountNormalized = selection.SelectedUnits.Count == 1 && selection.SelectedUnits[0] == rider && !selection.SelectedUnits.Contains(mount);
+                assertions.Check(rowSelectionMountNormalized,
                     "Selecting the mounted Mammoth normalized to the rider.",
                     "Mounted mount-to-rider selection normalization failed.");
                 nonPairUnit = FindIdleNonPairControllable();
@@ -760,11 +792,13 @@ namespace KingmakerMountedCombat.Diagnostics
                     "Idle non-pair movement snapshot was captured before selection switching.",
                     "Idle non-pair movement snapshot could not be captured.");
                 selection.SelectUnit(nonPairUnit.View, true, false, false);
-                assertions.Check(selection.SelectedUnits.Count == 1 && selection.SelectedUnits[0] == nonPairUnit,
+                rowSelectionSwitchedAway = selection.SelectedUnits.Count == 1 && selection.SelectedUnits[0] == nonPairUnit;
+                assertions.Check(rowSelectionSwitchedAway,
                     "Selection switched away from the mounted pair.",
                     "Selection did not switch to the non-pair unit.");
                 selection.SelectUnit(rider.View, true, false, false);
-                assertions.Check(selection.SelectedUnits.Count == 1 && selection.SelectedUnits[0] == rider,
+                rowSelectionSwitchedBack = selection.SelectedUnits.Count == 1 && selection.SelectedUnits[0] == rider;
+                assertions.Check(rowSelectionSwitchedBack,
                     "Selection switched back to the rider.",
                     "Selection did not switch back to the rider.");
                 CaptureMilestone("selection");
@@ -778,9 +812,6 @@ namespace KingmakerMountedCombat.Diagnostics
                 assertions.Check(selection.SelectedUnits.Contains(rider) && !selection.SelectedUnits.Contains(mount),
                     "Rider selection remained stable through routed movement.",
                     "Rider selection was lost or replaced by the mount during movement.");
-                assertions.Check(rowSelectionLosses == 0,
-                    "No unrequested selection loss occurred.",
-                    "Observed " + rowSelectionLosses + " unrequested selection-loss frame(s).");
                 AssertRowMovementQuality();
                 BeginCleanup(CleanupTrigger.Manual);
             }
@@ -806,7 +837,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 requiredPairNonPairSeparation = Math.Max(0.10d, mount.Corpulence + nonPairUnit.Corpulence);
 
                 RequireSelectionManager().MultiSelect(new[] { rider.View, nonPairUnit.View }, false);
-                assertions.Check(RequireSelectionManager().SelectedUnits.Contains(rider) && RequireSelectionManager().SelectedUnits.Contains(nonPairUnit) && !RequireSelectionManager().SelectedUnits.Contains(mount),
+                rowFormationSelectionNormalized = RequireSelectionManager().SelectedUnits.Contains(rider) && RequireSelectionManager().SelectedUnits.Contains(nonPairUnit) && !RequireSelectionManager().SelectedUnits.Contains(mount);
+                assertions.Check(rowFormationSelectionNormalized,
                     "Formation selection contains rider and one non-pair unit, not the mount.",
                     "Formation selection was not normalized to rider plus one non-pair unit.");
                 uninvolvedCommands = CaptureUninvolvedMoveCommands(nonPairUnit);
@@ -850,10 +882,11 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (rowPhase == 1 && PollNavigation())
             {
-                assertions.Check(navigationPauseDrift <= StationaryTolerance,
+                assertions.Check(rowPauseMaximumDrift <= StationaryTolerance,
                     "Mounted pair remained stationary during the real-clock pause window.",
-                    "Mounted pair drifted " + navigationPauseDrift.ToString("0.000", CultureInfo.InvariantCulture) + " world units while paused.");
-                assertions.Check(!Game.Instance.IsPaused,
+                    "Mounted pair drifted " + rowPauseMaximumDrift.ToString("0.000", CultureInfo.InvariantCulture) + " world units while paused.");
+                rowPauseExited = !Game.Instance.IsPaused;
+                assertions.Check(rowPauseExited,
                     "Game returned to unpaused state and the mounted move completed.",
                     "Game remained paused after the pause/unpause movement exercise.");
                 AssertRowMovementQuality();
@@ -872,13 +905,15 @@ namespace KingmakerMountedCombat.Diagnostics
             if (rowPhase == 1 && PollNavigation())
             {
                 CaptureMilestone("cancelled");
-                assertions.Check(mount.Commands.Move == null && !mount.View.AgentASP.WantsToMove,
+                rowDestinationCancelCommandAbsent = mount.Commands.Move == null && !mount.View.AgentASP.WantsToMove;
+                assertions.Check(rowDestinationCancelCommandAbsent,
                     "SelectionManager.Stop cancelled the authoritative mount destination.",
                     "Authoritative mount retained a movement command or destination after cancellation.");
                 assertions.Check(navigationMaximumStationaryDrift <= StationaryTolerance,
                     "Cancelled pair remained stationary.",
                     "Cancelled pair drifted " + navigationMaximumStationaryDrift.ToString("0.000", CultureInfo.InvariantCulture) + " world units.");
-                assertions.Check(relationship.State == RelationshipState.Mounted,
+                rowDestinationCancelRelationshipPreserved = relationship.State == RelationshipState.Mounted;
+                assertions.Check(rowDestinationCancelRelationshipPreserved,
                     "Destination cancellation preserved the mounted relationship.",
                     "Destination cancellation changed relationship state to " + relationship.State + ".");
                 AssertRowMovementQuality();
@@ -1002,6 +1037,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (navigationMode == NavigationMode.StopEarly && navigationMovedDistance >= 0.75d)
                 {
                     RequireSelectionManager().Stop();
+                    rowStopCommandIssuedCount++;
                     navigationStablePosition = mount.Position;
                     navigationStableStartedAt = suiteClock.Elapsed.TotalSeconds;
                     navigationStage = NavigationStage.Stabilizing;
@@ -1012,6 +1048,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     navigationPauseRequested = true;
                     Game.Instance.IsPaused = true;
+                    rowPauseEntered = Game.Instance.IsPaused;
                     navigationPauseStartedAt = suiteClock.Elapsed.TotalSeconds;
                     navigationPausePosition = mount.Position;
                     navigationStage = NavigationStage.Pausing;
@@ -1032,6 +1069,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (navigationStage == NavigationStage.Pausing)
             {
                 navigationPauseDrift = Math.Max(navigationPauseDrift, PlanarDistance(navigationPausePosition, mount.Position));
+                rowPauseMaximumDrift = Math.Max(rowPauseMaximumDrift, navigationPauseDrift);
                 if (!Game.Instance.IsPaused)
                 {
                     if (suiteClock.Elapsed.TotalSeconds - navigationPauseStartedAt > 2.0d)
@@ -1046,7 +1084,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     return false;
                 }
+                rowPauseObservationSeconds = suiteClock.Elapsed.TotalSeconds - navigationPauseStartedAt;
                 Game.Instance.IsPaused = false;
+                rowPauseExited = !Game.Instance.IsPaused;
                 navigationStage = NavigationStage.Moving;
                 return false;
             }
@@ -1162,7 +1202,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 var direct = PlanarDistance(mount.Position, endpoint);
                 var endpointError = PlanarDistance(requested, endpoint);
                 var maximumDetour = probeDoorStrict ? direct * 2.5d + 3.0d : direct * 4.0d + 4.0d;
-                if (direct < MinimumRadialDistance - 1.0f)
+                if (!probeDoorStrict && direct < MinimumRadialDistance - 1.0f)
                 {
                     probeCallbackReason = "candidate " + FormatPosition(requested) + " was too short (" + direct.ToString("0.00", CultureInfo.InvariantCulture) + ")";
                 }
@@ -1204,6 +1244,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
             ClickGroundHandler.MoveSelectedUnitsToPoint(navigationDestination, false);
             TrackTouched(mount);
+            ObserveUninvolvedCommands();
             navigationCommand = mount.Commands.Move;
             if (mount.Commands.Move != null)
             {
@@ -1370,6 +1411,22 @@ namespace KingmakerMountedCombat.Diagnostics
             if (navigationMode == NavigationMode.Formation && nonPairUnit != null)
             {
                 nonPairFinalTargetDistance = PlanarDistance(nonPairUnit.Position, nonPairTarget);
+            }
+            if (navigationMode != NavigationMode.StopEarly)
+            {
+                rowEndpointQualifiedWaypointCount++;
+                rowMaximumCompletedLegFinalTargetDistance = Math.Max(
+                    rowMaximumCompletedLegFinalTargetDistance,
+                    mountFinalTargetDistance);
+                rowMaximumCompletedLegBestTargetDistance = Math.Max(
+                    rowMaximumCompletedLegBestTargetDistance,
+                    navigationBestDistance);
+                assertions.Check(
+                    mountFinalTargetDistance <= ReachTolerance && navigationBestDistance <= ReachTolerance,
+                    "Movement leg finished within the calibrated final and best target-distance tolerance.",
+                    "Movement leg target distances exceeded the calibrated tolerance: final=" +
+                    mountFinalTargetDistance.ToString("0.000", CultureInfo.InvariantCulture) +
+                    ", best=" + navigationBestDistance.ToString("0.000", CultureInfo.InvariantCulture) + ".");
             }
             if (previousLegDirection.sqrMagnitude > 0.01f)
             {
@@ -1627,6 +1684,9 @@ namespace KingmakerMountedCombat.Diagnostics
             assertions.Check(rowCommandReplacements == 0,
                 "No routed Mammoth command was unexpectedly replaced.",
                 "Observed " + rowCommandReplacements + " routed-command replacements.");
+            assertions.Check(rowSelectionLosses == 0,
+                "No unrequested selection loss occurred.",
+                "Observed " + rowSelectionLosses + " unrequested selection-loss frame(s).");
             AssertLiveMovementAuthority();
         }
 
@@ -1639,7 +1699,7 @@ namespace KingmakerMountedCombat.Diagnostics
             pendingCleanupTrigger = trigger;
             cleanupBefore = CleanupStateEvidence.Capture(trigger, relationship, rider, mount, Game.Instance);
             step = EngineStep.AwaitPreCleanupCaptures;
-            if (pendingScreenshots.Count == 0)
+            if (screenshotCapture.PendingCount == 0)
             {
                 ContinueCleanupAfterCaptures();
             }
@@ -1647,7 +1707,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void ContinueCleanupAfterCaptures()
         {
-            if (pendingScreenshots.Count != 0)
+            if (screenshotCapture.PendingCount != 0)
             {
                 return;
             }
@@ -1944,7 +2004,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     fatalResidue = true;
                 }
-                if (pendingScreenshots.Count != 0)
+                if (screenshotCapture.PendingCount != 0)
                 {
                     step = EngineStep.AwaitFinalCaptures;
                     return;
@@ -1959,7 +2019,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 FailCurrent("Post-cleanup verification threw " + exception.GetType().Name + ": " + exception.Message);
                 cleanupResidual = true;
                 fatalResidue = true;
-                pendingScreenshots.Clear();
+                screenshotCapture.CancelPending("Screenshot capture was cancelled after post-cleanup verification threw.");
                 FinishCurrentRow();
                 CompleteRemainingAsNotRun("Further movement was suppressed because post-cleanup verification could not prove restoration.");
                 Complete();
@@ -1968,7 +2028,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void FinishRowAfterCaptures()
         {
-            if (pendingScreenshots.Count != 0)
+            if (screenshotCapture.PendingCount != 0)
             {
                 return;
             }
@@ -2115,14 +2175,31 @@ namespace KingmakerMountedCombat.Diagnostics
                 commandReplacementCount = rowCommandReplacements,
                 selectionLossCount = rowSelectionLosses,
                 waypointCount = rowWaypointCount,
+                endpointQualifiedWaypointCount = rowEndpointQualifiedWaypointCount,
+                maximumCompletedLegFinalTargetDistanceWorldUnits = rowMaximumCompletedLegFinalTargetDistance,
+                maximumCompletedLegBestTargetDistanceWorldUnits = rowMaximumCompletedLegBestTargetDistance,
                 maximumTurnDegrees = rowMaximumTurnDegrees,
                 nonPairInterferenceCount = rowNonPairInterferenceCount,
+                nonPairUnitId = nonPairUnit == null ? null : nonPairUnit.UniqueId,
                 mountFinalTargetDistanceWorldUnits = mountFinalTargetDistance,
                 nonPairBestTargetDistanceWorldUnits = nonPairBestTargetDistance,
                 nonPairFinalTargetDistanceWorldUnits = nonPairFinalTargetDistance,
                 minimumPairNonPairSeparationWorldUnits = minimumPairNonPairSeparation,
                 requiredPairNonPairSeparationWorldUnits = requiredPairNonPairSeparation,
                 unmountedDoorControlPassed = rowUnmountedDoorControlPassed,
+                doorApproachSkipped = rowDoorApproachSkipped,
+                stopCommandIssuedCount = rowStopCommandIssuedCount,
+                restartCompleted = rowRestartCompleted,
+                selectionMountNormalized = rowSelectionMountNormalized,
+                selectionSwitchedAway = rowSelectionSwitchedAway,
+                selectionSwitchedBack = rowSelectionSwitchedBack,
+                formationSelectionNormalized = rowFormationSelectionNormalized,
+                pauseEntered = rowPauseEntered,
+                pauseObservationSeconds = rowPauseObservationSeconds,
+                pauseMaximumDriftWorldUnits = rowPauseMaximumDrift,
+                pauseExited = rowPauseExited,
+                destinationCancelCommandAbsent = rowDestinationCancelCommandAbsent,
+                destinationCancelRelationshipPreserved = rowDestinationCancelRelationshipPreserved,
                 cleanupTrigger = pendingCleanupTrigger.ToString(),
                 cleanupSucceeded = cleanupAttemptSucceeded,
                 cleanupResult,
@@ -2250,6 +2327,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!ReferenceEquals(pair.Key.Commands.Move, pair.Value))
                 {
                     rowNonPairInterferenceCount++;
+                    TrackTouched(pair.Key);
                     changed.Add(pair.Key);
                 }
             }
@@ -2329,7 +2407,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     continue;
                 }
                 var clearance = Math.Max(3.5f, mount.Corpulence * 2.0f + 1.0f);
-                var axes = new[] { PlanarNormalized(door.transform.forward), PlanarNormalized(door.transform.right) };
+                var doorToMount = PlanarDirection(door.transform.position, mount.Position);
+                var axes = new[] { PlanarNormalized(door.transform.forward), PlanarNormalized(door.transform.right) }
+                    .OrderByDescending(axis => Math.Abs(Vector3.Dot(axis, doorToMount)))
+                    .ToArray();
                 foreach (var axis in axes)
                 {
                     if (axis.sqrMagnitude < 0.5f)
@@ -2552,64 +2633,61 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 return;
             }
-            pendingScreenshots.Add(new PendingScreenshot
+            screenshotCapture.Enqueue(currentRow, milestone, frameNumber + 1);
+        }
+
+        private void CommitScreenshot(MovementScreenshotCaptureRequest request, byte[] bytes)
+        {
+            if (request == null)
             {
-                Row = currentRow,
-                Milestone = milestone,
-                ReadyFrame = frameNumber + 1
+                throw new ArgumentNullException(nameof(request));
+            }
+            if (bytes == null || bytes.Length == 0)
+            {
+                throw new ArgumentException("Screenshot bytes are required.", nameof(bytes));
+            }
+            if (!string.Equals(currentRow, request.Row, StringComparison.Ordinal) || !CaptureMilestones.Contains(request.Milestone))
+            {
+                throw new InvalidOperationException("Screenshot completion does not belong to the active allowlisted movement row and milestone.");
+            }
+
+            int captureCount;
+            captureCounts.TryGetValue(request.Milestone, out captureCount);
+            captureCount++;
+            captureCounts[request.Milestone] = captureCount;
+            var fileName = GetRowToken(request.Row) + "-" + request.Milestone + "-" + captureCount.ToString("00", CultureInfo.InvariantCulture) + ".png";
+            var visualsRoot = Path.Combine(evidenceRoot, "movement-visuals");
+            Directory.CreateDirectory(visualsRoot);
+            var path = Path.Combine(visualsRoot, fileName);
+            using (var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.Read))
+            {
+                stream.Write(bytes, 0, bytes.Length);
+                stream.Flush();
+            }
+            screenshots.Add(new ScreenshotEvidence
+            {
+                Milestone = request.Milestone,
+                RelativePath = "movement-visuals/" + fileName,
+                Length = bytes.LongLength,
+                Sha256 = ComputeSha256(bytes)
             });
         }
 
-        private void FlushReadyScreenshots()
+        private void RecordScreenshotFailure(MovementScreenshotCaptureRequest request, string reason)
         {
-            for (var index = pendingScreenshots.Count - 1; index >= 0; index--)
+            var row = request == null ? currentRow : request.Row;
+            var milestone = request == null ? "unknown" : request.Milestone;
+            var error = "Screenshot evidence failed for " + (row ?? "unknown-row") + "/" + milestone + ": " + (reason ?? "unknown failure");
+            captureErrors.Add(error);
+            if (assertions != null && string.Equals(currentRow, row, StringComparison.Ordinal))
             {
-                var pending = pendingScreenshots[index];
-                if (frameNumber < pending.ReadyFrame)
-                {
-                    continue;
-                }
-                pendingScreenshots.RemoveAt(index);
-                CaptureMilestoneNow(pending.Row, pending.Milestone);
+                assertions.Fail(error);
             }
-        }
-
-        private void CaptureMilestoneNow(string row, string milestone)
-        {
-            try
+            else
             {
-                int captureCount;
-                captureCounts.TryGetValue(milestone, out captureCount);
-                captureCount++;
-                captureCounts[milestone] = captureCount;
-                var fileName = GetRowToken(row) + "-" + milestone + "-" + captureCount.ToString("00", CultureInfo.InvariantCulture) + ".png";
-                var visualsRoot = Path.Combine(evidenceRoot, "movement-visuals");
-                Directory.CreateDirectory(visualsRoot);
-                var path = Path.Combine(visualsRoot, fileName);
-                var bytes = Screenshot.CapturePNG();
-                if (bytes == null || bytes.Length == 0)
-                {
-                    throw new InvalidOperationException("Screenshot encoder returned no bytes.");
-                }
-                using (var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.Read))
-                {
-                    stream.Write(bytes, 0, bytes.Length);
-                    stream.Flush();
-                }
-                screenshots.Add(new ScreenshotEvidence
-                {
-                    Milestone = milestone,
-                    RelativePath = "movement-visuals/" + fileName,
-                    Length = bytes.LongLength,
-                    Sha256 = ComputeSha256(bytes)
-                });
+                errors.Add(error);
             }
-            catch (Exception exception)
-            {
-                var error = milestone + ": " + exception.GetType().Name + ": " + exception.Message;
-                captureErrors.Add(error);
-                logger.Warning("Supplementary screenshot unavailable: " + error);
-            }
+            logger.Warning(error);
         }
 
         private void WriteEvidence(object value)
@@ -2744,6 +2822,9 @@ namespace KingmakerMountedCombat.Diagnostics
             rowCommandReplacements = 0;
             rowSelectionLosses = 0;
             rowWaypointCount = 0;
+            rowEndpointQualifiedWaypointCount = 0;
+            rowMaximumCompletedLegFinalTargetDistance = 0.0d;
+            rowMaximumCompletedLegBestTargetDistance = 0.0d;
             rowMaximumTurnDegrees = 0.0d;
             rowNonPairInterferenceCount = 0;
             rowSynchronizationObservationCount = 0L;
@@ -2753,6 +2834,19 @@ namespace KingmakerMountedCombat.Diagnostics
             rowLateUpdateCorrectionCount = 0L;
             rowSynchronizationFailureRecorded = false;
             rowUnmountedDoorControlPassed = false;
+            rowDoorApproachSkipped = false;
+            rowStopCommandIssuedCount = 0;
+            rowRestartCompleted = false;
+            rowSelectionMountNormalized = false;
+            rowSelectionSwitchedAway = false;
+            rowSelectionSwitchedBack = false;
+            rowFormationSelectionNormalized = false;
+            rowPauseEntered = false;
+            rowPauseObservationSeconds = 0.0d;
+            rowPauseMaximumDrift = 0.0d;
+            rowPauseExited = false;
+            rowDestinationCancelCommandAbsent = false;
+            rowDestinationCancelRelationshipPreserved = false;
             previousLegDirection = Vector3.zero;
             selectedDoor = null;
             doorNearPoint = Vector3.zero;
@@ -3259,13 +3353,6 @@ namespace KingmakerMountedCombat.Diagnostics
             public string RelativePath { get; set; }
             public long Length { get; set; }
             public string Sha256 { get; set; }
-        }
-
-        private sealed class PendingScreenshot
-        {
-            public string Row { get; set; }
-            public string Milestone { get; set; }
-            public int ReadyFrame { get; set; }
         }
 
         private sealed class PositionEvidence

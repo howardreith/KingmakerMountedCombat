@@ -29,6 +29,12 @@ if($Target-eq'Kingmaker'){
     $unityCorePath=Join-Path $managed 'UnityEngine.CoreModule.dll'
     $unityCore=[Reflection.Assembly]::ReflectionOnlyLoadFrom($unityCorePath)
     Assert-Contract ((Get-FileHash -Algorithm SHA256 -LiteralPath $unityCorePath).Hash.ToLowerInvariant()-ceq'3a76df7f709d465e3273502e08edbffb536b1c2f78c3a132b8668e59fddd2803') 'UnityEngine.CoreModule SHA-256'
+    Assert-Contract ($unityCore.ManifestModule.ModuleVersionId.ToString()-ceq'bd5ffe06-494e-4588-a068-c8443cc48c47') 'UnityEngine.CoreModule MVID'
+    $ummPath=Join-Path $managed 'UnityModManager\UnityModManager.dll'
+    $ummAssembly=[Reflection.Assembly]::ReflectionOnlyLoadFrom($ummPath)
+    Assert-Contract ((Get-FileHash -Algorithm SHA256 -LiteralPath $ummPath).Hash.ToLowerInvariant()-ceq'75b96e25a3a9fbadb47dd14a4ab490cb8c98143a6242aff3bba6145cd3047f39') 'UnityModManager SHA-256'
+    Assert-Contract ($ummAssembly.ManifestModule.ModuleVersionId.ToString()-ceq'edf4be29-0c88-4482-876d-e946a0f9e363') 'UnityModManager MVID'
+    Assert-Contract ($ummAssembly.GetName().Version.ToString()-ceq'0.28.2.0') 'UnityModManager exact version'
     foreach($name in @('Kingmaker.UnitLogic.Parts.UnitPartRider','Kingmaker.UnitLogic.Parts.UnitPartSaddled','Kingmaker.Controllers.Units.SaddledUnitController')){Assert-Contract ($null-eq$assembly.GetType($name,$false)) "mounted type absent: $name"}
     $gameVersionType=$assembly.GetType('Kingmaker.GameVersion',$false)
     $gameVersionMethod=if($null-eq$gameVersionType){$null}else{$gameVersionType.GetMethod('GetVersion',[Reflection.BindingFlags]'Public,Static')}
@@ -59,6 +65,21 @@ if($Target-eq'Kingmaker'){
         @('UnityEngine.SceneManagement.SceneManager',0x060019D5,'GetSceneByName'),
         @('UnityEngine.SceneManagement.Scene',0x060019C4,'get_isLoaded'))
     foreach($check in $unityChecks){$type=$unityCore.GetType($check[0],$false);$member=if($null-eq$type){$null}else{@($type.GetMembers([Reflection.BindingFlags]'Public,NonPublic,Instance,Static')|Where-Object MetadataToken -eq $check[1]|Select-Object -First 1)};$matches=$null-ne$member -and @($member).Count-eq1;if($matches){$matches=[string]@($member)[0].Name -ceq [string]$check[2]};Assert-Contract $matches "Unity token $($check[1].ToString('X8')) $($check[0]).$($check[2])"}
+    $ummUi=$ummAssembly.GetType('UnityModManagerNet.UnityModManager+UI',$false)
+    Assert-Contract ($null-ne$ummUi -and $ummUi.BaseType.FullName-ceq'UnityEngine.MonoBehaviour') 'UMM UI exact MonoBehaviour capture host'
+    $ummUiChecks=@(
+        @(0x060000CA,'get_Instance'),
+        @(0x060000CB,'get_Opened'),
+        @(0x060000E3,'ToggleWindow'))
+    foreach($check in $ummUiChecks){$member=if($null-eq$ummUi){$null}else{@($ummUi.GetMembers([Reflection.BindingFlags]'Public,NonPublic,Instance,Static')|Where-Object MetadataToken -eq $check[0]|Select-Object -First 1)};$matches=$null-ne$member -and @($member).Count-eq1;if($matches){$matches=[string]@($member)[0].Name-ceq[string]$check[1]};if($matches -and [int]$check[0]-eq 0x060000CA){$matches=@($member)[0].IsPublic -and @($member)[0].IsStatic -and @($member)[0].ReturnType.FullName-ceq'UnityModManagerNet.UnityModManager+UI'};if($matches -and [int]$check[0]-eq 0x060000CB){$matches=@($member)[0].IsPublic -and -not @($member)[0].IsStatic -and @($member)[0].ReturnType.FullName-ceq'System.Boolean'};if($matches -and [int]$check[0]-eq 0x060000E3){$parameters=@(@($member)[0].GetParameters());$matches=@($member)[0].IsPublic -and -not @($member)[0].IsStatic -and @($member)[0].ReturnType.FullName-ceq'System.Void' -and $parameters.Count-eq1 -and $parameters[0].ParameterType.FullName-ceq'System.Boolean'};Assert-Contract $matches "UMM UI token $($check[0].ToString('X8')) $($check[1]) exact screenshot surface"}
+    $monoBehaviour=$unityCore.GetType('UnityEngine.MonoBehaviour',$false)
+    $waitForEndOfFrame=$unityCore.GetType('UnityEngine.WaitForEndOfFrame',$false)
+    $startCoroutine=if($null-eq$monoBehaviour){$null}else{@($monoBehaviour.GetMethods([Reflection.BindingFlags]'Public,Instance')|Where-Object MetadataToken -eq 0x06000E39|Select-Object -First 1)}
+    $stopCoroutine=if($null-eq$monoBehaviour){$null}else{@($monoBehaviour.GetMethods([Reflection.BindingFlags]'Public,Instance')|Where-Object MetadataToken -eq 0x06000E3C|Select-Object -First 1)}
+    $waitConstructor=if($null-eq$waitForEndOfFrame){$null}else{@($waitForEndOfFrame.GetConstructors([Reflection.BindingFlags]'Public,Instance')|Where-Object MetadataToken -eq 0x0600156D|Select-Object -First 1)}
+    Assert-Contract ($null-ne$startCoroutine -and @($startCoroutine).Count-eq1 -and @($startCoroutine)[0].GetParameters().Count-eq1 -and @($startCoroutine)[0].GetParameters()[0].ParameterType.FullName-ceq'System.Collections.IEnumerator' -and @($startCoroutine)[0].ReturnType.FullName-ceq'UnityEngine.Coroutine') 'Unity token 06000E39 MonoBehaviour.StartCoroutine(IEnumerator)'
+    Assert-Contract ($null-ne$stopCoroutine -and @($stopCoroutine).Count-eq1 -and @($stopCoroutine)[0].GetParameters().Count-eq1 -and @($stopCoroutine)[0].GetParameters()[0].ParameterType.FullName-ceq'UnityEngine.Coroutine' -and @($stopCoroutine)[0].ReturnType.FullName-ceq'System.Void') 'Unity token 06000E3C MonoBehaviour.StopCoroutine(Coroutine)'
+    Assert-Contract ($null-ne$waitConstructor -and @($waitConstructor).Count-eq1 -and @($waitConstructor)[0].GetParameters().Count-eq0) 'Unity token 0600156D WaitForEndOfFrame constructor'
 }else{
     Assert-Contract ((Get-FileHash -Algorithm SHA256 -LiteralPath $assemblyPath).Hash.ToLowerInvariant()-ceq'2cb7160b7154d4ffacc77b9c51b1eb26199e1294300f04fdfc073367b2ef8953') 'Assembly-CSharp SHA-256'
     Assert-Contract ($assembly.ManifestModule.ModuleVersionId.ToString()-ceq'90a9869c-2792-4c7b-bfb7-5a8b33da7c82') 'Assembly-CSharp MVID'

@@ -1473,6 +1473,28 @@ function Get-KmcLifecycleRuntimeRows {
     )
 }
 
+function Get-KmcLifecycleExpectedCleanupTrigger {
+    param([Parameter(Mandatory = $true)][string]$Row)
+    switch -CaseSensitive ($Row) {
+        'mounted-pair-death-cleanup' { return 'Death' }
+        'mounted-pair-combat-start-cleanup' { return 'CombatStarted' }
+        'mounted-pair-area-unload-cleanup' { return 'AreaUnloading' }
+        'mounted-pair-mod-disable-cleanup' { return 'ModDisabled' }
+        default { return 'Manual' }
+    }
+}
+
+function Get-KmcLifecycleInvocationPath {
+    param([Parameter(Mandatory = $true)][string]$Row)
+    if ([string]$Row -cin @(
+        'mounted-pair-death-cleanup',
+        'mounted-pair-combat-start-cleanup',
+        'mounted-pair-area-unload-cleanup')) {
+        return 'lifecycle-handler-direct'
+    }
+    return 'relationship-service-direct'
+}
+
 function Test-KmcLifecycleRuntimeScenario {
     param([AllowNull()][string]$Scenario)
     return [string]$Scenario -ceq 'lifecycle-suite' -or
@@ -1558,14 +1580,14 @@ function Assert-KmcLifecycleUnitEvidence {
         return
     }
     Assert-KmcExactProperties $Value @(
-        'uniqueId','sizeOrdinal','inCombat','stockAgentEnabled','avoidanceDisabled','agentOverrideType',
+        'uniqueId','sizeOrdinal','inCombat','stockAgentEnabled','avoidanceDisabled','forbidRotation','agentOverrideType',
         'overrideComponentCount','entityPosition','entityRotationDegrees','viewPosition','viewRotation',
         'moveCommandType','moveTarget','activeCommandTypes','selected') $Description
     if ($Value.uniqueId -isnot [string] -or [string]::IsNullOrWhiteSpace([string]$Value.uniqueId)) {
         throw "$Description.uniqueId must be a nonempty JSON string."
     }
     if (-not (Test-KmcExactJsonInteger $Value.sizeOrdinal)) { throw "$Description.sizeOrdinal must be an exact JSON integer." }
-    foreach ($name in @('inCombat','stockAgentEnabled','avoidanceDisabled','selected')) {
+    foreach ($name in @('inCombat','stockAgentEnabled','avoidanceDisabled','forbidRotation','selected')) {
         Assert-KmcNullableJsonBoolean $Value.$name "$Description.$name"
     }
     foreach ($name in @('agentOverrideType','moveCommandType')) {
@@ -1592,11 +1614,11 @@ function Assert-KmcLifecycleEvidenceRecord {
     )
     Assert-KmcExactProperties $Record @(
         'schemaVersion','runId','scenario','row','phase','utcTimestamp','branch','commit','productVersion',
-        'dllSha256','dllMvid','sequence','frame','relationshipState','rowStatus','assertionPassCount',
+        'dllSha256','dllMvid','sequence','frame','relationshipState','triggerScope','rowStatus','assertionPassCount',
         'assertionFailCount','cleanup','partyCombat','riderCombat','mountCombat','turnBased','paused',
-        'currentGameMode','rider','mount','selection','spine','anchor','recordErrors') 'lifecycle evidence record'
-    if (-not (Test-KmcExactJsonInteger $Record.schemaVersion) -or [long]$Record.schemaVersion -ne 1) {
-        throw 'Lifecycle evidence schemaVersion must be the exact integral value 1.'
+        'currentGameMode','rider','mount','selection','spine','anchor','attachment','recordErrors') 'lifecycle evidence record'
+    if (-not (Test-KmcExactJsonInteger $Record.schemaVersion) -or [long]$Record.schemaVersion -ne 2) {
+        throw 'Lifecycle evidence schemaVersion must be the exact integral value 2.'
     }
     foreach ($name in @('runId','scenario','branch','commit','productVersion','dllSha256','dllMvid')) {
         if ($Record.$name -isnot [string] -or [string]$Record.$name -cne [string]$Request.$name) {
@@ -1615,6 +1637,18 @@ function Assert-KmcLifecycleEvidenceRecord {
     $timestamp = [DateTimeOffset]::MinValue
     if (-not [DateTimeOffset]::TryParse([string]$Record.utcTimestamp, [ref]$timestamp) -or $timestamp.Offset -ne [TimeSpan]::Zero) { throw 'Lifecycle evidence UTC timestamp is invalid or not UTC.' }
     if ($Record.relationshipState -isnot [string] -or [string]$Record.relationshipState -cnotin @('Unmounted','Validating','Mounting','Mounted','Dismounting','Faulted','Disposed')) { throw 'Lifecycle evidence relationshipState is invalid.' }
+
+    if ($null -eq $Record.triggerScope) { throw 'Lifecycle evidence triggerScope object is required.' }
+    Assert-KmcExactProperties $Record.triggerScope @('expectedCleanupTrigger','invocationPath','nativeDeliveryObserved','claimLimit') 'lifecycle evidence triggerScope'
+    $expectedTrigger = Get-KmcLifecycleExpectedCleanupTrigger ([string]$Record.row)
+    $expectedInvocationPath = Get-KmcLifecycleInvocationPath ([string]$Record.row)
+    if ($Record.triggerScope.expectedCleanupTrigger -isnot [string] -or [string]$Record.triggerScope.expectedCleanupTrigger -cne $expectedTrigger -or
+        $Record.triggerScope.invocationPath -isnot [string] -or [string]$Record.triggerScope.invocationPath -cne $expectedInvocationPath -or
+        $Record.triggerScope.nativeDeliveryObserved -isnot [bool] -or $Record.triggerScope.nativeDeliveryObserved -ne $false -or
+        $Record.triggerScope.claimLimit -isnot [string] -or
+        [string]$Record.triggerScope.claimLimit -cne 'Direct service/handler invocation only; native EventBus/UMM delivery was not exercised.') {
+        throw "Lifecycle evidence trigger scope or truthful native-delivery claim is wrong for $($Record.row)."
+    }
     foreach ($name in @('partyCombat','riderCombat','mountCombat','turnBased','paused')) { Assert-KmcNullableJsonBoolean $Record.$name "lifecycle evidence $name" }
     if ($null -ne $Record.currentGameMode -and $Record.currentGameMode -isnot [string]) { throw 'Lifecycle evidence currentGameMode must be a JSON string or null.' }
 
@@ -1671,6 +1705,229 @@ function Assert-KmcLifecycleEvidenceRecord {
     Assert-KmcLifecycleRotation $Record.anchor.expectedRotation 'lifecycle evidence anchor.expectedRotation' -AllowNull
     foreach ($name in @('currentPositionResidualWorldUnits','currentRotationResidualDegrees','preCorrectionPositionResidualWorldUnits','preCorrectionRotationResidualDegrees','postCorrectionPositionResidualWorldUnits','postCorrectionRotationResidualDegrees')) {
         if ($null -ne $Record.anchor.$name -and -not (Test-KmcJsonNumber $Record.anchor.$name)) { throw "Lifecycle evidence anchor.$name must be a JSON number or null." }
+    }
+
+    if ($null -eq $Record.attachment) { throw 'Lifecycle evidence attachment object is required.' }
+    Assert-KmcExactProperties $Record.attachment @(
+        'leaseContract','leaseActive','restoreVerified','residue','riderParentMatchesAttachment',
+        'currentRiderParent','originalRiderParent','riderParentMatchesOriginal','currentRiderSiblingIndex',
+        'originalRiderSiblingIndex','riderSiblingIndexMatchesOriginal','currentRiderLocalScale',
+        'originalRiderLocalScale','riderLocalScaleMatchesOriginal','attachmentParent','sourceAnchor','riskState') 'lifecycle evidence attachment'
+    if ($Record.attachment.leaseContract -isnot [string] -or
+        [string]$Record.attachment.leaseContract -cne 'parent+sibling+world-position+world-rotation+local-scale') {
+        throw 'Lifecycle attachment evidence does not name the exact scoped lease contract.'
+    }
+    foreach ($name in @('leaseActive','restoreVerified','residue','riderParentMatchesAttachment','riderParentMatchesOriginal',
+        'riderSiblingIndexMatchesOriginal','riderLocalScaleMatchesOriginal')) {
+        if ($Record.attachment.$name -isnot [bool]) { throw "Lifecycle evidence attachment.$name must be a JSON boolean." }
+    }
+    foreach ($name in @('currentRiderParent','originalRiderParent','attachmentParent','sourceAnchor','riskState')) {
+        if ($null -ne $Record.attachment.$name -and $Record.attachment.$name -isnot [string]) {
+            throw "Lifecycle evidence attachment.$name must be a JSON string or null."
+        }
+    }
+    foreach ($name in @('currentRiderSiblingIndex','originalRiderSiblingIndex')) {
+        if ($null -ne $Record.attachment.$name -and -not (Test-KmcExactJsonInteger $Record.attachment.$name)) {
+            throw "Lifecycle evidence attachment.$name must be an exact JSON integer or null."
+        }
+    }
+    Assert-KmcLifecyclePosition $Record.attachment.currentRiderLocalScale 'lifecycle evidence attachment.currentRiderLocalScale' -AllowNull
+    Assert-KmcLifecyclePosition $Record.attachment.originalRiderLocalScale 'lifecycle evidence attachment.originalRiderLocalScale' -AllowNull
+}
+
+function Assert-KmcLifecycleCleanupAbsent {
+    param([Parameter(Mandatory = $true)]$Record)
+    if ($null -ne $Record.cleanup.result -or $null -ne $Record.cleanup.trigger) {
+        throw "Lifecycle $($Record.row)/$($Record.phase) unexpectedly contains a cleanup transition."
+    }
+}
+
+function Assert-KmcLifecycleCleanupExact {
+    param(
+        [Parameter(Mandatory = $true)]$Record,
+        [Parameter(Mandatory = $true)][string]$ExpectedTrigger
+    )
+    if ([string]$Record.cleanup.trigger -cne $ExpectedTrigger -or [string]$Record.cleanup.result -cne 'PASS' -or
+        $Record.cleanup.succeeded -ne $true -or [string]$Record.cleanup.state -cne 'Unmounted' -or
+        $Record.cleanup.movementAuthorityResidual -ne $false -or $Record.cleanup.presentationResidual -ne $false -or
+        @($Record.cleanup.errors).Count -ne 0) {
+        throw "Lifecycle $($Record.row)/$($Record.phase) does not prove exact $ExpectedTrigger residue-free cleanup."
+    }
+}
+
+function Assert-KmcLifecycleBaselineUnitState {
+    param(
+        [Parameter(Mandatory = $true)]$Record,
+        [Parameter(Mandatory = $true)][string]$Description
+    )
+    if (-not (Test-KmcExactJsonInteger $Record.rider.overrideComponentCount) -or
+        -not (Test-KmcExactJsonInteger $Record.mount.overrideComponentCount) -or
+        $Record.rider.stockAgentEnabled -ne $true -or $Record.mount.stockAgentEnabled -ne $true -or
+        $Record.rider.avoidanceDisabled -ne $false -or $Record.mount.avoidanceDisabled -ne $false -or
+        $Record.rider.forbidRotation -ne $false -or $Record.mount.forbidRotation -ne $false -or
+        $null -ne $Record.rider.agentOverrideType -or $null -ne $Record.mount.agentOverrideType -or
+        [long]$Record.rider.overrideComponentCount -ne 0 -or [long]$Record.mount.overrideComponentCount -ne 0) {
+        throw "$Description does not expose the exact stock-agent/avoidance/override/component baseline."
+    }
+}
+
+function Assert-KmcLifecycleMountedUnitState {
+    param([Parameter(Mandatory = $true)]$Record)
+    if (-not (Test-KmcExactJsonInteger $Record.rider.overrideComponentCount) -or
+        -not (Test-KmcExactJsonInteger $Record.mount.overrideComponentCount) -or
+        $Record.rider.stockAgentEnabled -ne $false -or $Record.mount.stockAgentEnabled -ne $true -or
+        $Record.rider.avoidanceDisabled -ne $true -or $Record.mount.avoidanceDisabled -ne $false -or
+        $Record.rider.forbidRotation -ne $true -or $Record.mount.forbidRotation -ne $false -or
+        [string]$Record.rider.agentOverrideType -cne 'KingmakerMountedCombat.Integration.RiderMovementAgent' -or
+        $null -ne $Record.mount.agentOverrideType -or [long]$Record.rider.overrideComponentCount -ne 1 -or
+        [long]$Record.mount.overrideComponentCount -ne 0) {
+        throw "Lifecycle mounted-next-frame does not expose exactly one rider override and one authoritative stock mount agent for $($Record.row)."
+    }
+}
+
+function Assert-KmcLifecycleAttachmentBaseline {
+    param(
+        [Parameter(Mandatory = $true)]$Record,
+        [Parameter(Mandatory = $true)][string]$Description,
+        [switch]$RequireVerifiedRestore
+    )
+    $attachment = $Record.attachment
+    if (-not (Test-KmcExactJsonInteger $attachment.currentRiderSiblingIndex) -or
+        -not (Test-KmcExactJsonInteger $attachment.originalRiderSiblingIndex) -or
+        $null -eq $attachment.currentRiderLocalScale -or $null -eq $attachment.originalRiderLocalScale -or
+        $attachment.leaseActive -ne $false -or $attachment.residue -ne $false -or
+        $attachment.riderParentMatchesAttachment -ne $false -or $attachment.riderParentMatchesOriginal -ne $true -or
+        $attachment.riderSiblingIndexMatchesOriginal -ne $true -or $attachment.riderLocalScaleMatchesOriginal -ne $true -or
+        $null -ne $attachment.attachmentParent -or $null -ne $attachment.sourceAnchor -or
+        [string]$attachment.riskState -cne 'none' -or
+        [string]$attachment.currentRiderParent -cne [string]$attachment.originalRiderParent -or
+        [long]$attachment.currentRiderSiblingIndex -ne [long]$attachment.originalRiderSiblingIndex) {
+        throw "$Description does not prove an inactive, residue-free rider attachment at its captured parent."
+    }
+    if ($RequireVerifiedRestore -and $attachment.restoreVerified -ne $true) {
+        throw "$Description does not carry the scoped attachment lease's verified restore result."
+    }
+    foreach ($axis in @('x','y','z')) {
+        if ([math]::Abs([double]$attachment.currentRiderLocalScale.$axis - [double]$attachment.originalRiderLocalScale.$axis) -gt 0.0001) {
+            throw "$Description current and captured rider local scale differ."
+        }
+    }
+}
+
+function Assert-KmcLifecycleAttachmentMounted {
+    param([Parameter(Mandatory = $true)]$Record)
+    $attachment = $Record.attachment
+    if ($attachment.leaseActive -ne $true -or $attachment.restoreVerified -ne $false -or
+        $attachment.residue -ne $true -or $attachment.riderParentMatchesAttachment -ne $true -or
+        $attachment.riderParentMatchesOriginal -ne $false -or
+        [string]$attachment.attachmentParent -cne 'KMC_RiderPositionAnchor' -or
+        [string]$attachment.sourceAnchor -cne 'Spine' -or
+        [string]$attachment.riskState -cne 'active and internally consistent' -or
+        [string]$attachment.currentRiderParent -cnotmatch '(^|/)KMC_RiderPositionAnchor$') {
+        throw "Lifecycle mounted-next-frame does not prove the exact active scoped rider attachment for $($Record.row)."
+    }
+}
+
+function Assert-KmcLifecycleEvidenceSemantics {
+    param(
+        [Parameter(Mandatory = $true)][object[]]$Records,
+        [Parameter(Mandatory = $true)][string[]]$ExpectedRows
+    )
+    $nonFinalRecords = @($Records | Where-Object { [string]$_.phase -cne 'engine-finalization' })
+    $stableRiderId = $null
+    $stableMountId = $null
+    foreach ($row in $ExpectedRows) {
+        $rowRecords = @($nonFinalRecords | Where-Object { [string]$_.row -ceq $row })
+        [string[]]$expectedPhases = if ($row -ceq 'mounted-pair-invalid-pair-rejected') {
+            @('pre-mount','cleanup-next-frame','row-finish')
+        } else {
+            @('pre-mount','mounted-next-frame','cleanup-next-frame','row-finish')
+        }
+        [string[]]$actualPhases = @($rowRecords | ForEach-Object { [string]$_.phase })
+        if (($actualPhases -join '|') -cne ($expectedPhases -join '|')) {
+            throw "PASS lifecycle evidence phase set/order is not exact for $row."
+        }
+
+        $pre = $rowRecords[0]
+        $cleanup = $rowRecords[$rowRecords.Count - 2]
+        $finish = $rowRecords[$rowRecords.Count - 1]
+        $mounted = if ($row -ceq 'mounted-pair-invalid-pair-rejected') { $null } else { $rowRecords[1] }
+        if ([string]$pre.relationshipState -cne 'Unmounted' -or [string]$cleanup.relationshipState -cne 'Unmounted' -or
+            [string]$finish.relationshipState -cne 'Unmounted') {
+            throw "Lifecycle relationship-state progression is not Unmounted -> cleanup Unmounted for $row."
+        }
+        if ($null -ne $mounted -and [string]$mounted.relationshipState -cne 'Mounted') {
+            throw "Lifecycle mounted-next-frame relationship state is not Mounted for $row."
+        }
+        if ([long]$cleanup.frame -le [long]$pre.frame) { throw "Lifecycle cleanup was not observed on a later frame for $row." }
+        if ($null -ne $mounted -and ([long]$mounted.frame -le [long]$pre.frame -or [long]$cleanup.frame -le [long]$mounted.frame)) {
+            throw "Lifecycle mount/cleanup frame progression is not strictly later for $row."
+        }
+        if ($row -ceq 'mounted-pair-cleanup-idempotent') {
+            if ([long]$finish.frame -le [long]$cleanup.frame) { throw 'Idempotent cleanup row did not observe its repeated cleanup on a second later frame.' }
+        }
+        elseif ([long]$finish.frame -ne [long]$cleanup.frame) {
+            throw "Lifecycle row-finish was not atomically recorded with cleanup-next-frame for $row."
+        }
+
+        $expectedTrigger = Get-KmcLifecycleExpectedCleanupTrigger $row
+        Assert-KmcLifecycleCleanupAbsent $pre
+        if ($null -ne $mounted) { Assert-KmcLifecycleCleanupAbsent $mounted }
+        Assert-KmcLifecycleCleanupExact $cleanup $expectedTrigger
+        Assert-KmcLifecycleCleanupExact $finish $expectedTrigger
+        if ([string]$finish.rowStatus -cne 'PASS' -or [long]$finish.assertionFailCount -ne 0 -or
+            [long]$finish.assertionPassCount -le 0 -or @($finish.recordErrors).Count -ne 0) {
+            throw "Lifecycle row-finish is not an error-free PASS for $row."
+        }
+
+        foreach ($record in $rowRecords) {
+            if ($record.partyCombat -ne $false -or $record.riderCombat -ne $false -or $record.mountCombat -ne $false -or
+                $record.turnBased -ne $false -or $record.paused -ne $false -or [string]$record.currentGameMode -cne 'Default') {
+                throw "Lifecycle direct-call row crossed an unclaimed combat, turn-based, pause, or game-mode boundary: $row/$($record.phase)."
+            }
+            if ([string]$record.rider.uniqueId -ceq [string]$record.mount.uniqueId) { throw "Lifecycle rider and mount IDs are not distinct for $row." }
+            if ($null -eq $stableRiderId) {
+                $stableRiderId = [string]$record.rider.uniqueId
+                $stableMountId = [string]$record.mount.uniqueId
+            }
+            elseif ([string]$record.rider.uniqueId -cne $stableRiderId -or [string]$record.mount.uniqueId -cne $stableMountId) {
+                throw 'Lifecycle evidence changed exact rider or mount identity across phases/rows.'
+            }
+        }
+
+        Assert-KmcLifecycleBaselineUnitState $pre "$row pre-mount"
+        Assert-KmcLifecycleAttachmentBaseline $pre "$row pre-mount"
+        if ($null -ne $mounted) {
+            Assert-KmcLifecycleMountedUnitState $mounted
+            Assert-KmcLifecycleAttachmentMounted $mounted
+            Assert-KmcLifecycleBaselineUnitState $cleanup "$row cleanup-next-frame"
+            Assert-KmcLifecycleAttachmentBaseline $cleanup "$row cleanup-next-frame" -RequireVerifiedRestore
+            Assert-KmcLifecycleBaselineUnitState $finish "$row row-finish"
+            Assert-KmcLifecycleAttachmentBaseline $finish "$row row-finish" -RequireVerifiedRestore
+        }
+        else {
+            Assert-KmcLifecycleBaselineUnitState $cleanup "$row cleanup-next-frame"
+            Assert-KmcLifecycleAttachmentBaseline $cleanup "$row cleanup-next-frame"
+            Assert-KmcLifecycleBaselineUnitState $finish "$row row-finish"
+            Assert-KmcLifecycleAttachmentBaseline $finish "$row row-finish"
+        }
+    }
+
+    $final = $Records[$Records.Count - 1]
+    $finalRow = $ExpectedRows[$ExpectedRows.Count - 1]
+    $finalFinish = @($Records | Where-Object { [string]$_.row -ceq $finalRow -and [string]$_.phase -ceq 'row-finish' })[0]
+    if ([long]$final.frame -le [long]$finalFinish.frame -or [string]$final.relationshipState -cne 'Unmounted' -or
+        @($final.recordErrors).Count -ne 0) {
+        throw 'Lifecycle engine-finalization was not recorded later in residue-free Unmounted state.'
+    }
+    $finalTrigger = Get-KmcLifecycleExpectedCleanupTrigger $finalRow
+    Assert-KmcLifecycleCleanupExact $final $finalTrigger
+    Assert-KmcLifecycleBaselineUnitState $final 'lifecycle engine-finalization'
+    if ($finalRow -ceq 'mounted-pair-invalid-pair-rejected') {
+        Assert-KmcLifecycleAttachmentBaseline $final 'lifecycle engine-finalization'
+    }
+    else {
+        Assert-KmcLifecycleAttachmentBaseline $final 'lifecycle engine-finalization' -RequireVerifiedRestore
     }
 }
 
@@ -1730,11 +1987,14 @@ function Assert-KmcLifecycleScenarioEvidence {
     if ($records.Count -eq 0) { throw 'Lifecycle scenario evidence contains no nonblank JSON records.' }
 
     $lastRowIndex = -1
+    $lastFrame = -1
     $lastPhaseByRow = @{}
     $phasesByRow = @{}
     $engineFinalizationCount = 0
     for ($index = 0; $index -lt $records.Count; $index++) {
         $record = $records[$index]
+        if ([long]$record.frame -lt $lastFrame) { throw 'Lifecycle evidence frame order regressed.' }
+        $lastFrame = [long]$record.frame
         $rowIndex = [Array]::IndexOf([string[]]$expectedRows, [string]$record.row)
         if ($rowIndex -lt $lastRowIndex) { throw 'Lifecycle scenario evidence row order regressed.' }
         $lastRowIndex = $rowIndex
@@ -1758,10 +2018,19 @@ function Assert-KmcLifecycleScenarioEvidence {
             if ($row -cne 'mounted-pair-invalid-pair-rejected' -and
                 (-not $phasesByRow[$row].Contains('mounted-next-frame') -or -not $phasesByRow[$row].Contains('cleanup-next-frame'))) { throw "PASS lifecycle evidence lacks mounted-next-frame or cleanup-next-frame coverage for $row." }
         }
+        Assert-KmcLifecycleEvidenceSemantics -Records $records.ToArray() -ExpectedRows $expectedRows
     }
 
     if ($null -ne $SubscenarioResults) {
         $subresults = @($SubscenarioResults)
+        if ($requireComplete) {
+            if ($subresults.Count -ne $expectedRows.Count) { throw 'PASS lifecycle subresult count does not match the exact selected row set.' }
+            for ($subresultIndex = 0; $subresultIndex -lt $expectedRows.Count; $subresultIndex++) {
+                if ([string]$subresults[$subresultIndex].name -cne [string]$expectedRows[$subresultIndex]) {
+                    throw 'PASS lifecycle subresults do not preserve the exact selected row order.'
+                }
+            }
+        }
         foreach ($record in @($records | Where-Object { [string]$_.phase -ceq 'row-finish' })) {
             $matches = @($subresults | Where-Object { [string]$_.name -ceq [string]$record.row })
             if ($matches.Count -ne 1) { throw "Lifecycle row-finish does not map to exactly one game subresult: $($record.row)" }
@@ -2506,9 +2775,16 @@ function Assert-KmcMovementScenarioRecord {
             'synchronizationObservationCount','updateSynchronizationSampleCount',
             'lateUpdateSynchronizationSampleCount','updateSynchronizationCorrectionCount','lateUpdateSynchronizationCorrectionCount',
             'maximumStationaryDriftWorldUnits','maximumStuckSeconds','oscillationCount','unexpectedRepathCount',
-            'commandReplacementCount','selectionLossCount','waypointCount','maximumTurnDegrees','nonPairInterferenceCount',
+            'commandReplacementCount','selectionLossCount','waypointCount','endpointQualifiedWaypointCount',
+            'maximumCompletedLegFinalTargetDistanceWorldUnits','maximumCompletedLegBestTargetDistanceWorldUnits',
+            'maximumTurnDegrees','nonPairInterferenceCount',
+            'nonPairUnitId',
             'mountFinalTargetDistanceWorldUnits','nonPairBestTargetDistanceWorldUnits','nonPairFinalTargetDistanceWorldUnits',
             'minimumPairNonPairSeparationWorldUnits','requiredPairNonPairSeparationWorldUnits','unmountedDoorControlPassed',
+            'doorApproachSkipped','stopCommandIssuedCount','restartCompleted','selectionMountNormalized',
+            'selectionSwitchedAway','selectionSwitchedBack','formationSelectionNormalized','pauseEntered',
+            'pauseObservationSeconds','pauseMaximumDriftWorldUnits','pauseExited','destinationCancelCommandAbsent',
+            'destinationCancelRelationshipPreserved',
             'cleanupTrigger','cleanupSucceeded','cleanupResult','cleanupResidual','cleanupBefore','cleanupAfter',
             'selectionCoverage','formationCoverage','door','doorNear','doorFar','screenshots','screenshotCaptureErrors','errors')) 'movement row-result record'
     }
@@ -2545,7 +2821,9 @@ function Assert-KmcMovementScenarioRecord {
         'finalSynchronizationBoundaryPositionPendingAfter','stationaryBoundaryClosureAttemptCount',
         'stationaryBoundaryClosureSucceededCount','stationaryBoundaryClosureFailedCount',
         'yawPhaseLagStationaryBoundaryClosureCount','positionPhaseLagStationaryBoundaryClosureCount','oscillationCount',
-        'unexpectedRepathCount','commandReplacementCount','selectionLossCount','waypointCount','nonPairInterferenceCount')) {
+        'unexpectedRepathCount','commandReplacementCount','selectionLossCount','waypointCount','endpointQualifiedWaypointCount',
+        'nonPairInterferenceCount',
+        'stopCommandIssuedCount')) {
         if (-not (Test-KmcExactJsonInteger $Record.$name) -or [long]$Record.$name -lt 0) { throw "Movement row-result $name must be a nonnegative exact JSON integer." }
     }
     foreach ($name in @('maximumPreCorrectionResidualWorldUnits','maximumInitialConfigurationResidualWorldUnits',
@@ -2568,15 +2846,19 @@ function Assert-KmcMovementScenarioRecord {
         'finalSynchronizationBoundaryMountEntityRootYawResidualDegrees',
         'finalSynchronizationBoundaryAuthoritativePositionAdvanceWorldUnits',
         'finalSynchronizationBoundaryAuthoritativeYawAdvanceDegrees','maximumStationaryDriftWorldUnits',
-        'maximumStuckSeconds','maximumTurnDegrees','mountFinalTargetDistanceWorldUnits','nonPairBestTargetDistanceWorldUnits',
-        'nonPairFinalTargetDistanceWorldUnits','minimumPairNonPairSeparationWorldUnits','requiredPairNonPairSeparationWorldUnits')) {
+        'maximumStuckSeconds','maximumCompletedLegFinalTargetDistanceWorldUnits',
+        'maximumCompletedLegBestTargetDistanceWorldUnits','maximumTurnDegrees','mountFinalTargetDistanceWorldUnits','nonPairBestTargetDistanceWorldUnits',
+        'nonPairFinalTargetDistanceWorldUnits','minimumPairNonPairSeparationWorldUnits','requiredPairNonPairSeparationWorldUnits',
+        'pauseObservationSeconds','pauseMaximumDriftWorldUnits')) {
         if (-not (Test-KmcFiniteNonnegativeJsonNumber $Record.$name)) { throw "Movement row-result $name must be a finite nonnegative JSON number." }
     }
     foreach ($name in @('unmountedDoorControlPassed','cleanupSucceeded','cleanupResidual','finalSynchronizationSnapshotCaptured',
         'finalSynchronizationQualificationPassed','finalSynchronizationMovementStoppedBeforeSnapshot',
         'finalSynchronizationBoundaryMovementCommandAbsent','finalSynchronizationBoundaryWantsToMove',
         'finalSynchronizationBoundaryIsReallyMoving','finalSynchronizationBoundaryClosureAttempted',
-        'finalSynchronizationBoundaryClosureSucceeded')) {
+        'finalSynchronizationBoundaryClosureSucceeded','doorApproachSkipped','restartCompleted','selectionMountNormalized',
+        'selectionSwitchedAway','selectionSwitchedBack','formationSelectionNormalized','pauseEntered','pauseExited',
+        'destinationCancelCommandAbsent','destinationCancelRelationshipPreserved')) {
         if ($Record.$name -isnot [bool]) { throw "Movement row-result $name must be a JSON boolean." }
     }
     foreach ($name in @('cleanupTrigger','cleanupResult','selectionCoverage','formationCoverage','finalSynchronizationSnapshotStage',
@@ -2584,6 +2866,9 @@ function Assert-KmcMovementScenarioRecord {
         if ($Record.$name -isnot [string] -or [string]::IsNullOrWhiteSpace([string]$Record.$name)) { throw "Movement row-result $name must be a nonempty JSON string." }
     }
     if ($null -ne $Record.door -and $Record.door -isnot [string]) { throw 'Movement row-result door must be a string or null.' }
+    if ($null -ne $Record.nonPairUnitId -and ($Record.nonPairUnitId -isnot [string] -or [string]::IsNullOrWhiteSpace([string]$Record.nonPairUnitId))) {
+        throw 'Movement row-result nonPairUnitId must be a nonempty string or null.'
+    }
     Assert-KmcMovementVector3 $Record.doorNear 'movement row-result doorNear'
     Assert-KmcMovementVector3 $Record.doorFar 'movement row-result doorFar'
     Assert-KmcMovementCleanupState $Record.cleanupBefore 'movement row-result cleanupBefore' 'before' $RequireComplete
@@ -2731,17 +3016,151 @@ function Assert-KmcMovementScenarioRecord {
             ([long]$Record.updateSynchronizationCorrectionCount + [long]$Record.lateUpdateSynchronizationCorrectionCount) -gt $maximumCalibratedCorrections) {
             throw 'PASS movement row-result exceeds the bounded synchronization callback cadence.'
         }
-        if ([string]$Record.row -ceq 'mounted-pair-doorway' -and
-            ($Record.unmountedDoorControlPassed -ne $true -or [string]::IsNullOrWhiteSpace([string]$Record.door))) {
-            throw 'PASS doorway row does not contain the required matched unmounted control and exact door identity.'
+        if ([long]$Record.commandReplacementCount -ne 0 -or [long]$Record.selectionLossCount -ne 0 -or
+            [long]$Record.nonPairInterferenceCount -ne 0) {
+            throw 'PASS movement row permits a command replacement, selection loss, or unselected non-pair interference event.'
         }
-        if ([string]$Record.row -ceq 'mounted-pair-party-formation' -and
-            ([double]$Record.mountFinalTargetDistanceWorldUnits -gt 1.25 -or
-             [double]$Record.nonPairBestTargetDistanceWorldUnits -gt 1.25 -or
-             [double]$Record.nonPairFinalTargetDistanceWorldUnits -gt 1.25 -or
-             [double]$Record.requiredPairNonPairSeparationWorldUnits -le 0.0 -or
-             [double]$Record.minimumPairNonPairSeparationWorldUnits -lt [double]$Record.requiredPairNonPairSeparationWorldUnits)) {
-            throw 'PASS formation row does not prove both recipients reached their targets with corpulence clearance.'
+
+        $expectedWaypointCount = switch ([string]$Record.row) {
+            'mounted-pair-doorway' { if ($Record.doorApproachSkipped) { 2L } else { 3L }; break }
+            'mounted-pair-open-ground' { 1L; break }
+            'mounted-pair-stop-start' { 2L; break }
+            'mounted-pair-turns-and-corners' { 3L; break }
+            'mounted-pair-selection' { 1L; break }
+            'mounted-pair-party-formation' { 1L; break }
+            'mounted-pair-pause-unpause' { 1L; break }
+            'mounted-pair-destination-cancel' { 1L; break }
+            default { throw 'PASS movement row has no exact waypoint contract.' }
+        }
+        if ([long]$Record.waypointCount -ne $expectedWaypointCount) {
+            throw "PASS movement row does not contain its exact $expectedWaypointCount-leg navigation proof."
+        }
+
+        $expectedEndpointQualifiedWaypointCount = switch ([string]$Record.row) {
+            'mounted-pair-stop-start' { 1L; break }
+            'mounted-pair-destination-cancel' { 0L; break }
+            default { $expectedWaypointCount; break }
+        }
+        if ([long]$Record.endpointQualifiedWaypointCount -ne $expectedEndpointQualifiedWaypointCount) {
+            throw "PASS movement row does not contain its exact $expectedEndpointQualifiedWaypointCount endpoint-qualified leg proof."
+        }
+        if ($expectedEndpointQualifiedWaypointCount -eq 0L) {
+            if ([double]$Record.maximumCompletedLegFinalTargetDistanceWorldUnits -ne 0.0 -or
+                [double]$Record.maximumCompletedLegBestTargetDistanceWorldUnits -ne 0.0) {
+                throw 'PASS destination-cancel row retained endpoint evidence for its intentionally interrupted leg.'
+            }
+        }
+        elseif ([double]$Record.maximumCompletedLegFinalTargetDistanceWorldUnits -gt 1.25 -or
+            [double]$Record.maximumCompletedLegBestTargetDistanceWorldUnits -gt 1.25 -or
+            [double]$Record.mountFinalTargetDistanceWorldUnits -gt
+                [double]$Record.maximumCompletedLegFinalTargetDistanceWorldUnits) {
+            throw 'PASS movement row does not prove every endpoint-qualified leg finished within the fixed 1.25-unit final/best target-distance gate.'
+        }
+
+        $isDoorway = [string]$Record.row -ceq 'mounted-pair-doorway'
+        $isStopStart = [string]$Record.row -ceq 'mounted-pair-stop-start'
+        $isTurns = [string]$Record.row -ceq 'mounted-pair-turns-and-corners'
+        $isSelection = [string]$Record.row -ceq 'mounted-pair-selection'
+        $isFormation = [string]$Record.row -ceq 'mounted-pair-party-formation'
+        $isPause = [string]$Record.row -ceq 'mounted-pair-pause-unpause'
+        $isCancel = [string]$Record.row -ceq 'mounted-pair-destination-cancel'
+        if ($isDoorway) {
+            if ($Record.unmountedDoorControlPassed -ne $true -or [string]::IsNullOrWhiteSpace([string]$Record.door)) {
+                throw 'PASS doorway row does not contain the required matched unmounted Mammoth control and exact unchanged door identity.'
+            }
+        }
+        elseif ($Record.unmountedDoorControlPassed -ne $false -or $Record.doorApproachSkipped -ne $false -or $null -ne $Record.door) {
+            throw 'Non-doorway PASS row retained doorway-only semantic evidence.'
+        }
+        if ($isStopStart) {
+            if ([long]$Record.stopCommandIssuedCount -ne 1 -or $Record.restartCompleted -ne $true) {
+                throw 'PASS stop/start row does not prove exactly one routed stop followed by a completed restart.'
+            }
+        }
+        elseif ($isCancel) {
+            if ([long]$Record.stopCommandIssuedCount -ne 1 -or $Record.restartCompleted -ne $false -or
+                $Record.destinationCancelCommandAbsent -ne $true -or $Record.destinationCancelRelationshipPreserved -ne $true) {
+                throw 'PASS destination-cancel row does not prove exactly one stop, absent destination, and preserved mounted relationship.'
+            }
+        }
+        elseif ([long]$Record.stopCommandIssuedCount -ne 0 -or $Record.restartCompleted -ne $false) {
+            throw 'PASS movement row retained stop/start-only semantic evidence.'
+        }
+        if (-not $isCancel -and ($Record.destinationCancelCommandAbsent -ne $false -or $Record.destinationCancelRelationshipPreserved -ne $false)) {
+            throw 'Non-cancel PASS row retained destination-cancel-only semantic evidence.'
+        }
+        if ($isTurns) {
+            if ([double]$Record.maximumTurnDegrees -lt 75.0) { throw 'PASS turns/corners row lacks the required measured 75-degree turn.' }
+        }
+        elseif ([double]$Record.maximumTurnDegrees -ne 0.0) {
+            throw 'Non-turn PASS row retained turns/corners-only semantic evidence.'
+        }
+        if ($isSelection) {
+            if ($Record.selectionMountNormalized -ne $true -or $Record.selectionSwitchedAway -ne $true -or
+                $Record.selectionSwitchedBack -ne $true -or [string]::IsNullOrWhiteSpace([string]$Record.nonPairUnitId)) {
+                throw 'PASS selection row does not prove mount normalization and the exact non-pair away/back switch.'
+            }
+        }
+        elseif ($Record.selectionMountNormalized -ne $false -or $Record.selectionSwitchedAway -ne $false -or $Record.selectionSwitchedBack -ne $false) {
+            throw 'Non-selection PASS row retained selection-only semantic evidence.'
+        }
+        if ($isFormation) {
+            if ($Record.formationSelectionNormalized -ne $true -or [string]::IsNullOrWhiteSpace([string]$Record.nonPairUnitId) -or
+                [double]$Record.mountFinalTargetDistanceWorldUnits -gt 1.25 -or
+                [double]$Record.nonPairBestTargetDistanceWorldUnits -gt 1.25 -or
+                [double]$Record.nonPairFinalTargetDistanceWorldUnits -gt 1.25 -or
+                [double]$Record.requiredPairNonPairSeparationWorldUnits -le 0.0 -or
+                [double]$Record.minimumPairNonPairSeparationWorldUnits -lt [double]$Record.requiredPairNonPairSeparationWorldUnits) {
+                throw 'PASS formation row does not prove normalized rider/non-pair selection, both recipients at target, and corpulence clearance.'
+            }
+        }
+        elseif ($Record.formationSelectionNormalized -ne $false) {
+            throw 'Non-formation PASS row retained formation-only semantic evidence.'
+        }
+        if (-not $isSelection -and -not $isFormation -and $null -ne $Record.nonPairUnitId) {
+            throw 'PASS movement row retained a non-pair identity outside selection or formation qualification.'
+        }
+        if ($isPause) {
+            if ($Record.pauseEntered -ne $true -or $Record.pauseExited -ne $true -or
+                [double]$Record.pauseObservationSeconds -lt 1.0 -or [double]$Record.pauseMaximumDriftWorldUnits -gt 0.15) {
+                throw 'PASS pause/unpause row does not prove entry, a one-second real-clock observation, bounded drift, and exit.'
+            }
+        }
+        elseif ($Record.pauseEntered -ne $false -or $Record.pauseExited -ne $false -or
+            [double]$Record.pauseObservationSeconds -ne 0.0 -or [double]$Record.pauseMaximumDriftWorldUnits -ne 0.0) {
+            throw 'Non-pause PASS row retained pause-only semantic evidence.'
+        }
+
+        [string[]]$expectedScreenshotMilestones = switch ([string]$Record.row) {
+            'mounted-pair-doorway' {
+                if ($Record.doorApproachSkipped) { @('door-control','door-mounted','door-mounted','dismounted') }
+                else { @('door-control','door-control','door-mounted','door-mounted','dismounted') }
+                break
+            }
+            'mounted-pair-open-ground' { @('mounted-idle','moving','stopped','dismounted'); break }
+            'mounted-pair-stop-start' { @('mounted-idle','moving','stopped','restarted','dismounted'); break }
+            'mounted-pair-turns-and-corners' { @('mounted-idle','moving','corner','corner','dismounted'); break }
+            'mounted-pair-selection' { @('mounted-idle','selection','moving','dismounted'); break }
+            'mounted-pair-party-formation' { @('mounted-idle','formation','formation','dismounted'); break }
+            'mounted-pair-pause-unpause' { @('mounted-idle','moving','paused','dismounted'); break }
+            'mounted-pair-destination-cancel' { @('mounted-idle','moving','cancelled','dismounted'); break }
+        }
+        [string[]]$actualScreenshotMilestones = @($Record.screenshots | ForEach-Object { [string]$_.milestone })
+        if ($actualScreenshotMilestones.Count -ne $expectedScreenshotMilestones.Count -or
+            ($actualScreenshotMilestones -join "`n") -cne ($expectedScreenshotMilestones -join "`n") -or
+            @($Record.screenshotCaptureErrors).Count -ne 0) {
+            throw 'PASS movement row lacks its exact ordered screenshot milestone/count coverage or contains a capture error.'
+        }
+        $screenshotMilestoneCounts = @{}
+        $screenshotRowToken = ([string]$Record.row).Substring('mounted-pair-'.Length)
+        foreach ($screenshot in @($Record.screenshots)) {
+            $milestone = [string]$screenshot.milestone
+            $milestoneCount = if ($screenshotMilestoneCounts.ContainsKey($milestone)) { [int]$screenshotMilestoneCounts[$milestone] + 1 } else { 1 }
+            $screenshotMilestoneCounts[$milestone] = $milestoneCount
+            $expectedRelativePath = 'movement-visuals/' + $screenshotRowToken + '-' + $milestone + '-' + $milestoneCount.ToString('00') + '.png'
+            if ([string]$screenshot.relativePath -cne $expectedRelativePath) {
+                throw 'PASS movement screenshot is not bound to its exact row, milestone, and deterministic capture ordinal.'
+            }
         }
     }
 }
@@ -2821,6 +3240,47 @@ function Assert-KmcMovementScenarioEvidence {
         for ($index = 0; $index -lt $expectedRows.Count; $index++) {
             if ([string]$rowResults[$index].row -cne [string]$expectedRows[$index] -or -not $telemetryRows.Contains([string]$expectedRows[$index]) -or
                 -not $pathProbeRows.Contains([string]$expectedRows[$index])) { throw "PASS movement evidence lacks exact ordered row, telemetry, or path-probe coverage for $($expectedRows[$index])." }
+            $rowRecord = $rowResults[$index]
+            $rowPathProbes = @($scenarioRecords | Where-Object { [string]$_.kind -ceq 'path-probe' -and [string]$_.row -ceq [string]$rowRecord.row })
+            if ($rowPathProbes.Count -ne [long]$rowRecord.waypointCount) {
+                throw "PASS movement evidence path-probe count does not equal the exact completed waypoint count for $($rowRecord.row)."
+            }
+            if ([string]$rowRecord.row -ceq 'mounted-pair-doorway') {
+                [bool[]]$expectedStrictDoor = if ($rowRecord.doorApproachSkipped) { @($true,$true) } else { @($false,$true,$true) }
+                $expectedDoorTargets = if ($rowRecord.doorApproachSkipped) {
+                    @($rowRecord.doorFar,$rowRecord.doorNear)
+                }
+                else {
+                    @($rowRecord.doorNear,$rowRecord.doorFar,$rowRecord.doorNear)
+                }
+                if ($rowPathProbes.Count -ne $expectedStrictDoor.Count) { throw 'PASS doorway path-probe count does not match its bounded approach policy.' }
+                for ($probeIndex = 0; $probeIndex -lt $rowPathProbes.Count; $probeIndex++) {
+                    $probe = $rowPathProbes[$probeIndex]
+                    $target = $expectedDoorTargets[$probeIndex]
+                    if ($probe.strictDoor -ne $expectedStrictDoor[$probeIndex] -or
+                        -not (Test-KmcApproximatelyEqual ([double]$probe.requested.x) ([double]$target.x) 0.000001) -or
+                        -not (Test-KmcApproximatelyEqual ([double]$probe.requested.y) ([double]$target.y) 0.000001) -or
+                        -not (Test-KmcApproximatelyEqual ([double]$probe.requested.z) ([double]$target.z) 0.000001)) {
+                        throw 'PASS doorway path probes do not prove the exact near/far/near same-geometry unmounted and mounted traversal sequence.'
+                    }
+                }
+            }
+            elseif (@($rowPathProbes | Where-Object { $_.strictDoor -ne $false }).Count -ne 0) {
+                throw "Non-doorway PASS row contains a strict-door path probe: $($rowRecord.row)."
+            }
+        }
+        $referencedScreenshots = @($rowResults | ForEach-Object { @($_.screenshots) })
+        $manifestScreenshots = @($Manifest.artifacts | Where-Object { [string]$_.kind -ceq 'screenshot' })
+        if ($referencedScreenshots.Count -ne $manifestScreenshots.Count) {
+            throw 'PASS movement screenshot evidence is not bidirectionally complete with the manifested screenshot artifacts.'
+        }
+        foreach ($artifact in $manifestScreenshots) {
+            $matches = @($referencedScreenshots | Where-Object {
+                [string]$_.relativePath -ceq [string]$artifact.relativePath -and
+                [long]$_.length -eq [long]$artifact.length -and
+                [string]$_.sha256 -ceq [string]$artifact.sha256
+            })
+            if ($matches.Count -ne 1) { throw 'PASS movement manifest contains an orphan, duplicate, or mismatched screenshot artifact.' }
         }
     }
     if ($null -ne $SubscenarioResults) {

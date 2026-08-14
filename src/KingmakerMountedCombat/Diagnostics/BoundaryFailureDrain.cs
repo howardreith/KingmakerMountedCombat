@@ -11,15 +11,19 @@ namespace KingmakerMountedCombat.Diagnostics
 
     /// <summary>
     /// Pure state machine that keeps a boundary failure pending until an active
-    /// Kingmaker loading pipeline has stopped. The runtime engine owns the
-    /// subsequent verification and cleanup; this type deliberately has no game
-    /// or Unity dependency so the safety transition can be tested deterministically.
+    /// Kingmaker loading pipeline has stopped. The caller owns subsequent
+    /// verification and cleanup; this type deliberately has no game or Unity
+    /// dependency so the no-advance transition can be tested deterministically.
     /// </summary>
     internal sealed class BoundaryFailureDrain
     {
         public BoundaryFailureDrainState State { get; private set; }
 
         public string Failure { get; private set; }
+
+        public bool IsLatched => State != BoundaryFailureDrainState.Inactive;
+
+        public bool MayAdvanceScenario => State == BoundaryFailureDrainState.Inactive;
 
         public void Request(string failure, bool loadingIsActive)
         {
