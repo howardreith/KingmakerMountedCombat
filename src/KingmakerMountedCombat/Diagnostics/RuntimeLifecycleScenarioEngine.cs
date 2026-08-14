@@ -20,7 +20,7 @@ using UnityEngine;
 namespace KingmakerMountedCombat.Diagnostics
 {
     /// <summary>
-    /// Executes only the Phase 1 relationship-lifecycle rows.  Every action is
+    /// Executes bounded relationship-lifecycle and transient player-action rows. Every action is
     /// advanced by Update so cleanup is observed on a later game frame rather
     /// than being accepted from the transition return value alone.
     /// </summary>
@@ -31,6 +31,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private const string EvidenceFileName = "lifecycle-scenario-evidence.jsonl";
         private const string DirectInvocationClaimLimit =
             "Direct service/handler invocation only; native EventBus/UMM delivery was not exercised.";
+        private const string PlayerActionClaimLimit =
+            "Runtime player-action controller invocation; Unity OnGUI button delivery remains separately observed.";
 
         private static readonly JsonSerializerSettings EvidenceJsonSettings = new JsonSerializerSettings
         {
@@ -54,9 +56,16 @@ namespace KingmakerMountedCombat.Diagnostics
             "mounted-pair-mod-disable-cleanup"
         };
 
+        private static readonly string[] PlayerActionRows =
+        {
+            "player-action-availability",
+            "mount-dismount-user-flow"
+        };
+
         private readonly RuntimeRequest request;
         private readonly GameMountedRelationshipService relationship;
         private readonly MountedLifecycleSubscriber lifecycle;
+        private readonly MountedPlayerActionController playerAction;
         private readonly DiagnosticSettings settings;
         private readonly IModLogger logger;
         private readonly List<RuntimeSubscenarioResult> results = new List<RuntimeSubscenarioResult>();
@@ -95,12 +104,14 @@ namespace KingmakerMountedCombat.Diagnostics
             RuntimeRequest request,
             GameMountedRelationshipService relationship,
             MountedLifecycleSubscriber lifecycle,
+            MountedPlayerActionController playerAction,
             DiagnosticSettings settings,
             IModLogger logger)
         {
             this.request = request ?? throw new ArgumentNullException(nameof(request));
             this.relationship = relationship ?? throw new ArgumentNullException(nameof(relationship));
             this.lifecycle = lifecycle ?? throw new ArgumentNullException(nameof(lifecycle));
+            this.playerAction = playerAction ?? throw new ArgumentNullException(nameof(playerAction));
             this.settings = settings ?? throw new ArgumentNullException(nameof(settings));
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
             evidencePath = Path.Combine(request.EvidenceRoot, EvidenceFileName);
@@ -309,6 +320,33 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
+            if (string.Equals(currentRow, "player-action-availability", StringComparison.Ordinal))
+            {
+                SelectionManager.Instance.SelectUnit(rider.View, true, false, false);
+                var available = playerAction.GetAvailability();
+                assertions.Check(available.IsVisible,
+                    "Transient player action was visible for the selected eligible rider.",
+                    "Transient player action was hidden for the selected eligible rider.");
+                assertions.Check(available.IsEnabled && available.Action == MountedPlayerActionKind.Mount,
+                    "Transient player action exposed enabled Mount state.",
+                    "Transient player action was not an enabled Mount action: " + available.Feedback);
+                assertions.Check(available.UnavailableReasons.Count == 0,
+                    "Eligible live pair exposed no rejection reason.",
+                    "Eligible live pair exposed rejection reasons: " + available.Feedback);
+
+                settings.EnableUnsafeMovementExperiment = false;
+                var disabled = playerAction.GetAvailability();
+                assertions.Check(disabled.IsVisible && !disabled.IsEnabled,
+                    "Disabled private-alpha feature retained visible eligibility feedback without an executable action.",
+                    "Disabled private-alpha feature did not fail closed with visible feedback.");
+                assertions.Check(disabled.Feedback.IndexOf("Enable the private-alpha", StringComparison.Ordinal) >= 0,
+                    "Disabled feature explained the exact enablement requirement.",
+                    "Disabled feature did not expose its exact enablement requirement: " + disabled.Feedback);
+                settings.EnableUnsafeMovementExperiment = true;
+                RequestCleanup(CleanupTrigger.Manual);
+                return;
+            }
+
             if (string.Equals(currentRow, "mounted-pair-invalid-pair-rejected", StringComparison.Ordinal))
             {
                 var invalid = relationship.RejectSyntheticInvalidPairForAutomation();
@@ -322,7 +360,20 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
-            var mounted = relationship.MountAutomationPair();
+            TransitionResult mounted;
+            if (string.Equals(currentRow, "mount-dismount-user-flow", StringComparison.Ordinal))
+            {
+                SelectionManager.Instance.SelectUnit(rider.View, true, false, false);
+                var activated = playerAction.Activate();
+                mounted = relationship.LastTransition;
+                assertions.Check(activated,
+                    "Transient player action activated the eligible live pair.",
+                    "Transient player action did not activate the eligible live pair: " + playerAction.LastFeedback);
+            }
+            else
+            {
+                mounted = relationship.MountAutomationPair();
+            }
             assertions.Check(mounted.Succeeded,
                 "Valid automation pair mounted.",
                 "Valid automation pair mount failed: " + FormatTransitionErrors(mounted));
@@ -368,6 +419,28 @@ namespace KingmakerMountedCombat.Diagnostics
             if (string.Equals(currentRow, "mounted-pair-create-and-clear", StringComparison.Ordinal))
             {
                 AssertCleanupTransition(relationship.Dismount(CleanupTrigger.Manual), CleanupTrigger.Manual);
+                AwaitCleanupFrame();
+            }
+            else if (string.Equals(currentRow, "mount-dismount-user-flow", StringComparison.Ordinal))
+            {
+                var availability = playerAction.GetAvailability();
+                assertions.Check(availability.IsVisible && availability.IsEnabled &&
+                        availability.Action == MountedPlayerActionKind.Dismount &&
+                        string.Equals(availability.Label, "Dismount", StringComparison.Ordinal),
+                    "Mounted player action became an enabled Dismount action.",
+                    "Mounted player action did not become enabled Dismount: " + availability.Feedback);
+                var selected = SelectionManager.Instance?.SelectedUnits;
+                assertions.Check(selected != null && selected.Count == 1 && selected[0] == snapshot.Rider,
+                    "Player action normalized selection to the rider.",
+                    "Player action did not retain exactly the rider as selected.");
+                var activated = playerAction.Activate();
+                lastCleanupTransition = relationship.LastTransition;
+                assertions.Check(activated,
+                    "Dismount player action completed through the relationship service.",
+                    "Dismount player action failed: " + playerAction.LastFeedback);
+                assertions.Check(HasExactSuccessfulTrigger(CleanupTrigger.Manual),
+                    "Dismount player action retained the Manual cleanup trigger.",
+                    "Dismount player action did not retain Manual cleanup: " + relationship.LastResult);
                 AwaitCleanupFrame();
             }
             else if (string.Equals(currentRow, "mounted-pair-double-mount-rejected", StringComparison.Ordinal))
@@ -931,9 +1004,11 @@ namespace KingmakerMountedCombat.Diagnostics
             return new TriggerScopeEvidence
             {
                 ExpectedCleanupTrigger = GetExpectedCleanupTrigger(row).ToString(),
-                InvocationPath = UsesLifecycleHandler(row) ? "lifecycle-handler-direct" : "relationship-service-direct",
+                InvocationPath = IsPlayerActionRow(row)
+                    ? "player-action-controller-direct"
+                    : (UsesLifecycleHandler(row) ? "lifecycle-handler-direct" : "relationship-service-direct"),
                 NativeDeliveryObserved = false,
-                ClaimLimit = DirectInvocationClaimLimit
+                ClaimLimit = IsPlayerActionRow(row) ? PlayerActionClaimLimit : DirectInvocationClaimLimit
             };
         }
 
@@ -1080,7 +1155,19 @@ namespace KingmakerMountedCombat.Diagnostics
                     return new[] { row };
                 }
             }
+            foreach (var row in PlayerActionRows)
+            {
+                if (string.Equals(row, scenario, StringComparison.Ordinal))
+                {
+                    return new[] { row };
+                }
+            }
             return null;
+        }
+
+        private static bool IsPlayerActionRow(string row)
+        {
+            return Array.IndexOf(PlayerActionRows, row) >= 0;
         }
 
         private static CleanupTrigger GetExpectedCleanupTrigger(string row)

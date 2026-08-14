@@ -4,7 +4,7 @@ Status: IN PROGRESS
 
 ## Player intent
 
-Expose one unambiguous action that reads `Mount` while eligible and unmounted and `Dismount` while mounted. The selected rider remains the player-facing principal. A rejected action returns one exact primary reason and performs no partial mutation.
+Expose one unambiguous action that reads `Mount` while eligible and unmounted and `Dismount` while mounted. The selected rider remains the player-facing principal. A rejected action returns exact ordered reason text and performs no partial mutation. Multiple independently failing requirements may be reported together so the player is not forced through one-error-at-a-time discovery.
 
 ## Minimum eligibility
 
@@ -23,4 +23,8 @@ Mount validates before mutation, acquires all owned leases transactionally, norm
 
 Runtime evidence must directly record selected unit identity, rider/mount click result, portrait highlight, selection-circle owner/position, action-bar owner, action label/availability/reason, camera subject while moving and after selection switches, party group routing, and cursor/ground-command recipient. Screenshots must include actual UI where a UI claim is made.
 
-The final transient surface will be selected only after exact Kingmaker UI and lifecycle contracts are inspected; save safety takes precedence over blueprint-backed polish.
+## Selected transient surface
+
+The private alpha uses an owned bottom-right IMGUI overlay, not a blueprint or hotbar action. It is visible in a loaded area even when disabled so it can explain eligibility, becomes an enabled `Mount` only for the exact validated pair, becomes `Dismount` for active or fault-cleanup state, and is absent outside a loaded game. `MountedPlayerActionEvaluator` owns deterministic eligibility; `MountedPlayerActionController` projects exact Kingmaker state and delegates transitions; the `MonoBehaviour` draws and forwards only.
+
+Offline checkpoint: component action tests `7 PASS / 0 FAIL`; complete component total `122 PASS / 0 FAIL`; harness `134 PASS / 0 FAIL`. Actual UI visibility/click delivery and two fresh-process flows remain `TODO`.

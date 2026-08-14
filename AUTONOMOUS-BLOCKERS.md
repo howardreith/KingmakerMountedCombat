@@ -26,8 +26,8 @@ Exactly one Baseline and one Working exist, with zero KMC near-matches. Baseline
 
 ## Current uncertainties, not blockers
 
-- exact save-safe transient player-action surface;
-- exact native lifecycle delivery seams beyond Phase 1 claim limits;
+- native runtime qualification of the implemented transient player-action surface;
+- actual delivery and evidence binding for the mapped native lifecycle seams;
 - native humanoid pose facilities versus original procedural fallback;
 - accepted deterministic Mammoth rider pose profile;
 - direct portrait/action-bar/selection-circle/camera observation seams.
@@ -36,4 +36,4 @@ Resolve these through exact assembly inspection, bounded local decompilation, de
 
 ## Exact next action
 
-Commit and guarded-publish the governance intake, then execute Tranche A persistence/native-lifecycle/player-action contract work. Do not implement combat or create a public release.
+Commit the Tranche A offline implementation checkpoint, build its clean Phase 2A development package, and execute the two player-action rows plus bounded native persistence/lifecycle rows through the guarded Working-only harness. Do not implement combat or create a public release.

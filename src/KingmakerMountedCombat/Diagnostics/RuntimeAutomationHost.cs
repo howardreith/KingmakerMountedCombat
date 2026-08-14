@@ -39,6 +39,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly RuntimeSaveAuthorization saveAuthorization;
         private readonly GameMountedRelationshipService relationship;
         private readonly MountedLifecycleSubscriber lifecycle;
+        private readonly MountedPlayerActionController playerAction;
         private readonly DiagnosticSettings diagnosticSettings;
         private readonly string resultPath;
         private readonly DateTimeOffset startedAt;
@@ -100,6 +101,7 @@ namespace KingmakerMountedCombat.Diagnostics
             RuntimeSaveAuthorization saveAuthorization,
             GameMountedRelationshipService relationship,
             MountedLifecycleSubscriber lifecycle,
+            MountedPlayerActionController playerAction,
             DiagnosticSettings diagnosticSettings)
         {
             this.logger = logger;
@@ -110,6 +112,7 @@ namespace KingmakerMountedCombat.Diagnostics
             this.saveAuthorization = saveAuthorization ?? throw new ArgumentNullException(nameof(saveAuthorization));
             this.relationship = relationship ?? throw new ArgumentNullException(nameof(relationship));
             this.lifecycle = lifecycle ?? throw new ArgumentNullException(nameof(lifecycle));
+            this.playerAction = playerAction ?? throw new ArgumentNullException(nameof(playerAction));
             this.diagnosticSettings = diagnosticSettings ?? throw new ArgumentNullException(nameof(diagnosticSettings));
             resultPath = Path.Combine(request.EvidenceRoot, "runtime-game-result.json");
             startedAt = DateTimeOffset.UtcNow;
@@ -138,6 +141,7 @@ namespace KingmakerMountedCombat.Diagnostics
             RuntimeSaveAuthorization saveAuthorization,
             GameMountedRelationshipService relationship,
             MountedLifecycleSubscriber lifecycle,
+            MountedPlayerActionController playerAction,
             DiagnosticSettings diagnosticSettings)
         {
             if (logger == null)
@@ -205,7 +209,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
             logger.Info("Runtime automation request accepted: " + request.RunId + " / " + request.Scenario);
             return new RuntimeAutomationHost(logger, request, loadedModId, relationshipStateProvider, movementExperimentProvider,
-                saveAuthorization, relationship, lifecycle, diagnosticSettings);
+                saveAuthorization, relationship, lifecycle, playerAction, diagnosticSettings);
         }
 
         internal static void ObserveSaveRequest()
@@ -419,7 +423,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (lifecycleEngine == null)
                 {
-                    lifecycleEngine = new RuntimeLifecycleScenarioEngine(request, relationship, lifecycle, diagnosticSettings, logger);
+                    lifecycleEngine = new RuntimeLifecycleScenarioEngine(request, relationship, lifecycle, playerAction, diagnosticSettings, logger);
                     lifecycleEngine.Start();
                 }
                 lifecycleEngine.Update();

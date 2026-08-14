@@ -7,6 +7,9 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+$version = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'version.json') | ConvertFrom-Json
+$expectedProductVersion = [string]$version.productVersion
+$expectedAssemblyVersion = [string]$version.assemblyVersion
 $resolvedPackage = [IO.Path]::GetFullPath($PackagePath)
 if (-not (Test-Path -LiteralPath $resolvedPackage -PathType Leaf)) { throw "Package does not exist: $resolvedPackage" }
 if ((Get-Item -LiteralPath $resolvedPackage).Length -gt 5MB) { throw 'Diagnostic package exceeds the 5 MiB safety limit.' }
@@ -40,7 +43,7 @@ try {
     finally { $reader.Dispose() }
     $requiredInfo = @('Id','DisplayName','Author','Version','ManagerVersion','GameVersion','AssemblyName','EntryMethod','Requirements')
     if ((@($info.PSObject.Properties.Name | Sort-Object) -join "`n") -cne (($requiredInfo | Sort-Object) -join "`n") -or
-        [string]$info.Id -cne 'KingmakerMountedCombat' -or [string]$info.Version -cne '0.0.1-feasibility' -or
+        [string]$info.Id -cne 'KingmakerMountedCombat' -or [string]$info.Version -cne $expectedProductVersion -or
         [string]$info.ManagerVersion -cne '0.28.2' -or [string]$info.GameVersion -cne '2.1.7' -or
         [string]$info.AssemblyName -cne 'KingmakerMountedCombat.dll' -or
         [string]$info.EntryMethod -cne 'KingmakerMountedCombat.Main.Load' -or @($info.Requirements).Count -ne 0) {
@@ -57,9 +60,9 @@ try {
     $identityJson = & $powerShellExe -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Get-AssemblyIdentity.ps1') -AssemblyPath $dllPath
     if ($LASTEXITCODE -ne 0) { throw 'Isolated packaged assembly inspection failed.' }
     $identity = $identityJson | ConvertFrom-Json
-    if ([string]$identity.name -cne 'KingmakerMountedCombat' -or [string]$identity.version -cne '0.0.1.0') { throw 'Packaged DLL assembly identity is not exact.' }
+    if ([string]$identity.name -cne 'KingmakerMountedCombat' -or [string]$identity.version -cne $expectedAssemblyVersion) { throw 'Packaged DLL assembly identity is not exact.' }
     if ([string]$identity.targetFramework -cne '.NETFramework,Version=v4.7') { throw 'Packaged DLL does not target exact .NET Framework 4.7.' }
-    $allowedReferences = @('mscorlib','System','System.Core','Assembly-CSharp','Assembly-CSharp-firstpass','UnityEngine','UnityEngine.CoreModule','UnityEngine.IMGUIModule','UnityModManager','Newtonsoft.Json','0Harmony12')
+    $allowedReferences = @('mscorlib','System','System.Core','Assembly-CSharp','Assembly-CSharp-firstpass','UnityEngine','UnityEngine.CoreModule','UnityEngine.IMGUIModule','UnityEngine.AnimationModule','UnityModManager','Newtonsoft.Json','0Harmony12')
     $references = @($identity.references | Sort-Object)
     $unexpected = @($references | Where-Object { $_ -cnotin $allowedReferences })
     if ($unexpected.Count -ne 0 -or $references -contains '0Harmony' -or @($references | Where-Object { $_ -match '(?i)Wrath|BuffPlanner|Gunslinger|Tabletop|CallOfTheWild' }).Count -ne 0) {

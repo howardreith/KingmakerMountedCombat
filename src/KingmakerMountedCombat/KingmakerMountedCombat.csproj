@@ -61,6 +61,10 @@
       <HintPath>$(KingmakerManagedDir)\UnityEngine.IMGUIModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="UnityEngine.AnimationModule">
+      <HintPath>$(KingmakerManagedDir)\UnityEngine.AnimationModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="UnityModManager">
       <HintPath>$(UnityModManagerDir)\UnityModManager.dll</HintPath>
       <Private>False</Private>
@@ -85,6 +89,7 @@
     <Compile Include="Diagnostics\MovementNavigationBoundaryPolicy.cs" />
     <Compile Include="Diagnostics\MovementRadialDistanceOrder.cs" />
     <Compile Include="Diagnostics\NavigationEndpointDistanceTracker.cs" />
+    <Compile Include="Diagnostics\NativeLifecycleDeliveryLedger.cs" />
     <Compile Include="Diagnostics\RuntimeAutomationHost.cs" />
     <Compile Include="Diagnostics\RuntimeBoundaryScenarioEngine.cs" />
     <Compile Include="Diagnostics\RuntimeLifecycleScenarioEngine.cs" />
@@ -98,6 +103,7 @@
     <Compile Include="Domain\IMountedPairRuntime.cs" />
     <Compile Include="Domain\MountedPair.cs" />
     <Compile Include="Domain\MountedPairCandidate.cs" />
+    <Compile Include="Domain\MountedPlayerAction.cs" />
     <Compile Include="Domain\MountedRelationshipCoordinator.cs" />
     <Compile Include="Domain\MovementTelemetry.cs" />
     <Compile Include="Domain\RelationshipState.cs" />
@@ -107,6 +113,8 @@
     <Compile Include="Integration\KingmakerMountedPairRuntime.cs" />
     <Compile Include="Integration\MountedLifecycleSubscriber.cs" />
     <Compile Include="Integration\MountedPatchController.cs" />
+    <Compile Include="Integration\MountedPlayerActionController.cs" />
+    <Compile Include="Integration\MountedPlayerActionOverlay.cs" />
     <Compile Include="Integration\RiderMovementAgent.cs" />
     <Compile Include="Logging\IModLogger.cs" />
     <Compile Include="Logging\UmmLogger.cs" />

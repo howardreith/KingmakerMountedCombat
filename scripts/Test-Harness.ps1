@@ -246,6 +246,7 @@ function New-TestLifecycleEvidenceRecord {
     )
     $expectedTrigger = Get-KmcLifecycleExpectedCleanupTrigger $Row
     $invocationPath = Get-KmcLifecycleInvocationPath $Row
+    $claimLimit = Get-KmcLifecycleClaimLimit $Row
     $cleanup = if ($WithCleanup) {
         [ordered]@{trigger=$expectedTrigger;result='PASS';succeeded=$true;state='Unmounted';movementAuthorityResidual=$false;presentationResidual=$false;errors=@()}
     } else {
@@ -264,7 +265,7 @@ function New-TestLifecycleEvidenceRecord {
         sequence=$Sequence;frame=$frame;relationshipState=$RelationshipState
         triggerScope=[ordered]@{
             expectedCleanupTrigger=$expectedTrigger;invocationPath=$invocationPath;nativeDeliveryObserved=$false
-            claimLimit='Direct service/handler invocation only; native EventBus/UMM delivery was not exercised.'
+            claimLimit=$claimLimit
         }
         rowStatus=$RowStatus
         assertionPassCount=$AssertionPassCount;assertionFailCount=$AssertionFailCount;cleanup=$cleanup
@@ -3199,7 +3200,7 @@ try {
     Invoke-HarnessTest 'lifecycle evidence is a durable pre-mount gate with bounded cleanup observation' {
         $source = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeLifecycleScenarioEngine.cs')
         $evidenceGate = $source.IndexOf('if (!TryWriteEvidence("pre-mount", null, null))', [StringComparison]::Ordinal)
-        $mountCall = $source.IndexOf('var mounted = relationship.MountAutomationPair();', [StringComparison]::Ordinal)
+        $mountCall = $source.IndexOf('mounted = relationship.MountAutomationPair();', [StringComparison]::Ordinal)
         Assert-Test ($evidenceGate -ge 0 -and $mountCall -gt $evidenceGate) 'valid-pair mounting is not gated by durable pre-mount evidence'
         Assert-Test ($source.Contains('stream.Flush(true);')) 'lifecycle JSONL records are not durably flushed before their handles close'
         Assert-Test ($source.Contains('Post-cleanup verification threw')) 'post-cleanup observation is not converted to a bounded failed row'
@@ -3215,7 +3216,7 @@ try {
             writeAuthorization=[ordered]@{mode='working-only';allowedInternalName='KMC_AUTOMATION_WORKING';allowedFileName='Manual_2_KMC_AUTOMATION_WORKING.zks';baselineImmutable=$true}
         }
         $recomputeEvidence = Join-Path $runtimeEvidenceTestRoot 'recompute-evidence'
-        $v2Request=[pscustomobject]@{runId='recompute-test';scenario='fixture-intake';branch='codex/mounted-combat-feasibility';commit=('0'*40);productVersion='0.0.1-feasibility';dllSha256=('a'*64);dllMvid=[Guid]::Empty.ToString();transactionToken=('b'*64);evidenceRoot=$recomputeEvidence;fixture=$fixture}
+        $v2Request=[pscustomobject]@{runId='recompute-test';scenario='fixture-intake';branch='codex/mounted-combat-feasibility';commit=('0'*40);productVersion='0.1.0-phase2a-dev.1';dllSha256=('a'*64);dllMvid=[Guid]::Empty.ToString();transactionToken=('b'*64);evidenceRoot=$recomputeEvidence;fixture=$fixture}
         $recomputeManifestHash = New-TestArtifactManifest -EvidenceRoot $recomputeEvidence -RunId $v2Request.runId -Scenario $v2Request.scenario
         $game=[pscustomobject]@{status='PASS';fixture=$fixture;evidenceManifestSha256=$recomputeManifestHash;subscenarioTotal=99;subscenarioPassCount=0;subscenarioFailCount=99;assertionPassCount=0;assertionFailCount=99;subscenarioResults=@([pscustomobject]@{name='observe-mount-diagnostic-availability';status='PASS';assertionPassCount=4;assertionFailCount=0;errors=@()})}
         $final=New-KmcRuntimeResultV2 -Request $v2Request -ValidatedGameResult $game -StartedAtUtc ([DateTimeOffset]::UtcNow) -ModsRestored $true -BaselineImmutable $true -WorkingRestored $true -SaveWriteAllowlistPassed $true -RestoredSaveInventoryDigest ('c'*64) -GameResultSha256 ('d'*64)
@@ -3226,7 +3227,7 @@ try {
 
     Invoke-HarnessTest 'schema-v2 fallback creates and binds a validated orchestration artifact manifest' {
         $fallbackEvidence = Join-Path $runtimeEvidenceTestRoot 'fallback-evidence'
-        $fallbackRequest=[pscustomobject]@{runId='fallback-test';scenario='fixture-intake';branch='codex/mounted-combat-feasibility';commit=('0'*40);productVersion='0.0.1-feasibility';dllSha256=('a'*64);dllMvid=[Guid]::Empty.ToString();transactionToken=('b'*64);evidenceRoot=$fallbackEvidence;fixture=[ordered]@{baseline=[ordered]@{};working=[ordered]@{};writeAuthorization=[ordered]@{}}}
+        $fallbackRequest=[pscustomobject]@{runId='fallback-test';scenario='fixture-intake';branch='codex/mounted-combat-feasibility';commit=('0'*40);productVersion='0.1.0-phase2a-dev.1';dllSha256=('a'*64);dllMvid=[Guid]::Empty.ToString();transactionToken=('b'*64);evidenceRoot=$fallbackEvidence;fixture=[ordered]@{baseline=[ordered]@{};working=[ordered]@{};writeAuthorization=[ordered]@{}}}
         $final=New-KmcRuntimeResultV2 -Request $fallbackRequest -ValidatedGameResult $null -StartedAtUtc ([DateTimeOffset]::UtcNow) -ModsRestored $true -BaselineImmutable $true -WorkingRestored $true -SaveWriteAllowlistPassed $true -RestoredSaveInventoryDigest ('c'*64) -GameResultSha256 $null -Errors @('synthetic missing game result')
         $manifestPath = Join-Path $fallbackEvidence 'runtime-artifacts.json'
         Assert-Test ([string]$final.status -ceq 'FAIL') 'missing game result did not force final FAIL'
@@ -3272,7 +3273,7 @@ try {
     $request = [ordered]@{
         schemaVersion = 1; runId = 'schema-test'; scenario = 'mod-load-smoke'
         branch = 'codex/mounted-combat-feasibility'; commit = '0123456789abcdef0123456789abcdef01234567'
-        productVersion = '0.0.1-feasibility'; dllSha256 = ('ab' * 32)
+        productVersion = '0.1.0-phase2a-dev.1'; dllSha256 = ('ab' * 32)
         dllMvid = '07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'
         transactionToken = ('cd' * 32)
         evidenceRoot = (Join-Path $runtimeEvidenceTestRoot 'schema-test')

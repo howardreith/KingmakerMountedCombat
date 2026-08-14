@@ -1,80 +1,130 @@
 using System;
+using System.Collections.Generic;
 using Kingmaker.Blueprints.Area;
 using Kingmaker.EntitySystem;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.GameModes;
 using Kingmaker.PubSubSystem;
 using Kingmaker.UnitLogic;
+using KingmakerMountedCombat.Diagnostics;
 using KingmakerMountedCombat.Domain;
 
 namespace KingmakerMountedCombat.Integration
 {
-    internal sealed class MountedLifecycleSubscriber : IUnitCombatHandler, IPartyCombatHandler, IUnitLifeStateChanged, IPartyLeaveAreaHandler, ITurnBasedModeEnabledHandler, IGameModeHandler, ISceneHandler, IUnitHandler, IPartyHandler, IInGameHandler, IDisposable
+    internal sealed class MountedLifecycleSubscriber : IUnitCombatHandler, IPartyCombatHandler, IUnitLifeStateChanged, IPartyLeaveAreaHandler, ITurnBasedModeEnabledHandler, IGameModeHandler, ISceneHandler, IAreaLoadingStagesHandler, IUnitViewAttachedUIHandler, IUnitFinallyDeadHandler, IUnitHandler, IPartyHandler, IInGameHandler, IDisposable
     {
         private readonly GameMountedRelationshipService service;
+        private readonly NativeLifecycleDeliveryLedger ledger;
         private readonly IDisposable subscription;
         private bool disposed;
 
-        public MountedLifecycleSubscriber(GameMountedRelationshipService service)
+        public MountedLifecycleSubscriber(GameMountedRelationshipService service, NativeLifecycleDeliveryLedger ledger)
         {
             this.service = service ?? throw new ArgumentNullException(nameof(service));
+            this.ledger = ledger ?? throw new ArgumentNullException(nameof(ledger));
             subscription = EventBus.Subscribe(this);
         }
 
         public void HandleUnitJoinCombat(UnitEntityData unit)
         {
-            if (IsPairUnit(unit)) { service.Dismount(CleanupTrigger.CombatStarted); }
+            if (IsPairUnit(unit)) { Cleanup(NativeLifecycleBoundary.CombatStarted, "IUnitCombatHandler.HandleUnitJoinCombat", CleanupTrigger.CombatStarted); }
         }
 
-        public void HandleUnitLeaveCombat(UnitEntityData unit) { }
+        public void HandleUnitLeaveCombat(UnitEntityData unit)
+        {
+            if (IsPairUnit(unit)) { Observe(NativeLifecycleBoundary.CombatEnded, "IUnitCombatHandler.HandleUnitLeaveCombat"); }
+        }
 
         public void HandlePartyCombatStateChanged(bool inCombat)
         {
-            if (inCombat) { service.Dismount(CleanupTrigger.CombatStarted); }
+            if (inCombat) { Cleanup(NativeLifecycleBoundary.CombatStarted, "IPartyCombatHandler.HandlePartyCombatStateChanged(true)", CleanupTrigger.CombatStarted); }
+            else { Observe(NativeLifecycleBoundary.CombatEnded, "IPartyCombatHandler.HandlePartyCombatStateChanged(false)"); }
         }
 
         public void HandleUnitLifeStateChanged(UnitEntityData unit, UnitLifeState prevLifeState)
         {
-            if (IsPairUnit(unit) && !unit.Descriptor.State.IsConscious) { service.Dismount(CleanupTrigger.Incapacitated); }
+            if (IsPairUnit(unit) && !unit.Descriptor.State.IsConscious) { Cleanup(NativeLifecycleBoundary.UnitIncapacitated, "IUnitLifeStateChanged.HandleUnitLifeStateChanged", CleanupTrigger.Incapacitated); }
         }
 
         public void HandlePartyLeaveArea(BlueprintArea currentArea, BlueprintAreaEnterPoint targetArea)
         {
-            service.Dismount(CleanupTrigger.AreaUnloading);
+            Cleanup(NativeLifecycleBoundary.AreaBeginUnload, "IPartyLeaveAreaHandler.HandlePartyLeaveArea", CleanupTrigger.AreaUnloading);
         }
 
         public void HandleTurnBasedModeStateChanged(bool enabled)
         {
-            service.Dismount(enabled ? CleanupTrigger.TurnBasedModeChanged : CleanupTrigger.RealtimeModeChanged);
+            Cleanup(
+                enabled ? NativeLifecycleBoundary.TurnBasedEnabled : NativeLifecycleBoundary.RealtimeEnabled,
+                "ITurnBasedModeEnabledHandler.HandleTurnBasedModeStateChanged(" + enabled + ")",
+                enabled ? CleanupTrigger.TurnBasedModeChanged : CleanupTrigger.RealtimeModeChanged);
         }
 
         public void OnGameModeStart(GameModeType gameMode)
         {
-            if (gameMode != GameModeType.Default && gameMode != GameModeType.Pause) { service.Dismount(CleanupTrigger.AreaUnloading); }
+            if (gameMode != GameModeType.Default && gameMode != GameModeType.Pause)
+            {
+                Cleanup(NativeLifecycleBoundary.GameModeStarted, "IGameModeHandler.OnGameModeStart(" + gameMode + ")", CleanupTrigger.AreaUnloading);
+            }
+            else { Observe(NativeLifecycleBoundary.GameModeStarted, "IGameModeHandler.OnGameModeStart(" + gameMode + ")"); }
         }
 
         public void OnGameModeStop(GameModeType gameMode)
         {
-            if (gameMode != GameModeType.Default && gameMode != GameModeType.Pause) { service.Dismount(CleanupTrigger.AreaUnloading); }
+            if (gameMode != GameModeType.Default && gameMode != GameModeType.Pause)
+            {
+                Cleanup(NativeLifecycleBoundary.GameModeStopped, "IGameModeHandler.OnGameModeStop(" + gameMode + ")", CleanupTrigger.AreaUnloading);
+            }
+            else { Observe(NativeLifecycleBoundary.GameModeStopped, "IGameModeHandler.OnGameModeStop(" + gameMode + ")"); }
         }
 
         public void OnAreaBeginUnloading()
         {
-            service.Dismount(CleanupTrigger.AreaUnloading);
+            Cleanup(NativeLifecycleBoundary.AreaBeginUnload, "ISceneHandler.OnAreaBeginUnloading", CleanupTrigger.AreaUnloading);
         }
 
-        public void OnAreaDidLoad() { }
+        public void OnAreaDidLoad()
+        {
+            Observe(NativeLifecycleBoundary.AreaDidLoad, "ISceneHandler.OnAreaDidLoad");
+        }
+
+        public void OnAreaScenesLoaded()
+        {
+            Observe(NativeLifecycleBoundary.AreaScenesLoaded, "IAreaLoadingStagesHandler.OnAreaScenesLoaded");
+        }
+
+        public void OnAreaLoadingComplete()
+        {
+            Observe(NativeLifecycleBoundary.AreaLoadingComplete, "IAreaLoadingStagesHandler.OnAreaLoadingComplete");
+        }
+
+        public void HandleUnitViewAttached(UnitEntityData unit)
+        {
+            if (IsPairUnit(unit))
+            {
+                Cleanup(NativeLifecycleBoundary.ViewAttached, "IUnitViewAttachedUIHandler.HandleUnitViewAttached", CleanupTrigger.ViewDetached);
+            }
+            else if (IsCandidatePairUnit(unit))
+            {
+                Observe(NativeLifecycleBoundary.ViewAttached, "IUnitViewAttachedUIHandler.HandleUnitViewAttached(candidate pair)");
+            }
+        }
 
         public void HandleUnitSpawned(UnitEntityData entityData) { }
 
         public void HandleUnitDestroyed(UnitEntityData entityData)
         {
-            if (IsPairUnit(entityData)) { service.Dismount(CleanupTrigger.ViewDetached); }
+            if (IsPairUnit(entityData)) { Cleanup(NativeLifecycleBoundary.ViewDetachedOrUnitDestroyed, "IUnitHandler.HandleUnitDestroyed", CleanupTrigger.ViewDetached); }
+            else if (IsCandidatePairUnit(entityData)) { Observe(NativeLifecycleBoundary.ViewDetachedOrUnitDestroyed, "IUnitHandler.HandleUnitDestroyed(candidate pair)"); }
         }
 
         public void HandleUnitDeath(UnitEntityData entityData)
         {
-            if (IsPairUnit(entityData)) { service.Dismount(CleanupTrigger.Death); }
+            if (IsPairUnit(entityData)) { Cleanup(NativeLifecycleBoundary.UnitDeath, "IUnitHandler.HandleUnitDeath", CleanupTrigger.Death); }
+        }
+
+        public void HandleUnitBecameFinallyDead(UnitEntityData unit)
+        {
+            if (IsPairUnit(unit)) { Cleanup(NativeLifecycleBoundary.UnitFinallyDead, "IUnitFinallyDeadHandler.HandleUnitBecameFinallyDead", CleanupTrigger.Death); }
         }
 
         public void HandleAddCompanion(UnitEntityData unit) { }
@@ -86,12 +136,36 @@ namespace KingmakerMountedCombat.Integration
 
         public void HandleCompanionRemoved(UnitEntityData unit)
         {
-            if (IsPairUnit(unit)) { service.Dismount(CleanupTrigger.CompanionInvalidated); }
+            if (IsPairUnit(unit)) { Cleanup(NativeLifecycleBoundary.PartyRemoved, "IPartyHandler.HandleCompanionRemoved", CleanupTrigger.CompanionInvalidated); }
         }
 
         public void HandleObjectInGameChaged(EntityDataBase entityData)
         {
-            if (IsPairUnit(entityData as UnitEntityData)) { service.ValidateActivePair(); }
+            if (IsPairUnit(entityData as UnitEntityData))
+            {
+                var before = service.State;
+                service.ValidateActivePair();
+                var after = service.State;
+                var attempted = before == RelationshipState.Mounted && after != RelationshipState.Mounted;
+                ledger.Record(
+                    NativeLifecycleBoundary.InGameStateChanged,
+                    "IInGameHandler.HandleObjectInGameChaged",
+                    before,
+                    after,
+                    attempted ? (CleanupTrigger?)CleanupTrigger.CompanionInvalidated : null,
+                    attempted,
+                    !attempted || after == RelationshipState.Unmounted);
+            }
+        }
+
+        internal bool HandleModDisable()
+        {
+            return Cleanup(NativeLifecycleBoundary.ModDisable, "UnityModManager.ModEntry.OnToggle(false)/shutdown", CleanupTrigger.ModDisabled);
+        }
+
+        internal IReadOnlyList<NativeLifecycleDeliveryRecord> SnapshotNativeDeliveries()
+        {
+            return ledger.Snapshot();
         }
 
         public void Dispose()
@@ -104,6 +178,41 @@ namespace KingmakerMountedCombat.Integration
         private bool IsPairUnit(UnitEntityData unit)
         {
             return unit != null && (unit == service.Rider || unit == service.Mount);
+        }
+
+        private static bool IsCandidatePairUnit(UnitEntityData unit)
+        {
+            if (unit == null)
+            {
+                return false;
+            }
+
+            var unitIsMammoth = unit.Blueprint != null && string.Equals(
+                unit.Blueprint.AssetGuid,
+                KingmakerMountedPairRuntime.MammothBlueprintGuid,
+                StringComparison.Ordinal);
+            var pet = unit.Descriptor?.Pet;
+            var ownsMammoth = pet?.Blueprint != null && string.Equals(
+                pet.Blueprint.AssetGuid,
+                KingmakerMountedPairRuntime.MammothBlueprintGuid,
+                StringComparison.Ordinal);
+            return unitIsMammoth || ownsMammoth;
+        }
+
+        private bool Cleanup(NativeLifecycleBoundary boundary, string source, CleanupTrigger trigger)
+        {
+            var before = service.State;
+            var result = service.Dismount(trigger);
+            var succeeded = result.Succeeded && !result.MovementAuthorityResidual && !result.PresentationResidual &&
+                service.State == RelationshipState.Unmounted;
+            ledger.Record(boundary, source, before, service.State, trigger, true, succeeded);
+            return succeeded;
+        }
+
+        private void Observe(NativeLifecycleBoundary boundary, string source)
+        {
+            var state = service.State;
+            ledger.Record(boundary, source, state, state, null, false, true);
         }
     }
 }

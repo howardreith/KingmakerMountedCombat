@@ -35,6 +35,7 @@
   <ItemGroup>
     <Compile Include="Program.cs" />
     <Compile Include="MountedRelationshipTests.cs" />
+    <Compile Include="MountedPlayerActionTests.cs" />
     <Compile Include="RuntimeSaveAuthorizationTests.cs" />
     <Compile Include="WorkingFixtureLoadWatchdogTests.cs" />
     <Compile Include="BoundaryFailureDrainTests.cs" />
@@ -43,6 +44,7 @@
     <Compile Include="MovementNavigationBoundaryPolicyTests.cs" />
     <Compile Include="MovementRadialDistanceOrderTests.cs" />
     <Compile Include="NavigationEndpointDistanceTrackerTests.cs" />
+    <Compile Include="NativeLifecycleDeliveryLedgerTests.cs" />
     <Compile Include="TestRunner.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\DiagnosticSettings.cs">
       <Link>Shared\DiagnosticSettings.cs</Link>
@@ -74,11 +76,15 @@
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\NavigationEndpointDistanceTracker.cs">
       <Link>Shared\NavigationEndpointDistanceTracker.cs</Link>
     </Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\NativeLifecycleDeliveryLedger.cs">
+      <Link>Shared\NativeLifecycleDeliveryLedger.cs</Link>
+    </Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\CleanupTrigger.cs"><Link>Shared\Domain\CleanupTrigger.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\CommandRouting.cs"><Link>Shared\Domain\CommandRouting.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\IMountedPairRuntime.cs"><Link>Shared\Domain\IMountedPairRuntime.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedPair.cs"><Link>Shared\Domain\MountedPair.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedPairCandidate.cs"><Link>Shared\Domain\MountedPairCandidate.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedPlayerAction.cs"><Link>Shared\Domain\MountedPlayerAction.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedRelationshipCoordinator.cs"><Link>Shared\Domain\MountedRelationshipCoordinator.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MovementTelemetry.cs"><Link>Shared\Domain\MovementTelemetry.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\RelationshipState.cs"><Link>Shared\Domain\RelationshipState.cs</Link></Compile>

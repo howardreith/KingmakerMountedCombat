@@ -21,10 +21,11 @@ namespace KingmakerMountedCombat.Integration
         private readonly HarmonyInstance harmony;
         private bool disposed;
 
-        public MountedPatchController(GameMountedRelationshipService service, RuntimeSaveAuthorization saveAuthorization, IModLogger logger)
+        public MountedPatchController(GameMountedRelationshipService service, RuntimeSaveAuthorization saveAuthorization, NativeLifecycleDeliveryLedger lifecycleLedger, IModLogger logger)
         {
             PatchBridge.Service = service ?? throw new ArgumentNullException(nameof(service));
             PatchBridge.SaveAuthorization = saveAuthorization ?? throw new ArgumentNullException(nameof(saveAuthorization));
+            PatchBridge.LifecycleLedger = lifecycleLedger ?? throw new ArgumentNullException(nameof(lifecycleLedger));
             PatchBridge.Logger = logger ?? throw new ArgumentNullException(nameof(logger));
             harmony = HarmonyInstance.Create(HarmonyId);
             try
@@ -55,6 +56,7 @@ namespace KingmakerMountedCombat.Integration
                 {
                     PatchBridge.Service = null;
                     PatchBridge.SaveAuthorization = null;
+                    PatchBridge.LifecycleLedger = null;
                     PatchBridge.Logger = null;
                 }
                 throw;
@@ -71,6 +73,7 @@ namespace KingmakerMountedCombat.Integration
             harmony.UnpatchAll(HarmonyId);
             PatchBridge.Service = null;
             PatchBridge.SaveAuthorization = null;
+            PatchBridge.LifecycleLedger = null;
             PatchBridge.Logger = null;
             disposed = true;
         }
@@ -101,6 +104,7 @@ namespace KingmakerMountedCombat.Integration
         {
             internal static GameMountedRelationshipService Service;
             internal static RuntimeSaveAuthorization SaveAuthorization;
+            internal static NativeLifecycleDeliveryLedger LifecycleLedger;
             internal static IModLogger Logger;
         }
 
@@ -134,7 +138,7 @@ namespace KingmakerMountedCombat.Integration
             internal static bool SavePrefix(SaveManager __instance, SaveInfo saveInfo, bool forceAuto, ref IEnumerator<object> __result)
             {
                 RuntimeAutomationHost.ObserveSaveRequest();
-                if (PatchBridge.Service != null && !PatchBridge.Service.GuardBoundary(CleanupTrigger.SaveRequested))
+                if (!GuardNativeBoundary(NativeLifecycleBoundary.SaveRequest, CleanupTrigger.SaveRequested, "SaveManager.SaveRoutine Harmony12 prefix"))
                 {
                     PatchBridge.SaveAuthorization?.ReportBoundaryFailure(RuntimeSaveOperation.Write, "relationship service reported residue");
                     __result = EmptyRoutine();
@@ -147,7 +151,7 @@ namespace KingmakerMountedCombat.Integration
             internal static bool LoadPrefix(SaveManager __instance, SaveInfo saveInfo, bool isSmokeTest, ref IEnumerator<object> __result)
             {
                 RuntimeAutomationHost.ObserveLoadRequest();
-                if (PatchBridge.Service != null && !PatchBridge.Service.GuardBoundary(CleanupTrigger.LoadRequested))
+                if (!GuardNativeBoundary(NativeLifecycleBoundary.LoadStart, CleanupTrigger.LoadRequested, "SaveManager.LoadRoutine Harmony12 prefix"))
                 {
                     PatchBridge.SaveAuthorization?.ReportBoundaryFailure(RuntimeSaveOperation.Load, "relationship service reported residue");
                     __result = EmptyRoutine();
@@ -155,6 +159,34 @@ namespace KingmakerMountedCombat.Integration
                 }
 
                 return AuthorizeSaveBoundary(RuntimeSaveOperation.Load, __instance, saveInfo, ref __result);
+            }
+
+            private static bool GuardNativeBoundary(NativeLifecycleBoundary boundary, CleanupTrigger trigger, string source)
+            {
+                var service = PatchBridge.Service;
+                if (service == null)
+                {
+                    return true;
+                }
+
+                var before = service.State;
+                var succeeded = false;
+                try
+                {
+                    succeeded = service.GuardBoundary(trigger);
+                    return succeeded;
+                }
+                finally
+                {
+                    PatchBridge.LifecycleLedger?.Record(
+                        boundary,
+                        source,
+                        before,
+                        service.State,
+                        trigger,
+                        true,
+                        succeeded && service.State == RelationshipState.Unmounted);
+                }
             }
 
             private static bool AuthorizeSaveBoundary(RuntimeSaveOperation operation, SaveManager saveManager, SaveInfo saveInfo, ref IEnumerator<object> result)

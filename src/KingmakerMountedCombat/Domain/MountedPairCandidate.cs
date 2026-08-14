@@ -79,7 +79,7 @@ namespace KingmakerMountedCombat.Domain
 
             if (RiderIsInCombat || MountIsInCombat || PartyIsInCombat)
             {
-                return "Phase 1 mounting is out-of-combat only.";
+                return "Private-alpha mounting is available only outside combat.";
             }
 
             if (MountSizeOrdinal <= RiderSizeOrdinal)
@@ -109,12 +109,12 @@ namespace KingmakerMountedCombat.Domain
 
             if (!RiderIsExactlyMedium)
             {
-                return "Phase 1 accepts exactly one Medium rider only.";
+                return "The private alpha accepts exactly one Medium rider only.";
             }
 
             if (!SafeMovementMode)
             {
-                return "Phase 1 mounting is available only in Default or Pause game mode.";
+                return "Private-alpha mounting is available only in Default or Pause game mode.";
             }
 
             return null;

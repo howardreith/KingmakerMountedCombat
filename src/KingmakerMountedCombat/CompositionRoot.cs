@@ -15,7 +15,9 @@ namespace KingmakerMountedCombat
         private readonly DiagnosticSettings settings;
         private readonly GameMountedRelationshipService relationship;
         private readonly MountedLifecycleSubscriber lifecycle;
+        private readonly NativeLifecycleDeliveryLedger lifecycleLedger;
         private readonly MountedPatchController patches;
+        private readonly MountedPlayerActionController playerAction;
         private readonly MovementTelemetryWriter movementTelemetry;
         private bool disposed;
 
@@ -26,9 +28,11 @@ namespace KingmakerMountedCombat
             {
                 settings = new DiagnosticSettings();
                 relationship = new GameMountedRelationshipService(logger, settings);
-                lifecycle = new MountedLifecycleSubscriber(relationship);
+                lifecycleLedger = new NativeLifecycleDeliveryLedger();
+                lifecycle = new MountedLifecycleSubscriber(relationship, lifecycleLedger);
                 saveAuthorization = new RuntimeSaveAuthorization();
-                patches = new MountedPatchController(relationship, saveAuthorization, logger);
+                patches = new MountedPatchController(relationship, saveAuthorization, lifecycleLedger, logger);
+                playerAction = new MountedPlayerActionController(relationship, settings, logger);
                 runtimeAutomation = RuntimeAutomationHost.CreateFromCommandLine(
                     logger,
                     loadedModId,
@@ -37,6 +41,7 @@ namespace KingmakerMountedCombat
                     saveAuthorization,
                     relationship,
                     lifecycle,
+                    playerAction,
                     settings);
                 if (runtimeAutomation != null)
                 {
@@ -53,6 +58,7 @@ namespace KingmakerMountedCombat
                 Exception rollbackException = null;
                 try { movementTelemetry?.Dispose(); } catch (Exception exception) { rollbackException = exception; }
                 try { runtimeAutomation?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
+                try { playerAction?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { patches?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { lifecycle?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { relationship?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
@@ -77,21 +83,22 @@ namespace KingmakerMountedCombat
             {
                 if (IsEnabled) { return true; }
                 IsEnabled = true;
-                logger.Info("Diagnostic services enabled.");
+                playerAction.SetOverlayEnabled(true);
+                logger.Info("Private-alpha services and transient mounted-action overlay enabled.");
                 return true;
             }
 
             // Always execute idempotent cleanup on a disable request. A prior
             // update failure may already have cleared IsEnabled while a partial
             // runtime operation still needs best-effort cleanup.
-            var result = relationship.Dismount(CleanupTrigger.ModDisabled);
-            if (!result.Succeeded || result.MovementAuthorityResidual || result.PresentationResidual)
+            if (!lifecycle.HandleModDisable())
             {
                 logger.Error("Diagnostic services could not be disabled because mounted cleanup retained residue.");
                 return false;
             }
             IsEnabled = false;
-            logger.Info("Diagnostic services disabled; no mounted state is retained.");
+            playerAction.SetOverlayEnabled(false);
+            logger.Info("Private-alpha services disabled; transient UI destroyed and no mounted state retained.");
             return true;
         }
 
@@ -152,21 +159,27 @@ namespace KingmakerMountedCombat
         public void DrawGui()
         {
             ThrowIfDisposed();
-            GUILayout.Label("Phase 1 movement-only diagnostics. No combat behavior or save persistence is enabled.");
-            settings.EnableUnsafeMovementExperiment = GUILayout.Toggle(settings.EnableUnsafeMovementExperiment, "Enable default-off Mammoth movement experiment");
-            GUILayout.Label("Candidate: selected Medium rider + exact active rank-7+ Mammoth companion. Anchor: Spine; initial offset is zero.");
+            GUILayout.Label("Phase 2 private-alpha presentation work. The mounted relationship is transient and is cleaned before save/load/area boundaries.");
+            settings.EnableUnsafeMovementExperiment = GUILayout.Toggle(settings.EnableUnsafeMovementExperiment, "Enable private-alpha Mammoth player action");
+            GUILayout.Label("Candidate: selected supported Medium rider + exact active, currently larger Mammoth companion.");
             GUILayout.BeginHorizontal();
+            var availability = playerAction.GetAvailability();
+            var priorEnabled = GUI.enabled;
+            GUI.enabled = availability.IsEnabled && availability.Action == MountedPlayerActionKind.Mount;
             if (GUILayout.Button("Mount selected rider"))
             {
-                relationship.MountSelectedRider();
+                playerAction.Activate();
             }
+            GUI.enabled = relationship.State == RelationshipState.Mounted || relationship.State == RelationshipState.Faulted;
             if (GUILayout.Button("Dismount / clear"))
             {
-                relationship.Dismount(CleanupTrigger.Manual);
+                playerAction.Activate();
             }
+            GUI.enabled = priorEnabled;
             GUILayout.EndHorizontal();
             GUILayout.Label("Relationship: " + relationship.State);
             GUILayout.Label(relationship.LastResult);
+            if (!availability.IsEnabled) { GUILayout.Label(availability.Feedback); }
         }
 
         public void Dispose()
@@ -176,14 +189,14 @@ namespace KingmakerMountedCombat
                 return;
             }
 
-            var cleanup = relationship.Dismount(CleanupTrigger.ModDisabled);
-            if (!cleanup.Succeeded || cleanup.MovementAuthorityResidual || cleanup.PresentationResidual)
+            if (!lifecycle.HandleModDisable())
             {
                 throw new InvalidOperationException("Composition root cannot dispose while mounted cleanup residue remains.");
             }
 
             movementTelemetry?.Dispose();
             runtimeAutomation?.Dispose();
+            playerAction.Dispose();
             patches.Dispose();
             lifecycle.Dispose();
             relationship.Dispose();

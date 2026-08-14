@@ -3548,6 +3548,7 @@ function Restore-KmcModsTransaction {
 function Get-KmcSaveBackedRuntimeScenarios {
     return @(
         'export-mounted-contracts', 'export-candidate-mount-rigs', 'observe-mount-diagnostic-availability',
+        'player-action-availability', 'mount-dismount-user-flow',
         'mounted-pair-create-and-clear', 'mounted-pair-double-mount-rejected', 'mounted-pair-invalid-pair-rejected',
         'mounted-pair-cleanup-idempotent', 'mounted-pair-death-cleanup', 'mounted-pair-combat-start-cleanup',
         'mounted-pair-area-unload-cleanup', 'mounted-pair-mod-disable-cleanup', 'mounted-pair-open-ground',
@@ -3591,13 +3592,29 @@ function Get-KmcLifecycleInvocationPath {
         'mounted-pair-area-unload-cleanup')) {
         return 'lifecycle-handler-direct'
     }
+    if ([string]$Row -cin @('player-action-availability','mount-dismount-user-flow')) {
+        return 'player-action-controller-direct'
+    }
     return 'relationship-service-direct'
+}
+
+function Get-KmcLifecycleClaimLimit {
+    param([Parameter(Mandatory = $true)][string]$Row)
+    if ([string]$Row -cin @('player-action-availability','mount-dismount-user-flow')) {
+        return 'Runtime player-action controller invocation; Unity OnGUI button delivery remains separately observed.'
+    }
+    return 'Direct service/handler invocation only; native EventBus/UMM delivery was not exercised.'
+}
+
+function Get-KmcPlayerActionRuntimeRows {
+    return @('player-action-availability','mount-dismount-user-flow')
 }
 
 function Test-KmcLifecycleRuntimeScenario {
     param([AllowNull()][string]$Scenario)
     return [string]$Scenario -ceq 'lifecycle-suite' -or
-        @(Get-KmcLifecycleRuntimeRows | Where-Object { $_ -ceq [string]$Scenario }).Count -eq 1
+        @(Get-KmcLifecycleRuntimeRows | Where-Object { $_ -ceq [string]$Scenario }).Count -eq 1 -or
+        @(Get-KmcPlayerActionRuntimeRows | Where-Object { $_ -ceq [string]$Scenario }).Count -eq 1
 }
 
 function Get-KmcMovementRuntimeRows {
@@ -3757,11 +3774,12 @@ function Assert-KmcLifecycleEvidenceRecord {
     Assert-KmcExactProperties $Record.triggerScope @('expectedCleanupTrigger','invocationPath','nativeDeliveryObserved','claimLimit') 'lifecycle evidence triggerScope'
     $expectedTrigger = Get-KmcLifecycleExpectedCleanupTrigger ([string]$Record.row)
     $expectedInvocationPath = Get-KmcLifecycleInvocationPath ([string]$Record.row)
+    $expectedClaimLimit = Get-KmcLifecycleClaimLimit ([string]$Record.row)
     if ($Record.triggerScope.expectedCleanupTrigger -isnot [string] -or [string]$Record.triggerScope.expectedCleanupTrigger -cne $expectedTrigger -or
         $Record.triggerScope.invocationPath -isnot [string] -or [string]$Record.triggerScope.invocationPath -cne $expectedInvocationPath -or
         $Record.triggerScope.nativeDeliveryObserved -isnot [bool] -or $Record.triggerScope.nativeDeliveryObserved -ne $false -or
         $Record.triggerScope.claimLimit -isnot [string] -or
-        [string]$Record.triggerScope.claimLimit -cne 'Direct service/handler invocation only; native EventBus/UMM delivery was not exercised.') {
+        [string]$Record.triggerScope.claimLimit -cne $expectedClaimLimit) {
         throw "Lifecycle evidence trigger scope or truthful native-delivery claim is wrong for $($Record.row)."
     }
     foreach ($name in @('partyCombat','riderCombat','mountCombat','turnBased','paused')) { Assert-KmcNullableJsonBoolean $Record.$name "lifecycle evidence $name" }
@@ -3953,7 +3971,7 @@ function Assert-KmcLifecycleEvidenceSemantics {
     $stableMountId = $null
     foreach ($row in $ExpectedRows) {
         $rowRecords = @($nonFinalRecords | Where-Object { [string]$_.row -ceq $row })
-        [string[]]$expectedPhases = if ($row -ceq 'mounted-pair-invalid-pair-rejected') {
+        [string[]]$expectedPhases = if ($row -cin @('mounted-pair-invalid-pair-rejected','player-action-availability')) {
             @('pre-mount','cleanup-next-frame','row-finish')
         } else {
             @('pre-mount','mounted-next-frame','cleanup-next-frame','row-finish')
@@ -3966,7 +3984,7 @@ function Assert-KmcLifecycleEvidenceSemantics {
         $pre = $rowRecords[0]
         $cleanup = $rowRecords[$rowRecords.Count - 2]
         $finish = $rowRecords[$rowRecords.Count - 1]
-        $mounted = if ($row -ceq 'mounted-pair-invalid-pair-rejected') { $null } else { $rowRecords[1] }
+        $mounted = if ($row -cin @('mounted-pair-invalid-pair-rejected','player-action-availability')) { $null } else { $rowRecords[1] }
         if ([string]$pre.relationshipState -cne 'Unmounted' -or [string]$cleanup.relationshipState -cne 'Unmounted' -or
             [string]$finish.relationshipState -cne 'Unmounted') {
             throw "Lifecycle relationship-state progression is not Unmounted -> cleanup Unmounted for $row."
@@ -4038,7 +4056,7 @@ function Assert-KmcLifecycleEvidenceSemantics {
     $finalTrigger = Get-KmcLifecycleExpectedCleanupTrigger $finalRow
     Assert-KmcLifecycleCleanupExact $final $finalTrigger
     Assert-KmcLifecycleBaselineUnitState $final 'lifecycle engine-finalization'
-    if ($finalRow -ceq 'mounted-pair-invalid-pair-rejected') {
+    if ($finalRow -cin @('mounted-pair-invalid-pair-rejected','player-action-availability')) {
         Assert-KmcLifecycleAttachmentBaseline $final 'lifecycle engine-finalization'
     }
     else {
@@ -4130,7 +4148,7 @@ function Assert-KmcLifecycleScenarioEvidence {
         if ($engineFinalizationCount -ne 1 -or [string]$records[$records.Count - 1].row -cne [string]$expectedRows[$expectedRows.Count - 1]) { throw 'PASS lifecycle evidence lacks one final engine-finalization bound to the final expected row.' }
         foreach ($row in $expectedRows) {
             if (-not $phasesByRow.ContainsKey($row) -or -not $phasesByRow[$row].Contains('pre-mount') -or -not $phasesByRow[$row].Contains('row-finish')) { throw "PASS lifecycle evidence lacks pre-mount or row-finish coverage for $row." }
-            if ($row -cne 'mounted-pair-invalid-pair-rejected' -and
+            if ($row -cnotin @('mounted-pair-invalid-pair-rejected','player-action-availability') -and
                 (-not $phasesByRow[$row].Contains('mounted-next-frame') -or -not $phasesByRow[$row].Contains('cleanup-next-frame'))) { throw "PASS lifecycle evidence lacks mounted-next-frame or cleanup-next-frame coverage for $row." }
         }
         Assert-KmcLifecycleEvidenceSemantics -Records $records.ToArray() -ExpectedRows $expectedRows

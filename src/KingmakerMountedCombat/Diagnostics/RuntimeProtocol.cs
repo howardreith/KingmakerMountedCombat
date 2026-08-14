@@ -16,6 +16,8 @@ namespace KingmakerMountedCombat.Diagnostics
             "export-mounted-contracts",
             "export-candidate-mount-rigs",
             "observe-mount-diagnostic-availability",
+            "player-action-availability",
+            "mount-dismount-user-flow",
             "mounted-pair-create-and-clear",
             "mounted-pair-double-mount-rejected",
             "mounted-pair-invalid-pair-rejected",
@@ -103,7 +105,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 errors.Add("commit must be a 40-character lowercase Git SHA.");
             }
 
-            if (!string.Equals(ProductVersion, "0.0.1-feasibility", StringComparison.Ordinal))
+            if (!string.Equals(ProductVersion, "0.1.0-phase2a-dev.1", StringComparison.Ordinal))
             {
                 errors.Add("productVersion does not match this diagnostic build.");
             }
@@ -374,6 +376,8 @@ namespace KingmakerMountedCombat.Diagnostics
             "export-mounted-contracts",
             "export-candidate-mount-rigs",
             "observe-mount-diagnostic-availability",
+            "player-action-availability",
+            "mount-dismount-user-flow",
             "mounted-pair-create-and-clear",
             "mounted-pair-double-mount-rejected",
             "mounted-pair-invalid-pair-rejected",

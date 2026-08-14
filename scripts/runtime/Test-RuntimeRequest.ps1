@@ -87,6 +87,7 @@ else { throw 'Runtime request schemaVersion must be 1 or 2.' }
 
 $missionScenarios = @(
     'mod-load-smoke', 'export-mounted-contracts', 'export-candidate-mount-rigs', 'observe-mount-diagnostic-availability',
+    'player-action-availability', 'mount-dismount-user-flow',
     'mounted-pair-create-and-clear', 'mounted-pair-double-mount-rejected', 'mounted-pair-invalid-pair-rejected',
     'mounted-pair-cleanup-idempotent', 'mounted-pair-death-cleanup', 'mounted-pair-combat-start-cleanup',
     'mounted-pair-area-unload-cleanup', 'mounted-pair-mod-disable-cleanup', 'mounted-pair-open-ground',
@@ -100,7 +101,8 @@ $aggregateScenarios = @('fixture-intake','lifecycle-suite','movement-suite','bou
 if ([string]$request.runId -cnotmatch '^[A-Za-z0-9._-]{1,120}$') { throw 'Runtime request runId is invalid.' }
 if ([string]$request.branch -cnotmatch '^codex/mounted-combat-[A-Za-z0-9._/-]+$') { throw 'Runtime request branch is outside the KMC prefix.' }
 if ([string]$request.commit -cnotmatch '^[0-9a-f]{40}$') { throw 'Runtime request commit must be a full lowercase Git SHA.' }
-if ([string]$request.productVersion -cne '0.0.1-feasibility') { throw 'Runtime request product version is not exact.' }
+$expectedProductVersion = [string](Read-KmcJson (Join-Path (Get-KmcRepositoryRoot) 'version.json')).productVersion
+if ([string]$request.productVersion -cne $expectedProductVersion) { throw 'Runtime request product version is not exact.' }
 if ([string]$request.dllSha256 -cnotmatch '^[0-9a-f]{64}$') { throw 'Runtime request DLL SHA-256 is invalid.' }
 if ([string]$request.transactionToken -cnotmatch '^[0-9a-f]{64}$') { throw 'Runtime request transaction token is invalid.' }
 $parsedMvid = [Guid]::Empty

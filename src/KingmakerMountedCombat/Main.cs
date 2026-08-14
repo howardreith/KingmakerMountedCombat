@@ -7,7 +7,7 @@ namespace KingmakerMountedCombat
 {
     public static class Main
     {
-        private const string Version = "0.0.1-feasibility";
+        private const string Version = "0.1.0-phase2a-dev.1";
         private static CompositionRoot root;
 
         public static bool Load(UnityModManager.ModEntry modEntry)
@@ -26,7 +26,7 @@ namespace KingmakerMountedCombat
                 modEntry.OnUpdate = OnUpdate;
                 modEntry.OnGUI = OnGui;
                 modEntry.OnSessionStop = OnSessionStop;
-                logger.Info("Kingmaker Mounted Combat " + Version + " loaded in diagnostic-only mode.");
+                logger.Info("Kingmaker Mounted Combat " + Version + " loaded with transient private-alpha presentation services.");
                 return true;
             }
             catch (Exception exception)
