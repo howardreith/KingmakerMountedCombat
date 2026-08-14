@@ -6,6 +6,8 @@ Frozen F0 runtime-evidence commit: `fc7215481acf97ce1863eb1c75b3433889d2af7d`
 
 Frozen F0 qualified package: SHA-256 `2c47d7ad4e82942bd303ab848ab82b9163a76ba9db79d52aaf8bfb0f028d80fc`; DLL SHA-256 `202701ed9232e4f5a4d5ff65c468c684d1ed1dd53e4a8030be93b960a7cd202a`; DLL MVID `a702808c-e8a0-4755-bc24-5ed4e945866a`.
 
+Safety-guard implementation commit: `29e594d6d053824a47ac22b9dd702aede1036031` on `codex/mounted-combat-feasibility`.
+
 ## Evidence epochs
 
 F0 is the frozen completed runtime epoch. It owns the current 25-row ledger, including `22 PASS / 0 attributable FAIL / 3 DEFER — EVIDENCED`, and used Working SHA-256 `a5f7a7fb77f0465df1591360ecd1730e2c28215d83e27aafc70efef3110e6dc5`, length `718821`, ticks `639222573406912936`.
@@ -15,6 +17,10 @@ F1 is descriptor-requalified but is not admitted for runtime. At execution HEAD 
 F1 proves exactly Baseline 1 / Working 1 / near-match 0. Baseline remains byte-identical at SHA-256 `c29d965c9ff5dc0f971659d9ae154877aa4a9a461ca220d1ce28e7c7fd9d2512`, length `686605`, ticks `639222474845172002`; Working is SHA-256 `5eb4e0b4cbd8d60dc879a02ff71aadfde3f517304754857f0cc68d0f9a93f1c6`, length `816452`, ticks `639222975870964407`. The archives have exact internal names, distinct paths, Manual/v1 descriptors, and common GameName `cvb`, GameId `d41185be-edc1-47c0-b9d5-e1d7a9c8e65f`, and Area `9d1278a2f599b2a4daab53abdfe88d2e`. Only Working is writable. The requalification transaction preserved the then-current full-save inventory before/after at digest `973f203e16aad29d7e4865bae6f81149d959a4ac179953c87781a06d1c71898d`, `271` files, `3178473776` bytes. Normal guard and already-committed recovery `-WhatIf` passed; no process, lock, sentinel, transaction debris, or live KMC tree remains.
 
 Cross-epoch safety comparison nevertheless fails. Frozen F0 inventory was digest `58a54974423316041e29d32b1093c5d6775dbd67fe2b37ffaea3c9ae27de19be`, `271` files, `3178063612` bytes. Current F1 differs in exactly three entries and no others: authorized Working changed from length/ticks `718821` / `639222573406912936` to `816452` / `639222975870964407`; unauthorized `Auto_1120` changed from `204829` / `639222474628040540` to `333208` / `639222975467301685`; unauthorized `Quick_438` changed from `625411` / `639220694761623881` to `809565` / `639222975512345112`. The project must not restore or mutate either valued non-KMC save. This is a current P0 `BLOCKED — CRITICAL` admission hold.
+
+Commit `29e594d6d053824a47ac22b9dd702aede1036031` adds the caller-pinned cross-epoch inventory gate in exactly `scripts/runtime/RuntimeHarness.Common.ps1`, `scripts/runtime/Test-KmcFixtureGuard.ps1`, `scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1`, and `scripts/Test-Harness.ps1`. Their SHA-256 values are `6605ef74d10a7a99ea1ec21550689a2fa3600ecde89354389acd5593bfa525ca`, `79129c6041fe55403b35750b563fa32d4f90c83e6f93f956053331af19e48647`, `3259ff4d6a41505d9faea3655cb79a87ee487b8e69f8ef72ab2505153a69bb81`, and `f44133f5f6e88ac2b028e609b0dbb69d03161b598e40fbf75b29015872e4563e`. AST parse passed `4/4`; the complete Release gate passed source `21/0`, build, component `112/0`, visual `12/0`, harness `132/0`, and assembly-backed `69/0`; `git diff --check` passed. Two independent read-only code audits returned GO; neither GO is runtime admission.
+
+The final real `AuditWorkingContinuity -WhatIf` pinned current qualification `95e9a3c6203f11cfdd7e615849eb61ebc060131075f6a7f40771dcd7eeb68a7a` and frozen F0 save-transaction authority `b25f80c799207657650cf29118078edc4685bcbb51e1609ba8b167cab13052e0`. It returned the expected safety FAIL, `Save write allowlist violation: Auto_1120.zks, Quick_438.zks`. Both pinned records were unchanged, and no process, lock, sentinel, or live KMC tree remained. This was a pure standalone guard audit; no F1 runtime scenario ran.
 
 All runtime-behavior results in the ledger below are frozen F0 results unless a row explicitly describes F1 descriptor requalification. F1 runtime behavior is `TODO`, and execution is prohibited while the P0 safety hold remains.
 
@@ -30,8 +36,8 @@ All runtime-behavior results in the ledger below are frozen F0 results unless a 
 | Native candidate/rig | PASS | Horse rejected; exact active larger Mammoth, live views/stock agents, and `Spine` anchor verified |
 | Canonical fixture descriptor guard | PASS | F1 descriptor-requalified exactly Baseline=1, Working=1, near-match=0; distinct non-linked paths, exact internal names, shared campaign/area identity |
 | Baseline/Working pair safety | PASS | Baseline byte-identical; only exact revised Working authorized; requalification committed without changing its then-current inventory |
-| Cross-epoch protected-save continuity | BLOCKED — CRITICAL | Exactly two unauthorized valued-save deltas, `Auto_1120` and `Quick_438`; no other non-Working entry differs |
-| Runtime harness/WhatIf | PASS | F0 only: source `21/0`, component `112/0`, visual `12/0`, harness `105/0`, assembly-backed `69/0`, package/WhatIf PASS. F1 descriptor normal guard/recovery WhatIf PASS; scenario WhatIf and live rows are forbidden by the current safety hold |
+| Cross-epoch protected-save continuity | BLOCKED — CRITICAL | Hardened pinned audit produced the expected exact rejection for `Auto_1120.zks` and `Quick_438.zks`; no other non-Working entry differs |
+| Runtime harness/WhatIf | PASS | F0 only: source `21/0`, component `112/0`, visual `12/0`, harness `105/0`, assembly-backed `69/0`, package/WhatIf PASS. Local guard commit `29e594d6d053824a47ac22b9dd702aede1036031`: AST `4/4`, source `21/0`, build, component `112/0`, visual `12/0`, harness `132/0`, assembly `69/0`, diff PASS, independent review GO/GO. F1 standalone continuity `-WhatIf` correctly FAILed closed; runtime-scenario WhatIf and live rows remain forbidden |
 | Relationship/lifecycle | PASS | Two fresh lifecycle suites, each `8/8` rows and `339/0` assertions, with direct-handler scope retained |
 | One-mover movement | PASS | Open-ground A/B, exact mount authority, bounded synchronization, clean stop/dismount, no residue |
 | Stop/start | PASS | Repaired A/B each `61/0`; exact stationary-boundary reconciliation without threshold weakening |
@@ -76,7 +82,7 @@ The three F0 deferrals are not kill-criterion failures. No K1–K12 criterion fi
 
 ## Evidence needed to unblock
 
-The revised project-owned Working fixture has passed descriptor identity and Working-only authorization checks, but F1 runtime admission is blocked. Exact next action is to commit only this corrected six-file blocker ledger as a local docs-only safety checkpoint, then await user-owned resolution or explicit authority for both changed valued saves, `Auto_1120` and `Quick_438`. Do not build a package, run scenario `-WhatIf`, publish, launch Kingmaker, restore a valued save, or mutate a valued save.
+The revised project-owned Working fixture has passed descriptor identity and Working-only authorization checks, but F1 runtime admission is blocked. Exact next action is to await user-owned resolution or explicit authority for both changed valued saves, `Auto_1120` and `Quick_438`. Do not build a package, run a runtime-scenario `-WhatIf`, publish, launch Kingmaker, restore a valued save, or mutate a valued save. Only after resolution may the pinned continuity audit be rerun and admission reconsidered.
 
 Only after that safety hold is resolved may the following missing rows return to the execution queue under the existing guard, unchanged thresholds, strict A/B evidence, and exact restoration checks:
 

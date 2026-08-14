@@ -6,6 +6,8 @@ The guarded F1 descriptor gate is PASS, but F1 runtime admission is `BLOCKED —
 
 Frozen F0 offline gate ledger: source validation 21 PASS / 0 FAIL; Release build PASS; pure/component 112 PASS / 0 FAIL; visual-capture contracts 12 PASS / 0 FAIL; guarded harness/protocol 105 PASS / 0 FAIL; assembly-backed 69 PASS / 0 FAIL (Kingmaker 58, Wrath 11).
 
+Safety-guard implementation commit `29e594d6d053824a47ac22b9dd702aede1036031` is on `codex/mounted-combat-feasibility`. It changes exactly `scripts/runtime/RuntimeHarness.Common.ps1`, `scripts/runtime/Test-KmcFixtureGuard.ps1`, `scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1`, and `scripts/Test-Harness.ps1`; SHA-256 values are respectively `6605ef74d10a7a99ea1ec21550689a2fa3600ecde89354389acd5593bfa525ca`, `79129c6041fe55403b35750b563fa32d4f90c83e6f93f956053331af19e48647`, `3259ff4d6a41505d9faea3655cb79a87ee487b8e69f8ef72ab2505153a69bb81`, and `f44133f5f6e88ac2b028e609b0dbb69d03161b598e40fbf75b29015872e4563e`. Gates passed AST `4/4`, source `21/0`, Release build, component `112/0`, visual `12/0`, harness `132/0`, assembly-backed `69/0`, and diff check; two independent frozen-diff reviews returned GO. This validates guard behavior only and supplies no F1 runtime row.
+
 ## Fixture evidence epochs
 
 F0 is the frozen runtime epoch at commit `fc7215481acf97ce1863eb1c75b3433889d2af7d`. It used Working SHA-256 `a5f7a7fb77f0465df1591360ecd1730e2c28215d83e27aafc70efef3110e6dc5`, length `718821`, ticks `639222573406912936`; all executed evidence below belongs to F0 unless explicitly stated otherwise. Its named-row ledger remains `22 PASS / 0 attributable FAIL / 3 DEFER — EVIDENCED`.
@@ -23,6 +25,8 @@ Frozen F0 inventory was digest `58a54974423316041e29d32b1093c5d6775dbd67fe2b37ff
 | `Quick_438` | Unauthorized | `625411` / `639220694761623881` | `809565` / `639222975512345112` |
 
 The transaction-level pre/post equality does not authorize or erase the two cross-epoch valued-save deltas. The project must not restore or mutate those saves.
+
+The final real standalone `AuditWorkingContinuity -WhatIf`, pinned to current qualification SHA-256 `95e9a3c6203f11cfdd7e615849eb61ebc060131075f6a7f40771dcd7eeb68a7a` and frozen F0 save-transaction authority SHA-256 `b25f80c799207657650cf29118078edc4685bcbb51e1609ba8b167cab13052e0`, produced the expected safety FAIL: `Save write allowlist violation: Auto_1120.zks, Quick_438.zks`. Qualification and authority remained unchanged; no process, lock, sentinel, or live KMC tree remained. This read-only guard audit did not stage a package or execute a runtime scenario.
 
 ## Executed F0 runtime evidence
 
@@ -87,7 +91,7 @@ Historical engineering FAIL results remain preserved. They include fixture boots
 | 2 | `mounted-pair-selection` A/B | BLOCKED — CRITICAL | Select away to the eligible directly controllable third unit and back, each in a fresh process |
 | 3 | `mounted-pair-party-formation` A/B | BLOCKED — CRITICAL | Meaningful stock group movement command with the eligible third unit, each in a fresh process |
 
-Commit only this corrected six-file blocker ledger as a local docs-only safety checkpoint, then stop. Exact next action requires user-owned resolution or explicit authority for changed valued saves `Auto_1120` and `Quick_438`; the project must not restore or mutate them. Do not package, run scenario `-WhatIf`, publish, or launch Kingmaker. Only after F1 runtime admission is explicitly cleared may these rows return to the queue. Do not rerun completed archaeology, lifecycle/boundary suites, or previously qualified movement rows absent a narrow regression gate. Do not synthesize units, change geometry during a run, weaken thresholds, or execute Phase 2.
+Exact next action requires user-owned resolution or explicit authority for changed valued saves `Auto_1120` and `Quick_438`; the project must not restore or mutate them. HOLD without packaging, runtime-scenario `-WhatIf`, publication, or Kingmaker launch. Only after the pinned continuity gate passes under resolved authority and F1 runtime admission is explicitly cleared may these rows return to the queue. Do not rerun completed archaeology, lifecycle/boundary suites, or previously qualified movement rows absent a narrow regression gate. Do not synthesize units, change geometry during a run, weaken thresholds, or execute Phase 2.
 
 ## Measured F0 movement and visual disposition
 
