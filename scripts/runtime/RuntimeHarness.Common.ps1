@@ -2283,7 +2283,10 @@ function Assert-KmcLatestPositionPhaseSemantics {
     $recoveryRequired = $Record.latestPositionRecoveryRequiredBeforeSample -eq $true
     $expectedRecoveryUpdate = $phase -ceq 'Update' -and $recoveryRequired
     $expectedRecoverySatisfied = $expectedRecoveryUpdate -and $viewCurrent -le 0.10 -and $rawCurrent -le 0.10
-    $expectedRecoveryViolation = $recoveryRequired -and ($phase -cne 'Update' -or -not $expectedRecoverySatisfied)
+    $expectedAlignedLateUpdateCarry = $recoveryRequired -and $phase -ceq 'LateUpdate' -and
+        $viewCurrent -le 0.10 -and $rawCurrent -le 0.10
+    $expectedRecoveryViolation = $recoveryRequired -and
+        -not ($expectedRecoverySatisfied -or $expectedAlignedLateUpdateCarry)
     $expectedRecoveryPending = $expectedPermitted -or ($recoveryRequired -and $phase -cne 'Update')
     if ($Record.latestPositionRecoveryUpdateObserved -ne $expectedRecoveryUpdate -or
         $Record.latestPositionRecoverySatisfied -ne $expectedRecoverySatisfied -or
@@ -2702,7 +2705,10 @@ function Assert-KmcMovementTelemetryRecord {
         $recoveryRequired = $Record.latestRecoveryRequiredBeforeSample -eq $true
         $expectedRecoveryUpdate = $phase -ceq 'Update' -and $recoveryRequired
         $expectedRecoverySatisfied = $expectedRecoveryUpdate -and $viewCurrent -le 0.10 -and $rawCurrent -le 0.10
-        $expectedRecoveryViolation = $recoveryRequired -and ($phase -cne 'Update' -or -not $expectedRecoverySatisfied)
+        $expectedAlignedLateUpdateCarry = $recoveryRequired -and $phase -ceq 'LateUpdate' -and
+            $viewCurrent -le 0.10 -and $rawCurrent -le 0.10
+        $expectedRecoveryViolation = $recoveryRequired -and
+            -not ($expectedRecoverySatisfied -or $expectedAlignedLateUpdateCarry)
         $expectedRecoveryPending = $expectedPermitted -or ($recoveryRequired -and $phase -cne 'Update')
         if ($Record.latestRecoveryUpdateObserved -ne $expectedRecoveryUpdate -or
             $Record.latestRecoverySatisfied -ne $expectedRecoverySatisfied -or

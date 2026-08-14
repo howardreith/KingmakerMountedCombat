@@ -408,7 +408,14 @@ namespace KingmakerMountedCombat.Tests
                 "Same-frame immediate Update anchor reference was not eligible.");
             TestRunner.True(late.RecoveryPendingAfterSample, "Accepted position lag did not require next-Update recovery.");
 
-            var recovered = tracker.Observe(2L, MovementSynchronizationPhase.Update, 0.20d, 0.0d, 0.0d, 0.20d, 0.0d, 0.0d, 0.20d, 0.0d, 0.0d, 0.10d);
+            var benign = tracker.Observe(2L, MovementSynchronizationPhase.LateUpdate, 0.20d, 0.0d, 0.0d, 0.20d, 0.0d, 0.0d, 0.20d, 0.0d, 0.0d, 0.10d);
+            TestRunner.True(benign.RecoveryRequiredBeforeSample && !benign.RecoveryUpdateObserved &&
+                !benign.RecoverySatisfied && !benign.RecoveryViolation && benign.RecoveryPendingAfterSample,
+                "An aligned non-Update position sample violated or discharged the pending recovery obligation.");
+            TestRunner.True(!benign.PhaseLagObserved && !benign.PhaseLagPermitted && !benign.PhaseLagViolation,
+                "An aligned intervening position sample was misclassified as another phase lag.");
+
+            var recovered = tracker.Observe(3L, MovementSynchronizationPhase.Update, 0.20d, 0.0d, 0.0d, 0.20d, 0.0d, 0.0d, 0.20d, 0.0d, 0.0d, 0.10d);
             TestRunner.True(recovered.RecoveryRequiredBeforeSample && recovered.RecoveryUpdateObserved && recovered.RecoverySatisfied,
                 "Current-again position did not satisfy the real next-Update recovery obligation.");
             TestRunner.True(!recovered.RecoveryViolation && !recovered.RecoveryPendingAfterSample,
@@ -430,11 +437,30 @@ namespace KingmakerMountedCombat.Tests
             stale.Observe(0L, MovementSynchronizationPhase.InitialConfiguration, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
             stale.Observe(1L, MovementSynchronizationPhase.Update, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
             stale.Observe(1L, MovementSynchronizationPhase.LateUpdate, 0.20d, 0.0d, 0.0d, 0.20d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
-            var staleLate = stale.Observe(2L, MovementSynchronizationPhase.LateUpdate, 0.40d, 0.0d, 0.0d, 0.40d, 0.0d, 0.0d, 0.20d, 0.0d, 0.0d, 0.10d);
+            var benignLate = stale.Observe(2L, MovementSynchronizationPhase.LateUpdate, 0.20d, 0.0d, 0.0d, 0.20d, 0.0d, 0.0d, 0.20d, 0.0d, 0.0d, 0.10d);
+            TestRunner.True(!benignLate.RecoveryViolation && benignLate.RecoveryPendingAfterSample,
+                "Aligned position state did not carry recovery safely to the next Update.");
+            var staleLate = stale.Observe(3L, MovementSynchronizationPhase.LateUpdate, 0.40d, 0.0d, 0.0d, 0.40d, 0.0d, 0.0d, 0.20d, 0.0d, 0.0d, 0.10d);
             TestRunner.True(staleLate.PhaseLagViolation && staleLate.RecoveryViolation,
                 "A second position lag without an intervening Update recovery was permitted.");
             TestRunner.True(!staleLate.PreviousAuthoritativeSameFrame && !staleLate.PreviousAuthoritativeReferenceEligible,
                 "A stale prior-frame Update anchor was eligible for adjustment.");
+
+            var unrecovered = new MovementPositionPhaseTracker();
+            unrecovered.Observe(0L, MovementSynchronizationPhase.InitialConfiguration, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
+            unrecovered.Observe(1L, MovementSynchronizationPhase.Update, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
+            unrecovered.Observe(1L, MovementSynchronizationPhase.LateUpdate, 0.20d, 0.0d, 0.0d, 0.20d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
+            var failedRecovery = unrecovered.Observe(2L, MovementSynchronizationPhase.Update, 0.20d, 0.0d, 0.0d, 0.20d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
+            TestRunner.True(failedRecovery.RecoveryUpdateObserved && failedRecovery.RecoveryViolation && !failedRecovery.RecoverySatisfied,
+                "A still-stale logical position at the next Update satisfied recovery.");
+
+            var wrongPhase = new MovementPositionPhaseTracker();
+            wrongPhase.Observe(0L, MovementSynchronizationPhase.InitialConfiguration, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
+            wrongPhase.Observe(1L, MovementSynchronizationPhase.Update, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
+            wrongPhase.Observe(1L, MovementSynchronizationPhase.LateUpdate, 0.20d, 0.0d, 0.0d, 0.20d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
+            var unexpectedInitial = wrongPhase.Observe(2L, MovementSynchronizationPhase.InitialConfiguration, 0.20d, 0.0d, 0.0d, 0.20d, 0.0d, 0.0d, 0.20d, 0.0d, 0.0d, 0.10d);
+            TestRunner.True(unexpectedInitial.RecoveryViolation && unexpectedInitial.RecoveryPendingAfterSample && !unexpectedInitial.PhaseLagObserved,
+                "An unexpected InitialConfiguration position sample carried recovery as though it were LateUpdate.");
 
             var ageTwo = new MovementPositionPhaseTracker();
             ageTwo.Observe(0L, MovementSynchronizationPhase.InitialConfiguration, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
@@ -497,9 +523,15 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.Equal(0.0d, accumulator.MaximumLateUpdatePreCorrectionPositionResidualWorldUnits, "Effective pre-correction position did not use the phase-adjusted entity residual.");
             TestRunner.Equal(0.20d, accumulator.MaximumLateUpdatePreCorrectionRawCurrentPositionResidualWorldUnits, "Raw pre-correction position maximum was not retained.");
 
-            var recoveryPosition = positionTracker.Observe(2L, MovementSynchronizationPhase.Update, 0.20d, 0.0d, 0.0d, 0.20d, 0.0d, 0.0d, 0.20d, 0.0d, 0.0d, 0.10d);
-            var recoveryYaw = yawTracker.Observe(2L, MovementSynchronizationPhase.Update, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
-            accumulator.Observe(new MovementSynchronizationSample(3L, MovementSynchronizationPhase.Update, recoveryPosition, recoveryYaw, 0.0d, 0.0d, 0.0d, 0.0d));
+            var benignPosition = positionTracker.Observe(2L, MovementSynchronizationPhase.LateUpdate, 0.20d, 0.0d, 0.0d, 0.20d, 0.0d, 0.0d, 0.20d, 0.0d, 0.0d, 0.10d);
+            var benignYaw = yawTracker.Observe(2L, MovementSynchronizationPhase.LateUpdate, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
+            accumulator.Observe(new MovementSynchronizationSample(3L, MovementSynchronizationPhase.LateUpdate, benignPosition, benignYaw, 0.0d, 0.0d, 0.0d, 0.0d));
+            TestRunner.Equal(0L, accumulator.PositionPhaseLagRecoveryRequiredCount,
+                "An intervening aligned position sample duplicated the normal-recovery obligation count.");
+
+            var recoveryPosition = positionTracker.Observe(3L, MovementSynchronizationPhase.Update, 0.20d, 0.0d, 0.0d, 0.20d, 0.0d, 0.0d, 0.20d, 0.0d, 0.0d, 0.10d);
+            var recoveryYaw = yawTracker.Observe(3L, MovementSynchronizationPhase.Update, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
+            accumulator.Observe(new MovementSynchronizationSample(4L, MovementSynchronizationPhase.Update, recoveryPosition, recoveryYaw, 0.0d, 0.0d, 0.0d, 0.0d));
             var qualification = MovementSynchronizationQualification.Evaluate(accumulator, 2L, 0.10d, 0.10d);
             TestRunner.True(qualification.PreCorrectionPositionPassed && qualification.PhaseOrderPositionPassed,
                 "Bounded entity-only position lag failed after real next-Update recovery.");
@@ -529,7 +561,14 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(late.PreviousAuthoritativeReferenceEligible, "Same-frame immediate Update reference was not eligible.");
             TestRunner.True(late.RecoveryPendingAfterSample, "Accepted lag did not require next-Update recovery.");
 
-            var recovered = tracker.Observe(2L, MovementSynchronizationPhase.Update, 8.0d, 8.0d, 8.0d, 8.0d, 0.10d);
+            var benign = tracker.Observe(2L, MovementSynchronizationPhase.LateUpdate, 8.0d, 8.0d, 8.0d, 8.0d, 0.10d);
+            TestRunner.True(benign.RecoveryRequiredBeforeSample && !benign.RecoveryUpdateObserved &&
+                !benign.RecoverySatisfied && !benign.RecoveryViolation && benign.RecoveryPendingAfterSample,
+                "An aligned non-Update yaw sample violated or discharged the pending recovery obligation.");
+            TestRunner.True(!benign.PhaseLagObserved && !benign.PhaseLagPermitted && !benign.PhaseLagViolation,
+                "An aligned intervening yaw sample was misclassified as another phase lag.");
+
+            var recovered = tracker.Observe(3L, MovementSynchronizationPhase.Update, 8.0d, 8.0d, 8.0d, 8.0d, 0.10d);
             TestRunner.True(recovered.RecoveryRequiredBeforeSample, "Next Update did not carry the recovery obligation.");
             TestRunner.True(recovered.RecoveryUpdateObserved, "Recovery was not observed in Update.");
             TestRunner.True(recovered.RecoverySatisfied, "Current-again logical yaw did not satisfy recovery.");
@@ -552,7 +591,10 @@ namespace KingmakerMountedCombat.Tests
             stale.Observe(0L, MovementSynchronizationPhase.InitialConfiguration, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
             stale.Observe(1L, MovementSynchronizationPhase.Update, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
             stale.Observe(1L, MovementSynchronizationPhase.LateUpdate, 8.0d, 8.0d, 8.0d, 0.0d, 0.10d);
-            var staleLate = stale.Observe(2L, MovementSynchronizationPhase.LateUpdate, 16.0d, 16.0d, 16.0d, 8.0d, 0.10d);
+            var benignLate = stale.Observe(2L, MovementSynchronizationPhase.LateUpdate, 8.0d, 8.0d, 8.0d, 8.0d, 0.10d);
+            TestRunner.True(!benignLate.RecoveryViolation && benignLate.RecoveryPendingAfterSample,
+                "Aligned yaw state did not carry recovery safely to the next Update.");
+            var staleLate = stale.Observe(3L, MovementSynchronizationPhase.LateUpdate, 16.0d, 16.0d, 16.0d, 8.0d, 0.10d);
             TestRunner.True(staleLate.PhaseLagViolation, "A second lag without an intervening Update was permitted.");
             TestRunner.True(staleLate.RecoveryViolation, "Missing next-Update recovery was not recorded.");
             TestRunner.Equal(1L, staleLate.PreviousAuthoritativeFrame.Value, "Stale Update reference frame was not retained for evidence.");
@@ -568,6 +610,14 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(failedRecovery.RecoveryUpdateObserved, "Required recovery was not checked at the next Update.");
             TestRunner.True(failedRecovery.RecoveryViolation, "A still-stale entity at the next Update was accepted.");
             TestRunner.True(!failedRecovery.RecoverySatisfied, "A still-stale entity falsely satisfied recovery.");
+
+            var wrongPhase = new MovementYawPhaseTracker();
+            wrongPhase.Observe(0L, MovementSynchronizationPhase.InitialConfiguration, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
+            wrongPhase.Observe(1L, MovementSynchronizationPhase.Update, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
+            wrongPhase.Observe(1L, MovementSynchronizationPhase.LateUpdate, 8.0d, 8.0d, 8.0d, 0.0d, 0.10d);
+            var unexpectedInitial = wrongPhase.Observe(2L, MovementSynchronizationPhase.InitialConfiguration, 8.0d, 8.0d, 8.0d, 8.0d, 0.10d);
+            TestRunner.True(unexpectedInitial.RecoveryViolation && unexpectedInitial.RecoveryPendingAfterSample && !unexpectedInitial.PhaseLagObserved,
+                "An unexpected InitialConfiguration yaw sample carried recovery as though it were LateUpdate.");
 
             var visible = new MovementYawPhaseTracker();
             visible.Observe(0L, MovementSynchronizationPhase.InitialConfiguration, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);
@@ -598,8 +648,12 @@ namespace KingmakerMountedCombat.Tests
             var pendingQualification = MovementSynchronizationQualification.Evaluate(accumulator, 2L, 0.10d, 0.10d);
             TestRunner.True(pendingQualification.PhaseOrderYawSafetyPassed, "One outstanding same-frame recovery failed the transient live safety gate.");
             TestRunner.True(!pendingQualification.PhaseOrderYawPassed, "Row completion accepted an outstanding phase-lag recovery.");
-            var recovery = tracker.Observe(2L, MovementSynchronizationPhase.Update, 8.0d, 8.0d, 8.0d, 8.0d, 0.10d);
-            accumulator.Observe(new MovementSynchronizationSample(3L, MovementSynchronizationPhase.Update, 0.0d, recovery, 0.0d, 0.0d, 0.0d, 0.0d));
+            var benign = tracker.Observe(2L, MovementSynchronizationPhase.LateUpdate, 8.0d, 8.0d, 8.0d, 8.0d, 0.10d);
+            accumulator.Observe(new MovementSynchronizationSample(3L, MovementSynchronizationPhase.LateUpdate, 0.0d, benign, 0.0d, 0.0d, 0.0d, 0.0d));
+            TestRunner.Equal(0L, accumulator.PhaseLagRecoveryRequiredCount,
+                "An intervening aligned yaw sample duplicated the normal-recovery obligation count.");
+            var recovery = tracker.Observe(3L, MovementSynchronizationPhase.Update, 8.0d, 8.0d, 8.0d, 8.0d, 0.10d);
+            accumulator.Observe(new MovementSynchronizationSample(4L, MovementSynchronizationPhase.Update, 0.0d, recovery, 0.0d, 0.0d, 0.0d, 0.0d));
 
             var qualification = MovementSynchronizationQualification.Evaluate(accumulator, 2L, 0.10d, 0.10d);
             TestRunner.True(qualification.PreCorrectionRotationPassed, "Bounded entity-only phase lag failed the fixed adjusted-yaw gate.");
@@ -700,6 +754,20 @@ namespace KingmakerMountedCombat.Tests
             MovementPositionPhaseTracker positionTracker;
             MovementYawPhaseTracker yawTracker;
             var accumulator = CreatePendingDualPhaseAccumulator(out positionTracker, out yawTracker);
+            var benignPosition = positionTracker.Observe(2L, MovementSynchronizationPhase.LateUpdate, 0.20d, 0.0d, 0.0d, 0.20d, 0.0d, 0.0d, 0.20d, 0.0d, 0.0d, 0.10d);
+            var benignYaw = yawTracker.Observe(2L, MovementSynchronizationPhase.LateUpdate, 8.0d, 8.0d, 8.0d, 8.0d, 0.10d);
+            accumulator.Observe(new MovementSynchronizationSample(3L, MovementSynchronizationPhase.LateUpdate, benignPosition, benignYaw, 0.0d, 0.0d, 0.0d, 0.0d));
+            TestRunner.True(benignPosition.RecoveryPendingAfterSample && !benignPosition.RecoveryViolation &&
+                benignYaw.RecoveryPendingAfterSample && !benignYaw.RecoveryViolation,
+                "Aligned non-Update observations did not preserve pending boundary-recoverable state.");
+            TestRunner.Equal(0L, accumulator.PositionPhaseLagRecoveryRequiredCount,
+                "A carried position obligation was counted more than once before its recovery event.");
+            TestRunner.Equal(0L, accumulator.PhaseLagRecoveryRequiredCount,
+                "A carried yaw obligation was counted more than once before its recovery event.");
+            var pendingQualification = MovementSynchronizationQualification.Evaluate(accumulator, 2L, 0.10d, 0.10d);
+            TestRunner.True(pendingQualification.PhaseOrderPositionSafetyPassed && pendingQualification.PhaseOrderYawSafetyPassed &&
+                !pendingQualification.PhaseOrderPositionPassed && !pendingQualification.PhaseOrderYawPassed,
+                "A benign carried obligation failed transient safety or passed before boundary reconciliation.");
             var sampleCountBefore = accumulator.SampleCount;
             var updateCountBefore = accumulator.UpdateSampleCount;
             var boundary = CreateStoppedBoundary(0.0d, 0.0d, 0.0d);
@@ -731,8 +799,8 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(!yawTracker.RecoveryPending && !positionTracker.RecoveryPending,
                 "Successful boundary closure left a tracker recovery bit pending.");
 
-            var nextPosition = positionTracker.Observe(2L, MovementSynchronizationPhase.LateUpdate, 0.20d, 0.0d, 0.0d, 0.20d, 0.0d, 0.0d, 0.20d, 0.0d, 0.0d, 0.10d);
-            var nextYaw = yawTracker.Observe(2L, MovementSynchronizationPhase.LateUpdate, 8.0d, 8.0d, 8.0d, 8.0d, 0.10d);
+            var nextPosition = positionTracker.Observe(3L, MovementSynchronizationPhase.LateUpdate, 0.20d, 0.0d, 0.0d, 0.20d, 0.0d, 0.0d, 0.20d, 0.0d, 0.0d, 0.10d);
+            var nextYaw = yawTracker.Observe(3L, MovementSynchronizationPhase.LateUpdate, 8.0d, 8.0d, 8.0d, 8.0d, 0.10d);
             TestRunner.True(!nextPosition.RecoveryRequiredBeforeSample && !nextPosition.RecoveryViolation &&
                 !nextYaw.RecoveryRequiredBeforeSample && !nextYaw.RecoveryViolation,
                 "A callback after boundary closure resurrected the discharged recovery obligation.");
@@ -797,6 +865,28 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(residual.StationaryBoundaryClosureAttemptCount ==
                 residual.StationaryBoundaryClosureSucceededCount + residual.StationaryBoundaryClosureFailedCount,
                 "Rejected boundary attempt counts do not reconcile.");
+
+            MovementPositionPhaseTracker wrongPhasePosition;
+            MovementYawPhaseTracker wrongPhaseYaw;
+            var wrongPhase = CreatePendingDualPhaseAccumulator(out wrongPhasePosition, out wrongPhaseYaw);
+            var unexpectedInitialPosition = wrongPhasePosition.Observe(2L, MovementSynchronizationPhase.InitialConfiguration, 0.20d, 0.0d, 0.0d, 0.20d, 0.0d, 0.0d, 0.20d, 0.0d, 0.0d, 0.10d);
+            var unexpectedInitialYaw = wrongPhaseYaw.Observe(2L, MovementSynchronizationPhase.InitialConfiguration, 8.0d, 8.0d, 8.0d, 8.0d, 0.10d);
+            wrongPhase.Observe(new MovementSynchronizationSample(3L, MovementSynchronizationPhase.InitialConfiguration, unexpectedInitialPosition, unexpectedInitialYaw, 0.0d, 0.0d, 0.0d, 0.0d));
+            TestRunner.Equal(1L, wrongPhase.PositionPhaseLagRecoveryViolationCount,
+                "Accumulator discarded a pending wrong-phase position recovery violation.");
+            TestRunner.Equal(1L, wrongPhase.PhaseLagRecoveryViolationCount,
+                "Accumulator discarded a pending wrong-phase yaw recovery violation.");
+            var wrongPhaseQualification = MovementSynchronizationQualification.Evaluate(wrongPhase, 2L, 0.10d, 0.10d);
+            TestRunner.True(!wrongPhaseQualification.PhaseOrderPositionSafetyPassed && !wrongPhaseQualification.PhaseOrderYawSafetyPassed,
+                "Pending wrong-phase recovery violations passed transient qualification.");
+            var wrongPhaseClosure = wrongPhase.ClosePendingRecoveryAtStationaryBoundary(
+                stopped,
+                0.10d,
+                0.10d,
+                wrongPhasePosition,
+                wrongPhaseYaw);
+            TestRunner.True(!wrongPhaseClosure.Succeeded && wrongPhaseClosure.Reason == "yaw-pending-lag-not-permitted",
+                "Stationary boundary closure erased a pending wrong-phase recovery violation.");
 
             var unrecordedPosition = new MovementPositionPhaseTracker();
             unrecordedPosition.Observe(0L, MovementSynchronizationPhase.InitialConfiguration, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.0d, 0.10d);

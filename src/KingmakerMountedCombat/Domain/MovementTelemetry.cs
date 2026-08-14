@@ -194,7 +194,11 @@ namespace KingmakerMountedCombat.Domain
                 viewCurrentPositionResidualWorldUnits <= maximumPositionResidualWorldUnits &&
                 entityRawCurrentPositionResidualWorldUnits <= maximumPositionResidualWorldUnits;
             var recoveryViolation = recoveryRequiredBeforeSample &&
-                (phase != MovementSynchronizationPhase.Update || !recoverySatisfied);
+                (phase == MovementSynchronizationPhase.Update
+                    ? !recoverySatisfied
+                    : phase != MovementSynchronizationPhase.LateUpdate ||
+                      viewCurrentPositionResidualWorldUnits > maximumPositionResidualWorldUnits ||
+                      entityRawCurrentPositionResidualWorldUnits > maximumPositionResidualWorldUnits);
             if (phase == MovementSynchronizationPhase.Update && recoveryRequiredBeforeSample)
             {
                 recoveryPending = false;
@@ -513,7 +517,11 @@ namespace KingmakerMountedCombat.Domain
                 viewCurrentYawResidualDegrees <= maximumYawResidualDegrees &&
                 entityRawCurrentYawResidualDegrees <= maximumYawResidualDegrees;
             var recoveryViolation = recoveryRequiredBeforeSample &&
-                (phase != MovementSynchronizationPhase.Update || !recoverySatisfied);
+                (phase == MovementSynchronizationPhase.Update
+                    ? !recoverySatisfied
+                    : phase != MovementSynchronizationPhase.LateUpdate ||
+                      viewCurrentYawResidualDegrees > maximumYawResidualDegrees ||
+                      entityRawCurrentYawResidualDegrees > maximumYawResidualDegrees);
             if (phase == MovementSynchronizationPhase.Update && recoveryRequiredBeforeSample)
             {
                 recoveryPending = false;
@@ -1210,7 +1218,11 @@ namespace KingmakerMountedCombat.Domain
                         OutstandingPositionPhaseLagRecoveryCount);
                 }
                 if (sample.Position.PhaseLagViolation) { PositionPhaseLagViolationCount++; }
-                if (sample.Position.RecoveryRequiredBeforeSample) { PositionPhaseLagRecoveryRequiredCount++; }
+                // A pending obligation can be carried through multiple aligned
+                // non-Update observations. The raw normal-recovery counters
+                // describe the one Update that discharges (or rejects) an
+                // obligation, not every sample through which it remains live.
+                if (sample.Position.RecoveryUpdateObserved) { PositionPhaseLagRecoveryRequiredCount++; }
                 if (sample.Position.RecoveryUpdateObserved) { PositionPhaseLagRecoveryUpdateCount++; }
                 if (sample.Position.RecoverySatisfied)
                 {
@@ -1256,7 +1268,7 @@ namespace KingmakerMountedCombat.Domain
                     MaximumConsecutiveUnrecoveredPhaseLagCount = Math.Max(MaximumConsecutiveUnrecoveredPhaseLagCount, OutstandingPhaseLagRecoveryCount);
                 }
                 if (sample.Yaw.PhaseLagViolation) { PhaseLagViolationCount++; }
-                if (sample.Yaw.RecoveryRequiredBeforeSample) { PhaseLagRecoveryRequiredCount++; }
+                if (sample.Yaw.RecoveryUpdateObserved) { PhaseLagRecoveryRequiredCount++; }
                 if (sample.Yaw.RecoveryUpdateObserved) { PhaseLagRecoveryUpdateCount++; }
                 if (sample.Yaw.RecoverySatisfied)
                 {
@@ -1265,6 +1277,14 @@ namespace KingmakerMountedCombat.Domain
                 }
                 if (sample.Yaw.RecoveryViolation) { PhaseLagRecoveryViolationCount++; }
                 if (sample.Yaw.StationaryYawCorrectionViolation) { StationaryYawCorrectionViolationCount++; }
+            }
+            else if (sample.Phase == MovementSynchronizationPhase.InitialConfiguration)
+            {
+                // InitialConfiguration is excluded from steady-state residual
+                // maxima, but it may not erase a live recovery obligation. A
+                // pending wrong-phase transition remains safety-significant.
+                if (sample.Position.RecoveryViolation) { PositionPhaseLagRecoveryViolationCount++; }
+                if (sample.Yaw.RecoveryViolation) { PhaseLagRecoveryViolationCount++; }
             }
 
             switch (sample.Phase)
@@ -1392,12 +1412,24 @@ namespace KingmakerMountedCombat.Domain
                 failure = "boundary-residual-exceeded";
             }
             else if (yawPendingBefore == 1L &&
-                (LatestYawObservation == null || !LatestYawObservation.PhaseLagPermitted || !LatestYawObservation.RecoveryPendingAfterSample || !yawTracker.RecoveryPending))
+                (LatestYawObservation == null ||
+                 !LatestYawObservation.RecoveryPendingAfterSample ||
+                 (!LatestYawObservation.PhaseLagPermitted &&
+                  (LatestYawObservation.Phase != MovementSynchronizationPhase.LateUpdate ||
+                   !LatestYawObservation.RecoveryRequiredBeforeSample ||
+                   LatestYawObservation.RecoveryViolation)) ||
+                 !yawTracker.RecoveryPending))
             {
                 failure = "yaw-pending-lag-not-permitted";
             }
             else if (positionPendingBefore == 1L &&
-                (LatestPositionObservation == null || !LatestPositionObservation.PhaseLagPermitted || !LatestPositionObservation.RecoveryPendingAfterSample || !positionTracker.RecoveryPending))
+                (LatestPositionObservation == null ||
+                 !LatestPositionObservation.RecoveryPendingAfterSample ||
+                 (!LatestPositionObservation.PhaseLagPermitted &&
+                  (LatestPositionObservation.Phase != MovementSynchronizationPhase.LateUpdate ||
+                   !LatestPositionObservation.RecoveryRequiredBeforeSample ||
+                   LatestPositionObservation.RecoveryViolation)) ||
+                 !positionTracker.RecoveryPending))
             {
                 failure = "position-pending-lag-not-permitted";
             }

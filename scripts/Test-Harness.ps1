@@ -2112,6 +2112,137 @@ try {
             Assert-Test $threw "movement telemetry accepted unsafe position aggregate mutation $mutation"
         }
     }
+    Invoke-HarnessTest 'PASS movement validator carries only aligned LateUpdate position recovery' {
+        $scenario = @((New-TestMovementPathProbeRecord $movementRequest $movementRow 0),(New-TestMovementRowRecord $movementRequest $movementRow 1))
+        $newAlignedPositionRecoveryCarry = {
+            $value = New-TestMovementTelemetryRecord $movementRequest $movementRow 0
+            $value.synchronizationPhase = 'LateUpdate'
+            $value.latestCurrentAuthoritativeAnchorY = 2.05
+            $value.latestAuthoritativePositionSequence = 2
+            $value.latestPreviousAuthoritativePositionSequence = 1
+            $value.latestPreviousAuthoritativeAnchorX = 1.0
+            $value.latestPreviousAuthoritativeAnchorY = 2.0
+            $value.latestPreviousAuthoritativeAnchorZ = 3.0
+            $value.latestPreviousAuthoritativePositionFrame = 12
+            $value.latestPreviousAuthoritativePositionPhase = 'Update'
+            $value.latestPreviousAuthoritativePositionReferenceKind = 'same-frame-update'
+            $value.latestPreviousAuthoritativePositionSameFrame = $true
+            $value.latestPreviousAuthoritativePositionReferenceEligible = $true
+            $value.latestAuthoritativePositionDeltaWorldUnits = 0.05
+            $value.latestViewCurrentPositionResidualWorldUnits = 0.0
+            $value.latestEntityRawCurrentPositionResidualWorldUnits = 0.05
+            $value.latestEntityPreviousAuthoritativePositionResidualWorldUnits = 0.0
+            $value.latestEntityPhaseAdjustedPositionResidualWorldUnits = 0.05
+            $value.latestEntityRawPositionLagBoundWorldUnits = 0.05
+            $value.latestEntityRawPositionLagExcessWorldUnits = 0.0
+            $value.latestEntityPositionAuthorityAgeSteps = 0
+            $value.latestPositionPhaseLagObserved = $false
+            $value.latestPositionPhaseLagPermitted = $false
+            $value.latestPositionPhaseLagViolation = $false
+            $value.latestPositionRecoveryRequiredBeforeSample = $true
+            $value.latestPositionRecoveryUpdateObserved = $false
+            $value.latestPositionRecoverySatisfied = $false
+            $value.latestPositionRecoveryViolation = $false
+            $value.latestPositionRecoveryPendingAfterSample = $true
+            $value.latestPositionStationaryAuthority = $false
+            $value.latestStationaryPositionCorrectionViolation = $false
+            $value.preCorrectionPositionResidualWorldUnits = 0.05
+            $value.preCorrectionRawCurrentPositionResidualWorldUnits = 0.05
+            $value.preCorrectionViewCurrentPositionResidualWorldUnits = 0.0
+            $value.maximumLateUpdatePreCorrectionPositionResidualWorldUnits = 0.05
+            $value.maximumCalibratedEntityPhaseAdjustedPositionResidualWorldUnits = 0.05
+            $value.positionPhaseLagRecoveryRequiredRawCount = 0
+            $value.positionPhaseLagRecoveryUpdateRawCount = 0
+            $value.positionPhaseLagRecoverySatisfiedRawCount = 0
+            $value.positionPhaseLagRecoveryRequiredEffectiveCount = 0
+            $value.positionPhaseLagRecoveryUpdateOrBoundaryEffectiveCount = 0
+            $value.positionPhaseLagRecoverySatisfiedEffectiveCount = 0
+            $value.outstandingPositionPhaseLagRecoveryCount = 1
+
+            # The same telemetry sample has no yaw obligation; changing the
+            # shared phase to LateUpdate must not manufacture one.
+            $value.latestRecoveryRequiredBeforeSample = $false
+            $value.latestRecoveryUpdateObserved = $false
+            $value.latestRecoverySatisfied = $false
+            $value.latestRecoveryViolation = $false
+            $value.latestRecoveryPendingAfterSample = $false
+            return $value
+        }
+
+        $telemetry = & $newAlignedPositionRecoveryCarry
+        [void](Write-TestMovementEvidence $movementRequest.evidenceRoot $movementRequest @($telemetry) $scenario)
+        $manifest = Read-KmcJson (Join-Path $movementRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcMovementScenarioEvidence -Request $movementRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($movementSubresult)
+
+        foreach ($mutation in @('fake-update','fake-satisfied','false-discharge','wrong-phase','visible-carry',
+            'raw-second-lag','stale-update','duplicated-raw-required','outstanding-counter')) {
+            $telemetry = & $newAlignedPositionRecoveryCarry
+            switch ($mutation) {
+                'fake-update' { $telemetry.latestPositionRecoveryUpdateObserved = $true }
+                'fake-satisfied' { $telemetry.latestPositionRecoverySatisfied = $true }
+                'false-discharge' { $telemetry.latestPositionRecoveryPendingAfterSample = $false }
+                'wrong-phase' {
+                    $telemetry.synchronizationPhase = 'InitialConfiguration'
+                    foreach ($name in @('latestPreviousAuthoritativePositionSequence','latestPreviousAuthoritativeAnchorX',
+                        'latestPreviousAuthoritativeAnchorY','latestPreviousAuthoritativeAnchorZ',
+                        'latestPreviousAuthoritativePositionFrame','latestPreviousAuthoritativePositionPhase',
+                        'latestEntityPreviousAuthoritativePositionResidualWorldUnits')) { $telemetry.$name = $null }
+                    $telemetry.latestPreviousAuthoritativePositionReferenceKind = 'none'
+                    $telemetry.latestPreviousAuthoritativePositionSameFrame = $false
+                    $telemetry.latestPreviousAuthoritativePositionReferenceEligible = $false
+                    $telemetry.latestPositionStationaryAuthority = $false
+                    $telemetry.latestStationaryAuthority = $false
+                }
+                'visible-carry' {
+                    $telemetry.latestViewCurrentPositionResidualWorldUnits = 0.100001
+                    $telemetry.preCorrectionPositionResidualWorldUnits = 0.100001
+                    $telemetry.preCorrectionRawCurrentPositionResidualWorldUnits = 0.100001
+                    $telemetry.preCorrectionViewCurrentPositionResidualWorldUnits = 0.100001
+                }
+                'raw-second-lag' {
+                    $telemetry.latestCurrentAuthoritativeAnchorY = 2.2
+                    $telemetry.latestAuthoritativePositionDeltaWorldUnits = 0.2
+                    $telemetry.latestEntityRawCurrentPositionResidualWorldUnits = 0.2
+                    $telemetry.latestEntityPhaseAdjustedPositionResidualWorldUnits = 0.2
+                    $telemetry.latestEntityRawPositionLagBoundWorldUnits = 0.2
+                    $telemetry.latestEntityPositionAuthorityAgeSteps = 1
+                    $telemetry.latestPositionPhaseLagObserved = $true
+                    $telemetry.latestPositionPhaseLagViolation = $true
+                    $telemetry.preCorrectionPositionResidualWorldUnits = 0.2
+                    $telemetry.preCorrectionRawCurrentPositionResidualWorldUnits = 0.2
+                }
+                'stale-update' {
+                    $telemetry.synchronizationPhase = 'Update'
+                    foreach ($name in @('latestPreviousAuthoritativePositionSequence','latestPreviousAuthoritativeAnchorX',
+                        'latestPreviousAuthoritativeAnchorY','latestPreviousAuthoritativeAnchorZ',
+                        'latestPreviousAuthoritativePositionFrame','latestPreviousAuthoritativePositionPhase',
+                        'latestEntityPreviousAuthoritativePositionResidualWorldUnits')) { $telemetry.$name = $null }
+                    $telemetry.latestPreviousAuthoritativePositionReferenceKind = 'none'
+                    $telemetry.latestPreviousAuthoritativePositionSameFrame = $false
+                    $telemetry.latestPreviousAuthoritativePositionReferenceEligible = $false
+                    $telemetry.latestCurrentAuthoritativeAnchorY = 2.2
+                    $telemetry.latestAuthoritativePositionDeltaWorldUnits = 0.2
+                    $telemetry.latestEntityRawCurrentPositionResidualWorldUnits = 0.2
+                    $telemetry.latestEntityPhaseAdjustedPositionResidualWorldUnits = 0.2
+                    $telemetry.latestEntityRawPositionLagBoundWorldUnits = 0.2
+                    $telemetry.latestEntityPositionAuthorityAgeSteps = $null
+                    $telemetry.latestPositionPhaseLagObserved = $true
+                    $telemetry.latestPositionPhaseLagViolation = $true
+                    $telemetry.latestPositionRecoveryUpdateObserved = $true
+                    $telemetry.latestPositionRecoveryPendingAfterSample = $false
+                    $telemetry.preCorrectionPositionResidualWorldUnits = 0.2
+                    $telemetry.preCorrectionRawCurrentPositionResidualWorldUnits = 0.2
+                }
+                'duplicated-raw-required' { $telemetry.positionPhaseLagRecoveryRequiredRawCount = 1 }
+                'outstanding-counter' { $telemetry.outstandingPositionPhaseLagRecoveryCount = 0 }
+            }
+            [void](Write-TestMovementEvidence $movementRequest.evidenceRoot $movementRequest @($telemetry) $scenario)
+            $manifest = Read-KmcJson (Join-Path $movementRequest.evidenceRoot 'runtime-artifacts.json')
+            $threw=$false
+            try { Assert-KmcMovementScenarioEvidence -Request $movementRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($movementSubresult) } catch { $threw=$true }
+            Assert-Test $threw "movement telemetry accepted unsafe aligned position-recovery carry mutation $mutation"
+        }
+    }
     Invoke-HarnessTest 'PASS movement row validator reconciles synchronous stationary boundary closure' {
         $telemetry = New-TestMovementTelemetryRecord $movementRequest $movementRow 0
         $rowRecord = New-TestMovementRowRecord $movementRequest $movementRow 1
@@ -2252,6 +2383,121 @@ try {
             $threw=$false
             try { Assert-KmcMovementScenarioEvidence -Request $movementRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($movementSubresult) } catch { $threw=$true }
             Assert-Test $threw "movement row evidence accepted unsafe phase-order mutation $mutation"
+        }
+    }
+    Invoke-HarnessTest 'PASS movement validator carries only aligned LateUpdate yaw recovery' {
+        $scenario = @((New-TestMovementPathProbeRecord $movementRequest $movementRow 0),(New-TestMovementRowRecord $movementRequest $movementRow 1))
+        $newAlignedYawRecoveryCarry = {
+            $value = New-TestMovementTelemetryRecord $movementRequest $movementRow 0
+            $value.synchronizationPhase = 'LateUpdate'
+
+            # The same telemetry sample has no position obligation; changing
+            # the shared phase to LateUpdate must not manufacture one.
+            $value.latestPositionRecoveryRequiredBeforeSample = $false
+            $value.latestPositionRecoveryUpdateObserved = $false
+            $value.latestPositionRecoverySatisfied = $false
+            $value.latestPositionRecoveryViolation = $false
+            $value.latestPositionRecoveryPendingAfterSample = $false
+
+            $value.latestAuthoritativeYawSequence = 2
+            $value.latestPreviousAuthoritativeYawSequence = 1
+            $value.latestPreviousAuthoritativeYawDegrees = 0.0
+            $value.latestPreviousAuthoritativeFrame = 12
+            $value.latestPreviousAuthoritativePhase = 'Update'
+            $value.latestPreviousAuthoritativeReferenceKind = 'same-frame-update'
+            $value.latestPreviousAuthoritativeSameFrame = $true
+            $value.latestPreviousAuthoritativeReferenceEligible = $true
+            $value.latestAuthoritativeYawDeltaDegrees = 8.0
+            $value.latestViewCurrentYawResidualDegrees = 0.0
+            $value.latestEntityRawCurrentYawResidualDegrees = 0.05
+            $value.latestEntityPreviousAuthoritativeYawResidualDegrees = 0.0
+            $value.latestEntityPhaseAdjustedYawResidualDegrees = 0.05
+            $value.latestEntityRawLagBoundDegrees = 8.0
+            $value.latestEntityRawLagExcessDegrees = 0.0
+            $value.latestEntityYawAuthorityAgeSteps = 0
+            $value.latestPhaseLagObserved = $false
+            $value.latestPhaseLagPermitted = $false
+            $value.latestPhaseLagViolation = $false
+            $value.latestRecoveryRequiredBeforeSample = $true
+            $value.latestRecoveryUpdateObserved = $false
+            $value.latestRecoverySatisfied = $false
+            $value.latestRecoveryViolation = $false
+            $value.latestRecoveryPendingAfterSample = $true
+            $value.latestStationaryAuthority = $false
+            $value.latestStationaryYawCorrectionViolation = $false
+            $value.preCorrectionRotationResidualDegrees = 0.05
+            $value.maximumLateUpdatePreCorrectionRotationResidualDegrees = 0.05
+            $value.maximumCalibratedEntityPhaseAdjustedYawResidualDegrees = 0.05
+            $value.phaseLagRecoveryRequiredCount = 0
+            $value.phaseLagRecoveryUpdateCount = 0
+            $value.phaseLagRecoverySatisfiedCount = 0
+            $value.phaseLagRecoveryRequiredRawCount = 0
+            $value.phaseLagRecoveryUpdateRawCount = 0
+            $value.phaseLagRecoverySatisfiedRawCount = 0
+            $value.phaseLagRecoveryRequiredEffectiveCount = 0
+            $value.phaseLagRecoveryUpdateOrBoundaryEffectiveCount = 0
+            $value.phaseLagRecoverySatisfiedEffectiveCount = 0
+            $value.outstandingPhaseLagRecoveryCount = 1
+            return $value
+        }
+
+        $telemetry = & $newAlignedYawRecoveryCarry
+        [void](Write-TestMovementEvidence $movementRequest.evidenceRoot $movementRequest @($telemetry) $scenario)
+        $manifest = Read-KmcJson (Join-Path $movementRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcMovementScenarioEvidence -Request $movementRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($movementSubresult)
+
+        foreach ($mutation in @('fake-update','fake-satisfied','false-discharge','wrong-phase','visible-carry',
+            'raw-second-lag','stale-update','duplicated-raw-required','outstanding-counter')) {
+            $telemetry = & $newAlignedYawRecoveryCarry
+            switch ($mutation) {
+                'fake-update' { $telemetry.latestRecoveryUpdateObserved = $true }
+                'fake-satisfied' { $telemetry.latestRecoverySatisfied = $true }
+                'false-discharge' { $telemetry.latestRecoveryPendingAfterSample = $false }
+                'wrong-phase' {
+                    $telemetry.synchronizationPhase = 'InitialConfiguration'
+                    foreach ($name in @('latestPreviousAuthoritativeYawSequence','latestPreviousAuthoritativeYawDegrees',
+                        'latestPreviousAuthoritativeFrame','latestPreviousAuthoritativePhase',
+                        'latestEntityPreviousAuthoritativeYawResidualDegrees')) { $telemetry.$name = $null }
+                    $telemetry.latestPreviousAuthoritativeReferenceKind = 'none'
+                    $telemetry.latestPreviousAuthoritativeSameFrame = $false
+                    $telemetry.latestPreviousAuthoritativeReferenceEligible = $false
+                    $telemetry.latestPositionStationaryAuthority = $false
+                    $telemetry.latestStationaryAuthority = $false
+                }
+                'visible-carry' { $telemetry.latestViewCurrentYawResidualDegrees = 0.100001 }
+                'raw-second-lag' {
+                    $telemetry.latestEntityRawCurrentYawResidualDegrees = 0.2
+                    $telemetry.latestEntityPhaseAdjustedYawResidualDegrees = 0.2
+                    $telemetry.latestEntityYawAuthorityAgeSteps = 1
+                    $telemetry.latestPhaseLagObserved = $true
+                    $telemetry.latestPhaseLagViolation = $true
+                    $telemetry.preCorrectionRotationResidualDegrees = 0.2
+                }
+                'stale-update' {
+                    $telemetry.synchronizationPhase = 'Update'
+                    foreach ($name in @('latestPreviousAuthoritativeYawSequence','latestPreviousAuthoritativeYawDegrees',
+                        'latestPreviousAuthoritativeFrame','latestPreviousAuthoritativePhase',
+                        'latestEntityPreviousAuthoritativeYawResidualDegrees')) { $telemetry.$name = $null }
+                    $telemetry.latestPreviousAuthoritativeReferenceKind = 'none'
+                    $telemetry.latestPreviousAuthoritativeSameFrame = $false
+                    $telemetry.latestPreviousAuthoritativeReferenceEligible = $false
+                    $telemetry.latestEntityRawCurrentYawResidualDegrees = 0.2
+                    $telemetry.latestEntityPhaseAdjustedYawResidualDegrees = 0.2
+                    $telemetry.latestEntityYawAuthorityAgeSteps = $null
+                    $telemetry.latestPhaseLagObserved = $true
+                    $telemetry.latestPhaseLagViolation = $true
+                    $telemetry.latestRecoveryUpdateObserved = $true
+                    $telemetry.latestRecoveryPendingAfterSample = $false
+                    $telemetry.preCorrectionRotationResidualDegrees = 0.2
+                }
+                'duplicated-raw-required' { $telemetry.phaseLagRecoveryRequiredRawCount = 1 }
+                'outstanding-counter' { $telemetry.outstandingPhaseLagRecoveryCount = 0 }
+            }
+            [void](Write-TestMovementEvidence $movementRequest.evidenceRoot $movementRequest @($telemetry) $scenario)
+            $manifest = Read-KmcJson (Join-Path $movementRequest.evidenceRoot 'runtime-artifacts.json')
+            $threw=$false
+            try { Assert-KmcMovementScenarioEvidence -Request $movementRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($movementSubresult) } catch { $threw=$true }
+            Assert-Test $threw "movement telemetry accepted unsafe aligned yaw-recovery carry mutation $mutation"
         }
     }
     Invoke-HarnessTest 'PASS movement validator rejects cleanup-after residue mutation' {
