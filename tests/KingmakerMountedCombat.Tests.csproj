@@ -37,6 +37,7 @@
     <Compile Include="MountedRelationshipTests.cs" />
     <Compile Include="MountedPlayerActionTests.cs" />
     <Compile Include="RuntimeSaveAuthorizationTests.cs" />
+    <Compile Include="StopEarlyCaptureBoundaryTests.cs" />
     <Compile Include="WorkingFixtureLoadWatchdogTests.cs" />
     <Compile Include="BoundaryFailureDrainTests.cs" />
     <Compile Include="BoundaryScenarioEvidenceContractTests.cs" />
@@ -56,6 +57,9 @@
     </Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\RuntimeSaveAuthorization.cs">
       <Link>Shared\RuntimeSaveAuthorization.cs</Link>
+    </Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\StopEarlyCaptureBoundary.cs">
+      <Link>Shared\StopEarlyCaptureBoundary.cs</Link>
     </Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\WorkingFixtureLoadWatchdog.cs">
       <Link>Shared\WorkingFixtureLoadWatchdog.cs</Link>

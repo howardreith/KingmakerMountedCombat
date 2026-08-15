@@ -98,6 +98,7 @@
     <Compile Include="Diagnostics\RuntimeLifecycleScenarioEngine.cs" />
     <Compile Include="Diagnostics\RuntimeMovementScenarioEngine.cs" />
     <Compile Include="Diagnostics\RuntimeProtocol.cs" />
+    <Compile Include="Diagnostics\StopEarlyCaptureBoundary.cs" />
     <Compile Include="Diagnostics\WorkingFixtureLoadWatchdog.cs" />
     <Compile Include="Diagnostics\WorkingFixtureLoader.cs" />
     <Compile Include="Diagnostics\RuntimeSaveAuthorization.cs" />

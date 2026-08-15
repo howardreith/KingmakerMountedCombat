@@ -56,6 +56,17 @@ Assert-VisualCapture ($engine.Contains('screenshotCapture.Pump(frameNumber);') -
 Assert-VisualCapture (-not $engine.Contains('Screenshot.CapturePNG') -and
     -not $engine.Contains('pendingScreenshots') -and
     -not $engine.Contains('FlushReadyScreenshots')) 'movement engine cannot capture from Update or remove work before render-boundary completion'
+$stopCaptureDecisionIndex = $engine.IndexOf('var stopCaptureDecision = stopEarlyCaptureBoundary.Observe(true, navigationMovingCaptureTaken);', [StringComparison]::Ordinal)
+$stopCaptureMilestoneIndex = $engine.IndexOf('CaptureMilestone(navigationMilestone);', $stopCaptureDecisionIndex, [StringComparison]::Ordinal)
+$stopCaptureWaitIndex = $engine.IndexOf('if (stopCaptureDecision != StopEarlyCaptureDecision.Stop)', $stopCaptureDecisionIndex, [StringComparison]::Ordinal)
+$stopCaptureReturnIndex = $engine.IndexOf('return false;', $stopCaptureWaitIndex, [StringComparison]::Ordinal)
+$authoritativeStopIndex = $engine.IndexOf('RequireSelectionManager().Stop();', $stopCaptureDecisionIndex, [StringComparison]::Ordinal)
+Assert-VisualCapture ($engine.Contains('stopEarlyCaptureBoundary.Reset();') -and
+    $stopCaptureDecisionIndex -ge 0 -and
+    $stopCaptureMilestoneIndex -gt $stopCaptureDecisionIndex -and
+    $stopCaptureWaitIndex -gt $stopCaptureMilestoneIndex -and
+    $stopCaptureReturnIndex -gt $stopCaptureWaitIndex -and
+    $authoritativeStopIndex -gt $stopCaptureReturnIndex) 'stop-early rows queue a missing moving milestone and retain a render boundary before authoritative stop'
 $cameraResolveIndex = $coordinator.IndexOf('var camera = Game.GetCamera();', [StringComparison]::Ordinal)
 $cameraGuardIndex = $coordinator.IndexOf('if (!camera)', $cameraResolveIndex, [StringComparison]::Ordinal)
 $captureIndex = $coordinator.IndexOf('Screenshot.CapturePNG(camera);', [StringComparison]::Ordinal)

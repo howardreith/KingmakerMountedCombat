@@ -185,6 +185,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private readonly List<Vector3> probeCandidates = new List<Vector3>();
         private readonly List<string> probeRejections = new List<string>();
+        private readonly StopEarlyCaptureBoundary stopEarlyCaptureBoundary = new StopEarlyCaptureBoundary();
         private int probeIndex;
         private int probeGeneration;
         private bool probePending;
@@ -1923,6 +1924,7 @@ namespace KingmakerMountedCombat.Diagnostics
             probeRejections.Clear();
             phaseClock.Restart();
             navigationMovingCaptureTaken = false;
+            stopEarlyCaptureBoundary.Reset();
             navigationMilestone = movingMilestone;
             if (probeCandidates.Count == 0)
             {
@@ -1979,6 +1981,16 @@ namespace KingmakerMountedCombat.Diagnostics
 
                 if (navigationMode == NavigationMode.StopEarly && navigationMovedDistance >= 0.75d)
                 {
+                    var stopCaptureDecision = stopEarlyCaptureBoundary.Observe(true, navigationMovingCaptureTaken);
+                    if (stopCaptureDecision == StopEarlyCaptureDecision.CaptureAndWait)
+                    {
+                        navigationMovingCaptureTaken = true;
+                        CaptureMilestone(navigationMilestone);
+                    }
+                    if (stopCaptureDecision != StopEarlyCaptureDecision.Stop)
+                    {
+                        return false;
+                    }
                     RequireSelectionManager().Stop();
                     rowStopCommandIssuedCount++;
                     navigationStablePosition = mount.Position;

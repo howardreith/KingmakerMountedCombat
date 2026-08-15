@@ -7,7 +7,7 @@ namespace KingmakerMountedCombat
 {
     public static class Main
     {
-        private const string Version = "0.1.0-phase2a-dev.7";
+        private const string Version = "0.1.0-phase2a-dev.8";
         private static CompositionRoot root;
         private static UnityModManager.ModEntry activeModEntry;
 

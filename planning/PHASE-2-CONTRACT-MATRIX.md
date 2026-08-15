@@ -21,7 +21,7 @@ Historical baseline: Phase 1 evidence commit `d5bd7fa9c434f04c6f8487b61ea49e3cf9
 | Targeting/reach | Not present | Pair-scoped attacker/target spatial adapter; never global unit reach mutation | Range boundaries, target identity, non-mounted isolation | TODO |
 | Diagnostic hostile | No Phase 1 target | Prefer an existing safe hostile; otherwise stock runtime-only, rewardless, removable hostile under exact Working only | Spawn/removal/faction/reward/entity residue and external restoration | TODO |
 | Stretch reach/AoO/charge | Not authorized in Phase 1 | Only after core alpha is green; disable/defer independently if unsafe | Feature-specific RT/TB and non-mounted isolation | TODO |
-| Packaging/publication | Frozen Phase 1 diagnostic only | Phase 2A calibration identity `0.1.0-phase2a-dev.7`; exact Kingmaker AnimationModule allowlisted; guarded non-force branch publication; no release/main merge | Clean package allowlist, hashes/MVID, local/remote equality | IN PROGRESS |
+| Packaging/publication | Frozen Phase 1 diagnostic only | Phase 2A calibration identity `0.1.0-phase2a-dev.8`; exact Kingmaker AnimationModule allowlisted; guarded non-force branch publication; no release/main merge | Clean package allowlist, hashes/MVID, local/remote equality | IN PROGRESS |
 
 ## Ordering gate
 
