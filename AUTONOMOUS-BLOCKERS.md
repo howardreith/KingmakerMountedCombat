@@ -26,8 +26,6 @@ Exactly one Baseline and one Working exist, with zero KMC near-matches. Baseline
 
 ## Current uncertainties, not blockers
 
-- native runtime qualification of the implemented transient player-action surface;
-- actual fresh-process delivery and evidence binding for the now-implemented native lifecycle probes;
 - native humanoid pose facilities versus original procedural fallback;
 - accepted deterministic Mammoth rider pose profile;
 - direct portrait/action-bar/selection-circle/camera observation seams.
@@ -36,4 +34,4 @@ Resolve these through exact assembly inspection, bounded local decompilation, de
 
 ## Exact next action
 
-Commit, guarded-publish, and package the regression-tested native-area sticky-loading publication fix. Rerun pure `-WhatIf` with the exact new package, then execute wholly new fresh area A/B, mode A/B, and residue/uninstall A/B with exact restoration. Native save is already repeatable and must not be rerun absent a narrow regression. Then begin pose forensics. Actual IMGUI/button delivery remains part of Tranche B UI qualification. Do not implement combat or create a public release.
+Commit and guarded-publish the exact native-lifecycle qualification record, then begin bounded exact-assembly/asset pose forensics. Implement the reversible view-owned rider pose adapter and its deterministic evidence before expanding runtime protocol rows 3–9 for pose, actual IMGUI delivery, selection/portrait/action-bar observation, and camera. Do not rerun qualified native rows absent a narrow regression. Do not implement combat or create a public release.
