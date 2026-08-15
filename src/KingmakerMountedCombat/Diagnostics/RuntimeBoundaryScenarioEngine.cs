@@ -1113,10 +1113,10 @@ namespace KingmakerMountedCombat.Diagnostics
 
             if (IsLoading())
             {
-                loadingObserved = true;
                 stableWorldFrames = 0;
                 if (!string.Equals(currentRow, "native-area-clean-dismount", StringComparison.Ordinal))
                 {
+                    loadingObserved = true;
                     loadingStartObserved = true;
                     if (!loadingStartEvidenceWritten)
                     {

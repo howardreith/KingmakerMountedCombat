@@ -36,4 +36,4 @@ Resolve these through exact assembly inspection, bounded local decompilation, de
 
 ## Exact next action
 
-Commit, guarded-publish, and package the regression-tested end-of-frame native-area progress fix. Rerun pure `-WhatIf` with the exact new package, then execute new fresh area A/B, mode A/B, and residue/uninstall A/B with exact restoration. Native save is already repeatable and must not be rerun absent a narrow regression. Then begin pose forensics. Actual IMGUI/button delivery remains part of Tranche B UI qualification. Do not implement combat or create a public release.
+Commit, guarded-publish, and package the regression-tested native-area sticky-loading publication fix. Rerun pure `-WhatIf` with the exact new package, then execute wholly new fresh area A/B, mode A/B, and residue/uninstall A/B with exact restoration. Native save is already repeatable and must not be rerun absent a narrow regression. Then begin pose forensics. Actual IMGUI/button delivery remains part of Tranche B UI qualification. Do not implement combat or create a public release.
