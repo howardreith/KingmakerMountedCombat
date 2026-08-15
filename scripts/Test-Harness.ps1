@@ -3335,7 +3335,7 @@ try {
             writeAuthorization=[ordered]@{mode='working-only';allowedInternalName='KMC_AUTOMATION_WORKING';allowedFileName='Manual_2_KMC_AUTOMATION_WORKING.zks';baselineImmutable=$true}
         }
         $recomputeEvidence = Join-Path $runtimeEvidenceTestRoot 'recompute-evidence'
-        $v2Request=[pscustomobject]@{runId='recompute-test';scenario='fixture-intake';branch='codex/mounted-combat-feasibility';commit=('0'*40);productVersion='0.1.0-phase2a-dev.9';dllSha256=('a'*64);dllMvid=[Guid]::Empty.ToString();transactionToken=('b'*64);evidenceRoot=$recomputeEvidence;fixture=$fixture}
+        $v2Request=[pscustomobject]@{runId='recompute-test';scenario='fixture-intake';branch='codex/mounted-combat-feasibility';commit=('0'*40);productVersion='0.1.0-phase2a-dev.10';dllSha256=('a'*64);dllMvid=[Guid]::Empty.ToString();transactionToken=('b'*64);evidenceRoot=$recomputeEvidence;fixture=$fixture}
         $recomputeManifestHash = New-TestArtifactManifest -EvidenceRoot $recomputeEvidence -RunId $v2Request.runId -Scenario $v2Request.scenario
         $game=[pscustomobject]@{status='PASS';fixture=$fixture;evidenceManifestSha256=$recomputeManifestHash;subscenarioTotal=99;subscenarioPassCount=0;subscenarioFailCount=99;assertionPassCount=0;assertionFailCount=99;subscenarioResults=@([pscustomobject]@{name='observe-mount-diagnostic-availability';status='PASS';assertionPassCount=4;assertionFailCount=0;errors=@()})}
         $final=New-KmcRuntimeResultV2 -Request $v2Request -ValidatedGameResult $game -StartedAtUtc ([DateTimeOffset]::UtcNow) -ModsRestored $true -BaselineImmutable $true -WorkingRestored $true -SaveWriteAllowlistPassed $true -RestoredSaveInventoryDigest ('c'*64) -GameResultSha256 ('d'*64)
@@ -3346,7 +3346,7 @@ try {
 
     Invoke-HarnessTest 'schema-v2 fallback creates and binds a validated orchestration artifact manifest' {
         $fallbackEvidence = Join-Path $runtimeEvidenceTestRoot 'fallback-evidence'
-        $fallbackRequest=[pscustomobject]@{runId='fallback-test';scenario='fixture-intake';branch='codex/mounted-combat-feasibility';commit=('0'*40);productVersion='0.1.0-phase2a-dev.9';dllSha256=('a'*64);dllMvid=[Guid]::Empty.ToString();transactionToken=('b'*64);evidenceRoot=$fallbackEvidence;fixture=[ordered]@{baseline=[ordered]@{};working=[ordered]@{};writeAuthorization=[ordered]@{}}}
+        $fallbackRequest=[pscustomobject]@{runId='fallback-test';scenario='fixture-intake';branch='codex/mounted-combat-feasibility';commit=('0'*40);productVersion='0.1.0-phase2a-dev.10';dllSha256=('a'*64);dllMvid=[Guid]::Empty.ToString();transactionToken=('b'*64);evidenceRoot=$fallbackEvidence;fixture=[ordered]@{baseline=[ordered]@{};working=[ordered]@{};writeAuthorization=[ordered]@{}}}
         $final=New-KmcRuntimeResultV2 -Request $fallbackRequest -ValidatedGameResult $null -StartedAtUtc ([DateTimeOffset]::UtcNow) -ModsRestored $true -BaselineImmutable $true -WorkingRestored $true -SaveWriteAllowlistPassed $true -RestoredSaveInventoryDigest ('c'*64) -GameResultSha256 $null -Errors @('synthetic missing game result')
         $manifestPath = Join-Path $fallbackEvidence 'runtime-artifacts.json'
         Assert-Test ([string]$final.status -ceq 'FAIL') 'missing game result did not force final FAIL'
@@ -3392,7 +3392,7 @@ try {
     $request = [ordered]@{
         schemaVersion = 1; runId = 'schema-test'; scenario = 'mod-load-smoke'
         branch = 'codex/mounted-combat-feasibility'; commit = '0123456789abcdef0123456789abcdef01234567'
-        productVersion = '0.1.0-phase2a-dev.9'; dllSha256 = ('ab' * 32)
+        productVersion = '0.1.0-phase2a-dev.10'; dllSha256 = ('ab' * 32)
         dllMvid = '07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'
         transactionToken = ('cd' * 32)
         evidenceRoot = (Join-Path $runtimeEvidenceTestRoot 'schema-test')
@@ -4852,6 +4852,98 @@ try {
         $threw=$false
         try { Assert-KmcMovementScenarioEvidence -Request $suiteRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults $subresults.ToArray() } catch { $threw=$true }
         Assert-Test $threw 'movement-suite PASS accepted reordered row evidence'
+    }
+    Invoke-HarnessTest 'PASS movement validator permits only corrected InitialConfiguration residuals before calibration' {
+        $scenario = @((New-TestMovementPathProbeRecord $movementRequest $movementRow 0),(New-TestMovementRowRecord $movementRequest $movementRow 1))
+        $newCorrectedInitialConfiguration = {
+            $value = New-TestMovementTelemetryRecord $movementRequest $movementRow 0
+            $value.synchronizationPhase = 'InitialConfiguration'
+
+            $value.latestViewCurrentPositionResidualWorldUnits = 10.0
+            $value.latestEntityRawCurrentPositionResidualWorldUnits = 10.0
+            $value.latestEntityPhaseAdjustedPositionResidualWorldUnits = 10.0
+            $value.latestEntityRawPositionLagBoundWorldUnits = 0.0
+            $value.latestEntityRawPositionLagExcessWorldUnits = 10.0
+            $value.latestEntityPositionAuthorityAgeSteps = $null
+            $value.latestPositionPhaseLagObserved = $false
+            $value.latestPositionPhaseLagPermitted = $false
+            $value.latestPositionPhaseLagViolation = $false
+            $value.latestPositionRecoveryRequiredBeforeSample = $false
+            $value.latestPositionRecoveryUpdateObserved = $false
+            $value.latestPositionRecoverySatisfied = $false
+            $value.latestPositionRecoveryViolation = $false
+            $value.latestPositionRecoveryPendingAfterSample = $false
+            $value.latestPositionStationaryAuthority = $false
+            $value.latestStationaryPositionCorrectionViolation = $false
+            $value.preCorrectionPositionResidualWorldUnits = 10.0
+            $value.preCorrectionRawCurrentPositionResidualWorldUnits = 10.0
+            $value.preCorrectionViewCurrentPositionResidualWorldUnits = 10.0
+            $value.postCorrectionPositionResidualWorldUnits = 0.0
+            $value.maximumPreCorrectionPositionResidualWorldUnits = 10.0
+            $value.maximumPreCorrectionRawCurrentPositionResidualWorldUnits = 10.0
+            $value.maximumInitialConfigurationPreCorrectionPositionResidualWorldUnits = 10.0
+
+            $value.latestViewCurrentYawResidualDegrees = 170.0
+            $value.latestFullViewCurrentRotationResidualDegrees = 170.0
+            $value.latestEntityRawCurrentYawResidualDegrees = 170.0
+            $value.latestEntityPhaseAdjustedYawResidualDegrees = 170.0
+            $value.latestEntityRawLagBoundDegrees = 0.0
+            $value.latestEntityRawLagExcessDegrees = 170.0
+            $value.latestEntityYawAuthorityAgeSteps = $null
+            $value.latestPhaseLagObserved = $false
+            $value.latestPhaseLagPermitted = $false
+            $value.latestPhaseLagViolation = $false
+            $value.latestRecoveryRequiredBeforeSample = $false
+            $value.latestRecoveryUpdateObserved = $false
+            $value.latestRecoverySatisfied = $false
+            $value.latestRecoveryViolation = $false
+            $value.latestRecoveryPendingAfterSample = $false
+            $value.latestStationaryAuthority = $false
+            $value.latestStationaryYawCorrectionViolation = $false
+            $value.preCorrectionRotationResidualDegrees = 170.0
+            $value.postCorrectionRotationResidualDegrees = 0.0
+            $value.maximumPreCorrectionRotationResidualDegrees = 170.0
+            return $value
+        }
+
+        $telemetry = & $newCorrectedInitialConfiguration
+        [void](Write-TestMovementEvidence $movementRequest.evidenceRoot $movementRequest @($telemetry) $scenario)
+        $manifest = Read-KmcJson (Join-Path $movementRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcMovementScenarioEvidence -Request $movementRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($movementSubresult)
+
+        foreach ($mutation in @('uncorrected-position','uncorrected-rotation','calibrated-position','calibrated-rotation')) {
+            $telemetry = & $newCorrectedInitialConfiguration
+            switch ($mutation) {
+                'uncorrected-position' {
+                    $telemetry.postCorrectionPositionResidualWorldUnits = 0.100001
+                    $telemetry.maximumPostCorrectionPositionResidualWorldUnits = 0.100001
+                }
+                'uncorrected-rotation' {
+                    $telemetry.postCorrectionRotationResidualDegrees = 0.100001
+                    $telemetry.maximumPostCorrectionRotationResidualDegrees = 0.100001
+                }
+                'calibrated-position' {
+                    $telemetry.synchronizationPhase = 'Update'
+                    $telemetry.latestPositionPhaseLagObserved = $true
+                    $telemetry.latestPositionPhaseLagViolation = $true
+                    $telemetry.latestPositionStationaryAuthority = $true
+                    $telemetry.latestStationaryPositionCorrectionViolation = $true
+                }
+                'calibrated-rotation' {
+                    $telemetry.synchronizationPhase = 'Update'
+                    $telemetry.latestPhaseLagObserved = $true
+                    $telemetry.latestPhaseLagViolation = $true
+                    $telemetry.latestStationaryAuthority = $true
+                    $telemetry.latestStationaryYawCorrectionViolation = $true
+                }
+            }
+            [void](Write-TestMovementEvidence $movementRequest.evidenceRoot $movementRequest @($telemetry) $scenario)
+            $manifest = Read-KmcJson (Join-Path $movementRequest.evidenceRoot 'runtime-artifacts.json')
+            $threw = $false
+            try { Assert-KmcMovementScenarioEvidence -Request $movementRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($movementSubresult) }
+            catch { $threw = $true }
+            Assert-Test $threw "movement telemetry accepted unsafe InitialConfiguration mutation $mutation"
+        }
     }
     Invoke-HarnessTest 'presentation-suite requires exact pose UI camera path and cleanup evidence' {
         $suiteRows = @(Get-KmcPresentationRuntimeRows)

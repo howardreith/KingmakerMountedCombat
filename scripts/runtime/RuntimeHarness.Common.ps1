@@ -5800,9 +5800,12 @@ function Assert-KmcLatestPositionPhaseSemantics {
         -not (Test-KmcApproximatelyEqual ([double]$Record.preCorrectionRawCurrentPositionResidualWorldUnits) ([math]::Max($viewCurrent, $rawCurrent)))) {
         throw 'PASS movement telemetry latest pre-correction position fields do not reconcile with split view/raw/effective phase evidence.'
     }
-    if ($viewCurrent -gt 0.10 -or $expectedAdjusted -gt 0.10 -or
-        [double]$Record.latestEntityRawPositionLagExcessWorldUnits -gt 0.0001) {
+    if ($calibrated -and ($viewCurrent -gt 0.10 -or $expectedAdjusted -gt 0.10 -or
+        [double]$Record.latestEntityRawPositionLagExcessWorldUnits -gt 0.0001)) {
         throw 'PASS movement telemetry latest effective position or raw-lag arithmetic exceeds its bound.'
+    }
+    if (-not $calibrated -and [double]$Record.postCorrectionPositionResidualWorldUnits -gt 0.10) {
+        throw 'PASS movement telemetry InitialConfiguration position was not corrected within its fixed bound.'
     }
 }
 
@@ -6096,10 +6099,14 @@ function Assert-KmcMovementTelemetryRecord {
             throw 'PASS movement telemetry has inconsistent stationary-boundary closure counts.'
         }
         Assert-KmcLatestPositionPhaseSemantics $Record
+        $latestPhase = [string]$Record.synchronizationPhase
+        if ($latestPhase -cnotin @('InitialConfiguration','Update','LateUpdate')) { throw 'PASS movement telemetry synchronizationPhase is invalid.' }
+        $latestCalibrated = $latestPhase -ceq 'Update' -or $latestPhase -ceq 'LateUpdate'
         if ($Record.latestMountEntityRootYawResidualDegrees -ne $null -and [double]$Record.latestMountEntityRootYawResidualDegrees -gt 0.10) { throw 'PASS movement telemetry latest mount entity/root yaw is incoherent.' }
-        if ($Record.latestViewCurrentYawResidualDegrees -ne $null -and [double]$Record.latestViewCurrentYawResidualDegrees -gt 0.10) { throw 'PASS movement telemetry latest rider view yaw is not current.' }
-        if ($Record.latestFullViewCurrentRotationResidualDegrees -ne $null -and [double]$Record.latestFullViewCurrentRotationResidualDegrees -gt 0.10) { throw 'PASS movement telemetry latest rider view quaternion is not current.' }
-        if ($Record.latestEntityPhaseAdjustedYawResidualDegrees -ne $null -and [double]$Record.latestEntityPhaseAdjustedYawResidualDegrees -gt 0.10) { throw 'PASS movement telemetry latest logical entity yaw is not current or an eligible immediate prior yaw.' }
+        if ($latestCalibrated -and $Record.latestViewCurrentYawResidualDegrees -ne $null -and [double]$Record.latestViewCurrentYawResidualDegrees -gt 0.10) { throw 'PASS movement telemetry latest rider view yaw is not current.' }
+        if ($latestCalibrated -and $Record.latestFullViewCurrentRotationResidualDegrees -ne $null -and [double]$Record.latestFullViewCurrentRotationResidualDegrees -gt 0.10) { throw 'PASS movement telemetry latest rider view quaternion is not current.' }
+        if ($latestCalibrated -and $Record.latestEntityPhaseAdjustedYawResidualDegrees -ne $null -and [double]$Record.latestEntityPhaseAdjustedYawResidualDegrees -gt 0.10) { throw 'PASS movement telemetry latest logical entity yaw is not current or an eligible immediate prior yaw.' }
+        if (-not $latestCalibrated -and [double]$Record.postCorrectionRotationResidualDegrees -gt 0.10) { throw 'PASS movement telemetry InitialConfiguration rotation was not corrected within its fixed bound.' }
         if ($Record.latestPhaseLagPermitted -eq $true) {
             if ([string]$Record.synchronizationPhase -cne 'LateUpdate' -or [string]$Record.latestPreviousAuthoritativePhase -cne 'Update' -or
                 [string]$Record.latestPreviousAuthoritativeReferenceKind -cne 'same-frame-update' -or
@@ -6115,7 +6122,7 @@ function Assert-KmcMovementTelemetryRecord {
             'latestCurrentMountEntityAuthoritativeYawDegrees','latestMountEntityRootYawResidualDegrees',
             'latestAuthoritativeYawDeltaDegrees','latestViewCurrentYawResidualDegrees','latestFullViewCurrentRotationResidualDegrees',
             'latestEntityRawCurrentYawResidualDegrees','latestEntityPhaseAdjustedYawResidualDegrees','latestEntityRawLagBoundDegrees',
-            'latestEntityRawLagExcessDegrees','latestEntityYawAuthorityAgeSteps','latestPhaseLagObserved','latestPhaseLagPermitted',
+            'latestEntityRawLagExcessDegrees','latestPhaseLagObserved','latestPhaseLagPermitted',
             'latestPhaseLagViolation','latestRecoveryRequiredBeforeSample','latestRecoveryUpdateObserved','latestRecoverySatisfied',
             'latestRecoveryViolation','latestRecoveryPendingAfterSample','latestStationaryAuthority',
             'latestStationaryYawCorrectionViolation')
@@ -6123,9 +6130,8 @@ function Assert-KmcMovementTelemetryRecord {
             if ($null -eq $Record.$name) { throw "PASS movement telemetry latest phase-order field $name is null." }
         }
 
-        $phase = [string]$Record.synchronizationPhase
-        $calibrated = $phase -ceq 'Update' -or $phase -ceq 'LateUpdate'
-        if ($phase -cnotin @('InitialConfiguration','Update','LateUpdate')) { throw 'PASS movement telemetry synchronizationPhase is invalid.' }
+        $phase = $latestPhase
+        $calibrated = $latestCalibrated
         $rawCurrent = [double]$Record.latestEntityRawCurrentYawResidualDegrees
         $viewCurrent = [double]$Record.latestViewCurrentYawResidualDegrees
         $authoritativeDelta = [double]$Record.latestAuthoritativeYawDeltaDegrees
