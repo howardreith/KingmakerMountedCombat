@@ -112,6 +112,7 @@
     <Compile Include="Domain\MountedRelationshipCoordinator.cs" />
     <Compile Include="Domain\MovementTelemetry.cs" />
     <Compile Include="Domain\MountedRiderPoseProfile.cs" />
+    <Compile Include="Domain\MountedRiderGroundingPolicy.cs" />
     <Compile Include="Domain\PoseVector3.cs" />
     <Compile Include="Domain\RelationshipState.cs" />
     <Compile Include="Domain\ScopedPoseBaselineLease.cs" />

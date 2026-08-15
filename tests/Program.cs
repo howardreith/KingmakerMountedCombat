@@ -38,6 +38,7 @@ namespace KingmakerMountedCombat.Tests
             NativeLifecycleDeliveryLedgerTests.Register(runner);
             NativeAreaBoundaryProgressTests.Register(runner);
             MountedRiderPoseTests.Register(runner);
+            MountedRiderGroundingPolicyTests.Register(runner);
             StopEarlyCaptureBoundaryTests.Register(runner);
             PresentationOverlayEvidenceTests.Register(runner);
             return runner.Complete();
@@ -152,7 +153,7 @@ namespace KingmakerMountedCombat.Tests
                 Scenario = "mod-load-smoke",
                 Branch = "codex/mounted-combat-feasibility",
                 Commit = "3801345720241eeab75f2944d91948f182ca26aa",
-                ProductVersion = "0.1.0-phase2a-dev.11",
+                ProductVersion = "0.1.0-phase2a-dev.12",
                 DllSha256 = Sha,
                 DllMvid = Mvid,
                 EvidenceRoot = "runtime-evidence/kmc-smoke-001",
@@ -172,7 +173,7 @@ namespace KingmakerMountedCombat.Tests
                 Status = "PASS",
                 Branch = "codex/mounted-combat-feasibility",
                 Commit = "3801345720241eeab75f2944d91948f182ca26aa",
-                ProductVersion = "0.1.0-phase2a-dev.11",
+                ProductVersion = "0.1.0-phase2a-dev.12",
                 DllSha256 = Sha,
                 DllMvid = Mvid,
                 TransactionToken = Sha,
@@ -194,7 +195,7 @@ namespace KingmakerMountedCombat.Tests
                 Scenario = "fixture-intake",
                 Branch = "codex/mounted-combat-feasibility",
                 Commit = "3801345720241eeab75f2944d91948f182ca26aa",
-                ProductVersion = "0.1.0-phase2a-dev.11",
+                ProductVersion = "0.1.0-phase2a-dev.12",
                 DllSha256 = Sha,
                 DllMvid = Mvid,
                 EvidenceRoot = "runtime-evidence/kmc-fixture-001",
@@ -213,7 +214,7 @@ namespace KingmakerMountedCombat.Tests
                 Status = "PASS",
                 Branch = "codex/mounted-combat-feasibility",
                 Commit = "3801345720241eeab75f2944d91948f182ca26aa",
-                ProductVersion = "0.1.0-phase2a-dev.11",
+                ProductVersion = "0.1.0-phase2a-dev.12",
                 DllSha256 = Sha,
                 DllMvid = Mvid,
                 TransactionToken = Sha,

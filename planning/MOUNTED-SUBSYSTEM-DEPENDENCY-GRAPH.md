@@ -85,7 +85,8 @@ No global replacement of `UnitMoveController.Tick`, `UnitCommand.TickApproaching
 2. a prefix on exact private `ClickGroundHandler.RunCommand` token `0x060093DC` that rewrites/skips only active-pair arguments;
 3. pair-scoped selection and Stop/Hold forwarding with identity guards;
 4. existing event-bus interfaces for cleanup, plus cleanup-only save/load and continuous-control guards, qualified only within the direct-handler/service and real-load/real-reload scopes recorded below;
-5. UMM lifecycle callbacks for composition-root cleanup.
+5. an exact-token `UnitEntityView.ForcePlaceAboveGround` prefix that suppresses only the exact active rider while Mounted, preventing Kingmaker's standing terrain snap from moving the parented rider view and logical entity; and
+6. UMM lifecycle callbacks for composition-root cleanup.
 
 This keeps non-mounted paths on their original code.
 

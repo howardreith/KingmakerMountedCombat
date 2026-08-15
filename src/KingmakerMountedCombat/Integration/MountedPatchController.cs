@@ -44,7 +44,8 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(UnitMoveContiniously), "Init", 0x060026F0, new[] { typeof(UnitEntityData) }, nameof(PatchMethods.ContinuousMovePrefix));
                 PatchExact(typeof(SaveManager), "SaveRoutine", 0x06008029, new[] { typeof(SaveInfo), typeof(bool) }, nameof(PatchMethods.SavePrefix));
                 PatchExact(typeof(SaveManager), "LoadRoutine", 0x0600802C, new[] { typeof(SaveInfo), typeof(bool) }, nameof(PatchMethods.LoadPrefix));
-                logger.Info("Installed eight exact-token Harmony12 active-pair guards; global movement ticks remain unpatched.");
+                PatchExact(typeof(UnitEntityView), "ForcePlaceAboveGround", 0x06001848, Type.EmptyTypes, nameof(PatchMethods.ForcePlaceAboveGroundPrefix));
+                logger.Info("Installed nine exact-token Harmony12 active-pair guards; global movement ticks remain unpatched.");
             }
             catch
             {
@@ -133,6 +134,11 @@ namespace KingmakerMountedCombat.Integration
             internal static void ContinuousMovePrefix(UnitEntityData executor)
             {
                 PatchBridge.Service?.HandleUnexpectedPairCommand(executor);
+            }
+
+            internal static bool ForcePlaceAboveGroundPrefix(UnitEntityView __instance)
+            {
+                return PatchBridge.Service == null || !PatchBridge.Service.TrySuppressRiderGroundPlacement(__instance);
             }
 
             internal static bool SavePrefix(SaveManager __instance, SaveInfo saveInfo, bool forceAuto, ref IEnumerator<object> __result)

@@ -1438,6 +1438,11 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (rowPhase == 0)
             {
+                if (!RunMountedRiderGroundingRegressionProbe())
+                {
+                    BeginCleanup(CleanupTrigger.Exception);
+                    return;
+                }
                 RequireSelectionManager().SelectUnit(rider.View, true, true, false);
                 rowCameraFollowAccepted = Game.Instance.CameraController != null &&
                     Game.Instance.CameraController.Follower != null &&
@@ -1514,6 +1519,34 @@ namespace KingmakerMountedCombat.Diagnostics
                 AssertPoseTechnicalQuality();
                 BeginCleanup(CleanupTrigger.Manual);
             }
+        }
+
+        private bool RunMountedRiderGroundingRegressionProbe()
+        {
+            var failuresBefore = assertions.FailureCount;
+            var suppressionCountBefore = relationship.RiderGroundPlacementSuppressionCount;
+            var riderViewPositionBefore = rider.View.transform.position;
+            var riderEntityPositionBefore = rider.Position;
+
+            rider.View.ForcePlaceAboveGround();
+
+            var suppressionCountAfter = relationship.RiderGroundPlacementSuppressionCount;
+            var viewDelta = Vector3.Distance(riderViewPositionBefore, rider.View.transform.position);
+            var entityDelta = Vector3.Distance(riderEntityPositionBefore, rider.Position);
+            assertions.Check(suppressionCountAfter == suppressionCountBefore + 1L,
+                "The exact mounted-rider grounding call was intercepted once.",
+                "The exact mounted-rider grounding call was not intercepted exactly once; before/after=" +
+                suppressionCountBefore + "/" + suppressionCountAfter + ".");
+            assertions.Check(viewDelta <= 0.000001f && entityDelta <= 0.000001f,
+                "The intercepted grounding call left rider view and entity positions unchanged.",
+                "The intercepted grounding call changed rider view/entity position by " +
+                viewDelta.ToString("0.000000", CultureInfo.InvariantCulture) + "/" +
+                entityDelta.ToString("0.000000", CultureInfo.InvariantCulture) + " world units.");
+            logger.Info("Mounted-rider grounding regression probe: suppression before/after=" +
+                suppressionCountBefore + "/" + suppressionCountAfter +
+                ", view/entity delta=" + viewDelta.ToString("0.000000", CultureInfo.InvariantCulture) + "/" +
+                entityDelta.ToString("0.000000", CultureInfo.InvariantCulture) + ".");
+            return assertions.FailureCount == failuresBefore;
         }
 
         private bool BeginFormationExercise()

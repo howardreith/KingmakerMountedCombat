@@ -37,6 +37,8 @@ namespace KingmakerMountedCombat.Integration
 
         internal KingmakerMountedPairRuntime Runtime => runtime;
 
+        public long RiderGroundPlacementSuppressionCount { get; private set; }
+
         public string LastResult { get; private set; } = "No diagnostic action has run.";
 
         public TransitionResult LastTransition { get; private set; }
@@ -210,6 +212,27 @@ namespace KingmakerMountedCombat.Integration
                 }
             }
 
+            return true;
+        }
+
+        public bool TrySuppressRiderGroundPlacement(UnitEntityView view)
+        {
+            var riderView = runtime.Rider?.View;
+            if (riderView == null || view == null)
+            {
+                return false;
+            }
+
+            if (!MountedRiderGroundingPolicy.ShouldSuppress(
+                coordinator.State,
+                coordinator.ActivePair != null,
+                riderView,
+                view))
+            {
+                return false;
+            }
+
+            RiderGroundPlacementSuppressionCount++;
             return true;
         }
 
