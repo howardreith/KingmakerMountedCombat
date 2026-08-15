@@ -36,4 +36,4 @@ Resolve these through exact assembly inspection, bounded local decompilation, de
 
 ## Exact next action
 
-Commit, package, and run `native-save-clean-dismount`, `native-area-clean-dismount`, `native-mode-transition-cleanup`, and `presentation-residue-and-uninstall-safety` twice each in fresh processes with exact restoration. Then begin pose forensics. The player-action controller rows are repeatable; actual IMGUI/button delivery remains part of Tranche B UI qualification. Do not implement combat or create a public release.
+Commit and package the regression-tested native-row validator allowlist repair, rerun pure `-WhatIf`, then run `native-save-clean-dismount`, `native-area-clean-dismount`, `native-mode-transition-cleanup`, and `presentation-residue-and-uninstall-safety` twice each in fresh processes with exact restoration. Then begin pose forensics. The player-action controller rows are repeatable; actual IMGUI/button delivery remains part of Tranche B UI qualification. Do not implement combat or create a public release.

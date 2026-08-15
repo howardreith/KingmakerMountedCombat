@@ -3417,6 +3417,24 @@ try {
         & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath
     }
 
+    Invoke-HarnessTest 'runtime request schema accepts every exact native lifecycle row' {
+        foreach ($nativeRow in @(
+            'native-save-clean-dismount',
+            'native-area-clean-dismount',
+            'native-mode-transition-cleanup',
+            'presentation-residue-and-uninstall-safety')) {
+            $v2Request.scenario = $nativeRow
+            $v2Request.runId = 'schema-v2-' + $nativeRow
+            $v2Request.evidenceRoot = Join-Path $runtimeEvidenceTestRoot $v2Request.runId
+            Write-KmcJsonAtomic $v2RequestPath $v2Request
+            & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath
+        }
+        $v2Request.scenario = 'mounted-pair-create-and-clear'
+        $v2Request.runId = 'schema-v2-test'
+        $v2Request.evidenceRoot = Join-Path $runtimeEvidenceTestRoot 'schema-v2-test'
+        Write-KmcJsonAtomic $v2RequestPath $v2Request
+    }
+
     $v2GameResultPath = Join-Path $testRoot 'runtime-game-result-v2.json'
     $lifecycleEvidencePath = Join-Path $v2Request.evidenceRoot 'lifecycle-scenario-evidence.jsonl'
     $lifecycleRow = 'mounted-pair-create-and-clear'

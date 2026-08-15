@@ -88,7 +88,7 @@ if(-not $isSaveBacked -and $SaveAccessAllowed){
     throw 'The schema-v1 mod-load-smoke scenario is an exact no-save run and rejects -SaveAccessAllowed.'
 }
 if($isSaveBacked -and @(Get-KmcSaveBackedRuntimeScenarios|Where-Object { $_ -ceq $Scenario }).Count -ne 1){
-    throw 'The requested scenario is outside the save-backed Phase 1 allowlist.'
+    throw 'The requested scenario is outside the save-backed mission allowlist.'
 }
 if([string]::IsNullOrWhiteSpace($PackagePath)){
     $version=Read-KmcJson (Join-Path $repoRoot 'version.json')

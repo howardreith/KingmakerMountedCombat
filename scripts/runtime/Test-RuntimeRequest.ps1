@@ -94,7 +94,9 @@ $missionScenarios = @(
     'mounted-pair-stop-start', 'mounted-pair-turns-and-corners', 'mounted-pair-doorway', 'mounted-pair-selection',
     'mounted-pair-party-formation', 'mounted-pair-pause-unpause', 'mounted-pair-destination-cancel',
     'mounted-pair-turn-based-entry-cleanup', 'mounted-pair-realtime-entry-cleanup', 'mounted-pair-save-safety',
-    'mounted-pair-load-safety', 'mounted-pair-area-transition-safety'
+    'mounted-pair-load-safety', 'mounted-pair-area-transition-safety',
+    'native-save-clean-dismount', 'native-area-clean-dismount', 'native-mode-transition-cleanup',
+    'presentation-residue-and-uninstall-safety'
 )
 $aggregateScenarios = @('fixture-intake','lifecycle-suite','movement-suite','boundary-suite')
 
@@ -117,7 +119,7 @@ if ($schemaVersion -eq 1) {
     if ($request.saveAccessAllowed -ne $false -or $null -ne $request.saveName) { throw 'Schema-v1 runtime request is not an exact no-save request.' }
 }
 else {
-    if (@($missionScenarios + $aggregateScenarios | Where-Object { $_ -ceq [string]$request.scenario }).Count -ne 1 -or [string]$request.scenario -ceq 'mod-load-smoke') { throw 'Schema-v2 scenario is outside the save-backed Phase 1 allowlist.' }
+    if (@($missionScenarios + $aggregateScenarios | Where-Object { $_ -ceq [string]$request.scenario }).Count -ne 1 -or [string]$request.scenario -ceq 'mod-load-smoke') { throw 'Schema-v2 scenario is outside the save-backed mission allowlist.' }
     Assert-RuntimeFixture $request.fixture
 }
 

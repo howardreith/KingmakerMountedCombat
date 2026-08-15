@@ -157,7 +157,9 @@ function Assert-SubscenarioResults {
         'mounted-pair-stop-start', 'mounted-pair-turns-and-corners', 'mounted-pair-doorway', 'mounted-pair-selection',
         'mounted-pair-party-formation', 'mounted-pair-pause-unpause', 'mounted-pair-destination-cancel',
         'mounted-pair-turn-based-entry-cleanup', 'mounted-pair-realtime-entry-cleanup', 'mounted-pair-save-safety',
-        'mounted-pair-load-safety', 'mounted-pair-area-transition-safety'
+        'mounted-pair-load-safety', 'mounted-pair-area-transition-safety',
+        'native-save-clean-dismount', 'native-area-clean-dismount', 'native-mode-transition-cleanup',
+        'presentation-residue-and-uninstall-safety'
     )
     if ($null -eq $Game.subscenarioResults -or $Game.subscenarioResults -is [string]) { throw 'Runtime game-result subscenarioResults must be an array.' }
     $items = @($Game.subscenarioResults)
