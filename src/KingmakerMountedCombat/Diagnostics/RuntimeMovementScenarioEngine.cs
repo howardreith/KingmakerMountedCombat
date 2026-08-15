@@ -2965,6 +2965,11 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             try
             {
+                // Unity destroys the disabled owned components at the render
+                // boundary after dismount. Publish cleanup-after evidence from
+                // this verified later frame, not from the transition frame.
+                cleanupAfter = CleanupStateEvidence.Capture(pendingCleanupTrigger, relationship, rider, mount, Game.Instance);
+                cleanupResidual = cleanupResidual || cleanupAfter.HasMountedResidual;
                 var failuresBeforeCleanupVerification = assertions.FailureCount;
                 var clean = relationship.State == RelationshipState.Unmounted && relationship.Rider == null && relationship.Mount == null && relationship.Runtime.MovementAgent == null;
                 assertions.Check(clean,
