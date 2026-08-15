@@ -60,3 +60,9 @@ Fixture descriptor identity and protected-save continuity pass. The F1 exact aud
 The three F0 deferrals are superseded by F1 PASS evidence, not erased: doorway, away/back selection, and stock party formation each passed twice in fresh processes under unchanged gates. No K1–K12 criterion fired. The final 25-row ledger is `25 PASS / 0 attributable FAIL / 0 DEFER`.
 
 Architecture B is selected and remains default-off. The truthful status is `PHASE 1 COMPLETE — PROCEED RECOMMENDED`, subject to the existing `MECHANICALLY VIABLE, NEW ANIMATION/POSE WORK REQUIRED` limitation. Phase 2 remains outside current execution authorization and requires a separate mission.
+
+## Phase 2A review-gate overlay
+
+The separately authorized Phase 2 mission has not changed any Phase 1 kill criterion. Dev.13 complete-suite A/B each pass all seven presentation rows at `381/0` under unchanged synchronization, cleanup, screenshot, and `2000/500`-microsecond pose-cost gates. The first-row maxima are `24.8` and `15.4` microseconds, so the dev.12 `2017.7` outlier is closed by reversible cold-path priming rather than threshold relaxation.
+
+The remaining presentation risk is subjective and deliberately human-owned: pose acceptability, fixture-geometry occlusion, doorway/edge framing, native blue selection silhouette, camera feel, and physical pointer behavior. The guarded review path permits no save writes, rejects save/load/combat/area/mode drift, records only `PENDING`, and restores external state after normal exit. Until the user accepts the exact published review package, the truthful authorization state is `BLOCKED - MANUAL VISUAL ACCEPTANCE REQUIRED` once all remaining package/repeat/publication work is complete; no combat implementation is permitted before then.

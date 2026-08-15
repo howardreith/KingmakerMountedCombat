@@ -9,11 +9,15 @@ $coordinatorPath = Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\M
 $statePath = Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\MovementScreenshotCaptureState.cs'
 $enginePath = Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeMovementScenarioEngine.cs'
 $poseAdapterPath = Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedRiderPoseAdapter.cs'
+$manualReviewPath = Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeManualReviewSession.cs'
+$compositionPath = Join-Path $repoRoot 'src\KingmakerMountedCombat\CompositionRoot.cs'
 $projectPath = Join-Path $repoRoot 'src\KingmakerMountedCombat\KingmakerMountedCombat.csproj'
 $coordinator = [IO.File]::ReadAllText($coordinatorPath)
 $state = [IO.File]::ReadAllText($statePath)
 $engine = [IO.File]::ReadAllText($enginePath)
 $poseAdapter = [IO.File]::ReadAllText($poseAdapterPath)
+$manualReview = [IO.File]::ReadAllText($manualReviewPath)
+$composition = [IO.File]::ReadAllText($compositionPath)
 $project = [IO.File]::ReadAllText($projectPath)
 $passes = 0
 $failures = New-Object 'System.Collections.Generic.List[string]'
@@ -118,6 +122,13 @@ Assert-VisualCapture ($poseAcquireIndex -ge 0 -and
     $posePrimeMethod.Contains('var started = Stopwatch.GetTimestamp();') -and
     $posePrimeMethod.Contains('baselineLease.PrimeFrame(ApplyPose);') -and
     $posePrimeMethod.Contains('TicksToMicroseconds(Stopwatch.GetTimestamp() - started)')) 'pose cold path is reversibly primed before per-frame evidence counters and configuration become active'
+Assert-VisualCapture ($manualReview.Contains('ValidateReadOnlyBoundary();') -and
+    $manualReview.Contains('saveAuthorization.AuthorizedWriteCount != 0') -and
+    $manualReview.Contains('relationship.MountAutomationPair()') -and
+    $manualReview.Contains('runtime.PoseFrameApplied') -and
+    $manualReview.Contains('VisualAcceptance = "PENDING"') -and
+    $manualReview.Contains('relationship.Dismount(CleanupTrigger.ProcessTeardown)') -and
+    $composition.Contains('runtimeAutomation != null && !runtimeAutomation.IsManualReview')) 'manual review establishes exact mounted pose/UI state without writes or unbounded telemetry and retains process-teardown cleanup'
 $cameraResolveIndex = $coordinator.IndexOf('var camera = Game.GetCamera();', [StringComparison]::Ordinal)
 $cameraGuardIndex = $coordinator.IndexOf('if (!camera)', $cameraResolveIndex, [StringComparison]::Ordinal)
 $captureIndex = $coordinator.IndexOf('Screenshot.CapturePNG(camera);', [StringComparison]::Ordinal)

@@ -3208,6 +3208,107 @@ try {
         Assert-Test ([string]$payload.writeAuthorization.mode -ceq 'working-only' -and [string]$payload.writeAuthorization.allowedInternalName -ceq 'KMC_AUTOMATION_WORKING' -and $payload.writeAuthorization.baselineImmutable) 'fixture payload write authorization differs'
     }
 
+    Invoke-HarnessTest 'manual review fixture payload is path-free and read-only' {
+        $payloadRoot = Join-Path $testRoot 'manual-review-payload-saves'
+        New-Item -ItemType Directory -Path $payloadRoot | Out-Null
+        New-TestSaveArchive -Path (Join-Path $payloadRoot 'Manual_1_KMC_AUTOMATION_BASELINE.zks') -Name 'KMC_AUTOMATION_BASELINE'
+        New-TestSaveArchive -Path (Join-Path $payloadRoot 'Manual_2_KMC_AUTOMATION_WORKING.zks') -Name 'KMC_AUTOMATION_WORKING'
+        $payload = New-KmcRuntimeFixturePayload (Get-KmcValidatedFixturePair $payloadRoot) -ReadOnly
+        Assert-Test (@($payload.Keys).Count -eq 3) 'read-only fixture payload property count differs'
+        Assert-Test (@($payload.baseline.Keys + $payload.working.Keys | Where-Object { $_ -in @('path','kind','schemaVersion') }).Count -eq 0) 'read-only fixture payload disclosed a host path or guard-only field'
+        Assert-Test ([string]$payload.writeAuthorization.mode -ceq 'read-only' -and
+            $null -eq $payload.writeAuthorization.allowedInternalName -and
+            $null -eq $payload.writeAuthorization.allowedFileName -and
+            $payload.writeAuthorization.baselineImmutable) 'manual review fixture payload is not exact read-only authorization'
+    }
+
+    Invoke-HarnessTest 'manual review launcher delegates only to the guarded transactional runtime path' {
+        $manualLauncherSource = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'runtime\Invoke-KingmakerManualReview.ps1')
+        $runtimeLauncherSource = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'runtime\Invoke-KingmakerRuntimeScenario.ps1')
+        $manualSessionSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeManualReviewSession.cs')
+        Assert-Test ($manualLauncherSource.Contains("Scenario = 'manual-visual-review'") -and
+            $manualLauncherSource.Contains("Invoke-KingmakerRuntimeScenario.ps1") -and
+            $manualLauncherSource.Contains("if (`$WhatIfPreference) { `$invoke['WhatIf'] = `$true }") -and
+            -not $manualLauncherSource.Contains('Start-Process') -and -not $manualLauncherSource.Contains('Stop-Process')) 'manual launcher does not exclusively delegate to the guarded runtime launcher'
+        Assert-Test ($runtimeLauncherSource.Contains('New-KmcRuntimeFixturePayload $preflightPair -ReadOnly:$isManualReview') -and
+            $runtimeLauncherSource.Contains("'waiting-for-manual-review-ready'") -and
+            $runtimeLauncherSource.Contains("'manual-review-ready'") -and
+            $runtimeLauncherSource.Contains('Kingmaker process attribution changed during manual review') -and
+            $runtimeLauncherSource.Contains('Restore-KmcRuntimeTransactions') -and
+            $runtimeLauncherSource.Contains("visualAcceptance='PENDING'") -and
+            -not $runtimeLauncherSource.Contains('Stop-Process')) 'guarded runtime launcher lacks exact interactive READY, pending-acceptance, wait, or restoration boundaries'
+        Assert-Test ($manualSessionSource.Contains('ValidateReadOnlyBoundary();') -and
+            $manualSessionSource.Contains('saveAuthorization.AuthorizedWriteCount != 0') -and
+            $manualSessionSource.Contains('game.Player.MainCharacter.Value == null') -and
+            $manualSessionSource.Contains('relationship.MountAutomationPair()') -and
+            $manualSessionSource.Contains('VisualAcceptance = "PENDING"') -and
+            $manualSessionSource.Contains('Application.Quit();')) 'in-game manual review session lacks exact read-only, mount, pending-acceptance, or failure-quit behavior'
+    }
+
+    Invoke-HarnessTest 'manual review request READY and restored-result validators bind exact read-only evidence' {
+        $manualEvidence = Join-Path $runtimeEvidenceTestRoot 'manual-review-validator'
+        New-Item -ItemType Directory -Path $manualEvidence | Out-Null
+        $manualFixture = [ordered]@{
+            baseline = [ordered]@{internalName='KMC_AUTOMATION_BASELINE';fileName='Manual_1_KMC_AUTOMATION_BASELINE.zks';sha256=('a'*64);length=101L;lastWriteTimeUtcTicks=638907120000000000L;gameId='11111111-2222-3333-4444-555555555555';gameName='KMC Fixture';area='0123456789abcdef0123456789abcdef'}
+            working = [ordered]@{internalName='KMC_AUTOMATION_WORKING';fileName='Manual_2_KMC_AUTOMATION_WORKING.zks';sha256=('b'*64);length=202L;lastWriteTimeUtcTicks=638907120010000000L;gameId='11111111-2222-3333-4444-555555555555';gameName='KMC Fixture';area='0123456789abcdef0123456789abcdef'}
+            writeAuthorization = [ordered]@{mode='read-only';allowedInternalName=$null;allowedFileName=$null;baselineImmutable=$true}
+        }
+        $manualRequest = [ordered]@{
+            schemaVersion=2;runId='manual-review-validator';scenario='manual-visual-review';branch='codex/mounted-combat-phase2-alpha';
+            commit=('c'*40);productVersion='0.1.0-phase2a-review.1';dllSha256=('d'*64);dllMvid='aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+            transactionToken=('e'*64);evidenceRoot=$manualEvidence;fixture=$manualFixture
+        }
+        $manualRequestPath = Join-Path $manualEvidence 'runtime-request.json'
+        Write-KmcJsonAtomic $manualRequestPath $manualRequest
+        $requestValidated = $false
+        & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $manualRequestPath
+        $requestValidated = $true
+        Assert-Test $requestValidated 'read-only manual review request validator did not pass exact schema-v2 evidence'
+
+        $manualManifest = [ordered]@{schemaVersion=2;branch=$manualRequest.branch;commit=$manualRequest.commit;version=$manualRequest.productVersion;dllSha256=$manualRequest.dllSha256;dllMvid=$manualRequest.dllMvid;worktreeClean=$true;qualificationEligible=$true}
+        $manualManifestPath = Join-Path $manualEvidence 'package.manifest.json'
+        Write-KmcJsonAtomic $manualManifestPath $manualManifest
+        $ready = [ordered]@{
+            schemaVersion=1;evidenceKind='manual-visual-review-ready';runId=$manualRequest.runId;scenario=$manualRequest.scenario;status='READY';
+            branch=$manualRequest.branch;commit=$manualRequest.commit;productVersion=$manualRequest.productVersion;dllSha256=$manualRequest.dllSha256;dllMvid=$manualRequest.dllMvid;
+            transactionToken=$manualRequest.transactionToken;readyAtUtc='2026-08-15T14:00:01Z';loadedModId='KingmakerMountedCombat';gameVersion='2.1.7b';
+            processId=4242;currentGameMode='Default';loadedAreaGuid=$manualFixture.working.area;fixtureIdentityVerified=$true;
+            workingInternalName='KMC_AUTOMATION_WORKING';workingFileName=$manualFixture.working.fileName;saveWriteMode='read-only';
+            loadRequestCount=1;saveRequestCount=0;authorizedLoadCount=1;authorizedWriteCount=0;unauthorizedLoadCount=0;unauthorizedWriteCount=0;
+            relationshipState='Mounted';movementExperimentEnabled=$true;riderId='rider-id';mountId='mount-id';mountBlueprintGuid='e7aa96d15a45238438ae4cfb476f6bb9';
+            selectedUnitIds=@('rider-id');actionLabel='Dismount';actionVisible=$true;actionEnabled=$true;poseProfileId='medium-humanoid-mammoth-v1';
+            poseHealthy=$true;poseFrameApplied=$true;poseBoneCount=7;poseComponentCount=1;visualAcceptance='PENDING'
+        }
+        $readyPath = Join-Path $manualEvidence 'manual-review-ready.json'
+        Write-KmcJsonAtomic $readyPath $ready
+        $readyValidated = $false
+        & (Join-Path $PSScriptRoot 'runtime\Test-KmcManualReviewReady.ps1') -ReadyPath $readyPath -RequestPath $manualRequestPath -PackageManifestPath $manualManifestPath -ExpectedProcessId 4242 -NotBeforeUtc ([DateTimeOffset]'2026-08-15T14:00:00Z')
+        $readyValidated = $true
+        Assert-Test $readyValidated 'manual review READY validator did not pass exact evidence'
+
+        $manualResult = [ordered]@{
+            schemaVersion=1;evidenceKind='manual-visual-review-session';runId=$manualRequest.runId;scenario=$manualRequest.scenario;status='PASS';
+            branch=$manualRequest.branch;commit=$manualRequest.commit;productVersion=$manualRequest.productVersion;dllSha256=$manualRequest.dllSha256;dllMvid=$manualRequest.dllMvid;
+            transactionToken=$manualRequest.transactionToken;startedAtUtc='2026-08-15T14:00:00Z';completedAtUtc='2026-08-15T14:05:00Z';
+            reviewReady=$true;readyAtUtc=$ready.readyAtUtc;readyEvidenceSha256=(Get-KmcSha256 $readyPath);visualAcceptance='PENDING';processExited=$true;
+            modsRestored=$true;saveProtectionPassed=$true;baselineImmutable=$true;workingRestored=$true;saveWriteAllowlistPassed=$true;
+            restoredSaveInventoryDigest=('f'*64);errors=@()
+        }
+        $manualResultPath = Join-Path $manualEvidence 'manual-review-result.json'
+        Write-KmcJsonAtomic $manualResultPath $manualResult
+        $resultValidated = $false
+        & (Join-Path $PSScriptRoot 'runtime\Test-KmcManualReviewResult.ps1') -ResultPath $manualResultPath -RequestPath $manualRequestPath
+        $resultValidated = $true
+        Assert-Test $resultValidated 'manual review restored-result validator did not pass exact evidence'
+
+        $ready.visualAcceptance = 'ACCEPTED'
+        [IO.File]::WriteAllText($readyPath, ($ready | ConvertTo-Json -Depth 20), (New-Object Text.UTF8Encoding($false)))
+        $rejected = $false
+        try { & (Join-Path $PSScriptRoot 'runtime\Test-KmcManualReviewReady.ps1') -ReadyPath $readyPath -RequestPath $manualRequestPath -PackageManifestPath $manualManifestPath -ExpectedProcessId 4242 -NotBeforeUtc ([DateTimeOffset]'2026-08-15T14:00:00Z') | Out-Null }
+        catch { $rejected = $true }
+        Assert-Test $rejected 'manual review READY validator accepted fabricated visual acceptance'
+    }
+
     Invoke-HarnessTest 'runtime request bytes are bound to the launched process' {
         $launcherSource = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'runtime\Invoke-KingmakerRuntimeScenario.ps1')
         $hostSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeAutomationHost.cs')
@@ -3346,7 +3447,7 @@ try {
             writeAuthorization=[ordered]@{mode='working-only';allowedInternalName='KMC_AUTOMATION_WORKING';allowedFileName='Manual_2_KMC_AUTOMATION_WORKING.zks';baselineImmutable=$true}
         }
         $recomputeEvidence = Join-Path $runtimeEvidenceTestRoot 'recompute-evidence'
-        $v2Request=[pscustomobject]@{runId='recompute-test';scenario='fixture-intake';branch='codex/mounted-combat-feasibility';commit=('0'*40);productVersion='0.1.0-phase2a-dev.13';dllSha256=('a'*64);dllMvid=[Guid]::Empty.ToString();transactionToken=('b'*64);evidenceRoot=$recomputeEvidence;fixture=$fixture}
+        $v2Request=[pscustomobject]@{runId='recompute-test';scenario='fixture-intake';branch='codex/mounted-combat-feasibility';commit=('0'*40);productVersion='0.1.0-phase2a-review.1';dllSha256=('a'*64);dllMvid=[Guid]::Empty.ToString();transactionToken=('b'*64);evidenceRoot=$recomputeEvidence;fixture=$fixture}
         $recomputeManifestHash = New-TestArtifactManifest -EvidenceRoot $recomputeEvidence -RunId $v2Request.runId -Scenario $v2Request.scenario
         $game=[pscustomobject]@{status='PASS';fixture=$fixture;evidenceManifestSha256=$recomputeManifestHash;subscenarioTotal=99;subscenarioPassCount=0;subscenarioFailCount=99;assertionPassCount=0;assertionFailCount=99;subscenarioResults=@([pscustomobject]@{name='observe-mount-diagnostic-availability';status='PASS';assertionPassCount=4;assertionFailCount=0;errors=@()})}
         $final=New-KmcRuntimeResultV2 -Request $v2Request -ValidatedGameResult $game -StartedAtUtc ([DateTimeOffset]::UtcNow) -ModsRestored $true -BaselineImmutable $true -WorkingRestored $true -SaveWriteAllowlistPassed $true -RestoredSaveInventoryDigest ('c'*64) -GameResultSha256 ('d'*64)
@@ -3357,7 +3458,7 @@ try {
 
     Invoke-HarnessTest 'schema-v2 fallback creates and binds a validated orchestration artifact manifest' {
         $fallbackEvidence = Join-Path $runtimeEvidenceTestRoot 'fallback-evidence'
-        $fallbackRequest=[pscustomobject]@{runId='fallback-test';scenario='fixture-intake';branch='codex/mounted-combat-feasibility';commit=('0'*40);productVersion='0.1.0-phase2a-dev.13';dllSha256=('a'*64);dllMvid=[Guid]::Empty.ToString();transactionToken=('b'*64);evidenceRoot=$fallbackEvidence;fixture=[ordered]@{baseline=[ordered]@{};working=[ordered]@{};writeAuthorization=[ordered]@{}}}
+        $fallbackRequest=[pscustomobject]@{runId='fallback-test';scenario='fixture-intake';branch='codex/mounted-combat-feasibility';commit=('0'*40);productVersion='0.1.0-phase2a-review.1';dllSha256=('a'*64);dllMvid=[Guid]::Empty.ToString();transactionToken=('b'*64);evidenceRoot=$fallbackEvidence;fixture=[ordered]@{baseline=[ordered]@{};working=[ordered]@{};writeAuthorization=[ordered]@{}}}
         $final=New-KmcRuntimeResultV2 -Request $fallbackRequest -ValidatedGameResult $null -StartedAtUtc ([DateTimeOffset]::UtcNow) -ModsRestored $true -BaselineImmutable $true -WorkingRestored $true -SaveWriteAllowlistPassed $true -RestoredSaveInventoryDigest ('c'*64) -GameResultSha256 $null -Errors @('synthetic missing game result')
         $manifestPath = Join-Path $fallbackEvidence 'runtime-artifacts.json'
         Assert-Test ([string]$final.status -ceq 'FAIL') 'missing game result did not force final FAIL'
@@ -3403,7 +3504,7 @@ try {
     $request = [ordered]@{
         schemaVersion = 1; runId = 'schema-test'; scenario = 'mod-load-smoke'
         branch = 'codex/mounted-combat-feasibility'; commit = '0123456789abcdef0123456789abcdef01234567'
-        productVersion = '0.1.0-phase2a-dev.13'; dllSha256 = ('ab' * 32)
+        productVersion = '0.1.0-phase2a-review.1'; dllSha256 = ('ab' * 32)
         dllMvid = '07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'
         transactionToken = ('cd' * 32)
         evidenceRoot = (Join-Path $runtimeEvidenceTestRoot 'schema-test')

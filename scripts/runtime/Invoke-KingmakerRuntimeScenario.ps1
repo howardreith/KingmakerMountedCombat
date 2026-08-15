@@ -13,7 +13,8 @@ param(
         'native-save-clean-dismount','native-area-clean-dismount','native-mode-transition-cleanup',
         'presentation-residue-and-uninstall-safety','pose-idle','pose-walk-run','pose-turn-stop',
         'pose-doorway-formation','pose-equipment-variants','ui-selection-portrait-actionbar',
-        'camera-follow-and-command-routing','movement-suite','boundary-suite','presentation-suite'
+        'camera-follow-and-command-routing','movement-suite','boundary-suite','presentation-suite',
+        'manual-visual-review'
     )][string]$Scenario='mod-load-smoke',
     [ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$RunId,
     [ValidateRange(360,900)][int]$TimeoutSeconds=360,
@@ -55,6 +56,7 @@ $saveRoot=[string]$intake.requestedLayout.kingmakerSaveRoot
 $gameExecutable=Join-Path ([string]$intake.requestedLayout.kingmakerInstallDir) 'Kingmaker.exe'
 $expectedGameExecutableHash=[string](@($fingerprint.kingmaker.files|Where-Object role -eq 'executable')[0].sha256)
 $isSaveBacked=[string]$Scenario -cne 'mod-load-smoke'
+$isManualReview=[string]$Scenario -ceq 'manual-visual-review'
 if($BootstrapOfflineCloudEvidence -and $isSaveBacked){
     throw '-BootstrapOfflineCloudEvidence is restricted to the no-save mod-load-smoke scenario.'
 }
@@ -130,7 +132,7 @@ if($isSaveBacked){
         -ExpectedProtectedQuickSaveName $ExpectedProtectedQuickSaveName `
         -ExpectedProtectedQuickSaveSha256 $ExpectedProtectedQuickSaveSha256
     $preflightPair=$preflightContinuity.pair
-    $fixturePayload=New-KmcRuntimeFixturePayload $preflightPair
+    $fixturePayload=New-KmcRuntimeFixturePayload $preflightPair -ReadOnly:$isManualReview
 }
 $beforeRoots=@(
     (Get-KmcDirectoryManifest $runtimeState),(Get-KmcDirectoryManifest $runtimeBackups),
@@ -145,7 +147,7 @@ if($isSaveBacked){
         -Description 'runtime preflight fixture-continuity save metadata'
 }
 $WhatIfPreference=$requestedWhatIf
-$action=if($isSaveBacked){"run guarded KMC $Scenario against Working fixture only"}else{'run guarded KMC mod-load-smoke'}
+$action=if($isManualReview){'open guarded read-only KMC manual visual review against Working fixture only'}elseif($isSaveBacked){"run guarded KMC $Scenario against Working fixture only"}else{'run guarded KMC mod-load-smoke'}
 if(-not $PSCmdlet.ShouldProcess('Steam App 640820, exact live Kingmaker Mods, and guarded KMC save policy',$action)){
     $WhatIfPreference=$false
     if($isSaveBacked){
@@ -166,7 +168,7 @@ if(-not $PSCmdlet.ShouldProcess('Steam App 640820, exact live Kingmaker Mods, an
             -ExpectedProtectedAutoSaveSha256 $ExpectedProtectedAutoSaveSha256 `
             -ExpectedProtectedQuickSaveName $ExpectedProtectedQuickSaveName `
             -ExpectedProtectedQuickSaveSha256 $ExpectedProtectedQuickSaveSha256
-        if((New-KmcRuntimeFixturePayload $whatIfContinuity.pair|ConvertTo-Json -Depth 10 -Compress)-cne
+        if((New-KmcRuntimeFixturePayload $whatIfContinuity.pair -ReadOnly:$isManualReview|ConvertTo-Json -Depth 10 -Compress)-cne
             ($fixturePayload|ConvertTo-Json -Depth 10 -Compress)){
             throw 'KMC fixture identity changed during runtime WhatIf continuity validation.'
         }
@@ -199,6 +201,10 @@ $startedAt=[DateTimeOffset]::UtcNow
 $requestPath=Join-Path $evidenceRoot 'runtime-request.json'
 $gameResultPath=Join-Path $evidenceRoot 'runtime-game-result.json'
 $finalResultPath=Join-Path $evidenceRoot 'runtime-result.json'
+$manualReadyPath=Join-Path $evidenceRoot 'manual-review-ready.json'
+$manualFailurePath=Join-Path $evidenceRoot 'manual-review-failure.json'
+$manualResultPath=Join-Path $evidenceRoot 'manual-review-result.json'
+if($isManualReview){$finalResultPath=$manualResultPath}
 $orchestrationPath=Join-Path $evidenceRoot 'orchestration.json'
 $lock=$null
 $request=$null
@@ -217,6 +223,10 @@ $validatedGameResult=$null
 $gameResultHash=$null
 $final=$null
 $lockedWorkingPath=$null
+$manualReady=$null
+$manualReadyHash=$null
+$manualReviewReady=$false
+$manualFailureObserved=$false
 $errors=New-Object 'System.Collections.Generic.List[string]'
 New-Item -ItemType Directory -Path $evidenceRoot|Out-Null
 try{
@@ -260,7 +270,7 @@ try{
             -ExpectedProtectedQuickSaveSha256 $ExpectedProtectedQuickSaveSha256
         $lockedPair=$lockedContinuity.pair
         $lockedWorkingPath=[IO.Path]::GetFullPath([string]$lockedPair.working.path)
-        $lockedPayload=New-KmcRuntimeFixturePayload $lockedPair
+        $lockedPayload=New-KmcRuntimeFixturePayload $lockedPair -ReadOnly:$isManualReview
         if(($lockedPayload|ConvertTo-Json -Depth 10 -Compress)-cne($fixturePayload|ConvertTo-Json -Depth 10 -Compress)){
             throw 'KMC fixture identity changed between preflight and locked transaction entry.'
         }
@@ -308,25 +318,87 @@ try{
         $process.StartTime.ToUniversalTime()-lt$startedAt.UtcDateTime.AddSeconds(-5)){
         throw 'Captured Kingmaker process identity/path/hash/start time is unexpected.'
     }
-    $orchestration.stage='waiting-for-game-result'
+    $orchestration.stage=if($isManualReview){'waiting-for-manual-review-ready'}else{'waiting-for-game-result'}
     $orchestration['kingmakerProcessId']=$process.Id
     Write-KmcJsonAtomic $orchestrationPath $orchestration
     $deadline=[DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
-    while(-not(Test-Path -LiteralPath $gameResultPath -PathType Leaf)){
-        $process.Refresh()
-        if($process.HasExited){$processExited=$true;throw 'Kingmaker exited before committing its atomic game result.'}
-        $all=@(Get-Process -Name Kingmaker -ErrorAction SilentlyContinue)
-        if($all.Count-ne1-or$all[0].Id-ne$process.Id){throw 'Kingmaker process attribution changed during the run.'}
-        if(@(Get-KmcSuspiciousWindows).Count-ne0){throw 'Unexpected Steam/account UI appeared during the run.'}
-        if([DateTimeOffset]::UtcNow-ge$deadline){throw 'Runtime game result timed out; Kingmaker is intentionally left running and restoration is blocked.'}
-        Start-Sleep -Milliseconds 250
+    if($isManualReview){
+        while(-not(Test-Path -LiteralPath $manualReadyPath -PathType Leaf)){
+            if(Test-Path -LiteralPath $manualFailurePath -PathType Leaf){
+                $failure=Read-KmcJson $manualFailurePath
+                throw 'Kingmaker rejected the manual review before READY: '+[string]$failure.reason
+            }
+            $process.Refresh()
+            if($process.HasExited){$processExited=$true;throw 'Kingmaker exited before committing manual-review READY evidence.'}
+            $all=@(Get-Process -Name Kingmaker -ErrorAction SilentlyContinue)
+            if($all.Count-ne1-or$all[0].Id-ne$process.Id){throw 'Kingmaker process attribution changed before manual-review READY.'}
+            if(@(Get-KmcSuspiciousWindows).Count-ne0){throw 'Unexpected Steam/account UI appeared before manual-review READY.'}
+            if([DateTimeOffset]::UtcNow-ge$deadline){throw 'Manual-review READY timed out; Kingmaker is intentionally left running and restoration is blocked.'}
+            Start-Sleep -Milliseconds 250
+        }
+        & (Join-Path $repoRoot 'scripts\runtime\Test-KmcManualReviewReady.ps1') `
+            -ReadyPath $manualReadyPath -RequestPath $requestPath -PackageManifestPath $packageManifestPath `
+            -ExpectedProcessId $process.Id -NotBeforeUtc $startedAt
+        $manualReady=Read-KmcJson $manualReadyPath
+        $manualReadyHash=Get-KmcSha256 $manualReadyPath
+        $manualReviewReady=$true
+        $gamePassed=$true
+        $orchestration.stage='manual-review-ready'
+        $orchestration|Add-Member manualReviewReadySha256 $manualReadyHash -Force
+        Write-KmcJsonAtomic $orchestrationPath $orchestration
+        Write-Host 'KMC MANUAL VISUAL REVIEW READY.'
+        Write-Host 'Review only presentation, selection, UI, camera, movement, and mount/dismount behavior. Do not save, load, enter combat, change area, or interrupt this launcher.'
+        Write-Host 'Exit Kingmaker normally when review is complete; this launcher will then restore Working and Mods exactly.'
+        $suspiciousReported=$false
+        $attributionReported=$false
+        while(-not$processExited){
+            if(-not$manualFailureObserved-and(Test-Path -LiteralPath $manualFailurePath -PathType Leaf)){
+                $failure=Read-KmcJson $manualFailurePath
+                Assert-KmcExactProperties $failure @('schemaVersion','evidenceKind','runId','scenario','status','transactionToken','failedAtUtc','processId','reason') 'manual review failure evidence'
+                if([int]$failure.schemaVersion-ne1-or[string]$failure.evidenceKind-cne'manual-visual-review-failure'-or
+                    [string]$failure.runId-cne$actualRunId-or[string]$failure.scenario-cne$Scenario-or
+                    [string]$failure.status-cne'FAIL'-or[string]$failure.transactionToken-cne[string]$lock.Token-or
+                    [int]$failure.processId-ne$process.Id-or[string]::IsNullOrWhiteSpace([string]$failure.reason)){
+                    $errors.Add('Manual review failure evidence identity is invalid.')
+                }else{$errors.Add('Manual review failed closed: '+[string]$failure.reason)}
+                $manualFailureObserved=$true
+                $gamePassed=$false
+            }
+            $process.Refresh()
+            if($process.HasExited){$processExited=$true;break}
+            $all=@(Get-Process -Name Kingmaker -ErrorAction SilentlyContinue)
+            if(-not$attributionReported-and($all.Count-ne1-or$all[0].Id-ne$process.Id)){
+                $errors.Add('Kingmaker process attribution changed during manual review; no automated action was taken while a game process remained open.')
+                $attributionReported=$true
+                $gamePassed=$false
+                Write-Warning 'Kingmaker process attribution changed. Close every Kingmaker process normally so guarded restoration can proceed.'
+            }
+            if(-not$suspiciousReported-and@(Get-KmcSuspiciousWindows).Count-ne0){
+                $errors.Add('Unexpected Steam/account UI appeared during manual review; no further automated action was taken while Kingmaker remained open.')
+                $suspiciousReported=$true
+                $gamePassed=$false
+                Write-Warning 'Unexpected Steam/account UI observed. Close Kingmaker normally so guarded restoration can proceed.'
+            }
+            Start-Sleep -Milliseconds 250
+        }
     }
-    $candidateHash=Get-KmcSha256 $gameResultPath
-    $gameResultHash=$candidateHash
-    & (Join-Path $repoRoot 'scripts\runtime\Test-RuntimeGameResult.ps1') -GameResultPath $gameResultPath -RequestPath $requestPath -FingerprintPath $fingerprintPath -ExpectedProcessId $process.Id -NotBeforeUtc $startedAt -VerifyLiveWorkingIdentity -ExpectedLiveWorkingPath $lockedWorkingPath
-    $validatedGameResult=Read-KmcJson $gameResultPath
-    $gamePassed=[string]$validatedGameResult.status -ceq 'PASS'
-    if(-not$gamePassed){$errors.Add('Game reported FAIL: '+(@($validatedGameResult.errors) -join '; '))}
+    else{
+        while(-not(Test-Path -LiteralPath $gameResultPath -PathType Leaf)){
+            $process.Refresh()
+            if($process.HasExited){$processExited=$true;throw 'Kingmaker exited before committing its atomic game result.'}
+            $all=@(Get-Process -Name Kingmaker -ErrorAction SilentlyContinue)
+            if($all.Count-ne1-or$all[0].Id-ne$process.Id){throw 'Kingmaker process attribution changed during the run.'}
+            if(@(Get-KmcSuspiciousWindows).Count-ne0){throw 'Unexpected Steam/account UI appeared during the run.'}
+            if([DateTimeOffset]::UtcNow-ge$deadline){throw 'Runtime game result timed out; Kingmaker is intentionally left running and restoration is blocked.'}
+            Start-Sleep -Milliseconds 250
+        }
+        $candidateHash=Get-KmcSha256 $gameResultPath
+        $gameResultHash=$candidateHash
+        & (Join-Path $repoRoot 'scripts\runtime\Test-RuntimeGameResult.ps1') -GameResultPath $gameResultPath -RequestPath $requestPath -FingerprintPath $fingerprintPath -ExpectedProcessId $process.Id -NotBeforeUtc $startedAt -VerifyLiveWorkingIdentity -ExpectedLiveWorkingPath $lockedWorkingPath
+        $validatedGameResult=Read-KmcJson $gameResultPath
+        $gamePassed=[string]$validatedGameResult.status -ceq 'PASS'
+        if(-not$gamePassed){$errors.Add('Game reported FAIL: '+(@($validatedGameResult.errors) -join '; '))}
+    }
 }
 catch{$errors.Add($_.Exception.Message)}
 finally{
@@ -381,7 +453,23 @@ finally{
     }
     $errorArray=@($errors|ForEach-Object{[string]$_})
     if($null-ne$request){
-        if($isSaveBacked){
+        if($isManualReview){
+            $status=if($manualReviewReady-and$gamePassed-and$processExited-and$modsRestored-and$saveProtection-and
+                $baselineImmutable-and$workingRestored-and$saveWriteAllowlistPassed-and$errorArray.Count-eq0){'PASS'}else{'FAIL'}
+            $final=[ordered]@{
+                schemaVersion=1;evidenceKind='manual-visual-review-session';runId=$actualRunId;scenario=$Scenario;
+                status=$status;branch=[string]$manifest.branch;commit=[string]$manifest.commit;
+                productVersion=[string]$manifest.version;dllSha256=[string]$manifest.dllSha256;
+                dllMvid=[string]$manifest.dllMvid;transactionToken=[string]$lock.Token;
+                startedAtUtc=$startedAt.ToString('o');completedAtUtc=[DateTimeOffset]::UtcNow.ToString('o');
+                reviewReady=$manualReviewReady;readyAtUtc=$(if($null-eq$manualReady){$null}else{[string]$manualReady.readyAtUtc});
+                readyEvidenceSha256=$manualReadyHash;visualAcceptance='PENDING';processExited=$processExited;
+                modsRestored=$modsRestored;saveProtectionPassed=$saveProtection;baselineImmutable=$baselineImmutable;
+                workingRestored=$workingRestored;saveWriteAllowlistPassed=$saveWriteAllowlistPassed;
+                restoredSaveInventoryDigest=$restoredSaveInventoryDigest;errors=$errorArray
+            }
+        }
+        elseif($isSaveBacked){
             $final=New-KmcRuntimeResultV2 -Request $request -ValidatedGameResult $validatedGameResult -StartedAtUtc $startedAt -ModsRestored $modsRestored -BaselineImmutable $baselineImmutable -WorkingRestored $workingRestored -SaveWriteAllowlistPassed $saveWriteAllowlistPassed -RestoredSaveInventoryDigest $restoredSaveInventoryDigest -GameResultSha256 $gameResultHash -Errors $errorArray
         }
         else{
@@ -409,6 +497,13 @@ finally{
 if(-not(Test-Path -LiteralPath $requestPath -PathType Leaf)-or-not(Test-Path -LiteralPath $finalResultPath -PathType Leaf)){
     throw "Runtime scenario failed before complete request/result evidence was written. Evidence: $evidenceRoot"
 }
-& (Join-Path $repoRoot 'scripts\runtime\Test-RuntimeResult.ps1') -ResultPath $finalResultPath -RequestPath $requestPath
-if((Read-KmcJson $finalResultPath).status-cne'PASS'){throw "Runtime scenario failed. Evidence: $finalResultPath"}
-Write-Host "Runtime scenario PASS: $finalResultPath"
+if($isManualReview){
+    & (Join-Path $repoRoot 'scripts\runtime\Test-KmcManualReviewResult.ps1') -ResultPath $finalResultPath -RequestPath $requestPath
+    if((Read-KmcJson $finalResultPath).status-cne'PASS'){throw "Manual review launcher failed its safety/restoration contract. Evidence: $finalResultPath"}
+    Write-Host "Manual review session safely restored; visual acceptance remains PENDING: $finalResultPath"
+}
+else{
+    & (Join-Path $repoRoot 'scripts\runtime\Test-RuntimeResult.ps1') -ResultPath $finalResultPath -RequestPath $requestPath
+    if((Read-KmcJson $finalResultPath).status-cne'PASS'){throw "Runtime scenario failed. Evidence: $finalResultPath"}
+    Write-Host "Runtime scenario PASS: $finalResultPath"
+}

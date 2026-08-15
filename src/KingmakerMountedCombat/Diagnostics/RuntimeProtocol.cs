@@ -10,6 +10,7 @@ namespace KingmakerMountedCombat.Diagnostics
         public const int SaveBackedSchemaVersion = 2;
         public const string WorkingSaveName = "KMC_AUTOMATION_WORKING";
         public const string BaselineSaveName = "KMC_AUTOMATION_BASELINE";
+        public const string ManualReviewScenario = "manual-visual-review";
 
         private static readonly HashSet<string> SaveBackedScenarios = new HashSet<string>(StringComparer.Ordinal)
         {
@@ -54,7 +55,8 @@ namespace KingmakerMountedCombat.Diagnostics
             "lifecycle-suite",
             "movement-suite",
             "boundary-suite",
-            "presentation-suite"
+            "presentation-suite",
+            ManualReviewScenario
         };
 
         public int SchemaVersion { get; set; }
@@ -117,7 +119,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 errors.Add("commit must be a 40-character lowercase Git SHA.");
             }
 
-            if (!string.Equals(ProductVersion, "0.1.0-phase2a-dev.13", StringComparison.Ordinal))
+            if (!string.Equals(ProductVersion, "0.1.0-phase2a-review.1", StringComparison.Ordinal))
             {
                 errors.Add("productVersion does not match this diagnostic build.");
             }
@@ -142,6 +144,11 @@ namespace KingmakerMountedCombat.Diagnostics
         public static bool IsSaveBackedScenario(string scenario)
         {
             return !string.IsNullOrEmpty(scenario) && SaveBackedScenarios.Contains(scenario);
+        }
+
+        public static bool IsManualReviewScenario(string scenario)
+        {
+            return string.Equals(scenario, ManualReviewScenario, StringComparison.Ordinal);
         }
 
         internal static void Require(List<string> errors, string value, string name)
@@ -230,6 +237,14 @@ namespace KingmakerMountedCombat.Diagnostics
             }
 
             errors.AddRange(Fixture.Validate());
+            if (Fixture.WriteAuthorization != null)
+            {
+                var expectedMode = IsManualReviewScenario(Scenario) ? "read-only" : "working-only";
+                if (!string.Equals(Fixture.WriteAuthorization.Mode, expectedMode, StringComparison.Ordinal))
+                {
+                    errors.Add("fixture.writeAuthorization.mode does not match the selected runtime scenario.");
+                }
+            }
         }
     }
 
@@ -356,19 +371,26 @@ namespace KingmakerMountedCombat.Diagnostics
         internal IReadOnlyList<string> Validate(RuntimeSaveDescriptor working)
         {
             var errors = new List<string>();
-            if (!string.Equals(Mode, "working-only", StringComparison.Ordinal))
+            var workingOnly = string.Equals(Mode, "working-only", StringComparison.Ordinal);
+            var readOnly = string.Equals(Mode, "read-only", StringComparison.Ordinal);
+            if (!workingOnly && !readOnly)
             {
-                errors.Add("fixture.writeAuthorization.mode must be working-only.");
+                errors.Add("fixture.writeAuthorization.mode must be working-only or read-only.");
             }
 
-            if (!string.Equals(AllowedInternalName, RuntimeRequest.WorkingSaveName, StringComparison.Ordinal))
+            if (workingOnly && !string.Equals(AllowedInternalName, RuntimeRequest.WorkingSaveName, StringComparison.Ordinal))
             {
                 errors.Add("fixture.writeAuthorization.allowedInternalName is not exact.");
             }
 
-            if (working == null || !string.Equals(AllowedFileName, working.FileName, StringComparison.Ordinal))
+            if (workingOnly && (working == null || !string.Equals(AllowedFileName, working.FileName, StringComparison.Ordinal)))
             {
                 errors.Add("fixture.writeAuthorization.allowedFileName does not match Working.");
+            }
+
+            if (readOnly && (!string.IsNullOrEmpty(AllowedInternalName) || !string.IsNullOrEmpty(AllowedFileName)))
+            {
+                errors.Add("fixture.writeAuthorization read-only mode must not name an allowed save target.");
             }
 
             if (!BaselineImmutable)

@@ -55,7 +55,7 @@ function Assert-RuntimeSaveDescriptor {
 }
 
 function Assert-RuntimeFixture {
-    param($Fixture)
+    param($Fixture, [Parameter(Mandatory = $true)][string]$Scenario)
     Assert-KmcExactProperties $Fixture @('baseline','working','writeAuthorization') 'runtime fixture'
     Assert-RuntimeSaveDescriptor $Fixture.baseline 'baseline'
     Assert-RuntimeSaveDescriptor $Fixture.working 'working'
@@ -65,11 +65,19 @@ function Assert-RuntimeFixture {
     }
     $authorization = $Fixture.writeAuthorization
     Assert-KmcExactProperties $authorization @('mode','allowedInternalName','allowedFileName','baselineImmutable') 'runtime fixture write authorization'
-    if ([string]$authorization.mode -cne 'working-only' -or
+    if ($Scenario -ceq 'manual-visual-review') {
+        if ([string]$authorization.mode -cne 'read-only' -or
+            $null -ne $authorization.allowedInternalName -or
+            $null -ne $authorization.allowedFileName -or
+            $authorization.baselineImmutable -ne $true) {
+            throw 'Manual review fixture is not exact read-only authorization.'
+        }
+    }
+    elseif ([string]$authorization.mode -cne 'working-only' -or
         [string]$authorization.allowedInternalName -cne 'KMC_AUTOMATION_WORKING' -or
         [string]$authorization.allowedFileName -cne [string]$Fixture.working.fileName -or
         $authorization.baselineImmutable -ne $true) {
-        throw 'Runtime fixture does not authorize writes solely to the exact Working descriptor.'
+        throw 'Automated runtime fixture does not authorize writes solely to the exact Working descriptor.'
     }
 }
 
@@ -101,6 +109,7 @@ $missionScenarios = @(
     'camera-follow-and-command-routing'
 )
 $aggregateScenarios = @('fixture-intake','lifecycle-suite','movement-suite','boundary-suite','presentation-suite')
+$interactiveScenarios = @('manual-visual-review')
 
 if ([string]$request.runId -cnotmatch '^[A-Za-z0-9._-]{1,120}$') { throw 'Runtime request runId is invalid.' }
 if ([string]$request.branch -cnotmatch '^codex/mounted-combat-[A-Za-z0-9._/-]+$') { throw 'Runtime request branch is outside the KMC prefix.' }
@@ -121,8 +130,8 @@ if ($schemaVersion -eq 1) {
     if ($request.saveAccessAllowed -ne $false -or $null -ne $request.saveName) { throw 'Schema-v1 runtime request is not an exact no-save request.' }
 }
 else {
-    if (@($missionScenarios + $aggregateScenarios | Where-Object { $_ -ceq [string]$request.scenario }).Count -ne 1 -or [string]$request.scenario -ceq 'mod-load-smoke') { throw 'Schema-v2 scenario is outside the save-backed mission allowlist.' }
-    Assert-RuntimeFixture $request.fixture
+    if (@($missionScenarios + $aggregateScenarios + $interactiveScenarios | Where-Object { $_ -ceq [string]$request.scenario }).Count -ne 1 -or [string]$request.scenario -ceq 'mod-load-smoke') { throw 'Schema-v2 scenario is outside the save-backed mission allowlist.' }
+    Assert-RuntimeFixture $request.fixture ([string]$request.scenario)
 }
 
 if (-not [string]::IsNullOrWhiteSpace($PackageManifestPath)) {

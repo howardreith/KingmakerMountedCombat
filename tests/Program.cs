@@ -17,6 +17,9 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("request rejects save name in no-save mode", RequestRejectsSaveNameInNoSaveMode);
             runner.Run("request requires exact hash and MVID formats", RequestRequiresBuildIdentity);
             runner.Run("request accepts exact save-backed fixture", RequestAcceptsExactSaveBackedFixture);
+            runner.Run("request accepts read-only manual visual review", RequestAcceptsReadOnlyManualReview);
+            runner.Run("request rejects writable manual visual review", RequestRejectsWritableManualReview);
+            runner.Run("request rejects read-only automated scenario", RequestRejectsReadOnlyAutomatedScenario);
             runner.Run("request rejects mismatched fixture identity", RequestRejectsMismatchedFixtureIdentity);
             runner.Run("request rejects non-Working write authorization", RequestRejectsNonWorkingAuthorization);
             runner.Run("result accepts complete PASS", ResultAcceptsCompletePass);
@@ -107,6 +110,26 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(request.Validate().Count > 0, "Mismatched fixture campaign identity was accepted.");
         }
 
+        private static void RequestAcceptsReadOnlyManualReview()
+        {
+            var request = ValidReadOnlyManualReviewRequest();
+            TestRunner.Equal(0, request.Validate().Count, "Valid read-only manual review request was rejected.");
+        }
+
+        private static void RequestRejectsWritableManualReview()
+        {
+            var request = ValidSaveBackedRequest();
+            request.Scenario = RuntimeRequest.ManualReviewScenario;
+            TestRunner.True(request.Validate().Count > 0, "Manual review accepted Working write authorization.");
+        }
+
+        private static void RequestRejectsReadOnlyAutomatedScenario()
+        {
+            var request = ValidReadOnlyManualReviewRequest();
+            request.Scenario = "presentation-suite";
+            TestRunner.True(request.Validate().Count > 0, "Automated presentation suite accepted read-only authorization identity.");
+        }
+
         private static void RequestRejectsNonWorkingAuthorization()
         {
             var request = ValidSaveBackedRequest();
@@ -153,7 +176,7 @@ namespace KingmakerMountedCombat.Tests
                 Scenario = "mod-load-smoke",
                 Branch = "codex/mounted-combat-feasibility",
                 Commit = "3801345720241eeab75f2944d91948f182ca26aa",
-                ProductVersion = "0.1.0-phase2a-dev.13",
+                ProductVersion = "0.1.0-phase2a-review.1",
                 DllSha256 = Sha,
                 DllMvid = Mvid,
                 EvidenceRoot = "runtime-evidence/kmc-smoke-001",
@@ -173,7 +196,7 @@ namespace KingmakerMountedCombat.Tests
                 Status = "PASS",
                 Branch = "codex/mounted-combat-feasibility",
                 Commit = "3801345720241eeab75f2944d91948f182ca26aa",
-                ProductVersion = "0.1.0-phase2a-dev.13",
+                ProductVersion = "0.1.0-phase2a-review.1",
                 DllSha256 = Sha,
                 DllMvid = Mvid,
                 TransactionToken = Sha,
@@ -195,7 +218,7 @@ namespace KingmakerMountedCombat.Tests
                 Scenario = "fixture-intake",
                 Branch = "codex/mounted-combat-feasibility",
                 Commit = "3801345720241eeab75f2944d91948f182ca26aa",
-                ProductVersion = "0.1.0-phase2a-dev.13",
+                ProductVersion = "0.1.0-phase2a-review.1",
                 DllSha256 = Sha,
                 DllMvid = Mvid,
                 EvidenceRoot = "runtime-evidence/kmc-fixture-001",
@@ -214,7 +237,7 @@ namespace KingmakerMountedCombat.Tests
                 Status = "PASS",
                 Branch = "codex/mounted-combat-feasibility",
                 Commit = "3801345720241eeab75f2944d91948f182ca26aa",
-                ProductVersion = "0.1.0-phase2a-dev.13",
+                ProductVersion = "0.1.0-phase2a-review.1",
                 DllSha256 = Sha,
                 DllMvid = Mvid,
                 TransactionToken = Sha,
@@ -247,6 +270,16 @@ namespace KingmakerMountedCombat.Tests
                     }
                 }
             };
+        }
+
+        private static RuntimeRequest ValidReadOnlyManualReviewRequest()
+        {
+            var request = ValidSaveBackedRequest();
+            request.Scenario = RuntimeRequest.ManualReviewScenario;
+            request.Fixture.WriteAuthorization.Mode = "read-only";
+            request.Fixture.WriteAuthorization.AllowedInternalName = null;
+            request.Fixture.WriteAuthorization.AllowedFileName = null;
+            return request;
         }
 
         private static RuntimeFixtureIdentity ValidFixture()

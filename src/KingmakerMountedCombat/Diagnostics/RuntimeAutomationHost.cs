@@ -58,6 +58,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool fixtureScenarioCompleted;
         private IReadOnlyList<RuntimeSubscenarioResult> subscenarioResults;
         private RuntimeLifecycleScenarioEngine lifecycleEngine;
+        private RuntimeManualReviewSession manualReviewSession;
         private RuntimeMovementScenarioEngine movementEngine;
         private RuntimeBoundaryScenarioEngine boundaryEngine;
         private readonly List<string> scenarioEngineErrors = new List<string>();
@@ -74,6 +75,8 @@ namespace KingmakerMountedCombat.Diagnostics
         public string RunId => request.RunId;
 
         public bool IsCompleted => completed;
+
+        internal bool IsManualReview => RuntimeRequest.IsManualReviewScenario(request.Scenario);
 
         internal RuntimeRequest Request => request;
 
@@ -265,6 +268,24 @@ namespace KingmakerMountedCombat.Diagnostics
                 var now = DateTimeOffset.UtcNow;
                 if (request.SchemaVersion == RuntimeRequest.SaveBackedSchemaVersion)
                 {
+                    if (RuntimeRequest.IsManualReviewScenario(request.Scenario))
+                    {
+                        WriteJsonAtomic(Path.Combine(request.EvidenceRoot, RuntimeManualReviewSession.FailureFileName), new
+                        {
+                            schemaVersion = 1,
+                            evidenceKind = "manual-visual-review-failure",
+                            runId = request.RunId,
+                            scenario = request.Scenario,
+                            status = "FAIL",
+                            transactionToken = request.TransactionToken,
+                            failedAtUtc = now.ToString("o"),
+                            processId = Process.GetCurrentProcess().Id,
+                            reason = exception.GetType().FullName + ": " + exception.Message
+                        });
+                        logger.Warning("Manual review bootstrap failure evidence committed; requesting clean process exit.");
+                        return true;
+                    }
+
                     var failureName = RuntimeRequest.IsMissionScenario(request.Scenario)
                         ? request.Scenario
                         : "observe-mount-diagnostic-availability";
@@ -346,7 +367,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     return;
                 }
-                if (elapsedSeconds > 300.0d)
+                if (!IsManualReview && elapsedSeconds > 300.0d)
                 {
                     if (IsLoadingProcessActive())
                     {
@@ -408,6 +429,11 @@ namespace KingmakerMountedCombat.Diagnostics
 
             if (saveAuthorization.FatalViolationCount != 0)
             {
+                if (IsManualReview)
+                {
+                    FailManualReviewAndQuit(saveAuthorization.LastFatalViolation ?? "Runtime save authorization reported an unspecified fatal violation.");
+                    return;
+                }
                 Complete("FAIL", new[] { saveAuthorization.LastFatalViolation ?? "Runtime save authorization reported an unspecified fatal violation." });
                 return;
             }
@@ -418,6 +444,11 @@ namespace KingmakerMountedCombat.Diagnostics
             }
 
             fixtureIdentityVerified = true;
+            if (IsManualReview)
+            {
+                UpdateManualReview();
+                return;
+            }
             if (fixtureScenarioCompleted)
             {
                 return;
@@ -551,6 +582,48 @@ namespace KingmakerMountedCombat.Diagnostics
             }
         }
 
+        private void UpdateManualReview()
+        {
+            if (manualReviewSession == null)
+            {
+                manualReviewSession = new RuntimeManualReviewSession(
+                    request,
+                    loadedModId,
+                    saveAuthorization,
+                    relationship,
+                    playerAction,
+                    diagnosticSettings,
+                    logger,
+                    () => loadRequestCount,
+                    () => saveRequestCount);
+            }
+
+            manualReviewSession.Update();
+            if (manualReviewSession.HasFailed)
+            {
+                completed = true;
+            }
+        }
+
+        private void FailManualReviewAndQuit(string reason)
+        {
+            if (manualReviewSession == null)
+            {
+                manualReviewSession = new RuntimeManualReviewSession(
+                    request,
+                    loadedModId,
+                    saveAuthorization,
+                    relationship,
+                    playerAction,
+                    diagnosticSettings,
+                    logger,
+                    () => loadRequestCount,
+                    () => saveRequestCount);
+            }
+            manualReviewSession.FailAndQuit(reason);
+            completed = true;
+        }
+
         private void ActivateSaveBackedBoundary()
         {
             var game = Kingmaker.Game.Instance;
@@ -661,6 +734,8 @@ namespace KingmakerMountedCombat.Diagnostics
         public void Dispose()
         {
             disposed = true;
+            manualReviewSession?.Dispose();
+            manualReviewSession = null;
             lifecycleEngine?.Dispose();
             lifecycleEngine = null;
             movementEngine?.Dispose();
@@ -676,6 +751,14 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (completed)
             {
+                return;
+            }
+
+            if (IsManualReview)
+            {
+                FailManualReviewAndQuit(errors == null || errors.Count == 0
+                    ? "Manual review requested terminal completion without an exact cause."
+                    : string.Join("; ", errors));
                 return;
             }
 
@@ -1178,6 +1261,11 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             try
             {
+                if (IsManualReview)
+                {
+                    FailManualReviewAndQuit(exception.GetType().FullName + ": " + exception.Message);
+                    return;
+                }
                 Complete("FAIL", new[] { exception.GetType().FullName + ": " + exception.Message });
             }
             catch (Exception writeException)

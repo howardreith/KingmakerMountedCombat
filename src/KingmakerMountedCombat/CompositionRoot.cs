@@ -44,7 +44,7 @@ namespace KingmakerMountedCombat
                     playerAction,
                     settings,
                     Main.InvokeRegisteredToggleForAutomation);
-                if (runtimeAutomation != null)
+                if (runtimeAutomation != null && !runtimeAutomation.IsManualReview)
                 {
                     movementTelemetry = new MovementTelemetryWriter(
                         runtimeAutomation.Request,

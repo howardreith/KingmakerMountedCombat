@@ -3589,7 +3589,8 @@ function Get-KmcSaveBackedRuntimeScenarios {
         'native-save-clean-dismount', 'native-area-clean-dismount', 'native-mode-transition-cleanup',
         'presentation-residue-and-uninstall-safety', 'pose-idle', 'pose-walk-run', 'pose-turn-stop',
         'pose-doorway-formation', 'pose-equipment-variants', 'ui-selection-portrait-actionbar',
-        'camera-follow-and-command-routing', 'movement-suite', 'boundary-suite', 'presentation-suite'
+        'camera-follow-and-command-routing', 'movement-suite', 'boundary-suite', 'presentation-suite',
+        'manual-visual-review'
     )
 }
 
@@ -7105,7 +7106,10 @@ function Get-KmcValidatedOrchestrationArtifactManifestHash {
 }
 
 function New-KmcRuntimeFixturePayload {
-    param([Parameter(Mandatory = $true)]$Pair)
+    param(
+        [Parameter(Mandatory = $true)]$Pair,
+        [switch]$ReadOnly
+    )
 
     function New-Descriptor($Value) {
         return [ordered]@{
@@ -7124,9 +7128,9 @@ function New-KmcRuntimeFixturePayload {
         baseline = New-Descriptor $Pair.baseline
         working = New-Descriptor $Pair.working
         writeAuthorization = [ordered]@{
-            mode = 'working-only'
-            allowedInternalName = 'KMC_AUTOMATION_WORKING'
-            allowedFileName = [string]$Pair.working.fileName
+            mode = if ($ReadOnly) { 'read-only' } else { 'working-only' }
+            allowedInternalName = if ($ReadOnly) { $null } else { 'KMC_AUTOMATION_WORKING' }
+            allowedFileName = if ($ReadOnly) { $null } else { [string]$Pair.working.fileName }
             baselineImmutable = $true
         }
     }
