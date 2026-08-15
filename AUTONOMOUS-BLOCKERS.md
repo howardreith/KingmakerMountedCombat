@@ -26,7 +26,7 @@ Exactly one Baseline and one Working exist, with zero KMC near-matches. Baseline
 
 ## Current uncertainties, not blockers
 
-- runtime repeatability and visual acceptability of the selected deterministic `medium-humanoid-mammoth-v1` procedural profile across the five remaining presentation rows; `pose-idle` and `pose-walk-run` are qualified A/B;
+- runtime repeatability and visual acceptability of the selected deterministic `medium-humanoid-mammoth-v1` procedural profile across the four remaining presentation rows; `pose-idle`, `pose-walk-run`, and `pose-turn-stop` are qualified A/B;
 - exact equipment variants available in the protected Working fixture;
 - native UI/camera observation timing and portrait/circle ownership in that exact area;
 - whether the combined seven-row suite fits the bounded process envelope after individual calibration;
@@ -36,4 +36,4 @@ The local implementation, assembly contracts, and strict evidence validators are
 
 ## Exact next action
 
-Commit and guarded-publish the dev.9 `pose-stop-motion` allowlist repair, package that exact clean commit, pass guarded `pose-turn-stop -WhatIf`, and execute/audit fresh Pass A then Pass B from the same package. The dev.8 exact-package run is preserved as final `FAIL` with no credit because the expected milestone was still silently rejected by the allowlist. Continue through doorway/formation, equipment, UI, and camera in fixed matrix order, then run the two complete presentation-suite processes and create/publish the guarded manual-review checkpoint. Do not rerun qualified native, idle, or walk/run rows absent a narrow regression. Do not weaken screenshot, movement, synchronization, or `2000/500`-microsecond thresholds, implement combat, or create a public release.
+Commit and guarded-publish the dev.9 turn/stop A/B qualification record, then create a fresh clean package bound to that record commit. Pass guarded `pose-doorway-formation -WhatIf`, execute/audit fresh Pass A then Pass B from the same package, and continue through equipment, UI, and camera in fixed matrix order. Then run the two complete presentation-suite processes and create/publish the guarded manual-review checkpoint. Do not rerun qualified native, idle, walk/run, or turn/stop rows absent a narrow regression. Do not weaken screenshot, movement, synchronization, formation, or `2000/500`-microsecond thresholds, implement combat, or create a public release.
