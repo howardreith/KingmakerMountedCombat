@@ -93,6 +93,7 @@
     <Compile Include="Diagnostics\NativeModeTransitionProbe.cs" />
     <Compile Include="Diagnostics\NativeAreaBoundaryProgress.cs" />
     <Compile Include="Diagnostics\PresentationRuntimeEvidencePolicy.cs" />
+    <Compile Include="Diagnostics\PresentationOverlayEvidence.cs" />
     <Compile Include="Diagnostics\RuntimeAutomationHost.cs" />
     <Compile Include="Diagnostics\RuntimeBoundaryScenarioEngine.cs" />
     <Compile Include="Diagnostics\RuntimeLifecycleScenarioEngine.cs" />

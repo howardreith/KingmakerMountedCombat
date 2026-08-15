@@ -405,6 +405,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool rowCameraBackObserved;
         private long rowOverlayRepaintCountBefore;
         private long rowOverlayRepaintCountAfter;
+        private PresentationOverlayEvidence rowOverlayEvidence;
         private bool rowUiRiderPortraitSelected;
         private bool rowUiRiderSelectionCircleSelected;
         private bool rowUiRiderActionBarOwned;
@@ -1404,11 +1405,17 @@ namespace KingmakerMountedCombat.Diagnostics
                 rowUiBackOwned = back.IsExactlySelected && back.PortraitSelected && back.SelectionCircleSelected && back.ActionBarOwned;
                 CaptureMilestone("ui-back");
                 rowOverlayRepaintCountAfter = playerAction.OverlayRepaintCount;
-                rowUiOverlayRendered = playerAction.OverlayPresent &&
-                    rowOverlayRepaintCountAfter > rowOverlayRepaintCountBefore &&
-                    playerAction.LastOverlayVisible && playerAction.LastOverlayEnabled &&
-                    string.Equals(playerAction.LastOverlayLabel, "Dismount", StringComparison.Ordinal) &&
-                    playerAction.LastOverlayRect.width > 0f && playerAction.LastOverlayRect.height > 0f;
+                rowOverlayEvidence = new PresentationOverlayEvidence(
+                    rowOverlayRepaintCountBefore,
+                    rowOverlayRepaintCountAfter,
+                    playerAction.OverlayPresent,
+                    playerAction.LastOverlayVisible,
+                    playerAction.LastOverlayEnabled,
+                    playerAction.LastOverlayLabel,
+                    playerAction.LastOverlayRect.width,
+                    playerAction.LastOverlayRect.height,
+                    playerAction.OverlayButtonActivationCount);
+                rowUiOverlayRendered = rowOverlayEvidence.IsQualifiedDismountOverlay;
 
                 assertions.Check(rowUiRiderPortraitSelected && rowUiRiderSelectionCircleSelected && rowUiRiderActionBarOwned,
                     "Selected rider owned the native portrait highlight, selection circle, and action bar.",
@@ -3278,10 +3285,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 uiOverlayRendered = rowUiOverlayRendered,
                 uiOverlayRepaintCountBefore = rowOverlayRepaintCountBefore,
                 uiOverlayRepaintCountAfter = rowOverlayRepaintCountAfter,
-                uiOverlayLabel = playerAction.LastOverlayLabel,
-                uiOverlayEnabled = playerAction.LastOverlayEnabled,
-                uiOverlayVisible = playerAction.LastOverlayVisible,
-                uiOverlayButtonActivationCount = playerAction.OverlayButtonActivationCount,
+                uiOverlayLabel = rowOverlayEvidence.Label,
+                uiOverlayEnabled = rowOverlayEvidence.Enabled,
+                uiOverlayVisible = rowOverlayEvidence.Visible,
+                uiOverlayButtonActivationCount = rowOverlayEvidence.ButtonActivationCount,
                 uiObservationFailure = rowUiObservationFailure,
                 cameraFollowAccepted = rowCameraFollowAccepted,
                 cameraObservationCount = rowCameraTotalObservationCount,
@@ -3995,6 +4002,7 @@ namespace KingmakerMountedCombat.Diagnostics
             rowCameraBackObserved = false;
             rowOverlayRepaintCountBefore = 0L;
             rowOverlayRepaintCountAfter = 0L;
+            rowOverlayEvidence = default(PresentationOverlayEvidence);
             rowUiRiderPortraitSelected = false;
             rowUiRiderSelectionCircleSelected = false;
             rowUiRiderActionBarOwned = false;

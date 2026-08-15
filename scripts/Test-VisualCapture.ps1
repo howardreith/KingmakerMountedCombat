@@ -29,7 +29,8 @@ function Assert-VisualCapture {
 }
 
 Assert-VisualCapture ($project.Contains('Diagnostics\MovementScreenshotCaptureCoordinator.cs') -and
-    $project.Contains('Diagnostics\MovementScreenshotCaptureState.cs')) 'production project includes the isolated screenshot coordinator and state machine'
+    $project.Contains('Diagnostics\MovementScreenshotCaptureState.cs') -and
+    $project.Contains('Diagnostics\PresentationOverlayEvidence.cs')) 'production project includes the isolated screenshot and overlay evidence state machines'
 Assert-VisualCapture ($coordinator.Contains('UnityModManager.UI.Instance') -and
     $coordinator.Contains('instance.Opened') -and
     $coordinator.Contains('instance.ToggleWindow(opened)')) 'capture uses the exact public UMM UI.Instance, Opened, and ToggleWindow(Boolean) surface'
@@ -76,6 +77,18 @@ Assert-VisualCapture ($engine.Contains('stopEarlyCaptureBoundary.Reset();') -and
     $stopCaptureWaitIndex -gt $stopCaptureMilestoneIndex -and
     $stopCaptureReturnIndex -gt $stopCaptureWaitIndex -and
     $authoritativeStopIndex -gt $stopCaptureReturnIndex) 'stop-early rows queue a missing moving milestone and retain a render boundary before authoritative stop'
+$uiOverlaySnapshotIndex = $engine.IndexOf('rowOverlayEvidence = new PresentationOverlayEvidence(', [StringComparison]::Ordinal)
+$uiOverlayCleanupIndex = $engine.IndexOf('BeginCleanup(CleanupTrigger.Manual);', $uiOverlaySnapshotIndex, [StringComparison]::Ordinal)
+$uiOverlayPublishIndex = $engine.IndexOf('uiOverlayLabel = rowOverlayEvidence.Label,', $uiOverlayCleanupIndex, [StringComparison]::Ordinal)
+Assert-VisualCapture ($uiOverlaySnapshotIndex -ge 0 -and
+    $uiOverlayCleanupIndex -gt $uiOverlaySnapshotIndex -and
+    $uiOverlayPublishIndex -gt $uiOverlayCleanupIndex -and
+    $engine.Contains('uiOverlayEnabled = rowOverlayEvidence.Enabled,') -and
+    $engine.Contains('uiOverlayVisible = rowOverlayEvidence.Visible,') -and
+    $engine.Contains('uiOverlayButtonActivationCount = rowOverlayEvidence.ButtonActivationCount,') -and
+    -not $engine.Contains('uiOverlayLabel = playerAction.LastOverlayLabel,') -and
+    -not $engine.Contains('uiOverlayEnabled = playerAction.LastOverlayEnabled,') -and
+    -not $engine.Contains('uiOverlayVisible = playerAction.LastOverlayVisible,')) 'UI row snapshots mounted overlay evidence before cleanup and never republishes mutable post-cleanup live state'
 $cameraResolveIndex = $coordinator.IndexOf('var camera = Game.GetCamera();', [StringComparison]::Ordinal)
 $cameraGuardIndex = $coordinator.IndexOf('if (!camera)', $cameraResolveIndex, [StringComparison]::Ordinal)
 $captureIndex = $coordinator.IndexOf('Screenshot.CapturePNG(camera);', [StringComparison]::Ordinal)
