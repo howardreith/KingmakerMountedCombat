@@ -26,7 +26,7 @@ Exactly one Baseline and one Working exist, with zero KMC near-matches. Baseline
 
 ## Current uncertainties, not blockers
 
-- runtime repeatability and visual acceptability of the selected deterministic `medium-humanoid-mammoth-v1` procedural profile across the six remaining presentation rows; `pose-idle` is qualified A/B and dev.7 walk/run performance is locally green but not runtime-qualified;
+- runtime repeatability and visual acceptability of the selected deterministic `medium-humanoid-mammoth-v1` procedural profile across the five remaining presentation rows; `pose-idle` and `pose-walk-run` are qualified A/B;
 - exact equipment variants available in the protected Working fixture;
 - native UI/camera observation timing and portrait/circle ownership in that exact area;
 - whether the combined seven-row suite fits the bounded process envelope after individual calibration;
@@ -36,4 +36,4 @@ The local implementation, assembly contracts, and strict evidence validators are
 
 ## Exact next action
 
-Commit and guarded-publish the dev.7 per-frame allocation repair, create its clean exact-commit package, pass guarded `-WhatIf`, and rerun `pose-walk-run` under a new evidence ID. If it passes, audit the immutable artifacts and run Pass B from the same package. Continue through the other five unqualified presentation rows twice each, then run the two complete presentation-suite processes and create/publish the guarded manual-review checkpoint. Do not rerun qualified native or `pose-idle` rows absent a narrow regression. Do not weaken the `2000/500`-microsecond thresholds, implement combat, or create a public release.
+Commit and guarded-publish the walk/run qualification record, repackage that exact clean record commit without changing the dev.7 DLL, pass guarded `pose-turn-stop -WhatIf`, and execute/audit Pass A then Pass B from the same package. Continue through doorway/formation, equipment, UI, and camera in the fixed matrix order, then run the two complete presentation-suite processes and create/publish the guarded manual-review checkpoint. Do not rerun qualified native, idle, or walk/run rows absent a narrow regression. Do not weaken the `2000/500`-microsecond thresholds, implement combat, or create a public release.
