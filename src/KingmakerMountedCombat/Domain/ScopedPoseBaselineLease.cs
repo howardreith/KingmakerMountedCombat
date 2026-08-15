@@ -80,6 +80,10 @@ namespace KingmakerMountedCombat.Domain
             {
                 throw new ArgumentException("A pose baseline lease requires at least one node.", nameof(nodes));
             }
+            if (frame.Capacity < acquisition.Count)
+            {
+                frame.Capacity = acquisition.Count;
+            }
 
             IsAcquired = true;
             IsFrameActive = false;
@@ -144,22 +148,46 @@ namespace KingmakerMountedCombat.Domain
             return new Snapshot(node, getLocalPosition(node), getLocalRotation(node), getLocalScale(node));
         }
 
-        private void RestoreSnapshots(IEnumerable<Snapshot> snapshots, string scope)
+        private void RestoreSnapshots(List<Snapshot> snapshots, string scope)
         {
-            var failures = new List<Exception>();
+            List<Exception> failures = null;
             foreach (var snapshot in snapshots)
             {
-                TryRestore(() => setLocalPosition(snapshot.Node, snapshot.Position), scope + " position", failures);
-                TryRestore(() => setLocalRotation(snapshot.Node, snapshot.Rotation), scope + " rotation", failures);
-                TryRestore(() => setLocalScale(snapshot.Node, snapshot.Scale), scope + " scale", failures);
+                try { setLocalPosition(snapshot.Node, snapshot.Position); }
+                catch (Exception exception) { AddFailure(ref failures, "Could not restore pose " + scope + " position.", exception); }
+                try { setLocalRotation(snapshot.Node, snapshot.Rotation); }
+                catch (Exception exception) { AddFailure(ref failures, "Could not restore pose " + scope + " rotation.", exception); }
+                try { setLocalScale(snapshot.Node, snapshot.Scale); }
+                catch (Exception exception) { AddFailure(ref failures, "Could not restore pose " + scope + " scale.", exception); }
             }
             foreach (var snapshot in snapshots)
             {
-                TryVerify(() => positionComparer.Equals(getLocalPosition(snapshot.Node), snapshot.Position), scope + " position", failures);
-                TryVerify(() => rotationComparer.Equals(getLocalRotation(snapshot.Node), snapshot.Rotation), scope + " rotation", failures);
-                TryVerify(() => scaleComparer.Equals(getLocalScale(snapshot.Node), snapshot.Scale), scope + " scale", failures);
+                try
+                {
+                    if (!positionComparer.Equals(getLocalPosition(snapshot.Node), snapshot.Position))
+                    {
+                        AddFailure(ref failures, "Pose " + scope + " position did not match its captured value.");
+                    }
+                }
+                catch (Exception exception) { AddFailure(ref failures, "Could not verify pose " + scope + " position.", exception); }
+                try
+                {
+                    if (!rotationComparer.Equals(getLocalRotation(snapshot.Node), snapshot.Rotation))
+                    {
+                        AddFailure(ref failures, "Pose " + scope + " rotation did not match its captured value.");
+                    }
+                }
+                catch (Exception exception) { AddFailure(ref failures, "Could not verify pose " + scope + " rotation.", exception); }
+                try
+                {
+                    if (!scaleComparer.Equals(getLocalScale(snapshot.Node), snapshot.Scale))
+                    {
+                        AddFailure(ref failures, "Pose " + scope + " scale did not match its captured value.");
+                    }
+                }
+                catch (Exception exception) { AddFailure(ref failures, "Could not verify pose " + scope + " scale.", exception); }
             }
-            if (failures.Count != 0)
+            if (failures != null)
             {
                 throw new AggregateException("Could not restore and verify the pose " + scope + " baseline.", failures);
             }
@@ -173,25 +201,18 @@ namespace KingmakerMountedCombat.Domain
             }
         }
 
-        private static void TryRestore(Action action, string field, ICollection<Exception> failures)
+        private static void AddFailure(ref List<Exception> failures, string message, Exception innerException = null)
         {
-            try { action(); }
-            catch (Exception exception) { failures.Add(new InvalidOperationException("Could not restore pose " + field + ".", exception)); }
+            if (failures == null)
+            {
+                failures = new List<Exception>();
+            }
+            failures.Add(innerException == null
+                ? new InvalidOperationException(message)
+                : new InvalidOperationException(message, innerException));
         }
 
-        private static void TryVerify(Func<bool> predicate, string field, ICollection<Exception> failures)
-        {
-            try
-            {
-                if (!predicate()) { failures.Add(new InvalidOperationException("Pose " + field + " did not match its captured value.")); }
-            }
-            catch (Exception exception)
-            {
-                failures.Add(new InvalidOperationException("Could not verify pose " + field + ".", exception));
-            }
-        }
-
-        private sealed class Snapshot
+        private readonly struct Snapshot
         {
             public Snapshot(TNode node, TPosition position, TRotation rotation, TScale scale)
             {

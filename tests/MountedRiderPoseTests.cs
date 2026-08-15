@@ -12,6 +12,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("two-bone pose solver clamps unreachable target", SolverClampsUnreachableTarget);
             runner.Run("two-bone pose solver follows deterministic bend hint", SolverFollowsBendHint);
             runner.Run("two-bone pose solver rejects invalid lengths", SolverRejectsInvalidLengths);
+            runner.Run("pose per-frame state uses allocation-free value types", PosePerFrameStateUsesValueTypes);
             runner.Run("pose baseline lease prevents cumulative frame mutation", PoseLeasePreventsCumulativeMutation);
             runner.Run("pose baseline lease restores exact acquisition values", PoseLeaseRestoresAcquisitionValues);
             runner.Run("pose baseline lease retains failed restoration for retry", PoseLeaseRetainsFailedRestorationForRetry);
@@ -86,6 +87,16 @@ namespace KingmakerMountedCombat.Tests
                 threw = true;
             }
             TestRunner.True(threw, "Invalid zero-length limb was accepted.");
+        }
+
+        private static void PosePerFrameStateUsesValueTypes()
+        {
+            TestRunner.True(typeof(TwoBonePoseSolution).IsValueType,
+                "Two-bone solver retained a per-leg heap allocation.");
+            var leaseType = typeof(ScopedPoseBaselineLease<FakeNode, double, double, double>);
+            var snapshotType = leaseType.GetNestedType("Snapshot", System.Reflection.BindingFlags.NonPublic);
+            TestRunner.True(snapshotType != null && snapshotType.IsValueType,
+                "Pose baseline lease retained a per-node per-frame heap allocation.");
         }
 
         private static void PoseLeasePreventsCumulativeMutation()

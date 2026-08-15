@@ -2,7 +2,7 @@ using System;
 
 namespace KingmakerMountedCombat.Domain
 {
-    public sealed class TwoBonePoseSolution
+    public readonly struct TwoBonePoseSolution
     {
         internal TwoBonePoseSolution(PoseVector3 joint, PoseVector3 target, float requestedDistance, float solvedDistance, bool targetClamped)
         {
