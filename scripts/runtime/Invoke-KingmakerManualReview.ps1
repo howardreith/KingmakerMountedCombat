@@ -21,6 +21,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+$requestedWhatIf = [bool]$WhatIfPreference
+$WhatIfPreference = $false
 $actualRunId = if ([string]::IsNullOrWhiteSpace($RunId)) {
     [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffffffZ') + '-manual-visual-review'
 }
@@ -47,7 +49,7 @@ $invoke = @{
     ExpectedProtectedQuickSaveSha256 = $ExpectedProtectedQuickSaveSha256
     SteamPath = $SteamPath
 }
-if ($WhatIfPreference) { $invoke['WhatIf'] = $true }
+if ($requestedWhatIf) { $invoke['WhatIf'] = $true }
 elseif ($PSBoundParameters.ContainsKey('Confirm')) { $invoke['Confirm'] = [bool]$PSBoundParameters['Confirm'] }
 
 & (Join-Path $PSScriptRoot 'Invoke-KingmakerRuntimeScenario.ps1') @invoke
