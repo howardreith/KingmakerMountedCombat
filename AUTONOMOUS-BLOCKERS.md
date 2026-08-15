@@ -26,7 +26,7 @@ Exactly one Baseline and one Working exist, with zero KMC near-matches. Baseline
 
 ## Current uncertainties, not blockers
 
-- runtime repeatability and visual acceptability of the selected deterministic `medium-humanoid-mammoth-v1` procedural profile across the four remaining presentation rows; `pose-idle`, `pose-walk-run`, and `pose-turn-stop` are qualified A/B;
+- runtime repeatability and visual acceptability of the selected deterministic `medium-humanoid-mammoth-v1` procedural profile across the three remaining presentation rows; `pose-idle`, `pose-walk-run`, `pose-turn-stop`, and `pose-doorway-formation` are qualified A/B;
 - exact equipment variants available in the protected Working fixture;
 - native UI/camera observation timing and portrait/circle ownership in that exact area;
 - whether the combined seven-row suite fits the bounded process envelope after individual calibration;
@@ -36,4 +36,4 @@ The local implementation, assembly contracts, and strict evidence validators are
 
 ## Exact next action
 
-Commit and guarded-publish the dev.10 corrected-InitialConfiguration evidence policy and preserved dev.9 doorway failure, then create a fresh clean package bound to that commit. Pass guarded `pose-doorway-formation -WhatIf`, execute/audit fresh Pass A then Pass B from the same package, and continue through equipment, UI, and camera in fixed matrix order. The preserved dev.9 game evidence passes the corrected validator, but its immutable final result is `FAIL` and receives no credit. Do not rerun qualified native, idle, walk/run, or turn/stop rows absent a narrow regression. Do not weaken calibrated screenshot, movement, synchronization, formation, or `2000/500`-microsecond thresholds, implement combat, or create a public release.
+Commit and guarded-publish the dev.10 doorway/formation A/B qualification record, then create a fresh clean package bound to that record commit. Pass guarded `pose-equipment-variants -WhatIf`, execute/audit fresh Pass A then Pass B from the same package, and continue through UI and camera in fixed matrix order. The preserved dev.9 doorway result remains immutable `FAIL` and uncredited. Do not rerun qualified native, idle, walk/run, turn/stop, or doorway/formation rows absent a narrow regression. Do not weaken calibrated screenshot, movement, synchronization, equipment, formation, or `2000/500`-microsecond thresholds, implement combat, or create a public release.
