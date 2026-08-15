@@ -26,13 +26,12 @@ Exactly one Baseline and one Working exist, with zero KMC near-matches. Baseline
 
 ## Current uncertainties, not blockers
 
-- runtime repeatability of the dev.12 exact-active-rider grounding repair in the remaining camera presentation row; dev.11 Pass A passed `59/0`, but same-package Pass B failed `28/2` on one real stationary terrain snap and is preserved without credit;
-- runtime repeatability and visual acceptability of the selected deterministic `medium-humanoid-mammoth-v1` profile; the other six presentation rows are qualified A/B;
+- visual acceptability of the selected deterministic `medium-humanoid-mammoth-v1` profile; all seven individual presentation rows, including the dev.12 grounding repair and camera row, are now technically qualified A/B;
 - whether the combined seven-row suite fits the bounded process envelope after individual calibration;
 - capture framing after selection/camera restoration: the latest cleanup screenshot retains the pair but partly occludes the rider and is not the final manual-review composition.
 
-The dev.12 local implementation, exact-token contract, component policy, deterministic runtime probe, and strict evidence validators are PASS. Resolve remaining uncertainty through fresh same-package guarded camera A/B, then two complete-suite processes. Do not weaken thresholds or ask the user ordinary implementation questions.
+The dev.12 local implementation, exact-token contract, component policy, deterministic runtime probe, strict evidence validators, and fresh same-package guarded camera A/B are PASS. Resolve the remaining technical uncertainty through two complete-suite processes, then produce and publish the exact guarded manual-review checkpoint. Do not weaken thresholds or ask the user ordinary implementation questions.
 
 ## Exact next action
 
-Guarded-publish the clean record descendant of dev.12 repair commit `d00e424df916bd9487eaa5266e9abe6a019295b1`, then package that exact clean HEAD. Pass guarded `camera-follow-and-command-routing -WhatIf`, execute and independently audit fresh dev.12 Pass A then Pass B from the same package, and continue to two fresh `presentation-suite` processes only after the camera row qualifies. The failed dev.11 camera Pass B remains immutable and uncredited; the dev.11 Pass A cannot be paired across the repair. Do not rerun other qualified native/presentation rows individually absent a narrow regression. Do not weaken calibrated screenshot, movement, synchronization, UI, equipment, formation, camera, or `2000/500`-microsecond thresholds, implement combat, or create a public release.
+Commit and guarded-publish the dev.12 camera qualification record, create a new clean package bound to that exact HEAD, then run and independently audit two fresh `presentation-suite` processes from the same package with a wholly fresh guarded `-WhatIf` before each. The dev.12 camera pair is `20260815T130000Z-camera-follow-command-routing-dev12-passA` and `20260815T131500Z-camera-follow-command-routing-dev12-passB`, each `61/0`; the failed dev.11 Pass B remains immutable and uncredited. Do not rerun qualified individual native/presentation rows absent a narrow regression. Do not weaken calibrated screenshot, movement, synchronization, UI, equipment, formation, camera, or `2000/500`-microsecond thresholds, implement combat, or create a public release.
