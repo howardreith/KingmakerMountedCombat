@@ -91,6 +91,7 @@ namespace KingmakerMountedCombat.Integration
                 rightLeg.Foot
             });
             baselineCaptured = true;
+            PrimeTimedPosePath();
             LastFailure = null;
             PoseApplicationFrameCount = 0;
             FootTargetClampCount = 0;
@@ -101,6 +102,21 @@ namespace KingmakerMountedCombat.Integration
             totalApplyTicks = 0;
             configured = true;
             enabled = true;
+        }
+
+        private void PrimeTimedPosePath()
+        {
+            // Keep one-time CLR/Unity call-site initialization outside the
+            // per-frame budget while exercising the exact same pose mutation
+            // and exact restoration path. Normal evidence counters start only
+            // after this reversible prime succeeds.
+            var started = Stopwatch.GetTimestamp();
+            baselineLease.PrimeFrame(ApplyPose);
+            var elapsedMicroseconds = TicksToMicroseconds(Stopwatch.GetTimestamp() - started);
+            if (elapsedMicroseconds < 0d || double.IsNaN(elapsedMicroseconds) || double.IsInfinity(elapsedMicroseconds))
+            {
+                throw new InvalidOperationException("Mounted rider pose priming produced an invalid elapsed time.");
+            }
         }
 
         internal static bool TryValidateSupportedSurface(

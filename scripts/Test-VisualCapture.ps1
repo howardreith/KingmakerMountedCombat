@@ -8,10 +8,12 @@ $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $coordinatorPath = Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\MovementScreenshotCaptureCoordinator.cs'
 $statePath = Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\MovementScreenshotCaptureState.cs'
 $enginePath = Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeMovementScenarioEngine.cs'
+$poseAdapterPath = Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedRiderPoseAdapter.cs'
 $projectPath = Join-Path $repoRoot 'src\KingmakerMountedCombat\KingmakerMountedCombat.csproj'
 $coordinator = [IO.File]::ReadAllText($coordinatorPath)
 $state = [IO.File]::ReadAllText($statePath)
 $engine = [IO.File]::ReadAllText($enginePath)
+$poseAdapter = [IO.File]::ReadAllText($poseAdapterPath)
 $project = [IO.File]::ReadAllText($projectPath)
 $passes = 0
 $failures = New-Object 'System.Collections.Generic.List[string]'
@@ -89,6 +91,33 @@ Assert-VisualCapture ($uiOverlaySnapshotIndex -ge 0 -and
     -not $engine.Contains('uiOverlayLabel = playerAction.LastOverlayLabel,') -and
     -not $engine.Contains('uiOverlayEnabled = playerAction.LastOverlayEnabled,') -and
     -not $engine.Contains('uiOverlayVisible = playerAction.LastOverlayVisible,')) 'UI row snapshots mounted overlay evidence before cleanup and never republishes mutable post-cleanup live state'
+$poseConfigureStart = $poseAdapter.IndexOf('public void Configure(', [StringComparison]::Ordinal)
+$poseConfigureEnd = $poseAdapter.IndexOf('internal static bool TryValidateSupportedSurface(', $poseConfigureStart, [StringComparison]::Ordinal)
+$poseConfigure = if ($poseConfigureStart -ge 0 -and $poseConfigureEnd -gt $poseConfigureStart) {
+    $poseAdapter.Substring($poseConfigureStart, $poseConfigureEnd - $poseConfigureStart)
+}
+else {
+    ''
+}
+$poseAcquireIndex = $poseConfigure.IndexOf('baselineLease.Acquire(', [StringComparison]::Ordinal)
+$posePrimeIndex = $poseConfigure.IndexOf('PrimeTimedPosePath();', [StringComparison]::Ordinal)
+$poseEvidenceResetIndex = $poseConfigure.IndexOf('PoseApplicationFrameCount = 0;', [StringComparison]::Ordinal)
+$poseConfiguredIndex = $poseConfigure.IndexOf('configured = true;', [StringComparison]::Ordinal)
+$posePrimeMethodStart = $poseAdapter.IndexOf('private void PrimeTimedPosePath()', [StringComparison]::Ordinal)
+$posePrimeMethodEnd = $poseAdapter.IndexOf('internal static bool TryValidateSupportedSurface(', $posePrimeMethodStart, [StringComparison]::Ordinal)
+$posePrimeMethod = if ($posePrimeMethodStart -ge 0 -and $posePrimeMethodEnd -gt $posePrimeMethodStart) {
+    $poseAdapter.Substring($posePrimeMethodStart, $posePrimeMethodEnd - $posePrimeMethodStart)
+}
+else {
+    ''
+}
+Assert-VisualCapture ($poseAcquireIndex -ge 0 -and
+    $posePrimeIndex -gt $poseAcquireIndex -and
+    $poseEvidenceResetIndex -gt $posePrimeIndex -and
+    $poseConfiguredIndex -gt $poseEvidenceResetIndex -and
+    $posePrimeMethod.Contains('var started = Stopwatch.GetTimestamp();') -and
+    $posePrimeMethod.Contains('baselineLease.PrimeFrame(ApplyPose);') -and
+    $posePrimeMethod.Contains('TicksToMicroseconds(Stopwatch.GetTimestamp() - started)')) 'pose cold path is reversibly primed before per-frame evidence counters and configuration become active'
 $cameraResolveIndex = $coordinator.IndexOf('var camera = Game.GetCamera();', [StringComparison]::Ordinal)
 $cameraGuardIndex = $coordinator.IndexOf('if (!camera)', $cameraResolveIndex, [StringComparison]::Ordinal)
 $captureIndex = $coordinator.IndexOf('Screenshot.CapturePNG(camera);', [StringComparison]::Ordinal)

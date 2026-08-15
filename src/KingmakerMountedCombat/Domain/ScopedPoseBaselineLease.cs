@@ -106,6 +106,23 @@ namespace KingmakerMountedCombat.Domain
             FrameCaptureCount++;
         }
 
+        public void PrimeFrame(Action apply)
+        {
+            if (apply == null) { throw new ArgumentNullException(nameof(apply)); }
+
+            BeginFrame();
+            try
+            {
+                apply();
+            }
+            finally
+            {
+                // Priming exercises the exact reversible frame path without
+                // allowing its temporary mutation to enter normal animation.
+                RestoreFrame();
+            }
+        }
+
         public void RestoreFrame()
         {
             if (!IsFrameActive)

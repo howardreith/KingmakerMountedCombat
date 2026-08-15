@@ -13,6 +13,8 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("two-bone pose solver follows deterministic bend hint", SolverFollowsBendHint);
             runner.Run("two-bone pose solver rejects invalid lengths", SolverRejectsInvalidLengths);
             runner.Run("pose per-frame state uses allocation-free value types", PosePerFrameStateUsesValueTypes);
+            runner.Run("pose frame priming restores before measured frames", PoseFramePrimingRestoresBeforeMeasuredFrames);
+            runner.Run("pose frame priming restores after application failure", PoseFramePrimingRestoresAfterApplicationFailure);
             runner.Run("pose baseline lease prevents cumulative frame mutation", PoseLeasePreventsCumulativeMutation);
             runner.Run("pose baseline lease restores exact acquisition values", PoseLeaseRestoresAcquisitionValues);
             runner.Run("pose baseline lease retains failed restoration for retry", PoseLeaseRetainsFailedRestorationForRetry);
@@ -116,6 +118,57 @@ namespace KingmakerMountedCombat.Tests
             node.Position = 11d;
             lease.RestoreFrame();
             TestRunner.Equal(1d, node.Position, "Frame baseline did not restore after repeated application.");
+        }
+
+        private static void PoseFramePrimingRestoresBeforeMeasuredFrames()
+        {
+            var node = new FakeNode { Position = 1d, Rotation = 2d, Scale = 3d };
+            var lease = CreateLease();
+            lease.Acquire(new[] { node });
+
+            lease.PrimeFrame(() =>
+            {
+                node.Position = 11d;
+                node.Rotation = 22d;
+                node.Scale = 33d;
+            });
+
+            TestRunner.Equal(1d, node.Position, "Pose prime retained its temporary position mutation.");
+            TestRunner.Equal(2d, node.Rotation, "Pose prime retained its temporary rotation mutation.");
+            TestRunner.Equal(3d, node.Scale, "Pose prime retained its temporary scale mutation.");
+            TestRunner.True(lease.IsAcquired && !lease.IsFrameActive && lease.FrameCaptureCount == 1,
+                "Pose prime did not retain only the acquisition lease after exact restoration.");
+
+            lease.BeginFrame();
+            TestRunner.True(lease.FrameCaptureCount == 2,
+                "First measured frame did not begin after the unmeasured reversible prime.");
+            lease.Restore();
+        }
+
+        private static void PoseFramePrimingRestoresAfterApplicationFailure()
+        {
+            var node = new FakeNode { Position = 1d, Rotation = 2d, Scale = 3d };
+            var lease = CreateLease();
+            lease.Acquire(new[] { node });
+            var failed = false;
+            try
+            {
+                lease.PrimeFrame(() =>
+                {
+                    node.Position = 99d;
+                    throw new InvalidOperationException("injected prime failure");
+                });
+            }
+            catch (InvalidOperationException exception)
+            {
+                failed = exception.Message == "injected prime failure";
+            }
+
+            TestRunner.True(failed, "Pose prime swallowed or changed the application failure.");
+            TestRunner.Equal(1d, node.Position, "Failed pose prime retained its temporary mutation.");
+            TestRunner.True(lease.IsAcquired && !lease.IsFrameActive,
+                "Failed pose prime did not restore its exact frame before reporting failure.");
+            lease.Restore();
         }
 
         private static void PoseLeaseRestoresAcquisitionValues()
