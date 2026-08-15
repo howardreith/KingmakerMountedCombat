@@ -26,8 +26,8 @@ Exactly one Baseline and one Working exist, with zero KMC near-matches. Baseline
 
 ## Current uncertainties, not blockers
 
-- runtime repeatability and visual acceptability of the selected deterministic `medium-humanoid-mammoth-v1` procedural profile across the two remaining presentation rows; `pose-idle`, `pose-walk-run`, `pose-turn-stop`, `pose-doorway-formation`, and `pose-equipment-variants` are qualified A/B;
-- runtime repeatability of the dev.11 immutable UI overlay publication repair and native camera-follow observations in that exact area;
+- runtime repeatability and visual acceptability of the selected deterministic `medium-humanoid-mammoth-v1` procedural profile across the remaining camera presentation row; `pose-idle`, `pose-walk-run`, `pose-turn-stop`, `pose-doorway-formation`, `pose-equipment-variants`, and `ui-selection-portrait-actionbar` are qualified A/B;
+- runtime repeatability of native camera-follow and command-routing observations in that exact area;
 - whether the combined seven-row suite fits the bounded process envelope after individual calibration;
 - capture framing after selection/camera restoration: the latest cleanup screenshot retains the pair but partly occludes the rider and is not the final manual-review composition.
 
@@ -35,4 +35,4 @@ The local implementation, assembly contracts, and strict evidence validators are
 
 ## Exact next action
 
-Commit and guarded-publish dev.11 with the preserved dev.10 UI failure, immutable pre-cleanup overlay evidence, and regressions; then package that exact clean commit. Pass guarded `ui-selection-portrait-actionbar -WhatIf`, execute/audit fresh Pass A then Pass B from the same package, and continue to camera in fixed matrix order. The failed dev.10 row remains immutable and uncredited. Do not rerun qualified native, pose, doorway/formation, or equipment rows absent a narrow regression. Do not weaken calibrated screenshot, movement, synchronization, UI, equipment, formation, or `2000/500`-microsecond thresholds, implement combat, or create a public release.
+Commit and guarded-publish the record-only dev.11 UI A/B qualification, then package that exact clean commit. Pass guarded `camera-follow-and-command-routing -WhatIf`, execute and independently audit fresh Pass A then Pass B from the same package, and continue to two fresh `presentation-suite` processes only after the camera row qualifies. The failed dev.10 UI row remains immutable and uncredited. Do not rerun qualified native, pose, doorway/formation, equipment, or UI rows absent a narrow regression. Do not weaken calibrated screenshot, movement, synchronization, UI, equipment, formation, camera, or `2000/500`-microsecond thresholds, implement combat, or create a public release.

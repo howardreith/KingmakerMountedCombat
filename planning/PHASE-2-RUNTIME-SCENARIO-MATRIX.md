@@ -15,7 +15,7 @@ All core claims require two consecutive fresh-process passes from one clean comm
 | 5 | `pose-turn-stop` | substantial turn/reversal, stop/start, no cumulative drift | PASS â€” `20260815T062000Z-pose-turn-stop-dev9-passA`, `80/0` | PASS â€” `20260815T063000Z-pose-turn-stop-dev9-passB`, `80/0` |
 | 6 | `pose-doorway-formation` | selected doorway, stock group command, non-pair isolation | PASS — `20260815T065000Z-pose-doorway-formation-dev10-passA`, `88/0` | PASS — `20260815T071000Z-pose-doorway-formation-dev10-passB`, `88/0` |
 | 7 | `pose-equipment-variants` | one-handed, shield when available, two-handed when safe | PASS — `20260815T072000Z-pose-equipment-variants-dev10-passA`, `28/0` | PASS — `20260815T073000Z-pose-equipment-variants-dev10-passB`, `28/0` |
-| 8 | `ui-selection-portrait-actionbar` | selected identity, click rider/mount, portrait, circle, action bar | TODO | TODO |
+| 8 | `ui-selection-portrait-actionbar` | selected identity, click rider/mount, portrait, circle, action bar | PASS - `20260815T080000Z-ui-selection-portrait-actionbar-dev11-passA`, `30/0` | PASS - `20260815T081500Z-ui-selection-portrait-actionbar-dev11-passB`, `30/0` |
 | 9 | `camera-follow-and-command-routing` | camera subject through movement/switches and ground commands | TODO | TODO |
 | 10 | `native-save-clean-dismount` | actual save request delivery, clean dismount, no serialized relationship | PASS — `20260815T010000Z-native-save-qualified-passA`, `63/0` | PASS — `20260815T010500Z-native-save-qualified-passB`, `63/0` |
 | 11 | `native-area-clean-dismount` | actual area boundary delivery where safely observable | PASS — `20260815T014500Z-native-area-qualified-passA-exactphase`, `47/0` | PASS — `20260815T015000Z-native-area-qualified-passB-exactphase`, `47/0` |
