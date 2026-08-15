@@ -43,10 +43,18 @@ namespace KingmakerMountedCombat.Diagnostics
             "native-area-clean-dismount",
             "native-mode-transition-cleanup",
             "presentation-residue-and-uninstall-safety",
+            "pose-idle",
+            "pose-walk-run",
+            "pose-turn-stop",
+            "pose-doorway-formation",
+            "pose-equipment-variants",
+            "ui-selection-portrait-actionbar",
+            "camera-follow-and-command-routing",
             "fixture-intake",
             "lifecycle-suite",
             "movement-suite",
-            "boundary-suite"
+            "boundary-suite",
+            "presentation-suite"
         };
 
         public int SchemaVersion { get; set; }
@@ -109,7 +117,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 errors.Add("commit must be a 40-character lowercase Git SHA.");
             }
 
-            if (!string.Equals(ProductVersion, "0.1.0-phase2a-dev.1", StringComparison.Ordinal))
+            if (!string.Equals(ProductVersion, "0.1.0-phase2a-dev.2", StringComparison.Ordinal))
             {
                 errors.Add("productVersion does not match this diagnostic build.");
             }
@@ -406,7 +414,14 @@ namespace KingmakerMountedCombat.Diagnostics
             "native-save-clean-dismount",
             "native-area-clean-dismount",
             "native-mode-transition-cleanup",
-            "presentation-residue-and-uninstall-safety"
+            "presentation-residue-and-uninstall-safety",
+            "pose-idle",
+            "pose-walk-run",
+            "pose-turn-stop",
+            "pose-doorway-formation",
+            "pose-equipment-variants",
+            "ui-selection-portrait-actionbar",
+            "camera-follow-and-command-routing"
         };
 
         public string Name { get; set; }

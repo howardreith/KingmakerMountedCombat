@@ -99,6 +99,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool evidenceFinalized;
         private bool cleanupFrameEvidenceWritten;
         private bool attachmentLeaseAcquiredThisRow;
+        private bool poseLeaseAcquiredThisRow;
 
         public RuntimeLifecycleScenarioEngine(
             RuntimeRequest request,
@@ -272,6 +273,7 @@ namespace KingmakerMountedCombat.Diagnostics
             lastCleanupTransition = null;
             cleanupFrameEvidenceWritten = false;
             attachmentLeaseAcquiredThisRow = false;
+            poseLeaseAcquiredThisRow = false;
             rowClock.Restart();
             assertions.Check(relationship.State == RelationshipState.Unmounted,
                 "Relationship began the row Unmounted.",
@@ -388,6 +390,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
             AssertMountedAuthority();
             attachmentLeaseAcquiredThisRow = relationship.Runtime.PresentationAttachmentLeaseActive;
+            poseLeaseAcquiredThisRow = relationship.Runtime.PoseConfigured;
             step = EngineStep.AwaitMountedFrame;
         }
 
@@ -397,10 +400,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 !snapshot.RiderStockAgent.AvoidanceDisabled && !snapshot.MountStockAgent.AvoidanceDisabled &&
                 !snapshot.RiderView.ForbidRotation && !snapshot.MountView.ForbidRotation &&
                 snapshot.RiderOverride == null && snapshot.MountOverride == null &&
-                snapshot.RiderOverrideComponentCount == 0 && snapshot.MountOverrideComponentCount == 0;
+                snapshot.RiderOverrideComponentCount == 0 && snapshot.MountOverrideComponentCount == 0 &&
+                snapshot.RiderPoseComponentCount == 0 && snapshot.MountPoseComponentCount == 0;
             assertions.Check(exact,
-                "Exact clean stock-agent, avoidance, rotation, override, and component baseline was captured.",
-                "Pre-mount pair contained disabled stock authority or retained avoidance, rotation, override, or component state.");
+                "Exact clean stock-agent, avoidance, rotation, override, movement-component, and pose-component baseline was captured.",
+                "Pre-mount pair contained disabled stock authority or retained avoidance, rotation, override, movement-component, or pose-component state.");
             return exact;
         }
 
@@ -415,6 +419,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 RequestCleanup(CleanupTrigger.Exception);
                 return;
             }
+
+            assertions.Check(relationship.Runtime.PoseConfigured && relationship.Runtime.PoseHealthy &&
+                    relationship.Runtime.PoseFrameApplied && relationship.Runtime.PoseApplicationFrameCount > 0,
+                "Exact supported rider pose was applied after ordinary animation on the next mounted frame.",
+                "Supported rider pose was not healthy and active on the next mounted frame: " +
+                    (relationship.Runtime.PoseFailure ?? "no adapter failure detail"));
 
             if (string.Equals(currentRow, "mounted-pair-create-and-clear", StringComparison.Ordinal))
             {
@@ -596,6 +606,12 @@ namespace KingmakerMountedCombat.Diagnostics
                     string.Equals(relationship.Runtime.PresentationAttachmentRiskState, "active and internally consistent", StringComparison.Ordinal),
                 "Rider owned one internally consistent scoped position-attachment lease.",
                 "Rider scoped position-attachment lease was absent, restored early, or internally inconsistent.");
+            assertions.Check(relationship.Runtime.PoseConfigured && relationship.Runtime.PoseHealthy &&
+                    relationship.Runtime.PoseComponentCount == snapshot.RiderPoseComponentCount + 1 &&
+                    relationship.Runtime.PoseBoneCount == 7 &&
+                    string.Equals(relationship.Runtime.PoseProfileId, "medium-humanoid-mammoth-v1", StringComparison.Ordinal),
+                "Rider owned exactly one healthy seven-bone Medium-humanoid Mammoth pose adapter.",
+                "Rider pose adapter count, health, profile, or typed bone inventory was not exact.");
         }
 
         private void AssertCleanupTransition(TransitionResult result, CleanupTrigger expectedTrigger)
@@ -665,6 +681,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 assertions.Check(snapshot.RiderView.GetComponents<RiderMovementAgent>().Length == snapshot.RiderOverrideComponentCount,
                     "Owned RiderMovementAgent component count returned to its exact prior value.",
                     "A RiderMovementAgent component remained or disappeared after cleanup.");
+                assertions.Check(snapshot.RiderView.GetComponents<MountedRiderPoseAdapter>().Length == snapshot.RiderPoseComponentCount &&
+                        (!poseLeaseAcquiredThisRow || relationship.Runtime.PoseBaselineRestoreVerified),
+                    "Owned pose component count returned to its exact prior value and its bone baseline restoration was verified.",
+                    "A mounted pose adapter or unverified bone baseline remained after cleanup.");
                 assertions.Check(snapshot.RiderView.ForbidRotation == snapshot.RiderForbidRotationWasEnabled,
                     "Rider rotation lease returned to its exact prior value.",
                     "Rider rotation lease remained changed after cleanup.");
@@ -995,6 +1015,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     PostCorrectionRotationResidualDegrees = agent == null ? (double?)null : agent.LatestPostCorrectionRotationResidualDegrees
                 },
                 Attachment = CreateAttachmentEvidence(pair, riderView),
+                Pose = CreatePoseEvidence(riderView),
                 RecordErrors = recordErrors == null ? new string[0] : recordErrors.ToArray()
             };
         }
@@ -1036,6 +1057,29 @@ namespace KingmakerMountedCombat.Diagnostics
                 AttachmentParent = relationship.Runtime.PresentationAttachmentParentName,
                 SourceAnchor = relationship.Runtime.PresentationSourceAnchorName,
                 RiskState = relationship.Runtime.PresentationAttachmentRiskState
+            };
+        }
+
+        private PoseEvidence CreatePoseEvidence(UnitEntityView riderView)
+        {
+            return new PoseEvidence
+            {
+                ProfileId = relationship.Runtime.PoseProfileId,
+                BoneInventory = relationship.Runtime.PoseBoneInventory,
+                Configured = relationship.Runtime.PoseConfigured,
+                Healthy = relationship.Runtime.PoseHealthy,
+                FrameApplied = relationship.Runtime.PoseFrameApplied,
+                BaselineRestoreVerified = relationship.Runtime.PoseBaselineRestoreVerified,
+                ComponentCount = riderView == null ? (int?)null : riderView.GetComponents<MountedRiderPoseAdapter>().Length,
+                BoneCount = relationship.Runtime.PoseBoneCount,
+                ApplicationFrameCount = relationship.Runtime.PoseApplicationFrameCount,
+                FootTargetClampCount = relationship.Runtime.PoseFootTargetClampCount,
+                MaximumFootTargetResidualWorldUnits = relationship.Runtime.PoseMaximumFootTargetResidualWorldUnits,
+                MaximumKneeTargetResidualWorldUnits = relationship.Runtime.PoseMaximumKneeTargetResidualWorldUnits,
+                MaximumSegmentLengthResidualWorldUnits = relationship.Runtime.PoseMaximumSegmentLengthResidualWorldUnits,
+                MaximumApplyMicroseconds = relationship.Runtime.PoseMaximumApplyMicroseconds,
+                AverageApplyMicroseconds = relationship.Runtime.PoseAverageApplyMicroseconds,
+                Failure = relationship.Runtime.PoseFailure
             };
         }
 
@@ -1265,6 +1309,7 @@ namespace KingmakerMountedCombat.Diagnostics
             public TransformEvidence Spine { get; set; }
             public AnchorEvidence Anchor { get; set; }
             public AttachmentEvidence Attachment { get; set; }
+            public PoseEvidence Pose { get; set; }
             public IReadOnlyList<string> RecordErrors { get; set; }
         }
 
@@ -1373,6 +1418,26 @@ namespace KingmakerMountedCombat.Diagnostics
             public string RiskState { get; set; }
         }
 
+        private sealed class PoseEvidence
+        {
+            public string ProfileId { get; set; }
+            public string BoneInventory { get; set; }
+            public bool Configured { get; set; }
+            public bool Healthy { get; set; }
+            public bool FrameApplied { get; set; }
+            public bool BaselineRestoreVerified { get; set; }
+            public int? ComponentCount { get; set; }
+            public int BoneCount { get; set; }
+            public long ApplicationFrameCount { get; set; }
+            public long FootTargetClampCount { get; set; }
+            public double MaximumFootTargetResidualWorldUnits { get; set; }
+            public double MaximumKneeTargetResidualWorldUnits { get; set; }
+            public double MaximumSegmentLengthResidualWorldUnits { get; set; }
+            public double MaximumApplyMicroseconds { get; set; }
+            public double AverageApplyMicroseconds { get; set; }
+            public string Failure { get; set; }
+        }
+
         private sealed class PositionEvidence
         {
             public float X { get; set; }
@@ -1428,6 +1493,10 @@ namespace KingmakerMountedCombat.Diagnostics
 
             public int MountOverrideComponentCount { get; private set; }
 
+            public int RiderPoseComponentCount { get; private set; }
+
+            public int MountPoseComponentCount { get; private set; }
+
             public bool RiderForbidRotationWasEnabled { get; private set; }
 
             public bool MountForbidRotationWasEnabled { get; private set; }
@@ -1479,6 +1548,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     MountOverride = mount.View.AgentOverride,
                     RiderOverrideComponentCount = rider.View.GetComponents<RiderMovementAgent>().Length,
                     MountOverrideComponentCount = mount.View.GetComponents<RiderMovementAgent>().Length,
+                    RiderPoseComponentCount = rider.View.GetComponents<MountedRiderPoseAdapter>().Length,
+                    MountPoseComponentCount = mount.View.GetComponents<MountedRiderPoseAdapter>().Length,
                     RiderForbidRotationWasEnabled = rider.View.ForbidRotation,
                     MountForbidRotationWasEnabled = mount.View.ForbidRotation,
                     RiderParent = rider.View.transform.parent,

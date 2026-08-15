@@ -46,6 +46,7 @@
     <Compile Include="NavigationEndpointDistanceTrackerTests.cs" />
     <Compile Include="NativeLifecycleDeliveryLedgerTests.cs" />
     <Compile Include="NativeAreaBoundaryProgressTests.cs" />
+    <Compile Include="MountedRiderPoseTests.cs" />
     <Compile Include="TestRunner.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\DiagnosticSettings.cs">
       <Link>Shared\DiagnosticSettings.cs</Link>
@@ -91,9 +92,13 @@
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedPlayerAction.cs"><Link>Shared\Domain\MountedPlayerAction.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedRelationshipCoordinator.cs"><Link>Shared\Domain\MountedRelationshipCoordinator.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MovementTelemetry.cs"><Link>Shared\Domain\MovementTelemetry.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedRiderPoseProfile.cs"><Link>Shared\Domain\MountedRiderPoseProfile.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\PoseVector3.cs"><Link>Shared\Domain\PoseVector3.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\RelationshipState.cs"><Link>Shared\Domain\RelationshipState.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\ScopedPoseBaselineLease.cs"><Link>Shared\Domain\ScopedPoseBaselineLease.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\ScopedTransformAttachmentLease.cs"><Link>Shared\Domain\ScopedTransformAttachmentLease.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\TransitionResult.cs"><Link>Shared\Domain\TransitionResult.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\TwoBonePoseSolver.cs"><Link>Shared\Domain\TwoBonePoseSolver.cs</Link></Compile>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

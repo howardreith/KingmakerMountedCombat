@@ -11,7 +11,9 @@ param(
         'mounted-pair-turn-based-entry-cleanup','mounted-pair-realtime-entry-cleanup','mounted-pair-save-safety',
         'mounted-pair-load-safety','mounted-pair-area-transition-safety','fixture-intake','lifecycle-suite',
         'native-save-clean-dismount','native-area-clean-dismount','native-mode-transition-cleanup',
-        'presentation-residue-and-uninstall-safety','movement-suite','boundary-suite'
+        'presentation-residue-and-uninstall-safety','pose-idle','pose-walk-run','pose-turn-stop',
+        'pose-doorway-formation','pose-equipment-variants','ui-selection-portrait-actionbar',
+        'camera-follow-and-command-routing','movement-suite','boundary-suite','presentation-suite'
     )][string]$Scenario='mod-load-smoke',
     [ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$RunId,
     [ValidateRange(360,900)][int]$TimeoutSeconds=360,

@@ -42,6 +42,20 @@ namespace KingmakerMountedCombat.Integration
 
         internal bool OverlayPresent => overlay != null && overlayObject != null;
 
+        internal long OverlayRepaintCount { get; private set; }
+
+        internal long OverlayButtonActivationCount { get; private set; }
+
+        internal bool LastOverlayVisible { get; private set; }
+
+        internal bool LastOverlayEnabled { get; private set; }
+
+        internal string LastOverlayLabel { get; private set; }
+
+        internal string LastOverlayFeedback { get; private set; }
+
+        internal Rect LastOverlayRect { get; private set; }
+
         internal static int CountOverlayObjects()
         {
             var count = 0;
@@ -135,6 +149,32 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
+        internal void ObserveOverlayRepaint(
+            MountedPlayerActionAvailability availability,
+            Rect panel,
+            string feedback)
+        {
+            if (disposed || availability == null)
+            {
+                return;
+            }
+
+            OverlayRepaintCount++;
+            LastOverlayVisible = availability.IsVisible;
+            LastOverlayEnabled = availability.IsEnabled;
+            LastOverlayLabel = availability.Label;
+            LastOverlayFeedback = feedback;
+            LastOverlayRect = panel;
+        }
+
+        internal void ObserveOverlayButtonActivation()
+        {
+            if (!disposed)
+            {
+                OverlayButtonActivationCount++;
+            }
+        }
+
         public void Dispose()
         {
             if (disposed)
@@ -220,10 +260,11 @@ namespace KingmakerMountedCombat.Integration
                 return false;
             }
 
-            // Tranche A permits only an attached humanoid animator surface. The
-            // exact typed bone profile is resolved and qualified in Tranche B
-            // before a presentation build can be accepted.
-            return rider.View.GetComponentInChildren<Animator>() != null;
+            string ignoredError;
+            return MountedRiderPoseAdapter.TryValidateSupportedSurface(
+                rider.View,
+                MountedRiderPoseProfiles.MediumHumanoidOnMammoth,
+                out ignoredError);
         }
 
         private static void NormalizeSelectionToRider(UnitEntityData rider)

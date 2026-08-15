@@ -102,3 +102,7 @@ Confidence is high for licensing, absence of native mounted primitives, the exac
 No K1–K12 kill criterion fired, so the evidence-backed pivot path is unavailable. Architecture B is the final Phase 1 selection. The complete 25-row ledger is `25 PASS / 0 attributable FAIL / 0 DEFER`; doorway, away/back selection, and stock party formation each passed twice against the exact F1 fixture with unchanged thresholds and exact restoration. The truthful status is `PHASE 1 COMPLETE — PROCEED RECOMMENDED`.
 
 This recommendation does not execute or broaden Phase 2. B remains default-off and diagnostic-only until a separate mission is authorized. The next mission must retain the existing pose limitation, claim boundaries, protected-save authority, one-mover invariant, and C/D as explicit fallback architectures if a later combat/persistence criterion fires.
+
+## Phase 2 authorized execution note
+
+The separately authorized Phase 2 master mission retains Architecture B unchanged. Presentation is now implemented as a rider-view-owned seven-bone procedural adapter over the already qualified root-local attachment; it does not add a mover, global animation patch, persistent relationship, Wrath dependency, or proprietary asset. Exact baseline restoration and removal are part of the relationship cleanup transaction. Architecture C/D remain the required pivot options if technical runtime or mandatory visual review rejects this pose seam. Combat remains outside the active implementation until the exact Phase 2A review package is explicitly accepted.

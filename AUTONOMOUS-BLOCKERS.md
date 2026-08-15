@@ -26,12 +26,13 @@ Exactly one Baseline and one Working exist, with zero KMC near-matches. Baseline
 
 ## Current uncertainties, not blockers
 
-- native humanoid pose facilities versus original procedural fallback;
-- accepted deterministic Mammoth rider pose profile;
-- direct portrait/action-bar/selection-circle/camera observation seams.
+- runtime and visual acceptability of the selected deterministic `medium-humanoid-mammoth-v1` procedural profile;
+- exact equipment variants available in the protected Working fixture;
+- native UI/camera observation timing and portrait/circle ownership in that exact area;
+- whether the combined seven-row suite fits the bounded process envelope after individual calibration.
 
-Resolve these through exact assembly inspection, bounded local decompilation, deterministic tests, and guarded runtime evidence. Do not ask the user ordinary implementation questions.
+The local implementation, assembly contracts, and strict evidence validators are PASS. Resolve the remaining uncertainty through individual guarded rows first, implementation fixes where evidence requires them, then two fresh-process repeat passes. Do not weaken thresholds or ask the user ordinary implementation questions.
 
 ## Exact next action
 
-Commit and guarded-publish the exact native-lifecycle qualification record, then begin bounded exact-assembly/asset pose forensics. Implement the reversible view-owned rider pose adapter and its deterministic evidence before expanding runtime protocol rows 3–9 for pose, actual IMGUI delivery, selection/portrait/action-bar observation, and camera. Do not rerun qualified native rows absent a narrow regression. Do not implement combat or create a public release.
+Complete the dev.2 rebuild/diff gate, commit/package the exact presentation implementation, pass guarded `-WhatIf`, and execute `pose-idle` as the first bounded runtime calibration. Continue through rows 3–9 twice each, then create/publish the guarded manual-review checkpoint. Do not rerun qualified native rows absent a narrow regression. Do not implement combat or create a public release.

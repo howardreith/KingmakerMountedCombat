@@ -760,6 +760,16 @@ function Get-TestMovementScreenshotMilestones {
         'mounted-pair-party-formation' { return @('mounted-idle','formation','formation','dismounted') }
         'mounted-pair-pause-unpause' { return @('mounted-idle','moving','paused','dismounted') }
         'mounted-pair-destination-cancel' { return @('mounted-idle','moving','cancelled','dismounted') }
+        'pose-idle' { return @('mounted-idle','pose-idle','dismounted') }
+        'pose-walk-run' { return @('mounted-idle','pose-walk','pose-stopped','pose-run','dismounted') }
+        'pose-turn-stop' { return @('mounted-idle','pose-stop-motion','pose-stopped','pose-turn','pose-reversal','pose-stopped','dismounted') }
+        'pose-doorway-formation' {
+            if ($DoorApproachSkipped) { return @('door-control','door-mounted','door-mounted','formation','formation','dismounted') }
+            return @('door-control','door-control','door-mounted','door-mounted','formation','formation','dismounted')
+        }
+        'pose-equipment-variants' { return @('mounted-idle','pose-equipment','dismounted') }
+        'ui-selection-portrait-actionbar' { return @('mounted-idle','ui-rider','ui-mount-normalized','ui-away','ui-back','dismounted') }
+        'camera-follow-and-command-routing' { return @('mounted-idle','camera-moving','camera-away','camera-back','dismounted') }
         default { throw "No test screenshot contract exists for movement row $Row." }
     }
 }
@@ -768,7 +778,7 @@ function New-TestMovementScreenshotRecords {
     param([Parameter(Mandatory = $true)][string]$Row, [bool]$DoorApproachSkipped = $false)
     $counts = @{}
     $records = New-Object 'Collections.Generic.List[object]'
-    $rowToken = $Row.Substring('mounted-pair-'.Length)
+    $rowToken = if ($Row.StartsWith('mounted-pair-', [StringComparison]::Ordinal)) { $Row.Substring('mounted-pair-'.Length) } else { $Row }
     foreach ($milestone in @(Get-TestMovementScreenshotMilestones $Row $DoorApproachSkipped)) {
         $count = if ($counts.ContainsKey($milestone)) { [int]$counts[$milestone] + 1 } else { 1 }
         $counts[$milestone] = $count
@@ -796,6 +806,9 @@ function New-TestMovementRowRecord {
         attachmentLeaseActive=$true;attachmentRestoreVerified=$false;attachmentResidue=$true;riderParentMatchesAttachment=$true
         riderParent='MastodonPet/KMC_RiderPositionAnchor';attachmentParent='KMC_RiderPositionAnchor';sourceAnchor='Spine'
         attachmentRiskState='active and internally consistent'
+        poseConfigured=$true;poseHealthy=$true;poseFrameApplied=$true;poseBaselineRestoreVerified=$false
+        poseComponentCount=1;poseBoneCount=7;poseProfileId='medium-humanoid-mammoth-v1'
+        poseBoneInventory='Pelvis,L_Up_leg,L_leg,L_foot,R_Up_leg,R_leg,R_foot';poseFailure=$null
     }
     $after = [ordered]@{
         trigger='Manual';relationshipState='Unmounted';hasMountedResidual=$false;riderStockAgentEnabled=$true;mountStockAgentEnabled=$true
@@ -803,16 +816,42 @@ function New-TestMovementRowRecord {
         riderSelected=$true;mountSelected=$false;selectedUnitIds=@('movement-rider');paused=$false;riderForbidRotation=$false
         attachmentLeaseActive=$false;attachmentRestoreVerified=$true;attachmentResidue=$false;riderParentMatchesAttachment=$false
         riderParent='Area/Units/Rider';attachmentParent=$null;sourceAnchor=$null;attachmentRiskState='none'
+        poseConfigured=$false;poseHealthy=$false;poseFrameApplied=$false;poseBaselineRestoreVerified=$true
+        poseComponentCount=0;poseBoneCount=0;poseProfileId=$null;poseBoneInventory=$null;poseFailure=$null
     }
-    $formation = $Row -ceq 'mounted-pair-party-formation'
-    $doorway = $Row -ceq 'mounted-pair-doorway'
+    $poseIdle = $Row -ceq 'pose-idle'
+    $poseWalkRun = $Row -ceq 'pose-walk-run'
+    $poseTurnStop = $Row -ceq 'pose-turn-stop'
+    $poseDoorway = $Row -ceq 'pose-doorway-formation'
+    $poseEquipment = $Row -ceq 'pose-equipment-variants'
+    $uiPresentation = $Row -ceq 'ui-selection-portrait-actionbar'
+    $cameraPresentation = $Row -ceq 'camera-follow-and-command-routing'
+    $formation = $Row -ceq 'mounted-pair-party-formation' -or $poseDoorway
+    $doorway = $Row -ceq 'mounted-pair-doorway' -or $poseDoorway
     $stopStart = $Row -ceq 'mounted-pair-stop-start'
-    $turns = $Row -ceq 'mounted-pair-turns-and-corners'
+    $turns = $Row -ceq 'mounted-pair-turns-and-corners' -or $poseTurnStop
     $selection = $Row -ceq 'mounted-pair-selection'
     $pause = $Row -ceq 'mounted-pair-pause-unpause'
     $cancel = $Row -ceq 'mounted-pair-destination-cancel'
-    $waypointCount = if ($doorway -or $turns) { 3 } elseif ($stopStart) { 2 } else { 1 }
-    $endpointQualifiedWaypointCount = if ($cancel) { 0 } elseif ($stopStart) { 1 } else { $waypointCount }
+    $waypointCount = if ($poseIdle -or $poseEquipment -or $uiPresentation) { 0 }
+        elseif ($poseDoorway) { 4 }
+        elseif ($doorway -or $turns) { 3 }
+        elseif ($stopStart -or $poseWalkRun) { 2 }
+        else { 1 }
+    $endpointQualifiedWaypointCount = if ($cancel) { 0 } elseif ($stopStart) { 1 } elseif ($poseTurnStop) { 2 } else { $waypointCount }
+    $equipmentEvidence = @()
+    if ($poseEquipment) {
+        $equipmentEvidence = @([ordered]@{index=0;isOriginal=$true;isEmpty=$true;primaryType=$null;primaryBlueprintGuid=$null;secondaryType=$null;secondaryBlueprintGuid=$null;oneHandedWeapon=$false;twoHandedWeapon=$false;shield=$false;poseHealthy=$true;poseFrameCount=12})
+    }
+    $uiEvidence = @()
+    if ($uiPresentation) {
+        $uiEvidence = @(
+            [ordered]@{phase='rider-selected';expectedUnitId='movement-rider';isExactlySelected=$true;actionBarSelectedUnitId='movement-rider';actionBarActive=$true;actionBarOwned=$true;portraitControllerCount=1;portraitSelected=$true;selectionCircleCount=1;selectionCircleSelected=$true;error=$null},
+            [ordered]@{phase='mount-selection-normalized-to-rider';expectedUnitId='movement-rider';isExactlySelected=$true;actionBarSelectedUnitId='movement-rider';actionBarActive=$true;actionBarOwned=$true;portraitControllerCount=1;portraitSelected=$true;selectionCircleCount=1;selectionCircleSelected=$true;error=$null},
+            [ordered]@{phase='selection-away';expectedUnitId='movement-non-pair';isExactlySelected=$true;actionBarSelectedUnitId='movement-non-pair';actionBarActive=$true;actionBarOwned=$true;portraitControllerCount=1;portraitSelected=$true;selectionCircleCount=1;selectionCircleSelected=$true;error=$null},
+            [ordered]@{phase='selection-back';expectedUnitId='movement-rider';isExactlySelected=$true;actionBarSelectedUnitId='movement-rider';actionBarActive=$true;actionBarOwned=$true;portraitControllerCount=1;portraitSelected=$true;selectionCircleCount=1;selectionCircleSelected=$true;error=$null}
+        )
+    }
     return [ordered]@{
         schemaVersion=1;runId=[string]$Request.runId;scenario=[string]$Request.scenario;row=$Row;branch=[string]$Request.branch
         commit=[string]$Request.commit;productVersion=[string]$Request.productVersion;dllSha256=[string]$Request.dllSha256
@@ -870,20 +909,37 @@ function New-TestMovementRowRecord {
         updateSynchronizationCorrectionCount=1;lateUpdateSynchronizationCorrectionCount=1;maximumStationaryDriftWorldUnits=0.01
         maximumStuckSeconds=0.1;oscillationCount=0;unexpectedRepathCount=0;commandReplacementCount=0;selectionLossCount=0
         waypointCount=$waypointCount;endpointQualifiedWaypointCount=$endpointQualifiedWaypointCount
-        maximumCompletedLegFinalTargetDistanceWorldUnits=$(if($cancel){0.0}else{0.5})
-        maximumCompletedLegBestTargetDistanceWorldUnits=$(if($cancel){0.0}else{0.4})
+        maximumCompletedLegFinalTargetDistanceWorldUnits=$(if($endpointQualifiedWaypointCount -eq 0){0.0}else{0.5})
+        maximumCompletedLegBestTargetDistanceWorldUnits=$(if($endpointQualifiedWaypointCount -eq 0){0.0}else{0.4})
         maximumTurnDegrees=$(if($turns){90.0}else{0.0});nonPairInterferenceCount=0
-        nonPairUnitId=$(if($selection -or $formation){'movement-non-pair'}else{$null});mountFinalTargetDistanceWorldUnits=$(if($cancel){0.0}else{0.5})
+        nonPairUnitId=$(if($selection -or $formation -or $uiPresentation -or $cameraPresentation){'movement-non-pair'}else{$null});mountFinalTargetDistanceWorldUnits=$(if($cancel){0.0}else{0.5})
         nonPairBestTargetDistanceWorldUnits=$(if($formation){0.4}else{0.0});nonPairFinalTargetDistanceWorldUnits=$(if($formation){0.5}else{0.0})
         minimumPairNonPairSeparationWorldUnits=$(if($formation){3.0}else{0.0});requiredPairNonPairSeparationWorldUnits=$(if($formation){2.0}else{0.0})
-        unmountedDoorControlPassed=$doorway;doorApproachSkipped=$false;stopCommandIssuedCount=$(if($stopStart -or $cancel){1}else{0})
-        restartCompleted=$stopStart;selectionMountNormalized=$selection;selectionSwitchedAway=$selection;selectionSwitchedBack=$selection
+        unmountedDoorControlPassed=$doorway;doorApproachSkipped=$false;stopCommandIssuedCount=$(if($stopStart -or $cancel -or $poseTurnStop){1}else{0})
+        restartCompleted=$stopStart;selectionMountNormalized=($selection -or $cameraPresentation);selectionSwitchedAway=$selection;selectionSwitchedBack=$selection
         formationSelectionNormalized=$formation;pauseEntered=$pause;pauseObservationSeconds=$(if($pause){1.1}else{0.0})
         pauseMaximumDriftWorldUnits=$(if($pause){0.01}else{0.0});pauseExited=$pause
         destinationCancelCommandAbsent=$cancel;destinationCancelRelationshipPreserved=$cancel
+        poseProfileId='medium-humanoid-mammoth-v1';poseBoneInventory='Pelvis,L_Up_leg,L_leg,L_foot,R_Up_leg,R_leg,R_foot'
+        poseObservationCount=12;poseHealthyObservationCount=12;poseFrameAppliedObservationCount=12;poseApplicationFrameCount=12
+        poseFootTargetClampCount=0;poseMaximumFootTargetResidualWorldUnits=0.0;poseMaximumKneeTargetResidualWorldUnits=0.0
+        poseMaximumSegmentLengthResidualWorldUnits=0.0;poseMaximumApplyMicroseconds=100.0;poseAverageApplyMicroseconds=50.0
+        poseMaximumPelvisLocalFrameDeltaWorldUnits=0.01;poseMaximumLeftFootLocalFrameDeltaWorldUnits=0.01
+        poseMaximumRightFootLocalFrameDeltaWorldUnits=0.01;poseMaximumComponentCount=1;poseMaximumBoneCount=7;poseFailure=$null
+        walkMovingSampleCount=$(if($poseWalkRun){5}else{0});runMovingSampleCount=$(if($poseWalkRun){5}else{0})
+        walkMaximumSpeedWorldUnitsPerSecond=$(if($poseWalkRun){1.0}else{0.0});runMaximumSpeedWorldUnitsPerSecond=$(if($poseWalkRun){2.0}else{0.0})
+        equipmentSets=$equipmentEvidence;uiObservations=$uiEvidence;uiRiderPortraitSelected=$uiPresentation;uiRiderSelectionCircleSelected=$uiPresentation
+        uiRiderActionBarOwned=$uiPresentation;uiMountNormalized=$uiPresentation;uiAwayOwned=$uiPresentation;uiBackOwned=$uiPresentation;uiOverlayRendered=$uiPresentation
+        uiOverlayRepaintCountBefore=0;uiOverlayRepaintCountAfter=$(if($uiPresentation){1}else{0});uiOverlayLabel=$(if($uiPresentation){'Dismount'}else{$null});uiOverlayEnabled=$uiPresentation
+        uiOverlayVisible=$uiPresentation;uiOverlayButtonActivationCount=0;uiObservationFailure=$null
+        cameraFollowAccepted=$cameraPresentation;cameraObservationCount=$(if($cameraPresentation){12}else{0});cameraMinimumTargetResidualWorldUnits=$(if($cameraPresentation){0.1}else{1.0})
+        cameraMaximumTargetResidualWorldUnits=$(if($cameraPresentation){1.0}else{1.0});cameraFinalTargetResidualWorldUnits=$(if($cameraPresentation){0.2}else{1.0})
+        cameraMinimumRigResidualWorldUnits=$(if($cameraPresentation){4.0}else{1.0});cameraMaximumRigResidualWorldUnits=$(if($cameraPresentation){8.0}else{1.0})
+        cameraAwayObserved=$cameraPresentation;cameraBackObserved=$cameraPresentation
         cleanupTrigger='Manual';cleanupSucceeded=$true;cleanupResult='state=Unmounted'
         cleanupResidual=$false;cleanupBefore=$before;cleanupAfter=$after
         selectionCoverage='SelectionManager.SelectedUnits only; active portrait and camera-follow state are not asserted.'
+        poseCoverage='Exact supported seven-bone profile and baseline cleanup; subjective visual acceptability remains manual-review-only.'
         formationCoverage='Stock group-command recipients and corpulence clearance only; formation-slot persistence is not asserted.'
         door=$(if($doorway){'Area/Door'}else{$null});doorNear=[ordered]@{x=1.0;y=2.0;z=3.0};doorFar=[ordered]@{x=4.0;y=2.0;z=3.0}
         screenshots=@(New-TestMovementScreenshotRecords $Row $false);screenshotCaptureErrors=@();errors=@()
@@ -3279,7 +3335,7 @@ try {
             writeAuthorization=[ordered]@{mode='working-only';allowedInternalName='KMC_AUTOMATION_WORKING';allowedFileName='Manual_2_KMC_AUTOMATION_WORKING.zks';baselineImmutable=$true}
         }
         $recomputeEvidence = Join-Path $runtimeEvidenceTestRoot 'recompute-evidence'
-        $v2Request=[pscustomobject]@{runId='recompute-test';scenario='fixture-intake';branch='codex/mounted-combat-feasibility';commit=('0'*40);productVersion='0.1.0-phase2a-dev.1';dllSha256=('a'*64);dllMvid=[Guid]::Empty.ToString();transactionToken=('b'*64);evidenceRoot=$recomputeEvidence;fixture=$fixture}
+        $v2Request=[pscustomobject]@{runId='recompute-test';scenario='fixture-intake';branch='codex/mounted-combat-feasibility';commit=('0'*40);productVersion='0.1.0-phase2a-dev.2';dllSha256=('a'*64);dllMvid=[Guid]::Empty.ToString();transactionToken=('b'*64);evidenceRoot=$recomputeEvidence;fixture=$fixture}
         $recomputeManifestHash = New-TestArtifactManifest -EvidenceRoot $recomputeEvidence -RunId $v2Request.runId -Scenario $v2Request.scenario
         $game=[pscustomobject]@{status='PASS';fixture=$fixture;evidenceManifestSha256=$recomputeManifestHash;subscenarioTotal=99;subscenarioPassCount=0;subscenarioFailCount=99;assertionPassCount=0;assertionFailCount=99;subscenarioResults=@([pscustomobject]@{name='observe-mount-diagnostic-availability';status='PASS';assertionPassCount=4;assertionFailCount=0;errors=@()})}
         $final=New-KmcRuntimeResultV2 -Request $v2Request -ValidatedGameResult $game -StartedAtUtc ([DateTimeOffset]::UtcNow) -ModsRestored $true -BaselineImmutable $true -WorkingRestored $true -SaveWriteAllowlistPassed $true -RestoredSaveInventoryDigest ('c'*64) -GameResultSha256 ('d'*64)
@@ -3290,7 +3346,7 @@ try {
 
     Invoke-HarnessTest 'schema-v2 fallback creates and binds a validated orchestration artifact manifest' {
         $fallbackEvidence = Join-Path $runtimeEvidenceTestRoot 'fallback-evidence'
-        $fallbackRequest=[pscustomobject]@{runId='fallback-test';scenario='fixture-intake';branch='codex/mounted-combat-feasibility';commit=('0'*40);productVersion='0.1.0-phase2a-dev.1';dllSha256=('a'*64);dllMvid=[Guid]::Empty.ToString();transactionToken=('b'*64);evidenceRoot=$fallbackEvidence;fixture=[ordered]@{baseline=[ordered]@{};working=[ordered]@{};writeAuthorization=[ordered]@{}}}
+        $fallbackRequest=[pscustomobject]@{runId='fallback-test';scenario='fixture-intake';branch='codex/mounted-combat-feasibility';commit=('0'*40);productVersion='0.1.0-phase2a-dev.2';dllSha256=('a'*64);dllMvid=[Guid]::Empty.ToString();transactionToken=('b'*64);evidenceRoot=$fallbackEvidence;fixture=[ordered]@{baseline=[ordered]@{};working=[ordered]@{};writeAuthorization=[ordered]@{}}}
         $final=New-KmcRuntimeResultV2 -Request $fallbackRequest -ValidatedGameResult $null -StartedAtUtc ([DateTimeOffset]::UtcNow) -ModsRestored $true -BaselineImmutable $true -WorkingRestored $true -SaveWriteAllowlistPassed $true -RestoredSaveInventoryDigest ('c'*64) -GameResultSha256 $null -Errors @('synthetic missing game result')
         $manifestPath = Join-Path $fallbackEvidence 'runtime-artifacts.json'
         Assert-Test ([string]$final.status -ceq 'FAIL') 'missing game result did not force final FAIL'
@@ -3336,7 +3392,7 @@ try {
     $request = [ordered]@{
         schemaVersion = 1; runId = 'schema-test'; scenario = 'mod-load-smoke'
         branch = 'codex/mounted-combat-feasibility'; commit = '0123456789abcdef0123456789abcdef01234567'
-        productVersion = '0.1.0-phase2a-dev.1'; dllSha256 = ('ab' * 32)
+        productVersion = '0.1.0-phase2a-dev.2'; dllSha256 = ('ab' * 32)
         dllMvid = '07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'
         transactionToken = ('cd' * 32)
         evidenceRoot = (Join-Path $runtimeEvidenceTestRoot 'schema-test')
@@ -4797,6 +4853,66 @@ try {
         try { Assert-KmcMovementScenarioEvidence -Request $suiteRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults $subresults.ToArray() } catch { $threw=$true }
         Assert-Test $threw 'movement-suite PASS accepted reordered row evidence'
     }
+    Invoke-HarnessTest 'presentation-suite requires exact pose UI camera path and cleanup evidence' {
+        $suiteRows = @(Get-KmcPresentationRuntimeRows)
+        $suiteRequest = [pscustomobject][ordered]@{
+            runId='presentation-suite-evidence-test';scenario='presentation-suite';branch=$v2Request.branch;commit=$v2Request.commit
+            productVersion=$v2Request.productVersion;dllSha256=$v2Request.dllSha256;dllMvid=$v2Request.dllMvid
+            evidenceRoot=(Join-Path $runtimeEvidenceTestRoot 'presentation-suite-evidence-test')
+        }
+        $telemetry = New-Object 'Collections.Generic.List[object]'
+        $scenario = New-Object 'Collections.Generic.List[object]'
+        $subresults = New-Object 'Collections.Generic.List[object]'
+        $scenarioSequence = 0
+        for ($index = 0; $index -lt $suiteRows.Count; $index++) {
+            $row = $suiteRows[$index]
+            $telemetry.Add((New-TestMovementTelemetryRecord $suiteRequest $row $index))
+            if ($row -ceq 'pose-doorway-formation') {
+                $scenario.Add((New-TestMovementPathProbeRecord $suiteRequest $row ($scenarioSequence++) 'DoorNear' $false))
+                $scenario.Add((New-TestMovementPathProbeRecord $suiteRequest $row ($scenarioSequence++) 'DoorFar' $true))
+                $scenario.Add((New-TestMovementPathProbeRecord $suiteRequest $row ($scenarioSequence++) 'DoorNear' $true))
+                $scenario.Add((New-TestMovementPathProbeRecord $suiteRequest $row ($scenarioSequence++) 'Generic' $false))
+            }
+            else {
+                $probeCount = switch ($row) {
+                    'pose-walk-run' { 2; break }
+                    'pose-turn-stop' { 3; break }
+                    'camera-follow-and-command-routing' { 1; break }
+                    default { 0; break }
+                }
+                for ($probeIndex = 0; $probeIndex -lt $probeCount; $probeIndex++) {
+                    $scenario.Add((New-TestMovementPathProbeRecord $suiteRequest $row ($scenarioSequence++)))
+                }
+            }
+            $scenario.Add((New-TestMovementRowRecord $suiteRequest $row ($scenarioSequence++)))
+            $subresults.Add([pscustomobject][ordered]@{name=$row;status='PASS';assertionPassCount=20;assertionFailCount=0;errors=@()})
+        }
+        [void](Write-TestMovementEvidence $suiteRequest.evidenceRoot $suiteRequest $telemetry.ToArray() $scenario.ToArray())
+        $manifest = Read-KmcJson (Join-Path $suiteRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcMovementScenarioEvidence -Request $suiteRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults $subresults.ToArray()
+
+        $mutationCases = @(
+            @('pose-idle','poseMaximumPelvisLocalFrameDeltaWorldUnits',0.150001),
+            @('pose-walk-run','runMovingSampleCount',0),
+            @('pose-turn-stop','stopCommandIssuedCount',0),
+            @('pose-doorway-formation','formationSelectionNormalized',$false),
+            @('pose-equipment-variants','equipmentSets',@()),
+            @('ui-selection-portrait-actionbar','uiOverlayRendered',$false),
+            @('camera-follow-and-command-routing','cameraBackObserved',$false)
+        )
+        foreach ($mutation in $mutationCases) {
+            $record = @($scenario.ToArray() | Where-Object { [string]$_.kind -ceq 'movement-row-result' -and [string]$_.row -ceq [string]$mutation[0] })[0]
+            $property = [string]$mutation[1]
+            $original = $record[$property]
+            try {
+                $record[$property] = $mutation[2]
+                $threw = $false
+                try { Assert-KmcMovementScenarioRecord $record $suiteRequest ([long]$record.sequence) $suiteRows $true $manifest } catch { $threw = $true }
+                Assert-Test $threw "PASS presentation row accepted semantic mutation $($mutation[0])/$property"
+            }
+            finally { $record[$property] = $original }
+        }
+    }
     Invoke-HarnessTest 'movement source binds telemetry to rows and finalizes destroyed-view cleanup failures' {
         $writerSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\MovementTelemetryWriter.cs'))
         $engineSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeMovementScenarioEngine.cs'))
@@ -4851,9 +4967,9 @@ try {
             ForEach-Object { $_.Groups[1].Value })
         $rowProducerNames = @($rowOwnedNames + $rowPayloadNames)
         $rowFixtureNames = @((New-TestMovementRowRecord $movementRequest $movementRow 1).Keys | ForEach-Object { [string]$_ })
-        Assert-Test ($rowPayloadNames.Count -eq 150 -and $rowProducerNames.Count -eq 161 -and $rowFixtureNames.Count -eq 161 -and
+        Assert-Test ($rowPayloadNames.Count -eq 198 -and $rowProducerNames.Count -eq 209 -and $rowFixtureNames.Count -eq 209 -and
             @($rowProducerNames | Where-Object { [Array]::IndexOf($rowFixtureNames, $_) -lt 0 }).Count -eq 0 -and
-            @($rowFixtureNames | Where-Object { [Array]::IndexOf($rowProducerNames, $_) -lt 0 }).Count -eq 0) 'movement row fixture/validator field set is not the exact 161-field producer schema'
+            @($rowFixtureNames | Where-Object { [Array]::IndexOf($rowProducerNames, $_) -lt 0 }).Count -eq 0) 'movement row fixture/validator field set is not the exact 209-field producer schema'
         $runtimeSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\KingmakerMountedPairRuntime.cs'))
         Assert-Test ($runtimeSource.Contains('riderAvoidanceWasDisabled = riderStockAgent.AvoidanceDisabled;') -and
             $runtimeSource.Contains('riderStockAgent.AvoidanceDisabled != riderAvoidanceWasDisabled')) 'runtime does not verify its counted avoidance lease restores the captured effective state'

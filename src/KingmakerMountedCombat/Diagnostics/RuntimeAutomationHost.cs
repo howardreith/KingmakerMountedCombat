@@ -446,7 +446,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (movementEngine == null)
                 {
-                    movementEngine = new RuntimeMovementScenarioEngine(request, relationship, diagnosticSettings,
+                    movementEngine = new RuntimeMovementScenarioEngine(request, relationship, playerAction, diagnosticSettings,
                         logger, request.EvidenceRoot);
                     movementEngine.Start();
                 }

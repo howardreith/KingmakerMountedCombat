@@ -35,6 +35,9 @@ namespace KingmakerMountedCombat.Integration
         private Transform sourceAnchor;
         private GameObject positionAnchorObject;
         private Transform positionAnchor;
+        private MountedRiderPoseAdapter poseAdapter;
+        private bool poseComponentOwned;
+        private bool poseBaselineRestoreVerified;
         private bool presentationConfigured;
         private Vector3 preMountRiderPosition;
         private float preMountRiderOrientation;
@@ -76,7 +79,40 @@ namespace KingmakerMountedCombat.Integration
 
         public bool RiderParentMatchesAttachment => riderView != null && positionAnchor != null && riderView.transform.parent == positionAnchor;
 
-        public bool HasPresentationAttachmentResidue => riderAttachmentLease.IsAcquired || positionAnchorObject != null || positionAnchor != null;
+        public bool HasPresentationAttachmentResidue => riderAttachmentLease.IsAcquired || positionAnchorObject != null || positionAnchor != null ||
+            poseAdapter != null || poseComponentOwned;
+
+        public bool PoseConfigured => poseAdapter != null && poseAdapter.IsConfigured;
+
+        public bool PoseHealthy => poseAdapter != null && poseAdapter.IsHealthy;
+
+        public bool PoseFrameApplied => poseAdapter != null && poseAdapter.FramePoseApplied;
+
+        public bool PoseBaselineRestoreVerified => poseAdapter != null ? poseAdapter.BaselineRestoreVerified : poseBaselineRestoreVerified;
+
+        public int PoseBoneCount => poseAdapter == null ? 0 : poseAdapter.BoneCount;
+
+        public int PoseComponentCount => riderView == null ? 0 : riderView.GetComponents<MountedRiderPoseAdapter>().Length;
+
+        public string PoseProfileId => poseAdapter == null ? null : poseAdapter.ProfileId;
+
+        public string PoseBoneInventory => poseAdapter == null ? null : poseAdapter.BoneInventory;
+
+        public string PoseFailure => poseAdapter == null ? null : poseAdapter.LastFailure;
+
+        public long PoseApplicationFrameCount => poseAdapter == null ? 0 : poseAdapter.PoseApplicationFrameCount;
+
+        public long PoseFootTargetClampCount => poseAdapter == null ? 0 : poseAdapter.FootTargetClampCount;
+
+        public double PoseMaximumFootTargetResidualWorldUnits => poseAdapter == null ? 0d : poseAdapter.MaximumFootTargetResidualWorldUnits;
+
+        public double PoseMaximumKneeTargetResidualWorldUnits => poseAdapter == null ? 0d : poseAdapter.MaximumKneeTargetResidualWorldUnits;
+
+        public double PoseMaximumSegmentLengthResidualWorldUnits => poseAdapter == null ? 0d : poseAdapter.MaximumSegmentLengthResidualWorldUnits;
+
+        public double PoseMaximumApplyMicroseconds => poseAdapter == null ? 0d : poseAdapter.MaximumApplyMicroseconds;
+
+        public double PoseAverageApplyMicroseconds => poseAdapter == null ? 0d : poseAdapter.AverageApplyMicroseconds;
 
         public string PresentationAttachmentRiskState
         {
@@ -97,6 +133,14 @@ namespace KingmakerMountedCombat.Integration
                 if (positionAnchor == null || positionAnchorObject == null)
                 {
                     return "owned attachment anchor was destroyed while its rider lease remained active";
+                }
+                if (!poseComponentOwned || poseAdapter == null)
+                {
+                    return "owned rider pose adapter was destroyed or detached while mounted";
+                }
+                if (!poseAdapter.IsHealthy)
+                {
+                    return "owned rider pose adapter is unhealthy: " + (poseAdapter.LastFailure ?? "unknown failure");
                 }
                 if (riderView.transform.parent != positionAnchor)
                 {
@@ -222,9 +266,11 @@ namespace KingmakerMountedCombat.Integration
 
             if (!presentationConfigured || sourceAnchor == null || positionAnchor == null ||
                 positionAnchor.parent != mountView.transform || !riderAttachmentLease.IsAcquired ||
-                riderView.transform.parent != positionAnchor)
+                riderView.transform.parent != positionAnchor || !poseComponentOwned || poseAdapter == null ||
+                !poseAdapter.IsHealthy || poseAdapter.ProfileId != MountedRiderPoseProfiles.MediumHumanoidOnMammoth.Id ||
+                poseAdapter.BoneCount != 7 || riderView.GetComponents<MountedRiderPoseAdapter>().Length != 1)
             {
-                return "The scoped Mammoth root-projected position attachment is unavailable or changed.";
+                return "The scoped Mammoth position attachment or exact supported rider pose is unavailable or changed.";
             }
 
             return null;
@@ -295,8 +341,12 @@ namespace KingmakerMountedCombat.Integration
                 positionAnchor,
                 Vector3.zero,
                 new Vector3(0f, settings.RiderYawDegrees, 0f));
+            poseAdapter = riderView.gameObject.AddComponent<MountedRiderPoseAdapter>();
+            poseComponentOwned = true;
+            poseBaselineRestoreVerified = false;
+            poseAdapter.Configure(riderView, MountedRiderPoseProfiles.MediumHumanoidOnMammoth);
             presentationConfigured = true;
-            logger.Info("Rider presentation attached through an owned Mammoth-root position lease projected from Spine; orientation is upright mount yaw only.");
+            logger.Info("Rider presentation attached through an owned Mammoth-root position lease and exact Medium-humanoid procedural pose profile.");
         }
 
         public void RestorePresentation(MountedPair pair)
@@ -304,9 +354,21 @@ namespace KingmakerMountedCombat.Integration
             Exception first = null;
             try
             {
-                if (riderOverride != null)
+                if (poseComponentOwned)
                 {
-                    riderOverride.Deconfigure();
+                    if (poseAdapter == null)
+                    {
+                        throw new InvalidOperationException("Owned rider pose adapter was destroyed before baseline restoration could be verified.");
+                    }
+                    poseAdapter.Deconfigure();
+                    if (poseAdapter.HasPoseResidue || !poseAdapter.BaselineRestoreVerified)
+                    {
+                        throw new InvalidOperationException("Owned rider pose adapter retained bone state after deconfiguration.");
+                    }
+                    poseBaselineRestoreVerified = true;
+                    UnityEngine.Object.Destroy(poseAdapter);
+                    poseComponentOwned = false;
+                    poseAdapter = null;
                 }
             }
             catch (Exception exception)
@@ -314,18 +376,33 @@ namespace KingmakerMountedCombat.Integration
                 first = exception;
             }
 
-            try
+            if (!poseComponentOwned && poseAdapter == null)
             {
-                riderAttachmentLease.Restore();
-            }
-            catch (Exception exception)
-            {
-                first = first ?? exception;
+                try
+                {
+                    if (riderOverride != null)
+                    {
+                        riderOverride.Deconfigure();
+                    }
+                }
+                catch (Exception exception)
+                {
+                    first = first ?? exception;
+                }
+
+                try
+                {
+                    riderAttachmentLease.Restore();
+                }
+                catch (Exception exception)
+                {
+                    first = first ?? exception;
+                }
             }
 
             // Never destroy an attachment parent while a failed lease may still
             // own a rider beneath it. A coordinator retry will repeat restoration.
-            if (!riderAttachmentLease.IsAcquired)
+            if (!poseComponentOwned && poseAdapter == null && !riderAttachmentLease.IsAcquired)
             {
                 try
                 {
@@ -348,7 +425,8 @@ namespace KingmakerMountedCombat.Integration
                 }
             }
 
-            if (first != null || riderAttachmentLease.IsAcquired || positionAnchorObject != null || positionAnchor != null)
+            if (first != null || riderAttachmentLease.IsAcquired || positionAnchorObject != null || positionAnchor != null ||
+                poseAdapter != null || poseComponentOwned)
             {
                 throw new InvalidOperationException("Best-effort rider presentation restoration retained attachment residue.", first);
             }
@@ -364,7 +442,7 @@ namespace KingmakerMountedCombat.Integration
 
         public void RestoreMovementAuthority(MountedPair pair, CleanupTrigger trigger)
         {
-            if (riderAttachmentLease.IsAcquired || positionAnchorObject != null || positionAnchor != null)
+            if (riderAttachmentLease.IsAcquired || positionAnchorObject != null || positionAnchor != null || poseAdapter != null || poseComponentOwned)
             {
                 // The coordinator performs best-effort cleanup even after a
                 // presentation failure. Do not re-enable the rider nav agent or
@@ -531,7 +609,7 @@ namespace KingmakerMountedCombat.Integration
         public void ClearPreparedPairWhenUnmounted()
         {
             if (!movementAuthorityConfigured && !presentationConfigured && !avoidanceLeaseOwned && !riderForbidRotationLeaseOwned && !overrideInstalled && !overrideComponentOwned &&
-                !riderAttachmentLease.IsAcquired && positionAnchorObject == null && positionAnchor == null)
+                !riderAttachmentLease.IsAcquired && positionAnchorObject == null && positionAnchor == null && poseAdapter == null && !poseComponentOwned)
             {
                 TryReleasePreparedReferences();
             }
@@ -540,7 +618,7 @@ namespace KingmakerMountedCombat.Integration
         private void TryReleasePreparedReferences()
         {
             if (movementAuthorityConfigured || presentationConfigured || avoidanceLeaseOwned || riderForbidRotationLeaseOwned || overrideInstalled || overrideComponentOwned ||
-                riderAttachmentLease.IsAcquired || positionAnchorObject != null || positionAnchor != null)
+                riderAttachmentLease.IsAcquired || positionAnchorObject != null || positionAnchor != null || poseAdapter != null || poseComponentOwned)
             {
                 return;
             }

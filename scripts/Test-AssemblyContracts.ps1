@@ -26,6 +26,11 @@ function Find-Token([string]$TypeName,[int]$Token){$type=$assembly.GetType($Type
 if($Target-eq'Kingmaker'){
     Assert-Contract ((Get-FileHash -Algorithm SHA256 -LiteralPath $assemblyPath).Hash.ToLowerInvariant()-ceq'3b6450ffec440e296e586f71c711b195aed144b28d53e1cbb29406d18fef5afb') 'Assembly-CSharp SHA-256'
     Assert-Contract ($assembly.ManifestModule.ModuleVersionId.ToString()-ceq'07fa1e4d-8618-41b3-9b8d-faa17d3b26f7') 'Assembly-CSharp MVID'
+    $firstpassPath=Join-Path $managed 'Assembly-CSharp-firstpass.dll'
+    $firstpass=[Reflection.Assembly]::ReflectionOnlyLoadFrom($firstpassPath)
+    Assert-Contract ((Get-FileHash -Algorithm SHA256 -LiteralPath $firstpassPath).Hash.ToLowerInvariant()-ceq'069a7362ce5e3ccd597206174aec13743c2db5a1bfbc2a42f15a5fbd1ea30d30') 'Assembly-CSharp-firstpass SHA-256'
+    Assert-Contract ($firstpass.ManifestModule.ModuleVersionId.ToString()-ceq'57f03756-55de-42f5-8bb3-e983306082b2') 'Assembly-CSharp-firstpass MVID'
+    Assert-Contract ($null-ne$firstpass.GetType('RootMotion.FinalIK.FullBodyBipedIK',$false) -and $null-ne$firstpass.GetType('RootMotion.SolverManager',$false)) 'native FullBodyBipedIK and post-animator solver surfaces present'
     $unityCorePath=Join-Path $managed 'UnityEngine.CoreModule.dll'
     $unityCore=[Reflection.Assembly]::ReflectionOnlyLoadFrom($unityCorePath)
     Assert-Contract ((Get-FileHash -Algorithm SHA256 -LiteralPath $unityCorePath).Hash.ToLowerInvariant()-ceq'3a76df7f709d465e3273502e08edbffb536b1c2f78c3a132b8668e59fddd2803') 'UnityEngine.CoreModule SHA-256'
@@ -58,6 +63,28 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.UI.Selection.SelectionManager',0x060034E4,'get_SelectedUnits'),@('Kingmaker.Game',0x06000C9A,'get_IsPaused'),
         @('Kingmaker.Game',0x06000C9B,'set_IsPaused'),@('Kingmaker.Game',0x06000CD6,'ReloadArea'),
         @('Kingmaker.Game',0x06000CE4,'SaveGame'),@('Kingmaker.Game',0x06000CE9,'GetCamera'),
+        @('Kingmaker.View.UnitEntityView',0x06001826,'get_Animator'),
+        @('Kingmaker.View.UnitEntityView',0x06001828,'get_CharacterAvatar'),
+        @('Kingmaker.View.UnitEntityView',0x06001839,'get_IkController'),
+        @('Kingmaker.Visual.Animation.IKController',0x06001565,'get_BipedIk'),
+        @('Kingmaker.Visual.Animation.IKController',0x06001567,'get_GrounderIk'),
+        @('Kingmaker.Visual.CharacterSystem.Character',0x0600140B,'OnAnimatorUpdated'),
+        @('Kingmaker.Visual.CharacterSystem.Character',0x0600140C,'LateUpdate'),
+        @('Kingmaker.UI.ActionBar.ActionBarManager',0x04002E23,'m_Selected'),
+        @('Kingmaker.UI.Group.GroupCharacterPortraitController',0x04002AF6,'m_Unit'),
+        @('Kingmaker.UI.Group.GroupCharacterPortraitController',0x04002AEB,'m_SelectionSprite'),
+        @('Kingmaker.UI.Group.GroupCharacterPortraitController',0x04002AEA,'Frame'),
+        @('Kingmaker.UI.Selection.UIDecalBase',0x06003527,'get_Unit'),
+        @('Kingmaker.UI.Selection.CharacterUIDecal',0x04002366,'Select'),
+        @('Kingmaker.Controllers.Rest.CameraController+CameraUnitFollower',0x0400908A,'m_IsOn'),
+        @('Kingmaker.Controllers.Rest.CameraController+CameraUnitFollower',0x0400908B,'m_Unit'),
+        @('Kingmaker.Controllers.Rest.CameraController+CameraUnitFollower',0x0600C2FB,'Follow'),
+        @('Kingmaker.View.CameraRig',0x0600173B,'GetPosition'),
+        @('Kingmaker.Items.UnitBody',0x06007C07,'get_CurrentHandEquipmentSetIndex'),
+        @('Kingmaker.Items.UnitBody',0x06007C08,'set_CurrentHandEquipmentSetIndex'),
+        @('Kingmaker.Items.UnitBody',0x06007C09,'get_HandsEquipmentSets'),
+        @('Kingmaker.View.UnitMovementAgentBase',0x060018E3,'get_MaxSpeedOverride'),
+        @('Kingmaker.View.UnitMovementAgentBase',0x060018E4,'set_MaxSpeedOverride'),
         @('Kingmaker.UI.SettingsUI.SettingsEntityBool',0x04002275,'m_Cached'),
         @('Kingmaker.UI.SettingsUI.SettingsEntityBase',0x04002269,'OnOptionUpdatedCallback'),
         @('Kingmaker.UI.SettingsUI.SettingsEntityBase',0x06003359,'OnInvokeUpdateCallback'),
@@ -80,12 +107,15 @@ if($Target-eq'Kingmaker'){
     foreach($check in $ummUiChecks){$member=if($null-eq$ummUi){$null}else{@($ummUi.GetMembers([Reflection.BindingFlags]'Public,NonPublic,Instance,Static')|Where-Object MetadataToken -eq $check[0]|Select-Object -First 1)};$matches=$null-ne$member -and @($member).Count-eq1;if($matches){$matches=[string]@($member)[0].Name-ceq[string]$check[1]};if($matches -and [int]$check[0]-eq 0x060000CA){$matches=@($member)[0].IsPublic -and @($member)[0].IsStatic -and @($member)[0].ReturnType.FullName-ceq'UnityModManagerNet.UnityModManager+UI'};if($matches -and [int]$check[0]-eq 0x060000CB){$matches=@($member)[0].IsPublic -and -not @($member)[0].IsStatic -and @($member)[0].ReturnType.FullName-ceq'System.Boolean'};if($matches -and [int]$check[0]-eq 0x060000E3){$parameters=@(@($member)[0].GetParameters());$matches=@($member)[0].IsPublic -and -not @($member)[0].IsStatic -and @($member)[0].ReturnType.FullName-ceq'System.Void' -and $parameters.Count-eq1 -and $parameters[0].ParameterType.FullName-ceq'System.Boolean'};Assert-Contract $matches "UMM UI token $($check[0].ToString('X8')) $($check[1]) exact screenshot surface"}
     $monoBehaviour=$unityCore.GetType('UnityEngine.MonoBehaviour',$false)
     $waitForEndOfFrame=$unityCore.GetType('UnityEngine.WaitForEndOfFrame',$false)
+    $defaultExecutionOrder=$unityCore.GetType('UnityEngine.DefaultExecutionOrder',$false)
     $startCoroutine=if($null-eq$monoBehaviour){$null}else{@($monoBehaviour.GetMethods([Reflection.BindingFlags]'Public,Instance')|Where-Object MetadataToken -eq 0x06000E39|Select-Object -First 1)}
     $stopCoroutine=if($null-eq$monoBehaviour){$null}else{@($monoBehaviour.GetMethods([Reflection.BindingFlags]'Public,Instance')|Where-Object MetadataToken -eq 0x06000E3C|Select-Object -First 1)}
     $waitConstructor=if($null-eq$waitForEndOfFrame){$null}else{@($waitForEndOfFrame.GetConstructors([Reflection.BindingFlags]'Public,Instance')|Where-Object MetadataToken -eq 0x0600156D|Select-Object -First 1)}
+    $executionOrderConstructor=if($null-eq$defaultExecutionOrder){$null}else{@($defaultExecutionOrder.GetConstructors([Reflection.BindingFlags]'Public,Instance')|Where-Object MetadataToken -eq 0x060001F4|Select-Object -First 1)}
     Assert-Contract ($null-ne$startCoroutine -and @($startCoroutine).Count-eq1 -and @($startCoroutine)[0].GetParameters().Count-eq1 -and @($startCoroutine)[0].GetParameters()[0].ParameterType.FullName-ceq'System.Collections.IEnumerator' -and @($startCoroutine)[0].ReturnType.FullName-ceq'UnityEngine.Coroutine') 'Unity token 06000E39 MonoBehaviour.StartCoroutine(IEnumerator)'
     Assert-Contract ($null-ne$stopCoroutine -and @($stopCoroutine).Count-eq1 -and @($stopCoroutine)[0].GetParameters().Count-eq1 -and @($stopCoroutine)[0].GetParameters()[0].ParameterType.FullName-ceq'UnityEngine.Coroutine' -and @($stopCoroutine)[0].ReturnType.FullName-ceq'System.Void') 'Unity token 06000E3C MonoBehaviour.StopCoroutine(Coroutine)'
     Assert-Contract ($null-ne$waitConstructor -and @($waitConstructor).Count-eq1 -and @($waitConstructor)[0].GetParameters().Count-eq0) 'Unity token 0600156D WaitForEndOfFrame constructor'
+    Assert-Contract ($null-ne$executionOrderConstructor -and @($executionOrderConstructor).Count-eq1 -and @($executionOrderConstructor)[0].GetParameters().Count-eq1 -and @($executionOrderConstructor)[0].GetParameters()[0].ParameterType.FullName-ceq'System.Int32') 'Unity token 060001F4 DefaultExecutionOrder(Int32) constructor'
 }else{
     Assert-Contract ((Get-FileHash -Algorithm SHA256 -LiteralPath $assemblyPath).Hash.ToLowerInvariant()-ceq'2cb7160b7154d4ffacc77b9c51b1eb26199e1294300f04fdfc073367b2ef8953') 'Assembly-CSharp SHA-256'
     Assert-Contract ($assembly.ManifestModule.ModuleVersionId.ToString()-ceq'90a9869c-2792-4c7b-bfb7-5a8b33da7c82') 'Assembly-CSharp MVID'

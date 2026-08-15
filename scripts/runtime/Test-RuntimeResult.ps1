@@ -153,7 +153,9 @@ function Assert-SubscenarioResults {
         'mounted-pair-turn-based-entry-cleanup', 'mounted-pair-realtime-entry-cleanup', 'mounted-pair-save-safety',
         'mounted-pair-load-safety', 'mounted-pair-area-transition-safety',
         'native-save-clean-dismount', 'native-area-clean-dismount', 'native-mode-transition-cleanup',
-        'presentation-residue-and-uninstall-safety'
+        'presentation-residue-and-uninstall-safety', 'pose-idle', 'pose-walk-run', 'pose-turn-stop',
+        'pose-doorway-formation', 'pose-equipment-variants', 'ui-selection-portrait-actionbar',
+        'camera-follow-and-command-routing'
     )
     if ($null -eq $Result.subscenarioResults -or $Result.subscenarioResults -is [string]) { throw 'Runtime result subscenarioResults must be an array.' }
     $items = @($Result.subscenarioResults)

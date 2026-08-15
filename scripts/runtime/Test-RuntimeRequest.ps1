@@ -96,9 +96,11 @@ $missionScenarios = @(
     'mounted-pair-turn-based-entry-cleanup', 'mounted-pair-realtime-entry-cleanup', 'mounted-pair-save-safety',
     'mounted-pair-load-safety', 'mounted-pair-area-transition-safety',
     'native-save-clean-dismount', 'native-area-clean-dismount', 'native-mode-transition-cleanup',
-    'presentation-residue-and-uninstall-safety'
+    'presentation-residue-and-uninstall-safety', 'pose-idle', 'pose-walk-run', 'pose-turn-stop',
+    'pose-doorway-formation', 'pose-equipment-variants', 'ui-selection-portrait-actionbar',
+    'camera-follow-and-command-routing'
 )
-$aggregateScenarios = @('fixture-intake','lifecycle-suite','movement-suite','boundary-suite')
+$aggregateScenarios = @('fixture-intake','lifecycle-suite','movement-suite','boundary-suite','presentation-suite')
 
 if ([string]$request.runId -cnotmatch '^[A-Za-z0-9._-]{1,120}$') { throw 'Runtime request runId is invalid.' }
 if ([string]$request.branch -cnotmatch '^codex/mounted-combat-[A-Za-z0-9._/-]+$') { throw 'Runtime request branch is outside the KMC prefix.' }

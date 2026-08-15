@@ -43,6 +43,7 @@ namespace KingmakerMountedCombat.Integration
                 GUI.enabled = availability.IsEnabled;
                 if (GUI.Button(new Rect(left + 12f, top + 27f, Width - 24f, 32f), availability.Label))
                 {
+                    controller.ObserveOverlayButtonActivation();
                     controller.Activate();
                 }
                 GUI.enabled = priorEnabled;
@@ -51,6 +52,10 @@ namespace KingmakerMountedCombat.Integration
                     ? controller.LastFeedback
                     : availability.Feedback;
                 GUI.Label(new Rect(left + 12f, top + 64f, Width - 24f, 54f), feedback);
+                if (Event.current != null && Event.current.type == EventType.Repaint)
+                {
+                    controller.ObserveOverlayRepaint(availability, panel, feedback);
+                }
             }
             catch (Exception exception)
             {
