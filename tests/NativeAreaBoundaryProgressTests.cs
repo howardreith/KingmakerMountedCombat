@@ -20,7 +20,11 @@ namespace KingmakerMountedCombat.Tests
 
             var deliveredDuringLoading = progress.Observe(true, true);
             TestRunner.True(deliveredDuringLoading.CaptureCleanupLatch, "delayed cleanup latch capture");
-            TestRunner.True(deliveredDuringLoading.CaptureLoadingStart, "loading-start follows delayed cleanup latch");
+            TestRunner.True(!deliveredDuringLoading.CaptureLoadingStart, "same-observation loading-start before end-of-frame cleanup");
+
+            var postCleanupFrame = progress.Observe(true, true);
+            TestRunner.True(!postCleanupFrame.CaptureCleanupLatch, "duplicate cleanup latch after end-of-frame boundary");
+            TestRunner.True(postCleanupFrame.CaptureLoadingStart, "loading-start follows cleanup on the next observation");
 
             var duplicate = progress.Observe(true, true);
             TestRunner.True(!duplicate.CaptureCleanupLatch, "duplicate cleanup latch");

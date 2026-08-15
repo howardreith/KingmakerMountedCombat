@@ -19,6 +19,12 @@ namespace KingmakerMountedCombat.Diagnostics
             bool cleanupDeliveryObserved,
             bool loadingInProgress)
         {
+            // A cleanup delivery destroys the owned anchor/component at the
+            // Unity end-of-frame boundary. Do not admit loading-start evidence
+            // from the same observation that first sees cleanup, even when the
+            // loading pipeline is already active; the next Update must observe
+            // the post-Destroy object graph.
+            var cleanupWasCaptured = cleanupLatchCaptured;
             if (loadingInProgress)
             {
                 loadingObserved = true;
@@ -30,7 +36,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 cleanupLatchCaptured = true;
             }
 
-            var captureLoadingStart = cleanupLatchCaptured && loadingObserved && !loadingStartCaptured;
+            var captureLoadingStart = cleanupWasCaptured && loadingObserved && !loadingStartCaptured;
             if (captureLoadingStart)
             {
                 loadingStartCaptured = true;
