@@ -1,4 +1,5 @@
 using System;
+using KingmakerMountedCombat.Diagnostics;
 using KingmakerMountedCombat.Domain;
 
 namespace KingmakerMountedCombat.Tests
@@ -17,6 +18,9 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("pose baseline lease rejects duplicate nodes", PoseLeaseRejectsDuplicateNodes);
             runner.Run("supported Mammoth rider pose profile validates", SupportedProfileValidates);
             runner.Run("pose profile rejects duplicate bone ownership", ProfileRejectsDuplicateBones);
+            runner.Run("pose cost evidence retains the latest cumulative average", PoseCostEvidenceRetainsLatestCumulativeAverage);
+            runner.Run("stationary presentation phase coverage accepts LateUpdate only", StationaryPresentationPhaseCoverageAcceptsLateUpdateOnly);
+            runner.Run("moving presentation phase coverage requires Update and LateUpdate", MovingPresentationPhaseCoverageRequiresBothPhases);
         }
 
         private static void SolverPreservesReachableSegmentLengths()
@@ -203,6 +207,43 @@ namespace KingmakerMountedCombat.Tests
                 left,
                 right);
             TestRunner.True(profile.Validate() != null, "Profile with duplicate bone ownership was accepted.");
+        }
+
+        private static void PoseCostEvidenceRetainsLatestCumulativeAverage()
+        {
+            var average = PresentationRuntimeEvidencePolicy.SelectLatestCumulativeAverage(0L, 0.0d, 1L, 1560.6d);
+            average = PresentationRuntimeEvidencePolicy.SelectLatestCumulativeAverage(1L, average, 209L, 18.5d);
+            TestRunner.Equal(18.5d, average, "First-frame warm-up cost contaminated the completed cumulative average.");
+            TestRunner.Equal(
+                18.5d,
+                PresentationRuntimeEvidencePolicy.SelectLatestCumulativeAverage(209L, average, 209L, 999.0d),
+                "An observation without a new pose frame changed the completed cumulative average.");
+        }
+
+        private static void StationaryPresentationPhaseCoverageAcceptsLateUpdateOnly()
+        {
+            foreach (var row in new[] { "pose-idle", "pose-equipment-variants", "ui-selection-portrait-actionbar" })
+            {
+                TestRunner.True(
+                    PresentationRuntimeEvidencePolicy.HasRequiredSynchronizationPhaseCoverage(row, 0L, 10L),
+                    "Stationary row rejected continuous LateUpdate synchronization: " + row + ".");
+            }
+            TestRunner.True(
+                !PresentationRuntimeEvidencePolicy.HasRequiredSynchronizationPhaseCoverage("pose-idle", 0L, 0L),
+                "Stationary row accepted no synchronization samples.");
+        }
+
+        private static void MovingPresentationPhaseCoverageRequiresBothPhases()
+        {
+            TestRunner.True(
+                !PresentationRuntimeEvidencePolicy.HasRequiredSynchronizationPhaseCoverage("pose-walk-run", 0L, 10L),
+                "Moving row accepted LateUpdate-only synchronization.");
+            TestRunner.True(
+                !PresentationRuntimeEvidencePolicy.HasRequiredSynchronizationPhaseCoverage("pose-walk-run", 10L, 0L),
+                "Moving row accepted Update-only synchronization.");
+            TestRunner.True(
+                PresentationRuntimeEvidencePolicy.HasRequiredSynchronizationPhaseCoverage("pose-walk-run", 10L, 10L),
+                "Moving row rejected complete synchronization phase coverage.");
         }
 
         private static ScopedPoseBaselineLease<FakeNode, double, double, double> CreateLease()

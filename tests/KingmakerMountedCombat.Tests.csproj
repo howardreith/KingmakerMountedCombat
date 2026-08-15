@@ -84,6 +84,9 @@
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\NativeAreaBoundaryProgress.cs">
       <Link>Shared\NativeAreaBoundaryProgress.cs</Link>
     </Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\PresentationRuntimeEvidencePolicy.cs">
+      <Link>Shared\PresentationRuntimeEvidencePolicy.cs</Link>
+    </Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\CleanupTrigger.cs"><Link>Shared\Domain\CleanupTrigger.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\CommandRouting.cs"><Link>Shared\Domain\CommandRouting.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\IMountedPairRuntime.cs"><Link>Shared\Domain\IMountedPairRuntime.cs</Link></Compile>

@@ -1574,13 +1574,18 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 rowPoseFrameAppliedObservationCount++;
             }
-            rowPoseApplicationFrameCount = Math.Max(rowPoseApplicationFrameCount, runtime.PoseApplicationFrameCount);
+            var poseApplicationFrameCount = runtime.PoseApplicationFrameCount;
+            rowPoseAverageApplyMicroseconds = PresentationRuntimeEvidencePolicy.SelectLatestCumulativeAverage(
+                rowPoseApplicationFrameCount,
+                rowPoseAverageApplyMicroseconds,
+                poseApplicationFrameCount,
+                runtime.PoseAverageApplyMicroseconds);
+            rowPoseApplicationFrameCount = Math.Max(rowPoseApplicationFrameCount, poseApplicationFrameCount);
             rowPoseFootTargetClampCount = Math.Max(rowPoseFootTargetClampCount, runtime.PoseFootTargetClampCount);
             rowPoseMaximumFootTargetResidual = Math.Max(rowPoseMaximumFootTargetResidual, runtime.PoseMaximumFootTargetResidualWorldUnits);
             rowPoseMaximumKneeTargetResidual = Math.Max(rowPoseMaximumKneeTargetResidual, runtime.PoseMaximumKneeTargetResidualWorldUnits);
             rowPoseMaximumSegmentLengthResidual = Math.Max(rowPoseMaximumSegmentLengthResidual, runtime.PoseMaximumSegmentLengthResidualWorldUnits);
             rowPoseMaximumApplyMicroseconds = Math.Max(rowPoseMaximumApplyMicroseconds, runtime.PoseMaximumApplyMicroseconds);
-            rowPoseAverageApplyMicroseconds = Math.Max(rowPoseAverageApplyMicroseconds, runtime.PoseAverageApplyMicroseconds);
             rowPoseProfileId = runtime.PoseProfileId ?? rowPoseProfileId;
             rowPoseBoneInventory = runtime.PoseBoneInventory ?? rowPoseBoneInventory;
             rowPoseFailure = runtime.PoseFailure ?? rowPoseFailure;
@@ -2868,7 +2873,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 qualification.PostCorrectionPositionPassed &&
                 qualification.PostCorrectionRotationPassed &&
                 qualification.CorrectionCadencePassed &&
-                agent.UpdateSampleCount > 0L && agent.LateUpdateSampleCount > 0L &&
+                PresentationRuntimeEvidencePolicy.HasRequiredSynchronizationPhaseCoverage(
+                    currentRow,
+                    agent.UpdateSampleCount,
+                    agent.LateUpdateSampleCount) &&
                 rowMaximumUpdatePreCorrectionResidual <= settings.MaximumAnchorResidualWorldUnits &&
                 rowMaximumLateUpdatePreCorrectionResidual <= settings.MaximumAnchorResidualWorldUnits &&
                 rowMaximumViewCurrentPositionResidual <= settings.MaximumAnchorResidualWorldUnits &&

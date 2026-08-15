@@ -26,13 +26,14 @@ Exactly one Baseline and one Working exist, with zero KMC near-matches. Baseline
 
 ## Current uncertainties, not blockers
 
-- runtime and visual acceptability of the selected deterministic `medium-humanoid-mammoth-v1` procedural profile;
+- repeat runtime and visual acceptability of the selected deterministic `medium-humanoid-mammoth-v1` procedural profile after the evidence-semantic repair; the first failed calibration proved healthy pose/cleanup but confers no pass credit;
 - exact equipment variants available in the protected Working fixture;
 - native UI/camera observation timing and portrait/circle ownership in that exact area;
-- whether the combined seven-row suite fits the bounded process envelope after individual calibration.
+- whether the combined seven-row suite fits the bounded process envelope after individual calibration;
+- capture framing after selection/camera restoration: the first cleanup screenshot was valid but not useful visual evidence and must not be used for manual acceptance.
 
-The local implementation, assembly contracts, and strict evidence validators are PASS. Resolve the remaining uncertainty through individual guarded rows first, implementation fixes where evidence requires them, then two fresh-process repeat passes. Do not weaken thresholds or ask the user ordinary implementation questions.
+The local implementation, assembly contracts, and strict evidence validators are PASS. Resolve remaining uncertainty through individual guarded rows first, implementation fixes where evidence requires them, then two fresh-process repeat passes. Do not weaken thresholds or ask the user ordinary implementation questions.
 
 ## Exact next action
 
-Complete the dev.2 rebuild/diff gate, commit/package the exact presentation implementation, pass guarded `-WhatIf`, and execute `pose-idle` as the first bounded runtime calibration. Continue through rows 3–9 twice each, then create/publish the guarded manual-review checkpoint. Do not rerun qualified native rows absent a narrow regression. Do not implement combat or create a public release.
+Commit and guarded-publish the dev.3 calibration regression, create its clean exact-commit package, pass guarded `-WhatIf`, and rerun `pose-idle` under a new evidence ID. Continue through rows 3-9 twice each only after the repaired calibration passes, then create/publish the guarded manual-review checkpoint. Do not rerun qualified native rows absent a narrow regression. Do not implement combat or create a public release.
