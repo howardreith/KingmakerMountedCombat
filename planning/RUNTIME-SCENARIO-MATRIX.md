@@ -105,6 +105,14 @@ Historical engineering FAIL results remain preserved. They include fixture boots
 
 The queue is complete. Do not rerun completed archaeology, lifecycle/boundary suites, or movement rows absent a narrow regression gate. Do not synthesize units, weaken thresholds, or execute Phase 2 under this mission.
 
+## Phase 2A presentation qualification addendum
+
+Phase 2A presentation runtime qualification remains `IN PROGRESS`. The seven exact rows are `pose-idle`, `pose-walk-run`, `pose-turn-stop`, `pose-doorway-formation`, `pose-equipment-variants`, `ui-selection-portrait-actionbar`, and `camera-follow-and-command-routing`; each still requires two fresh-process passes before the two complete-suite processes and manual review build.
+
+Three guarded `pose-idle` attempts are preserved without qualification credit. `20260815T034700Z-pose-idle-calibrationA` failed in game at `24/2` and exposed cumulative-average and stationary-phase evidence defects. `20260815T041000Z-pose-idle-dev3-calibrationA` passed in game at `26/0` but final validation rejected stale transition-frame cleanup evidence. `20260815T042100Z-pose-idle-dev4-passA` passed in game at `26/0` and proved exact later-frame cleanup, but the independent external validator still duplicated the obsolete unconditional Update-sample rule. In all three processes, external Working, protected saves, and Mods restored exactly; none is Pass A.
+
+Version `0.1.0-phase2a-dev.5` aligns the external semantic validator with the existing exact stationary-row policy: only `pose-idle`, `pose-equipment-variants`, and `ui-selection-portrait-actionbar` may use positive LateUpdate coverage with zero Update samples. All moving rows still require both phases. The complete local gate is source `21/0`, Release build PASS, component `141/0`, visual `12/0`, harness/protocol `139/0`, and assembly-backed `101/0`. The next runtime cell is a fresh dev.5 `pose-idle` attempt; no presentation row or subjective visual result is currently PASS.
+
 ## Measured F0 movement and visual disposition
 
 All runnable pair-only rows passed twice with final synchronization, zero cleanup residue, and exact external restoration. Open-ground pass B finished `1.2466372098` from the endpoint, retaining only `0.0033627902` margin inside the unchanged `1.25` gate. Stop/start A/B held exact zero stopped drift for approximately `0.761` / `0.759` seconds and then moved approximately `11.436` / `11.417` units on distinct restart paths. Turns/corners A/B reached 3/3 endpoints and measured maximum direction changes of approximately `139.03` degrees. Position and rotation qualification retained the unchanged `0.10` gates, explicit raw-lag bounds/recovery, and zero final outstanding recovery.

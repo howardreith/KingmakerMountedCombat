@@ -6581,7 +6581,13 @@ function Assert-KmcMovementScenarioRecord {
             [long]$Record.positionPhaseLagStationaryBoundaryClosureCount -ne $positionPendingBefore) {
             throw 'PASS movement row-result stationary-boundary closure does not reconcile exactly.'
         }
-        if ([long]$Record.synchronizationObservationCount -le 0 -or [long]$Record.updateSynchronizationSampleCount -le 0 -or
+        $stationaryPresentationRow = @(
+            'pose-idle',
+            'pose-equipment-variants',
+            'ui-selection-portrait-actionbar'
+        ) -ccontains [string]$Record.row
+        if ([long]$Record.synchronizationObservationCount -le 0 -or
+            (-not $stationaryPresentationRow -and [long]$Record.updateSynchronizationSampleCount -le 0) -or
             [long]$Record.lateUpdateSynchronizationSampleCount -le 0 -or
             [long]$Record.updateSynchronizationCorrectionCount -gt [long]$Record.updateSynchronizationSampleCount -or
             [long]$Record.lateUpdateSynchronizationCorrectionCount -gt [long]$Record.lateUpdateSynchronizationSampleCount) {
