@@ -6686,10 +6686,17 @@ function Assert-KmcMovementScenarioRecord {
         if (-not $isCancel -and ($Record.destinationCancelCommandAbsent -ne $false -or $Record.destinationCancelRelationshipPreserved -ne $false)) {
             throw 'Non-cancel PASS row retained destination-cancel-only semantic evidence.'
         }
-        if ($isTurns) {
-            if ([double]$Record.maximumTurnDegrees -lt 75.0) { throw 'PASS turns/corners row lacks the required measured 75-degree turn.' }
+        $maximumTurnDegrees = [double]$Record.maximumTurnDegrees
+        if ($maximumTurnDegrees -gt 180.0) {
+            throw 'PASS movement row contains an impossible measured turn greater than 180 degrees.'
         }
-        elseif ([double]$Record.maximumTurnDegrees -ne 0.0) {
+        if ($isTurns) {
+            if ($maximumTurnDegrees -lt 75.0) { throw 'PASS turns/corners row lacks the required measured 75-degree turn.' }
+        }
+        elseif ($isPoseWalkRun) {
+            if ($maximumTurnDegrees -le 0.0) { throw 'PASS pose walk/run row lacks the measured direction change between its two deliberately divergent legs.' }
+        }
+        elseif ($maximumTurnDegrees -ne 0.0) {
             throw 'Non-turn PASS row retained turns/corners-only semantic evidence.'
         }
         if ($isSelection) {

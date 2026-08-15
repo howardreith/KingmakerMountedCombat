@@ -26,7 +26,7 @@ Exactly one Baseline and one Working exist, with zero KMC near-matches. Baseline
 
 ## Current uncertainties, not blockers
 
-- repeat runtime and visual acceptability of the selected deterministic `medium-humanoid-mammoth-v1` procedural profile after the independent external stationary-phase validator repair; three preserved attempts prove pose/runtime behavior but confer no pass credit;
+- runtime repeatability and visual acceptability of the selected deterministic `medium-humanoid-mammoth-v1` procedural profile across the six remaining presentation rows; `pose-idle` is qualified A/B;
 - exact equipment variants available in the protected Working fixture;
 - native UI/camera observation timing and portrait/circle ownership in that exact area;
 - whether the combined seven-row suite fits the bounded process envelope after individual calibration;
@@ -36,4 +36,4 @@ The local implementation, assembly contracts, and strict evidence validators are
 
 ## Exact next action
 
-Commit and guarded-publish the dev.5 external stationary-phase validator regression, create its clean exact-commit package, pass guarded `-WhatIf`, and rerun `pose-idle` under a new evidence ID. Continue through all seven presentation rows twice each only after the repaired calibration passes, then run the two complete presentation-suite processes and create/publish the guarded manual-review checkpoint. Do not rerun qualified native rows absent a narrow regression. Do not implement combat or create a public release.
+Commit and guarded-publish the dev.6 walk/run direction-evidence regression, create its clean exact-commit package, pass guarded `-WhatIf`, and rerun `pose-walk-run` under a new evidence ID. Continue through the other five unqualified presentation rows twice each, then run the two complete presentation-suite processes and create/publish the guarded manual-review checkpoint. Do not rerun qualified native or `pose-idle` rows absent a narrow regression. Do not implement combat or create a public release.
