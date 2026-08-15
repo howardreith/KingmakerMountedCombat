@@ -26,9 +26,8 @@ Exactly one Baseline and one Working exist, with zero KMC near-matches. Baseline
 
 ## Current uncertainties, not blockers
 
-- a fresh hidden Steam Offline Mode session has not yet emitted current-session App `640820` `offlineMode=true`; a tested no-save-only bootstrap smoke is independently actionable and must still pass strict postflight;
 - native runtime qualification of the implemented transient player-action surface;
-- actual delivery and evidence binding for the mapped native lifecycle seams;
+- actual fresh-process delivery and evidence binding for the now-implemented native lifecycle probes;
 - native humanoid pose facilities versus original procedural fallback;
 - accepted deterministic Mammoth rider pose profile;
 - direct portrait/action-bar/selection-circle/camera observation seams.
@@ -37,4 +36,4 @@ Resolve these through exact assembly inspection, bounded local decompilation, de
 
 ## Exact next action
 
-Commit the tested no-save-only Steam offline-cloud bootstrap guard, regenerate the exact clean package, and run one guarded `mod-load-smoke` bootstrap. Proceed to the two Working-only player-action rows only if the smoke run emits current-session `offlineMode=true`, passes strict postflight, and restores exact external state. Do not implement combat or create a public release.
+Commit, package, and run `native-save-clean-dismount`, `native-area-clean-dismount`, `native-mode-transition-cleanup`, and `presentation-residue-and-uninstall-safety` twice each in fresh processes with exact restoration. Then begin pose forensics. The player-action controller rows are repeatable; actual IMGUI/button delivery remains part of Tranche B UI qualification. Do not implement combat or create a public release.

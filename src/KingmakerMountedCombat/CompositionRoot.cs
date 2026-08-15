@@ -42,7 +42,8 @@ namespace KingmakerMountedCombat
                     relationship,
                     lifecycle,
                     playerAction,
-                    settings);
+                    settings,
+                    Main.InvokeRegisteredToggleForAutomation);
                 if (runtimeAutomation != null)
                 {
                     movementTelemetry = new MovementTelemetryWriter(

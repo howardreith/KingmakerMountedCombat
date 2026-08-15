@@ -56,6 +56,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private int unauthorizedLoadCount;
         private int unauthorizedWriteCount;
         private int baselineLoadRequestCount;
+        private int suppressedWorkingWriteCount;
+        private int suppressionGeneration;
+        private bool oneShotWorkingWriteSuppressionArmed;
 
         public event Action<string> FatalViolation;
 
@@ -102,6 +105,13 @@ namespace KingmakerMountedCombat.Diagnostics
 
         public int BaselineLoadRequestCount { get { lock (sync) { return baselineLoadRequestCount; } } }
 
+        public int SuppressedWorkingWriteCount { get { lock (sync) { return suppressedWorkingWriteCount; } } }
+
+        public bool IsOneShotWorkingWriteSuppressionArmed
+        {
+            get { lock (sync) { return oneShotWorkingWriteSuppressionArmed; } }
+        }
+
         public IDisposable Activate(RuntimeFixtureIdentity fixture, string saveRoot, bool allowWorkingWrites)
         {
             if (fixture == null)
@@ -142,7 +152,38 @@ namespace KingmakerMountedCombat.Diagnostics
                 unauthorizedLoadCount = 0;
                 unauthorizedWriteCount = 0;
                 baselineLoadRequestCount = 0;
+                suppressedWorkingWriteCount = 0;
+                suppressionGeneration = 0;
+                oneShotWorkingWriteSuppressionArmed = false;
                 return new AuthorizationLease(this, generation);
+            }
+        }
+
+        /// <summary>
+        /// Arms one exact, nonfatal Working-save suppression for a diagnostic
+        /// native-delivery probe. The stock SaveRoutine body remains blocked;
+        /// every other write rejection is still fatal and fail-closed.
+        /// </summary>
+        public IDisposable ArmOneShotWorkingWriteSuppression()
+        {
+            lock (sync)
+            {
+                if (activeScope == null)
+                {
+                    throw new InvalidOperationException("Runtime save authorization is inactive.");
+                }
+                if (activeScope.AllowWorkingWrites)
+                {
+                    throw new InvalidOperationException("A suppression probe cannot be armed while Working writes are authorized.");
+                }
+                if (oneShotWorkingWriteSuppressionArmed)
+                {
+                    throw new InvalidOperationException("A one-shot Working-write suppression is already armed.");
+                }
+
+                oneShotWorkingWriteSuppressionArmed = true;
+                suppressionGeneration++;
+                return new SuppressionLease(this, generation, suppressionGeneration);
             }
         }
 
@@ -159,7 +200,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 return new RuntimeSaveAuthorizationDecision(true, false, "Runtime automation save authorization is inactive.");
             }
 
-            var rejection = ValidateActiveRequest(scope, operation, target, observedSaveRoot);
+            var rejection = ValidateActiveRequest(scope, operation, target, observedSaveRoot, false);
             if (rejection == null)
             {
                 lock (sync)
@@ -168,6 +209,23 @@ namespace KingmakerMountedCombat.Diagnostics
                     else { authorizedWriteCount++; }
                 }
                 return new RuntimeSaveAuthorizationDecision(true, false, "Exact KMC Working save target authorized.");
+            }
+
+            if (operation == RuntimeSaveOperation.Write && !scope.AllowWorkingWrites &&
+                ValidateActiveRequest(scope, operation, target, observedSaveRoot, true) == null)
+            {
+                lock (sync)
+                {
+                    if (ReferenceEquals(scope, activeScope) && oneShotWorkingWriteSuppressionArmed)
+                    {
+                        oneShotWorkingWriteSuppressionArmed = false;
+                        suppressedWorkingWriteCount++;
+                        return new RuntimeSaveAuthorizationDecision(
+                            false,
+                            false,
+                            "Expected one-shot exact Working write probe was suppressed before serialization.");
+                    }
+                }
             }
 
             lock (sync)
@@ -212,7 +270,12 @@ namespace KingmakerMountedCombat.Diagnostics
             ReportFatal("Blocked " + OperationName(operation) + ": " + reason);
         }
 
-        private static string ValidateActiveRequest(AuthorizationScope scope, RuntimeSaveOperation operation, RuntimeSaveTarget target, string observedSaveRoot)
+        private static string ValidateActiveRequest(
+            AuthorizationScope scope,
+            RuntimeSaveOperation operation,
+            RuntimeSaveTarget target,
+            string observedSaveRoot,
+            bool ignoreWorkingWritePolicy)
         {
             if (target == null)
             {
@@ -271,7 +334,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 return "Blocked " + OperationName(operation) + ": GameId, GameName, or Area differs from the validated fixture identity.";
             }
 
-            if (operation == RuntimeSaveOperation.Write && !scope.AllowWorkingWrites)
+            if (operation == RuntimeSaveOperation.Write && !scope.AllowWorkingWrites && !ignoreWorkingWritePolicy)
             {
                 return "Blocked write: this runtime request did not expressly authorize Working writes.";
             }
@@ -351,6 +414,19 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (activeScope != null && generation == leaseGeneration)
                 {
                     activeScope = null;
+                    oneShotWorkingWriteSuppressionArmed = false;
+                }
+            }
+        }
+
+        private void CancelSuppression(int leaseGeneration, int leaseSuppressionGeneration)
+        {
+            lock (sync)
+            {
+                if (activeScope != null && generation == leaseGeneration &&
+                    suppressionGeneration == leaseSuppressionGeneration)
+                {
+                    oneShotWorkingWriteSuppressionArmed = false;
                 }
             }
         }
@@ -415,6 +491,35 @@ namespace KingmakerMountedCombat.Diagnostics
 
                 owner = null;
                 currentOwner.Release(leaseGeneration);
+            }
+        }
+
+        private sealed class SuppressionLease : IDisposable
+        {
+            private RuntimeSaveAuthorization owner;
+            private readonly int leaseGeneration;
+            private readonly int leaseSuppressionGeneration;
+
+            public SuppressionLease(
+                RuntimeSaveAuthorization owner,
+                int leaseGeneration,
+                int leaseSuppressionGeneration)
+            {
+                this.owner = owner;
+                this.leaseGeneration = leaseGeneration;
+                this.leaseSuppressionGeneration = leaseSuppressionGeneration;
+            }
+
+            public void Dispose()
+            {
+                var currentOwner = owner;
+                if (currentOwner == null)
+                {
+                    return;
+                }
+
+                owner = null;
+                currentOwner.CancelSuppression(leaseGeneration, leaseSuppressionGeneration);
             }
         }
     }

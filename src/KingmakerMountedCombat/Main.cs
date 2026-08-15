@@ -9,6 +9,7 @@ namespace KingmakerMountedCombat
     {
         private const string Version = "0.1.0-phase2a-dev.1";
         private static CompositionRoot root;
+        private static UnityModManager.ModEntry activeModEntry;
 
         public static bool Load(UnityModManager.ModEntry modEntry)
         {
@@ -20,6 +21,7 @@ namespace KingmakerMountedCombat
             try
             {
                 var logger = new UmmLogger(modEntry.Logger);
+                activeModEntry = modEntry;
                 root = new CompositionRoot(logger, modEntry.Info.Id);
                 modEntry.OnToggle = OnToggle;
                 modEntry.OnUnload = OnUnload;
@@ -41,8 +43,21 @@ namespace KingmakerMountedCombat
                     modEntry.Logger.LogException("Runtime bootstrap failure reporting", reportingException);
                 }
                 root = null;
+                activeModEntry = null;
                 return false;
             }
+        }
+
+        internal static bool InvokeRegisteredToggleForAutomation(bool enabled)
+        {
+            var modEntry = activeModEntry;
+            var callback = modEntry == null ? null : modEntry.OnToggle;
+            if (modEntry == null || callback == null)
+            {
+                throw new InvalidOperationException("The exact registered UMM toggle callback is unavailable.");
+            }
+
+            return callback(modEntry, enabled);
         }
 
         private static bool OnToggle(UnityModManager.ModEntry modEntry, bool enabled)
@@ -69,6 +84,7 @@ namespace KingmakerMountedCombat
             {
                 root?.Dispose();
                 root = null;
+                activeModEntry = null;
                 return true;
             }
             catch (Exception exception)

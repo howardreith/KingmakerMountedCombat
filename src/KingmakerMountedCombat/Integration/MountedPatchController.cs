@@ -228,7 +228,14 @@ namespace KingmakerMountedCombat.Integration
                     return true;
                 }
 
-                PatchBridge.Logger?.Error("FATAL runtime save authorization violation: " + decision.Reason);
+                if (decision.FatalViolation)
+                {
+                    PatchBridge.Logger?.Error("FATAL runtime save authorization violation: " + decision.Reason);
+                }
+                else
+                {
+                    PatchBridge.Logger?.Warning("Expected runtime save serialization suppression: " + decision.Reason);
+                }
                 result = EmptyRoutine();
                 return false;
             }

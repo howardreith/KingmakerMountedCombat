@@ -39,6 +39,10 @@ namespace KingmakerMountedCombat.Diagnostics
             "mounted-pair-save-safety",
             "mounted-pair-load-safety",
             "mounted-pair-area-transition-safety",
+            "native-save-clean-dismount",
+            "native-area-clean-dismount",
+            "native-mode-transition-cleanup",
+            "presentation-residue-and-uninstall-safety",
             "fixture-intake",
             "lifecycle-suite",
             "movement-suite",
@@ -208,7 +212,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
             if (!IsSaveBackedScenario(Scenario))
             {
-                errors.Add("scenario is outside the save-backed Phase 1 allowlist.");
+                errors.Add("scenario is outside the exact save-backed mission allowlist.");
             }
 
             if (Fixture == null)
@@ -398,7 +402,11 @@ namespace KingmakerMountedCombat.Diagnostics
             "mounted-pair-realtime-entry-cleanup",
             "mounted-pair-save-safety",
             "mounted-pair-load-safety",
-            "mounted-pair-area-transition-safety"
+            "mounted-pair-area-transition-safety",
+            "native-save-clean-dismount",
+            "native-area-clean-dismount",
+            "native-mode-transition-cleanup",
+            "presentation-residue-and-uninstall-safety"
         };
 
         public string Name { get; set; }
@@ -581,7 +589,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (!RuntimeRequest.IsSaveBackedScenario(Scenario))
             {
-                errors.Add("scenario is outside the save-backed Phase 1 allowlist.");
+                errors.Add("scenario is outside the exact save-backed mission allowlist.");
             }
 
             if (Fixture == null)

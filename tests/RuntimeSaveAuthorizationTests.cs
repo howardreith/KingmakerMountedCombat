@@ -27,6 +27,9 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("save authorization reports fatal telemetry", RejectionReportsFatalTelemetry);
             runner.Run("save authorization counters reconcile disjoint outcomes", CountersReconcileDisjointOutcomes);
             runner.Run("save authorization activation is exclusive and leased", ActivationIsExclusiveAndLeased);
+            runner.Run("save authorization suppresses one exact Working probe", ExactWorkingWriteProbeIsSuppressedOnce);
+            runner.Run("save authorization probe rejects wrong target fatally", SuppressionProbeDoesNotBroadenAuthority);
+            runner.Run("save authorization probe lease cancels unconsumed arm", SuppressionLeaseCancelsUnconsumedArm);
         }
 
         private static void InactiveAuthorizationPassesThrough()
@@ -214,6 +217,84 @@ namespace KingmakerMountedCombat.Tests
                 TestRunner.Equal(1, authorization.BaselineLoadRequestCount, "Baseline load was not classified separately.");
                 TestRunner.Equal(2, authorization.UnauthorizedLoadCount, "Generic unauthorized load count differs.");
                 TestRunner.Equal(1, authorization.UnauthorizedWriteCount, "Boundary write rejection was not counted.");
+            }
+        }
+
+        private static void ExactWorkingWriteProbeIsSuppressedOnce()
+        {
+            var authorization = new RuntimeSaveAuthorization();
+            using (authorization.Activate(ValidFixture(), SaveRoot, false))
+            {
+                using (authorization.ArmOneShotWorkingWriteSuppression())
+                {
+                    TestRunner.True(authorization.IsOneShotWorkingWriteSuppressionArmed,
+                        "Working-write suppression did not arm.");
+                    var first = authorization.Authorize(RuntimeSaveOperation.Write, WorkingTarget(), SaveRoot);
+                    TestRunner.Equal(false, first.Allowed, "Expected diagnostic write probe entered serialization.");
+                    TestRunner.Equal(false, first.FatalViolation, "Expected diagnostic write suppression was marked fatal.");
+                    TestRunner.Equal(false, authorization.IsOneShotWorkingWriteSuppressionArmed,
+                        "One-shot suppression remained armed after consumption.");
+                    TestRunner.Equal(1, authorization.SuppressedWorkingWriteCount,
+                        "Suppressed Working-write count differs.");
+                    TestRunner.Equal(0, authorization.UnauthorizedWriteCount,
+                        "Expected suppression polluted the unauthorized-write counter.");
+                    TestRunner.Equal(0, authorization.FatalViolationCount,
+                        "Expected suppression produced fatal telemetry.");
+                }
+
+                var second = authorization.Authorize(RuntimeSaveOperation.Write, WorkingTarget(), SaveRoot);
+                AssertFatalRejection(second, "second Working write after one-shot consumption");
+                TestRunner.Equal(1, authorization.SuppressedWorkingWriteCount,
+                    "A second write consumed nonexistent suppression authority.");
+            }
+        }
+
+        private static void SuppressionProbeDoesNotBroadenAuthority()
+        {
+            var authorization = new RuntimeSaveAuthorization();
+            using (authorization.Activate(ValidFixture(), SaveRoot, false))
+            using (authorization.ArmOneShotWorkingWriteSuppression())
+            {
+                var foreign = WorkingTarget();
+                foreign.InternalName = "FOREIGN";
+                AssertFatalRejection(
+                    authorization.Authorize(RuntimeSaveOperation.Write, foreign, SaveRoot),
+                    "foreign write while suppression armed");
+                TestRunner.True(authorization.IsOneShotWorkingWriteSuppressionArmed,
+                    "Wrong-target write consumed the exact Working suppression.");
+
+                var exact = authorization.Authorize(RuntimeSaveOperation.Write, WorkingTarget(), SaveRoot);
+                TestRunner.Equal(false, exact.Allowed, "Exact probe entered serialization after wrong-target rejection.");
+                TestRunner.Equal(false, exact.FatalViolation, "Exact probe was not classified as expected suppression.");
+                TestRunner.Equal(1, authorization.SuppressedWorkingWriteCount,
+                    "Exact probe was not counted once.");
+            }
+        }
+
+        private static void SuppressionLeaseCancelsUnconsumedArm()
+        {
+            var authorization = new RuntimeSaveAuthorization();
+            using (authorization.Activate(ValidFixture(), SaveRoot, false))
+            {
+                var lease = authorization.ArmOneShotWorkingWriteSuppression();
+                var doubleArmRejected = false;
+                try
+                {
+                    authorization.ArmOneShotWorkingWriteSuppression();
+                }
+                catch (InvalidOperationException)
+                {
+                    doubleArmRejected = true;
+                }
+
+                TestRunner.True(doubleArmRejected, "A second one-shot suppression was armed concurrently.");
+                lease.Dispose();
+                lease.Dispose();
+                TestRunner.Equal(false, authorization.IsOneShotWorkingWriteSuppressionArmed,
+                    "Unconsumed suppression remained armed after lease disposal.");
+                AssertFatalRejection(
+                    authorization.Authorize(RuntimeSaveOperation.Write, WorkingTarget(), SaveRoot),
+                    "Working write after suppression lease cancellation");
             }
         }
 

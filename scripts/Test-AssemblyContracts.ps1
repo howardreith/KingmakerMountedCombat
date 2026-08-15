@@ -58,6 +58,12 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.UI.Selection.SelectionManager',0x060034E4,'get_SelectedUnits'),@('Kingmaker.Game',0x06000C9A,'get_IsPaused'),
         @('Kingmaker.Game',0x06000C9B,'set_IsPaused'),@('Kingmaker.Game',0x06000CD6,'ReloadArea'),
         @('Kingmaker.Game',0x06000CE4,'SaveGame'),@('Kingmaker.Game',0x06000CE9,'GetCamera'),
+        @('Kingmaker.UI.SettingsUI.SettingsEntityBool',0x04002275,'m_Cached'),
+        @('Kingmaker.UI.SettingsUI.SettingsEntityBase',0x04002269,'OnOptionUpdatedCallback'),
+        @('Kingmaker.UI.SettingsUI.SettingsEntityBase',0x06003359,'OnInvokeUpdateCallback'),
+        @('Kingmaker.UI.SettingsUI.SettingsEntityBase',0x0600335C,'GetSavedValueString'),
+        @('Kingmaker.UI.SettingsUI.SettingsRoot+SettingsListScreen',0x04007C9F,'EnableTurnBasedMode'),
+        @('Kingmaker.UI.SettingsUI.SettingsRoot+SettingsListScreen',0x04007CBC,'OnlyOneSave'),
         @('Kingmaker.EntitySystem.Persistence.LoadingProcess',0x06007FBC,'get_IsLoadingInProcess'),
         @('Kingmaker.Utility.Screenshot',0x06001D41,'CapturePNG'),@('Kingmaker.View.MapObjects.StandardDoor',0x06001AA0,'get_IsOpen'))
     foreach($check in $checks){$member=@(Find-Token $check[0] $check[1]);$matches=$member.Count -eq 1;if($matches){$matches=[string]$member[0].Name -ceq [string]$check[2]};Assert-Contract $matches "token $($check[1].ToString('X8')) $($check[0]).$($check[2])"}

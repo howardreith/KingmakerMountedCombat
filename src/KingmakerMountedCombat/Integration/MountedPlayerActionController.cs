@@ -13,7 +13,7 @@ namespace KingmakerMountedCombat.Integration
 {
     internal sealed class MountedPlayerActionController : IDisposable
     {
-        private const string OverlayObjectName = "KMC_PlayerActionOverlay";
+        internal const string OverlayObjectName = "KMC_PlayerActionOverlay";
 
         private readonly GameMountedRelationshipService relationship;
         private readonly DiagnosticSettings settings;
@@ -39,6 +39,21 @@ namespace KingmakerMountedCombat.Integration
         }
 
         public string LastFeedback { get; private set; } = "Ready to mount when the selected rider is eligible.";
+
+        internal bool OverlayPresent => overlay != null && overlayObject != null;
+
+        internal static int CountOverlayObjects()
+        {
+            var count = 0;
+            foreach (var transform in Resources.FindObjectsOfTypeAll<Transform>())
+            {
+                if (transform != null && string.Equals(transform.name, OverlayObjectName, StringComparison.Ordinal))
+                {
+                    count++;
+                }
+            }
+            return count;
+        }
 
         public void SetOverlayEnabled(bool enabled)
         {

@@ -201,7 +201,7 @@ if ($schemaVersion -eq 1) {
     Assert-KmcExactProperties $game $commonRequired 'runtime game result v1'
 }
 elseif ($schemaVersion -eq 2) {
-    $v2Fields = @('fixture','fixtureIdentityVerified','baselineLoadRequestCount','workingLoadRequestCount','workingSaveRequestCount','unauthorizedLoadRequestCount','unauthorizedSaveRequestCount','subscenarioTotal','subscenarioPassCount','subscenarioFailCount','assertionPassCount','assertionFailCount','evidenceManifestSha256','subscenarioResults')
+    $v2Fields = @('fixture','fixtureIdentityVerified','baselineLoadRequestCount','workingLoadRequestCount','workingSaveRequestCount','suppressedWorkingSaveRequestCount','unauthorizedLoadRequestCount','unauthorizedSaveRequestCount','subscenarioTotal','subscenarioPassCount','subscenarioFailCount','assertionPassCount','assertionFailCount','evidenceManifestSha256','subscenarioResults')
     Assert-KmcExactProperties $game @($commonRequired + $v2Fields) 'runtime game result v2'
 }
 else { throw 'Runtime game-result request schema is unsupported.' }
@@ -244,7 +244,7 @@ if ($schemaVersion -eq 1) {
 Assert-FixtureEcho $game.fixture $request.fixture
 Assert-RuntimeArtifactManifest $request $game.evidenceManifestSha256
 if ([int]$game.loadRequestCount -ne ([int]$game.baselineLoadRequestCount + [int]$game.workingLoadRequestCount + [int]$game.unauthorizedLoadRequestCount) -or
-    [int]$game.saveRequestCount -ne ([int]$game.workingSaveRequestCount + [int]$game.unauthorizedSaveRequestCount)) { throw 'Save-backed runtime aggregate save/load counters do not reconcile.' }
+    [int]$game.saveRequestCount -ne ([int]$game.workingSaveRequestCount + [int]$game.suppressedWorkingSaveRequestCount + [int]$game.unauthorizedSaveRequestCount)) { throw 'Save-backed runtime aggregate save/load counters do not reconcile.' }
 Assert-SubscenarioResults $game
 $validatedArtifactManifest = Read-KmcJson (Join-Path ([IO.Path]::GetFullPath([string]$request.evidenceRoot)) 'runtime-artifacts.json')
 Assert-KmcLifecycleScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -SubscenarioResults $game.subscenarioResults
@@ -255,8 +255,14 @@ if ([string]$game.status -ceq 'PASS') {
     $expectedWorkingLoads = if ([string]$game.scenario -cin @('mounted-pair-load-safety','boundary-suite')) { 2 } else { 1 }
     if ([int]$game.baselineLoadRequestCount -ne 0 -or [int]$game.unauthorizedLoadRequestCount -ne 0 -or
         [int]$game.unauthorizedSaveRequestCount -ne 0 -or [int]$game.workingLoadRequestCount -ne $expectedWorkingLoads -or
-        [int]$game.loadRequestCount -ne $expectedWorkingLoads -or [int]$game.workingSaveRequestCount -ne 0 -or
-        [int]$game.saveRequestCount -ne 0) { throw 'Save-backed PASS crossed its exact scenario-bound load/save quota.' }
+        [int]$game.loadRequestCount -ne $expectedWorkingLoads -or [int]$game.workingSaveRequestCount -ne 0) {
+        throw 'Save-backed PASS crossed its exact scenario-bound load/save quota.'
+    }
+    $expectedSuppressedSaves = if ([string]$game.scenario -ceq 'native-save-clean-dismount') { 1 } else { 0 }
+    if ([int]$game.suppressedWorkingSaveRequestCount -ne $expectedSuppressedSaves -or
+        [int]$game.saveRequestCount -ne $expectedSuppressedSaves) {
+        throw 'Save-backed PASS crossed its exact suppressed-save request quota.'
+    }
     if ($game.movementExperimentEnabled -ne $false -or $game.loadedAreaPresent -ne $true -or
         [string]$game.currentGameMode -cne 'Default') { throw 'Save-backed PASS did not restore its exact game-mode and diagnostic-setting boundary.' }
     if ([int]$game.subscenarioFailCount -ne 0 -or [int]$game.assertionFailCount -ne 0) { throw 'PASS runtime game result contains subscenario failures.' }

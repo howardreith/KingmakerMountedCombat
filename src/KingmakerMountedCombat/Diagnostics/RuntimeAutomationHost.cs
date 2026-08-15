@@ -41,6 +41,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly MountedLifecycleSubscriber lifecycle;
         private readonly MountedPlayerActionController playerAction;
         private readonly DiagnosticSettings diagnosticSettings;
+        private readonly Func<bool, bool> registeredToggle;
         private readonly string resultPath;
         private readonly DateTimeOffset startedAt;
         private readonly Stopwatch runtimeClock;
@@ -102,7 +103,8 @@ namespace KingmakerMountedCombat.Diagnostics
             GameMountedRelationshipService relationship,
             MountedLifecycleSubscriber lifecycle,
             MountedPlayerActionController playerAction,
-            DiagnosticSettings diagnosticSettings)
+            DiagnosticSettings diagnosticSettings,
+            Func<bool, bool> registeredToggle)
         {
             this.logger = logger;
             this.request = request;
@@ -114,6 +116,7 @@ namespace KingmakerMountedCombat.Diagnostics
             this.lifecycle = lifecycle ?? throw new ArgumentNullException(nameof(lifecycle));
             this.playerAction = playerAction ?? throw new ArgumentNullException(nameof(playerAction));
             this.diagnosticSettings = diagnosticSettings ?? throw new ArgumentNullException(nameof(diagnosticSettings));
+            this.registeredToggle = registeredToggle ?? throw new ArgumentNullException(nameof(registeredToggle));
             resultPath = Path.Combine(request.EvidenceRoot, "runtime-game-result.json");
             startedAt = DateTimeOffset.UtcNow;
             runtimeClock = Stopwatch.StartNew();
@@ -142,7 +145,8 @@ namespace KingmakerMountedCombat.Diagnostics
             GameMountedRelationshipService relationship,
             MountedLifecycleSubscriber lifecycle,
             MountedPlayerActionController playerAction,
-            DiagnosticSettings diagnosticSettings)
+            DiagnosticSettings diagnosticSettings,
+            Func<bool, bool> registeredToggle)
         {
             if (logger == null)
             {
@@ -209,7 +213,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
             logger.Info("Runtime automation request accepted: " + request.RunId + " / " + request.Scenario);
             return new RuntimeAutomationHost(logger, request, loadedModId, relationshipStateProvider, movementExperimentProvider,
-                saveAuthorization, relationship, lifecycle, playerAction, diagnosticSettings);
+                saveAuthorization, relationship, lifecycle, playerAction, diagnosticSettings, registeredToggle);
         }
 
         internal static void ObserveSaveRequest()
@@ -463,7 +467,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (boundaryEngine == null)
                 {
                     boundaryEngine = new RuntimeBoundaryScenarioEngine(request, relationship, lifecycle, saveAuthorization,
-                        fixtureLoader, diagnosticSettings, logger);
+                        fixtureLoader, playerAction, diagnosticSettings, registeredToggle, logger);
                     boundaryEngine.Start();
                 }
                 boundaryEngine.Update();
@@ -984,6 +988,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 BaselineLoadRequestCount = saveAuthorization.BaselineLoadRequestCount,
                 WorkingLoadRequestCount = saveAuthorization.AuthorizedLoadCount,
                 WorkingSaveRequestCount = saveAuthorization.AuthorizedWriteCount,
+                SuppressedWorkingSaveRequestCount = saveAuthorization.SuppressedWorkingWriteCount,
                 UnauthorizedLoadRequestCount = saveAuthorization.UnauthorizedLoadCount,
                 UnauthorizedSaveRequestCount = saveAuthorization.UnauthorizedWriteCount,
                 SubscenarioTotal = results.Count,
@@ -1064,6 +1069,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 emergency.BaselineLoadRequestCount = saveAuthorization.BaselineLoadRequestCount;
                 emergency.WorkingLoadRequestCount = saveAuthorization.AuthorizedLoadCount;
                 emergency.WorkingSaveRequestCount = saveAuthorization.AuthorizedWriteCount;
+                emergency.SuppressedWorkingSaveRequestCount = saveAuthorization.SuppressedWorkingWriteCount;
                 emergency.UnauthorizedLoadRequestCount = saveAuthorization.UnauthorizedLoadCount;
                 emergency.UnauthorizedSaveRequestCount = saveAuthorization.UnauthorizedWriteCount;
                 emergency.EvidenceManifestSha256 = EnsureRuntimeArtifactManifest();
@@ -1155,6 +1161,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 BaselineLoadRequestCount = 0,
                 WorkingLoadRequestCount = 0,
                 WorkingSaveRequestCount = 0,
+                SuppressedWorkingSaveRequestCount = 0,
                 UnauthorizedLoadRequestCount = 0,
                 UnauthorizedSaveRequestCount = 0,
                 SubscenarioTotal = 1,
@@ -1399,6 +1406,7 @@ namespace KingmakerMountedCombat.Diagnostics
             public int BaselineLoadRequestCount { get; set; }
             public int WorkingLoadRequestCount { get; set; }
             public int WorkingSaveRequestCount { get; set; }
+            public int SuppressedWorkingSaveRequestCount { get; set; }
             public int UnauthorizedLoadRequestCount { get; set; }
             public int UnauthorizedSaveRequestCount { get; set; }
             public int SubscenarioTotal { get; set; }

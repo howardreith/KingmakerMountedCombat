@@ -8,8 +8,8 @@ All core claims require two consecutive fresh-process passes from one clean comm
 
 | Order | Scenario | Required observations | Pass A | Pass B |
 |---:|---|---|---|---|
-| 1 | `player-action-availability` | supported/unsupported eligibility and exact reason; no mutation | TODO | TODO |
-| 2 | `mount-dismount-user-flow` | player action, selection normalization, rollback, repeat activation | TODO | TODO |
+| 1 | `player-action-availability` | supported/unsupported eligibility and exact reason; no mutation | PASS — `20260814T234000Z-player-action-availability-passA`, `29/0` | PASS — `20260814T234500Z-player-action-availability-passB`, `29/0` |
+| 2 | `mount-dismount-user-flow` | player action, selection normalization, rollback, repeat activation | PASS — `20260814T235000Z-mount-dismount-user-flow-passA`, `44/0` | PASS — `20260814T235500Z-mount-dismount-user-flow-passB`, `44/0` |
 | 3 | `pose-idle` | mounted baseline, jitter, lower-body pose, cleanup restore | TODO | TODO |
 | 4 | `pose-walk-run` | mount authority, pose stability, frame cost, upper-body freedom | TODO | TODO |
 | 5 | `pose-turn-stop` | substantial turn/reversal, stop/start, no cumulative drift | TODO | TODO |
@@ -33,3 +33,5 @@ All core claims require two consecutive fresh-process passes from one clean comm
 | Stretch | reach, AoO, and basic charge RT/TB plus isolation | TODO |
 
 Combat implementation and execution are forbidden before explicit user acceptance of the exact Phase 2A review package.
+
+Offline native-lifecycle checkpoint: all four native rows have exact protocol allowlists and schema-v2 semantic validators. Release build and source validation pass; component `126/0`, visual-capture contract `12/0`, harness/protocol `137/0`, and assembly-backed contracts `75/0` (`64/0` Kingmaker, `11/0` Wrath). The Pass A/B cells remain `TODO` until clean-commit packaged execution succeeds twice in fresh processes.

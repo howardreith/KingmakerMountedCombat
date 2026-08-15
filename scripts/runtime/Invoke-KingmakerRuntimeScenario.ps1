@@ -10,7 +10,8 @@ param(
         'mounted-pair-party-formation','mounted-pair-pause-unpause','mounted-pair-destination-cancel',
         'mounted-pair-turn-based-entry-cleanup','mounted-pair-realtime-entry-cleanup','mounted-pair-save-safety',
         'mounted-pair-load-safety','mounted-pair-area-transition-safety','fixture-intake','lifecycle-suite',
-        'movement-suite','boundary-suite'
+        'native-save-clean-dismount','native-area-clean-dismount','native-mode-transition-cleanup',
+        'presentation-residue-and-uninstall-safety','movement-suite','boundary-suite'
     )][string]$Scenario='mod-load-smoke',
     [ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$RunId,
     [ValidateRange(360,900)][int]$TimeoutSeconds=360,

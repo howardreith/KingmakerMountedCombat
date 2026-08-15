@@ -10,6 +10,7 @@ using Kingmaker.EntitySystem.Entities;
 using Kingmaker.EntitySystem.Persistence;
 using Kingmaker.GameModes;
 using Kingmaker.UI.Selection;
+using Kingmaker.UI.SettingsUI;
 using Kingmaker.View;
 using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Integration;
@@ -47,7 +48,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly MountedLifecycleSubscriber lifecycle;
         private readonly RuntimeSaveAuthorization saveAuthorization;
         private readonly WorkingFixtureLoader fixtureLoader;
+        private readonly MountedPlayerActionController playerAction;
         private readonly DiagnosticSettings settings;
+        private readonly Func<bool, bool> registeredToggle;
         private readonly IModLogger logger;
         private readonly List<RuntimeSubscenarioResult> results = new List<RuntimeSubscenarioResult>();
         private readonly List<string> errors = new List<string>();
@@ -84,6 +87,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private int unauthorizedWritesBefore;
         private int baselineLoadsBefore;
         private int fatalViolationsBefore;
+        private int suppressedWorkingWritesBefore;
         private long fileLengthBefore;
         private long fileWriteTicksBefore;
         private string fileHashBefore;
@@ -97,7 +101,14 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool descriptorVerifiedForRow;
         private bool descriptorVerificationObserved;
         private bool realWorkingLoadDispatched;
+        private bool realWorkingSaveDispatched;
         private bool realAreaReloadDispatched;
+        private long nativeDeliveryBaselineSequence;
+        private CleanupTrigger? currentExpectedCleanupTrigger;
+        private IDisposable saveSuppressionLease;
+        private NativeModeTransitionProbe nativeModeProbe;
+        private NativeModeProbeEvidence nativeModeEvidence;
+        private ModDisableProbeEvidence modDisableEvidence;
         private long evidenceSequence;
         private bool evidenceFailed;
         private string evidenceFailureMessage;
@@ -115,7 +126,9 @@ namespace KingmakerMountedCombat.Diagnostics
             MountedLifecycleSubscriber lifecycle,
             RuntimeSaveAuthorization saveAuthorization,
             WorkingFixtureLoader fixtureLoader,
+            MountedPlayerActionController playerAction,
             DiagnosticSettings settings,
+            Func<bool, bool> registeredToggle,
             IModLogger logger)
         {
             this.request = request ?? throw new ArgumentNullException(nameof(request));
@@ -123,7 +136,9 @@ namespace KingmakerMountedCombat.Diagnostics
             this.lifecycle = lifecycle ?? throw new ArgumentNullException(nameof(lifecycle));
             this.saveAuthorization = saveAuthorization ?? throw new ArgumentNullException(nameof(saveAuthorization));
             this.fixtureLoader = fixtureLoader ?? throw new ArgumentNullException(nameof(fixtureLoader));
+            this.playerAction = playerAction ?? throw new ArgumentNullException(nameof(playerAction));
             this.settings = settings ?? throw new ArgumentNullException(nameof(settings));
+            this.registeredToggle = registeredToggle ?? throw new ArgumentNullException(nameof(registeredToggle));
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
             evidencePath = Path.Combine(request.EvidenceRoot, BoundaryScenarioEvidenceContract.EvidenceFileName);
             var assembly = typeof(Main).Assembly;
@@ -255,6 +270,10 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             finally
             {
+                saveSuppressionLease?.Dispose();
+                saveSuppressionLease = null;
+                nativeModeProbe?.Dispose();
+                nativeModeProbe = null;
                 RestoreSettings();
                 suiteClock.Stop();
                 rowClock.Stop();
@@ -316,7 +335,16 @@ namespace KingmakerMountedCombat.Diagnostics
             descriptorVerifiedForRow = false;
             descriptorVerificationObserved = false;
             realWorkingLoadDispatched = false;
+            realWorkingSaveDispatched = false;
             realAreaReloadDispatched = false;
+            currentExpectedCleanupTrigger = null;
+            saveSuppressionLease?.Dispose();
+            saveSuppressionLease = null;
+            nativeModeProbe?.Dispose();
+            nativeModeProbe = null;
+            nativeModeEvidence = null;
+            modDisableEvidence = null;
+            nativeDeliveryBaselineSequence = LastNativeDeliverySequence();
             rowStartEvidenceWritten = false;
             CaptureAuthorizationCounts();
             rowClock.Restart();
@@ -331,7 +359,8 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             var authorizationBaselineExact = authorizedLoadsBefore == expectedAuthorizedLoadsBefore &&
                 authorizedWritesBefore == 0 && unauthorizedLoadsBefore == 0 && unauthorizedWritesBefore == 0 &&
-                baselineLoadsBefore == 0 && fatalViolationsBefore == 0;
+                baselineLoadsBefore == 0 && fatalViolationsBefore == 0 &&
+                suppressedWorkingWritesBefore == 0 && !saveAuthorization.IsOneShotWorkingWriteSuppressionArmed;
             assertions.Check(authorizationBaselineExact,
                 "Save authorization counters proved only the initial exact Working load and prior suite load row, if any.",
                 "Save authorization counters contained an unexpected load, write, Baseline request, or fatal violation before the row.");
@@ -400,6 +429,15 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 AbortSuite("Refused to mount a pair that did not expose the exact clean boundary baseline.");
                 return;
+            }
+
+            if (string.Equals(currentRow, "native-mode-transition-cleanup", StringComparison.Ordinal))
+            {
+                nativeModeProbe = new NativeModeTransitionProbe();
+                currentExpectedCleanupTrigger = nativeModeProbe.TemporaryValue
+                    ? CleanupTrigger.TurnBasedModeChanged
+                    : CleanupTrigger.RealtimeModeChanged;
+                nativeModeEvidence = NativeModeProbeEvidence.Capture(nativeModeProbe);
             }
 
             // The first CreateNew record is durably flushed after read-only pair
@@ -479,6 +517,22 @@ namespace KingmakerMountedCombat.Diagnostics
             else if (string.Equals(currentRow, "mounted-pair-area-transition-safety", StringComparison.Ordinal))
             {
                 BeginExactAreaReload();
+            }
+            else if (string.Equals(currentRow, "native-save-clean-dismount", StringComparison.Ordinal))
+            {
+                BeginNativeWorkingSave();
+            }
+            else if (string.Equals(currentRow, "native-area-clean-dismount", StringComparison.Ordinal))
+            {
+                BeginNativeAreaReload();
+            }
+            else if (string.Equals(currentRow, "native-mode-transition-cleanup", StringComparison.Ordinal))
+            {
+                BeginNativeModeBoundary();
+            }
+            else if (string.Equals(currentRow, "presentation-residue-and-uninstall-safety", StringComparison.Ordinal))
+            {
+                BeginNativeModDisable();
             }
             else
             {
@@ -565,6 +619,226 @@ namespace KingmakerMountedCombat.Diagnostics
                 AbortSuite("Save boundary cleanup latch retained runtime residue.");
                 return;
             }
+            boundaryFrame = frameNumber;
+            step = EngineStep.AwaitSimpleCleanupFrame;
+        }
+
+        private void BeginNativeWorkingSave()
+        {
+            var descriptor = fixtureLoader.Descriptor;
+            string descriptorError;
+            var descriptorVerified = VerifyExactWorkingDescriptor(
+                descriptor,
+                fixtureLoader.WorkingPath,
+                out descriptorError);
+            assertions.Check(descriptorVerified,
+                "Native save probe descriptor identified exact Working.",
+                "Native save probe descriptor was not exact Working: " + (descriptorError ?? "unknown error"));
+            if (!descriptorVerified)
+            {
+                AbortSuite("Refused native save probe because its descriptor was not exact Working.");
+                return;
+            }
+
+            var nativeSaveEntryAllowed = Game.Instance != null && Game.Instance.SaveManager != null &&
+                Game.Instance.SaveManager.IsSaveAllowed() && SettingsRoot.Instance != null &&
+                SettingsRoot.Instance.OnlyOneSave != null && !SettingsRoot.Instance.OnlyOneSave.CurrentValue;
+            assertions.Check(nativeSaveEntryAllowed,
+                "Native Game.SaveGame preconditions allowed an ordinary manual save without ironman coercion.",
+                "Native Game.SaveGame would reject the request or coerce the exact Working descriptor under current game settings.");
+            if (!nativeSaveEntryAllowed)
+            {
+                AbortSuite("Refused native save dispatch because Game.SaveGame preconditions were not exact and safe.");
+                return;
+            }
+
+            descriptorVerificationObserved = true;
+            descriptorVerifiedForRow = true;
+            descriptorIdentityForRow = DescriptorIdentityEvidence.From(descriptor);
+            string identityError;
+            if (!FileIdentitySnapshot.TryCapture(fixtureLoader.WorkingPath, out preDispatchWorkingIdentity, out identityError) ||
+                !preDispatchWorkingIdentity.Equals(rowStartWorkingIdentity))
+            {
+                assertions.Fail("Native save immediate pre-dispatch Working identity differed: " +
+                    (identityError ?? "length/timestamp/SHA-256 mismatch"));
+                AbortSuite("Refused native save dispatch after exact Working identity revalidation failed.");
+                return;
+            }
+            fileLengthBefore = preDispatchWorkingIdentity.Length;
+            fileWriteTicksBefore = preDispatchWorkingIdentity.LastWriteTimeUtcTicks;
+            fileHashBefore = preDispatchWorkingIdentity.Sha256;
+
+            if (!TryWriteEvidence("pre-boundary", true, false, null, null))
+            {
+                AbortSuite("Native save pre-dispatch evidence could not be committed.");
+                return;
+            }
+
+            saveSuppressionLease = saveAuthorization.ArmOneShotWorkingWriteSuppression();
+            realWorkingSaveDispatched = true;
+            try
+            {
+                Game.Instance.SaveGame(descriptor, HandleAsynchronousCallback);
+            }
+            finally
+            {
+                saveSuppressionLease.Dispose();
+                saveSuppressionLease = null;
+            }
+
+            assertions.Check(saveAuthorization.SuppressedWorkingWriteCount - suppressedWorkingWritesBefore == 1 &&
+                    !saveAuthorization.IsOneShotWorkingWriteSuppressionArmed,
+                "Exact one-shot Working serialization suppression was consumed once by the native SaveRoutine prefix.",
+                "Native save did not consume exactly one bounded nonfatal Working-write suppression.");
+            CaptureAndAssertCleanupLatch(CleanupTrigger.SaveRequested);
+            AssertExactNativeCleanupDelivery(
+                NativeLifecycleBoundary.SaveRequest,
+                CleanupTrigger.SaveRequested,
+                "SaveManager.SaveRoutine Harmony12 prefix");
+            if (!TryWriteEvidence("cleanup-latch", true, false, null, null))
+            {
+                AbortSuite("Native save cleanup-latch evidence could not be committed.");
+                return;
+            }
+            if (assertions.FailureCount != 0)
+            {
+                AbortSuite("Native save cleanup or suppression latch was inexact.");
+                return;
+            }
+
+            boundaryFrame = frameNumber;
+            step = EngineStep.AwaitSimpleCleanupFrame;
+        }
+
+        private void BeginNativeModeBoundary()
+        {
+            if (nativeModeProbe == null || !currentExpectedCleanupTrigger.HasValue)
+            {
+                AbortSuite("Native mode probe was not prepared before mounted dispatch.");
+                return;
+            }
+            if (!TryWriteEvidence("pre-boundary", true, false, null, null))
+            {
+                AbortSuite("Native mode pre-dispatch evidence could not be committed.");
+                return;
+            }
+
+            nativeModeProbe.DispatchTemporaryValue();
+            CaptureAndAssertCleanupLatch(currentExpectedCleanupTrigger.Value);
+            var temporaryBoundary = nativeModeProbe.TemporaryValue
+                ? NativeLifecycleBoundary.TurnBasedEnabled
+                : NativeLifecycleBoundary.RealtimeEnabled;
+            AssertExactNativeCleanupDelivery(
+                temporaryBoundary,
+                currentExpectedCleanupTrigger.Value,
+                "ITurnBasedModeEnabledHandler.HandleTurnBasedModeStateChanged(" + nativeModeProbe.TemporaryValue + ")");
+            if (!TryWriteEvidence("cleanup-latch", true, false, null, null))
+            {
+                AbortSuite("Native mode cleanup-latch evidence could not be committed.");
+                return;
+            }
+            if (assertions.FailureCount != 0)
+            {
+                AbortSuite("Native mode transition cleanup retained residue or lacked exact EventBus delivery.");
+                return;
+            }
+
+            nativeModeProbe.DispatchRestoreAndRestoreRawCache();
+            var restoreBoundary = nativeModeProbe.OriginalValue
+                ? NativeLifecycleBoundary.TurnBasedEnabled
+                : NativeLifecycleBoundary.RealtimeEnabled;
+            var restoreTrigger = nativeModeProbe.OriginalValue
+                ? CleanupTrigger.TurnBasedModeChanged
+                : CleanupTrigger.RealtimeModeChanged;
+            AssertNativeRestoreDelivery(
+                restoreBoundary,
+                restoreTrigger,
+                "ITurnBasedModeEnabledHandler.HandleTurnBasedModeStateChanged(" + nativeModeProbe.OriginalValue + ")");
+            nativeModeEvidence = NativeModeProbeEvidence.Capture(nativeModeProbe);
+            nativeModeProbe.Dispose();
+            nativeModeProbe = null;
+            AwaitSimpleCleanupFrame();
+        }
+
+        private void BeginNativeAreaReload()
+        {
+            assertions.Check(Game.Instance != null && Game.Instance.CurrentlyLoadedArea != null,
+                "A loaded area was present for native ReloadArea delivery.",
+                "Native ReloadArea was refused because no area was loaded.");
+            if (Game.Instance == null || Game.Instance.CurrentlyLoadedArea == null)
+            {
+                AbortSuite("Native area probe requires the verified loaded Working area.");
+                return;
+            }
+            if (!TryWriteEvidence("pre-boundary", true, false, null, null))
+            {
+                AbortSuite("Native area pre-dispatch evidence could not be committed.");
+                return;
+            }
+
+            boundaryFrame = frameNumber;
+            step = EngineStep.AwaitAreaCompletion;
+            realAreaReloadDispatched = true;
+            Game.Instance.ReloadArea();
+
+            CaptureAndAssertCleanupLatch(CleanupTrigger.AreaUnloading);
+            AssertExactNativeCleanupDelivery(
+                NativeLifecycleBoundary.AreaBeginUnload,
+                CleanupTrigger.AreaUnloading,
+                "ISceneHandler.OnAreaBeginUnloading");
+            if (!TryWriteEvidence("cleanup-latch", true, false, null, null))
+            {
+                AbortSuite("Native area cleanup-latch evidence could not be committed.");
+                return;
+            }
+            if (assertions.FailureCount != 0)
+            {
+                AbortSuite("Native area unload delivery retained residue or was not observed.");
+            }
+        }
+
+        private void BeginNativeModDisable()
+        {
+            modDisableEvidence = new ModDisableProbeEvidence
+            {
+                Executed = true,
+                OverlayPresentBeforeDisable = playerAction.OverlayPresent,
+                OverlayObjectCountBeforeDisable = MountedPlayerActionController.CountOverlayObjects()
+            };
+            assertions.Check(modDisableEvidence.OverlayPresentBeforeDisable == true &&
+                    modDisableEvidence.OverlayObjectCountBeforeDisable == 1,
+                "Exactly one transient player-action overlay was owned before registered UMM disable.",
+                "Registered UMM disable probe did not begin with exactly one owned transient overlay.");
+            if (!TryWriteEvidence("pre-boundary", true, false, null, null))
+            {
+                AbortSuite("Native mod-disable pre-dispatch evidence could not be committed.");
+                return;
+            }
+
+            modDisableEvidence.DisableCallbackSucceeded = registeredToggle(false);
+            modDisableEvidence.OverlayReferenceAbsentImmediately = !playerAction.OverlayPresent;
+            CaptureAndAssertCleanupLatch(CleanupTrigger.ModDisabled);
+            AssertExactNativeCleanupDelivery(
+                NativeLifecycleBoundary.ModDisable,
+                CleanupTrigger.ModDisabled,
+                "UnityModManager.ModEntry.OnToggle(false)/shutdown");
+            assertions.Check(modDisableEvidence.DisableCallbackSucceeded == true,
+                "Exact registered UMM OnToggle(false) delegate completed successfully.",
+                "Exact registered UMM OnToggle(false) delegate rejected disable.");
+            assertions.Check(modDisableEvidence.OverlayReferenceAbsentImmediately == true,
+                "Transient player-action overlay ownership was released synchronously on disable.",
+                "Transient player-action overlay remained owned after disable.");
+            if (!TryWriteEvidence("cleanup-latch", true, false, null, null))
+            {
+                AbortSuite("Native mod-disable cleanup-latch evidence could not be committed.");
+                return;
+            }
+            if (assertions.FailureCount != 0)
+            {
+                AbortSuite("Registered UMM disable delivery retained residue or failed.");
+                return;
+            }
+
             boundaryFrame = frameNumber;
             step = EngineStep.AwaitSimpleCleanupFrame;
         }
@@ -699,6 +973,29 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 return;
             }
+            if (string.Equals(currentRow, "native-save-clean-dismount", StringComparison.Ordinal) &&
+                (IsLoading() || !asynchronousCallback))
+            {
+                return;
+            }
+
+            if (string.Equals(currentRow, "presentation-residue-and-uninstall-safety", StringComparison.Ordinal))
+            {
+                modDisableEvidence.OverlayPresentOnDisabledFrame = playerAction.OverlayPresent;
+                modDisableEvidence.OverlayObjectCountOnDisabledFrame = MountedPlayerActionController.CountOverlayObjects();
+                assertions.Check(modDisableEvidence.OverlayPresentOnDisabledFrame == false &&
+                        modDisableEvidence.OverlayObjectCountOnDisabledFrame == 0,
+                    "Disabled-frame observation contained no transient player-action overlay object or owned reference.",
+                    "Transient player-action overlay residue remained on the disabled frame.");
+                modDisableEvidence.ReenableCallbackSucceeded = registeredToggle(true);
+                modDisableEvidence.OverlayPresentAfterReenable = playerAction.OverlayPresent;
+                modDisableEvidence.OverlayObjectCountAfterReenable = MountedPlayerActionController.CountOverlayObjects();
+                assertions.Check(modDisableEvidence.ReenableCallbackSucceeded == true &&
+                        modDisableEvidence.OverlayPresentAfterReenable == true &&
+                        modDisableEvidence.OverlayObjectCountAfterReenable == 1,
+                    "Exact registered UMM OnToggle(true) restored one transient overlay after the clean disabled frame.",
+                    "Registered UMM re-enable did not restore exactly one transient overlay.");
+            }
 
             AssertUnmountedAndRestored(snapshot);
             snapshot.AssertOverrideComponentCount(assertions);
@@ -719,6 +1016,25 @@ namespace KingmakerMountedCombat.Diagnostics
                     string.Equals(ComputeSha256(fixtureLoader.WorkingPath), fileHashBefore, StringComparison.Ordinal),
                     "Save-safety probe left exact Working bytes and metadata unchanged.",
                     "Save-safety probe changed exact Working despite the no-serialization Phase 1 policy.");
+            }
+            if (string.Equals(currentRow, "native-save-clean-dismount", StringComparison.Ordinal))
+            {
+                var after = new FileInfo(fixtureLoader.WorkingPath);
+                assertions.Check(asynchronousCallback,
+                    "Native Game.SaveGame pipeline completed its registered callback after suppression.",
+                    "Native Game.SaveGame pipeline did not complete its registered callback.");
+                assertions.Check(after.Exists && (after.Attributes & FileAttributes.ReparsePoint) == 0 &&
+                        after.Length == fileLengthBefore && after.LastWriteTimeUtc.Ticks == fileWriteTicksBefore &&
+                        string.Equals(ComputeSha256(fixtureLoader.WorkingPath), fileHashBefore, StringComparison.Ordinal),
+                    "Native save probe left exact Working bytes and metadata unchanged because serialization was suppressed.",
+                    "Native save probe changed exact Working bytes or metadata.");
+            }
+            if (string.Equals(currentRow, "native-mode-transition-cleanup", StringComparison.Ordinal))
+            {
+                assertions.Check(nativeModeEvidence != null && nativeModeEvidence.RestoreDeliveryCompleted == true &&
+                        nativeModeEvidence.PersistedValueUnchanged == true,
+                    "Native mode callback restored the exact cached value and left persisted settings unchanged.",
+                    "Native mode callback did not prove exact cache and persisted-setting restoration.");
             }
             if (!TryWriteEvidence("post-boundary", true, false, null, null))
             {
@@ -821,7 +1137,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     return;
                 }
             }
-            if (!loadingObserved || !loadingStartObserved || !loadingStopObserved || !IsWorldReady())
+            if (!loadingObserved || !loadingStartObserved || !loadingStopObserved || !IsWorldReady() ||
+                (string.Equals(currentRow, "native-area-clean-dismount", StringComparison.Ordinal) &&
+                 !HasNativeAreaStageOrder()))
             {
                 stableWorldFrames = 0;
                 return;
@@ -839,6 +1157,10 @@ namespace KingmakerMountedCombat.Diagnostics
             assertions.Check(loadingObserved && loadingStartObserved && loadingStopObserved,
                 "Area reload loading start and stop were both observed.",
                 "Area reload loading start or stop was not observed.");
+            if (string.Equals(currentRow, "native-area-clean-dismount", StringComparison.Ordinal))
+            {
+                AssertNativeAreaStageOrder();
+            }
             AssertAuthorizationCounts(0, 0);
             AssertLoadedFixtureIdentity();
             CaptureAndAssertFreshWorld("post-area-reload");
@@ -976,6 +1298,13 @@ namespace KingmakerMountedCombat.Diagnostics
             assertions.Check(saveAuthorization.FatalViolationCount == fatalViolationsBefore,
                 "No save-authorization fatal violation occurred.",
                 "A save-authorization fatal violation occurred: " + (saveAuthorization.LastFatalViolation ?? "unspecified"));
+            var expectedSuppressedDelta = string.Equals(currentRow, "native-save-clean-dismount", StringComparison.Ordinal)
+                ? 1
+                : 0;
+            assertions.Check(saveAuthorization.SuppressedWorkingWriteCount - suppressedWorkingWritesBefore == expectedSuppressedDelta &&
+                    !saveAuthorization.IsOneShotWorkingWriteSuppressionArmed,
+                "Suppressed Working-write count changed by exactly " + expectedSuppressedDelta + " and no suppression remains armed.",
+                "Suppressed Working-write count or armed state differed from the exact row contract.");
         }
 
         private void CaptureAuthorizationCounts()
@@ -986,6 +1315,88 @@ namespace KingmakerMountedCombat.Diagnostics
             unauthorizedWritesBefore = saveAuthorization.UnauthorizedWriteCount;
             baselineLoadsBefore = saveAuthorization.BaselineLoadRequestCount;
             fatalViolationsBefore = saveAuthorization.FatalViolationCount;
+            suppressedWorkingWritesBefore = saveAuthorization.SuppressedWorkingWriteCount;
+        }
+
+        private long LastNativeDeliverySequence()
+        {
+            var records = lifecycle.SnapshotNativeDeliveries();
+            return records.Count == 0 ? 0L : records[records.Count - 1].Sequence;
+        }
+
+        private IReadOnlyList<NativeLifecycleDeliveryRecord> CurrentNativeDeliveries()
+        {
+            return lifecycle.SnapshotNativeDeliveries()
+                .Where(record => record.Sequence > nativeDeliveryBaselineSequence)
+                .ToArray();
+        }
+
+        private void AssertExactNativeCleanupDelivery(
+            NativeLifecycleBoundary boundary,
+            CleanupTrigger trigger,
+            string source)
+        {
+            var matches = CurrentNativeDeliveries().Where(record =>
+                record.Boundary == boundary &&
+                string.Equals(record.Source, source, StringComparison.Ordinal) &&
+                record.CleanupTrigger == trigger).ToArray();
+            var exact = matches.Length == 1 &&
+                matches[0].StateBefore == RelationshipState.Mounted &&
+                matches[0].StateAfter == RelationshipState.Unmounted &&
+                matches[0].CleanupAttempted && matches[0].CleanupSucceeded;
+            assertions.Check(exact,
+                "Exact native " + boundary + " delivery recorded Mounted-to-Unmounted " + trigger + " cleanup.",
+                "Native " + boundary + " delivery was missing, duplicated, or did not record exact successful cleanup.");
+        }
+
+        private void AssertNativeRestoreDelivery(
+            NativeLifecycleBoundary boundary,
+            CleanupTrigger trigger,
+            string source)
+        {
+            var matches = CurrentNativeDeliveries().Where(record =>
+                record.Boundary == boundary &&
+                string.Equals(record.Source, source, StringComparison.Ordinal) &&
+                record.CleanupTrigger == trigger).ToArray();
+            var exact = matches.Length == 1 &&
+                matches[0].StateBefore == RelationshipState.Unmounted &&
+                matches[0].StateAfter == RelationshipState.Unmounted &&
+                matches[0].CleanupAttempted && matches[0].CleanupSucceeded;
+            assertions.Check(exact,
+                "Native restore-mode delivery was observed while already Unmounted.",
+                "Native restore-mode delivery was missing, duplicated, or changed clean Unmounted state.");
+        }
+
+        private void AssertNativeAreaStageOrder()
+        {
+            var deliveries = CurrentNativeDeliveries();
+            var unload = FindNativeSequence(deliveries, NativeLifecycleBoundary.AreaBeginUnload, "ISceneHandler.OnAreaBeginUnloading");
+            var scenes = FindNativeSequence(deliveries, NativeLifecycleBoundary.AreaScenesLoaded, "IAreaLoadingStagesHandler.OnAreaScenesLoaded");
+            var didLoad = FindNativeSequence(deliveries, NativeLifecycleBoundary.AreaDidLoad, "ISceneHandler.OnAreaDidLoad");
+            var complete = FindNativeSequence(deliveries, NativeLifecycleBoundary.AreaLoadingComplete, "IAreaLoadingStagesHandler.OnAreaLoadingComplete");
+            assertions.Check(unload > nativeDeliveryBaselineSequence && unload < scenes && scenes < didLoad && didLoad < complete,
+                "Native area delivery order was begin-unload, scenes-loaded, area-did-load, loading-complete.",
+                "Native area delivery stages were missing, duplicated, or out of order.");
+        }
+
+        private bool HasNativeAreaStageOrder()
+        {
+            var deliveries = CurrentNativeDeliveries();
+            var unload = FindNativeSequence(deliveries, NativeLifecycleBoundary.AreaBeginUnload, "ISceneHandler.OnAreaBeginUnloading");
+            var scenes = FindNativeSequence(deliveries, NativeLifecycleBoundary.AreaScenesLoaded, "IAreaLoadingStagesHandler.OnAreaScenesLoaded");
+            var didLoad = FindNativeSequence(deliveries, NativeLifecycleBoundary.AreaDidLoad, "ISceneHandler.OnAreaDidLoad");
+            var complete = FindNativeSequence(deliveries, NativeLifecycleBoundary.AreaLoadingComplete, "IAreaLoadingStagesHandler.OnAreaLoadingComplete");
+            return unload > nativeDeliveryBaselineSequence && unload < scenes && scenes < didLoad && didLoad < complete;
+        }
+
+        private static long FindNativeSequence(
+            IReadOnlyList<NativeLifecycleDeliveryRecord> records,
+            NativeLifecycleBoundary boundary,
+            string source)
+        {
+            var matches = records.Where(record => record.Boundary == boundary &&
+                string.Equals(record.Source, source, StringComparison.Ordinal)).ToArray();
+            return matches.Length == 1 ? matches[0].Sequence : -1L;
         }
 
         private bool TryReadExactWorkingDescriptor(out SaveInfo descriptor, out string error)
@@ -1262,7 +1673,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     unauthorizedLoadsBefore,
                     unauthorizedWritesBefore,
                     baselineLoadsBefore,
-                    fatalViolationsBefore),
+                    fatalViolationsBefore,
+                    suppressedWorkingWritesBefore),
                 Loading = new LoadingEvidence
                 {
                     Observed = loadingObserved,
@@ -1277,6 +1689,11 @@ namespace KingmakerMountedCombat.Diagnostics
                     captureSelection),
                 Cleanup = cleanupLatch ?? BoundaryCleanupEvidence.NotCaptured(ExpectedCleanupTrigger()),
                 FreshWorld = freshWorldEvidence ?? FreshWorldEvidence.NotObserved(),
+                NativeLifecycle = NativeLifecycleEvidence.Capture(
+                    nativeDeliveryBaselineSequence,
+                    CurrentNativeDeliveries()),
+                NativeMode = nativeModeEvidence ?? NativeModeProbeEvidence.NotExecuted(),
+                ModDisable = modDisableEvidence ?? ModDisableProbeEvidence.NotExecuted(),
                 RecordErrors = recordErrors == null ? new string[0] : recordErrors.ToArray()
             };
         }
@@ -1347,7 +1764,8 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 ExpectedCleanupTrigger = ExpectedCleanupTrigger().ToString(),
                 NativeDeliveryObserved = false,
-                StockSaveRoutineInvoked = false,
+                StockSaveRoutineInvoked = realWorkingSaveDispatched,
+                RealWorkingSaveDispatched = realWorkingSaveDispatched,
                 RealWorkingLoadDispatched = realWorkingLoadDispatched,
                 RealAreaReloadDispatched = realAreaReloadDispatched
             };
@@ -1376,6 +1794,45 @@ namespace KingmakerMountedCombat.Diagnostics
                 scope.NativeDeliveryObserved = saveAuthorization.AuthorizedLoadCount - authorizedLoadsBefore > 0;
                 scope.ClaimLimit = "Real Game.LoadGame of the exact Working descriptor exercised the native LoadRoutine prefix; no UI load request was exercised.";
             }
+            else if (string.Equals(currentRow, "native-save-clean-dismount", StringComparison.Ordinal))
+            {
+                scope.InvocationPath = "game-savegame-exact-working+one-shot-prefix-suppression";
+                scope.NativeDeliveryObserved = HasExactNativeCleanupDelivery(
+                    NativeLifecycleBoundary.SaveRequest,
+                    CleanupTrigger.SaveRequested,
+                    "SaveManager.SaveRoutine Harmony12 prefix");
+                scope.ClaimLimit = "Real Game.SaveGame entered the exact SaveRoutine Harmony12 prefix and callback pipeline; a one-shot exact-Working diagnostic guard suppressed the stock iterator body before serialization, so no disk write or save UI delivery is claimed.";
+            }
+            else if (string.Equals(currentRow, "native-area-clean-dismount", StringComparison.Ordinal))
+            {
+                scope.InvocationPath = "game-reloadarea+native-eventbus-area-stages";
+                scope.NativeDeliveryObserved = HasExactNativeCleanupDelivery(
+                    NativeLifecycleBoundary.AreaBeginUnload,
+                    CleanupTrigger.AreaUnloading,
+                    "ISceneHandler.OnAreaBeginUnloading");
+                scope.ClaimLimit = "Real Game.ReloadArea exercised native EventBus area-unload and loading-stage delivery in the exact Working fixture; no cross-area destination transition or UI command was exercised.";
+            }
+            else if (string.Equals(currentRow, "native-mode-transition-cleanup", StringComparison.Ordinal))
+            {
+                scope.InvocationPath = "settings-oninvokeupdatecallback+gamesettingscontroller-eventbus";
+                scope.NativeDeliveryObserved = currentExpectedCleanupTrigger.HasValue && HasExactNativeCleanupDelivery(
+                    currentExpectedCleanupTrigger.Value == CleanupTrigger.TurnBasedModeChanged
+                        ? NativeLifecycleBoundary.TurnBasedEnabled
+                        : NativeLifecycleBoundary.RealtimeEnabled,
+                    currentExpectedCleanupTrigger.Value,
+                    "ITurnBasedModeEnabledHandler.HandleTurnBasedModeStateChanged(" +
+                        (currentExpectedCleanupTrigger.Value == CleanupTrigger.TurnBasedModeChanged) + ")");
+                scope.ClaimLimit = "Diagnostic-only in-memory SettingsEntityBool cache substitution invoked the exact registered GameSettingsController callback and EventBus path, then restored it; no SettingsProvider/PlayerPrefs write or settings-UI click is claimed.";
+            }
+            else if (string.Equals(currentRow, "presentation-residue-and-uninstall-safety", StringComparison.Ordinal))
+            {
+                scope.InvocationPath = "registered-umm-ontoggle-delegate(false)+registered-umm-ontoggle-delegate(true)";
+                scope.NativeDeliveryObserved = HasExactNativeCleanupDelivery(
+                    NativeLifecycleBoundary.ModDisable,
+                    CleanupTrigger.ModDisabled,
+                    "UnityModManager.ModEntry.OnToggle(false)/shutdown");
+                scope.ClaimLimit = "The exact registered Unity Mod Manager OnToggle delegate was invoked diagnostically for disable and re-enable; a user click in the UMM manager and physical file deletion were not exercised.";
+            }
             else
             {
                 scope.InvocationPath = "lifecycle-area-precleanup-direct+game-reloadarea";
@@ -1387,6 +1844,10 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private CleanupTrigger ExpectedCleanupTrigger()
         {
+            if (currentExpectedCleanupTrigger.HasValue)
+            {
+                return currentExpectedCleanupTrigger.Value;
+            }
             if (string.Equals(currentRow, "mounted-pair-turn-based-entry-cleanup", StringComparison.Ordinal))
             {
                 return CleanupTrigger.TurnBasedModeChanged;
@@ -1403,7 +1864,34 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 return CleanupTrigger.LoadRequested;
             }
+            if (string.Equals(currentRow, "native-save-clean-dismount", StringComparison.Ordinal))
+            {
+                return CleanupTrigger.SaveRequested;
+            }
+            if (string.Equals(currentRow, "native-mode-transition-cleanup", StringComparison.Ordinal))
+            {
+                return CleanupTrigger.TurnBasedModeChanged;
+            }
+            if (string.Equals(currentRow, "presentation-residue-and-uninstall-safety", StringComparison.Ordinal))
+            {
+                return CleanupTrigger.ModDisabled;
+            }
             return CleanupTrigger.AreaUnloading;
+        }
+
+        private bool HasExactNativeCleanupDelivery(
+            NativeLifecycleBoundary boundary,
+            CleanupTrigger trigger,
+            string source)
+        {
+            var matches = CurrentNativeDeliveries().Where(record =>
+                record.Boundary == boundary &&
+                string.Equals(record.Source, source, StringComparison.Ordinal) &&
+                record.CleanupTrigger == trigger &&
+                record.StateBefore == RelationshipState.Mounted &&
+                record.StateAfter == RelationshipState.Unmounted &&
+                record.CleanupAttempted && record.CleanupSucceeded).ToArray();
+            return matches.Length == 1;
         }
 
         private static string ObservedIdentitySource(string phase)
@@ -1508,6 +1996,22 @@ namespace KingmakerMountedCombat.Diagnostics
 
             try
             {
+                saveSuppressionLease?.Dispose();
+                saveSuppressionLease = null;
+                if (nativeModeProbe != null)
+                {
+                    nativeModeProbe.Dispose();
+                    nativeModeEvidence = NativeModeProbeEvidence.Capture(nativeModeProbe);
+                    nativeModeProbe = null;
+                }
+                if (modDisableEvidence != null && modDisableEvidence.Executed &&
+                    modDisableEvidence.DisableCallbackSucceeded == true &&
+                    modDisableEvidence.ReenableCallbackSucceeded != true)
+                {
+                    modDisableEvidence.ReenableCallbackSucceeded = registeredToggle(true);
+                    modDisableEvidence.OverlayPresentAfterReenable = playerAction.OverlayPresent;
+                    modDisableEvidence.OverlayObjectCountAfterReenable = MountedPlayerActionController.CountOverlayObjects();
+                }
                 if (relationship.State != RelationshipState.Unmounted && relationship.State != RelationshipState.Disposed)
                 {
                     var cleanup = relationship.Dismount(CleanupTrigger.Exception);
@@ -1624,7 +2128,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 descriptorVerificationObserved = false;
                 descriptorVerifiedForRow = false;
                 realWorkingLoadDispatched = false;
+                realWorkingSaveDispatched = false;
                 realAreaReloadDispatched = false;
+                currentExpectedCleanupTrigger = null;
+                nativeModeEvidence = null;
+                modDisableEvidence = null;
+                nativeDeliveryBaselineSequence = LastNativeDeliverySequence();
                 asynchronousCallback = false;
                 loadingObserved = false;
                 loadingStartObserved = false;
@@ -1754,6 +2263,9 @@ namespace KingmakerMountedCombat.Diagnostics
             public RelationshipEvidence Relationship { get; set; }
             public BoundaryCleanupEvidence Cleanup { get; set; }
             public FreshWorldEvidence FreshWorld { get; set; }
+            public NativeLifecycleEvidence NativeLifecycle { get; set; }
+            public NativeModeProbeEvidence NativeMode { get; set; }
+            public ModDisableProbeEvidence ModDisable { get; set; }
             public IReadOnlyList<string> RecordErrors { get; set; }
         }
 
@@ -1763,6 +2275,7 @@ namespace KingmakerMountedCombat.Diagnostics
             public string InvocationPath { get; set; }
             public bool NativeDeliveryObserved { get; set; }
             public bool StockSaveRoutineInvoked { get; set; }
+            public bool RealWorkingSaveDispatched { get; set; }
             public bool RealWorkingLoadDispatched { get; set; }
             public bool RealAreaReloadDispatched { get; set; }
             public string ClaimLimit { get; set; }
@@ -1892,6 +2405,10 @@ namespace KingmakerMountedCombat.Diagnostics
             public int FatalViolationsBefore { get; set; }
             public int FatalViolationsAfter { get; set; }
             public int FatalViolationsDelta { get; set; }
+            public int SuppressedWorkingWritesBefore { get; set; }
+            public int SuppressedWorkingWritesAfter { get; set; }
+            public int SuppressedWorkingWritesDelta { get; set; }
+            public bool OneShotWorkingWriteSuppressionArmed { get; set; }
 
             public static AuthorizationEvidence Capture(
                 RuntimeSaveAuthorization authorization,
@@ -1900,7 +2417,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 int unauthorizedLoadsBefore,
                 int unauthorizedWritesBefore,
                 int baselineLoadsBefore,
-                int fatalViolationsBefore)
+                int fatalViolationsBefore,
+                int suppressedWorkingWritesBefore)
             {
                 return new AuthorizationEvidence
                 {
@@ -1921,7 +2439,11 @@ namespace KingmakerMountedCombat.Diagnostics
                     BaselineLoadsDelta = authorization.BaselineLoadRequestCount - baselineLoadsBefore,
                     FatalViolationsBefore = fatalViolationsBefore,
                     FatalViolationsAfter = authorization.FatalViolationCount,
-                    FatalViolationsDelta = authorization.FatalViolationCount - fatalViolationsBefore
+                    FatalViolationsDelta = authorization.FatalViolationCount - fatalViolationsBefore,
+                    SuppressedWorkingWritesBefore = suppressedWorkingWritesBefore,
+                    SuppressedWorkingWritesAfter = authorization.SuppressedWorkingWriteCount,
+                    SuppressedWorkingWritesDelta = authorization.SuppressedWorkingWriteCount - suppressedWorkingWritesBefore,
+                    OneShotWorkingWriteSuppressionArmed = authorization.IsOneShotWorkingWriteSuppressionArmed
                 };
             }
         }
@@ -2004,6 +2526,101 @@ namespace KingmakerMountedCombat.Diagnostics
                     // at cleanup-latch and again from the stable fresh world.
                     SelectedUnitIds = captureSelection ? CaptureSelectedUnitIds() : new string[0]
                 };
+            }
+        }
+
+        private sealed class NativeLifecycleEvidence
+        {
+            public long BaselineSequence { get; set; }
+            public int DeliveryCount { get; set; }
+            public IReadOnlyList<NativeDeliveryEvidence> Deliveries { get; set; }
+
+            public static NativeLifecycleEvidence Capture(
+                long baselineSequence,
+                IReadOnlyList<NativeLifecycleDeliveryRecord> records)
+            {
+                var deliveries = records.Select(record => new NativeDeliveryEvidence
+                {
+                    Sequence = record.Sequence,
+                    Boundary = record.Boundary.ToString(),
+                    Source = record.Source,
+                    StateBefore = record.StateBefore.ToString(),
+                    StateAfter = record.StateAfter.ToString(),
+                    CleanupTrigger = record.CleanupTrigger.HasValue ? record.CleanupTrigger.Value.ToString() : null,
+                    CleanupAttempted = record.CleanupAttempted,
+                    CleanupSucceeded = record.CleanupSucceeded
+                }).ToArray();
+                return new NativeLifecycleEvidence
+                {
+                    BaselineSequence = baselineSequence,
+                    DeliveryCount = deliveries.Length,
+                    Deliveries = deliveries
+                };
+            }
+        }
+
+        private sealed class NativeDeliveryEvidence
+        {
+            public long Sequence { get; set; }
+            public string Boundary { get; set; }
+            public string Source { get; set; }
+            public string StateBefore { get; set; }
+            public string StateAfter { get; set; }
+            public string CleanupTrigger { get; set; }
+            public bool CleanupAttempted { get; set; }
+            public bool CleanupSucceeded { get; set; }
+        }
+
+        private sealed class NativeModeProbeEvidence
+        {
+            public bool Executed { get; set; }
+            public bool? OriginalValue { get; set; }
+            public bool? TemporaryValue { get; set; }
+            public bool? OriginalRawCacheHadValue { get; set; }
+            public string PersistedValueBefore { get; set; }
+            public string PersistedValueAfter { get; set; }
+            public bool? TemporaryDeliveryAttempted { get; set; }
+            public bool? RestoreDeliveryCompleted { get; set; }
+            public bool? PersistedValueUnchanged { get; set; }
+
+            public static NativeModeProbeEvidence Capture(NativeModeTransitionProbe probe)
+            {
+                return new NativeModeProbeEvidence
+                {
+                    Executed = true,
+                    OriginalValue = probe.OriginalValue,
+                    TemporaryValue = probe.TemporaryValue,
+                    OriginalRawCacheHadValue = probe.OriginalRawCacheHadValue,
+                    PersistedValueBefore = probe.PersistedValueBefore,
+                    PersistedValueAfter = probe.PersistedValueAfter,
+                    TemporaryDeliveryAttempted = probe.TemporaryDeliveryAttempted,
+                    RestoreDeliveryCompleted = probe.RestoreDeliveryCompleted,
+                    PersistedValueUnchanged = probe.PersistedValueUnchanged
+                };
+            }
+
+            public static NativeModeProbeEvidence NotExecuted()
+            {
+                return new NativeModeProbeEvidence { Executed = false };
+            }
+        }
+
+        private sealed class ModDisableProbeEvidence
+        {
+            public bool Executed { get; set; }
+            public bool? OverlayPresentBeforeDisable { get; set; }
+            public int? OverlayObjectCountBeforeDisable { get; set; }
+            public bool? DisableCallbackSucceeded { get; set; }
+            public bool? OverlayReferenceAbsentImmediately { get; set; }
+            public bool? OverlayPresentOnDisabledFrame { get; set; }
+            public int? OverlayObjectCountOnDisabledFrame { get; set; }
+            public bool? ReenableCallbackSucceeded { get; set; }
+            public bool? OverlayPresentAfterReenable { get; set; }
+            public int? OverlayObjectCountAfterReenable { get; set; }
+
+            public static ModDisableProbeEvidence NotExecuted()
+            {
+                return new ModDisableProbeEvidence { Executed = false };
             }
         }
 

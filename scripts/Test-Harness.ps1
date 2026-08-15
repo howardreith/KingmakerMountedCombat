@@ -377,6 +377,7 @@ function New-TestBoundaryCleanupEvidence {
         [switch]$Suppressed
     )
     $expectedTrigger = Get-KmcBoundaryExpectedCleanupTrigger $Row
+    if ($Row -ceq 'native-mode-transition-cleanup') { $expectedTrigger = 'TurnBasedModeChanged' }
     $phases = @(Get-KmcBoundaryExpectedPhases $Row)
     $captured = -not $Suppressed -and [Array]::IndexOf($phases,$Phase) -ge [Array]::IndexOf($phases,'cleanup-latch')
     return [ordered]@{
@@ -400,7 +401,7 @@ function New-TestBoundaryFreshWorldEvidence {
         [Parameter(Mandatory = $true)][string]$Phase,
         [switch]$Suppressed
     )
-    $observed = -not $Suppressed -and $Row -cin @('mounted-pair-load-safety','mounted-pair-area-transition-safety') -and
+    $observed = -not $Suppressed -and $Row -cin @('mounted-pair-load-safety','mounted-pair-area-transition-safety','native-area-clean-dismount') -and
         $Phase -cin @('fresh-world','row-result')
     $value = [ordered]@{
         observed=$observed
@@ -434,11 +435,18 @@ function New-TestBoundaryEvidenceRecord {
     $phaseIndex = [Array]::IndexOf($phases,$Phase)
     $cleanupIndex = [Array]::IndexOf($phases,'cleanup-latch')
     $load = $Row -ceq 'mounted-pair-load-safety'
-    $area = $Row -ceq 'mounted-pair-area-transition-safety'
+    $nativeSave = $Row -ceq 'native-save-clean-dismount'
+    $nativeArea = $Row -ceq 'native-area-clean-dismount'
+    $nativeMode = $Row -ceq 'native-mode-transition-cleanup'
+    $nativeDisable = $Row -ceq 'presentation-residue-and-uninstall-safety'
+    $nativeRow = $nativeSave -or $nativeArea -or $nativeMode -or $nativeDisable
+    $area = $Row -ceq 'mounted-pair-area-transition-safety' -or $nativeArea
     $loadDispatched = -not $Suppressed -and $load -and $phaseIndex -ge $cleanupIndex
-    $areaDispatched = -not $Suppressed -and $area -and $Phase -cin @('loading-start','loading-stop','fresh-world','row-result')
+    $areaDispatched = -not $Suppressed -and $area -and $(if($nativeArea){$phaseIndex -ge $cleanupIndex}else{$Phase -cin @('loading-start','loading-stop','fresh-world','row-result')})
+    $nativeDispatched = -not $Suppressed -and $nativeRow -and $phaseIndex -ge $cleanupIndex
+    $saveDispatched = $nativeSave -and $nativeDispatched
     $preBoundaryIndex = [Array]::IndexOf($phases,'pre-boundary')
-    $descriptorVerified = if (-not $Suppressed -and $Row -cin @('mounted-pair-save-safety','mounted-pair-load-safety') -and
+    $descriptorVerified = if (-not $Suppressed -and $Row -cin @('mounted-pair-save-safety','mounted-pair-load-safety','native-save-clean-dismount') -and
         $phaseIndex -ge $preBoundaryIndex) { $true } else { $null }
     $working = $Request.fixture.working
     $postInitialLength = [long]$working.length + 7L
@@ -469,13 +477,32 @@ function New-TestBoundaryEvidenceRecord {
     $loadDelta = if ($loadDispatched) { 1L } else { 0L }
     $loadingStart = -not $Suppressed -and ($load -or $area) -and $Phase -cin @('loading-start','loading-stop','fresh-world','row-result')
     $loadingStop = -not $Suppressed -and ($load -or $area) -and $Phase -cin @('loading-stop','fresh-world','row-result')
-    $callback = -not $Suppressed -and $load -and $Phase -cin @('loading-stop','fresh-world','row-result')
+    $callback = -not $Suppressed -and (($load -and $Phase -cin @('loading-stop','fresh-world','row-result')) -or
+        ($nativeSave -and $Phase -cin @('post-boundary','row-result')))
     $frame = [long]($Sequence + 1L)
     $rowResult = $Phase -ceq 'row-result'
     $recordErrors = [object[]]::new(0)
     if ($Suppressed) { $recordErrors = [object[]]@('Suppressed after a prior boundary failure.') }
+    $expectedCleanup = Get-KmcBoundaryExpectedCleanupTrigger $Row
+    if ($nativeMode) { $expectedCleanup = 'TurnBasedModeChanged' }
+    $nativeDeliveries = New-Object 'Collections.Generic.List[object]'
+    if ($nativeDispatched) {
+        $boundary = if($nativeSave){'SaveRequest'}elseif($nativeArea){'AreaBeginUnload'}elseif($nativeMode){'TurnBasedEnabled'}else{'ModDisable'}
+        $nativeSource = if($nativeSave){'SaveManager.SaveRoutine Harmony12 prefix'}elseif($nativeArea){'ISceneHandler.OnAreaBeginUnloading'}elseif($nativeMode){'ITurnBasedModeEnabledHandler.HandleTurnBasedModeStateChanged(True)'}else{'UnityModManager.ModEntry.OnToggle(false)/shutdown'}
+        $nativeDeliveries.Add([ordered]@{sequence=101;boundary=$boundary;source=$nativeSource;stateBefore='Mounted';stateAfter='Unmounted';cleanupTrigger=$expectedCleanup;cleanupAttempted=$true;cleanupSucceeded=$true})
+    }
+    if ($nativeArea -and $Phase -cin @('fresh-world','row-result')) {
+        $nativeDeliveries.Add([ordered]@{sequence=102;boundary='AreaScenesLoaded';source='IAreaLoadingStagesHandler.OnAreaScenesLoaded';stateBefore='Unmounted';stateAfter='Unmounted';cleanupTrigger=$null;cleanupAttempted=$false;cleanupSucceeded=$true})
+        $nativeDeliveries.Add([ordered]@{sequence=103;boundary='AreaDidLoad';source='ISceneHandler.OnAreaDidLoad';stateBefore='Unmounted';stateAfter='Unmounted';cleanupTrigger=$null;cleanupAttempted=$false;cleanupSucceeded=$true})
+        $nativeDeliveries.Add([ordered]@{sequence=104;boundary='AreaLoadingComplete';source='IAreaLoadingStagesHandler.OnAreaLoadingComplete';stateBefore='Unmounted';stateAfter='Unmounted';cleanupTrigger=$null;cleanupAttempted=$false;cleanupSucceeded=$true})
+    }
+    if ($nativeMode -and $Phase -cin @('post-boundary','row-result')) {
+        $nativeDeliveries.Add([ordered]@{sequence=102;boundary='RealtimeEnabled';source='ITurnBasedModeEnabledHandler.HandleTurnBasedModeStateChanged(False)';stateBefore='Unmounted';stateAfter='Unmounted';cleanupTrigger='RealtimeModeChanged';cleanupAttempted=$true;cleanupSucceeded=$true})
+    }
+    $modeRestored = $nativeMode -and $Phase -cin @('post-boundary','row-result')
+    $disableFinished = $nativeDisable -and $Phase -cin @('post-boundary','row-result')
     return [ordered]@{
-        schemaVersion=1;artifactKind='boundary-scenario-evidence';runId=[string]$Request.runId;scenario=[string]$Request.scenario
+        schemaVersion=2;artifactKind='boundary-scenario-evidence';runId=[string]$Request.runId;scenario=[string]$Request.scenario
         row=$Row;phase=$Phase;utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o')
         branch=[string]$Request.branch;commit=[string]$Request.commit;productVersion=[string]$Request.productVersion
         dllSha256=[string]$Request.dllSha256;dllMvid=[string]$Request.dllMvid;sequence=$Sequence;rowIndex=$RowIndex;frame=$frame
@@ -484,8 +511,9 @@ function New-TestBoundaryEvidenceRecord {
         assertionPassCount=$(if($rowResult){$(if($Suppressed){0}else{$AssertionPassCount})}else{$null})
         assertionFailCount=$(if($rowResult){$(if($Suppressed){1}else{0})}else{$null})
         triggerScope=[ordered]@{
-            expectedCleanupTrigger=(Get-KmcBoundaryExpectedCleanupTrigger $Row);invocationPath=(Get-KmcBoundaryInvocationPath $Row)
-            nativeDeliveryObserved=($loadDelta -gt 0L);stockSaveRoutineInvoked=$false;realWorkingLoadDispatched=$loadDispatched
+            expectedCleanupTrigger=$expectedCleanup;invocationPath=(Get-KmcBoundaryInvocationPath $Row)
+            nativeDeliveryObserved=(($loadDelta -gt 0L)-or$nativeDispatched);stockSaveRoutineInvoked=$saveDispatched;realWorkingSaveDispatched=$saveDispatched
+            realWorkingLoadDispatched=$loadDispatched
             realAreaReloadDispatched=$areaDispatched;claimLimit=(Get-KmcBoundaryClaimLimit $Row)
         }
         workingIdentity=[ordered]@{
@@ -494,9 +522,9 @@ function New-TestBoundaryEvidenceRecord {
             area=[string]$working.area;requestLength=[long]$working.length;requestLastWriteTimeUtcTicks=[long]$working.lastWriteTimeUtcTicks
             requestSha256=[string]$working.sha256;postInitialLoadLength=$postInitialLength
             postInitialLoadLastWriteTimeUtcTicks=$postInitialTicks;postInitialLoadSha256=$postInitialSha
-            preDispatchLength=$(if($loadDispatched){$postInitialLength}else{$null})
-            preDispatchLastWriteTimeUtcTicks=$(if($loadDispatched){$postInitialTicks}else{$null})
-            preDispatchSha256=$(if($loadDispatched){$postInitialSha}else{$null})
+            preDispatchLength=$(if($loadDispatched -or ($nativeSave -and $phaseIndex -ge $preBoundaryIndex)){$postInitialLength}else{$null})
+            preDispatchLastWriteTimeUtcTicks=$(if($loadDispatched -or ($nativeSave -and $phaseIndex -ge $preBoundaryIndex)){$postInitialTicks}else{$null})
+            preDispatchSha256=$(if($loadDispatched -or ($nativeSave -and $phaseIndex -ge $preBoundaryIndex)){$postInitialSha}else{$null})
             observedLength=$observedLength;observedLastWriteTimeUtcTicks=$observedTicks
             observedSha256=$observedSha;observedSource=$source;matchesPostInitialLoad=$matchesPostInitial
             descriptorVerified=$descriptorVerified
@@ -516,11 +544,25 @@ function New-TestBoundaryEvidenceRecord {
             unauthorizedWritesBefore=0;unauthorizedWritesAfter=0;unauthorizedWritesDelta=0
             baselineLoadsBefore=0;baselineLoadsAfter=0;baselineLoadsDelta=0
             fatalViolationsBefore=0;fatalViolationsAfter=0;fatalViolationsDelta=0
+            suppressedWorkingWritesBefore=0;suppressedWorkingWritesAfter=$(if($saveDispatched){1}else{0});suppressedWorkingWritesDelta=$(if($saveDispatched){1}else{0})
+            oneShotWorkingWriteSuppressionArmed=$false
         }
         loading=[ordered]@{observed=$loadingStart;startObserved=$loadingStart;stopObserved=$loadingStop;callbackObserved=$callback}
         relationship=(New-TestBoundaryRelationshipEvidence $Phase -Suppressed:$Suppressed -RestoreHistory:($RowIndex -gt 0))
         cleanup=(New-TestBoundaryCleanupEvidence $Row $Phase $frame -Suppressed:$Suppressed)
         freshWorld=(New-TestBoundaryFreshWorldEvidence $Request $Row $Phase -Suppressed:$Suppressed)
+        nativeLifecycle=[ordered]@{baselineSequence=100;deliveryCount=$nativeDeliveries.Count;deliveries=$nativeDeliveries.ToArray()}
+        nativeMode=[ordered]@{
+            executed=$nativeMode;originalValue=$(if($nativeMode){$false}else{$null});temporaryValue=$(if($nativeMode){$true}else{$null});originalRawCacheHadValue=$(if($nativeMode){$true}else{$null})
+            persistedValueBefore=$(if($nativeMode){'False'}else{$null});persistedValueAfter=$(if($modeRestored){'False'}else{$null});temporaryDeliveryAttempted=$(if($nativeMode){$nativeDispatched}else{$null})
+            restoreDeliveryCompleted=$(if($nativeMode){$modeRestored}else{$null});persistedValueUnchanged=$(if($nativeMode){$modeRestored}else{$null})
+        }
+        modDisable=[ordered]@{
+            executed=($nativeDisable -and $phaseIndex -ge $preBoundaryIndex);overlayPresentBeforeDisable=$(if($nativeDisable -and $phaseIndex -ge $preBoundaryIndex){$true}else{$null});overlayObjectCountBeforeDisable=$(if($nativeDisable -and $phaseIndex -ge $preBoundaryIndex){1}else{$null})
+            disableCallbackSucceeded=$(if($nativeDisable -and $nativeDispatched){$true}else{$null});overlayReferenceAbsentImmediately=$(if($nativeDisable -and $nativeDispatched){$true}else{$null});overlayPresentOnDisabledFrame=$(if($disableFinished){$false}else{$null})
+            overlayObjectCountOnDisabledFrame=$(if($disableFinished){0}else{$null});reenableCallbackSucceeded=$(if($disableFinished){$true}else{$null});overlayPresentAfterReenable=$(if($disableFinished){$true}else{$null})
+            overlayObjectCountAfterReenable=$(if($disableFinished){1}else{$null})
+        }
         recordErrors=$recordErrors
     }
 }
@@ -3395,7 +3437,7 @@ try {
         ummVersion='0.28.2.0';ummSha256=[string]$ummAssembly.sha256;harmony12Version='1.2.0.1';harmony12Sha256=[string]$harmonyAssembly.sha256
         relationshipState='Unmounted';movementExperimentEnabled=$false;processId=$PID;currentGameMode='Default';loadedAreaPresent=$true
         saveRequestCount=0;loadRequestCount=1;frameCount=10;elapsedSeconds=1.0;errors=@();fixture=$v2Fixture;fixtureIdentityVerified=$true
-        baselineLoadRequestCount=0;workingLoadRequestCount=1;workingSaveRequestCount=0;unauthorizedLoadRequestCount=0;unauthorizedSaveRequestCount=0
+        baselineLoadRequestCount=0;workingLoadRequestCount=1;workingSaveRequestCount=0;suppressedWorkingSaveRequestCount=0;unauthorizedLoadRequestCount=0;unauthorizedSaveRequestCount=0
         subscenarioTotal=1;subscenarioPassCount=1;subscenarioFailCount=0;assertionPassCount=3;assertionFailCount=0;evidenceManifestSha256=$v2EvidenceManifestHash;subscenarioResults=@($v2Subscenario)
     }
     Write-KmcJsonAtomic $v2GameResultPath $v2GameResult
@@ -3659,7 +3701,7 @@ try {
         name=$boundaryRow;status='PASS';assertionPassCount=12;assertionFailCount=0;errors=@()
     }
     $boundaryGameAggregates = [pscustomobject][ordered]@{
-        workingLoadRequestCount=2;workingSaveRequestCount=0;unauthorizedLoadRequestCount=0
+        workingLoadRequestCount=2;workingSaveRequestCount=0;suppressedWorkingSaveRequestCount=0;unauthorizedLoadRequestCount=0
         unauthorizedSaveRequestCount=0;baselineLoadRequestCount=0
     }
 
@@ -3669,6 +3711,32 @@ try {
         $manifest = Read-KmcJson (Join-Path $boundaryRequest.evidenceRoot 'runtime-artifacts.json')
         Assert-KmcBoundaryScenarioEvidence -Request $boundaryRequest -Manifest $manifest -Status 'PASS' `
             -SubscenarioResults @($boundarySubresult) -GameResult $boundaryGameAggregates
+    }
+    Invoke-HarnessTest 'PASS native lifecycle boundary rows require independent delivery and restoration evidence' {
+        foreach ($nativeRow in @(Get-KmcNativeLifecycleBoundaryRuntimeRows)) {
+            $nativeRequest = [pscustomobject][ordered]@{
+                schemaVersion=2;runId=('native-boundary-' + $nativeRow);scenario=$nativeRow;branch=$v2Request.branch;commit=$v2Request.commit
+                productVersion=$v2Request.productVersion;dllSha256=$v2Request.dllSha256;dllMvid=$v2Request.dllMvid
+                transactionToken=$v2Request.transactionToken;evidenceRoot=(Join-Path $runtimeEvidenceTestRoot ('native-boundary-' + $nativeRow))
+                fixture=$v2Fixture
+            }
+            $nativeSubresult = [pscustomobject][ordered]@{name=$nativeRow;status='PASS';assertionPassCount=12;assertionFailCount=0;errors=@()}
+            $nativeAggregates = [pscustomobject][ordered]@{
+                workingLoadRequestCount=1;workingSaveRequestCount=0
+                suppressedWorkingSaveRequestCount=$(if($nativeRow -ceq 'native-save-clean-dismount'){1}else{0})
+                unauthorizedLoadRequestCount=0;unauthorizedSaveRequestCount=0;baselineLoadRequestCount=0
+            }
+            $nativeRecords = New-TestBoundaryPassRecords $nativeRequest @($nativeRow)
+            [void](Write-TestBoundaryEvidence $nativeRequest.evidenceRoot $nativeRequest $nativeRecords)
+            $nativeManifest = Read-KmcJson (Join-Path $nativeRequest.evidenceRoot 'runtime-artifacts.json')
+            Assert-KmcBoundaryScenarioEvidence -Request $nativeRequest -Manifest $nativeManifest -Status 'PASS' `
+                -SubscenarioResults @($nativeSubresult) -GameResult $nativeAggregates
+
+            $terminal = @($nativeRecords | Where-Object { [string]$_.phase -ceq 'row-result' })[0]
+            $terminal.nativeLifecycle.deliveries[0].cleanupSucceeded = $false
+            Assert-TestBoundaryEvidenceRejected $nativeRequest $nativeRecords @($nativeSubresult) `
+                "native boundary accepted a failed native cleanup delivery: $nativeRow"
+        }
     }
     Invoke-HarnessTest 'PASS boundary scenario rejects missing and unmanifested evidence' {
         $records = New-TestBoundaryPassRecords $boundaryRequest @($boundaryRow)
