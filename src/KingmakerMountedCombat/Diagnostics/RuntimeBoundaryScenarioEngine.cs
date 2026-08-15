@@ -109,6 +109,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private NativeModeTransitionProbe nativeModeProbe;
         private NativeModeProbeEvidence nativeModeEvidence;
         private ModDisableProbeEvidence modDisableEvidence;
+        private NativeAreaBoundaryProgress nativeAreaProgress;
         private long evidenceSequence;
         private bool evidenceFailed;
         private string evidenceFailureMessage;
@@ -344,6 +345,9 @@ namespace KingmakerMountedCombat.Diagnostics
             nativeModeProbe = null;
             nativeModeEvidence = null;
             modDisableEvidence = null;
+            nativeAreaProgress = string.Equals(currentRow, "native-area-clean-dismount", StringComparison.Ordinal)
+                ? new NativeAreaBoundaryProgress()
+                : null;
             nativeDeliveryBaselineSequence = LastNativeDeliverySequence();
             rowStartEvidenceWritten = false;
             CaptureAuthorizationCounts();
@@ -780,21 +784,7 @@ namespace KingmakerMountedCombat.Diagnostics
             step = EngineStep.AwaitAreaCompletion;
             realAreaReloadDispatched = true;
             Game.Instance.ReloadArea();
-
-            CaptureAndAssertCleanupLatch(CleanupTrigger.AreaUnloading);
-            AssertExactNativeCleanupDelivery(
-                NativeLifecycleBoundary.AreaBeginUnload,
-                CleanupTrigger.AreaUnloading,
-                "ISceneHandler.OnAreaBeginUnloading");
-            if (!TryWriteEvidence("cleanup-latch", true, false, null, null))
-            {
-                AbortSuite("Native area cleanup-latch evidence could not be committed.");
-                return;
-            }
-            if (assertions.FailureCount != 0)
-            {
-                AbortSuite("Native area unload delivery retained residue or was not observed.");
-            }
+            ObserveNativeAreaBoundaryProgress();
         }
 
         private void BeginNativeModDisable()
@@ -1112,17 +1102,29 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void VerifyAreaCompletion()
         {
+            if (string.Equals(currentRow, "native-area-clean-dismount", StringComparison.Ordinal))
+            {
+                ObserveNativeAreaBoundaryProgress();
+                if (failureDrain.State != BoundaryFailureDrainState.Inactive)
+                {
+                    return;
+                }
+            }
+
             if (IsLoading())
             {
                 loadingObserved = true;
-                loadingStartObserved = true;
                 stableWorldFrames = 0;
-                if (!loadingStartEvidenceWritten)
+                if (!string.Equals(currentRow, "native-area-clean-dismount", StringComparison.Ordinal))
                 {
-                    loadingStartEvidenceWritten = true;
-                    if (!TryWriteEvidence("loading-start", true, false, null, null))
+                    loadingStartObserved = true;
+                    if (!loadingStartEvidenceWritten)
                     {
-                        AbortSuite("Area boundary loading-start evidence could not be committed.");
+                        loadingStartEvidenceWritten = true;
+                        if (!TryWriteEvidence("loading-start", true, false, null, null))
+                        {
+                            AbortSuite("Area boundary loading-start evidence could not be committed.");
+                        }
                     }
                 }
                 return;
@@ -1171,6 +1173,48 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
             FinishCurrentRow();
+        }
+
+        private void ObserveNativeAreaBoundaryProgress()
+        {
+            if (nativeAreaProgress == null || (boundaryCleanupVerified && loadingStartEvidenceWritten))
+            {
+                return;
+            }
+
+            var cleanupDeliveryObserved = HasNativeBoundaryDelivery(
+                NativeLifecycleBoundary.AreaBeginUnload,
+                "ISceneHandler.OnAreaBeginUnloading");
+            var decision = nativeAreaProgress.Observe(cleanupDeliveryObserved, IsLoading());
+            if (decision.CaptureCleanupLatch)
+            {
+                CaptureAndAssertCleanupLatch(CleanupTrigger.AreaUnloading);
+                AssertExactNativeCleanupDelivery(
+                    NativeLifecycleBoundary.AreaBeginUnload,
+                    CleanupTrigger.AreaUnloading,
+                    "ISceneHandler.OnAreaBeginUnloading");
+                if (!TryWriteEvidence("cleanup-latch", true, false, null, null))
+                {
+                    AbortSuite("Native area cleanup-latch evidence could not be committed.");
+                    return;
+                }
+                if (assertions.FailureCount != 0)
+                {
+                    AbortSuite("Native area unload delivery retained residue or was not exact.");
+                    return;
+                }
+            }
+
+            if (decision.CaptureLoadingStart)
+            {
+                loadingObserved = true;
+                loadingStartObserved = true;
+                loadingStartEvidenceWritten = true;
+                if (!TryWriteEvidence("loading-start", true, false, null, null))
+                {
+                    AbortSuite("Native area loading-start evidence could not be committed after cleanup delivery.");
+                }
+            }
         }
 
         private void AssertMountedAuthority()
@@ -1894,6 +1938,15 @@ namespace KingmakerMountedCombat.Diagnostics
             return matches.Length == 1;
         }
 
+        private bool HasNativeBoundaryDelivery(
+            NativeLifecycleBoundary boundary,
+            string source)
+        {
+            return CurrentNativeDeliveries().Any(record =>
+                record.Boundary == boundary &&
+                string.Equals(record.Source, source, StringComparison.Ordinal));
+        }
+
         private static string ObservedIdentitySource(string phase)
         {
             if (string.Equals(phase, "pre-boundary", StringComparison.Ordinal))
@@ -2133,6 +2186,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 currentExpectedCleanupTrigger = null;
                 nativeModeEvidence = null;
                 modDisableEvidence = null;
+                nativeAreaProgress = null;
                 nativeDeliveryBaselineSequence = LastNativeDeliverySequence();
                 asynchronousCallback = false;
                 loadingObserved = false;

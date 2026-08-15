@@ -45,6 +45,7 @@
     <Compile Include="MovementRadialDistanceOrderTests.cs" />
     <Compile Include="NavigationEndpointDistanceTrackerTests.cs" />
     <Compile Include="NativeLifecycleDeliveryLedgerTests.cs" />
+    <Compile Include="NativeAreaBoundaryProgressTests.cs" />
     <Compile Include="TestRunner.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\DiagnosticSettings.cs">
       <Link>Shared\DiagnosticSettings.cs</Link>
@@ -78,6 +79,9 @@
     </Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\NativeLifecycleDeliveryLedger.cs">
       <Link>Shared\NativeLifecycleDeliveryLedger.cs</Link>
+    </Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\NativeAreaBoundaryProgress.cs">
+      <Link>Shared\NativeAreaBoundaryProgress.cs</Link>
     </Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\CleanupTrigger.cs"><Link>Shared\Domain\CleanupTrigger.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\CommandRouting.cs"><Link>Shared\Domain\CommandRouting.cs</Link></Compile>

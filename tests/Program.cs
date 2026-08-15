@@ -36,6 +36,7 @@ namespace KingmakerMountedCombat.Tests
             MovementRadialDistanceOrderTests.Register(runner);
             NavigationEndpointDistanceTrackerTests.Register(runner);
             NativeLifecycleDeliveryLedgerTests.Register(runner);
+            NativeAreaBoundaryProgressTests.Register(runner);
             return runner.Complete();
         }
 
