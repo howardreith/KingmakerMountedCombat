@@ -108,6 +108,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "pose-run",
             "pose-turn",
             "pose-reversal",
+            "pose-stop-motion",
             "pose-stopped",
             "pose-equipment",
             "ui-rider",

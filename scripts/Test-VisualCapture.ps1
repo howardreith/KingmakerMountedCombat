@@ -56,6 +56,15 @@ Assert-VisualCapture ($engine.Contains('screenshotCapture.Pump(frameNumber);') -
 Assert-VisualCapture (-not $engine.Contains('Screenshot.CapturePNG') -and
     -not $engine.Contains('pendingScreenshots') -and
     -not $engine.Contains('FlushReadyScreenshots')) 'movement engine cannot capture from Update or remove work before render-boundary completion'
+$captureAllowlistStart = $engine.IndexOf('private static readonly HashSet<string> CaptureMilestones', [StringComparison]::Ordinal)
+$captureAllowlistEnd = $engine.IndexOf('};', $captureAllowlistStart, [StringComparison]::Ordinal)
+$captureAllowlist = if ($captureAllowlistStart -ge 0 -and $captureAllowlistEnd -gt $captureAllowlistStart) {
+    $engine.Substring($captureAllowlistStart, $captureAllowlistEnd - $captureAllowlistStart)
+}
+else {
+    ''
+}
+Assert-VisualCapture ($captureAllowlist.Contains('"pose-stop-motion"')) 'stop-motion is an explicitly allowlisted presentation capture milestone'
 $stopCaptureDecisionIndex = $engine.IndexOf('var stopCaptureDecision = stopEarlyCaptureBoundary.Observe(true, navigationMovingCaptureTaken);', [StringComparison]::Ordinal)
 $stopCaptureMilestoneIndex = $engine.IndexOf('CaptureMilestone(navigationMilestone);', $stopCaptureDecisionIndex, [StringComparison]::Ordinal)
 $stopCaptureWaitIndex = $engine.IndexOf('if (stopCaptureDecision != StopEarlyCaptureDecision.Stop)', $stopCaptureDecisionIndex, [StringComparison]::Ordinal)
