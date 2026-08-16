@@ -23,6 +23,14 @@ $assemblyPath=Join-Path $managed 'Assembly-CSharp.dll'; $passes=0; $failures=New
 $assembly=[Reflection.Assembly]::ReflectionOnlyLoadFrom($assemblyPath)
 function Assert-Contract([bool]$Condition,[string]$Message){if($Condition){$script:passes++;Write-Host "PASS $Target $Message"}else{$script:failures.Add($Message);Write-Host "FAIL $Target $Message"}}
 function Find-Token([string]$TypeName,[int]$Token){$type=$assembly.GetType($TypeName,$false);if($null-eq$type){return $null};return @($type.GetMembers([Reflection.BindingFlags]'Public,NonPublic,Instance,Static')|Where-Object MetadataToken -eq $Token|Select-Object -First 1)}
+function Test-MethodIlContainsToken([Reflection.MethodInfo]$Method,[int]$Token){
+    if($null-eq$Method){return $false};$body=$Method.GetMethodBody();if($null-eq$body){return $false}
+    [byte[]]$il=$body.GetILAsByteArray();[byte[]]$needle=[BitConverter]::GetBytes($Token)
+    for($index=0;$index-le$il.Length-$needle.Length;$index++){
+        if($il[$index]-eq$needle[0]-and$il[$index+1]-eq$needle[1]-and$il[$index+2]-eq$needle[2]-and$il[$index+3]-eq$needle[3]){return $true}
+    }
+    return $false
+}
 if($Target-eq'Kingmaker'){
     Assert-Contract ((Get-FileHash -Algorithm SHA256 -LiteralPath $assemblyPath).Hash.ToLowerInvariant()-ceq'3b6450ffec440e296e586f71c711b195aed144b28d53e1cbb29406d18fef5afb') 'Assembly-CSharp SHA-256'
     Assert-Contract ($assembly.ManifestModule.ModuleVersionId.ToString()-ceq'07fa1e4d-8618-41b3-9b8d-faa17d3b26f7') 'Assembly-CSharp MVID'
@@ -186,6 +194,9 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.EntitySystem.Entities.UnitEntityData',0x06008328,'get_IsDirectlyControllable'),
         @('Kingmaker.EntitySystem.Entities.UnitEntityData',0x06008329,'get_IsAIEnabled'),
         @('Kingmaker.EntitySystem.Entities.UnitEntityData',0x0600832A,'set_IsAIEnabled'),
+        @('Kingmaker.EntitySystem.Entities.UnitEntityData',0x06008319,'get_IsBrainActive'),
+        @('Kingmaker.EntitySystem.Entities.UnitEntityData',0x0600831A,'set_IsBrainActive'),
+        @('Kingmaker.Controllers.Brain.AiBrainController',0x0600940A,'TickBrain'),
         @('Kingmaker.UnitLogic.Commands.UnitCommands',0x060026A6,'get_Empty'),
         @('Kingmaker.UnitLogic.Commands.UnitCommands',0x060026BD,'RemoveFinishedAndUpdateQueue'),
         @('Kingmaker.EntitySystem.Entities.UnitEntityData',0x0600836C,'Wake'),
@@ -274,6 +285,23 @@ if($Target-eq'Kingmaker'){
         $shouldBeSleeping[0].GetParameters().Count-eq1 -and
         $shouldBeSleeping[0].GetParameters()[0].ParameterType.FullName-ceq'Kingmaker.EntitySystem.Entities.UnitEntityData') `
         'SleepingUnitsController exact per-unit sleepless gate signature'
+    $brainActiveGet=@(Find-Token 'Kingmaker.EntitySystem.Entities.UnitEntityData' 0x06008319)
+    $brainActiveSet=@(Find-Token 'Kingmaker.EntitySystem.Entities.UnitEntityData' 0x0600831A)
+    $tickBrain=@(Find-Token 'Kingmaker.Controllers.Brain.AiBrainController' 0x0600940A)
+    Assert-Contract ($brainActiveGet.Count-eq1 -and $brainActiveGet[0] -is [Reflection.MethodInfo] -and
+        $brainActiveGet[0].IsPublic -and -not $brainActiveGet[0].IsStatic -and
+        $brainActiveGet[0].ReturnType.FullName-ceq'System.Boolean' -and $brainActiveGet[0].GetParameters().Count-eq0 -and
+        $brainActiveSet.Count-eq1 -and $brainActiveSet[0] -is [Reflection.MethodInfo] -and
+        $brainActiveSet[0].IsPublic -and -not $brainActiveSet[0].IsStatic -and
+        $brainActiveSet[0].ReturnType.FullName-ceq'System.Void' -and $brainActiveSet[0].GetParameters().Count-eq1 -and
+        $brainActiveSet[0].GetParameters()[0].ParameterType.FullName-ceq'System.Boolean' -and
+        $tickBrain.Count-eq1 -and $tickBrain[0] -is [Reflection.MethodInfo] -and
+        $tickBrain[0].IsPrivate -and $tickBrain[0].IsStatic -and
+        $tickBrain[0].ReturnType.FullName-ceq'System.Void' -and $tickBrain[0].GetParameters().Count-eq1 -and
+        $tickBrain[0].GetParameters()[0].ParameterType.FullName-ceq'Kingmaker.EntitySystem.Entities.UnitEntityData' -and
+        (Test-MethodIlContainsToken $tickBrain[0] 0x06008319) -and
+        -not (Test-MethodIlContainsToken $tickBrain[0] 0x06008329)) `
+        'AiBrainController exact per-target IsBrainActive command-selection gate signatures'
     $combatJoinTickUnit=@(Find-Token 'Kingmaker.Controllers.Combat.UnitCombatJoinController' 0x06009361)
     $combatShouldEngage=@(Find-Token 'Kingmaker.Controllers.Combat.UnitCombatJoinController' 0x06009362)
     Assert-Contract ($combatJoinTickUnit.Count-eq1 -and $combatJoinTickUnit[0] -is [Reflection.MethodInfo] -and

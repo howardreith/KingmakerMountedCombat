@@ -4,6 +4,10 @@ Status: IN PROGRESS
 
 Branch: `codex/mounted-combat-phase2-alpha`
 
+## Superseding Mammoth-primary hostile-brain checkpoint - 2026-08-16T18:46:00Z
+
+No critical blocker is active. Fresh run `20260816T183000Z-mammoth-primary-rt-passA` is immutable uncredited `FAIL` `51/1`: the exact Mammoth makes one owned primary natural critical attack, every command/rule/resource/pose/life/cleanup/restoration gate passes, and only the hostile disposable target moves `0.6614979`. Installed `IsAIEnabled` semantics prove raw `m_AiEnabled=false` never disabled effective AI for this non-direct target; exact `AiBrainController.TickBrain` instead gates command selection on public `IsBrainActive`. A target-only reversible `true -> false -> true` brain lease is offline-green, continuously validated, schema-v24/v25-bound, and preserves v1-v23 compatibility. No direct-control, pair, production, pathfinding, resource, threshold, save, transaction, or restoration gate changes. Offline totals are `21/204/17/175/245`. Exact next action is coherent guarded publication, clean package/WhatIf, and restarted RT/TB A/B. No runtime credit is granted.
+
 ## Superseding Mammoth-primary finished-command drain checkpoint - 2026-08-16T18:18:00Z
 
 No critical blocker is active. Fresh run `20260816T181500Z-mammoth-primary-rt-passA` is immutable uncredited `FAIL` `30/1` and ends before click because the disposable target command container is not empty immediately after `InterruptAll`. Exact installed code shows the remaining slot is the supported finished-command boundary: `InterruptAll` skips finished slots, while stock `RemoveFinishedAndUpdateQueue` removes them. The target queue is already cleared first, so the new target-only sweep cannot start queued work; noninterruptible live commands remain rejected. Cleanup and independent restoration both pass, including the prior deferred confirmation repair. Exact next action is offline gate, guarded publication, clean package/WhatIf, and restarted RT/TB A/B. No runtime credit is granted.

@@ -7151,11 +7151,14 @@ function Assert-KmcCombatScenarioEvidence {
     if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -ge 18) {
         $recordFields = @($recordFields + 'nonPairPartyAiLease')
     }
-    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(5,7,9,11,13,15,17,19,21,23)) {
+    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -ge 24) {
+        $recordFields = @($recordFields + 'targetBrainLease')
+    }
+    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(5,7,9,11,13,15,17,19,21,23,25)) {
         $recordFields = @($recordFields + 'turnBased')
     }
     Assert-KmcExactProperties $record $recordFields 'combat evidence record'
-    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -notin @(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23) -or
+    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -notin @(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25) -or
         [string]$record.artifactKind -cne 'combat-scenario-evidence') {
         throw 'Combat evidence schemaVersion or artifactKind is not exact.'
     }
@@ -7475,7 +7478,23 @@ function Assert-KmcCombatScenarioEvidence {
             }
         }
     }
-    if ([long]$record.schemaVersion -in @(5,7,9,11,13,15,17,19,21,23)) {
+    if ([long]$record.schemaVersion -ge 24) {
+        $targetBrainBooleanFields = @(
+            'brainActiveBefore','leaseAcquired','effectiveAiEnabledDuring','violationObserved',
+            'suppressedAtClick','suppressedAtOutcome','brainActiveAfterRelease','leaseReleased')
+        Assert-KmcExactProperties $record.targetBrainLease @(
+            $targetBrainBooleanFields + 'validationCount') 'combat target brain lease evidence'
+        foreach ($name in $targetBrainBooleanFields) {
+            if ($record.targetBrainLease.$name -isnot [bool]) {
+                throw "Combat target brain lease evidence is not Boolean: $name"
+            }
+        }
+        if (-not (Test-KmcExactJsonInteger $record.targetBrainLease.validationCount) -or
+            [long]$record.targetBrainLease.validationCount -lt 0) {
+            throw 'Combat target brain lease validation count is invalid.'
+        }
+    }
+    if ([long]$record.schemaVersion -in @(5,7,9,11,13,15,17,19,21,23,25)) {
         $turnActorBooleanFields = if ([long]$record.schemaVersion -ge 21) {
             @('nativeActionActorTurnStarted','actionActorTurnEndedAfterCommand')
         } else {
@@ -7576,6 +7595,9 @@ function Assert-KmcCombatScenarioEvidence {
     if ([long]$record.schemaVersion -ge 22) {
         $combatCleanupFields = @($combatCleanupFields + 'durabilityLeaseReleased')
     }
+    if ([long]$record.schemaVersion -ge 24) {
+        $combatCleanupFields = @($combatCleanupFields + 'brainLeaseReleased')
+    }
     Assert-KmcExactProperties $record.cleanup $combatCleanupFields 'combat cleanup evidence'
     if ([long]$record.schemaVersion -ge 8 -and $record.cleanup.sleeplessLeaseReleased -isnot [bool]) {
         throw 'Combat target sleepless-lease cleanup evidence is not Boolean.'
@@ -7586,6 +7608,9 @@ function Assert-KmcCombatScenarioEvidence {
     if ([long]$record.schemaVersion -ge 22 -and $record.cleanup.durabilityLeaseReleased -isnot [bool]) {
         throw 'Combat target durability-lease cleanup evidence is not Boolean.'
     }
+    if ([long]$record.schemaVersion -ge 24 -and $record.cleanup.brainLeaseReleased -isnot [bool]) {
+        throw 'Combat target brain-lease cleanup evidence is not Boolean.'
+    }
 
     $requirePass = [string]$Status -ceq 'PASS'
     if ($requirePass) {
@@ -7595,13 +7620,13 @@ function Assert-KmcCombatScenarioEvidence {
             'mounted-rider-melee-hit-tb','mounted-mammoth-primary-hit-tb')
         $missScenario = [string]$Request.scenario -ceq 'mounted-rider-melee-miss-rt'
         $expectedCombatSchemas = if ($mammothScenario) {
-            if ($turnBasedScenario) { @(21,23) } else { @(20,22) }
+            if ($turnBasedScenario) { @(21,23,25) } else { @(20,22,24) }
         } elseif ($missScenario) {
-            @(6,8,10,12,14,16,18,20,22)
+            @(6,8,10,12,14,16,18,20,22,24)
         } elseif ($turnBasedScenario) {
-            @(5,7,9,11,13,15,17,19,21,23)
+            @(5,7,9,11,13,15,17,19,21,23,25)
         } else {
-            @(4,6,8,10,12,14,16,18,20,22)
+            @(4,6,8,10,12,14,16,18,20,22,24)
         }
         if ([long]$record.schemaVersion -notin $expectedCombatSchemas -or
             [string]$record.status -cne 'PASS' -or [long]$record.assertionFailCount -ne 0 -or
@@ -7780,6 +7805,18 @@ function Assert-KmcCombatScenarioEvidence {
                     throw 'PASS combat evidence does not prove command-preserving non-pair party AI suppression and exact restoration.'
                 }
             }
+        }
+        if ([long]$record.schemaVersion -ge 24 -and
+            ($record.targetBrainLease.brainActiveBefore -ne $true -or
+             $record.targetBrainLease.leaseAcquired -ne $true -or
+             $record.targetBrainLease.effectiveAiEnabledDuring -ne $true -or
+             [long]$record.targetBrainLease.validationCount -lt 5 -or
+             $record.targetBrainLease.violationObserved -ne $false -or
+             $record.targetBrainLease.suppressedAtClick -ne $true -or
+             $record.targetBrainLease.suppressedAtOutcome -ne $true -or
+             $record.targetBrainLease.brainActiveAfterRelease -ne $true -or
+             $record.targetBrainLease.leaseReleased -ne $true)) {
+            throw 'PASS combat evidence does not prove continuous target-only native brain suppression and exact restoration.'
         }
         if ([string]::IsNullOrWhiteSpace([string]$record.riderId) -or
             [string]::IsNullOrWhiteSpace([string]$record.mountId) -or
@@ -7967,7 +8004,8 @@ function Assert-KmcCombatScenarioEvidence {
         }
         if ($record.cleanup.targetRemoved -ne $true -or $record.cleanup.targetEntityRemoved -ne $true -or
             $record.cleanup.runtimeGroupRemoved -ne $true -or $record.cleanup.runtimeFactionRemoved -ne $true -or
-            ([long]$record.schemaVersion -ge 22 -and $record.cleanup.durabilityLeaseReleased -ne $true) -or
+             ([long]$record.schemaVersion -ge 22 -and $record.cleanup.durabilityLeaseReleased -ne $true) -or
+             ([long]$record.schemaVersion -ge 24 -and $record.cleanup.brainLeaseReleased -ne $true) -or
             ([long]$record.schemaVersion -ge 8 -and $record.cleanup.sleeplessLeaseReleased -ne $true) -or
             ([long]$record.schemaVersion -ge 18 -and $record.cleanup.nonPairPartyAiLeaseRestored -ne $true) -or
             $record.cleanup.relationshipClean -ne $true -or

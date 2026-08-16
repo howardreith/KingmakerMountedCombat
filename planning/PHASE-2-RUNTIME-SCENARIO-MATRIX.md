@@ -2,7 +2,9 @@
 
 Status: IN PROGRESS
 
-Current Mammoth-primary finished-command attempt `20260816T181500Z-mammoth-primary-rt-passA` is immutable uncredited `FAIL` `30/1`. It stops before click because the target retains an already-finished command slot after `InterruptAll`; cleanup and external restoration are exact. Stock `RemoveFinishedAndUpdateQueue` now drains only that supported target boundary after the queue is cleared and before stopped-agent/empty proof. Fresh clean-package RT A/B and TB A/B remain required.
+Current Mammoth-primary hostile-brain attempt `20260816T183000Z-mammoth-primary-rt-passA` is immutable uncredited `FAIL` `51/1`. Exact Mammoth attack/resource/weapon/rule/life/pose/cleanup/restoration evidence passes; only target displacement `0.6614979` fails. Raw `m_AiEnabled=false` cannot disable effective AI on a non-direct target, while exact `AiBrainController.TickBrain` selects commands through `IsBrainActive`. A target-only reversible, continuously validated schema-v24/v25 brain lease is offline-green at `21/204/17/175/245`; schemas v1-v23 remain valid. Fresh clean-package RT A/B and TB A/B remain required.
+
+Prior finished-command attempt `20260816T181500Z-mammoth-primary-rt-passA` remains immutable uncredited `FAIL` `30/1`. It stops before click because the target retains an already-finished command slot after `InterruptAll`; cleanup and external restoration are exact. Stock `RemoveFinishedAndUpdateQueue` now drains only that supported target boundary after the queue is cleared and before stopped-agent/empty proof.
 
 Current Mammoth-primary target-stationarity attempt `20260816T174500Z-mammoth-primary-rt-passA` is immutable uncredited `FAIL` `50/2`. Exact Mammoth attack/resource/weapon/rule identity, durability lease, target life, pair stationarity, accepted pose, and external restoration pass. Target-only displacement `0.675754547` and deferred lifecycle confirmation fail. Installed `UnitMovementAgent.Stop` proves the diagnostic target must clear both active and requested paths after translocation; the repair adds exact pre-click stopped-agent gates and a later zero-residue `DestroyRequested -> Removed` confirmation retry. Offline totals are `21/204/17/174/240`; fresh same-package RT A/B and TB A/B remain required.
 
@@ -31,7 +33,7 @@ All core claims require two consecutive fresh-process passes from one clean comm
 | Tranche | Scenarios | Status |
 |---|---|---|
 | Rider melee | mounted hit/miss RT, hit TB, invalid target, target death, cleanup, non-mounted control | IN PROGRESS - stationary hit RT PASS A/B; three TB admission-order failures repaired, fresh TB A/B pending; remaining rows open |
-| Mount attack | `mounted-mammoth-primary-hit-rt` and `mounted-mammoth-primary-hit-tb`; exact actor/command/resource/weapon/target/rule identity, rider unchanged, no duplicate/repath, bounded Mammoth turn, cleanup/restoration | IN PROGRESS — schema-v20/v21 offline protocol and mutation coverage PASS; fresh same-package A/B pending |
+| Mount attack | `mounted-mammoth-primary-hit-rt` and `mounted-mammoth-primary-hit-tb`; exact actor/command/resource/weapon/target/rule identity, rider unchanged, continuous target-only brain suppression/restoration, no duplicate/repath, bounded Mammoth turn, cleanup/restoration | IN PROGRESS — schema-v24/v25 offline protocol and mutation coverage PASS; schemas v1-v23 retained; fresh same-package A/B pending |
 | Action economy/movement | entry/exit RT/TB, movement-to-target, cancellation, obstacles/doorway, resource accounting | TODO |
 | Lifecycle | rider/mount death and incapacitation, view/party/save/load/area/disable/exception boundaries | TODO |
 | Stretch | reach, AoO, and basic charge RT/TB plus isolation | TODO |

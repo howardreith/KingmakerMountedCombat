@@ -100,6 +100,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool targetRuntimeGroupRemoved;
         private bool targetRuntimeFactionRemoved;
         private bool targetDurabilityLeaseReleased;
+        private bool targetBrainLeaseReleased;
         private bool targetSleeplessLeaseReleased;
         private bool targetNonPairPartyAiLeaseRestored;
         private bool combatMemoryRemoved;
@@ -605,6 +606,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 targetService != null && targetService.TargetCommandsEmptyAtClick,
                 targetService != null && targetService.TargetAgentEnabledAtClick,
                 targetService != null && targetService.TargetAgentStoppedAtClick,
+                targetService != null && targetService.TargetBrainSuppressedAtClick,
                 target.View != null && target.View.gameObject.GetComponent<UnitEntityView>() == target.View,
                 actionActor != null && actionActor.CanAttack(target),
                 actionWeapon?.Blueprint != null && !actionWeapon.Blueprint.IsRanged &&
@@ -754,6 +756,9 @@ namespace KingmakerMountedCombat.Diagnostics
             targetDisplacementAtOutcome = HorizontalDistance(targetPositionAtClick, target.Position);
             assertions.Check(targetService.CaptureCurrentLife(target),
                 "Diagnostic target life was captured at the exact completed attack outcome.");
+            assertions.Check(targetService.TargetBrainSuppressedAtOutcome &&
+                    !targetService.TargetBrainLeaseViolationObserved,
+                "Diagnostic target native brain remained continuously suppressed through attack outcome.");
 
             assertions.Check(outcome.Action == AttackAction,
                 "Terminal command retained exact mounted action identity.");
@@ -885,6 +890,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     targetRuntimeGroupRemoved = true;
                     targetRuntimeFactionRemoved = true;
                     targetDurabilityLeaseReleased = true;
+                    targetBrainLeaseReleased = true;
                     targetSleeplessLeaseReleased = true;
                     targetNonPairPartyAiLeaseRestored = true;
                 }
@@ -931,9 +937,10 @@ namespace KingmakerMountedCombat.Diagnostics
             RestorePause();
 
             assertions.Check(targetRemoved && targetEntityRemoved &&
-                    targetRuntimeGroupRemoved && targetRuntimeFactionRemoved && targetSleeplessLeaseReleased &&
+                    targetRuntimeGroupRemoved && targetRuntimeFactionRemoved && targetDurabilityLeaseReleased &&
+                    targetBrainLeaseReleased && targetSleeplessLeaseReleased &&
                     targetNonPairPartyAiLeaseRestored,
-                "Runtime-only combat target, sleepless lease, non-pair party AI lease, project group, and runtime faction were removed with zero residue.");
+                "Runtime-only combat target, durability, brain, sleepless, and non-pair party AI leases, project group, and runtime faction were removed with zero residue.");
             assertions.Check(combatCleared,
                 "Pair, target, and party left combat before final evidence.");
             assertions.Check(pauseRestored,
@@ -982,7 +989,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var selected = SelectionManager.Instance?.SelectedUnits;
             var record = new CombatEvidenceRecord
             {
-                SchemaVersion = IsTurnBasedRow ? 23 : 22,
+                SchemaVersion = IsTurnBasedRow ? 25 : 24,
                 ArtifactKind = "combat-scenario-evidence",
                 RunId = request.RunId,
                 Scenario = request.Scenario,
@@ -1007,6 +1014,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 TargetLife = CombatTargetLifeEvidence.From(targetService),
                 TargetIncomingRules = CombatTargetIncomingRulesEvidence.From(targetService),
                 NonPairPartyAiLease = CombatNonPairPartyAiLeaseEvidence.From(targetService),
+                TargetBrainLease = CombatTargetBrainLeaseEvidence.From(targetService),
                 ClickAccepted = clickAccepted,
                 PairApproachRadius = pairApproachRadius,
                 TargetDistanceAtClick = targetDistanceAtClick,
@@ -1080,6 +1088,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     RuntimeGroupRemoved = targetRuntimeGroupRemoved,
                     RuntimeFactionRemoved = targetRuntimeFactionRemoved,
                     DurabilityLeaseReleased = targetDurabilityLeaseReleased,
+                    BrainLeaseReleased = targetBrainLeaseReleased,
                     SleeplessLeaseReleased = targetSleeplessLeaseReleased,
                     NonPairPartyAiLeaseRestored = targetNonPairPartyAiLeaseRestored,
                     RelationshipClean = relationshipClean,
@@ -1187,6 +1196,7 @@ namespace KingmakerMountedCombat.Diagnostics
             targetRuntimeGroupRemoved = targetService != null && targetService.RuntimeGroupRemoved;
             targetRuntimeFactionRemoved = targetService != null && targetService.RuntimeFactionRemoved;
             targetDurabilityLeaseReleased = targetService != null && targetService.TargetDurabilityLeaseReleased;
+            targetBrainLeaseReleased = targetService != null && targetService.TargetBrainLeaseReleased;
             targetSleeplessLeaseReleased = targetService != null && targetService.TargetSleeplessLeaseReleased;
             targetNonPairPartyAiLeaseRestored = targetService != null && targetService.NonPairPartyAiLeaseRestored;
             combatMemoryRemoved = targetService != null && targetService.CombatMemoryRemoved;
@@ -1467,6 +1477,7 @@ namespace KingmakerMountedCombat.Diagnostics
             public CombatTargetLifeEvidence TargetLife { get; set; }
             public CombatTargetIncomingRulesEvidence TargetIncomingRules { get; set; }
             public CombatNonPairPartyAiLeaseEvidence NonPairPartyAiLease { get; set; }
+            public CombatTargetBrainLeaseEvidence TargetBrainLease { get; set; }
             public bool ClickAccepted { get; set; }
             public float PairApproachRadius { get; set; }
             public float TargetDistanceAtClick { get; set; }
@@ -1861,6 +1872,35 @@ namespace KingmakerMountedCombat.Diagnostics
             }
         }
 
+        private sealed class CombatTargetBrainLeaseEvidence
+        {
+            public bool BrainActiveBefore { get; set; }
+            public bool LeaseAcquired { get; set; }
+            public bool EffectiveAiEnabledDuring { get; set; }
+            public int ValidationCount { get; set; }
+            public bool ViolationObserved { get; set; }
+            public bool SuppressedAtClick { get; set; }
+            public bool SuppressedAtOutcome { get; set; }
+            public bool BrainActiveAfterRelease { get; set; }
+            public bool LeaseReleased { get; set; }
+
+            public static CombatTargetBrainLeaseEvidence From(DiagnosticCombatTargetService service)
+            {
+                return new CombatTargetBrainLeaseEvidence
+                {
+                    BrainActiveBefore = service != null && service.TargetBrainActiveBefore,
+                    LeaseAcquired = service != null && service.TargetBrainLeaseAcquired,
+                    EffectiveAiEnabledDuring = service != null && service.TargetEffectiveAiEnabledDuringBrainLease,
+                    ValidationCount = service?.TargetBrainLeaseValidationCount ?? 0,
+                    ViolationObserved = service != null && service.TargetBrainLeaseViolationObserved,
+                    SuppressedAtClick = service != null && service.TargetBrainSuppressedAtClick,
+                    SuppressedAtOutcome = service != null && service.TargetBrainSuppressedAtOutcome,
+                    BrainActiveAfterRelease = service != null && service.TargetBrainActiveAfterRelease,
+                    LeaseReleased = service != null && service.TargetBrainLeaseReleased
+                };
+            }
+        }
+
         private sealed class CombatTargetLifeEvidence
         {
             public CombatTargetLifeSnapshotEvidence ImmediatelyAfterCreation { get; set; }
@@ -2136,6 +2176,7 @@ namespace KingmakerMountedCombat.Diagnostics
             public bool RuntimeGroupRemoved { get; set; }
             public bool RuntimeFactionRemoved { get; set; }
             public bool DurabilityLeaseReleased { get; set; }
+            public bool BrainLeaseReleased { get; set; }
             public bool SleeplessLeaseReleased { get; set; }
             public bool NonPairPartyAiLeaseRestored { get; set; }
             public bool RelationshipClean { get; set; }

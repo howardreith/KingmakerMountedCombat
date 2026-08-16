@@ -93,6 +93,7 @@ namespace KingmakerMountedCombat.Domain
             bool riderTreatsTargetAsEnemy,
             bool noExperienceOnDeath,
             bool aiBackingDisabled,
+            bool boundedBrainLease,
             bool boundedSleeplessLease,
             bool commandsEmpty,
             bool inventoryHasNoLoot,
@@ -112,6 +113,7 @@ namespace KingmakerMountedCombat.Domain
             AddFailure(failures, riderTreatsTargetAsEnemy, "rider-treats-target-as-enemy");
             AddFailure(failures, noExperienceOnDeath, "no-experience-on-death");
             AddFailure(failures, aiBackingDisabled, "ai-backing-disabled");
+            AddFailure(failures, boundedBrainLease, "bounded-brain-lease");
             AddFailure(failures, boundedSleeplessLease, "bounded-sleepless-lease");
             AddFailure(failures, commandsEmpty, "commands-empty");
             AddFailure(failures, inventoryHasNoLoot, "inventory-has-no-loot");
@@ -149,6 +151,7 @@ namespace KingmakerMountedCombat.Domain
             bool targetCommandsEmpty,
             bool targetAgentEnabled,
             bool targetAgentStopped,
+            bool targetBrainSuppressed,
             bool clickObjectResolvesExactView,
             bool actionActorCanAttackTarget,
             bool actionWeaponIsSupportedMelee)
@@ -161,6 +164,7 @@ namespace KingmakerMountedCombat.Domain
             AddFailure(failures, targetCommandsEmpty, "target-commands-empty");
             AddFailure(failures, targetAgentEnabled, "target-agent-enabled");
             AddFailure(failures, targetAgentStopped, "target-agent-stopped");
+            AddFailure(failures, targetBrainSuppressed, "target-brain-suppressed");
             AddFailure(failures, clickObjectResolvesExactView, "click-object-resolves-exact-view");
             AddFailure(failures, actionActorCanAttackTarget, "action-actor-can-attack-target");
             AddFailure(failures, actionWeaponIsSupportedMelee, "action-weapon-is-supported-melee");

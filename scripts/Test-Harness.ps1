@@ -1078,7 +1078,7 @@ function New-TestCombatEvidenceRecord {
     $actorRole = if ($isMammoth) { 'mount' } else { 'rider' }
     $action = if ($isMammoth) { 'MountPrimaryNatural' } else { 'RiderMelee' }
     $record = [ordered]@{
-        schemaVersion=$(if ($isTurnBased) { 23 } else { 22 });artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
+        schemaVersion=$(if ($isTurnBased) { 25 } else { 24 });artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
         scenario=[string]$Request.scenario;row=[string]$Request.scenario;rowIndex=0;sequence=0;frame=30
         utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o');branch=[string]$Request.branch
         commit=[string]$Request.commit;productVersion=[string]$Request.productVersion
@@ -1160,6 +1160,11 @@ function New-TestCombatEvidenceRecord {
                 rawAiAfter=$true;effectiveAiAfter=$true
             })
         }
+        targetBrainLease=[ordered]@{
+            brainActiveBefore=$true;leaseAcquired=$true;effectiveAiEnabledDuring=$true
+            validationCount=7;violationObserved=$false;suppressedAtClick=$true;suppressedAtOutcome=$true
+            brainActiveAfterRelease=$true;leaseReleased=$true
+        }
         pairApproachRadius=4.0;targetDistanceAtClick=3.9
         riderPositionAtClick=[ordered]@{x=0.0;y=0.0;z=0.0}
         mountPositionAtClick=[ordered]@{x=0.1;y=0.0;z=0.0}
@@ -1210,7 +1215,7 @@ function New-TestCombatEvidenceRecord {
         }
         cleanup=[ordered]@{
             targetRemoved=$true;targetEntityRemoved=$true;runtimeGroupRemoved=$true;runtimeFactionRemoved=$true
-            durabilityLeaseReleased=$true;sleeplessLeaseReleased=$true;nonPairPartyAiLeaseRestored=$true
+            durabilityLeaseReleased=$true;brainLeaseReleased=$true;sleeplessLeaseReleased=$true;nonPairPartyAiLeaseRestored=$true
             relationshipClean=$true;combatCleared=$true;relationshipState='Unmounted'
             residualState=$false;presentationResidual=$false
         }
@@ -1323,6 +1328,7 @@ function Remove-TestCombatDurabilityLeaseFields {
         $Record.movement.PSObject.Properties.Remove($name)
     }
     $Record.cleanup.PSObject.Properties.Remove('durabilityLeaseReleased')
+    Remove-TestCombatBrainLeaseFields $Record
 
     if ([long]$Record.schemaVersion -lt 20 -and
         $null -ne $Record.dispatch.PSObject.Properties['actionActorCanActInCombat']) {
@@ -1343,6 +1349,14 @@ function Remove-TestCombatDurabilityLeaseFields {
         $Record.turnBased.PSObject.Properties.Remove('expectedTurnActor')
         $Record.turnBased.PSObject.Properties.Remove('nativeActionActorTurnStarted')
         $Record.turnBased.PSObject.Properties.Remove('actionActorTurnEndedAfterCommand')
+    }
+}
+
+function Remove-TestCombatBrainLeaseFields {
+    param([Parameter(Mandatory = $true)]$Record)
+    $Record.PSObject.Properties.Remove('targetBrainLease')
+    if ($null -ne $Record.cleanup) {
+        $Record.cleanup.PSObject.Properties.Remove('brainLeaseReleased')
     }
 }
 
@@ -4487,7 +4501,7 @@ try {
             $controllerSource.Contains('turn.ForceToEnd(false);')) 'turn-based combat does not admit the native Preparing action-actor turn, observe Acting after dispatch, bound the Mammoth turn after its action, and restore mode after cleanup'
         Assert-Test ($engineSource.Contains('CleanupTimeoutSeconds = 10.0d') -and
             $engineSource.Contains('rowClock.Elapsed.TotalSeconds - cleanupStartedAtSeconds < CleanupTimeoutSeconds')) 'combat cleanup does not retain an independent bounded drain after a row deadline'
-        Assert-Test ($engineSource.Contains('SchemaVersion = IsTurnBasedRow ? 23 : 22') -and
+        Assert-Test ($engineSource.Contains('SchemaVersion = IsTurnBasedRow ? 25 : 24') -and
             $engineSource.Contains('Mode = IsTurnBasedRow ? "turn-based" : "real-time"') -and
             $engineSource.Contains('TurnBased = IsTurnBasedRow') -and
             $engineSource.Contains('CombatEntry = CombatEntryEvidence.From(') -and
@@ -4512,6 +4526,9 @@ try {
             $combatValidatorSource.Contains("'temporaryHitPointsBefore','temporaryHitPointsAfterProvisioning'") -and
             $combatValidatorSource.Contains("'durabilityLeaseAmount','durabilityLeaseAcquired'") -and
             $combatValidatorSource.Contains("'durabilityLeaseReleased'") -and
+            $combatValidatorSource.Contains("'brainActiveBefore','leaseAcquired','effectiveAiEnabledDuring','violationObserved'") -and
+            $combatValidatorSource.Contains("'suppressedAtClick','suppressedAtOutcome','brainActiveAfterRelease','leaseReleased'") -and
+            $combatValidatorSource.Contains("'brainLeaseReleased'") -and
             $combatValidatorSource.Contains("'riderDisplacementAtOutcome','mountDisplacementAtOutcome','targetDisplacementAtOutcome'") -and
             $combatValidatorSource.Contains("'playerGroupEnemiesContainsTarget','targetGroupEnemiesContainsRider'") -and
             $combatValidatorSource.Contains("'riderIgnoredByCombat','mountIgnoredByCombat','targetIgnoredByCombat'") -and
@@ -4531,6 +4548,7 @@ try {
             $combatValidatorSource.Contains('initiatorDirectlyControllable') -and
             $engineSource.Contains('NonPairPartyAiLease = CombatNonPairPartyAiLeaseEvidence.From(targetService)') -and
             $engineSource.Contains('NonPairPartyAiLeaseRestored = targetNonPairPartyAiLeaseRestored') -and
+            $engineSource.Contains('TargetBrainLease = CombatTargetBrainLeaseEvidence.From(targetService)') -and
             $combatValidatorSource.Contains("'acquired','groupId','groupIsPlayerParty','riderSharesGroup','mountSharesGroup','memberCount'") -and
             $combatValidatorSource.Contains("'commandsEmptyBefore','rawAiBefore','effectiveAiBefore'") -and
             $combatValidatorSource.Contains('command-preserving non-pair party AI suppression') -and
@@ -4541,7 +4559,7 @@ try {
             $commandSource.Contains('CommandOwnerId = Executor?.UniqueId') -and
             $commandSource.Contains('ResourceOwnerId = actionActor.UniqueId') -and
             $commandSource.Contains('retainedAttackWeaponBlueprintId = childAttack.PlannedAttack.Weapon.Blueprint.AssetGuid;') -and
-            $commandSource.Contains('AttackWeaponBlueprintId = retainedAttackWeaponBlueprintId')) 'schema-v22/v23 combat evidence does not bind actor-specific command/resource ownership, retained exact weapon identity, target durability, stationarity, native IsHit, target and AI isolation, turn identity, cleanup, and restoration'
+            $commandSource.Contains('AttackWeaponBlueprintId = retainedAttackWeaponBlueprintId')) 'schema-v24/v25 combat evidence does not bind actor-specific command/resource ownership, retained exact weapon identity, target durability and brain lease, stationarity, native IsHit, target and AI isolation, turn identity, cleanup, and restoration'
         Assert-Test ($targetSource.Contains('DiagnosticDurabilityTemporaryHitPoints = 128') -and
             $targetSource.Contains('temporaryHitPoints.AddModifier(') -and
             $targetSource.Contains('(Fact)null') -and
@@ -4558,6 +4576,19 @@ try {
         Assert-Test ($durabilityAcquireIndex -ge 0 -and $targetActivationIndex -gt $durabilityAcquireIndex -and
             $durabilityReleaseIndex -ge 0 -and $targetDestroyIndex -gt $durabilityReleaseIndex -and
             $outcomeLifeCaptureIndex -ge 0 -and $terminalActionAssertionIndex -gt $outcomeLifeCaptureIndex) 'Mammoth diagnostic durability acquisition precedes activation, exact release precedes target destruction, and outcome life is captured before terminal assertions'
+        $brainAcquireIndex = $targetSource.IndexOf('AcquireTargetBrainLease(target);', [StringComparison]::Ordinal)
+        $brainValidateIndex = $targetSource.IndexOf('ValidateTargetBrainLeaseActive(target)', [StringComparison]::Ordinal)
+        $brainReleaseIndex = $targetSource.IndexOf('brainLeaseClean = ReleaseTargetBrainLease(current);', [StringComparison]::Ordinal)
+        $targetStopIndex = $targetSource.IndexOf('current.View?.StopMoving();', [StringComparison]::Ordinal)
+        Assert-Test ($brainAcquireIndex -gt $durabilityAcquireIndex -and
+            $brainValidateIndex -gt $brainAcquireIndex -and $targetActivationIndex -gt $brainValidateIndex -and
+            $targetSource.Contains('!ValidateTargetBrainLeaseActive(combatMemoryTarget)') -and
+            $targetSource.Contains('TargetBrainSuppressedAtClick = ValidateTargetBrainLeaseActive(target);') -and
+            $targetSource.Contains('TargetBrainSuppressedAtOutcome = ValidateTargetBrainLeaseActive(target);') -and
+            $targetSource.Contains('current.IsBrainActive = targetBrainActiveBefore;') -and
+            $targetStopIndex -ge 0 -and $brainReleaseIndex -gt $targetStopIndex -and
+            $targetDestroyIndex -gt $brainReleaseIndex -and
+            -not $targetSource.Contains('IsDirectlyControllable =')) 'diagnostic target brain lease is not exact, continuously validated, target-only, reversible, and released immediately before target destruction'
         foreach ($field in @('TargetEntityRemoved','RuntimeGroupRemoved','RuntimeFactionRemoved')) {
             $jsonField = [char]::ToLowerInvariant($field[0]) + $field.Substring(1)
             Assert-Test ($engineSource.Contains("$field =") -and
@@ -4569,6 +4600,8 @@ try {
             $combatValidatorSource.Contains("'nonPairPartyAiLeaseRestored'")) 'combat cleanup evidence does not bind exact non-pair party AI restoration'
         Assert-Test ($engineSource.Contains('DurabilityLeaseReleased = targetDurabilityLeaseReleased') -and
             $combatValidatorSource.Contains("'durabilityLeaseReleased'")) 'combat cleanup evidence does not bind exact target durability-lease restoration'
+        Assert-Test ($engineSource.Contains('BrainLeaseReleased = targetBrainLeaseReleased') -and
+            $combatValidatorSource.Contains("'brainLeaseReleased'")) 'combat cleanup evidence does not bind exact target brain-lease restoration'
         Assert-Test ($engineSource.Contains('TargetProvisioning = targetProvisioning ?? new CombatTargetProvisioningEvidence()') -and
             $combatValidatorSource.Contains("'targetProvisioning'") -and
             $combatValidatorSource.Contains("'noWeaponProvisioningMutation'") -and
@@ -4601,7 +4634,7 @@ try {
     $turnBasedManifest = Read-KmcJson (Join-Path $turnBasedRequest.evidenceRoot 'runtime-artifacts.json')
     $turnBasedSubresult = [ordered]@{name=$turnBasedRequest.scenario;status='PASS';assertionPassCount=25;assertionFailCount=0;errors=@()}
 
-    Invoke-HarnessTest 'runtime request and schema-v23 evidence accept exact native stationary rider turn' {
+    Invoke-HarnessTest 'runtime request and schema-v25 evidence accept exact native stationary rider turn' {
         & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $turnBasedRequestPath
         Assert-KmcCombatScenarioEvidence -Request $turnBasedRequest -Manifest $turnBasedManifest -Status 'PASS' -SubscenarioResults @($turnBasedSubresult)
     }
@@ -4633,7 +4666,7 @@ try {
     $mammothManifest = Read-KmcJson (Join-Path $mammothRequest.evidenceRoot 'runtime-artifacts.json')
     $mammothSubresult = [ordered]@{name=$mammothRequest.scenario;status='PASS';assertionPassCount=25;assertionFailCount=0;errors=@()}
 
-    Invoke-HarnessTest 'runtime request and schema-v22 evidence accept exact stationary Mammoth primary' {
+    Invoke-HarnessTest 'runtime request and schema-v24 evidence accept exact stationary Mammoth primary' {
         & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $mammothRequestPath
         Assert-KmcCombatScenarioEvidence -Request $mammothRequest -Manifest $mammothManifest -Status 'PASS' -SubscenarioResults @($mammothSubresult)
     }
@@ -4649,9 +4682,25 @@ try {
     $mammothTurnManifest = Read-KmcJson (Join-Path $mammothTurnRequest.evidenceRoot 'runtime-artifacts.json')
     $mammothTurnSubresult = [ordered]@{name=$mammothTurnRequest.scenario;status='PASS';assertionPassCount=25;assertionFailCount=0;errors=@()}
 
-    Invoke-HarnessTest 'runtime request and schema-v23 evidence accept exact native Mammoth primary turn' {
+    Invoke-HarnessTest 'runtime request and schema-v25 evidence accept exact native Mammoth primary turn' {
         & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $mammothTurnRequestPath
         Assert-KmcCombatScenarioEvidence -Request $mammothTurnRequest -Manifest $mammothTurnManifest -Status 'PASS' -SubscenarioResults @($mammothTurnSubresult)
+    }
+
+    Invoke-HarnessTest 'historical schema-v22 and schema-v23 evidence remain valid without target brain-lease fields' {
+        $legacyMammoth22 = Copy-TestJsonValue $mammothRecord
+        $legacyMammoth22.schemaVersion = 22
+        Remove-TestCombatBrainLeaseFields $legacyMammoth22
+        [void](Write-TestCombatEvidence -EvidenceRoot $mammothRequest.evidenceRoot -Request $mammothRequest -Record $legacyMammoth22)
+        $legacyMammothManifest22 = Read-KmcJson (Join-Path $mammothRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $mammothRequest -Manifest $legacyMammothManifest22 -Status 'PASS' -SubscenarioResults @($mammothSubresult)
+
+        $legacyMammothTurn23 = Copy-TestJsonValue $mammothTurnRecord
+        $legacyMammothTurn23.schemaVersion = 23
+        Remove-TestCombatBrainLeaseFields $legacyMammothTurn23
+        [void](Write-TestCombatEvidence -EvidenceRoot $mammothTurnRequest.evidenceRoot -Request $mammothTurnRequest -Record $legacyMammothTurn23)
+        $legacyMammothTurnManifest23 = Read-KmcJson (Join-Path $mammothTurnRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $mammothTurnRequest -Manifest $legacyMammothTurnManifest23 -Status 'PASS' -SubscenarioResults @($mammothTurnSubresult)
     }
 
     Invoke-HarnessTest 'historical schema-v20 and schema-v21 Mammoth evidence remain valid' {
@@ -4692,6 +4741,16 @@ try {
             @{name='wrong durability amount';apply={param($value) $value.targetProvisioning.durabilityLeaseAmount=127}},
             @{name='durability acquisition absent';apply={param($value) $value.targetProvisioning.durabilityLeaseAcquired=$false}},
             @{name='durability release absent';apply={param($value) $value.cleanup.durabilityLeaseReleased=$false}},
+            @{name='target brain prior inactive';apply={param($value) $value.targetBrainLease.brainActiveBefore=$false}},
+            @{name='target brain lease absent';apply={param($value) $value.targetBrainLease.leaseAcquired=$false}},
+            @{name='target effective AI claim false';apply={param($value) $value.targetBrainLease.effectiveAiEnabledDuring=$false}},
+            @{name='target brain validation count too low';apply={param($value) $value.targetBrainLease.validationCount=4}},
+            @{name='target brain violation';apply={param($value) $value.targetBrainLease.violationObserved=$true}},
+            @{name='target brain unsuppressed at click';apply={param($value) $value.targetBrainLease.suppressedAtClick=$false}},
+            @{name='target brain unsuppressed at outcome';apply={param($value) $value.targetBrainLease.suppressedAtOutcome=$false}},
+            @{name='target brain prior state not restored';apply={param($value) $value.targetBrainLease.brainActiveAfterRelease=$false}},
+            @{name='target brain lease not released';apply={param($value) $value.targetBrainLease.leaseReleased=$false}},
+            @{name='target brain cleanup absent';apply={param($value) $value.cleanup.brainLeaseReleased=$false}},
             @{name='target life transition';apply={param($value) $value.targetLife.transitionCount=1}},
             @{name='rider displacement';apply={param($value) $value.movement.riderDisplacementAtOutcome=0.051}},
             @{name='Mammoth displacement';apply={param($value) $value.movement.mountDisplacementAtOutcome=0.051}},

@@ -51,6 +51,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private ModifiableValue.Modifier targetDurabilityModifier;
         private bool targetDurabilityLeaseRequired;
         private bool targetDurabilityLeaseActive;
+        private bool targetBrainActiveBefore;
+        private bool targetBrainLeaseActive;
         private bool targetSleeplessBefore;
         private bool targetSleeplessLeaseActive;
         private bool combatMemoryQueued;
@@ -88,6 +90,24 @@ namespace KingmakerMountedCombat.Diagnostics
         public bool TargetHasNoLoot { get; private set; }
 
         public bool RawAiBackingDisabled { get; private set; }
+
+        public bool TargetBrainActiveBefore => targetBrainActiveBefore;
+
+        public bool TargetBrainLeaseAcquired { get; private set; }
+
+        public bool TargetEffectiveAiEnabledDuringBrainLease { get; private set; }
+
+        public int TargetBrainLeaseValidationCount { get; private set; }
+
+        public bool TargetBrainLeaseViolationObserved { get; private set; }
+
+        public bool TargetBrainSuppressedAtClick { get; private set; }
+
+        public bool TargetBrainSuppressedAtOutcome { get; private set; }
+
+        public bool TargetBrainActiveAfterRelease { get; private set; }
+
+        public bool TargetBrainLeaseReleased { get; private set; } = true;
 
         public bool BidirectionalHostilityVerified { get; private set; }
 
@@ -283,6 +303,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 runtimeGroup = target.Group;
                 target.GiveExperienceOnDeath = false;
                 target.IsAIEnabled = false;
+                AcquireTargetBrainLease(target);
                 target.HoldState = true;
                 target.Commands.InterruptAll();
 
@@ -332,6 +353,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 RawAiBackingDisabled = aiBackingDisabled;
                 BidirectionalHostilityVerified = bidirectionalHostility;
                 NoExperienceReward = !target.GiveExperienceOnDeath;
+                var brainPolicyPassed = TargetBrainActiveBefore && TargetBrainLeaseAcquired &&
+                    !TargetBrainLeaseReleased && ValidateTargetBrainLeaseActive(target);
                 var safety = new DiagnosticCombatTargetSafetySnapshot(
                     target.Blueprint == blueprint,
                     !target.IsDirectlyControllable,
@@ -343,6 +366,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     riderTreatsTargetAsEnemy,
                     NoExperienceReward,
                     aiBackingDisabled,
+                    brainPolicyPassed,
                     TargetSleeplessLeaseAcquired,
                     target.Commands.Empty,
                     inventoryHasNoLoot,
@@ -381,7 +405,8 @@ namespace KingmakerMountedCombat.Diagnostics
         public bool DestroyAndVerify()
         {
             if (TargetEntityRemoved && RuntimeGroupRemoved && RuntimeFactionRemoved && CombatMemoryRemoved &&
-                TargetDurabilityLeaseReleased && TargetSleeplessLeaseReleased && NonPairPartyAiLeaseRestored)
+                TargetDurabilityLeaseReleased && TargetBrainLeaseReleased &&
+                TargetSleeplessLeaseReleased && NonPairPartyAiLeaseRestored)
             {
                 if (State == DiagnosticCombatTargetState.DestroyRequested)
                 {
@@ -406,6 +431,7 @@ namespace KingmakerMountedCombat.Diagnostics
             TargetCommandsEmptyAtClick = false;
             TargetAgentEnabledAtClick = false;
             TargetAgentStoppedAtClick = false;
+            TargetBrainSuppressedAtClick = false;
             if (expectedTarget == null || expectedTarget != target ||
                 State != DiagnosticCombatTargetState.Active ||
                 !target.IsInState || target.View == null || target.View.AgentASP == null)
@@ -416,6 +442,7 @@ namespace KingmakerMountedCombat.Diagnostics
             target.Commands.InterruptAll();
             target.Commands.RemoveFinishedAndUpdateQueue();
             target.View.AgentASP.Stop();
+            TargetBrainSuppressedAtClick = ValidateTargetBrainLeaseActive(target);
             target.IsInFogOfWar = false;
             target.View.SetVisible(true, true);
             TargetFogOfWarCleared = !target.IsInFogOfWar;
@@ -428,13 +455,19 @@ namespace KingmakerMountedCombat.Diagnostics
                 target.View.AgentASP.Speed == 0f &&
                 target.View.AgentASP.Velocity.sqrMagnitude == 0f;
             return TargetFogOfWarCleared && TargetViewVisible && TargetVisibleForPlayer &&
-                TargetCommandsEmptyAtClick && TargetAgentEnabledAtClick && TargetAgentStoppedAtClick;
+                TargetCommandsEmptyAtClick && TargetAgentEnabledAtClick && TargetAgentStoppedAtClick &&
+                TargetBrainSuppressedAtClick;
         }
 
         public bool CaptureCurrentLife(UnitEntityData expectedTarget)
         {
             ThrowIfDisposed();
             if (expectedTarget == null || expectedTarget != target || !target.IsInState)
+            {
+                return false;
+            }
+            TargetBrainSuppressedAtOutcome = ValidateTargetBrainLeaseActive(target);
+            if (!TargetBrainSuppressedAtOutcome)
             {
                 return false;
             }
@@ -610,12 +643,18 @@ namespace KingmakerMountedCombat.Diagnostics
             var combatMemoryClean = RemoveCombatMemory();
             var durabilityLeaseClean = ReleaseTargetDurabilityLease(current);
             var sleeplessLeaseClean = ReleaseTargetSleeplessLease(current);
+            var brainLeaseClean = !targetBrainLeaseActive && TargetBrainLeaseReleased;
             if (current != null && durabilityLeaseClean)
             {
                 current.Commands.InterruptAll();
+                current.Commands.RemoveFinishedAndUpdateQueue();
                 current.View?.StopMoving();
-                current.Destroy();
-                Game.Instance?.EntityDestroyer?.Tick();
+                brainLeaseClean = ReleaseTargetBrainLease(current);
+                if (brainLeaseClean)
+                {
+                    current.Destroy();
+                    Game.Instance?.EntityDestroyer?.Tick();
+                }
             }
             var targetRemoved = current == null ||
                 (!current.IsInState &&
@@ -638,7 +677,76 @@ namespace KingmakerMountedCombat.Diagnostics
             var nonPairPartyAiClean = targetRemoved && groupRemoved && RuntimeFactionRemoved &&
                 (nonPairPartyAiLease == null || nonPairPartyAiLease.RestoreAndVerify());
             return targetRemoved && groupRemoved && RuntimeFactionRemoved && combatMemoryClean &&
-                durabilityLeaseClean && sleeplessLeaseClean && nonPairPartyAiClean;
+                durabilityLeaseClean && brainLeaseClean && sleeplessLeaseClean && nonPairPartyAiClean;
+        }
+
+        private void AcquireTargetBrainLease(UnitEntityData current)
+        {
+            if (current == null)
+            {
+                throw new InvalidOperationException("Diagnostic target brain lease requires the exact target.");
+            }
+
+            targetBrainActiveBefore = current.IsBrainActive;
+            TargetBrainLeaseAcquired = false;
+            TargetEffectiveAiEnabledDuringBrainLease = false;
+            TargetBrainLeaseValidationCount = 0;
+            TargetBrainLeaseViolationObserved = false;
+            TargetBrainSuppressedAtClick = false;
+            TargetBrainSuppressedAtOutcome = false;
+            TargetBrainActiveAfterRelease = false;
+            TargetBrainLeaseReleased = true;
+            if (!targetBrainActiveBefore)
+            {
+                throw new InvalidOperationException(
+                    "Fresh diagnostic target did not begin with the exact active native brain state.");
+            }
+
+            TargetBrainLeaseReleased = false;
+            targetBrainLeaseActive = true;
+            current.IsBrainActive = false;
+            TargetBrainLeaseAcquired = !current.IsBrainActive;
+            if (!TargetBrainLeaseAcquired)
+            {
+                throw new InvalidOperationException(
+                    "Diagnostic target brain lease did not suppress the exact native brain gate.");
+            }
+        }
+
+        private bool ValidateTargetBrainLeaseActive(UnitEntityData current)
+        {
+            TargetBrainLeaseValidationCount++;
+            TargetEffectiveAiEnabledDuringBrainLease = current != null && current.IsAIEnabled;
+            var passed = targetBrainLeaseActive && TargetBrainLeaseAcquired &&
+                !TargetBrainLeaseReleased && current != null && current == target && current.IsInState &&
+                !current.IsBrainActive && TargetEffectiveAiEnabledDuringBrainLease;
+            if (!passed)
+            {
+                TargetBrainLeaseViolationObserved = true;
+            }
+            return passed && !TargetBrainLeaseViolationObserved;
+        }
+
+        private bool ReleaseTargetBrainLease(UnitEntityData current)
+        {
+            if (!targetBrainLeaseActive)
+            {
+                return TargetBrainLeaseReleased;
+            }
+            if (current == null)
+            {
+                return false;
+            }
+
+            current.IsBrainActive = targetBrainActiveBefore;
+            TargetBrainActiveAfterRelease = current.IsBrainActive;
+            TargetBrainLeaseReleased =
+                TargetBrainActiveAfterRelease == targetBrainActiveBefore;
+            if (TargetBrainLeaseReleased)
+            {
+                targetBrainLeaseActive = false;
+            }
+            return TargetBrainLeaseReleased;
         }
 
         private void AcquireTargetDurabilityLease(UnitEntityData current, bool required)
@@ -755,6 +863,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 combatMemoryObserverGroup.Disposed || combatMemoryTargetGroup.Disposed ||
                 combatMemoryObserver.Group != combatMemoryObserverGroup ||
                 combatMemoryTarget.Group != combatMemoryTargetGroup ||
+                !ValidateTargetBrainLeaseActive(combatMemoryTarget) ||
                 !targetSleeplessLeaseActive || !combatMemoryTarget.Sleepless ||
                 !combatMemoryObserver.IsInState || !combatMemoryTarget.IsInState ||
                 nonPairPartyAiLease == null || !nonPairPartyAiLease.ValidateActive())
