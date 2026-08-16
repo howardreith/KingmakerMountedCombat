@@ -320,7 +320,7 @@ namespace KingmakerMountedCombat.Domain
             bool rosterContainsTarget,
             bool nativeRiderTurnStarted,
             bool currentTurnRider,
-            bool currentTurnActing)
+            bool currentTurnCommandReady)
         {
             ModeEnabled = modeEnabled;
             ControllerInitialized = controllerInitialized;
@@ -329,7 +329,7 @@ namespace KingmakerMountedCombat.Domain
             RosterContainsTarget = rosterContainsTarget;
             NativeRiderTurnStarted = nativeRiderTurnStarted;
             CurrentTurnRider = currentTurnRider;
-            CurrentTurnActing = currentTurnActing;
+            CurrentTurnCommandReady = currentTurnCommandReady;
             var failures = new List<string>();
             AddFailure(failures, modeEnabled, "turn-based-mode-enabled");
             AddFailure(failures, controllerInitialized, "turn-based-controller-initialized");
@@ -338,7 +338,7 @@ namespace KingmakerMountedCombat.Domain
             AddFailure(failures, rosterContainsTarget, "turn-roster-contains-target");
             AddFailure(failures, nativeRiderTurnStarted, "native-rider-turn-started");
             AddFailure(failures, currentTurnRider, "current-turn-rider");
-            AddFailure(failures, currentTurnActing, "current-turn-acting");
+            AddFailure(failures, currentTurnCommandReady, "current-turn-command-ready");
             failedGateNames = failures.ToArray();
         }
 
@@ -356,7 +356,7 @@ namespace KingmakerMountedCombat.Domain
 
         public bool CurrentTurnRider { get; }
 
-        public bool CurrentTurnActing { get; }
+        public bool CurrentTurnCommandReady { get; }
 
         public bool AllPassed => failedGateNames.Length == 0;
 

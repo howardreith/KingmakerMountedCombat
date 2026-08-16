@@ -120,6 +120,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool turnRosterContainsMount;
         private bool turnRosterContainsTarget;
         private bool nativeRiderTurnStarted;
+        private bool nativeRiderTurnActingObservedAfterDispatch;
         private string currentTurnUnitIdAtDispatch;
         private bool currentTurnActingAtDispatch;
         private int roundNumberAtDispatch = -1;
@@ -508,10 +509,6 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 assertions.Check(turnBasedReadiness != null && turnBasedReadiness.AllPassed,
                     "Turn-based dispatch retained the exact initialized roster and native rider turn.");
-                var turnController = game.TurnBasedCombatController;
-                currentTurnUnitIdAtDispatch = turnController?.CurrentTurn?.Unit?.UniqueId;
-                currentTurnActingAtDispatch = turnController?.CurrentTurn != null && turnController.CurrentTurn.IsActing;
-                roundNumberAtDispatch = turnController?.RoundNumber ?? -1;
             }
             assertions.Check(relationship.State == RelationshipState.Mounted,
                 "Native combat entry retained the mounted relationship.");
@@ -593,6 +590,31 @@ namespace KingmakerMountedCombat.Diagnostics
                 assertions.Fail("Exact bidirectional combat-memory lease was lost before native attack completion.");
                 BeginCleanup();
                 return;
+            }
+            if (IsTurnBasedRow && !nativeRiderTurnActingObservedAfterDispatch)
+            {
+                var turnController = Game.Instance?.TurnBasedCombatController;
+                var currentTurn = turnController?.CurrentTurn;
+                if (currentTurn?.Unit != rider)
+                {
+                    assertions.Fail("The exact native rider turn changed after mounted attack dispatch.");
+                    BeginCleanup();
+                    return;
+                }
+                if (!currentTurn.IsActing)
+                {
+                    if (combat.LastOutcome != null)
+                    {
+                        assertions.Fail("The mounted attack completed without an observed native Acting rider turn.");
+                        BeginCleanup();
+                    }
+                    return;
+                }
+
+                nativeRiderTurnActingObservedAfterDispatch = true;
+                currentTurnUnitIdAtDispatch = currentTurn.Unit.UniqueId;
+                currentTurnActingAtDispatch = true;
+                roundNumberAtDispatch = turnController.RoundNumber;
             }
             if (combat.LastOutcome == null)
             {
@@ -994,7 +1016,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 turnRosterContainsTarget,
                 nativeRiderTurnStarted,
                 currentTurn?.Unit == rider,
-                currentTurn != null && currentTurn.IsActing);
+                currentTurn != null &&
+                    (currentTurn.Status == TurnBased.Controllers.TurnController.TurnStatus.Preparing ||
+                     currentTurn.Status == TurnBased.Controllers.TurnController.TurnStatus.Acting));
         }
 
         private static bool ContainsTurnRosterUnit(
@@ -1099,6 +1123,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     ";targetFactionPeaceful=" + (target?.Faction != null && target.Faction.Peaceful) +
                     ";turnBasedReadiness=" + (turnBasedReadiness?.FailureSummary ??
                         (IsTurnBasedRow ? "not-observed" : "not-requested")) +
+                    ";turnStatus=" + (Game.Instance?.TurnBasedCombatController?.CurrentTurn == null
+                        ? "none"
+                        : Game.Instance.TurnBasedCombatController.CurrentTurn.Status.ToString()) +
                     ";dispatchReadiness=" + (dispatchReadiness?.FailureSummary ?? "not-observed") +
                     ";gamePaused=" + (Game.Instance != null && Game.Instance.IsPaused);
             }

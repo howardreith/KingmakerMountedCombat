@@ -403,7 +403,7 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(snapshot.ModeEnabled && snapshot.ControllerInitialized &&
                     snapshot.RosterContainsRider && snapshot.RosterContainsMount &&
                     snapshot.RosterContainsTarget && snapshot.NativeRiderTurnStarted &&
-                    snapshot.CurrentTurnRider && snapshot.CurrentTurnActing,
+                    snapshot.CurrentTurnRider && snapshot.CurrentTurnCommandReady,
                 "An all-pass turn-based snapshot changed its exact native gate values.");
         }
 
@@ -414,7 +414,7 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(!snapshot.AllPassed,
                 "A turn-based dispatch without an initialized exact rider turn passed.");
             TestRunner.Equal(
-                "turn-based-controller-initialized,turn-roster-contains-mount,turn-roster-contains-target,current-turn-rider,current-turn-acting",
+                "turn-based-controller-initialized,turn-roster-contains-mount,turn-roster-contains-target,current-turn-rider,current-turn-command-ready",
                 snapshot.FailureSummary,
                 "Turn-based dispatch failures were not reported in exact gate order.");
         }

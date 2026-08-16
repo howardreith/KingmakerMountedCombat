@@ -4209,11 +4209,14 @@ try {
         $turnRosterIndex = $engineSource.IndexOf('turnRosterContainsTarget = ContainsTurnRosterUnit(turnController, target);', [StringComparison]::Ordinal)
         $nativeRiderTurnIndex = $engineSource.IndexOf('turnController.StartTurn(rider);', [StringComparison]::Ordinal)
         $turnDispatchIndex = $engineSource.IndexOf('turnBasedReadiness = CaptureTurnBasedReadiness(turnController);', $nativeRiderTurnIndex, [StringComparison]::Ordinal)
+        $nativeClickIndex = $engineSource.IndexOf('new ClickUnitHandler().OnClick(', $turnDispatchIndex, [StringComparison]::Ordinal)
+        $actingAfterDispatchIndex = $engineSource.IndexOf('if (IsTurnBasedRow && !nativeRiderTurnActingObservedAfterDispatch)', [StringComparison]::Ordinal)
         $cleanupDestroyIndex = $engineSource.IndexOf('targetRemoved = targetService.DestroyAndVerify();', [StringComparison]::Ordinal)
         $modeRestoreIndex = $engineSource.IndexOf('RestoreTurnBasedMode();', $cleanupDestroyIndex, [StringComparison]::Ordinal)
         Assert-Test ($modeProbeIndex -ge 0 -and $modeDispatchIndex -gt $modeProbeIndex -and
             $turnBasedMountIndex -gt $modeDispatchIndex -and $turnRosterIndex -gt $turnBasedMountIndex -and
             $nativeRiderTurnIndex -gt $turnRosterIndex -and $turnDispatchIndex -gt $nativeRiderTurnIndex -and
+            $nativeClickIndex -gt $turnDispatchIndex -and $actingAfterDispatchIndex -gt $nativeClickIndex -and
             $cleanupDestroyIndex -gt $turnDispatchIndex -and $modeRestoreIndex -gt $cleanupDestroyIndex -and
             $nativeModeProbeSource.Contains('public bool TemporaryValueIsCurrent => temporaryAttempted && setting.CurrentValue == TemporaryValue;') -and
             $turnBasedMountBody.Contains('!turnBasedModeProbe.TemporaryValueIsCurrent') -and
@@ -4222,7 +4225,10 @@ try {
             $engineSource.Contains('turnController != null && turnController.Initialized') -and
             $engineSource.Contains('foreach (var unit in controller.SortedUnits)') -and
             $engineSource.Contains('currentTurn?.Unit == rider') -and
-            $engineSource.Contains('currentTurn != null && currentTurn.IsActing')) 'turn-based combat does not enable the native mode before mount, prove exact roster/current turn, start the rider turn natively, and restore mode after cleanup'
+            $engineSource.Contains('currentTurn.Status == TurnBased.Controllers.TurnController.TurnStatus.Preparing') -and
+            $engineSource.Contains('currentTurn.Status == TurnBased.Controllers.TurnController.TurnStatus.Acting') -and
+            $engineSource.Contains('currentTurnActingAtDispatch = true;') -and
+            $engineSource.Contains('currentTurnActingAtOutcome = currentTurn != null && currentTurn.IsActing')) 'turn-based combat does not admit the native Preparing rider turn, observe Acting only after dispatch, retain it through outcome, and restore mode after cleanup'
         Assert-Test ($engineSource.Contains('CleanupTimeoutSeconds = 10.0d') -and
             $engineSource.Contains('rowClock.Elapsed.TotalSeconds - cleanupStartedAtSeconds < CleanupTimeoutSeconds')) 'combat cleanup does not retain an independent bounded drain after a row deadline'
         Assert-Test ($engineSource.Contains('SchemaVersion = IsTurnBasedRow ? 5 : 4') -and

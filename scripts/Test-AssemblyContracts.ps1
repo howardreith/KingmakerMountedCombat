@@ -97,6 +97,7 @@ if($Target-eq'Kingmaker'){
         @('TurnBased.Controllers.CombatController',0x06000BF6,'IsInTurnBasedCombat'),
         @('TurnBased.Controllers.TurnController',0x04000669,'Unit'),
         @('TurnBased.Controllers.TurnController',0x06000C24,'get_IsActing'),
+        @('TurnBased.Controllers.TurnController',0x06000C0E,'get_Status'),
         @('TurnBased.Controllers.TurnController',0x06000C47,'ForceToEnd'),
         @('Kingmaker.UnitLogic.Commands.UnitAttack',0x06002678,'.ctor'),
         @('Kingmaker.UnitLogic.Commands.UnitAttack',0x0600265D,'set_IsSingleAttack'),
@@ -206,6 +207,7 @@ if($Target-eq'Kingmaker'){
     $turnMode=@(Find-Token 'TurnBased.Controllers.CombatController' 0x06000BF6)
     $turnUnit=@(Find-Token 'TurnBased.Controllers.TurnController' 0x04000669)
     $turnActing=@(Find-Token 'TurnBased.Controllers.TurnController' 0x06000C24)
+    $turnStatus=@(Find-Token 'TurnBased.Controllers.TurnController' 0x06000C0E)
     Assert-Contract ($null-ne$turnBasedCombatType -and $null-ne$turnControllerType -and
         $gameTurnController.Count-eq1 -and $gameTurnController[0] -is [Reflection.FieldInfo] -and
         $gameTurnController[0].IsPublic -and -not $gameTurnController[0].IsStatic -and
@@ -230,7 +232,12 @@ if($Target-eq'Kingmaker'){
         $turnUnit.Count-eq1 -and $turnUnit[0] -is [Reflection.FieldInfo] -and $turnUnit[0].IsPublic -and
         $turnUnit[0].FieldType.FullName-ceq'Kingmaker.EntitySystem.Entities.UnitEntityData' -and
         $turnActing.Count-eq1 -and $turnActing[0].IsPublic -and -not $turnActing[0].IsStatic -and
-        $turnActing[0].ReturnType.FullName-ceq'System.Boolean' -and $turnActing[0].GetParameters().Count-eq0) `
+        $turnActing[0].ReturnType.FullName-ceq'System.Boolean' -and $turnActing[0].GetParameters().Count-eq0 -and
+        $turnStatus.Count-eq1 -and $turnStatus[0].IsPublic -and -not $turnStatus[0].IsStatic -and
+        $turnStatus[0].ReturnType.FullName-ceq'TurnBased.Controllers.TurnController+TurnStatus' -and
+        $turnStatus[0].GetParameters().Count-eq0 -and
+        [int]$turnStatus[0].ReturnType.GetField('Preparing').GetRawConstantValue()-eq2 -and
+        [int]$turnStatus[0].ReturnType.GetField('Acting').GetRawConstantValue()-eq3) `
         'native turn-based controller roster, rider-turn, and mode signatures'
     $unityChecks=@(
         @('UnityEngine.SceneManagement.SceneManager',0x060019D5,'GetSceneByName'),
