@@ -7128,7 +7128,7 @@ function Assert-KmcCombatScenarioEvidence {
     $recordFields = @(
         'schemaVersion','artifactKind','runId','scenario','row','rowIndex','sequence','frame','utcTimestamp',
         'branch','commit','productVersion','dllSha256','dllMvid','status','mode','action','expectedActor',
-        'riderId','mountId','targetId','clickAccepted','pairApproachRadius','targetDistanceAtClick',
+        'riderId','mountId','targetId','targetProvisioning','clickAccepted','pairApproachRadius','targetDistanceAtClick',
         'riderPositionAtClick','mountPositionAtClick','targetPositionAtClick','resources','command','rules',
         'movement','pose','cleanup','selection','assertionPassCount','assertionFailCount','errors')
     Assert-KmcExactProperties $record $recordFields 'combat evidence record'
@@ -7179,6 +7179,10 @@ function Assert-KmcCombatScenarioEvidence {
     Assert-KmcExactProperties $record.movement @(
         'authoritativeMover','repathCount','riderStockAgentEnabledAtEnd','mountStockAgentEnabledAtEnd',
         'riderAvoidanceDisabledAtEnd','mountAvoidanceDisabledAtEnd') 'combat movement evidence'
+    Assert-KmcExactProperties $record.targetProvisioning @(
+        'targetBlueprintId','runtimeGroupId','sourceMountNaturalWeaponBlueprintId','targetNaturalWeaponBlueprintId',
+        'initialNaturalWeaponAbsent','naturalWeaponProvisioned','noLoot','rawAiDisabled',
+        'bidirectionalHostility','noExperienceReward') 'combat target provisioning evidence'
     Assert-KmcExactProperties $record.pose @(
         'profileId','healthyAtOutcome','configuredAtEnd','attachmentLeaseAtEnd','residueAtEnd') 'combat pose evidence'
     Assert-KmcExactProperties $record.cleanup @(
@@ -7203,6 +7207,17 @@ function Assert-KmcCombatScenarioEvidence {
             [string]$record.riderId -ceq [string]$record.targetId -or
             [string]$record.mountId -ceq [string]$record.targetId) {
             throw 'PASS combat evidence actor and target identities are missing or not distinct.'
+        }
+        if ([string]$record.targetProvisioning.targetBlueprintId -cne 'e7aa96d15a45238438ae4cfb476f6bb9' -or
+            [string]$record.targetProvisioning.runtimeGroupId -cne ('KMC.RuntimeHostile.' + [string]$Request.runId) -or
+            [string]$record.targetProvisioning.sourceMountNaturalWeaponBlueprintId -cnotmatch '^[0-9a-f]{32}$' -or
+            [string]$record.targetProvisioning.targetNaturalWeaponBlueprintId -cne [string]$record.targetProvisioning.sourceMountNaturalWeaponBlueprintId -or
+            $record.targetProvisioning.initialNaturalWeaponAbsent -ne $true -or
+            $record.targetProvisioning.naturalWeaponProvisioned -ne $true -or
+            $record.targetProvisioning.noLoot -ne $true -or $record.targetProvisioning.rawAiDisabled -ne $true -or
+            $record.targetProvisioning.bidirectionalHostility -ne $true -or
+            $record.targetProvisioning.noExperienceReward -ne $true) {
+            throw 'PASS combat target provisioning evidence is not exact, non-rewarding, and profile-bound.'
         }
         if (-not (Test-KmcJsonNumber $record.pairApproachRadius) -or
             -not (Test-KmcJsonNumber $record.targetDistanceAtClick) -or

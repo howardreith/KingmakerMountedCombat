@@ -113,6 +113,7 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.UnitLogic.Groups.UnitGroup',0x06002416,'Empty'),
         @('Kingmaker.UnitLogic.Groups.UnitGroup',0x06002422,'Dispose'),
         @('Kingmaker.Items.ItemsCollection',0x06007BC8,'get_HasLoot'),
+        @('Kingmaker.Items.UnitBody',0x06007C1C,'AddAdditionalLimb'),
         @('Kingmaker.Items.Slots.WeaponSlot',0x06007C8B,'get_HasWeapon'),
         @('Kingmaker.UnitLogic.Commands.UnitAttack',0x06002685,'GetApproachRadius'),
         @('Kingmaker.UnitLogic.Commands.UnitAttack',0x06002683,'UpdateTarget'),
@@ -132,6 +133,14 @@ if($Target-eq'Kingmaker'){
         $forcePlaceAboveGround[0].IsPublic -and -not $forcePlaceAboveGround[0].IsStatic -and
         $forcePlaceAboveGround[0].ReturnType.FullName-ceq'System.Void' -and $forcePlaceAboveGround[0].GetParameters().Count-eq0) `
         'UnitEntityView.ForcePlaceAboveGround exact public instance void signature'
+    $addAdditionalLimb=@(Find-Token 'Kingmaker.Items.UnitBody' 0x06007C1C)
+    $addAdditionalLimbParameters=if($addAdditionalLimb.Count-eq1 -and $addAdditionalLimb[0] -is [Reflection.MethodInfo]){@($addAdditionalLimb[0].GetParameters())}else{@()}
+    Assert-Contract ($addAdditionalLimb.Count-eq1 -and $addAdditionalLimb[0] -is [Reflection.MethodInfo] -and
+        $addAdditionalLimb[0].IsPublic -and -not $addAdditionalLimb[0].IsStatic -and
+        $addAdditionalLimb[0].ReturnType.FullName-ceq'System.Int32' -and $addAdditionalLimbParameters.Count-eq2 -and
+        $addAdditionalLimbParameters[0].ParameterType.FullName-ceq'Kingmaker.Blueprints.Items.Weapons.BlueprintItemWeapon' -and
+        $addAdditionalLimbParameters[1].ParameterType.FullName-ceq'System.Boolean') `
+        'UnitBody.AddAdditionalLimb exact public instance provisioning signature'
     $unityChecks=@(
         @('UnityEngine.SceneManagement.SceneManager',0x060019D5,'GetSceneByName'),
         @('UnityEngine.SceneManagement.Scene',0x060019C4,'get_isLoaded'))

@@ -91,6 +91,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool targetEntityRemoved;
         private bool targetRuntimeGroupRemoved;
         private bool targetRuntimeFactionRemoved;
+        private CombatTargetProvisioningEvidence targetProvisioning;
         private bool relationshipClean;
         private bool combatCleared;
         private bool riderAgentInitiallyEnabled;
@@ -307,8 +308,9 @@ namespace KingmakerMountedCombat.Diagnostics
 
             targetService = new DiagnosticCombatTargetService(logger);
             var spawnPoint = FindWalkablePoint(mount.Position, rider.Position, SpawnDistance, 0.4f, false);
-            target = targetService.Spawn(rider, spawnPoint, request.RunId, true);
+            target = targetService.Spawn(rider, mount, spawnPoint, request.RunId, true);
             targetId = target.UniqueId;
+            targetProvisioning = CombatTargetProvisioningEvidence.From(targetService, target);
             assertions.Check(target != null && target.IsInState && target.View != null && target.IsEnemy(rider) && rider.IsEnemy(target),
                 "Runtime-only hostile Mammoth target passed exact creation gates.");
 
@@ -580,6 +582,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 RiderId = rider?.UniqueId,
                 MountId = mount?.UniqueId,
                 TargetId = targetId,
+                TargetProvisioning = targetProvisioning ?? new CombatTargetProvisioningEvidence(),
                 ClickAccepted = clickAccepted,
                 PairApproachRadius = pairApproachRadius,
                 TargetDistanceAtClick = targetDistanceAtClick,
@@ -837,6 +840,7 @@ namespace KingmakerMountedCombat.Diagnostics
             public string RiderId { get; set; }
             public string MountId { get; set; }
             public string TargetId { get; set; }
+            public CombatTargetProvisioningEvidence TargetProvisioning { get; set; }
             public bool ClickAccepted { get; set; }
             public float PairApproachRadius { get; set; }
             public float TargetDistanceAtClick { get; set; }
@@ -933,6 +937,39 @@ namespace KingmakerMountedCombat.Diagnostics
             public bool? MountStockAgentEnabledAtEnd { get; set; }
             public bool? RiderAvoidanceDisabledAtEnd { get; set; }
             public bool? MountAvoidanceDisabledAtEnd { get; set; }
+        }
+
+        private sealed class CombatTargetProvisioningEvidence
+        {
+            public string TargetBlueprintId { get; set; }
+            public string RuntimeGroupId { get; set; }
+            public string SourceMountNaturalWeaponBlueprintId { get; set; }
+            public string TargetNaturalWeaponBlueprintId { get; set; }
+            public bool InitialNaturalWeaponAbsent { get; set; }
+            public bool NaturalWeaponProvisioned { get; set; }
+            public bool NoLoot { get; set; }
+            public bool RawAiDisabled { get; set; }
+            public bool BidirectionalHostility { get; set; }
+            public bool NoExperienceReward { get; set; }
+
+            public static CombatTargetProvisioningEvidence From(
+                DiagnosticCombatTargetService service,
+                UnitEntityData target)
+            {
+                return new CombatTargetProvisioningEvidence
+                {
+                    TargetBlueprintId = target?.Blueprint?.AssetGuid,
+                    RuntimeGroupId = service?.CreatedRuntimeGroupId,
+                    SourceMountNaturalWeaponBlueprintId = service?.SourceNaturalWeaponBlueprintId,
+                    TargetNaturalWeaponBlueprintId = service?.TargetNaturalWeaponBlueprintId,
+                    InitialNaturalWeaponAbsent = service != null && service.InitialNaturalWeaponAbsent,
+                    NaturalWeaponProvisioned = service != null && service.NaturalWeaponProvisioned,
+                    NoLoot = service != null && service.TargetHasNoLoot,
+                    RawAiDisabled = service != null && service.RawAiBackingDisabled,
+                    BidirectionalHostility = service != null && service.BidirectionalHostilityVerified,
+                    NoExperienceReward = service != null && service.NoExperienceReward
+                };
+            }
         }
 
         private sealed class CombatPoseEvidence

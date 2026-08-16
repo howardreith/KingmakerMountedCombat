@@ -30,6 +30,24 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool runtimeFactionDestroyPending;
         private bool disposed;
 
+        public string CreatedRuntimeGroupId { get; private set; }
+
+        public string SourceNaturalWeaponBlueprintId { get; private set; }
+
+        public string TargetNaturalWeaponBlueprintId { get; private set; }
+
+        public bool InitialNaturalWeaponAbsent { get; private set; }
+
+        public bool NaturalWeaponProvisioned { get; private set; }
+
+        public bool TargetHasNoLoot { get; private set; }
+
+        public bool RawAiBackingDisabled { get; private set; }
+
+        public bool BidirectionalHostilityVerified { get; private set; }
+
+        public bool NoExperienceReward { get; private set; }
+
         public DiagnosticCombatTargetService(IModLogger logger)
         {
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -49,14 +67,17 @@ namespace KingmakerMountedCombat.Diagnostics
 
         public UnitEntityData Spawn(
             UnitEntityData rider,
+            UnitEntityData mount,
             Vector3 position,
             string runId,
             bool exactWorkingAuthorized)
         {
             ThrowIfDisposed();
-            if (rider == null || !rider.IsInState || string.IsNullOrWhiteSpace(runId))
+            if (rider == null || !rider.IsInState || mount == null || !mount.IsInState ||
+                !string.Equals(mount.Blueprint?.AssetGuid, KingmakerMountedPairRuntime.MammothBlueprintGuid, StringComparison.Ordinal) ||
+                string.IsNullOrWhiteSpace(runId))
             {
-                throw new InvalidOperationException("Diagnostic target requires an exact live rider and run ID.");
+                throw new InvalidOperationException("Diagnostic target requires the exact live rider, Mammoth profile, and run ID.");
             }
             if (!lifecycle.BeginCreate("pending:" + runId, exactWorkingAuthorized))
             {
@@ -83,18 +104,30 @@ namespace KingmakerMountedCombat.Diagnostics
                     throw new InvalidOperationException("Exact stock Mammoth source blueprint is unavailable.");
                 }
 
-                runtimeFaction = ScriptableObject.CreateInstance<BlueprintFaction>();
-                runtimeFaction.name = "KMC_RuntimeHostile_" + runId;
-                runtimeFaction.hideFlags = HideFlags.HideAndDontSave;
-                runtimeFaction.AttackFactions = new[] { playerFaction };
-                runtimeFaction.AlwaysEnemy = true;
                 var proposedRuntimeGroupId = RuntimeGroupPrefix + runId;
                 if (groupsController.Groups.Any(group =>
                     group != null && string.Equals(group.Id, proposedRuntimeGroupId, StringComparison.Ordinal)))
                 {
                     throw new InvalidOperationException("Diagnostic target runtime group identity already exists.");
                 }
+
+                var sourcePrimary = mount.Body?.AdditionalLimbs?
+                    .FirstOrDefault(slot => slot.HasWeapon)?.MaybeWeapon;
+                if (sourcePrimary?.Blueprint == null || !sourcePrimary.Blueprint.IsNatural ||
+                    sourcePrimary.Blueprint.IsRanged ||
+                    string.IsNullOrWhiteSpace(sourcePrimary.Blueprint.AssetGuid))
+                {
+                    throw new InvalidOperationException("Exact active Mammoth primary natural-weapon source is unavailable.");
+                }
+                SourceNaturalWeaponBlueprintId = sourcePrimary.Blueprint.AssetGuid;
+
+                runtimeFaction = ScriptableObject.CreateInstance<BlueprintFaction>();
+                runtimeFaction.name = "KMC_RuntimeHostile_" + runId;
+                runtimeFaction.hideFlags = HideFlags.HideAndDontSave;
+                runtimeFaction.AttackFactions = new[] { playerFaction };
+                runtimeFaction.AlwaysEnemy = true;
                 runtimeGroupId = proposedRuntimeGroupId;
+                CreatedRuntimeGroupId = proposedRuntimeGroupId;
 
                 var groupsBeforeSpawn = groupsController.Groups.Where(group => group != null).ToArray();
                 target = game.EntityCreator.SpawnUnit(blueprint, position, Quaternion.identity, state);
@@ -117,13 +150,31 @@ namespace KingmakerMountedCombat.Diagnostics
                 target.HoldState = true;
                 target.Commands.InterruptAll();
 
+                InitialNaturalWeaponAbsent = !target.Body.AdditionalLimbs.Any(slot => slot.HasWeapon);
+                if (!InitialNaturalWeaponAbsent)
+                {
+                    throw new InvalidOperationException("Fresh diagnostic Mammoth unexpectedly contained a native natural-weapon limb.");
+                }
+                var provisionedLimbIndex = target.Body.AddAdditionalLimb(sourcePrimary.Blueprint, false);
                 var primary = target.Body?.AdditionalLimbs?.FirstOrDefault(slot => slot.HasWeapon)?.MaybeWeapon;
+                NaturalWeaponProvisioned = provisionedLimbIndex >= 0 &&
+                    provisionedLimbIndex < target.Body.AdditionalLimbs.Count &&
+                    target.Body.AdditionalLimbs[provisionedLimbIndex].MaybeWeapon == primary &&
+                    primary?.Blueprint == sourcePrimary.Blueprint;
+                TargetNaturalWeaponBlueprintId = primary?.Blueprint?.AssetGuid;
                 var dedicatedRuntimeGroup = detachedFromSpawnGroup && runtimeGroup != null &&
                     !runtimeGroup.IsPlayerParty &&
                     string.Equals(runtimeGroup.Id, runtimeGroupId, StringComparison.Ordinal) &&
                     runtimeGroup.Count == 1 && runtimeGroup[0] == target;
                 var inventoryHasNoLoot = target.Inventory == null || !target.Inventory.HasLoot;
                 var aiBackingDisabled = !(bool)AiBackingField.GetValue(target);
+                var targetTreatsRiderAsEnemy = target.IsEnemy(rider);
+                var riderTreatsTargetAsEnemy = rider.IsEnemy(target);
+                var bidirectionalHostility = targetTreatsRiderAsEnemy && riderTreatsTargetAsEnemy;
+                TargetHasNoLoot = inventoryHasNoLoot;
+                RawAiBackingDisabled = aiBackingDisabled;
+                BidirectionalHostilityVerified = bidirectionalHostility;
+                NoExperienceReward = !target.GiveExperienceOnDeath;
                 var safety = new DiagnosticCombatTargetSafetySnapshot(
                     target.Blueprint == blueprint,
                     !target.IsDirectlyControllable,
@@ -131,12 +182,13 @@ namespace KingmakerMountedCombat.Diagnostics
                     target.Descriptor.Master.Value == null,
                     target.Faction == runtimeFaction,
                     dedicatedRuntimeGroup,
-                    target.IsEnemy(rider),
-                    rider.IsEnemy(target),
-                    !target.GiveExperienceOnDeath,
+                    targetTreatsRiderAsEnemy,
+                    riderTreatsTargetAsEnemy,
+                    NoExperienceReward,
                     aiBackingDisabled,
                     target.Commands.Empty,
                     inventoryHasNoLoot,
+                    NaturalWeaponProvisioned,
                     primary?.Blueprint != null,
                     primary?.Blueprint != null && primary.Blueprint.IsNatural,
                     primary?.Blueprint != null && !primary.Blueprint.IsRanged);
@@ -157,7 +209,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     lifecycle.Fault();
                     throw new InvalidOperationException(
-                        "Diagnostic target creation failed and exact cleanup could not be proven.",
+                        "Diagnostic target creation failed and immediate cleanup proof was unavailable: " + exception.Message,
                         exception);
                 }
                 throw;

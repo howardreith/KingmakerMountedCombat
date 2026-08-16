@@ -1078,6 +1078,12 @@ function New-TestCombatEvidenceRecord {
         commit=[string]$Request.commit;productVersion=[string]$Request.productVersion
         dllSha256=[string]$Request.dllSha256;dllMvid=[string]$Request.dllMvid;status='PASS';mode='real-time'
         action='RiderMelee';expectedActor='rider';riderId=$rider;mountId=$mount;targetId=$target;clickAccepted=$true
+        targetProvisioning=[ordered]@{
+            targetBlueprintId='e7aa96d15a45238438ae4cfb476f6bb9';runtimeGroupId=('KMC.RuntimeHostile.'+[string]$Request.runId)
+            sourceMountNaturalWeaponBlueprintId='11111111111111111111111111111111';targetNaturalWeaponBlueprintId='11111111111111111111111111111111'
+            initialNaturalWeaponAbsent=$true;naturalWeaponProvisioned=$true;noLoot=$true;rawAiDisabled=$true
+            bidirectionalHostility=$true;noExperienceReward=$true
+        }
         pairApproachRadius=4.0;targetDistanceAtClick=3.9
         riderPositionAtClick=[ordered]@{x=0.0;y=0.0;z=0.0}
         mountPositionAtClick=[ordered]@{x=0.1;y=0.0;z=0.0}
@@ -4042,7 +4048,7 @@ try {
 
     $combatRequestPath = Join-Path $testRoot 'runtime-request-combat.json'
 
-    Invoke-HarnessTest 'combat target source uses isolated group raw AI no-loot and native single-limb semantics' {
+    Invoke-HarnessTest 'combat target source uses isolated group exact profile weapon raw AI no-loot and native single-limb semantics' {
         $targetSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\DiagnosticCombatTargetService.cs'))
         $controllerSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedCombatController.cs'))
         $commandSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPairAttackCommand.cs'))
@@ -4059,6 +4065,12 @@ try {
             -not $targetSource.Contains('!target.IsAIEnabled')) 'diagnostic target still relies on the always-true non-controllable IsAIEnabled facade instead of its pinned backing state'
         Assert-Test ($targetSource.Contains('target.Inventory == null || !target.Inventory.HasLoot') -and
             -not $targetSource.Contains('target.Inventory.Items.Count == 0')) 'diagnostic target confuses stock non-loot body inventory with loot-bearing inventory'
+        Assert-Test ($targetSource.Contains('mount.Body?.AdditionalLimbs?') -and
+            $targetSource.Contains('target.Body.AddAdditionalLimb(sourcePrimary.Blueprint, false)') -and
+            $targetSource.Contains('InitialNaturalWeaponAbsent = !target.Body.AdditionalLimbs.Any(slot => slot.HasWeapon);')) 'diagnostic target does not provision its transient attack limb from the exact active Mammoth profile after proving the fresh template has none'
+        $sourceWeaponIndex = $targetSource.IndexOf('var sourcePrimary = mount.Body?.AdditionalLimbs?', [StringComparison]::Ordinal)
+        $runtimeFactionCreateIndex = $targetSource.IndexOf('runtimeFaction = ScriptableObject.CreateInstance<BlueprintFaction>();', [StringComparison]::Ordinal)
+        Assert-Test ($sourceWeaponIndex -ge 0 -and $runtimeFactionCreateIndex -gt $sourceWeaponIndex) 'diagnostic target mutates transient Unity state before validating the exact Mammoth weapon source'
         foreach ($source in @($targetSource,$controllerSource,$commandSource)) {
             Assert-Test ($source.Contains('FirstOrDefault(slot => slot.HasWeapon)') -and
                 -not $source.Contains('FirstOrDefault(slot => slot.HasWeapon && slot.HasItem)')) 'mounted single-attack selection diverges from native HasWeapon semantics'
@@ -4076,6 +4088,9 @@ try {
             Assert-Test ($engineSource.Contains("$field =") -and
                 $combatValidatorSource.Contains("'$jsonField'")) "combat cleanup evidence does not bind exact $field state"
         }
+        Assert-Test ($engineSource.Contains('TargetProvisioning = targetProvisioning ?? new CombatTargetProvisioningEvidence()') -and
+            $combatValidatorSource.Contains("'targetProvisioning'") -and
+            $combatValidatorSource.Contains("'naturalWeaponProvisioned'")) 'combat evidence does not bind exact transient target provisioning'
     }
 
     $combatRequest = Copy-TestJsonValue $v2Request
@@ -4103,6 +4118,8 @@ try {
             @{name='mount Standard cost';apply={param($value) $value.resources.mountStandardAfter=5.0}},
             @{name='delegated movement';apply={param($value) $value.command.repathCount=1;$value.movement.repathCount=1}},
             @{name='pose failure';apply={param($value) $value.pose.healthyAtOutcome=$false}},
+            @{name='target provisioning source';apply={param($value) $value.targetProvisioning.sourceMountNaturalWeaponBlueprintId='22222222222222222222222222222222'}},
+            @{name='target provisioning loot';apply={param($value) $value.targetProvisioning.noLoot=$false}},
             @{name='target residue';apply={param($value) $value.cleanup.targetRemoved=$false}},
             @{name='target entity residue';apply={param($value) $value.cleanup.targetEntityRemoved=$false}},
             @{name='target group residue';apply={param($value) $value.cleanup.runtimeGroupRemoved=$false}},
