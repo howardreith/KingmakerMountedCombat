@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace KingmakerMountedCombat.Domain
 {
@@ -74,6 +75,57 @@ namespace KingmakerMountedCombat.Domain
         public void Fault()
         {
             State = DiagnosticCombatTargetState.Faulted;
+        }
+    }
+
+    public sealed class DiagnosticCombatTargetSafetySnapshot
+    {
+        private readonly string[] failedGateNames;
+
+        public DiagnosticCombatTargetSafetySnapshot(
+            bool exactBlueprint,
+            bool notDirectlyControllable,
+            bool notPet,
+            bool noMaster,
+            bool exactRuntimeFaction,
+            bool targetTreatsRiderAsEnemy,
+            bool riderTreatsTargetAsEnemy,
+            bool noExperienceOnDeath,
+            bool aiDisabled,
+            bool commandsEmpty,
+            bool inventoryEmpty,
+            bool primaryNaturalWeaponPresent,
+            bool primaryNaturalWeaponIsMelee)
+        {
+            var failures = new List<string>();
+            AddFailure(failures, exactBlueprint, "exact-blueprint");
+            AddFailure(failures, notDirectlyControllable, "not-directly-controllable");
+            AddFailure(failures, notPet, "not-pet");
+            AddFailure(failures, noMaster, "no-master");
+            AddFailure(failures, exactRuntimeFaction, "exact-runtime-faction");
+            AddFailure(failures, targetTreatsRiderAsEnemy, "target-treats-rider-as-enemy");
+            AddFailure(failures, riderTreatsTargetAsEnemy, "rider-treats-target-as-enemy");
+            AddFailure(failures, noExperienceOnDeath, "no-experience-on-death");
+            AddFailure(failures, aiDisabled, "ai-disabled");
+            AddFailure(failures, commandsEmpty, "commands-empty");
+            AddFailure(failures, inventoryEmpty, "inventory-empty");
+            AddFailure(failures, primaryNaturalWeaponPresent, "primary-natural-weapon-present");
+            AddFailure(failures, primaryNaturalWeaponIsMelee, "primary-natural-weapon-is-melee");
+            failedGateNames = failures.ToArray();
+        }
+
+        public bool AllPassed => failedGateNames.Length == 0;
+
+        public string[] FailedGateNames => (string[])failedGateNames.Clone();
+
+        public string FailureSummary => string.Join(",", failedGateNames);
+
+        private static void AddFailure(List<string> failures, bool passed, string name)
+        {
+            if (!passed)
+            {
+                failures.Add(name);
+            }
         }
     }
 }

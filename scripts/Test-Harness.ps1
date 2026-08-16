@@ -5786,6 +5786,27 @@ try {
         & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeResult.ps1') -ResultPath $v2ResultPath -RequestPath $v2RequestPath
     }
 
+    Invoke-HarnessTest 'runtime final-result validator accepts exact manifested combat evidence' {
+        $combatManifestHash = Write-TestCombatEvidence -EvidenceRoot $combatRequest.evidenceRoot -Request $combatRequest -Record $combatRecord
+        $combatGameResult = Copy-TestJsonValue $v2GameResult
+        foreach ($name in @('runId','scenario','branch','commit','productVersion','dllSha256','dllMvid','transactionToken')) {
+            $combatGameResult.$name = $combatRequest.$name
+        }
+        $combatGameResult.evidenceManifestSha256 = $combatManifestHash
+        $combatGameResult.subscenarioTotal = 1
+        $combatGameResult.subscenarioPassCount = 1
+        $combatGameResult.subscenarioFailCount = 0
+        $combatGameResult.assertionPassCount = 25
+        $combatGameResult.assertionFailCount = 0
+        $combatGameResult.subscenarioResults = @($combatSubresult)
+        $combatGameResultPath = Join-Path $combatRequest.evidenceRoot 'runtime-game-result.json'
+        Write-KmcJsonAtomic $combatGameResultPath $combatGameResult
+        $combatResult = New-KmcRuntimeResultV2 -Request ([pscustomobject]$combatRequest) -ValidatedGameResult ([pscustomobject]$combatGameResult) -StartedAtUtc $gameStarted -ModsRestored $true -BaselineImmutable $true -WorkingRestored $true -SaveWriteAllowlistPassed $true -RestoredSaveInventoryDigest ('44'*32) -GameResultSha256 (Get-KmcSha256 $combatGameResultPath)
+        $combatResultPath = Join-Path $testRoot 'runtime-result-combat.json'
+        Write-KmcJsonAtomic $combatResultPath $combatResult
+        & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeResult.ps1') -ResultPath $combatResultPath -RequestPath $combatRequestPath
+    }
+
     $resultPath = Join-Path $testRoot 'runtime-result.json'
     $result = [ordered]@{
         schemaVersion = 1; runId = $request.runId; scenario = $request.scenario; status = 'PASS'

@@ -22,6 +22,8 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("mounted pair delegates movement only through the exact rider turn", DelegatesOnlyExactMovement);
             runner.Run("diagnostic target requires Working authorization", TargetRequiresWorkingAuthorization);
             runner.Run("diagnostic target creation and removal are exact and idempotent", TargetLifecycleIsExact);
+            runner.Run("diagnostic target safety snapshot preserves every strict gate", TargetSafetySnapshotPreservesEveryGate);
+            runner.Run("diagnostic target safety snapshot reports exact failed gates", TargetSafetySnapshotReportsExactFailures);
         }
 
         private static void RiderMeleeOwnership()
@@ -169,6 +171,33 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(!lifecycle.RequestDestroy("again"), "Duplicate removal request was accepted.");
             TestRunner.True(!lifecycle.ConfirmRemoved("target-1", false), "Target removal accepted residue.");
             TestRunner.True(lifecycle.ConfirmRemoved("target-1", true), "Zero-residue removal was rejected.");
+        }
+
+        private static void TargetSafetySnapshotPreservesEveryGate()
+        {
+            var snapshot = TargetSafetySnapshot();
+            TestRunner.True(snapshot.AllPassed, "An all-pass transient target safety snapshot failed.");
+            TestRunner.Equal(0, snapshot.FailedGateNames.Length, "An all-pass transient target safety snapshot reported failures.");
+            TestRunner.Equal(string.Empty, snapshot.FailureSummary, "An all-pass transient target safety snapshot reported a failure summary.");
+        }
+
+        private static void TargetSafetySnapshotReportsExactFailures()
+        {
+            var snapshot = new DiagnosticCombatTargetSafetySnapshot(
+                true, true, true, true, true, true, false,
+                true, true, true, false, true, false);
+            TestRunner.True(!snapshot.AllPassed, "A transient target with failed safety gates passed.");
+            TestRunner.Equal(
+                "rider-treats-target-as-enemy,inventory-empty,primary-natural-weapon-is-melee",
+                snapshot.FailureSummary,
+                "Transient target safety failures were not reported in exact gate order.");
+        }
+
+        private static DiagnosticCombatTargetSafetySnapshot TargetSafetySnapshot()
+        {
+            return new DiagnosticCombatTargetSafetySnapshot(
+                true, true, true, true, true, true, true,
+                true, true, true, true, true, true);
         }
 
         private static MountedCombatTransaction TargetedTransaction(bool requiresApproach)

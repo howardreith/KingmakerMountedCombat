@@ -84,21 +84,24 @@ namespace KingmakerMountedCombat.Diagnostics
 
                 var primary = target.Body?.AdditionalLimbs?.FirstOrDefault(slot => slot.HasWeapon && slot.HasItem)?.MaybeWeapon;
                 var zeroInventory = target.Inventory == null || target.Inventory.Items.Count == 0;
-                var safetyGates = target.Blueprint == blueprint &&
-                    !target.IsDirectlyControllable &&
-                    !target.Descriptor.IsPet &&
-                    target.Descriptor.Master.Value == null &&
-                    target.Faction == runtimeFaction &&
-                    target.IsEnemy(rider) && rider.IsEnemy(target) &&
-                    !target.GiveExperienceOnDeath &&
-                    !target.IsAIEnabled &&
-                    target.Commands.Empty &&
-                    zeroInventory &&
-                    primary?.Blueprint != null &&
-                    !primary.Blueprint.IsRanged;
-                if (!lifecycle.Activate("pending:" + runId, safetyGates))
+                var safety = new DiagnosticCombatTargetSafetySnapshot(
+                    target.Blueprint == blueprint,
+                    !target.IsDirectlyControllable,
+                    !target.Descriptor.IsPet,
+                    target.Descriptor.Master.Value == null,
+                    target.Faction == runtimeFaction,
+                    target.IsEnemy(rider),
+                    rider.IsEnemy(target),
+                    !target.GiveExperienceOnDeath,
+                    !target.IsAIEnabled,
+                    target.Commands.Empty,
+                    zeroInventory,
+                    primary?.Blueprint != null,
+                    primary?.Blueprint != null && !primary.Blueprint.IsRanged);
+                if (!lifecycle.Activate("pending:" + runId, safety.AllPassed))
                 {
-                    throw new InvalidOperationException("Diagnostic target failed its exact transient safety gates.");
+                    throw new InvalidOperationException(
+                        "Diagnostic target failed its exact transient safety gates: " + safety.FailureSummary + ".");
                 }
 
                 logger.Info("Created runtime-only diagnostic Mammoth target " + target.UniqueId + ".");
