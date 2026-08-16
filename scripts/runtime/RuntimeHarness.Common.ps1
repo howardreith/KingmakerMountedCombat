@@ -7144,11 +7144,11 @@ function Assert-KmcCombatScenarioEvidence {
     if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -ge 14) {
         $recordFields = @($recordFields + 'targetIncomingRules')
     }
-    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(5,7,9,11,13,15)) {
+    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(5,7,9,11,13,15,17)) {
         $recordFields = @($recordFields + 'turnBased')
     }
     Assert-KmcExactProperties $record $recordFields 'combat evidence record'
-    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -notin @(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15) -or
+    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -notin @(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17) -or
         [string]$record.artifactKind -cne 'combat-scenario-evidence') {
         throw 'Combat evidence schemaVersion or artifactKind is not exact.'
     }
@@ -7312,8 +7312,16 @@ function Assert-KmcCombatScenarioEvidence {
         $incomingAttackFields = @(
             'observed','beforeExpectedDispatch','initiatorId','initiatorBlueprintId','initiatorIsPlayerFaction',
             'initiatorIsPlayersEnemy','weaponBlueprintId','isAttackOfOpportunity','isCharge')
+        $incomingAttackContextBooleanFields = @()
+        if ([long]$record.schemaVersion -ge 16) {
+            $incomingAttackContextBooleanFields = @(
+                'initiatorGroupIsPlayerParty','initiatorSharesRiderGroup','initiatorSharesMountGroup',
+                'initiatorDirectlyControllable','initiatorEffectiveAiEnabled','initiatorRawAiEnabled',
+                'initiatorCommandsEmpty')
+            $incomingAttackFields = @($incomingAttackFields + 'initiatorGroupId' + $incomingAttackContextBooleanFields)
+        }
         Assert-KmcExactProperties $record.targetIncomingRules.firstAttack $incomingAttackFields 'combat first incoming attack'
-        foreach ($name in @('observed','beforeExpectedDispatch','initiatorIsPlayerFaction','initiatorIsPlayersEnemy','isAttackOfOpportunity','isCharge')) {
+        foreach ($name in @('observed','beforeExpectedDispatch','initiatorIsPlayerFaction','initiatorIsPlayersEnemy','isAttackOfOpportunity','isCharge') + $incomingAttackContextBooleanFields) {
             if ($record.targetIncomingRules.firstAttack.$name -isnot [bool]) {
                 throw "Combat first incoming attack evidence is not Boolean: $name"
             }
@@ -7325,6 +7333,11 @@ function Assert-KmcCombatScenarioEvidence {
                 $null -ne $record.targetIncomingRules.firstAttack.initiatorBlueprintId -or
                 $record.targetIncomingRules.firstAttack.initiatorIsPlayerFaction -ne $false -or
                 $record.targetIncomingRules.firstAttack.initiatorIsPlayersEnemy -ne $false -or
+                ([long]$record.schemaVersion -ge 16 -and
+                 ($null -ne $record.targetIncomingRules.firstAttack.initiatorGroupId -or
+                  @($incomingAttackContextBooleanFields | Where-Object {
+                      $record.targetIncomingRules.firstAttack.$_ -ne $false
+                  }).Count -ne 0)) -or
                 $null -ne $record.targetIncomingRules.firstAttack.weaponBlueprintId -or
                 $record.targetIncomingRules.firstAttack.isAttackOfOpportunity -ne $false -or
                 $record.targetIncomingRules.firstAttack.isCharge -ne $false) {
@@ -7336,6 +7349,9 @@ function Assert-KmcCombatScenarioEvidence {
             [string]::IsNullOrWhiteSpace([string]$record.targetIncomingRules.firstAttack.initiatorId) -or
             $record.targetIncomingRules.firstAttack.initiatorBlueprintId -isnot [string] -or
             [string]$record.targetIncomingRules.firstAttack.initiatorBlueprintId -cnotmatch '^[0-9a-f]{32}$' -or
+            ([long]$record.schemaVersion -ge 16 -and
+             ($record.targetIncomingRules.firstAttack.initiatorGroupId -isnot [string] -or
+              [string]::IsNullOrWhiteSpace([string]$record.targetIncomingRules.firstAttack.initiatorGroupId))) -or
             $record.targetIncomingRules.firstAttack.weaponBlueprintId -isnot [string] -or
             [string]$record.targetIncomingRules.firstAttack.weaponBlueprintId -cnotmatch '^[0-9a-f]{32}$' -or
             $record.targetIncomingRules.firstAttack.beforeExpectedDispatch -ne
@@ -7391,7 +7407,7 @@ function Assert-KmcCombatScenarioEvidence {
             throw 'Combat first incoming damage evidence is inconsistent with its exact counts.'
         }
     }
-    if ([long]$record.schemaVersion -in @(5,7,9,11,13,15)) {
+    if ([long]$record.schemaVersion -in @(5,7,9,11,13,15,17)) {
         $turnBooleanFields = @(
             'requested','originalEnabled','temporaryEnabled','originalRawCacheHadValue','enabledAtMount',
             'controllerInitialized','rosterContainsRider','rosterContainsMount','rosterContainsTarget',
@@ -7456,7 +7472,7 @@ function Assert-KmcCombatScenarioEvidence {
     if ($requirePass) {
         $turnBasedScenario = [string]$Request.scenario -ceq 'mounted-rider-melee-hit-tb'
         $missScenario = [string]$Request.scenario -ceq 'mounted-rider-melee-miss-rt'
-        $expectedCombatSchemas = if ($missScenario) { @(6,8,10,12,14) } elseif ($turnBasedScenario) { @(5,7,9,11,13,15) } else { @(4,6,8,10,12,14) }
+        $expectedCombatSchemas = if ($missScenario) { @(6,8,10,12,14,16) } elseif ($turnBasedScenario) { @(5,7,9,11,13,15,17) } else { @(4,6,8,10,12,14,16) }
         if ([long]$record.schemaVersion -notin $expectedCombatSchemas -or
             [string]$record.status -cne 'PASS' -or [long]$record.assertionFailCount -ne 0 -or
             [long]$record.assertionPassCount -le 0 -or @($record.errors).Count -ne 0) {
@@ -7565,6 +7581,11 @@ function Assert-KmcCombatScenarioEvidence {
              [string]$record.targetIncomingRules.firstAttack.initiatorId -cne [string]$record.riderId -or
              $record.targetIncomingRules.firstAttack.initiatorIsPlayerFaction -ne $true -or
              $record.targetIncomingRules.firstAttack.initiatorIsPlayersEnemy -ne $false -or
+             ([long]$record.schemaVersion -ge 16 -and
+              ($record.targetIncomingRules.firstAttack.initiatorGroupIsPlayerParty -ne $true -or
+               $record.targetIncomingRules.firstAttack.initiatorSharesRiderGroup -ne $true -or
+               $record.targetIncomingRules.firstAttack.initiatorSharesMountGroup -ne $true -or
+               $record.targetIncomingRules.firstAttack.initiatorDirectlyControllable -ne $true)) -or
              $record.targetIncomingRules.firstAttack.isAttackOfOpportunity -ne $false -or
              $record.targetIncomingRules.firstAttack.isCharge -ne $false -or
              ($missScenario -and

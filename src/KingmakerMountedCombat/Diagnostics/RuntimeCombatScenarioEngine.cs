@@ -857,7 +857,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var selected = SelectionManager.Instance?.SelectedUnits;
             var record = new CombatEvidenceRecord
             {
-                SchemaVersion = IsTurnBasedRow ? 15 : 14,
+                SchemaVersion = IsTurnBasedRow ? 17 : 16,
                 ArtifactKind = "combat-scenario-evidence",
                 RunId = request.RunId,
                 Scenario = request.Scenario,
@@ -1205,6 +1205,16 @@ namespace KingmakerMountedCombat.Diagnostics
                     ";preDispatchIncomingAttackRules=" + (targetService?.PreDispatchIncomingAttackRuleCount ?? 0) +
                     ";firstIncomingAttackInitiator=" +
                         (targetService?.FirstIncomingAttack?.InitiatorId ?? "none") +
+                    ";firstIncomingAttackGroup=" +
+                        (targetService?.FirstIncomingAttack?.InitiatorGroupId ?? "none") +
+                    ";firstIncomingAttackSharesRiderGroup=" +
+                        (targetService?.FirstIncomingAttack?.InitiatorSharesRiderGroup ?? false) +
+                    ";firstIncomingAttackDirectlyControllable=" +
+                        (targetService?.FirstIncomingAttack?.InitiatorDirectlyControllable ?? false) +
+                    ";firstIncomingAttackEffectiveAiEnabled=" +
+                        (targetService?.FirstIncomingAttack?.InitiatorEffectiveAiEnabled ?? false) +
+                    ";firstIncomingAttackRawAiEnabled=" +
+                        (targetService?.FirstIncomingAttack?.InitiatorRawAiEnabled ?? false) +
                     ";incomingDamageRules=" + (targetService?.IncomingDamageRuleCount ?? 0) +
                     ";preDispatchIncomingDamageRules=" + (targetService?.PreDispatchIncomingDamageRuleCount ?? 0) +
                     ";firstIncomingDamageInitiator=" +
@@ -1790,6 +1800,14 @@ namespace KingmakerMountedCombat.Diagnostics
             public string InitiatorBlueprintId { get; set; }
             public bool InitiatorIsPlayerFaction { get; set; }
             public bool InitiatorIsPlayersEnemy { get; set; }
+            public string InitiatorGroupId { get; set; }
+            public bool InitiatorGroupIsPlayerParty { get; set; }
+            public bool InitiatorSharesRiderGroup { get; set; }
+            public bool InitiatorSharesMountGroup { get; set; }
+            public bool InitiatorDirectlyControllable { get; set; }
+            public bool InitiatorEffectiveAiEnabled { get; set; }
+            public bool InitiatorRawAiEnabled { get; set; }
+            public bool InitiatorCommandsEmpty { get; set; }
             public string WeaponBlueprintId { get; set; }
             public bool IsAttackOfOpportunity { get; set; }
             public bool IsCharge { get; set; }
@@ -1804,6 +1822,14 @@ namespace KingmakerMountedCombat.Diagnostics
                     InitiatorBlueprintId = value?.InitiatorBlueprintId,
                     InitiatorIsPlayerFaction = value != null && value.InitiatorIsPlayerFaction,
                     InitiatorIsPlayersEnemy = value != null && value.InitiatorIsPlayersEnemy,
+                    InitiatorGroupId = value?.InitiatorGroupId,
+                    InitiatorGroupIsPlayerParty = value != null && value.InitiatorGroupIsPlayerParty,
+                    InitiatorSharesRiderGroup = value != null && value.InitiatorSharesRiderGroup,
+                    InitiatorSharesMountGroup = value != null && value.InitiatorSharesMountGroup,
+                    InitiatorDirectlyControllable = value != null && value.InitiatorDirectlyControllable,
+                    InitiatorEffectiveAiEnabled = value != null && value.InitiatorEffectiveAiEnabled,
+                    InitiatorRawAiEnabled = value != null && value.InitiatorRawAiEnabled,
+                    InitiatorCommandsEmpty = value != null && value.InitiatorCommandsEmpty,
                     WeaponBlueprintId = value?.WeaponBlueprintId,
                     IsAttackOfOpportunity = value != null && value.IsAttackOfOpportunity,
                     IsCharge = value != null && value.IsCharge

@@ -36,6 +36,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private UnitGroup runtimeGroup;
         private string runtimeGroupId;
         private UnitEntityData target;
+        private UnitEntityData expectedRider;
+        private UnitEntityData expectedMount;
         private UnitEntityData combatMemoryObserver;
         private UnitEntityData combatMemoryTarget;
         private UnitGroup combatMemoryObserverGroup;
@@ -174,6 +176,8 @@ namespace KingmakerMountedCombat.Diagnostics
             try
             {
                 ValidatePlacement(rider.Position, position);
+                expectedRider = rider;
+                expectedMount = mount;
                 var game = Game.Instance;
                 var state = game?.State?.LoadedAreaState?.MainState;
                 var playerFaction = game?.BlueprintRoot?.PlayerFaction;
@@ -441,7 +445,10 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 FirstIncomingAttack = DiagnosticIncomingAttackSnapshot.Capture(
                     evt,
-                    beforeExpectedDispatch);
+                    beforeExpectedDispatch,
+                    expectedRider,
+                    expectedMount,
+                    AiBackingField);
             }
         }
 
@@ -754,6 +761,22 @@ namespace KingmakerMountedCombat.Diagnostics
 
         public bool InitiatorIsPlayersEnemy { get; private set; }
 
+        public string InitiatorGroupId { get; private set; }
+
+        public bool InitiatorGroupIsPlayerParty { get; private set; }
+
+        public bool InitiatorSharesRiderGroup { get; private set; }
+
+        public bool InitiatorSharesMountGroup { get; private set; }
+
+        public bool InitiatorDirectlyControllable { get; private set; }
+
+        public bool InitiatorEffectiveAiEnabled { get; private set; }
+
+        public bool InitiatorRawAiEnabled { get; private set; }
+
+        public bool InitiatorCommandsEmpty { get; private set; }
+
         public string WeaponBlueprintId { get; private set; }
 
         public bool IsAttackOfOpportunity { get; private set; }
@@ -762,12 +785,20 @@ namespace KingmakerMountedCombat.Diagnostics
 
         public static DiagnosticIncomingAttackSnapshot Capture(
             RuleAttackWithWeapon rule,
-            bool beforeExpectedDispatch)
+            bool beforeExpectedDispatch,
+            UnitEntityData expectedRider,
+            UnitEntityData expectedMount,
+            FieldInfo aiBackingField)
         {
-            if (rule?.Initiator == null || rule.Target == null || rule.Weapon?.Blueprint == null)
+            if (rule?.Initiator == null || rule.Target == null || rule.Weapon?.Blueprint == null ||
+                aiBackingField == null || aiBackingField.FieldType != typeof(bool))
             {
                 return null;
             }
+
+            var initiatorGroup = rule.Initiator.Group;
+            var riderGroup = expectedRider?.Group;
+            var mountGroup = expectedMount?.Group;
 
             return new DiagnosticIncomingAttackSnapshot
             {
@@ -776,6 +807,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 InitiatorBlueprintId = rule.Initiator.Blueprint?.AssetGuid,
                 InitiatorIsPlayerFaction = rule.Initiator.IsPlayerFaction,
                 InitiatorIsPlayersEnemy = rule.Initiator.IsPlayersEnemy,
+                InitiatorGroupId = initiatorGroup?.Id,
+                InitiatorGroupIsPlayerParty = initiatorGroup != null && initiatorGroup.IsPlayerParty,
+                InitiatorSharesRiderGroup = initiatorGroup != null && initiatorGroup == riderGroup,
+                InitiatorSharesMountGroup = initiatorGroup != null && initiatorGroup == mountGroup,
+                InitiatorDirectlyControllable = rule.Initiator.IsDirectlyControllable,
+                InitiatorEffectiveAiEnabled = rule.Initiator.IsAIEnabled,
+                InitiatorRawAiEnabled = (bool)aiBackingField.GetValue(rule.Initiator),
+                InitiatorCommandsEmpty = rule.Initiator.Commands != null && rule.Initiator.Commands.Empty,
                 WeaponBlueprintId = rule.Weapon.Blueprint.AssetGuid,
                 IsAttackOfOpportunity = rule.IsAttackOfOpportunity,
                 IsCharge = rule.IsCharge

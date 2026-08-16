@@ -1074,7 +1074,7 @@ function New-TestCombatEvidenceRecord {
     $isTurnBased = [string]$Request.scenario -ceq 'mounted-rider-melee-hit-tb'
     $isMiss = [string]$Request.scenario -ceq 'mounted-rider-melee-miss-rt'
     $record = [ordered]@{
-        schemaVersion=$(if ($isTurnBased) { 15 } else { 14 });artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
+        schemaVersion=$(if ($isTurnBased) { 17 } else { 16 });artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
         scenario=[string]$Request.scenario;row=[string]$Request.scenario;rowIndex=0;sequence=0;frame=30
         utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o');branch=[string]$Request.branch
         commit=[string]$Request.commit;productVersion=[string]$Request.productVersion
@@ -1120,6 +1120,10 @@ function New-TestCombatEvidenceRecord {
                 observed=$true;beforeExpectedDispatch=$false;initiatorId=$rider
                 initiatorBlueprintId='22222222222222222222222222222222'
                 initiatorIsPlayerFaction=$true;initiatorIsPlayersEnemy=$false
+                initiatorGroupId='player-group';initiatorGroupIsPlayerParty=$true
+                initiatorSharesRiderGroup=$true;initiatorSharesMountGroup=$true
+                initiatorDirectlyControllable=$true;initiatorEffectiveAiEnabled=$false
+                initiatorRawAiEnabled=$false;initiatorCommandsEmpty=$false
                 weaponBlueprintId='33333333333333333333333333333333'
                 isAttackOfOpportunity=$false;isCharge=$false
             }
@@ -1257,6 +1261,15 @@ function Remove-TestCombatLifeFields {
 function Remove-TestCombatIncomingRuleFields {
     param([Parameter(Mandatory = $true)]$Record)
     $Record.PSObject.Properties.Remove('targetIncomingRules')
+}
+
+function Remove-TestCombatIncomingActorContextFields {
+    param([Parameter(Mandatory = $true)]$Record)
+    foreach ($name in @(
+        'initiatorGroupId','initiatorGroupIsPlayerParty','initiatorSharesRiderGroup','initiatorSharesMountGroup',
+        'initiatorDirectlyControllable','initiatorEffectiveAiEnabled','initiatorRawAiEnabled','initiatorCommandsEmpty')) {
+        $Record.targetIncomingRules.firstAttack.PSObject.Properties.Remove($name)
+    }
 }
 
 New-Item -ItemType Directory -Path $testRoot | Out-Null
@@ -4356,7 +4369,7 @@ try {
             $engineSource.Contains('currentTurnActingAtOutcome = currentTurn != null && currentTurn.IsActing')) 'turn-based combat does not admit the native Preparing rider turn, observe Acting only after dispatch, retain it through outcome, and restore mode after cleanup'
         Assert-Test ($engineSource.Contains('CleanupTimeoutSeconds = 10.0d') -and
             $engineSource.Contains('rowClock.Elapsed.TotalSeconds - cleanupStartedAtSeconds < CleanupTimeoutSeconds')) 'combat cleanup does not retain an independent bounded drain after a row deadline'
-        Assert-Test ($engineSource.Contains('SchemaVersion = IsTurnBasedRow ? 15 : 14') -and
+        Assert-Test ($engineSource.Contains('SchemaVersion = IsTurnBasedRow ? 17 : 16') -and
             $engineSource.Contains('Mode = IsTurnBasedRow ? "turn-based" : "real-time"') -and
             $engineSource.Contains('TurnBased = IsTurnBasedRow') -and
             $engineSource.Contains('CombatEntry = CombatEntryEvidence.From(') -and
@@ -4392,7 +4405,8 @@ try {
             $targetSource.Contains('PreDispatchIncomingAttackRuleCount++') -and
             $targetSource.Contains('PreDispatchIncomingDamageRuleCount++') -and
             $combatValidatorSource.Contains("'dispatchMarkerSet','attackRuleCount','damageRuleCount','preDispatchAttackRuleCount'") -and
-            $combatValidatorSource.Contains('zero pre-dispatch interference')) 'schema-v14/v15 combat evidence does not bind native IsHit, exact AC-selected miss reasons, target wake lease, native join and life gates, incoming-rule identity, combat entry, terminal reason, memory cleanup, mode-specific dispatch, rider-turn identity, and restoration'
+            $combatValidatorSource.Contains('initiatorDirectlyControllable') -and
+            $combatValidatorSource.Contains('zero pre-dispatch interference')) 'schema-v16/v17 combat evidence does not bind native IsHit, exact AC-selected miss reasons, target wake lease, native join and life gates, incoming-rule actor context, combat entry, terminal reason, memory cleanup, mode-specific dispatch, rider-turn identity, and restoration'
         foreach ($field in @('TargetEntityRemoved','RuntimeGroupRemoved','RuntimeFactionRemoved')) {
             $jsonField = [char]::ToLowerInvariant($field[0]) + $field.Substring(1)
             Assert-Test ($engineSource.Contains("$field =") -and
@@ -4432,7 +4446,7 @@ try {
     $turnBasedManifest = Read-KmcJson (Join-Path $turnBasedRequest.evidenceRoot 'runtime-artifacts.json')
     $turnBasedSubresult = [ordered]@{name=$turnBasedRequest.scenario;status='PASS';assertionPassCount=25;assertionFailCount=0;errors=@()}
 
-    Invoke-HarnessTest 'runtime request and schema-v15 evidence accept exact native stationary rider turn' {
+    Invoke-HarnessTest 'runtime request and schema-v17 evidence accept exact native stationary rider turn' {
         & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $turnBasedRequestPath
         Assert-KmcCombatScenarioEvidence -Request $turnBasedRequest -Manifest $turnBasedManifest -Status 'PASS' -SubscenarioResults @($turnBasedSubresult)
     }
@@ -4547,6 +4561,22 @@ try {
         Assert-KmcCombatScenarioEvidence -Request $turnBasedRequest -Manifest $legacyTurnBasedManifest -Status 'PASS' -SubscenarioResults @($turnBasedSubresult)
     }
 
+    Invoke-HarnessTest 'historical schema-v14 and schema-v15 combat evidence remain valid' {
+        $legacyRealTime = Copy-TestJsonValue $combatRecord
+        $legacyRealTime.schemaVersion = 14
+        Remove-TestCombatIncomingActorContextFields $legacyRealTime
+        [void](Write-TestCombatEvidence -EvidenceRoot $combatRequest.evidenceRoot -Request $combatRequest -Record $legacyRealTime)
+        $legacyRealTimeManifest = Read-KmcJson (Join-Path $combatRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $combatRequest -Manifest $legacyRealTimeManifest -Status 'PASS' -SubscenarioResults @($combatSubresult)
+
+        $legacyTurnBased = Copy-TestJsonValue $turnBasedRecord
+        $legacyTurnBased.schemaVersion = 15
+        Remove-TestCombatIncomingActorContextFields $legacyTurnBased
+        [void](Write-TestCombatEvidence -EvidenceRoot $turnBasedRequest.evidenceRoot -Request $turnBasedRequest -Record $legacyTurnBased)
+        $legacyTurnBasedManifest = Read-KmcJson (Join-Path $turnBasedRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $turnBasedRequest -Manifest $legacyTurnBasedManifest -Status 'PASS' -SubscenarioResults @($turnBasedSubresult)
+    }
+
     Invoke-HarnessTest 'combat miss validator rejects hit damage and identity mutations' {
         $mutations = @(
             @{name='forced hit';apply={param($value) $value.rules.forcedD20=20}},
@@ -4635,7 +4665,7 @@ try {
         Assert-KmcCombatScenarioEvidence -Request $missRequest -Manifest $failureManifest -Status 'FAIL' -SubscenarioResults @($failureSubresult)
     }
 
-    Invoke-HarnessTest 'schema-v14 preserves exact pre-dispatch third-party attack and damage evidence' {
+    Invoke-HarnessTest 'schema-v16 preserves exact pre-dispatch third-party attack and damage actor context' {
         $failureRecord = Copy-TestJsonValue $missRecord
         $failureRecord.status = 'FAIL'
         $failureRecord.assertionPassCount = 20
@@ -4659,6 +4689,9 @@ try {
         $failureRecord.targetIncomingRules.preDispatchDamageRuleCount = 1
         $failureRecord.targetIncomingRules.firstAttack.beforeExpectedDispatch = $true
         $failureRecord.targetIncomingRules.firstAttack.initiatorId = 'combat-third-party'
+        $failureRecord.targetIncomingRules.firstAttack.initiatorBlueprintId = '44444444444444444444444444444444'
+        $failureRecord.targetIncomingRules.firstAttack.initiatorEffectiveAiEnabled = $true
+        $failureRecord.targetIncomingRules.firstAttack.initiatorRawAiEnabled = $true
         $failureRecord.targetIncomingRules.firstDamage.observed = $true
         $failureRecord.targetIncomingRules.firstDamage.beforeExpectedDispatch = $true
         $failureRecord.targetIncomingRules.firstDamage.initiatorId = 'combat-third-party'
@@ -4801,6 +4834,10 @@ try {
             @{name='target pre-dispatch attack interference';apply={param($value) $value.targetIncomingRules.preDispatchAttackRuleCount=1;$value.targetIncomingRules.firstAttack.beforeExpectedDispatch=$true}},
             @{name='target incoming attack duplicate';apply={param($value) $value.targetIncomingRules.attackRuleCount=2}},
             @{name='target incoming attack wrong initiator';apply={param($value) $value.targetIncomingRules.firstAttack.initiatorId='combat-mount'}},
+            @{name='target incoming attack missing group';apply={param($value) $value.targetIncomingRules.firstAttack.initiatorGroupId=$null}},
+            @{name='target incoming attack outside party group';apply={param($value) $value.targetIncomingRules.firstAttack.initiatorGroupIsPlayerParty=$false}},
+            @{name='target incoming attack different rider group';apply={param($value) $value.targetIncomingRules.firstAttack.initiatorSharesRiderGroup=$false}},
+            @{name='target incoming attack indirect actor';apply={param($value) $value.targetIncomingRules.firstAttack.initiatorDirectlyControllable=$false}},
             @{name='target pre-dispatch damage interference';apply={param($value) $value.targetIncomingRules.preDispatchDamageRuleCount=1;$value.targetIncomingRules.firstDamage.beforeExpectedDispatch=$true}},
             @{name='target incoming damage wrong initiator';apply={param($value) $value.targetIncomingRules.firstDamage.initiatorId='combat-mount'}},
             @{name='target residue';apply={param($value) $value.cleanup.targetRemoved=$false}},
