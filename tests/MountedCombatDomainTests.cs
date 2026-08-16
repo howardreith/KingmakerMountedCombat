@@ -365,10 +365,10 @@ namespace KingmakerMountedCombat.Tests
         {
             var snapshot = new DiagnosticCombatTargetSafetySnapshot(
                 true, true, true, true, true, true, true, false,
-                true, true, true, false, false, true, true, false);
+                true, true, false, true, false, false, true, true, false);
             TestRunner.True(!snapshot.AllPassed, "A transient target with failed safety gates passed.");
             TestRunner.Equal(
-                "rider-treats-target-as-enemy,inventory-has-no-loot,native-primary-natural-weapon-resolved-without-provisioning,primary-natural-weapon-is-melee",
+                "rider-treats-target-as-enemy,bounded-sleepless-lease,inventory-has-no-loot,native-primary-natural-weapon-resolved-without-provisioning,primary-natural-weapon-is-melee",
                 snapshot.FailureSummary,
                 "Transient target safety failures were not reported in exact gate order.");
         }
@@ -377,7 +377,7 @@ namespace KingmakerMountedCombat.Tests
         {
             return new DiagnosticCombatTargetSafetySnapshot(
                 true, true, true, true, true, true, true, true,
-                true, true, true, true, true, true, true, true);
+                true, true, true, true, true, true, true, true, true);
         }
 
         private static void CombatClickSafetyPreservesEveryGate()
@@ -425,11 +425,12 @@ namespace KingmakerMountedCombat.Tests
         private static void CombatEntryRequiresNativeMemoryAndCombat()
         {
             var snapshot = new DiagnosticCombatEntryReadinessSnapshot(
-                true, true, true, true, true, true, true, true, true, true, 0f, 0.01f);
+                true, true, true, true, true, true, true, true, true, true, true, 0f, 0.01f);
             TestRunner.True(snapshot.AllPassed, "A native-memory-backed Default-mode combat entry was rejected.");
             TestRunner.True(snapshot.MemoryQueued && snapshot.PlayerGroupMemoryContainsTarget &&
                     snapshot.TargetGroupMemoryContainsRider && snapshot.RiderInCombat && snapshot.MountInCombat &&
                     snapshot.TargetInCombat && snapshot.PlayerInCombat && snapshot.RiderPrepared && snapshot.RiderAwake &&
+                    snapshot.TargetAwake &&
                     snapshot.DefaultGameMode && snapshot.RiderInitiative == 0f && snapshot.GameDeltaTime > 0f,
                 "An all-pass combat-entry snapshot changed its exact observed state.");
         }
@@ -437,10 +438,10 @@ namespace KingmakerMountedCombat.Tests
         private static void CombatEntryReportsExactFailures()
         {
             var snapshot = new DiagnosticCombatEntryReadinessSnapshot(
-                true, false, false, true, false, false, false, false, false, false, 6f, 0f);
+                true, false, false, true, false, false, false, false, false, false, false, 6f, 0f);
             TestRunner.True(!snapshot.AllPassed, "A combat entry without memory, group combat, preparation, or game time passed.");
             TestRunner.Equal(
-                "player-memory-contains-target,target-memory-contains-rider,mount-in-combat,target-in-combat,player-in-combat,rider-initiative-prepared,rider-awake,default-game-mode,positive-game-delta",
+                "player-memory-contains-target,target-memory-contains-rider,mount-in-combat,target-in-combat,player-in-combat,rider-initiative-prepared,rider-awake,target-awake,default-game-mode,positive-game-delta",
                 snapshot.FailureSummary,
                 "Combat-entry failures were not reported in exact gate order.");
             TestRunner.True(snapshot.RiderInitiative == 6f && snapshot.GameDeltaTime == 0f,

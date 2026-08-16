@@ -31,6 +31,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private UnitEntityData combatMemoryTarget;
         private UnitGroup combatMemoryObserverGroup;
         private UnitGroup combatMemoryTargetGroup;
+        private bool targetSleeplessBefore;
+        private bool targetSleeplessLeaseActive;
         private bool combatMemoryQueued;
         private bool combatMemoryRemoved = true;
         private bool runtimeFactionDestroyPending;
@@ -69,6 +71,12 @@ namespace KingmakerMountedCombat.Diagnostics
         public bool BidirectionalHostilityVerified { get; private set; }
 
         public bool NoExperienceReward { get; private set; }
+
+        public bool TargetSleeplessBefore => targetSleeplessBefore;
+
+        public bool TargetSleeplessLeaseAcquired { get; private set; }
+
+        public bool TargetSleeplessLeaseReleased { get; private set; } = true;
 
         public bool TargetFogOfWarCleared { get; private set; }
 
@@ -180,6 +188,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     throw new InvalidOperationException("Diagnostic Mammoth target did not enter the exact loaded state.");
                 }
+                targetSleeplessBefore = target.Sleepless;
+                target.Sleepless = true;
+                targetSleeplessLeaseActive = target.Sleepless;
+                TargetSleeplessLeaseAcquired = !targetSleeplessBefore && targetSleeplessLeaseActive;
+                TargetSleeplessLeaseReleased = false;
                 var spawnGroup = target.Group;
                 target.GroupId = runtimeGroupId;
                 var detachedFromSpawnGroup = ReleaseDetachedSpawnGroup(
@@ -243,6 +256,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     riderTreatsTargetAsEnemy,
                     NoExperienceReward,
                     aiBackingDisabled,
+                    TargetSleeplessLeaseAcquired,
                     target.Commands.Empty,
                     inventoryHasNoLoot,
                     nativePrimaryResolvedWithoutProvisioning,
@@ -275,7 +289,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
         public bool DestroyAndVerify()
         {
-            if (TargetEntityRemoved && RuntimeGroupRemoved && RuntimeFactionRemoved && CombatMemoryRemoved)
+            if (TargetEntityRemoved && RuntimeGroupRemoved && RuntimeFactionRemoved && CombatMemoryRemoved &&
+                TargetSleeplessLeaseReleased)
             {
                 return State == DiagnosticCombatTargetState.Absent ||
                     State == DiagnosticCombatTargetState.Removed;
@@ -313,6 +328,7 @@ namespace KingmakerMountedCombat.Diagnostics
             ThrowIfDisposed();
             if (combatMemoryQueued || rider == null || expectedTarget == null || expectedTarget != target ||
                 State != DiagnosticCombatTargetState.Active || !rider.IsInState || !target.IsInState ||
+                !targetSleeplessLeaseActive || !target.Sleepless ||
                 rider.Group == null || target.Group == null || rider.Group == target.Group ||
                 !rider.IsEnemy(target) || !target.IsEnemy(rider) ||
                 !TargetFogOfWarCleared || !TargetViewVisible || !TargetVisibleForPlayer)
@@ -363,6 +379,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             var current = target;
             var combatMemoryClean = RemoveCombatMemory();
+            var sleeplessLeaseClean = ReleaseTargetSleeplessLease(current);
             if (current != null)
             {
                 current.Commands.InterruptAll();
@@ -388,7 +405,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 runtimeFaction = null;
                 runtimeFactionDestroyPending = false;
             }
-            return targetRemoved && groupRemoved && RuntimeFactionRemoved && combatMemoryClean;
+            return targetRemoved && groupRemoved && RuntimeFactionRemoved && combatMemoryClean && sleeplessLeaseClean;
         }
 
         private bool RemoveCombatMemory()
@@ -425,6 +442,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 combatMemoryObserverGroup.Disposed || combatMemoryTargetGroup.Disposed ||
                 combatMemoryObserver.Group != combatMemoryObserverGroup ||
                 combatMemoryTarget.Group != combatMemoryTargetGroup ||
+                !targetSleeplessLeaseActive || !combatMemoryTarget.Sleepless ||
                 !combatMemoryObserver.IsInState || !combatMemoryTarget.IsInState)
             {
                 return false;
@@ -447,6 +465,28 @@ namespace KingmakerMountedCombat.Diagnostics
                 combatMemoryTarget.Wake();
             }
             return PlayerGroupMemoryContainsTarget && TargetGroupMemoryContainsRider;
+        }
+
+        private bool ReleaseTargetSleeplessLease(UnitEntityData current)
+        {
+            if (!targetSleeplessLeaseActive)
+            {
+                return TargetSleeplessLeaseReleased;
+            }
+            if (current == null)
+            {
+                targetSleeplessLeaseActive = false;
+                TargetSleeplessLeaseReleased = true;
+                return true;
+            }
+
+            current.Sleepless = targetSleeplessBefore;
+            TargetSleeplessLeaseReleased = current.Sleepless == targetSleeplessBefore;
+            if (TargetSleeplessLeaseReleased)
+            {
+                targetSleeplessLeaseActive = false;
+            }
+            return TargetSleeplessLeaseReleased;
         }
 
         private bool ReleaseRuntimeGroup()

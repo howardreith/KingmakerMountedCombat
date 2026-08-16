@@ -168,6 +168,9 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.EntitySystem.Entities.UnitEntityData',0x060082F8,'get_Memory'),
         @('Kingmaker.EntitySystem.Entities.UnitEntityData',0x060082F9,'get_IsAwake'),
         @('Kingmaker.EntitySystem.Entities.UnitEntityData',0x0600836C,'Wake'),
+        @('Kingmaker.EntitySystem.Entities.UnitEntityData',0x040054C8,'Sleepless'),
+        @('Kingmaker.Controllers.SleepingUnitsController',0x060090B1,'Tick'),
+        @('Kingmaker.Controllers.SleepingUnitsController',0x060090B2,'ShouldBeSleeping'),
         @('Kingmaker.UnitLogic.UnitGroupMemory',0x06001F2C,'Add'),
         @('Kingmaker.UnitLogic.UnitGroupMemory',0x06001F2D,'Remove'),
         @('Kingmaker.UnitLogic.UnitGroupMemory',0x06001F31,'Contains'),
@@ -202,6 +205,17 @@ if($Target-eq'Kingmaker'){
         $selectMissReason[0].GetParameters().Count-eq2 -and
         @($selectMissReason[0].GetParameters()|Where-Object{$_.ParameterType.FullName-ceq'System.Boolean'}).Count-eq2) `
         'ModifiableValueArmorClass.SelectMissReason exact public instance signature'
+    $sleepless=@(Find-Token 'Kingmaker.EntitySystem.Entities.UnitEntityData' 0x040054C8)
+    $shouldBeSleeping=@(Find-Token 'Kingmaker.Controllers.SleepingUnitsController' 0x060090B2)
+    Assert-Contract ($sleepless.Count-eq1 -and $sleepless[0] -is [Reflection.FieldInfo] -and
+        $sleepless[0].IsPublic -and -not $sleepless[0].IsStatic -and -not $sleepless[0].IsInitOnly -and
+        $sleepless[0].FieldType.FullName-ceq'System.Boolean' -and
+        $shouldBeSleeping.Count-eq1 -and $shouldBeSleeping[0] -is [Reflection.MethodInfo] -and
+        $shouldBeSleeping[0].IsPrivate -and $shouldBeSleeping[0].IsStatic -and
+        $shouldBeSleeping[0].ReturnType.FullName-ceq'System.Boolean' -and
+        $shouldBeSleeping[0].GetParameters().Count-eq1 -and
+        $shouldBeSleeping[0].GetParameters()[0].ParameterType.FullName-ceq'Kingmaker.EntitySystem.Entities.UnitEntityData') `
+        'SleepingUnitsController exact per-unit sleepless gate signature'
     $forcePlaceAboveGround=@(Find-Token 'Kingmaker.View.UnitEntityView' 0x06001848)
     Assert-Contract ($forcePlaceAboveGround.Count-eq1 -and $forcePlaceAboveGround[0] -is [Reflection.MethodInfo] -and
         $forcePlaceAboveGround[0].IsPublic -and -not $forcePlaceAboveGround[0].IsStatic -and

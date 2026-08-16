@@ -94,6 +94,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool targetEntityRemoved;
         private bool targetRuntimeGroupRemoved;
         private bool targetRuntimeFactionRemoved;
+        private bool targetSleeplessLeaseReleased;
         private bool combatMemoryRemoved;
         private CombatTargetProvisioningEvidence targetProvisioning;
         private bool relationshipClean;
@@ -454,6 +455,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 game.Player != null && game.Player.IsInCombat,
                 rider?.CombatState != null && rider.CombatState.Prepared,
                 rider != null && game.State?.AwakeUnits != null && game.State.AwakeUnits.Contains(rider),
+                target != null && game.State?.AwakeUnits != null && game.State.AwakeUnits.Contains(target),
                 game.CurrentMode == GameModeType.Default,
                 rider?.CombatState == null ? float.MaxValue : rider.CombatState.Cooldown.Initiative,
                 game.TimeController == null ? 0f : game.TimeController.GameDeltaTime);
@@ -730,6 +732,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     targetEntityRemoved = true;
                     targetRuntimeGroupRemoved = true;
                     targetRuntimeFactionRemoved = true;
+                    targetSleeplessLeaseReleased = true;
                 }
             }
             catch (Exception exception)
@@ -774,8 +777,8 @@ namespace KingmakerMountedCombat.Diagnostics
             RestorePause();
 
             assertions.Check(targetRemoved && targetEntityRemoved &&
-                    targetRuntimeGroupRemoved && targetRuntimeFactionRemoved,
-                "Runtime-only combat target, project group, and runtime faction were removed with zero residue.");
+                    targetRuntimeGroupRemoved && targetRuntimeFactionRemoved && targetSleeplessLeaseReleased,
+                "Runtime-only combat target, sleepless lease, project group, and runtime faction were removed with zero residue.");
             assertions.Check(combatCleared,
                 "Pair, target, and party left combat before final evidence.");
             assertions.Check(pauseRestored,
@@ -824,7 +827,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var selected = SelectionManager.Instance?.SelectedUnits;
             var record = new CombatEvidenceRecord
             {
-                SchemaVersion = IsTurnBasedRow ? 7 : 6,
+                SchemaVersion = IsTurnBasedRow ? 9 : 8,
                 ArtifactKind = "combat-scenario-evidence",
                 RunId = request.RunId,
                 Scenario = request.Scenario,
@@ -912,6 +915,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     TargetEntityRemoved = targetEntityRemoved,
                     RuntimeGroupRemoved = targetRuntimeGroupRemoved,
                     RuntimeFactionRemoved = targetRuntimeFactionRemoved,
+                    SleeplessLeaseReleased = targetSleeplessLeaseReleased,
                     RelationshipClean = relationshipClean,
                     CombatCleared = combatCleared,
                     RelationshipState = relationship.State.ToString(),
@@ -1016,6 +1020,7 @@ namespace KingmakerMountedCombat.Diagnostics
             targetEntityRemoved = targetService != null && targetService.TargetEntityRemoved;
             targetRuntimeGroupRemoved = targetService != null && targetService.RuntimeGroupRemoved;
             targetRuntimeFactionRemoved = targetService != null && targetService.RuntimeFactionRemoved;
+            targetSleeplessLeaseReleased = targetService != null && targetService.TargetSleeplessLeaseReleased;
             combatMemoryRemoved = targetService != null && targetService.CombatMemoryRemoved;
         }
 
@@ -1277,6 +1282,7 @@ namespace KingmakerMountedCombat.Diagnostics
             public bool PlayerInCombat { get; set; }
             public bool RiderPrepared { get; set; }
             public bool RiderAwake { get; set; }
+            public bool TargetAwake { get; set; }
             public bool DefaultGameMode { get; set; }
             public float RiderInitiative { get; set; }
             public float GameDeltaTime { get; set; }
@@ -1297,6 +1303,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     PlayerInCombat = readiness?.PlayerInCombat ?? false,
                     RiderPrepared = readiness?.RiderPrepared ?? false,
                     RiderAwake = readiness?.RiderAwake ?? false,
+                    TargetAwake = readiness?.TargetAwake ?? false,
                     DefaultGameMode = readiness?.DefaultGameMode ?? false,
                     RiderInitiative = readiness?.RiderInitiative ?? float.MaxValue,
                     GameDeltaTime = readiness?.GameDeltaTime ?? 0f,
@@ -1520,6 +1527,8 @@ namespace KingmakerMountedCombat.Diagnostics
             public bool TargetNativeSingleAttackWeaponIsMelee { get; set; }
             public bool NoLoot { get; set; }
             public bool RawAiDisabled { get; set; }
+            public bool SleeplessBefore { get; set; }
+            public bool SleeplessLeaseAcquired { get; set; }
             public bool BidirectionalHostility { get; set; }
             public bool NoExperienceReward { get; set; }
 
@@ -1545,6 +1554,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     TargetNativeSingleAttackWeaponIsMelee = service != null && service.TargetNativeSingleAttackWeaponIsMelee,
                     NoLoot = service != null && service.TargetHasNoLoot,
                     RawAiDisabled = service != null && service.RawAiBackingDisabled,
+                    SleeplessBefore = service != null && service.TargetSleeplessBefore,
+                    SleeplessLeaseAcquired = service != null && service.TargetSleeplessLeaseAcquired,
                     BidirectionalHostility = service != null && service.BidirectionalHostilityVerified,
                     NoExperienceReward = service != null && service.NoExperienceReward
                 };
@@ -1566,6 +1577,7 @@ namespace KingmakerMountedCombat.Diagnostics
             public bool TargetEntityRemoved { get; set; }
             public bool RuntimeGroupRemoved { get; set; }
             public bool RuntimeFactionRemoved { get; set; }
+            public bool SleeplessLeaseReleased { get; set; }
             public bool RelationshipClean { get; set; }
             public bool CombatCleared { get; set; }
             public string RelationshipState { get; set; }

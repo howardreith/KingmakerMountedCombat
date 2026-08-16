@@ -7138,11 +7138,11 @@ function Assert-KmcCombatScenarioEvidence {
     if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -ge 3) {
         $recordFields = @($recordFields + 'combatEntry')
     }
-    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(5,7)) {
+    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(5,7,9)) {
         $recordFields = @($recordFields + 'turnBased')
     }
     Assert-KmcExactProperties $record $recordFields 'combat evidence record'
-    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -notin @(1,2,3,4,5,6,7) -or
+    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -notin @(1,2,3,4,5,6,7,8,9) -or
         [string]$record.artifactKind -cne 'combat-scenario-evidence') {
         throw 'Combat evidence schemaVersion or artifactKind is not exact.'
     }
@@ -7193,6 +7193,9 @@ function Assert-KmcCombatScenarioEvidence {
             'memoryQueued','playerGroupMemoryContainsTarget','targetGroupMemoryContainsRider',
             'riderInCombat','mountInCombat','targetInCombat','playerInCombat','riderPrepared','riderAwake',
             'defaultGameMode','memoryRemovedAtCleanup')
+        if ([long]$record.schemaVersion -ge 8) {
+            $combatEntryBooleanFields = @($combatEntryBooleanFields + 'targetAwake')
+        }
         Assert-KmcExactProperties $record.combatEntry @($combatEntryBooleanFields + @('riderInitiative','gameDeltaTime')) 'combat entry evidence'
         foreach ($name in $combatEntryBooleanFields) {
             if ($record.combatEntry.$name -isnot [bool]) { throw "Combat entry evidence is not Boolean: $name" }
@@ -7201,7 +7204,7 @@ function Assert-KmcCombatScenarioEvidence {
             if (-not (Test-KmcJsonNumber $record.combatEntry.$name)) { throw "Combat entry evidence is not numeric: $name" }
         }
     }
-    if ([long]$record.schemaVersion -in @(5,7)) {
+    if ([long]$record.schemaVersion -in @(5,7,9)) {
         $turnBooleanFields = @(
             'requested','originalEnabled','temporaryEnabled','originalRawCacheHadValue','enabledAtMount',
             'controllerInitialized','rosterContainsRider','rosterContainsMount','rosterContainsTarget',
@@ -7233,24 +7236,40 @@ function Assert-KmcCombatScenarioEvidence {
     Assert-KmcExactProperties $record.movement @(
         'authoritativeMover','repathCount','riderStockAgentEnabledAtEnd','mountStockAgentEnabledAtEnd',
         'riderAvoidanceDisabledAtEnd','mountAvoidanceDisabledAtEnd') 'combat movement evidence'
-    Assert-KmcExactProperties $record.targetProvisioning @(
+    $targetProvisioningFields = @(
         'targetBlueprintId','runtimeGroupId','blueprintEmptyHandWeaponBlueprintId','targetNativeSingleAttackWeaponBlueprintId',
         'targetNativeSingleAttackSlot','targetPrimaryMainAttacks','targetSecondaryMainAttacks',
         'additionalLimbCountBefore','additionalLimbCountAfter','noWeaponProvisioningMutation','noLoot','rawAiDisabled',
         'targetPrimaryHandHasItem','targetWeaponUsesEmptyHandFallback',
         'targetNativeSingleAttackWeaponIsNatural','targetNativeSingleAttackWeaponIsMelee',
-        'bidirectionalHostility','noExperienceReward') 'combat target provisioning evidence'
+        'bidirectionalHostility','noExperienceReward')
+    if ([long]$record.schemaVersion -ge 8) {
+        $targetProvisioningFields = @($targetProvisioningFields + 'sleeplessBefore','sleeplessLeaseAcquired')
+    }
+    Assert-KmcExactProperties $record.targetProvisioning $targetProvisioningFields 'combat target provisioning evidence'
+    if ([long]$record.schemaVersion -ge 8 -and
+        ($record.targetProvisioning.sleeplessBefore -isnot [bool] -or
+         $record.targetProvisioning.sleeplessLeaseAcquired -isnot [bool])) {
+        throw 'Combat target sleepless-lease provisioning evidence is not Boolean.'
+    }
     Assert-KmcExactProperties $record.pose @(
         'profileId','healthyAtOutcome','configuredAtEnd','attachmentLeaseAtEnd','residueAtEnd') 'combat pose evidence'
-    Assert-KmcExactProperties $record.cleanup @(
+    $combatCleanupFields = @(
         'targetRemoved','targetEntityRemoved','runtimeGroupRemoved','runtimeFactionRemoved',
-        'relationshipClean','combatCleared','relationshipState','residualState','presentationResidual') 'combat cleanup evidence'
+        'relationshipClean','combatCleared','relationshipState','residualState','presentationResidual')
+    if ([long]$record.schemaVersion -ge 8) {
+        $combatCleanupFields = @($combatCleanupFields + 'sleeplessLeaseReleased')
+    }
+    Assert-KmcExactProperties $record.cleanup $combatCleanupFields 'combat cleanup evidence'
+    if ([long]$record.schemaVersion -ge 8 -and $record.cleanup.sleeplessLeaseReleased -isnot [bool]) {
+        throw 'Combat target sleepless-lease cleanup evidence is not Boolean.'
+    }
 
     $requirePass = [string]$Status -ceq 'PASS'
     if ($requirePass) {
         $turnBasedScenario = [string]$Request.scenario -ceq 'mounted-rider-melee-hit-tb'
         $missScenario = [string]$Request.scenario -ceq 'mounted-rider-melee-miss-rt'
-        $expectedCombatSchemas = if ($missScenario) { @(6) } elseif ($turnBasedScenario) { @(5,7) } else { @(4,6) }
+        $expectedCombatSchemas = if ($missScenario) { @(6,8) } elseif ($turnBasedScenario) { @(5,7,9) } else { @(4,6,8) }
         if ([long]$record.schemaVersion -notin $expectedCombatSchemas -or
             [string]$record.status -cne 'PASS' -or [long]$record.assertionFailCount -ne 0 -or
             [long]$record.assertionPassCount -le 0 -or @($record.errors).Count -ne 0) {
@@ -7299,6 +7318,7 @@ function Assert-KmcCombatScenarioEvidence {
             $record.combatEntry.playerInCombat -ne $true -or
             $record.combatEntry.riderPrepared -ne $true -or
             $record.combatEntry.riderAwake -ne $true -or
+            ([long]$record.schemaVersion -ge 8 -and $record.combatEntry.targetAwake -ne $true) -or
             $record.combatEntry.defaultGameMode -ne $true -or
             [Math]::Abs([double]$record.combatEntry.riderInitiative) -gt 0.000001 -or
             [double]$record.combatEntry.gameDeltaTime -le 0 -or
@@ -7334,6 +7354,9 @@ function Assert-KmcCombatScenarioEvidence {
             $record.targetProvisioning.targetNativeSingleAttackWeaponIsNatural -ne $true -or
             $record.targetProvisioning.targetNativeSingleAttackWeaponIsMelee -ne $true -or
             $record.targetProvisioning.noLoot -ne $true -or $record.targetProvisioning.rawAiDisabled -ne $true -or
+            ([long]$record.schemaVersion -ge 8 -and
+                ($record.targetProvisioning.sleeplessBefore -ne $false -or
+                 $record.targetProvisioning.sleeplessLeaseAcquired -ne $true)) -or
             $record.targetProvisioning.bidirectionalHostility -ne $true -or
             $record.targetProvisioning.noExperienceReward -ne $true) {
             throw 'PASS combat target provisioning evidence does not prove exact native primary-hand selection without mutation.'
@@ -7431,6 +7454,7 @@ function Assert-KmcCombatScenarioEvidence {
         }
         if ($record.cleanup.targetRemoved -ne $true -or $record.cleanup.targetEntityRemoved -ne $true -or
             $record.cleanup.runtimeGroupRemoved -ne $true -or $record.cleanup.runtimeFactionRemoved -ne $true -or
+            ([long]$record.schemaVersion -ge 8 -and $record.cleanup.sleeplessLeaseReleased -ne $true) -or
             $record.cleanup.relationshipClean -ne $true -or
             $record.cleanup.combatCleared -ne $true -or [string]$record.cleanup.relationshipState -cne 'Unmounted' -or
             $record.cleanup.residualState -ne $false -or $record.cleanup.presentationResidual -ne $false) {

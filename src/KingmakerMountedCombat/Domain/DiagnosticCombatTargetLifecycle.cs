@@ -93,6 +93,7 @@ namespace KingmakerMountedCombat.Domain
             bool riderTreatsTargetAsEnemy,
             bool noExperienceOnDeath,
             bool aiBackingDisabled,
+            bool boundedSleeplessLease,
             bool commandsEmpty,
             bool inventoryHasNoLoot,
             bool nativePrimaryNaturalWeaponResolvedWithoutProvisioning,
@@ -111,6 +112,7 @@ namespace KingmakerMountedCombat.Domain
             AddFailure(failures, riderTreatsTargetAsEnemy, "rider-treats-target-as-enemy");
             AddFailure(failures, noExperienceOnDeath, "no-experience-on-death");
             AddFailure(failures, aiBackingDisabled, "ai-backing-disabled");
+            AddFailure(failures, boundedSleeplessLease, "bounded-sleepless-lease");
             AddFailure(failures, commandsEmpty, "commands-empty");
             AddFailure(failures, inventoryHasNoLoot, "inventory-has-no-loot");
             AddFailure(failures, nativePrimaryNaturalWeaponResolvedWithoutProvisioning, "native-primary-natural-weapon-resolved-without-provisioning");
@@ -238,6 +240,7 @@ namespace KingmakerMountedCombat.Domain
             bool playerInCombat,
             bool riderPrepared,
             bool riderAwake,
+            bool targetAwake,
             bool defaultGameMode,
             float riderInitiative,
             float gameDeltaTime)
@@ -251,6 +254,7 @@ namespace KingmakerMountedCombat.Domain
             PlayerInCombat = playerInCombat;
             RiderPrepared = riderPrepared;
             RiderAwake = riderAwake;
+            TargetAwake = targetAwake;
             DefaultGameMode = defaultGameMode;
             RiderInitiative = riderInitiative;
             GameDeltaTime = gameDeltaTime;
@@ -264,6 +268,7 @@ namespace KingmakerMountedCombat.Domain
             AddFailure(failures, playerInCombat, "player-in-combat");
             AddFailure(failures, riderPrepared, "rider-initiative-prepared");
             AddFailure(failures, riderAwake, "rider-awake");
+            AddFailure(failures, targetAwake, "target-awake");
             AddFailure(failures, defaultGameMode, "default-game-mode");
             AddFailure(failures, gameDeltaTime > 0f, "positive-game-delta");
             failedGateNames = failures.ToArray();
@@ -286,6 +291,8 @@ namespace KingmakerMountedCombat.Domain
         public bool RiderPrepared { get; }
 
         public bool RiderAwake { get; }
+
+        public bool TargetAwake { get; }
 
         public bool DefaultGameMode { get; }
 

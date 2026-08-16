@@ -1074,7 +1074,7 @@ function New-TestCombatEvidenceRecord {
     $isTurnBased = [string]$Request.scenario -ceq 'mounted-rider-melee-hit-tb'
     $isMiss = [string]$Request.scenario -ceq 'mounted-rider-melee-miss-rt'
     $record = [ordered]@{
-        schemaVersion=$(if ($isTurnBased) { 7 } else { 6 });artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
+        schemaVersion=$(if ($isTurnBased) { 9 } else { 8 });artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
         scenario=[string]$Request.scenario;row=[string]$Request.scenario;rowIndex=0;sequence=0;frame=30
         utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o');branch=[string]$Request.branch
         commit=[string]$Request.commit;productVersion=[string]$Request.productVersion
@@ -1087,7 +1087,7 @@ function New-TestCombatEvidenceRecord {
             additionalLimbCountBefore=0;additionalLimbCountAfter=0;noWeaponProvisioningMutation=$true
             targetPrimaryHandHasItem=$false;targetWeaponUsesEmptyHandFallback=$true
             targetNativeSingleAttackWeaponIsNatural=$true;targetNativeSingleAttackWeaponIsMelee=$true
-            noLoot=$true;rawAiDisabled=$true
+            noLoot=$true;rawAiDisabled=$true;sleeplessBefore=$false;sleeplessLeaseAcquired=$true
             bidirectionalHostility=$true;noExperienceReward=$true
         }
         pairApproachRadius=4.0;targetDistanceAtClick=3.9
@@ -1097,7 +1097,7 @@ function New-TestCombatEvidenceRecord {
         combatEntry=[ordered]@{
             memoryQueued=$true;playerGroupMemoryContainsTarget=$true;targetGroupMemoryContainsRider=$true
             riderInCombat=$true;mountInCombat=$true;targetInCombat=$true;playerInCombat=$true
-            riderPrepared=$true;riderAwake=$true;defaultGameMode=$true;riderInitiative=0.0;gameDeltaTime=0.01
+            riderPrepared=$true;riderAwake=$true;targetAwake=$true;defaultGameMode=$true;riderInitiative=0.0;gameDeltaTime=0.01
             memoryRemovedAtCleanup=$true
         }
         dispatch=[ordered]@{
@@ -1130,6 +1130,7 @@ function New-TestCombatEvidenceRecord {
         }
         cleanup=[ordered]@{
             targetRemoved=$true;targetEntityRemoved=$true;runtimeGroupRemoved=$true;runtimeFactionRemoved=$true
+            sleeplessLeaseReleased=$true
             relationshipClean=$true;combatCleared=$true;relationshipState='Unmounted'
             residualState=$false;presentationResidual=$false
         }
@@ -1168,6 +1169,16 @@ function Write-TestCombatEvidence {
 function Copy-TestJsonValue {
     param([Parameter(Mandatory = $true)]$Value)
     return ($Value | ConvertTo-Json -Compress -Depth 20 | ConvertFrom-Json)
+}
+
+function Remove-TestCombatWakeLeaseFields {
+    param([Parameter(Mandatory = $true)]$Record)
+    if ($null -ne $Record.combatEntry) {
+        $Record.combatEntry.PSObject.Properties.Remove('targetAwake')
+    }
+    $Record.targetProvisioning.PSObject.Properties.Remove('sleeplessBefore')
+    $Record.targetProvisioning.PSObject.Properties.Remove('sleeplessLeaseAcquired')
+    $Record.cleanup.PSObject.Properties.Remove('sleeplessLeaseReleased')
 }
 
 New-Item -ItemType Directory -Path $testRoot | Out-Null
@@ -4110,6 +4121,12 @@ try {
             $targetSource.Contains('TargetVisibleForPlayer = target.IsVisibleForPlayer;')) 'diagnostic player-click visibility is not exact-target-only, explicit, and independently verified'
         Assert-Test ($targetSource.Contains('combatMemoryObserverGroup = rider.Group;') -and
             $targetSource.Contains('combatMemoryTargetGroup = target.Group;') -and
+            $targetSource.Contains('targetSleeplessBefore = target.Sleepless;') -and
+            $targetSource.Contains('target.Sleepless = true;') -and
+            $targetSource.Contains('TargetSleeplessLeaseAcquired = !targetSleeplessBefore && targetSleeplessLeaseActive;') -and
+            $targetSource.Contains('!targetSleeplessLeaseActive || !combatMemoryTarget.Sleepless') -and
+            $targetSource.Contains('current.Sleepless = targetSleeplessBefore;') -and
+            $targetSource.Contains('TargetSleeplessLeaseReleased = current.Sleepless == targetSleeplessBefore;') -and
             $targetSource.Contains('combatMemoryObserverGroup.Memory.Add(combatMemoryTarget)') -and
             $targetSource.Contains('combatMemoryTargetGroup.Memory.Add(combatMemoryObserver)') -and
             $targetSource.Contains('observedTarget.LastDetectTime = game.TimeController.GameTime;') -and
@@ -4124,7 +4141,7 @@ try {
             $engineSource.Contains('targetService.RefreshBidirectionalCombatMemoryLease()') -and
             $engineSource.Contains('";targetAwake=" + (target != null && target.IsAwake)') -and
             $engineSource.Contains('";targetInFog=" + (target != null && target.IsInFogOfWar)') -and
-            $engineSource.Contains('";targetFactionPeaceful=" + (target?.Faction != null && target.Faction.Peaceful)')) 'diagnostic target does not own a deterministic exact-group native combat-memory/wake lease with bounded refresh, timeout evidence, and symmetric cleanup'
+            $engineSource.Contains('";targetFactionPeaceful=" + (target?.Faction != null && target.Faction.Peaceful)')) 'diagnostic target does not own a deterministic exact-group native combat-memory/sleepless lease with bounded acquisition, refresh, timeout evidence, and symmetric cleanup'
         Assert-Test ($targetSource.Contains('var blueprintPrimary = blueprint.Body?.EmptyHandWeapon;') -and
             $targetSource.Contains('var nativePrimary = NativeSingleAttackWeaponResolver.Resolve(target);') -and
             $targetSource.Contains('NoWeaponProvisioningMutation = AdditionalLimbCountAfter == AdditionalLimbCountBefore') -and
@@ -4252,13 +4269,14 @@ try {
             $engineSource.Contains('currentTurnActingAtOutcome = currentTurn != null && currentTurn.IsActing')) 'turn-based combat does not admit the native Preparing rider turn, observe Acting only after dispatch, retain it through outcome, and restore mode after cleanup'
         Assert-Test ($engineSource.Contains('CleanupTimeoutSeconds = 10.0d') -and
             $engineSource.Contains('rowClock.Elapsed.TotalSeconds - cleanupStartedAtSeconds < CleanupTimeoutSeconds')) 'combat cleanup does not retain an independent bounded drain after a row deadline'
-        Assert-Test ($engineSource.Contains('SchemaVersion = IsTurnBasedRow ? 7 : 6') -and
+        Assert-Test ($engineSource.Contains('SchemaVersion = IsTurnBasedRow ? 9 : 8') -and
             $engineSource.Contains('Mode = IsTurnBasedRow ? "turn-based" : "real-time"') -and
             $engineSource.Contains('TurnBased = IsTurnBasedRow') -and
             $engineSource.Contains('CombatEntry = CombatEntryEvidence.From(') -and
             $engineSource.Contains('TerminalReason = value.TerminalReason') -and
             $engineSource.Contains('Dispatch = CombatDispatchEvidence.From(') -and
             $combatValidatorSource.Contains("'memoryQueued','playerGroupMemoryContainsTarget','targetGroupMemoryContainsRider'") -and
+            $combatValidatorSource.Contains("'targetAwake'") -and
             $combatValidatorSource.Contains("'defaultGameMode','memoryRemovedAtCleanup'") -and
             $combatValidatorSource.Contains("'unpausedForRealTime','pausedAtClick','riderCanActInCombat','riderHandsBusy'") -and
             $combatValidatorSource.Contains("'equipmentControllerAvailable','equipmentUpdateScheduled','pauseRestored'") -and
@@ -4270,12 +4288,16 @@ try {
             $engineSource.Contains('IsNativeAcMissReason(ruleProbe.LastAttackResult)') -and
             $combatValidatorSource.Contains("'lastAttackHit'") -and
             $combatValidatorSource.Contains("`$record.rules.lastAttackHit -ne `$false") -and
-            $combatValidatorSource.Contains("@('Miss','DodgeAC','ArmorAC','ShieldAC')")) 'schema-v6/v7 combat evidence does not bind native IsHit, exact AC-selected miss reasons, combat entry, terminal reason, memory cleanup, mode-specific dispatch, rider-turn identity, and restoration'
+            $combatValidatorSource.Contains("@('Miss','DodgeAC','ArmorAC','ShieldAC')") -and
+            $combatValidatorSource.Contains("'sleeplessBefore','sleeplessLeaseAcquired'") -and
+            $combatValidatorSource.Contains("'sleeplessLeaseReleased'")) 'schema-v8/v9 combat evidence does not bind native IsHit, exact AC-selected miss reasons, target wake lease, combat entry, terminal reason, memory cleanup, mode-specific dispatch, rider-turn identity, and restoration'
         foreach ($field in @('TargetEntityRemoved','RuntimeGroupRemoved','RuntimeFactionRemoved')) {
             $jsonField = [char]::ToLowerInvariant($field[0]) + $field.Substring(1)
             Assert-Test ($engineSource.Contains("$field =") -and
                 $combatValidatorSource.Contains("'$jsonField'")) "combat cleanup evidence does not bind exact $field state"
         }
+        Assert-Test ($engineSource.Contains('SleeplessLeaseReleased = targetSleeplessLeaseReleased') -and
+            $combatValidatorSource.Contains("'sleeplessLeaseReleased'")) 'combat cleanup evidence does not bind exact target sleepless-lease restoration'
         Assert-Test ($engineSource.Contains('TargetProvisioning = targetProvisioning ?? new CombatTargetProvisioningEvidence()') -and
             $combatValidatorSource.Contains("'targetProvisioning'") -and
             $combatValidatorSource.Contains("'noWeaponProvisioningMutation'") -and
@@ -4308,7 +4330,7 @@ try {
     $turnBasedManifest = Read-KmcJson (Join-Path $turnBasedRequest.evidenceRoot 'runtime-artifacts.json')
     $turnBasedSubresult = [ordered]@{name=$turnBasedRequest.scenario;status='PASS';assertionPassCount=25;assertionFailCount=0;errors=@()}
 
-    Invoke-HarnessTest 'runtime request and schema-v7 evidence accept exact native stationary rider turn' {
+    Invoke-HarnessTest 'runtime request and schema-v9 evidence accept exact native stationary rider turn' {
         & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $turnBasedRequestPath
         Assert-KmcCombatScenarioEvidence -Request $turnBasedRequest -Manifest $turnBasedManifest -Status 'PASS' -SubscenarioResults @($turnBasedSubresult)
     }
@@ -4342,6 +4364,7 @@ try {
     Invoke-HarnessTest 'historical schema-v4 and schema-v5 combat evidence remain valid' {
         $legacyRealTime = Copy-TestJsonValue $combatRecord
         $legacyRealTime.schemaVersion = 4
+        Remove-TestCombatWakeLeaseFields $legacyRealTime
         $legacyRealTime.rules.PSObject.Properties.Remove('lastAttackHit')
         [void](Write-TestCombatEvidence -EvidenceRoot $combatRequest.evidenceRoot -Request $combatRequest -Record $legacyRealTime)
         $legacyRealTimeManifest = Read-KmcJson (Join-Path $combatRequest.evidenceRoot 'runtime-artifacts.json')
@@ -4349,7 +4372,24 @@ try {
 
         $legacyTurnBased = Copy-TestJsonValue $turnBasedRecord
         $legacyTurnBased.schemaVersion = 5
+        Remove-TestCombatWakeLeaseFields $legacyTurnBased
         $legacyTurnBased.rules.PSObject.Properties.Remove('lastAttackHit')
+        [void](Write-TestCombatEvidence -EvidenceRoot $turnBasedRequest.evidenceRoot -Request $turnBasedRequest -Record $legacyTurnBased)
+        $legacyTurnBasedManifest = Read-KmcJson (Join-Path $turnBasedRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $turnBasedRequest -Manifest $legacyTurnBasedManifest -Status 'PASS' -SubscenarioResults @($turnBasedSubresult)
+    }
+
+    Invoke-HarnessTest 'historical schema-v6 and schema-v7 combat evidence remain valid' {
+        $legacyRealTime = Copy-TestJsonValue $combatRecord
+        $legacyRealTime.schemaVersion = 6
+        Remove-TestCombatWakeLeaseFields $legacyRealTime
+        [void](Write-TestCombatEvidence -EvidenceRoot $combatRequest.evidenceRoot -Request $combatRequest -Record $legacyRealTime)
+        $legacyRealTimeManifest = Read-KmcJson (Join-Path $combatRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $combatRequest -Manifest $legacyRealTimeManifest -Status 'PASS' -SubscenarioResults @($combatSubresult)
+
+        $legacyTurnBased = Copy-TestJsonValue $turnBasedRecord
+        $legacyTurnBased.schemaVersion = 7
+        Remove-TestCombatWakeLeaseFields $legacyTurnBased
         [void](Write-TestCombatEvidence -EvidenceRoot $turnBasedRequest.evidenceRoot -Request $turnBasedRequest -Record $legacyTurnBased)
         $legacyTurnBasedManifest = Read-KmcJson (Join-Path $turnBasedRequest.evidenceRoot 'runtime-artifacts.json')
         Assert-KmcCombatScenarioEvidence -Request $turnBasedRequest -Manifest $legacyTurnBasedManifest -Status 'PASS' -SubscenarioResults @($turnBasedSubresult)
@@ -4384,7 +4424,7 @@ try {
         }
     }
 
-    Invoke-HarnessTest 'schema-v7 preserves a structured pre-combat turn-based FAIL' {
+    Invoke-HarnessTest 'schema-v9 preserves a structured pre-combat turn-based FAIL' {
         $failureRecord = Copy-TestJsonValue $turnBasedRecord
         $failureRecord.status = 'FAIL'
         $failureRecord.assertionPassCount = 10
@@ -4447,6 +4487,7 @@ try {
     Invoke-HarnessTest 'combat validator retains non-qualifying schema-v1 evidence compatibility' {
         $legacyRecord = Copy-TestJsonValue $combatRecord
         $legacyRecord.schemaVersion = 1
+        Remove-TestCombatWakeLeaseFields $legacyRecord
         $legacyRecord.PSObject.Properties.Remove('combatEntry')
         $legacyRecord.PSObject.Properties.Remove('dispatch')
         [void](Write-TestCombatEvidence -EvidenceRoot $combatRequest.evidenceRoot -Request $combatRequest -Record $legacyRecord)
@@ -4457,6 +4498,7 @@ try {
     Invoke-HarnessTest 'combat validator retains non-qualifying schema-v2 evidence compatibility' {
         $legacyRecord = Copy-TestJsonValue $combatRecord
         $legacyRecord.schemaVersion = 2
+        Remove-TestCombatWakeLeaseFields $legacyRecord
         $legacyRecord.PSObject.Properties.Remove('combatEntry')
         [void](Write-TestCombatEvidence -EvidenceRoot $combatRequest.evidenceRoot -Request $combatRequest -Record $legacyRecord)
         $legacyManifest = Read-KmcJson (Join-Path $combatRequest.evidenceRoot 'runtime-artifacts.json')
@@ -4466,6 +4508,7 @@ try {
     Invoke-HarnessTest 'combat validator retains non-qualifying schema-v3 evidence compatibility' {
         $legacyRecord = Copy-TestJsonValue $combatRecord
         $legacyRecord.schemaVersion = 3
+        Remove-TestCombatWakeLeaseFields $legacyRecord
         $legacyRecord.command.PSObject.Properties.Remove('terminalReason')
         [void](Write-TestCombatEvidence -EvidenceRoot $combatRequest.evidenceRoot -Request $combatRequest -Record $legacyRecord)
         $legacyManifest = Read-KmcJson (Join-Path $combatRequest.evidenceRoot 'runtime-artifacts.json')
@@ -4484,6 +4527,7 @@ try {
             @{name='player memory absent';apply={param($value) $value.combatEntry.playerGroupMemoryContainsTarget=$false}},
             @{name='target memory absent';apply={param($value) $value.combatEntry.targetGroupMemoryContainsRider=$false}},
             @{name='native combat absent';apply={param($value) $value.combatEntry.targetInCombat=$false}},
+            @{name='target not awake';apply={param($value) $value.combatEntry.targetAwake=$false}},
             @{name='initiative unprepared';apply={param($value) $value.combatEntry.riderPrepared=$false}},
             @{name='initiative pending';apply={param($value) $value.combatEntry.riderInitiative=1.0}},
             @{name='game delta stopped';apply={param($value) $value.combatEntry.gameDeltaTime=0.0}},
@@ -4510,10 +4554,15 @@ try {
             @{name='target native type';apply={param($value) $value.targetProvisioning.targetNativeSingleAttackWeaponIsNatural=$false}},
             @{name='target weapon mutation';apply={param($value) $value.targetProvisioning.additionalLimbCountAfter=1;$value.targetProvisioning.noWeaponProvisioningMutation=$false}},
             @{name='target provisioning loot';apply={param($value) $value.targetProvisioning.noLoot=$false}},
+            @{name='target unexpectedly sleepless before lease';apply={param($value) $value.targetProvisioning.sleeplessBefore=$true}},
+            @{name='target sleepless lease absent';apply={param($value) $value.targetProvisioning.sleeplessLeaseAcquired=$false}},
+            @{name='target sleepless lease coercion';apply={param($value) $value.targetProvisioning.sleeplessLeaseAcquired='true'}},
             @{name='target residue';apply={param($value) $value.cleanup.targetRemoved=$false}},
             @{name='target entity residue';apply={param($value) $value.cleanup.targetEntityRemoved=$false}},
             @{name='target group residue';apply={param($value) $value.cleanup.runtimeGroupRemoved=$false}},
-            @{name='target faction residue';apply={param($value) $value.cleanup.runtimeFactionRemoved=$false}}
+            @{name='target faction residue';apply={param($value) $value.cleanup.runtimeFactionRemoved=$false}},
+            @{name='target sleepless lease residue';apply={param($value) $value.cleanup.sleeplessLeaseReleased=$false}},
+            @{name='target sleepless cleanup coercion';apply={param($value) $value.cleanup.sleeplessLeaseReleased='true'}}
         )
         foreach ($mutation in $mutations) {
             $candidate = Copy-TestJsonValue $combatRecord
