@@ -27,6 +27,10 @@ namespace KingmakerMountedCombat.Diagnostics
         private UnitGroup runtimeGroup;
         private string runtimeGroupId;
         private UnitEntityData target;
+        private UnitEntityData combatMemoryObserver;
+        private UnitEntityData combatMemoryTarget;
+        private bool combatMemoryQueued;
+        private bool combatMemoryRemoved = true;
         private bool runtimeFactionDestroyPending;
         private bool disposed;
 
@@ -86,6 +90,18 @@ namespace KingmakerMountedCombat.Diagnostics
         public bool RuntimeGroupRemoved => runtimeGroup == null && string.IsNullOrEmpty(runtimeGroupId);
 
         public bool RuntimeFactionRemoved => runtimeFaction == null && !runtimeFactionDestroyPending;
+
+        public bool CombatMemoryQueued => combatMemoryQueued;
+
+        public bool PlayerGroupMemoryContainsTarget =>
+            combatMemoryObserver != null && combatMemoryTarget != null &&
+            combatMemoryObserver.Memory.Contains(combatMemoryTarget);
+
+        public bool TargetGroupMemoryContainsRider =>
+            combatMemoryObserver != null && combatMemoryTarget != null &&
+            combatMemoryTarget.Memory.Contains(combatMemoryObserver);
+
+        public bool CombatMemoryRemoved => combatMemoryRemoved;
 
         public UnitEntityData Spawn(
             UnitEntityData rider,
@@ -253,7 +269,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         public bool DestroyAndVerify()
         {
-            if (TargetEntityRemoved && RuntimeGroupRemoved && RuntimeFactionRemoved)
+            if (TargetEntityRemoved && RuntimeGroupRemoved && RuntimeFactionRemoved && CombatMemoryRemoved)
             {
                 return State == DiagnosticCombatTargetState.Absent ||
                     State == DiagnosticCombatTargetState.Removed;
@@ -286,6 +302,33 @@ namespace KingmakerMountedCombat.Diagnostics
             return TargetFogOfWarCleared && TargetViewVisible && TargetVisibleForPlayer;
         }
 
+        public bool QueueBidirectionalCombatMemory(UnitEntityData rider, UnitEntityData expectedTarget)
+        {
+            ThrowIfDisposed();
+            if (combatMemoryQueued || rider == null || expectedTarget == null || expectedTarget != target ||
+                State != DiagnosticCombatTargetState.Active || !rider.IsInState || !target.IsInState ||
+                rider.Group == null || target.Group == null || rider.Group == target.Group ||
+                !rider.IsEnemy(target) || !target.IsEnemy(rider) ||
+                !TargetFogOfWarCleared || !TargetViewVisible || !TargetVisibleForPlayer)
+            {
+                return false;
+            }
+
+            var memoryController = Game.Instance?.UnitMemoryController;
+            if (memoryController == null)
+            {
+                return false;
+            }
+
+            combatMemoryObserver = rider;
+            combatMemoryTarget = target;
+            combatMemoryRemoved = false;
+            memoryController.AddToMemory(rider, target);
+            memoryController.AddToMemory(target, rider);
+            combatMemoryQueued = true;
+            return true;
+        }
+
         public void Dispose()
         {
             if (disposed)
@@ -302,6 +345,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool BestEffortDestroy()
         {
             var current = target;
+            var combatMemoryClean = RemoveCombatMemory();
             if (current != null)
             {
                 current.Commands.InterruptAll();
@@ -327,7 +371,30 @@ namespace KingmakerMountedCombat.Diagnostics
                 runtimeFaction = null;
                 runtimeFactionDestroyPending = false;
             }
-            return targetRemoved && groupRemoved && RuntimeFactionRemoved;
+            return targetRemoved && groupRemoved && RuntimeFactionRemoved && combatMemoryClean;
+        }
+
+        private bool RemoveCombatMemory()
+        {
+            if (combatMemoryRemoved)
+            {
+                return true;
+            }
+            if (combatMemoryObserver == null || combatMemoryTarget == null)
+            {
+                return false;
+            }
+
+            combatMemoryObserver.Memory.Remove(combatMemoryTarget);
+            combatMemoryTarget.Memory.Remove(combatMemoryObserver);
+            combatMemoryRemoved = !combatMemoryObserver.Memory.Contains(combatMemoryTarget) &&
+                !combatMemoryTarget.Memory.Contains(combatMemoryObserver);
+            if (combatMemoryRemoved)
+            {
+                combatMemoryObserver = null;
+                combatMemoryTarget = null;
+            }
+            return combatMemoryRemoved;
         }
 
         private bool ReleaseRuntimeGroup()

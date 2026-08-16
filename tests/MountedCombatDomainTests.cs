@@ -34,6 +34,8 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("diagnostic combat click safety reports exact visibility and weapon failures", CombatClickSafetyReportsExactFailures);
             runner.Run("diagnostic combat dispatch requires every native real-time start gate", CombatDispatchRequiresEveryStartGate);
             runner.Run("diagnostic combat dispatch reports exact paused initiative and equipment gates", CombatDispatchReportsExactFailures);
+            runner.Run("diagnostic combat entry requires native memory preparation and group combat", CombatEntryRequiresNativeMemoryAndCombat);
+            runner.Run("diagnostic combat entry reports exact memory combat and time failures", CombatEntryReportsExactFailures);
         }
 
         private static void RiderMeleeOwnership()
@@ -327,6 +329,31 @@ namespace KingmakerMountedCombat.Tests
                 "Diagnostic dispatch failures were not reported in exact gate order.");
             TestRunner.True(snapshot.RiderHandsBusy && snapshot.EquipmentUpdateScheduled,
                 "Failed dispatch gates were not preserved as exact observed states.");
+        }
+
+        private static void CombatEntryRequiresNativeMemoryAndCombat()
+        {
+            var snapshot = new DiagnosticCombatEntryReadinessSnapshot(
+                true, true, true, true, true, true, true, true, true, true, 0f, 0.01f);
+            TestRunner.True(snapshot.AllPassed, "A native-memory-backed Default-mode combat entry was rejected.");
+            TestRunner.True(snapshot.MemoryQueued && snapshot.PlayerGroupMemoryContainsTarget &&
+                    snapshot.TargetGroupMemoryContainsRider && snapshot.RiderInCombat && snapshot.MountInCombat &&
+                    snapshot.TargetInCombat && snapshot.PlayerInCombat && snapshot.RiderPrepared && snapshot.RiderAwake &&
+                    snapshot.DefaultGameMode && snapshot.RiderInitiative == 0f && snapshot.GameDeltaTime > 0f,
+                "An all-pass combat-entry snapshot changed its exact observed state.");
+        }
+
+        private static void CombatEntryReportsExactFailures()
+        {
+            var snapshot = new DiagnosticCombatEntryReadinessSnapshot(
+                true, false, false, true, false, false, false, false, false, false, 6f, 0f);
+            TestRunner.True(!snapshot.AllPassed, "A combat entry without memory, group combat, preparation, or game time passed.");
+            TestRunner.Equal(
+                "player-memory-contains-target,target-memory-contains-rider,mount-in-combat,target-in-combat,player-in-combat,rider-initiative-prepared,rider-awake,default-game-mode,positive-game-delta",
+                snapshot.FailureSummary,
+                "Combat-entry failures were not reported in exact gate order.");
+            TestRunner.True(snapshot.RiderInitiative == 6f && snapshot.GameDeltaTime == 0f,
+                "Failed combat-entry timing evidence was not preserved exactly.");
         }
 
         private static MountedCombatTransaction TargetedTransaction(bool requiresApproach)

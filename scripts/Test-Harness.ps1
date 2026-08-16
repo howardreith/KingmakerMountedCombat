@@ -1072,7 +1072,7 @@ function New-TestCombatEvidenceRecord {
     $mount = 'combat-mount'
     $target = 'combat-target'
     return [ordered]@{
-        schemaVersion=2;artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
+        schemaVersion=3;artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
         scenario=[string]$Request.scenario;row=[string]$Request.scenario;rowIndex=0;sequence=0;frame=30
         utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o');branch=[string]$Request.branch
         commit=[string]$Request.commit;productVersion=[string]$Request.productVersion
@@ -1092,6 +1092,12 @@ function New-TestCombatEvidenceRecord {
         riderPositionAtClick=[ordered]@{x=0.0;y=0.0;z=0.0}
         mountPositionAtClick=[ordered]@{x=0.1;y=0.0;z=0.0}
         targetPositionAtClick=[ordered]@{x=4.0;y=0.0;z=0.0}
+        combatEntry=[ordered]@{
+            memoryQueued=$true;playerGroupMemoryContainsTarget=$true;targetGroupMemoryContainsRider=$true
+            riderInCombat=$true;mountInCombat=$true;targetInCombat=$true;playerInCombat=$true
+            riderPrepared=$true;riderAwake=$true;defaultGameMode=$true;riderInitiative=0.0;gameDeltaTime=0.01
+            memoryRemovedAtCleanup=$true
+        }
         dispatch=[ordered]@{
             originalPaused=$true;unpausedForRealTime=$true;pausedAtClick=$false;riderCanActInCombat=$true
             riderHandsBusy=$false;equipmentControllerAvailable=$true;equipmentUpdateScheduled=$false;pauseRestored=$true
@@ -4079,6 +4085,10 @@ try {
             $targetSource.Contains('target.IsInFogOfWar = false;') -and
             $targetSource.Contains('target.View.SetVisible(true, true);') -and
             $targetSource.Contains('TargetVisibleForPlayer = target.IsVisibleForPlayer;')) 'diagnostic player-click visibility is not exact-target-only, explicit, and independently verified'
+        Assert-Test ($targetSource.Contains('memoryController.AddToMemory(rider, target);') -and
+            $targetSource.Contains('memoryController.AddToMemory(target, rider);') -and
+            $targetSource.Contains('combatMemoryObserver.Memory.Remove(combatMemoryTarget);') -and
+            $targetSource.Contains('combatMemoryTarget.Memory.Remove(combatMemoryObserver);')) 'diagnostic target does not own an exact native bidirectional combat-memory lease with symmetric cleanup'
         Assert-Test ($targetSource.Contains('var blueprintPrimary = blueprint.Body?.EmptyHandWeapon;') -and
             $targetSource.Contains('var nativePrimary = NativeSingleAttackWeaponResolver.Resolve(target);') -and
             $targetSource.Contains('NoWeaponProvisioningMutation = AdditionalLimbCountAfter == AdditionalLimbCountBefore') -and
@@ -4119,21 +4129,29 @@ try {
         Assert-Test ($controllerSource.Contains('!relationship.Rider.Commands.Contains(command) &&') -and
             $controllerSource.Contains('!relationship.Rider.Commands.Queue.Contains(command)')) 'combat click accepts a command that native UnitCommands neither owns nor queues'
         $pauseCaptureIndex = $engineSource.IndexOf('originalPause = Game.Instance.IsPaused;', [StringComparison]::Ordinal)
-        $combatJoinIndex = $engineSource.IndexOf('target.JoinCombat();', [StringComparison]::Ordinal)
-        $realTimeUnpauseIndex = $engineSource.IndexOf('Game.Instance.IsPaused = false;', [StringComparison]::Ordinal)
+        $memoryQueueIndex = $engineSource.IndexOf('targetService.QueueBidirectionalCombatMemory(rider, target)', [StringComparison]::Ordinal)
+        $realTimeUnpauseIndex = $engineSource.IndexOf('game.IsPaused = false;', [StringComparison]::Ordinal)
+        $nativeEntryIndex = $engineSource.IndexOf('new DiagnosticCombatEntryReadinessSnapshot(', [StringComparison]::Ordinal)
         $nativeDispatchIndex = $engineSource.IndexOf('new DiagnosticCombatDispatchReadinessSnapshot(', [StringComparison]::Ordinal)
         $nativeClickAfterPauseIndex = $engineSource.IndexOf('new ClickUnitHandler().OnClick(', [StringComparison]::Ordinal)
-        Assert-Test ($pauseCaptureIndex -ge 0 -and $combatJoinIndex -gt $pauseCaptureIndex -and
-            $realTimeUnpauseIndex -gt $combatJoinIndex -and $nativeDispatchIndex -gt $realTimeUnpauseIndex -and
+        Assert-Test ($pauseCaptureIndex -ge 0 -and $memoryQueueIndex -gt $pauseCaptureIndex -and
+            $realTimeUnpauseIndex -gt $memoryQueueIndex -and $nativeEntryIndex -gt $realTimeUnpauseIndex -and
+            $nativeDispatchIndex -gt $nativeEntryIndex -and
             $nativeClickAfterPauseIndex -gt $nativeDispatchIndex -and
             $engineSource.Contains('if (!dispatchReadiness.AllPassed)') -and
-            $engineSource.Contains('RestorePause();')) 'real-time combat does not lease, unpause after combat auto-pause, await native readiness, and restore exact pause state'
+            $engineSource.Contains('RestorePause();') -and
+            -not $engineSource.Contains('target.JoinCombat();') -and
+            -not $engineSource.Contains('rider.JoinCombat();') -and
+            -not $engineSource.Contains('mount.JoinCombat();')) 'real-time combat does not lease native memory, await native combat entry, unpause, await exact dispatch readiness, and restore pause without manual JoinCombat'
         Assert-Test ($engineSource.Contains('CleanupTimeoutSeconds = 10.0d') -and
             $engineSource.Contains('rowClock.Elapsed.TotalSeconds - cleanupStartedAtSeconds < CleanupTimeoutSeconds')) 'combat cleanup does not retain an independent bounded drain after a row deadline'
-        Assert-Test ($engineSource.Contains('SchemaVersion = 2') -and
+        Assert-Test ($engineSource.Contains('SchemaVersion = 3') -and
+            $engineSource.Contains('CombatEntry = CombatEntryEvidence.From(') -and
             $engineSource.Contains('Dispatch = CombatDispatchEvidence.From(') -and
+            $combatValidatorSource.Contains("'memoryQueued','playerGroupMemoryContainsTarget','targetGroupMemoryContainsRider'") -and
+            $combatValidatorSource.Contains("'defaultGameMode','memoryRemovedAtCleanup'") -and
             $combatValidatorSource.Contains("'unpausedForRealTime','pausedAtClick','riderCanActInCombat','riderHandsBusy'") -and
-            $combatValidatorSource.Contains("'equipmentControllerAvailable','equipmentUpdateScheduled','pauseRestored'")) 'schema-v2 combat evidence does not bind exact real-time dispatch and pause restoration'
+            $combatValidatorSource.Contains("'equipmentControllerAvailable','equipmentUpdateScheduled','pauseRestored'")) 'schema-v3 combat evidence does not bind native combat entry, memory cleanup, real-time dispatch, and pause restoration'
         foreach ($field in @('TargetEntityRemoved','RuntimeGroupRemoved','RuntimeFactionRemoved')) {
             $jsonField = [char]::ToLowerInvariant($field[0]) + $field.Substring(1)
             Assert-Test ($engineSource.Contains("$field =") -and
@@ -4163,7 +4181,17 @@ try {
     Invoke-HarnessTest 'combat validator retains non-qualifying schema-v1 evidence compatibility' {
         $legacyRecord = Copy-TestJsonValue $combatRecord
         $legacyRecord.schemaVersion = 1
+        $legacyRecord.PSObject.Properties.Remove('combatEntry')
         $legacyRecord.PSObject.Properties.Remove('dispatch')
+        [void](Write-TestCombatEvidence -EvidenceRoot $combatRequest.evidenceRoot -Request $combatRequest -Record $legacyRecord)
+        $legacyManifest = Read-KmcJson (Join-Path $combatRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $combatRequest -Manifest $legacyManifest -Status 'FAIL'
+    }
+
+    Invoke-HarnessTest 'combat validator retains non-qualifying schema-v2 evidence compatibility' {
+        $legacyRecord = Copy-TestJsonValue $combatRecord
+        $legacyRecord.schemaVersion = 2
+        $legacyRecord.PSObject.Properties.Remove('combatEntry')
         [void](Write-TestCombatEvidence -EvidenceRoot $combatRequest.evidenceRoot -Request $combatRequest -Record $legacyRecord)
         $legacyManifest = Read-KmcJson (Join-Path $combatRequest.evidenceRoot 'runtime-artifacts.json')
         Assert-KmcCombatScenarioEvidence -Request $combatRequest -Manifest $legacyManifest -Status 'FAIL'
@@ -4175,6 +4203,14 @@ try {
             @{name='duplicate damage';apply={param($value) $value.rules.damageRuleCount=2}},
             @{name='unexpected pair attack';apply={param($value) $value.rules.unexpectedPairAttackCount=1}},
             @{name='wrong command actor';apply={param($value) $value.command.actorId='combat-mount'}},
+            @{name='memory not queued';apply={param($value) $value.combatEntry.memoryQueued=$false}},
+            @{name='player memory absent';apply={param($value) $value.combatEntry.playerGroupMemoryContainsTarget=$false}},
+            @{name='target memory absent';apply={param($value) $value.combatEntry.targetGroupMemoryContainsRider=$false}},
+            @{name='native combat absent';apply={param($value) $value.combatEntry.targetInCombat=$false}},
+            @{name='initiative unprepared';apply={param($value) $value.combatEntry.riderPrepared=$false}},
+            @{name='initiative pending';apply={param($value) $value.combatEntry.riderInitiative=1.0}},
+            @{name='game delta stopped';apply={param($value) $value.combatEntry.gameDeltaTime=0.0}},
+            @{name='memory cleanup residue';apply={param($value) $value.combatEntry.memoryRemovedAtCleanup=$false}},
             @{name='dispatch stayed paused';apply={param($value) $value.dispatch.pausedAtClick=$true}},
             @{name='dispatch initiative unavailable';apply={param($value) $value.dispatch.riderCanActInCombat=$false}},
             @{name='dispatch hands busy';apply={param($value) $value.dispatch.riderHandsBusy=$true}},

@@ -223,4 +223,88 @@ namespace KingmakerMountedCombat.Domain
             }
         }
     }
+
+    public sealed class DiagnosticCombatEntryReadinessSnapshot
+    {
+        private readonly string[] failedGateNames;
+
+        public DiagnosticCombatEntryReadinessSnapshot(
+            bool memoryQueued,
+            bool playerGroupMemoryContainsTarget,
+            bool targetGroupMemoryContainsRider,
+            bool riderInCombat,
+            bool mountInCombat,
+            bool targetInCombat,
+            bool playerInCombat,
+            bool riderPrepared,
+            bool riderAwake,
+            bool defaultGameMode,
+            float riderInitiative,
+            float gameDeltaTime)
+        {
+            MemoryQueued = memoryQueued;
+            PlayerGroupMemoryContainsTarget = playerGroupMemoryContainsTarget;
+            TargetGroupMemoryContainsRider = targetGroupMemoryContainsRider;
+            RiderInCombat = riderInCombat;
+            MountInCombat = mountInCombat;
+            TargetInCombat = targetInCombat;
+            PlayerInCombat = playerInCombat;
+            RiderPrepared = riderPrepared;
+            RiderAwake = riderAwake;
+            DefaultGameMode = defaultGameMode;
+            RiderInitiative = riderInitiative;
+            GameDeltaTime = gameDeltaTime;
+            var failures = new List<string>();
+            AddFailure(failures, memoryQueued, "combat-memory-queued");
+            AddFailure(failures, playerGroupMemoryContainsTarget, "player-memory-contains-target");
+            AddFailure(failures, targetGroupMemoryContainsRider, "target-memory-contains-rider");
+            AddFailure(failures, riderInCombat, "rider-in-combat");
+            AddFailure(failures, mountInCombat, "mount-in-combat");
+            AddFailure(failures, targetInCombat, "target-in-combat");
+            AddFailure(failures, playerInCombat, "player-in-combat");
+            AddFailure(failures, riderPrepared, "rider-initiative-prepared");
+            AddFailure(failures, riderAwake, "rider-awake");
+            AddFailure(failures, defaultGameMode, "default-game-mode");
+            AddFailure(failures, gameDeltaTime > 0f, "positive-game-delta");
+            failedGateNames = failures.ToArray();
+        }
+
+        public bool MemoryQueued { get; }
+
+        public bool PlayerGroupMemoryContainsTarget { get; }
+
+        public bool TargetGroupMemoryContainsRider { get; }
+
+        public bool RiderInCombat { get; }
+
+        public bool MountInCombat { get; }
+
+        public bool TargetInCombat { get; }
+
+        public bool PlayerInCombat { get; }
+
+        public bool RiderPrepared { get; }
+
+        public bool RiderAwake { get; }
+
+        public bool DefaultGameMode { get; }
+
+        public float RiderInitiative { get; }
+
+        public float GameDeltaTime { get; }
+
+        public bool AllPassed => failedGateNames.Length == 0;
+
+        public string[] FailedGateNames => (string[])failedGateNames.Clone();
+
+        public string FailureSummary => string.Join(",", failedGateNames);
+
+        private static void AddFailure(List<string> failures, bool passed, string name)
+        {
+            if (!passed)
+            {
+                failures.Add(name);
+            }
+        }
+    }
 }

@@ -7132,11 +7132,14 @@ function Assert-KmcCombatScenarioEvidence {
         'riderPositionAtClick','mountPositionAtClick','targetPositionAtClick','resources','command','rules',
         'movement','pose','cleanup','selection','assertionPassCount','assertionFailCount','errors')
     $combatSchemaVersionIsExact = Test-KmcExactJsonInteger $record.schemaVersion
-    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -eq 2) {
+    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -ge 2) {
         $recordFields = @($recordFields + 'dispatch')
     }
+    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -eq 3) {
+        $recordFields = @($recordFields + 'combatEntry')
+    }
     Assert-KmcExactProperties $record $recordFields 'combat evidence record'
-    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -notin @(1,2) -or
+    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -notin @(1,2,3) -or
         [string]$record.artifactKind -cne 'combat-scenario-evidence') {
         throw 'Combat evidence schemaVersion or artifactKind is not exact.'
     }
@@ -7174,12 +7177,25 @@ function Assert-KmcCombatScenarioEvidence {
             if (-not (Test-KmcJsonNumber $record.$positionName.$axis)) { throw "Combat $positionName.$axis is not numeric." }
         }
     }
-    if ([long]$record.schemaVersion -eq 2) {
+    if ([long]$record.schemaVersion -ge 2) {
         Assert-KmcExactProperties $record.dispatch @(
             'originalPaused','unpausedForRealTime','pausedAtClick','riderCanActInCombat','riderHandsBusy',
             'equipmentControllerAvailable','equipmentUpdateScheduled','pauseRestored') 'combat dispatch evidence'
         foreach ($name in $record.dispatch.PSObject.Properties.Name) {
             if ($record.dispatch.$name -isnot [bool]) { throw "Combat dispatch evidence is not Boolean: $name" }
+        }
+    }
+    if ([long]$record.schemaVersion -eq 3) {
+        $combatEntryBooleanFields = @(
+            'memoryQueued','playerGroupMemoryContainsTarget','targetGroupMemoryContainsRider',
+            'riderInCombat','mountInCombat','targetInCombat','playerInCombat','riderPrepared','riderAwake',
+            'defaultGameMode','memoryRemovedAtCleanup')
+        Assert-KmcExactProperties $record.combatEntry @($combatEntryBooleanFields + @('riderInitiative','gameDeltaTime')) 'combat entry evidence'
+        foreach ($name in $combatEntryBooleanFields) {
+            if ($record.combatEntry.$name -isnot [bool]) { throw "Combat entry evidence is not Boolean: $name" }
+        }
+        foreach ($name in @('riderInitiative','gameDeltaTime')) {
+            if (-not (Test-KmcJsonNumber $record.combatEntry.$name)) { throw "Combat entry evidence is not numeric: $name" }
         }
     }
     Assert-KmcExactProperties $record.resources @(
@@ -7206,10 +7222,10 @@ function Assert-KmcCombatScenarioEvidence {
 
     $requirePass = [string]$Status -ceq 'PASS'
     if ($requirePass) {
-        if ([long]$record.schemaVersion -ne 2 -or
+        if ([long]$record.schemaVersion -ne 3 -or
             [string]$record.status -cne 'PASS' -or [long]$record.assertionFailCount -ne 0 -or
             [long]$record.assertionPassCount -le 0 -or @($record.errors).Count -ne 0) {
-            throw 'PASS combat evidence does not contain an error-free schema-v2 PASS row.'
+            throw 'PASS combat evidence does not contain an error-free schema-v3 PASS row.'
         }
         if ([string]$record.row -cne 'mounted-rider-melee-hit-rt' -or
             [string]$record.mode -cne 'real-time' -or [string]$record.action -cne 'RiderMelee' -or
@@ -7225,6 +7241,21 @@ function Assert-KmcCombatScenarioEvidence {
             $record.dispatch.equipmentUpdateScheduled -ne $false -or
             $record.dispatch.pauseRestored -ne $true) {
             throw 'PASS combat evidence does not prove an unpaused native-ready dispatch and exact pause restoration.'
+        }
+        if ($record.combatEntry.memoryQueued -ne $true -or
+            $record.combatEntry.playerGroupMemoryContainsTarget -ne $true -or
+            $record.combatEntry.targetGroupMemoryContainsRider -ne $true -or
+            $record.combatEntry.riderInCombat -ne $true -or
+            $record.combatEntry.mountInCombat -ne $true -or
+            $record.combatEntry.targetInCombat -ne $true -or
+            $record.combatEntry.playerInCombat -ne $true -or
+            $record.combatEntry.riderPrepared -ne $true -or
+            $record.combatEntry.riderAwake -ne $true -or
+            $record.combatEntry.defaultGameMode -ne $true -or
+            [Math]::Abs([double]$record.combatEntry.riderInitiative) -gt 0.000001 -or
+            [double]$record.combatEntry.gameDeltaTime -le 0 -or
+            $record.combatEntry.memoryRemovedAtCleanup -ne $true) {
+            throw 'PASS combat evidence does not prove native bidirectional memory, combat preparation, live Default-mode time, and memory cleanup.'
         }
         if ([string]::IsNullOrWhiteSpace([string]$record.riderId) -or
             [string]::IsNullOrWhiteSpace([string]$record.mountId) -or

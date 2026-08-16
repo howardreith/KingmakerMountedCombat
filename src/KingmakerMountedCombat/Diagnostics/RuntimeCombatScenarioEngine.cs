@@ -8,6 +8,7 @@ using System.Text;
 using Kingmaker;
 using Kingmaker.Controllers.Clicks.Handlers;
 using Kingmaker.EntitySystem.Entities;
+using Kingmaker.GameModes;
 using Kingmaker.UI.Selection;
 using Kingmaker.View;
 using KingmakerMountedCombat.Domain;
@@ -90,6 +91,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool targetEntityRemoved;
         private bool targetRuntimeGroupRemoved;
         private bool targetRuntimeFactionRemoved;
+        private bool combatMemoryRemoved;
         private CombatTargetProvisioningEvidence targetProvisioning;
         private bool relationshipClean;
         private bool combatCleared;
@@ -107,6 +109,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool pauseRestored = true;
         private double cleanupStartedAtSeconds;
         private DiagnosticCombatDispatchReadinessSnapshot dispatchReadiness;
+        private DiagnosticCombatEntryReadinessSnapshot entryReadiness;
 
         public RuntimeCombatScenarioEngine(
             RuntimeRequest request,
@@ -349,25 +352,50 @@ namespace KingmakerMountedCombat.Diagnostics
             target.Commands.InterruptAll();
             target.HoldState = true;
 
-            target.JoinCombat();
-            rider.JoinCombat();
-            mount.JoinCombat();
+            assertions.Check(targetService.PrepareForPlayerClick(target),
+                "Runtime-only target was made exactly visible before native combat memory provisioning.");
+            assertions.Check(targetService.QueueBidirectionalCombatMemory(rider, target),
+                "Exact rider/target pair was queued through native bidirectional combat memory.");
+            if (assertions.FailureCount != 0)
+            {
+                BeginCleanup();
+                return;
+            }
             step = CombatEngineStep.AwaitCombatFrame;
         }
 
         private void IssueAttackWhenReady()
         {
-            if (!rider.IsInCombat || !mount.IsInCombat || !target.IsInCombat || !(Game.Instance?.Player?.IsInCombat ?? false))
+            var game = Game.Instance;
+            if (game == null)
             {
                 return;
             }
 
-            if (Game.Instance.IsPaused)
+            if (game.IsPaused)
             {
-                Game.Instance.IsPaused = false;
+                game.IsPaused = false;
             }
-            unpausedForRealTime = !Game.Instance.IsPaused;
-            var handsEquipment = Game.Instance.HandsEquipmentController;
+            unpausedForRealTime = !game.IsPaused;
+            entryReadiness = new DiagnosticCombatEntryReadinessSnapshot(
+                targetService != null && targetService.CombatMemoryQueued,
+                targetService != null && targetService.PlayerGroupMemoryContainsTarget,
+                targetService != null && targetService.TargetGroupMemoryContainsRider,
+                rider != null && rider.IsInCombat,
+                mount != null && mount.IsInCombat,
+                target != null && target.IsInCombat,
+                game.Player != null && game.Player.IsInCombat,
+                rider?.CombatState != null && rider.CombatState.Prepared,
+                rider != null && game.State?.AwakeUnits != null && game.State.AwakeUnits.Contains(rider),
+                game.CurrentMode == GameModeType.Default,
+                rider?.CombatState == null ? float.MaxValue : rider.CombatState.Cooldown.Initiative,
+                game.TimeController == null ? 0f : game.TimeController.GameDeltaTime);
+            if (!entryReadiness.AllPassed)
+            {
+                return;
+            }
+
+            var handsEquipment = game.HandsEquipmentController;
             dispatchReadiness = new DiagnosticCombatDispatchReadinessSnapshot(
                 unpausedForRealTime,
                 rider.CombatState.CanActInCombat,
@@ -381,6 +409,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
             assertions.Check(!CombatController.IsInTurnBasedCombat(),
                 "Combat remained real time at dispatch.");
+            assertions.Check(entryReadiness.AllPassed,
+                "Native memory, combat entry, initiative preparation, and Default-mode time remained exact at dispatch.");
             assertions.Check(dispatchReadiness.AllPassed,
                 "Real-time dispatch waited for unpaused initiative, hands, and equipment readiness.");
             assertions.Check(relationship.State == RelationshipState.Mounted,
@@ -628,7 +658,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var selected = SelectionManager.Instance?.SelectedUnits;
             var record = new CombatEvidenceRecord
             {
-                SchemaVersion = 2,
+                SchemaVersion = 3,
                 ArtifactKind = "combat-scenario-evidence",
                 RunId = request.RunId,
                 Scenario = request.Scenario,
@@ -656,6 +686,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 RiderPositionAtClick = PositionEvidence.From(riderPositionAtClick),
                 MountPositionAtClick = PositionEvidence.From(mountPositionAtClick),
                 TargetPositionAtClick = PositionEvidence.From(targetPositionAtClick),
+                CombatEntry = CombatEntryEvidence.From(entryReadiness, combatMemoryRemoved),
                 Dispatch = CombatDispatchEvidence.From(
                     originalPause,
                     unpausedForRealTime,
@@ -800,6 +831,7 @@ namespace KingmakerMountedCombat.Diagnostics
             targetEntityRemoved = targetService != null && targetService.TargetEntityRemoved;
             targetRuntimeGroupRemoved = targetService != null && targetService.RuntimeGroupRemoved;
             targetRuntimeFactionRemoved = targetService != null && targetService.RuntimeFactionRemoved;
+            combatMemoryRemoved = targetService != null && targetService.CombatMemoryRemoved;
         }
 
         private static void TryLeaveCombat(UnitEntityData unit)
@@ -845,7 +877,14 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (step == CombatEngineStep.AwaitCombatFrame)
             {
-                return "Dispatch readiness=" + (dispatchReadiness?.FailureSummary ?? "not-observed") +
+                return "Combat entry readiness=" + (entryReadiness?.FailureSummary ?? "not-observed") +
+                    ";riderInitiative=" + (entryReadiness == null
+                        ? "not-observed"
+                        : entryReadiness.RiderInitiative.ToString("R", CultureInfo.InvariantCulture)) +
+                    ";gameDeltaTime=" + (entryReadiness == null
+                        ? "not-observed"
+                        : entryReadiness.GameDeltaTime.ToString("R", CultureInfo.InvariantCulture)) +
+                    ";dispatchReadiness=" + (dispatchReadiness?.FailureSummary ?? "not-observed") +
                     ";gamePaused=" + (Game.Instance != null && Game.Instance.IsPaused);
             }
             return "Command readiness: " + combat.DescribeActiveCommandReadiness();
@@ -950,6 +989,7 @@ namespace KingmakerMountedCombat.Diagnostics
             public PositionEvidence RiderPositionAtClick { get; set; }
             public PositionEvidence MountPositionAtClick { get; set; }
             public PositionEvidence TargetPositionAtClick { get; set; }
+            public CombatEntryEvidence CombatEntry { get; set; }
             public CombatDispatchEvidence Dispatch { get; set; }
             public CombatResourceEvidence Resources { get; set; }
             public CombatCommandEvidence Command { get; set; }
@@ -961,6 +1001,45 @@ namespace KingmakerMountedCombat.Diagnostics
             public int AssertionPassCount { get; set; }
             public int AssertionFailCount { get; set; }
             public IReadOnlyList<string> Errors { get; set; }
+        }
+
+        private sealed class CombatEntryEvidence
+        {
+            public bool MemoryQueued { get; set; }
+            public bool PlayerGroupMemoryContainsTarget { get; set; }
+            public bool TargetGroupMemoryContainsRider { get; set; }
+            public bool RiderInCombat { get; set; }
+            public bool MountInCombat { get; set; }
+            public bool TargetInCombat { get; set; }
+            public bool PlayerInCombat { get; set; }
+            public bool RiderPrepared { get; set; }
+            public bool RiderAwake { get; set; }
+            public bool DefaultGameMode { get; set; }
+            public float RiderInitiative { get; set; }
+            public float GameDeltaTime { get; set; }
+            public bool MemoryRemovedAtCleanup { get; set; }
+
+            public static CombatEntryEvidence From(
+                DiagnosticCombatEntryReadinessSnapshot readiness,
+                bool memoryRemovedAtCleanup)
+            {
+                return new CombatEntryEvidence
+                {
+                    MemoryQueued = readiness?.MemoryQueued ?? false,
+                    PlayerGroupMemoryContainsTarget = readiness?.PlayerGroupMemoryContainsTarget ?? false,
+                    TargetGroupMemoryContainsRider = readiness?.TargetGroupMemoryContainsRider ?? false,
+                    RiderInCombat = readiness?.RiderInCombat ?? false,
+                    MountInCombat = readiness?.MountInCombat ?? false,
+                    TargetInCombat = readiness?.TargetInCombat ?? false,
+                    PlayerInCombat = readiness?.PlayerInCombat ?? false,
+                    RiderPrepared = readiness?.RiderPrepared ?? false,
+                    RiderAwake = readiness?.RiderAwake ?? false,
+                    DefaultGameMode = readiness?.DefaultGameMode ?? false,
+                    RiderInitiative = readiness?.RiderInitiative ?? float.MaxValue,
+                    GameDeltaTime = readiness?.GameDeltaTime ?? 0f,
+                    MemoryRemovedAtCleanup = memoryRemovedAtCleanup
+                };
+            }
         }
 
         private sealed class CombatDispatchEvidence
