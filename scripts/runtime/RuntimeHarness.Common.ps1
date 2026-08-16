@@ -7138,11 +7138,14 @@ function Assert-KmcCombatScenarioEvidence {
     if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -ge 3) {
         $recordFields = @($recordFields + 'combatEntry')
     }
-    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(5,7,9,11)) {
+    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -ge 12) {
+        $recordFields = @($recordFields + 'targetLife')
+    }
+    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(5,7,9,11,13)) {
         $recordFields = @($recordFields + 'turnBased')
     }
     Assert-KmcExactProperties $record $recordFields 'combat evidence record'
-    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -notin @(1,2,3,4,5,6,7,8,9,10,11) -or
+    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -notin @(1,2,3,4,5,6,7,8,9,10,11,12,13) -or
         [string]$record.artifactKind -cne 'combat-scenario-evidence') {
         throw 'Combat evidence schemaVersion or artifactKind is not exact.'
     }
@@ -7220,7 +7223,72 @@ function Assert-KmcCombatScenarioEvidence {
             }
         }
     }
-    if ([long]$record.schemaVersion -in @(5,7,9,11)) {
+    if ([long]$record.schemaVersion -ge 12) {
+        Assert-KmcExactProperties $record.targetLife @(
+            'immediatelyAfterCreation','atActivation','lastObserved','transitionCount','firstTransition') 'combat target life evidence'
+        $lifeSnapshotFields = @(
+            'observed','lifeState','conscious','dead','finallyDead','damage','nonLethalDamage',
+            'hitPoints','constitution','forceKill','markedForDeath')
+        $validateLifeSnapshot = {
+            param($snapshot, [string]$description)
+            Assert-KmcExactProperties $snapshot $lifeSnapshotFields $description
+            foreach ($name in @('observed','conscious','dead','finallyDead','forceKill','markedForDeath')) {
+                if ($snapshot.$name -isnot [bool]) { throw "$description is not Boolean: $name" }
+            }
+            foreach ($name in @('damage','nonLethalDamage','hitPoints','constitution')) {
+                if (-not (Test-KmcExactJsonInteger $snapshot.$name)) { throw "$description is not integral: $name" }
+            }
+            if ([long]$snapshot.damage -lt 0 -or [long]$snapshot.nonLethalDamage -lt 0) {
+                throw "$description contains negative damage."
+            }
+            if ($snapshot.observed -eq $true) {
+                if ($snapshot.lifeState -isnot [string] -or
+                    [string]$snapshot.lifeState -cnotin @('Conscious','Unconscious','Dead') -or
+                    $snapshot.conscious -ne ([string]$snapshot.lifeState -ceq 'Conscious') -or
+                    $snapshot.dead -ne ([string]$snapshot.lifeState -ceq 'Dead')) {
+                    throw "$description life-state projection is inconsistent."
+                }
+            }
+            elseif ($null -ne $snapshot.lifeState -or $snapshot.conscious -ne $false -or
+                $snapshot.dead -ne $false -or $snapshot.finallyDead -ne $false -or
+                [long]$snapshot.damage -ne 0 -or [long]$snapshot.nonLethalDamage -ne 0 -or
+                [long]$snapshot.hitPoints -ne 0 -or [long]$snapshot.constitution -ne 0 -or
+                $snapshot.forceKill -ne $false -or $snapshot.markedForDeath -ne $false) {
+                throw "$description unobserved sentinel is not exact."
+            }
+        }
+        foreach ($name in @('immediatelyAfterCreation','atActivation','lastObserved')) {
+            & $validateLifeSnapshot $record.targetLife.$name "combat target life $name"
+        }
+        if (-not (Test-KmcExactJsonInteger $record.targetLife.transitionCount) -or
+            [long]$record.targetLife.transitionCount -lt 0) {
+            throw 'Combat target life transition count is invalid.'
+        }
+        Assert-KmcExactProperties $record.targetLife.firstTransition @(
+            'observed','previousLifeState','currentLifeState','snapshot') 'combat target first life transition'
+        if ($record.targetLife.firstTransition.observed -isnot [bool]) {
+            throw 'Combat target first life transition observed flag is not Boolean.'
+        }
+        & $validateLifeSnapshot $record.targetLife.firstTransition.snapshot 'combat target first life transition snapshot'
+        if ([long]$record.targetLife.transitionCount -eq 0) {
+            if ($record.targetLife.firstTransition.observed -ne $false -or
+                $null -ne $record.targetLife.firstTransition.previousLifeState -or
+                $null -ne $record.targetLife.firstTransition.currentLifeState -or
+                $record.targetLife.firstTransition.snapshot.observed -ne $false) {
+                throw 'Combat target zero-transition sentinel is not exact.'
+            }
+        }
+        elseif ($record.targetLife.firstTransition.observed -ne $true -or
+            $record.targetLife.firstTransition.previousLifeState -isnot [string] -or
+            [string]$record.targetLife.firstTransition.previousLifeState -cnotin @('Conscious','Unconscious','Dead') -or
+            $record.targetLife.firstTransition.currentLifeState -isnot [string] -or
+            [string]$record.targetLife.firstTransition.currentLifeState -cnotin @('Conscious','Unconscious','Dead') -or
+            $record.targetLife.firstTransition.snapshot.observed -ne $true -or
+            [string]$record.targetLife.firstTransition.snapshot.lifeState -cne [string]$record.targetLife.firstTransition.currentLifeState) {
+            throw 'Combat target first life transition is inconsistent with its transition count.'
+        }
+    }
+    if ([long]$record.schemaVersion -in @(5,7,9,11,13)) {
         $turnBooleanFields = @(
             'requested','originalEnabled','temporaryEnabled','originalRawCacheHadValue','enabledAtMount',
             'controllerInitialized','rosterContainsRider','rosterContainsMount','rosterContainsTarget',
@@ -7285,7 +7353,7 @@ function Assert-KmcCombatScenarioEvidence {
     if ($requirePass) {
         $turnBasedScenario = [string]$Request.scenario -ceq 'mounted-rider-melee-hit-tb'
         $missScenario = [string]$Request.scenario -ceq 'mounted-rider-melee-miss-rt'
-        $expectedCombatSchemas = if ($missScenario) { @(6,8,10) } elseif ($turnBasedScenario) { @(5,7,9,11) } else { @(4,6,8,10) }
+        $expectedCombatSchemas = if ($missScenario) { @(6,8,10,12) } elseif ($turnBasedScenario) { @(5,7,9,11,13) } else { @(4,6,8,10,12) }
         if ([long]$record.schemaVersion -notin $expectedCombatSchemas -or
             [string]$record.status -cne 'PASS' -or [long]$record.assertionFailCount -ne 0 -or
             [long]$record.assertionPassCount -le 0 -or @($record.errors).Count -ne 0) {
@@ -7361,6 +7429,29 @@ function Assert-KmcCombatScenarioEvidence {
              $record.combatEntry.nativeJoin.riderNotInStealthAmbush -ne $true -or
              $record.combatEntry.nativeJoin.targetNotInStealthAmbush -ne $true)) {
             throw 'PASS combat evidence does not prove every exact native UnitCombatJoinController eligibility gate.'
+        }
+        if ([long]$record.schemaVersion -ge 12 -and
+            ($record.targetLife.immediatelyAfterCreation.observed -ne $true -or
+             [string]$record.targetLife.immediatelyAfterCreation.lifeState -cne 'Conscious' -or
+             $record.targetLife.immediatelyAfterCreation.conscious -ne $true -or
+             $record.targetLife.immediatelyAfterCreation.dead -ne $false -or
+             $record.targetLife.immediatelyAfterCreation.finallyDead -ne $false -or
+             $record.targetLife.immediatelyAfterCreation.forceKill -ne $false -or
+             $record.targetLife.immediatelyAfterCreation.markedForDeath -ne $false -or
+             $record.targetLife.atActivation.observed -ne $true -or
+             [string]$record.targetLife.atActivation.lifeState -cne 'Conscious' -or
+             $record.targetLife.atActivation.conscious -ne $true -or
+             $record.targetLife.atActivation.dead -ne $false -or
+             $record.targetLife.atActivation.finallyDead -ne $false -or
+             $record.targetLife.atActivation.forceKill -ne $false -or
+             $record.targetLife.atActivation.markedForDeath -ne $false -or
+             ($missScenario -and
+              ($record.targetLife.lastObserved.observed -ne $true -or
+               [string]$record.targetLife.lastObserved.lifeState -cne 'Conscious' -or
+               $record.targetLife.lastObserved.conscious -ne $true -or
+               [long]$record.targetLife.transitionCount -ne 0 -or
+               $record.targetLife.firstTransition.observed -ne $false)))) {
+            throw 'PASS combat evidence does not prove a conscious cleanly provisioned target and exact miss-row life stability.'
         }
         if ([string]::IsNullOrWhiteSpace([string]$record.riderId) -or
             [string]::IsNullOrWhiteSpace([string]$record.mountId) -or

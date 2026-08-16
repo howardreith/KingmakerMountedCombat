@@ -62,3 +62,8 @@ The exact installed Wrath reference assembly remains read-only. Its `SaddledUnit
 - Every scoped AI, command, movement, and turn lease restores on cleanup. Non-pair commands and non-mounted behavior remain stock.
 
 Qualification remains `IN PROGRESS` until deterministic tests plus two fresh-process real-time and turn-based passes prove exact resource deltas, turn identity, one attack roll, at most one damage event, cancellation, AI suppression, and non-mounted isolation.
+## Transient target life-state observation contract - 2026-08-16
+
+Fresh-process miss evidence isolated an intermittent pre-combat target consciousness failure while every retained group, hostility, memory, awake, fog, stealth, and ignored-by-combat gate remained exact. Installed Kingmaker authority is `UnitLifeController.TickOnUnit` token `0x06009162`; raw reads are `UnitState.LifeState` `0x06001F95`, `IsFinallyDead` `0x06001F9B`, `MarkedForDeath` `0x06001FA1`, `ForceKill` `0x06001FA3`, `IsConscious` `0x06001FA7`, `IsDead` `0x06001FA9`, and `UnitEntityData` damage/nonlethal/stats tokens `0x060082E6/0x060082E8/0x060082EC`. Native transition delivery remains `IUnitLifeStateChanged.HandleUnitLifeStateChanged` `0x06007620`.
+
+Schema v12 real-time and v13 turn-based evidence are observation-only. They capture exact target life projections immediately after native creation, at activation, at the last pre-cleanup observation, and on the first native transition. No life state, damage, HP, Constitution, death flag, combat membership, or save is written. A PASS requires a clean conscious creation and activation; a miss PASS additionally requires no life transition and a conscious last observation. Historical schemas v1-v11 remain valid under their original contracts.

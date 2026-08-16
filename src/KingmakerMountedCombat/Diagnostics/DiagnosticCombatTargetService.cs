@@ -8,12 +8,14 @@ using Kingmaker.EntitySystem.Entities;
 using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Integration;
 using KingmakerMountedCombat.Logging;
+using Kingmaker.PubSubSystem;
+using Kingmaker.UnitLogic;
 using Kingmaker.UnitLogic.Groups;
 using UnityEngine;
 
 namespace KingmakerMountedCombat.Diagnostics
 {
-    internal sealed class DiagnosticCombatTargetService : IDisposable
+    internal sealed class DiagnosticCombatTargetService : IUnitLifeStateChanged, IDisposable
     {
         private const float MinimumPlacementDistance = 3f;
         private const float MaximumPlacementDistance = 20f;
@@ -23,6 +25,7 @@ namespace KingmakerMountedCombat.Diagnostics
             BindingFlags.Instance | BindingFlags.NonPublic);
         private readonly IModLogger logger;
         private readonly DiagnosticCombatTargetLifecycle lifecycle = new DiagnosticCombatTargetLifecycle();
+        private readonly IDisposable lifeStateSubscription;
         private BlueprintFaction runtimeFaction;
         private UnitGroup runtimeGroup;
         private string runtimeGroupId;
@@ -84,9 +87,20 @@ namespace KingmakerMountedCombat.Diagnostics
 
         public bool TargetVisibleForPlayer { get; private set; }
 
+        public DiagnosticTargetLifeSnapshot LifeImmediatelyAfterCreation { get; private set; }
+
+        public DiagnosticTargetLifeSnapshot LifeAtActivation { get; private set; }
+
+        public DiagnosticTargetLifeSnapshot LastObservedLife { get; private set; }
+
+        public DiagnosticTargetLifeTransition FirstLifeTransition { get; private set; }
+
+        public int LifeTransitionCount { get; private set; }
+
         public DiagnosticCombatTargetService(IModLogger logger)
         {
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            lifeStateSubscription = EventBus.Subscribe(this);
         }
 
         public UnitEntityData Target => target;
@@ -188,6 +202,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     throw new InvalidOperationException("Diagnostic Mammoth target did not enter the exact loaded state.");
                 }
+                LifeImmediatelyAfterCreation = DiagnosticTargetLifeSnapshot.Capture(target);
+                LastObservedLife = LifeImmediatelyAfterCreation;
                 targetSleeplessBefore = target.Sleepless;
                 target.Sleepless = true;
                 targetSleeplessLeaseActive = target.Sleepless;
@@ -268,6 +284,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     throw new InvalidOperationException(
                         "Diagnostic target failed its exact transient safety gates: " + safety.FailureSummary + ".");
                 }
+
+                LifeAtActivation = DiagnosticTargetLifeSnapshot.Capture(target);
+                LastObservedLife = LifeAtActivation;
 
                 logger.Info("Created runtime-only diagnostic Mammoth target " + target.UniqueId + ".");
                 return target;
@@ -362,17 +381,52 @@ namespace KingmakerMountedCombat.Diagnostics
                 TryRefreshBidirectionalCombatMemoryLease();
         }
 
+        public void ObserveTargetLifeState()
+        {
+            ThrowIfDisposed();
+            if (target != null)
+            {
+                LastObservedLife = DiagnosticTargetLifeSnapshot.Capture(target);
+            }
+        }
+
+        public void HandleUnitLifeStateChanged(UnitEntityData unit, UnitLifeState prevLifeState)
+        {
+            if (disposed || unit == null || unit != target)
+            {
+                return;
+            }
+
+            var current = DiagnosticTargetLifeSnapshot.Capture(unit);
+            LifeTransitionCount++;
+            if (FirstLifeTransition == null)
+            {
+                FirstLifeTransition = new DiagnosticTargetLifeTransition(
+                    prevLifeState.ToString(),
+                    current.LifeState,
+                    current);
+            }
+            LastObservedLife = current;
+        }
+
         public void Dispose()
         {
             if (disposed)
             {
                 return;
             }
-            if (!DestroyAndVerify())
+            try
             {
-                throw new InvalidOperationException("Diagnostic target cleanup retained entity or faction residue.");
+                if (!DestroyAndVerify())
+                {
+                    throw new InvalidOperationException("Diagnostic target cleanup retained entity or faction residue.");
+                }
             }
-            disposed = true;
+            finally
+            {
+                lifeStateSubscription.Dispose();
+                disposed = true;
+            }
         }
 
         private bool BestEffortDestroy()
@@ -593,5 +647,74 @@ namespace KingmakerMountedCombat.Diagnostics
                 throw new ObjectDisposedException(nameof(DiagnosticCombatTargetService));
             }
         }
+    }
+
+    internal sealed class DiagnosticTargetLifeSnapshot
+    {
+        private DiagnosticTargetLifeSnapshot()
+        {
+        }
+
+        public string LifeState { get; private set; }
+
+        public bool Conscious { get; private set; }
+
+        public bool Dead { get; private set; }
+
+        public bool FinallyDead { get; private set; }
+
+        public int Damage { get; private set; }
+
+        public int NonLethalDamage { get; private set; }
+
+        public int HitPoints { get; private set; }
+
+        public int Constitution { get; private set; }
+
+        public bool ForceKill { get; private set; }
+
+        public bool MarkedForDeath { get; private set; }
+
+        public static DiagnosticTargetLifeSnapshot Capture(UnitEntityData unit)
+        {
+            var state = unit?.Descriptor?.State;
+            if (unit == null || state == null || unit.Stats == null)
+            {
+                return null;
+            }
+
+            return new DiagnosticTargetLifeSnapshot
+            {
+                LifeState = state.LifeState.ToString(),
+                Conscious = state.IsConscious,
+                Dead = state.IsDead,
+                FinallyDead = state.IsFinallyDead,
+                Damage = unit.Damage,
+                NonLethalDamage = unit.DamageNonLethal,
+                HitPoints = (int)unit.Stats.HitPoints,
+                Constitution = (int)unit.Stats.Constitution,
+                ForceKill = state.ForceKill,
+                MarkedForDeath = state.MarkedForDeath
+            };
+        }
+    }
+
+    internal sealed class DiagnosticTargetLifeTransition
+    {
+        public DiagnosticTargetLifeTransition(
+            string previousLifeState,
+            string currentLifeState,
+            DiagnosticTargetLifeSnapshot snapshot)
+        {
+            PreviousLifeState = previousLifeState;
+            CurrentLifeState = currentLifeState;
+            Snapshot = snapshot;
+        }
+
+        public string PreviousLifeState { get; }
+
+        public string CurrentLifeState { get; }
+
+        public DiagnosticTargetLifeSnapshot Snapshot { get; }
     }
 }

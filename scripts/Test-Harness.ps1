@@ -1074,7 +1074,7 @@ function New-TestCombatEvidenceRecord {
     $isTurnBased = [string]$Request.scenario -ceq 'mounted-rider-melee-hit-tb'
     $isMiss = [string]$Request.scenario -ceq 'mounted-rider-melee-miss-rt'
     $record = [ordered]@{
-        schemaVersion=$(if ($isTurnBased) { 11 } else { 10 });artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
+        schemaVersion=$(if ($isTurnBased) { 13 } else { 12 });artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
         scenario=[string]$Request.scenario;row=[string]$Request.scenario;rowIndex=0;sequence=0;frame=30
         utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o');branch=[string]$Request.branch
         commit=[string]$Request.commit;productVersion=[string]$Request.productVersion
@@ -1089,6 +1089,29 @@ function New-TestCombatEvidenceRecord {
             targetNativeSingleAttackWeaponIsNatural=$true;targetNativeSingleAttackWeaponIsMelee=$true
             noLoot=$true;rawAiDisabled=$true;sleeplessBefore=$false;sleeplessLeaseAcquired=$true
             bidirectionalHostility=$true;noExperienceReward=$true
+        }
+        targetLife=[ordered]@{
+            immediatelyAfterCreation=[ordered]@{
+                observed=$true;lifeState='Conscious';conscious=$true;dead=$false;finallyDead=$false
+                damage=0;nonLethalDamage=0;hitPoints=100;constitution=14;forceKill=$false;markedForDeath=$false
+            }
+            atActivation=[ordered]@{
+                observed=$true;lifeState='Conscious';conscious=$true;dead=$false;finallyDead=$false
+                damage=0;nonLethalDamage=0;hitPoints=100;constitution=14;forceKill=$false;markedForDeath=$false
+            }
+            lastObserved=[ordered]@{
+                observed=$true;lifeState='Conscious';conscious=$true;dead=$false;finallyDead=$false
+                damage=$(if ($isMiss) { 0 } else { 10 });nonLethalDamage=0;hitPoints=100;constitution=14
+                forceKill=$false;markedForDeath=$false
+            }
+            transitionCount=0
+            firstTransition=[ordered]@{
+                observed=$false;previousLifeState=$null;currentLifeState=$null
+                snapshot=[ordered]@{
+                    observed=$false;lifeState=$null;conscious=$false;dead=$false;finallyDead=$false
+                    damage=0;nonLethalDamage=0;hitPoints=0;constitution=0;forceKill=$false;markedForDeath=$false
+                }
+            }
         }
         pairApproachRadius=4.0;targetDistanceAtClick=3.9
         riderPositionAtClick=[ordered]@{x=0.0;y=0.0;z=0.0}
@@ -1188,6 +1211,7 @@ function Remove-TestCombatWakeLeaseFields {
     $Record.targetProvisioning.PSObject.Properties.Remove('sleeplessBefore')
     $Record.targetProvisioning.PSObject.Properties.Remove('sleeplessLeaseAcquired')
     $Record.cleanup.PSObject.Properties.Remove('sleeplessLeaseReleased')
+    Remove-TestCombatLifeFields $Record
     Remove-TestCombatNativeJoinFields $Record
 }
 
@@ -1196,6 +1220,11 @@ function Remove-TestCombatNativeJoinFields {
     if ($null -ne $Record.combatEntry) {
         $Record.combatEntry.PSObject.Properties.Remove('nativeJoin')
     }
+}
+
+function Remove-TestCombatLifeFields {
+    param([Parameter(Mandatory = $true)]$Record)
+    $Record.PSObject.Properties.Remove('targetLife')
 }
 
 New-Item -ItemType Directory -Path $testRoot | Out-Null
@@ -4295,7 +4324,7 @@ try {
             $engineSource.Contains('currentTurnActingAtOutcome = currentTurn != null && currentTurn.IsActing')) 'turn-based combat does not admit the native Preparing rider turn, observe Acting only after dispatch, retain it through outcome, and restore mode after cleanup'
         Assert-Test ($engineSource.Contains('CleanupTimeoutSeconds = 10.0d') -and
             $engineSource.Contains('rowClock.Elapsed.TotalSeconds - cleanupStartedAtSeconds < CleanupTimeoutSeconds')) 'combat cleanup does not retain an independent bounded drain after a row deadline'
-        Assert-Test ($engineSource.Contains('SchemaVersion = IsTurnBasedRow ? 11 : 10') -and
+        Assert-Test ($engineSource.Contains('SchemaVersion = IsTurnBasedRow ? 13 : 12') -and
             $engineSource.Contains('Mode = IsTurnBasedRow ? "turn-based" : "real-time"') -and
             $engineSource.Contains('TurnBased = IsTurnBasedRow') -and
             $engineSource.Contains('CombatEntry = CombatEntryEvidence.From(') -and
@@ -4318,7 +4347,13 @@ try {
             $combatValidatorSource.Contains("'sleeplessBefore','sleeplessLeaseAcquired'") -and
             $combatValidatorSource.Contains("'sleeplessLeaseReleased'") -and
             $combatValidatorSource.Contains("'playerGroupEnemiesContainsTarget','targetGroupEnemiesContainsRider'") -and
-            $combatValidatorSource.Contains("'riderIgnoredByCombat','mountIgnoredByCombat','targetIgnoredByCombat'")) 'schema-v10/v11 combat evidence does not bind native IsHit, exact AC-selected miss reasons, target wake lease, native join gates, combat entry, terminal reason, memory cleanup, mode-specific dispatch, rider-turn identity, and restoration'
+            $combatValidatorSource.Contains("'riderIgnoredByCombat','mountIgnoredByCombat','targetIgnoredByCombat'") -and
+            $engineSource.Contains('TargetLife = CombatTargetLifeEvidence.From(targetService)') -and
+            $targetSource.Contains('IUnitLifeStateChanged') -and
+            $targetSource.Contains('LifeImmediatelyAfterCreation = DiagnosticTargetLifeSnapshot.Capture(target);') -and
+            $targetSource.Contains('LifeAtActivation = DiagnosticTargetLifeSnapshot.Capture(target);') -and
+            $targetSource.Contains('FirstLifeTransition = new DiagnosticTargetLifeTransition(') -and
+            $combatValidatorSource.Contains("'immediatelyAfterCreation','atActivation','lastObserved','transitionCount','firstTransition'")) 'schema-v12/v13 combat evidence does not bind native IsHit, exact AC-selected miss reasons, target wake lease, native join gates, target life provisioning/transitions, combat entry, terminal reason, memory cleanup, mode-specific dispatch, rider-turn identity, and restoration'
         foreach ($field in @('TargetEntityRemoved','RuntimeGroupRemoved','RuntimeFactionRemoved')) {
             $jsonField = [char]::ToLowerInvariant($field[0]) + $field.Substring(1)
             Assert-Test ($engineSource.Contains("$field =") -and
@@ -4358,7 +4393,7 @@ try {
     $turnBasedManifest = Read-KmcJson (Join-Path $turnBasedRequest.evidenceRoot 'runtime-artifacts.json')
     $turnBasedSubresult = [ordered]@{name=$turnBasedRequest.scenario;status='PASS';assertionPassCount=25;assertionFailCount=0;errors=@()}
 
-    Invoke-HarnessTest 'runtime request and schema-v11 evidence accept exact native stationary rider turn' {
+    Invoke-HarnessTest 'runtime request and schema-v13 evidence accept exact native stationary rider turn' {
         & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $turnBasedRequestPath
         Assert-KmcCombatScenarioEvidence -Request $turnBasedRequest -Manifest $turnBasedManifest -Status 'PASS' -SubscenarioResults @($turnBasedSubresult)
     }
@@ -4426,6 +4461,7 @@ try {
     Invoke-HarnessTest 'historical schema-v8 and schema-v9 combat evidence remain valid' {
         $legacyRealTime = Copy-TestJsonValue $combatRecord
         $legacyRealTime.schemaVersion = 8
+        Remove-TestCombatLifeFields $legacyRealTime
         Remove-TestCombatNativeJoinFields $legacyRealTime
         [void](Write-TestCombatEvidence -EvidenceRoot $combatRequest.evidenceRoot -Request $combatRequest -Record $legacyRealTime)
         $legacyRealTimeManifest = Read-KmcJson (Join-Path $combatRequest.evidenceRoot 'runtime-artifacts.json')
@@ -4433,7 +4469,24 @@ try {
 
         $legacyTurnBased = Copy-TestJsonValue $turnBasedRecord
         $legacyTurnBased.schemaVersion = 9
+        Remove-TestCombatLifeFields $legacyTurnBased
         Remove-TestCombatNativeJoinFields $legacyTurnBased
+        [void](Write-TestCombatEvidence -EvidenceRoot $turnBasedRequest.evidenceRoot -Request $turnBasedRequest -Record $legacyTurnBased)
+        $legacyTurnBasedManifest = Read-KmcJson (Join-Path $turnBasedRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $turnBasedRequest -Manifest $legacyTurnBasedManifest -Status 'PASS' -SubscenarioResults @($turnBasedSubresult)
+    }
+
+    Invoke-HarnessTest 'historical schema-v10 and schema-v11 combat evidence remain valid' {
+        $legacyRealTime = Copy-TestJsonValue $combatRecord
+        $legacyRealTime.schemaVersion = 10
+        Remove-TestCombatLifeFields $legacyRealTime
+        [void](Write-TestCombatEvidence -EvidenceRoot $combatRequest.evidenceRoot -Request $combatRequest -Record $legacyRealTime)
+        $legacyRealTimeManifest = Read-KmcJson (Join-Path $combatRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $combatRequest -Manifest $legacyRealTimeManifest -Status 'PASS' -SubscenarioResults @($combatSubresult)
+
+        $legacyTurnBased = Copy-TestJsonValue $turnBasedRecord
+        $legacyTurnBased.schemaVersion = 11
+        Remove-TestCombatLifeFields $legacyTurnBased
         [void](Write-TestCombatEvidence -EvidenceRoot $turnBasedRequest.evidenceRoot -Request $turnBasedRequest -Record $legacyTurnBased)
         $legacyTurnBasedManifest = Read-KmcJson (Join-Path $turnBasedRequest.evidenceRoot 'runtime-artifacts.json')
         Assert-KmcCombatScenarioEvidence -Request $turnBasedRequest -Manifest $legacyTurnBasedManifest -Status 'PASS' -SubscenarioResults @($turnBasedSubresult)
@@ -4468,7 +4521,7 @@ try {
         }
     }
 
-    Invoke-HarnessTest 'schema-v11 preserves a structured pre-combat turn-based FAIL' {
+    Invoke-HarnessTest 'schema-v13 preserves a structured pre-combat turn-based FAIL' {
         $failureRecord = Copy-TestJsonValue $turnBasedRecord
         $failureRecord.status = 'FAIL'
         $failureRecord.assertionPassCount = 10
@@ -4492,6 +4545,32 @@ try {
             errors=@('bounded pre-combat mode deadline')
         }
         Assert-KmcCombatScenarioEvidence -Request $turnBasedRequest -Manifest $failureManifest -Status 'FAIL' -SubscenarioResults @($failureSubresult)
+    }
+
+    Invoke-HarnessTest 'schema-v12 preserves an exact observed target death transition' {
+        $failureRecord = Copy-TestJsonValue $missRecord
+        $failureRecord.status = 'FAIL'
+        $failureRecord.assertionPassCount = 20
+        $failureRecord.assertionFailCount = 1
+        $failureRecord.errors = @('target life changed before native combat entry')
+        $failureRecord.combatEntry.nativeJoin.targetConscious = $false
+        $failureRecord.targetLife.lastObserved.lifeState = 'Dead'
+        $failureRecord.targetLife.lastObserved.conscious = $false
+        $failureRecord.targetLife.lastObserved.dead = $true
+        $failureRecord.targetLife.lastObserved.finallyDead = $true
+        $failureRecord.targetLife.lastObserved.damage = 120
+        $failureRecord.targetLife.transitionCount = 1
+        $failureRecord.targetLife.firstTransition.observed = $true
+        $failureRecord.targetLife.firstTransition.previousLifeState = 'Conscious'
+        $failureRecord.targetLife.firstTransition.currentLifeState = 'Dead'
+        $failureRecord.targetLife.firstTransition.snapshot = Copy-TestJsonValue $failureRecord.targetLife.lastObserved
+        [void](Write-TestCombatEvidence -EvidenceRoot $missRequest.evidenceRoot -Request $missRequest -Record $failureRecord)
+        $failureManifest = Read-KmcJson (Join-Path $missRequest.evidenceRoot 'runtime-artifacts.json')
+        $failureSubresult = [ordered]@{
+            name=$missRequest.scenario;status='FAIL';assertionPassCount=20;assertionFailCount=1
+            errors=@('target life changed before native combat entry')
+        }
+        Assert-KmcCombatScenarioEvidence -Request $missRequest -Manifest $failureManifest -Status 'FAIL' -SubscenarioResults @($failureSubresult)
     }
 
     Invoke-HarnessTest 'turn-based combat validator rejects mode roster turn and restoration mutations' {
@@ -4607,6 +4686,13 @@ try {
             @{name='target unexpectedly sleepless before lease';apply={param($value) $value.targetProvisioning.sleeplessBefore=$true}},
             @{name='target sleepless lease absent';apply={param($value) $value.targetProvisioning.sleeplessLeaseAcquired=$false}},
             @{name='target sleepless lease coercion';apply={param($value) $value.targetProvisioning.sleeplessLeaseAcquired='true'}},
+            @{name='target life absent';apply={param($value) $value.PSObject.Properties.Remove('targetLife')}},
+            @{name='target life creation unobserved';apply={param($value) $value.targetLife.immediatelyAfterCreation.observed=$false}},
+            @{name='target life creation dead';apply={param($value) $value.targetLife.immediatelyAfterCreation.lifeState='Dead';$value.targetLife.immediatelyAfterCreation.conscious=$false;$value.targetLife.immediatelyAfterCreation.dead=$true}},
+            @{name='target life activation unconscious';apply={param($value) $value.targetLife.atActivation.lifeState='Unconscious';$value.targetLife.atActivation.conscious=$false}},
+            @{name='target life inconsistent projection';apply={param($value) $value.targetLife.lastObserved.dead=$true}},
+            @{name='target life transition count coercion';apply={param($value) $value.targetLife.transitionCount='0'}},
+            @{name='target life transition sentinel mismatch';apply={param($value) $value.targetLife.firstTransition.observed=$true}},
             @{name='target residue';apply={param($value) $value.cleanup.targetRemoved=$false}},
             @{name='target entity residue';apply={param($value) $value.cleanup.targetEntityRemoved=$false}},
             @{name='target group residue';apply={param($value) $value.cleanup.runtimeGroupRemoved=$false}},

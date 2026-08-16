@@ -36,3 +36,8 @@ Dev.11 camera Pass A passed `59/0`; same-package Pass B failed `28/2` on one rea
 ## Ordering gate
 
 Persistence, native lifecycle, player action, presentation, UI, and camera contracts qualified before the exact manual-review build was published. The user explicitly accepted exact review commit `09a63729e0847c540ae7e79e9e3876d005ee9afe` and its pinned package. The combat ordering gate is open; each combat row remains `TODO` until its own contract, implementation, and evidence qualify it.
+## Current target-life diagnostic contract
+
+| Responsibility | Status | Exact installed authority | Current seam | Runtime evidence |
+|---|---|---|---|---|
+| Transient diagnostic target life stability | `IN PROGRESS` | Native life state is derived by `UnitLifeController.TickOnUnit` `0x06009162`; exact raw state/damage/HP/Constitution/death flags and `IUnitLifeStateChanged` `0x06007620` are now captured by schema v12/v13. | Observation-only creation/activation/last/first-transition evidence; no repair until a fresh process identifies exact cause. | Miss Pass A `20260816T133000Z-rider-miss-rt-joinprobe` `48/0`; same-package B `20260816T134500Z-rider-miss-rt-passB` `20/1` target non-conscious. |

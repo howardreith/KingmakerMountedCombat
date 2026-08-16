@@ -205,6 +205,7 @@ namespace KingmakerMountedCombat.Diagnostics
             frameNumber++;
             try
             {
+                targetService?.ObserveTargetLifeState();
                 if (rowClock.Elapsed.TotalSeconds > RowTimeoutSeconds && step != CombatEngineStep.AwaitCleanupFrame)
                 {
                     assertions.Fail("Combat row exceeded its " + RowTimeoutSeconds + " second monotonic deadline at " + step +
@@ -854,7 +855,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var selected = SelectionManager.Instance?.SelectedUnits;
             var record = new CombatEvidenceRecord
             {
-                SchemaVersion = IsTurnBasedRow ? 11 : 10,
+                SchemaVersion = IsTurnBasedRow ? 13 : 12,
                 ArtifactKind = "combat-scenario-evidence",
                 RunId = request.RunId,
                 Scenario = request.Scenario,
@@ -876,6 +877,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 MountId = mount?.UniqueId,
                 TargetId = targetId,
                 TargetProvisioning = targetProvisioning ?? new CombatTargetProvisioningEvidence(),
+                TargetLife = CombatTargetLifeEvidence.From(targetService),
                 ClickAccepted = clickAccepted,
                 PairApproachRadius = pairApproachRadius,
                 TargetDistanceAtClick = targetDistanceAtClick,
@@ -1189,6 +1191,13 @@ namespace KingmakerMountedCombat.Diagnostics
                     ";targetAwake=" + (target != null && target.IsAwake) +
                     ";targetInFog=" + (target != null && target.IsInFogOfWar) +
                     ";targetFactionPeaceful=" + (target?.Faction != null && target.Faction.Peaceful) +
+                    ";targetLife=" + (target?.Descriptor?.State == null
+                        ? "unavailable"
+                        : target.Descriptor.State.LifeState.ToString()) +
+                    ";targetDamage=" + (target == null ? "unavailable" : target.Damage.ToString(CultureInfo.InvariantCulture)) +
+                    ";targetHitPoints=" + (target?.Stats == null
+                        ? "unavailable"
+                        : ((int)target.Stats.HitPoints).ToString(CultureInfo.InvariantCulture)) +
                     ";turnBasedReadiness=" + (turnBasedReadiness?.FailureSummary ??
                         (IsTurnBasedRow ? "not-observed" : "not-requested")) +
                     ";turnStatus=" + (Game.Instance?.TurnBasedCombatController?.CurrentTurn == null
@@ -1294,6 +1303,7 @@ namespace KingmakerMountedCombat.Diagnostics
             public string MountId { get; set; }
             public string TargetId { get; set; }
             public CombatTargetProvisioningEvidence TargetProvisioning { get; set; }
+            public CombatTargetLifeEvidence TargetLife { get; set; }
             public bool ClickAccepted { get; set; }
             public float PairApproachRadius { get; set; }
             public float TargetDistanceAtClick { get; set; }
@@ -1653,6 +1663,80 @@ namespace KingmakerMountedCombat.Diagnostics
                     SleeplessLeaseAcquired = service != null && service.TargetSleeplessLeaseAcquired,
                     BidirectionalHostility = service != null && service.BidirectionalHostilityVerified,
                     NoExperienceReward = service != null && service.NoExperienceReward
+                };
+            }
+        }
+
+        private sealed class CombatTargetLifeEvidence
+        {
+            public CombatTargetLifeSnapshotEvidence ImmediatelyAfterCreation { get; set; }
+            public CombatTargetLifeSnapshotEvidence AtActivation { get; set; }
+            public CombatTargetLifeSnapshotEvidence LastObserved { get; set; }
+            public int TransitionCount { get; set; }
+            public CombatTargetLifeTransitionEvidence FirstTransition { get; set; }
+
+            public static CombatTargetLifeEvidence From(DiagnosticCombatTargetService service)
+            {
+                return new CombatTargetLifeEvidence
+                {
+                    ImmediatelyAfterCreation = CombatTargetLifeSnapshotEvidence.From(
+                        service?.LifeImmediatelyAfterCreation),
+                    AtActivation = CombatTargetLifeSnapshotEvidence.From(service?.LifeAtActivation),
+                    LastObserved = CombatTargetLifeSnapshotEvidence.From(service?.LastObservedLife),
+                    TransitionCount = service?.LifeTransitionCount ?? 0,
+                    FirstTransition = CombatTargetLifeTransitionEvidence.From(service?.FirstLifeTransition)
+                };
+            }
+        }
+
+        private sealed class CombatTargetLifeSnapshotEvidence
+        {
+            public bool Observed { get; set; }
+            public string LifeState { get; set; }
+            public bool Conscious { get; set; }
+            public bool Dead { get; set; }
+            public bool FinallyDead { get; set; }
+            public int Damage { get; set; }
+            public int NonLethalDamage { get; set; }
+            public int HitPoints { get; set; }
+            public int Constitution { get; set; }
+            public bool ForceKill { get; set; }
+            public bool MarkedForDeath { get; set; }
+
+            public static CombatTargetLifeSnapshotEvidence From(DiagnosticTargetLifeSnapshot value)
+            {
+                return new CombatTargetLifeSnapshotEvidence
+                {
+                    Observed = value != null,
+                    LifeState = value?.LifeState,
+                    Conscious = value != null && value.Conscious,
+                    Dead = value != null && value.Dead,
+                    FinallyDead = value != null && value.FinallyDead,
+                    Damage = value?.Damage ?? 0,
+                    NonLethalDamage = value?.NonLethalDamage ?? 0,
+                    HitPoints = value?.HitPoints ?? 0,
+                    Constitution = value?.Constitution ?? 0,
+                    ForceKill = value != null && value.ForceKill,
+                    MarkedForDeath = value != null && value.MarkedForDeath
+                };
+            }
+        }
+
+        private sealed class CombatTargetLifeTransitionEvidence
+        {
+            public bool Observed { get; set; }
+            public string PreviousLifeState { get; set; }
+            public string CurrentLifeState { get; set; }
+            public CombatTargetLifeSnapshotEvidence Snapshot { get; set; }
+
+            public static CombatTargetLifeTransitionEvidence From(DiagnosticTargetLifeTransition value)
+            {
+                return new CombatTargetLifeTransitionEvidence
+                {
+                    Observed = value != null,
+                    PreviousLifeState = value?.PreviousLifeState,
+                    CurrentLifeState = value?.CurrentLifeState,
+                    Snapshot = CombatTargetLifeSnapshotEvidence.From(value?.Snapshot)
                 };
             }
         }
