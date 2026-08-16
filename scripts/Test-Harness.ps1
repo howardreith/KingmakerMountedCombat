@@ -3537,6 +3537,11 @@ try {
             $manualLauncherSource.Contains('$requestedWhatIf = [bool]$WhatIfPreference') -and
             $manualLauncherSource.Contains('$WhatIfPreference = $false') -and
             $manualLauncherSource.Contains('ExpectedProtectedSavePinSetSha256') -and
+            $manualLauncherSource.Contains('ExpectedPackageSha256') -and
+            $manualLauncherSource.Contains('ExpectedPackageManifestSha256') -and
+            $manualLauncherSource.Contains('ExpectedDllSha256') -and
+            $manualLauncherSource.Contains('ExpectedBranch') -and
+            $manualLauncherSource.Contains('ExpectedCommit') -and
             $manualLauncherSource.Contains("if (`$PSBoundParameters.ContainsKey(`$pinName))") -and
             $manualLauncherSource.Contains("if (`$requestedWhatIf) { `$invoke['WhatIf'] = `$true }") -and
             -not $manualLauncherSource.Contains('Start-Process') -and -not $manualLauncherSource.Contains('Stop-Process')) 'manual launcher does not exclusively delegate to the guarded runtime launcher'
@@ -3687,11 +3692,32 @@ try {
         try { Assert-KmcRuntimeContinuityPinCombination @noSaveArguments | Out-Null } catch { $threw = $true }
         Assert-Test $threw 'no-save runtime pin gate accepted an explicitly bound empty continuity pin'
 
+        $artifactPinNames = @('ExpectedPackageSha256','ExpectedPackageManifestSha256','ExpectedDllSha256','ExpectedBranch','ExpectedCommit')
+        $artifactPinArguments = @{
+            IsManualReview=$true;BoundArtifactPinNames=$artifactPinNames
+            ExpectedPackageSha256='3'*64;ExpectedPackageManifestSha256='4'*64;ExpectedDllSha256='5'*64
+            ExpectedBranch='codex/mounted-combat-phase2-alpha';ExpectedCommit='6'*40
+        }
+        [void](Assert-KmcManualReviewArtifactPinCombination @artifactPinArguments)
+        $missingArtifactArguments = @{}
+        foreach ($key in $artifactPinArguments.Keys) { $missingArtifactArguments[$key] = $artifactPinArguments[$key] }
+        $missingArtifactArguments.BoundArtifactPinNames = @($artifactPinNames | Where-Object { $_ -cne 'ExpectedDllSha256' })
+        $threw = $false
+        try { Assert-KmcManualReviewArtifactPinCombination @missingArtifactArguments | Out-Null } catch { $threw = $true }
+        Assert-Test $threw 'manual-review artifact gate accepted a syntactically missing DLL pin'
+        $threw = $false
+        try {
+            Assert-KmcManualReviewArtifactPinCombination -IsManualReview $false `
+                -BoundArtifactPinNames @('ExpectedCommit') -ExpectedCommit ('6'*40) | Out-Null
+        } catch { $threw = $true }
+        Assert-Test $threw 'non-manual runtime gate accepted a manual-review artifact pin'
+
         $launcherSource = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'runtime\Invoke-KingmakerRuntimeScenario.ps1')
         foreach ($pinName in @($pinNames + 'ExpectedProtectedSavePinSetSha256')) {
             Assert-Test ($launcherSource -cmatch ('\$' + [regex]::Escape($pinName) + '(?:\s|,)')) "runtime launcher does not expose $pinName"
         }
         $pinGateIndex = $launcherSource.IndexOf('[void](Assert-KmcRuntimeContinuityPinCombination', [StringComparison]::Ordinal)
+        $artifactPinGateIndex = $launcherSource.IndexOf('[void](Assert-KmcManualReviewArtifactPinCombination', [StringComparison]::Ordinal)
         $validateSourceIndex = $launcherSource.IndexOf("& (Join-Path `$repoRoot 'scripts\Validate-Source.ps1')", [StringComparison]::Ordinal)
         $shouldProcessIndex = $launcherSource.IndexOf("if(-not `$PSCmdlet.ShouldProcess", [StringComparison]::Ordinal)
         $lockIndex = $launcherSource.IndexOf('    $lock=Open-KmcRuntimeLock', [StringComparison]::Ordinal)
@@ -3703,6 +3729,10 @@ try {
             '(?m)^\s*\$(?:preflightContinuity|whatIfContinuity|lockedContinuity)=Assert-KmcQualifiedWorkingProtectedSaveContinuity'))
         Assert-Test ($pinGateIndex -ge 0 -and $pinGateIndex -lt $validateSourceIndex -and $pinGateIndex -lt $shouldProcessIndex) `
             'runtime launcher does not reject incomplete/no-save pin combinations before validation or ShouldProcess'
+        Assert-Test ($artifactPinGateIndex -gt $pinGateIndex -and $artifactPinGateIndex -lt $validateSourceIndex -and
+            $launcherSource.Contains("(Get-KmcSha256 `$PackagePath)-cne`$ExpectedPackageSha256") -and
+            $launcherSource.Contains("(Get-KmcSha256 `$packageManifestPath)-cne`$ExpectedPackageManifestSha256")) `
+            'runtime launcher does not bind manual package/manifest/DLL/branch/commit pins before approval'
         Assert-Test ($continuityCalls.Count -eq 3) 'runtime launcher does not perform exactly preflight, WhatIf, and locked continuity proofs'
         Assert-Test ($continuityCalls[0].Index -lt $shouldProcessIndex -and
             $continuityCalls[1].Index -gt $shouldProcessIndex -and $continuityCalls[1].Index -lt $lockIndex -and

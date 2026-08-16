@@ -3,6 +3,11 @@ param(
     [ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$RunId,
     [ValidateRange(360,900)][int]$ReadyTimeoutSeconds = 900,
     [Parameter(Mandatory = $true)][string]$PackagePath,
+    [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPackageSha256,
+    [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPackageManifestSha256,
+    [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedDllSha256,
+    [Parameter(Mandatory = $true)][ValidatePattern('^[A-Za-z0-9._/-]{1,200}$')][string]$ExpectedBranch,
+    [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{40}$')][string]$ExpectedCommit,
     [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedCurrentQualificationSha256,
     [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedSupersededWorkingSha256,
     [Parameter(Mandatory = $true)][string]$PriorSaveTransactionStatePath,
@@ -35,6 +40,11 @@ $invoke = @{
     TimeoutSeconds = $ReadyTimeoutSeconds
     SaveAccessAllowed = $true
     PackagePath = $PackagePath
+    ExpectedPackageSha256 = $ExpectedPackageSha256
+    ExpectedPackageManifestSha256 = $ExpectedPackageManifestSha256
+    ExpectedDllSha256 = $ExpectedDllSha256
+    ExpectedBranch = $ExpectedBranch
+    ExpectedCommit = $ExpectedCommit
     ExpectedCurrentQualificationSha256 = $ExpectedCurrentQualificationSha256
     ExpectedSupersededWorkingSha256 = $ExpectedSupersededWorkingSha256
     PriorSaveTransactionStatePath = $PriorSaveTransactionStatePath

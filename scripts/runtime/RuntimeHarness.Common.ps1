@@ -642,6 +642,35 @@ function Assert-KmcRuntimeContinuityPinCombination {
     return $true
 }
 
+function Assert-KmcManualReviewArtifactPinCombination {
+    param(
+        [Parameter(Mandatory = $true)][bool]$IsManualReview,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][string[]]$BoundArtifactPinNames,
+        [string]$ExpectedPackageSha256,
+        [string]$ExpectedPackageManifestSha256,
+        [string]$ExpectedDllSha256,
+        [string]$ExpectedBranch,
+        [string]$ExpectedCommit
+    )
+    $pinNames = @(
+        'ExpectedPackageSha256','ExpectedPackageManifestSha256','ExpectedDllSha256','ExpectedBranch','ExpectedCommit'
+    )
+    $values = @($ExpectedPackageSha256,$ExpectedPackageManifestSha256,$ExpectedDllSha256,$ExpectedBranch,$ExpectedCommit)
+    $unknownOrDuplicateNames = @($BoundArtifactPinNames | Group-Object | Where-Object {
+        $group = $_
+        $group.Count -ne 1 -or @($pinNames | Where-Object { $_ -ceq [string]$group.Name }).Count -ne 1
+    })
+    if ($unknownOrDuplicateNames.Count -ne 0) { throw 'Manual-review artifact bound-parameter identity is invalid or ambiguous.' }
+    $present = @($values | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }).Count
+    if ($IsManualReview -and ($present -ne $values.Count -or $BoundArtifactPinNames.Count -ne $pinNames.Count)) {
+        throw 'Manual visual review requires every exact package, manifest, DLL, branch, and commit pin.'
+    }
+    if (-not $IsManualReview -and ($present -ne 0 -or $BoundArtifactPinNames.Count -ne 0)) {
+        throw 'Non-manual runtime scenarios reject manual-review artifact pins.'
+    }
+    return $true
+}
+
 function Assert-KmcQualifiedWorkingPriorInventoryContinuity {
     param(
         [Parameter(Mandatory = $true)][string]$SaveRoot,

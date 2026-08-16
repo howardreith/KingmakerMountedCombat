@@ -20,6 +20,11 @@ param(
     [ValidateRange(360,900)][int]$TimeoutSeconds=360,
     [switch]$SaveAccessAllowed,
     [string]$PackagePath,
+    [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPackageSha256,
+    [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPackageManifestSha256,
+    [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedDllSha256,
+    [ValidatePattern('^[A-Za-z0-9._/-]{1,200}$')][string]$ExpectedBranch,
+    [ValidatePattern('^[0-9a-f]{40}$')][string]$ExpectedCommit,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedCurrentQualificationSha256,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedSupersededWorkingSha256,
     [string]$PriorSaveTransactionStatePath,
@@ -86,6 +91,14 @@ $boundContinuityPinNames=@($continuityPinNames|Where-Object{$PSBoundParameters.C
     -ExpectedProtectedQuickSaveName $ExpectedProtectedQuickSaveName `
     -ExpectedProtectedQuickSaveSha256 $ExpectedProtectedQuickSaveSha256 `
     -ExpectedProtectedSavePinSetSha256 $ExpectedProtectedSavePinSetSha256)
+$artifactPinNames=@('ExpectedPackageSha256','ExpectedPackageManifestSha256','ExpectedDllSha256','ExpectedBranch','ExpectedCommit')
+$boundArtifactPinNames=@($artifactPinNames|Where-Object{$PSBoundParameters.ContainsKey($_)})
+[void](Assert-KmcManualReviewArtifactPinCombination `
+    -IsManualReview $isManualReview -BoundArtifactPinNames $boundArtifactPinNames `
+    -ExpectedPackageSha256 $ExpectedPackageSha256 `
+    -ExpectedPackageManifestSha256 $ExpectedPackageManifestSha256 `
+    -ExpectedDllSha256 $ExpectedDllSha256 `
+    -ExpectedBranch $ExpectedBranch -ExpectedCommit $ExpectedCommit)
 
 if($isSaveBacked -and -not $SaveAccessAllowed){
     throw 'A save-backed Phase 1 scenario requires the explicit -SaveAccessAllowed operator gate; it authorizes only the exact qualified Working fixture.'
@@ -105,6 +118,14 @@ $packageManifestPath=$PackagePath+'.manifest.json'
 & (Join-Path $repoRoot 'scripts\Validate-Source.ps1')
 & (Join-Path $repoRoot 'scripts\Validate-Package.ps1') -PackagePath $PackagePath
 $manifest=Assert-KmcPackageManifest $PackagePath $packageManifestPath
+if($isManualReview -and (
+    (Get-KmcSha256 $PackagePath)-cne$ExpectedPackageSha256 -or
+    (Get-KmcSha256 $packageManifestPath)-cne$ExpectedPackageManifestSha256 -or
+    [string]$manifest.dllSha256-cne$ExpectedDllSha256 -or
+    [string]$manifest.branch-cne$ExpectedBranch -or
+    [string]$manifest.commit-cne$ExpectedCommit)){
+    throw 'Manual-review package, manifest, DLL, branch, or commit differs from its explicit caller pin.'
+}
 Assert-KmcNoGameProcesses
 if(Test-Path -LiteralPath (Join-Path $runtimeState 'active-transaction.lock')){throw 'A stale or active KMC runtime transaction sentinel exists.'}
 
