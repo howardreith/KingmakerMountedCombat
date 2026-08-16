@@ -4071,6 +4071,10 @@ try {
             -not $targetSource.Contains('!target.IsAIEnabled')) 'diagnostic target still relies on the always-true non-controllable IsAIEnabled facade instead of its pinned backing state'
         Assert-Test ($targetSource.Contains('target.Inventory == null || !target.Inventory.HasLoot') -and
             -not $targetSource.Contains('target.Inventory.Items.Count == 0')) 'diagnostic target confuses stock non-loot body inventory with loot-bearing inventory'
+        Assert-Test ($targetSource.Contains('expectedTarget == null || expectedTarget != target') -and
+            $targetSource.Contains('target.IsInFogOfWar = false;') -and
+            $targetSource.Contains('target.View.SetVisible(true, true);') -and
+            $targetSource.Contains('TargetVisibleForPlayer = target.IsVisibleForPlayer;')) 'diagnostic player-click visibility is not exact-target-only, explicit, and independently verified'
         Assert-Test ($targetSource.Contains('var blueprintPrimary = blueprint.Body?.EmptyHandWeapon;') -and
             $targetSource.Contains('var nativePrimary = NativeSingleAttackWeaponResolver.Resolve(target);') -and
             $targetSource.Contains('NoWeaponProvisioningMutation = AdditionalLimbCountAfter == AdditionalLimbCountBefore') -and
@@ -4097,6 +4101,10 @@ try {
             $targetSource.Contains('UnityEngine.Object.Destroy(runtimeFaction);')) 'runtime faction destruction is not retained and verified across the deferred Unity destruction boundary'
         $engineSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeCombatScenarioEngine.cs'))
         $combatValidatorSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\runtime\RuntimeHarness.Common.ps1'))
+        $prepareClickIndex = $engineSource.IndexOf('targetService.PrepareForPlayerClick(target)', [StringComparison]::Ordinal)
+        $nativeClickIndex = $engineSource.IndexOf('new ClickUnitHandler().OnClick(', [StringComparison]::Ordinal)
+        Assert-Test ($prepareClickIndex -ge 0 -and $nativeClickIndex -gt $prepareClickIndex -and
+            $engineSource.Contains('if (!clickAccepted || combat.ArmedAction != MountedCombatActionKind.None || !combat.HasActiveCommand)')) 'combat runtime does not prepare exact target visibility and stop immediately after a rejected Harmony click'
         foreach ($field in @('TargetEntityRemoved','RuntimeGroupRemoved','RuntimeFactionRemoved')) {
             $jsonField = [char]::ToLowerInvariant($field[0]) + $field.Substring(1)
             Assert-Test ($engineSource.Contains("$field =") -and

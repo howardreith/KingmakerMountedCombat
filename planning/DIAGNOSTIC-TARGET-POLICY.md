@@ -16,6 +16,7 @@ Creation uses exact `Game.EntityCreator.SpawnUnit(BlueprintUnit,Vector3,Quaterni
 - `GiveExperienceOnDeath=false` through tokens `0x06008338/39`;
 - no weapon/body-slot provisioning, loot, quest, dialogue, script, summon, or reward surface;
 - deterministic stationary/AI-disabled behavior unless a scenario explicitly requires target movement.
+- immediately before the real player-click seam, target-only visibility provisioning clears fog on that transient entity and forces only its owned view visible; exact fog, view, player-visibility, click-object/view identity, rider attackability, and rider melee-weapon gates must all pass. No area/global fog state or non-target view is changed.
 
 The runtime faction and all source state are transient. The stock Mammoth blueprint itself is never modified. Target removal calls `EntityDataBase.Destroy` token `0x06007EA6`, drains the exact destruction controller, verifies absence from scene/global unit collections and commands, then destroys the runtime faction object. Removal is idempotent and is invoked for normal completion, target death, dismount, save/load/area boundary, mod disable, exception recovery, and process teardown.
 
@@ -27,6 +28,7 @@ Exact local contracts and the first guarded diagnostic runs refine that lifecycl
 - native single-attack selection first calculates exact hand attack counts, chooses an eligible primary hand, then an eligible secondary hand, and only then falls back to the first additional limb whose `HasWeapon` is true; the selected blueprint must separately prove `IsNatural=true` and `IsRanged=false`;
 - the fresh stock companion template has no additional limb, but this is not evidence of weapon absence: `WeaponSlot.MaybeWeapon` returns `UnitBody.EmptyHandWeapon` for an empty active hand slot, while an initialized primary-hand item remains separately possible. The target must resolve a natural-melee weapon through `PrimaryHand`, prove at least one primary main attack, classify the source as exactly primary-hand item or empty-hand fallback, and retain identical before/after primary item, fallback, and limb identities. No blueprint, target body, active mount, player inventory, or save is mutated;
 - cleanup first proves entity absence, then exact empty-group removal and disposal, and finally waits across Unity's deferred object-destruction boundary before claiming the runtime faction removed. Combat evidence publishes all three proofs independently.
+- a rejected Harmony click records the controller's exact feedback and armed/active-command state, then enters cleanup immediately; it cannot wait out the row deadline and obscure the original rejection with a secondary timeout.
 
 ## Fail-closed gates
 

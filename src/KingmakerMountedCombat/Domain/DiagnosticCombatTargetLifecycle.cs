@@ -134,4 +134,43 @@ namespace KingmakerMountedCombat.Domain
             }
         }
     }
+
+    public sealed class DiagnosticCombatClickSafetySnapshot
+    {
+        private readonly string[] failedGateNames;
+
+        public DiagnosticCombatClickSafetySnapshot(
+            bool exactTarget,
+            bool fogOfWarCleared,
+            bool targetViewVisible,
+            bool targetVisibleForPlayer,
+            bool clickObjectResolvesExactView,
+            bool riderCanAttackTarget,
+            bool riderWeaponIsSupportedMelee)
+        {
+            var failures = new List<string>();
+            AddFailure(failures, exactTarget, "exact-click-target");
+            AddFailure(failures, fogOfWarCleared, "fog-of-war-cleared");
+            AddFailure(failures, targetViewVisible, "target-view-visible");
+            AddFailure(failures, targetVisibleForPlayer, "target-visible-for-player");
+            AddFailure(failures, clickObjectResolvesExactView, "click-object-resolves-exact-view");
+            AddFailure(failures, riderCanAttackTarget, "rider-can-attack-target");
+            AddFailure(failures, riderWeaponIsSupportedMelee, "rider-weapon-is-supported-melee");
+            failedGateNames = failures.ToArray();
+        }
+
+        public bool AllPassed => failedGateNames.Length == 0;
+
+        public string[] FailedGateNames => (string[])failedGateNames.Clone();
+
+        public string FailureSummary => string.Join(",", failedGateNames);
+
+        private static void AddFailure(List<string> failures, bool passed, string name)
+        {
+            if (!passed)
+            {
+                failures.Add(name);
+            }
+        }
+    }
 }

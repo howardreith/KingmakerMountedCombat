@@ -355,6 +355,19 @@ namespace KingmakerMountedCombat.Diagnostics
             assertions.Check(target.IsInState && target.Descriptor.State.IsConscious && !target.Descriptor.State.IsFinallyDead,
                 "Diagnostic target remained live at dispatch.");
 
+            var targetPreparedForClick = targetService != null && targetService.PrepareForPlayerClick(target);
+            var riderWeapon = rider.GetFirstWeapon();
+            var clickSafety = new DiagnosticCombatClickSafetySnapshot(
+                targetPreparedForClick && targetService.Target == target,
+                targetService != null && targetService.TargetFogOfWarCleared,
+                targetService != null && targetService.TargetViewVisible,
+                targetService != null && targetService.TargetVisibleForPlayer,
+                target.View != null && target.View.gameObject.GetComponent<UnitEntityView>() == target.View,
+                rider.CanAttack(target),
+                riderWeapon?.Blueprint != null && !riderWeapon.Blueprint.IsRanged);
+            assertions.Check(clickSafety.AllPassed,
+                "Diagnostic target passed exact player-click gates: " + clickSafety.FailureSummary + ".");
+
             SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
             var selected = SelectionManager.Instance.SelectedUnits;
             assertions.Check(selected != null && selected.Count == 1 && selected[0] == rider,
@@ -395,8 +408,17 @@ namespace KingmakerMountedCombat.Diagnostics
             }
 
             clickAccepted = new ClickUnitHandler().OnClick(target.View.gameObject, target.Position, 0, false, false);
-            assertions.Check(clickAccepted,
-                "Native ClickUnitHandler/Harmony path consumed the exact enemy click.");
+            assertions.Check(clickAccepted &&
+                    combat.ArmedAction == MountedCombatActionKind.None &&
+                    combat.HasActiveCommand,
+                "Native ClickUnitHandler/Harmony path consumed the exact enemy click. Feedback=" +
+                combat.LastFeedback + "; armed=" + combat.ArmedAction +
+                "; activeCommand=" + combat.HasActiveCommand + ".");
+            if (!clickAccepted || combat.ArmedAction != MountedCombatActionKind.None || !combat.HasActiveCommand)
+            {
+                BeginCleanup();
+                return;
+            }
             step = CombatEngineStep.AwaitOutcome;
         }
 

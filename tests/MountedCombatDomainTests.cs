@@ -30,6 +30,8 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("diagnostic target creation and removal are exact and idempotent", TargetLifecycleIsExact);
             runner.Run("diagnostic target safety snapshot preserves every strict gate", TargetSafetySnapshotPreservesEveryGate);
             runner.Run("diagnostic target safety snapshot reports exact failed gates", TargetSafetySnapshotReportsExactFailures);
+            runner.Run("diagnostic combat click safety preserves every target-only gate", CombatClickSafetyPreservesEveryGate);
+            runner.Run("diagnostic combat click safety reports exact visibility and weapon failures", CombatClickSafetyReportsExactFailures);
         }
 
         private static void RiderMeleeOwnership()
@@ -281,6 +283,25 @@ namespace KingmakerMountedCombat.Tests
             return new DiagnosticCombatTargetSafetySnapshot(
                 true, true, true, true, true, true, true, true,
                 true, true, true, true, true, true, true, true);
+        }
+
+        private static void CombatClickSafetyPreservesEveryGate()
+        {
+            var snapshot = new DiagnosticCombatClickSafetySnapshot(
+                true, true, true, true, true, true, true);
+            TestRunner.True(snapshot.AllPassed, "An exact prepared diagnostic click was rejected.");
+            TestRunner.Equal(0, snapshot.FailedGateNames.Length, "An exact click reported failed safety gates.");
+        }
+
+        private static void CombatClickSafetyReportsExactFailures()
+        {
+            var snapshot = new DiagnosticCombatClickSafetySnapshot(
+                true, false, true, false, true, true, false);
+            TestRunner.True(!snapshot.AllPassed, "An unsafe diagnostic click passed.");
+            TestRunner.Equal(
+                "fog-of-war-cleared,target-visible-for-player,rider-weapon-is-supported-melee",
+                snapshot.FailureSummary,
+                "Diagnostic click failures were not reported in exact gate order.");
         }
 
         private static MountedCombatTransaction TargetedTransaction(bool requiresApproach)

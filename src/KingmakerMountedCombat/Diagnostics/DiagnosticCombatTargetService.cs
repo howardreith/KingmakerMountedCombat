@@ -64,6 +64,12 @@ namespace KingmakerMountedCombat.Diagnostics
 
         public bool NoExperienceReward { get; private set; }
 
+        public bool TargetFogOfWarCleared { get; private set; }
+
+        public bool TargetViewVisible { get; private set; }
+
+        public bool TargetVisibleForPlayer { get; private set; }
+
         public DiagnosticCombatTargetService(IModLogger logger)
         {
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -257,6 +263,27 @@ namespace KingmakerMountedCombat.Diagnostics
             var zeroResidue = BestEffortDestroy();
             var confirmed = lifecycle.ConfirmRemoved(lifecycle.TargetId, zeroResidue);
             return zeroResidue && confirmed;
+        }
+
+        public bool PrepareForPlayerClick(UnitEntityData expectedTarget)
+        {
+            ThrowIfDisposed();
+            TargetFogOfWarCleared = false;
+            TargetViewVisible = false;
+            TargetVisibleForPlayer = false;
+            if (expectedTarget == null || expectedTarget != target ||
+                State != DiagnosticCombatTargetState.Active ||
+                !target.IsInState || target.View == null)
+            {
+                return false;
+            }
+
+            target.IsInFogOfWar = false;
+            target.View.SetVisible(true, true);
+            TargetFogOfWarCleared = !target.IsInFogOfWar;
+            TargetViewVisible = target.View.IsVisible;
+            TargetVisibleForPlayer = target.IsVisibleForPlayer;
+            return TargetFogOfWarCleared && TargetViewVisible && TargetVisibleForPlayer;
         }
 
         public void Dispose()
