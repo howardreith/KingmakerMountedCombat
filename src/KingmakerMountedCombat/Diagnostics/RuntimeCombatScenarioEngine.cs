@@ -602,6 +602,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 targetService != null && targetService.TargetFogOfWarCleared,
                 targetService != null && targetService.TargetViewVisible,
                 targetService != null && targetService.TargetVisibleForPlayer,
+                targetService != null && targetService.TargetCommandsEmptyAtClick,
+                targetService != null && targetService.TargetAgentEnabledAtClick,
+                targetService != null && targetService.TargetAgentStoppedAtClick,
                 target.View != null && target.View.gameObject.GetComponent<UnitEntityView>() == target.View,
                 actionActor != null && actionActor.CanAttack(target),
                 actionWeapon?.Blueprint != null && !actionWeapon.Blueprint.IsRanged &&

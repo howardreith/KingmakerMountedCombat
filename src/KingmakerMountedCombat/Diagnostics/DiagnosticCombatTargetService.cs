@@ -115,6 +115,12 @@ namespace KingmakerMountedCombat.Diagnostics
 
         public bool TargetVisibleForPlayer { get; private set; }
 
+        public bool TargetCommandsEmptyAtClick { get; private set; }
+
+        public bool TargetAgentEnabledAtClick { get; private set; }
+
+        public bool TargetAgentStoppedAtClick { get; private set; }
+
         public DiagnosticTargetLifeSnapshot LifeImmediatelyAfterCreation { get; private set; }
 
         public DiagnosticTargetLifeSnapshot LifeAtActivation { get; private set; }
@@ -377,6 +383,10 @@ namespace KingmakerMountedCombat.Diagnostics
             if (TargetEntityRemoved && RuntimeGroupRemoved && RuntimeFactionRemoved && CombatMemoryRemoved &&
                 TargetDurabilityLeaseReleased && TargetSleeplessLeaseReleased && NonPairPartyAiLeaseRestored)
             {
+                if (State == DiagnosticCombatTargetState.DestroyRequested)
+                {
+                    return lifecycle.ConfirmRemoved(lifecycle.TargetId, true);
+                }
                 return State == DiagnosticCombatTargetState.Absent ||
                     State == DiagnosticCombatTargetState.Removed;
             }
@@ -393,19 +403,31 @@ namespace KingmakerMountedCombat.Diagnostics
             TargetFogOfWarCleared = false;
             TargetViewVisible = false;
             TargetVisibleForPlayer = false;
+            TargetCommandsEmptyAtClick = false;
+            TargetAgentEnabledAtClick = false;
+            TargetAgentStoppedAtClick = false;
             if (expectedTarget == null || expectedTarget != target ||
                 State != DiagnosticCombatTargetState.Active ||
-                !target.IsInState || target.View == null)
+                !target.IsInState || target.View == null || target.View.AgentASP == null)
             {
                 return false;
             }
 
+            target.Commands.InterruptAll();
+            target.View.AgentASP.Stop();
             target.IsInFogOfWar = false;
             target.View.SetVisible(true, true);
             TargetFogOfWarCleared = !target.IsInFogOfWar;
             TargetViewVisible = target.View.IsVisible;
             TargetVisibleForPlayer = target.IsVisibleForPlayer;
-            return TargetFogOfWarCleared && TargetViewVisible && TargetVisibleForPlayer;
+            TargetCommandsEmptyAtClick = target.Commands.Empty;
+            TargetAgentEnabledAtClick = target.View.AgentASP.enabled;
+            TargetAgentStoppedAtClick = !target.View.AgentASP.WantsToMove &&
+                !target.View.AgentASP.IsReallyMoving &&
+                target.View.AgentASP.Speed == 0f &&
+                target.View.AgentASP.Velocity.sqrMagnitude == 0f;
+            return TargetFogOfWarCleared && TargetViewVisible && TargetVisibleForPlayer &&
+                TargetCommandsEmptyAtClick && TargetAgentEnabledAtClick && TargetAgentStoppedAtClick;
         }
 
         public bool CaptureCurrentLife(UnitEntityData expectedTarget)

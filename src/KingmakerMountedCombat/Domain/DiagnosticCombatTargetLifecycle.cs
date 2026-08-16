@@ -146,6 +146,9 @@ namespace KingmakerMountedCombat.Domain
             bool fogOfWarCleared,
             bool targetViewVisible,
             bool targetVisibleForPlayer,
+            bool targetCommandsEmpty,
+            bool targetAgentEnabled,
+            bool targetAgentStopped,
             bool clickObjectResolvesExactView,
             bool actionActorCanAttackTarget,
             bool actionWeaponIsSupportedMelee)
@@ -155,6 +158,9 @@ namespace KingmakerMountedCombat.Domain
             AddFailure(failures, fogOfWarCleared, "fog-of-war-cleared");
             AddFailure(failures, targetViewVisible, "target-view-visible");
             AddFailure(failures, targetVisibleForPlayer, "target-visible-for-player");
+            AddFailure(failures, targetCommandsEmpty, "target-commands-empty");
+            AddFailure(failures, targetAgentEnabled, "target-agent-enabled");
+            AddFailure(failures, targetAgentStopped, "target-agent-stopped");
             AddFailure(failures, clickObjectResolvesExactView, "click-object-resolves-exact-view");
             AddFailure(failures, actionActorCanAttackTarget, "action-actor-can-attack-target");
             AddFailure(failures, actionWeaponIsSupportedMelee, "action-weapon-is-supported-melee");

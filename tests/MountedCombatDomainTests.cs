@@ -426,7 +426,7 @@ namespace KingmakerMountedCombat.Tests
         private static void CombatClickSafetyPreservesEveryGate()
         {
             var snapshot = new DiagnosticCombatClickSafetySnapshot(
-                true, true, true, true, true, true, true);
+                true, true, true, true, true, true, true, true, true, true);
             TestRunner.True(snapshot.AllPassed, "An exact prepared diagnostic click was rejected.");
             TestRunner.Equal(0, snapshot.FailedGateNames.Length, "An exact click reported failed safety gates.");
         }
@@ -434,10 +434,10 @@ namespace KingmakerMountedCombat.Tests
         private static void CombatClickSafetyReportsExactFailures()
         {
             var snapshot = new DiagnosticCombatClickSafetySnapshot(
-                true, false, true, false, true, true, false);
+                true, false, true, false, false, false, false, true, true, false);
             TestRunner.True(!snapshot.AllPassed, "An unsafe diagnostic click passed.");
             TestRunner.Equal(
-                "fog-of-war-cleared,target-visible-for-player,action-weapon-is-supported-melee",
+                "fog-of-war-cleared,target-visible-for-player,target-commands-empty,target-agent-enabled,target-agent-stopped,action-weapon-is-supported-melee",
                 snapshot.FailureSummary,
                 "Diagnostic click failures were not reported in exact gate order.");
         }

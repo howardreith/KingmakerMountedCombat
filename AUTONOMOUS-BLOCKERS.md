@@ -4,6 +4,10 @@ Status: IN PROGRESS
 
 Branch: `codex/mounted-combat-phase2-alpha`
 
+## Superseding Mammoth-primary stationarity/cleanup checkpoint - 2026-08-16T17:59:30Z
+
+No critical blocker is active. Fresh repaired-package run `20260816T174500Z-mammoth-primary-rt-passA` is immutable uncredited `FAIL` `50/2`: all actor, target, weapon, rule, damage, resource, lease, pose, duplicate, repath, rider-stationarity, Mammoth-stationarity, and external-restoration gates pass, while the disposable target moved `0.675754547` and its domain lifecycle remained `DestroyRequested` after concrete cleanup reached zero residue. Installed `UnitMovementAgent.Stop` proves the target retained a path/request because provisioning interrupted commands but did not stop its stock movement agent. The repair clears and proves that target-only path boundary before click and retries lifecycle confirmation only after every concrete residue flag is exact. Gates and thresholds are unchanged; repaired offline totals are `21/204/17/174/240`. Exact next action is coherent guarded publication, clean package, RT/TB WhatIf, and fresh same-package RT A/B then TB A/B. No failed attempt earns qualification credit.
+
 ## Intake and authorization disposition
 
 Repository identity, exact ancestry, origin/upstream, mission hash, frozen Phase 1 evidence, installed environment, schema-v2 protected-save authority, package pins, and post-review external restoration are PASS. The user explicitly accepted exact Phase 2A commit `09a63729e0847c540ae7e79e9e3876d005ee9afe` and package SHA-256 `80b0498cd9d1e6d8dd518ffd8d343af56bcc711306492548c221b9559c98cef7`. The manual visual gate is closed and combat Tranches C-F are authorized without intermediate approval. No critical blocker is active.

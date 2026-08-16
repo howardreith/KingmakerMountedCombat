@@ -4392,6 +4392,16 @@ try {
         Assert-Test ($targetSource.Contains('runtimeFactionDestroyPending = true;') -and
             $targetSource.Contains('runtimeFactionDestroyPending = false;') -and
             $targetSource.Contains('UnityEngine.Object.Destroy(runtimeFaction);')) 'runtime faction destruction is not retained and verified across the deferred Unity destruction boundary'
+        $targetStopIndex = $targetSource.IndexOf('target.View.AgentASP.Stop();', [StringComparison]::Ordinal)
+        $targetStoppedGateIndex = $targetSource.IndexOf('TargetAgentStoppedAtClick = !target.View.AgentASP.WantsToMove', [StringComparison]::Ordinal)
+        $targetCleanupRetryIndex = $targetSource.IndexOf('if (State == DiagnosticCombatTargetState.DestroyRequested)', [StringComparison]::Ordinal)
+        $targetCleanupConfirmIndex = $targetSource.IndexOf('return lifecycle.ConfirmRemoved(lifecycle.TargetId, true);', [StringComparison]::Ordinal)
+        Assert-Test ($targetStopIndex -ge 0 -and $targetStoppedGateIndex -gt $targetStopIndex -and
+            $targetSource.Contains('TargetCommandsEmptyAtClick = target.Commands.Empty;') -and
+            $targetSource.Contains('TargetAgentEnabledAtClick = target.View.AgentASP.enabled;') -and
+            $targetSource.Contains('target.View.AgentASP.Speed == 0f') -and
+            $targetSource.Contains('target.View.AgentASP.Velocity.sqrMagnitude == 0f') -and
+            $targetCleanupRetryIndex -ge 0 -and $targetCleanupConfirmIndex -gt $targetCleanupRetryIndex) 'diagnostic target does not clear and prove the exact residual movement path before click or retry deferred zero-residue lifecycle confirmation'
         $combatValidatorSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\runtime\RuntimeHarness.Common.ps1'))
         $prepareClickIndex = $engineSource.IndexOf('targetService.PrepareForPlayerClick(target)', [StringComparison]::Ordinal)
         $nativeClickIndex = $engineSource.IndexOf('new ClickUnitHandler().OnClick(', [StringComparison]::Ordinal)
