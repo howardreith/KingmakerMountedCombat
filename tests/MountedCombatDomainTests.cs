@@ -21,6 +21,9 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("mounted combat diagnostic placement admits the exact observed small radius", DiagnosticPlacementAdmitsObservedRadius);
             runner.Run("mounted combat diagnostic placement rejects insufficient radius and projection drift", DiagnosticPlacementRejectsUnsafeBounds);
             runner.Run("mounted combat diagnostic placement refreshes exact Mammoth actor drift", DiagnosticPlacementRefreshesObservedMammothDrift);
+            runner.Run("mounted combat approach placement starts outside exact pair range", DiagnosticApproachPlacementStartsOutsideRange);
+            runner.Run("mounted combat approach evidence preserves mount-only pathfinding", ApproachEvidencePreservesMountAuthority);
+            runner.Run("mounted combat approach evidence reports command movement and pose drift", ApproachEvidenceReportsExactFailures);
             runner.Run("mounted combat native admission bridges only an in-range Mammoth origin", NativeAdmissionUsesMountOrigin);
             runner.Run("mounted combat native admission rejects pair range and offset escape", NativeAdmissionRejectsUnsafeBounds);
             runner.Run("mounted pair ends only the exact Mammoth turn", SuppressesOnlyMountTurn);
@@ -212,6 +215,62 @@ namespace KingmakerMountedCombat.Tests
                     mammothPrimaryRadius,
                     refreshedDistance),
                 "The exact Mammoth-primary radius did not produce a bounded current-position refresh.");
+        }
+
+        private static void DiagnosticApproachPlacementStartsOutsideRange()
+        {
+            const float pairRadius = 2.37020588f;
+            float requestedDistance;
+            TestRunner.True(
+                MountedCombatSpatialPolicy.TryCalculateDiagnosticApproachTargetDistance(
+                    pairRadius,
+                    out requestedDistance),
+                "A positive pair radius did not produce an approach target.");
+            TestRunner.True(
+                Math.Abs(requestedDistance - 4.37020588f) < 0.00001f,
+                "Approach placement did not retain the exact fixed extension.");
+            TestRunner.True(
+                MountedCombatSpatialPolicy.IsBoundedDiagnosticApproachTargetDistance(
+                    pairRadius,
+                    requestedDistance),
+                "Exact approach placement was rejected.");
+            TestRunner.True(
+                !MountedCombatSpatialPolicy.IsBoundedDiagnosticApproachTargetDistance(
+                    pairRadius,
+                    pairRadius + MountedCombatSpatialPolicy.RangeTolerance),
+                "An in-range placement was accepted as movement-to-attack evidence.");
+        }
+
+        private static void ApproachEvidencePreservesMountAuthority()
+        {
+            var snapshot = PassingApproachSnapshot();
+            TestRunner.True(snapshot.AllPassed, "An exact mount-authoritative approach failed.");
+            TestRunner.Equal(0, snapshot.FailedGateNames.Length, "An exact approach reported failed gates.");
+            TestRunner.Equal(string.Empty, snapshot.FailureSummary, "An exact approach reported a failure summary.");
+        }
+
+        private static void ApproachEvidenceReportsExactFailures()
+        {
+            var snapshot = new MountedCombatApproachSnapshot(
+                true, 2, 0, false, false, false, false, false, false, 0, false, false,
+                2.37f, 2.42f, 2.43f, 0.1f, 0.2f, 0.051f, 1);
+            TestRunner.True(!snapshot.AllPassed, "An unsafe approach evidence snapshot passed.");
+            TestRunner.Equal(
+                "one-delegated-move,delegated-move-ticked,delegated-move-executor-is-mount," +
+                "wrapper-command-retained,delegated-move-not-queued,rider-stock-agent-suppressed," +
+                "mount-stock-agent-authoritative,pose-healthy-throughout,runtime-approach-observed," +
+                "selection-retained,ui-coherent-throughout,attack-start-inside-range," +
+                "rider-followed-approach,mount-performed-approach,target-remained-stationary," +
+                "no-unexpected-repath",
+                snapshot.FailureSummary,
+                "Unsafe approach gates were not reported in exact order.");
+        }
+
+        private static MountedCombatApproachSnapshot PassingApproachSnapshot()
+        {
+            return new MountedCombatApproachSnapshot(
+                true, 1, 12, true, true, true, true, true, true, 10, true, true,
+                2.37f, 4.37f, 2.36f, 2.0f, 2.0f, 0.0f, 0);
         }
 
         private static void NativeAdmissionUsesMountOrigin()

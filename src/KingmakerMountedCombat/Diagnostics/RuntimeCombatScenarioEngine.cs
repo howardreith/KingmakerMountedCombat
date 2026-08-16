@@ -35,6 +35,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private const string RiderMissRealTime = "mounted-rider-melee-miss-rt";
         private const string MammothPrimaryHitRealTime = "mounted-mammoth-primary-hit-rt";
         private const string MammothPrimaryHitTurnBased = "mounted-mammoth-primary-hit-tb";
+        private const string RiderMoveToAttackRealTime = "mounted-rider-melee-move-to-attack-rt";
+        private const string RiderMoveToAttackTurnBased = "mounted-rider-melee-move-to-attack-tb";
         private const double RowTimeoutSeconds = 30.0d;
         private const double CleanupTimeoutSeconds = 10.0d;
         private const float SpawnDistance = 6.0f;
@@ -86,6 +88,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private float riderMoveAfter;
         private float mountMoveAfter;
         private float pairApproachRadius;
+        private float requestedTargetDistance;
         private float targetDistanceAtClick;
         private Vector3 riderPositionAtClick;
         private Vector3 mountPositionAtClick;
@@ -140,6 +143,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool currentTurnActingAtOutcome;
         private bool turnBasedModeRestored = true;
         private bool turnBasedPersistedSettingUnchanged = true;
+        private int movementToAttackObservationCount;
+        private bool selectionRetainedDuringApproach = true;
+        private bool uiCoherentDuringApproach = true;
 
         public RuntimeCombatScenarioEngine(
             RuntimeRequest request,
@@ -171,18 +177,25 @@ namespace KingmakerMountedCombat.Diagnostics
                 string.Equals(scenario, RiderHitTurnBased, StringComparison.Ordinal) ||
                 string.Equals(scenario, RiderMissRealTime, StringComparison.Ordinal) ||
                 string.Equals(scenario, MammothPrimaryHitRealTime, StringComparison.Ordinal) ||
-                string.Equals(scenario, MammothPrimaryHitTurnBased, StringComparison.Ordinal);
+                string.Equals(scenario, MammothPrimaryHitTurnBased, StringComparison.Ordinal) ||
+                string.Equals(scenario, RiderMoveToAttackRealTime, StringComparison.Ordinal) ||
+                string.Equals(scenario, RiderMoveToAttackTurnBased, StringComparison.Ordinal);
         }
 
         private bool IsTurnBasedRow =>
             string.Equals(currentRow, RiderHitTurnBased, StringComparison.Ordinal) ||
-            string.Equals(currentRow, MammothPrimaryHitTurnBased, StringComparison.Ordinal);
+            string.Equals(currentRow, MammothPrimaryHitTurnBased, StringComparison.Ordinal) ||
+            string.Equals(currentRow, RiderMoveToAttackTurnBased, StringComparison.Ordinal);
 
         private bool IsMissRow => string.Equals(currentRow, RiderMissRealTime, StringComparison.Ordinal);
 
         private bool IsMammothPrimaryRow =>
             string.Equals(currentRow, MammothPrimaryHitRealTime, StringComparison.Ordinal) ||
             string.Equals(currentRow, MammothPrimaryHitTurnBased, StringComparison.Ordinal);
+
+        private bool IsMovementToAttackRow =>
+            string.Equals(currentRow, RiderMoveToAttackRealTime, StringComparison.Ordinal) ||
+            string.Equals(currentRow, RiderMoveToAttackTurnBased, StringComparison.Ordinal);
 
         private MountedCombatActionKind AttackAction => IsMammothPrimaryRow
             ? MountedCombatActionKind.MountPrimaryNatural
@@ -309,6 +322,9 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void BeginRow()
         {
+            movementToAttackObservationCount = 0;
+            selectionRetainedDuringApproach = true;
+            uiCoherentDuringApproach = true;
             assertions.Check(relationship.State == RelationshipState.Unmounted,
                 "Relationship began Unmounted.");
             assertions.Check(!CombatController.IsInTurnBasedCombat(),
@@ -427,10 +443,18 @@ namespace KingmakerMountedCombat.Diagnostics
             rangeProbe.Init(AttackActor);
             pairApproachRadius = rangeProbe.PairApproachRadius;
             float finalDistance;
-            assertions.Check(MountedCombatSpatialPolicy.TryCalculateDiagnosticTargetDistance(
+            var placementCalculated = IsMovementToAttackRow
+                ? MountedCombatSpatialPolicy.TryCalculateDiagnosticApproachTargetDistance(
                     pairApproachRadius,
-                    out finalDistance),
-                "Mounted rider pair approach radius admits the bounded diagnostic placement.");
+                    out finalDistance)
+                : MountedCombatSpatialPolicy.TryCalculateDiagnosticTargetDistance(
+                    pairApproachRadius,
+                    out finalDistance);
+            requestedTargetDistance = finalDistance;
+            assertions.Check(placementCalculated,
+                IsMovementToAttackRow
+                    ? "Mounted rider pair approach radius admits a bounded out-of-range diagnostic approach."
+                    : "Mounted rider pair approach radius admits the bounded diagnostic placement.");
             if (assertions.FailureCount != 0)
             {
                 BeginCleanup();
@@ -603,7 +627,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Diagnostic target remained live at dispatch.");
 
             assertions.Check(RetainDiagnosticTargetPlacementAtDispatch(),
-                "Diagnostic target was retained at the exact current actor-specific near-boundary placement before dispatch.");
+                IsMovementToAttackRow
+                    ? "Diagnostic target was retained at the exact actor-specific out-of-range approach placement before dispatch."
+                    : "Diagnostic target was retained at the exact current actor-specific near-boundary placement before dispatch.");
             if (assertions.FailureCount != 0)
             {
                 BeginCleanup();
@@ -653,12 +679,24 @@ namespace KingmakerMountedCombat.Diagnostics
             targetPositionAtClick = target.Position;
             pausedAtClick = Game.Instance.IsPaused;
             targetDistanceAtClick = HorizontalDistance(mountPositionAtClick, targetPositionAtClick);
-            assertions.Check(targetDistanceAtClick <= pairApproachRadius + MountedCombatSpatialPolicy.RangeTolerance,
-                "Target was inside the exact Mammoth-origin rider melee radius at dispatch.");
-            assertions.Check(MountedCombatSpatialPolicy.IsBoundedDiagnosticTargetDistance(
-                    pairApproachRadius,
-                    targetDistanceAtClick),
-                "Diagnostic target retained the exact near-boundary mounted-range placement.");
+            if (IsMovementToAttackRow)
+            {
+                assertions.Check(targetDistanceAtClick > pairApproachRadius + MountedCombatSpatialPolicy.RangeTolerance,
+                    "Target began outside the exact Mammoth-origin rider melee radius at dispatch.");
+                assertions.Check(MountedCombatSpatialPolicy.IsBoundedDiagnosticApproachTargetDistance(
+                        pairApproachRadius,
+                        targetDistanceAtClick),
+                    "Diagnostic target retained the exact bounded movement-to-attack placement.");
+            }
+            else
+            {
+                assertions.Check(targetDistanceAtClick <= pairApproachRadius + MountedCombatSpatialPolicy.RangeTolerance,
+                    "Target was inside the exact Mammoth-origin rider melee radius at dispatch.");
+                assertions.Check(MountedCombatSpatialPolicy.IsBoundedDiagnosticTargetDistance(
+                        pairApproachRadius,
+                        targetDistanceAtClick),
+                    "Diagnostic target retained the exact near-boundary mounted-range placement.");
+            }
 
             ruleProbe = new MountedCombatRuleProbe();
             ruleProbe.Arm(rider, mount, AttackActor, target, IsMissRow ? 1 : 20);
@@ -696,17 +734,27 @@ namespace KingmakerMountedCombat.Diagnostics
             }
 
             var observedDistance = HorizontalDistance(mount.Position, target.Position);
-            if (!MountedCombatSpatialPolicy.RequiresDiagnosticTargetPlacementRefresh(
+            var requiresRefresh = IsMovementToAttackRow
+                ? MountedCombatSpatialPolicy.RequiresDiagnosticApproachPlacementRefresh(
                     pairApproachRadius,
-                    observedDistance))
+                    observedDistance)
+                : MountedCombatSpatialPolicy.RequiresDiagnosticTargetPlacementRefresh(
+                    pairApproachRadius,
+                    observedDistance);
+            if (!requiresRefresh)
             {
                 return true;
             }
 
             float requiredDistance;
-            if (!MountedCombatSpatialPolicy.TryCalculateDiagnosticTargetDistance(
+            var placementCalculated = IsMovementToAttackRow
+                ? MountedCombatSpatialPolicy.TryCalculateDiagnosticApproachTargetDistance(
                     pairApproachRadius,
-                    out requiredDistance))
+                    out requiredDistance)
+                : MountedCombatSpatialPolicy.TryCalculateDiagnosticTargetDistance(
+                    pairApproachRadius,
+                    out requiredDistance);
+            if (!placementCalculated)
             {
                 return false;
             }
@@ -719,9 +767,15 @@ namespace KingmakerMountedCombat.Diagnostics
             target.View.ForcePlaceAboveGround();
             target.Commands.InterruptAll();
             target.HoldState = true;
-            return MountedCombatSpatialPolicy.IsBoundedDiagnosticTargetDistance(
-                pairApproachRadius,
-                HorizontalDistance(mount.Position, target.Position));
+            var retainedDistance = HorizontalDistance(mount.Position, target.Position);
+            requestedTargetDistance = requiredDistance;
+            return IsMovementToAttackRow
+                ? MountedCombatSpatialPolicy.IsBoundedDiagnosticApproachTargetDistance(
+                    pairApproachRadius,
+                    retainedDistance)
+                : MountedCombatSpatialPolicy.IsBoundedDiagnosticTargetDistance(
+                    pairApproachRadius,
+                    retainedDistance);
         }
 
         private void ObserveOutcome()
@@ -756,6 +810,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 currentTurnUnitIdAtDispatch = currentTurn.Unit.UniqueId;
                 currentTurnActingAtDispatch = true;
                 roundNumberAtDispatch = turnController.RoundNumber;
+            }
+            if (IsMovementToAttackRow && combat.HasActiveCommand)
+            {
+                ObserveMovementToAttackRuntime();
             }
             if (combat.LastOutcome == null)
             {
@@ -796,7 +854,9 @@ namespace KingmakerMountedCombat.Diagnostics
                         : string.Equals(outcome.AttackWeaponSlot, "EquippedMelee", StringComparison.Ordinal)),
                 "Native rule execution retained the exact selected actor weapon and natural-attack identity.");
             assertions.Check(outcome.RepathCount == 0,
-                "Stationary in-range attack required no delegated movement or repath.");
+                IsMovementToAttackRow
+                    ? "Stationary diagnostic target required one stable approach path and no repath."
+                    : "Stationary in-range attack required no delegated movement or repath.");
             assertions.Check(outcome.PairRangeSatisfiedAtStart &&
                     Math.Abs(outcome.PairApproachRadiusAtStart - pairApproachRadius) <= 0.0001f &&
                     outcome.PairDistanceAtStart <= outcome.PairApproachRadiusAtStart + MountedCombatSpatialPolicy.RangeTolerance &&
@@ -823,9 +883,20 @@ namespace KingmakerMountedCombat.Diagnostics
                         Math.Abs(mountStandardAfter - mountStandardBefore) <= 0.01f,
                     "Rider melee charged only the rider Standard action and left the Mammoth Standard unchanged.");
             }
-            assertions.Check(Math.Abs(mountMoveAfter - mountMoveBefore) <= 0.01f &&
-                    Math.Abs(riderMoveAfter - riderMoveBefore) <= 0.01f,
-                "Stationary mounted action charged neither rider nor Mammoth Move action.");
+            if (IsMovementToAttackRow && IsTurnBasedRow)
+            {
+                assertions.Check(riderMoveAfter > riderMoveBefore &&
+                        Math.Abs(mountMoveAfter - mountMoveBefore) <= 0.01f,
+                    "Turn-based Mammoth movement charged only the current rider Move ledger.");
+            }
+            else
+            {
+                assertions.Check(Math.Abs(mountMoveAfter - mountMoveBefore) <= 0.01f &&
+                        Math.Abs(riderMoveAfter - riderMoveBefore) <= 0.01f,
+                    IsMovementToAttackRow
+                        ? "Real-time ignored-cooldown approach changed neither rider nor Mammoth Move ledger."
+                        : "Stationary mounted action charged neither rider nor Mammoth Move action.");
+            }
             assertions.Check(ruleProbe.AttackRuleCount == 1 && ruleProbe.AttackRollCount == 1 &&
                     (IsMissRow ? ruleProbe.DamageRuleCount == 0 : ruleProbe.DamageRuleCount <= 1) &&
                     ruleProbe.UnexpectedPairAttackCount == 0,
@@ -864,15 +935,59 @@ namespace KingmakerMountedCombat.Diagnostics
             assertions.Check(relationship.State == RelationshipState.Mounted &&
                     relationship.Runtime.PoseHealthy && relationship.Runtime.PoseFrameApplied,
                 "Mounted relationship and accepted pose remained healthy after the attack.");
-            assertions.Check(riderDisplacementAtOutcome <= 0.05f &&
-                    mountDisplacementAtOutcome <= 0.05f &&
-                    targetDisplacementAtOutcome <= 0.05f,
-                "Mounted pair and target attack remained stationary at the authoritative Mammoth origin.");
+            if (IsMovementToAttackRow)
+            {
+                var approach = new MountedCombatApproachSnapshot(
+                    outcome.ApproachRequiredAtStart,
+                    outcome.DelegatedMoveStartCount,
+                    outcome.DelegatedMoveTickCount,
+                    outcome.DelegatedMoveExecutorIsExactMount &&
+                        string.Equals(outcome.DelegatedMoveExecutorId, mount.UniqueId, StringComparison.Ordinal),
+                    outcome.WrapperCommandRetainedThroughoutApproach,
+                    outcome.DelegatedMoveNeverQueuedOnMount,
+                    outcome.RiderStockAgentSuppressedThroughoutApproach,
+                    outcome.MountStockAgentAuthoritativeThroughoutApproach,
+                    outcome.PoseHealthyThroughoutApproach,
+                    movementToAttackObservationCount,
+                    selectionRetainedDuringApproach,
+                    uiCoherentDuringApproach,
+                    pairApproachRadius,
+                    outcome.InitialPairDistance,
+                    outcome.PairDistanceAtAttackStart,
+                    outcome.RiderDisplacementAtAttackStart,
+                    outcome.MountDisplacementAtAttackStart,
+                    outcome.TargetDisplacementAtAttackStart,
+                    outcome.RepathCount);
+                assertions.Check(approach.AllPassed,
+                    "Movement-to-attack retained exact command, mover, selection, UI, pose, and range invariants: " +
+                    approach.FailureSummary + ".");
+                assertions.Check(riderDisplacementAtOutcome >= MountedCombatSpatialPolicy.MinimumDiagnosticApproachDisplacement &&
+                        mountDisplacementAtOutcome >= MountedCombatSpatialPolicy.MinimumDiagnosticApproachDisplacement &&
+                        targetDisplacementAtOutcome <= MountedCombatSpatialPolicy.RangeTolerance,
+                    "The synchronized pair moved to attack while the exact target remained stationary.");
+            }
+            else
+            {
+                assertions.Check(riderDisplacementAtOutcome <= 0.05f &&
+                        mountDisplacementAtOutcome <= 0.05f &&
+                        targetDisplacementAtOutcome <= 0.05f,
+                    "Mounted pair and target attack remained stationary at the authoritative Mammoth origin.");
+            }
 
             poseProfileAtOutcome = relationship.Runtime.PoseProfileId;
             poseHealthyAtOutcome = relationship.Runtime.PoseHealthy && relationship.Runtime.PoseFrameApplied;
 
             BeginCleanup();
+        }
+
+        private void ObserveMovementToAttackRuntime()
+        {
+            movementToAttackObservationCount++;
+            var selected = SelectionManager.Instance?.SelectedUnits;
+            selectionRetainedDuringApproach &= selected != null && selected.Count == 1 && selected[0] == rider;
+            uiCoherentDuringApproach &= combat.CanShowCombatActions &&
+                relationship.State == RelationshipState.Mounted &&
+                relationship.Runtime.PoseConfigured;
         }
 
         private void BeginCleanup()
@@ -1005,7 +1120,9 @@ namespace KingmakerMountedCombat.Diagnostics
             var selected = SelectionManager.Instance?.SelectedUnits;
             var record = new CombatEvidenceRecord
             {
-                SchemaVersion = IsTurnBasedRow ? 27 : 26,
+                SchemaVersion = IsMovementToAttackRow
+                    ? (IsTurnBasedRow ? 29 : 28)
+                    : (IsTurnBasedRow ? 27 : 26),
                 ArtifactKind = "combat-scenario-evidence",
                 RunId = request.RunId,
                 Scenario = request.Scenario,
@@ -1093,6 +1210,14 @@ namespace KingmakerMountedCombat.Diagnostics
                     RiderAvoidanceDisabledAtEnd = rider?.View?.AgentASP == null ? (bool?)null : rider.View.AgentASP.AvoidanceDisabled,
                     MountAvoidanceDisabledAtEnd = mount?.View?.AgentASP == null ? (bool?)null : mount.View.AgentASP.AvoidanceDisabled
                 },
+                MovementToAttack = IsMovementToAttackRow
+                    ? CombatMovementToAttackEvidence.From(
+                        outcome,
+                        requestedTargetDistance,
+                        movementToAttackObservationCount,
+                        selectionRetainedDuringApproach,
+                        uiCoherentDuringApproach)
+                    : null,
                 Pose = new CombatPoseEvidence
                 {
                     ProfileId = poseProfileAtOutcome,
@@ -1516,6 +1641,8 @@ namespace KingmakerMountedCombat.Diagnostics
             public CombatCommandEvidence Command { get; set; }
             public CombatRuleEvidence Rules { get; set; }
             public CombatMovementEvidence Movement { get; set; }
+            [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            public CombatMovementToAttackEvidence MovementToAttack { get; set; }
             public CombatPoseEvidence Pose { get; set; }
             public CombatCleanupEvidence Cleanup { get; set; }
             public IReadOnlyList<string> Selection { get; set; }
@@ -1842,6 +1969,62 @@ namespace KingmakerMountedCombat.Diagnostics
             public bool? MountStockAgentEnabledAtEnd { get; set; }
             public bool? RiderAvoidanceDisabledAtEnd { get; set; }
             public bool? MountAvoidanceDisabledAtEnd { get; set; }
+        }
+
+        private sealed class CombatMovementToAttackEvidence
+        {
+            public float RequestedTargetDistance { get; set; }
+            public bool ApproachRequiredAtStart { get; set; }
+            public int DelegatedMoveStartCount { get; set; }
+            public int DelegatedMoveTickCount { get; set; }
+            public string DelegatedMoveExecutorId { get; set; }
+            public bool DelegatedMoveExecutorIsExactMount { get; set; }
+            public bool WrapperCommandRetainedThroughoutApproach { get; set; }
+            public bool DelegatedMoveNeverQueuedOnMount { get; set; }
+            public bool RiderStockAgentSuppressedThroughoutApproach { get; set; }
+            public bool MountStockAgentAuthoritativeThroughoutApproach { get; set; }
+            public bool PoseHealthyThroughoutApproach { get; set; }
+            public int CommandObservationCount { get; set; }
+            public int RuntimeObservationCount { get; set; }
+            public bool SelectionRetainedDuringApproach { get; set; }
+            public bool UiCoherentDuringApproach { get; set; }
+            public float InitialPairDistance { get; set; }
+            public float PairDistanceAtAttackStart { get; set; }
+            public float RiderDisplacementAtAttackStart { get; set; }
+            public float MountDisplacementAtAttackStart { get; set; }
+            public float TargetDisplacementAtAttackStart { get; set; }
+
+            public static CombatMovementToAttackEvidence From(
+                MountedPairAttackOutcome value,
+                float requestedTargetDistance,
+                int runtimeObservationCount,
+                bool selectionRetained,
+                bool uiCoherent)
+            {
+                return new CombatMovementToAttackEvidence
+                {
+                    RequestedTargetDistance = requestedTargetDistance,
+                    ApproachRequiredAtStart = value != null && value.ApproachRequiredAtStart,
+                    DelegatedMoveStartCount = value?.DelegatedMoveStartCount ?? 0,
+                    DelegatedMoveTickCount = value?.DelegatedMoveTickCount ?? 0,
+                    DelegatedMoveExecutorId = value?.DelegatedMoveExecutorId,
+                    DelegatedMoveExecutorIsExactMount = value != null && value.DelegatedMoveExecutorIsExactMount,
+                    WrapperCommandRetainedThroughoutApproach = value != null && value.WrapperCommandRetainedThroughoutApproach,
+                    DelegatedMoveNeverQueuedOnMount = value != null && value.DelegatedMoveNeverQueuedOnMount,
+                    RiderStockAgentSuppressedThroughoutApproach = value != null && value.RiderStockAgentSuppressedThroughoutApproach,
+                    MountStockAgentAuthoritativeThroughoutApproach = value != null && value.MountStockAgentAuthoritativeThroughoutApproach,
+                    PoseHealthyThroughoutApproach = value != null && value.PoseHealthyThroughoutApproach,
+                    CommandObservationCount = value?.ApproachObservationCount ?? 0,
+                    RuntimeObservationCount = runtimeObservationCount,
+                    SelectionRetainedDuringApproach = selectionRetained,
+                    UiCoherentDuringApproach = uiCoherent,
+                    InitialPairDistance = value?.InitialPairDistance ?? 0f,
+                    PairDistanceAtAttackStart = value?.PairDistanceAtAttackStart ?? 0f,
+                    RiderDisplacementAtAttackStart = value?.RiderDisplacementAtAttackStart ?? 0f,
+                    MountDisplacementAtAttackStart = value?.MountDisplacementAtAttackStart ?? 0f,
+                    TargetDisplacementAtAttackStart = value?.TargetDisplacementAtAttackStart ?? 0f
+                };
+            }
         }
 
         private sealed class CombatTargetProvisioningEvidence

@@ -19,7 +19,9 @@ namespace KingmakerMountedCombat.Domain
     {
         public const float RangeTolerance = 0.05f;
         public const float DiagnosticRangeInset = 0.12f;
+        public const float DiagnosticApproachExtension = 2.0f;
         public const float DiagnosticPlacementTolerance = 0.06f;
+        public const float MinimumDiagnosticApproachDisplacement = 0.5f;
         public const float NativeAdmissionEpsilon = 0.001f;
         public const float MaximumNativeExecutorRadiusAdjustment = 0.75f;
 
@@ -84,6 +86,33 @@ namespace KingmakerMountedCombat.Domain
             return !IsBoundedDiagnosticTargetDistance(stoppingRadius, actualDistance);
         }
 
+        public static bool TryCalculateDiagnosticApproachTargetDistance(
+            float stoppingRadius,
+            out float targetDistance)
+        {
+            RequireFiniteNonNegative(stoppingRadius, nameof(stoppingRadius));
+            targetDistance = stoppingRadius + DiagnosticApproachExtension;
+            return targetDistance > stoppingRadius + RangeTolerance;
+        }
+
+        public static bool IsBoundedDiagnosticApproachTargetDistance(
+            float stoppingRadius,
+            float actualDistance)
+        {
+            RequireFiniteNonNegative(actualDistance, nameof(actualDistance));
+            float expectedDistance;
+            return TryCalculateDiagnosticApproachTargetDistance(stoppingRadius, out expectedDistance) &&
+                actualDistance > stoppingRadius + RangeTolerance &&
+                Math.Abs(actualDistance - expectedDistance) <= DiagnosticPlacementTolerance;
+        }
+
+        public static bool RequiresDiagnosticApproachPlacementRefresh(
+            float stoppingRadius,
+            float actualDistance)
+        {
+            return !IsBoundedDiagnosticApproachTargetDistance(stoppingRadius, actualDistance);
+        }
+
         public static bool TryCalculateNativeExecutorAdmissionRadius(
             float pairApproachRadius,
             float pairOriginDistance,
@@ -120,6 +149,123 @@ namespace KingmakerMountedCombat.Domain
             if (float.IsNaN(value) || float.IsInfinity(value))
             {
                 throw new ArgumentOutOfRangeException(name);
+            }
+        }
+    }
+
+    public sealed class MountedCombatApproachSnapshot
+    {
+        public MountedCombatApproachSnapshot(
+            bool approachRequiredAtStart,
+            int delegatedMoveStartCount,
+            int delegatedMoveTickCount,
+            bool delegatedMoveExecutorIsExactMount,
+            bool wrapperCommandRetained,
+            bool delegatedMoveNeverQueued,
+            bool riderStockAgentSuppressed,
+            bool mountStockAgentAuthoritative,
+            bool poseHealthyThroughout,
+            int observationCount,
+            bool selectionRetained,
+            bool uiCoherentThroughout,
+            float pairApproachRadius,
+            float initialPairDistance,
+            float pairDistanceAtAttackStart,
+            float riderDisplacementAtAttackStart,
+            float mountDisplacementAtAttackStart,
+            float targetDisplacementAtAttackStart,
+            int repathCount)
+        {
+            ApproachRequiredAtStart = approachRequiredAtStart;
+            DelegatedMoveStartCount = delegatedMoveStartCount;
+            DelegatedMoveTickCount = delegatedMoveTickCount;
+            DelegatedMoveExecutorIsExactMount = delegatedMoveExecutorIsExactMount;
+            WrapperCommandRetained = wrapperCommandRetained;
+            DelegatedMoveNeverQueued = delegatedMoveNeverQueued;
+            RiderStockAgentSuppressed = riderStockAgentSuppressed;
+            MountStockAgentAuthoritative = mountStockAgentAuthoritative;
+            PoseHealthyThroughout = poseHealthyThroughout;
+            ObservationCount = observationCount;
+            SelectionRetained = selectionRetained;
+            UiCoherentThroughout = uiCoherentThroughout;
+            PairApproachRadius = pairApproachRadius;
+            InitialPairDistance = initialPairDistance;
+            PairDistanceAtAttackStart = pairDistanceAtAttackStart;
+            RiderDisplacementAtAttackStart = riderDisplacementAtAttackStart;
+            MountDisplacementAtAttackStart = mountDisplacementAtAttackStart;
+            TargetDisplacementAtAttackStart = targetDisplacementAtAttackStart;
+            RepathCount = repathCount;
+        }
+
+        public bool ApproachRequiredAtStart { get; }
+        public int DelegatedMoveStartCount { get; }
+        public int DelegatedMoveTickCount { get; }
+        public bool DelegatedMoveExecutorIsExactMount { get; }
+        public bool WrapperCommandRetained { get; }
+        public bool DelegatedMoveNeverQueued { get; }
+        public bool RiderStockAgentSuppressed { get; }
+        public bool MountStockAgentAuthoritative { get; }
+        public bool PoseHealthyThroughout { get; }
+        public int ObservationCount { get; }
+        public bool SelectionRetained { get; }
+        public bool UiCoherentThroughout { get; }
+        public float PairApproachRadius { get; }
+        public float InitialPairDistance { get; }
+        public float PairDistanceAtAttackStart { get; }
+        public float RiderDisplacementAtAttackStart { get; }
+        public float MountDisplacementAtAttackStart { get; }
+        public float TargetDisplacementAtAttackStart { get; }
+        public int RepathCount { get; }
+
+        public string[] FailedGateNames
+        {
+            get
+            {
+                var failures = new System.Collections.Generic.List<string>();
+                AddFailure(failures, ApproachRequiredAtStart, "approach-required-at-start");
+                AddFailure(failures, DelegatedMoveStartCount == 1, "one-delegated-move");
+                AddFailure(failures, DelegatedMoveTickCount > 0, "delegated-move-ticked");
+                AddFailure(failures, DelegatedMoveExecutorIsExactMount, "delegated-move-executor-is-mount");
+                AddFailure(failures, WrapperCommandRetained, "wrapper-command-retained");
+                AddFailure(failures, DelegatedMoveNeverQueued, "delegated-move-not-queued");
+                AddFailure(failures, RiderStockAgentSuppressed, "rider-stock-agent-suppressed");
+                AddFailure(failures, MountStockAgentAuthoritative, "mount-stock-agent-authoritative");
+                AddFailure(failures, PoseHealthyThroughout, "pose-healthy-throughout");
+                AddFailure(failures, ObservationCount > 0, "runtime-approach-observed");
+                AddFailure(failures, SelectionRetained, "selection-retained");
+                AddFailure(failures, UiCoherentThroughout, "ui-coherent-throughout");
+                AddFailure(failures,
+                    InitialPairDistance > PairApproachRadius + MountedCombatSpatialPolicy.RangeTolerance,
+                    "initial-pair-distance-outside-range");
+                AddFailure(failures,
+                    PairDistanceAtAttackStart <= PairApproachRadius + MountedCombatSpatialPolicy.RangeTolerance,
+                    "attack-start-inside-range");
+                AddFailure(failures,
+                    RiderDisplacementAtAttackStart >= MountedCombatSpatialPolicy.MinimumDiagnosticApproachDisplacement,
+                    "rider-followed-approach");
+                AddFailure(failures,
+                    MountDisplacementAtAttackStart >= MountedCombatSpatialPolicy.MinimumDiagnosticApproachDisplacement,
+                    "mount-performed-approach");
+                AddFailure(failures,
+                    TargetDisplacementAtAttackStart <= MountedCombatSpatialPolicy.RangeTolerance,
+                    "target-remained-stationary");
+                AddFailure(failures, RepathCount == 0, "no-unexpected-repath");
+                return failures.ToArray();
+            }
+        }
+
+        public bool AllPassed => FailedGateNames.Length == 0;
+
+        public string FailureSummary => string.Join(",", FailedGateNames);
+
+        private static void AddFailure(
+            System.Collections.Generic.ICollection<string> failures,
+            bool passed,
+            string name)
+        {
+            if (!passed)
+            {
+                failures.Add(name);
             }
         }
     }

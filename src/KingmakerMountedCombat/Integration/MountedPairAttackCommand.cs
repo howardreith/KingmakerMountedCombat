@@ -53,6 +53,38 @@ namespace KingmakerMountedCombat.Integration
         public float NativeAdmissionRadiusAtStart { get; set; }
 
         public bool NativeAdmissionAdjusted { get; set; }
+
+        public bool ApproachRequiredAtStart { get; set; }
+
+        public int DelegatedMoveStartCount { get; set; }
+
+        public int DelegatedMoveTickCount { get; set; }
+
+        public string DelegatedMoveExecutorId { get; set; }
+
+        public bool DelegatedMoveExecutorIsExactMount { get; set; }
+
+        public bool WrapperCommandRetainedThroughoutApproach { get; set; }
+
+        public bool DelegatedMoveNeverQueuedOnMount { get; set; }
+
+        public bool RiderStockAgentSuppressedThroughoutApproach { get; set; }
+
+        public bool MountStockAgentAuthoritativeThroughoutApproach { get; set; }
+
+        public bool PoseHealthyThroughoutApproach { get; set; }
+
+        public int ApproachObservationCount { get; set; }
+
+        public float InitialPairDistance { get; set; }
+
+        public float PairDistanceAtAttackStart { get; set; }
+
+        public float RiderDisplacementAtAttackStart { get; set; }
+
+        public float MountDisplacementAtAttackStart { get; set; }
+
+        public float TargetDisplacementAtAttackStart { get; set; }
     }
 
     internal sealed class MountedPairAttackCommand : UnitCommand
@@ -77,6 +109,25 @@ namespace KingmakerMountedCombat.Integration
         private bool retainedAttackWeaponIsNatural;
         private bool retainedAttackWeaponIsRanged;
         private bool terminalReported;
+        private bool approachRequiredAtStart;
+        private int delegatedMoveStartCount;
+        private int delegatedMoveTickCount;
+        private string delegatedMoveExecutorId;
+        private bool delegatedMoveExecutorIsExactMount = true;
+        private bool wrapperCommandRetainedThroughoutApproach = true;
+        private bool delegatedMoveNeverQueuedOnMount = true;
+        private bool riderStockAgentSuppressedThroughoutApproach = true;
+        private bool mountStockAgentAuthoritativeThroughoutApproach = true;
+        private bool poseHealthyThroughoutApproach = true;
+        private int approachObservationCount;
+        private Vector3 riderPositionAtCommandStart;
+        private Vector3 mountPositionAtCommandStart;
+        private Vector3 targetPositionAtCommandStart;
+        private float initialPairDistance;
+        private float pairDistanceAtAttackStart;
+        private float riderDisplacementAtAttackStart;
+        private float mountDisplacementAtAttackStart;
+        private float targetDisplacementAtAttackStart;
 
         public MountedPairAttackCommand(
             GameMountedRelationshipService relationship,
@@ -130,8 +181,13 @@ namespace KingmakerMountedCombat.Integration
             {
                 RequireLiveExactPair();
                 CreateAndValidateChildAttack();
+                riderPositionAtCommandStart = rider.Position;
+                mountPositionAtCommandStart = mount.Position;
+                targetPositionAtCommandStart = attackTarget.Position;
+                initialPairDistance = HorizontalDistance(mountPositionAtCommandStart, targetPositionAtCommandStart);
                 targetSnapshot = attackTarget.Position;
                 var requiresApproach = !childAttack.IsPairEnoughClose;
+                approachRequiredAtStart = requiresApproach;
                 if (!transaction.AcceptTarget(attackTarget.UniqueId, requiresApproach))
                 {
                     throw new InvalidOperationException("Mounted combat transaction rejected its exact target.");
@@ -252,6 +308,7 @@ namespace KingmakerMountedCombat.Integration
 
         private void TickApproach()
         {
+            ObserveApproachInvariants();
             if (childAttack.IsPairEnoughClose)
             {
                 StopDelegatedMove();
@@ -284,6 +341,7 @@ namespace KingmakerMountedCombat.Integration
 
             if (delegatedMove.IsRunning)
             {
+                delegatedMoveTickCount++;
                 delegatedMove.Tick();
             }
 
@@ -317,6 +375,12 @@ namespace KingmakerMountedCombat.Integration
             };
             delegatedMove.Init(mount);
             delegatedMove.OnRun();
+            delegatedMoveStartCount++;
+            delegatedMoveExecutorId = delegatedMove.Executor?.UniqueId;
+            delegatedMoveExecutorIsExactMount &= delegatedMove.Executor == mount;
+            delegatedMoveNeverQueuedOnMount &=
+                !mount.Commands.Contains(delegatedMove) &&
+                !mount.Commands.Queue.Contains(delegatedMove);
         }
 
         private void StopDelegatedMove()
@@ -335,6 +399,10 @@ namespace KingmakerMountedCombat.Integration
             {
                 throw new InvalidOperationException("Native child attack failed the bounded Mammoth-origin admission bridge.");
             }
+            pairDistanceAtAttackStart = childAttack.PairDistanceAtNativeStart;
+            riderDisplacementAtAttackStart = HorizontalDistance(riderPositionAtCommandStart, rider.Position);
+            mountDisplacementAtAttackStart = HorizontalDistance(mountPositionAtCommandStart, mount.Position);
+            targetDisplacementAtAttackStart = HorizontalDistance(targetPositionAtCommandStart, attackTarget.Position);
             StopDelegatedMove();
             mount.ForceLookAt(attackTarget.Position);
             childAttack.TurnToTarget();
@@ -411,6 +479,27 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
+        private void ObserveApproachInvariants()
+        {
+            approachObservationCount++;
+            var actionCommands = actionActor.Commands;
+            wrapperCommandRetainedThroughoutApproach &= actionCommands != null &&
+                (actionCommands.Contains(this) || actionCommands.Queue.Contains(this));
+            if (delegatedMove != null)
+            {
+                delegatedMoveExecutorIsExactMount &= delegatedMove.Executor == mount;
+                delegatedMoveNeverQueuedOnMount &=
+                    !mount.Commands.Contains(delegatedMove) &&
+                    !mount.Commands.Queue.Contains(delegatedMove);
+            }
+            riderStockAgentSuppressedThroughoutApproach &= rider.View?.AgentASP != null &&
+                !rider.View.AgentASP.enabled && rider.View.AgentASP.AvoidanceDisabled;
+            mountStockAgentAuthoritativeThroughoutApproach &= mount.View?.AgentASP != null &&
+                mount.View.AgentASP.enabled && !mount.View.AgentASP.AvoidanceDisabled;
+            poseHealthyThroughoutApproach &= relationship.Runtime.PoseHealthy &&
+                relationship.Runtime.PoseFrameApplied;
+        }
+
         private void ReportTerminalOnce()
         {
             if (terminalReported)
@@ -443,7 +532,23 @@ namespace KingmakerMountedCombat.Integration
                 PairApproachRadiusAtStart = childAttack?.PairApproachRadius ?? 0f,
                 NativeExecutorDistanceAtStart = childAttack?.NativeExecutorDistanceAtStart ?? 0f,
                 NativeAdmissionRadiusAtStart = childAttack?.NativeAdmissionRadiusAtStart ?? 0f,
-                NativeAdmissionAdjusted = childAttack != null && childAttack.NativeAdmissionAdjustedAtStart
+                NativeAdmissionAdjusted = childAttack != null && childAttack.NativeAdmissionAdjustedAtStart,
+                ApproachRequiredAtStart = approachRequiredAtStart,
+                DelegatedMoveStartCount = delegatedMoveStartCount,
+                DelegatedMoveTickCount = delegatedMoveTickCount,
+                DelegatedMoveExecutorId = delegatedMoveExecutorId,
+                DelegatedMoveExecutorIsExactMount = delegatedMoveExecutorIsExactMount,
+                WrapperCommandRetainedThroughoutApproach = wrapperCommandRetainedThroughoutApproach,
+                DelegatedMoveNeverQueuedOnMount = delegatedMoveNeverQueuedOnMount,
+                RiderStockAgentSuppressedThroughoutApproach = riderStockAgentSuppressedThroughoutApproach,
+                MountStockAgentAuthoritativeThroughoutApproach = mountStockAgentAuthoritativeThroughoutApproach,
+                PoseHealthyThroughoutApproach = poseHealthyThroughoutApproach,
+                ApproachObservationCount = approachObservationCount,
+                InitialPairDistance = initialPairDistance,
+                PairDistanceAtAttackStart = pairDistanceAtAttackStart,
+                RiderDisplacementAtAttackStart = riderDisplacementAtAttackStart,
+                MountDisplacementAtAttackStart = mountDisplacementAtAttackStart,
+                TargetDisplacementAtAttackStart = targetDisplacementAtAttackStart
             });
         }
 

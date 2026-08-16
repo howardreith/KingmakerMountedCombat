@@ -36,7 +36,7 @@ All core claims require two consecutive fresh-process passes from one clean comm
 |---|---|---|
 | Rider melee | mounted hit/miss RT, hit TB, invalid target, target death, cleanup, non-mounted control | IN PROGRESS - stationary hit RT/TB and miss RT PASS A/B; invalid-target, target-death, cleanup-stress, and non-mounted controls remain open |
 | Mount attack | `mounted-mammoth-primary-hit-rt` and `mounted-mammoth-primary-hit-tb`; exact actor/initiative/command/resource/weapon/target/rule identity, rider unchanged, continuous target-only brain suppression/restoration, no duplicate/repath, bounded Mammoth turn, cleanup/restoration | PASS — RT A/B `54/0` each and TB A/B `59/0` each on exact commit/package `defbbd0` / `8adb516b...`; four independent restoration audits PASS |
-| Action economy/movement | entry/exit RT/TB, movement-to-target, cancellation, obstacles/doorway, resource accounting | TODO |
+| Action economy/movement | entry/exit RT/TB, movement-to-target, cancellation, obstacles/doorway, resource accounting | IN PROGRESS - selected rider-melee RT/TB implementation and schema-v28/v29 validators are offline-green at `21/209/17/179/247`; fresh same-package RT/TB A/B remains required |
 | Lifecycle | rider/mount death and incapacitation, view/party/save/load/area/disable/exception boundaries | TODO |
 | Stretch | reach, AoO, and basic charge RT/TB plus isolation | TODO |
 

@@ -3639,6 +3639,7 @@ function Get-KmcSaveBackedRuntimeScenarios {
         'camera-follow-and-command-routing', 'movement-suite', 'boundary-suite', 'presentation-suite',
         'mounted-rider-melee-hit-rt', 'mounted-rider-melee-hit-tb', 'mounted-rider-melee-miss-rt',
         'mounted-mammoth-primary-hit-rt', 'mounted-mammoth-primary-hit-tb',
+        'mounted-rider-melee-move-to-attack-rt', 'mounted-rider-melee-move-to-attack-tb',
         'manual-visual-review'
     )
 }
@@ -4563,7 +4564,8 @@ function Assert-KmcBoundaryTriggerScope {
 function Get-KmcCombatRuntimeRows {
     return @(
         'mounted-rider-melee-hit-rt','mounted-rider-melee-hit-tb','mounted-rider-melee-miss-rt',
-        'mounted-mammoth-primary-hit-rt','mounted-mammoth-primary-hit-tb'
+        'mounted-mammoth-primary-hit-rt','mounted-mammoth-primary-hit-tb',
+        'mounted-rider-melee-move-to-attack-rt','mounted-rider-melee-move-to-attack-tb'
     )
 }
 
@@ -7154,11 +7156,14 @@ function Assert-KmcCombatScenarioEvidence {
     if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -ge 24) {
         $recordFields = @($recordFields + 'targetBrainLease')
     }
-    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(5,7,9,11,13,15,17,19,21,23,25,27)) {
+    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(28,29)) {
+        $recordFields = @($recordFields + 'movementToAttack')
+    }
+    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(5,7,9,11,13,15,17,19,21,23,25,27,29)) {
         $recordFields = @($recordFields + 'turnBased')
     }
     Assert-KmcExactProperties $record $recordFields 'combat evidence record'
-    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -notin @(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27) -or
+    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -notin @(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29) -or
         [string]$record.artifactKind -cne 'combat-scenario-evidence') {
         throw 'Combat evidence schemaVersion or artifactKind is not exact.'
     }
@@ -7563,6 +7568,45 @@ function Assert-KmcCombatScenarioEvidence {
             }
         }
     }
+    if ([long]$record.schemaVersion -in @(28,29)) {
+        $movementToAttackFields = @(
+            'requestedTargetDistance','approachRequiredAtStart','delegatedMoveStartCount',
+            'delegatedMoveTickCount','delegatedMoveExecutorId','delegatedMoveExecutorIsExactMount',
+            'wrapperCommandRetainedThroughoutApproach','delegatedMoveNeverQueuedOnMount',
+            'riderStockAgentSuppressedThroughoutApproach','mountStockAgentAuthoritativeThroughoutApproach',
+            'poseHealthyThroughoutApproach','commandObservationCount','runtimeObservationCount',
+            'selectionRetainedDuringApproach','uiCoherentDuringApproach','initialPairDistance',
+            'pairDistanceAtAttackStart','riderDisplacementAtAttackStart','mountDisplacementAtAttackStart',
+            'targetDisplacementAtAttackStart')
+        Assert-KmcExactProperties $record.movementToAttack $movementToAttackFields 'combat movement-to-attack evidence'
+        foreach ($name in @(
+            'approachRequiredAtStart','delegatedMoveExecutorIsExactMount',
+            'wrapperCommandRetainedThroughoutApproach','delegatedMoveNeverQueuedOnMount',
+            'riderStockAgentSuppressedThroughoutApproach','mountStockAgentAuthoritativeThroughoutApproach',
+            'poseHealthyThroughoutApproach','selectionRetainedDuringApproach','uiCoherentDuringApproach')) {
+            if ($record.movementToAttack.$name -isnot [bool]) {
+                throw "Combat movement-to-attack evidence is not Boolean: $name"
+            }
+        }
+        foreach ($name in @('delegatedMoveStartCount','delegatedMoveTickCount','commandObservationCount','runtimeObservationCount')) {
+            if (-not (Test-KmcExactJsonInteger $record.movementToAttack.$name) -or
+                [long]$record.movementToAttack.$name -lt 0) {
+                throw "Combat movement-to-attack count is invalid: $name"
+            }
+        }
+        foreach ($name in @(
+            'requestedTargetDistance','initialPairDistance','pairDistanceAtAttackStart',
+            'riderDisplacementAtAttackStart','mountDisplacementAtAttackStart','targetDisplacementAtAttackStart')) {
+            if (-not (Test-KmcJsonNumber $record.movementToAttack.$name) -or
+                [double]$record.movementToAttack.$name -lt 0) {
+                throw "Combat movement-to-attack measurement is invalid: $name"
+            }
+        }
+        if ($record.movementToAttack.delegatedMoveExecutorId -isnot [string] -or
+            [string]::IsNullOrWhiteSpace([string]$record.movementToAttack.delegatedMoveExecutorId)) {
+            throw 'Combat movement-to-attack executor identity is invalid.'
+        }
+    }
     $targetProvisioningFields = @(
         'targetBlueprintId','runtimeGroupId','blueprintEmptyHandWeaponBlueprintId','targetNativeSingleAttackWeaponBlueprintId',
         'targetNativeSingleAttackSlot','targetPrimaryMainAttacks','targetSecondaryMainAttacks',
@@ -7629,10 +7673,14 @@ function Assert-KmcCombatScenarioEvidence {
     if ($requirePass) {
         $mammothScenario = [string]$Request.scenario -cin @(
             'mounted-mammoth-primary-hit-rt','mounted-mammoth-primary-hit-tb')
+        $movementToAttackScenario = [string]$Request.scenario -cin @(
+            'mounted-rider-melee-move-to-attack-rt','mounted-rider-melee-move-to-attack-tb')
         $turnBasedScenario = [string]$Request.scenario -cin @(
-            'mounted-rider-melee-hit-tb','mounted-mammoth-primary-hit-tb')
+            'mounted-rider-melee-hit-tb','mounted-mammoth-primary-hit-tb','mounted-rider-melee-move-to-attack-tb')
         $missScenario = [string]$Request.scenario -ceq 'mounted-rider-melee-miss-rt'
-        $expectedCombatSchemas = if ($mammothScenario) {
+        $expectedCombatSchemas = if ($movementToAttackScenario) {
+            if ($turnBasedScenario) { @(29) } else { @(28) }
+        } elseif ($mammothScenario) {
             if ($turnBasedScenario) { @(21,23,25,27) } else { @(20,22,24,26) }
         } elseif ($missScenario) {
             @(6,8,10,12,14,16,18,20,22,24,26)
@@ -7899,8 +7947,18 @@ function Assert-KmcCombatScenarioEvidence {
         }
         if (-not (Test-KmcJsonNumber $record.pairApproachRadius) -or
             -not (Test-KmcJsonNumber $record.targetDistanceAtClick) -or
-            [double]$record.pairApproachRadius -le 0.17 -or [double]$record.targetDistanceAtClick -le 0.05 -or
-            [Math]::Abs([double]$record.targetDistanceAtClick - ([double]$record.pairApproachRadius - 0.12)) -gt 0.060001 -or
+            [double]$record.pairApproachRadius -le 0.17 -or [double]$record.targetDistanceAtClick -le 0.05) {
+            throw 'PASS combat evidence does not contain numeric positive mounted range measurements.'
+        }
+        if ($movementToAttackScenario) {
+            if ([Math]::Abs([double]$record.targetDistanceAtClick - ([double]$record.pairApproachRadius + 2.0)) -gt 0.060001 -or
+                [double]$record.targetDistanceAtClick -le ([double]$record.pairApproachRadius + 0.05) -or
+                [Math]::Abs([double]$record.movementToAttack.requestedTargetDistance -
+                    ([double]$record.pairApproachRadius + 2.0)) -gt 0.0001) {
+                throw 'PASS movement-to-attack evidence does not prove the exact bounded out-of-range placement contract.'
+            }
+        }
+        elseif ([Math]::Abs([double]$record.targetDistanceAtClick - ([double]$record.pairApproachRadius - 0.12)) -gt 0.060001 -or
             [double]$record.targetDistanceAtClick -gt ([double]$record.pairApproachRadius + 0.05)) {
             throw 'PASS combat evidence does not prove the exact bounded mounted range contract.'
         }
@@ -8008,21 +8066,60 @@ function Assert-KmcCombatScenarioEvidence {
             [double]$record.resources.riderStandardAfter -le [double]$record.resources.riderStandardBefore -or
             [math]::Abs([double]$record.resources.mountStandardAfter - [double]$record.resources.mountStandardBefore) -gt 0.01
         }
-        if ($resourceOwnershipInvalid -or
-            [math]::Abs([double]$record.resources.riderMoveAfter - [double]$record.resources.riderMoveBefore) -gt 0.01 -or
-            [math]::Abs([double]$record.resources.mountMoveAfter - [double]$record.resources.mountMoveBefore) -gt 0.01) {
-            throw 'PASS combat resource evidence does not prove exact action-actor-only Standard charging with unchanged Move resources.'
+        $moveOwnershipInvalid =
+            [math]::Abs([double]$record.resources.mountMoveAfter - [double]$record.resources.mountMoveBefore) -gt 0.01 -or
+            ($movementToAttackScenario -and $turnBasedScenario -and
+             [double]$record.resources.riderMoveAfter -le [double]$record.resources.riderMoveBefore) -or
+            ((-not $movementToAttackScenario -or -not $turnBasedScenario) -and
+             [math]::Abs([double]$record.resources.riderMoveAfter - [double]$record.resources.riderMoveBefore) -gt 0.01)
+        if ($resourceOwnershipInvalid -or $moveOwnershipInvalid) {
+            throw 'PASS combat resource evidence does not prove exact action-actor Standard and rider-owned movement charging.'
+        }
+        $movementDisplacementInvalid = $false
+        if ([long]$record.schemaVersion -ge 22) {
+            $movementDisplacementInvalid = if ($movementToAttackScenario) {
+                [double]$record.movement.riderDisplacementAtOutcome -lt 0.5 -or
+                [double]$record.movement.mountDisplacementAtOutcome -lt 0.5 -or
+                [double]$record.movement.targetDisplacementAtOutcome -gt 0.05
+            } else {
+                [double]$record.movement.riderDisplacementAtOutcome -gt 0.05 -or
+                [double]$record.movement.mountDisplacementAtOutcome -gt 0.05 -or
+                [double]$record.movement.targetDisplacementAtOutcome -gt 0.05
+            }
         }
         if ([string]$record.movement.authoritativeMover -cne 'mount' -or [long]$record.movement.repathCount -ne 0 -or
-            ([long]$record.schemaVersion -ge 22 -and
-             ([double]$record.movement.riderDisplacementAtOutcome -gt 0.05 -or
-              [double]$record.movement.mountDisplacementAtOutcome -gt 0.05 -or
-              [double]$record.movement.targetDisplacementAtOutcome -gt 0.05)) -or
+            ([long]$record.schemaVersion -ge 22 -and $movementDisplacementInvalid) -or
             $record.movement.riderStockAgentEnabledAtEnd -ne $true -or
             $record.movement.mountStockAgentEnabledAtEnd -ne $true -or
             $record.movement.riderAvoidanceDisabledAtEnd -ne $false -or
             $record.movement.mountAvoidanceDisabledAtEnd -ne $false) {
-            throw 'PASS combat movement evidence does not prove stationary mount authority and exact baseline restoration.'
+            throw 'PASS combat movement evidence does not prove exact mount authority, displacement, and baseline restoration.'
+        }
+        if ($movementToAttackScenario -and
+            ($record.movementToAttack.approachRequiredAtStart -ne $true -or
+             [long]$record.movementToAttack.delegatedMoveStartCount -ne 1 -or
+             [long]$record.movementToAttack.delegatedMoveTickCount -le 0 -or
+             [string]$record.movementToAttack.delegatedMoveExecutorId -cne [string]$record.mountId -or
+             $record.movementToAttack.delegatedMoveExecutorIsExactMount -ne $true -or
+             $record.movementToAttack.wrapperCommandRetainedThroughoutApproach -ne $true -or
+             $record.movementToAttack.delegatedMoveNeverQueuedOnMount -ne $true -or
+             $record.movementToAttack.riderStockAgentSuppressedThroughoutApproach -ne $true -or
+             $record.movementToAttack.mountStockAgentAuthoritativeThroughoutApproach -ne $true -or
+             $record.movementToAttack.poseHealthyThroughoutApproach -ne $true -or
+             [long]$record.movementToAttack.commandObservationCount -le 0 -or
+             [long]$record.movementToAttack.runtimeObservationCount -le 0 -or
+             $record.movementToAttack.selectionRetainedDuringApproach -ne $true -or
+             $record.movementToAttack.uiCoherentDuringApproach -ne $true -or
+             [Math]::Abs([double]$record.movementToAttack.initialPairDistance -
+                [double]$record.targetDistanceAtClick) -gt 0.0001 -or
+             [double]$record.movementToAttack.initialPairDistance -le
+                ([double]$record.pairApproachRadius + 0.05) -or
+             [double]$record.movementToAttack.pairDistanceAtAttackStart -gt
+                ([double]$record.pairApproachRadius + 0.05) -or
+             [double]$record.movementToAttack.riderDisplacementAtAttackStart -lt 0.5 -or
+             [double]$record.movementToAttack.mountDisplacementAtAttackStart -lt 0.5 -or
+             [double]$record.movementToAttack.targetDisplacementAtAttackStart -gt 0.05)) {
+            throw 'PASS movement-to-attack evidence does not prove one retained rider wrapper and one manually driven Mammoth approach.'
         }
         if ([string]$record.pose.profileId -cne 'medium-humanoid-mammoth-v1' -or
             $record.pose.healthyAtOutcome -ne $true -or $record.pose.configuredAtEnd -ne $false -or

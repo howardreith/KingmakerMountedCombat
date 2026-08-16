@@ -4,6 +4,10 @@ Status: IN PROGRESS
 
 Branch: `codex/mounted-combat-phase2-alpha`
 
+## Movement-to-attack offline checkpoint - 2026-08-16T20:27:57Z
+
+No critical blocker is active. The selected rider-melee movement-to-attack implementation is offline-green on base `d934db721b9982f37789c2d6249d3e93942f91b6`: one rider-owned Standard wrapper manually drives one exact Mammoth `UnitMoveTo`; Mammoth remains sole pathfinder; turn-based movement is charged only through the rider's current native `TurnController`; real-time ignored-cooldown movement changes neither Move ledger. Schema v28/v29 binds command retention, exact mover, range transition, resource ownership, selection/UI/pose continuity, no repath/target movement/duplicate attack, and cleanup while preserving schemas v1-v27. Gates pass `21/209/17/179/247` plus Release build. Runtime RT/TB A/B is still required, so no movement qualification credit is claimed.
+
 ## Superseding Mammoth-primary qualification checkpoint - 2026-08-16T19:57:07Z
 
 No critical blocker is active. Clean commit/package `defbbd0516ec1ad16eac7e83dd69ae1fc41fc8c6` / `8adb516b6970b07d714dcb46e3418d2fc0fc68a92af218b6170a3427598bab2d` passed separate RT/TB full-continuity WhatIf with zero mutation and then fresh same-package RT A/B at `54/0` each and TB A/B at `59/0` each. Every process independently restored canonical Mods, the complete protected inventory and pin set, immutable Baseline, exact Working, processes, locks, sentinels, and live deployment before evidence inspection. The four credited runs prove exact Mammoth actor/command/resource/rule/primary-natural-weapon identity, exactly one intended attack, no rider duplicate or rider cost, exact RT/TB action accounting, exact native Mammoth turn in TB, zero pair/target movement, no repath/AoO/charge, healthy accepted Mammoth pose, and complete cleanup. Mammoth-primary is closed; action economy and movement-to-attack are next. The prior actor-readiness checkpoint remains immutable history and receives no retroactive credit.
