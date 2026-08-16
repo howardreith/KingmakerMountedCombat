@@ -8,8 +8,8 @@ namespace KingmakerMountedCombat.Tests
     {
         public static void Register(TestRunner runner)
         {
-            runner.Run("mounted rider melee uses rider actor and pair resource ownership", RiderMeleeOwnership);
-            runner.Run("mounted Mammoth primary uses mount actor and rider resource ownership", MountAttackOwnership);
+            runner.Run("mounted rider melee uses rider actor and rider resource ownership", RiderMeleeOwnership);
+            runner.Run("mounted Mammoth primary uses mount actor and mount resource ownership", MountAttackOwnership);
             runner.Run("mounted combat rejects ranged rider attack", RejectsRangedRider);
             runner.Run("mounted combat rejects invalid target and unavailable Standard action", RejectsInvalidContext);
             runner.Run("mounted combat transaction starts exactly one child attack", PreventsDuplicateAttack);
@@ -23,6 +23,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("mounted combat native admission bridges only an in-range Mammoth origin", NativeAdmissionUsesMountOrigin);
             runner.Run("mounted combat native admission rejects pair range and offset escape", NativeAdmissionRejectsUnsafeBounds);
             runner.Run("mounted pair ends only the exact Mammoth turn", SuppressesOnlyMountTurn);
+            runner.Run("mounted pair preserves only an explicitly armed Mammoth action turn", PreservesExplicitMountActionTurn);
             runner.Run("mounted pair admits rider action in exact native command window", AdmitsExactRiderActionWindow);
             runner.Run("mounted pair delegates movement only through the exact rider turn", DelegatesOnlyExactMovement);
             runner.Run("native single attack prefers an eligible primary hand", NativeSingleAttackPrefersPrimary);
@@ -64,7 +65,8 @@ namespace KingmakerMountedCombat.Tests
             var result = MountedCombatActionEvaluator.Evaluate(Eligible(MountedCombatActionKind.MountPrimaryNatural));
             TestRunner.True(result.IsAllowed, "Eligible Mammoth primary was rejected.");
             TestRunner.Equal(MountedCombatActor.Mount, result.Actor, "Mammoth attack actor changed.");
-            TestRunner.Equal(MountedCombatActor.Rider, result.ResourceOwner, "Mammoth action did not charge rider.");
+            TestRunner.Equal(MountedCombatActor.Mount, result.ResourceOwner, "Mammoth did not own its Standard cost.");
+            TestRunner.Equal(MountedCombatActor.Mount, result.PathfindingOwner, "Mammoth did not retain pathfinding authority.");
         }
 
         private static void RejectsRangedRider()
@@ -80,8 +82,8 @@ namespace KingmakerMountedCombat.Tests
         {
             var context = Eligible(MountedCombatActionKind.MountPrimaryNatural);
             context.TargetIsVisibleEnemy = false;
-            context.RiderHasStandardAction = false;
-            context.RiderOwnsCurrentTurnOrRealTime = false;
+            context.ActionActorHasStandardAction = false;
+            context.ActionActorOwnsCurrentTurnOrRealTime = false;
             var result = MountedCombatActionEvaluator.Evaluate(context);
             var feedback = string.Join(" ", result.RejectionReasons.ToArray());
             TestRunner.True(!result.IsAllowed, "Invalid mounted attack was accepted.");
@@ -224,6 +226,23 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(MountedPairTurnPolicy.ShouldEndMountTurn(true, true, true), "Exact Mammoth turn was not suppressed.");
             TestRunner.True(!MountedPairTurnPolicy.ShouldEndMountTurn(true, true, false), "Rider/non-pair turn was suppressed.");
             TestRunner.True(!MountedPairTurnPolicy.ShouldEndMountTurn(false, true, true), "Unmounted Mammoth turn was suppressed.");
+        }
+
+        private static void PreservesExplicitMountActionTurn()
+        {
+            TestRunner.True(
+                !MountedPairTurnPolicy.ShouldEndMountTurn(true, true, true, true),
+                "An explicitly armed Mammoth action turn was suppressed.");
+            TestRunner.True(
+                MountedPairTurnPolicy.ShouldEndMountTurn(true, true, true, false),
+                "An unarmed Mammoth turn escaped suppression.");
+            TestRunner.True(
+                MountedPairTurnPolicy.CanIssueAction(true, true, true, false) &&
+                    MountedPairTurnPolicy.CanIssueAction(true, true, false, true),
+                "The action-actor policy rejected an exact native Preparing or Acting window.");
+            TestRunner.True(
+                !MountedPairTurnPolicy.CanIssueAction(true, false, true, true),
+                "A different unit's turn admitted an actor-specific command.");
         }
 
         private static void AdmitsExactRiderActionWindow()
@@ -396,7 +415,7 @@ namespace KingmakerMountedCombat.Tests
                 true, false, true, false, true, true, false);
             TestRunner.True(!snapshot.AllPassed, "An unsafe diagnostic click passed.");
             TestRunner.Equal(
-                "fog-of-war-cleared,target-visible-for-player,rider-weapon-is-supported-melee",
+                "fog-of-war-cleared,target-visible-for-player,action-weapon-is-supported-melee",
                 snapshot.FailureSummary,
                 "Diagnostic click failures were not reported in exact gate order.");
         }
@@ -406,7 +425,7 @@ namespace KingmakerMountedCombat.Tests
             var snapshot = new DiagnosticCombatDispatchReadinessSnapshot(
                 true, true, true, true, true);
             TestRunner.True(snapshot.AllPassed, "An unpaused rider with every native start gate ready was rejected.");
-            TestRunner.True(snapshot.GameUnpaused && snapshot.RiderCanActInCombat && !snapshot.RiderHandsBusy &&
+            TestRunner.True(snapshot.GameUnpaused && snapshot.ActionActorCanActInCombat && !snapshot.ActionActorHandsBusy &&
                     snapshot.EquipmentControllerAvailable && !snapshot.EquipmentUpdateScheduled,
                 "An all-pass dispatch snapshot changed its exact native gate values.");
         }
@@ -417,10 +436,10 @@ namespace KingmakerMountedCombat.Tests
                 false, false, false, true, false);
             TestRunner.True(!snapshot.AllPassed, "A paused rider waiting on initiative and equipment was dispatched.");
             TestRunner.Equal(
-                "game-unpaused,rider-can-act-in-combat,rider-hands-idle,equipment-update-idle",
+                "game-unpaused,action-actor-can-act-in-combat,action-actor-hands-idle,equipment-update-idle",
                 snapshot.FailureSummary,
                 "Diagnostic dispatch failures were not reported in exact gate order.");
-            TestRunner.True(snapshot.RiderHandsBusy && snapshot.EquipmentUpdateScheduled,
+            TestRunner.True(snapshot.ActionActorHandsBusy && snapshot.EquipmentUpdateScheduled,
                 "Failed dispatch gates were not preserved as exact observed states.");
         }
 
@@ -489,8 +508,8 @@ namespace KingmakerMountedCombat.Tests
                 "An initialized native rider turn with the exact combat roster was rejected.");
             TestRunner.True(snapshot.ModeEnabled && snapshot.ControllerInitialized &&
                     snapshot.RosterContainsRider && snapshot.RosterContainsMount &&
-                    snapshot.RosterContainsTarget && snapshot.NativeRiderTurnStarted &&
-                    snapshot.CurrentTurnRider && snapshot.CurrentTurnCommandReady,
+                    snapshot.RosterContainsTarget && snapshot.NativeActionActorTurnStarted &&
+                    snapshot.CurrentTurnActionActor && snapshot.CurrentTurnCommandReady,
                 "An all-pass turn-based snapshot changed its exact native gate values.");
         }
 
@@ -501,7 +520,7 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(!snapshot.AllPassed,
                 "A turn-based dispatch without an initialized exact rider turn passed.");
             TestRunner.Equal(
-                "turn-based-controller-initialized,turn-roster-contains-mount,turn-roster-contains-target,current-turn-rider,current-turn-command-ready",
+                "turn-based-controller-initialized,turn-roster-contains-mount,turn-roster-contains-target,current-turn-action-actor,current-turn-command-ready",
                 snapshot.FailureSummary,
                 "Turn-based dispatch failures were not reported in exact gate order.");
         }
@@ -531,7 +550,7 @@ namespace KingmakerMountedCombat.Tests
                 true, true, false, false, false);
             TestRunner.True(!snapshot.AllPassed, "An invalid in-flight mounted pair passed its liveness snapshot.");
             TestRunner.Equal(
-                "relationship-mounted,target-in-state,target-conscious-or-child-started,target-not-finally-dead,rider-hostile-to-target,rider-can-attack-target",
+                "relationship-mounted,target-in-state,target-conscious-or-child-started,target-not-finally-dead,action-actor-hostile-to-target,action-actor-can-attack-target",
                 snapshot.FailureSummary,
                 "In-flight mounted-pair failures were not reported in exact gate order.");
         }
@@ -566,8 +585,8 @@ namespace KingmakerMountedCombat.Tests
                 TargetExists = true,
                 TargetAliveAndConscious = true,
                 TargetIsVisibleEnemy = true,
-                RiderOwnsCurrentTurnOrRealTime = true,
-                RiderHasStandardAction = true,
+                ActionActorOwnsCurrentTurnOrRealTime = true,
+                ActionActorHasStandardAction = true,
                 RiderWeaponIsSupportedMelee = true,
                 MountPrimaryNaturalAttackIsExact = true,
                 TransactionIdle = true,

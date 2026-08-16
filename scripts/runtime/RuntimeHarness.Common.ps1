@@ -3638,6 +3638,7 @@ function Get-KmcSaveBackedRuntimeScenarios {
         'pose-doorway-formation', 'pose-equipment-variants', 'ui-selection-portrait-actionbar',
         'camera-follow-and-command-routing', 'movement-suite', 'boundary-suite', 'presentation-suite',
         'mounted-rider-melee-hit-rt', 'mounted-rider-melee-hit-tb', 'mounted-rider-melee-miss-rt',
+        'mounted-mammoth-primary-hit-rt', 'mounted-mammoth-primary-hit-tb',
         'manual-visual-review'
     )
 }
@@ -4560,7 +4561,10 @@ function Assert-KmcBoundaryTriggerScope {
 }
 
 function Get-KmcCombatRuntimeRows {
-    return @('mounted-rider-melee-hit-rt','mounted-rider-melee-hit-tb','mounted-rider-melee-miss-rt')
+    return @(
+        'mounted-rider-melee-hit-rt','mounted-rider-melee-hit-tb','mounted-rider-melee-miss-rt',
+        'mounted-mammoth-primary-hit-rt','mounted-mammoth-primary-hit-tb'
+    )
 }
 
 function Test-KmcCombatRuntimeScenario {
@@ -7147,11 +7151,11 @@ function Assert-KmcCombatScenarioEvidence {
     if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -ge 18) {
         $recordFields = @($recordFields + 'nonPairPartyAiLease')
     }
-    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(5,7,9,11,13,15,17,19)) {
+    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(5,7,9,11,13,15,17,19,21)) {
         $recordFields = @($recordFields + 'turnBased')
     }
     Assert-KmcExactProperties $record $recordFields 'combat evidence record'
-    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -notin @(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19) -or
+    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -notin @(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21) -or
         [string]$record.artifactKind -cne 'combat-scenario-evidence') {
         throw 'Combat evidence schemaVersion or artifactKind is not exact.'
     }
@@ -7190,9 +7194,14 @@ function Assert-KmcCombatScenarioEvidence {
         }
     }
     if ([long]$record.schemaVersion -ge 2) {
+        $dispatchActorFields = if ([long]$record.schemaVersion -ge 20) {
+            @('actionActorCanActInCombat','actionActorHandsBusy')
+        } else {
+            @('riderCanActInCombat','riderHandsBusy')
+        }
         Assert-KmcExactProperties $record.dispatch @(
-            'originalPaused','unpausedForRealTime','pausedAtClick','riderCanActInCombat','riderHandsBusy',
-            'equipmentControllerAvailable','equipmentUpdateScheduled','pauseRestored') 'combat dispatch evidence'
+            @('originalPaused','unpausedForRealTime','pausedAtClick') + $dispatchActorFields +
+            @('equipmentControllerAvailable','equipmentUpdateScheduled','pauseRestored')) 'combat dispatch evidence'
         foreach ($name in $record.dispatch.PSObject.Properties.Name) {
             if ($record.dispatch.$name -isnot [bool]) { throw "Combat dispatch evidence is not Boolean: $name" }
         }
@@ -7466,13 +7475,20 @@ function Assert-KmcCombatScenarioEvidence {
             }
         }
     }
-    if ([long]$record.schemaVersion -in @(5,7,9,11,13,15,17,19)) {
+    if ([long]$record.schemaVersion -in @(5,7,9,11,13,15,17,19,21)) {
+        $turnActorBooleanFields = if ([long]$record.schemaVersion -ge 21) {
+            @('nativeActionActorTurnStarted','actionActorTurnEndedAfterCommand')
+        } else {
+            @('nativeRiderTurnStarted')
+        }
+        $turnActorIdentityFields = if ([long]$record.schemaVersion -ge 21) { @('expectedTurnActor') } else { @() }
         $turnBooleanFields = @(
-            'requested','originalEnabled','temporaryEnabled','originalRawCacheHadValue','enabledAtMount',
-            'controllerInitialized','rosterContainsRider','rosterContainsMount','rosterContainsTarget',
-            'nativeRiderTurnStarted','currentTurnActingAtDispatch','currentTurnActingAtOutcome',
-            'restoreDeliveryCompleted','modeRestored','persistedValueUnchanged')
-        Assert-KmcExactProperties $record.turnBased @($turnBooleanFields + @(
+            @('requested','originalEnabled','temporaryEnabled','originalRawCacheHadValue','enabledAtMount',
+              'controllerInitialized','rosterContainsRider','rosterContainsMount','rosterContainsTarget') +
+            $turnActorBooleanFields +
+            @('currentTurnActingAtDispatch','currentTurnActingAtOutcome',
+              'restoreDeliveryCompleted','modeRestored','persistedValueUnchanged'))
+        Assert-KmcExactProperties $record.turnBased @($turnBooleanFields + $turnActorIdentityFields + @(
             'currentTurnUnitIdAtDispatch','roundNumberAtDispatch','currentTurnUnitIdAtOutcome')) 'combat turn-based evidence'
         foreach ($name in $turnBooleanFields) {
             if ($record.turnBased.$name -isnot [bool]) { throw "Combat turn-based evidence is not Boolean: $name" }
@@ -7483,6 +7499,11 @@ function Assert-KmcCombatScenarioEvidence {
                  [string]::IsNullOrWhiteSpace([string]$record.turnBased.$name))) {
                 throw "Combat turn-based unit identity is invalid: $name"
             }
+        }
+        if ([long]$record.schemaVersion -ge 21 -and
+            ($record.turnBased.expectedTurnActor -isnot [string] -or
+             [string]$record.turnBased.expectedTurnActor -cnotin @('rider','mount'))) {
+            throw 'Combat turn-based expected action actor is invalid.'
         }
         if (-not (Test-KmcExactJsonInteger $record.turnBased.roundNumberAtDispatch) -or
             [long]$record.turnBased.roundNumberAtDispatch -lt -1) {
@@ -7535,25 +7556,41 @@ function Assert-KmcCombatScenarioEvidence {
 
     $requirePass = [string]$Status -ceq 'PASS'
     if ($requirePass) {
-        $turnBasedScenario = [string]$Request.scenario -ceq 'mounted-rider-melee-hit-tb'
+        $mammothScenario = [string]$Request.scenario -cin @(
+            'mounted-mammoth-primary-hit-rt','mounted-mammoth-primary-hit-tb')
+        $turnBasedScenario = [string]$Request.scenario -cin @(
+            'mounted-rider-melee-hit-tb','mounted-mammoth-primary-hit-tb')
         $missScenario = [string]$Request.scenario -ceq 'mounted-rider-melee-miss-rt'
-        $expectedCombatSchemas = if ($missScenario) { @(6,8,10,12,14,16,18) } elseif ($turnBasedScenario) { @(5,7,9,11,13,15,17,19) } else { @(4,6,8,10,12,14,16,18) }
+        $expectedCombatSchemas = if ($mammothScenario) {
+            if ($turnBasedScenario) { @(21) } else { @(20) }
+        } elseif ($missScenario) {
+            @(6,8,10,12,14,16,18,20)
+        } elseif ($turnBasedScenario) {
+            @(5,7,9,11,13,15,17,19,21)
+        } else {
+            @(4,6,8,10,12,14,16,18,20)
+        }
         if ([long]$record.schemaVersion -notin $expectedCombatSchemas -or
             [string]$record.status -cne 'PASS' -or [long]$record.assertionFailCount -ne 0 -or
             [long]$record.assertionPassCount -le 0 -or @($record.errors).Count -ne 0) {
             throw "PASS combat evidence does not contain an error-free compatible PASS row."
         }
         $expectedCombatMode = if ($turnBasedScenario) { 'turn-based' } else { 'real-time' }
+        $expectedAction = if ($mammothScenario) { 'MountPrimaryNatural' } else { 'RiderMelee' }
+        $expectedActorRole = if ($mammothScenario) { 'mount' } else { 'rider' }
+        $expectedActorId = if ($mammothScenario) { [string]$record.mountId } else { [string]$record.riderId }
         if ([string]$record.row -cne [string]$Request.scenario -or
-            [string]$record.mode -cne $expectedCombatMode -or [string]$record.action -cne 'RiderMelee' -or
-            [string]$record.expectedActor -cne 'rider' -or $record.clickAccepted -ne $true) {
-            throw 'PASS combat evidence does not prove the exact requested rider action path.'
+            [string]$record.mode -cne $expectedCombatMode -or [string]$record.action -cne $expectedAction -or
+            [string]$record.expectedActor -cne $expectedActorRole -or $record.clickAccepted -ne $true) {
+            throw 'PASS combat evidence does not prove the exact requested actor-specific action path.'
         }
+        $dispatchCanActField = if ([long]$record.schemaVersion -ge 20) { 'actionActorCanActInCombat' } else { 'riderCanActInCombat' }
+        $dispatchHandsField = if ([long]$record.schemaVersion -ge 20) { 'actionActorHandsBusy' } else { 'riderHandsBusy' }
         if ($record.dispatch.originalPaused -isnot [bool] -or
             $record.dispatch.unpausedForRealTime -ne (-not $turnBasedScenario) -or
             $record.dispatch.pausedAtClick -ne $false -or
-            $record.dispatch.riderCanActInCombat -ne $true -or
-            $record.dispatch.riderHandsBusy -ne $false -or
+            $record.dispatch.$dispatchCanActField -ne $true -or
+            $record.dispatch.$dispatchHandsField -ne $false -or
             $record.dispatch.equipmentControllerAvailable -ne $true -or
             $record.dispatch.equipmentUpdateScheduled -ne $false -or
             $record.dispatch.pauseRestored -ne $true) {
@@ -7566,16 +7603,25 @@ function Assert-KmcCombatScenarioEvidence {
              $record.turnBased.rosterContainsRider -ne $true -or
              $record.turnBased.rosterContainsMount -ne $true -or
              $record.turnBased.rosterContainsTarget -ne $true -or
-             $record.turnBased.nativeRiderTurnStarted -ne $true -or
-             [string]$record.turnBased.currentTurnUnitIdAtDispatch -cne [string]$record.riderId -or
+             ([long]$record.schemaVersion -ge 21 -and
+              ([string]$record.turnBased.expectedTurnActor -cne $expectedActorRole -or
+               $record.turnBased.nativeActionActorTurnStarted -ne $true)) -or
+             ([long]$record.schemaVersion -lt 21 -and $record.turnBased.nativeRiderTurnStarted -ne $true) -or
+             [string]$record.turnBased.currentTurnUnitIdAtDispatch -cne $expectedActorId -or
              $record.turnBased.currentTurnActingAtDispatch -ne $true -or
              [long]$record.turnBased.roundNumberAtDispatch -lt 0 -or
-             [string]$record.turnBased.currentTurnUnitIdAtOutcome -cne [string]$record.riderId -or
-             $record.turnBased.currentTurnActingAtOutcome -ne $true -or
+             ($mammothScenario -and
+              ($record.turnBased.actionActorTurnEndedAfterCommand -ne $true -or
+               ([string]$record.turnBased.currentTurnUnitIdAtOutcome -ceq $expectedActorId -and
+                $record.turnBased.currentTurnActingAtOutcome -eq $true))) -or
+             (-not $mammothScenario -and
+              ([string]$record.turnBased.currentTurnUnitIdAtOutcome -cne $expectedActorId -or
+               $record.turnBased.currentTurnActingAtOutcome -ne $true -or
+               ([long]$record.schemaVersion -ge 21 -and $record.turnBased.actionActorTurnEndedAfterCommand -ne $false))) -or
              $record.turnBased.restoreDeliveryCompleted -ne $true -or
              $record.turnBased.modeRestored -ne $true -or
              $record.turnBased.persistedValueUnchanged -ne $true)) {
-            throw 'PASS turn-based combat evidence does not prove the exact native rider turn and mode restoration.'
+            throw 'PASS turn-based combat evidence does not prove the exact native action-actor turn and mode restoration.'
         }
         if ($record.combatEntry.memoryQueued -ne $true -or
             $record.combatEntry.playerGroupMemoryContainsTarget -ne $true -or
@@ -7643,7 +7689,7 @@ function Assert-KmcCombatScenarioEvidence {
              [long]$record.targetIncomingRules.preDispatchAttackRuleCount -ne 0 -or
              $record.targetIncomingRules.firstAttack.observed -ne $true -or
              $record.targetIncomingRules.firstAttack.beforeExpectedDispatch -ne $false -or
-             [string]$record.targetIncomingRules.firstAttack.initiatorId -cne [string]$record.riderId -or
+             [string]$record.targetIncomingRules.firstAttack.initiatorId -cne $expectedActorId -or
              $record.targetIncomingRules.firstAttack.initiatorIsPlayerFaction -ne $true -or
              $record.targetIncomingRules.firstAttack.initiatorIsPlayersEnemy -ne $false -or
              ([long]$record.schemaVersion -ge 16 -and
@@ -7662,14 +7708,14 @@ function Assert-KmcCombatScenarioEvidence {
                [long]$record.targetIncomingRules.preDispatchDamageRuleCount -ne 0 -or
                $record.targetIncomingRules.firstDamage.observed -ne $true -or
                $record.targetIncomingRules.firstDamage.beforeExpectedDispatch -ne $false -or
-               [string]$record.targetIncomingRules.firstDamage.initiatorId -cne [string]$record.riderId -or
+                [string]$record.targetIncomingRules.firstDamage.initiatorId -cne $expectedActorId -or
                $record.targetIncomingRules.firstDamage.initiatorIsPlayerFaction -ne $true -or
                $record.targetIncomingRules.firstDamage.initiatorIsPlayersEnemy -ne $false -or
                [long]$record.targetIncomingRules.firstDamage.damage -le 0 -or
                $record.targetIncomingRules.firstDamage.isFake -ne $false -or
                $record.targetIncomingRules.firstDamage.isDot -ne $false -or
                $record.targetIncomingRules.firstDamage.attackRollPresent -ne $true)))) {
-            throw 'PASS combat evidence does not prove one expected rider attack and zero pre-dispatch interference.'
+            throw 'PASS combat evidence does not prove one expected actor-specific attack and zero pre-dispatch interference.'
         }
         if ([long]$record.schemaVersion -ge 18) {
             if ($record.nonPairPartyAiLease.acquired -ne $true -or
@@ -7744,25 +7790,56 @@ function Assert-KmcCombatScenarioEvidence {
             throw 'PASS combat evidence does not prove the exact bounded mounted range contract.'
         }
 
+        $commandActorFields = if ([long]$record.schemaVersion -ge 20) {
+            @(
+                'commandOwnerId','resourceOwnerId','actionStandardCharged',
+                'attackWeaponBlueprintId','attackWeaponIsNatural','attackWeaponIsRanged','attackWeaponSlot')
+        } else {
+            @()
+        }
         Assert-KmcExactProperties $record.command @(
-            'action','actorId','targetId','result','childAttackStartCount','repathCount',
-            'riderStandardCharged','nativeAttackRuleObserved','terminalReason','pairRangeSatisfiedAtStart',
-            'pairDistanceAtStart','pairApproachRadiusAtStart','nativeExecutorDistanceAtStart',
-            'nativeAdmissionRadiusAtStart','nativeAdmissionAdjusted') 'combat command evidence'
+            @('action','actorId') + $commandActorFields +
+            @('targetId','result','childAttackStartCount','repathCount',
+              'riderStandardCharged','nativeAttackRuleObserved','terminalReason','pairRangeSatisfiedAtStart',
+              'pairDistanceAtStart','pairApproachRadiusAtStart','nativeExecutorDistanceAtStart',
+              'nativeAdmissionRadiusAtStart','nativeAdmissionAdjusted')) 'combat command evidence'
         foreach ($name in @('pairRangeSatisfiedAtStart','nativeAdmissionAdjusted')) {
             if ($record.command.$name -isnot [bool]) { throw "Combat command range evidence is not Boolean: $name" }
+        }
+        if ([long]$record.schemaVersion -ge 20 -and
+            ($record.command.actionStandardCharged -isnot [bool] -or
+             $record.command.attackWeaponIsNatural -isnot [bool] -or
+             $record.command.attackWeaponIsRanged -isnot [bool] -or
+             [string]$record.command.attackWeaponBlueprintId -cnotmatch '^[0-9a-f]{32}$' -or
+             [string]$record.command.attackWeaponSlot -cnotin @('EquippedMelee','PrimaryHand'))) {
+            throw 'Combat command actor, resource, or weapon identity evidence is invalid.'
         }
         foreach ($name in @('pairDistanceAtStart','pairApproachRadiusAtStart','nativeExecutorDistanceAtStart','nativeAdmissionRadiusAtStart')) {
             if (-not (Test-KmcJsonNumber $record.command.$name)) { throw "Combat command range evidence is not numeric: $name" }
         }
-        if ([string]$record.command.action -cne 'RiderMelee' -or
-            [string]$record.command.actorId -cne [string]$record.riderId -or
+        if ([string]$record.command.action -cne $expectedAction -or
+            [string]$record.command.actorId -cne $expectedActorId -or
+            ([long]$record.schemaVersion -ge 20 -and
+             ([string]$record.command.commandOwnerId -cne $expectedActorId -or
+              [string]$record.command.resourceOwnerId -cne $expectedActorId -or
+              $record.command.actionStandardCharged -ne $true -or
+              $record.command.attackWeaponIsRanged -ne $false -or
+              ($mammothScenario -and
+               ($record.command.attackWeaponIsNatural -ne $true -or
+                [string]$record.command.attackWeaponSlot -cne 'PrimaryHand')) -or
+              (-not $mammothScenario -and [string]$record.command.attackWeaponSlot -cne 'EquippedMelee') -or
+              [string]$record.targetIncomingRules.firstAttack.weaponBlueprintId -cne
+                [string]$record.command.attackWeaponBlueprintId -or
+              ($record.targetIncomingRules.firstDamage.observed -eq $true -and
+               [string]$record.targetIncomingRules.firstDamage.weaponBlueprintId -cne
+                [string]$record.command.attackWeaponBlueprintId))) -or
             [string]$record.command.targetId -cne [string]$record.targetId -or
             [string]$record.command.result -cne 'Success' -or
             [string]$record.command.terminalReason -cne 'completed' -or
             [long]$record.command.childAttackStartCount -ne 1 -or [long]$record.command.repathCount -ne 0 -or
-            $record.command.riderStandardCharged -ne $true -or $record.command.nativeAttackRuleObserved -ne $true) {
-            throw 'PASS combat command evidence does not prove one successful native rider attack.'
+            $record.command.riderStandardCharged -ne (-not $mammothScenario) -or
+            $record.command.nativeAttackRuleObserved -ne $true) {
+            throw 'PASS combat command evidence does not prove one successful actor-owned native attack.'
         }
         $pairStartRadius = [double]$record.command.pairApproachRadiusAtStart
         $pairStartDistance = [double]$record.command.pairDistanceAtStart
@@ -7791,9 +7868,9 @@ function Assert-KmcCombatScenarioEvidence {
         if ([long]$record.rules.forcedD20Count -lt 1 -or
             [long]$record.rules.attackRuleCount -ne 1 -or [long]$record.rules.attackRollCount -ne 1 -or
             [long]$record.rules.unexpectedPairAttackCount -ne 0 -or
-            [string]$record.rules.lastInitiatorId -cne [string]$record.riderId -or
+            [string]$record.rules.lastInitiatorId -cne $expectedActorId -or
             [string]$record.rules.lastTargetId -cne [string]$record.targetId) {
-            throw 'PASS combat rule evidence does not prove one deterministic rider attack without duplication.'
+            throw 'PASS combat rule evidence does not prove one deterministic actor-specific attack without duplication.'
         }
         if ($missScenario) {
             if ([long]$record.rules.forcedD20 -ne 1 -or [long]$record.rules.damageRuleCount -ne 0 -or
@@ -7806,14 +7883,20 @@ function Assert-KmcCombatScenarioEvidence {
             [long]$record.rules.damageRuleCount -lt 0 -or [long]$record.rules.damageRuleCount -gt 1 -or
             ([long]$record.schemaVersion -ge 6 -and $record.rules.lastAttackHit -ne $true) -or
             [string]$record.rules.lastAttackResult -cnotin @('Hit','CriticalHit')) {
-            throw 'PASS combat hit evidence does not prove one deterministic rider hit.'
+            throw 'PASS combat hit evidence does not prove one deterministic actor-specific hit.'
         }
 
-        if ([double]$record.resources.riderStandardAfter -le [double]$record.resources.riderStandardBefore -or
+        $resourceOwnershipInvalid = if ($mammothScenario) {
+            [double]$record.resources.mountStandardAfter -le [double]$record.resources.mountStandardBefore -or
+            [math]::Abs([double]$record.resources.riderStandardAfter - [double]$record.resources.riderStandardBefore) -gt 0.01
+        } else {
+            [double]$record.resources.riderStandardAfter -le [double]$record.resources.riderStandardBefore -or
+            [math]::Abs([double]$record.resources.mountStandardAfter - [double]$record.resources.mountStandardBefore) -gt 0.01
+        }
+        if ($resourceOwnershipInvalid -or
             [math]::Abs([double]$record.resources.riderMoveAfter - [double]$record.resources.riderMoveBefore) -gt 0.01 -or
-            [math]::Abs([double]$record.resources.mountStandardAfter - [double]$record.resources.mountStandardBefore) -gt 0.01 -or
             [math]::Abs([double]$record.resources.mountMoveAfter - [double]$record.resources.mountMoveBefore) -gt 0.01) {
-            throw 'PASS combat resource evidence does not prove rider-only Standard action charging.'
+            throw 'PASS combat resource evidence does not prove exact action-actor-only Standard charging with unchanged Move resources.'
         }
         if ([string]$record.movement.authoritativeMover -cne 'mount' -or [long]$record.movement.repathCount -ne 0 -or
             $record.movement.riderStockAgentEnabledAtEnd -ne $true -or

@@ -124,9 +124,9 @@ namespace KingmakerMountedCombat.Domain
 
         public bool TargetIsVisibleEnemy { get; set; }
 
-        public bool RiderOwnsCurrentTurnOrRealTime { get; set; }
+        public bool ActionActorOwnsCurrentTurnOrRealTime { get; set; }
 
-        public bool RiderHasStandardAction { get; set; }
+        public bool ActionActorHasStandardAction { get; set; }
 
         public bool RiderWeaponIsSupportedMelee { get; set; }
 
@@ -153,7 +153,7 @@ namespace KingmakerMountedCombat.Domain
 
         public MountedCombatActor Actor { get; }
 
-        public MountedCombatActor ResourceOwner => MountedCombatActor.Rider;
+        public MountedCombatActor ResourceOwner => Actor;
 
         public MountedCombatActor PathfindingOwner => MountedCombatActor.Mount;
 
@@ -174,7 +174,7 @@ namespace KingmakerMountedCombat.Domain
             bool relationshipMounted,
             bool relationshipRiderExact,
             bool relationshipMountExact,
-            bool wrapperExecutorIsRider,
+            bool wrapperExecutorIsActionActor,
             bool targetInState,
             bool riderInState,
             bool mountInState,
@@ -184,14 +184,14 @@ namespace KingmakerMountedCombat.Domain
             bool riderNotFinallyDead,
             bool mountNotFinallyDead,
             bool targetNotFinallyDead,
-            bool riderHostileToTarget,
-            bool riderCanAttackTarget)
+            bool actionActorHostileToTarget,
+            bool actionActorCanAttackTarget)
         {
             var failures = new List<string>();
             AddFailure(failures, relationshipMounted, "relationship-mounted");
             AddFailure(failures, relationshipRiderExact, "relationship-rider-exact");
             AddFailure(failures, relationshipMountExact, "relationship-mount-exact");
-            AddFailure(failures, wrapperExecutorIsRider, "wrapper-executor-is-rider");
+            AddFailure(failures, wrapperExecutorIsActionActor, "wrapper-executor-is-action-actor");
             AddFailure(failures, targetInState, "target-in-state");
             AddFailure(failures, riderInState, "rider-in-state");
             AddFailure(failures, mountInState, "mount-in-state");
@@ -201,8 +201,8 @@ namespace KingmakerMountedCombat.Domain
             AddFailure(failures, riderNotFinallyDead, "rider-not-finally-dead");
             AddFailure(failures, mountNotFinallyDead, "mount-not-finally-dead");
             AddFailure(failures, targetNotFinallyDead, "target-not-finally-dead");
-            AddFailure(failures, riderHostileToTarget, "rider-hostile-to-target");
-            AddFailure(failures, riderCanAttackTarget, "rider-can-attack-target");
+            AddFailure(failures, actionActorHostileToTarget, "action-actor-hostile-to-target");
+            AddFailure(failures, actionActorCanAttackTarget, "action-actor-can-attack-target");
             failedGateNames = failures.ToArray();
         }
 
@@ -263,13 +263,13 @@ namespace KingmakerMountedCombat.Domain
             {
                 reasons.Add("Choose one living, visible enemy.");
             }
-            if (!context.RiderOwnsCurrentTurnOrRealTime)
+            if (!context.ActionActorOwnsCurrentTurnOrRealTime)
             {
-                reasons.Add("The rider must own the current turn.");
+                reasons.Add("The action actor must own the current turn.");
             }
-            if (!context.RiderHasStandardAction)
+            if (!context.ActionActorHasStandardAction)
             {
-                reasons.Add("The rider has no Standard action available.");
+                reasons.Add("The action actor has no Standard action available.");
             }
             if (!context.TransactionIdle)
             {

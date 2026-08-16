@@ -33,6 +33,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private const string RiderHitRealTime = "mounted-rider-melee-hit-rt";
         private const string RiderHitTurnBased = "mounted-rider-melee-hit-tb";
         private const string RiderMissRealTime = "mounted-rider-melee-miss-rt";
+        private const string MammothPrimaryHitRealTime = "mounted-mammoth-primary-hit-rt";
+        private const string MammothPrimaryHitTurnBased = "mounted-mammoth-primary-hit-tb";
         private const double RowTimeoutSeconds = 30.0d;
         private const double CleanupTimeoutSeconds = 10.0d;
         private const float SpawnDistance = 6.0f;
@@ -123,8 +125,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool turnRosterContainsRider;
         private bool turnRosterContainsMount;
         private bool turnRosterContainsTarget;
-        private bool nativeRiderTurnStarted;
-        private bool nativeRiderTurnActingObservedAfterDispatch;
+        private bool nativeActionActorTurnStarted;
+        private bool nativeActionActorTurnActingObservedAfterDispatch;
         private string currentTurnUnitIdAtDispatch;
         private bool currentTurnActingAtDispatch;
         private int roundNumberAtDispatch = -1;
@@ -161,12 +163,28 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             return string.Equals(scenario, RiderHitRealTime, StringComparison.Ordinal) ||
                 string.Equals(scenario, RiderHitTurnBased, StringComparison.Ordinal) ||
-                string.Equals(scenario, RiderMissRealTime, StringComparison.Ordinal);
+                string.Equals(scenario, RiderMissRealTime, StringComparison.Ordinal) ||
+                string.Equals(scenario, MammothPrimaryHitRealTime, StringComparison.Ordinal) ||
+                string.Equals(scenario, MammothPrimaryHitTurnBased, StringComparison.Ordinal);
         }
 
-        private bool IsTurnBasedRow => string.Equals(currentRow, RiderHitTurnBased, StringComparison.Ordinal);
+        private bool IsTurnBasedRow =>
+            string.Equals(currentRow, RiderHitTurnBased, StringComparison.Ordinal) ||
+            string.Equals(currentRow, MammothPrimaryHitTurnBased, StringComparison.Ordinal);
 
         private bool IsMissRow => string.Equals(currentRow, RiderMissRealTime, StringComparison.Ordinal);
+
+        private bool IsMammothPrimaryRow =>
+            string.Equals(currentRow, MammothPrimaryHitRealTime, StringComparison.Ordinal) ||
+            string.Equals(currentRow, MammothPrimaryHitTurnBased, StringComparison.Ordinal);
+
+        private MountedCombatActionKind AttackAction => IsMammothPrimaryRow
+            ? MountedCombatActionKind.MountPrimaryNatural
+            : MountedCombatActionKind.RiderMelee;
+
+        private UnitEntityData AttackActor => IsMammothPrimaryRow ? mount : rider;
+
+        private string ExpectedActorRole => IsMammothPrimaryRow ? "mount" : "rider";
 
         public void Start()
         {
@@ -394,11 +412,13 @@ namespace KingmakerMountedCombat.Diagnostics
             target = targetService.Spawn(rider, mount, spawnPoint, request.RunId, true);
             targetId = target.UniqueId;
             targetProvisioning = CombatTargetProvisioningEvidence.From(targetService, target);
-            assertions.Check(target != null && target.IsInState && target.View != null && target.IsEnemy(rider) && rider.IsEnemy(target),
+            assertions.Check(target != null && target.IsInState && target.View != null &&
+                    target.IsEnemy(rider) && rider.IsEnemy(target) &&
+                    AttackActor != null && AttackActor.IsEnemy(target) && AttackActor.CanAttack(target),
                 "Runtime-only hostile Mammoth target passed exact creation gates.");
 
-            var rangeProbe = new MountedPairSingleAttack(target, rider, mount, true);
-            rangeProbe.Init(rider);
+            var rangeProbe = new MountedPairSingleAttack(target, rider, mount, !IsMammothPrimaryRow);
+            rangeProbe.Init(AttackActor);
             pairApproachRadius = rangeProbe.PairApproachRadius;
             float finalDistance;
             assertions.Check(MountedCombatSpatialPolicy.TryCalculateDiagnosticTargetDistance(
@@ -504,10 +524,20 @@ namespace KingmakerMountedCombat.Diagnostics
                     turnBasedReadiness = CaptureTurnBasedReadiness(turnController);
                     return;
                 }
-                if (!nativeRiderTurnStarted)
+                if (!nativeActionActorTurnStarted)
                 {
-                    turnController.StartTurn(rider);
-                    nativeRiderTurnStarted = true;
+                    if (IsMammothPrimaryRow && combat.ArmedAction != AttackAction)
+                    {
+                        assertions.Check(combat.Arm(AttackAction),
+                            "Mammoth primary was armed before its exact native turn began.");
+                        if (assertions.FailureCount != 0)
+                        {
+                            BeginCleanup();
+                            return;
+                        }
+                    }
+                    turnController.StartTurn(AttackActor);
+                    nativeActionActorTurnStarted = true;
                     return;
                 }
 
@@ -519,12 +549,13 @@ namespace KingmakerMountedCombat.Diagnostics
             }
 
             var handsEquipment = game.HandsEquipmentController;
+            var actionActor = AttackActor;
             dispatchReadiness = new DiagnosticCombatDispatchReadinessSnapshot(
                 gameUnpaused,
-                rider.CombatState.CanActInCombat,
-                !rider.AreHandsBusyWithAnimation,
+                actionActor.CombatState.CanActInCombat,
+                !actionActor.AreHandsBusyWithAnimation,
                 handsEquipment != null,
-                handsEquipment != null && !handsEquipment.IsUpdateScheduledFor(rider));
+                handsEquipment != null && !handsEquipment.IsUpdateScheduledFor(actionActor));
             if (!dispatchReadiness.AllPassed)
             {
                 return;
@@ -543,7 +574,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (IsTurnBasedRow)
             {
                 assertions.Check(turnBasedReadiness != null && turnBasedReadiness.AllPassed,
-                    "Turn-based dispatch retained the exact initialized roster and native rider turn.");
+                    "Turn-based dispatch retained the exact initialized roster and native action-actor turn.");
             }
             assertions.Check(relationship.State == RelationshipState.Mounted,
                 "Native combat entry retained the mounted relationship.");
@@ -551,15 +582,18 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Diagnostic target remained live at dispatch.");
 
             var targetPreparedForClick = targetService != null && targetService.PrepareForPlayerClick(target);
-            var riderWeapon = rider.GetFirstWeapon();
+            var actionWeapon = IsMammothPrimaryRow
+                ? NativeSingleAttackWeaponResolver.Resolve(mount)?.Weapon
+                : rider.GetFirstWeapon();
             var clickSafety = new DiagnosticCombatClickSafetySnapshot(
                 targetPreparedForClick && targetService.Target == target,
                 targetService != null && targetService.TargetFogOfWarCleared,
                 targetService != null && targetService.TargetViewVisible,
                 targetService != null && targetService.TargetVisibleForPlayer,
                 target.View != null && target.View.gameObject.GetComponent<UnitEntityView>() == target.View,
-                rider.CanAttack(target),
-                riderWeapon?.Blueprint != null && !riderWeapon.Blueprint.IsRanged);
+                actionActor != null && actionActor.CanAttack(target),
+                actionWeapon?.Blueprint != null && !actionWeapon.Blueprint.IsRanged &&
+                    (!IsMammothPrimaryRow || actionWeapon.Blueprint.IsNatural));
             assertions.Check(clickSafety.AllPassed,
                 "Diagnostic target passed exact player-click gates: " + clickSafety.FailureSummary + ".");
 
@@ -569,8 +603,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Exactly the rider owned player selection at dispatch.");
             assertions.Check(combat.CanShowCombatActions,
                 "Mounted combat actions were available only for the exact selected pair in combat.");
-            assertions.Check(rider.HasStandardAction(),
-                "Rider owned an available Standard action before dispatch.");
+            assertions.Check(actionActor.HasStandardAction(),
+                "The exact action actor owned an available Standard action before dispatch.");
             if (assertions.FailureCount != 0)
             {
                 BeginCleanup();
@@ -594,11 +628,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Diagnostic target retained the exact near-boundary mounted-range placement.");
 
             ruleProbe = new MountedCombatRuleProbe();
-            ruleProbe.Arm(rider, mount, rider, target, IsMissRow ? 1 : 20);
+            ruleProbe.Arm(rider, mount, AttackActor, target, IsMissRow ? 1 : 20);
             assertions.Check(targetService != null && targetService.BeginExpectedAttackDispatch(target),
-                "Target incoming-rule observation marked the exact expected rider dispatch boundary.");
-            assertions.Check(combat.Arm(MountedCombatActionKind.RiderMelee),
-                "Rider melee armed through the combat controller.");
+                "Target incoming-rule observation marked the exact expected pair-action dispatch boundary.");
+            assertions.Check(combat.ArmedAction == AttackAction || combat.Arm(AttackAction),
+                AttackAction + " armed through the combat controller on the exact action actor turn.");
             if (assertions.FailureCount != 0)
             {
                 BeginCleanup();
@@ -628,13 +662,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 BeginCleanup();
                 return;
             }
-            if (IsTurnBasedRow && !nativeRiderTurnActingObservedAfterDispatch)
+            if (IsTurnBasedRow && !nativeActionActorTurnActingObservedAfterDispatch)
             {
                 var turnController = Game.Instance?.TurnBasedCombatController;
                 var currentTurn = turnController?.CurrentTurn;
-                if (currentTurn?.Unit != rider)
+                if (currentTurn?.Unit != AttackActor)
                 {
-                    assertions.Fail("The exact native rider turn changed after mounted attack dispatch.");
+                    assertions.Fail("The exact native action-actor turn changed after mounted attack dispatch.");
                     BeginCleanup();
                     return;
                 }
@@ -642,13 +676,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     if (combat.LastOutcome != null)
                     {
-                        assertions.Fail("The mounted attack completed without an observed native Acting rider turn.");
+                        assertions.Fail("The mounted attack completed without an observed native Acting action-actor turn.");
                         BeginCleanup();
                     }
                     return;
                 }
 
-                nativeRiderTurnActingObservedAfterDispatch = true;
+                nativeActionActorTurnActingObservedAfterDispatch = true;
                 currentTurnUnitIdAtDispatch = currentTurn.Unit.UniqueId;
                 currentTurnActingAtDispatch = true;
                 roundNumberAtDispatch = turnController.RoundNumber;
@@ -664,15 +698,25 @@ namespace KingmakerMountedCombat.Diagnostics
             riderMoveAfter = rider.CombatState.Cooldown.MoveAction;
             mountMoveAfter = mount.CombatState.Cooldown.MoveAction;
 
-            assertions.Check(outcome.Action == MountedCombatActionKind.RiderMelee,
-                "Terminal command retained rider-melee action identity.");
-            assertions.Check(string.Equals(outcome.ActorId, rider.UniqueId, StringComparison.Ordinal) &&
+            assertions.Check(outcome.Action == AttackAction,
+                "Terminal command retained exact mounted action identity.");
+            assertions.Check(string.Equals(outcome.ActorId, AttackActor.UniqueId, StringComparison.Ordinal) &&
                     string.Equals(outcome.TargetId, targetId, StringComparison.Ordinal),
-                "Terminal command retained exact rider actor and target identity.");
+                "Terminal command retained exact action actor and target identity.");
             assertions.Check(string.Equals(outcome.Result, "Success", StringComparison.Ordinal),
                 "Native single attack completed successfully.");
             assertions.Check(outcome.ChildAttackStartCount == 1 && outcome.NativeAttackRuleObserved,
                 "Exactly one native child attack started and exposed its native attack rule.");
+            var expectedActionWeapon = IsMammothPrimaryRow
+                ? NativeSingleAttackWeaponResolver.Resolve(mount)?.Weapon
+                : rider.GetFirstWeapon();
+            assertions.Check(expectedActionWeapon?.Blueprint != null &&
+                    string.Equals(outcome.AttackWeaponBlueprintId, expectedActionWeapon.Blueprint.AssetGuid, StringComparison.Ordinal) &&
+                    !outcome.AttackWeaponIsRanged &&
+                    (IsMammothPrimaryRow
+                        ? outcome.AttackWeaponIsNatural && string.Equals(outcome.AttackWeaponSlot, "PrimaryHand", StringComparison.Ordinal)
+                        : string.Equals(outcome.AttackWeaponSlot, "EquippedMelee", StringComparison.Ordinal)),
+                "Native rule execution retained the exact selected actor weapon and natural-attack identity.");
             assertions.Check(outcome.RepathCount == 0,
                 "Stationary in-range attack required no delegated movement or repath.");
             assertions.Check(outcome.PairRangeSatisfiedAtStart &&
@@ -682,20 +726,34 @@ namespace KingmakerMountedCombat.Diagnostics
                     outcome.NativeAdmissionRadiusAtStart >= outcome.PairApproachRadiusAtStart &&
                     outcome.NativeAdmissionRadiusAtStart - outcome.PairApproachRadiusAtStart <=
                         MountedCombatSpatialPolicy.MaximumNativeExecutorRadiusAdjustment + 0.0001f,
-                "Mammoth-origin range exclusively gated the bounded native rider-executor admission bridge.");
-            assertions.Check(outcome.RiderStandardCharged && riderStandardAfter > riderStandardBefore,
-                "Exactly the rider Standard wrapper charged an action resource.");
-            assertions.Check(Math.Abs(mountStandardAfter - mountStandardBefore) <= 0.01f &&
-                    Math.Abs(mountMoveAfter - mountMoveBefore) <= 0.01f,
-                "Mammoth Standard and Move resources were unchanged by the rider attack.");
-            assertions.Check(Math.Abs(riderMoveAfter - riderMoveBefore) <= 0.01f,
-                "Stationary rider attack did not charge a rider Move action.");
+                IsMammothPrimaryRow
+                    ? "Mammoth-origin range exactly matched native Mammoth attack admission."
+                    : "Mammoth-origin range exclusively gated the bounded native rider-executor admission bridge.");
+            assertions.Check(outcome.ActionStandardCharged &&
+                    string.Equals(outcome.CommandOwnerId, AttackActor.UniqueId, StringComparison.Ordinal) &&
+                    string.Equals(outcome.ResourceOwnerId, AttackActor.UniqueId, StringComparison.Ordinal),
+                "The exact action actor owned and paid for the pair Standard wrapper.");
+            if (IsMammothPrimaryRow)
+            {
+                assertions.Check(!outcome.RiderStandardCharged && mountStandardAfter > mountStandardBefore &&
+                        Math.Abs(riderStandardAfter - riderStandardBefore) <= 0.01f,
+                    "Mammoth primary charged only the Mammoth Standard action and left the rider Standard unchanged.");
+            }
+            else
+            {
+                assertions.Check(outcome.RiderStandardCharged && riderStandardAfter > riderStandardBefore &&
+                        Math.Abs(mountStandardAfter - mountStandardBefore) <= 0.01f,
+                    "Rider melee charged only the rider Standard action and left the Mammoth Standard unchanged.");
+            }
+            assertions.Check(Math.Abs(mountMoveAfter - mountMoveBefore) <= 0.01f &&
+                    Math.Abs(riderMoveAfter - riderMoveBefore) <= 0.01f,
+                "Stationary mounted action charged neither rider nor Mammoth Move action.");
             assertions.Check(ruleProbe.AttackRuleCount == 1 && ruleProbe.AttackRollCount == 1 &&
                     (IsMissRow ? ruleProbe.DamageRuleCount == 0 : ruleProbe.DamageRuleCount <= 1) &&
                     ruleProbe.UnexpectedPairAttackCount == 0,
                 IsMissRow
                     ? "Rulebook observed exactly one rider attack/roll, zero damage events, and no pair duplicate."
-                    : "Rulebook observed exactly one rider attack/roll, at most one damage event, and no pair duplicate.");
+                    : "Rulebook observed exactly one expected pair-actor attack/roll, at most one damage event, and no pair duplicate.");
             assertions.Check(IsMissRow
                     ? ruleProbe.ForcedD20 == 1 && ruleProbe.ForcedD20Count >= 1 &&
                         ruleProbe.LastAttackHit == false &&
@@ -708,24 +766,29 @@ namespace KingmakerMountedCombat.Diagnostics
                 IsMissRow
                     ? "Deterministic natural 1 produced native IsHit=false, an exact AC-selected miss reason, and zero damage."
                     : "Deterministic natural 20 produced native IsHit=true and a hit or critical-hit result.");
-            assertions.Check(string.Equals(ruleProbe.LastInitiatorId, rider.UniqueId, StringComparison.Ordinal) &&
+            assertions.Check(string.Equals(ruleProbe.LastInitiatorId, AttackActor.UniqueId, StringComparison.Ordinal) &&
                     string.Equals(ruleProbe.LastTargetId, targetId, StringComparison.Ordinal),
-                "Rulebook identities remained the exact rider and diagnostic target.");
+                "Rulebook identities remained the exact action actor and diagnostic target.");
             if (IsTurnBasedRow)
             {
                 var currentTurn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
                 currentTurnUnitIdAtOutcome = currentTurn?.Unit?.UniqueId;
                 currentTurnActingAtOutcome = currentTurn != null && currentTurn.IsActing;
-                assertions.Check(string.Equals(currentTurnUnitIdAtOutcome, rider.UniqueId, StringComparison.Ordinal) &&
-                        currentTurnActingAtOutcome,
-                    "The exact native rider turn remained active through the stationary attack outcome.");
+                assertions.Check(IsMammothPrimaryRow
+                        ? !currentTurnActingAtOutcome ||
+                            !string.Equals(currentTurnUnitIdAtOutcome, mount.UniqueId, StringComparison.Ordinal)
+                        : string.Equals(currentTurnUnitIdAtOutcome, rider.UniqueId, StringComparison.Ordinal) &&
+                            currentTurnActingAtOutcome,
+                    IsMammothPrimaryRow
+                        ? "The exact native Mammoth turn ended after its bounded stationary action."
+                        : "The exact native rider turn remained active through the stationary attack outcome.");
             }
             assertions.Check(relationship.State == RelationshipState.Mounted &&
                     relationship.Runtime.PoseHealthy && relationship.Runtime.PoseFrameApplied,
                 "Mounted relationship and accepted pose remained healthy after the attack.");
             assertions.Check(HorizontalDistance(mountPositionAtClick, mount.Position) <= 0.05f &&
                     HorizontalDistance(targetPositionAtClick, target.Position) <= 0.05f,
-                "Rider and target attack remained stationary at the authoritative Mammoth origin.");
+                "Mounted pair and target attack remained stationary at the authoritative Mammoth origin.");
 
             poseProfileAtOutcome = relationship.Runtime.PoseProfileId;
             poseHealthyAtOutcome = relationship.Runtime.PoseHealthy && relationship.Runtime.PoseFrameApplied;
@@ -860,7 +923,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var selected = SelectionManager.Instance?.SelectedUnits;
             var record = new CombatEvidenceRecord
             {
-                SchemaVersion = IsTurnBasedRow ? 19 : 18,
+                SchemaVersion = IsTurnBasedRow ? 21 : 20,
                 ArtifactKind = "combat-scenario-evidence",
                 RunId = request.RunId,
                 Scenario = request.Scenario,
@@ -876,8 +939,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 DllMvid = dllMvid,
                 Status = assertions.FailureCount == 0 ? "PASS" : "FAIL",
                 Mode = IsTurnBasedRow ? "turn-based" : "real-time",
-                Action = MountedCombatActionKind.RiderMelee.ToString(),
-                ExpectedActor = "rider",
+                Action = AttackAction.ToString(),
+                ExpectedActor = ExpectedActorRole,
                 RiderId = rider?.UniqueId,
                 MountId = mount?.UniqueId,
                 TargetId = targetId,
@@ -906,12 +969,15 @@ namespace KingmakerMountedCombat.Diagnostics
                         turnRosterContainsRider,
                         turnRosterContainsMount,
                         turnRosterContainsTarget,
-                        nativeRiderTurnStarted,
+                        ExpectedActorRole,
+                        nativeActionActorTurnStarted,
                         currentTurnUnitIdAtDispatch,
                         currentTurnActingAtDispatch,
                         roundNumberAtDispatch,
                         currentTurnUnitIdAtOutcome,
                         currentTurnActingAtOutcome,
+                        IsMammothPrimaryRow && (!currentTurnActingAtOutcome ||
+                            !string.Equals(currentTurnUnitIdAtOutcome, mount?.UniqueId, StringComparison.Ordinal)),
                         turnBasedModeRestored,
                         turnBasedPersistedSettingUnchanged)
                     : null,
@@ -1072,11 +1138,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 turnRosterContainsRider,
                 turnRosterContainsMount,
                 turnRosterContainsTarget,
-                nativeRiderTurnStarted,
-                currentTurn?.Unit == rider,
-                MountedPairTurnPolicy.CanIssueRiderAction(
+                nativeActionActorTurnStarted,
+                currentTurn?.Unit == AttackActor,
+                MountedPairTurnPolicy.CanIssueAction(
                     true,
-                    currentTurn?.Unit == rider,
+                    currentTurn?.Unit == AttackActor,
                     currentTurn != null &&
                         currentTurn.Status == TurnBased.Controllers.TurnController.TurnStatus.Preparing,
                     currentTurn != null && currentTurn.IsActing));
@@ -1455,8 +1521,8 @@ namespace KingmakerMountedCombat.Diagnostics
             public bool OriginalPaused { get; set; }
             public bool UnpausedForRealTime { get; set; }
             public bool PausedAtClick { get; set; }
-            public bool RiderCanActInCombat { get; set; }
-            public bool RiderHandsBusy { get; set; }
+            public bool ActionActorCanActInCombat { get; set; }
+            public bool ActionActorHandsBusy { get; set; }
             public bool EquipmentControllerAvailable { get; set; }
             public bool EquipmentUpdateScheduled { get; set; }
             public bool PauseRestored { get; set; }
@@ -1473,8 +1539,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     OriginalPaused = originalPaused,
                     UnpausedForRealTime = unpaused,
                     PausedAtClick = pausedAtClick,
-                    RiderCanActInCombat = readiness?.RiderCanActInCombat ?? false,
-                    RiderHandsBusy = readiness?.RiderHandsBusy ?? false,
+                    ActionActorCanActInCombat = readiness?.ActionActorCanActInCombat ?? false,
+                    ActionActorHandsBusy = readiness?.ActionActorHandsBusy ?? false,
                     EquipmentControllerAvailable = readiness?.EquipmentControllerAvailable ?? false,
                     EquipmentUpdateScheduled = readiness?.EquipmentUpdateScheduled ?? false,
                     PauseRestored = pauseRestored
@@ -1505,12 +1571,14 @@ namespace KingmakerMountedCombat.Diagnostics
             public bool RosterContainsRider { get; set; }
             public bool RosterContainsMount { get; set; }
             public bool RosterContainsTarget { get; set; }
-            public bool NativeRiderTurnStarted { get; set; }
+            public string ExpectedTurnActor { get; set; }
+            public bool NativeActionActorTurnStarted { get; set; }
             public string CurrentTurnUnitIdAtDispatch { get; set; }
             public bool CurrentTurnActingAtDispatch { get; set; }
             public int RoundNumberAtDispatch { get; set; }
             public string CurrentTurnUnitIdAtOutcome { get; set; }
             public bool CurrentTurnActingAtOutcome { get; set; }
+            public bool ActionActorTurnEndedAfterCommand { get; set; }
             public bool RestoreDeliveryCompleted { get; set; }
             public bool ModeRestored { get; set; }
             public bool PersistedValueUnchanged { get; set; }
@@ -1522,12 +1590,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 bool rosterContainsRider,
                 bool rosterContainsMount,
                 bool rosterContainsTarget,
-                bool nativeRiderTurnStarted,
+                string expectedTurnActor,
+                bool nativeActionActorTurnStarted,
                 string currentTurnUnitIdAtDispatch,
                 bool currentTurnActingAtDispatch,
                 int roundNumberAtDispatch,
                 string currentTurnUnitIdAtOutcome,
                 bool currentTurnActingAtOutcome,
+                bool actionActorTurnEndedAfterCommand,
                 bool modeRestored,
                 bool persistedValueUnchanged)
             {
@@ -1542,12 +1612,14 @@ namespace KingmakerMountedCombat.Diagnostics
                     RosterContainsRider = rosterContainsRider,
                     RosterContainsMount = rosterContainsMount,
                     RosterContainsTarget = rosterContainsTarget,
-                    NativeRiderTurnStarted = nativeRiderTurnStarted,
+                    ExpectedTurnActor = expectedTurnActor,
+                    NativeActionActorTurnStarted = nativeActionActorTurnStarted,
                     CurrentTurnUnitIdAtDispatch = currentTurnUnitIdAtDispatch,
                     CurrentTurnActingAtDispatch = currentTurnActingAtDispatch,
                     RoundNumberAtDispatch = roundNumberAtDispatch,
                     CurrentTurnUnitIdAtOutcome = currentTurnUnitIdAtOutcome,
                     CurrentTurnActingAtOutcome = currentTurnActingAtOutcome,
+                    ActionActorTurnEndedAfterCommand = actionActorTurnEndedAfterCommand,
                     RestoreDeliveryCompleted = probe != null && probe.RestoreDeliveryCompleted,
                     ModeRestored = modeRestored,
                     PersistedValueUnchanged = persistedValueUnchanged
@@ -1559,12 +1631,19 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             public string Action { get; set; }
             public string ActorId { get; set; }
+            public string CommandOwnerId { get; set; }
+            public string ResourceOwnerId { get; set; }
             public string TargetId { get; set; }
             public string Result { get; set; }
             public int ChildAttackStartCount { get; set; }
             public int RepathCount { get; set; }
             public bool RiderStandardCharged { get; set; }
+            public bool ActionStandardCharged { get; set; }
             public bool NativeAttackRuleObserved { get; set; }
+            public string AttackWeaponBlueprintId { get; set; }
+            public bool AttackWeaponIsNatural { get; set; }
+            public bool AttackWeaponIsRanged { get; set; }
+            public string AttackWeaponSlot { get; set; }
             public string TerminalReason { get; set; }
             public bool PairRangeSatisfiedAtStart { get; set; }
             public float PairDistanceAtStart { get; set; }
@@ -1579,12 +1658,19 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     Action = value.Action.ToString(),
                     ActorId = value.ActorId,
+                    CommandOwnerId = value.CommandOwnerId,
+                    ResourceOwnerId = value.ResourceOwnerId,
                     TargetId = value.TargetId,
                     Result = value.Result,
                     ChildAttackStartCount = value.ChildAttackStartCount,
                     RepathCount = value.RepathCount,
                     RiderStandardCharged = value.RiderStandardCharged,
+                    ActionStandardCharged = value.ActionStandardCharged,
                     NativeAttackRuleObserved = value.NativeAttackRuleObserved,
+                    AttackWeaponBlueprintId = value.AttackWeaponBlueprintId,
+                    AttackWeaponIsNatural = value.AttackWeaponIsNatural,
+                    AttackWeaponIsRanged = value.AttackWeaponIsRanged,
+                    AttackWeaponSlot = value.AttackWeaponSlot,
                     TerminalReason = value.TerminalReason,
                     PairRangeSatisfiedAtStart = value.PairRangeSatisfiedAtStart,
                     PairDistanceAtStart = value.PairDistanceAtStart,

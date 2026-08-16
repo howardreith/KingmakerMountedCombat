@@ -107,7 +107,7 @@ $missionScenarios = @(
     'presentation-residue-and-uninstall-safety', 'pose-idle', 'pose-walk-run', 'pose-turn-stop',
     'pose-doorway-formation', 'pose-equipment-variants', 'ui-selection-portrait-actionbar',
     'camera-follow-and-command-routing', 'mounted-rider-melee-hit-rt', 'mounted-rider-melee-hit-tb',
-    'mounted-rider-melee-miss-rt'
+    'mounted-rider-melee-miss-rt', 'mounted-mammoth-primary-hit-rt', 'mounted-mammoth-primary-hit-tb'
 )
 $aggregateScenarios = @('fixture-intake','lifecycle-suite','movement-suite','boundary-suite','presentation-suite')
 $interactiveScenarios = @('manual-visual-review')

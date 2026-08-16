@@ -193,3 +193,10 @@ Review.2 closes those remaining technical requirements at exact clean guarded-pu
 | `mounted-rider-melee-miss-rt` actor-context diagnostic A/B | `20260816T151500Z-rider-miss-rt-contextprobe`, `20260816T153000Z-rider-miss-rt-contextprobeB` | `PASS` `49/0` each | Same package; one exact rider natural-1 miss, zero damage, stable target, rider-only cost, exact cleanup/restoration. Diagnostic evidence only; not yet repaired-package qualification. |
 | `mounted-rider-melee-miss-rt` actor-context diagnostic C | `20260816T154500Z-rider-miss-rt-contextprobeC` | `FAIL` `20/1` - uncredited | Two pre-dispatch attacks by the exact same-group/player-party/directly-controllable/raw-and-effective-AI-enabled non-pair actor; total damage `45`, target Dead; exact cleanup/restoration. |
 | `mounted-rider-melee-miss-rt` exact non-pair AI lease A/B | `20260816T152500Z-rider-miss-rt-ailease-passA`, `20260816T154000Z-rider-miss-rt-ailease-passB` | `PASS` `49/0` each | Same clean commit/package; exact one-member command-pure raw/effective AI lease and restoration; zero pre-dispatch interference; one rider natural-1 native miss; zero damage/duplicates/repaths; rider-only Standard; exact cleanup and independent external audit. Stationary miss RT qualified A/B. |
+
+## Mammoth-primary qualification rows
+
+| Scenario | Status | Required claim |
+|---|---|---|
+| `mounted-mammoth-primary-hit-rt` | IN PROGRESS - offline schema-v20 PASS | Exact Mammoth actor/command/resource/primary-natural weapon/target/rule identity; one hit and bounded damage; rider unchanged; no duplicate, movement, repath, AI interference, pose loss, or cleanup/restoration residue; fresh same-package A/B required. |
+| `mounted-mammoth-primary-hit-tb` | IN PROGRESS - offline schema-v21 PASS | Same actor-specific proof on the exact native Mammoth turn; turn admitted only while explicitly armed and ended after the command without Move/Swift manufacture; fresh same-package A/B required. |

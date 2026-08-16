@@ -147,8 +147,8 @@ namespace KingmakerMountedCombat.Domain
             bool targetViewVisible,
             bool targetVisibleForPlayer,
             bool clickObjectResolvesExactView,
-            bool riderCanAttackTarget,
-            bool riderWeaponIsSupportedMelee)
+            bool actionActorCanAttackTarget,
+            bool actionWeaponIsSupportedMelee)
         {
             var failures = new List<string>();
             AddFailure(failures, exactTarget, "exact-click-target");
@@ -156,8 +156,8 @@ namespace KingmakerMountedCombat.Domain
             AddFailure(failures, targetViewVisible, "target-view-visible");
             AddFailure(failures, targetVisibleForPlayer, "target-visible-for-player");
             AddFailure(failures, clickObjectResolvesExactView, "click-object-resolves-exact-view");
-            AddFailure(failures, riderCanAttackTarget, "rider-can-attack-target");
-            AddFailure(failures, riderWeaponIsSupportedMelee, "rider-weapon-is-supported-melee");
+            AddFailure(failures, actionActorCanAttackTarget, "action-actor-can-attack-target");
+            AddFailure(failures, actionWeaponIsSupportedMelee, "action-weapon-is-supported-melee");
             failedGateNames = failures.ToArray();
         }
 
@@ -182,20 +182,20 @@ namespace KingmakerMountedCombat.Domain
 
         public DiagnosticCombatDispatchReadinessSnapshot(
             bool gameUnpaused,
-            bool riderCanActInCombat,
-            bool riderHandsIdle,
+            bool actionActorCanActInCombat,
+            bool actionActorHandsIdle,
             bool equipmentControllerAvailable,
             bool equipmentUpdateIdle)
         {
             GameUnpaused = gameUnpaused;
-            RiderCanActInCombat = riderCanActInCombat;
-            RiderHandsBusy = !riderHandsIdle;
+            ActionActorCanActInCombat = actionActorCanActInCombat;
+            ActionActorHandsBusy = !actionActorHandsIdle;
             EquipmentControllerAvailable = equipmentControllerAvailable;
             EquipmentUpdateScheduled = !equipmentUpdateIdle;
             var failures = new List<string>();
             AddFailure(failures, gameUnpaused, "game-unpaused");
-            AddFailure(failures, riderCanActInCombat, "rider-can-act-in-combat");
-            AddFailure(failures, riderHandsIdle, "rider-hands-idle");
+            AddFailure(failures, actionActorCanActInCombat, "action-actor-can-act-in-combat");
+            AddFailure(failures, actionActorHandsIdle, "action-actor-hands-idle");
             AddFailure(failures, equipmentControllerAvailable, "equipment-controller-available");
             AddFailure(failures, equipmentUpdateIdle, "equipment-update-idle");
             failedGateNames = failures.ToArray();
@@ -203,9 +203,9 @@ namespace KingmakerMountedCombat.Domain
 
         public bool GameUnpaused { get; }
 
-        public bool RiderCanActInCombat { get; }
+        public bool ActionActorCanActInCombat { get; }
 
-        public bool RiderHandsBusy { get; }
+        public bool ActionActorHandsBusy { get; }
 
         public bool EquipmentControllerAvailable { get; }
 
@@ -421,8 +421,8 @@ namespace KingmakerMountedCombat.Domain
             bool rosterContainsRider,
             bool rosterContainsMount,
             bool rosterContainsTarget,
-            bool nativeRiderTurnStarted,
-            bool currentTurnRider,
+            bool nativeActionActorTurnStarted,
+            bool currentTurnActionActor,
             bool currentTurnCommandReady)
         {
             ModeEnabled = modeEnabled;
@@ -430,8 +430,8 @@ namespace KingmakerMountedCombat.Domain
             RosterContainsRider = rosterContainsRider;
             RosterContainsMount = rosterContainsMount;
             RosterContainsTarget = rosterContainsTarget;
-            NativeRiderTurnStarted = nativeRiderTurnStarted;
-            CurrentTurnRider = currentTurnRider;
+            NativeActionActorTurnStarted = nativeActionActorTurnStarted;
+            CurrentTurnActionActor = currentTurnActionActor;
             CurrentTurnCommandReady = currentTurnCommandReady;
             var failures = new List<string>();
             AddFailure(failures, modeEnabled, "turn-based-mode-enabled");
@@ -439,8 +439,8 @@ namespace KingmakerMountedCombat.Domain
             AddFailure(failures, rosterContainsRider, "turn-roster-contains-rider");
             AddFailure(failures, rosterContainsMount, "turn-roster-contains-mount");
             AddFailure(failures, rosterContainsTarget, "turn-roster-contains-target");
-            AddFailure(failures, nativeRiderTurnStarted, "native-rider-turn-started");
-            AddFailure(failures, currentTurnRider, "current-turn-rider");
+            AddFailure(failures, nativeActionActorTurnStarted, "native-action-actor-turn-started");
+            AddFailure(failures, currentTurnActionActor, "current-turn-action-actor");
             AddFailure(failures, currentTurnCommandReady, "current-turn-command-ready");
             failedGateNames = failures.ToArray();
         }
@@ -455,9 +455,9 @@ namespace KingmakerMountedCombat.Domain
 
         public bool RosterContainsTarget { get; }
 
-        public bool NativeRiderTurnStarted { get; }
+        public bool NativeActionActorTurnStarted { get; }
 
-        public bool CurrentTurnRider { get; }
+        public bool CurrentTurnActionActor { get; }
 
         public bool CurrentTurnCommandReady { get; }
 

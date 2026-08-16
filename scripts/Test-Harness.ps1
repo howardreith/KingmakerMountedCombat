@@ -1071,15 +1071,19 @@ function New-TestCombatEvidenceRecord {
     $rider = 'combat-rider'
     $mount = 'combat-mount'
     $target = 'combat-target'
-    $isTurnBased = [string]$Request.scenario -ceq 'mounted-rider-melee-hit-tb'
+    $isMammoth = [string]$Request.scenario -cin @('mounted-mammoth-primary-hit-rt','mounted-mammoth-primary-hit-tb')
+    $isTurnBased = [string]$Request.scenario -cin @('mounted-rider-melee-hit-tb','mounted-mammoth-primary-hit-tb')
     $isMiss = [string]$Request.scenario -ceq 'mounted-rider-melee-miss-rt'
+    $actor = if ($isMammoth) { $mount } else { $rider }
+    $actorRole = if ($isMammoth) { 'mount' } else { 'rider' }
+    $action = if ($isMammoth) { 'MountPrimaryNatural' } else { 'RiderMelee' }
     $record = [ordered]@{
-        schemaVersion=$(if ($isTurnBased) { 19 } else { 18 });artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
+        schemaVersion=$(if ($isMammoth) { if ($isTurnBased) { 21 } else { 20 } } elseif ($isTurnBased) { 19 } else { 18 });artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
         scenario=[string]$Request.scenario;row=[string]$Request.scenario;rowIndex=0;sequence=0;frame=30
         utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o');branch=[string]$Request.branch
         commit=[string]$Request.commit;productVersion=[string]$Request.productVersion
         dllSha256=[string]$Request.dllSha256;dllMvid=[string]$Request.dllMvid;status='PASS';mode=$(if ($isTurnBased) { 'turn-based' } else { 'real-time' })
-        action='RiderMelee';expectedActor='rider';riderId=$rider;mountId=$mount;targetId=$target;clickAccepted=$true
+        action=$action;expectedActor=$actorRole;riderId=$rider;mountId=$mount;targetId=$target;clickAccepted=$true
         targetProvisioning=[ordered]@{
             targetBlueprintId='e7aa96d15a45238438ae4cfb476f6bb9';runtimeGroupId=('KMC.RuntimeHostile.'+[string]$Request.runId)
             blueprintEmptyHandWeaponBlueprintId='11111111111111111111111111111111';targetNativeSingleAttackWeaponBlueprintId='11111111111111111111111111111111'
@@ -1117,7 +1121,7 @@ function New-TestCombatEvidenceRecord {
             dispatchMarkerSet=$true;attackRuleCount=1;damageRuleCount=$(if ($isMiss) { 0 } else { 1 })
             preDispatchAttackRuleCount=0;preDispatchDamageRuleCount=0
             firstAttack=[ordered]@{
-                observed=$true;beforeExpectedDispatch=$false;initiatorId=$rider
+                observed=$true;beforeExpectedDispatch=$false;initiatorId=$actor
                 initiatorBlueprintId='22222222222222222222222222222222'
                 initiatorIsPlayerFaction=$true;initiatorIsPlayersEnemy=$false
                 initiatorGroupId='player-group';initiatorGroupIsPlayerParty=$true
@@ -1135,7 +1139,7 @@ function New-TestCombatEvidenceRecord {
                 }
             } else {
                 [ordered]@{
-                    observed=$true;beforeExpectedDispatch=$false;initiatorId=$rider
+                    observed=$true;beforeExpectedDispatch=$false;initiatorId=$actor
                     initiatorBlueprintId='22222222222222222222222222222222'
                     initiatorIsPlayerFaction=$true;initiatorIsPlayersEnemy=$false;damage=10;isFake=$false;isDot=$false
                     attackRollPresent=$true;weaponBlueprintId='33333333333333333333333333333333'
@@ -1174,23 +1178,23 @@ function New-TestCombatEvidenceRecord {
             }
         }
         dispatch=[ordered]@{
-            originalPaused=$true;unpausedForRealTime=(-not $isTurnBased);pausedAtClick=$false;riderCanActInCombat=$true
-            riderHandsBusy=$false;equipmentControllerAvailable=$true;equipmentUpdateScheduled=$false;pauseRestored=$true
+            originalPaused=$true;unpausedForRealTime=(-not $isTurnBased);pausedAtClick=$false
+            equipmentControllerAvailable=$true;equipmentUpdateScheduled=$false;pauseRestored=$true
         }
         resources=[ordered]@{
-            riderStandardBefore=0.0;riderStandardAfter=5.5;riderMoveBefore=0.0;riderMoveAfter=0.0
-            mountStandardBefore=0.0;mountStandardAfter=0.0;mountMoveBefore=0.0;mountMoveAfter=0.0
+            riderStandardBefore=0.0;riderStandardAfter=$(if ($isMammoth) { 0.0 } else { 5.5 });riderMoveBefore=0.0;riderMoveAfter=0.0
+            mountStandardBefore=0.0;mountStandardAfter=$(if ($isMammoth) { 5.5 } else { 0.0 });mountMoveBefore=0.0;mountMoveAfter=0.0
         }
         command=[ordered]@{
-            action='RiderMelee';actorId=$rider;targetId=$target;result='Success';childAttackStartCount=1
-            repathCount=0;riderStandardCharged=$true;nativeAttackRuleObserved=$true;terminalReason='completed'
+            action=$action;actorId=$actor;targetId=$target;result='Success';childAttackStartCount=1
+            repathCount=0;riderStandardCharged=(-not $isMammoth);nativeAttackRuleObserved=$true;terminalReason='completed'
             pairRangeSatisfiedAtStart=$true;pairDistanceAtStart=3.9;pairApproachRadiusAtStart=4.0
             nativeExecutorDistanceAtStart=4.1;nativeAdmissionRadiusAtStart=4.101;nativeAdmissionAdjusted=$true
         }
         rules=[ordered]@{
             forcedD20=$(if ($isMiss) { 1 } else { 20 });forcedD20Count=1;attackRuleCount=1;attackRollCount=1
             damageRuleCount=$(if ($isMiss) { 0 } else { 1 });unexpectedPairAttackCount=0
-            totalDamage=$(if ($isMiss) { 0 } else { 10 });lastInitiatorId=$rider;lastTargetId=$target
+            totalDamage=$(if ($isMiss) { 0 } else { 10 });lastInitiatorId=$actor;lastTargetId=$target
             lastAttackResult=$(if ($isMiss) { 'Miss' } else { 'Hit' });lastAttackHit=(-not $isMiss)
         }
         movement=[ordered]@{
@@ -1209,14 +1213,41 @@ function New-TestCombatEvidenceRecord {
         }
         selection=@($rider);assertionPassCount=25;assertionFailCount=0;errors=@()
     }
+    if ($isMammoth) {
+        $record.dispatch.actionActorCanActInCombat = $true
+        $record.dispatch.actionActorHandsBusy = $false
+        $record.command.commandOwnerId = $actor
+        $record.command.resourceOwnerId = $actor
+        $record.command.actionStandardCharged = $true
+        $record.command.attackWeaponBlueprintId = '33333333333333333333333333333333'
+        $record.command.attackWeaponIsNatural = $true
+        $record.command.attackWeaponIsRanged = $false
+        $record.command.attackWeaponSlot = 'PrimaryHand'
+    } else {
+        $record.dispatch.riderCanActInCombat = $true
+        $record.dispatch.riderHandsBusy = $false
+    }
     if ($isTurnBased) {
-        $record.turnBased = [ordered]@{
-            requested=$true;originalEnabled=$false;temporaryEnabled=$true;originalRawCacheHadValue=$true
-            enabledAtMount=$true;controllerInitialized=$true;rosterContainsRider=$true
-            rosterContainsMount=$true;rosterContainsTarget=$true;nativeRiderTurnStarted=$true
-            currentTurnUnitIdAtDispatch=$rider;currentTurnActingAtDispatch=$true;roundNumberAtDispatch=1
-            currentTurnUnitIdAtOutcome=$rider;currentTurnActingAtOutcome=$true
-            restoreDeliveryCompleted=$true;modeRestored=$true;persistedValueUnchanged=$true
+        if ($isMammoth) {
+            $record.turnBased = [ordered]@{
+                requested=$true;originalEnabled=$false;temporaryEnabled=$true;originalRawCacheHadValue=$true
+                enabledAtMount=$true;controllerInitialized=$true;rosterContainsRider=$true
+                rosterContainsMount=$true;rosterContainsTarget=$true;expectedTurnActor='mount'
+                nativeActionActorTurnStarted=$true;currentTurnUnitIdAtDispatch=$mount
+                currentTurnActingAtDispatch=$true;roundNumberAtDispatch=1
+                currentTurnUnitIdAtOutcome=$mount;currentTurnActingAtOutcome=$false
+                actionActorTurnEndedAfterCommand=$true
+                restoreDeliveryCompleted=$true;modeRestored=$true;persistedValueUnchanged=$true
+            }
+        } else {
+            $record.turnBased = [ordered]@{
+                requested=$true;originalEnabled=$false;temporaryEnabled=$true;originalRawCacheHadValue=$true
+                enabledAtMount=$true;controllerInitialized=$true;rosterContainsRider=$true
+                rosterContainsMount=$true;rosterContainsTarget=$true;nativeRiderTurnStarted=$true
+                currentTurnUnitIdAtDispatch=$rider;currentTurnActingAtDispatch=$true;roundNumberAtDispatch=1
+                currentTurnUnitIdAtOutcome=$rider;currentTurnActingAtOutcome=$true
+                restoreDeliveryCompleted=$true;modeRestored=$true;persistedValueUnchanged=$true
+            }
         }
     }
     return $record
@@ -4341,12 +4372,14 @@ try {
         Assert-Test ($controllerSource.Contains('DescribeActiveCommandReadiness()') -and
             $controllerSource.Contains('commands.Standard == command') -and
             $controllerSource.Contains('commands.Queue.Contains(command)') -and
-            $controllerSource.Contains('rider.AreHandsBusyWithAnimation') -and
-            $controllerSource.Contains('handsEquipment.IsUpdateScheduledFor(rider)') -and
-            $controllerSource.Contains('rider.CombatState.HasCooldownForCommand(command)') -and
+            $controllerSource.Contains('actionActor.AreHandsBusyWithAnimation') -and
+            $controllerSource.Contains('handsEquipment.IsUpdateScheduledFor(actionActor)') -and
+            $controllerSource.Contains('actionActor.CombatState.HasCooldownForCommand(command)') -and
             $engineSource.Contains('Command readiness: " + combat.DescribeActiveCommandReadiness()')) 'combat timeout does not preserve exact native command admission and start-gate evidence'
-        Assert-Test ($controllerSource.Contains('!relationship.Rider.Commands.Contains(command) &&') -and
-            $controllerSource.Contains('!relationship.Rider.Commands.Queue.Contains(command)')) 'combat click accepts a command that native UnitCommands neither owns nor queues'
+        Assert-Test ($controllerSource.Contains('actionActor.Commands.Run(command);') -and
+            $controllerSource.Contains('command.Executor != actionActor') -and
+            $controllerSource.Contains('!actionActor.Commands.Contains(command) &&') -and
+            $controllerSource.Contains('!actionActor.Commands.Queue.Contains(command)')) 'combat click accepts a command that the exact action actor native UnitCommands neither owns nor queues'
         $pauseCaptureIndex = $engineSource.IndexOf('originalPause = Game.Instance.IsPaused;', [StringComparison]::Ordinal)
         $memoryQueueIndex = $engineSource.IndexOf('targetService.QueueBidirectionalCombatMemory(rider, target)', [StringComparison]::Ordinal)
         $realTimeUnpauseIndex = $engineSource.IndexOf('game.IsPaused = false;', [StringComparison]::Ordinal)
@@ -4379,15 +4412,15 @@ try {
             $engineSource.Substring($turnBasedMountIndex, $turnBasedMountEndIndex - $turnBasedMountIndex)
         } else { '' }
         $turnRosterIndex = $engineSource.IndexOf('turnRosterContainsTarget = ContainsTurnRosterUnit(turnController, target);', [StringComparison]::Ordinal)
-        $nativeRiderTurnIndex = $engineSource.IndexOf('turnController.StartTurn(rider);', [StringComparison]::Ordinal)
-        $turnDispatchIndex = $engineSource.IndexOf('turnBasedReadiness = CaptureTurnBasedReadiness(turnController);', $nativeRiderTurnIndex, [StringComparison]::Ordinal)
+        $nativeActionActorTurnIndex = $engineSource.IndexOf('turnController.StartTurn(AttackActor);', [StringComparison]::Ordinal)
+        $turnDispatchIndex = $engineSource.IndexOf('turnBasedReadiness = CaptureTurnBasedReadiness(turnController);', $nativeActionActorTurnIndex, [StringComparison]::Ordinal)
         $nativeClickIndex = $engineSource.IndexOf('new ClickUnitHandler().OnClick(', $turnDispatchIndex, [StringComparison]::Ordinal)
-        $actingAfterDispatchIndex = $engineSource.IndexOf('if (IsTurnBasedRow && !nativeRiderTurnActingObservedAfterDispatch)', [StringComparison]::Ordinal)
+        $actingAfterDispatchIndex = $engineSource.IndexOf('if (IsTurnBasedRow && !nativeActionActorTurnActingObservedAfterDispatch)', [StringComparison]::Ordinal)
         $cleanupDestroyIndex = $engineSource.IndexOf('targetRemoved = targetService.DestroyAndVerify();', [StringComparison]::Ordinal)
         $modeRestoreIndex = $engineSource.IndexOf('RestoreTurnBasedMode();', $cleanupDestroyIndex, [StringComparison]::Ordinal)
         Assert-Test ($modeProbeIndex -ge 0 -and $modeDispatchIndex -gt $modeProbeIndex -and
             $turnBasedMountIndex -gt $modeDispatchIndex -and $turnRosterIndex -gt $turnBasedMountIndex -and
-            $nativeRiderTurnIndex -gt $turnRosterIndex -and $turnDispatchIndex -gt $nativeRiderTurnIndex -and
+            $nativeActionActorTurnIndex -gt $turnRosterIndex -and $turnDispatchIndex -gt $nativeActionActorTurnIndex -and
             $nativeClickIndex -gt $turnDispatchIndex -and $actingAfterDispatchIndex -gt $nativeClickIndex -and
             $cleanupDestroyIndex -gt $turnDispatchIndex -and $modeRestoreIndex -gt $cleanupDestroyIndex -and
             $nativeModeProbeSource.Contains('public bool TemporaryValueIsCurrent => temporaryAttempted && setting.CurrentValue == TemporaryValue;') -and
@@ -4396,20 +4429,22 @@ try {
             $engineSource.Contains('CombatController.IsInTurnBasedCombat()') -and
             $engineSource.Contains('turnController != null && turnController.Initialized') -and
             $engineSource.Contains('foreach (var unit in controller.SortedUnits)') -and
-            $engineSource.Contains('currentTurn?.Unit == rider') -and
+            $engineSource.Contains('currentTurn?.Unit == AttackActor') -and
             $spatialPolicySource.Contains('public static bool CanIssueRiderAction(') -and
-            $spatialPolicySource.Contains('(currentUnitIsExactRider && (riderTurnIsPreparing || riderTurnIsActing))') -and
-            $controllerSource.Contains('var riderTurn = MountedPairTurnPolicy.CanIssueRiderAction(') -and
+            $spatialPolicySource.Contains('public static bool CanIssueAction(') -and
+            $spatialPolicySource.Contains('(currentUnitIsExactActor && (actorTurnIsPreparing || actorTurnIsActing))') -and
+            $controllerSource.Contains('var actionActorTurn = MountedPairTurnPolicy.CanIssueAction(') -and
             $controllerSource.Contains('turn.Status == TurnBased.Controllers.TurnController.TurnStatus.Preparing') -and
             $controllerSource.Contains('turn != null && turn.IsActing') -and
-            $engineSource.Contains('MountedPairTurnPolicy.CanIssueRiderAction(') -and
+            $engineSource.Contains('MountedPairTurnPolicy.CanIssueAction(') -and
             $engineSource.Contains('currentTurn.Status == TurnBased.Controllers.TurnController.TurnStatus.Preparing') -and
             $engineSource.Contains('currentTurn != null && currentTurn.IsActing') -and
             $engineSource.Contains('currentTurnActingAtDispatch = true;') -and
-            $engineSource.Contains('currentTurnActingAtOutcome = currentTurn != null && currentTurn.IsActing')) 'turn-based combat does not admit the native Preparing rider turn, observe Acting only after dispatch, retain it through outcome, and restore mode after cleanup'
+            $engineSource.Contains('currentTurnActingAtOutcome = currentTurn != null && currentTurn.IsActing') -and
+            $controllerSource.Contains('turn.ForceToEnd(false);')) 'turn-based combat does not admit the native Preparing action-actor turn, observe Acting after dispatch, bound the Mammoth turn after its action, and restore mode after cleanup'
         Assert-Test ($engineSource.Contains('CleanupTimeoutSeconds = 10.0d') -and
             $engineSource.Contains('rowClock.Elapsed.TotalSeconds - cleanupStartedAtSeconds < CleanupTimeoutSeconds')) 'combat cleanup does not retain an independent bounded drain after a row deadline'
-        Assert-Test ($engineSource.Contains('SchemaVersion = IsTurnBasedRow ? 19 : 18') -and
+        Assert-Test ($engineSource.Contains('SchemaVersion = IsTurnBasedRow ? 21 : 20') -and
             $engineSource.Contains('Mode = IsTurnBasedRow ? "turn-based" : "real-time"') -and
             $engineSource.Contains('TurnBased = IsTurnBasedRow') -and
             $engineSource.Contains('CombatEntry = CombatEntryEvidence.From(') -and
@@ -4418,11 +4453,11 @@ try {
             $combatValidatorSource.Contains("'memoryQueued','playerGroupMemoryContainsTarget','targetGroupMemoryContainsRider'") -and
             $combatValidatorSource.Contains("'targetAwake'") -and
             $combatValidatorSource.Contains("'defaultGameMode','memoryRemovedAtCleanup'") -and
-            $combatValidatorSource.Contains("'unpausedForRealTime','pausedAtClick','riderCanActInCombat','riderHandsBusy'") -and
+            $combatValidatorSource.Contains("@('actionActorCanActInCombat','actionActorHandsBusy')") -and
             $combatValidatorSource.Contains("'equipmentControllerAvailable','equipmentUpdateScheduled','pauseRestored'") -and
             $combatValidatorSource.Contains("[string]`$record.command.terminalReason -cne 'completed'") -and
             $combatValidatorSource.Contains("'controllerInitialized','rosterContainsRider','rosterContainsMount','rosterContainsTarget'") -and
-            $combatValidatorSource.Contains("[string]`$record.turnBased.currentTurnUnitIdAtDispatch -cne [string]`$record.riderId") -and
+            $combatValidatorSource.Contains("[string]`$record.turnBased.currentTurnUnitIdAtDispatch -cne `$expectedActorId") -and
             $combatValidatorSource.Contains("`$record.turnBased.persistedValueUnchanged -ne `$true") -and
             $ruleProbeSource.Contains('LastAttackHit = evt.IsHit;') -and
             $engineSource.Contains('IsNativeAcMissReason(ruleProbe.LastAttackResult)') -and
@@ -4451,7 +4486,13 @@ try {
             $combatValidatorSource.Contains("'acquired','groupId','groupIsPlayerParty','riderSharesGroup','mountSharesGroup','memberCount'") -and
             $combatValidatorSource.Contains("'commandsEmptyBefore','rawAiBefore','effectiveAiBefore'") -and
             $combatValidatorSource.Contains('command-preserving non-pair party AI suppression') -and
-            $combatValidatorSource.Contains('zero pre-dispatch interference')) 'schema-v18/v19 combat evidence does not bind native IsHit, exact AC-selected miss reasons, target wake lease, native join and life gates, incoming-rule actor context, exact non-pair party AI suppression/restoration, combat entry, terminal reason, memory cleanup, mode-specific dispatch, rider-turn identity, and restoration'
+            $combatValidatorSource.Contains('zero pre-dispatch interference') -and
+            $combatValidatorSource.Contains("'commandOwnerId','resourceOwnerId','actionStandardCharged'") -and
+            $combatValidatorSource.Contains("'attackWeaponBlueprintId','attackWeaponIsNatural','attackWeaponIsRanged','attackWeaponSlot'") -and
+            $commandSource.Contains('Executor == actionActor') -and
+            $commandSource.Contains('CommandOwnerId = Executor?.UniqueId') -and
+            $commandSource.Contains('ResourceOwnerId = actionActor.UniqueId') -and
+            $commandSource.Contains('AttackWeaponBlueprintId = childAttack?.PlannedAttack?.Weapon?.Blueprint?.AssetGuid')) 'schema-v20/v21 combat evidence does not bind actor-specific command/resource ownership, exact weapon identity, native IsHit, target and AI isolation, turn identity, cleanup, and restoration'
         foreach ($field in @('TargetEntityRemoved','RuntimeGroupRemoved','RuntimeFactionRemoved')) {
             $jsonField = [char]::ToLowerInvariant($field[0]) + $field.Substring(1)
             Assert-Test ($engineSource.Contains("$field =") -and
@@ -4512,6 +4553,87 @@ try {
     Invoke-HarnessTest 'runtime request and combat evidence accept exact stationary rider miss' {
         & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $missRequestPath
         Assert-KmcCombatScenarioEvidence -Request $missRequest -Manifest $missManifest -Status 'PASS' -SubscenarioResults @($missSubresult)
+    }
+
+    $mammothRequestPath = Join-Path $testRoot 'runtime-request-combat-mammoth.json'
+    $mammothRequest = Copy-TestJsonValue $combatRequest
+    $mammothRequest.runId = 'combat-evidence-mammoth-test'
+    $mammothRequest.scenario = 'mounted-mammoth-primary-hit-rt'
+    $mammothRequest.evidenceRoot = Join-Path $runtimeEvidenceTestRoot $mammothRequest.runId
+    Write-KmcJsonAtomic $mammothRequestPath $mammothRequest
+    $mammothRecord = New-TestCombatEvidenceRecord $mammothRequest
+    [void](Write-TestCombatEvidence -EvidenceRoot $mammothRequest.evidenceRoot -Request $mammothRequest -Record $mammothRecord)
+    $mammothManifest = Read-KmcJson (Join-Path $mammothRequest.evidenceRoot 'runtime-artifacts.json')
+    $mammothSubresult = [ordered]@{name=$mammothRequest.scenario;status='PASS';assertionPassCount=25;assertionFailCount=0;errors=@()}
+
+    Invoke-HarnessTest 'runtime request and schema-v20 evidence accept exact stationary Mammoth primary' {
+        & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $mammothRequestPath
+        Assert-KmcCombatScenarioEvidence -Request $mammothRequest -Manifest $mammothManifest -Status 'PASS' -SubscenarioResults @($mammothSubresult)
+    }
+
+    $mammothTurnRequestPath = Join-Path $testRoot 'runtime-request-combat-mammoth-turn-based.json'
+    $mammothTurnRequest = Copy-TestJsonValue $mammothRequest
+    $mammothTurnRequest.runId = 'combat-evidence-mammoth-turn-based-test'
+    $mammothTurnRequest.scenario = 'mounted-mammoth-primary-hit-tb'
+    $mammothTurnRequest.evidenceRoot = Join-Path $runtimeEvidenceTestRoot $mammothTurnRequest.runId
+    Write-KmcJsonAtomic $mammothTurnRequestPath $mammothTurnRequest
+    $mammothTurnRecord = New-TestCombatEvidenceRecord $mammothTurnRequest
+    [void](Write-TestCombatEvidence -EvidenceRoot $mammothTurnRequest.evidenceRoot -Request $mammothTurnRequest -Record $mammothTurnRecord)
+    $mammothTurnManifest = Read-KmcJson (Join-Path $mammothTurnRequest.evidenceRoot 'runtime-artifacts.json')
+    $mammothTurnSubresult = [ordered]@{name=$mammothTurnRequest.scenario;status='PASS';assertionPassCount=25;assertionFailCount=0;errors=@()}
+
+    Invoke-HarnessTest 'runtime request and schema-v21 evidence accept exact native Mammoth primary turn' {
+        & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $mammothTurnRequestPath
+        Assert-KmcCombatScenarioEvidence -Request $mammothTurnRequest -Manifest $mammothTurnManifest -Status 'PASS' -SubscenarioResults @($mammothTurnSubresult)
+    }
+
+    Invoke-HarnessTest 'Mammoth primary validator rejects actor command resource weapon duplicate and turn mutations' {
+        $mutations = @(
+            @{name='rider actor';apply={param($value) $value.command.actorId='combat-rider'}},
+            @{name='rider command owner';apply={param($value) $value.command.commandOwnerId='combat-rider'}},
+            @{name='rider resource owner';apply={param($value) $value.command.resourceOwnerId='combat-rider'}},
+            @{name='action cost absent';apply={param($value) $value.command.actionStandardCharged=$false}},
+            @{name='rider charged flag';apply={param($value) $value.command.riderStandardCharged=$true}},
+            @{name='rider Standard consumed';apply={param($value) $value.resources.riderStandardAfter=5.5}},
+            @{name='Mammoth Standard unconsumed';apply={param($value) $value.resources.mountStandardAfter=0.0}},
+            @{name='Mammoth Move consumed';apply={param($value) $value.resources.mountMoveAfter=3.0}},
+            @{name='wrong rule initiator';apply={param($value) $value.rules.lastInitiatorId='combat-rider'}},
+            @{name='wrong incoming initiator';apply={param($value) $value.targetIncomingRules.firstAttack.initiatorId='combat-rider'}},
+            @{name='duplicate rider attack';apply={param($value) $value.rules.unexpectedPairAttackCount=1}},
+            @{name='wrong weapon';apply={param($value) $value.command.attackWeaponBlueprintId='44444444444444444444444444444444'}},
+            @{name='non-natural weapon';apply={param($value) $value.command.attackWeaponIsNatural=$false}},
+            @{name='ranged weapon';apply={param($value) $value.command.attackWeaponIsRanged=$true}},
+            @{name='wrong slot';apply={param($value) $value.command.attackWeaponSlot='EquippedMelee'}}
+        )
+        foreach ($mutation in $mutations) {
+            $candidate = Copy-TestJsonValue $mammothRecord
+            & $mutation.apply $candidate
+            [void](Write-TestCombatEvidence -EvidenceRoot $mammothRequest.evidenceRoot -Request $mammothRequest -Record $candidate)
+            $candidateManifest = Read-KmcJson (Join-Path $mammothRequest.evidenceRoot 'runtime-artifacts.json')
+            $threw = $false
+            try { Assert-KmcCombatScenarioEvidence -Request $mammothRequest -Manifest $candidateManifest -Status 'PASS' -SubscenarioResults @($mammothSubresult) }
+            catch { $threw = $true }
+            Assert-Test $threw ("Mammoth primary validator accepted mutation: " + [string]$mutation.name)
+        }
+
+        $turnMutations = @(
+            @{name='wrong expected actor';apply={param($value) $value.turnBased.expectedTurnActor='rider'}},
+            @{name='native actor turn absent';apply={param($value) $value.turnBased.nativeActionActorTurnStarted=$false}},
+            @{name='rider dispatch turn';apply={param($value) $value.turnBased.currentTurnUnitIdAtDispatch='combat-rider'}},
+            @{name='dispatch not Acting';apply={param($value) $value.turnBased.currentTurnActingAtDispatch=$false}},
+            @{name='Mammoth turn not ended';apply={param($value) $value.turnBased.actionActorTurnEndedAfterCommand=$false}},
+            @{name='Mammoth still Acting';apply={param($value) $value.turnBased.currentTurnActingAtOutcome=$true}}
+        )
+        foreach ($mutation in $turnMutations) {
+            $candidate = Copy-TestJsonValue $mammothTurnRecord
+            & $mutation.apply $candidate
+            [void](Write-TestCombatEvidence -EvidenceRoot $mammothTurnRequest.evidenceRoot -Request $mammothTurnRequest -Record $candidate)
+            $candidateManifest = Read-KmcJson (Join-Path $mammothTurnRequest.evidenceRoot 'runtime-artifacts.json')
+            $threw = $false
+            try { Assert-KmcCombatScenarioEvidence -Request $mammothTurnRequest -Manifest $candidateManifest -Status 'PASS' -SubscenarioResults @($mammothTurnSubresult) }
+            catch { $threw = $true }
+            Assert-Test $threw ("Mammoth primary turn validator accepted mutation: " + [string]$mutation.name)
+        }
     }
 
     Invoke-HarnessTest 'combat miss validator accepts only exact native AC-selected miss reasons' {

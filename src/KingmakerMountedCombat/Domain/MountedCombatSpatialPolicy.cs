@@ -125,16 +125,31 @@ namespace KingmakerMountedCombat.Domain
             bool riderTurnIsPreparing,
             bool riderTurnIsActing)
         {
+            return CanIssueAction(
+                turnBasedCombat,
+                currentUnitIsExactRider,
+                riderTurnIsPreparing,
+                riderTurnIsActing);
+        }
+
+        public static bool CanIssueAction(
+            bool turnBasedCombat,
+            bool currentUnitIsExactActor,
+            bool actorTurnIsPreparing,
+            bool actorTurnIsActing)
+        {
             return !turnBasedCombat ||
-                (currentUnitIsExactRider && (riderTurnIsPreparing || riderTurnIsActing));
+                (currentUnitIsExactActor && (actorTurnIsPreparing || actorTurnIsActing));
         }
 
         public static bool ShouldEndMountTurn(
             bool exactMountedPair,
             bool turnBasedCombat,
-            bool currentUnitIsExactMount)
+            bool currentUnitIsExactMount,
+            bool explicitMountActionPendingOrActive = false)
         {
-            return exactMountedPair && turnBasedCombat && currentUnitIsExactMount;
+            return exactMountedPair && turnBasedCombat && currentUnitIsExactMount &&
+                !explicitMountActionPendingOrActive;
         }
 
         public static bool CanDelegateMountMovement(

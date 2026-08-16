@@ -27,7 +27,7 @@ All core claims require two consecutive fresh-process passes from one clean comm
 | Tranche | Scenarios | Status |
 |---|---|---|
 | Rider melee | mounted hit/miss RT, hit TB, invalid target, target death, cleanup, non-mounted control | IN PROGRESS - stationary hit RT PASS A/B; three TB admission-order failures repaired, fresh TB A/B pending; remaining rows open |
-| Mount attack | explicit primary attack RT/TB, invalid target, target death, rider interruption, non-mounted control | TODO |
+| Mount attack | `mounted-mammoth-primary-hit-rt` and `mounted-mammoth-primary-hit-tb`; exact actor/command/resource/weapon/target/rule identity, rider unchanged, no duplicate/repath, bounded Mammoth turn, cleanup/restoration | IN PROGRESS — schema-v20/v21 offline protocol and mutation coverage PASS; fresh same-package A/B pending |
 | Action economy/movement | entry/exit RT/TB, movement-to-target, cancellation, obstacles/doorway, resource accounting | TODO |
 | Lifecycle | rider/mount death and incapacitation, view/party/save/load/area/disable/exception boundaries | TODO |
 | Stretch | reach, AoO, and basic charge RT/TB plus isolation | TODO |

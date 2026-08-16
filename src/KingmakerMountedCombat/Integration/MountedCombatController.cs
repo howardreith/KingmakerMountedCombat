@@ -52,27 +52,27 @@ namespace KingmakerMountedCombat.Integration
         internal string DescribeActiveCommandReadiness()
         {
             var command = activeCommand;
-            var rider = relationship.Rider;
+            var actionActor = command?.ActionActor;
             if (command == null)
             {
                 return "active=false";
             }
 
-            var commands = rider?.Commands;
+            var commands = actionActor?.Commands;
             var game = Game.Instance;
             var handsEquipment = game?.HandsEquipmentController;
             var inStandardSlot = commands != null && commands.Standard == command;
             var queued = commands != null && commands.Queue.Contains(command);
-            var handsBusy = rider != null && rider.AreHandsBusyWithAnimation;
-            var equipmentUpdateScheduled = rider != null && handsEquipment != null &&
-                handsEquipment.IsUpdateScheduledFor(rider);
-            var canAct = rider?.Descriptor?.State != null && rider.Descriptor.State.CanAct;
-            var canActInCombat = rider?.CombatState != null && rider.CombatState.CanActInCombat;
-            var hasCooldown = rider?.CombatState != null && rider.CombatState.HasCooldownForCommand(command);
+            var handsBusy = actionActor != null && actionActor.AreHandsBusyWithAnimation;
+            var equipmentUpdateScheduled = actionActor != null && handsEquipment != null &&
+                handsEquipment.IsUpdateScheduledFor(actionActor);
+            var canAct = actionActor?.Descriptor?.State != null && actionActor.Descriptor.State.CanAct;
+            var canActInCombat = actionActor?.CombatState != null && actionActor.CombatState.CanActInCombat;
+            var hasCooldown = actionActor?.CombatState != null && actionActor.CombatState.HasCooldownForCommand(command);
             var gamePaused = game != null && game.IsPaused;
-            var initiativeCooldown = rider?.CombatState == null
+            var initiativeCooldown = actionActor?.CombatState == null
                 ? "unavailable"
-                : rider.CombatState.Cooldown.Initiative.ToString("R", CultureInfo.InvariantCulture);
+                : actionActor.CombatState.Cooldown.Initiative.ToString("R", CultureInfo.InvariantCulture);
             return "active=true" +
                 ";inStandardSlot=" + inStandardSlot +
                 ";queued=" + queued +
@@ -161,16 +161,17 @@ namespace KingmakerMountedCombat.Integration
                     HandleCommandTerminal);
                 activeCommand = command;
                 LastOutcome = null;
-                relationship.Rider.Commands.Run(command);
-                if (command.Executor != relationship.Rider || command.IsFinished ||
-                    (!relationship.Rider.Commands.Contains(command) &&
-                     !relationship.Rider.Commands.Queue.Contains(command)))
+                var actionActor = command.ActionActor;
+                actionActor.Commands.Run(command);
+                if (command.Executor != actionActor || command.IsFinished ||
+                    (!actionActor.Commands.Contains(command) &&
+                     !actionActor.Commands.Queue.Contains(command)))
                 {
                     activeCommand = null;
-                    LastFeedback = "Mounted pair command failed to enter the rider Standard slot.";
+                    LastFeedback = "Mounted pair command failed to enter the action actor Standard slot.";
                     return MountedCombatClickResult.HandledRejected;
                 }
-                relationship.Rider.CombatState.ManualTarget = target;
+                actionActor.CombatState.ManualTarget = target;
                 LastFeedback = "Mounted pair command accepted: " + action + ".";
                 return MountedCombatClickResult.HandledAccepted;
             }
@@ -209,6 +210,8 @@ namespace KingmakerMountedCombat.Integration
             {
                 return;
             }
+            var endingExplicitMountAction = ArmedAction == MountedCombatActionKind.MountPrimaryNatural ||
+                activeCommand?.Action == MountedCombatActionKind.MountPrimaryNatural;
             ArmedAction = MountedCombatActionKind.None;
             var command = activeCommand;
             activeCommand = null;
@@ -217,6 +220,14 @@ namespace KingmakerMountedCombat.Integration
                 command.Interrupt();
             }
             relationship.Runtime.CancelMountMovement();
+            if (endingExplicitMountAction && CombatController.IsInTurnBasedCombat())
+            {
+                var turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
+                if (turn != null && turn.Unit == relationship.Mount)
+                {
+                    turn.ForceToEnd(false);
+                }
+            }
             LastFeedback = "Mounted combat cancelled: " + (string.IsNullOrWhiteSpace(reason) ? "boundary" : reason) + ".";
         }
 
@@ -258,7 +269,9 @@ namespace KingmakerMountedCombat.Integration
             if (disposed || !MountedPairTurnPolicy.ShouldEndMountTurn(
                 relationship.State == RelationshipState.Mounted,
                 CombatController.IsInTurnBasedCombat(),
-                startedUnit == relationship.Mount))
+                startedUnit == relationship.Mount,
+                ArmedAction == MountedCombatActionKind.MountPrimaryNatural ||
+                    activeCommand?.Action == MountedCombatActionKind.MountPrimaryNatural))
             {
                 return;
             }
@@ -294,9 +307,10 @@ namespace KingmakerMountedCombat.Integration
             var riderState = rider?.Descriptor?.State;
             var mountState = mount?.Descriptor?.State;
             var turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
-            var riderTurn = MountedPairTurnPolicy.CanIssueRiderAction(
+            var actionActor = action == MountedCombatActionKind.RiderMelee ? rider : mount;
+            var actionActorTurn = MountedPairTurnPolicy.CanIssueAction(
                 CombatController.IsInTurnBasedCombat(),
-                turn?.Unit == rider,
+                turn?.Unit == actionActor,
                 turn != null && turn.Status == TurnBased.Controllers.TurnController.TurnStatus.Preparing,
                 turn != null && turn.IsActing);
             var riderWeapon = rider?.GetFirstWeapon();
@@ -317,10 +331,10 @@ namespace KingmakerMountedCombat.Integration
                 MountAliveAndConscious = mountState != null && mountState.IsConscious && !mountState.IsFinallyDead,
                 TargetExists = targetValid,
                 TargetAliveAndConscious = targetState != null && targetState.IsConscious && !targetState.IsFinallyDead,
-                TargetIsVisibleEnemy = targetValid && target.IsVisibleForPlayer && rider != null &&
-                    rider.IsEnemy(target) && rider.CanAttack(target),
-                RiderOwnsCurrentTurnOrRealTime = riderTurn,
-                RiderHasStandardAction = rider != null && rider.HasStandardAction(),
+                TargetIsVisibleEnemy = targetValid && target.IsVisibleForPlayer && actionActor != null &&
+                    actionActor.IsEnemy(target) && actionActor.CanAttack(target),
+                ActionActorOwnsCurrentTurnOrRealTime = actionActorTurn,
+                ActionActorHasStandardAction = actionActor != null && actionActor.HasStandardAction(),
                 RiderWeaponIsSupportedMelee = riderWeapon?.Blueprint != null && !riderWeapon.Blueprint.IsRanged,
                 MountPrimaryNaturalAttackIsExact = mountPrimary?.Kind == NativeSingleAttackSlotKind.PrimaryHand &&
                     mountPrimary.Weapon?.Blueprint != null &&
@@ -356,6 +370,15 @@ namespace KingmakerMountedCombat.Integration
             LastFeedback = outcome.Result == UnitCommand.ResultType.Success.ToString()
                 ? "Mounted pair attack completed."
                 : "Mounted pair attack ended: " + outcome.Result + ".";
+            if (command.Action == MountedCombatActionKind.MountPrimaryNatural &&
+                CombatController.IsInTurnBasedCombat())
+            {
+                var turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
+                if (turn != null && turn.Unit == command.ActionActor)
+                {
+                    turn.ForceToEnd(false);
+                }
+            }
         }
 
         private void ThrowIfDisposed()

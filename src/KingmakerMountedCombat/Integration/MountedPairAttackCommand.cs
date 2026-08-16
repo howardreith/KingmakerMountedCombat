@@ -14,6 +14,10 @@ namespace KingmakerMountedCombat.Integration
 
         public string ActorId { get; set; }
 
+        public string CommandOwnerId { get; set; }
+
+        public string ResourceOwnerId { get; set; }
+
         public string TargetId { get; set; }
 
         public string Result { get; set; }
@@ -24,7 +28,17 @@ namespace KingmakerMountedCombat.Integration
 
         public bool RiderStandardCharged { get; set; }
 
+        public bool ActionStandardCharged { get; set; }
+
         public bool NativeAttackRuleObserved { get; set; }
+
+        public string AttackWeaponBlueprintId { get; set; }
+
+        public bool AttackWeaponIsNatural { get; set; }
+
+        public bool AttackWeaponIsRanged { get; set; }
+
+        public string AttackWeaponSlot { get; set; }
 
         public string TerminalReason { get; set; }
 
@@ -50,6 +64,7 @@ namespace KingmakerMountedCombat.Integration
         private readonly UnitEntityData rider;
         private readonly UnitEntityData mount;
         private readonly UnitEntityData attackTarget;
+        private readonly UnitEntityData actionActor;
         private readonly MountedCombatActionKind action;
         private readonly NativeSingleAttackWeaponSelection expectedMountPrimary;
         private readonly IModLogger logger;
@@ -76,6 +91,12 @@ namespace KingmakerMountedCombat.Integration
             this.mount = mount ?? throw new ArgumentNullException(nameof(mount));
             attackTarget = target ?? throw new ArgumentNullException(nameof(target));
             this.action = action;
+            if (action != MountedCombatActionKind.RiderMelee &&
+                action != MountedCombatActionKind.MountPrimaryNatural)
+            {
+                throw new ArgumentOutOfRangeException(nameof(action));
+            }
+            actionActor = action == MountedCombatActionKind.RiderMelee ? rider : mount;
             this.expectedMountPrimary = expectedMountPrimary;
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
             this.terminal = terminal ?? throw new ArgumentNullException(nameof(terminal));
@@ -95,6 +116,10 @@ namespace KingmakerMountedCombat.Integration
         internal UnitEntityData Rider => rider;
 
         internal UnitEntityData Mount => mount;
+
+        internal UnitEntityData ActionActor => actionActor;
+
+        internal MountedCombatActionKind Action => action;
 
         protected override void OnStart()
         {
@@ -321,13 +346,12 @@ namespace KingmakerMountedCombat.Integration
 
         private void CreateAndValidateChildAttack()
         {
-            var actor = action == MountedCombatActionKind.RiderMelee ? rider : mount;
             childAttack = new MountedPairSingleAttack(
                 attackTarget,
                 rider,
                 mount,
                 action == MountedCombatActionKind.RiderMelee);
-            childAttack.Init(actor);
+            childAttack.Init(actionActor);
             if (childAttack.IsFullAttack || childAttack.AllAttacks.Count != 1 || childAttack.PlannedAttack == null)
             {
                 throw new InvalidOperationException("Native child did not resolve to exactly one attack.");
@@ -360,7 +384,7 @@ namespace KingmakerMountedCombat.Integration
                 relationship.State == RelationshipState.Mounted,
                 relationship.Rider == rider,
                 relationship.Mount == mount,
-                Executor == rider,
+                Executor == actionActor,
                 attackTarget != null && attackTarget.IsInState,
                 rider != null && rider.IsInState,
                 mount != null && mount.IsInState,
@@ -372,8 +396,8 @@ namespace KingmakerMountedCombat.Integration
                 riderState != null && !riderState.IsFinallyDead,
                 mountState != null && !mountState.IsFinallyDead,
                 targetState != null && !targetState.IsFinallyDead,
-                rider != null && attackTarget != null && rider.IsEnemy(attackTarget),
-                rider != null && attackTarget != null && rider.CanAttack(attackTarget));
+                actionActor != null && attackTarget != null && actionActor.IsEnemy(attackTarget),
+                actionActor != null && attackTarget != null && actionActor.CanAttack(attackTarget));
             if (!liveness.AllPassed)
             {
                 throw new InvalidOperationException(
@@ -391,13 +415,24 @@ namespace KingmakerMountedCombat.Integration
             terminal(this, new MountedPairAttackOutcome
             {
                 Action = action,
-                ActorId = action == MountedCombatActionKind.RiderMelee ? rider.UniqueId : mount.UniqueId,
+                ActorId = actionActor.UniqueId,
+                CommandOwnerId = Executor?.UniqueId,
+                ResourceOwnerId = actionActor.UniqueId,
                 TargetId = attackTarget.UniqueId,
                 Result = Result.ToString(),
                 ChildAttackStartCount = transaction.ChildAttackStartCount,
                 RepathCount = transaction.RepathCount,
-                RiderStandardCharged = IsActed,
+                RiderStandardCharged = IsActed && actionActor == rider,
+                ActionStandardCharged = IsActed,
                 NativeAttackRuleObserved = childAttack?.LastAttackRule != null,
+                AttackWeaponBlueprintId = childAttack?.PlannedAttack?.Weapon?.Blueprint?.AssetGuid,
+                AttackWeaponIsNatural = childAttack?.PlannedAttack?.Weapon?.Blueprint != null &&
+                    childAttack.PlannedAttack.Weapon.Blueprint.IsNatural,
+                AttackWeaponIsRanged = childAttack?.PlannedAttack?.Weapon?.Blueprint != null &&
+                    childAttack.PlannedAttack.Weapon.Blueprint.IsRanged,
+                AttackWeaponSlot = action == MountedCombatActionKind.MountPrimaryNatural
+                    ? NativeSingleAttackSlotKind.PrimaryHand.ToString()
+                    : "EquippedMelee",
                 TerminalReason = transaction.TerminalReason,
                 PairRangeSatisfiedAtStart = childAttack != null && childAttack.PairRangeSatisfiedAtNativeStart,
                 PairDistanceAtStart = childAttack?.PairDistanceAtNativeStart ?? 0f,
