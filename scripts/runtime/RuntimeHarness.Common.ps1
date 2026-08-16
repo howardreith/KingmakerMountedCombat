@@ -7154,11 +7154,11 @@ function Assert-KmcCombatScenarioEvidence {
     if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -ge 24) {
         $recordFields = @($recordFields + 'targetBrainLease')
     }
-    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(5,7,9,11,13,15,17,19,21,23,25)) {
+    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(5,7,9,11,13,15,17,19,21,23,25,27)) {
         $recordFields = @($recordFields + 'turnBased')
     }
     Assert-KmcExactProperties $record $recordFields 'combat evidence record'
-    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -notin @(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25) -or
+    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -notin @(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27) -or
         [string]$record.artifactKind -cne 'combat-scenario-evidence') {
         throw 'Combat evidence schemaVersion or artifactKind is not exact.'
     }
@@ -7218,6 +7218,10 @@ function Assert-KmcCombatScenarioEvidence {
             $combatEntryBooleanFields = @($combatEntryBooleanFields + 'targetAwake')
         }
         $combatEntryFields = @($combatEntryBooleanFields + @('riderInitiative','gameDeltaTime'))
+        if ([long]$record.schemaVersion -ge 26) {
+            $combatEntryFields = @($combatEntryFields + @(
+                'actionActorId','actionActorPrepared','actionActorCanActInCombat','actionActorInitiative'))
+        }
         if ([long]$record.schemaVersion -ge 10) {
             $combatEntryFields = @($combatEntryFields + 'nativeJoin')
         }
@@ -7227,6 +7231,15 @@ function Assert-KmcCombatScenarioEvidence {
         }
         foreach ($name in @('riderInitiative','gameDeltaTime')) {
             if (-not (Test-KmcJsonNumber $record.combatEntry.$name)) { throw "Combat entry evidence is not numeric: $name" }
+        }
+        if ([long]$record.schemaVersion -ge 26) {
+            if ($record.combatEntry.actionActorId -isnot [string] -or
+                [string]::IsNullOrWhiteSpace([string]$record.combatEntry.actionActorId) -or
+                $record.combatEntry.actionActorPrepared -isnot [bool] -or
+                $record.combatEntry.actionActorCanActInCombat -isnot [bool] -or
+                -not (Test-KmcJsonNumber $record.combatEntry.actionActorInitiative)) {
+                throw 'Combat action-actor entry evidence is not exact.'
+            }
         }
         if ([long]$record.schemaVersion -ge 10) {
             $nativeJoinFields = @(
@@ -7620,13 +7633,13 @@ function Assert-KmcCombatScenarioEvidence {
             'mounted-rider-melee-hit-tb','mounted-mammoth-primary-hit-tb')
         $missScenario = [string]$Request.scenario -ceq 'mounted-rider-melee-miss-rt'
         $expectedCombatSchemas = if ($mammothScenario) {
-            if ($turnBasedScenario) { @(21,23,25) } else { @(20,22,24) }
+            if ($turnBasedScenario) { @(21,23,25,27) } else { @(20,22,24,26) }
         } elseif ($missScenario) {
-            @(6,8,10,12,14,16,18,20,22,24)
+            @(6,8,10,12,14,16,18,20,22,24,26)
         } elseif ($turnBasedScenario) {
-            @(5,7,9,11,13,15,17,19,21,23,25)
+            @(5,7,9,11,13,15,17,19,21,23,25,27)
         } else {
-            @(4,6,8,10,12,14,16,18,20,22,24)
+            @(4,6,8,10,12,14,16,18,20,22,24,26)
         }
         if ([long]$record.schemaVersion -notin $expectedCombatSchemas -or
             [string]$record.status -cne 'PASS' -or [long]$record.assertionFailCount -ne 0 -or
@@ -7681,6 +7694,20 @@ function Assert-KmcCombatScenarioEvidence {
              $record.turnBased.persistedValueUnchanged -ne $true)) {
             throw 'PASS turn-based combat evidence does not prove the exact native action-actor turn and mode restoration.'
         }
+        $riderInitiative = [double]$record.combatEntry.riderInitiative
+        $entryInitiativeInvalid = if ([long]$record.schemaVersion -ge 26) {
+            $actionActorInitiative = [double]$record.combatEntry.actionActorInitiative
+            [string]$record.combatEntry.actionActorId -cne $expectedActorId -or
+                $record.combatEntry.actionActorPrepared -ne $true -or
+                $record.combatEntry.actionActorCanActInCombat -ne $true -or
+                $riderInitiative -lt -0.000001 -or $riderInitiative -gt 6.000001 -or
+                $actionActorInitiative -lt -0.000001 -or $actionActorInitiative -gt 6.000001 -or
+                (-not $turnBasedScenario -and [Math]::Abs($actionActorInitiative) -gt 0.000001) -or
+                (-not $mammothScenario -and
+                 [Math]::Abs($riderInitiative - $actionActorInitiative) -gt 0.000001)
+        } else {
+            [Math]::Abs($riderInitiative) -gt 0.000001
+        }
         if ($record.combatEntry.memoryQueued -ne $true -or
             $record.combatEntry.playerGroupMemoryContainsTarget -ne $true -or
             $record.combatEntry.targetGroupMemoryContainsRider -ne $true -or
@@ -7692,10 +7719,10 @@ function Assert-KmcCombatScenarioEvidence {
             $record.combatEntry.riderAwake -ne $true -or
             ([long]$record.schemaVersion -ge 8 -and $record.combatEntry.targetAwake -ne $true) -or
             $record.combatEntry.defaultGameMode -ne $true -or
-            [Math]::Abs([double]$record.combatEntry.riderInitiative) -gt 0.000001 -or
+            $entryInitiativeInvalid -or
             [double]$record.combatEntry.gameDeltaTime -le 0 -or
              $record.combatEntry.memoryRemovedAtCleanup -ne $true) {
-            throw 'PASS combat evidence does not prove native bidirectional memory, combat preparation, live Default-mode time, and memory cleanup.'
+            throw 'PASS combat evidence does not prove native bidirectional memory, actor-specific preparation, live Default-mode time, and memory cleanup.'
         }
         if ([long]$record.schemaVersion -ge 10 -and
             ($record.combatEntry.nativeJoin.riderInGame -ne $true -or

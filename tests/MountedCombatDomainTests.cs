@@ -42,6 +42,8 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("diagnostic combat dispatch reports exact paused initiative and equipment gates", CombatDispatchReportsExactFailures);
             runner.Run("diagnostic combat entry requires native memory preparation and group combat", CombatEntryRequiresNativeMemoryAndCombat);
             runner.Run("diagnostic combat entry reports exact memory combat and time failures", CombatEntryReportsExactFailures);
+            runner.Run("diagnostic combat action actor uses its own real-time initiative", CombatActionActorUsesOwnInitiative);
+            runner.Run("diagnostic combat action actor rejects identity preparation and initiative failures", CombatActionActorReportsExactFailures);
             runner.Run("diagnostic native combat join preserves every exact controller gate", NativeCombatJoinPreservesEveryGate);
             runner.Run("diagnostic native combat join reports exact controller failures", NativeCombatJoinReportsExactFailures);
             runner.Run("diagnostic turn-based dispatch requires exact native rider turn", TurnBasedDispatchRequiresExactRiderTurn);
@@ -489,6 +491,41 @@ namespace KingmakerMountedCombat.Tests
                 "Combat-entry failures were not reported in exact gate order.");
             TestRunner.True(snapshot.RiderInitiative == 6f && snapshot.GameDeltaTime == 0f,
                 "Failed combat-entry timing evidence was not preserved exactly.");
+        }
+
+        private static void CombatActionActorUsesOwnInitiative()
+        {
+            var realTime = new DiagnosticCombatActionActorReadinessSnapshot(
+                false, "mammoth", "mammoth", true, true, 0f);
+            TestRunner.True(realTime.AllPassed,
+                "A real-time Mammoth ready on its own zero initiative was rejected.");
+
+            var turnBased = new DiagnosticCombatActionActorReadinessSnapshot(
+                true, "mammoth", "mammoth", true, true, 3f);
+            TestRunner.True(turnBased.AllPassed,
+                "An exact native Mammoth turn with a bounded prepared initiative was rejected.");
+            TestRunner.True(turnBased.TurnBased && turnBased.ActorInitiative == 3f &&
+                    turnBased.ActorCanActInCombat && turnBased.ActorPrepared,
+                "Action-actor readiness did not preserve its exact observed state.");
+        }
+
+        private static void CombatActionActorReportsExactFailures()
+        {
+            var snapshot = new DiagnosticCombatActionActorReadinessSnapshot(
+                false, "mammoth", "rider", false, false, 4.99591351f);
+            TestRunner.True(!snapshot.AllPassed,
+                "A rider-owned or initiative-blocked Mammoth action actor passed readiness.");
+            TestRunner.Equal(
+                "exact-action-actor,action-actor-prepared,action-actor-can-act-in-combat,action-actor-initiative-ready",
+                snapshot.FailureSummary,
+                "Action-actor readiness failures were not reported in exact gate order.");
+
+            var outsideNativeRange = new DiagnosticCombatActionActorReadinessSnapshot(
+                true, "mammoth", "mammoth", true, true, 6.01f);
+            TestRunner.Equal(
+                "action-actor-initiative-ready",
+                outsideNativeRange.FailureSummary,
+                "Turn-based action-actor readiness admitted initiative outside the native preparation range.");
         }
 
         private static void NativeCombatJoinPreservesEveryGate()

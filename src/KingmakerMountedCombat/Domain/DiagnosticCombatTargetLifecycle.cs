@@ -325,6 +325,71 @@ namespace KingmakerMountedCombat.Domain
         }
     }
 
+    public sealed class DiagnosticCombatActionActorReadinessSnapshot
+    {
+        private const float InitiativeTolerance = 0.000001f;
+        private const float MaximumPreparedInitiative = 6f;
+        private readonly string[] failedGateNames;
+
+        public DiagnosticCombatActionActorReadinessSnapshot(
+            bool turnBased,
+            string expectedActorId,
+            string actorId,
+            bool actorPrepared,
+            bool actorCanActInCombat,
+            float actorInitiative)
+        {
+            TurnBased = turnBased;
+            ExpectedActorId = expectedActorId;
+            ActorId = actorId;
+            ActorPrepared = actorPrepared;
+            ActorCanActInCombat = actorCanActInCombat;
+            ActorInitiative = actorInitiative;
+
+            var actorIdentityExact = !string.IsNullOrWhiteSpace(expectedActorId) &&
+                string.Equals(expectedActorId, actorId, StringComparison.Ordinal);
+            var initiativeFinite = !float.IsNaN(actorInitiative) && !float.IsInfinity(actorInitiative);
+            var initiativeInPreparedRange = initiativeFinite &&
+                actorInitiative >= -InitiativeTolerance &&
+                actorInitiative <= MaximumPreparedInitiative + InitiativeTolerance;
+            var initiativeReady = initiativeInPreparedRange &&
+                (turnBased || Math.Abs(actorInitiative) <= InitiativeTolerance);
+
+            var failures = new List<string>();
+            AddFailure(failures, actorIdentityExact, "exact-action-actor");
+            AddFailure(failures, actorPrepared, "action-actor-prepared");
+            AddFailure(failures, actorCanActInCombat, "action-actor-can-act-in-combat");
+            AddFailure(failures, initiativeReady, "action-actor-initiative-ready");
+            failedGateNames = failures.ToArray();
+        }
+
+        public bool TurnBased { get; }
+
+        public string ExpectedActorId { get; }
+
+        public string ActorId { get; }
+
+        public bool ActorPrepared { get; }
+
+        public bool ActorCanActInCombat { get; }
+
+        public float ActorInitiative { get; }
+
+        public bool AllPassed => failedGateNames.Length == 0;
+
+        public string[] FailedGateNames => (string[])failedGateNames.Clone();
+
+        public string FailureSummary => string.Join(",", failedGateNames);
+
+        private static void AddFailure(List<string> failures, bool passed, string name)
+        {
+            if (!passed)
+            {
+                failures.Add(name);
+            }
+        }
+    }
+
     public sealed class DiagnosticNativeCombatJoinReadinessSnapshot
     {
         private readonly string[] failedGateNames;

@@ -187,6 +187,7 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.Controllers.Units.UnitHandEquipmentController',0x06009154,'IsUpdateScheduledFor'),
         @('Kingmaker.Controllers.Combat.UnitCombatState',0x0600938F,'get_CanActInCombat'),
         @('Kingmaker.Controllers.Combat.UnitCombatState+Cooldowns',0x0600C3B4,'get_Initiative'),
+        @('Kingmaker.Controllers.Combat.UnitCombatState+Cooldowns',0x0600C3B5,'set_Initiative'),
         @('Kingmaker.Game',0x040006BE,'UnitMemoryController'),
         @('Kingmaker.Controllers.Units.UnitMemoryController',0x0600916F,'AddToMemory'),
         @('Kingmaker.EntitySystem.Entities.UnitEntityData',0x060082F8,'get_Memory'),
@@ -302,6 +303,13 @@ if($Target-eq'Kingmaker'){
         (Test-MethodIlContainsToken $tickBrain[0] 0x06008319) -and
         -not (Test-MethodIlContainsToken $tickBrain[0] 0x06008329)) `
         'AiBrainController exact per-target IsBrainActive command-selection gate signatures'
+    $combatPrepareTick=@(Find-Token 'Kingmaker.Controllers.Combat.UnitCombatPrepareController' 0x0600936F)
+    $combatCanAct=@(Find-Token 'Kingmaker.Controllers.Combat.UnitCombatState' 0x0600938F)
+    Assert-Contract ($combatPrepareTick.Count-eq1 -and $combatPrepareTick[0] -is [Reflection.MethodInfo] -and
+        (Test-MethodIlContainsToken $combatPrepareTick[0] 0x0600C3B5) -and
+        $combatCanAct.Count-eq1 -and $combatCanAct[0] -is [Reflection.MethodInfo] -and
+        (Test-MethodIlContainsToken $combatCanAct[0] 0x0600938E)) `
+        'combat preparation writes per-unit initiative and actor readiness consumes its own waiting state'
     $combatJoinTickUnit=@(Find-Token 'Kingmaker.Controllers.Combat.UnitCombatJoinController' 0x06009361)
     $combatShouldEngage=@(Find-Token 'Kingmaker.Controllers.Combat.UnitCombatJoinController' 0x06009362)
     Assert-Contract ($combatJoinTickUnit.Count-eq1 -and $combatJoinTickUnit[0] -is [Reflection.MethodInfo] -and

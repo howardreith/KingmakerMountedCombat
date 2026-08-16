@@ -1078,7 +1078,7 @@ function New-TestCombatEvidenceRecord {
     $actorRole = if ($isMammoth) { 'mount' } else { 'rider' }
     $action = if ($isMammoth) { 'MountPrimaryNatural' } else { 'RiderMelee' }
     $record = [ordered]@{
-        schemaVersion=$(if ($isTurnBased) { 25 } else { 24 });artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
+        schemaVersion=$(if ($isTurnBased) { 27 } else { 26 });artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
         scenario=[string]$Request.scenario;row=[string]$Request.scenario;rowIndex=0;sequence=0;frame=30
         utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o');branch=[string]$Request.branch
         commit=[string]$Request.commit;productVersion=[string]$Request.productVersion
@@ -1172,7 +1172,10 @@ function New-TestCombatEvidenceRecord {
         combatEntry=[ordered]@{
             memoryQueued=$true;playerGroupMemoryContainsTarget=$true;targetGroupMemoryContainsRider=$true
             riderInCombat=$true;mountInCombat=$true;targetInCombat=$true;playerInCombat=$true
-            riderPrepared=$true;riderAwake=$true;targetAwake=$true;defaultGameMode=$true;riderInitiative=0.0;gameDeltaTime=0.01
+            riderPrepared=$true;riderAwake=$true;targetAwake=$true;defaultGameMode=$true
+            riderInitiative=$(if ($isMammoth) { 4.99591351 } else { 0.0 })
+            actionActorId=$actor;actionActorPrepared=$true;actionActorCanActInCombat=$true;actionActorInitiative=0.0
+            gameDeltaTime=0.01
             memoryRemovedAtCleanup=$true
             nativeJoin=[ordered]@{
                 riderInGame=$true;mountInGame=$true;targetInGame=$true
@@ -1357,6 +1360,17 @@ function Remove-TestCombatBrainLeaseFields {
     $Record.PSObject.Properties.Remove('targetBrainLease')
     if ($null -ne $Record.cleanup) {
         $Record.cleanup.PSObject.Properties.Remove('brainLeaseReleased')
+    }
+    Remove-TestCombatActionActorReadinessFields $Record
+}
+
+function Remove-TestCombatActionActorReadinessFields {
+    param([Parameter(Mandatory = $true)]$Record)
+    if ($null -ne $Record.combatEntry) {
+        foreach ($name in @(
+            'actionActorId','actionActorPrepared','actionActorCanActInCombat','actionActorInitiative')) {
+            $Record.combatEntry.PSObject.Properties.Remove($name)
+        }
     }
 }
 
@@ -4271,6 +4285,7 @@ try {
 
     Invoke-HarnessTest 'combat target source uses isolated group exact native primary raw AI no-loot and zero weapon mutation' {
         $targetSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\DiagnosticCombatTargetService.cs'))
+        $targetLifecycleSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\DiagnosticCombatTargetLifecycle.cs'))
         $nonPairLeaseSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\DiagnosticNonPairPartyAiLease.cs'))
         $scopedAiLeaseSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\ScopedDiagnosticAiLease.cs'))
         $engineSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeCombatScenarioEngine.cs'))
@@ -4501,15 +4516,22 @@ try {
             $controllerSource.Contains('turn.ForceToEnd(false);')) 'turn-based combat does not admit the native Preparing action-actor turn, observe Acting after dispatch, bound the Mammoth turn after its action, and restore mode after cleanup'
         Assert-Test ($engineSource.Contains('CleanupTimeoutSeconds = 10.0d') -and
             $engineSource.Contains('rowClock.Elapsed.TotalSeconds - cleanupStartedAtSeconds < CleanupTimeoutSeconds')) 'combat cleanup does not retain an independent bounded drain after a row deadline'
-        Assert-Test ($engineSource.Contains('SchemaVersion = IsTurnBasedRow ? 25 : 24') -and
+        Assert-Test ($engineSource.Contains('SchemaVersion = IsTurnBasedRow ? 27 : 26') -and
             $engineSource.Contains('Mode = IsTurnBasedRow ? "turn-based" : "real-time"') -and
             $engineSource.Contains('TurnBased = IsTurnBasedRow') -and
             $engineSource.Contains('CombatEntry = CombatEntryEvidence.From(') -and
+            $engineSource.Contains('DiagnosticCombatActionActorReadinessSnapshot') -and
+            $engineSource.Contains('actionActor.CombatState.Cooldown.Initiative') -and
+            $targetLifecycleSource.Contains('actorInitiative <= MaximumPreparedInitiative + InitiativeTolerance') -and
+            $targetLifecycleSource.Contains('(turnBased || Math.Abs(actorInitiative) <= InitiativeTolerance)') -and
             $engineSource.Contains('TerminalReason = value.TerminalReason') -and
             $engineSource.Contains('Dispatch = CombatDispatchEvidence.From(') -and
             $combatValidatorSource.Contains("'memoryQueued','playerGroupMemoryContainsTarget','targetGroupMemoryContainsRider'") -and
             $combatValidatorSource.Contains("'targetAwake'") -and
             $combatValidatorSource.Contains("'defaultGameMode','memoryRemovedAtCleanup'") -and
+            $combatValidatorSource.Contains("'actionActorId','actionActorPrepared','actionActorCanActInCombat','actionActorInitiative'") -and
+            $combatValidatorSource.Contains("[string]`$record.combatEntry.actionActorId -cne `$expectedActorId") -and
+            $combatValidatorSource.Contains("-not `$turnBasedScenario -and [Math]::Abs(`$actionActorInitiative) -gt 0.000001") -and
             $combatValidatorSource.Contains("@('actionActorCanActInCombat','actionActorHandsBusy')") -and
             $combatValidatorSource.Contains("'equipmentControllerAvailable','equipmentUpdateScheduled','pauseRestored'") -and
             $combatValidatorSource.Contains("[string]`$record.command.terminalReason -cne 'completed'") -and
@@ -4559,7 +4581,7 @@ try {
             $commandSource.Contains('CommandOwnerId = Executor?.UniqueId') -and
             $commandSource.Contains('ResourceOwnerId = actionActor.UniqueId') -and
             $commandSource.Contains('retainedAttackWeaponBlueprintId = childAttack.PlannedAttack.Weapon.Blueprint.AssetGuid;') -and
-            $commandSource.Contains('AttackWeaponBlueprintId = retainedAttackWeaponBlueprintId')) 'schema-v24/v25 combat evidence does not bind actor-specific command/resource ownership, retained exact weapon identity, target durability and brain lease, stationarity, native IsHit, target and AI isolation, turn identity, cleanup, and restoration'
+            $commandSource.Contains('AttackWeaponBlueprintId = retainedAttackWeaponBlueprintId')) 'schema-v26/v27 combat evidence does not bind actor-specific readiness, command/resource ownership, retained exact weapon identity, target durability and brain lease, stationarity, native IsHit, target and AI isolation, turn identity, cleanup, and restoration'
         Assert-Test ($targetSource.Contains('DiagnosticDurabilityTemporaryHitPoints = 128') -and
             $targetSource.Contains('temporaryHitPoints.AddModifier(') -and
             $targetSource.Contains('(Fact)null') -and
@@ -4634,7 +4656,7 @@ try {
     $turnBasedManifest = Read-KmcJson (Join-Path $turnBasedRequest.evidenceRoot 'runtime-artifacts.json')
     $turnBasedSubresult = [ordered]@{name=$turnBasedRequest.scenario;status='PASS';assertionPassCount=25;assertionFailCount=0;errors=@()}
 
-    Invoke-HarnessTest 'runtime request and schema-v25 evidence accept exact native stationary rider turn' {
+    Invoke-HarnessTest 'runtime request and schema-v27 evidence accept exact native stationary rider turn' {
         & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $turnBasedRequestPath
         Assert-KmcCombatScenarioEvidence -Request $turnBasedRequest -Manifest $turnBasedManifest -Status 'PASS' -SubscenarioResults @($turnBasedSubresult)
     }
@@ -4666,7 +4688,7 @@ try {
     $mammothManifest = Read-KmcJson (Join-Path $mammothRequest.evidenceRoot 'runtime-artifacts.json')
     $mammothSubresult = [ordered]@{name=$mammothRequest.scenario;status='PASS';assertionPassCount=25;assertionFailCount=0;errors=@()}
 
-    Invoke-HarnessTest 'runtime request and schema-v24 evidence accept exact stationary Mammoth primary' {
+    Invoke-HarnessTest 'runtime request and schema-v26 evidence accept exact stationary Mammoth primary with independent rider initiative' {
         & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $mammothRequestPath
         Assert-KmcCombatScenarioEvidence -Request $mammothRequest -Manifest $mammothManifest -Status 'PASS' -SubscenarioResults @($mammothSubresult)
     }
@@ -4682,14 +4704,33 @@ try {
     $mammothTurnManifest = Read-KmcJson (Join-Path $mammothTurnRequest.evidenceRoot 'runtime-artifacts.json')
     $mammothTurnSubresult = [ordered]@{name=$mammothTurnRequest.scenario;status='PASS';assertionPassCount=25;assertionFailCount=0;errors=@()}
 
-    Invoke-HarnessTest 'runtime request and schema-v25 evidence accept exact native Mammoth primary turn' {
+    Invoke-HarnessTest 'runtime request and schema-v27 evidence accept exact native Mammoth primary turn' {
         & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $mammothTurnRequestPath
         Assert-KmcCombatScenarioEvidence -Request $mammothTurnRequest -Manifest $mammothTurnManifest -Status 'PASS' -SubscenarioResults @($mammothTurnSubresult)
+    }
+
+    Invoke-HarnessTest 'historical schema-v24 and schema-v25 evidence remain valid without action-actor entry fields' {
+        $legacyMammoth24 = Copy-TestJsonValue $mammothRecord
+        $legacyMammoth24.schemaVersion = 24
+        $legacyMammoth24.combatEntry.riderInitiative = 0.0
+        Remove-TestCombatActionActorReadinessFields $legacyMammoth24
+        [void](Write-TestCombatEvidence -EvidenceRoot $mammothRequest.evidenceRoot -Request $mammothRequest -Record $legacyMammoth24)
+        $legacyMammothManifest24 = Read-KmcJson (Join-Path $mammothRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $mammothRequest -Manifest $legacyMammothManifest24 -Status 'PASS' -SubscenarioResults @($mammothSubresult)
+
+        $legacyMammothTurn25 = Copy-TestJsonValue $mammothTurnRecord
+        $legacyMammothTurn25.schemaVersion = 25
+        $legacyMammothTurn25.combatEntry.riderInitiative = 0.0
+        Remove-TestCombatActionActorReadinessFields $legacyMammothTurn25
+        [void](Write-TestCombatEvidence -EvidenceRoot $mammothTurnRequest.evidenceRoot -Request $mammothTurnRequest -Record $legacyMammothTurn25)
+        $legacyMammothTurnManifest25 = Read-KmcJson (Join-Path $mammothTurnRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $mammothTurnRequest -Manifest $legacyMammothTurnManifest25 -Status 'PASS' -SubscenarioResults @($mammothTurnSubresult)
     }
 
     Invoke-HarnessTest 'historical schema-v22 and schema-v23 evidence remain valid without target brain-lease fields' {
         $legacyMammoth22 = Copy-TestJsonValue $mammothRecord
         $legacyMammoth22.schemaVersion = 22
+        $legacyMammoth22.combatEntry.riderInitiative = 0.0
         Remove-TestCombatBrainLeaseFields $legacyMammoth22
         [void](Write-TestCombatEvidence -EvidenceRoot $mammothRequest.evidenceRoot -Request $mammothRequest -Record $legacyMammoth22)
         $legacyMammothManifest22 = Read-KmcJson (Join-Path $mammothRequest.evidenceRoot 'runtime-artifacts.json')
@@ -4697,6 +4738,7 @@ try {
 
         $legacyMammothTurn23 = Copy-TestJsonValue $mammothTurnRecord
         $legacyMammothTurn23.schemaVersion = 23
+        $legacyMammothTurn23.combatEntry.riderInitiative = 0.0
         Remove-TestCombatBrainLeaseFields $legacyMammothTurn23
         [void](Write-TestCombatEvidence -EvidenceRoot $mammothTurnRequest.evidenceRoot -Request $mammothTurnRequest -Record $legacyMammothTurn23)
         $legacyMammothTurnManifest23 = Read-KmcJson (Join-Path $mammothTurnRequest.evidenceRoot 'runtime-artifacts.json')
@@ -4706,6 +4748,7 @@ try {
     Invoke-HarnessTest 'historical schema-v20 and schema-v21 Mammoth evidence remain valid' {
         $legacyMammoth = Copy-TestJsonValue $mammothRecord
         $legacyMammoth.schemaVersion = 20
+        $legacyMammoth.combatEntry.riderInitiative = 0.0
         Remove-TestCombatDurabilityLeaseFields $legacyMammoth
         [void](Write-TestCombatEvidence -EvidenceRoot $mammothRequest.evidenceRoot -Request $mammothRequest -Record $legacyMammoth)
         $legacyMammothManifest = Read-KmcJson (Join-Path $mammothRequest.evidenceRoot 'runtime-artifacts.json')
@@ -4713,6 +4756,7 @@ try {
 
         $legacyMammothTurn = Copy-TestJsonValue $mammothTurnRecord
         $legacyMammothTurn.schemaVersion = 21
+        $legacyMammothTurn.combatEntry.riderInitiative = 0.0
         Remove-TestCombatDurabilityLeaseFields $legacyMammothTurn
         [void](Write-TestCombatEvidence -EvidenceRoot $mammothTurnRequest.evidenceRoot -Request $mammothTurnRequest -Record $legacyMammothTurn)
         $legacyMammothTurnManifest = Read-KmcJson (Join-Path $mammothTurnRequest.evidenceRoot 'runtime-artifacts.json')
@@ -4729,6 +4773,11 @@ try {
             @{name='rider Standard consumed';apply={param($value) $value.resources.riderStandardAfter=5.5}},
             @{name='Mammoth Standard unconsumed';apply={param($value) $value.resources.mountStandardAfter=0.0}},
             @{name='Mammoth Move consumed';apply={param($value) $value.resources.mountMoveAfter=3.0}},
+            @{name='wrong action-actor entry identity';apply={param($value) $value.combatEntry.actionActorId='combat-rider'}},
+            @{name='action actor not prepared';apply={param($value) $value.combatEntry.actionActorPrepared=$false}},
+            @{name='action actor cannot act';apply={param($value) $value.combatEntry.actionActorCanActInCombat=$false}},
+            @{name='Mammoth real-time initiative not ready';apply={param($value) $value.combatEntry.actionActorInitiative=1.0}},
+            @{name='rider initiative outside native prepared range';apply={param($value) $value.combatEntry.riderInitiative=6.01}},
             @{name='wrong rule initiator';apply={param($value) $value.rules.lastInitiatorId='combat-rider'}},
             @{name='wrong incoming initiator';apply={param($value) $value.targetIncomingRules.firstAttack.initiatorId='combat-rider'}},
             @{name='duplicate rider attack';apply={param($value) $value.rules.unexpectedPairAttackCount=1}},
@@ -4785,6 +4834,13 @@ try {
             catch { $threw = $true }
             Assert-Test $threw ("Mammoth primary turn validator accepted mutation: " + [string]$mutation.name)
         }
+
+        $boundedTurnInitiative = Copy-TestJsonValue $mammothTurnRecord
+        $boundedTurnInitiative.combatEntry.actionActorInitiative = 3.0
+        $boundedTurnInitiative.combatEntry.riderInitiative = 5.0
+        [void](Write-TestCombatEvidence -EvidenceRoot $mammothTurnRequest.evidenceRoot -Request $mammothTurnRequest -Record $boundedTurnInitiative)
+        $boundedTurnManifest = Read-KmcJson (Join-Path $mammothTurnRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $mammothTurnRequest -Manifest $boundedTurnManifest -Status 'PASS' -SubscenarioResults @($mammothTurnSubresult)
     }
 
     Invoke-HarnessTest 'combat miss validator accepts only exact native AC-selected miss reasons' {

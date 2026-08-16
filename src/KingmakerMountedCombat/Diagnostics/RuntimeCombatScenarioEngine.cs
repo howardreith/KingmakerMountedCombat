@@ -122,6 +122,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private double cleanupStartedAtSeconds;
         private DiagnosticCombatDispatchReadinessSnapshot dispatchReadiness;
         private DiagnosticCombatEntryReadinessSnapshot entryReadiness;
+        private DiagnosticCombatActionActorReadinessSnapshot actionActorReadiness;
         private DiagnosticNativeCombatJoinReadinessSnapshot nativeJoinReadiness;
         private DiagnosticTurnBasedDispatchReadinessSnapshot turnBasedReadiness;
         private NativeModeTransitionProbe turnBasedModeProbe;
@@ -555,6 +556,19 @@ namespace KingmakerMountedCombat.Diagnostics
 
             var handsEquipment = game.HandsEquipmentController;
             var actionActor = AttackActor;
+            actionActorReadiness = new DiagnosticCombatActionActorReadinessSnapshot(
+                IsTurnBasedRow,
+                AttackActor?.UniqueId,
+                actionActor?.UniqueId,
+                actionActor?.CombatState != null && actionActor.CombatState.Prepared,
+                actionActor?.CombatState != null && actionActor.CombatState.CanActInCombat,
+                actionActor?.CombatState == null
+                    ? float.MaxValue
+                    : actionActor.CombatState.Cooldown.Initiative);
+            if (!actionActorReadiness.AllPassed)
+            {
+                return;
+            }
             dispatchReadiness = new DiagnosticCombatDispatchReadinessSnapshot(
                 gameUnpaused,
                 actionActor.CombatState.CanActInCombat,
@@ -571,7 +585,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     : !CombatController.IsInTurnBasedCombat(),
                 "Combat mode remained exact at dispatch.");
             assertions.Check(entryReadiness.AllPassed,
-                "Native memory, combat entry, initiative preparation, and Default-mode time remained exact at dispatch.");
+                "Native memory, combat entry, rider preparation, and Default-mode time remained exact at dispatch.");
+            assertions.Check(actionActorReadiness.AllPassed,
+                "The exact action actor retained native preparation, initiative, and action eligibility at dispatch.");
             assertions.Check(nativeJoinReadiness.AllPassed,
                 "Every exact native UnitCombatJoinController eligibility gate remained healthy at dispatch.");
             assertions.Check(dispatchReadiness.AllPassed,
@@ -989,7 +1005,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var selected = SelectionManager.Instance?.SelectedUnits;
             var record = new CombatEvidenceRecord
             {
-                SchemaVersion = IsTurnBasedRow ? 25 : 24,
+                SchemaVersion = IsTurnBasedRow ? 27 : 26,
                 ArtifactKind = "combat-scenario-evidence",
                 RunId = request.RunId,
                 Scenario = request.Scenario,
@@ -1021,7 +1037,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 RiderPositionAtClick = PositionEvidence.From(riderPositionAtClick),
                 MountPositionAtClick = PositionEvidence.From(mountPositionAtClick),
                 TargetPositionAtClick = PositionEvidence.From(targetPositionAtClick),
-                CombatEntry = CombatEntryEvidence.From(entryReadiness, nativeJoinReadiness, combatMemoryRemoved),
+                CombatEntry = CombatEntryEvidence.From(
+                    entryReadiness,
+                    actionActorReadiness,
+                    nativeJoinReadiness,
+                    combatMemoryRemoved),
                 Dispatch = CombatDispatchEvidence.From(
                     originalPause,
                     unpausedForRealTime,
@@ -1330,6 +1350,10 @@ namespace KingmakerMountedCombat.Diagnostics
             if (step == CombatEngineStep.AwaitCombatFrame)
             {
                 return "Combat entry readiness=" + (entryReadiness?.FailureSummary ?? "not-observed") +
+                    ";actionActorReadiness=" + (actionActorReadiness?.FailureSummary ?? "not-observed") +
+                    ";actionActorInitiative=" + (actionActorReadiness == null
+                        ? "not-observed"
+                        : actionActorReadiness.ActorInitiative.ToString("R", CultureInfo.InvariantCulture)) +
                     ";nativeJoinReadiness=" + (nativeJoinReadiness?.FailureSummary ?? "not-observed") +
                     ";riderInitiative=" + (entryReadiness == null
                         ? "not-observed"
@@ -1514,12 +1538,17 @@ namespace KingmakerMountedCombat.Diagnostics
             public bool TargetAwake { get; set; }
             public bool DefaultGameMode { get; set; }
             public float RiderInitiative { get; set; }
+            public string ActionActorId { get; set; }
+            public bool ActionActorPrepared { get; set; }
+            public bool ActionActorCanActInCombat { get; set; }
+            public float ActionActorInitiative { get; set; }
             public float GameDeltaTime { get; set; }
             public bool MemoryRemovedAtCleanup { get; set; }
             public NativeCombatJoinEvidence NativeJoin { get; set; }
 
             public static CombatEntryEvidence From(
                 DiagnosticCombatEntryReadinessSnapshot readiness,
+                DiagnosticCombatActionActorReadinessSnapshot actionActorReadiness,
                 DiagnosticNativeCombatJoinReadinessSnapshot nativeJoin,
                 bool memoryRemovedAtCleanup)
             {
@@ -1537,6 +1566,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     TargetAwake = readiness?.TargetAwake ?? false,
                     DefaultGameMode = readiness?.DefaultGameMode ?? false,
                     RiderInitiative = readiness?.RiderInitiative ?? float.MaxValue,
+                    ActionActorId = actionActorReadiness?.ActorId,
+                    ActionActorPrepared = actionActorReadiness?.ActorPrepared ?? false,
+                    ActionActorCanActInCombat = actionActorReadiness?.ActorCanActInCombat ?? false,
+                    ActionActorInitiative = actionActorReadiness?.ActorInitiative ?? float.MaxValue,
                     GameDeltaTime = readiness?.GameDeltaTime ?? 0f,
                     MemoryRemovedAtCleanup = memoryRemovedAtCleanup,
                     NativeJoin = NativeCombatJoinEvidence.From(nativeJoin)
