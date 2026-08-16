@@ -40,6 +40,8 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("diagnostic combat dispatch reports exact paused initiative and equipment gates", CombatDispatchReportsExactFailures);
             runner.Run("diagnostic combat entry requires native memory preparation and group combat", CombatEntryRequiresNativeMemoryAndCombat);
             runner.Run("diagnostic combat entry reports exact memory combat and time failures", CombatEntryReportsExactFailures);
+            runner.Run("diagnostic native combat join preserves every exact controller gate", NativeCombatJoinPreservesEveryGate);
+            runner.Run("diagnostic native combat join reports exact controller failures", NativeCombatJoinReportsExactFailures);
             runner.Run("diagnostic turn-based dispatch requires exact native rider turn", TurnBasedDispatchRequiresExactRiderTurn);
             runner.Run("diagnostic turn-based dispatch reports exact roster and turn failures", TurnBasedDispatchReportsExactFailures);
             runner.Run("mounted pair liveness preserves every in-flight gate", PairLivenessPreservesEveryGate);
@@ -446,6 +448,37 @@ namespace KingmakerMountedCombat.Tests
                 "Combat-entry failures were not reported in exact gate order.");
             TestRunner.True(snapshot.RiderInitiative == 6f && snapshot.GameDeltaTime == 0f,
                 "Failed combat-entry timing evidence was not preserved exactly.");
+        }
+
+        private static void NativeCombatJoinPreservesEveryGate()
+        {
+            var snapshot = new DiagnosticNativeCombatJoinReadinessSnapshot(
+                true, true, true, true, true, true,
+                false, false, false,
+                true, true, true, true, true, true, true, true, true);
+            TestRunner.True(snapshot.AllPassed, "An exact native UnitCombatJoinController-ready state was rejected.");
+            TestRunner.True(snapshot.RiderInGame && snapshot.MountInGame && snapshot.TargetInGame &&
+                    snapshot.RiderConscious && snapshot.MountConscious && snapshot.TargetConscious &&
+                    !snapshot.RiderIgnoredByCombat && !snapshot.MountIgnoredByCombat && !snapshot.TargetIgnoredByCombat &&
+                    snapshot.PlayerGroupContainsRider && snapshot.PlayerGroupContainsMount &&
+                    snapshot.TargetGroupContainsTarget && snapshot.PlayerGroupEnemiesContainsTarget &&
+                    snapshot.TargetGroupEnemiesContainsRider && snapshot.RiderNotInFogOfWar &&
+                    snapshot.TargetNotInFogOfWar && snapshot.RiderNotInStealthAmbush &&
+                    snapshot.TargetNotInStealthAmbush,
+                "An all-pass native join snapshot changed its exact raw state.");
+        }
+
+        private static void NativeCombatJoinReportsExactFailures()
+        {
+            var snapshot = new DiagnosticNativeCombatJoinReadinessSnapshot(
+                false, true, true, true, true, false,
+                false, true, false,
+                true, true, true, false, true, true, true, true, false);
+            TestRunner.True(!snapshot.AllPassed, "An ineligible native combat join snapshot passed.");
+            TestRunner.Equal(
+                "rider-in-game,target-conscious,mount-not-ignored-by-combat,player-enemies-contain-target,target-not-in-stealth-ambush",
+                snapshot.FailureSummary,
+                "Native combat join failures were not reported in exact controller-gate order.");
         }
 
         private static void TurnBasedDispatchRequiresExactRiderTurn()

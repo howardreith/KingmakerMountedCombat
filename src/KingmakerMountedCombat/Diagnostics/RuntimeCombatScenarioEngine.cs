@@ -114,6 +114,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private double cleanupStartedAtSeconds;
         private DiagnosticCombatDispatchReadinessSnapshot dispatchReadiness;
         private DiagnosticCombatEntryReadinessSnapshot entryReadiness;
+        private DiagnosticNativeCombatJoinReadinessSnapshot nativeJoinReadiness;
         private DiagnosticTurnBasedDispatchReadinessSnapshot turnBasedReadiness;
         private NativeModeTransitionProbe turnBasedModeProbe;
         private bool turnBasedModeEnabledAtMount;
@@ -445,6 +446,30 @@ namespace KingmakerMountedCombat.Diagnostics
             unpausedForRealTime = !IsTurnBasedRow && gameUnpaused;
             var combatMemoryLeaseHealthy = targetService != null &&
                 targetService.RefreshBidirectionalCombatMemoryLease();
+            var riderState = rider?.Descriptor?.State;
+            var mountState = mount?.Descriptor?.State;
+            var targetState = target?.Descriptor?.State;
+            var playerGroup = rider?.Group;
+            var targetGroup = target?.Group;
+            nativeJoinReadiness = new DiagnosticNativeCombatJoinReadinessSnapshot(
+                rider != null && rider.IsInGame,
+                mount != null && mount.IsInGame,
+                target != null && target.IsInGame,
+                riderState != null && riderState.IsConscious,
+                mountState != null && mountState.IsConscious,
+                targetState != null && targetState.IsConscious,
+                riderState != null && (bool)riderState.IsIgnoredByCombat,
+                mountState != null && (bool)mountState.IsIgnoredByCombat,
+                targetState != null && (bool)targetState.IsIgnoredByCombat,
+                playerGroup != null && playerGroup.Any(unit => unit == rider),
+                playerGroup != null && playerGroup.Any(unit => unit == mount),
+                targetGroup != null && targetGroup.Any(unit => unit == target),
+                MemoryEnemiesContain(rider, target),
+                MemoryEnemiesContain(target, rider),
+                rider != null && !rider.IsInFogOfWar,
+                target != null && !target.IsInFogOfWar,
+                riderState != null && !((bool)riderState.IsInStealth && rider.Stealth != null && rider.Stealth.InAmbush),
+                targetState != null && !((bool)targetState.IsInStealth && target.Stealth != null && target.Stealth.InAmbush));
             entryReadiness = new DiagnosticCombatEntryReadinessSnapshot(
                 combatMemoryLeaseHealthy,
                 targetService != null && targetService.PlayerGroupMemoryContainsTarget,
@@ -459,7 +484,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 game.CurrentMode == GameModeType.Default,
                 rider?.CombatState == null ? float.MaxValue : rider.CombatState.Cooldown.Initiative,
                 game.TimeController == null ? 0f : game.TimeController.GameDeltaTime);
-            if (!entryReadiness.AllPassed)
+            if (!nativeJoinReadiness.AllPassed || !entryReadiness.AllPassed)
             {
                 return;
             }
@@ -509,6 +534,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Combat mode remained exact at dispatch.");
             assertions.Check(entryReadiness.AllPassed,
                 "Native memory, combat entry, initiative preparation, and Default-mode time remained exact at dispatch.");
+            assertions.Check(nativeJoinReadiness.AllPassed,
+                "Every exact native UnitCombatJoinController eligibility gate remained healthy at dispatch.");
             assertions.Check(dispatchReadiness.AllPassed,
                 "Combat dispatch waited for unpaused initiative, hands, and equipment readiness.");
             if (IsTurnBasedRow)
@@ -827,7 +854,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var selected = SelectionManager.Instance?.SelectedUnits;
             var record = new CombatEvidenceRecord
             {
-                SchemaVersion = IsTurnBasedRow ? 9 : 8,
+                SchemaVersion = IsTurnBasedRow ? 11 : 10,
                 ArtifactKind = "combat-scenario-evidence",
                 RunId = request.RunId,
                 Scenario = request.Scenario,
@@ -855,7 +882,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 RiderPositionAtClick = PositionEvidence.From(riderPositionAtClick),
                 MountPositionAtClick = PositionEvidence.From(mountPositionAtClick),
                 TargetPositionAtClick = PositionEvidence.From(targetPositionAtClick),
-                CombatEntry = CombatEntryEvidence.From(entryReadiness, combatMemoryRemoved),
+                CombatEntry = CombatEntryEvidence.From(entryReadiness, nativeJoinReadiness, combatMemoryRemoved),
                 Dispatch = CombatDispatchEvidence.From(
                     originalPause,
                     unpausedForRealTime,
@@ -1044,6 +1071,23 @@ namespace KingmakerMountedCombat.Diagnostics
                     currentTurn != null && currentTurn.IsActing));
         }
 
+        private static bool MemoryEnemiesContain(UnitEntityData observer, UnitEntityData expectedEnemy)
+        {
+            var enemies = observer?.Group?.Memory?.Enemies;
+            if (enemies == null || expectedEnemy == null)
+            {
+                return false;
+            }
+            for (var index = 0; index < enemies.Count; index++)
+            {
+                if (enemies[index]?.Unit == expectedEnemy)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         private static bool ContainsTurnRosterUnit(
             TurnBased.Controllers.CombatController controller,
             UnitEntityData expected)
@@ -1135,6 +1179,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (step == CombatEngineStep.AwaitCombatFrame)
             {
                 return "Combat entry readiness=" + (entryReadiness?.FailureSummary ?? "not-observed") +
+                    ";nativeJoinReadiness=" + (nativeJoinReadiness?.FailureSummary ?? "not-observed") +
                     ";riderInitiative=" + (entryReadiness == null
                         ? "not-observed"
                         : entryReadiness.RiderInitiative.ToString("R", CultureInfo.InvariantCulture)) +
@@ -1287,9 +1332,11 @@ namespace KingmakerMountedCombat.Diagnostics
             public float RiderInitiative { get; set; }
             public float GameDeltaTime { get; set; }
             public bool MemoryRemovedAtCleanup { get; set; }
+            public NativeCombatJoinEvidence NativeJoin { get; set; }
 
             public static CombatEntryEvidence From(
                 DiagnosticCombatEntryReadinessSnapshot readiness,
+                DiagnosticNativeCombatJoinReadinessSnapshot nativeJoin,
                 bool memoryRemovedAtCleanup)
             {
                 return new CombatEntryEvidence
@@ -1307,7 +1354,55 @@ namespace KingmakerMountedCombat.Diagnostics
                     DefaultGameMode = readiness?.DefaultGameMode ?? false,
                     RiderInitiative = readiness?.RiderInitiative ?? float.MaxValue,
                     GameDeltaTime = readiness?.GameDeltaTime ?? 0f,
-                    MemoryRemovedAtCleanup = memoryRemovedAtCleanup
+                    MemoryRemovedAtCleanup = memoryRemovedAtCleanup,
+                    NativeJoin = NativeCombatJoinEvidence.From(nativeJoin)
+                };
+            }
+        }
+
+        private sealed class NativeCombatJoinEvidence
+        {
+            public bool RiderInGame { get; set; }
+            public bool MountInGame { get; set; }
+            public bool TargetInGame { get; set; }
+            public bool RiderConscious { get; set; }
+            public bool MountConscious { get; set; }
+            public bool TargetConscious { get; set; }
+            public bool RiderIgnoredByCombat { get; set; }
+            public bool MountIgnoredByCombat { get; set; }
+            public bool TargetIgnoredByCombat { get; set; }
+            public bool PlayerGroupContainsRider { get; set; }
+            public bool PlayerGroupContainsMount { get; set; }
+            public bool TargetGroupContainsTarget { get; set; }
+            public bool PlayerGroupEnemiesContainsTarget { get; set; }
+            public bool TargetGroupEnemiesContainsRider { get; set; }
+            public bool RiderNotInFogOfWar { get; set; }
+            public bool TargetNotInFogOfWar { get; set; }
+            public bool RiderNotInStealthAmbush { get; set; }
+            public bool TargetNotInStealthAmbush { get; set; }
+
+            public static NativeCombatJoinEvidence From(DiagnosticNativeCombatJoinReadinessSnapshot value)
+            {
+                return new NativeCombatJoinEvidence
+                {
+                    RiderInGame = value?.RiderInGame ?? false,
+                    MountInGame = value?.MountInGame ?? false,
+                    TargetInGame = value?.TargetInGame ?? false,
+                    RiderConscious = value?.RiderConscious ?? false,
+                    MountConscious = value?.MountConscious ?? false,
+                    TargetConscious = value?.TargetConscious ?? false,
+                    RiderIgnoredByCombat = value != null && value.RiderIgnoredByCombat,
+                    MountIgnoredByCombat = value != null && value.MountIgnoredByCombat,
+                    TargetIgnoredByCombat = value != null && value.TargetIgnoredByCombat,
+                    PlayerGroupContainsRider = value?.PlayerGroupContainsRider ?? false,
+                    PlayerGroupContainsMount = value?.PlayerGroupContainsMount ?? false,
+                    TargetGroupContainsTarget = value?.TargetGroupContainsTarget ?? false,
+                    PlayerGroupEnemiesContainsTarget = value?.PlayerGroupEnemiesContainsTarget ?? false,
+                    TargetGroupEnemiesContainsRider = value?.TargetGroupEnemiesContainsRider ?? false,
+                    RiderNotInFogOfWar = value?.RiderNotInFogOfWar ?? false,
+                    TargetNotInFogOfWar = value?.TargetNotInFogOfWar ?? false,
+                    RiderNotInStealthAmbush = value?.RiderNotInStealthAmbush ?? false,
+                    TargetNotInStealthAmbush = value?.TargetNotInStealthAmbush ?? false
                 };
             }
         }

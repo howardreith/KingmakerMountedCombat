@@ -171,6 +171,12 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.EntitySystem.Entities.UnitEntityData',0x040054C8,'Sleepless'),
         @('Kingmaker.Controllers.SleepingUnitsController',0x060090B1,'Tick'),
         @('Kingmaker.Controllers.SleepingUnitsController',0x060090B2,'ShouldBeSleeping'),
+        @('Kingmaker.Controllers.Combat.UnitCombatJoinController',0x06009360,'Tick'),
+        @('Kingmaker.Controllers.Combat.UnitCombatJoinController',0x06009361,'TickUnit'),
+        @('Kingmaker.Controllers.Combat.UnitCombatJoinController',0x06009362,'ShouldEngageEnemy'),
+        @('Kingmaker.UnitLogic.UnitGroupMemory',0x06001F2B,'get_Enemies'),
+        @('Kingmaker.UnitLogic.UnitState',0x04001604,'IsIgnoredByCombat'),
+        @('Kingmaker.UnitLogic.UnitState',0x06001FA7,'get_IsConscious'),
         @('Kingmaker.UnitLogic.UnitGroupMemory',0x06001F2C,'Add'),
         @('Kingmaker.UnitLogic.UnitGroupMemory',0x06001F2D,'Remove'),
         @('Kingmaker.UnitLogic.UnitGroupMemory',0x06001F31,'Contains'),
@@ -216,6 +222,19 @@ if($Target-eq'Kingmaker'){
         $shouldBeSleeping[0].GetParameters().Count-eq1 -and
         $shouldBeSleeping[0].GetParameters()[0].ParameterType.FullName-ceq'Kingmaker.EntitySystem.Entities.UnitEntityData') `
         'SleepingUnitsController exact per-unit sleepless gate signature'
+    $combatJoinTickUnit=@(Find-Token 'Kingmaker.Controllers.Combat.UnitCombatJoinController' 0x06009361)
+    $combatShouldEngage=@(Find-Token 'Kingmaker.Controllers.Combat.UnitCombatJoinController' 0x06009362)
+    Assert-Contract ($combatJoinTickUnit.Count-eq1 -and $combatJoinTickUnit[0] -is [Reflection.MethodInfo] -and
+        $combatJoinTickUnit[0].IsPrivate -and $combatJoinTickUnit[0].IsStatic -and
+        $combatJoinTickUnit[0].ReturnType.FullName-ceq'System.Void' -and
+        $combatJoinTickUnit[0].GetParameters().Count-eq1 -and
+        $combatJoinTickUnit[0].GetParameters()[0].ParameterType.FullName-ceq'Kingmaker.EntitySystem.Entities.UnitEntityData' -and
+        $combatShouldEngage.Count-eq1 -and $combatShouldEngage[0] -is [Reflection.MethodInfo] -and
+        $combatShouldEngage[0].IsPrivate -and $combatShouldEngage[0].IsStatic -and
+        $combatShouldEngage[0].ReturnType.FullName-ceq'System.Boolean' -and
+        $combatShouldEngage[0].GetParameters().Count-eq2 -and
+        @($combatShouldEngage[0].GetParameters()|Where-Object{$_.ParameterType.FullName-ceq'Kingmaker.EntitySystem.Entities.UnitEntityData'}).Count-eq2) `
+        'UnitCombatJoinController exact per-unit and enemy-gate signatures'
     $forcePlaceAboveGround=@(Find-Token 'Kingmaker.View.UnitEntityView' 0x06001848)
     Assert-Contract ($forcePlaceAboveGround.Count-eq1 -and $forcePlaceAboveGround[0] -is [Reflection.MethodInfo] -and
         $forcePlaceAboveGround[0].IsPublic -and -not $forcePlaceAboveGround[0].IsStatic -and

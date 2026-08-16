@@ -315,6 +315,102 @@ namespace KingmakerMountedCombat.Domain
         }
     }
 
+    public sealed class DiagnosticNativeCombatJoinReadinessSnapshot
+    {
+        private readonly string[] failedGateNames;
+
+        public DiagnosticNativeCombatJoinReadinessSnapshot(
+            bool riderInGame,
+            bool mountInGame,
+            bool targetInGame,
+            bool riderConscious,
+            bool mountConscious,
+            bool targetConscious,
+            bool riderIgnoredByCombat,
+            bool mountIgnoredByCombat,
+            bool targetIgnoredByCombat,
+            bool playerGroupContainsRider,
+            bool playerGroupContainsMount,
+            bool targetGroupContainsTarget,
+            bool playerGroupEnemiesContainsTarget,
+            bool targetGroupEnemiesContainsRider,
+            bool riderNotInFogOfWar,
+            bool targetNotInFogOfWar,
+            bool riderNotInStealthAmbush,
+            bool targetNotInStealthAmbush)
+        {
+            RiderInGame = riderInGame;
+            MountInGame = mountInGame;
+            TargetInGame = targetInGame;
+            RiderConscious = riderConscious;
+            MountConscious = mountConscious;
+            TargetConscious = targetConscious;
+            RiderIgnoredByCombat = riderIgnoredByCombat;
+            MountIgnoredByCombat = mountIgnoredByCombat;
+            TargetIgnoredByCombat = targetIgnoredByCombat;
+            PlayerGroupContainsRider = playerGroupContainsRider;
+            PlayerGroupContainsMount = playerGroupContainsMount;
+            TargetGroupContainsTarget = targetGroupContainsTarget;
+            PlayerGroupEnemiesContainsTarget = playerGroupEnemiesContainsTarget;
+            TargetGroupEnemiesContainsRider = targetGroupEnemiesContainsRider;
+            RiderNotInFogOfWar = riderNotInFogOfWar;
+            TargetNotInFogOfWar = targetNotInFogOfWar;
+            RiderNotInStealthAmbush = riderNotInStealthAmbush;
+            TargetNotInStealthAmbush = targetNotInStealthAmbush;
+
+            var failures = new List<string>();
+            AddFailure(failures, riderInGame, "rider-in-game");
+            AddFailure(failures, mountInGame, "mount-in-game");
+            AddFailure(failures, targetInGame, "target-in-game");
+            AddFailure(failures, riderConscious, "rider-conscious");
+            AddFailure(failures, mountConscious, "mount-conscious");
+            AddFailure(failures, targetConscious, "target-conscious");
+            AddFailure(failures, !riderIgnoredByCombat, "rider-not-ignored-by-combat");
+            AddFailure(failures, !mountIgnoredByCombat, "mount-not-ignored-by-combat");
+            AddFailure(failures, !targetIgnoredByCombat, "target-not-ignored-by-combat");
+            AddFailure(failures, playerGroupContainsRider, "player-group-contains-rider");
+            AddFailure(failures, playerGroupContainsMount, "player-group-contains-mount");
+            AddFailure(failures, targetGroupContainsTarget, "target-group-contains-target");
+            AddFailure(failures, playerGroupEnemiesContainsTarget, "player-enemies-contain-target");
+            AddFailure(failures, targetGroupEnemiesContainsRider, "target-enemies-contain-rider");
+            AddFailure(failures, riderNotInFogOfWar, "rider-not-in-fog");
+            AddFailure(failures, targetNotInFogOfWar, "target-not-in-fog");
+            AddFailure(failures, riderNotInStealthAmbush, "rider-not-in-stealth-ambush");
+            AddFailure(failures, targetNotInStealthAmbush, "target-not-in-stealth-ambush");
+            failedGateNames = failures.ToArray();
+        }
+
+        public bool RiderInGame { get; }
+        public bool MountInGame { get; }
+        public bool TargetInGame { get; }
+        public bool RiderConscious { get; }
+        public bool MountConscious { get; }
+        public bool TargetConscious { get; }
+        public bool RiderIgnoredByCombat { get; }
+        public bool MountIgnoredByCombat { get; }
+        public bool TargetIgnoredByCombat { get; }
+        public bool PlayerGroupContainsRider { get; }
+        public bool PlayerGroupContainsMount { get; }
+        public bool TargetGroupContainsTarget { get; }
+        public bool PlayerGroupEnemiesContainsTarget { get; }
+        public bool TargetGroupEnemiesContainsRider { get; }
+        public bool RiderNotInFogOfWar { get; }
+        public bool TargetNotInFogOfWar { get; }
+        public bool RiderNotInStealthAmbush { get; }
+        public bool TargetNotInStealthAmbush { get; }
+        public bool AllPassed => failedGateNames.Length == 0;
+        public string[] FailedGateNames => (string[])failedGateNames.Clone();
+        public string FailureSummary => string.Join(",", failedGateNames);
+
+        private static void AddFailure(List<string> failures, bool passed, string name)
+        {
+            if (!passed)
+            {
+                failures.Add(name);
+            }
+        }
+    }
+
     public sealed class DiagnosticTurnBasedDispatchReadinessSnapshot
     {
         private readonly string[] failedGateNames;

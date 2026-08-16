@@ -1074,7 +1074,7 @@ function New-TestCombatEvidenceRecord {
     $isTurnBased = [string]$Request.scenario -ceq 'mounted-rider-melee-hit-tb'
     $isMiss = [string]$Request.scenario -ceq 'mounted-rider-melee-miss-rt'
     $record = [ordered]@{
-        schemaVersion=$(if ($isTurnBased) { 9 } else { 8 });artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
+        schemaVersion=$(if ($isTurnBased) { 11 } else { 10 });artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
         scenario=[string]$Request.scenario;row=[string]$Request.scenario;rowIndex=0;sequence=0;frame=30
         utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o');branch=[string]$Request.branch
         commit=[string]$Request.commit;productVersion=[string]$Request.productVersion
@@ -1099,6 +1099,15 @@ function New-TestCombatEvidenceRecord {
             riderInCombat=$true;mountInCombat=$true;targetInCombat=$true;playerInCombat=$true
             riderPrepared=$true;riderAwake=$true;targetAwake=$true;defaultGameMode=$true;riderInitiative=0.0;gameDeltaTime=0.01
             memoryRemovedAtCleanup=$true
+            nativeJoin=[ordered]@{
+                riderInGame=$true;mountInGame=$true;targetInGame=$true
+                riderConscious=$true;mountConscious=$true;targetConscious=$true
+                riderIgnoredByCombat=$false;mountIgnoredByCombat=$false;targetIgnoredByCombat=$false
+                playerGroupContainsRider=$true;playerGroupContainsMount=$true;targetGroupContainsTarget=$true
+                playerGroupEnemiesContainsTarget=$true;targetGroupEnemiesContainsRider=$true
+                riderNotInFogOfWar=$true;targetNotInFogOfWar=$true
+                riderNotInStealthAmbush=$true;targetNotInStealthAmbush=$true
+            }
         }
         dispatch=[ordered]@{
             originalPaused=$true;unpausedForRealTime=(-not $isTurnBased);pausedAtClick=$false;riderCanActInCombat=$true
@@ -1179,6 +1188,14 @@ function Remove-TestCombatWakeLeaseFields {
     $Record.targetProvisioning.PSObject.Properties.Remove('sleeplessBefore')
     $Record.targetProvisioning.PSObject.Properties.Remove('sleeplessLeaseAcquired')
     $Record.cleanup.PSObject.Properties.Remove('sleeplessLeaseReleased')
+    Remove-TestCombatNativeJoinFields $Record
+}
+
+function Remove-TestCombatNativeJoinFields {
+    param([Parameter(Mandatory = $true)]$Record)
+    if ($null -ne $Record.combatEntry) {
+        $Record.combatEntry.PSObject.Properties.Remove('nativeJoin')
+    }
 }
 
 New-Item -ItemType Directory -Path $testRoot | Out-Null
@@ -4219,11 +4236,13 @@ try {
         $pauseCaptureIndex = $engineSource.IndexOf('originalPause = Game.Instance.IsPaused;', [StringComparison]::Ordinal)
         $memoryQueueIndex = $engineSource.IndexOf('targetService.QueueBidirectionalCombatMemory(rider, target)', [StringComparison]::Ordinal)
         $realTimeUnpauseIndex = $engineSource.IndexOf('game.IsPaused = false;', [StringComparison]::Ordinal)
+        $nativeJoinIndex = $engineSource.IndexOf('new DiagnosticNativeCombatJoinReadinessSnapshot(', [StringComparison]::Ordinal)
         $nativeEntryIndex = $engineSource.IndexOf('new DiagnosticCombatEntryReadinessSnapshot(', [StringComparison]::Ordinal)
         $nativeDispatchIndex = $engineSource.IndexOf('new DiagnosticCombatDispatchReadinessSnapshot(', [StringComparison]::Ordinal)
         $nativeClickAfterPauseIndex = $engineSource.IndexOf('new ClickUnitHandler().OnClick(', [StringComparison]::Ordinal)
         Assert-Test ($pauseCaptureIndex -ge 0 -and $memoryQueueIndex -gt $pauseCaptureIndex -and
-            $realTimeUnpauseIndex -gt $memoryQueueIndex -and $nativeEntryIndex -gt $realTimeUnpauseIndex -and
+            $realTimeUnpauseIndex -gt $memoryQueueIndex -and $nativeJoinIndex -gt $realTimeUnpauseIndex -and
+            $nativeEntryIndex -gt $nativeJoinIndex -and
             $nativeDispatchIndex -gt $nativeEntryIndex -and
             $nativeClickAfterPauseIndex -gt $nativeDispatchIndex -and
             $engineSource.Contains('if (!dispatchReadiness.AllPassed)') -and
@@ -4231,6 +4250,13 @@ try {
             -not $engineSource.Contains('target.JoinCombat();') -and
             -not $engineSource.Contains('rider.JoinCombat();') -and
             -not $engineSource.Contains('mount.JoinCombat();')) 'real-time combat does not lease native memory, await native combat entry, unpause, await exact dispatch readiness, and restore pause without manual JoinCombat'
+        Assert-Test ($engineSource.Contains('MemoryEnemiesContain(rider, target)') -and
+            $engineSource.Contains('MemoryEnemiesContain(target, rider)') -and
+            $engineSource.Contains('(bool)riderState.IsIgnoredByCombat') -and
+            $engineSource.Contains('(bool)mountState.IsIgnoredByCombat') -and
+            $engineSource.Contains('(bool)targetState.IsIgnoredByCombat') -and
+            $engineSource.Contains('nativeJoinReadiness?.FailureSummary') -and
+            $engineSource.Contains('Every exact native UnitCombatJoinController eligibility gate remained healthy at dispatch.')) 'native combat-entry diagnosis does not bind the exact in-game, conscious, ignored, group, enemy-list, fog, and ambush gates before dispatch'
         $modeProbeIndex = $engineSource.IndexOf('turnBasedModeProbe = new NativeModeTransitionProbe();', [StringComparison]::Ordinal)
         $modeDispatchIndex = $engineSource.IndexOf('turnBasedModeProbe.DispatchTemporaryValue();', [StringComparison]::Ordinal)
         $turnBasedMountIndex = $engineSource.IndexOf('private void AwaitTurnBasedModeAndMount()', [StringComparison]::Ordinal)
@@ -4269,7 +4295,7 @@ try {
             $engineSource.Contains('currentTurnActingAtOutcome = currentTurn != null && currentTurn.IsActing')) 'turn-based combat does not admit the native Preparing rider turn, observe Acting only after dispatch, retain it through outcome, and restore mode after cleanup'
         Assert-Test ($engineSource.Contains('CleanupTimeoutSeconds = 10.0d') -and
             $engineSource.Contains('rowClock.Elapsed.TotalSeconds - cleanupStartedAtSeconds < CleanupTimeoutSeconds')) 'combat cleanup does not retain an independent bounded drain after a row deadline'
-        Assert-Test ($engineSource.Contains('SchemaVersion = IsTurnBasedRow ? 9 : 8') -and
+        Assert-Test ($engineSource.Contains('SchemaVersion = IsTurnBasedRow ? 11 : 10') -and
             $engineSource.Contains('Mode = IsTurnBasedRow ? "turn-based" : "real-time"') -and
             $engineSource.Contains('TurnBased = IsTurnBasedRow') -and
             $engineSource.Contains('CombatEntry = CombatEntryEvidence.From(') -and
@@ -4290,7 +4316,9 @@ try {
             $combatValidatorSource.Contains("`$record.rules.lastAttackHit -ne `$false") -and
             $combatValidatorSource.Contains("@('Miss','DodgeAC','ArmorAC','ShieldAC')") -and
             $combatValidatorSource.Contains("'sleeplessBefore','sleeplessLeaseAcquired'") -and
-            $combatValidatorSource.Contains("'sleeplessLeaseReleased'")) 'schema-v8/v9 combat evidence does not bind native IsHit, exact AC-selected miss reasons, target wake lease, combat entry, terminal reason, memory cleanup, mode-specific dispatch, rider-turn identity, and restoration'
+            $combatValidatorSource.Contains("'sleeplessLeaseReleased'") -and
+            $combatValidatorSource.Contains("'playerGroupEnemiesContainsTarget','targetGroupEnemiesContainsRider'") -and
+            $combatValidatorSource.Contains("'riderIgnoredByCombat','mountIgnoredByCombat','targetIgnoredByCombat'")) 'schema-v10/v11 combat evidence does not bind native IsHit, exact AC-selected miss reasons, target wake lease, native join gates, combat entry, terminal reason, memory cleanup, mode-specific dispatch, rider-turn identity, and restoration'
         foreach ($field in @('TargetEntityRemoved','RuntimeGroupRemoved','RuntimeFactionRemoved')) {
             $jsonField = [char]::ToLowerInvariant($field[0]) + $field.Substring(1)
             Assert-Test ($engineSource.Contains("$field =") -and
@@ -4330,7 +4358,7 @@ try {
     $turnBasedManifest = Read-KmcJson (Join-Path $turnBasedRequest.evidenceRoot 'runtime-artifacts.json')
     $turnBasedSubresult = [ordered]@{name=$turnBasedRequest.scenario;status='PASS';assertionPassCount=25;assertionFailCount=0;errors=@()}
 
-    Invoke-HarnessTest 'runtime request and schema-v9 evidence accept exact native stationary rider turn' {
+    Invoke-HarnessTest 'runtime request and schema-v11 evidence accept exact native stationary rider turn' {
         & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $turnBasedRequestPath
         Assert-KmcCombatScenarioEvidence -Request $turnBasedRequest -Manifest $turnBasedManifest -Status 'PASS' -SubscenarioResults @($turnBasedSubresult)
     }
@@ -4395,6 +4423,22 @@ try {
         Assert-KmcCombatScenarioEvidence -Request $turnBasedRequest -Manifest $legacyTurnBasedManifest -Status 'PASS' -SubscenarioResults @($turnBasedSubresult)
     }
 
+    Invoke-HarnessTest 'historical schema-v8 and schema-v9 combat evidence remain valid' {
+        $legacyRealTime = Copy-TestJsonValue $combatRecord
+        $legacyRealTime.schemaVersion = 8
+        Remove-TestCombatNativeJoinFields $legacyRealTime
+        [void](Write-TestCombatEvidence -EvidenceRoot $combatRequest.evidenceRoot -Request $combatRequest -Record $legacyRealTime)
+        $legacyRealTimeManifest = Read-KmcJson (Join-Path $combatRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $combatRequest -Manifest $legacyRealTimeManifest -Status 'PASS' -SubscenarioResults @($combatSubresult)
+
+        $legacyTurnBased = Copy-TestJsonValue $turnBasedRecord
+        $legacyTurnBased.schemaVersion = 9
+        Remove-TestCombatNativeJoinFields $legacyTurnBased
+        [void](Write-TestCombatEvidence -EvidenceRoot $turnBasedRequest.evidenceRoot -Request $turnBasedRequest -Record $legacyTurnBased)
+        $legacyTurnBasedManifest = Read-KmcJson (Join-Path $turnBasedRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $turnBasedRequest -Manifest $legacyTurnBasedManifest -Status 'PASS' -SubscenarioResults @($turnBasedSubresult)
+    }
+
     Invoke-HarnessTest 'combat miss validator rejects hit damage and identity mutations' {
         $mutations = @(
             @{name='forced hit';apply={param($value) $value.rules.forcedD20=20}},
@@ -4424,7 +4468,7 @@ try {
         }
     }
 
-    Invoke-HarnessTest 'schema-v9 preserves a structured pre-combat turn-based FAIL' {
+    Invoke-HarnessTest 'schema-v11 preserves a structured pre-combat turn-based FAIL' {
         $failureRecord = Copy-TestJsonValue $turnBasedRecord
         $failureRecord.status = 'FAIL'
         $failureRecord.assertionPassCount = 10
@@ -4528,6 +4572,12 @@ try {
             @{name='target memory absent';apply={param($value) $value.combatEntry.targetGroupMemoryContainsRider=$false}},
             @{name='native combat absent';apply={param($value) $value.combatEntry.targetInCombat=$false}},
             @{name='target not awake';apply={param($value) $value.combatEntry.targetAwake=$false}},
+            @{name='native join rider not in game';apply={param($value) $value.combatEntry.nativeJoin.riderInGame=$false}},
+            @{name='native join target unconscious';apply={param($value) $value.combatEntry.nativeJoin.targetConscious=$false}},
+            @{name='native join target ignored';apply={param($value) $value.combatEntry.nativeJoin.targetIgnoredByCombat=$true}},
+            @{name='native join player enemy list absent';apply={param($value) $value.combatEntry.nativeJoin.playerGroupEnemiesContainsTarget=$false}},
+            @{name='native join target ambush';apply={param($value) $value.combatEntry.nativeJoin.targetNotInStealthAmbush=$false}},
+            @{name='native join Boolean coercion';apply={param($value) $value.combatEntry.nativeJoin.targetInGame='true'}},
             @{name='initiative unprepared';apply={param($value) $value.combatEntry.riderPrepared=$false}},
             @{name='initiative pending';apply={param($value) $value.combatEntry.riderInitiative=1.0}},
             @{name='game delta stopped';apply={param($value) $value.combatEntry.gameDeltaTime=0.0}},

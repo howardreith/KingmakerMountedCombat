@@ -7138,11 +7138,11 @@ function Assert-KmcCombatScenarioEvidence {
     if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -ge 3) {
         $recordFields = @($recordFields + 'combatEntry')
     }
-    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(5,7,9)) {
+    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(5,7,9,11)) {
         $recordFields = @($recordFields + 'turnBased')
     }
     Assert-KmcExactProperties $record $recordFields 'combat evidence record'
-    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -notin @(1,2,3,4,5,6,7,8,9) -or
+    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -notin @(1,2,3,4,5,6,7,8,9,10,11) -or
         [string]$record.artifactKind -cne 'combat-scenario-evidence') {
         throw 'Combat evidence schemaVersion or artifactKind is not exact.'
     }
@@ -7196,15 +7196,31 @@ function Assert-KmcCombatScenarioEvidence {
         if ([long]$record.schemaVersion -ge 8) {
             $combatEntryBooleanFields = @($combatEntryBooleanFields + 'targetAwake')
         }
-        Assert-KmcExactProperties $record.combatEntry @($combatEntryBooleanFields + @('riderInitiative','gameDeltaTime')) 'combat entry evidence'
+        $combatEntryFields = @($combatEntryBooleanFields + @('riderInitiative','gameDeltaTime'))
+        if ([long]$record.schemaVersion -ge 10) {
+            $combatEntryFields = @($combatEntryFields + 'nativeJoin')
+        }
+        Assert-KmcExactProperties $record.combatEntry $combatEntryFields 'combat entry evidence'
         foreach ($name in $combatEntryBooleanFields) {
             if ($record.combatEntry.$name -isnot [bool]) { throw "Combat entry evidence is not Boolean: $name" }
         }
         foreach ($name in @('riderInitiative','gameDeltaTime')) {
             if (-not (Test-KmcJsonNumber $record.combatEntry.$name)) { throw "Combat entry evidence is not numeric: $name" }
         }
+        if ([long]$record.schemaVersion -ge 10) {
+            $nativeJoinFields = @(
+                'riderInGame','mountInGame','targetInGame','riderConscious','mountConscious','targetConscious',
+                'riderIgnoredByCombat','mountIgnoredByCombat','targetIgnoredByCombat',
+                'playerGroupContainsRider','playerGroupContainsMount','targetGroupContainsTarget',
+                'playerGroupEnemiesContainsTarget','targetGroupEnemiesContainsRider',
+                'riderNotInFogOfWar','targetNotInFogOfWar','riderNotInStealthAmbush','targetNotInStealthAmbush')
+            Assert-KmcExactProperties $record.combatEntry.nativeJoin $nativeJoinFields 'native combat join evidence'
+            foreach ($name in $nativeJoinFields) {
+                if ($record.combatEntry.nativeJoin.$name -isnot [bool]) { throw "Native combat join evidence is not Boolean: $name" }
+            }
+        }
     }
-    if ([long]$record.schemaVersion -in @(5,7,9)) {
+    if ([long]$record.schemaVersion -in @(5,7,9,11)) {
         $turnBooleanFields = @(
             'requested','originalEnabled','temporaryEnabled','originalRawCacheHadValue','enabledAtMount',
             'controllerInitialized','rosterContainsRider','rosterContainsMount','rosterContainsTarget',
@@ -7269,7 +7285,7 @@ function Assert-KmcCombatScenarioEvidence {
     if ($requirePass) {
         $turnBasedScenario = [string]$Request.scenario -ceq 'mounted-rider-melee-hit-tb'
         $missScenario = [string]$Request.scenario -ceq 'mounted-rider-melee-miss-rt'
-        $expectedCombatSchemas = if ($missScenario) { @(6,8) } elseif ($turnBasedScenario) { @(5,7,9) } else { @(4,6,8) }
+        $expectedCombatSchemas = if ($missScenario) { @(6,8,10) } elseif ($turnBasedScenario) { @(5,7,9,11) } else { @(4,6,8,10) }
         if ([long]$record.schemaVersion -notin $expectedCombatSchemas -or
             [string]$record.status -cne 'PASS' -or [long]$record.assertionFailCount -ne 0 -or
             [long]$record.assertionPassCount -le 0 -or @($record.errors).Count -ne 0) {
@@ -7322,8 +7338,29 @@ function Assert-KmcCombatScenarioEvidence {
             $record.combatEntry.defaultGameMode -ne $true -or
             [Math]::Abs([double]$record.combatEntry.riderInitiative) -gt 0.000001 -or
             [double]$record.combatEntry.gameDeltaTime -le 0 -or
-            $record.combatEntry.memoryRemovedAtCleanup -ne $true) {
+             $record.combatEntry.memoryRemovedAtCleanup -ne $true) {
             throw 'PASS combat evidence does not prove native bidirectional memory, combat preparation, live Default-mode time, and memory cleanup.'
+        }
+        if ([long]$record.schemaVersion -ge 10 -and
+            ($record.combatEntry.nativeJoin.riderInGame -ne $true -or
+             $record.combatEntry.nativeJoin.mountInGame -ne $true -or
+             $record.combatEntry.nativeJoin.targetInGame -ne $true -or
+             $record.combatEntry.nativeJoin.riderConscious -ne $true -or
+             $record.combatEntry.nativeJoin.mountConscious -ne $true -or
+             $record.combatEntry.nativeJoin.targetConscious -ne $true -or
+             $record.combatEntry.nativeJoin.riderIgnoredByCombat -ne $false -or
+             $record.combatEntry.nativeJoin.mountIgnoredByCombat -ne $false -or
+             $record.combatEntry.nativeJoin.targetIgnoredByCombat -ne $false -or
+             $record.combatEntry.nativeJoin.playerGroupContainsRider -ne $true -or
+             $record.combatEntry.nativeJoin.playerGroupContainsMount -ne $true -or
+             $record.combatEntry.nativeJoin.targetGroupContainsTarget -ne $true -or
+             $record.combatEntry.nativeJoin.playerGroupEnemiesContainsTarget -ne $true -or
+             $record.combatEntry.nativeJoin.targetGroupEnemiesContainsRider -ne $true -or
+             $record.combatEntry.nativeJoin.riderNotInFogOfWar -ne $true -or
+             $record.combatEntry.nativeJoin.targetNotInFogOfWar -ne $true -or
+             $record.combatEntry.nativeJoin.riderNotInStealthAmbush -ne $true -or
+             $record.combatEntry.nativeJoin.targetNotInStealthAmbush -ne $true)) {
+            throw 'PASS combat evidence does not prove every exact native UnitCombatJoinController eligibility gate.'
         }
         if ([string]::IsNullOrWhiteSpace([string]$record.riderId) -or
             [string]::IsNullOrWhiteSpace([string]$record.mountId) -or
