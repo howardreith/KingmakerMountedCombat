@@ -666,14 +666,14 @@ namespace KingmakerMountedCombat.Diagnostics
             assertions.Check(IsMissRow
                     ? ruleProbe.ForcedD20 == 1 && ruleProbe.ForcedD20Count >= 1 &&
                         ruleProbe.LastAttackHit == false &&
-                        string.Equals(ruleProbe.LastAttackResult, "ArmorAC", StringComparison.Ordinal) &&
+                        IsNativeAcMissReason(ruleProbe.LastAttackResult) &&
                         ruleProbe.TotalDamage == 0
                     : ruleProbe.ForcedD20 == 20 && ruleProbe.ForcedD20Count >= 1 &&
                         ruleProbe.LastAttackHit == true &&
                         (string.Equals(ruleProbe.LastAttackResult, "Hit", StringComparison.Ordinal) ||
                          string.Equals(ruleProbe.LastAttackResult, "CriticalHit", StringComparison.Ordinal)),
                 IsMissRow
-                    ? "Deterministic natural 1 produced native IsHit=false, exact ArmorAC miss reason, and zero damage."
+                    ? "Deterministic natural 1 produced native IsHit=false, an exact AC-selected miss reason, and zero damage."
                     : "Deterministic natural 20 produced native IsHit=true and a hit or critical-hit result.");
             assertions.Check(string.Equals(ruleProbe.LastInitiatorId, rider.UniqueId, StringComparison.Ordinal) &&
                     string.Equals(ruleProbe.LastTargetId, targetId, StringComparison.Ordinal),
@@ -1449,6 +1449,14 @@ namespace KingmakerMountedCombat.Diagnostics
                     NativeAdmissionAdjusted = value.NativeAdmissionAdjusted
                 };
             }
+        }
+
+        private static bool IsNativeAcMissReason(string result)
+        {
+            return string.Equals(result, "Miss", StringComparison.Ordinal) ||
+                string.Equals(result, "DodgeAC", StringComparison.Ordinal) ||
+                string.Equals(result, "ArmorAC", StringComparison.Ordinal) ||
+                string.Equals(result, "ShieldAC", StringComparison.Ordinal);
         }
 
         private sealed class CombatRuleEvidence

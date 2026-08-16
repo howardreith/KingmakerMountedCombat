@@ -7400,8 +7400,8 @@ function Assert-KmcCombatScenarioEvidence {
         if ($missScenario) {
             if ([long]$record.rules.forcedD20 -ne 1 -or [long]$record.rules.damageRuleCount -ne 0 -or
                 [long]$record.rules.totalDamage -ne 0 -or $record.rules.lastAttackHit -ne $false -or
-                [string]$record.rules.lastAttackResult -cne 'ArmorAC') {
-                throw 'PASS combat miss evidence does not prove one deterministic natural-1 native IsHit=false ArmorAC zero-damage miss.'
+                [string]$record.rules.lastAttackResult -cnotin @('Miss','DodgeAC','ArmorAC','ShieldAC')) {
+                throw 'PASS combat miss evidence does not prove one deterministic natural-1 native IsHit=false AC-selected zero-damage miss.'
             }
         }
         elseif ([long]$record.rules.forcedD20 -ne 20 -or

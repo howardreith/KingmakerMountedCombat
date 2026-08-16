@@ -1118,7 +1118,7 @@ function New-TestCombatEvidenceRecord {
             forcedD20=$(if ($isMiss) { 1 } else { 20 });forcedD20Count=1;attackRuleCount=1;attackRollCount=1
             damageRuleCount=$(if ($isMiss) { 0 } else { 1 });unexpectedPairAttackCount=0
             totalDamage=$(if ($isMiss) { 0 } else { 10 });lastInitiatorId=$rider;lastTargetId=$target
-            lastAttackResult=$(if ($isMiss) { 'ArmorAC' } else { 'Hit' });lastAttackHit=(-not $isMiss)
+            lastAttackResult=$(if ($isMiss) { 'Miss' } else { 'Hit' });lastAttackHit=(-not $isMiss)
         }
         movement=[ordered]@{
             authoritativeMover='mount';repathCount=0;riderStockAgentEnabledAtEnd=$true;mountStockAgentEnabledAtEnd=$true
@@ -4267,8 +4267,10 @@ try {
             $combatValidatorSource.Contains("[string]`$record.turnBased.currentTurnUnitIdAtDispatch -cne [string]`$record.riderId") -and
             $combatValidatorSource.Contains("`$record.turnBased.persistedValueUnchanged -ne `$true") -and
             $ruleProbeSource.Contains('LastAttackHit = evt.IsHit;') -and
+            $engineSource.Contains('IsNativeAcMissReason(ruleProbe.LastAttackResult)') -and
             $combatValidatorSource.Contains("'lastAttackHit'") -and
-            $combatValidatorSource.Contains("`$record.rules.lastAttackHit -ne `$false")) 'schema-v6/v7 combat evidence does not bind native IsHit, native result reason, combat entry, terminal reason, memory cleanup, mode-specific dispatch, rider-turn identity, and restoration'
+            $combatValidatorSource.Contains("`$record.rules.lastAttackHit -ne `$false") -and
+            $combatValidatorSource.Contains("@('Miss','DodgeAC','ArmorAC','ShieldAC')")) 'schema-v6/v7 combat evidence does not bind native IsHit, exact AC-selected miss reasons, combat entry, terminal reason, memory cleanup, mode-specific dispatch, rider-turn identity, and restoration'
         foreach ($field in @('TargetEntityRemoved','RuntimeGroupRemoved','RuntimeFactionRemoved')) {
             $jsonField = [char]::ToLowerInvariant($field[0]) + $field.Substring(1)
             Assert-Test ($engineSource.Contains("$field =") -and
@@ -4327,6 +4329,16 @@ try {
         Assert-KmcCombatScenarioEvidence -Request $missRequest -Manifest $missManifest -Status 'PASS' -SubscenarioResults @($missSubresult)
     }
 
+    Invoke-HarnessTest 'combat miss validator accepts only exact native AC-selected miss reasons' {
+        foreach ($reason in @('Miss','DodgeAC','ArmorAC','ShieldAC')) {
+            $candidate = Copy-TestJsonValue $missRecord
+            $candidate.rules.lastAttackResult = $reason
+            [void](Write-TestCombatEvidence -EvidenceRoot $missRequest.evidenceRoot -Request $missRequest -Record $candidate)
+            $candidateManifest = Read-KmcJson (Join-Path $missRequest.evidenceRoot 'runtime-artifacts.json')
+            Assert-KmcCombatScenarioEvidence -Request $missRequest -Manifest $candidateManifest -Status 'PASS' -SubscenarioResults @($missSubresult)
+        }
+    }
+
     Invoke-HarnessTest 'historical schema-v4 and schema-v5 combat evidence remain valid' {
         $legacyRealTime = Copy-TestJsonValue $combatRecord
         $legacyRealTime.schemaVersion = 4
@@ -4351,7 +4363,12 @@ try {
             @{name='native hit true';apply={param($value) $value.rules.lastAttackHit=$true}},
             @{name='native hit missing';apply={param($value) $value.rules.PSObject.Properties.Remove('lastAttackHit')}},
             @{name='native hit null';apply={param($value) $value.rules.lastAttackHit=$null}},
-            @{name='wrong miss reason';apply={param($value) $value.rules.lastAttackResult='Miss'}},
+            @{name='hit result';apply={param($value) $value.rules.lastAttackResult='Hit'}},
+            @{name='critical-hit result';apply={param($value) $value.rules.lastAttackResult='CriticalHit'}},
+            @{name='unknown result';apply={param($value) $value.rules.lastAttackResult='Unknown'}},
+            @{name='mirror-image result';apply={param($value) $value.rules.lastAttackResult='MirrorImage'}},
+            @{name='concealment result';apply={param($value) $value.rules.lastAttackResult='Concealment'}},
+            @{name='parried result';apply={param($value) $value.rules.lastAttackResult='Parried'}},
             @{name='wrong initiator';apply={param($value) $value.rules.lastInitiatorId='combat-mount'}},
             @{name='duplicate roll';apply={param($value) $value.rules.attackRollCount=2}}
         )

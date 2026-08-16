@@ -157,6 +157,7 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.PubSubSystem.RulebookEventBus',0x06007540,'Subscribe'),
         @('Kingmaker.RuleSystem.Rules.RuleAttackRoll',0x06007131,'get_Result'),
         @('Kingmaker.RuleSystem.Rules.RuleAttackRoll',0x0600716B,'get_IsHit'),
+        @('Kingmaker.EntitySystem.Stats.ModifiableValueArmorClass',0x06007F2D,'SelectMissReason'),
         @('Kingmaker.EntitySystem.Entities.UnitEntityData',0x06008330,'get_AreHandsBusyWithAnimation'),
         @('Kingmaker.EntitySystem.Entities.UnitEntityData',0x0600834E,'CanAttack'),
         @('Kingmaker.Controllers.Units.UnitHandEquipmentController',0x06009154,'IsUpdateScheduledFor'),
@@ -194,6 +195,13 @@ if($Target-eq'Kingmaker'){
         $ruleAttackRollIsHit[0].IsPublic -and -not $ruleAttackRollIsHit[0].IsStatic -and
         $ruleAttackRollIsHit[0].ReturnType.FullName-ceq'System.Boolean' -and $ruleAttackRollIsHit[0].GetParameters().Count-eq0) `
         'RuleAttackRoll.IsHit exact public instance Boolean signature'
+    $selectMissReason=@(Find-Token 'Kingmaker.EntitySystem.Stats.ModifiableValueArmorClass' 0x06007F2D)
+    Assert-Contract ($selectMissReason.Count-eq1 -and $selectMissReason[0] -is [Reflection.MethodInfo] -and
+        $selectMissReason[0].IsPublic -and -not $selectMissReason[0].IsStatic -and
+        $selectMissReason[0].ReturnType.FullName-ceq'Kingmaker.RuleSystem.Rules.AttackResult' -and
+        $selectMissReason[0].GetParameters().Count-eq2 -and
+        @($selectMissReason[0].GetParameters()|Where-Object{$_.ParameterType.FullName-ceq'System.Boolean'}).Count-eq2) `
+        'ModifiableValueArmorClass.SelectMissReason exact public instance signature'
     $forcePlaceAboveGround=@(Find-Token 'Kingmaker.View.UnitEntityView' 0x06001848)
     Assert-Contract ($forcePlaceAboveGround.Count-eq1 -and $forcePlaceAboveGround[0] -is [Reflection.MethodInfo] -and
         $forcePlaceAboveGround[0].IsPublic -and -not $forcePlaceAboveGround[0].IsStatic -and
