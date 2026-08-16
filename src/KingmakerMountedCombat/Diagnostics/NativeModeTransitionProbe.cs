@@ -77,6 +77,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
         public bool TemporaryDeliveryAttempted => temporaryAttempted;
 
+        public bool TemporaryValueIsCurrent => temporaryAttempted && setting.CurrentValue == TemporaryValue;
+
         public bool RestoreDeliveryCompleted => restoreCompleted;
 
         public void DispatchTemporaryValue()

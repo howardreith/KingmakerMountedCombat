@@ -4083,6 +4083,7 @@ try {
         $commandSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPairAttackCommand.cs'))
         $singleAttackSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPairSingleAttack.cs'))
         $ruleProbeSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\MountedCombatRuleProbe.cs'))
+        $nativeModeProbeSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\NativeModeTransitionProbe.cs'))
         $patchControllerSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPatchController.cs'))
         $spatialPolicySource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedCombatSpatialPolicy.cs'))
         $resolverSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\NativeSingleAttackWeaponResolver.cs'))
@@ -4201,6 +4202,10 @@ try {
         $modeProbeIndex = $engineSource.IndexOf('turnBasedModeProbe = new NativeModeTransitionProbe();', [StringComparison]::Ordinal)
         $modeDispatchIndex = $engineSource.IndexOf('turnBasedModeProbe.DispatchTemporaryValue();', [StringComparison]::Ordinal)
         $turnBasedMountIndex = $engineSource.IndexOf('private void AwaitTurnBasedModeAndMount()', [StringComparison]::Ordinal)
+        $turnBasedMountEndIndex = $engineSource.IndexOf('private void ResolveAndMountPair()', $turnBasedMountIndex, [StringComparison]::Ordinal)
+        $turnBasedMountBody = if ($turnBasedMountIndex -ge 0 -and $turnBasedMountEndIndex -gt $turnBasedMountIndex) {
+            $engineSource.Substring($turnBasedMountIndex, $turnBasedMountEndIndex - $turnBasedMountIndex)
+        } else { '' }
         $turnRosterIndex = $engineSource.IndexOf('turnRosterContainsTarget = ContainsTurnRosterUnit(turnController, target);', [StringComparison]::Ordinal)
         $nativeRiderTurnIndex = $engineSource.IndexOf('turnController.StartTurn(rider);', [StringComparison]::Ordinal)
         $turnDispatchIndex = $engineSource.IndexOf('turnBasedReadiness = CaptureTurnBasedReadiness(turnController);', $nativeRiderTurnIndex, [StringComparison]::Ordinal)
@@ -4210,6 +4215,9 @@ try {
             $turnBasedMountIndex -gt $modeDispatchIndex -and $turnRosterIndex -gt $turnBasedMountIndex -and
             $nativeRiderTurnIndex -gt $turnRosterIndex -and $turnDispatchIndex -gt $nativeRiderTurnIndex -and
             $cleanupDestroyIndex -gt $turnDispatchIndex -and $modeRestoreIndex -gt $cleanupDestroyIndex -and
+            $nativeModeProbeSource.Contains('public bool TemporaryValueIsCurrent => temporaryAttempted && setting.CurrentValue == TemporaryValue;') -and
+            $turnBasedMountBody.Contains('!turnBasedModeProbe.TemporaryValueIsCurrent') -and
+            -not $turnBasedMountBody.Contains('!CombatController.IsInTurnBasedCombat()') -and
             $engineSource.Contains('CombatController.IsInTurnBasedCombat()') -and
             $engineSource.Contains('turnController != null && turnController.Initialized') -and
             $engineSource.Contains('foreach (var unit in controller.SortedUnits)') -and
@@ -4271,6 +4279,32 @@ try {
     Invoke-HarnessTest 'runtime request and schema-v5 evidence accept exact native stationary rider turn' {
         & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $turnBasedRequestPath
         Assert-KmcCombatScenarioEvidence -Request $turnBasedRequest -Manifest $turnBasedManifest -Status 'PASS' -SubscenarioResults @($turnBasedSubresult)
+    }
+
+    Invoke-HarnessTest 'schema-v5 preserves a structured pre-combat turn-based FAIL' {
+        $failureRecord = Copy-TestJsonValue $turnBasedRecord
+        $failureRecord.status = 'FAIL'
+        $failureRecord.assertionPassCount = 10
+        $failureRecord.assertionFailCount = 1
+        $failureRecord.errors = @('bounded pre-combat mode deadline')
+        $failureRecord.turnBased.enabledAtMount = $false
+        $failureRecord.turnBased.controllerInitialized = $false
+        $failureRecord.turnBased.rosterContainsRider = $false
+        $failureRecord.turnBased.rosterContainsMount = $false
+        $failureRecord.turnBased.rosterContainsTarget = $false
+        $failureRecord.turnBased.nativeRiderTurnStarted = $false
+        $failureRecord.turnBased.currentTurnUnitIdAtDispatch = $null
+        $failureRecord.turnBased.currentTurnActingAtDispatch = $false
+        $failureRecord.turnBased.roundNumberAtDispatch = -1
+        $failureRecord.turnBased.currentTurnUnitIdAtOutcome = $null
+        $failureRecord.turnBased.currentTurnActingAtOutcome = $false
+        [void](Write-TestCombatEvidence -EvidenceRoot $turnBasedRequest.evidenceRoot -Request $turnBasedRequest -Record $failureRecord)
+        $failureManifest = Read-KmcJson (Join-Path $turnBasedRequest.evidenceRoot 'runtime-artifacts.json')
+        $failureSubresult = [ordered]@{
+            name=$turnBasedRequest.scenario;status='FAIL';assertionPassCount=10;assertionFailCount=1
+            errors=@('bounded pre-combat mode deadline')
+        }
+        Assert-KmcCombatScenarioEvidence -Request $turnBasedRequest -Manifest $failureManifest -Status 'FAIL' -SubscenarioResults @($failureSubresult)
     }
 
     Invoke-HarnessTest 'turn-based combat validator rejects mode roster turn and restoration mutations' {

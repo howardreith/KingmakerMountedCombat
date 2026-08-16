@@ -122,7 +122,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool nativeRiderTurnStarted;
         private string currentTurnUnitIdAtDispatch;
         private bool currentTurnActingAtDispatch;
-        private int roundNumberAtDispatch;
+        private int roundNumberAtDispatch = -1;
         private string currentTurnUnitIdAtOutcome;
         private bool currentTurnActingAtOutcome;
         private bool turnBasedModeRestored = true;
@@ -315,7 +315,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void AwaitTurnBasedModeAndMount()
         {
-            if (!CombatController.IsInTurnBasedCombat() || Game.Instance?.TurnBasedCombatController == null)
+            if (turnBasedModeProbe == null || !turnBasedModeProbe.TemporaryValueIsCurrent ||
+                Game.Instance?.TurnBasedCombatController == null)
             {
                 return;
             }
@@ -1078,7 +1079,9 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (step == CombatEngineStep.AwaitTurnBasedMode)
             {
-                return "Turn-based mode enabled=" + CombatController.IsInTurnBasedCombat() +
+                return "Turn-based setting current=" +
+                    (turnBasedModeProbe != null && turnBasedModeProbe.TemporaryValueIsCurrent) +
+                    ";combat predicate=" + CombatController.IsInTurnBasedCombat() +
                     ";controllerAvailable=" + (Game.Instance?.TurnBasedCombatController != null) +
                     ";temporaryDelivery=" + (turnBasedModeProbe != null && turnBasedModeProbe.TemporaryDeliveryAttempted);
             }

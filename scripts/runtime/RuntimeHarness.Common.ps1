@@ -7213,13 +7213,14 @@ function Assert-KmcCombatScenarioEvidence {
             if ($record.turnBased.$name -isnot [bool]) { throw "Combat turn-based evidence is not Boolean: $name" }
         }
         foreach ($name in @('currentTurnUnitIdAtDispatch','currentTurnUnitIdAtOutcome')) {
-            if ($record.turnBased.$name -isnot [string] -or
-                [string]::IsNullOrWhiteSpace([string]$record.turnBased.$name)) {
+            if ($null -ne $record.turnBased.$name -and
+                ($record.turnBased.$name -isnot [string] -or
+                 [string]::IsNullOrWhiteSpace([string]$record.turnBased.$name))) {
                 throw "Combat turn-based unit identity is invalid: $name"
             }
         }
         if (-not (Test-KmcExactJsonInteger $record.turnBased.roundNumberAtDispatch) -or
-            [long]$record.turnBased.roundNumberAtDispatch -lt 0) {
+            [long]$record.turnBased.roundNumberAtDispatch -lt -1) {
             throw 'Combat turn-based round identity is invalid.'
         }
     }
@@ -7280,6 +7281,7 @@ function Assert-KmcCombatScenarioEvidence {
              $record.turnBased.nativeRiderTurnStarted -ne $true -or
              [string]$record.turnBased.currentTurnUnitIdAtDispatch -cne [string]$record.riderId -or
              $record.turnBased.currentTurnActingAtDispatch -ne $true -or
+             [long]$record.turnBased.roundNumberAtDispatch -lt 0 -or
              [string]$record.turnBased.currentTurnUnitIdAtOutcome -cne [string]$record.riderId -or
              $record.turnBased.currentTurnActingAtOutcome -ne $true -or
              $record.turnBased.restoreDeliveryCompleted -ne $true -or
