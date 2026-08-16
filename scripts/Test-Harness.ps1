@@ -1083,6 +1083,8 @@ function New-TestCombatEvidenceRecord {
             blueprintEmptyHandWeaponBlueprintId='11111111111111111111111111111111';targetNativeSingleAttackWeaponBlueprintId='11111111111111111111111111111111'
             targetNativeSingleAttackSlot='PrimaryHand';targetPrimaryMainAttacks=1;targetSecondaryMainAttacks=0
             additionalLimbCountBefore=0;additionalLimbCountAfter=0;noWeaponProvisioningMutation=$true
+            targetPrimaryHandHasItem=$false;targetWeaponUsesEmptyHandFallback=$true
+            targetNativeSingleAttackWeaponIsNatural=$true;targetNativeSingleAttackWeaponIsMelee=$true
             noLoot=$true;rawAiDisabled=$true
             bidirectionalHostility=$true;noExperienceReward=$true
         }
@@ -4133,6 +4135,8 @@ try {
             @{name='pose failure';apply={param($value) $value.pose.healthyAtOutcome=$false}},
             @{name='target native weapon source';apply={param($value) $value.targetProvisioning.blueprintEmptyHandWeaponBlueprintId='22222222222222222222222222222222'}},
             @{name='target native slot';apply={param($value) $value.targetProvisioning.targetNativeSingleAttackSlot='AdditionalLimb'}},
+            @{name='target native source classification';apply={param($value) $value.targetProvisioning.targetWeaponUsesEmptyHandFallback=$false}},
+            @{name='target native type';apply={param($value) $value.targetProvisioning.targetNativeSingleAttackWeaponIsNatural=$false}},
             @{name='target weapon mutation';apply={param($value) $value.targetProvisioning.additionalLimbCountAfter=1;$value.targetProvisioning.noWeaponProvisioningMutation=$false}},
             @{name='target provisioning loot';apply={param($value) $value.targetProvisioning.noLoot=$false}},
             @{name='target residue';apply={param($value) $value.cleanup.targetRemoved=$false}},

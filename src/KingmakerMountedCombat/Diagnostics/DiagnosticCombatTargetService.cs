@@ -48,6 +48,14 @@ namespace KingmakerMountedCombat.Diagnostics
 
         public bool NoWeaponProvisioningMutation { get; private set; }
 
+        public bool TargetPrimaryHandHasItem { get; private set; }
+
+        public bool TargetWeaponUsesEmptyHandFallback { get; private set; }
+
+        public bool TargetNativeSingleAttackWeaponIsNatural { get; private set; }
+
+        public bool TargetNativeSingleAttackWeaponIsMelee { get; private set; }
+
         public bool TargetHasNoLoot { get; private set; }
 
         public bool RawAiBackingDisabled { get; private set; }
@@ -159,6 +167,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 target.Commands.InterruptAll();
 
                 AdditionalLimbCountBefore = target.Body.AdditionalLimbs.Count;
+                var primaryHandHasItemBefore = target.Body.PrimaryHand.HasItem;
+                var primaryHandItemBefore = target.Body.PrimaryHand.MaybeItem;
+                var emptyHandWeaponBefore = target.Body.EmptyHandWeapon;
                 var nativePrimary = NativeSingleAttackWeaponResolver.Resolve(target);
                 AdditionalLimbCountAfter = target.Body.AdditionalLimbs.Count;
                 var primary = nativePrimary?.Weapon;
@@ -167,10 +178,19 @@ namespace KingmakerMountedCombat.Diagnostics
                 TargetPrimaryMainAttacks = nativePrimary?.PrimaryMainAttacks ?? 0;
                 TargetSecondaryMainAttacks = nativePrimary?.SecondaryMainAttacks ?? 0;
                 NoWeaponProvisioningMutation = AdditionalLimbCountAfter == AdditionalLimbCountBefore &&
+                    target.Body.PrimaryHand.HasItem == primaryHandHasItemBefore &&
+                    target.Body.PrimaryHand.MaybeItem == primaryHandItemBefore &&
+                    target.Body.EmptyHandWeapon == emptyHandWeaponBefore;
+                TargetPrimaryHandHasItem = primaryHandHasItemBefore;
+                TargetWeaponUsesEmptyHandFallback = !primaryHandHasItemBefore &&
+                    primary == emptyHandWeaponBefore && primary?.Blueprint == blueprintPrimary;
+                TargetNativeSingleAttackWeaponIsNatural = primary?.Blueprint != null && primary.Blueprint.IsNatural;
+                TargetNativeSingleAttackWeaponIsMelee = primary?.Blueprint != null && !primary.Blueprint.IsRanged;
+                var nativePrimaryResolvedWithoutProvisioning = NoWeaponProvisioningMutation &&
                     nativePrimary?.Kind == NativeSingleAttackSlotKind.PrimaryHand &&
                     nativePrimary.Slot == target.Body.PrimaryHand &&
-                    primary == target.Body.EmptyHandWeapon &&
-                    primary?.Blueprint == blueprintPrimary;
+                    nativePrimary.PrimaryMainAttacks > 0 &&
+                    (TargetPrimaryHandHasItem != TargetWeaponUsesEmptyHandFallback);
                 var dedicatedRuntimeGroup = detachedFromSpawnGroup && runtimeGroup != null &&
                     !runtimeGroup.IsPlayerParty &&
                     string.Equals(runtimeGroup.Id, runtimeGroupId, StringComparison.Ordinal) &&
@@ -197,10 +217,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     aiBackingDisabled,
                     target.Commands.Empty,
                     inventoryHasNoLoot,
-                    NoWeaponProvisioningMutation,
+                    nativePrimaryResolvedWithoutProvisioning,
                     primary?.Blueprint != null,
-                    primary?.Blueprint != null && primary.Blueprint.IsNatural,
-                    primary?.Blueprint != null && !primary.Blueprint.IsRanged);
+                    TargetNativeSingleAttackWeaponIsNatural,
+                    TargetNativeSingleAttackWeaponIsMelee);
                 if (!lifecycle.Activate("pending:" + runId, safety.AllPassed))
                 {
                     throw new InvalidOperationException(

@@ -951,6 +951,10 @@ namespace KingmakerMountedCombat.Diagnostics
             public int AdditionalLimbCountBefore { get; set; }
             public int AdditionalLimbCountAfter { get; set; }
             public bool NoWeaponProvisioningMutation { get; set; }
+            public bool TargetPrimaryHandHasItem { get; set; }
+            public bool TargetWeaponUsesEmptyHandFallback { get; set; }
+            public bool TargetNativeSingleAttackWeaponIsNatural { get; set; }
+            public bool TargetNativeSingleAttackWeaponIsMelee { get; set; }
             public bool NoLoot { get; set; }
             public bool RawAiDisabled { get; set; }
             public bool BidirectionalHostility { get; set; }
@@ -972,6 +976,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     AdditionalLimbCountBefore = service?.AdditionalLimbCountBefore ?? 0,
                     AdditionalLimbCountAfter = service?.AdditionalLimbCountAfter ?? 0,
                     NoWeaponProvisioningMutation = service != null && service.NoWeaponProvisioningMutation,
+                    TargetPrimaryHandHasItem = service != null && service.TargetPrimaryHandHasItem,
+                    TargetWeaponUsesEmptyHandFallback = service != null && service.TargetWeaponUsesEmptyHandFallback,
+                    TargetNativeSingleAttackWeaponIsNatural = service != null && service.TargetNativeSingleAttackWeaponIsNatural,
+                    TargetNativeSingleAttackWeaponIsMelee = service != null && service.TargetNativeSingleAttackWeaponIsMelee,
                     NoLoot = service != null && service.TargetHasNoLoot,
                     RawAiDisabled = service != null && service.RawAiBackingDisabled,
                     BidirectionalHostility = service != null && service.BidirectionalHostilityVerified,

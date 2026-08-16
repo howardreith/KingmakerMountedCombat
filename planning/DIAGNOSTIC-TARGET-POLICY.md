@@ -12,7 +12,7 @@ Creation uses exact `Game.EntityCreator.SpawnUnit(BlueprintUnit,Vector3,Quaterni
 
 - a new per-run GUID recorded in evidence;
 - a project-created runtime-only hostile faction whose only attack relation is the player faction, plus one exact per-run non-player unit group;
-- the blueprint's own exact `Body.EmptyHandWeapon`, resolved after spawn through the stock `UnitAttack.CreateSingleAttack` order of eligible primary hand, eligible secondary hand, then first weapon-bearing additional limb;
+- a prevalidated natural-melee `Body.EmptyHandWeapon` fallback plus the exact stock-initialized weapon actually resolved after spawn through the `UnitAttack.CreateSingleAttack` order of eligible primary hand, eligible secondary hand, then first weapon-bearing additional limb;
 - `GiveExperienceOnDeath=false` through tokens `0x06008338/39`;
 - no weapon/body-slot provisioning, loot, quest, dialogue, script, summon, or reward surface;
 - deterministic stationary/AI-disabled behavior unless a scenario explicitly requires target movement.
@@ -25,7 +25,7 @@ Exact local contracts and the first guarded diagnostic runs refine that lifecycl
 - the public `IsAIEnabled` getter intentionally reports true for non-controllable units, so the safety gate reads the pinned private `m_AiEnabled` backing field after using the public setter;
 - `ItemsCollection.HasLoot`, rather than stock body-inventory count, is the native no-loot predicate;
 - native single-attack selection first calculates exact hand attack counts, chooses an eligible primary hand, then an eligible secondary hand, and only then falls back to the first additional limb whose `HasWeapon` is true; the selected blueprint must separately prove `IsNatural=true` and `IsRanged=false`;
-- the fresh stock companion template has no additional limb, but this is not evidence of weapon absence: `WeaponSlot.MaybeWeapon` returns `UnitBody.EmptyHandWeapon` for an empty active hand slot. The target must resolve that exact blueprint through `PrimaryHand`, prove at least one primary main attack, and retain identical before/after additional-limb counts. No blueprint, target body, active mount, player inventory, or save is mutated;
+- the fresh stock companion template has no additional limb, but this is not evidence of weapon absence: `WeaponSlot.MaybeWeapon` returns `UnitBody.EmptyHandWeapon` for an empty active hand slot, while an initialized primary-hand item remains separately possible. The target must resolve a natural-melee weapon through `PrimaryHand`, prove at least one primary main attack, classify the source as exactly primary-hand item or empty-hand fallback, and retain identical before/after primary item, fallback, and limb identities. No blueprint, target body, active mount, player inventory, or save is mutated;
 - cleanup first proves entity absence, then exact empty-group removal and disposal, and finally waits across Unity's deferred object-destruction boundary before claiming the runtime faction removed. Combat evidence publishes all three proofs independently.
 
 ## Fail-closed gates

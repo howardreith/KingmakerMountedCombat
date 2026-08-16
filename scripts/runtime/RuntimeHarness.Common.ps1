@@ -7183,6 +7183,8 @@ function Assert-KmcCombatScenarioEvidence {
         'targetBlueprintId','runtimeGroupId','blueprintEmptyHandWeaponBlueprintId','targetNativeSingleAttackWeaponBlueprintId',
         'targetNativeSingleAttackSlot','targetPrimaryMainAttacks','targetSecondaryMainAttacks',
         'additionalLimbCountBefore','additionalLimbCountAfter','noWeaponProvisioningMutation','noLoot','rawAiDisabled',
+        'targetPrimaryHandHasItem','targetWeaponUsesEmptyHandFallback',
+        'targetNativeSingleAttackWeaponIsNatural','targetNativeSingleAttackWeaponIsMelee',
         'bidirectionalHostility','noExperienceReward') 'combat target provisioning evidence'
     Assert-KmcExactProperties $record.pose @(
         'profileId','healthyAtOutcome','configuredAtEnd','attachmentLeaseAtEnd','residueAtEnd') 'combat pose evidence'
@@ -7212,7 +7214,7 @@ function Assert-KmcCombatScenarioEvidence {
         if ([string]$record.targetProvisioning.targetBlueprintId -cne 'e7aa96d15a45238438ae4cfb476f6bb9' -or
             [string]$record.targetProvisioning.runtimeGroupId -cne ('KMC.RuntimeHostile.' + [string]$Request.runId) -or
             [string]$record.targetProvisioning.blueprintEmptyHandWeaponBlueprintId -cnotmatch '^[0-9a-f]{32}$' -or
-            [string]$record.targetProvisioning.targetNativeSingleAttackWeaponBlueprintId -cne [string]$record.targetProvisioning.blueprintEmptyHandWeaponBlueprintId -or
+            [string]$record.targetProvisioning.targetNativeSingleAttackWeaponBlueprintId -cnotmatch '^[0-9a-f]{32}$' -or
             [string]$record.targetProvisioning.targetNativeSingleAttackSlot -cne 'PrimaryHand' -or
             (($record.targetProvisioning.targetPrimaryMainAttacks -isnot [int]) -and ($record.targetProvisioning.targetPrimaryMainAttacks -isnot [long])) -or
             (($record.targetProvisioning.targetSecondaryMainAttacks -isnot [int]) -and ($record.targetProvisioning.targetSecondaryMainAttacks -isnot [long])) -or
@@ -7222,6 +7224,13 @@ function Assert-KmcCombatScenarioEvidence {
             [int]$record.targetProvisioning.targetSecondaryMainAttacks -lt 0 -or
             [int]$record.targetProvisioning.additionalLimbCountBefore -ne [int]$record.targetProvisioning.additionalLimbCountAfter -or
             $record.targetProvisioning.noWeaponProvisioningMutation -ne $true -or
+            $record.targetProvisioning.targetPrimaryHandHasItem -isnot [bool] -or
+            $record.targetProvisioning.targetWeaponUsesEmptyHandFallback -isnot [bool] -or
+            [bool]$record.targetProvisioning.targetPrimaryHandHasItem -eq [bool]$record.targetProvisioning.targetWeaponUsesEmptyHandFallback -or
+            ([bool]$record.targetProvisioning.targetWeaponUsesEmptyHandFallback -and
+                [string]$record.targetProvisioning.targetNativeSingleAttackWeaponBlueprintId -cne [string]$record.targetProvisioning.blueprintEmptyHandWeaponBlueprintId) -or
+            $record.targetProvisioning.targetNativeSingleAttackWeaponIsNatural -ne $true -or
+            $record.targetProvisioning.targetNativeSingleAttackWeaponIsMelee -ne $true -or
             $record.targetProvisioning.noLoot -ne $true -or $record.targetProvisioning.rawAiDisabled -ne $true -or
             $record.targetProvisioning.bidirectionalHostility -ne $true -or
             $record.targetProvisioning.noExperienceReward -ne $true) {
