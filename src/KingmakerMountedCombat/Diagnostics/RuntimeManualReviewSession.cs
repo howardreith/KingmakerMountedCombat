@@ -44,6 +44,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly IModLogger logger;
         private readonly Func<int> loadRequestCount;
         private readonly Func<int> saveRequestCount;
+        private readonly ManualReviewBoundaryGuard boundaryGuard =
+            new ManualReviewBoundaryGuard(TimeSpan.FromSeconds(15));
         private int stableReadyFrames;
         private bool started;
         private bool disposed;
@@ -96,7 +98,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     return;
                 }
 
-                ValidateReadOnlyBoundary();
+                if (!ValidateReadOnlyBoundary())
+                {
+                    return;
+                }
                 if (IsReady)
                 {
                     return;
@@ -199,7 +204,10 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void Start()
         {
-            ValidateReadOnlyBoundary();
+            if (!ValidateReadOnlyBoundary())
+            {
+                throw new InvalidOperationException("Manual review could not establish the exact Working fixture boundary.");
+            }
             var game = Game.Instance;
             if (game == null || game.Player == null || game.CurrentlyLoadedArea == null ||
                 game.CurrentMode != GameModeType.Default || game.Player.IsInCombat)
@@ -225,7 +233,7 @@ namespace KingmakerMountedCombat.Diagnostics
             logger.Info("Manual visual review mounted the exact qualified rider/Mammoth pair; stabilizing pose and UI evidence.");
         }
 
-        private void ValidateReadOnlyBoundary()
+        private bool ValidateReadOnlyBoundary()
         {
             if (!saveAuthorization.IsActive || saveAuthorization.FatalViolationCount != 0 ||
                 saveAuthorization.AuthorizedWriteCount != 0 || saveAuthorization.UnauthorizedLoadCount != 0 ||
@@ -234,17 +242,53 @@ namespace KingmakerMountedCombat.Diagnostics
                 throw new InvalidOperationException("Manual review save boundary is no longer exact read-only Working-load-only state.");
             }
 
-            var game = Game.Instance;
-            var working = request.Fixture.Working;
-            if (game == null || game.Player == null || game.Player.MainCharacter.Value == null ||
-                game.CurrentlyLoadedArea == null ||
-                !string.Equals(game.Player.GameId, working.GameId, StringComparison.Ordinal) ||
-                !string.Equals(game.Player.MainCharacter.Value.CharacterName, working.GameName, StringComparison.Ordinal) ||
-                !string.Equals(game.CurrentlyLoadedArea.AssetGuidThreadSafe, working.Area, StringComparison.Ordinal) ||
-                game.Player.IsInCombat || game.CurrentMode != GameModeType.Default)
+            var boundary = CaptureFixtureBoundary();
+            var decision = boundaryGuard.Observe(IsReady, boundary, DateTimeOffset.UtcNow);
+            if (decision == ManualReviewBoundaryDecision.Continue)
             {
-                throw new InvalidOperationException("Manual review left the exact noncombat Working fixture boundary.");
+                return true;
             }
+
+            if (decision == ManualReviewBoundaryDecision.BeginProcessTeardown)
+            {
+                settings.EnableUnsafeMovementExperiment = false;
+                var cleanup = relationship.Dismount(CleanupTrigger.ProcessTeardown);
+                if (!cleanup.Succeeded || cleanup.MovementAuthorityResidual || cleanup.PresentationResidual)
+                {
+                    throw new InvalidOperationException("Manual review process-exit cleanup retained mounted residue.");
+                }
+
+                logger.Info("Manual visual review observed normal post-READY fixture teardown; waiting briefly for process exit.");
+                return false;
+            }
+
+            if (decision == ManualReviewBoundaryDecision.ContinueProcessTeardown)
+            {
+                return false;
+            }
+
+            throw new InvalidOperationException(
+                boundaryGuard.ProcessTeardownStarted
+                    ? "Manual review did not complete process exit within the bounded teardown grace."
+                    : "Manual review left the exact noncombat Working fixture boundary.");
+        }
+
+        private ManualReviewFixtureBoundary CaptureFixtureBoundary()
+        {
+            var game = Game.Instance;
+            if (game == null || game.Player == null || game.Player.MainCharacter.Value == null ||
+                game.CurrentlyLoadedArea == null)
+            {
+                return ManualReviewFixtureBoundary.FixtureUnavailable;
+            }
+
+            var working = request.Fixture.Working;
+            return string.Equals(game.Player.GameId, working.GameId, StringComparison.Ordinal) &&
+                string.Equals(game.Player.MainCharacter.Value.CharacterName, working.GameName, StringComparison.Ordinal) &&
+                string.Equals(game.CurrentlyLoadedArea.AssetGuidThreadSafe, working.Area, StringComparison.Ordinal) &&
+                !game.Player.IsInCombat && game.CurrentMode == GameModeType.Default
+                    ? ManualReviewFixtureBoundary.Exact
+                    : ManualReviewFixtureBoundary.Invalid;
         }
 
         private void WriteReadyEvidence(MountedPlayerActionAvailability availability, IReadOnlyList<string> selectedUnitIds)

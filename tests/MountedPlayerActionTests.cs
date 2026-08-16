@@ -14,6 +14,8 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("player action becomes dismount while mounted", BecomesDismountWhileMounted);
             runner.Run("player action permits fault cleanup when feature disabled", PermitsFaultCleanupWhenFeatureDisabled);
             runner.Run("player action rejects double activation during transition", RejectsDoubleActivationDuringTransition);
+            runner.Run("player action feedback follows an external mount transition", FeedbackFollowsExternalMountTransition);
+            runner.Run("player action feedback retains an operation result while availability is stable", FeedbackRetainsStableOperationResult);
         }
 
         private static void HiddenWithoutLoadedGame()
@@ -110,6 +112,33 @@ namespace KingmakerMountedCombat.Tests
             var result = MountedPlayerActionEvaluator.Evaluate(context);
             TestRunner.Equal(false, result.IsEnabled, "Action accepted a double activation during Mounting.");
             TestRunner.True(result.Feedback.Contains("already in progress"), "Transition rejection reason missing.");
+        }
+
+        private static void FeedbackFollowsExternalMountTransition()
+        {
+            var feedback = new MountedPlayerActionFeedbackState("stale initial feedback");
+            var mount = MountedPlayerActionEvaluator.Evaluate(EligibleContext());
+            TestRunner.Equal("Ready to mount.", feedback.ObserveAvailability(mount), "Eligible Mount feedback was not projected.");
+
+            var mountedContext = EligibleContext();
+            mountedContext.RelationshipState = RelationshipState.Mounted;
+            var dismount = MountedPlayerActionEvaluator.Evaluate(mountedContext);
+            TestRunner.Equal(
+                "Mounted relationship is active.",
+                feedback.ObserveAvailability(dismount),
+                "Direct automation mount left stale Mount feedback beside Dismount.");
+        }
+
+        private static void FeedbackRetainsStableOperationResult()
+        {
+            var feedback = new MountedPlayerActionFeedbackState(string.Empty);
+            var availability = MountedPlayerActionEvaluator.Evaluate(EligibleContext());
+            feedback.ObserveAvailability(availability);
+            feedback.SetOperationFeedback("Exact transition result.");
+            TestRunner.Equal(
+                "Exact transition result.",
+                feedback.ObserveAvailability(availability),
+                "A stable availability projection erased the operation result.");
         }
 
         private static MountedPlayerActionContext EligibleContext()

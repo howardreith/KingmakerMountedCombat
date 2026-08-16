@@ -36,6 +36,7 @@
     <Compile Include="Program.cs" />
     <Compile Include="MountedRelationshipTests.cs" />
     <Compile Include="MountedPlayerActionTests.cs" />
+    <Compile Include="ManualReviewBoundaryGuardTests.cs" />
     <Compile Include="RuntimeSaveAuthorizationTests.cs" />
     <Compile Include="StopEarlyCaptureBoundaryTests.cs" />
     <Compile Include="WorkingFixtureLoadWatchdogTests.cs" />
@@ -84,6 +85,9 @@
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\NavigationEndpointDistanceTracker.cs">
       <Link>Shared\NavigationEndpointDistanceTracker.cs</Link>
     </Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\ManualReviewBoundaryGuard.cs">
+      <Link>Shared\ManualReviewBoundaryGuard.cs</Link>
+    </Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\NativeLifecycleDeliveryLedger.cs">
       <Link>Shared\NativeLifecycleDeliveryLedger.cs</Link>
     </Compile>
@@ -102,6 +106,7 @@
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedPair.cs"><Link>Shared\Domain\MountedPair.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedPairCandidate.cs"><Link>Shared\Domain\MountedPairCandidate.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedPlayerAction.cs"><Link>Shared\Domain\MountedPlayerAction.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedPlayerActionFeedbackState.cs"><Link>Shared\Domain\MountedPlayerActionFeedbackState.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedRelationshipCoordinator.cs"><Link>Shared\Domain\MountedRelationshipCoordinator.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MovementTelemetry.cs"><Link>Shared\Domain\MovementTelemetry.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedRiderPoseProfile.cs"><Link>Shared\Domain\MountedRiderPoseProfile.cs</Link></Compile>

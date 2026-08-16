@@ -22,7 +22,7 @@ All core claims require two consecutive fresh-process passes from one clean comm
 | 12 | `native-mode-transition-cleanup` | actual RT/TB transition delivery where safely observable | PASS — `20260815T015500Z-native-mode-qualified-passA-exact`, `60/0` | PASS — `20260815T020000Z-native-mode-qualified-passB-exact`, `60/0` |
 | 13 | `presentation-residue-and-uninstall-safety` | mod disable/feature absent, transform/UI/entity residue zero | PASS — `20260815T020500Z-residue-uninstall-qualified-passA-exact`, `63/0` | PASS — `20260815T021000Z-residue-uninstall-qualified-passB-exact`, `63/0` |
 
-## Combat rows locked pending exact visual acceptance
+## Combat rows authorized after exact visual acceptance
 
 | Tranche | Scenarios | Status |
 |---|---|---|
@@ -32,7 +32,7 @@ All core claims require two consecutive fresh-process passes from one clean comm
 | Lifecycle | rider/mount death and incapacitation, view/party/save/load/area/disable/exception boundaries | TODO |
 | Stretch | reach, AoO, and basic charge RT/TB plus isolation | TODO |
 
-Combat implementation and execution are forbidden before explicit user acceptance of the exact Phase 2A review package.
+The user accepted exact review commit/package `09a63729e0847c540ae7e79e9e3876d005ee9afe` / `80b0498cd9d1e6d8dd518ffd8d343af56bcc711306492548c221b9559c98cef7`. Combat implementation is authorized; no runtime credit is inferred from that acceptance.
 
 Camera qualification note: dev.11 Pass A passed all `59/0` assertions, but dev.11 Pass B produced one stationary LateUpdate view/entity terrain snap of `1.5942225456` units, position lag observed/permitted/violations `5/4/1`, and therefore failed `28/2`. That immutable failure remains preserved and uncredited. Dev.12's exact-token, exact-active-rider-only `UnitEntityView.ForcePlaceAboveGround` suppression and deterministic probe then qualified in two fresh same-package processes at `61/0` each. A/B recorded position lag observed/permitted/violations `3/3/0` and `2/2/0`, zero stationary violations, zero final residual, camera away/back and return, zero routing/selection/non-pair faults, healthy pose application, five reconciled captures each, and exact external restoration. The qualifying package binds commit `e1dabf412a0c7a80924b305752f1f84b1f0334dd`, ZIP SHA-256 `a748b5f00afc69cd50e3224ea9f737bbc440cf1914839248d834c20f54be025a`, DLL SHA-256 `d6c1222f933a8864c75ff42bf172c0c0b7fa42a8a34bc5cfec749a1701a4db1a`, and MVID `cdf65654-464e-4dc9-87a9-a75fc0d2c4fb`. No validator or threshold changed. All individual Phase 2A rows are technically qualified A/B; two complete-suite processes and manual review remain open.
 

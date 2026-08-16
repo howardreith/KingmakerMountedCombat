@@ -1,6 +1,8 @@
 # Phase 2 qualification
 
-Status: BLOCKED - MANUAL VISUAL ACCEPTANCE REQUIRED
+Status: IN PROGRESS - COMBAT QUALIFICATION AUTHORIZED
+
+The exact Phase 2A build accepted by the user is commit `09a63729e0847c540ae7e79e9e3876d005ee9afe`, package/manifest/DLL SHA-256 `80b0498cd9d1e6d8dd518ffd8d343af56bcc711306492548c221b9559c98cef7` / `6ba6a3da57355d61e7d181d1a43738530646ebc31db7c8e7c890a3310d28ca00` / `68e71ff952b8ea48aa4c77479d968680837c54b975f94ae977cc872be485b097`, and MVID `f4347f61-7a6b-43c0-8c4c-ccacb0002944`. Human acceptance closes the presentation gate with the exact known limitations recorded in the Phase 2A report. Combat rows remain unqualified until their own deterministic and fresh-process evidence passes.
 
 Phase 2 intake, transient persistence/native lifecycle, player action, all seven individual presentation rows, and the complete seven-row presentation suite are qualified twice in fresh processes. The exact review.2 package was created from clean guarded-published commit `9686105e6ebc7531764b2f614e9d323b6d427410`, passed package validation `10/0`, and passed the full-pin manual launcher `-WhatIf` with no mutation. Fresh same-package runs `20260815T143000Z-presentation-suite-review2-passA` and `20260815T142900Z-presentation-suite-review2-passB` each pass all seven rows at aggregate `381/0`. The earlier dev.12 `380/1` cold first-row failure and review.1 pre-mutation launcher-WhatIf failure remain preserved and uncredited. Only explicit human visual acceptance is open; no combat implementation or runtime row is claimed.
 

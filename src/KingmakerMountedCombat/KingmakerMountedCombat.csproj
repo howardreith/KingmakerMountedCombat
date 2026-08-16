@@ -86,6 +86,7 @@
     <Compile Include="Diagnostics\MovementScreenshotCaptureCoordinator.cs" />
     <Compile Include="Diagnostics\MovementScreenshotCaptureState.cs" />
     <Compile Include="Diagnostics\MovementTelemetryWriter.cs" />
+    <Compile Include="Diagnostics\ManualReviewBoundaryGuard.cs" />
     <Compile Include="Diagnostics\MovementNavigationBoundaryPolicy.cs" />
     <Compile Include="Diagnostics\MovementRadialDistanceOrder.cs" />
     <Compile Include="Diagnostics\NavigationEndpointDistanceTracker.cs" />
@@ -110,6 +111,7 @@
     <Compile Include="Domain\MountedPair.cs" />
     <Compile Include="Domain\MountedPairCandidate.cs" />
     <Compile Include="Domain\MountedPlayerAction.cs" />
+    <Compile Include="Domain\MountedPlayerActionFeedbackState.cs" />
     <Compile Include="Domain\MountedRelationshipCoordinator.cs" />
     <Compile Include="Domain\MovementTelemetry.cs" />
     <Compile Include="Domain\MountedRiderPoseProfile.cs" />

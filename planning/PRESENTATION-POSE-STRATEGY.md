@@ -1,6 +1,8 @@
 # Presentation pose strategy
 
-Status: IN PROGRESS
+Status: PASS - ACCEPTED MAMMOTH-SPECIFIC FOUNDATION
+
+The exact `medium-humanoid-mammoth-v1` presentation was explicitly accepted for continued private-alpha engineering at commit `09a63729e0847c540ae7e79e9e3876d005ee9afe`. Acceptance retains a slight seat gap, analytical stiffness, no saddle/reins, and the exact one-handed fixture-only coverage as known issues; it confers no support for another rider category or mount anatomy.
 
 ## Inherited evidence
 

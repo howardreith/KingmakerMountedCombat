@@ -18,6 +18,8 @@ namespace KingmakerMountedCombat.Integration
         private readonly GameMountedRelationshipService relationship;
         private readonly DiagnosticSettings settings;
         private readonly IModLogger logger;
+        private readonly MountedPlayerActionFeedbackState feedbackState =
+            new MountedPlayerActionFeedbackState("Ready to mount when the selected rider is eligible.");
         private GameObject overlayObject;
         private MountedPlayerActionOverlay overlay;
         private bool disposed;
@@ -35,10 +37,12 @@ namespace KingmakerMountedCombat.Integration
         public MountedPlayerActionAvailability GetAvailability()
         {
             ThrowIfDisposed();
-            return MountedPlayerActionEvaluator.Evaluate(CaptureContext());
+            var availability = MountedPlayerActionEvaluator.Evaluate(CaptureContext());
+            feedbackState.ObserveAvailability(availability);
+            return availability;
         }
 
-        public string LastFeedback { get; private set; } = "Ready to mount when the selected rider is eligible.";
+        public string LastFeedback => feedbackState.LastFeedback;
 
         internal bool OverlayPresent => overlay != null && overlayObject != null;
 
@@ -88,7 +92,7 @@ namespace KingmakerMountedCombat.Integration
             var availability = GetAvailability();
             if (!availability.IsVisible || !availability.IsEnabled)
             {
-                LastFeedback = availability.Feedback;
+                feedbackState.SetOperationFeedback(availability.Feedback);
                 return false;
             }
 
@@ -108,17 +112,17 @@ namespace KingmakerMountedCombat.Integration
                 }
                 else
                 {
-                    LastFeedback = "No mounted player action is currently available.";
+                    feedbackState.SetOperationFeedback("No mounted player action is currently available.");
                     return false;
                 }
 
                 NormalizeSelectionToRider(rider);
-                LastFeedback = relationship.LastResult;
+                feedbackState.SetOperationFeedback(relationship.LastResult);
                 return transition.Succeeded;
             }
             catch (Exception exception)
             {
-                LastFeedback = "Mounted action failed closed: " + exception.GetType().Name + ".";
+                feedbackState.SetOperationFeedback("Mounted action failed closed: " + exception.GetType().Name + ".");
                 logger.Error(LastFeedback);
                 var cleanup = relationship.Dismount(CleanupTrigger.Exception);
                 if (!cleanup.Succeeded || cleanup.MovementAuthorityResidual || cleanup.PresentationResidual)
@@ -136,7 +140,7 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
 
-            LastFeedback = "Transient mounted-action UI disabled after an exception: " + exception.GetType().Name + ".";
+            feedbackState.SetOperationFeedback("Transient mounted-action UI disabled after an exception: " + exception.GetType().Name + ".");
             logger.Error(LastFeedback);
             var cleanup = relationship.Dismount(CleanupTrigger.Exception);
             if (!cleanup.Succeeded || cleanup.MovementAuthorityResidual || cleanup.PresentationResidual)

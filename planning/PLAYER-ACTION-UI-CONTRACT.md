@@ -1,6 +1,8 @@
 # Player action and UI contract
 
-Status: IN PROGRESS
+Status: PASS - PRESENTATION BASELINE; COMBAT CONTROLS OPEN
+
+Manual review exposed one truthful projection defect: automation mounted the pair without passing through `MountedPlayerActionController.Activate`, so `Dismount` could be rendered beside stale readiness-to-mount feedback. The post-acceptance controller now retains operation feedback only while the complete availability projection is stable and immediately adopts the current evaluator feedback after an external action/state transition. Deterministic regressions cover both behaviors.
 
 ## Player intent
 

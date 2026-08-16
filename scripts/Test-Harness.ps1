@@ -3561,11 +3561,13 @@ try {
             $runtimeLauncherSource.Contains('Restore-KmcRuntimeTransactions') -and
             $runtimeLauncherSource.Contains("visualAcceptance='PENDING'") -and
             -not $runtimeLauncherSource.Contains('Stop-Process')) 'guarded runtime launcher lacks exact interactive READY, pending-acceptance, wait, or restoration boundaries'
-        Assert-Test ($manualSessionSource.Contains('ValidateReadOnlyBoundary();') -and
+        Assert-Test ($manualSessionSource.Contains('if (!ValidateReadOnlyBoundary())') -and
             $manualSessionSource.Contains('saveAuthorization.AuthorizedWriteCount != 0') -and
             $manualSessionSource.Contains('game.Player.MainCharacter.Value == null') -and
             $manualSessionSource.Contains('relationship.MountAutomationPair()') -and
             $manualSessionSource.Contains('VisualAcceptance = "PENDING"') -and
+            $manualSessionSource.Contains('ManualReviewBoundaryDecision.BeginProcessTeardown') -and
+            $manualSessionSource.Contains('ManualReviewFixtureBoundary.Invalid') -and
             $manualSessionSource.Contains('Application.Quit();')) 'in-game manual review session lacks exact read-only, mount, pending-acceptance, or failure-quit behavior'
     }
 

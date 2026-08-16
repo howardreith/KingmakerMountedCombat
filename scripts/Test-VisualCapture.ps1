@@ -122,12 +122,14 @@ Assert-VisualCapture ($poseAcquireIndex -ge 0 -and
     $posePrimeMethod.Contains('var started = Stopwatch.GetTimestamp();') -and
     $posePrimeMethod.Contains('baselineLease.PrimeFrame(ApplyPose);') -and
     $posePrimeMethod.Contains('TicksToMicroseconds(Stopwatch.GetTimestamp() - started)')) 'pose cold path is reversibly primed before per-frame evidence counters and configuration become active'
-Assert-VisualCapture ($manualReview.Contains('ValidateReadOnlyBoundary();') -and
+Assert-VisualCapture ($manualReview.Contains('if (!ValidateReadOnlyBoundary())') -and
     $manualReview.Contains('saveAuthorization.AuthorizedWriteCount != 0') -and
     $manualReview.Contains('relationship.MountAutomationPair()') -and
     $manualReview.Contains('runtime.PoseFrameApplied') -and
     $manualReview.Contains('VisualAcceptance = "PENDING"') -and
     $manualReview.Contains('relationship.Dismount(CleanupTrigger.ProcessTeardown)') -and
+    $manualReview.Contains('ManualReviewBoundaryDecision.BeginProcessTeardown') -and
+    $manualReview.Contains('ManualReviewFixtureBoundary.Invalid') -and
     $composition.Contains('runtimeAutomation != null && !runtimeAutomation.IsManualReview')) 'manual review establishes exact mounted pose/UI state without writes or unbounded telemetry and retains process-teardown cleanup'
 $cameraResolveIndex = $coordinator.IndexOf('var camera = Game.GetCamera();', [StringComparison]::Ordinal)
 $cameraGuardIndex = $coordinator.IndexOf('if (!camera)', $cameraResolveIndex, [StringComparison]::Ordinal)

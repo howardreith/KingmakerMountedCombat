@@ -1,10 +1,12 @@
 # Phase 2A presentation report
 
-Status: BLOCKED - MANUAL VISUAL ACCEPTANCE REQUIRED
+Status: PASS - ACCEPTED FOUNDATION WITH KNOWN ISSUES
 
 Authority: `planning/MOUNTED-COMBAT-PHASE-2-MASTER-MISSION.md`.
 
-The Phase 2A technical presentation matrix is green: persistence/uninstall, all seven individual rows, and the full seven-row aggregate pass twice in fresh processes. Dev.13 complete-suite A/B closed the dev.12 cold first-row cost outlier without weakening a threshold. Review.2 adds the guarded read-only human-review protocol and corrected launcher scope; its exact package passes the full-pin manual `-WhatIf`, two fresh same-package complete-suite repeats, and guarded publication. Review.1 is preserved unqualified after its launcher WhatIf failed before mutation. Only manual visual acceptance remains open. Phase 1 established only a mechanically stable attachment with `MECHANICALLY VIABLE, NEW ANIMATION/POSE WORK REQUIRED` presentation; no subjective acceptance is inferred from automated Phase 2A captures.
+The Phase 2A technical presentation matrix is green: persistence/uninstall, all seven individual rows, and the full seven-row aggregate pass twice in fresh processes. The user explicitly accepted final review commit `09a63729e0847c540ae7e79e9e3876d005ee9afe` and package SHA-256 `80b0498cd9d1e6d8dd518ffd8d343af56bcc711306492548c221b9559c98cef7` as the presentation foundation for private-alpha combat engineering. The acceptance is scoped only to the supported Medium-humanoid/Mammoth/one-handed fixture and is not a public-release-quality claim.
+
+Known accepted issues remain: slight seat gap/hover above the Mammoth back, stiff analytical posture, no saddle/reins, no evidence for other equipment/body/mount profiles, and a Mammoth-specific anchor/profile that cannot be generalized. The reviewer also observed contradictory status copy (`Dismount` beside readiness-to-mount text); the post-acceptance regression synchronizes feedback to direct relationship transitions. The session reached exact READY and restored every external boundary, but its immutable terminal evidence says FAIL because ordinary process teardown was misclassified about four seconds before exit. That lifecycle-monitor defect is repaired with a bounded one-way post-READY teardown state; the historical failure is retained.
 
 Tranche A lifecycle and transient-persistence safety are runtime-qualified at version `0.1.0-phase2a-dev.1`: the deterministic player-action controller passes availability twice at `29/0` and mount/dismount twice at `44/0`. Actual mounted IMGUI repaint plus native selection/portrait/circle/action-bar ownership later qualified twice at dev.11 `30/0`. Native save passes twice at `63/0`, proving exactly one real `SaveRoutine` prefix delivery, synchronous clean dismount, one bounded no-write suppression, unchanged Working identity, and exact restoration. It does not claim stock serialization or a save round trip.
 
