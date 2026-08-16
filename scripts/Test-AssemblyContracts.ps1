@@ -155,6 +155,8 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.UnitLogic.Commands.Base.UnitCommand',0x060027A7,'Tick'),
         @('Kingmaker.PubSubSystem.EventBus',0x060074BB,'Subscribe'),
         @('Kingmaker.PubSubSystem.RulebookEventBus',0x06007540,'Subscribe'),
+        @('Kingmaker.RuleSystem.Rules.RuleAttackRoll',0x06007131,'get_Result'),
+        @('Kingmaker.RuleSystem.Rules.RuleAttackRoll',0x0600716B,'get_IsHit'),
         @('Kingmaker.EntitySystem.Entities.UnitEntityData',0x06008330,'get_AreHandsBusyWithAnimation'),
         @('Kingmaker.EntitySystem.Entities.UnitEntityData',0x0600834E,'CanAttack'),
         @('Kingmaker.Controllers.Units.UnitHandEquipmentController',0x06009154,'IsUpdateScheduledFor'),
@@ -187,6 +189,11 @@ if($Target-eq'Kingmaker'){
         @($globalRulebookHandler.GetInterfaces()|Where-Object MetadataToken -eq 0x02000DC2).Count-eq1 -and
         @($globalRulebookHandler.GetInterfaces()|Where-Object MetadataToken -eq 0x02000DFA).Count-eq1) `
         'global Rulebook handler exact subscription-marker inheritance'
+    $ruleAttackRollIsHit=@(Find-Token 'Kingmaker.RuleSystem.Rules.RuleAttackRoll' 0x0600716B)
+    Assert-Contract ($ruleAttackRollIsHit.Count-eq1 -and $ruleAttackRollIsHit[0] -is [Reflection.MethodInfo] -and
+        $ruleAttackRollIsHit[0].IsPublic -and -not $ruleAttackRollIsHit[0].IsStatic -and
+        $ruleAttackRollIsHit[0].ReturnType.FullName-ceq'System.Boolean' -and $ruleAttackRollIsHit[0].GetParameters().Count-eq0) `
+        'RuleAttackRoll.IsHit exact public instance Boolean signature'
     $forcePlaceAboveGround=@(Find-Token 'Kingmaker.View.UnitEntityView' 0x06001848)
     Assert-Contract ($forcePlaceAboveGround.Count-eq1 -and $forcePlaceAboveGround[0] -is [Reflection.MethodInfo] -and
         $forcePlaceAboveGround[0].IsPublic -and -not $forcePlaceAboveGround[0].IsStatic -and

@@ -665,14 +665,16 @@ namespace KingmakerMountedCombat.Diagnostics
                     : "Rulebook observed exactly one rider attack/roll, at most one damage event, and no pair duplicate.");
             assertions.Check(IsMissRow
                     ? ruleProbe.ForcedD20 == 1 && ruleProbe.ForcedD20Count >= 1 &&
-                        string.Equals(ruleProbe.LastAttackResult, "Miss", StringComparison.Ordinal) &&
+                        ruleProbe.LastAttackHit == false &&
+                        string.Equals(ruleProbe.LastAttackResult, "ArmorAC", StringComparison.Ordinal) &&
                         ruleProbe.TotalDamage == 0
                     : ruleProbe.ForcedD20 == 20 && ruleProbe.ForcedD20Count >= 1 &&
+                        ruleProbe.LastAttackHit == true &&
                         (string.Equals(ruleProbe.LastAttackResult, "Hit", StringComparison.Ordinal) ||
                          string.Equals(ruleProbe.LastAttackResult, "CriticalHit", StringComparison.Ordinal)),
                 IsMissRow
-                    ? "Deterministic natural 1 produced an exact zero-damage miss."
-                    : "Deterministic natural 20 produced a hit or critical-hit result.");
+                    ? "Deterministic natural 1 produced native IsHit=false, exact ArmorAC miss reason, and zero damage."
+                    : "Deterministic natural 20 produced native IsHit=true and a hit or critical-hit result.");
             assertions.Check(string.Equals(ruleProbe.LastInitiatorId, rider.UniqueId, StringComparison.Ordinal) &&
                     string.Equals(ruleProbe.LastTargetId, targetId, StringComparison.Ordinal),
                 "Rulebook identities remained the exact rider and diagnostic target.");
@@ -822,7 +824,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var selected = SelectionManager.Instance?.SelectedUnits;
             var record = new CombatEvidenceRecord
             {
-                SchemaVersion = IsTurnBasedRow ? 5 : 4,
+                SchemaVersion = IsTurnBasedRow ? 7 : 6,
                 ArtifactKind = "combat-scenario-evidence",
                 RunId = request.RunId,
                 Scenario = request.Scenario,
@@ -1461,6 +1463,7 @@ namespace KingmakerMountedCombat.Diagnostics
             public string LastInitiatorId { get; set; }
             public string LastTargetId { get; set; }
             public string LastAttackResult { get; set; }
+            public bool? LastAttackHit { get; set; }
 
             public static CombatRuleEvidence From(MountedCombatRuleProbe value)
             {
@@ -1475,7 +1478,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     TotalDamage = value.TotalDamage,
                     LastInitiatorId = value.LastInitiatorId,
                     LastTargetId = value.LastTargetId,
-                    LastAttackResult = value.LastAttackResult
+                    LastAttackResult = value.LastAttackResult,
+                    LastAttackHit = value.LastAttackHit
                 };
             }
         }

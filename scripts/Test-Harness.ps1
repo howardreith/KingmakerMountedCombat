@@ -1074,7 +1074,7 @@ function New-TestCombatEvidenceRecord {
     $isTurnBased = [string]$Request.scenario -ceq 'mounted-rider-melee-hit-tb'
     $isMiss = [string]$Request.scenario -ceq 'mounted-rider-melee-miss-rt'
     $record = [ordered]@{
-        schemaVersion=$(if ($isTurnBased) { 5 } else { 4 });artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
+        schemaVersion=$(if ($isTurnBased) { 7 } else { 6 });artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
         scenario=[string]$Request.scenario;row=[string]$Request.scenario;rowIndex=0;sequence=0;frame=30
         utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o');branch=[string]$Request.branch
         commit=[string]$Request.commit;productVersion=[string]$Request.productVersion
@@ -1118,7 +1118,7 @@ function New-TestCombatEvidenceRecord {
             forcedD20=$(if ($isMiss) { 1 } else { 20 });forcedD20Count=1;attackRuleCount=1;attackRollCount=1
             damageRuleCount=$(if ($isMiss) { 0 } else { 1 });unexpectedPairAttackCount=0
             totalDamage=$(if ($isMiss) { 0 } else { 10 });lastInitiatorId=$rider;lastTargetId=$target
-            lastAttackResult=$(if ($isMiss) { 'Miss' } else { 'Hit' })
+            lastAttackResult=$(if ($isMiss) { 'ArmorAC' } else { 'Hit' });lastAttackHit=(-not $isMiss)
         }
         movement=[ordered]@{
             authoritativeMover='mount';repathCount=0;riderStockAgentEnabledAtEnd=$true;mountStockAgentEnabledAtEnd=$true
@@ -4252,7 +4252,7 @@ try {
             $engineSource.Contains('currentTurnActingAtOutcome = currentTurn != null && currentTurn.IsActing')) 'turn-based combat does not admit the native Preparing rider turn, observe Acting only after dispatch, retain it through outcome, and restore mode after cleanup'
         Assert-Test ($engineSource.Contains('CleanupTimeoutSeconds = 10.0d') -and
             $engineSource.Contains('rowClock.Elapsed.TotalSeconds - cleanupStartedAtSeconds < CleanupTimeoutSeconds')) 'combat cleanup does not retain an independent bounded drain after a row deadline'
-        Assert-Test ($engineSource.Contains('SchemaVersion = IsTurnBasedRow ? 5 : 4') -and
+        Assert-Test ($engineSource.Contains('SchemaVersion = IsTurnBasedRow ? 7 : 6') -and
             $engineSource.Contains('Mode = IsTurnBasedRow ? "turn-based" : "real-time"') -and
             $engineSource.Contains('TurnBased = IsTurnBasedRow') -and
             $engineSource.Contains('CombatEntry = CombatEntryEvidence.From(') -and
@@ -4265,7 +4265,10 @@ try {
             $combatValidatorSource.Contains("[string]`$record.command.terminalReason -cne 'completed'") -and
             $combatValidatorSource.Contains("'controllerInitialized','rosterContainsRider','rosterContainsMount','rosterContainsTarget'") -and
             $combatValidatorSource.Contains("[string]`$record.turnBased.currentTurnUnitIdAtDispatch -cne [string]`$record.riderId") -and
-            $combatValidatorSource.Contains("`$record.turnBased.persistedValueUnchanged -ne `$true")) 'schema-v4/v5 combat evidence does not bind native combat entry, terminal reason, memory cleanup, mode-specific dispatch, native rider-turn identity, and restoration'
+            $combatValidatorSource.Contains("`$record.turnBased.persistedValueUnchanged -ne `$true") -and
+            $ruleProbeSource.Contains('LastAttackHit = evt.IsHit;') -and
+            $combatValidatorSource.Contains("'lastAttackHit'") -and
+            $combatValidatorSource.Contains("`$record.rules.lastAttackHit -ne `$false")) 'schema-v6/v7 combat evidence does not bind native IsHit, native result reason, combat entry, terminal reason, memory cleanup, mode-specific dispatch, rider-turn identity, and restoration'
         foreach ($field in @('TargetEntityRemoved','RuntimeGroupRemoved','RuntimeFactionRemoved')) {
             $jsonField = [char]::ToLowerInvariant($field[0]) + $field.Substring(1)
             Assert-Test ($engineSource.Contains("$field =") -and
@@ -4303,7 +4306,7 @@ try {
     $turnBasedManifest = Read-KmcJson (Join-Path $turnBasedRequest.evidenceRoot 'runtime-artifacts.json')
     $turnBasedSubresult = [ordered]@{name=$turnBasedRequest.scenario;status='PASS';assertionPassCount=25;assertionFailCount=0;errors=@()}
 
-    Invoke-HarnessTest 'runtime request and schema-v5 evidence accept exact native stationary rider turn' {
+    Invoke-HarnessTest 'runtime request and schema-v7 evidence accept exact native stationary rider turn' {
         & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $turnBasedRequestPath
         Assert-KmcCombatScenarioEvidence -Request $turnBasedRequest -Manifest $turnBasedManifest -Status 'PASS' -SubscenarioResults @($turnBasedSubresult)
     }
@@ -4324,12 +4327,31 @@ try {
         Assert-KmcCombatScenarioEvidence -Request $missRequest -Manifest $missManifest -Status 'PASS' -SubscenarioResults @($missSubresult)
     }
 
+    Invoke-HarnessTest 'historical schema-v4 and schema-v5 combat evidence remain valid' {
+        $legacyRealTime = Copy-TestJsonValue $combatRecord
+        $legacyRealTime.schemaVersion = 4
+        $legacyRealTime.rules.PSObject.Properties.Remove('lastAttackHit')
+        [void](Write-TestCombatEvidence -EvidenceRoot $combatRequest.evidenceRoot -Request $combatRequest -Record $legacyRealTime)
+        $legacyRealTimeManifest = Read-KmcJson (Join-Path $combatRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $combatRequest -Manifest $legacyRealTimeManifest -Status 'PASS' -SubscenarioResults @($combatSubresult)
+
+        $legacyTurnBased = Copy-TestJsonValue $turnBasedRecord
+        $legacyTurnBased.schemaVersion = 5
+        $legacyTurnBased.rules.PSObject.Properties.Remove('lastAttackHit')
+        [void](Write-TestCombatEvidence -EvidenceRoot $turnBasedRequest.evidenceRoot -Request $turnBasedRequest -Record $legacyTurnBased)
+        $legacyTurnBasedManifest = Read-KmcJson (Join-Path $turnBasedRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $turnBasedRequest -Manifest $legacyTurnBasedManifest -Status 'PASS' -SubscenarioResults @($turnBasedSubresult)
+    }
+
     Invoke-HarnessTest 'combat miss validator rejects hit damage and identity mutations' {
         $mutations = @(
             @{name='forced hit';apply={param($value) $value.rules.forcedD20=20}},
             @{name='damage event';apply={param($value) $value.rules.damageRuleCount=1}},
             @{name='positive damage';apply={param($value) $value.rules.totalDamage=1}},
-            @{name='hit result';apply={param($value) $value.rules.lastAttackResult='Hit'}},
+            @{name='native hit true';apply={param($value) $value.rules.lastAttackHit=$true}},
+            @{name='native hit missing';apply={param($value) $value.rules.PSObject.Properties.Remove('lastAttackHit')}},
+            @{name='native hit null';apply={param($value) $value.rules.lastAttackHit=$null}},
+            @{name='wrong miss reason';apply={param($value) $value.rules.lastAttackResult='Miss'}},
             @{name='wrong initiator';apply={param($value) $value.rules.lastInitiatorId='combat-mount'}},
             @{name='duplicate roll';apply={param($value) $value.rules.attackRollCount=2}}
         )
@@ -4345,7 +4367,7 @@ try {
         }
     }
 
-    Invoke-HarnessTest 'schema-v5 preserves a structured pre-combat turn-based FAIL' {
+    Invoke-HarnessTest 'schema-v7 preserves a structured pre-combat turn-based FAIL' {
         $failureRecord = Copy-TestJsonValue $turnBasedRecord
         $failureRecord.status = 'FAIL'
         $failureRecord.assertionPassCount = 10
@@ -4438,6 +4460,7 @@ try {
             @{name='duplicate attack';apply={param($value) $value.rules.attackRuleCount=2}},
             @{name='duplicate damage';apply={param($value) $value.rules.damageRuleCount=2}},
             @{name='unexpected pair attack';apply={param($value) $value.rules.unexpectedPairAttackCount=1}},
+            @{name='native hit false';apply={param($value) $value.rules.lastAttackHit=$false}},
             @{name='wrong command actor';apply={param($value) $value.command.actorId='combat-mount'}},
             @{name='non-completed terminal reason';apply={param($value) $value.command.terminalReason='InvalidOperationException: target-conscious'}},
             @{name='memory not queued';apply={param($value) $value.combatEntry.memoryQueued=$false}},

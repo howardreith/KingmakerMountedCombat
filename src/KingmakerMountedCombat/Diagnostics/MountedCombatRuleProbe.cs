@@ -45,6 +45,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
         public string LastAttackResult { get; private set; }
 
+        public bool? LastAttackHit { get; private set; }
+
         public void Arm(
             UnitEntityData exactRider,
             UnitEntityData exactMount,
@@ -74,6 +76,7 @@ namespace KingmakerMountedCombat.Diagnostics
             LastInitiatorId = null;
             LastTargetId = null;
             LastAttackResult = null;
+            LastAttackHit = null;
         }
 
         public void OnEventAboutToTrigger(RuleAttackWithWeapon evt)
@@ -112,6 +115,7 @@ namespace KingmakerMountedCombat.Diagnostics
             LastInitiatorId = evt.Initiator.UniqueId;
             LastTargetId = evt.Target.UniqueId;
             LastAttackResult = evt.Result.ToString();
+            LastAttackHit = evt.IsHit;
         }
 
         public void OnEventAboutToTrigger(RuleDealDamage evt)

@@ -7138,11 +7138,11 @@ function Assert-KmcCombatScenarioEvidence {
     if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -ge 3) {
         $recordFields = @($recordFields + 'combatEntry')
     }
-    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -ge 5) {
+    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(5,7)) {
         $recordFields = @($recordFields + 'turnBased')
     }
     Assert-KmcExactProperties $record $recordFields 'combat evidence record'
-    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -notin @(1,2,3,4,5) -or
+    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -notin @(1,2,3,4,5,6,7) -or
         [string]$record.artifactKind -cne 'combat-scenario-evidence') {
         throw 'Combat evidence schemaVersion or artifactKind is not exact.'
     }
@@ -7201,7 +7201,7 @@ function Assert-KmcCombatScenarioEvidence {
             if (-not (Test-KmcJsonNumber $record.combatEntry.$name)) { throw "Combat entry evidence is not numeric: $name" }
         }
     }
-    if ([long]$record.schemaVersion -ge 5) {
+    if ([long]$record.schemaVersion -in @(5,7)) {
         $turnBooleanFields = @(
             'requested','originalEnabled','temporaryEnabled','originalRawCacheHadValue','enabledAtMount',
             'controllerInitialized','rosterContainsRider','rosterContainsMount','rosterContainsTarget',
@@ -7250,11 +7250,11 @@ function Assert-KmcCombatScenarioEvidence {
     if ($requirePass) {
         $turnBasedScenario = [string]$Request.scenario -ceq 'mounted-rider-melee-hit-tb'
         $missScenario = [string]$Request.scenario -ceq 'mounted-rider-melee-miss-rt'
-        $expectedCombatSchema = if ($turnBasedScenario) { 5 } else { 4 }
-        if ([long]$record.schemaVersion -ne $expectedCombatSchema -or
+        $expectedCombatSchemas = if ($missScenario) { @(6) } elseif ($turnBasedScenario) { @(5,7) } else { @(4,6) }
+        if ([long]$record.schemaVersion -notin $expectedCombatSchemas -or
             [string]$record.status -cne 'PASS' -or [long]$record.assertionFailCount -ne 0 -or
             [long]$record.assertionPassCount -le 0 -or @($record.errors).Count -ne 0) {
-            throw "PASS combat evidence does not contain an error-free schema-v$expectedCombatSchema PASS row."
+            throw "PASS combat evidence does not contain an error-free compatible PASS row."
         }
         $expectedCombatMode = if ($turnBasedScenario) { 'turn-based' } else { 'real-time' }
         if ([string]$record.row -cne [string]$Request.scenario -or
@@ -7382,9 +7382,14 @@ function Assert-KmcCombatScenarioEvidence {
             throw 'PASS combat command evidence does not prove a bounded native executor bridge gated exclusively by Mammoth-origin range.'
         }
 
-        Assert-KmcExactProperties $record.rules @(
+        $combatRuleFields = @(
             'forcedD20','forcedD20Count','attackRuleCount','attackRollCount','damageRuleCount',
-            'unexpectedPairAttackCount','totalDamage','lastInitiatorId','lastTargetId','lastAttackResult') 'combat rule evidence'
+            'unexpectedPairAttackCount','totalDamage','lastInitiatorId','lastTargetId','lastAttackResult')
+        if ([long]$record.schemaVersion -ge 6) { $combatRuleFields = @($combatRuleFields + 'lastAttackHit') }
+        Assert-KmcExactProperties $record.rules $combatRuleFields 'combat rule evidence'
+        if ([long]$record.schemaVersion -ge 6 -and $record.rules.lastAttackHit -isnot [bool]) {
+            throw 'PASS combat rule evidence does not contain an exact native IsHit Boolean.'
+        }
         if ([long]$record.rules.forcedD20Count -lt 1 -or
             [long]$record.rules.attackRuleCount -ne 1 -or [long]$record.rules.attackRollCount -ne 1 -or
             [long]$record.rules.unexpectedPairAttackCount -ne 0 -or
@@ -7394,12 +7399,14 @@ function Assert-KmcCombatScenarioEvidence {
         }
         if ($missScenario) {
             if ([long]$record.rules.forcedD20 -ne 1 -or [long]$record.rules.damageRuleCount -ne 0 -or
-                [long]$record.rules.totalDamage -ne 0 -or [string]$record.rules.lastAttackResult -cne 'Miss') {
-                throw 'PASS combat miss evidence does not prove one deterministic natural-1 zero-damage miss.'
+                [long]$record.rules.totalDamage -ne 0 -or $record.rules.lastAttackHit -ne $false -or
+                [string]$record.rules.lastAttackResult -cne 'ArmorAC') {
+                throw 'PASS combat miss evidence does not prove one deterministic natural-1 native IsHit=false ArmorAC zero-damage miss.'
             }
         }
         elseif ([long]$record.rules.forcedD20 -ne 20 -or
             [long]$record.rules.damageRuleCount -lt 0 -or [long]$record.rules.damageRuleCount -gt 1 -or
+            ([long]$record.schemaVersion -ge 6 -and $record.rules.lastAttackHit -ne $true) -or
             [string]$record.rules.lastAttackResult -cnotin @('Hit','CriticalHit')) {
             throw 'PASS combat hit evidence does not prove one deterministic rider hit.'
         }
