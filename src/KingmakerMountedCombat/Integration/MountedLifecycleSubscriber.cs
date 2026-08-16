@@ -15,30 +15,32 @@ namespace KingmakerMountedCombat.Integration
     {
         private readonly GameMountedRelationshipService service;
         private readonly NativeLifecycleDeliveryLedger ledger;
+        private readonly MountedCombatController combat;
         private readonly IDisposable subscription;
         private bool disposed;
 
-        public MountedLifecycleSubscriber(GameMountedRelationshipService service, NativeLifecycleDeliveryLedger ledger)
+        public MountedLifecycleSubscriber(GameMountedRelationshipService service, NativeLifecycleDeliveryLedger ledger, MountedCombatController combat)
         {
             this.service = service ?? throw new ArgumentNullException(nameof(service));
             this.ledger = ledger ?? throw new ArgumentNullException(nameof(ledger));
+            this.combat = combat ?? throw new ArgumentNullException(nameof(combat));
             subscription = EventBus.Subscribe(this);
         }
 
         public void HandleUnitJoinCombat(UnitEntityData unit)
         {
-            if (IsPairUnit(unit)) { Cleanup(NativeLifecycleBoundary.CombatStarted, "IUnitCombatHandler.HandleUnitJoinCombat", CleanupTrigger.CombatStarted); }
+            if (IsPairUnit(unit)) { Observe(NativeLifecycleBoundary.CombatStarted, "IUnitCombatHandler.HandleUnitJoinCombat"); }
         }
 
         public void HandleUnitLeaveCombat(UnitEntityData unit)
         {
-            if (IsPairUnit(unit)) { Observe(NativeLifecycleBoundary.CombatEnded, "IUnitCombatHandler.HandleUnitLeaveCombat"); }
+            if (IsPairUnit(unit)) { combat.Cancel("unit left combat"); Observe(NativeLifecycleBoundary.CombatEnded, "IUnitCombatHandler.HandleUnitLeaveCombat"); }
         }
 
         public void HandlePartyCombatStateChanged(bool inCombat)
         {
-            if (inCombat) { Cleanup(NativeLifecycleBoundary.CombatStarted, "IPartyCombatHandler.HandlePartyCombatStateChanged(true)", CleanupTrigger.CombatStarted); }
-            else { Observe(NativeLifecycleBoundary.CombatEnded, "IPartyCombatHandler.HandlePartyCombatStateChanged(false)"); }
+            if (inCombat) { Observe(NativeLifecycleBoundary.CombatStarted, "IPartyCombatHandler.HandlePartyCombatStateChanged(true)"); }
+            else { combat.Cancel("party combat ended"); Observe(NativeLifecycleBoundary.CombatEnded, "IPartyCombatHandler.HandlePartyCombatStateChanged(false)"); }
         }
 
         public void HandleUnitLifeStateChanged(UnitEntityData unit, UnitLifeState prevLifeState)
@@ -53,10 +55,10 @@ namespace KingmakerMountedCombat.Integration
 
         public void HandleTurnBasedModeStateChanged(bool enabled)
         {
-            Cleanup(
+            combat.Cancel("real-time/turn-based mode changed");
+            Observe(
                 enabled ? NativeLifecycleBoundary.TurnBasedEnabled : NativeLifecycleBoundary.RealtimeEnabled,
-                "ITurnBasedModeEnabledHandler.HandleTurnBasedModeStateChanged(" + enabled + ")",
-                enabled ? CleanupTrigger.TurnBasedModeChanged : CleanupTrigger.RealtimeModeChanged);
+                "ITurnBasedModeEnabledHandler.HandleTurnBasedModeStateChanged(" + enabled + ")");
         }
 
         public void OnGameModeStart(GameModeType gameMode)

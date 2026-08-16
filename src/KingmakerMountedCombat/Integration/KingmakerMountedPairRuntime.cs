@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using Kingmaker;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.GameModes;
@@ -14,6 +15,8 @@ namespace KingmakerMountedCombat.Integration
     internal sealed class KingmakerMountedPairRuntime : IMountedPairRuntime
     {
         internal const string MammothBlueprintGuid = "e7aa96d15a45238438ae4cfb476f6bb9";
+        private const int MammothAiBackingFieldToken = 0x040054BA;
+        private static readonly FieldInfo MammothAiBackingField = ResolveMammothAiBackingField();
 
         private readonly IModLogger logger;
         private readonly DiagnosticSettings settings;
@@ -30,6 +33,8 @@ namespace KingmakerMountedCombat.Integration
         private bool overrideComponentOwned;
         private bool overrideInstalled;
         private bool movementAuthorityConfigured;
+        private bool mountAiBackingWasEnabled;
+        private bool mountAiLeaseOwned;
         private bool riderForbidRotationWasEnabled;
         private bool riderForbidRotationLeaseOwned;
         private Transform sourceAnchor;
@@ -246,10 +251,9 @@ namespace KingmakerMountedCombat.Integration
                 return "Mounted current-size invariant changed.";
             }
 
-            if (rider.IsInCombat || mount.IsInCombat || (Game.Instance?.Player?.IsInCombat ?? false) ||
-                Game.Instance == null || !IsSafeMovementMode(Game.Instance.CurrentMode))
+            if (Game.Instance == null || !IsSafeMovementMode(Game.Instance.CurrentMode))
             {
-                return "Mounted combat or game-mode boundary was crossed.";
+                return "An unsupported mounted game-mode boundary was crossed.";
             }
 
             if (!movementAuthorityConfigured || riderView.AgentASP != riderStockAgent || riderStockAgent == null ||
@@ -262,6 +266,11 @@ namespace KingmakerMountedCombat.Integration
             if (mountView.AgentASP == null || !mountView.AgentASP.enabled || mountView.AgentOverride != null)
             {
                 return "The authoritative mount movement agent changed.";
+            }
+
+            if (!mountAiLeaseOwned || (bool)MammothAiBackingField.GetValue(mount))
+            {
+                return "The scoped Mammoth AI lease changed.";
             }
 
             if (!presentationConfigured || sourceAnchor == null || positionAnchor == null ||
@@ -292,6 +301,14 @@ namespace KingmakerMountedCombat.Integration
             riderView.StopMoving();
             mount.Commands.InterruptMove();
             mountView.StopMoving();
+
+            mountAiBackingWasEnabled = (bool)MammothAiBackingField.GetValue(mount);
+            mount.IsAIEnabled = false;
+            if ((bool)MammothAiBackingField.GetValue(mount))
+            {
+                throw new InvalidOperationException("Mammoth AI backing state did not enter the scoped disabled lease.");
+            }
+            mountAiLeaseOwned = true;
 
             riderStockAgent.AvoidanceDisabled = true;
             avoidanceLeaseOwned = true;
@@ -467,6 +484,27 @@ namespace KingmakerMountedCombat.Integration
 
             try
             {
+                if (mountAiLeaseOwned)
+                {
+                    if (mount == null)
+                    {
+                        throw new InvalidOperationException("Mammoth disappeared before its AI lease could be restored.");
+                    }
+                    mount.IsAIEnabled = mountAiBackingWasEnabled;
+                    if ((bool)MammothAiBackingField.GetValue(mount) != mountAiBackingWasEnabled)
+                    {
+                        throw new InvalidOperationException("Mammoth AI backing state did not return to its captured value.");
+                    }
+                    mountAiLeaseOwned = false;
+                }
+            }
+            catch (Exception exception)
+            {
+                first = first ?? exception;
+            }
+
+            try
+            {
                 if (riderOverride == null)
                 {
                     overrideInstalled = false;
@@ -608,7 +646,7 @@ namespace KingmakerMountedCombat.Integration
 
         public void ClearPreparedPairWhenUnmounted()
         {
-            if (!movementAuthorityConfigured && !presentationConfigured && !avoidanceLeaseOwned && !riderForbidRotationLeaseOwned && !overrideInstalled && !overrideComponentOwned &&
+            if (!movementAuthorityConfigured && !presentationConfigured && !mountAiLeaseOwned && !avoidanceLeaseOwned && !riderForbidRotationLeaseOwned && !overrideInstalled && !overrideComponentOwned &&
                 !riderAttachmentLease.IsAcquired && positionAnchorObject == null && positionAnchor == null && poseAdapter == null && !poseComponentOwned)
             {
                 TryReleasePreparedReferences();
@@ -617,7 +655,7 @@ namespace KingmakerMountedCombat.Integration
 
         private void TryReleasePreparedReferences()
         {
-            if (movementAuthorityConfigured || presentationConfigured || avoidanceLeaseOwned || riderForbidRotationLeaseOwned || overrideInstalled || overrideComponentOwned ||
+            if (movementAuthorityConfigured || presentationConfigured || mountAiLeaseOwned || avoidanceLeaseOwned || riderForbidRotationLeaseOwned || overrideInstalled || overrideComponentOwned ||
                 riderAttachmentLease.IsAcquired || positionAnchorObject != null || positionAnchor != null || poseAdapter != null || poseComponentOwned)
             {
                 return;
@@ -666,6 +704,16 @@ namespace KingmakerMountedCombat.Integration
         private static bool IsSafeMovementMode(GameModeType mode)
         {
             return mode == GameModeType.Default || mode == GameModeType.Pause;
+        }
+
+        private static FieldInfo ResolveMammothAiBackingField()
+        {
+            var field = typeof(UnitEntityData).GetField("m_AiEnabled", BindingFlags.Instance | BindingFlags.NonPublic);
+            if (field == null || field.MetadataToken != MammothAiBackingFieldToken || field.FieldType != typeof(bool))
+            {
+                throw new MissingFieldException(typeof(UnitEntityData).FullName, "m_AiEnabled exact token " + MammothAiBackingFieldToken.ToString("X8"));
+            }
+            return field;
         }
 
         private static bool ShouldPlaceRiderAfterCleanup(CleanupTrigger trigger)

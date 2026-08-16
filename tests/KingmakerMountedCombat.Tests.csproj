@@ -36,6 +36,7 @@
     <Compile Include="Program.cs" />
     <Compile Include="MountedRelationshipTests.cs" />
     <Compile Include="MountedPlayerActionTests.cs" />
+    <Compile Include="MountedCombatDomainTests.cs" />
     <Compile Include="ManualReviewBoundaryGuardTests.cs" />
     <Compile Include="RuntimeSaveAuthorizationTests.cs" />
     <Compile Include="StopEarlyCaptureBoundaryTests.cs" />
@@ -105,6 +106,10 @@
     <Compile Include="..\src\KingmakerMountedCombat\Domain\IMountedPairRuntime.cs"><Link>Shared\Domain\IMountedPairRuntime.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedPair.cs"><Link>Shared\Domain\MountedPair.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedPairCandidate.cs"><Link>Shared\Domain\MountedPairCandidate.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedCombatAction.cs"><Link>Shared\Domain\MountedCombatAction.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedCombatSpatialPolicy.cs"><Link>Shared\Domain\MountedCombatSpatialPolicy.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedCombatTransaction.cs"><Link>Shared\Domain\MountedCombatTransaction.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\DiagnosticCombatTargetLifecycle.cs"><Link>Shared\Domain\DiagnosticCombatTargetLifecycle.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedPlayerAction.cs"><Link>Shared\Domain\MountedPlayerAction.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedPlayerActionFeedbackState.cs"><Link>Shared\Domain\MountedPlayerActionFeedbackState.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedRelationshipCoordinator.cs"><Link>Shared\Domain\MountedRelationshipCoordinator.cs</Link></Compile>

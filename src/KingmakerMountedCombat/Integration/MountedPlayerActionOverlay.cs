@@ -1,4 +1,5 @@
 using System;
+using KingmakerMountedCombat.Domain;
 using UnityEngine;
 
 namespace KingmakerMountedCombat.Integration
@@ -48,10 +49,31 @@ namespace KingmakerMountedCombat.Integration
                 }
                 GUI.enabled = priorEnabled;
 
-                var feedback = availability.IsEnabled
-                    ? controller.LastFeedback
-                    : availability.Feedback;
-                GUI.Label(new Rect(left + 12f, top + 64f, Width - 24f, 54f), feedback);
+                var feedbackTop = top + 64f;
+                var feedbackHeight = 54f;
+                if (controller.CombatActionsVisible)
+                {
+                    var combatPriorEnabled = GUI.enabled;
+                    GUI.enabled = true;
+                    if (GUI.Button(new Rect(left + 12f, top + 63f, 148f, 28f), "Rider melee"))
+                    {
+                        controller.ArmCombatAction(MountedCombatActionKind.RiderMelee);
+                    }
+                    if (GUI.Button(new Rect(left + 170f, top + 63f, 148f, 28f), "Mammoth primary"))
+                    {
+                        controller.ArmCombatAction(MountedCombatActionKind.MountPrimaryNatural);
+                    }
+                    GUI.enabled = combatPriorEnabled;
+                    feedbackTop = top + 94f;
+                    feedbackHeight = 24f;
+                }
+
+                var feedback = controller.CombatActionsVisible
+                    ? controller.CombatFeedback
+                    : availability.IsEnabled
+                        ? controller.LastFeedback
+                        : availability.Feedback;
+                GUI.Label(new Rect(left + 12f, feedbackTop, Width - 24f, feedbackHeight), feedback);
                 if (Event.current != null && Event.current.type == EventType.Repaint)
                 {
                     controller.ObserveOverlayRepaint(availability, panel, feedback);

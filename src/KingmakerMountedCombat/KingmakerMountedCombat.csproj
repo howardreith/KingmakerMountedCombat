@@ -81,12 +81,14 @@
   <ItemGroup>
     <Compile Include="CompositionRoot.cs" />
     <Compile Include="Diagnostics\DiagnosticSettings.cs" />
+    <Compile Include="Diagnostics\DiagnosticCombatTargetService.cs" />
     <Compile Include="Diagnostics\BoundaryFailureDrain.cs" />
     <Compile Include="Diagnostics\BoundaryScenarioEvidenceContract.cs" />
     <Compile Include="Diagnostics\MovementScreenshotCaptureCoordinator.cs" />
     <Compile Include="Diagnostics\MovementScreenshotCaptureState.cs" />
     <Compile Include="Diagnostics\MovementTelemetryWriter.cs" />
     <Compile Include="Diagnostics\ManualReviewBoundaryGuard.cs" />
+    <Compile Include="Diagnostics\MountedCombatRuleProbe.cs" />
     <Compile Include="Diagnostics\MovementNavigationBoundaryPolicy.cs" />
     <Compile Include="Diagnostics\MovementRadialDistanceOrder.cs" />
     <Compile Include="Diagnostics\NavigationEndpointDistanceTracker.cs" />
@@ -110,6 +112,10 @@
     <Compile Include="Domain\IMountedPairRuntime.cs" />
     <Compile Include="Domain\MountedPair.cs" />
     <Compile Include="Domain\MountedPairCandidate.cs" />
+    <Compile Include="Domain\MountedCombatAction.cs" />
+    <Compile Include="Domain\MountedCombatSpatialPolicy.cs" />
+    <Compile Include="Domain\MountedCombatTransaction.cs" />
+    <Compile Include="Domain\DiagnosticCombatTargetLifecycle.cs" />
     <Compile Include="Domain\MountedPlayerAction.cs" />
     <Compile Include="Domain\MountedPlayerActionFeedbackState.cs" />
     <Compile Include="Domain\MountedRelationshipCoordinator.cs" />
@@ -125,6 +131,10 @@
     <Compile Include="Integration\GameMountedRelationshipService.cs" />
     <Compile Include="Integration\KingmakerMountedPairRuntime.cs" />
     <Compile Include="Integration\MountedLifecycleSubscriber.cs" />
+    <Compile Include="Integration\ExactTurnMovementAdapter.cs" />
+    <Compile Include="Integration\MountedCombatController.cs" />
+    <Compile Include="Integration\MountedPairAttackCommand.cs" />
+    <Compile Include="Integration\MountedPairSingleAttack.cs" />
     <Compile Include="Integration\MountedPatchController.cs" />
     <Compile Include="Integration\MountedPlayerActionController.cs" />
     <Compile Include="Integration\MountedPlayerActionOverlay.cs" />

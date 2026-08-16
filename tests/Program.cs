@@ -30,6 +30,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("result requires lowercase evidence manifest SHA-256", ResultRequiresEvidenceManifestSha256);
             MountedRelationshipTests.Register(runner);
             MountedPlayerActionTests.Register(runner);
+            MountedCombatDomainTests.Register(runner);
             ManualReviewBoundaryGuardTests.Register(runner);
             RuntimeSaveAuthorizationTests.Register(runner);
             WorkingFixtureLoadWatchdogTests.Register(runner);
@@ -177,7 +178,7 @@ namespace KingmakerMountedCombat.Tests
                 Scenario = "mod-load-smoke",
                 Branch = "codex/mounted-combat-feasibility",
                 Commit = "3801345720241eeab75f2944d91948f182ca26aa",
-                ProductVersion = "0.1.0-phase2a-review.2",
+                ProductVersion = "0.1.0-phase2b-dev.1",
                 DllSha256 = Sha,
                 DllMvid = Mvid,
                 EvidenceRoot = "runtime-evidence/kmc-smoke-001",
@@ -197,7 +198,7 @@ namespace KingmakerMountedCombat.Tests
                 Status = "PASS",
                 Branch = "codex/mounted-combat-feasibility",
                 Commit = "3801345720241eeab75f2944d91948f182ca26aa",
-                ProductVersion = "0.1.0-phase2a-review.2",
+                ProductVersion = "0.1.0-phase2b-dev.1",
                 DllSha256 = Sha,
                 DllMvid = Mvid,
                 TransactionToken = Sha,
@@ -219,7 +220,7 @@ namespace KingmakerMountedCombat.Tests
                 Scenario = "fixture-intake",
                 Branch = "codex/mounted-combat-feasibility",
                 Commit = "3801345720241eeab75f2944d91948f182ca26aa",
-                ProductVersion = "0.1.0-phase2a-review.2",
+                ProductVersion = "0.1.0-phase2b-dev.1",
                 DllSha256 = Sha,
                 DllMvid = Mvid,
                 EvidenceRoot = "runtime-evidence/kmc-fixture-001",
@@ -238,7 +239,7 @@ namespace KingmakerMountedCombat.Tests
                 Status = "PASS",
                 Branch = "codex/mounted-combat-feasibility",
                 Commit = "3801345720241eeab75f2944d91948f182ca26aa",
-                ProductVersion = "0.1.0-phase2a-review.2",
+                ProductVersion = "0.1.0-phase2b-dev.1",
                 DllSha256 = Sha,
                 DllMvid = Mvid,
                 TransactionToken = Sha,

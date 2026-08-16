@@ -11,6 +11,7 @@ using Kingmaker.View;
 using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Diagnostics;
 using KingmakerMountedCombat.Logging;
+using TurnBased.Controllers;
 
 namespace KingmakerMountedCombat.Integration
 {
@@ -21,9 +22,10 @@ namespace KingmakerMountedCombat.Integration
         private readonly HarmonyInstance harmony;
         private bool disposed;
 
-        public MountedPatchController(GameMountedRelationshipService service, RuntimeSaveAuthorization saveAuthorization, NativeLifecycleDeliveryLedger lifecycleLedger, IModLogger logger)
+        public MountedPatchController(GameMountedRelationshipService service, MountedCombatController combat, RuntimeSaveAuthorization saveAuthorization, NativeLifecycleDeliveryLedger lifecycleLedger, IModLogger logger)
         {
             PatchBridge.Service = service ?? throw new ArgumentNullException(nameof(service));
+            PatchBridge.Combat = combat ?? throw new ArgumentNullException(nameof(combat));
             PatchBridge.SaveAuthorization = saveAuthorization ?? throw new ArgumentNullException(nameof(saveAuthorization));
             PatchBridge.LifecycleLedger = lifecycleLedger ?? throw new ArgumentNullException(nameof(lifecycleLedger));
             PatchBridge.Logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -45,7 +47,11 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(SaveManager), "SaveRoutine", 0x06008029, new[] { typeof(SaveInfo), typeof(bool) }, nameof(PatchMethods.SavePrefix));
                 PatchExact(typeof(SaveManager), "LoadRoutine", 0x0600802C, new[] { typeof(SaveInfo), typeof(bool) }, nameof(PatchMethods.LoadPrefix));
                 PatchExact(typeof(UnitEntityView), "ForcePlaceAboveGround", 0x06001848, Type.EmptyTypes, nameof(PatchMethods.ForcePlaceAboveGroundPrefix));
-                logger.Info("Installed nine exact-token Harmony12 active-pair guards; global movement ticks remain unpatched.");
+                PatchExact(typeof(ClickUnitHandler), "OnClick", 0x060093ED, new[] { typeof(UnityEngine.GameObject), typeof(UnityEngine.Vector3), typeof(int), typeof(bool), typeof(bool) }, nameof(PatchMethods.UnitClickPrefix));
+                PatchExact(typeof(UnitMovementAgent), "CanMoveInTurnBased", 0x060018A9, new[] { typeof(float).MakeByRefType() }, nameof(PatchMethods.MountMovementPrefix));
+                PatchExact(typeof(CombatController), "StartTurn", 0x06000BDA, new[] { typeof(UnitEntityData) }, null, nameof(PatchMethods.StartTurnPostfix));
+                PatchExact(typeof(UnitAttack), "GetApproachRadius", 0x06002685, new[] { typeof(UnitEntityData) }, null, nameof(PatchMethods.AttackRangePostfix));
+                logger.Info("Installed thirteen exact-token Harmony12 active-pair guards including scoped click, turn, range, and Mammoth movement seams.");
             }
             catch
             {
@@ -56,6 +62,7 @@ namespace KingmakerMountedCombat.Integration
                 finally
                 {
                     PatchBridge.Service = null;
+                    PatchBridge.Combat = null;
                     PatchBridge.SaveAuthorization = null;
                     PatchBridge.LifecycleLedger = null;
                     PatchBridge.Logger = null;
@@ -73,13 +80,14 @@ namespace KingmakerMountedCombat.Integration
             }
             harmony.UnpatchAll(HarmonyId);
             PatchBridge.Service = null;
+            PatchBridge.Combat = null;
             PatchBridge.SaveAuthorization = null;
             PatchBridge.LifecycleLedger = null;
             PatchBridge.Logger = null;
             disposed = true;
         }
 
-        private void PatchExact(Type type, string name, int expectedToken, Type[] parameters, string prefixName)
+        private void PatchExact(Type type, string name, int expectedToken, Type[] parameters, string prefixName, string postfixName = null)
         {
             MethodInfo original;
             if (parameters == null)
@@ -97,13 +105,18 @@ namespace KingmakerMountedCombat.Integration
                 throw new MissingMethodException(type.FullName, name + " exact token " + expectedToken.ToString("X8"));
             }
 
-            var prefix = typeof(PatchMethods).GetMethod(prefixName, BindingFlags.Static | BindingFlags.NonPublic);
-            harmony.Patch(original, new HarmonyMethod(prefix));
+            var prefix = prefixName == null ? null : typeof(PatchMethods).GetMethod(prefixName, BindingFlags.Static | BindingFlags.NonPublic);
+            var postfix = postfixName == null ? null : typeof(PatchMethods).GetMethod(postfixName, BindingFlags.Static | BindingFlags.NonPublic);
+            harmony.Patch(
+                original,
+                prefix == null ? null : new HarmonyMethod(prefix),
+                postfix == null ? null : new HarmonyMethod(postfix));
         }
 
         private static class PatchBridge
         {
             internal static GameMountedRelationshipService Service;
+            internal static MountedCombatController Combat;
             internal static RuntimeSaveAuthorization SaveAuthorization;
             internal static NativeLifecycleDeliveryLedger LifecycleLedger;
             internal static IModLogger Logger;
@@ -113,6 +126,7 @@ namespace KingmakerMountedCombat.Integration
         {
             internal static bool GroundCommandPrefix(ref UnitEntityData unit)
             {
+                PatchBridge.Combat?.Cancel("ground command");
                 return PatchBridge.Service == null || PatchBridge.Service.RouteGroundCommand(ref unit);
             }
 
@@ -128,6 +142,7 @@ namespace KingmakerMountedCombat.Integration
 
             internal static void StopOrHoldPrefix()
             {
+                PatchBridge.Combat?.Cancel("stop or hold");
                 PatchBridge.Service?.ForwardStopOrHold();
             }
 
@@ -139,6 +154,55 @@ namespace KingmakerMountedCombat.Integration
             internal static bool ForcePlaceAboveGroundPrefix(UnitEntityView __instance)
             {
                 return PatchBridge.Service == null || !PatchBridge.Service.TrySuppressRiderGroundPlacement(__instance);
+            }
+
+            internal static bool UnitClickPrefix(
+                UnityEngine.GameObject gameObject,
+                int button,
+                bool simulate,
+                ref bool __result)
+            {
+                var result = PatchBridge.Combat?.TryHandleUnitClick(gameObject, button, simulate) ??
+                    MountedCombatClickResult.NotHandled;
+                if (result == MountedCombatClickResult.NotHandled)
+                {
+                    return true;
+                }
+                __result = result == MountedCombatClickResult.HandledAccepted;
+                return false;
+            }
+
+            internal static bool MountMovementPrefix(
+                UnitMovementAgent __instance,
+                ref float deltaTime,
+                ref bool __result)
+            {
+                bool result;
+                if (PatchBridge.Combat != null &&
+                    PatchBridge.Combat.TryOverrideMountTurnMovement(__instance, ref deltaTime, out result))
+                {
+                    __result = result;
+                    return false;
+                }
+                return true;
+            }
+
+            internal static void StartTurnPostfix(UnitEntityData unit)
+            {
+                PatchBridge.Combat?.EndExactMountTurn(unit);
+            }
+
+            internal static void AttackRangePostfix(
+                UnitAttack __instance,
+                UnitEntityData unit,
+                ref float __result)
+            {
+                var attack = __instance as MountedPairSingleAttack;
+                float radius;
+                if (attack != null && attack.TryCalculatePairApproachRadius(unit, out radius))
+                {
+                    __result = radius;
+                }
             }
 
             internal static bool SavePrefix(SaveManager __instance, SaveInfo saveInfo, bool forceAuto, ref IEnumerator<object> __result)

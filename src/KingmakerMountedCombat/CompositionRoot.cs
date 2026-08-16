@@ -18,6 +18,7 @@ namespace KingmakerMountedCombat
         private readonly NativeLifecycleDeliveryLedger lifecycleLedger;
         private readonly MountedPatchController patches;
         private readonly MountedPlayerActionController playerAction;
+        private readonly MountedCombatController combat;
         private readonly MovementTelemetryWriter movementTelemetry;
         private bool disposed;
 
@@ -29,10 +30,11 @@ namespace KingmakerMountedCombat
                 settings = new DiagnosticSettings();
                 relationship = new GameMountedRelationshipService(logger, settings);
                 lifecycleLedger = new NativeLifecycleDeliveryLedger();
-                lifecycle = new MountedLifecycleSubscriber(relationship, lifecycleLedger);
+                combat = new MountedCombatController(relationship, settings, logger);
+                lifecycle = new MountedLifecycleSubscriber(relationship, lifecycleLedger, combat);
                 saveAuthorization = new RuntimeSaveAuthorization();
-                patches = new MountedPatchController(relationship, saveAuthorization, lifecycleLedger, logger);
-                playerAction = new MountedPlayerActionController(relationship, settings, logger);
+                patches = new MountedPatchController(relationship, combat, saveAuthorization, lifecycleLedger, logger);
+                playerAction = new MountedPlayerActionController(relationship, settings, logger, combat);
                 runtimeAutomation = RuntimeAutomationHost.CreateFromCommandLine(
                     logger,
                     loadedModId,
@@ -60,6 +62,7 @@ namespace KingmakerMountedCombat
                 try { movementTelemetry?.Dispose(); } catch (Exception exception) { rollbackException = exception; }
                 try { runtimeAutomation?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { playerAction?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
+                try { combat?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { patches?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { lifecycle?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { relationship?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
@@ -118,6 +121,7 @@ namespace KingmakerMountedCombat
 
             try
             {
+                combat.Cancel("update failure");
                 settings.EnableUnsafeMovementExperiment = false;
                 var cleanup = relationship.Dismount(CleanupTrigger.Exception);
                 if (!cleanup.Succeeded || cleanup.MovementAuthorityResidual || cleanup.PresentationResidual)
@@ -154,6 +158,7 @@ namespace KingmakerMountedCombat
                 return;
             }
 
+            combat.Update();
             relationship.ValidateActivePair();
         }
 
@@ -180,6 +185,14 @@ namespace KingmakerMountedCombat
             GUILayout.EndHorizontal();
             GUILayout.Label("Relationship: " + relationship.State);
             GUILayout.Label(relationship.LastResult);
+            if (combat.CanShowCombatActions)
+            {
+                GUILayout.BeginHorizontal();
+                if (GUILayout.Button("Arm rider melee")) { combat.Arm(MountedCombatActionKind.RiderMelee); }
+                if (GUILayout.Button("Arm Mammoth primary")) { combat.Arm(MountedCombatActionKind.MountPrimaryNatural); }
+                GUILayout.EndHorizontal();
+                GUILayout.Label(combat.LastFeedback);
+            }
             if (!availability.IsEnabled) { GUILayout.Label(availability.Feedback); }
         }
 
@@ -198,6 +211,7 @@ namespace KingmakerMountedCombat
             movementTelemetry?.Dispose();
             runtimeAutomation?.Dispose();
             playerAction.Dispose();
+            combat.Dispose();
             patches.Dispose();
             lifecycle.Dispose();
             relationship.Dispose();

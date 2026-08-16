@@ -43,6 +43,8 @@ namespace KingmakerMountedCombat.Integration
 
         public TransitionResult LastTransition { get; private set; }
 
+        internal event Action<CleanupTrigger> Dismounting;
+
         public TransitionResult MountSelectedRider()
         {
             ThrowIfDisposed();
@@ -162,6 +164,15 @@ namespace KingmakerMountedCombat.Integration
             if (disposed && coordinator.State == RelationshipState.Disposed)
             {
                 return new TransitionResult(true, coordinator.State, trigger, new string[0], false, false);
+            }
+
+            try
+            {
+                Dismounting?.Invoke(trigger);
+            }
+            catch (Exception exception)
+            {
+                logger.Exception("Mounted combat cancellation before relationship cleanup", exception);
             }
 
             var result = coordinator.Dismount(trigger);

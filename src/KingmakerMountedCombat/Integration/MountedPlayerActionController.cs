@@ -18,6 +18,7 @@ namespace KingmakerMountedCombat.Integration
         private readonly GameMountedRelationshipService relationship;
         private readonly DiagnosticSettings settings;
         private readonly IModLogger logger;
+        private readonly MountedCombatController combat;
         private readonly MountedPlayerActionFeedbackState feedbackState =
             new MountedPlayerActionFeedbackState("Ready to mount when the selected rider is eligible.");
         private GameObject overlayObject;
@@ -27,11 +28,13 @@ namespace KingmakerMountedCombat.Integration
         public MountedPlayerActionController(
             GameMountedRelationshipService relationship,
             DiagnosticSettings settings,
-            IModLogger logger)
+            IModLogger logger,
+            MountedCombatController combat)
         {
             this.relationship = relationship ?? throw new ArgumentNullException(nameof(relationship));
             this.settings = settings ?? throw new ArgumentNullException(nameof(settings));
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            this.combat = combat ?? throw new ArgumentNullException(nameof(combat));
         }
 
         public MountedPlayerActionAvailability GetAvailability()
@@ -43,6 +46,17 @@ namespace KingmakerMountedCombat.Integration
         }
 
         public string LastFeedback => feedbackState.LastFeedback;
+
+        internal bool CombatActionsVisible => combat.CanShowCombatActions;
+
+        internal string CombatFeedback => combat.LastFeedback;
+
+        internal MountedCombatActionKind ArmedCombatAction => combat.ArmedAction;
+
+        internal bool ArmCombatAction(MountedCombatActionKind action)
+        {
+            return combat.Arm(action);
+        }
 
         internal bool OverlayPresent => overlay != null && overlayObject != null;
 
