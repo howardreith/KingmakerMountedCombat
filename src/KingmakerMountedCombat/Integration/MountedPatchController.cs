@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using Harmony12;
+using Kingmaker.Controllers.Combat;
 using Kingmaker.Controllers.Clicks.Handlers;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.EntitySystem.Persistence;
@@ -51,7 +52,8 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(UnitMovementAgent), "CanMoveInTurnBased", 0x060018A9, new[] { typeof(float).MakeByRefType() }, nameof(PatchMethods.MountMovementPrefix));
                 PatchExact(typeof(CombatController), "StartTurn", 0x06000BDA, new[] { typeof(UnitEntityData) }, null, nameof(PatchMethods.StartTurnPostfix));
                 PatchExact(typeof(UnitAttack), "GetApproachRadius", 0x06002685, new[] { typeof(UnitEntityData) }, null, nameof(PatchMethods.AttackRangePostfix));
-                logger.Info("Installed thirteen exact-token Harmony12 active-pair guards including scoped click, turn, range, and Mammoth movement seams.");
+                PatchExact(typeof(UnitCombatState), "AttackOfOpportunity", 0x060093A1, new[] { typeof(UnitEntityData), typeof(bool) }, nameof(PatchMethods.AttackOfOpportunityPrefix));
+                logger.Info("Installed fourteen exact-token Harmony12 active-pair guards including scoped click, turn, range, Mammoth movement, and in-command opportunity-isolation seams.");
             }
             catch
             {
@@ -203,6 +205,21 @@ namespace KingmakerMountedCombat.Integration
                 {
                     __result = radius;
                 }
+            }
+
+            internal static bool AttackOfOpportunityPrefix(
+                UnitCombatState __instance,
+                UnitEntityData target,
+                ref bool __result)
+            {
+                if (PatchBridge.Combat == null ||
+                    !PatchBridge.Combat.ShouldSuppressStockOpportunityAttack(__instance?.Unit, target))
+                {
+                    return true;
+                }
+
+                __result = false;
+                return false;
             }
 
             internal static bool SavePrefix(SaveManager __instance, SaveInfo saveInfo, bool forceAuto, ref IEnumerator<object> __result)

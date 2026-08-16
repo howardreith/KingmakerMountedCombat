@@ -4,6 +4,10 @@ Status: IN PROGRESS
 
 Branch: `codex/mounted-combat-phase2-alpha`
 
+## Movement-to-attack opportunity-isolation checkpoint - 2026-08-16T22:07:48Z
+
+No critical blocker is active. Clean-package schema-v32 run `20260816T230000Z-rider-move-attack-rt-rawslot-passA` is immutable uncredited `FAIL` `53/2`: every movement/raw-slot/resource/pose/cleanup/restoration gate passes, but a real rider `UnitAttackOfOpportunity` occurs before the intended child, producing two rider attack/damage chains and killing the one-HP target. Exact Kingmaker `UnitCombatState.Disengage` can call `AttackOfOpportunity` `0x060093A1` outside the mounted Standard wrapper when Architecture B synchronization crosses an engagement boundary. A new exact-token prefix suppresses only rider/Mammoth stock opportunity emission during one active mounted-pair command; idle mounted, non-mounted, non-pair, and broad engagement behavior remain stock. Offline gates pass `21/212/17/181/254`. Fresh clean-package RT/TB A/B remains required; the later explicit AoO stretch contract is unchanged and still unqualified.
+
 ## Movement-to-attack raw-slot checkpoint - 2026-08-16T21:45:07Z
 
 No critical blocker is active. Same-package schema-v30 RT A/B `20260816T214500Z-rider-move-attack-rt-passA` / `20260816T220000Z-rider-move-attack-rt-passB` pass `55/0` each with exact stock Mammoth Move-slot ownership, movement, rider attack/resource ownership, pose, cleanup, and independent restoration. TB attempt `20260816T221500Z-rider-move-attack-tb-passA` is immutable uncredited `FAIL` `58/1`; all mechanical, native-turn, resource, rule, movement, pose, cleanup, and restoration gates pass, and only the slot-unreplaced projection fails. Exact `UnitCommands.Move` filters an exact finished raw slot to null; raw `GetCommand(CommandType.Move)` preserves that identity. Schema v32/v33 now accepts only the exact raw command or post-finish empty raw slot and still rejects missing unfinished/replaced slots. Offline gates pass `21/211/17/180/253`; fresh clean-package RT/TB A/B remains required.

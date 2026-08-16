@@ -25,6 +25,20 @@ namespace KingmakerMountedCombat.Domain
         AdditionalLimb
     }
 
+    public static class MountedOpportunityIsolationPolicy
+    {
+        public static bool ShouldSuppressStockOpportunityAttack(
+            bool relationshipMounted,
+            bool mountedPairCommandActive,
+            bool attackerIsExactRider,
+            bool attackerIsExactMount,
+            bool targetExists)
+        {
+            return relationshipMounted && mountedPairCommandActive && targetExists &&
+                (attackerIsExactRider || attackerIsExactMount);
+        }
+    }
+
     public sealed class NativeSingleAttackSlotDecision
     {
         public NativeSingleAttackSlotDecision(NativeSingleAttackSlotKind kind, int additionalLimbIndex)

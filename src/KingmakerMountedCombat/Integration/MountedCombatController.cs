@@ -231,6 +231,18 @@ namespace KingmakerMountedCombat.Integration
             LastFeedback = "Mounted combat cancelled: " + (string.IsNullOrWhiteSpace(reason) ? "boundary" : reason) + ".";
         }
 
+        public bool ShouldSuppressStockOpportunityAttack(
+            UnitEntityData attacker,
+            UnitEntityData target)
+        {
+            return !disposed && MountedOpportunityIsolationPolicy.ShouldSuppressStockOpportunityAttack(
+                relationship.State == RelationshipState.Mounted,
+                HasActiveCommand,
+                attacker != null && attacker == relationship.Rider,
+                attacker != null && attacker == relationship.Mount,
+                target != null);
+        }
+
         public bool TryOverrideMountTurnMovement(
             UnitMovementAgent agent,
             ref float deltaTime,

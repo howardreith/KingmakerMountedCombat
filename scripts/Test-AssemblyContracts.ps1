@@ -250,6 +250,14 @@ if($Target-eq'Kingmaker'){
         $ruleAttackRollIsHit[0].IsPublic -and -not $ruleAttackRollIsHit[0].IsStatic -and
         $ruleAttackRollIsHit[0].ReturnType.FullName-ceq'System.Boolean' -and $ruleAttackRollIsHit[0].GetParameters().Count-eq0) `
         'RuleAttackRoll.IsHit exact public instance Boolean signature'
+    $attackOfOpportunity=@(Find-Token 'Kingmaker.Controllers.Combat.UnitCombatState' 0x060093A1)
+    Assert-Contract ($attackOfOpportunity.Count-eq1 -and $attackOfOpportunity[0] -is [Reflection.MethodInfo] -and
+        $attackOfOpportunity[0].IsPublic -and -not $attackOfOpportunity[0].IsStatic -and
+        $attackOfOpportunity[0].ReturnType.FullName-ceq'System.Boolean' -and
+        $attackOfOpportunity[0].GetParameters().Count-eq2 -and
+        $attackOfOpportunity[0].GetParameters()[0].ParameterType.FullName-ceq'Kingmaker.EntitySystem.Entities.UnitEntityData' -and
+        $attackOfOpportunity[0].GetParameters()[1].ParameterType.FullName-ceq'System.Boolean') `
+        'UnitCombatState.AttackOfOpportunity exact public instance Boolean signature'
     $selectMissReason=@(Find-Token 'Kingmaker.EntitySystem.Stats.ModifiableValueArmorClass' 0x06007F2D)
     Assert-Contract ($selectMissReason.Count-eq1 -and $selectMissReason[0] -is [Reflection.MethodInfo] -and
         $selectMissReason[0].IsPublic -and -not $selectMissReason[0].IsStatic -and

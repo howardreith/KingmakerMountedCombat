@@ -4126,6 +4126,22 @@ try {
         Assert-Test (-not $patchSource.Contains('PatchExact(typeof(UnitMoveController)')) 'grounding repair introduced a global UnitMoveController patch'
     }
 
+    Invoke-HarnessTest 'active mounted command isolates exact-pair stock opportunity attacks' {
+        $patchSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPatchController.cs')
+        $controllerSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedCombatController.cs')
+        $policySource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedCombatAction.cs')
+        Assert-Test ($patchSource.Contains('PatchExact(typeof(UnitCombatState), "AttackOfOpportunity", 0x060093A1, new[] { typeof(UnitEntityData), typeof(bool) }, nameof(PatchMethods.AttackOfOpportunityPrefix));')) 'opportunity isolation does not bind the exact Kingmaker method token and signature'
+        Assert-Test ($patchSource.Contains('PatchBridge.Combat.ShouldSuppressStockOpportunityAttack(__instance?.Unit, target)') -and
+            $patchSource.Contains('__result = false;')) 'opportunity prefix does not fail closed through the mounted combat controller'
+        Assert-Test ($controllerSource.Contains('MountedOpportunityIsolationPolicy.ShouldSuppressStockOpportunityAttack(') -and
+            $controllerSource.Contains('relationship.State == RelationshipState.Mounted,') -and
+            $controllerSource.Contains('HasActiveCommand,') -and
+            $controllerSource.Contains('attacker != null && attacker == relationship.Rider,') -and
+            $controllerSource.Contains('attacker != null && attacker == relationship.Mount,')) 'opportunity isolation is not constrained to an active exact mounted-pair command'
+        Assert-Test ($policySource.Contains('(attackerIsExactRider || attackerIsExactMount)') -and
+            -not $patchSource.Contains('PatchExact(typeof(UnitCombatState), "Disengage"')) 'opportunity isolation changed the broad engagement lifecycle instead of the exact attack emission seam'
+    }
+
     Invoke-HarnessTest 'lifecycle evidence is a durable pre-mount gate with bounded cleanup observation' {
         $source = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeLifecycleScenarioEngine.cs')
         $evidenceGate = $source.IndexOf('if (!TryWriteEvidence("pre-mount", null, null))', [StringComparison]::Ordinal)
