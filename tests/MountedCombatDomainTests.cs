@@ -18,6 +18,8 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("mounted combat transaction requires exact target identity", RequiresExactTarget);
             runner.Run("mounted combat range uses Mammoth origin and exact tolerance", RangeBoundary);
             runner.Run("mounted combat range rejects invalid measurements", RejectsInvalidRange);
+            runner.Run("mounted combat diagnostic placement admits the exact observed small radius", DiagnosticPlacementAdmitsObservedRadius);
+            runner.Run("mounted combat diagnostic placement rejects insufficient radius and projection drift", DiagnosticPlacementRejectsUnsafeBounds);
             runner.Run("mounted pair ends only the exact Mammoth turn", SuppressesOnlyMountTurn);
             runner.Run("mounted pair delegates movement only through the exact rider turn", DelegatesOnlyExactMovement);
             runner.Run("native single attack prefers an eligible primary hand", NativeSingleAttackPrefersPrimary);
@@ -136,6 +138,37 @@ namespace KingmakerMountedCombat.Tests
                 threw = true;
             }
             TestRunner.True(threw, "Negative target corpulence was accepted.");
+        }
+
+        private static void DiagnosticPlacementAdmitsObservedRadius()
+        {
+            const float observedRadius = 2.37020588f;
+            float requestedDistance;
+            TestRunner.True(
+                MountedCombatSpatialPolicy.TryCalculateDiagnosticTargetDistance(observedRadius, out requestedDistance),
+                "The exact guarded Probe F radius was rejected by diagnostic placement.");
+            TestRunner.True(
+                Math.Abs(requestedDistance - 2.25020588f) < 0.00001f,
+                "Diagnostic placement did not retain the exact fixed range inset.");
+            TestRunner.True(
+                MountedCombatSpatialPolicy.IsBoundedDiagnosticTargetDistance(observedRadius, requestedDistance),
+                "The exact near-boundary diagnostic distance was rejected.");
+        }
+
+        private static void DiagnosticPlacementRejectsUnsafeBounds()
+        {
+            float requestedDistance;
+            TestRunner.True(
+                !MountedCombatSpatialPolicy.TryCalculateDiagnosticTargetDistance(
+                    MountedCombatSpatialPolicy.DiagnosticRangeInset + MountedCombatSpatialPolicy.RangeTolerance,
+                    out requestedDistance),
+                "A diagnostic radius without positive separation was accepted.");
+            TestRunner.True(
+                !MountedCombatSpatialPolicy.IsBoundedDiagnosticTargetDistance(2.37020588f, 2.18020588f),
+                "Excess navmesh projection drift was accepted.");
+            TestRunner.True(
+                !MountedCombatSpatialPolicy.IsBoundedDiagnosticTargetDistance(2.37020588f, 0.05f),
+                "A diagnostic target without bounded positive separation was accepted.");
         }
 
         private static void SuppressesOnlyMountTurn()

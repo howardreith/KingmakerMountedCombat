@@ -4132,6 +4132,8 @@ try {
             @{name='missing rider Standard cost';apply={param($value) $value.resources.riderStandardAfter=0.0}},
             @{name='mount Standard cost';apply={param($value) $value.resources.mountStandardAfter=5.0}},
             @{name='delegated movement';apply={param($value) $value.command.repathCount=1;$value.movement.repathCount=1}},
+            @{name='insufficient pair radius';apply={param($value) $value.pairApproachRadius=0.17;$value.targetDistanceAtClick=0.06}},
+            @{name='target placement drift';apply={param($value) $value.targetDistanceAtClick=1.0}},
             @{name='pose failure';apply={param($value) $value.pose.healthyAtOutcome=$false}},
             @{name='target native weapon source';apply={param($value) $value.targetProvisioning.blueprintEmptyHandWeaponBlueprintId='22222222222222222222222222222222'}},
             @{name='target native slot';apply={param($value) $value.targetProvisioning.targetNativeSingleAttackSlot='AdditionalLimb'}},

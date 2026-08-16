@@ -31,8 +31,6 @@ namespace KingmakerMountedCombat.Diagnostics
         private const string RiderHitRealTime = "mounted-rider-melee-hit-rt";
         private const double RowTimeoutSeconds = 30.0d;
         private const float SpawnDistance = 6.0f;
-        private const float MinimumFinalTargetDistance = 3.02f;
-        private const float RangeInset = 0.12f;
 
         private static readonly JsonSerializerSettings EvidenceJsonSettings = new JsonSerializerSettings
         {
@@ -307,7 +305,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
 
             targetService = new DiagnosticCombatTargetService(logger);
-            var spawnPoint = FindWalkablePoint(mount.Position, rider.Position, SpawnDistance, 0.4f, false);
+            var spawnPoint = FindWalkablePoint(mount.Position, SpawnDistance, 0.4f);
             target = targetService.Spawn(rider, mount, spawnPoint, request.RunId, true);
             targetId = target.UniqueId;
             targetProvisioning = CombatTargetProvisioningEvidence.From(targetService, target);
@@ -317,7 +315,10 @@ namespace KingmakerMountedCombat.Diagnostics
             var rangeProbe = new MountedPairSingleAttack(target, rider, mount, true);
             rangeProbe.Init(rider);
             pairApproachRadius = rangeProbe.PairApproachRadius;
-            assertions.Check(pairApproachRadius > MinimumFinalTargetDistance,
+            float finalDistance;
+            assertions.Check(MountedCombatSpatialPolicy.TryCalculateDiagnosticTargetDistance(
+                    pairApproachRadius,
+                    out finalDistance),
                 "Mounted rider pair approach radius admits the bounded diagnostic placement.");
             if (assertions.FailureCount != 0)
             {
@@ -325,8 +326,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
-            var finalDistance = Math.Max(MinimumFinalTargetDistance, pairApproachRadius - RangeInset);
-            var attackPoint = FindWalkablePoint(mount.Position, rider.Position, finalDistance, RangeInset * 0.5f, true);
+            var attackPoint = FindWalkablePoint(
+                mount.Position,
+                finalDistance,
+                MountedCombatSpatialPolicy.DiagnosticPlacementTolerance);
             target.Translocate(attackPoint, null);
             target.View.ForcePlaceAboveGround();
             target.Commands.InterruptAll();
@@ -376,8 +379,10 @@ namespace KingmakerMountedCombat.Diagnostics
             targetDistanceAtClick = HorizontalDistance(mountPositionAtClick, targetPositionAtClick);
             assertions.Check(targetDistanceAtClick <= pairApproachRadius + MountedCombatSpatialPolicy.RangeTolerance,
                 "Target was inside the exact Mammoth-origin rider melee radius at dispatch.");
-            assertions.Check(HorizontalDistance(riderPositionAtClick, targetPositionAtClick) >= 3.0f,
-                "Diagnostic target retained the bounded minimum rider-relative separation.");
+            assertions.Check(MountedCombatSpatialPolicy.IsBoundedDiagnosticTargetDistance(
+                    pairApproachRadius,
+                    targetDistanceAtClick),
+                "Diagnostic target retained the exact near-boundary mounted-range placement.");
 
             ruleProbe = new MountedCombatRuleProbe();
             ruleProbe.Arm(rider, mount, rider, target, 20);
@@ -655,10 +660,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private Vector3 FindWalkablePoint(
             Vector3 origin,
-            Vector3 riderOrigin,
             float requestedDistance,
-            float distanceTolerance,
-            bool requireRiderMinimum)
+            float distanceTolerance)
         {
             if (global::AstarPath.active == null)
             {
@@ -684,9 +687,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
                 var point = nearest.clampedPosition;
                 var originDistance = HorizontalDistance(origin, point);
-                var riderDistance = HorizontalDistance(riderOrigin, point);
-                if (Math.Abs(originDistance - requestedDistance) <= distanceTolerance &&
-                    (!requireRiderMinimum || riderDistance >= 3.0f))
+                if (originDistance > MountedCombatSpatialPolicy.RangeTolerance &&
+                    Math.Abs(originDistance - requestedDistance) <= distanceTolerance)
                 {
                     return point;
                 }

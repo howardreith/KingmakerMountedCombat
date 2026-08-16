@@ -7238,7 +7238,8 @@ function Assert-KmcCombatScenarioEvidence {
         }
         if (-not (Test-KmcJsonNumber $record.pairApproachRadius) -or
             -not (Test-KmcJsonNumber $record.targetDistanceAtClick) -or
-            [double]$record.pairApproachRadius -le 3.02 -or [double]$record.targetDistanceAtClick -le 0 -or
+            [double]$record.pairApproachRadius -le 0.17 -or [double]$record.targetDistanceAtClick -le 0.05 -or
+            [Math]::Abs([double]$record.targetDistanceAtClick - ([double]$record.pairApproachRadius - 0.12)) -gt 0.060001 -or
             [double]$record.targetDistanceAtClick -gt ([double]$record.pairApproachRadius + 0.05)) {
             throw 'PASS combat evidence does not prove the exact bounded mounted range contract.'
         }

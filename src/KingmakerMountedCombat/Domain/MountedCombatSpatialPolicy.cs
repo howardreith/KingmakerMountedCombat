@@ -18,6 +18,8 @@ namespace KingmakerMountedCombat.Domain
     public static class MountedCombatSpatialPolicy
     {
         public const float RangeTolerance = 0.05f;
+        public const float DiagnosticRangeInset = 0.12f;
+        public const float DiagnosticPlacementTolerance = 0.06f;
 
         public static float CalculateStoppingRadius(
             float mammothCorpulence,
@@ -44,6 +46,33 @@ namespace KingmakerMountedCombat.Domain
             var dz = mammothOrigin.Z - targetOrigin.Z;
             var admitted = stoppingRadius + RangeTolerance;
             return (dx * dx) + (dz * dz) <= admitted * admitted;
+        }
+
+        public static bool TryCalculateDiagnosticTargetDistance(
+            float stoppingRadius,
+            out float targetDistance)
+        {
+            RequireFiniteNonNegative(stoppingRadius, nameof(stoppingRadius));
+            if (stoppingRadius <= DiagnosticRangeInset + RangeTolerance)
+            {
+                targetDistance = 0f;
+                return false;
+            }
+
+            targetDistance = stoppingRadius - DiagnosticRangeInset;
+            return true;
+        }
+
+        public static bool IsBoundedDiagnosticTargetDistance(
+            float stoppingRadius,
+            float actualDistance)
+        {
+            RequireFiniteNonNegative(actualDistance, nameof(actualDistance));
+            float expectedDistance;
+            return TryCalculateDiagnosticTargetDistance(stoppingRadius, out expectedDistance) &&
+                actualDistance > RangeTolerance &&
+                Math.Abs(actualDistance - expectedDistance) <= DiagnosticPlacementTolerance &&
+                actualDistance <= stoppingRadius + RangeTolerance;
         }
 
         private static void RequireFiniteNonNegative(float value, string name)
