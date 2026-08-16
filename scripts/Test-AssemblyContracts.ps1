@@ -65,6 +65,7 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.Game',0x06000CE0,'LoadGame'),@('Kingmaker.Blueprints.BlueprintScriptableObject',0x06009637,'get_AssetGuidThreadSafe'),
         @('Kingmaker.Controllers.Units.UnitMoveController',0x06009183,'Tick'),@('Kingmaker.View.UnitEntityView',0x0600184D,'MoveTo'),
         @('Kingmaker.View.UnitEntityView',0x06001848,'ForcePlaceAboveGround'),
+        @('Kingmaker.View.UnitEntityView',0x06001851,'StopMoving'),
         @('Kingmaker.View.UnitMovementAgent',0x060018BE,'get_WantsToMove'),@('Kingmaker.View.UnitMovementAgent',0x060018C0,'get_IsReallyMoving'),
         @('Kingmaker.View.UnitMovementAgent',0x060018C2,'Stop'),@('Kingmaker.View.UnitMovementAgentBase',0x060018E2,'get_Velocity'),
         @('Kingmaker.View.UnitMovementAgentBase',0x060018E6,'get_Speed'),@('Kingmaker.EntitySystem.Entities.UnitEntityData',0x06008345,'Translocate'),
@@ -161,6 +162,7 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.UnitLogic.Commands.Base.UnitCommand',0x06002784,'get_IsUnitEnoughClose'),
         @('Kingmaker.Utility.GeometryUtils',0x06001C68,'MechanicsDistance'),
         @('TurnBased.Controllers.TurnController',0x06000C37,'TickMovement'),
+        @('Kingmaker.Controllers.Units.UnitActionController',0x0600911C,'TickOnUnit'),
         @('Kingmaker.Controllers.Units.UnitActionController',0x0600911F,'ShouldStartCommand'),
         @('Kingmaker.Controllers.Units.UnitActionController',0x0600911E,'TickCommand'),
         @('Kingmaker.Controllers.Units.UnitActionController',0x06009120,'UpdateCooldowns'),
@@ -310,6 +312,11 @@ if($Target-eq'Kingmaker'){
         $combatCanAct.Count-eq1 -and $combatCanAct[0] -is [Reflection.MethodInfo] -and
         (Test-MethodIlContainsToken $combatCanAct[0] 0x0600938E)) `
         'combat preparation writes per-unit initiative and actor readiness consumes its own waiting state'
+    $unitActionTick=@(Find-Token 'Kingmaker.Controllers.Units.UnitActionController' 0x0600911C)
+    Assert-Contract ($unitActionTick.Count-eq1 -and $unitActionTick[0] -is [Reflection.MethodInfo] -and
+        (Test-MethodIlContainsToken $unitActionTick[0] 0x060026A6) -and
+        (Test-MethodIlContainsToken $unitActionTick[0] 0x06001851)) `
+        'UnitActionController exact empty-command container stops stock unit movement'
     $combatJoinTickUnit=@(Find-Token 'Kingmaker.Controllers.Combat.UnitCombatJoinController' 0x06009361)
     $combatShouldEngage=@(Find-Token 'Kingmaker.Controllers.Combat.UnitCombatJoinController' 0x06009362)
     Assert-Contract ($combatJoinTickUnit.Count-eq1 -and $combatJoinTickUnit[0] -is [Reflection.MethodInfo] -and

@@ -4,6 +4,10 @@ Status: IN PROGRESS
 
 Branch: `codex/mounted-combat-phase2-alpha`
 
+## Movement-to-attack stock-controller repair checkpoint - 2026-08-16T21:14:03Z
+
+No critical blocker is active. Fresh run `20260816T210000Z-rider-move-attack-rt-passA` is immutable uncredited `FAIL` `45/10`: exact out-of-range placement, rider wrapper, Mammoth executor/agent authority, rider suppression, pose/UI/selection, target stationarity, cleanup, and independent restoration pass, but the pair never moves and the child attack never begins. Exact installed `UnitActionController.TickOnUnit` (`0x0600911C`) calls `UnitEntityView.StopMoving` (`0x06001851`) whenever `UnitCommands.Empty` (`0x060026A6`) is true, cancelling the detached Mammoth path each frame. The narrow repair gives the exact delegated move the Mammoth Move slot through stock `UnitCommands.Run`, keeps the queue empty, rejects replacement, requires successful completion and exact slot restoration, uses stock RT control and rider-turn TB advancement, and changes no action/resource, pathfinding, pose, save, transaction, or restoration gate. Schema v30/v31 is offline-green at `21/210/17/180/250`; schemas v28/v29 remain immutable history. Fresh clean-package RT/TB A/B is still required.
+
 ## Movement-to-attack offline checkpoint - 2026-08-16T20:27:57Z
 
 No critical blocker is active. The selected rider-melee movement-to-attack implementation is offline-green on base `d934db721b9982f37789c2d6249d3e93942f91b6`: one rider-owned Standard wrapper manually drives one exact Mammoth `UnitMoveTo`; Mammoth remains sole pathfinder; turn-based movement is charged only through the rider's current native `TurnController`; real-time ignored-cooldown movement changes neither Move ledger. Schema v28/v29 binds command retention, exact mover, range transition, resource ownership, selection/UI/pose continuity, no repath/target movement/duplicate attack, and cleanup while preserving schemas v1-v27. Gates pass `21/209/17/179/247` plus Release build. Runtime RT/TB A/B is still required, so no movement qualification credit is claimed.

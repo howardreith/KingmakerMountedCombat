@@ -162,6 +162,15 @@ namespace KingmakerMountedCombat.Domain
             bool delegatedMoveExecutorIsExactMount,
             bool wrapperCommandRetained,
             bool delegatedMoveNeverQueued,
+            bool delegatedMoveOwnedByMountMoveSlot,
+            bool mountMoveSlotUnreplacedThroughoutApproach,
+            bool mountQueueEmptyThroughoutApproach,
+            bool delegatedMoveFinishedSuccessfully,
+            bool mountMoveSlotRestoredAfterApproach,
+            bool delegatedMoveDrivenByStockController,
+            bool delegatedMoveDrivenByRiderTurnAdapter,
+            bool turnBasedApproach,
+            int delegatedMoveProgressObservationCount,
             bool riderStockAgentSuppressed,
             bool mountStockAgentAuthoritative,
             bool poseHealthyThroughout,
@@ -182,6 +191,15 @@ namespace KingmakerMountedCombat.Domain
             DelegatedMoveExecutorIsExactMount = delegatedMoveExecutorIsExactMount;
             WrapperCommandRetained = wrapperCommandRetained;
             DelegatedMoveNeverQueued = delegatedMoveNeverQueued;
+            DelegatedMoveOwnedByMountMoveSlot = delegatedMoveOwnedByMountMoveSlot;
+            MountMoveSlotUnreplacedThroughoutApproach = mountMoveSlotUnreplacedThroughoutApproach;
+            MountQueueEmptyThroughoutApproach = mountQueueEmptyThroughoutApproach;
+            DelegatedMoveFinishedSuccessfully = delegatedMoveFinishedSuccessfully;
+            MountMoveSlotRestoredAfterApproach = mountMoveSlotRestoredAfterApproach;
+            DelegatedMoveDrivenByStockController = delegatedMoveDrivenByStockController;
+            DelegatedMoveDrivenByRiderTurnAdapter = delegatedMoveDrivenByRiderTurnAdapter;
+            TurnBasedApproach = turnBasedApproach;
+            DelegatedMoveProgressObservationCount = delegatedMoveProgressObservationCount;
             RiderStockAgentSuppressed = riderStockAgentSuppressed;
             MountStockAgentAuthoritative = mountStockAgentAuthoritative;
             PoseHealthyThroughout = poseHealthyThroughout;
@@ -203,6 +221,15 @@ namespace KingmakerMountedCombat.Domain
         public bool DelegatedMoveExecutorIsExactMount { get; }
         public bool WrapperCommandRetained { get; }
         public bool DelegatedMoveNeverQueued { get; }
+        public bool DelegatedMoveOwnedByMountMoveSlot { get; }
+        public bool MountMoveSlotUnreplacedThroughoutApproach { get; }
+        public bool MountQueueEmptyThroughoutApproach { get; }
+        public bool DelegatedMoveFinishedSuccessfully { get; }
+        public bool MountMoveSlotRestoredAfterApproach { get; }
+        public bool DelegatedMoveDrivenByStockController { get; }
+        public bool DelegatedMoveDrivenByRiderTurnAdapter { get; }
+        public bool TurnBasedApproach { get; }
+        public int DelegatedMoveProgressObservationCount { get; }
         public bool RiderStockAgentSuppressed { get; }
         public bool MountStockAgentAuthoritative { get; }
         public bool PoseHealthyThroughout { get; }
@@ -224,10 +251,23 @@ namespace KingmakerMountedCombat.Domain
                 var failures = new System.Collections.Generic.List<string>();
                 AddFailure(failures, ApproachRequiredAtStart, "approach-required-at-start");
                 AddFailure(failures, DelegatedMoveStartCount == 1, "one-delegated-move");
-                AddFailure(failures, DelegatedMoveTickCount > 0, "delegated-move-ticked");
+                AddFailure(failures,
+                    TurnBasedApproach ? DelegatedMoveTickCount > 0 : DelegatedMoveTickCount == 0,
+                    "delegated-move-drive-mode");
                 AddFailure(failures, DelegatedMoveExecutorIsExactMount, "delegated-move-executor-is-mount");
                 AddFailure(failures, WrapperCommandRetained, "wrapper-command-retained");
                 AddFailure(failures, DelegatedMoveNeverQueued, "delegated-move-not-queued");
+                AddFailure(failures, DelegatedMoveOwnedByMountMoveSlot, "mount-move-slot-owned");
+                AddFailure(failures, MountMoveSlotUnreplacedThroughoutApproach, "mount-move-slot-unreplaced");
+                AddFailure(failures, MountQueueEmptyThroughoutApproach, "mount-command-queue-empty");
+                AddFailure(failures, DelegatedMoveFinishedSuccessfully, "delegated-move-finished-successfully");
+                AddFailure(failures, MountMoveSlotRestoredAfterApproach, "mount-move-slot-restored");
+                AddFailure(failures,
+                    TurnBasedApproach
+                        ? DelegatedMoveDrivenByRiderTurnAdapter && !DelegatedMoveDrivenByStockController
+                        : DelegatedMoveDrivenByStockController && !DelegatedMoveDrivenByRiderTurnAdapter,
+                    "delegated-move-controller-exact");
+                AddFailure(failures, DelegatedMoveProgressObservationCount > 0, "delegated-move-progress-observed");
                 AddFailure(failures, RiderStockAgentSuppressed, "rider-stock-agent-suppressed");
                 AddFailure(failures, MountStockAgentAuthoritative, "mount-stock-agent-authoritative");
                 AddFailure(failures, PoseHealthyThroughout, "pose-healthy-throughout");

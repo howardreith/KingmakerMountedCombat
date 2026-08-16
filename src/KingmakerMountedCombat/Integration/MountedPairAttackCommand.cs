@@ -68,6 +68,22 @@ namespace KingmakerMountedCombat.Integration
 
         public bool DelegatedMoveNeverQueuedOnMount { get; set; }
 
+        public bool DelegatedMoveOwnedByMountMoveSlot { get; set; }
+
+        public bool MountMoveSlotUnreplacedThroughoutApproach { get; set; }
+
+        public bool MountQueueEmptyThroughoutApproach { get; set; }
+
+        public bool DelegatedMoveFinishedSuccessfully { get; set; }
+
+        public bool MountMoveSlotRestoredAfterApproach { get; set; }
+
+        public bool DelegatedMoveDrivenByStockController { get; set; }
+
+        public bool DelegatedMoveDrivenByRiderTurnAdapter { get; set; }
+
+        public int DelegatedMoveProgressObservationCount { get; set; }
+
         public bool RiderStockAgentSuppressedThroughoutApproach { get; set; }
 
         public bool MountStockAgentAuthoritativeThroughoutApproach { get; set; }
@@ -116,6 +132,14 @@ namespace KingmakerMountedCombat.Integration
         private bool delegatedMoveExecutorIsExactMount = true;
         private bool wrapperCommandRetainedThroughoutApproach = true;
         private bool delegatedMoveNeverQueuedOnMount = true;
+        private bool delegatedMoveOwnedByMountMoveSlot = true;
+        private bool mountMoveSlotUnreplacedThroughoutApproach = true;
+        private bool mountQueueEmptyThroughoutApproach = true;
+        private bool delegatedMoveFinishedSuccessfully;
+        private bool mountMoveSlotRestoredAfterApproach = true;
+        private bool delegatedMoveDrivenByStockController;
+        private bool delegatedMoveDrivenByRiderTurnAdapter;
+        private int delegatedMoveProgressObservationCount;
         private bool riderStockAgentSuppressedThroughoutApproach = true;
         private bool mountStockAgentAuthoritativeThroughoutApproach = true;
         private bool poseHealthyThroughoutApproach = true;
@@ -284,12 +308,7 @@ namespace KingmakerMountedCombat.Integration
         {
             try
             {
-                if (delegatedMove != null && !delegatedMove.IsFinished)
-                {
-                    delegatedMove.Interrupt(false);
-                }
-                mount.Commands.InterruptMove();
-                mount.View?.StopMoving();
+                StopDelegatedMove(false);
                 if (childAttack != null && !childAttack.IsFinished)
                 {
                     childAttack.Interrupt(false);
@@ -311,7 +330,16 @@ namespace KingmakerMountedCombat.Integration
             ObserveApproachInvariants();
             if (childAttack.IsPairEnoughClose)
             {
-                StopDelegatedMove();
+                if (delegatedMove != null && !delegatedMove.IsFinished &&
+                    TurnBased.Controllers.CombatController.IsInTurnBasedCombat())
+                {
+                    DriveDelegatedMoveOnRiderTurn();
+                }
+                if (delegatedMove != null && !delegatedMove.IsFinished)
+                {
+                    return;
+                }
+                StopDelegatedMove(true);
                 if (!transaction.Arrive(attackTarget.UniqueId))
                 {
                     throw new InvalidOperationException("Mounted pair transaction could not enter attack range.");
@@ -330,6 +358,20 @@ namespace KingmakerMountedCombat.Integration
                 BeginDelegatedMove();
             }
 
+            if (TurnBased.Controllers.CombatController.IsInTurnBasedCombat())
+            {
+                DriveDelegatedMoveOnRiderTurn();
+            }
+
+            if (delegatedMove.IsFinished && !childAttack.IsPairEnoughClose)
+            {
+                Repath();
+            }
+        }
+
+        private void DriveDelegatedMoveOnRiderTurn()
+        {
+            delegatedMoveDrivenByRiderTurnAdapter = true;
             if (!delegatedMove.IsStarted && !delegatedMove.IsFinished)
             {
                 delegatedMove.TickApproaching();
@@ -344,11 +386,6 @@ namespace KingmakerMountedCombat.Integration
                 delegatedMoveTickCount++;
                 delegatedMove.Tick();
             }
-
-            if (delegatedMove.IsFinished && !childAttack.IsPairEnoughClose)
-            {
-                Repath();
-            }
         }
 
         private void Repath()
@@ -357,7 +394,7 @@ namespace KingmakerMountedCombat.Integration
             {
                 throw new InvalidOperationException("Mounted pair command exhausted its bounded repath allowance.");
             }
-            StopDelegatedMove();
+            StopDelegatedMove(false);
             targetSnapshot = attackTarget.Position;
             BeginDelegatedMove();
         }
@@ -368,27 +405,65 @@ namespace KingmakerMountedCombat.Integration
             {
                 throw new InvalidOperationException("Mounted pair attack radius is unavailable.");
             }
+            if (mount.Commands == null || !mount.Commands.Empty || mount.Commands.Queue.Count != 0)
+            {
+                throw new InvalidOperationException("Mammoth command container was not empty before exact delegated movement ownership.");
+            }
             delegatedMove = new UnitMoveTo(targetSnapshot, childAttack.PairApproachRadius)
             {
                 CreatedByPlayer = true,
                 ShowTargetMarker = false
             };
-            delegatedMove.Init(mount);
-            delegatedMove.OnRun();
             delegatedMoveStartCount++;
+            delegatedMoveDrivenByStockController =
+                !TurnBased.Controllers.CombatController.IsInTurnBasedCombat();
+            mountMoveSlotRestoredAfterApproach = false;
+            mount.Commands.Run(delegatedMove);
             delegatedMoveExecutorId = delegatedMove.Executor?.UniqueId;
             delegatedMoveExecutorIsExactMount &= delegatedMove.Executor == mount;
+            delegatedMoveOwnedByMountMoveSlot &=
+                mount.Commands.Move == delegatedMove && mount.Commands.Contains(delegatedMove);
             delegatedMoveNeverQueuedOnMount &=
-                !mount.Commands.Contains(delegatedMove) &&
                 !mount.Commands.Queue.Contains(delegatedMove);
+            mountQueueEmptyThroughoutApproach &= mount.Commands.Queue.Count == 0;
+            if (!delegatedMoveExecutorIsExactMount || !delegatedMoveOwnedByMountMoveSlot ||
+                !delegatedMoveNeverQueuedOnMount || !mountQueueEmptyThroughoutApproach)
+            {
+                throw new InvalidOperationException(
+                    "Exact delegated Mammoth movement did not acquire only the active Move slot.");
+            }
         }
 
-        private void StopDelegatedMove()
+        private void StopDelegatedMove(bool requireSuccess)
         {
-            if (delegatedMove != null && !delegatedMove.IsFinished)
+            if (delegatedMove == null)
             {
-                delegatedMove.Interrupt(false);
+                return;
             }
+
+            var exactMove = delegatedMove;
+            var commands = mount.Commands;
+            var exactSlotOrStockRemoved = commands != null &&
+                (commands.Move == exactMove ||
+                 (exactMove.IsFinished && commands.Move == null && !commands.Contains(exactMove)));
+            mountMoveSlotUnreplacedThroughoutApproach &= exactSlotOrStockRemoved;
+            mountQueueEmptyThroughoutApproach &= commands != null && commands.Queue.Count == 0;
+            if (!exactMove.IsFinished)
+            {
+                exactMove.Interrupt(false);
+            }
+            if (requireSuccess && exactMove.Result != ResultType.Success)
+            {
+                throw new InvalidOperationException(
+                    "Exact delegated Mammoth move did not finish successfully before rider attack admission.");
+            }
+            delegatedMoveFinishedSuccessfully |= exactMove.Result == ResultType.Success;
+            if (commands != null && commands.Contains(exactMove))
+            {
+                commands.RemoveFinishedAndUpdateQueue();
+            }
+            mountMoveSlotRestoredAfterApproach = commands != null && commands.Move == null &&
+                !commands.Contains(exactMove) && commands.Queue.Count == 0;
             mount.View?.StopMoving();
             delegatedMove = null;
         }
@@ -403,7 +478,7 @@ namespace KingmakerMountedCombat.Integration
             riderDisplacementAtAttackStart = HorizontalDistance(riderPositionAtCommandStart, rider.Position);
             mountDisplacementAtAttackStart = HorizontalDistance(mountPositionAtCommandStart, mount.Position);
             targetDisplacementAtAttackStart = HorizontalDistance(targetPositionAtCommandStart, attackTarget.Position);
-            StopDelegatedMove();
+            StopDelegatedMove(false);
             mount.ForceLookAt(attackTarget.Position);
             childAttack.TurnToTarget();
             childAttack.OnRun();
@@ -488,9 +563,21 @@ namespace KingmakerMountedCombat.Integration
             if (delegatedMove != null)
             {
                 delegatedMoveExecutorIsExactMount &= delegatedMove.Executor == mount;
+                var exactSlotOrStockRemoved = mount.Commands.Move == delegatedMove ||
+                    (delegatedMove.IsFinished && mount.Commands.Move == null &&
+                     !mount.Commands.Contains(delegatedMove));
+                mountMoveSlotUnreplacedThroughoutApproach &= exactSlotOrStockRemoved;
                 delegatedMoveNeverQueuedOnMount &=
-                    !mount.Commands.Contains(delegatedMove) &&
                     !mount.Commands.Queue.Contains(delegatedMove);
+                mountQueueEmptyThroughoutApproach &= mount.Commands.Queue.Count == 0;
+                var mountAgent = mount.View?.AgentASP;
+                if (mountAgent != null &&
+                    (mountAgent.WantsToMove || mountAgent.IsReallyMoving ||
+                     HorizontalDistance(mountPositionAtCommandStart, mount.Position) >
+                        MountedCombatSpatialPolicy.RangeTolerance))
+                {
+                    delegatedMoveProgressObservationCount++;
+                }
             }
             riderStockAgentSuppressedThroughoutApproach &= rider.View?.AgentASP != null &&
                 !rider.View.AgentASP.enabled && rider.View.AgentASP.AvoidanceDisabled;
@@ -540,6 +627,14 @@ namespace KingmakerMountedCombat.Integration
                 DelegatedMoveExecutorIsExactMount = delegatedMoveExecutorIsExactMount,
                 WrapperCommandRetainedThroughoutApproach = wrapperCommandRetainedThroughoutApproach,
                 DelegatedMoveNeverQueuedOnMount = delegatedMoveNeverQueuedOnMount,
+                DelegatedMoveOwnedByMountMoveSlot = delegatedMoveOwnedByMountMoveSlot,
+                MountMoveSlotUnreplacedThroughoutApproach = mountMoveSlotUnreplacedThroughoutApproach,
+                MountQueueEmptyThroughoutApproach = mountQueueEmptyThroughoutApproach,
+                DelegatedMoveFinishedSuccessfully = delegatedMoveFinishedSuccessfully,
+                MountMoveSlotRestoredAfterApproach = mountMoveSlotRestoredAfterApproach,
+                DelegatedMoveDrivenByStockController = delegatedMoveDrivenByStockController,
+                DelegatedMoveDrivenByRiderTurnAdapter = delegatedMoveDrivenByRiderTurnAdapter,
+                DelegatedMoveProgressObservationCount = delegatedMoveProgressObservationCount,
                 RiderStockAgentSuppressedThroughoutApproach = riderStockAgentSuppressedThroughoutApproach,
                 MountStockAgentAuthoritativeThroughoutApproach = mountStockAgentAuthoritativeThroughoutApproach,
                 PoseHealthyThroughoutApproach = poseHealthyThroughoutApproach,

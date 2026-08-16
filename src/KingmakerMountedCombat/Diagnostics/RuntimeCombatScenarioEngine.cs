@@ -945,6 +945,15 @@ namespace KingmakerMountedCombat.Diagnostics
                         string.Equals(outcome.DelegatedMoveExecutorId, mount.UniqueId, StringComparison.Ordinal),
                     outcome.WrapperCommandRetainedThroughoutApproach,
                     outcome.DelegatedMoveNeverQueuedOnMount,
+                    outcome.DelegatedMoveOwnedByMountMoveSlot,
+                    outcome.MountMoveSlotUnreplacedThroughoutApproach,
+                    outcome.MountQueueEmptyThroughoutApproach,
+                    outcome.DelegatedMoveFinishedSuccessfully,
+                    outcome.MountMoveSlotRestoredAfterApproach,
+                    outcome.DelegatedMoveDrivenByStockController,
+                    outcome.DelegatedMoveDrivenByRiderTurnAdapter,
+                    IsTurnBasedRow,
+                    outcome.DelegatedMoveProgressObservationCount,
                     outcome.RiderStockAgentSuppressedThroughoutApproach,
                     outcome.MountStockAgentAuthoritativeThroughoutApproach,
                     outcome.PoseHealthyThroughoutApproach,
@@ -1121,7 +1130,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var record = new CombatEvidenceRecord
             {
                 SchemaVersion = IsMovementToAttackRow
-                    ? (IsTurnBasedRow ? 29 : 28)
+                    ? (IsTurnBasedRow ? 31 : 30)
                     : (IsTurnBasedRow ? 27 : 26),
                 ArtifactKind = "combat-scenario-evidence",
                 RunId = request.RunId,
@@ -1981,6 +1990,14 @@ namespace KingmakerMountedCombat.Diagnostics
             public bool DelegatedMoveExecutorIsExactMount { get; set; }
             public bool WrapperCommandRetainedThroughoutApproach { get; set; }
             public bool DelegatedMoveNeverQueuedOnMount { get; set; }
+            public bool DelegatedMoveOwnedByMountMoveSlot { get; set; }
+            public bool MountMoveSlotUnreplacedThroughoutApproach { get; set; }
+            public bool MountQueueEmptyThroughoutApproach { get; set; }
+            public bool DelegatedMoveFinishedSuccessfully { get; set; }
+            public bool MountMoveSlotRestoredAfterApproach { get; set; }
+            public bool DelegatedMoveDrivenByStockController { get; set; }
+            public bool DelegatedMoveDrivenByRiderTurnAdapter { get; set; }
+            public int DelegatedMoveProgressObservationCount { get; set; }
             public bool RiderStockAgentSuppressedThroughoutApproach { get; set; }
             public bool MountStockAgentAuthoritativeThroughoutApproach { get; set; }
             public bool PoseHealthyThroughoutApproach { get; set; }
@@ -2011,6 +2028,14 @@ namespace KingmakerMountedCombat.Diagnostics
                     DelegatedMoveExecutorIsExactMount = value != null && value.DelegatedMoveExecutorIsExactMount,
                     WrapperCommandRetainedThroughoutApproach = value != null && value.WrapperCommandRetainedThroughoutApproach,
                     DelegatedMoveNeverQueuedOnMount = value != null && value.DelegatedMoveNeverQueuedOnMount,
+                    DelegatedMoveOwnedByMountMoveSlot = value != null && value.DelegatedMoveOwnedByMountMoveSlot,
+                    MountMoveSlotUnreplacedThroughoutApproach = value != null && value.MountMoveSlotUnreplacedThroughoutApproach,
+                    MountQueueEmptyThroughoutApproach = value != null && value.MountQueueEmptyThroughoutApproach,
+                    DelegatedMoveFinishedSuccessfully = value != null && value.DelegatedMoveFinishedSuccessfully,
+                    MountMoveSlotRestoredAfterApproach = value != null && value.MountMoveSlotRestoredAfterApproach,
+                    DelegatedMoveDrivenByStockController = value != null && value.DelegatedMoveDrivenByStockController,
+                    DelegatedMoveDrivenByRiderTurnAdapter = value != null && value.DelegatedMoveDrivenByRiderTurnAdapter,
+                    DelegatedMoveProgressObservationCount = value?.DelegatedMoveProgressObservationCount ?? 0,
                     RiderStockAgentSuppressedThroughoutApproach = value != null && value.RiderStockAgentSuppressedThroughoutApproach,
                     MountStockAgentAuthoritativeThroughoutApproach = value != null && value.MountStockAgentAuthoritativeThroughoutApproach,
                     PoseHealthyThroughoutApproach = value != null && value.PoseHealthyThroughoutApproach,

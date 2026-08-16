@@ -23,6 +23,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("mounted combat diagnostic placement refreshes exact Mammoth actor drift", DiagnosticPlacementRefreshesObservedMammothDrift);
             runner.Run("mounted combat approach placement starts outside exact pair range", DiagnosticApproachPlacementStartsOutsideRange);
             runner.Run("mounted combat approach evidence preserves mount-only pathfinding", ApproachEvidencePreservesMountAuthority);
+            runner.Run("mounted combat approach rejects an empty Mammoth command controller", ApproachEvidenceRejectsEmptyMountCommandController);
             runner.Run("mounted combat approach evidence reports command movement and pose drift", ApproachEvidenceReportsExactFailures);
             runner.Run("mounted combat native admission bridges only an in-range Mammoth origin", NativeAdmissionUsesMountOrigin);
             runner.Run("mounted combat native admission rejects pair range and offset escape", NativeAdmissionRejectsUnsafeBounds);
@@ -252,12 +253,17 @@ namespace KingmakerMountedCombat.Tests
         private static void ApproachEvidenceReportsExactFailures()
         {
             var snapshot = new MountedCombatApproachSnapshot(
-                true, 2, 0, false, false, false, false, false, false, 0, false, false,
+                true, 2, 1, false, false, false,
+                false, false, false, false, false, false, true, false, 0,
+                false, false, false, 0, false, false,
                 2.37f, 2.42f, 2.43f, 0.1f, 0.2f, 0.051f, 1);
             TestRunner.True(!snapshot.AllPassed, "An unsafe approach evidence snapshot passed.");
             TestRunner.Equal(
-                "one-delegated-move,delegated-move-ticked,delegated-move-executor-is-mount," +
-                "wrapper-command-retained,delegated-move-not-queued,rider-stock-agent-suppressed," +
+                "one-delegated-move,delegated-move-drive-mode,delegated-move-executor-is-mount," +
+                "wrapper-command-retained,delegated-move-not-queued,mount-move-slot-owned," +
+                "mount-move-slot-unreplaced,mount-command-queue-empty,delegated-move-finished-successfully," +
+                "mount-move-slot-restored,delegated-move-controller-exact,delegated-move-progress-observed," +
+                "rider-stock-agent-suppressed," +
                 "mount-stock-agent-authoritative,pose-healthy-throughout,runtime-approach-observed," +
                 "selection-retained,ui-coherent-throughout,attack-start-inside-range," +
                 "rider-followed-approach,mount-performed-approach,target-remained-stationary," +
@@ -266,10 +272,50 @@ namespace KingmakerMountedCombat.Tests
                 "Unsafe approach gates were not reported in exact order.");
         }
 
+        private static void ApproachEvidenceRejectsEmptyMountCommandController()
+        {
+            var snapshot = PassingApproachSnapshot();
+            var missingMoveSlot = new MountedCombatApproachSnapshot(
+                snapshot.ApproachRequiredAtStart,
+                snapshot.DelegatedMoveStartCount,
+                snapshot.DelegatedMoveTickCount,
+                snapshot.DelegatedMoveExecutorIsExactMount,
+                snapshot.WrapperCommandRetained,
+                snapshot.DelegatedMoveNeverQueued,
+                false,
+                snapshot.MountMoveSlotUnreplacedThroughoutApproach,
+                snapshot.MountQueueEmptyThroughoutApproach,
+                snapshot.DelegatedMoveFinishedSuccessfully,
+                snapshot.MountMoveSlotRestoredAfterApproach,
+                snapshot.DelegatedMoveDrivenByStockController,
+                snapshot.DelegatedMoveDrivenByRiderTurnAdapter,
+                snapshot.TurnBasedApproach,
+                snapshot.DelegatedMoveProgressObservationCount,
+                snapshot.RiderStockAgentSuppressed,
+                snapshot.MountStockAgentAuthoritative,
+                snapshot.PoseHealthyThroughout,
+                snapshot.ObservationCount,
+                snapshot.SelectionRetained,
+                snapshot.UiCoherentThroughout,
+                snapshot.PairApproachRadius,
+                snapshot.InitialPairDistance,
+                snapshot.PairDistanceAtAttackStart,
+                snapshot.RiderDisplacementAtAttackStart,
+                snapshot.MountDisplacementAtAttackStart,
+                snapshot.TargetDisplacementAtAttackStart,
+                snapshot.RepathCount);
+            TestRunner.True(!missingMoveSlot.AllPassed,
+                "A detached delegated move passed despite stock empty-container movement cancellation.");
+            TestRunner.True(Array.IndexOf(missingMoveSlot.FailedGateNames, "mount-move-slot-owned") >= 0,
+                "The exact Mammoth Move-slot failure was not reported.");
+        }
+
         private static MountedCombatApproachSnapshot PassingApproachSnapshot()
         {
             return new MountedCombatApproachSnapshot(
-                true, 1, 12, true, true, true, true, true, true, 10, true, true,
+                true, 1, 0, true, true, true,
+                true, true, true, true, true, true, false, false, 8,
+                true, true, true, 10, true, true,
                 2.37f, 4.37f, 2.36f, 2.0f, 2.0f, 0.0f, 0);
         }
 

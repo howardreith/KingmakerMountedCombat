@@ -1081,7 +1081,7 @@ function New-TestCombatEvidenceRecord {
     $actorRole = if ($isMammoth) { 'mount' } else { 'rider' }
     $action = if ($isMammoth) { 'MountPrimaryNatural' } else { 'RiderMelee' }
     $record = [ordered]@{
-        schemaVersion=$(if ($isMovementToAttack) { if ($isTurnBased) { 29 } else { 28 } } elseif ($isTurnBased) { 27 } else { 26 });artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
+        schemaVersion=$(if ($isMovementToAttack) { if ($isTurnBased) { 31 } else { 30 } } elseif ($isTurnBased) { 27 } else { 26 });artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
         scenario=[string]$Request.scenario;row=[string]$Request.scenario;rowIndex=0;sequence=0;frame=30
         utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o');branch=[string]$Request.branch
         commit=[string]$Request.commit;productVersion=[string]$Request.productVersion
@@ -1239,8 +1239,12 @@ function New-TestCombatEvidenceRecord {
     if ($isMovementToAttack) {
         $record.movementToAttack = [ordered]@{
             requestedTargetDistance=6.0;approachRequiredAtStart=$true;delegatedMoveStartCount=1
-            delegatedMoveTickCount=12;delegatedMoveExecutorId=$mount;delegatedMoveExecutorIsExactMount=$true
+            delegatedMoveTickCount=$(if ($isTurnBased) { 12 } else { 0 });delegatedMoveExecutorId=$mount;delegatedMoveExecutorIsExactMount=$true
             wrapperCommandRetainedThroughoutApproach=$true;delegatedMoveNeverQueuedOnMount=$true
+            delegatedMoveOwnedByMountMoveSlot=$true;mountMoveSlotUnreplacedThroughoutApproach=$true
+            mountQueueEmptyThroughoutApproach=$true;delegatedMoveFinishedSuccessfully=$true
+            mountMoveSlotRestoredAfterApproach=$true;delegatedMoveDrivenByStockController=(-not $isTurnBased)
+            delegatedMoveDrivenByRiderTurnAdapter=$isTurnBased;delegatedMoveProgressObservationCount=12
             riderStockAgentSuppressedThroughoutApproach=$true;mountStockAgentAuthoritativeThroughoutApproach=$true
             poseHealthyThroughoutApproach=$true;commandObservationCount=12;runtimeObservationCount=12
             selectionRetainedDuringApproach=$true;uiCoherentDuringApproach=$true
@@ -4533,7 +4537,7 @@ try {
         Assert-Test ($engineSource.Contains('CleanupTimeoutSeconds = 10.0d') -and
             $engineSource.Contains('rowClock.Elapsed.TotalSeconds - cleanupStartedAtSeconds < CleanupTimeoutSeconds')) 'combat cleanup does not retain an independent bounded drain after a row deadline'
         Assert-Test ($engineSource.Contains('SchemaVersion = IsMovementToAttackRow') -and
-            $engineSource.Contains('? (IsTurnBasedRow ? 29 : 28)') -and
+            $engineSource.Contains('? (IsTurnBasedRow ? 31 : 30)') -and
             $engineSource.Contains(': (IsTurnBasedRow ? 27 : 26)') -and
             $engineSource.Contains('Mode = IsTurnBasedRow ? "turn-based" : "real-time"') -and
             $engineSource.Contains('TurnBased = IsTurnBasedRow') -and
@@ -4600,8 +4604,11 @@ try {
             $commandSource.Contains('ResourceOwnerId = actionActor.UniqueId') -and
             $commandSource.Contains('retainedAttackWeaponBlueprintId = childAttack.PlannedAttack.Weapon.Blueprint.AssetGuid;') -and
             $commandSource.Contains('AttackWeaponBlueprintId = retainedAttackWeaponBlueprintId') -and
-            $commandSource.Contains('delegatedMove.Init(mount);') -and
-            $commandSource.Contains('!mount.Commands.Contains(delegatedMove)') -and
+            $commandSource.Contains('mount.Commands.Run(delegatedMove);') -and
+            $commandSource.Contains('mount.Commands.Move == delegatedMove') -and
+            $commandSource.Contains('mount.Commands.Queue.Count == 0') -and
+            $commandSource.Contains('commands.RemoveFinishedAndUpdateQueue();') -and
+            -not $commandSource.Contains('mount.Commands.InterruptMove()') -and
             $commandSource.Contains('WrapperCommandRetainedThroughoutApproach = wrapperCommandRetainedThroughoutApproach') -and
             $engineSource.Contains('MountedCombatApproachSnapshot(') -and
             $engineSource.Contains('MovementToAttack = IsMovementToAttackRow') -and
@@ -4745,7 +4752,7 @@ try {
     $moveAttackManifest = Read-KmcJson (Join-Path $moveAttackRequest.evidenceRoot 'runtime-artifacts.json')
     $moveAttackSubresult = [ordered]@{name=$moveAttackRequest.scenario;status='PASS';assertionPassCount=25;assertionFailCount=0;errors=@()}
 
-    Invoke-HarnessTest 'runtime request and schema-v28 evidence accept exact real-time rider movement-to-attack' {
+    Invoke-HarnessTest 'runtime request and schema-v30 evidence accept exact stock-driven real-time rider movement-to-attack' {
         & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $moveAttackRequestPath
         Assert-KmcCombatScenarioEvidence -Request $moveAttackRequest -Manifest $moveAttackManifest -Status 'PASS' -SubscenarioResults @($moveAttackSubresult)
     }
@@ -4761,7 +4768,7 @@ try {
     $moveAttackTurnManifest = Read-KmcJson (Join-Path $moveAttackTurnRequest.evidenceRoot 'runtime-artifacts.json')
     $moveAttackTurnSubresult = [ordered]@{name=$moveAttackTurnRequest.scenario;status='PASS';assertionPassCount=25;assertionFailCount=0;errors=@()}
 
-    Invoke-HarnessTest 'runtime request and schema-v29 evidence accept exact rider-owned turn movement-to-attack' {
+    Invoke-HarnessTest 'runtime request and schema-v31 evidence accept exact rider-turn-driven movement-to-attack' {
         & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $moveAttackTurnRequestPath
         Assert-KmcCombatScenarioEvidence -Request $moveAttackTurnRequest -Manifest $moveAttackTurnManifest -Status 'PASS' -SubscenarioResults @($moveAttackTurnSubresult)
     }
@@ -4775,6 +4782,13 @@ try {
             @{name='wrong delegated executor';apply={param($value) $value.movementToAttack.delegatedMoveExecutorId='combat-rider'}},
             @{name='wrapper command replaced';apply={param($value) $value.movementToAttack.wrapperCommandRetainedThroughoutApproach=$false}},
             @{name='delegated move entered mount queue';apply={param($value) $value.movementToAttack.delegatedMoveNeverQueuedOnMount=$false}},
+            @{name='delegated move absent from Mammoth Move slot';apply={param($value) $value.movementToAttack.delegatedMoveOwnedByMountMoveSlot=$false}},
+            @{name='Mammoth Move slot replaced';apply={param($value) $value.movementToAttack.mountMoveSlotUnreplacedThroughoutApproach=$false}},
+            @{name='Mammoth command queue changed';apply={param($value) $value.movementToAttack.mountQueueEmptyThroughoutApproach=$false}},
+            @{name='delegated move did not finish';apply={param($value) $value.movementToAttack.delegatedMoveFinishedSuccessfully=$false}},
+            @{name='Mammoth Move slot not restored';apply={param($value) $value.movementToAttack.mountMoveSlotRestoredAfterApproach=$false}},
+            @{name='wrong turn drive mode';apply={param($value) $value.movementToAttack.delegatedMoveDrivenByStockController=$true}},
+            @{name='no observed movement progress';apply={param($value) $value.movementToAttack.delegatedMoveProgressObservationCount=0}},
             @{name='rider stock pathfinding active';apply={param($value) $value.movementToAttack.riderStockAgentSuppressedThroughoutApproach=$false}},
             @{name='Mammoth pathfinding unavailable';apply={param($value) $value.movementToAttack.mountStockAgentAuthoritativeThroughoutApproach=$false}},
             @{name='approach pose unhealthy';apply={param($value) $value.movementToAttack.poseHealthyThroughoutApproach=$false}},
@@ -4797,6 +4811,36 @@ try {
             catch { $threw = $true }
             Assert-Test $threw ("movement-to-attack validator accepted mutation: " + [string]$mutation.name)
         }
+    }
+
+    Invoke-HarnessTest 'historical schema-v28 and schema-v29 detached-move evidence shapes remain valid' {
+        $legacyMove28 = Copy-TestJsonValue $moveAttackRecord
+        $legacyMove28.schemaVersion = 28
+        $legacyMove28.movementToAttack.delegatedMoveTickCount = 12
+        foreach ($name in @(
+            'delegatedMoveOwnedByMountMoveSlot','mountMoveSlotUnreplacedThroughoutApproach',
+            'mountQueueEmptyThroughoutApproach','delegatedMoveFinishedSuccessfully',
+            'mountMoveSlotRestoredAfterApproach','delegatedMoveDrivenByStockController',
+            'delegatedMoveDrivenByRiderTurnAdapter','delegatedMoveProgressObservationCount')) {
+            $legacyMove28.movementToAttack.PSObject.Properties.Remove($name)
+        }
+        [void](Write-TestCombatEvidence -EvidenceRoot $moveAttackRequest.evidenceRoot -Request $moveAttackRequest -Record $legacyMove28)
+        $legacyMove28Manifest = Read-KmcJson (Join-Path $moveAttackRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $moveAttackRequest -Manifest $legacyMove28Manifest -Status 'PASS' -SubscenarioResults @($moveAttackSubresult)
+
+        $legacyMove29 = Copy-TestJsonValue $moveAttackTurnRecord
+        $legacyMove29.schemaVersion = 29
+        $legacyMove29.movementToAttack.delegatedMoveTickCount = 12
+        foreach ($name in @(
+            'delegatedMoveOwnedByMountMoveSlot','mountMoveSlotUnreplacedThroughoutApproach',
+            'mountQueueEmptyThroughoutApproach','delegatedMoveFinishedSuccessfully',
+            'mountMoveSlotRestoredAfterApproach','delegatedMoveDrivenByStockController',
+            'delegatedMoveDrivenByRiderTurnAdapter','delegatedMoveProgressObservationCount')) {
+            $legacyMove29.movementToAttack.PSObject.Properties.Remove($name)
+        }
+        [void](Write-TestCombatEvidence -EvidenceRoot $moveAttackTurnRequest.evidenceRoot -Request $moveAttackTurnRequest -Record $legacyMove29)
+        $legacyMove29Manifest = Read-KmcJson (Join-Path $moveAttackTurnRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $moveAttackTurnRequest -Manifest $legacyMove29Manifest -Status 'PASS' -SubscenarioResults @($moveAttackTurnSubresult)
     }
 
     Invoke-HarnessTest 'historical schema-v24 and schema-v25 evidence remain valid without action-actor entry fields' {
