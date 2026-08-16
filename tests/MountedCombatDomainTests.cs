@@ -32,6 +32,8 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("diagnostic target safety snapshot reports exact failed gates", TargetSafetySnapshotReportsExactFailures);
             runner.Run("diagnostic combat click safety preserves every target-only gate", CombatClickSafetyPreservesEveryGate);
             runner.Run("diagnostic combat click safety reports exact visibility and weapon failures", CombatClickSafetyReportsExactFailures);
+            runner.Run("diagnostic combat dispatch requires every native real-time start gate", CombatDispatchRequiresEveryStartGate);
+            runner.Run("diagnostic combat dispatch reports exact paused initiative and equipment gates", CombatDispatchReportsExactFailures);
         }
 
         private static void RiderMeleeOwnership()
@@ -302,6 +304,29 @@ namespace KingmakerMountedCombat.Tests
                 "fog-of-war-cleared,target-visible-for-player,rider-weapon-is-supported-melee",
                 snapshot.FailureSummary,
                 "Diagnostic click failures were not reported in exact gate order.");
+        }
+
+        private static void CombatDispatchRequiresEveryStartGate()
+        {
+            var snapshot = new DiagnosticCombatDispatchReadinessSnapshot(
+                true, true, true, true, true);
+            TestRunner.True(snapshot.AllPassed, "An unpaused rider with every native start gate ready was rejected.");
+            TestRunner.True(snapshot.GameUnpaused && snapshot.RiderCanActInCombat && !snapshot.RiderHandsBusy &&
+                    snapshot.EquipmentControllerAvailable && !snapshot.EquipmentUpdateScheduled,
+                "An all-pass dispatch snapshot changed its exact native gate values.");
+        }
+
+        private static void CombatDispatchReportsExactFailures()
+        {
+            var snapshot = new DiagnosticCombatDispatchReadinessSnapshot(
+                false, false, false, true, false);
+            TestRunner.True(!snapshot.AllPassed, "A paused rider waiting on initiative and equipment was dispatched.");
+            TestRunner.Equal(
+                "game-unpaused,rider-can-act-in-combat,rider-hands-idle,equipment-update-idle",
+                snapshot.FailureSummary,
+                "Diagnostic dispatch failures were not reported in exact gate order.");
+            TestRunner.True(snapshot.RiderHandsBusy && snapshot.EquipmentUpdateScheduled,
+                "Failed dispatch gates were not preserved as exact observed states.");
         }
 
         private static MountedCombatTransaction TargetedTransaction(bool requiresApproach)

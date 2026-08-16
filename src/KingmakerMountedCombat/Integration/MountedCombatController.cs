@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using Kingmaker;
 using Kingmaker.Controllers.Clicks.Handlers;
 using Kingmaker.EntitySystem.Entities;
@@ -68,6 +69,10 @@ namespace KingmakerMountedCombat.Integration
             var canAct = rider?.Descriptor?.State != null && rider.Descriptor.State.CanAct;
             var canActInCombat = rider?.CombatState != null && rider.CombatState.CanActInCombat;
             var hasCooldown = rider?.CombatState != null && rider.CombatState.HasCooldownForCommand(command);
+            var gamePaused = game != null && game.IsPaused;
+            var initiativeCooldown = rider?.CombatState == null
+                ? "unavailable"
+                : rider.CombatState.Cooldown.Initiative.ToString("R", CultureInfo.InvariantCulture);
             return "active=true" +
                 ";inStandardSlot=" + inStandardSlot +
                 ";queued=" + queued +
@@ -79,6 +84,8 @@ namespace KingmakerMountedCombat.Integration
                 ";handsBusy=" + handsBusy +
                 ";dontWaitForHands=" + command.DontWaitForHands +
                 ";equipmentUpdateScheduled=" + equipmentUpdateScheduled +
+                ";gamePaused=" + gamePaused +
+                ";initiativeCooldown=" + initiativeCooldown +
                 ";canAct=" + canAct +
                 ";canActInCombat=" + canActInCombat +
                 ";ignoreCooldown=" + command.IsIgnoreCooldown +

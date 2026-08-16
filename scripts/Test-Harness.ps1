@@ -1072,7 +1072,7 @@ function New-TestCombatEvidenceRecord {
     $mount = 'combat-mount'
     $target = 'combat-target'
     return [ordered]@{
-        schemaVersion=1;artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
+        schemaVersion=2;artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
         scenario=[string]$Request.scenario;row=[string]$Request.scenario;rowIndex=0;sequence=0;frame=30
         utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o');branch=[string]$Request.branch
         commit=[string]$Request.commit;productVersion=[string]$Request.productVersion
@@ -1092,6 +1092,10 @@ function New-TestCombatEvidenceRecord {
         riderPositionAtClick=[ordered]@{x=0.0;y=0.0;z=0.0}
         mountPositionAtClick=[ordered]@{x=0.1;y=0.0;z=0.0}
         targetPositionAtClick=[ordered]@{x=4.0;y=0.0;z=0.0}
+        dispatch=[ordered]@{
+            originalPaused=$true;unpausedForRealTime=$true;pausedAtClick=$false;riderCanActInCombat=$true
+            riderHandsBusy=$false;equipmentControllerAvailable=$true;equipmentUpdateScheduled=$false;pauseRestored=$true
+        }
         resources=[ordered]@{
             riderStandardBefore=0.0;riderStandardAfter=5.5;riderMoveBefore=0.0;riderMoveAfter=0.0
             mountStandardBefore=0.0;mountStandardAfter=0.0;mountMoveBefore=0.0;mountMoveAfter=0.0
@@ -4114,6 +4118,22 @@ try {
             $engineSource.Contains('Command readiness: " + combat.DescribeActiveCommandReadiness()')) 'combat timeout does not preserve exact native command admission and start-gate evidence'
         Assert-Test ($controllerSource.Contains('!relationship.Rider.Commands.Contains(command) &&') -and
             $controllerSource.Contains('!relationship.Rider.Commands.Queue.Contains(command)')) 'combat click accepts a command that native UnitCommands neither owns nor queues'
+        $pauseCaptureIndex = $engineSource.IndexOf('originalPause = Game.Instance.IsPaused;', [StringComparison]::Ordinal)
+        $combatJoinIndex = $engineSource.IndexOf('target.JoinCombat();', [StringComparison]::Ordinal)
+        $realTimeUnpauseIndex = $engineSource.IndexOf('Game.Instance.IsPaused = false;', [StringComparison]::Ordinal)
+        $nativeDispatchIndex = $engineSource.IndexOf('new DiagnosticCombatDispatchReadinessSnapshot(', [StringComparison]::Ordinal)
+        $nativeClickAfterPauseIndex = $engineSource.IndexOf('new ClickUnitHandler().OnClick(', [StringComparison]::Ordinal)
+        Assert-Test ($pauseCaptureIndex -ge 0 -and $combatJoinIndex -gt $pauseCaptureIndex -and
+            $realTimeUnpauseIndex -gt $combatJoinIndex -and $nativeDispatchIndex -gt $realTimeUnpauseIndex -and
+            $nativeClickAfterPauseIndex -gt $nativeDispatchIndex -and
+            $engineSource.Contains('if (!dispatchReadiness.AllPassed)') -and
+            $engineSource.Contains('RestorePause();')) 'real-time combat does not lease, unpause after combat auto-pause, await native readiness, and restore exact pause state'
+        Assert-Test ($engineSource.Contains('CleanupTimeoutSeconds = 10.0d') -and
+            $engineSource.Contains('rowClock.Elapsed.TotalSeconds - cleanupStartedAtSeconds < CleanupTimeoutSeconds')) 'combat cleanup does not retain an independent bounded drain after a row deadline'
+        Assert-Test ($engineSource.Contains('SchemaVersion = 2') -and
+            $engineSource.Contains('Dispatch = CombatDispatchEvidence.From(') -and
+            $combatValidatorSource.Contains("'unpausedForRealTime','pausedAtClick','riderCanActInCombat','riderHandsBusy'") -and
+            $combatValidatorSource.Contains("'equipmentControllerAvailable','equipmentUpdateScheduled','pauseRestored'")) 'schema-v2 combat evidence does not bind exact real-time dispatch and pause restoration'
         foreach ($field in @('TargetEntityRemoved','RuntimeGroupRemoved','RuntimeFactionRemoved')) {
             $jsonField = [char]::ToLowerInvariant($field[0]) + $field.Substring(1)
             Assert-Test ($engineSource.Contains("$field =") -and
@@ -4140,12 +4160,26 @@ try {
         Assert-KmcCombatScenarioEvidence -Request $combatRequest -Manifest $combatManifest -Status 'PASS' -SubscenarioResults @($combatSubresult)
     }
 
+    Invoke-HarnessTest 'combat validator retains non-qualifying schema-v1 evidence compatibility' {
+        $legacyRecord = Copy-TestJsonValue $combatRecord
+        $legacyRecord.schemaVersion = 1
+        $legacyRecord.PSObject.Properties.Remove('dispatch')
+        [void](Write-TestCombatEvidence -EvidenceRoot $combatRequest.evidenceRoot -Request $combatRequest -Record $legacyRecord)
+        $legacyManifest = Read-KmcJson (Join-Path $combatRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $combatRequest -Manifest $legacyManifest -Status 'FAIL'
+    }
+
     Invoke-HarnessTest 'combat validator rejects duplicate rules action cost and actor mutations' {
         $mutations = @(
             @{name='duplicate attack';apply={param($value) $value.rules.attackRuleCount=2}},
             @{name='duplicate damage';apply={param($value) $value.rules.damageRuleCount=2}},
             @{name='unexpected pair attack';apply={param($value) $value.rules.unexpectedPairAttackCount=1}},
             @{name='wrong command actor';apply={param($value) $value.command.actorId='combat-mount'}},
+            @{name='dispatch stayed paused';apply={param($value) $value.dispatch.pausedAtClick=$true}},
+            @{name='dispatch initiative unavailable';apply={param($value) $value.dispatch.riderCanActInCombat=$false}},
+            @{name='dispatch hands busy';apply={param($value) $value.dispatch.riderHandsBusy=$true}},
+            @{name='dispatch equipment pending';apply={param($value) $value.dispatch.equipmentUpdateScheduled=$true}},
+            @{name='pause not restored';apply={param($value) $value.dispatch.pauseRestored=$false}},
             @{name='missing rider Standard cost';apply={param($value) $value.resources.riderStandardAfter=0.0}},
             @{name='mount Standard cost';apply={param($value) $value.resources.mountStandardAfter=5.0}},
             @{name='delegated movement';apply={param($value) $value.command.repathCount=1;$value.movement.repathCount=1}},

@@ -30,6 +30,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal const string EvidenceFileName = "combat-scenario-evidence.jsonl";
         private const string RiderHitRealTime = "mounted-rider-melee-hit-rt";
         private const double RowTimeoutSeconds = 30.0d;
+        private const double CleanupTimeoutSeconds = 10.0d;
         private const float SpawnDistance = 6.0f;
 
         private static readonly JsonSerializerSettings EvidenceJsonSettings = new JsonSerializerSettings
@@ -99,6 +100,13 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool rowEvidenceWritten;
         private string poseProfileAtOutcome;
         private bool poseHealthyAtOutcome;
+        private bool originalPause;
+        private bool pauseLeaseOwned;
+        private bool unpausedForRealTime;
+        private bool pausedAtClick;
+        private bool pauseRestored = true;
+        private double cleanupStartedAtSeconds;
+        private DiagnosticCombatDispatchReadinessSnapshot dispatchReadiness;
 
         public RuntimeCombatScenarioEngine(
             RuntimeRequest request,
@@ -170,7 +178,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (rowClock.Elapsed.TotalSeconds > RowTimeoutSeconds && step != CombatEngineStep.AwaitCleanupFrame)
                 {
                     assertions.Fail("Combat row exceeded its " + RowTimeoutSeconds + " second monotonic deadline at " + step +
-                        ". Command readiness: " + combat.DescribeActiveCommandReadiness() + ".");
+                        ". " + DescribeDeadlineReadiness() + ".");
                     BeginCleanup();
                     return;
                 }
@@ -230,6 +238,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ruleProbe = null;
                 targetService?.Dispose();
                 targetService = null;
+                RestorePause();
                 RestoreSettings();
                 rowClock.Stop();
                 disposed = true;
@@ -250,6 +259,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 BeginCleanup();
                 return;
             }
+
+            originalPause = Game.Instance.IsPaused;
+            pauseLeaseOwned = true;
+            pauseRestored = false;
 
             string resolutionError;
             assertions.Check(relationship.TryResolveAutomationPair(out rider, out mount, out resolutionError),
@@ -349,8 +362,27 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
+            if (Game.Instance.IsPaused)
+            {
+                Game.Instance.IsPaused = false;
+            }
+            unpausedForRealTime = !Game.Instance.IsPaused;
+            var handsEquipment = Game.Instance.HandsEquipmentController;
+            dispatchReadiness = new DiagnosticCombatDispatchReadinessSnapshot(
+                unpausedForRealTime,
+                rider.CombatState.CanActInCombat,
+                !rider.AreHandsBusyWithAnimation,
+                handsEquipment != null,
+                handsEquipment != null && !handsEquipment.IsUpdateScheduledFor(rider));
+            if (!dispatchReadiness.AllPassed)
+            {
+                return;
+            }
+
             assertions.Check(!CombatController.IsInTurnBasedCombat(),
                 "Combat remained real time at dispatch.");
+            assertions.Check(dispatchReadiness.AllPassed,
+                "Real-time dispatch waited for unpaused initiative, hands, and equipment readiness.");
             assertions.Check(relationship.State == RelationshipState.Mounted,
                 "Native combat entry retained the mounted relationship.");
             assertions.Check(target.IsInState && target.Descriptor.State.IsConscious && !target.Descriptor.State.IsFinallyDead,
@@ -390,6 +422,7 @@ namespace KingmakerMountedCombat.Diagnostics
             riderPositionAtClick = rider.Position;
             mountPositionAtClick = mount.Position;
             targetPositionAtClick = target.Position;
+            pausedAtClick = Game.Instance.IsPaused;
             targetDistanceAtClick = HorizontalDistance(mountPositionAtClick, targetPositionAtClick);
             assertions.Check(targetDistanceAtClick <= pairApproachRadius + MountedCombatSpatialPolicy.RangeTolerance,
                 "Target was inside the exact Mammoth-origin rider melee radius at dispatch.");
@@ -514,6 +547,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 assertions.Fail("Combat cleanup threw " + exception.GetType().Name + ": " + exception.Message);
                 logger.Exception("Combat runtime cleanup", exception);
             }
+            cleanupStartedAtSeconds = rowClock.Elapsed.TotalSeconds;
             cleanupFrame = frameNumber;
             step = CombatEngineStep.AwaitCleanupFrame;
         }
@@ -535,16 +569,21 @@ namespace KingmakerMountedCombat.Diagnostics
                 (mount == null || !mount.IsInCombat) &&
                 (target == null || !target.IsInState || !target.IsInCombat) &&
                 !(Game.Instance?.Player?.IsInCombat ?? false);
-            if ((!combatCleared || !targetRemoved) && rowClock.Elapsed.TotalSeconds < RowTimeoutSeconds)
+            if ((!combatCleared || !targetRemoved) &&
+                rowClock.Elapsed.TotalSeconds - cleanupStartedAtSeconds < CleanupTimeoutSeconds)
             {
                 return;
             }
+
+            RestorePause();
 
             assertions.Check(targetRemoved && targetEntityRemoved &&
                     targetRuntimeGroupRemoved && targetRuntimeFactionRemoved,
                 "Runtime-only combat target, project group, and runtime faction were removed with zero residue.");
             assertions.Check(combatCleared,
                 "Pair, target, and party left combat before final evidence.");
+            assertions.Check(pauseRestored,
+                "The exact pre-row pause state was restored after the real-time combat lease.");
             assertions.Check(relationship.State == RelationshipState.Unmounted &&
                     relationship.Rider == null && relationship.Mount == null &&
                     relationship.Runtime.MovementAgent == null &&
@@ -589,7 +628,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var selected = SelectionManager.Instance?.SelectedUnits;
             var record = new CombatEvidenceRecord
             {
-                SchemaVersion = 1,
+                SchemaVersion = 2,
                 ArtifactKind = "combat-scenario-evidence",
                 RunId = request.RunId,
                 Scenario = request.Scenario,
@@ -617,6 +656,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 RiderPositionAtClick = PositionEvidence.From(riderPositionAtClick),
                 MountPositionAtClick = PositionEvidence.From(mountPositionAtClick),
                 TargetPositionAtClick = PositionEvidence.From(targetPositionAtClick),
+                Dispatch = CombatDispatchEvidence.From(
+                    originalPause,
+                    unpausedForRealTime,
+                    pausedAtClick,
+                    dispatchReadiness,
+                    pauseRestored),
                 Resources = new CombatResourceEvidence
                 {
                     RiderStandardBefore = riderStandardBefore,
@@ -747,6 +792,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
             }
             catch (Exception exception) { errors.Add("Combat target disposal cleanup failed: " + exception.Message); }
+            RestorePause();
         }
 
         private void CaptureTargetCleanupState()
@@ -771,6 +817,38 @@ namespace KingmakerMountedCombat.Diagnostics
                 settings.EnableUnsafeMovementExperiment = originalUnsafeExperimentSetting;
                 settingLeaseOwned = false;
             }
+        }
+
+        private void RestorePause()
+        {
+            if (!pauseLeaseOwned)
+            {
+                return;
+            }
+            if (Game.Instance == null)
+            {
+                pauseRestored = false;
+                return;
+            }
+            if (Game.Instance.IsPaused != originalPause)
+            {
+                Game.Instance.IsPaused = originalPause;
+            }
+            pauseRestored = Game.Instance.IsPaused == originalPause;
+            if (pauseRestored)
+            {
+                pauseLeaseOwned = false;
+            }
+        }
+
+        private string DescribeDeadlineReadiness()
+        {
+            if (step == CombatEngineStep.AwaitCombatFrame)
+            {
+                return "Dispatch readiness=" + (dispatchReadiness?.FailureSummary ?? "not-observed") +
+                    ";gamePaused=" + (Game.Instance != null && Game.Instance.IsPaused);
+            }
+            return "Command readiness: " + combat.DescribeActiveCommandReadiness();
         }
 
         private static string FormatTransitionErrors(TransitionResult transition)
@@ -872,6 +950,7 @@ namespace KingmakerMountedCombat.Diagnostics
             public PositionEvidence RiderPositionAtClick { get; set; }
             public PositionEvidence MountPositionAtClick { get; set; }
             public PositionEvidence TargetPositionAtClick { get; set; }
+            public CombatDispatchEvidence Dispatch { get; set; }
             public CombatResourceEvidence Resources { get; set; }
             public CombatCommandEvidence Command { get; set; }
             public CombatRuleEvidence Rules { get; set; }
@@ -882,6 +961,38 @@ namespace KingmakerMountedCombat.Diagnostics
             public int AssertionPassCount { get; set; }
             public int AssertionFailCount { get; set; }
             public IReadOnlyList<string> Errors { get; set; }
+        }
+
+        private sealed class CombatDispatchEvidence
+        {
+            public bool OriginalPaused { get; set; }
+            public bool UnpausedForRealTime { get; set; }
+            public bool PausedAtClick { get; set; }
+            public bool RiderCanActInCombat { get; set; }
+            public bool RiderHandsBusy { get; set; }
+            public bool EquipmentControllerAvailable { get; set; }
+            public bool EquipmentUpdateScheduled { get; set; }
+            public bool PauseRestored { get; set; }
+
+            public static CombatDispatchEvidence From(
+                bool originalPaused,
+                bool unpaused,
+                bool pausedAtClick,
+                DiagnosticCombatDispatchReadinessSnapshot readiness,
+                bool pauseRestored)
+            {
+                return new CombatDispatchEvidence
+                {
+                    OriginalPaused = originalPaused,
+                    UnpausedForRealTime = unpaused,
+                    PausedAtClick = pausedAtClick,
+                    RiderCanActInCombat = readiness?.RiderCanActInCombat ?? false,
+                    RiderHandsBusy = readiness?.RiderHandsBusy ?? false,
+                    EquipmentControllerAvailable = readiness?.EquipmentControllerAvailable ?? false,
+                    EquipmentUpdateScheduled = readiness?.EquipmentUpdateScheduled ?? false,
+                    PauseRestored = pauseRestored
+                };
+            }
         }
 
         private sealed class CombatResourceEvidence

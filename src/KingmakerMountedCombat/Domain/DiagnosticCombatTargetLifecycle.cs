@@ -173,4 +173,54 @@ namespace KingmakerMountedCombat.Domain
             }
         }
     }
+
+    public sealed class DiagnosticCombatDispatchReadinessSnapshot
+    {
+        private readonly string[] failedGateNames;
+
+        public DiagnosticCombatDispatchReadinessSnapshot(
+            bool gameUnpaused,
+            bool riderCanActInCombat,
+            bool riderHandsIdle,
+            bool equipmentControllerAvailable,
+            bool equipmentUpdateIdle)
+        {
+            GameUnpaused = gameUnpaused;
+            RiderCanActInCombat = riderCanActInCombat;
+            RiderHandsBusy = !riderHandsIdle;
+            EquipmentControllerAvailable = equipmentControllerAvailable;
+            EquipmentUpdateScheduled = !equipmentUpdateIdle;
+            var failures = new List<string>();
+            AddFailure(failures, gameUnpaused, "game-unpaused");
+            AddFailure(failures, riderCanActInCombat, "rider-can-act-in-combat");
+            AddFailure(failures, riderHandsIdle, "rider-hands-idle");
+            AddFailure(failures, equipmentControllerAvailable, "equipment-controller-available");
+            AddFailure(failures, equipmentUpdateIdle, "equipment-update-idle");
+            failedGateNames = failures.ToArray();
+        }
+
+        public bool GameUnpaused { get; }
+
+        public bool RiderCanActInCombat { get; }
+
+        public bool RiderHandsBusy { get; }
+
+        public bool EquipmentControllerAvailable { get; }
+
+        public bool EquipmentUpdateScheduled { get; }
+
+        public bool AllPassed => failedGateNames.Length == 0;
+
+        public string[] FailedGateNames => (string[])failedGateNames.Clone();
+
+        public string FailureSummary => string.Join(",", failedGateNames);
+
+        private static void AddFailure(List<string> failures, bool passed, string name)
+        {
+            if (!passed)
+            {
+                failures.Add(name);
+            }
+        }
+    }
 }

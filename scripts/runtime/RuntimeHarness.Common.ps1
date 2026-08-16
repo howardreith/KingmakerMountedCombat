@@ -7131,8 +7131,12 @@ function Assert-KmcCombatScenarioEvidence {
         'riderId','mountId','targetId','targetProvisioning','clickAccepted','pairApproachRadius','targetDistanceAtClick',
         'riderPositionAtClick','mountPositionAtClick','targetPositionAtClick','resources','command','rules',
         'movement','pose','cleanup','selection','assertionPassCount','assertionFailCount','errors')
+    $combatSchemaVersionIsExact = Test-KmcExactJsonInteger $record.schemaVersion
+    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -eq 2) {
+        $recordFields = @($recordFields + 'dispatch')
+    }
     Assert-KmcExactProperties $record $recordFields 'combat evidence record'
-    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -ne 1 -or
+    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -notin @(1,2) -or
         [string]$record.artifactKind -cne 'combat-scenario-evidence') {
         throw 'Combat evidence schemaVersion or artifactKind is not exact.'
     }
@@ -7170,6 +7174,14 @@ function Assert-KmcCombatScenarioEvidence {
             if (-not (Test-KmcJsonNumber $record.$positionName.$axis)) { throw "Combat $positionName.$axis is not numeric." }
         }
     }
+    if ([long]$record.schemaVersion -eq 2) {
+        Assert-KmcExactProperties $record.dispatch @(
+            'originalPaused','unpausedForRealTime','pausedAtClick','riderCanActInCombat','riderHandsBusy',
+            'equipmentControllerAvailable','equipmentUpdateScheduled','pauseRestored') 'combat dispatch evidence'
+        foreach ($name in $record.dispatch.PSObject.Properties.Name) {
+            if ($record.dispatch.$name -isnot [bool]) { throw "Combat dispatch evidence is not Boolean: $name" }
+        }
+    }
     Assert-KmcExactProperties $record.resources @(
         'riderStandardBefore','riderStandardAfter','riderMoveBefore','riderMoveAfter',
         'mountStandardBefore','mountStandardAfter','mountMoveBefore','mountMoveAfter') 'combat resource evidence'
@@ -7194,14 +7206,25 @@ function Assert-KmcCombatScenarioEvidence {
 
     $requirePass = [string]$Status -ceq 'PASS'
     if ($requirePass) {
-        if ([string]$record.status -cne 'PASS' -or [long]$record.assertionFailCount -ne 0 -or
+        if ([long]$record.schemaVersion -ne 2 -or
+            [string]$record.status -cne 'PASS' -or [long]$record.assertionFailCount -ne 0 -or
             [long]$record.assertionPassCount -le 0 -or @($record.errors).Count -ne 0) {
-            throw 'PASS combat evidence does not contain an error-free PASS row.'
+            throw 'PASS combat evidence does not contain an error-free schema-v2 PASS row.'
         }
         if ([string]$record.row -cne 'mounted-rider-melee-hit-rt' -or
             [string]$record.mode -cne 'real-time' -or [string]$record.action -cne 'RiderMelee' -or
             [string]$record.expectedActor -cne 'rider' -or $record.clickAccepted -ne $true) {
             throw 'PASS combat evidence does not prove the exact real-time rider action path.'
+        }
+        if ($record.dispatch.originalPaused -isnot [bool] -or
+            $record.dispatch.unpausedForRealTime -ne $true -or
+            $record.dispatch.pausedAtClick -ne $false -or
+            $record.dispatch.riderCanActInCombat -ne $true -or
+            $record.dispatch.riderHandsBusy -ne $false -or
+            $record.dispatch.equipmentControllerAvailable -ne $true -or
+            $record.dispatch.equipmentUpdateScheduled -ne $false -or
+            $record.dispatch.pauseRestored -ne $true) {
+            throw 'PASS combat evidence does not prove an unpaused native-ready dispatch and exact pause restoration.'
         }
         if ([string]::IsNullOrWhiteSpace([string]$record.riderId) -or
             [string]::IsNullOrWhiteSpace([string]$record.mountId) -or
