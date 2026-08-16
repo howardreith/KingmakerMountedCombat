@@ -33,6 +33,7 @@ param(
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedProtectedAutoSaveSha256,
     [string]$ExpectedProtectedQuickSaveName,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedProtectedQuickSaveSha256,
+    [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedProtectedSavePinSetSha256,
     [switch]$BootstrapOfflineCloudEvidence,
     [string]$SteamPath='C:\Program Files (x86)\Steam\steam.exe'
 )
@@ -65,7 +66,7 @@ $continuityPinNames=@(
     'ExpectedPriorSaveTransactionRunId','ExpectedPriorSaveTransactionStateSha256','ExpectedPriorSaveMetadataDigest',
     'ProtectedSaveContinuityAuthorityPath','ExpectedProtectedSaveContinuityEpochId',
     'ExpectedProtectedSaveContinuityAuthoritySha256','ExpectedProtectedAutoSaveName','ExpectedProtectedAutoSaveSha256',
-    'ExpectedProtectedQuickSaveName','ExpectedProtectedQuickSaveSha256'
+    'ExpectedProtectedQuickSaveName','ExpectedProtectedQuickSaveSha256','ExpectedProtectedSavePinSetSha256'
 )
 $boundContinuityPinNames=@($continuityPinNames|Where-Object{$PSBoundParameters.ContainsKey($_)})
 [void](Assert-KmcRuntimeContinuityPinCombination `
@@ -83,7 +84,8 @@ $boundContinuityPinNames=@($continuityPinNames|Where-Object{$PSBoundParameters.C
     -ExpectedProtectedAutoSaveName $ExpectedProtectedAutoSaveName `
     -ExpectedProtectedAutoSaveSha256 $ExpectedProtectedAutoSaveSha256 `
     -ExpectedProtectedQuickSaveName $ExpectedProtectedQuickSaveName `
-    -ExpectedProtectedQuickSaveSha256 $ExpectedProtectedQuickSaveSha256)
+    -ExpectedProtectedQuickSaveSha256 $ExpectedProtectedQuickSaveSha256 `
+    -ExpectedProtectedSavePinSetSha256 $ExpectedProtectedSavePinSetSha256)
 
 if($isSaveBacked -and -not $SaveAccessAllowed){
     throw 'A save-backed Phase 1 scenario requires the explicit -SaveAccessAllowed operator gate; it authorizes only the exact qualified Working fixture.'
@@ -130,7 +132,8 @@ if($isSaveBacked){
         -ExpectedProtectedAutoSaveName $ExpectedProtectedAutoSaveName `
         -ExpectedProtectedAutoSaveSha256 $ExpectedProtectedAutoSaveSha256 `
         -ExpectedProtectedQuickSaveName $ExpectedProtectedQuickSaveName `
-        -ExpectedProtectedQuickSaveSha256 $ExpectedProtectedQuickSaveSha256
+        -ExpectedProtectedQuickSaveSha256 $ExpectedProtectedQuickSaveSha256 `
+        -ExpectedProtectedSavePinSetSha256 $ExpectedProtectedSavePinSetSha256
     $preflightPair=$preflightContinuity.pair
     $fixturePayload=New-KmcRuntimeFixturePayload $preflightPair -ReadOnly:$isManualReview
 }
@@ -167,7 +170,8 @@ if(-not $PSCmdlet.ShouldProcess('Steam App 640820, exact live Kingmaker Mods, an
             -ExpectedProtectedAutoSaveName $ExpectedProtectedAutoSaveName `
             -ExpectedProtectedAutoSaveSha256 $ExpectedProtectedAutoSaveSha256 `
             -ExpectedProtectedQuickSaveName $ExpectedProtectedQuickSaveName `
-            -ExpectedProtectedQuickSaveSha256 $ExpectedProtectedQuickSaveSha256
+            -ExpectedProtectedQuickSaveSha256 $ExpectedProtectedQuickSaveSha256 `
+            -ExpectedProtectedSavePinSetSha256 $ExpectedProtectedSavePinSetSha256
         if((New-KmcRuntimeFixturePayload $whatIfContinuity.pair -ReadOnly:$isManualReview|ConvertTo-Json -Depth 10 -Compress)-cne
             ($fixturePayload|ConvertTo-Json -Depth 10 -Compress)){
             throw 'KMC fixture identity changed during runtime WhatIf continuity validation.'
@@ -267,7 +271,8 @@ try{
             -ExpectedProtectedAutoSaveName $ExpectedProtectedAutoSaveName `
             -ExpectedProtectedAutoSaveSha256 $ExpectedProtectedAutoSaveSha256 `
             -ExpectedProtectedQuickSaveName $ExpectedProtectedQuickSaveName `
-            -ExpectedProtectedQuickSaveSha256 $ExpectedProtectedQuickSaveSha256
+            -ExpectedProtectedQuickSaveSha256 $ExpectedProtectedQuickSaveSha256 `
+            -ExpectedProtectedSavePinSetSha256 $ExpectedProtectedSavePinSetSha256
         $lockedPair=$lockedContinuity.pair
         $lockedWorkingPath=[IO.Path]::GetFullPath([string]$lockedPair.working.path)
         $lockedPayload=New-KmcRuntimeFixturePayload $lockedPair -ReadOnly:$isManualReview

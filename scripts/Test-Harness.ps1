@@ -90,7 +90,7 @@ function New-TestPendingWorkingRequalification {
     New-TestSaveArchive -Path $baselinePath -Name 'KMC_AUTOMATION_BASELINE'
     New-TestSaveArchive -Path $workingPath -Name 'KMC_AUTOMATION_WORKING'
     foreach ($foreignName in @(
-        'Manual_3_PERSONAL.zks','Manual_4_KBP.zks','Manual_5_KMG.zks','Auto_1.zks','Quick_1.zks'
+        'Manual_3_PERSONAL.zks','Manual_4_KBP.zks','Manual_5_KMG.zks','Auto_1.zks','Quick_1.zks','Quick_3.zks'
     )) {
         [IO.File]::WriteAllText((Join-Path $saveRoot $foreignName), "protected-$foreignName")
     }
@@ -182,6 +182,97 @@ function New-TestAuthorizedProtectedSaveEpoch {
         quickPath=$quickPath;quickName=$quick.Name;quickSha256=(Get-KmcSha256 $quickPath)
         quickLength=[long]$quick.Length;quickTicks=[long]$quick.LastWriteTimeUtc.Ticks
     }
+}
+
+function New-TestPreparedChainedProtectedSaveEpoch {
+    param([Parameter(Mandatory = $true)][string]$Name)
+    $parentEpoch = New-TestAuthorizedProtectedSaveEpoch $Name
+    $fixture = $parentEpoch.fixture
+    $legacyScript = Join-Path $repoRoot 'scripts\runtime\New-KmcProtectedSaveContinuityAuthority.ps1'
+    & $legacyScript `
+        -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -EpochId $parentEpoch.epochId `
+        -ExpectedCurrentQualificationSha256 $parentEpoch.qualificationSha256 `
+        -ExpectedBaselineSha256 $fixture.baselineSha256 `
+        -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 `
+        -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+        -PriorSaveTransactionStatePath $fixture.priorSaveTransactionStatePath `
+        -ExpectedPriorSaveTransactionRunId $fixture.priorSaveTransactionRunId `
+        -ExpectedPriorSaveTransactionStateSha256 $fixture.priorSaveTransactionStateSha256 `
+        -ExpectedPriorSaveMetadataDigest $fixture.priorSaveMetadataDigest `
+        -AutoSaveName $parentEpoch.autoName -ExpectedAutoSaveSha256 $parentEpoch.autoSha256 `
+        -ExpectedAutoSaveLength $parentEpoch.autoLength -ExpectedAutoSaveLastWriteTimeUtcTicks $parentEpoch.autoTicks `
+        -QuickSaveName $parentEpoch.quickName -ExpectedQuickSaveSha256 $parentEpoch.quickSha256 `
+        -ExpectedQuickSaveLength $parentEpoch.quickLength -ExpectedQuickSaveLastWriteTimeUtcTicks $parentEpoch.quickTicks `
+        -Confirm:$false | Out-Null
+    $parentAuthorityPath = Join-Path (Join-Path $fixture.stateRoot 'protected-save-authorities') ($parentEpoch.epochId + '.json')
+    $parentAuthority = Get-Item -LiteralPath $parentAuthorityPath -Force
+    $parentAuthoritySha256 = Get-KmcSha256 $parentAuthorityPath
+
+    $metadataOnlyPath = Join-Path $fixture.saveRoot 'Quick_3.zks'
+    $metadataOnlyPrior = Get-Item -LiteralPath $metadataOnlyPath -Force
+    $metadataOnlyPriorLength = [long]$metadataOnlyPrior.Length
+    $metadataOnlyPriorTicks = [long]$metadataOnlyPrior.LastWriteTimeUtc.Ticks
+    $knownPath = $parentEpoch.quickPath
+    $knownPrior = Get-Item -LiteralPath $knownPath -Force
+    $knownPriorLength = [long]$knownPrior.Length
+    $knownPriorTicks = [long]$knownPrior.LastWriteTimeUtc.Ticks
+    [IO.File]::AppendAllText($knownPath, '-explicit-user-known-prior-transition')
+    [IO.File]::AppendAllText($metadataOnlyPath, '-explicit-user-metadata-only-transition')
+    $knownCurrent = Get-Item -LiteralPath $knownPath -Force
+    $metadataOnlyCurrent = Get-Item -LiteralPath $metadataOnlyPath -Force
+    $transitions = @(
+        [ordered]@{
+            priorPath=$parentEpoch.quickName;priorLength=$knownPriorLength
+            priorLastWriteTimeUtcTicks=$knownPriorTicks;priorSha256=$parentEpoch.quickSha256
+            priorHashStatus='AVAILABLE-PARENT-CONTENT-PIN';currentPath=$parentEpoch.quickName
+            currentLength=[long]$knownCurrent.Length;currentLastWriteTimeUtcTicks=[long]$knownCurrent.LastWriteTimeUtc.Ticks
+            currentSha256=(Get-KmcSha256 $knownPath);transitionReason='explicit user-attested external Kingmaker activity'
+        },
+        [ordered]@{
+            priorPath='Quick_3.zks';priorLength=$metadataOnlyPriorLength
+            priorLastWriteTimeUtcTicks=$metadataOnlyPriorTicks;priorSha256=$null
+            priorHashStatus='UNAVAILABLE-SCHEMA-V1-METADATA-ONLY';currentPath='Quick_3.zks'
+            currentLength=[long]$metadataOnlyCurrent.Length;currentLastWriteTimeUtcTicks=[long]$metadataOnlyCurrent.LastWriteTimeUtc.Ticks
+            currentSha256=(Get-KmcSha256 $metadataOnlyPath);transitionReason='explicit user-attested external Kingmaker activity'
+        }
+    )
+    return [pscustomobject]@{
+        fixture=$fixture;parentEpoch=$parentEpoch
+        epochId=('chained-epoch-' + $Name)
+        parentAuthorityPath=$parentAuthorityPath;parentAuthoritySha256=$parentAuthoritySha256
+        parentAuthorityLength=[long]$parentAuthority.Length
+        parentAuthorityTicks=[long]$parentAuthority.LastWriteTimeUtc.Ticks
+        metadataOnlyPath=$metadataOnlyPath;knownPath=$knownPath
+        transitions=$transitions
+        transitionsJson=(ConvertTo-Json -InputObject $transitions -Depth 10 -Compress)
+    }
+}
+
+function New-TestCommittedChainedProtectedSaveEpoch {
+    param([Parameter(Mandatory = $true)][string]$Name)
+    $prepared = New-TestPreparedChainedProtectedSaveEpoch $Name
+    $fixture = $prepared.fixture
+    $scriptPath = Join-Path $repoRoot 'scripts\runtime\New-KmcChainedProtectedSaveContinuityAuthority.ps1'
+    & $scriptPath `
+        -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -EpochId $prepared.epochId `
+        -ExpectedCurrentQualificationSha256 $prepared.parentEpoch.qualificationSha256 `
+        -ExpectedBaselineSha256 $fixture.baselineSha256 `
+        -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 `
+        -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+        -PriorSaveTransactionStatePath $fixture.priorSaveTransactionStatePath `
+        -ExpectedPriorSaveTransactionRunId $fixture.priorSaveTransactionRunId `
+        -ExpectedPriorSaveTransactionStateSha256 $fixture.priorSaveTransactionStateSha256 `
+        -ExpectedPriorSaveMetadataDigest $fixture.priorSaveMetadataDigest `
+        -ParentAuthorityPath $prepared.parentAuthorityPath `
+        -ExpectedParentAuthorityEpochId $prepared.parentEpoch.epochId `
+        -ExpectedParentAuthoritySha256 $prepared.parentAuthoritySha256 `
+        -AuthorizedTransitionsJson $prepared.transitionsJson -Confirm:$false | Out-Null
+    $authorityPath = Join-Path (Join-Path $fixture.stateRoot 'protected-save-authorities') ($prepared.epochId + '.json')
+    $authority = Read-KmcJson $authorityPath
+    $prepared | Add-Member -NotePropertyName authorityPath -NotePropertyValue $authorityPath
+    $prepared | Add-Member -NotePropertyName authoritySha256 -NotePropertyValue (Get-KmcSha256 $authorityPath)
+    $prepared | Add-Member -NotePropertyName protectedSavePinSetSha256 -NotePropertyValue ([string]$authority.currentProtectedSavePinsSha256)
+    return $prepared
 }
 
 function Set-TestRuntimeLockOwnerDead {
@@ -1751,6 +1842,7 @@ try {
             ExpectedProtectedQuickSaveName=$epoch.quickName;ExpectedProtectedQuickSaveSha256=$epoch.quickSha256
         }
         $validated = Assert-KmcQualifiedWorkingProtectedSaveContinuity @continuityArguments
+        Assert-Test ([int]$validated.schemaVersion -eq 1) 'schema-v1 protected-save authority no longer validates through the compatibility entry point'
         Assert-Test ([string]$validated.sha256 -ceq $authoritySha256) 'protected-save authority validation returned the wrong authority SHA-256'
         $wrongHashArguments = @{}
         foreach ($key in $continuityArguments.Keys) { $wrongHashArguments[$key] = $continuityArguments[$key] }
@@ -1764,6 +1856,220 @@ try {
         $threw = $false
         try { Assert-KmcQualifiedWorkingProtectedSaveContinuity @continuityArguments | Out-Null } catch { $threw = $true }
         Assert-Test $threw 'protected-save authority accepted subsequent metadata drift in another protected save'
+    }
+
+    Invoke-HarnessTest 'schema-v2 chained authority WhatIf is pure and preserves immutable schema-v1 history' {
+        $prepared = New-TestPreparedChainedProtectedSaveEpoch 'schema-v2-whatif'
+        $fixture = $prepared.fixture
+        $scriptPath = Join-Path $repoRoot 'scripts\runtime\New-KmcChainedProtectedSaveContinuityAuthority.ps1'
+        $stateBefore = Get-KmcDirectoryManifest $fixture.stateRoot
+        $savesBefore = Get-KmcSaveMetadataInventory $fixture.saveRoot
+        $parentBefore = Get-Item -LiteralPath $prepared.parentAuthorityPath -Force
+        $output = @(& $scriptPath `
+            -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -EpochId $prepared.epochId `
+            -ExpectedCurrentQualificationSha256 $prepared.parentEpoch.qualificationSha256 `
+            -ExpectedBaselineSha256 $fixture.baselineSha256 `
+            -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 `
+            -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+            -PriorSaveTransactionStatePath $fixture.priorSaveTransactionStatePath `
+            -ExpectedPriorSaveTransactionRunId $fixture.priorSaveTransactionRunId `
+            -ExpectedPriorSaveTransactionStateSha256 $fixture.priorSaveTransactionStateSha256 `
+            -ExpectedPriorSaveMetadataDigest $fixture.priorSaveMetadataDigest `
+            -ParentAuthorityPath $prepared.parentAuthorityPath `
+            -ExpectedParentAuthorityEpochId $prepared.parentEpoch.epochId `
+            -ExpectedParentAuthoritySha256 $prepared.parentAuthoritySha256 `
+            -AuthorizedTransitionsJson $prepared.transitionsJson -WhatIf 6>&1)
+        Assert-Test (($output -join "`n") -like '*Schema-v2 protected-save continuity authority WhatIf PASS*') 'schema-v2 authority WhatIf did not report PASS'
+        Assert-KmcSaveMetadataInventoriesEqual -Before $savesBefore -After (Get-KmcSaveMetadataInventory $fixture.saveRoot) -Description 'schema-v2 authority WhatIf saves'
+        Assert-Test ((Get-KmcDirectoryManifest $fixture.stateRoot).digest -ceq $stateBefore.digest) 'schema-v2 authority WhatIf changed runtime state'
+        Assert-Test (-not (Test-Path -LiteralPath (Join-Path (Join-Path $fixture.stateRoot 'protected-save-authorities') ($prepared.epochId + '.json')))) 'schema-v2 authority WhatIf created its epoch'
+        $parentAfter = Get-Item -LiteralPath $prepared.parentAuthorityPath -Force
+        Assert-Test ((Get-KmcSha256 $prepared.parentAuthorityPath) -ceq $prepared.parentAuthoritySha256 -and
+            $parentAfter.Length -eq $parentBefore.Length -and
+            $parentAfter.LastWriteTimeUtc.Ticks -eq $parentBefore.LastWriteTimeUtc.Ticks) 'schema-v2 authority WhatIf changed the immutable schema-v1 parent'
+    }
+
+    Invoke-HarnessTest 'schema-v2 chain preserves history, replaces exact pins, and agrees before and under lock' {
+        $epoch = New-TestCommittedChainedProtectedSaveEpoch 'schema-v2-commit'
+        $fixture = $epoch.fixture
+        $continuityArguments = @{
+            SaveRoot=$fixture.saveRoot;StateRoot=$fixture.stateRoot;QualificationPath=$fixture.qualificationPath
+            ExpectedCurrentQualificationSha256=$epoch.parentEpoch.qualificationSha256
+            ExpectedSupersededWorkingSha256=$fixture.supersededWorkingSha256
+            PriorSaveTransactionStatePath=$fixture.priorSaveTransactionStatePath
+            ExpectedPriorSaveTransactionRunId=$fixture.priorSaveTransactionRunId
+            ExpectedPriorSaveTransactionStateSha256=$fixture.priorSaveTransactionStateSha256
+            ExpectedPriorSaveMetadataDigest=$fixture.priorSaveMetadataDigest
+            ProtectedSaveContinuityAuthorityPath=$epoch.authorityPath
+            ExpectedProtectedSaveContinuityEpochId=$epoch.epochId
+            ExpectedProtectedSaveContinuityAuthoritySha256=$epoch.authoritySha256
+            ExpectedProtectedSavePinSetSha256=$epoch.protectedSavePinSetSha256
+        }
+        $preflight = Assert-KmcQualifiedWorkingProtectedSaveContinuity @continuityArguments
+        Assert-Test ([int]$preflight.schemaVersion -eq 2) 'schema-v2 compatibility entry point returned the wrong schema'
+        $record = $preflight.record
+        Assert-Test ([string]$record.parentAuthority.path -ceq [IO.Path]::GetFullPath($epoch.parentAuthorityPath)) 'schema-v2 parent path is not exact'
+        Assert-Test ([string]$record.parentAuthority.epochId -ceq $epoch.parentEpoch.epochId) 'schema-v2 parent epoch is not exact'
+        Assert-Test ([string]$record.parentAuthority.sha256 -ceq $epoch.parentAuthoritySha256) 'schema-v2 parent hash is not exact'
+        Assert-Test (@($record.authorizedProtectedTransitions).Count -eq 2) 'schema-v2 authority does not contain exactly two authorized transitions'
+        $metadataOnly = @($record.authorizedProtectedTransitions | Where-Object { [string]$_.currentPath -ceq 'Quick_3.zks' })
+        $known = @($record.authorizedProtectedTransitions | Where-Object { [string]$_.currentPath -ceq $epoch.parentEpoch.quickName })
+        Assert-Test ($metadataOnly.Count -eq 1 -and $null -eq $metadataOnly[0].priorSha256 -and
+            [string]$metadataOnly[0].priorHashStatus -ceq 'UNAVAILABLE-SCHEMA-V1-METADATA-ONLY' -and
+            [long]$metadataOnly[0].priorLength -eq [long]$epoch.transitions[1].priorLength -and
+            [long]$metadataOnly[0].priorLastWriteTimeUtcTicks -eq [long]$epoch.transitions[1].priorLastWriteTimeUtcTicks) 'schema-v2 metadata-only prior evidence is not exact'
+        Assert-Test ($known.Count -eq 1 -and [string]$known[0].priorSha256 -ceq $epoch.parentEpoch.quickSha256 -and
+            [string]$known[0].currentSha256 -ceq [string]$epoch.transitions[0].currentSha256) 'schema-v2 known prior/current replacement hashes are not exact'
+        $parentRecord = Read-KmcJson $epoch.parentAuthorityPath
+        $superseded = @($parentRecord.authorizedProtectedTransitions | Where-Object { [string]$_.fileName -ceq $epoch.parentEpoch.quickName })
+        Assert-Test ($superseded.Count -eq 1 -and [string]$superseded[0].currentSha256 -ceq $epoch.parentEpoch.quickSha256) 'schema-v2 chain did not preserve the superseded protected pin in immutable history'
+        Assert-Test (@($record.writableSaveNames).Count -eq 1 -and [string]@($record.writableSaveNames)[0] -ceq 'KMC_AUTOMATION_WORKING') 'schema-v2 authority grants more than Working-only write authority'
+        Assert-Test (@($record.currentProtectedSavePins | Where-Object { [string]$_.path -in @('Quick_3.zks',$epoch.parentEpoch.quickName) }).Count -eq 2) 'schema-v2 quicksaves are not retained as protected content pins'
+
+        $lock = Open-KmcRuntimeLock -StateRoot $fixture.stateRoot -RunId 'schema-v2-under-lock'
+        try { $underLock = Assert-KmcQualifiedWorkingProtectedSaveContinuity @continuityArguments }
+        finally { Close-KmcRuntimeLock $lock }
+        Assert-Test (($preflight.record | ConvertTo-Json -Depth 30 -Compress) -ceq ($underLock.record | ConvertTo-Json -Depth 30 -Compress)) 'schema-v2 preflight and under-lock validation disagree'
+
+        $quickBytes = [IO.File]::ReadAllBytes($epoch.metadataOnlyPath)
+        $quickTicks = (Get-Item -LiteralPath $epoch.metadataOnlyPath -Force).LastWriteTimeUtc
+        $before = Get-KmcSaveMetadataInventory $fixture.saveRoot
+        [IO.File]::AppendAllText($epoch.metadataOnlyPath, '-forbidden-protected-write')
+        $threw = $false
+        try { Assert-KmcSaveWriteAllowlist -Before $before -After (Get-KmcSaveMetadataInventory $fixture.saveRoot) -WorkingPath $fixture.workingPath | Out-Null } catch { $threw = $true }
+        Assert-Test $threw 'schema-v2 protected quicksave was treated as writable'
+        [IO.File]::WriteAllBytes($epoch.metadataOnlyPath, $quickBytes)
+        [IO.File]::SetLastWriteTimeUtc($epoch.metadataOnlyPath, $quickTicks)
+
+        $workingBytes = [IO.File]::ReadAllBytes($fixture.workingPath)
+        $workingTicks = (Get-Item -LiteralPath $fixture.workingPath -Force).LastWriteTimeUtc
+        $before = Get-KmcSaveMetadataInventory $fixture.saveRoot
+        [IO.File]::AppendAllText($fixture.workingPath, '-authorized-working-only-write')
+        $allowlist = Assert-KmcSaveWriteAllowlist -Before $before -After (Get-KmcSaveMetadataInventory $fixture.saveRoot) -WorkingPath $fixture.workingPath
+        Assert-Test ([bool]$allowlist.workingChanged -and @($allowlist.changedPaths).Count -eq 1) 'Working-only write authorization rejected exact Working mutation'
+        [IO.File]::WriteAllBytes($fixture.workingPath, $workingBytes)
+        [IO.File]::SetLastWriteTimeUtc($fixture.workingPath, $workingTicks)
+        [void](Assert-KmcQualifiedWorkingProtectedSaveContinuity @continuityArguments)
+        $parentAfter = Get-Item -LiteralPath $epoch.parentAuthorityPath -Force
+        Assert-Test ((Get-KmcSha256 $epoch.parentAuthorityPath) -ceq $epoch.parentAuthoritySha256 -and
+            $parentAfter.Length -eq $epoch.parentAuthorityLength -and
+            $parentAfter.LastWriteTimeUtc.Ticks -eq $epoch.parentAuthorityTicks) 'schema-v2 creation or validation mutated historical authority'
+    }
+
+    Invoke-HarnessTest 'schema-v2 rejects incomplete, false, renamed, replaced, linked, or extra transition evidence' {
+        $prepared = New-TestPreparedChainedProtectedSaveEpoch 'schema-v2-rejections'
+        $fixture = $prepared.fixture
+        $pair = Assert-KmcFixturePair -SaveRoot $fixture.saveRoot -QualificationPath $fixture.qualificationPath
+        $parentArguments = @{
+            Path=$prepared.parentAuthorityPath;StateRoot=$fixture.stateRoot;SaveRoot=$fixture.saveRoot
+            QualificationPath=$fixture.qualificationPath;ExpectedEpochId=$prepared.parentEpoch.epochId
+            ExpectedAuthoritySha256=$prepared.parentAuthoritySha256
+            ExpectedCurrentQualificationSha256=$prepared.parentEpoch.qualificationSha256
+            ExpectedPriorSaveTransactionStatePath=$fixture.priorSaveTransactionStatePath
+            ExpectedPriorSaveTransactionRunId=$fixture.priorSaveTransactionRunId
+            ExpectedPriorSaveTransactionStateSha256=$fixture.priorSaveTransactionStateSha256
+            ExpectedPriorSaveMetadataDigest=$fixture.priorSaveMetadataDigest
+            ExpectedSupersededWorkingSha256=$fixture.supersededWorkingSha256;CurrentPair=$pair
+        }
+        $parent = Read-KmcHistoricalProtectedSaveContinuityAuthorityV1 @parentArguments
+        $inventory = Get-KmcSaveMetadataInventory $fixture.saveRoot
+        $recordArguments = @{
+            CurrentPair=$pair;ParentAuthority=$parent;CurrentInventory=$inventory;SaveRoot=$fixture.saveRoot
+            QualificationPath=$fixture.qualificationPath;CurrentQualificationSha256=$prepared.parentEpoch.qualificationSha256
+            EpochId=$prepared.epochId;AuthorizedAtUtc='2026-08-15T00:00:00.0000000+00:00'
+        }
+        $goodTransitions = @(ConvertFrom-KmcProtectedSaveTransitionSpecificationsJson -Json $prepared.transitionsJson)
+        $goodRecord = New-KmcChainedProtectedSaveContinuityAuthorityRecord @recordArguments -Transitions $goodTransitions
+        [void](Assert-KmcChainedProtectedSaveContinuityLiveState -Record $goodRecord -SaveRoot $fixture.saveRoot -LiveInventory $inventory)
+        $assertRejected = {
+            param([scriptblock]$Action,[string]$Message)
+            $rejected = $false
+            try { & $Action | Out-Null } catch { $rejected = $true }
+            Assert-Test $rejected $Message
+        }
+        $copySpecs = { return @((ConvertTo-Json -InputObject @($prepared.transitions) -Depth 10 -Compress) | ConvertFrom-Json) }
+
+        $specs = & $copySpecs
+        $knownIndex = if ([string]$specs[0].priorHashStatus -ceq 'AVAILABLE-PARENT-CONTENT-PIN') { 0 } else { 1 }
+        $specs[$knownIndex].priorSha256 = $null
+        $specs[$knownIndex].priorHashStatus = 'UNAVAILABLE-SCHEMA-V1-METADATA-ONLY'
+        & $assertRejected { ConvertFrom-KmcProtectedSaveTransitionSpecificationsJson -Json (ConvertTo-Json -InputObject @($specs) -Depth 10 -Compress) } 'schema-v2 accepted metadata-only prior status where the parent has a known hash'
+
+        $wrongParent = @{}
+        foreach ($key in $parentArguments.Keys) { $wrongParent[$key] = $parentArguments[$key] }
+        $wrongParent.ExpectedAuthoritySha256 = '0' * 64
+        & $assertRejected { Read-KmcHistoricalProtectedSaveContinuityAuthorityV1 @wrongParent } 'schema-v2 accepted metadata-only evidence without the exact parent authority hash'
+
+        foreach ($field in @('priorLength','priorLastWriteTimeUtcTicks')) {
+            $specs = & $copySpecs
+            $metadataIndex = if ([string]$specs[0].priorPath -ceq 'Quick_3.zks') { 0 } else { 1 }
+            $specs[$metadataIndex].$field = [long]$specs[$metadataIndex].$field + 1
+            $parsed = @(ConvertFrom-KmcProtectedSaveTransitionSpecificationsJson -Json (ConvertTo-Json -InputObject @($specs) -Depth 10 -Compress))
+            & $assertRejected { New-KmcChainedProtectedSaveContinuityAuthorityRecord @recordArguments -Transitions $parsed } "schema-v2 accepted mismatched metadata-only prior $field"
+        }
+        $specs = & $copySpecs
+        $specs[0].currentSha256 = $null
+        & $assertRejected { ConvertFrom-KmcProtectedSaveTransitionSpecificationsJson -Json (ConvertTo-Json -InputObject @($specs) -Depth 10 -Compress) } 'schema-v2 accepted a null current hash'
+
+        $specs = & $copySpecs
+        $knownIndex = if ([string]$specs[0].priorHashStatus -ceq 'AVAILABLE-PARENT-CONTENT-PIN') { 0 } else { 1 }
+        $specs[$knownIndex].priorSha256 = '0' * 64
+        $parsed = @(ConvertFrom-KmcProtectedSaveTransitionSpecificationsJson -Json (ConvertTo-Json -InputObject @($specs) -Depth 10 -Compress))
+        & $assertRejected { New-KmcChainedProtectedSaveContinuityAuthorityRecord @recordArguments -Transitions $parsed } 'schema-v2 accepted an incorrect known prior hash'
+
+        $specs = & $copySpecs
+        $specs[0].currentLength = [long]$specs[0].currentLength + 1
+        $parsed = @(ConvertFrom-KmcProtectedSaveTransitionSpecificationsJson -Json (ConvertTo-Json -InputObject @($specs) -Depth 10 -Compress))
+        & $assertRejected { New-KmcChainedProtectedSaveContinuityAuthorityRecord @recordArguments -Transitions $parsed } 'schema-v2 accepted a current length mismatch'
+        $specs = & $copySpecs
+        $specs[0].currentLastWriteTimeUtcTicks = [long]$specs[0].currentLastWriteTimeUtcTicks + 1
+        $parsed = @(ConvertFrom-KmcProtectedSaveTransitionSpecificationsJson -Json (ConvertTo-Json -InputObject @($specs) -Depth 10 -Compress))
+        & $assertRejected { New-KmcChainedProtectedSaveContinuityAuthorityRecord @recordArguments -Transitions $parsed } 'schema-v2 accepted a current timestamp mismatch'
+        $specs = & $copySpecs
+        $specs[0].currentPath = 'Quick_2.zks'
+        & $assertRejected { ConvertFrom-KmcProtectedSaveTransitionSpecificationsJson -Json (ConvertTo-Json -InputObject @($specs) -Depth 10 -Compress) } 'schema-v2 accepted a renamed current path'
+
+        $specs = & $copySpecs
+        $specs[0].currentSha256 = '0' * 64
+        $parsed = @(ConvertFrom-KmcProtectedSaveTransitionSpecificationsJson -Json (ConvertTo-Json -InputObject @($specs) -Depth 10 -Compress))
+        $wrongHashRecord = New-KmcChainedProtectedSaveContinuityAuthorityRecord @recordArguments -Transitions $parsed
+        & $assertRejected { Assert-KmcChainedProtectedSaveContinuityLiveState -Record $wrongHashRecord -SaveRoot $fixture.saveRoot -LiveInventory $inventory } 'schema-v2 accepted a current content-hash mismatch'
+
+        & $assertRejected { New-KmcChainedProtectedSaveContinuityAuthorityRecord @recordArguments -Transitions @($goodTransitions[0]) } 'schema-v2 accepted omission of one authorized transition'
+
+        $knownBytes = [IO.File]::ReadAllBytes($prepared.knownPath)
+        $knownTicks = (Get-Item -LiteralPath $prepared.knownPath -Force).LastWriteTimeUtc
+        $replacement = [byte[]]$knownBytes.Clone()
+        $replacement[0] = $replacement[0] -bxor 1
+        [IO.File]::WriteAllBytes($prepared.knownPath, $replacement)
+        [IO.File]::SetLastWriteTimeUtc($prepared.knownPath, $knownTicks)
+        & $assertRejected { Assert-KmcChainedProtectedSaveContinuityLiveState -Record $goodRecord -SaveRoot $fixture.saveRoot -LiveInventory (Get-KmcSaveMetadataInventory $fixture.saveRoot) } 'schema-v2 accepted same-metadata byte replacement'
+        [IO.File]::WriteAllBytes($prepared.knownPath, $knownBytes)
+        [IO.File]::SetLastWriteTimeUtc($prepared.knownPath, $knownTicks)
+
+        $linkBytes = [IO.File]::ReadAllBytes($prepared.metadataOnlyPath)
+        $linkTicks = (Get-Item -LiteralPath $prepared.metadataOnlyPath -Force).LastWriteTimeUtc
+        $linkTarget = Join-Path $fixture.root 'schema-v2-hardlink-target.bin'
+        [IO.File]::WriteAllBytes($linkTarget, $linkBytes)
+        [IO.File]::SetLastWriteTimeUtc($linkTarget, $linkTicks)
+        [IO.File]::Delete($prepared.metadataOnlyPath)
+        New-Item -ItemType HardLink -Path $prepared.metadataOnlyPath -Target $linkTarget | Out-Null
+        & $assertRejected { Assert-KmcChainedProtectedSaveContinuityLiveState -Record $goodRecord -SaveRoot $fixture.saveRoot -LiveInventory (Get-KmcSaveMetadataInventory $fixture.saveRoot) } 'schema-v2 accepted hard-link substitution'
+        [IO.File]::Delete($prepared.metadataOnlyPath)
+        [IO.File]::Delete($linkTarget)
+        [IO.File]::WriteAllBytes($prepared.metadataOnlyPath, $linkBytes)
+        [IO.File]::SetLastWriteTimeUtc($prepared.metadataOnlyPath, $linkTicks)
+
+        [IO.File]::AppendAllText((Join-Path $fixture.saveRoot 'Manual_3_PERSONAL.zks'), '-unlisted-third-transition')
+        $driftInventory = Get-KmcSaveMetadataInventory $fixture.saveRoot
+        $driftArguments = @{}
+        foreach ($key in $recordArguments.Keys) { $driftArguments[$key] = $recordArguments[$key] }
+        $driftArguments.CurrentInventory = $driftInventory
+        & $assertRejected { New-KmcChainedProtectedSaveContinuityAuthorityRecord @driftArguments -Transitions $goodTransitions } 'schema-v2 accepted an unlisted third changed path'
+        $parentAfter = Get-Item -LiteralPath $prepared.parentAuthorityPath -Force
+        Assert-Test ((Get-KmcSha256 $prepared.parentAuthorityPath) -ceq $prepared.parentAuthoritySha256 -and
+            $parentAfter.Length -eq $prepared.parentAuthorityLength -and
+            $parentAfter.LastWriteTimeUtc.Ticks -eq $prepared.parentAuthorityTicks) 'schema-v2 rejection tests mutated historical authority'
     }
 
     Invoke-HarnessTest 'Working requalification rejects every incorrect explicit pin' {
@@ -3230,6 +3536,8 @@ try {
             $manualLauncherSource.Contains("Invoke-KingmakerRuntimeScenario.ps1") -and
             $manualLauncherSource.Contains('$requestedWhatIf = [bool]$WhatIfPreference') -and
             $manualLauncherSource.Contains('$WhatIfPreference = $false') -and
+            $manualLauncherSource.Contains('ExpectedProtectedSavePinSetSha256') -and
+            $manualLauncherSource.Contains("if (`$PSBoundParameters.ContainsKey(`$pinName))") -and
             $manualLauncherSource.Contains("if (`$requestedWhatIf) { `$invoke['WhatIf'] = `$true }") -and
             -not $manualLauncherSource.Contains('Start-Process') -and -not $manualLauncherSource.Contains('Stop-Process')) 'manual launcher does not exclusively delegate to the guarded runtime launcher'
         Assert-Test ($runtimeLauncherSource.Contains('New-KmcRuntimeFixturePayload $preflightPair -ReadOnly:$isManualReview') -and
@@ -3345,6 +3653,25 @@ try {
             ExpectedProtectedQuickSaveSha256 = '1' * 64
         }
         [void](Assert-KmcRuntimeContinuityPinCombination @allPinArguments)
+        $v2PinNames = @($pinNames | Where-Object {
+            $_ -cnotin @('ExpectedProtectedAutoSaveName','ExpectedProtectedAutoSaveSha256','ExpectedProtectedQuickSaveName','ExpectedProtectedQuickSaveSha256')
+        }) + @('ExpectedProtectedSavePinSetSha256')
+        $v2PinArguments = @{}
+        foreach ($key in $allPinArguments.Keys) {
+            if ($key -cnotin @('ExpectedProtectedAutoSaveName','ExpectedProtectedAutoSaveSha256','ExpectedProtectedQuickSaveName','ExpectedProtectedQuickSaveSha256')) {
+                $v2PinArguments[$key] = $allPinArguments[$key]
+            }
+        }
+        $v2PinArguments.BoundContinuityPinNames = $v2PinNames
+        $v2PinArguments.ExpectedProtectedSavePinSetSha256 = '2' * 64
+        [void](Assert-KmcRuntimeContinuityPinCombination @v2PinArguments)
+        $dualModeArguments = @{}
+        foreach ($key in $allPinArguments.Keys) { $dualModeArguments[$key] = $allPinArguments[$key] }
+        $dualModeArguments.BoundContinuityPinNames = @($pinNames + 'ExpectedProtectedSavePinSetSha256')
+        $dualModeArguments.ExpectedProtectedSavePinSetSha256 = '2' * 64
+        $threw = $false
+        try { Assert-KmcRuntimeContinuityPinCombination @dualModeArguments | Out-Null } catch { $threw = $true }
+        Assert-Test $threw 'save-backed runtime pin gate accepted simultaneous schema-v1 and schema-v2 pin modes'
         $missingArguments = @{}
         foreach ($key in $allPinArguments.Keys) { $missingArguments[$key] = $allPinArguments[$key] }
         $missingArguments.BoundContinuityPinNames = @($pinNames | Where-Object { $_ -cne 'ExpectedPriorSaveMetadataDigest' })
@@ -3361,7 +3688,7 @@ try {
         Assert-Test $threw 'no-save runtime pin gate accepted an explicitly bound empty continuity pin'
 
         $launcherSource = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'runtime\Invoke-KingmakerRuntimeScenario.ps1')
-        foreach ($pinName in $pinNames) {
+        foreach ($pinName in @($pinNames + 'ExpectedProtectedSavePinSetSha256')) {
             Assert-Test ($launcherSource -cmatch ('\$' + [regex]::Escape($pinName) + '(?:\s|,)')) "runtime launcher does not expose $pinName"
         }
         $pinGateIndex = $launcherSource.IndexOf('[void](Assert-KmcRuntimeContinuityPinCombination', [StringComparison]::Ordinal)

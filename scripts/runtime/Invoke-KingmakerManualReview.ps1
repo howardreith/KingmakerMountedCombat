@@ -12,10 +12,11 @@ param(
     [Parameter(Mandatory = $true)][string]$ProtectedSaveContinuityAuthorityPath,
     [Parameter(Mandatory = $true)][ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$ExpectedProtectedSaveContinuityEpochId,
     [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedProtectedSaveContinuityAuthoritySha256,
-    [Parameter(Mandatory = $true)][string]$ExpectedProtectedAutoSaveName,
-    [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedProtectedAutoSaveSha256,
-    [Parameter(Mandatory = $true)][string]$ExpectedProtectedQuickSaveName,
-    [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedProtectedQuickSaveSha256,
+    [string]$ExpectedProtectedAutoSaveName,
+    [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedProtectedAutoSaveSha256,
+    [string]$ExpectedProtectedQuickSaveName,
+    [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedProtectedQuickSaveSha256,
+    [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedProtectedSavePinSetSha256,
     [string]$SteamPath = 'C:\Program Files (x86)\Steam\steam.exe'
 )
 
@@ -43,11 +44,14 @@ $invoke = @{
     ProtectedSaveContinuityAuthorityPath = $ProtectedSaveContinuityAuthorityPath
     ExpectedProtectedSaveContinuityEpochId = $ExpectedProtectedSaveContinuityEpochId
     ExpectedProtectedSaveContinuityAuthoritySha256 = $ExpectedProtectedSaveContinuityAuthoritySha256
-    ExpectedProtectedAutoSaveName = $ExpectedProtectedAutoSaveName
-    ExpectedProtectedAutoSaveSha256 = $ExpectedProtectedAutoSaveSha256
-    ExpectedProtectedQuickSaveName = $ExpectedProtectedQuickSaveName
-    ExpectedProtectedQuickSaveSha256 = $ExpectedProtectedQuickSaveSha256
     SteamPath = $SteamPath
+}
+foreach ($pinName in @(
+    'ExpectedProtectedAutoSaveName','ExpectedProtectedAutoSaveSha256',
+    'ExpectedProtectedQuickSaveName','ExpectedProtectedQuickSaveSha256',
+    'ExpectedProtectedSavePinSetSha256'
+)) {
+    if ($PSBoundParameters.ContainsKey($pinName)) { $invoke[$pinName] = $PSBoundParameters[$pinName] }
 }
 if ($requestedWhatIf) { $invoke['WhatIf'] = $true }
 elseif ($PSBoundParameters.ContainsKey('Confirm')) { $invoke['Confirm'] = [bool]$PSBoundParameters['Confirm'] }

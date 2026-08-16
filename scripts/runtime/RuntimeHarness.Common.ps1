@@ -575,9 +575,10 @@ function Assert-KmcRuntimeContinuityPinCombination {
         [string]$ExpectedProtectedAutoSaveName,
         [string]$ExpectedProtectedAutoSaveSha256,
         [string]$ExpectedProtectedQuickSaveName,
-        [string]$ExpectedProtectedQuickSaveSha256
+        [string]$ExpectedProtectedQuickSaveSha256,
+        [string]$ExpectedProtectedSavePinSetSha256
     )
-    $values = @(
+    $commonValues = @(
         $ExpectedCurrentQualificationSha256,
         $ExpectedSupersededWorkingSha256,
         $PriorSaveTransactionStatePath,
@@ -586,13 +587,15 @@ function Assert-KmcRuntimeContinuityPinCombination {
         $ExpectedPriorSaveMetadataDigest,
         $ProtectedSaveContinuityAuthorityPath,
         $ExpectedProtectedSaveContinuityEpochId,
-        $ExpectedProtectedSaveContinuityAuthoritySha256,
+        $ExpectedProtectedSaveContinuityAuthoritySha256
+    )
+    $legacyValues = @(
         $ExpectedProtectedAutoSaveName,
         $ExpectedProtectedAutoSaveSha256,
         $ExpectedProtectedQuickSaveName,
         $ExpectedProtectedQuickSaveSha256
     )
-    $pinNames = @(
+    $commonPinNames = @(
         'ExpectedCurrentQualificationSha256',
         'ExpectedSupersededWorkingSha256',
         'PriorSaveTransactionStatePath',
@@ -601,12 +604,16 @@ function Assert-KmcRuntimeContinuityPinCombination {
         'ExpectedPriorSaveMetadataDigest',
         'ProtectedSaveContinuityAuthorityPath',
         'ExpectedProtectedSaveContinuityEpochId',
-        'ExpectedProtectedSaveContinuityAuthoritySha256',
+        'ExpectedProtectedSaveContinuityAuthoritySha256'
+    )
+    $legacyPinNames = @(
         'ExpectedProtectedAutoSaveName',
         'ExpectedProtectedAutoSaveSha256',
         'ExpectedProtectedQuickSaveName',
         'ExpectedProtectedQuickSaveSha256'
     )
+    $chainedPinNames = @('ExpectedProtectedSavePinSetSha256')
+    $pinNames = @($commonPinNames + $legacyPinNames + $chainedPinNames)
     $unknownOrDuplicateNames = @($BoundContinuityPinNames | Group-Object | Where-Object {
         $group = $_
         $group.Count -ne 1 -or @($pinNames | Where-Object { $_ -ceq [string]$group.Name }).Count -ne 1
@@ -614,11 +621,22 @@ function Assert-KmcRuntimeContinuityPinCombination {
     if ($unknownOrDuplicateNames.Count -ne 0) {
         throw 'Runtime fixture-continuity bound-parameter identity is invalid or ambiguous.'
     }
-    $present = @($values | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }).Count
-    if ($IsSaveBacked -and ($present -ne $values.Count -or $BoundContinuityPinNames.Count -ne $pinNames.Count)) {
-        throw 'A save-backed runtime scenario requires every exact fixture-continuity pin.'
+    $commonPresent = @($commonValues | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }).Count
+    $legacyPresent = @($legacyValues | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }).Count
+    $chainedPresent = if ([string]::IsNullOrWhiteSpace($ExpectedProtectedSavePinSetSha256)) { 0 } else { 1 }
+    $boundCommon = @($commonPinNames | Where-Object { $BoundContinuityPinNames -ccontains $_ }).Count
+    $boundLegacy = @($legacyPinNames | Where-Object { $BoundContinuityPinNames -ccontains $_ }).Count
+    $boundChained = @($chainedPinNames | Where-Object { $BoundContinuityPinNames -ccontains $_ }).Count
+    if ($IsSaveBacked -and ($commonPresent -ne $commonValues.Count -or $boundCommon -ne $commonPinNames.Count)) {
+        throw 'A save-backed runtime scenario requires every common fixture-continuity pin.'
     }
-    if (-not $IsSaveBacked -and ($present -ne 0 -or $BoundContinuityPinNames.Count -ne 0)) {
+    if ($IsSaveBacked -and -not (
+        ($legacyPresent -eq $legacyValues.Count -and $boundLegacy -eq $legacyPinNames.Count -and $chainedPresent -eq 0 -and $boundChained -eq 0) -or
+        ($legacyPresent -eq 0 -and $boundLegacy -eq 0 -and $chainedPresent -eq 1 -and $boundChained -eq 1))) {
+        throw 'A save-backed runtime scenario requires exactly one complete schema-v1 or schema-v2 protected-save pin mode.'
+    }
+    if (-not $IsSaveBacked -and ($commonPresent -ne 0 -or $legacyPresent -ne 0 -or $chainedPresent -ne 0 -or
+        $BoundContinuityPinNames.Count -ne 0)) {
         throw 'A no-save runtime scenario rejects every fixture-continuity pin.'
     }
     return $true
@@ -997,7 +1015,7 @@ function Read-KmcProtectedSaveContinuityAuthority {
     }
 }
 
-function Assert-KmcQualifiedWorkingProtectedSaveContinuity {
+function Assert-KmcQualifiedWorkingProtectedSaveContinuityV1 {
     param(
         [Parameter(Mandatory = $true)][string]$SaveRoot,
         [Parameter(Mandatory = $true)][string]$StateRoot,
@@ -7385,3 +7403,5 @@ function New-KmcRuntimeResultV2 {
         subscenarioResults = $subscenarioArray
     }
 }
+
+. (Join-Path $PSScriptRoot 'ProtectedSaveContinuityV2.ps1')
