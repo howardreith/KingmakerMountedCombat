@@ -169,7 +169,9 @@ namespace KingmakerMountedCombat.Integration
                     }
                     else
                     {
-                        transaction.Fault("Native child attack ended with " + childAttack.Result + ".");
+                        transaction.Fault(
+                            "Native child attack ended with " + childAttack.Result +
+                            "; " + (childAttack.TerminalLifecycle ?? "lifecycle unavailable") + ".");
                         ForceFinish(childAttack.Result == ResultType.Interrupt ? ResultType.Interrupt : ResultType.Fail);
                     }
                 }
