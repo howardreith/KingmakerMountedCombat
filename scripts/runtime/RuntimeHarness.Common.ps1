@@ -7156,14 +7156,14 @@ function Assert-KmcCombatScenarioEvidence {
     if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -ge 24) {
         $recordFields = @($recordFields + 'targetBrainLease')
     }
-    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(28,29,30,31)) {
+    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(28,29,30,31,32,33)) {
         $recordFields = @($recordFields + 'movementToAttack')
     }
-    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(5,7,9,11,13,15,17,19,21,23,25,27,29,31)) {
+    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(5,7,9,11,13,15,17,19,21,23,25,27,29,31,33)) {
         $recordFields = @($recordFields + 'turnBased')
     }
     Assert-KmcExactProperties $record $recordFields 'combat evidence record'
-    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -notin @(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31) -or
+    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -notin @(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33) -or
         [string]$record.artifactKind -cne 'combat-scenario-evidence') {
         throw 'Combat evidence schemaVersion or artifactKind is not exact.'
     }
@@ -7568,7 +7568,7 @@ function Assert-KmcCombatScenarioEvidence {
             }
         }
     }
-    if ([long]$record.schemaVersion -in @(28,29,30,31)) {
+    if ([long]$record.schemaVersion -in @(28,29,30,31,32,33)) {
         $movementToAttackFields = @(
             'requestedTargetDistance','approachRequiredAtStart','delegatedMoveStartCount',
             'delegatedMoveTickCount','delegatedMoveExecutorId','delegatedMoveExecutorIsExactMount',
@@ -7701,7 +7701,7 @@ function Assert-KmcCombatScenarioEvidence {
             'mounted-rider-melee-hit-tb','mounted-mammoth-primary-hit-tb','mounted-rider-melee-move-to-attack-tb')
         $missScenario = [string]$Request.scenario -ceq 'mounted-rider-melee-miss-rt'
         $expectedCombatSchemas = if ($movementToAttackScenario) {
-            if ($turnBasedScenario) { @(29,31) } else { @(28,30) }
+            if ($turnBasedScenario) { @(29,31,33) } else { @(28,30,32) }
         } elseif ($mammothScenario) {
             if ($turnBasedScenario) { @(21,23,25,27) } else { @(20,22,24,26) }
         } elseif ($missScenario) {

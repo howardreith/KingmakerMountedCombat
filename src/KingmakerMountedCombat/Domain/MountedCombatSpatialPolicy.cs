@@ -135,6 +135,15 @@ namespace KingmakerMountedCombat.Domain
             return nativeAdmissionRadius - pairApproachRadius <= MaximumNativeExecutorRadiusAdjustment;
         }
 
+        public static bool IsExactRawMoveSlotLifecycle(
+            bool rawMoveSlotIsExactDelegatedMove,
+            bool rawMoveSlotIsEmpty,
+            bool delegatedMoveIsFinished)
+        {
+            return rawMoveSlotIsExactDelegatedMove ||
+                (delegatedMoveIsFinished && rawMoveSlotIsEmpty);
+        }
+
         private static void RequireFiniteNonNegative(float value, string name)
         {
             RequireFinite(value, name);

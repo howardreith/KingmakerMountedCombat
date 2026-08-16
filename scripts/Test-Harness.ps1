@@ -1081,7 +1081,7 @@ function New-TestCombatEvidenceRecord {
     $actorRole = if ($isMammoth) { 'mount' } else { 'rider' }
     $action = if ($isMammoth) { 'MountPrimaryNatural' } else { 'RiderMelee' }
     $record = [ordered]@{
-        schemaVersion=$(if ($isMovementToAttack) { if ($isTurnBased) { 31 } else { 30 } } elseif ($isTurnBased) { 27 } else { 26 });artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
+        schemaVersion=$(if ($isMovementToAttack) { if ($isTurnBased) { 33 } else { 32 } } elseif ($isTurnBased) { 27 } else { 26 });artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
         scenario=[string]$Request.scenario;row=[string]$Request.scenario;rowIndex=0;sequence=0;frame=30
         utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o');branch=[string]$Request.branch
         commit=[string]$Request.commit;productVersion=[string]$Request.productVersion
@@ -4537,7 +4537,7 @@ try {
         Assert-Test ($engineSource.Contains('CleanupTimeoutSeconds = 10.0d') -and
             $engineSource.Contains('rowClock.Elapsed.TotalSeconds - cleanupStartedAtSeconds < CleanupTimeoutSeconds')) 'combat cleanup does not retain an independent bounded drain after a row deadline'
         Assert-Test ($engineSource.Contains('SchemaVersion = IsMovementToAttackRow') -and
-            $engineSource.Contains('? (IsTurnBasedRow ? 31 : 30)') -and
+            $engineSource.Contains('? (IsTurnBasedRow ? 33 : 32)') -and
             $engineSource.Contains(': (IsTurnBasedRow ? 27 : 26)') -and
             $engineSource.Contains('Mode = IsTurnBasedRow ? "turn-based" : "real-time"') -and
             $engineSource.Contains('TurnBased = IsTurnBasedRow') -and
@@ -4605,7 +4605,8 @@ try {
             $commandSource.Contains('retainedAttackWeaponBlueprintId = childAttack.PlannedAttack.Weapon.Blueprint.AssetGuid;') -and
             $commandSource.Contains('AttackWeaponBlueprintId = retainedAttackWeaponBlueprintId') -and
             $commandSource.Contains('mount.Commands.Run(delegatedMove);') -and
-            $commandSource.Contains('mount.Commands.Move == delegatedMove') -and
+            $commandSource.Contains('mount.Commands.GetCommand(UnitCommand.CommandType.Move)') -and
+            $commandSource.Contains('IsExactRawMoveSlotLifecycle(') -and
             $commandSource.Contains('mount.Commands.Queue.Count == 0') -and
             $commandSource.Contains('commands.RemoveFinishedAndUpdateQueue();') -and
             -not $commandSource.Contains('mount.Commands.InterruptMove()') -and
@@ -4752,7 +4753,7 @@ try {
     $moveAttackManifest = Read-KmcJson (Join-Path $moveAttackRequest.evidenceRoot 'runtime-artifacts.json')
     $moveAttackSubresult = [ordered]@{name=$moveAttackRequest.scenario;status='PASS';assertionPassCount=25;assertionFailCount=0;errors=@()}
 
-    Invoke-HarnessTest 'runtime request and schema-v30 evidence accept exact stock-driven real-time rider movement-to-attack' {
+    Invoke-HarnessTest 'runtime request and schema-v32 evidence accept exact raw-slot stock-driven real-time rider movement-to-attack' {
         & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $moveAttackRequestPath
         Assert-KmcCombatScenarioEvidence -Request $moveAttackRequest -Manifest $moveAttackManifest -Status 'PASS' -SubscenarioResults @($moveAttackSubresult)
     }
@@ -4768,7 +4769,7 @@ try {
     $moveAttackTurnManifest = Read-KmcJson (Join-Path $moveAttackTurnRequest.evidenceRoot 'runtime-artifacts.json')
     $moveAttackTurnSubresult = [ordered]@{name=$moveAttackTurnRequest.scenario;status='PASS';assertionPassCount=25;assertionFailCount=0;errors=@()}
 
-    Invoke-HarnessTest 'runtime request and schema-v31 evidence accept exact rider-turn-driven movement-to-attack' {
+    Invoke-HarnessTest 'runtime request and schema-v33 evidence accept exact raw-slot rider-turn-driven movement-to-attack' {
         & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $moveAttackTurnRequestPath
         Assert-KmcCombatScenarioEvidence -Request $moveAttackTurnRequest -Manifest $moveAttackTurnManifest -Status 'PASS' -SubscenarioResults @($moveAttackTurnSubresult)
     }
@@ -4813,7 +4814,19 @@ try {
         }
     }
 
-    Invoke-HarnessTest 'historical schema-v28 and schema-v29 detached-move evidence shapes remain valid' {
+    Invoke-HarnessTest 'historical schema-v28 through schema-v31 movement evidence shapes remain valid' {
+        $legacyMove30 = Copy-TestJsonValue $moveAttackRecord
+        $legacyMove30.schemaVersion = 30
+        [void](Write-TestCombatEvidence -EvidenceRoot $moveAttackRequest.evidenceRoot -Request $moveAttackRequest -Record $legacyMove30)
+        $legacyMove30Manifest = Read-KmcJson (Join-Path $moveAttackRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $moveAttackRequest -Manifest $legacyMove30Manifest -Status 'PASS' -SubscenarioResults @($moveAttackSubresult)
+
+        $legacyMove31 = Copy-TestJsonValue $moveAttackTurnRecord
+        $legacyMove31.schemaVersion = 31
+        [void](Write-TestCombatEvidence -EvidenceRoot $moveAttackTurnRequest.evidenceRoot -Request $moveAttackTurnRequest -Record $legacyMove31)
+        $legacyMove31Manifest = Read-KmcJson (Join-Path $moveAttackTurnRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $moveAttackTurnRequest -Manifest $legacyMove31Manifest -Status 'PASS' -SubscenarioResults @($moveAttackTurnSubresult)
+
         $legacyMove28 = Copy-TestJsonValue $moveAttackRecord
         $legacyMove28.schemaVersion = 28
         $legacyMove28.movementToAttack.delegatedMoveTickCount = 12

@@ -70,7 +70,8 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.View.UnitMovementAgent',0x060018C2,'Stop'),@('Kingmaker.View.UnitMovementAgentBase',0x060018E2,'get_Velocity'),
         @('Kingmaker.View.UnitMovementAgentBase',0x060018E6,'get_Speed'),@('Kingmaker.EntitySystem.Entities.UnitEntityData',0x06008345,'Translocate'),
         @('Kingmaker.Controllers.Clicks.Handlers.ClickGroundHandler',0x060093DA,'MoveSelectedUnitsToPoint'),
-        @('Kingmaker.UnitLogic.Commands.UnitCommands',0x0600269F,'get_Move'),@('Kingmaker.UnitLogic.Commands.UnitMoveTo',0x060026F4,'get_Target'),
+        @('Kingmaker.UnitLogic.Commands.UnitCommands',0x0600269F,'get_Move'),@('Kingmaker.UnitLogic.Commands.UnitCommands',0x060026A9,'GetCommand'),
+        @('Kingmaker.UnitLogic.Commands.Base.UnitCommand',0x0600275E,'get_IsFinished'),@('Kingmaker.UnitLogic.Commands.UnitMoveTo',0x060026F4,'get_Target'),
         @('Kingmaker.View.UnitMovementAgent',0x060018A8,'FindPath'),@('Kingmaker.UI.Selection.SelectionManager',0x060034E2,'get_Instance'),
         @('Kingmaker.UI.Selection.SelectionManager',0x060034E4,'get_SelectedUnits'),@('Kingmaker.Game',0x06000C9A,'get_IsPaused'),
         @('Kingmaker.Game',0x06000C9B,'set_IsPaused'),@('Kingmaker.Game',0x06000CD6,'ReloadArea'),
@@ -317,6 +318,10 @@ if($Target-eq'Kingmaker'){
         (Test-MethodIlContainsToken $unitActionTick[0] 0x060026A6) -and
         (Test-MethodIlContainsToken $unitActionTick[0] 0x06001851)) `
         'UnitActionController exact empty-command container stops stock unit movement'
+    $filteredMoveGetter=@(Find-Token 'Kingmaker.UnitLogic.Commands.UnitCommands' 0x0600269F)
+    Assert-Contract ($filteredMoveGetter.Count-eq1 -and $filteredMoveGetter[0] -is [Reflection.MethodInfo] -and
+        (Test-MethodIlContainsToken $filteredMoveGetter[0] 0x0600275E)) `
+        'UnitCommands.Move filters a finished raw Move slot and cannot prove exact lifecycle ownership'
     $combatJoinTickUnit=@(Find-Token 'Kingmaker.Controllers.Combat.UnitCombatJoinController' 0x06009361)
     $combatShouldEngage=@(Find-Token 'Kingmaker.Controllers.Combat.UnitCombatJoinController' 0x06009362)
     Assert-Contract ($combatJoinTickUnit.Count-eq1 -and $combatJoinTickUnit[0] -is [Reflection.MethodInfo] -and

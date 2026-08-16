@@ -1130,7 +1130,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var record = new CombatEvidenceRecord
             {
                 SchemaVersion = IsMovementToAttackRow
-                    ? (IsTurnBasedRow ? 31 : 30)
+                    ? (IsTurnBasedRow ? 33 : 32)
                     : (IsTurnBasedRow ? 27 : 26),
                 ArtifactKind = "combat-scenario-evidence",
                 RunId = request.RunId,

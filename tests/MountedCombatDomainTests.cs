@@ -23,6 +23,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("mounted combat diagnostic placement refreshes exact Mammoth actor drift", DiagnosticPlacementRefreshesObservedMammothDrift);
             runner.Run("mounted combat approach placement starts outside exact pair range", DiagnosticApproachPlacementStartsOutsideRange);
             runner.Run("mounted combat approach evidence preserves mount-only pathfinding", ApproachEvidencePreservesMountAuthority);
+            runner.Run("mounted combat approach raw Move slot preserves the exact finished command boundary", ApproachRawMoveSlotPreservesFinishedBoundary);
             runner.Run("mounted combat approach rejects an empty Mammoth command controller", ApproachEvidenceRejectsEmptyMountCommandController);
             runner.Run("mounted combat approach evidence reports command movement and pose drift", ApproachEvidenceReportsExactFailures);
             runner.Run("mounted combat native admission bridges only an in-range Mammoth origin", NativeAdmissionUsesMountOrigin);
@@ -270,6 +271,25 @@ namespace KingmakerMountedCombat.Tests
                 "no-unexpected-repath",
                 snapshot.FailureSummary,
                 "Unsafe approach gates were not reported in exact order.");
+        }
+
+        private static void ApproachRawMoveSlotPreservesFinishedBoundary()
+        {
+            TestRunner.True(
+                MountedCombatSpatialPolicy.IsExactRawMoveSlotLifecycle(true, false, false),
+                "An active exact delegated raw Move slot was rejected.");
+            TestRunner.True(
+                MountedCombatSpatialPolicy.IsExactRawMoveSlotLifecycle(true, false, true),
+                "The exact finished delegated command still present in the raw Move slot was rejected.");
+            TestRunner.True(
+                MountedCombatSpatialPolicy.IsExactRawMoveSlotLifecycle(false, true, true),
+                "A finished delegated command removed by the stock sweep was rejected.");
+            TestRunner.True(
+                !MountedCombatSpatialPolicy.IsExactRawMoveSlotLifecycle(false, true, false),
+                "An unfinished delegated command missing from the raw Move slot was accepted.");
+            TestRunner.True(
+                !MountedCombatSpatialPolicy.IsExactRawMoveSlotLifecycle(false, false, true),
+                "A replacement raw Move-slot command was accepted.");
         }
 
         private static void ApproachEvidenceRejectsEmptyMountCommandController()

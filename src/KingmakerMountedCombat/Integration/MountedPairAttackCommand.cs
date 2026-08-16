@@ -421,8 +421,9 @@ namespace KingmakerMountedCombat.Integration
             mount.Commands.Run(delegatedMove);
             delegatedMoveExecutorId = delegatedMove.Executor?.UniqueId;
             delegatedMoveExecutorIsExactMount &= delegatedMove.Executor == mount;
+            var rawMoveSlot = mount.Commands.GetCommand(UnitCommand.CommandType.Move);
             delegatedMoveOwnedByMountMoveSlot &=
-                mount.Commands.Move == delegatedMove && mount.Commands.Contains(delegatedMove);
+                rawMoveSlot == delegatedMove && mount.Commands.Contains(delegatedMove);
             delegatedMoveNeverQueuedOnMount &=
                 !mount.Commands.Queue.Contains(delegatedMove);
             mountQueueEmptyThroughoutApproach &= mount.Commands.Queue.Count == 0;
@@ -443,9 +444,12 @@ namespace KingmakerMountedCombat.Integration
 
             var exactMove = delegatedMove;
             var commands = mount.Commands;
+            var rawMoveSlot = commands?.GetCommand(UnitCommand.CommandType.Move);
             var exactSlotOrStockRemoved = commands != null &&
-                (commands.Move == exactMove ||
-                 (exactMove.IsFinished && commands.Move == null && !commands.Contains(exactMove)));
+                MountedCombatSpatialPolicy.IsExactRawMoveSlotLifecycle(
+                    rawMoveSlot == exactMove,
+                    rawMoveSlot == null,
+                    exactMove.IsFinished);
             mountMoveSlotUnreplacedThroughoutApproach &= exactSlotOrStockRemoved;
             mountQueueEmptyThroughoutApproach &= commands != null && commands.Queue.Count == 0;
             if (!exactMove.IsFinished)
@@ -462,7 +466,8 @@ namespace KingmakerMountedCombat.Integration
             {
                 commands.RemoveFinishedAndUpdateQueue();
             }
-            mountMoveSlotRestoredAfterApproach = commands != null && commands.Move == null &&
+            mountMoveSlotRestoredAfterApproach = commands != null &&
+                commands.GetCommand(UnitCommand.CommandType.Move) == null &&
                 !commands.Contains(exactMove) && commands.Queue.Count == 0;
             mount.View?.StopMoving();
             delegatedMove = null;
@@ -563,9 +568,11 @@ namespace KingmakerMountedCombat.Integration
             if (delegatedMove != null)
             {
                 delegatedMoveExecutorIsExactMount &= delegatedMove.Executor == mount;
-                var exactSlotOrStockRemoved = mount.Commands.Move == delegatedMove ||
-                    (delegatedMove.IsFinished && mount.Commands.Move == null &&
-                     !mount.Commands.Contains(delegatedMove));
+                var rawMoveSlot = mount.Commands.GetCommand(UnitCommand.CommandType.Move);
+                var exactSlotOrStockRemoved = MountedCombatSpatialPolicy.IsExactRawMoveSlotLifecycle(
+                    rawMoveSlot == delegatedMove,
+                    rawMoveSlot == null,
+                    delegatedMove.IsFinished);
                 mountMoveSlotUnreplacedThroughoutApproach &= exactSlotOrStockRemoved;
                 delegatedMoveNeverQueuedOnMount &=
                     !mount.Commands.Queue.Contains(delegatedMove);
