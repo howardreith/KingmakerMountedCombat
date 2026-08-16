@@ -1016,9 +1016,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 turnRosterContainsTarget,
                 nativeRiderTurnStarted,
                 currentTurn?.Unit == rider,
-                currentTurn != null &&
-                    (currentTurn.Status == TurnBased.Controllers.TurnController.TurnStatus.Preparing ||
-                     currentTurn.Status == TurnBased.Controllers.TurnController.TurnStatus.Acting));
+                MountedPairTurnPolicy.CanIssueRiderAction(
+                    true,
+                    currentTurn?.Unit == rider,
+                    currentTurn != null &&
+                        currentTurn.Status == TurnBased.Controllers.TurnController.TurnStatus.Preparing,
+                    currentTurn != null && currentTurn.IsActing));
         }
 
         private static bool ContainsTurnRosterUnit(

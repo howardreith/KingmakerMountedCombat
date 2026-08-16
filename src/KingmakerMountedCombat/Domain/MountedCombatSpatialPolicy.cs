@@ -119,6 +119,16 @@ namespace KingmakerMountedCombat.Domain
 
     public static class MountedPairTurnPolicy
     {
+        public static bool CanIssueRiderAction(
+            bool turnBasedCombat,
+            bool currentUnitIsExactRider,
+            bool riderTurnIsPreparing,
+            bool riderTurnIsActing)
+        {
+            return !turnBasedCombat ||
+                (currentUnitIsExactRider && (riderTurnIsPreparing || riderTurnIsActing));
+        }
+
         public static bool ShouldEndMountTurn(
             bool exactMountedPair,
             bool turnBasedCombat,

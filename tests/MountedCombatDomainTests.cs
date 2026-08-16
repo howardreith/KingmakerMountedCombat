@@ -23,6 +23,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("mounted combat native admission bridges only an in-range Mammoth origin", NativeAdmissionUsesMountOrigin);
             runner.Run("mounted combat native admission rejects pair range and offset escape", NativeAdmissionRejectsUnsafeBounds);
             runner.Run("mounted pair ends only the exact Mammoth turn", SuppressesOnlyMountTurn);
+            runner.Run("mounted pair admits rider action in exact native command window", AdmitsExactRiderActionWindow);
             runner.Run("mounted pair delegates movement only through the exact rider turn", DelegatesOnlyExactMovement);
             runner.Run("native single attack prefers an eligible primary hand", NativeSingleAttackPrefersPrimary);
             runner.Run("native single attack falls back through secondary then additional limbs", NativeSingleAttackFallbackOrder);
@@ -220,6 +221,25 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(MountedPairTurnPolicy.ShouldEndMountTurn(true, true, true), "Exact Mammoth turn was not suppressed.");
             TestRunner.True(!MountedPairTurnPolicy.ShouldEndMountTurn(true, true, false), "Rider/non-pair turn was suppressed.");
             TestRunner.True(!MountedPairTurnPolicy.ShouldEndMountTurn(false, true, true), "Unmounted Mammoth turn was suppressed.");
+        }
+
+        private static void AdmitsExactRiderActionWindow()
+        {
+            TestRunner.True(
+                MountedPairTurnPolicy.CanIssueRiderAction(false, false, false, false),
+                "Real-time rider action incorrectly required a turn controller.");
+            TestRunner.True(
+                MountedPairTurnPolicy.CanIssueRiderAction(true, true, true, false),
+                "Exact native Preparing rider turn rejected command admission.");
+            TestRunner.True(
+                MountedPairTurnPolicy.CanIssueRiderAction(true, true, false, true),
+                "Exact native Acting rider turn rejected command admission.");
+            TestRunner.True(
+                !MountedPairTurnPolicy.CanIssueRiderAction(true, false, true, false),
+                "A different unit's native Preparing turn admitted a rider command.");
+            TestRunner.True(
+                !MountedPairTurnPolicy.CanIssueRiderAction(true, true, false, false),
+                "A rider turn outside Preparing or Acting admitted a command.");
         }
 
         private static void DelegatesOnlyExactMovement()

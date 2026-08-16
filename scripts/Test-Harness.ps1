@@ -4225,8 +4225,14 @@ try {
             $engineSource.Contains('turnController != null && turnController.Initialized') -and
             $engineSource.Contains('foreach (var unit in controller.SortedUnits)') -and
             $engineSource.Contains('currentTurn?.Unit == rider') -and
+            $spatialPolicySource.Contains('public static bool CanIssueRiderAction(') -and
+            $spatialPolicySource.Contains('(currentUnitIsExactRider && (riderTurnIsPreparing || riderTurnIsActing))') -and
+            $controllerSource.Contains('var riderTurn = MountedPairTurnPolicy.CanIssueRiderAction(') -and
+            $controllerSource.Contains('turn.Status == TurnBased.Controllers.TurnController.TurnStatus.Preparing') -and
+            $controllerSource.Contains('turn != null && turn.IsActing') -and
+            $engineSource.Contains('MountedPairTurnPolicy.CanIssueRiderAction(') -and
             $engineSource.Contains('currentTurn.Status == TurnBased.Controllers.TurnController.TurnStatus.Preparing') -and
-            $engineSource.Contains('currentTurn.Status == TurnBased.Controllers.TurnController.TurnStatus.Acting') -and
+            $engineSource.Contains('currentTurn != null && currentTurn.IsActing') -and
             $engineSource.Contains('currentTurnActingAtDispatch = true;') -and
             $engineSource.Contains('currentTurnActingAtOutcome = currentTurn != null && currentTurn.IsActing')) 'turn-based combat does not admit the native Preparing rider turn, observe Acting only after dispatch, retain it through outcome, and restore mode after cleanup'
         Assert-Test ($engineSource.Contains('CleanupTimeoutSeconds = 10.0d') -and

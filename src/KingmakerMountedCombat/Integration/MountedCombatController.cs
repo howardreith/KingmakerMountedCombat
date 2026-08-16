@@ -294,8 +294,11 @@ namespace KingmakerMountedCombat.Integration
             var riderState = rider?.Descriptor?.State;
             var mountState = mount?.Descriptor?.State;
             var turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
-            var riderTurn = !CombatController.IsInTurnBasedCombat() ||
-                (turn != null && turn.Unit == rider && turn.IsActing);
+            var riderTurn = MountedPairTurnPolicy.CanIssueRiderAction(
+                CombatController.IsInTurnBasedCombat(),
+                turn?.Unit == rider,
+                turn != null && turn.Status == TurnBased.Controllers.TurnController.TurnStatus.Preparing,
+                turn != null && turn.IsActing);
             var riderWeapon = rider?.GetFirstWeapon();
             mountPrimary = action == MountedCombatActionKind.MountPrimaryNatural
                 ? NativeSingleAttackWeaponResolver.Resolve(mount)
