@@ -185,21 +185,23 @@ namespace KingmakerMountedCombat.Integration
         private string DescribeTerminalLifecycle()
         {
             var frames = new StackTrace(1, false).GetFrames() ?? new StackFrame[0];
-            var caller = frames
+            var callerChain = string.Join(
+                ">",
+                frames
+                .Take(12)
                 .Select(frame => frame.GetMethod())
                 .Where(method => method != null)
                 .Select(method => (method.DeclaringType == null
                     ? "<unknown>"
                     : method.DeclaringType.FullName) + "." + method.Name)
-                .FirstOrDefault(name =>
-                    !name.StartsWith(typeof(MountedPairSingleAttack).FullName + ".", StringComparison.Ordinal));
+                .ToArray());
             return "result=" + Result +
                 ";acted=" + IsActed +
                 ";timeSinceStart=" + TimeSinceStart.ToString("R", System.Globalization.CultureInfo.InvariantCulture) +
                 ";attackRuleObserved=" + (LastAttackRule != null) +
                 ";animationPresent=" + (Animation != null) +
                 ";animationFinished=" + (Animation != null && Animation.IsFinished) +
-                ";caller=" + (caller ?? "<unavailable>");
+                ";callerChain=" + (string.IsNullOrEmpty(callerChain) ? "<unavailable>" : callerChain);
         }
 
         private bool TryObserveDistances(
