@@ -26,13 +26,15 @@ All core claims require two consecutive fresh-process passes from one clean comm
 
 | Tranche | Scenarios | Status |
 |---|---|---|
-| Rider melee | mounted hit/miss RT, hit TB, invalid target, target death, cleanup, non-mounted control | TODO |
+| Rider melee | mounted hit/miss RT, hit TB, invalid target, target death, cleanup, non-mounted control | IN PROGRESS - stationary hit RT PASS A/B; remaining rows open |
 | Mount attack | explicit primary attack RT/TB, invalid target, target death, rider interruption, non-mounted control | TODO |
 | Action economy/movement | entry/exit RT/TB, movement-to-target, cancellation, obstacles/doorway, resource accounting | TODO |
 | Lifecycle | rider/mount death and incapacitation, view/party/save/load/area/disable/exception boundaries | TODO |
 | Stretch | reach, AoO, and basic charge RT/TB plus isolation | TODO |
 
 The user accepted exact review commit/package `09a63729e0847c540ae7e79e9e3876d005ee9afe` / `80b0498cd9d1e6d8dd518ffd8d343af56bcc711306492548c221b9559c98cef7`. Combat implementation is authorized; no runtime credit is inferred from that acceptance.
+
+Stationary mounted rider melee in real time is qualified by fresh same-package runs `20260816T084500Z-rider-hit-rt-probeQ` and `20260816T090000Z-rider-hit-rt-passB`, each `47/0`, from clean guarded-published commit `07d44eb89c6a533bc99e386bad6fd3dac4a9ac73`, package/manifest/DLL SHA-256 `af4855f93e31084b2406a2b9e527b5d8587c5a7b82a52d61bb3863d7af777459` / `10b8bae35848e919259839c4af9aaa265a6762b247b7b3a781a1f836ea42076a` / `e3ca251a6a04da607f9fb6bc21605d32756e2648769fc341d6a6575b1616db09`, MVID `06e14d27-85a7-49f6-900c-94ca99f68f04`. Each proves one rider-initiated native attack/roll/damage, eight damage, no unexpected pair attack, one rider Standard charge, zero Mammoth resource charge, zero repaths, exact combat-memory removal, healthy accepted Mammoth pose, zero owned residue, and exact external restoration. This fills only the stationary mounted-hit-RT claim; miss RT, hit TB, invalid target, target death, cleanup stress, and non-mounted control remain open.
 
 Stationary rider-melee diagnostic ledger through Probe K remains unqualified. Probe K `20260816T070000Z-rider-hit-rt-probeK` is final `FAIL` `39/7`: it proves exact native memory/combat preparation, dispatch readiness, accepted click, target safety, Mammoth-only movement authority, and exact external restoration, then exhausts four no-op repaths because native child admission measures the offset rider executor while the authoritative Mammoth is already within `2.25020623 / 2.37020588` range. The bounded rider-native admission repair is offline-green at source `21/0`, component `189/0`, visual `17/0`, harness `154/0`, and assembly `166/0`; both real-time Pass cells remain `TODO` pending two fresh complete passes from one clean package.
 
