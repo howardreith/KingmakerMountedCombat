@@ -1066,6 +1066,72 @@ function Write-TestMovementEvidence {
     return New-TestArtifactManifest -EvidenceRoot $EvidenceRoot -RunId $Request.runId -Scenario $Request.scenario -Artifacts $artifacts.ToArray()
 }
 
+function New-TestCombatEvidenceRecord {
+    param([Parameter(Mandatory = $true)]$Request)
+    $rider = 'combat-rider'
+    $mount = 'combat-mount'
+    $target = 'combat-target'
+    return [ordered]@{
+        schemaVersion=1;artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
+        scenario=[string]$Request.scenario;row=[string]$Request.scenario;rowIndex=0;sequence=0;frame=30
+        utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o');branch=[string]$Request.branch
+        commit=[string]$Request.commit;productVersion=[string]$Request.productVersion
+        dllSha256=[string]$Request.dllSha256;dllMvid=[string]$Request.dllMvid;status='PASS';mode='real-time'
+        action='RiderMelee';expectedActor='rider';riderId=$rider;mountId=$mount;targetId=$target;clickAccepted=$true
+        pairApproachRadius=4.0;targetDistanceAtClick=3.9
+        riderPositionAtClick=[ordered]@{x=0.0;y=0.0;z=0.0}
+        mountPositionAtClick=[ordered]@{x=0.1;y=0.0;z=0.0}
+        targetPositionAtClick=[ordered]@{x=4.0;y=0.0;z=0.0}
+        resources=[ordered]@{
+            riderStandardBefore=0.0;riderStandardAfter=5.5;riderMoveBefore=0.0;riderMoveAfter=0.0
+            mountStandardBefore=0.0;mountStandardAfter=0.0;mountMoveBefore=0.0;mountMoveAfter=0.0
+        }
+        command=[ordered]@{
+            action='RiderMelee';actorId=$rider;targetId=$target;result='Success';childAttackStartCount=1
+            repathCount=0;riderStandardCharged=$true;nativeAttackRuleObserved=$true
+        }
+        rules=[ordered]@{
+            forcedD20=20;forcedD20Count=1;attackRuleCount=1;attackRollCount=1;damageRuleCount=1
+            unexpectedPairAttackCount=0;totalDamage=10;lastInitiatorId=$rider;lastTargetId=$target;lastAttackResult='Hit'
+        }
+        movement=[ordered]@{
+            authoritativeMover='mount';repathCount=0;riderStockAgentEnabledAtEnd=$true;mountStockAgentEnabledAtEnd=$true
+            riderAvoidanceDisabledAtEnd=$false;mountAvoidanceDisabledAtEnd=$false
+        }
+        pose=[ordered]@{
+            profileId='medium-humanoid-mammoth-v1';healthyAtOutcome=$true;configuredAtEnd=$false
+            attachmentLeaseAtEnd=$false;residueAtEnd=$false
+        }
+        cleanup=[ordered]@{
+            targetRemoved=$true;relationshipClean=$true;combatCleared=$true;relationshipState='Unmounted'
+            residualState=$false;presentationResidual=$false
+        }
+        selection=@($rider);assertionPassCount=25;assertionFailCount=0;errors=@()
+    }
+}
+
+function Write-TestCombatEvidence {
+    param(
+        [Parameter(Mandatory = $true)][string]$EvidenceRoot,
+        [Parameter(Mandatory = $true)]$Request,
+        [Parameter(Mandatory = $true)]$Record,
+        [switch]$OmitManifestRecord,
+        [string]$ManifestKind='combat-evidence'
+    )
+    New-Item -ItemType Directory -Path $EvidenceRoot -Force | Out-Null
+    $path = Join-Path $EvidenceRoot 'combat-scenario-evidence.jsonl'
+    [IO.File]::WriteAllText($path, ($Record | ConvertTo-Json -Compress -Depth 15) + [Environment]::NewLine, (New-Object Text.UTF8Encoding($false)))
+    $artifacts = if ($OmitManifestRecord) { @() } else {
+        @([ordered]@{relativePath='combat-scenario-evidence.jsonl';kind=$ManifestKind;length=(Get-Item -LiteralPath $path).Length;sha256=(Get-KmcSha256 $path)})
+    }
+    return New-TestArtifactManifest -EvidenceRoot $EvidenceRoot -RunId $Request.runId -Scenario $Request.scenario -Artifacts $artifacts
+}
+
+function Copy-TestJsonValue {
+    param([Parameter(Mandatory = $true)]$Value)
+    return ($Value | ConvertTo-Json -Compress -Depth 20 | ConvertFrom-Json)
+}
+
 New-Item -ItemType Directory -Path $testRoot | Out-Null
 try {
     $emptyRoot = Join-Path $testRoot 'empty-root'
@@ -3972,6 +4038,71 @@ try {
         $v2Request.evidenceRoot = Join-Path $runtimeEvidenceTestRoot 'schema-v2-test'
         Write-KmcJsonAtomic $v2RequestPath $v2Request
     }
+
+    $combatRequestPath = Join-Path $testRoot 'runtime-request-combat.json'
+    $combatRequest = Copy-TestJsonValue $v2Request
+    $combatRequest.runId = 'combat-evidence-test'
+    $combatRequest.scenario = 'mounted-rider-melee-hit-rt'
+    $combatRequest.evidenceRoot = Join-Path $runtimeEvidenceTestRoot $combatRequest.runId
+    Write-KmcJsonAtomic $combatRequestPath $combatRequest
+    $combatRecord = New-TestCombatEvidenceRecord $combatRequest
+    $combatManifestHash = Write-TestCombatEvidence -EvidenceRoot $combatRequest.evidenceRoot -Request $combatRequest -Record $combatRecord
+    $combatManifest = Read-KmcJson (Join-Path $combatRequest.evidenceRoot 'runtime-artifacts.json')
+    $combatSubresult = [ordered]@{name=$combatRequest.scenario;status='PASS';assertionPassCount=25;assertionFailCount=0;errors=@()}
+
+    Invoke-HarnessTest 'runtime request and combat evidence accept exact stationary rider hit' {
+        & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $combatRequestPath
+        Assert-KmcCombatScenarioEvidence -Request $combatRequest -Manifest $combatManifest -Status 'PASS' -SubscenarioResults @($combatSubresult)
+    }
+
+    Invoke-HarnessTest 'combat validator rejects duplicate rules action cost and actor mutations' {
+        $mutations = @(
+            @{name='duplicate attack';apply={param($value) $value.rules.attackRuleCount=2}},
+            @{name='duplicate damage';apply={param($value) $value.rules.damageRuleCount=2}},
+            @{name='unexpected pair attack';apply={param($value) $value.rules.unexpectedPairAttackCount=1}},
+            @{name='wrong command actor';apply={param($value) $value.command.actorId='combat-mount'}},
+            @{name='missing rider Standard cost';apply={param($value) $value.resources.riderStandardAfter=0.0}},
+            @{name='mount Standard cost';apply={param($value) $value.resources.mountStandardAfter=5.0}},
+            @{name='delegated movement';apply={param($value) $value.command.repathCount=1;$value.movement.repathCount=1}},
+            @{name='pose failure';apply={param($value) $value.pose.healthyAtOutcome=$false}},
+            @{name='target residue';apply={param($value) $value.cleanup.targetRemoved=$false}}
+        )
+        foreach ($mutation in $mutations) {
+            $candidate = Copy-TestJsonValue $combatRecord
+            & $mutation.apply $candidate
+            [void](Write-TestCombatEvidence -EvidenceRoot $combatRequest.evidenceRoot -Request $combatRequest -Record $candidate)
+            $candidateManifest = Read-KmcJson (Join-Path $combatRequest.evidenceRoot 'runtime-artifacts.json')
+            $threw = $false
+            try { Assert-KmcCombatScenarioEvidence -Request $combatRequest -Manifest $candidateManifest -Status 'PASS' -SubscenarioResults @($combatSubresult) }
+            catch { $threw = $true }
+            Assert-Test $threw ("combat validator accepted mutation: " + [string]$mutation.name)
+        }
+    }
+
+    Invoke-HarnessTest 'combat artifact must be exact manifested immutable content' {
+        [void](Write-TestCombatEvidence -EvidenceRoot $combatRequest.evidenceRoot -Request $combatRequest -Record $combatRecord -OmitManifestRecord)
+        $emptyManifest = Read-KmcJson (Join-Path $combatRequest.evidenceRoot 'runtime-artifacts.json')
+        $unmanifestedRejected = $false
+        try { Assert-KmcKnownRuntimeArtifactsManifested $combatRequest.evidenceRoot $emptyManifest }
+        catch { $unmanifestedRejected = $true }
+        Assert-Test $unmanifestedRejected 'known combat artifact was accepted without a manifest record'
+
+        $combatManifestHash = Write-TestCombatEvidence -EvidenceRoot $combatRequest.evidenceRoot -Request $combatRequest -Record $combatRecord
+        Add-Content -LiteralPath (Join-Path $combatRequest.evidenceRoot 'combat-scenario-evidence.jsonl') -Value ' '
+        $hashRejected = $false
+        try { Get-KmcValidatedOrchestrationArtifactManifestHash $combatRequest | Out-Null }
+        catch { $hashRejected = $true }
+        Assert-Test $hashRejected 'combat evidence byte mutation passed manifest validation'
+
+        $combatManifestHash = Write-TestCombatEvidence -EvidenceRoot $combatRequest.evidenceRoot -Request $combatRequest -Record $combatRecord -ManifestKind 'scenario-evidence'
+        $wrongKindManifest = Read-KmcJson (Join-Path $combatRequest.evidenceRoot 'runtime-artifacts.json')
+        $kindRejected = $false
+        try { Assert-KmcCombatScenarioEvidence -Request $combatRequest -Manifest $wrongKindManifest -Status 'PASS' -SubscenarioResults @($combatSubresult) }
+        catch { $kindRejected = $true }
+        Assert-Test $kindRejected 'combat artifact passed under the wrong manifest kind'
+    }
+
+    $combatManifestHash = Write-TestCombatEvidence -EvidenceRoot $combatRequest.evidenceRoot -Request $combatRequest -Record $combatRecord
 
     $v2GameResultPath = Join-Path $testRoot 'runtime-game-result-v2.json'
     $lifecycleEvidencePath = Join-Path $v2Request.evidenceRoot 'lifecycle-scenario-evidence.jsonl'

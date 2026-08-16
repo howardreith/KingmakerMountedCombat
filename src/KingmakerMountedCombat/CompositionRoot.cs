@@ -44,6 +44,7 @@ namespace KingmakerMountedCombat
                     relationship,
                     lifecycle,
                     playerAction,
+                    combat,
                     settings,
                     Main.InvokeRegisteredToggleForAutomation);
                 if (runtimeAutomation != null && !runtimeAutomation.IsManualReview)

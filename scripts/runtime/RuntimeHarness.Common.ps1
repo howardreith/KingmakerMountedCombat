@@ -3637,6 +3637,7 @@ function Get-KmcSaveBackedRuntimeScenarios {
         'presentation-residue-and-uninstall-safety', 'pose-idle', 'pose-walk-run', 'pose-turn-stop',
         'pose-doorway-formation', 'pose-equipment-variants', 'ui-selection-portrait-actionbar',
         'camera-follow-and-command-routing', 'movement-suite', 'boundary-suite', 'presentation-suite',
+        'mounted-rider-melee-hit-rt',
         'manual-visual-review'
     )
 }
@@ -4175,7 +4176,7 @@ function Assert-KmcKnownRuntimeArtifactsManifested {
     )
     $manifested = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
     foreach ($artifact in @($Manifest.artifacts)) { [void]$manifested.Add([string]$artifact.relativePath) }
-    foreach ($leaf in @('lifecycle-scenario-evidence.jsonl','movement-telemetry.jsonl','movement-scenario-evidence.jsonl','boundary-scenario-evidence.jsonl')) {
+    foreach ($leaf in @('lifecycle-scenario-evidence.jsonl','movement-telemetry.jsonl','movement-scenario-evidence.jsonl','boundary-scenario-evidence.jsonl','combat-scenario-evidence.jsonl')) {
         if ((Test-Path -LiteralPath (Join-Path $EvidenceRoot $leaf) -PathType Leaf) -and -not $manifested.Contains($leaf)) {
             throw "Known runtime artifact exists without a manifest record: $leaf"
         }
@@ -4556,6 +4557,15 @@ function Assert-KmcBoundaryTriggerScope {
         $Value.nativeDeliveryObserved -ne $false) {
         throw "Boundary evidence makes a false native-delivery claim for $Row/$Phase."
     }
+}
+
+function Get-KmcCombatRuntimeRows {
+    return @('mounted-rider-melee-hit-rt')
+}
+
+function Test-KmcCombatRuntimeScenario {
+    param([AllowNull()][string]$Scenario)
+    return @(Get-KmcCombatRuntimeRows | Where-Object { $_ -ceq [string]$Scenario }).Count -eq 1
 }
 
 function Assert-KmcBoundaryWorkingIdentity {
@@ -7087,6 +7097,183 @@ function Assert-KmcMovementScenarioEvidence {
     }
 }
 
+function Assert-KmcCombatScenarioEvidence {
+    param(
+        [Parameter(Mandatory = $true)]$Request,
+        [Parameter(Mandatory = $true)]$Manifest,
+        [AllowNull()][string]$Status,
+        $SubscenarioResults
+    )
+
+    $isCombat = Test-KmcCombatRuntimeScenario ([string]$Request.scenario)
+    $artifacts = @($Manifest.artifacts | Where-Object { [string]$_.relativePath -ceq 'combat-scenario-evidence.jsonl' })
+    if (-not $isCombat) {
+        if ($artifacts.Count -ne 0) { throw 'Combat evidence is present for a non-combat runtime scenario.' }
+        return
+    }
+    if ($artifacts.Count -ne 1 -or [string]$artifacts[0].kind -cne 'combat-evidence') {
+        throw 'Combat runtime scenario requires exactly one combat-evidence JSONL artifact.'
+    }
+
+    $evidenceRoot = [IO.Path]::GetFullPath([string]$Request.evidenceRoot).TrimEnd('\')
+    $path = Assert-KmcChildPath (Join-Path $evidenceRoot 'combat-scenario-evidence.jsonl') $evidenceRoot 'combat scenario evidence'
+    Assert-KmcNotReparsePoint $path 'combat scenario evidence'
+    Assert-KmcNotHardLink $path 'combat scenario evidence'
+    [string[]]$lines = @(Get-Content -LiteralPath $path | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
+    if ($lines.Count -ne 1) { throw 'Combat scenario evidence must contain exactly one bounded row record.' }
+    Assert-KmcJsonObjectMembersUnique $lines[0] 'combat scenario evidence line'
+    try { $record = $lines[0] | ConvertFrom-Json }
+    catch { throw "Combat scenario evidence line is malformed JSON: $($_.Exception.Message)" }
+
+    $recordFields = @(
+        'schemaVersion','artifactKind','runId','scenario','row','rowIndex','sequence','frame','utcTimestamp',
+        'branch','commit','productVersion','dllSha256','dllMvid','status','mode','action','expectedActor',
+        'riderId','mountId','targetId','clickAccepted','pairApproachRadius','targetDistanceAtClick',
+        'riderPositionAtClick','mountPositionAtClick','targetPositionAtClick','resources','command','rules',
+        'movement','pose','cleanup','selection','assertionPassCount','assertionFailCount','errors')
+    Assert-KmcExactProperties $record $recordFields 'combat evidence record'
+    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -ne 1 -or
+        [string]$record.artifactKind -cne 'combat-scenario-evidence') {
+        throw 'Combat evidence schemaVersion or artifactKind is not exact.'
+    }
+    foreach ($name in @('runId','scenario','branch','commit','productVersion','dllSha256','dllMvid')) {
+        if ($record.$name -isnot [string] -or [string]$record.$name -cne [string]$Request.$name) {
+            throw "Combat evidence identity mismatch: $name"
+        }
+    }
+    if ([string]$record.row -cne [string]$Request.scenario -or
+        @(Get-KmcCombatRuntimeRows | Where-Object { $_ -ceq [string]$record.row }).Count -ne 1 -or
+        -not (Test-KmcExactJsonInteger $record.rowIndex) -or [long]$record.rowIndex -ne 0 -or
+        -not (Test-KmcExactJsonInteger $record.sequence) -or [long]$record.sequence -ne 0 -or
+        -not (Test-KmcExactJsonInteger $record.frame) -or [long]$record.frame -le 0) {
+        throw 'Combat evidence row, sequence, or frame identity is invalid.'
+    }
+    $timestamp = [DateTimeOffset]::MinValue
+    if ($record.utcTimestamp -isnot [string] -or
+        -not [DateTimeOffset]::TryParse([string]$record.utcTimestamp, [ref]$timestamp) -or
+        $timestamp.Offset -ne [TimeSpan]::Zero) {
+        throw 'Combat evidence timestamp is not exact UTC.'
+    }
+    if ([string]$record.status -cnotin @('PASS','FAIL') -or
+        -not (Test-KmcExactJsonInteger $record.assertionPassCount) -or
+        -not (Test-KmcExactJsonInteger $record.assertionFailCount) -or
+        [long]$record.assertionPassCount -lt 0 -or [long]$record.assertionFailCount -lt 0 -or
+        ([long]$record.assertionPassCount + [long]$record.assertionFailCount) -le 0 -or
+        $null -eq $record.errors -or $record.errors -is [string] -or
+        $null -eq $record.selection -or $record.selection -is [string]) {
+        throw 'Combat evidence status, assertion totals, errors, or selection shape is invalid.'
+    }
+
+    foreach ($positionName in @('riderPositionAtClick','mountPositionAtClick','targetPositionAtClick')) {
+        Assert-KmcExactProperties $record.$positionName @('x','y','z') "combat $positionName"
+        foreach ($axis in @('x','y','z')) {
+            if (-not (Test-KmcJsonNumber $record.$positionName.$axis)) { throw "Combat $positionName.$axis is not numeric." }
+        }
+    }
+    Assert-KmcExactProperties $record.resources @(
+        'riderStandardBefore','riderStandardAfter','riderMoveBefore','riderMoveAfter',
+        'mountStandardBefore','mountStandardAfter','mountMoveBefore','mountMoveAfter') 'combat resource evidence'
+    foreach ($name in $record.resources.PSObject.Properties.Name) {
+        if (-not (Test-KmcJsonNumber $record.resources.$name)) { throw "Combat resource evidence is not numeric: $name" }
+    }
+    Assert-KmcExactProperties $record.movement @(
+        'authoritativeMover','repathCount','riderStockAgentEnabledAtEnd','mountStockAgentEnabledAtEnd',
+        'riderAvoidanceDisabledAtEnd','mountAvoidanceDisabledAtEnd') 'combat movement evidence'
+    Assert-KmcExactProperties $record.pose @(
+        'profileId','healthyAtOutcome','configuredAtEnd','attachmentLeaseAtEnd','residueAtEnd') 'combat pose evidence'
+    Assert-KmcExactProperties $record.cleanup @(
+        'targetRemoved','relationshipClean','combatCleared','relationshipState','residualState','presentationResidual') 'combat cleanup evidence'
+
+    $requirePass = [string]$Status -ceq 'PASS'
+    if ($requirePass) {
+        if ([string]$record.status -cne 'PASS' -or [long]$record.assertionFailCount -ne 0 -or
+            [long]$record.assertionPassCount -le 0 -or @($record.errors).Count -ne 0) {
+            throw 'PASS combat evidence does not contain an error-free PASS row.'
+        }
+        if ([string]$record.row -cne 'mounted-rider-melee-hit-rt' -or
+            [string]$record.mode -cne 'real-time' -or [string]$record.action -cne 'RiderMelee' -or
+            [string]$record.expectedActor -cne 'rider' -or $record.clickAccepted -ne $true) {
+            throw 'PASS combat evidence does not prove the exact real-time rider action path.'
+        }
+        if ([string]::IsNullOrWhiteSpace([string]$record.riderId) -or
+            [string]::IsNullOrWhiteSpace([string]$record.mountId) -or
+            [string]::IsNullOrWhiteSpace([string]$record.targetId) -or
+            [string]$record.riderId -ceq [string]$record.mountId -or
+            [string]$record.riderId -ceq [string]$record.targetId -or
+            [string]$record.mountId -ceq [string]$record.targetId) {
+            throw 'PASS combat evidence actor and target identities are missing or not distinct.'
+        }
+        if (-not (Test-KmcJsonNumber $record.pairApproachRadius) -or
+            -not (Test-KmcJsonNumber $record.targetDistanceAtClick) -or
+            [double]$record.pairApproachRadius -le 3.02 -or [double]$record.targetDistanceAtClick -le 0 -or
+            [double]$record.targetDistanceAtClick -gt ([double]$record.pairApproachRadius + 0.05)) {
+            throw 'PASS combat evidence does not prove the exact bounded mounted range contract.'
+        }
+
+        Assert-KmcExactProperties $record.command @(
+            'action','actorId','targetId','result','childAttackStartCount','repathCount',
+            'riderStandardCharged','nativeAttackRuleObserved') 'combat command evidence'
+        if ([string]$record.command.action -cne 'RiderMelee' -or
+            [string]$record.command.actorId -cne [string]$record.riderId -or
+            [string]$record.command.targetId -cne [string]$record.targetId -or
+            [string]$record.command.result -cne 'Success' -or
+            [long]$record.command.childAttackStartCount -ne 1 -or [long]$record.command.repathCount -ne 0 -or
+            $record.command.riderStandardCharged -ne $true -or $record.command.nativeAttackRuleObserved -ne $true) {
+            throw 'PASS combat command evidence does not prove one successful native rider attack.'
+        }
+
+        Assert-KmcExactProperties $record.rules @(
+            'forcedD20','forcedD20Count','attackRuleCount','attackRollCount','damageRuleCount',
+            'unexpectedPairAttackCount','totalDamage','lastInitiatorId','lastTargetId','lastAttackResult') 'combat rule evidence'
+        if ([long]$record.rules.forcedD20 -ne 20 -or [long]$record.rules.forcedD20Count -lt 1 -or
+            [long]$record.rules.attackRuleCount -ne 1 -or [long]$record.rules.attackRollCount -ne 1 -or
+            [long]$record.rules.damageRuleCount -lt 0 -or [long]$record.rules.damageRuleCount -gt 1 -or
+            [long]$record.rules.unexpectedPairAttackCount -ne 0 -or
+            [string]$record.rules.lastInitiatorId -cne [string]$record.riderId -or
+            [string]$record.rules.lastTargetId -cne [string]$record.targetId -or
+            [string]$record.rules.lastAttackResult -cnotin @('Hit','CriticalHit')) {
+            throw 'PASS combat rule evidence does not prove one deterministic rider hit without duplication.'
+        }
+
+        if ([double]$record.resources.riderStandardAfter -le [double]$record.resources.riderStandardBefore -or
+            [math]::Abs([double]$record.resources.riderMoveAfter - [double]$record.resources.riderMoveBefore) -gt 0.01 -or
+            [math]::Abs([double]$record.resources.mountStandardAfter - [double]$record.resources.mountStandardBefore) -gt 0.01 -or
+            [math]::Abs([double]$record.resources.mountMoveAfter - [double]$record.resources.mountMoveBefore) -gt 0.01) {
+            throw 'PASS combat resource evidence does not prove rider-only Standard action charging.'
+        }
+        if ([string]$record.movement.authoritativeMover -cne 'mount' -or [long]$record.movement.repathCount -ne 0 -or
+            $record.movement.riderStockAgentEnabledAtEnd -ne $true -or
+            $record.movement.mountStockAgentEnabledAtEnd -ne $true -or
+            $record.movement.riderAvoidanceDisabledAtEnd -ne $false -or
+            $record.movement.mountAvoidanceDisabledAtEnd -ne $false) {
+            throw 'PASS combat movement evidence does not prove stationary mount authority and exact baseline restoration.'
+        }
+        if ([string]$record.pose.profileId -cne 'medium-humanoid-mammoth-v1' -or
+            $record.pose.healthyAtOutcome -ne $true -or $record.pose.configuredAtEnd -ne $false -or
+            $record.pose.attachmentLeaseAtEnd -ne $false -or $record.pose.residueAtEnd -ne $false) {
+            throw 'PASS combat pose evidence does not retain the accepted Mammoth profile through outcome and cleanup.'
+        }
+        if ($record.cleanup.targetRemoved -ne $true -or $record.cleanup.relationshipClean -ne $true -or
+            $record.cleanup.combatCleared -ne $true -or [string]$record.cleanup.relationshipState -cne 'Unmounted' -or
+            $record.cleanup.residualState -ne $false -or $record.cleanup.presentationResidual -ne $false) {
+            throw 'PASS combat cleanup evidence is not exact and residue-free.'
+        }
+    }
+
+    if ($null -ne $SubscenarioResults) {
+        $subresults = @($SubscenarioResults)
+        $matches = @($subresults | Where-Object { [string]$_.name -ceq [string]$record.row })
+        if ($matches.Count -ne 1) { throw 'Combat evidence does not map to exactly one game subresult.' }
+        $subresult = $matches[0]
+        if ([string]$record.status -cne [string]$subresult.status -or
+            [long]$record.assertionPassCount -ne [long]$subresult.assertionPassCount -or
+            [long]$record.assertionFailCount -ne [long]$subresult.assertionFailCount -or
+            (@($record.errors) -join "`n") -cne (@($subresult.errors) -join "`n")) {
+            throw 'Combat evidence does not reconcile with its game subresult.'
+        }
+    }
+}
+
 function Get-KmcValidatedOrchestrationArtifactManifestHash {
     param([Parameter(Mandatory = $true)]$Request)
     $evidenceRoot = [IO.Path]::GetFullPath([string]$Request.evidenceRoot).TrimEnd('\')
@@ -7127,6 +7314,7 @@ function Get-KmcValidatedOrchestrationArtifactManifestHash {
             ($relative -ceq 'movement-telemetry.jsonl' -and $kind -ceq 'telemetry') -or
             ($relative -ceq 'movement-scenario-evidence.jsonl' -and $kind -ceq 'scenario-evidence') -or
             ($relative -ceq 'boundary-scenario-evidence.jsonl' -and $kind -ceq 'boundary-evidence') -or
+            ($relative -ceq 'combat-scenario-evidence.jsonl' -and $kind -ceq 'combat-evidence') -or
             ($relative -cmatch '^movement-visuals/[A-Za-z0-9._-]+\.png$' -and $kind -ceq 'screenshot')
         if (-not $seen.Add($relative) -or -not $allowed -or [long]$artifact.length -le 0 -or
             [string]$artifact.sha256 -cnotmatch '^[0-9a-f]{64}$') {
@@ -7144,6 +7332,7 @@ function Get-KmcValidatedOrchestrationArtifactManifestHash {
     Assert-KmcLifecycleScenarioEvidence -Request $Request -Manifest $manifestValue
     Assert-KmcMovementScenarioEvidence -Request $Request -Manifest $manifestValue
     Assert-KmcBoundaryScenarioEvidence -Request $Request -Manifest $manifestValue
+    Assert-KmcCombatScenarioEvidence -Request $Request -Manifest $manifestValue
     $hash = Get-KmcSha256 $manifestPath
     $after = Get-Item -LiteralPath $manifestPath -Force
     if ($after.Length -ne $before.Length -or $after.LastWriteTimeUtc.Ticks -ne $before.LastWriteTimeUtc.Ticks) {

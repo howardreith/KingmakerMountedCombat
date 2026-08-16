@@ -9,6 +9,7 @@ namespace KingmakerMountedCombat.Diagnostics
     internal sealed class MountedCombatRuleProbe :
         IRulebookHandler<RuleAttackWithWeapon>,
         IRulebookHandler<RuleAttackRoll>,
+        IRulebookHandler<RuleRollDice>,
         IRulebookHandler<RuleDealDamage>,
         IDisposable
     {
@@ -32,6 +33,10 @@ namespace KingmakerMountedCombat.Diagnostics
 
         public int UnexpectedPairAttackCount { get; private set; }
 
+        public int ForcedD20Count { get; private set; }
+
+        public int? ForcedD20 { get; private set; }
+
         public int TotalDamage { get; private set; }
 
         public string LastInitiatorId { get; private set; }
@@ -44,7 +49,8 @@ namespace KingmakerMountedCombat.Diagnostics
             UnitEntityData exactRider,
             UnitEntityData exactMount,
             UnitEntityData actor,
-            UnitEntityData target)
+            UnitEntityData target,
+            int? forcedD20 = null)
         {
             if (disposed)
             {
@@ -54,10 +60,16 @@ namespace KingmakerMountedCombat.Diagnostics
             mount = exactMount ?? throw new ArgumentNullException(nameof(exactMount));
             expectedActor = actor ?? throw new ArgumentNullException(nameof(actor));
             expectedTarget = target ?? throw new ArgumentNullException(nameof(target));
+            if (forcedD20.HasValue && forcedD20.Value != 1 && forcedD20.Value != 20)
+            {
+                throw new ArgumentOutOfRangeException(nameof(forcedD20), "Only exact diagnostic natural 1 or 20 is permitted.");
+            }
+            ForcedD20 = forcedD20;
             AttackRuleCount = 0;
             AttackRollCount = 0;
             DamageRuleCount = 0;
             UnexpectedPairAttackCount = 0;
+            ForcedD20Count = 0;
             TotalDamage = 0;
             LastInitiatorId = null;
             LastTargetId = null;
@@ -103,6 +115,23 @@ namespace KingmakerMountedCombat.Diagnostics
         }
 
         public void OnEventAboutToTrigger(RuleDealDamage evt)
+        {
+        }
+
+        public void OnEventAboutToTrigger(RuleRollDice evt)
+        {
+            if (ForcedD20.HasValue &&
+                evt != null &&
+                evt.Initiator == expectedActor &&
+                evt.DiceFormula.Rolls == 1 &&
+                evt.DiceFormula.Dice == Kingmaker.RuleSystem.DiceType.D20)
+            {
+                evt.Override(ForcedD20.Value);
+                ForcedD20Count++;
+            }
+        }
+
+        public void OnEventDidTrigger(RuleRollDice evt)
         {
         }
 

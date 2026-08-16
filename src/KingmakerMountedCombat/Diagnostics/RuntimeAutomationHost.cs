@@ -40,6 +40,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly GameMountedRelationshipService relationship;
         private readonly MountedLifecycleSubscriber lifecycle;
         private readonly MountedPlayerActionController playerAction;
+        private readonly MountedCombatController combat;
         private readonly DiagnosticSettings diagnosticSettings;
         private readonly Func<bool, bool> registeredToggle;
         private readonly string resultPath;
@@ -61,6 +62,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private RuntimeManualReviewSession manualReviewSession;
         private RuntimeMovementScenarioEngine movementEngine;
         private RuntimeBoundaryScenarioEngine boundaryEngine;
+        private RuntimeCombatScenarioEngine combatEngine;
         private readonly List<string> scenarioEngineErrors = new List<string>();
         private readonly BoundaryFailureDrain saveBackedFailureDrain = new BoundaryFailureDrain();
         private IReadOnlyList<string> saveBackedFailureErrors;
@@ -106,6 +108,7 @@ namespace KingmakerMountedCombat.Diagnostics
             GameMountedRelationshipService relationship,
             MountedLifecycleSubscriber lifecycle,
             MountedPlayerActionController playerAction,
+            MountedCombatController combat,
             DiagnosticSettings diagnosticSettings,
             Func<bool, bool> registeredToggle)
         {
@@ -118,6 +121,7 @@ namespace KingmakerMountedCombat.Diagnostics
             this.relationship = relationship ?? throw new ArgumentNullException(nameof(relationship));
             this.lifecycle = lifecycle ?? throw new ArgumentNullException(nameof(lifecycle));
             this.playerAction = playerAction ?? throw new ArgumentNullException(nameof(playerAction));
+            this.combat = combat ?? throw new ArgumentNullException(nameof(combat));
             this.diagnosticSettings = diagnosticSettings ?? throw new ArgumentNullException(nameof(diagnosticSettings));
             this.registeredToggle = registeredToggle ?? throw new ArgumentNullException(nameof(registeredToggle));
             resultPath = Path.Combine(request.EvidenceRoot, "runtime-game-result.json");
@@ -148,6 +152,7 @@ namespace KingmakerMountedCombat.Diagnostics
             GameMountedRelationshipService relationship,
             MountedLifecycleSubscriber lifecycle,
             MountedPlayerActionController playerAction,
+            MountedCombatController combat,
             DiagnosticSettings diagnosticSettings,
             Func<bool, bool> registeredToggle)
         {
@@ -216,7 +221,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
             logger.Info("Runtime automation request accepted: " + request.RunId + " / " + request.Scenario);
             return new RuntimeAutomationHost(logger, request, loadedModId, relationshipStateProvider, movementExperimentProvider,
-                saveAuthorization, relationship, lifecycle, playerAction, diagnosticSettings, registeredToggle);
+                saveAuthorization, relationship, lifecycle, playerAction, combat, diagnosticSettings, registeredToggle);
         }
 
         internal static void ObserveSaveRequest()
@@ -454,7 +459,26 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
-            if (RuntimeLifecycleScenarioEngine.SupportsScenario(request.Scenario))
+            if (RuntimeCombatScenarioEngine.SupportsScenario(request.Scenario))
+            {
+                if (combatEngine == null)
+                {
+                    combatEngine = new RuntimeCombatScenarioEngine(request, relationship, combat, diagnosticSettings, logger);
+                    combatEngine.Start();
+                }
+                combatEngine.Update();
+                if (!combatEngine.IsCompleted)
+                {
+                    return;
+                }
+                subscenarioResults = combatEngine.Results;
+                CollectEngineErrors(combatEngine.Errors, "Combat");
+                try { combatEngine.Dispose(); }
+                catch (Exception exception) { scenarioEngineErrors.Add("Combat engine disposal failed: " + exception.GetType().Name + ": " + exception.Message); }
+                CollectEngineErrors(combatEngine.Errors, "Combat");
+                combatEngine = null;
+            }
+            else if (RuntimeLifecycleScenarioEngine.SupportsScenario(request.Scenario))
             {
                 if (lifecycleEngine == null)
                 {
@@ -1089,6 +1113,17 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void FinalizeActiveScenarioEngines(List<string> finalErrors)
         {
+            if (combatEngine != null)
+            {
+                var engine = combatEngine;
+                combatEngine = null;
+                if (!engine.IsCompleted) { finalErrors.Add("Combat engine was interrupted before completing its selected rows."); }
+                if ((subscenarioResults == null || subscenarioResults.Count == 0) && engine.Results.Count != 0) { subscenarioResults = engine.Results; }
+                CollectEngineErrors(engine.Errors, "Combat");
+                try { engine.Dispose(); }
+                catch (Exception exception) { finalErrors.Add("Combat engine disposal failed: " + exception.GetType().Name + ": " + exception.Message); }
+                CollectEngineErrors(engine.Errors, "Combat");
+            }
             if (lifecycleEngine != null)
             {
                 var engine = lifecycleEngine;
@@ -1334,6 +1369,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 "boundary-evidence");
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, "movement-telemetry.jsonl", "telemetry");
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, "movement-scenario-evidence.jsonl", "scenario-evidence");
+            AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, "combat-scenario-evidence.jsonl", "combat-evidence");
 
             var visualRoot = Path.Combine(request.EvidenceRoot, "movement-visuals");
             if (Directory.Exists(visualRoot))
