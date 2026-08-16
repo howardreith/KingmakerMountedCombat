@@ -159,7 +159,7 @@ namespace KingmakerMountedCombat.Domain
             bool mountInState,
             bool riderConscious,
             bool mountConscious,
-            bool targetConscious,
+            bool targetConsciousOrChildStarted,
             bool riderNotFinallyDead,
             bool mountNotFinallyDead,
             bool targetNotFinallyDead,
@@ -176,7 +176,7 @@ namespace KingmakerMountedCombat.Domain
             AddFailure(failures, mountInState, "mount-in-state");
             AddFailure(failures, riderConscious, "rider-conscious");
             AddFailure(failures, mountConscious, "mount-conscious");
-            AddFailure(failures, targetConscious, "target-conscious");
+            AddFailure(failures, targetConsciousOrChildStarted, "target-conscious-or-child-started");
             AddFailure(failures, riderNotFinallyDead, "rider-not-finally-dead");
             AddFailure(failures, mountNotFinallyDead, "mount-not-finally-dead");
             AddFailure(failures, targetNotFinallyDead, "target-not-finally-dead");
@@ -190,6 +190,14 @@ namespace KingmakerMountedCombat.Domain
         public string[] FailedGateNames => (string[])failedGateNames.Clone();
 
         public string FailureSummary => string.Join(",", failedGateNames);
+
+        public static bool IsTargetConsciousnessAdmissible(
+            bool targetConscious,
+            int exactChildAttackStartCount)
+        {
+            return exactChildAttackStartCount >= 0 && exactChildAttackStartCount <= 1 &&
+                (targetConscious || exactChildAttackStartCount == 1);
+        }
 
         private static void AddFailure(List<string> failures, bool passed, string name)
         {

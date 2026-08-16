@@ -4121,6 +4121,10 @@ try {
             $spatialPolicySource.Contains('MaximumNativeExecutorRadiusAdjustment = 0.75f') -and
             $spatialPolicySource.Contains('NativeAdmissionEpsilon = 0.001f') -and
             -not $commandSource.Contains('var requiresApproach = !childAttack.IsUnitEnoughClose;')) 'mounted reach does not gate approach on the Mammoth origin before a bounded exact native rider-executor admission bridge'
+        Assert-Test ($commandSource.Contains('MountedPairLivenessSnapshot.IsTargetConsciousnessAdmissible(') -and
+            $commandSource.Contains('transaction.ChildAttackStartCount)') -and
+            $commandSource.Contains('targetState != null && !targetState.IsFinallyDead') -and
+            $commandSource.Contains('attackTarget != null && attackTarget.IsInState')) 'in-flight liveness does not admit target incapacitation only after the exact child starts while preserving final-death and in-state gates'
         Assert-Test ($targetSource.Contains('groupsController.Groups.Remove(runtimeGroup);') -and
             $targetSource.Contains('runtimeGroup.Dispose();') -and
             $targetSource.Contains('!runtimeGroup.Empty()')) 'project-owned transient combat group is not removed only after exact empty-group proof'

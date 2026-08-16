@@ -40,6 +40,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("diagnostic combat entry reports exact memory combat and time failures", CombatEntryReportsExactFailures);
             runner.Run("mounted pair liveness preserves every in-flight gate", PairLivenessPreservesEveryGate);
             runner.Run("mounted pair liveness reports exact changed gates", PairLivenessReportsExactFailures);
+            runner.Run("mounted pair liveness admits target incapacitation only after exact child start", PairLivenessAdmitsPostAttackIncapacitation);
         }
 
         private static void RiderMeleeOwnership()
@@ -416,9 +417,25 @@ namespace KingmakerMountedCombat.Tests
                 true, true, false, false, false);
             TestRunner.True(!snapshot.AllPassed, "An invalid in-flight mounted pair passed its liveness snapshot.");
             TestRunner.Equal(
-                "relationship-mounted,target-in-state,target-conscious,target-not-finally-dead,rider-hostile-to-target,rider-can-attack-target",
+                "relationship-mounted,target-in-state,target-conscious-or-child-started,target-not-finally-dead,rider-hostile-to-target,rider-can-attack-target",
                 snapshot.FailureSummary,
                 "In-flight mounted-pair failures were not reported in exact gate order.");
+        }
+
+        private static void PairLivenessAdmitsPostAttackIncapacitation()
+        {
+            TestRunner.True(
+                !MountedPairLivenessSnapshot.IsTargetConsciousnessAdmissible(false, 0),
+                "An unconscious target passed before the exact native child started.");
+            TestRunner.True(
+                MountedPairLivenessSnapshot.IsTargetConsciousnessAdmissible(true, 0),
+                "A conscious target failed before native child start.");
+            TestRunner.True(
+                MountedPairLivenessSnapshot.IsTargetConsciousnessAdmissible(false, 1),
+                "Native target incapacitation could not finish the exact already-started child.");
+            TestRunner.True(
+                !MountedPairLivenessSnapshot.IsTargetConsciousnessAdmissible(true, 2),
+                "An impossible duplicate child-start count passed liveness admission.");
         }
 
         private static MountedCombatActionContext Eligible(MountedCombatActionKind action)

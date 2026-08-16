@@ -363,7 +363,9 @@ namespace KingmakerMountedCombat.Integration
                 mount != null && mount.IsInState,
                 riderState != null && riderState.IsConscious,
                 mountState != null && mountState.IsConscious,
-                targetState != null && targetState.IsConscious,
+                MountedPairLivenessSnapshot.IsTargetConsciousnessAdmissible(
+                    targetState != null && targetState.IsConscious,
+                    transaction.ChildAttackStartCount),
                 riderState != null && !riderState.IsFinallyDead,
                 mountState != null && !mountState.IsFinallyDead,
                 targetState != null && !targetState.IsFinallyDead,
