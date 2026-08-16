@@ -4164,6 +4164,18 @@ try {
             $commandSource.Contains('HasAnimation = false;') -and
             $commandSource.Contains('return ResultType.None;') -and
             -not $commandSource.Contains('SetIsActed(true);')) 'mounted Standard wrapper bypasses the native false-to-true acted transition or ticks its child before that transition'
+        $terminalPolicyIndex = $singleAttackSource.IndexOf('NativeSingleAttackTerminalPolicy.ShouldAwaitNativeAnimation(', [StringComparison]::Ordinal)
+        $nativeAttackTickIndex = $singleAttackSource.IndexOf('base.OnTick();', $terminalPolicyIndex, [StringComparison]::Ordinal)
+        Assert-Test ($terminalPolicyIndex -ge 0 -and $nativeAttackTickIndex -gt $terminalPolicyIndex -and
+            $policySource.Contains('public static bool ShouldAwaitNativeAnimation(') -and
+            $policySource.Contains('attackCount == 1') -and
+            $policySource.Contains('completedAttackCount == attackCount') -and
+            $policySource.Contains('!hasPlannedAttack') -and
+            $singleAttackSource.Contains('CombatController.IsInTurnBasedCombat()') -and
+            $singleAttackSource.Contains('Result == ResultType.Success') -and
+            $singleAttackSource.Contains('LastAttackRule != null') -and
+            $singleAttackSource.Contains('GetAttackIndex()') -and
+            -not $singleAttackSource.Contains('ForceFinishForTurnBased(')) 'mounted child can enter native UnitAttack nonexistent-next-attack interruption after exact turn-based terminal success'
         Assert-Test ($targetSource.Contains('groupsController.Groups.Remove(runtimeGroup);') -and
             $targetSource.Contains('runtimeGroup.Dispose();') -and
             $targetSource.Contains('!runtimeGroup.Empty()')) 'project-owned transient combat group is not removed only after exact empty-group proof'

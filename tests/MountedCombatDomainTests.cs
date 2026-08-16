@@ -29,6 +29,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("native single attack falls back through secondary then additional limbs", NativeSingleAttackFallbackOrder);
             runner.Run("native single attack skips hand slots when hands are disabled", NativeSingleAttackSkipsDisabledHands);
             runner.Run("native single attack rejects negative attack counts and empty weapon sets", NativeSingleAttackRejectsInvalidOrEmptyInputs);
+            runner.Run("native single attack preserves exact turn-based terminal success", NativeSingleAttackPreservesTurnBasedTerminalSuccess);
             runner.Run("diagnostic target requires Working authorization", TargetRequiresWorkingAuthorization);
             runner.Run("diagnostic target creation and removal are exact and idempotent", TargetLifecycleIsExact);
             runner.Run("diagnostic target safety snapshot preserves every strict gate", TargetSafetySnapshotPreservesEveryGate);
@@ -273,6 +274,38 @@ namespace KingmakerMountedCombat.Tests
                 true, false, 0, false, 0, new[] { false, true, true });
             TestRunner.Equal(NativeSingleAttackSlotKind.AdditionalLimb, limb.Kind, "Additional-limb fallback was not selected.");
             TestRunner.Equal(1, limb.AdditionalLimbIndex, "Additional-limb fallback did not choose the first weapon-bearing slot.");
+        }
+
+        private static void NativeSingleAttackPreservesTurnBasedTerminalSuccess()
+        {
+            TestRunner.True(
+                NativeSingleAttackTerminalPolicy.ShouldAwaitNativeAnimation(
+                    true, true, true, true, 1, 1, false),
+                "An exact acted turn-based single attack lost its native Success before animation completion.");
+            TestRunner.True(
+                !NativeSingleAttackTerminalPolicy.ShouldAwaitNativeAnimation(
+                    false, true, true, true, 1, 1, false),
+                "Real-time attack lifecycle was intercepted.");
+            TestRunner.True(
+                !NativeSingleAttackTerminalPolicy.ShouldAwaitNativeAnimation(
+                    true, false, true, true, 1, 1, false),
+                "An unacted attack was treated as terminal success.");
+            TestRunner.True(
+                !NativeSingleAttackTerminalPolicy.ShouldAwaitNativeAnimation(
+                    true, true, false, true, 1, 1, false),
+                "A non-success result was preserved as terminal success.");
+            TestRunner.True(
+                !NativeSingleAttackTerminalPolicy.ShouldAwaitNativeAnimation(
+                    true, true, true, false, 1, 1, false),
+                "A command without an observed native attack rule was treated as terminal success.");
+            TestRunner.True(
+                !NativeSingleAttackTerminalPolicy.ShouldAwaitNativeAnimation(
+                    true, true, true, true, 2, 1, true),
+                "A multi-attack sequence with a planned attack was truncated.");
+            TestRunner.True(
+                !NativeSingleAttackTerminalPolicy.ShouldAwaitNativeAnimation(
+                    true, true, true, true, 1, 0, false),
+                "An incomplete single attack was treated as terminal success.");
         }
 
         private static void NativeSingleAttackSkipsDisabledHands()

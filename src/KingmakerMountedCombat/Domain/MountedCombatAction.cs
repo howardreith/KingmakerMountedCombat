@@ -81,6 +81,27 @@ namespace KingmakerMountedCombat.Domain
         }
     }
 
+    public static class NativeSingleAttackTerminalPolicy
+    {
+        public static bool ShouldAwaitNativeAnimation(
+            bool isTurnBased,
+            bool isActed,
+            bool resultIsSuccess,
+            bool attackRuleObserved,
+            int attackCount,
+            int completedAttackCount,
+            bool hasPlannedAttack)
+        {
+            return isTurnBased &&
+                isActed &&
+                resultIsSuccess &&
+                attackRuleObserved &&
+                attackCount == 1 &&
+                completedAttackCount == attackCount &&
+                !hasPlannedAttack;
+        }
+    }
+
     public sealed class MountedCombatActionContext
     {
         public MountedCombatActionKind Action { get; set; }

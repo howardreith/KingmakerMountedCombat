@@ -5,6 +5,7 @@ using Kingmaker.EntitySystem.Entities;
 using Kingmaker.UnitLogic.Commands;
 using Kingmaker.Utility;
 using KingmakerMountedCombat.Domain;
+using TurnBased.Controllers;
 
 namespace KingmakerMountedCombat.Integration
 {
@@ -174,6 +175,23 @@ namespace KingmakerMountedCombat.Integration
             NativeAdmissionAdjustedAtStart = nativeAdmissionRadius > pairApproachRadius;
             ApproachRadius = nativeAdmissionRadius;
             return IsUnitEnoughClose;
+        }
+
+        protected override void OnTick()
+        {
+            if (NativeSingleAttackTerminalPolicy.ShouldAwaitNativeAnimation(
+                    CombatController.IsInTurnBasedCombat(),
+                    IsActed,
+                    Result == ResultType.Success,
+                    LastAttackRule != null,
+                    AllAttacks.Count,
+                    GetAttackIndex(),
+                    PlannedAttack != null))
+            {
+                return;
+            }
+
+            base.OnTick();
         }
 
         protected override void OnEnded(bool raiseEvent = true)
