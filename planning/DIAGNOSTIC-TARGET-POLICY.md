@@ -12,9 +12,9 @@ Creation uses exact `Game.EntityCreator.SpawnUnit(BlueprintUnit,Vector3,Quaterni
 
 - a new per-run GUID recorded in evidence;
 - a project-created runtime-only hostile faction whose only attack relation is the player faction, plus one exact per-run non-player unit group;
-- one transient natural-weapon body slot created through exact `UnitBody.AddAdditionalLimb` token `0x06007C1C` from the qualified active Mammoth's first native natural melee weapon blueprint, only after proving the fresh target template has no weapon-bearing limb;
+- the blueprint's own exact `Body.EmptyHandWeapon`, resolved after spawn through the stock `UnitAttack.CreateSingleAttack` order of eligible primary hand, eligible secondary hand, then first weapon-bearing additional limb;
 - `GiveExperienceOnDeath=false` through tokens `0x06008338/39`;
-- no loot, quest, dialogue, script, summon, or reward surface; the transient body-slot item must remain non-loot and is destroyed with the target;
+- no weapon/body-slot provisioning, loot, quest, dialogue, script, summon, or reward surface;
 - deterministic stationary/AI-disabled behavior unless a scenario explicitly requires target movement.
 
 The runtime faction and all source state are transient. The stock Mammoth blueprint itself is never modified. Target removal calls `EntityDataBase.Destroy` token `0x06007EA6`, drains the exact destruction controller, verifies absence from scene/global unit collections and commands, then destroys the runtime faction object. Removal is idempotent and is invoked for normal completion, target death, dismount, save/load/area boundary, mod disable, exception recovery, and process teardown.
@@ -24,8 +24,8 @@ Exact local contracts and the first guarded diagnostic runs refine that lifecycl
 - hostility is owned by `UnitGroup.IsEnemy`, so the target is detached from its stock spawn group before faction switching and placed in one collision-checked `KMC.RuntimeHostile.<runId>` group containing only that target; a pre-spawn group snapshot ensures cleanup disposes only a newly created empty spawn group and never an unrelated pre-existing group;
 - the public `IsAIEnabled` getter intentionally reports true for non-controllable units, so the safety gate reads the pinned private `m_AiEnabled` backing field after using the public setter;
 - `ItemsCollection.HasLoot`, rather than stock body-inventory count, is the native no-loot predicate;
-- native single-attack selection uses the first additional-limb slot whose `HasWeapon` is true; the selected blueprint must separately prove `IsNatural=true` and `IsRanged=false`;
-- the fresh stock companion template does not initialize a weapon-bearing limb in the guarded runtime. Provisioning therefore clones only the already-qualified active Mammoth's exact natural-weapon blueprint through the native body-slot API; it does not mutate either blueprint, the active mount, player inventory, or a save;
+- native single-attack selection first calculates exact hand attack counts, chooses an eligible primary hand, then an eligible secondary hand, and only then falls back to the first additional limb whose `HasWeapon` is true; the selected blueprint must separately prove `IsNatural=true` and `IsRanged=false`;
+- the fresh stock companion template has no additional limb, but this is not evidence of weapon absence: `WeaponSlot.MaybeWeapon` returns `UnitBody.EmptyHandWeapon` for an empty active hand slot. The target must resolve that exact blueprint through `PrimaryHand`, prove at least one primary main attack, and retain identical before/after additional-limb counts. No blueprint, target body, active mount, player inventory, or save is mutated;
 - cleanup first proves entity absence, then exact empty-group removal and disposal, and finally waits across Unity's deferred object-destruction boundary before claiming the runtime faction removed. Combat evidence publishes all three proofs independently.
 
 ## Fail-closed gates

@@ -20,6 +20,10 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("mounted combat range rejects invalid measurements", RejectsInvalidRange);
             runner.Run("mounted pair ends only the exact Mammoth turn", SuppressesOnlyMountTurn);
             runner.Run("mounted pair delegates movement only through the exact rider turn", DelegatesOnlyExactMovement);
+            runner.Run("native single attack prefers an eligible primary hand", NativeSingleAttackPrefersPrimary);
+            runner.Run("native single attack falls back through secondary then additional limbs", NativeSingleAttackFallbackOrder);
+            runner.Run("native single attack skips hand slots when hands are disabled", NativeSingleAttackSkipsDisabledHands);
+            runner.Run("native single attack rejects negative attack counts and empty weapon sets", NativeSingleAttackRejectsInvalidOrEmptyInputs);
             runner.Run("diagnostic target requires Working authorization", TargetRequiresWorkingAuthorization);
             runner.Run("diagnostic target creation and removal are exact and idempotent", TargetLifecycleIsExact);
             runner.Run("diagnostic target safety snapshot preserves every strict gate", TargetSafetySnapshotPreservesEveryGate);
@@ -154,6 +158,52 @@ namespace KingmakerMountedCombat.Tests
                 "Non-pair movement agent was admitted.");
         }
 
+        private static void NativeSingleAttackPrefersPrimary()
+        {
+            var decision = NativeSingleAttackSlotPolicy.Select(
+                true, true, 1, true, 1, new[] { true, true });
+            TestRunner.Equal(NativeSingleAttackSlotKind.PrimaryHand, decision.Kind, "Eligible primary hand lost native priority.");
+            TestRunner.Equal(-1, decision.AdditionalLimbIndex, "Primary-hand selection retained a limb index.");
+        }
+
+        private static void NativeSingleAttackFallbackOrder()
+        {
+            var secondary = NativeSingleAttackSlotPolicy.Select(
+                true, true, 0, true, 1, new[] { true });
+            TestRunner.Equal(NativeSingleAttackSlotKind.SecondaryHand, secondary.Kind, "Eligible secondary hand did not precede limbs.");
+
+            var limb = NativeSingleAttackSlotPolicy.Select(
+                true, false, 0, false, 0, new[] { false, true, true });
+            TestRunner.Equal(NativeSingleAttackSlotKind.AdditionalLimb, limb.Kind, "Additional-limb fallback was not selected.");
+            TestRunner.Equal(1, limb.AdditionalLimbIndex, "Additional-limb fallback did not choose the first weapon-bearing slot.");
+        }
+
+        private static void NativeSingleAttackSkipsDisabledHands()
+        {
+            var decision = NativeSingleAttackSlotPolicy.Select(
+                false, true, 3, true, 2, new[] { true });
+            TestRunner.Equal(NativeSingleAttackSlotKind.AdditionalLimb, decision.Kind, "Disabled hands remained eligible for native attack selection.");
+            TestRunner.Equal(0, decision.AdditionalLimbIndex, "Disabled-hand fallback did not select the exact first limb.");
+        }
+
+        private static void NativeSingleAttackRejectsInvalidOrEmptyInputs()
+        {
+            var empty = NativeSingleAttackSlotPolicy.Select(
+                true, false, 0, false, 0, new bool[0]);
+            TestRunner.True(!empty.HasSelection, "Weaponless native attack input produced a selection.");
+
+            var threw = false;
+            try
+            {
+                NativeSingleAttackSlotPolicy.Select(true, true, -1, false, 0, null);
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                threw = true;
+            }
+            TestRunner.True(threw, "Negative native primary attack count was accepted.");
+        }
+
         private static void TargetRequiresWorkingAuthorization()
         {
             var lifecycle = new DiagnosticCombatTargetLifecycle();
@@ -185,10 +235,10 @@ namespace KingmakerMountedCombat.Tests
         {
             var snapshot = new DiagnosticCombatTargetSafetySnapshot(
                 true, true, true, true, true, true, true, false,
-                true, true, true, false, true, true, true, false);
+                true, true, true, false, false, true, true, false);
             TestRunner.True(!snapshot.AllPassed, "A transient target with failed safety gates passed.");
             TestRunner.Equal(
-                "rider-treats-target-as-enemy,inventory-has-no-loot,primary-natural-weapon-is-melee",
+                "rider-treats-target-as-enemy,inventory-has-no-loot,native-primary-natural-weapon-resolved-without-provisioning,primary-natural-weapon-is-melee",
                 snapshot.FailureSummary,
                 "Transient target safety failures were not reported in exact gate order.");
         }

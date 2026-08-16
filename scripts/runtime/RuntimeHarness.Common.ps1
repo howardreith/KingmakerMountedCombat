@@ -7180,8 +7180,9 @@ function Assert-KmcCombatScenarioEvidence {
         'authoritativeMover','repathCount','riderStockAgentEnabledAtEnd','mountStockAgentEnabledAtEnd',
         'riderAvoidanceDisabledAtEnd','mountAvoidanceDisabledAtEnd') 'combat movement evidence'
     Assert-KmcExactProperties $record.targetProvisioning @(
-        'targetBlueprintId','runtimeGroupId','sourceMountNaturalWeaponBlueprintId','targetNaturalWeaponBlueprintId',
-        'initialNaturalWeaponAbsent','naturalWeaponProvisioned','noLoot','rawAiDisabled',
+        'targetBlueprintId','runtimeGroupId','blueprintEmptyHandWeaponBlueprintId','targetNativeSingleAttackWeaponBlueprintId',
+        'targetNativeSingleAttackSlot','targetPrimaryMainAttacks','targetSecondaryMainAttacks',
+        'additionalLimbCountBefore','additionalLimbCountAfter','noWeaponProvisioningMutation','noLoot','rawAiDisabled',
         'bidirectionalHostility','noExperienceReward') 'combat target provisioning evidence'
     Assert-KmcExactProperties $record.pose @(
         'profileId','healthyAtOutcome','configuredAtEnd','attachmentLeaseAtEnd','residueAtEnd') 'combat pose evidence'
@@ -7210,14 +7211,21 @@ function Assert-KmcCombatScenarioEvidence {
         }
         if ([string]$record.targetProvisioning.targetBlueprintId -cne 'e7aa96d15a45238438ae4cfb476f6bb9' -or
             [string]$record.targetProvisioning.runtimeGroupId -cne ('KMC.RuntimeHostile.' + [string]$Request.runId) -or
-            [string]$record.targetProvisioning.sourceMountNaturalWeaponBlueprintId -cnotmatch '^[0-9a-f]{32}$' -or
-            [string]$record.targetProvisioning.targetNaturalWeaponBlueprintId -cne [string]$record.targetProvisioning.sourceMountNaturalWeaponBlueprintId -or
-            $record.targetProvisioning.initialNaturalWeaponAbsent -ne $true -or
-            $record.targetProvisioning.naturalWeaponProvisioned -ne $true -or
+            [string]$record.targetProvisioning.blueprintEmptyHandWeaponBlueprintId -cnotmatch '^[0-9a-f]{32}$' -or
+            [string]$record.targetProvisioning.targetNativeSingleAttackWeaponBlueprintId -cne [string]$record.targetProvisioning.blueprintEmptyHandWeaponBlueprintId -or
+            [string]$record.targetProvisioning.targetNativeSingleAttackSlot -cne 'PrimaryHand' -or
+            (($record.targetProvisioning.targetPrimaryMainAttacks -isnot [int]) -and ($record.targetProvisioning.targetPrimaryMainAttacks -isnot [long])) -or
+            (($record.targetProvisioning.targetSecondaryMainAttacks -isnot [int]) -and ($record.targetProvisioning.targetSecondaryMainAttacks -isnot [long])) -or
+            (($record.targetProvisioning.additionalLimbCountBefore -isnot [int]) -and ($record.targetProvisioning.additionalLimbCountBefore -isnot [long])) -or
+            (($record.targetProvisioning.additionalLimbCountAfter -isnot [int]) -and ($record.targetProvisioning.additionalLimbCountAfter -isnot [long])) -or
+            [int]$record.targetProvisioning.targetPrimaryMainAttacks -lt 1 -or
+            [int]$record.targetProvisioning.targetSecondaryMainAttacks -lt 0 -or
+            [int]$record.targetProvisioning.additionalLimbCountBefore -ne [int]$record.targetProvisioning.additionalLimbCountAfter -or
+            $record.targetProvisioning.noWeaponProvisioningMutation -ne $true -or
             $record.targetProvisioning.noLoot -ne $true -or $record.targetProvisioning.rawAiDisabled -ne $true -or
             $record.targetProvisioning.bidirectionalHostility -ne $true -or
             $record.targetProvisioning.noExperienceReward -ne $true) {
-            throw 'PASS combat target provisioning evidence is not exact, non-rewarding, and profile-bound.'
+            throw 'PASS combat target provisioning evidence does not prove exact native primary-hand selection without mutation.'
         }
         if (-not (Test-KmcJsonNumber $record.pairApproachRadius) -or
             -not (Test-KmcJsonNumber $record.targetDistanceAtClick) -or

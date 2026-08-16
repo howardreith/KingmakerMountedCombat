@@ -134,6 +134,7 @@
     <Compile Include="Integration\MountedLifecycleSubscriber.cs" />
     <Compile Include="Integration\ExactTurnMovementAdapter.cs" />
     <Compile Include="Integration\MountedCombatController.cs" />
+    <Compile Include="Integration\NativeSingleAttackWeaponResolver.cs" />
     <Compile Include="Integration\MountedPairAttackCommand.cs" />
     <Compile Include="Integration\MountedPairSingleAttack.cs" />
     <Compile Include="Integration\MountedPatchController.cs" />

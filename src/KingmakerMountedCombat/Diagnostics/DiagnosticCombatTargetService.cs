@@ -32,13 +32,21 @@ namespace KingmakerMountedCombat.Diagnostics
 
         public string CreatedRuntimeGroupId { get; private set; }
 
-        public string SourceNaturalWeaponBlueprintId { get; private set; }
+        public string BlueprintEmptyHandWeaponBlueprintId { get; private set; }
 
-        public string TargetNaturalWeaponBlueprintId { get; private set; }
+        public string TargetNativeSingleAttackWeaponBlueprintId { get; private set; }
 
-        public bool InitialNaturalWeaponAbsent { get; private set; }
+        public string TargetNativeSingleAttackSlot { get; private set; }
 
-        public bool NaturalWeaponProvisioned { get; private set; }
+        public int TargetPrimaryMainAttacks { get; private set; }
+
+        public int TargetSecondaryMainAttacks { get; private set; }
+
+        public int AdditionalLimbCountBefore { get; private set; }
+
+        public int AdditionalLimbCountAfter { get; private set; }
+
+        public bool NoWeaponProvisioningMutation { get; private set; }
 
         public bool TargetHasNoLoot { get; private set; }
 
@@ -111,15 +119,15 @@ namespace KingmakerMountedCombat.Diagnostics
                     throw new InvalidOperationException("Diagnostic target runtime group identity already exists.");
                 }
 
-                var sourcePrimary = mount.Body?.AdditionalLimbs?
-                    .FirstOrDefault(slot => slot.HasWeapon)?.MaybeWeapon;
-                if (sourcePrimary?.Blueprint == null || !sourcePrimary.Blueprint.IsNatural ||
-                    sourcePrimary.Blueprint.IsRanged ||
-                    string.IsNullOrWhiteSpace(sourcePrimary.Blueprint.AssetGuid))
+                var blueprintPrimary = blueprint.Body?.EmptyHandWeapon;
+                if (blueprint.Body == null || blueprint.Body.DisableHands ||
+                    blueprintPrimary == null || !blueprintPrimary.IsNatural ||
+                    blueprintPrimary.IsRanged ||
+                    string.IsNullOrWhiteSpace(blueprintPrimary.AssetGuid))
                 {
-                    throw new InvalidOperationException("Exact active Mammoth primary natural-weapon source is unavailable.");
+                    throw new InvalidOperationException("Exact stock Mammoth empty-hand natural-weapon source is unavailable.");
                 }
-                SourceNaturalWeaponBlueprintId = sourcePrimary.Blueprint.AssetGuid;
+                BlueprintEmptyHandWeaponBlueprintId = blueprintPrimary.AssetGuid;
 
                 runtimeFaction = ScriptableObject.CreateInstance<BlueprintFaction>();
                 runtimeFaction.name = "KMC_RuntimeHostile_" + runId;
@@ -150,18 +158,19 @@ namespace KingmakerMountedCombat.Diagnostics
                 target.HoldState = true;
                 target.Commands.InterruptAll();
 
-                InitialNaturalWeaponAbsent = !target.Body.AdditionalLimbs.Any(slot => slot.HasWeapon);
-                if (!InitialNaturalWeaponAbsent)
-                {
-                    throw new InvalidOperationException("Fresh diagnostic Mammoth unexpectedly contained a native natural-weapon limb.");
-                }
-                var provisionedLimbIndex = target.Body.AddAdditionalLimb(sourcePrimary.Blueprint, false);
-                var primary = target.Body?.AdditionalLimbs?.FirstOrDefault(slot => slot.HasWeapon)?.MaybeWeapon;
-                NaturalWeaponProvisioned = provisionedLimbIndex >= 0 &&
-                    provisionedLimbIndex < target.Body.AdditionalLimbs.Count &&
-                    target.Body.AdditionalLimbs[provisionedLimbIndex].MaybeWeapon == primary &&
-                    primary?.Blueprint == sourcePrimary.Blueprint;
-                TargetNaturalWeaponBlueprintId = primary?.Blueprint?.AssetGuid;
+                AdditionalLimbCountBefore = target.Body.AdditionalLimbs.Count;
+                var nativePrimary = NativeSingleAttackWeaponResolver.Resolve(target);
+                AdditionalLimbCountAfter = target.Body.AdditionalLimbs.Count;
+                var primary = nativePrimary?.Weapon;
+                TargetNativeSingleAttackWeaponBlueprintId = primary?.Blueprint?.AssetGuid;
+                TargetNativeSingleAttackSlot = nativePrimary?.Kind.ToString();
+                TargetPrimaryMainAttacks = nativePrimary?.PrimaryMainAttacks ?? 0;
+                TargetSecondaryMainAttacks = nativePrimary?.SecondaryMainAttacks ?? 0;
+                NoWeaponProvisioningMutation = AdditionalLimbCountAfter == AdditionalLimbCountBefore &&
+                    nativePrimary?.Kind == NativeSingleAttackSlotKind.PrimaryHand &&
+                    nativePrimary.Slot == target.Body.PrimaryHand &&
+                    primary == target.Body.EmptyHandWeapon &&
+                    primary?.Blueprint == blueprintPrimary;
                 var dedicatedRuntimeGroup = detachedFromSpawnGroup && runtimeGroup != null &&
                     !runtimeGroup.IsPlayerParty &&
                     string.Equals(runtimeGroup.Id, runtimeGroupId, StringComparison.Ordinal) &&
@@ -188,7 +197,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     aiBackingDisabled,
                     target.Commands.Empty,
                     inventoryHasNoLoot,
-                    NaturalWeaponProvisioned,
+                    NoWeaponProvisioningMutation,
                     primary?.Blueprint != null,
                     primary?.Blueprint != null && primary.Blueprint.IsNatural,
                     primary?.Blueprint != null && !primary.Blueprint.IsRanged);

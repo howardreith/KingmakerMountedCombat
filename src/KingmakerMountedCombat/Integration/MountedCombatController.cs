@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 using Kingmaker;
 using Kingmaker.Controllers.Clicks.Handlers;
 using Kingmaker.EntitySystem.Entities;
@@ -96,7 +95,8 @@ namespace KingmakerMountedCombat.Integration
             ArmedAction = MountedCombatActionKind.None;
             var targetView = gameObject == null ? null : gameObject.GetComponent<UnitEntityView>();
             var target = targetView?.EntityData;
-            var context = CaptureContext(action, target);
+            NativeSingleAttackWeaponSelection mountPrimary;
+            var context = CaptureContext(action, target, out mountPrimary);
             var availability = MountedCombatActionEvaluator.Evaluate(context);
             if (!availability.IsAllowed)
             {
@@ -112,6 +112,7 @@ namespace KingmakerMountedCombat.Integration
                     relationship.Mount,
                     target,
                     action,
+                    mountPrimary,
                     logger,
                     HandleCommandTerminal);
                 activeCommand = command;
@@ -236,7 +237,8 @@ namespace KingmakerMountedCombat.Integration
 
         private MountedCombatActionContext CaptureContext(
             MountedCombatActionKind action,
-            UnitEntityData target)
+            UnitEntityData target,
+            out NativeSingleAttackWeaponSelection mountPrimary)
         {
             var rider = relationship.Rider;
             var mount = relationship.Mount;
@@ -249,8 +251,9 @@ namespace KingmakerMountedCombat.Integration
             var riderTurn = !CombatController.IsInTurnBasedCombat() ||
                 (turn != null && turn.Unit == rider && turn.IsActing);
             var riderWeapon = rider?.GetFirstWeapon();
-            var primaryNatural = mount?.Body?.AdditionalLimbs?
-                .FirstOrDefault(slot => slot.HasWeapon)?.MaybeWeapon;
+            mountPrimary = action == MountedCombatActionKind.MountPrimaryNatural
+                ? NativeSingleAttackWeaponResolver.Resolve(mount)
+                : null;
             var targetValid = target != null && target.IsInState && target.View != null;
             return new MountedCombatActionContext
             {
@@ -270,8 +273,9 @@ namespace KingmakerMountedCombat.Integration
                 RiderOwnsCurrentTurnOrRealTime = riderTurn,
                 RiderHasStandardAction = rider != null && rider.HasStandardAction(),
                 RiderWeaponIsSupportedMelee = riderWeapon?.Blueprint != null && !riderWeapon.Blueprint.IsRanged,
-                MountPrimaryNaturalAttackIsExact = primaryNatural?.Blueprint != null &&
-                    primaryNatural.Blueprint.IsNatural && !primaryNatural.Blueprint.IsRanged,
+                MountPrimaryNaturalAttackIsExact = mountPrimary?.Kind == NativeSingleAttackSlotKind.PrimaryHand &&
+                    mountPrimary.Weapon?.Blueprint != null &&
+                    mountPrimary.Weapon.Blueprint.IsNatural && !mountPrimary.Weapon.Blueprint.IsRanged,
                 TransactionIdle = !HasActiveCommand,
                 LoadingOrLifecycleBoundary = Game.Instance == null ||
                     Game.Instance.CurrentMode != GameModeType.Default && Game.Instance.CurrentMode != GameModeType.Pause

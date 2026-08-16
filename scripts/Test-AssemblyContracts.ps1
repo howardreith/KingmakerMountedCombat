@@ -113,8 +113,19 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.UnitLogic.Groups.UnitGroup',0x06002416,'Empty'),
         @('Kingmaker.UnitLogic.Groups.UnitGroup',0x06002422,'Dispose'),
         @('Kingmaker.Items.ItemsCollection',0x06007BC8,'get_HasLoot'),
-        @('Kingmaker.Items.UnitBody',0x06007C1C,'AddAdditionalLimb'),
+        @('Kingmaker.Items.UnitBody',0x06007BFD,'get_HandsAreEnabled'),
+        @('Kingmaker.Items.UnitBody',0x06007C05,'get_EmptyHandWeapon'),
+        @('Kingmaker.Items.UnitBody',0x06007C0C,'get_AdditionalLimbs'),
+        @('Kingmaker.Items.UnitBody',0x06007C0D,'get_PrimaryHand'),
+        @('Kingmaker.Items.UnitBody',0x06007C0E,'get_SecondaryHand'),
         @('Kingmaker.Items.Slots.WeaponSlot',0x06007C8B,'get_HasWeapon'),
+        @('Kingmaker.Items.Slots.WeaponSlot',0x06007C8D,'get_MaybeWeapon'),
+        @('Kingmaker.RuleSystem.Rules.RuleCalculateAttacksCount',0x04004AC6,'PrimaryHand'),
+        @('Kingmaker.RuleSystem.Rules.RuleCalculateAttacksCount',0x04004AC7,'SecondaryHand'),
+        @('Kingmaker.RuleSystem.Rules.RuleCalculateAttacksCount',0x060071E4,'.ctor'),
+        @('Kingmaker.RuleSystem.Rules.RuleCalculateAttacksCount',0x060071E5,'OnTrigger'),
+        @('Kingmaker.RuleSystem.Rules.RuleCalculateAttacksCount+AttacksCount',0x0600BA93,'get_MainAttacks'),
+        @('Kingmaker.UnitLogic.Commands.UnitAttack',0x0600268C,'CreateSingleAttack'),
         @('Kingmaker.UnitLogic.Commands.UnitAttack',0x06002685,'GetApproachRadius'),
         @('Kingmaker.UnitLogic.Commands.UnitAttack',0x06002683,'UpdateTarget'),
         @('Kingmaker.UnitLogic.Commands.AttackHandInfo',0x04001A32,'WeaponRange'),
@@ -133,14 +144,14 @@ if($Target-eq'Kingmaker'){
         $forcePlaceAboveGround[0].IsPublic -and -not $forcePlaceAboveGround[0].IsStatic -and
         $forcePlaceAboveGround[0].ReturnType.FullName-ceq'System.Void' -and $forcePlaceAboveGround[0].GetParameters().Count-eq0) `
         'UnitEntityView.ForcePlaceAboveGround exact public instance void signature'
-    $addAdditionalLimb=@(Find-Token 'Kingmaker.Items.UnitBody' 0x06007C1C)
-    $addAdditionalLimbParameters=if($addAdditionalLimb.Count-eq1 -and $addAdditionalLimb[0] -is [Reflection.MethodInfo]){@($addAdditionalLimb[0].GetParameters())}else{@()}
-    Assert-Contract ($addAdditionalLimb.Count-eq1 -and $addAdditionalLimb[0] -is [Reflection.MethodInfo] -and
-        $addAdditionalLimb[0].IsPublic -and -not $addAdditionalLimb[0].IsStatic -and
-        $addAdditionalLimb[0].ReturnType.FullName-ceq'System.Int32' -and $addAdditionalLimbParameters.Count-eq2 -and
-        $addAdditionalLimbParameters[0].ParameterType.FullName-ceq'Kingmaker.Blueprints.Items.Weapons.BlueprintItemWeapon' -and
-        $addAdditionalLimbParameters[1].ParameterType.FullName-ceq'System.Boolean') `
-        'UnitBody.AddAdditionalLimb exact public instance provisioning signature'
+    $createSingleAttack=@(Find-Token 'Kingmaker.UnitLogic.Commands.UnitAttack' 0x0600268C)
+    Assert-Contract ($createSingleAttack.Count-eq1 -and $createSingleAttack[0] -is [Reflection.MethodInfo] -and
+        $createSingleAttack[0].IsPublic -and -not $createSingleAttack[0].IsStatic -and
+        $createSingleAttack[0].GetParameters().Count-eq0 -and $createSingleAttack[0].ReturnType.IsGenericType -and
+        $createSingleAttack[0].ReturnType.GetGenericTypeDefinition().FullName-ceq'System.Collections.Generic.List`1' -and
+        @($createSingleAttack[0].ReturnType.GetGenericArguments()).Count-eq1 -and
+        @($createSingleAttack[0].ReturnType.GetGenericArguments())[0].FullName-ceq'Kingmaker.UnitLogic.Commands.AttackHandInfo') `
+        'UnitAttack.CreateSingleAttack exact public instance native-order signature'
     $unityChecks=@(
         @('UnityEngine.SceneManagement.SceneManager',0x060019D5,'GetSceneByName'),
         @('UnityEngine.SceneManagement.Scene',0x060019C4,'get_isLoaded'))

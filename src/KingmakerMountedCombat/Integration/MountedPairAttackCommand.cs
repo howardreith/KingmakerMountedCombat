@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.UnitLogic.Commands;
 using Kingmaker.UnitLogic.Commands.Base;
@@ -38,6 +37,7 @@ namespace KingmakerMountedCombat.Integration
         private readonly UnitEntityData mount;
         private readonly UnitEntityData attackTarget;
         private readonly MountedCombatActionKind action;
+        private readonly NativeSingleAttackWeaponSelection expectedMountPrimary;
         private readonly IModLogger logger;
         private readonly Action<MountedPairAttackCommand, MountedPairAttackOutcome> terminal;
         private readonly MountedCombatTransaction transaction = new MountedCombatTransaction();
@@ -52,6 +52,7 @@ namespace KingmakerMountedCombat.Integration
             UnitEntityData mount,
             UnitEntityData target,
             MountedCombatActionKind action,
+            NativeSingleAttackWeaponSelection expectedMountPrimary,
             IModLogger logger,
             Action<MountedPairAttackCommand, MountedPairAttackOutcome> terminal)
             : base(CommandType.Standard, target)
@@ -61,6 +62,7 @@ namespace KingmakerMountedCombat.Integration
             this.mount = mount ?? throw new ArgumentNullException(nameof(mount));
             attackTarget = target ?? throw new ArgumentNullException(nameof(target));
             this.action = action;
+            this.expectedMountPrimary = expectedMountPrimary;
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
             this.terminal = terminal ?? throw new ArgumentNullException(nameof(terminal));
             ApproachRadius = InfiniteRange;
@@ -319,13 +321,15 @@ namespace KingmakerMountedCombat.Integration
             }
             if (action == MountedCombatActionKind.MountPrimaryNatural)
             {
-                var primary = mount.Body.AdditionalLimbs.FirstOrDefault(slot => slot.HasWeapon);
-                if (primary == null || childAttack.PlannedAttack.Hand != primary ||
-                    childAttack.PlannedAttack.Weapon != primary.MaybeWeapon ||
-                    primary.MaybeWeapon?.Blueprint == null ||
-                    !primary.MaybeWeapon.Blueprint.IsNatural || primary.MaybeWeapon.Blueprint.IsRanged)
+                if (expectedMountPrimary?.Kind != NativeSingleAttackSlotKind.PrimaryHand ||
+                    expectedMountPrimary.Slot == null ||
+                    childAttack.PlannedAttack.Hand != expectedMountPrimary.Slot ||
+                    childAttack.PlannedAttack.Weapon != expectedMountPrimary.Weapon ||
+                    expectedMountPrimary.Weapon?.Blueprint == null ||
+                    !expectedMountPrimary.Weapon.Blueprint.IsNatural ||
+                    expectedMountPrimary.Weapon.Blueprint.IsRanged)
                 {
-                    throw new InvalidOperationException("Native Mammoth attack was not the exact first primary natural limb.");
+                    throw new InvalidOperationException("Native Mammoth attack was not the exact primary-hand natural attack selected by stock single-attack order.");
                 }
             }
         }

@@ -17,6 +17,70 @@ namespace KingmakerMountedCombat.Domain
         Mount
     }
 
+    public enum NativeSingleAttackSlotKind
+    {
+        None,
+        PrimaryHand,
+        SecondaryHand,
+        AdditionalLimb
+    }
+
+    public sealed class NativeSingleAttackSlotDecision
+    {
+        public NativeSingleAttackSlotDecision(NativeSingleAttackSlotKind kind, int additionalLimbIndex)
+        {
+            Kind = kind;
+            AdditionalLimbIndex = additionalLimbIndex;
+        }
+
+        public NativeSingleAttackSlotKind Kind { get; }
+
+        public int AdditionalLimbIndex { get; }
+
+        public bool HasSelection => Kind != NativeSingleAttackSlotKind.None;
+    }
+
+    public static class NativeSingleAttackSlotPolicy
+    {
+        public static NativeSingleAttackSlotDecision Select(
+            bool handsEnabled,
+            bool primaryHasWeapon,
+            int primaryMainAttacks,
+            bool secondaryHasWeapon,
+            int secondaryMainAttacks,
+            IReadOnlyList<bool> additionalLimbHasWeapon)
+        {
+            if (primaryMainAttacks < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(primaryMainAttacks));
+            }
+            if (secondaryMainAttacks < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(secondaryMainAttacks));
+            }
+
+            if (handsEnabled && primaryHasWeapon && primaryMainAttacks > 0)
+            {
+                return new NativeSingleAttackSlotDecision(NativeSingleAttackSlotKind.PrimaryHand, -1);
+            }
+            if (handsEnabled && secondaryHasWeapon && secondaryMainAttacks > 0)
+            {
+                return new NativeSingleAttackSlotDecision(NativeSingleAttackSlotKind.SecondaryHand, -1);
+            }
+            if (additionalLimbHasWeapon != null)
+            {
+                for (var index = 0; index < additionalLimbHasWeapon.Count; index++)
+                {
+                    if (additionalLimbHasWeapon[index])
+                    {
+                        return new NativeSingleAttackSlotDecision(NativeSingleAttackSlotKind.AdditionalLimb, index);
+                    }
+                }
+            }
+            return new NativeSingleAttackSlotDecision(NativeSingleAttackSlotKind.None, -1);
+        }
+    }
+
     public sealed class MountedCombatActionContext
     {
         public MountedCombatActionKind Action { get; set; }

@@ -95,7 +95,7 @@ namespace KingmakerMountedCombat.Domain
             bool aiBackingDisabled,
             bool commandsEmpty,
             bool inventoryHasNoLoot,
-            bool exactProfileNaturalWeaponProvisioned,
+            bool nativePrimaryNaturalWeaponResolvedWithoutProvisioning,
             bool primaryNaturalWeaponPresent,
             bool primaryNaturalWeaponIsNatural,
             bool primaryNaturalWeaponIsMelee)
@@ -113,7 +113,7 @@ namespace KingmakerMountedCombat.Domain
             AddFailure(failures, aiBackingDisabled, "ai-backing-disabled");
             AddFailure(failures, commandsEmpty, "commands-empty");
             AddFailure(failures, inventoryHasNoLoot, "inventory-has-no-loot");
-            AddFailure(failures, exactProfileNaturalWeaponProvisioned, "exact-profile-natural-weapon-provisioned");
+            AddFailure(failures, nativePrimaryNaturalWeaponResolvedWithoutProvisioning, "native-primary-natural-weapon-resolved-without-provisioning");
             AddFailure(failures, primaryNaturalWeaponPresent, "primary-natural-weapon-present");
             AddFailure(failures, primaryNaturalWeaponIsNatural, "primary-natural-weapon-is-natural");
             AddFailure(failures, primaryNaturalWeaponIsMelee, "primary-natural-weapon-is-melee");

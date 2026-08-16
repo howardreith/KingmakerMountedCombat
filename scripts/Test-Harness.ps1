@@ -1080,8 +1080,10 @@ function New-TestCombatEvidenceRecord {
         action='RiderMelee';expectedActor='rider';riderId=$rider;mountId=$mount;targetId=$target;clickAccepted=$true
         targetProvisioning=[ordered]@{
             targetBlueprintId='e7aa96d15a45238438ae4cfb476f6bb9';runtimeGroupId=('KMC.RuntimeHostile.'+[string]$Request.runId)
-            sourceMountNaturalWeaponBlueprintId='11111111111111111111111111111111';targetNaturalWeaponBlueprintId='11111111111111111111111111111111'
-            initialNaturalWeaponAbsent=$true;naturalWeaponProvisioned=$true;noLoot=$true;rawAiDisabled=$true
+            blueprintEmptyHandWeaponBlueprintId='11111111111111111111111111111111';targetNativeSingleAttackWeaponBlueprintId='11111111111111111111111111111111'
+            targetNativeSingleAttackSlot='PrimaryHand';targetPrimaryMainAttacks=1;targetSecondaryMainAttacks=0
+            additionalLimbCountBefore=0;additionalLimbCountAfter=0;noWeaponProvisioningMutation=$true
+            noLoot=$true;rawAiDisabled=$true
             bidirectionalHostility=$true;noExperienceReward=$true
         }
         pairApproachRadius=4.0;targetDistanceAtClick=3.9
@@ -4048,10 +4050,12 @@ try {
 
     $combatRequestPath = Join-Path $testRoot 'runtime-request-combat.json'
 
-    Invoke-HarnessTest 'combat target source uses isolated group exact profile weapon raw AI no-loot and native single-limb semantics' {
+    Invoke-HarnessTest 'combat target source uses isolated group exact native primary raw AI no-loot and zero weapon mutation' {
         $targetSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\DiagnosticCombatTargetService.cs'))
         $controllerSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedCombatController.cs'))
         $commandSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPairAttackCommand.cs'))
+        $resolverSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\NativeSingleAttackWeaponResolver.cs'))
+        $policySource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedCombatAction.cs'))
         $detachIndex = $targetSource.IndexOf('target.GroupId = runtimeGroupId;', [StringComparison]::Ordinal)
         $factionIndex = $targetSource.IndexOf('target.Descriptor.SwitchFactions(runtimeFaction, true);', [StringComparison]::Ordinal)
         $groupIndex = $targetSource.IndexOf('runtimeGroup = target.Group;', [StringComparison]::Ordinal)
@@ -4065,16 +4069,24 @@ try {
             -not $targetSource.Contains('!target.IsAIEnabled')) 'diagnostic target still relies on the always-true non-controllable IsAIEnabled facade instead of its pinned backing state'
         Assert-Test ($targetSource.Contains('target.Inventory == null || !target.Inventory.HasLoot') -and
             -not $targetSource.Contains('target.Inventory.Items.Count == 0')) 'diagnostic target confuses stock non-loot body inventory with loot-bearing inventory'
-        Assert-Test ($targetSource.Contains('mount.Body?.AdditionalLimbs?') -and
-            $targetSource.Contains('target.Body.AddAdditionalLimb(sourcePrimary.Blueprint, false)') -and
-            $targetSource.Contains('InitialNaturalWeaponAbsent = !target.Body.AdditionalLimbs.Any(slot => slot.HasWeapon);')) 'diagnostic target does not provision its transient attack limb from the exact active Mammoth profile after proving the fresh template has none'
-        $sourceWeaponIndex = $targetSource.IndexOf('var sourcePrimary = mount.Body?.AdditionalLimbs?', [StringComparison]::Ordinal)
+        Assert-Test ($targetSource.Contains('var blueprintPrimary = blueprint.Body?.EmptyHandWeapon;') -and
+            $targetSource.Contains('var nativePrimary = NativeSingleAttackWeaponResolver.Resolve(target);') -and
+            $targetSource.Contains('NoWeaponProvisioningMutation = AdditionalLimbCountAfter == AdditionalLimbCountBefore') -and
+            -not $targetSource.Contains('AddAdditionalLimb(')) 'diagnostic target does not resolve its stock empty-hand weapon through native single-attack order without body mutation'
+        $sourceWeaponIndex = $targetSource.IndexOf('var blueprintPrimary = blueprint.Body?.EmptyHandWeapon;', [StringComparison]::Ordinal)
         $runtimeFactionCreateIndex = $targetSource.IndexOf('runtimeFaction = ScriptableObject.CreateInstance<BlueprintFaction>();', [StringComparison]::Ordinal)
-        Assert-Test ($sourceWeaponIndex -ge 0 -and $runtimeFactionCreateIndex -gt $sourceWeaponIndex) 'diagnostic target mutates transient Unity state before validating the exact Mammoth weapon source'
-        foreach ($source in @($targetSource,$controllerSource,$commandSource)) {
-            Assert-Test ($source.Contains('FirstOrDefault(slot => slot.HasWeapon)') -and
-                -not $source.Contains('FirstOrDefault(slot => slot.HasWeapon && slot.HasItem)')) 'mounted single-attack selection diverges from native HasWeapon semantics'
-        }
+        Assert-Test ($sourceWeaponIndex -ge 0 -and $runtimeFactionCreateIndex -gt $sourceWeaponIndex) 'diagnostic target mutates transient Unity state before validating the exact Mammoth empty-hand weapon source'
+        Assert-Test ($resolverSource.Contains('Rulebook.Trigger(new RuleCalculateAttacksCount(unit))') -and
+            $resolverSource.Contains('NativeSingleAttackSlotPolicy.Select(') -and
+            $resolverSource.Contains('body.PrimaryHand != null && body.PrimaryHand.HasWeapon') -and
+            $resolverSource.Contains('body.SecondaryHand != null && body.SecondaryHand.HasWeapon')) 'native single-attack resolver is not bound to exact hand attack counts and HasWeapon semantics'
+        $primaryPolicyIndex = $policySource.IndexOf('primaryHasWeapon && primaryMainAttacks > 0', [StringComparison]::Ordinal)
+        $secondaryPolicyIndex = $policySource.IndexOf('secondaryHasWeapon && secondaryMainAttacks > 0', [StringComparison]::Ordinal)
+        $limbPolicyIndex = $policySource.IndexOf('additionalLimbHasWeapon[index]', [StringComparison]::Ordinal)
+        Assert-Test ($primaryPolicyIndex -ge 0 -and $secondaryPolicyIndex -gt $primaryPolicyIndex -and $limbPolicyIndex -gt $secondaryPolicyIndex) 'project single-attack policy diverges from native primary-secondary-additional ordering'
+        Assert-Test ($controllerSource.Contains('NativeSingleAttackWeaponResolver.Resolve(mount)') -and
+            $commandSource.Contains('childAttack.PlannedAttack.Hand != expectedMountPrimary.Slot') -and
+            -not $commandSource.Contains('mount.Body.AdditionalLimbs.FirstOrDefault')) 'Mammoth action does not retain and verify the exact native primary selection across click and child initialization'
         Assert-Test ($targetSource.Contains('groupsController.Groups.Remove(runtimeGroup);') -and
             $targetSource.Contains('runtimeGroup.Dispose();') -and
             $targetSource.Contains('!runtimeGroup.Empty()')) 'project-owned transient combat group is not removed only after exact empty-group proof'
@@ -4090,7 +4102,8 @@ try {
         }
         Assert-Test ($engineSource.Contains('TargetProvisioning = targetProvisioning ?? new CombatTargetProvisioningEvidence()') -and
             $combatValidatorSource.Contains("'targetProvisioning'") -and
-            $combatValidatorSource.Contains("'naturalWeaponProvisioned'")) 'combat evidence does not bind exact transient target provisioning'
+            $combatValidatorSource.Contains("'noWeaponProvisioningMutation'") -and
+            $combatValidatorSource.Contains("'targetNativeSingleAttackSlot'")) 'combat evidence does not bind exact native weapon selection and zero provisioning mutation'
     }
 
     $combatRequest = Copy-TestJsonValue $v2Request
@@ -4118,7 +4131,9 @@ try {
             @{name='mount Standard cost';apply={param($value) $value.resources.mountStandardAfter=5.0}},
             @{name='delegated movement';apply={param($value) $value.command.repathCount=1;$value.movement.repathCount=1}},
             @{name='pose failure';apply={param($value) $value.pose.healthyAtOutcome=$false}},
-            @{name='target provisioning source';apply={param($value) $value.targetProvisioning.sourceMountNaturalWeaponBlueprintId='22222222222222222222222222222222'}},
+            @{name='target native weapon source';apply={param($value) $value.targetProvisioning.blueprintEmptyHandWeaponBlueprintId='22222222222222222222222222222222'}},
+            @{name='target native slot';apply={param($value) $value.targetProvisioning.targetNativeSingleAttackSlot='AdditionalLimb'}},
+            @{name='target weapon mutation';apply={param($value) $value.targetProvisioning.additionalLimbCountAfter=1;$value.targetProvisioning.noWeaponProvisioningMutation=$false}},
             @{name='target provisioning loot';apply={param($value) $value.targetProvisioning.noLoot=$false}},
             @{name='target residue';apply={param($value) $value.cleanup.targetRemoved=$false}},
             @{name='target entity residue';apply={param($value) $value.cleanup.targetEntityRemoved=$false}},

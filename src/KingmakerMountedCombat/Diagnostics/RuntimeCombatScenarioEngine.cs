@@ -943,10 +943,14 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             public string TargetBlueprintId { get; set; }
             public string RuntimeGroupId { get; set; }
-            public string SourceMountNaturalWeaponBlueprintId { get; set; }
-            public string TargetNaturalWeaponBlueprintId { get; set; }
-            public bool InitialNaturalWeaponAbsent { get; set; }
-            public bool NaturalWeaponProvisioned { get; set; }
+            public string BlueprintEmptyHandWeaponBlueprintId { get; set; }
+            public string TargetNativeSingleAttackWeaponBlueprintId { get; set; }
+            public string TargetNativeSingleAttackSlot { get; set; }
+            public int TargetPrimaryMainAttacks { get; set; }
+            public int TargetSecondaryMainAttacks { get; set; }
+            public int AdditionalLimbCountBefore { get; set; }
+            public int AdditionalLimbCountAfter { get; set; }
+            public bool NoWeaponProvisioningMutation { get; set; }
             public bool NoLoot { get; set; }
             public bool RawAiDisabled { get; set; }
             public bool BidirectionalHostility { get; set; }
@@ -960,10 +964,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     TargetBlueprintId = target?.Blueprint?.AssetGuid,
                     RuntimeGroupId = service?.CreatedRuntimeGroupId,
-                    SourceMountNaturalWeaponBlueprintId = service?.SourceNaturalWeaponBlueprintId,
-                    TargetNaturalWeaponBlueprintId = service?.TargetNaturalWeaponBlueprintId,
-                    InitialNaturalWeaponAbsent = service != null && service.InitialNaturalWeaponAbsent,
-                    NaturalWeaponProvisioned = service != null && service.NaturalWeaponProvisioned,
+                    BlueprintEmptyHandWeaponBlueprintId = service?.BlueprintEmptyHandWeaponBlueprintId,
+                    TargetNativeSingleAttackWeaponBlueprintId = service?.TargetNativeSingleAttackWeaponBlueprintId,
+                    TargetNativeSingleAttackSlot = service?.TargetNativeSingleAttackSlot,
+                    TargetPrimaryMainAttacks = service?.TargetPrimaryMainAttacks ?? 0,
+                    TargetSecondaryMainAttacks = service?.TargetSecondaryMainAttacks ?? 0,
+                    AdditionalLimbCountBefore = service?.AdditionalLimbCountBefore ?? 0,
+                    AdditionalLimbCountAfter = service?.AdditionalLimbCountAfter ?? 0,
+                    NoWeaponProvisioningMutation = service != null && service.NoWeaponProvisioningMutation,
                     NoLoot = service != null && service.TargetHasNoLoot,
                     RawAiDisabled = service != null && service.RawAiBackingDisabled,
                     BidirectionalHostility = service != null && service.BidirectionalHostilityVerified,
