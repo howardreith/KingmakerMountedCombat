@@ -581,6 +581,14 @@ namespace KingmakerMountedCombat.Diagnostics
             assertions.Check(target.IsInState && target.Descriptor.State.IsConscious && !target.Descriptor.State.IsFinallyDead,
                 "Diagnostic target remained live at dispatch.");
 
+            assertions.Check(RetainDiagnosticTargetPlacementAtDispatch(),
+                "Diagnostic target was retained at the exact current actor-specific near-boundary placement before dispatch.");
+            if (assertions.FailureCount != 0)
+            {
+                BeginCleanup();
+                return;
+            }
+
             var targetPreparedForClick = targetService != null && targetService.PrepareForPlayerClick(target);
             var actionWeapon = IsMammothPrimaryRow
                 ? NativeSingleAttackWeaponResolver.Resolve(mount)?.Weapon
@@ -652,6 +660,43 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
             step = CombatEngineStep.AwaitOutcome;
+        }
+
+        private bool RetainDiagnosticTargetPlacementAtDispatch()
+        {
+            if (mount == null || mount.View == null || target == null || target.View == null ||
+                !target.IsInState)
+            {
+                return false;
+            }
+
+            var observedDistance = HorizontalDistance(mount.Position, target.Position);
+            if (!MountedCombatSpatialPolicy.RequiresDiagnosticTargetPlacementRefresh(
+                    pairApproachRadius,
+                    observedDistance))
+            {
+                return true;
+            }
+
+            float requiredDistance;
+            if (!MountedCombatSpatialPolicy.TryCalculateDiagnosticTargetDistance(
+                    pairApproachRadius,
+                    out requiredDistance))
+            {
+                return false;
+            }
+
+            var refreshedPoint = FindWalkablePoint(
+                mount.Position,
+                requiredDistance,
+                MountedCombatSpatialPolicy.DiagnosticPlacementTolerance);
+            target.Translocate(refreshedPoint, null);
+            target.View.ForcePlaceAboveGround();
+            target.Commands.InterruptAll();
+            target.HoldState = true;
+            return MountedCombatSpatialPolicy.IsBoundedDiagnosticTargetDistance(
+                pairApproachRadius,
+                HorizontalDistance(mount.Position, target.Position));
         }
 
         private void ObserveOutcome()

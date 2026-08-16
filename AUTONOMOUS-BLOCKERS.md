@@ -44,3 +44,7 @@ Fresh repaired-package miss A/B `20260816T152500Z-rider-miss-rt-ailease-passA` a
 ### Mammoth-primary offline checkpoint - 2026-08-16T16:28:00Z
 
 No critical blocker is active. Actor-owned Mammoth primary, exact native primary-hand natural weapon identity, Mammoth-only Standard cost, rider unchanged state, explicit native Mammoth-turn admission/termination, schema-v20/v21 protocol, historical rider compatibility, and deterministic mutation rejection are offline-green at `21/203/17/173/232`. No runtime claim is inferred. Exact next action is coherent commit, guarded non-force publication, exact clean package, full-continuity WhatIf, then fresh same-package RT A/B and TB A/B with an independent restoration audit before every evidence read. Any non-Working save drift, process/lock/sentinel/deployment residue, wrong actor/resource owner, duplicate attack, or inability to bound the Mammoth turn remains a hard stop for qualification.
+
+### Mammoth-primary target-placement repair - 2026-08-16T16:50:52Z
+
+RT attempt `20260816T164500Z-mammoth-primary-rt-passA` is preserved uncredited `FAIL` `33/1`: the strict final pre-dispatch check found natural-attack radius/distance `3.589406 / 3.06238842`, so no click or combat action occurred. Independent restoration is exact. A target-only current-radius refresh is offline-green at `21/204/17/173/232` and retains the same final bounded assertion. This is not a critical blocker and grants no runtime credit; a new clean package and fresh RT A/B are required.

@@ -77,6 +77,13 @@ namespace KingmakerMountedCombat.Domain
                 actualDistance <= stoppingRadius + RangeTolerance;
         }
 
+        public static bool RequiresDiagnosticTargetPlacementRefresh(
+            float stoppingRadius,
+            float actualDistance)
+        {
+            return !IsBoundedDiagnosticTargetDistance(stoppingRadius, actualDistance);
+        }
+
         public static bool TryCalculateNativeExecutorAdmissionRadius(
             float pairApproachRadius,
             float pairOriginDistance,

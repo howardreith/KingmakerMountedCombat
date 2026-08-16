@@ -20,6 +20,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("mounted combat range rejects invalid measurements", RejectsInvalidRange);
             runner.Run("mounted combat diagnostic placement admits the exact observed small radius", DiagnosticPlacementAdmitsObservedRadius);
             runner.Run("mounted combat diagnostic placement rejects insufficient radius and projection drift", DiagnosticPlacementRejectsUnsafeBounds);
+            runner.Run("mounted combat diagnostic placement refreshes exact Mammoth actor drift", DiagnosticPlacementRefreshesObservedMammothDrift);
             runner.Run("mounted combat native admission bridges only an in-range Mammoth origin", NativeAdmissionUsesMountOrigin);
             runner.Run("mounted combat native admission rejects pair range and offset escape", NativeAdmissionRejectsUnsafeBounds);
             runner.Run("mounted pair ends only the exact Mammoth turn", SuppressesOnlyMountTurn);
@@ -188,6 +189,27 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(
                 !MountedCombatSpatialPolicy.IsBoundedDiagnosticTargetDistance(2.37020588f, 0.05f),
                 "A diagnostic target without bounded positive separation was accepted.");
+        }
+
+        private static void DiagnosticPlacementRefreshesObservedMammothDrift()
+        {
+            const float mammothPrimaryRadius = 3.589406f;
+            const float observedDriftedDistance = 3.06238842f;
+            float refreshedDistance;
+            TestRunner.True(
+                MountedCombatSpatialPolicy.RequiresDiagnosticTargetPlacementRefresh(
+                    mammothPrimaryRadius,
+                    observedDriftedDistance),
+                "The exact failed Mammoth-primary pre-dispatch placement drift was not detected.");
+            TestRunner.True(
+                MountedCombatSpatialPolicy.TryCalculateDiagnosticTargetDistance(
+                    mammothPrimaryRadius,
+                    out refreshedDistance) &&
+                Math.Abs(refreshedDistance - 3.469406f) < 0.00001f &&
+                MountedCombatSpatialPolicy.IsBoundedDiagnosticTargetDistance(
+                    mammothPrimaryRadius,
+                    refreshedDistance),
+                "The exact Mammoth-primary radius did not produce a bounded current-position refresh.");
         }
 
         private static void NativeAdmissionUsesMountOrigin()

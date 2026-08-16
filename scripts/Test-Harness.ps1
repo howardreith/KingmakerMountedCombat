@@ -4314,6 +4314,12 @@ try {
             $spatialPolicySource.Contains('MaximumNativeExecutorRadiusAdjustment = 0.75f') -and
             $spatialPolicySource.Contains('NativeAdmissionEpsilon = 0.001f') -and
             -not $commandSource.Contains('var requiresApproach = !childAttack.IsUnitEnoughClose;')) 'mounted reach does not gate approach on the Mammoth origin before a bounded exact native rider-executor admission bridge'
+        $placementRefreshIndex = $engineSource.IndexOf('RetainDiagnosticTargetPlacementAtDispatch()', [StringComparison]::Ordinal)
+        $placementCaptureIndex = $engineSource.IndexOf('targetDistanceAtClick = HorizontalDistance(mountPositionAtClick, targetPositionAtClick);', [StringComparison]::Ordinal)
+        Assert-Test ($placementRefreshIndex -ge 0 -and $placementCaptureIndex -gt $placementRefreshIndex -and
+            $engineSource.Contains('MountedCombatSpatialPolicy.RequiresDiagnosticTargetPlacementRefresh(') -and
+            $engineSource.Contains('target.Translocate(refreshedPoint, null);') -and
+            $engineSource.Contains('MountedCombatSpatialPolicy.IsBoundedDiagnosticTargetDistance(')) 'combat diagnostic does not repair and revalidate exact observed actor-specific target-placement drift before evidence capture'
         Assert-Test ($commandSource.Contains('MountedPairLivenessSnapshot.IsTargetConsciousnessAdmissible(') -and
             $commandSource.Contains('transaction.ChildAttackStartCount)') -and
             $commandSource.Contains('targetState != null && !targetState.IsFinallyDead') -and
