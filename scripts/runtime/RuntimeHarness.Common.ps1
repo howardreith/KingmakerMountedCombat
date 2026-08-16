@@ -7135,11 +7135,11 @@ function Assert-KmcCombatScenarioEvidence {
     if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -ge 2) {
         $recordFields = @($recordFields + 'dispatch')
     }
-    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -eq 3) {
+    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -ge 3) {
         $recordFields = @($recordFields + 'combatEntry')
     }
     Assert-KmcExactProperties $record $recordFields 'combat evidence record'
-    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -notin @(1,2,3) -or
+    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -notin @(1,2,3,4) -or
         [string]$record.artifactKind -cne 'combat-scenario-evidence') {
         throw 'Combat evidence schemaVersion or artifactKind is not exact.'
     }
@@ -7185,7 +7185,7 @@ function Assert-KmcCombatScenarioEvidence {
             if ($record.dispatch.$name -isnot [bool]) { throw "Combat dispatch evidence is not Boolean: $name" }
         }
     }
-    if ([long]$record.schemaVersion -eq 3) {
+    if ([long]$record.schemaVersion -ge 3) {
         $combatEntryBooleanFields = @(
             'memoryQueued','playerGroupMemoryContainsTarget','targetGroupMemoryContainsRider',
             'riderInCombat','mountInCombat','targetInCombat','playerInCombat','riderPrepared','riderAwake',
@@ -7222,10 +7222,10 @@ function Assert-KmcCombatScenarioEvidence {
 
     $requirePass = [string]$Status -ceq 'PASS'
     if ($requirePass) {
-        if ([long]$record.schemaVersion -ne 3 -or
+        if ([long]$record.schemaVersion -ne 4 -or
             [string]$record.status -cne 'PASS' -or [long]$record.assertionFailCount -ne 0 -or
             [long]$record.assertionPassCount -le 0 -or @($record.errors).Count -ne 0) {
-            throw 'PASS combat evidence does not contain an error-free schema-v3 PASS row.'
+            throw 'PASS combat evidence does not contain an error-free schema-v4 PASS row.'
         }
         if ([string]$record.row -cne 'mounted-rider-melee-hit-rt' -or
             [string]$record.mode -cne 'real-time' -or [string]$record.action -cne 'RiderMelee' -or
@@ -7300,7 +7300,7 @@ function Assert-KmcCombatScenarioEvidence {
 
         Assert-KmcExactProperties $record.command @(
             'action','actorId','targetId','result','childAttackStartCount','repathCount',
-            'riderStandardCharged','nativeAttackRuleObserved','pairRangeSatisfiedAtStart',
+            'riderStandardCharged','nativeAttackRuleObserved','terminalReason','pairRangeSatisfiedAtStart',
             'pairDistanceAtStart','pairApproachRadiusAtStart','nativeExecutorDistanceAtStart',
             'nativeAdmissionRadiusAtStart','nativeAdmissionAdjusted') 'combat command evidence'
         foreach ($name in @('pairRangeSatisfiedAtStart','nativeAdmissionAdjusted')) {
@@ -7313,6 +7313,7 @@ function Assert-KmcCombatScenarioEvidence {
             [string]$record.command.actorId -cne [string]$record.riderId -or
             [string]$record.command.targetId -cne [string]$record.targetId -or
             [string]$record.command.result -cne 'Success' -or
+            [string]$record.command.terminalReason -cne 'completed' -or
             [long]$record.command.childAttackStartCount -ne 1 -or [long]$record.command.repathCount -ne 0 -or
             $record.command.riderStandardCharged -ne $true -or $record.command.nativeAttackRuleObserved -ne $true) {
             throw 'PASS combat command evidence does not prove one successful native rider attack.'

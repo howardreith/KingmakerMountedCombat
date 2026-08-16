@@ -38,6 +38,8 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("diagnostic combat dispatch reports exact paused initiative and equipment gates", CombatDispatchReportsExactFailures);
             runner.Run("diagnostic combat entry requires native memory preparation and group combat", CombatEntryRequiresNativeMemoryAndCombat);
             runner.Run("diagnostic combat entry reports exact memory combat and time failures", CombatEntryReportsExactFailures);
+            runner.Run("mounted pair liveness preserves every in-flight gate", PairLivenessPreservesEveryGate);
+            runner.Run("mounted pair liveness reports exact changed gates", PairLivenessReportsExactFailures);
         }
 
         private static void RiderMeleeOwnership()
@@ -395,6 +397,28 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(transaction.Arm(MountedCombatActionKind.RiderMelee), "Transaction did not arm.");
             TestRunner.True(transaction.AcceptTarget("target-1", requiresApproach), "Transaction did not accept exact target.");
             return transaction;
+        }
+
+        private static void PairLivenessPreservesEveryGate()
+        {
+            var snapshot = new MountedPairLivenessSnapshot(
+                true, true, true, true, true, true, true, true, true, true,
+                true, true, true, true, true);
+            TestRunner.True(snapshot.AllPassed, "A fully live exact mounted pair failed its in-flight snapshot.");
+            TestRunner.Equal(string.Empty, snapshot.FailureSummary,
+                "A fully live exact mounted pair published false failure gates.");
+        }
+
+        private static void PairLivenessReportsExactFailures()
+        {
+            var snapshot = new MountedPairLivenessSnapshot(
+                false, true, true, true, false, true, true, true, true, false,
+                true, true, false, false, false);
+            TestRunner.True(!snapshot.AllPassed, "An invalid in-flight mounted pair passed its liveness snapshot.");
+            TestRunner.Equal(
+                "relationship-mounted,target-in-state,target-conscious,target-not-finally-dead,rider-hostile-to-target,rider-can-attack-target",
+                snapshot.FailureSummary,
+                "In-flight mounted-pair failures were not reported in exact gate order.");
         }
 
         private static MountedCombatActionContext Eligible(MountedCombatActionKind action)

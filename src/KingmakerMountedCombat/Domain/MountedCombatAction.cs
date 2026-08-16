@@ -145,6 +145,61 @@ namespace KingmakerMountedCombat.Domain
             : string.Join(" ", RejectionReasons);
     }
 
+    public sealed class MountedPairLivenessSnapshot
+    {
+        private readonly string[] failedGateNames;
+
+        public MountedPairLivenessSnapshot(
+            bool relationshipMounted,
+            bool relationshipRiderExact,
+            bool relationshipMountExact,
+            bool wrapperExecutorIsRider,
+            bool targetInState,
+            bool riderInState,
+            bool mountInState,
+            bool riderConscious,
+            bool mountConscious,
+            bool targetConscious,
+            bool riderNotFinallyDead,
+            bool mountNotFinallyDead,
+            bool targetNotFinallyDead,
+            bool riderHostileToTarget,
+            bool riderCanAttackTarget)
+        {
+            var failures = new List<string>();
+            AddFailure(failures, relationshipMounted, "relationship-mounted");
+            AddFailure(failures, relationshipRiderExact, "relationship-rider-exact");
+            AddFailure(failures, relationshipMountExact, "relationship-mount-exact");
+            AddFailure(failures, wrapperExecutorIsRider, "wrapper-executor-is-rider");
+            AddFailure(failures, targetInState, "target-in-state");
+            AddFailure(failures, riderInState, "rider-in-state");
+            AddFailure(failures, mountInState, "mount-in-state");
+            AddFailure(failures, riderConscious, "rider-conscious");
+            AddFailure(failures, mountConscious, "mount-conscious");
+            AddFailure(failures, targetConscious, "target-conscious");
+            AddFailure(failures, riderNotFinallyDead, "rider-not-finally-dead");
+            AddFailure(failures, mountNotFinallyDead, "mount-not-finally-dead");
+            AddFailure(failures, targetNotFinallyDead, "target-not-finally-dead");
+            AddFailure(failures, riderHostileToTarget, "rider-hostile-to-target");
+            AddFailure(failures, riderCanAttackTarget, "rider-can-attack-target");
+            failedGateNames = failures.ToArray();
+        }
+
+        public bool AllPassed => failedGateNames.Length == 0;
+
+        public string[] FailedGateNames => (string[])failedGateNames.Clone();
+
+        public string FailureSummary => string.Join(",", failedGateNames);
+
+        private static void AddFailure(List<string> failures, bool passed, string name)
+        {
+            if (!passed)
+            {
+                failures.Add(name);
+            }
+        }
+    }
+
     public static class MountedCombatActionEvaluator
     {
         public static MountedCombatActionAvailability Evaluate(MountedCombatActionContext context)

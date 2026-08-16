@@ -1072,7 +1072,7 @@ function New-TestCombatEvidenceRecord {
     $mount = 'combat-mount'
     $target = 'combat-target'
     return [ordered]@{
-        schemaVersion=3;artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
+        schemaVersion=4;artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
         scenario=[string]$Request.scenario;row=[string]$Request.scenario;rowIndex=0;sequence=0;frame=30
         utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o');branch=[string]$Request.branch
         commit=[string]$Request.commit;productVersion=[string]$Request.productVersion
@@ -1108,7 +1108,7 @@ function New-TestCombatEvidenceRecord {
         }
         command=[ordered]@{
             action='RiderMelee';actorId=$rider;targetId=$target;result='Success';childAttackStartCount=1
-            repathCount=0;riderStandardCharged=$true;nativeAttackRuleObserved=$true
+            repathCount=0;riderStandardCharged=$true;nativeAttackRuleObserved=$true;terminalReason='completed'
             pairRangeSatisfiedAtStart=$true;pairDistanceAtStart=3.9;pairApproachRadiusAtStart=4.0
             nativeExecutorDistanceAtStart=4.1;nativeAdmissionRadiusAtStart=4.101;nativeAdmissionAdjusted=$true
         }
@@ -4159,13 +4159,15 @@ try {
             -not $engineSource.Contains('mount.JoinCombat();')) 'real-time combat does not lease native memory, await native combat entry, unpause, await exact dispatch readiness, and restore pause without manual JoinCombat'
         Assert-Test ($engineSource.Contains('CleanupTimeoutSeconds = 10.0d') -and
             $engineSource.Contains('rowClock.Elapsed.TotalSeconds - cleanupStartedAtSeconds < CleanupTimeoutSeconds')) 'combat cleanup does not retain an independent bounded drain after a row deadline'
-        Assert-Test ($engineSource.Contains('SchemaVersion = 3') -and
+        Assert-Test ($engineSource.Contains('SchemaVersion = 4') -and
             $engineSource.Contains('CombatEntry = CombatEntryEvidence.From(') -and
+            $engineSource.Contains('TerminalReason = value.TerminalReason') -and
             $engineSource.Contains('Dispatch = CombatDispatchEvidence.From(') -and
             $combatValidatorSource.Contains("'memoryQueued','playerGroupMemoryContainsTarget','targetGroupMemoryContainsRider'") -and
             $combatValidatorSource.Contains("'defaultGameMode','memoryRemovedAtCleanup'") -and
             $combatValidatorSource.Contains("'unpausedForRealTime','pausedAtClick','riderCanActInCombat','riderHandsBusy'") -and
-            $combatValidatorSource.Contains("'equipmentControllerAvailable','equipmentUpdateScheduled','pauseRestored'")) 'schema-v3 combat evidence does not bind native combat entry, memory cleanup, real-time dispatch, and pause restoration'
+            $combatValidatorSource.Contains("'equipmentControllerAvailable','equipmentUpdateScheduled','pauseRestored'") -and
+            $combatValidatorSource.Contains("[string]`$record.command.terminalReason -cne 'completed'")) 'schema-v4 combat evidence does not bind native combat entry, terminal reason, memory cleanup, real-time dispatch, and pause restoration'
         foreach ($field in @('TargetEntityRemoved','RuntimeGroupRemoved','RuntimeFactionRemoved')) {
             $jsonField = [char]::ToLowerInvariant($field[0]) + $field.Substring(1)
             Assert-Test ($engineSource.Contains("$field =") -and
@@ -4211,12 +4213,22 @@ try {
         Assert-KmcCombatScenarioEvidence -Request $combatRequest -Manifest $legacyManifest -Status 'FAIL'
     }
 
+    Invoke-HarnessTest 'combat validator retains non-qualifying schema-v3 evidence compatibility' {
+        $legacyRecord = Copy-TestJsonValue $combatRecord
+        $legacyRecord.schemaVersion = 3
+        $legacyRecord.command.PSObject.Properties.Remove('terminalReason')
+        [void](Write-TestCombatEvidence -EvidenceRoot $combatRequest.evidenceRoot -Request $combatRequest -Record $legacyRecord)
+        $legacyManifest = Read-KmcJson (Join-Path $combatRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $combatRequest -Manifest $legacyManifest -Status 'FAIL'
+    }
+
     Invoke-HarnessTest 'combat validator rejects duplicate rules action cost and actor mutations' {
         $mutations = @(
             @{name='duplicate attack';apply={param($value) $value.rules.attackRuleCount=2}},
             @{name='duplicate damage';apply={param($value) $value.rules.damageRuleCount=2}},
             @{name='unexpected pair attack';apply={param($value) $value.rules.unexpectedPairAttackCount=1}},
             @{name='wrong command actor';apply={param($value) $value.command.actorId='combat-mount'}},
+            @{name='non-completed terminal reason';apply={param($value) $value.command.terminalReason='InvalidOperationException: target-conscious'}},
             @{name='memory not queued';apply={param($value) $value.combatEntry.memoryQueued=$false}},
             @{name='player memory absent';apply={param($value) $value.combatEntry.playerGroupMemoryContainsTarget=$false}},
             @{name='target memory absent';apply={param($value) $value.combatEntry.targetGroupMemoryContainsRider=$false}},

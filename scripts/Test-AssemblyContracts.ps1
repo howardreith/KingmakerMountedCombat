@@ -139,6 +139,7 @@ if($Target-eq'Kingmaker'){
         @('TurnBased.Controllers.TurnController',0x06000C37,'TickMovement'),
         @('Kingmaker.Controllers.Units.UnitActionController',0x0600911F,'ShouldStartCommand'),
         @('Kingmaker.EntitySystem.Entities.UnitEntityData',0x06008330,'get_AreHandsBusyWithAnimation'),
+        @('Kingmaker.EntitySystem.Entities.UnitEntityData',0x0600834E,'CanAttack'),
         @('Kingmaker.Controllers.Units.UnitHandEquipmentController',0x06009154,'IsUpdateScheduledFor'),
         @('Kingmaker.Controllers.Combat.UnitCombatState',0x0600938F,'get_CanActInCombat'),
         @('Kingmaker.Controllers.Combat.UnitCombatState+Cooldowns',0x0600C3B4,'get_Initiative'),

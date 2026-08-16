@@ -666,7 +666,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var selected = SelectionManager.Instance?.SelectedUnits;
             var record = new CombatEvidenceRecord
             {
-                SchemaVersion = 3,
+                SchemaVersion = 4,
                 ArtifactKind = "combat-scenario-evidence",
                 RunId = request.RunId,
                 Scenario = request.Scenario,
@@ -1104,6 +1104,7 @@ namespace KingmakerMountedCombat.Diagnostics
             public int RepathCount { get; set; }
             public bool RiderStandardCharged { get; set; }
             public bool NativeAttackRuleObserved { get; set; }
+            public string TerminalReason { get; set; }
             public bool PairRangeSatisfiedAtStart { get; set; }
             public float PairDistanceAtStart { get; set; }
             public float PairApproachRadiusAtStart { get; set; }
@@ -1123,6 +1124,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     RepathCount = value.RepathCount,
                     RiderStandardCharged = value.RiderStandardCharged,
                     NativeAttackRuleObserved = value.NativeAttackRuleObserved,
+                    TerminalReason = value.TerminalReason,
                     PairRangeSatisfiedAtStart = value.PairRangeSatisfiedAtStart,
                     PairDistanceAtStart = value.PairDistanceAtStart,
                     PairApproachRadiusAtStart = value.PairApproachRadiusAtStart,

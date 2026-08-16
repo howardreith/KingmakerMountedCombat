@@ -26,6 +26,8 @@ namespace KingmakerMountedCombat.Integration
 
         public bool NativeAttackRuleObserved { get; set; }
 
+        public string TerminalReason { get; set; }
+
         public bool PairRangeSatisfiedAtStart { get; set; }
 
         public float PairDistanceAtStart { get; set; }
@@ -348,24 +350,29 @@ namespace KingmakerMountedCombat.Integration
 
         private void RequireLiveExactPair()
         {
-            if (relationship.State != RelationshipState.Mounted ||
-                relationship.Rider != rider ||
-                relationship.Mount != mount ||
-                Executor != rider ||
-                attackTarget == null ||
-                !attackTarget.IsInState ||
-                !rider.IsInState ||
-                !mount.IsInState ||
-                !rider.Descriptor.State.IsConscious ||
-                !mount.Descriptor.State.IsConscious ||
-                !attackTarget.Descriptor.State.IsConscious ||
-                rider.Descriptor.State.IsFinallyDead ||
-                mount.Descriptor.State.IsFinallyDead ||
-                attackTarget.Descriptor.State.IsFinallyDead ||
-                !rider.IsEnemy(attackTarget) ||
-                !rider.CanAttack(attackTarget))
+            var riderState = rider?.Descriptor?.State;
+            var mountState = mount?.Descriptor?.State;
+            var targetState = attackTarget?.Descriptor?.State;
+            var liveness = new MountedPairLivenessSnapshot(
+                relationship.State == RelationshipState.Mounted,
+                relationship.Rider == rider,
+                relationship.Mount == mount,
+                Executor == rider,
+                attackTarget != null && attackTarget.IsInState,
+                rider != null && rider.IsInState,
+                mount != null && mount.IsInState,
+                riderState != null && riderState.IsConscious,
+                mountState != null && mountState.IsConscious,
+                targetState != null && targetState.IsConscious,
+                riderState != null && !riderState.IsFinallyDead,
+                mountState != null && !mountState.IsFinallyDead,
+                targetState != null && !targetState.IsFinallyDead,
+                rider != null && attackTarget != null && rider.IsEnemy(attackTarget),
+                rider != null && attackTarget != null && rider.CanAttack(attackTarget));
+            if (!liveness.AllPassed)
             {
-                throw new InvalidOperationException("Exact mounted pair or target became invalid.");
+                throw new InvalidOperationException(
+                    "Exact mounted pair or target became invalid: " + liveness.FailureSummary + ".");
             }
         }
 
@@ -386,6 +393,7 @@ namespace KingmakerMountedCombat.Integration
                 RepathCount = transaction.RepathCount,
                 RiderStandardCharged = IsActed,
                 NativeAttackRuleObserved = childAttack?.LastAttackRule != null,
+                TerminalReason = transaction.TerminalReason,
                 PairRangeSatisfiedAtStart = childAttack != null && childAttack.PairRangeSatisfiedAtNativeStart,
                 PairDistanceAtStart = childAttack?.PairDistanceAtNativeStart ?? 0f,
                 PairApproachRadiusAtStart = childAttack?.PairApproachRadius ?? 0f,
