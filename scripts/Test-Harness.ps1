@@ -4098,10 +4098,17 @@ try {
             $targetSource.Contains('combatMemoryTargetGroup.Memory.Add(combatMemoryObserver)') -and
             $targetSource.Contains('observedTarget.LastDetectTime = game.TimeController.GameTime;') -and
             $targetSource.Contains('observedRider.LastDetectTime = game.TimeController.GameTime;') -and
+            $targetSource.Contains('if (!combatMemoryObserver.IsAwake)') -and
+            $targetSource.Contains('combatMemoryObserver.Wake();') -and
+            $targetSource.Contains('if (!combatMemoryTarget.IsAwake)') -and
+            $targetSource.Contains('combatMemoryTarget.Wake();') -and
             $targetSource.Contains('combatMemoryObserverGroup.Memory.Remove(combatMemoryTarget);') -and
             $targetSource.Contains('combatMemoryTargetGroup.Memory.Remove(combatMemoryObserver);') -and
             -not $targetSource.Contains('memoryController.AddToMemory(') -and
-            $engineSource.Contains('targetService.RefreshBidirectionalCombatMemoryLease()')) 'diagnostic target does not own a deterministic exact-group native combat-memory lease with bounded refresh and symmetric cleanup'
+            $engineSource.Contains('targetService.RefreshBidirectionalCombatMemoryLease()') -and
+            $engineSource.Contains('";targetAwake=" + (target != null && target.IsAwake)') -and
+            $engineSource.Contains('";targetInFog=" + (target != null && target.IsInFogOfWar)') -and
+            $engineSource.Contains('";targetFactionPeaceful=" + (target?.Faction != null && target.Faction.Peaceful)')) 'diagnostic target does not own a deterministic exact-group native combat-memory/wake lease with bounded refresh, timeout evidence, and symmetric cleanup'
         Assert-Test ($targetSource.Contains('var blueprintPrimary = blueprint.Body?.EmptyHandWeapon;') -and
             $targetSource.Contains('var nativePrimary = NativeSingleAttackWeaponResolver.Resolve(target);') -and
             $targetSource.Contains('NoWeaponProvisioningMutation = AdditionalLimbCountAfter == AdditionalLimbCountBefore') -and

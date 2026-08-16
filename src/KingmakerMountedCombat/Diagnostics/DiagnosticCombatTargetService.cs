@@ -438,6 +438,14 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             observedTarget.LastDetectTime = game.TimeController.GameTime;
             observedRider.LastDetectTime = game.TimeController.GameTime;
+            if (!combatMemoryObserver.IsAwake)
+            {
+                combatMemoryObserver.Wake();
+            }
+            if (!combatMemoryTarget.IsAwake)
+            {
+                combatMemoryTarget.Wake();
+            }
             return PlayerGroupMemoryContainsTarget && TargetGroupMemoryContainsRider;
         }
 

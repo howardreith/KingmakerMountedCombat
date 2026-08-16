@@ -151,6 +151,8 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.Game',0x040006BE,'UnitMemoryController'),
         @('Kingmaker.Controllers.Units.UnitMemoryController',0x0600916F,'AddToMemory'),
         @('Kingmaker.EntitySystem.Entities.UnitEntityData',0x060082F8,'get_Memory'),
+        @('Kingmaker.EntitySystem.Entities.UnitEntityData',0x060082F9,'get_IsAwake'),
+        @('Kingmaker.EntitySystem.Entities.UnitEntityData',0x0600836C,'Wake'),
         @('Kingmaker.UnitLogic.UnitGroupMemory',0x06001F2C,'Add'),
         @('Kingmaker.UnitLogic.UnitGroupMemory',0x06001F2D,'Remove'),
         @('Kingmaker.UnitLogic.UnitGroupMemory',0x06001F31,'Contains'),

@@ -900,6 +900,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     ";gameDeltaTime=" + (entryReadiness == null
                         ? "not-observed"
                         : entryReadiness.GameDeltaTime.ToString("R", CultureInfo.InvariantCulture)) +
+                    ";targetAwake=" + (target != null && target.IsAwake) +
+                    ";targetInFog=" + (target != null && target.IsInFogOfWar) +
+                    ";targetFactionPeaceful=" + (target?.Faction != null && target.Faction.Peaceful) +
                     ";dispatchReadiness=" + (dispatchReadiness?.FailureSummary ?? "not-observed") +
                     ";gamePaused=" + (Game.Instance != null && Game.Instance.IsPaused);
             }
