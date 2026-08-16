@@ -1072,6 +1072,7 @@ function New-TestCombatEvidenceRecord {
     $mount = 'combat-mount'
     $target = 'combat-target'
     $isTurnBased = [string]$Request.scenario -ceq 'mounted-rider-melee-hit-tb'
+    $isMiss = [string]$Request.scenario -ceq 'mounted-rider-melee-miss-rt'
     $record = [ordered]@{
         schemaVersion=$(if ($isTurnBased) { 5 } else { 4 });artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
         scenario=[string]$Request.scenario;row=[string]$Request.scenario;rowIndex=0;sequence=0;frame=30
@@ -1114,8 +1115,10 @@ function New-TestCombatEvidenceRecord {
             nativeExecutorDistanceAtStart=4.1;nativeAdmissionRadiusAtStart=4.101;nativeAdmissionAdjusted=$true
         }
         rules=[ordered]@{
-            forcedD20=20;forcedD20Count=1;attackRuleCount=1;attackRollCount=1;damageRuleCount=1
-            unexpectedPairAttackCount=0;totalDamage=10;lastInitiatorId=$rider;lastTargetId=$target;lastAttackResult='Hit'
+            forcedD20=$(if ($isMiss) { 1 } else { 20 });forcedD20Count=1;attackRuleCount=1;attackRollCount=1
+            damageRuleCount=$(if ($isMiss) { 0 } else { 1 });unexpectedPairAttackCount=0
+            totalDamage=$(if ($isMiss) { 0 } else { 10 });lastInitiatorId=$rider;lastTargetId=$target
+            lastAttackResult=$(if ($isMiss) { 'Miss' } else { 'Hit' })
         }
         movement=[ordered]@{
             authoritativeMover='mount';repathCount=0;riderStockAgentEnabledAtEnd=$true;mountStockAgentEnabledAtEnd=$true
@@ -4303,6 +4306,43 @@ try {
     Invoke-HarnessTest 'runtime request and schema-v5 evidence accept exact native stationary rider turn' {
         & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $turnBasedRequestPath
         Assert-KmcCombatScenarioEvidence -Request $turnBasedRequest -Manifest $turnBasedManifest -Status 'PASS' -SubscenarioResults @($turnBasedSubresult)
+    }
+
+    $missRequestPath = Join-Path $testRoot 'runtime-request-combat-miss.json'
+    $missRequest = Copy-TestJsonValue $combatRequest
+    $missRequest.runId = 'combat-evidence-miss-test'
+    $missRequest.scenario = 'mounted-rider-melee-miss-rt'
+    $missRequest.evidenceRoot = Join-Path $runtimeEvidenceTestRoot $missRequest.runId
+    Write-KmcJsonAtomic $missRequestPath $missRequest
+    $missRecord = New-TestCombatEvidenceRecord $missRequest
+    [void](Write-TestCombatEvidence -EvidenceRoot $missRequest.evidenceRoot -Request $missRequest -Record $missRecord)
+    $missManifest = Read-KmcJson (Join-Path $missRequest.evidenceRoot 'runtime-artifacts.json')
+    $missSubresult = [ordered]@{name=$missRequest.scenario;status='PASS';assertionPassCount=25;assertionFailCount=0;errors=@()}
+
+    Invoke-HarnessTest 'runtime request and combat evidence accept exact stationary rider miss' {
+        & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $missRequestPath
+        Assert-KmcCombatScenarioEvidence -Request $missRequest -Manifest $missManifest -Status 'PASS' -SubscenarioResults @($missSubresult)
+    }
+
+    Invoke-HarnessTest 'combat miss validator rejects hit damage and identity mutations' {
+        $mutations = @(
+            @{name='forced hit';apply={param($value) $value.rules.forcedD20=20}},
+            @{name='damage event';apply={param($value) $value.rules.damageRuleCount=1}},
+            @{name='positive damage';apply={param($value) $value.rules.totalDamage=1}},
+            @{name='hit result';apply={param($value) $value.rules.lastAttackResult='Hit'}},
+            @{name='wrong initiator';apply={param($value) $value.rules.lastInitiatorId='combat-mount'}},
+            @{name='duplicate roll';apply={param($value) $value.rules.attackRollCount=2}}
+        )
+        foreach ($mutation in $mutations) {
+            $candidate = Copy-TestJsonValue $missRecord
+            & $mutation.apply $candidate
+            [void](Write-TestCombatEvidence -EvidenceRoot $missRequest.evidenceRoot -Request $missRequest -Record $candidate)
+            $candidateManifest = Read-KmcJson (Join-Path $missRequest.evidenceRoot 'runtime-artifacts.json')
+            $threw = $false
+            try { Assert-KmcCombatScenarioEvidence -Request $missRequest -Manifest $candidateManifest -Status 'PASS' -SubscenarioResults @($missSubresult) }
+            catch { $threw = $true }
+            Assert-Test $threw ("combat miss validator accepted mutation: " + [string]$mutation.name)
+        }
     }
 
     Invoke-HarnessTest 'schema-v5 preserves a structured pre-combat turn-based FAIL' {

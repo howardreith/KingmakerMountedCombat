@@ -32,6 +32,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal const string EvidenceFileName = "combat-scenario-evidence.jsonl";
         private const string RiderHitRealTime = "mounted-rider-melee-hit-rt";
         private const string RiderHitTurnBased = "mounted-rider-melee-hit-tb";
+        private const string RiderMissRealTime = "mounted-rider-melee-miss-rt";
         private const double RowTimeoutSeconds = 30.0d;
         private const double CleanupTimeoutSeconds = 10.0d;
         private const float SpawnDistance = 6.0f;
@@ -156,10 +157,13 @@ namespace KingmakerMountedCombat.Diagnostics
         internal static bool SupportsScenario(string scenario)
         {
             return string.Equals(scenario, RiderHitRealTime, StringComparison.Ordinal) ||
-                string.Equals(scenario, RiderHitTurnBased, StringComparison.Ordinal);
+                string.Equals(scenario, RiderHitTurnBased, StringComparison.Ordinal) ||
+                string.Equals(scenario, RiderMissRealTime, StringComparison.Ordinal);
         }
 
         private bool IsTurnBasedRow => string.Equals(currentRow, RiderHitTurnBased, StringComparison.Ordinal);
+
+        private bool IsMissRow => string.Equals(currentRow, RiderMissRealTime, StringComparison.Ordinal);
 
         public void Start()
         {
@@ -559,7 +563,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Diagnostic target retained the exact near-boundary mounted-range placement.");
 
             ruleProbe = new MountedCombatRuleProbe();
-            ruleProbe.Arm(rider, mount, rider, target, 20);
+            ruleProbe.Arm(rider, mount, rider, target, IsMissRow ? 1 : 20);
             assertions.Check(combat.Arm(MountedCombatActionKind.RiderMelee),
                 "Rider melee armed through the combat controller.");
             if (assertions.FailureCount != 0)
@@ -654,12 +658,21 @@ namespace KingmakerMountedCombat.Diagnostics
             assertions.Check(Math.Abs(riderMoveAfter - riderMoveBefore) <= 0.01f,
                 "Stationary rider attack did not charge a rider Move action.");
             assertions.Check(ruleProbe.AttackRuleCount == 1 && ruleProbe.AttackRollCount == 1 &&
-                    ruleProbe.DamageRuleCount <= 1 && ruleProbe.UnexpectedPairAttackCount == 0,
-                "Rulebook observed exactly one rider attack/roll, at most one damage event, and no pair duplicate.");
-            assertions.Check(ruleProbe.ForcedD20 == 20 && ruleProbe.ForcedD20Count >= 1 &&
-                    (string.Equals(ruleProbe.LastAttackResult, "Hit", StringComparison.Ordinal) ||
-                     string.Equals(ruleProbe.LastAttackResult, "CriticalHit", StringComparison.Ordinal)),
-                "Deterministic natural 20 produced a hit or critical-hit result.");
+                    (IsMissRow ? ruleProbe.DamageRuleCount == 0 : ruleProbe.DamageRuleCount <= 1) &&
+                    ruleProbe.UnexpectedPairAttackCount == 0,
+                IsMissRow
+                    ? "Rulebook observed exactly one rider attack/roll, zero damage events, and no pair duplicate."
+                    : "Rulebook observed exactly one rider attack/roll, at most one damage event, and no pair duplicate.");
+            assertions.Check(IsMissRow
+                    ? ruleProbe.ForcedD20 == 1 && ruleProbe.ForcedD20Count >= 1 &&
+                        string.Equals(ruleProbe.LastAttackResult, "Miss", StringComparison.Ordinal) &&
+                        ruleProbe.TotalDamage == 0
+                    : ruleProbe.ForcedD20 == 20 && ruleProbe.ForcedD20Count >= 1 &&
+                        (string.Equals(ruleProbe.LastAttackResult, "Hit", StringComparison.Ordinal) ||
+                         string.Equals(ruleProbe.LastAttackResult, "CriticalHit", StringComparison.Ordinal)),
+                IsMissRow
+                    ? "Deterministic natural 1 produced an exact zero-damage miss."
+                    : "Deterministic natural 20 produced a hit or critical-hit result.");
             assertions.Check(string.Equals(ruleProbe.LastInitiatorId, rider.UniqueId, StringComparison.Ordinal) &&
                     string.Equals(ruleProbe.LastTargetId, targetId, StringComparison.Ordinal),
                 "Rulebook identities remained the exact rider and diagnostic target.");

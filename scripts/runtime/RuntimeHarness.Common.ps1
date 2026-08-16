@@ -3637,7 +3637,7 @@ function Get-KmcSaveBackedRuntimeScenarios {
         'presentation-residue-and-uninstall-safety', 'pose-idle', 'pose-walk-run', 'pose-turn-stop',
         'pose-doorway-formation', 'pose-equipment-variants', 'ui-selection-portrait-actionbar',
         'camera-follow-and-command-routing', 'movement-suite', 'boundary-suite', 'presentation-suite',
-        'mounted-rider-melee-hit-rt', 'mounted-rider-melee-hit-tb',
+        'mounted-rider-melee-hit-rt', 'mounted-rider-melee-hit-tb', 'mounted-rider-melee-miss-rt',
         'manual-visual-review'
     )
 }
@@ -4560,7 +4560,7 @@ function Assert-KmcBoundaryTriggerScope {
 }
 
 function Get-KmcCombatRuntimeRows {
-    return @('mounted-rider-melee-hit-rt','mounted-rider-melee-hit-tb')
+    return @('mounted-rider-melee-hit-rt','mounted-rider-melee-hit-tb','mounted-rider-melee-miss-rt')
 }
 
 function Test-KmcCombatRuntimeScenario {
@@ -7249,6 +7249,7 @@ function Assert-KmcCombatScenarioEvidence {
     $requirePass = [string]$Status -ceq 'PASS'
     if ($requirePass) {
         $turnBasedScenario = [string]$Request.scenario -ceq 'mounted-rider-melee-hit-tb'
+        $missScenario = [string]$Request.scenario -ceq 'mounted-rider-melee-miss-rt'
         $expectedCombatSchema = if ($turnBasedScenario) { 5 } else { 4 }
         if ([long]$record.schemaVersion -ne $expectedCombatSchema -or
             [string]$record.status -cne 'PASS' -or [long]$record.assertionFailCount -ne 0 -or
@@ -7384,14 +7385,23 @@ function Assert-KmcCombatScenarioEvidence {
         Assert-KmcExactProperties $record.rules @(
             'forcedD20','forcedD20Count','attackRuleCount','attackRollCount','damageRuleCount',
             'unexpectedPairAttackCount','totalDamage','lastInitiatorId','lastTargetId','lastAttackResult') 'combat rule evidence'
-        if ([long]$record.rules.forcedD20 -ne 20 -or [long]$record.rules.forcedD20Count -lt 1 -or
+        if ([long]$record.rules.forcedD20Count -lt 1 -or
             [long]$record.rules.attackRuleCount -ne 1 -or [long]$record.rules.attackRollCount -ne 1 -or
-            [long]$record.rules.damageRuleCount -lt 0 -or [long]$record.rules.damageRuleCount -gt 1 -or
             [long]$record.rules.unexpectedPairAttackCount -ne 0 -or
             [string]$record.rules.lastInitiatorId -cne [string]$record.riderId -or
-            [string]$record.rules.lastTargetId -cne [string]$record.targetId -or
+            [string]$record.rules.lastTargetId -cne [string]$record.targetId) {
+            throw 'PASS combat rule evidence does not prove one deterministic rider attack without duplication.'
+        }
+        if ($missScenario) {
+            if ([long]$record.rules.forcedD20 -ne 1 -or [long]$record.rules.damageRuleCount -ne 0 -or
+                [long]$record.rules.totalDamage -ne 0 -or [string]$record.rules.lastAttackResult -cne 'Miss') {
+                throw 'PASS combat miss evidence does not prove one deterministic natural-1 zero-damage miss.'
+            }
+        }
+        elseif ([long]$record.rules.forcedD20 -ne 20 -or
+            [long]$record.rules.damageRuleCount -lt 0 -or [long]$record.rules.damageRuleCount -gt 1 -or
             [string]$record.rules.lastAttackResult -cnotin @('Hit','CriticalHit')) {
-            throw 'PASS combat rule evidence does not prove one deterministic rider hit without duplication.'
+            throw 'PASS combat hit evidence does not prove one deterministic rider hit.'
         }
 
         if ([double]$record.resources.riderStandardAfter -le [double]$record.resources.riderStandardBefore -or

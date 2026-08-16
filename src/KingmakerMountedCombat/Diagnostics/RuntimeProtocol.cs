@@ -58,6 +58,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "presentation-suite",
             "mounted-rider-melee-hit-rt",
             "mounted-rider-melee-hit-tb",
+            "mounted-rider-melee-miss-rt",
             ManualReviewScenario
         };
 
@@ -447,7 +448,8 @@ namespace KingmakerMountedCombat.Diagnostics
             "ui-selection-portrait-actionbar",
             "camera-follow-and-command-routing",
             "mounted-rider-melee-hit-rt",
-            "mounted-rider-melee-hit-tb"
+            "mounted-rider-melee-hit-tb",
+            "mounted-rider-melee-miss-rt"
         };
 
         public string Name { get; set; }
