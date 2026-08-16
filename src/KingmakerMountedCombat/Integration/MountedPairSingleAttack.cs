@@ -1,5 +1,7 @@
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.UnitLogic.Commands;
+using Kingmaker.Utility;
+using KingmakerMountedCombat.Domain;
 
 namespace KingmakerMountedCombat.Integration
 {
@@ -8,6 +10,7 @@ namespace KingmakerMountedCombat.Integration
         private readonly UnitEntityData rider;
         private readonly UnitEntityData mount;
         private readonly bool usesMountedRiderReach;
+        private float pairApproachRadius;
 
         public MountedPairSingleAttack(
             UnitEntityData target,
@@ -28,13 +31,49 @@ namespace KingmakerMountedCombat.Integration
         {
             base.Init(executor);
             float pairRadius;
-            if (TryCalculatePairApproachRadius(Target, out pairRadius))
+            if (TryCalculatePairStoppingRadius(Target, out pairRadius))
             {
-                ApproachRadius = pairRadius;
+                pairApproachRadius = pairRadius;
+                float nativeRadius;
+                ApproachRadius = TryCalculateNativeApproachRadius(Target, out nativeRadius)
+                    ? nativeRadius
+                    : 0f;
+            }
+            else
+            {
+                pairApproachRadius = ApproachRadius;
             }
         }
 
-        internal bool TryCalculatePairApproachRadius(UnitEntityData target, out float radius)
+        internal bool TryCalculateNativeApproachRadius(UnitEntityData target, out float radius)
+        {
+            radius = 0f;
+            float stoppingRadius;
+            if (!TryCalculatePairStoppingRadius(target, out stoppingRadius))
+            {
+                return false;
+            }
+
+            float pairDistance;
+            float executorDistance;
+            if (!TryObserveDistances(target, out pairDistance, out executorDistance))
+            {
+                return false;
+            }
+
+            float nativeRadius;
+            if (MountedCombatSpatialPolicy.TryCalculateNativeExecutorAdmissionRadius(
+                    stoppingRadius,
+                    pairDistance,
+                    executorDistance,
+                    out nativeRadius))
+            {
+                radius = nativeRadius;
+            }
+            return true;
+        }
+
+        private bool TryCalculatePairStoppingRadius(UnitEntityData target, out float radius)
         {
             radius = 0f;
             if (!usesMountedRiderReach ||
@@ -54,6 +93,101 @@ namespace KingmakerMountedCombat.Integration
             return radius >= 0f;
         }
 
-        internal float PairApproachRadius => ApproachRadius;
+        internal float PairApproachRadius => pairApproachRadius;
+
+        internal bool PairRangeSatisfiedAtNativeStart { get; private set; }
+
+        internal float PairDistanceAtNativeStart { get; private set; }
+
+        internal float NativeExecutorDistanceAtStart { get; private set; }
+
+        internal float NativeAdmissionRadiusAtStart { get; private set; }
+
+        internal bool NativeAdmissionAdjustedAtStart { get; private set; }
+
+        internal bool IsPairEnoughClose
+        {
+            get
+            {
+                if (!usesMountedRiderReach)
+                {
+                    return IsUnitEnoughClose;
+                }
+                float pairDistance;
+                float executorDistance;
+                UnitEntityData target = Target;
+                return TryObserveDistances(target, out pairDistance, out executorDistance) &&
+                    pairDistance <= pairApproachRadius + MountedCombatSpatialPolicy.RangeTolerance;
+            }
+        }
+
+        internal bool TryPrepareNativeStartAdmission()
+        {
+            PairRangeSatisfiedAtNativeStart = false;
+            PairDistanceAtNativeStart = 0f;
+            NativeExecutorDistanceAtStart = 0f;
+            NativeAdmissionRadiusAtStart = pairApproachRadius;
+            NativeAdmissionAdjustedAtStart = false;
+
+            if (!usesMountedRiderReach)
+            {
+                UnitEntityData nativeTarget = Target;
+                if (Executor == null || nativeTarget == null)
+                {
+                    return false;
+                }
+                var nativeDistance = GeometryUtils.MechanicsDistance(Executor.Position, nativeTarget.Position);
+                PairDistanceAtNativeStart = nativeDistance;
+                NativeExecutorDistanceAtStart = nativeDistance;
+                NativeAdmissionRadiusAtStart = ApproachRadius;
+                PairRangeSatisfiedAtNativeStart = IsUnitEnoughClose;
+                return PairRangeSatisfiedAtNativeStart;
+            }
+
+            float pairDistance;
+            float executorDistance;
+            UnitEntityData target = Target;
+            if (!TryObserveDistances(target, out pairDistance, out executorDistance))
+            {
+                return false;
+            }
+
+            PairDistanceAtNativeStart = pairDistance;
+            NativeExecutorDistanceAtStart = executorDistance;
+            float nativeAdmissionRadius;
+            if (!MountedCombatSpatialPolicy.TryCalculateNativeExecutorAdmissionRadius(
+                    pairApproachRadius,
+                    pairDistance,
+                    executorDistance,
+                    out nativeAdmissionRadius))
+            {
+                return false;
+            }
+
+            PairRangeSatisfiedAtNativeStart = true;
+            NativeAdmissionRadiusAtStart = nativeAdmissionRadius;
+            NativeAdmissionAdjustedAtStart = nativeAdmissionRadius > pairApproachRadius;
+            ApproachRadius = nativeAdmissionRadius;
+            return IsUnitEnoughClose;
+        }
+
+        private bool TryObserveDistances(
+            UnitEntityData target,
+            out float pairDistance,
+            out float executorDistance)
+        {
+            pairDistance = 0f;
+            executorDistance = 0f;
+            if (!usesMountedRiderReach || Executor != rider || rider == null || mount == null ||
+                target == null || pairApproachRadius < 0f)
+            {
+                return false;
+            }
+
+            pairDistance = GeometryUtils.MechanicsDistance(mount.Position, target.Position);
+            executorDistance = GeometryUtils.MechanicsDistance(rider.Position, target.Position);
+            return !float.IsNaN(pairDistance) && !float.IsInfinity(pairDistance) && pairDistance >= 0f &&
+                !float.IsNaN(executorDistance) && !float.IsInfinity(executorDistance) && executorDistance >= 0f;
+        }
     }
 }

@@ -20,6 +20,8 @@ namespace KingmakerMountedCombat.Domain
         public const float RangeTolerance = 0.05f;
         public const float DiagnosticRangeInset = 0.12f;
         public const float DiagnosticPlacementTolerance = 0.06f;
+        public const float NativeAdmissionEpsilon = 0.001f;
+        public const float MaximumNativeExecutorRadiusAdjustment = 0.75f;
 
         public static float CalculateStoppingRadius(
             float mammothCorpulence,
@@ -73,6 +75,28 @@ namespace KingmakerMountedCombat.Domain
                 actualDistance > RangeTolerance &&
                 Math.Abs(actualDistance - expectedDistance) <= DiagnosticPlacementTolerance &&
                 actualDistance <= stoppingRadius + RangeTolerance;
+        }
+
+        public static bool TryCalculateNativeExecutorAdmissionRadius(
+            float pairApproachRadius,
+            float pairOriginDistance,
+            float nativeExecutorDistance,
+            out float nativeAdmissionRadius)
+        {
+            RequireFiniteNonNegative(pairApproachRadius, nameof(pairApproachRadius));
+            RequireFiniteNonNegative(pairOriginDistance, nameof(pairOriginDistance));
+            RequireFiniteNonNegative(nativeExecutorDistance, nameof(nativeExecutorDistance));
+            nativeAdmissionRadius = pairApproachRadius;
+            if (pairOriginDistance > pairApproachRadius + RangeTolerance)
+            {
+                return false;
+            }
+
+            if (nativeExecutorDistance > pairApproachRadius)
+            {
+                nativeAdmissionRadius = nativeExecutorDistance + NativeAdmissionEpsilon;
+            }
+            return nativeAdmissionRadius - pairApproachRadius <= MaximumNativeExecutorRadiusAdjustment;
         }
 
         private static void RequireFiniteNonNegative(float value, string name)

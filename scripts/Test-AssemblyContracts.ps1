@@ -134,6 +134,8 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.UnitLogic.Commands.UnitAttack',0x06002685,'GetApproachRadius'),
         @('Kingmaker.UnitLogic.Commands.UnitAttack',0x06002683,'UpdateTarget'),
         @('Kingmaker.UnitLogic.Commands.AttackHandInfo',0x04001A32,'WeaponRange'),
+        @('Kingmaker.UnitLogic.Commands.Base.UnitCommand',0x06002784,'get_IsUnitEnoughClose'),
+        @('Kingmaker.Utility.GeometryUtils',0x06001C68,'MechanicsDistance'),
         @('TurnBased.Controllers.TurnController',0x06000C37,'TickMovement'),
         @('Kingmaker.Controllers.Units.UnitActionController',0x0600911F,'ShouldStartCommand'),
         @('Kingmaker.EntitySystem.Entities.UnitEntityData',0x06008330,'get_AreHandsBusyWithAnimation'),

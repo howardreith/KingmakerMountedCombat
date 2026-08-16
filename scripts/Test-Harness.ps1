@@ -1109,6 +1109,8 @@ function New-TestCombatEvidenceRecord {
         command=[ordered]@{
             action='RiderMelee';actorId=$rider;targetId=$target;result='Success';childAttackStartCount=1
             repathCount=0;riderStandardCharged=$true;nativeAttackRuleObserved=$true
+            pairRangeSatisfiedAtStart=$true;pairDistanceAtStart=3.9;pairApproachRadiusAtStart=4.0
+            nativeExecutorDistanceAtStart=4.1;nativeAdmissionRadiusAtStart=4.101;nativeAdmissionAdjusted=$true
         }
         rules=[ordered]@{
             forcedD20=20;forcedD20Count=1;attackRuleCount=1;attackRollCount=1;damageRuleCount=1
@@ -4066,6 +4068,9 @@ try {
         $targetSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\DiagnosticCombatTargetService.cs'))
         $controllerSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedCombatController.cs'))
         $commandSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPairAttackCommand.cs'))
+        $singleAttackSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPairSingleAttack.cs'))
+        $patchControllerSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPatchController.cs'))
+        $spatialPolicySource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedCombatSpatialPolicy.cs'))
         $resolverSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\NativeSingleAttackWeaponResolver.cs'))
         $policySource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedCombatAction.cs'))
         $detachIndex = $targetSource.IndexOf('target.GroupId = runtimeGroupId;', [StringComparison]::Ordinal)
@@ -4107,6 +4112,15 @@ try {
         Assert-Test ($controllerSource.Contains('NativeSingleAttackWeaponResolver.Resolve(mount)') -and
             $commandSource.Contains('childAttack.PlannedAttack.Hand != expectedMountPrimary.Slot') -and
             -not $commandSource.Contains('mount.Body.AdditionalLimbs.FirstOrDefault')) 'Mammoth action does not retain and verify the exact native primary selection across click and child initialization'
+        Assert-Test ($commandSource.Contains('var requiresApproach = !childAttack.IsPairEnoughClose;') -and
+            $commandSource.Contains('if (!childAttack.TryPrepareNativeStartAdmission())') -and
+            $singleAttackSource.Contains('GeometryUtils.MechanicsDistance(mount.Position, target.Position)') -and
+            $singleAttackSource.Contains('GeometryUtils.MechanicsDistance(rider.Position, target.Position)') -and
+            $singleAttackSource.Contains('MountedCombatSpatialPolicy.TryCalculateNativeExecutorAdmissionRadius(') -and
+            $patchControllerSource.Contains('attack.TryCalculateNativeApproachRadius(unit, out radius)') -and
+            $spatialPolicySource.Contains('MaximumNativeExecutorRadiusAdjustment = 0.75f') -and
+            $spatialPolicySource.Contains('NativeAdmissionEpsilon = 0.001f') -and
+            -not $commandSource.Contains('var requiresApproach = !childAttack.IsUnitEnoughClose;')) 'mounted reach does not gate approach on the Mammoth origin before a bounded exact native rider-executor admission bridge'
         Assert-Test ($targetSource.Contains('groupsController.Groups.Remove(runtimeGroup);') -and
             $targetSource.Contains('runtimeGroup.Dispose();') -and
             $targetSource.Contains('!runtimeGroup.Empty()')) 'project-owned transient combat group is not removed only after exact empty-group proof'
@@ -4211,6 +4225,11 @@ try {
             @{name='initiative pending';apply={param($value) $value.combatEntry.riderInitiative=1.0}},
             @{name='game delta stopped';apply={param($value) $value.combatEntry.gameDeltaTime=0.0}},
             @{name='memory cleanup residue';apply={param($value) $value.combatEntry.memoryRemovedAtCleanup=$false}},
+            @{name='pair start range absent';apply={param($value) $value.command.pairRangeSatisfiedAtStart=$false}},
+            @{name='pair start outside radius';apply={param($value) $value.command.pairDistanceAtStart=4.051}},
+            @{name='native executor outside admission';apply={param($value) $value.command.nativeExecutorDistanceAtStart=4.2}},
+            @{name='native admission expansion escape';apply={param($value) $value.command.nativeAdmissionRadiusAtStart=4.751}},
+            @{name='native adjustment flag mismatch';apply={param($value) $value.command.nativeAdmissionAdjusted=$false}},
             @{name='dispatch stayed paused';apply={param($value) $value.dispatch.pausedAtClick=$true}},
             @{name='dispatch initiative unavailable';apply={param($value) $value.dispatch.riderCanActInCombat=$false}},
             @{name='dispatch hands busy';apply={param($value) $value.dispatch.riderHandsBusy=$true}},

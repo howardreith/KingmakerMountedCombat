@@ -20,6 +20,8 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("mounted combat range rejects invalid measurements", RejectsInvalidRange);
             runner.Run("mounted combat diagnostic placement admits the exact observed small radius", DiagnosticPlacementAdmitsObservedRadius);
             runner.Run("mounted combat diagnostic placement rejects insufficient radius and projection drift", DiagnosticPlacementRejectsUnsafeBounds);
+            runner.Run("mounted combat native admission bridges only an in-range Mammoth origin", NativeAdmissionUsesMountOrigin);
+            runner.Run("mounted combat native admission rejects pair range and offset escape", NativeAdmissionRejectsUnsafeBounds);
             runner.Run("mounted pair ends only the exact Mammoth turn", SuppressesOnlyMountTurn);
             runner.Run("mounted pair delegates movement only through the exact rider turn", DelegatesOnlyExactMovement);
             runner.Run("native single attack prefers an eligible primary hand", NativeSingleAttackPrefersPrimary);
@@ -175,6 +177,37 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(
                 !MountedCombatSpatialPolicy.IsBoundedDiagnosticTargetDistance(2.37020588f, 0.05f),
                 "A diagnostic target without bounded positive separation was accepted.");
+        }
+
+        private static void NativeAdmissionUsesMountOrigin()
+        {
+            float nativeRadius;
+            TestRunner.True(
+                MountedCombatSpatialPolicy.TryCalculateNativeExecutorAdmissionRadius(
+                    2.37020588f,
+                    2.25020623f,
+                    2.47820623f,
+                    out nativeRadius),
+                "An in-range Mammoth origin could not bridge the exact native rider executor offset.");
+            TestRunner.True(
+                Math.Abs(nativeRadius - 2.47920623f) < 0.00001f,
+                "Native rider admission did not retain the exact bounded executor distance plus epsilon.");
+
+            TestRunner.True(
+                MountedCombatSpatialPolicy.TryCalculateNativeExecutorAdmissionRadius(3f, 2.9f, 2.8f, out nativeRadius) &&
+                    Math.Abs(nativeRadius - 3f) < 0.00001f,
+                "An executor already inside the pair radius received an unnecessary range expansion.");
+        }
+
+        private static void NativeAdmissionRejectsUnsafeBounds()
+        {
+            float nativeRadius;
+            TestRunner.True(
+                !MountedCombatSpatialPolicy.TryCalculateNativeExecutorAdmissionRadius(2.37f, 2.421f, 2.4f, out nativeRadius),
+                "A target outside the Mammoth-origin tolerance received native attack admission.");
+            TestRunner.True(
+                !MountedCombatSpatialPolicy.TryCalculateNativeExecutorAdmissionRadius(2.37f, 2.3f, 3.121f, out nativeRadius),
+                "An excessive rider-executor radius expansion was admitted.");
         }
 
         private static void SuppressesOnlyMountTurn()

@@ -510,6 +510,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Exactly one native child attack started and exposed its native attack rule.");
             assertions.Check(outcome.RepathCount == 0,
                 "Stationary in-range attack required no delegated movement or repath.");
+            assertions.Check(outcome.PairRangeSatisfiedAtStart &&
+                    Math.Abs(outcome.PairApproachRadiusAtStart - pairApproachRadius) <= 0.0001f &&
+                    outcome.PairDistanceAtStart <= outcome.PairApproachRadiusAtStart + MountedCombatSpatialPolicy.RangeTolerance &&
+                    outcome.NativeExecutorDistanceAtStart <= outcome.NativeAdmissionRadiusAtStart + 0.0001f &&
+                    outcome.NativeAdmissionRadiusAtStart >= outcome.PairApproachRadiusAtStart &&
+                    outcome.NativeAdmissionRadiusAtStart - outcome.PairApproachRadiusAtStart <=
+                        MountedCombatSpatialPolicy.MaximumNativeExecutorRadiusAdjustment + 0.0001f,
+                "Mammoth-origin range exclusively gated the bounded native rider-executor admission bridge.");
             assertions.Check(outcome.RiderStandardCharged && riderStandardAfter > riderStandardBefore,
                 "Exactly the rider Standard wrapper charged an action resource.");
             assertions.Check(Math.Abs(mountStandardAfter - mountStandardBefore) <= 0.01f &&
@@ -1096,6 +1104,12 @@ namespace KingmakerMountedCombat.Diagnostics
             public int RepathCount { get; set; }
             public bool RiderStandardCharged { get; set; }
             public bool NativeAttackRuleObserved { get; set; }
+            public bool PairRangeSatisfiedAtStart { get; set; }
+            public float PairDistanceAtStart { get; set; }
+            public float PairApproachRadiusAtStart { get; set; }
+            public float NativeExecutorDistanceAtStart { get; set; }
+            public float NativeAdmissionRadiusAtStart { get; set; }
+            public bool NativeAdmissionAdjusted { get; set; }
 
             public static CombatCommandEvidence From(MountedPairAttackOutcome value)
             {
@@ -1108,7 +1122,13 @@ namespace KingmakerMountedCombat.Diagnostics
                     ChildAttackStartCount = value.ChildAttackStartCount,
                     RepathCount = value.RepathCount,
                     RiderStandardCharged = value.RiderStandardCharged,
-                    NativeAttackRuleObserved = value.NativeAttackRuleObserved
+                    NativeAttackRuleObserved = value.NativeAttackRuleObserved,
+                    PairRangeSatisfiedAtStart = value.PairRangeSatisfiedAtStart,
+                    PairDistanceAtStart = value.PairDistanceAtStart,
+                    PairApproachRadiusAtStart = value.PairApproachRadiusAtStart,
+                    NativeExecutorDistanceAtStart = value.NativeExecutorDistanceAtStart,
+                    NativeAdmissionRadiusAtStart = value.NativeAdmissionRadiusAtStart,
+                    NativeAdmissionAdjusted = value.NativeAdmissionAdjusted
                 };
             }
         }

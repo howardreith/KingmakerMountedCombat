@@ -25,6 +25,18 @@ namespace KingmakerMountedCombat.Integration
         public bool RiderStandardCharged { get; set; }
 
         public bool NativeAttackRuleObserved { get; set; }
+
+        public bool PairRangeSatisfiedAtStart { get; set; }
+
+        public float PairDistanceAtStart { get; set; }
+
+        public float PairApproachRadiusAtStart { get; set; }
+
+        public float NativeExecutorDistanceAtStart { get; set; }
+
+        public float NativeAdmissionRadiusAtStart { get; set; }
+
+        public bool NativeAdmissionAdjusted { get; set; }
     }
 
     internal sealed class MountedPairAttackCommand : UnitCommand
@@ -89,7 +101,7 @@ namespace KingmakerMountedCombat.Integration
                 RequireLiveExactPair();
                 CreateAndValidateChildAttack();
                 targetSnapshot = attackTarget.Position;
-                var requiresApproach = !childAttack.IsUnitEnoughClose;
+                var requiresApproach = !childAttack.IsPairEnoughClose;
                 if (!transaction.AcceptTarget(attackTarget.UniqueId, requiresApproach))
                 {
                     throw new InvalidOperationException("Mounted combat transaction rejected its exact target.");
@@ -207,7 +219,7 @@ namespace KingmakerMountedCombat.Integration
 
         private void TickApproach()
         {
-            if (childAttack.IsUnitEnoughClose)
+            if (childAttack.IsPairEnoughClose)
             {
                 StopDelegatedMove();
                 if (!transaction.Arrive(attackTarget.UniqueId))
@@ -242,7 +254,7 @@ namespace KingmakerMountedCombat.Integration
                 delegatedMove.Tick();
             }
 
-            if (delegatedMove.IsFinished && !childAttack.IsUnitEnoughClose)
+            if (delegatedMove.IsFinished && !childAttack.IsPairEnoughClose)
             {
                 Repath();
             }
@@ -286,9 +298,9 @@ namespace KingmakerMountedCombat.Integration
 
         private void StartChildAttack()
         {
-            if (!childAttack.IsUnitEnoughClose)
+            if (!childAttack.TryPrepareNativeStartAdmission())
             {
-                throw new InvalidOperationException("Native child attack remained outside the exact pair range.");
+                throw new InvalidOperationException("Native child attack failed the bounded Mammoth-origin admission bridge.");
             }
             StopDelegatedMove();
             mount.ForceLookAt(attackTarget.Position);
@@ -373,7 +385,13 @@ namespace KingmakerMountedCombat.Integration
                 ChildAttackStartCount = transaction.ChildAttackStartCount,
                 RepathCount = transaction.RepathCount,
                 RiderStandardCharged = IsActed,
-                NativeAttackRuleObserved = childAttack?.LastAttackRule != null
+                NativeAttackRuleObserved = childAttack?.LastAttackRule != null,
+                PairRangeSatisfiedAtStart = childAttack != null && childAttack.PairRangeSatisfiedAtNativeStart,
+                PairDistanceAtStart = childAttack?.PairDistanceAtNativeStart ?? 0f,
+                PairApproachRadiusAtStart = childAttack?.PairApproachRadius ?? 0f,
+                NativeExecutorDistanceAtStart = childAttack?.NativeExecutorDistanceAtStart ?? 0f,
+                NativeAdmissionRadiusAtStart = childAttack?.NativeAdmissionRadiusAtStart ?? 0f,
+                NativeAdmissionAdjusted = childAttack != null && childAttack.NativeAdmissionAdjustedAtStart
             });
         }
 

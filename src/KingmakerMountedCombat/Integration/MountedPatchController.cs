@@ -199,7 +199,7 @@ namespace KingmakerMountedCombat.Integration
             {
                 var attack = __instance as MountedPairSingleAttack;
                 float radius;
-                if (attack != null && attack.TryCalculatePairApproachRadius(unit, out radius))
+                if (attack != null && attack.TryCalculateNativeApproachRadius(unit, out radius))
                 {
                     __result = radius;
                 }

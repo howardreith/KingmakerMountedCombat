@@ -7300,7 +7300,15 @@ function Assert-KmcCombatScenarioEvidence {
 
         Assert-KmcExactProperties $record.command @(
             'action','actorId','targetId','result','childAttackStartCount','repathCount',
-            'riderStandardCharged','nativeAttackRuleObserved') 'combat command evidence'
+            'riderStandardCharged','nativeAttackRuleObserved','pairRangeSatisfiedAtStart',
+            'pairDistanceAtStart','pairApproachRadiusAtStart','nativeExecutorDistanceAtStart',
+            'nativeAdmissionRadiusAtStart','nativeAdmissionAdjusted') 'combat command evidence'
+        foreach ($name in @('pairRangeSatisfiedAtStart','nativeAdmissionAdjusted')) {
+            if ($record.command.$name -isnot [bool]) { throw "Combat command range evidence is not Boolean: $name" }
+        }
+        foreach ($name in @('pairDistanceAtStart','pairApproachRadiusAtStart','nativeExecutorDistanceAtStart','nativeAdmissionRadiusAtStart')) {
+            if (-not (Test-KmcJsonNumber $record.command.$name)) { throw "Combat command range evidence is not numeric: $name" }
+        }
         if ([string]$record.command.action -cne 'RiderMelee' -or
             [string]$record.command.actorId -cne [string]$record.riderId -or
             [string]$record.command.targetId -cne [string]$record.targetId -or
@@ -7308,6 +7316,21 @@ function Assert-KmcCombatScenarioEvidence {
             [long]$record.command.childAttackStartCount -ne 1 -or [long]$record.command.repathCount -ne 0 -or
             $record.command.riderStandardCharged -ne $true -or $record.command.nativeAttackRuleObserved -ne $true) {
             throw 'PASS combat command evidence does not prove one successful native rider attack.'
+        }
+        $pairStartRadius = [double]$record.command.pairApproachRadiusAtStart
+        $pairStartDistance = [double]$record.command.pairDistanceAtStart
+        $executorStartDistance = [double]$record.command.nativeExecutorDistanceAtStart
+        $nativeStartRadius = [double]$record.command.nativeAdmissionRadiusAtStart
+        $nativeAdjusted = [bool]$record.command.nativeAdmissionAdjusted
+        if ($record.command.pairRangeSatisfiedAtStart -ne $true -or
+            [Math]::Abs($pairStartRadius - [double]$record.pairApproachRadius) -gt 0.0001 -or
+            $pairStartDistance -gt ($pairStartRadius + 0.05) -or
+            $executorStartDistance -gt ($nativeStartRadius + 0.0001) -or
+            $nativeStartRadius -lt $pairStartRadius -or
+            ($nativeStartRadius - $pairStartRadius) -gt 0.7501 -or
+            ($nativeAdjusted -and ($nativeStartRadius - $pairStartRadius) -le 0.0001) -or
+            (-not $nativeAdjusted -and [Math]::Abs($nativeStartRadius - $pairStartRadius) -gt 0.0001)) {
+            throw 'PASS combat command evidence does not prove a bounded native executor bridge gated exclusively by Mammoth-origin range.'
         }
 
         Assert-KmcExactProperties $record.rules @(
