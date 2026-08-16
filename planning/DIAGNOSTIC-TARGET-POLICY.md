@@ -11,12 +11,20 @@ The source unit is the stock, generic, unnamed `AnimalCompanionUnitMammoth` blue
 Creation uses exact `Game.EntityCreator.SpawnUnit(BlueprintUnit,Vector3,Quaternion,SceneEntitiesState)` token `0x0600901F` against the current loaded area's main state. Placement must pass bounded open-position and path checks before activation. The target receives:
 
 - a new per-run GUID recorded in evidence;
-- a project-created runtime-only hostile faction whose only attack relation is the player faction;
+- a project-created runtime-only hostile faction whose only attack relation is the player faction, plus one exact per-run non-player unit group;
 - `GiveExperienceOnDeath=false` through tokens `0x06008338/39`;
 - no added inventory, loot, quest, dialogue, script, summon, or reward surface;
 - deterministic stationary/AI-disabled behavior unless a scenario explicitly requires target movement.
 
 The runtime faction and all source state are transient. The stock Mammoth blueprint itself is never modified. Target removal calls `EntityDataBase.Destroy` token `0x06007EA6`, drains the exact destruction controller, verifies absence from scene/global unit collections and commands, then destroys the runtime faction object. Removal is idempotent and is invoked for normal completion, target death, dismount, save/load/area boundary, mod disable, exception recovery, and process teardown.
+
+Exact local contracts and the first guarded diagnostic runs refine that lifecycle without weakening it:
+
+- hostility is owned by `UnitGroup.IsEnemy`, so the target is detached from its stock spawn group before faction switching and placed in one collision-checked `KMC.RuntimeHostile.<runId>` group containing only that target; a pre-spawn group snapshot ensures cleanup disposes only a newly created empty spawn group and never an unrelated pre-existing group;
+- the public `IsAIEnabled` getter intentionally reports true for non-controllable units, so the safety gate reads the pinned private `m_AiEnabled` backing field after using the public setter;
+- `ItemsCollection.HasLoot`, rather than stock body-inventory count, is the native no-loot predicate;
+- native single-attack selection uses the first additional-limb slot whose `HasWeapon` is true; the selected blueprint must separately prove `IsNatural=true` and `IsRanged=false`;
+- cleanup first proves entity absence, then exact empty-group removal and disposal, and finally waits across Unity's deferred object-destruction boundary before claiming the runtime faction removed. Combat evidence publishes all three proofs independently.
 
 ## Fail-closed gates
 

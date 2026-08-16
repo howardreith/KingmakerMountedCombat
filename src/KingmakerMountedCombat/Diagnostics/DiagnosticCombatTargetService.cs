@@ -1,11 +1,14 @@
 using System;
 using System.Linq;
+using System.Reflection;
 using Kingmaker;
 using Kingmaker.Blueprints;
+using Kingmaker.Controllers.Units;
 using Kingmaker.EntitySystem.Entities;
 using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Integration;
 using KingmakerMountedCombat.Logging;
+using Kingmaker.UnitLogic.Groups;
 using UnityEngine;
 
 namespace KingmakerMountedCombat.Diagnostics
@@ -14,10 +17,17 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         private const float MinimumPlacementDistance = 3f;
         private const float MaximumPlacementDistance = 20f;
+        private const string RuntimeGroupPrefix = "KMC.RuntimeHostile.";
+        private static readonly FieldInfo AiBackingField = typeof(UnitEntityData).GetField(
+            "m_AiEnabled",
+            BindingFlags.Instance | BindingFlags.NonPublic);
         private readonly IModLogger logger;
         private readonly DiagnosticCombatTargetLifecycle lifecycle = new DiagnosticCombatTargetLifecycle();
         private BlueprintFaction runtimeFaction;
+        private UnitGroup runtimeGroup;
+        private string runtimeGroupId;
         private UnitEntityData target;
+        private bool runtimeFactionDestroyPending;
         private bool disposed;
 
         public DiagnosticCombatTargetService(IModLogger logger)
@@ -30,6 +40,12 @@ namespace KingmakerMountedCombat.Diagnostics
         public string TargetId => target?.UniqueId;
 
         public DiagnosticCombatTargetState State => lifecycle.State;
+
+        public bool TargetEntityRemoved => target == null;
+
+        public bool RuntimeGroupRemoved => runtimeGroup == null && string.IsNullOrEmpty(runtimeGroupId);
+
+        public bool RuntimeFactionRemoved => runtimeFaction == null && !runtimeFactionDestroyPending;
 
         public UnitEntityData Spawn(
             UnitEntityData rider,
@@ -53,7 +69,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 var game = Game.Instance;
                 var state = game?.State?.LoadedAreaState?.MainState;
                 var playerFaction = game?.BlueprintRoot?.PlayerFaction;
-                if (state == null || game.EntityCreator == null || game.EntityDestroyer == null || playerFaction == null)
+                var groupsController = game?.UnitGroupsController;
+                if (state == null || game.EntityCreator == null || game.EntityDestroyer == null ||
+                    groupsController == null || playerFaction == null || AiBackingField == null ||
+                    AiBackingField.FieldType != typeof(bool))
                 {
                     throw new InvalidOperationException("Loaded-area target creation services are unavailable.");
                 }
@@ -69,34 +88,57 @@ namespace KingmakerMountedCombat.Diagnostics
                 runtimeFaction.hideFlags = HideFlags.HideAndDontSave;
                 runtimeFaction.AttackFactions = new[] { playerFaction };
                 runtimeFaction.AlwaysEnemy = true;
+                var proposedRuntimeGroupId = RuntimeGroupPrefix + runId;
+                if (groupsController.Groups.Any(group =>
+                    group != null && string.Equals(group.Id, proposedRuntimeGroupId, StringComparison.Ordinal)))
+                {
+                    throw new InvalidOperationException("Diagnostic target runtime group identity already exists.");
+                }
+                runtimeGroupId = proposedRuntimeGroupId;
 
+                var groupsBeforeSpawn = groupsController.Groups.Where(group => group != null).ToArray();
                 target = game.EntityCreator.SpawnUnit(blueprint, position, Quaternion.identity, state);
                 game.EntityCreator.Tick();
                 if (target == null || !target.IsInState || target.View == null || target.View.AgentASP == null)
                 {
                     throw new InvalidOperationException("Diagnostic Mammoth target did not enter the exact loaded state.");
                 }
+                var spawnGroup = target.Group;
+                target.GroupId = runtimeGroupId;
+                var detachedFromSpawnGroup = ReleaseDetachedSpawnGroup(
+                    groupsController,
+                    groupsBeforeSpawn,
+                    spawnGroup,
+                    target);
                 target.Descriptor.SwitchFactions(runtimeFaction, true);
+                runtimeGroup = target.Group;
                 target.GiveExperienceOnDeath = false;
                 target.IsAIEnabled = false;
                 target.HoldState = true;
                 target.Commands.InterruptAll();
 
-                var primary = target.Body?.AdditionalLimbs?.FirstOrDefault(slot => slot.HasWeapon && slot.HasItem)?.MaybeWeapon;
-                var zeroInventory = target.Inventory == null || target.Inventory.Items.Count == 0;
+                var primary = target.Body?.AdditionalLimbs?.FirstOrDefault(slot => slot.HasWeapon)?.MaybeWeapon;
+                var dedicatedRuntimeGroup = detachedFromSpawnGroup && runtimeGroup != null &&
+                    !runtimeGroup.IsPlayerParty &&
+                    string.Equals(runtimeGroup.Id, runtimeGroupId, StringComparison.Ordinal) &&
+                    runtimeGroup.Count == 1 && runtimeGroup[0] == target;
+                var inventoryHasNoLoot = target.Inventory == null || !target.Inventory.HasLoot;
+                var aiBackingDisabled = !(bool)AiBackingField.GetValue(target);
                 var safety = new DiagnosticCombatTargetSafetySnapshot(
                     target.Blueprint == blueprint,
                     !target.IsDirectlyControllable,
                     !target.Descriptor.IsPet,
                     target.Descriptor.Master.Value == null,
                     target.Faction == runtimeFaction,
+                    dedicatedRuntimeGroup,
                     target.IsEnemy(rider),
                     rider.IsEnemy(target),
                     !target.GiveExperienceOnDeath,
-                    !target.IsAIEnabled,
+                    aiBackingDisabled,
                     target.Commands.Empty,
-                    zeroInventory,
+                    inventoryHasNoLoot,
                     primary?.Blueprint != null,
+                    primary?.Blueprint != null && primary.Blueprint.IsNatural,
                     primary?.Blueprint != null && !primary.Blueprint.IsRanged);
                 if (!lifecycle.Activate("pending:" + runId, safety.AllPassed))
                 {
@@ -107,13 +149,16 @@ namespace KingmakerMountedCombat.Diagnostics
                 logger.Info("Created runtime-only diagnostic Mammoth target " + target.UniqueId + ".");
                 return target;
             }
-            catch
+            catch (Exception exception)
             {
-                BestEffortDestroy();
                 lifecycle.RequestDestroy("failed creation cleanup");
-                if (!lifecycle.ConfirmRemoved(lifecycle.TargetId, true))
+                var cleanupPassed = BestEffortDestroy();
+                if (!lifecycle.ConfirmRemoved(lifecycle.TargetId, cleanupPassed))
                 {
                     lifecycle.Fault();
+                    throw new InvalidOperationException(
+                        "Diagnostic target creation failed and exact cleanup could not be proven.",
+                        exception);
                 }
                 throw;
             }
@@ -121,29 +166,15 @@ namespace KingmakerMountedCombat.Diagnostics
 
         public bool DestroyAndVerify()
         {
-            if (target == null)
+            if (TargetEntityRemoved && RuntimeGroupRemoved && RuntimeFactionRemoved)
             {
                 return State == DiagnosticCombatTargetState.Absent ||
                     State == DiagnosticCombatTargetState.Removed;
             }
 
             lifecycle.RequestDestroy("bounded cleanup");
-            target.Commands.InterruptAll();
-            target.View?.StopMoving();
-            target.Destroy();
-            Game.Instance?.EntityDestroyer?.Tick();
-            var zeroResidue = !target.IsInState &&
-                (Game.Instance?.State?.Units == null || !Game.Instance.State.Units.Contains(target));
+            var zeroResidue = BestEffortDestroy();
             var confirmed = lifecycle.ConfirmRemoved(lifecycle.TargetId, zeroResidue);
-            if (zeroResidue)
-            {
-                target = null;
-                if (runtimeFaction != null)
-                {
-                    UnityEngine.Object.Destroy(runtimeFaction);
-                    runtimeFaction = null;
-                }
-            }
             return zeroResidue && confirmed;
         }
 
@@ -160,26 +191,113 @@ namespace KingmakerMountedCombat.Diagnostics
             disposed = true;
         }
 
-        private void BestEffortDestroy()
+        private bool BestEffortDestroy()
         {
-            try
+            var current = target;
+            if (current != null)
             {
-                if (target != null)
-                {
-                    target.Commands.InterruptAll();
-                    target.Destroy();
-                    Game.Instance?.EntityDestroyer?.Tick();
-                    target = null;
-                }
+                current.Commands.InterruptAll();
+                current.View?.StopMoving();
+                current.Destroy();
+                Game.Instance?.EntityDestroyer?.Tick();
             }
-            finally
+            var targetRemoved = current == null ||
+                (!current.IsInState &&
+                    (Game.Instance?.State?.Units == null || !Game.Instance.State.Units.Contains(current)));
+            if (targetRemoved)
             {
-                if (runtimeFaction != null)
-                {
-                    UnityEngine.Object.Destroy(runtimeFaction);
-                    runtimeFaction = null;
-                }
+                target = null;
             }
+            var groupRemoved = targetRemoved && ReleaseRuntimeGroup();
+            if (targetRemoved && groupRemoved && runtimeFaction != null && !runtimeFactionDestroyPending)
+            {
+                UnityEngine.Object.Destroy(runtimeFaction);
+                runtimeFactionDestroyPending = true;
+            }
+            if (targetRemoved && groupRemoved && runtimeFaction == null)
+            {
+                runtimeFaction = null;
+                runtimeFactionDestroyPending = false;
+            }
+            return targetRemoved && groupRemoved && RuntimeFactionRemoved;
+        }
+
+        private bool ReleaseRuntimeGroup()
+        {
+            if (runtimeGroup == null)
+            {
+                if (string.IsNullOrEmpty(runtimeGroupId))
+                {
+                    return true;
+                }
+                var lookupController = Game.Instance?.UnitGroupsController;
+                if (lookupController == null)
+                {
+                    return false;
+                }
+                var matchingGroups = lookupController.Groups.Where(group =>
+                    group != null && string.Equals(group.Id, runtimeGroupId, StringComparison.Ordinal)).ToArray();
+                if (matchingGroups.Length == 0)
+                {
+                    runtimeGroupId = null;
+                    return true;
+                }
+                if (matchingGroups.Length != 1)
+                {
+                    return false;
+                }
+                runtimeGroup = matchingGroups[0];
+            }
+            var groupsController = Game.Instance?.UnitGroupsController;
+            if (groupsController == null || !runtimeGroup.Empty())
+            {
+                return false;
+            }
+            if (groupsController.Groups.Any(group =>
+                group != runtimeGroup && group != null &&
+                string.Equals(group.Id, runtimeGroupId, StringComparison.Ordinal)))
+            {
+                return false;
+            }
+            groupsController.Groups.Remove(runtimeGroup);
+            if (!runtimeGroup.Disposed)
+            {
+                runtimeGroup.Dispose();
+            }
+            var removed = runtimeGroup.Disposed && !groupsController.Groups.Contains(runtimeGroup);
+            if (removed)
+            {
+                runtimeGroup = null;
+                runtimeGroupId = null;
+            }
+            return removed;
+        }
+
+        private static bool ReleaseDetachedSpawnGroup(
+            UnitGroupsController groupsController,
+            UnitGroup[] groupsBeforeSpawn,
+            UnitGroup spawnGroup,
+            UnitEntityData spawnedTarget)
+        {
+            if (groupsController == null || groupsBeforeSpawn == null || spawnGroup == null ||
+                spawnGroup.Any(unit => unit == spawnedTarget))
+            {
+                return false;
+            }
+            if (groupsBeforeSpawn.Contains(spawnGroup))
+            {
+                return true;
+            }
+            if (spawnGroup.IsPlayerParty || !spawnGroup.Empty())
+            {
+                return false;
+            }
+            groupsController.Groups.Remove(spawnGroup);
+            if (!spawnGroup.Disposed)
+            {
+                spawnGroup.Dispose();
+            }
+            return spawnGroup.Disposed && !groupsController.Groups.Contains(spawnGroup);
         }
 
         private static void ValidatePlacement(Vector3 riderPosition, Vector3 targetPosition)

@@ -184,11 +184,11 @@ namespace KingmakerMountedCombat.Tests
         private static void TargetSafetySnapshotReportsExactFailures()
         {
             var snapshot = new DiagnosticCombatTargetSafetySnapshot(
-                true, true, true, true, true, true, false,
-                true, true, true, false, true, false);
+                true, true, true, true, true, true, true, false,
+                true, true, true, false, true, true, false);
             TestRunner.True(!snapshot.AllPassed, "A transient target with failed safety gates passed.");
             TestRunner.Equal(
-                "rider-treats-target-as-enemy,inventory-empty,primary-natural-weapon-is-melee",
+                "rider-treats-target-as-enemy,inventory-has-no-loot,primary-natural-weapon-is-melee",
                 snapshot.FailureSummary,
                 "Transient target safety failures were not reported in exact gate order.");
         }
@@ -196,8 +196,8 @@ namespace KingmakerMountedCombat.Tests
         private static DiagnosticCombatTargetSafetySnapshot TargetSafetySnapshot()
         {
             return new DiagnosticCombatTargetSafetySnapshot(
-                true, true, true, true, true, true, true,
-                true, true, true, true, true, true);
+                true, true, true, true, true, true, true, true,
+                true, true, true, true, true, true, true);
         }
 
         private static MountedCombatTransaction TargetedTransaction(bool requiresApproach)

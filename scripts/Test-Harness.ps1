@@ -1103,7 +1103,8 @@ function New-TestCombatEvidenceRecord {
             attachmentLeaseAtEnd=$false;residueAtEnd=$false
         }
         cleanup=[ordered]@{
-            targetRemoved=$true;relationshipClean=$true;combatCleared=$true;relationshipState='Unmounted'
+            targetRemoved=$true;targetEntityRemoved=$true;runtimeGroupRemoved=$true;runtimeFactionRemoved=$true
+            relationshipClean=$true;combatCleared=$true;relationshipState='Unmounted'
             residualState=$false;presentationResidual=$false
         }
         selection=@($rider);assertionPassCount=25;assertionFailCount=0;errors=@()
@@ -4040,6 +4041,43 @@ try {
     }
 
     $combatRequestPath = Join-Path $testRoot 'runtime-request-combat.json'
+
+    Invoke-HarnessTest 'combat target source uses isolated group raw AI no-loot and native single-limb semantics' {
+        $targetSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\DiagnosticCombatTargetService.cs'))
+        $controllerSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedCombatController.cs'))
+        $commandSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPairAttackCommand.cs'))
+        $detachIndex = $targetSource.IndexOf('target.GroupId = runtimeGroupId;', [StringComparison]::Ordinal)
+        $factionIndex = $targetSource.IndexOf('target.Descriptor.SwitchFactions(runtimeFaction, true);', [StringComparison]::Ordinal)
+        $groupIndex = $targetSource.IndexOf('runtimeGroup = target.Group;', [StringComparison]::Ordinal)
+        $groupSnapshotIndex = $targetSource.IndexOf('var groupsBeforeSpawn = groupsController.Groups.Where', [StringComparison]::Ordinal)
+        $spawnIndex = $targetSource.IndexOf('target = game.EntityCreator.SpawnUnit', [StringComparison]::Ordinal)
+        Assert-Test ($groupSnapshotIndex -ge 0 -and $spawnIndex -gt $groupSnapshotIndex -and
+            $detachIndex -gt $spawnIndex -and $factionIndex -gt $detachIndex -and $groupIndex -gt $factionIndex) 'diagnostic target can contaminate its spawn group faction cache before dedicated-group isolation'
+        Assert-Test ($targetSource.Contains('groupsBeforeSpawn.Contains(spawnGroup)') -and
+            $targetSource.Contains('spawnGroup.IsPlayerParty || !spawnGroup.Empty()')) 'diagnostic target can dispose an unowned or non-empty pre-existing spawn group'
+        Assert-Test ($targetSource.Contains('!(bool)AiBackingField.GetValue(target)') -and
+            -not $targetSource.Contains('!target.IsAIEnabled')) 'diagnostic target still relies on the always-true non-controllable IsAIEnabled facade instead of its pinned backing state'
+        Assert-Test ($targetSource.Contains('target.Inventory == null || !target.Inventory.HasLoot') -and
+            -not $targetSource.Contains('target.Inventory.Items.Count == 0')) 'diagnostic target confuses stock non-loot body inventory with loot-bearing inventory'
+        foreach ($source in @($targetSource,$controllerSource,$commandSource)) {
+            Assert-Test ($source.Contains('FirstOrDefault(slot => slot.HasWeapon)') -and
+                -not $source.Contains('FirstOrDefault(slot => slot.HasWeapon && slot.HasItem)')) 'mounted single-attack selection diverges from native HasWeapon semantics'
+        }
+        Assert-Test ($targetSource.Contains('groupsController.Groups.Remove(runtimeGroup);') -and
+            $targetSource.Contains('runtimeGroup.Dispose();') -and
+            $targetSource.Contains('!runtimeGroup.Empty()')) 'project-owned transient combat group is not removed only after exact empty-group proof'
+        Assert-Test ($targetSource.Contains('runtimeFactionDestroyPending = true;') -and
+            $targetSource.Contains('runtimeFactionDestroyPending = false;') -and
+            $targetSource.Contains('UnityEngine.Object.Destroy(runtimeFaction);')) 'runtime faction destruction is not retained and verified across the deferred Unity destruction boundary'
+        $engineSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeCombatScenarioEngine.cs'))
+        $combatValidatorSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\runtime\RuntimeHarness.Common.ps1'))
+        foreach ($field in @('TargetEntityRemoved','RuntimeGroupRemoved','RuntimeFactionRemoved')) {
+            $jsonField = [char]::ToLowerInvariant($field[0]) + $field.Substring(1)
+            Assert-Test ($engineSource.Contains("$field =") -and
+                $combatValidatorSource.Contains("'$jsonField'")) "combat cleanup evidence does not bind exact $field state"
+        }
+    }
+
     $combatRequest = Copy-TestJsonValue $v2Request
     $combatRequest.runId = 'combat-evidence-test'
     $combatRequest.scenario = 'mounted-rider-melee-hit-rt'
@@ -4065,7 +4103,10 @@ try {
             @{name='mount Standard cost';apply={param($value) $value.resources.mountStandardAfter=5.0}},
             @{name='delegated movement';apply={param($value) $value.command.repathCount=1;$value.movement.repathCount=1}},
             @{name='pose failure';apply={param($value) $value.pose.healthyAtOutcome=$false}},
-            @{name='target residue';apply={param($value) $value.cleanup.targetRemoved=$false}}
+            @{name='target residue';apply={param($value) $value.cleanup.targetRemoved=$false}},
+            @{name='target entity residue';apply={param($value) $value.cleanup.targetEntityRemoved=$false}},
+            @{name='target group residue';apply={param($value) $value.cleanup.runtimeGroupRemoved=$false}},
+            @{name='target faction residue';apply={param($value) $value.cleanup.runtimeFactionRemoved=$false}}
         )
         foreach ($mutation in $mutations) {
             $candidate = Copy-TestJsonValue $combatRecord

@@ -319,9 +319,11 @@ namespace KingmakerMountedCombat.Integration
             }
             if (action == MountedCombatActionKind.MountPrimaryNatural)
             {
-                var primary = mount.Body.AdditionalLimbs.FirstOrDefault(slot => slot.HasWeapon && slot.HasItem);
+                var primary = mount.Body.AdditionalLimbs.FirstOrDefault(slot => slot.HasWeapon);
                 if (primary == null || childAttack.PlannedAttack.Hand != primary ||
-                    childAttack.PlannedAttack.Weapon != primary.MaybeWeapon)
+                    childAttack.PlannedAttack.Weapon != primary.MaybeWeapon ||
+                    primary.MaybeWeapon?.Blueprint == null ||
+                    !primary.MaybeWeapon.Blueprint.IsNatural || primary.MaybeWeapon.Blueprint.IsRanged)
                 {
                     throw new InvalidOperationException("Native Mammoth attack was not the exact first primary natural limb.");
                 }

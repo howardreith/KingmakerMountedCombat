@@ -88,6 +88,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool clickAccepted;
         private MountedPairAttackOutcome outcome;
         private bool targetRemoved;
+        private bool targetEntityRemoved;
+        private bool targetRuntimeGroupRemoved;
+        private bool targetRuntimeFactionRemoved;
         private bool relationshipClean;
         private bool combatCleared;
         private bool riderAgentInitiallyEnabled;
@@ -466,12 +469,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (targetService != null)
                 {
                     targetRemoved = targetService.DestroyAndVerify();
-                    assertions.Check(targetRemoved,
-                        "Runtime-only combat target was destroyed with zero entity residue.");
+                    CaptureTargetCleanupState();
                 }
                 else
                 {
                     targetRemoved = true;
+                    targetEntityRemoved = true;
+                    targetRuntimeGroupRemoved = true;
+                    targetRuntimeFactionRemoved = true;
                 }
             }
             catch (Exception exception)
@@ -490,15 +495,24 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
+            if (targetService != null && !targetRemoved)
+            {
+                targetRemoved = targetService.DestroyAndVerify();
+                CaptureTargetCleanupState();
+            }
+
             combatCleared = (rider == null || !rider.IsInCombat) &&
                 (mount == null || !mount.IsInCombat) &&
                 (target == null || !target.IsInState || !target.IsInCombat) &&
                 !(Game.Instance?.Player?.IsInCombat ?? false);
-            if (!combatCleared && rowClock.Elapsed.TotalSeconds < RowTimeoutSeconds)
+            if ((!combatCleared || !targetRemoved) && rowClock.Elapsed.TotalSeconds < RowTimeoutSeconds)
             {
                 return;
             }
 
+            assertions.Check(targetRemoved && targetEntityRemoved &&
+                    targetRuntimeGroupRemoved && targetRuntimeFactionRemoved,
+                "Runtime-only combat target, project group, and runtime faction were removed with zero residue.");
             assertions.Check(combatCleared,
                 "Pair, target, and party left combat before final evidence.");
             assertions.Check(relationship.State == RelationshipState.Unmounted &&
@@ -605,6 +619,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 Cleanup = new CombatCleanupEvidence
                 {
                     TargetRemoved = targetRemoved,
+                    TargetEntityRemoved = targetEntityRemoved,
+                    RuntimeGroupRemoved = targetRuntimeGroupRemoved,
+                    RuntimeFactionRemoved = targetRuntimeFactionRemoved,
                     RelationshipClean = relationshipClean,
                     CombatCleared = combatCleared,
                     RelationshipState = relationship.State.ToString(),
@@ -702,6 +719,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
             }
             catch (Exception exception) { errors.Add("Combat target disposal cleanup failed: " + exception.Message); }
+        }
+
+        private void CaptureTargetCleanupState()
+        {
+            targetEntityRemoved = targetService != null && targetService.TargetEntityRemoved;
+            targetRuntimeGroupRemoved = targetService != null && targetService.RuntimeGroupRemoved;
+            targetRuntimeFactionRemoved = targetService != null && targetService.RuntimeFactionRemoved;
         }
 
         private static void TryLeaveCombat(UnitEntityData unit)
@@ -923,6 +947,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private sealed class CombatCleanupEvidence
         {
             public bool TargetRemoved { get; set; }
+            public bool TargetEntityRemoved { get; set; }
+            public bool RuntimeGroupRemoved { get; set; }
+            public bool RuntimeFactionRemoved { get; set; }
             public bool RelationshipClean { get; set; }
             public bool CombatCleared { get; set; }
             public string RelationshipState { get; set; }

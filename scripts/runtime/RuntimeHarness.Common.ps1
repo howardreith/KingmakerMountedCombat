@@ -7182,7 +7182,8 @@ function Assert-KmcCombatScenarioEvidence {
     Assert-KmcExactProperties $record.pose @(
         'profileId','healthyAtOutcome','configuredAtEnd','attachmentLeaseAtEnd','residueAtEnd') 'combat pose evidence'
     Assert-KmcExactProperties $record.cleanup @(
-        'targetRemoved','relationshipClean','combatCleared','relationshipState','residualState','presentationResidual') 'combat cleanup evidence'
+        'targetRemoved','targetEntityRemoved','runtimeGroupRemoved','runtimeFactionRemoved',
+        'relationshipClean','combatCleared','relationshipState','residualState','presentationResidual') 'combat cleanup evidence'
 
     $requirePass = [string]$Status -ceq 'PASS'
     if ($requirePass) {
@@ -7253,7 +7254,9 @@ function Assert-KmcCombatScenarioEvidence {
             $record.pose.attachmentLeaseAtEnd -ne $false -or $record.pose.residueAtEnd -ne $false) {
             throw 'PASS combat pose evidence does not retain the accepted Mammoth profile through outcome and cleanup.'
         }
-        if ($record.cleanup.targetRemoved -ne $true -or $record.cleanup.relationshipClean -ne $true -or
+        if ($record.cleanup.targetRemoved -ne $true -or $record.cleanup.targetEntityRemoved -ne $true -or
+            $record.cleanup.runtimeGroupRemoved -ne $true -or $record.cleanup.runtimeFactionRemoved -ne $true -or
+            $record.cleanup.relationshipClean -ne $true -or
             $record.cleanup.combatCleared -ne $true -or [string]$record.cleanup.relationshipState -cne 'Unmounted' -or
             $record.cleanup.residualState -ne $false -or $record.cleanup.presentationResidual -ne $false) {
             throw 'PASS combat cleanup evidence is not exact and residue-free.'

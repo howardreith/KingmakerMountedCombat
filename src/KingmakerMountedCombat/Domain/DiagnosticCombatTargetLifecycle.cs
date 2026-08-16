@@ -88,13 +88,15 @@ namespace KingmakerMountedCombat.Domain
             bool notPet,
             bool noMaster,
             bool exactRuntimeFaction,
+            bool dedicatedRuntimeGroup,
             bool targetTreatsRiderAsEnemy,
             bool riderTreatsTargetAsEnemy,
             bool noExperienceOnDeath,
-            bool aiDisabled,
+            bool aiBackingDisabled,
             bool commandsEmpty,
-            bool inventoryEmpty,
+            bool inventoryHasNoLoot,
             bool primaryNaturalWeaponPresent,
+            bool primaryNaturalWeaponIsNatural,
             bool primaryNaturalWeaponIsMelee)
         {
             var failures = new List<string>();
@@ -103,13 +105,15 @@ namespace KingmakerMountedCombat.Domain
             AddFailure(failures, notPet, "not-pet");
             AddFailure(failures, noMaster, "no-master");
             AddFailure(failures, exactRuntimeFaction, "exact-runtime-faction");
+            AddFailure(failures, dedicatedRuntimeGroup, "dedicated-runtime-group");
             AddFailure(failures, targetTreatsRiderAsEnemy, "target-treats-rider-as-enemy");
             AddFailure(failures, riderTreatsTargetAsEnemy, "rider-treats-target-as-enemy");
             AddFailure(failures, noExperienceOnDeath, "no-experience-on-death");
-            AddFailure(failures, aiDisabled, "ai-disabled");
+            AddFailure(failures, aiBackingDisabled, "ai-backing-disabled");
             AddFailure(failures, commandsEmpty, "commands-empty");
-            AddFailure(failures, inventoryEmpty, "inventory-empty");
+            AddFailure(failures, inventoryHasNoLoot, "inventory-has-no-loot");
             AddFailure(failures, primaryNaturalWeaponPresent, "primary-natural-weapon-present");
+            AddFailure(failures, primaryNaturalWeaponIsNatural, "primary-natural-weapon-is-natural");
             AddFailure(failures, primaryNaturalWeaponIsMelee, "primary-natural-weapon-is-melee");
             failedGateNames = failures.ToArray();
         }
