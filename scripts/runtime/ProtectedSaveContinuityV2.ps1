@@ -675,10 +675,10 @@ function Assert-KmcQualifiedWorkingProtectedSaveContinuity {
         [Parameter(Mandatory = $true)][ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$ExpectedProtectedSaveContinuityEpochId,
         [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedProtectedSaveContinuityAuthoritySha256,
         [string]$ExpectedProtectedAutoSaveName,
-        [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedProtectedAutoSaveSha256,
+        [ValidatePattern('^(?:[0-9a-f]{64})?$')][string]$ExpectedProtectedAutoSaveSha256,
         [string]$ExpectedProtectedQuickSaveName,
-        [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedProtectedQuickSaveSha256,
-        [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedProtectedSavePinSetSha256
+        [ValidatePattern('^(?:[0-9a-f]{64})?$')][string]$ExpectedProtectedQuickSaveSha256,
+        [ValidatePattern('^(?:[0-9a-f]{64})?$')][string]$ExpectedProtectedSavePinSetSha256
     )
     $fullSaveRoot = [IO.Path]::GetFullPath($SaveRoot).TrimEnd('\')
     $fullStateRoot = [IO.Path]::GetFullPath($StateRoot).TrimEnd('\')

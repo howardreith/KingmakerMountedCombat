@@ -1907,6 +1907,15 @@ try {
         }
         $preflight = Assert-KmcQualifiedWorkingProtectedSaveContinuity @continuityArguments
         Assert-Test ([int]$preflight.schemaVersion -eq 2) 'schema-v2 compatibility entry point returned the wrong schema'
+        $runtimeShapeArguments = @{}
+        foreach ($key in $continuityArguments.Keys) { $runtimeShapeArguments[$key] = $continuityArguments[$key] }
+        $runtimeShapeArguments.ExpectedProtectedAutoSaveName = ''
+        $runtimeShapeArguments.ExpectedProtectedAutoSaveSha256 = ''
+        $runtimeShapeArguments.ExpectedProtectedQuickSaveName = ''
+        $runtimeShapeArguments.ExpectedProtectedQuickSaveSha256 = ''
+        $runtimeShape = Assert-KmcQualifiedWorkingProtectedSaveContinuity @runtimeShapeArguments
+        Assert-Test ([int]$runtimeShape.schemaVersion -eq 2 -and
+            [string]$runtimeShape.protectedSavePinSetSha256 -ceq $epoch.protectedSavePinSetSha256) 'schema-v2 compatibility entry point rejected the runtime launcher explicit-empty legacy parameter shape'
         $record = $preflight.record
         Assert-Test ([string]$record.parentAuthority.path -ceq [IO.Path]::GetFullPath($epoch.parentAuthorityPath)) 'schema-v2 parent path is not exact'
         Assert-Test ([string]$record.parentAuthority.epochId -ceq $epoch.parentEpoch.epochId) 'schema-v2 parent epoch is not exact'
