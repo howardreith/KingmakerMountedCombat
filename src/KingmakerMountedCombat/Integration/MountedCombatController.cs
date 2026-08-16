@@ -48,6 +48,43 @@ namespace KingmakerMountedCombat.Integration
 
         public bool HasActiveCommand => activeCommand != null && !activeCommand.IsFinished;
 
+        internal string DescribeActiveCommandReadiness()
+        {
+            var command = activeCommand;
+            var rider = relationship.Rider;
+            if (command == null)
+            {
+                return "active=false";
+            }
+
+            var commands = rider?.Commands;
+            var game = Game.Instance;
+            var handsEquipment = game?.HandsEquipmentController;
+            var inStandardSlot = commands != null && commands.Standard == command;
+            var queued = commands != null && commands.Queue.Contains(command);
+            var handsBusy = rider != null && rider.AreHandsBusyWithAnimation;
+            var equipmentUpdateScheduled = rider != null && handsEquipment != null &&
+                handsEquipment.IsUpdateScheduledFor(rider);
+            var canAct = rider?.Descriptor?.State != null && rider.Descriptor.State.CanAct;
+            var canActInCombat = rider?.CombatState != null && rider.CombatState.CanActInCombat;
+            var hasCooldown = rider?.CombatState != null && rider.CombatState.HasCooldownForCommand(command);
+            return "active=true" +
+                ";inStandardSlot=" + inStandardSlot +
+                ";queued=" + queued +
+                ";started=" + command.IsStarted +
+                ";running=" + command.IsRunning +
+                ";finished=" + command.IsFinished +
+                ";result=" + command.Result +
+                ";unitEnoughClose=" + command.IsUnitEnoughClose +
+                ";handsBusy=" + handsBusy +
+                ";dontWaitForHands=" + command.DontWaitForHands +
+                ";equipmentUpdateScheduled=" + equipmentUpdateScheduled +
+                ";canAct=" + canAct +
+                ";canActInCombat=" + canActInCombat +
+                ";ignoreCooldown=" + command.IsIgnoreCooldown +
+                ";hasCooldown=" + hasCooldown;
+        }
+
         public bool CanShowCombatActions =>
             !disposed &&
             settings.EnableUnsafeMovementExperiment &&
@@ -118,7 +155,9 @@ namespace KingmakerMountedCombat.Integration
                 activeCommand = command;
                 LastOutcome = null;
                 relationship.Rider.Commands.Run(command);
-                if (command.Executor != relationship.Rider || command.IsFinished)
+                if (command.Executor != relationship.Rider || command.IsFinished ||
+                    (!relationship.Rider.Commands.Contains(command) &&
+                     !relationship.Rider.Commands.Queue.Contains(command)))
                 {
                     activeCommand = null;
                     LastFeedback = "Mounted pair command failed to enter the rider Standard slot.";

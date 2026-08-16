@@ -4105,6 +4105,15 @@ try {
         $nativeClickIndex = $engineSource.IndexOf('new ClickUnitHandler().OnClick(', [StringComparison]::Ordinal)
         Assert-Test ($prepareClickIndex -ge 0 -and $nativeClickIndex -gt $prepareClickIndex -and
             $engineSource.Contains('if (!clickAccepted || combat.ArmedAction != MountedCombatActionKind.None || !combat.HasActiveCommand)')) 'combat runtime does not prepare exact target visibility and stop immediately after a rejected Harmony click'
+        Assert-Test ($controllerSource.Contains('DescribeActiveCommandReadiness()') -and
+            $controllerSource.Contains('commands.Standard == command') -and
+            $controllerSource.Contains('commands.Queue.Contains(command)') -and
+            $controllerSource.Contains('rider.AreHandsBusyWithAnimation') -and
+            $controllerSource.Contains('handsEquipment.IsUpdateScheduledFor(rider)') -and
+            $controllerSource.Contains('rider.CombatState.HasCooldownForCommand(command)') -and
+            $engineSource.Contains('Command readiness: " + combat.DescribeActiveCommandReadiness()')) 'combat timeout does not preserve exact native command admission and start-gate evidence'
+        Assert-Test ($controllerSource.Contains('!relationship.Rider.Commands.Contains(command) &&') -and
+            $controllerSource.Contains('!relationship.Rider.Commands.Queue.Contains(command)')) 'combat click accepts a command that native UnitCommands neither owns nor queues'
         foreach ($field in @('TargetEntityRemoved','RuntimeGroupRemoved','RuntimeFactionRemoved')) {
             $jsonField = [char]::ToLowerInvariant($field[0]) + $field.Substring(1)
             Assert-Test ($engineSource.Contains("$field =") -and

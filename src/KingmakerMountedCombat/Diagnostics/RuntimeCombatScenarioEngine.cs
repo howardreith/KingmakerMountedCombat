@@ -169,7 +169,8 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (rowClock.Elapsed.TotalSeconds > RowTimeoutSeconds && step != CombatEngineStep.AwaitCleanupFrame)
                 {
-                    assertions.Fail("Combat row exceeded its " + RowTimeoutSeconds + " second monotonic deadline at " + step + ".");
+                    assertions.Fail("Combat row exceeded its " + RowTimeoutSeconds + " second monotonic deadline at " + step +
+                        ". Command readiness: " + combat.DescribeActiveCommandReadiness() + ".");
                     BeginCleanup();
                     return;
                 }
