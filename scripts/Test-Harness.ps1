@@ -4069,6 +4069,7 @@ try {
         $controllerSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedCombatController.cs'))
         $commandSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPairAttackCommand.cs'))
         $singleAttackSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPairSingleAttack.cs'))
+        $ruleProbeSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\MountedCombatRuleProbe.cs'))
         $patchControllerSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPatchController.cs'))
         $spatialPolicySource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedCombatSpatialPolicy.cs'))
         $resolverSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\NativeSingleAttackWeaponResolver.cs'))
@@ -4125,6 +4126,17 @@ try {
             $commandSource.Contains('transaction.ChildAttackStartCount)') -and
             $commandSource.Contains('targetState != null && !targetState.IsFinallyDead') -and
             $commandSource.Contains('attackTarget != null && attackTarget.IsInState')) 'in-flight liveness does not admit target incapacitation only after the exact child starts while preserving final-death and in-state gates'
+        Assert-Test ($ruleProbeSource.Contains('IGlobalRulebookHandler<RuleAttackWithWeapon>') -and
+            $ruleProbeSource.Contains('IGlobalRulebookHandler<RuleAttackRoll>') -and
+            $ruleProbeSource.Contains('IGlobalRulebookHandler<RuleRollDice>') -and
+            $ruleProbeSource.Contains('IGlobalRulebookHandler<RuleDealDamage>') -and
+            $ruleProbeSource.Contains('subscription = EventBus.Subscribe(this);') -and
+            -not $ruleProbeSource.Contains('IRulebookHandler<')) 'combat Rulebook probe is not registered through the exact global Rulebook subscriber surface'
+        Assert-Test ($commandSource.Contains('childAttack.IsRunning &&') -and
+            $commandSource.Contains('IsActed)') -and
+            $commandSource.Contains('HasAnimation = false;') -and
+            $commandSource.Contains('return ResultType.None;') -and
+            -not $commandSource.Contains('SetIsActed(true);')) 'mounted Standard wrapper bypasses the native false-to-true acted transition or ticks its child before that transition'
         Assert-Test ($targetSource.Contains('groupsController.Groups.Remove(runtimeGroup);') -and
             $targetSource.Contains('runtimeGroup.Dispose();') -and
             $targetSource.Contains('!runtimeGroup.Empty()')) 'project-owned transient combat group is not removed only after exact empty-group proof'

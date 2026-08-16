@@ -138,6 +138,11 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.Utility.GeometryUtils',0x06001C68,'MechanicsDistance'),
         @('TurnBased.Controllers.TurnController',0x06000C37,'TickMovement'),
         @('Kingmaker.Controllers.Units.UnitActionController',0x0600911F,'ShouldStartCommand'),
+        @('Kingmaker.Controllers.Units.UnitActionController',0x0600911E,'TickCommand'),
+        @('Kingmaker.Controllers.Units.UnitActionController',0x06009120,'UpdateCooldowns'),
+        @('Kingmaker.UnitLogic.Commands.Base.UnitCommand',0x060027A7,'Tick'),
+        @('Kingmaker.PubSubSystem.EventBus',0x060074BB,'Subscribe'),
+        @('Kingmaker.PubSubSystem.RulebookEventBus',0x06007540,'Subscribe'),
         @('Kingmaker.EntitySystem.Entities.UnitEntityData',0x06008330,'get_AreHandsBusyWithAnimation'),
         @('Kingmaker.EntitySystem.Entities.UnitEntityData',0x0600834E,'CanAttack'),
         @('Kingmaker.Controllers.Units.UnitHandEquipmentController',0x06009154,'IsUpdateScheduledFor'),
@@ -158,6 +163,13 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.EntitySystem.Persistence.LoadingProcess',0x06007FBC,'get_IsLoadingInProcess'),
         @('Kingmaker.Utility.Screenshot',0x06001D41,'CapturePNG'),@('Kingmaker.View.MapObjects.StandardDoor',0x06001AA0,'get_IsOpen'))
     foreach($check in $checks){$member=@(Find-Token $check[0] $check[1]);$matches=$member.Count -eq 1;if($matches){$matches=[string]$member[0].Name -ceq [string]$check[2]};Assert-Contract $matches "token $($check[1].ToString('X8')) $($check[0]).$($check[2])"}
+    $globalRulebookHandler=$assembly.GetType('Kingmaker.PubSubSystem.IGlobalRulebookHandler`1',$false)
+    $globalRulebookSubscriber=$assembly.GetType('Kingmaker.PubSubSystem.IGlobalRulebookSubscriber',$false)
+    Assert-Contract ($null-ne$globalRulebookHandler -and $globalRulebookHandler.MetadataToken-eq0x02000DC3 -and
+        $null-ne$globalRulebookSubscriber -and $globalRulebookSubscriber.MetadataToken-eq0x02000DFA -and
+        @($globalRulebookHandler.GetInterfaces()|Where-Object MetadataToken -eq 0x02000DC2).Count-eq1 -and
+        @($globalRulebookHandler.GetInterfaces()|Where-Object MetadataToken -eq 0x02000DFA).Count-eq1) `
+        'global Rulebook handler exact subscription-marker inheritance'
     $forcePlaceAboveGround=@(Find-Token 'Kingmaker.View.UnitEntityView' 0x06001848)
     Assert-Contract ($forcePlaceAboveGround.Count-eq1 -and $forcePlaceAboveGround[0] -is [Reflection.MethodInfo] -and
         $forcePlaceAboveGround[0].IsPublic -and -not $forcePlaceAboveGround[0].IsStatic -and

@@ -153,7 +153,8 @@ namespace KingmakerMountedCombat.Integration
                 }
 
                 if (transaction.State == MountedCombatTransactionState.Attacking &&
-                    childAttack.IsRunning)
+                    childAttack.IsRunning &&
+                    IsActed)
                 {
                     childAttack.TurnToTarget();
                     childAttack.Tick();
@@ -190,7 +191,7 @@ namespace KingmakerMountedCombat.Integration
 
         protected override ResultType OnAction()
         {
-            return ResultType.Fail;
+            return ResultType.None;
         }
 
         protected override void OnEnded(bool raiseEvent = true)
@@ -313,7 +314,7 @@ namespace KingmakerMountedCombat.Integration
             {
                 throw new InvalidOperationException("Native child attack did not start exactly once.");
             }
-            SetIsActed(true);
+            HasAnimation = false;
         }
 
         private void CreateAndValidateChildAttack()

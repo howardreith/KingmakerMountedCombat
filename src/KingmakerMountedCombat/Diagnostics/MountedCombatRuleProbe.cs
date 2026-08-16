@@ -7,10 +7,10 @@ using Kingmaker.RuleSystem.Rules.Damage;
 namespace KingmakerMountedCombat.Diagnostics
 {
     internal sealed class MountedCombatRuleProbe :
-        IRulebookHandler<RuleAttackWithWeapon>,
-        IRulebookHandler<RuleAttackRoll>,
-        IRulebookHandler<RuleRollDice>,
-        IRulebookHandler<RuleDealDamage>,
+        IGlobalRulebookHandler<RuleAttackWithWeapon>,
+        IGlobalRulebookHandler<RuleAttackRoll>,
+        IGlobalRulebookHandler<RuleRollDice>,
+        IGlobalRulebookHandler<RuleDealDamage>,
         IDisposable
     {
         private readonly IDisposable subscription;
