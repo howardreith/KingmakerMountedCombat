@@ -7151,11 +7151,11 @@ function Assert-KmcCombatScenarioEvidence {
     if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -ge 18) {
         $recordFields = @($recordFields + 'nonPairPartyAiLease')
     }
-    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(5,7,9,11,13,15,17,19,21)) {
+    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(5,7,9,11,13,15,17,19,21,23)) {
         $recordFields = @($recordFields + 'turnBased')
     }
     Assert-KmcExactProperties $record $recordFields 'combat evidence record'
-    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -notin @(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21) -or
+    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -notin @(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23) -or
         [string]$record.artifactKind -cne 'combat-scenario-evidence') {
         throw 'Combat evidence schemaVersion or artifactKind is not exact.'
     }
@@ -7475,7 +7475,7 @@ function Assert-KmcCombatScenarioEvidence {
             }
         }
     }
-    if ([long]$record.schemaVersion -in @(5,7,9,11,13,15,17,19,21)) {
+    if ([long]$record.schemaVersion -in @(5,7,9,11,13,15,17,19,21,23)) {
         $turnActorBooleanFields = if ([long]$record.schemaVersion -ge 21) {
             @('nativeActionActorTurnStarted','actionActorTurnEndedAfterCommand')
         } else {
@@ -7516,9 +7516,21 @@ function Assert-KmcCombatScenarioEvidence {
     foreach ($name in $record.resources.PSObject.Properties.Name) {
         if (-not (Test-KmcJsonNumber $record.resources.$name)) { throw "Combat resource evidence is not numeric: $name" }
     }
-    Assert-KmcExactProperties $record.movement @(
+    $combatMovementFields = @(
         'authoritativeMover','repathCount','riderStockAgentEnabledAtEnd','mountStockAgentEnabledAtEnd',
-        'riderAvoidanceDisabledAtEnd','mountAvoidanceDisabledAtEnd') 'combat movement evidence'
+        'riderAvoidanceDisabledAtEnd','mountAvoidanceDisabledAtEnd')
+    if ([long]$record.schemaVersion -ge 22) {
+        $combatMovementFields = @($combatMovementFields +
+            'riderDisplacementAtOutcome','mountDisplacementAtOutcome','targetDisplacementAtOutcome')
+    }
+    Assert-KmcExactProperties $record.movement $combatMovementFields 'combat movement evidence'
+    if ([long]$record.schemaVersion -ge 22) {
+        foreach ($name in @('riderDisplacementAtOutcome','mountDisplacementAtOutcome','targetDisplacementAtOutcome')) {
+            if (-not (Test-KmcJsonNumber $record.movement.$name) -or [double]$record.movement.$name -lt 0) {
+                throw "Combat outcome displacement evidence is invalid: $name"
+            }
+        }
+    }
     $targetProvisioningFields = @(
         'targetBlueprintId','runtimeGroupId','blueprintEmptyHandWeaponBlueprintId','targetNativeSingleAttackWeaponBlueprintId',
         'targetNativeSingleAttackSlot','targetPrimaryMainAttacks','targetSecondaryMainAttacks',
@@ -7529,11 +7541,26 @@ function Assert-KmcCombatScenarioEvidence {
     if ([long]$record.schemaVersion -ge 8) {
         $targetProvisioningFields = @($targetProvisioningFields + 'sleeplessBefore','sleeplessLeaseAcquired')
     }
+    if ([long]$record.schemaVersion -ge 22) {
+        $targetProvisioningFields = @($targetProvisioningFields +
+            'temporaryHitPointsBefore','temporaryHitPointsAfterProvisioning',
+            'durabilityLeaseAmount','durabilityLeaseAcquired')
+    }
     Assert-KmcExactProperties $record.targetProvisioning $targetProvisioningFields 'combat target provisioning evidence'
     if ([long]$record.schemaVersion -ge 8 -and
         ($record.targetProvisioning.sleeplessBefore -isnot [bool] -or
          $record.targetProvisioning.sleeplessLeaseAcquired -isnot [bool])) {
         throw 'Combat target sleepless-lease provisioning evidence is not Boolean.'
+    }
+    if ([long]$record.schemaVersion -ge 22 -and
+        ((-not (Test-KmcExactJsonInteger $record.targetProvisioning.temporaryHitPointsBefore)) -or
+         (-not (Test-KmcExactJsonInteger $record.targetProvisioning.temporaryHitPointsAfterProvisioning)) -or
+         (-not (Test-KmcExactJsonInteger $record.targetProvisioning.durabilityLeaseAmount)) -or
+         [long]$record.targetProvisioning.temporaryHitPointsBefore -lt 0 -or
+         [long]$record.targetProvisioning.temporaryHitPointsAfterProvisioning -lt 0 -or
+         [long]$record.targetProvisioning.durabilityLeaseAmount -lt 0 -or
+         $record.targetProvisioning.durabilityLeaseAcquired -isnot [bool])) {
+        throw 'Combat target durability-lease provisioning evidence is invalid.'
     }
     Assert-KmcExactProperties $record.pose @(
         'profileId','healthyAtOutcome','configuredAtEnd','attachmentLeaseAtEnd','residueAtEnd') 'combat pose evidence'
@@ -7546,12 +7573,18 @@ function Assert-KmcCombatScenarioEvidence {
     if ([long]$record.schemaVersion -ge 18) {
         $combatCleanupFields = @($combatCleanupFields + 'nonPairPartyAiLeaseRestored')
     }
+    if ([long]$record.schemaVersion -ge 22) {
+        $combatCleanupFields = @($combatCleanupFields + 'durabilityLeaseReleased')
+    }
     Assert-KmcExactProperties $record.cleanup $combatCleanupFields 'combat cleanup evidence'
     if ([long]$record.schemaVersion -ge 8 -and $record.cleanup.sleeplessLeaseReleased -isnot [bool]) {
         throw 'Combat target sleepless-lease cleanup evidence is not Boolean.'
     }
     if ([long]$record.schemaVersion -ge 18 -and $record.cleanup.nonPairPartyAiLeaseRestored -isnot [bool]) {
         throw 'Combat non-pair party AI lease cleanup evidence is not Boolean.'
+    }
+    if ([long]$record.schemaVersion -ge 22 -and $record.cleanup.durabilityLeaseReleased -isnot [bool]) {
+        throw 'Combat target durability-lease cleanup evidence is not Boolean.'
     }
 
     $requirePass = [string]$Status -ceq 'PASS'
@@ -7562,13 +7595,13 @@ function Assert-KmcCombatScenarioEvidence {
             'mounted-rider-melee-hit-tb','mounted-mammoth-primary-hit-tb')
         $missScenario = [string]$Request.scenario -ceq 'mounted-rider-melee-miss-rt'
         $expectedCombatSchemas = if ($mammothScenario) {
-            if ($turnBasedScenario) { @(21) } else { @(20) }
+            if ($turnBasedScenario) { @(21,23) } else { @(20,22) }
         } elseif ($missScenario) {
-            @(6,8,10,12,14,16,18,20)
+            @(6,8,10,12,14,16,18,20,22)
         } elseif ($turnBasedScenario) {
-            @(5,7,9,11,13,15,17,19,21)
+            @(5,7,9,11,13,15,17,19,21,23)
         } else {
-            @(4,6,8,10,12,14,16,18,20)
+            @(4,6,8,10,12,14,16,18,20,22)
         }
         if ([long]$record.schemaVersion -notin $expectedCombatSchemas -or
             [string]$record.status -cne 'PASS' -or [long]$record.assertionFailCount -ne 0 -or
@@ -7675,13 +7708,15 @@ function Assert-KmcCombatScenarioEvidence {
              $record.targetLife.atActivation.finallyDead -ne $false -or
              $record.targetLife.atActivation.forceKill -ne $false -or
              $record.targetLife.atActivation.markedForDeath -ne $false -or
-             ($missScenario -and
+             (($missScenario -or ($mammothScenario -and [long]$record.schemaVersion -ge 22)) -and
               ($record.targetLife.lastObserved.observed -ne $true -or
                [string]$record.targetLife.lastObserved.lifeState -cne 'Conscious' -or
                $record.targetLife.lastObserved.conscious -ne $true -or
+               $record.targetLife.lastObserved.dead -ne $false -or
+               $record.targetLife.lastObserved.finallyDead -ne $false -or
                [long]$record.targetLife.transitionCount -ne 0 -or
                $record.targetLife.firstTransition.observed -ne $false)))) {
-            throw 'PASS combat evidence does not prove a conscious cleanly provisioned target and exact miss-row life stability.'
+            throw 'PASS combat evidence does not prove a conscious cleanly provisioned target and required life stability.'
         }
         if ([long]$record.schemaVersion -ge 14 -and
             ($record.targetIncomingRules.dispatchMarkerSet -ne $true -or
@@ -7781,6 +7816,22 @@ function Assert-KmcCombatScenarioEvidence {
             $record.targetProvisioning.bidirectionalHostility -ne $true -or
             $record.targetProvisioning.noExperienceReward -ne $true) {
             throw 'PASS combat target provisioning evidence does not prove exact native primary-hand selection without mutation.'
+        }
+        if ([long]$record.schemaVersion -ge 22) {
+            $durabilityLeaseInvalid = if ($mammothScenario) {
+                [long]$record.targetProvisioning.temporaryHitPointsBefore -ne 0 -or
+                [long]$record.targetProvisioning.temporaryHitPointsAfterProvisioning -ne 128 -or
+                [long]$record.targetProvisioning.durabilityLeaseAmount -ne 128 -or
+                $record.targetProvisioning.durabilityLeaseAcquired -ne $true
+            } else {
+                [long]$record.targetProvisioning.temporaryHitPointsBefore -ne
+                    [long]$record.targetProvisioning.temporaryHitPointsAfterProvisioning -or
+                [long]$record.targetProvisioning.durabilityLeaseAmount -ne 0 -or
+                $record.targetProvisioning.durabilityLeaseAcquired -ne $false
+            }
+            if ($durabilityLeaseInvalid) {
+                throw 'PASS combat target durability evidence does not prove the exact scenario-scoped diagnostic lease policy.'
+            }
         }
         if (-not (Test-KmcJsonNumber $record.pairApproachRadius) -or
             -not (Test-KmcJsonNumber $record.targetDistanceAtClick) -or
@@ -7899,6 +7950,10 @@ function Assert-KmcCombatScenarioEvidence {
             throw 'PASS combat resource evidence does not prove exact action-actor-only Standard charging with unchanged Move resources.'
         }
         if ([string]$record.movement.authoritativeMover -cne 'mount' -or [long]$record.movement.repathCount -ne 0 -or
+            ([long]$record.schemaVersion -ge 22 -and
+             ([double]$record.movement.riderDisplacementAtOutcome -gt 0.05 -or
+              [double]$record.movement.mountDisplacementAtOutcome -gt 0.05 -or
+              [double]$record.movement.targetDisplacementAtOutcome -gt 0.05)) -or
             $record.movement.riderStockAgentEnabledAtEnd -ne $true -or
             $record.movement.mountStockAgentEnabledAtEnd -ne $true -or
             $record.movement.riderAvoidanceDisabledAtEnd -ne $false -or
@@ -7912,6 +7967,7 @@ function Assert-KmcCombatScenarioEvidence {
         }
         if ($record.cleanup.targetRemoved -ne $true -or $record.cleanup.targetEntityRemoved -ne $true -or
             $record.cleanup.runtimeGroupRemoved -ne $true -or $record.cleanup.runtimeFactionRemoved -ne $true -or
+            ([long]$record.schemaVersion -ge 22 -and $record.cleanup.durabilityLeaseReleased -ne $true) -or
             ([long]$record.schemaVersion -ge 8 -and $record.cleanup.sleeplessLeaseReleased -ne $true) -or
             ([long]$record.schemaVersion -ge 18 -and $record.cleanup.nonPairPartyAiLeaseRestored -ne $true) -or
             $record.cleanup.relationshipClean -ne $true -or

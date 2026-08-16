@@ -169,6 +169,9 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.RuleSystem.Rules.Damage.RuleDealDamage',0x060073F9,'get_SourceAbility'),
         @('Kingmaker.RuleSystem.Rules.Damage.RuleDealDamage',0x060073FB,'get_SourceArea'),
         @('Kingmaker.EntitySystem.Stats.ModifiableValueArmorClass',0x06007F2D,'SelectMissReason'),
+        @('Kingmaker.EntitySystem.Stats.ModifiableValue',0x06007F08,'AddModifier'),
+        @('Kingmaker.EntitySystem.Stats.ModifiableValue+Modifier',0x0600BE68,'Remove'),
+        @('Kingmaker.EntitySystem.Stats.ModifiableValueTemporaryHitPoints',0x06007F74,'HandleDamage'),
         @('Kingmaker.EntitySystem.Entities.UnitEntityData',0x06008330,'get_AreHandsBusyWithAnimation'),
         @('Kingmaker.EntitySystem.Entities.UnitEntityData',0x0600834E,'CanAttack'),
         @('Kingmaker.Controllers.Units.UnitHandEquipmentController',0x06009154,'IsUpdateScheduledFor'),
@@ -236,6 +239,27 @@ if($Target-eq'Kingmaker'){
         $selectMissReason[0].GetParameters().Count-eq2 -and
         @($selectMissReason[0].GetParameters()|Where-Object{$_.ParameterType.FullName-ceq'System.Boolean'}).Count-eq2) `
         'ModifiableValueArmorClass.SelectMissReason exact public instance signature'
+    $addModifier=@(Find-Token 'Kingmaker.EntitySystem.Stats.ModifiableValue' 0x06007F08)
+    $removeModifier=@(Find-Token 'Kingmaker.EntitySystem.Stats.ModifiableValue+Modifier' 0x0600BE68)
+    $handleTemporaryHitPointDamage=@(Find-Token 'Kingmaker.EntitySystem.Stats.ModifiableValueTemporaryHitPoints' 0x06007F74)
+    Assert-Contract ($addModifier.Count-eq1 -and $addModifier[0] -is [Reflection.MethodInfo] -and
+        $addModifier[0].IsPublic -and -not $addModifier[0].IsStatic -and
+        $addModifier[0].ReturnType.FullName-ceq'Kingmaker.EntitySystem.Stats.ModifiableValue+Modifier' -and
+        $addModifier[0].GetParameters().Count-eq4 -and
+        $addModifier[0].GetParameters()[0].ParameterType.FullName-ceq'System.Int32' -and
+        $addModifier[0].GetParameters()[1].ParameterType.FullName-ceq'Kingmaker.Blueprints.Facts.Fact' -and
+        $addModifier[0].GetParameters()[2].ParameterType.FullName-ceq'System.String' -and
+        $addModifier[0].GetParameters()[3].ParameterType.FullName-ceq'Kingmaker.Enums.ModifierDescriptor' -and
+        $removeModifier.Count-eq1 -and $removeModifier[0] -is [Reflection.MethodInfo] -and
+        $removeModifier[0].IsPublic -and -not $removeModifier[0].IsStatic -and
+        $removeModifier[0].ReturnType.FullName-ceq'System.Boolean' -and
+        $removeModifier[0].GetParameters().Count-eq0 -and
+        $handleTemporaryHitPointDamage.Count-eq1 -and $handleTemporaryHitPointDamage[0] -is [Reflection.MethodInfo] -and
+        $handleTemporaryHitPointDamage[0].IsPublic -and -not $handleTemporaryHitPointDamage[0].IsStatic -and
+        $handleTemporaryHitPointDamage[0].ReturnType.FullName-ceq'System.Int32' -and
+        $handleTemporaryHitPointDamage[0].GetParameters().Count-eq1 -and
+        $handleTemporaryHitPointDamage[0].GetParameters()[0].ParameterType.FullName-ceq'System.Int32') `
+        'diagnostic target temporary-hit-point modifier acquire, damage absorption, and removal signatures'
     $sleepless=@(Find-Token 'Kingmaker.EntitySystem.Entities.UnitEntityData' 0x040054C8)
     $shouldBeSleeping=@(Find-Token 'Kingmaker.Controllers.SleepingUnitsController' 0x060090B2)
     Assert-Contract ($sleepless.Count-eq1 -and $sleepless[0] -is [Reflection.FieldInfo] -and

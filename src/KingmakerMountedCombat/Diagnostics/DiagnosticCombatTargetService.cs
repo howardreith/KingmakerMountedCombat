@@ -3,8 +3,11 @@ using System.Linq;
 using System.Reflection;
 using Kingmaker;
 using Kingmaker.Blueprints;
+using Kingmaker.Blueprints.Facts;
 using Kingmaker.Controllers.Units;
 using Kingmaker.EntitySystem.Entities;
+using Kingmaker.EntitySystem.Stats;
+using Kingmaker.Enums;
 using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Integration;
 using KingmakerMountedCombat.Logging;
@@ -25,6 +28,8 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         private const float MinimumPlacementDistance = 3f;
         private const float MaximumPlacementDistance = 20f;
+        private const int DiagnosticDurabilityTemporaryHitPoints = 128;
+        private const string DiagnosticDurabilitySource = "KMC diagnostic target durability";
         private const string RuntimeGroupPrefix = "KMC.RuntimeHostile.";
         private static readonly FieldInfo AiBackingField = typeof(UnitEntityData).GetField(
             "m_AiEnabled",
@@ -43,6 +48,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private UnitEntityData combatMemoryTarget;
         private UnitGroup combatMemoryObserverGroup;
         private UnitGroup combatMemoryTargetGroup;
+        private ModifiableValue.Modifier targetDurabilityModifier;
+        private bool targetDurabilityLeaseRequired;
+        private bool targetDurabilityLeaseActive;
         private bool targetSleeplessBefore;
         private bool targetSleeplessLeaseActive;
         private bool combatMemoryQueued;
@@ -90,6 +98,16 @@ namespace KingmakerMountedCombat.Diagnostics
         public bool TargetSleeplessLeaseAcquired { get; private set; }
 
         public bool TargetSleeplessLeaseReleased { get; private set; } = true;
+
+        public int TargetTemporaryHitPointsBefore { get; private set; }
+
+        public int TargetTemporaryHitPointsAfterProvisioning { get; private set; }
+
+        public int TargetDurabilityLeaseAmount { get; private set; }
+
+        public bool TargetDurabilityLeaseAcquired { get; private set; }
+
+        public bool TargetDurabilityLeaseReleased { get; private set; } = true;
 
         public bool TargetFogOfWarCleared { get; private set; }
 
@@ -165,7 +183,8 @@ namespace KingmakerMountedCombat.Diagnostics
             UnitEntityData mount,
             Vector3 position,
             string runId,
-            bool exactWorkingAuthorized)
+            bool exactWorkingAuthorized,
+            bool requireDurabilityLease)
         {
             ThrowIfDisposed();
             if (rider == null || !rider.IsInState || mount == null || !mount.IsInState ||
@@ -241,6 +260,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
                 LifeImmediatelyAfterCreation = DiagnosticTargetLifeSnapshot.Capture(target);
                 LastObservedLife = LifeImmediatelyAfterCreation;
+                AcquireTargetDurabilityLease(target, requireDurabilityLease);
                 targetSleeplessBefore = target.Sleepless;
                 target.Sleepless = true;
                 targetSleeplessLeaseActive = target.Sleepless;
@@ -294,6 +314,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 var targetTreatsRiderAsEnemy = target.IsEnemy(rider);
                 var riderTreatsTargetAsEnemy = rider.IsEnemy(target);
                 var bidirectionalHostility = targetTreatsRiderAsEnemy && riderTreatsTargetAsEnemy;
+                var durabilityPolicyPassed = requireDurabilityLease
+                    ? TargetTemporaryHitPointsBefore == 0 &&
+                        TargetTemporaryHitPointsAfterProvisioning == DiagnosticDurabilityTemporaryHitPoints &&
+                        TargetDurabilityLeaseAmount == DiagnosticDurabilityTemporaryHitPoints &&
+                        TargetDurabilityLeaseAcquired && !TargetDurabilityLeaseReleased
+                    : TargetTemporaryHitPointsBefore == TargetTemporaryHitPointsAfterProvisioning &&
+                        TargetDurabilityLeaseAmount == 0 && !TargetDurabilityLeaseAcquired &&
+                        TargetDurabilityLeaseReleased;
                 TargetHasNoLoot = inventoryHasNoLoot;
                 RawAiBackingDisabled = aiBackingDisabled;
                 BidirectionalHostilityVerified = bidirectionalHostility;
@@ -316,10 +344,11 @@ namespace KingmakerMountedCombat.Diagnostics
                     primary?.Blueprint != null,
                     TargetNativeSingleAttackWeaponIsNatural,
                     TargetNativeSingleAttackWeaponIsMelee);
-                if (!lifecycle.Activate("pending:" + runId, safety.AllPassed))
+                if (!lifecycle.Activate("pending:" + runId, safety.AllPassed && durabilityPolicyPassed))
                 {
                     throw new InvalidOperationException(
-                        "Diagnostic target failed its exact transient safety gates: " + safety.FailureSummary + ".");
+                        "Diagnostic target failed its exact transient safety gates: " + safety.FailureSummary +
+                        "; durabilityPolicy=" + durabilityPolicyPassed + ".");
                 }
 
                 LifeAtActivation = DiagnosticTargetLifeSnapshot.Capture(target);
@@ -346,7 +375,7 @@ namespace KingmakerMountedCombat.Diagnostics
         public bool DestroyAndVerify()
         {
             if (TargetEntityRemoved && RuntimeGroupRemoved && RuntimeFactionRemoved && CombatMemoryRemoved &&
-                TargetSleeplessLeaseReleased && NonPairPartyAiLeaseRestored)
+                TargetDurabilityLeaseReleased && TargetSleeplessLeaseReleased && NonPairPartyAiLeaseRestored)
             {
                 return State == DiagnosticCombatTargetState.Absent ||
                     State == DiagnosticCombatTargetState.Removed;
@@ -377,6 +406,22 @@ namespace KingmakerMountedCombat.Diagnostics
             TargetViewVisible = target.View.IsVisible;
             TargetVisibleForPlayer = target.IsVisibleForPlayer;
             return TargetFogOfWarCleared && TargetViewVisible && TargetVisibleForPlayer;
+        }
+
+        public bool CaptureCurrentLife(UnitEntityData expectedTarget)
+        {
+            ThrowIfDisposed();
+            if (expectedTarget == null || expectedTarget != target || !target.IsInState)
+            {
+                return false;
+            }
+            var current = DiagnosticTargetLifeSnapshot.Capture(target);
+            if (current == null)
+            {
+                return false;
+            }
+            LastObservedLife = current;
+            return true;
         }
 
         public bool QueueBidirectionalCombatMemory(UnitEntityData rider, UnitEntityData expectedTarget)
@@ -540,8 +585,9 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             var current = target;
             var combatMemoryClean = RemoveCombatMemory();
+            var durabilityLeaseClean = ReleaseTargetDurabilityLease(current);
             var sleeplessLeaseClean = ReleaseTargetSleeplessLease(current);
-            if (current != null)
+            if (current != null && durabilityLeaseClean)
             {
                 current.Commands.InterruptAll();
                 current.View?.StopMoving();
@@ -569,7 +615,87 @@ namespace KingmakerMountedCombat.Diagnostics
             var nonPairPartyAiClean = targetRemoved && groupRemoved && RuntimeFactionRemoved &&
                 (nonPairPartyAiLease == null || nonPairPartyAiLease.RestoreAndVerify());
             return targetRemoved && groupRemoved && RuntimeFactionRemoved && combatMemoryClean &&
-                sleeplessLeaseClean && nonPairPartyAiClean;
+                durabilityLeaseClean && sleeplessLeaseClean && nonPairPartyAiClean;
+        }
+
+        private void AcquireTargetDurabilityLease(UnitEntityData current, bool required)
+        {
+            var temporaryHitPoints = current?.Descriptor?.Stats?.TemporaryHitPoints;
+            if (temporaryHitPoints == null)
+            {
+                throw new InvalidOperationException("Diagnostic target temporary-hit-point stat is unavailable.");
+            }
+
+            targetDurabilityLeaseRequired = required;
+            TargetTemporaryHitPointsBefore = temporaryHitPoints.ModifiedValue;
+            TargetTemporaryHitPointsAfterProvisioning = TargetTemporaryHitPointsBefore;
+            TargetDurabilityLeaseAmount = 0;
+            TargetDurabilityLeaseAcquired = false;
+            TargetDurabilityLeaseReleased = true;
+            if (!required)
+            {
+                return;
+            }
+            if (TargetTemporaryHitPointsBefore != 0)
+            {
+                throw new InvalidOperationException(
+                    "Diagnostic target durability lease requires exactly zero pre-existing temporary hit points.");
+            }
+
+            TargetDurabilityLeaseReleased = false;
+            targetDurabilityModifier = temporaryHitPoints.AddModifier(
+                DiagnosticDurabilityTemporaryHitPoints,
+                (Fact)null,
+                DiagnosticDurabilitySource,
+                ModifierDescriptor.UntypedStackable);
+            TargetDurabilityLeaseAmount = DiagnosticDurabilityTemporaryHitPoints;
+            TargetTemporaryHitPointsAfterProvisioning = temporaryHitPoints.ModifiedValue;
+            targetDurabilityLeaseActive = targetDurabilityModifier != null &&
+                targetDurabilityModifier.AppliedTo == temporaryHitPoints;
+            TargetDurabilityLeaseAcquired = targetDurabilityLeaseActive &&
+                targetDurabilityModifier.ModValue == DiagnosticDurabilityTemporaryHitPoints &&
+                TargetTemporaryHitPointsAfterProvisioning ==
+                    TargetTemporaryHitPointsBefore + DiagnosticDurabilityTemporaryHitPoints;
+            if (!TargetDurabilityLeaseAcquired)
+            {
+                throw new InvalidOperationException(
+                    "Diagnostic target durability lease did not acquire its exact temporary-hit-point modifier.");
+            }
+        }
+
+        private bool ReleaseTargetDurabilityLease(UnitEntityData current)
+        {
+            if (!targetDurabilityLeaseRequired)
+            {
+                TargetDurabilityLeaseReleased = true;
+                return true;
+            }
+            var temporaryHitPoints = current?.Descriptor?.Stats?.TemporaryHitPoints;
+            if (temporaryHitPoints == null)
+            {
+                return false;
+            }
+
+            var modifierClean = true;
+            if (targetDurabilityModifier != null)
+            {
+                if (targetDurabilityModifier.AppliedTo == temporaryHitPoints)
+                {
+                    modifierClean = targetDurabilityModifier.Remove();
+                }
+                else if (targetDurabilityModifier.AppliedTo != null)
+                {
+                    modifierClean = false;
+                }
+            }
+            TargetDurabilityLeaseReleased = modifierClean &&
+                temporaryHitPoints.ModifiedValue == TargetTemporaryHitPointsBefore;
+            if (TargetDurabilityLeaseReleased)
+            {
+                targetDurabilityModifier = null;
+                targetDurabilityLeaseActive = false;
+            }
+            return TargetDurabilityLeaseReleased;
         }
 
         private bool RemoveCombatMemory()

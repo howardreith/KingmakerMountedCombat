@@ -90,12 +90,16 @@ namespace KingmakerMountedCombat.Diagnostics
         private Vector3 riderPositionAtClick;
         private Vector3 mountPositionAtClick;
         private Vector3 targetPositionAtClick;
+        private float riderDisplacementAtOutcome;
+        private float mountDisplacementAtOutcome;
+        private float targetDisplacementAtOutcome;
         private bool clickAccepted;
         private MountedPairAttackOutcome outcome;
         private bool targetRemoved;
         private bool targetEntityRemoved;
         private bool targetRuntimeGroupRemoved;
         private bool targetRuntimeFactionRemoved;
+        private bool targetDurabilityLeaseReleased;
         private bool targetSleeplessLeaseReleased;
         private bool targetNonPairPartyAiLeaseRestored;
         private bool combatMemoryRemoved;
@@ -409,7 +413,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
             targetService = new DiagnosticCombatTargetService(logger);
             var spawnPoint = FindWalkablePoint(mount.Position, SpawnDistance, 0.4f);
-            target = targetService.Spawn(rider, mount, spawnPoint, request.RunId, true);
+            target = targetService.Spawn(rider, mount, spawnPoint, request.RunId, true, IsMammothPrimaryRow);
             targetId = target.UniqueId;
             targetProvisioning = CombatTargetProvisioningEvidence.From(targetService, target);
             assertions.Check(target != null && target.IsInState && target.View != null &&
@@ -742,6 +746,11 @@ namespace KingmakerMountedCombat.Diagnostics
             mountStandardAfter = mount.CombatState.Cooldown.StandardAction;
             riderMoveAfter = rider.CombatState.Cooldown.MoveAction;
             mountMoveAfter = mount.CombatState.Cooldown.MoveAction;
+            riderDisplacementAtOutcome = HorizontalDistance(riderPositionAtClick, rider.Position);
+            mountDisplacementAtOutcome = HorizontalDistance(mountPositionAtClick, mount.Position);
+            targetDisplacementAtOutcome = HorizontalDistance(targetPositionAtClick, target.Position);
+            assertions.Check(targetService.CaptureCurrentLife(target),
+                "Diagnostic target life was captured at the exact completed attack outcome.");
 
             assertions.Check(outcome.Action == AttackAction,
                 "Terminal command retained exact mounted action identity.");
@@ -831,8 +840,9 @@ namespace KingmakerMountedCombat.Diagnostics
             assertions.Check(relationship.State == RelationshipState.Mounted &&
                     relationship.Runtime.PoseHealthy && relationship.Runtime.PoseFrameApplied,
                 "Mounted relationship and accepted pose remained healthy after the attack.");
-            assertions.Check(HorizontalDistance(mountPositionAtClick, mount.Position) <= 0.05f &&
-                    HorizontalDistance(targetPositionAtClick, target.Position) <= 0.05f,
+            assertions.Check(riderDisplacementAtOutcome <= 0.05f &&
+                    mountDisplacementAtOutcome <= 0.05f &&
+                    targetDisplacementAtOutcome <= 0.05f,
                 "Mounted pair and target attack remained stationary at the authoritative Mammoth origin.");
 
             poseProfileAtOutcome = relationship.Runtime.PoseProfileId;
@@ -871,6 +881,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     targetEntityRemoved = true;
                     targetRuntimeGroupRemoved = true;
                     targetRuntimeFactionRemoved = true;
+                    targetDurabilityLeaseReleased = true;
                     targetSleeplessLeaseReleased = true;
                     targetNonPairPartyAiLeaseRestored = true;
                 }
@@ -968,7 +979,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var selected = SelectionManager.Instance?.SelectedUnits;
             var record = new CombatEvidenceRecord
             {
-                SchemaVersion = IsTurnBasedRow ? 21 : 20,
+                SchemaVersion = IsTurnBasedRow ? 23 : 22,
                 ArtifactKind = "combat-scenario-evidence",
                 RunId = request.RunId,
                 Scenario = request.Scenario,
@@ -1043,6 +1054,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     AuthoritativeMover = "mount",
                     RepathCount = outcome?.RepathCount ?? 0,
+                    RiderDisplacementAtOutcome = riderDisplacementAtOutcome,
+                    MountDisplacementAtOutcome = mountDisplacementAtOutcome,
+                    TargetDisplacementAtOutcome = targetDisplacementAtOutcome,
                     RiderStockAgentEnabledAtEnd = rider?.View?.AgentASP == null ? (bool?)null : rider.View.AgentASP.enabled,
                     MountStockAgentEnabledAtEnd = mount?.View?.AgentASP == null ? (bool?)null : mount.View.AgentASP.enabled,
                     RiderAvoidanceDisabledAtEnd = rider?.View?.AgentASP == null ? (bool?)null : rider.View.AgentASP.AvoidanceDisabled,
@@ -1062,6 +1076,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     TargetEntityRemoved = targetEntityRemoved,
                     RuntimeGroupRemoved = targetRuntimeGroupRemoved,
                     RuntimeFactionRemoved = targetRuntimeFactionRemoved,
+                    DurabilityLeaseReleased = targetDurabilityLeaseReleased,
                     SleeplessLeaseReleased = targetSleeplessLeaseReleased,
                     NonPairPartyAiLeaseRestored = targetNonPairPartyAiLeaseRestored,
                     RelationshipClean = relationshipClean,
@@ -1168,6 +1183,7 @@ namespace KingmakerMountedCombat.Diagnostics
             targetEntityRemoved = targetService != null && targetService.TargetEntityRemoved;
             targetRuntimeGroupRemoved = targetService != null && targetService.RuntimeGroupRemoved;
             targetRuntimeFactionRemoved = targetService != null && targetService.RuntimeFactionRemoved;
+            targetDurabilityLeaseReleased = targetService != null && targetService.TargetDurabilityLeaseReleased;
             targetSleeplessLeaseReleased = targetService != null && targetService.TargetSleeplessLeaseReleased;
             targetNonPairPartyAiLeaseRestored = targetService != null && targetService.NonPairPartyAiLeaseRestored;
             combatMemoryRemoved = targetService != null && targetService.CombatMemoryRemoved;
@@ -1772,6 +1788,9 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             public string AuthoritativeMover { get; set; }
             public int RepathCount { get; set; }
+            public float RiderDisplacementAtOutcome { get; set; }
+            public float MountDisplacementAtOutcome { get; set; }
+            public float TargetDisplacementAtOutcome { get; set; }
             public bool? RiderStockAgentEnabledAtEnd { get; set; }
             public bool? MountStockAgentEnabledAtEnd { get; set; }
             public bool? RiderAvoidanceDisabledAtEnd { get; set; }
@@ -1798,6 +1817,10 @@ namespace KingmakerMountedCombat.Diagnostics
             public bool RawAiDisabled { get; set; }
             public bool SleeplessBefore { get; set; }
             public bool SleeplessLeaseAcquired { get; set; }
+            public int TemporaryHitPointsBefore { get; set; }
+            public int TemporaryHitPointsAfterProvisioning { get; set; }
+            public int DurabilityLeaseAmount { get; set; }
+            public bool DurabilityLeaseAcquired { get; set; }
             public bool BidirectionalHostility { get; set; }
             public bool NoExperienceReward { get; set; }
 
@@ -1825,6 +1848,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     RawAiDisabled = service != null && service.RawAiBackingDisabled,
                     SleeplessBefore = service != null && service.TargetSleeplessBefore,
                     SleeplessLeaseAcquired = service != null && service.TargetSleeplessLeaseAcquired,
+                    TemporaryHitPointsBefore = service?.TargetTemporaryHitPointsBefore ?? 0,
+                    TemporaryHitPointsAfterProvisioning = service?.TargetTemporaryHitPointsAfterProvisioning ?? 0,
+                    DurabilityLeaseAmount = service?.TargetDurabilityLeaseAmount ?? 0,
+                    DurabilityLeaseAcquired = service != null && service.TargetDurabilityLeaseAcquired,
                     BidirectionalHostility = service != null && service.BidirectionalHostilityVerified,
                     NoExperienceReward = service != null && service.NoExperienceReward
                 };
@@ -2105,6 +2132,7 @@ namespace KingmakerMountedCombat.Diagnostics
             public bool TargetEntityRemoved { get; set; }
             public bool RuntimeGroupRemoved { get; set; }
             public bool RuntimeFactionRemoved { get; set; }
+            public bool DurabilityLeaseReleased { get; set; }
             public bool SleeplessLeaseReleased { get; set; }
             public bool NonPairPartyAiLeaseRestored { get; set; }
             public bool RelationshipClean { get; set; }

@@ -73,6 +73,9 @@ namespace KingmakerMountedCombat.Integration
         private MountedPairSingleAttack childAttack;
         private UnitMoveTo delegatedMove;
         private Vector3 targetSnapshot;
+        private string retainedAttackWeaponBlueprintId;
+        private bool retainedAttackWeaponIsNatural;
+        private bool retainedAttackWeaponIsRanged;
         private bool terminalReported;
 
         public MountedPairAttackCommand(
@@ -360,6 +363,9 @@ namespace KingmakerMountedCombat.Integration
             {
                 throw new InvalidOperationException("Mounted combat rejected a missing or ranged planned weapon.");
             }
+            retainedAttackWeaponBlueprintId = childAttack.PlannedAttack.Weapon.Blueprint.AssetGuid;
+            retainedAttackWeaponIsNatural = childAttack.PlannedAttack.Weapon.Blueprint.IsNatural;
+            retainedAttackWeaponIsRanged = childAttack.PlannedAttack.Weapon.Blueprint.IsRanged;
             if (action == MountedCombatActionKind.MountPrimaryNatural)
             {
                 if (expectedMountPrimary?.Kind != NativeSingleAttackSlotKind.PrimaryHand ||
@@ -425,11 +431,9 @@ namespace KingmakerMountedCombat.Integration
                 RiderStandardCharged = IsActed && actionActor == rider,
                 ActionStandardCharged = IsActed,
                 NativeAttackRuleObserved = childAttack?.LastAttackRule != null,
-                AttackWeaponBlueprintId = childAttack?.PlannedAttack?.Weapon?.Blueprint?.AssetGuid,
-                AttackWeaponIsNatural = childAttack?.PlannedAttack?.Weapon?.Blueprint != null &&
-                    childAttack.PlannedAttack.Weapon.Blueprint.IsNatural,
-                AttackWeaponIsRanged = childAttack?.PlannedAttack?.Weapon?.Blueprint != null &&
-                    childAttack.PlannedAttack.Weapon.Blueprint.IsRanged,
+                AttackWeaponBlueprintId = retainedAttackWeaponBlueprintId,
+                AttackWeaponIsNatural = retainedAttackWeaponIsNatural,
+                AttackWeaponIsRanged = retainedAttackWeaponIsRanged,
                 AttackWeaponSlot = action == MountedCombatActionKind.MountPrimaryNatural
                     ? NativeSingleAttackSlotKind.PrimaryHand.ToString()
                     : "EquippedMelee",
