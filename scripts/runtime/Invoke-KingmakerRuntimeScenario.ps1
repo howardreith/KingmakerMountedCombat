@@ -14,7 +14,7 @@ param(
         'presentation-residue-and-uninstall-safety','pose-idle','pose-walk-run','pose-turn-stop',
         'pose-doorway-formation','pose-equipment-variants','ui-selection-portrait-actionbar',
         'camera-follow-and-command-routing','movement-suite','boundary-suite','presentation-suite',
-        'mounted-rider-melee-hit-rt',
+        'mounted-rider-melee-hit-rt','mounted-rider-melee-hit-tb',
         'manual-visual-review'
     )][string]$Scenario='mod-load-smoke',
     [ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$RunId,

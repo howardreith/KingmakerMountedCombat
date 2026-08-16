@@ -162,7 +162,7 @@ function Assert-SubscenarioResults {
         'native-save-clean-dismount', 'native-area-clean-dismount', 'native-mode-transition-cleanup',
         'presentation-residue-and-uninstall-safety', 'pose-idle', 'pose-walk-run', 'pose-turn-stop',
         'pose-doorway-formation', 'pose-equipment-variants', 'ui-selection-portrait-actionbar',
-        'camera-follow-and-command-routing', 'mounted-rider-melee-hit-rt'
+        'camera-follow-and-command-routing', 'mounted-rider-melee-hit-rt', 'mounted-rider-melee-hit-tb'
     )
     if ($null -eq $Game.subscenarioResults -or $Game.subscenarioResults -is [string]) { throw 'Runtime game-result subscenarioResults must be an array.' }
     $items = @($Game.subscenarioResults)

@@ -307,4 +307,69 @@ namespace KingmakerMountedCombat.Domain
             }
         }
     }
+
+    public sealed class DiagnosticTurnBasedDispatchReadinessSnapshot
+    {
+        private readonly string[] failedGateNames;
+
+        public DiagnosticTurnBasedDispatchReadinessSnapshot(
+            bool modeEnabled,
+            bool controllerInitialized,
+            bool rosterContainsRider,
+            bool rosterContainsMount,
+            bool rosterContainsTarget,
+            bool nativeRiderTurnStarted,
+            bool currentTurnRider,
+            bool currentTurnActing)
+        {
+            ModeEnabled = modeEnabled;
+            ControllerInitialized = controllerInitialized;
+            RosterContainsRider = rosterContainsRider;
+            RosterContainsMount = rosterContainsMount;
+            RosterContainsTarget = rosterContainsTarget;
+            NativeRiderTurnStarted = nativeRiderTurnStarted;
+            CurrentTurnRider = currentTurnRider;
+            CurrentTurnActing = currentTurnActing;
+            var failures = new List<string>();
+            AddFailure(failures, modeEnabled, "turn-based-mode-enabled");
+            AddFailure(failures, controllerInitialized, "turn-based-controller-initialized");
+            AddFailure(failures, rosterContainsRider, "turn-roster-contains-rider");
+            AddFailure(failures, rosterContainsMount, "turn-roster-contains-mount");
+            AddFailure(failures, rosterContainsTarget, "turn-roster-contains-target");
+            AddFailure(failures, nativeRiderTurnStarted, "native-rider-turn-started");
+            AddFailure(failures, currentTurnRider, "current-turn-rider");
+            AddFailure(failures, currentTurnActing, "current-turn-acting");
+            failedGateNames = failures.ToArray();
+        }
+
+        public bool ModeEnabled { get; }
+
+        public bool ControllerInitialized { get; }
+
+        public bool RosterContainsRider { get; }
+
+        public bool RosterContainsMount { get; }
+
+        public bool RosterContainsTarget { get; }
+
+        public bool NativeRiderTurnStarted { get; }
+
+        public bool CurrentTurnRider { get; }
+
+        public bool CurrentTurnActing { get; }
+
+        public bool AllPassed => failedGateNames.Length == 0;
+
+        public string[] FailedGateNames => (string[])failedGateNames.Clone();
+
+        public string FailureSummary => string.Join(",", failedGateNames);
+
+        private static void AddFailure(List<string> failures, bool passed, string name)
+        {
+            if (!passed)
+            {
+                failures.Add(name);
+            }
+        }
+    }
 }

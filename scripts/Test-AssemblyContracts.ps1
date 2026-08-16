@@ -88,8 +88,15 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.View.UnitMovementAgentBase',0x060018E4,'set_MaxSpeedOverride'),
         @('Kingmaker.Controllers.Clicks.Handlers.ClickUnitHandler',0x060093ED,'OnClick'),
         @('Kingmaker.View.UnitMovementAgent',0x060018A9,'CanMoveInTurnBased'),
+        @('Kingmaker.Game',0x040006C2,'TurnBasedCombatController'),
+        @('TurnBased.Controllers.CombatController',0x06000BC4,'get_Initialized'),
+        @('TurnBased.Controllers.CombatController',0x06000BC7,'get_SortedUnits'),
+        @('TurnBased.Controllers.CombatController',0x06000BC8,'get_RoundNumber'),
         @('TurnBased.Controllers.CombatController',0x06000BDA,'StartTurn'),
         @('TurnBased.Controllers.CombatController',0x06000BBE,'get_CurrentTurn'),
+        @('TurnBased.Controllers.CombatController',0x06000BF6,'IsInTurnBasedCombat'),
+        @('TurnBased.Controllers.TurnController',0x04000669,'Unit'),
+        @('TurnBased.Controllers.TurnController',0x06000C24,'get_IsActing'),
         @('TurnBased.Controllers.TurnController',0x06000C47,'ForceToEnd'),
         @('Kingmaker.UnitLogic.Commands.UnitAttack',0x06002678,'.ctor'),
         @('Kingmaker.UnitLogic.Commands.UnitAttack',0x0600265D,'set_IsSingleAttack'),
@@ -188,6 +195,43 @@ if($Target-eq'Kingmaker'){
         @($createSingleAttack[0].ReturnType.GetGenericArguments()).Count-eq1 -and
         @($createSingleAttack[0].ReturnType.GetGenericArguments())[0].FullName-ceq'Kingmaker.UnitLogic.Commands.AttackHandInfo') `
         'UnitAttack.CreateSingleAttack exact public instance native-order signature'
+    $turnBasedCombatType=$assembly.GetType('TurnBased.Controllers.CombatController',$false)
+    $turnControllerType=$assembly.GetType('TurnBased.Controllers.TurnController',$false)
+    $gameTurnController=@(Find-Token 'Kingmaker.Game' 0x040006C2)
+    $turnInitialized=@(Find-Token 'TurnBased.Controllers.CombatController' 0x06000BC4)
+    $turnSortedUnits=@(Find-Token 'TurnBased.Controllers.CombatController' 0x06000BC7)
+    $turnRoundNumber=@(Find-Token 'TurnBased.Controllers.CombatController' 0x06000BC8)
+    $turnStart=@(Find-Token 'TurnBased.Controllers.CombatController' 0x06000BDA)
+    $turnCurrent=@(Find-Token 'TurnBased.Controllers.CombatController' 0x06000BBE)
+    $turnMode=@(Find-Token 'TurnBased.Controllers.CombatController' 0x06000BF6)
+    $turnUnit=@(Find-Token 'TurnBased.Controllers.TurnController' 0x04000669)
+    $turnActing=@(Find-Token 'TurnBased.Controllers.TurnController' 0x06000C24)
+    Assert-Contract ($null-ne$turnBasedCombatType -and $null-ne$turnControllerType -and
+        $gameTurnController.Count-eq1 -and $gameTurnController[0] -is [Reflection.FieldInfo] -and
+        $gameTurnController[0].IsPublic -and -not $gameTurnController[0].IsStatic -and
+        $gameTurnController[0].FieldType.FullName-ceq'TurnBased.Controllers.CombatController' -and
+        $turnInitialized.Count-eq1 -and $turnInitialized[0] -is [Reflection.MethodInfo] -and
+        $turnInitialized[0].IsPublic -and -not $turnInitialized[0].IsStatic -and
+        $turnInitialized[0].ReturnType.FullName-ceq'System.Boolean' -and $turnInitialized[0].GetParameters().Count-eq0 -and
+        $turnSortedUnits.Count-eq1 -and $turnSortedUnits[0] -is [Reflection.MethodInfo] -and
+        $turnSortedUnits[0].IsPublic -and -not $turnSortedUnits[0].IsStatic -and
+        $turnSortedUnits[0].ReturnType.IsGenericType -and
+        $turnSortedUnits[0].ReturnType.GetGenericTypeDefinition().FullName-ceq'System.Collections.Generic.IEnumerable`1' -and
+        @($turnSortedUnits[0].ReturnType.GetGenericArguments()).Count-eq1 -and
+        @($turnSortedUnits[0].ReturnType.GetGenericArguments())[0].FullName-ceq'Kingmaker.EntitySystem.Entities.UnitEntityData' -and
+        $turnRoundNumber.Count-eq1 -and $turnRoundNumber[0].ReturnType.FullName-ceq'System.Int32' -and
+        $turnRoundNumber[0].GetParameters().Count-eq0 -and
+        $turnStart.Count-eq1 -and $turnStart[0].IsPublic -and -not $turnStart[0].IsStatic -and
+        $turnStart[0].ReturnType.FullName-ceq'System.Void' -and $turnStart[0].GetParameters().Count-eq1 -and
+        $turnStart[0].GetParameters()[0].ParameterType.FullName-ceq'Kingmaker.EntitySystem.Entities.UnitEntityData' -and
+        $turnCurrent.Count-eq1 -and $turnCurrent[0].ReturnType.FullName-ceq'TurnBased.Controllers.TurnController' -and
+        $turnMode.Count-eq1 -and $turnMode[0].IsPublic -and $turnMode[0].IsStatic -and
+        $turnMode[0].ReturnType.FullName-ceq'System.Boolean' -and $turnMode[0].GetParameters().Count-eq0 -and
+        $turnUnit.Count-eq1 -and $turnUnit[0] -is [Reflection.FieldInfo] -and $turnUnit[0].IsPublic -and
+        $turnUnit[0].FieldType.FullName-ceq'Kingmaker.EntitySystem.Entities.UnitEntityData' -and
+        $turnActing.Count-eq1 -and $turnActing[0].IsPublic -and -not $turnActing[0].IsStatic -and
+        $turnActing[0].ReturnType.FullName-ceq'System.Boolean' -and $turnActing[0].GetParameters().Count-eq0) `
+        'native turn-based controller roster, rider-turn, and mode signatures'
     $unityChecks=@(
         @('UnityEngine.SceneManagement.SceneManager',0x060019D5,'GetSceneByName'),
         @('UnityEngine.SceneManagement.Scene',0x060019C4,'get_isLoaded'))

@@ -3637,7 +3637,7 @@ function Get-KmcSaveBackedRuntimeScenarios {
         'presentation-residue-and-uninstall-safety', 'pose-idle', 'pose-walk-run', 'pose-turn-stop',
         'pose-doorway-formation', 'pose-equipment-variants', 'ui-selection-portrait-actionbar',
         'camera-follow-and-command-routing', 'movement-suite', 'boundary-suite', 'presentation-suite',
-        'mounted-rider-melee-hit-rt',
+        'mounted-rider-melee-hit-rt', 'mounted-rider-melee-hit-tb',
         'manual-visual-review'
     )
 }
@@ -4560,7 +4560,7 @@ function Assert-KmcBoundaryTriggerScope {
 }
 
 function Get-KmcCombatRuntimeRows {
-    return @('mounted-rider-melee-hit-rt')
+    return @('mounted-rider-melee-hit-rt','mounted-rider-melee-hit-tb')
 }
 
 function Test-KmcCombatRuntimeScenario {
@@ -7138,8 +7138,11 @@ function Assert-KmcCombatScenarioEvidence {
     if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -ge 3) {
         $recordFields = @($recordFields + 'combatEntry')
     }
+    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -ge 5) {
+        $recordFields = @($recordFields + 'turnBased')
+    }
     Assert-KmcExactProperties $record $recordFields 'combat evidence record'
-    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -notin @(1,2,3,4) -or
+    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -notin @(1,2,3,4,5) -or
         [string]$record.artifactKind -cne 'combat-scenario-evidence') {
         throw 'Combat evidence schemaVersion or artifactKind is not exact.'
     }
@@ -7198,6 +7201,28 @@ function Assert-KmcCombatScenarioEvidence {
             if (-not (Test-KmcJsonNumber $record.combatEntry.$name)) { throw "Combat entry evidence is not numeric: $name" }
         }
     }
+    if ([long]$record.schemaVersion -ge 5) {
+        $turnBooleanFields = @(
+            'requested','originalEnabled','temporaryEnabled','originalRawCacheHadValue','enabledAtMount',
+            'controllerInitialized','rosterContainsRider','rosterContainsMount','rosterContainsTarget',
+            'nativeRiderTurnStarted','currentTurnActingAtDispatch','currentTurnActingAtOutcome',
+            'restoreDeliveryCompleted','modeRestored','persistedValueUnchanged')
+        Assert-KmcExactProperties $record.turnBased @($turnBooleanFields + @(
+            'currentTurnUnitIdAtDispatch','roundNumberAtDispatch','currentTurnUnitIdAtOutcome')) 'combat turn-based evidence'
+        foreach ($name in $turnBooleanFields) {
+            if ($record.turnBased.$name -isnot [bool]) { throw "Combat turn-based evidence is not Boolean: $name" }
+        }
+        foreach ($name in @('currentTurnUnitIdAtDispatch','currentTurnUnitIdAtOutcome')) {
+            if ($record.turnBased.$name -isnot [string] -or
+                [string]::IsNullOrWhiteSpace([string]$record.turnBased.$name)) {
+                throw "Combat turn-based unit identity is invalid: $name"
+            }
+        }
+        if (-not (Test-KmcExactJsonInteger $record.turnBased.roundNumberAtDispatch) -or
+            [long]$record.turnBased.roundNumberAtDispatch -lt 0) {
+            throw 'Combat turn-based round identity is invalid.'
+        }
+    }
     Assert-KmcExactProperties $record.resources @(
         'riderStandardBefore','riderStandardAfter','riderMoveBefore','riderMoveAfter',
         'mountStandardBefore','mountStandardAfter','mountMoveBefore','mountMoveAfter') 'combat resource evidence'
@@ -7222,18 +7247,21 @@ function Assert-KmcCombatScenarioEvidence {
 
     $requirePass = [string]$Status -ceq 'PASS'
     if ($requirePass) {
-        if ([long]$record.schemaVersion -ne 4 -or
+        $turnBasedScenario = [string]$Request.scenario -ceq 'mounted-rider-melee-hit-tb'
+        $expectedCombatSchema = if ($turnBasedScenario) { 5 } else { 4 }
+        if ([long]$record.schemaVersion -ne $expectedCombatSchema -or
             [string]$record.status -cne 'PASS' -or [long]$record.assertionFailCount -ne 0 -or
             [long]$record.assertionPassCount -le 0 -or @($record.errors).Count -ne 0) {
-            throw 'PASS combat evidence does not contain an error-free schema-v4 PASS row.'
+            throw "PASS combat evidence does not contain an error-free schema-v$expectedCombatSchema PASS row."
         }
-        if ([string]$record.row -cne 'mounted-rider-melee-hit-rt' -or
-            [string]$record.mode -cne 'real-time' -or [string]$record.action -cne 'RiderMelee' -or
+        $expectedCombatMode = if ($turnBasedScenario) { 'turn-based' } else { 'real-time' }
+        if ([string]$record.row -cne [string]$Request.scenario -or
+            [string]$record.mode -cne $expectedCombatMode -or [string]$record.action -cne 'RiderMelee' -or
             [string]$record.expectedActor -cne 'rider' -or $record.clickAccepted -ne $true) {
-            throw 'PASS combat evidence does not prove the exact real-time rider action path.'
+            throw 'PASS combat evidence does not prove the exact requested rider action path.'
         }
         if ($record.dispatch.originalPaused -isnot [bool] -or
-            $record.dispatch.unpausedForRealTime -ne $true -or
+            $record.dispatch.unpausedForRealTime -ne (-not $turnBasedScenario) -or
             $record.dispatch.pausedAtClick -ne $false -or
             $record.dispatch.riderCanActInCombat -ne $true -or
             $record.dispatch.riderHandsBusy -ne $false -or
@@ -7241,6 +7269,23 @@ function Assert-KmcCombatScenarioEvidence {
             $record.dispatch.equipmentUpdateScheduled -ne $false -or
             $record.dispatch.pauseRestored -ne $true) {
             throw 'PASS combat evidence does not prove an unpaused native-ready dispatch and exact pause restoration.'
+        }
+        if ($turnBasedScenario -and
+            ($record.turnBased.requested -ne $true -or $record.turnBased.originalEnabled -ne $false -or
+             $record.turnBased.temporaryEnabled -ne $true -or $record.turnBased.enabledAtMount -ne $true -or
+             $record.turnBased.controllerInitialized -ne $true -or
+             $record.turnBased.rosterContainsRider -ne $true -or
+             $record.turnBased.rosterContainsMount -ne $true -or
+             $record.turnBased.rosterContainsTarget -ne $true -or
+             $record.turnBased.nativeRiderTurnStarted -ne $true -or
+             [string]$record.turnBased.currentTurnUnitIdAtDispatch -cne [string]$record.riderId -or
+             $record.turnBased.currentTurnActingAtDispatch -ne $true -or
+             [string]$record.turnBased.currentTurnUnitIdAtOutcome -cne [string]$record.riderId -or
+             $record.turnBased.currentTurnActingAtOutcome -ne $true -or
+             $record.turnBased.restoreDeliveryCompleted -ne $true -or
+             $record.turnBased.modeRestored -ne $true -or
+             $record.turnBased.persistedValueUnchanged -ne $true)) {
+            throw 'PASS turn-based combat evidence does not prove the exact native rider turn and mode restoration.'
         }
         if ($record.combatEntry.memoryQueued -ne $true -or
             $record.combatEntry.playerGroupMemoryContainsTarget -ne $true -or

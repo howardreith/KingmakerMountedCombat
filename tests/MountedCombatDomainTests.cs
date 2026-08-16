@@ -38,6 +38,8 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("diagnostic combat dispatch reports exact paused initiative and equipment gates", CombatDispatchReportsExactFailures);
             runner.Run("diagnostic combat entry requires native memory preparation and group combat", CombatEntryRequiresNativeMemoryAndCombat);
             runner.Run("diagnostic combat entry reports exact memory combat and time failures", CombatEntryReportsExactFailures);
+            runner.Run("diagnostic turn-based dispatch requires exact native rider turn", TurnBasedDispatchRequiresExactRiderTurn);
+            runner.Run("diagnostic turn-based dispatch reports exact roster and turn failures", TurnBasedDispatchReportsExactFailures);
             runner.Run("mounted pair liveness preserves every in-flight gate", PairLivenessPreservesEveryGate);
             runner.Run("mounted pair liveness reports exact changed gates", PairLivenessReportsExactFailures);
             runner.Run("mounted pair liveness admits target incapacitation only after exact child start", PairLivenessAdmitsPostAttackIncapacitation);
@@ -390,6 +392,31 @@ namespace KingmakerMountedCombat.Tests
                 "Combat-entry failures were not reported in exact gate order.");
             TestRunner.True(snapshot.RiderInitiative == 6f && snapshot.GameDeltaTime == 0f,
                 "Failed combat-entry timing evidence was not preserved exactly.");
+        }
+
+        private static void TurnBasedDispatchRequiresExactRiderTurn()
+        {
+            var snapshot = new DiagnosticTurnBasedDispatchReadinessSnapshot(
+                true, true, true, true, true, true, true, true);
+            TestRunner.True(snapshot.AllPassed,
+                "An initialized native rider turn with the exact combat roster was rejected.");
+            TestRunner.True(snapshot.ModeEnabled && snapshot.ControllerInitialized &&
+                    snapshot.RosterContainsRider && snapshot.RosterContainsMount &&
+                    snapshot.RosterContainsTarget && snapshot.NativeRiderTurnStarted &&
+                    snapshot.CurrentTurnRider && snapshot.CurrentTurnActing,
+                "An all-pass turn-based snapshot changed its exact native gate values.");
+        }
+
+        private static void TurnBasedDispatchReportsExactFailures()
+        {
+            var snapshot = new DiagnosticTurnBasedDispatchReadinessSnapshot(
+                true, false, true, false, false, true, false, false);
+            TestRunner.True(!snapshot.AllPassed,
+                "A turn-based dispatch without an initialized exact rider turn passed.");
+            TestRunner.Equal(
+                "turn-based-controller-initialized,turn-roster-contains-mount,turn-roster-contains-target,current-turn-rider,current-turn-acting",
+                snapshot.FailureSummary,
+                "Turn-based dispatch failures were not reported in exact gate order.");
         }
 
         private static MountedCombatTransaction TargetedTransaction(bool requiresApproach)

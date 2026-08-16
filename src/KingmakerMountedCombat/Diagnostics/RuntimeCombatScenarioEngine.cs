@@ -23,13 +23,15 @@ namespace KingmakerMountedCombat.Diagnostics
 {
     /// <summary>
     /// Runs exact, save-backed combat probes against a runtime-only hostile target. The
-    /// first qualified row is intentionally narrow: one stationary rider melee hit in
-    /// real time, entered through the real ClickUnitHandler Harmony seam.
+    /// first qualified rows are intentionally narrow: one stationary rider melee hit in
+    /// real time or one exact native rider turn, entered through the real ClickUnitHandler
+    /// Harmony seam.
     /// </summary>
     internal sealed class RuntimeCombatScenarioEngine : IDisposable
     {
         internal const string EvidenceFileName = "combat-scenario-evidence.jsonl";
         private const string RiderHitRealTime = "mounted-rider-melee-hit-rt";
+        private const string RiderHitTurnBased = "mounted-rider-melee-hit-tb";
         private const double RowTimeoutSeconds = 30.0d;
         private const double CleanupTimeoutSeconds = 10.0d;
         private const float SpawnDistance = 6.0f;
@@ -110,6 +112,21 @@ namespace KingmakerMountedCombat.Diagnostics
         private double cleanupStartedAtSeconds;
         private DiagnosticCombatDispatchReadinessSnapshot dispatchReadiness;
         private DiagnosticCombatEntryReadinessSnapshot entryReadiness;
+        private DiagnosticTurnBasedDispatchReadinessSnapshot turnBasedReadiness;
+        private NativeModeTransitionProbe turnBasedModeProbe;
+        private bool turnBasedModeEnabledAtMount;
+        private bool turnBasedControllerInitialized;
+        private bool turnRosterContainsRider;
+        private bool turnRosterContainsMount;
+        private bool turnRosterContainsTarget;
+        private bool nativeRiderTurnStarted;
+        private string currentTurnUnitIdAtDispatch;
+        private bool currentTurnActingAtDispatch;
+        private int roundNumberAtDispatch;
+        private string currentTurnUnitIdAtOutcome;
+        private bool currentTurnActingAtOutcome;
+        private bool turnBasedModeRestored = true;
+        private bool turnBasedPersistedSettingUnchanged = true;
 
         public RuntimeCombatScenarioEngine(
             RuntimeRequest request,
@@ -137,8 +154,11 @@ namespace KingmakerMountedCombat.Diagnostics
 
         internal static bool SupportsScenario(string scenario)
         {
-            return string.Equals(scenario, RiderHitRealTime, StringComparison.Ordinal);
+            return string.Equals(scenario, RiderHitRealTime, StringComparison.Ordinal) ||
+                string.Equals(scenario, RiderHitTurnBased, StringComparison.Ordinal);
         }
+
+        private bool IsTurnBasedRow => string.Equals(currentRow, RiderHitTurnBased, StringComparison.Ordinal);
 
         public void Start()
         {
@@ -191,6 +211,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     case CombatEngineStep.BeginRow:
                         BeginRow();
                         break;
+                    case CombatEngineStep.AwaitTurnBasedMode:
+                        AwaitTurnBasedModeAndMount();
+                        break;
                     case CombatEngineStep.AwaitMountedFrame:
                         EnterCombat();
                         break;
@@ -241,6 +264,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 ruleProbe = null;
                 targetService?.Dispose();
                 targetService = null;
+                try { turnBasedModeProbe?.Dispose(); }
+                catch (Exception exception) { errors.Add("Turn-based mode probe disposal failed: " + exception.Message); }
+                turnBasedModeProbe = null;
                 RestorePause();
                 RestoreSettings();
                 rowClock.Stop();
@@ -253,7 +279,7 @@ namespace KingmakerMountedCombat.Diagnostics
             assertions.Check(relationship.State == RelationshipState.Unmounted,
                 "Relationship began Unmounted.");
             assertions.Check(!CombatController.IsInTurnBasedCombat(),
-                "Real-time row began outside turn-based combat.");
+                "Combat row began from the exact real-time baseline.");
             assertions.Check(Game.Instance != null && Game.Instance.CurrentlyLoadedArea != null &&
                     Game.Instance.CurrentMode == Kingmaker.GameModes.GameModeType.Default,
                 "Loaded Working fixture began in exact Default gameplay mode.");
@@ -267,6 +293,38 @@ namespace KingmakerMountedCombat.Diagnostics
             pauseLeaseOwned = true;
             pauseRestored = false;
 
+            if (IsTurnBasedRow)
+            {
+                turnBasedModeProbe = new NativeModeTransitionProbe();
+                assertions.Check(!turnBasedModeProbe.OriginalValue && turnBasedModeProbe.TemporaryValue,
+                    "Turn-based combat row leased an exact false-to-true native mode transition.");
+                if (assertions.FailureCount != 0)
+                {
+                    BeginCleanup();
+                    return;
+                }
+                turnBasedModeRestored = false;
+                turnBasedPersistedSettingUnchanged = false;
+                turnBasedModeProbe.DispatchTemporaryValue();
+                step = CombatEngineStep.AwaitTurnBasedMode;
+                return;
+            }
+
+            ResolveAndMountPair();
+        }
+
+        private void AwaitTurnBasedModeAndMount()
+        {
+            if (!CombatController.IsInTurnBasedCombat() || Game.Instance?.TurnBasedCombatController == null)
+            {
+                return;
+            }
+            turnBasedModeEnabledAtMount = true;
+            ResolveAndMountPair();
+        }
+
+        private void ResolveAndMountPair()
+        {
             string resolutionError;
             assertions.Check(relationship.TryResolveAutomationPair(out rider, out mount, out resolutionError),
                 "Exact Medium-humanoid/Mammoth automation pair resolved: " + (resolutionError ?? "unknown error") + ".");
@@ -376,7 +434,8 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 game.IsPaused = false;
             }
-            unpausedForRealTime = !game.IsPaused;
+            var gameUnpaused = !game.IsPaused;
+            unpausedForRealTime = !IsTurnBasedRow && gameUnpaused;
             var combatMemoryLeaseHealthy = targetService != null &&
                 targetService.RefreshBidirectionalCombatMemoryLease();
             entryReadiness = new DiagnosticCombatEntryReadinessSnapshot(
@@ -397,9 +456,36 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
+            if (IsTurnBasedRow)
+            {
+                var turnController = game.TurnBasedCombatController;
+                turnBasedControllerInitialized = turnController != null && turnController.Initialized;
+                turnRosterContainsRider = ContainsTurnRosterUnit(turnController, rider);
+                turnRosterContainsMount = ContainsTurnRosterUnit(turnController, mount);
+                turnRosterContainsTarget = ContainsTurnRosterUnit(turnController, target);
+                if (!turnBasedControllerInitialized || !turnRosterContainsRider ||
+                    !turnRosterContainsMount || !turnRosterContainsTarget)
+                {
+                    turnBasedReadiness = CaptureTurnBasedReadiness(turnController);
+                    return;
+                }
+                if (!nativeRiderTurnStarted)
+                {
+                    turnController.StartTurn(rider);
+                    nativeRiderTurnStarted = true;
+                    return;
+                }
+
+                turnBasedReadiness = CaptureTurnBasedReadiness(turnController);
+                if (!turnBasedReadiness.AllPassed)
+                {
+                    return;
+                }
+            }
+
             var handsEquipment = game.HandsEquipmentController;
             dispatchReadiness = new DiagnosticCombatDispatchReadinessSnapshot(
-                unpausedForRealTime,
+                gameUnpaused,
                 rider.CombatState.CanActInCombat,
                 !rider.AreHandsBusyWithAnimation,
                 handsEquipment != null,
@@ -409,12 +495,23 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
-            assertions.Check(!CombatController.IsInTurnBasedCombat(),
-                "Combat remained real time at dispatch.");
+            assertions.Check(IsTurnBasedRow
+                    ? CombatController.IsInTurnBasedCombat()
+                    : !CombatController.IsInTurnBasedCombat(),
+                "Combat mode remained exact at dispatch.");
             assertions.Check(entryReadiness.AllPassed,
                 "Native memory, combat entry, initiative preparation, and Default-mode time remained exact at dispatch.");
             assertions.Check(dispatchReadiness.AllPassed,
-                "Real-time dispatch waited for unpaused initiative, hands, and equipment readiness.");
+                "Combat dispatch waited for unpaused initiative, hands, and equipment readiness.");
+            if (IsTurnBasedRow)
+            {
+                assertions.Check(turnBasedReadiness != null && turnBasedReadiness.AllPassed,
+                    "Turn-based dispatch retained the exact initialized roster and native rider turn.");
+                var turnController = game.TurnBasedCombatController;
+                currentTurnUnitIdAtDispatch = turnController?.CurrentTurn?.Unit?.UniqueId;
+                currentTurnActingAtDispatch = turnController?.CurrentTurn != null && turnController.CurrentTurn.IsActing;
+                roundNumberAtDispatch = turnController?.RoundNumber ?? -1;
+            }
             assertions.Check(relationship.State == RelationshipState.Mounted,
                 "Native combat entry retained the mounted relationship.");
             assertions.Check(target.IsInState && target.Descriptor.State.IsConscious && !target.Descriptor.State.IsFinallyDead,
@@ -543,6 +640,15 @@ namespace KingmakerMountedCombat.Diagnostics
             assertions.Check(string.Equals(ruleProbe.LastInitiatorId, rider.UniqueId, StringComparison.Ordinal) &&
                     string.Equals(ruleProbe.LastTargetId, targetId, StringComparison.Ordinal),
                 "Rulebook identities remained the exact rider and diagnostic target.");
+            if (IsTurnBasedRow)
+            {
+                var currentTurn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
+                currentTurnUnitIdAtOutcome = currentTurn?.Unit?.UniqueId;
+                currentTurnActingAtOutcome = currentTurn != null && currentTurn.IsActing;
+                assertions.Check(string.Equals(currentTurnUnitIdAtOutcome, rider.UniqueId, StringComparison.Ordinal) &&
+                        currentTurnActingAtOutcome,
+                    "The exact native rider turn remained active through the stationary attack outcome.");
+            }
             assertions.Check(relationship.State == RelationshipState.Mounted &&
                     relationship.Runtime.PoseHealthy && relationship.Runtime.PoseFrameApplied,
                 "Mounted relationship and accepted pose remained healthy after the attack.");
@@ -621,6 +727,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
+            RestoreTurnBasedMode();
+            if (IsTurnBasedRow)
+            {
+                assertions.Check(turnBasedModeRestored && turnBasedPersistedSettingUnchanged,
+                    "Turn-based mode, raw cache, and persisted setting were restored exactly after cleanup.");
+            }
             RestorePause();
 
             assertions.Check(targetRemoved && targetEntityRemoved &&
@@ -629,7 +741,7 @@ namespace KingmakerMountedCombat.Diagnostics
             assertions.Check(combatCleared,
                 "Pair, target, and party left combat before final evidence.");
             assertions.Check(pauseRestored,
-                "The exact pre-row pause state was restored after the real-time combat lease.");
+                "The exact pre-row pause state was restored after the combat lease.");
             assertions.Check(relationship.State == RelationshipState.Unmounted &&
                     relationship.Rider == null && relationship.Mount == null &&
                     relationship.Runtime.MovementAgent == null &&
@@ -674,7 +786,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var selected = SelectionManager.Instance?.SelectedUnits;
             var record = new CombatEvidenceRecord
             {
-                SchemaVersion = 4,
+                SchemaVersion = IsTurnBasedRow ? 5 : 4,
                 ArtifactKind = "combat-scenario-evidence",
                 RunId = request.RunId,
                 Scenario = request.Scenario,
@@ -689,7 +801,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 DllSha256 = dllSha256,
                 DllMvid = dllMvid,
                 Status = assertions.FailureCount == 0 ? "PASS" : "FAIL",
-                Mode = "real-time",
+                Mode = IsTurnBasedRow ? "turn-based" : "real-time",
                 Action = MountedCombatActionKind.RiderMelee.ToString(),
                 ExpectedActor = "rider",
                 RiderId = rider?.UniqueId,
@@ -709,6 +821,23 @@ namespace KingmakerMountedCombat.Diagnostics
                     pausedAtClick,
                     dispatchReadiness,
                     pauseRestored),
+                TurnBased = IsTurnBasedRow
+                    ? TurnBasedCombatEvidence.Capture(
+                        turnBasedModeProbe,
+                        turnBasedModeEnabledAtMount,
+                        turnBasedControllerInitialized,
+                        turnRosterContainsRider,
+                        turnRosterContainsMount,
+                        turnRosterContainsTarget,
+                        nativeRiderTurnStarted,
+                        currentTurnUnitIdAtDispatch,
+                        currentTurnActingAtDispatch,
+                        roundNumberAtDispatch,
+                        currentTurnUnitIdAtOutcome,
+                        currentTurnActingAtOutcome,
+                        turnBasedModeRestored,
+                        turnBasedPersistedSettingUnchanged)
+                    : null,
                 Resources = new CombatResourceEvidence
                 {
                     RiderStandardBefore = riderStandardBefore,
@@ -839,6 +968,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
             }
             catch (Exception exception) { errors.Add("Combat target disposal cleanup failed: " + exception.Message); }
+            try { RestoreTurnBasedMode(); }
+            catch (Exception exception) { errors.Add("Turn-based mode restoration during disposal failed: " + exception.Message); }
             RestorePause();
         }
 
@@ -848,6 +979,39 @@ namespace KingmakerMountedCombat.Diagnostics
             targetRuntimeGroupRemoved = targetService != null && targetService.RuntimeGroupRemoved;
             targetRuntimeFactionRemoved = targetService != null && targetService.RuntimeFactionRemoved;
             combatMemoryRemoved = targetService != null && targetService.CombatMemoryRemoved;
+        }
+
+        private DiagnosticTurnBasedDispatchReadinessSnapshot CaptureTurnBasedReadiness(
+            TurnBased.Controllers.CombatController controller)
+        {
+            var currentTurn = controller?.CurrentTurn;
+            return new DiagnosticTurnBasedDispatchReadinessSnapshot(
+                CombatController.IsInTurnBasedCombat(),
+                controller != null && controller.Initialized,
+                turnRosterContainsRider,
+                turnRosterContainsMount,
+                turnRosterContainsTarget,
+                nativeRiderTurnStarted,
+                currentTurn?.Unit == rider,
+                currentTurn != null && currentTurn.IsActing);
+        }
+
+        private static bool ContainsTurnRosterUnit(
+            TurnBased.Controllers.CombatController controller,
+            UnitEntityData expected)
+        {
+            if (controller == null || expected == null)
+            {
+                return false;
+            }
+            foreach (var unit in controller.SortedUnits)
+            {
+                if (unit == expected)
+                {
+                    return true;
+                }
+            }
+            return false;
         }
 
         private static void TryLeaveCombat(UnitEntityData unit)
@@ -865,6 +1029,27 @@ namespace KingmakerMountedCombat.Diagnostics
                 settings.EnableUnsafeMovementExperiment = originalUnsafeExperimentSetting;
                 settingLeaseOwned = false;
             }
+        }
+
+        private void RestoreTurnBasedMode()
+        {
+            if (!IsTurnBasedRow || turnBasedModeProbe == null)
+            {
+                return;
+            }
+
+            if (turnBasedModeProbe.TemporaryDeliveryAttempted &&
+                !turnBasedModeProbe.RestoreDeliveryCompleted)
+            {
+                turnBasedModeProbe.DispatchRestoreAndRestoreRawCache();
+            }
+            turnBasedModeProbe.Dispose();
+            turnBasedPersistedSettingUnchanged = !turnBasedModeProbe.TemporaryDeliveryAttempted ||
+                turnBasedModeProbe.PersistedValueUnchanged;
+            turnBasedModeRestored = !CombatController.IsInTurnBasedCombat() &&
+                (!turnBasedModeProbe.TemporaryDeliveryAttempted ||
+                 turnBasedModeProbe.RestoreDeliveryCompleted) &&
+                turnBasedPersistedSettingUnchanged;
         }
 
         private void RestorePause()
@@ -891,6 +1076,12 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private string DescribeDeadlineReadiness()
         {
+            if (step == CombatEngineStep.AwaitTurnBasedMode)
+            {
+                return "Turn-based mode enabled=" + CombatController.IsInTurnBasedCombat() +
+                    ";controllerAvailable=" + (Game.Instance?.TurnBasedCombatController != null) +
+                    ";temporaryDelivery=" + (turnBasedModeProbe != null && turnBasedModeProbe.TemporaryDeliveryAttempted);
+            }
             if (step == CombatEngineStep.AwaitCombatFrame)
             {
                 return "Combat entry readiness=" + (entryReadiness?.FailureSummary ?? "not-observed") +
@@ -903,6 +1094,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     ";targetAwake=" + (target != null && target.IsAwake) +
                     ";targetInFog=" + (target != null && target.IsInFogOfWar) +
                     ";targetFactionPeaceful=" + (target?.Faction != null && target.Faction.Peaceful) +
+                    ";turnBasedReadiness=" + (turnBasedReadiness?.FailureSummary ??
+                        (IsTurnBasedRow ? "not-observed" : "not-requested")) +
                     ";dispatchReadiness=" + (dispatchReadiness?.FailureSummary ?? "not-observed") +
                     ";gamePaused=" + (Game.Instance != null && Game.Instance.IsPaused);
             }
@@ -943,6 +1136,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private enum CombatEngineStep
         {
             BeginRow,
+            AwaitTurnBasedMode,
             AwaitMountedFrame,
             AwaitCombatFrame,
             AwaitOutcome,
@@ -1010,6 +1204,8 @@ namespace KingmakerMountedCombat.Diagnostics
             public PositionEvidence TargetPositionAtClick { get; set; }
             public CombatEntryEvidence CombatEntry { get; set; }
             public CombatDispatchEvidence Dispatch { get; set; }
+            [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            public TurnBasedCombatEvidence TurnBased { get; set; }
             public CombatResourceEvidence Resources { get; set; }
             public CombatCommandEvidence Command { get; set; }
             public CombatRuleEvidence Rules { get; set; }
@@ -1103,6 +1299,67 @@ namespace KingmakerMountedCombat.Diagnostics
             public float MountStandardAfter { get; set; }
             public float MountMoveBefore { get; set; }
             public float MountMoveAfter { get; set; }
+        }
+
+        private sealed class TurnBasedCombatEvidence
+        {
+            public bool Requested { get; set; }
+            public bool OriginalEnabled { get; set; }
+            public bool TemporaryEnabled { get; set; }
+            public bool OriginalRawCacheHadValue { get; set; }
+            public bool EnabledAtMount { get; set; }
+            public bool ControllerInitialized { get; set; }
+            public bool RosterContainsRider { get; set; }
+            public bool RosterContainsMount { get; set; }
+            public bool RosterContainsTarget { get; set; }
+            public bool NativeRiderTurnStarted { get; set; }
+            public string CurrentTurnUnitIdAtDispatch { get; set; }
+            public bool CurrentTurnActingAtDispatch { get; set; }
+            public int RoundNumberAtDispatch { get; set; }
+            public string CurrentTurnUnitIdAtOutcome { get; set; }
+            public bool CurrentTurnActingAtOutcome { get; set; }
+            public bool RestoreDeliveryCompleted { get; set; }
+            public bool ModeRestored { get; set; }
+            public bool PersistedValueUnchanged { get; set; }
+
+            public static TurnBasedCombatEvidence Capture(
+                NativeModeTransitionProbe probe,
+                bool enabledAtMount,
+                bool controllerInitialized,
+                bool rosterContainsRider,
+                bool rosterContainsMount,
+                bool rosterContainsTarget,
+                bool nativeRiderTurnStarted,
+                string currentTurnUnitIdAtDispatch,
+                bool currentTurnActingAtDispatch,
+                int roundNumberAtDispatch,
+                string currentTurnUnitIdAtOutcome,
+                bool currentTurnActingAtOutcome,
+                bool modeRestored,
+                bool persistedValueUnchanged)
+            {
+                return new TurnBasedCombatEvidence
+                {
+                    Requested = true,
+                    OriginalEnabled = probe != null && probe.OriginalValue,
+                    TemporaryEnabled = probe != null && probe.TemporaryValue,
+                    OriginalRawCacheHadValue = probe != null && probe.OriginalRawCacheHadValue,
+                    EnabledAtMount = enabledAtMount,
+                    ControllerInitialized = controllerInitialized,
+                    RosterContainsRider = rosterContainsRider,
+                    RosterContainsMount = rosterContainsMount,
+                    RosterContainsTarget = rosterContainsTarget,
+                    NativeRiderTurnStarted = nativeRiderTurnStarted,
+                    CurrentTurnUnitIdAtDispatch = currentTurnUnitIdAtDispatch,
+                    CurrentTurnActingAtDispatch = currentTurnActingAtDispatch,
+                    RoundNumberAtDispatch = roundNumberAtDispatch,
+                    CurrentTurnUnitIdAtOutcome = currentTurnUnitIdAtOutcome,
+                    CurrentTurnActingAtOutcome = currentTurnActingAtOutcome,
+                    RestoreDeliveryCompleted = probe != null && probe.RestoreDeliveryCompleted,
+                    ModeRestored = modeRestored,
+                    PersistedValueUnchanged = persistedValueUnchanged
+                };
+            }
         }
 
         private sealed class CombatCommandEvidence

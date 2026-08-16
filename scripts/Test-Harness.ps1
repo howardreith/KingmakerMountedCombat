@@ -1071,12 +1071,13 @@ function New-TestCombatEvidenceRecord {
     $rider = 'combat-rider'
     $mount = 'combat-mount'
     $target = 'combat-target'
-    return [ordered]@{
-        schemaVersion=4;artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
+    $isTurnBased = [string]$Request.scenario -ceq 'mounted-rider-melee-hit-tb'
+    $record = [ordered]@{
+        schemaVersion=$(if ($isTurnBased) { 5 } else { 4 });artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
         scenario=[string]$Request.scenario;row=[string]$Request.scenario;rowIndex=0;sequence=0;frame=30
         utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o');branch=[string]$Request.branch
         commit=[string]$Request.commit;productVersion=[string]$Request.productVersion
-        dllSha256=[string]$Request.dllSha256;dllMvid=[string]$Request.dllMvid;status='PASS';mode='real-time'
+        dllSha256=[string]$Request.dllSha256;dllMvid=[string]$Request.dllMvid;status='PASS';mode=$(if ($isTurnBased) { 'turn-based' } else { 'real-time' })
         action='RiderMelee';expectedActor='rider';riderId=$rider;mountId=$mount;targetId=$target;clickAccepted=$true
         targetProvisioning=[ordered]@{
             targetBlueprintId='e7aa96d15a45238438ae4cfb476f6bb9';runtimeGroupId=('KMC.RuntimeHostile.'+[string]$Request.runId)
@@ -1099,7 +1100,7 @@ function New-TestCombatEvidenceRecord {
             memoryRemovedAtCleanup=$true
         }
         dispatch=[ordered]@{
-            originalPaused=$true;unpausedForRealTime=$true;pausedAtClick=$false;riderCanActInCombat=$true
+            originalPaused=$true;unpausedForRealTime=(-not $isTurnBased);pausedAtClick=$false;riderCanActInCombat=$true
             riderHandsBusy=$false;equipmentControllerAvailable=$true;equipmentUpdateScheduled=$false;pauseRestored=$true
         }
         resources=[ordered]@{
@@ -1131,6 +1132,17 @@ function New-TestCombatEvidenceRecord {
         }
         selection=@($rider);assertionPassCount=25;assertionFailCount=0;errors=@()
     }
+    if ($isTurnBased) {
+        $record.turnBased = [ordered]@{
+            requested=$true;originalEnabled=$false;temporaryEnabled=$true;originalRawCacheHadValue=$true
+            enabledAtMount=$true;controllerInitialized=$true;rosterContainsRider=$true
+            rosterContainsMount=$true;rosterContainsTarget=$true;nativeRiderTurnStarted=$true
+            currentTurnUnitIdAtDispatch=$rider;currentTurnActingAtDispatch=$true;roundNumberAtDispatch=1
+            currentTurnUnitIdAtOutcome=$rider;currentTurnActingAtOutcome=$true
+            restoreDeliveryCompleted=$true;modeRestored=$true;persistedValueUnchanged=$true
+        }
+    }
+    return $record
 }
 
 function Write-TestCombatEvidence {
@@ -4186,9 +4198,28 @@ try {
             -not $engineSource.Contains('target.JoinCombat();') -and
             -not $engineSource.Contains('rider.JoinCombat();') -and
             -not $engineSource.Contains('mount.JoinCombat();')) 'real-time combat does not lease native memory, await native combat entry, unpause, await exact dispatch readiness, and restore pause without manual JoinCombat'
+        $modeProbeIndex = $engineSource.IndexOf('turnBasedModeProbe = new NativeModeTransitionProbe();', [StringComparison]::Ordinal)
+        $modeDispatchIndex = $engineSource.IndexOf('turnBasedModeProbe.DispatchTemporaryValue();', [StringComparison]::Ordinal)
+        $turnBasedMountIndex = $engineSource.IndexOf('private void AwaitTurnBasedModeAndMount()', [StringComparison]::Ordinal)
+        $turnRosterIndex = $engineSource.IndexOf('turnRosterContainsTarget = ContainsTurnRosterUnit(turnController, target);', [StringComparison]::Ordinal)
+        $nativeRiderTurnIndex = $engineSource.IndexOf('turnController.StartTurn(rider);', [StringComparison]::Ordinal)
+        $turnDispatchIndex = $engineSource.IndexOf('turnBasedReadiness = CaptureTurnBasedReadiness(turnController);', $nativeRiderTurnIndex, [StringComparison]::Ordinal)
+        $cleanupDestroyIndex = $engineSource.IndexOf('targetRemoved = targetService.DestroyAndVerify();', [StringComparison]::Ordinal)
+        $modeRestoreIndex = $engineSource.IndexOf('RestoreTurnBasedMode();', $cleanupDestroyIndex, [StringComparison]::Ordinal)
+        Assert-Test ($modeProbeIndex -ge 0 -and $modeDispatchIndex -gt $modeProbeIndex -and
+            $turnBasedMountIndex -gt $modeDispatchIndex -and $turnRosterIndex -gt $turnBasedMountIndex -and
+            $nativeRiderTurnIndex -gt $turnRosterIndex -and $turnDispatchIndex -gt $nativeRiderTurnIndex -and
+            $cleanupDestroyIndex -gt $turnDispatchIndex -and $modeRestoreIndex -gt $cleanupDestroyIndex -and
+            $engineSource.Contains('CombatController.IsInTurnBasedCombat()') -and
+            $engineSource.Contains('turnController != null && turnController.Initialized') -and
+            $engineSource.Contains('foreach (var unit in controller.SortedUnits)') -and
+            $engineSource.Contains('currentTurn?.Unit == rider') -and
+            $engineSource.Contains('currentTurn != null && currentTurn.IsActing')) 'turn-based combat does not enable the native mode before mount, prove exact roster/current turn, start the rider turn natively, and restore mode after cleanup'
         Assert-Test ($engineSource.Contains('CleanupTimeoutSeconds = 10.0d') -and
             $engineSource.Contains('rowClock.Elapsed.TotalSeconds - cleanupStartedAtSeconds < CleanupTimeoutSeconds')) 'combat cleanup does not retain an independent bounded drain after a row deadline'
-        Assert-Test ($engineSource.Contains('SchemaVersion = 4') -and
+        Assert-Test ($engineSource.Contains('SchemaVersion = IsTurnBasedRow ? 5 : 4') -and
+            $engineSource.Contains('Mode = IsTurnBasedRow ? "turn-based" : "real-time"') -and
+            $engineSource.Contains('TurnBased = IsTurnBasedRow') -and
             $engineSource.Contains('CombatEntry = CombatEntryEvidence.From(') -and
             $engineSource.Contains('TerminalReason = value.TerminalReason') -and
             $engineSource.Contains('Dispatch = CombatDispatchEvidence.From(') -and
@@ -4196,7 +4227,10 @@ try {
             $combatValidatorSource.Contains("'defaultGameMode','memoryRemovedAtCleanup'") -and
             $combatValidatorSource.Contains("'unpausedForRealTime','pausedAtClick','riderCanActInCombat','riderHandsBusy'") -and
             $combatValidatorSource.Contains("'equipmentControllerAvailable','equipmentUpdateScheduled','pauseRestored'") -and
-            $combatValidatorSource.Contains("[string]`$record.command.terminalReason -cne 'completed'")) 'schema-v4 combat evidence does not bind native combat entry, terminal reason, memory cleanup, real-time dispatch, and pause restoration'
+            $combatValidatorSource.Contains("[string]`$record.command.terminalReason -cne 'completed'") -and
+            $combatValidatorSource.Contains("'controllerInitialized','rosterContainsRider','rosterContainsMount','rosterContainsTarget'") -and
+            $combatValidatorSource.Contains("[string]`$record.turnBased.currentTurnUnitIdAtDispatch -cne [string]`$record.riderId") -and
+            $combatValidatorSource.Contains("`$record.turnBased.persistedValueUnchanged -ne `$true")) 'schema-v4/v5 combat evidence does not bind native combat entry, terminal reason, memory cleanup, mode-specific dispatch, native rider-turn identity, and restoration'
         foreach ($field in @('TargetEntityRemoved','RuntimeGroupRemoved','RuntimeFactionRemoved')) {
             $jsonField = [char]::ToLowerInvariant($field[0]) + $field.Substring(1)
             Assert-Test ($engineSource.Contains("$field =") -and
@@ -4221,6 +4255,56 @@ try {
     Invoke-HarnessTest 'runtime request and combat evidence accept exact stationary rider hit' {
         & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $combatRequestPath
         Assert-KmcCombatScenarioEvidence -Request $combatRequest -Manifest $combatManifest -Status 'PASS' -SubscenarioResults @($combatSubresult)
+    }
+
+    $turnBasedRequestPath = Join-Path $testRoot 'runtime-request-combat-turn-based.json'
+    $turnBasedRequest = Copy-TestJsonValue $combatRequest
+    $turnBasedRequest.runId = 'combat-evidence-turn-based-test'
+    $turnBasedRequest.scenario = 'mounted-rider-melee-hit-tb'
+    $turnBasedRequest.evidenceRoot = Join-Path $runtimeEvidenceTestRoot $turnBasedRequest.runId
+    Write-KmcJsonAtomic $turnBasedRequestPath $turnBasedRequest
+    $turnBasedRecord = New-TestCombatEvidenceRecord $turnBasedRequest
+    [void](Write-TestCombatEvidence -EvidenceRoot $turnBasedRequest.evidenceRoot -Request $turnBasedRequest -Record $turnBasedRecord)
+    $turnBasedManifest = Read-KmcJson (Join-Path $turnBasedRequest.evidenceRoot 'runtime-artifacts.json')
+    $turnBasedSubresult = [ordered]@{name=$turnBasedRequest.scenario;status='PASS';assertionPassCount=25;assertionFailCount=0;errors=@()}
+
+    Invoke-HarnessTest 'runtime request and schema-v5 evidence accept exact native stationary rider turn' {
+        & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $turnBasedRequestPath
+        Assert-KmcCombatScenarioEvidence -Request $turnBasedRequest -Manifest $turnBasedManifest -Status 'PASS' -SubscenarioResults @($turnBasedSubresult)
+    }
+
+    Invoke-HarnessTest 'turn-based combat validator rejects mode roster turn and restoration mutations' {
+        $mutations = @(
+            @{name='wrong evidence schema';apply={param($value) $value.schemaVersion=4;$value.PSObject.Properties.Remove('turnBased')}},
+            @{name='wrong mode';apply={param($value) $value.mode='real-time'}},
+            @{name='real-time unpause claim';apply={param($value) $value.dispatch.unpausedForRealTime=$true}},
+            @{name='original mode enabled';apply={param($value) $value.turnBased.originalEnabled=$true}},
+            @{name='temporary mode disabled';apply={param($value) $value.turnBased.temporaryEnabled=$false}},
+            @{name='mode absent at mount';apply={param($value) $value.turnBased.enabledAtMount=$false}},
+            @{name='controller uninitialized';apply={param($value) $value.turnBased.controllerInitialized=$false}},
+            @{name='rider absent from roster';apply={param($value) $value.turnBased.rosterContainsRider=$false}},
+            @{name='mount absent from roster';apply={param($value) $value.turnBased.rosterContainsMount=$false}},
+            @{name='target absent from roster';apply={param($value) $value.turnBased.rosterContainsTarget=$false}},
+            @{name='native rider turn not started';apply={param($value) $value.turnBased.nativeRiderTurnStarted=$false}},
+            @{name='wrong dispatch turn identity';apply={param($value) $value.turnBased.currentTurnUnitIdAtDispatch='combat-mount'}},
+            @{name='dispatch turn not acting';apply={param($value) $value.turnBased.currentTurnActingAtDispatch=$false}},
+            @{name='negative round';apply={param($value) $value.turnBased.roundNumberAtDispatch=-1}},
+            @{name='wrong outcome turn identity';apply={param($value) $value.turnBased.currentTurnUnitIdAtOutcome='combat-target'}},
+            @{name='outcome turn not acting';apply={param($value) $value.turnBased.currentTurnActingAtOutcome=$false}},
+            @{name='restore callback incomplete';apply={param($value) $value.turnBased.restoreDeliveryCompleted=$false}},
+            @{name='mode not restored';apply={param($value) $value.turnBased.modeRestored=$false}},
+            @{name='persisted mode changed';apply={param($value) $value.turnBased.persistedValueUnchanged=$false}}
+        )
+        foreach ($mutation in $mutations) {
+            $candidate = Copy-TestJsonValue $turnBasedRecord
+            & $mutation.apply $candidate
+            [void](Write-TestCombatEvidence -EvidenceRoot $turnBasedRequest.evidenceRoot -Request $turnBasedRequest -Record $candidate)
+            $candidateManifest = Read-KmcJson (Join-Path $turnBasedRequest.evidenceRoot 'runtime-artifacts.json')
+            $threw = $false
+            try { Assert-KmcCombatScenarioEvidence -Request $turnBasedRequest -Manifest $candidateManifest -Status 'PASS' -SubscenarioResults @($turnBasedSubresult) }
+            catch { $threw = $true }
+            Assert-Test $threw ("turn-based combat validator accepted mutation: " + [string]$mutation.name)
+        }
     }
 
     Invoke-HarnessTest 'combat validator retains non-qualifying schema-v1 evidence compatibility' {
