@@ -4392,11 +4392,16 @@ try {
         Assert-Test ($targetSource.Contains('runtimeFactionDestroyPending = true;') -and
             $targetSource.Contains('runtimeFactionDestroyPending = false;') -and
             $targetSource.Contains('UnityEngine.Object.Destroy(runtimeFaction);')) 'runtime faction destruction is not retained and verified across the deferred Unity destruction boundary'
-        $targetStopIndex = $targetSource.IndexOf('target.View.AgentASP.Stop();', [StringComparison]::Ordinal)
+        $prepareTargetIndex = $targetSource.IndexOf('public bool PrepareForPlayerClick(UnitEntityData expectedTarget)', [StringComparison]::Ordinal)
+        $targetInterruptIndex = $targetSource.IndexOf('target.Commands.InterruptAll();', $prepareTargetIndex, [StringComparison]::Ordinal)
+        $targetFinishedDrainIndex = $targetSource.IndexOf('target.Commands.RemoveFinishedAndUpdateQueue();', $prepareTargetIndex, [StringComparison]::Ordinal)
+        $targetStopIndex = $targetSource.IndexOf('target.View.AgentASP.Stop();', $prepareTargetIndex, [StringComparison]::Ordinal)
         $targetStoppedGateIndex = $targetSource.IndexOf('TargetAgentStoppedAtClick = !target.View.AgentASP.WantsToMove', [StringComparison]::Ordinal)
         $targetCleanupRetryIndex = $targetSource.IndexOf('if (State == DiagnosticCombatTargetState.DestroyRequested)', [StringComparison]::Ordinal)
         $targetCleanupConfirmIndex = $targetSource.IndexOf('return lifecycle.ConfirmRemoved(lifecycle.TargetId, true);', [StringComparison]::Ordinal)
-        Assert-Test ($targetStopIndex -ge 0 -and $targetStoppedGateIndex -gt $targetStopIndex -and
+        Assert-Test ($prepareTargetIndex -ge 0 -and $targetInterruptIndex -gt $prepareTargetIndex -and
+            $targetFinishedDrainIndex -gt $targetInterruptIndex -and $targetStopIndex -gt $targetFinishedDrainIndex -and
+            $targetStoppedGateIndex -gt $targetStopIndex -and
             $targetSource.Contains('TargetCommandsEmptyAtClick = target.Commands.Empty;') -and
             $targetSource.Contains('TargetAgentEnabledAtClick = target.View.AgentASP.enabled;') -and
             $targetSource.Contains('target.View.AgentASP.Speed == 0f') -and

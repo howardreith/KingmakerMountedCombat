@@ -414,6 +414,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
 
             target.Commands.InterruptAll();
+            target.Commands.RemoveFinishedAndUpdateQueue();
             target.View.AgentASP.Stop();
             target.IsInFogOfWar = false;
             target.View.SetVisible(true, true);

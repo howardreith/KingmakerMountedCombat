@@ -4,6 +4,10 @@ Status: IN PROGRESS
 
 Branch: `codex/mounted-combat-phase2-alpha`
 
+## Superseding Mammoth-primary finished-command drain checkpoint - 2026-08-16T18:18:00Z
+
+No critical blocker is active. Fresh run `20260816T181500Z-mammoth-primary-rt-passA` is immutable uncredited `FAIL` `30/1` and ends before click because the disposable target command container is not empty immediately after `InterruptAll`. Exact installed code shows the remaining slot is the supported finished-command boundary: `InterruptAll` skips finished slots, while stock `RemoveFinishedAndUpdateQueue` removes them. The target queue is already cleared first, so the new target-only sweep cannot start queued work; noninterruptible live commands remain rejected. Cleanup and independent restoration both pass, including the prior deferred confirmation repair. Exact next action is offline gate, guarded publication, clean package/WhatIf, and restarted RT/TB A/B. No runtime credit is granted.
+
 ## Superseding Mammoth-primary stationarity/cleanup checkpoint - 2026-08-16T17:59:30Z
 
 No critical blocker is active. Fresh repaired-package run `20260816T174500Z-mammoth-primary-rt-passA` is immutable uncredited `FAIL` `50/2`: all actor, target, weapon, rule, damage, resource, lease, pose, duplicate, repath, rider-stationarity, Mammoth-stationarity, and external-restoration gates pass, while the disposable target moved `0.675754547` and its domain lifecycle remained `DestroyRequested` after concrete cleanup reached zero residue. Installed `UnitMovementAgent.Stop` proves the target retained a path/request because provisioning interrupted commands but did not stop its stock movement agent. The repair clears and proves that target-only path boundary before click and retries lifecycle confirmation only after every concrete residue flag is exact. Gates and thresholds are unchanged; repaired offline totals are `21/204/17/174/240`. Exact next action is coherent guarded publication, clean package, RT/TB WhatIf, and fresh same-package RT A/B then TB A/B. No failed attempt earns qualification credit.

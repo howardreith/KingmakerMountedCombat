@@ -187,6 +187,7 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.EntitySystem.Entities.UnitEntityData',0x06008329,'get_IsAIEnabled'),
         @('Kingmaker.EntitySystem.Entities.UnitEntityData',0x0600832A,'set_IsAIEnabled'),
         @('Kingmaker.UnitLogic.Commands.UnitCommands',0x060026A6,'get_Empty'),
+        @('Kingmaker.UnitLogic.Commands.UnitCommands',0x060026BD,'RemoveFinishedAndUpdateQueue'),
         @('Kingmaker.EntitySystem.Entities.UnitEntityData',0x0600836C,'Wake'),
         @('Kingmaker.EntitySystem.Entities.UnitEntityData',0x040054C8,'Sleepless'),
         @('Kingmaker.Controllers.SleepingUnitsController',0x060090B1,'Tick'),

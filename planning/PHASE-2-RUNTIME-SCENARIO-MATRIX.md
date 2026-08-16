@@ -2,6 +2,8 @@
 
 Status: IN PROGRESS
 
+Current Mammoth-primary finished-command attempt `20260816T181500Z-mammoth-primary-rt-passA` is immutable uncredited `FAIL` `30/1`. It stops before click because the target retains an already-finished command slot after `InterruptAll`; cleanup and external restoration are exact. Stock `RemoveFinishedAndUpdateQueue` now drains only that supported target boundary after the queue is cleared and before stopped-agent/empty proof. Fresh clean-package RT A/B and TB A/B remain required.
+
 Current Mammoth-primary target-stationarity attempt `20260816T174500Z-mammoth-primary-rt-passA` is immutable uncredited `FAIL` `50/2`. Exact Mammoth attack/resource/weapon/rule identity, durability lease, target life, pair stationarity, accepted pose, and external restoration pass. Target-only displacement `0.675754547` and deferred lifecycle confirmation fail. Installed `UnitMovementAgent.Stop` proves the diagnostic target must clear both active and requested paths after translocation; the repair adds exact pre-click stopped-agent gates and a later zero-residue `DestroyRequested -> Removed` confirmation retry. Offline totals are `21/204/17/174/240`; fresh same-package RT A/B and TB A/B remain required.
 
 All core claims require two consecutive fresh-process passes from one clean commit/package. Every run must bind branch, commit, version, package/DLL SHA-256, MVID, exact fixture authority, telemetry/artifacts, and external restoration. `KMC_AUTOMATION_BASELINE` is immutable; only exact `KMC_AUTOMATION_WORKING` may enter the guarded write transaction.
