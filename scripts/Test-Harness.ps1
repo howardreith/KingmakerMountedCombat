@@ -1074,7 +1074,7 @@ function New-TestCombatEvidenceRecord {
     $isTurnBased = [string]$Request.scenario -ceq 'mounted-rider-melee-hit-tb'
     $isMiss = [string]$Request.scenario -ceq 'mounted-rider-melee-miss-rt'
     $record = [ordered]@{
-        schemaVersion=$(if ($isTurnBased) { 17 } else { 16 });artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
+        schemaVersion=$(if ($isTurnBased) { 19 } else { 18 });artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
         scenario=[string]$Request.scenario;row=[string]$Request.scenario;rowIndex=0;sequence=0;frame=30
         utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o');branch=[string]$Request.branch
         commit=[string]$Request.commit;productVersion=[string]$Request.productVersion
@@ -1143,6 +1143,17 @@ function New-TestCombatEvidenceRecord {
                 }
             })
         }
+        nonPairPartyAiLease=[ordered]@{
+            acquired=$true;groupId='player-group';groupIsPlayerParty=$true;riderSharesGroup=$true
+            mountSharesGroup=$true;memberCount=1;activeValidationPassed=$true;restored=$true;lastError=$null
+            members=@([ordered]@{
+                unitId='combat-non-pair';blueprintId='44444444444444444444444444444444'
+                directlyControllable=$true;inState=$true;commandsEmptyBefore=$true
+                rawAiBefore=$true;effectiveAiBefore=$true;commandsEmptyDuring=$true
+                rawAiDuring=$false;effectiveAiDuring=$false;commandsEmptyAfter=$true
+                rawAiAfter=$true;effectiveAiAfter=$true
+            })
+        }
         pairApproachRadius=4.0;targetDistanceAtClick=3.9
         riderPositionAtClick=[ordered]@{x=0.0;y=0.0;z=0.0}
         mountPositionAtClick=[ordered]@{x=0.1;y=0.0;z=0.0}
@@ -1192,7 +1203,7 @@ function New-TestCombatEvidenceRecord {
         }
         cleanup=[ordered]@{
             targetRemoved=$true;targetEntityRemoved=$true;runtimeGroupRemoved=$true;runtimeFactionRemoved=$true
-            sleeplessLeaseReleased=$true
+            sleeplessLeaseReleased=$true;nonPairPartyAiLeaseRestored=$true
             relationshipClean=$true;combatCleared=$true;relationshipState='Unmounted'
             residualState=$false;presentationResidual=$false
         }
@@ -1261,6 +1272,7 @@ function Remove-TestCombatLifeFields {
 function Remove-TestCombatIncomingRuleFields {
     param([Parameter(Mandatory = $true)]$Record)
     $Record.PSObject.Properties.Remove('targetIncomingRules')
+    Remove-TestCombatNonPairPartyAiLeaseFields $Record
 }
 
 function Remove-TestCombatIncomingActorContextFields {
@@ -1269,6 +1281,15 @@ function Remove-TestCombatIncomingActorContextFields {
         'initiatorGroupId','initiatorGroupIsPlayerParty','initiatorSharesRiderGroup','initiatorSharesMountGroup',
         'initiatorDirectlyControllable','initiatorEffectiveAiEnabled','initiatorRawAiEnabled','initiatorCommandsEmpty')) {
         $Record.targetIncomingRules.firstAttack.PSObject.Properties.Remove($name)
+    }
+    Remove-TestCombatNonPairPartyAiLeaseFields $Record
+}
+
+function Remove-TestCombatNonPairPartyAiLeaseFields {
+    param([Parameter(Mandatory = $true)]$Record)
+    $Record.PSObject.Properties.Remove('nonPairPartyAiLease')
+    if ($null -ne $Record.cleanup) {
+        $Record.cleanup.PSObject.Properties.Remove('nonPairPartyAiLeaseRestored')
     }
 }
 
@@ -4183,6 +4204,8 @@ try {
 
     Invoke-HarnessTest 'combat target source uses isolated group exact native primary raw AI no-loot and zero weapon mutation' {
         $targetSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\DiagnosticCombatTargetService.cs'))
+        $nonPairLeaseSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\DiagnosticNonPairPartyAiLease.cs'))
+        $scopedAiLeaseSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\ScopedDiagnosticAiLease.cs'))
         $engineSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeCombatScenarioEngine.cs'))
         $controllerSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedCombatController.cs'))
         $commandSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPairAttackCommand.cs'))
@@ -4290,6 +4313,23 @@ try {
         Assert-Test ($targetSource.Contains('groupsController.Groups.Remove(runtimeGroup);') -and
             $targetSource.Contains('runtimeGroup.Dispose();') -and
             $targetSource.Contains('!runtimeGroup.Empty()')) 'project-owned transient combat group is not removed only after exact empty-group proof'
+        $nonPairLeaseAcquireIndex = $targetSource.IndexOf('nonPairPartyAiLease.Acquire(rider, mount);', [StringComparison]::Ordinal)
+        $nonPairTargetSpawnIndex = $targetSource.IndexOf('target = game.EntityCreator.SpawnUnit', [StringComparison]::Ordinal)
+        $nonPairTargetRemovalIndex = $targetSource.IndexOf('var nonPairPartyAiClean = targetRemoved && groupRemoved && RuntimeFactionRemoved', [StringComparison]::Ordinal)
+        Assert-Test ($nonPairLeaseAcquireIndex -ge 0 -and $nonPairTargetSpawnIndex -gt $nonPairLeaseAcquireIndex -and
+            $nonPairTargetRemovalIndex -gt $nonPairTargetSpawnIndex -and
+            $targetSource.Contains('nonPairPartyAiLease.RestoreAndVerify()') -and
+            $targetSource.Contains('!nonPairPartyAiLease.ValidateActive()') -and
+            $nonPairLeaseSource.Contains('group.Count') -and
+            $nonPairLeaseSource.Contains('group[index]') -and
+            $nonPairLeaseSource.Contains('unit.Commands.Empty') -and
+            $nonPairLeaseSource.Contains('unit.IsDirectlyControllable') -and
+            $nonPairLeaseSource.Contains('AiBackingField.GetValue(unit)') -and
+            -not $nonPairLeaseSource.Contains('.Commands.Interrupt') -and
+            -not $nonPairLeaseSource.Contains('.Commands.Clear') -and
+            $scopedAiLeaseSource.Contains('CommandsEmptyBefore') -and
+            $scopedAiLeaseSource.Contains('RawAiDuring') -and
+            $scopedAiLeaseSource.Contains('public void Restore(IEnumerable<TUnit> currentUnits)')) 'diagnostic combat does not lease the exact non-pair player group before target creation, preserve empty commands, validate raw/effective AI suppression, and restore after target removal'
         Assert-Test ($targetSource.Contains('runtimeFactionDestroyPending = true;') -and
             $targetSource.Contains('runtimeFactionDestroyPending = false;') -and
             $targetSource.Contains('UnityEngine.Object.Destroy(runtimeFaction);')) 'runtime faction destruction is not retained and verified across the deferred Unity destruction boundary'
@@ -4369,7 +4409,7 @@ try {
             $engineSource.Contains('currentTurnActingAtOutcome = currentTurn != null && currentTurn.IsActing')) 'turn-based combat does not admit the native Preparing rider turn, observe Acting only after dispatch, retain it through outcome, and restore mode after cleanup'
         Assert-Test ($engineSource.Contains('CleanupTimeoutSeconds = 10.0d') -and
             $engineSource.Contains('rowClock.Elapsed.TotalSeconds - cleanupStartedAtSeconds < CleanupTimeoutSeconds')) 'combat cleanup does not retain an independent bounded drain after a row deadline'
-        Assert-Test ($engineSource.Contains('SchemaVersion = IsTurnBasedRow ? 17 : 16') -and
+        Assert-Test ($engineSource.Contains('SchemaVersion = IsTurnBasedRow ? 19 : 18') -and
             $engineSource.Contains('Mode = IsTurnBasedRow ? "turn-based" : "real-time"') -and
             $engineSource.Contains('TurnBased = IsTurnBasedRow') -and
             $engineSource.Contains('CombatEntry = CombatEntryEvidence.From(') -and
@@ -4406,7 +4446,12 @@ try {
             $targetSource.Contains('PreDispatchIncomingDamageRuleCount++') -and
             $combatValidatorSource.Contains("'dispatchMarkerSet','attackRuleCount','damageRuleCount','preDispatchAttackRuleCount'") -and
             $combatValidatorSource.Contains('initiatorDirectlyControllable') -and
-            $combatValidatorSource.Contains('zero pre-dispatch interference')) 'schema-v16/v17 combat evidence does not bind native IsHit, exact AC-selected miss reasons, target wake lease, native join and life gates, incoming-rule actor context, combat entry, terminal reason, memory cleanup, mode-specific dispatch, rider-turn identity, and restoration'
+            $engineSource.Contains('NonPairPartyAiLease = CombatNonPairPartyAiLeaseEvidence.From(targetService)') -and
+            $engineSource.Contains('NonPairPartyAiLeaseRestored = targetNonPairPartyAiLeaseRestored') -and
+            $combatValidatorSource.Contains("'acquired','groupId','groupIsPlayerParty','riderSharesGroup','mountSharesGroup','memberCount'") -and
+            $combatValidatorSource.Contains("'commandsEmptyBefore','rawAiBefore','effectiveAiBefore'") -and
+            $combatValidatorSource.Contains('command-preserving non-pair party AI suppression') -and
+            $combatValidatorSource.Contains('zero pre-dispatch interference')) 'schema-v18/v19 combat evidence does not bind native IsHit, exact AC-selected miss reasons, target wake lease, native join and life gates, incoming-rule actor context, exact non-pair party AI suppression/restoration, combat entry, terminal reason, memory cleanup, mode-specific dispatch, rider-turn identity, and restoration'
         foreach ($field in @('TargetEntityRemoved','RuntimeGroupRemoved','RuntimeFactionRemoved')) {
             $jsonField = [char]::ToLowerInvariant($field[0]) + $field.Substring(1)
             Assert-Test ($engineSource.Contains("$field =") -and
@@ -4414,6 +4459,8 @@ try {
         }
         Assert-Test ($engineSource.Contains('SleeplessLeaseReleased = targetSleeplessLeaseReleased') -and
             $combatValidatorSource.Contains("'sleeplessLeaseReleased'")) 'combat cleanup evidence does not bind exact target sleepless-lease restoration'
+        Assert-Test ($engineSource.Contains('NonPairPartyAiLeaseRestored = targetNonPairPartyAiLeaseRestored') -and
+            $combatValidatorSource.Contains("'nonPairPartyAiLeaseRestored'")) 'combat cleanup evidence does not bind exact non-pair party AI restoration'
         Assert-Test ($engineSource.Contains('TargetProvisioning = targetProvisioning ?? new CombatTargetProvisioningEvidence()') -and
             $combatValidatorSource.Contains("'targetProvisioning'") -and
             $combatValidatorSource.Contains("'noWeaponProvisioningMutation'") -and
@@ -4446,7 +4493,7 @@ try {
     $turnBasedManifest = Read-KmcJson (Join-Path $turnBasedRequest.evidenceRoot 'runtime-artifacts.json')
     $turnBasedSubresult = [ordered]@{name=$turnBasedRequest.scenario;status='PASS';assertionPassCount=25;assertionFailCount=0;errors=@()}
 
-    Invoke-HarnessTest 'runtime request and schema-v17 evidence accept exact native stationary rider turn' {
+    Invoke-HarnessTest 'runtime request and schema-v19 evidence accept exact native stationary rider turn' {
         & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $turnBasedRequestPath
         Assert-KmcCombatScenarioEvidence -Request $turnBasedRequest -Manifest $turnBasedManifest -Status 'PASS' -SubscenarioResults @($turnBasedSubresult)
     }
@@ -4577,6 +4624,22 @@ try {
         Assert-KmcCombatScenarioEvidence -Request $turnBasedRequest -Manifest $legacyTurnBasedManifest -Status 'PASS' -SubscenarioResults @($turnBasedSubresult)
     }
 
+    Invoke-HarnessTest 'historical schema-v16 and schema-v17 combat evidence remain valid' {
+        $legacyRealTime = Copy-TestJsonValue $combatRecord
+        $legacyRealTime.schemaVersion = 16
+        Remove-TestCombatNonPairPartyAiLeaseFields $legacyRealTime
+        [void](Write-TestCombatEvidence -EvidenceRoot $combatRequest.evidenceRoot -Request $combatRequest -Record $legacyRealTime)
+        $legacyRealTimeManifest = Read-KmcJson (Join-Path $combatRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $combatRequest -Manifest $legacyRealTimeManifest -Status 'PASS' -SubscenarioResults @($combatSubresult)
+
+        $legacyTurnBased = Copy-TestJsonValue $turnBasedRecord
+        $legacyTurnBased.schemaVersion = 17
+        Remove-TestCombatNonPairPartyAiLeaseFields $legacyTurnBased
+        [void](Write-TestCombatEvidence -EvidenceRoot $turnBasedRequest.evidenceRoot -Request $turnBasedRequest -Record $legacyTurnBased)
+        $legacyTurnBasedManifest = Read-KmcJson (Join-Path $turnBasedRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $turnBasedRequest -Manifest $legacyTurnBasedManifest -Status 'PASS' -SubscenarioResults @($turnBasedSubresult)
+    }
+
     Invoke-HarnessTest 'combat miss validator rejects hit damage and identity mutations' {
         $mutations = @(
             @{name='forced hit';apply={param($value) $value.rules.forcedD20=20}},
@@ -4667,6 +4730,8 @@ try {
 
     Invoke-HarnessTest 'schema-v16 preserves exact pre-dispatch third-party attack and damage actor context' {
         $failureRecord = Copy-TestJsonValue $missRecord
+        $failureRecord.schemaVersion = 16
+        Remove-TestCombatNonPairPartyAiLeaseFields $failureRecord
         $failureRecord.status = 'FAIL'
         $failureRecord.assertionPassCount = 20
         $failureRecord.assertionFailCount = 1
@@ -4840,12 +4905,34 @@ try {
             @{name='target incoming attack indirect actor';apply={param($value) $value.targetIncomingRules.firstAttack.initiatorDirectlyControllable=$false}},
             @{name='target pre-dispatch damage interference';apply={param($value) $value.targetIncomingRules.preDispatchDamageRuleCount=1;$value.targetIncomingRules.firstDamage.beforeExpectedDispatch=$true}},
             @{name='target incoming damage wrong initiator';apply={param($value) $value.targetIncomingRules.firstDamage.initiatorId='combat-mount'}},
+            @{name='non-pair party AI lease absent';apply={param($value) $value.PSObject.Properties.Remove('nonPairPartyAiLease')}},
+            @{name='non-pair party AI lease not acquired';apply={param($value) $value.nonPairPartyAiLease.acquired=$false}},
+            @{name='non-pair party AI lease wrong group';apply={param($value) $value.nonPairPartyAiLease.groupId='different-player-group'}},
+            @{name='non-pair party AI lease non-player group';apply={param($value) $value.nonPairPartyAiLease.groupIsPlayerParty=$false}},
+            @{name='non-pair party AI lease rider group mismatch';apply={param($value) $value.nonPairPartyAiLease.riderSharesGroup=$false}},
+            @{name='non-pair party AI lease mount group mismatch';apply={param($value) $value.nonPairPartyAiLease.mountSharesGroup=$false}},
+            @{name='non-pair party AI lease member count mismatch';apply={param($value) $value.nonPairPartyAiLease.memberCount=2}},
+            @{name='non-pair party AI lease active validation failed';apply={param($value) $value.nonPairPartyAiLease.activeValidationPassed=$false}},
+            @{name='non-pair party AI lease restore failed';apply={param($value) $value.nonPairPartyAiLease.restored=$false}},
+            @{name='non-pair party AI lease unexpected error';apply={param($value) $value.nonPairPartyAiLease.lastError='AI lease drift'}},
+            @{name='non-pair party AI lease member is rider';apply={param($value) $value.nonPairPartyAiLease.members[0].unitId='combat-rider'}},
+            @{name='non-pair party AI lease member indirect';apply={param($value) $value.nonPairPartyAiLease.members[0].directlyControllable=$false}},
+            @{name='non-pair party AI lease member absent';apply={param($value) $value.nonPairPartyAiLease.members[0].inState=$false}},
+            @{name='non-pair party AI lease command before acquisition';apply={param($value) $value.nonPairPartyAiLease.members[0].commandsEmptyBefore=$false}},
+            @{name='non-pair party AI lease command during lease';apply={param($value) $value.nonPairPartyAiLease.members[0].commandsEmptyDuring=$false}},
+            @{name='non-pair party AI lease raw AI active during lease';apply={param($value) $value.nonPairPartyAiLease.members[0].rawAiDuring=$true}},
+            @{name='non-pair party AI lease effective AI active during lease';apply={param($value) $value.nonPairPartyAiLease.members[0].effectiveAiDuring=$true}},
+            @{name='non-pair party AI lease command after restore';apply={param($value) $value.nonPairPartyAiLease.members[0].commandsEmptyAfter=$false}},
+            @{name='non-pair party AI lease raw AI restore mismatch';apply={param($value) $value.nonPairPartyAiLease.members[0].rawAiAfter=$false}},
+            @{name='non-pair party AI lease effective AI restore mismatch';apply={param($value) $value.nonPairPartyAiLease.members[0].effectiveAiAfter=$false}},
             @{name='target residue';apply={param($value) $value.cleanup.targetRemoved=$false}},
             @{name='target entity residue';apply={param($value) $value.cleanup.targetEntityRemoved=$false}},
             @{name='target group residue';apply={param($value) $value.cleanup.runtimeGroupRemoved=$false}},
             @{name='target faction residue';apply={param($value) $value.cleanup.runtimeFactionRemoved=$false}},
             @{name='target sleepless lease residue';apply={param($value) $value.cleanup.sleeplessLeaseReleased=$false}},
-            @{name='target sleepless cleanup coercion';apply={param($value) $value.cleanup.sleeplessLeaseReleased='true'}}
+            @{name='target sleepless cleanup coercion';apply={param($value) $value.cleanup.sleeplessLeaseReleased='true'}},
+            @{name='non-pair party AI lease cleanup residue';apply={param($value) $value.cleanup.nonPairPartyAiLeaseRestored=$false}},
+            @{name='non-pair party AI lease cleanup coercion';apply={param($value) $value.cleanup.nonPairPartyAiLeaseRestored='true'}}
         )
         foreach ($mutation in $mutations) {
             $candidate = Copy-TestJsonValue $combatRecord

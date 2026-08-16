@@ -46,6 +46,7 @@ namespace KingmakerMountedCombat.Tests
             MountedRiderGroundingPolicyTests.Register(runner);
             StopEarlyCaptureBoundaryTests.Register(runner);
             PresentationOverlayEvidenceTests.Register(runner);
+            ScopedDiagnosticAiLeaseTests.Register(runner);
             return runner.Complete();
         }
 

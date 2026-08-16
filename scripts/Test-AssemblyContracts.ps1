@@ -127,6 +127,8 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.Controllers.Units.UnitGroupsController',0x04005D8A,'Groups'),
         @('Kingmaker.UnitLogic.Groups.UnitGroup',0x040018E6,'Id'),
         @('Kingmaker.UnitLogic.Groups.UnitGroup',0x040018EB,'IsPlayerParty'),
+        @('Kingmaker.UnitLogic.Groups.UnitGroup',0x06002412,'get_Count'),
+        @('Kingmaker.UnitLogic.Groups.UnitGroup',0x06002413,'get_Item'),
         @('Kingmaker.UnitLogic.Groups.UnitGroup',0x06002416,'Empty'),
         @('Kingmaker.UnitLogic.Groups.UnitGroup',0x06002422,'Dispose'),
         @('Kingmaker.Items.ItemsCollection',0x06007BC8,'get_HasLoot'),

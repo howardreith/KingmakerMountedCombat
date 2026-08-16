@@ -7144,11 +7144,14 @@ function Assert-KmcCombatScenarioEvidence {
     if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -ge 14) {
         $recordFields = @($recordFields + 'targetIncomingRules')
     }
-    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(5,7,9,11,13,15,17)) {
+    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -ge 18) {
+        $recordFields = @($recordFields + 'nonPairPartyAiLease')
+    }
+    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(5,7,9,11,13,15,17,19)) {
         $recordFields = @($recordFields + 'turnBased')
     }
     Assert-KmcExactProperties $record $recordFields 'combat evidence record'
-    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -notin @(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17) -or
+    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -notin @(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19) -or
         [string]$record.artifactKind -cne 'combat-scenario-evidence') {
         throw 'Combat evidence schemaVersion or artifactKind is not exact.'
     }
@@ -7407,7 +7410,63 @@ function Assert-KmcCombatScenarioEvidence {
             throw 'Combat first incoming damage evidence is inconsistent with its exact counts.'
         }
     }
-    if ([long]$record.schemaVersion -in @(5,7,9,11,13,15,17)) {
+    if ([long]$record.schemaVersion -ge 18) {
+        Assert-KmcExactProperties $record.nonPairPartyAiLease @(
+            'acquired','groupId','groupIsPlayerParty','riderSharesGroup','mountSharesGroup','memberCount',
+            'activeValidationPassed','restored','lastError','members') 'combat non-pair party AI lease evidence'
+        foreach ($name in @('acquired','groupIsPlayerParty','riderSharesGroup','mountSharesGroup','activeValidationPassed','restored')) {
+            if ($record.nonPairPartyAiLease.$name -isnot [bool]) {
+                throw "Combat non-pair party AI lease evidence is not Boolean: $name"
+            }
+        }
+        if (-not (Test-KmcExactJsonInteger $record.nonPairPartyAiLease.memberCount) -or
+            [long]$record.nonPairPartyAiLease.memberCount -lt 0 -or
+            $null -eq $record.nonPairPartyAiLease.members -or
+            $record.nonPairPartyAiLease.members -is [string] -or
+            @($record.nonPairPartyAiLease.members).Count -ne [long]$record.nonPairPartyAiLease.memberCount) {
+            throw 'Combat non-pair party AI lease member collection is invalid.'
+        }
+        if ($null -ne $record.nonPairPartyAiLease.groupId -and
+            ($record.nonPairPartyAiLease.groupId -isnot [string] -or
+             [string]::IsNullOrWhiteSpace([string]$record.nonPairPartyAiLease.groupId))) {
+            throw 'Combat non-pair party AI lease group identity is invalid.'
+        }
+        if ($null -ne $record.nonPairPartyAiLease.lastError -and
+            ($record.nonPairPartyAiLease.lastError -isnot [string] -or
+             [string]::IsNullOrWhiteSpace([string]$record.nonPairPartyAiLease.lastError))) {
+            throw 'Combat non-pair party AI lease last-error sentinel is invalid.'
+        }
+        if ($record.nonPairPartyAiLease.acquired -eq $true -and
+            (($record.nonPairPartyAiLease.groupId -isnot [string]) -or
+             [string]::IsNullOrWhiteSpace([string]$record.nonPairPartyAiLease.groupId) -or
+             [long]$record.nonPairPartyAiLease.memberCount -lt 1)) {
+            throw 'Combat acquired non-pair party AI lease has no exact group or member set.'
+        }
+
+        $seenNonPairUnitIds = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
+        foreach ($member in @($record.nonPairPartyAiLease.members)) {
+            Assert-KmcExactProperties $member @(
+                'unitId','blueprintId','directlyControllable','inState','commandsEmptyBefore',
+                'rawAiBefore','effectiveAiBefore','commandsEmptyDuring','rawAiDuring','effectiveAiDuring',
+                'commandsEmptyAfter','rawAiAfter','effectiveAiAfter') 'combat non-pair party AI lease member evidence'
+            if ($member.unitId -isnot [string] -or
+                [string]::IsNullOrWhiteSpace([string]$member.unitId) -or
+                -not $seenNonPairUnitIds.Add([string]$member.unitId) -or
+                $member.blueprintId -isnot [string] -or
+                [string]$member.blueprintId -cnotmatch '^[0-9a-f]{32}$') {
+                throw 'Combat non-pair party AI lease member identity is invalid or duplicated.'
+            }
+            foreach ($name in @(
+                'directlyControllable','inState','commandsEmptyBefore','rawAiBefore','effectiveAiBefore',
+                'commandsEmptyDuring','rawAiDuring','effectiveAiDuring','commandsEmptyAfter','rawAiAfter',
+                'effectiveAiAfter')) {
+                if ($member.$name -isnot [bool]) {
+                    throw "Combat non-pair party AI lease member evidence is not Boolean: $name"
+                }
+            }
+        }
+    }
+    if ([long]$record.schemaVersion -in @(5,7,9,11,13,15,17,19)) {
         $turnBooleanFields = @(
             'requested','originalEnabled','temporaryEnabled','originalRawCacheHadValue','enabledAtMount',
             'controllerInitialized','rosterContainsRider','rosterContainsMount','rosterContainsTarget',
@@ -7463,16 +7522,22 @@ function Assert-KmcCombatScenarioEvidence {
     if ([long]$record.schemaVersion -ge 8) {
         $combatCleanupFields = @($combatCleanupFields + 'sleeplessLeaseReleased')
     }
+    if ([long]$record.schemaVersion -ge 18) {
+        $combatCleanupFields = @($combatCleanupFields + 'nonPairPartyAiLeaseRestored')
+    }
     Assert-KmcExactProperties $record.cleanup $combatCleanupFields 'combat cleanup evidence'
     if ([long]$record.schemaVersion -ge 8 -and $record.cleanup.sleeplessLeaseReleased -isnot [bool]) {
         throw 'Combat target sleepless-lease cleanup evidence is not Boolean.'
+    }
+    if ([long]$record.schemaVersion -ge 18 -and $record.cleanup.nonPairPartyAiLeaseRestored -isnot [bool]) {
+        throw 'Combat non-pair party AI lease cleanup evidence is not Boolean.'
     }
 
     $requirePass = [string]$Status -ceq 'PASS'
     if ($requirePass) {
         $turnBasedScenario = [string]$Request.scenario -ceq 'mounted-rider-melee-hit-tb'
         $missScenario = [string]$Request.scenario -ceq 'mounted-rider-melee-miss-rt'
-        $expectedCombatSchemas = if ($missScenario) { @(6,8,10,12,14,16) } elseif ($turnBasedScenario) { @(5,7,9,11,13,15,17) } else { @(4,6,8,10,12,14,16) }
+        $expectedCombatSchemas = if ($missScenario) { @(6,8,10,12,14,16,18) } elseif ($turnBasedScenario) { @(5,7,9,11,13,15,17,19) } else { @(4,6,8,10,12,14,16,18) }
         if ([long]$record.schemaVersion -notin $expectedCombatSchemas -or
             [string]$record.status -cne 'PASS' -or [long]$record.assertionFailCount -ne 0 -or
             [long]$record.assertionPassCount -le 0 -or @($record.errors).Count -ne 0) {
@@ -7606,6 +7671,35 @@ function Assert-KmcCombatScenarioEvidence {
                $record.targetIncomingRules.firstDamage.attackRollPresent -ne $true)))) {
             throw 'PASS combat evidence does not prove one expected rider attack and zero pre-dispatch interference.'
         }
+        if ([long]$record.schemaVersion -ge 18) {
+            if ($record.nonPairPartyAiLease.acquired -ne $true -or
+                $record.nonPairPartyAiLease.groupIsPlayerParty -ne $true -or
+                $record.nonPairPartyAiLease.riderSharesGroup -ne $true -or
+                $record.nonPairPartyAiLease.mountSharesGroup -ne $true -or
+                [string]$record.nonPairPartyAiLease.groupId -cne [string]$record.targetIncomingRules.firstAttack.initiatorGroupId -or
+                [long]$record.nonPairPartyAiLease.memberCount -lt 1 -or
+                $record.nonPairPartyAiLease.activeValidationPassed -ne $true -or
+                $record.nonPairPartyAiLease.restored -ne $true -or
+                $null -ne $record.nonPairPartyAiLease.lastError) {
+                throw 'PASS combat evidence does not prove an exact active and restored non-pair party AI lease.'
+            }
+            foreach ($member in @($record.nonPairPartyAiLease.members)) {
+                if ([string]$member.unitId -ceq [string]$record.riderId -or
+                    [string]$member.unitId -ceq [string]$record.mountId -or
+                    [string]$member.unitId -ceq [string]$record.targetId -or
+                    $member.directlyControllable -ne $true -or
+                    $member.inState -ne $true -or
+                    $member.commandsEmptyBefore -ne $true -or
+                    $member.commandsEmptyDuring -ne $true -or
+                    $member.commandsEmptyAfter -ne $true -or
+                    $member.rawAiDuring -ne $false -or
+                    $member.effectiveAiDuring -ne $false -or
+                    $member.rawAiAfter -ne $member.rawAiBefore -or
+                    $member.effectiveAiAfter -ne $member.effectiveAiBefore) {
+                    throw 'PASS combat evidence does not prove command-preserving non-pair party AI suppression and exact restoration.'
+                }
+            }
+        }
         if ([string]::IsNullOrWhiteSpace([string]$record.riderId) -or
             [string]::IsNullOrWhiteSpace([string]$record.mountId) -or
             [string]::IsNullOrWhiteSpace([string]$record.targetId) -or
@@ -7736,6 +7830,7 @@ function Assert-KmcCombatScenarioEvidence {
         if ($record.cleanup.targetRemoved -ne $true -or $record.cleanup.targetEntityRemoved -ne $true -or
             $record.cleanup.runtimeGroupRemoved -ne $true -or $record.cleanup.runtimeFactionRemoved -ne $true -or
             ([long]$record.schemaVersion -ge 8 -and $record.cleanup.sleeplessLeaseReleased -ne $true) -or
+            ([long]$record.schemaVersion -ge 18 -and $record.cleanup.nonPairPartyAiLeaseRestored -ne $true) -or
             $record.cleanup.relationshipClean -ne $true -or
             $record.cleanup.combatCleared -ne $true -or [string]$record.cleanup.relationshipState -cne 'Unmounted' -or
             $record.cleanup.residualState -ne $false -or $record.cleanup.presentationResidual -ne $false) {

@@ -38,6 +38,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private UnitEntityData target;
         private UnitEntityData expectedRider;
         private UnitEntityData expectedMount;
+        private DiagnosticNonPairPartyAiLease nonPairPartyAiLease;
         private UnitEntityData combatMemoryObserver;
         private UnitEntityData combatMemoryTarget;
         private UnitGroup combatMemoryObserverGroup;
@@ -120,6 +121,11 @@ namespace KingmakerMountedCombat.Diagnostics
 
         public DiagnosticIncomingDamageSnapshot FirstIncomingDamage { get; private set; }
 
+        public DiagnosticNonPairPartyAiLease NonPairPartyAiLease => nonPairPartyAiLease;
+
+        public bool NonPairPartyAiLeaseRestored =>
+            nonPairPartyAiLease == null || nonPairPartyAiLease.Restored;
+
         public DiagnosticCombatTargetService(IModLogger logger)
         {
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -201,6 +207,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     throw new InvalidOperationException("Diagnostic target runtime group identity already exists.");
                 }
+
+                // Acquire before the hostile target exists. The lease refuses any
+                // pre-existing non-pair command and therefore never clears or owns a
+                // player command in order to make target provisioning deterministic.
+                nonPairPartyAiLease = new DiagnosticNonPairPartyAiLease();
+                nonPairPartyAiLease.Acquire(rider, mount);
 
                 var blueprintPrimary = blueprint.Body?.EmptyHandWeapon;
                 if (blueprint.Body == null || blueprint.Body.DisableHands ||
@@ -334,7 +346,7 @@ namespace KingmakerMountedCombat.Diagnostics
         public bool DestroyAndVerify()
         {
             if (TargetEntityRemoved && RuntimeGroupRemoved && RuntimeFactionRemoved && CombatMemoryRemoved &&
-                TargetSleeplessLeaseReleased)
+                TargetSleeplessLeaseReleased && NonPairPartyAiLeaseRestored)
             {
                 return State == DiagnosticCombatTargetState.Absent ||
                     State == DiagnosticCombatTargetState.Removed;
@@ -515,8 +527,12 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             finally
             {
-                lifeStateSubscription.Dispose();
-                disposed = true;
+                try { nonPairPartyAiLease?.Dispose(); }
+                finally
+                {
+                    lifeStateSubscription.Dispose();
+                    disposed = true;
+                }
             }
         }
 
@@ -550,7 +566,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 runtimeFaction = null;
                 runtimeFactionDestroyPending = false;
             }
-            return targetRemoved && groupRemoved && RuntimeFactionRemoved && combatMemoryClean && sleeplessLeaseClean;
+            var nonPairPartyAiClean = targetRemoved && groupRemoved && RuntimeFactionRemoved &&
+                (nonPairPartyAiLease == null || nonPairPartyAiLease.RestoreAndVerify());
+            return targetRemoved && groupRemoved && RuntimeFactionRemoved && combatMemoryClean &&
+                sleeplessLeaseClean && nonPairPartyAiClean;
         }
 
         private bool RemoveCombatMemory()
@@ -588,7 +607,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 combatMemoryObserver.Group != combatMemoryObserverGroup ||
                 combatMemoryTarget.Group != combatMemoryTargetGroup ||
                 !targetSleeplessLeaseActive || !combatMemoryTarget.Sleepless ||
-                !combatMemoryObserver.IsInState || !combatMemoryTarget.IsInState)
+                !combatMemoryObserver.IsInState || !combatMemoryTarget.IsInState ||
+                nonPairPartyAiLease == null || !nonPairPartyAiLease.ValidateActive())
             {
                 return false;
             }

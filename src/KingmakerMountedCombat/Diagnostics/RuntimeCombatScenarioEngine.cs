@@ -95,6 +95,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool targetRuntimeGroupRemoved;
         private bool targetRuntimeFactionRemoved;
         private bool targetSleeplessLeaseReleased;
+        private bool targetNonPairPartyAiLeaseRestored;
         private bool combatMemoryRemoved;
         private CombatTargetProvisioningEvidence targetProvisioning;
         private bool relationshipClean;
@@ -763,6 +764,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     targetRuntimeGroupRemoved = true;
                     targetRuntimeFactionRemoved = true;
                     targetSleeplessLeaseReleased = true;
+                    targetNonPairPartyAiLeaseRestored = true;
                 }
             }
             catch (Exception exception)
@@ -807,8 +809,9 @@ namespace KingmakerMountedCombat.Diagnostics
             RestorePause();
 
             assertions.Check(targetRemoved && targetEntityRemoved &&
-                    targetRuntimeGroupRemoved && targetRuntimeFactionRemoved && targetSleeplessLeaseReleased,
-                "Runtime-only combat target, sleepless lease, project group, and runtime faction were removed with zero residue.");
+                    targetRuntimeGroupRemoved && targetRuntimeFactionRemoved && targetSleeplessLeaseReleased &&
+                    targetNonPairPartyAiLeaseRestored,
+                "Runtime-only combat target, sleepless lease, non-pair party AI lease, project group, and runtime faction were removed with zero residue.");
             assertions.Check(combatCleared,
                 "Pair, target, and party left combat before final evidence.");
             assertions.Check(pauseRestored,
@@ -857,7 +860,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var selected = SelectionManager.Instance?.SelectedUnits;
             var record = new CombatEvidenceRecord
             {
-                SchemaVersion = IsTurnBasedRow ? 17 : 16,
+                SchemaVersion = IsTurnBasedRow ? 19 : 18,
                 ArtifactKind = "combat-scenario-evidence",
                 RunId = request.RunId,
                 Scenario = request.Scenario,
@@ -881,6 +884,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 TargetProvisioning = targetProvisioning ?? new CombatTargetProvisioningEvidence(),
                 TargetLife = CombatTargetLifeEvidence.From(targetService),
                 TargetIncomingRules = CombatTargetIncomingRulesEvidence.From(targetService),
+                NonPairPartyAiLease = CombatNonPairPartyAiLeaseEvidence.From(targetService),
                 ClickAccepted = clickAccepted,
                 PairApproachRadius = pairApproachRadius,
                 TargetDistanceAtClick = targetDistanceAtClick,
@@ -948,6 +952,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     RuntimeGroupRemoved = targetRuntimeGroupRemoved,
                     RuntimeFactionRemoved = targetRuntimeFactionRemoved,
                     SleeplessLeaseReleased = targetSleeplessLeaseReleased,
+                    NonPairPartyAiLeaseRestored = targetNonPairPartyAiLeaseRestored,
                     RelationshipClean = relationshipClean,
                     CombatCleared = combatCleared,
                     RelationshipState = relationship.State.ToString(),
@@ -1053,6 +1058,7 @@ namespace KingmakerMountedCombat.Diagnostics
             targetRuntimeGroupRemoved = targetService != null && targetService.RuntimeGroupRemoved;
             targetRuntimeFactionRemoved = targetService != null && targetService.RuntimeFactionRemoved;
             targetSleeplessLeaseReleased = targetService != null && targetService.TargetSleeplessLeaseReleased;
+            targetNonPairPartyAiLeaseRestored = targetService != null && targetService.NonPairPartyAiLeaseRestored;
             combatMemoryRemoved = targetService != null && targetService.CombatMemoryRemoved;
         }
 
@@ -1330,6 +1336,7 @@ namespace KingmakerMountedCombat.Diagnostics
             public CombatTargetProvisioningEvidence TargetProvisioning { get; set; }
             public CombatTargetLifeEvidence TargetLife { get; set; }
             public CombatTargetIncomingRulesEvidence TargetIncomingRules { get; set; }
+            public CombatNonPairPartyAiLeaseEvidence NonPairPartyAiLease { get; set; }
             public bool ClickAccepted { get; set; }
             public float PairApproachRadius { get; set; }
             public float TargetDistanceAtClick { get; set; }
@@ -1792,6 +1799,84 @@ namespace KingmakerMountedCombat.Diagnostics
             }
         }
 
+        private sealed class CombatNonPairPartyAiLeaseEvidence
+        {
+            public bool Acquired { get; set; }
+            public string GroupId { get; set; }
+            public bool GroupIsPlayerParty { get; set; }
+            public bool RiderSharesGroup { get; set; }
+            public bool MountSharesGroup { get; set; }
+            public int MemberCount { get; set; }
+            public bool ActiveValidationPassed { get; set; }
+            public bool Restored { get; set; }
+            public string LastError { get; set; }
+            public IReadOnlyList<CombatNonPairPartyAiMemberEvidence> Members { get; set; }
+
+            public static CombatNonPairPartyAiLeaseEvidence From(DiagnosticCombatTargetService service)
+            {
+                var adapter = service?.NonPairPartyAiLease;
+                var members = new List<CombatNonPairPartyAiMemberEvidence>();
+                if (adapter != null)
+                {
+                    foreach (var state in adapter.Members)
+                    {
+                        members.Add(CombatNonPairPartyAiMemberEvidence.From(state));
+                    }
+                }
+                return new CombatNonPairPartyAiLeaseEvidence
+                {
+                    Acquired = adapter != null && adapter.Acquired,
+                    GroupId = adapter?.GroupId,
+                    GroupIsPlayerParty = adapter != null && adapter.GroupIsPlayerParty,
+                    RiderSharesGroup = adapter != null && adapter.RiderSharesGroup,
+                    MountSharesGroup = adapter != null && adapter.MountSharesGroup,
+                    MemberCount = members.Count,
+                    ActiveValidationPassed = adapter != null && adapter.ActiveValidationPassed,
+                    Restored = adapter == null || adapter.Restored,
+                    LastError = adapter?.LastError,
+                    Members = members
+                };
+            }
+        }
+
+        private sealed class CombatNonPairPartyAiMemberEvidence
+        {
+            public string UnitId { get; set; }
+            public string BlueprintId { get; set; }
+            public bool DirectlyControllable { get; set; }
+            public bool InState { get; set; }
+            public bool CommandsEmptyBefore { get; set; }
+            public bool RawAiBefore { get; set; }
+            public bool EffectiveAiBefore { get; set; }
+            public bool CommandsEmptyDuring { get; set; }
+            public bool RawAiDuring { get; set; }
+            public bool EffectiveAiDuring { get; set; }
+            public bool CommandsEmptyAfter { get; set; }
+            public bool RawAiAfter { get; set; }
+            public bool EffectiveAiAfter { get; set; }
+
+            public static CombatNonPairPartyAiMemberEvidence From(
+                ScopedDiagnosticAiLease<UnitEntityData>.State state)
+            {
+                return new CombatNonPairPartyAiMemberEvidence
+                {
+                    UnitId = state?.UnitId,
+                    BlueprintId = state?.Unit?.Blueprint?.AssetGuid,
+                    DirectlyControllable = state?.Unit != null && state.Unit.IsDirectlyControllable,
+                    InState = state?.Unit != null && state.Unit.IsInState,
+                    CommandsEmptyBefore = state != null && state.CommandsEmptyBefore,
+                    RawAiBefore = state != null && state.RawAiBefore,
+                    EffectiveAiBefore = state != null && state.EffectiveAiBefore,
+                    CommandsEmptyDuring = state != null && state.CommandsEmptyDuring,
+                    RawAiDuring = state != null && state.RawAiDuring,
+                    EffectiveAiDuring = state != null && state.EffectiveAiDuring,
+                    CommandsEmptyAfter = state != null && state.CommandsEmptyAfter,
+                    RawAiAfter = state != null && state.RawAiAfter,
+                    EffectiveAiAfter = state != null && state.EffectiveAiAfter
+                };
+            }
+        }
+
         private sealed class CombatTargetIncomingAttackEvidence
         {
             public bool Observed { get; set; }
@@ -1890,6 +1975,7 @@ namespace KingmakerMountedCombat.Diagnostics
             public bool RuntimeGroupRemoved { get; set; }
             public bool RuntimeFactionRemoved { get; set; }
             public bool SleeplessLeaseReleased { get; set; }
+            public bool NonPairPartyAiLeaseRestored { get; set; }
             public bool RelationshipClean { get; set; }
             public bool CombatCleared { get; set; }
             public string RelationshipState { get; set; }
