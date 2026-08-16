@@ -4066,6 +4066,7 @@ try {
 
     Invoke-HarnessTest 'combat target source uses isolated group exact native primary raw AI no-loot and zero weapon mutation' {
         $targetSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\DiagnosticCombatTargetService.cs'))
+        $engineSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeCombatScenarioEngine.cs'))
         $controllerSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedCombatController.cs'))
         $commandSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPairAttackCommand.cs'))
         $singleAttackSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPairSingleAttack.cs'))
@@ -4091,10 +4092,16 @@ try {
             $targetSource.Contains('target.IsInFogOfWar = false;') -and
             $targetSource.Contains('target.View.SetVisible(true, true);') -and
             $targetSource.Contains('TargetVisibleForPlayer = target.IsVisibleForPlayer;')) 'diagnostic player-click visibility is not exact-target-only, explicit, and independently verified'
-        Assert-Test ($targetSource.Contains('memoryController.AddToMemory(rider, target);') -and
-            $targetSource.Contains('memoryController.AddToMemory(target, rider);') -and
-            $targetSource.Contains('combatMemoryObserver.Memory.Remove(combatMemoryTarget);') -and
-            $targetSource.Contains('combatMemoryTarget.Memory.Remove(combatMemoryObserver);')) 'diagnostic target does not own an exact native bidirectional combat-memory lease with symmetric cleanup'
+        Assert-Test ($targetSource.Contains('combatMemoryObserverGroup = rider.Group;') -and
+            $targetSource.Contains('combatMemoryTargetGroup = target.Group;') -and
+            $targetSource.Contains('combatMemoryObserverGroup.Memory.Add(combatMemoryTarget)') -and
+            $targetSource.Contains('combatMemoryTargetGroup.Memory.Add(combatMemoryObserver)') -and
+            $targetSource.Contains('observedTarget.LastDetectTime = game.TimeController.GameTime;') -and
+            $targetSource.Contains('observedRider.LastDetectTime = game.TimeController.GameTime;') -and
+            $targetSource.Contains('combatMemoryObserverGroup.Memory.Remove(combatMemoryTarget);') -and
+            $targetSource.Contains('combatMemoryTargetGroup.Memory.Remove(combatMemoryObserver);') -and
+            -not $targetSource.Contains('memoryController.AddToMemory(') -and
+            $engineSource.Contains('targetService.RefreshBidirectionalCombatMemoryLease()')) 'diagnostic target does not own a deterministic exact-group native combat-memory lease with bounded refresh and symmetric cleanup'
         Assert-Test ($targetSource.Contains('var blueprintPrimary = blueprint.Body?.EmptyHandWeapon;') -and
             $targetSource.Contains('var nativePrimary = NativeSingleAttackWeaponResolver.Resolve(target);') -and
             $targetSource.Contains('NoWeaponProvisioningMutation = AdditionalLimbCountAfter == AdditionalLimbCountBefore') -and
@@ -4143,7 +4150,6 @@ try {
         Assert-Test ($targetSource.Contains('runtimeFactionDestroyPending = true;') -and
             $targetSource.Contains('runtimeFactionDestroyPending = false;') -and
             $targetSource.Contains('UnityEngine.Object.Destroy(runtimeFaction);')) 'runtime faction destruction is not retained and verified across the deferred Unity destruction boundary'
-        $engineSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeCombatScenarioEngine.cs'))
         $combatValidatorSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\runtime\RuntimeHarness.Common.ps1'))
         $prepareClickIndex = $engineSource.IndexOf('targetService.PrepareForPlayerClick(target)', [StringComparison]::Ordinal)
         $nativeClickIndex = $engineSource.IndexOf('new ClickUnitHandler().OnClick(', [StringComparison]::Ordinal)

@@ -377,8 +377,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 game.IsPaused = false;
             }
             unpausedForRealTime = !game.IsPaused;
+            var combatMemoryLeaseHealthy = targetService != null &&
+                targetService.RefreshBidirectionalCombatMemoryLease();
             entryReadiness = new DiagnosticCombatEntryReadinessSnapshot(
-                targetService != null && targetService.CombatMemoryQueued,
+                combatMemoryLeaseHealthy,
                 targetService != null && targetService.PlayerGroupMemoryContainsTarget,
                 targetService != null && targetService.TargetGroupMemoryContainsRider,
                 rider != null && rider.IsInCombat,
@@ -488,6 +490,12 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void ObserveOutcome()
         {
+            if (targetService == null || !targetService.RefreshBidirectionalCombatMemoryLease())
+            {
+                assertions.Fail("Exact bidirectional combat-memory lease was lost before native attack completion.");
+                BeginCleanup();
+                return;
+            }
             if (combat.LastOutcome == null)
             {
                 return;

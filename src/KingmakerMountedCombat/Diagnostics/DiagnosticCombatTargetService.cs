@@ -29,6 +29,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private UnitEntityData target;
         private UnitEntityData combatMemoryObserver;
         private UnitEntityData combatMemoryTarget;
+        private UnitGroup combatMemoryObserverGroup;
+        private UnitGroup combatMemoryTargetGroup;
         private bool combatMemoryQueued;
         private bool combatMemoryRemoved = true;
         private bool runtimeFactionDestroyPending;
@@ -95,11 +97,15 @@ namespace KingmakerMountedCombat.Diagnostics
 
         public bool PlayerGroupMemoryContainsTarget =>
             combatMemoryObserver != null && combatMemoryTarget != null &&
-            combatMemoryObserver.Memory.Contains(combatMemoryTarget);
+            combatMemoryObserverGroup != null && !combatMemoryObserverGroup.Disposed &&
+            combatMemoryObserver.Group == combatMemoryObserverGroup &&
+            combatMemoryObserverGroup.Memory.Contains(combatMemoryTarget);
 
         public bool TargetGroupMemoryContainsRider =>
             combatMemoryObserver != null && combatMemoryTarget != null &&
-            combatMemoryTarget.Memory.Contains(combatMemoryObserver);
+            combatMemoryTargetGroup != null && !combatMemoryTargetGroup.Disposed &&
+            combatMemoryTarget.Group == combatMemoryTargetGroup &&
+            combatMemoryTargetGroup.Memory.Contains(combatMemoryObserver);
 
         public bool CombatMemoryRemoved => combatMemoryRemoved;
 
@@ -314,19 +320,30 @@ namespace KingmakerMountedCombat.Diagnostics
                 return false;
             }
 
-            var memoryController = Game.Instance?.UnitMemoryController;
-            if (memoryController == null)
+            var game = Game.Instance;
+            if (game?.TimeController == null)
             {
                 return false;
             }
 
             combatMemoryObserver = rider;
             combatMemoryTarget = target;
+            combatMemoryObserverGroup = rider.Group;
+            combatMemoryTargetGroup = target.Group;
             combatMemoryRemoved = false;
-            memoryController.AddToMemory(rider, target);
-            memoryController.AddToMemory(target, rider);
-            combatMemoryQueued = true;
-            return true;
+            combatMemoryQueued = TryRefreshBidirectionalCombatMemoryLease();
+            if (!combatMemoryQueued)
+            {
+                RemoveCombatMemory();
+            }
+            return combatMemoryQueued;
+        }
+
+        public bool RefreshBidirectionalCombatMemoryLease()
+        {
+            ThrowIfDisposed();
+            return combatMemoryQueued && !combatMemoryRemoved &&
+                TryRefreshBidirectionalCombatMemoryLease();
         }
 
         public void Dispose()
@@ -380,21 +397,48 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 return true;
             }
-            if (combatMemoryObserver == null || combatMemoryTarget == null)
+            if (combatMemoryObserver == null || combatMemoryTarget == null ||
+                combatMemoryObserverGroup == null || combatMemoryTargetGroup == null)
             {
                 return false;
             }
 
-            combatMemoryObserver.Memory.Remove(combatMemoryTarget);
-            combatMemoryTarget.Memory.Remove(combatMemoryObserver);
-            combatMemoryRemoved = !combatMemoryObserver.Memory.Contains(combatMemoryTarget) &&
-                !combatMemoryTarget.Memory.Contains(combatMemoryObserver);
+            combatMemoryObserverGroup.Memory.Remove(combatMemoryTarget);
+            combatMemoryTargetGroup.Memory.Remove(combatMemoryObserver);
+            combatMemoryRemoved = !combatMemoryObserverGroup.Memory.Contains(combatMemoryTarget) &&
+                !combatMemoryTargetGroup.Memory.Contains(combatMemoryObserver);
             if (combatMemoryRemoved)
             {
                 combatMemoryObserver = null;
                 combatMemoryTarget = null;
+                combatMemoryObserverGroup = null;
+                combatMemoryTargetGroup = null;
             }
             return combatMemoryRemoved;
+        }
+
+        private bool TryRefreshBidirectionalCombatMemoryLease()
+        {
+            var game = Game.Instance;
+            if (game?.TimeController == null || combatMemoryObserver == null || combatMemoryTarget == null ||
+                combatMemoryObserverGroup == null || combatMemoryTargetGroup == null ||
+                combatMemoryObserverGroup.Disposed || combatMemoryTargetGroup.Disposed ||
+                combatMemoryObserver.Group != combatMemoryObserverGroup ||
+                combatMemoryTarget.Group != combatMemoryTargetGroup ||
+                !combatMemoryObserver.IsInState || !combatMemoryTarget.IsInState)
+            {
+                return false;
+            }
+
+            var observedTarget = combatMemoryObserverGroup.Memory.Add(combatMemoryTarget);
+            var observedRider = combatMemoryTargetGroup.Memory.Add(combatMemoryObserver);
+            if (observedTarget == null || observedRider == null)
+            {
+                return false;
+            }
+            observedTarget.LastDetectTime = game.TimeController.GameTime;
+            observedRider.LastDetectTime = game.TimeController.GameTime;
+            return PlayerGroupMemoryContainsTarget && TargetGroupMemoryContainsRider;
         }
 
         private bool ReleaseRuntimeGroup()
