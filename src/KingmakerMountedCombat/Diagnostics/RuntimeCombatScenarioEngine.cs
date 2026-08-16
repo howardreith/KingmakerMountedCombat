@@ -594,6 +594,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
             ruleProbe = new MountedCombatRuleProbe();
             ruleProbe.Arm(rider, mount, rider, target, IsMissRow ? 1 : 20);
+            assertions.Check(targetService != null && targetService.BeginExpectedAttackDispatch(target),
+                "Target incoming-rule observation marked the exact expected rider dispatch boundary.");
             assertions.Check(combat.Arm(MountedCombatActionKind.RiderMelee),
                 "Rider melee armed through the combat controller.");
             if (assertions.FailureCount != 0)
@@ -855,7 +857,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var selected = SelectionManager.Instance?.SelectedUnits;
             var record = new CombatEvidenceRecord
             {
-                SchemaVersion = IsTurnBasedRow ? 13 : 12,
+                SchemaVersion = IsTurnBasedRow ? 15 : 14,
                 ArtifactKind = "combat-scenario-evidence",
                 RunId = request.RunId,
                 Scenario = request.Scenario,
@@ -878,6 +880,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 TargetId = targetId,
                 TargetProvisioning = targetProvisioning ?? new CombatTargetProvisioningEvidence(),
                 TargetLife = CombatTargetLifeEvidence.From(targetService),
+                TargetIncomingRules = CombatTargetIncomingRulesEvidence.From(targetService),
                 ClickAccepted = clickAccepted,
                 PairApproachRadius = pairApproachRadius,
                 TargetDistanceAtClick = targetDistanceAtClick,
@@ -1198,6 +1201,18 @@ namespace KingmakerMountedCombat.Diagnostics
                     ";targetHitPoints=" + (target?.Stats == null
                         ? "unavailable"
                         : ((int)target.Stats.HitPoints).ToString(CultureInfo.InvariantCulture)) +
+                    ";incomingAttackRules=" + (targetService?.IncomingAttackRuleCount ?? 0) +
+                    ";preDispatchIncomingAttackRules=" + (targetService?.PreDispatchIncomingAttackRuleCount ?? 0) +
+                    ";firstIncomingAttackInitiator=" +
+                        (targetService?.FirstIncomingAttack?.InitiatorId ?? "none") +
+                    ";incomingDamageRules=" + (targetService?.IncomingDamageRuleCount ?? 0) +
+                    ";preDispatchIncomingDamageRules=" + (targetService?.PreDispatchIncomingDamageRuleCount ?? 0) +
+                    ";firstIncomingDamageInitiator=" +
+                        (targetService?.FirstIncomingDamage?.InitiatorId ?? "none") +
+                    ";firstIncomingDamage=" +
+                        (targetService?.FirstIncomingDamage == null
+                            ? "none"
+                            : targetService.FirstIncomingDamage.Damage.ToString(CultureInfo.InvariantCulture)) +
                     ";turnBasedReadiness=" + (turnBasedReadiness?.FailureSummary ??
                         (IsTurnBasedRow ? "not-observed" : "not-requested")) +
                     ";turnStatus=" + (Game.Instance?.TurnBasedCombatController?.CurrentTurn == null
@@ -1304,6 +1319,7 @@ namespace KingmakerMountedCombat.Diagnostics
             public string TargetId { get; set; }
             public CombatTargetProvisioningEvidence TargetProvisioning { get; set; }
             public CombatTargetLifeEvidence TargetLife { get; set; }
+            public CombatTargetIncomingRulesEvidence TargetIncomingRules { get; set; }
             public bool ClickAccepted { get; set; }
             public float PairApproachRadius { get; set; }
             public float TargetDistanceAtClick { get; set; }
@@ -1737,6 +1753,97 @@ namespace KingmakerMountedCombat.Diagnostics
                     PreviousLifeState = value?.PreviousLifeState,
                     CurrentLifeState = value?.CurrentLifeState,
                     Snapshot = CombatTargetLifeSnapshotEvidence.From(value?.Snapshot)
+                };
+            }
+        }
+
+        private sealed class CombatTargetIncomingRulesEvidence
+        {
+            public bool DispatchMarkerSet { get; set; }
+            public int AttackRuleCount { get; set; }
+            public int DamageRuleCount { get; set; }
+            public int PreDispatchAttackRuleCount { get; set; }
+            public int PreDispatchDamageRuleCount { get; set; }
+            public CombatTargetIncomingAttackEvidence FirstAttack { get; set; }
+            public CombatTargetIncomingDamageEvidence FirstDamage { get; set; }
+
+            public static CombatTargetIncomingRulesEvidence From(DiagnosticCombatTargetService service)
+            {
+                return new CombatTargetIncomingRulesEvidence
+                {
+                    DispatchMarkerSet = service != null && service.ExpectedAttackDispatchStarted,
+                    AttackRuleCount = service?.IncomingAttackRuleCount ?? 0,
+                    DamageRuleCount = service?.IncomingDamageRuleCount ?? 0,
+                    PreDispatchAttackRuleCount = service?.PreDispatchIncomingAttackRuleCount ?? 0,
+                    PreDispatchDamageRuleCount = service?.PreDispatchIncomingDamageRuleCount ?? 0,
+                    FirstAttack = CombatTargetIncomingAttackEvidence.From(service?.FirstIncomingAttack),
+                    FirstDamage = CombatTargetIncomingDamageEvidence.From(service?.FirstIncomingDamage)
+                };
+            }
+        }
+
+        private sealed class CombatTargetIncomingAttackEvidence
+        {
+            public bool Observed { get; set; }
+            public bool BeforeExpectedDispatch { get; set; }
+            public string InitiatorId { get; set; }
+            public string InitiatorBlueprintId { get; set; }
+            public bool InitiatorIsPlayerFaction { get; set; }
+            public bool InitiatorIsPlayersEnemy { get; set; }
+            public string WeaponBlueprintId { get; set; }
+            public bool IsAttackOfOpportunity { get; set; }
+            public bool IsCharge { get; set; }
+
+            public static CombatTargetIncomingAttackEvidence From(DiagnosticIncomingAttackSnapshot value)
+            {
+                return new CombatTargetIncomingAttackEvidence
+                {
+                    Observed = value != null,
+                    BeforeExpectedDispatch = value != null && value.BeforeExpectedDispatch,
+                    InitiatorId = value?.InitiatorId,
+                    InitiatorBlueprintId = value?.InitiatorBlueprintId,
+                    InitiatorIsPlayerFaction = value != null && value.InitiatorIsPlayerFaction,
+                    InitiatorIsPlayersEnemy = value != null && value.InitiatorIsPlayersEnemy,
+                    WeaponBlueprintId = value?.WeaponBlueprintId,
+                    IsAttackOfOpportunity = value != null && value.IsAttackOfOpportunity,
+                    IsCharge = value != null && value.IsCharge
+                };
+            }
+        }
+
+        private sealed class CombatTargetIncomingDamageEvidence
+        {
+            public bool Observed { get; set; }
+            public bool BeforeExpectedDispatch { get; set; }
+            public string InitiatorId { get; set; }
+            public string InitiatorBlueprintId { get; set; }
+            public bool InitiatorIsPlayerFaction { get; set; }
+            public bool InitiatorIsPlayersEnemy { get; set; }
+            public int Damage { get; set; }
+            public bool IsFake { get; set; }
+            public bool IsDot { get; set; }
+            public bool AttackRollPresent { get; set; }
+            public string WeaponBlueprintId { get; set; }
+            public string SourceAbilityBlueprintId { get; set; }
+            public string SourceAreaBlueprintId { get; set; }
+
+            public static CombatTargetIncomingDamageEvidence From(DiagnosticIncomingDamageSnapshot value)
+            {
+                return new CombatTargetIncomingDamageEvidence
+                {
+                    Observed = value != null,
+                    BeforeExpectedDispatch = value != null && value.BeforeExpectedDispatch,
+                    InitiatorId = value?.InitiatorId,
+                    InitiatorBlueprintId = value?.InitiatorBlueprintId,
+                    InitiatorIsPlayerFaction = value != null && value.InitiatorIsPlayerFaction,
+                    InitiatorIsPlayersEnemy = value != null && value.InitiatorIsPlayersEnemy,
+                    Damage = value?.Damage ?? 0,
+                    IsFake = value != null && value.IsFake,
+                    IsDot = value != null && value.IsDot,
+                    AttackRollPresent = value != null && value.AttackRollPresent,
+                    WeaponBlueprintId = value?.WeaponBlueprintId,
+                    SourceAbilityBlueprintId = value?.SourceAbilityBlueprintId,
+                    SourceAreaBlueprintId = value?.SourceAreaBlueprintId
                 };
             }
         }

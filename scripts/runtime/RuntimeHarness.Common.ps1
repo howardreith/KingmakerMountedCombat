@@ -7141,11 +7141,14 @@ function Assert-KmcCombatScenarioEvidence {
     if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -ge 12) {
         $recordFields = @($recordFields + 'targetLife')
     }
-    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(5,7,9,11,13)) {
+    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -ge 14) {
+        $recordFields = @($recordFields + 'targetIncomingRules')
+    }
+    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(5,7,9,11,13,15)) {
         $recordFields = @($recordFields + 'turnBased')
     }
     Assert-KmcExactProperties $record $recordFields 'combat evidence record'
-    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -notin @(1,2,3,4,5,6,7,8,9,10,11,12,13) -or
+    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -notin @(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15) -or
         [string]$record.artifactKind -cne 'combat-scenario-evidence') {
         throw 'Combat evidence schemaVersion or artifactKind is not exact.'
     }
@@ -7288,7 +7291,107 @@ function Assert-KmcCombatScenarioEvidence {
             throw 'Combat target first life transition is inconsistent with its transition count.'
         }
     }
-    if ([long]$record.schemaVersion -in @(5,7,9,11,13)) {
+    if ([long]$record.schemaVersion -ge 14) {
+        Assert-KmcExactProperties $record.targetIncomingRules @(
+            'dispatchMarkerSet','attackRuleCount','damageRuleCount','preDispatchAttackRuleCount',
+            'preDispatchDamageRuleCount','firstAttack','firstDamage') 'combat target incoming-rule evidence'
+        if ($record.targetIncomingRules.dispatchMarkerSet -isnot [bool]) {
+            throw 'Combat target incoming-rule dispatch marker is not Boolean.'
+        }
+        foreach ($name in @('attackRuleCount','damageRuleCount','preDispatchAttackRuleCount','preDispatchDamageRuleCount')) {
+            if (-not (Test-KmcExactJsonInteger $record.targetIncomingRules.$name) -or
+                [long]$record.targetIncomingRules.$name -lt 0) {
+                throw "Combat target incoming-rule count is invalid: $name"
+            }
+        }
+        if ([long]$record.targetIncomingRules.preDispatchAttackRuleCount -gt [long]$record.targetIncomingRules.attackRuleCount -or
+            [long]$record.targetIncomingRules.preDispatchDamageRuleCount -gt [long]$record.targetIncomingRules.damageRuleCount) {
+            throw 'Combat target pre-dispatch incoming-rule counts exceed their totals.'
+        }
+
+        $incomingAttackFields = @(
+            'observed','beforeExpectedDispatch','initiatorId','initiatorBlueprintId','initiatorIsPlayerFaction',
+            'initiatorIsPlayersEnemy','weaponBlueprintId','isAttackOfOpportunity','isCharge')
+        Assert-KmcExactProperties $record.targetIncomingRules.firstAttack $incomingAttackFields 'combat first incoming attack'
+        foreach ($name in @('observed','beforeExpectedDispatch','initiatorIsPlayerFaction','initiatorIsPlayersEnemy','isAttackOfOpportunity','isCharge')) {
+            if ($record.targetIncomingRules.firstAttack.$name -isnot [bool]) {
+                throw "Combat first incoming attack evidence is not Boolean: $name"
+            }
+        }
+        if ([long]$record.targetIncomingRules.attackRuleCount -eq 0) {
+            if ($record.targetIncomingRules.firstAttack.observed -ne $false -or
+                $record.targetIncomingRules.firstAttack.beforeExpectedDispatch -ne $false -or
+                $null -ne $record.targetIncomingRules.firstAttack.initiatorId -or
+                $null -ne $record.targetIncomingRules.firstAttack.initiatorBlueprintId -or
+                $record.targetIncomingRules.firstAttack.initiatorIsPlayerFaction -ne $false -or
+                $record.targetIncomingRules.firstAttack.initiatorIsPlayersEnemy -ne $false -or
+                $null -ne $record.targetIncomingRules.firstAttack.weaponBlueprintId -or
+                $record.targetIncomingRules.firstAttack.isAttackOfOpportunity -ne $false -or
+                $record.targetIncomingRules.firstAttack.isCharge -ne $false) {
+                throw 'Combat first incoming attack zero-count sentinel is not exact.'
+            }
+        }
+        elseif ($record.targetIncomingRules.firstAttack.observed -ne $true -or
+            $record.targetIncomingRules.firstAttack.initiatorId -isnot [string] -or
+            [string]::IsNullOrWhiteSpace([string]$record.targetIncomingRules.firstAttack.initiatorId) -or
+            $record.targetIncomingRules.firstAttack.initiatorBlueprintId -isnot [string] -or
+            [string]$record.targetIncomingRules.firstAttack.initiatorBlueprintId -cnotmatch '^[0-9a-f]{32}$' -or
+            $record.targetIncomingRules.firstAttack.weaponBlueprintId -isnot [string] -or
+            [string]$record.targetIncomingRules.firstAttack.weaponBlueprintId -cnotmatch '^[0-9a-f]{32}$' -or
+            $record.targetIncomingRules.firstAttack.beforeExpectedDispatch -ne
+                ([long]$record.targetIncomingRules.preDispatchAttackRuleCount -gt 0)) {
+            throw 'Combat first incoming attack evidence is inconsistent with its exact counts.'
+        }
+
+        $incomingDamageFields = @(
+            'observed','beforeExpectedDispatch','initiatorId','initiatorBlueprintId','initiatorIsPlayerFaction',
+            'initiatorIsPlayersEnemy','damage','isFake','isDot','attackRollPresent','weaponBlueprintId',
+            'sourceAbilityBlueprintId','sourceAreaBlueprintId')
+        Assert-KmcExactProperties $record.targetIncomingRules.firstDamage $incomingDamageFields 'combat first incoming damage'
+        foreach ($name in @('observed','beforeExpectedDispatch','initiatorIsPlayerFaction','initiatorIsPlayersEnemy','isFake','isDot','attackRollPresent')) {
+            if ($record.targetIncomingRules.firstDamage.$name -isnot [bool]) {
+                throw "Combat first incoming damage evidence is not Boolean: $name"
+            }
+        }
+        if (-not (Test-KmcExactJsonInteger $record.targetIncomingRules.firstDamage.damage) -or
+            [long]$record.targetIncomingRules.firstDamage.damage -lt 0) {
+            throw 'Combat first incoming damage amount is invalid.'
+        }
+        foreach ($name in @('weaponBlueprintId','sourceAbilityBlueprintId','sourceAreaBlueprintId')) {
+            if ($null -ne $record.targetIncomingRules.firstDamage.$name -and
+                ($record.targetIncomingRules.firstDamage.$name -isnot [string] -or
+                 [string]$record.targetIncomingRules.firstDamage.$name -cnotmatch '^[0-9a-f]{32}$')) {
+                throw "Combat first incoming damage blueprint identity is invalid: $name"
+            }
+        }
+        if ([long]$record.targetIncomingRules.damageRuleCount -eq 0) {
+            if ($record.targetIncomingRules.firstDamage.observed -ne $false -or
+                $record.targetIncomingRules.firstDamage.beforeExpectedDispatch -ne $false -or
+                $null -ne $record.targetIncomingRules.firstDamage.initiatorId -or
+                $null -ne $record.targetIncomingRules.firstDamage.initiatorBlueprintId -or
+                $record.targetIncomingRules.firstDamage.initiatorIsPlayerFaction -ne $false -or
+                $record.targetIncomingRules.firstDamage.initiatorIsPlayersEnemy -ne $false -or
+                [long]$record.targetIncomingRules.firstDamage.damage -ne 0 -or
+                $record.targetIncomingRules.firstDamage.isFake -ne $false -or
+                $record.targetIncomingRules.firstDamage.isDot -ne $false -or
+                $record.targetIncomingRules.firstDamage.attackRollPresent -ne $false -or
+                $null -ne $record.targetIncomingRules.firstDamage.weaponBlueprintId -or
+                $null -ne $record.targetIncomingRules.firstDamage.sourceAbilityBlueprintId -or
+                $null -ne $record.targetIncomingRules.firstDamage.sourceAreaBlueprintId) {
+                throw 'Combat first incoming damage zero-count sentinel is not exact.'
+            }
+        }
+        elseif ($record.targetIncomingRules.firstDamage.observed -ne $true -or
+            $record.targetIncomingRules.firstDamage.initiatorId -isnot [string] -or
+            [string]::IsNullOrWhiteSpace([string]$record.targetIncomingRules.firstDamage.initiatorId) -or
+            $record.targetIncomingRules.firstDamage.initiatorBlueprintId -isnot [string] -or
+            [string]$record.targetIncomingRules.firstDamage.initiatorBlueprintId -cnotmatch '^[0-9a-f]{32}$' -or
+            $record.targetIncomingRules.firstDamage.beforeExpectedDispatch -ne
+                ([long]$record.targetIncomingRules.preDispatchDamageRuleCount -gt 0)) {
+            throw 'Combat first incoming damage evidence is inconsistent with its exact counts.'
+        }
+    }
+    if ([long]$record.schemaVersion -in @(5,7,9,11,13,15)) {
         $turnBooleanFields = @(
             'requested','originalEnabled','temporaryEnabled','originalRawCacheHadValue','enabledAtMount',
             'controllerInitialized','rosterContainsRider','rosterContainsMount','rosterContainsTarget',
@@ -7353,7 +7456,7 @@ function Assert-KmcCombatScenarioEvidence {
     if ($requirePass) {
         $turnBasedScenario = [string]$Request.scenario -ceq 'mounted-rider-melee-hit-tb'
         $missScenario = [string]$Request.scenario -ceq 'mounted-rider-melee-miss-rt'
-        $expectedCombatSchemas = if ($missScenario) { @(6,8,10,12) } elseif ($turnBasedScenario) { @(5,7,9,11,13) } else { @(4,6,8,10,12) }
+        $expectedCombatSchemas = if ($missScenario) { @(6,8,10,12,14) } elseif ($turnBasedScenario) { @(5,7,9,11,13,15) } else { @(4,6,8,10,12,14) }
         if ([long]$record.schemaVersion -notin $expectedCombatSchemas -or
             [string]$record.status -cne 'PASS' -or [long]$record.assertionFailCount -ne 0 -or
             [long]$record.assertionPassCount -le 0 -or @($record.errors).Count -ne 0) {
@@ -7452,6 +7555,35 @@ function Assert-KmcCombatScenarioEvidence {
                [long]$record.targetLife.transitionCount -ne 0 -or
                $record.targetLife.firstTransition.observed -ne $false)))) {
             throw 'PASS combat evidence does not prove a conscious cleanly provisioned target and exact miss-row life stability.'
+        }
+        if ([long]$record.schemaVersion -ge 14 -and
+            ($record.targetIncomingRules.dispatchMarkerSet -ne $true -or
+             [long]$record.targetIncomingRules.attackRuleCount -ne 1 -or
+             [long]$record.targetIncomingRules.preDispatchAttackRuleCount -ne 0 -or
+             $record.targetIncomingRules.firstAttack.observed -ne $true -or
+             $record.targetIncomingRules.firstAttack.beforeExpectedDispatch -ne $false -or
+             [string]$record.targetIncomingRules.firstAttack.initiatorId -cne [string]$record.riderId -or
+             $record.targetIncomingRules.firstAttack.initiatorIsPlayerFaction -ne $true -or
+             $record.targetIncomingRules.firstAttack.initiatorIsPlayersEnemy -ne $false -or
+             $record.targetIncomingRules.firstAttack.isAttackOfOpportunity -ne $false -or
+             $record.targetIncomingRules.firstAttack.isCharge -ne $false -or
+             ($missScenario -and
+              ([long]$record.targetIncomingRules.damageRuleCount -ne 0 -or
+               [long]$record.targetIncomingRules.preDispatchDamageRuleCount -ne 0 -or
+               $record.targetIncomingRules.firstDamage.observed -ne $false)) -or
+             (-not $missScenario -and
+              ([long]$record.targetIncomingRules.damageRuleCount -ne 1 -or
+               [long]$record.targetIncomingRules.preDispatchDamageRuleCount -ne 0 -or
+               $record.targetIncomingRules.firstDamage.observed -ne $true -or
+               $record.targetIncomingRules.firstDamage.beforeExpectedDispatch -ne $false -or
+               [string]$record.targetIncomingRules.firstDamage.initiatorId -cne [string]$record.riderId -or
+               $record.targetIncomingRules.firstDamage.initiatorIsPlayerFaction -ne $true -or
+               $record.targetIncomingRules.firstDamage.initiatorIsPlayersEnemy -ne $false -or
+               [long]$record.targetIncomingRules.firstDamage.damage -le 0 -or
+               $record.targetIncomingRules.firstDamage.isFake -ne $false -or
+               $record.targetIncomingRules.firstDamage.isDot -ne $false -or
+               $record.targetIncomingRules.firstDamage.attackRollPresent -ne $true)))) {
+            throw 'PASS combat evidence does not prove one expected rider attack and zero pre-dispatch interference.'
         }
         if ([string]::IsNullOrWhiteSpace([string]$record.riderId) -or
             [string]::IsNullOrWhiteSpace([string]$record.mountId) -or

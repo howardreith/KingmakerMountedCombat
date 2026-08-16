@@ -9,13 +9,19 @@ using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Integration;
 using KingmakerMountedCombat.Logging;
 using Kingmaker.PubSubSystem;
+using Kingmaker.RuleSystem.Rules;
+using Kingmaker.RuleSystem.Rules.Damage;
 using Kingmaker.UnitLogic;
 using Kingmaker.UnitLogic.Groups;
 using UnityEngine;
 
 namespace KingmakerMountedCombat.Diagnostics
 {
-    internal sealed class DiagnosticCombatTargetService : IUnitLifeStateChanged, IDisposable
+    internal sealed class DiagnosticCombatTargetService :
+        IUnitLifeStateChanged,
+        IGlobalRulebookHandler<RuleAttackWithWeapon>,
+        IGlobalRulebookHandler<RuleDealDamage>,
+        IDisposable
     {
         private const float MinimumPlacementDistance = 3f;
         private const float MaximumPlacementDistance = 20f;
@@ -38,6 +44,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool targetSleeplessLeaseActive;
         private bool combatMemoryQueued;
         private bool combatMemoryRemoved = true;
+        private bool expectedAttackDispatchStarted;
         private bool runtimeFactionDestroyPending;
         private bool disposed;
 
@@ -96,6 +103,20 @@ namespace KingmakerMountedCombat.Diagnostics
         public DiagnosticTargetLifeTransition FirstLifeTransition { get; private set; }
 
         public int LifeTransitionCount { get; private set; }
+
+        public int IncomingAttackRuleCount { get; private set; }
+
+        public int IncomingDamageRuleCount { get; private set; }
+
+        public int PreDispatchIncomingAttackRuleCount { get; private set; }
+
+        public int PreDispatchIncomingDamageRuleCount { get; private set; }
+
+        public bool ExpectedAttackDispatchStarted => expectedAttackDispatchStarted;
+
+        public DiagnosticIncomingAttackSnapshot FirstIncomingAttack { get; private set; }
+
+        public DiagnosticIncomingDamageSnapshot FirstIncomingDamage { get; private set; }
 
         public DiagnosticCombatTargetService(IModLogger logger)
         {
@@ -390,6 +411,69 @@ namespace KingmakerMountedCombat.Diagnostics
             }
         }
 
+        public bool BeginExpectedAttackDispatch(UnitEntityData expectedTarget)
+        {
+            ThrowIfDisposed();
+            if (expectedAttackDispatchStarted || expectedTarget == null || expectedTarget != target ||
+                State != DiagnosticCombatTargetState.Active || !expectedTarget.IsInState)
+            {
+                return false;
+            }
+
+            expectedAttackDispatchStarted = true;
+            return true;
+        }
+
+        public void OnEventAboutToTrigger(RuleAttackWithWeapon evt)
+        {
+            if (!IsIncomingTarget(evt?.Target))
+            {
+                return;
+            }
+
+            IncomingAttackRuleCount++;
+            var beforeExpectedDispatch = !expectedAttackDispatchStarted;
+            if (beforeExpectedDispatch)
+            {
+                PreDispatchIncomingAttackRuleCount++;
+            }
+            if (FirstIncomingAttack == null)
+            {
+                FirstIncomingAttack = DiagnosticIncomingAttackSnapshot.Capture(
+                    evt,
+                    beforeExpectedDispatch);
+            }
+        }
+
+        public void OnEventDidTrigger(RuleAttackWithWeapon evt)
+        {
+        }
+
+        public void OnEventAboutToTrigger(RuleDealDamage evt)
+        {
+        }
+
+        public void OnEventDidTrigger(RuleDealDamage evt)
+        {
+            if (!IsIncomingTarget(evt?.Target))
+            {
+                return;
+            }
+
+            IncomingDamageRuleCount++;
+            var beforeExpectedDispatch = !expectedAttackDispatchStarted;
+            if (beforeExpectedDispatch)
+            {
+                PreDispatchIncomingDamageRuleCount++;
+            }
+            if (FirstIncomingDamage == null)
+            {
+                FirstIncomingDamage = DiagnosticIncomingDamageSnapshot.Capture(
+                    evt,
+                    beforeExpectedDispatch);
+            }
+        }
+
         public void HandleUnitLifeStateChanged(UnitEntityData unit, UnitLifeState prevLifeState)
         {
             if (disposed || unit == null || unit != target)
@@ -543,6 +627,11 @@ namespace KingmakerMountedCombat.Diagnostics
             return TargetSleeplessLeaseReleased;
         }
 
+        private bool IsIncomingTarget(UnitEntityData observedTarget)
+        {
+            return !disposed && target != null && observedTarget == target;
+        }
+
         private bool ReleaseRuntimeGroup()
         {
             if (runtimeGroup == null)
@@ -646,6 +735,108 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 throw new ObjectDisposedException(nameof(DiagnosticCombatTargetService));
             }
+        }
+    }
+
+    internal sealed class DiagnosticIncomingAttackSnapshot
+    {
+        private DiagnosticIncomingAttackSnapshot()
+        {
+        }
+
+        public bool BeforeExpectedDispatch { get; private set; }
+
+        public string InitiatorId { get; private set; }
+
+        public string InitiatorBlueprintId { get; private set; }
+
+        public bool InitiatorIsPlayerFaction { get; private set; }
+
+        public bool InitiatorIsPlayersEnemy { get; private set; }
+
+        public string WeaponBlueprintId { get; private set; }
+
+        public bool IsAttackOfOpportunity { get; private set; }
+
+        public bool IsCharge { get; private set; }
+
+        public static DiagnosticIncomingAttackSnapshot Capture(
+            RuleAttackWithWeapon rule,
+            bool beforeExpectedDispatch)
+        {
+            if (rule?.Initiator == null || rule.Target == null || rule.Weapon?.Blueprint == null)
+            {
+                return null;
+            }
+
+            return new DiagnosticIncomingAttackSnapshot
+            {
+                BeforeExpectedDispatch = beforeExpectedDispatch,
+                InitiatorId = rule.Initiator.UniqueId,
+                InitiatorBlueprintId = rule.Initiator.Blueprint?.AssetGuid,
+                InitiatorIsPlayerFaction = rule.Initiator.IsPlayerFaction,
+                InitiatorIsPlayersEnemy = rule.Initiator.IsPlayersEnemy,
+                WeaponBlueprintId = rule.Weapon.Blueprint.AssetGuid,
+                IsAttackOfOpportunity = rule.IsAttackOfOpportunity,
+                IsCharge = rule.IsCharge
+            };
+        }
+    }
+
+    internal sealed class DiagnosticIncomingDamageSnapshot
+    {
+        private DiagnosticIncomingDamageSnapshot()
+        {
+        }
+
+        public bool BeforeExpectedDispatch { get; private set; }
+
+        public string InitiatorId { get; private set; }
+
+        public string InitiatorBlueprintId { get; private set; }
+
+        public bool InitiatorIsPlayerFaction { get; private set; }
+
+        public bool InitiatorIsPlayersEnemy { get; private set; }
+
+        public int Damage { get; private set; }
+
+        public bool IsFake { get; private set; }
+
+        public bool IsDot { get; private set; }
+
+        public bool AttackRollPresent { get; private set; }
+
+        public string WeaponBlueprintId { get; private set; }
+
+        public string SourceAbilityBlueprintId { get; private set; }
+
+        public string SourceAreaBlueprintId { get; private set; }
+
+        public static DiagnosticIncomingDamageSnapshot Capture(
+            RuleDealDamage rule,
+            bool beforeExpectedDispatch)
+        {
+            if (rule?.Initiator == null || rule.Target == null)
+            {
+                return null;
+            }
+
+            return new DiagnosticIncomingDamageSnapshot
+            {
+                BeforeExpectedDispatch = beforeExpectedDispatch,
+                InitiatorId = rule.Initiator.UniqueId,
+                InitiatorBlueprintId = rule.Initiator.Blueprint?.AssetGuid,
+                InitiatorIsPlayerFaction = rule.Initiator.IsPlayerFaction,
+                InitiatorIsPlayersEnemy = rule.Initiator.IsPlayersEnemy,
+                Damage = rule.Damage,
+                IsFake = rule.IsFake,
+                IsDot = rule.IsDot,
+                AttackRollPresent = rule.AttackRoll != null,
+                WeaponBlueprintId = rule.AttackRoll?.Weapon?.Blueprint?.AssetGuid,
+                SourceAbilityBlueprintId = rule.SourceAbility?.AssetGuid,
+                SourceAreaBlueprintId = rule.SourceArea?.AssetGuid
+            };
         }
     }
 
