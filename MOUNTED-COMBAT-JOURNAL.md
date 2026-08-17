@@ -1,5 +1,10 @@
 # Mounted Combat journal
 
+## 2026-08-16T23:15:33Z - model handoff checkpoint
+
+- Model ownership was explicitly transferred from **sol** to **Spark**.
+- This durable checkpoint preserves the switch and the pre-tool-capacity-resume state.
+
 ## 2026-08-13T16:44:09Z — mandatory intake and mission preservation
 
 - Branch / HEAD: `codex/mounted-combat-feasibility` / `d2aaecaf81d92238ce0309e2914c3bd2ec6516a0`.
@@ -1623,3 +1628,9 @@
 - Exact installed explanation: `UnitCombatState.Disengage` calls `AttackOfOpportunity` token `0x060093A1`, creating a separate `UnitAttackOfOpportunity` that bypasses the mounted Standard wrapper. The approach and bounded rider synchronization can cross that engagement edge even though the hostile target is fixed and brain-suppressed.
 - Narrow repair adds a pure policy and token-pinned prefix at the attack-emission seam. Only the exact rider or Mammoth is suppressed while one mounted pair command remains active. Idle mounted pairs, non-mounted units, non-pair units, null targets, engagement lifecycle, conditions, resources, pathfinding, pose, saves, and restoration remain unchanged. This prevents core duplication without claiming or implementing the later general mounted-AoO stretch feature.
 - Complete offline gate passes source `21/0`, Release build, component `212/0`, visual/source-order `17/0`, harness/protocol `181/0`, and assembly `254/0` (`243/0` Kingmaker, `11/0` Wrath). Dirty DLL SHA-256/MVID `ab47e4bef75a05331085dfd84363e09a7da4fa3acab77b010010bf75e7adaba2` / `422dac22-30d2-4e5a-995f-f3c404585522` are not package identity. Exact next action is guarded publication, clean packaging, continuity WhatIf, and restarted RT/TB A/B with audit-before-read discipline.
+
+## 2026-08-16T22:19:13Z - clean package admitted; live qualification paused by tool quota before launch
+
+- Opportunity-isolation repair is guarded-published at clean local/remote `e02d34267ed1ca952dcc1ff99c842a3ccaaf6aa4`. Exact package/manifest/DLL SHA-256 are `2d401f8e8c24955670af5e1e71af1b5fa46ec6e0b2a924807c812d1b2c80f326` / `6ad928b4fdf4b28765b27f9a3f18e4d7da0cf43149a2b48e21e082f007419c87` / `ab47e4bef75a05331085dfd84363e09a7da4fa3acab77b010010bf75e7adaba2`; MVID `422dac22-30d2-4e5a-995f-f3c404585522`; package validation `10/0`.
+- Separate RT/TB full-continuity WhatIf gates passed explicit zero mutation. The post-WhatIf independent audit was canonical for Mods, complete save inventory, authority/pin set, Baseline, and Working.
+- The execution tool rejected the authorized first live process before shell start because its elevated-action usage limit was exhausted, reported to reset August 19, 2026 11:33 PM. Reserved run ID `20260816T233000Z-rider-move-attack-rt-opportunity-passA` has no evidence or transaction record, no game/runtime process exists, and the rejection is not runtime evidence. Exact next launcher command and audit-first continuation are recorded in `AUTONOMOUS-RESUME.md`.

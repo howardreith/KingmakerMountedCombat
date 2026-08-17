@@ -4,6 +4,15 @@ Status: IN PROGRESS
 
 Branch: `codex/mounted-combat-phase2-alpha`
 
+## Model handoff checkpoint - 2026-08-16T23:15:33Z
+
+No blocker status change.
+Model ownership transferred from **sol** to **Spark** at this checkpoint.
+
+## Tool-capacity stop - 2026-08-16T22:19:13Z
+
+No project safety or architecture blocker is active. The opportunity-isolation repair is clean and guarded-published at `e02d34267ed1ca952dcc1ff99c842a3ccaaf6aa4`; exact package `2d401f8e8c24955670af5e1e71af1b5fa46ec6e0b2a924807c812d1b2c80f326`, separate RT/TB WhatIf, and the canonical post-WhatIf audit pass. The execution tool rejected the first live launch before shell start because its elevated-action usage limit was exhausted, reportedly until August 19, 2026 11:33 PM. No game process, evidence, transaction, or external mutation occurred. Runtime A/B remains open; exact resume command is in `AUTONOMOUS-RESUME.md`.
+
 ## Movement-to-attack opportunity-isolation checkpoint - 2026-08-16T22:07:48Z
 
 No critical blocker is active. Clean-package schema-v32 run `20260816T230000Z-rider-move-attack-rt-rawslot-passA` is immutable uncredited `FAIL` `53/2`: every movement/raw-slot/resource/pose/cleanup/restoration gate passes, but a real rider `UnitAttackOfOpportunity` occurs before the intended child, producing two rider attack/damage chains and killing the one-HP target. Exact Kingmaker `UnitCombatState.Disengage` can call `AttackOfOpportunity` `0x060093A1` outside the mounted Standard wrapper when Architecture B synchronization crosses an engagement boundary. A new exact-token prefix suppresses only rider/Mammoth stock opportunity emission during one active mounted-pair command; idle mounted, non-mounted, non-pair, and broad engagement behavior remain stock. Offline gates pass `21/212/17/181/254`. Fresh clean-package RT/TB A/B remains required; the later explicit AoO stretch contract is unchanged and still unqualified.
