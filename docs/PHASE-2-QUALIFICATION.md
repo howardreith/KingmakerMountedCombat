@@ -1,5 +1,17 @@
 # Phase 2 qualification
 
+## Movement-to-attack opportunity-isolation qualification (2026-08-20)
+
+Status: `PASS` within the exact supported rider-melee movement-to-attack claim; overall private-alpha qualification remains `IN PROGRESS`.
+
+Clean guarded-published implementation commit `632e3710ea1be2d7331eea7f07cf803295b1ad1f` produced package/manifest/DLL SHA-256 `0cca1e30181e6021426c4bfdb8906178636db790a3e6fff4c3aff95ab46f6827` / `c34eeb7ad1e01b0b080b2cb724351c4a6db204704b8e29d73633f2a386b23712` / `8b0afae5aff68ab6e29929d6592d3896c47223d31dd6509811b27ca601857e33`, MVID `e771ac5f-586a-4094-bcbb-0b40e1e1cc12`. Package validation passed `10/0`. Stable suite `20260820T220930Z-opportunity-isolation-suite2` is bound by snapshot SHA-256 `5bc3ffc80819f72304d3ebc063265ab1d585ac64280059cb1fa786298e41f4d7`; exact save/Mods digests are `99b21a2ca3864dbaac7fac80dde5e382df4b6ab3738f59feccd8117bab9f4c89` / `1f724e85026dd868b3f8bad795f159c969f9ac126e9a55a41c82a78fc5f52b0a`.
+
+Separate RT/TB protected-continuity WhatIf gates passed source `21/0`, package `10/0`, and zero mutation. Fresh RT A/B `20260820T221700Z-opportunity-suite2-rt-passA` / `20260820T222100Z-opportunity-suite2-rt-passB` each pass schema v34 `55/0`; fresh TB A/B `20260820T222500Z-opportunity-suite2-tb-passA` / `20260820T222900Z-opportunity-suite2-tb-passB` each pass schema v35 `59/0`. Immediate independent restoration audits before every evidence read re-proved the entire suite save and Mods inventories, immutable Baseline, exact restored Working, and no process, lock, sentinel, transaction, or live deployment.
+
+Every credited process proves exact rider ownership and target/weapon/rule identity, approach beginning outside mounted melee range, Mammoth-only pathfinding and exact Move-slot ownership/restoration, rider path suppression, stationary target, attack only after the unchanged range gate, exactly one intended child and attack/roll/damage chain, `isAttackOfOpportunity=false`, zero unexpected pair attacks, zero repath, accepted Mammoth pose and coherent UI/selection, exact relationship cleanup, and mode-correct action accounting. RT charges rider Standard cooldown only; TB charges rider Move `3` and Standard `6`; Mammoth Move and Standard remain zero. The reversible diagnostic `128` temporary-HP lease kept the disposable target conscious and was removed exactly.
+
+This closes movement-to-attack and only its incidental stock-opportunity isolation. Historical failed runs remain uncredited. Explicit mounted AoO, generalized mounted reach, charge, cancellation/interruption, lifecycle/invalidation, non-mounted controls, and remaining core private-alpha rows remain open.
+
 ## Suite-scoped external-state qualification (2026-08-20)
 
 Future runtime credit uses append-only qualification-suite snapshots instead of a permanently frozen inventory of unrelated saves and Mods. Permanent KMC fixture identity remains exact; foreign state is admitted only after stable double scans while quiescent, then frozen for the suite. Each request and durable transaction binds the exact suite ID and snapshot SHA-256, and full save/Mods equality is re-proved before staging and after restoration before gameplay evidence is read. Historical authorities remain immutable evidence. No opportunity-isolation or later gameplay row receives new credit from this offline safety checkpoint.

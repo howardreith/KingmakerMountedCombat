@@ -6,6 +6,8 @@ Targeting, reach, opportunity, and charge evidence must bind one exact package-b
 
 Status: IN PROGRESS
 
+The narrow opportunity-isolation claim is now qualified for the exact active rider movement-to-attack command. Clean commit/package `632e3710ea1be2d7331eea7f07cf803295b1ad1f` / `0cca1e30181e6021426c4bfdb8906178636db790a3e6fff4c3aff95ab46f6827` produced fresh RT A/B schema v34 `55/0` and TB A/B schema v35 `59/0` under one exact suite snapshot. Every row records one intended non-AoO rider attack chain and zero unexpected pair attacks. Idle mounted, non-mounted, non-pair, unrelated/null-target, and broad engagement behavior remain stock. This result does not qualify explicit mounted attacks of opportunity, generalized reach, or charge.
+
 This contract is pair-scoped to the accepted Medium-humanoid/Mammoth profile. It does not alter global unit reach, weapon data, corpulence, target replacement, engagement, or pathfinding.
 
 ## Target and attack identity

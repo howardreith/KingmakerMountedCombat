@@ -4,6 +4,14 @@ Status: IN PROGRESS
 
 Branch: `codex/mounted-combat-phase2-alpha`
 
+## Opportunity-isolation qualification complete - 2026-08-20T22:33:06Z
+
+Status: `PASS`; no safety or architecture blocker is active.
+
+The target-lifetime repair is committed and guarded-published at `632e3710ea1be2d7331eea7f07cf803295b1ad1f`. Exact package/suite identities are recorded in `AUTONOMOUS-RESUME.md`. Separate RT/TB WhatIf gates and four fresh same-package suite runs passed: RT A/B `55/0` each and TB A/B `59/0` each. Immediate independent audits before every evidence read proved exact save/Mods suite inventories, immutable Baseline, restored Working, and zero process/lock/sentinel/deployment residue.
+
+The prior TB target-death failure remains immutable and uncredited. The fresh four-run set proves exactly one intended rider attack chain and zero incidental `UnitAttackOfOpportunity` while preserving Architecture B and all mode-specific accounting. The active work is now cancellation/interruption; the later explicit mounted-AoO feature remains separately unqualified.
+
 ## Turn-based Pass B diagnostic target lifetime failure - 2026-08-20T22:06:00Z
 
 Status: `IN PROGRESS`; not a safety or architecture blocker.
