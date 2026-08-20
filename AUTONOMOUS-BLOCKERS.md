@@ -4,6 +4,16 @@ Status: IN PROGRESS
 
 Branch: `codex/mounted-combat-phase2-alpha`
 
+## Critical external-state stop - 2026-08-20T17:51:46Z
+
+Status: `BLOCKED — CRITICAL` before runtime.
+
+Capacity resumed under Codex/GPT-5 and the exact clean `2a37957972b3a316595db5139a5fdeb52d82a768` offline gate passed source `21/0`, Release build, component `212/0`, visual/source-order `17/0`, harness/protocol `181/0`, assembly `254/0`, and package `10/0`. Fresh current-HEAD package/manifest/DLL SHA-256 are `4d79559a828a887f9d7278f57926eb067ef78a323d3e513eacde4029c7af8596` / `030d667defef0d15b4534c2e1b83f9c737498212eb5fa8abfa03ad84bb948808` / `ab47e4bef75a05331085dfd84363e09a7da4fa3acab77b010010bf75e7adaba2`; MVID `422dac22-30d2-4e5a-995f-f3c404585522`.
+
+The live Mods digest is unexpectedly `f91fe3ab6131837b0af285e18e6295fc7ded1486f2892277f7a11acdd5fa2597` instead of qualified `e62320bbe7d4b83edc128a62f9f5852b0669c5549859602c335c649318578d47`. Ten read-only differences are isolated to changed `BagOfTricks/Settings.xml`, five changed separate-product Kingmaker Buff Planner deployment files, and four added Buff Planner user-settings/backup files. No process, KMC deployment, runtime lock, or sentinel exists. KMC is forbidden to mutate, restore, absorb, or rebaseline another project's files. Separately, the execution security layer rejected the mandatory read-only protected-save audit because it accesses the valued-save directory; current live Baseline, Working, inventory, and pins therefore cannot be claimed exact.
+
+No RT/TB `-WhatIf` or live process was run. Runtime remains blocked until the owner/user reconciles and authorizes the current Mods inventory outside KMC and the protected-save audit can execute. After that, rebuild a package for the resulting clean documentation HEAD and resume fresh same-package opportunity-isolation RT A/B and TB A/B. The historical `e02d342...` package values remain preserved in records, but their exact ZIP/manifest bytes were already absent from the lab at intake and are not recreated or relabeled.
+
 ## Model handoff checkpoint - 2026-08-16T23:15:33Z
 
 No blocker status change.
