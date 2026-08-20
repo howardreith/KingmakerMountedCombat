@@ -4,6 +4,16 @@ Status: IN PROGRESS
 
 Branch: `codex/mounted-combat-phase2-alpha`
 
+## Protected-save inventory mismatch - 2026-08-20T20:29:03Z
+
+Status: `BLOCKED — CRITICAL SAFETY`.
+
+The newly policy-authorized metadata/raw-hash-only audit ran without archive access or save mutation. Existing authority SHA-256 `111c794baf8bd1062ef7ecf8c307f4e3badb7a519cf3e66ae1f8f2442b770701`, epoch `20260816T0115379973604Z-user-attested-quicksave-continuity`, and recorded pin-set identifier `6f137d57e3a519b3a315a4c654b5feee51c8495f7104c26bfd4da097930c9ff4` were exact, but the live inventory differed from its authority: `03a91757453a8e875e376f31f1664decb0a6e60dcf6433f2348795a90be634c9` (`271` files / `3178743633` bytes) became `feb5da86ea9cac8ac9bde6d944b83e20dc623fd2d7d67ce4ba8ebd398fa47306` (`272` files / `3179191554` bytes).
+
+Exact differences are added `Auto_1121.zks` plus changed `Manual_297_KBP_AUTOMATION_WORKING.zks`, `Quick_4.zks`, `Quick_5.zks`, and `Quick_6.zks`. Their current raw SHA-256 values are recorded in `AUTONOMOUS-RESUME.md`. This is outside the user's Mods-only attestation and is an immediate safety stop. The save and Mods roots stayed stable during the discrepancy audit; Mods remained exact at `f91fe3ab6131837b0af285e18e6295fc7ded1486f2892277f7a11acdd5fa2597`. No save or foreign mod was changed.
+
+Do not create the live-Mods authority, package, preflight, or runtime transaction. Resume only after separate user reconciliation or exact attestation of this five-path protected-save transition; never infer authority, rebaseline, restore, or write any of these saves.
+
 ## Tooling/action-capacity stop after explicit authorization - 2026-08-20T19:19:24Z
 
 Status: `BLOCKED — TOOLING / ACTION CAPACITY`.
