@@ -4,6 +4,16 @@ Status: IN PROGRESS
 
 Branch: `codex/mounted-combat-phase2-alpha`
 
+## Tooling/action-capacity stop after explicit authorization - 2026-08-20T19:19:24Z
+
+Status: `BLOCKED — TOOLING / ACTION CAPACITY`.
+
+The user explicitly attested exact current live Mods digest `f91fe3ab6131837b0af285e18e6295fc7ded1486f2892277f7a11acdd5fa2597` and its exact ten-path transition, authorized a project-owned append-only continuity authority, and explicitly authorized the guarded read-only protected-save audit after the prior risk disclosure. Re-intake passed at clean local/upstream `1b05e9c12660f366d5a402b5783f2c6046875b44` with no relevant process, Git operation/lock, runtime lock, sentinel, live KMC deployment, or non-restored transaction.
+
+The execution security layer still rejected the protected-save audit before shell start solely because it would read the valued-save directory. No save path was accessed and no external state changed. The same outcome will not be retried or bypassed. Because exact save continuity is an explicit prerequisite to the newly authorized Mods authority, no authority implementation, test, package, `-WhatIf`, runtime transaction, or game process was started.
+
+Resume only when the execution layer permits the exact read-only `Assert-KmcQualifiedWorkingProtectedSaveContinuity` operation under the user's stated limits. Require exact authority `111c794baf8bd1062ef7ecf8c307f4e3badb7a519cf3e66ae1f8f2442b770701`, pin set `6f137d57e3a519b3a315a4c654b5feee51c8495f7104c26bfd4da097930c9ff4`, Baseline `c29d965c9ff5dc0f971659d9ae154877aa4a9a461ca220d1ce28e7c7fd9d2512`, Working `5eb4e0b4cbd8d60dc879a02ff71aadfde3f517304754857f0cc68d0f9a93f1c6`, and stable external roots before proceeding.
+
 ## Critical external-state stop - 2026-08-20T17:51:46Z
 
 Status: `BLOCKED — CRITICAL` before runtime.
