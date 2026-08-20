@@ -1,5 +1,9 @@
 # Combat action economy contract
 
+## External-state evidence binding (2026-08-20)
+
+Action-economy credit requires the runtime request, combined transaction, final restoration, and paired A/B processes to bind one exact qualification-suite ID and snapshot SHA-256. A result from a different suite snapshot cannot complete or corroborate an A/B claim. This changes admission and noninterference accounting only; rider/Mammoth Standard and Move ownership, exact-single-attack criteria, and real-time/turn-based mode-specific assertions are unchanged.
+
 Status: IN PROGRESS
 
 Authority: the user accepted exact presentation commit `09a63729e0847c540ae7e79e9e3876d005ee9afe` and opened Tranches C-F of `planning/MOUNTED-COMBAT-PHASE-2-MASTER-MISSION.md`. This contract is scoped to one transient Medium-humanoid/`AnimalCompanionUnitMammoth` pair and ordinary melee only.

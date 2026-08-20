@@ -89,7 +89,7 @@ if ($schemaVersion -eq 1) {
     Assert-KmcExactProperties $request @($commonRequired + @('saveAccessAllowed','saveName')) 'runtime request v1'
 }
 elseif ($schemaVersion -eq 2) {
-    Assert-KmcExactProperties $request @($commonRequired + @('fixture')) 'runtime request v2'
+    Assert-KmcExactProperties $request @($commonRequired + @('fixture','qualificationSuite')) 'runtime request v2'
 }
 else { throw 'Runtime request schemaVersion must be 1 or 2.' }
 
@@ -134,6 +134,11 @@ if ($schemaVersion -eq 1) {
 else {
     if (@($missionScenarios + $aggregateScenarios + $interactiveScenarios | Where-Object { $_ -ceq [string]$request.scenario }).Count -ne 1 -or [string]$request.scenario -ceq 'mod-load-smoke') { throw 'Schema-v2 scenario is outside the save-backed mission allowlist.' }
     Assert-RuntimeFixture $request.fixture ([string]$request.scenario)
+    Assert-KmcExactProperties $request.qualificationSuite @('suiteId','snapshotSha256') 'runtime qualification-suite identity'
+    if ([string]$request.qualificationSuite.suiteId -cnotmatch '^[A-Za-z0-9._-]{1,120}$' -or
+        [string]$request.qualificationSuite.snapshotSha256 -cnotmatch '^[0-9a-f]{64}$') {
+        throw 'Runtime qualification-suite identity is invalid.'
+    }
 }
 
 if (-not [string]::IsNullOrWhiteSpace($PackageManifestPath)) {
@@ -149,5 +154,5 @@ if (-not [string]::IsNullOrWhiteSpace($PackageManifestPath)) {
     }
 }
 
-$passCount = if ($schemaVersion -eq 1) { 12 } else { 31 }
+$passCount = if ($schemaVersion -eq 1) { 12 } else { 33 }
 Write-Host "TOTAL PASS=$passCount FAIL=0"

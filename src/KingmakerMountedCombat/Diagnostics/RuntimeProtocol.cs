@@ -93,6 +93,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
         public RuntimeFixtureIdentity Fixture { get; set; }
 
+        public RuntimeQualificationSuiteIdentity QualificationSuite { get; set; }
+
         public IReadOnlyList<string> Validate()
         {
             var errors = new List<string>();
@@ -219,6 +221,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 errors.Add("Schema v1 requests must not include fixture identity.");
             }
 
+            if (QualificationSuite != null)
+            {
+                errors.Add("Schema v1 requests must not include qualification-suite identity.");
+            }
+
             if (!string.Equals(Scenario, "mod-load-smoke", StringComparison.Ordinal))
             {
                 errors.Add("Only mod-load-smoke is implemented as a schema-v1 no-save scenario.");
@@ -244,6 +251,14 @@ namespace KingmakerMountedCombat.Diagnostics
             }
 
             errors.AddRange(Fixture.Validate());
+            if (QualificationSuite == null)
+            {
+                errors.Add("qualificationSuite is required for schema-v2 requests.");
+            }
+            else
+            {
+                errors.AddRange(QualificationSuite.Validate());
+            }
             if (Fixture.WriteAuthorization != null)
             {
                 var expectedMode = IsManualReviewScenario(Scenario) ? "read-only" : "working-only";
@@ -252,6 +267,25 @@ namespace KingmakerMountedCombat.Diagnostics
                     errors.Add("fixture.writeAuthorization.mode does not match the selected runtime scenario.");
                 }
             }
+        }
+    }
+
+    public sealed class RuntimeQualificationSuiteIdentity
+    {
+        public string SuiteId { get; set; }
+
+        public string SnapshotSha256 { get; set; }
+
+        public IReadOnlyList<string> Validate()
+        {
+            var errors = new List<string>();
+            if (string.IsNullOrEmpty(SuiteId) || !Regex.IsMatch(SuiteId, "^[A-Za-z0-9._-]{1,120}$", RegexOptions.CultureInvariant))
+            {
+                errors.Add("qualificationSuite.suiteId is outside the exact runtime allowlist.");
+            }
+
+            RuntimeRequest.RequireSha256(errors, SnapshotSha256, "qualificationSuite.snapshotSha256");
+            return errors;
         }
     }
 

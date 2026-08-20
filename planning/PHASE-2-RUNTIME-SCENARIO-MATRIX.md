@@ -1,5 +1,9 @@
 # Phase 2 runtime scenario matrix
 
+## Qualification-suite external-state admission (2026-08-20)
+
+All future save-backed rows are bound to one append-only qualification-suite snapshot. Admission requires quiescence plus two identical complete save-root and Mods-root scans. The snapshot binds exact commit/package/manifest/DLL/MVID, permanent KMC fixture identity, historical authority identifiers, and full path/type/length/timestamp/raw-hash inventories. Same-package A/B rows may be paired only when suite ID and snapshot SHA-256 match. Stable foreign drift between suites starts a new suite; any drift during a suite rejects that suite's remaining credit and requires fresh A/B. Restoration audit against the exact snapshot precedes gameplay evidence inspection after every process.
+
 Status: IN PROGRESS
 
 Mammoth-primary stationary combat is qualified on clean commit/package `defbbd0516ec1ad16eac7e83dd69ae1fc41fc8c6` / `8adb516b6970b07d714dcb46e3418d2fc0fc68a92af218b6170a3427598bab2d`. Fresh same-package RT A/B `20260816T194000Z-mammoth-primary-rt-passA` / `20260816T194500Z-mammoth-primary-rt-passB` pass schema v26 at `54/0` each; TB A/B `20260816T195000Z-mammoth-primary-tb-passA` / `20260816T195500Z-mammoth-primary-tb-passB` pass schema v27 at `59/0` each. All four bind exact Mammoth actor/readiness/command/resource/weapon/target/rule identity, exactly one attack, no rider duplicate/cost, mode-correct Standard accounting, zero movement/repath/AoO/charge, healthy accepted pose, cleanup, coherent manifests, and independent exact restoration. The prior actor-readiness attempt remains immutable uncredited history.

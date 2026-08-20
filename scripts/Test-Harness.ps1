@@ -3840,6 +3840,122 @@ try {
         finally { Close-KmcRuntimeLock $lock }
     }
 
+    Invoke-HarnessTest 'qualification-suite inventory admits stable between-suite drift and freezes exact in-suite state' {
+        $root=Join-Path $testRoot 'suite-inventory'
+        $saves=Join-Path $root 'saves';$mods=Join-Path $root 'mods'
+        New-Item -ItemType Directory -Path $saves,$mods|Out-Null
+        [IO.File]::WriteAllText((Join-Path $saves 'Foreign.zks'),'foreign-one')
+        New-Item -ItemType Directory -Path (Join-Path $mods 'BagOfTricks')|Out-Null
+        [IO.File]::WriteAllText((Join-Path $mods 'BagOfTricks\Settings.xml'),'first')
+        $suiteOneSave=Get-KmcQualificationTreeInventory -Root $saves -Scope save-root
+        $suiteOneMods=Get-KmcQualificationTreeInventory -Root $mods -Scope mods-root
+        [void](Assert-KmcQualificationTreeInventorySchema -Inventory $suiteOneSave -ExpectedScope save-root -ExpectedRoot $saves -Description 'suite-one saves')
+        [void](Assert-KmcQualificationTreeInventorySchema -Inventory $suiteOneMods -ExpectedScope mods-root -ExpectedRoot $mods -Description 'suite-one Mods')
+        [void](Assert-KmcQualificationTreeInventoriesEqual -Expected $suiteOneSave -Actual (Get-KmcQualificationTreeInventory -Root $saves -Scope save-root) -Description 'stable double-scan saves')
+        [void](Assert-KmcQualificationTreeInventoriesEqual -Expected $suiteOneMods -Actual (Get-KmcQualificationTreeInventory -Root $mods -Scope mods-root) -Description 'stable double-scan Mods')
+        [IO.File]::WriteAllText((Join-Path $saves 'Foreign.zks'),'foreign-two')
+        [IO.File]::WriteAllText((Join-Path $mods 'BagOfTricks\Settings.xml'),'second')
+        Assert-TestThrows { Assert-KmcQualificationTreeInventoriesEqual -Expected $suiteOneSave -Actual (Get-KmcQualificationTreeInventory -Root $saves -Scope save-root) -Description 'in-suite saves' } 'in-suite foreign save drift was accepted'
+        Assert-TestThrows { Assert-KmcQualificationTreeInventoriesEqual -Expected $suiteOneMods -Actual (Get-KmcQualificationTreeInventory -Root $mods -Scope mods-root) -Description 'in-suite Mods' } 'in-suite foreign Mods drift was accepted'
+        $suiteTwoSave=Get-KmcQualificationTreeInventory -Root $saves -Scope save-root
+        $suiteTwoMods=Get-KmcQualificationTreeInventory -Root $mods -Scope mods-root
+        [void](Assert-KmcQualificationTreeInventoriesEqual -Expected $suiteTwoSave -Actual (Get-KmcQualificationTreeInventory -Root $saves -Scope save-root) -Description 'new stable suite saves')
+        [void](Assert-KmcQualificationTreeInventoriesEqual -Expected $suiteTwoMods -Actual (Get-KmcQualificationTreeInventory -Root $mods -Scope mods-root) -Description 'new stable suite Mods')
+        Assert-Test ([string]$suiteOneSave.digest-cne[string]$suiteTwoSave.digest -and [string]$suiteOneMods.digest-cne[string]$suiteTwoMods.digest) 'between-suite drift did not produce a new exact admission identity'
+    }
+
+    Invoke-HarnessTest 'suite admission double-scans before append-only commit and WhatIf remains read-only' {
+        $source=Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'runtime\New-KmcQualificationSuiteSnapshot.ps1')
+        $saveFirst=$source.IndexOf('$saveFirst=Get-KmcQualificationTreeInventory',[StringComparison]::Ordinal)
+        $sleep=$source.IndexOf('Start-Sleep -Milliseconds $StabilityIntervalMilliseconds',[StringComparison]::Ordinal)
+        $saveSecond=$source.IndexOf('$saveSecond=Get-KmcQualificationTreeInventory',[StringComparison]::Ordinal)
+        $equality=$source.IndexOf("-Description 'qualification-suite double-scan save inventory'",[StringComparison]::Ordinal)
+        $shouldProcess=$source.IndexOf('$PSCmdlet.ShouldProcess($snapshotPath',[StringComparison]::Ordinal)
+        $write=$source.IndexOf('Write-KmcJsonCreateNewDurable -Path $snapshotPath',[StringComparison]::Ordinal)
+        Assert-Test ($source.Contains('$requestedWhatIf=[bool]$WhatIfPreference') -and $source.Contains('$WhatIfPreference=$false') -and
+            $saveFirst-ge0-and$sleep-gt$saveFirst-and$saveSecond-gt$sleep-and$equality-gt$saveSecond-and$shouldProcess-gt$equality-and$write-gt$shouldProcess) 'suite admission does not double-scan and validate before ShouldProcess and append-only write'
+        Assert-Test ($source.Contains("foreignSavesWritable=`$false") -and $source.Contains("foreignModsWritable=`$false") -and
+            $source.Contains("writableSaveNames=@('KMC_AUTOMATION_WORKING')")) 'suite snapshot grants foreign write authority'
+    }
+
+    Invoke-HarnessTest 'qualification-suite inventory rejects add remove rename replacement metadata and links' {
+        $root=Join-Path $testRoot 'suite-drift-kinds';New-Item -ItemType Directory -Path $root|Out-Null
+        $file=Join-Path $root 'Foreign.zks';[IO.File]::WriteAllText($file,'abcd')
+        $original=Get-KmcQualificationTreeInventory -Root $root -Scope save-root
+        [IO.File]::WriteAllText((Join-Path $root 'Added.zks'),'x')
+        Assert-TestThrows { Assert-KmcQualificationTreeInventoriesEqual $original (Get-KmcQualificationTreeInventory $root save-root) 'added path' } 'added path passed'
+        Remove-Item -LiteralPath (Join-Path $root 'Added.zks')
+        Move-Item -LiteralPath $file -Destination (Join-Path $root 'Renamed.zks')
+        Assert-TestThrows { Assert-KmcQualificationTreeInventoriesEqual $original (Get-KmcQualificationTreeInventory $root save-root) 'rename' } 'rename passed'
+        Move-Item -LiteralPath (Join-Path $root 'Renamed.zks') -Destination $file
+        $ticks=(Get-Item $file).LastWriteTimeUtc.Ticks;[IO.File]::WriteAllText($file,'wxyz');(Get-Item $file).LastWriteTimeUtc=[DateTime]::new($ticks,[DateTimeKind]::Utc)
+        Assert-TestThrows { Assert-KmcQualificationTreeInventoriesEqual $original (Get-KmcQualificationTreeInventory $root save-root) 'same length and timestamp replacement' } 'same-length hash replacement passed'
+        [IO.File]::WriteAllText($file,'abcd');(Get-Item $file).LastWriteTimeUtc=[DateTime]::new($ticks+10000000,[DateTimeKind]::Utc)
+        Assert-TestThrows { Assert-KmcQualificationTreeInventoriesEqual $original (Get-KmcQualificationTreeInventory $root save-root) 'timestamp drift' } 'timestamp drift passed'
+        Remove-Item -LiteralPath $file
+        Assert-TestThrows { Assert-KmcQualificationTreeInventoriesEqual $original (Get-KmcQualificationTreeInventory $root save-root) 'removed path' } 'removed path passed'
+        [IO.File]::WriteAllText($file,'abcd')
+        $hard=Join-Path $root 'Hard.zks';New-Item -ItemType HardLink -Path $hard -Target $file|Out-Null
+        Assert-TestThrows { Get-KmcQualificationTreeInventory -Root $root -Scope save-root } 'hard link passed suite inventory'
+    }
+
+    Invoke-HarnessTest 'A/B identity cannot cross qualification-suite snapshots' {
+        [void](Assert-KmcSameQualificationSuiteIdentity -First ([pscustomobject]@{suiteId='suite-a';snapshotSha256=('a'*64)}) -Second ([pscustomobject]@{suiteId='suite-a';snapshotSha256=('a'*64)}))
+        Assert-TestThrows { Assert-KmcSameQualificationSuiteIdentity -First ([pscustomobject]@{suiteId='suite-a';snapshotSha256=('a'*64)}) -Second ([pscustomobject]@{suiteId='suite-b';snapshotSha256=('a'*64)}) } 'A/B suite-ID mismatch passed'
+        Assert-TestThrows { Assert-KmcSameQualificationSuiteIdentity -First ([pscustomobject]@{suiteId='suite-a';snapshotSha256=('a'*64)}) -Second ([pscustomobject]@{suiteId='suite-a';snapshotSha256=('b'*64)}) } 'A/B snapshot-hash mismatch passed'
+        Assert-Test ((Get-KmcQualificationSuiteDriftDisposition -ExternalStateExact $false -PermanentFixtureExact $true -TransactionActive $false -PriorProcessRestorationProven $true)-ceq'close-suite-and-restart-fresh-ab') 'between-run drift does not force an automatic fresh-suite A/B restart'
+        Assert-Test ((Get-KmcQualificationSuiteDriftDisposition -ExternalStateExact $false -PermanentFixtureExact $true -TransactionActive $true -PriorProcessRestorationProven $false)-ceq'stop-unproven-active-transaction-drift') 'active-transaction drift was treated as ordinary between-suite activity'
+        Assert-Test ((Get-KmcQualificationSuiteDriftDisposition -ExternalStateExact $true -PermanentFixtureExact $false -TransactionActive $false -PriorProcessRestorationProven $true)-ceq'stop-kmc-fixture-drift') 'KMC fixture drift was admitted by suite restart'
+    }
+
+
+    Invoke-HarnessTest 'qualification-suite historical authority hashes are immutable' {
+        $state=Join-Path $testRoot 'suite-history-state';$authorityRoot=Join-Path $state 'protected-save-authorities';New-Item -ItemType Directory -Path $authorityRoot -Force|Out-Null
+        $one=Join-Path $authorityRoot 'one.json';$two=Join-Path $authorityRoot 'two.json';[IO.File]::WriteAllText($one,'one');[IO.File]::WriteAllText($two,'two')
+        $history=[pscustomobject]@{protectedSaveAuthorities=@([pscustomobject]@{classification='historical-suite-authority';path=$one;sha256=Get-KmcSha256 $one;epochId='one';schemaVersion=1},[pscustomobject]@{classification='historical-transition-authority';path=$two;sha256=Get-KmcSha256 $two;epochId='two';schemaVersion=2});modsAuthorities=@([pscustomobject]@{classification='historical-suite-authority';digest=('a'*64);description='immutable historical Mods digest'})}
+        [void](Assert-KmcQualificationSuiteHistoricalAuthorities -History $history -StateRoot $state)
+        [IO.File]::WriteAllText($one,'eno')
+        Assert-TestThrows { Assert-KmcQualificationSuiteHistoricalAuthorities -History $history -StateRoot $state } 'modified historical authority passed its immutable hash'
+    }
+
+    Invoke-HarnessTest 'combined transaction durably binds one qualification-suite snapshot' {
+        $root=Join-Path $testRoot 'suite-transaction-binding';$state=Join-Path $root 'state';$mods=Join-Path $root 'mods';$saves=Join-Path $root 'saves'
+        New-Item -ItemType Directory -Path $state,$mods,$saves|Out-Null
+        $lock=Open-KmcRuntimeLock -StateRoot $state -RunId suite-bound-transaction
+        try{
+            $path=New-KmcRunTransactionState -Lock $lock -Mode save-backed-v3-suite -LiveModsRoot $mods -SaveRoot $saves -StateRoot $state -ModsBefore (Get-KmcDirectoryManifest $mods) -SavesBefore (Get-KmcSaveMetadataInventory $saves) -QualificationSuiteSnapshotPath (Join-Path $state 'qualification-suite-snapshots\suite-a.json') -QualificationSuiteId suite-a -QualificationSuiteSnapshotSha256 ('a'*64)
+            $record=Read-KmcRunTransactionState -StatePath $path -Lock $lock
+            Assert-Test ([long]$record.schemaVersion-eq2 -and [string]$record.mode-ceq'save-backed-v3-suite' -and [string]$record.qualificationSuiteId-ceq'suite-a' -and [string]$record.qualificationSuiteSnapshotSha256-ceq('a'*64)) 'combined transaction lost suite binding'
+        }finally{Close-KmcRuntimeLock $lock}
+        $legacyLock=Open-KmcRuntimeLock -StateRoot $state -RunId historical-schema-one
+        try{
+            $legacyPath=New-KmcRunTransactionState -Lock $legacyLock -Mode save-backed-v2 -LiveModsRoot $mods -SaveRoot $saves -StateRoot $state -ModsBefore (Get-KmcDirectoryManifest $mods) -SavesBefore (Get-KmcSaveMetadataInventory $saves)
+            Assert-Test ([long](Read-KmcRunTransactionState -StatePath $legacyPath -Lock $legacyLock).schemaVersion-eq1) 'historical combined transaction schema was rewritten'
+        }finally{Close-KmcRuntimeLock $legacyLock}
+        $incompleteLock=Open-KmcRuntimeLock -StateRoot $state -RunId incomplete-suite-binding
+        try{Assert-TestThrows { New-KmcRunTransactionState -Lock $incompleteLock -Mode save-backed-v3-suite -LiveModsRoot $mods -SaveRoot $saves -StateRoot $state -ModsBefore (Get-KmcDirectoryManifest $mods) -SavesBefore (Get-KmcSaveMetadataInventory $saves) -QualificationSuiteId suite-a } 'incomplete suite binding was accepted'}finally{Close-KmcRuntimeLock $incompleteLock}
+    }
+
+    Invoke-HarnessTest 'qualified Working recovery is exact KMC-only and WhatIf-pure' {
+        $root=Join-Path $testRoot 'qualified-working-recovery';$saves=Join-Path $root 'saves';$state=Join-Path $root 'state';$backup=Join-Path $root 'backups';$staging=Join-Path $root 'staging'
+        New-Item -ItemType Directory -Path $saves,$state,$backup,$staging|Out-Null
+        $baselinePath=Join-Path $saves 'Manual_1_KMC_AUTOMATION_BASELINE.zks';$workingPath=Join-Path $saves 'Manual_2_KMC_AUTOMATION_WORKING.zks';$foreignPath=Join-Path $saves 'Manual_3_KBP_AUTOMATION_WORKING.zks'
+        New-TestSaveArchive -Path $baselinePath -Name 'KMC_AUTOMATION_BASELINE';New-TestSaveArchive -Path $workingPath -Name 'KMC_AUTOMATION_WORKING';[IO.File]::WriteAllText($foreignPath,'foreign-owned')
+        $qualificationPath=Join-Path $state 'fixture-qualification.json';$pair=Assert-KmcFixturePair -SaveRoot $saves -QualificationPath $qualificationPath -InitializeQualification
+        $lock=Open-KmcRuntimeLock -StateRoot $state -RunId 'qualified-backup-source'
+        try{$saveState=Enter-KmcWorkingSaveTransaction -Lock $lock -Pair $pair -SaveRoot $saves -StateRoot $state -BackupRoot $backup -StagingRoot $staging -Scenario fixture-intake;[void](Restore-KmcWorkingSaveTransaction -Lock $lock -StatePath $saveState -SaveRoot $saves -BackupRoot $backup -StagingRoot $staging)}finally{Close-KmcRuntimeLock $lock}
+        $authority=[pscustomobject]@{baseline=$pair.baseline;working=$pair.working}
+        New-TestSaveArchive -Path $workingPath -Name 'KMC_AUTOMATION_WORKING' -ExtraEntry
+        $driftHash=Get-KmcSha256 $workingPath;$foreignHash=Get-KmcSha256 $foreignPath
+        $whatIf=Invoke-KmcQualifiedWorkingFixtureRecovery -RunId recovery-whatif -SaveRoot $saves -StateRoot $state -BackupRoot $backup -QualificationPath $qualificationPath -HistoricalAuthority $authority -WhatIf
+        Assert-Test ([string]$whatIf.status-ceq'what-if' -and (Get-KmcSha256 $workingPath)-ceq$driftHash -and (Get-KmcSha256 $foreignPath)-ceq$foreignHash -and -not(Test-Path (Join-Path $state 'fixture-recoveries'))) 'fixture-recovery WhatIf mutated state'
+        $result=Invoke-KmcQualifiedWorkingFixtureRecovery -RunId recovery-commit -SaveRoot $saves -StateRoot $state -BackupRoot $backup -QualificationPath $qualificationPath -HistoricalAuthority $authority -Confirm:$false
+        $recovered=Assert-KmcFixturePair -SaveRoot $saves -QualificationPath $qualificationPath
+        Assert-Test ([string]$result.status-ceq'recovered' -and [string]$recovered.working.sha256-ceq[string]$pair.working.sha256 -and (Get-KmcSha256 $foreignPath)-ceq$foreignHash -and (Test-Path -LiteralPath $result.quarantinePath)) 'qualified recovery did not restore only exact Working'
+        New-TestSaveArchive -Path $baselinePath -Name 'KMC_AUTOMATION_BASELINE' -ExtraEntry
+        Assert-TestThrows { Invoke-KmcQualifiedWorkingFixtureRecovery -RunId baseline-must-stop -SaveRoot $saves -StateRoot $state -BackupRoot $backup -QualificationPath $qualificationPath -HistoricalAuthority $authority -Confirm:$false } 'changed Baseline was automatically repaired without a qualified Baseline backup contract'
+    }
+
     Invoke-HarnessTest 'schema-v2 fixture payload exposes no save path and Working-only authorization' {
         $payloadRoot = Join-Path $testRoot 'payload-saves'
         New-Item -ItemType Directory -Path $payloadRoot | Out-Null
@@ -3873,13 +3989,14 @@ try {
             $manualLauncherSource.Contains("Invoke-KingmakerRuntimeScenario.ps1") -and
             $manualLauncherSource.Contains('$requestedWhatIf = [bool]$WhatIfPreference') -and
             $manualLauncherSource.Contains('$WhatIfPreference = $false') -and
-            $manualLauncherSource.Contains('ExpectedProtectedSavePinSetSha256') -and
+            $manualLauncherSource.Contains('QualificationSuiteSnapshotPath') -and
+            $manualLauncherSource.Contains('ExpectedQualificationSuiteId') -and
+            $manualLauncherSource.Contains('ExpectedQualificationSuiteSnapshotSha256') -and
             $manualLauncherSource.Contains('ExpectedPackageSha256') -and
             $manualLauncherSource.Contains('ExpectedPackageManifestSha256') -and
             $manualLauncherSource.Contains('ExpectedDllSha256') -and
             $manualLauncherSource.Contains('ExpectedBranch') -and
             $manualLauncherSource.Contains('ExpectedCommit') -and
-            $manualLauncherSource.Contains("if (`$PSBoundParameters.ContainsKey(`$pinName))") -and
             $manualLauncherSource.Contains("if (`$requestedWhatIf) { `$invoke['WhatIf'] = `$true }") -and
             -not $manualLauncherSource.Contains('Start-Process') -and -not $manualLauncherSource.Contains('Stop-Process')) 'manual launcher does not exclusively delegate to the guarded runtime launcher'
         Assert-Test ($runtimeLauncherSource.Contains('New-KmcRuntimeFixturePayload $preflightPair -ReadOnly:$isManualReview') -and
@@ -3911,6 +4028,7 @@ try {
             schemaVersion=2;runId='manual-review-validator';scenario='manual-visual-review';branch='codex/mounted-combat-phase2-alpha';
             commit=('c'*40);productVersion='0.1.0-phase2b-dev.1';dllSha256=('d'*64);dllMvid='aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
             transactionToken=('e'*64);evidenceRoot=$manualEvidence;fixture=$manualFixture
+            qualificationSuite=[ordered]@{suiteId='manual-suite';snapshotSha256=('f'*64)}
         }
         $manualRequestPath = Join-Path $manualEvidence 'runtime-request.json'
         Write-KmcJsonAtomic $manualRequestPath $manualRequest
@@ -3971,7 +4089,7 @@ try {
         Assert-Test ($hostSource.Contains('ComputeSha256(requestBytes)')) 'in-process host does not hash the exact bytes it deserializes'
     }
 
-    Invoke-HarnessTest 'runtime launcher continuity pins fail closed before approval, lock, or staging' {
+    Invoke-HarnessTest 'runtime launcher suite pins fail closed before approval, lock, staging, and evidence' {
         $pinNames = @(
             'ExpectedCurrentQualificationSha256','ExpectedSupersededWorkingSha256','PriorSaveTransactionStatePath',
             'ExpectedPriorSaveTransactionRunId','ExpectedPriorSaveTransactionStateSha256','ExpectedPriorSaveMetadataDigest',
@@ -4055,7 +4173,10 @@ try {
         foreach ($pinName in @($pinNames + 'ExpectedProtectedSavePinSetSha256')) {
             Assert-Test ($launcherSource -cmatch ('\$' + [regex]::Escape($pinName) + '(?:\s|,)')) "runtime launcher does not expose $pinName"
         }
-        $pinGateIndex = $launcherSource.IndexOf('[void](Assert-KmcRuntimeContinuityPinCombination', [StringComparison]::Ordinal)
+        foreach ($suitePinName in @('QualificationSuiteSnapshotPath','ExpectedQualificationSuiteId','ExpectedQualificationSuiteSnapshotSha256')) {
+            Assert-Test ($launcherSource -cmatch ('\$' + [regex]::Escape($suitePinName) + '(?:\s|,)')) "runtime launcher does not expose $suitePinName"
+        }
+        $pinGateIndex = $launcherSource.IndexOf('if($isSaveBacked -and ($boundSuitePinNames.Count-ne3', [StringComparison]::Ordinal)
         $artifactPinGateIndex = $launcherSource.IndexOf('[void](Assert-KmcManualReviewArtifactPinCombination', [StringComparison]::Ordinal)
         $validateSourceIndex = $launcherSource.IndexOf("& (Join-Path `$repoRoot 'scripts\Validate-Source.ps1')", [StringComparison]::Ordinal)
         $shouldProcessIndex = $launcherSource.IndexOf("if(-not `$PSCmdlet.ShouldProcess", [StringComparison]::Ordinal)
@@ -4065,7 +4186,8 @@ try {
         $enterModsIndex = $launcherSource.IndexOf('    [void](Enter-KmcModsTransaction', [StringComparison]::Ordinal)
         $continuityCalls = @([regex]::Matches(
             $launcherSource,
-            '(?m)^\s*\$(?:preflightContinuity|whatIfContinuity|lockedContinuity)=Assert-KmcQualifiedWorkingProtectedSaveContinuity'))
+            '(?m)^\s*\$(?:preflightContinuity|whatIfContinuity|lockedContinuity)=Assert-KmcQualificationSuiteContinuity'))
+        $postRestorationAuditIndex = $launcherSource.IndexOf('[void](Assert-KmcQualificationSuiteContinuity', $combinedStateIndex, [StringComparison]::Ordinal)
         Assert-Test ($pinGateIndex -ge 0 -and $pinGateIndex -lt $validateSourceIndex -and $pinGateIndex -lt $shouldProcessIndex) `
             'runtime launcher does not reject incomplete/no-save pin combinations before validation or ShouldProcess'
         Assert-Test ($artifactPinGateIndex -gt $pinGateIndex -and $artifactPinGateIndex -lt $validateSourceIndex -and
@@ -4080,6 +4202,9 @@ try {
         Assert-Test ($combinedStateIndex -gt $continuityCalls[2].Index -and
             $enterSaveIndex -gt $combinedStateIndex -and $enterModsIndex -gt $enterSaveIndex) `
             'runtime launcher can stage durable run state, Mods, or Working before locked continuity succeeds'
+        Assert-Test ($postRestorationAuditIndex -gt $enterModsIndex -and
+            $launcherSource.IndexOf("Qualification-suite post-restoration audit failed", $postRestorationAuditIndex, [StringComparison]::Ordinal) -gt $postRestorationAuditIndex) `
+            'runtime launcher does not re-prove the exact suite snapshot after restoration and before evidence credit'
         Assert-Test ($launcherSource.Contains('Recovery can restore an interrupted transaction, but never confers')) `
             'runtime launcher does not state that recovery never confers runtime admission'
 
@@ -4293,6 +4418,7 @@ try {
         schemaVersion=2;runId='schema-v2-test';scenario='mounted-pair-create-and-clear';branch=$request.branch;commit=$request.commit
         productVersion=$request.productVersion;dllSha256=$request.dllSha256;dllMvid=$request.dllMvid;transactionToken=$request.transactionToken
         evidenceRoot=(Join-Path $runtimeEvidenceTestRoot 'schema-v2-test');fixture=$v2Fixture
+        qualificationSuite=[ordered]@{suiteId='schema-v2-suite';snapshotSha256=('9'*64)}
     }
     Write-KmcJsonAtomic $v2RequestPath $v2Request
     Invoke-HarnessTest 'runtime request schema accepts exact save-backed fixture payload' {
@@ -5741,7 +5867,7 @@ try {
         schemaVersion=2;runId='boundary-individual-test';scenario=$boundaryRow;branch=$v2Request.branch;commit=$v2Request.commit
         productVersion=$v2Request.productVersion;dllSha256=$v2Request.dllSha256;dllMvid=$v2Request.dllMvid
         transactionToken=$v2Request.transactionToken;evidenceRoot=(Join-Path $runtimeEvidenceTestRoot 'boundary-individual-test')
-        fixture=$v2Fixture
+        fixture=$v2Fixture;qualificationSuite=$v2Request.qualificationSuite
     }
     $boundarySubresult = [pscustomobject][ordered]@{
         name=$boundaryRow;status='PASS';assertionPassCount=12;assertionFailCount=0;errors=@()
@@ -5764,7 +5890,7 @@ try {
                 schemaVersion=2;runId=('native-boundary-' + $nativeRow);scenario=$nativeRow;branch=$v2Request.branch;commit=$v2Request.commit
                 productVersion=$v2Request.productVersion;dllSha256=$v2Request.dllSha256;dllMvid=$v2Request.dllMvid
                 transactionToken=$v2Request.transactionToken;evidenceRoot=(Join-Path $runtimeEvidenceTestRoot ('native-boundary-' + $nativeRow))
-                fixture=$v2Fixture
+                fixture=$v2Fixture;qualificationSuite=$v2Request.qualificationSuite
             }
             $nativeSubresult = [pscustomobject][ordered]@{name=$nativeRow;status='PASS';assertionPassCount=12;assertionFailCount=0;errors=@()}
             $nativeAggregates = [pscustomobject][ordered]@{
@@ -5908,7 +6034,7 @@ try {
         $liveRequest = [pscustomobject][ordered]@{
             schemaVersion=2;runId='boundary-live-identity-test';scenario=$boundaryRow;branch=$v2Request.branch;commit=$v2Request.commit
             productVersion=$v2Request.productVersion;dllSha256=$v2Request.dllSha256;dllMvid=$v2Request.dllMvid
-            transactionToken=$v2Request.transactionToken;evidenceRoot=$liveRoot;fixture=$v2Fixture
+            transactionToken=$v2Request.transactionToken;evidenceRoot=$liveRoot;fixture=$v2Fixture;qualificationSuite=$v2Request.qualificationSuite
         }
         $records = New-TestBoundaryPassRecords $liveRequest @($boundaryRow)
         foreach ($record in $records) {
@@ -5972,7 +6098,7 @@ try {
             schemaVersion=2;runId='boundary-suite-test';scenario='boundary-suite';branch=$v2Request.branch;commit=$v2Request.commit
             productVersion=$v2Request.productVersion;dllSha256=$v2Request.dllSha256;dllMvid=$v2Request.dllMvid
             transactionToken=$v2Request.transactionToken;evidenceRoot=(Join-Path $runtimeEvidenceTestRoot 'boundary-suite-test')
-            fixture=$v2Fixture
+            fixture=$v2Fixture;qualificationSuite=$v2Request.qualificationSuite
         }
         $suiteRecords = New-TestBoundaryPassRecords $suiteRequest $suiteRows
         $suiteSubresults = @($suiteRows | ForEach-Object { [pscustomobject][ordered]@{name=$_;status='PASS';assertionPassCount=12;assertionFailCount=0;errors=@()} })
@@ -5998,7 +6124,7 @@ try {
             schemaVersion=2;runId='boundary-failure-test';scenario='boundary-suite';branch=$v2Request.branch;commit=$v2Request.commit
             productVersion=$v2Request.productVersion;dllSha256=$v2Request.dllSha256;dllMvid=$v2Request.dllMvid
             transactionToken=$v2Request.transactionToken;evidenceRoot=(Join-Path $runtimeEvidenceTestRoot 'boundary-failure-test')
-            fixture=$v2Fixture
+            fixture=$v2Fixture;qualificationSuite=$v2Request.qualificationSuite
         }
         $failureRecords = New-Object 'Collections.Generic.List[object]'
         $failureRecords.Add((New-TestBoundaryEvidenceRecord $failureRequest $rows[0] 'row-start' 0 0))

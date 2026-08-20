@@ -17,6 +17,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("request rejects save name in no-save mode", RequestRejectsSaveNameInNoSaveMode);
             runner.Run("request requires exact hash and MVID formats", RequestRequiresBuildIdentity);
             runner.Run("request accepts exact save-backed fixture", RequestAcceptsExactSaveBackedFixture);
+            runner.Run("request requires exact qualification-suite identity", RequestRequiresQualificationSuiteIdentity);
             runner.Run("request accepts read-only manual visual review", RequestAcceptsReadOnlyManualReview);
             runner.Run("request rejects writable manual visual review", RequestRejectsWritableManualReview);
             runner.Run("request rejects read-only automated scenario", RequestRejectsReadOnlyAutomatedScenario);
@@ -111,6 +112,18 @@ namespace KingmakerMountedCombat.Tests
             var request = ValidSaveBackedRequest();
             request.Fixture.Working.Area = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
             TestRunner.True(request.Validate().Count > 0, "Mismatched fixture campaign identity was accepted.");
+        }
+
+        private static void RequestRequiresQualificationSuiteIdentity()
+        {
+            var request = ValidSaveBackedRequest();
+            request.QualificationSuite = null;
+            TestRunner.True(request.Validate().Count > 0, "Missing qualification-suite identity was accepted.");
+
+            request = ValidSaveBackedRequest();
+            request.QualificationSuite.SuiteId = "bad suite";
+            request.QualificationSuite.SnapshotSha256 = Sha.ToUpperInvariant();
+            TestRunner.True(request.Validate().Count >= 2, "Malformed qualification-suite identity was accepted.");
         }
 
         private static void RequestAcceptsReadOnlyManualReview()
@@ -226,6 +239,11 @@ namespace KingmakerMountedCombat.Tests
                 DllMvid = Mvid,
                 EvidenceRoot = "runtime-evidence/kmc-fixture-001",
                 TransactionToken = Sha,
+                QualificationSuite = new RuntimeQualificationSuiteIdentity
+                {
+                    SuiteId = "suite-001",
+                    SnapshotSha256 = Sha
+                },
                 Fixture = ValidFixture()
             };
         }

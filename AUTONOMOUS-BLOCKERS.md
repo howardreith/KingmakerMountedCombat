@@ -4,6 +4,14 @@ Status: IN PROGRESS
 
 Branch: `codex/mounted-combat-phase2-alpha`
 
+## Suite-scoped authority supersedes prior external-state stops - 2026-08-20T21:09:26Z
+
+Status: `IN PROGRESS`.
+
+The user explicitly superseded permanent whole-directory admission with standing suite-scoped authority. The five-path save discrepancy and ten-path Mods transition remain immutable historical evidence, but stable foreign state between KMC suites no longer requires per-file attestation. The canonical KMC Baseline and Working pins remain permanent; Baseline drift, ambiguous KMC names, in-suite drift, or unprovable restoration remain hard stops.
+
+Implementation now performs stable double scans, creates append-only package-bound suite snapshots, rejects cross-snapshot A/B evidence, validates before ShouldProcess/in WhatIf/under lock/after restoration, and keeps all foreign saves and Mods non-writable. Exact Working recovery is allowed only from a verified restored KMC save-transaction backup and preserves the unexpected Working in ignored quarantine; Baseline is never synthesized or repaired without a separately qualified Baseline backup contract. Incremental deterministic gates pass. This entry supersedes the two earlier external-inventory blockers; they remain unchanged below as history.
+
 ## Protected-save inventory mismatch - 2026-08-20T20:29:03Z
 
 Status: `BLOCKED — CRITICAL SAFETY`.

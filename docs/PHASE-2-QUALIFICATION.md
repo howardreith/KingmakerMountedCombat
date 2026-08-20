@@ -1,5 +1,9 @@
 # Phase 2 qualification
 
+## Suite-scoped external-state qualification (2026-08-20)
+
+Future runtime credit uses append-only qualification-suite snapshots instead of a permanently frozen inventory of unrelated saves and Mods. Permanent KMC fixture identity remains exact; foreign state is admitted only after stable double scans while quiescent, then frozen for the suite. Each request and durable transaction binds the exact suite ID and snapshot SHA-256, and full save/Mods equality is re-proved before staging and after restoration before gameplay evidence is read. Historical authorities remain immutable evidence. No opportunity-isolation or later gameplay row receives new credit from this offline safety checkpoint.
+
 Status: IN PROGRESS - COMBAT QUALIFICATION AUTHORIZED
 
 Latest movement-to-attack regression run `20260816T230000Z-rider-move-attack-rt-rawslot-passA` is preserved uncredited `FAIL` `53/2` from clean guarded-published commit/package `d827b008a53864b9c08674692b42acc96f10f5ea` / `68ab9eacf00e62b97cd6e6ed1820647e8602f863b0c88cdf7f3b16a264583ffa`. The raw-slot repair works and every movement, ownership, resource, pose, selection/UI, cleanup, and restoration gate passes, but stock `UnitCombatState.Disengage` emits a real rider opportunity attack before the intended child. Two rider attack/roll/damage chains deal `17`, so the unchanged single-attack gate correctly denies credit. The repair suppresses only exact rider/Mammoth stock opportunities during an active mounted-pair command through exact token `0x060093A1`; it is inert for idle mounted, non-mounted, and non-pair actors and does not claim stretch AoO support. Offline gates pass `21/212/17/181/254`; fresh clean-package schema-v32 RT A/B and schema-v33 TB A/B remain required.

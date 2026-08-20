@@ -1,5 +1,9 @@
 # Targeting, reach, and charge contract
 
+## External-state evidence binding (2026-08-20)
+
+Targeting, reach, opportunity, and charge evidence must bind one exact package-bound qualification-suite snapshot. Foreign save or Mods drift cannot be hidden by a later admission or combined across snapshots; a changed stable between-suite state begins a new suite and a fresh A/B set. This safety change does not grant mounted-reach, explicit mounted-AoO, or charge qualification and does not alter the narrow opportunity-isolation claim under test.
+
 Status: IN PROGRESS
 
 This contract is pair-scoped to the accepted Medium-humanoid/Mammoth profile. It does not alter global unit reach, weapon data, corpulence, target replacement, engagement, or pathfinding.

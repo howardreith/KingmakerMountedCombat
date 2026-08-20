@@ -1,5 +1,13 @@
 # Mounted Combat journal
 
+## 2026-08-20T21:09:26Z - standing suite-scoped external-state authority implemented
+
+- Starting identity: exact clean local/upstream `b4ae98eb7e3249c72301294efd80b1866f80c91d`, branch `codex/mounted-combat-phase2-alpha`, expected origin, no Git operation/lock, relevant process, runtime lock, sentinel, live KMC deployment, or unfinished transaction. Current authorized read-only state was stable and exact: saves `feb5da86ea9cac8ac9bde6d944b83e20dc623fd2d7d67ce4ba8ebd398fa47306` (`272` / `3179191554`), Mods `f91fe3ab6131837b0af285e18e6295fc7ded1486f2892277f7a11acdd5fa2597`, canonical Baseline/Working pins unchanged, zero near-match.
+- Safety model: historical save/Mods authorities are immutable history, not a permanent foreign-state oracle. Each new same-package suite now requires quiescence and two complete stable raw-hash/metadata scans, then an append-only snapshot bound to suite ID, branch/commit/version, package/manifest, DLL SHA/MVID, fixture identity, authority history, and complete save/Mods inventories. Every save-backed request and combined transaction carries the suite identity. Preflight, WhatIf, under-lock, restoration, and post-restoration checks require the exact snapshot.
+- Ownership remains narrow: only canonical Working may be written during runtime; Baseline and every foreign save are non-writable; only the KMC overlay is staged; every foreign Mod remains non-writable and package-excluded. Stable between-suite foreign drift is admitted by a new snapshot. Drift during a suite closes it and rejects A/B combination. Drift during a transaction fails restoration evidence. Exact Working-only recovery may use only a verified restored project-owned transaction backup, quarantines the unexpected file, and is tested for WhatIf purity and foreign noninterference. Baseline drift remains fail-closed without an exact qualified Baseline backup contract.
+- Incremental verification: source `21/0`; Release build; component `213/0`; visual/source-order `17/0`; harness `188/0`; assembly `254/0`; parser/diff checks PASS. Dirty DLL SHA-256/MVID `b3bbd26a16648e17ec828f075b4c6beeb1ba671d19f1ebac1d881cef2b5f7487` / `6b246017-6de0-4d26-a8ec-2c3fc4652d5c` are measured development output only. No live save, foreign Mod, package, runtime process, or evidence credit was changed by this implementation work.
+- Next: complete final gates and review, commit/publish the coherent authority checkpoint, package that exact clean HEAD, admit one stable suite, run separate RT/TB WhatIf and independent restoration audits, then restart opportunity-isolation RT A/B and TB A/B with fresh IDs.
+
 ## 2026-08-16T23:15:33Z - model handoff checkpoint
 
 - Model ownership was explicitly transferred from **sol** to **Spark**.

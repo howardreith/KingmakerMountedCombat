@@ -42,6 +42,9 @@ param(
     [string]$ExpectedProtectedQuickSaveName,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedProtectedQuickSaveSha256,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedProtectedSavePinSetSha256,
+    [string]$QualificationSuiteSnapshotPath,
+    [ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$ExpectedQualificationSuiteId,
+    [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedQualificationSuiteSnapshotSha256,
     [switch]$BootstrapOfflineCloudEvidence,
     [string]$SteamPath='C:\Program Files (x86)\Steam\steam.exe'
 )
@@ -69,31 +72,22 @@ $isManualReview=[string]$Scenario -ceq 'manual-visual-review'
 if($BootstrapOfflineCloudEvidence -and $isSaveBacked){
     throw '-BootstrapOfflineCloudEvidence is restricted to the no-save mod-load-smoke scenario.'
 }
-$continuityPinNames=@(
+$legacyContinuityPinNames=@(
     'ExpectedCurrentQualificationSha256','ExpectedSupersededWorkingSha256','PriorSaveTransactionStatePath',
     'ExpectedPriorSaveTransactionRunId','ExpectedPriorSaveTransactionStateSha256','ExpectedPriorSaveMetadataDigest',
     'ProtectedSaveContinuityAuthorityPath','ExpectedProtectedSaveContinuityEpochId',
     'ExpectedProtectedSaveContinuityAuthoritySha256','ExpectedProtectedAutoSaveName','ExpectedProtectedAutoSaveSha256',
     'ExpectedProtectedQuickSaveName','ExpectedProtectedQuickSaveSha256','ExpectedProtectedSavePinSetSha256'
 )
-$boundContinuityPinNames=@($continuityPinNames|Where-Object{$PSBoundParameters.ContainsKey($_)})
-[void](Assert-KmcRuntimeContinuityPinCombination `
-    -IsSaveBacked $isSaveBacked `
-    -BoundContinuityPinNames $boundContinuityPinNames `
-    -ExpectedCurrentQualificationSha256 $ExpectedCurrentQualificationSha256 `
-    -ExpectedSupersededWorkingSha256 $ExpectedSupersededWorkingSha256 `
-    -PriorSaveTransactionStatePath $PriorSaveTransactionStatePath `
-    -ExpectedPriorSaveTransactionRunId $ExpectedPriorSaveTransactionRunId `
-    -ExpectedPriorSaveTransactionStateSha256 $ExpectedPriorSaveTransactionStateSha256 `
-    -ExpectedPriorSaveMetadataDigest $ExpectedPriorSaveMetadataDigest `
-    -ProtectedSaveContinuityAuthorityPath $ProtectedSaveContinuityAuthorityPath `
-    -ExpectedProtectedSaveContinuityEpochId $ExpectedProtectedSaveContinuityEpochId `
-    -ExpectedProtectedSaveContinuityAuthoritySha256 $ExpectedProtectedSaveContinuityAuthoritySha256 `
-    -ExpectedProtectedAutoSaveName $ExpectedProtectedAutoSaveName `
-    -ExpectedProtectedAutoSaveSha256 $ExpectedProtectedAutoSaveSha256 `
-    -ExpectedProtectedQuickSaveName $ExpectedProtectedQuickSaveName `
-    -ExpectedProtectedQuickSaveSha256 $ExpectedProtectedQuickSaveSha256 `
-    -ExpectedProtectedSavePinSetSha256 $ExpectedProtectedSavePinSetSha256)
+$boundLegacyContinuityPinNames=@($legacyContinuityPinNames|Where-Object{$PSBoundParameters.ContainsKey($_)})
+$suitePinNames=@('QualificationSuiteSnapshotPath','ExpectedQualificationSuiteId','ExpectedQualificationSuiteSnapshotSha256')
+$boundSuitePinNames=@($suitePinNames|Where-Object{$PSBoundParameters.ContainsKey($_)})
+if($isSaveBacked -and ($boundSuitePinNames.Count-ne3 -or $boundLegacyContinuityPinNames.Count-ne0)){
+    throw 'A save-backed runtime scenario requires exactly one complete qualification-suite snapshot pin set and rejects historical whole-directory admission pins.'
+}
+if(-not$isSaveBacked -and ($boundSuitePinNames.Count-ne0 -or $boundLegacyContinuityPinNames.Count-ne0)){
+    throw 'A no-save runtime scenario rejects qualification-suite and historical save-continuity pins.'
+}
 $artifactPinNames=@('ExpectedPackageSha256','ExpectedPackageManifestSha256','ExpectedDllSha256','ExpectedBranch','ExpectedCommit')
 $boundArtifactPinNames=@($artifactPinNames|Where-Object{$PSBoundParameters.ContainsKey($_)})
 [void](Assert-KmcManualReviewArtifactPinCombination `
@@ -132,32 +126,18 @@ if($isManualReview -and (
 Assert-KmcNoGameProcesses
 if(Test-Path -LiteralPath (Join-Path $runtimeState 'active-transaction.lock')){throw 'A stale or active KMC runtime transaction sentinel exists.'}
 
-# Save-backed preflight reads only the two exact canonical fixtures. It happens
-# before ShouldProcess so WhatIf proves descriptor validation without granting a
-# load or mutation solely from a filename or scenario name.
+# Save-backed preflight opens only the two exact canonical KMC fixture headers.
+# Every foreign save is treated as opaque bytes: name/type/length/time/raw hash
+# are compared to the admitted suite snapshot before ShouldProcess.
 $qualificationPath=Assert-KmcChildPath (Join-Path $runtimeState 'fixture-qualification.json') $runtimeState 'fixture qualification'
 $preflightContinuity=$null
 $preflightPair=$null
 $fixturePayload=$null
 if($isSaveBacked){
-    $preflightContinuity=Assert-KmcQualifiedWorkingProtectedSaveContinuity `
-        -SaveRoot $saveRoot `
-        -StateRoot $runtimeState `
-        -QualificationPath $qualificationPath `
-        -ExpectedCurrentQualificationSha256 $ExpectedCurrentQualificationSha256 `
-        -ExpectedSupersededWorkingSha256 $ExpectedSupersededWorkingSha256 `
-        -PriorSaveTransactionStatePath $PriorSaveTransactionStatePath `
-        -ExpectedPriorSaveTransactionRunId $ExpectedPriorSaveTransactionRunId `
-        -ExpectedPriorSaveTransactionStateSha256 $ExpectedPriorSaveTransactionStateSha256 `
-        -ExpectedPriorSaveMetadataDigest $ExpectedPriorSaveMetadataDigest `
-        -ProtectedSaveContinuityAuthorityPath $ProtectedSaveContinuityAuthorityPath `
-        -ExpectedProtectedSaveContinuityEpochId $ExpectedProtectedSaveContinuityEpochId `
-        -ExpectedProtectedSaveContinuityAuthoritySha256 $ExpectedProtectedSaveContinuityAuthoritySha256 `
-        -ExpectedProtectedAutoSaveName $ExpectedProtectedAutoSaveName `
-        -ExpectedProtectedAutoSaveSha256 $ExpectedProtectedAutoSaveSha256 `
-        -ExpectedProtectedQuickSaveName $ExpectedProtectedQuickSaveName `
-        -ExpectedProtectedQuickSaveSha256 $ExpectedProtectedQuickSaveSha256 `
-        -ExpectedProtectedSavePinSetSha256 $ExpectedProtectedSavePinSetSha256
+    $preflightContinuity=Assert-KmcQualificationSuiteContinuity `
+        -SnapshotPath $QualificationSuiteSnapshotPath -StateRoot $runtimeState -SaveRoot $saveRoot -ModsRoot $liveMods `
+        -QualificationPath $qualificationPath -PackagePath $PackagePath -PackageManifest $manifest `
+        -ExpectedSuiteId $ExpectedQualificationSuiteId -ExpectedSnapshotSha256 $ExpectedQualificationSuiteSnapshotSha256
     $preflightPair=$preflightContinuity.pair
     $fixturePayload=New-KmcRuntimeFixturePayload $preflightPair -ReadOnly:$isManualReview
 }
@@ -178,24 +158,10 @@ $action=if($isManualReview){'open guarded read-only KMC manual visual review aga
 if(-not $PSCmdlet.ShouldProcess('Steam App 640820, exact live Kingmaker Mods, and guarded KMC save policy',$action)){
     $WhatIfPreference=$false
     if($isSaveBacked){
-        $whatIfContinuity=Assert-KmcQualifiedWorkingProtectedSaveContinuity `
-            -SaveRoot $saveRoot `
-            -StateRoot $runtimeState `
-            -QualificationPath $qualificationPath `
-            -ExpectedCurrentQualificationSha256 $ExpectedCurrentQualificationSha256 `
-            -ExpectedSupersededWorkingSha256 $ExpectedSupersededWorkingSha256 `
-            -PriorSaveTransactionStatePath $PriorSaveTransactionStatePath `
-            -ExpectedPriorSaveTransactionRunId $ExpectedPriorSaveTransactionRunId `
-            -ExpectedPriorSaveTransactionStateSha256 $ExpectedPriorSaveTransactionStateSha256 `
-            -ExpectedPriorSaveMetadataDigest $ExpectedPriorSaveMetadataDigest `
-            -ProtectedSaveContinuityAuthorityPath $ProtectedSaveContinuityAuthorityPath `
-            -ExpectedProtectedSaveContinuityEpochId $ExpectedProtectedSaveContinuityEpochId `
-            -ExpectedProtectedSaveContinuityAuthoritySha256 $ExpectedProtectedSaveContinuityAuthoritySha256 `
-            -ExpectedProtectedAutoSaveName $ExpectedProtectedAutoSaveName `
-            -ExpectedProtectedAutoSaveSha256 $ExpectedProtectedAutoSaveSha256 `
-            -ExpectedProtectedQuickSaveName $ExpectedProtectedQuickSaveName `
-            -ExpectedProtectedQuickSaveSha256 $ExpectedProtectedQuickSaveSha256 `
-            -ExpectedProtectedSavePinSetSha256 $ExpectedProtectedSavePinSetSha256
+        $whatIfContinuity=Assert-KmcQualificationSuiteContinuity `
+            -SnapshotPath $QualificationSuiteSnapshotPath -StateRoot $runtimeState -SaveRoot $saveRoot -ModsRoot $liveMods `
+            -QualificationPath $qualificationPath -PackagePath $PackagePath -PackageManifest $manifest `
+            -ExpectedSuiteId $ExpectedQualificationSuiteId -ExpectedSnapshotSha256 $ExpectedQualificationSuiteSnapshotSha256
         if((New-KmcRuntimeFixturePayload $whatIfContinuity.pair -ReadOnly:$isManualReview|ConvertTo-Json -Depth 10 -Compress)-cne
             ($fixturePayload|ConvertTo-Json -Depth 10 -Compress)){
             throw 'KMC fixture identity changed during runtime WhatIf continuity validation.'
@@ -271,7 +237,10 @@ try{
         transactionToken=[string]$lock.Token
         evidenceRoot=$evidenceRoot
     }
-    if($isSaveBacked){$request['fixture']=$fixturePayload}else{$request['saveAccessAllowed']=$false;$request['saveName']=$null}
+    if($isSaveBacked){
+        $request['fixture']=$fixturePayload
+        $request['qualificationSuite']=[ordered]@{suiteId=$ExpectedQualificationSuiteId;snapshotSha256=$ExpectedQualificationSuiteSnapshotSha256}
+    }else{$request['saveAccessAllowed']=$false;$request['saveName']=$null}
 
     if($isSaveBacked){
         # Recovery can restore an interrupted transaction, but never confers
@@ -279,24 +248,10 @@ try{
         # only transition under this lock before any durable run-state mutation.
         [void](Assert-KmcRuntimeLockOwner $lock)
         Assert-KmcNoGameProcesses
-        $lockedContinuity=Assert-KmcQualifiedWorkingProtectedSaveContinuity `
-            -SaveRoot $saveRoot `
-            -StateRoot $runtimeState `
-            -QualificationPath $qualificationPath `
-            -ExpectedCurrentQualificationSha256 $ExpectedCurrentQualificationSha256 `
-            -ExpectedSupersededWorkingSha256 $ExpectedSupersededWorkingSha256 `
-            -PriorSaveTransactionStatePath $PriorSaveTransactionStatePath `
-            -ExpectedPriorSaveTransactionRunId $ExpectedPriorSaveTransactionRunId `
-            -ExpectedPriorSaveTransactionStateSha256 $ExpectedPriorSaveTransactionStateSha256 `
-            -ExpectedPriorSaveMetadataDigest $ExpectedPriorSaveMetadataDigest `
-            -ProtectedSaveContinuityAuthorityPath $ProtectedSaveContinuityAuthorityPath `
-            -ExpectedProtectedSaveContinuityEpochId $ExpectedProtectedSaveContinuityEpochId `
-            -ExpectedProtectedSaveContinuityAuthoritySha256 $ExpectedProtectedSaveContinuityAuthoritySha256 `
-            -ExpectedProtectedAutoSaveName $ExpectedProtectedAutoSaveName `
-            -ExpectedProtectedAutoSaveSha256 $ExpectedProtectedAutoSaveSha256 `
-            -ExpectedProtectedQuickSaveName $ExpectedProtectedQuickSaveName `
-            -ExpectedProtectedQuickSaveSha256 $ExpectedProtectedQuickSaveSha256 `
-            -ExpectedProtectedSavePinSetSha256 $ExpectedProtectedSavePinSetSha256
+        $lockedContinuity=Assert-KmcQualificationSuiteContinuity `
+            -SnapshotPath $QualificationSuiteSnapshotPath -StateRoot $runtimeState -SaveRoot $saveRoot -ModsRoot $liveMods `
+            -QualificationPath $qualificationPath -PackagePath $PackagePath -PackageManifest $manifest `
+            -ExpectedSuiteId $ExpectedQualificationSuiteId -ExpectedSnapshotSha256 $ExpectedQualificationSuiteSnapshotSha256
         $lockedPair=$lockedContinuity.pair
         $lockedWorkingPath=[IO.Path]::GetFullPath([string]$lockedPair.working.path)
         $lockedPayload=New-KmcRuntimeFixturePayload $lockedPair -ReadOnly:$isManualReview
@@ -308,7 +263,10 @@ try{
             -After $lockedContinuity.saveMetadata `
             -Description 'runtime locked fixture-continuity save metadata'
     }
-    $combinedStatePath=New-KmcRunTransactionState -Lock $lock -Mode $(if($isSaveBacked){'save-backed-v2'}else{'no-save-v1'}) -LiveModsRoot $liveMods -SaveRoot $saveRoot -StateRoot $runtimeState -ModsBefore $beforeRoots[4] -SavesBefore $beforeSaves
+    $combinedStatePath=New-KmcRunTransactionState -Lock $lock -Mode $(if($isSaveBacked){'save-backed-v3-suite'}else{'no-save-v1'}) `
+        -LiveModsRoot $liveMods -SaveRoot $saveRoot -StateRoot $runtimeState -ModsBefore $beforeRoots[4] -SavesBefore $beforeSaves `
+        -QualificationSuiteSnapshotPath $QualificationSuiteSnapshotPath -QualificationSuiteId $ExpectedQualificationSuiteId `
+        -QualificationSuiteSnapshotSha256 $ExpectedQualificationSuiteSnapshotSha256
     if($isSaveBacked){
         [void](Assert-KmcRuntimeLockOwner $lock)
         Assert-KmcNoGameProcesses
@@ -463,6 +421,18 @@ finally{
             $saveWriteAllowlistPassed=[bool]$restoration.saveWriteAllowlistPassed
             $restoredSaveInventoryDigest=[string]$restoration.restoredSaveInventoryDigest
             foreach($restorationError in @($restoration.errors)){$errors.Add([string]$restorationError)}
+            if($isSaveBacked){
+                try{
+                    [void](Assert-KmcQualificationSuiteContinuity `
+                        -SnapshotPath $QualificationSuiteSnapshotPath -StateRoot $runtimeState -SaveRoot $saveRoot -ModsRoot $liveMods `
+                        -QualificationPath $qualificationPath -PackagePath $PackagePath -PackageManifest $manifest `
+                        -ExpectedSuiteId $ExpectedQualificationSuiteId -ExpectedSnapshotSha256 $ExpectedQualificationSuiteSnapshotSha256)
+                }catch{
+                    $modsRestored=$false;$saveProtection=$false;$baselineImmutable=$false
+                    $workingRestored=$false;$saveWriteAllowlistPassed=$false
+                    $errors.Add('Qualification-suite post-restoration audit failed: '+$_.Exception.Message)
+                }
+            }
         }catch{$errors.Add('Combined external-state restoration failed: '+$_.Exception.Message)}
     }elseif($processExited){
         try{

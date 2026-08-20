@@ -3269,7 +3269,7 @@ function Open-KmcRuntimeLock {
     param(
         [Parameter(Mandatory = $true)][string]$StateRoot,
         [Parameter(Mandatory = $true)][ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$RunId,
-        [ValidateSet('fixture-requalification')][string]$Purpose
+        [ValidateSet('fixture-requalification','fixture-recovery')][string]$Purpose
     )
     $fullState = [IO.Path]::GetFullPath($StateRoot)
     if (-not (Test-Path -LiteralPath $fullState)) { New-Item -ItemType Directory -Path $fullState -Force | Out-Null }
@@ -3310,7 +3310,7 @@ function Abandon-KmcRuntimeLock {
 function Adopt-KmcStaleRuntimeLock {
     param(
         [Parameter(Mandatory = $true)][string]$StateRoot,
-        [ValidateSet('fixture-requalification')][string]$ExpectedPurpose
+        [ValidateSet('fixture-requalification','fixture-recovery')][string]$ExpectedPurpose
     )
     Assert-KmcNoGameProcesses
     $fullStateRoot=[IO.Path]::GetFullPath($StateRoot).TrimEnd('\')
@@ -8304,19 +8304,27 @@ function Get-KmcRunTransactionStatePath {
 function New-KmcRunTransactionState {
     param(
         [Parameter(Mandatory = $true)]$Lock,
-        [Parameter(Mandatory = $true)][ValidateSet('no-save-v1','save-backed-v2')][string]$Mode,
+        [Parameter(Mandatory = $true)][ValidateSet('no-save-v1','save-backed-v2','save-backed-v3-suite')][string]$Mode,
         [Parameter(Mandatory = $true)][string]$LiveModsRoot,
         [Parameter(Mandatory = $true)][string]$SaveRoot,
         [Parameter(Mandatory = $true)][string]$StateRoot,
         [Parameter(Mandatory = $true)]$ModsBefore,
-        [Parameter(Mandatory = $true)]$SavesBefore
+        [Parameter(Mandatory = $true)]$SavesBefore,
+        [string]$QualificationSuiteSnapshotPath,
+        [ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$QualificationSuiteId,
+        [ValidatePattern('^[0-9a-f]{64}$')][string]$QualificationSuiteSnapshotSha256
     )
     [void](Assert-KmcRuntimeLockOwner $Lock)
     Assert-KmcNoGameProcesses
     $statePath = Get-KmcRunTransactionStatePath $StateRoot ([string]$Lock.RunId)
     if (Test-Path -LiteralPath $statePath) { throw "Run ID already has combined transaction state: $($Lock.RunId)" }
+    $suiteValues=@($QualificationSuiteSnapshotPath,$QualificationSuiteId,$QualificationSuiteSnapshotSha256)
+    $suitePresent=@($suiteValues|Where-Object{-not[string]::IsNullOrWhiteSpace([string]$_)}).Count
+    if(($Mode-ceq'save-backed-v3-suite' -and $suitePresent-ne3)-or($Mode-cne'save-backed-v3-suite' -and $suitePresent-ne0)){
+        throw 'Combined runtime transaction suite binding is incomplete or present for a non-suite mode.'
+    }
     $state = [ordered]@{
-        schemaVersion = 1
+        schemaVersion = $(if($Mode-ceq'save-backed-v3-suite'){2}else{1})
         runId = [string]$Lock.RunId
         token = [string]$Lock.Token
         mode = $Mode
@@ -8326,6 +8334,11 @@ function New-KmcRunTransactionState {
         saveRoot = [IO.Path]::GetFullPath($SaveRoot).TrimEnd('\')
         modsDigestBefore = [string]$ModsBefore.digest
         saveInventoryDigestBefore = [string]$SavesBefore.digest
+    }
+    if($Mode-ceq'save-backed-v3-suite'){
+        $state['qualificationSuiteSnapshotPath']=[IO.Path]::GetFullPath($QualificationSuiteSnapshotPath)
+        $state['qualificationSuiteId']=$QualificationSuiteId
+        $state['qualificationSuiteSnapshotSha256']=$QualificationSuiteSnapshotSha256
     }
     Write-KmcJsonAtomic $statePath $state
     return $statePath
@@ -8341,6 +8354,9 @@ function Read-KmcRunTransactionState {
         'schemaVersion','runId','token','mode','phase','preparedAtUtc','liveModsRoot','saveRoot',
         'modsDigestBefore','saveInventoryDigestBefore'
     )
+    if([long]$state.schemaVersion-eq2){
+        $required=@($required+@('qualificationSuiteSnapshotPath','qualificationSuiteId','qualificationSuiteSnapshotSha256'))
+    }elseif([long]$state.schemaVersion-ne1){throw 'Combined runtime transaction schema is unsupported.'}
     $allowed = @($required + @(
         'restoreAttemptedAtUtc','modsRestored','saveProtectionPassed','baselineImmutable','workingRestored',
         'saveWriteAllowlistPassed','restoredModsDigest','restoredSaveInventoryDigest','restorationErrors','restoredAtUtc'
@@ -8350,13 +8366,19 @@ function Read-KmcRunTransactionState {
         @($actual | Where-Object { $_ -cnotin $allowed }).Count -ne 0) {
         throw 'Combined runtime transaction state is missing required fields or contains unknown fields.'
     }
-    if ([int]$state.schemaVersion -ne 1 -or [string]$state.runId -cnotmatch '^[A-Za-z0-9._-]{1,120}$' -or
+    if ([string]$state.runId -cnotmatch '^[A-Za-z0-9._-]{1,120}$' -or
         [string]$state.token -cnotmatch '^[0-9a-f]{64}$' -or
-        [string]$state.mode -cnotin @('no-save-v1','save-backed-v2') -or
+        [string]$state.mode -cnotin @('no-save-v1','save-backed-v2','save-backed-v3-suite') -or
         [string]$state.phase -cnotin @('prepared','restoration-attempted','restored') -or
         [string]$state.modsDigestBefore -cnotmatch '^[0-9a-f]{64}$' -or
         [string]$state.saveInventoryDigestBefore -cnotmatch '^[0-9a-f]{64}$') {
         throw 'Combined runtime transaction state contains an invalid identity, mode, phase, or digest.'
+    }
+    if(([long]$state.schemaVersion-eq2 -and ([string]$state.mode-cne'save-backed-v3-suite' -or
+        [string]$state.qualificationSuiteId-cnotmatch'^[A-Za-z0-9._-]{1,120}$' -or
+        [string]$state.qualificationSuiteSnapshotSha256-cnotmatch'^[0-9a-f]{64}$')) -or
+        ([long]$state.schemaVersion-eq1 -and [string]$state.mode-ceq'save-backed-v3-suite')){
+        throw 'Combined runtime transaction suite identity is invalid.'
     }
     if ($null -ne $Lock -and ([string]$state.runId -cne [string]$Lock.RunId -or [string]$state.token -cne [string]$Lock.Token)) {
         throw 'Combined runtime transaction state ownership does not match the lock.'
@@ -8419,6 +8441,20 @@ function Restore-KmcRuntimeTransactions {
         if (-not $modsRestored) { throw 'Restored Mods digest differs from the combined preflight digest.' }
     }
     catch { $errors.Add('Mods restoration failed: ' + $_.Exception.Message) }
+
+    if ([long]$state.schemaVersion -eq 2) {
+        try {
+            $snapshot=Read-KmcQualificationSuiteSnapshot `
+                -Path ([string]$state.qualificationSuiteSnapshotPath) -StateRoot $StateRoot `
+                -ExpectedSuiteId ([string]$state.qualificationSuiteId) `
+                -ExpectedSha256 ([string]$state.qualificationSuiteSnapshotSha256)
+            [void](Assert-KmcQualificationSuiteExternalState -Snapshot $snapshot -SaveRoot $saveRoot -ModsRoot $liveModsRoot)
+        }
+        catch {
+            $baselineImmutable=$false;$workingRestored=$false;$saveWriteAllowlistPassed=$false;$modsRestored=$false
+            $errors.Add('Qualification-suite restoration proof failed: '+$_.Exception.Message)
+        }
+    }
 
     $saveProtectionPassed = $baselineImmutable -and $workingRestored -and $saveWriteAllowlistPassed -and
         $restoredSaveDigest -ceq [string]$state.saveInventoryDigestBefore
@@ -8543,3 +8579,5 @@ function New-KmcRuntimeResultV2 {
 }
 
 . (Join-Path $PSScriptRoot 'ProtectedSaveContinuityV2.ps1')
+. (Join-Path $PSScriptRoot 'QualificationSuiteContinuity.ps1')
+. (Join-Path $PSScriptRoot 'FixtureRecovery.ps1')
