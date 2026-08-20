@@ -4,6 +4,14 @@ Status: IN PROGRESS
 
 Branch: `codex/mounted-combat-phase2-alpha`
 
+## Turn-based Pass B diagnostic target lifetime failure - 2026-08-20T22:06:00Z
+
+Status: `IN PROGRESS`; not a safety or architecture blocker.
+
+The exact same-package suite produced RT A/B and TB A passes, then preserved failed TB run `20260820T215500Z-opportunity-tb-passB` at `55/4`. Independent restoration passed before evidence inspection with exact suite save/Mods digests, Baseline/Working pins, and zero process/lock/sentinel/deployment residue. The failed row still proved one intended rider attack/roll/damage chain and zero opportunity attacks.
+
+Bounded comparison isolated the material difference: the failed deterministic critical dealt `14` and changed the sole hostile directly from Conscious to FinallyDead, while credited TB A dealt `10` and left it Unconscious. Native combat termination interrupted the diagnostic wrapper before normal completion/cooldown observation. The narrow repair applies the already qualified, reversible `128` temporary-hit-point target lease to movement-to-attack diagnostics, requires that lease and conscious stable outcome in new schema v34/v35, and preserves all historical schemas. Offline gates are green. Publication, clean package rebinding, a new suite, mode-specific WhatIf gates, and a complete fresh A/B restart remain required; this failed run can never receive retroactive credit.
+
 ## Suite-scoped authority supersedes prior external-state stops - 2026-08-20T21:09:26Z
 
 Status: `IN PROGRESS`.

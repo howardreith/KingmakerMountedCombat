@@ -431,7 +431,13 @@ namespace KingmakerMountedCombat.Diagnostics
 
             targetService = new DiagnosticCombatTargetService(logger);
             var spawnPoint = FindWalkablePoint(mount.Position, SpawnDistance, 0.4f);
-            target = targetService.Spawn(rider, mount, spawnPoint, request.RunId, true, IsMammothPrimaryRow);
+            target = targetService.Spawn(
+                rider,
+                mount,
+                spawnPoint,
+                request.RunId,
+                true,
+                IsMammothPrimaryRow || IsMovementToAttackRow);
             targetId = target.UniqueId;
             targetProvisioning = CombatTargetProvisioningEvidence.From(targetService, target);
             assertions.Check(target != null && target.IsInState && target.View != null &&
@@ -1130,7 +1136,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var record = new CombatEvidenceRecord
             {
                 SchemaVersion = IsMovementToAttackRow
-                    ? (IsTurnBasedRow ? 33 : 32)
+                    ? (IsTurnBasedRow ? 35 : 34)
                     : (IsTurnBasedRow ? 27 : 26),
                 ArtifactKind = "combat-scenario-evidence",
                 RunId = request.RunId,

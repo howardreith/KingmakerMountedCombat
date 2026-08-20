@@ -1077,11 +1077,12 @@ function New-TestCombatEvidenceRecord {
     $isTurnBased = [string]$Request.scenario -cin @(
         'mounted-rider-melee-hit-tb','mounted-mammoth-primary-hit-tb','mounted-rider-melee-move-to-attack-tb')
     $isMiss = [string]$Request.scenario -ceq 'mounted-rider-melee-miss-rt'
+    $requiresDurability = $isMammoth -or $isMovementToAttack
     $actor = if ($isMammoth) { $mount } else { $rider }
     $actorRole = if ($isMammoth) { 'mount' } else { 'rider' }
     $action = if ($isMammoth) { 'MountPrimaryNatural' } else { 'RiderMelee' }
     $record = [ordered]@{
-        schemaVersion=$(if ($isMovementToAttack) { if ($isTurnBased) { 33 } else { 32 } } elseif ($isTurnBased) { 27 } else { 26 });artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
+        schemaVersion=$(if ($isMovementToAttack) { if ($isTurnBased) { 35 } else { 34 } } elseif ($isTurnBased) { 27 } else { 26 });artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
         scenario=[string]$Request.scenario;row=[string]$Request.scenario;rowIndex=0;sequence=0;frame=30
         utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o');branch=[string]$Request.branch
         commit=[string]$Request.commit;productVersion=[string]$Request.productVersion
@@ -1095,8 +1096,8 @@ function New-TestCombatEvidenceRecord {
             targetPrimaryHandHasItem=$false;targetWeaponUsesEmptyHandFallback=$true
             targetNativeSingleAttackWeaponIsNatural=$true;targetNativeSingleAttackWeaponIsMelee=$true
             noLoot=$true;rawAiDisabled=$true;sleeplessBefore=$false;sleeplessLeaseAcquired=$true
-            temporaryHitPointsBefore=0;temporaryHitPointsAfterProvisioning=$(if ($isMammoth) { 128 } else { 0 })
-            durabilityLeaseAmount=$(if ($isMammoth) { 128 } else { 0 });durabilityLeaseAcquired=$isMammoth
+            temporaryHitPointsBefore=0;temporaryHitPointsAfterProvisioning=$(if ($requiresDurability) { 128 } else { 0 })
+            durabilityLeaseAmount=$(if ($requiresDurability) { 128 } else { 0 });durabilityLeaseAcquired=$requiresDurability
             bidirectionalHostility=$true;noExperienceReward=$true
         }
         targetLife=[ordered]@{
@@ -4679,7 +4680,7 @@ try {
         Assert-Test ($engineSource.Contains('CleanupTimeoutSeconds = 10.0d') -and
             $engineSource.Contains('rowClock.Elapsed.TotalSeconds - cleanupStartedAtSeconds < CleanupTimeoutSeconds')) 'combat cleanup does not retain an independent bounded drain after a row deadline'
         Assert-Test ($engineSource.Contains('SchemaVersion = IsMovementToAttackRow') -and
-            $engineSource.Contains('? (IsTurnBasedRow ? 33 : 32)') -and
+            $engineSource.Contains('? (IsTurnBasedRow ? 35 : 34)') -and
             $engineSource.Contains(': (IsTurnBasedRow ? 27 : 26)') -and
             $engineSource.Contains('Mode = IsTurnBasedRow ? "turn-based" : "real-time"') -and
             $engineSource.Contains('TurnBased = IsTurnBasedRow') -and
@@ -4763,7 +4764,7 @@ try {
             $targetSource.Contains('ModifierDescriptor.UntypedStackable') -and
             $targetSource.Contains('targetDurabilityModifier.Remove()') -and
             $targetSource.Contains('temporaryHitPoints.ModifiedValue == TargetTemporaryHitPointsBefore') -and
-            $engineSource.Contains('targetService.Spawn(rider, mount, spawnPoint, request.RunId, true, IsMammothPrimaryRow)')) 'Mammoth diagnostic target does not acquire and exactly release its bounded scenario-only temporary-hit-point durability lease'
+            $engineSource.Contains('IsMammothPrimaryRow || IsMovementToAttackRow)')) 'Mammoth and movement-to-attack diagnostic targets do not acquire and exactly release their bounded scenario-only temporary-hit-point durability lease'
         $durabilityAcquireIndex = $targetSource.IndexOf('AcquireTargetDurabilityLease(target, requireDurabilityLease);', [StringComparison]::Ordinal)
         $targetActivationIndex = $targetSource.IndexOf('lifecycle.Activate("pending:" + runId, safety.AllPassed && durabilityPolicyPassed)', [StringComparison]::Ordinal)
         $durabilityReleaseIndex = $targetSource.IndexOf('var durabilityLeaseClean = ReleaseTargetDurabilityLease(current);', [StringComparison]::Ordinal)
@@ -4895,7 +4896,7 @@ try {
     $moveAttackManifest = Read-KmcJson (Join-Path $moveAttackRequest.evidenceRoot 'runtime-artifacts.json')
     $moveAttackSubresult = [ordered]@{name=$moveAttackRequest.scenario;status='PASS';assertionPassCount=25;assertionFailCount=0;errors=@()}
 
-    Invoke-HarnessTest 'runtime request and schema-v32 evidence accept exact raw-slot stock-driven real-time rider movement-to-attack' {
+    Invoke-HarnessTest 'runtime request and schema-v34 evidence accept durable exact raw-slot stock-driven real-time rider movement-to-attack' {
         & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $moveAttackRequestPath
         Assert-KmcCombatScenarioEvidence -Request $moveAttackRequest -Manifest $moveAttackManifest -Status 'PASS' -SubscenarioResults @($moveAttackSubresult)
     }
@@ -4911,7 +4912,7 @@ try {
     $moveAttackTurnManifest = Read-KmcJson (Join-Path $moveAttackTurnRequest.evidenceRoot 'runtime-artifacts.json')
     $moveAttackTurnSubresult = [ordered]@{name=$moveAttackTurnRequest.scenario;status='PASS';assertionPassCount=25;assertionFailCount=0;errors=@()}
 
-    Invoke-HarnessTest 'runtime request and schema-v33 evidence accept exact raw-slot rider-turn-driven movement-to-attack' {
+    Invoke-HarnessTest 'runtime request and schema-v35 evidence accept durable exact raw-slot rider-turn-driven movement-to-attack' {
         & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $moveAttackTurnRequestPath
         Assert-KmcCombatScenarioEvidence -Request $moveAttackTurnRequest -Manifest $moveAttackTurnManifest -Status 'PASS' -SubscenarioResults @($moveAttackTurnSubresult)
     }
@@ -4941,6 +4942,8 @@ try {
             @{name='attack started outside range';apply={param($value) $value.movementToAttack.pairDistanceAtAttackStart=4.051}},
             @{name='mount did not approach';apply={param($value) $value.movementToAttack.mountDisplacementAtAttackStart=0.0}},
             @{name='target moved';apply={param($value) $value.movementToAttack.targetDisplacementAtAttackStart=0.051}},
+            @{name='durability lease absent';apply={param($value) $value.targetProvisioning.temporaryHitPointsAfterProvisioning=0;$value.targetProvisioning.durabilityLeaseAmount=0;$value.targetProvisioning.durabilityLeaseAcquired=$false}},
+            @{name='target killed before outcome';apply={param($value) $value.targetLife.lastObserved.lifeState='Dead';$value.targetLife.lastObserved.conscious=$false;$value.targetLife.lastObserved.dead=$true;$value.targetLife.lastObserved.finallyDead=$true;$value.targetLife.transitionCount=1;$value.targetLife.firstTransition.observed=$true;$value.targetLife.firstTransition.previousLifeState='Conscious';$value.targetLife.firstTransition.currentLifeState='Dead';$value.targetLife.firstTransition.snapshot=$value.targetLife.lastObserved}},
             @{name='Mammoth Move charged';apply={param($value) $value.resources.mountMoveAfter=2.0}},
             @{name='rider Move not charged in turn mode';apply={param($value) $value.resources.riderMoveAfter=0.0}}
         )
@@ -4956,21 +4959,50 @@ try {
         }
     }
 
+    Invoke-HarnessTest 'historical schema-v32 and schema-v33 movement evidence remains valid without the later durability lease' {
+        $legacyMove32 = Copy-TestJsonValue $moveAttackRecord
+        $legacyMove32.schemaVersion = 32
+        $legacyMove32.targetProvisioning.temporaryHitPointsAfterProvisioning = 0
+        $legacyMove32.targetProvisioning.durabilityLeaseAmount = 0
+        $legacyMove32.targetProvisioning.durabilityLeaseAcquired = $false
+        [void](Write-TestCombatEvidence -EvidenceRoot $moveAttackRequest.evidenceRoot -Request $moveAttackRequest -Record $legacyMove32)
+        $legacyMove32Manifest = Read-KmcJson (Join-Path $moveAttackRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $moveAttackRequest -Manifest $legacyMove32Manifest -Status 'PASS' -SubscenarioResults @($moveAttackSubresult)
+
+        $legacyMove33 = Copy-TestJsonValue $moveAttackTurnRecord
+        $legacyMove33.schemaVersion = 33
+        $legacyMove33.targetProvisioning.temporaryHitPointsAfterProvisioning = 0
+        $legacyMove33.targetProvisioning.durabilityLeaseAmount = 0
+        $legacyMove33.targetProvisioning.durabilityLeaseAcquired = $false
+        [void](Write-TestCombatEvidence -EvidenceRoot $moveAttackTurnRequest.evidenceRoot -Request $moveAttackTurnRequest -Record $legacyMove33)
+        $legacyMove33Manifest = Read-KmcJson (Join-Path $moveAttackTurnRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $moveAttackTurnRequest -Manifest $legacyMove33Manifest -Status 'PASS' -SubscenarioResults @($moveAttackTurnSubresult)
+    }
+
     Invoke-HarnessTest 'historical schema-v28 through schema-v31 movement evidence shapes remain valid' {
         $legacyMove30 = Copy-TestJsonValue $moveAttackRecord
         $legacyMove30.schemaVersion = 30
+        $legacyMove30.targetProvisioning.temporaryHitPointsAfterProvisioning = 0
+        $legacyMove30.targetProvisioning.durabilityLeaseAmount = 0
+        $legacyMove30.targetProvisioning.durabilityLeaseAcquired = $false
         [void](Write-TestCombatEvidence -EvidenceRoot $moveAttackRequest.evidenceRoot -Request $moveAttackRequest -Record $legacyMove30)
         $legacyMove30Manifest = Read-KmcJson (Join-Path $moveAttackRequest.evidenceRoot 'runtime-artifacts.json')
         Assert-KmcCombatScenarioEvidence -Request $moveAttackRequest -Manifest $legacyMove30Manifest -Status 'PASS' -SubscenarioResults @($moveAttackSubresult)
 
         $legacyMove31 = Copy-TestJsonValue $moveAttackTurnRecord
         $legacyMove31.schemaVersion = 31
+        $legacyMove31.targetProvisioning.temporaryHitPointsAfterProvisioning = 0
+        $legacyMove31.targetProvisioning.durabilityLeaseAmount = 0
+        $legacyMove31.targetProvisioning.durabilityLeaseAcquired = $false
         [void](Write-TestCombatEvidence -EvidenceRoot $moveAttackTurnRequest.evidenceRoot -Request $moveAttackTurnRequest -Record $legacyMove31)
         $legacyMove31Manifest = Read-KmcJson (Join-Path $moveAttackTurnRequest.evidenceRoot 'runtime-artifacts.json')
         Assert-KmcCombatScenarioEvidence -Request $moveAttackTurnRequest -Manifest $legacyMove31Manifest -Status 'PASS' -SubscenarioResults @($moveAttackTurnSubresult)
 
         $legacyMove28 = Copy-TestJsonValue $moveAttackRecord
         $legacyMove28.schemaVersion = 28
+        $legacyMove28.targetProvisioning.temporaryHitPointsAfterProvisioning = 0
+        $legacyMove28.targetProvisioning.durabilityLeaseAmount = 0
+        $legacyMove28.targetProvisioning.durabilityLeaseAcquired = $false
         $legacyMove28.movementToAttack.delegatedMoveTickCount = 12
         foreach ($name in @(
             'delegatedMoveOwnedByMountMoveSlot','mountMoveSlotUnreplacedThroughoutApproach',
@@ -4985,6 +5017,9 @@ try {
 
         $legacyMove29 = Copy-TestJsonValue $moveAttackTurnRecord
         $legacyMove29.schemaVersion = 29
+        $legacyMove29.targetProvisioning.temporaryHitPointsAfterProvisioning = 0
+        $legacyMove29.targetProvisioning.durabilityLeaseAmount = 0
+        $legacyMove29.targetProvisioning.durabilityLeaseAcquired = $false
         $legacyMove29.movementToAttack.delegatedMoveTickCount = 12
         foreach ($name in @(
             'delegatedMoveOwnedByMountMoveSlot','mountMoveSlotUnreplacedThroughoutApproach',
