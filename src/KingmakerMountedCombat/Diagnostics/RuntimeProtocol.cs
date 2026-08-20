@@ -63,6 +63,10 @@ namespace KingmakerMountedCombat.Diagnostics
             "mounted-mammoth-primary-hit-tb",
             "mounted-rider-melee-move-to-attack-rt",
             "mounted-rider-melee-move-to-attack-tb",
+            "mounted-rider-melee-command-cancel-rt",
+            "mounted-rider-melee-command-cancel-tb",
+            "mounted-rider-melee-command-interrupt-rt",
+            "mounted-rider-melee-command-interrupt-tb",
             ManualReviewScenario
         };
 
@@ -491,7 +495,11 @@ namespace KingmakerMountedCombat.Diagnostics
             "mounted-mammoth-primary-hit-rt",
             "mounted-mammoth-primary-hit-tb",
             "mounted-rider-melee-move-to-attack-rt",
-            "mounted-rider-melee-move-to-attack-tb"
+            "mounted-rider-melee-move-to-attack-tb",
+            "mounted-rider-melee-command-cancel-rt",
+            "mounted-rider-melee-command-cancel-tb",
+            "mounted-rider-melee-command-interrupt-rt",
+            "mounted-rider-melee-command-interrupt-tb"
         };
 
         public string Name { get; set; }

@@ -4,6 +4,14 @@ Status: IN PROGRESS
 
 Branch: `codex/mounted-combat-phase2-alpha`
 
+## Cancellation/interruption implementation ready for runtime - 2026-08-20T23:01:46Z
+
+Status: `IN PROGRESS`; no safety or architecture blocker is active.
+
+The movement qualification documentation is clean and guarded-published at `e646491bdf794aef673d6c9b368db9db3ca6a81e`. The intentional worktree adds only the four contract-scoped native cancellation/interruption diagnostic rows, schema v36/v37 validators, and deterministic regressions. Offline gates pass source `21/0`, Release build, component `213/0`, visual `17/0`, harness `195/0`, and exact assembly `254/0`; parser and diff checks pass.
+
+No runtime credit is claimed. The next required boundary is coherent guarded publication, clean package binding, a fresh stable suite, separate mode-specific WhatIf audits, then RT/TB A/B runtime evidence for both Stop cancellation and native wrapper interruption. A restored runtime failure will be preserved and diagnosed without weakening any command, resource, rule, or external-state gate.
+
 ## Opportunity-isolation qualification complete - 2026-08-20T22:33:06Z
 
 Status: `PASS`; no safety or architecture blocker is active.

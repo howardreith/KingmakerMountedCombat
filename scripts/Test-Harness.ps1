@@ -1074,15 +1074,22 @@ function New-TestCombatEvidenceRecord {
     $isMammoth = [string]$Request.scenario -cin @('mounted-mammoth-primary-hit-rt','mounted-mammoth-primary-hit-tb')
     $isMovementToAttack = [string]$Request.scenario -cin @(
         'mounted-rider-melee-move-to-attack-rt','mounted-rider-melee-move-to-attack-tb')
+    $isCancellation = [string]$Request.scenario -cin @(
+        'mounted-rider-melee-command-cancel-rt','mounted-rider-melee-command-cancel-tb')
+    $isInterruption = [string]$Request.scenario -cin @(
+        'mounted-rider-melee-command-interrupt-rt','mounted-rider-melee-command-interrupt-tb')
+    $isTermination = $isCancellation -or $isInterruption
+    $isApproach = $isMovementToAttack -or $isTermination
     $isTurnBased = [string]$Request.scenario -cin @(
-        'mounted-rider-melee-hit-tb','mounted-mammoth-primary-hit-tb','mounted-rider-melee-move-to-attack-tb')
+        'mounted-rider-melee-hit-tb','mounted-mammoth-primary-hit-tb','mounted-rider-melee-move-to-attack-tb',
+        'mounted-rider-melee-command-cancel-tb','mounted-rider-melee-command-interrupt-tb')
     $isMiss = [string]$Request.scenario -ceq 'mounted-rider-melee-miss-rt'
-    $requiresDurability = $isMammoth -or $isMovementToAttack
+    $requiresDurability = $isMammoth -or $isApproach
     $actor = if ($isMammoth) { $mount } else { $rider }
     $actorRole = if ($isMammoth) { 'mount' } else { 'rider' }
     $action = if ($isMammoth) { 'MountPrimaryNatural' } else { 'RiderMelee' }
     $record = [ordered]@{
-        schemaVersion=$(if ($isMovementToAttack) { if ($isTurnBased) { 35 } else { 34 } } elseif ($isTurnBased) { 27 } else { 26 });artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
+        schemaVersion=$(if ($isTermination) { if ($isTurnBased) { 37 } else { 36 } } elseif ($isMovementToAttack) { if ($isTurnBased) { 35 } else { 34 } } elseif ($isTurnBased) { 27 } else { 26 });artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
         scenario=[string]$Request.scenario;row=[string]$Request.scenario;rowIndex=0;sequence=0;frame=30
         utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o');branch=[string]$Request.branch
         commit=[string]$Request.commit;productVersion=[string]$Request.productVersion
@@ -1111,7 +1118,7 @@ function New-TestCombatEvidenceRecord {
             }
             lastObserved=[ordered]@{
                 observed=$true;lifeState='Conscious';conscious=$true;dead=$false;finallyDead=$false
-                damage=$(if ($isMiss) { 0 } else { 10 });nonLethalDamage=0;hitPoints=100;constitution=14
+                damage=$(if ($isMiss -or $isTermination) { 0 } else { 10 });nonLethalDamage=0;hitPoints=100;constitution=14
                 forceKill=$false;markedForDeath=$false
             }
             transitionCount=0
@@ -1124,20 +1131,20 @@ function New-TestCombatEvidenceRecord {
             }
         }
         targetIncomingRules=[ordered]@{
-            dispatchMarkerSet=$true;attackRuleCount=1;damageRuleCount=$(if ($isMiss) { 0 } else { 1 })
+            dispatchMarkerSet=$true;attackRuleCount=$(if ($isTermination) { 0 } else { 1 });damageRuleCount=$(if ($isMiss -or $isTermination) { 0 } else { 1 })
             preDispatchAttackRuleCount=0;preDispatchDamageRuleCount=0
             firstAttack=[ordered]@{
-                observed=$true;beforeExpectedDispatch=$false;initiatorId=$actor
-                initiatorBlueprintId='22222222222222222222222222222222'
-                initiatorIsPlayerFaction=$true;initiatorIsPlayersEnemy=$false
-                initiatorGroupId='player-group';initiatorGroupIsPlayerParty=$true
-                initiatorSharesRiderGroup=$true;initiatorSharesMountGroup=$true
-                initiatorDirectlyControllable=$true;initiatorEffectiveAiEnabled=$false
+                observed=(-not $isTermination);beforeExpectedDispatch=$false;initiatorId=$(if ($isTermination) { $null } else { $actor })
+                initiatorBlueprintId=$(if ($isTermination) { $null } else { '22222222222222222222222222222222' })
+                initiatorIsPlayerFaction=(-not $isTermination);initiatorIsPlayersEnemy=$false
+                initiatorGroupId=$(if ($isTermination) { $null } else { 'player-group' });initiatorGroupIsPlayerParty=(-not $isTermination)
+                initiatorSharesRiderGroup=(-not $isTermination);initiatorSharesMountGroup=(-not $isTermination)
+                initiatorDirectlyControllable=(-not $isTermination);initiatorEffectiveAiEnabled=$false
                 initiatorRawAiEnabled=$false;initiatorCommandsEmpty=$false
-                weaponBlueprintId='33333333333333333333333333333333'
+                weaponBlueprintId=$(if ($isTermination) { $null } else { '33333333333333333333333333333333' })
                 isAttackOfOpportunity=$false;isCharge=$false
             }
-            firstDamage=$(if ($isMiss) {
+            firstDamage=$(if ($isMiss -or $isTermination) {
                 [ordered]@{
                     observed=$false;beforeExpectedDispatch=$false;initiatorId=$null;initiatorBlueprintId=$null
                     initiatorIsPlayerFaction=$false;initiatorIsPlayersEnemy=$false;damage=0;isFake=$false;isDot=$false
@@ -1169,10 +1176,10 @@ function New-TestCombatEvidenceRecord {
             validationCount=7;violationObserved=$false;suppressedAtClick=$true;suppressedAtOutcome=$true
             brainActiveAfterRelease=$true;leaseReleased=$true
         }
-        pairApproachRadius=4.0;targetDistanceAtClick=$(if ($isMovementToAttack) { 6.0 } else { 3.9 })
+        pairApproachRadius=4.0;targetDistanceAtClick=$(if ($isApproach) { 6.0 } else { 3.9 })
         riderPositionAtClick=[ordered]@{x=0.0;y=0.0;z=0.0}
         mountPositionAtClick=[ordered]@{x=0.1;y=0.0;z=0.0}
-        targetPositionAtClick=[ordered]@{x=$(if ($isMovementToAttack) { 6.1 } else { 4.0 });y=0.0;z=0.0}
+        targetPositionAtClick=[ordered]@{x=$(if ($isApproach) { 6.1 } else { 4.0 });y=0.0;z=0.0}
         combatEntry=[ordered]@{
             memoryQueued=$true;playerGroupMemoryContainsTarget=$true;targetGroupMemoryContainsRider=$true
             riderInCombat=$true;mountInCombat=$true;targetInCombat=$true;playerInCombat=$true
@@ -1196,23 +1203,23 @@ function New-TestCombatEvidenceRecord {
             equipmentControllerAvailable=$true;equipmentUpdateScheduled=$false;pauseRestored=$true
         }
         resources=[ordered]@{
-            riderStandardBefore=0.0;riderStandardAfter=$(if ($isMammoth) { 0.0 } else { 5.5 });riderMoveBefore=0.0;riderMoveAfter=$(if ($isMovementToAttack -and $isTurnBased) { 2.0 } else { 0.0 })
+            riderStandardBefore=0.0;riderStandardAfter=$(if ($isMammoth) { 0.0 } else { 5.5 });riderMoveBefore=0.0;riderMoveAfter=$(if ($isApproach -and $isTurnBased) { 2.0 } else { 0.0 })
             mountStandardBefore=0.0;mountStandardAfter=$(if ($isMammoth) { 5.5 } else { 0.0 });mountMoveBefore=0.0;mountMoveAfter=0.0
         }
         command=[ordered]@{
-            action=$action;actorId=$actor;targetId=$target;result='Success';childAttackStartCount=1
-            repathCount=0;riderStandardCharged=(-not $isMammoth);nativeAttackRuleObserved=$true;terminalReason='completed'
-            pairRangeSatisfiedAtStart=$true;pairDistanceAtStart=3.9;pairApproachRadiusAtStart=4.0
-            nativeExecutorDistanceAtStart=4.1;nativeAdmissionRadiusAtStart=4.101;nativeAdmissionAdjusted=$true
+            action=$action;actorId=$actor;targetId=$target;result=$(if ($isTermination) { 'Interrupt' } else { 'Success' });childAttackStartCount=$(if ($isTermination) { 0 } else { 1 })
+            repathCount=0;riderStandardCharged=(-not $isMammoth);nativeAttackRuleObserved=(-not $isTermination);terminalReason=$(if ($isTermination) { 'Interrupt' } else { 'completed' })
+            pairRangeSatisfiedAtStart=(-not $isTermination);pairDistanceAtStart=$(if ($isTermination) { 0.0 } else { 3.9 });pairApproachRadiusAtStart=$(if ($isTermination) { 0.0 } else { 4.0 })
+            nativeExecutorDistanceAtStart=$(if ($isTermination) { 0.0 } else { 4.1 });nativeAdmissionRadiusAtStart=$(if ($isTermination) { 0.0 } else { 4.101 });nativeAdmissionAdjusted=(-not $isTermination)
         }
         rules=[ordered]@{
-            forcedD20=$(if ($isMiss) { 1 } else { 20 });forcedD20Count=1;attackRuleCount=1;attackRollCount=1
-            damageRuleCount=$(if ($isMiss) { 0 } else { 1 });unexpectedPairAttackCount=0
-            totalDamage=$(if ($isMiss) { 0 } else { 10 });lastInitiatorId=$actor;lastTargetId=$target
-            lastAttackResult=$(if ($isMiss) { 'Miss' } else { 'Hit' });lastAttackHit=(-not $isMiss)
+            forcedD20=$(if ($isMiss) { 1 } else { 20 });forcedD20Count=$(if ($isTermination) { 0 } else { 1 });attackRuleCount=$(if ($isTermination) { 0 } else { 1 });attackRollCount=$(if ($isTermination) { 0 } else { 1 })
+            damageRuleCount=$(if ($isMiss -or $isTermination) { 0 } else { 1 });unexpectedPairAttackCount=0
+            totalDamage=$(if ($isMiss -or $isTermination) { 0 } else { 10 });lastInitiatorId=$(if ($isTermination) { $null } else { $actor });lastTargetId=$(if ($isTermination) { $null } else { $target })
+            lastAttackResult=$(if ($isTermination) { $null } elseif ($isMiss) { 'Miss' } else { 'Hit' });lastAttackHit=$(if ($isTermination) { $null } else { -not $isMiss })
         }
         movement=[ordered]@{
-            authoritativeMover='mount';repathCount=0;riderDisplacementAtOutcome=$(if ($isMovementToAttack) { 2.0 } else { 0.0 });mountDisplacementAtOutcome=$(if ($isMovementToAttack) { 2.0 } else { 0.0 })
+            authoritativeMover='mount';repathCount=0;riderDisplacementAtOutcome=$(if ($isApproach) { 1.0 } else { 0.0 });mountDisplacementAtOutcome=$(if ($isApproach) { 1.0 } else { 0.0 })
             targetDisplacementAtOutcome=0.0;riderStockAgentEnabledAtEnd=$true;mountStockAgentEnabledAtEnd=$true
             riderAvoidanceDisabledAtEnd=$false;mountAvoidanceDisabledAtEnd=$false
         }
@@ -1237,21 +1244,33 @@ function New-TestCombatEvidenceRecord {
     $record.command.attackWeaponIsNatural = $isMammoth
     $record.command.attackWeaponIsRanged = $false
     $record.command.attackWeaponSlot = if ($isMammoth) { 'PrimaryHand' } else { 'EquippedMelee' }
-    if ($isMovementToAttack) {
+    if ($isApproach) {
         $record.movementToAttack = [ordered]@{
             requestedTargetDistance=6.0;approachRequiredAtStart=$true;delegatedMoveStartCount=1
             delegatedMoveTickCount=$(if ($isTurnBased) { 12 } else { 0 });delegatedMoveExecutorId=$mount;delegatedMoveExecutorIsExactMount=$true
             wrapperCommandRetainedThroughoutApproach=$true;delegatedMoveNeverQueuedOnMount=$true
             delegatedMoveOwnedByMountMoveSlot=$true;mountMoveSlotUnreplacedThroughoutApproach=$true
-            mountQueueEmptyThroughoutApproach=$true;delegatedMoveFinishedSuccessfully=$true
+            mountQueueEmptyThroughoutApproach=$true;delegatedMoveFinishedSuccessfully=(-not $isTermination)
             mountMoveSlotRestoredAfterApproach=$true;delegatedMoveDrivenByStockController=(-not $isTurnBased)
             delegatedMoveDrivenByRiderTurnAdapter=$isTurnBased;delegatedMoveProgressObservationCount=12
             riderStockAgentSuppressedThroughoutApproach=$true;mountStockAgentAuthoritativeThroughoutApproach=$true
             poseHealthyThroughoutApproach=$true;commandObservationCount=12;runtimeObservationCount=12
             selectionRetainedDuringApproach=$true;uiCoherentDuringApproach=$true
-            initialPairDistance=6.0;pairDistanceAtAttackStart=3.9
-            riderDisplacementAtAttackStart=2.0;mountDisplacementAtAttackStart=2.0
+            initialPairDistance=6.0;pairDistanceAtAttackStart=$(if ($isTermination) { 0.0 } else { 3.9 })
+            riderDisplacementAtAttackStart=$(if ($isTermination) { 0.0 } else { 2.0 });mountDisplacementAtAttackStart=$(if ($isTermination) { 0.0 } else { 2.0 })
             targetDisplacementAtAttackStart=0.0
+        }
+    }
+    if ($isTermination) {
+        $record.commandTermination = [ordered]@{
+            kind=$(if ($isCancellation) { 'player-stop' } else { 'native-wrapper-interrupt' })
+            trigger=$(if ($isCancellation) { 'SelectionManagerBase.Stop' } else { 'UnitCommands.InterruptAll' })
+            delivered=$true;repeatedIdempotently=$true;wrapperPresentBefore=$true;delegatedMovePresentBefore=$true
+            riderQueueEmptyBefore=$true;mountQueueEmptyBefore=$true;childAttackNotStartedBefore=$true
+            pairDistanceAtTrigger=5.0;riderDisplacementAtTrigger=1.0;mountDisplacementAtTrigger=1.0;targetDisplacementAtTrigger=0.0
+            wrapperAbsentAfter=$true;delegatedMoveAbsentAfter=$true;riderQueueEmptyAfter=$true;mountQueueEmptyAfter=$true
+            mountAgentStoppedAfter=$true;activeCommandClearedAfter=$true;relationshipPreservedAfter=$true
+            selectionRetainedAfter=$true;uiCoherentAfter=$true
         }
     }
     if ($isTurnBased) {
@@ -4679,7 +4698,9 @@ try {
             $controllerSource.Contains('turn.ForceToEnd(false);')) 'turn-based combat does not admit the native Preparing action-actor turn, observe Acting after dispatch, bound the Mammoth turn after its action, and restore mode after cleanup'
         Assert-Test ($engineSource.Contains('CleanupTimeoutSeconds = 10.0d') -and
             $engineSource.Contains('rowClock.Elapsed.TotalSeconds - cleanupStartedAtSeconds < CleanupTimeoutSeconds')) 'combat cleanup does not retain an independent bounded drain after a row deadline'
-        Assert-Test ($engineSource.Contains('SchemaVersion = IsMovementToAttackRow') -and
+        Assert-Test ($engineSource.Contains('SchemaVersion = IsCommandTerminationRow') -and
+            $engineSource.Contains('? (IsTurnBasedRow ? 37 : 36)') -and
+            $engineSource.Contains(': IsMovementToAttackRow') -and
             $engineSource.Contains('? (IsTurnBasedRow ? 35 : 34)') -and
             $engineSource.Contains(': (IsTurnBasedRow ? 27 : 26)') -and
             $engineSource.Contains('Mode = IsTurnBasedRow ? "turn-based" : "real-time"') -and
@@ -4755,7 +4776,7 @@ try {
             -not $commandSource.Contains('mount.Commands.InterruptMove()') -and
             $commandSource.Contains('WrapperCommandRetainedThroughoutApproach = wrapperCommandRetainedThroughoutApproach') -and
             $engineSource.Contains('MountedCombatApproachSnapshot(') -and
-            $engineSource.Contains('MovementToAttack = IsMovementToAttackRow') -and
+            $engineSource.Contains('MovementToAttack = IsApproachRow') -and
             $combatValidatorSource.Contains("'requestedTargetDistance','approachRequiredAtStart','delegatedMoveStartCount'") -and
             $combatValidatorSource.Contains('one retained rider wrapper and one manually driven Mammoth approach')) 'schema-v26-v29 combat evidence does not bind actor-specific readiness, command/resource ownership, movement-to-attack continuity, retained exact weapon identity, target durability and brain lease, native IsHit, target and AI isolation, turn identity, cleanup, and restoration'
         Assert-Test ($targetSource.Contains('DiagnosticDurabilityTemporaryHitPoints = 128') -and
@@ -4764,7 +4785,7 @@ try {
             $targetSource.Contains('ModifierDescriptor.UntypedStackable') -and
             $targetSource.Contains('targetDurabilityModifier.Remove()') -and
             $targetSource.Contains('temporaryHitPoints.ModifiedValue == TargetTemporaryHitPointsBefore') -and
-            $engineSource.Contains('IsMammothPrimaryRow || IsMovementToAttackRow)')) 'Mammoth and movement-to-attack diagnostic targets do not acquire and exactly release their bounded scenario-only temporary-hit-point durability lease'
+            $engineSource.Contains('IsMammothPrimaryRow || IsApproachRow)')) 'Mammoth and mounted-approach diagnostic targets do not acquire and exactly release their bounded scenario-only temporary-hit-point durability lease'
         $durabilityAcquireIndex = $targetSource.IndexOf('AcquireTargetDurabilityLease(target, requireDurabilityLease);', [StringComparison]::Ordinal)
         $targetActivationIndex = $targetSource.IndexOf('lifecycle.Activate("pending:" + runId, safety.AllPassed && durabilityPolicyPassed)', [StringComparison]::Ordinal)
         $durabilityReleaseIndex = $targetSource.IndexOf('var durabilityLeaseClean = ReleaseTargetDurabilityLease(current);', [StringComparison]::Ordinal)
@@ -4915,6 +4936,114 @@ try {
     Invoke-HarnessTest 'runtime request and schema-v35 evidence accept durable exact raw-slot rider-turn-driven movement-to-attack' {
         & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $moveAttackTurnRequestPath
         Assert-KmcCombatScenarioEvidence -Request $moveAttackTurnRequest -Manifest $moveAttackTurnManifest -Status 'PASS' -SubscenarioResults @($moveAttackTurnSubresult)
+    }
+
+    $terminationFixtures = @{}
+    foreach ($terminationScenario in @(
+        'mounted-rider-melee-command-cancel-rt',
+        'mounted-rider-melee-command-cancel-tb',
+        'mounted-rider-melee-command-interrupt-rt',
+        'mounted-rider-melee-command-interrupt-tb')) {
+        $terminationRequestPath = Join-Path $testRoot ("runtime-request-{0}.json" -f $terminationScenario)
+        $terminationRequest = Copy-TestJsonValue $combatRequest
+        $terminationRequest.runId = 'combat-evidence-' + $terminationScenario + '-test'
+        $terminationRequest.scenario = $terminationScenario
+        $terminationRequest.evidenceRoot = Join-Path $runtimeEvidenceTestRoot $terminationRequest.runId
+        Write-KmcJsonAtomic $terminationRequestPath $terminationRequest
+        $terminationRecord = New-TestCombatEvidenceRecord $terminationRequest
+        [void](Write-TestCombatEvidence -EvidenceRoot $terminationRequest.evidenceRoot -Request $terminationRequest -Record $terminationRecord)
+        $terminationManifest = Read-KmcJson (Join-Path $terminationRequest.evidenceRoot 'runtime-artifacts.json')
+        $terminationSubresult = [ordered]@{name=$terminationScenario;status='PASS';assertionPassCount=25;assertionFailCount=0;errors=@()}
+        $terminationFixtures[$terminationScenario] = [pscustomobject]@{
+            RequestPath=$terminationRequestPath
+            Request=$terminationRequest
+            Record=$terminationRecord
+            Manifest=$terminationManifest
+            Subresult=$terminationSubresult
+        }
+
+        Invoke-HarnessTest ("runtime request and exact command-termination evidence accept {0}" -f $terminationScenario) {
+            & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $terminationRequestPath
+            Assert-KmcCombatScenarioEvidence -Request $terminationRequest -Manifest $terminationManifest -Status 'PASS' -SubscenarioResults @($terminationSubresult)
+        }
+    }
+
+    Invoke-HarnessTest 'command termination source binds exact native cancellation interruption and post-state gates' {
+        $engineSource = Get-Content -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeCombatScenarioEngine.cs') -Raw
+        Assert-Test ($engineSource.Contains('selection.Stop();') -and
+            $engineSource.Contains('riderCommands.InterruptAll();') -and
+            $engineSource.Contains('riderDisplacement < 0.75f || mountDisplacement < 0.75f') -and
+            $engineSource.Contains('currentPairDistance <= pairApproachRadius + MountedCombatSpatialPolicy.RangeTolerance') -and
+            $engineSource.Contains('riderCommands.GetCommand(Kingmaker.UnitLogic.Commands.Base.UnitCommand.CommandType.Standard) == null') -and
+            $engineSource.Contains('mountCommands.GetCommand(Kingmaker.UnitLogic.Commands.Base.UnitCommand.CommandType.Move) == null') -and
+            $engineSource.Contains('mountAgentStoppedAfterTermination = agent != null && !agent.WantsToMove && !agent.IsReallyMoving') -and
+            $engineSource.Contains('relationshipPreservedAfterTermination && selectionRetainedAfterTermination') -and
+            $engineSource.Contains('outcome.ChildAttackStartCount == 0 && !outcome.NativeAttackRuleObserved') -and
+            $engineSource.Contains('outcome.ActionStandardCharged && outcome.RiderStandardCharged') -and
+            $engineSource.Contains('ruleProbe.ForcedD20Count == 0 && ruleProbe.AttackRuleCount == 0'))
+            'command termination source does not bind the exact native trigger, progress, command-slot, agent, ownership, resource, zero-rule, relationship, selection, and UI gates'
+    }
+
+    Invoke-HarnessTest 'command termination validator rejects cancellation interruption ownership resource and cleanup mutations' {
+        $baseFixture = $terminationFixtures['mounted-rider-melee-command-cancel-tb']
+        $mutations = @(
+            @{name='missing termination evidence';apply={param($value) $value.PSObject.Properties.Remove('commandTermination')}},
+            @{name='wrong kind';apply={param($value) $value.commandTermination.kind='native-wrapper-interrupt'}},
+            @{name='wrong trigger';apply={param($value) $value.commandTermination.trigger='UnitCommands.InterruptAll'}},
+            @{name='not delivered';apply={param($value) $value.commandTermination.delivered=$false}},
+            @{name='not idempotent';apply={param($value) $value.commandTermination.repeatedIdempotently=$false}},
+            @{name='wrapper absent before';apply={param($value) $value.commandTermination.wrapperPresentBefore=$false}},
+            @{name='move absent before';apply={param($value) $value.commandTermination.delegatedMovePresentBefore=$false}},
+            @{name='rider queue occupied before';apply={param($value) $value.commandTermination.riderQueueEmptyBefore=$false}},
+            @{name='mount queue occupied before';apply={param($value) $value.commandTermination.mountQueueEmptyBefore=$false}},
+            @{name='child started before';apply={param($value) $value.commandTermination.childAttackNotStartedBefore=$false}},
+            @{name='insufficient rider movement';apply={param($value) $value.commandTermination.riderDisplacementAtTrigger=0.74}},
+            @{name='insufficient mount movement';apply={param($value) $value.commandTermination.mountDisplacementAtTrigger=0.74}},
+            @{name='trigger inside range';apply={param($value) $value.commandTermination.pairDistanceAtTrigger=4.05}},
+            @{name='target moved';apply={param($value) $value.commandTermination.targetDisplacementAtTrigger=0.051}},
+            @{name='wrapper remains after';apply={param($value) $value.commandTermination.wrapperAbsentAfter=$false}},
+            @{name='move remains after';apply={param($value) $value.commandTermination.delegatedMoveAbsentAfter=$false}},
+            @{name='rider queue remains after';apply={param($value) $value.commandTermination.riderQueueEmptyAfter=$false}},
+            @{name='mount queue remains after';apply={param($value) $value.commandTermination.mountQueueEmptyAfter=$false}},
+            @{name='mount agent moving after';apply={param($value) $value.commandTermination.mountAgentStoppedAfter=$false}},
+            @{name='active wrapper remains';apply={param($value) $value.commandTermination.activeCommandClearedAfter=$false}},
+            @{name='relationship lost';apply={param($value) $value.commandTermination.relationshipPreservedAfter=$false}},
+            @{name='selection lost';apply={param($value) $value.commandTermination.selectionRetainedAfter=$false}},
+            @{name='UI incoherent';apply={param($value) $value.commandTermination.uiCoherentAfter=$false}},
+            @{name='successful terminal result';apply={param($value) $value.command.result='Success'}},
+            @{name='child attack started';apply={param($value) $value.command.childAttackStartCount=1}},
+            @{name='native attack observed';apply={param($value) $value.command.nativeAttackRuleObserved=$true}},
+            @{name='attack rule emitted';apply={param($value) $value.rules.attackRuleCount=1}},
+            @{name='attack roll emitted';apply={param($value) $value.rules.attackRollCount=1}},
+            @{name='damage emitted';apply={param($value) $value.rules.damageRuleCount=1}},
+            @{name='rider Standard refunded';apply={param($value) $value.resources.riderStandardAfter=0.0}},
+            @{name='Mammoth Standard charged';apply={param($value) $value.resources.mountStandardAfter=1.0}},
+            @{name='turn rider Move uncharged';apply={param($value) $value.resources.riderMoveAfter=0.0}},
+            @{name='delegated move reported successful';apply={param($value) $value.movementToAttack.delegatedMoveFinishedSuccessfully=$true}},
+            @{name='attack-start distance populated';apply={param($value) $value.movementToAttack.pairDistanceAtAttackStart=3.9}}
+        )
+        foreach ($mutation in $mutations) {
+            $candidate = Copy-TestJsonValue $baseFixture.Record
+            & $mutation.apply $candidate
+            [void](Write-TestCombatEvidence -EvidenceRoot $baseFixture.Request.evidenceRoot -Request $baseFixture.Request -Record $candidate)
+            $candidateManifest = Read-KmcJson (Join-Path $baseFixture.Request.evidenceRoot 'runtime-artifacts.json')
+            $threw = $false
+            try { Assert-KmcCombatScenarioEvidence -Request $baseFixture.Request -Manifest $candidateManifest -Status 'PASS' -SubscenarioResults @($baseFixture.Subresult) }
+            catch { $threw = $true }
+            Assert-Test $threw ("command termination validator accepted mutation: " + [string]$mutation.name)
+        }
+
+        $interruptFixture = $terminationFixtures['mounted-rider-melee-command-interrupt-rt']
+        $crossScenario = Copy-TestJsonValue $baseFixture.Record
+        $crossScenario.runId = $interruptFixture.Request.runId
+        $crossScenario.scenario = $interruptFixture.Request.scenario
+        $crossScenario.row = $interruptFixture.Request.scenario
+        [void](Write-TestCombatEvidence -EvidenceRoot $interruptFixture.Request.evidenceRoot -Request $interruptFixture.Request -Record $crossScenario)
+        $crossManifest = Read-KmcJson (Join-Path $interruptFixture.Request.evidenceRoot 'runtime-artifacts.json')
+        $crossThrew = $false
+        try { Assert-KmcCombatScenarioEvidence -Request $interruptFixture.Request -Manifest $crossManifest -Status 'PASS' -SubscenarioResults @($interruptFixture.Subresult) }
+        catch { $crossThrew = $true }
+        Assert-Test $crossThrew 'command termination validator accepted cancellation evidence under the interruption row'
     }
 
     Invoke-HarnessTest 'movement-to-attack validator rejects mover command resource range and continuity mutations' {

@@ -8,6 +8,8 @@ Status: IN PROGRESS
 
 Movement-to-attack qualification checkpoint (2026-08-20): clean commit/package `632e3710ea1be2d7331eea7f07cf803295b1ad1f` / `0cca1e30181e6021426c4bfdb8906178636db790a3e6fff4c3aff95ab46f6827` passed separate RT/TB WhatIf gates and fresh same-package RT A/B schema v34 `55/0` plus TB A/B schema v35 `59/0` under suite snapshot `5bc3ffc80819f72304d3ebc063265ab1d585ac64280059cb1fa786298e41f4d7`. RT uses rider Standard cooldown only; TB charges exact rider Move `3` and Standard `6`; Mammoth resources remain unchanged. All four prove one intended rider attack, zero opportunity/duplicate chains, exact Mammoth Move-slot lifecycle, and exact restoration. Cancellation/interruption and remaining lifecycle/action-economy rows remain open.
 
+Cancellation/interruption implementation contract (2026-08-20): four new rows exercise the same exact out-of-range rider command in RT and TB. `mounted-rider-melee-command-cancel-rt/tb` delivers the real `SelectionManagerBase.Stop` boundary after at least `0.75` world units of Mammoth-owned approach. `mounted-rider-melee-command-interrupt-rt/tb` delivers exact stock rider `UnitCommands.InterruptAll` at the same bounded pre-attack point. Each must prove the rider Standard wrapper and exact Mammoth Move slot existed before delivery; no child/rule/roll/damage began; the wrapper and delegated move are absent afterward; the Mammoth agent is stopped; both queues are empty; a repeated terminal delivery is idempotent; the mounted relationship, accepted pose, rider selection, and UI remain healthy; and later cleanup is residue-free. Starting the wrapper spends the rider Standard and cancellation never refunds it. TB charges only actual rider-owned movement already consumed; RT changes neither Move ledger. Mammoth Standard/Move remain unchanged in both modes. These exact boundaries do not authorize cancelling unrelated commands or editing native cooldowns.
+
 Authority: the user accepted exact presentation commit `09a63729e0847c540ae7e79e9e3876d005ee9afe` and opened Tranches C-F of `planning/MOUNTED-COMBAT-PHASE-2-MASTER-MISSION.md`. This contract is scoped to one transient Medium-humanoid/`AnimalCompanionUnitMammoth` pair and ordinary melee only.
 
 ## Exact Kingmaker evidence
@@ -78,7 +80,7 @@ The exact installed Wrath reference assembly remains read-only. Its `SaddledUnit
 - Ranged weapons, auto-use abilities, spells, full attacks, combined attacks, and unsupported profiles are rejected with visible feedback.
 - Every scoped AI, command, movement, and turn lease restores on cleanup. Non-pair commands and non-mounted behavior remain stock.
 
-Stationary rider and Mammoth attack accounting is qualified under the exact evidence above. Overall action-economy qualification remains `IN PROGRESS` for movement-to-attack, cancellation/interruption, lifecycle invalidation, AI suppression outside the stationary rows, and non-mounted isolation.
+Stationary rider/Mammoth attack accounting and rider movement-to-attack are qualified under the exact evidence above. Overall action-economy qualification remains `IN PROGRESS` for cancellation/interruption, lifecycle invalidation, AI suppression outside the qualified rows, and non-mounted isolation.
 
 ## Mammoth-primary offline checkpoint - 2026-08-16
 

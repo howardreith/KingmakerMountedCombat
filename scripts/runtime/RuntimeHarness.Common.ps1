@@ -3640,6 +3640,8 @@ function Get-KmcSaveBackedRuntimeScenarios {
         'mounted-rider-melee-hit-rt', 'mounted-rider-melee-hit-tb', 'mounted-rider-melee-miss-rt',
         'mounted-mammoth-primary-hit-rt', 'mounted-mammoth-primary-hit-tb',
         'mounted-rider-melee-move-to-attack-rt', 'mounted-rider-melee-move-to-attack-tb',
+        'mounted-rider-melee-command-cancel-rt', 'mounted-rider-melee-command-cancel-tb',
+        'mounted-rider-melee-command-interrupt-rt', 'mounted-rider-melee-command-interrupt-tb',
         'manual-visual-review'
     )
 }
@@ -4565,7 +4567,9 @@ function Get-KmcCombatRuntimeRows {
     return @(
         'mounted-rider-melee-hit-rt','mounted-rider-melee-hit-tb','mounted-rider-melee-miss-rt',
         'mounted-mammoth-primary-hit-rt','mounted-mammoth-primary-hit-tb',
-        'mounted-rider-melee-move-to-attack-rt','mounted-rider-melee-move-to-attack-tb'
+        'mounted-rider-melee-move-to-attack-rt','mounted-rider-melee-move-to-attack-tb',
+        'mounted-rider-melee-command-cancel-rt','mounted-rider-melee-command-cancel-tb',
+        'mounted-rider-melee-command-interrupt-rt','mounted-rider-melee-command-interrupt-tb'
     )
 }
 
@@ -7156,14 +7160,17 @@ function Assert-KmcCombatScenarioEvidence {
     if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -ge 24) {
         $recordFields = @($recordFields + 'targetBrainLease')
     }
-    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(28,29,30,31,32,33,34,35)) {
+    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(28,29,30,31,32,33,34,35,36,37)) {
         $recordFields = @($recordFields + 'movementToAttack')
     }
-    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35)) {
+    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(36,37)) {
+        $recordFields = @($recordFields + 'commandTermination')
+    }
+    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37)) {
         $recordFields = @($recordFields + 'turnBased')
     }
     Assert-KmcExactProperties $record $recordFields 'combat evidence record'
-    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -notin @(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35) -or
+    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -notin @(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37) -or
         [string]$record.artifactKind -cne 'combat-scenario-evidence') {
         throw 'Combat evidence schemaVersion or artifactKind is not exact.'
     }
@@ -7512,7 +7519,7 @@ function Assert-KmcCombatScenarioEvidence {
             throw 'Combat target brain lease validation count is invalid.'
         }
     }
-    if ([long]$record.schemaVersion -in @(5,7,9,11,13,15,17,19,21,23,25)) {
+    if ([long]$record.schemaVersion -in @(5,7,9,11,13,15,17,19,21,23,25,37)) {
         $turnActorBooleanFields = if ([long]$record.schemaVersion -ge 21) {
             @('nativeActionActorTurnStarted','actionActorTurnEndedAfterCommand')
         } else {
@@ -7568,7 +7575,7 @@ function Assert-KmcCombatScenarioEvidence {
             }
         }
     }
-    if ([long]$record.schemaVersion -in @(28,29,30,31,32,33,34,35)) {
+    if ([long]$record.schemaVersion -in @(28,29,30,31,32,33,34,35,36,37)) {
         $movementToAttackFields = @(
             'requestedTargetDistance','approachRequiredAtStart','delegatedMoveStartCount',
             'delegatedMoveTickCount','delegatedMoveExecutorId','delegatedMoveExecutorIsExactMount',
@@ -7626,6 +7633,31 @@ function Assert-KmcCombatScenarioEvidence {
             if (-not (Test-KmcExactJsonInteger $record.movementToAttack.delegatedMoveProgressObservationCount) -or
                 [long]$record.movementToAttack.delegatedMoveProgressObservationCount -lt 0) {
                 throw 'Combat movement-to-attack progress observation count is invalid.'
+            }
+        }
+    }
+    if ([long]$record.schemaVersion -in @(36,37)) {
+        $terminationBooleanFields = @(
+            'delivered','repeatedIdempotently','wrapperPresentBefore','delegatedMovePresentBefore',
+            'riderQueueEmptyBefore','mountQueueEmptyBefore','childAttackNotStartedBefore',
+            'wrapperAbsentAfter','delegatedMoveAbsentAfter','riderQueueEmptyAfter','mountQueueEmptyAfter',
+            'mountAgentStoppedAfter','activeCommandClearedAfter','relationshipPreservedAfter',
+            'selectionRetainedAfter','uiCoherentAfter')
+        Assert-KmcExactProperties $record.commandTermination @(
+            @('kind','trigger') + $terminationBooleanFields + @(
+                'pairDistanceAtTrigger','riderDisplacementAtTrigger','mountDisplacementAtTrigger',
+                'targetDisplacementAtTrigger')) 'combat command termination evidence'
+        foreach ($name in $terminationBooleanFields) {
+            if ($record.commandTermination.$name -isnot [bool]) {
+                throw "Combat command termination evidence is not Boolean: $name"
+            }
+        }
+        foreach ($name in @(
+            'pairDistanceAtTrigger','riderDisplacementAtTrigger','mountDisplacementAtTrigger',
+            'targetDisplacementAtTrigger')) {
+            if (-not (Test-KmcJsonNumber $record.commandTermination.$name) -or
+                [double]$record.commandTermination.$name -lt 0) {
+                throw "Combat command termination measurement is invalid: $name"
             }
         }
     }
@@ -7697,10 +7729,19 @@ function Assert-KmcCombatScenarioEvidence {
             'mounted-mammoth-primary-hit-rt','mounted-mammoth-primary-hit-tb')
         $movementToAttackScenario = [string]$Request.scenario -cin @(
             'mounted-rider-melee-move-to-attack-rt','mounted-rider-melee-move-to-attack-tb')
+        $commandCancellationScenario = [string]$Request.scenario -cin @(
+            'mounted-rider-melee-command-cancel-rt','mounted-rider-melee-command-cancel-tb')
+        $commandInterruptionScenario = [string]$Request.scenario -cin @(
+            'mounted-rider-melee-command-interrupt-rt','mounted-rider-melee-command-interrupt-tb')
+        $commandTerminationScenario = $commandCancellationScenario -or $commandInterruptionScenario
+        $approachScenario = $movementToAttackScenario -or $commandTerminationScenario
         $turnBasedScenario = [string]$Request.scenario -cin @(
-            'mounted-rider-melee-hit-tb','mounted-mammoth-primary-hit-tb','mounted-rider-melee-move-to-attack-tb')
+            'mounted-rider-melee-hit-tb','mounted-mammoth-primary-hit-tb','mounted-rider-melee-move-to-attack-tb',
+            'mounted-rider-melee-command-cancel-tb','mounted-rider-melee-command-interrupt-tb')
         $missScenario = [string]$Request.scenario -ceq 'mounted-rider-melee-miss-rt'
-        $expectedCombatSchemas = if ($movementToAttackScenario) {
+        $expectedCombatSchemas = if ($commandTerminationScenario) {
+            if ($turnBasedScenario) { @(37) } else { @(36) }
+        } elseif ($movementToAttackScenario) {
             if ($turnBasedScenario) { @(29,31,33,35) } else { @(28,30,32,34) }
         } elseif ($mammothScenario) {
             if ($turnBasedScenario) { @(21,23,25,27) } else { @(20,22,24,26) }
@@ -7830,8 +7871,8 @@ function Assert-KmcCombatScenarioEvidence {
              $record.targetLife.atActivation.finallyDead -ne $false -or
              $record.targetLife.atActivation.forceKill -ne $false -or
              $record.targetLife.atActivation.markedForDeath -ne $false -or
-             (($missScenario -or ($mammothScenario -and [long]$record.schemaVersion -ge 22) -or
-                ($movementToAttackScenario -and [long]$record.schemaVersion -ge 34)) -and
+             (($missScenario -or $commandTerminationScenario -or ($mammothScenario -and [long]$record.schemaVersion -ge 22) -or
+                 ($movementToAttackScenario -and [long]$record.schemaVersion -ge 34)) -and
               ($record.targetLife.lastObserved.observed -ne $true -or
                [string]$record.targetLife.lastObserved.lifeState -cne 'Conscious' -or
                $record.targetLife.lastObserved.conscious -ne $true -or
@@ -7841,46 +7882,59 @@ function Assert-KmcCombatScenarioEvidence {
                $record.targetLife.firstTransition.observed -ne $false)))) {
             throw 'PASS combat evidence does not prove a conscious cleanly provisioned target and required life stability.'
         }
-        if ([long]$record.schemaVersion -ge 14 -and
-            ($record.targetIncomingRules.dispatchMarkerSet -ne $true -or
-             [long]$record.targetIncomingRules.attackRuleCount -ne 1 -or
-             [long]$record.targetIncomingRules.preDispatchAttackRuleCount -ne 0 -or
-             $record.targetIncomingRules.firstAttack.observed -ne $true -or
-             $record.targetIncomingRules.firstAttack.beforeExpectedDispatch -ne $false -or
-             [string]$record.targetIncomingRules.firstAttack.initiatorId -cne $expectedActorId -or
-             $record.targetIncomingRules.firstAttack.initiatorIsPlayerFaction -ne $true -or
-             $record.targetIncomingRules.firstAttack.initiatorIsPlayersEnemy -ne $false -or
-             ([long]$record.schemaVersion -ge 16 -and
-              ($record.targetIncomingRules.firstAttack.initiatorGroupIsPlayerParty -ne $true -or
-               $record.targetIncomingRules.firstAttack.initiatorSharesRiderGroup -ne $true -or
-               $record.targetIncomingRules.firstAttack.initiatorSharesMountGroup -ne $true -or
-               $record.targetIncomingRules.firstAttack.initiatorDirectlyControllable -ne $true)) -or
-             $record.targetIncomingRules.firstAttack.isAttackOfOpportunity -ne $false -or
-             $record.targetIncomingRules.firstAttack.isCharge -ne $false -or
-             ($missScenario -and
-              ([long]$record.targetIncomingRules.damageRuleCount -ne 0 -or
-               [long]$record.targetIncomingRules.preDispatchDamageRuleCount -ne 0 -or
-               $record.targetIncomingRules.firstDamage.observed -ne $false)) -or
-             (-not $missScenario -and
-              ([long]$record.targetIncomingRules.damageRuleCount -ne 1 -or
-               [long]$record.targetIncomingRules.preDispatchDamageRuleCount -ne 0 -or
-               $record.targetIncomingRules.firstDamage.observed -ne $true -or
-               $record.targetIncomingRules.firstDamage.beforeExpectedDispatch -ne $false -or
-                [string]$record.targetIncomingRules.firstDamage.initiatorId -cne $expectedActorId -or
-               $record.targetIncomingRules.firstDamage.initiatorIsPlayerFaction -ne $true -or
-               $record.targetIncomingRules.firstDamage.initiatorIsPlayersEnemy -ne $false -or
-               [long]$record.targetIncomingRules.firstDamage.damage -le 0 -or
-               $record.targetIncomingRules.firstDamage.isFake -ne $false -or
-               $record.targetIncomingRules.firstDamage.isDot -ne $false -or
-               $record.targetIncomingRules.firstDamage.attackRollPresent -ne $true)))) {
-            throw 'PASS combat evidence does not prove one expected actor-specific attack and zero pre-dispatch interference.'
+        if ([long]$record.schemaVersion -ge 14) {
+            $incomingRulesInvalid = if ($commandTerminationScenario) {
+                $record.targetIncomingRules.dispatchMarkerSet -ne $true -or
+                    [long]$record.targetIncomingRules.attackRuleCount -ne 0 -or
+                    [long]$record.targetIncomingRules.damageRuleCount -ne 0 -or
+                    [long]$record.targetIncomingRules.preDispatchAttackRuleCount -ne 0 -or
+                    [long]$record.targetIncomingRules.preDispatchDamageRuleCount -ne 0 -or
+                    $record.targetIncomingRules.firstAttack.observed -ne $false -or
+                    $record.targetIncomingRules.firstDamage.observed -ne $false
+            } else {
+                $record.targetIncomingRules.dispatchMarkerSet -ne $true -or
+                    [long]$record.targetIncomingRules.attackRuleCount -ne 1 -or
+                    [long]$record.targetIncomingRules.preDispatchAttackRuleCount -ne 0 -or
+                    $record.targetIncomingRules.firstAttack.observed -ne $true -or
+                    $record.targetIncomingRules.firstAttack.beforeExpectedDispatch -ne $false -or
+                    [string]$record.targetIncomingRules.firstAttack.initiatorId -cne $expectedActorId -or
+                    $record.targetIncomingRules.firstAttack.initiatorIsPlayerFaction -ne $true -or
+                    $record.targetIncomingRules.firstAttack.initiatorIsPlayersEnemy -ne $false -or
+                    ([long]$record.schemaVersion -ge 16 -and
+                     ($record.targetIncomingRules.firstAttack.initiatorGroupIsPlayerParty -ne $true -or
+                      $record.targetIncomingRules.firstAttack.initiatorSharesRiderGroup -ne $true -or
+                      $record.targetIncomingRules.firstAttack.initiatorSharesMountGroup -ne $true -or
+                      $record.targetIncomingRules.firstAttack.initiatorDirectlyControllable -ne $true)) -or
+                    $record.targetIncomingRules.firstAttack.isAttackOfOpportunity -ne $false -or
+                    $record.targetIncomingRules.firstAttack.isCharge -ne $false -or
+                    ($missScenario -and
+                     ([long]$record.targetIncomingRules.damageRuleCount -ne 0 -or
+                      [long]$record.targetIncomingRules.preDispatchDamageRuleCount -ne 0 -or
+                      $record.targetIncomingRules.firstDamage.observed -ne $false)) -or
+                    (-not $missScenario -and
+                     ([long]$record.targetIncomingRules.damageRuleCount -ne 1 -or
+                      [long]$record.targetIncomingRules.preDispatchDamageRuleCount -ne 0 -or
+                      $record.targetIncomingRules.firstDamage.observed -ne $true -or
+                      $record.targetIncomingRules.firstDamage.beforeExpectedDispatch -ne $false -or
+                      [string]$record.targetIncomingRules.firstDamage.initiatorId -cne $expectedActorId -or
+                      $record.targetIncomingRules.firstDamage.initiatorIsPlayerFaction -ne $true -or
+                      $record.targetIncomingRules.firstDamage.initiatorIsPlayersEnemy -ne $false -or
+                      [long]$record.targetIncomingRules.firstDamage.damage -le 0 -or
+                      $record.targetIncomingRules.firstDamage.isFake -ne $false -or
+                      $record.targetIncomingRules.firstDamage.isDot -ne $false -or
+                      $record.targetIncomingRules.firstDamage.attackRollPresent -ne $true))
+            }
+            if ($incomingRulesInvalid) {
+                throw 'PASS combat evidence does not prove one expected actor-specific attack and zero pre-dispatch interference.'
+            }
         }
         if ([long]$record.schemaVersion -ge 18) {
             if ($record.nonPairPartyAiLease.acquired -ne $true -or
                 $record.nonPairPartyAiLease.groupIsPlayerParty -ne $true -or
                 $record.nonPairPartyAiLease.riderSharesGroup -ne $true -or
                 $record.nonPairPartyAiLease.mountSharesGroup -ne $true -or
-                [string]$record.nonPairPartyAiLease.groupId -cne [string]$record.targetIncomingRules.firstAttack.initiatorGroupId -or
+                ((-not $commandTerminationScenario) -and
+                 [string]$record.nonPairPartyAiLease.groupId -cne [string]$record.targetIncomingRules.firstAttack.initiatorGroupId) -or
                 [long]$record.nonPairPartyAiLease.memberCount -lt 1 -or
                 $record.nonPairPartyAiLease.activeValidationPassed -ne $true -or
                 $record.nonPairPartyAiLease.restored -ne $true -or
@@ -7953,7 +8007,7 @@ function Assert-KmcCombatScenarioEvidence {
             throw 'PASS combat target provisioning evidence does not prove exact native primary-hand selection without mutation.'
         }
         if ([long]$record.schemaVersion -ge 22) {
-            $durabilityLeaseInvalid = if ($mammothScenario -or
+            $durabilityLeaseInvalid = if ($mammothScenario -or $commandTerminationScenario -or
                 ($movementToAttackScenario -and [long]$record.schemaVersion -ge 34)) {
                 [long]$record.targetProvisioning.temporaryHitPointsBefore -ne 0 -or
                 [long]$record.targetProvisioning.temporaryHitPointsAfterProvisioning -ne 128 -or
@@ -7974,12 +8028,12 @@ function Assert-KmcCombatScenarioEvidence {
             [double]$record.pairApproachRadius -le 0.17 -or [double]$record.targetDistanceAtClick -le 0.05) {
             throw 'PASS combat evidence does not contain numeric positive mounted range measurements.'
         }
-        if ($movementToAttackScenario) {
+        if ($approachScenario) {
             if ([Math]::Abs([double]$record.targetDistanceAtClick - ([double]$record.pairApproachRadius + 2.0)) -gt 0.060001 -or
                 [double]$record.targetDistanceAtClick -le ([double]$record.pairApproachRadius + 0.05) -or
                 [Math]::Abs([double]$record.movementToAttack.requestedTargetDistance -
                     ([double]$record.pairApproachRadius + 2.0)) -gt 0.0001) {
-                throw 'PASS movement-to-attack evidence does not prove the exact bounded out-of-range placement contract.'
+                throw 'PASS mounted approach evidence does not prove the exact bounded out-of-range placement contract.'
             }
         }
         elseif ([Math]::Abs([double]$record.targetDistanceAtClick - ([double]$record.pairApproachRadius - 0.12)) -gt 0.060001 -or
@@ -8014,28 +8068,41 @@ function Assert-KmcCombatScenarioEvidence {
         foreach ($name in @('pairDistanceAtStart','pairApproachRadiusAtStart','nativeExecutorDistanceAtStart','nativeAdmissionRadiusAtStart')) {
             if (-not (Test-KmcJsonNumber $record.command.$name)) { throw "Combat command range evidence is not numeric: $name" }
         }
-        if ([string]$record.command.action -cne $expectedAction -or
+        $commandIdentityInvalid = [string]$record.command.action -cne $expectedAction -or
             [string]$record.command.actorId -cne $expectedActorId -or
             ([long]$record.schemaVersion -ge 20 -and
              ([string]$record.command.commandOwnerId -cne $expectedActorId -or
               [string]$record.command.resourceOwnerId -cne $expectedActorId -or
               $record.command.actionStandardCharged -ne $true -or
               $record.command.attackWeaponIsRanged -ne $false -or
-              ($mammothScenario -and
-               ($record.command.attackWeaponIsNatural -ne $true -or
-                [string]$record.command.attackWeaponSlot -cne 'PrimaryHand')) -or
-              (-not $mammothScenario -and [string]$record.command.attackWeaponSlot -cne 'EquippedMelee') -or
-              [string]$record.targetIncomingRules.firstAttack.weaponBlueprintId -cne
+               ($mammothScenario -and
+                ($record.command.attackWeaponIsNatural -ne $true -or
+                 [string]$record.command.attackWeaponSlot -cne 'PrimaryHand')) -or
+               (-not $mammothScenario -and [string]$record.command.attackWeaponSlot -cne 'EquippedMelee'))) -or
+            [string]$record.command.targetId -cne [string]$record.targetId
+        $commandTerminalInvalid = if ($commandTerminationScenario) {
+            [string]$record.command.result -cne 'Interrupt' -or
+                [string]$record.command.terminalReason -cne 'Interrupt' -or
+                [long]$record.command.childAttackStartCount -ne 0 -or
+                [long]$record.command.repathCount -ne 0 -or
+                $record.command.riderStandardCharged -ne $true -or
+                $record.command.nativeAttackRuleObserved -ne $false -or
+                $record.command.pairRangeSatisfiedAtStart -ne $false
+        } else {
+            ([long]$record.schemaVersion -ge 20 -and
+             ([string]$record.targetIncomingRules.firstAttack.weaponBlueprintId -cne
                 [string]$record.command.attackWeaponBlueprintId -or
               ($record.targetIncomingRules.firstDamage.observed -eq $true -and
                [string]$record.targetIncomingRules.firstDamage.weaponBlueprintId -cne
-                [string]$record.command.attackWeaponBlueprintId))) -or
-            [string]$record.command.targetId -cne [string]$record.targetId -or
-            [string]$record.command.result -cne 'Success' -or
-            [string]$record.command.terminalReason -cne 'completed' -or
-            [long]$record.command.childAttackStartCount -ne 1 -or [long]$record.command.repathCount -ne 0 -or
-            $record.command.riderStandardCharged -ne (-not $mammothScenario) -or
-            $record.command.nativeAttackRuleObserved -ne $true) {
+                    [string]$record.command.attackWeaponBlueprintId))) -or
+                [string]$record.command.result -cne 'Success' -or
+                [string]$record.command.terminalReason -cne 'completed' -or
+                [long]$record.command.childAttackStartCount -ne 1 -or
+                [long]$record.command.repathCount -ne 0 -or
+                $record.command.riderStandardCharged -ne (-not $mammothScenario) -or
+                $record.command.nativeAttackRuleObserved -ne $true
+        }
+        if ($commandIdentityInvalid -or $commandTerminalInvalid) {
             throw 'PASS combat command evidence does not prove one successful actor-owned native attack.'
         }
         $pairStartRadius = [double]$record.command.pairApproachRadiusAtStart
@@ -8043,14 +8110,15 @@ function Assert-KmcCombatScenarioEvidence {
         $executorStartDistance = [double]$record.command.nativeExecutorDistanceAtStart
         $nativeStartRadius = [double]$record.command.nativeAdmissionRadiusAtStart
         $nativeAdjusted = [bool]$record.command.nativeAdmissionAdjusted
-        if ($record.command.pairRangeSatisfiedAtStart -ne $true -or
+        if (-not $commandTerminationScenario -and
+            ($record.command.pairRangeSatisfiedAtStart -ne $true -or
             [Math]::Abs($pairStartRadius - [double]$record.pairApproachRadius) -gt 0.0001 -or
             $pairStartDistance -gt ($pairStartRadius + 0.05) -or
             $executorStartDistance -gt ($nativeStartRadius + 0.0001) -or
             $nativeStartRadius -lt $pairStartRadius -or
             ($nativeStartRadius - $pairStartRadius) -gt 0.7501 -or
             ($nativeAdjusted -and ($nativeStartRadius - $pairStartRadius) -le 0.0001) -or
-            (-not $nativeAdjusted -and [Math]::Abs($nativeStartRadius - $pairStartRadius) -gt 0.0001)) {
+            (-not $nativeAdjusted -and [Math]::Abs($nativeStartRadius - $pairStartRadius) -gt 0.0001))) {
             throw 'PASS combat command evidence does not prove a bounded native executor bridge gated exclusively by Mammoth-origin range.'
         }
 
@@ -8059,17 +8127,37 @@ function Assert-KmcCombatScenarioEvidence {
             'unexpectedPairAttackCount','totalDamage','lastInitiatorId','lastTargetId','lastAttackResult')
         if ([long]$record.schemaVersion -ge 6) { $combatRuleFields = @($combatRuleFields + 'lastAttackHit') }
         Assert-KmcExactProperties $record.rules $combatRuleFields 'combat rule evidence'
-        if ([long]$record.schemaVersion -ge 6 -and $record.rules.lastAttackHit -isnot [bool]) {
+        if ([long]$record.schemaVersion -ge 6 -and
+            ([long]$record.schemaVersion -notin @(36,37) -and $record.rules.lastAttackHit -isnot [bool]) -or
+            ([long]$record.schemaVersion -in @(36,37) -and $null -ne $record.rules.lastAttackHit)) {
             throw 'PASS combat rule evidence does not contain an exact native IsHit Boolean.'
         }
-        if ([long]$record.rules.forcedD20Count -lt 1 -or
-            [long]$record.rules.attackRuleCount -ne 1 -or [long]$record.rules.attackRollCount -ne 1 -or
-            [long]$record.rules.unexpectedPairAttackCount -ne 0 -or
-            [string]$record.rules.lastInitiatorId -cne $expectedActorId -or
-            [string]$record.rules.lastTargetId -cne [string]$record.targetId) {
+        $ruleIdentityInvalid = if ($commandTerminationScenario) {
+            [long]$record.rules.forcedD20Count -ne 0 -or
+                [long]$record.rules.attackRuleCount -ne 0 -or
+                [long]$record.rules.attackRollCount -ne 0 -or
+                [long]$record.rules.damageRuleCount -ne 0 -or
+                [long]$record.rules.unexpectedPairAttackCount -ne 0 -or
+                [long]$record.rules.totalDamage -ne 0 -or
+                $null -ne $record.rules.lastInitiatorId -or
+                $null -ne $record.rules.lastTargetId -or
+                $null -ne $record.rules.lastAttackResult
+        } else {
+            [long]$record.rules.forcedD20Count -lt 1 -or
+                [long]$record.rules.attackRuleCount -ne 1 -or [long]$record.rules.attackRollCount -ne 1 -or
+                [long]$record.rules.unexpectedPairAttackCount -ne 0 -or
+                [string]$record.rules.lastInitiatorId -cne $expectedActorId -or
+                [string]$record.rules.lastTargetId -cne [string]$record.targetId
+        }
+        if ($ruleIdentityInvalid) {
             throw 'PASS combat rule evidence does not prove one deterministic actor-specific attack without duplication.'
         }
-        if ($missScenario) {
+        if ($commandTerminationScenario) {
+            if ([long]$record.rules.forcedD20 -ne 20 -or $null -ne $record.rules.lastAttackHit) {
+                throw 'PASS terminated combat evidence does not prove an armed but never-consumed deterministic roll.'
+            }
+        }
+        elseif ($missScenario) {
             if ([long]$record.rules.forcedD20 -ne 1 -or [long]$record.rules.damageRuleCount -ne 0 -or
                 [long]$record.rules.totalDamage -ne 0 -or $record.rules.lastAttackHit -ne $false -or
                 [string]$record.rules.lastAttackResult -cnotin @('Miss','DodgeAC','ArmorAC','ShieldAC')) {
@@ -8092,16 +8180,16 @@ function Assert-KmcCombatScenarioEvidence {
         }
         $moveOwnershipInvalid =
             [math]::Abs([double]$record.resources.mountMoveAfter - [double]$record.resources.mountMoveBefore) -gt 0.01 -or
-            ($movementToAttackScenario -and $turnBasedScenario -and
+            ($approachScenario -and $turnBasedScenario -and
              [double]$record.resources.riderMoveAfter -le [double]$record.resources.riderMoveBefore) -or
-            ((-not $movementToAttackScenario -or -not $turnBasedScenario) -and
+            ((-not $approachScenario -or -not $turnBasedScenario) -and
              [math]::Abs([double]$record.resources.riderMoveAfter - [double]$record.resources.riderMoveBefore) -gt 0.01)
         if ($resourceOwnershipInvalid -or $moveOwnershipInvalid) {
             throw 'PASS combat resource evidence does not prove exact action-actor Standard and rider-owned movement charging.'
         }
         $movementDisplacementInvalid = $false
         if ([long]$record.schemaVersion -ge 22) {
-            $movementDisplacementInvalid = if ($movementToAttackScenario) {
+            $movementDisplacementInvalid = if ($approachScenario) {
                 [double]$record.movement.riderDisplacementAtOutcome -lt 0.5 -or
                 [double]$record.movement.mountDisplacementAtOutcome -lt 0.5 -or
                 [double]$record.movement.targetDisplacementAtOutcome -gt 0.05
@@ -8163,6 +8251,66 @@ function Assert-KmcCombatScenarioEvidence {
              [double]$record.movementToAttack.mountDisplacementAtAttackStart -lt 0.5 -or
              [double]$record.movementToAttack.targetDisplacementAtAttackStart -gt 0.05)) {
             throw 'PASS movement-to-attack evidence does not prove one retained rider wrapper and one manually driven Mammoth approach.'
+        }
+        if ($commandTerminationScenario) {
+            $expectedTerminationKind = if ($commandCancellationScenario) { 'player-stop' } else { 'native-wrapper-interrupt' }
+            $expectedTerminationTrigger = if ($commandCancellationScenario) { 'SelectionManagerBase.Stop' } else { 'UnitCommands.InterruptAll' }
+            foreach ($name in @(
+                'delivered','repeatedIdempotently','wrapperPresentBefore','delegatedMovePresentBefore',
+                'riderQueueEmptyBefore','mountQueueEmptyBefore','childAttackNotStartedBefore',
+                'wrapperAbsentAfter','delegatedMoveAbsentAfter','riderQueueEmptyAfter','mountQueueEmptyAfter',
+                'mountAgentStoppedAfter','activeCommandClearedAfter','relationshipPreservedAfter',
+                'selectionRetainedAfter','uiCoherentAfter')) {
+                if ($record.commandTermination.$name -ne $true) {
+                    throw "PASS command termination evidence does not prove exact Boolean gate: $name"
+                }
+            }
+            if ([string]$record.commandTermination.kind -cne $expectedTerminationKind -or
+                [string]$record.commandTermination.trigger -cne $expectedTerminationTrigger -or
+                [double]$record.commandTermination.pairDistanceAtTrigger -le
+                    ([double]$record.pairApproachRadius + 0.05) -or
+                [double]$record.commandTermination.riderDisplacementAtTrigger -lt 0.75 -or
+                [double]$record.commandTermination.mountDisplacementAtTrigger -lt 0.75 -or
+                [double]$record.commandTermination.targetDisplacementAtTrigger -gt 0.05) {
+                throw 'PASS command termination evidence does not prove its exact bounded pre-attack trigger.'
+            }
+            $terminationMoveInvalid =
+                $record.movementToAttack.approachRequiredAtStart -ne $true -or
+                [long]$record.movementToAttack.delegatedMoveStartCount -ne 1 -or
+                [string]$record.movementToAttack.delegatedMoveExecutorId -cne [string]$record.mountId -or
+                $record.movementToAttack.delegatedMoveExecutorIsExactMount -ne $true -or
+                $record.movementToAttack.wrapperCommandRetainedThroughoutApproach -ne $true -or
+                $record.movementToAttack.delegatedMoveNeverQueuedOnMount -ne $true -or
+                $record.movementToAttack.delegatedMoveOwnedByMountMoveSlot -ne $true -or
+                $record.movementToAttack.mountMoveSlotUnreplacedThroughoutApproach -ne $true -or
+                $record.movementToAttack.mountQueueEmptyThroughoutApproach -ne $true -or
+                $record.movementToAttack.delegatedMoveFinishedSuccessfully -ne $false -or
+                $record.movementToAttack.mountMoveSlotRestoredAfterApproach -ne $true -or
+                [long]$record.movementToAttack.delegatedMoveProgressObservationCount -le 0 -or
+                $record.movementToAttack.riderStockAgentSuppressedThroughoutApproach -ne $true -or
+                $record.movementToAttack.mountStockAgentAuthoritativeThroughoutApproach -ne $true -or
+                $record.movementToAttack.poseHealthyThroughoutApproach -ne $true -or
+                [long]$record.movementToAttack.commandObservationCount -le 0 -or
+                [long]$record.movementToAttack.runtimeObservationCount -le 0 -or
+                $record.movementToAttack.selectionRetainedDuringApproach -ne $true -or
+                $record.movementToAttack.uiCoherentDuringApproach -ne $true -or
+                [Math]::Abs([double]$record.movementToAttack.initialPairDistance -
+                    [double]$record.targetDistanceAtClick) -gt 0.0001 -or
+                [double]$record.movementToAttack.pairDistanceAtAttackStart -ne 0 -or
+                [double]$record.movementToAttack.riderDisplacementAtAttackStart -ne 0 -or
+                [double]$record.movementToAttack.mountDisplacementAtAttackStart -ne 0 -or
+                [double]$record.movementToAttack.targetDisplacementAtAttackStart -ne 0 -or
+                ($turnBasedScenario -and
+                 ([long]$record.movementToAttack.delegatedMoveTickCount -le 0 -or
+                  $record.movementToAttack.delegatedMoveDrivenByStockController -ne $false -or
+                  $record.movementToAttack.delegatedMoveDrivenByRiderTurnAdapter -ne $true)) -or
+                ((-not $turnBasedScenario) -and
+                 ([long]$record.movementToAttack.delegatedMoveTickCount -ne 0 -or
+                  $record.movementToAttack.delegatedMoveDrivenByStockController -ne $true -or
+                  $record.movementToAttack.delegatedMoveDrivenByRiderTurnAdapter -ne $false))
+            if ($terminationMoveInvalid) {
+                throw 'PASS command termination evidence does not prove one interrupted mount-owned approach with exact slot restoration.'
+            }
         }
         if ([string]$record.pose.profileId -cne 'medium-humanoid-mammoth-v1' -or
             $record.pose.healthyAtOutcome -ne $true -or $record.pose.configuredAtEnd -ne $false -or

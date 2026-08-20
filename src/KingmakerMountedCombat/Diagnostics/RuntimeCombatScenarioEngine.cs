@@ -37,6 +37,10 @@ namespace KingmakerMountedCombat.Diagnostics
         private const string MammothPrimaryHitTurnBased = "mounted-mammoth-primary-hit-tb";
         private const string RiderMoveToAttackRealTime = "mounted-rider-melee-move-to-attack-rt";
         private const string RiderMoveToAttackTurnBased = "mounted-rider-melee-move-to-attack-tb";
+        private const string RiderCommandCancelRealTime = "mounted-rider-melee-command-cancel-rt";
+        private const string RiderCommandCancelTurnBased = "mounted-rider-melee-command-cancel-tb";
+        private const string RiderCommandInterruptRealTime = "mounted-rider-melee-command-interrupt-rt";
+        private const string RiderCommandInterruptTurnBased = "mounted-rider-melee-command-interrupt-tb";
         private const double RowTimeoutSeconds = 30.0d;
         private const double CleanupTimeoutSeconds = 10.0d;
         private const float SpawnDistance = 6.0f;
@@ -146,6 +150,27 @@ namespace KingmakerMountedCombat.Diagnostics
         private int movementToAttackObservationCount;
         private bool selectionRetainedDuringApproach = true;
         private bool uiCoherentDuringApproach = true;
+        private bool terminationDelivered;
+        private bool terminationRepeated;
+        private bool wrapperPresentBeforeTermination;
+        private bool delegatedMovePresentBeforeTermination;
+        private bool riderQueueEmptyBeforeTermination;
+        private bool mountQueueEmptyBeforeTermination;
+        private bool childAbsentBeforeTermination;
+        private float pairDistanceAtTermination;
+        private float riderDisplacementAtTermination;
+        private float mountDisplacementAtTermination;
+        private float targetDisplacementAtTermination;
+        private bool wrapperAbsentAfterTermination;
+        private bool delegatedMoveAbsentAfterTermination;
+        private bool riderQueueEmptyAfterTermination;
+        private bool mountQueueEmptyAfterTermination;
+        private bool mountAgentStoppedAfterTermination;
+        private bool relationshipPreservedAfterTermination;
+        private bool selectionRetainedAfterTermination;
+        private bool uiCoherentAfterTermination;
+        private MountedPairAttackCommand terminationWrapper;
+        private Kingmaker.UnitLogic.Commands.UnitMoveTo terminationMove;
 
         public RuntimeCombatScenarioEngine(
             RuntimeRequest request,
@@ -179,13 +204,19 @@ namespace KingmakerMountedCombat.Diagnostics
                 string.Equals(scenario, MammothPrimaryHitRealTime, StringComparison.Ordinal) ||
                 string.Equals(scenario, MammothPrimaryHitTurnBased, StringComparison.Ordinal) ||
                 string.Equals(scenario, RiderMoveToAttackRealTime, StringComparison.Ordinal) ||
-                string.Equals(scenario, RiderMoveToAttackTurnBased, StringComparison.Ordinal);
+                string.Equals(scenario, RiderMoveToAttackTurnBased, StringComparison.Ordinal) ||
+                string.Equals(scenario, RiderCommandCancelRealTime, StringComparison.Ordinal) ||
+                string.Equals(scenario, RiderCommandCancelTurnBased, StringComparison.Ordinal) ||
+                string.Equals(scenario, RiderCommandInterruptRealTime, StringComparison.Ordinal) ||
+                string.Equals(scenario, RiderCommandInterruptTurnBased, StringComparison.Ordinal);
         }
 
         private bool IsTurnBasedRow =>
-            string.Equals(currentRow, RiderHitTurnBased, StringComparison.Ordinal) ||
-            string.Equals(currentRow, MammothPrimaryHitTurnBased, StringComparison.Ordinal) ||
-            string.Equals(currentRow, RiderMoveToAttackTurnBased, StringComparison.Ordinal);
+                string.Equals(currentRow, RiderHitTurnBased, StringComparison.Ordinal) ||
+                string.Equals(currentRow, MammothPrimaryHitTurnBased, StringComparison.Ordinal) ||
+                string.Equals(currentRow, RiderMoveToAttackTurnBased, StringComparison.Ordinal) ||
+                string.Equals(currentRow, RiderCommandCancelTurnBased, StringComparison.Ordinal) ||
+                string.Equals(currentRow, RiderCommandInterruptTurnBased, StringComparison.Ordinal);
 
         private bool IsMissRow => string.Equals(currentRow, RiderMissRealTime, StringComparison.Ordinal);
 
@@ -196,6 +227,18 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool IsMovementToAttackRow =>
             string.Equals(currentRow, RiderMoveToAttackRealTime, StringComparison.Ordinal) ||
             string.Equals(currentRow, RiderMoveToAttackTurnBased, StringComparison.Ordinal);
+
+        private bool IsCommandCancellationRow =>
+            string.Equals(currentRow, RiderCommandCancelRealTime, StringComparison.Ordinal) ||
+            string.Equals(currentRow, RiderCommandCancelTurnBased, StringComparison.Ordinal);
+
+        private bool IsCommandInterruptionRow =>
+            string.Equals(currentRow, RiderCommandInterruptRealTime, StringComparison.Ordinal) ||
+            string.Equals(currentRow, RiderCommandInterruptTurnBased, StringComparison.Ordinal);
+
+        private bool IsCommandTerminationRow => IsCommandCancellationRow || IsCommandInterruptionRow;
+
+        private bool IsApproachRow => IsMovementToAttackRow || IsCommandTerminationRow;
 
         private MountedCombatActionKind AttackAction => IsMammothPrimaryRow
             ? MountedCombatActionKind.MountPrimaryNatural
@@ -437,7 +480,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 spawnPoint,
                 request.RunId,
                 true,
-                IsMammothPrimaryRow || IsMovementToAttackRow);
+                IsMammothPrimaryRow || IsApproachRow);
             targetId = target.UniqueId;
             targetProvisioning = CombatTargetProvisioningEvidence.From(targetService, target);
             assertions.Check(target != null && target.IsInState && target.View != null &&
@@ -449,7 +492,7 @@ namespace KingmakerMountedCombat.Diagnostics
             rangeProbe.Init(AttackActor);
             pairApproachRadius = rangeProbe.PairApproachRadius;
             float finalDistance;
-            var placementCalculated = IsMovementToAttackRow
+            var placementCalculated = IsApproachRow
                 ? MountedCombatSpatialPolicy.TryCalculateDiagnosticApproachTargetDistance(
                     pairApproachRadius,
                     out finalDistance)
@@ -458,7 +501,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     out finalDistance);
             requestedTargetDistance = finalDistance;
             assertions.Check(placementCalculated,
-                IsMovementToAttackRow
+                IsApproachRow
                     ? "Mounted rider pair approach radius admits a bounded out-of-range diagnostic approach."
                     : "Mounted rider pair approach radius admits the bounded diagnostic placement.");
             if (assertions.FailureCount != 0)
@@ -633,7 +676,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Diagnostic target remained live at dispatch.");
 
             assertions.Check(RetainDiagnosticTargetPlacementAtDispatch(),
-                IsMovementToAttackRow
+                IsApproachRow
                     ? "Diagnostic target was retained at the exact actor-specific out-of-range approach placement before dispatch."
                     : "Diagnostic target was retained at the exact current actor-specific near-boundary placement before dispatch.");
             if (assertions.FailureCount != 0)
@@ -685,7 +728,7 @@ namespace KingmakerMountedCombat.Diagnostics
             targetPositionAtClick = target.Position;
             pausedAtClick = Game.Instance.IsPaused;
             targetDistanceAtClick = HorizontalDistance(mountPositionAtClick, targetPositionAtClick);
-            if (IsMovementToAttackRow)
+            if (IsApproachRow)
             {
                 assertions.Check(targetDistanceAtClick > pairApproachRadius + MountedCombatSpatialPolicy.RangeTolerance,
                     "Target began outside the exact Mammoth-origin rider melee radius at dispatch.");
@@ -740,7 +783,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
 
             var observedDistance = HorizontalDistance(mount.Position, target.Position);
-            var requiresRefresh = IsMovementToAttackRow
+            var requiresRefresh = IsApproachRow
                 ? MountedCombatSpatialPolicy.RequiresDiagnosticApproachPlacementRefresh(
                     pairApproachRadius,
                     observedDistance)
@@ -753,7 +796,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
 
             float requiredDistance;
-            var placementCalculated = IsMovementToAttackRow
+            var placementCalculated = IsApproachRow
                 ? MountedCombatSpatialPolicy.TryCalculateDiagnosticApproachTargetDistance(
                     pairApproachRadius,
                     out requiredDistance)
@@ -775,7 +818,7 @@ namespace KingmakerMountedCombat.Diagnostics
             target.HoldState = true;
             var retainedDistance = HorizontalDistance(mount.Position, target.Position);
             requestedTargetDistance = requiredDistance;
-            return IsMovementToAttackRow
+            return IsApproachRow
                 ? MountedCombatSpatialPolicy.IsBoundedDiagnosticApproachTargetDistance(
                     pairApproachRadius,
                     retainedDistance)
@@ -817,9 +860,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 currentTurnActingAtDispatch = true;
                 roundNumberAtDispatch = turnController.RoundNumber;
             }
-            if (IsMovementToAttackRow && combat.HasActiveCommand)
+            if (IsApproachRow && combat.HasActiveCommand)
             {
                 ObserveMovementToAttackRuntime();
+            }
+            if (IsCommandTerminationRow && !terminationDelivered)
+            {
+                TryDeliverCommandTermination();
             }
             if (combat.LastOutcome == null)
             {
@@ -839,6 +886,16 @@ namespace KingmakerMountedCombat.Diagnostics
             assertions.Check(targetService.TargetBrainSuppressedAtOutcome &&
                     !targetService.TargetBrainLeaseViolationObserved,
                 "Diagnostic target native brain remained continuously suppressed through attack outcome.");
+
+            if (IsCommandTerminationRow)
+            {
+                if (!CaptureCommandTerminationAfterState())
+                {
+                    return;
+                }
+                ValidateCommandTerminationOutcome();
+                return;
+            }
 
             assertions.Check(outcome.Action == AttackAction,
                 "Terminal command retained exact mounted action identity.");
@@ -1005,6 +1062,159 @@ namespace KingmakerMountedCombat.Diagnostics
                 relationship.Runtime.PoseConfigured;
         }
 
+        private void TryDeliverCommandTermination()
+        {
+            var riderCommands = rider?.Commands;
+            var mountCommands = mount?.Commands;
+            var wrapper = riderCommands?.GetCommand(Kingmaker.UnitLogic.Commands.Base.UnitCommand.CommandType.Standard)
+                as MountedPairAttackCommand;
+            var move = mountCommands?.GetCommand(Kingmaker.UnitLogic.Commands.Base.UnitCommand.CommandType.Move)
+                as Kingmaker.UnitLogic.Commands.UnitMoveTo;
+            if (wrapper == null || move == null)
+            {
+                return;
+            }
+
+            var riderDisplacement = HorizontalDistance(riderPositionAtClick, rider.Position);
+            var mountDisplacement = HorizontalDistance(mountPositionAtClick, mount.Position);
+            var currentPairDistance = HorizontalDistance(mount.Position, target.Position);
+            if (riderDisplacement < 0.75f || mountDisplacement < 0.75f ||
+                currentPairDistance <= pairApproachRadius + MountedCombatSpatialPolicy.RangeTolerance)
+            {
+                return;
+            }
+
+            terminationWrapper = wrapper;
+            terminationMove = move;
+            wrapperPresentBeforeTermination = riderCommands.Contains(wrapper) && riderCommands.Standard == wrapper;
+            delegatedMovePresentBeforeTermination = mountCommands.Contains(move) &&
+                mountCommands.GetCommand(Kingmaker.UnitLogic.Commands.Base.UnitCommand.CommandType.Move) == move;
+            riderQueueEmptyBeforeTermination = riderCommands.Queue.Count == 0;
+            mountQueueEmptyBeforeTermination = mountCommands.Queue.Count == 0;
+            childAbsentBeforeTermination = wrapper.ChildAttack != null && !wrapper.ChildAttack.IsStarted;
+            pairDistanceAtTermination = currentPairDistance;
+            riderDisplacementAtTermination = riderDisplacement;
+            mountDisplacementAtTermination = mountDisplacement;
+            targetDisplacementAtTermination = HorizontalDistance(targetPositionAtClick, target.Position);
+
+            if (IsCommandCancellationRow)
+            {
+                var selection = SelectionManager.Instance;
+                if (selection == null)
+                {
+                    throw new InvalidOperationException("SelectionManager was unavailable for the exact Stop cancellation boundary.");
+                }
+                selection.Stop();
+                terminationDelivered = true;
+                selection.Stop();
+                terminationRepeated = true;
+            }
+            else
+            {
+                riderCommands.InterruptAll();
+                terminationDelivered = true;
+                riderCommands.InterruptAll();
+                terminationRepeated = true;
+            }
+        }
+
+        private bool CaptureCommandTerminationAfterState()
+        {
+            var riderCommands = rider?.Commands;
+            var mountCommands = mount?.Commands;
+            if (riderCommands == null || mountCommands == null || terminationWrapper == null || terminationMove == null)
+            {
+                return false;
+            }
+
+            wrapperAbsentAfterTermination =
+                riderCommands.GetCommand(Kingmaker.UnitLogic.Commands.Base.UnitCommand.CommandType.Standard) == null &&
+                !riderCommands.Contains(terminationWrapper) && !riderCommands.Queue.Contains(terminationWrapper);
+            delegatedMoveAbsentAfterTermination =
+                mountCommands.GetCommand(Kingmaker.UnitLogic.Commands.Base.UnitCommand.CommandType.Move) == null &&
+                !mountCommands.Contains(terminationMove) && !mountCommands.Queue.Contains(terminationMove);
+            riderQueueEmptyAfterTermination = riderCommands.Queue.Count == 0;
+            mountQueueEmptyAfterTermination = mountCommands.Queue.Count == 0;
+            var agent = mount.View?.AgentASP;
+            mountAgentStoppedAfterTermination = agent != null && !agent.WantsToMove && !agent.IsReallyMoving &&
+                agent.Speed == 0f && agent.Velocity.sqrMagnitude == 0f;
+            relationshipPreservedAfterTermination = relationship.State == RelationshipState.Mounted;
+            var selected = SelectionManager.Instance?.SelectedUnits;
+            selectionRetainedAfterTermination = selected != null && selected.Count == 1 && selected[0] == rider;
+            uiCoherentAfterTermination = combat.CanShowCombatActions && relationship.Runtime.PoseConfigured &&
+                relationship.Runtime.PoseHealthy && relationship.Runtime.PoseFrameApplied;
+            return wrapperAbsentAfterTermination && delegatedMoveAbsentAfterTermination &&
+                riderQueueEmptyAfterTermination && mountQueueEmptyAfterTermination && mountAgentStoppedAfterTermination;
+        }
+
+        private void ValidateCommandTerminationOutcome()
+        {
+            assertions.Check(terminationDelivered && terminationRepeated,
+                "The exact command termination boundary was delivered and repeated idempotently.");
+            assertions.Check(wrapperPresentBeforeTermination && delegatedMovePresentBeforeTermination &&
+                    riderQueueEmptyBeforeTermination && mountQueueEmptyBeforeTermination &&
+                    childAbsentBeforeTermination,
+                "The exact rider wrapper and Mammoth Move slot existed without a started child or queued command before termination.");
+            assertions.Check(pairDistanceAtTermination > pairApproachRadius + MountedCombatSpatialPolicy.RangeTolerance &&
+                    riderDisplacementAtTermination >= 0.75f && mountDisplacementAtTermination >= 0.75f &&
+                    targetDisplacementAtTermination <= MountedCombatSpatialPolicy.RangeTolerance,
+                "Termination occurred after measurable Mammoth-owned movement, outside attack range, with a stationary target.");
+            assertions.Check(wrapperAbsentAfterTermination && delegatedMoveAbsentAfterTermination &&
+                    riderQueueEmptyAfterTermination && mountQueueEmptyAfterTermination &&
+                    mountAgentStoppedAfterTermination && !combat.HasActiveCommand,
+                "Termination removed both owned command representations, emptied both queues, and stopped the Mammoth agent.");
+            assertions.Check(relationshipPreservedAfterTermination && selectionRetainedAfterTermination &&
+                    uiCoherentAfterTermination,
+                "Termination preserved the mounted relationship, accepted pose, rider selection, and combat UI.");
+            assertions.Check(outcome.Action == MountedCombatActionKind.RiderMelee &&
+                    string.Equals(outcome.ActorId, rider.UniqueId, StringComparison.Ordinal) &&
+                    string.Equals(outcome.CommandOwnerId, rider.UniqueId, StringComparison.Ordinal) &&
+                    string.Equals(outcome.ResourceOwnerId, rider.UniqueId, StringComparison.Ordinal) &&
+                    string.Equals(outcome.TargetId, targetId, StringComparison.Ordinal),
+                "Interrupted terminal evidence retained exact rider command/resource ownership and target identity.");
+            assertions.Check(string.Equals(outcome.Result, "Interrupt", StringComparison.Ordinal) &&
+                    string.Equals(outcome.TerminalReason, "Interrupt", StringComparison.Ordinal) &&
+                    outcome.ChildAttackStartCount == 0 && !outcome.NativeAttackRuleObserved && outcome.RepathCount == 0,
+                "The command terminated as Interrupt before any child attack or repath.");
+            var riderWeapon = rider.GetFirstWeapon();
+            assertions.Check(riderWeapon?.Blueprint != null &&
+                    string.Equals(outcome.AttackWeaponBlueprintId, riderWeapon.Blueprint.AssetGuid, StringComparison.Ordinal) &&
+                    !outcome.AttackWeaponIsRanged &&
+                    string.Equals(outcome.AttackWeaponSlot, "EquippedMelee", StringComparison.Ordinal),
+                "Interrupted command retained the exact planned rider melee weapon identity.");
+            assertions.Check(outcome.ActionStandardCharged && outcome.RiderStandardCharged &&
+                    riderStandardAfter > riderStandardBefore &&
+                    Math.Abs(mountStandardAfter - mountStandardBefore) <= 0.01f,
+                "Starting the cancelled rider wrapper charged only rider Standard and did not refund it.");
+            assertions.Check(Math.Abs(mountMoveAfter - mountMoveBefore) <= 0.01f &&
+                    (IsTurnBasedRow
+                        ? riderMoveAfter > riderMoveBefore
+                        : Math.Abs(riderMoveAfter - riderMoveBefore) <= 0.01f),
+                IsTurnBasedRow
+                    ? "Turn-based terminated movement charged only actual rider-owned Move expenditure."
+                    : "Real-time terminated movement changed neither Move ledger.");
+            assertions.Check(ruleProbe.ForcedD20Count == 0 && ruleProbe.AttackRuleCount == 0 &&
+                    ruleProbe.AttackRollCount == 0 && ruleProbe.DamageRuleCount == 0 &&
+                    ruleProbe.UnexpectedPairAttackCount == 0 && ruleProbe.TotalDamage == 0,
+                "No attack, roll, damage, opportunity, or duplicate rule chain occurred before termination.");
+            if (IsTurnBasedRow)
+            {
+                var currentTurn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
+                currentTurnUnitIdAtOutcome = currentTurn?.Unit?.UniqueId;
+                currentTurnActingAtOutcome = currentTurn != null && currentTurn.IsActing;
+                assertions.Check(string.Equals(currentTurnUnitIdAtOutcome, rider.UniqueId, StringComparison.Ordinal) &&
+                        currentTurnActingAtOutcome,
+                    "The exact rider turn remained active after bounded command termination.");
+            }
+            assertions.Check(targetService.LifeTransitionCount == 0 &&
+                    targetService.LastObservedLife?.LifeState == "Conscious",
+                "The diagnostic target remained conscious with zero life transition.");
+
+            poseProfileAtOutcome = relationship.Runtime.PoseProfileId;
+            poseHealthyAtOutcome = relationship.Runtime.PoseHealthy && relationship.Runtime.PoseFrameApplied;
+            BeginCleanup();
+        }
+
         private void BeginCleanup()
         {
             if (step == CombatEngineStep.AwaitCleanupFrame || completed)
@@ -1135,9 +1345,11 @@ namespace KingmakerMountedCombat.Diagnostics
             var selected = SelectionManager.Instance?.SelectedUnits;
             var record = new CombatEvidenceRecord
             {
-                SchemaVersion = IsMovementToAttackRow
-                    ? (IsTurnBasedRow ? 35 : 34)
-                    : (IsTurnBasedRow ? 27 : 26),
+                SchemaVersion = IsCommandTerminationRow
+                    ? (IsTurnBasedRow ? 37 : 36)
+                    : IsMovementToAttackRow
+                        ? (IsTurnBasedRow ? 35 : 34)
+                        : (IsTurnBasedRow ? 27 : 26),
                 ArtifactKind = "combat-scenario-evidence",
                 RunId = request.RunId,
                 Scenario = request.Scenario,
@@ -1225,13 +1437,42 @@ namespace KingmakerMountedCombat.Diagnostics
                     RiderAvoidanceDisabledAtEnd = rider?.View?.AgentASP == null ? (bool?)null : rider.View.AgentASP.AvoidanceDisabled,
                     MountAvoidanceDisabledAtEnd = mount?.View?.AgentASP == null ? (bool?)null : mount.View.AgentASP.AvoidanceDisabled
                 },
-                MovementToAttack = IsMovementToAttackRow
+                MovementToAttack = IsApproachRow
                     ? CombatMovementToAttackEvidence.From(
                         outcome,
                         requestedTargetDistance,
                         movementToAttackObservationCount,
                         selectionRetainedDuringApproach,
                         uiCoherentDuringApproach)
+                    : null,
+                CommandTermination = IsCommandTerminationRow
+                    ? new CombatCommandTerminationEvidence
+                    {
+                        Kind = IsCommandCancellationRow ? "player-stop" : "native-wrapper-interrupt",
+                        Trigger = IsCommandCancellationRow
+                            ? "SelectionManagerBase.Stop"
+                            : "UnitCommands.InterruptAll",
+                        Delivered = terminationDelivered,
+                        RepeatedIdempotently = terminationRepeated,
+                        WrapperPresentBefore = wrapperPresentBeforeTermination,
+                        DelegatedMovePresentBefore = delegatedMovePresentBeforeTermination,
+                        RiderQueueEmptyBefore = riderQueueEmptyBeforeTermination,
+                        MountQueueEmptyBefore = mountQueueEmptyBeforeTermination,
+                        ChildAttackNotStartedBefore = childAbsentBeforeTermination,
+                        PairDistanceAtTrigger = pairDistanceAtTermination,
+                        RiderDisplacementAtTrigger = riderDisplacementAtTermination,
+                        MountDisplacementAtTrigger = mountDisplacementAtTermination,
+                        TargetDisplacementAtTrigger = targetDisplacementAtTermination,
+                        WrapperAbsentAfter = wrapperAbsentAfterTermination,
+                        DelegatedMoveAbsentAfter = delegatedMoveAbsentAfterTermination,
+                        RiderQueueEmptyAfter = riderQueueEmptyAfterTermination,
+                        MountQueueEmptyAfter = mountQueueEmptyAfterTermination,
+                        MountAgentStoppedAfter = mountAgentStoppedAfterTermination,
+                        ActiveCommandClearedAfter = !combat.HasActiveCommand,
+                        RelationshipPreservedAfter = relationshipPreservedAfterTermination,
+                        SelectionRetainedAfter = selectionRetainedAfterTermination,
+                        UiCoherentAfter = uiCoherentAfterTermination
+                    }
                     : null,
                 Pose = new CombatPoseEvidence
                 {
@@ -1658,6 +1899,8 @@ namespace KingmakerMountedCombat.Diagnostics
             public CombatMovementEvidence Movement { get; set; }
             [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
             public CombatMovementToAttackEvidence MovementToAttack { get; set; }
+            [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            public CombatCommandTerminationEvidence CommandTermination { get; set; }
             public CombatPoseEvidence Pose { get; set; }
             public CombatCleanupEvidence Cleanup { get; set; }
             public IReadOnlyList<string> Selection { get; set; }
@@ -2056,6 +2299,32 @@ namespace KingmakerMountedCombat.Diagnostics
                     TargetDisplacementAtAttackStart = value?.TargetDisplacementAtAttackStart ?? 0f
                 };
             }
+        }
+
+        private sealed class CombatCommandTerminationEvidence
+        {
+            public string Kind { get; set; }
+            public string Trigger { get; set; }
+            public bool Delivered { get; set; }
+            public bool RepeatedIdempotently { get; set; }
+            public bool WrapperPresentBefore { get; set; }
+            public bool DelegatedMovePresentBefore { get; set; }
+            public bool RiderQueueEmptyBefore { get; set; }
+            public bool MountQueueEmptyBefore { get; set; }
+            public bool ChildAttackNotStartedBefore { get; set; }
+            public float PairDistanceAtTrigger { get; set; }
+            public float RiderDisplacementAtTrigger { get; set; }
+            public float MountDisplacementAtTrigger { get; set; }
+            public float TargetDisplacementAtTrigger { get; set; }
+            public bool WrapperAbsentAfter { get; set; }
+            public bool DelegatedMoveAbsentAfter { get; set; }
+            public bool RiderQueueEmptyAfter { get; set; }
+            public bool MountQueueEmptyAfter { get; set; }
+            public bool MountAgentStoppedAfter { get; set; }
+            public bool ActiveCommandClearedAfter { get; set; }
+            public bool RelationshipPreservedAfter { get; set; }
+            public bool SelectionRetainedAfter { get; set; }
+            public bool UiCoherentAfter { get; set; }
         }
 
         private sealed class CombatTargetProvisioningEvidence

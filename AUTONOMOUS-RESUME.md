@@ -1,5 +1,13 @@
 # Autonomous resume
 
+## Current resume checkpoint - 2026-08-20T23:01:46Z
+
+- Status is `IN PROGRESS`. Exact starting local/upstream HEAD is the clean guarded-published movement qualification checkpoint `e646491bdf794aef673d6c9b368db9db3ca6a81e` on `codex/mounted-combat-phase2-alpha`; this checkpoint intentionally has one coherent cancellation/interruption implementation worktree.
+- Four exact fresh-process rows are implemented: `mounted-rider-melee-command-cancel-rt/tb` delivers native `SelectionManagerBase.Stop`; `mounted-rider-melee-command-interrupt-rt/tb` delivers rider `UnitCommands.InterruptAll`. Both triggers are repeated to prove idempotence only after at least `0.75` rider/Mammoth displacement while the target remains outside the unchanged mounted range gate.
+- Schema v36/v37 binds the pre-trigger rider Standard wrapper and exact Mammoth Move slot, empty queues, zero child/rules, target stationarity, post-trigger removal of both commands, stopped Mammoth agent, no active wrapper, retained relationship/pose/selection/UI, no Standard refund, mode-specific rider Move accounting, zero Mammoth cost, and exact cleanup. Historical schemas remain accepted unchanged.
+- Deterministic coverage accepts all four RT/TB rows and rejects missing/cross-row evidence plus kind, trigger, delivery, idempotence, command-slot, queue, movement, range, target, agent, relationship, UI, attack/rule, resource, and interrupted-movement mutations. Complete offline gate is PASS: source `21/0`; Release build; component `213/0`; visual/source-order `17/0`; harness/protocol `195/0`; exact assembly `254/0` (`243/0` Kingmaker / `11/0` Wrath); PowerShell parser `26/0`; JSON parser `7/0`; diff/prohibited-payload checks PASS. Dirty DLL SHA-256/MVID are `35da25941f9c3329d5b2989ed1fb2dc9cc2834afb2c487c6e465a03570a02858` / `318fb3cf-c42e-4c0c-b239-e4d25a18236b` and are not package identity.
+- No game process, runtime transaction, suite snapshot, save/Mods mutation, runtime evidence, or qualification credit was created in this implementation checkpoint. Exact next action: review and commit this coherent tranche, guarded-publish it, preserve the prior package, create/validate a fresh clean-HEAD package, admit a new stable suite, pass separate RT/TB WhatIf and independent audits, then execute fresh same-suite cancellation RT A/B, interruption RT A/B, cancellation TB A/B, and interruption TB A/B with restoration audit before every evidence read.
+
 ## Current resume checkpoint - 2026-08-20T22:33:06Z
 
 - Status is `IN PROGRESS`. Model ownership is now Codex/GPT-5; this is recorded in the first coherent qualification checkpoint after the earlier durable Sol-to-Spark handoff, without a preliminary documentation-only commit.

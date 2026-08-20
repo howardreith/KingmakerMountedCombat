@@ -1,5 +1,14 @@
 # Mounted Combat journal
 
+## 2026-08-20T23:01:46Z - cancellation and interruption runtime contracts implemented
+
+- Starting identity: exact clean local/upstream `e646491bdf794aef673d6c9b368db9db3ca6a81e`, branch `codex/mounted-combat-phase2-alpha`, version `0.1.0-phase2b-dev.1`. This tranche follows the qualified movement-to-attack checkpoint and changes no Architecture B, opportunity-isolation, range, pose, save, Mods, or package ownership boundary.
+- Runtime rows: RT/TB cancellation invokes exact installed `SelectionManagerBase.Stop`; RT/TB interruption invokes exact rider `UnitCommands.InterruptAll`. Delivery waits for the retained rider Standard wrapper and one exact Mammoth Move-slot command, empty queues, no started child, at least `0.75` rider/Mammoth displacement, stationary target, and a still-out-of-range pair. Each trigger is repeated and must be idempotent.
+- Evidence/validation: schema v36/v37 requires interrupted terminal result, zero child/attack/roll/damage/opportunity/duplicate chains, exact command/queue removal, stopped Mammoth agent, retained mounted relationship and Mammoth-specific pose, retained rider selection/UI, charged rider Standard with no refund, actual rider-owned TB Move cost only, zero RT Move change, zero Mammoth resource change, and exact cleanup. Historical combat schemas remain compatible.
+- Regression coverage: all four exact rows pass deterministic fixtures; mutations cover wrong/missing/cross-row termination evidence, trigger/delivery/idempotence, wrapper/Move slots, queues, progress/range/target, post-state/agent, relationship/selection/UI, terminal result, child/rules/damage, resources, and interrupted approach. A source-order assertion binds the exact native seams and fail-first gates.
+- Verification: source `21/0`; Release build; component `213/0`; visual/source-order `17/0`; harness/protocol `195/0`; Kingmaker/Wrath assembly `243/0` / `11/0`, combined `254/0`; PowerShell parser `26/0`; JSON parser `7/0`; diff/prohibited-payload checks PASS. Dirty DLL SHA-256/MVID `35da25941f9c3329d5b2989ed1fb2dc9cc2834afb2c487c6e465a03570a02858` / `318fb3cf-c42e-4c0c-b239-e4d25a18236b` are measured development output only.
+- External state: no game launch, transaction, suite admission, save/Mods write, or new runtime evidence occurred. Next: coherent commit and guarded publication, fresh clean package and suite snapshot, separate RT/TB WhatIf audits, then fresh A/B for both cancellation and interruption in each mode with audit-before-read discipline.
+
 ## 2026-08-20T22:33:06Z - movement-to-attack opportunity isolation qualified
 
 - Model handoff: active execution is now Codex/GPT-5. This is recorded with substantive qualification work and does not replace the prior Sol-to-Spark checkpoint.
