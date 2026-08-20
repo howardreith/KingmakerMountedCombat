@@ -28,6 +28,7 @@ namespace KingmakerMountedCombat.Integration
         private readonly DiagnosticSettings settings;
         private readonly IModLogger logger;
         private MountedPairAttackCommand activeCommand;
+        private MountedPairAttackCommand finishedCommandPendingSweep;
         private bool disposed;
 
         public MountedCombatController(
@@ -190,6 +191,7 @@ namespace KingmakerMountedCombat.Integration
             {
                 return;
             }
+            SweepFinishedCommand();
             if (activeCommand != null && activeCommand.IsFinished)
             {
                 activeCommand = null;
@@ -219,6 +221,7 @@ namespace KingmakerMountedCombat.Integration
             {
                 command.Interrupt();
             }
+            SweepFinishedCommand();
             relationship.Runtime.CancelMountMovement();
             if (endingExplicitMountAction && CombatController.IsInTurnBasedCombat())
             {
@@ -375,6 +378,7 @@ namespace KingmakerMountedCombat.Integration
             MountedPairAttackOutcome outcome)
         {
             LastOutcome = outcome;
+            finishedCommandPendingSweep = command;
             if (activeCommand == command)
             {
                 activeCommand = null;
@@ -390,6 +394,36 @@ namespace KingmakerMountedCombat.Integration
                 {
                     turn.ForceToEnd(false);
                 }
+            }
+        }
+
+        private void SweepFinishedCommand()
+        {
+            var command = finishedCommandPendingSweep;
+            if (command == null || !command.IsFinished)
+            {
+                return;
+            }
+
+            var commands = command.ActionActor?.Commands;
+            if (commands == null || !commands.Contains(command))
+            {
+                finishedCommandPendingSweep = null;
+                return;
+            }
+
+            // InterruptAll deliberately leaves an already-finished raw slot behind.
+            // Drain only this exact finished KMC command and only when no unrelated
+            // queued command could be advanced by the stock sweep.
+            if (commands.Queue.Count != 0)
+            {
+                return;
+            }
+
+            commands.RemoveFinishedAndUpdateQueue();
+            if (!commands.Contains(command))
+            {
+                finishedCommandPendingSweep = null;
             }
         }
 

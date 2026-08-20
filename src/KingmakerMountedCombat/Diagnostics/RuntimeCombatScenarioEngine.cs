@@ -748,7 +748,8 @@ namespace KingmakerMountedCombat.Diagnostics
             }
 
             ruleProbe = new MountedCombatRuleProbe();
-            ruleProbe.Arm(rider, mount, AttackActor, target, IsMissRow ? 1 : 20);
+            ruleProbe.Arm(rider, mount, AttackActor, target,
+                IsCommandTerminationRow ? (int?)null : IsMissRow ? 1 : 20);
             assertions.Check(targetService != null && targetService.BeginExpectedAttackDispatch(target),
                 "Target incoming-rule observation marked the exact expected pair-action dispatch boundary.");
             assertions.Check(combat.ArmedAction == AttackAction || combat.Arm(AttackAction),
@@ -1182,10 +1183,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     !outcome.AttackWeaponIsRanged &&
                     string.Equals(outcome.AttackWeaponSlot, "EquippedMelee", StringComparison.Ordinal),
                 "Interrupted command retained the exact planned rider melee weapon identity.");
-            assertions.Check(outcome.ActionStandardCharged && outcome.RiderStandardCharged &&
-                    riderStandardAfter > riderStandardBefore &&
+            assertions.Check(!outcome.ActionStandardCharged && !outcome.RiderStandardCharged &&
+                    Math.Abs(riderStandardAfter - riderStandardBefore) <= 0.01f &&
                     Math.Abs(mountStandardAfter - mountStandardBefore) <= 0.01f,
-                "Starting the cancelled rider wrapper charged only rider Standard and did not refund it.");
+                "Pre-child termination remained Standard-cost-free for both rider and Mammoth.");
             assertions.Check(Math.Abs(mountMoveAfter - mountMoveBefore) <= 0.01f &&
                     (IsTurnBasedRow
                         ? riderMoveAfter > riderMoveBefore
@@ -1346,7 +1347,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var record = new CombatEvidenceRecord
             {
                 SchemaVersion = IsCommandTerminationRow
-                    ? (IsTurnBasedRow ? 37 : 36)
+                    ? (IsTurnBasedRow ? 39 : 38)
                     : IsMovementToAttackRow
                         ? (IsTurnBasedRow ? 35 : 34)
                         : (IsTurnBasedRow ? 27 : 26),

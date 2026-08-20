@@ -1,5 +1,12 @@
 # Autonomous blockers
 
+## Resolved during current worktree: first cancellation runtime contract mismatch
+
+- `20260820T232500Z-command-cancel-rt-passA` is immutable uncredited `FAIL` `4033/1`; independent restoration audit passed before evidence inspection, so this is not an external-state blocker.
+- The only timed-out gate required physical raw-slot absence. Installed `InterruptAll` had already cleared the effective Standard command and exact Mammoth Move, stopped movement, and produced zero attack/rule chains, but left the exact finished wrapper in its raw slot pending the stock sweep.
+- The process also disproved the newly written no-refund hypothesis: the established native acted transition never occurred because no child was admitted, so rider and Mammoth Standard correctly stayed unchanged. Two broad forced-d20 observations were unrelated rider rolls before any attack evidence.
+- Resolution in progress is bounded to an exact empty-queue finished-command sweep plus schema v38/v39 pre-child/no-roll semantics. No global command, cooldown, attack, movement, or foreign-state behavior is changed. Fresh package and complete A/B restart are mandatory; the failed run receives no credit.
+
 Status: IN PROGRESS
 
 Branch: `codex/mounted-combat-phase2-alpha`

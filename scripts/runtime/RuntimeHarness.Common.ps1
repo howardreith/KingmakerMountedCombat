@@ -7160,17 +7160,17 @@ function Assert-KmcCombatScenarioEvidence {
     if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -ge 24) {
         $recordFields = @($recordFields + 'targetBrainLease')
     }
-    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(28,29,30,31,32,33,34,35,36,37)) {
+    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(28,29,30,31,32,33,34,35,36,37,38,39)) {
         $recordFields = @($recordFields + 'movementToAttack')
     }
-    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(36,37)) {
+    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(36,37,38,39)) {
         $recordFields = @($recordFields + 'commandTermination')
     }
-    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37)) {
+    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39)) {
         $recordFields = @($recordFields + 'turnBased')
     }
     Assert-KmcExactProperties $record $recordFields 'combat evidence record'
-    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -notin @(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37) -or
+    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -notin @(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39) -or
         [string]$record.artifactKind -cne 'combat-scenario-evidence') {
         throw 'Combat evidence schemaVersion or artifactKind is not exact.'
     }
@@ -7519,7 +7519,7 @@ function Assert-KmcCombatScenarioEvidence {
             throw 'Combat target brain lease validation count is invalid.'
         }
     }
-    if ([long]$record.schemaVersion -in @(5,7,9,11,13,15,17,19,21,23,25,37)) {
+    if ([long]$record.schemaVersion -in @(5,7,9,11,13,15,17,19,21,23,25,37,39)) {
         $turnActorBooleanFields = if ([long]$record.schemaVersion -ge 21) {
             @('nativeActionActorTurnStarted','actionActorTurnEndedAfterCommand')
         } else {
@@ -7575,7 +7575,7 @@ function Assert-KmcCombatScenarioEvidence {
             }
         }
     }
-    if ([long]$record.schemaVersion -in @(28,29,30,31,32,33,34,35,36,37)) {
+    if ([long]$record.schemaVersion -in @(28,29,30,31,32,33,34,35,36,37,38,39)) {
         $movementToAttackFields = @(
             'requestedTargetDistance','approachRequiredAtStart','delegatedMoveStartCount',
             'delegatedMoveTickCount','delegatedMoveExecutorId','delegatedMoveExecutorIsExactMount',
@@ -7636,7 +7636,7 @@ function Assert-KmcCombatScenarioEvidence {
             }
         }
     }
-    if ([long]$record.schemaVersion -in @(36,37)) {
+    if ([long]$record.schemaVersion -in @(36,37,38,39)) {
         $terminationBooleanFields = @(
             'delivered','repeatedIdempotently','wrapperPresentBefore','delegatedMovePresentBefore',
             'riderQueueEmptyBefore','mountQueueEmptyBefore','childAttackNotStartedBefore',
@@ -7740,7 +7740,7 @@ function Assert-KmcCombatScenarioEvidence {
             'mounted-rider-melee-command-cancel-tb','mounted-rider-melee-command-interrupt-tb')
         $missScenario = [string]$Request.scenario -ceq 'mounted-rider-melee-miss-rt'
         $expectedCombatSchemas = if ($commandTerminationScenario) {
-            if ($turnBasedScenario) { @(37) } else { @(36) }
+            if ($turnBasedScenario) { @(37,39) } else { @(36,38) }
         } elseif ($movementToAttackScenario) {
             if ($turnBasedScenario) { @(29,31,33,35) } else { @(28,30,32,34) }
         } elseif ($mammothScenario) {
@@ -8068,12 +8068,13 @@ function Assert-KmcCombatScenarioEvidence {
         foreach ($name in @('pairDistanceAtStart','pairApproachRadiusAtStart','nativeExecutorDistanceAtStart','nativeAdmissionRadiusAtStart')) {
             if (-not (Test-KmcJsonNumber $record.command.$name)) { throw "Combat command range evidence is not numeric: $name" }
         }
+        $expectedActionStandardCharged = -not $commandTerminationScenario -or [long]$record.schemaVersion -in @(36,37)
         $commandIdentityInvalid = [string]$record.command.action -cne $expectedAction -or
             [string]$record.command.actorId -cne $expectedActorId -or
             ([long]$record.schemaVersion -ge 20 -and
              ([string]$record.command.commandOwnerId -cne $expectedActorId -or
               [string]$record.command.resourceOwnerId -cne $expectedActorId -or
-              $record.command.actionStandardCharged -ne $true -or
+              $record.command.actionStandardCharged -ne $expectedActionStandardCharged -or
               $record.command.attackWeaponIsRanged -ne $false -or
                ($mammothScenario -and
                 ($record.command.attackWeaponIsNatural -ne $true -or
@@ -8085,7 +8086,7 @@ function Assert-KmcCombatScenarioEvidence {
                 [string]$record.command.terminalReason -cne 'Interrupt' -or
                 [long]$record.command.childAttackStartCount -ne 0 -or
                 [long]$record.command.repathCount -ne 0 -or
-                $record.command.riderStandardCharged -ne $true -or
+                $record.command.riderStandardCharged -ne $expectedActionStandardCharged -or
                 $record.command.nativeAttackRuleObserved -ne $false -or
                 $record.command.pairRangeSatisfiedAtStart -ne $false
         } else {
@@ -8128,8 +8129,8 @@ function Assert-KmcCombatScenarioEvidence {
         if ([long]$record.schemaVersion -ge 6) { $combatRuleFields = @($combatRuleFields + 'lastAttackHit') }
         Assert-KmcExactProperties $record.rules $combatRuleFields 'combat rule evidence'
         if ([long]$record.schemaVersion -ge 6 -and
-            ([long]$record.schemaVersion -notin @(36,37) -and $record.rules.lastAttackHit -isnot [bool]) -or
-            ([long]$record.schemaVersion -in @(36,37) -and $null -ne $record.rules.lastAttackHit)) {
+            ([long]$record.schemaVersion -notin @(36,37,38,39) -and $record.rules.lastAttackHit -isnot [bool]) -or
+            ([long]$record.schemaVersion -in @(36,37,38,39) -and $null -ne $record.rules.lastAttackHit)) {
             throw 'PASS combat rule evidence does not contain an exact native IsHit Boolean.'
         }
         $ruleIdentityInvalid = if ($commandTerminationScenario) {
@@ -8153,8 +8154,13 @@ function Assert-KmcCombatScenarioEvidence {
             throw 'PASS combat rule evidence does not prove one deterministic actor-specific attack without duplication.'
         }
         if ($commandTerminationScenario) {
-            if ([long]$record.rules.forcedD20 -ne 20 -or $null -ne $record.rules.lastAttackHit) {
-                throw 'PASS terminated combat evidence does not prove an armed but never-consumed deterministic roll.'
+            $terminationRollInvalid = if ([long]$record.schemaVersion -in @(36,37)) {
+                [long]$record.rules.forcedD20 -ne 20
+            } else {
+                $null -ne $record.rules.forcedD20
+            }
+            if ($terminationRollInvalid -or $null -ne $record.rules.lastAttackHit) {
+                throw 'PASS terminated combat evidence does not prove an unconsumed deterministic-roll boundary.'
             }
         }
         elseif ($missScenario) {
@@ -8171,7 +8177,10 @@ function Assert-KmcCombatScenarioEvidence {
             throw 'PASS combat hit evidence does not prove one deterministic actor-specific hit.'
         }
 
-        $resourceOwnershipInvalid = if ($mammothScenario) {
+        $resourceOwnershipInvalid = if ($commandTerminationScenario -and [long]$record.schemaVersion -in @(38,39)) {
+            [math]::Abs([double]$record.resources.riderStandardAfter - [double]$record.resources.riderStandardBefore) -gt 0.01 -or
+            [math]::Abs([double]$record.resources.mountStandardAfter - [double]$record.resources.mountStandardBefore) -gt 0.01
+        } elseif ($mammothScenario) {
             [double]$record.resources.mountStandardAfter -le [double]$record.resources.mountStandardBefore -or
             [math]::Abs([double]$record.resources.riderStandardAfter - [double]$record.resources.riderStandardBefore) -gt 0.01
         } else {
