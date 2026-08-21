@@ -1,5 +1,9 @@
 # Targeting, reach, and charge contract
 
+## Core target controls pass in game; final orchestration remains uncredited (2026-08-21)
+
+`20260821T120800Z-core-combat-controls-finalization-passA` proves exact target controls at game `80/0`, including exact pre-child target-death interruption, unique target identities, and zero attack/roll/damage-rule/AoO/charge chain. It is uncredited solely because the launcher did not produce a valid restored final result. The follow-up changes only launcher error observation and fallback evidence construction. No target, range, reach, opportunity, or charge behavior changes; fresh A/B remains required.
+
 ## Target-admission repair observed healthy in interrupted process (2026-08-21)
 
 Uncredited `20260821T105600Z-core-combat-controls-admission-passA` passes target-death `24/0`: exact target admission, lethal public damage, target life transition, exact pre-child Interrupt, retained mounted pair, and zero child/attack/roll/damage-rule/AoO/resource chain. The remaining cleanup-row diagnostic and stale artifact manifest do not contradict targeting behavior. Their repairs change only active-command outcome observation and final evidence publication. No target identity, range, reach, engagement, opportunity, or charge rule changes; fresh A/B is still mandatory.

@@ -1,5 +1,11 @@
 # Phase 2 runtime scenario matrix
 
+## Core control game PASS / launcher-observation checkpoint (2026-08-21)
+
+From clean package `5f8fbbc3b21797bdb72842d7e59ba8ecfb3563fe84892aac4ac8e42c51cbb145` and suite snapshot `d60ee93fda6575c5160a7df1b6f3b740b7d6570ce0394984d0924a2c6160f15d`, uncredited run `20260821T120800Z-core-combat-controls-finalization-passA` produces exact game `PASS 80/0` and an exact manifested combat artifact: invalid `17/0`, target-death `24/0`, cleanup `22/0`, non-mounted `17/0`. It proves the target-admission, outcome-reset, and game manifest repairs, but receives no A credit because an earlier launcher exception caused exit handling, fallback validation masked that first error, no final launcher result was written, and guarded recovery was required after natural game exit. Audit-before-read passed exactly.
+
+The next package changes observation/fallback behavior only: persist the original launcher error in orchestration before exit waiting and allow FAIL fallback construction to bind an incomplete manifest without calling scenario-semantic PASS validation. Ordinary game/final/artifact validators still reject missing or incomplete evidence. No timeout, process attribution, suspicious-window, target, attack, resource, cleanup, or restoration gate changes. Fresh A/B remains mandatory.
+
 ## Core combat-control interrupted-process diagnosis (2026-08-21)
 
 Clean published commit/package `7fb77e80e045a995efaf27a2cb9ed869b83db9c7` / `8fd35041e627a66007bdf556b486d5c6e1e23fea17c6057358440a6303c7c2df` and suite snapshot `6489837481e74e32b2cd0d7afce14d1ceb59a4875a516c3eb3a916e36d2dd9de` produced interrupted uncredited attempt `20260821T105600Z-core-combat-controls-admission-passA`. Guarded recovery and the independent restoration audit completed before evidence inspection and proved exact suite save/Mods state plus zero residue. The game evidence is `FAIL 79/1`: invalid-target `17/0`, target-death `24/0`, cleanup `21/1`, and non-mounted `17/0`. Target admission and the exact pre-child invalidation repair are therefore observed healthy; only cleanup's prior-outcome diagnostic failed.

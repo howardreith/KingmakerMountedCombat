@@ -8949,7 +8949,10 @@ function Assert-KmcCombatScenarioEvidence {
 }
 
 function Get-KmcValidatedOrchestrationArtifactManifestHash {
-    param([Parameter(Mandatory = $true)]$Request)
+    param(
+        [Parameter(Mandatory = $true)]$Request,
+        [switch]$AllowIncompleteScenarioEvidence
+    )
     $evidenceRoot = [IO.Path]::GetFullPath([string]$Request.evidenceRoot).TrimEnd('\')
     if (-not (Test-Path -LiteralPath $evidenceRoot -PathType Container)) {
         New-Item -ItemType Directory -Path $evidenceRoot -Force | Out-Null
@@ -9003,10 +9006,12 @@ function Get-KmcValidatedOrchestrationArtifactManifestHash {
             throw "Orchestration runtime artifact differs from its manifest: $relative"
         }
     }
-    Assert-KmcLifecycleScenarioEvidence -Request $Request -Manifest $manifestValue
-    Assert-KmcMovementScenarioEvidence -Request $Request -Manifest $manifestValue
-    Assert-KmcBoundaryScenarioEvidence -Request $Request -Manifest $manifestValue
-    Assert-KmcCombatScenarioEvidence -Request $Request -Manifest $manifestValue
+    if (-not $AllowIncompleteScenarioEvidence) {
+        Assert-KmcLifecycleScenarioEvidence -Request $Request -Manifest $manifestValue
+        Assert-KmcMovementScenarioEvidence -Request $Request -Manifest $manifestValue
+        Assert-KmcBoundaryScenarioEvidence -Request $Request -Manifest $manifestValue
+        Assert-KmcCombatScenarioEvidence -Request $Request -Manifest $manifestValue
+    }
     $hash = Get-KmcSha256 $manifestPath
     $after = Get-Item -LiteralPath $manifestPath -Force
     if ($after.Length -ne $before.Length -or $after.LastWriteTimeUtc.Ticks -ne $before.LastWriteTimeUtc.Ticks) {
@@ -9285,7 +9290,7 @@ function New-KmcRuntimeResultV2 {
             errors = @($fallbackErrors)
         })
         $fixture = $Request.fixture
-        $evidenceManifestSha256 = Get-KmcValidatedOrchestrationArtifactManifestHash $Request
+        $evidenceManifestSha256 = Get-KmcValidatedOrchestrationArtifactManifestHash $Request -AllowIncompleteScenarioEvidence
     }
     $subscenarioArray = $subscenarios.ToArray()
     $subscenarioPassCount = @($subscenarioArray | Where-Object { [string]$_.status -ceq 'PASS' }).Count

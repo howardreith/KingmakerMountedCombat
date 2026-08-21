@@ -4507,6 +4507,35 @@ try {
         Assert-Test ($manifest.artifacts -is [Array] -and @($manifest.artifacts).Count -eq 0) 'fallback orchestration manifest is not an exact empty artifact array'
     }
 
+    Invoke-HarnessTest 'combat fallback preserves original launcher error without weakening strict evidence validation' {
+        $fallbackEvidence = Join-Path $runtimeEvidenceTestRoot 'combat-fallback-evidence'
+        $fallbackFixture = [ordered]@{
+            baseline=[ordered]@{internalName='KMC_AUTOMATION_BASELINE';fileName='Manual_1_KMC_AUTOMATION_BASELINE.zks';sha256=('11'*32);length=1;lastWriteTimeUtcTicks=1;gameId='11111111-2222-3333-4444-555555555555';gameName='KMC Test Campaign';area='0123456789abcdef0123456789abcdef'}
+            working=[ordered]@{internalName='KMC_AUTOMATION_WORKING';fileName='Manual_2_KMC_AUTOMATION_WORKING.zks';sha256=('22'*32);length=1;lastWriteTimeUtcTicks=1;gameId='11111111-2222-3333-4444-555555555555';gameName='KMC Test Campaign';area='0123456789abcdef0123456789abcdef'}
+            writeAuthorization=[ordered]@{mode='working-only';allowedInternalName='KMC_AUTOMATION_WORKING';allowedFileName='Manual_2_KMC_AUTOMATION_WORKING.zks';baselineImmutable=$true}
+        }
+        $fallbackRequest=[pscustomobject]@{runId='combat-fallback-test';scenario='combat-core-control-suite';branch='codex/mounted-combat-phase2-alpha';commit=('0'*40);productVersion='0.1.0-phase2b-dev.1';dllSha256=('a'*64);dllMvid=[Guid]::Empty.ToString();transactionToken=('b'*64);evidenceRoot=$fallbackEvidence;fixture=$fallbackFixture}
+        $originalError = 'synthetic attributed launcher failure'
+        $final=New-KmcRuntimeResultV2 -Request $fallbackRequest -ValidatedGameResult $null -StartedAtUtc ([DateTimeOffset]::UtcNow) -ModsRestored $false -BaselineImmutable $false -WorkingRestored $false -SaveWriteAllowlistPassed $false -RestoredSaveInventoryDigest ('c'*64) -GameResultSha256 $null -Errors @($originalError)
+        Assert-Test ([string]$final.status -ceq 'FAIL' -and @($final.errors).Count -eq 1 -and [string]$final.errors[0] -ceq $originalError) 'combat fallback masked or replaced the original launcher error'
+        $manifestPath = Join-Path $fallbackEvidence 'runtime-artifacts.json'
+        $manifest = Read-KmcJson $manifestPath
+        Assert-Test ($manifest.artifacts -is [Array] -and @($manifest.artifacts).Count -eq 0 -and
+            (Get-KmcSha256 $manifestPath) -ceq [string]$final.evidenceManifestSha256) 'combat fallback did not bind one exact empty incomplete manifest'
+        $strictRejected = $false
+        try { Get-KmcValidatedOrchestrationArtifactManifestHash $fallbackRequest | Out-Null }
+        catch { $strictRejected = $true }
+        Assert-Test $strictRejected 'ordinary combat artifact validation accepted the incomplete fallback manifest'
+    }
+
+    Invoke-HarnessTest 'runtime launcher durably records its first attributed error before process-exit handling' {
+        $launcherSource = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'runtime\Invoke-KingmakerRuntimeScenario.ps1')
+        $catchIndex = $launcherSource.IndexOf("stage='launcher-error-waiting-for-process-exit'", [StringComparison]::Ordinal)
+        $finallyIndex = $launcherSource.IndexOf('finally{', $catchIndex, [StringComparison]::Ordinal)
+        Assert-Test ($catchIndex -ge 0 -and $finallyIndex -gt $catchIndex -and
+            $launcherSource.Contains('launcherErrorAtUtc') -and $launcherSource.Contains('launcherErrors')) 'launcher does not preserve the original caught error before bounded exit handling'
+    }
+
     $validPackageSource = Join-Path $testRoot 'valid-package\KingmakerMountedCombat'
     New-Item -ItemType Directory -Path $validPackageSource -Force | Out-Null
     Copy-Item -LiteralPath (Join-Path $repoRoot 'Info.json') -Destination (Join-Path $validPackageSource 'Info.json')

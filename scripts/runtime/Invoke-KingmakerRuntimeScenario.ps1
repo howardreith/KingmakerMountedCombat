@@ -397,7 +397,18 @@ try{
         if(-not$gamePassed){$errors.Add('Game reported FAIL: '+(@($validatedGameResult.errors) -join '; '))}
     }
 }
-catch{$errors.Add($_.Exception.Message)}
+catch{
+    $errors.Add($_.Exception.Message)
+    if(Test-Path -LiteralPath $orchestrationPath -PathType Leaf){
+        try{
+            $caughtOrchestration=Read-KmcJson $orchestrationPath
+            $caughtOrchestration.stage='launcher-error-waiting-for-process-exit'
+            $caughtOrchestration|Add-Member launcherErrorAtUtc ([DateTimeOffset]::UtcNow.ToString('o')) -Force
+            $caughtOrchestration|Add-Member launcherErrors @($errors|ForEach-Object{[string]$_}) -Force
+            Write-KmcJsonAtomic $orchestrationPath $caughtOrchestration
+        }catch{$errors.Add('Durable launcher-error observation failed: '+$_.Exception.Message)}
+    }
+}
 finally{
     if($null-ne$process){
         try{

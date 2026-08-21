@@ -2,6 +2,12 @@
 
 Status: IN PROGRESS
 
+## Launcher failure-observation repair after exact game PASS (2026-08-21)
+
+The repaired game path is exact: `20260821T120800Z-core-combat-controls-finalization-passA` emits one final manifested combat JSONL and game `PASS 80/0`, with all four controls green. It remains uncredited because the launcher had already caught an unknown error, waited for process exit, and then masked that cause by applying strict combat validation to its incomplete fallback manifest. Kingmaker later exited naturally; recovery and audit-before-read were exact.
+
+The launcher now persists the original caught error and UTC time in orchestration before exit handling. `New-KmcRuntimeResultV2` may construct a truthful FAIL fallback against an exact incomplete manifest, but the normal validator path still rejects that incompleteness. This preserves diagnosis without converting it into qualification. No combat, timeout, window-detection, process, restoration, or result threshold is weakened. Complete Release gates pass `21/217/17/209/255`; fresh package-bound runtime evidence remains mandatory.
+
 ## Interrupted control process: final manifest ownership and active-outcome observation (2026-08-21)
 
 `20260821T105600Z-core-combat-controls-admission-passA` remains immutable and uncredited. Guarded recovery plus the independent audit passed before evidence read. The game produced `79/1`: invalid, repaired target-death, and non-mounted rows pass; cleanup's single failure compared the deliberately cleared current outcome slot against the preceding target-death outcome. Active exact-command admission now requires `LastOutcome == null`, while no-command controls continue to require unchanged historical identity. This is diagnostic-only and preserves the production target-admission repair.

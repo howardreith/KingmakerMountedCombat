@@ -1,5 +1,13 @@
 # Phase 2 qualification
 
+## Core controls pass in game but remain uncredited at launcher boundary (2026-08-21)
+
+Status: `IN PROGRESS`; no safety, architecture, or presentation blocker is active.
+
+Clean commit/package `7c240f20e235b6194cca291ed61b4d2e536b7826` / `5f8fbbc3b21797bdb72842d7e59ba8ecfb3563fe84892aac4ac8e42c51cbb145` and suite `d60ee93fda6575c5160a7df1b6f3b740b7d6570ce0394984d0924a2c6160f15d` passed RT/TB WhatIf and audits. Run `20260821T120800Z-core-combat-controls-finalization-passA` is immutable uncredited: game evidence and corrected manifest pass `80/0`, but an earlier unknown launcher exception began exit handling and the fallback's strict combat validation masked it, leaving no final launcher result. Kingmaker exited naturally; guarded recovery and independent audit passed before evidence inspection.
+
+The follow-up preserves the first launcher error/timestamp before waiting for exit and prevents incomplete FAIL fallback construction from masking it. Strict ordinary artifact/game/final validators remain unchanged and continue rejecting incomplete combat evidence. No gameplay or safety gate changes. Complete Release gates pass `21/217/17/209/255`; a fresh published package and A/B set remain required.
+
 ## Recovered interrupted core-control process (2026-08-21)
 
 Status: `IN PROGRESS`; no safety, architecture, or presentation blocker is active.

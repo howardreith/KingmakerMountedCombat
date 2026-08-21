@@ -1,5 +1,9 @@
 # Autonomous blockers
 
+## Game control PASS remains uncredited because launcher cause was masked - 2026-08-21T12:16:25Z
+
+Status: `IN PROGRESS`; restoration is exact and no critical blocker is active. Run `20260821T120800Z-core-combat-controls-finalization-passA` has game `PASS 80/0` and a corrected exact final manifest, but no completed launcher result. An earlier launcher exception caused bounded exit handling while Kingmaker continued; fallback strict combat validation then masked that original error. Kingmaker exited naturally, guarded recovery succeeded, and audit-before-read passed. The repair is observation/protocol only: durably retain the first launcher error, permit fallback construction to bind incomplete FAIL evidence, and keep ordinary semantic validators strict. Complete Release gates are `21/217/17/209/255`; fresh published-package evidence remains required.
+
 ## Recovered interrupted control run isolates manifest ownership and row-history defects - 2026-08-21T11:39:18Z
 
 Status: `IN PROGRESS`; exact recovery/restoration passed, so this is not a safety or architecture blocker. `20260821T105600Z-core-combat-controls-admission-passA` remains immutable uncredited game `FAIL 79/1` with no completed launcher result. Target-death now passes `24/0`; cleanup alone is `21/1` because command acceptance intentionally cleared the preceding outcome and the diagnostic compared against that obsolete object. A PowerShell-created empty manifest also predated and omitted the later combat artifact. The narrow repair requires no terminal outcome for the exact active command and makes game finalization atomically replace, not trust, a pre-existing final-artifact manifest. The unexplained lingering process receives no relaxed exit gate or inferred cause. Complete offline totals are `21/217/17/207/255`; publication, clean package/suite/WhatIf, and fresh A/B remain required.

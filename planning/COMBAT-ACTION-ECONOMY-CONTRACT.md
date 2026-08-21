@@ -1,5 +1,9 @@
 # Combat action economy contract
 
+## Core control game evidence passes exactly; launcher credit pending (2026-08-21)
+
+Uncredited run `20260821T120800Z-core-combat-controls-finalization-passA` produces game `PASS 80/0`, including target-death and cleanup before child admission with zero child/rule/AoO/Standard/Move chain and exact restoration observations. Its lack of final launcher evidence is orchestration-only and does not change action-economy behavior. The next diagnostic repair only preserves the first launcher error and incomplete FAIL fallback; all resource and semantic validators remain strict. Fresh A/B is required before qualification credit.
+
 ## Active-command outcome identity correction (2026-08-21)
 
 Interrupted uncredited attempt `20260821T105600Z-core-combat-controls-admission-passA` proves target-death `24/0`, invalid-target `17/0`, non-mounted `17/0`, and every cleanup zero-child/rule/resource/restoration observation except one diagnostic identity assertion. A newly accepted production command deliberately clears the preceding `LastOutcome`; therefore active admission now requires a null current terminal outcome rather than equality with a completed prior-row outcome. No command, Standard/Move, refund, attack, cancellation, or result behavior changes. The separate stale-manifest repair changes evidence publication only. Complete offline gates pass `21/217/17/207/255`; fresh package-bound A/B remains required.
