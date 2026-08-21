@@ -1,5 +1,11 @@
 # Phase 2 runtime scenario matrix
 
+## Core combat-control suite implementation checkpoint (2026-08-21)
+
+The additive save-backed `combat-core-control-suite` executes exactly four ordered real-time rows: `mounted-rider-melee-invalid-target`, `mounted-rider-melee-target-death`, `mounted-rider-melee-cleanup`, and `non-mounted-melee-control`. It uses the already-qualified Medium-humanoid/Mammoth pair and disposable target, places every target outside the exact measured pair radius, and exercises only production click/controller, public target `Damage`, relationship `Dismount(Exception)`, and controller `NotHandled` seams. PASS requires null rider/Mammoth target rejection without a command or resource cost; active-command target death and repeated exception cleanup before child admission; non-mounted stock delegation; zero child/attack/roll/damage/opportunity/forced-d20 chains; exact action-resource equality; and complete target/combat/agent/pause/relationship restoration. One schema-v1 JSONL artifact binds exact row order, pair and unique target identities, production paths, results, and cleanup. Historical attack schemas and credited evidence are unchanged.
+
+Status: offline implementation and deterministic validator coverage PASS; fresh clean-package same-suite A/B runtime evidence remains required before any of these four rows receives credit.
+
 ## Qualification-suite external-state admission (2026-08-20)
 
 All future save-backed rows are bound to one append-only qualification-suite snapshot. Admission requires quiescence plus two identical complete save-root and Mods-root scans. The snapshot binds exact commit/package/manifest/DLL/MVID, permanent KMC fixture identity, historical authority identifiers, and full path/type/length/timestamp/raw-hash inventories. Same-package A/B rows may be paired only when suite ID and snapshot SHA-256 match. Stable foreign drift between suites starts a new suite; any drift during a suite rejects that suite's remaining credit and requires fresh A/B. Restoration audit against the exact snapshot precedes gameplay evidence inspection after every process.

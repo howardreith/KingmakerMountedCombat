@@ -2,6 +2,10 @@
 
 Status: IN PROGRESS
 
+## Core control harness (2026-08-21)
+
+An additive `RuntimeCombatControlScenarioEngine` now owns the four remaining core rider controls without sharing or weakening the qualified attack evidence schemas. It runs exact ordered invalid-null-target, active-command target-death, repeated exception-cleanup, and unmounted stock-delegation rows. Targets are placed outside the measured pair range so target death and cleanup occur after the wrapper is accepted but before a child starts. The compact evidence contract requires unchanged rider/Mammoth action resources, zero child or Rulebook chains, stable pair identity with unique disposable targets, exact production paths, and complete target/combat/agent/pause/relationship cleanup. Runtime protocol, guarded launcher allowlists, game/final-result row allowlists, artifact validation, host disposal, and deterministic mutation regressions are wired. This checkpoint makes no runtime qualification claim.
+
 Native rider and Mammoth incapacitation cleanup is now qualified from clean commit/package `ee08638ff19923b4f0aaf0d1ca03830de802d0cc` / `e68d90a25730760a52167e7ee41366c6490f49a7f134bb447e805aed745c7dc0`, suite snapshot `37a1989d174cdb0f44026ba64470e4fda1d1febc673fabffb668d977466f5897`. Rider A/B and Mammoth A/B each pass schema v7 `49/0` with exact native callback/delivery identity, first-delivery cleanup, accepted presentation restoration, and four audit-before-read external restoration proofs. The earlier diagnostic and validator failures remain immutable uncredited evidence.
 
 The first repaired live rider row passes internally at `49/0`: one exact native unconscious callback now performs successful first-delivery cleanup and restores avoidance without residue. Final validation rejected only Unity's omission of an empty `cleanupErrors` array. The protocol now accepts absent-or-empty errors exclusively for successful schema-v7 cleanup, requires non-empty errors for the failed diagnostic shape, and rejects success carrying errors. No production behavior changes in this follow-up, and the preserved process remains uncredited.

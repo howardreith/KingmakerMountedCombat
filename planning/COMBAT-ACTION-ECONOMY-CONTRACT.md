@@ -1,5 +1,9 @@
 # Combat action economy contract
 
+## Core pre-child control contract (2026-08-21)
+
+The exact `combat-core-control-suite` adds four ordered real-time controls without changing a qualified attack path. Invalid null targets are delivered through `ClickUnitHandler.OnClick` for both armed rider melee and Mammoth primary and must clear arming without creating a wrapper or changing either actor's Standard/Move ledger. Target death starts one exact out-of-range rider wrapper, applies only public `UnitEntityData.Damage` to the disposable target before child admission, and must interrupt the wrapper while preserving the otherwise valid mounted pair. Cleanup stress starts the same wrapper, calls `Dismount(CleanupTrigger.Exception)` twice, and requires first-delivery success plus repeated idempotence. The non-mounted row requires hidden actions, rejected arming, `MountedCombatClickResult.NotHandled`, unchanged stock agents/avoidance, and no resource change. Every row requires zero child, attack, roll, damage, opportunity, unexpected-pair, or forced-d20 chain and exact residue-free cleanup. This is offline-green only until fresh same-package A/B qualifies it.
+
 ## External-state evidence binding (2026-08-20)
 
 Action-economy credit requires the runtime request, combined transaction, final restoration, and paired A/B processes to bind one exact qualification-suite ID and snapshot SHA-256. A result from a different suite snapshot cannot complete or corroborate an A/B claim. This changes admission and noninterference accounting only; rider/Mammoth Standard and Move ownership, exact-single-attack criteria, and real-time/turn-based mode-specific assertions are unchanged.

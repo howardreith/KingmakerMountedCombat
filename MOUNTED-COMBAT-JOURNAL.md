@@ -1,5 +1,12 @@
 # Mounted Combat journal
 
+## 2026-08-21T09:25:01Z - exact core combat controls implemented offline
+
+- Resumed from clean guarded-published local/upstream `e421e516e56f8b3e75adefec4c364ddc96d721a4` on `codex/mounted-combat-phase2-alpha`; origin and repository identity were exact, no Git operation/lock or relevant process existed, and durable evidence—not model recollection—remained authoritative.
+- Added isolated `combat-core-control-suite` rows in exact order: invalid null target, active-command target death, repeated exception cleanup, and non-mounted stock delegation. Exact out-of-range placement ensures the two active-command controls occur before child admission. The suite requires unchanged resources, zero child/rule/AoO chains, exact production paths and identities, and full cleanup; it makes no reach/AoO/charge or prior attack-schema change.
+- Protocol/launcher/host/finalization and game/final-result allowlists are wired. Schema-v1 JSONL validation and synthetic mutation regressions reject missing, extra, reordered, cross-identity, production-path, mounted-state, behavior, resource, rule, cleanup, and subresult contradictions. Contracts and qualification records mark this as offline-only.
+- Complete gate: source `21/0`; Release build; component `216/0`; visual/source-order `17/0`; harness/protocol `207/0`; assembly `255/0` (`244/0` Kingmaker / `11/0` Wrath); PowerShell/JSON parsers `26/0` / `7/0`; diff/prohibited-payload PASS. Dirty DLL SHA-256/MVID are `2e917a4bce0219c3231ecb708a31d1208ba8c7ced9c76f4b72e0fb8b6f42b7e4` / `8b65f641-321c-44cf-a3bb-e30ffc45d2c9` and are not package identity. Next: coherent commit/publish, clean package, stable suite admission, separate RT/TB WhatIf/audits, then fresh A/B with audit-before-read.
+
 ## 2026-08-21T08:54:05Z - native rider and Mammoth incapacitation qualify A/B
 
 - Validator checkpoint `ee08638ff19923b4f0aaf0d1ca03830de802d0cc` was guarded-published with complete gates `21/215/17/203/255`, parsers `26/0` and `7/0`, diff/prohibited checks PASS. Fresh package/manifest/DLL/MVID are `e68d90a25730760a52167e7ee41366c6490f49a7f134bb447e805aed745c7dc0` / `c2ec6cff03581339bd7348f26b8191c435875dd77452af1954ee841faf820cd1` / `0220ab1fbe166ec8a0c4cc0d2b82486cec08f5a896d83150d38217f4a5c890aa` / `fdb17595-67af-4c98-a93e-3f1e9983d61e`; exact package validation is `10/0`.

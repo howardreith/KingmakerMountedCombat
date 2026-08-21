@@ -1,5 +1,9 @@
 # Targeting, reach, and charge contract
 
+## Core target-isolation controls (2026-08-21)
+
+The additive `combat-core-control-suite` places its disposable hostile target at the existing diagnostic approach distance outside the measured Mammoth-origin pair radius. Null rider/Mammoth target clicks must fail closed through the production click path; public lethal target `Damage` must interrupt an already accepted out-of-range rider command before child admission while preserving the valid pair; repeated exception cleanup must terminate that command without a rule chain; and an unmounted pair must return `NotHandled` so stock click routing remains authoritative. All four rows require unique exact target identity, zero attack/roll/damage/AoO/charge evidence, unchanged resources, and complete target/relationship restoration. This adds no reach, opportunity, engagement, or charge behavior and remains runtime-unqualified until fresh A/B.
+
 ## External-state evidence binding (2026-08-20)
 
 Targeting, reach, opportunity, and charge evidence must bind one exact package-bound qualification-suite snapshot. Foreign save or Mods drift cannot be hidden by a later admission or combined across snapshots; a changed stable between-suite state begins a new suite and a fresh A/B set. This safety change does not grant mounted-reach, explicit mounted-AoO, or charge qualification and does not alter the narrow opportunity-isolation claim under test.

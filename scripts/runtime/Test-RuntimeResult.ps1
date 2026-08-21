@@ -167,7 +167,9 @@ function Assert-SubscenarioResults {
         'mounted-rider-melee-move-to-attack-rt', 'mounted-rider-melee-move-to-attack-tb',
         'mounted-rider-melee-command-cancel-rt', 'mounted-rider-melee-command-cancel-tb',
         'mounted-rider-melee-command-interrupt-rt', 'mounted-rider-melee-command-interrupt-tb',
-        'mounted-rider-melee-combat-end-rt', 'mounted-rider-melee-combat-end-tb'
+        'mounted-rider-melee-combat-end-rt', 'mounted-rider-melee-combat-end-tb',
+        'mounted-rider-melee-invalid-target', 'mounted-rider-melee-target-death',
+        'mounted-rider-melee-cleanup', 'non-mounted-melee-control'
     )
     if ($null -eq $Result.subscenarioResults -or $Result.subscenarioResults -is [string]) { throw 'Runtime result subscenarioResults must be an array.' }
     $items = @($Result.subscenarioResults)

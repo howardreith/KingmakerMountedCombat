@@ -1,5 +1,9 @@
 # Phase 2 qualification
 
+## Core combat-control implementation checkpoint (2026-08-21)
+
+The remaining invalid-target, target-death, cleanup-stress, and non-mounted-control claims now have one isolated four-row runtime engine and a strict schema-v1 validator. Deterministic coverage accepts only exact ordered identities and rejects missing, extra, reordered, cross-identity, production-path, mounted-state, behavior, rule-count, resource, cleanup-trigger, residue, and subresult contradictions. The engine uses the exact production controller seams, public disposable-target `Damage`, and repeated `Dismount(Exception)` only; it changes no qualified attack, range, action-cost, AoO, charge, save, or Mods behavior. Offline implementation is PASS, but runtime status remains `IN PROGRESS` pending fresh clean-package same-suite A/B and audit-before-read.
+
 ## Native rider and Mammoth incapacitation qualification (2026-08-21)
 
 Status: `PASS` for the two exact native incapacitation rows; overall private-alpha qualification remains `IN PROGRESS`.

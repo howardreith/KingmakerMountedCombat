@@ -62,6 +62,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private RuntimeManualReviewSession manualReviewSession;
         private RuntimeMovementScenarioEngine movementEngine;
         private RuntimeBoundaryScenarioEngine boundaryEngine;
+        private RuntimeCombatControlScenarioEngine combatControlEngine;
         private RuntimeCombatScenarioEngine combatEngine;
         private readonly List<string> scenarioEngineErrors = new List<string>();
         private readonly BoundaryFailureDrain saveBackedFailureDrain = new BoundaryFailureDrain();
@@ -459,7 +460,27 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
-            if (RuntimeCombatScenarioEngine.SupportsScenario(request.Scenario))
+            if (RuntimeCombatControlScenarioEngine.SupportsScenario(request.Scenario))
+            {
+                if (combatControlEngine == null)
+                {
+                    combatControlEngine = new RuntimeCombatControlScenarioEngine(
+                        request, relationship, combat, diagnosticSettings, logger);
+                    combatControlEngine.Start();
+                }
+                combatControlEngine.Update();
+                if (!combatControlEngine.IsCompleted)
+                {
+                    return;
+                }
+                subscenarioResults = combatControlEngine.Results;
+                CollectEngineErrors(combatControlEngine.Errors, "Combat control");
+                try { combatControlEngine.Dispose(); }
+                catch (Exception exception) { scenarioEngineErrors.Add("Combat-control engine disposal failed: " + exception.GetType().Name + ": " + exception.Message); }
+                CollectEngineErrors(combatControlEngine.Errors, "Combat control");
+                combatControlEngine = null;
+            }
+            else if (RuntimeCombatScenarioEngine.SupportsScenario(request.Scenario))
             {
                 if (combatEngine == null)
                 {
@@ -1113,6 +1134,17 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void FinalizeActiveScenarioEngines(List<string> finalErrors)
         {
+            if (combatControlEngine != null)
+            {
+                var engine = combatControlEngine;
+                combatControlEngine = null;
+                if (!engine.IsCompleted) { finalErrors.Add("Combat-control engine was interrupted before completing its selected rows."); }
+                if ((subscenarioResults == null || subscenarioResults.Count == 0) && engine.Results.Count != 0) { subscenarioResults = engine.Results; }
+                CollectEngineErrors(engine.Errors, "Combat control");
+                try { engine.Dispose(); }
+                catch (Exception exception) { finalErrors.Add("Combat-control engine disposal failed: " + exception.GetType().Name + ": " + exception.Message); }
+                CollectEngineErrors(engine.Errors, "Combat control");
+            }
             if (combatEngine != null)
             {
                 var engine = combatEngine;

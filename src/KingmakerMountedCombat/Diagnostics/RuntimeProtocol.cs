@@ -81,6 +81,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "mounted-rider-melee-command-interrupt-tb",
             "mounted-rider-melee-combat-end-rt",
             "mounted-rider-melee-combat-end-tb",
+            "combat-core-control-suite",
             ManualReviewScenario
         };
 

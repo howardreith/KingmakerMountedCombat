@@ -1369,6 +1369,92 @@ function Write-TestCombatEvidence {
     return New-TestArtifactManifest -EvidenceRoot $EvidenceRoot -RunId $Request.runId -Scenario $Request.scenario -Artifacts $artifacts
 }
 
+function New-TestCombatControlEvidenceRecords {
+    param([Parameter(Mandatory = $true)]$Request)
+    $rows = @(Get-KmcCombatControlRuntimeRows)
+    $paths = @{
+        'mounted-rider-melee-invalid-target' = 'ClickUnitHandler.OnClick -> MountedCombatController.TryHandleUnitClick -> MountedCombatActionEvaluator.Evaluate'
+        'mounted-rider-melee-target-death' = 'UnitEntityData.Damage -> mounted command liveness -> UnitCommand.Interrupt'
+        'mounted-rider-melee-cleanup' = 'MountedRelationshipCoordinator.Dismount(Exception) -> MountedCombatController.HandleDismounting'
+        'non-mounted-melee-control' = 'MountedCombatController.Arm/TryHandleUnitClick -> NotHandled stock delegation'
+    }
+    $records = New-Object 'Collections.Generic.List[object]'
+    for ($index = 0; $index -lt $rows.Count; $index++) {
+        $row = [string]$rows[$index]
+        $observations = [ordered]@{
+            controlKind=$row;riderArmed=$false;mountArmed=$false;riderInvalidRejected=$false
+            mountInvalidRejected=$false;armedCleared=$false;activeCommandAbsent=$false
+            combatActionsHidden=$false;armRejectedUnmounted=$false;controllerNotHandledUnmounted=$false
+            riderAgentUnchangedNonMounted=$false;mountAgentUnchangedNonMounted=$false;commandAccepted=$false
+            targetDamageBefore=0;targetDamageRequested=0;targetDamageAfter=0
+            targetLifeTransitionObserved=$false;targetDeadOrFinallyDead=$false;commandInterrupted=$false
+            cleanupTrigger=$(if ($row -ceq 'mounted-rider-melee-cleanup') { 'Exception' } else { 'none' })
+            firstCleanupSucceeded=$false;repeatedCleanupSucceeded=$false;childAttackStartCount=0
+            attackRuleCount=0;attackRollCount=0;damageRuleCount=0;unexpectedPairAttackCount=0
+            forcedD20Count=0;relationshipPreservedAfterTargetDeath=$false;resourcesUnchanged=$true
+        }
+        switch -CaseSensitive ($row) {
+            'mounted-rider-melee-invalid-target' {
+                $observations.riderArmed=$true;$observations.mountArmed=$true
+                $observations.riderInvalidRejected=$true;$observations.mountInvalidRejected=$true
+                $observations.armedCleared=$true;$observations.activeCommandAbsent=$true
+            }
+            'mounted-rider-melee-target-death' {
+                $observations.commandAccepted=$true;$observations.targetDamageRequested=115
+                $observations.targetDamageAfter=115;$observations.targetLifeTransitionObserved=$true
+                $observations.targetDeadOrFinallyDead=$true;$observations.commandInterrupted=$true
+                $observations.relationshipPreservedAfterTargetDeath=$true
+            }
+            'mounted-rider-melee-cleanup' {
+                $observations.commandAccepted=$true;$observations.commandInterrupted=$true
+                $observations.firstCleanupSucceeded=$true;$observations.repeatedCleanupSucceeded=$true
+            }
+            'non-mounted-melee-control' {
+                $observations.activeCommandAbsent=$true;$observations.combatActionsHidden=$true
+                $observations.armRejectedUnmounted=$true;$observations.controllerNotHandledUnmounted=$true
+                $observations.riderAgentUnchangedNonMounted=$true;$observations.mountAgentUnchangedNonMounted=$true
+            }
+        }
+        $records.Add([ordered]@{
+            schemaVersion=1;artifactKind='combat-core-control-evidence';runId=[string]$Request.runId
+            scenario=[string]$Request.scenario;row=$row;rowIndex=$index;sequence=$index;frame=(20+$index)
+            utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o');branch=[string]$Request.branch
+            commit=[string]$Request.commit;productVersion=[string]$Request.productVersion
+            dllSha256=[string]$Request.dllSha256;dllMvid=[string]$Request.dllMvid;status='PASS'
+            riderId='combat-control-rider';mountId='combat-control-mount';targetId=('combat-control-target-'+$index)
+            mountedAtExercise=($row -cne 'non-mounted-melee-control');productionPath=[string]$paths[$row]
+            observations=$observations
+            resources=[ordered]@{
+                riderStandardBefore=0.0;riderStandardAfter=0.0;riderMoveBefore=0.0;riderMoveAfter=0.0
+                mountStandardBefore=0.0;mountStandardAfter=0.0;mountMoveBefore=0.0;mountMoveAfter=0.0
+            }
+            cleanup=[ordered]@{
+                targetRemoved=$true;relationshipClean=$true;combatCleared=$true;agentsRestored=$true
+                pauseRestored=$true;runtimeLockOrDeploymentCreated=$false;residualState=$false
+            }
+            assertionPassCount=12;assertionFailCount=0;errors=@()
+        })
+    }
+    return $records.ToArray()
+}
+
+function Write-TestCombatControlEvidence {
+    param(
+        [Parameter(Mandatory = $true)][string]$EvidenceRoot,
+        [Parameter(Mandatory = $true)]$Request,
+        [Parameter(Mandatory = $true)]$Records
+    )
+    New-Item -ItemType Directory -Path $EvidenceRoot -Force | Out-Null
+    $path = Join-Path $EvidenceRoot 'combat-scenario-evidence.jsonl'
+    $jsonLines = @($Records | ForEach-Object { $_ | ConvertTo-Json -Compress -Depth 15 })
+    [IO.File]::WriteAllText($path, ($jsonLines -join [Environment]::NewLine) + [Environment]::NewLine, (New-Object Text.UTF8Encoding($false)))
+    $artifacts = @([ordered]@{
+        relativePath='combat-scenario-evidence.jsonl';kind='combat-evidence'
+        length=(Get-Item -LiteralPath $path).Length;sha256=(Get-KmcSha256 $path)
+    })
+    return New-TestArtifactManifest -EvidenceRoot $EvidenceRoot -RunId $Request.runId -Scenario $Request.scenario -Artifacts $artifacts
+}
+
 function Copy-TestJsonValue {
     param([Parameter(Mandatory = $true)]$Value)
     return ($Value | ConvertTo-Json -Compress -Depth 20 | ConvertFrom-Json)
@@ -4938,6 +5024,35 @@ try {
             $combatValidatorSource.Contains("'targetNativeSingleAttackSlot'")) 'combat evidence does not bind exact native weapon selection and zero provisioning mutation'
     }
 
+    Invoke-HarnessTest 'core combat-control source is exact ordered production-path and residue-closed' {
+        $controlSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeCombatControlScenarioEngine.cs'))
+        $hostSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeAutomationHost.cs'))
+        $projectSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\KingmakerMountedCombat.csproj'))
+        $rowsIndex = $controlSource.IndexOf('private static readonly string[] Rows', [StringComparison]::Ordinal)
+        $invalidIndex = $controlSource.IndexOf('InvalidTargetRow,', $rowsIndex, [StringComparison]::Ordinal)
+        $deathIndex = $controlSource.IndexOf('TargetDeathRow,', $rowsIndex, [StringComparison]::Ordinal)
+        $cleanupIndex = $controlSource.IndexOf('CleanupRow,', $rowsIndex, [StringComparison]::Ordinal)
+        $nonMountedIndex = $controlSource.IndexOf('NonMountedRow', $rowsIndex, [StringComparison]::Ordinal)
+        Assert-Test ($invalidIndex -ge 0 -and $deathIndex -gt $invalidIndex -and
+            $cleanupIndex -gt $deathIndex -and $nonMountedIndex -gt $cleanupIndex) 'core combat-control row order is not exact'
+        Assert-Test ($controlSource.Contains('new ClickUnitHandler().OnClick(null, Vector3.zero, 0, false, false)') -and
+            $controlSource.Contains('combat.TryHandleUnitClick(') -and
+            $controlSource.Contains('MountedCombatClickResult.NotHandled')) 'invalid and non-mounted controls bypass the production click/controller seams'
+        Assert-Test ($controlSource.Contains('target.Damage = observations.TargetDamageRequested;') -and
+            $controlSource.Contains('relationship.Dismount(CleanupTrigger.Exception)') -and
+            $controlSource.Contains('combat.Cancel("control cleanup repeat")')) 'target-death or repeated exception cleanup does not use the bounded production seam'
+        Assert-Test ($controlSource.Contains('observations.AttackRuleCount == 0') -and
+            $controlSource.Contains('observations.AttackRollCount == 0') -and
+            $controlSource.Contains('observations.DamageRuleCount == 0') -and
+            $controlSource.Contains('observations.UnexpectedPairAttackCount == 0') -and
+            $controlSource.Contains('observations.ForcedD20Count == 0')) 'core controls do not fail closed on any unexpected attack chain'
+        $controlHostIndex = $hostSource.IndexOf('RuntimeCombatControlScenarioEngine.SupportsScenario(request.Scenario)', [StringComparison]::Ordinal)
+        $attackHostIndex = $hostSource.IndexOf('RuntimeCombatScenarioEngine.SupportsScenario(request.Scenario)', [StringComparison]::Ordinal)
+        Assert-Test ($controlHostIndex -ge 0 -and $attackHostIndex -gt $controlHostIndex -and
+            $hostSource.Contains('combatControlEngine.Dispose()')) 'runtime host does not isolate or dispose the control engine before attack schemas'
+        Assert-Test $projectSource.Contains('Diagnostics\RuntimeCombatControlScenarioEngine.cs') 'combat-control engine is absent from the exact production project'
+    }
+
     $combatRequest = Copy-TestJsonValue $v2Request
     $combatRequest.runId = 'combat-evidence-test'
     $combatRequest.scenario = 'mounted-rider-melee-hit-rt'
@@ -4952,6 +5067,68 @@ try {
         & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $combatRequestPath
         Assert-KmcCombatScenarioEvidence -Request $combatRequest -Manifest $combatManifest -Status 'PASS' -SubscenarioResults @($combatSubresult)
     }
+
+    $controlRequestPath = Join-Path $testRoot 'runtime-request-combat-control.json'
+    $controlRequest = Copy-TestJsonValue $combatRequest
+    $controlRequest.runId = 'combat-core-control-evidence-test'
+    $controlRequest.scenario = 'combat-core-control-suite'
+    $controlRequest.evidenceRoot = Join-Path $runtimeEvidenceTestRoot $controlRequest.runId
+    Write-KmcJsonAtomic $controlRequestPath $controlRequest
+    $controlRecords = @(New-TestCombatControlEvidenceRecords $controlRequest)
+    [void](Write-TestCombatControlEvidence -EvidenceRoot $controlRequest.evidenceRoot -Request $controlRequest -Records $controlRecords)
+    $controlManifest = Read-KmcJson (Join-Path $controlRequest.evidenceRoot 'runtime-artifacts.json')
+    $controlSubresults = @($controlRecords | ForEach-Object {
+        [ordered]@{name=[string]$_.row;status='PASS';assertionPassCount=12;assertionFailCount=0;errors=@()}
+    })
+
+    Invoke-HarnessTest 'runtime request and exact four-row core combat controls pass' {
+        & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $controlRequestPath
+        Assert-KmcCombatScenarioEvidence -Request $controlRequest -Manifest $controlManifest -Status 'PASS' -SubscenarioResults $controlSubresults
+    }
+
+    Invoke-HarnessTest 'core combat controls reject missing extra reordered or cross-identity rows' {
+        $cases = @(
+            { param($rows) return @($rows | Select-Object -First 3) },
+            { param($rows) return @($rows + (Copy-TestJsonValue $rows[3])) },
+            { param($rows) $swap=$rows[0];$rows[0]=$rows[1];$rows[1]=$swap;return $rows },
+            { param($rows) $rows[2].riderId='different-rider';return $rows },
+            { param($rows) $rows[3].targetId=[string]$rows[2].targetId;return $rows }
+        )
+        foreach ($mutate in $cases) {
+            $candidate = @(Copy-TestJsonValue $controlRecords)
+            $candidate = @(& $mutate $candidate)
+            [void](Write-TestCombatControlEvidence -EvidenceRoot $controlRequest.evidenceRoot -Request $controlRequest -Records $candidate)
+            $candidateManifest = Read-KmcJson (Join-Path $controlRequest.evidenceRoot 'runtime-artifacts.json')
+            $rejected = $false
+            try { Assert-KmcCombatScenarioEvidence -Request $controlRequest -Manifest $candidateManifest -Status 'PASS' -SubscenarioResults $controlSubresults }
+            catch { $rejected = $true }
+            Assert-Test $rejected 'combat-control validator accepted a missing, extra, reordered, or identity-mismatched row'
+        }
+    }
+
+    Invoke-HarnessTest 'core combat controls reject behavior resource rule cleanup and production contradictions' {
+        $cases = @(
+            { param($rows) $rows[0].observations.riderInvalidRejected=$false;return $rows },
+            { param($rows) $rows[1].observations.attackRuleCount=1;return $rows },
+            { param($rows) $rows[2].resources.riderStandardAfter=1.0;return $rows },
+            { param($rows) $rows[2].observations.cleanupTrigger='Manual';return $rows },
+            { param($rows) $rows[3].productionPath='stock';return $rows },
+            { param($rows) $rows[3].cleanup.residualState=$true;return $rows },
+            { param($rows) $rows[3].mountedAtExercise=$true;return $rows }
+        )
+        foreach ($mutate in $cases) {
+            $candidate = @(Copy-TestJsonValue $controlRecords)
+            $candidate = @(& $mutate $candidate)
+            [void](Write-TestCombatControlEvidence -EvidenceRoot $controlRequest.evidenceRoot -Request $controlRequest -Records $candidate)
+            $candidateManifest = Read-KmcJson (Join-Path $controlRequest.evidenceRoot 'runtime-artifacts.json')
+            $rejected = $false
+            try { Assert-KmcCombatScenarioEvidence -Request $controlRequest -Manifest $candidateManifest -Status 'PASS' -SubscenarioResults $controlSubresults }
+            catch { $rejected = $true }
+            Assert-Test $rejected 'combat-control validator accepted a behavior, resource, rule, cleanup, or production contradiction'
+        }
+    }
+
+    [void](Write-TestCombatControlEvidence -EvidenceRoot $controlRequest.evidenceRoot -Request $controlRequest -Records $controlRecords)
 
     $turnBasedRequestPath = Join-Path $testRoot 'runtime-request-combat-turn-based.json'
     $turnBasedRequest = Copy-TestJsonValue $combatRequest

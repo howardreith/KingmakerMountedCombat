@@ -1,5 +1,9 @@
 # Autonomous blockers
 
+## Core combat controls offline-green; runtime A/B pending - 2026-08-21T09:25:01Z
+
+Status: `IN PROGRESS`; no critical blocker is active. The exact four-row invalid-target/target-death/exception-cleanup/non-mounted control suite is implemented and passes complete offline gates `21/216/17/207/255` plus parsers/diff/prohibited checks. Its validator is separate from qualified attack schemas and requires pre-child zero-rule/resource behavior plus residue-free cleanup. Fresh clean-package suite admission, WhatIf, and A/B remain required; no runtime PASS is claimed.
+
 ## Native rider and Mammoth incapacitation qualified A/B - 2026-08-21T08:54:05Z
 
 Status: `PASS` for both exact native incapacitation rows; no critical blocker is active. Clean package `e68d90a25730760a52167e7ee41366c6490f49a7f134bb447e805aed745c7dc0` and suite snapshot `37a1989d174cdb0f44026ba64470e4fda1d1febc673fabffb668d977466f5897` produced rider A/B and Mammoth A/B at `49/0` each. Four restoration audits passed before evidence reads. The earlier diagnostic and validator failures remain immutable uncredited history; their narrow repairs are now qualified. Remaining core controls, not native incapacitation, are the active work.

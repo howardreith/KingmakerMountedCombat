@@ -3649,6 +3649,7 @@ function Get-KmcSaveBackedRuntimeScenarios {
         'mounted-rider-melee-command-cancel-rt', 'mounted-rider-melee-command-cancel-tb',
         'mounted-rider-melee-command-interrupt-rt', 'mounted-rider-melee-command-interrupt-tb',
         'mounted-rider-melee-combat-end-rt', 'mounted-rider-melee-combat-end-tb',
+        'combat-core-control-suite',
         'manual-visual-review'
     )
 }
@@ -4938,6 +4939,15 @@ function Get-KmcCombatRuntimeRows {
 function Test-KmcCombatRuntimeScenario {
     param([AllowNull()][string]$Scenario)
     return @(Get-KmcCombatRuntimeRows | Where-Object { $_ -ceq [string]$Scenario }).Count -eq 1
+}
+
+function Get-KmcCombatControlRuntimeRows {
+    return @(
+        'mounted-rider-melee-invalid-target',
+        'mounted-rider-melee-target-death',
+        'mounted-rider-melee-cleanup',
+        'non-mounted-melee-control'
+    )
 }
 
 function Assert-KmcBoundaryWorkingIdentity {
@@ -7469,6 +7479,203 @@ function Assert-KmcMovementScenarioEvidence {
     }
 }
 
+function Assert-KmcCombatControlSuiteEvidence {
+    param(
+        [Parameter(Mandatory = $true)]$Request,
+        [Parameter(Mandatory = $true)]$Manifest,
+        [AllowNull()][string]$Status,
+        $SubscenarioResults
+    )
+
+    $artifacts = @($Manifest.artifacts | Where-Object { [string]$_.relativePath -ceq 'combat-scenario-evidence.jsonl' })
+    if ($artifacts.Count -ne 1 -or [string]$artifacts[0].kind -cne 'combat-evidence') {
+        throw 'Combat-control suite requires exactly one combat-evidence JSONL artifact.'
+    }
+    $evidenceRoot = [IO.Path]::GetFullPath([string]$Request.evidenceRoot).TrimEnd('\')
+    $path = Assert-KmcChildPath (Join-Path $evidenceRoot 'combat-scenario-evidence.jsonl') $evidenceRoot 'combat-control evidence'
+    Assert-KmcNotReparsePoint $path 'combat-control evidence'
+    Assert-KmcNotHardLink $path 'combat-control evidence'
+    [string[]]$lines = @(Get-Content -LiteralPath $path | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
+    $expectedRows = @(Get-KmcCombatControlRuntimeRows)
+    if ($lines.Count -ne $expectedRows.Count) {
+        throw 'Combat-control evidence must contain exactly four ordered row records.'
+    }
+
+    $recordFields = @(
+        'schemaVersion','artifactKind','runId','scenario','row','rowIndex','sequence','frame','utcTimestamp',
+        'branch','commit','productVersion','dllSha256','dllMvid','status','riderId','mountId','targetId',
+        'mountedAtExercise','productionPath','observations','resources','cleanup','assertionPassCount',
+        'assertionFailCount','errors')
+    $observationFields = @(
+        'controlKind','riderArmed','mountArmed','riderInvalidRejected','mountInvalidRejected','armedCleared',
+        'activeCommandAbsent','combatActionsHidden','armRejectedUnmounted','controllerNotHandledUnmounted',
+        'riderAgentUnchangedNonMounted','mountAgentUnchangedNonMounted','commandAccepted','targetDamageBefore',
+        'targetDamageRequested','targetDamageAfter','targetLifeTransitionObserved','targetDeadOrFinallyDead',
+        'commandInterrupted','cleanupTrigger','firstCleanupSucceeded','repeatedCleanupSucceeded',
+        'childAttackStartCount','attackRuleCount','attackRollCount','damageRuleCount','unexpectedPairAttackCount',
+        'forcedD20Count','relationshipPreservedAfterTargetDeath','resourcesUnchanged')
+    $booleanObservations = @(
+        'riderArmed','mountArmed','riderInvalidRejected','mountInvalidRejected','armedCleared','activeCommandAbsent',
+        'combatActionsHidden','armRejectedUnmounted','controllerNotHandledUnmounted','riderAgentUnchangedNonMounted',
+        'mountAgentUnchangedNonMounted','commandAccepted','targetLifeTransitionObserved','targetDeadOrFinallyDead',
+        'commandInterrupted','firstCleanupSucceeded','repeatedCleanupSucceeded','relationshipPreservedAfterTargetDeath',
+        'resourcesUnchanged')
+    $countObservations = @(
+        'targetDamageBefore','targetDamageRequested','targetDamageAfter','childAttackStartCount','attackRuleCount',
+        'attackRollCount','damageRuleCount','unexpectedPairAttackCount','forcedD20Count')
+    $resourceFields = @(
+        'riderStandardBefore','riderStandardAfter','riderMoveBefore','riderMoveAfter',
+        'mountStandardBefore','mountStandardAfter','mountMoveBefore','mountMoveAfter')
+    $cleanupFields = @(
+        'targetRemoved','relationshipClean','combatCleared','agentsRestored','pauseRestored',
+        'runtimeLockOrDeploymentCreated','residualState')
+    $paths = @{
+        'mounted-rider-melee-invalid-target' = 'ClickUnitHandler.OnClick -> MountedCombatController.TryHandleUnitClick -> MountedCombatActionEvaluator.Evaluate'
+        'mounted-rider-melee-target-death' = 'UnitEntityData.Damage -> mounted command liveness -> UnitCommand.Interrupt'
+        'mounted-rider-melee-cleanup' = 'MountedRelationshipCoordinator.Dismount(Exception) -> MountedCombatController.HandleDismounting'
+        'non-mounted-melee-control' = 'MountedCombatController.Arm/TryHandleUnitClick -> NotHandled stock delegation'
+    }
+    $expectedTrue = @{
+        'mounted-rider-melee-invalid-target' = @('riderArmed','mountArmed','riderInvalidRejected','mountInvalidRejected','armedCleared','activeCommandAbsent','resourcesUnchanged')
+        'mounted-rider-melee-target-death' = @('commandAccepted','targetLifeTransitionObserved','targetDeadOrFinallyDead','commandInterrupted','relationshipPreservedAfterTargetDeath','resourcesUnchanged')
+        'mounted-rider-melee-cleanup' = @('commandAccepted','commandInterrupted','firstCleanupSucceeded','repeatedCleanupSucceeded','resourcesUnchanged')
+        'non-mounted-melee-control' = @('activeCommandAbsent','combatActionsHidden','armRejectedUnmounted','controllerNotHandledUnmounted','riderAgentUnchangedNonMounted','mountAgentUnchangedNonMounted','resourcesUnchanged')
+    }
+
+    $records = @()
+    $riderId = $null
+    $mountId = $null
+    $targetIds = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
+    for ($index = 0; $index -lt $lines.Count; $index++) {
+        Assert-KmcJsonObjectMembersUnique $lines[$index] "combat-control evidence line $index"
+        try { $record = $lines[$index] | ConvertFrom-Json }
+        catch { throw "Combat-control evidence line $index is malformed JSON: $($_.Exception.Message)" }
+        Assert-KmcExactProperties $record $recordFields 'combat-control evidence record'
+        if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -ne 1 -or
+            [string]$record.artifactKind -cne 'combat-core-control-evidence') {
+            throw 'Combat-control evidence schemaVersion or artifactKind is not exact.'
+        }
+        foreach ($name in @('runId','scenario','branch','commit','productVersion','dllSha256','dllMvid')) {
+            if ($record.$name -isnot [string] -or [string]$record.$name -cne [string]$Request.$name) {
+                throw "Combat-control evidence identity mismatch: $name"
+            }
+        }
+        $row = [string]$expectedRows[$index]
+        if ([string]$record.row -cne $row -or
+            -not (Test-KmcExactJsonInteger $record.rowIndex) -or [long]$record.rowIndex -ne $index -or
+            -not (Test-KmcExactJsonInteger $record.sequence) -or [long]$record.sequence -ne $index -or
+            -not (Test-KmcExactJsonInteger $record.frame) -or [long]$record.frame -le 0) {
+            throw 'Combat-control evidence row order, sequence, or frame identity is invalid.'
+        }
+        $timestamp = [DateTimeOffset]::MinValue
+        if ($record.utcTimestamp -isnot [string] -or
+            -not [DateTimeOffset]::TryParse([string]$record.utcTimestamp, [ref]$timestamp) -or
+            $timestamp.Offset -ne [TimeSpan]::Zero) {
+            throw 'Combat-control evidence timestamp is not exact UTC.'
+        }
+        foreach ($name in @('riderId','mountId','targetId')) {
+            if ($record.$name -isnot [string] -or [string]::IsNullOrWhiteSpace([string]$record.$name)) {
+                throw "Combat-control evidence $name is missing."
+            }
+        }
+        if ($index -eq 0) { $riderId = [string]$record.riderId; $mountId = [string]$record.mountId }
+        if ([string]$record.riderId -cne $riderId -or [string]$record.mountId -cne $mountId -or
+            -not $targetIds.Add([string]$record.targetId)) {
+            throw 'Combat-control pair identity changed or a disposable target identity was reused.'
+        }
+        if ($record.mountedAtExercise -isnot [bool] -or
+            $record.mountedAtExercise -ne ($row -cne 'non-mounted-melee-control') -or
+            [string]$record.productionPath -cne [string]$paths[$row]) {
+            throw "Combat-control mounted state or production path is not exact for $row."
+        }
+        if ([string]$record.status -cnotin @('PASS','FAIL') -or
+            -not (Test-KmcExactJsonInteger $record.assertionPassCount) -or [long]$record.assertionPassCount -lt 0 -or
+            -not (Test-KmcExactJsonInteger $record.assertionFailCount) -or [long]$record.assertionFailCount -lt 0 -or
+            ([long]$record.assertionPassCount + [long]$record.assertionFailCount) -le 0 -or
+            $null -eq $record.errors -or $record.errors -is [string] -or
+            @($record.errors).Count -ne [long]$record.assertionFailCount) {
+            throw 'Combat-control status, assertion totals, or errors are invalid.'
+        }
+
+        Assert-KmcExactProperties $record.observations $observationFields 'combat-control observations'
+        if ([string]$record.observations.controlKind -cne $row -or
+            $record.observations.cleanupTrigger -isnot [string] -or
+            [string]$record.observations.cleanupTrigger -cne $(if ($row -ceq 'mounted-rider-melee-cleanup') { 'Exception' } else { 'none' })) {
+            throw "Combat-control observation identity or cleanup trigger is not exact for $row."
+        }
+        foreach ($name in $booleanObservations) {
+            if ($record.observations.$name -isnot [bool]) { throw "Combat-control observation $name must be Boolean." }
+        }
+        foreach ($name in $countObservations) {
+            if (-not (Test-KmcExactJsonInteger $record.observations.$name) -or [long]$record.observations.$name -lt 0) {
+                throw "Combat-control observation $name must be a nonnegative exact integer."
+            }
+        }
+        Assert-KmcExactProperties $record.resources $resourceFields 'combat-control resources'
+        foreach ($name in $resourceFields) {
+            if (-not (Test-KmcJsonNumber $record.resources.$name)) { throw "Combat-control resource $name is not numeric." }
+        }
+        Assert-KmcExactProperties $record.cleanup $cleanupFields 'combat-control cleanup'
+        foreach ($name in $cleanupFields) {
+            if ($record.cleanup.$name -isnot [bool]) { throw "Combat-control cleanup $name must be Boolean." }
+        }
+
+        if ([string]$record.status -ceq 'PASS') {
+            foreach ($name in $booleanObservations) {
+                $wanted = $name -cin @($expectedTrue[$row])
+                if ($record.observations.$name -ne $wanted) {
+                    throw "PASS combat-control observation $name is contradictory for $row."
+                }
+            }
+            foreach ($name in @('childAttackStartCount','attackRuleCount','attackRollCount','damageRuleCount','unexpectedPairAttackCount','forcedD20Count')) {
+                if ([long]$record.observations.$name -ne 0) { throw "PASS combat-control emitted a forbidden rule/command chain: $row/$name" }
+            }
+            if ($row -ceq 'mounted-rider-melee-target-death') {
+                if ([long]$record.observations.targetDamageRequested -le [long]$record.observations.targetDamageBefore -or
+                    [long]$record.observations.targetDamageAfter -ne [long]$record.observations.targetDamageRequested) {
+                    throw 'PASS target-death control did not preserve its exact lethal public Damage transition.'
+                }
+            }
+            elseif (@('targetDamageBefore','targetDamageRequested','targetDamageAfter') | Where-Object { [long]$record.observations.$_ -ne 0 }) {
+                throw "PASS non-target-death control contains unexpected target damage for $row."
+            }
+            if ([double]$record.resources.riderStandardBefore -ne [double]$record.resources.riderStandardAfter -or
+                [double]$record.resources.riderMoveBefore -ne [double]$record.resources.riderMoveAfter -or
+                [double]$record.resources.mountStandardBefore -ne [double]$record.resources.mountStandardAfter -or
+                [double]$record.resources.mountMoveBefore -ne [double]$record.resources.mountMoveAfter) {
+                throw "PASS combat-control changed an action resource for $row."
+            }
+            if ($record.cleanup.targetRemoved -ne $true -or $record.cleanup.relationshipClean -ne $true -or
+                $record.cleanup.combatCleared -ne $true -or $record.cleanup.agentsRestored -ne $true -or
+                $record.cleanup.pauseRestored -ne $true -or $record.cleanup.runtimeLockOrDeploymentCreated -ne $false -or
+                $record.cleanup.residualState -ne $false -or [long]$record.assertionFailCount -ne 0 -or
+                @($record.errors).Count -ne 0) {
+                throw "PASS combat-control cleanup or assertion terminal state is not exact for $row."
+            }
+        }
+        $records += $record
+    }
+
+    if ([string]$Status -ceq 'PASS' -and @($records | Where-Object { [string]$_.status -cne 'PASS' }).Count -ne 0) {
+        throw 'PASS combat-control suite contains a failed row.'
+    }
+    if ($null -ne $SubscenarioResults) {
+        $subresults = @($SubscenarioResults)
+        if ($subresults.Count -ne $expectedRows.Count) { throw 'Combat-control subresult count is not exactly four.' }
+        for ($index = 0; $index -lt $expectedRows.Count; $index++) {
+            $record = $records[$index]
+            $subresult = $subresults[$index]
+            if ([string]$subresult.name -cne [string]$expectedRows[$index] -or
+                [string]$subresult.status -cne [string]$record.status -or
+                [long]$subresult.assertionPassCount -ne [long]$record.assertionPassCount -or
+                [long]$subresult.assertionFailCount -ne [long]$record.assertionFailCount -or
+                (@($subresult.errors) -join "`n") -cne (@($record.errors) -join "`n")) {
+                throw "Combat-control row does not reconcile with its exact game subresult: $($expectedRows[$index])"
+            }
+        }
+    }
+}
+
 function Assert-KmcCombatScenarioEvidence {
     param(
         [Parameter(Mandatory = $true)]$Request,
@@ -7477,6 +7684,10 @@ function Assert-KmcCombatScenarioEvidence {
         $SubscenarioResults
     )
 
+    if ([string]$Request.scenario -ceq 'combat-core-control-suite') {
+        Assert-KmcCombatControlSuiteEvidence -Request $Request -Manifest $Manifest -Status $Status -SubscenarioResults $SubscenarioResults
+        return
+    }
     $isCombat = Test-KmcCombatRuntimeScenario ([string]$Request.scenario)
     $artifacts = @($Manifest.artifacts | Where-Object { [string]$_.relativePath -ceq 'combat-scenario-evidence.jsonl' })
     if (-not $isCombat) {

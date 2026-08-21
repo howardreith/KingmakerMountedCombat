@@ -17,6 +17,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("request rejects save name in no-save mode", RequestRejectsSaveNameInNoSaveMode);
             runner.Run("request requires exact hash and MVID formats", RequestRequiresBuildIdentity);
             runner.Run("request accepts exact save-backed fixture", RequestAcceptsExactSaveBackedFixture);
+            runner.Run("request accepts combat core control suite", RequestAcceptsCombatCoreControlSuite);
             runner.Run("request requires exact qualification-suite identity", RequestRequiresQualificationSuiteIdentity);
             runner.Run("request accepts read-only manual visual review", RequestAcceptsReadOnlyManualReview);
             runner.Run("request rejects writable manual visual review", RequestRejectsWritableManualReview);
@@ -112,6 +113,13 @@ namespace KingmakerMountedCombat.Tests
             var request = ValidSaveBackedRequest();
             request.Fixture.Working.Area = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
             TestRunner.True(request.Validate().Count > 0, "Mismatched fixture campaign identity was accepted.");
+        }
+
+        private static void RequestAcceptsCombatCoreControlSuite()
+        {
+            var request = ValidSaveBackedRequest();
+            request.Scenario = "combat-core-control-suite";
+            TestRunner.Equal(0, request.Validate().Count, "Combat core control suite request was rejected.");
         }
 
         private static void RequestRequiresQualificationSuiteIdentity()
