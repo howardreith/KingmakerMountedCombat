@@ -1248,7 +1248,7 @@ function New-TestCombatEvidenceRecord {
     if ($isApproach) {
         $record.movementToAttack = [ordered]@{
             requestedTargetDistance=6.0;approachRequiredAtStart=$true;delegatedMoveStartCount=1
-            delegatedMoveTickCount=$(if ($isTurnBased) { 12 } else { 0 });delegatedMoveExecutorId=$mount;delegatedMoveExecutorIsExactMount=$true
+            delegatedMoveTickCount=$(if ($isTurnBased -and -not $isTermination) { 12 } else { 0 });delegatedMoveExecutorId=$mount;delegatedMoveExecutorIsExactMount=$true
             wrapperCommandRetainedThroughoutApproach=$true;delegatedMoveNeverQueuedOnMount=$true
             delegatedMoveOwnedByMountMoveSlot=$true;mountMoveSlotUnreplacedThroughoutApproach=$true
             mountQueueEmptyThroughoutApproach=$true;delegatedMoveFinishedSuccessfully=(-not $isTermination)
@@ -5029,6 +5029,7 @@ try {
             @{name='rider Standard charged flag';apply={param($value) $value.command.riderStandardCharged=$true}},
             @{name='Mammoth Standard charged';apply={param($value) $value.resources.mountStandardAfter=1.0}},
             @{name='turn rider Move uncharged';apply={param($value) $value.resources.riderMoveAfter=0.0}},
+            @{name='terminated move reported post-arrival tick';apply={param($value) $value.movementToAttack.delegatedMoveTickCount=1}},
             @{name='delegated move reported successful';apply={param($value) $value.movementToAttack.delegatedMoveFinishedSuccessfully=$true}},
             @{name='attack-start distance populated';apply={param($value) $value.movementToAttack.pairDistanceAtAttackStart=3.9}}
         )
@@ -5065,6 +5066,7 @@ try {
             $legacy.command.actionStandardCharged = $true
             $legacy.command.riderStandardCharged = $true
             $legacy.rules.forcedD20 = 20
+            if ($legacy.schemaVersion -eq 37) { $legacy.movementToAttack.delegatedMoveTickCount = 12 }
             [void](Write-TestCombatEvidence -EvidenceRoot $fixture.Request.evidenceRoot -Request $fixture.Request -Record $legacy)
             $manifest = Read-KmcJson (Join-Path $fixture.Request.evidenceRoot 'runtime-artifacts.json')
             Assert-KmcCombatScenarioEvidence -Request $fixture.Request -Manifest $manifest -Status 'PASS' -SubscenarioResults @($fixture.Subresult)

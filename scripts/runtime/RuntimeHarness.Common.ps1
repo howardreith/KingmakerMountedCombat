@@ -8310,7 +8310,10 @@ function Assert-KmcCombatScenarioEvidence {
                 [double]$record.movementToAttack.mountDisplacementAtAttackStart -ne 0 -or
                 [double]$record.movementToAttack.targetDisplacementAtAttackStart -ne 0 -or
                 ($turnBasedScenario -and
-                 ([long]$record.movementToAttack.delegatedMoveTickCount -le 0 -or
+                 ((([long]$record.schemaVersion -eq 37) -and
+                   [long]$record.movementToAttack.delegatedMoveTickCount -le 0) -or
+                  (([long]$record.schemaVersion -eq 39) -and
+                   [long]$record.movementToAttack.delegatedMoveTickCount -ne 0) -or
                   $record.movementToAttack.delegatedMoveDrivenByStockController -ne $false -or
                   $record.movementToAttack.delegatedMoveDrivenByRiderTurnAdapter -ne $true)) -or
                 ((-not $turnBasedScenario) -and

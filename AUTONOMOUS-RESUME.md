@@ -1,5 +1,13 @@
 # Autonomous resume
 
+## Current resume checkpoint - 2026-08-21T00:22:00Z
+
+- Published repair HEAD/package/suite are `d3898ab95c428197bdbc7053ae399a31cb77d961` / `13c8c5c823248bc3c4edec6a2ab1b314a566b75592ac0a46c6a8bee023ebebba` / `20260820T234500Z-command-termination-suite2` snapshot `133fab05cf391aec32f2ab169a718d4f3dcb350fe5f5e3d85eefa9d8ea0cefc2`. RT/TB WhatIf and independent audits passed.
+- RT cancellation A/B `20260820T235300Z` / `20260820T235900Z` and RT interruption A/B `20260821T000500Z` / `20260821T001100Z` each passed schema v38 `51/0` with independent audit-before-read. TB cancellation `20260821T001700Z-command-cancel-tb-passA` is immutable uncredited final-validator failure despite internally coherent schema v39/game `55/0`; audit `20260821T002100Z-command-cancel-tb-passA-audit` passed first.
+- Exact defect: v39 correctly reports zero delegated post-arrival ticks because cancellation occurs during `TickApproaching`, while physical pair movement, positive progress observations, and exact rider Move `0 -> 3` prove real rider-turn movement. The validator incorrectly inherited the completed-approach positive-tick rule. Worktree repair requires v39 zero tick, preserves v37 history, and adds a deterministic mutation; production code is unchanged.
+- Complete offline gate PASS: source `21/0`; Release build; component `213/0`; visual/source-order `17/0`; harness/protocol `196/0`; assembly `254/0` (`243/0` Kingmaker / `11/0` Wrath); PowerShell parser `28/0`; JSON parser `7/0`; diff/prohibited-payload checks PASS. DLL SHA-256/MVID remain `b7bd96ad4d68cac1c6955721e9f138ebc45df3d36cdaa80bddbab6d89a383ba6` / `cd471d55-136a-4850-8786-5c665febcc38`.
+- Exact next action: commit and guarded-publish; preserve the d389 package; produce a fresh clean-HEAD package; admit a new suite; run RT/TB WhatIf plus independent audits; restart all cancellation/interruption RT/TB A/B with fresh IDs and audit-before-read.
+
 ## Current resume checkpoint - 2026-08-20T23:01:46Z
 
 - Status is `IN PROGRESS`. Exact local/upstream HEAD is clean guarded-published cancellation/interruption implementation commit `784eb2bcce59ce80278c59c19fd851c8f0c27aec` on `codex/mounted-combat-phase2-alpha`; the worktree contains one coherent evidence-backed repair after the first live cancellation process.
