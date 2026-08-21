@@ -1,5 +1,11 @@
 # Phase 2 qualification
 
+## Core combat controls qualified A/B (2026-08-21)
+
+Status: `PASS` within the exact core-control boundary. Published implementation `2323c5c33e5a8b667e9eb22c7c8ec1b359cfa61e`, package `787beb81bf5588b176d6f423e02ea096dc0d96573b5fdbb060b3278b4e1c6853`, and suite snapshot `3b41b01b983ef0fd8d92c706285d76411844f988dc578b2c76ae14e2ce8f8c0b` passed separate RT/TB WhatIf gates and independent audits.
+
+Fresh Pass A/B `20260821T125000Z-core-combat-controls-launcher-observation-passA` / `20260821T125800Z-core-combat-controls-launcher-observation-passB` each pass launcher/game `80/0`, with exact invalid-target, pre-child target-death, cleanup, and non-mounted control coverage. Combined credit is `8/8` subscenarios and `160/0` assertions. Both restoration audits ran before evidence inspection and proved exact full save/Mods inventories, immutable Baseline, restored Working, and zero residue. This does not qualify movement-to-attack or explicit mounted opportunity attacks; their fresh RT/TB A/B evidence remains required.
+
 ## Core controls pass in game but remain uncredited at launcher boundary (2026-08-21)
 
 Status: `IN PROGRESS`; no safety, architecture, or presentation blocker is active.

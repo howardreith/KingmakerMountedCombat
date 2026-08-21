@@ -1,5 +1,9 @@
 # Targeting, reach, and charge contract
 
+## Core target and cleanup controls qualified (2026-08-21)
+
+Fresh same-suite A/B processes each pass exact core controls `80/0`, including invalid-target rejection, exact target identity, target death before child admission, and zero attack/roll/damage/AoO/charge chain. Combined credit is `160/0` with exact restoration. This does not qualify mounted reach, movement-to-attack opportunity isolation, explicit mounted AoO, or charge; those boundaries remain separate.
+
 ## Core target controls pass in game; final orchestration remains uncredited (2026-08-21)
 
 `20260821T120800Z-core-combat-controls-finalization-passA` proves exact target controls at game `80/0`, including exact pre-child target-death interruption, unique target identities, and zero attack/roll/damage-rule/AoO/charge chain. It is uncredited solely because the launcher did not produce a valid restored final result. The follow-up changes only launcher error observation and fallback evidence construction. No target, range, reach, opportunity, or charge behavior changes; fresh A/B remains required.

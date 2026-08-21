@@ -1,5 +1,9 @@
 # Phase 2 runtime scenario matrix
 
+## Core combat-control finalization qualified (2026-08-21)
+
+`combat-core-control-suite` is `PASS` A/B on one exact package and suite. Runs `20260821T125000Z-core-combat-controls-launcher-observation-passA` and `20260821T125800Z-core-combat-controls-launcher-observation-passB` each pass `80/0`: invalid target `17/0`, exact pre-child target death `24/0`, cleanup `22/0`, and non-mounted control `17/0`. Combined credit is `8/8` rows and `160/0` assertions. Both independent audits precede evidence inspection and prove exact full save/Mods restoration and zero residue. This closes the control-suite blocker only; movement-to-attack opportunity isolation remains unqualified pending RT A/B and TB A/B.
+
 ## Core control game PASS / launcher-observation checkpoint (2026-08-21)
 
 From clean package `5f8fbbc3b21797bdb72842d7e59ba8ecfb3563fe84892aac4ac8e42c51cbb145` and suite snapshot `d60ee93fda6575c5160a7df1b6f3b740b7d6570ce0394984d0924a2c6160f15d`, uncredited run `20260821T120800Z-core-combat-controls-finalization-passA` produces exact game `PASS 80/0` and an exact manifested combat artifact: invalid `17/0`, target-death `24/0`, cleanup `22/0`, non-mounted `17/0`. It proves the target-admission, outcome-reset, and game manifest repairs, but receives no A credit because an earlier launcher exception caused exit handling, fallback validation masked that first error, no final launcher result was written, and guarded recovery was required after natural game exit. Audit-before-read passed exactly.

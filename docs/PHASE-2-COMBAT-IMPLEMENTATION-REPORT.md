@@ -2,6 +2,10 @@
 
 Status: IN PROGRESS
 
+## Core combat-control runtime finalization (2026-08-21)
+
+The exact core-control implementation is now repeatably qualified. Fresh same-package/suite processes `20260821T125000Z-core-combat-controls-launcher-observation-passA` and `20260821T125800Z-core-combat-controls-launcher-observation-passB` each complete launcher and game `80/0`, covering invalid targets, exact pre-child target death, cleanup, and non-mounted controls. Combined credit is `8/8` subscenarios and `160/0` assertions. Both post-process audits prove exact external restoration before evidence read. The launcher observation repair completed normally and did not alter combat behavior. Opportunity-isolated movement-to-attack remains a separate pending qualification.
+
 ## Launcher failure-observation repair after exact game PASS (2026-08-21)
 
 The repaired game path is exact: `20260821T120800Z-core-combat-controls-finalization-passA` emits one final manifested combat JSONL and game `PASS 80/0`, with all four controls green. It remains uncredited because the launcher had already caught an unknown error, waited for process exit, and then masked that cause by applying strict combat validation to its incomplete fallback manifest. Kingmaker later exited naturally; recovery and audit-before-read were exact.

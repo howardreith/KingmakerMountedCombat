@@ -1,5 +1,9 @@
 # Autonomous blockers
 
+## Core combat-control launcher boundary resolved - 2026-08-21T13:14:31Z
+
+Status: `PASS`; no blocker remains. Fresh same-package/suite processes `20260821T125000Z-core-combat-controls-launcher-observation-passA` and `20260821T125800Z-core-combat-controls-launcher-observation-passB` each complete launcher/game `80/0` and exact audit-before-read restoration. Combined credit is `8/8` subscenarios and `160/0` assertions. The original launcher cause did not recur; the observation repair remains available for any future first-failure diagnosis. Earlier interrupted/failed attempts remain immutable and uncredited. Next work is the separately unqualified movement-to-attack opportunity-isolation RT/TB A/B set.
+
 ## Game control PASS remains uncredited because launcher cause was masked - 2026-08-21T12:16:25Z
 
 Status: `IN PROGRESS`; restoration is exact and no critical blocker is active. Run `20260821T120800Z-core-combat-controls-finalization-passA` has game `PASS 80/0` and a corrected exact final manifest, but no completed launcher result. An earlier launcher exception caused bounded exit handling while Kingmaker continued; fallback strict combat validation then masked that original error. Kingmaker exited naturally, guarded recovery succeeded, and audit-before-read passed. The repair is observation/protocol only: durably retain the first launcher error, permit fallback construction to bind incomplete FAIL evidence, and keep ordinary semantic validators strict. Complete Release gates are `21/217/17/209/255`; fresh published-package evidence remains required.

@@ -1,5 +1,9 @@
 # Combat action economy contract
 
+## Core zero-child action/resource controls qualified (2026-08-21)
+
+Fresh same-package A/B core-control runs each pass `80/0`, including exact pre-child target-death and cleanup paths with zero child attack, attack-roll, damage, opportunity, Standard, or Move chain, plus exact ordinary non-mounted control behavior. Combined credit is `160/0`; restoration audits are exact. This qualifies only the core cancellation/cleanup control boundary. Mode-specific movement-to-attack ownership and costs still require fresh RT/TB A/B.
+
 ## Core control game evidence passes exactly; launcher credit pending (2026-08-21)
 
 Uncredited run `20260821T120800Z-core-combat-controls-finalization-passA` produces game `PASS 80/0`, including target-death and cleanup before child admission with zero child/rule/AoO/Standard/Move chain and exact restoration observations. Its lack of final launcher evidence is orchestration-only and does not change action-economy behavior. The next diagnostic repair only preserves the first launcher error and incomplete FAIL fallback; all resource and semantic validators remain strict. Fresh A/B is required before qualification credit.
