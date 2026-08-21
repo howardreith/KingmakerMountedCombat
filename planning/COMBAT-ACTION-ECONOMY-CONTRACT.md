@@ -1,5 +1,9 @@
 # Combat action economy contract
 
+## Exact command-admission control repair (2026-08-21)
+
+Uncredited repaired process `20260821T102109Z-core-combat-controls-repair-passA` passed invalid-target, cleanup, and non-mounted controls but retained target-death `22/1`. Its audit passed before evidence read and proves zero child, attack, roll, damage-rule, opportunity, forced-d20, Standard, or Move chain. The exact game log shows the wrapper had only been submitted: target death occurred before `OnStart` admitted the target, so startup failed generically and never reached the already repaired pre-child interruption path. The diagnostic now waits for exact target identity in a nonterminal `Approaching` or `Attacking` transaction with `ChildAttackStartCount == 0` before mutation. This changes no resource rule, refund, command ownership, attack behavior, or terminal semantics. Full gates pass `21/217/17/207/255`; fresh package-bound A/B remains mandatory.
+
 ## Core pre-child control first-process repair (2026-08-21)
 
 Uncredited process `20260821T100300Z-core-combat-controls-passA` preserved exact external restoration and proves target death occurred with zero child, attack, roll, damage-rule, opportunity, forced-d20, or action-resource chain. The wrapper ended, but the transaction recorded the generic liveness exception rather than a bounded target-invalidation cancellation, so the strict interruption gate failed. The repair admits only the transaction's exact target while `ChildAttackStartCount == 0`, records `target invalidated before child attack`, and interrupts the native wrapper. It grants no Standard/Move cost, refund, target replacement, post-child cancellation, or broader liveness exception. The second failure was diagnostic-only: non-mounted behavior was entirely inert, but historical `LastOutcome` was non-null; the repaired check requires no active command and no new outcome identity. Fresh package-bound A/B is mandatory before credit.

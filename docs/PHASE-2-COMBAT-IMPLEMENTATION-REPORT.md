@@ -2,6 +2,12 @@
 
 Status: IN PROGRESS
 
+## Exact active-target admission wait (2026-08-21)
+
+The first run of the published exact-target cancellation repair, `20260821T102109Z-core-combat-controls-repair-passA`, is preserved uncredited at `77/1`; independent restoration passed before evidence inspection. Invalid-target, repeated exception cleanup, and non-mounted stock delegation all pass. Target death again proves the exact lethal transition, retained pair, zero child/rule/resource chain, and full cleanup. The game log resolves the remaining failure: the diagnostic treated a submitted/queued wrapper as active and killed the target before `MountedPairAttackCommand.OnStart` accepted it, so startup failed with the generic exact-pair/target exception and the repaired `OnTick` cancellation was unreachable.
+
+The controller and command now expose one internal observation-only predicate requiring the exact target, a nonterminal `Approaching` or `Attacking` transaction, and zero child starts. The control engine waits for that predicate before target death or repeated exception cleanup. Deterministic source-order coverage pins admission before mutation. No production targeting, action economy, attack, range, or cancellation behavior is broadened. Complete gates pass `21/217/17/207/255`, with PowerShell/JSON parsers `28/0` / `7/0`; the changed dirty DLL SHA-256/MVID are `b4bf816b484f003749ebca74845109ca23b5614e21c869b49c63c3ebec4aac57` / `c66f51f3-1534-4d1a-99e1-d68b309a977d` and require clean-HEAD package binding.
+
 ## Core control first-process repair (2026-08-21)
 
 The first live four-row process, `20260821T100300Z-core-combat-controls-passA`, is preserved uncredited at `76/2`; exact independent external restoration passed before its evidence was read. Invalid null targets and repeated exception cleanup pass. Target death produces the intended exact lethal transition, zero child/rule/resource chain, retained pair, and full cleanup, but generic liveness faulting overwrote the expected interruption reason. The non-mounted row records hidden actions, rejected arming, `NotHandled`, unchanged agents/resources, and no rule chain, but the test conflated an unchanged prior `LastOutcome` with active work.

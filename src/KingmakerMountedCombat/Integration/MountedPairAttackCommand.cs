@@ -199,6 +199,15 @@ namespace KingmakerMountedCombat.Integration
 
         internal MountedCombatActionKind Action => action;
 
+        internal bool HasAcceptedTargetBeforeChildAttack(UnitEntityData exactTarget)
+        {
+            return exactTarget != null && exactTarget == attackTarget && !IsFinished &&
+                !transaction.IsTerminal && transaction.ChildAttackStartCount == 0 &&
+                string.Equals(transaction.TargetId, exactTarget.UniqueId, StringComparison.Ordinal) &&
+                (transaction.State == MountedCombatTransactionState.Approaching ||
+                 transaction.State == MountedCombatTransactionState.Attacking);
+        }
+
         protected override void OnStart()
         {
             try

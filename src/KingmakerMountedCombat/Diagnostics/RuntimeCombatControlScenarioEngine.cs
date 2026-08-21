@@ -186,6 +186,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     case ControlStep.AwaitCombat:
                         AwaitCombatAndExercise();
                         break;
+                    case ControlStep.AwaitPreChildCommand:
+                        AwaitPreChildCommandAndExercise();
+                        break;
                     case ControlStep.AwaitOutcome:
                         AwaitControlledOutcome();
                         break;
@@ -431,14 +434,35 @@ namespace KingmakerMountedCombat.Diagnostics
             assertions.Check(combat.Arm(MountedCombatActionKind.RiderMelee),
                 "Rider melee armed through the production combat controller.");
             var accepted = new ClickUnitHandler().OnClick(target.View.gameObject, target.Position, 0, false, false);
-            observations.CommandAccepted = accepted && combat.HasActiveCommand;
-            assertions.Check(observations.CommandAccepted,
-                "Production ClickUnitHandler/Harmony path accepted one exact mounted rider command.");
-            if (!observations.CommandAccepted)
+            var commandSubmitted = accepted && combat.HasActiveCommand;
+            assertions.Check(commandSubmitted,
+                "Production ClickUnitHandler/Harmony path submitted one exact mounted rider command.");
+            if (!commandSubmitted)
             {
                 BeginCleanup();
                 return;
             }
+
+            step = ControlStep.AwaitPreChildCommand;
+        }
+
+        private void AwaitPreChildCommandAndExercise()
+        {
+            if (!combat.HasActivePreChildCommandForTarget(target))
+            {
+                if (!combat.HasActiveCommand &&
+                    !ReferenceEquals(combat.LastOutcome, outcomeAtExerciseStart))
+                {
+                    assertions.Check(false,
+                        "Mounted command ended before exact target admission and child-attack control.");
+                    BeginCleanup();
+                }
+                return;
+            }
+
+            observations.CommandAccepted = true;
+            assertions.Check(ReferenceEquals(combat.LastOutcome, outcomeAtExerciseStart),
+                "Exact target entered the active mounted command without publishing a new terminal outcome.");
 
             if (IsCleanupRow)
             {
@@ -914,6 +938,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             Begin,
             AwaitCombat,
+            AwaitPreChildCommand,
             AwaitOutcome,
             AwaitCleanup
         }

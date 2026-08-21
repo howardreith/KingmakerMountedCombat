@@ -1,5 +1,13 @@
 # Phase 2 qualification
 
+## Core combat-control repaired-process follow-up (2026-08-21)
+
+Status: `IN PROGRESS`; no safety, architecture, or presentation blocker is active.
+
+Clean published commit/package/manifest `2c81081dc4a60212fb864aeb98aeb365925546ad` / `7235315a2d03ab2566e7495981a8adb845a9a8aeca4e8773124d512c9e8f6d75` / `c6ed6ff0873bd43d9d9d142c72f98f9d3c1f390bcfe1360ec85c45370c71ec1c`, DLL/MVID `1787f067843a9ca9397112bf9c17fc67eaae9fef2601796880246620a7ed5033` / `732fbf7f-c65d-4c66-aa4b-1105c6b6f207`, and suite snapshot `4b6231f84ca5a3624fbae8d0d719b2c235a7a1e713e208f31bd372a0ad13843a` passed separate RT/TB WhatIf gates and audits. Run `20260821T102109Z-core-combat-controls-repair-passA` is immutable uncredited `FAIL 77/1`; immediate restoration passed before evidence read with exact suite save/Mods inventories, immutable Baseline, restored Working, and zero process/lock/sentinel/deployment residue. Runtime/game/control-evidence SHA-256 are `ac50eaf5c9aa946874d874f105b729cddd80512afa739048704d67911f68a6d2` / `b6063e278816543ad2e3e0a38284b454d19d419e611da30a4bdf43519cac639d` / `7072e9d4f61e22af348967c9d6f70357481929c38cb79987ee30a8c50b099cdd`.
+
+Invalid-target `17/0`, exception-cleanup `21/0`, and non-mounted `17/0` pass; the prior non-mounted history defect is repaired. Target-death `22/1` proves every exact transition, zero-chain, resource, retained-pair, and cleanup gate except native Interrupt. The bounded game log proves target death preceded command `OnStart` target admission, causing generic startup rejection before the repaired `OnTick` seam could execute. Diagnostics now wait for exact admitted transaction target and zero child starts before mutation. Complete offline totals remain `21/217/17/207/255`; fresh package/suite A/B is required.
+
 ## Core combat-control first-process repair checkpoint (2026-08-21)
 
 Status: `IN PROGRESS`; no safety, architecture, or presentation blocker is active.

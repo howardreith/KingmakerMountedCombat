@@ -5027,6 +5027,7 @@ try {
     Invoke-HarnessTest 'core combat-control source is exact ordered production-path and residue-closed' {
         $controlSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeCombatControlScenarioEngine.cs'))
         $commandSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPairAttackCommand.cs'))
+        $controllerSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedCombatController.cs'))
         $hostSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeAutomationHost.cs'))
         $projectSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\KingmakerMountedCombat.csproj'))
         $rowsIndex = $controlSource.IndexOf('private static readonly string[] Rows', [StringComparison]::Ordinal)
@@ -5047,6 +5048,14 @@ try {
         Assert-Test ($targetInvalidationIndex -ge 0 -and $livePairIndex -gt $targetInvalidationIndex -and
             $commandSource.Contains('transaction.CancelTargetInvalidationBeforeChildAttack(attackTarget.UniqueId)') -and
             $commandSource.Contains('transaction.ChildAttackStartCount != 0')) 'pre-child target invalidation does not cancel before generic exact-pair fault handling'
+        $acceptedTargetIndex = $controlSource.IndexOf('combat.HasActivePreChildCommandForTarget(target)', [StringComparison]::Ordinal)
+        $cleanupMutationIndex = $controlSource.IndexOf('relationship.Dismount(CleanupTrigger.Exception)', [StringComparison]::Ordinal)
+        $targetMutationIndex = $controlSource.IndexOf('target.Damage = observations.TargetDamageRequested;', [StringComparison]::Ordinal)
+        Assert-Test ($commandSource.Contains('HasAcceptedTargetBeforeChildAttack(UnitEntityData exactTarget)') -and
+            $controllerSource.Contains('activeCommand.HasAcceptedTargetBeforeChildAttack(exactTarget)') -and
+            $controlSource.Contains('case ControlStep.AwaitPreChildCommand:') -and
+            $acceptedTargetIndex -ge 0 -and $cleanupMutationIndex -gt $acceptedTargetIndex -and
+            $targetMutationIndex -gt $acceptedTargetIndex) 'target-death and cleanup controls can mutate before the exact active command admits its target'
         Assert-Test ($controlSource.Contains('outcomeAtExerciseStart = combat.LastOutcome;') -and
             $controlSource.Contains('ReferenceEquals(combat.LastOutcome, outcomeAtExerciseStart)')) 'non-mounted control does not distinguish unchanged historical outcome evidence from a new command outcome'
         Assert-Test ($controlSource.Contains('observations.AttackRuleCount == 0') -and

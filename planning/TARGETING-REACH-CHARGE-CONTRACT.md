@@ -1,5 +1,9 @@
 # Targeting, reach, and charge contract
 
+## Exact target-admission observation boundary (2026-08-21)
+
+Repaired process `20260821T102109Z-core-combat-controls-repair-passA` is immutable uncredited `FAIL 77/1` with audit-before-read. It proves exact target death and zero child/rule/resource/AoO behavior, but the game log shows death was injected after wrapper submission and before `OnStart` accepted the target. The diagnostic now observes only the exact command's transaction identity and waits for exact target admission in `Approaching` or `Attacking`, still before any child start, before applying the existing control mutation. The production exact-target pre-child cancellation remains narrow and unchanged. This adds no range, reach, target replacement, engagement, opportunity, or charge behavior; fresh A/B is required.
+
 ## Exact pre-child target invalidation repair (2026-08-21)
 
 The first control-suite process is immutable uncredited `FAIL 76/2` with an exact audit-before-read. Its target-death row proves the exact disposable target became dead after public lethal `Damage`, the valid pair remained mounted, no child/rule/resource chain started, and all state restored. Source reconciliation shows generic `RequireLiveExactPair` faulted the transaction before Interrupt could retain target-invalidation semantics. The repair checks only the already accepted exact target before child start, cancels with `target invalidated before child attack`, and then interrupts; wrong target, post-child target state, rider/Mammoth liveness, hostility outside the exact command, and unrelated commands retain existing behavior. This changes no range, reach, engagement, opportunity, or charge contract. Fresh A/B remains required.

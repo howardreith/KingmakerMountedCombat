@@ -50,6 +50,12 @@ namespace KingmakerMountedCombat.Integration
 
         public bool HasActiveCommand => activeCommand != null && !activeCommand.IsFinished;
 
+        internal bool HasActivePreChildCommandForTarget(UnitEntityData exactTarget)
+        {
+            return HasActiveCommand &&
+                activeCommand.HasAcceptedTargetBeforeChildAttack(exactTarget);
+        }
+
         internal string DescribeActiveCommandReadiness()
         {
             var command = activeCommand;

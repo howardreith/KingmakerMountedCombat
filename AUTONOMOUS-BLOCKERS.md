@@ -1,5 +1,9 @@
 # Autonomous blockers
 
+## Submitted wrapper was not yet an admitted target; diagnostic wait repaired - 2026-08-21T10:33:50Z
+
+Status: `IN PROGRESS`; attributable diagnostic timing with exact restoration, not a safety or architecture blocker. Run `20260821T102109Z-core-combat-controls-repair-passA` is immutable uncredited `FAIL 77/1`; immediate audit passed before evidence read. Invalid-target, cleanup, and non-mounted rows pass. The exact game log proves target death preceded command `OnStart`, so generic startup rejection occurred before the repaired pre-child `OnTick` interruption seam. The diagnostic now waits for exact target admission in a live transaction with zero child starts before mutation. Complete offline totals are `21/217/17/207/255`; coherent publication, clean package/suite/WhatIf, and fresh A/B remain required.
+
 ## Core combat-control first process repaired narrowly; fresh A/B required - 2026-08-21T10:02:43Z
 
 Status: `IN PROGRESS`; attributable runtime/test defects with exact restoration, not a safety or architecture blocker. Run `20260821T100300Z-core-combat-controls-passA` is immutable uncredited `FAIL 76/2`, and its independent audit passed before evidence read. Exact target death, zero child/rule/resource chain, valid-pair retention, non-mounted stock delegation, and all cleanup gates are observed. The two failures are generic fault classification before target-death Interrupt and an incorrect requirement that the historical outcome slot be empty. The narrow repair adds exact-target/pre-child cancellation plus Interrupt and treats unchanged historical outcome identity as inert. Full offline totals are `21/217/17/207/255`; publication, clean packaging, new suite/WhatIf, and fresh A/B remain required.
