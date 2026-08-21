@@ -102,6 +102,7 @@ $missionScenarios = @(
     'mounted-pair-combat-start-retained', 'mounted-pair-combat-end-retained',
     'mounted-pair-rider-death-cleanup', 'mounted-pair-mount-death-cleanup',
     'mounted-pair-rider-incapacitated-cleanup', 'mounted-pair-mount-incapacitated-cleanup',
+    'mounted-pair-rider-native-incapacitated-cleanup', 'mounted-pair-mount-native-incapacitated-cleanup',
     'mounted-pair-companion-removal-cleanup', 'mounted-pair-view-destroyed-cleanup', 'mounted-pair-exception-cleanup',
     'mounted-pair-open-ground',
     'mounted-pair-stop-start', 'mounted-pair-turns-and-corners', 'mounted-pair-doorway', 'mounted-pair-selection',

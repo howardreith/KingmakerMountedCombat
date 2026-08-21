@@ -341,6 +341,8 @@ function New-TestCombatLifecycleBoundaryExercise {
         'mounted-pair-mount-death-cleanup' {$role='mount';$actorId='mount-id';$path='IUnitHandler.HandleUnitDeath';$deliveries=@([ordered]@{boundary='UnitDeath';source='IUnitHandler.HandleUnitDeath';stateBefore='Mounted';stateAfter='Unmounted';cleanupTrigger='Death';cleanupAttempted=$true;cleanupSucceeded=$true})}
         'mounted-pair-rider-incapacitated-cleanup' {$role='rider';$actorId='rider-id';$path='relationship.Dismount(Incapacitated)'}
         'mounted-pair-mount-incapacitated-cleanup' {$role='mount';$actorId='mount-id';$path='relationship.Dismount(Incapacitated)'}
+        'mounted-pair-rider-native-incapacitated-cleanup' {$role='rider';$actorId='rider-id';$path='UnitEntityData.Damage -> UnitLifeController.TickOnUnit -> IUnitLifeStateChanged.HandleUnitLifeStateChanged';$deliveries=@([ordered]@{boundary='UnitIncapacitated';source='IUnitLifeStateChanged.HandleUnitLifeStateChanged';stateBefore='Mounted';stateAfter='Unmounted';cleanupTrigger='Incapacitated';cleanupAttempted=$true;cleanupSucceeded=$true})}
+        'mounted-pair-mount-native-incapacitated-cleanup' {$role='mount';$actorId='mount-id';$path='UnitEntityData.Damage -> UnitLifeController.TickOnUnit -> IUnitLifeStateChanged.HandleUnitLifeStateChanged';$deliveries=@([ordered]@{boundary='UnitIncapacitated';source='IUnitLifeStateChanged.HandleUnitLifeStateChanged';stateBefore='Mounted';stateAfter='Unmounted';cleanupTrigger='Incapacitated';cleanupAttempted=$true;cleanupSucceeded=$true})}
         'mounted-pair-companion-removal-cleanup' {$role='mount';$actorId='mount-id';$path='IPartyHandler.HandleCompanionRemoved';$deliveries=@([ordered]@{boundary='PartyRemoved';source='IPartyHandler.HandleCompanionRemoved';stateBefore='Mounted';stateAfter='Unmounted';cleanupTrigger='CompanionInvalidated';cleanupAttempted=$true;cleanupSucceeded=$true})}
         'mounted-pair-view-destroyed-cleanup' {$role='rider';$actorId='rider-id';$path='IUnitHandler.HandleUnitDestroyed';$deliveries=@([ordered]@{boundary='ViewDetachedOrUnitDestroyed';source='IUnitHandler.HandleUnitDestroyed';stateBefore='Mounted';stateAfter='Unmounted';cleanupTrigger='ViewDetached';cleanupAttempted=$true;cleanupSucceeded=$true})}
         'mounted-pair-exception-cleanup' {$path='relationship.Dismount(Exception)'}
@@ -376,14 +378,15 @@ function New-TestLifecycleEvidenceRecord {
     if ($Phase -ceq 'row-finish' -and $Row -cne 'mounted-pair-cleanup-idempotent') { $frame = [int]$Sequence }
     $originalParent = 'Scene/Units/Rider'
     $currentParent = if ($mounted) { 'Scene/Mount/KMC_RiderPositionAnchor' } else { $originalParent }
-    $isCombatLifecycle=@(Get-KmcCombatLifecycleRuntimeRows | Where-Object { $_ -ceq $Row }).Count -eq 1
+    $isNativeIncapacitation=@(Get-KmcNativeIncapacitationRuntimeRows | Where-Object { $_ -ceq $Row }).Count -eq 1
+    $isCombatLifecycle=$isNativeIncapacitation -or @(Get-KmcCombatLifecycleRuntimeRows | Where-Object { $_ -ceq $Row }).Count -eq 1
     $record=[ordered]@{
-        schemaVersion=$(if($isCombatLifecycle){3}else{2});runId=[string]$Request.runId;scenario=[string]$Request.scenario;row=$Row;phase=$Phase
+        schemaVersion=$(if($isNativeIncapacitation){4}elseif($isCombatLifecycle){3}else{2});runId=[string]$Request.runId;scenario=[string]$Request.scenario;row=$Row;phase=$Phase
         utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o');branch=[string]$Request.branch;commit=[string]$Request.commit
         productVersion=[string]$Request.productVersion;dllSha256=[string]$Request.dllSha256;dllMvid=[string]$Request.dllMvid
         sequence=$Sequence;frame=$frame;relationshipState=$RelationshipState
         triggerScope=[ordered]@{
-            expectedCleanupTrigger=$expectedTrigger;invocationPath=$invocationPath;nativeDeliveryObserved=$false
+            expectedCleanupTrigger=$expectedTrigger;invocationPath=$invocationPath;nativeDeliveryObserved=$isNativeIncapacitation
             claimLimit=$claimLimit
         }
         rowStatus=$RowStatus
@@ -423,6 +426,18 @@ function New-TestLifecycleEvidenceRecord {
         }
         $observed=$Phase -cin @('cleanup-next-frame','row-finish','engine-finalization')
         $record.boundaryExercise=New-TestCombatLifecycleBoundaryExercise -Row $Row -Observed:$observed
+    }
+    if ($isNativeIncapacitation) {
+        $observed=$Phase -cin @('cleanup-next-frame','row-finish','engine-finalization')
+        $role=if($Row -ceq 'mounted-pair-rider-native-incapacitated-cleanup'){'rider'}else{'mount'}
+        $record.actorLifeTransition=[ordered]@{
+            actorRole=$role;actorId=$(if($role -ceq 'rider'){'rider-id'}else{'mount-id'})
+            mutationProperty='UnitEntityData.Damage';mutationIssued=$observed
+            lifeStateBefore='Conscious';lifeStateAfter=$(if($observed){'Unconscious'}else{$null})
+            consciousBefore=$true;consciousAfter=$false;deadAfter=$false;finallyDeadAfter=$false
+            damageBefore=0;requestedDamage=101;damageAfter=$(if($observed){101}else{0})
+            hitPoints=100;constitution=14;nativeDeliveryCount=$(if($observed){1}else{0})
+        }
     }
     $record.recordErrors=@($RecordErrors)
     return $record
@@ -4316,8 +4331,10 @@ try {
             $subscriberSource.Contains('Cleanup(NativeLifecycleBoundary.PartyRemoved') -and
             $subscriberSource.Contains('Cleanup(NativeLifecycleBoundary.ViewDetachedOrUnitDestroyed')) 'pair invalidation is missing an exact fail-closed cleanup boundary'
         Assert-Test ($engineSource.Contains('"combat-lifecycle-suite"') -and
-            $engineSource.Contains('SchemaVersion = IsCombatLifecycleRow(currentRow ?? lastEvidenceRow) ? 3 : 2') -and
-            $engineSource.Contains('BoundaryExercise = IsCombatLifecycleRow')) 'combat lifecycle diagnostics do not preserve schema-v2 history while binding schema-v3 evidence'
+            $engineSource.Contains('? 4') -and
+            $engineSource.Contains(': IsCombatLifecycleRow(currentRow ?? lastEvidenceRow) ? 3 : 2') -and
+            $engineSource.Contains('BoundaryExercise = IsCombatLifecycleRow') -and
+            $engineSource.Contains('UnitEntityData.Damage -> UnitLifeController.TickOnUnit -> IUnitLifeStateChanged.HandleUnitLifeStateChanged')) 'combat lifecycle diagnostics do not preserve schema-v2/v3 history while binding native schema-v4 evidence'
     }
 
     Invoke-HarnessTest 'mounted rider grounding repair is exact-token, exact-pair, and runtime-probed' {
@@ -4523,8 +4540,8 @@ try {
         Write-KmcJsonAtomic $v2RequestPath $v2Request
     }
 
-    Invoke-HarnessTest 'runtime request schema accepts the exact combat lifecycle suite and rows' {
-        foreach ($lifecycleScenario in @('combat-lifecycle-suite') + @(Get-KmcCombatLifecycleRuntimeRows)) {
+    Invoke-HarnessTest 'runtime request schema accepts exact combat and native-incapacitation lifecycle rows' {
+        foreach ($lifecycleScenario in @('combat-lifecycle-suite') + @(Get-KmcCombatLifecycleRuntimeRows) + @(Get-KmcNativeIncapacitationRuntimeRows)) {
             $v2Request.scenario = $lifecycleScenario
             $v2Request.runId = 'schema-v2-' + $lifecycleScenario
             $v2Request.evidenceRoot = Join-Path $runtimeEvidenceTestRoot $v2Request.runId
@@ -6216,6 +6233,42 @@ try {
 
         $historical=Copy-TestJsonValue $validLifecycleRecords
         Assert-Test ([long]$historical[0].schemaVersion -eq 2 -and $null -eq $historical[0].PSObject.Properties['boundaryExercise']) 'historical schema-v2 lifecycle evidence shape was rewritten'
+    }
+
+    Invoke-HarnessTest 'native incapacitation rows bind real actor transition and exact EventBus cleanup' {
+        foreach($row in @(Get-KmcNativeIncapacitationRuntimeRows)) {
+            $nativeRequest=[pscustomobject][ordered]@{
+                runId=('native-incap-test-' + $row);scenario=$row;branch=$v2Request.branch;commit=$v2Request.commit
+                productVersion=$v2Request.productVersion;dllSha256=$v2Request.dllSha256;dllMvid=$v2Request.dllMvid
+                evidenceRoot=(Join-Path $runtimeEvidenceTestRoot ('native-incap-test-' + $row))
+            }
+            $records=@(
+                (New-TestLifecycleEvidenceRecord $nativeRequest 0 $row 'pre-mount' 'Unmounted'),
+                (New-TestLifecycleEvidenceRecord $nativeRequest 1 $row 'mounted-next-frame' 'Mounted'),
+                (New-TestLifecycleEvidenceRecord $nativeRequest 2 $row 'cleanup-next-frame' 'Unmounted' -WithCleanup),
+                (New-TestLifecycleEvidenceRecord $nativeRequest 3 $row 'row-finish' 'Unmounted' -WithCleanup -RowStatus 'PASS' -AssertionPassCount 4 -AssertionFailCount 0),
+                (New-TestLifecycleEvidenceRecord $nativeRequest 4 $row 'engine-finalization' 'Unmounted' -WithCleanup))
+            $subresult=[pscustomobject][ordered]@{name=$row;status='PASS';assertionPassCount=4;assertionFailCount=0;errors=@()}
+            [void](Write-TestLifecycleEvidence -EvidenceRoot $nativeRequest.evidenceRoot -Request $nativeRequest -Records $records)
+            $manifest=Read-KmcJson (Join-Path $nativeRequest.evidenceRoot 'runtime-artifacts.json')
+            Assert-KmcLifecycleScenarioEvidence -Request $nativeRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($subresult)
+
+            $candidate=Copy-TestJsonValue $records
+            $candidate[2].actorLifeTransition.lifeStateAfter='Dead'
+            Assert-TestLifecycleEvidenceRejected $nativeRequest $candidate @($subresult) 'native incapacitation accepted a Dead outcome'
+
+            $candidate=Copy-TestJsonValue $records
+            $candidate[2].actorLifeTransition.nativeDeliveryCount=2
+            Assert-TestLifecycleEvidenceRejected $nativeRequest $candidate @($subresult) 'native incapacitation accepted duplicate EventBus delivery'
+
+            $candidate=Copy-TestJsonValue $records
+            $candidate[2].boundaryExercise.deliveries[0].source='synthetic-handler'
+            Assert-TestLifecycleEvidenceRejected $nativeRequest $candidate @($subresult) 'native incapacitation accepted a synthetic lifecycle source'
+
+            $candidate=Copy-TestJsonValue $records
+            $candidate[1].actorLifeTransition.mutationIssued=$true
+            Assert-TestLifecycleEvidenceRejected $nativeRequest $candidate @($subresult) 'native incapacitation accepted mutation before the mounted evidence boundary'
+        }
     }
 
     $boundaryRow = 'mounted-pair-load-safety'

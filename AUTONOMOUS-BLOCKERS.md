@@ -1,5 +1,11 @@
 # Autonomous blockers
 
+## Native incapacitation protocol ready for runtime - 2026-08-21T03:13:06Z
+
+Status: `IN PROGRESS`; no critical blocker is active.
+
+From clean published `c1338ec6721a5d6627b1a568c4d7979b745de355`, two isolated schema-v4 scenarios now exercise real rider and Mammoth nonlethal incapacitation through public `UnitEntityData.Damage` and wait for stock life-controller/EventBus delivery. They require exact `Conscious -> Unconscious` evidence, one native lifecycle-ledger record, `UnitIncapacitated` Mounted-to-Unmounted cleanup, and complete presentation/relationship restoration. Direct handler/life-state mutation, death, duplicates, and synthetic sources fail validation. Offline totals are `21/213/17/203/255`. Required next work is coherent guarded publication, fresh package/suite/WhatIf audits, and fresh rider A/B plus Mammoth A/B; this open runtime qualification is not a blocker.
+
 ## Active-command combat-end qualified RT/TB A/B - 2026-08-21T02:52:53Z
 
 Status: `PASS` for the exact supported mounted rider movement-to-attack command; no critical blocker is active.

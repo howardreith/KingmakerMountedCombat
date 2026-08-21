@@ -1,5 +1,13 @@
 # Phase 2 qualification
 
+## Native incapacitation implementation checkpoint (2026-08-21)
+
+Status: `IN PROGRESS`; no native-incapacitation runtime PASS is claimed yet.
+
+Separate rider and Mammoth scenarios now create a real nonlethal actor transition through the installed public `UnitEntityData.Damage` setter only. They require a healthy conscious actor and a bounded `HitPoints + 1` value below `HitPoints + Constitution`, then wait for stock `UnitLifeController.TickOnUnit` and EventBus delivery. Schema v4 binds exact actor/damage/HP/Constitution evidence, `Conscious -> Unconscious`, exactly one `IUnitLifeStateChanged.HandleUnitLifeStateChanged` delivery, `UnitIncapacitated` cleanup, Mounted-to-Unmounted state, pose/relationship residue, and final restoration. No life-state setter, direct handler invocation, synthetic event, or lethal transition is permitted.
+
+Historical schema-v2/v3 direct lifecycle evidence remains immutable. Deterministic mutations reject a dead result, duplicate delivery, synthetic source, and mutation before mounted evidence. Offline gates pass source `21/0`, component `213/0`, visual/source-order `17/0`, harness/protocol `203/0`, and exact assembly contracts `255/0`. A fresh clean commit/package/suite and rider A/B plus Mammoth A/B, each with restoration audit before evidence inspection, are required for qualification.
+
 ## Active-command combat-end qualification (2026-08-21)
 
 Status: `PASS` for the exact direct party-combat-end handler while the supported rider movement-to-attack command is active; overall private-alpha qualification remains `IN PROGRESS`.

@@ -33,6 +33,8 @@ namespace KingmakerMountedCombat.Diagnostics
             "Direct service/handler invocation only; native EventBus/UMM delivery was not exercised.";
         private const string PlayerActionClaimLimit =
             "Runtime player-action controller invocation; Unity OnGUI button delivery remains separately observed.";
+        private const string NativeIncapacitationClaimLimit =
+            "Real UnitEntityData.Damage mutation followed by stock UnitLifeController/EventBus delivery; no direct life-state or lifecycle-handler invocation.";
 
         private static readonly JsonSerializerSettings EvidenceJsonSettings = new JsonSerializerSettings
         {
@@ -75,6 +77,12 @@ namespace KingmakerMountedCombat.Diagnostics
             "mounted-pair-exception-cleanup"
         };
 
+        private static readonly string[] NativeIncapacitationRows =
+        {
+            "mounted-pair-rider-native-incapacitated-cleanup",
+            "mounted-pair-mount-native-incapacitated-cleanup"
+        };
+
         private readonly RuntimeRequest request;
         private readonly GameMountedRelationshipService relationship;
         private readonly MountedLifecycleSubscriber lifecycle;
@@ -115,6 +123,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool poseLeaseAcquiredThisRow;
         private long lifecycleDeliveryBaselineSequence;
         private BoundaryExerciseEvidence boundaryExercise;
+        private UnitEntityData incapacitationActor;
+        private ActorLifeTransitionEvidence actorLifeTransition;
 
         public RuntimeLifecycleScenarioEngine(
             RuntimeRequest request,
@@ -262,6 +272,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 case EngineStep.AwaitMountedFrame:
                     ExerciseMountedRow();
                     break;
+                case EngineStep.AwaitNativeIncapacitation:
+                    AwaitNativeIncapacitation();
+                    break;
                 case EngineStep.AwaitFirstIdempotentCleanupFrame:
                     VerifyFirstIdempotentCleanupAndRepeat();
                     break;
@@ -290,6 +303,8 @@ namespace KingmakerMountedCombat.Diagnostics
             attachmentLeaseAcquiredThisRow = false;
             poseLeaseAcquiredThisRow = false;
             boundaryExercise = null;
+            incapacitationActor = null;
+            actorLifeTransition = null;
             lifecycleDeliveryBaselineSequence = lifecycle.SnapshotNativeDeliveries()
                 .Select(record => record.Sequence)
                 .DefaultIfEmpty(0L)
@@ -329,6 +344,19 @@ namespace KingmakerMountedCombat.Diagnostics
                 TryWriteEvidence("pre-mount", null, null);
                 RequestCleanup(CleanupTrigger.Exception);
                 return;
+            }
+            if (IsNativeIncapacitationRow(currentRow))
+            {
+                var actorIsRider = string.Equals(
+                    currentRow,
+                    "mounted-pair-rider-native-incapacitated-cleanup",
+                    StringComparison.Ordinal);
+                incapacitationActor = actorIsRider ? snapshot.Rider : snapshot.Mount;
+                var hitPoints = incapacitationActor == null ? 0 : (int)incapacitationActor.Stats.HitPoints;
+                actorLifeTransition = ActorLifeTransitionEvidence.Before(
+                    actorIsRider ? "rider" : "mount",
+                    incapacitationActor,
+                    hitPoints + 1);
             }
             evidenceSnapshot = snapshot;
             if (!TryWriteEvidence("pre-mount", null, null))
@@ -595,6 +623,44 @@ namespace KingmakerMountedCombat.Diagnostics
                     "Direct fail-safe incapacitation boundary completed exact cleanup.",
                     "Direct fail-safe incapacitation boundary did not complete exact cleanup: " + relationship.LastResult);
                 AwaitCleanupFrame();
+            }
+            else if (IsNativeIncapacitationRow(currentRow))
+            {
+                var actorIsRider = string.Equals(
+                    currentRow,
+                    "mounted-pair-rider-native-incapacitated-cleanup",
+                    StringComparison.Ordinal);
+                incapacitationActor = actorIsRider ? snapshot.Rider : snapshot.Mount;
+                var state = incapacitationActor?.Descriptor?.State;
+                var hitPoints = incapacitationActor == null ? 0 : (int)incapacitationActor.Stats.HitPoints;
+                var constitution = incapacitationActor == null ? 0 : (int)incapacitationActor.Stats.Constitution;
+                var damageBefore = incapacitationActor?.Damage ?? 0;
+                var requestedDamage = hitPoints + 1;
+                if (actorLifeTransition == null)
+                {
+                    actorLifeTransition = ActorLifeTransitionEvidence.Before(
+                        actorIsRider ? "rider" : "mount",
+                        incapacitationActor,
+                        requestedDamage);
+                }
+                assertions.Check(state != null && state.IsConscious && !state.IsDead && !state.IsFinallyDead,
+                    "Exact pair actor began the native incapacitation probe conscious and alive.",
+                    "Pair actor was not conscious and alive before the native incapacitation probe.");
+                assertions.Check(hitPoints > 0 && constitution > 1 && damageBefore < hitPoints &&
+                        requestedDamage > hitPoints && requestedDamage < hitPoints + constitution,
+                    "Requested damage is inside the exact stock unconscious-but-not-dead band.",
+                    "Requested damage was outside the stock unconscious band: damage=" + damageBefore +
+                        ";HP=" + hitPoints + ";Constitution=" + constitution +
+                        ";requested=" + requestedDamage + ".");
+                if (assertions.FailureCount != 0)
+                {
+                    RequestCleanup(CleanupTrigger.Exception);
+                    return;
+                }
+
+                incapacitationActor.Damage = requestedDamage;
+                actorLifeTransition.MutationIssued = true;
+                step = EngineStep.AwaitNativeIncapacitation;
             }
             else if (string.Equals(currentRow, "mounted-pair-companion-removal-cleanup", StringComparison.Ordinal))
             {
@@ -1090,7 +1156,9 @@ namespace KingmakerMountedCombat.Diagnostics
 
             return new LifecycleEvidenceRecord
             {
-                SchemaVersion = IsCombatLifecycleRow(currentRow ?? lastEvidenceRow) ? 3 : 2,
+                SchemaVersion = IsNativeIncapacitationRow(currentRow ?? lastEvidenceRow)
+                    ? 4
+                    : IsCombatLifecycleRow(currentRow ?? lastEvidenceRow) ? 3 : 2,
                 RunId = request.RunId,
                 Scenario = request.Scenario,
                 Row = currentRow ?? lastEvidenceRow,
@@ -1155,20 +1223,28 @@ namespace KingmakerMountedCombat.Diagnostics
                 BoundaryExercise = IsCombatLifecycleRow(currentRow ?? lastEvidenceRow)
                     ? (boundaryExercise ?? BoundaryExerciseEvidence.Pending(currentRow ?? lastEvidenceRow))
                     : null,
+                ActorLifeTransition = IsNativeIncapacitationRow(currentRow ?? lastEvidenceRow)
+                    ? actorLifeTransition
+                    : null,
                 RecordErrors = recordErrors == null ? new string[0] : recordErrors.ToArray()
             };
         }
 
         private TriggerScopeEvidence CreateTriggerScope(string row)
         {
+            var nativeIncapacitation = IsNativeIncapacitationRow(row);
             return new TriggerScopeEvidence
             {
                 ExpectedCleanupTrigger = GetExpectedCleanupTrigger(row).ToString(),
-                InvocationPath = IsPlayerActionRow(row)
-                    ? "player-action-controller-direct"
-                    : (UsesLifecycleHandler(row) ? "lifecycle-handler-direct" : "relationship-service-direct"),
-                NativeDeliveryObserved = false,
-                ClaimLimit = IsPlayerActionRow(row) ? PlayerActionClaimLimit : DirectInvocationClaimLimit
+                InvocationPath = nativeIncapacitation
+                    ? "stock-life-controller-eventbus"
+                    : IsPlayerActionRow(row)
+                        ? "player-action-controller-direct"
+                        : (UsesLifecycleHandler(row) ? "lifecycle-handler-direct" : "relationship-service-direct"),
+                NativeDeliveryObserved = nativeIncapacitation,
+                ClaimLimit = nativeIncapacitation
+                    ? NativeIncapacitationClaimLimit
+                    : IsPlayerActionRow(row) ? PlayerActionClaimLimit : DirectInvocationClaimLimit
             };
         }
 
@@ -1356,12 +1432,24 @@ namespace KingmakerMountedCombat.Diagnostics
                     return new[] { row };
                 }
             }
+            foreach (var row in NativeIncapacitationRows)
+            {
+                if (string.Equals(row, scenario, StringComparison.Ordinal))
+                {
+                    return new[] { row };
+                }
+            }
             return null;
         }
 
         private static bool IsCombatLifecycleRow(string row)
         {
-            return Array.IndexOf(CombatLifecycleRows, row) >= 0;
+            return Array.IndexOf(CombatLifecycleRows, row) >= 0 || IsNativeIncapacitationRow(row);
+        }
+
+        private static bool IsNativeIncapacitationRow(string row)
+        {
+            return Array.IndexOf(NativeIncapacitationRows, row) >= 0;
         }
 
         private static bool IsPlayerActionRow(string row)
@@ -1394,6 +1482,10 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (string.Equals(row, "mounted-pair-rider-incapacitated-cleanup", StringComparison.Ordinal) ||
                 string.Equals(row, "mounted-pair-mount-incapacitated-cleanup", StringComparison.Ordinal))
+            {
+                return CleanupTrigger.Incapacitated;
+            }
+            if (IsNativeIncapacitationRow(row))
             {
                 return CleanupTrigger.Incapacitated;
             }
@@ -1497,6 +1589,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             BeginRow,
             AwaitMountedFrame,
+            AwaitNativeIncapacitation,
             AwaitFirstIdempotentCleanupFrame,
             AwaitCleanupFrame
         }
@@ -1538,7 +1631,64 @@ namespace KingmakerMountedCombat.Diagnostics
             public PoseEvidence Pose { get; set; }
             [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
             public BoundaryExerciseEvidence BoundaryExercise { get; set; }
+            [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            public ActorLifeTransitionEvidence ActorLifeTransition { get; set; }
             public IReadOnlyList<string> RecordErrors { get; set; }
+        }
+
+        private sealed class ActorLifeTransitionEvidence
+        {
+            public string ActorRole { get; set; }
+            public string ActorId { get; set; }
+            public string MutationProperty { get; set; }
+            public bool MutationIssued { get; set; }
+            public string LifeStateBefore { get; set; }
+            public string LifeStateAfter { get; set; }
+            public bool ConsciousBefore { get; set; }
+            public bool ConsciousAfter { get; set; }
+            public bool DeadAfter { get; set; }
+            public bool FinallyDeadAfter { get; set; }
+            public int DamageBefore { get; set; }
+            public int RequestedDamage { get; set; }
+            public int DamageAfter { get; set; }
+            public int HitPoints { get; set; }
+            public int Constitution { get; set; }
+            public int NativeDeliveryCount { get; set; }
+
+            public static ActorLifeTransitionEvidence Before(string actorRole, UnitEntityData actor, int requestedDamage)
+            {
+                var state = actor?.Descriptor?.State;
+                return new ActorLifeTransitionEvidence
+                {
+                    ActorRole = actorRole,
+                    ActorId = actor?.UniqueId,
+                    MutationProperty = "UnitEntityData.Damage",
+                    MutationIssued = false,
+                    LifeStateBefore = state?.LifeState.ToString(),
+                    LifeStateAfter = null,
+                    ConsciousBefore = state != null && state.IsConscious,
+                    ConsciousAfter = false,
+                    DeadAfter = false,
+                    FinallyDeadAfter = false,
+                    DamageBefore = actor?.Damage ?? 0,
+                    RequestedDamage = requestedDamage,
+                    DamageAfter = 0,
+                    HitPoints = actor == null ? 0 : (int)actor.Stats.HitPoints,
+                    Constitution = actor == null ? 0 : (int)actor.Stats.Constitution,
+                    NativeDeliveryCount = 0
+                };
+            }
+
+            public void CaptureAfter(UnitEntityData actor, int nativeDeliveryCount)
+            {
+                var state = actor?.Descriptor?.State;
+                LifeStateAfter = state?.LifeState.ToString();
+                ConsciousAfter = state != null && state.IsConscious;
+                DeadAfter = state != null && state.IsDead;
+                FinallyDeadAfter = state != null && state.IsFinallyDead;
+                DamageAfter = actor?.Damage ?? 0;
+                NativeDeliveryCount = nativeDeliveryCount;
+            }
         }
 
         private sealed class BoundaryExerciseEvidence
@@ -1564,6 +1714,58 @@ namespace KingmakerMountedCombat.Diagnostics
                     Deliveries = new BoundaryDeliveryEvidence[0]
                 };
             }
+        }
+
+        private void AwaitNativeIncapacitation()
+        {
+            if (incapacitationActor?.Descriptor?.State == null || actorLifeTransition == null)
+            {
+                FailCurrent("Native incapacitation actor or life evidence became unavailable.");
+                RequestCleanup(CleanupTrigger.Exception);
+                return;
+            }
+
+            var state = incapacitationActor.Descriptor.State;
+            var deliveries = lifecycle.SnapshotNativeDeliveries()
+                .Where(record => record.Sequence > lifecycleDeliveryBaselineSequence)
+                .ToArray();
+            if (state.IsConscious || relationship.State != RelationshipState.Unmounted || deliveries.Length == 0)
+            {
+                return;
+            }
+
+            actorLifeTransition.CaptureAfter(incapacitationActor, deliveries.Length);
+            lastCleanupTransition = relationship.LastTransition;
+            CaptureBoundaryExercise(
+                actorLifeTransition.ActorRole,
+                "UnitEntityData.Damage -> UnitLifeController.TickOnUnit -> IUnitLifeStateChanged.HandleUnitLifeStateChanged");
+            assertions.Check(string.Equals(actorLifeTransition.LifeStateBefore, "Conscious", StringComparison.Ordinal) &&
+                    string.Equals(actorLifeTransition.LifeStateAfter, "Unconscious", StringComparison.Ordinal) &&
+                    actorLifeTransition.ConsciousBefore && !actorLifeTransition.ConsciousAfter &&
+                    !actorLifeTransition.DeadAfter && !actorLifeTransition.FinallyDeadAfter,
+                "Stock life controller transitioned the exact actor from Conscious to Unconscious without death.",
+                "Stock life transition was not exact: " + actorLifeTransition.LifeStateBefore + " -> " +
+                    actorLifeTransition.LifeStateAfter + ".");
+            assertions.Check(actorLifeTransition.MutationIssued &&
+                    actorLifeTransition.DamageAfter == actorLifeTransition.RequestedDamage &&
+                    actorLifeTransition.DamageAfter > actorLifeTransition.HitPoints &&
+                    actorLifeTransition.DamageAfter < actorLifeTransition.HitPoints + actorLifeTransition.Constitution,
+                "Exact diagnostic damage mutation remained inside the unconscious band.",
+                "Diagnostic damage mutation or unconscious-band evidence was not exact.");
+            assertions.Check(HasExactSuccessfulTrigger(CleanupTrigger.Incapacitated),
+                "Native life-state delivery completed exact Incapacitated cleanup.",
+                "Native life-state delivery did not complete Incapacitated cleanup: " + relationship.LastResult);
+            AssertObservedBoundary(
+                NativeLifecycleBoundary.UnitIncapacitated,
+                "IUnitLifeStateChanged.HandleUnitLifeStateChanged",
+                RelationshipState.Mounted,
+                RelationshipState.Unmounted,
+                CleanupTrigger.Incapacitated,
+                true);
+            assertions.Check(deliveries.Length == 1,
+                "Exactly one native pair-incapacitation lifecycle delivery was observed.",
+                "Native pair-incapacitation delivery count was " + deliveries.Length + " rather than one.");
+            AwaitCleanupFrame();
         }
 
         private sealed class BoundaryDeliveryEvidence

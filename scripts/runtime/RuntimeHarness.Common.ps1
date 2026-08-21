@@ -3632,6 +3632,7 @@ function Get-KmcSaveBackedRuntimeScenarios {
         'mounted-pair-combat-start-retained', 'mounted-pair-combat-end-retained',
         'mounted-pair-rider-death-cleanup', 'mounted-pair-mount-death-cleanup',
         'mounted-pair-rider-incapacitated-cleanup', 'mounted-pair-mount-incapacitated-cleanup',
+        'mounted-pair-rider-native-incapacitated-cleanup', 'mounted-pair-mount-native-incapacitated-cleanup',
         'mounted-pair-companion-removal-cleanup', 'mounted-pair-view-destroyed-cleanup', 'mounted-pair-exception-cleanup',
         'mounted-pair-open-ground',
         'mounted-pair-stop-start', 'mounted-pair-turns-and-corners', 'mounted-pair-doorway', 'mounted-pair-selection',
@@ -3679,6 +3680,13 @@ function Get-KmcCombatLifecycleRuntimeRows {
     )
 }
 
+function Get-KmcNativeIncapacitationRuntimeRows {
+    return @(
+        'mounted-pair-rider-native-incapacitated-cleanup',
+        'mounted-pair-mount-native-incapacitated-cleanup'
+    )
+}
+
 function Get-KmcLifecycleExpectedCleanupTrigger {
     param([Parameter(Mandatory = $true)][string]$Row)
     switch -CaseSensitive ($Row) {
@@ -3690,6 +3698,8 @@ function Get-KmcLifecycleExpectedCleanupTrigger {
         'mounted-pair-mount-death-cleanup' { return 'Death' }
         'mounted-pair-rider-incapacitated-cleanup' { return 'Incapacitated' }
         'mounted-pair-mount-incapacitated-cleanup' { return 'Incapacitated' }
+        'mounted-pair-rider-native-incapacitated-cleanup' { return 'Incapacitated' }
+        'mounted-pair-mount-native-incapacitated-cleanup' { return 'Incapacitated' }
         'mounted-pair-companion-removal-cleanup' { return 'CompanionInvalidated' }
         'mounted-pair-view-destroyed-cleanup' { return 'ViewDetached' }
         'mounted-pair-exception-cleanup' { return 'Exception' }
@@ -3699,6 +3709,9 @@ function Get-KmcLifecycleExpectedCleanupTrigger {
 
 function Get-KmcLifecycleInvocationPath {
     param([Parameter(Mandatory = $true)][string]$Row)
+    if ([string]$Row -cin (Get-KmcNativeIncapacitationRuntimeRows)) {
+        return 'stock-life-controller-eventbus'
+    }
     if ([string]$Row -cin @(
         'mounted-pair-death-cleanup',
         'mounted-pair-combat-start-cleanup',
@@ -3719,6 +3732,9 @@ function Get-KmcLifecycleInvocationPath {
 
 function Get-KmcLifecycleClaimLimit {
     param([Parameter(Mandatory = $true)][string]$Row)
+    if ([string]$Row -cin (Get-KmcNativeIncapacitationRuntimeRows)) {
+        return 'Real UnitEntityData.Damage mutation followed by stock UnitLifeController/EventBus delivery; no direct life-state or lifecycle-handler invocation.'
+    }
     if ([string]$Row -cin @('player-action-availability','mount-dismount-user-flow')) {
         return 'Runtime player-action controller invocation; Unity OnGUI button delivery remains separately observed.'
     }
@@ -3734,6 +3750,7 @@ function Test-KmcLifecycleRuntimeScenario {
     return [string]$Scenario -cin @('lifecycle-suite','combat-lifecycle-suite') -or
         @(Get-KmcLifecycleRuntimeRows | Where-Object { $_ -ceq [string]$Scenario }).Count -eq 1 -or
         @(Get-KmcCombatLifecycleRuntimeRows | Where-Object { $_ -ceq [string]$Scenario }).Count -eq 1 -or
+        @(Get-KmcNativeIncapacitationRuntimeRows | Where-Object { $_ -ceq [string]$Scenario }).Count -eq 1 -or
         @(Get-KmcPlayerActionRuntimeRows | Where-Object { $_ -ceq [string]$Scenario }).Count -eq 1
 }
 
@@ -3920,6 +3937,16 @@ function Assert-KmcCombatLifecycleBoundaryExercise {
         }
         'mounted-pair-rider-incapacitated-cleanup' { $expectedRole='rider';$expectedActorId=[string]$Record.rider.uniqueId;$expectedPath='relationship.Dismount(Incapacitated)' }
         'mounted-pair-mount-incapacitated-cleanup' { $expectedRole='mount';$expectedActorId=[string]$Record.mount.uniqueId;$expectedPath='relationship.Dismount(Incapacitated)' }
+        'mounted-pair-rider-native-incapacitated-cleanup' {
+            $expectedRole='rider';$expectedActorId=[string]$Record.rider.uniqueId
+            $expectedPath='UnitEntityData.Damage -> UnitLifeController.TickOnUnit -> IUnitLifeStateChanged.HandleUnitLifeStateChanged'
+            $expected=@(@{boundary='UnitIncapacitated';source='IUnitLifeStateChanged.HandleUnitLifeStateChanged';before='Mounted';after='Unmounted';trigger='Incapacitated';attempted=$true})
+        }
+        'mounted-pair-mount-native-incapacitated-cleanup' {
+            $expectedRole='mount';$expectedActorId=[string]$Record.mount.uniqueId
+            $expectedPath='UnitEntityData.Damage -> UnitLifeController.TickOnUnit -> IUnitLifeStateChanged.HandleUnitLifeStateChanged'
+            $expected=@(@{boundary='UnitIncapacitated';source='IUnitLifeStateChanged.HandleUnitLifeStateChanged';before='Mounted';after='Unmounted';trigger='Incapacitated';attempted=$true})
+        }
         'mounted-pair-companion-removal-cleanup' {
             $expectedRole='mount';$expectedActorId=[string]$Record.mount.uniqueId;$expectedPath='IPartyHandler.HandleCompanionRemoved'
             $expected=@(@{boundary='PartyRemoved';source='IPartyHandler.HandleCompanionRemoved';before='Mounted';after='Unmounted';trigger='CompanionInvalidated';attempted=$true})
@@ -3964,11 +3991,13 @@ function Assert-KmcLifecycleEvidenceRecord {
         [Parameter(Mandatory = $true)][string[]]$ExpectedRows,
         [Parameter(Mandatory = $true)][bool]$RequireComplete
     )
-    if (-not (Test-KmcExactJsonInteger $Record.schemaVersion) -or [long]$Record.schemaVersion -notin @(2,3)) {
-        throw 'Lifecycle evidence schemaVersion must be the exact integral value 2 or 3.'
+    if (-not (Test-KmcExactJsonInteger $Record.schemaVersion) -or [long]$Record.schemaVersion -notin @(2,3,4)) {
+        throw 'Lifecycle evidence schemaVersion must be the exact integral value 2, 3, or 4.'
     }
-    $isCombatLifecycle=@(Get-KmcCombatLifecycleRuntimeRows | Where-Object { $_ -ceq [string]$Record.row }).Count -eq 1
-    if (($isCombatLifecycle -and [long]$Record.schemaVersion -ne 3) -or
+    $isNativeIncapacitation=@(Get-KmcNativeIncapacitationRuntimeRows | Where-Object { $_ -ceq [string]$Record.row }).Count -eq 1
+    $isCombatLifecycle=$isNativeIncapacitation -or @(Get-KmcCombatLifecycleRuntimeRows | Where-Object { $_ -ceq [string]$Record.row }).Count -eq 1
+    if (($isNativeIncapacitation -and [long]$Record.schemaVersion -ne 4) -or
+        ($isCombatLifecycle -and -not $isNativeIncapacitation -and [long]$Record.schemaVersion -ne 3) -or
         (-not $isCombatLifecycle -and [long]$Record.schemaVersion -ne 2)) {
         throw 'Lifecycle evidence schema version does not match its exact row family.'
     }
@@ -3978,6 +4007,7 @@ function Assert-KmcLifecycleEvidenceRecord {
         'assertionFailCount','cleanup','partyCombat','riderCombat','mountCombat','turnBased','paused',
         'currentGameMode','rider','mount','selection','spine','anchor','attachment','recordErrors')
     if ($isCombatLifecycle) { $exactProperties += @('pose','boundaryExercise') }
+    if ($isNativeIncapacitation) { $exactProperties += 'actorLifeTransition' }
     Assert-KmcExactProperties $Record $exactProperties 'lifecycle evidence record'
     foreach ($name in @('runId','scenario','branch','commit','productVersion','dllSha256','dllMvid')) {
         if ($Record.$name -isnot [string] -or [string]$Record.$name -cne [string]$Request.$name) {
@@ -4004,7 +4034,8 @@ function Assert-KmcLifecycleEvidenceRecord {
     $expectedClaimLimit = Get-KmcLifecycleClaimLimit ([string]$Record.row)
     if ($Record.triggerScope.expectedCleanupTrigger -isnot [string] -or [string]$Record.triggerScope.expectedCleanupTrigger -cne $expectedTrigger -or
         $Record.triggerScope.invocationPath -isnot [string] -or [string]$Record.triggerScope.invocationPath -cne $expectedInvocationPath -or
-        $Record.triggerScope.nativeDeliveryObserved -isnot [bool] -or $Record.triggerScope.nativeDeliveryObserved -ne $false -or
+        $Record.triggerScope.nativeDeliveryObserved -isnot [bool] -or
+        $Record.triggerScope.nativeDeliveryObserved -ne $isNativeIncapacitation -or
         $Record.triggerScope.claimLimit -isnot [string] -or
         [string]$Record.triggerScope.claimLimit -cne $expectedClaimLimit) {
         throw "Lifecycle evidence trigger scope or truthful native-delivery claim is wrong for $($Record.row)."
@@ -4081,6 +4112,47 @@ function Assert-KmcLifecycleEvidenceRecord {
         }
         if ($null -eq $Record.boundaryExercise) { throw 'Combat lifecycle evidence requires boundaryExercise.' }
         Assert-KmcCombatLifecycleBoundaryExercise $Record.boundaryExercise $Record
+    }
+    if ($isNativeIncapacitation) {
+        Assert-KmcExactProperties $Record.actorLifeTransition @(
+            'actorRole','actorId','mutationProperty','mutationIssued','lifeStateBefore','lifeStateAfter',
+            'consciousBefore','consciousAfter','deadAfter','finallyDeadAfter','damageBefore','requestedDamage',
+            'damageAfter','hitPoints','constitution','nativeDeliveryCount') 'native actor life transition'
+        foreach($name in @('mutationIssued','consciousBefore','consciousAfter','deadAfter','finallyDeadAfter')) {
+            if($Record.actorLifeTransition.$name -isnot [bool]) { throw "Native actor life transition $name must be Boolean." }
+        }
+        foreach($name in @('damageBefore','requestedDamage','damageAfter','hitPoints','constitution','nativeDeliveryCount')) {
+            if(-not (Test-KmcExactJsonInteger $Record.actorLifeTransition.$name)) { throw "Native actor life transition $name must be integral." }
+        }
+        $expectedRole=if([string]$Record.row -ceq 'mounted-pair-rider-native-incapacitated-cleanup'){'rider'}else{'mount'}
+        $expectedId=if($expectedRole -ceq 'rider'){[string]$Record.rider.uniqueId}else{[string]$Record.mount.uniqueId}
+        if([string]$Record.actorLifeTransition.actorRole -cne $expectedRole -or
+            [string]$Record.actorLifeTransition.actorId -cne $expectedId -or
+            [string]$Record.actorLifeTransition.mutationProperty -cne 'UnitEntityData.Damage' -or
+            [string]$Record.actorLifeTransition.lifeStateBefore -cne 'Conscious' -or
+            $Record.actorLifeTransition.consciousBefore -ne $true -or
+            [long]$Record.actorLifeTransition.damageBefore -ge [long]$Record.actorLifeTransition.hitPoints -or
+            [long]$Record.actorLifeTransition.requestedDamage -ne ([long]$Record.actorLifeTransition.hitPoints + 1) -or
+            [long]$Record.actorLifeTransition.constitution -le 1) {
+            throw 'Native actor pre-transition identity or unconscious-band request is not exact.'
+        }
+        $transitionObserved=[string]$Record.phase -cin @('cleanup-next-frame','row-finish','engine-finalization')
+        if($transitionObserved) {
+            if($Record.actorLifeTransition.mutationIssued -ne $true -or
+                [string]$Record.actorLifeTransition.lifeStateAfter -cne 'Unconscious' -or
+                $Record.actorLifeTransition.consciousAfter -ne $false -or
+                $Record.actorLifeTransition.deadAfter -ne $false -or
+                $Record.actorLifeTransition.finallyDeadAfter -ne $false -or
+                [long]$Record.actorLifeTransition.damageAfter -ne [long]$Record.actorLifeTransition.requestedDamage -or
+                [long]$Record.actorLifeTransition.nativeDeliveryCount -ne 1) {
+                throw 'Native actor post-transition evidence does not prove one exact stock unconscious delivery.'
+            }
+        } elseif($Record.actorLifeTransition.mutationIssued -ne $false -or
+            $null -ne $Record.actorLifeTransition.lifeStateAfter -or
+            [long]$Record.actorLifeTransition.damageAfter -ne 0 -or
+            [long]$Record.actorLifeTransition.nativeDeliveryCount -ne 0) {
+            throw 'Native actor pre-transition evidence contains premature mutation or delivery state.'
+        }
     }
     Assert-KmcLifecycleUnitEvidence $Record.rider 'lifecycle evidence rider' -RequireComplete:$RequireComplete
     Assert-KmcLifecycleUnitEvidence $Record.mount 'lifecycle evidence mount' -RequireComplete:$RequireComplete
@@ -4277,7 +4349,7 @@ function Assert-KmcLifecycleEvidenceSemantics {
         if ($null -ne $mounted) { Assert-KmcLifecycleCleanupAbsent $mounted }
         Assert-KmcLifecycleCleanupExact $cleanup $expectedTrigger
         Assert-KmcLifecycleCleanupExact $finish $expectedTrigger
-        $isCombatLifecycle=@(Get-KmcCombatLifecycleRuntimeRows | Where-Object { $_ -ceq $row }).Count -eq 1
+        $isCombatLifecycle=@((Get-KmcCombatLifecycleRuntimeRows) + (Get-KmcNativeIncapacitationRuntimeRows) | Where-Object { $_ -ceq $row }).Count -eq 1
         if ($isCombatLifecycle -and ($pre.boundaryExercise.observed -ne $false -or
             $mounted.boundaryExercise.observed -ne $false -or
             $cleanup.boundaryExercise.observed -ne $true -or $finish.boundaryExercise.observed -ne $true)) {
@@ -4330,7 +4402,7 @@ function Assert-KmcLifecycleEvidenceSemantics {
     }
     $finalTrigger = Get-KmcLifecycleExpectedCleanupTrigger $finalRow
     Assert-KmcLifecycleCleanupExact $final $finalTrigger
-    if (@(Get-KmcCombatLifecycleRuntimeRows | Where-Object { $_ -ceq $finalRow }).Count -eq 1 -and
+    if (@((Get-KmcCombatLifecycleRuntimeRows) + (Get-KmcNativeIncapacitationRuntimeRows) | Where-Object { $_ -ceq $finalRow }).Count -eq 1 -and
         $final.boundaryExercise.observed -ne $true) {
         throw 'Combat lifecycle engine-finalization did not retain the final exact boundary evidence.'
     }

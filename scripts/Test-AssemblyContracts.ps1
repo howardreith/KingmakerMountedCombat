@@ -219,6 +219,7 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.UnitLogic.UnitState',0x06001FA7,'get_IsConscious'),
         @('Kingmaker.UnitLogic.UnitState',0x06001FA9,'get_IsDead'),
         @('Kingmaker.EntitySystem.Entities.UnitEntityData',0x060082E6,'get_Damage'),
+        @('Kingmaker.EntitySystem.Entities.UnitEntityData',0x060082E7,'set_Damage'),
         @('Kingmaker.EntitySystem.Entities.UnitEntityData',0x060082E8,'get_DamageNonLethal'),
         @('Kingmaker.EntitySystem.Entities.UnitEntityData',0x060082EC,'get_Stats'),
         @('Kingmaker.PubSubSystem.IUnitLifeStateChanged',0x06007620,'HandleUnitLifeStateChanged'),
