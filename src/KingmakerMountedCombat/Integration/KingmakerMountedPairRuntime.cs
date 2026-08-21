@@ -588,12 +588,25 @@ namespace KingmakerMountedCombat.Integration
                         // exactly the single KMC lease; assigning a captured true
                         // value would acquire a second lease instead of restoring.
                         riderStockAgent.AvoidanceDisabled = false;
-                        if (riderStockAgent.AvoidanceDisabled != riderAvoidanceWasDisabled)
+                        // A successful setter call is the exact KMC lease release.
+                        // The effective getter also reports true whenever Owlcat's
+                        // unit state is unconscious, independently of CountingGuard.
+                        // Clear KMC ownership before validating that combined stock
+                        // contract so a later cleanup retry can never release twice.
+                        avoidanceLeaseOwned = false;
+                        var riderIsConscious = rider == null || rider.Descriptor.State.IsConscious;
+                        if (!AvoidanceRestorationExpectation.Matches(
+                            riderAvoidanceWasDisabled,
+                            riderIsConscious,
+                            riderStockAgent.AvoidanceDisabled))
                         {
-                            throw new InvalidOperationException("Rider avoidance state did not return to its captured effective value after releasing the KMC lease.");
+                            throw new InvalidOperationException("Rider avoidance state did not match the captured lease state plus native consciousness after releasing the KMC lease.");
                         }
                     }
-                    avoidanceLeaseOwned = false;
+                    else
+                    {
+                        avoidanceLeaseOwned = false;
+                    }
                 }
             }
             catch (Exception exception)

@@ -2,6 +2,10 @@
 
 Status: IN PROGRESS
 
+The bounded cause probe now identifies the exact cleanup defect: KMC released its rider avoidance CountingGuard lease, but then compared the installed effective `AvoidanceDisabled` getter only to the pre-mount value. Stock Kingmaker independently forces that getter true while the unit is unconscious. The repair records the KMC lease unowned immediately after setter success and validates effective state as captured external disablement OR native unconsciousness. It neither writes consciousness nor broadens cleanup acceptance; all impossible combinations still fail closed. Fresh rider and Mammoth native-incapacitation A/B are required before qualification.
+
+Complete repaired gates pass source/component/visual/harness/assembly `21/215/17/203/255`, Release build, PowerShell/JSON parsers `26/0` / `7/0`, diff, and prohibited-payload checks. The dirty build DLL is `0220ab1fbe166ec8a0c4cc0d2b82486cec08f5a896d83150d38217f4a5c890aa`, MVID `fdb17595-67af-4c98-a93e-3f1e9983d61e`; clean package binding remains required.
+
 Schema-v7 runtime narrows the first fault to `RestoreMovementAuthority`, whose wrapper reports best-effort restoration residue. The coordinator previously emitted only the outer exception and discarded its inner cause. The current follow-up changes diagnostics only by retaining a bounded ordered cause chain; it does not alter movement, placement, cleanup, or lifecycle behavior.
 
 Schema-v6 runtime now proves the first native rider callback is exactly `Conscious -> Unconscious`, followed by stock `Unconscious -> Conscious` recovery. The first callback's cleanup entered `Faulted` and the ordinary retry later reached `Unmounted`, so run `20260821T050300Z-rider-native-incapacitation-probe-v6` remains uncredited `47/2`. Schema v7 adds only cleanup-error capture to the bounded lifecycle ledger and failed-evidence protocol; no cleanup behavior changes until that error is observed.

@@ -3931,18 +3931,28 @@ try {
         [IO.File]::WriteAllText((Join-Path $saves 'Foreign.zks'),'foreign-one')
         New-Item -ItemType Directory -Path (Join-Path $mods 'BagOfTricks')|Out-Null
         [IO.File]::WriteAllText((Join-Path $mods 'BagOfTricks\Settings.xml'),'first')
+        Start-Sleep -Milliseconds 1000
         $suiteOneSave=Get-KmcQualificationTreeInventory -Root $saves -Scope save-root
         $suiteOneMods=Get-KmcQualificationTreeInventory -Root $mods -Scope mods-root
         [void](Assert-KmcQualificationTreeInventorySchema -Inventory $suiteOneSave -ExpectedScope save-root -ExpectedRoot $saves -Description 'suite-one saves')
         [void](Assert-KmcQualificationTreeInventorySchema -Inventory $suiteOneMods -ExpectedScope mods-root -ExpectedRoot $mods -Description 'suite-one Mods')
-        [void](Assert-KmcQualificationTreeInventoriesEqual -Expected $suiteOneSave -Actual (Get-KmcQualificationTreeInventory -Root $saves -Scope save-root) -Description 'stable double-scan saves')
-        [void](Assert-KmcQualificationTreeInventoriesEqual -Expected $suiteOneMods -Actual (Get-KmcQualificationTreeInventory -Root $mods -Scope mods-root) -Description 'stable double-scan Mods')
+        Start-Sleep -Milliseconds 1000
+        $suiteOneSaveSecond=Get-KmcQualificationTreeInventory -Root $saves -Scope save-root
+        $suiteOneModsSecond=Get-KmcQualificationTreeInventory -Root $mods -Scope mods-root
+        [void](Assert-KmcQualificationTreeInventoriesEqual -Expected $suiteOneSave -Actual $suiteOneSaveSecond -Description 'stable double-scan saves')
+        try { [void](Assert-KmcQualificationTreeInventoriesEqual -Expected $suiteOneMods -Actual $suiteOneModsSecond -Description 'stable double-scan Mods') }
+        catch {
+            $changed=@(Get-KmcQualificationInventoryDifferences -Before $suiteOneMods -After $suiteOneModsSecond)
+            throw "stable double-scan Mods changed at: $($changed -join ', ')."
+        }
         [IO.File]::WriteAllText((Join-Path $saves 'Foreign.zks'),'foreign-two')
         [IO.File]::WriteAllText((Join-Path $mods 'BagOfTricks\Settings.xml'),'second')
         Assert-TestThrows { Assert-KmcQualificationTreeInventoriesEqual -Expected $suiteOneSave -Actual (Get-KmcQualificationTreeInventory -Root $saves -Scope save-root) -Description 'in-suite saves' } 'in-suite foreign save drift was accepted'
         Assert-TestThrows { Assert-KmcQualificationTreeInventoriesEqual -Expected $suiteOneMods -Actual (Get-KmcQualificationTreeInventory -Root $mods -Scope mods-root) -Description 'in-suite Mods' } 'in-suite foreign Mods drift was accepted'
+        Start-Sleep -Milliseconds 1000
         $suiteTwoSave=Get-KmcQualificationTreeInventory -Root $saves -Scope save-root
         $suiteTwoMods=Get-KmcQualificationTreeInventory -Root $mods -Scope mods-root
+        Start-Sleep -Milliseconds 1000
         [void](Assert-KmcQualificationTreeInventoriesEqual -Expected $suiteTwoSave -Actual (Get-KmcQualificationTreeInventory -Root $saves -Scope save-root) -Description 'new stable suite saves')
         [void](Assert-KmcQualificationTreeInventoriesEqual -Expected $suiteTwoMods -Actual (Get-KmcQualificationTreeInventory -Root $mods -Scope mods-root) -Description 'new stable suite Mods')
         Assert-Test ([string]$suiteOneSave.digest-cne[string]$suiteTwoSave.digest -and [string]$suiteOneMods.digest-cne[string]$suiteTwoMods.digest) 'between-suite drift did not produce a new exact admission identity'
@@ -7641,7 +7651,10 @@ try {
             @($rowFixtureNames | Where-Object { [Array]::IndexOf($rowProducerNames, $_) -lt 0 }).Count -eq 0) 'movement row fixture/validator field set is not the exact 209-field producer schema'
         $runtimeSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\KingmakerMountedPairRuntime.cs'))
         Assert-Test ($runtimeSource.Contains('riderAvoidanceWasDisabled = riderStockAgent.AvoidanceDisabled;') -and
-            $runtimeSource.Contains('riderStockAgent.AvoidanceDisabled != riderAvoidanceWasDisabled')) 'runtime does not verify its counted avoidance lease restores the captured effective state'
+            $runtimeSource.Contains('riderStockAgent.AvoidanceDisabled = false;') -and
+            $runtimeSource.IndexOf('avoidanceLeaseOwned = false;', $runtimeSource.IndexOf('riderStockAgent.AvoidanceDisabled = false;', [StringComparison]::Ordinal), [StringComparison]::Ordinal) -gt
+                $runtimeSource.IndexOf('riderStockAgent.AvoidanceDisabled = false;', [StringComparison]::Ordinal) -and
+            $runtimeSource.Contains('AvoidanceRestorationExpectation.Matches(')) 'runtime does not release its counted avoidance lease once before validating captured state plus native consciousness'
         Assert-Test ($engineSource.Contains('Post-cleanup verification threw')) 'post-cleanup Unity observation exceptions are not recorded as failed evidence'
         Assert-Test ($engineSource.Contains('CompleteRemainingAsNotRun("Further movement was suppressed because post-cleanup verification could not prove restoration."')) 'destroyed-view cleanup failures can still loop instead of bounded finalization'
         Assert-Test ($engineSource.Contains('RiderStateRestored()') -and $engineSource.Contains('MountStateRestored()')) 'destroyed Unity view/agent checks are not fail-closed'

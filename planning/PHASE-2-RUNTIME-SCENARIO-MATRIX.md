@@ -6,6 +6,8 @@ All future save-backed rows are bound to one append-only qualification-suite sna
 
 Status: IN PROGRESS
 
+Cause probe `20260821T063244Z-rider-native-incapacitation-cause-probe` is immutable uncredited structured `FAIL`, with exact audit-before-read. It proves the first cleanup failure is the avoidance effective-state check after successful KMC lease release. Installed code makes effective avoidance disabled whenever the actor is unconscious, independent of the CountingGuard setter. The repair separates lease ownership from effective native state, retains strict mismatches, and requires fresh same-package rider A/B plus Mammoth A/B; no historical process receives credit.
+
 Schema-v7 rider probe `20260821T055657Z-rider-native-incapacitation-probe-v7` is immutable uncredited `FAIL 47/2` with audit-before-read. It confirms the first delivery faults inside `RestoreMovementAuthority`, while the ordinary retry still restores exact Unmounted state. The outer wrapper's inner cause was not retained, so a bounded cause-chain diagnostic and fresh process are required before the narrowest behavioral repair can be selected.
 
 Schema-v6 rider probe `20260821T050300Z-rider-native-incapacitation-probe-v6` is immutable uncredited `FAIL 47/2`, with immediate restoration audit before read. It proves exact `Conscious -> Unconscious`, later `Unconscious -> Conscious` recovery, and one native delivery, but that delivery records `Mounted -> Faulted`/cleanup false before a later residue-free retry. Schema v7 captures the first cleanup errors and admits only this exact shape as structured FAIL; PASS still requires first-delivery `Mounted -> Unmounted` cleanup success.

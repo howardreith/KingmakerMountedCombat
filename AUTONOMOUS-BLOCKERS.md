@@ -1,5 +1,9 @@
 # Autonomous blockers
 
+## Exact native avoidance cause repaired narrowly; fresh A/B required - 2026-08-21T06:56:22Z
+
+Probe `20260821T063244Z-rider-native-incapacitation-cause-probe` is immutable uncredited structured `FAIL`, with exact audit-before-read. Its retained cause is `Rider avoidance state did not return to its captured effective value after releasing the KMC lease.` Installed code proves the effective getter remains true while the rider is natively unconscious even after KMC successfully releases its CountingGuard lease. The narrow repair clears KMC lease ownership immediately after setter success and validates `captured || !riderIsConscious`; all unrelated mismatch cases still fail closed. This is attributable repair work with exact restoration, not a safety or architecture blocker. Fresh same-package rider A/B and Mammoth A/B are required.
+
 ## Schema-v7 outer error confirmed; wrapped cause must be retained - 2026-08-21T06:07:37Z
 
 Run `20260821T055657Z-rider-native-incapacitation-probe-v7` is immutable uncredited `FAIL 47/2`, with exact audit-before-read. It confirms the first cleanup failure is `RestoreMovementAuthority: InvalidOperationException: Best-effort movement-authority restoration encountered residue`, but the coordinator discarded that exception's inner cause. The observation-only follow-up retains a bounded eight-level cause chain; no behavior changes until a fresh process names the failing restoration sub-operation. This remains attributable diagnostic work, not a safety blocker.

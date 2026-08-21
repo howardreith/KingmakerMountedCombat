@@ -102,6 +102,7 @@
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\PresentationOverlayEvidence.cs">
       <Link>Shared\PresentationOverlayEvidence.cs</Link>
     </Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\AvoidanceRestorationExpectation.cs"><Link>Shared\Domain\AvoidanceRestorationExpectation.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\CleanupTrigger.cs"><Link>Shared\Domain\CleanupTrigger.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\CommandRouting.cs"><Link>Shared\Domain\CommandRouting.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\IMountedPairRuntime.cs"><Link>Shared\Domain\IMountedPairRuntime.cs</Link></Compile>

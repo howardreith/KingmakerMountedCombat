@@ -29,6 +29,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("relationship partial dismount continues best effort", PartialDismountContinuesBestEffort);
             runner.Run("relationship faulted cleanup can be retried idempotently", FaultedCleanupCanBeRetried);
             runner.Run("relationship cleanup diagnostics retain bounded inner cause", CleanupDiagnosticsRetainBoundedInnerCause);
+            runner.Run("avoidance restoration separates KMC lease from native consciousness", AvoidanceRestorationSeparatesNativeConsciousness);
             runner.Run("command routing rewrites only active rider", CommandRoutingRewritesOnlyActiveRider);
             runner.Run("command routing suppresses only duplicate mount", CommandRoutingSuppressesOnlyDuplicateMount);
             runner.Run("cleanup trigger priority is deterministic", CleanupTriggerPriorityIsDeterministic);
@@ -253,6 +254,24 @@ namespace KingmakerMountedCombat.Tests
                 "Cleanup diagnostics did not enforce the bounded inner-exception limit.");
             TestRunner.True(!result.Errors[0].Contains("exact movement sub-operation failed"),
                 "Cleanup diagnostics exceeded the bounded inner-exception limit.");
+        }
+
+        private static void AvoidanceRestorationSeparatesNativeConsciousness()
+        {
+            TestRunner.True(AvoidanceRestorationExpectation.Matches(false, true, false),
+                "Ordinary captured-enabled avoidance restoration was rejected.");
+            TestRunner.True(AvoidanceRestorationExpectation.Matches(false, false, true),
+                "Native unconsciousness was treated as retained KMC avoidance residue.");
+            TestRunner.True(AvoidanceRestorationExpectation.Matches(true, true, true),
+                "A captured foreign avoidance guard was not preserved.");
+            TestRunner.True(AvoidanceRestorationExpectation.Matches(true, false, true),
+                "Captured and native avoidance ownership did not compose.");
+            TestRunner.True(!AvoidanceRestorationExpectation.Matches(false, true, true),
+                "Unexplained avoidance drift while conscious was accepted.");
+            TestRunner.True(!AvoidanceRestorationExpectation.Matches(false, false, false),
+                "An impossible enabled-while-unconscious getter state was accepted.");
+            TestRunner.True(!AvoidanceRestorationExpectation.Matches(true, true, false),
+                "A captured foreign avoidance guard was silently lost.");
         }
 
         private static void CommandRoutingRewritesOnlyActiveRider()
