@@ -341,8 +341,8 @@ function New-TestCombatLifecycleBoundaryExercise {
         'mounted-pair-mount-death-cleanup' {$role='mount';$actorId='mount-id';$path='IUnitHandler.HandleUnitDeath';$deliveries=@([ordered]@{boundary='UnitDeath';source='IUnitHandler.HandleUnitDeath';stateBefore='Mounted';stateAfter='Unmounted';cleanupTrigger='Death';cleanupAttempted=$true;cleanupSucceeded=$true})}
         'mounted-pair-rider-incapacitated-cleanup' {$role='rider';$actorId='rider-id';$path='relationship.Dismount(Incapacitated)'}
         'mounted-pair-mount-incapacitated-cleanup' {$role='mount';$actorId='mount-id';$path='relationship.Dismount(Incapacitated)'}
-        'mounted-pair-rider-native-incapacitated-cleanup' {$role='rider';$actorId='rider-id';$path='UnitEntityData.Damage -> UnitLifeController.TickOnUnit -> IUnitLifeStateChanged.HandleUnitLifeStateChanged';$deliveries=@([ordered]@{boundary='UnitIncapacitated';source='IUnitLifeStateChanged.HandleUnitLifeStateChanged';stateBefore='Mounted';stateAfter='Unmounted';cleanupTrigger='Incapacitated';cleanupAttempted=$true;cleanupSucceeded=$true})}
-        'mounted-pair-mount-native-incapacitated-cleanup' {$role='mount';$actorId='mount-id';$path='UnitEntityData.Damage -> UnitLifeController.TickOnUnit -> IUnitLifeStateChanged.HandleUnitLifeStateChanged';$deliveries=@([ordered]@{boundary='UnitIncapacitated';source='IUnitLifeStateChanged.HandleUnitLifeStateChanged';stateBefore='Mounted';stateAfter='Unmounted';cleanupTrigger='Incapacitated';cleanupAttempted=$true;cleanupSucceeded=$true})}
+        'mounted-pair-rider-native-incapacitated-cleanup' {$role='rider';$actorId='rider-id';$path='UnitEntityData.Damage -> UnitLifeController.TickOnUnit -> IUnitLifeStateChanged.HandleUnitLifeStateChanged';$deliveries=@([ordered]@{boundary='UnitIncapacitated';source='IUnitLifeStateChanged.HandleUnitLifeStateChanged';stateBefore='Mounted';stateAfter='Unmounted';cleanupTrigger='Incapacitated';cleanupAttempted=$true;cleanupSucceeded=$true;cleanupErrors=@()})}
+        'mounted-pair-mount-native-incapacitated-cleanup' {$role='mount';$actorId='mount-id';$path='UnitEntityData.Damage -> UnitLifeController.TickOnUnit -> IUnitLifeStateChanged.HandleUnitLifeStateChanged';$deliveries=@([ordered]@{boundary='UnitIncapacitated';source='IUnitLifeStateChanged.HandleUnitLifeStateChanged';stateBefore='Mounted';stateAfter='Unmounted';cleanupTrigger='Incapacitated';cleanupAttempted=$true;cleanupSucceeded=$true;cleanupErrors=@()})}
         'mounted-pair-companion-removal-cleanup' {$role='mount';$actorId='mount-id';$path='IPartyHandler.HandleCompanionRemoved';$deliveries=@([ordered]@{boundary='PartyRemoved';source='IPartyHandler.HandleCompanionRemoved';stateBefore='Mounted';stateAfter='Unmounted';cleanupTrigger='CompanionInvalidated';cleanupAttempted=$true;cleanupSucceeded=$true})}
         'mounted-pair-view-destroyed-cleanup' {$role='rider';$actorId='rider-id';$path='IUnitHandler.HandleUnitDestroyed';$deliveries=@([ordered]@{boundary='ViewDetachedOrUnitDestroyed';source='IUnitHandler.HandleUnitDestroyed';stateBefore='Mounted';stateAfter='Unmounted';cleanupTrigger='ViewDetached';cleanupAttempted=$true;cleanupSucceeded=$true})}
         'mounted-pair-exception-cleanup' {$path='relationship.Dismount(Exception)'}
@@ -366,7 +366,7 @@ function New-TestLifecycleEvidenceRecord {
     )
     $expectedTrigger = Get-KmcLifecycleExpectedCleanupTrigger $Row
     $invocationPath = Get-KmcLifecycleInvocationPath $Row
-    $claimLimit = Get-KmcLifecycleClaimLimit $Row $(if($Row -cin (Get-KmcNativeIncapacitationRuntimeRows)){6}else{0})
+    $claimLimit = Get-KmcLifecycleClaimLimit $Row $(if($Row -cin (Get-KmcNativeIncapacitationRuntimeRows)){7}else{0})
     $cleanup = if ($WithCleanup) {
         [ordered]@{trigger=$expectedTrigger;result='PASS';succeeded=$true;state='Unmounted';movementAuthorityResidual=$false;presentationResidual=$false;errors=@()}
     } else {
@@ -381,7 +381,7 @@ function New-TestLifecycleEvidenceRecord {
     $isNativeIncapacitation=@(Get-KmcNativeIncapacitationRuntimeRows | Where-Object { $_ -ceq $Row }).Count -eq 1
     $isCombatLifecycle=$isNativeIncapacitation -or @(Get-KmcCombatLifecycleRuntimeRows | Where-Object { $_ -ceq $Row }).Count -eq 1
     $record=[ordered]@{
-        schemaVersion=$(if($isNativeIncapacitation){6}elseif($isCombatLifecycle){3}else{2});runId=[string]$Request.runId;scenario=[string]$Request.scenario;row=$Row;phase=$Phase
+        schemaVersion=$(if($isNativeIncapacitation){7}elseif($isCombatLifecycle){3}else{2});runId=[string]$Request.runId;scenario=[string]$Request.scenario;row=$Row;phase=$Phase
         utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o');branch=[string]$Request.branch;commit=[string]$Request.commit
         productVersion=[string]$Request.productVersion;dllSha256=[string]$Request.dllSha256;dllMvid=[string]$Request.dllMvid
         sequence=$Sequence;frame=$frame;relationshipState=$RelationshipState
@@ -4335,11 +4335,11 @@ try {
             $subscriberSource.Contains('Cleanup(NativeLifecycleBoundary.PartyRemoved') -and
             $subscriberSource.Contains('Cleanup(NativeLifecycleBoundary.ViewDetachedOrUnitDestroyed')) 'pair invalidation is missing an exact fail-closed cleanup boundary'
         Assert-Test ($engineSource.Contains('"combat-lifecycle-suite"') -and
-            $engineSource.Contains('? 6') -and
+            $engineSource.Contains('? 7') -and
             $engineSource.Contains(': IsCombatLifecycleRow(currentRow ?? lastEvidenceRow) ? 3 : 2') -and
             $engineSource.Contains('BoundaryExercise = IsCombatLifecycleRow') -and
             $engineSource.Contains('UnitEntityData.Damage -> UnitLifeController.TickOnUnit -> IUnitLifeStateChanged.HandleUnitLifeStateChanged') -and
-            $subscriberSource.Contains('NativePairLifeStateObservation')) 'combat lifecycle diagnostics do not preserve schema-v2-v5 history while binding native schema-v6 callback evidence'
+            $subscriberSource.Contains('NativePairLifeStateObservation')) 'combat lifecycle diagnostics do not preserve schema-v2-v6 history while binding native schema-v7 cleanup diagnostics'
     }
 
     Invoke-HarnessTest 'mounted rider grounding repair is exact-token, exact-pair, and runtime-probed' {
@@ -6281,6 +6281,21 @@ try {
             $candidate=Copy-TestJsonValue $records
             $candidate[1].actorLifeTransition.mutationIssued=$true
             Assert-TestLifecycleEvidenceRejected $nativeRequest $candidate @($subresult) 'native incapacitation accepted mutation before the mounted evidence boundary'
+
+            $cleanupFailed=Copy-TestJsonValue $records
+            foreach($failedRecord in @($cleanupFailed|Where-Object{[string]$_.phase -cin @('cleanup-next-frame','row-finish','engine-finalization')})) {
+                $failedRecord.actorLifeTransition.nativeLifeObservationCount=2
+                $failedRecord.boundaryExercise.deliveries[0].stateAfter='Faulted'
+                $failedRecord.boundaryExercise.deliveries[0].cleanupSucceeded=$false
+                $failedRecord.boundaryExercise.deliveries[0].cleanupErrors=@('RestoreMovementAuthority: diagnostic failure')
+            }
+            $cleanupFailed[3].rowStatus='FAIL';$cleanupFailed[3].assertionPassCount=47;$cleanupFailed[3].assertionFailCount=2
+            $cleanupFailed[3].recordErrors=@('Native cleanup faulted before retry.')
+            $cleanupFailed[4].recordErrors=@('native cleanup diagnostic')
+            $cleanupFailedSubresult=[pscustomobject][ordered]@{name=$row;status='FAIL';assertionPassCount=47;assertionFailCount=2;errors=@('Native cleanup faulted before retry.')}
+            [void](Write-TestLifecycleEvidence -EvidenceRoot $nativeRequest.evidenceRoot -Request $nativeRequest -Records $cleanupFailed)
+            $cleanupFailedManifest=Read-KmcJson (Join-Path $nativeRequest.evidenceRoot 'runtime-artifacts.json')
+            Assert-KmcLifecycleScenarioEvidence -Request $nativeRequest -Manifest $cleanupFailedManifest -Status 'FAIL' -SubscenarioResults @($cleanupFailedSubresult)
 
             $failed=Copy-TestJsonValue $records
             foreach($failedRecord in @($failed|Where-Object{[string]$_.phase -cin @('cleanup-next-frame','row-finish','engine-finalization')})) {

@@ -3975,7 +3975,18 @@ function Assert-KmcCombatLifecycleBoundaryExercise {
     if ($actual.Count -ne $expected.Count) { throw "Combat lifecycle delivery count is wrong for $row." }
     for($index=0;$index -lt $expected.Count;$index++) {
         $delivery=$actual[$index];$want=$expected[$index]
-        Assert-KmcExactProperties $delivery @('boundary','source','stateBefore','stateAfter','cleanupTrigger','cleanupAttempted','cleanupSucceeded') "combat lifecycle delivery $index"
+        $deliveryProperties=@('boundary','source','stateBefore','stateAfter','cleanupTrigger','cleanupAttempted','cleanupSucceeded')
+        if([long]$Record.schemaVersion -eq 7){$deliveryProperties+='cleanupErrors'}
+        Assert-KmcExactProperties $delivery $deliveryProperties "combat lifecycle delivery $index"
+        if([long]$Record.schemaVersion -eq 7){Assert-KmcJsonStringArray $delivery.cleanupErrors "combat lifecycle delivery $index cleanupErrors"}
+        $failedNativeDelivery=[long]$Record.schemaVersion -eq 7 -and [string]$Record.row -cin (Get-KmcNativeIncapacitationRuntimeRows) -and
+            [string]$delivery.stateBefore -ceq 'Mounted' -and [string]$delivery.stateAfter -ceq 'Faulted' -and
+            $delivery.cleanupAttempted -eq $true -and $delivery.cleanupSucceeded -eq $false -and @($delivery.cleanupErrors).Count -gt 0
+        if($failedNativeDelivery){
+            if([string]$delivery.boundary -cne [string]$want.boundary -or [string]$delivery.source -cne [string]$want.source -or
+                [string]$delivery.cleanupTrigger -cne [string]$want.trigger){throw "Failed native lifecycle delivery $index has the wrong identity for $row."}
+            continue
+        }
         if ($delivery.boundary -isnot [string] -or [string]$delivery.boundary -cne [string]$want.boundary -or
             $delivery.source -isnot [string] -or [string]$delivery.source -cne [string]$want.source -or
             $delivery.stateBefore -isnot [string] -or [string]$delivery.stateBefore -cne [string]$want.before -or
@@ -3983,7 +3994,7 @@ function Assert-KmcCombatLifecycleBoundaryExercise {
             (($null -eq $want.trigger) -ne ($null -eq $delivery.cleanupTrigger)) -or
             ($null -ne $want.trigger -and [string]$delivery.cleanupTrigger -cne [string]$want.trigger) -or
             $delivery.cleanupAttempted -isnot [bool] -or $delivery.cleanupAttempted -ne [bool]$want.attempted -or
-            $delivery.cleanupSucceeded -isnot [bool] -or -not $delivery.cleanupSucceeded) {
+            $delivery.cleanupSucceeded -isnot [bool] -or (-not $delivery.cleanupSucceeded -and -not $failedNativeDelivery)) {
             throw "Combat lifecycle delivery $index is wrong for $row."
         }
     }
@@ -3997,12 +4008,12 @@ function Assert-KmcLifecycleEvidenceRecord {
         [Parameter(Mandatory = $true)][string[]]$ExpectedRows,
         [Parameter(Mandatory = $true)][bool]$RequireComplete
     )
-    if (-not (Test-KmcExactJsonInteger $Record.schemaVersion) -or [long]$Record.schemaVersion -notin @(2,3,4,5,6)) {
-        throw 'Lifecycle evidence schemaVersion must be the exact integral value 2, 3, 4, 5, or 6.'
+    if (-not (Test-KmcExactJsonInteger $Record.schemaVersion) -or [long]$Record.schemaVersion -notin @(2,3,4,5,6,7)) {
+        throw 'Lifecycle evidence schemaVersion must be the exact integral value 2, 3, 4, 5, 6, or 7.'
     }
     $isNativeIncapacitation=@(Get-KmcNativeIncapacitationRuntimeRows | Where-Object { $_ -ceq [string]$Record.row }).Count -eq 1
     $isCombatLifecycle=$isNativeIncapacitation -or @(Get-KmcCombatLifecycleRuntimeRows | Where-Object { $_ -ceq [string]$Record.row }).Count -eq 1
-    if (($isNativeIncapacitation -and [long]$Record.schemaVersion -notin @(4,5,6)) -or
+    if (($isNativeIncapacitation -and [long]$Record.schemaVersion -notin @(4,5,6,7)) -or
         ($isCombatLifecycle -and -not $isNativeIncapacitation -and [long]$Record.schemaVersion -ne 3) -or
         (-not $isCombatLifecycle -and [long]$Record.schemaVersion -ne 2)) {
         throw 'Lifecycle evidence schema version does not match its exact row family.'
@@ -4134,7 +4145,7 @@ function Assert-KmcLifecycleEvidenceRecord {
         if([long]$Record.schemaVersion -eq 5) {
             $actorLifeProperties+=@('awakeBefore','inAwakeUnitsBefore','awakeAfter','inAwakeUnitsAfter')
         }
-        if([long]$Record.schemaVersion -eq 6) {
+        if([long]$Record.schemaVersion -in @(6,7)) {
             $actorLifeProperties+=@(
                 'awakeBefore','inAwakeUnitsBefore','awakeAfter','inAwakeUnitsAfter',
                 'damageImmediatelyAfterMutation','nativeLifeObservationCount','nativeObservedActorId',
@@ -4145,7 +4156,7 @@ function Assert-KmcLifecycleEvidenceRecord {
         if([long]$Record.schemaVersion -eq 5) {
             $booleanProperties+=@('awakeBefore','inAwakeUnitsBefore','awakeAfter','inAwakeUnitsAfter')
         }
-        if([long]$Record.schemaVersion -eq 6) {
+        if([long]$Record.schemaVersion -in @(6,7)) {
             $booleanProperties+=@('awakeBefore','inAwakeUnitsBefore','awakeAfter','inAwakeUnitsAfter','postDeliveryRecoveryObserved')
         }
         foreach($name in $booleanProperties) {
@@ -4154,7 +4165,7 @@ function Assert-KmcLifecycleEvidenceRecord {
         foreach($name in @('damageBefore','requestedDamage','damageAfter','hitPoints','constitution','nativeDeliveryCount')) {
             if(-not (Test-KmcExactJsonInteger $Record.actorLifeTransition.$name)) { throw "Native actor life transition $name must be integral." }
         }
-        if([long]$Record.schemaVersion -eq 6) {
+        if([long]$Record.schemaVersion -in @(6,7)) {
             foreach($name in @('damageImmediatelyAfterMutation','nativeLifeObservationCount')) {
                 if(-not (Test-KmcExactJsonInteger $Record.actorLifeTransition.$name)) { throw "Native actor life transition $name must be integral." }
             }
@@ -4178,7 +4189,7 @@ function Assert-KmcLifecycleEvidenceRecord {
         }
         $transitionObserved=[string]$Record.phase -cin @('cleanup-next-frame','row-finish','engine-finalization')
         if($transitionObserved -and $RequireComplete) {
-            if([long]$Record.schemaVersion -eq 6) {
+            if([long]$Record.schemaVersion -in @(6,7)) {
                 if($Record.actorLifeTransition.mutationIssued -ne $true -or
                     [long]$Record.actorLifeTransition.damageImmediatelyAfterMutation -ne [long]$Record.actorLifeTransition.requestedDamage -or
                     [long]$Record.actorLifeTransition.nativeLifeObservationCount -ne 1 -or
@@ -4207,14 +4218,14 @@ function Assert-KmcLifecycleEvidenceRecord {
             [long]$Record.actorLifeTransition.damageAfter -ne 0 -or
             [long]$Record.actorLifeTransition.nativeDeliveryCount -ne 0)) {
             throw 'Native actor pre-transition evidence contains premature mutation or delivery state.'
-        } elseif($transitionObserved -and [long]$Record.schemaVersion -in @(5,6) -and
+        } elseif($transitionObserved -and [long]$Record.schemaVersion -in @(5,6,7) -and
             ($Record.actorLifeTransition.mutationIssued -ne $true -or
              [string]$Record.actorLifeTransition.lifeStateAfter -cnotin @('Conscious','Unconscious','Dead') -or
              [long]$Record.actorLifeTransition.damageAfter -lt 0 -or
              [long]$Record.actorLifeTransition.nativeDeliveryCount -lt 0)) {
             throw 'Native actor failed-transition observation is incomplete or impossible.'
         }
-        if([long]$Record.schemaVersion -eq 6) {
+        if([long]$Record.schemaVersion -in @(6,7)) {
             if(-not $transitionObserved -and (
                 [long]$Record.actorLifeTransition.damageImmediatelyAfterMutation -ne 0 -or
                 [long]$Record.actorLifeTransition.nativeLifeObservationCount -ne 0 -or

@@ -23,7 +23,8 @@ namespace KingmakerMountedCombat.Tests
                 RelationshipState.Unmounted,
                 CleanupTrigger.SaveRequested,
                 true,
-                true);
+                false,
+                new[] { "diagnostic cleanup failure" });
             ledger.Record(
                 NativeLifecycleBoundary.AreaLoadingComplete,
                 "IAreaLoadingStagesHandler.OnAreaLoadingComplete",
@@ -39,6 +40,7 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.Equal(2L, records[1].Sequence, "Second native delivery sequence changed.");
             TestRunner.Equal(CleanupTrigger.SaveRequested, records[0].CleanupTrigger.Value, "Save cleanup trigger changed.");
             TestRunner.Equal(RelationshipState.Unmounted, records[0].StateAfter, "Save did not record clean state.");
+            TestRunner.Equal("diagnostic cleanup failure", records[0].CleanupErrors[0], "Cleanup diagnostics were not preserved.");
             TestRunner.Equal(false, records[1].CleanupAttempted, "Area completion fabricated a cleanup attempt.");
         }
 

@@ -2,6 +2,8 @@
 
 Status: IN PROGRESS
 
+Schema-v6 runtime now proves the first native rider callback is exactly `Conscious -> Unconscious`, followed by stock `Unconscious -> Conscious` recovery. The first callback's cleanup entered `Faulted` and the ordinary retry later reached `Unmounted`, so run `20260821T050300Z-rider-native-incapacitation-probe-v6` remains uncredited `47/2`. Schema v7 adds only cleanup-error capture to the bounded lifecycle ledger and failed-evidence protocol; no cleanup behavior changes until that error is observed.
+
 The first native rider process is preserved uncredited at game `44/1`; independent restoration passed before inspection. Public `Damage=46` was issued against HP/Constitution `45/11`, but schema v4 timed out without a captured life transition or native delivery and did not retain sufficient raw post-mutation/controller-eligibility evidence.
 
 Schema-v5 probe `20260821T040400Z-rider-native-incapacitation-probe-v5` is also immutable uncredited `FAIL 44/1`, with immediate audit-before-read. It proves the actor was Conscious/awake/in `AwakeUnits`, the mutation was applied, one stock lifecycle delivery dismounted the pair, and the later actor recovered to Conscious at damage `38`. This rejects the excluded-controller theory but schema v5 cannot distinguish the exact transient callback state. Schema v6 adds a bounded exact-pair callback observation before cleanup and binds immediate damage plus later recovery. It changes no actor behavior and requires exact `Conscious -> Unconscious`; a Dead callback remains a failure requiring a separately evidenced approach.

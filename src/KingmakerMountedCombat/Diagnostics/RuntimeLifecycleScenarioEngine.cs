@@ -1163,7 +1163,7 @@ namespace KingmakerMountedCombat.Diagnostics
             return new LifecycleEvidenceRecord
             {
                 SchemaVersion = IsNativeIncapacitationRow(currentRow ?? lastEvidenceRow)
-                    ? 6
+                    ? 7
                     : IsCombatLifecycleRow(currentRow ?? lastEvidenceRow) ? 3 : 2,
                 RunId = request.RunId,
                 Scenario = request.Scenario,
@@ -1821,6 +1821,8 @@ namespace KingmakerMountedCombat.Diagnostics
             public string CleanupTrigger { get; set; }
             public bool CleanupAttempted { get; set; }
             public bool CleanupSucceeded { get; set; }
+            [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            public IReadOnlyList<string> CleanupErrors { get; set; }
 
             public static BoundaryDeliveryEvidence From(NativeLifecycleDeliveryRecord record)
             {
@@ -1832,7 +1834,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     StateAfter = record.StateAfter.ToString(),
                     CleanupTrigger = record.CleanupTrigger.HasValue ? record.CleanupTrigger.Value.ToString() : null,
                     CleanupAttempted = record.CleanupAttempted,
-                    CleanupSucceeded = record.CleanupSucceeded
+                    CleanupSucceeded = record.CleanupSucceeded,
+                    CleanupErrors = record.CleanupErrors != null && record.CleanupErrors.Count > 0 ? record.CleanupErrors : null
                 };
             }
         }

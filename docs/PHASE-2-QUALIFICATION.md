@@ -1,5 +1,9 @@
 # Phase 2 qualification
 
+Schema-v6 probe `20260821T050300Z-rider-native-incapacitation-probe-v6` proves the real stock callback sequence: immediate `Damage=46`, exact `Conscious -> Unconscious`, then `Unconscious -> Conscious` recovery with final damage `38`. It remains uncredited `FAIL 47/2` because the first `UnitIncapacitated` cleanup entered `Faulted`; an ordinary cleanup retry later reached residue-free `Unmounted`. Immediate independent audit passed before evidence inspection. Schema v7 records the exact first cleanup errors without changing behavior or weakening PASS; a fresh diagnostic process remains required.
+
+Schema-v7 offline qualification is complete at source/component/visual/harness/assembly `21/213/17/203/255`, PowerShell/JSON parsers `26/0` / `7/0`, with Release build, diff, and prohibited-payload checks passing. This is protocol qualification only and grants no native incapacitation runtime credit.
+
 ## Native incapacitation schema-v5 diagnostic and schema-v6 checkpoint (2026-08-21)
 
 Status: `IN PROGRESS`; neither failed probe receives qualification credit.

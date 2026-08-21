@@ -45,6 +45,8 @@ namespace KingmakerMountedCombat.Diagnostics
         public bool CleanupAttempted { get; set; }
 
         public bool CleanupSucceeded { get; set; }
+
+        public IReadOnlyList<string> CleanupErrors { get; set; }
     }
 
     public sealed class NativeLifecycleDeliveryLedger
@@ -61,7 +63,8 @@ namespace KingmakerMountedCombat.Diagnostics
             RelationshipState stateAfter,
             CleanupTrigger? cleanupTrigger,
             bool cleanupAttempted,
-            bool cleanupSucceeded)
+            bool cleanupSucceeded,
+            IReadOnlyList<string> cleanupErrors = null)
         {
             if (string.IsNullOrWhiteSpace(source))
             {
@@ -79,6 +82,11 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 throw new ArgumentException("A pure observation cannot report cleanup failure.", nameof(cleanupSucceeded));
             }
+            var errors = cleanupErrors == null ? new string[0] : new List<string>(cleanupErrors).ToArray();
+            foreach (var error in errors)
+            {
+                if (string.IsNullOrWhiteSpace(error)) { throw new ArgumentException("Cleanup errors must be non-empty strings.", nameof(cleanupErrors)); }
+            }
 
             lock (gate)
             {
@@ -92,7 +100,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     StateAfter = stateAfter,
                     CleanupTrigger = cleanupTrigger,
                     CleanupAttempted = cleanupAttempted,
-                    CleanupSucceeded = cleanupSucceeded
+                    CleanupSucceeded = cleanupSucceeded,
+                    CleanupErrors = errors
                 });
                 if (records.Count > MaximumRetainedRecords)
                 {

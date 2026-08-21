@@ -1,5 +1,9 @@
 # Autonomous blockers
 
+## Native callback passes; first cleanup fault is being diagnosed - 2026-08-21T05:16:00Z
+
+Schema-v6 probe `20260821T050300Z-rider-native-incapacitation-probe-v6` is immutable uncredited `FAIL 47/2`, with exact audit-before-read. It proves `Conscious -> Unconscious`, then stock recovery `Unconscious -> Conscious`, but the exact native cleanup delivery entered `Faulted` before the ordinary retry reached clean `Unmounted`. Schema v7 adds only the missing first-transition cleanup error list and coherent failed-evidence validation. This is not a safety blocker; no behavioral cause or repair is claimed until the exact error is observed.
+
 ## Schema-v5 proves delivery and later recovery; exact callback remains open - 2026-08-21T04:19:48Z
 
 Status: `IN PROGRESS`; attributable diagnostic limitation with exact restoration, not a safety or architecture blocker.
