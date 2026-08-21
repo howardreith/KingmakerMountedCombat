@@ -6,6 +6,8 @@ Action-economy credit requires the runtime request, combined transaction, final 
 
 Status: IN PROGRESS
 
+Native incapacitation qualification (2026-08-21): rider A/B and Mammoth A/B each pass schema v7 `49/0` from one clean package/suite. Cleanup occurs on the exact native life-state delivery before any mounted child command is admitted; no rider or Mammoth Standard/Move resource is synthesized or transferred, and complete command/movement/relationship restoration is required. This closes lifecycle invalidation for native unconsciousness without changing the action-economy ownership rules.
+
 Active-command combat-end qualification (2026-08-21): clean commit/package `6b9dd14c46907732ba48c3730bf8ab986974170c` / `6145369509eaf69eae30e22a42f72de63f0d5ddae707a22625cd54a47a03a6d1` and suite snapshot `ca0b8b9c1e926e5ddf3d847ff74d9646c1e52416e931e2949892be00e5e8783a` produced RT A/B schema-v40 `52/0` each and TB A/B schema-v41 `56/0` each. All four prove exactly two direct mounted-state combat-end ledger deliveries, zero child/rule/AoO chains, exact command restoration, and retained pair/presentation/UI. RT changes no ledger. TB retains actual rider Move `0 -> 3`; neither actor pays Standard and Mammoth Move remains unchanged. Separate exact restoration processes passed before every evidence read.
 
 Active-command combat-end implementation contract (2026-08-21): `mounted-rider-melee-combat-end-rt/tb` begins with the same exact active out-of-range rider wrapper and Mammoth Move-slot ownership already qualified for cancellation. After measurable pair movement and before child admission, it directly delivers `IPartyCombatHandler.HandlePartyCombatStateChanged(false)` twice. Combat end must cancel both command representations idempotently while retaining a still-valid mounted pair. Schema v40/v41 additionally requires exactly two ordered `CombatEnded` ledger observations with mounted state before/after and no cleanup trigger or attempt. No child, attack, roll, damage, opportunity, Standard refund, or synthetic cost may occur. RT changes neither Move ledger; TB retains only actual rider Move already consumed; Mammoth resources remain unchanged. This row proves the exact direct handler seam under active work and does not overclaim a naturally occurring global combat-state transition.
@@ -92,7 +94,7 @@ The exact installed Wrath reference assembly remains read-only. Its `SaddledUnit
 - Ranged weapons, auto-use abilities, spells, full attacks, combined attacks, and unsupported profiles are rejected with visible feedback.
 - Every scoped AI, command, movement, and turn lease restores on cleanup. Non-pair commands and non-mounted behavior remain stock.
 
-Stationary rider/Mammoth attack accounting, rider movement-to-attack, and exact active-command cancellation/interruption are qualified under the evidence above. Overall action-economy qualification remains `IN PROGRESS` for lifecycle invalidation, AI suppression outside the qualified rows, and non-mounted isolation.
+Stationary rider/Mammoth attack accounting, rider movement-to-attack, exact active-command cancellation/interruption, and native rider/Mammoth unconsciousness invalidation are qualified under the evidence above. Overall action-economy qualification remains `IN PROGRESS` for remaining invalid-target/target-death/cleanup-stress controls, AI suppression outside the qualified rows, and non-mounted isolation.
 
 ## Mammoth-primary offline checkpoint - 2026-08-16
 

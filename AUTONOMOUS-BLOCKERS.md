@@ -1,5 +1,9 @@
 # Autonomous blockers
 
+## Native rider and Mammoth incapacitation qualified A/B - 2026-08-21T08:54:05Z
+
+Status: `PASS` for both exact native incapacitation rows; no critical blocker is active. Clean package `e68d90a25730760a52167e7ee41366c6490f49a7f134bb447e805aed745c7dc0` and suite snapshot `37a1989d174cdb0f44026ba64470e4fda1d1febc673fabffb668d977466f5897` produced rider A/B and Mammoth A/B at `49/0` each. Four restoration audits passed before evidence reads. The earlier diagnostic and validator failures remain immutable uncredited history; their narrow repairs are now qualified. Remaining core controls, not native incapacitation, are the active work.
+
 ## Successful native cleanup exposed optional-empty-array validator defect - 2026-08-21T07:35:00Z
 
 Run `20260821T073500Z-rider-native-incapacitation-passA` is immutable uncredited only because final validation required a `cleanupErrors` property that Unity omitted for its empty successful array. Immediate independent restoration passed before evidence read. The game row is `PASS 49/0` and proves the avoidance repair works on first native delivery. The narrow protocol repair accepts absent-or-empty errors only on success, requires present non-empty errors for the failed diagnostic shape, and rejects errors on successful cleanup. This is an attributable recoverable validator defect, not a safety or architecture blocker; fresh A/B remains required.
