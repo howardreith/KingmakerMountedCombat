@@ -1,5 +1,12 @@
 # Mounted Combat journal
 
+## 2026-08-21T23:00:00Z - bounded reach and same-package controls qualify
+
+- Clean published runtime input was `1fa5c2e6e841f4025f36283fd5bba7ae94c23ba5`, package/manifest/DLL SHA-256 `a448bf8e1aa36163c6a30b3c0c116b0b5fce36eb84123d6ae3756be9537932be` / `6b09dd89a185de301e33e1a7277ae79f662f737270dd84634d623cbf917657ae` / `9f715f4ddd4e086cee8f2aa3aaa4e746401cec113fc529809d1376eab1caf6c1`, MVID `292982ba-6486-4807-b4fa-c15dc0558266`. Suite/snapshot were `20260821T181000Z-mounted-reach-suite1` / `3aea4cdf34a706ca207886d97fb2724be7f574732421edb33d7a8a229950a3e1`.
+- Rider RT A/B pass `60/0` each; rider TB A/B pass `64/0` each; Mammoth RT A/B pass `60/0` each; Mammoth TB A/B pass `65/0` each. Reach aggregate is `498/0`. Same-package controls `20260821T211400Z-mounted-reach-controls-passA` and `20260821T224000Z-mounted-reach-controls-passB` each pass `80/0`, raising the final-tranche aggregate to `658/0`.
+- Every credited process received an immediate independent audit before evidence inspection. Suite snapshot, full save/Mods inventories, Baseline, Working, process, lock, sentinel, deployment, and transaction residue were exact after every run. The meeting-interrupted `20260821T205500Z-mounted-reach-controls-passA` preflight produced no evidence and is uncredited. A new-ID preflight `20260821T211200Z-mounted-reach-controls-passA` rejected manual-review-only artifact pins before mutation; its audit passed and it is uncredited.
+- Result: bounded reach is `PASS` only for the exact Medium humanoid/Mammoth/one-handed rider and Mammoth-primary basic melee paths. No generalized reach, mounted AoO, or charge claim follows. Explicit mounted AoO and basic charge remain `DEFER — EVIDENCED`, absent/default-off. Core private-alpha behavior is complete; final gates, qualification publication, clean package binding, and playtest handoff remain.
+
 ## 2026-08-21T18:03:46Z — private-alpha handoff drafting and status reconciliation
 
 - Continued only safe offline work while guarded publication remained unavailable. No Kingmaker process, runtime transaction, save mutation, Mods staging, or external deployment was initiated by this checkpoint.

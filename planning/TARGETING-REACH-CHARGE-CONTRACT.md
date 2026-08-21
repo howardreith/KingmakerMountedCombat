@@ -1,5 +1,11 @@
 # Targeting, reach, and charge contract
 
+## Bounded mounted reach qualified (2026-08-21)
+
+Status: `PASS` within the exact supported profile and two explicit basic-melee paths. One clean package and suite produced rider RT/TB A/B, Mammoth RT/TB A/B, and same-package core controls at `658/0` total. Each combat target starts outside both independently recomputed Mammoth-origin stopping radii. Rider dispatch occurs inside the unchanged rider planned-weapon boundary; Mammoth dispatch occurs inside its larger stock natural-weapon boundary while the rider boundary remains false. All four rider/Mammoth/target attackability directions remain true, exact weapon/corpulence inputs remain immutable, and only the requested actor emits one attack chain. Controls preserve null/invalid target rejection, exact target-death interruption before child admission, cleanup, and non-mounted stock routing.
+
+This qualification changes no blueprint, weapon, unit size, corpulence, target position, global reach, engagement, or non-mounted rule. It is not a claim for reach weapons, another rider body, another mount anatomy, explicit mounted attacks of opportunity, or charge. Explicit mounted AoO and basic charge remain `DEFER — EVIDENCED`, absent/default-off.
+
 ## Basic mounted charge — deferred with evidence (2026-08-21)
 
 Status: `DEFER — EVIDENCED`; the feature remains absent and default-off.

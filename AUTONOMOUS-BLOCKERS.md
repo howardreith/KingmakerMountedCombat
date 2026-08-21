@@ -1,5 +1,9 @@
 # Autonomous blockers
 
+## No active core, safety, presentation, or tooling blocker - 2026-08-21T23:00:00Z
+
+Status: `PASS`. Bounded reach plus same-package controls are qualified at `658/0` under one clean package/suite with audit-before-read restoration after every process. The meeting-interrupted preflight `20260821T205500Z-mounted-reach-controls-passA` emitted no runtime artifact and receives no credit; preflight-only artifact-pin attempt `20260821T211200Z-mounted-reach-controls-passA` failed before mutation and also receives no credit. Neither indicates a gameplay or safety defect. Core private-alpha behavior has no active blocker. Optional explicit mounted AoO and basic charge remain `DEFER — EVIDENCED`, not blockers.
+
 ## Basic mounted charge safely deferred - 2026-08-21T17:55:00Z
 
 Status: `DEFER — EVIDENCED`, not a core blocker. Stock charge binds the same caster to forced movement, speed/charge state, attack, command queue, and action ledger. Rider-caster violates Mammoth-only pathfinding; Mammoth-caster owns the wrong attack/resource. Custom recreation exceeds the narrow stretch seam, so production remains absent/default-off and non-mounted charge remains stock. Focused harness `214/0` and Kingmaker assembly `258/0` prove the disposition. Guarded publication remains the only active tooling dependency before live reach qualification.

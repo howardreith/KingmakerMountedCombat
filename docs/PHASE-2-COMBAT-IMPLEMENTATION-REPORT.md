@@ -2,6 +2,12 @@
 
 Status: IN PROGRESS
 
+## Bounded reach runtime qualification complete (2026-08-21)
+
+The unchanged pair-scoped reach implementation now passes the complete clean-package suite. Rider RT/TB A/B and Mammoth RT/TB A/B pass `498/0`; same-package invalid-target, target-death, cleanup, and non-mounted controls A/B pass `160/0`; aggregate is `658/0`. Evidence binds independent actor radii, initial outside-both placement, actor-specific inside-boundary dispatch, exact weapon/corpulence inputs, bidirectional pair targetability, single requested attack ownership, mode-correct resources, and zero unexpected pair/AoO/duplicate chain. All ten credited processes restored the exact admitted save/Mods state and received audit-before-read. No production change was required by the runtime set.
+
+Core private-alpha implementation and runtime qualification are therefore complete within the supported profile. The remaining work is final durable reconciliation, guarded publication, clean qualification-checkpoint packaging, and private playtest handoff. Explicit mounted AoO and basic charge remain safely deferred and absent/default-off.
+
 ## Bounded reach evidence and stretch disposition (2026-08-21)
 
 The bounded mounted-reach tranche is offline-complete without changing production range behavior. Additive schemas v42/v43 bind the exact rider and Mammoth weapon blueprints, independently derived attack radii, actor and target corpulence, a real initial position outside both radii, actor-specific inside-boundary dispatch, bidirectional hostile targetability, and unchanged range inputs. Historical combat schemas remain isolated. Complete source/component/visual/harness/assembly gates pass `21/217/17/214/269`; PowerShell/JSON parsers pass `26/0` / `7/0`. Fresh clean-package stationary rider and Mammoth-primary RT/TB A/B plus non-mounted controls remain mandatory before the reach claim becomes `PASS`.

@@ -1,5 +1,9 @@
 # Combat action economy contract
 
+## Bounded mounted-reach action economy qualified (2026-08-21)
+
+Status: `PASS` for the two supported basic melee actions. The complete same-package suite passes reach `498/0` plus controls `160/0`. Stationary rider RT A/B charges only the rider Standard timer; stationary rider TB A/B changes rider Standard `0 -> 6` with stationary Move accounting `0`, while Mammoth Standard remains `0`. Mammoth RT A/B charges only Mammoth Standard; Mammoth TB A/B changes Mammoth Standard `0 -> 6` while rider Standard remains `0`. Every row emits exactly one requested attack chain and zero unexpected pair, opportunity, duplicate, movement, or resource chain. The same-package controls prove zero child/resource chains on invalidation/cleanup and unchanged non-mounted delegation. No generalized reach, explicit mounted-AoO resource, or charge action is inferred.
+
 ## Basic mounted-charge action economy — deferred with evidence (2026-08-21)
 
 Status: `DEFER — EVIDENCED` and default-off. Stock charge binds forced movement, charge state/buff, queued attack, and command/resource ownership to one caster. Rider-caster charge violates Mammoth-only movement; Mammoth-caster charge spends and attributes the wrong actor's command, buff, weapon attack, and turn resources. KMC does not synthesize a hybrid full-action ledger or write cooldowns/turn state. Existing rider melee, Mammoth primary, movement-to-attack, and ordinary non-mounted charge behavior remain unchanged.
