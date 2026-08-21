@@ -2,6 +2,10 @@
 
 Status: IN PROGRESS
 
+## Bounded launcher process-metadata readiness (2026-08-21)
+
+The first TB opportunity-isolation attempt exposed an orchestration-only Windows process metadata race: Kingmaker became enumerable before `System.Diagnostics.Process.Path` was nonnull, and the launcher called `.Equals` on that null value. Game evidence later passed `59/0`, but the attempt remains uncredited because final restoration required guarded recovery. The launcher now waits only within its existing launch deadline for nonempty path and start metadata, then applies the unchanged exact executable path/hash/start-time checks. Complete gates pass `21/217/17/210/255`; fresh package-bound A/B is mandatory.
+
 ## Core combat-control runtime finalization (2026-08-21)
 
 The exact core-control implementation is now repeatably qualified. Fresh same-package/suite processes `20260821T125000Z-core-combat-controls-launcher-observation-passA` and `20260821T125800Z-core-combat-controls-launcher-observation-passB` each complete launcher and game `80/0`, covering invalid targets, exact pre-child target death, cleanup, and non-mounted controls. Combined credit is `8/8` subscenarios and `160/0` assertions. Both post-process audits prove exact external restoration before evidence read. The launcher observation repair completed normally and did not alter combat behavior. Opportunity-isolated movement-to-attack remains a separate pending qualification.

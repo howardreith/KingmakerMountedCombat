@@ -4536,6 +4536,18 @@ try {
             $launcherSource.Contains('launcherErrorAtUtc') -and $launcherSource.Contains('launcherErrors')) 'launcher does not preserve the original caught error before bounded exit handling'
     }
 
+    Invoke-HarnessTest 'runtime launcher waits boundedly for process identity metadata before exact validation' {
+        $launcherSource = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'runtime\Invoke-KingmakerRuntimeScenario.ps1')
+        $captureIndex = $launcherSource.IndexOf('$capturedProcessPath=$null', [StringComparison]::Ordinal)
+        $metadataDeadlineIndex = $launcherSource.IndexOf('while([DateTimeOffset]::UtcNow-lt$launchDeadline-and[string]::IsNullOrWhiteSpace($capturedProcessPath))', [StringComparison]::Ordinal)
+        $exactPathIndex = $launcherSource.IndexOf('[string]::Equals($capturedProcessPath,[IO.Path]::GetFullPath($gameExecutable)', [StringComparison]::Ordinal)
+        $exactHashIndex = $launcherSource.IndexOf('(Get-KmcSha256 $capturedProcessPath)-cne$expectedGameExecutableHash', [StringComparison]::Ordinal)
+        $waitingIndex = $launcherSource.IndexOf("'waiting-for-game-result'", [StringComparison]::Ordinal)
+        Assert-Test ($captureIndex -ge 0 -and $metadataDeadlineIndex -gt $captureIndex -and
+            $exactPathIndex -gt $metadataDeadlineIndex -and $exactHashIndex -gt $exactPathIndex -and
+            $waitingIndex -gt $exactHashIndex -and -not $launcherSource.Contains('$process.Path.Equals(')) 'launcher does not boundedly await process metadata before exact path/hash admission'
+    }
+
     $validPackageSource = Join-Path $testRoot 'valid-package\KingmakerMountedCombat'
     New-Item -ItemType Directory -Path $validPackageSource -Force | Out-Null
     Copy-Item -LiteralPath (Join-Path $repoRoot 'Info.json') -Destination (Join-Path $validPackageSource 'Info.json')

@@ -1,5 +1,11 @@
 # Phase 2 qualification
 
+## Opportunity-isolation TB launcher metadata repair pending fresh A/B (2026-08-21)
+
+Status: `IN PROGRESS`. RT A/B on package `387ab463dcee1d0789ab68053195e76413aaae8dd39a5ada92b5b5c6069e79de` pass `55/0` each. TB attempt `20260821T151200Z-opportunity-isolation-tb-passA` has game `PASS 59/0` but is uncredited because launcher process-path metadata was temporarily null, launcher finalization failed, and guarded recovery was required. Recovery and audit-before-read are exact.
+
+The repair waits within the unchanged 60-second capture deadline for executable path/start metadata, then retains exact path/hash/start validation. It does not alter mounted combat, opportunity isolation, action economy, timeouts, or restoration semantics. A new package requires fresh RT A/B and TB A/B; no historical run crosses that boundary.
+
 ## Core combat controls qualified A/B (2026-08-21)
 
 Status: `PASS` within the exact core-control boundary. Published implementation `2323c5c33e5a8b667e9eb22c7c8ec1b359cfa61e`, package `787beb81bf5588b176d6f423e02ea096dc0d96573b5fdbb060b3278b4e1c6853`, and suite snapshot `3b41b01b983ef0fd8d92c706285d76411844f988dc578b2c76ae14e2ce8f8c0b` passed separate RT/TB WhatIf gates and independent audits.

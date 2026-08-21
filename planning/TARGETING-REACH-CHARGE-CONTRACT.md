@@ -1,5 +1,9 @@
 # Targeting, reach, and charge contract
 
+## Opportunity-isolation TB launcher failure is not feature evidence (2026-08-21)
+
+Although failed launcher attempt `20260821T151200Z-opportunity-isolation-tb-passA` later emitted game `PASS 59/0`, it is uncredited because exact final restoration required recovery. Its process-metadata repair does not change targeting, range, reach, opportunity, or charge behavior. Fresh RT/TB A/B on the repaired package remains mandatory; explicit mounted AoO remains separately unqualified.
+
 ## Core target and cleanup controls qualified (2026-08-21)
 
 Fresh same-suite A/B processes each pass exact core controls `80/0`, including invalid-target rejection, exact target identity, target death before child admission, and zero attack/roll/damage/AoO/charge chain. Combined credit is `160/0` with exact restoration. This does not qualify mounted reach, movement-to-attack opportunity isolation, explicit mounted AoO, or charge; those boundaries remain separate.

@@ -1,5 +1,9 @@
 # Combat action economy contract
 
+## Opportunity-isolation TB game result remains uncredited (2026-08-21)
+
+Failed launcher attempt `20260821T151200Z-opportunity-isolation-tb-passA` later produced game `PASS 59/0`, but its TB action-economy evidence receives no credit because final launcher/restoration proof failed. The repair changes only bounded OS process metadata readiness and preserves every Standard, Move, attack, opportunity, and cleanup assertion. Fresh same-package RT/TB A/B is required.
+
 ## Core zero-child action/resource controls qualified (2026-08-21)
 
 Fresh same-package A/B core-control runs each pass `80/0`, including exact pre-child target-death and cleanup paths with zero child attack, attack-roll, damage, opportunity, Standard, or Move chain, plus exact ordinary non-mounted control behavior. Combined credit is `160/0`; restoration audits are exact. This qualifies only the core cancellation/cleanup control boundary. Mode-specific movement-to-attack ownership and costs still require fresh RT/TB A/B.

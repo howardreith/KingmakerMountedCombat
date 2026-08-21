@@ -1,5 +1,9 @@
 # Autonomous blockers
 
+## Transient Kingmaker process-path publication blocked TB launcher - 2026-08-21T15:31:00Z
+
+Status: `IN PROGRESS`; exact recovery/restoration passed, so no critical blocker is active. Uncredited TB attempt `20260821T151200Z-opportunity-isolation-tb-passA` caught a null-method error immediately after process capture, before game evidence began. The only nullable instance call in that boundary was `$process.Path.Equals(...)`; later game `PASS 59/0` cannot receive credit because launcher restoration was blocked. The narrow repair boundedly awaits nonempty process path/start metadata within the unchanged 60-second launch deadline and retains exact path/hash/start checks. Complete gates are `21/217/17/210/255`; fresh published-package RT/TB A/B remains required.
+
 ## Core combat-control launcher boundary resolved - 2026-08-21T13:14:31Z
 
 Status: `PASS`; no blocker remains. Fresh same-package/suite processes `20260821T125000Z-core-combat-controls-launcher-observation-passA` and `20260821T125800Z-core-combat-controls-launcher-observation-passB` each complete launcher/game `80/0` and exact audit-before-read restoration. Combined credit is `8/8` subscenarios and `160/0` assertions. The original launcher cause did not recur; the observation repair remains available for any future first-failure diagnosis. Earlier interrupted/failed attempts remain immutable and uncredited. Next work is the separately unqualified movement-to-attack opportunity-isolation RT/TB A/B set.

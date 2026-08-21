@@ -1,5 +1,9 @@
 # Phase 2 runtime scenario matrix
 
+## Opportunity-isolation package restart after TB launcher metadata race (2026-08-21)
+
+RT runs `20260821T134400Z-opportunity-isolation-rt-passA` and `20260821T140900Z-opportunity-isolation-rt-passB` pass `55/0` each on the current historical package/suite. TB `20260821T151200Z-opportunity-isolation-tb-passA` later emits game `PASS 59/0` but is uncredited: a transient null process path caused launcher failure before game evidence, restoration was blocked, and guarded recovery was required. The bounded process-metadata repair preserves the existing capture deadline and exact identity checks. After publication/package change, restart RT A/B and TB A/B from zero.
+
 ## Core combat-control finalization qualified (2026-08-21)
 
 `combat-core-control-suite` is `PASS` A/B on one exact package and suite. Runs `20260821T125000Z-core-combat-controls-launcher-observation-passA` and `20260821T125800Z-core-combat-controls-launcher-observation-passB` each pass `80/0`: invalid target `17/0`, exact pre-child target death `24/0`, cleanup `22/0`, and non-mounted control `17/0`. Combined credit is `8/8` rows and `160/0` assertions. Both independent audits precede evidence inspection and prove exact full save/Mods restoration and zero residue. This closes the control-suite blocker only; movement-to-attack opportunity isolation remains unqualified pending RT A/B and TB A/B.

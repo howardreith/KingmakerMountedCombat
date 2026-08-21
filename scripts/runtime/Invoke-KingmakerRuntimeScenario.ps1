@@ -309,10 +309,28 @@ try{
         Start-Sleep -Milliseconds 250
     }
     if($null-eq$process){throw 'Steam launch was issued but no uniquely attributable Kingmaker process appeared; restoration is intentionally blocked pending recovery.'}
-    $process.Refresh()
-    if(-not $process.Path.Equals([IO.Path]::GetFullPath($gameExecutable),[StringComparison]::OrdinalIgnoreCase)-or
-        (Get-KmcSha256 $process.Path)-cne$expectedGameExecutableHash-or
-        $process.StartTime.ToUniversalTime()-lt$startedAt.UtcDateTime.AddSeconds(-5)){
+    $capturedProcessPath=$null
+    $capturedProcessStartedAtUtc=$null
+    while([DateTimeOffset]::UtcNow-lt$launchDeadline-and[string]::IsNullOrWhiteSpace($capturedProcessPath)){
+        $process.Refresh()
+        if($process.HasExited){throw 'Captured Kingmaker process exited before its identity metadata became available.'}
+        try{
+            $candidateProcessPath=[string]$process.Path
+            $candidateProcessStartedAtUtc=$process.StartTime.ToUniversalTime()
+            if(-not[string]::IsNullOrWhiteSpace($candidateProcessPath)){
+                $capturedProcessPath=$candidateProcessPath
+                $capturedProcessStartedAtUtc=$candidateProcessStartedAtUtc
+                break
+            }
+        }catch{}
+        Start-Sleep -Milliseconds 100
+    }
+    if([string]::IsNullOrWhiteSpace($capturedProcessPath)-or$null-eq$capturedProcessStartedAtUtc){
+        throw 'Captured Kingmaker process identity metadata did not become available within the existing launch deadline.'
+    }
+    if(-not[string]::Equals($capturedProcessPath,[IO.Path]::GetFullPath($gameExecutable),[StringComparison]::OrdinalIgnoreCase)-or
+        (Get-KmcSha256 $capturedProcessPath)-cne$expectedGameExecutableHash-or
+        $capturedProcessStartedAtUtc-lt$startedAt.UtcDateTime.AddSeconds(-5)){
         throw 'Captured Kingmaker process identity/path/hash/start time is unexpected.'
     }
     $orchestration.stage=if($isManualReview){'waiting-for-manual-review-ready'}else{'waiting-for-game-result'}
