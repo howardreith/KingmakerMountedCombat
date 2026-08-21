@@ -2,6 +2,8 @@
 
 Status: IN PROGRESS
 
+The first repaired live rider row passes internally at `49/0`: one exact native unconscious callback now performs successful first-delivery cleanup and restores avoidance without residue. Final validation rejected only Unity's omission of an empty `cleanupErrors` array. The protocol now accepts absent-or-empty errors exclusively for successful schema-v7 cleanup, requires non-empty errors for the failed diagnostic shape, and rejects success carrying errors. No production behavior changes in this follow-up, and the preserved process remains uncredited.
+
 The bounded cause probe now identifies the exact cleanup defect: KMC released its rider avoidance CountingGuard lease, but then compared the installed effective `AvoidanceDisabled` getter only to the pre-mount value. Stock Kingmaker independently forces that getter true while the unit is unconscious. The repair records the KMC lease unowned immediately after setter success and validates effective state as captured external disablement OR native unconsciousness. It neither writes consciousness nor broadens cleanup acceptance; all impossible combinations still fail closed. Fresh rider and Mammoth native-incapacitation A/B are required before qualification.
 
 Complete repaired gates pass source/component/visual/harness/assembly `21/215/17/203/255`, Release build, PowerShell/JSON parsers `26/0` / `7/0`, diff, and prohibited-payload checks. The dirty build DLL is `0220ab1fbe166ec8a0c4cc0d2b82486cec08f5a896d83150d38217f4a5c890aa`, MVID `fdb17595-67af-4c98-a93e-3f1e9983d61e`; clean package binding remains required.

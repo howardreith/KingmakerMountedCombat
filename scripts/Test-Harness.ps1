@@ -3929,8 +3929,10 @@ try {
         $saves=Join-Path $root 'saves';$mods=Join-Path $root 'mods'
         New-Item -ItemType Directory -Path $saves,$mods|Out-Null
         [IO.File]::WriteAllText((Join-Path $saves 'Foreign.zks'),'foreign-one')
-        New-Item -ItemType Directory -Path (Join-Path $mods 'BagOfTricks')|Out-Null
-        [IO.File]::WriteAllText((Join-Path $mods 'BagOfTricks\Settings.xml'),'first')
+        $bagOfTricks=Join-Path $mods 'BagOfTricks'
+        New-Item -ItemType Directory -Path $bagOfTricks|Out-Null
+        [IO.File]::WriteAllText((Join-Path $bagOfTricks 'Settings.xml'),'first')
+        [IO.Directory]::SetLastWriteTimeUtc($bagOfTricks,[datetime]'2026-01-01T00:00:00Z')
         Start-Sleep -Milliseconds 1000
         $suiteOneSave=Get-KmcQualificationTreeInventory -Root $saves -Scope save-root
         $suiteOneMods=Get-KmcQualificationTreeInventory -Root $mods -Scope mods-root
@@ -3946,7 +3948,8 @@ try {
             throw "stable double-scan Mods changed at: $($changed -join ', ')."
         }
         [IO.File]::WriteAllText((Join-Path $saves 'Foreign.zks'),'foreign-two')
-        [IO.File]::WriteAllText((Join-Path $mods 'BagOfTricks\Settings.xml'),'second')
+        [IO.File]::WriteAllText((Join-Path $bagOfTricks 'Settings.xml'),'second')
+        [IO.Directory]::SetLastWriteTimeUtc($bagOfTricks,[datetime]'2026-01-01T00:00:01Z')
         Assert-TestThrows { Assert-KmcQualificationTreeInventoriesEqual -Expected $suiteOneSave -Actual (Get-KmcQualificationTreeInventory -Root $saves -Scope save-root) -Description 'in-suite saves' } 'in-suite foreign save drift was accepted'
         Assert-TestThrows { Assert-KmcQualificationTreeInventoriesEqual -Expected $suiteOneMods -Actual (Get-KmcQualificationTreeInventory -Root $mods -Scope mods-root) -Description 'in-suite Mods' } 'in-suite foreign Mods drift was accepted'
         Start-Sleep -Milliseconds 1000
@@ -6267,6 +6270,18 @@ try {
             [void](Write-TestLifecycleEvidence -EvidenceRoot $nativeRequest.evidenceRoot -Request $nativeRequest -Records $records)
             $manifest=Read-KmcJson (Join-Path $nativeRequest.evidenceRoot 'runtime-artifacts.json')
             Assert-KmcLifecycleScenarioEvidence -Request $nativeRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($subresult)
+
+            $omittedEmptyCleanupErrors=Copy-TestJsonValue $records
+            foreach($successfulRecord in @($omittedEmptyCleanupErrors|Where-Object{[string]$_.phase -cin @('cleanup-next-frame','row-finish','engine-finalization')})) {
+                [void]$successfulRecord.boundaryExercise.deliveries[0].PSObject.Properties.Remove('cleanupErrors')
+            }
+            [void](Write-TestLifecycleEvidence -EvidenceRoot $nativeRequest.evidenceRoot -Request $nativeRequest -Records $omittedEmptyCleanupErrors)
+            $omittedManifest=Read-KmcJson (Join-Path $nativeRequest.evidenceRoot 'runtime-artifacts.json')
+            Assert-KmcLifecycleScenarioEvidence -Request $nativeRequest -Manifest $omittedManifest -Status 'PASS' -SubscenarioResults @($subresult)
+
+            $candidate=Copy-TestJsonValue $records
+            $candidate[2].boundaryExercise.deliveries[0].cleanupErrors=@('impossible successful cleanup error')
+            Assert-TestLifecycleEvidenceRejected $nativeRequest $candidate @($subresult) 'native incapacitation accepted cleanup errors on a successful delivery'
 
             $candidate=Copy-TestJsonValue $records
             $candidate[2].actorLifeTransition.lifeStateAfter='Dead'

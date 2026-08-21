@@ -1,5 +1,9 @@
 # Autonomous blockers
 
+## Successful native cleanup exposed optional-empty-array validator defect - 2026-08-21T07:35:00Z
+
+Run `20260821T073500Z-rider-native-incapacitation-passA` is immutable uncredited only because final validation required a `cleanupErrors` property that Unity omitted for its empty successful array. Immediate independent restoration passed before evidence read. The game row is `PASS 49/0` and proves the avoidance repair works on first native delivery. The narrow protocol repair accepts absent-or-empty errors only on success, requires present non-empty errors for the failed diagnostic shape, and rejects errors on successful cleanup. This is an attributable recoverable validator defect, not a safety or architecture blocker; fresh A/B remains required.
+
 ## Exact native avoidance cause repaired narrowly; fresh A/B required - 2026-08-21T06:56:22Z
 
 Probe `20260821T063244Z-rider-native-incapacitation-cause-probe` is immutable uncredited structured `FAIL`, with exact audit-before-read. Its retained cause is `Rider avoidance state did not return to its captured effective value after releasing the KMC lease.` Installed code proves the effective getter remains true while the rider is natively unconscious even after KMC successfully releases its CountingGuard lease. The narrow repair clears KMC lease ownership immediately after setter success and validates `captured || !riderIsConscious`; all unrelated mismatch cases still fail closed. This is attributable repair work with exact restoration, not a safety or architecture blocker. Fresh same-package rider A/B and Mammoth A/B are required.

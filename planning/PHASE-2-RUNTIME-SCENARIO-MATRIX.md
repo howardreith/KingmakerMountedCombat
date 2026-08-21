@@ -6,6 +6,8 @@ All future save-backed rows are bound to one append-only qualification-suite sna
 
 Status: IN PROGRESS
 
+Repaired rider attempt `20260821T073500Z-rider-native-incapacitation-passA` is immutable uncredited final-validator `FAIL`, with immediate audit-before-read. Game evidence passes schema v7 `49/0` and proves first-delivery cleanup, but Unity omitted the empty `cleanupErrors` array. The validator now accepts absent-or-empty only for successful cleanup, requires present non-empty errors for the failed diagnostic shape, and rejects errors on success. Fresh package/suite rider A/B and Mammoth A/B remain required.
+
 Cause probe `20260821T063244Z-rider-native-incapacitation-cause-probe` is immutable uncredited structured `FAIL`, with exact audit-before-read. It proves the first cleanup failure is the avoidance effective-state check after successful KMC lease release. Installed code makes effective avoidance disabled whenever the actor is unconscious, independent of the CountingGuard setter. The repair separates lease ownership from effective native state, retains strict mismatches, and requires fresh same-package rider A/B plus Mammoth A/B; no historical process receives credit.
 
 Schema-v7 rider probe `20260821T055657Z-rider-native-incapacitation-probe-v7` is immutable uncredited `FAIL 47/2` with audit-before-read. It confirms the first delivery faults inside `RestoreMovementAuthority`, while the ordinary retry still restores exact Unmounted state. The outer wrapper's inner cause was not retained, so a bounded cause-chain diagnostic and fresh process are required before the narrowest behavioral repair can be selected.

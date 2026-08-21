@@ -3976,16 +3976,22 @@ function Assert-KmcCombatLifecycleBoundaryExercise {
     for($index=0;$index -lt $expected.Count;$index++) {
         $delivery=$actual[$index];$want=$expected[$index]
         $deliveryProperties=@('boundary','source','stateBefore','stateAfter','cleanupTrigger','cleanupAttempted','cleanupSucceeded')
-        if([long]$Record.schemaVersion -eq 7){$deliveryProperties+='cleanupErrors'}
+        $cleanupErrorsProperty=$delivery.PSObject.Properties['cleanupErrors']
+        $hasCleanupErrors=$null-ne$cleanupErrorsProperty
+        if([long]$Record.schemaVersion -eq 7 -and $hasCleanupErrors){$deliveryProperties+='cleanupErrors'}
         Assert-KmcExactProperties $delivery $deliveryProperties "combat lifecycle delivery $index"
-        if([long]$Record.schemaVersion -eq 7){Assert-KmcJsonStringArray $delivery.cleanupErrors "combat lifecycle delivery $index cleanupErrors"}
+        if([long]$Record.schemaVersion -eq 7 -and $hasCleanupErrors){Assert-KmcJsonStringArray $delivery.cleanupErrors "combat lifecycle delivery $index cleanupErrors"}
+        $cleanupErrorCount=if($hasCleanupErrors){@($delivery.cleanupErrors).Count}else{0}
         $failedNativeDelivery=[long]$Record.schemaVersion -eq 7 -and [string]$Record.row -cin (Get-KmcNativeIncapacitationRuntimeRows) -and
             [string]$delivery.stateBefore -ceq 'Mounted' -and [string]$delivery.stateAfter -ceq 'Faulted' -and
-            $delivery.cleanupAttempted -eq $true -and $delivery.cleanupSucceeded -eq $false -and @($delivery.cleanupErrors).Count -gt 0
+            $delivery.cleanupAttempted -eq $true -and $delivery.cleanupSucceeded -eq $false -and $cleanupErrorCount -gt 0
         if($failedNativeDelivery){
             if([string]$delivery.boundary -cne [string]$want.boundary -or [string]$delivery.source -cne [string]$want.source -or
                 [string]$delivery.cleanupTrigger -cne [string]$want.trigger){throw "Failed native lifecycle delivery $index has the wrong identity for $row."}
             continue
+        }
+        if([long]$Record.schemaVersion -eq 7 -and $cleanupErrorCount -ne 0){
+            throw "Successful native lifecycle delivery $index contains cleanup errors for $row."
         }
         if ($delivery.boundary -isnot [string] -or [string]$delivery.boundary -cne [string]$want.boundary -or
             $delivery.source -isnot [string] -or [string]$delivery.source -cne [string]$want.source -or
