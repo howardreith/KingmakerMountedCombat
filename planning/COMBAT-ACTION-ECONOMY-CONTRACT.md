@@ -1,5 +1,9 @@
 # Combat action economy contract
 
+## Active-command outcome identity correction (2026-08-21)
+
+Interrupted uncredited attempt `20260821T105600Z-core-combat-controls-admission-passA` proves target-death `24/0`, invalid-target `17/0`, non-mounted `17/0`, and every cleanup zero-child/rule/resource/restoration observation except one diagnostic identity assertion. A newly accepted production command deliberately clears the preceding `LastOutcome`; therefore active admission now requires a null current terminal outcome rather than equality with a completed prior-row outcome. No command, Standard/Move, refund, attack, cancellation, or result behavior changes. The separate stale-manifest repair changes evidence publication only. Complete offline gates pass `21/217/17/207/255`; fresh package-bound A/B remains required.
+
 ## Exact command-admission control repair (2026-08-21)
 
 Uncredited repaired process `20260821T102109Z-core-combat-controls-repair-passA` passed invalid-target, cleanup, and non-mounted controls but retained target-death `22/1`. Its audit passed before evidence read and proves zero child, attack, roll, damage-rule, opportunity, forced-d20, Standard, or Move chain. The exact game log shows the wrapper had only been submitted: target death occurred before `OnStart` admitted the target, so startup failed generically and never reached the already repaired pre-child interruption path. The diagnostic now waits for exact target identity in a nonterminal `Approaching` or `Attacking` transaction with `ChildAttackStartCount == 0` before mutation. This changes no resource rule, refund, command ownership, attack behavior, or terminal semantics. Full gates pass `21/217/17/207/255`; fresh package-bound A/B remains mandatory.

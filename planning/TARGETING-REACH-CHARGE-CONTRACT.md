@@ -1,5 +1,9 @@
 # Targeting, reach, and charge contract
 
+## Target-admission repair observed healthy in interrupted process (2026-08-21)
+
+Uncredited `20260821T105600Z-core-combat-controls-admission-passA` passes target-death `24/0`: exact target admission, lethal public damage, target life transition, exact pre-child Interrupt, retained mounted pair, and zero child/attack/roll/damage-rule/AoO/resource chain. The remaining cleanup-row diagnostic and stale artifact manifest do not contradict targeting behavior. Their repairs change only active-command outcome observation and final evidence publication. No target identity, range, reach, engagement, opportunity, or charge rule changes; fresh A/B is still mandatory.
+
 ## Exact target-admission observation boundary (2026-08-21)
 
 Repaired process `20260821T102109Z-core-combat-controls-repair-passA` is immutable uncredited `FAIL 77/1` with audit-before-read. It proves exact target death and zero child/rule/resource/AoO behavior, but the game log shows death was injected after wrapper submission and before `OnStart` accepted the target. The diagnostic now observes only the exact command's transaction identity and waits for exact target admission in `Approaching` or `Attacking`, still before any child start, before applying the existing control mutation. The production exact-target pre-child cancellation remains narrow and unchanged. This adds no range, reach, target replacement, engagement, opportunity, or charge behavior; fresh A/B is required.

@@ -1078,7 +1078,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var ummAssembly = typeof(UnityModManager).Assembly;
             var harmonyPath = Path.Combine(Path.GetDirectoryName(ummAssembly.Location), "0Harmony12.dll");
             var game = Kingmaker.Game.Instance;
-            var evidenceManifestSha256 = EnsureRuntimeArtifactManifest();
+            var evidenceManifestSha256 = PublishRuntimeArtifactManifest();
             var resultPayload = new RuntimeGameResultV2
             {
                 SchemaVersion = RuntimeRequest.SaveBackedSchemaVersion,
@@ -1222,7 +1222,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 emergency.SuppressedWorkingSaveRequestCount = saveAuthorization.SuppressedWorkingWriteCount;
                 emergency.UnauthorizedLoadRequestCount = saveAuthorization.UnauthorizedLoadCount;
                 emergency.UnauthorizedSaveRequestCount = saveAuthorization.UnauthorizedWriteCount;
-                emergency.EvidenceManifestSha256 = EnsureRuntimeArtifactManifest();
+                emergency.EvidenceManifestSha256 = PublishRuntimeArtifactManifest();
                 try { emergency.RelationshipState = relationshipStateProvider() ?? "Unavailable"; } catch { emergency.RelationshipState = "Unavailable"; }
                 try { emergency.MovementExperimentEnabled = movementExperimentProvider(); } catch { emergency.MovementExperimentEnabled = false; }
                 WriteJsonAtomic(resultPath, emergency);
@@ -1319,7 +1319,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 SubscenarioFailCount = 1,
                 AssertionPassCount = 0,
                 AssertionFailCount = 1,
-                EvidenceManifestSha256 = EnsureRuntimeArtifactManifest(request),
+                EvidenceManifestSha256 = PublishRuntimeArtifactManifest(request),
                 SubscenarioResults = new[] { failedSubscenario }
             };
         }
@@ -1379,19 +1379,14 @@ namespace KingmakerMountedCombat.Diagnostics
             }
         }
 
-        private string EnsureRuntimeArtifactManifest()
+        private string PublishRuntimeArtifactManifest()
         {
-            return EnsureRuntimeArtifactManifest(request);
+            return PublishRuntimeArtifactManifest(request);
         }
 
-        private static string EnsureRuntimeArtifactManifest(RuntimeRequest request)
+        private static string PublishRuntimeArtifactManifest(RuntimeRequest request)
         {
             var manifestPath = Path.Combine(request.EvidenceRoot, "runtime-artifacts.json");
-            if (File.Exists(manifestPath))
-            {
-                return ComputeSha256(manifestPath);
-            }
-
             var artifacts = new List<RuntimeArtifactRecord>();
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, "lifecycle-scenario-evidence.jsonl", "scenario-evidence");
             AddRuntimeArtifactIfPresent(
@@ -1434,7 +1429,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 CreatedAtUtc = DateTimeOffset.UtcNow.ToString("o"),
                 Artifacts = artifacts
             };
-            WriteJsonAtomic(manifestPath, manifest);
+            WriteJsonReplacingAtomic(manifestPath, manifest);
             return ComputeSha256(manifestPath);
         }
 
@@ -1481,6 +1476,40 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 File.WriteAllText(temporary, JsonConvert.SerializeObject(value, JsonSettings));
                 File.Move(temporary, path);
+            }
+            finally
+            {
+                if (File.Exists(temporary))
+                {
+                    File.Delete(temporary);
+                }
+            }
+        }
+
+        private static void WriteJsonReplacingAtomic(string path, object value)
+        {
+            var directory = Path.GetDirectoryName(path);
+            if (!Directory.Exists(directory))
+            {
+                throw new DirectoryNotFoundException("Runtime evidence directory is missing.");
+            }
+            if (File.Exists(path) && (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
+            {
+                throw new InvalidOperationException("Runtime artifact manifest is a reparse point.");
+            }
+
+            var temporary = Path.Combine(directory, ".runtime-artifacts." + Guid.NewGuid().ToString("N") + ".tmp");
+            try
+            {
+                File.WriteAllText(temporary, JsonConvert.SerializeObject(value, JsonSettings));
+                if (File.Exists(path))
+                {
+                    File.Replace(temporary, path, null, true);
+                }
+                else
+                {
+                    File.Move(temporary, path);
+                }
             }
             finally
             {

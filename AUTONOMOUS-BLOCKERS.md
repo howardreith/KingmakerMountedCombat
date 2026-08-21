@@ -1,5 +1,9 @@
 # Autonomous blockers
 
+## Recovered interrupted control run isolates manifest ownership and row-history defects - 2026-08-21T11:39:18Z
+
+Status: `IN PROGRESS`; exact recovery/restoration passed, so this is not a safety or architecture blocker. `20260821T105600Z-core-combat-controls-admission-passA` remains immutable uncredited game `FAIL 79/1` with no completed launcher result. Target-death now passes `24/0`; cleanup alone is `21/1` because command acceptance intentionally cleared the preceding outcome and the diagnostic compared against that obsolete object. A PowerShell-created empty manifest also predated and omitted the later combat artifact. The narrow repair requires no terminal outcome for the exact active command and makes game finalization atomically replace, not trust, a pre-existing final-artifact manifest. The unexplained lingering process receives no relaxed exit gate or inferred cause. Complete offline totals are `21/217/17/207/255`; publication, clean package/suite/WhatIf, and fresh A/B remain required.
+
 ## Submitted wrapper was not yet an admitted target; diagnostic wait repaired - 2026-08-21T10:33:50Z
 
 Status: `IN PROGRESS`; attributable diagnostic timing with exact restoration, not a safety or architecture blocker. Run `20260821T102109Z-core-combat-controls-repair-passA` is immutable uncredited `FAIL 77/1`; immediate audit passed before evidence read. Invalid-target, cleanup, and non-mounted rows pass. The exact game log proves target death preceded command `OnStart`, so generic startup rejection occurred before the repaired pre-child `OnTick` interruption seam. The diagnostic now waits for exact target admission in a live transaction with zero child starts before mutation. Complete offline totals are `21/217/17/207/255`; coherent publication, clean package/suite/WhatIf, and fresh A/B remain required.

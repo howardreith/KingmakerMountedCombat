@@ -5058,6 +5058,10 @@ try {
             $targetMutationIndex -gt $acceptedTargetIndex) 'target-death and cleanup controls can mutate before the exact active command admits its target'
         Assert-Test ($controlSource.Contains('outcomeAtExerciseStart = combat.LastOutcome;') -and
             $controlSource.Contains('ReferenceEquals(combat.LastOutcome, outcomeAtExerciseStart)')) 'non-mounted control does not distinguish unchanged historical outcome evidence from a new command outcome'
+        Assert-Test ($controllerSource.Contains('activeCommand = command;') -and
+            $controllerSource.Contains('LastOutcome = null;') -and
+            $controlSource.Contains('assertions.Check(combat.LastOutcome == null,') -and
+            -not $controlSource.Contains('assertions.Check(ReferenceEquals(combat.LastOutcome, outcomeAtExerciseStart),')) 'active command admission does not require the controller-cleared terminal outcome after a prior completed row'
         Assert-Test ($controlSource.Contains('observations.AttackRuleCount == 0') -and
             $controlSource.Contains('observations.AttackRollCount == 0') -and
             $controlSource.Contains('observations.DamageRuleCount == 0') -and
@@ -5067,6 +5071,15 @@ try {
         $attackHostIndex = $hostSource.IndexOf('RuntimeCombatScenarioEngine.SupportsScenario(request.Scenario)', [StringComparison]::Ordinal)
         Assert-Test ($controlHostIndex -ge 0 -and $attackHostIndex -gt $controlHostIndex -and
             $hostSource.Contains('combatControlEngine.Dispose()')) 'runtime host does not isolate or dispose the control engine before attack schemas'
+        $publisherStart = $hostSource.IndexOf('private static string PublishRuntimeArtifactManifest(RuntimeRequest request)', [StringComparison]::Ordinal)
+        $publisherEnd = $hostSource.IndexOf('private static void AddRuntimeArtifactIfPresent', $publisherStart, [StringComparison]::Ordinal)
+        $publisherSource = if ($publisherStart -ge 0 -and $publisherEnd -gt $publisherStart) {
+            $hostSource.Substring($publisherStart, $publisherEnd - $publisherStart)
+        } else { '' }
+        Assert-Test ($publisherSource.Contains('WriteJsonReplacingAtomic(manifestPath, manifest);') -and
+            $hostSource.Contains('File.Replace(temporary, path, null, true);') -and
+            $hostSource.Contains('Runtime artifact manifest is a reparse point.') -and
+            $publisherSource -notmatch 'if\s*\(File\.Exists\(manifestPath\)\)\s*\{\s*return ComputeSha256\(manifestPath\)') 'game finalization can silently reuse a stale orchestration-created artifact manifest'
         Assert-Test $projectSource.Contains('Diagnostics\RuntimeCombatControlScenarioEngine.cs') 'combat-control engine is absent from the exact production project'
     }
 

@@ -2,6 +2,12 @@
 
 Status: IN PROGRESS
 
+## Interrupted control process: final manifest ownership and active-outcome observation (2026-08-21)
+
+`20260821T105600Z-core-combat-controls-admission-passA` remains immutable and uncredited. Guarded recovery plus the independent audit passed before evidence read. The game produced `79/1`: invalid, repaired target-death, and non-mounted rows pass; cleanup's single failure compared the deliberately cleared current outcome slot against the preceding target-death outcome. Active exact-command admission now requires `LastOutcome == null`, while no-command controls continue to require unchanged historical identity. This is diagnostic-only and preserves the production target-admission repair.
+
+The run also exposed protocol ownership: PowerShell created an empty `runtime-artifacts.json` before combat evidence existed, and the game returned its hash rather than publishing the later JSONL. `PublishRuntimeArtifactManifest` now enumerates the exact closed allowlist and atomically replaces any regular pre-existing manifest; a reparse destination fails closed. External artifact validation remains immutable and strict. The game process later lingered after terminal result; no cause is invented, no timeout is weakened, and no process-exit behavior changes without new evidence. Full offline gates pass `21/217/17/207/255`; fresh clean-package A/B remains required.
+
 ## Exact active-target admission wait (2026-08-21)
 
 The first run of the published exact-target cancellation repair, `20260821T102109Z-core-combat-controls-repair-passA`, is preserved uncredited at `77/1`; independent restoration passed before evidence inspection. Invalid-target, repeated exception cleanup, and non-mounted stock delegation all pass. Target death again proves the exact lethal transition, retained pair, zero child/rule/resource chain, and full cleanup. The game log resolves the remaining failure: the diagnostic treated a submitted/queued wrapper as active and killed the target before `MountedPairAttackCommand.OnStart` accepted it, so startup failed with the generic exact-pair/target exception and the repaired `OnTick` cancellation was unreachable.

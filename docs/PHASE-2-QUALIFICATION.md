@@ -1,5 +1,13 @@
 # Phase 2 qualification
 
+## Recovered interrupted core-control process (2026-08-21)
+
+Status: `IN PROGRESS`; no safety, architecture, or presentation blocker is active.
+
+Published commit/package/manifest `7fb77e80e045a995efaf27a2cb9ed869b83db9c7` / `8fd35041e627a66007bdf556b486d5c6e1e23fea17c6057358440a6303c7c2df` / `83fc585aa57bd23b24fcf20bf14d7115303bf1eb8171ff52adc89c46c649785e`, DLL/MVID `b4bf816b484f003749ebca74845109ca23b5614e21c869b49c63c3ebec4aac57` / `c66f51f3-1534-4d1a-99e1-d68b309a977d`, and suite snapshot `6489837481e74e32b2cd0d7afce14d1ceb59a4875a516c3eb3a916e36d2dd9de` bound interrupted attempt `20260821T105600Z-core-combat-controls-admission-passA`. After user-assisted process closure and guarded recovery, the independent audit passed before evidence inspection with exact suite saves/Mods, immutable Baseline, restored Working, and zero runtime residue.
+
+The attempt is immutable uncredited game `FAIL 79/1`, with invalid-target `17/0`, target-death `24/0`, cleanup `21/1`, and non-mounted `17/0`; no completed launcher result exists. Target admission is now observed healthy. Cleanup failed only because valid command acceptance cleared the prior row's terminal outcome as designed; the diagnostic now requires no current terminal outcome. A stale empty PowerShell manifest created before later combat evidence was also silently reused; game finalization now atomically republishes the exact final artifact inventory. Validators, timeouts, restoration, target admission, and terminal-result thresholds remain unchanged. Complete offline totals pass `21/217/17/207/255`; a fresh package/suite and restarted A/B are required.
+
 ## Core combat-control repaired-process follow-up (2026-08-21)
 
 Status: `IN PROGRESS`; no safety, architecture, or presentation blocker is active.

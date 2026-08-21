@@ -461,8 +461,8 @@ namespace KingmakerMountedCombat.Diagnostics
             }
 
             observations.CommandAccepted = true;
-            assertions.Check(ReferenceEquals(combat.LastOutcome, outcomeAtExerciseStart),
-                "Exact target entered the active mounted command without publishing a new terminal outcome.");
+            assertions.Check(combat.LastOutcome == null,
+                "Exact target entered the active mounted command with no terminal outcome published for that command.");
 
             if (IsCleanupRow)
             {
