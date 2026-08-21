@@ -1,5 +1,13 @@
 # Autonomous blockers
 
+## Active-command combat-end qualified RT/TB A/B - 2026-08-21T02:52:53Z
+
+Status: `PASS` for the exact supported mounted rider movement-to-attack command; no critical blocker is active.
+
+Clean package `6145369509eaf69eae30e22a42f72de63f0d5ddae707a22625cd54a47a03a6d1` and suite snapshot `ca0b8b9c1e926e5ddf3d847ff74d9646c1e52416e931e2949892be00e5e8783a` produced RT A/B schema-v40 `52/0` each and TB A/B schema-v41 `56/0` each. Separate repository-owned restoration processes passed before all four evidence reads. Two exact direct combat-end ledger observations cancel active work idempotently, retain the valid pair, emit zero combat chains, preserve RT-zero/TB-actual-rider-Move accounting, and restore all command, mode, save, Mods, presentation, and transaction state.
+
+The analysis-cache audit wrapper was policy-rejected before execution and caused no access or mutation; the repository-owned guarded continuity path supplied the required independent audits. Native incapacitation delivery and true actor transition remain open qualification work, not a blocker.
+
 ## Active-command combat-end implementation ready for runtime - 2026-08-21T02:08:42Z
 
 Status: `IN PROGRESS`; no safety or architecture blocker is active.

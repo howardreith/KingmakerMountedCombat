@@ -1,5 +1,15 @@
 # Phase 2 qualification
 
+## Active-command combat-end qualification (2026-08-21)
+
+Status: `PASS` for the exact direct party-combat-end handler while the supported rider movement-to-attack command is active; overall private-alpha qualification remains `IN PROGRESS`.
+
+Clean commit/package/manifest `6b9dd14c46907732ba48c3730bf8ab986974170c` / `6145369509eaf69eae30e22a42f72de63f0d5ddae707a22625cd54a47a03a6d1` / `11692b2ce0ce66a0ea744cdddcf65b564396aa5b42e31d8a1c212fa2f396739f`, DLL/MVID `c2669d8037a711178bbf9e7c02177d20daae27a656282ee026634604f2f49dac` / `b5ec7887-56aa-4cc5-83bc-521d8cf38bb3`, and suite snapshot `ca0b8b9c1e926e5ddf3d847ff74d9646c1e52416e931e2949892be00e5e8783a` produced RT A/B `20260821T023500Z-active-combat-end-rt-passA` / `20260821T024500Z-active-combat-end-rt-passB`, schema v40 `52/0` each, and TB A/B `20260821T025500Z-active-combat-end-tb-passA` / `20260821T030500Z-active-combat-end-tb-passB`, schema v41 `56/0` each. Aggregate is `216/0`.
+
+Each process begins with the exact rider wrapper and Mammoth Move slot in flight outside range, then directly delivers `IPartyCombatHandler.HandlePartyCombatStateChanged(false)` twice. Evidence requires exactly two ordered `CombatEnded` ledger observations with Mounted before/after and no cleanup claim; zero child, attack, roll, damage, opportunity, duplicate, or repath chain; exact wrapper/move/queue/agent restoration; retained relationship, accepted pose, rider selection, and UI; and final residue-free dismount. RT changes no action ledger. TB preserves only actual rider Move `0 -> 3`; both Standard ledgers and Mammoth resources remain unchanged; mode restores exactly.
+
+Separate repository-owned continuity WhatIf processes audited complete suite save/Mods equality and zero mutation immediately after every live process and before evidence inspection. Baseline remained immutable, Working restored, and no process/lock/sentinel/deployment residue remained. This qualification is intentionally limited to direct handler delivery under active work; it does not claim a naturally occurring global combat transition. Native incapacitation delivery remains separately open.
+
 ## Active-command combat-end implementation checkpoint (2026-08-21)
 
 Status: `IN PROGRESS`; no runtime PASS is claimed yet.
