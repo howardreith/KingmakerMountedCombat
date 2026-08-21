@@ -121,7 +121,19 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.UnitLogic.Commands.UnitCommands',0x060026B2,'Run'),
         @('Kingmaker.UnitLogic.Commands.Base.UnitCommand',0x060027BA,'IgnoreCooldown'),
         @('Kingmaker.EntitySystem.Entities.UnitEntityData',0x0600838F,'UpdateCooldowns'),
+        @('Kingmaker.Controllers.Combat.UnitCombatState',0x06009390,'get_CanAttackOfOpportunity'),
+        @('Kingmaker.Controllers.Combat.UnitCombatState',0x0600939B,'Disengage'),
         @('Kingmaker.Controllers.Combat.UnitCombatState',0x060093A1,'AttackOfOpportunity'),
+        @('Kingmaker.Controllers.Combat.UnitCombatState',0x060093A2,'ShouldAttackOnDisengage'),
+        @('Kingmaker.UnitLogic.Commands.UnitAttackOfOpportunity',0x06002696,'.ctor'),
+        @('Kingmaker.UnitLogic.Commands.UnitAttackOfOpportunity',0x06002699,'OnAction'),
+        @('Kingmaker.UnitLogic.Abilities.Components.AbilityCustomCharge',0x06002BB6,'Deliver'),
+        @('Kingmaker.UnitLogic.Abilities.Components.AbilityCustomCharge',0x06002BB7,'TurnBasesRoutine'),
+        @('Kingmaker.UnitLogic.Abilities.Components.AbilityCustomCharge',0x06002BB8,'RuntimeRoutine'),
+        @('Kingmaker.UnitLogic.Abilities.Components.AbilityCustomCharge',0x06002BB9,'Cleanup'),
+        @('Kingmaker.UnitLogic.Abilities.Components.AbilityCustomCharge',0x06002BBD,'CanTarget'),
+        @('Kingmaker.UnitLogic.Commands.UnitAttack',0x06002663,'set_IsCharge'),
+        @('Kingmaker.RuleSystem.Rules.RuleAttackWithWeapon',0x06007186,'set_IsCharge'),
         @('Kingmaker.Controllers.EntityCreationController',0x0600901F,'SpawnUnit'),
         @('Kingmaker.EntitySystem.EntityDataBase',0x06007EA6,'Destroy'),
         @('Kingmaker.EntitySystem.EntityDataBase',0x06007E97,'get_IsVisibleForPlayer'),
@@ -259,6 +271,48 @@ if($Target-eq'Kingmaker'){
         $attackOfOpportunity[0].GetParameters()[0].ParameterType.FullName-ceq'Kingmaker.EntitySystem.Entities.UnitEntityData' -and
         $attackOfOpportunity[0].GetParameters()[1].ParameterType.FullName-ceq'System.Boolean') `
         'UnitCombatState.AttackOfOpportunity exact public instance Boolean signature'
+    $disengage=@(Find-Token 'Kingmaker.Controllers.Combat.UnitCombatState' 0x0600939B)
+    $shouldAttackOnDisengage=@(Find-Token 'Kingmaker.Controllers.Combat.UnitCombatState' 0x060093A2)
+    $opportunityAction=@(Find-Token 'Kingmaker.UnitLogic.Commands.UnitAttackOfOpportunity' 0x06002699)
+    Assert-Contract ($disengage.Count-eq1 -and $disengage[0] -is [Reflection.MethodInfo] -and
+        (Test-MethodIlContainsToken $disengage[0] 0x060093A2) -and
+        (Test-MethodIlContainsToken $disengage[0] 0x060093A1) -and
+        $shouldAttackOnDisengage.Count-eq1 -and $shouldAttackOnDisengage[0] -is [Reflection.MethodInfo] -and
+        $shouldAttackOnDisengage[0].IsPublic -and -not $shouldAttackOnDisengage[0].IsStatic -and
+        $shouldAttackOnDisengage[0].ReturnType.FullName-ceq'System.Boolean' -and
+        $shouldAttackOnDisengage[0].GetParameters().Count-eq2 -and
+        $shouldAttackOnDisengage[0].GetParameters()[0].ParameterType.FullName-ceq'Kingmaker.EntitySystem.Entities.UnitEntityData' -and
+        $shouldAttackOnDisengage[0].GetParameters()[1].ParameterType.FullName-ceq'System.Boolean' -and
+        (Test-MethodIlContainsToken $attackOfOpportunity[0] 0x06002696) -and
+        (Test-MethodIlContainsToken $attackOfOpportunity[0] 0x060026B2) -and
+        $opportunityAction.Count-eq1 -and $opportunityAction[0] -is [Reflection.MethodInfo] -and
+        (Test-MethodIlContainsToken $opportunityAction[0] 0x0600719C) -and
+        (Test-MethodIlContainsToken $opportunityAction[0] 0x06007182)) `
+        'stock disengage synchronously owns one per-unit opportunity command and marks its independent weapon rule'
+    $chargeType=$assembly.GetType('Kingmaker.UnitLogic.Abilities.Components.AbilityCustomCharge',$false)
+    $chargeDeliverState=if($null-eq$chargeType){$null}else{$chargeType.GetNestedType('<Deliver>d__2',[Reflection.BindingFlags]'NonPublic')}
+    $chargeTurnState=if($null-eq$chargeType){$null}else{$chargeType.GetNestedType('<TurnBasesRoutine>d__3',[Reflection.BindingFlags]'NonPublic')}
+    $chargeRuntimeState=if($null-eq$chargeType){$null}else{$chargeType.GetNestedType('<RuntimeRoutine>d__4',[Reflection.BindingFlags]'NonPublic')}
+    $chargeDeliverMove=if($null-eq$chargeDeliverState){$null}else{@($chargeDeliverState.GetMethods([Reflection.BindingFlags]'Public,NonPublic,Instance')|Where-Object MetadataToken -eq 0x0600AB09|Select-Object -First 1)}
+    $chargeTurnMove=if($null-eq$chargeTurnState){$null}else{@($chargeTurnState.GetMethods([Reflection.BindingFlags]'Public,NonPublic,Instance')|Where-Object MetadataToken -eq 0x0600AB0F|Select-Object -First 1)}
+    $chargeRuntimeMove=if($null-eq$chargeRuntimeState){$null}else{@($chargeRuntimeState.GetMethods([Reflection.BindingFlags]'Public,NonPublic,Instance')|Where-Object MetadataToken -eq 0x0600AB15|Select-Object -First 1)}
+    $chargeCleanup=@(Find-Token 'Kingmaker.UnitLogic.Abilities.Components.AbilityCustomCharge' 0x06002BB9)
+    $chargeCanTarget=@(Find-Token 'Kingmaker.UnitLogic.Abilities.Components.AbilityCustomCharge' 0x06002BBD)
+    Assert-Contract ($null-ne$chargeDeliverMove -and (Test-MethodIlContainsToken $chargeDeliverMove 0x06002678) -and
+        (Test-MethodIlContainsToken $chargeDeliverMove 0x0600189E) -and
+        (Test-MethodIlContainsToken $chargeDeliverMove 0x06001FA0) -and
+        $null-ne$chargeTurnMove -and (Test-MethodIlContainsToken $chargeTurnMove 0x06002663) -and
+        (Test-MethodIlContainsToken $chargeTurnMove 0x060026BB) -and
+        (Test-MethodIlContainsToken $chargeTurnMove 0x060018E4) -and
+        $null-ne$chargeRuntimeMove -and (Test-MethodIlContainsToken $chargeRuntimeMove 0x06002663) -and
+        (Test-MethodIlContainsToken $chargeRuntimeMove 0x060026BB) -and
+        (Test-MethodIlContainsToken $chargeRuntimeMove 0x060017AD) -and
+        (Test-MethodIlContainsToken $chargeRuntimeMove 0x060018E4) -and
+        $chargeCleanup.Count-eq1 -and (Test-MethodIlContainsToken $chargeCleanup[0] 0x0600189E) -and
+        (Test-MethodIlContainsToken $chargeCleanup[0] 0x060018E4) -and
+        (Test-MethodIlContainsToken $chargeCleanup[0] 0x06001FA0) -and
+        $chargeCanTarget.Count-eq1 -and (Test-MethodIlContainsToken $chargeCanTarget[0] 0x060017AD)) `
+        'stock charge owns caster movement speed state path tracing charge state and a caster-owned queued attack in both modes'
     $selectMissReason=@(Find-Token 'Kingmaker.EntitySystem.Stats.ModifiableValueArmorClass' 0x06007F2D)
     Assert-Contract ($selectMissReason.Count-eq1 -and $selectMissReason[0] -is [Reflection.MethodInfo] -and
         $selectMissReason[0].IsPublic -and -not $selectMissReason[0].IsStatic -and

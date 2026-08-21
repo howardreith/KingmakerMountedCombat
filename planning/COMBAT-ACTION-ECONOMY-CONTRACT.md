@@ -1,5 +1,13 @@
 # Combat action economy contract
 
+## Basic mounted-charge action economy — deferred with evidence (2026-08-21)
+
+Status: `DEFER — EVIDENCED` and default-off. Stock charge binds forced movement, charge state/buff, queued attack, and command/resource ownership to one caster. Rider-caster charge violates Mammoth-only movement; Mammoth-caster charge spends and attributes the wrong actor's command, buff, weapon attack, and turn resources. KMC does not synthesize a hybrid full-action ledger or write cooldowns/turn state. Existing rider melee, Mammoth primary, movement-to-attack, and ordinary non-mounted charge behavior remain unchanged.
+
+## Explicit mounted-AoO action economy — deferred with evidence (2026-08-21)
+
+Status: `DEFER — EVIDENCED` and default-off. Installed Kingmaker owns opportunity eligibility, a per-unit opportunity count, a free `UnitAttackOfOpportunity` command, threat-hand selection, and the resulting rule initiator independently for rider and Mammoth. The supported pair has no safe stock primitive that merges those ledgers into one opportunity without either duplicate emission, synthetic bypass of stock eligibility/cost, or broad engagement arbitration. KMC therefore exposes no mounted-AoO command or action, consumes no mounted-pair opportunity resource, and leaves ordinary idle-mounted, non-mounted, and non-pair stock behavior unchanged. The active-command prefix remains only an exact temporal isolation guard against synchronization-created duplicates.
+
 ## Opportunity-isolated movement-to-attack requalified RT/TB A/B (2026-08-21)
 
 Fresh repaired-package RT A/B and TB A/B pass `228/0` total on one exact suite snapshot. RT retains the rider-owned Standard timer (`0 -> 2.9183743` / `2.947114`), leaves rider Move unchanged, and charges neither Mammoth Standard nor Move. TB consumes the exact rider Standard and Move ledgers (`0 -> 6` and `0 -> 3`) while Mammoth Standard remains `0`; the Mammoth supplies only the stock pathfinding/Move-slot execution authority. Every process emits exactly one intended child attack, one attack roll, and one damage rule, with zero duplicate or opportunity chains, and every post-process audit proves exact Working/Mods restoration. The package-restart requirement below is satisfied; the failed launcher attempt remains uncredited.

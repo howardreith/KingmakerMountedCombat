@@ -1,5 +1,18 @@
 # Mounted Combat journal
 
+## 2026-08-21T17:55:00Z - basic mounted-charge stretch disposition
+
+- Exact installed `AbilityCustomCharge` contracts are `Deliver` `0x06002BB6`, turn-based routine `0x06002BB7`, real-time routine `0x06002BB8`, `Cleanup` `0x06002BB9`, and `CanTarget` `0x06002BBD`. State-machine IL binds caster-owned `UnitAttack`, agent charging/speed state, unit charging state, path trace `0x060017AD`, charge flag `0x06002663`, and caster command queue.
+- Rider-as-caster conflicts with the required disabled rider agent and Mammoth-only pathfinding. Mammoth-as-caster attributes buff, command, weapon attack, initiator, and resource ledger to the wrong actor. Recreating stock straight-path/range/clearance/double-speed/buff/action-cost/interruption logic is beyond the narrow stretch seam. Basic charge is `DEFER — EVIDENCED`, absent/default-off; ordinary non-mounted charge is untouched.
+- Deterministic source coverage proves no charge component, flag/state write, action, or patch entered production. Complete gates pass source/component/visual/harness/assembly `21/217/17/214/269`, PowerShell/JSON parsers `26/0` / `7/0`, diff, and prohibited-payload checks. No game/external mutation occurred. Next: coherent local commit and offline private-alpha handoff hardening while guarded publication remains credential-blocked.
+
+## 2026-08-21T17:45:00Z - explicit mounted-AoO stretch disposition
+
+- Local reach checkpoint `4a703b9` was created after complete gates, but the guarded helper failed before push while inspecting the remote with `SEC_E_NO_CREDENTIALS`. No push was attempted and no direct bypass is allowed; live packaging/qualification waits for guarded publication while safe offline work continues.
+- Bounded local assembly inspection pins `UnitCombatState.get_CanAttackOfOpportunity` `0x06009390`, `Disengage` `0x0600939B`, `AttackOfOpportunity` `0x060093A1`, `ShouldAttackOnDisengage` `0x060093A2`, `UnitAttackOfOpportunity..ctor` `0x06002696`, `OnAction` `0x06002699`, and `RuleAttackWithWeapon.set_IsAttackOfOpportunity` `0x06007182`. IL-backed tests prove the synchronous trigger/command/rule chain.
+- Rider and Mammoth retain separate engagement sets, counters, threat hands, motion state, command containers, and rule initiators. One legitimate pair opportunity cannot be selected without broad pair-wide engagement arbitration, duplicate-prone dual stock ownership, or a synthetic stock-eligibility bypass. The optional feature is therefore `DEFER — EVIDENCED`, absent/default-off; the narrow active-command duplicate-isolation repair and ordinary stock behavior are unchanged.
+- Deterministic source coverage proves no production opportunity synthesis, flag write, or broad engagement patch. Focused harness passes `213/0`; Kingmaker assembly contracts pass `250/0` with unchanged Wrath `11/0`. No game process, external transaction, or save/Mods mutation occurred. Next safe action: basic-charge contract/disposition.
+
 ## 2026-08-21T17:30:00Z - bounded mounted-reach evidence checkpoint
 
 - Starting identity was clean guarded-published local/upstream `17e03550a2d6b56dcb649b2537d7f84be7c921e9` on `codex/mounted-combat-phase2-alpha`, version `0.1.0-phase2b-dev.1`.

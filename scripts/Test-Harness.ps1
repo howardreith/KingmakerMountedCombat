@@ -4486,6 +4486,35 @@ try {
             -not $patchSource.Contains('PatchExact(typeof(UnitCombatState), "Disengage"')) 'opportunity isolation changed the broad engagement lifecycle instead of the exact attack emission seam'
     }
 
+    Invoke-HarnessTest 'explicit mounted opportunity feature remains absent and default-off' {
+        $productionSource = @(
+            Get-ChildItem -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat') -Recurse -File -Filter '*.cs' |
+                Sort-Object FullName |
+                ForEach-Object { [IO.File]::ReadAllText($_.FullName) }) -join "`n"
+        $patchSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPatchController.cs'))
+        Assert-Test (-not $productionSource.Contains('new UnitAttackOfOpportunity') -and
+            -not $productionSource.Contains('IsAttackOfOpportunity = true') -and
+            -not $patchSource.Contains('PatchExact(typeof(UnitCombatState), "Engage"') -and
+            -not $patchSource.Contains('PatchExact(typeof(UnitCombatState), "Disengage"') -and
+            -not $patchSource.Contains('PatchExact(typeof(UnitCombatState), "ShouldAttackOnDisengage"')) `
+            'production synthesizes mounted opportunities or patches broad engagement ownership despite the default-off stretch disposition'
+    }
+
+    Invoke-HarnessTest 'basic mounted charge feature remains absent and default-off' {
+        $productionSource = @(
+            Get-ChildItem -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat') -Recurse -File -Filter '*.cs' |
+                Sort-Object FullName |
+                ForEach-Object { [IO.File]::ReadAllText($_.FullName) }) -join "`n"
+        $patchSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPatchController.cs'))
+        Assert-Test (-not $productionSource.Contains('AbilityCustomCharge') -and
+            -not $productionSource.Contains('IsCharge = true') -and
+            -not $productionSource.Contains('ChargeBuff') -and
+            -not $productionSource.Contains('IsCharging = true') -and
+            -not $patchSource.Contains('PatchExact(typeof(UnitAttack), "set_IsCharge"') -and
+            -not $patchSource.Contains('PatchExact(typeof(AbilityCustomCharge)')) `
+            'production enables a charge surface or patches stock charge ownership despite the default-off stretch disposition'
+    }
+
     Invoke-HarnessTest 'lifecycle evidence is a durable pre-mount gate with bounded cleanup observation' {
         $source = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeLifecycleScenarioEngine.cs')
         $evidenceGate = $source.IndexOf('if (!TryWriteEvidence("pre-mount", null, null))', [StringComparison]::Ordinal)

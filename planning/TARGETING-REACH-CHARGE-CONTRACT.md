@@ -1,5 +1,21 @@
 # Targeting, reach, and charge contract
 
+## Basic mounted charge — deferred with evidence (2026-08-21)
+
+Status: `DEFER — EVIDENCED`; the feature remains absent and default-off.
+
+The exact installed Kingmaker charge primitive cannot separate mover from attacker. `AbilityCustomCharge.Deliver` token `0x06002BB6` selects `context.Caster`, forces that caster's `AgentASP`, sets its charging/movement state, applies the stock charge buff, and creates a caster-owned `UnitAttack`. Its turn-based and real-time routines `0x06002BB7` / `0x06002BB8` change that same caster's speed, set `UnitAttack.IsCharge` through `0x06002663`, and queue it in that caster's command container. `Cleanup` `0x06002BB9` restores that caster's agent speed and charging state. `CanTarget` `0x06002BBD` evaluates caster-origin distance, `ObstacleAnalyzer.TraceAlongNavmesh` `0x060017AD`, surrounding-unit clearance, and current-turn movement.
+
+Using the rider as caster would force-path and speed-modify the rider agent, violating Mammoth-only pathfinding and the existing avoidance/attachment lease. Using the Mammoth as caster would assign the charge buff, command, attack initiator, weapon, and RT/TB action ledger to the wrong actor. A custom pair charge would have to duplicate the stock straight-path, min/max range, clearance, double-speed, buff/state, full action-economy, interruption, and cleanup implementation rather than reuse a narrow installed seam. That exceeds the bounded stretch contract and introduces precisely the dual-owner risks Architecture B avoids. Production therefore references no `AbilityCustomCharge`, sets no charge state or rule flag, adds no charge action, and patches no stock charge method. Ordinary non-mounted charge remains stock. A focused future mission would need an original pair-owned charge transaction and full RT/TB, obstacle, cancellation, cost, duplicate, and restoration qualification.
+
+## Explicit mounted attacks of opportunity — deferred with evidence (2026-08-21)
+
+Status: `DEFER — EVIDENCED`; the feature remains absent and default-off. This does not change or weaken the separately qualified active-command opportunity-isolation repair.
+
+The exact installed Kingmaker ownership chain is per unit, not per mounted pair. `UnitCombatState.Disengage` token `0x0600939B` synchronously calls `ShouldAttackOnDisengage(UnitEntityData,bool)` token `0x060093A2` and `AttackOfOpportunity(UnitEntityData,bool)` token `0x060093A1`. The latter evaluates that unit's `CanAttackOfOpportunity` token `0x06009390`, threat hand, memory, motion, conditions, and independent `AttackOfOpportunityCount`, then enqueues a separate free `UnitAttackOfOpportunity` constructor token `0x06002696`. Its `OnAction` token `0x06002699` creates a weapon rule and sets `RuleAttackWithWeapon.IsAttackOfOpportunity` through token `0x06007182`. Rider and Mammoth therefore retain separate engagement sets, counters, threat hands, motion state, commands, and rule initiators.
+
+Architecture B synchronizes two Kingmaker entities while only the Mammoth owns movement. Selecting exactly one legitimate pair attacker for every enemy disengagement would require a new pair-wide engagement/counter arbitration layer or a broad `Engage`/`Disengage`/`ShouldAttackOnDisengage` patch. Allowing both stock states risks duplicate opportunities; synthesizing one bypasses the owning unit's complete stock trigger/counter path; redirecting it risks the wrong threat hand, command owner, counter, movement state, or RT/TB timing. Those approaches violate the narrow stretch gate. Production therefore creates no `UnitAttackOfOpportunity`, never writes `IsAttackOfOpportunity`, and patches none of those broad engagement methods. Idle mounted, non-mounted, and non-pair stock behavior remains unchanged. A future focused mission would need exact pair-wide trigger ownership, one-counter semantics, RT/TB tests, movement stability, cleanup, and non-mounted controls before enabling this feature.
+
 ## Bounded mounted-reach runtime proof checkpoint (2026-08-21)
 
 Status: `IN PROGRESS`; implementation and deterministic validation are complete, but no new runtime credit is claimed yet.

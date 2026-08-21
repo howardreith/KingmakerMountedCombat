@@ -1,5 +1,17 @@
 # Autonomous resume
 
+## Current resume checkpoint - 2026-08-21T17:55:00Z
+
+- Both optional explicit mounted-AoO and basic-charge stretches are now `DEFER — EVIDENCED`, absent/default-off, without weakening core or ordinary non-mounted behavior. AoO lacks narrow pair-wide engagement/counter ownership. Stock charge inseparably makes one caster both forced mover and attacker; rider choice violates Mammoth-only pathfinding and Mammoth choice owns the wrong attack/resource ledger. Deterministic harness is `214/0`; Kingmaker assembly contracts are `258/0` plus unchanged Wrath `11/0`.
+- Reach evidence remains implemented at local committed checkpoint `4a703b9`; subsequent stretch records/tests pass the complete source/component/visual/harness/assembly gate `21/217/17/214/269`, PowerShell/JSON parsers `26/0` / `7/0`, diff, and prohibited-payload checks. No Kingmaker or external transaction ran. Guarded publication is still unavailable due pre-push `SEC_E_NO_CREDENTIALS`, so live package/suite/reach A/B cannot begin until the helper succeeds.
+- Exact next action: commit the coherent local disposition checkpoint, finish private-alpha hardening/playtest/Phase-3 draft work that is safe offline, then retry only the guarded helper at the next required publication boundary.
+
+## Current resume checkpoint - 2026-08-21T17:45:00Z
+
+- Local bounded-reach evidence checkpoint is `4a703b9` on `codex/mounted-combat-phase2-alpha`; its complete precommit gate was source/component/visual/harness/assembly `21/217/17/212/255`, parsers `26/0` and `7/0`, diff and prohibited-payload PASS. The guarded helper then failed during pre-push remote inspection with `SEC_E_NO_CREDENTIALS`; it did not attempt a push. Direct push is forbidden, so package/suite/live reach qualification is pending guarded publication.
+- Explicit mounted AoO is now `DEFER — EVIDENCED` and default-off. Installed tokens prove `Disengage` owns synchronous per-unit trigger evaluation and `AttackOfOpportunity` owns an independent count, threat hand, command, and marked weapon rule. Safe one-attacker pair arbitration would require a broad engagement layer or a synthetic stock bypass. Production synthesizes nothing and patches no broad engagement method; focused harness `213/0` and Kingmaker assembly `250/0` pass.
+- No Kingmaker launch or external mutation occurred. Exact next safe action is bounded charge contract/disposition and complete offline gates. When credentials return: guarded-publish all coherent local checkpoints, bind a fresh clean-HEAD package, admit one stable suite, run separate RT/TB WhatIf/audits, and complete fresh reach A/B plus same-package controls with restoration-before-read.
+
 ## Current resume checkpoint - 2026-08-21T17:30:00Z
 
 - Status is `IN PROGRESS`; bounded mounted-reach proof is the active stretch tranche, and no safety, architecture, or presentation blocker is active. Clean starting local/upstream HEAD was `17e03550a2d6b56dcb649b2537d7f84be7c921e9`, version `0.1.0-phase2b-dev.1`.

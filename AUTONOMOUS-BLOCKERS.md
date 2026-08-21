@@ -1,5 +1,13 @@
 # Autonomous blockers
 
+## Basic mounted charge safely deferred - 2026-08-21T17:55:00Z
+
+Status: `DEFER — EVIDENCED`, not a core blocker. Stock charge binds the same caster to forced movement, speed/charge state, attack, command queue, and action ledger. Rider-caster violates Mammoth-only pathfinding; Mammoth-caster owns the wrong attack/resource. Custom recreation exceeds the narrow stretch seam, so production remains absent/default-off and non-mounted charge remains stock. Focused harness `214/0` and Kingmaker assembly `258/0` prove the disposition. Guarded publication remains the only active tooling dependency before live reach qualification.
+
+## Explicit mounted AoO safely deferred; guarded publication lacks credentials - 2026-08-21T17:45:00Z
+
+Status: explicit mounted AoO is `DEFER — EVIDENCED`, not a core blocker. Exact per-unit engagement, counter, command, threat-hand, motion, and rule ownership has no narrow pair-wide arbitration seam; production remains absent/default-off and ordinary stock behavior remains intact. Focused harness `213/0` and Kingmaker assembly `250/0` prove the disposition. Separately, local reach checkpoint `4a703b9` is committed but the guarded helper stopped before push at its remote inspection with `SEC_E_NO_CREDENTIALS`; no direct or duplicate push is permitted. Safe offline work continues with basic-charge disposition; live reach qualification awaits guarded publication.
+
 ## Bounded mounted reach has no active blocker - 2026-08-21T17:30:00Z
 
 Status: `IN PROGRESS`; no critical blocker is active. The exact installed rider and Mammoth range seams are mapped and the additive schema-v42/v43 observation/validation layer is offline-green. It changes no production behavior and retains historical evidence. Fresh clean-package stationary rider/Mammoth RT/TB A/B plus non-mounted control A/B remain required before qualification. Explicit mounted-AoO and charge are still separate unqualified stretch contracts.
