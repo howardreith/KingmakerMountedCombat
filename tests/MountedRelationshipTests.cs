@@ -28,6 +28,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("relationship exception cleanup", ExceptionCleanup);
             runner.Run("relationship partial dismount continues best effort", PartialDismountContinuesBestEffort);
             runner.Run("relationship faulted cleanup can be retried idempotently", FaultedCleanupCanBeRetried);
+            runner.Run("relationship cleanup diagnostics retain bounded inner cause", CleanupDiagnosticsRetainBoundedInnerCause);
             runner.Run("command routing rewrites only active rider", CommandRoutingRewritesOnlyActiveRider);
             runner.Run("command routing suppresses only duplicate mount", CommandRoutingSuppressesOnlyDuplicateMount);
             runner.Run("cleanup trigger priority is deterministic", CleanupTriggerPriorityIsDeterministic);
@@ -230,6 +231,28 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(!retry.PresentationResidual && !retry.MovementAuthorityResidual, "Cleanup retry retained residue.");
             TestRunner.Equal(2, runtime.RestorePresentationCalls, "Cleanup retry did not reattempt only the retained presentation operation.");
             TestRunner.Equal(1, runtime.RestoreAuthorityCalls, "Already-restored movement authority was repeated during cleanup retry.");
+        }
+
+        private static void CleanupDiagnosticsRetainBoundedInnerCause()
+        {
+            var deepest = new InvalidOperationException("exact movement sub-operation failed");
+            Exception nested = deepest;
+            for (var index = 0; index < 9; index++)
+            {
+                nested = new InvalidOperationException("wrapper " + index, nested);
+            }
+            var runtime = new FakeRuntime { RestoreAuthorityException = nested };
+            var coordinator = Mounted(runtime);
+
+            var result = coordinator.Dismount(CleanupTrigger.Incapacitated);
+
+            TestRunner.Equal(RelationshipState.Faulted, result.State, "Nested cleanup failure did not retain a retryable fault.");
+            TestRunner.True(result.Errors[0].StartsWith("RestoreMovementAuthority: InvalidOperationException: wrapper 8 <- InvalidOperationException: wrapper 7", StringComparison.Ordinal),
+                "Cleanup diagnostics lost the ordered outer and inner exception identities.");
+            TestRunner.True(result.Errors[0].EndsWith("additional inner exceptions omitted", StringComparison.Ordinal),
+                "Cleanup diagnostics did not enforce the bounded inner-exception limit.");
+            TestRunner.True(!result.Errors[0].Contains("exact movement sub-operation failed"),
+                "Cleanup diagnostics exceeded the bounded inner-exception limit.");
         }
 
         private static void CommandRoutingRewritesOnlyActiveRider()
@@ -1215,6 +1238,7 @@ namespace KingmakerMountedCombat.Tests
             public int RestorePresentationFailuresRemaining { get; set; }
             public CleanupTrigger? LastRestoreTrigger { get; private set; }
             public Action OnAcquire { get; set; }
+            public Exception RestoreAuthorityException { get; set; }
 
             public void AcquireMovementAuthority(MountedPair pair)
             {
@@ -1243,6 +1267,7 @@ namespace KingmakerMountedCombat.Tests
             {
                 RestoreAuthorityCalls++;
                 LastRestoreTrigger = trigger;
+                if (RestoreAuthorityException != null) { throw RestoreAuthorityException; }
             }
         }
     }

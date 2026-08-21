@@ -1,5 +1,9 @@
 # Autonomous blockers
 
+## Schema-v7 outer error confirmed; wrapped cause must be retained - 2026-08-21T06:07:37Z
+
+Run `20260821T055657Z-rider-native-incapacitation-probe-v7` is immutable uncredited `FAIL 47/2`, with exact audit-before-read. It confirms the first cleanup failure is `RestoreMovementAuthority: InvalidOperationException: Best-effort movement-authority restoration encountered residue`, but the coordinator discarded that exception's inner cause. The observation-only follow-up retains a bounded eight-level cause chain; no behavior changes until a fresh process names the failing restoration sub-operation. This remains attributable diagnostic work, not a safety blocker.
+
 ## Native callback passes; first cleanup fault is being diagnosed - 2026-08-21T05:16:00Z
 
 Schema-v6 probe `20260821T050300Z-rider-native-incapacitation-probe-v6` is immutable uncredited `FAIL 47/2`, with exact audit-before-read. It proves `Conscious -> Unconscious`, then stock recovery `Unconscious -> Conscious`, but the exact native cleanup delivery entered `Faulted` before the ordinary retry reached clean `Unmounted`. Schema v7 adds only the missing first-transition cleanup error list and coherent failed-evidence validation. This is not a safety blocker; no behavioral cause or repair is claimed until the exact error is observed.

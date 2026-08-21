@@ -1,5 +1,12 @@
 # Mounted Combat journal
 
+## 2026-08-21T06:07:37Z - schema v7 confirms movement restore fault; inner cause was truncated
+
+- Published commit/package/manifest/DLL/MVID are `fc0afcb48a7be16d13ca8af7f87108b079405bf8` / `943400e754c2d1c074d7a96109a504ff4547027b1756177c26f54d5e906f532b` / `9d4371d2b7a9e3c74ba61e3a0352655ddcdd768a24d00a57b6420f731c90ecf4` / `ad431a2e408dd8fb5d7167a364d260c60a552062f7bd92944e2e3b830f3655ee` / `65724302-effa-4bc0-9b72-a9129ff4e52b`. Stable suite snapshot is `669a0191a3d7f3241e64d552f324b8a23cc6409e8260a9436e86e03474805ba8`; RT/TB WhatIf and independent audits passed.
+- `20260821T055657Z-rider-native-incapacitation-probe-v7` is immutable uncredited `FAIL 47/2`; immediate audit `20260821T060200Z-rider-native-incapacitation-probe-v7-audit` passed before read. Runtime/game/lifecycle hashes are `b573740dbd2e8c396ae2b0f8d0b307d4cd1c9a98abc2adb761655496134c06a9` / `cc6ee456f5b5c6ebaa2ce0657940d44433776f6cdf06247267e8cc500b02165d` / `946ff20d9a988ae450f6942202ec3ea7962099aa9857cdce6d98732b9d6a6571`.
+- Exact first error is `RestoreMovementAuthority: InvalidOperationException: Best-effort movement-authority restoration encountered residue.` The coordinator did not retain the wrapper's inner cause. Current observation-only work preserves at most eight ordered exception identities/messages with an explicit truncation marker and deterministic regression; it changes no restoration behavior. Next: gates/publication/package/suite/WhatIf and one fresh probe before any behavioral repair.
+- Complete follow-up gates pass source/component/visual/harness/assembly `21/214/17/203/255`, Release build, PowerShell/JSON parsers `26/0` / `7/0`, diff, and prohibited-payload checks. Dirty-build DLL SHA-256/MVID are `4dc48fc8c4f8c2ff98bae233873ad825e0499004e693c723d234e174fbada0a1` / `8d3d6575-799e-43bc-b0db-c51348c6d7ab`, not package identity.
+
 ## 2026-08-21T05:16:00Z - schema v6 proves unconsciousness and exposes first-cleanup fault
 
 - Clean commit/package/manifest/DLL/MVID are `d602f77105d5edc867d5073cf119358e574d3422` / `29834c6d304b5047835a7b4e3cb35c097ec7e70d78eda1e0d6e716f0b1cd6726` / `65b7d8871402ad7a14503f910af6deb533964234eb5c4c694033696416dd4d04` / `85fa1bfff199f57b156b10d64dfd618b89fdbd92557ddc5491bdb414ab93e7b1` / `62c9d566-edad-431f-92a8-42b721d6172c`; suite snapshot `0127370c3a419b08fb3464a97f55ce35b319a18bcdabcd912e294ca3d41e1471`. RT/TB WhatIf and independent audits passed.

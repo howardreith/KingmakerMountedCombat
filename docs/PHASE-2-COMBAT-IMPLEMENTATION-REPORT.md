@@ -2,6 +2,8 @@
 
 Status: IN PROGRESS
 
+Schema-v7 runtime narrows the first fault to `RestoreMovementAuthority`, whose wrapper reports best-effort restoration residue. The coordinator previously emitted only the outer exception and discarded its inner cause. The current follow-up changes diagnostics only by retaining a bounded ordered cause chain; it does not alter movement, placement, cleanup, or lifecycle behavior.
+
 Schema-v6 runtime now proves the first native rider callback is exactly `Conscious -> Unconscious`, followed by stock `Unconscious -> Conscious` recovery. The first callback's cleanup entered `Faulted` and the ordinary retry later reached `Unmounted`, so run `20260821T050300Z-rider-native-incapacitation-probe-v6` remains uncredited `47/2`. Schema v7 adds only cleanup-error capture to the bounded lifecycle ledger and failed-evidence protocol; no cleanup behavior changes until that error is observed.
 
 The first native rider process is preserved uncredited at game `44/1`; independent restoration passed before inspection. Public `Damage=46` was issued against HP/Constitution `45/11`, but schema v4 timed out without a captured life transition or native delivery and did not retain sufficient raw post-mutation/controller-eligibility evidence.
