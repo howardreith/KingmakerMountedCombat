@@ -16,6 +16,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("active mounted command suppresses only exact-pair stock opportunity attacks", SuppressesOnlyExactPairOpportunityAttacks);
             runner.Run("mounted combat transaction bounds target repaths", BoundsRepaths);
             runner.Run("mounted combat transaction cancellation is idempotent", CancellationIsIdempotent);
+            runner.Run("mounted combat target invalidation cancels only the exact pre-child transaction", TargetInvalidationCancelsOnlyExactPreChildTransaction);
             runner.Run("mounted combat transaction requires exact target identity", RequiresExactTarget);
             runner.Run("mounted combat range uses Mammoth origin and exact tolerance", RangeBoundary);
             runner.Run("mounted combat range rejects invalid measurements", RejectsInvalidRange);
@@ -154,6 +155,44 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(transaction.Cancel("manual stop"), "Active transaction did not cancel.");
             TestRunner.True(!transaction.Cancel("second stop"), "Cancellation was not idempotent.");
             TestRunner.Equal("manual stop", transaction.TerminalReason, "First cancellation reason was overwritten.");
+        }
+
+        private static void TargetInvalidationCancelsOnlyExactPreChildTransaction()
+        {
+            var exact = TargetedTransaction(true);
+            TestRunner.True(
+                exact.CancelTargetInvalidationBeforeChildAttack("target-1"),
+                "Exact pre-child target invalidation did not cancel.");
+            TestRunner.Equal(
+                MountedCombatTransactionState.Cancelled,
+                exact.State,
+                "Exact pre-child target invalidation did not use cancellation semantics.");
+            TestRunner.Equal(
+                MountedCombatTransaction.TargetInvalidatedBeforeChildAttackReason,
+                exact.TerminalReason,
+                "Exact pre-child target invalidation did not preserve its bounded terminal reason.");
+            TestRunner.True(
+                !exact.CancelTargetInvalidationBeforeChildAttack("target-1"),
+                "Exact pre-child target invalidation was not idempotent.");
+
+            var substituted = TargetedTransaction(true);
+            TestRunner.True(
+                !substituted.CancelTargetInvalidationBeforeChildAttack("target-2"),
+                "A substituted target cancelled the mounted transaction.");
+            TestRunner.Equal(
+                MountedCombatTransactionState.Approaching,
+                substituted.State,
+                "A rejected substituted target changed transaction state.");
+
+            var started = TargetedTransaction(false);
+            TestRunner.True(started.TryStartSingleAttack("target-1"), "Exact child attack did not start.");
+            TestRunner.True(
+                !started.CancelTargetInvalidationBeforeChildAttack("target-1"),
+                "Post-child target invalidation cancelled the native attack lifecycle.");
+            TestRunner.Equal(
+                MountedCombatTransactionState.Attacking,
+                started.State,
+                "Rejected post-child invalidation changed transaction state.");
         }
 
         private static void RequiresExactTarget()

@@ -107,6 +107,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool relationshipClean;
         private bool combatCleared;
         private bool agentsRestored;
+        private MountedPairAttackOutcome outcomeAtExerciseStart;
         private ControlObservations observations;
 
         public RuntimeCombatControlScenarioEngine(
@@ -408,6 +409,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
 
             CaptureResourcesBefore();
+            outcomeAtExerciseStart = combat.LastOutcome;
             ruleProbe = new MountedCombatRuleProbe();
             ruleProbe.Arm(rider, mount, rider, target, null);
 
@@ -472,7 +474,8 @@ namespace KingmakerMountedCombat.Diagnostics
             observations.MountInvalidRejected = !mountClick &&
                 string.Equals(combat.LastFeedback, "Choose one living, visible enemy.", StringComparison.Ordinal);
             observations.ArmedCleared = combat.ArmedAction == MountedCombatActionKind.None;
-            observations.ActiveCommandAbsent = !combat.HasActiveCommand && combat.LastOutcome == null;
+            observations.ActiveCommandAbsent = !combat.HasActiveCommand &&
+                ReferenceEquals(combat.LastOutcome, outcomeAtExerciseStart);
             CaptureResourcesAfter();
             observations.ResourcesUnchanged = ResourcesUnchanged();
             assertions.Check(observations.RiderArmed && observations.RiderInvalidRejected &&
@@ -495,7 +498,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 rider.View.AgentASP.AvoidanceDisabled == riderAvoidanceInitiallyDisabled;
             observations.MountAgentUnchangedNonMounted = mount.View.AgentASP.enabled == mountAgentInitiallyEnabled &&
                 mount.View.AgentASP.AvoidanceDisabled == mountAvoidanceInitiallyDisabled;
-            observations.ActiveCommandAbsent = !combat.HasActiveCommand && combat.LastOutcome == null;
+            observations.ActiveCommandAbsent = !combat.HasActiveCommand &&
+                ReferenceEquals(combat.LastOutcome, outcomeAtExerciseStart);
             CaptureResourcesAfter();
             observations.ResourcesUnchanged = ResourcesUnchanged();
             assertions.Check(observations.CombatActionsHidden && observations.ArmRejectedUnmounted &&
@@ -521,7 +525,12 @@ namespace KingmakerMountedCombat.Diagnostics
 
             CaptureResourcesAfter();
             observations.CommandInterrupted = string.Equals(outcome.Result, "Interrupt", StringComparison.Ordinal) &&
-                string.Equals(outcome.TerminalReason, "Interrupt", StringComparison.Ordinal);
+                string.Equals(
+                    outcome.TerminalReason,
+                    IsTargetDeathRow
+                        ? MountedCombatTransaction.TargetInvalidatedBeforeChildAttackReason
+                        : "Interrupt",
+                    StringComparison.Ordinal);
             observations.ChildAttackStartCount = outcome.ChildAttackStartCount;
             observations.AttackRuleCount = ruleProbe?.AttackRuleCount ?? 0;
             observations.AttackRollCount = ruleProbe?.AttackRollCount ?? 0;

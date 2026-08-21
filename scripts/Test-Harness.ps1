@@ -5026,6 +5026,7 @@ try {
 
     Invoke-HarnessTest 'core combat-control source is exact ordered production-path and residue-closed' {
         $controlSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeCombatControlScenarioEngine.cs'))
+        $commandSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPairAttackCommand.cs'))
         $hostSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeAutomationHost.cs'))
         $projectSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\KingmakerMountedCombat.csproj'))
         $rowsIndex = $controlSource.IndexOf('private static readonly string[] Rows', [StringComparison]::Ordinal)
@@ -5041,6 +5042,13 @@ try {
         Assert-Test ($controlSource.Contains('target.Damage = observations.TargetDamageRequested;') -and
             $controlSource.Contains('relationship.Dismount(CleanupTrigger.Exception)') -and
             $controlSource.Contains('combat.Cancel("control cleanup repeat")')) 'target-death or repeated exception cleanup does not use the bounded production seam'
+        $targetInvalidationIndex = $commandSource.IndexOf('TryInterruptForTargetInvalidationBeforeChildAttack()', [StringComparison]::Ordinal)
+        $livePairIndex = $commandSource.IndexOf('RequireLiveExactPair();', $targetInvalidationIndex, [StringComparison]::Ordinal)
+        Assert-Test ($targetInvalidationIndex -ge 0 -and $livePairIndex -gt $targetInvalidationIndex -and
+            $commandSource.Contains('transaction.CancelTargetInvalidationBeforeChildAttack(attackTarget.UniqueId)') -and
+            $commandSource.Contains('transaction.ChildAttackStartCount != 0')) 'pre-child target invalidation does not cancel before generic exact-pair fault handling'
+        Assert-Test ($controlSource.Contains('outcomeAtExerciseStart = combat.LastOutcome;') -and
+            $controlSource.Contains('ReferenceEquals(combat.LastOutcome, outcomeAtExerciseStart)')) 'non-mounted control does not distinguish unchanged historical outcome evidence from a new command outcome'
         Assert-Test ($controlSource.Contains('observations.AttackRuleCount == 0') -and
             $controlSource.Contains('observations.AttackRollCount == 0') -and
             $controlSource.Contains('observations.DamageRuleCount == 0') -and

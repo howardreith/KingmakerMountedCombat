@@ -238,6 +238,10 @@ namespace KingmakerMountedCombat.Integration
         {
             try
             {
+                if (TryInterruptForTargetInvalidationBeforeChildAttack())
+                {
+                    return;
+                }
                 RequireLiveExactPair();
                 if (TimeSinceStart > MaximumElapsedSeconds)
                 {
@@ -297,6 +301,33 @@ namespace KingmakerMountedCombat.Integration
                     Interrupt();
                 }
             }
+        }
+
+        private bool TryInterruptForTargetInvalidationBeforeChildAttack()
+        {
+            if (transaction.ChildAttackStartCount != 0 || attackTarget == null)
+            {
+                return false;
+            }
+
+            var targetState = attackTarget.Descriptor?.State;
+            var targetInvalid = !attackTarget.IsInState || targetState == null ||
+                !targetState.IsConscious || targetState.IsFinallyDead ||
+                actionActor != null &&
+                    (!actionActor.IsEnemy(attackTarget) || !actionActor.CanAttack(attackTarget));
+            if (!targetInvalid)
+            {
+                return false;
+            }
+
+            if (!transaction.CancelTargetInvalidationBeforeChildAttack(attackTarget.UniqueId))
+            {
+                throw new InvalidOperationException(
+                    "Mounted pair transaction rejected exact pre-child target invalidation.");
+            }
+
+            Interrupt();
+            return true;
         }
 
         protected override ResultType OnAction()

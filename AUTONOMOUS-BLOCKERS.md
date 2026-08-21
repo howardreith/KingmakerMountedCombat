@@ -1,5 +1,9 @@
 # Autonomous blockers
 
+## Core combat-control first process repaired narrowly; fresh A/B required - 2026-08-21T10:02:43Z
+
+Status: `IN PROGRESS`; attributable runtime/test defects with exact restoration, not a safety or architecture blocker. Run `20260821T100300Z-core-combat-controls-passA` is immutable uncredited `FAIL 76/2`, and its independent audit passed before evidence read. Exact target death, zero child/rule/resource chain, valid-pair retention, non-mounted stock delegation, and all cleanup gates are observed. The two failures are generic fault classification before target-death Interrupt and an incorrect requirement that the historical outcome slot be empty. The narrow repair adds exact-target/pre-child cancellation plus Interrupt and treats unchanged historical outcome identity as inert. Full offline totals are `21/217/17/207/255`; publication, clean packaging, new suite/WhatIf, and fresh A/B remain required.
+
 ## Core combat controls offline-green; runtime A/B pending - 2026-08-21T09:25:01Z
 
 Status: `IN PROGRESS`; no critical blocker is active. The exact four-row invalid-target/target-death/exception-cleanup/non-mounted control suite is implemented and passes complete offline gates `21/216/17/207/255` plus parsers/diff/prohibited checks. Its validator is separate from qualified attack schemas and requires pre-child zero-rule/resource behavior plus residue-free cleanup. Fresh clean-package suite admission, WhatIf, and A/B remain required; no runtime PASS is claimed.

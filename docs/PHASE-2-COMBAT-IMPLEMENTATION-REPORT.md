@@ -2,6 +2,12 @@
 
 Status: IN PROGRESS
 
+## Core control first-process repair (2026-08-21)
+
+The first live four-row process, `20260821T100300Z-core-combat-controls-passA`, is preserved uncredited at `76/2`; exact independent external restoration passed before its evidence was read. Invalid null targets and repeated exception cleanup pass. Target death produces the intended exact lethal transition, zero child/rule/resource chain, retained pair, and full cleanup, but generic liveness faulting overwrote the expected interruption reason. The non-mounted row records hidden actions, rejected arming, `NotHandled`, unchanged agents/resources, and no rule chain, but the test conflated an unchanged prior `LastOutcome` with active work.
+
+Production now recognizes only an invalid exact accepted target while the transaction has zero child starts, records a bounded cancellation reason, and issues native Interrupt before generic pair-liveness faulting. It does not touch post-child lifecycle or another target/command. Diagnostics snapshot the outcome identity before each control exercise and require it to remain unchanged when proving no new command. Full offline tests pass `21/217/17/207/255`; a fresh clean package and restarted same-suite A/B remain required.
+
 ## Core control harness (2026-08-21)
 
 An additive `RuntimeCombatControlScenarioEngine` now owns the four remaining core rider controls without sharing or weakening the qualified attack evidence schemas. It runs exact ordered invalid-null-target, active-command target-death, repeated exception-cleanup, and unmounted stock-delegation rows. Targets are placed outside the measured pair range so target death and cleanup occur after the wrapper is accepted but before a child starts. The compact evidence contract requires unchanged rider/Mammoth action resources, zero child or Rulebook chains, stable pair identity with unique disposable targets, exact production paths, and complete target/combat/agent/pause/relationship cleanup. Runtime protocol, guarded launcher allowlists, game/final-result row allowlists, artifact validation, host disposal, and deterministic mutation regressions are wired. This checkpoint makes no runtime qualification claim.

@@ -1,5 +1,13 @@
 # Phase 2 qualification
 
+## Core combat-control first-process repair checkpoint (2026-08-21)
+
+Status: `IN PROGRESS`; no safety, architecture, or presentation blocker is active.
+
+Exact package `7045cce712a7286e0b943904d241f33537b238ffc3bee53267bc468333d50aa7` from clean published `c8994d5b6bccfe3b4944b0c11581ffff652045b2` and suite snapshot `080aa600afebb4fe8c8fb7b0f6f9ef70ee37a9c43efc7091694e731f2d61869f` passed separate RT/TB WhatIf gates and audits. Process `20260821T100300Z-core-combat-controls-passA` is immutable uncredited `FAIL 76/2`; the independent audit ran before evidence inspection and re-proved save digest `99b21a2ca3864dbaac7fac80dde5e382df4b6ab3738f59feccd8117bab9f4c89`, Mods digest `1f724e85026dd868b3f8bad795f159c969f9ac126e9a55a41c82a78fc5f52b0a`, immutable Baseline, restored Working, and zero process/lock/sentinel/deployment residue.
+
+Invalid-target and repeated exception-cleanup rows pass `17/0` and `21/0`. Target-death `22/1` and non-mounted `16/1` fail only their exact command-terminal/history gates while proving every other required zero-chain/resource/cleanup observation. The repair converts only exact pre-child target invalidation from generic transaction fault to bounded cancellation plus native Interrupt and treats an unchanged historical outcome as inert. Component regression covers exact/wrong target, idempotence, and post-child rejection; source-order regression requires cancellation before generic liveness. Complete offline test totals are source/component/visual/harness/assembly `21/217/17/207/255`; runtime credit requires a new clean package/suite and fresh A/B.
+
 ## Core combat-control implementation checkpoint (2026-08-21)
 
 The remaining invalid-target, target-death, cleanup-stress, and non-mounted-control claims now have one isolated four-row runtime engine and a strict schema-v1 validator. Deterministic coverage accepts only exact ordered identities and rejects missing, extra, reordered, cross-identity, production-path, mounted-state, behavior, rule-count, resource, cleanup-trigger, residue, and subresult contradictions. The engine uses the exact production controller seams, public disposable-target `Damage`, and repeated `Dismount(Exception)` only; it changes no qualified attack, range, action-cost, AoO, charge, save, or Mods behavior. Offline implementation is PASS, but runtime status remains `IN PROGRESS` pending fresh clean-package same-suite A/B and audit-before-read.

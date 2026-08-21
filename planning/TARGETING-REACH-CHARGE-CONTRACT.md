@@ -1,5 +1,9 @@
 # Targeting, reach, and charge contract
 
+## Exact pre-child target invalidation repair (2026-08-21)
+
+The first control-suite process is immutable uncredited `FAIL 76/2` with an exact audit-before-read. Its target-death row proves the exact disposable target became dead after public lethal `Damage`, the valid pair remained mounted, no child/rule/resource chain started, and all state restored. Source reconciliation shows generic `RequireLiveExactPair` faulted the transaction before Interrupt could retain target-invalidation semantics. The repair checks only the already accepted exact target before child start, cancels with `target invalidated before child attack`, and then interrupts; wrong target, post-child target state, rider/Mammoth liveness, hostility outside the exact command, and unrelated commands retain existing behavior. This changes no range, reach, engagement, opportunity, or charge contract. Fresh A/B remains required.
+
 ## Core target-isolation controls (2026-08-21)
 
 The additive `combat-core-control-suite` places its disposable hostile target at the existing diagnostic approach distance outside the measured Mammoth-origin pair radius. Null rider/Mammoth target clicks must fail closed through the production click path; public lethal target `Damage` must interrupt an already accepted out-of-range rider command before child admission while preserving the valid pair; repeated exception cleanup must terminate that command without a rule chain; and an unmounted pair must return `NotHandled` so stock click routing remains authoritative. All four rows require unique exact target identity, zero attack/roll/damage/AoO/charge evidence, unchanged resources, and complete target/relationship restoration. This adds no reach, opportunity, engagement, or charge behavior and remains runtime-unqualified until fresh A/B.

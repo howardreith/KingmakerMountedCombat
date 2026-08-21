@@ -16,6 +16,8 @@ namespace KingmakerMountedCombat.Domain
     public sealed class MountedCombatTransaction
     {
         public const int MaximumRepaths = 4;
+        public const string TargetInvalidatedBeforeChildAttackReason =
+            "target invalidated before child attack";
 
         public MountedCombatTransactionState State { get; private set; }
 
@@ -117,6 +119,18 @@ namespace KingmakerMountedCombat.Domain
             State = MountedCombatTransactionState.Cancelled;
             TerminalReason = string.IsNullOrWhiteSpace(reason) ? "cancelled" : reason;
             return true;
+        }
+
+        public bool CancelTargetInvalidationBeforeChildAttack(string exactTargetId)
+        {
+            if (ChildAttackStartCount != 0 ||
+                string.IsNullOrWhiteSpace(exactTargetId) ||
+                !string.Equals(TargetId, exactTargetId, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            return Cancel(TargetInvalidatedBeforeChildAttackReason);
         }
 
         public bool Fault(string reason)
