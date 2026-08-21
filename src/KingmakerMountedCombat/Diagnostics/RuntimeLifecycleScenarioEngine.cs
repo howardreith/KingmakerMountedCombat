@@ -34,7 +34,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private const string PlayerActionClaimLimit =
             "Runtime player-action controller invocation; Unity OnGUI button delivery remains separately observed.";
         private const string NativeIncapacitationClaimLimit =
-            "Real UnitEntityData.Damage mutation followed by stock UnitLifeController/EventBus delivery; no direct life-state or lifecycle-handler invocation.";
+            "Real UnitEntityData.Damage mutation; stock UnitLifeController/EventBus delivery is claimed only when observed; no direct life-state or lifecycle-handler invocation.";
 
         private static readonly JsonSerializerSettings EvidenceJsonSettings = new JsonSerializerSettings
         {
@@ -1157,7 +1157,7 @@ namespace KingmakerMountedCombat.Diagnostics
             return new LifecycleEvidenceRecord
             {
                 SchemaVersion = IsNativeIncapacitationRow(currentRow ?? lastEvidenceRow)
-                    ? 4
+                    ? 5
                     : IsCombatLifecycleRow(currentRow ?? lastEvidenceRow) ? 3 : 2,
                 RunId = request.RunId,
                 Scenario = request.Scenario,
@@ -1241,7 +1241,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     : IsPlayerActionRow(row)
                         ? "player-action-controller-direct"
                         : (UsesLifecycleHandler(row) ? "lifecycle-handler-direct" : "relationship-service-direct"),
-                NativeDeliveryObserved = nativeIncapacitation,
+                NativeDeliveryObserved = nativeIncapacitation &&
+                    actorLifeTransition != null && actorLifeTransition.NativeDeliveryCount > 0,
                 ClaimLimit = nativeIncapacitation
                     ? NativeIncapacitationClaimLimit
                     : IsPlayerActionRow(row) ? PlayerActionClaimLimit : DirectInvocationClaimLimit
@@ -1645,7 +1646,11 @@ namespace KingmakerMountedCombat.Diagnostics
             public string LifeStateBefore { get; set; }
             public string LifeStateAfter { get; set; }
             public bool ConsciousBefore { get; set; }
+            public bool AwakeBefore { get; set; }
+            public bool InAwakeUnitsBefore { get; set; }
             public bool ConsciousAfter { get; set; }
+            public bool AwakeAfter { get; set; }
+            public bool InAwakeUnitsAfter { get; set; }
             public bool DeadAfter { get; set; }
             public bool FinallyDeadAfter { get; set; }
             public int DamageBefore { get; set; }
@@ -1667,7 +1672,11 @@ namespace KingmakerMountedCombat.Diagnostics
                     LifeStateBefore = state?.LifeState.ToString(),
                     LifeStateAfter = null,
                     ConsciousBefore = state != null && state.IsConscious,
+                    AwakeBefore = actor != null && actor.IsAwake,
+                    InAwakeUnitsBefore = actor != null && Game.Instance.State.AwakeUnits.Contains(actor),
                     ConsciousAfter = false,
+                    AwakeAfter = false,
+                    InAwakeUnitsAfter = false,
                     DeadAfter = false,
                     FinallyDeadAfter = false,
                     DamageBefore = actor?.Damage ?? 0,
@@ -1684,6 +1693,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 var state = actor?.Descriptor?.State;
                 LifeStateAfter = state?.LifeState.ToString();
                 ConsciousAfter = state != null && state.IsConscious;
+                AwakeAfter = actor != null && actor.IsAwake;
+                InAwakeUnitsAfter = actor != null && Game.Instance.State.AwakeUnits.Contains(actor);
                 DeadAfter = state != null && state.IsDead;
                 FinallyDeadAfter = state != null && state.IsFinallyDead;
                 DamageAfter = actor?.Damage ?? 0;
@@ -1729,12 +1740,12 @@ namespace KingmakerMountedCombat.Diagnostics
             var deliveries = lifecycle.SnapshotNativeDeliveries()
                 .Where(record => record.Sequence > lifecycleDeliveryBaselineSequence)
                 .ToArray();
+            actorLifeTransition.CaptureAfter(incapacitationActor, deliveries.Length);
             if (state.IsConscious || relationship.State != RelationshipState.Unmounted || deliveries.Length == 0)
             {
                 return;
             }
 
-            actorLifeTransition.CaptureAfter(incapacitationActor, deliveries.Length);
             lastCleanupTransition = relationship.LastTransition;
             CaptureBoundaryExercise(
                 actorLifeTransition.ActorRole,

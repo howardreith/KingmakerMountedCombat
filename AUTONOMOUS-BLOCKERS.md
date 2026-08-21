@@ -1,5 +1,11 @@
 # Autonomous blockers
 
+## Native rider Pass A isolates an observation gap - 2026-08-21T03:39:00Z
+
+Status: `IN PROGRESS`; attributable diagnostic/runtime failure with exact restoration, not a critical safety or architecture blocker.
+
+`20260821T032700Z-rider-native-incapacitation-passA` is uncredited game `FAIL 44/1`. Public rider damage `46` was requested from `0/45` with Constitution `11`, but no transition/delivery was observed before timeout. The combined transaction is durably `restored`; a separate full suite audit passed before evidence inspection. Installed `BaseUnitController.Tick` restricts `UnitLifeController` to awake-list units, while schema v4 recorded neither current damage nor awake eligibility and could not finalize structured failed evidence. Schema v5 adds only those observations and truthful delivery-claim semantics. Offline totals are `21/213/17/203/255`, parsers `26/0` and `7/0`, and the preserved schema-v4 failed game now validates `33/0 + 34/0`. Fresh diagnostic evidence is required before altering behavior; no blocker is active.
+
 ## Native incapacitation protocol ready for runtime - 2026-08-21T03:13:06Z
 
 Status: `IN PROGRESS`; no critical blocker is active.

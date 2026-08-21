@@ -366,7 +366,7 @@ function New-TestLifecycleEvidenceRecord {
     )
     $expectedTrigger = Get-KmcLifecycleExpectedCleanupTrigger $Row
     $invocationPath = Get-KmcLifecycleInvocationPath $Row
-    $claimLimit = Get-KmcLifecycleClaimLimit $Row
+    $claimLimit = Get-KmcLifecycleClaimLimit $Row $(if($Row -cin (Get-KmcNativeIncapacitationRuntimeRows)){5}else{0})
     $cleanup = if ($WithCleanup) {
         [ordered]@{trigger=$expectedTrigger;result='PASS';succeeded=$true;state='Unmounted';movementAuthorityResidual=$false;presentationResidual=$false;errors=@()}
     } else {
@@ -381,12 +381,12 @@ function New-TestLifecycleEvidenceRecord {
     $isNativeIncapacitation=@(Get-KmcNativeIncapacitationRuntimeRows | Where-Object { $_ -ceq $Row }).Count -eq 1
     $isCombatLifecycle=$isNativeIncapacitation -or @(Get-KmcCombatLifecycleRuntimeRows | Where-Object { $_ -ceq $Row }).Count -eq 1
     $record=[ordered]@{
-        schemaVersion=$(if($isNativeIncapacitation){4}elseif($isCombatLifecycle){3}else{2});runId=[string]$Request.runId;scenario=[string]$Request.scenario;row=$Row;phase=$Phase
+        schemaVersion=$(if($isNativeIncapacitation){5}elseif($isCombatLifecycle){3}else{2});runId=[string]$Request.runId;scenario=[string]$Request.scenario;row=$Row;phase=$Phase
         utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o');branch=[string]$Request.branch;commit=[string]$Request.commit
         productVersion=[string]$Request.productVersion;dllSha256=[string]$Request.dllSha256;dllMvid=[string]$Request.dllMvid
         sequence=$Sequence;frame=$frame;relationshipState=$RelationshipState
         triggerScope=[ordered]@{
-            expectedCleanupTrigger=$expectedTrigger;invocationPath=$invocationPath;nativeDeliveryObserved=$isNativeIncapacitation
+            expectedCleanupTrigger=$expectedTrigger;invocationPath=$invocationPath;nativeDeliveryObserved=($isNativeIncapacitation -and $Phase -cin @('cleanup-next-frame','row-finish','engine-finalization'))
             claimLimit=$claimLimit
         }
         rowStatus=$RowStatus
@@ -434,7 +434,8 @@ function New-TestLifecycleEvidenceRecord {
             actorRole=$role;actorId=$(if($role -ceq 'rider'){'rider-id'}else{'mount-id'})
             mutationProperty='UnitEntityData.Damage';mutationIssued=$observed
             lifeStateBefore='Conscious';lifeStateAfter=$(if($observed){'Unconscious'}else{$null})
-            consciousBefore=$true;consciousAfter=$false;deadAfter=$false;finallyDeadAfter=$false
+            consciousBefore=$true;awakeBefore=$true;inAwakeUnitsBefore=$true
+            consciousAfter=$false;awakeAfter=$true;inAwakeUnitsAfter=$true;deadAfter=$false;finallyDeadAfter=$false
             damageBefore=0;requestedDamage=101;damageAfter=$(if($observed){101}else{0})
             hitPoints=100;constitution=14;nativeDeliveryCount=$(if($observed){1}else{0})
         }
@@ -4331,10 +4332,10 @@ try {
             $subscriberSource.Contains('Cleanup(NativeLifecycleBoundary.PartyRemoved') -and
             $subscriberSource.Contains('Cleanup(NativeLifecycleBoundary.ViewDetachedOrUnitDestroyed')) 'pair invalidation is missing an exact fail-closed cleanup boundary'
         Assert-Test ($engineSource.Contains('"combat-lifecycle-suite"') -and
-            $engineSource.Contains('? 4') -and
+            $engineSource.Contains('? 5') -and
             $engineSource.Contains(': IsCombatLifecycleRow(currentRow ?? lastEvidenceRow) ? 3 : 2') -and
             $engineSource.Contains('BoundaryExercise = IsCombatLifecycleRow') -and
-            $engineSource.Contains('UnitEntityData.Damage -> UnitLifeController.TickOnUnit -> IUnitLifeStateChanged.HandleUnitLifeStateChanged')) 'combat lifecycle diagnostics do not preserve schema-v2/v3 history while binding native schema-v4 evidence'
+            $engineSource.Contains('UnitEntityData.Damage -> UnitLifeController.TickOnUnit -> IUnitLifeStateChanged.HandleUnitLifeStateChanged')) 'combat lifecycle diagnostics do not preserve schema-v2/v3/v4 history while binding native schema-v5 evidence'
     }
 
     Invoke-HarnessTest 'mounted rider grounding repair is exact-token, exact-pair, and runtime-probed' {
@@ -6268,6 +6269,27 @@ try {
             $candidate=Copy-TestJsonValue $records
             $candidate[1].actorLifeTransition.mutationIssued=$true
             Assert-TestLifecycleEvidenceRejected $nativeRequest $candidate @($subresult) 'native incapacitation accepted mutation before the mounted evidence boundary'
+
+            $failed=Copy-TestJsonValue $records
+            foreach($failedRecord in @($failed|Where-Object{[string]$_.phase -cin @('cleanup-next-frame','row-finish','engine-finalization')})) {
+                $failedRecord.actorLifeTransition.lifeStateAfter='Conscious'
+                $failedRecord.actorLifeTransition.consciousAfter=$true
+                $failedRecord.actorLifeTransition.damageAfter=101
+                $failedRecord.actorLifeTransition.nativeDeliveryCount=0
+                $failedRecord.triggerScope.nativeDeliveryObserved=$false
+                $failedRecord.boundaryExercise=New-TestCombatLifecycleBoundaryExercise -Row $row -Observed:$false
+                $failedRecord.cleanup.trigger='Exception'
+            }
+            $failed[3].rowStatus='FAIL';$failed[3].assertionPassCount=44;$failed[3].assertionFailCount=1
+            $failed[3].recordErrors=@('Lifecycle row exceeded its 15 second monotonic deadline.')
+            $failed[4].recordErrors=@('native probe timeout')
+            $failedSubresult=[pscustomobject][ordered]@{
+                name=$row;status='FAIL';assertionPassCount=44;assertionFailCount=1
+                errors=@('Lifecycle row exceeded its 15 second monotonic deadline.')
+            }
+            [void](Write-TestLifecycleEvidence -EvidenceRoot $nativeRequest.evidenceRoot -Request $nativeRequest -Records $failed)
+            $failedManifest=Read-KmcJson (Join-Path $nativeRequest.evidenceRoot 'runtime-artifacts.json')
+            Assert-KmcLifecycleScenarioEvidence -Request $nativeRequest -Manifest $failedManifest -Status 'FAIL' -SubscenarioResults @($failedSubresult)
         }
     }
 

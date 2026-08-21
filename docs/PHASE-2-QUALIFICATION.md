@@ -1,5 +1,11 @@
 # Phase 2 qualification
 
+## Native incapacitation first-process diagnostic (2026-08-21)
+
+Status: `IN PROGRESS`; process `20260821T032700Z-rider-native-incapacitation-passA` is immutable uncredited `FAIL 44/1`, with exact external restoration independently audited before evidence inspection.
+
+The rider began Conscious at damage/HP/Constitution `0/45/11`; the diagnostic issued public `Damage=46`, but no native transition was observed within 15 seconds. Schema v4 captured the issued request but not post-mutation raw damage or controller eligibility, then rejected its own incomplete failed evidence while the launcher had already restored exact suite state. Installed `BaseUnitController.Tick` proves `UnitLifeController` receives only awake-list units. Additive schema v5 is observation-only: it captures current damage/life state, `IsAwake`, membership in `Game.Instance.State.AwakeUnits`, and delivery count every wait frame; permits exact structured FAIL evidence; and sets the native-delivery claim only when a delivery exists. No wake, forced controller tick, handler call, life-state setter, or threshold change is implemented. Fresh clean-package diagnostic evidence is required before choosing a repair.
+
 ## Native incapacitation implementation checkpoint (2026-08-21)
 
 Status: `IN PROGRESS`; no native-incapacitation runtime PASS is claimed yet.
