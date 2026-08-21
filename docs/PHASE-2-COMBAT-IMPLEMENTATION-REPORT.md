@@ -1,6 +1,6 @@
 # Phase 2 combat implementation report
 
-Status: IN PROGRESS
+Status: `PRIVATE ALPHA COMPLETE — PLAYTEST HANDOFF`
 
 ## Bounded reach runtime qualification complete (2026-08-21)
 

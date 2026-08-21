@@ -1,21 +1,21 @@
 # Private alpha playtest
 
-Status: `IN PROGRESS — DO NOT INSTALL UNTIL FINAL ARTIFACT IDENTITY IS RECORDED`
+Status: `PRIVATE ALPHA COMPLETE — PLAYTEST HANDOFF`
 
-This is a private diagnostic playtest handoff, not a public release. The final qualification checkpoint must replace the pending artifact fields below and mark this document `PRIVATE ALPHA COMPLETE — PLAYTEST HANDOFF` before installation.
+This is a private diagnostic playtest handoff, not a public release. Install only the exact artifact identity below.
 
 ## Final artifact identity
 
 | Field | Required final value |
 |---|---|
 | Branch | `codex/mounted-combat-phase2-alpha` |
-| Commit | pending final guarded-published SHA |
+| Commit | `eae1abd554e67f8e864571a97d48f479a75304af` |
 | Product version | `0.1.0-phase2b-dev.1` |
-| Package | pending final absolute package path |
-| Package SHA-256 | pending |
-| Manifest SHA-256 | pending |
-| DLL SHA-256 | pending |
-| DLL MVID | pending |
+| Package | `C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-phase2b-dev.1-diagnostic.zip` |
+| Package SHA-256 | `6291a001513b490bf111eb34866634bd86c55183ba789d3dfc531854790e78b0` |
+| Manifest SHA-256 | `16d01881350b2ce6172aecf27d47b630588d249ca3a199e1eb27f643e2c14cf4` |
+| DLL SHA-256 | `9f715f4ddd4e086cee8f2aa3aaa4e746401cec113fc529809d1376eab1caf6c1` |
+| DLL MVID | `292982ba-6486-4807-b4fa-c15dc0558266` |
 
 Do not substitute an earlier diagnostic package. The ZIP, sidecar manifest, commit, DLL hash, and MVID are one inseparable identity.
 

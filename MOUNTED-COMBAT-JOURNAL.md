@@ -1,5 +1,12 @@
 # Mounted Combat journal
 
+## 2026-08-21T23:08:00Z - PRIVATE ALPHA COMPLETE — PLAYTEST HANDOFF
+
+- Qualification checkpoint `eae1abd554e67f8e864571a97d48f479a75304af` was committed after full gates and guarded-published with exact local/remote equality. The helper's PowerShell `NativeCommandError` was ordinary Git progress; its own remote re-read proved equality, so no duplicate push was issued.
+- The prior runtime-qualified `1fa5c2e` package was preserved immutably under `artifacts\historical`. A fresh clean qualification package was built and validated `10/0`: `C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-phase2b-dev.1-diagnostic.zip`; package/manifest/DLL SHA-256 `6291a001513b490bf111eb34866634bd86c55183ba789d3dfc531854790e78b0` / `16d01881350b2ce6172aecf27d47b630588d249ca3a199e1eb27f643e2c14cf4` / `9f715f4ddd4e086cee8f2aa3aaa4e746401cec113fc529809d1376eab1caf6c1`; MVID `292982ba-6486-4807-b4fa-c15dc0558266`.
+- Final gates pass source/component/visual/harness/assembly `21/217/17/214/269`, parsers `26/0` / `7/0`, diff, and prohibited-payload checks. Package entries are exactly `Info.json` and `KingmakerMountedCombat.dll`. No foreign Mods, save, runtime evidence, proprietary payload, or dependency is shipped.
+- Core private-alpha behavior and bounded reach are qualified within the accepted Medium humanoid/Mammoth/one-handed profile. Explicit mounted AoO and basic charge remain `DEFER — EVIDENCED`. The playtest handoff and tailored non-authorizing Phase 3 draft are complete. No public release, merge to `main`, or Phase 3 implementation occurred.
+
 ## 2026-08-21T23:00:00Z - bounded reach and same-package controls qualify
 
 - Clean published runtime input was `1fa5c2e6e841f4025f36283fd5bba7ae94c23ba5`, package/manifest/DLL SHA-256 `a448bf8e1aa36163c6a30b3c0c116b0b5fce36eb84123d6ae3756be9537932be` / `6b09dd89a185de301e33e1a7277ae79f662f737270dd84634d623cbf917657ae` / `9f715f4ddd4e086cee8f2aa3aaa4e746401cec113fc529809d1376eab1caf6c1`, MVID `292982ba-6486-4807-b4fa-c15dc0558266`. Suite/snapshot were `20260821T181000Z-mounted-reach-suite1` / `3aea4cdf34a706ca207886d97fb2724be7f574732421edb33d7a8a229950a3e1`.

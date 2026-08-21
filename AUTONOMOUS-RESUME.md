@@ -1,5 +1,12 @@
 # Autonomous resume
 
+## Final resume checkpoint - 2026-08-21T23:08:00Z
+
+- Status: `PRIVATE ALPHA COMPLETE — PLAYTEST HANDOFF`. Core Phase 2 and bounded mounted reach are qualified for the exact supported profile. Explicit mounted AoO and basic charge are `DEFER — EVIDENCED`, absent/default-off. No public release, `main` merge, or Phase 3 implementation occurred.
+- The guarded-published qualification commit is `eae1abd554e67f8e864571a97d48f479a75304af`. Its clean package is `C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-phase2b-dev.1-diagnostic.zip`; package/manifest/DLL SHA-256 are `6291a001513b490bf111eb34866634bd86c55183ba789d3dfc531854790e78b0` / `16d01881350b2ce6172aecf27d47b630588d249ca3a199e1eb27f643e2c14cf4` / `9f715f4ddd4e086cee8f2aa3aaa4e746401cec113fc529809d1376eab1caf6c1`; DLL MVID is `292982ba-6486-4807-b4fa-c15dc0558266`; package validation is `10/0`.
+- Final qualification gates are source/component/visual/harness/assembly `21/217/17/214/269`, PowerShell/JSON parsers `26/0` / `7/0`, diff and prohibited-payload PASS. The final reach/control tranche is `658/0`, with exact audit-before-read restoration after every credited process. The package contains only `Info.json` and `KingmakerMountedCombat.dll`; Bag of Tricks, Kingmaker Buff Planner, saves, runtime evidence, and foreign payloads are absent.
+- `docs/PRIVATE-ALPHA-PLAYTEST.md` is the installation/test handoff. `docs/PHASE-3-EXPANSION-MISSION-DRAFT.md` is a tailored draft only and is not execution authority. Next action belongs to the human private-alpha playtester; any defect should return with the exact artifact identity, RT/TB mode, reproduction steps, log, and screenshot where relevant.
+
 ## Current resume checkpoint - 2026-08-21T23:00:00Z
 
 - Status is `IN PROGRESS` only for final handoff mechanics. Core private-alpha and bounded reach are qualified; explicit mounted AoO and charge are `DEFER — EVIDENCED`. Clean published runtime input remains local/upstream `1fa5c2e6e841f4025f36283fd5bba7ae94c23ba5`, version `0.1.0-phase2b-dev.1`, package/manifest/DLL SHA-256 `a448bf8e1aa36163c6a30b3c0c116b0b5fce36eb84123d6ae3756be9537932be` / `6b09dd89a185de301e33e1a7277ae79f662f737270dd84634d623cbf917657ae` / `9f715f4ddd4e086cee8f2aa3aaa4e746401cec113fc529809d1376eab1caf6c1`, MVID `292982ba-6486-4807-b4fa-c15dc0558266`.
