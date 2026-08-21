@@ -1,5 +1,13 @@
 # Autonomous blockers
 
+## Combat-lifecycle protocol ready for runtime - 2026-08-21T01:17:44Z
+
+Status: `IN PROGRESS`; no critical blocker is active.
+
+Starting clean published identity is `dd768636e48b0ebfef98d1595f57662a22520f3d`. The coherent worktree adds nine combat-alpha lifecycle rows and schema-v3 boundary evidence while preserving every historical schema-v2 lifecycle record. Complete offline gates pass `21/213/17/199/254`; parser and diff checks pass. No external state has been changed and no runtime credit is claimed.
+
+The new suite distinguishes direct lifecycle-handler delivery from direct fail-safe service exercise. It does not infer native EventBus delivery for incapacitation/exception, and its idle combat-end boundary does not yet qualify cancellation of an active mounted command. Those claims remain open for separate evidence. Next work is guarded publication, clean package/suite binding, WhatIf audits, and fresh A/B runtime execution with restoration audit before evidence inspection.
+
 ## Cancellation/interruption qualification complete - 2026-08-21T00:52:00Z
 
 Status: `PASS`; no safety, architecture, or presentation blocker is active.

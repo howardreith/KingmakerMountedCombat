@@ -1,5 +1,15 @@
 # Phase 2 qualification
 
+## Combat-lifecycle implementation checkpoint (2026-08-21)
+
+Status: `IN PROGRESS`; no lifecycle runtime PASS is claimed yet.
+
+The additive `combat-lifecycle-suite` defines nine schema-v3 rows for combat start/end retention, rider/Mammoth death, rider/Mammoth incapacitation, companion removal, view destruction, and exception recovery. Exact-property validators bind actor identity, direct invocation path, ordered delivery-ledger records, relationship state, cleanup trigger/result, presentation health, and final residue. Historical schema-v2 lifecycle evidence remains unchanged and valid.
+
+The evidence boundary is explicit. Combat start/end rows invoke the exact lifecycle handler and prove retention of a still-valid pair at that direct boundary. Death, companion-removal, and view-destruction rows require the corresponding direct handler and delivery ledger. Incapacitation and exception rows exercise the exact fail-safe relationship cleanup directly and claim zero native delivery. Native EventBus delivery, true actor incapacitation, and combat-end cancellation while a mounted command is active remain separately required.
+
+Offline qualification passes source `21/0`, Release build, component `213/0`, visual/source-order `17/0`, harness/protocol `199/0`, and exact installed assembly contracts `254/0`. Clean commit/package/suite identity and fresh runtime A/B evidence remain required before these rows can be marked PASS.
+
 ## Mounted command cancellation and interruption qualification (2026-08-21)
 
 Status: `PASS` for the exact supported rider movement-to-attack command; overall private-alpha qualification remains `IN PROGRESS`.

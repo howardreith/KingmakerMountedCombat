@@ -1,5 +1,14 @@
 # Mounted Combat journal
 
+## 2026-08-21T01:17:44Z - combat-alpha lifecycle boundary protocol implemented
+
+- Starting identity: exact clean local/upstream `dd768636e48b0ebfef98d1595f57662a22520f3d`, branch `codex/mounted-combat-phase2-alpha`, version `0.1.0-phase2b-dev.1`. No runtime transaction, suite admission, game process, save write, Mods write, or evidence inspection occurred.
+- Added `combat-lifecycle-suite` with exact ordered rows for combat start/end retention, rider/Mammoth death, rider/Mammoth incapacitation, companion removal, view destruction, and exception cleanup. Historical schema-v2 lifecycle evidence, including the pre-combat `mounted-pair-combat-start-cleanup` policy, remains byte-shape compatible and is not reclassified.
+- Schema v3 records a separate `boundaryExercise`: exact actor role/identity, invocation path, relationship state after delivery, and the ordered native-delivery ledger slice. Direct handlers require their exact delivery records. Incapacitation and exception use the relationship fail-safe directly and explicitly record zero native deliveries rather than inventing EventBus proof.
+- Combat start/end direct rows require the valid pair to remain mounted and then perform explicit manual cleanup. This proves the superseding retention policy at the invoked boundary only. It does not yet prove native delivery or active-command cancellation at combat end; those claims remain open.
+- Deterministic regressions cover exact suite order, schema downgrade, combat-start state mutation, rider/mount actor substitution, missing combat-end delivery, pending-after-cleanup evidence, and immutable historical schema-v2 shape. Verification passes source `21/0`, Release build, component `213/0`, visual/source-order `17/0`, harness/protocol `199/0`, exact assembly `254/0`, PowerShell parser `28/0`, and diff check. Dirty DLL SHA-256/MVID are `eacc5de4adf445db7a188339adca656acc7811bfbfc75484a92ffa98dcc65867` / `7529e931-b452-4acd-b40b-dd4bf28a5e98` and are not package identity.
+- Next: JSON/prohibited-payload checks, coherent commit and guarded publication, fresh package, stable suite admission, separate RT/TB WhatIf audits, and fresh A/B execution with independent restoration before reading evidence.
+
 ## 2026-08-21T00:22:00Z - first TB cancellation process isolates approach-phase evidence semantics
 
 - Suite `20260820T234500Z-command-termination-suite2` on clean package `13c8c5c823248bc3c4edec6a2ab1b314a566b75592ac0a46c6a8bee023ebebba` credited RT cancellation A/B `20260820T235300Z-command-cancel-rt-passA` / `20260820T235900Z-command-cancel-rt-passB` and RT interruption A/B `20260821T000500Z-command-interrupt-rt-passA` / `20260821T001100Z-command-interrupt-rt-passB`, each schema v38 `51/0` with immediate independent restoration audits. They remain truthful process evidence but cannot be combined with future repaired-package A/B credit.

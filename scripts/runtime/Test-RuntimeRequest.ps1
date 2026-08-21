@@ -98,7 +98,12 @@ $missionScenarios = @(
     'player-action-availability', 'mount-dismount-user-flow',
     'mounted-pair-create-and-clear', 'mounted-pair-double-mount-rejected', 'mounted-pair-invalid-pair-rejected',
     'mounted-pair-cleanup-idempotent', 'mounted-pair-death-cleanup', 'mounted-pair-combat-start-cleanup',
-    'mounted-pair-area-unload-cleanup', 'mounted-pair-mod-disable-cleanup', 'mounted-pair-open-ground',
+    'mounted-pair-area-unload-cleanup', 'mounted-pair-mod-disable-cleanup',
+    'mounted-pair-combat-start-retained', 'mounted-pair-combat-end-retained',
+    'mounted-pair-rider-death-cleanup', 'mounted-pair-mount-death-cleanup',
+    'mounted-pair-rider-incapacitated-cleanup', 'mounted-pair-mount-incapacitated-cleanup',
+    'mounted-pair-companion-removal-cleanup', 'mounted-pair-view-destroyed-cleanup', 'mounted-pair-exception-cleanup',
+    'mounted-pair-open-ground',
     'mounted-pair-stop-start', 'mounted-pair-turns-and-corners', 'mounted-pair-doorway', 'mounted-pair-selection',
     'mounted-pair-party-formation', 'mounted-pair-pause-unpause', 'mounted-pair-destination-cancel',
     'mounted-pair-turn-based-entry-cleanup', 'mounted-pair-realtime-entry-cleanup', 'mounted-pair-save-safety',
@@ -112,7 +117,7 @@ $missionScenarios = @(
     'mounted-rider-melee-command-cancel-rt', 'mounted-rider-melee-command-cancel-tb',
     'mounted-rider-melee-command-interrupt-rt', 'mounted-rider-melee-command-interrupt-tb'
 )
-$aggregateScenarios = @('fixture-intake','lifecycle-suite','movement-suite','boundary-suite','presentation-suite')
+$aggregateScenarios = @('fixture-intake','lifecycle-suite','combat-lifecycle-suite','movement-suite','boundary-suite','presentation-suite')
 $interactiveScenarios = @('manual-visual-review')
 
 if ([string]$request.runId -cnotmatch '^[A-Za-z0-9._-]{1,120}$') { throw 'Runtime request runId is invalid.' }

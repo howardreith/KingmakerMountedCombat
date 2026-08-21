@@ -328,6 +328,27 @@ function New-TestLifecycleUnitEvidence {
     }
 }
 
+function New-TestCombatLifecycleBoundaryExercise {
+    param([Parameter(Mandatory = $true)][string]$Row,[Parameter(Mandatory = $true)][bool]$Observed)
+    if (-not $Observed) {
+        return [ordered]@{observed=$false;row=$Row;actorRole=$null;actorId=$null;invocationPath=$null;relationshipStateAfterBoundary=$null;deliveries=@()}
+    }
+    $role='pair';$actorId=$null;$path=$null;$state='Unmounted';$deliveries=@()
+    switch -CaseSensitive ($Row) {
+        'mounted-pair-combat-start-retained' {$path='IPartyCombatHandler.HandlePartyCombatStateChanged(true)';$state='Mounted';$deliveries=@([ordered]@{boundary='CombatStarted';source='IPartyCombatHandler.HandlePartyCombatStateChanged(true)';stateBefore='Mounted';stateAfter='Mounted';cleanupTrigger=$null;cleanupAttempted=$false;cleanupSucceeded=$true})}
+        'mounted-pair-combat-end-retained' {$path='IPartyCombatHandler.HandlePartyCombatStateChanged(true/false)';$state='Mounted';$deliveries=@([ordered]@{boundary='CombatStarted';source='IPartyCombatHandler.HandlePartyCombatStateChanged(true)';stateBefore='Mounted';stateAfter='Mounted';cleanupTrigger=$null;cleanupAttempted=$false;cleanupSucceeded=$true},[ordered]@{boundary='CombatEnded';source='IPartyCombatHandler.HandlePartyCombatStateChanged(false)';stateBefore='Mounted';stateAfter='Mounted';cleanupTrigger=$null;cleanupAttempted=$false;cleanupSucceeded=$true})}
+        'mounted-pair-rider-death-cleanup' {$role='rider';$actorId='rider-id';$path='IUnitHandler.HandleUnitDeath';$deliveries=@([ordered]@{boundary='UnitDeath';source='IUnitHandler.HandleUnitDeath';stateBefore='Mounted';stateAfter='Unmounted';cleanupTrigger='Death';cleanupAttempted=$true;cleanupSucceeded=$true})}
+        'mounted-pair-mount-death-cleanup' {$role='mount';$actorId='mount-id';$path='IUnitHandler.HandleUnitDeath';$deliveries=@([ordered]@{boundary='UnitDeath';source='IUnitHandler.HandleUnitDeath';stateBefore='Mounted';stateAfter='Unmounted';cleanupTrigger='Death';cleanupAttempted=$true;cleanupSucceeded=$true})}
+        'mounted-pair-rider-incapacitated-cleanup' {$role='rider';$actorId='rider-id';$path='relationship.Dismount(Incapacitated)'}
+        'mounted-pair-mount-incapacitated-cleanup' {$role='mount';$actorId='mount-id';$path='relationship.Dismount(Incapacitated)'}
+        'mounted-pair-companion-removal-cleanup' {$role='mount';$actorId='mount-id';$path='IPartyHandler.HandleCompanionRemoved';$deliveries=@([ordered]@{boundary='PartyRemoved';source='IPartyHandler.HandleCompanionRemoved';stateBefore='Mounted';stateAfter='Unmounted';cleanupTrigger='CompanionInvalidated';cleanupAttempted=$true;cleanupSucceeded=$true})}
+        'mounted-pair-view-destroyed-cleanup' {$role='rider';$actorId='rider-id';$path='IUnitHandler.HandleUnitDestroyed';$deliveries=@([ordered]@{boundary='ViewDetachedOrUnitDestroyed';source='IUnitHandler.HandleUnitDestroyed';stateBefore='Mounted';stateAfter='Unmounted';cleanupTrigger='ViewDetached';cleanupAttempted=$true;cleanupSucceeded=$true})}
+        'mounted-pair-exception-cleanup' {$path='relationship.Dismount(Exception)'}
+        default { throw "Unknown test combat lifecycle row: $Row" }
+    }
+    return [ordered]@{observed=$true;row=$Row;actorRole=$role;actorId=$actorId;invocationPath=$path;relationshipStateAfterBoundary=$state;deliveries=@($deliveries)}
+}
+
 function New-TestLifecycleEvidenceRecord {
     param(
         [Parameter(Mandatory = $true)]$Request,
@@ -355,8 +376,9 @@ function New-TestLifecycleEvidenceRecord {
     if ($Phase -ceq 'row-finish' -and $Row -cne 'mounted-pair-cleanup-idempotent') { $frame = [int]$Sequence }
     $originalParent = 'Scene/Units/Rider'
     $currentParent = if ($mounted) { 'Scene/Mount/KMC_RiderPositionAnchor' } else { $originalParent }
-    return [ordered]@{
-        schemaVersion=2;runId=[string]$Request.runId;scenario=[string]$Request.scenario;row=$Row;phase=$Phase
+    $isCombatLifecycle=@(Get-KmcCombatLifecycleRuntimeRows | Where-Object { $_ -ceq $Row }).Count -eq 1
+    $record=[ordered]@{
+        schemaVersion=$(if($isCombatLifecycle){3}else{2});runId=[string]$Request.runId;scenario=[string]$Request.scenario;row=$Row;phase=$Phase
         utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o');branch=[string]$Request.branch;commit=[string]$Request.commit
         productVersion=[string]$Request.productVersion;dllSha256=[string]$Request.dllSha256;dllMvid=[string]$Request.dllMvid
         sequence=$Sequence;frame=$frame;relationshipState=$RelationshipState
@@ -387,8 +409,20 @@ function New-TestLifecycleEvidenceRecord {
             riderLocalScaleMatchesOriginal=$true;attachmentParent=$(if($mounted){'KMC_RiderPositionAnchor'}else{$null})
             sourceAnchor=$(if($mounted){'Spine'}else{$null});riskState=$(if($mounted){'active and internally consistent'}else{'none'})
         }
-        recordErrors=@($RecordErrors)
     }
+    if ($isCombatLifecycle) {
+        $record.pose=[ordered]@{
+            profileId='medium-humanoid-mammoth-v1';boneInventory='Root,Pelvis,Spine,LeftThigh,RightThigh,LeftCalf,RightCalf'
+            configured=$mounted;healthy=$true;frameApplied=$mounted;baselineRestoreVerified=(-not $mounted)
+            componentCount=$(if($mounted){1}else{0});boneCount=7;applicationFrameCount=$(if($mounted){1}else{0})
+            footTargetClampCount=0;maximumFootTargetResidualWorldUnits=0.0;maximumKneeTargetResidualWorldUnits=0.0
+            maximumSegmentLengthResidualWorldUnits=0.0;maximumApplyMicroseconds=1.0;averageApplyMicroseconds=1.0;failure=$null
+        }
+        $observed=$Phase -cin @('cleanup-next-frame','row-finish','engine-finalization')
+        $record.boundaryExercise=New-TestCombatLifecycleBoundaryExercise -Row $Row -Observed:$observed
+    }
+    $record.recordErrors=@($RecordErrors)
+    return $record
 }
 
 function Write-TestLifecycleEvidence {
@@ -4261,6 +4295,21 @@ try {
         Assert-Test ($serviceSource.Contains('RetryFailedCleanupOrThrow();')) 'faulted lifecycle cleanup is not retried or escalated into the fail-closed update boundary'
     }
 
+    Invoke-HarnessTest 'combat lifecycle source preserves valid combat entry and fails closed on invalidation' {
+        $subscriberSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedLifecycleSubscriber.cs')
+        $engineSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeLifecycleScenarioEngine.cs')
+        Assert-Test ($subscriberSource.Contains('if (inCombat) { Observe(NativeLifecycleBoundary.CombatStarted') -and
+            -not $subscriberSource.Contains('Cleanup(NativeLifecycleBoundary.CombatStarted')) 'combat start does not retain a valid mounted pair'
+        Assert-Test ($subscriberSource.Contains('else { combat.Cancel("party combat ended"); Observe(NativeLifecycleBoundary.CombatEnded')) 'combat end does not cancel active combat work while retaining the pair'
+        Assert-Test ($subscriberSource.Contains('Cleanup(NativeLifecycleBoundary.UnitIncapacitated') -and
+            $subscriberSource.Contains('Cleanup(NativeLifecycleBoundary.UnitDeath') -and
+            $subscriberSource.Contains('Cleanup(NativeLifecycleBoundary.PartyRemoved') -and
+            $subscriberSource.Contains('Cleanup(NativeLifecycleBoundary.ViewDetachedOrUnitDestroyed')) 'pair invalidation is missing an exact fail-closed cleanup boundary'
+        Assert-Test ($engineSource.Contains('"combat-lifecycle-suite"') -and
+            $engineSource.Contains('SchemaVersion = IsCombatLifecycleRow(currentRow ?? lastEvidenceRow) ? 3 : 2') -and
+            $engineSource.Contains('BoundaryExercise = IsCombatLifecycleRow')) 'combat lifecycle diagnostics do not preserve schema-v2 history while binding schema-v3 evidence'
+    }
+
     Invoke-HarnessTest 'mounted rider grounding repair is exact-token, exact-pair, and runtime-probed' {
         $patchSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPatchController.cs')
         $serviceSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\GameMountedRelationshipService.cs')
@@ -4454,6 +4503,20 @@ try {
             'presentation-residue-and-uninstall-safety')) {
             $v2Request.scenario = $nativeRow
             $v2Request.runId = 'schema-v2-' + $nativeRow
+            $v2Request.evidenceRoot = Join-Path $runtimeEvidenceTestRoot $v2Request.runId
+            Write-KmcJsonAtomic $v2RequestPath $v2Request
+            & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath
+        }
+        $v2Request.scenario = 'mounted-pair-create-and-clear'
+        $v2Request.runId = 'schema-v2-test'
+        $v2Request.evidenceRoot = Join-Path $runtimeEvidenceTestRoot 'schema-v2-test'
+        Write-KmcJsonAtomic $v2RequestPath $v2Request
+    }
+
+    Invoke-HarnessTest 'runtime request schema accepts the exact combat lifecycle suite and rows' {
+        foreach ($lifecycleScenario in @('combat-lifecycle-suite') + @(Get-KmcCombatLifecycleRuntimeRows)) {
+            $v2Request.scenario = $lifecycleScenario
+            $v2Request.runId = 'schema-v2-' + $lifecycleScenario
             $v2Request.evidenceRoot = Join-Path $runtimeEvidenceTestRoot $v2Request.runId
             Write-KmcJsonAtomic $v2RequestPath $v2Request
             & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath
@@ -6051,6 +6114,55 @@ try {
         $threw=$false
         try { Assert-KmcLifecycleScenarioEvidence -Request $suiteRequest -Manifest $suiteManifest -Status 'PASS' -SubscenarioResults $suiteSubresults } catch { $threw=$true }
         Assert-Test $threw 'lifecycle-suite PASS accepted fewer than the exact eight ordered rows'
+    }
+
+    Invoke-HarnessTest 'combat-lifecycle-suite binds exact superseding boundary semantics and preserves schema-v2 history' {
+        $combatLifecycleRows=@(Get-KmcCombatLifecycleRuntimeRows)
+        $combatLifecycleRequest=[pscustomobject][ordered]@{
+            runId='combat-lifecycle-suite-test';scenario='combat-lifecycle-suite';branch=$v2Request.branch;commit=$v2Request.commit
+            productVersion=$v2Request.productVersion;dllSha256=$v2Request.dllSha256;dllMvid=$v2Request.dllMvid
+            evidenceRoot=(Join-Path $runtimeEvidenceTestRoot 'combat-lifecycle-suite-test')
+        }
+        $records=New-Object 'Collections.Generic.List[object]';$sequence=0
+        foreach($row in $combatLifecycleRows) {
+            $records.Add((New-TestLifecycleEvidenceRecord $combatLifecycleRequest ($sequence++) $row 'pre-mount' 'Unmounted'))
+            $records.Add((New-TestLifecycleEvidenceRecord $combatLifecycleRequest ($sequence++) $row 'mounted-next-frame' 'Mounted'))
+            $records.Add((New-TestLifecycleEvidenceRecord $combatLifecycleRequest ($sequence++) $row 'cleanup-next-frame' 'Unmounted' -WithCleanup))
+            $records.Add((New-TestLifecycleEvidenceRecord $combatLifecycleRequest ($sequence++) $row 'row-finish' 'Unmounted' -WithCleanup -RowStatus 'PASS' -AssertionPassCount 1 -AssertionFailCount 0))
+        }
+        $records.Add((New-TestLifecycleEvidenceRecord $combatLifecycleRequest $sequence $combatLifecycleRows[-1] 'engine-finalization' 'Unmounted' -WithCleanup))
+        $valid=$records.ToArray()
+        $subresults=@($combatLifecycleRows|ForEach-Object{[pscustomobject][ordered]@{name=$_;status='PASS';assertionPassCount=1;assertionFailCount=0;errors=@()}})
+        [void](Write-TestLifecycleEvidence -EvidenceRoot $combatLifecycleRequest.evidenceRoot -Request $combatLifecycleRequest -Records $valid)
+        $manifest=Read-KmcJson (Join-Path $combatLifecycleRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcLifecycleScenarioEvidence -Request $combatLifecycleRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults $subresults
+
+        $candidate=Copy-TestJsonValue $valid
+        $candidate[0].schemaVersion=2
+        Assert-TestLifecycleEvidenceRejected $combatLifecycleRequest $candidate $subresults 'combat lifecycle accepted historical schema-v2 semantics'
+
+        $candidate=Copy-TestJsonValue $valid
+        $cleanupRecord=@($candidate|Where-Object{[string]$_.row -ceq 'mounted-pair-combat-start-retained' -and [string]$_.phase -ceq 'cleanup-next-frame'})[0]
+        $cleanupRecord.boundaryExercise.relationshipStateAfterBoundary='Unmounted'
+        Assert-TestLifecycleEvidenceRejected $combatLifecycleRequest $candidate $subresults 'combat-start retention accepted an Unmounted boundary state'
+
+        $candidate=Copy-TestJsonValue $valid
+        $deathRecord=@($candidate|Where-Object{[string]$_.row -ceq 'mounted-pair-mount-death-cleanup' -and [string]$_.phase -ceq 'cleanup-next-frame'})[0]
+        $deathRecord.boundaryExercise.actorRole='rider'
+        Assert-TestLifecycleEvidenceRejected $combatLifecycleRequest $candidate $subresults 'mount death accepted rider actor ownership'
+
+        $candidate=Copy-TestJsonValue $valid
+        $endRecord=@($candidate|Where-Object{[string]$_.row -ceq 'mounted-pair-combat-end-retained' -and [string]$_.phase -ceq 'cleanup-next-frame'})[0]
+        $endRecord.boundaryExercise.deliveries=@($endRecord.boundaryExercise.deliveries[0])
+        Assert-TestLifecycleEvidenceRejected $combatLifecycleRequest $candidate $subresults 'combat end accepted a missing end delivery'
+
+        $candidate=Copy-TestJsonValue $valid
+        $pendingCleanup=@($candidate|Where-Object{[string]$_.row -ceq 'mounted-pair-exception-cleanup' -and [string]$_.phase -ceq 'cleanup-next-frame'})[0]
+        $pendingCleanup.boundaryExercise=New-TestCombatLifecycleBoundaryExercise -Row 'mounted-pair-exception-cleanup' -Observed:$false
+        Assert-TestLifecycleEvidenceRejected $combatLifecycleRequest $candidate $subresults 'combat lifecycle accepted pending evidence after cleanup'
+
+        $historical=Copy-TestJsonValue $validLifecycleRecords
+        Assert-Test ([long]$historical[0].schemaVersion -eq 2 -and $null -eq $historical[0].PSObject.Properties['boundaryExercise']) 'historical schema-v2 lifecycle evidence shape was rewritten'
     }
 
     $boundaryRow = 'mounted-pair-load-safety'

@@ -3628,11 +3628,16 @@ function Get-KmcSaveBackedRuntimeScenarios {
         'player-action-availability', 'mount-dismount-user-flow',
         'mounted-pair-create-and-clear', 'mounted-pair-double-mount-rejected', 'mounted-pair-invalid-pair-rejected',
         'mounted-pair-cleanup-idempotent', 'mounted-pair-death-cleanup', 'mounted-pair-combat-start-cleanup',
-        'mounted-pair-area-unload-cleanup', 'mounted-pair-mod-disable-cleanup', 'mounted-pair-open-ground',
+        'mounted-pair-area-unload-cleanup', 'mounted-pair-mod-disable-cleanup',
+        'mounted-pair-combat-start-retained', 'mounted-pair-combat-end-retained',
+        'mounted-pair-rider-death-cleanup', 'mounted-pair-mount-death-cleanup',
+        'mounted-pair-rider-incapacitated-cleanup', 'mounted-pair-mount-incapacitated-cleanup',
+        'mounted-pair-companion-removal-cleanup', 'mounted-pair-view-destroyed-cleanup', 'mounted-pair-exception-cleanup',
+        'mounted-pair-open-ground',
         'mounted-pair-stop-start', 'mounted-pair-turns-and-corners', 'mounted-pair-doorway', 'mounted-pair-selection',
         'mounted-pair-party-formation', 'mounted-pair-pause-unpause', 'mounted-pair-destination-cancel',
         'mounted-pair-turn-based-entry-cleanup', 'mounted-pair-realtime-entry-cleanup', 'mounted-pair-save-safety',
-        'mounted-pair-load-safety', 'mounted-pair-area-transition-safety', 'fixture-intake', 'lifecycle-suite',
+        'mounted-pair-load-safety', 'mounted-pair-area-transition-safety', 'fixture-intake', 'lifecycle-suite', 'combat-lifecycle-suite',
         'native-save-clean-dismount', 'native-area-clean-dismount', 'native-mode-transition-cleanup',
         'presentation-residue-and-uninstall-safety', 'pose-idle', 'pose-walk-run', 'pose-turn-stop',
         'pose-doorway-formation', 'pose-equipment-variants', 'ui-selection-portrait-actionbar',
@@ -3659,6 +3664,20 @@ function Get-KmcLifecycleRuntimeRows {
     )
 }
 
+function Get-KmcCombatLifecycleRuntimeRows {
+    return @(
+        'mounted-pair-combat-start-retained',
+        'mounted-pair-combat-end-retained',
+        'mounted-pair-rider-death-cleanup',
+        'mounted-pair-mount-death-cleanup',
+        'mounted-pair-rider-incapacitated-cleanup',
+        'mounted-pair-mount-incapacitated-cleanup',
+        'mounted-pair-companion-removal-cleanup',
+        'mounted-pair-view-destroyed-cleanup',
+        'mounted-pair-exception-cleanup'
+    )
+}
+
 function Get-KmcLifecycleExpectedCleanupTrigger {
     param([Parameter(Mandatory = $true)][string]$Row)
     switch -CaseSensitive ($Row) {
@@ -3666,6 +3685,13 @@ function Get-KmcLifecycleExpectedCleanupTrigger {
         'mounted-pair-combat-start-cleanup' { return 'CombatStarted' }
         'mounted-pair-area-unload-cleanup' { return 'AreaUnloading' }
         'mounted-pair-mod-disable-cleanup' { return 'ModDisabled' }
+        'mounted-pair-rider-death-cleanup' { return 'Death' }
+        'mounted-pair-mount-death-cleanup' { return 'Death' }
+        'mounted-pair-rider-incapacitated-cleanup' { return 'Incapacitated' }
+        'mounted-pair-mount-incapacitated-cleanup' { return 'Incapacitated' }
+        'mounted-pair-companion-removal-cleanup' { return 'CompanionInvalidated' }
+        'mounted-pair-view-destroyed-cleanup' { return 'ViewDetached' }
+        'mounted-pair-exception-cleanup' { return 'Exception' }
         default { return 'Manual' }
     }
 }
@@ -3675,7 +3701,13 @@ function Get-KmcLifecycleInvocationPath {
     if ([string]$Row -cin @(
         'mounted-pair-death-cleanup',
         'mounted-pair-combat-start-cleanup',
-        'mounted-pair-area-unload-cleanup')) {
+        'mounted-pair-area-unload-cleanup',
+        'mounted-pair-combat-start-retained',
+        'mounted-pair-combat-end-retained',
+        'mounted-pair-rider-death-cleanup',
+        'mounted-pair-mount-death-cleanup',
+        'mounted-pair-companion-removal-cleanup',
+        'mounted-pair-view-destroyed-cleanup')) {
         return 'lifecycle-handler-direct'
     }
     if ([string]$Row -cin @('player-action-availability','mount-dismount-user-flow')) {
@@ -3698,8 +3730,9 @@ function Get-KmcPlayerActionRuntimeRows {
 
 function Test-KmcLifecycleRuntimeScenario {
     param([AllowNull()][string]$Scenario)
-    return [string]$Scenario -ceq 'lifecycle-suite' -or
+    return [string]$Scenario -cin @('lifecycle-suite','combat-lifecycle-suite') -or
         @(Get-KmcLifecycleRuntimeRows | Where-Object { $_ -ceq [string]$Scenario }).Count -eq 1 -or
+        @(Get-KmcCombatLifecycleRuntimeRows | Where-Object { $_ -ceq [string]$Scenario }).Count -eq 1 -or
         @(Get-KmcPlayerActionRuntimeRows | Where-Object { $_ -ceq [string]$Scenario }).Count -eq 1
 }
 
@@ -3845,6 +3878,83 @@ function Assert-KmcLifecycleUnitEvidence {
     Assert-KmcJsonStringArray $Value.activeCommandTypes "$Description.activeCommandTypes"
 }
 
+function Assert-KmcCombatLifecycleBoundaryExercise {
+    param(
+        [Parameter(Mandatory = $true)]$Value,
+        [Parameter(Mandatory = $true)]$Record
+    )
+    Assert-KmcExactProperties $Value @(
+        'observed','row','actorRole','actorId','invocationPath','relationshipStateAfterBoundary','deliveries') 'combat lifecycle boundary exercise'
+    if ($Value.observed -isnot [bool] -or $Value.row -isnot [string] -or [string]$Value.row -cne [string]$Record.row) {
+        throw 'Combat lifecycle boundary exercise identity is invalid.'
+    }
+    if (-not $Value.observed) {
+        if ($null -ne $Value.actorRole -or $null -ne $Value.actorId -or $null -ne $Value.invocationPath -or
+            $null -ne $Value.relationshipStateAfterBoundary -or @($Value.deliveries).Count -ne 0) {
+            throw 'Pending combat lifecycle boundary evidence contains exercised state.'
+        }
+        return
+    }
+
+    $row=[string]$Record.row
+    $expectedRole='pair';$expectedActorId=$null;$expectedPath=$null;$expectedState='Unmounted';$expected=@()
+    switch -CaseSensitive ($row) {
+        'mounted-pair-combat-start-retained' {
+            $expectedPath='IPartyCombatHandler.HandlePartyCombatStateChanged(true)';$expectedState='Mounted'
+            $expected=@(@{boundary='CombatStarted';source='IPartyCombatHandler.HandlePartyCombatStateChanged(true)';before='Mounted';after='Mounted';trigger=$null;attempted=$false})
+        }
+        'mounted-pair-combat-end-retained' {
+            $expectedPath='IPartyCombatHandler.HandlePartyCombatStateChanged(true/false)';$expectedState='Mounted'
+            $expected=@(
+                @{boundary='CombatStarted';source='IPartyCombatHandler.HandlePartyCombatStateChanged(true)';before='Mounted';after='Mounted';trigger=$null;attempted=$false},
+                @{boundary='CombatEnded';source='IPartyCombatHandler.HandlePartyCombatStateChanged(false)';before='Mounted';after='Mounted';trigger=$null;attempted=$false})
+        }
+        'mounted-pair-rider-death-cleanup' {
+            $expectedRole='rider';$expectedActorId=[string]$Record.rider.uniqueId;$expectedPath='IUnitHandler.HandleUnitDeath'
+            $expected=@(@{boundary='UnitDeath';source='IUnitHandler.HandleUnitDeath';before='Mounted';after='Unmounted';trigger='Death';attempted=$true})
+        }
+        'mounted-pair-mount-death-cleanup' {
+            $expectedRole='mount';$expectedActorId=[string]$Record.mount.uniqueId;$expectedPath='IUnitHandler.HandleUnitDeath'
+            $expected=@(@{boundary='UnitDeath';source='IUnitHandler.HandleUnitDeath';before='Mounted';after='Unmounted';trigger='Death';attempted=$true})
+        }
+        'mounted-pair-rider-incapacitated-cleanup' { $expectedRole='rider';$expectedActorId=[string]$Record.rider.uniqueId;$expectedPath='relationship.Dismount(Incapacitated)' }
+        'mounted-pair-mount-incapacitated-cleanup' { $expectedRole='mount';$expectedActorId=[string]$Record.mount.uniqueId;$expectedPath='relationship.Dismount(Incapacitated)' }
+        'mounted-pair-companion-removal-cleanup' {
+            $expectedRole='mount';$expectedActorId=[string]$Record.mount.uniqueId;$expectedPath='IPartyHandler.HandleCompanionRemoved'
+            $expected=@(@{boundary='PartyRemoved';source='IPartyHandler.HandleCompanionRemoved';before='Mounted';after='Unmounted';trigger='CompanionInvalidated';attempted=$true})
+        }
+        'mounted-pair-view-destroyed-cleanup' {
+            $expectedRole='rider';$expectedActorId=[string]$Record.rider.uniqueId;$expectedPath='IUnitHandler.HandleUnitDestroyed'
+            $expected=@(@{boundary='ViewDetachedOrUnitDestroyed';source='IUnitHandler.HandleUnitDestroyed';before='Mounted';after='Unmounted';trigger='ViewDetached';attempted=$true})
+        }
+        'mounted-pair-exception-cleanup' { $expectedPath='relationship.Dismount(Exception)' }
+        default { throw "Unknown combat lifecycle boundary row: $row" }
+    }
+    if ($Value.actorRole -isnot [string] -or [string]$Value.actorRole -cne $expectedRole -or
+        $Value.invocationPath -isnot [string] -or [string]$Value.invocationPath -cne $expectedPath -or
+        $Value.relationshipStateAfterBoundary -isnot [string] -or [string]$Value.relationshipStateAfterBoundary -cne $expectedState -or
+        (($null -eq $expectedActorId) -ne ($null -eq $Value.actorId)) -or
+        ($null -ne $expectedActorId -and ([string]$Value.actorId -cne $expectedActorId))) {
+        throw "Combat lifecycle boundary result is wrong for $row."
+    }
+    $actual=@($Value.deliveries)
+    if ($actual.Count -ne $expected.Count) { throw "Combat lifecycle delivery count is wrong for $row." }
+    for($index=0;$index -lt $expected.Count;$index++) {
+        $delivery=$actual[$index];$want=$expected[$index]
+        Assert-KmcExactProperties $delivery @('boundary','source','stateBefore','stateAfter','cleanupTrigger','cleanupAttempted','cleanupSucceeded') "combat lifecycle delivery $index"
+        if ($delivery.boundary -isnot [string] -or [string]$delivery.boundary -cne [string]$want.boundary -or
+            $delivery.source -isnot [string] -or [string]$delivery.source -cne [string]$want.source -or
+            $delivery.stateBefore -isnot [string] -or [string]$delivery.stateBefore -cne [string]$want.before -or
+            $delivery.stateAfter -isnot [string] -or [string]$delivery.stateAfter -cne [string]$want.after -or
+            (($null -eq $want.trigger) -ne ($null -eq $delivery.cleanupTrigger)) -or
+            ($null -ne $want.trigger -and [string]$delivery.cleanupTrigger -cne [string]$want.trigger) -or
+            $delivery.cleanupAttempted -isnot [bool] -or $delivery.cleanupAttempted -ne [bool]$want.attempted -or
+            $delivery.cleanupSucceeded -isnot [bool] -or -not $delivery.cleanupSucceeded) {
+            throw "Combat lifecycle delivery $index is wrong for $row."
+        }
+    }
+}
+
 function Assert-KmcLifecycleEvidenceRecord {
     param(
         [Parameter(Mandatory = $true)]$Record,
@@ -3853,14 +3963,21 @@ function Assert-KmcLifecycleEvidenceRecord {
         [Parameter(Mandatory = $true)][string[]]$ExpectedRows,
         [Parameter(Mandatory = $true)][bool]$RequireComplete
     )
-    Assert-KmcExactProperties $Record @(
+    if (-not (Test-KmcExactJsonInteger $Record.schemaVersion) -or [long]$Record.schemaVersion -notin @(2,3)) {
+        throw 'Lifecycle evidence schemaVersion must be the exact integral value 2 or 3.'
+    }
+    $isCombatLifecycle=@(Get-KmcCombatLifecycleRuntimeRows | Where-Object { $_ -ceq [string]$Record.row }).Count -eq 1
+    if (($isCombatLifecycle -and [long]$Record.schemaVersion -ne 3) -or
+        (-not $isCombatLifecycle -and [long]$Record.schemaVersion -ne 2)) {
+        throw 'Lifecycle evidence schema version does not match its exact row family.'
+    }
+    $exactProperties=@(
         'schemaVersion','runId','scenario','row','phase','utcTimestamp','branch','commit','productVersion',
         'dllSha256','dllMvid','sequence','frame','relationshipState','triggerScope','rowStatus','assertionPassCount',
         'assertionFailCount','cleanup','partyCombat','riderCombat','mountCombat','turnBased','paused',
-        'currentGameMode','rider','mount','selection','spine','anchor','attachment','recordErrors') 'lifecycle evidence record'
-    if (-not (Test-KmcExactJsonInteger $Record.schemaVersion) -or [long]$Record.schemaVersion -ne 2) {
-        throw 'Lifecycle evidence schemaVersion must be the exact integral value 2.'
-    }
+        'currentGameMode','rider','mount','selection','spine','anchor','attachment','recordErrors')
+    if ($isCombatLifecycle) { $exactProperties += @('pose','boundaryExercise') }
+    Assert-KmcExactProperties $Record $exactProperties 'lifecycle evidence record'
     foreach ($name in @('runId','scenario','branch','commit','productVersion','dllSha256','dllMvid')) {
         if ($Record.$name -isnot [string] -or [string]$Record.$name -cne [string]$Request.$name) {
             throw "Lifecycle evidence identity mismatch: $name"
@@ -3922,6 +4039,31 @@ function Assert-KmcLifecycleEvidenceRecord {
         throw 'Lifecycle non-row-finish record contains row result fields.'
     }
     Assert-KmcJsonStringArray $Record.recordErrors 'lifecycle evidence recordErrors'
+    if ($isCombatLifecycle) {
+        if ($null -eq $Record.pose) { throw 'Combat lifecycle evidence requires pose state.' }
+        Assert-KmcExactProperties $Record.pose @(
+            'profileId','boneInventory','configured','healthy','frameApplied','baselineRestoreVerified','componentCount',
+            'boneCount','applicationFrameCount','footTargetClampCount','maximumFootTargetResidualWorldUnits',
+            'maximumKneeTargetResidualWorldUnits','maximumSegmentLengthResidualWorldUnits','maximumApplyMicroseconds',
+            'averageApplyMicroseconds','failure') 'combat lifecycle pose evidence'
+        if ($Record.pose.profileId -isnot [string] -or [string]$Record.pose.profileId -cne 'medium-humanoid-mammoth-v1' -or
+            $Record.pose.boneInventory -isnot [string]) { throw 'Combat lifecycle pose identity is invalid.' }
+        foreach($name in @('configured','healthy','frameApplied','baselineRestoreVerified')) {
+            if($Record.pose.$name -isnot [bool]) { throw "Combat lifecycle pose.$name must be a JSON boolean." }
+        }
+        foreach($name in @('boneCount','applicationFrameCount','footTargetClampCount')) {
+            if(-not (Test-KmcExactJsonInteger $Record.pose.$name)) { throw "Combat lifecycle pose.$name must be an exact JSON integer." }
+        }
+        if($null -ne $Record.pose.componentCount -and -not (Test-KmcExactJsonInteger $Record.pose.componentCount)) {
+            throw 'Combat lifecycle pose.componentCount must be an exact JSON integer or null.'
+        }
+        foreach($name in @('maximumFootTargetResidualWorldUnits','maximumKneeTargetResidualWorldUnits','maximumSegmentLengthResidualWorldUnits','maximumApplyMicroseconds','averageApplyMicroseconds')) {
+            if(-not (Test-KmcJsonNumber $Record.pose.$name)) { throw "Combat lifecycle pose.$name must be a JSON number." }
+        }
+        if($null -ne $Record.pose.failure -and $Record.pose.failure -isnot [string]) { throw 'Combat lifecycle pose.failure must be a JSON string or null.' }
+        if ($null -eq $Record.boundaryExercise) { throw 'Combat lifecycle evidence requires boundaryExercise.' }
+        Assert-KmcCombatLifecycleBoundaryExercise $Record.boundaryExercise $Record
+    }
     Assert-KmcLifecycleUnitEvidence $Record.rider 'lifecycle evidence rider' -RequireComplete:$RequireComplete
     Assert-KmcLifecycleUnitEvidence $Record.mount 'lifecycle evidence mount' -RequireComplete:$RequireComplete
 
@@ -4117,6 +4259,12 @@ function Assert-KmcLifecycleEvidenceSemantics {
         if ($null -ne $mounted) { Assert-KmcLifecycleCleanupAbsent $mounted }
         Assert-KmcLifecycleCleanupExact $cleanup $expectedTrigger
         Assert-KmcLifecycleCleanupExact $finish $expectedTrigger
+        $isCombatLifecycle=@(Get-KmcCombatLifecycleRuntimeRows | Where-Object { $_ -ceq $row }).Count -eq 1
+        if ($isCombatLifecycle -and ($pre.boundaryExercise.observed -ne $false -or
+            $mounted.boundaryExercise.observed -ne $false -or
+            $cleanup.boundaryExercise.observed -ne $true -or $finish.boundaryExercise.observed -ne $true)) {
+            throw "Combat lifecycle boundary evidence was not pending-before and exact-after for $row."
+        }
         if ([string]$finish.rowStatus -cne 'PASS' -or [long]$finish.assertionFailCount -ne 0 -or
             [long]$finish.assertionPassCount -le 0 -or @($finish.recordErrors).Count -ne 0) {
             throw "Lifecycle row-finish is not an error-free PASS for $row."
@@ -4164,6 +4312,10 @@ function Assert-KmcLifecycleEvidenceSemantics {
     }
     $finalTrigger = Get-KmcLifecycleExpectedCleanupTrigger $finalRow
     Assert-KmcLifecycleCleanupExact $final $finalTrigger
+    if (@(Get-KmcCombatLifecycleRuntimeRows | Where-Object { $_ -ceq $finalRow }).Count -eq 1 -and
+        $final.boundaryExercise.observed -ne $true) {
+        throw 'Combat lifecycle engine-finalization did not retain the final exact boundary evidence.'
+    }
     Assert-KmcLifecycleBaselineUnitState $final 'lifecycle engine-finalization'
     if ($finalRow -cin @('mounted-pair-invalid-pair-rejected','player-action-availability')) {
         Assert-KmcLifecycleAttachmentBaseline $final 'lifecycle engine-finalization'
@@ -4212,7 +4364,14 @@ function Assert-KmcLifecycleScenarioEvidence {
     if (-not $isLifecycle) { throw 'Lifecycle JSONL is present for a non-lifecycle runtime scenario.' }
 
     $allRows = @(Get-KmcLifecycleRuntimeRows)
-    [string[]]$expectedRows = if ([string]$Request.scenario -ceq 'lifecycle-suite') { @($allRows) } else { @([string]$Request.scenario) }
+    $combatRows = @(Get-KmcCombatLifecycleRuntimeRows)
+    [string[]]$expectedRows = if ([string]$Request.scenario -ceq 'lifecycle-suite') {
+        @($allRows)
+    } elseif ([string]$Request.scenario -ceq 'combat-lifecycle-suite') {
+        @($combatRows)
+    } else {
+        @([string]$Request.scenario)
+    }
     $path = Assert-KmcChildPath (Join-Path $evidenceRoot 'lifecycle-scenario-evidence.jsonl') $evidenceRoot 'lifecycle scenario evidence'
     Assert-KmcNotReparsePoint $path 'lifecycle scenario evidence'
     Assert-KmcNotHardLink $path 'lifecycle scenario evidence'
@@ -8681,7 +8840,7 @@ function New-KmcRuntimeResultV2 {
     }
     else {
         $fallbackName = if (@(Get-KmcSaveBackedRuntimeScenarios | Where-Object { $_ -ceq [string]$Request.scenario }).Count -eq 1 -and
-            [string]$Request.scenario -notin @('fixture-intake','lifecycle-suite','movement-suite','boundary-suite','presentation-suite')) {
+            [string]$Request.scenario -notin @('fixture-intake','lifecycle-suite','combat-lifecycle-suite','movement-suite','boundary-suite','presentation-suite')) {
             [string]$Request.scenario
         } else { 'observe-mount-diagnostic-availability' }
         $fallbackErrors = if (@($Errors).Count -eq 0) { @('Runtime game result was unavailable or invalid.') } else { @($Errors) }

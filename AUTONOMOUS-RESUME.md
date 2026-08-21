@@ -1,5 +1,13 @@
 # Autonomous resume
 
+## Current resume checkpoint - 2026-08-21T01:17:44Z
+
+- Status is `IN PROGRESS`; no safety, architecture, or presentation blocker is active. Starting branch/local/upstream identity is exact clean guarded-published `dd768636e48b0ebfef98d1595f57662a22520f3d` on `codex/mounted-combat-phase2-alpha`, version `0.1.0-phase2b-dev.1`. The worktree is one coherent combat-lifecycle diagnostic/protocol tranche; no game, transaction, suite admission, save/Mods mutation, or runtime evidence has occurred in it.
+- The additive `combat-lifecycle-suite` has nine schema-v3 rows: combat start/end retention; rider/Mammoth death; rider/Mammoth incapacitation; companion removal; view destruction; and exception cleanup. It preserves the historical schema-v2 `mounted-pair-combat-start-cleanup` row unchanged instead of relabeling Phase 2A evidence under the superseding combat-alpha policy.
+- Direct handler rows bind exact actor, invocation path, ordered native-delivery ledger, relationship before/after, cleanup trigger/result, accepted Mammoth pose, and residue-free cleanup. Incapacitation and exception rows truthfully identify direct fail-safe service invocation and claim no native EventBus delivery. Combat start/end rows prove valid-pair retention at their direct boundaries; active-command combat-end cancellation and native delivery remain separately open.
+- Complete offline gate PASS: source `21/0`; Release build; component `213/0`; visual/source-order `17/0`; harness/protocol `199/0`; assembly `254/0` (`243/0` Kingmaker / `11/0` Wrath); PowerShell parser `28/0`; diff check PASS. Dirty-build DLL SHA-256/MVID are `eacc5de4adf445db7a188339adca656acc7811bfbfc75484a92ffa98dcc65867` / `7529e931-b452-4acd-b40b-dd4bf28a5e98`; they are not package identity.
+- Exact next action: complete JSON/prohibited-payload review, commit and guarded-publish the coherent implementation checkpoint, create and validate a fresh clean-HEAD package, admit a new stable suite snapshot, run separate RT/TB WhatIf plus immediate audits, then run fresh same-suite combat-lifecycle A/B with audit-before-read. No runtime PASS is claimed at this checkpoint.
+
 ## Current resume checkpoint - 2026-08-21T00:52:00Z
 
 - Status is `IN PROGRESS`; no safety, architecture, or presentation blocker is active. Exact guarded-published implementation HEAD is `26220759b4c9f67d9a8cf296b617b6670c3466f3`. Its clean package/manifest/DLL SHA-256 are `918c1dc3b66c70919b9319967dcec7fde9661f4ad0277b2eaa872aa08922c44f` / `da9bee419f3e7497ba6f7b1c7efb574ee8b255c4003c00ec921b0d4f2ec3a1e9` / `b7bd96ad4d68cac1c6955721e9f138ebc45df3d36cdaa80bddbab6d89a383ba6`; DLL MVID is `cd471d55-136a-4850-8786-5c665febcc38`.
