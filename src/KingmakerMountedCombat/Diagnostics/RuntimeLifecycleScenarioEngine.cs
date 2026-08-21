@@ -122,6 +122,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool attachmentLeaseAcquiredThisRow;
         private bool poseLeaseAcquiredThisRow;
         private long lifecycleDeliveryBaselineSequence;
+        private long pairLifeTransitionBaselineSequence;
         private BoundaryExerciseEvidence boundaryExercise;
         private UnitEntityData incapacitationActor;
         private ActorLifeTransitionEvidence actorLifeTransition;
@@ -306,6 +307,10 @@ namespace KingmakerMountedCombat.Diagnostics
             incapacitationActor = null;
             actorLifeTransition = null;
             lifecycleDeliveryBaselineSequence = lifecycle.SnapshotNativeDeliveries()
+                .Select(record => record.Sequence)
+                .DefaultIfEmpty(0L)
+                .Max();
+            pairLifeTransitionBaselineSequence = lifecycle.SnapshotPairLifeTransitions()
                 .Select(record => record.Sequence)
                 .DefaultIfEmpty(0L)
                 .Max();
@@ -660,6 +665,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
                 incapacitationActor.Damage = requestedDamage;
                 actorLifeTransition.MutationIssued = true;
+                actorLifeTransition.DamageImmediatelyAfterMutation = incapacitationActor.Damage;
                 step = EngineStep.AwaitNativeIncapacitation;
             }
             else if (string.Equals(currentRow, "mounted-pair-companion-removal-cleanup", StringComparison.Ordinal))
@@ -1157,7 +1163,7 @@ namespace KingmakerMountedCombat.Diagnostics
             return new LifecycleEvidenceRecord
             {
                 SchemaVersion = IsNativeIncapacitationRow(currentRow ?? lastEvidenceRow)
-                    ? 5
+                    ? 6
                     : IsCombatLifecycleRow(currentRow ?? lastEvidenceRow) ? 3 : 2,
                 RunId = request.RunId,
                 Scenario = request.Scenario,
@@ -1656,9 +1662,15 @@ namespace KingmakerMountedCombat.Diagnostics
             public int DamageBefore { get; set; }
             public int RequestedDamage { get; set; }
             public int DamageAfter { get; set; }
+            public int DamageImmediatelyAfterMutation { get; set; }
             public int HitPoints { get; set; }
             public int Constitution { get; set; }
             public int NativeDeliveryCount { get; set; }
+            public int NativeLifeObservationCount { get; set; }
+            public string NativeObservedActorId { get; set; }
+            public string NativePreviousLifeState { get; set; }
+            public string NativeCurrentLifeState { get; set; }
+            public bool PostDeliveryRecoveryObserved { get; set; }
 
             public static ActorLifeTransitionEvidence Before(string actorRole, UnitEntityData actor, int requestedDamage)
             {
@@ -1682,13 +1694,22 @@ namespace KingmakerMountedCombat.Diagnostics
                     DamageBefore = actor?.Damage ?? 0,
                     RequestedDamage = requestedDamage,
                     DamageAfter = 0,
+                    DamageImmediatelyAfterMutation = 0,
                     HitPoints = actor == null ? 0 : (int)actor.Stats.HitPoints,
                     Constitution = actor == null ? 0 : (int)actor.Stats.Constitution,
-                    NativeDeliveryCount = 0
+                    NativeDeliveryCount = 0,
+                    NativeLifeObservationCount = 0,
+                    NativeObservedActorId = null,
+                    NativePreviousLifeState = null,
+                    NativeCurrentLifeState = null,
+                    PostDeliveryRecoveryObserved = false
                 };
             }
 
-            public void CaptureAfter(UnitEntityData actor, int nativeDeliveryCount)
+            public void CaptureAfter(
+                UnitEntityData actor,
+                int nativeDeliveryCount,
+                IReadOnlyList<NativePairLifeStateObservation> lifeObservations)
             {
                 var state = actor?.Descriptor?.State;
                 LifeStateAfter = state?.LifeState.ToString();
@@ -1699,6 +1720,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 FinallyDeadAfter = state != null && state.IsFinallyDead;
                 DamageAfter = actor?.Damage ?? 0;
                 NativeDeliveryCount = nativeDeliveryCount;
+                NativeLifeObservationCount = lifeObservations == null ? 0 : lifeObservations.Count;
+                var first = lifeObservations == null ? null : lifeObservations.FirstOrDefault();
+                NativeObservedActorId = first?.ActorId;
+                NativePreviousLifeState = first?.PreviousLifeState;
+                NativeCurrentLifeState = first?.CurrentLifeState;
+                PostDeliveryRecoveryObserved = first != null &&
+                    (!string.Equals(LifeStateAfter, first.CurrentLifeState, StringComparison.Ordinal) ||
+                     DamageAfter != DamageImmediatelyAfterMutation);
             }
         }
 
@@ -1740,8 +1769,12 @@ namespace KingmakerMountedCombat.Diagnostics
             var deliveries = lifecycle.SnapshotNativeDeliveries()
                 .Where(record => record.Sequence > lifecycleDeliveryBaselineSequence)
                 .ToArray();
-            actorLifeTransition.CaptureAfter(incapacitationActor, deliveries.Length);
-            if (state.IsConscious || relationship.State != RelationshipState.Unmounted || deliveries.Length == 0)
+            var lifeObservations = lifecycle.SnapshotPairLifeTransitions()
+                .Where(record => record.Sequence > pairLifeTransitionBaselineSequence &&
+                    string.Equals(record.ActorId, incapacitationActor.UniqueId, StringComparison.Ordinal))
+                .ToArray();
+            actorLifeTransition.CaptureAfter(incapacitationActor, deliveries.Length, lifeObservations);
+            if (lifeObservations.Length == 0 || relationship.State != RelationshipState.Unmounted || deliveries.Length == 0)
             {
                 return;
             }
@@ -1750,19 +1783,19 @@ namespace KingmakerMountedCombat.Diagnostics
             CaptureBoundaryExercise(
                 actorLifeTransition.ActorRole,
                 "UnitEntityData.Damage -> UnitLifeController.TickOnUnit -> IUnitLifeStateChanged.HandleUnitLifeStateChanged");
-            assertions.Check(string.Equals(actorLifeTransition.LifeStateBefore, "Conscious", StringComparison.Ordinal) &&
-                    string.Equals(actorLifeTransition.LifeStateAfter, "Unconscious", StringComparison.Ordinal) &&
-                    actorLifeTransition.ConsciousBefore && !actorLifeTransition.ConsciousAfter &&
-                    !actorLifeTransition.DeadAfter && !actorLifeTransition.FinallyDeadAfter,
-                "Stock life controller transitioned the exact actor from Conscious to Unconscious without death.",
-                "Stock life transition was not exact: " + actorLifeTransition.LifeStateBefore + " -> " +
-                    actorLifeTransition.LifeStateAfter + ".");
+            assertions.Check(actorLifeTransition.NativeLifeObservationCount == 1 &&
+                    string.Equals(actorLifeTransition.NativeObservedActorId, incapacitationActor.UniqueId, StringComparison.Ordinal) &&
+                    string.Equals(actorLifeTransition.NativePreviousLifeState, "Conscious", StringComparison.Ordinal) &&
+                    string.Equals(actorLifeTransition.NativeCurrentLifeState, "Unconscious", StringComparison.Ordinal),
+                "Stock EventBus delivered one exact actor transition from Conscious to Unconscious.",
+                "Stock life transition delivery was not exact: " + actorLifeTransition.NativePreviousLifeState + " -> " +
+                    actorLifeTransition.NativeCurrentLifeState + ".");
             assertions.Check(actorLifeTransition.MutationIssued &&
-                    actorLifeTransition.DamageAfter == actorLifeTransition.RequestedDamage &&
-                    actorLifeTransition.DamageAfter > actorLifeTransition.HitPoints &&
-                    actorLifeTransition.DamageAfter < actorLifeTransition.HitPoints + actorLifeTransition.Constitution,
-                "Exact diagnostic damage mutation remained inside the unconscious band.",
-                "Diagnostic damage mutation or unconscious-band evidence was not exact.");
+                    actorLifeTransition.DamageImmediatelyAfterMutation == actorLifeTransition.RequestedDamage &&
+                    actorLifeTransition.DamageImmediatelyAfterMutation > actorLifeTransition.HitPoints &&
+                    actorLifeTransition.DamageImmediatelyAfterMutation < actorLifeTransition.HitPoints + actorLifeTransition.Constitution,
+                "Exact diagnostic damage mutation entered the intended nonlethal numeric band before stock processing.",
+                "Immediate diagnostic damage mutation evidence was not exact.");
             assertions.Check(HasExactSuccessfulTrigger(CleanupTrigger.Incapacitated),
                 "Native life-state delivery completed exact Incapacitated cleanup.",
                 "Native life-state delivery did not complete Incapacitated cleanup: " + relationship.LastResult);

@@ -17,6 +17,9 @@ namespace KingmakerMountedCombat.Integration
         private readonly NativeLifecycleDeliveryLedger ledger;
         private readonly MountedCombatController combat;
         private readonly IDisposable subscription;
+        private readonly object lifeTransitionGate = new object();
+        private readonly List<NativePairLifeStateObservation> pairLifeTransitions = new List<NativePairLifeStateObservation>();
+        private long pairLifeTransitionSequence;
         private bool disposed;
 
         public MountedLifecycleSubscriber(GameMountedRelationshipService service, NativeLifecycleDeliveryLedger ledger, MountedCombatController combat)
@@ -45,7 +48,20 @@ namespace KingmakerMountedCombat.Integration
 
         public void HandleUnitLifeStateChanged(UnitEntityData unit, UnitLifeState prevLifeState)
         {
-            if (IsPairUnit(unit) && !unit.Descriptor.State.IsConscious) { Cleanup(NativeLifecycleBoundary.UnitIncapacitated, "IUnitLifeStateChanged.HandleUnitLifeStateChanged", CleanupTrigger.Incapacitated); }
+            if (!IsPairUnit(unit)) { return; }
+            lock (lifeTransitionGate)
+            {
+                pairLifeTransitionSequence++;
+                pairLifeTransitions.Add(new NativePairLifeStateObservation
+                {
+                    Sequence = pairLifeTransitionSequence,
+                    ActorId = unit.UniqueId,
+                    PreviousLifeState = prevLifeState.ToString(),
+                    CurrentLifeState = unit.Descriptor.State.LifeState.ToString()
+                });
+                if (pairLifeTransitions.Count > 32) { pairLifeTransitions.RemoveAt(0); }
+            }
+            if (!unit.Descriptor.State.IsConscious) { Cleanup(NativeLifecycleBoundary.UnitIncapacitated, "IUnitLifeStateChanged.HandleUnitLifeStateChanged", CleanupTrigger.Incapacitated); }
         }
 
         public void HandlePartyLeaveArea(BlueprintArea currentArea, BlueprintAreaEnterPoint targetArea)
@@ -170,6 +186,11 @@ namespace KingmakerMountedCombat.Integration
             return ledger.Snapshot();
         }
 
+        internal IReadOnlyList<NativePairLifeStateObservation> SnapshotPairLifeTransitions()
+        {
+            lock (lifeTransitionGate) { return pairLifeTransitions.ToArray(); }
+        }
+
         public void Dispose()
         {
             if (disposed) { return; }
@@ -216,5 +237,13 @@ namespace KingmakerMountedCombat.Integration
             var state = service.State;
             ledger.Record(boundary, source, state, state, null, false, true);
         }
+    }
+
+    internal sealed class NativePairLifeStateObservation
+    {
+        public long Sequence { get; set; }
+        public string ActorId { get; set; }
+        public string PreviousLifeState { get; set; }
+        public string CurrentLifeState { get; set; }
     }
 }

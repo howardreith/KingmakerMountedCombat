@@ -1,5 +1,11 @@
 # Autonomous blockers
 
+## Schema-v5 proves delivery and later recovery; exact callback remains open - 2026-08-21T04:19:48Z
+
+Status: `IN PROGRESS`; attributable diagnostic limitation with exact restoration, not a safety or architecture blocker.
+
+Clean schema-v5 process `20260821T040400Z-rider-native-incapacitation-probe-v5` is immutable uncredited `FAIL 44/1`. It proves the rider was Conscious/awake/in `AwakeUnits`, public damage changed from `0` toward requested `46`, one stock lifecycle delivery dismounted the pair, and the later actor state was Conscious/awake at damage `38`. Independent audit `20260821T040800Z-rider-native-incapacitation-probe-v5-audit` passed before evidence inspection. Schema v5 did not preserve whether the transient callback was `Conscious -> Unconscious` or `Conscious -> Dead`. Schema v6 adds only a bounded pre-cleanup callback ledger plus immediate-damage and recovery evidence, with exact PASS requiring one `Conscious -> Unconscious` callback. Offline totals remain `21/213/17/203/255`; no blocker is active and no behavioral repair is authorized by the failed probe.
+
 ## Native rider Pass A isolates an observation gap - 2026-08-21T03:39:00Z
 
 Status: `IN PROGRESS`; attributable diagnostic/runtime failure with exact restoration, not a critical safety or architecture blocker.

@@ -366,7 +366,7 @@ function New-TestLifecycleEvidenceRecord {
     )
     $expectedTrigger = Get-KmcLifecycleExpectedCleanupTrigger $Row
     $invocationPath = Get-KmcLifecycleInvocationPath $Row
-    $claimLimit = Get-KmcLifecycleClaimLimit $Row $(if($Row -cin (Get-KmcNativeIncapacitationRuntimeRows)){5}else{0})
+    $claimLimit = Get-KmcLifecycleClaimLimit $Row $(if($Row -cin (Get-KmcNativeIncapacitationRuntimeRows)){6}else{0})
     $cleanup = if ($WithCleanup) {
         [ordered]@{trigger=$expectedTrigger;result='PASS';succeeded=$true;state='Unmounted';movementAuthorityResidual=$false;presentationResidual=$false;errors=@()}
     } else {
@@ -381,7 +381,7 @@ function New-TestLifecycleEvidenceRecord {
     $isNativeIncapacitation=@(Get-KmcNativeIncapacitationRuntimeRows | Where-Object { $_ -ceq $Row }).Count -eq 1
     $isCombatLifecycle=$isNativeIncapacitation -or @(Get-KmcCombatLifecycleRuntimeRows | Where-Object { $_ -ceq $Row }).Count -eq 1
     $record=[ordered]@{
-        schemaVersion=$(if($isNativeIncapacitation){5}elseif($isCombatLifecycle){3}else{2});runId=[string]$Request.runId;scenario=[string]$Request.scenario;row=$Row;phase=$Phase
+        schemaVersion=$(if($isNativeIncapacitation){6}elseif($isCombatLifecycle){3}else{2});runId=[string]$Request.runId;scenario=[string]$Request.scenario;row=$Row;phase=$Phase
         utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o');branch=[string]$Request.branch;commit=[string]$Request.commit
         productVersion=[string]$Request.productVersion;dllSha256=[string]$Request.dllSha256;dllMvid=[string]$Request.dllMvid
         sequence=$Sequence;frame=$frame;relationshipState=$RelationshipState
@@ -433,11 +433,14 @@ function New-TestLifecycleEvidenceRecord {
         $record.actorLifeTransition=[ordered]@{
             actorRole=$role;actorId=$(if($role -ceq 'rider'){'rider-id'}else{'mount-id'})
             mutationProperty='UnitEntityData.Damage';mutationIssued=$observed
-            lifeStateBefore='Conscious';lifeStateAfter=$(if($observed){'Unconscious'}else{$null})
+            lifeStateBefore='Conscious';lifeStateAfter=$(if($observed){'Conscious'}else{$null})
             consciousBefore=$true;awakeBefore=$true;inAwakeUnitsBefore=$true
-            consciousAfter=$false;awakeAfter=$true;inAwakeUnitsAfter=$true;deadAfter=$false;finallyDeadAfter=$false
-            damageBefore=0;requestedDamage=101;damageAfter=$(if($observed){101}else{0})
+            consciousAfter=$observed;awakeAfter=$true;inAwakeUnitsAfter=$true;deadAfter=$false;finallyDeadAfter=$false
+            damageBefore=0;requestedDamage=101;damageAfter=$(if($observed){93}else{0});damageImmediatelyAfterMutation=$(if($observed){101}else{0})
             hitPoints=100;constitution=14;nativeDeliveryCount=$(if($observed){1}else{0})
+            nativeLifeObservationCount=$(if($observed){1}else{0});nativeObservedActorId=$(if($observed){if($role -ceq 'rider'){'rider-id'}else{'mount-id'}}else{$null})
+            nativePreviousLifeState=$(if($observed){'Conscious'}else{$null});nativeCurrentLifeState=$(if($observed){'Unconscious'}else{$null})
+            postDeliveryRecoveryObserved=$observed
         }
     }
     $record.recordErrors=@($RecordErrors)
@@ -4332,10 +4335,11 @@ try {
             $subscriberSource.Contains('Cleanup(NativeLifecycleBoundary.PartyRemoved') -and
             $subscriberSource.Contains('Cleanup(NativeLifecycleBoundary.ViewDetachedOrUnitDestroyed')) 'pair invalidation is missing an exact fail-closed cleanup boundary'
         Assert-Test ($engineSource.Contains('"combat-lifecycle-suite"') -and
-            $engineSource.Contains('? 5') -and
+            $engineSource.Contains('? 6') -and
             $engineSource.Contains(': IsCombatLifecycleRow(currentRow ?? lastEvidenceRow) ? 3 : 2') -and
             $engineSource.Contains('BoundaryExercise = IsCombatLifecycleRow') -and
-            $engineSource.Contains('UnitEntityData.Damage -> UnitLifeController.TickOnUnit -> IUnitLifeStateChanged.HandleUnitLifeStateChanged')) 'combat lifecycle diagnostics do not preserve schema-v2/v3/v4 history while binding native schema-v5 evidence'
+            $engineSource.Contains('UnitEntityData.Damage -> UnitLifeController.TickOnUnit -> IUnitLifeStateChanged.HandleUnitLifeStateChanged') -and
+            $subscriberSource.Contains('NativePairLifeStateObservation')) 'combat lifecycle diagnostics do not preserve schema-v2-v5 history while binding native schema-v6 callback evidence'
     }
 
     Invoke-HarnessTest 'mounted rider grounding repair is exact-token, exact-pair, and runtime-probed' {
@@ -6259,6 +6263,14 @@ try {
             Assert-TestLifecycleEvidenceRejected $nativeRequest $candidate @($subresult) 'native incapacitation accepted a Dead outcome'
 
             $candidate=Copy-TestJsonValue $records
+            $candidate[2].actorLifeTransition.nativeCurrentLifeState='Dead'
+            Assert-TestLifecycleEvidenceRejected $nativeRequest $candidate @($subresult) 'native incapacitation accepted a native Conscious-to-Dead callback'
+
+            $candidate=Copy-TestJsonValue $records
+            $candidate[2].actorLifeTransition.damageImmediatelyAfterMutation=100
+            Assert-TestLifecycleEvidenceRejected $nativeRequest $candidate @($subresult) 'native incapacitation accepted an inexact immediate damage write'
+
+            $candidate=Copy-TestJsonValue $records
             $candidate[2].actorLifeTransition.nativeDeliveryCount=2
             Assert-TestLifecycleEvidenceRejected $nativeRequest $candidate @($subresult) 'native incapacitation accepted duplicate EventBus delivery'
 
@@ -6276,6 +6288,11 @@ try {
                 $failedRecord.actorLifeTransition.consciousAfter=$true
                 $failedRecord.actorLifeTransition.damageAfter=101
                 $failedRecord.actorLifeTransition.nativeDeliveryCount=0
+                $failedRecord.actorLifeTransition.nativeLifeObservationCount=0
+                $failedRecord.actorLifeTransition.nativeObservedActorId=$null
+                $failedRecord.actorLifeTransition.nativePreviousLifeState=$null
+                $failedRecord.actorLifeTransition.nativeCurrentLifeState=$null
+                $failedRecord.actorLifeTransition.postDeliveryRecoveryObserved=$false
                 $failedRecord.triggerScope.nativeDeliveryObserved=$false
                 $failedRecord.boundaryExercise=New-TestCombatLifecycleBoundaryExercise -Row $row -Observed:$false
                 $failedRecord.cleanup.trigger='Exception'

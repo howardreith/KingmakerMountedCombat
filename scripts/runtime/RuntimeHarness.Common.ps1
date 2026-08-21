@@ -3997,12 +3997,12 @@ function Assert-KmcLifecycleEvidenceRecord {
         [Parameter(Mandatory = $true)][string[]]$ExpectedRows,
         [Parameter(Mandatory = $true)][bool]$RequireComplete
     )
-    if (-not (Test-KmcExactJsonInteger $Record.schemaVersion) -or [long]$Record.schemaVersion -notin @(2,3,4,5)) {
-        throw 'Lifecycle evidence schemaVersion must be the exact integral value 2, 3, 4, or 5.'
+    if (-not (Test-KmcExactJsonInteger $Record.schemaVersion) -or [long]$Record.schemaVersion -notin @(2,3,4,5,6)) {
+        throw 'Lifecycle evidence schemaVersion must be the exact integral value 2, 3, 4, 5, or 6.'
     }
     $isNativeIncapacitation=@(Get-KmcNativeIncapacitationRuntimeRows | Where-Object { $_ -ceq [string]$Record.row }).Count -eq 1
     $isCombatLifecycle=$isNativeIncapacitation -or @(Get-KmcCombatLifecycleRuntimeRows | Where-Object { $_ -ceq [string]$Record.row }).Count -eq 1
-    if (($isNativeIncapacitation -and [long]$Record.schemaVersion -notin @(4,5)) -or
+    if (($isNativeIncapacitation -and [long]$Record.schemaVersion -notin @(4,5,6)) -or
         ($isCombatLifecycle -and -not $isNativeIncapacitation -and [long]$Record.schemaVersion -ne 3) -or
         (-not $isCombatLifecycle -and [long]$Record.schemaVersion -ne 2)) {
         throw 'Lifecycle evidence schema version does not match its exact row family.'
@@ -4134,16 +4134,35 @@ function Assert-KmcLifecycleEvidenceRecord {
         if([long]$Record.schemaVersion -eq 5) {
             $actorLifeProperties+=@('awakeBefore','inAwakeUnitsBefore','awakeAfter','inAwakeUnitsAfter')
         }
+        if([long]$Record.schemaVersion -eq 6) {
+            $actorLifeProperties+=@(
+                'awakeBefore','inAwakeUnitsBefore','awakeAfter','inAwakeUnitsAfter',
+                'damageImmediatelyAfterMutation','nativeLifeObservationCount','nativeObservedActorId',
+                'nativePreviousLifeState','nativeCurrentLifeState','postDeliveryRecoveryObserved')
+        }
         Assert-KmcExactProperties $Record.actorLifeTransition $actorLifeProperties 'native actor life transition'
         $booleanProperties=@('mutationIssued','consciousBefore','consciousAfter','deadAfter','finallyDeadAfter')
         if([long]$Record.schemaVersion -eq 5) {
             $booleanProperties+=@('awakeBefore','inAwakeUnitsBefore','awakeAfter','inAwakeUnitsAfter')
+        }
+        if([long]$Record.schemaVersion -eq 6) {
+            $booleanProperties+=@('awakeBefore','inAwakeUnitsBefore','awakeAfter','inAwakeUnitsAfter','postDeliveryRecoveryObserved')
         }
         foreach($name in $booleanProperties) {
             if($Record.actorLifeTransition.$name -isnot [bool]) { throw "Native actor life transition $name must be Boolean." }
         }
         foreach($name in @('damageBefore','requestedDamage','damageAfter','hitPoints','constitution','nativeDeliveryCount')) {
             if(-not (Test-KmcExactJsonInteger $Record.actorLifeTransition.$name)) { throw "Native actor life transition $name must be integral." }
+        }
+        if([long]$Record.schemaVersion -eq 6) {
+            foreach($name in @('damageImmediatelyAfterMutation','nativeLifeObservationCount')) {
+                if(-not (Test-KmcExactJsonInteger $Record.actorLifeTransition.$name)) { throw "Native actor life transition $name must be integral." }
+            }
+            foreach($name in @('nativeObservedActorId','nativePreviousLifeState','nativeCurrentLifeState')) {
+                if($null -ne $Record.actorLifeTransition.$name -and $Record.actorLifeTransition.$name -isnot [string]) {
+                    throw "Native actor life transition $name must be a JSON string or null."
+                }
+            }
         }
         $expectedRole=if([string]$Record.row -ceq 'mounted-pair-rider-native-incapacitated-cleanup'){'rider'}else{'mount'}
         $expectedId=if($expectedRole -ceq 'rider'){[string]$Record.rider.uniqueId}else{[string]$Record.mount.uniqueId}
@@ -4159,7 +4178,22 @@ function Assert-KmcLifecycleEvidenceRecord {
         }
         $transitionObserved=[string]$Record.phase -cin @('cleanup-next-frame','row-finish','engine-finalization')
         if($transitionObserved -and $RequireComplete) {
-            if($Record.actorLifeTransition.mutationIssued -ne $true -or
+            if([long]$Record.schemaVersion -eq 6) {
+                if($Record.actorLifeTransition.mutationIssued -ne $true -or
+                    [long]$Record.actorLifeTransition.damageImmediatelyAfterMutation -ne [long]$Record.actorLifeTransition.requestedDamage -or
+                    [long]$Record.actorLifeTransition.nativeLifeObservationCount -ne 1 -or
+                    [string]$Record.actorLifeTransition.nativeObservedActorId -cne $expectedId -or
+                    [string]$Record.actorLifeTransition.nativePreviousLifeState -cne 'Conscious' -or
+                    [string]$Record.actorLifeTransition.nativeCurrentLifeState -cne 'Unconscious' -or
+                    [string]$Record.actorLifeTransition.lifeStateAfter -cnotin @('Conscious','Unconscious') -or
+                    $Record.actorLifeTransition.deadAfter -ne $false -or
+                    $Record.actorLifeTransition.finallyDeadAfter -ne $false -or
+                    [long]$Record.actorLifeTransition.damageAfter -lt 0 -or
+                    [long]$Record.actorLifeTransition.damageAfter -gt [long]$Record.actorLifeTransition.requestedDamage -or
+                    [long]$Record.actorLifeTransition.nativeDeliveryCount -ne 1) {
+                    throw 'Native actor schema-v6 evidence does not prove one exact stock Conscious-to-Unconscious delivery.'
+                }
+            } elseif($Record.actorLifeTransition.mutationIssued -ne $true -or
                 [string]$Record.actorLifeTransition.lifeStateAfter -cne 'Unconscious' -or
                 $Record.actorLifeTransition.consciousAfter -ne $false -or
                 $Record.actorLifeTransition.deadAfter -ne $false -or
@@ -4173,12 +4207,46 @@ function Assert-KmcLifecycleEvidenceRecord {
             [long]$Record.actorLifeTransition.damageAfter -ne 0 -or
             [long]$Record.actorLifeTransition.nativeDeliveryCount -ne 0)) {
             throw 'Native actor pre-transition evidence contains premature mutation or delivery state.'
-        } elseif($transitionObserved -and [long]$Record.schemaVersion -eq 5 -and
+        } elseif($transitionObserved -and [long]$Record.schemaVersion -in @(5,6) -and
             ($Record.actorLifeTransition.mutationIssued -ne $true -or
              [string]$Record.actorLifeTransition.lifeStateAfter -cnotin @('Conscious','Unconscious','Dead') -or
              [long]$Record.actorLifeTransition.damageAfter -lt 0 -or
              [long]$Record.actorLifeTransition.nativeDeliveryCount -lt 0)) {
             throw 'Native actor failed-transition observation is incomplete or impossible.'
+        }
+        if([long]$Record.schemaVersion -eq 6) {
+            if(-not $transitionObserved -and (
+                [long]$Record.actorLifeTransition.damageImmediatelyAfterMutation -ne 0 -or
+                [long]$Record.actorLifeTransition.nativeLifeObservationCount -ne 0 -or
+                $null -ne $Record.actorLifeTransition.nativeObservedActorId -or
+                $null -ne $Record.actorLifeTransition.nativePreviousLifeState -or
+                $null -ne $Record.actorLifeTransition.nativeCurrentLifeState -or
+                $Record.actorLifeTransition.postDeliveryRecoveryObserved -ne $false)) {
+                throw 'Native actor schema-v6 pre-transition evidence contains premature callback observations.'
+            }
+            if($transitionObserved) {
+                $observationCount=[long]$Record.actorLifeTransition.nativeLifeObservationCount
+                if($observationCount -eq 0 -and (
+                    $null -ne $Record.actorLifeTransition.nativeObservedActorId -or
+                    $null -ne $Record.actorLifeTransition.nativePreviousLifeState -or
+                    $null -ne $Record.actorLifeTransition.nativeCurrentLifeState)) {
+                    throw 'Native actor schema-v6 zero-count callback observation contains identity or state.'
+                }
+                if($observationCount -gt 0 -and (
+                    [string]$Record.actorLifeTransition.nativeObservedActorId -cne $expectedId -or
+                    [string]$Record.actorLifeTransition.nativePreviousLifeState -cnotin @('Conscious','Unconscious','Dead') -or
+                    [string]$Record.actorLifeTransition.nativeCurrentLifeState -cnotin @('Conscious','Unconscious','Dead'))) {
+                    throw 'Native actor schema-v6 callback observation identity or state is invalid.'
+                }
+                $expectedConscious=[string]$Record.actorLifeTransition.lifeStateAfter -ceq 'Conscious'
+                $expectedRecovery=$observationCount -gt 0 -and (
+                    [string]$Record.actorLifeTransition.lifeStateAfter -cne [string]$Record.actorLifeTransition.nativeCurrentLifeState -or
+                    [long]$Record.actorLifeTransition.damageAfter -ne [long]$Record.actorLifeTransition.damageImmediatelyAfterMutation)
+                if($Record.actorLifeTransition.consciousAfter -ne $expectedConscious -or
+                    $Record.actorLifeTransition.postDeliveryRecoveryObserved -ne $expectedRecovery) {
+                    throw 'Native actor schema-v6 current-state or post-delivery recovery classification is inconsistent.'
+                }
+            }
         }
     }
     Assert-KmcLifecycleUnitEvidence $Record.rider 'lifecycle evidence rider' -RequireComplete:$RequireComplete

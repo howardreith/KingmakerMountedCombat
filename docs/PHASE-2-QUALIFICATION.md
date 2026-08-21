@@ -1,5 +1,13 @@
 # Phase 2 qualification
 
+## Native incapacitation schema-v5 diagnostic and schema-v6 checkpoint (2026-08-21)
+
+Status: `IN PROGRESS`; neither failed probe receives qualification credit.
+
+Clean schema-v5 package `d99c4247f012074aee3b6dd3d4edd84bec492f6d01f8c81a5590c0f7ada4c9d8` and suite snapshot `e86d5b8e22b18d6e0f044f598d457ece011e340132be8742b209b8fbb4589763` passed fully attached RT/TB WhatIf and independent audit gates. Probe `20260821T040400Z-rider-native-incapacitation-probe-v5` then failed `44/1`; audit `20260821T040800Z-rider-native-incapacitation-probe-v5-audit` proved exact restoration before evidence inspection. The rider was initially Conscious, awake, and in `AwakeUnits`; `Damage=46` was applied for HP/Constitution `45/11`; one native delivery occurred and dismounted the pair; final observation was Conscious/awake at damage `38`. This disproves the earlier controller-eligibility theory but does not distinguish the exact transient callback state.
+
+Additive schema v6 records the exact pair callback before cleanup, the immediate post-set damage, later actor state, and whether stock processing recovered either state or damage. Qualification still requires exactly one exact-actor `Conscious -> Unconscious` callback, one `UnitIncapacitated` delivery, exact Mounted-to-Unmounted cleanup, no death, and complete residue/external restoration. Deterministic validators reject Dead callback, wrong actor/state, duplicate callback/delivery, inexact immediate write, and incoherent recovery. Historical schemas v2-v5 remain compatible. Offline gates pass `21/213/17/203/255`; fresh clean-package runtime remains required.
+
 ## Native incapacitation first-process diagnostic (2026-08-21)
 
 Status: `IN PROGRESS`; process `20260821T032700Z-rider-native-incapacitation-passA` is immutable uncredited `FAIL 44/1`, with exact external restoration independently audited before evidence inspection.
