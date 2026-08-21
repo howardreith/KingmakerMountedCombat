@@ -1,5 +1,13 @@
 # Mounted Combat journal
 
+## 2026-08-21T01:42:00Z - first combat-lifecycle process isolates phase-aware pose evidence
+
+- Clean implementation/package/suite: `1e351d31173bdf74454ac7808481112c760b665f`, package `9f3d4031fc0114562df34b95c91e18ce170dcf37e4dc8d1737a3405c25da19e9`, manifest `9c3f585e29459af321b25122cbe4c2fdbb537960ddcdd1ea5e02f50828011a42`, DLL/MVID `eacc5de4adf445db7a188339adca656acc7811bfbfc75484a92ffa98dcc65867` / `7529e931-b452-4acd-b40b-dd4bf28a5e98`, suite `20260821T013000Z-combat-lifecycle-suite1` snapshot `9136d398ea6158f7647c928f0d1080b9116945e77ac79333d48354b774996408`. Separate RT/TB WhatIf gates and independent audits passed.
+- Live process `20260821T014600Z-combat-lifecycle-passA` is immutable uncredited final-validator `FAIL`. Immediate independent restoration audit passed before gameplay evidence inspection with exact save/Mods inventories, Baseline/Working pins, and no process, lock, sentinel, transaction, or deployment residue.
+- The game result is `PASS 400/0`: all nine schema-v3 rows completed. Mounted records expose the accepted `medium-humanoid-mammoth-v1` profile, seven bones, healthy applied pose, and one component. Unmounted pre/cleanup/final records correctly expose null profile/inventory, no component, no active pose, and verified restoration after cleanup. The validator wrongly required the active profile on every phase.
+- Repair is validator/test only. It accepts the exact inactive pre/restored shape, requires exact active identity only on `mounted-next-frame`, requires restoration after cleanup, and adds mutations for active profile before mount, missing mounted profile, and missing cleanup restoration. Historical schema-v2 remains unchanged. Harness/parser pass `199/0` / `28/0`, and the preserved artifact validates `39/0` only as diagnostic confirmation, never retroactive credit.
+- Next: full affected gates, coherent commit/publish, fresh package/suite/WhatIf, then complete new A/B with audit-before-read.
+
 ## 2026-08-21T01:17:44Z - combat-alpha lifecycle boundary protocol implemented
 
 - Starting identity: exact clean local/upstream `dd768636e48b0ebfef98d1595f57662a22520f3d`, branch `codex/mounted-combat-phase2-alpha`, version `0.1.0-phase2b-dev.1`. No runtime transaction, suite admission, game process, save write, Mods write, or evidence inspection occurred.

@@ -1,5 +1,13 @@
 # Autonomous blockers
 
+## Combat-lifecycle Pass A pose-validator mismatch - 2026-08-21T01:42:00Z
+
+Status: `IN PROGRESS`; attributable validator defect with exact external restoration, not a safety or architecture blocker.
+
+Run `20260821T014600Z-combat-lifecycle-passA` produced internally coherent game `PASS 400/0`, but final validation rejected the first unmounted record because schema v3 required `medium-humanoid-mammoth-v1` even when no pose lease was active. Immediate independent audit ran before evidence inspection and passed the exact suite inventories, fixture pins, and zero process/lock/sentinel/deployment state.
+
+The narrow repair validates null/inactive pose before mount and after cleanup, exact accepted Mammoth pose only while mounted, and sticky verified baseline restoration on later rows. Harness `199/0`, parser `28/0`, and direct preserved-evidence validation `39/0` pass. The failed process remains uncredited; a new commit/package/suite and complete fresh A/B restart are mandatory.
+
 ## Combat-lifecycle protocol ready for runtime - 2026-08-21T01:17:44Z
 
 Status: `IN PROGRESS`; no critical blocker is active.

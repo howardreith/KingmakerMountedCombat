@@ -4046,8 +4046,6 @@ function Assert-KmcLifecycleEvidenceRecord {
             'boneCount','applicationFrameCount','footTargetClampCount','maximumFootTargetResidualWorldUnits',
             'maximumKneeTargetResidualWorldUnits','maximumSegmentLengthResidualWorldUnits','maximumApplyMicroseconds',
             'averageApplyMicroseconds','failure') 'combat lifecycle pose evidence'
-        if ($Record.pose.profileId -isnot [string] -or [string]$Record.pose.profileId -cne 'medium-humanoid-mammoth-v1' -or
-            $Record.pose.boneInventory -isnot [string]) { throw 'Combat lifecycle pose identity is invalid.' }
         foreach($name in @('configured','healthy','frameApplied','baselineRestoreVerified')) {
             if($Record.pose.$name -isnot [bool]) { throw "Combat lifecycle pose.$name must be a JSON boolean." }
         }
@@ -4061,6 +4059,25 @@ function Assert-KmcLifecycleEvidenceRecord {
             if(-not (Test-KmcJsonNumber $Record.pose.$name)) { throw "Combat lifecycle pose.$name must be a JSON number." }
         }
         if($null -ne $Record.pose.failure -and $Record.pose.failure -isnot [string]) { throw 'Combat lifecycle pose.failure must be a JSON string or null.' }
+        $mountedPose=[string]$Record.phase -ceq 'mounted-next-frame'
+        $restoredPose=[string]$Record.phase -cin @('cleanup-next-frame','row-finish','engine-finalization')
+        if ($mountedPose) {
+            if ($Record.pose.profileId -isnot [string] -or [string]$Record.pose.profileId -cne 'medium-humanoid-mammoth-v1' -or
+                $Record.pose.boneInventory -isnot [string] -or [string]::IsNullOrWhiteSpace([string]$Record.pose.boneInventory) -or
+                $Record.pose.configured -ne $true -or $Record.pose.healthy -ne $true -or $Record.pose.frameApplied -ne $true -or
+                $Record.pose.baselineRestoreVerified -ne $false -or [long]$Record.pose.componentCount -ne 1 -or
+                [long]$Record.pose.boneCount -ne 7 -or [long]$Record.pose.applicationFrameCount -lt 1 -or $null -ne $Record.pose.failure) {
+                throw 'Combat lifecycle mounted pose state is not the exact accepted Mammoth profile.'
+            }
+        }
+        else {
+            if ($null -ne $Record.pose.profileId -or $null -ne $Record.pose.boneInventory -or
+                $Record.pose.configured -ne $false -or $Record.pose.healthy -ne $false -or $Record.pose.frameApplied -ne $false -or
+                ($restoredPose -and $Record.pose.baselineRestoreVerified -ne $true) -or [long]$Record.pose.componentCount -ne 0 -or
+                [long]$Record.pose.boneCount -ne 0 -or [long]$Record.pose.applicationFrameCount -ne 0 -or $null -ne $Record.pose.failure) {
+                throw 'Combat lifecycle unmounted pose state does not exactly represent inactive or restored presentation.'
+            }
+        }
         if ($null -eq $Record.boundaryExercise) { throw 'Combat lifecycle evidence requires boundaryExercise.' }
         Assert-KmcCombatLifecycleBoundaryExercise $Record.boundaryExercise $Record
     }

@@ -1,5 +1,13 @@
 # Autonomous resume
 
+## Current resume checkpoint - 2026-08-21T01:42:00Z
+
+- Status is `IN PROGRESS`; no safety, architecture, or presentation blocker is active. Published implementation/package/suite are `1e351d31173bdf74454ac7808481112c760b665f` / `9f3d4031fc0114562df34b95c91e18ce170dcf37e4dc8d1737a3405c25da19e9` / `20260821T013000Z-combat-lifecycle-suite1` snapshot `9136d398ea6158f7647c928f0d1080b9116945e77ac79333d48354b774996408`. Manifest/DLL/MVID are `9c3f585e29459af321b25122cbe4c2fdbb537960ddcdd1ea5e02f50828011a42` / `eacc5de4adf445db7a188339adca656acc7811bfbfc75484a92ffa98dcc65867` / `7529e931-b452-4acd-b40b-dd4bf28a5e98`. Separate RT/TB WhatIf gates and audits passed.
+- Preserved process `20260821T014600Z-combat-lifecycle-passA` is immutable and uncredited because final validation failed. Immediate independent audit passed first: exact save/Mods digests `99b21a2...` / `1f724e8...`, immutable Baseline, restored Working, and zero process/lock/sentinel/deployment residue.
+- Game evidence itself is coherent schema-v3 `PASS` `400/0`: all nine rows pass and external restoration is exact. The final validator incorrectly required profile identity on unmounted pre/cleanup/final phases. Actual evidence truthfully reports the accepted profile only while mounted, null/inactive pose when unmounted, and sticky `baselineRestoreVerified=true` after the first cleanup.
+- Narrow worktree repair makes pose validation phase-aware, rejects any active profile before mount, requires the exact accepted profile while mounted, and requires verified restoration after cleanup. Deterministic harness and PowerShell parser pass `199/0` and `28/0`; the preserved run validates `39/0` under the corrected semantics but receives no retroactive PASS credit.
+- Exact next action: complete all affected gates, commit and guarded-publish, preserve the 1e351d3 package, produce a fresh clean-HEAD package, admit a new suite, repeat RT/TB WhatIf/audits, and restart fresh combat-lifecycle A/B. No evidence may cross suite/package identity.
+
 ## Current resume checkpoint - 2026-08-21T01:17:44Z
 
 - Status is `IN PROGRESS`; no safety, architecture, or presentation blocker is active. Starting branch/local/upstream identity is exact clean guarded-published `dd768636e48b0ebfef98d1595f57662a22520f3d` on `codex/mounted-combat-phase2-alpha`, version `0.1.0-phase2b-dev.1`. The worktree is one coherent combat-lifecycle diagnostic/protocol tranche; no game, transaction, suite admission, save/Mods mutation, or runtime evidence has occurred in it.

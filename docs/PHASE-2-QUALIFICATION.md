@@ -4,6 +4,8 @@
 
 Status: `IN PROGRESS`; no lifecycle runtime PASS is claimed yet.
 
+First process `20260821T014600Z-combat-lifecycle-passA` remains uncredited after a final-validator failure, despite exact game `PASS 400/0` and an immediate independent restoration PASS. The validator modeled the accepted pose as active in every lifecycle phase; actual evidence correctly reports the profile only while mounted and an inactive/restored pose before mount and after cleanup. A phase-aware validator/test repair is offline-green. Fresh commit/package/suite A/B is required; the failed process receives no credit.
+
 The additive `combat-lifecycle-suite` defines nine schema-v3 rows for combat start/end retention, rider/Mammoth death, rider/Mammoth incapacitation, companion removal, view destruction, and exception recovery. Exact-property validators bind actor identity, direct invocation path, ordered delivery-ledger records, relationship state, cleanup trigger/result, presentation health, and final residue. Historical schema-v2 lifecycle evidence remains unchanged and valid.
 
 The evidence boundary is explicit. Combat start/end rows invoke the exact lifecycle handler and prove retention of a still-valid pair at that direct boundary. Death, companion-removal, and view-destruction rows require the corresponding direct handler and delivery ledger. Incapacitation and exception rows exercise the exact fail-safe relationship cleanup directly and claim zero native delivery. Native EventBus delivery, true actor incapacitation, and combat-end cancellation while a mounted command is active remain separately required.

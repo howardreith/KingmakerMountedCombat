@@ -412,11 +412,14 @@ function New-TestLifecycleEvidenceRecord {
     }
     if ($isCombatLifecycle) {
         $record.pose=[ordered]@{
-            profileId='medium-humanoid-mammoth-v1';boneInventory='Root,Pelvis,Spine,LeftThigh,RightThigh,LeftCalf,RightCalf'
-            configured=$mounted;healthy=$true;frameApplied=$mounted;baselineRestoreVerified=(-not $mounted)
-            componentCount=$(if($mounted){1}else{0});boneCount=7;applicationFrameCount=$(if($mounted){1}else{0})
+            profileId=$(if($mounted){'medium-humanoid-mammoth-v1'}else{$null})
+            boneInventory=$(if($mounted){'Pelvis,L_Up_leg,L_leg,L_foot,R_Up_leg,R_leg,R_foot'}else{$null})
+            configured=$mounted;healthy=$mounted;frameApplied=$mounted
+            baselineRestoreVerified=$(if($mounted){$false}elseif($Phase -ceq 'pre-mount'){$Sequence -gt 0}else{$restored})
+            componentCount=$(if($mounted){1}else{0});boneCount=$(if($mounted){7}else{0});applicationFrameCount=$(if($mounted){1}else{0})
             footTargetClampCount=0;maximumFootTargetResidualWorldUnits=0.0;maximumKneeTargetResidualWorldUnits=0.0
-            maximumSegmentLengthResidualWorldUnits=0.0;maximumApplyMicroseconds=1.0;averageApplyMicroseconds=1.0;failure=$null
+            maximumSegmentLengthResidualWorldUnits=0.0;maximumApplyMicroseconds=$(if($mounted){1.0}else{0.0})
+            averageApplyMicroseconds=$(if($mounted){1.0}else{0.0});failure=$null
         }
         $observed=$Phase -cin @('cleanup-next-frame','row-finish','engine-finalization')
         $record.boundaryExercise=New-TestCombatLifecycleBoundaryExercise -Row $Row -Observed:$observed
@@ -6160,6 +6163,21 @@ try {
         $pendingCleanup=@($candidate|Where-Object{[string]$_.row -ceq 'mounted-pair-exception-cleanup' -and [string]$_.phase -ceq 'cleanup-next-frame'})[0]
         $pendingCleanup.boundaryExercise=New-TestCombatLifecycleBoundaryExercise -Row 'mounted-pair-exception-cleanup' -Observed:$false
         Assert-TestLifecycleEvidenceRejected $combatLifecycleRequest $candidate $subresults 'combat lifecycle accepted pending evidence after cleanup'
+
+        $candidate=Copy-TestJsonValue $valid
+        $prePose=@($candidate|Where-Object{[string]$_.phase -ceq 'pre-mount'})[0]
+        $prePose.pose.profileId='medium-humanoid-mammoth-v1'
+        Assert-TestLifecycleEvidenceRejected $combatLifecycleRequest $candidate $subresults 'combat lifecycle accepted an active pose identity before mount'
+
+        $candidate=Copy-TestJsonValue $valid
+        $mountedPose=@($candidate|Where-Object{[string]$_.phase -ceq 'mounted-next-frame'})[0]
+        $mountedPose.pose.profileId=$null
+        Assert-TestLifecycleEvidenceRejected $combatLifecycleRequest $candidate $subresults 'combat lifecycle accepted a missing mounted Mammoth pose identity'
+
+        $candidate=Copy-TestJsonValue $valid
+        $restoredPose=@($candidate|Where-Object{[string]$_.phase -ceq 'cleanup-next-frame'})[0]
+        $restoredPose.pose.baselineRestoreVerified=$false
+        Assert-TestLifecycleEvidenceRejected $combatLifecycleRequest $candidate $subresults 'combat lifecycle accepted unverified pose restoration after cleanup'
 
         $historical=Copy-TestJsonValue $validLifecycleRecords
         Assert-Test ([long]$historical[0].schemaVersion -eq 2 -and $null -eq $historical[0].PSObject.Properties['boundaryExercise']) 'historical schema-v2 lifecycle evidence shape was rewritten'
