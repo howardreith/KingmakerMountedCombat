@@ -1,5 +1,13 @@
 # Autonomous resume
 
+## Current resume checkpoint - 2026-08-21T01:57:26Z
+
+- Status is `IN PROGRESS`; no safety, architecture, or presentation blocker is active. Exact clean guarded-published implementation is `82935e9fdd263fac698a35d07fdc7a090e58927c`. Package/manifest/DLL SHA-256 are `7aef5b851a75d6ba18e8cd4602eff14cbaf2cd4fdb764ac61e1e7254380e3ad5` / `b30fec9027242bb115e82964405d5363ec1456c60519c66caa176dae0758053e` / `eacc5de4adf445db7a188339adca656acc7811bfbfc75484a92ffa98dcc65867`; MVID is `7529e931-b452-4acd-b40b-dd4bf28a5e98`.
+- Stable suite `20260821T014500Z-combat-lifecycle-suite2` snapshot SHA-256 is `c070d0d6697e8a21c58bb8c8952ac2d810c703db28e3f03ea25717be5d114df8`; save/Mods digests are `99b21a2ca3864dbaac7fac80dde5e382df4b6ab3738f59feccd8117bab9f4c89` / `1f724e85026dd868b3f8bad795f159c969f9ac126e9a55a41c82a78fc5f52b0a`. Separate RT/TB WhatIf gates and independent audits passed before live use.
+- Fresh same-package runs `20260821T020000Z-combat-lifecycle-suite2-passA` and `20260821T020500Z-combat-lifecycle-suite2-passB` each pass schema v3 `400/0`, nine rows, with immediate independent restoration audits before evidence inspection. Aggregate credited evidence is `800/0` across 18 row executions.
+- Qualified direct boundaries: valid-pair combat start/end retention; rider/Mammoth death cleanup; direct rider/Mammoth incapacitation fail-safe cleanup; companion removal; view destruction; and exception cleanup. Exact accepted pose is active only while mounted and restored afterward. Handler-backed rows bind ordered delivery-ledger entries; direct service rows truthfully claim zero native delivery.
+- Claim limit: direct boundary/service behavior is PASS A/B. Native EventBus delivery for incapacitation, true actor state transition, and combat-end cancellation while an active mounted command exists remain open. Exact next action is this coherent qualification-documentation commit/publish, then those active/native lifecycle rows and the remaining core invalid-target/target-death/cleanup/non-mounted controls.
+
 ## Current resume checkpoint - 2026-08-21T01:42:00Z
 
 - Status is `IN PROGRESS`; no safety, architecture, or presentation blocker is active. Published implementation/package/suite are `1e351d31173bdf74454ac7808481112c760b665f` / `9f3d4031fc0114562df34b95c91e18ce170dcf37e4dc8d1737a3405c25da19e9` / `20260821T013000Z-combat-lifecycle-suite1` snapshot `9136d398ea6158f7647c928f0d1080b9116945e77ac79333d48354b774996408`. Manifest/DLL/MVID are `9c3f585e29459af321b25122cbe4c2fdbb537960ddcdd1ea5e02f50828011a42` / `eacc5de4adf445db7a188339adca656acc7811bfbfc75484a92ffa98dcc65867` / `7529e931-b452-4acd-b40b-dd4bf28a5e98`. Separate RT/TB WhatIf gates and audits passed.

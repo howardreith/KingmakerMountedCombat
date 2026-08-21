@@ -1,5 +1,13 @@
 # Autonomous blockers
 
+## Direct combat-lifecycle suite qualified - 2026-08-21T01:57:26Z
+
+Status: `PASS` for the nine exact direct handler/service boundaries; no critical blocker is active.
+
+Clean package `7aef5b851a75d6ba18e8cd4602eff14cbaf2cd4fdb764ac61e1e7254380e3ad5` and suite snapshot `c070d0d6697e8a21c58bb8c8952ac2d810c703db28e3f03ea25717be5d114df8` produced fresh Pass A/B `20260821T020000Z-combat-lifecycle-suite2-passA` / `20260821T020500Z-combat-lifecycle-suite2-passB`, each `400/0`. Every restoration audit passed before evidence inspection.
+
+The pair is retained at directly invoked combat start/end; death, companion removal, and view destruction deliver exact handlers and cleanup; incapacitation and exception exercise exact direct fail-safe cleanup. The suite does not claim native incapacitation delivery or active-command combat-end cancellation. Those are remaining qualification work, not blockers.
+
 ## Combat-lifecycle Pass A pose-validator mismatch - 2026-08-21T01:42:00Z
 
 Status: `IN PROGRESS`; attributable validator defect with exact external restoration, not a safety or architecture blocker.

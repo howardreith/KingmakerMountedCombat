@@ -1,5 +1,13 @@
 # Mounted Combat journal
 
+## 2026-08-21T01:57:26Z - direct combat-lifecycle boundaries qualified A/B
+
+- Identity: clean guarded-published `82935e9fdd263fac698a35d07fdc7a090e58927c`; package/manifest `7aef5b851a75d6ba18e8cd4602eff14cbaf2cd4fdb764ac61e1e7254380e3ad5` / `b30fec9027242bb115e82964405d5363ec1456c60519c66caa176dae0758053e`; DLL/MVID `eacc5de4adf445db7a188339adca656acc7811bfbfc75484a92ffa98dcc65867` / `7529e931-b452-4acd-b40b-dd4bf28a5e98`.
+- Suite `20260821T014500Z-combat-lifecycle-suite2`, snapshot `c070d0d6697e8a21c58bb8c8952ac2d810c703db28e3f03ea25717be5d114df8`, admitted exact save/Mods digests `99b21a2ca3864dbaac7fac80dde5e382df4b6ab3738f59feccd8117bab9f4c89` / `1f724e85026dd868b3f8bad795f159c969f9ac126e9a55a41c82a78fc5f52b0a`. Separate RT/TB WhatIf and immediate audits passed.
+- Credited runs `20260821T020000Z-combat-lifecycle-suite2-passA` / `20260821T020500Z-combat-lifecycle-suite2-passB` each pass `400/0`: nine ordered rows, nine subscenario PASS, zero failure. Each received an independent audit before evidence read and restored exact full save/Mods inventories, immutable Baseline, exact Working, and zero process/lock/sentinel/deployment residue.
+- Qualified scope: directly invoked combat-start/end retention; rider/Mammoth death; direct rider/Mammoth incapacitation fail-safe; companion removal; view destruction; and exception cleanup. Exact actor/path/delivery/relationship/cleanup/pose evidence repeats. No native delivery is invented for direct service rows.
+- Open scope: native incapacitation delivery/real actor transition and active-command combat-end cancellation. The old suite-1 validator failure remains immutable uncredited. Next: publish qualification records, then implement and qualify those active/native boundaries and remaining core control rows.
+
 ## 2026-08-21T01:42:00Z - first combat-lifecycle process isolates phase-aware pose evidence
 
 - Clean implementation/package/suite: `1e351d31173bdf74454ac7808481112c760b665f`, package `9f3d4031fc0114562df34b95c91e18ce170dcf37e4dc8d1737a3405c25da19e9`, manifest `9c3f585e29459af321b25122cbe4c2fdbb537960ddcdd1ea5e02f50828011a42`, DLL/MVID `eacc5de4adf445db7a188339adca656acc7811bfbfc75484a92ffa98dcc65867` / `7529e931-b452-4acd-b40b-dd4bf28a5e98`, suite `20260821T013000Z-combat-lifecycle-suite1` snapshot `9136d398ea6158f7647c928f0d1080b9116945e77ac79333d48354b774996408`. Separate RT/TB WhatIf gates and independent audits passed.

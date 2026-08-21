@@ -1,5 +1,15 @@
 # Phase 2 qualification
 
+## Direct combat-lifecycle boundary qualification (2026-08-21)
+
+Status: `PASS` for the nine exact direct handler/service rows; overall lifecycle and private-alpha qualification remain `IN PROGRESS`.
+
+Clean implementation `82935e9fdd263fac698a35d07fdc7a090e58927c`, package/manifest/DLL SHA-256 `7aef5b851a75d6ba18e8cd4602eff14cbaf2cd4fdb764ac61e1e7254380e3ad5` / `b30fec9027242bb115e82964405d5363ec1456c60519c66caa176dae0758053e` / `eacc5de4adf445db7a188339adca656acc7811bfbfc75484a92ffa98dcc65867`, MVID `7529e931-b452-4acd-b40b-dd4bf28a5e98`, and suite snapshot `c070d0d6697e8a21c58bb8c8952ac2d810c703db28e3f03ea25717be5d114df8` produced two fresh processes at `400/0` each. Immediate independent restoration audits preceded both evidence reads.
+
+The credited rows prove valid-pair retention at directly invoked combat start/end; exact handler cleanup for rider/Mammoth death, companion removal, and view destruction; exact direct fail-safe cleanup for rider/Mammoth incapacitation and exceptions; accepted mounted pose and verified restoration; exact relationship/attachment/selection/command residue; and complete save/Mods restoration. Handler rows require ordered native-delivery-ledger entries. Direct service rows require zero such entries and make no native-delivery claim.
+
+This qualification does not prove actual EventBus delivery for incapacitation, a real actor life-state mutation, or combat-end cancellation while an active mounted command exists. Those remain required. The prior suite-1 process remains uncredited despite internally coherent game evidence because its final validator failed.
+
 ## Combat-lifecycle implementation checkpoint (2026-08-21)
 
 Status: `IN PROGRESS`; no lifecycle runtime PASS is claimed yet.
