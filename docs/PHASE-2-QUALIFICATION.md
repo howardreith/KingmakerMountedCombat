@@ -1,5 +1,9 @@
 # Phase 2 qualification
 
+## Mounted-reach evidence implementation checkpoint (2026-08-21)
+
+Status: `IN PROGRESS`; no reach runtime PASS is claimed yet. Additive combat schemas v42/v43 bind independent rider and Mammoth stopping radii to exact installed weapon/corpulence mechanics, prove a real initial location outside both boundaries, prove the requested actor is inside its own unchanged admission contract at dispatch, retain four exact rider/Mammoth/target attackability directions, and prove all range inputs remain unchanged. No production behavior, global reach, engagement, target replacement, non-mounted path, AoO, or charge rule changes. Reach capture is restricted to the exact four qualifying rows so historical evidence shapes remain unchanged. Source `21/0`, Release build, component `217/0`, visual/source-order `17/0`, harness/protocol `212/0`, assembly-contract `255/0`, PowerShell parser `26/0`, JSON parser `7/0`, diff, and prohibited-payload checks are green; fresh clean-package RT/TB A/B remains required.
+
 ## Opportunity isolation requalified on the repaired launcher (2026-08-21)
 
 Status: `PASS` within the exact active mounted rider movement-to-attack boundary. Published input commit `4d1737c0ce24502bb3ec7c383aa008dad14a642e` is bound to package/manifest/DLL SHA-256 `5793c05dffb69bd1417bfd6ce9f239f34be788673092da526fff1df4ffc3e1dd` / `01647a35c1752228a0573f91f39bc0a0d6f81e0928256c9734a7c759c6b3fd2f` / `da68b1e7dc72924501ae9041bb4f0bb67256d7271c0a4cb3d6b4a6f4b82f9471`, MVID `637fe76e-5ad7-4c31-b885-1fbb76e2ff29`, version `0.1.0-phase2b-dev.1`. Package validation passed `10/0`.

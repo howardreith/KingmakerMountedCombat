@@ -1128,6 +1128,9 @@ function New-TestCombatEvidenceRecord {
     $mount = 'combat-mount'
     $target = 'combat-target'
     $isMammoth = [string]$Request.scenario -cin @('mounted-mammoth-primary-hit-rt','mounted-mammoth-primary-hit-tb')
+    $isReach = [string]$Request.scenario -cin @(
+        'mounted-rider-melee-hit-rt','mounted-rider-melee-hit-tb',
+        'mounted-mammoth-primary-hit-rt','mounted-mammoth-primary-hit-tb')
     $isMovementToAttack = [string]$Request.scenario -cin @(
         'mounted-rider-melee-move-to-attack-rt','mounted-rider-melee-move-to-attack-tb')
     $isCancellation = [string]$Request.scenario -cin @(
@@ -1148,7 +1151,7 @@ function New-TestCombatEvidenceRecord {
     $actorRole = if ($isMammoth) { 'mount' } else { 'rider' }
     $action = if ($isMammoth) { 'MountPrimaryNatural' } else { 'RiderMelee' }
     $record = [ordered]@{
-        schemaVersion=$(if ($isCombatEnd) { if ($isTurnBased) { 41 } else { 40 } } elseif ($isTermination) { if ($isTurnBased) { 39 } else { 38 } } elseif ($isMovementToAttack) { if ($isTurnBased) { 35 } else { 34 } } elseif ($isTurnBased) { 27 } else { 26 });artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
+        schemaVersion=$(if ($isCombatEnd) { if ($isTurnBased) { 41 } else { 40 } } elseif ($isTermination) { if ($isTurnBased) { 39 } else { 38 } } elseif ($isMovementToAttack) { if ($isTurnBased) { 35 } else { 34 } } elseif ($isReach) { if ($isTurnBased) { 43 } else { 42 } } elseif ($isTurnBased) { 27 } else { 26 });artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
         scenario=[string]$Request.scenario;row=[string]$Request.scenario;rowIndex=0;sequence=0;frame=30
         utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o');branch=[string]$Request.branch
         commit=[string]$Request.commit;productVersion=[string]$Request.productVersion
@@ -1304,6 +1307,20 @@ function New-TestCombatEvidenceRecord {
     $record.command.attackWeaponIsNatural = $isMammoth
     $record.command.attackWeaponIsRanged = $false
     $record.command.attackWeaponSlot = if ($isMammoth) { 'PrimaryHand' } else { 'EquippedMelee' }
+    if ($isReach) {
+        $record.reach = [ordered]@{
+            riderWeaponBlueprintId='33333333333333333333333333333333'
+            mountWeaponBlueprintId='55555555555555555555555555555555'
+            riderWeaponRange=2.0;mountWeaponRange=2.0;mountCorpulence=1.0;targetCorpulence=1.0
+            riderStoppingRadius=4.0;mountStoppingRadius=4.0;initialDistance=6.0
+            riderProbeRadiusAtInitial=4.0;mountProbeRadiusAtInitial=4.0
+            riderOutsideAtInitial=$true;mountOutsideAtInitial=$true;dispatchDistance=3.9
+            riderWithinAtDispatch=$true;mountWithinAtDispatch=$true
+            riderCanAttackTarget=$true;mountCanAttackTarget=$true
+            targetCanAttackRider=$true;targetCanAttackMount=$true
+            inputsUnchangedAtDispatch=$true;actionRadiusMatches=$true
+        }
+    }
     if ($isApproach) {
         $record.movementToAttack = [ordered]@{
             requestedTargetDistance=6.0;approachRequiredAtStart=$true;delegatedMoveStartCount=1
@@ -1556,6 +1573,7 @@ function Remove-TestCombatBrainLeaseFields {
 
 function Remove-TestCombatActionActorReadinessFields {
     param([Parameter(Mandatory = $true)]$Record)
+    $Record.PSObject.Properties.Remove('reach')
     if ($null -ne $Record.combatEntry) {
         foreach ($name in @(
             'actionActorId','actionActorPrepared','actionActorCanActInCombat','actionActorInitiative')) {
@@ -5139,6 +5157,17 @@ try {
         Assert-KmcCombatScenarioEvidence -Request $combatRequest -Manifest $combatManifest -Status 'PASS' -SubscenarioResults @($combatSubresult)
     }
 
+    Invoke-HarnessTest 'reach capture is isolated to exact stationary rider and Mammoth qualification rows' {
+        $engineSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeCombatScenarioEngine.cs'))
+        Assert-Test (($engineSource | Select-String -Pattern 'if \(IsReachQualificationRow\)\s*\{\s*CaptureInitialReachEvidence\(\);\s*\}' -AllMatches).Matches.Count -eq 1 -and
+            ($engineSource | Select-String -Pattern 'if \(IsReachQualificationRow\)\s*\{\s*CaptureDispatchReachEvidence\(\);\s*\}' -AllMatches).Matches.Count -eq 1 -and
+            $engineSource.Contains('string.Equals(currentRow, RiderHitRealTime, StringComparison.Ordinal)') -and
+            $engineSource.Contains('string.Equals(currentRow, RiderHitTurnBased, StringComparison.Ordinal)') -and
+            $engineSource.Contains('string.Equals(currentRow, MammothPrimaryHitRealTime, StringComparison.Ordinal)') -and
+            $engineSource.Contains('string.Equals(currentRow, MammothPrimaryHitTurnBased, StringComparison.Ordinal)')) `
+            'reach capture can contaminate a historical movement, miss, termination, or lifecycle evidence schema'
+    }
+
     $controlRequestPath = Join-Path $testRoot 'runtime-request-combat-control.json'
     $controlRequest = Copy-TestJsonValue $combatRequest
     $controlRequest.runId = 'combat-core-control-evidence-test'
@@ -5247,6 +5276,19 @@ try {
     Invoke-HarnessTest 'runtime request and schema-v26 evidence accept exact stationary Mammoth primary with independent rider initiative' {
         & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $mammothRequestPath
         Assert-KmcCombatScenarioEvidence -Request $mammothRequest -Manifest $mammothManifest -Status 'PASS' -SubscenarioResults @($mammothSubresult)
+    }
+
+    Invoke-HarnessTest 'mounted reach validator rejects a Mammoth action outside its independent boundary' {
+        $candidate = Copy-TestJsonValue $mammothRecord
+        $candidate.reach.mountWithinAtDispatch = $false
+        [void](Write-TestCombatEvidence -EvidenceRoot $mammothRequest.evidenceRoot -Request $mammothRequest -Record $candidate)
+        $candidateManifest = Read-KmcJson (Join-Path $mammothRequest.evidenceRoot 'runtime-artifacts.json')
+        $threw = $false
+        try { Assert-KmcCombatScenarioEvidence -Request $mammothRequest -Manifest $candidateManifest -Status 'PASS' -SubscenarioResults @($mammothSubresult) }
+        catch { $threw = $true }
+        Assert-Test $threw 'mounted reach validator accepted a Mammoth action outside its exact boundary'
+        [void](Write-TestCombatEvidence -EvidenceRoot $mammothRequest.evidenceRoot -Request $mammothRequest -Record $mammothRecord)
+        $mammothManifest = Read-KmcJson (Join-Path $mammothRequest.evidenceRoot 'runtime-artifacts.json')
     }
 
     $mammothTurnRequestPath = Join-Path $testRoot 'runtime-request-combat-mammoth-turn-based.json'
@@ -6004,6 +6046,7 @@ try {
     Invoke-HarnessTest 'combat validator retains non-qualifying schema-v1 evidence compatibility' {
         $legacyRecord = Copy-TestJsonValue $combatRecord
         $legacyRecord.schemaVersion = 1
+        $legacyRecord.PSObject.Properties.Remove('reach')
         Remove-TestCombatWakeLeaseFields $legacyRecord
         $legacyRecord.PSObject.Properties.Remove('combatEntry')
         $legacyRecord.PSObject.Properties.Remove('dispatch')
@@ -6015,6 +6058,7 @@ try {
     Invoke-HarnessTest 'combat validator retains non-qualifying schema-v2 evidence compatibility' {
         $legacyRecord = Copy-TestJsonValue $combatRecord
         $legacyRecord.schemaVersion = 2
+        $legacyRecord.PSObject.Properties.Remove('reach')
         Remove-TestCombatWakeLeaseFields $legacyRecord
         $legacyRecord.PSObject.Properties.Remove('combatEntry')
         [void](Write-TestCombatEvidence -EvidenceRoot $combatRequest.evidenceRoot -Request $combatRequest -Record $legacyRecord)
@@ -6025,6 +6069,7 @@ try {
     Invoke-HarnessTest 'combat validator retains non-qualifying schema-v3 evidence compatibility' {
         $legacyRecord = Copy-TestJsonValue $combatRecord
         $legacyRecord.schemaVersion = 3
+        $legacyRecord.PSObject.Properties.Remove('reach')
         Remove-TestCombatWakeLeaseFields $legacyRecord
         $legacyRecord.command.PSObject.Properties.Remove('terminalReason')
         [void](Write-TestCombatEvidence -EvidenceRoot $combatRequest.evidenceRoot -Request $combatRequest -Record $legacyRecord)
@@ -6070,6 +6115,21 @@ try {
             @{name='delegated movement';apply={param($value) $value.command.repathCount=1;$value.movement.repathCount=1}},
             @{name='insufficient pair radius';apply={param($value) $value.pairApproachRadius=0.17;$value.targetDistanceAtClick=0.06}},
             @{name='target placement drift';apply={param($value) $value.targetDistanceAtClick=1.0}},
+            @{name='reach evidence absent';apply={param($value) $value.PSObject.Properties.Remove('reach')}},
+            @{name='reach rider blueprint malformed';apply={param($value) $value.reach.riderWeaponBlueprintId='not-a-blueprint'}},
+            @{name='reach rider radius formula mismatch';apply={param($value) $value.reach.riderStoppingRadius=4.1}},
+            @{name='reach Mammoth radius formula mismatch';apply={param($value) $value.reach.mountStoppingRadius=4.1}},
+            @{name='reach initial distance inside rider boundary';apply={param($value) $value.reach.initialDistance=4.05}},
+            @{name='reach initial rider probe admitted';apply={param($value) $value.reach.riderOutsideAtInitial=$false}},
+            @{name='reach initial Mammoth probe admitted';apply={param($value) $value.reach.mountOutsideAtInitial=$false}},
+            @{name='reach dispatch distance mismatch';apply={param($value) $value.reach.dispatchDistance=3.8}},
+            @{name='reach rider targetability absent';apply={param($value) $value.reach.riderCanAttackTarget=$false}},
+            @{name='reach Mammoth targetability absent';apply={param($value) $value.reach.mountCanAttackTarget=$false}},
+            @{name='reach target cannot attack rider';apply={param($value) $value.reach.targetCanAttackRider=$false}},
+            @{name='reach target cannot attack Mammoth';apply={param($value) $value.reach.targetCanAttackMount=$false}},
+            @{name='reach inputs mutated';apply={param($value) $value.reach.inputsUnchangedAtDispatch=$false}},
+            @{name='reach action radius mismatch';apply={param($value) $value.reach.actionRadiusMatches=$false}},
+            @{name='reach rider outside at dispatch';apply={param($value) $value.reach.riderWithinAtDispatch=$false}},
             @{name='pose failure';apply={param($value) $value.pose.healthyAtOutcome=$false}},
             @{name='target native weapon source';apply={param($value) $value.targetProvisioning.blueprintEmptyHandWeaponBlueprintId='22222222222222222222222222222222'}},
             @{name='target native slot';apply={param($value) $value.targetProvisioning.targetNativeSingleAttackSlot='AdditionalLimb'}},

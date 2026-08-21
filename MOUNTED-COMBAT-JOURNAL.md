@@ -1,5 +1,13 @@
 # Mounted Combat journal
 
+## 2026-08-21T17:30:00Z - bounded mounted-reach evidence checkpoint
+
+- Starting identity was clean guarded-published local/upstream `17e03550a2d6b56dcb649b2537d7f84be7c921e9` on `codex/mounted-combat-phase2-alpha`, version `0.1.0-phase2b-dev.1`.
+- Exact installed contracts remain `UnitAttack.GetApproachRadius` `0x06002685`, `AttackHandInfo.WeaponRange` `0x04001A32`, `UnitCommand.IsUnitEnoughClose` `0x06002784`, `GeometryUtils.MechanicsDistance` `0x06001C68`, and `UnitEntityData.CanAttack` `0x0600834E`. Production reach behavior is unchanged and remains exact-pair/Mammoth-origin for rider melee and stock-native for Mammoth primary.
+- Additive schemas v42/v43 record independent radii and weapon identities, corpulence inputs, an initial position outside both radii, action-specific dispatch admission, bidirectional rider/Mammoth targetability, and unchanged inputs. Deterministic mutations reject malformed identity, formula/probe mismatch, inside initial placement, dispatch mismatch, targetability loss, mutation, and wrong actor boundary while retaining historical schemas.
+- Review found and repaired one pre-publication schema-isolation defect: reach capture is now gated to the exact four stationary rider/Mammoth qualification rows, with a deterministic source regression preventing reach fields from contaminating historical movement, miss, termination, or lifecycle schemas.
+- Observed offline gates: source `21/0`, Release build, component `217/0`, visual/source-order `17/0`, harness/protocol `212/0`, assembly-contract `255/0`, PowerShell parser `26/0`, JSON parser `7/0`, diff, and prohibited-payload checks. No Kingmaker launch, external transaction, save/Mods write, suite snapshot, or runtime evidence occurred. Next: publish/package/admit, separate mode WhatIf, then fresh stationary rider/Mammoth RT/TB A/B and non-mounted control A/B with audit-before-read.
+
 ## 2026-08-21T17:04:56Z - opportunity isolation requalified after process-metadata repair
 
 - Clean published runtime input/package/manifest/DLL/MVID are `4d1737c0ce24502bb3ec7c383aa008dad14a642e` / `5793c05dffb69bd1417bfd6ce9f239f34be788673092da526fff1df4ffc3e1dd` / `01647a35c1752228a0573f91f39bc0a0d6f81e0928256c9734a7c759c6b3fd2f` / `da68b1e7dc72924501ae9041bb4f0bb67256d7271c0a4cb3d6b4a6f4b82f9471` / `637fe76e-5ad7-4c31-b885-1fbb76e2ff29`; version `0.1.0-phase2b-dev.1`; package validation `10/0`. Suite `20260821T153600Z-opportunity-isolation-metadata-repair-suite1` snapshot/save/Mods digests are `16315b6f15e8c39fb4046578efedbb5c24dd31307c069aa65be0f42a1bdb0446` / `99b21a2ca3864dbaac7fac80dde5e382df4b6ab3738f59feccd8117bab9f4c89` / `1f724e85026dd868b3f8bad795f159c969f9ac126e9a55a41c82a78fc5f52b0a`; RT/TB WhatIf and audits passed.

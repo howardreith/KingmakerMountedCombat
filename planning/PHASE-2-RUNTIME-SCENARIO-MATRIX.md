@@ -1,5 +1,9 @@
 # Phase 2 runtime scenario matrix
 
+## Bounded mounted-reach proof pending fresh runtime A/B (2026-08-21)
+
+Stationary rider and Mammoth-primary combat rows now emit strict schema-v42/v43 evidence for independent Mammoth-origin rider and stock Mammoth radii, a real initial position outside both, actor-specific inside-boundary dispatch, immutable weapon/corpulence inputs, and bidirectional hostile targetability of both pair members. Deterministic validators reject every material field mutation and preserve all historical combat schemas. Production range behavior is unchanged. Runtime credit requires fresh same-package RT/TB A/B for both stationary actors plus fresh non-mounted control A/B, with one suite snapshot and restoration-before-read. Status remains `IN PROGRESS`.
+
 ## Opportunity-isolation requalification complete after launcher repair (2026-08-21)
 
 Clean published implementation `4d1737c0ce24502bb3ec7c383aa008dad14a642e`, package SHA-256 `5793c05dffb69bd1417bfd6ce9f239f34be788673092da526fff1df4ffc3e1dd`, and suite `20260821T153600Z-opportunity-isolation-metadata-repair-suite1` / snapshot SHA-256 `16315b6f15e8c39fb4046578efedbb5c24dd31307c069aa65be0f42a1bdb0446` produced a fresh complete set. RT A/B `20260821T160100Z-opportunity-isolation-metadata-repair-rt-passA` / `20260821T160700Z-opportunity-isolation-metadata-repair-rt-passB` each pass schema v34 `55/0`; TB A/B `20260821T163100Z-opportunity-isolation-metadata-repair-tb-passA` / `20260821T164700Z-opportunity-isolation-metadata-repair-tb-passB` each pass schema v35 `59/0`. Combined credit is `228/0`.

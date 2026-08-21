@@ -7733,17 +7733,20 @@ function Assert-KmcCombatScenarioEvidence {
     if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -ge 24) {
         $recordFields = @($recordFields + 'targetBrainLease')
     }
+    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(42,43)) {
+        $recordFields = @($recordFields + 'reach')
+    }
     if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(28,29,30,31,32,33,34,35,36,37,38,39,40,41)) {
         $recordFields = @($recordFields + 'movementToAttack')
     }
     if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(36,37,38,39,40,41)) {
         $recordFields = @($recordFields + 'commandTermination')
     }
-    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39,41)) {
+    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39,41,43)) {
         $recordFields = @($recordFields + 'turnBased')
     }
     Assert-KmcExactProperties $record $recordFields 'combat evidence record'
-    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -notin @(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41) -or
+    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -notin @(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43) -or
         [string]$record.artifactKind -cne 'combat-scenario-evidence') {
         throw 'Combat evidence schemaVersion or artifactKind is not exact.'
     }
@@ -8331,18 +8334,59 @@ function Assert-KmcCombatScenarioEvidence {
         } elseif ($movementToAttackScenario) {
             if ($turnBasedScenario) { @(29,31,33,35) } else { @(28,30,32,34) }
         } elseif ($mammothScenario) {
-            if ($turnBasedScenario) { @(21,23,25,27) } else { @(20,22,24,26) }
+            if ($turnBasedScenario) { @(21,23,25,27,43) } else { @(20,22,24,26,42) }
         } elseif ($missScenario) {
             @(6,8,10,12,14,16,18,20,22,24,26)
         } elseif ($turnBasedScenario) {
-            @(5,7,9,11,13,15,17,19,21,23,25,27)
+            @(5,7,9,11,13,15,17,19,21,23,25,27,43)
         } else {
-            @(4,6,8,10,12,14,16,18,20,22,24,26)
+            @(4,6,8,10,12,14,16,18,20,22,24,26,42)
         }
         if ([long]$record.schemaVersion -notin $expectedCombatSchemas -or
             [string]$record.status -cne 'PASS' -or [long]$record.assertionFailCount -ne 0 -or
             [long]$record.assertionPassCount -le 0 -or @($record.errors).Count -ne 0) {
             throw "PASS combat evidence does not contain an error-free compatible PASS row."
+        }
+        if ([long]$record.schemaVersion -in @(42,43)) {
+            Assert-KmcExactProperties $record.reach @(
+                'riderWeaponBlueprintId','mountWeaponBlueprintId','riderWeaponRange','mountWeaponRange',
+                'mountCorpulence','targetCorpulence','riderStoppingRadius','mountStoppingRadius',
+                'initialDistance','riderProbeRadiusAtInitial','mountProbeRadiusAtInitial',
+                'riderOutsideAtInitial','mountOutsideAtInitial','dispatchDistance',
+                'riderWithinAtDispatch','mountWithinAtDispatch','riderCanAttackTarget',
+                'mountCanAttackTarget','targetCanAttackRider','targetCanAttackMount',
+                'inputsUnchangedAtDispatch','actionRadiusMatches') 'combat reach evidence'
+            foreach ($name in @(
+                'riderWeaponRange','mountWeaponRange','mountCorpulence','targetCorpulence',
+                'riderStoppingRadius','mountStoppingRadius','initialDistance',
+                'riderProbeRadiusAtInitial','mountProbeRadiusAtInitial','dispatchDistance')) {
+                if (-not (Test-KmcJsonNumber $record.reach.$name) -or [double]$record.reach.$name -lt 0) {
+                    throw "PASS mounted reach evidence is not finite and non-negative: $name"
+                }
+            }
+            if ([string]$record.reach.riderWeaponBlueprintId -cnotmatch '^[0-9a-f]{32}$' -or
+                [string]$record.reach.mountWeaponBlueprintId -cnotmatch '^[0-9a-f]{32}$' -or
+                [Math]::Abs([double]$record.reach.riderStoppingRadius -
+                    ([double]$record.reach.mountCorpulence + [double]$record.reach.targetCorpulence + [double]$record.reach.riderWeaponRange)) -gt 0.0001 -or
+                [Math]::Abs([double]$record.reach.mountStoppingRadius -
+                    ([double]$record.reach.mountCorpulence + [double]$record.reach.targetCorpulence + [double]$record.reach.mountWeaponRange)) -gt 0.0001 -or
+                [Math]::Abs([double]$record.reach.riderProbeRadiusAtInitial - [double]$record.reach.riderStoppingRadius) -gt 0.0001 -or
+                [Math]::Abs([double]$record.reach.mountProbeRadiusAtInitial - [double]$record.reach.mountStoppingRadius) -gt 0.0001 -or
+                [double]$record.reach.initialDistance -le ([double]$record.reach.riderStoppingRadius + 0.05) -or
+                [double]$record.reach.initialDistance -le ([double]$record.reach.mountStoppingRadius + 0.05) -or
+                [Math]::Abs([double]$record.reach.dispatchDistance - [double]$record.targetDistanceAtClick) -gt 0.0001 -or
+                $record.reach.riderOutsideAtInitial -ne $true -or
+                $record.reach.mountOutsideAtInitial -ne $true -or
+                $record.reach.riderCanAttackTarget -ne $true -or
+                $record.reach.mountCanAttackTarget -ne $true -or
+                $record.reach.targetCanAttackRider -ne $true -or
+                $record.reach.targetCanAttackMount -ne $true -or
+                $record.reach.inputsUnchangedAtDispatch -ne $true -or
+                $record.reach.actionRadiusMatches -ne $true -or
+                ($mammothScenario -and $record.reach.mountWithinAtDispatch -ne $true) -or
+                ((-not $mammothScenario) -and $record.reach.riderWithinAtDispatch -ne $true)) {
+                throw 'PASS mounted reach evidence does not prove independent immutable rider/Mammoth boundaries and bidirectional pair-member targetability.'
+            }
         }
         $expectedCombatMode = if ($turnBasedScenario) { 'turn-based' } else { 'real-time' }
         $expectedAction = if ($mammothScenario) { 'MountPrimaryNatural' } else { 'RiderMelee' }

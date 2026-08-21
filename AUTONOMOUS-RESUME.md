@@ -1,5 +1,11 @@
 # Autonomous resume
 
+## Current resume checkpoint - 2026-08-21T17:30:00Z
+
+- Status is `IN PROGRESS`; bounded mounted-reach proof is the active stretch tranche, and no safety, architecture, or presentation blocker is active. Clean starting local/upstream HEAD was `17e03550a2d6b56dcb649b2537d7f84be7c921e9`, version `0.1.0-phase2b-dev.1`.
+- Production range behavior is unchanged. Additive schemas v42/v43 record independent rider/Mammoth radii, exact weapon/corpulence inputs, a real position outside both radii, actor-specific inside-boundary dispatch, bidirectional targetability of both pair members, and zero input mutation. Historical schemas remain accepted.
+- Current offline gates observed source `21/0`, Release build, component `217/0`, visual/source-order `17/0`, harness/protocol `212/0`, assembly-contract `255/0`, PowerShell parser `26/0`, JSON parser `7/0`, diff, and prohibited-payload checks. The review-added compatibility regression proves reach capture cannot contaminate historical movement, miss, termination, or lifecycle schemas. Exact next action: commit and guarded-publish this evidence checkpoint, package exact clean HEAD, admit a fresh stable suite, pass separate RT/TB WhatIf plus audits, then run fresh rider-hit RT/TB A/B, Mammoth-primary RT/TB A/B, and core-control A/B with restoration-before-read.
+
 ## Current resume checkpoint - 2026-08-21T17:04:56Z
 
 - Status is `IN PROGRESS`; opportunity isolation is requalified on the repaired launcher, and no safety, architecture, or presentation blocker is active. Clean published runtime input is local/upstream `4d1737c0ce24502bb3ec7c383aa008dad14a642e`; version `0.1.0-phase2b-dev.1`; package/manifest/DLL SHA-256 are `5793c05dffb69bd1417bfd6ce9f239f34be788673092da526fff1df4ffc3e1dd` / `01647a35c1752228a0573f91f39bc0a0d6f81e0928256c9734a7c759c6b3fd2f` / `da68b1e7dc72924501ae9041bb4f0bb67256d7271c0a4cb3d6b4a6f4b82f9471`; MVID `637fe76e-5ad7-4c31-b885-1fbb76e2ff29`; package validation `10/0`.

@@ -73,6 +73,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private DiagnosticCombatTargetService targetService;
         private MountedCombatRuleProbe ruleProbe;
+        private CombatReachEvidence reachEvidence;
         private AssertionRecorder assertions;
         private UnitEntityData rider;
         private UnitEntityData mount;
@@ -230,6 +231,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 string.Equals(currentRow, RiderCombatEndTurnBased, StringComparison.Ordinal);
 
         private bool IsMissRow => string.Equals(currentRow, RiderMissRealTime, StringComparison.Ordinal);
+
+        private bool IsReachQualificationRow =>
+            string.Equals(currentRow, RiderHitRealTime, StringComparison.Ordinal) ||
+            string.Equals(currentRow, RiderHitTurnBased, StringComparison.Ordinal) ||
+            string.Equals(currentRow, MammothPrimaryHitRealTime, StringComparison.Ordinal) ||
+            string.Equals(currentRow, MammothPrimaryHitTurnBased, StringComparison.Ordinal);
 
         private bool IsMammothPrimaryRow =>
             string.Equals(currentRow, MammothPrimaryHitRealTime, StringComparison.Ordinal) ||
@@ -504,6 +511,11 @@ namespace KingmakerMountedCombat.Diagnostics
                     AttackActor != null && AttackActor.IsEnemy(target) && AttackActor.CanAttack(target),
                 "Runtime-only hostile Mammoth target passed exact creation gates.");
 
+            if (IsReachQualificationRow)
+            {
+                CaptureInitialReachEvidence();
+            }
+
             var rangeProbe = new MountedPairSingleAttack(target, rider, mount, !IsMammothPrimaryRow);
             rangeProbe.Init(AttackActor);
             pairApproachRadius = rangeProbe.PairApproachRadius;
@@ -744,6 +756,10 @@ namespace KingmakerMountedCombat.Diagnostics
             targetPositionAtClick = target.Position;
             pausedAtClick = Game.Instance.IsPaused;
             targetDistanceAtClick = HorizontalDistance(mountPositionAtClick, targetPositionAtClick);
+            if (IsReachQualificationRow)
+            {
+                CaptureDispatchReachEvidence();
+            }
             if (IsApproachRow)
             {
                 assertions.Check(targetDistanceAtClick > pairApproachRadius + MountedCombatSpatialPolicy.RangeTolerance,
@@ -1394,7 +1410,9 @@ namespace KingmakerMountedCombat.Diagnostics
                         : (IsTurnBasedRow ? 39 : 38)
                     : IsMovementToAttackRow
                         ? (IsTurnBasedRow ? 35 : 34)
-                        : (IsTurnBasedRow ? 27 : 26),
+                        : IsReachQualificationRow
+                            ? (IsTurnBasedRow ? 43 : 42)
+                            : (IsTurnBasedRow ? 27 : 26),
                 ArtifactKind = "combat-scenario-evidence",
                 RunId = request.RunId,
                 Scenario = request.Scenario,
@@ -1420,6 +1438,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 TargetIncomingRules = CombatTargetIncomingRulesEvidence.From(targetService),
                 NonPairPartyAiLease = CombatNonPairPartyAiLeaseEvidence.From(targetService),
                 TargetBrainLease = CombatTargetBrainLeaseEvidence.From(targetService),
+                Reach = reachEvidence,
                 ClickAccepted = clickAccepted,
                 PairApproachRadius = pairApproachRadius,
                 TargetDistanceAtClick = targetDistanceAtClick,
@@ -1940,6 +1959,8 @@ namespace KingmakerMountedCombat.Diagnostics
             public CombatTargetIncomingRulesEvidence TargetIncomingRules { get; set; }
             public CombatNonPairPartyAiLeaseEvidence NonPairPartyAiLease { get; set; }
             public CombatTargetBrainLeaseEvidence TargetBrainLease { get; set; }
+            [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            public CombatReachEvidence Reach { get; set; }
             public bool ClickAccepted { get; set; }
             public float PairApproachRadius { get; set; }
             public float TargetDistanceAtClick { get; set; }
@@ -1964,6 +1985,145 @@ namespace KingmakerMountedCombat.Diagnostics
             public int AssertionPassCount { get; set; }
             public int AssertionFailCount { get; set; }
             public IReadOnlyList<string> Errors { get; set; }
+        }
+
+        private void CaptureInitialReachEvidence()
+        {
+            var riderWeapon = rider?.GetFirstWeapon();
+            var mountPrimary = NativeSingleAttackWeaponResolver.Resolve(mount);
+            var riderWeaponBlueprint = riderWeapon?.Blueprint;
+            var mountWeaponBlueprint = mountPrimary?.Weapon?.Blueprint;
+            if (rider?.View == null || mount?.View == null || target?.View == null ||
+                riderWeaponBlueprint == null || riderWeaponBlueprint.IsRanged ||
+                mountPrimary?.Kind != NativeSingleAttackSlotKind.PrimaryHand ||
+                mountWeaponBlueprint == null || !mountWeaponBlueprint.IsNatural || mountWeaponBlueprint.IsRanged)
+            {
+                assertions.Fail("Exact rider and Mammoth melee reach inputs were unavailable.");
+                return;
+            }
+
+            var riderProbe = new MountedPairSingleAttack(target, rider, mount, true);
+            riderProbe.Init(rider);
+            var mountProbe = new MountedPairSingleAttack(target, rider, mount, false);
+            mountProbe.Init(mount);
+            var riderWeaponRange = riderProbe.PairApproachRadius - mount.View.Corpulence - target.View.Corpulence;
+            var mountWeaponRange = mountProbe.PairApproachRadius - mount.View.Corpulence - target.View.Corpulence;
+            var riderStoppingRadius = MountedCombatSpatialPolicy.CalculateStoppingRadius(
+                mount.View.Corpulence,
+                target.View.Corpulence,
+                riderWeaponRange);
+            var mountStoppingRadius = MountedCombatSpatialPolicy.CalculateStoppingRadius(
+                mount.View.Corpulence,
+                target.View.Corpulence,
+                mountWeaponRange);
+            var initialDistance = HorizontalDistance(mount.Position, target.Position);
+
+            reachEvidence = new CombatReachEvidence
+            {
+                RiderWeaponBlueprintId = riderWeaponBlueprint.AssetGuid,
+                MountWeaponBlueprintId = mountWeaponBlueprint.AssetGuid,
+                RiderWeaponRange = riderWeaponRange,
+                MountWeaponRange = mountWeaponRange,
+                MountCorpulence = mount.View.Corpulence,
+                TargetCorpulence = target.View.Corpulence,
+                RiderStoppingRadius = riderStoppingRadius,
+                MountStoppingRadius = mountStoppingRadius,
+                InitialDistance = initialDistance,
+                RiderOutsideAtInitial = !riderProbe.IsPairEnoughClose,
+                MountOutsideAtInitial = !mountProbe.IsPairEnoughClose,
+                RiderProbeRadiusAtInitial = riderProbe.PairApproachRadius,
+                MountProbeRadiusAtInitial = mountProbe.PairApproachRadius
+            };
+
+            assertions.Check(Math.Abs(riderProbe.PairApproachRadius - riderStoppingRadius) <= 0.0001f &&
+                    Math.Abs(mountProbe.PairApproachRadius - mountStoppingRadius) <= 0.0001f,
+                "Rider and Mammoth probes retained their independent exact stopping-radius contracts.");
+            assertions.Check(reachEvidence.RiderOutsideAtInitial && reachEvidence.MountOutsideAtInitial &&
+                    initialDistance > riderStoppingRadius + MountedCombatSpatialPolicy.RangeTolerance &&
+                    initialDistance > mountStoppingRadius + MountedCombatSpatialPolicy.RangeTolerance,
+                "The initial target position was independently outside both mounted melee radii.");
+        }
+
+        private void CaptureDispatchReachEvidence()
+        {
+            if (reachEvidence == null || rider?.View == null || mount?.View == null || target?.View == null)
+            {
+                assertions.Fail("Mounted reach evidence was unavailable at dispatch.");
+                return;
+            }
+
+            var riderWeapon = rider.GetFirstWeapon();
+            var mountPrimary = NativeSingleAttackWeaponResolver.Resolve(mount);
+            var riderProbe = new MountedPairSingleAttack(target, rider, mount, true);
+            riderProbe.Init(rider);
+            var mountProbe = new MountedPairSingleAttack(target, rider, mount, false);
+            mountProbe.Init(mount);
+            var riderWeaponRange = riderProbe.PairApproachRadius - mount.View.Corpulence - target.View.Corpulence;
+            var mountWeaponRange = mountProbe.PairApproachRadius - mount.View.Corpulence - target.View.Corpulence;
+            reachEvidence.DispatchDistance = HorizontalDistance(mount.Position, target.Position);
+            reachEvidence.RiderWithinAtDispatch = riderProbe.IsPairEnoughClose;
+            reachEvidence.MountWithinAtDispatch = mountProbe.IsPairEnoughClose;
+            reachEvidence.RiderCanAttackTarget = rider.CanAttack(target);
+            reachEvidence.MountCanAttackTarget = mount.CanAttack(target);
+            reachEvidence.TargetCanAttackRider = target.CanAttack(rider);
+            reachEvidence.TargetCanAttackMount = target.CanAttack(mount);
+            reachEvidence.InputsUnchangedAtDispatch =
+                riderWeapon?.Blueprint != null && mountPrimary?.Weapon?.Blueprint != null &&
+                string.Equals(riderWeapon.Blueprint.AssetGuid, reachEvidence.RiderWeaponBlueprintId, StringComparison.Ordinal) &&
+                string.Equals(mountPrimary.Weapon.Blueprint.AssetGuid, reachEvidence.MountWeaponBlueprintId, StringComparison.Ordinal) &&
+                Math.Abs(riderWeaponRange - reachEvidence.RiderWeaponRange) <= 0.0001f &&
+                Math.Abs(mountWeaponRange - reachEvidence.MountWeaponRange) <= 0.0001f &&
+                Math.Abs(mount.View.Corpulence - reachEvidence.MountCorpulence) <= 0.0001f &&
+                Math.Abs(target.View.Corpulence - reachEvidence.TargetCorpulence) <= 0.0001f;
+            reachEvidence.ActionRadiusMatches = Math.Abs(
+                pairApproachRadius - (IsMammothPrimaryRow
+                    ? reachEvidence.MountStoppingRadius
+                    : reachEvidence.RiderStoppingRadius)) <= 0.0001f;
+
+            assertions.Check(reachEvidence.InputsUnchangedAtDispatch && reachEvidence.ActionRadiusMatches,
+                "Mounted reach retained exact corpulence, weapon, and actor-specific radius inputs without mutation.");
+            assertions.Check(reachEvidence.RiderCanAttackTarget && reachEvidence.MountCanAttackTarget &&
+                    reachEvidence.TargetCanAttackRider && reachEvidence.TargetCanAttackMount,
+                "Rider and Mammoth remained independently targetable in both hostile directions.");
+            assertions.Check(IsMammothPrimaryRow
+                    ? reachEvidence.MountWithinAtDispatch
+                    : reachEvidence.RiderWithinAtDispatch,
+                "The exact action actor reached its independent mounted melee boundary before dispatch.");
+            assertions.Check(reachEvidence.RiderWithinAtDispatch == MountedCombatSpatialPolicy.IsWithinRange(
+                    new MountedCombatPoint(mount.Position.x, mount.Position.z),
+                    new MountedCombatPoint(target.Position.x, target.Position.z),
+                    reachEvidence.RiderStoppingRadius) &&
+                    reachEvidence.MountWithinAtDispatch == MountedCombatSpatialPolicy.IsWithinRange(
+                    new MountedCombatPoint(mount.Position.x, mount.Position.z),
+                    new MountedCombatPoint(target.Position.x, target.Position.z),
+                    reachEvidence.MountStoppingRadius),
+                "Native rider/Mammoth admission agreed with the independent Mammoth-origin spatial policy.");
+        }
+
+        private sealed class CombatReachEvidence
+        {
+            public string RiderWeaponBlueprintId { get; set; }
+            public string MountWeaponBlueprintId { get; set; }
+            public float RiderWeaponRange { get; set; }
+            public float MountWeaponRange { get; set; }
+            public float MountCorpulence { get; set; }
+            public float TargetCorpulence { get; set; }
+            public float RiderStoppingRadius { get; set; }
+            public float MountStoppingRadius { get; set; }
+            public float InitialDistance { get; set; }
+            public float RiderProbeRadiusAtInitial { get; set; }
+            public float MountProbeRadiusAtInitial { get; set; }
+            public bool RiderOutsideAtInitial { get; set; }
+            public bool MountOutsideAtInitial { get; set; }
+            public float DispatchDistance { get; set; }
+            public bool RiderWithinAtDispatch { get; set; }
+            public bool MountWithinAtDispatch { get; set; }
+            public bool RiderCanAttackTarget { get; set; }
+            public bool MountCanAttackTarget { get; set; }
+            public bool TargetCanAttackRider { get; set; }
+            public bool TargetCanAttackMount { get; set; }
+            public bool InputsUnchangedAtDispatch { get; set; }
+            public bool ActionRadiusMatches { get; set; }
         }
 
         private sealed class CombatEntryEvidence

@@ -1,5 +1,13 @@
 # Targeting, reach, and charge contract
 
+## Bounded mounted-reach runtime proof checkpoint (2026-08-21)
+
+Status: `IN PROGRESS`; implementation and deterministic validation are complete, but no new runtime credit is claimed yet.
+
+The production seam remains unchanged and pair-scoped. Exact installed Kingmaker contracts are `UnitAttack.GetApproachRadius` token `0x06002685`, `AttackHandInfo.WeaponRange` field `0x04001A32`, `UnitCommand.IsUnitEnoughClose` getter `0x06002784`, `GeometryUtils.MechanicsDistance` token `0x06001C68`, and `UnitEntityData.CanAttack(UnitEntityData)` token `0x0600834E`. Rider melee alone uses Mammoth corpulence + target corpulence + the rider planned melee range from the Mammoth origin, followed by the already bounded native-rider admission bridge. Mammoth primary continues to use its stock native radius and executor. No blueprint, item, corpulence, target position, global reach, engagement, or non-mounted combat rule is modified.
+
+Additive combat schemas v42/v43 now record both exact weapon identities, both derived weapon ranges, Mammoth/target corpulence, independent rider/Mammoth stopping radii, an initial position proven outside both radii, both native probe radii, actor-specific dispatch admission, four bidirectional pair-member targetability results, and exact input immutability. The strict validator recomputes both radius formulas, binds the action-specific radius, and rejects missing/malformed identity, initial inside-range state, probe mismatch, dispatch-distance mismatch, either targetability loss, any input mutation, or an actor outside its own boundary. Historical schemas remain unchanged. Fresh clean-package stationary rider RT/TB A/B and Mammoth-primary RT/TB A/B, plus the already isolated non-mounted control on that package, are required before reach becomes `PASS`.
+
 ## Opportunity-isolated targeting requalified on repaired launcher (2026-08-21)
 
 RT A/B `55/0` each and TB A/B `59/0` each pass on clean implementation `4d1737c0ce24502bb3ec7c383aa008dad14a642e`, package `5793c05dffb69bd1417bfd6ce9f239f34be788673092da526fff1df4ffc3e1dd`, and one exact suite snapshot `16315b6f15e8c39fb4046578efedbb5c24dd31307c069aa65be0f42a1bdb0446`. Each target starts outside the unchanged mounted pair radius, remains stationary, and is attacked only after the Mammoth-owned approach satisfies the exact range gate. Each row proves exact target and initiator identity, one melee weapon attack/roll/damage chain, zero incidental `UnitAttackOfOpportunity`, zero duplicates/repath, and exact cleanup/restoration. This closes the repaired-package movement-to-attack claim only; it does not qualify broader mounted reach, explicit mounted attacks of opportunity, or charge.

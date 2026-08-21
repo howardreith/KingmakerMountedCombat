@@ -1,5 +1,9 @@
 # Autonomous blockers
 
+## Bounded mounted reach has no active blocker - 2026-08-21T17:30:00Z
+
+Status: `IN PROGRESS`; no critical blocker is active. The exact installed rider and Mammoth range seams are mapped and the additive schema-v42/v43 observation/validation layer is offline-green. It changes no production behavior and retains historical evidence. Fresh clean-package stationary rider/Mammoth RT/TB A/B plus non-mounted control A/B remain required before qualification. Explicit mounted-AoO and charge are still separate unqualified stretch contracts.
+
 ## Opportunity-isolation launcher blocker resolved - 2026-08-21T17:04:56Z
 
 Status: `PASS`; no critical blocker is active. The repaired clean package and one exact suite snapshot produced fresh RT A/B `55/0` each and TB A/B `59/0` each, aggregate `228/0`. All launchers completed normally, every process emitted exactly one intended rider attack chain and zero incidental opportunity chains, and all four independent audit-before-read checks proved exact save/Mods restoration and zero residue. The earlier null-process-path TB attempt remains immutable and uncredited. Explicit mounted-AoO is still a separate stretch contract, not inferred from this repair.
