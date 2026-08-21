@@ -2,6 +2,10 @@
 
 Status: IN PROGRESS
 
+## Repaired-package opportunity-isolation qualification (2026-08-21)
+
+The bounded Windows process-metadata readiness repair is now exercised by a complete fresh same-package RT/TB A/B set. RT A/B pass `55/0` each and TB A/B pass `59/0` each, aggregate `228/0`, on commit/package `4d1737c0ce24502bb3ec7c383aa008dad14a642e` / `5793c05dffb69bd1417bfd6ce9f239f34be788673092da526fff1df4ffc3e1dd` and suite snapshot `16315b6f15e8c39fb4046578efedbb5c24dd31307c069aa65be0f42a1bdb0446`. The launcher completed normally in all four processes. Exact single-attack, zero-opportunity, target/range, Mammoth movement authority, mode-specific action economy, presentation/UI, cleanup, and restoration gates all pass. Immediate independent audits preceded every evidence read. No gameplay change was required after the launcher repair, and the earlier failed launcher attempt remains immutable uncredited evidence.
+
 ## Bounded launcher process-metadata readiness (2026-08-21)
 
 The first TB opportunity-isolation attempt exposed an orchestration-only Windows process metadata race: Kingmaker became enumerable before `System.Diagnostics.Process.Path` was nonnull, and the launcher called `.Equals` on that null value. Game evidence later passed `59/0`, but the attempt remains uncredited because final restoration required guarded recovery. The launcher now waits only within its existing launch deadline for nonempty path and start metadata, then applies the unchanged exact executable path/hash/start-time checks. Complete gates pass `21/217/17/210/255`; fresh package-bound A/B is mandatory.

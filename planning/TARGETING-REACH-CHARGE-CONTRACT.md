@@ -1,5 +1,9 @@
 # Targeting, reach, and charge contract
 
+## Opportunity-isolated targeting requalified on repaired launcher (2026-08-21)
+
+RT A/B `55/0` each and TB A/B `59/0` each pass on clean implementation `4d1737c0ce24502bb3ec7c383aa008dad14a642e`, package `5793c05dffb69bd1417bfd6ce9f239f34be788673092da526fff1df4ffc3e1dd`, and one exact suite snapshot `16315b6f15e8c39fb4046578efedbb5c24dd31307c069aa65be0f42a1bdb0446`. Each target starts outside the unchanged mounted pair radius, remains stationary, and is attacked only after the Mammoth-owned approach satisfies the exact range gate. Each row proves exact target and initiator identity, one melee weapon attack/roll/damage chain, zero incidental `UnitAttackOfOpportunity`, zero duplicates/repath, and exact cleanup/restoration. This closes the repaired-package movement-to-attack claim only; it does not qualify broader mounted reach, explicit mounted attacks of opportunity, or charge.
+
 ## Opportunity-isolation TB launcher failure is not feature evidence (2026-08-21)
 
 Although failed launcher attempt `20260821T151200Z-opportunity-isolation-tb-passA` later emitted game `PASS 59/0`, it is uncredited because exact final restoration required recovery. Its process-metadata repair does not change targeting, range, reach, opportunity, or charge behavior. Fresh RT/TB A/B on the repaired package remains mandatory; explicit mounted AoO remains separately unqualified.

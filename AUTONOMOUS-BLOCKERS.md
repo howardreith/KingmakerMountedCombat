@@ -1,5 +1,9 @@
 # Autonomous blockers
 
+## Opportunity-isolation launcher blocker resolved - 2026-08-21T17:04:56Z
+
+Status: `PASS`; no critical blocker is active. The repaired clean package and one exact suite snapshot produced fresh RT A/B `55/0` each and TB A/B `59/0` each, aggregate `228/0`. All launchers completed normally, every process emitted exactly one intended rider attack chain and zero incidental opportunity chains, and all four independent audit-before-read checks proved exact save/Mods restoration and zero residue. The earlier null-process-path TB attempt remains immutable and uncredited. Explicit mounted-AoO is still a separate stretch contract, not inferred from this repair.
+
 ## Transient Kingmaker process-path publication blocked TB launcher - 2026-08-21T15:31:00Z
 
 Status: `IN PROGRESS`; exact recovery/restoration passed, so no critical blocker is active. Uncredited TB attempt `20260821T151200Z-opportunity-isolation-tb-passA` caught a null-method error immediately after process capture, before game evidence began. The only nullable instance call in that boundary was `$process.Path.Equals(...)`; later game `PASS 59/0` cannot receive credit because launcher restoration was blocked. The narrow repair boundedly awaits nonempty process path/start metadata within the unchanged 60-second launch deadline and retains exact path/hash/start checks. Complete gates are `21/217/17/210/255`; fresh published-package RT/TB A/B remains required.

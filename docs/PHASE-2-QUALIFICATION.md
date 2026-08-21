@@ -1,5 +1,13 @@
 # Phase 2 qualification
 
+## Opportunity isolation requalified on the repaired launcher (2026-08-21)
+
+Status: `PASS` within the exact active mounted rider movement-to-attack boundary. Published input commit `4d1737c0ce24502bb3ec7c383aa008dad14a642e` is bound to package/manifest/DLL SHA-256 `5793c05dffb69bd1417bfd6ce9f239f34be788673092da526fff1df4ffc3e1dd` / `01647a35c1752228a0573f91f39bc0a0d6f81e0928256c9734a7c759c6b3fd2f` / `da68b1e7dc72924501ae9041bb4f0bb67256d7271c0a4cb3d6b4a6f4b82f9471`, MVID `637fe76e-5ad7-4c31-b885-1fbb76e2ff29`, version `0.1.0-phase2b-dev.1`. Package validation passed `10/0`.
+
+Suite `20260821T153600Z-opportunity-isolation-metadata-repair-suite1` snapshot/save/Mods SHA-256 are `16315b6f15e8c39fb4046578efedbb5c24dd31307c069aa65be0f42a1bdb0446` / `99b21a2ca3864dbaac7fac80dde5e382df4b6ab3738f59feccd8117bab9f4c89` / `1f724e85026dd868b3f8bad795f159c969f9ac126e9a55a41c82a78fc5f52b0a`. Separate RT/TB WhatIf gates and independent audits passed before live execution. Fresh RT A/B `20260821T160100Z-opportunity-isolation-metadata-repair-rt-passA` / `20260821T160700Z-opportunity-isolation-metadata-repair-rt-passB` pass `55/0` each; fresh TB A/B `20260821T163100Z-opportunity-isolation-metadata-repair-tb-passA` / `20260821T164700Z-opportunity-isolation-metadata-repair-tb-passB` pass `59/0` each. Combined qualification is `228/0`.
+
+Each credited process proves exact rider/target/weapon/rule identity, an initially out-of-range stationary target, Mammoth-only stock pathfinding and exact Move-slot ownership, suppressed rider pathfinding, unchanged range admission, one intended attack/roll/damage chain, zero incidental opportunity attacks or duplicates, mode-correct rider action economy, no Mammoth Standard cost, no repath, healthy accepted pose and coherent UI, exact relationship cleanup, and exact suite restoration. Four mandatory post-process audits passed before evidence reads. The earlier failed TB launcher process and all historical failures remain uncredited. Explicit mounted-AoO remains separately unqualified.
+
 ## Opportunity-isolation TB launcher metadata repair pending fresh A/B (2026-08-21)
 
 Status: `IN PROGRESS`. RT A/B on package `387ab463dcee1d0789ab68053195e76413aaae8dd39a5ada92b5b5c6069e79de` pass `55/0` each. TB attempt `20260821T151200Z-opportunity-isolation-tb-passA` has game `PASS 59/0` but is uncredited because launcher process-path metadata was temporarily null, launcher finalization failed, and guarded recovery was required. Recovery and audit-before-read are exact.

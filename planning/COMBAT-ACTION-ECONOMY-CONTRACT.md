@@ -1,5 +1,9 @@
 # Combat action economy contract
 
+## Opportunity-isolated movement-to-attack requalified RT/TB A/B (2026-08-21)
+
+Fresh repaired-package RT A/B and TB A/B pass `228/0` total on one exact suite snapshot. RT retains the rider-owned Standard timer (`0 -> 2.9183743` / `2.947114`), leaves rider Move unchanged, and charges neither Mammoth Standard nor Move. TB consumes the exact rider Standard and Move ledgers (`0 -> 6` and `0 -> 3`) while Mammoth Standard remains `0`; the Mammoth supplies only the stock pathfinding/Move-slot execution authority. Every process emits exactly one intended child attack, one attack roll, and one damage rule, with zero duplicate or opportunity chains, and every post-process audit proves exact Working/Mods restoration. The package-restart requirement below is satisfied; the failed launcher attempt remains uncredited.
+
 ## Opportunity-isolation TB game result remains uncredited (2026-08-21)
 
 Failed launcher attempt `20260821T151200Z-opportunity-isolation-tb-passA` later produced game `PASS 59/0`, but its TB action-economy evidence receives no credit because final launcher/restoration proof failed. The repair changes only bounded OS process metadata readiness and preserves every Standard, Move, attack, opportunity, and cleanup assertion. Fresh same-package RT/TB A/B is required.
