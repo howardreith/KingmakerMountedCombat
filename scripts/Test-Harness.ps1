@@ -1115,18 +1115,21 @@ function New-TestCombatEvidenceRecord {
         'mounted-rider-melee-command-cancel-rt','mounted-rider-melee-command-cancel-tb')
     $isInterruption = [string]$Request.scenario -cin @(
         'mounted-rider-melee-command-interrupt-rt','mounted-rider-melee-command-interrupt-tb')
-    $isTermination = $isCancellation -or $isInterruption
+    $isCombatEnd = [string]$Request.scenario -cin @(
+        'mounted-rider-melee-combat-end-rt','mounted-rider-melee-combat-end-tb')
+    $isTermination = $isCancellation -or $isInterruption -or $isCombatEnd
     $isApproach = $isMovementToAttack -or $isTermination
     $isTurnBased = [string]$Request.scenario -cin @(
         'mounted-rider-melee-hit-tb','mounted-mammoth-primary-hit-tb','mounted-rider-melee-move-to-attack-tb',
-        'mounted-rider-melee-command-cancel-tb','mounted-rider-melee-command-interrupt-tb')
+        'mounted-rider-melee-command-cancel-tb','mounted-rider-melee-command-interrupt-tb',
+        'mounted-rider-melee-combat-end-tb')
     $isMiss = [string]$Request.scenario -ceq 'mounted-rider-melee-miss-rt'
     $requiresDurability = $isMammoth -or $isApproach
     $actor = if ($isMammoth) { $mount } else { $rider }
     $actorRole = if ($isMammoth) { 'mount' } else { 'rider' }
     $action = if ($isMammoth) { 'MountPrimaryNatural' } else { 'RiderMelee' }
     $record = [ordered]@{
-        schemaVersion=$(if ($isTermination) { if ($isTurnBased) { 39 } else { 38 } } elseif ($isMovementToAttack) { if ($isTurnBased) { 35 } else { 34 } } elseif ($isTurnBased) { 27 } else { 26 });artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
+        schemaVersion=$(if ($isCombatEnd) { if ($isTurnBased) { 41 } else { 40 } } elseif ($isTermination) { if ($isTurnBased) { 39 } else { 38 } } elseif ($isMovementToAttack) { if ($isTurnBased) { 35 } else { 34 } } elseif ($isTurnBased) { 27 } else { 26 });artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
         scenario=[string]$Request.scenario;row=[string]$Request.scenario;rowIndex=0;sequence=0;frame=30
         utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o');branch=[string]$Request.branch
         commit=[string]$Request.commit;productVersion=[string]$Request.productVersion
@@ -1301,14 +1304,18 @@ function New-TestCombatEvidenceRecord {
     }
     if ($isTermination) {
         $record.commandTermination = [ordered]@{
-            kind=$(if ($isCancellation) { 'player-stop' } else { 'native-wrapper-interrupt' })
-            trigger=$(if ($isCancellation) { 'SelectionManagerBase.Stop' } else { 'UnitCommands.InterruptAll' })
+            kind=$(if ($isCancellation) { 'player-stop' } elseif ($isInterruption) { 'native-wrapper-interrupt' } else { 'party-combat-end' })
+            trigger=$(if ($isCancellation) { 'SelectionManagerBase.Stop' } elseif ($isInterruption) { 'UnitCommands.InterruptAll' } else { 'IPartyCombatHandler.HandlePartyCombatStateChanged(false)' })
             delivered=$true;repeatedIdempotently=$true;wrapperPresentBefore=$true;delegatedMovePresentBefore=$true
             riderQueueEmptyBefore=$true;mountQueueEmptyBefore=$true;childAttackNotStartedBefore=$true
             pairDistanceAtTrigger=5.0;riderDisplacementAtTrigger=1.0;mountDisplacementAtTrigger=1.0;targetDisplacementAtTrigger=0.0
             wrapperAbsentAfter=$true;delegatedMoveAbsentAfter=$true;riderQueueEmptyAfter=$true;mountQueueEmptyAfter=$true
             mountAgentStoppedAfter=$true;activeCommandClearedAfter=$true;relationshipPreservedAfter=$true
             selectionRetainedAfter=$true;uiCoherentAfter=$true
+        }
+        if ($isCombatEnd) {
+            $record.commandTermination.lifecycleDeliveryCount = 2
+            $record.commandTermination.lifecycleDeliveriesExact = $true
         }
     }
     if ($isTurnBased) {
@@ -4766,7 +4773,9 @@ try {
         Assert-Test ($engineSource.Contains('CleanupTimeoutSeconds = 10.0d') -and
             $engineSource.Contains('rowClock.Elapsed.TotalSeconds - cleanupStartedAtSeconds < CleanupTimeoutSeconds')) 'combat cleanup does not retain an independent bounded drain after a row deadline'
         Assert-Test ($engineSource.Contains('SchemaVersion = IsCommandTerminationRow') -and
-            $engineSource.Contains('? (IsTurnBasedRow ? 39 : 38)') -and
+            $engineSource.Contains('? IsCombatEndTerminationRow') -and
+            $engineSource.Contains('? (IsTurnBasedRow ? 41 : 40)') -and
+            $engineSource.Contains(': (IsTurnBasedRow ? 39 : 38)') -and
             $engineSource.Contains(': IsMovementToAttackRow') -and
             $engineSource.Contains('? (IsTurnBasedRow ? 35 : 34)') -and
             $engineSource.Contains(': (IsTurnBasedRow ? 27 : 26)') -and
@@ -5010,7 +5019,9 @@ try {
         'mounted-rider-melee-command-cancel-rt',
         'mounted-rider-melee-command-cancel-tb',
         'mounted-rider-melee-command-interrupt-rt',
-        'mounted-rider-melee-command-interrupt-tb')) {
+        'mounted-rider-melee-command-interrupt-tb',
+        'mounted-rider-melee-combat-end-rt',
+        'mounted-rider-melee-combat-end-tb')) {
         $terminationRequestPath = Join-Path $testRoot ("runtime-request-{0}.json" -f $terminationScenario)
         $terminationRequest = Copy-TestJsonValue $combatRequest
         $terminationRequest.runId = 'combat-evidence-' + $terminationScenario + '-test'
@@ -5035,11 +5046,14 @@ try {
         }
     }
 
-    Invoke-HarnessTest 'command termination source binds exact native cancellation interruption and post-state gates' {
+    Invoke-HarnessTest 'command termination source binds exact cancellation interruption combat-end and post-state gates' {
         $engineSource = Get-Content -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeCombatScenarioEngine.cs') -Raw
         $controllerSource = Get-Content -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedCombatController.cs') -Raw
         Assert-Test -Condition ($engineSource.Contains('selection.Stop();') -and
             $engineSource.Contains('riderCommands.InterruptAll();') -and
+            $engineSource.Contains('lifecycle.HandlePartyCombatStateChanged(false);') -and
+            $engineSource.Contains('item.Boundary == NativeLifecycleBoundary.CombatEnded') -and
+            $engineSource.Contains('terminationLifecycleDeliveryCount == 2 && terminationLifecycleDeliveriesExact') -and
             $engineSource.Contains('riderDisplacement < 0.75f || mountDisplacement < 0.75f') -and
             $engineSource.Contains('currentPairDistance <= pairApproachRadius + MountedCombatSpatialPolicy.RangeTolerance') -and
             $engineSource.Contains('riderCommands.GetCommand(Kingmaker.UnitLogic.Commands.Base.UnitCommand.CommandType.Standard) == null') -and
@@ -5053,7 +5067,28 @@ try {
             $controllerSource.Contains('finishedCommandPendingSweep = command;') -and
             $controllerSource.Contains('if (commands.Queue.Count != 0)') -and
             $controllerSource.Contains('commands.RemoveFinishedAndUpdateQueue();')) -Message `
-            'command termination source does not bind the exact native trigger, progress, command-slot, agent, ownership, resource, zero-rule, relationship, selection, and UI gates'
+            'command termination source does not bind the exact cancellation, interruption, combat-end delivery, progress, command-slot, agent, ownership, resource, zero-rule, relationship, selection, and UI gates'
+    }
+
+    Invoke-HarnessTest 'combat-end termination validator requires its exact repeated lifecycle ledger delivery' {
+        $fixture = $terminationFixtures['mounted-rider-melee-combat-end-tb']
+        $mutations = @(
+            @{name='missing lifecycle count';apply={param($value) $value.commandTermination.PSObject.Properties.Remove('lifecycleDeliveryCount')}},
+            @{name='wrong lifecycle count';apply={param($value) $value.commandTermination.lifecycleDeliveryCount=1}},
+            @{name='inexact lifecycle ledger';apply={param($value) $value.commandTermination.lifecycleDeliveriesExact=$false}},
+            @{name='wrong combat-end kind';apply={param($value) $value.commandTermination.kind='native-wrapper-interrupt'}},
+            @{name='wrong combat-end trigger';apply={param($value) $value.commandTermination.trigger='UnitCommands.InterruptAll'}}
+        )
+        foreach ($mutation in $mutations) {
+            $value = Copy-TestJsonValue $fixture.Record
+            & $mutation.apply $value
+            [void](Write-TestCombatEvidence -EvidenceRoot $fixture.Request.evidenceRoot -Request $fixture.Request -Record $value)
+            $manifest = Read-KmcJson (Join-Path $fixture.Request.evidenceRoot 'runtime-artifacts.json')
+            $threw = $false
+            try { Assert-KmcCombatScenarioEvidence -Request $fixture.Request -Manifest $manifest -Status 'PASS' -SubscenarioResults @($fixture.Subresult) }
+            catch { $threw = $true }
+            Assert-Test $threw ("combat-end termination validator accepted mutation: " + [string]$mutation.name)
+        }
     }
 
     Invoke-HarnessTest 'command termination validator rejects cancellation interruption ownership resource and cleanup mutations' {

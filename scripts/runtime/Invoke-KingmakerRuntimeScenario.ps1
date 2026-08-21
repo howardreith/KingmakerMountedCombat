@@ -24,6 +24,7 @@ param(
         'mounted-rider-melee-move-to-attack-rt','mounted-rider-melee-move-to-attack-tb',
         'mounted-rider-melee-command-cancel-rt','mounted-rider-melee-command-cancel-tb',
         'mounted-rider-melee-command-interrupt-rt','mounted-rider-melee-command-interrupt-tb',
+        'mounted-rider-melee-combat-end-rt','mounted-rider-melee-combat-end-tb',
         'manual-visual-review'
     )][string]$Scenario='mod-load-smoke',
     [ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$RunId,

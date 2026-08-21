@@ -77,6 +77,8 @@ namespace KingmakerMountedCombat.Diagnostics
             "mounted-rider-melee-command-cancel-tb",
             "mounted-rider-melee-command-interrupt-rt",
             "mounted-rider-melee-command-interrupt-tb",
+            "mounted-rider-melee-combat-end-rt",
+            "mounted-rider-melee-combat-end-tb",
             ManualReviewScenario
         };
 
@@ -518,7 +520,9 @@ namespace KingmakerMountedCombat.Diagnostics
             "mounted-rider-melee-command-cancel-rt",
             "mounted-rider-melee-command-cancel-tb",
             "mounted-rider-melee-command-interrupt-rt",
-            "mounted-rider-melee-command-interrupt-tb"
+            "mounted-rider-melee-command-interrupt-tb",
+            "mounted-rider-melee-combat-end-rt",
+            "mounted-rider-melee-combat-end-tb"
         };
 
         public string Name { get; set; }

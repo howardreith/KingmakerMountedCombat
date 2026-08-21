@@ -3647,6 +3647,7 @@ function Get-KmcSaveBackedRuntimeScenarios {
         'mounted-rider-melee-move-to-attack-rt', 'mounted-rider-melee-move-to-attack-tb',
         'mounted-rider-melee-command-cancel-rt', 'mounted-rider-melee-command-cancel-tb',
         'mounted-rider-melee-command-interrupt-rt', 'mounted-rider-melee-command-interrupt-tb',
+        'mounted-rider-melee-combat-end-rt', 'mounted-rider-melee-combat-end-tb',
         'manual-visual-review'
     )
 }
@@ -4745,7 +4746,8 @@ function Get-KmcCombatRuntimeRows {
         'mounted-mammoth-primary-hit-rt','mounted-mammoth-primary-hit-tb',
         'mounted-rider-melee-move-to-attack-rt','mounted-rider-melee-move-to-attack-tb',
         'mounted-rider-melee-command-cancel-rt','mounted-rider-melee-command-cancel-tb',
-        'mounted-rider-melee-command-interrupt-rt','mounted-rider-melee-command-interrupt-tb'
+        'mounted-rider-melee-command-interrupt-rt','mounted-rider-melee-command-interrupt-tb',
+        'mounted-rider-melee-combat-end-rt','mounted-rider-melee-combat-end-tb'
     )
 }
 
@@ -7336,17 +7338,17 @@ function Assert-KmcCombatScenarioEvidence {
     if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -ge 24) {
         $recordFields = @($recordFields + 'targetBrainLease')
     }
-    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(28,29,30,31,32,33,34,35,36,37,38,39)) {
+    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(28,29,30,31,32,33,34,35,36,37,38,39,40,41)) {
         $recordFields = @($recordFields + 'movementToAttack')
     }
-    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(36,37,38,39)) {
+    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(36,37,38,39,40,41)) {
         $recordFields = @($recordFields + 'commandTermination')
     }
-    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39)) {
+    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39,41)) {
         $recordFields = @($recordFields + 'turnBased')
     }
     Assert-KmcExactProperties $record $recordFields 'combat evidence record'
-    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -notin @(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39) -or
+    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -notin @(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41) -or
         [string]$record.artifactKind -cne 'combat-scenario-evidence') {
         throw 'Combat evidence schemaVersion or artifactKind is not exact.'
     }
@@ -7751,7 +7753,7 @@ function Assert-KmcCombatScenarioEvidence {
             }
         }
     }
-    if ([long]$record.schemaVersion -in @(28,29,30,31,32,33,34,35,36,37,38,39)) {
+    if ([long]$record.schemaVersion -in @(28,29,30,31,32,33,34,35,36,37,38,39,40,41)) {
         $movementToAttackFields = @(
             'requestedTargetDistance','approachRequiredAtStart','delegatedMoveStartCount',
             'delegatedMoveTickCount','delegatedMoveExecutorId','delegatedMoveExecutorIsExactMount',
@@ -7812,17 +7814,21 @@ function Assert-KmcCombatScenarioEvidence {
             }
         }
     }
-    if ([long]$record.schemaVersion -in @(36,37,38,39)) {
+    if ([long]$record.schemaVersion -in @(36,37,38,39,40,41)) {
         $terminationBooleanFields = @(
             'delivered','repeatedIdempotently','wrapperPresentBefore','delegatedMovePresentBefore',
             'riderQueueEmptyBefore','mountQueueEmptyBefore','childAttackNotStartedBefore',
             'wrapperAbsentAfter','delegatedMoveAbsentAfter','riderQueueEmptyAfter','mountQueueEmptyAfter',
             'mountAgentStoppedAfter','activeCommandClearedAfter','relationshipPreservedAfter',
             'selectionRetainedAfter','uiCoherentAfter')
-        Assert-KmcExactProperties $record.commandTermination @(
+        $terminationFields = @(
             @('kind','trigger') + $terminationBooleanFields + @(
                 'pairDistanceAtTrigger','riderDisplacementAtTrigger','mountDisplacementAtTrigger',
-                'targetDisplacementAtTrigger')) 'combat command termination evidence'
+                'targetDisplacementAtTrigger'))
+        if ([long]$record.schemaVersion -in @(40,41)) {
+            $terminationFields = @($terminationFields + 'lifecycleDeliveryCount','lifecycleDeliveriesExact')
+        }
+        Assert-KmcExactProperties $record.commandTermination $terminationFields 'combat command termination evidence'
         foreach ($name in $terminationBooleanFields) {
             if ($record.commandTermination.$name -isnot [bool]) {
                 throw "Combat command termination evidence is not Boolean: $name"
@@ -7835,6 +7841,11 @@ function Assert-KmcCombatScenarioEvidence {
                 [double]$record.commandTermination.$name -lt 0) {
                 throw "Combat command termination measurement is invalid: $name"
             }
+        }
+        if ([long]$record.schemaVersion -in @(40,41) -and
+            ((-not (Test-KmcExactJsonInteger $record.commandTermination.lifecycleDeliveryCount)) -or
+             $record.commandTermination.lifecycleDeliveriesExact -isnot [bool])) {
+            throw 'Combat command termination lifecycle-delivery evidence is invalid.'
         }
     }
     $targetProvisioningFields = @(
@@ -7909,13 +7920,18 @@ function Assert-KmcCombatScenarioEvidence {
             'mounted-rider-melee-command-cancel-rt','mounted-rider-melee-command-cancel-tb')
         $commandInterruptionScenario = [string]$Request.scenario -cin @(
             'mounted-rider-melee-command-interrupt-rt','mounted-rider-melee-command-interrupt-tb')
-        $commandTerminationScenario = $commandCancellationScenario -or $commandInterruptionScenario
+        $combatEndTerminationScenario = [string]$Request.scenario -cin @(
+            'mounted-rider-melee-combat-end-rt','mounted-rider-melee-combat-end-tb')
+        $commandTerminationScenario = $commandCancellationScenario -or $commandInterruptionScenario -or $combatEndTerminationScenario
         $approachScenario = $movementToAttackScenario -or $commandTerminationScenario
         $turnBasedScenario = [string]$Request.scenario -cin @(
             'mounted-rider-melee-hit-tb','mounted-mammoth-primary-hit-tb','mounted-rider-melee-move-to-attack-tb',
-            'mounted-rider-melee-command-cancel-tb','mounted-rider-melee-command-interrupt-tb')
+            'mounted-rider-melee-command-cancel-tb','mounted-rider-melee-command-interrupt-tb',
+            'mounted-rider-melee-combat-end-tb')
         $missScenario = [string]$Request.scenario -ceq 'mounted-rider-melee-miss-rt'
-        $expectedCombatSchemas = if ($commandTerminationScenario) {
+        $expectedCombatSchemas = if ($combatEndTerminationScenario) {
+            if ($turnBasedScenario) { @(41) } else { @(40) }
+        } elseif ($commandTerminationScenario) {
             if ($turnBasedScenario) { @(37,39) } else { @(36,38) }
         } elseif ($movementToAttackScenario) {
             if ($turnBasedScenario) { @(29,31,33,35) } else { @(28,30,32,34) }
@@ -8305,8 +8321,8 @@ function Assert-KmcCombatScenarioEvidence {
         if ([long]$record.schemaVersion -ge 6) { $combatRuleFields = @($combatRuleFields + 'lastAttackHit') }
         Assert-KmcExactProperties $record.rules $combatRuleFields 'combat rule evidence'
         if ([long]$record.schemaVersion -ge 6 -and
-            ([long]$record.schemaVersion -notin @(36,37,38,39) -and $record.rules.lastAttackHit -isnot [bool]) -or
-            ([long]$record.schemaVersion -in @(36,37,38,39) -and $null -ne $record.rules.lastAttackHit)) {
+            ([long]$record.schemaVersion -notin @(36,37,38,39,40,41) -and $record.rules.lastAttackHit -isnot [bool]) -or
+            ([long]$record.schemaVersion -in @(36,37,38,39,40,41) -and $null -ne $record.rules.lastAttackHit)) {
             throw 'PASS combat rule evidence does not contain an exact native IsHit Boolean.'
         }
         $ruleIdentityInvalid = if ($commandTerminationScenario) {
@@ -8353,7 +8369,7 @@ function Assert-KmcCombatScenarioEvidence {
             throw 'PASS combat hit evidence does not prove one deterministic actor-specific hit.'
         }
 
-        $resourceOwnershipInvalid = if ($commandTerminationScenario -and [long]$record.schemaVersion -in @(38,39)) {
+        $resourceOwnershipInvalid = if ($commandTerminationScenario -and [long]$record.schemaVersion -in @(38,39,40,41)) {
             [math]::Abs([double]$record.resources.riderStandardAfter - [double]$record.resources.riderStandardBefore) -gt 0.01 -or
             [math]::Abs([double]$record.resources.mountStandardAfter - [double]$record.resources.mountStandardBefore) -gt 0.01
         } elseif ($mammothScenario) {
@@ -8438,8 +8454,8 @@ function Assert-KmcCombatScenarioEvidence {
             throw 'PASS movement-to-attack evidence does not prove one retained rider wrapper and one manually driven Mammoth approach.'
         }
         if ($commandTerminationScenario) {
-            $expectedTerminationKind = if ($commandCancellationScenario) { 'player-stop' } else { 'native-wrapper-interrupt' }
-            $expectedTerminationTrigger = if ($commandCancellationScenario) { 'SelectionManagerBase.Stop' } else { 'UnitCommands.InterruptAll' }
+            $expectedTerminationKind = if ($commandCancellationScenario) { 'player-stop' } elseif ($commandInterruptionScenario) { 'native-wrapper-interrupt' } else { 'party-combat-end' }
+            $expectedTerminationTrigger = if ($commandCancellationScenario) { 'SelectionManagerBase.Stop' } elseif ($commandInterruptionScenario) { 'UnitCommands.InterruptAll' } else { 'IPartyCombatHandler.HandlePartyCombatStateChanged(false)' }
             foreach ($name in @(
                 'delivered','repeatedIdempotently','wrapperPresentBefore','delegatedMovePresentBefore',
                 'riderQueueEmptyBefore','mountQueueEmptyBefore','childAttackNotStartedBefore',
@@ -8458,6 +8474,11 @@ function Assert-KmcCombatScenarioEvidence {
                 [double]$record.commandTermination.mountDisplacementAtTrigger -lt 0.75 -or
                 [double]$record.commandTermination.targetDisplacementAtTrigger -gt 0.05) {
                 throw 'PASS command termination evidence does not prove its exact bounded pre-attack trigger.'
+            }
+            if ($combatEndTerminationScenario -and
+                ([long]$record.commandTermination.lifecycleDeliveryCount -ne 2 -or
+                 $record.commandTermination.lifecycleDeliveriesExact -ne $true)) {
+                throw 'PASS combat-end termination evidence does not prove exact repeated mounted-state lifecycle delivery.'
             }
             $terminationMoveInvalid =
                 $record.movementToAttack.approachRequiredAtStart -ne $true -or
@@ -8488,7 +8509,7 @@ function Assert-KmcCombatScenarioEvidence {
                 ($turnBasedScenario -and
                  ((([long]$record.schemaVersion -eq 37) -and
                    [long]$record.movementToAttack.delegatedMoveTickCount -le 0) -or
-                  (([long]$record.schemaVersion -eq 39) -and
+                  (([long]$record.schemaVersion -in @(39,41)) -and
                    [long]$record.movementToAttack.delegatedMoveTickCount -ne 0) -or
                   $record.movementToAttack.delegatedMoveDrivenByStockController -ne $false -or
                   $record.movementToAttack.delegatedMoveDrivenByRiderTurnAdapter -ne $true)) -or

@@ -1,5 +1,12 @@
 # Mounted Combat journal
 
+## 2026-08-21T02:08:42Z - active-command combat-end RT/TB protocol is offline-green
+
+- Starting identity was clean guarded-published local/upstream `5ad6d804338dd34cdf5da518dec2d161dee70de8` on `codex/mounted-combat-phase2-alpha`, version `0.1.0-phase2b-dev.1`. No live process, external transaction, suite snapshot, save write, or Mods staging occurred in this worktree.
+- Added exact `mounted-rider-melee-combat-end-rt/tb` rows. The diagnostic establishes the already-qualified rider Standard wrapper and Mammoth Move slot, waits for at least `0.75` displacement while outside range, then directly delivers `IPartyCombatHandler.HandlePartyCombatStateChanged(false)` twice. Schema v40/v41 binds exactly two ordered `CombatEnded` records with Mounted before/after, null cleanup trigger, no cleanup attempt, and successful observation.
+- All existing termination gates remain: wrapper/move and queue restoration, stopped Mammoth agent, active command cleared, pair/pose/selection/UI retained, no child or attack/roll/damage/AoO chain, zero Standard cost before child, RT-zero/TB-actual-rider Move accounting, unchanged Mammoth resources, and final residue-free cleanup. Deterministic mutations reject missing/wrong delivery count, inexact ledger, wrong kind, and wrong trigger while preserving schema-v36-v39 history.
+- Complete offline gates pass source `21/0`, Release build, component `213/0`, visual/source-order `17/0`, harness/protocol `202/0`, assembly `254/0`, PowerShell parser `26/0`, JSON parser `7/0`, diff, and prohibited-payload checks. Dirty-build DLL SHA-256/MVID are `c2669d8037a711178bbf9e7c02177d20daae27a656282ee026634604f2f49dac` / `b5ec7887-56aa-4cc5-83bc-521d8cf38bb3` and are not package identity. Exact next action is coherent guarded publication, clean package/suite admission, separate RT/TB WhatIf and audits, then fresh RT A/B and TB A/B with audit-before-read. No runtime PASS is claimed.
+
 ## 2026-08-21T01:57:26Z - direct combat-lifecycle boundaries qualified A/B
 
 - Identity: clean guarded-published `82935e9fdd263fac698a35d07fdc7a090e58927c`; package/manifest `7aef5b851a75d6ba18e8cd4602eff14cbaf2cd4fdb764ac61e1e7254380e3ad5` / `b30fec9027242bb115e82964405d5363ec1456c60519c66caa176dae0758053e`; DLL/MVID `eacc5de4adf445db7a188339adca656acc7811bfbfc75484a92ffa98dcc65867` / `7529e931-b452-4acd-b40b-dd4bf28a5e98`.

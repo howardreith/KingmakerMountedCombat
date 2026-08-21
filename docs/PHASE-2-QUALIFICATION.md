@@ -1,5 +1,11 @@
 # Phase 2 qualification
 
+## Active-command combat-end implementation checkpoint (2026-08-21)
+
+Status: `IN PROGRESS`; no runtime PASS is claimed yet.
+
+Mode-specific schema-v40/v41 rows now place the exact rider movement-to-attack wrapper and Mammoth Move slot in flight, require measurable movement outside attack range, and directly deliver `IPartyCombatHandler.HandlePartyCombatStateChanged(false)` twice. Exact evidence requires two ordered mounted-state `CombatEnded` observations with no cleanup claim, complete command/queue/agent restoration, relationship and accepted presentation/UI continuity, zero child/attack/roll/damage/AoO chains, pre-child mode-correct action accounting, and final residue-free cleanup. Offline gates pass `21/213/17/202/254`. Fresh clean-package RT/TB A/B with restoration-before-read is required.
+
 ## Direct combat-lifecycle boundary qualification (2026-08-21)
 
 Status: `PASS` for the nine exact direct handler/service rows; overall lifecycle and private-alpha qualification remain `IN PROGRESS`.

@@ -1,5 +1,13 @@
 # Autonomous blockers
 
+## Active-command combat-end implementation ready for runtime - 2026-08-21T02:08:42Z
+
+Status: `IN PROGRESS`; no safety or architecture blocker is active.
+
+From clean published `5ad6d804338dd34cdf5da518dec2d161dee70de8`, the worktree adds only mode-specific schema-v40/v41 active-command combat-end rows and deterministic validators. They exercise the exact direct party-combat-end handler twice while a rider wrapper and Mammoth Move are active, bind two mounted-state non-cleanup lifecycle-ledger observations, and retain every qualified termination, action-economy, zero-rule, relationship, presentation, selection/UI, and cleanup gate. Offline totals are `21/213/17/202/254`; PowerShell/JSON parsers pass `26/0` / `7/0`, and diff/prohibited checks pass.
+
+No live process or runtime credit exists for this tranche. Required next work is coherent guarded publication, fresh clean package/suite binding, separate RT/TB WhatIf audits, and fresh RT/TB A/B. Native incapacitation delivery remains open but is not a current blocker.
+
 ## Direct combat-lifecycle suite qualified - 2026-08-21T01:57:26Z
 
 Status: `PASS` for the nine exact direct handler/service boundaries; no critical blocker is active.

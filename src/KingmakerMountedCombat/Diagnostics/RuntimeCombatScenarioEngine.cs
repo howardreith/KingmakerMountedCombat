@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using Kingmaker;
@@ -41,6 +42,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private const string RiderCommandCancelTurnBased = "mounted-rider-melee-command-cancel-tb";
         private const string RiderCommandInterruptRealTime = "mounted-rider-melee-command-interrupt-rt";
         private const string RiderCommandInterruptTurnBased = "mounted-rider-melee-command-interrupt-tb";
+        private const string RiderCombatEndRealTime = "mounted-rider-melee-combat-end-rt";
+        private const string RiderCombatEndTurnBased = "mounted-rider-melee-combat-end-tb";
         private const double RowTimeoutSeconds = 30.0d;
         private const double CleanupTimeoutSeconds = 10.0d;
         private const float SpawnDistance = 6.0f;
@@ -58,6 +61,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly RuntimeRequest request;
         private readonly GameMountedRelationshipService relationship;
         private readonly MountedCombatController combat;
+        private readonly MountedLifecycleSubscriber lifecycle;
         private readonly DiagnosticSettings settings;
         private readonly IModLogger logger;
         private readonly List<RuntimeSubscenarioResult> results = new List<RuntimeSubscenarioResult>();
@@ -169,6 +173,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool relationshipPreservedAfterTermination;
         private bool selectionRetainedAfterTermination;
         private bool uiCoherentAfterTermination;
+        private int terminationLifecycleDeliveryCount;
+        private bool terminationLifecycleDeliveriesExact;
         private MountedPairAttackCommand terminationWrapper;
         private Kingmaker.UnitLogic.Commands.UnitMoveTo terminationMove;
 
@@ -176,12 +182,14 @@ namespace KingmakerMountedCombat.Diagnostics
             RuntimeRequest request,
             GameMountedRelationshipService relationship,
             MountedCombatController combat,
+            MountedLifecycleSubscriber lifecycle,
             DiagnosticSettings settings,
             IModLogger logger)
         {
             this.request = request ?? throw new ArgumentNullException(nameof(request));
             this.relationship = relationship ?? throw new ArgumentNullException(nameof(relationship));
             this.combat = combat ?? throw new ArgumentNullException(nameof(combat));
+            this.lifecycle = lifecycle ?? throw new ArgumentNullException(nameof(lifecycle));
             this.settings = settings ?? throw new ArgumentNullException(nameof(settings));
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
             evidencePath = Path.Combine(request.EvidenceRoot, EvidenceFileName);
@@ -208,7 +216,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 string.Equals(scenario, RiderCommandCancelRealTime, StringComparison.Ordinal) ||
                 string.Equals(scenario, RiderCommandCancelTurnBased, StringComparison.Ordinal) ||
                 string.Equals(scenario, RiderCommandInterruptRealTime, StringComparison.Ordinal) ||
-                string.Equals(scenario, RiderCommandInterruptTurnBased, StringComparison.Ordinal);
+                string.Equals(scenario, RiderCommandInterruptTurnBased, StringComparison.Ordinal) ||
+                string.Equals(scenario, RiderCombatEndRealTime, StringComparison.Ordinal) ||
+                string.Equals(scenario, RiderCombatEndTurnBased, StringComparison.Ordinal);
         }
 
         private bool IsTurnBasedRow =>
@@ -216,7 +226,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 string.Equals(currentRow, MammothPrimaryHitTurnBased, StringComparison.Ordinal) ||
                 string.Equals(currentRow, RiderMoveToAttackTurnBased, StringComparison.Ordinal) ||
                 string.Equals(currentRow, RiderCommandCancelTurnBased, StringComparison.Ordinal) ||
-                string.Equals(currentRow, RiderCommandInterruptTurnBased, StringComparison.Ordinal);
+                string.Equals(currentRow, RiderCommandInterruptTurnBased, StringComparison.Ordinal) ||
+                string.Equals(currentRow, RiderCombatEndTurnBased, StringComparison.Ordinal);
 
         private bool IsMissRow => string.Equals(currentRow, RiderMissRealTime, StringComparison.Ordinal);
 
@@ -236,7 +247,12 @@ namespace KingmakerMountedCombat.Diagnostics
             string.Equals(currentRow, RiderCommandInterruptRealTime, StringComparison.Ordinal) ||
             string.Equals(currentRow, RiderCommandInterruptTurnBased, StringComparison.Ordinal);
 
-        private bool IsCommandTerminationRow => IsCommandCancellationRow || IsCommandInterruptionRow;
+        private bool IsCombatEndTerminationRow =>
+            string.Equals(currentRow, RiderCombatEndRealTime, StringComparison.Ordinal) ||
+            string.Equals(currentRow, RiderCombatEndTurnBased, StringComparison.Ordinal);
+
+        private bool IsCommandTerminationRow =>
+            IsCommandCancellationRow || IsCommandInterruptionRow || IsCombatEndTerminationRow;
 
         private bool IsApproachRow => IsMovementToAttackRow || IsCommandTerminationRow;
 
@@ -1110,12 +1126,33 @@ namespace KingmakerMountedCombat.Diagnostics
                 selection.Stop();
                 terminationRepeated = true;
             }
-            else
+            else if (IsCommandInterruptionRow)
             {
                 riderCommands.InterruptAll();
                 terminationDelivered = true;
                 riderCommands.InterruptAll();
                 terminationRepeated = true;
+            }
+            else
+            {
+                var before = lifecycle.SnapshotNativeDeliveries();
+                var lastSequence = before.Count == 0 ? 0L : before.Max(item => item.Sequence);
+                lifecycle.HandlePartyCombatStateChanged(false);
+                terminationDelivered = true;
+                lifecycle.HandlePartyCombatStateChanged(false);
+                terminationRepeated = true;
+                var deliveries = lifecycle.SnapshotNativeDeliveries()
+                    .Where(item => item.Sequence > lastSequence)
+                    .ToArray();
+                terminationLifecycleDeliveryCount = deliveries.Length;
+                terminationLifecycleDeliveriesExact = deliveries.Length == 2 && deliveries.All(item =>
+                    item.Boundary == NativeLifecycleBoundary.CombatEnded &&
+                    string.Equals(item.Source, "IPartyCombatHandler.HandlePartyCombatStateChanged(false)", StringComparison.Ordinal) &&
+                    item.StateBefore == RelationshipState.Mounted &&
+                    item.StateAfter == RelationshipState.Mounted &&
+                    !item.CleanupTrigger.HasValue &&
+                    !item.CleanupAttempted &&
+                    item.CleanupSucceeded);
             }
         }
 
@@ -1167,6 +1204,11 @@ namespace KingmakerMountedCombat.Diagnostics
             assertions.Check(relationshipPreservedAfterTermination && selectionRetainedAfterTermination &&
                     uiCoherentAfterTermination,
                 "Termination preserved the mounted relationship, accepted pose, rider selection, and combat UI.");
+            if (IsCombatEndTerminationRow)
+            {
+                assertions.Check(terminationLifecycleDeliveryCount == 2 && terminationLifecycleDeliveriesExact,
+                    "Repeated combat-end handler delivery produced exactly two mounted-state non-cleanup ledger observations.");
+            }
             assertions.Check(outcome.Action == MountedCombatActionKind.RiderMelee &&
                     string.Equals(outcome.ActorId, rider.UniqueId, StringComparison.Ordinal) &&
                     string.Equals(outcome.CommandOwnerId, rider.UniqueId, StringComparison.Ordinal) &&
@@ -1347,7 +1389,9 @@ namespace KingmakerMountedCombat.Diagnostics
             var record = new CombatEvidenceRecord
             {
                 SchemaVersion = IsCommandTerminationRow
-                    ? (IsTurnBasedRow ? 39 : 38)
+                    ? IsCombatEndTerminationRow
+                        ? (IsTurnBasedRow ? 41 : 40)
+                        : (IsTurnBasedRow ? 39 : 38)
                     : IsMovementToAttackRow
                         ? (IsTurnBasedRow ? 35 : 34)
                         : (IsTurnBasedRow ? 27 : 26),
@@ -1449,10 +1493,16 @@ namespace KingmakerMountedCombat.Diagnostics
                 CommandTermination = IsCommandTerminationRow
                     ? new CombatCommandTerminationEvidence
                     {
-                        Kind = IsCommandCancellationRow ? "player-stop" : "native-wrapper-interrupt",
+                        Kind = IsCommandCancellationRow
+                            ? "player-stop"
+                            : IsCommandInterruptionRow
+                                ? "native-wrapper-interrupt"
+                                : "party-combat-end",
                         Trigger = IsCommandCancellationRow
                             ? "SelectionManagerBase.Stop"
-                            : "UnitCommands.InterruptAll",
+                            : IsCommandInterruptionRow
+                                ? "UnitCommands.InterruptAll"
+                                : "IPartyCombatHandler.HandlePartyCombatStateChanged(false)",
                         Delivered = terminationDelivered,
                         RepeatedIdempotently = terminationRepeated,
                         WrapperPresentBefore = wrapperPresentBeforeTermination,
@@ -1472,7 +1522,13 @@ namespace KingmakerMountedCombat.Diagnostics
                         ActiveCommandClearedAfter = !combat.HasActiveCommand,
                         RelationshipPreservedAfter = relationshipPreservedAfterTermination,
                         SelectionRetainedAfter = selectionRetainedAfterTermination,
-                        UiCoherentAfter = uiCoherentAfterTermination
+                        UiCoherentAfter = uiCoherentAfterTermination,
+                        LifecycleDeliveryCount = IsCombatEndTerminationRow
+                            ? (int?)terminationLifecycleDeliveryCount
+                            : null,
+                        LifecycleDeliveriesExact = IsCombatEndTerminationRow
+                            ? (bool?)terminationLifecycleDeliveriesExact
+                            : null
                     }
                     : null,
                 Pose = new CombatPoseEvidence
@@ -2326,6 +2382,12 @@ namespace KingmakerMountedCombat.Diagnostics
             public bool RelationshipPreservedAfter { get; set; }
             public bool SelectionRetainedAfter { get; set; }
             public bool UiCoherentAfter { get; set; }
+
+            [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            public int? LifecycleDeliveryCount { get; set; }
+
+            [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            public bool? LifecycleDeliveriesExact { get; set; }
         }
 
         private sealed class CombatTargetProvisioningEvidence

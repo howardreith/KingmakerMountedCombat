@@ -1,5 +1,12 @@
 # Autonomous resume
 
+## Current resume checkpoint - 2026-08-21T02:08:42Z
+
+- Status is `IN PROGRESS`; no safety, architecture, or presentation blocker is active. Starting clean guarded-published local/upstream identity was `5ad6d804338dd34cdf5da518dec2d161dee70de8` on `codex/mounted-combat-phase2-alpha`, version `0.1.0-phase2b-dev.1`. The worktree is one coherent active-command combat-end diagnostic/protocol tranche; no external state, runtime process, suite, save, or Mods transaction has occurred in it.
+- New exact rows `mounted-rider-melee-combat-end-rt/tb` reuse the qualified out-of-range rider wrapper and Mammoth Move-slot termination path. After at least `0.75` displacement and while still outside attack range, the exact direct `IPartyCombatHandler.HandlePartyCombatStateChanged(false)` handler is delivered twice. Schema v40/v41 requires exactly two ordered `CombatEnded` ledger observations, mounted state before/after, no cleanup trigger/attempt, exact wrapper/move removal, stopped Mammoth agent, empty queues, retained relationship/pose/selection/UI, zero child/rule/AoO chains, mode-correct pre-child cost, and residue-free cleanup.
+- Complete offline gates pass source `21/0`, Release build, component `213/0`, visual/source-order `17/0`, harness/protocol `202/0`, exact assembly contracts `254/0` (`243/0` Kingmaker / `11/0` Wrath), PowerShell parser `26/0`, JSON parser `7/0`, diff, and prohibited-payload checks. Dirty-build DLL SHA-256/MVID are `c2669d8037a711178bbf9e7c02177d20daae27a656282ee026634604f2f49dac` / `b5ec7887-56aa-4cc5-83bc-521d8cf38bb3`; they are not package identity.
+- No runtime credit is claimed. Exact next action is coherent commit and guarded publication, fresh clean-HEAD package and suite admission, separate RT/TB WhatIf plus independent audits, then RT A/B and TB A/B with audit-before-read. Native incapacitation delivery remains separately open.
+
 ## Current resume checkpoint - 2026-08-21T01:57:26Z
 
 - Status is `IN PROGRESS`; no safety, architecture, or presentation blocker is active. Exact clean guarded-published implementation is `82935e9fdd263fac698a35d07fdc7a090e58927c`. Package/manifest/DLL SHA-256 are `7aef5b851a75d6ba18e8cd4602eff14cbaf2cd4fdb764ac61e1e7254380e3ad5` / `b30fec9027242bb115e82964405d5363ec1456c60519c66caa176dae0758053e` / `eacc5de4adf445db7a188339adca656acc7811bfbfc75484a92ffa98dcc65867`; MVID is `7529e931-b452-4acd-b40b-dd4bf28a5e98`.
