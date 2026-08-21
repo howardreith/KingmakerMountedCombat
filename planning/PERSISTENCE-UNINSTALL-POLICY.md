@@ -1,6 +1,6 @@
 # Persistence and uninstall policy
 
-Status: IN PROGRESS
+Status: PASS — PRIVATE-ALPHA CORE POLICY
 
 ## Product policy
 

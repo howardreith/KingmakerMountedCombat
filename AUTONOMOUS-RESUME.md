@@ -1,5 +1,11 @@
 # Autonomous resume
 
+## Current resume checkpoint - 2026-08-21T18:03:46Z
+
+- Status is `IN PROGRESS`; core private-alpha behavior is qualified, optional mounted AoO and charge are `DEFER — EVIDENCED`, and bounded reach is offline-complete but still requires fresh clean-package RT/TB A/B. Local HEAD is `eb1372a574a8856bad4df2a8ec95fbe40669e7a6`, two commits ahead of guarded-published upstream `17e03550a2d6b56dcb649b2537d7f84be7c921e9`; the earlier guarded helper stopped before push with `SEC_E_NO_CREDENTIALS`.
+- The private-alpha playtest handoff and tailored Phase 3 mission draft are now populated but deliberately remain nonfinal: artifact identities are pending, no installation is authorized from the draft, Phase 3 is not execution authority, and no public release or `main` merge is claimed. Persistence/uninstall and player-action/UI status headers are reconciled to the already qualified private-alpha core boundary.
+- Complete Release gates pass source/component/visual/harness/assembly `21/217/17/214/269`, PowerShell/JSON parsers `26/0` / `7/0`, diff, and prohibited-payload checks. The measured development DLL SHA-256/MVID are `9f715f4ddd4e086cee8f2aa3aaa4e746401cec113fc529809d1376eab1caf6c1` / `292982ba-6486-4807-b4fa-c15dc0558266`; these are not package identity. Exact next action: commit this coherent hardening/documentation checkpoint, then retry the guarded non-force helper once at the required publication boundary. If remote equality is established, create a clean-HEAD package, admit one stable save/Mods suite, pass separate RT/TB WhatIf plus independent audits, and execute fresh stationary rider/Mammoth reach RT/TB A/B and non-mounted controls with restoration-before-read.
+
 ## Current resume checkpoint - 2026-08-21T17:55:00Z
 
 - Both optional explicit mounted-AoO and basic-charge stretches are now `DEFER — EVIDENCED`, absent/default-off, without weakening core or ordinary non-mounted behavior. AoO lacks narrow pair-wide engagement/counter ownership. Stock charge inseparably makes one caster both forced mover and attacker; rider choice violates Mammoth-only pathfinding and Mammoth choice owns the wrong attack/resource ledger. Deterministic harness is `214/0`; Kingmaker assembly contracts are `258/0` plus unchanged Wrath `11/0`.

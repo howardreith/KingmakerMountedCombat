@@ -1,5 +1,13 @@
 # Mounted Combat journal
 
+## 2026-08-21T18:03:46Z — private-alpha handoff drafting and status reconciliation
+
+- Continued only safe offline work while guarded publication remained unavailable. No Kingmaker process, runtime transaction, save mutation, Mods staging, or external deployment was initiated by this checkpoint.
+- Replaced the private-alpha placeholder with exact supported-profile installation, control, RT/TB playtest, defect-reporting, limitation, and uninstall guidance. Final commit/package/manifest/DLL/MVID fields intentionally remain pending until reach runtime qualification and the final clean package are complete.
+- Replaced the Phase 3 placeholder with a tailored non-authorizing mission draft. It preserves Architecture B and proposes separately selectable presentation, UI, profile, reach, AoO, charge, compatibility, and performance tranches without authorizing Phase 3 implementation.
+- Reconciled the persistence/uninstall and player-action/UI status headers to the already qualified private-alpha core boundary. Bounded reach remains `IN PROGRESS`; explicit mounted AoO and basic charge remain `DEFER — EVIDENCED` and absent/default-off.
+- Complete Release gates pass source/component/visual/harness/assembly `21/217/17/214/269`, PowerShell/JSON parsers `26/0` / `7/0`, diff, and prohibited-payload checks. Development DLL SHA-256/MVID are measured at `9f715f4ddd4e086cee8f2aa3aaa4e746401cec113fc529809d1376eab1caf6c1` / `292982ba-6486-4807-b4fa-c15dc0558266` and are not package identity. Next: one coherent commit and one guarded publication attempt. Live packaging and reach evidence remain forbidden until exact local/upstream equality is proven.
+
 ## 2026-08-21T17:55:00Z - basic mounted-charge stretch disposition
 
 - Exact installed `AbilityCustomCharge` contracts are `Deliver` `0x06002BB6`, turn-based routine `0x06002BB7`, real-time routine `0x06002BB8`, `Cleanup` `0x06002BB9`, and `CanTarget` `0x06002BBD`. State-machine IL binds caster-owned `UnitAttack`, agent charging/speed state, unit charging state, path trace `0x060017AD`, charge flag `0x06002663`, and caster command queue.

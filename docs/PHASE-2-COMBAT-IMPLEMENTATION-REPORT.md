@@ -2,6 +2,12 @@
 
 Status: IN PROGRESS
 
+## Bounded reach evidence and stretch disposition (2026-08-21)
+
+The bounded mounted-reach tranche is offline-complete without changing production range behavior. Additive schemas v42/v43 bind the exact rider and Mammoth weapon blueprints, independently derived attack radii, actor and target corpulence, a real initial position outside both radii, actor-specific inside-boundary dispatch, bidirectional hostile targetability, and unchanged range inputs. Historical combat schemas remain isolated. Complete source/component/visual/harness/assembly gates pass `21/217/17/214/269`; PowerShell/JSON parsers pass `26/0` / `7/0`. Fresh clean-package stationary rider and Mammoth-primary RT/TB A/B plus non-mounted controls remain mandatory before the reach claim becomes `PASS`.
+
+Exact installed assembly analysis also closes the two optional stretch investigations truthfully. Explicit mounted attacks of opportunity are `DEFER — EVIDENCED`: stock engagement, counter, threat-hand, command, motion, and rule ownership are per-unit, and no narrow pair-wide one-attacker arbitration seam was found. Basic mounted charge is `DEFER — EVIDENCED`: stock charge inseparably makes one caster own forced movement, charge state, queued attack, and action ledger, which cannot preserve both Mammoth-only pathfinding and rider-owned attack/resources. Both features remain absent/default-off, production synthesizes neither, broad engagement/charge behavior is unpatched, and ordinary non-mounted behavior remains stock.
+
 ## Repaired-package opportunity-isolation qualification (2026-08-21)
 
 The bounded Windows process-metadata readiness repair is now exercised by a complete fresh same-package RT/TB A/B set. RT A/B pass `55/0` each and TB A/B pass `59/0` each, aggregate `228/0`, on commit/package `4d1737c0ce24502bb3ec7c383aa008dad14a642e` / `5793c05dffb69bd1417bfd6ce9f239f34be788673092da526fff1df4ffc3e1dd` and suite snapshot `16315b6f15e8c39fb4046578efedbb5c24dd31307c069aa65be0f42a1bdb0446`. The launcher completed normally in all four processes. Exact single-attack, zero-opportunity, target/range, Mammoth movement authority, mode-specific action economy, presentation/UI, cleanup, and restoration gates all pass. Immediate independent audits preceded every evidence read. No gameplay change was required after the launcher repair, and the earlier failed launcher attempt remains immutable uncredited evidence.

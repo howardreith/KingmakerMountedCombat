@@ -1,6 +1,6 @@
 # Player action and UI contract
 
-Status: PASS - PRESENTATION BASELINE; COMBAT CONTROLS OPEN
+Status: PASS — PRIVATE-ALPHA CORE CONTROLS
 
 Manual review exposed one truthful projection defect: automation mounted the pair without passing through `MountedPlayerActionController.Activate`, so `Dismount` could be rendered beside stale readiness-to-mount feedback. The post-acceptance controller now retains operation feedback only while the complete availability projection is stable and immediately adopts the current evaluator feedback after an external action/state transition. Deterministic regressions cover both behaviors.
 
@@ -32,3 +32,5 @@ The private alpha uses an owned bottom-right IMGUI overlay, not a blueprint or h
 Offline checkpoint: component action tests `7 PASS / 0 FAIL`; complete component total `126 PASS / 0 FAIL`; harness `138 PASS / 0 FAIL`. The registered UMM-toggle native scenario now checks one owned overlay before disable, zero references/objects on the following disabled frame, and exactly one restored overlay after re-enable; live execution remains required twice.
 
 Runtime controller qualification: exact clean commit `a344442fcf81de6ae49ce5770099d05874995de8`, package SHA-256 `7d2287f785d870c967c8d8ba54a1f458f989a030d2718f194e61808ebcd2ff2f`, DLL SHA-256/MVID `6e4a2d9b75f2e6a485b3f4da0234243b33c797df92191872724b393f912a784d` / `95e1f8fc-5aa3-4338-8921-bf5dff209d76`. Availability passed twice at `29/0`; mount/dismount passed twice at `44/0`. Each run used a fresh process, ended `Unmounted`, retained exact rider selection, produced zero relationship/movement/attachment residue, and restored Working, protected saves, and Mods exactly. These rows invoke `MountedPlayerActionController` directly and deliberately record `nativeDeliveryObserved=false`; actual IMGUI visibility/click delivery and UI capture remain `TODO` for Tranche B.
+
+The accepted Phase 2A manual presentation review and later combat evidence establish the private-alpha overlay boundary. Rider melee and Mammoth primary clicks retain exact actor/target/weapon ownership, accepted rider-facing selection and UI projection, and zero duplicate command or rule chains. Invalid target, target death before child admission, repeated cleanup, cancellation/interruption, combat lifecycle, and non-mounted controls are repeatably qualified. This does not claim a native action-bar button, hotkey, serialized ability, or generalized UI integration; the transient IMGUI overlay remains the only supported player-facing control surface.
