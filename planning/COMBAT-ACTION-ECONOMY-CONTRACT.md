@@ -126,7 +126,7 @@ The exact installed Wrath reference assembly remains read-only. Its `SaddledUnit
 - Ranged weapons, auto-use abilities, spells, full attacks, combined attacks, and unsupported profiles are rejected with visible feedback.
 - Every scoped AI, command, movement, and turn lease restores on cleanup. Non-pair commands and non-mounted behavior remain stock.
 
-Stationary rider/Mammoth attack accounting, rider movement-to-attack, exact active-command cancellation/interruption, and native rider/Mammoth unconsciousness invalidation are qualified under the evidence above. Overall action-economy qualification remains `IN PROGRESS` for remaining invalid-target/target-death/cleanup-stress controls, AI suppression outside the qualified rows, and non-mounted isolation.
+Stationary rider/Mammoth attack accounting, rider movement-to-attack, exact active-command cancellation/interruption and combat-end handling, native rider/Mammoth unconsciousness invalidation, invalid-target/target-death/cleanup-stress controls, and non-mounted isolation are qualified under the evidence above. Scoped core action-economy qualification is `PASS`; no broader AI suppression, unrelated native-command ownership, explicit mounted-AoO, or charge behavior is claimed.
 
 ## Mammoth-primary offline checkpoint - 2026-08-16
 
