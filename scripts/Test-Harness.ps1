@@ -4981,14 +4981,28 @@ try {
         $turnDispatchIndex = $engineSource.IndexOf('turnBasedReadiness = CaptureTurnBasedReadiness(turnController);', $nativeActionActorTurnIndex, [StringComparison]::Ordinal)
         $nativeClickIndex = $engineSource.IndexOf('new ClickUnitHandler().OnClick(', $turnDispatchIndex, [StringComparison]::Ordinal)
         $actingAfterDispatchIndex = $engineSource.IndexOf('if (IsTurnBasedRow && !nativeActionActorTurnActingObservedAfterDispatch)', [StringComparison]::Ordinal)
-        $cleanupDestroyIndex = $engineSource.IndexOf('targetRemoved = targetService.DestroyAndVerify();', [StringComparison]::Ordinal)
+        $beginCleanupIndex = $engineSource.IndexOf('private void BeginCleanup()', [StringComparison]::Ordinal)
+        $transitionRestoreIndex = $engineSource.IndexOf('RestoreTurnBasedTransitionLease();', $beginCleanupIndex, [StringComparison]::Ordinal)
+        $awaitRealtimeRestoreIndex = $engineSource.IndexOf('private void AwaitTurnBasedRealtimeRestore()', $transitionRestoreIndex, [StringComparison]::Ordinal)
+        $realtimePresentationIndex = $engineSource.IndexOf('presentationAfterRealtimeRestore = relationship.CapturePresentationObservation();', $awaitRealtimeRestoreIndex, [StringComparison]::Ordinal)
+        $relationshipCleanupIndex = $engineSource.IndexOf('private void BeginRelationshipCleanup()', $realtimePresentationIndex, [StringComparison]::Ordinal)
+        $cleanupDestroyIndex = $engineSource.IndexOf('targetRemoved = targetService.DestroyAndVerify();', $relationshipCleanupIndex, [StringComparison]::Ordinal)
         $modeRestoreIndex = $engineSource.IndexOf('RestoreTurnBasedMode();', $cleanupDestroyIndex, [StringComparison]::Ordinal)
+        $cameraCaptureIndex = $engineSource.IndexOf('cameraFollowerSnapshot = CombatCameraFollowerSnapshot.TryCapture(', [StringComparison]::Ordinal)
+        $cameraFollowIndex = $engineSource.IndexOf('Game.Instance.CameraController.Follower.Follow(rider)', $cameraCaptureIndex, [StringComparison]::Ordinal)
+        $mountPairIndex = $engineSource.IndexOf('var mounted = relationship.MountAutomationPair();', $cameraFollowIndex, [StringComparison]::Ordinal)
+        $cameraRestoreIndex = $engineSource.IndexOf('RestoreCameraFollower();', $modeRestoreIndex, [StringComparison]::Ordinal)
         Assert-Test ($realTimeModeProbeIndex -ge 0 -and $realTimeModeDispatchIndex -gt $realTimeModeProbeIndex -and
             $modeProbeIndex -gt $realTimeModeDispatchIndex -and $modeDispatchIndex -gt $modeProbeIndex -and
             $turnBasedMountIndex -gt $modeDispatchIndex -and $turnRosterIndex -gt $turnBasedMountIndex -and
             $nativeActionActorTurnIndex -gt $turnRosterIndex -and $turnDispatchIndex -gt $nativeActionActorTurnIndex -and
             $nativeClickIndex -gt $turnDispatchIndex -and $actingAfterDispatchIndex -gt $nativeClickIndex -and
-            $cleanupDestroyIndex -gt $turnDispatchIndex -and $modeRestoreIndex -gt $cleanupDestroyIndex -and
+            $beginCleanupIndex -gt $turnDispatchIndex -and $transitionRestoreIndex -gt $beginCleanupIndex -and
+            $awaitRealtimeRestoreIndex -gt $transitionRestoreIndex -and $realtimePresentationIndex -gt $awaitRealtimeRestoreIndex -and
+            $relationshipCleanupIndex -gt $realtimePresentationIndex -and $cleanupDestroyIndex -gt $relationshipCleanupIndex -and
+            $modeRestoreIndex -gt $cleanupDestroyIndex -and $cameraCaptureIndex -gt $realTimeModeDispatchIndex -and
+            $cameraFollowIndex -gt $cameraCaptureIndex -and $mountPairIndex -gt $cameraFollowIndex -and
+            $cameraRestoreIndex -gt $modeRestoreIndex -and
             $nativeModeProbeSource.Contains('public NativeModeTransitionProbe(bool temporaryValue)') -and
             $nativeModeProbeSource.Contains('TemporaryValue = requestedTemporaryValue ?? !OriginalValue;') -and
             $nativeModeProbeSource.Contains('public bool TransitionRequired => OriginalValue != TemporaryValue;') -and
@@ -5012,9 +5026,19 @@ try {
             $engineSource.Contains('currentTurnActingAtDispatch = true;') -and
             $engineSource.Contains('currentTurnActingAtOutcome = currentTurn != null && currentTurn.IsActing') -and
             $controllerSource.Contains('turn.ForceToEnd(false);') -and
+            $engineSource.Contains('step = CombatEngineStep.AwaitTurnBasedRealtimeRestore;') -and
+            $engineSource.Contains('Game.Instance.CurrentMode != GameModeType.Default') -and
+            $engineSource.Contains('turnBasedRestoreDeliveryCompleted &&') -and
+            $engineSource.Contains('turnBasedOriginalEnabled,') -and
+            $engineSource.Contains('turnBasedTemporaryEnabled,') -and
+            $engineSource.Contains('turnBasedOriginalRawCacheHadValue,') -and
+            $engineSource.Contains('turnBasedRestoreDeliveryCompleted,') -and
+            $engineSource.Contains('private sealed class CombatCameraFollowerSnapshot') -and
+            $engineSource.Contains('exactUnit.FieldType != typeof(UnitEntityData)') -and
+            $engineSource.Contains('cameraFollowerRestored = cameraFollowerSnapshot.IsCurrent;') -and
             $engineSource.Contains('realTimeBaselineModeProbe.DispatchRestoreAndRestoreRawCache();') -and
             $engineSource.Contains('turnBasedPersistedUnchanged &&') -and
-            $engineSource.Contains('realTimePersistedUnchanged;')) 'combat rows do not lease an exact real-time baseline independently of ambient settings, admit the native Preparing action-actor turn, observe Acting after dispatch, bound the Mammoth turn after its action, and restore both stacked mode leases after cleanup'
+            $engineSource.Contains('realTimePersistedUnchanged;')) 'combat rows do not lease exact native mode and camera state, observe a bounded Default-mode TB-to-RT checkpoint before relationship cleanup, admit the native action-actor turn, and restore every captured lease after cleanup'
         Assert-Test ($engineSource.Contains('CleanupTimeoutSeconds = 10.0d') -and
             $engineSource.Contains('rowClock.Elapsed.TotalSeconds - cleanupStartedAtSeconds < CleanupTimeoutSeconds')) 'combat cleanup does not retain an independent bounded drain after a row deadline'
         Assert-Test ($engineSource.Contains('SchemaVersion = IsHumanPlayRow') -and

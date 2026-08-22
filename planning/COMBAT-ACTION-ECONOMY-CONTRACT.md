@@ -1,5 +1,9 @@
 # Combat action economy contract
 
+## Human-path RT evidence and TB orchestration repair (2026-08-22)
+
+Schema-v44 RT A/B from package `e8d507...` pass `81/0` each: one ordinary player-click rider attack, one roll/damage chain, rider-only Standard cost, zero rider Move, zero Mammoth Standard, and zero duplicate/opportunity/repath chain. Schema-v45 TB Pass A is uncredited because diagnostic cleanup re-enabled ambient TB before the required RT checkpoint and before combat drain; it emitted no ground command, attack, or resource chain. The repair changes only diagnostic lease/camera staging and preserves the exact rider-turn ground-movement, rider Move/Standard, Mammoth pathfinding, Mammoth-independent-turn, and zero-duplicate contracts. Fresh same-package RT/TB A/B is required.
+
 ## Diagnostic mode ownership is explicit and non-persistent (2026-08-22)
 
 An RT-requested stabilization row timed out before dispatch because ordinary ambient Enable Turn-Based Mode activated native TB on combat entry. Exact observation proves `2549` rider cooldown callbacks with zero initiative decrement or rewrite; exact installed token `0x06009349` returns before RT cooldown processing while TB is active. Qualification rows now lease RT false before combat and stack TB true only for TB rows, restoring the exact original cached/persisted setting afterward. This changes no rider/Mammoth Standard or Move ledger, command admission, turn ownership, readiness threshold, or production behavior. The failed row remains uncredited and fresh same-package mode-specific evidence is required.

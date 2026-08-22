@@ -1,5 +1,9 @@
 # Phase 2 runtime scenario matrix
 
+## Stabilization human-path runtime checkpoint (2026-08-22)
+
+Status: `IN PROGRESS`. Package `e8d507...` schema-v44 RT A/B (`...061700Z...rt-passA`, `...063700Z...rt-passB`) pass `81/0` each and qualify the exact ordinary rider-melee path only for that superseded package. Schema-v45 TB Pass A `20260822T065700Z-private-alpha-stabilization-native-mode-tb-passA` is uncredited `FAIL 28/5` despite exact restoration. The pair/view/pose/selection/action-bar/portrait/roster/turn remained valid, but the diagnostic skipped the required observable RT interval between its inner TB restore and outer ambient-setting restore, then cleaned combat under TB; it also lacked a camera-follow precondition. The narrow staged-mode and reversible camera-lease repair is offline-green `21/230/17/219/277`. Fresh clean-package RT A/B and TB A/B must restart under one new suite snapshot; no cross-package A/B credit is permitted.
+
 ## Stabilization RT/TB mode admission repair pending fresh evidence (2026-08-22)
 
 Status: `IN PROGRESS`. Uncredited observation row `20260822T043600Z-private-alpha-stabilization-initiative-observation-rt-probeA` proves exact rider cooldown callbacks were present but the RT request entered native TB `Preparing`, so installed token `0x06009349` returned before initiative decrement. Each v44/v45 combat row now establishes an exact non-persistent real-time setting baseline before mounting or combat; v45 then stacks the native TB transition after mounting and unwinds to baseline before restoring the user's original setting. Schema shape and validators remain unchanged. Offline totals pass `21/230/17/219/277`; fresh clean-package v44 RT A/B and v45 TB A/B remain required, and no overlapping preflight/run receives credit.

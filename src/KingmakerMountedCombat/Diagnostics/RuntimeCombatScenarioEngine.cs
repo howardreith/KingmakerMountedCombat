@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using Kingmaker;
@@ -151,6 +152,14 @@ namespace KingmakerMountedCombat.Diagnostics
         private DiagnosticTurnBasedDispatchReadinessSnapshot turnBasedReadiness;
         private NativeModeTransitionProbe realTimeBaselineModeProbe;
         private NativeModeTransitionProbe turnBasedModeProbe;
+        private CombatCameraFollowerSnapshot cameraFollowerSnapshot;
+        private bool cameraFollowerLeaseOwned;
+        private bool cameraFollowerRestored = true;
+        private bool turnBasedOriginalEnabled;
+        private bool turnBasedTemporaryEnabled;
+        private bool turnBasedOriginalRawCacheHadValue;
+        private bool turnBasedRestoreDeliveryCompleted;
+        private double modeRestoreStartedAtSeconds;
         private bool turnBasedModeEnabledAtMount;
         private bool pairMountedBeforeTurnBasedEnable;
         private bool pairRetainedAfterTurnBasedEnable;
@@ -353,7 +362,9 @@ namespace KingmakerMountedCombat.Diagnostics
             try
             {
                 targetService?.ObserveTargetLifeState();
-                if (rowClock.Elapsed.TotalSeconds > RowTimeoutSeconds && step != CombatEngineStep.AwaitCleanupFrame)
+                if (rowClock.Elapsed.TotalSeconds > RowTimeoutSeconds &&
+                    step != CombatEngineStep.AwaitTurnBasedRealtimeRestore &&
+                    step != CombatEngineStep.AwaitCleanupFrame)
                 {
                     assertions.Fail("Combat row exceeded its " + RowTimeoutSeconds + " second monotonic deadline at " + step +
                         ". " + DescribeDeadlineReadiness() + ".");
@@ -380,6 +391,9 @@ namespace KingmakerMountedCombat.Diagnostics
                         break;
                     case CombatEngineStep.AwaitOutcome:
                         ObserveOutcome();
+                        break;
+                    case CombatEngineStep.AwaitTurnBasedRealtimeRestore:
+                        AwaitTurnBasedRealtimeRestore();
                         break;
                     case CombatEngineStep.AwaitCleanupFrame:
                         VerifyCleanupAndComplete();
@@ -497,6 +511,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (IsTurnBasedRow && !IsMountedBeforeModeTransitionRow)
             {
                 turnBasedModeProbe = new NativeModeTransitionProbe(true);
+                CaptureTurnBasedModeLeaseIdentity();
                 assertions.Check(!turnBasedModeProbe.OriginalValue && turnBasedModeProbe.TemporaryValue,
                     "Turn-based combat row leased an exact false-to-true native mode transition.");
                 if (assertions.FailureCount != 0)
@@ -566,6 +581,26 @@ namespace KingmakerMountedCombat.Diagnostics
             }
 
             SelectionManager.Instance.SelectUnit(rider.View, true, false, false);
+            if (IsMountedBeforeModeTransitionRow)
+            {
+                string cameraError;
+                cameraFollowerSnapshot = CombatCameraFollowerSnapshot.TryCapture(Game.Instance, out cameraError);
+                assertions.Check(cameraFollowerSnapshot != null,
+                    "Exact native camera-follower state was captured for bounded human-play transition restoration: " +
+                    (cameraError ?? "available") + ".");
+                if (cameraFollowerSnapshot != null)
+                {
+                    cameraFollowerLeaseOwned = true;
+                    cameraFollowerRestored = false;
+                    assertions.Check(Game.Instance.CameraController.Follower.Follow(rider),
+                        "Native camera follower accepted the exact selected rider before RT-to-TB transition.");
+                }
+                if (assertions.FailureCount != 0)
+                {
+                    BeginCleanup();
+                    return;
+                }
+            }
             var mounted = relationship.MountAutomationPair();
             assertions.Check(mounted.Succeeded && relationship.State == RelationshipState.Mounted,
                 "Exact automation pair mounted for combat: " + FormatTransitionErrors(mounted) + ".");
@@ -586,6 +621,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 assertions.Check(pairMountedBeforeTurnBasedEnable,
                     "The exact pair mounted in real time before the native turn-based transition.");
                 turnBasedModeProbe = new NativeModeTransitionProbe(true);
+                CaptureTurnBasedModeLeaseIdentity();
                 assertions.Check(!turnBasedModeProbe.OriginalValue && turnBasedModeProbe.TemporaryValue,
                     "Human-play TB row leased an exact false-to-true native mode transition after mounting.");
                 if (assertions.FailureCount != 0)
@@ -1524,7 +1560,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void BeginCleanup()
         {
-            if (step == CombatEngineStep.AwaitCleanupFrame || completed)
+            if (step == CombatEngineStep.AwaitTurnBasedRealtimeRestore ||
+                step == CombatEngineStep.AwaitCleanupFrame || completed)
             {
                 return;
             }
@@ -1534,17 +1571,54 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (IsMountedBeforeModeTransitionRow && turnBasedModeProbe != null &&
                     turnBasedModeProbe.TemporaryDeliveryAttempted && !turnBasedModeProbe.RestoreDeliveryCompleted)
                 {
-                    RestoreTurnBasedMode();
-                    pairRetainedAfterRealtimeRestore = turnBasedModeRestored &&
-                        relationship.State == RelationshipState.Mounted &&
-                        relationship.Rider == rider && relationship.Mount == mount &&
-                        relationship.Runtime.PoseHealthy && relationship.Runtime.PoseFrameApplied;
-                    assertions.Check(pairRetainedAfterRealtimeRestore,
-                        "The exact mounted pair and accepted Mammoth presentation survived TB-to-RT restoration.");
-                    presentationAfterRealtimeRestore = relationship.CapturePresentationObservation();
-                    assertions.Check(IsRiderUiOwnershipCoherent(presentationAfterRealtimeRestore),
-                        "The rider view, selection, portrait, action bar, and camera remained coherent after TB-to-RT restoration.");
+                    RestoreTurnBasedTransitionLease();
+                    modeRestoreStartedAtSeconds = rowClock.Elapsed.TotalSeconds;
+                    step = CombatEngineStep.AwaitTurnBasedRealtimeRestore;
+                    return;
                 }
+                BeginRelationshipCleanup();
+            }
+            catch (Exception exception)
+            {
+                assertions.Fail("Combat cleanup threw " + exception.GetType().Name + ": " + exception.Message);
+                logger.Exception("Combat runtime cleanup", exception);
+                BeginRelationshipCleanup();
+            }
+        }
+
+        private void AwaitTurnBasedRealtimeRestore()
+        {
+            if (CombatController.IsInTurnBasedCombat() || Game.Instance == null ||
+                Game.Instance.CurrentMode != GameModeType.Default)
+            {
+                if (rowClock.Elapsed.TotalSeconds - modeRestoreStartedAtSeconds < CleanupTimeoutSeconds)
+                {
+                    return;
+                }
+                assertions.Fail("Native TB-to-RT transition did not reach exact Default real-time mode within its " +
+                    CleanupTimeoutSeconds + " second cleanup deadline.");
+                BeginRelationshipCleanup();
+                return;
+            }
+
+            turnBasedModeRestored = turnBasedRestoreDeliveryCompleted &&
+                turnBasedPersistedSettingUnchanged;
+            pairRetainedAfterRealtimeRestore = turnBasedModeRestored &&
+                relationship.State == RelationshipState.Mounted &&
+                relationship.Rider == rider && relationship.Mount == mount &&
+                relationship.Runtime.PoseHealthy && relationship.Runtime.PoseFrameApplied;
+            assertions.Check(pairRetainedAfterRealtimeRestore,
+                "The exact mounted pair and accepted Mammoth presentation survived TB-to-RT restoration.");
+            presentationAfterRealtimeRestore = relationship.CapturePresentationObservation();
+            assertions.Check(IsRiderUiOwnershipCoherent(presentationAfterRealtimeRestore),
+                "The rider view, selection, portrait, action bar, and camera remained coherent after TB-to-RT restoration.");
+            BeginRelationshipCleanup();
+        }
+
+        private void BeginRelationshipCleanup()
+        {
+            try
+            {
                 combat.Cancel("runtime combat row cleanup");
                 var cleanup = relationship.Dismount(CleanupTrigger.Manual);
                 relationshipClean = cleanup.Succeeded && !cleanup.MovementAuthorityResidual &&
@@ -1612,6 +1686,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     "Turn-based mode, raw cache, and persisted setting were restored exactly after cleanup.");
             }
             RestorePause();
+            RestoreCameraFollower();
 
             assertions.Check(targetRemoved && targetEntityRemoved &&
                     targetRuntimeGroupRemoved && targetRuntimeFactionRemoved && targetDurabilityLeaseReleased &&
@@ -1622,6 +1697,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Pair, target, and party left combat before final evidence.");
             assertions.Check(pauseRestored,
                 "The exact pre-row pause state was restored after the combat lease.");
+            if (IsMountedBeforeModeTransitionRow)
+            {
+                assertions.Check(cameraFollowerRestored,
+                    "The exact pre-row native camera-follower state was restored after transition qualification.");
+            }
             assertions.Check(relationship.State == RelationshipState.Unmounted &&
                     relationship.Rider == null && relationship.Mount == null &&
                     relationship.Runtime.MovementAgent == null &&
@@ -1733,7 +1813,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     pauseRestored),
                 TurnBased = IsTurnBasedRow
                     ? TurnBasedCombatEvidence.Capture(
-                        turnBasedModeProbe,
+                        turnBasedOriginalEnabled,
+                        turnBasedTemporaryEnabled,
+                        turnBasedOriginalRawCacheHadValue,
+                        turnBasedRestoreDeliveryCompleted,
                         turnBasedModeEnabledAtMount,
                         pairMountedBeforeTurnBasedEnable,
                         pairRetainedAfterTurnBasedEnable,
@@ -1971,6 +2054,8 @@ namespace KingmakerMountedCombat.Diagnostics
             try { RestoreTurnBasedMode(); }
             catch (Exception exception) { errors.Add("Turn-based mode restoration during disposal failed: " + exception.Message); }
             RestorePause();
+            try { RestoreCameraFollower(); }
+            catch (Exception exception) { errors.Add("Camera-follower restoration during disposal failed: " + exception.Message); }
         }
 
         private void CaptureTargetCleanupState()
@@ -2079,17 +2164,17 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void RestoreTurnBasedMode()
         {
-            var turnBasedPersistedUnchanged = true;
+            RestoreTurnBasedTransitionLease();
+            var turnBasedPersistedUnchanged = turnBasedPersistedSettingUnchanged;
+            if (!IsMountedBeforeModeTransitionRow && IsTurnBasedRow)
+            {
+                turnBasedModeRestored = !CombatController.IsInTurnBasedCombat() &&
+                    turnBasedRestoreDeliveryCompleted && turnBasedPersistedUnchanged;
+            }
+
             if (turnBasedModeProbe != null)
             {
-                if (turnBasedModeProbe.TemporaryDeliveryAttempted &&
-                    !turnBasedModeProbe.RestoreDeliveryCompleted)
-                {
-                    turnBasedModeProbe.DispatchRestoreAndRestoreRawCache();
-                }
                 turnBasedModeProbe.Dispose();
-                turnBasedPersistedUnchanged = !turnBasedModeProbe.TemporaryDeliveryAttempted ||
-                    turnBasedModeProbe.PersistedValueUnchanged;
                 turnBasedModeProbe = null;
             }
 
@@ -2109,8 +2194,46 @@ namespace KingmakerMountedCombat.Diagnostics
 
             turnBasedPersistedSettingUnchanged = turnBasedPersistedUnchanged &&
                 realTimePersistedUnchanged;
-            turnBasedModeRestored = !CombatController.IsInTurnBasedCombat() &&
-                turnBasedPersistedSettingUnchanged;
+            turnBasedModeRestored = turnBasedModeRestored && turnBasedPersistedSettingUnchanged;
+        }
+
+        private void CaptureTurnBasedModeLeaseIdentity()
+        {
+            turnBasedOriginalEnabled = turnBasedModeProbe != null && turnBasedModeProbe.OriginalValue;
+            turnBasedTemporaryEnabled = turnBasedModeProbe != null && turnBasedModeProbe.TemporaryValue;
+            turnBasedOriginalRawCacheHadValue = turnBasedModeProbe != null &&
+                turnBasedModeProbe.OriginalRawCacheHadValue;
+        }
+
+        private void RestoreTurnBasedTransitionLease()
+        {
+            if (turnBasedModeProbe == null)
+            {
+                return;
+            }
+            if (turnBasedModeProbe.TemporaryDeliveryAttempted &&
+                !turnBasedModeProbe.RestoreDeliveryCompleted)
+            {
+                turnBasedModeProbe.DispatchRestoreAndRestoreRawCache();
+            }
+            turnBasedRestoreDeliveryCompleted = !turnBasedModeProbe.TemporaryDeliveryAttempted ||
+                turnBasedModeProbe.RestoreDeliveryCompleted;
+            turnBasedPersistedSettingUnchanged = !turnBasedModeProbe.TemporaryDeliveryAttempted ||
+                turnBasedModeProbe.PersistedValueUnchanged;
+        }
+
+        private void RestoreCameraFollower()
+        {
+            if (!cameraFollowerLeaseOwned)
+            {
+                return;
+            }
+            cameraFollowerSnapshot.Restore();
+            cameraFollowerRestored = cameraFollowerSnapshot.IsCurrent;
+            if (cameraFollowerRestored)
+            {
+                cameraFollowerLeaseOwned = false;
+            }
         }
 
         private void RestorePause()
@@ -2242,6 +2365,7 @@ namespace KingmakerMountedCombat.Diagnostics
             AwaitCombatFrame,
             AwaitGroundMovement,
             AwaitOutcome,
+            AwaitTurnBasedRealtimeRestore,
             AwaitCleanupFrame
         }
 
@@ -2682,7 +2806,10 @@ namespace KingmakerMountedCombat.Diagnostics
             public bool PersistedValueUnchanged { get; set; }
 
             public static TurnBasedCombatEvidence Capture(
-                NativeModeTransitionProbe probe,
+                bool originalEnabled,
+                bool temporaryEnabled,
+                bool originalRawCacheHadValue,
+                bool restoreDeliveryCompleted,
                 bool enabledAtMount,
                 bool pairMountedBeforeEnable,
                 bool pairRetainedAfterEnable,
@@ -2707,9 +2834,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 return new TurnBasedCombatEvidence
                 {
                     Requested = true,
-                    OriginalEnabled = probe != null && probe.OriginalValue,
-                    TemporaryEnabled = probe != null && probe.TemporaryValue,
-                    OriginalRawCacheHadValue = probe != null && probe.OriginalRawCacheHadValue,
+                    OriginalEnabled = originalEnabled,
+                    TemporaryEnabled = temporaryEnabled,
+                    OriginalRawCacheHadValue = originalRawCacheHadValue,
                     EnabledAtMount = enabledAtMount,
                     PairMountedBeforeEnable = pairMountedBeforeEnable,
                     PairRetainedAfterEnable = pairRetainedAfterEnable,
@@ -2728,10 +2855,80 @@ namespace KingmakerMountedCombat.Diagnostics
                     CurrentTurnUnitIdAtOutcome = currentTurnUnitIdAtOutcome,
                     CurrentTurnActingAtOutcome = currentTurnActingAtOutcome,
                     ActionActorTurnEndedAfterCommand = actionActorTurnEndedAfterCommand,
-                    RestoreDeliveryCompleted = probe != null && probe.RestoreDeliveryCompleted,
+                    RestoreDeliveryCompleted = restoreDeliveryCompleted,
                     ModeRestored = modeRestored,
                     PersistedValueUnchanged = persistedValueUnchanged
                 };
+            }
+        }
+
+        private sealed class CombatCameraFollowerSnapshot
+        {
+            private readonly object follower;
+            private readonly FieldInfo isOnField;
+            private readonly FieldInfo unitField;
+            private readonly bool isOn;
+            private readonly UnitEntityData unit;
+
+            private CombatCameraFollowerSnapshot(
+                object follower,
+                FieldInfo isOnField,
+                FieldInfo unitField,
+                bool isOn,
+                UnitEntityData unit)
+            {
+                this.follower = follower;
+                this.isOnField = isOnField;
+                this.unitField = unitField;
+                this.isOn = isOn;
+                this.unit = unit;
+            }
+
+            public bool IsCurrent => (bool)isOnField.GetValue(follower) == isOn &&
+                unitField.GetValue(follower) == unit;
+
+            public static CombatCameraFollowerSnapshot TryCapture(Game game, out string error)
+            {
+                error = null;
+                try
+                {
+                    var exactFollower = game?.CameraController?.Follower;
+                    if (exactFollower == null)
+                    {
+                        error = "Game.CameraController.Follower is unavailable.";
+                        return null;
+                    }
+                    var type = exactFollower.GetType();
+                    var exactIsOn = type.GetField("m_IsOn", BindingFlags.Instance | BindingFlags.NonPublic);
+                    var exactUnit = type.GetField("m_Unit", BindingFlags.Instance | BindingFlags.NonPublic);
+                    if (exactIsOn == null || exactIsOn.FieldType != typeof(bool) ||
+                        exactUnit == null || exactUnit.FieldType != typeof(UnitEntityData))
+                    {
+                        error = "Exact native camera-follower fields did not match their pinned contract.";
+                        return null;
+                    }
+                    return new CombatCameraFollowerSnapshot(
+                        exactFollower,
+                        exactIsOn,
+                        exactUnit,
+                        (bool)exactIsOn.GetValue(exactFollower),
+                        exactUnit.GetValue(exactFollower) as UnitEntityData);
+                }
+                catch (Exception exception)
+                {
+                    error = exception.GetType().Name + ": " + exception.Message;
+                    return null;
+                }
+            }
+
+            public void Restore()
+            {
+                unitField.SetValue(follower, unit);
+                isOnField.SetValue(follower, isOn);
+                if (!IsCurrent)
+                {
+                    throw new InvalidOperationException("Native camera-follower fields did not restore to their captured values.");
+                }
             }
         }
 
