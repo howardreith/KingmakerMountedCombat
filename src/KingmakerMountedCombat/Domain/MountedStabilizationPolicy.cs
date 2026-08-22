@@ -92,6 +92,46 @@ namespace KingmakerMountedCombat.Domain
         }
     }
 
+    public enum NativeTurnBasedExitAiLeaseDisposition
+    {
+        NotPending,
+        AwaitNativeControllerClear,
+        RejectInexactLease,
+        AlreadyExact,
+        ReassertExactLease
+    }
+
+    public static class NativeTurnBasedExitAiLeasePolicy
+    {
+        public static NativeTurnBasedExitAiLeaseDisposition Classify(
+            bool exitDeliveryPending,
+            bool relationshipMounted,
+            bool nativeTurnBasedPredicate,
+            bool nativeControllerInitialized,
+            bool mountAiLeaseOwned,
+            bool mountRawAiEnabled)
+        {
+            if (!exitDeliveryPending)
+            {
+                return NativeTurnBasedExitAiLeaseDisposition.NotPending;
+            }
+
+            if (nativeTurnBasedPredicate || nativeControllerInitialized)
+            {
+                return NativeTurnBasedExitAiLeaseDisposition.AwaitNativeControllerClear;
+            }
+
+            if (!relationshipMounted || !mountAiLeaseOwned)
+            {
+                return NativeTurnBasedExitAiLeaseDisposition.RejectInexactLease;
+            }
+
+            return mountRawAiEnabled
+                ? NativeTurnBasedExitAiLeaseDisposition.ReassertExactLease
+                : NativeTurnBasedExitAiLeaseDisposition.AlreadyExact;
+        }
+    }
+
     public static class MountedStockAttackPolicy
     {
         public static bool ShouldReject(

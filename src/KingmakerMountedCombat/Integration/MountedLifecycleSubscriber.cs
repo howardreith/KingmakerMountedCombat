@@ -72,6 +72,7 @@ namespace KingmakerMountedCombat.Integration
         public void HandleTurnBasedModeStateChanged(bool enabled)
         {
             combat.Cancel("real-time/turn-based mode changed");
+            service.ObserveNativeTurnBasedModeChanged(enabled);
             Observe(
                 enabled ? NativeLifecycleBoundary.TurnBasedEnabled : NativeLifecycleBoundary.RealtimeEnabled,
                 "ITurnBasedModeEnabledHandler.HandleTurnBasedModeStateChanged(" + enabled + ")");

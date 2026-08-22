@@ -1265,11 +1265,13 @@ namespace KingmakerMountedCombat.Diagnostics
                         Math.Abs(mountStandardAfter - mountStandardBefore) <= 0.01f,
                     "Rider melee charged only the rider Standard action and left the Mammoth Standard unchanged.");
             }
-            if (IsMovementToAttackRow && IsTurnBasedRow)
+            if (IsTurnBasedRow && (IsMovementToAttackRow || (IsHumanPlayRow && groundMovementCompleted)))
             {
                 assertions.Check(riderMoveAfter > riderMoveBefore &&
                         Math.Abs(mountMoveAfter - mountMoveBefore) <= 0.01f,
-                    "Turn-based Mammoth movement charged only the current rider Move ledger.");
+                    IsHumanPlayRow
+                        ? "Turn-based player-path ground movement remained charged only to the rider Move ledger through native Standard completion."
+                        : "Turn-based Mammoth movement charged only the current rider Move ledger.");
             }
             else
             {
@@ -1618,6 +1620,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 turnBasedPersistedSettingUnchanged;
             assertions.Check(nativeRealtimePauseObserved && realtimeUnpauseRequested,
                 "Native TB disable entered its exact combat Pause boundary before a stock unpause resumed Default real time.");
+            assertions.Check(
+                relationship.NativeTurnBasedExitAiLeaseReassertionArmedCount == 1 &&
+                relationship.NativeTurnBasedExitAiLeaseReassertionAttemptCount == 1 &&
+                relationship.NativeTurnBasedExitAiLeaseReassertionMutationCount == 1 &&
+                relationship.NativeTurnBasedExitAiLeaseReassertionSuccessCount == 1 &&
+                string.Equals(relationship.NativeTurnBasedExitAiLeaseReassertionResult, "reasserted", StringComparison.Ordinal),
+                "Exact native TB shutdown AI reset was isolated by one successful reassertion of the already-owned Mammoth AI-disable lease.");
             pairRetainedAfterRealtimeRestore = turnBasedModeRestored &&
                 relationship.State == RelationshipState.Mounted &&
                 relationship.Rider == rider && relationship.Mount == mount &&
@@ -1782,7 +1791,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var record = new CombatEvidenceRecord
             {
                 SchemaVersion = IsHumanPlayRow
-                    ? (IsTurnBasedRow ? 45 : 44)
+                    ? (IsTurnBasedRow ? 46 : 44)
                     : IsCommandTerminationRow
                     ? IsCombatEndTerminationRow
                         ? (IsTurnBasedRow ? 41 : 40)
@@ -1872,7 +1881,12 @@ namespace KingmakerMountedCombat.Diagnostics
                         IsMammothPrimaryRow && (!currentTurnActingAtOutcome ||
                             !string.Equals(currentTurnUnitIdAtOutcome, mount?.UniqueId, StringComparison.Ordinal)),
                         turnBasedModeRestored,
-                        turnBasedPersistedSettingUnchanged)
+                        turnBasedPersistedSettingUnchanged,
+                        relationship.NativeTurnBasedExitAiLeaseReassertionArmedCount,
+                        relationship.NativeTurnBasedExitAiLeaseReassertionAttemptCount,
+                        relationship.NativeTurnBasedExitAiLeaseReassertionMutationCount,
+                        relationship.NativeTurnBasedExitAiLeaseReassertionSuccessCount,
+                        relationship.NativeTurnBasedExitAiLeaseReassertionResult)
                     : null,
                 GroundMovement = IsMountedBeforeModeTransitionRow
                     ? new CombatGroundMovementEvidence
@@ -2839,6 +2853,11 @@ namespace KingmakerMountedCombat.Diagnostics
             public bool RestoreDeliveryCompleted { get; set; }
             public bool ModeRestored { get; set; }
             public bool PersistedValueUnchanged { get; set; }
+            public int MountAiLeaseReassertionArmedCount { get; set; }
+            public int MountAiLeaseReassertionAttemptCount { get; set; }
+            public int MountAiLeaseReassertionMutationCount { get; set; }
+            public int MountAiLeaseReassertionSuccessCount { get; set; }
+            public string MountAiLeaseReassertionResult { get; set; }
 
             public static TurnBasedCombatEvidence Capture(
                 bool originalEnabled,
@@ -2864,7 +2883,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 bool currentTurnActingAtOutcome,
                 bool actionActorTurnEndedAfterCommand,
                 bool modeRestored,
-                bool persistedValueUnchanged)
+                bool persistedValueUnchanged,
+                int mountAiLeaseReassertionArmedCount,
+                int mountAiLeaseReassertionAttemptCount,
+                int mountAiLeaseReassertionMutationCount,
+                int mountAiLeaseReassertionSuccessCount,
+                string mountAiLeaseReassertionResult)
             {
                 return new TurnBasedCombatEvidence
                 {
@@ -2892,7 +2916,12 @@ namespace KingmakerMountedCombat.Diagnostics
                     ActionActorTurnEndedAfterCommand = actionActorTurnEndedAfterCommand,
                     RestoreDeliveryCompleted = restoreDeliveryCompleted,
                     ModeRestored = modeRestored,
-                    PersistedValueUnchanged = persistedValueUnchanged
+                    PersistedValueUnchanged = persistedValueUnchanged,
+                    MountAiLeaseReassertionArmedCount = mountAiLeaseReassertionArmedCount,
+                    MountAiLeaseReassertionAttemptCount = mountAiLeaseReassertionAttemptCount,
+                    MountAiLeaseReassertionMutationCount = mountAiLeaseReassertionMutationCount,
+                    MountAiLeaseReassertionSuccessCount = mountAiLeaseReassertionSuccessCount,
+                    MountAiLeaseReassertionResult = mountAiLeaseReassertionResult
                 };
             }
         }

@@ -11,6 +11,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("world-changing modes cleanly dismount", WorldChangingModesDismount);
             runner.Run("same-view attachment observes while replacement attachment cleans", ViewAttachmentClassificationIsExact);
             runner.Run("non-world UI treats stock visibility as transient while world mode remains strict", UiViewActivityIsModeScoped);
+            runner.Run("native TB exit AI lease repair is exact and boundary-scoped", NativeTurnBasedExitAiLeaseRepairIsExact);
             runner.Run("mounted stock rider attack is pair-local and explains ranged rejection", StockAttackRejectionIsPairLocal);
             runner.Run("mounted overlay world-click guard is one-shot and frame-bounded", OverlayWorldClickGuardIsBounded);
             runner.Run("cleanup feedback explains intentional transient boundaries", ExplainsIntentionalCleanupBoundaries);
@@ -51,6 +52,38 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(MountedViewActivityPolicy.IsAdmissible(MountedGameModeDisposition.PreserveWorldInteraction, true, true, true, true), "Active world views were rejected.");
             TestRunner.True(!MountedViewActivityPolicy.IsAdmissible(MountedGameModeDisposition.PreserveWorldInteraction, false, true, false, true), "Inactive rider view was accepted after returning to the world.");
             TestRunner.True(!MountedViewActivityPolicy.IsAdmissible(MountedGameModeDisposition.CleanDismount, true, true, true, true), "A true world-changing boundary retained view activity authority.");
+        }
+
+        private static void NativeTurnBasedExitAiLeaseRepairIsExact()
+        {
+            TestRunner.Equal(
+                NativeTurnBasedExitAiLeaseDisposition.NotPending,
+                NativeTurnBasedExitAiLeasePolicy.Classify(false, true, false, false, true, true),
+                "An unarmed path acquired Mammoth AI state.");
+            TestRunner.Equal(
+                NativeTurnBasedExitAiLeaseDisposition.AwaitNativeControllerClear,
+                NativeTurnBasedExitAiLeasePolicy.Classify(true, true, false, true, true, true),
+                "The policy raced the native controller cleanup.");
+            TestRunner.Equal(
+                NativeTurnBasedExitAiLeaseDisposition.AwaitNativeControllerClear,
+                NativeTurnBasedExitAiLeasePolicy.Classify(true, true, true, false, true, true),
+                "The policy changed AI while the native TB predicate remained active.");
+            TestRunner.Equal(
+                NativeTurnBasedExitAiLeaseDisposition.RejectInexactLease,
+                NativeTurnBasedExitAiLeasePolicy.Classify(true, false, false, false, true, true),
+                "An unmounted relationship acquired an AI lease.");
+            TestRunner.Equal(
+                NativeTurnBasedExitAiLeaseDisposition.RejectInexactLease,
+                NativeTurnBasedExitAiLeasePolicy.Classify(true, true, false, false, false, true),
+                "A non-owned Mammoth AI state was adopted.");
+            TestRunner.Equal(
+                NativeTurnBasedExitAiLeaseDisposition.AlreadyExact,
+                NativeTurnBasedExitAiLeasePolicy.Classify(true, true, false, false, true, false),
+                "An already exact owned lease requested a write.");
+            TestRunner.Equal(
+                NativeTurnBasedExitAiLeaseDisposition.ReassertExactLease,
+                NativeTurnBasedExitAiLeasePolicy.Classify(true, true, false, false, true, true),
+                "The exact post-controller stock AI reset was not isolated.");
         }
 
         private static void StockAttackRejectionIsPairLocal()

@@ -96,6 +96,10 @@ namespace KingmakerMountedCombat.Integration
 
         public bool PoseFrameApplied => poseAdapter != null && poseAdapter.FramePoseApplied;
 
+        internal bool MountAiLeaseOwned => mountAiLeaseOwned;
+
+        internal bool MountRawAiEnabled => mount != null && (bool)MammothAiBackingField.GetValue(mount);
+
         public bool PoseBaselineRestoreVerified => poseAdapter != null ? poseAdapter.BaselineRestoreVerified : poseBaselineRestoreVerified;
 
         public bool ReplacementRiderViewReleaseVerified => replacementRiderViewReleaseVerified;
@@ -376,6 +380,17 @@ namespace KingmakerMountedCombat.Integration
             poseAdapter.Configure(riderView, MountedRiderPoseProfiles.MediumHumanoidOnMammoth);
             presentationConfigured = true;
             logger.Info("Rider presentation attached through an owned Mammoth-root position lease and exact Medium-humanoid procedural pose profile.");
+        }
+
+        internal bool ReassertMountAiLeaseAfterNativeTurnBasedExit()
+        {
+            if (!mountAiLeaseOwned || mount == null)
+            {
+                return false;
+            }
+
+            mount.IsAIEnabled = false;
+            return !(bool)MammothAiBackingField.GetValue(mount);
         }
 
         public void RestorePresentation(MountedPair pair)

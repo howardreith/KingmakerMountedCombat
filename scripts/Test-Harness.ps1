@@ -1154,7 +1154,7 @@ function New-TestCombatEvidenceRecord {
     $actorRole = if ($isMammoth) { 'mount' } else { 'rider' }
     $action = if ($isMammoth) { 'MountPrimaryNatural' } else { 'RiderMelee' }
     $record = [ordered]@{
-        schemaVersion=$(if ($isHumanPlay) { if ($isTurnBased) { 45 } else { 44 } } elseif ($isCombatEnd) { if ($isTurnBased) { 41 } else { 40 } } elseif ($isTermination) { if ($isTurnBased) { 39 } else { 38 } } elseif ($isMovementToAttack) { if ($isTurnBased) { 35 } else { 34 } } elseif ($isReach) { if ($isTurnBased) { 43 } else { 42 } } elseif ($isTurnBased) { 27 } else { 26 });artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
+        schemaVersion=$(if ($isHumanPlay) { if ($isTurnBased) { 46 } else { 44 } } elseif ($isCombatEnd) { if ($isTurnBased) { 41 } else { 40 } } elseif ($isTermination) { if ($isTurnBased) { 39 } else { 38 } } elseif ($isMovementToAttack) { if ($isTurnBased) { 35 } else { 34 } } elseif ($isReach) { if ($isTurnBased) { 43 } else { 42 } } elseif ($isTurnBased) { 27 } else { 26 });artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
         scenario=[string]$Request.scenario;row=[string]$Request.scenario;rowIndex=0;sequence=0;frame=30
         utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o');branch=[string]$Request.branch
         commit=[string]$Request.commit;productVersion=[string]$Request.productVersion
@@ -1268,7 +1268,7 @@ function New-TestCombatEvidenceRecord {
             equipmentControllerAvailable=$true;equipmentUpdateScheduled=$false;pauseRestored=$true
         }
         resources=[ordered]@{
-            riderStandardBefore=0.0;riderStandardAfter=$(if ($isMammoth -or $isTermination) { 0.0 } else { 5.5 });riderMoveBefore=0.0;riderMoveAfter=$(if ($isApproach -and $isTurnBased) { 2.0 } else { 0.0 })
+            riderStandardBefore=0.0;riderStandardAfter=$(if ($isMammoth -or $isTermination) { 0.0 } else { 5.5 });riderMoveBefore=$(if ($isHumanPlay -and $isTurnBased) { 0.5 } else { 0.0 });riderMoveAfter=$(if (($isApproach -or $isHumanPlay) -and $isTurnBased) { 3.0 } else { 0.0 })
             mountStandardBefore=0.0;mountStandardAfter=$(if ($isMammoth) { 5.5 } else { 0.0 });mountMoveBefore=0.0;mountMoveAfter=0.0
         }
         command=[ordered]@{
@@ -1379,7 +1379,12 @@ function New-TestCombatEvidenceRecord {
             $record.turnBased.pairMountedBeforeEnable = $true
             $record.turnBased.pairRetainedAfterEnable = $true
             $record.turnBased.pairRetainedAfterRealtimeRestore = $true
-            $presentation = 'mode=Default;turnBased=True;riderViewExact=True;riderViewActiveSelf=True;riderViewActiveInHierarchy=True;riderParent=KMC_RiderPositionAnchor;riderSibling=0;riderRendererCount=3;riderEnabledRendererCount=3;mountViewExact=True;mountViewActiveSelf=True;mountViewActiveInHierarchy=True;poseLease=True;attachmentLease=True;replacementReleased=False;riderSelected=True;actionBarOwner=' + $rider + ';actionBarActive=True;portraitOwnerCount=2;portraitActiveOwnerCount=1;portraitActive=True;portraitSelected=True;cameraOn=True;cameraOwner=' + $rider
+            $record.turnBased.mountAiLeaseReassertionArmedCount = 1
+            $record.turnBased.mountAiLeaseReassertionAttemptCount = 1
+            $record.turnBased.mountAiLeaseReassertionMutationCount = 1
+            $record.turnBased.mountAiLeaseReassertionSuccessCount = 1
+            $record.turnBased.mountAiLeaseReassertionResult = 'reasserted'
+            $presentation = 'mode=Default;turnBased=True;riderViewExact=True;riderViewActiveSelf=True;riderViewActiveInHierarchy=True;riderParent=KMC_RiderPositionAnchor;riderSibling=0;riderRendererCount=3;riderEnabledRendererCount=3;mountViewExact=True;mountViewActiveSelf=True;mountViewActiveInHierarchy=True;poseLease=True;attachmentLease=True;replacementReleased=False;riderSelected=True;actionBarOwner=' + $rider + ';actionBarActive=True;portraitOwnerCount=2;portraitActiveOwnerCount=1;portraitActive=True;portraitSelected=True;cameraOn=False;cameraOwner=' + $rider
             $record.turnBased.presentationAfterEnable = $presentation
             $record.turnBased.presentationAfterRealtimeRestore = $presentation.Replace('turnBased=True','turnBased=False')
             $record.groundMovement = [ordered]@{
@@ -4789,6 +4794,10 @@ try {
         $spatialPolicySource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedCombatSpatialPolicy.cs'))
         $resolverSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\NativeSingleAttackWeaponResolver.cs'))
         $policySource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedCombatAction.cs'))
+        $stabilizationPolicySource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedStabilizationPolicy.cs'))
+        $relationshipSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\GameMountedRelationshipService.cs'))
+        $pairRuntimeSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\KingmakerMountedPairRuntime.cs'))
+        $lifecycleSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedLifecycleSubscriber.cs'))
         $detachIndex = $targetSource.IndexOf('target.GroupId = runtimeGroupId;', [StringComparison]::Ordinal)
         $factionIndex = $targetSource.IndexOf('target.Descriptor.SwitchFactions(runtimeFaction, true);', [StringComparison]::Ordinal)
         $groupIndex = $targetSource.IndexOf('runtimeGroup = target.Group;', [StringComparison]::Ordinal)
@@ -5041,6 +5050,14 @@ try {
             $engineSource.Contains('game.CurrentMode != GameModeType.Default') -and
             $engineSource.Contains('DescribeTurnBasedRestoreState()') -and
             $engineSource.Contains('nativeRealtimePauseObserved && realtimeUnpauseRequested') -and
+            $lifecycleSource.Contains('service.ObserveNativeTurnBasedModeChanged(enabled);') -and
+            $relationshipSource.Contains('NativeTurnBasedExitAiLeasePolicy.Classify(') -and
+            $relationshipSource.Contains('controller != null && controller.Initialized,') -and
+            $relationshipSource.Contains('runtime.ReassertMountAiLeaseAfterNativeTurnBasedExit()') -and
+            $stabilizationPolicySource.Contains('NativeTurnBasedExitAiLeaseDisposition.AwaitNativeControllerClear') -and
+            $stabilizationPolicySource.Contains('!relationshipMounted || !mountAiLeaseOwned') -and
+            $pairRuntimeSource.Contains('mount.IsAIEnabled = false;') -and
+            $pairRuntimeSource.Contains('return !(bool)MammothAiBackingField.GetValue(mount);') -and
             $engineSource.Contains('IsRiderUiOwnershipCoherent(presentationAfterTurnBasedEnable, false)') -and
             $engineSource.Contains('IsRiderUiOwnershipCoherent(presentationAfterRealtimeRestore, false)') -and
             $engineSource.Contains('observation.IndexOf("cameraOn=" + expectedCameraOn') -and
@@ -5061,6 +5078,7 @@ try {
         Assert-Test ($engineSource.Contains('CleanupTimeoutSeconds = 10.0d') -and
             $engineSource.Contains('rowClock.Elapsed.TotalSeconds - cleanupStartedAtSeconds < CleanupTimeoutSeconds')) 'combat cleanup does not retain an independent bounded drain after a row deadline'
         Assert-Test ($engineSource.Contains('SchemaVersion = IsHumanPlayRow') -and
+            $engineSource.Contains('? (IsTurnBasedRow ? 46 : 44)') -and
             $engineSource.Contains(': IsCommandTerminationRow') -and
             $engineSource.Contains('? IsCombatEndTerminationRow') -and
             $engineSource.Contains('? (IsTurnBasedRow ? 41 : 40)') -and
@@ -5382,17 +5400,22 @@ try {
     $humanPlayTurnManifest = Read-KmcJson (Join-Path $humanPlayTurnRequest.evidenceRoot 'runtime-artifacts.json')
     $humanPlayTurnSubresult = [ordered]@{name=$humanPlayTurnRequest.scenario;status='PASS';assertionPassCount=25;assertionFailCount=0;errors=@()}
 
-    Invoke-HarnessTest 'runtime request and schema-v45 evidence accept RT-to-TB pair retention ground movement and player-click melee' {
+    Invoke-HarnessTest 'runtime request and schema-v46 evidence accept native TB-exit lease isolation ground movement and player-click melee' {
         & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $humanPlayTurnRequestPath
         Assert-KmcCombatScenarioEvidence -Request $humanPlayTurnRequest -Manifest $humanPlayTurnManifest -Status 'PASS' -SubscenarioResults @($humanPlayTurnSubresult)
     }
 
-    Invoke-HarnessTest 'schema-v45 evidence rejects turn transition or ground-movement ownership contradictions' {
+    Invoke-HarnessTest 'schema-v46 evidence rejects turn transition lease-isolation or ground-movement contradictions' {
         $cases = @(
             { param($record) $record.turnBased.pairRetainedAfterEnable=$false;return $record },
             { param($record) $record.turnBased.presentationAfterEnable=$record.turnBased.presentationAfterEnable.Replace('actionBarOwner=combat-rider','actionBarOwner=combat-mount');return $record },
             { param($record) $record.turnBased.presentationAfterRealtimeRestore=$record.turnBased.presentationAfterRealtimeRestore.Replace('riderViewActiveInHierarchy=True','riderViewActiveInHierarchy=False');return $record },
             { param($record) $record.turnBased.enabledAtMount=$true;return $record },
+            { param($record) $record.turnBased.mountAiLeaseReassertionArmedCount=0;return $record },
+            { param($record) $record.turnBased.mountAiLeaseReassertionAttemptCount=2;return $record },
+            { param($record) $record.turnBased.mountAiLeaseReassertionMutationCount=0;return $record },
+            { param($record) $record.turnBased.mountAiLeaseReassertionSuccessCount=0;return $record },
+            { param($record) $record.turnBased.mountAiLeaseReassertionResult='reassertion-failed';return $record },
             { param($record) $record.groundMovement.executorId='wrong-mount';return $record },
             { param($record) $record.groundMovement.mountMoveAfter=1.0;return $record },
             { param($record) $record.groundMovement.usedRiderTurnAdapter=$false;return $record },
@@ -5410,7 +5433,7 @@ try {
             $threw = $false
             try { Assert-KmcCombatScenarioEvidence -Request $humanPlayTurnRequest -Manifest $candidateManifest -Status 'PASS' -SubscenarioResults @($humanPlayTurnSubresult) }
             catch { $threw = $true }
-            Assert-Test $threw 'schema-v45 validator accepted a transition or movement ownership contradiction'
+            Assert-Test $threw 'schema-v46 validator accepted a transition lease-isolation or movement ownership contradiction'
         }
         [void](Write-TestCombatEvidence -EvidenceRoot $humanPlayTurnRequest.evidenceRoot -Request $humanPlayTurnRequest -Record $humanPlayTurnRecord)
         $humanPlayTurnManifest = Read-KmcJson (Join-Path $humanPlayTurnRequest.evidenceRoot 'runtime-artifacts.json')

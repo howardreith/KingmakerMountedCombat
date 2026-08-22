@@ -1,5 +1,12 @@
 # Mounted Combat journal
 
+## 2026-08-22T15:25:00Z - exact native TB-exit AI reset observed and isolated
+
+- Clean package `2306b2b...` at published `a57b84c...` and suite `0443a42c...` passed separate RT/TB WhatIf and audit-before-read. RT A/B `...140600Z...rt-passA` / `...143000Z...rt-passB` each pass schema v44 `81/0` with exact restoration.
+- TB `20260822T150000Z-private-alpha-stabilization-native-exit-tb-passA` is immutable uncredited `FAIL 100/3`; its independent audit passed first. It proved exact roster/turn ownership, Mammoth-owned ground movement, one player-path rider attack/roll/damage, zero duplicate/AoO, and exact cleanup/restoration, but the mounted relationship was invalidated during TB exit. `output_log.txt` records the exact first cause: `The scoped Mammoth AI lease changed.`
+- Installed `CombatController.HandleCombatEnd` token `0x06000BE3` clears TB state and calls `UnitEntityData.set_IsAIEnabled` token `0x0600832A` across controllable characters. The repair records the exact TB-false event, waits for false TB predicate plus uninitialized controller, requires the existing pair and lease, and reasserts only the Mammoth raw AI-disabled state once. It cannot acquire foreign state and does not modify turn/action/cooldown behavior.
+- The row's ground movement charged only rider Move `0 -> 0.631211`; native rider Standard completion then produced the established final rider Move `3`, Mammoth Move `0`. The old stationary assertion was therefore a validator contradiction, not a resource defect. Forward-only schema v46 binds both correct rider-only Move behavior and one exact AI-lease reassertion. Complete offline gates pass source `21/0`, Release, component `231/0`, visual/source-order `17/0`, unfiltered harness `219/0`, assembly `282/0`, PowerShell parser `27/0`, JSON parser `7/0`, diff, and prohibited-payload checks. Dirty DLL SHA-256/MVID are `23ab5fc69c290194407f0e3fa0dee96a9bb293b5faf7fbd5389e66d43d65039c` / `1b7a8bd6-9e03-4427-902f-b78da420f7ba`. Publication, repackaging, resnapshot, and fresh full qualification restart are next.
+
 ## 2026-08-22T12:47:37Z - TB observation proves stock Pause and camera-release contracts
 
 - Published observation package `ba023b56...` at `1e16e023...` and suite snapshot `778902a7...` passed separate RT/TB WhatIf and immediate audits. Live TB observation `20260822T122000Z-private-alpha-stabilization-tb-exit-observation-passA` is immutable uncredited `FAIL 31/4`; its post-process audit passed before any evidence read.

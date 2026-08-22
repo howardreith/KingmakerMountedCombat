@@ -8,6 +8,7 @@ using Kingmaker.View;
 using KingmakerMountedCombat.Diagnostics;
 using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Logging;
+using TurnBased.Controllers;
 
 namespace KingmakerMountedCombat.Integration
 {
@@ -19,6 +20,7 @@ namespace KingmakerMountedCombat.Integration
         private readonly MountedRelationshipCoordinator coordinator;
         private bool cleanupRetryRequired;
         private CleanupTrigger cleanupRetryTrigger = CleanupTrigger.Exception;
+        private bool nativeTurnBasedExitAiLeaseReassertionPending;
         private bool disposed;
 
         public GameMountedRelationshipService(IModLogger logger, DiagnosticSettings settings)
@@ -44,6 +46,16 @@ namespace KingmakerMountedCombat.Integration
         internal string CapturePresentationObservation() => "relationship=" + State + ";" + runtime.CapturePresentationObservation();
 
         public long RiderGroundPlacementSuppressionCount { get; private set; }
+
+        internal int NativeTurnBasedExitAiLeaseReassertionArmedCount { get; private set; }
+
+        internal int NativeTurnBasedExitAiLeaseReassertionAttemptCount { get; private set; }
+
+        internal int NativeTurnBasedExitAiLeaseReassertionMutationCount { get; private set; }
+
+        internal int NativeTurnBasedExitAiLeaseReassertionSuccessCount { get; private set; }
+
+        internal string NativeTurnBasedExitAiLeaseReassertionResult { get; private set; } = "not-requested";
 
         public string LastResult { get; private set; } = "No diagnostic action has run.";
 
@@ -80,6 +92,10 @@ namespace KingmakerMountedCombat.Integration
             runtime.Prepare(rider, mount);
             var result = coordinator.Mount(runtime.CreateCandidate());
             ObserveCleanupState(result);
+            if (result.Succeeded)
+            {
+                ResetNativeTurnBasedExitAiLeaseEvidence();
+            }
             if (!result.Succeeded)
             {
                 runtime.ClearPreparedPairWhenUnmounted();
@@ -146,6 +162,10 @@ namespace KingmakerMountedCombat.Integration
             runtime.Prepare(rider, mount);
             var result = coordinator.Mount(runtime.CreateCandidate());
             ObserveCleanupState(result);
+            if (result.Succeeded)
+            {
+                ResetNativeTurnBasedExitAiLeaseEvidence();
+            }
             if (!result.Succeeded)
             {
                 runtime.ClearPreparedPairWhenUnmounted();
@@ -304,8 +324,11 @@ namespace KingmakerMountedCombat.Integration
 
             if (coordinator.State != RelationshipState.Mounted)
             {
+                nativeTurnBasedExitAiLeaseReassertionPending = false;
                 return;
             }
+
+            CompleteNativeTurnBasedExitAiLeaseReassertion();
 
             var error = runtime.ValidateMountedInvariants();
             if (error != null)
@@ -317,6 +340,73 @@ namespace KingmakerMountedCombat.Integration
                     RetryFailedCleanupOrThrow();
                 }
             }
+        }
+
+        internal void ObserveNativeTurnBasedModeChanged(bool enabled)
+        {
+            if (enabled || coordinator.State != RelationshipState.Mounted)
+            {
+                nativeTurnBasedExitAiLeaseReassertionPending = false;
+                return;
+            }
+
+            nativeTurnBasedExitAiLeaseReassertionPending = true;
+            NativeTurnBasedExitAiLeaseReassertionArmedCount++;
+            NativeTurnBasedExitAiLeaseReassertionResult = "armed";
+        }
+
+        private void CompleteNativeTurnBasedExitAiLeaseReassertion()
+        {
+            var controller = Game.Instance?.TurnBasedCombatController;
+            var disposition = NativeTurnBasedExitAiLeasePolicy.Classify(
+                nativeTurnBasedExitAiLeaseReassertionPending,
+                coordinator.State == RelationshipState.Mounted,
+                CombatController.IsInTurnBasedCombat(),
+                controller != null && controller.Initialized,
+                runtime.MountAiLeaseOwned,
+                runtime.MountRawAiEnabled);
+            if (disposition == NativeTurnBasedExitAiLeaseDisposition.NotPending ||
+                disposition == NativeTurnBasedExitAiLeaseDisposition.AwaitNativeControllerClear)
+            {
+                return;
+            }
+
+            nativeTurnBasedExitAiLeaseReassertionPending = false;
+            NativeTurnBasedExitAiLeaseReassertionAttemptCount++;
+            if (disposition == NativeTurnBasedExitAiLeaseDisposition.RejectInexactLease)
+            {
+                NativeTurnBasedExitAiLeaseReassertionResult = "rejected-inexact-lease";
+                return;
+            }
+
+            if (disposition == NativeTurnBasedExitAiLeaseDisposition.AlreadyExact)
+            {
+                NativeTurnBasedExitAiLeaseReassertionSuccessCount++;
+                NativeTurnBasedExitAiLeaseReassertionResult = "already-exact";
+                return;
+            }
+
+            NativeTurnBasedExitAiLeaseReassertionMutationCount++;
+            if (runtime.ReassertMountAiLeaseAfterNativeTurnBasedExit())
+            {
+                NativeTurnBasedExitAiLeaseReassertionSuccessCount++;
+                NativeTurnBasedExitAiLeaseReassertionResult = "reasserted";
+                logger.Info("Reasserted the exact owned Mammoth AI-disable lease after native TB combat-controller shutdown.");
+            }
+            else
+            {
+                NativeTurnBasedExitAiLeaseReassertionResult = "reassertion-failed";
+            }
+        }
+
+        private void ResetNativeTurnBasedExitAiLeaseEvidence()
+        {
+            nativeTurnBasedExitAiLeaseReassertionPending = false;
+            NativeTurnBasedExitAiLeaseReassertionArmedCount = 0;
+            NativeTurnBasedExitAiLeaseReassertionAttemptCount = 0;
+            NativeTurnBasedExitAiLeaseReassertionMutationCount = 0;
+            NativeTurnBasedExitAiLeaseReassertionSuccessCount = 0;
+            NativeTurnBasedExitAiLeaseReassertionResult = "not-requested";
         }
 
         private void ObserveCleanupState(TransitionResult result)

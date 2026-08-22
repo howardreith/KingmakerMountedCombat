@@ -1,5 +1,9 @@
 # Combat action economy contract
 
+## Human TB ground-movement completion and native AI-lease isolation (2026-08-22)
+
+Uncredited TB run `20260822T150000Z-private-alpha-stabilization-native-exit-tb-passA` proved ordinary Mammoth-owned rider-turn ground movement charged only rider Move `0 -> 0.631211`, then one rider Standard attack completed with rider Move at the already qualified stock value `3`; Mammoth Standard/Move stayed `0`. The former stationary assertion ignored the row's explicit preceding ground movement and was corrected only for the exact schema-v46 human TB path. KMC still writes no cooldown or turn field. Separately, native TB combat-end reset enabled the controllable Mammoth and broke KMC's existing AI-disable lease; the event/controller-gated reassertion restores only that owned lease and changes no command, action, resource, or pathfinding ownership. Fresh same-package RT/TB A/B remains required.
+
 ## Human-path RT evidence and TB orchestration repair (2026-08-22)
 
 Schema-v44 RT A/B from package `e8d507...` pass `81/0` each: one ordinary player-click rider attack, one roll/damage chain, rider-only Standard cost, zero rider Move, zero Mammoth Standard, and zero duplicate/opportunity/repath chain. Schema-v45 TB Pass A is uncredited because diagnostic cleanup re-enabled ambient TB before the required RT checkpoint and before combat drain; it emitted no ground command, attack, or resource chain. The repair changes only diagnostic lease/camera staging and preserves the exact rider-turn ground-movement, rider Move/Standard, Mammoth pathfinding, Mammoth-independent-turn, and zero-duplicate contracts. Fresh same-package RT/TB A/B is required.
