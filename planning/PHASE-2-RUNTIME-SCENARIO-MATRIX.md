@@ -2,6 +2,8 @@
 
 ## Stabilization native TB-exit AI-lease repair pending fresh evidence (2026-08-22)
 
+Live schema-v46 attempt `20260822T173100Z-private-alpha-stabilization-v46-tb-passA` is immutable uncredited. It proved the exact one-shot Mammoth AI-lease reassertion, then the forced critical killed the sole target and collapsed native combat/turn/resource state before transition capture; exact Pause persisted after TB false/controller clear while player combat had already ended. The superseding diagnostic repair uses the existing reversible durability lease only for this exact TB human row, recognizes that exact Pause without the transient combat flag, and preserves complete failed-evidence shape. Fresh full A/B remains required.
+
 Status: `IN PROGRESS`. Same-package schema-v44 RT A/B on `a57b84c...` pass `81/0` each, but TB `20260822T150000Z-private-alpha-stabilization-native-exit-tb-passA` is immutable uncredited `FAIL 100/3` after exact restoration. The TB row proved ground movement, player-path rider melee, roster/turn/action ownership, and zero duplicate/AoO before stock `CombatController.HandleCombatEnd` enabled the controllable Mammoth and invalidated KMC's still-owned AI-disable lease. Forward-only schema v46 requires one exact event-armed, post-controller, owned-lease reassertion and correct rider-only Move accounting through Standard completion. Offline Release/component/harness/assembly pass `Release/231/219/282`. A fresh clean package/suite and complete RT A/B, TB A/B, and doorway restart remain mandatory.
 
 ## Stabilization human-path runtime checkpoint (2026-08-22)

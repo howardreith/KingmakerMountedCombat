@@ -167,7 +167,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool pairRetainedAfterTurnBasedEnable;
         private bool pairRetainedAfterRealtimeRestore;
         private string presentationAfterTurnBasedEnable;
-        private string presentationAfterRealtimeRestore;
+        private string presentationAfterRealtimeRestore = "<not-observed>";
         private bool turnBasedControllerInitialized;
         private bool turnRosterContainsRider;
         private bool turnRosterContainsMount;
@@ -659,7 +659,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 spawnPoint,
                 request.RunId,
                 true,
-                IsMammothPrimaryRow || IsApproachRow);
+                IsMammothPrimaryRow || IsApproachRow || IsMountedBeforeModeTransitionRow);
             targetId = target.UniqueId;
             targetProvisioning = CombatTargetProvisioningEvidence.From(targetService, target);
             assertions.Check(target != null && target.IsInState && target.View != null &&
@@ -1594,7 +1594,6 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             var game = Game.Instance;
             if (!CombatController.IsInTurnBasedCombat() && game != null &&
-                game.Player != null && game.Player.IsInCombat &&
                 game.CurrentMode == GameModeType.Pause && game.IsPaused && !originalPause)
             {
                 nativeRealtimePauseObserved = true;

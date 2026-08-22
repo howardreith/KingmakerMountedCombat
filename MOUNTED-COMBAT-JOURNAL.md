@@ -1,5 +1,12 @@
 # Mounted Combat journal
 
+## 2026-08-22T18:00:00Z - v46 proves AI repair; target lifetime and Pause observation narrowed
+
+- Published `df48862b...` package/suite passed separate RT/TB WhatIf and audits. RT A/B `...164900Z...rt-passA` / `...171100Z...rt-passB` each pass `81/0` with immediate exact restoration audits.
+- TB `20260822T173100Z-private-alpha-stabilization-v46-tb-passA` is immutable uncredited. Its audit passed before evidence inspection. Schema-v46 recorded exactly one AI-lease arm, attempt, mutation, success, and `reasserted`, so the native controllable-AI reset repair worked. The forced critical killed the sole one-HP target, native combat and the rider turn closed, and resource values reset before the intended transition observation. TB was false and its controller uninitialized, but exact Pause remained while player combat had become false between event delivery and the next observation frame; the diagnostic therefore withheld ordinary unpause and timed out unchanged.
+- The narrow repair gives only the exact mounted-before-TB human row the already-qualified reversible 128 temporary-HP target lease, recognizes exact stock Pause without depending on the transient player-combat flag, and serializes a nonempty `<not-observed>` post-restore presentation sentinel on failed rows. No production command, action/resource ledger, relationship rule, native-state predicate, timeout, or threshold changes.
+- Complete gates pass source `21/0`, Release, component `231/0`, visual/source-order `17/0`, unfiltered harness `219/0`, assembly `282/0`, PowerShell `27/0`, JSON `7/0`, diff, and prohibited payload. Dirty DLL SHA-256/MVID are `85ef0726236eebf2ab9e519ac137781ff51eaa980937ee6a6cea67dca57ad9d6` / `f4c7b6ee-4792-44de-b626-1fd451bbbe48`. Next: coherent guarded publication, fresh package/suite/WhatIf, then full fresh RT/TB A/B and doorway regression.
+
 ## 2026-08-22T15:25:00Z - exact native TB-exit AI reset observed and isolated
 
 - Clean package `2306b2b...` at published `a57b84c...` and suite `0443a42c...` passed separate RT/TB WhatIf and audit-before-read. RT A/B `...140600Z...rt-passA` / `...143000Z...rt-passB` each pass schema v44 `81/0` with exact restoration.

@@ -2,6 +2,8 @@
 
 ## Human TB ground-movement completion and native AI-lease isolation (2026-08-22)
 
+The exact schema-v46 human-transition diagnostic target carries the existing reversible 128 temporary-hit-point lease so the forced hit cannot end the sole-hostile combat and erase the native rider turn/resource ledger before TB-to-RT observation. This is diagnostic target lifetime isolation only: production targets, damage, turn ownership, action costs, and command semantics are unchanged, and the lease must be released exactly during target cleanup.
+
 Uncredited TB run `20260822T150000Z-private-alpha-stabilization-native-exit-tb-passA` proved ordinary Mammoth-owned rider-turn ground movement charged only rider Move `0 -> 0.631211`, then one rider Standard attack completed with rider Move at the already qualified stock value `3`; Mammoth Standard/Move stayed `0`. The former stationary assertion ignored the row's explicit preceding ground movement and was corrected only for the exact schema-v46 human TB path. KMC still writes no cooldown or turn field. Separately, native TB combat-end reset enabled the controllable Mammoth and broke KMC's existing AI-disable lease; the event/controller-gated reassertion restores only that owned lease and changes no command, action, resource, or pathfinding ownership. Fresh same-package RT/TB A/B remains required.
 
 ## Human-path RT evidence and TB orchestration repair (2026-08-22)

@@ -8778,7 +8778,8 @@ function Assert-KmcCombatScenarioEvidence {
         }
         if ([long]$record.schemaVersion -ge 22) {
             $durabilityLeaseInvalid = if ($mammothScenario -or $commandTerminationScenario -or
-                ($movementToAttackScenario -and [long]$record.schemaVersion -ge 34)) {
+                ($movementToAttackScenario -and [long]$record.schemaVersion -ge 34) -or
+                ($humanPlayScenario -and $turnBasedScenario -and [long]$record.schemaVersion -ge 46)) {
                 [long]$record.targetProvisioning.temporaryHitPointsBefore -ne 0 -or
                 [long]$record.targetProvisioning.temporaryHitPointsAfterProvisioning -ne 128 -or
                 [long]$record.targetProvisioning.durabilityLeaseAmount -ne 128 -or

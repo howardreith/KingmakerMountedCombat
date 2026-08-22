@@ -1149,7 +1149,7 @@ function New-TestCombatEvidenceRecord {
         'mounted-rider-melee-command-cancel-tb','mounted-rider-melee-command-interrupt-tb',
         'mounted-rider-melee-combat-end-tb','mounted-rider-melee-human-play-path-tb')
     $isMiss = [string]$Request.scenario -ceq 'mounted-rider-melee-miss-rt'
-    $requiresDurability = $isMammoth -or $isApproach
+    $requiresDurability = $isMammoth -or $isApproach -or ($isHumanPlay -and $isTurnBased)
     $actor = if ($isMammoth) { $mount } else { $rider }
     $actorRole = if ($isMammoth) { 'mount' } else { 'rider' }
     $action = if ($isMammoth) { 'MountPrimaryNatural' } else { 'RiderMelee' }
@@ -4993,6 +4993,10 @@ try {
         $beginCleanupIndex = $engineSource.IndexOf('private void BeginCleanup()', [StringComparison]::Ordinal)
         $transitionRestoreIndex = $engineSource.IndexOf('RestoreTurnBasedTransitionLease();', $beginCleanupIndex, [StringComparison]::Ordinal)
         $awaitRealtimeRestoreIndex = $engineSource.IndexOf('private void AwaitTurnBasedRealtimeRestore()', $transitionRestoreIndex, [StringComparison]::Ordinal)
+        $describeRealtimeRestoreIndex = $engineSource.IndexOf('private string DescribeTurnBasedRestoreState()', $awaitRealtimeRestoreIndex, [StringComparison]::Ordinal)
+        $awaitRealtimeRestoreBody = if ($awaitRealtimeRestoreIndex -ge 0 -and $describeRealtimeRestoreIndex -gt $awaitRealtimeRestoreIndex) {
+            $engineSource.Substring($awaitRealtimeRestoreIndex, $describeRealtimeRestoreIndex - $awaitRealtimeRestoreIndex)
+        } else { '' }
         $nativeRealtimePauseIndex = $engineSource.IndexOf('game.CurrentMode == GameModeType.Pause && game.IsPaused && !originalPause', $awaitRealtimeRestoreIndex, [StringComparison]::Ordinal)
         $nativeRealtimePauseObservedIndex = $engineSource.IndexOf('nativeRealtimePauseObserved = true;', $nativeRealtimePauseIndex, [StringComparison]::Ordinal)
         $realtimeTransitionUnpauseIndex = $engineSource.IndexOf('game.IsPaused = false;', $nativeRealtimePauseObservedIndex, [StringComparison]::Ordinal)
@@ -5050,6 +5054,9 @@ try {
             $engineSource.Contains('game.CurrentMode != GameModeType.Default') -and
             $engineSource.Contains('DescribeTurnBasedRestoreState()') -and
             $engineSource.Contains('nativeRealtimePauseObserved && realtimeUnpauseRequested') -and
+            -not $awaitRealtimeRestoreBody.Contains('game.Player.IsInCombat') -and
+            $engineSource.Contains('IsMammothPrimaryRow || IsApproachRow || IsMountedBeforeModeTransitionRow') -and
+            $engineSource.Contains('private string presentationAfterRealtimeRestore = "<not-observed>";') -and
             $lifecycleSource.Contains('service.ObserveNativeTurnBasedModeChanged(enabled);') -and
             $relationshipSource.Contains('NativeTurnBasedExitAiLeasePolicy.Classify(') -and
             $relationshipSource.Contains('controller != null && controller.Initialized,') -and
@@ -5168,7 +5175,7 @@ try {
             $targetSource.Contains('ModifierDescriptor.UntypedStackable') -and
             $targetSource.Contains('targetDurabilityModifier.Remove()') -and
             $targetSource.Contains('temporaryHitPoints.ModifiedValue == TargetTemporaryHitPointsBefore') -and
-            $engineSource.Contains('IsMammothPrimaryRow || IsApproachRow)')) 'Mammoth and mounted-approach diagnostic targets do not acquire and exactly release their bounded scenario-only temporary-hit-point durability lease'
+            $engineSource.Contains('IsMammothPrimaryRow || IsApproachRow || IsMountedBeforeModeTransitionRow)')) 'Mammoth, mounted-approach, and exact TB human-transition diagnostic targets do not acquire and exactly release their bounded scenario-only temporary-hit-point durability lease'
         $durabilityAcquireIndex = $targetSource.IndexOf('AcquireTargetDurabilityLease(target, requireDurabilityLease);', [StringComparison]::Ordinal)
         $targetActivationIndex = $targetSource.IndexOf('lifecycle.Activate("pending:" + runId, safety.AllPassed && durabilityPolicyPassed)', [StringComparison]::Ordinal)
         $durabilityReleaseIndex = $targetSource.IndexOf('var durabilityLeaseClean = ReleaseTargetDurabilityLease(current);', [StringComparison]::Ordinal)
