@@ -1,5 +1,9 @@
 # Phase 2 qualification
 
+## Stabilization deployment gate resolved (2026-08-22)
+
+Status: `IN PROGRESS`; no stabilization runtime PASS is claimed. Coherent implementation `b17a46401c48000d27be17ff5d6dcde27471bbe4` is guarded-published, the historical manual KMC deployment is hash-bound in ignored backup evidence and absent from live Mods, and complete foreign Mods equality passed around removal. Post-removal offline gates are source/component/visual/harness/assembly `21/228/17/219/275`, PowerShell/JSON parsers `27/0` / `7/0`, diff and prohibited-payload PASS. The next clean documentation-HEAD package must pass stable suite admission, separate RT/TB WhatIf plus zero-mutation audits, fresh schema-v44 RT A/B, schema-v45 TB A/B, doorway regression, and restoration-before-read before the manual-regression handoff.
+
 ## Human private-alpha stabilization in progress (2026-08-21)
 
 Status: `IN PROGRESS`. The qualification below remains immutable historical proof for the exact `eae1abd554e67f8e864571a97d48f479a75304af` package, but a human playtest found menu/view, polymorph replacement, ordinary overlay melee input, and turn-based control defects. Those defects do not retroactively relabel historical automated runs; they do prevent reuse of the prior package as the stabilized handoff. Narrow repairs and schema v44/v45 human-play evidence are offline-green through source/component/visual/harness/assembly `21/228/17/219/275`, parsers `26/0` / `7/0`, diff, and prohibited-payload checks. Fresh clean-package suite/WhatIf, runtime A/B, doorway regression, and guarded manual UI/polymorph/ranged proof remain required. No stabilization PASS is claimed yet.

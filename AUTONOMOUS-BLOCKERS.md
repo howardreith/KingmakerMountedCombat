@@ -1,5 +1,9 @@
 # Autonomous blockers
 
+## Historical manual deployment gate resolved - 2026-08-22T02:47:37Z
+
+Status: `PASS`; no active critical blocker. Exact KMC identity was backed up and removed through the new guarded KMC-only deployment helper after its parser and zero-mutation `WhatIf` gates passed. Foreign Mods inventory was identical before/after; live KMC is absent; no relevant process, runtime lock, sentinel, or transaction remains. Post-removal source/component/visual/harness/assembly gates pass `21/228/17/219/275`, PowerShell/JSON parsers `27/0` / `7/0`, diff and prohibited payload PASS. Runtime stabilization remains `IN PROGRESS` pending clean documentation-HEAD package, stable suite, separate mode WhatIf/audits, and fresh v44/v45/doorway processes.
+
 ## Stabilization offline-complete; historical manual deployment pending removal - 2026-08-22T02:06:36Z
 
 Status: `IN PROGRESS`; no core architecture or restoration failure is known. PID `11400` is gone and complete process-free gates pass source/component/visual/harness/assembly `21/228/17/219/275`, PowerShell/JSON `26/0` / `7/0`, diff, and prohibited-payload checks. The historical private-alpha folder remains installed at live `Mods\KingmakerMountedCombat`; it is unchanged evidence from the user-requested manual playtest, not transaction debris. Existing transaction safety correctly rejects that case-insensitive collision. KMC has not modified it. Commit/publication and clean package creation may proceed; stable suite admission cannot proceed until the user removes that folder through UMM or separately authorizes an exact project-owned uninstall path. This is an external deployment gate, not a restoration, gameplay, or core-architecture failure.
