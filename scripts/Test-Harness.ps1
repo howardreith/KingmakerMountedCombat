@@ -5007,6 +5007,8 @@ try {
             $nativeModeProbeSource.Contains('TemporaryValue = requestedTemporaryValue ?? !OriginalValue;') -and
             $nativeModeProbeSource.Contains('public bool TransitionRequired => OriginalValue != TemporaryValue;') -and
             $nativeModeProbeSource.Contains('public bool TemporaryValueIsCurrent => setting.CurrentValue == TemporaryValue;') -and
+            $nativeModeProbeSource.Contains('public bool CurrentValue => setting.CurrentValue;') -and
+            $nativeModeProbeSource.Contains('public bool? CurrentRawCacheValue => (bool?)cachedField.GetValue(setting);') -and
             $nativeModeProbeSource.Contains('public void DispatchTemporaryValueIfRequired()') -and
             $turnBasedMountBody.Contains('!turnBasedModeProbe.TemporaryValueIsCurrent') -and
             -not $turnBasedMountBody.Contains('!CombatController.IsInTurnBasedCombat()') -and
@@ -5028,6 +5030,10 @@ try {
             $controllerSource.Contains('turn.ForceToEnd(false);') -and
             $engineSource.Contains('step = CombatEngineStep.AwaitTurnBasedRealtimeRestore;') -and
             $engineSource.Contains('Game.Instance.CurrentMode != GameModeType.Default') -and
+            $engineSource.Contains('DescribeTurnBasedRestoreState()') -and
+            $engineSource.Contains('settingCurrent=') -and
+            $engineSource.Contains(';rawCache=') -and
+            $engineSource.Contains(';controllerInitialized=') -and
             $engineSource.Contains('turnBasedRestoreDeliveryCompleted &&') -and
             $engineSource.Contains('turnBasedOriginalEnabled,') -and
             $engineSource.Contains('turnBasedTemporaryEnabled,') -and

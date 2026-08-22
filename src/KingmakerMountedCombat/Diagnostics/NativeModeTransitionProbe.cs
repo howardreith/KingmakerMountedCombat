@@ -91,6 +91,10 @@ namespace KingmakerMountedCombat.Diagnostics
 
         public bool TemporaryValueIsCurrent => setting.CurrentValue == TemporaryValue;
 
+        public bool CurrentValue => setting.CurrentValue;
+
+        public bool? CurrentRawCacheValue => (bool?)cachedField.GetValue(setting);
+
         public bool RestoreDeliveryCompleted => restoreCompleted;
 
         public void DispatchTemporaryValue()

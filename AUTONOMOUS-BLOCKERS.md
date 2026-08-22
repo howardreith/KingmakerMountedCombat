@@ -1,5 +1,9 @@
 # Autonomous blockers
 
+## Schema-v45 TB exit remains attributable; observation checkpoint pending - 2026-08-22T09:51:37Z
+
+Status: `IN PROGRESS`; exact restoration passed, so this is not a safety or core-architecture blocker. Fresh RT A/B on `f96d895...` are credited `81/0` each. TB attempt `20260822T092410Z-private-alpha-stabilization-staged-mode-tb-passA` is immutable uncredited `FAIL 31/4`: pair/view/pose/UI/roster/native rider turn survived entry, but native TB entry cleared camera `m_IsOn`, and the delivered false restore did not clear the exact TB predicate within the unchanged ten-second deadline. Ground movement and melee were correctly withheld. The worktree adds only exact setting/raw-cache/controller/combat state to the timeout error and deterministic source coverage; it does not change behavior or weaken a gate. Complete offline totals pass `21/230/17/219/277`. Fresh clean-package observation evidence is required before the narrow behavioral repair.
+
 ## Schema-v45 cleanup ordering and camera precondition repaired - 2026-08-22T07:30:41Z
 
 Status: `IN PROGRESS`; attributable diagnostic orchestration failure with exact restoration, not a core gameplay, presentation, or safety blocker. RT A/B from package `e8d507...` pass `81/0` each. TB attempt `20260822T065700Z-private-alpha-stabilization-native-mode-tb-passA` is immutable uncredited `FAIL 28/5`; audit-before-read passed exactly. The stacked lease implementation re-enabled the user's ambient TB setting before observing the required TB-to-RT checkpoint and before combat cleanup, while schema v45 had not established the camera-follow precondition it asserted. Cleanup now observes bounded exact real time between the inner and outer restores, snapshots mode evidence before probe disposal, and leases/restores the exact native camera follower around the human-transition row. Offline totals pass `21/230/17/219/277`; a fresh package/suite and full RT/TB A/B restart remain mandatory.

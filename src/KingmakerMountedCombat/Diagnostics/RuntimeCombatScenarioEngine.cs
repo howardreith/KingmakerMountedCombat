@@ -1596,7 +1596,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     return;
                 }
                 assertions.Fail("Native TB-to-RT transition did not reach exact Default real-time mode within its " +
-                    CleanupTimeoutSeconds + " second cleanup deadline.");
+                    CleanupTimeoutSeconds + " second cleanup deadline. State: " +
+                    DescribeTurnBasedRestoreState() + ".");
                 BeginRelationshipCleanup();
                 return;
             }
@@ -1613,6 +1614,24 @@ namespace KingmakerMountedCombat.Diagnostics
             assertions.Check(IsRiderUiOwnershipCoherent(presentationAfterRealtimeRestore),
                 "The rider view, selection, portrait, action bar, and camera remained coherent after TB-to-RT restoration.");
             BeginRelationshipCleanup();
+        }
+
+        private string DescribeTurnBasedRestoreState()
+        {
+            var game = Game.Instance;
+            var controller = game?.TurnBasedCombatController;
+            return "settingCurrent=" + (turnBasedModeProbe == null
+                    ? "<probe-null>"
+                    : turnBasedModeProbe.CurrentValue.ToString()) +
+                ";rawCache=" + (turnBasedModeProbe?.CurrentRawCacheValue.HasValue == true
+                    ? turnBasedModeProbe.CurrentRawCacheValue.Value.ToString()
+                    : "<null>") +
+                ";combatPredicate=" + CombatController.IsInTurnBasedCombat() +
+                ";controllerInitialized=" + (controller?.Initialized.ToString() ?? "<controller-null>") +
+                ";playerInCombat=" + (game?.Player?.IsInCombat.ToString() ?? "<player-null>") +
+                ";currentMode=" + (game?.CurrentMode.ToString() ?? "<game-null>") +
+                ";restoreDeliveryCompleted=" + turnBasedRestoreDeliveryCompleted +
+                ";persistedValueUnchanged=" + turnBasedPersistedSettingUnchanged;
         }
 
         private void BeginRelationshipCleanup()
