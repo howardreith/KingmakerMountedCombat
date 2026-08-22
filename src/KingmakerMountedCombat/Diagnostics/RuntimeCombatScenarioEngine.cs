@@ -160,6 +160,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool turnBasedOriginalRawCacheHadValue;
         private bool turnBasedRestoreDeliveryCompleted;
         private double modeRestoreStartedAtSeconds;
+        private bool nativeRealtimePauseObserved;
+        private bool realtimeUnpauseRequested;
         private bool turnBasedModeEnabledAtMount;
         private bool pairMountedBeforeTurnBasedEnable;
         private bool pairRetainedAfterTurnBasedEnable;
@@ -810,7 +812,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (IsMountedBeforeModeTransitionRow && presentationAfterTurnBasedEnable == null)
                 {
                     presentationAfterTurnBasedEnable = relationship.CapturePresentationObservation();
-                    assertions.Check(IsRiderUiOwnershipCoherent(presentationAfterTurnBasedEnable),
+                    assertions.Check(IsRiderUiOwnershipCoherent(presentationAfterTurnBasedEnable, false),
                         "The rider view, selection, portrait, action bar, and camera remained coherent after RT-to-TB transition.");
                 }
             }
@@ -1588,8 +1590,18 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void AwaitTurnBasedRealtimeRestore()
         {
-            if (CombatController.IsInTurnBasedCombat() || Game.Instance == null ||
-                Game.Instance.CurrentMode != GameModeType.Default)
+            var game = Game.Instance;
+            if (!CombatController.IsInTurnBasedCombat() && game != null &&
+                game.Player != null && game.Player.IsInCombat &&
+                game.CurrentMode == GameModeType.Pause && game.IsPaused && !originalPause)
+            {
+                nativeRealtimePauseObserved = true;
+                game.IsPaused = false;
+                realtimeUnpauseRequested = true;
+            }
+
+            if (CombatController.IsInTurnBasedCombat() || game == null ||
+                game.CurrentMode != GameModeType.Default)
             {
                 if (rowClock.Elapsed.TotalSeconds - modeRestoreStartedAtSeconds < CleanupTimeoutSeconds)
                 {
@@ -1604,6 +1616,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
             turnBasedModeRestored = turnBasedRestoreDeliveryCompleted &&
                 turnBasedPersistedSettingUnchanged;
+            assertions.Check(nativeRealtimePauseObserved && realtimeUnpauseRequested,
+                "Native TB disable entered its exact combat Pause boundary before a stock unpause resumed Default real time.");
             pairRetainedAfterRealtimeRestore = turnBasedModeRestored &&
                 relationship.State == RelationshipState.Mounted &&
                 relationship.Rider == rider && relationship.Mount == mount &&
@@ -1611,7 +1625,7 @@ namespace KingmakerMountedCombat.Diagnostics
             assertions.Check(pairRetainedAfterRealtimeRestore,
                 "The exact mounted pair and accepted Mammoth presentation survived TB-to-RT restoration.");
             presentationAfterRealtimeRestore = relationship.CapturePresentationObservation();
-            assertions.Check(IsRiderUiOwnershipCoherent(presentationAfterRealtimeRestore),
+            assertions.Check(IsRiderUiOwnershipCoherent(presentationAfterRealtimeRestore, false),
                 "The rider view, selection, portrait, action bar, and camera remained coherent after TB-to-RT restoration.");
             BeginRelationshipCleanup();
         }
@@ -1630,6 +1644,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 ";controllerInitialized=" + (controller?.Initialized.ToString() ?? "<controller-null>") +
                 ";playerInCombat=" + (game?.Player?.IsInCombat.ToString() ?? "<player-null>") +
                 ";currentMode=" + (game?.CurrentMode.ToString() ?? "<game-null>") +
+                ";nativeRealtimePauseObserved=" + nativeRealtimePauseObserved +
+                ";realtimeUnpauseRequested=" + realtimeUnpauseRequested +
                 ";restoreDeliveryCompleted=" + turnBasedRestoreDeliveryCompleted +
                 ";persistedValueUnchanged=" + turnBasedPersistedSettingUnchanged;
         }
@@ -2144,7 +2160,7 @@ namespace KingmakerMountedCombat.Diagnostics
             return false;
         }
 
-        private bool IsRiderUiOwnershipCoherent(string observation)
+        private bool IsRiderUiOwnershipCoherent(string observation, bool expectedCameraOn)
         {
             if (rider == null || string.IsNullOrWhiteSpace(observation))
             {
@@ -2160,7 +2176,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 observation.IndexOf("portraitActiveOwnerCount=1", StringComparison.Ordinal) >= 0 &&
                 observation.IndexOf("portraitActive=True", StringComparison.Ordinal) >= 0 &&
                 observation.IndexOf("portraitSelected=True", StringComparison.Ordinal) >= 0 &&
-                observation.IndexOf("cameraOn=True", StringComparison.Ordinal) >= 0 &&
+                observation.IndexOf("cameraOn=" + expectedCameraOn, StringComparison.Ordinal) >= 0 &&
                 observation.IndexOf("cameraOwner=" + riderId, StringComparison.Ordinal) >= 0;
         }
 

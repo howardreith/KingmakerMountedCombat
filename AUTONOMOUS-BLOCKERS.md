@@ -1,5 +1,9 @@
 # Autonomous blockers
 
+## Native TB Pause/camera contract isolated and narrowly repaired - 2026-08-22T12:47:37Z
+
+Status: `IN PROGRESS`; attributable diagnostic orchestration failure with exact restoration, not a safety, presentation, action-economy, or core-architecture blocker. Uncredited observation `20260822T122000Z-private-alpha-stabilization-tb-exit-observation-passA` reached exact TB false/raw false/controller uninitialized but remained in stock in-combat `Pause`; native turn start had also released the camera follower while retaining the exact rider owner. Installed tokens `0x06000BEA`, `0x06000C3A`, and `0x0600C2FD` prove both behaviors. The repair proves the native Pause boundary, requests ordinary stock unpause, retains the exact Default deadline, and validates native released-follower rider ownership. No production behavior or threshold changed. Affected gates pass `21/Release/230/219/281`; fresh publication/package/suite and complete RT/TB A/B plus doorway qualification remain required.
+
 ## Schema-v45 TB exit remains attributable; observation checkpoint pending - 2026-08-22T09:51:37Z
 
 Status: `IN PROGRESS`; exact restoration passed, so this is not a safety or core-architecture blocker. Fresh RT A/B on `f96d895...` are credited `81/0` each. TB attempt `20260822T092410Z-private-alpha-stabilization-staged-mode-tb-passA` is immutable uncredited `FAIL 31/4`: pair/view/pose/UI/roster/native rider turn survived entry, but native TB entry cleared camera `m_IsOn`, and the delivered false restore did not clear the exact TB predicate within the unchanged ten-second deadline. Ground movement and melee were correctly withheld. The worktree adds only exact setting/raw-cache/controller/combat state to the timeout error and deterministic source coverage; it does not change behavior or weaken a gate. Complete offline totals pass `21/230/17/219/277`. Fresh clean-package observation evidence is required before the narrow behavioral repair.

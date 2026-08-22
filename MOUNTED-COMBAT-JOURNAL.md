@@ -1,5 +1,12 @@
 # Mounted Combat journal
 
+## 2026-08-22T12:47:37Z - TB observation proves stock Pause and camera-release contracts
+
+- Published observation package `ba023b56...` at `1e16e023...` and suite snapshot `778902a7...` passed separate RT/TB WhatIf and immediate audits. Live TB observation `20260822T122000Z-private-alpha-stabilization-tb-exit-observation-passA` is immutable uncredited `FAIL 31/4`; its post-process audit passed before any evidence read.
+- Exact state at the bounded restore failure was setting/raw cache false, `CombatController.IsInTurnBasedCombat()==false`, controller uninitialized, player still in combat, and game mode `Pause`. The pair/UI/roster had survived TB entry, but the row correctly withheld ground movement/melee after missing its required RT checkpoint. No gameplay credit is granted.
+- Installed private `CombatController.Disable` token `0x06000BEA` intentionally pauses an in-combat player when TB is disabled. Installed `TurnController.Start` token `0x06000C3A` intentionally calls camera follower `Release` token `0x0600C2FD`; evidence retained the rider owner with `cameraOn=False`. This rejects the prior theory that false setting delivery failed and identifies two incorrect diagnostic expectations.
+- The narrow orchestration repair first observes the exact native Pause, then performs the ordinary stock unpause and waits for unchanged exact `Default`. Camera coherence binds the exact rider owner and stock released-follower state through TB/RT, while the pre-row camera snapshot remains exactly restored after cleanup. No production command, resource, mode, camera, relationship, or timeout behavior changed. Source/Release/component/harness/assembly pass `21/Release/230/219/281`; final gates and a fresh full qualification restart are next.
+
 ## 2026-08-22T09:51:37Z - staged RT qualifies A/B; TB exit receives bounded observation
 
 - Clean published `f96d895c5e56515a3bc4abe87ed79df712429de9` package/manifest/DLL SHA-256 are `6a17b15bca764b43ffd43b9f1742b5bc26bd4a68801db0ba8515335a3763a14f` / `1b21075fcb914b4fd03a1c69ed9893b6bc43a644460539e77580af1dc068637d` / `292491597285a5c3a07f54bffac8ef085024a5fe56b18a8c1947ed7866b5414c`, MVID `99fab2cd-0284-4225-b0a4-d358e214dcf1`. Suite `20260822T073700Z-private-alpha-stabilization-staged-mode-suite1` snapshot/save/Mods hashes are `577df8e8d391639ca24eaae0c584fe67f977929c0590aaf64039a25bdcf83559` / `537fee5c86e3035ae1f1459cf5a6639dd818381cf5996992fdeac670bbab9f9b` / `5b47c2e88968a5b208a5c8fa11acdf10890365eb97e0d41db5107e87b669891d`; mode-specific WhatIf and audits passed.

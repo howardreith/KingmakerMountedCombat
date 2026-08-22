@@ -4984,6 +4984,10 @@ try {
         $beginCleanupIndex = $engineSource.IndexOf('private void BeginCleanup()', [StringComparison]::Ordinal)
         $transitionRestoreIndex = $engineSource.IndexOf('RestoreTurnBasedTransitionLease();', $beginCleanupIndex, [StringComparison]::Ordinal)
         $awaitRealtimeRestoreIndex = $engineSource.IndexOf('private void AwaitTurnBasedRealtimeRestore()', $transitionRestoreIndex, [StringComparison]::Ordinal)
+        $nativeRealtimePauseIndex = $engineSource.IndexOf('game.CurrentMode == GameModeType.Pause && game.IsPaused && !originalPause', $awaitRealtimeRestoreIndex, [StringComparison]::Ordinal)
+        $nativeRealtimePauseObservedIndex = $engineSource.IndexOf('nativeRealtimePauseObserved = true;', $nativeRealtimePauseIndex, [StringComparison]::Ordinal)
+        $realtimeTransitionUnpauseIndex = $engineSource.IndexOf('game.IsPaused = false;', $nativeRealtimePauseObservedIndex, [StringComparison]::Ordinal)
+        $realtimeUnpauseRequestedIndex = $engineSource.IndexOf('realtimeUnpauseRequested = true;', $realtimeTransitionUnpauseIndex, [StringComparison]::Ordinal)
         $realtimePresentationIndex = $engineSource.IndexOf('presentationAfterRealtimeRestore = relationship.CapturePresentationObservation();', $awaitRealtimeRestoreIndex, [StringComparison]::Ordinal)
         $relationshipCleanupIndex = $engineSource.IndexOf('private void BeginRelationshipCleanup()', $realtimePresentationIndex, [StringComparison]::Ordinal)
         $cleanupDestroyIndex = $engineSource.IndexOf('targetRemoved = targetService.DestroyAndVerify();', $relationshipCleanupIndex, [StringComparison]::Ordinal)
@@ -4998,7 +5002,12 @@ try {
             $nativeActionActorTurnIndex -gt $turnRosterIndex -and $turnDispatchIndex -gt $nativeActionActorTurnIndex -and
             $nativeClickIndex -gt $turnDispatchIndex -and $actingAfterDispatchIndex -gt $nativeClickIndex -and
             $beginCleanupIndex -gt $turnDispatchIndex -and $transitionRestoreIndex -gt $beginCleanupIndex -and
-            $awaitRealtimeRestoreIndex -gt $transitionRestoreIndex -and $realtimePresentationIndex -gt $awaitRealtimeRestoreIndex -and
+            $awaitRealtimeRestoreIndex -gt $transitionRestoreIndex -and
+            $nativeRealtimePauseIndex -gt $awaitRealtimeRestoreIndex -and
+            $nativeRealtimePauseObservedIndex -gt $nativeRealtimePauseIndex -and
+            $realtimeTransitionUnpauseIndex -gt $nativeRealtimePauseObservedIndex -and
+            $realtimeUnpauseRequestedIndex -gt $realtimeTransitionUnpauseIndex -and
+            $realtimePresentationIndex -gt $realtimeUnpauseRequestedIndex -and
             $relationshipCleanupIndex -gt $realtimePresentationIndex -and $cleanupDestroyIndex -gt $relationshipCleanupIndex -and
             $modeRestoreIndex -gt $cleanupDestroyIndex -and $cameraCaptureIndex -gt $realTimeModeDispatchIndex -and
             $cameraFollowIndex -gt $cameraCaptureIndex -and $mountPairIndex -gt $cameraFollowIndex -and
@@ -5029,8 +5038,12 @@ try {
             $engineSource.Contains('currentTurnActingAtOutcome = currentTurn != null && currentTurn.IsActing') -and
             $controllerSource.Contains('turn.ForceToEnd(false);') -and
             $engineSource.Contains('step = CombatEngineStep.AwaitTurnBasedRealtimeRestore;') -and
-            $engineSource.Contains('Game.Instance.CurrentMode != GameModeType.Default') -and
+            $engineSource.Contains('game.CurrentMode != GameModeType.Default') -and
             $engineSource.Contains('DescribeTurnBasedRestoreState()') -and
+            $engineSource.Contains('nativeRealtimePauseObserved && realtimeUnpauseRequested') -and
+            $engineSource.Contains('IsRiderUiOwnershipCoherent(presentationAfterTurnBasedEnable, false)') -and
+            $engineSource.Contains('IsRiderUiOwnershipCoherent(presentationAfterRealtimeRestore, false)') -and
+            $engineSource.Contains('observation.IndexOf("cameraOn=" + expectedCameraOn') -and
             $engineSource.Contains('settingCurrent=') -and
             $engineSource.Contains(';rawCache=') -and
             $engineSource.Contains(';controllerInitialized=') -and

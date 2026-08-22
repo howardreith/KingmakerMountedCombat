@@ -107,10 +107,13 @@ if($Target-eq'Kingmaker'){
         @('TurnBased.Controllers.CombatController',0x06000BDA,'StartTurn'),
         @('TurnBased.Controllers.CombatController',0x06000BBE,'get_CurrentTurn'),
         @('TurnBased.Controllers.CombatController',0x06000BF6,'IsInTurnBasedCombat'),
+        @('TurnBased.Controllers.CombatController',0x06000BEA,'Disable'),
         @('TurnBased.Controllers.TurnController',0x04000669,'Unit'),
         @('TurnBased.Controllers.TurnController',0x06000C24,'get_IsActing'),
         @('TurnBased.Controllers.TurnController',0x06000C0E,'get_Status'),
         @('TurnBased.Controllers.TurnController',0x06000C47,'ForceToEnd'),
+        @('TurnBased.Controllers.TurnController',0x06000C3A,'Start'),
+        @('Kingmaker.Controllers.Rest.CameraController+CameraUnitFollower',0x0600C2FD,'Release'),
         @('Kingmaker.UnitLogic.Commands.UnitAttack',0x06002678,'.ctor'),
         @('Kingmaker.UnitLogic.Commands.UnitAttack',0x0600265D,'set_IsSingleAttack'),
         @('Kingmaker.UnitLogic.Commands.UnitAttack',0x06002666,'get_LastAttackRule'),
@@ -443,6 +446,16 @@ if($Target-eq'Kingmaker'){
         [int]$gameModeType.GetField('EscMode').GetRawConstantValue()-eq6 -and
         [int]$gameModeType.GetField('Cutscene').GetRawConstantValue()-eq7) `
         'GameModeType exact world non-world-UI and cutscene identities'
+    $turnDisable=@(Find-Token 'TurnBased.Controllers.CombatController' 0x06000BEA)
+    $nativeTurnStart=@(Find-Token 'TurnBased.Controllers.TurnController' 0x06000C3A)
+    Assert-Contract ($turnDisable.Count-eq1 -and $turnDisable[0] -is [Reflection.MethodInfo] -and
+        $turnDisable[0].IsPrivate -and $turnDisable[0].GetParameters().Count-eq0 -and
+        (Test-MethodIlContainsToken $turnDisable[0] 0x06000C9A) -and
+        (Test-MethodIlContainsToken $turnDisable[0] 0x06000C9B) -and
+        $nativeTurnStart.Count-eq1 -and $nativeTurnStart[0] -is [Reflection.MethodInfo] -and
+        $nativeTurnStart[0].IsPublic -and $nativeTurnStart[0].GetParameters().Count-eq1 -and
+        (Test-MethodIlContainsToken $nativeTurnStart[0] 0x0600C2FD)) `
+        'native TB disable owns the combat Pause boundary and native turn start releases the camera follower'
     Assert-Contract ($polymorphReplace.Count-eq1 -and $polymorphReplace[0] -is [Reflection.MethodInfo] -and
         $polymorphReplace[0].IsPrivate -and $polymorphReplace[0].GetParameters().Count-eq1 -and
         $polymorphReplace[0].GetParameters()[0].ParameterType.FullName-ceq'System.Boolean' -and
