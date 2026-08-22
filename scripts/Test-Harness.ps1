@@ -8272,6 +8272,14 @@ try {
             $combatEngineSource.Contains('OverlayActivationWorldClickSuppressed = humanPlayPropagatedWorldClickSuppressed') -and
             $automationHostSource.Contains('request, relationship, playerAction, combat, lifecycle')) `
             'human-play qualification bypasses the exact player-facing combat-action controller before its native unit click'
+        Assert-Test ($patchSource.Contains('PatchExact(typeof(UnitCombatCooldownsController), "TickOnUnit", 0x0600934A') -and
+            $patchSource.Contains('nameof(PatchMethods.CombatCooldownPrefix), nameof(PatchMethods.CombatCooldownPostfix)') -and
+            $patchSource.Contains('RuntimeAutomationHost.ObserveCombatCooldownTick(') -and
+            $automationHostSource.Contains('active?.combatEngine?.ObserveCombatCooldownTick(') -and
+            $combatEngineSource.Contains('step != CombatEngineStep.AwaitCombatFrame || unit == null || unit != AttackActor') -and
+            $combatEngineSource.Contains('initiativeTickObservation.Observe(') -and
+            -not $patchSource.Contains('Cooldown.Initiative =')) `
+            'initiative diagnosis does not remain an exact actor-scoped observation-only native cooldown probe'
         Assert-Test ($stabilizationSource.Contains('public sealed class MountedOverlayWorldInputGuard') -and
             $stabilizationSource.Contains('private const int MaximumPropagationFrameDelta = 2;') -and
             $overlaySource.Contains('ArmCombatActionFromOverlay(MountedCombatActionKind.RiderMelee)') -and

@@ -1,5 +1,9 @@
 # Autonomous blockers
 
+## RT action actor initiative did not advance; observation-only probe pending - 2026-08-22T04:25:36Z
+
+Status: `IN PROGRESS`; attributable runtime readiness failure with exact restoration, not a critical safety or core-architecture blocker. Fresh package/suite RT attempt `20260822T040000Z-private-alpha-stabilization-rt-passA` is immutable uncredited `FAIL 22/1`: the exact prepared rider remained at Initiative `2` and could not act until the unchanged deadline, before any click or combat chain. Immediate audit-before-read proved exact suite save/Mods state, immutable Baseline, restored Working, and zero residue. Exact installed contracts do not yet distinguish a missing cooldown callback, a callback that declined to decrement, or an external rewrite between callbacks. The worktree adds only an exact-token, exact-actor, observation-only prefix/postfix trajectory and deterministic coverage; it writes no cooldown and changes no gate. Offline totals pass `21/230/17/219/276`. Fresh clean-package observation evidence is required before repair.
+
 ## Historical manual deployment gate resolved - 2026-08-22T02:47:37Z
 
 Status: `PASS`; no active critical blocker. Exact KMC identity was backed up and removed through the new guarded KMC-only deployment helper after its parser and zero-mutation `WhatIf` gates passed. Foreign Mods inventory was identical before/after; live KMC is absent; no relevant process, runtime lock, sentinel, or transaction remains. Post-removal source/component/visual/harness/assembly gates pass `21/228/17/219/275`, PowerShell/JSON parsers `27/0` / `7/0`, diff and prohibited payload PASS. Runtime stabilization remains `IN PROGRESS` pending clean documentation-HEAD package, stable suite, separate mode WhatIf/audits, and fresh v44/v45/doorway processes.

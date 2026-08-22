@@ -54,7 +54,8 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(UnitMovementAgent), "CanMoveInTurnBased", 0x060018A9, new[] { typeof(float).MakeByRefType() }, nameof(PatchMethods.MountMovementPrefix));
                 PatchExact(typeof(UnitAttack), "GetApproachRadius", 0x06002685, new[] { typeof(UnitEntityData) }, null, nameof(PatchMethods.AttackRangePostfix));
                 PatchExact(typeof(UnitCombatState), "AttackOfOpportunity", 0x060093A1, new[] { typeof(UnitEntityData), typeof(bool) }, nameof(PatchMethods.AttackOfOpportunityPrefix));
-                logger.Info("Installed fourteen exact-token Harmony12 active-pair guards including scoped click, stock-command, range, Mammoth movement, and in-command opportunity-isolation seams.");
+                PatchExact(typeof(UnitCombatCooldownsController), "TickOnUnit", 0x0600934A, new[] { typeof(UnitEntityData) }, nameof(PatchMethods.CombatCooldownPrefix), nameof(PatchMethods.CombatCooldownPostfix));
+                logger.Info("Installed fourteen exact-token Harmony12 active-pair guards plus one observation-only native combat-cooldown probe.");
             }
             catch
             {
@@ -229,6 +230,27 @@ namespace KingmakerMountedCombat.Integration
 
                 __result = false;
                 return false;
+            }
+
+            internal static void CombatCooldownPrefix(UnitEntityData unit, out float __state)
+            {
+                __state = unit?.CombatState == null
+                    ? float.NaN
+                    : unit.CombatState.Cooldown.Initiative;
+            }
+
+            internal static void CombatCooldownPostfix(UnitEntityData unit, float __state)
+            {
+                var combatState = unit?.CombatState;
+                var game = Kingmaker.Game.Instance;
+                RuntimeAutomationHost.ObserveCombatCooldownTick(
+                    unit,
+                    __state,
+                    combatState == null ? float.NaN : combatState.Cooldown.Initiative,
+                    game?.TimeController == null ? 0f : game.TimeController.GameDeltaTime,
+                    combatState != null && combatState.Prepared,
+                    unit != null && unit.IsInCombat,
+                    unit != null && game?.State?.AwakeUnits != null && game.State.AwakeUnits.Contains(unit));
             }
 
             internal static bool SavePrefix(SaveManager __instance, SaveInfo saveInfo, bool forceAuto, ref IEnumerator<object> __result)

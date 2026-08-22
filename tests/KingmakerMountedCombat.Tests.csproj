@@ -113,6 +113,7 @@
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedCombatSpatialPolicy.cs"><Link>Shared\Domain\MountedCombatSpatialPolicy.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedCombatTransaction.cs"><Link>Shared\Domain\MountedCombatTransaction.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\DiagnosticCombatTargetLifecycle.cs"><Link>Shared\Domain\DiagnosticCombatTargetLifecycle.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\DiagnosticCombatInitiativeObservation.cs"><Link>Shared\Domain\DiagnosticCombatInitiativeObservation.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedPlayerAction.cs"><Link>Shared\Domain\MountedPlayerAction.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedPlayerActionFeedbackState.cs"><Link>Shared\Domain\MountedPlayerActionFeedbackState.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedRelationshipCoordinator.cs"><Link>Shared\Domain\MountedRelationshipCoordinator.cs</Link></Compile>

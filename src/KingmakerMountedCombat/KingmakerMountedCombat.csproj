@@ -120,6 +120,7 @@
     <Compile Include="Domain\MountedCombatSpatialPolicy.cs" />
     <Compile Include="Domain\MountedCombatTransaction.cs" />
     <Compile Include="Domain\DiagnosticCombatTargetLifecycle.cs" />
+    <Compile Include="Domain\DiagnosticCombatInitiativeObservation.cs" />
     <Compile Include="Domain\MountedPlayerAction.cs" />
     <Compile Include="Domain\MountedPlayerActionFeedbackState.cs" />
     <Compile Include="Domain\MountedRelationshipCoordinator.cs" />

@@ -275,6 +275,12 @@ if($Target-eq'Kingmaker'){
         $attackOfOpportunity[0].GetParameters()[0].ParameterType.FullName-ceq'Kingmaker.EntitySystem.Entities.UnitEntityData' -and
         $attackOfOpportunity[0].GetParameters()[1].ParameterType.FullName-ceq'System.Boolean') `
         'UnitCombatState.AttackOfOpportunity exact public instance Boolean signature'
+    $combatCooldownTick=@(Find-Token 'Kingmaker.Controllers.Combat.UnitCombatCooldownsController' 0x0600934A)
+    Assert-Contract ($combatCooldownTick.Count-eq1 -and $combatCooldownTick[0] -is [Reflection.MethodInfo] -and
+        -not $combatCooldownTick[0].IsStatic -and $combatCooldownTick[0].ReturnType.FullName-ceq'System.Void' -and
+        $combatCooldownTick[0].GetParameters().Count-eq1 -and
+        $combatCooldownTick[0].GetParameters()[0].ParameterType.FullName-ceq'Kingmaker.EntitySystem.Entities.UnitEntityData') `
+        'UnitCombatCooldownsController.TickOnUnit exact instance Void(UnitEntityData) signature'
     $disengage=@(Find-Token 'Kingmaker.Controllers.Combat.UnitCombatState' 0x0600939B)
     $shouldAttackOnDisengage=@(Find-Token 'Kingmaker.Controllers.Combat.UnitCombatState' 0x060093A2)
     $opportunityAction=@(Find-Token 'Kingmaker.UnitLogic.Commands.UnitAttackOfOpportunity' 0x06002699)

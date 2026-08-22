@@ -52,6 +52,8 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("diagnostic combat entry reports exact memory combat and time failures", CombatEntryReportsExactFailures);
             runner.Run("diagnostic combat action actor uses its own real-time initiative", CombatActionActorUsesOwnInitiative);
             runner.Run("diagnostic combat action actor rejects identity preparation and initiative failures", CombatActionActorReportsExactFailures);
+            runner.Run("diagnostic combat initiative observer records native decrement without mutation", CombatInitiativeObserverRecordsNativeDecrement);
+            runner.Run("diagnostic combat initiative observer distinguishes absent ticks and cross-tick rewrites", CombatInitiativeObserverDistinguishesAbsentTicksAndRewrites);
             runner.Run("diagnostic native combat join preserves every exact controller gate", NativeCombatJoinPreservesEveryGate);
             runner.Run("diagnostic native combat join reports exact controller failures", NativeCombatJoinReportsExactFailures);
             runner.Run("diagnostic turn-based dispatch requires exact native rider turn", TurnBasedDispatchRequiresExactRiderTurn);
@@ -777,6 +779,37 @@ namespace KingmakerMountedCombat.Tests
                 "action-actor-initiative-ready",
                 outsideNativeRange.FailureSummary,
                 "Turn-based action-actor readiness admitted initiative outside the native preparation range.");
+        }
+
+        private static void CombatInitiativeObserverRecordsNativeDecrement()
+        {
+            var observation = new DiagnosticCombatInitiativeObservation();
+            observation.Observe(2f, 1.75f, 0.25f, true, true, true);
+            observation.Observe(1.75f, 1.5f, 0.25f, true, true, true);
+
+            TestRunner.Equal(2, observation.CallbackCount, "Exact actor callback count changed.");
+            TestRunner.Equal(2, observation.DecreaseCount, "Native initiative decrements were not counted.");
+            TestRunner.Equal(0, observation.CrossTickRewriteCount, "Continuous native ticks were classified as rewrites.");
+            TestRunner.Equal(0.5d, observation.NativeDecreaseTotal, "Native initiative decrease total changed.");
+            TestRunner.Equal(0.5d, observation.PositiveGameDeltaTotal, "Positive game-delta total changed.");
+            TestRunner.True(observation.Describe().Contains("callbacks=2;decreases=2") &&
+                    observation.Describe().Contains("firstPrefix=2;lastPostfix=1.5"),
+                "Initiative observation summary omitted exact bounded evidence.");
+        }
+
+        private static void CombatInitiativeObserverDistinguishesAbsentTicksAndRewrites()
+        {
+            var observation = new DiagnosticCombatInitiativeObservation();
+            TestRunner.True(observation.Describe().Contains("callbacks=0") &&
+                    observation.Describe().Contains("firstPrefix=not-observed;lastPostfix=not-observed"),
+                "An absent native cooldown callback was not represented truthfully.");
+
+            observation.Observe(2f, 1.9f, 0.1f, true, true, true);
+            observation.Observe(2f, 1.9f, 0.1f, true, true, true);
+            TestRunner.Equal(1, observation.CrossTickRewriteCount,
+                "An initiative rewrite between native callbacks was not detected.");
+            observation.Reset();
+            TestRunner.Equal(0, observation.CallbackCount, "Observation reset retained callback evidence across rows.");
         }
 
         private static void NativeCombatJoinPreservesEveryGate()

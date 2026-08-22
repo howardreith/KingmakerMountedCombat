@@ -1,5 +1,11 @@
 # Phase 2 qualification
 
+## Stabilization RT initiative observation pending (2026-08-22)
+
+Status: `IN PROGRESS`; no runtime stabilization PASS is claimed. Clean published package input `3859bb92b81c25b458ab691f063f3dd92369b7e8` and suite `20260822T025300Z-private-alpha-stabilization-suite1` passed separate RT/TB WhatIf and exact independent audits. RT attempt `20260822T040000Z-private-alpha-stabilization-rt-passA` is immutable uncredited `FAIL 22/1`: the exact prepared rider remained at positive Initiative `2` and failed native action readiness before the player-facing overlay/click path or any command/rule/resource chain. Immediate audit-before-read proved exact restoration.
+
+The current change is diagnostic only. An exact-token `UnitCombatCooldownsController.TickOnUnit` prefix/postfix observes the exact active action actor during `AwaitCombatFrame`, preserving before/after initiative, positive game-delta total, native decrement/increase/unchanged counts, and cross-tick rewrites without assigning game state. It changes no schema-v44/v45 evidence shape, timeout, readiness threshold, action economy, pathfinding, opportunity, or restoration rule. Offline source/component/visual/harness/assembly totals pass `21/230/17/219/276`. A fresh clean package/suite and observation process are mandatory before selecting any behavioral repair or restarting qualification A/B.
+
 ## Stabilization deployment gate resolved (2026-08-22)
 
 Status: `IN PROGRESS`; no stabilization runtime PASS is claimed. Coherent implementation `b17a46401c48000d27be17ff5d6dcde27471bbe4` is guarded-published, the historical manual KMC deployment is hash-bound in ignored backup evidence and absent from live Mods, and complete foreign Mods equality passed around removal. Post-removal offline gates are source/component/visual/harness/assembly `21/228/17/219/275`, PowerShell/JSON parsers `27/0` / `7/0`, diff and prohibited-payload PASS. The next clean documentation-HEAD package must pass stable suite admission, separate RT/TB WhatIf plus zero-mutation audits, fresh schema-v44 RT A/B, schema-v45 TB A/B, doorway regression, and restoration-before-read before the manual-regression handoff.

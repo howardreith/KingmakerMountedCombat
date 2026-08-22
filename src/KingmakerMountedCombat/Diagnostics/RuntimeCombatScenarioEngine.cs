@@ -73,6 +73,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly string evidencePath;
         private readonly string dllSha256;
         private readonly string dllMvid;
+        private readonly DiagnosticCombatInitiativeObservation initiativeTickObservation =
+            new DiagnosticCombatInitiativeObservation();
 
         private DiagnosticCombatTargetService targetService;
         private MountedCombatRuleProbe ruleProbe;
@@ -393,6 +395,29 @@ namespace KingmakerMountedCombat.Diagnostics
             }
         }
 
+        internal void ObserveCombatCooldownTick(
+            UnitEntityData unit,
+            float prefixInitiative,
+            float postfixInitiative,
+            float gameDeltaTime,
+            bool prepared,
+            bool inCombat,
+            bool awake)
+        {
+            if (completed || step != CombatEngineStep.AwaitCombatFrame || unit == null || unit != AttackActor)
+            {
+                return;
+            }
+
+            initiativeTickObservation.Observe(
+                prefixInitiative,
+                postfixInitiative,
+                gameDeltaTime,
+                prepared,
+                inCombat,
+                awake);
+        }
+
         public void Dispose()
         {
             if (disposed)
@@ -431,6 +456,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void BeginRow()
         {
+            initiativeTickObservation.Reset();
             movementToAttackObservationCount = 0;
             selectionRetainedDuringApproach = true;
             uiCoherentDuringApproach = true;
@@ -2139,6 +2165,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         ? "none"
                         : Game.Instance.TurnBasedCombatController.CurrentTurn.Status.ToString()) +
                     ";dispatchReadiness=" + (dispatchReadiness?.FailureSummary ?? "not-observed") +
+                    ";initiativeTickObservation=" + initiativeTickObservation.Describe() +
                     ";gamePaused=" + (Game.Instance != null && Game.Instance.IsPaused);
             }
             return "Command readiness: " + combat.DescribeActiveCommandReadiness();

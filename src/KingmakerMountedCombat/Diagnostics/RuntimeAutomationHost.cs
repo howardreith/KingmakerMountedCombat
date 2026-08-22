@@ -235,6 +235,25 @@ namespace KingmakerMountedCombat.Diagnostics
             if (active != null) { active.loadRequestCount++; }
         }
 
+        internal static void ObserveCombatCooldownTick(
+            Kingmaker.EntitySystem.Entities.UnitEntityData unit,
+            float prefixInitiative,
+            float postfixInitiative,
+            float gameDeltaTime,
+            bool prepared,
+            bool inCombat,
+            bool awake)
+        {
+            active?.combatEngine?.ObserveCombatCooldownTick(
+                unit,
+                prefixInitiative,
+                postfixInitiative,
+                gameDeltaTime,
+                prepared,
+                inCombat,
+                awake);
+        }
+
         internal static bool TryReportBootstrapFailure(IModLogger logger, string loadedModId, Exception exception)
         {
             try
