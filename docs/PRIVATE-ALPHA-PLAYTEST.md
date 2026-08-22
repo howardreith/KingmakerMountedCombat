@@ -1,6 +1,10 @@
 # Private alpha playtest
 
-Status: `PRIVATE ALPHA COMPLETE — PLAYTEST HANDOFF`
+## Stabilization notice
+
+The artifact below is preserved historical qualification and is no longer the package to install for a new regression test. Human testing found rider visibility, non-world UI, ordinary overlay melee input, and turn-based control defects. A replacement package identity and focused checklist will be inserted only after the stabilization technical gates pass. Until then, status is `IN PROGRESS`; do not treat the historical package as the stabilized build.
+
+Historical status: `PRIVATE ALPHA COMPLETE — PLAYTEST HANDOFF`
 
 This is a private diagnostic playtest handoff, not a public release. Install only the exact artifact identity below.
 

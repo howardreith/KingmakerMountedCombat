@@ -4,6 +4,8 @@ using System.Reflection;
 using Kingmaker;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.GameModes;
+using Kingmaker.UI.ActionBar;
+using Kingmaker.UI.Group;
 using Kingmaker.View;
 using KingmakerMountedCombat.Diagnostics;
 using KingmakerMountedCombat.Domain;
@@ -43,6 +45,7 @@ namespace KingmakerMountedCombat.Integration
         private MountedRiderPoseAdapter poseAdapter;
         private bool poseComponentOwned;
         private bool poseBaselineRestoreVerified;
+        private bool replacementRiderViewReleaseVerified;
         private bool presentationConfigured;
         private Vector3 preMountRiderPosition;
         private float preMountRiderOrientation;
@@ -94,6 +97,8 @@ namespace KingmakerMountedCombat.Integration
         public bool PoseFrameApplied => poseAdapter != null && poseAdapter.FramePoseApplied;
 
         public bool PoseBaselineRestoreVerified => poseAdapter != null ? poseAdapter.BaselineRestoreVerified : poseBaselineRestoreVerified;
+
+        public bool ReplacementRiderViewReleaseVerified => replacementRiderViewReleaseVerified;
 
         public int PoseBoneCount => poseAdapter == null ? 0 : poseAdapter.BoneCount;
 
@@ -224,9 +229,15 @@ namespace KingmakerMountedCombat.Integration
                 return "A mounted unit view was detached or replaced.";
             }
 
-            if (!riderView.gameObject.activeInHierarchy || !mountView.gameObject.activeInHierarchy)
+            var modeDisposition = MountedGameModePolicy.Classify(Game.Instance?.CurrentMode.ToString());
+            if (!MountedViewActivityPolicy.IsAdmissible(
+                modeDisposition,
+                riderView.gameObject.activeSelf,
+                mountView.gameObject.activeSelf,
+                riderView.gameObject.activeInHierarchy,
+                mountView.gameObject.activeInHierarchy))
             {
-                return "A mounted unit view is no longer active.";
+                return "Mounted rider/Mammoth view activity is incoherent for the exact current game mode.";
             }
 
             if (rider.Descriptor?.Pet != mount || mount.Descriptor?.Master.Value != rider || !mount.Descriptor.IsPet)
@@ -251,7 +262,7 @@ namespace KingmakerMountedCombat.Integration
                 return "Mounted current-size invariant changed.";
             }
 
-            if (Game.Instance == null || !IsSafeMovementMode(Game.Instance.CurrentMode))
+            if (Game.Instance == null || !MountedGameModePolicy.CanRetainMountedRelationship(Game.Instance.CurrentMode.ToString()))
             {
                 return "An unsupported mounted game-mode boundary was crossed.";
             }
@@ -294,6 +305,7 @@ namespace KingmakerMountedCombat.Integration
             riderStockAgentWasEnabled = riderStockAgent.enabled;
             riderAvoidanceWasDisabled = riderStockAgent.AvoidanceDisabled;
             riderForbidRotationWasEnabled = riderView.ForbidRotation;
+            replacementRiderViewReleaseVerified = false;
             preMountRiderPosition = rider.Position;
             preMountRiderOrientation = rider.Orientation;
             movementAuthorityConfigured = true;
@@ -371,6 +383,14 @@ namespace KingmakerMountedCombat.Integration
             Exception first = null;
             try
             {
+                ReleaseReplacementRiderViewFromOwnedAnchor();
+            }
+            catch (Exception exception)
+            {
+                first = first ?? exception;
+            }
+            try
+            {
                 if (poseComponentOwned)
                 {
                     if (poseAdapter == null)
@@ -390,7 +410,7 @@ namespace KingmakerMountedCombat.Integration
             }
             catch (Exception exception)
             {
-                first = exception;
+                first = first ?? exception;
             }
 
             if (!poseComponentOwned && poseAdapter == null)
@@ -682,6 +702,170 @@ namespace KingmakerMountedCombat.Integration
             mount = null;
         }
 
+        internal bool IsExactCapturedView(UnitEntityData unit)
+        {
+            if (unit == null)
+            {
+                return false;
+            }
+            if (unit == rider)
+            {
+                return unit.View == riderView;
+            }
+            return unit == mount && unit.View == mountView;
+        }
+
+        internal bool HasRiderViewReplacement => rider != null && riderView != null && rider.View != null && rider.View != riderView;
+
+        internal bool IsChangedViewChildOfOwnedAnchor(UnitEntityData unit)
+        {
+            return unit != null && unit == rider && unit.View != null &&
+                unit.View != riderView && positionAnchor != null &&
+                unit.View.transform.parent == positionAnchor;
+        }
+
+        internal string CapturePresentationObservation()
+        {
+            var currentRiderView = rider?.View;
+            var currentMountView = mount?.View;
+            var selection = Kingmaker.UI.Selection.SelectionManager.Instance?.SelectedUnits;
+            var riderSelected = rider != null && selection != null && selection.Count == 1 && selection[0] == rider;
+            return "mode=" + (Game.Instance == null ? "unavailable" : Game.Instance.CurrentMode.ToString()) +
+                ";turnBased=" + TurnBased.Controllers.CombatController.IsInTurnBasedCombat() +
+                ";riderViewExact=" + (currentRiderView != null && currentRiderView == riderView) +
+                ";riderViewActiveSelf=" + (currentRiderView != null && currentRiderView.gameObject.activeSelf) +
+                ";riderViewActiveInHierarchy=" + (currentRiderView != null && currentRiderView.gameObject.activeInHierarchy) +
+                ";riderParent=" + (currentRiderView?.transform.parent == null ? "<root>" : currentRiderView.transform.parent.name) +
+                ";riderSibling=" + (currentRiderView == null ? -1 : currentRiderView.transform.GetSiblingIndex()) +
+                ";riderRendererCount=" + CountRenderers(currentRiderView) +
+                ";riderEnabledRendererCount=" + CountEnabledRenderers(currentRiderView) +
+                ";mountViewExact=" + (currentMountView != null && currentMountView == mountView) +
+                ";mountViewActiveSelf=" + (currentMountView != null && currentMountView.gameObject.activeSelf) +
+                ";mountViewActiveInHierarchy=" + (currentMountView != null && currentMountView.gameObject.activeInHierarchy) +
+                ";poseLease=" + (poseAdapter != null && poseAdapter.IsConfigured) +
+                ";attachmentLease=" + riderAttachmentLease.IsAcquired +
+                ";replacementReleased=" + replacementRiderViewReleaseVerified +
+                ";riderSelected=" + riderSelected +
+                ";" + CaptureUiOwnershipObservation();
+        }
+
+        private string CaptureUiOwnershipObservation()
+        {
+            try
+            {
+                var actionBar = ActionBarManager.Instance;
+                var actionBarOwnerField = typeof(ActionBarManager).GetField(
+                    "m_Selected",
+                    BindingFlags.Instance | BindingFlags.NonPublic);
+                var actionBarOwner = actionBar == null || actionBarOwnerField == null
+                    ? null
+                    : actionBarOwnerField.GetValue(actionBar) as UnitEntityData;
+
+                var portraitOwnerField = typeof(GroupCharacterPortraitController).GetField(
+                    "m_Unit",
+                    BindingFlags.Instance | BindingFlags.NonPublic);
+                var portraitSelectionField = typeof(GroupCharacterPortraitController).GetField(
+                    "m_SelectionSprite",
+                    BindingFlags.Instance | BindingFlags.NonPublic);
+                var portraitFrameField = typeof(GroupCharacterPortraitController).GetField(
+                    "Frame",
+                    BindingFlags.Instance | BindingFlags.Public);
+                var portraitCount = 0;
+                var portraitActiveOwnerCount = 0;
+                var portraitActive = false;
+                var portraitSelected = false;
+                foreach (var candidate in Resources.FindObjectsOfTypeAll<GroupCharacterPortraitController>())
+                {
+                    if (candidate == null || portraitOwnerField == null || portraitOwnerField.GetValue(candidate) != rider)
+                    {
+                        continue;
+                    }
+                    portraitCount++;
+                    if (candidate.gameObject.activeInHierarchy)
+                    {
+                        portraitActiveOwnerCount++;
+                        portraitActive = true;
+                    }
+                    var selectedSprite = portraitSelectionField?.GetValue(candidate) as Sprite;
+                    var frame = portraitFrameField?.GetValue(candidate) as Component;
+                    var currentSprite = frame?.GetType().GetProperty(
+                        "sprite",
+                        BindingFlags.Instance | BindingFlags.Public)?.GetValue(frame, null) as Sprite;
+                    portraitSelected |= candidate.gameObject.activeInHierarchy &&
+                        selectedSprite != null && currentSprite == selectedSprite;
+                }
+
+                var follower = Game.Instance?.CameraController?.Follower;
+                var followerType = follower?.GetType();
+                var cameraOnField = followerType?.GetField("m_IsOn", BindingFlags.Instance | BindingFlags.NonPublic);
+                var cameraUnitField = followerType?.GetField("m_Unit", BindingFlags.Instance | BindingFlags.NonPublic);
+                var cameraOn = cameraOnField != null && (bool)cameraOnField.GetValue(follower);
+                var cameraUnit = cameraUnitField?.GetValue(follower) as UnitEntityData;
+
+                return "actionBarOwner=" + (actionBarOwner?.UniqueId ?? "<none>") +
+                    ";actionBarActive=" + (actionBar != null && actionBar.isActiveAndEnabled && actionBar.gameObject.activeInHierarchy) +
+                    ";portraitOwnerCount=" + portraitCount +
+                    ";portraitActiveOwnerCount=" + portraitActiveOwnerCount +
+                    ";portraitActive=" + portraitActive +
+                    ";portraitSelected=" + portraitSelected +
+                    ";cameraOn=" + cameraOn +
+                    ";cameraOwner=" + (cameraUnit?.UniqueId ?? "<none>");
+            }
+            catch (Exception exception)
+            {
+                return "uiOwnershipObservationError=" + exception.GetType().Name;
+            }
+        }
+
+        private void ReleaseReplacementRiderViewFromOwnedAnchor()
+        {
+            var replacement = rider?.View;
+            if (replacement == null || replacement == riderView || positionAnchor == null ||
+                replacement.transform.parent != positionAnchor)
+            {
+                return;
+            }
+
+            var transform = replacement.transform;
+            var activeSelf = replacement.gameObject.activeSelf;
+            var worldPosition = transform.position;
+            var worldRotation = transform.rotation;
+            var worldScale = transform.lossyScale;
+            if (!riderAttachmentLease.ReleaseInheritedReplacement(transform) ||
+                transform.parent != riderAttachmentLease.OriginalParent ||
+                Vector3.Distance(transform.position, worldPosition) > 0.0001f ||
+                Quaternion.Angle(transform.rotation, worldRotation) > 0.01f ||
+                Vector3.Distance(transform.lossyScale, worldScale) > 0.0001f ||
+                replacement.gameObject.activeSelf != activeSelf)
+            {
+                throw new InvalidOperationException("Replacement rider view did not leave the owned attachment anchor without transform or visibility mutation.");
+            }
+            replacementRiderViewReleaseVerified = true;
+            logger.Info("Released the stock replacement rider view from the owned mounted anchor before presentation cleanup.");
+        }
+
+        private static int CountRenderers(UnitEntityView view)
+        {
+            return view == null ? 0 : view.GetComponentsInChildren<Renderer>(true).Length;
+        }
+
+        private static int CountEnabledRenderers(UnitEntityView view)
+        {
+            if (view == null)
+            {
+                return 0;
+            }
+            var count = 0;
+            foreach (var renderer in view.GetComponentsInChildren<Renderer>(true))
+            {
+                if (renderer != null && renderer.enabled)
+                {
+                    count++;
+                }
+            }
+            return count;
+        }
+
         private void RequirePreparedPair(MountedPair pair)
         {
             if (pair == null || rider == null || mount == null || !string.Equals(pair.RiderId, rider.UniqueId, StringComparison.Ordinal) || !string.Equals(pair.MountId, mount.UniqueId, StringComparison.Ordinal))
@@ -716,7 +900,7 @@ namespace KingmakerMountedCombat.Integration
 
         private static bool IsSafeMovementMode(GameModeType mode)
         {
-            return mode == GameModeType.Default || mode == GameModeType.Pause;
+            return MountedGameModePolicy.CanAdmitMountedAction(mode.ToString());
         }
 
         private static FieldInfo ResolveMammothAiBackingField()
@@ -733,6 +917,7 @@ namespace KingmakerMountedCombat.Integration
         {
             return trigger != CleanupTrigger.AreaUnloading &&
                 trigger != CleanupTrigger.ViewDetached &&
+                trigger != CleanupTrigger.ViewReplaced &&
                 trigger != CleanupTrigger.LoadRequested &&
                 trigger != CleanupTrigger.ProcessTeardown;
         }

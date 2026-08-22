@@ -8,6 +8,7 @@ using Kingmaker.EntitySystem.Entities;
 using Kingmaker.EntitySystem.Persistence;
 using Kingmaker.UI.Selection;
 using Kingmaker.UnitLogic.Commands;
+using Kingmaker.UnitLogic.Commands.Base;
 using Kingmaker.View;
 using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Diagnostics;
@@ -39,7 +40,8 @@ namespace KingmakerMountedCombat.Integration
                     throw new InvalidOperationException("Exact Kingmaker Assembly-CSharp MVID mismatch: " + observedMvid + ".");
                 }
 
-                PatchExact(typeof(ClickGroundHandler), "RunCommand", 0x060093DC, new[] { typeof(UnitEntityData), typeof(UnityEngine.Vector3), typeof(float?), typeof(float), typeof(float), typeof(bool) }, nameof(PatchMethods.GroundCommandPrefix));
+                PatchExact(typeof(ClickGroundHandler), "RunCommand", 0x060093DC, new[] { typeof(UnitEntityData), typeof(UnityEngine.Vector3), typeof(float?), typeof(float), typeof(float), typeof(bool) }, nameof(PatchMethods.GroundCommandPrefix), nameof(PatchMethods.GroundCommandPostfix));
+                PatchExact(typeof(UnitCommands), "Run", 0x060026B2, new[] { typeof(UnitCommand) }, nameof(PatchMethods.UnitCommandRunPrefix));
                 PatchExact(typeof(SelectionManager), "SelectUnit", 0x060034F0, new[] { typeof(UnitEntityView), typeof(bool), typeof(bool), typeof(bool) }, nameof(PatchMethods.SelectUnitPrefix));
                 PatchExact(typeof(SelectionManager), "MultiSelect", 0x060034F5, new[] { typeof(IEnumerable<UnitEntityView>), typeof(bool) }, nameof(PatchMethods.MultiSelectPrefix));
                 PatchExact(typeof(SelectionManagerBase), "Stop", 0x060000B9, Type.EmptyTypes, nameof(PatchMethods.StopOrHoldPrefix));
@@ -50,10 +52,9 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(UnitEntityView), "ForcePlaceAboveGround", 0x06001848, Type.EmptyTypes, nameof(PatchMethods.ForcePlaceAboveGroundPrefix));
                 PatchExact(typeof(ClickUnitHandler), "OnClick", 0x060093ED, new[] { typeof(UnityEngine.GameObject), typeof(UnityEngine.Vector3), typeof(int), typeof(bool), typeof(bool) }, nameof(PatchMethods.UnitClickPrefix));
                 PatchExact(typeof(UnitMovementAgent), "CanMoveInTurnBased", 0x060018A9, new[] { typeof(float).MakeByRefType() }, nameof(PatchMethods.MountMovementPrefix));
-                PatchExact(typeof(CombatController), "StartTurn", 0x06000BDA, new[] { typeof(UnitEntityData) }, null, nameof(PatchMethods.StartTurnPostfix));
                 PatchExact(typeof(UnitAttack), "GetApproachRadius", 0x06002685, new[] { typeof(UnitEntityData) }, null, nameof(PatchMethods.AttackRangePostfix));
                 PatchExact(typeof(UnitCombatState), "AttackOfOpportunity", 0x060093A1, new[] { typeof(UnitEntityData), typeof(bool) }, nameof(PatchMethods.AttackOfOpportunityPrefix));
-                logger.Info("Installed fourteen exact-token Harmony12 active-pair guards including scoped click, turn, range, Mammoth movement, and in-command opportunity-isolation seams.");
+                logger.Info("Installed fourteen exact-token Harmony12 active-pair guards including scoped click, stock-command, range, Mammoth movement, and in-command opportunity-isolation seams.");
             }
             catch
             {
@@ -128,8 +129,21 @@ namespace KingmakerMountedCombat.Integration
         {
             internal static bool GroundCommandPrefix(ref UnitEntityData unit)
             {
-                PatchBridge.Combat?.Cancel("ground command");
+                if (PatchBridge.Combat != null && !PatchBridge.Combat.TryAdmitGroundCommand(unit))
+                {
+                    return false;
+                }
                 return PatchBridge.Service == null || PatchBridge.Service.RouteGroundCommand(ref unit);
+            }
+
+            internal static void GroundCommandPostfix(UnitEntityData unit)
+            {
+                PatchBridge.Combat?.CompleteGroundCommandAdmission(unit);
+            }
+
+            internal static bool UnitCommandRunPrefix(UnitCommands __instance, UnitCommand cmd)
+            {
+                return PatchBridge.Combat == null || PatchBridge.Combat.ShouldAllowStockCommand(__instance, cmd);
             }
 
             internal static bool SelectUnitPrefix(ref UnitEntityView unit, bool single)
@@ -187,11 +201,6 @@ namespace KingmakerMountedCombat.Integration
                     return false;
                 }
                 return true;
-            }
-
-            internal static void StartTurnPostfix(UnitEntityData unit)
-            {
-                PatchBridge.Combat?.EndExactMountTurn(unit);
             }
 
             internal static void AttackRangePostfix(

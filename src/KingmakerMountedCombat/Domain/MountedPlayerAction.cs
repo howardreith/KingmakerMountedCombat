@@ -181,7 +181,7 @@ namespace KingmakerMountedCombat.Domain
             }
             if (!context.SafeGameMode)
             {
-                reasons.Add("Mounting is available only during ordinary exploration or pause.");
+                reasons.Add("Mounting is available only during ordinary exploration in the active world view.");
             }
             if (!context.ViewsAndStockAgentsAvailable)
             {

@@ -1816,6 +1816,8 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             public string Boundary { get; set; }
             public string Source { get; set; }
+            [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            public string Detail { get; set; }
             public string StateBefore { get; set; }
             public string StateAfter { get; set; }
             public string CleanupTrigger { get; set; }
@@ -1830,6 +1832,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     Boundary = record.Boundary.ToString(),
                     Source = record.Source,
+                    Detail = record.Detail,
                     StateBefore = record.StateBefore.ToString(),
                     StateAfter = record.StateAfter.ToString(),
                     CleanupTrigger = record.CleanupTrigger.HasValue ? record.CleanupTrigger.Value.ToString() : null,

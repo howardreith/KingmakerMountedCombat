@@ -119,6 +119,10 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.UnitLogic.Commands.UnitAttack',0x06002675,'GetAttackIndex'),
         @('Kingmaker.UnitLogic.Commands.UnitAttack',0x06002680,'OnTick'),
         @('Kingmaker.UnitLogic.Commands.UnitCommands',0x060026B2,'Run'),
+        @('Kingmaker.UnitLogic.Buffs.Polymorph',0x06002A08,'TryReplaceView'),
+        @('Kingmaker.UnitLogic.Buffs.Polymorph',0x06002A09,'RestoreView'),
+        @('Kingmaker.EntitySystem.EntityDataBase',0x06007E9D,'AttachToViewOnLoad'),
+        @('Kingmaker.EntitySystem.Entities.UnitEntityData',0x0600835C,'OnViewAttached'),
         @('Kingmaker.UnitLogic.Commands.Base.UnitCommand',0x060027BA,'IgnoreCooldown'),
         @('Kingmaker.EntitySystem.Entities.UnitEntityData',0x0600838F,'UpdateCooldowns'),
         @('Kingmaker.Controllers.Combat.UnitCombatState',0x06009390,'get_CanAttackOfOpportunity'),
@@ -411,6 +415,26 @@ if($Target-eq'Kingmaker'){
         @($createSingleAttack[0].ReturnType.GetGenericArguments()).Count-eq1 -and
         @($createSingleAttack[0].ReturnType.GetGenericArguments())[0].FullName-ceq'Kingmaker.UnitLogic.Commands.AttackHandInfo') `
         'UnitAttack.CreateSingleAttack exact public instance native-order signature'
+    $gameModeType=$assembly.GetType('Kingmaker.GameModes.GameModeType',$false)
+    $polymorphReplace=@(Find-Token 'Kingmaker.UnitLogic.Buffs.Polymorph' 0x06002A08)
+    $polymorphRestore=@(Find-Token 'Kingmaker.UnitLogic.Buffs.Polymorph' 0x06002A09)
+    $attachView=@(Find-Token 'Kingmaker.EntitySystem.EntityDataBase' 0x06007E9D)
+    Assert-Contract ($null-ne$gameModeType -and $gameModeType.IsEnum -and
+        [int]$gameModeType.GetField('Default').GetRawConstantValue()-eq1 -and
+        [int]$gameModeType.GetField('Pause').GetRawConstantValue()-eq4 -and
+        [int]$gameModeType.GetField('FullScreenUi').GetRawConstantValue()-eq5 -and
+        [int]$gameModeType.GetField('EscMode').GetRawConstantValue()-eq6 -and
+        [int]$gameModeType.GetField('Cutscene').GetRawConstantValue()-eq7) `
+        'GameModeType exact world non-world-UI and cutscene identities'
+    Assert-Contract ($polymorphReplace.Count-eq1 -and $polymorphReplace[0] -is [Reflection.MethodInfo] -and
+        $polymorphReplace[0].IsPrivate -and $polymorphReplace[0].GetParameters().Count-eq1 -and
+        $polymorphReplace[0].GetParameters()[0].ParameterType.FullName-ceq'System.Boolean' -and
+        $polymorphRestore.Count-eq1 -and $polymorphRestore[0] -is [Reflection.MethodInfo] -and
+        $polymorphRestore[0].IsPrivate -and $polymorphRestore[0].GetParameters().Count-eq0 -and
+        $attachView.Count-eq1 -and $attachView[0] -is [Reflection.MethodInfo] -and
+        (Test-MethodIlContainsToken $polymorphReplace[0] 0x06007E9D) -and
+        (Test-MethodIlContainsToken $polymorphRestore[0] 0x06007E9D)) `
+        'Polymorph exact replacement and restoration paths attach stock views through EntityDataBase'
     $turnBasedCombatType=$assembly.GetType('TurnBased.Controllers.CombatController',$false)
     $turnControllerType=$assembly.GetType('TurnBased.Controllers.TurnController',$false)
     $gameTurnController=@(Find-Token 'Kingmaker.Game' 0x040006C2)

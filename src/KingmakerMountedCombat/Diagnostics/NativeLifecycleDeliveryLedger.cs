@@ -36,6 +36,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
         public string Source { get; set; }
 
+        public string Detail { get; set; }
+
         public RelationshipState StateBefore { get; set; }
 
         public RelationshipState StateAfter { get; set; }
@@ -52,6 +54,7 @@ namespace KingmakerMountedCombat.Diagnostics
     public sealed class NativeLifecycleDeliveryLedger
     {
         private const int MaximumRetainedRecords = 256;
+        private const int MaximumDetailCharacters = 8192;
         private readonly object gate = new object();
         private readonly List<NativeLifecycleDeliveryRecord> records = new List<NativeLifecycleDeliveryRecord>();
         private long sequence;
@@ -64,7 +67,8 @@ namespace KingmakerMountedCombat.Diagnostics
             CleanupTrigger? cleanupTrigger,
             bool cleanupAttempted,
             bool cleanupSucceeded,
-            IReadOnlyList<string> cleanupErrors = null)
+            IReadOnlyList<string> cleanupErrors = null,
+            string detail = null)
         {
             if (string.IsNullOrWhiteSpace(source))
             {
@@ -82,6 +86,10 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 throw new ArgumentException("A pure observation cannot report cleanup failure.", nameof(cleanupSucceeded));
             }
+            if (detail != null && (string.IsNullOrWhiteSpace(detail) || detail.Length > MaximumDetailCharacters))
+            {
+                throw new ArgumentException("Lifecycle observation detail must be non-empty and bounded.", nameof(detail));
+            }
             var errors = cleanupErrors == null ? new string[0] : new List<string>(cleanupErrors).ToArray();
             foreach (var error in errors)
             {
@@ -96,6 +104,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     Sequence = sequence,
                     Boundary = boundary,
                     Source = source,
+                    Detail = detail,
                     StateBefore = stateBefore,
                     StateAfter = stateAfter,
                     CleanupTrigger = cleanupTrigger,

@@ -18,6 +18,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("request requires exact hash and MVID formats", RequestRequiresBuildIdentity);
             runner.Run("request accepts exact save-backed fixture", RequestAcceptsExactSaveBackedFixture);
             runner.Run("request accepts combat core control suite", RequestAcceptsCombatCoreControlSuite);
+            runner.Run("request accepts private-alpha human-play combat rows", RequestAcceptsHumanPlayCombatRows);
             runner.Run("request requires exact qualification-suite identity", RequestRequiresQualificationSuiteIdentity);
             runner.Run("request accepts read-only manual visual review", RequestAcceptsReadOnlyManualReview);
             runner.Run("request rejects writable manual visual review", RequestRejectsWritableManualReview);
@@ -46,6 +47,7 @@ namespace KingmakerMountedCombat.Tests
             NativeAreaBoundaryProgressTests.Register(runner);
             MountedRiderPoseTests.Register(runner);
             MountedRiderGroundingPolicyTests.Register(runner);
+            MountedStabilizationPolicyTests.Register(runner);
             StopEarlyCaptureBoundaryTests.Register(runner);
             PresentationOverlayEvidenceTests.Register(runner);
             ScopedDiagnosticAiLeaseTests.Register(runner);
@@ -120,6 +122,20 @@ namespace KingmakerMountedCombat.Tests
             var request = ValidSaveBackedRequest();
             request.Scenario = "combat-core-control-suite";
             TestRunner.Equal(0, request.Validate().Count, "Combat core control suite request was rejected.");
+        }
+
+        private static void RequestAcceptsHumanPlayCombatRows()
+        {
+            foreach (var scenario in new[]
+            {
+                "mounted-rider-melee-human-play-path-rt",
+                "mounted-rider-melee-human-play-path-tb"
+            })
+            {
+                var request = ValidSaveBackedRequest();
+                request.Scenario = scenario;
+                TestRunner.Equal(0, request.Validate().Count, scenario + " request was rejected.");
+            }
         }
 
         private static void RequestRequiresQualificationSuiteIdentity()

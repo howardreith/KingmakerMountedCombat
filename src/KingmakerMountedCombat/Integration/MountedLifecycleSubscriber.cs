@@ -79,20 +79,12 @@ namespace KingmakerMountedCombat.Integration
 
         public void OnGameModeStart(GameModeType gameMode)
         {
-            if (gameMode != GameModeType.Default && gameMode != GameModeType.Pause)
-            {
-                Cleanup(NativeLifecycleBoundary.GameModeStarted, "IGameModeHandler.OnGameModeStart(" + gameMode + ")", CleanupTrigger.AreaUnloading);
-            }
-            else { Observe(NativeLifecycleBoundary.GameModeStarted, "IGameModeHandler.OnGameModeStart(" + gameMode + ")"); }
+            ObserveOrCleanupGameMode(NativeLifecycleBoundary.GameModeStarted, "IGameModeHandler.OnGameModeStart(" + gameMode + ")", gameMode);
         }
 
         public void OnGameModeStop(GameModeType gameMode)
         {
-            if (gameMode != GameModeType.Default && gameMode != GameModeType.Pause)
-            {
-                Cleanup(NativeLifecycleBoundary.GameModeStopped, "IGameModeHandler.OnGameModeStop(" + gameMode + ")", CleanupTrigger.AreaUnloading);
-            }
-            else { Observe(NativeLifecycleBoundary.GameModeStopped, "IGameModeHandler.OnGameModeStop(" + gameMode + ")"); }
+            ObserveOrCleanupGameMode(NativeLifecycleBoundary.GameModeStopped, "IGameModeHandler.OnGameModeStop(" + gameMode + ")", gameMode);
         }
 
         public void OnAreaBeginUnloading()
@@ -119,7 +111,24 @@ namespace KingmakerMountedCombat.Integration
         {
             if (IsPairUnit(unit))
             {
-                Cleanup(NativeLifecycleBoundary.ViewAttached, "IUnitViewAttachedUIHandler.HandleUnitViewAttached", CleanupTrigger.ViewDetached);
+                var observation = service.CapturePresentationObservation();
+                var disposition = MountedViewAttachmentPolicy.Classify(
+                    service.State == RelationshipState.Mounted,
+                    true,
+                    service.IsExactCapturedView(unit),
+                    service.IsChangedViewChildOfOwnedAnchor(unit));
+                if (disposition == MountedViewAttachmentDisposition.ObserveExactView)
+                {
+                    Observe(NativeLifecycleBoundary.ViewAttached, "IUnitViewAttachedUIHandler.HandleUnitViewAttached(exact mounted view)", observation);
+                }
+                else if (disposition == MountedViewAttachmentDisposition.IgnoreNonPair)
+                {
+                    Observe(NativeLifecycleBoundary.ViewAttached, "IUnitViewAttachedUIHandler.HandleUnitViewAttached(inactive pair)", observation);
+                }
+                else
+                {
+                    Cleanup(NativeLifecycleBoundary.ViewAttached, "IUnitViewAttachedUIHandler.HandleUnitViewAttached(" + disposition + ")", CleanupTrigger.ViewReplaced, observation);
+                }
             }
             else if (IsCandidatePairUnit(unit))
             {
@@ -222,20 +231,31 @@ namespace KingmakerMountedCombat.Integration
             return unitIsMammoth || ownsMammoth;
         }
 
-        private bool Cleanup(NativeLifecycleBoundary boundary, string source, CleanupTrigger trigger)
+        private bool Cleanup(NativeLifecycleBoundary boundary, string source, CleanupTrigger trigger, string detail = null)
         {
             var before = service.State;
             var result = service.Dismount(trigger);
             var succeeded = result.Succeeded && !result.MovementAuthorityResidual && !result.PresentationResidual &&
                 service.State == RelationshipState.Unmounted;
-            ledger.Record(boundary, source, before, service.State, trigger, true, succeeded, result.Errors);
+            ledger.Record(boundary, source, before, service.State, trigger, true, succeeded, result.Errors, detail);
             return succeeded;
         }
 
-        private void Observe(NativeLifecycleBoundary boundary, string source)
+        private void Observe(NativeLifecycleBoundary boundary, string source, string detail = null)
         {
             var state = service.State;
-            ledger.Record(boundary, source, state, state, null, false, true);
+            ledger.Record(boundary, source, state, state, null, false, true, null, detail);
+        }
+
+        private void ObserveOrCleanupGameMode(NativeLifecycleBoundary boundary, string source, GameModeType gameMode)
+        {
+            if (MountedGameModePolicy.CanRetainMountedRelationship(gameMode.ToString()) || service.State != RelationshipState.Mounted)
+            {
+                Observe(boundary, source, service.CapturePresentationObservation());
+                return;
+            }
+
+            Cleanup(boundary, source, CleanupTrigger.GameModeBoundary, service.CapturePresentationObservation());
         }
     }
 

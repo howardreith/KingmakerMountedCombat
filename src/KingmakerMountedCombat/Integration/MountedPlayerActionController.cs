@@ -23,6 +23,7 @@ namespace KingmakerMountedCombat.Integration
             new MountedPlayerActionFeedbackState("Ready to mount when the selected rider is eligible.");
         private GameObject overlayObject;
         private MountedPlayerActionOverlay overlay;
+        private TransitionResult lastObservedTransition;
         private bool disposed;
 
         public MountedPlayerActionController(
@@ -42,6 +43,16 @@ namespace KingmakerMountedCombat.Integration
             ThrowIfDisposed();
             var availability = MountedPlayerActionEvaluator.Evaluate(CaptureContext());
             feedbackState.ObserveAvailability(availability);
+            var transition = relationship.LastTransition;
+            if (transition != null && !ReferenceEquals(transition, lastObservedTransition))
+            {
+                lastObservedTransition = transition;
+                if (transition.Succeeded && transition.State == RelationshipState.Unmounted &&
+                    transition.Trigger.HasValue && transition.Trigger.Value != CleanupTrigger.Manual)
+                {
+                    feedbackState.SetOperationFeedback(MountedCleanupFeedbackPolicy.Describe(transition.Trigger.Value));
+                }
+            }
             return availability;
         }
 
@@ -56,6 +67,12 @@ namespace KingmakerMountedCombat.Integration
         internal bool ArmCombatAction(MountedCombatActionKind action)
         {
             return combat.Arm(action);
+        }
+
+        internal bool ArmCombatActionFromOverlay(MountedCombatActionKind action)
+        {
+            ObserveOverlayButtonActivation();
+            return ArmCombatAction(action);
         }
 
         internal bool OverlayPresent => overlay != null && overlayObject != null;
@@ -190,6 +207,7 @@ namespace KingmakerMountedCombat.Integration
             if (!disposed)
             {
                 OverlayButtonActivationCount++;
+                combat.MarkPlayerFacingOverlayActivation(Time.frameCount);
             }
         }
 
@@ -253,7 +271,7 @@ namespace KingmakerMountedCombat.Integration
                 (mount != null && mount.GetActivePolymorph() != null) || !context.RiderIsExactlyMedium;
             context.LoadingTransitionOrCutscene = IsLoadingOrCutscene(game, rider, mount);
             context.InCombat = rider.IsInCombat || (mount?.IsInCombat ?? false) || game.Player.IsInCombat;
-            context.SafeGameMode = game.CurrentMode == GameModeType.Default || game.CurrentMode == GameModeType.Pause;
+            context.SafeGameMode = MountedGameModePolicy.CanAdmitMountedAction(game.CurrentMode.ToString());
             context.ViewsAndStockAgentsAvailable = rider.View != null && rider.View.AgentASP != null &&
                 mount?.View != null && mount.View.AgentASP != null;
             context.StockAgentsReady = context.ViewsAndStockAgentsAvailable &&

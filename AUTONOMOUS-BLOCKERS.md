@@ -1,5 +1,9 @@
 # Autonomous blockers
 
+## Stabilization offline-complete; historical manual deployment pending removal - 2026-08-22T02:06:36Z
+
+Status: `IN PROGRESS`; no core architecture or restoration failure is known. PID `11400` is gone and complete process-free gates pass source/component/visual/harness/assembly `21/228/17/219/275`, PowerShell/JSON `26/0` / `7/0`, diff, and prohibited-payload checks. The historical private-alpha folder remains installed at live `Mods\KingmakerMountedCombat`; it is unchanged evidence from the user-requested manual playtest, not transaction debris. Existing transaction safety correctly rejects that case-insensitive collision. KMC has not modified it. Commit/publication and clean package creation may proceed; stable suite admission cannot proceed until the user removes that folder through UMM or separately authorizes an exact project-owned uninstall path. This is an external deployment gate, not a restoration, gameplay, or core-architecture failure.
+
 ## No active core, safety, presentation, or tooling blocker - 2026-08-21T23:00:00Z
 
 Status: `PASS`. Bounded reach plus same-package controls are qualified at `658/0` under one clean package/suite with audit-before-read restoration after every process. The meeting-interrupted preflight `20260821T205500Z-mounted-reach-controls-passA` emitted no runtime artifact and receives no credit; preflight-only artifact-pin attempt `20260821T211200Z-mounted-reach-controls-passA` failed before mutation and also receives no credit. Neither indicates a gameplay or safety defect. Core private-alpha behavior has no active blocker. Optional explicit mounted AoO and basic charge remain `DEFER — EVIDENCED`, not blockers.

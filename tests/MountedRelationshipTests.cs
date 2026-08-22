@@ -58,6 +58,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("view attachment lease cleanup is idempotent", ViewAttachmentLeaseCleanupIsIdempotent);
             runner.Run("view attachment lease retains snapshot for cleanup retry", ViewAttachmentLeaseRetainsSnapshotForRetry);
             runner.Run("view attachment lease uses injected bounded restoration comparers", ViewAttachmentLeaseUsesInjectedBoundedComparers);
+            runner.Run("view attachment lease releases an inherited replacement before anchor cleanup", ViewAttachmentLeaseReleasesInheritedReplacement);
         }
 
         private static void ValidMountTransition()
@@ -1095,6 +1096,41 @@ namespace KingmakerMountedCombat.Tests
             rider.ScaleWriteBias = 0.0d;
             lease.Restore();
             TestRunner.True(!lease.IsAcquired && lease.LastRestoreVerified, "Bounded-comparer mismatch did not support an exact cleanup retry.");
+        }
+
+        private static void ViewAttachmentLeaseReleasesInheritedReplacement()
+        {
+            var originalParent = new FakeTransformNode("stock-parent");
+            var anchor = new FakeTransformNode("owned-anchor");
+            var rider = new FakeTransformNode("old-rider")
+            {
+                Parent = originalParent,
+                SiblingIndex = 4,
+                WorldPosition = "old-position",
+                WorldRotation = "old-rotation",
+                LocalScale = "old-scale"
+            };
+            var replacement = new FakeTransformNode("stock-polymorph-replacement")
+            {
+                Parent = anchor,
+                SiblingIndex = 0,
+                WorldPosition = "replacement-position",
+                WorldRotation = "replacement-rotation",
+                LocalScale = "replacement-scale"
+            };
+            var lease = CreateFakeAttachmentLease();
+            lease.Acquire(rider, anchor);
+
+            TestRunner.True(lease.ReleaseInheritedReplacement(replacement), "Inherited replacement was not released.");
+            TestRunner.Equal(originalParent, replacement.Parent, "Replacement did not return to the captured stock parent.");
+            TestRunner.Equal(4, replacement.SiblingIndex, "Replacement did not inherit the captured stock sibling position.");
+            TestRunner.Equal("replacement-position", replacement.WorldPosition, "Replacement world position changed.");
+            TestRunner.Equal("replacement-rotation", replacement.WorldRotation, "Replacement world rotation changed.");
+            TestRunner.True(lease.IsAcquired, "Releasing the replacement discarded the old rider lease.");
+
+            var foreign = new FakeTransformNode("foreign") { Parent = originalParent };
+            TestRunner.True(!lease.ReleaseInheritedReplacement(foreign), "A view outside the owned anchor was reparented.");
+            lease.Restore();
         }
 
         private static ScopedTransformAttachmentLease<FakeTransformNode, string, string, string> CreateFakeAttachmentLease()

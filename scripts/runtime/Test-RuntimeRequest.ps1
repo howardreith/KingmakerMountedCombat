@@ -117,7 +117,8 @@ $missionScenarios = @(
     'mounted-rider-melee-move-to-attack-rt', 'mounted-rider-melee-move-to-attack-tb',
     'mounted-rider-melee-command-cancel-rt', 'mounted-rider-melee-command-cancel-tb',
     'mounted-rider-melee-command-interrupt-rt', 'mounted-rider-melee-command-interrupt-tb',
-    'mounted-rider-melee-combat-end-rt', 'mounted-rider-melee-combat-end-tb'
+    'mounted-rider-melee-combat-end-rt', 'mounted-rider-melee-combat-end-tb',
+    'mounted-rider-melee-human-play-path-rt', 'mounted-rider-melee-human-play-path-tb'
 )
 $aggregateScenarios = @('fixture-intake','lifecycle-suite','combat-lifecycle-suite','movement-suite','boundary-suite','presentation-suite','combat-core-control-suite')
 $interactiveScenarios = @('manual-visual-review')

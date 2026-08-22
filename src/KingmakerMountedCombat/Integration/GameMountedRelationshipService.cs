@@ -37,6 +37,12 @@ namespace KingmakerMountedCombat.Integration
 
         internal KingmakerMountedPairRuntime Runtime => runtime;
 
+        internal bool IsExactCapturedView(UnitEntityData unit) => runtime.IsExactCapturedView(unit);
+
+        internal bool IsChangedViewChildOfOwnedAnchor(UnitEntityData unit) => runtime.IsChangedViewChildOfOwnedAnchor(unit);
+
+        internal string CapturePresentationObservation() => "relationship=" + State + ";" + runtime.CapturePresentationObservation();
+
         public long RiderGroundPlacementSuppressionCount { get; private set; }
 
         public string LastResult { get; private set; } = "No diagnostic action has run.";
@@ -305,7 +311,7 @@ namespace KingmakerMountedCombat.Integration
             if (error != null)
             {
                 logger.Warning("Mounted invariant invalidated: " + error);
-                Dismount(CleanupTrigger.CompanionInvalidated);
+                Dismount(runtime.HasRiderViewReplacement ? CleanupTrigger.ViewReplaced : CleanupTrigger.CompanionInvalidated);
                 if (cleanupRetryRequired || coordinator.State == RelationshipState.Faulted)
                 {
                     RetryFailedCleanupOrThrow();

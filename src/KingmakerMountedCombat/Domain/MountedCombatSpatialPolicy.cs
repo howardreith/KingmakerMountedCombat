@@ -344,14 +344,25 @@ namespace KingmakerMountedCombat.Domain
                 (currentUnitIsExactActor && (actorTurnIsPreparing || actorTurnIsActing));
         }
 
-        public static bool ShouldEndMountTurn(
+        public static bool ShouldPreserveIndependentMountTurn(
             bool exactMountedPair,
             bool turnBasedCombat,
-            bool currentUnitIsExactMount,
-            bool explicitMountActionPendingOrActive = false)
+            bool currentUnitIsExactMount)
         {
-            return exactMountedPair && turnBasedCombat && currentUnitIsExactMount &&
-                !explicitMountActionPendingOrActive;
+            return exactMountedPair && turnBasedCombat && currentUnitIsExactMount;
+        }
+
+        public static bool CanAdmitRiderGroundMovement(
+            bool exactMountedPair,
+            bool turnBasedCombat,
+            bool requestedUnitIsExactRider,
+            bool currentUnitIsExactRider,
+            bool riderTurnIsPreparing,
+            bool riderTurnIsActing)
+        {
+            return exactMountedPair && requestedUnitIsExactRider &&
+                (!turnBasedCombat ||
+                 currentUnitIsExactRider && (riderTurnIsPreparing || riderTurnIsActing));
         }
 
         public static bool CanDelegateMountMovement(
@@ -365,6 +376,21 @@ namespace KingmakerMountedCombat.Domain
                 turnBasedCombat &&
                 currentUnitIsExactRider &&
                 riderTurnIsActing &&
+                movingAgentIsExactMount;
+        }
+
+        public static bool CanDriveRiderGroundMovement(
+            bool exactMountedPair,
+            bool turnBasedCombat,
+            bool currentUnitIsExactRider,
+            bool riderTurnIsPreparing,
+            bool riderTurnIsActing,
+            bool movingAgentIsExactMount)
+        {
+            return exactMountedPair &&
+                turnBasedCombat &&
+                currentUnitIsExactRider &&
+                (riderTurnIsPreparing || riderTurnIsActing) &&
                 movingAgentIsExactMount;
         }
     }

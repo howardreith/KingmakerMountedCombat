@@ -1,5 +1,13 @@
 # Phase 2 runtime scenario matrix
 
+## Private-alpha stabilization pending fresh evidence (2026-08-21)
+
+Status: `IN PROGRESS`. Human play against exact historical handoff `ff4bae7ca5dc145373771b718574d15f7babdd5e` found non-world UI dismount/invisibility, polymorph replacement-view loss, ordinary rider-melee failure without rejection evidence, and broken turn-based roster/ground movement. The historical package and all prior qualifications remain immutable; they do not qualify the stabilization repair.
+
+New forward-only combat schemas v44/v45 cover `mounted-rider-melee-human-play-path-rt` and `mounted-rider-melee-human-play-path-tb`. Both bind player-facing controller arming, exact native direct-view click admission, zero rejection codes, the unchanged bounded Mammoth-origin reach contract, one rider attack chain, rider-only Standard ownership, no incidental opportunity/duplicate chain, pose/selection coherence, and cleanup. Schema v45 additionally mounts before RT-to-TB transition, requires rider/Mammoth/target native roster membership, executes exact Mammoth Move-slot ground movement under the rider turn with rider-only Move accounting and slot restoration, proves the pair survives TB-to-RT restoration, and binds an active exact rider view, rider selection, action-bar owner, exactly one active selected rider portrait, camera follower owner, pose, and attachment after both transitions.
+
+UI character/map/combat-menu and polymorph visibility cannot be safely proven through synthetic UI input. Their exact installed seams, deterministic policies, source order, and structured presentation telemetry are offline-gated; final credit requires the guarded manual regression package. Mounted ranged rejection is exact-pair-local and deterministic in source/unit coverage, with manual RT/TB confirmation required. Door opening/traversal retains the prior qualified path and requires one fresh stabilization regression. No stabilization row has live credit yet.
+
 ## Bounded mounted reach and same-package controls qualified (2026-08-21)
 
 Status: `PASS` for the exact Medium-humanoid/Mammoth/one-handed private-alpha profile. Clean published commit `1fa5c2e6e841f4025f36283fd5bba7ae94c23ba5`, package SHA-256 `a448bf8e1aa36163c6a30b3c0c116b0b5fce36eb84123d6ae3756be9537932be`, DLL SHA-256/MVID `9f715f4ddd4e086cee8f2aa3aaa4e746401cec113fc529809d1376eab1caf6c1` / `292982ba-6486-4807-b4fa-c15dc0558266`, and suite `20260821T181000Z-mounted-reach-suite1` / snapshot SHA-256 `3aea4cdf34a706ca207886d97fb2724be7f574732421edb33d7a8a229950a3e1` bind the complete set.

@@ -12,6 +12,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("mounted Mammoth primary uses mount actor and mount resource ownership", MountAttackOwnership);
             runner.Run("mounted combat rejects ranged rider attack", RejectsRangedRider);
             runner.Run("mounted combat rejects invalid target and unavailable Standard action", RejectsInvalidContext);
+            runner.Run("mounted combat reports every required player-facing admission reason", ReportsRequiredAdmissionReasons);
             runner.Run("mounted combat transaction starts exactly one child attack", PreventsDuplicateAttack);
             runner.Run("active mounted command suppresses only exact-pair stock opportunity attacks", SuppressesOnlyExactPairOpportunityAttacks);
             runner.Run("mounted combat transaction bounds target repaths", BoundsRepaths);
@@ -30,8 +31,8 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("mounted combat approach evidence reports command movement and pose drift", ApproachEvidenceReportsExactFailures);
             runner.Run("mounted combat native admission bridges only an in-range Mammoth origin", NativeAdmissionUsesMountOrigin);
             runner.Run("mounted combat native admission rejects pair range and offset escape", NativeAdmissionRejectsUnsafeBounds);
-            runner.Run("mounted pair ends only the exact Mammoth turn", SuppressesOnlyMountTurn);
-            runner.Run("mounted pair preserves only an explicitly armed Mammoth action turn", PreservesExplicitMountActionTurn);
+            runner.Run("mounted pair preserves the exact independent Mammoth turn", PreservesIndependentMountTurn);
+            runner.Run("mounted pair admits ground movement only through the rider turn", AdmitsGroundMovementOnlyThroughRiderTurn);
             runner.Run("mounted pair admits rider action in exact native command window", AdmitsExactRiderActionWindow);
             runner.Run("mounted pair delegates movement only through the exact rider turn", DelegatesOnlyExactMovement);
             runner.Run("native single attack prefers an eligible primary hand", NativeSingleAttackPrefersPrimary);
@@ -83,6 +84,7 @@ namespace KingmakerMountedCombat.Tests
         {
             var context = Eligible(MountedCombatActionKind.RiderMelee);
             context.RiderWeaponIsSupportedMelee = false;
+            context.RiderWeaponIsRanged = true;
             var result = MountedCombatActionEvaluator.Evaluate(context);
             TestRunner.True(!result.IsAllowed, "Ranged mounted rider attack was accepted.");
             TestRunner.True(result.Feedback.Contains("ranged attacks"), "Ranged rejection was not explicit.");
@@ -92,14 +94,61 @@ namespace KingmakerMountedCombat.Tests
         {
             var context = Eligible(MountedCombatActionKind.MountPrimaryNatural);
             context.TargetIsVisibleEnemy = false;
+            context.TargetVisible = false;
             context.ActionActorHasStandardAction = false;
             context.ActionActorOwnsCurrentTurnOrRealTime = false;
             var result = MountedCombatActionEvaluator.Evaluate(context);
             var feedback = string.Join(" ", result.RejectionReasons.ToArray());
             TestRunner.True(!result.IsAllowed, "Invalid mounted attack was accepted.");
-            TestRunner.True(feedback.Contains("visible enemy"), "Target rejection missing.");
+            TestRunner.True(feedback.Contains("not visible"), "Target visibility rejection missing.");
             TestRunner.True(feedback.Contains("current turn"), "Turn rejection missing.");
             TestRunner.True(feedback.Contains("Standard action"), "Resource rejection missing.");
+        }
+
+        private static void ReportsRequiredAdmissionReasons()
+        {
+            var context = Eligible(MountedCombatActionKind.RiderMelee);
+            context.ExactRiderSelection = false;
+            context.ExactMountedPair = false;
+            context.SupportedRiderBodyProfile = false;
+            context.TargetExists = false;
+            context.TargetAliveAndConscious = false;
+            context.TargetVisible = false;
+            context.TargetHostile = false;
+            context.TargetAttackable = false;
+            context.TargetIsVisibleEnemy = false;
+            context.ActionActorOwnsCurrentTurnOrRealTime = false;
+            context.ActionActorHasStandardAction = false;
+            context.TransactionIdle = false;
+            context.RiderHasEligibleWeapon = false;
+            context.PathKnownUnavailable = true;
+            context.WithinSupportedRangeEnvelope = false;
+            context.RangeOriginConsistent = false;
+            context.CommandAdmissionReady = false;
+
+            var result = MountedCombatActionEvaluator.Evaluate(context);
+            var codes = result.RejectionCodes;
+            foreach (var expected in new[]
+            {
+                MountedCombatRejectionCode.WrongActorOrSelection,
+                MountedCombatRejectionCode.RelationshipInvalidated,
+                MountedCombatRejectionCode.BodyProfileUnsupported,
+                MountedCombatRejectionCode.TargetInvalid,
+                MountedCombatRejectionCode.TargetNotVisible,
+                MountedCombatRejectionCode.TargetNotHostile,
+                MountedCombatRejectionCode.TargetNotAttackable,
+                MountedCombatRejectionCode.WrongTurn,
+                MountedCombatRejectionCode.WrongActionState,
+                MountedCombatRejectionCode.AlreadyActiveCommand,
+                MountedCombatRejectionCode.NoEligibleWeapon,
+                MountedCombatRejectionCode.NoPath,
+                MountedCombatRejectionCode.OutsideSupportedRange,
+                MountedCombatRejectionCode.RangeOriginMismatch,
+                MountedCombatRejectionCode.CommandAdmissionFailure
+            })
+            {
+                TestRunner.True(codes.Contains(expected), "Missing rejection code: " + expected + ".");
+            }
         }
 
         private static void PreventsDuplicateAttack()
@@ -438,28 +487,37 @@ namespace KingmakerMountedCombat.Tests
                 "An excessive rider-executor radius expansion was admitted.");
         }
 
-        private static void SuppressesOnlyMountTurn()
+        private static void PreservesIndependentMountTurn()
         {
-            TestRunner.True(MountedPairTurnPolicy.ShouldEndMountTurn(true, true, true), "Exact Mammoth turn was not suppressed.");
-            TestRunner.True(!MountedPairTurnPolicy.ShouldEndMountTurn(true, true, false), "Rider/non-pair turn was suppressed.");
-            TestRunner.True(!MountedPairTurnPolicy.ShouldEndMountTurn(false, true, true), "Unmounted Mammoth turn was suppressed.");
+            TestRunner.True(MountedPairTurnPolicy.ShouldPreserveIndependentMountTurn(true, true, true), "Exact Mammoth turn was not preserved.");
+            TestRunner.True(!MountedPairTurnPolicy.ShouldPreserveIndependentMountTurn(true, true, false), "A rider/non-pair turn was classified as the Mammoth turn.");
+            TestRunner.True(!MountedPairTurnPolicy.ShouldPreserveIndependentMountTurn(false, true, true), "Unmounted Mammoth turn was adopted by KMC.");
         }
 
-        private static void PreservesExplicitMountActionTurn()
+        private static void AdmitsGroundMovementOnlyThroughRiderTurn()
         {
             TestRunner.True(
-                !MountedPairTurnPolicy.ShouldEndMountTurn(true, true, true, true),
-                "An explicitly armed Mammoth action turn was suppressed.");
+                MountedPairTurnPolicy.CanAdmitRiderGroundMovement(true, true, true, true, true, false) &&
+                    MountedPairTurnPolicy.CanAdmitRiderGroundMovement(true, true, true, true, false, true),
+                "The exact rider turn rejected ground movement in Preparing or Acting.");
             TestRunner.True(
-                MountedPairTurnPolicy.ShouldEndMountTurn(true, true, true, false),
-                "An unarmed Mammoth turn escaped suppression.");
+                !MountedPairTurnPolicy.CanAdmitRiderGroundMovement(true, true, true, false, true, true),
+                "A different actor's turn admitted pair ground movement.");
             TestRunner.True(
-                MountedPairTurnPolicy.CanIssueAction(true, true, true, false) &&
-                    MountedPairTurnPolicy.CanIssueAction(true, true, false, true),
-                "The action-actor policy rejected an exact native Preparing or Acting window.");
+                !MountedPairTurnPolicy.CanAdmitRiderGroundMovement(true, true, false, true, true, true),
+                "A non-rider request admitted pair ground movement.");
             TestRunner.True(
-                !MountedPairTurnPolicy.CanIssueAction(true, false, true, true),
-                "A different unit's turn admitted an actor-specific command.");
+                MountedPairTurnPolicy.CanAdmitRiderGroundMovement(true, false, true, false, false, false),
+                "Real-time pair ground movement incorrectly required a turn.");
+            TestRunner.True(
+                MountedPairTurnPolicy.CanDriveRiderGroundMovement(true, true, true, true, false, true) &&
+                    MountedPairTurnPolicy.CanDriveRiderGroundMovement(true, true, true, false, true, true),
+                "Exact Mammoth ground movement was not driven during the rider Preparing or Acting window.");
+            TestRunner.True(
+                !MountedPairTurnPolicy.CanDriveRiderGroundMovement(true, true, false, true, true, true) &&
+                    !MountedPairTurnPolicy.CanDriveRiderGroundMovement(true, true, true, false, false, true) &&
+                    !MountedPairTurnPolicy.CanDriveRiderGroundMovement(true, true, true, true, true, false),
+                "Ground movement admitted another actor, a non-action turn, or a non-Mammoth mover.");
         }
 
         private static void AdmitsExactRiderActionWindow()
@@ -830,19 +888,31 @@ namespace KingmakerMountedCombat.Tests
                 Action = action,
                 FeatureEnabled = true,
                 ExactMountedPair = true,
+                ExactRiderSelection = true,
                 SupportedMammothProfile = true,
+                SupportedRiderBodyProfile = true,
                 InCombat = true,
                 RiderAliveAndConscious = true,
                 MountAliveAndConscious = true,
                 TargetExists = true,
                 TargetAliveAndConscious = true,
                 TargetIsVisibleEnemy = true,
+                TargetVisible = true,
+                TargetHostile = true,
+                TargetAttackable = true,
                 ActionActorOwnsCurrentTurnOrRealTime = true,
                 ActionActorHasStandardAction = true,
                 RiderWeaponIsSupportedMelee = true,
+                RiderHasEligibleWeapon = true,
+                RiderWeaponIsRanged = false,
+                RiderWeaponCategorySupported = true,
                 MountPrimaryNaturalAttackIsExact = true,
                 TransactionIdle = true,
-                LoadingOrLifecycleBoundary = false
+                LoadingOrLifecycleBoundary = false,
+                PathKnownUnavailable = false,
+                WithinSupportedRangeEnvelope = true,
+                RangeOriginConsistent = true,
+                CommandAdmissionReady = true
             };
         }
     }

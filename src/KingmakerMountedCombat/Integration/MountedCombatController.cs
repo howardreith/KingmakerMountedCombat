@@ -1,10 +1,12 @@
 using System;
 using System.Globalization;
+using System.Linq;
 using Kingmaker;
 using Kingmaker.Controllers.Clicks.Handlers;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.GameModes;
 using Kingmaker.UI.Selection;
+using Kingmaker.UnitLogic.Commands;
 using Kingmaker.UnitLogic.Commands.Base;
 using Kingmaker.View;
 using KingmakerMountedCombat.Diagnostics;
@@ -27,8 +29,14 @@ namespace KingmakerMountedCombat.Integration
         private readonly GameMountedRelationshipService relationship;
         private readonly DiagnosticSettings settings;
         private readonly IModLogger logger;
+        private readonly MountedOverlayWorldInputGuard overlayWorldInputGuard = new MountedOverlayWorldInputGuard();
         private MountedPairAttackCommand activeCommand;
         private MountedPairAttackCommand finishedCommandPendingSweep;
+        private UnitMoveTo activeRiderTurnGroundMove;
+        private bool riderTurnGroundMoveAdmissionPending;
+        private int activeGroundMoveDriveCount;
+        private float groundMoveRiderMoveBefore;
+        private float groundMoveMountMoveBefore;
         private bool disposed;
 
         public MountedCombatController(
@@ -48,7 +56,29 @@ namespace KingmakerMountedCombat.Integration
 
         public MountedPairAttackOutcome LastOutcome { get; private set; }
 
+        public MountedCombatRejectionCode[] LastRejectionCodes { get; private set; } = new MountedCombatRejectionCode[0];
+
         public bool HasActiveCommand => activeCommand != null && !activeCommand.IsFinished;
+
+        public bool HasActiveGroundMovement => activeRiderTurnGroundMove != null && !activeRiderTurnGroundMove.IsFinished;
+
+        internal int LastGroundMoveDriveCount { get; private set; }
+
+        internal string LastGroundMoveResult { get; private set; }
+
+        internal string LastGroundMoveExecutorId { get; private set; }
+
+        internal bool LastGroundMoveUsedRiderTurnAdapter { get; private set; }
+
+        internal bool LastGroundMoveSlotRestored { get; private set; }
+
+        internal float LastGroundMoveRiderMoveBefore { get; private set; }
+
+        internal float LastGroundMoveRiderMoveAfter { get; private set; }
+
+        internal float LastGroundMoveMountMoveBefore { get; private set; }
+
+        internal float LastGroundMoveMountMoveAfter { get; private set; }
 
         internal bool HasActivePreChildCommandForTarget(UnitEntityData exactTarget)
         {
@@ -119,17 +149,23 @@ namespace KingmakerMountedCombat.Integration
                 LastFeedback = "Mounted combat actions require the exact active pair in combat.";
                 return false;
             }
-            if (HasActiveCommand)
+            if (HasActiveCommand || HasActiveGroundMovement || riderTurnGroundMoveAdmissionPending)
             {
                 LastFeedback = "A mounted pair command is already active.";
                 return false;
             }
 
             ArmedAction = action;
+            LastRejectionCodes = new MountedCombatRejectionCode[0];
             LastFeedback = action == MountedCombatActionKind.RiderMelee
                 ? "Rider melee armed: select one visible enemy."
                 : "Mammoth primary armed: select one visible enemy.";
             return true;
+        }
+
+        internal void MarkPlayerFacingOverlayActivation(int frame)
+        {
+            overlayWorldInputGuard.MarkActivation(frame);
         }
 
         public MountedCombatClickResult TryHandleUnitClick(
@@ -141,17 +177,29 @@ namespace KingmakerMountedCombat.Integration
             {
                 return MountedCombatClickResult.NotHandled;
             }
+            if (TrySuppressPropagatedOverlayWorldClick())
+            {
+                return MountedCombatClickResult.HandledRejected;
+            }
 
             var action = ArmedAction;
             ArmedAction = MountedCombatActionKind.None;
             var targetView = gameObject == null ? null : gameObject.GetComponent<UnitEntityView>();
             var target = targetView?.EntityData;
+            logger.Info("Mounted combat click observed: action=" + action +
+                "; button=" + button +
+                "; directUnitView=" + (targetView != null) +
+                "; targetId=" + (target?.UniqueId ?? "<none>") +
+                "; mode=" + (Game.Instance == null ? "<none>" : Game.Instance.CurrentMode.ToString()) +
+                "; turnBased=" + CombatController.IsInTurnBasedCombat() + ".");
             NativeSingleAttackWeaponSelection mountPrimary;
             var context = CaptureContext(action, target, out mountPrimary);
             var availability = MountedCombatActionEvaluator.Evaluate(context);
             if (!availability.IsAllowed)
             {
                 LastFeedback = availability.Feedback;
+                LastRejectionCodes = availability.RejectionCodes.ToArray();
+                logger.Info("Rejected mounted combat click: codes=" + string.Join(",", LastRejectionCodes.Select(code => code.ToString()).ToArray()) + "; feedback=" + LastFeedback);
                 return MountedCombatClickResult.HandledRejected;
             }
 
@@ -168,6 +216,7 @@ namespace KingmakerMountedCombat.Integration
                     HandleCommandTerminal);
                 activeCommand = command;
                 LastOutcome = null;
+                LastRejectionCodes = new MountedCombatRejectionCode[0];
                 var actionActor = command.ActionActor;
                 actionActor.Commands.Run(command);
                 if (command.Executor != actionActor || command.IsFinished ||
@@ -176,16 +225,23 @@ namespace KingmakerMountedCombat.Integration
                 {
                     activeCommand = null;
                     LastFeedback = "Mounted pair command failed to enter the action actor Standard slot.";
+                    LastRejectionCodes = new[] { MountedCombatRejectionCode.CommandAdmissionFailure };
                     return MountedCombatClickResult.HandledRejected;
                 }
                 actionActor.CombatState.ManualTarget = target;
                 LastFeedback = "Mounted pair command accepted: " + action + ".";
+                logger.Info("Mounted combat command accepted: action=" + action +
+                    "; actorId=" + actionActor.UniqueId +
+                    "; targetId=" + target.UniqueId +
+                    "; commandOwner=" + command.Executor.UniqueId +
+                    "; feedback=" + LastFeedback);
                 return MountedCombatClickResult.HandledAccepted;
             }
             catch (Exception exception)
             {
                 activeCommand = null;
                 LastFeedback = "Mounted pair command failed closed: " + exception.GetType().Name + ".";
+                LastRejectionCodes = new[] { MountedCombatRejectionCode.CommandAdmissionFailure };
                 logger.Exception("Mounted combat click", exception);
                 return MountedCombatClickResult.HandledRejected;
             }
@@ -198,6 +254,8 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
             SweepFinishedCommand();
+            DriveRiderTurnGroundMovement();
+            SweepRiderTurnGroundMovement();
             if (activeCommand != null && activeCommand.IsFinished)
             {
                 activeCommand = null;
@@ -221,12 +279,14 @@ namespace KingmakerMountedCombat.Integration
             var endingExplicitMountAction = ArmedAction == MountedCombatActionKind.MountPrimaryNatural ||
                 activeCommand?.Action == MountedCombatActionKind.MountPrimaryNatural;
             ArmedAction = MountedCombatActionKind.None;
+            overlayWorldInputGuard.Clear();
             var command = activeCommand;
             activeCommand = null;
             if (command != null && !command.IsFinished)
             {
                 command.Interrupt();
             }
+            CancelRiderTurnGroundMovement();
             SweepFinishedCommand();
             relationship.Runtime.CancelMountMovement();
             if (endingExplicitMountAction && CombatController.IsInTurnBasedCombat())
@@ -258,19 +318,30 @@ namespace KingmakerMountedCombat.Integration
             out bool result)
         {
             result = false;
-            if (disposed || activeCommand == null || activeCommand.IsFinished ||
+            var attackApproachActive = activeCommand != null && !activeCommand.IsFinished;
+            var riderGroundMoveActive = activeRiderTurnGroundMove != null && !activeRiderTurnGroundMove.IsFinished;
+            if (disposed || !attackApproachActive && !riderGroundMoveActive ||
                 agent == null || agent.Unit?.EntityData != relationship.Mount)
             {
                 return false;
             }
             var game = Game.Instance;
             var turn = game?.TurnBasedCombatController?.CurrentTurn;
-            if (!MountedPairTurnPolicy.CanDelegateMountMovement(
-                relationship.State == RelationshipState.Mounted,
-                CombatController.IsInTurnBasedCombat(),
-                turn?.Unit == relationship.Rider,
-                turn != null && turn.IsActing,
-                agent.Unit.EntityData == relationship.Mount))
+            var movementAdmitted = riderGroundMoveActive
+                ? MountedPairTurnPolicy.CanDriveRiderGroundMovement(
+                    relationship.State == RelationshipState.Mounted,
+                    CombatController.IsInTurnBasedCombat(),
+                    turn?.Unit == relationship.Rider,
+                    turn != null && turn.Status == TurnController.TurnStatus.Preparing,
+                    turn != null && turn.IsActing,
+                    agent.Unit.EntityData == relationship.Mount)
+                : MountedPairTurnPolicy.CanDelegateMountMovement(
+                    relationship.State == RelationshipState.Mounted,
+                    CombatController.IsInTurnBasedCombat(),
+                    turn?.Unit == relationship.Rider,
+                    turn != null && turn.IsActing,
+                    agent.Unit.EntityData == relationship.Mount);
+            if (!movementAdmitted)
             {
                 return false;
             }
@@ -285,23 +356,121 @@ namespace KingmakerMountedCombat.Integration
             return true;
         }
 
-        public void EndExactMountTurn(UnitEntityData startedUnit)
+        public bool TryAdmitGroundCommand(UnitEntityData requestedUnit)
         {
-            if (disposed || !MountedPairTurnPolicy.ShouldEndMountTurn(
-                relationship.State == RelationshipState.Mounted,
-                CombatController.IsInTurnBasedCombat(),
-                startedUnit == relationship.Mount,
-                ArmedAction == MountedCombatActionKind.MountPrimaryNatural ||
-                    activeCommand?.Action == MountedCombatActionKind.MountPrimaryNatural))
+            if (disposed || relationship.State != RelationshipState.Mounted || requestedUnit != relationship.Rider)
+            {
+                return true;
+            }
+            if (TrySuppressPropagatedOverlayWorldClick())
+            {
+                return false;
+            }
+
+            Cancel("ground command");
+
+            var game = Game.Instance;
+            if (game == null || !MountedGameModePolicy.CanAdmitMountedAction(game.CurrentMode.ToString()))
+            {
+                LastFeedback = "Mounted ground movement is available only in the active world view.";
+                LastRejectionCodes = new[] { MountedCombatRejectionCode.WrongActionState };
+                return false;
+            }
+
+            if (!CombatController.IsInTurnBasedCombat())
+            {
+                LastRejectionCodes = new MountedCombatRejectionCode[0];
+                return true;
+            }
+
+            var turn = game.TurnBasedCombatController?.CurrentTurn;
+            if (!MountedPairTurnPolicy.CanAdmitRiderGroundMovement(
+                true,
+                true,
+                true,
+                turn?.Unit == relationship.Rider,
+                turn != null && turn.Status == TurnController.TurnStatus.Preparing,
+                turn != null && turn.IsActing))
+            {
+                LastFeedback = "Move the mounted pair during the rider's turn.";
+                LastRejectionCodes = new[] { MountedCombatRejectionCode.WrongTurn };
+                return false;
+            }
+
+            if (relationship.Mount?.Commands == null ||
+                relationship.Mount.Commands.GetCommand(UnitCommand.CommandType.Move) != null ||
+                relationship.Mount.Commands.Queue.Count != 0)
+            {
+                LastFeedback = "Mounted ground movement rejected: the Mammoth Move slot is not idle.";
+                LastRejectionCodes = new[] { MountedCombatRejectionCode.AlreadyActiveCommand };
+                return false;
+            }
+
+            riderTurnGroundMoveAdmissionPending = true;
+            LastRejectionCodes = new MountedCombatRejectionCode[0];
+            LastFeedback = "Mounted rider-turn ground movement admitted; the Mammoth owns pathfinding.";
+            return true;
+        }
+
+        public void CompleteGroundCommandAdmission(UnitEntityData routedUnit)
+        {
+            if (!riderTurnGroundMoveAdmissionPending)
             {
                 return;
             }
-            var turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
-            if (turn != null && turn.Unit == relationship.Mount)
+
+            riderTurnGroundMoveAdmissionPending = false;
+            var command = relationship.Mount?.Commands?.GetCommand(UnitCommand.CommandType.Move) as UnitMoveTo;
+            if (routedUnit != relationship.Mount || command == null || command.Executor != relationship.Mount ||
+                !command.CreatedByPlayer || relationship.Mount.Commands.Queue.Contains(command))
             {
-                Cancel("suppressed Mammoth native turn");
-                turn.ForceToEnd();
+                if (command != null && !command.IsFinished)
+                {
+                    command.Interrupt(false);
+                }
+                relationship.Runtime.CancelMountMovement();
+                LastFeedback = "Mounted ground movement rejected: exact Mammoth command admission failed.";
+                LastRejectionCodes = new[] { MountedCombatRejectionCode.CommandAdmissionFailure };
+                return;
             }
+
+            activeRiderTurnGroundMove = command;
+            activeGroundMoveDriveCount = 0;
+            groundMoveRiderMoveBefore = relationship.Rider.CombatState.Cooldown.MoveAction;
+            groundMoveMountMoveBefore = relationship.Mount.CombatState.Cooldown.MoveAction;
+            LastGroundMoveResult = null;
+            LastGroundMoveExecutorId = command.Executor?.UniqueId;
+            LastGroundMoveUsedRiderTurnAdapter = false;
+            LastGroundMoveSlotRestored = false;
+            LastFeedback = "Mounted ground movement active: Mammoth pathfinding, rider Move accounting.";
+            logger.Info("Mounted ground movement accepted: riderId=" + relationship.Rider.UniqueId +
+                "; executorId=" + LastGroundMoveExecutorId +
+                "; turnStatus=" + (Game.Instance?.TurnBasedCombatController?.CurrentTurn?.Status.ToString() ?? "<none>") +
+                "; feedback=" + LastFeedback);
+        }
+
+        public bool ShouldAllowStockCommand(UnitCommands commands, UnitCommand command)
+        {
+            var rider = relationship.Rider;
+            if (!MountedStockAttackPolicy.ShouldReject(
+                relationship.State == RelationshipState.Mounted,
+                rider != null && commands == rider.Commands,
+                command != null && command.GetType() == typeof(UnitAttack)))
+            {
+                return true;
+            }
+
+            var selectedWeapon = rider?.GetFirstWeapon();
+            var ranged = selectedWeapon?.Blueprint != null && selectedWeapon.Blueprint.IsRanged;
+            LastFeedback = MountedStockAttackPolicy.RejectionFeedback(ranged);
+            LastRejectionCodes = new[]
+            {
+                ranged
+                    ? MountedCombatRejectionCode.MountedRangedUnsupported
+                    : MountedCombatRejectionCode.WrongActionState
+            };
+            logger.Info("Rejected exact mounted rider stock UnitAttack: " + LastFeedback);
+            return false;
         }
 
         public void Dispose()
@@ -343,26 +512,42 @@ namespace KingmakerMountedCombat.Integration
             {
                 Action = action,
                 FeatureEnabled = settings.EnableUnsafeMovementExperiment,
-                ExactMountedPair = exactSelection && relationship.State == RelationshipState.Mounted &&
-                    rider != null && mount != null && rider.Descriptor?.Pet == mount,
+                ExactMountedPair = relationship.State == RelationshipState.Mounted &&
+                    rider != null && mount != null && rider.Descriptor?.Pet == mount &&
+                    mount.Descriptor?.Master.Value == rider,
+                ExactRiderSelection = exactSelection,
                 SupportedMammothProfile = mount?.Blueprint != null &&
                     string.Equals(mount.Blueprint.AssetGuid, KingmakerMountedPairRuntime.MammothBlueprintGuid, StringComparison.Ordinal),
+                SupportedRiderBodyProfile = rider != null && rider.GetActivePolymorph() == null &&
+                    relationship.Runtime.PoseHealthy && relationship.IsExactCapturedView(rider),
                 InCombat = IsPairInCombat(),
                 RiderAliveAndConscious = riderState != null && riderState.IsConscious && !riderState.IsFinallyDead,
                 MountAliveAndConscious = mountState != null && mountState.IsConscious && !mountState.IsFinallyDead,
                 TargetExists = targetValid,
                 TargetAliveAndConscious = targetState != null && targetState.IsConscious && !targetState.IsFinallyDead,
+                TargetVisible = targetValid && target.IsVisibleForPlayer,
+                TargetHostile = targetValid && actionActor != null && actionActor.IsEnemy(target),
+                TargetAttackable = targetValid && actionActor != null && actionActor.CanAttack(target),
                 TargetIsVisibleEnemy = targetValid && target.IsVisibleForPlayer && actionActor != null &&
                     actionActor.IsEnemy(target) && actionActor.CanAttack(target),
                 ActionActorOwnsCurrentTurnOrRealTime = actionActorTurn,
                 ActionActorHasStandardAction = actionActor != null && actionActor.HasStandardAction(),
-                RiderWeaponIsSupportedMelee = riderWeapon?.Blueprint != null && !riderWeapon.Blueprint.IsRanged,
+                RiderHasEligibleWeapon = riderWeapon?.Blueprint != null,
+                RiderWeaponIsRanged = riderWeapon?.Blueprint != null && riderWeapon.Blueprint.IsRanged,
+                RiderWeaponCategorySupported = riderWeapon?.Blueprint != null && !riderWeapon.Blueprint.IsRanged &&
+                    !riderWeapon.Blueprint.IsTwoHanded && !riderWeapon.Blueprint.IsNatural,
+                RiderWeaponIsSupportedMelee = riderWeapon?.Blueprint != null && !riderWeapon.Blueprint.IsRanged &&
+                    !riderWeapon.Blueprint.IsTwoHanded && !riderWeapon.Blueprint.IsNatural,
                 MountPrimaryNaturalAttackIsExact = mountPrimary?.Kind == NativeSingleAttackSlotKind.PrimaryHand &&
                     mountPrimary.Weapon?.Blueprint != null &&
                     mountPrimary.Weapon.Blueprint.IsNatural && !mountPrimary.Weapon.Blueprint.IsRanged,
-                TransactionIdle = !HasActiveCommand,
+                TransactionIdle = !HasActiveCommand && !HasActiveGroundMovement && !riderTurnGroundMoveAdmissionPending,
                 LoadingOrLifecycleBoundary = Game.Instance == null ||
-                    Game.Instance.CurrentMode != GameModeType.Default && Game.Instance.CurrentMode != GameModeType.Pause
+                    !MountedGameModePolicy.CanAdmitMountedAction(Game.Instance.CurrentMode.ToString()),
+                PathKnownUnavailable = false,
+                WithinSupportedRangeEnvelope = true,
+                RangeOriginConsistent = true,
+                CommandAdmissionReady = true
             };
         }
 
@@ -391,7 +576,14 @@ namespace KingmakerMountedCombat.Integration
             }
             LastFeedback = outcome.Result == UnitCommand.ResultType.Success.ToString()
                 ? "Mounted pair attack completed."
-                : "Mounted pair attack ended: " + outcome.Result + ".";
+                : DescribeTerminalFailure(outcome);
+            logger.Info("Mounted combat command terminal: action=" + command.Action +
+                "; result=" + outcome.Result +
+                "; reason=" + (outcome.TerminalReason ?? "<none>") +
+                "; childAttacks=" + outcome.ChildAttackStartCount +
+                "; repaths=" + outcome.RepathCount +
+                "; rejectionCodes=" + string.Join(",", LastRejectionCodes.Select(code => code.ToString()).ToArray()) +
+                "; feedback=" + LastFeedback);
             if (command.Action == MountedCombatActionKind.MountPrimaryNatural &&
                 CombatController.IsInTurnBasedCombat())
             {
@@ -430,6 +622,149 @@ namespace KingmakerMountedCombat.Integration
             if (!commands.Contains(command))
             {
                 finishedCommandPendingSweep = null;
+            }
+        }
+
+        private string DescribeTerminalFailure(MountedPairAttackOutcome outcome)
+        {
+            var reason = outcome?.TerminalReason ?? string.Empty;
+            if (reason.IndexOf("repath", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                reason.IndexOf("Move", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                LastRejectionCodes = new[] { MountedCombatRejectionCode.NoPath };
+                return "Mounted rider melee ended: the Mammoth could not complete a supported path.";
+            }
+            if (reason.IndexOf("range", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                reason.IndexOf("admission bridge", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                LastRejectionCodes = new[] { MountedCombatRejectionCode.RangeOriginMismatch };
+                return "Mounted rider melee ended: the Mammoth-origin and native rider range gates did not agree.";
+            }
+            if (reason.IndexOf("target", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                LastRejectionCodes = new[] { MountedCombatRejectionCode.TargetInvalid };
+                return "Mounted rider melee ended: the exact target became invalid before completion.";
+            }
+            if (reason.IndexOf("bounded execution time", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                LastRejectionCodes = new[] { MountedCombatRejectionCode.OutsideSupportedRange };
+                return "Mounted rider melee ended: the target exceeded the bounded approach window.";
+            }
+
+            LastRejectionCodes = new[] { MountedCombatRejectionCode.CommandAdmissionFailure };
+            return "Mounted pair attack ended: " + (outcome == null ? "unknown" : outcome.Result) + ".";
+        }
+
+        private bool TrySuppressPropagatedOverlayWorldClick()
+        {
+            if (!overlayWorldInputGuard.TryConsumePropagatedWorldClick(Time.frameCount))
+            {
+                return false;
+            }
+
+            logger.Info("Suppressed one frame-bounded world click propagated from the mounted overlay; armed action retained=" + ArmedAction + ".");
+            return true;
+        }
+
+        private void SweepRiderTurnGroundMovement()
+        {
+            var command = activeRiderTurnGroundMove;
+            if (command == null)
+            {
+                return;
+            }
+
+            var turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
+            var exactTurn = CombatController.IsInTurnBasedCombat() && turn?.Unit == relationship.Rider &&
+                turn != null && (turn.Status == TurnController.TurnStatus.Preparing || turn.IsActing);
+            var commands = relationship.Mount?.Commands;
+            var rawMove = commands?.GetCommand(UnitCommand.CommandType.Move);
+            if (!exactTurn || rawMove != command && !command.IsFinished)
+            {
+                CancelRiderTurnGroundMovement();
+                LastFeedback = "Mounted ground movement cancelled: rider turn or exact Mammoth Move-slot ownership changed.";
+                return;
+            }
+
+            if (!command.IsFinished)
+            {
+                return;
+            }
+
+            if (commands != null && commands.Contains(command) && commands.Queue.Count == 0)
+            {
+                commands.RemoveFinishedAndUpdateQueue();
+            }
+            activeRiderTurnGroundMove = null;
+            relationship.Runtime.CancelMountMovement();
+            LastGroundMoveDriveCount = activeGroundMoveDriveCount;
+            LastGroundMoveResult = command.Result.ToString();
+            LastGroundMoveSlotRestored = commands != null &&
+                commands.GetCommand(UnitCommand.CommandType.Move) == null &&
+                !commands.Contains(command) && commands.Queue.Count == 0;
+            LastGroundMoveRiderMoveBefore = groundMoveRiderMoveBefore;
+            LastGroundMoveRiderMoveAfter = relationship.Rider.CombatState.Cooldown.MoveAction;
+            LastGroundMoveMountMoveBefore = groundMoveMountMoveBefore;
+            LastGroundMoveMountMoveAfter = relationship.Mount.CombatState.Cooldown.MoveAction;
+            LastFeedback = command.Result == UnitCommand.ResultType.Success
+                ? "Mounted ground movement completed."
+                : "Mounted ground movement ended: " + command.Result + ".";
+            logger.Info("Mounted ground movement terminal: result=" + LastGroundMoveResult +
+                "; executorId=" + LastGroundMoveExecutorId +
+                "; driveCount=" + LastGroundMoveDriveCount +
+                "; riderAdapter=" + LastGroundMoveUsedRiderTurnAdapter +
+                "; slotRestored=" + LastGroundMoveSlotRestored +
+                "; riderMove=" + LastGroundMoveRiderMoveBefore.ToString("R", CultureInfo.InvariantCulture) +
+                "->" + LastGroundMoveRiderMoveAfter.ToString("R", CultureInfo.InvariantCulture) +
+                "; mountMove=" + LastGroundMoveMountMoveBefore.ToString("R", CultureInfo.InvariantCulture) +
+                "->" + LastGroundMoveMountMoveAfter.ToString("R", CultureInfo.InvariantCulture) + ".");
+        }
+
+        private void DriveRiderTurnGroundMovement()
+        {
+            var command = activeRiderTurnGroundMove;
+            if (command == null || command.IsFinished || !CombatController.IsInTurnBasedCombat())
+            {
+                return;
+            }
+
+            var turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
+            if (!MountedPairTurnPolicy.CanDriveRiderGroundMovement(
+                    relationship.State == RelationshipState.Mounted,
+                    true,
+                    turn?.Unit == relationship.Rider,
+                    turn != null && turn.Status == TurnController.TurnStatus.Preparing,
+                    turn != null && turn.IsActing,
+                    relationship.Mount?.Commands?.GetCommand(UnitCommand.CommandType.Move) == command))
+            {
+                return;
+            }
+
+            LastGroundMoveUsedRiderTurnAdapter = true;
+            if (!command.IsStarted)
+            {
+                activeGroundMoveDriveCount++;
+                command.TickApproaching();
+                if (command.IsUnitEnoughClose && !relationship.Mount.View.MovementAgent.IsReallyMoving)
+                {
+                    command.Start();
+                }
+            }
+            if (command.IsRunning)
+            {
+                activeGroundMoveDriveCount++;
+                command.Tick();
+            }
+        }
+
+        private void CancelRiderTurnGroundMovement()
+        {
+            riderTurnGroundMoveAdmissionPending = false;
+            var command = activeRiderTurnGroundMove;
+            activeRiderTurnGroundMove = null;
+            if (command != null && !command.IsFinished)
+            {
+                command.Interrupt(false);
             }
         }
 

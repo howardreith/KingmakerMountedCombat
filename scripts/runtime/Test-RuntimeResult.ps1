@@ -168,6 +168,7 @@ function Assert-SubscenarioResults {
         'mounted-rider-melee-command-cancel-rt', 'mounted-rider-melee-command-cancel-tb',
         'mounted-rider-melee-command-interrupt-rt', 'mounted-rider-melee-command-interrupt-tb',
         'mounted-rider-melee-combat-end-rt', 'mounted-rider-melee-combat-end-tb',
+        'mounted-rider-melee-human-play-path-rt', 'mounted-rider-melee-human-play-path-tb',
         'mounted-rider-melee-invalid-target', 'mounted-rider-melee-target-death',
         'mounted-rider-melee-cleanup', 'non-mounted-melee-control'
     )

@@ -484,7 +484,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (combatEngine == null)
                 {
-                    combatEngine = new RuntimeCombatScenarioEngine(request, relationship, combat, lifecycle, diagnosticSettings, logger);
+                    combatEngine = new RuntimeCombatScenarioEngine(request, relationship, playerAction, combat, lifecycle, diagnosticSettings, logger);
                     combatEngine.Start();
                 }
                 combatEngine.Update();

@@ -1128,9 +1128,12 @@ function New-TestCombatEvidenceRecord {
     $mount = 'combat-mount'
     $target = 'combat-target'
     $isMammoth = [string]$Request.scenario -cin @('mounted-mammoth-primary-hit-rt','mounted-mammoth-primary-hit-tb')
+    $isHumanPlay = [string]$Request.scenario -cin @(
+        'mounted-rider-melee-human-play-path-rt','mounted-rider-melee-human-play-path-tb')
     $isReach = [string]$Request.scenario -cin @(
         'mounted-rider-melee-hit-rt','mounted-rider-melee-hit-tb',
-        'mounted-mammoth-primary-hit-rt','mounted-mammoth-primary-hit-tb')
+        'mounted-mammoth-primary-hit-rt','mounted-mammoth-primary-hit-tb',
+        'mounted-rider-melee-human-play-path-rt','mounted-rider-melee-human-play-path-tb')
     $isMovementToAttack = [string]$Request.scenario -cin @(
         'mounted-rider-melee-move-to-attack-rt','mounted-rider-melee-move-to-attack-tb')
     $isCancellation = [string]$Request.scenario -cin @(
@@ -1144,14 +1147,14 @@ function New-TestCombatEvidenceRecord {
     $isTurnBased = [string]$Request.scenario -cin @(
         'mounted-rider-melee-hit-tb','mounted-mammoth-primary-hit-tb','mounted-rider-melee-move-to-attack-tb',
         'mounted-rider-melee-command-cancel-tb','mounted-rider-melee-command-interrupt-tb',
-        'mounted-rider-melee-combat-end-tb')
+        'mounted-rider-melee-combat-end-tb','mounted-rider-melee-human-play-path-tb')
     $isMiss = [string]$Request.scenario -ceq 'mounted-rider-melee-miss-rt'
     $requiresDurability = $isMammoth -or $isApproach
     $actor = if ($isMammoth) { $mount } else { $rider }
     $actorRole = if ($isMammoth) { 'mount' } else { 'rider' }
     $action = if ($isMammoth) { 'MountPrimaryNatural' } else { 'RiderMelee' }
     $record = [ordered]@{
-        schemaVersion=$(if ($isCombatEnd) { if ($isTurnBased) { 41 } else { 40 } } elseif ($isTermination) { if ($isTurnBased) { 39 } else { 38 } } elseif ($isMovementToAttack) { if ($isTurnBased) { 35 } else { 34 } } elseif ($isReach) { if ($isTurnBased) { 43 } else { 42 } } elseif ($isTurnBased) { 27 } else { 26 });artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
+        schemaVersion=$(if ($isHumanPlay) { if ($isTurnBased) { 45 } else { 44 } } elseif ($isCombatEnd) { if ($isTurnBased) { 41 } else { 40 } } elseif ($isTermination) { if ($isTurnBased) { 39 } else { 38 } } elseif ($isMovementToAttack) { if ($isTurnBased) { 35 } else { 34 } } elseif ($isReach) { if ($isTurnBased) { 43 } else { 42 } } elseif ($isTurnBased) { 27 } else { 26 });artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
         scenario=[string]$Request.scenario;row=[string]$Request.scenario;rowIndex=0;sequence=0;frame=30
         utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o');branch=[string]$Request.branch
         commit=[string]$Request.commit;productVersion=[string]$Request.productVersion
@@ -1321,6 +1324,13 @@ function New-TestCombatEvidenceRecord {
             inputsUnchangedAtDispatch=$true;actionRadiusMatches=$true
         }
     }
+    if ($isHumanPlay) {
+        $record.admission = [ordered]@{
+            armedThroughPlayerFacingCombatController=$true;overlayActivationWorldClickSuppressed=$true
+            armedActionRetainedAfterOverlayClick=$true;directClickedUnitView=$true
+            feedback='Mounted pair command accepted: RiderMelee.';rejectionCodes=@()
+        }
+    }
     if ($isApproach) {
         $record.movementToAttack = [ordered]@{
             requestedTargetDistance=6.0;approachRequiredAtStart=$true;delegatedMoveStartCount=1
@@ -1357,13 +1367,29 @@ function New-TestCombatEvidenceRecord {
     if ($isTurnBased) {
         $record.turnBased = [ordered]@{
             requested=$true;originalEnabled=$false;temporaryEnabled=$true;originalRawCacheHadValue=$true
-            enabledAtMount=$true;controllerInitialized=$true;rosterContainsRider=$true
+            enabledAtMount=(-not $isHumanPlay);controllerInitialized=$true;rosterContainsRider=$true
             rosterContainsMount=$true;rosterContainsTarget=$true;expectedTurnActor=$actorRole
             nativeActionActorTurnStarted=$true;currentTurnUnitIdAtDispatch=$actor
             currentTurnActingAtDispatch=$true;roundNumberAtDispatch=1
             currentTurnUnitIdAtOutcome=$actor;currentTurnActingAtOutcome=(-not $isMammoth)
             actionActorTurnEndedAfterCommand=$isMammoth
             restoreDeliveryCompleted=$true;modeRestored=$true;persistedValueUnchanged=$true
+        }
+        if ($isHumanPlay) {
+            $record.turnBased.pairMountedBeforeEnable = $true
+            $record.turnBased.pairRetainedAfterEnable = $true
+            $record.turnBased.pairRetainedAfterRealtimeRestore = $true
+            $presentation = 'mode=Default;turnBased=True;riderViewExact=True;riderViewActiveSelf=True;riderViewActiveInHierarchy=True;riderParent=KMC_RiderPositionAnchor;riderSibling=0;riderRendererCount=3;riderEnabledRendererCount=3;mountViewExact=True;mountViewActiveSelf=True;mountViewActiveInHierarchy=True;poseLease=True;attachmentLease=True;replacementReleased=False;riderSelected=True;actionBarOwner=' + $rider + ';actionBarActive=True;portraitOwnerCount=2;portraitActiveOwnerCount=1;portraitActive=True;portraitSelected=True;cameraOn=True;cameraOwner=' + $rider
+            $record.turnBased.presentationAfterEnable = $presentation
+            $record.turnBased.presentationAfterRealtimeRestore = $presentation.Replace('turnBased=True','turnBased=False')
+            $record.groundMovement = [ordered]@{
+                requested=$true;destination=[ordered]@{x=2.0;y=0.0;z=0.0};result='Success'
+                driveCount=12;executorId=$mount;executorIsExactMount=$true
+                usedRiderTurnAdapter=$true;slotRestored=$true
+                riderMoveBefore=0.0;riderMoveAfter=2.0;mountMoveBefore=0.0;mountMoveAfter=0.0
+                riderDisplacement=2.0;mountDisplacement=2.0;targetDisplacement=0.0
+                pairRetained=$true;selectionRetained=$true;poseHealthy=$true
+            }
         }
     }
     return $record
@@ -4981,7 +5007,8 @@ try {
             $controllerSource.Contains('turn.ForceToEnd(false);')) 'turn-based combat does not admit the native Preparing action-actor turn, observe Acting after dispatch, bound the Mammoth turn after its action, and restore mode after cleanup'
         Assert-Test ($engineSource.Contains('CleanupTimeoutSeconds = 10.0d') -and
             $engineSource.Contains('rowClock.Elapsed.TotalSeconds - cleanupStartedAtSeconds < CleanupTimeoutSeconds')) 'combat cleanup does not retain an independent bounded drain after a row deadline'
-        Assert-Test ($engineSource.Contains('SchemaVersion = IsCommandTerminationRow') -and
+        Assert-Test ($engineSource.Contains('SchemaVersion = IsHumanPlayRow') -and
+            $engineSource.Contains(': IsCommandTerminationRow') -and
             $engineSource.Contains('? IsCombatEndTerminationRow') -and
             $engineSource.Contains('? (IsTurnBasedRow ? 41 : 40)') -and
             $engineSource.Contains(': (IsTurnBasedRow ? 39 : 38)') -and
@@ -5273,6 +5300,67 @@ try {
     Invoke-HarnessTest 'runtime request and schema-v27 evidence accept exact native stationary rider turn' {
         & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $turnBasedRequestPath
         Assert-KmcCombatScenarioEvidence -Request $turnBasedRequest -Manifest $turnBasedManifest -Status 'PASS' -SubscenarioResults @($turnBasedSubresult)
+    }
+
+    $humanPlayRequestPath = Join-Path $testRoot 'runtime-request-combat-human-play.json'
+    $humanPlayRequest = Copy-TestJsonValue $combatRequest
+    $humanPlayRequest.runId = 'combat-evidence-human-play-test'
+    $humanPlayRequest.scenario = 'mounted-rider-melee-human-play-path-rt'
+    $humanPlayRequest.evidenceRoot = Join-Path $runtimeEvidenceTestRoot $humanPlayRequest.runId
+    Write-KmcJsonAtomic $humanPlayRequestPath $humanPlayRequest
+    $humanPlayRecord = New-TestCombatEvidenceRecord $humanPlayRequest
+    [void](Write-TestCombatEvidence -EvidenceRoot $humanPlayRequest.evidenceRoot -Request $humanPlayRequest -Record $humanPlayRecord)
+    $humanPlayManifest = Read-KmcJson (Join-Path $humanPlayRequest.evidenceRoot 'runtime-artifacts.json')
+    $humanPlaySubresult = [ordered]@{name=$humanPlayRequest.scenario;status='PASS';assertionPassCount=25;assertionFailCount=0;errors=@()}
+
+    Invoke-HarnessTest 'runtime request and schema-v44 evidence accept the ordinary RT player-click rider melee path' {
+        & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $humanPlayRequestPath
+        Assert-KmcCombatScenarioEvidence -Request $humanPlayRequest -Manifest $humanPlayManifest -Status 'PASS' -SubscenarioResults @($humanPlaySubresult)
+    }
+
+    $humanPlayTurnRequestPath = Join-Path $testRoot 'runtime-request-combat-human-play-turn-based.json'
+    $humanPlayTurnRequest = Copy-TestJsonValue $humanPlayRequest
+    $humanPlayTurnRequest.runId = 'combat-evidence-human-play-turn-based-test'
+    $humanPlayTurnRequest.scenario = 'mounted-rider-melee-human-play-path-tb'
+    $humanPlayTurnRequest.evidenceRoot = Join-Path $runtimeEvidenceTestRoot $humanPlayTurnRequest.runId
+    Write-KmcJsonAtomic $humanPlayTurnRequestPath $humanPlayTurnRequest
+    $humanPlayTurnRecord = New-TestCombatEvidenceRecord $humanPlayTurnRequest
+    [void](Write-TestCombatEvidence -EvidenceRoot $humanPlayTurnRequest.evidenceRoot -Request $humanPlayTurnRequest -Record $humanPlayTurnRecord)
+    $humanPlayTurnManifest = Read-KmcJson (Join-Path $humanPlayTurnRequest.evidenceRoot 'runtime-artifacts.json')
+    $humanPlayTurnSubresult = [ordered]@{name=$humanPlayTurnRequest.scenario;status='PASS';assertionPassCount=25;assertionFailCount=0;errors=@()}
+
+    Invoke-HarnessTest 'runtime request and schema-v45 evidence accept RT-to-TB pair retention ground movement and player-click melee' {
+        & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $humanPlayTurnRequestPath
+        Assert-KmcCombatScenarioEvidence -Request $humanPlayTurnRequest -Manifest $humanPlayTurnManifest -Status 'PASS' -SubscenarioResults @($humanPlayTurnSubresult)
+    }
+
+    Invoke-HarnessTest 'schema-v45 evidence rejects turn transition or ground-movement ownership contradictions' {
+        $cases = @(
+            { param($record) $record.turnBased.pairRetainedAfterEnable=$false;return $record },
+            { param($record) $record.turnBased.presentationAfterEnable=$record.turnBased.presentationAfterEnable.Replace('actionBarOwner=combat-rider','actionBarOwner=combat-mount');return $record },
+            { param($record) $record.turnBased.presentationAfterRealtimeRestore=$record.turnBased.presentationAfterRealtimeRestore.Replace('riderViewActiveInHierarchy=True','riderViewActiveInHierarchy=False');return $record },
+            { param($record) $record.turnBased.enabledAtMount=$true;return $record },
+            { param($record) $record.groundMovement.executorId='wrong-mount';return $record },
+            { param($record) $record.groundMovement.mountMoveAfter=1.0;return $record },
+            { param($record) $record.groundMovement.usedRiderTurnAdapter=$false;return $record },
+            { param($record) $record.groundMovement.slotRestored=$false;return $record },
+            { param($record) $record.admission.overlayActivationWorldClickSuppressed=$false;return $record },
+            { param($record) $record.admission.armedActionRetainedAfterOverlayClick=$false;return $record },
+            { param($record) $record.admission.directClickedUnitView=$false;return $record },
+            { param($record) $record.admission.rejectionCodes=@('OutsideSupportedRange');return $record }
+        )
+        foreach ($mutate in $cases) {
+            $candidate = Copy-TestJsonValue $humanPlayTurnRecord
+            $candidate = & $mutate $candidate
+            [void](Write-TestCombatEvidence -EvidenceRoot $humanPlayTurnRequest.evidenceRoot -Request $humanPlayTurnRequest -Record $candidate)
+            $candidateManifest = Read-KmcJson (Join-Path $humanPlayTurnRequest.evidenceRoot 'runtime-artifacts.json')
+            $threw = $false
+            try { Assert-KmcCombatScenarioEvidence -Request $humanPlayTurnRequest -Manifest $candidateManifest -Status 'PASS' -SubscenarioResults @($humanPlayTurnSubresult) }
+            catch { $threw = $true }
+            Assert-Test $threw 'schema-v45 validator accepted a transition or movement ownership contradiction'
+        }
+        [void](Write-TestCombatEvidence -EvidenceRoot $humanPlayTurnRequest.evidenceRoot -Request $humanPlayTurnRequest -Record $humanPlayTurnRecord)
+        $humanPlayTurnManifest = Read-KmcJson (Join-Path $humanPlayTurnRequest.evidenceRoot 'runtime-artifacts.json')
     }
 
     $missRequestPath = Join-Path $testRoot 'runtime-request-combat-miss.json'
@@ -6709,6 +6797,25 @@ try {
         Assert-KmcBoundaryScenarioEvidence -Request $boundaryRequest -Manifest $manifest -Status 'PASS' `
             -SubscenarioResults @($boundarySubresult) -GameResult $boundaryGameAggregates
     }
+    Invoke-HarnessTest 'native lifecycle observation detail is optional bounded text' {
+        $nativeLifecycle = [pscustomobject][ordered]@{
+            baselineSequence=100;deliveryCount=1;deliveries=@([pscustomobject][ordered]@{
+                sequence=101;boundary='GameModeStarted';source='IGameModeHandler.OnGameModeStart(FullScreenUi)'
+                stateBefore='Mounted';stateAfter='Mounted';cleanupTrigger=$null
+                cleanupAttempted=$false;cleanupSucceeded=$true
+                detail='mode=FullScreenUi;relationship=Mounted;riderViewExact=True'
+            })
+        }
+        Assert-KmcBoundaryNativeLifecycleEvidence $nativeLifecycle
+        $nativeLifecycle.deliveries[0].detail = 42
+        $threw = $false
+        try { Assert-KmcBoundaryNativeLifecycleEvidence $nativeLifecycle } catch { $threw = $true }
+        Assert-Test $threw 'native lifecycle validator accepted a non-string observation detail'
+        $nativeLifecycle.deliveries[0].detail = 'x' * 8193
+        $threw = $false
+        try { Assert-KmcBoundaryNativeLifecycleEvidence $nativeLifecycle } catch { $threw = $true }
+        Assert-Test $threw 'native lifecycle validator accepted an unbounded observation detail'
+    }
     Invoke-HarnessTest 'PASS native lifecycle boundary rows require independent delivery and restoration evidence' {
         foreach ($nativeRow in @(Get-KmcNativeLifecycleBoundaryRuntimeRows)) {
             $nativeRequest = [pscustomobject][ordered]@{
@@ -8090,6 +8197,103 @@ try {
             $v2GameResult.subscenarioResults=@($v2Subscenario)
             Write-KmcJsonAtomic $v2GameResultPath $v2GameResult
         }
+    }
+
+    Invoke-HarnessTest 'private-alpha stabilization is pair-local, view-safe, and preserves native action ownership' {
+        $lifecycleSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedLifecycleSubscriber.cs'))
+        $runtimeSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\KingmakerMountedPairRuntime.cs'))
+        $attachmentSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\ScopedTransformAttachmentLease.cs'))
+        $stabilizationSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedStabilizationPolicy.cs'))
+        $combatSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedCombatController.cs'))
+        $playerActionSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPlayerActionController.cs'))
+        $overlaySource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPlayerActionOverlay.cs'))
+        $patchSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPatchController.cs'))
+        $turnPolicySource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedCombatSpatialPolicy.cs'))
+        $ledgerSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\NativeLifecycleDeliveryLedger.cs'))
+        $combatEngineSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeCombatScenarioEngine.cs'))
+        $automationHostSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeAutomationHost.cs'))
+
+        Assert-Test ($stabilizationSource.Contains('string.Equals(exactModeName, "FullScreenUi", StringComparison.Ordinal)') -and
+            $stabilizationSource.Contains('string.Equals(exactModeName, "EscMode", StringComparison.Ordinal)') -and
+            $stabilizationSource.Contains('return MountedGameModeDisposition.PreserveNonWorldUi;') -and
+            $lifecycleSource.Contains('MountedGameModePolicy.CanRetainMountedRelationship(gameMode.ToString())')) `
+            'character, map, or menu modes are still treated as generic cleanup boundaries'
+        Assert-Test ($ledgerSource.Contains('public string Detail { get; set; }') -and
+            $lifecycleSource.Contains('Observe(boundary, source, service.CapturePresentationObservation())') -and
+            $runtimeSource.Contains('actionBarOwner=') -and
+            $runtimeSource.Contains('portraitOwnerCount=') -and
+            $runtimeSource.Contains('portraitActiveOwnerCount=') -and
+            $runtimeSource.Contains('cameraOwner=') -and
+            -not $lifecycleSource.Contains('source + ";" + service.CapturePresentationObservation()')) `
+            'presentation telemetry changes canonical native lifecycle source identities'
+        Assert-Test ($lifecycleSource.Contains('MountedViewAttachmentPolicy.Classify(') -and
+            $lifecycleSource.Contains('CleanupTrigger.ViewReplaced') -and
+            $runtimeSource.Contains('ReleaseReplacementRiderViewFromOwnedAnchor') -and
+            $attachmentSource.Contains('public bool ReleaseInheritedReplacement(') -and
+            $attachmentSource.Contains('setParent(replacement, originalParent, true);')) `
+            'polymorph/view replacement does not release the stock replacement before KMC anchor cleanup'
+        $replacementRelease = $runtimeSource.IndexOf('ReleaseReplacementRiderViewFromOwnedAnchor', [StringComparison]::Ordinal)
+        $poseRestore = $runtimeSource.IndexOf('poseAdapter.Deconfigure();', $replacementRelease, [StringComparison]::Ordinal)
+        $attachmentRestore = $runtimeSource.IndexOf('riderAttachmentLease.Restore();', $poseRestore, [StringComparison]::Ordinal)
+        Assert-Test ($replacementRelease -ge 0 -and $poseRestore -gt $replacementRelease -and $attachmentRestore -gt $poseRestore) `
+            'stock replacement release is not ordered before old-view pose and attachment restoration'
+        Assert-Test ($patchSource.Contains('PatchExact(typeof(ClickGroundHandler), "RunCommand", 0x060093DC') -and
+            $patchSource.Contains('nameof(PatchMethods.GroundCommandPrefix), nameof(PatchMethods.GroundCommandPostfix)') -and
+            $patchSource.Contains('TryAdmitGroundCommand(unit)') -and
+            $combatSource.Contains('CompleteGroundCommandAdmission') -and
+            $combatSource.Contains('activeRiderTurnGroundMove') -and
+            $combatSource.Contains('DriveRiderTurnGroundMovement();') -and
+            $combatSource.Contains('command.TickApproaching();') -and
+            $combatSource.Contains('command.Tick();') -and
+            $combatSource.Contains('LastGroundMoveUsedRiderTurnAdapter = true;') -and
+            $combatSource.Contains('LastGroundMoveSlotRestored = commands != null') -and
+            $combatSource.Contains('MountedPairTurnPolicy.CanDriveRiderGroundMovement(') -and
+            $turnPolicySource.Contains('public static bool CanDriveRiderGroundMovement(') -and
+            $combatSource.Contains('requestedUnit != relationship.Rider') -and
+            $combatSource.IndexOf('Cancel("ground command");', [StringComparison]::Ordinal) -gt
+                $combatSource.IndexOf('requestedUnit != relationship.Rider', [StringComparison]::Ordinal) -and
+            -not $patchSource.Contains('PatchBridge.Combat?.Cancel("ground command")') -and
+            $turnPolicySource.Contains('public static bool CanAdmitRiderGroundMovement(')) `
+            'turn-based rider ground clicks do not retain exact Mammoth Move-slot ownership and rider-turn accounting'
+        Assert-Test ($turnPolicySource.Contains('public static bool ShouldPreserveIndependentMountTurn(') -and
+            -not $patchSource.Contains('CombatController), "StartTurn"') -and
+            -not $patchSource.Contains('StartTurnPostfix') -and
+            -not $combatSource.Contains('ShouldEndMountTurn')) `
+            'private-alpha stabilization still suppresses the Mammoth native turn'
+        Assert-Test ($patchSource.Contains('PatchExact(typeof(UnitCommands), "Run", 0x060026B2') -and
+            $patchSource.Contains('nameof(PatchMethods.UnitCommandRunPrefix)') -and
+            $combatSource.Contains('MountedStockAttackPolicy.ShouldReject(') -and
+            $combatSource.Contains('command.GetType() == typeof(UnitAttack)') -and
+            $stabilizationSource.Contains('Mounted ranged attacks are not supported in this private alpha.') -and
+            $stabilizationSource.Contains('relationshipMounted && ownerIsExactRider && commandIsExactStockUnitAttack')) `
+            'mounted stock ranged rejection is not exact-pair-local at the native UnitCommands admission seam'
+        Assert-Test ($combatEngineSource.Contains('playerAction.ArmCombatActionFromOverlay(AttackAction)') -and
+            $combatEngineSource.Contains('ArmedThroughPlayerFacingCombatController = humanPlayArmedThroughPlayerAction') -and
+            $combatEngineSource.Contains('OverlayActivationWorldClickSuppressed = humanPlayPropagatedWorldClickSuppressed') -and
+            $automationHostSource.Contains('request, relationship, playerAction, combat, lifecycle')) `
+            'human-play qualification bypasses the exact player-facing combat-action controller before its native unit click'
+        Assert-Test ($stabilizationSource.Contains('public sealed class MountedOverlayWorldInputGuard') -and
+            $stabilizationSource.Contains('private const int MaximumPropagationFrameDelta = 2;') -and
+            $overlaySource.Contains('ArmCombatActionFromOverlay(MountedCombatActionKind.RiderMelee)') -and
+            $playerActionSource.Contains('combat.MarkPlayerFacingOverlayActivation(Time.frameCount);') -and
+            $combatSource.Contains('overlayWorldInputGuard.TryConsumePropagatedWorldClick(Time.frameCount)') -and
+            $combatSource.IndexOf('TrySuppressPropagatedOverlayWorldClick()', [StringComparison]::Ordinal) -lt
+                $combatSource.IndexOf('var action = ArmedAction;', [StringComparison]::Ordinal) -and
+            $combatSource.IndexOf('TrySuppressPropagatedOverlayWorldClick()',
+                $combatSource.IndexOf('public bool TryAdmitGroundCommand', [StringComparison]::Ordinal),
+                [StringComparison]::Ordinal) -lt
+                $combatSource.IndexOf('Cancel("ground command");', [StringComparison]::Ordinal)) `
+            'overlay combat-button activation can leak a same-click unit/ground command into the world'
+        Assert-Test (-not $patchSource.Contains('Renderer.enabled') -and
+            -not $patchSource.Contains('GameObject.SetActive') -and
+            -not $runtimeSource.Contains('renderer.enabled = true')) `
+            'stabilization introduced a broad renderer or GameObject enabling patch'
+        Assert-Test ($stabilizationSource.Contains('MountedCleanupFeedbackPolicy') -and
+            $stabilizationSource.Contains('case CleanupTrigger.SaveRequested:') -and
+            $stabilizationSource.Contains('case CleanupTrigger.AreaUnloading:') -and
+            $stabilizationSource.Contains('case CleanupTrigger.ViewReplaced:') -and
+            $playerActionSource.Contains('MountedCleanupFeedbackPolicy.Describe(transition.Trigger.Value)')) `
+            'intentional save, area, and body/view cleanup does not retain its exact player-facing reason'
     }
 
     $v2ResultPath = Join-Path $testRoot 'runtime-result-v2.json'

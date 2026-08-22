@@ -28,6 +28,7 @@ namespace KingmakerMountedCombat.Domain
         private readonly IEqualityComparer<TScale> scaleComparer;
 
         private TNode node;
+        private TNode attachmentParent;
         private TNode originalParent;
         private int originalSiblingIndex;
         private TPosition originalWorldPosition;
@@ -94,6 +95,7 @@ namespace KingmakerMountedCombat.Domain
             }
 
             node = target;
+            this.attachmentParent = attachmentParent;
             originalParent = getParent(target);
             originalSiblingIndex = getSiblingIndex(target);
             originalWorldPosition = getWorldPosition(target);
@@ -136,6 +138,35 @@ namespace KingmakerMountedCombat.Domain
             IsAcquired = false;
             LastRestoreVerified = true;
             node = null;
+            attachmentParent = null;
+        }
+
+        public bool ReleaseInheritedReplacement(TNode replacement)
+        {
+            if (!IsAcquired)
+            {
+                throw new InvalidOperationException("A replacement cannot inherit from an inactive attachment lease.");
+            }
+            if (replacement == null)
+            {
+                throw new ArgumentNullException(nameof(replacement));
+            }
+            if (!nodeComparer.Equals(getParent(replacement), attachmentParent))
+            {
+                return false;
+            }
+
+            var worldPosition = getWorldPosition(replacement);
+            var worldRotation = getWorldRotation(replacement);
+            setParent(replacement, originalParent, true);
+            setSiblingIndex(replacement, originalSiblingIndex);
+            if (!nodeComparer.Equals(getParent(replacement), originalParent) ||
+                !positionComparer.Equals(getWorldPosition(replacement), worldPosition) ||
+                !rotationComparer.Equals(getWorldRotation(replacement), worldRotation))
+            {
+                throw new InvalidOperationException("Inherited replacement did not leave the owned attachment parent with its world pose preserved.");
+            }
+            return true;
         }
 
         private static void TryRestore(Action action, string field, ICollection<Exception> failures)

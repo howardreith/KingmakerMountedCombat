@@ -57,11 +57,11 @@ namespace KingmakerMountedCombat.Integration
                     GUI.enabled = true;
                     if (GUI.Button(new Rect(left + 12f, top + 63f, 148f, 28f), "Rider melee"))
                     {
-                        controller.ArmCombatAction(MountedCombatActionKind.RiderMelee);
+                        controller.ArmCombatActionFromOverlay(MountedCombatActionKind.RiderMelee);
                     }
                     if (GUI.Button(new Rect(left + 170f, top + 63f, 148f, 28f), "Mammoth primary"))
                     {
-                        controller.ArmCombatAction(MountedCombatActionKind.MountPrimaryNatural);
+                        controller.ArmCombatActionFromOverlay(MountedCombatActionKind.MountPrimaryNatural);
                     }
                     GUI.enabled = combatPriorEnabled;
                     feedbackTop = top + 94f;

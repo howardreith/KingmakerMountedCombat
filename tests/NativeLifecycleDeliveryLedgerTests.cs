@@ -10,6 +10,7 @@ namespace KingmakerMountedCombat.Tests
         {
             runner.Run("native lifecycle ledger preserves delivery order and cleanup state", PreservesDeliveryOrderAndCleanupState);
             runner.Run("native lifecycle ledger rejects ambiguous cleanup claims", RejectsAmbiguousCleanupClaims);
+            runner.Run("native lifecycle ledger rejects empty or unbounded observation detail", RejectsInvalidObservationDetail);
             runner.Run("native lifecycle ledger retains a bounded recent window", RetainsBoundedRecentWindow);
         }
 
@@ -24,7 +25,8 @@ namespace KingmakerMountedCombat.Tests
                 CleanupTrigger.SaveRequested,
                 true,
                 false,
-                new[] { "diagnostic cleanup failure" });
+                new[] { "diagnostic cleanup failure" },
+                "presentation snapshot");
             ledger.Record(
                 NativeLifecycleBoundary.AreaLoadingComplete,
                 "IAreaLoadingStagesHandler.OnAreaLoadingComplete",
@@ -41,6 +43,8 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.Equal(CleanupTrigger.SaveRequested, records[0].CleanupTrigger.Value, "Save cleanup trigger changed.");
             TestRunner.Equal(RelationshipState.Unmounted, records[0].StateAfter, "Save did not record clean state.");
             TestRunner.Equal("diagnostic cleanup failure", records[0].CleanupErrors[0], "Cleanup diagnostics were not preserved.");
+            TestRunner.Equal("presentation snapshot", records[0].Detail, "Observation detail was not preserved separately from the canonical source.");
+            TestRunner.Equal("SaveManager.SaveRoutine prefix", records[0].Source, "Observation detail changed the canonical native source.");
             TestRunner.Equal(false, records[1].CleanupAttempted, "Area completion fabricated a cleanup attempt.");
         }
 
@@ -63,6 +67,31 @@ namespace KingmakerMountedCombat.Tests
                 CleanupTrigger.ViewDetached,
                 false,
                 true), "Pure observation claimed a cleanup trigger.");
+        }
+
+        private static void RejectsInvalidObservationDetail()
+        {
+            var ledger = new NativeLifecycleDeliveryLedger();
+            ExpectArgumentException(() => ledger.Record(
+                NativeLifecycleBoundary.GameModeStarted,
+                "test",
+                RelationshipState.Mounted,
+                RelationshipState.Mounted,
+                null,
+                false,
+                true,
+                null,
+                " "), "Whitespace observation detail was accepted.");
+            ExpectArgumentException(() => ledger.Record(
+                NativeLifecycleBoundary.GameModeStarted,
+                "test",
+                RelationshipState.Mounted,
+                RelationshipState.Mounted,
+                null,
+                false,
+                true,
+                null,
+                new string('x', 8193)), "Unbounded observation detail was accepted.");
         }
 
         private static void ExpectArgumentException(Action action, string message)

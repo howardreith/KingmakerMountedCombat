@@ -1,5 +1,9 @@
 # Phase 2 qualification
 
+## Human private-alpha stabilization in progress (2026-08-21)
+
+Status: `IN PROGRESS`. The qualification below remains immutable historical proof for the exact `eae1abd554e67f8e864571a97d48f479a75304af` package, but a human playtest found menu/view, polymorph replacement, ordinary overlay melee input, and turn-based control defects. Those defects do not retroactively relabel historical automated runs; they do prevent reuse of the prior package as the stabilized handoff. Narrow repairs and schema v44/v45 human-play evidence are offline-green through source/component/visual/harness/assembly `21/228/17/219/275`, parsers `26/0` / `7/0`, diff, and prohibited-payload checks. Fresh clean-package suite/WhatIf, runtime A/B, doorway regression, and guarded manual UI/polymorph/ranged proof remain required. No stabilization PASS is claimed yet.
+
 ## Core private-alpha and bounded reach qualification complete (2026-08-21)
 
 Status: `PASS` for the authorized core private-alpha profile. Published runtime input `1fa5c2e6e841f4025f36283fd5bba7ae94c23ba5`, version `0.1.0-phase2b-dev.1`, package/manifest/DLL SHA-256 `a448bf8e1aa36163c6a30b3c0c116b0b5fce36eb84123d6ae3756be9537932be` / `6b09dd89a185de301e33e1a7277ae79f662f737270dd84634d623cbf917657ae` / `9f715f4ddd4e086cee8f2aa3aaa4e746401cec113fc529809d1376eab1caf6c1`, and MVID `292982ba-6486-4807-b4fa-c15dc0558266` bind suite snapshot `3aea4cdf34a706ca207886d97fb2724be7f574732421edb33d7a8a229950a3e1`.

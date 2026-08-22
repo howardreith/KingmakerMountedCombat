@@ -17,6 +17,31 @@ namespace KingmakerMountedCombat.Domain
         Mount
     }
 
+    public enum MountedCombatRejectionCode
+    {
+        FeatureDisabled,
+        WrongActorOrSelection,
+        RelationshipInvalidated,
+        BodyProfileUnsupported,
+        NotInCombat,
+        PairLifeStateInvalid,
+        TargetInvalid,
+        TargetNotVisible,
+        TargetNotHostile,
+        TargetNotAttackable,
+        WrongTurn,
+        WrongActionState,
+        AlreadyActiveCommand,
+        LifecycleBoundary,
+        NoEligibleWeapon,
+        MountedRangedUnsupported,
+        UnsupportedWeaponCategory,
+        NoPath,
+        OutsideSupportedRange,
+        RangeOriginMismatch,
+        CommandAdmissionFailure
+    }
+
     public enum NativeSingleAttackSlotKind
     {
         None,
@@ -124,7 +149,11 @@ namespace KingmakerMountedCombat.Domain
 
         public bool ExactMountedPair { get; set; }
 
+        public bool ExactRiderSelection { get; set; }
+
         public bool SupportedMammothProfile { get; set; }
+
+        public bool SupportedRiderBodyProfile { get; set; }
 
         public bool InCombat { get; set; }
 
@@ -138,17 +167,37 @@ namespace KingmakerMountedCombat.Domain
 
         public bool TargetIsVisibleEnemy { get; set; }
 
+        public bool TargetVisible { get; set; }
+
+        public bool TargetHostile { get; set; }
+
+        public bool TargetAttackable { get; set; }
+
         public bool ActionActorOwnsCurrentTurnOrRealTime { get; set; }
 
         public bool ActionActorHasStandardAction { get; set; }
 
         public bool RiderWeaponIsSupportedMelee { get; set; }
 
+        public bool RiderHasEligibleWeapon { get; set; }
+
+        public bool RiderWeaponIsRanged { get; set; }
+
+        public bool RiderWeaponCategorySupported { get; set; }
+
         public bool MountPrimaryNaturalAttackIsExact { get; set; }
 
         public bool TransactionIdle { get; set; }
 
         public bool LoadingOrLifecycleBoundary { get; set; }
+
+        public bool PathKnownUnavailable { get; set; }
+
+        public bool WithinSupportedRangeEnvelope { get; set; }
+
+        public bool RangeOriginConsistent { get; set; }
+
+        public bool CommandAdmissionReady { get; set; }
     }
 
     public sealed class MountedCombatActionAvailability
@@ -156,11 +205,13 @@ namespace KingmakerMountedCombat.Domain
         public MountedCombatActionAvailability(
             bool allowed,
             MountedCombatActor actor,
-            IReadOnlyList<string> rejectionReasons)
+            IReadOnlyList<string> rejectionReasons,
+            IReadOnlyList<MountedCombatRejectionCode> rejectionCodes)
         {
             IsAllowed = allowed;
             Actor = actor;
             RejectionReasons = rejectionReasons ?? throw new ArgumentNullException(nameof(rejectionReasons));
+            RejectionCodes = rejectionCodes ?? throw new ArgumentNullException(nameof(rejectionCodes));
         }
 
         public bool IsAllowed { get; }
@@ -174,6 +225,8 @@ namespace KingmakerMountedCombat.Domain
         public bool IsSingleAttack => true;
 
         public IReadOnlyList<string> RejectionReasons { get; }
+
+        public IReadOnlyList<MountedCombatRejectionCode> RejectionCodes { get; }
 
         public string Feedback => RejectionReasons.Count == 0
             ? "Select one visible enemy."
@@ -253,55 +306,123 @@ namespace KingmakerMountedCombat.Domain
             }
 
             var reasons = new List<string>();
+            var codes = new List<MountedCombatRejectionCode>();
             if (context.Action == MountedCombatActionKind.None)
             {
                 reasons.Add("Choose Rider melee or Mammoth primary.");
+                codes.Add(MountedCombatRejectionCode.WrongActionState);
             }
             if (!context.FeatureEnabled)
             {
                 reasons.Add("The private-alpha mounted combat feature is disabled.");
+                codes.Add(MountedCombatRejectionCode.FeatureDisabled);
             }
-            if (!context.ExactMountedPair || !context.SupportedMammothProfile)
+            if (!context.ExactRiderSelection)
+            {
+                reasons.Add("Select only the mounted rider before using a mounted combat action.");
+                codes.Add(MountedCombatRejectionCode.WrongActorOrSelection);
+            }
+            if (!context.ExactMountedPair)
+            {
+                reasons.Add("The exact mounted relationship is no longer valid.");
+                codes.Add(MountedCombatRejectionCode.RelationshipInvalidated);
+            }
+            if (!context.SupportedMammothProfile || !context.SupportedRiderBodyProfile)
             {
                 reasons.Add("Combat requires the exact active Medium-humanoid/Mammoth profile.");
+                codes.Add(MountedCombatRejectionCode.BodyProfileUnsupported);
             }
             if (!context.InCombat)
             {
                 reasons.Add("Mounted attacks are available only in combat.");
+                codes.Add(MountedCombatRejectionCode.NotInCombat);
             }
             if (!context.RiderAliveAndConscious || !context.MountAliveAndConscious)
             {
                 reasons.Add("Rider and Mammoth must both be alive and conscious.");
+                codes.Add(MountedCombatRejectionCode.PairLifeStateInvalid);
             }
-            if (!context.TargetExists || !context.TargetAliveAndConscious || !context.TargetIsVisibleEnemy)
+            if (!context.TargetExists || !context.TargetAliveAndConscious)
             {
-                reasons.Add("Choose one living, visible enemy.");
+                reasons.Add("Choose one valid living target.");
+                codes.Add(MountedCombatRejectionCode.TargetInvalid);
+            }
+            if (!context.TargetVisible)
+            {
+                reasons.Add("The target is not visible to the player.");
+                codes.Add(MountedCombatRejectionCode.TargetNotVisible);
+            }
+            if (!context.TargetHostile)
+            {
+                reasons.Add("The target is not hostile to the action actor.");
+                codes.Add(MountedCombatRejectionCode.TargetNotHostile);
+            }
+            if (!context.TargetAttackable || !context.TargetIsVisibleEnemy)
+            {
+                reasons.Add("The target is not currently attackable.");
+                codes.Add(MountedCombatRejectionCode.TargetNotAttackable);
             }
             if (!context.ActionActorOwnsCurrentTurnOrRealTime)
             {
                 reasons.Add("The action actor must own the current turn.");
+                codes.Add(MountedCombatRejectionCode.WrongTurn);
             }
             if (!context.ActionActorHasStandardAction)
             {
                 reasons.Add("The action actor has no Standard action available.");
+                codes.Add(MountedCombatRejectionCode.WrongActionState);
             }
             if (!context.TransactionIdle)
             {
                 reasons.Add("A mounted pair command is already active.");
+                codes.Add(MountedCombatRejectionCode.AlreadyActiveCommand);
             }
             if (context.LoadingOrLifecycleBoundary)
             {
                 reasons.Add("Mounted attacks are blocked during lifecycle transitions.");
+                codes.Add(MountedCombatRejectionCode.LifecycleBoundary);
             }
-            if (context.Action == MountedCombatActionKind.RiderMelee &&
-                !context.RiderWeaponIsSupportedMelee)
+            if (context.Action == MountedCombatActionKind.RiderMelee && !context.RiderHasEligibleWeapon)
             {
-                reasons.Add("Rider mode requires one supported melee weapon; ranged attacks and spells are not authorized.");
+                reasons.Add("The rider has no eligible equipped weapon.");
+                codes.Add(MountedCombatRejectionCode.NoEligibleWeapon);
+            }
+            else if (context.Action == MountedCombatActionKind.RiderMelee && context.RiderWeaponIsRanged)
+            {
+                reasons.Add("Mounted ranged attacks are not supported in this private alpha.");
+                codes.Add(MountedCombatRejectionCode.MountedRangedUnsupported);
+            }
+            else if (context.Action == MountedCombatActionKind.RiderMelee &&
+                (!context.RiderWeaponCategorySupported || !context.RiderWeaponIsSupportedMelee))
+            {
+                reasons.Add("Rider melee requires one ordinary one-handed melee weapon in this private alpha.");
+                codes.Add(MountedCombatRejectionCode.UnsupportedWeaponCategory);
             }
             if (context.Action == MountedCombatActionKind.MountPrimaryNatural &&
                 !context.MountPrimaryNaturalAttackIsExact)
             {
                 reasons.Add("The Mammoth primary natural attack could not be identified exactly.");
+                codes.Add(MountedCombatRejectionCode.NoEligibleWeapon);
+            }
+            if (context.PathKnownUnavailable)
+            {
+                reasons.Add("The Mammoth has no supported path to that target.");
+                codes.Add(MountedCombatRejectionCode.NoPath);
+            }
+            if (!context.WithinSupportedRangeEnvelope)
+            {
+                reasons.Add("The target is outside the supported mounted approach range.");
+                codes.Add(MountedCombatRejectionCode.OutsideSupportedRange);
+            }
+            if (!context.RangeOriginConsistent)
+            {
+                reasons.Add("The mounted Mammoth-origin and native rider range gates disagree.");
+                codes.Add(MountedCombatRejectionCode.RangeOriginMismatch);
+            }
+            if (!context.CommandAdmissionReady)
+            {
+                reasons.Add("The mounted command could not enter the action actor's command slot.");
+                codes.Add(MountedCombatRejectionCode.CommandAdmissionFailure);
             }
 
             var actor = context.Action == MountedCombatActionKind.RiderMelee
@@ -309,7 +430,7 @@ namespace KingmakerMountedCombat.Domain
                 : context.Action == MountedCombatActionKind.MountPrimaryNatural
                     ? MountedCombatActor.Mount
                     : MountedCombatActor.None;
-            return new MountedCombatActionAvailability(reasons.Count == 0, actor, reasons);
+            return new MountedCombatActionAvailability(reasons.Count == 0, actor, reasons, codes);
         }
     }
 }

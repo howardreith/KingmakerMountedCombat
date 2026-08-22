@@ -51,6 +51,7 @@
     <Compile Include="NativeAreaBoundaryProgressTests.cs" />
     <Compile Include="MountedRiderPoseTests.cs" />
     <Compile Include="MountedRiderGroundingPolicyTests.cs" />
+    <Compile Include="MountedStabilizationPolicyTests.cs" />
     <Compile Include="PresentationOverlayEvidenceTests.cs" />
     <Compile Include="ScopedDiagnosticAiLeaseTests.cs" />
     <Compile Include="TestRunner.cs" />
@@ -118,6 +119,7 @@
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MovementTelemetry.cs"><Link>Shared\Domain\MovementTelemetry.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedRiderPoseProfile.cs"><Link>Shared\Domain\MountedRiderPoseProfile.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedRiderGroundingPolicy.cs"><Link>Shared\Domain\MountedRiderGroundingPolicy.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedStabilizationPolicy.cs"><Link>Shared\Domain\MountedStabilizationPolicy.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\PoseVector3.cs"><Link>Shared\Domain\PoseVector3.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\RelationshipState.cs"><Link>Shared\Domain\RelationshipState.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\ScopedPoseBaselineLease.cs"><Link>Shared\Domain\ScopedPoseBaselineLease.cs</Link></Compile>

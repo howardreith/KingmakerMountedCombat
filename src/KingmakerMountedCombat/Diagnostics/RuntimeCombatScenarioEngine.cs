@@ -44,6 +44,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private const string RiderCommandInterruptTurnBased = "mounted-rider-melee-command-interrupt-tb";
         private const string RiderCombatEndRealTime = "mounted-rider-melee-combat-end-rt";
         private const string RiderCombatEndTurnBased = "mounted-rider-melee-combat-end-tb";
+        private const string RiderHumanPlayRealTime = "mounted-rider-melee-human-play-path-rt";
+        private const string RiderHumanPlayTurnBased = "mounted-rider-melee-human-play-path-tb";
         private const double RowTimeoutSeconds = 30.0d;
         private const double CleanupTimeoutSeconds = 10.0d;
         private const float SpawnDistance = 6.0f;
@@ -60,6 +62,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private readonly RuntimeRequest request;
         private readonly GameMountedRelationshipService relationship;
+        private readonly MountedPlayerActionController playerAction;
         private readonly MountedCombatController combat;
         private readonly MountedLifecycleSubscriber lifecycle;
         private readonly DiagnosticSettings settings;
@@ -106,6 +109,13 @@ namespace KingmakerMountedCombat.Diagnostics
         private float mountDisplacementAtOutcome;
         private float targetDisplacementAtOutcome;
         private bool clickAccepted;
+        private bool humanPlayArmedThroughPlayerAction;
+        private bool humanPlayOverlayGuardExercised;
+        private bool humanPlayPropagatedWorldClickSuppressed;
+        private bool humanPlayArmedActionRetainedAfterOverlayClick;
+        private bool directClickedUnitView;
+        private string admissionFeedback;
+        private string[] admissionRejectionCodes = new string[0];
         private MountedPairAttackOutcome outcome;
         private bool targetRemoved;
         private bool targetEntityRemoved;
@@ -139,6 +149,11 @@ namespace KingmakerMountedCombat.Diagnostics
         private DiagnosticTurnBasedDispatchReadinessSnapshot turnBasedReadiness;
         private NativeModeTransitionProbe turnBasedModeProbe;
         private bool turnBasedModeEnabledAtMount;
+        private bool pairMountedBeforeTurnBasedEnable;
+        private bool pairRetainedAfterTurnBasedEnable;
+        private bool pairRetainedAfterRealtimeRestore;
+        private string presentationAfterTurnBasedEnable;
+        private string presentationAfterRealtimeRestore;
         private bool turnBasedControllerInitialized;
         private bool turnRosterContainsRider;
         private bool turnRosterContainsMount;
@@ -152,6 +167,18 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool currentTurnActingAtOutcome;
         private bool turnBasedModeRestored = true;
         private bool turnBasedPersistedSettingUnchanged = true;
+        private bool groundMovementStarted;
+        private bool groundMovementCompleted;
+        private Vector3 groundMovementDestination;
+        private Vector3 riderPositionBeforeGroundMovement;
+        private Vector3 mountPositionBeforeGroundMovement;
+        private Vector3 targetPositionBeforeGroundMovement;
+        private float riderGroundMovementDisplacement;
+        private float mountGroundMovementDisplacement;
+        private float targetGroundMovementDisplacement;
+        private bool groundMovementPairRetained;
+        private bool groundMovementSelectionRetained;
+        private bool groundMovementPoseHealthy;
         private int movementToAttackObservationCount;
         private bool selectionRetainedDuringApproach = true;
         private bool uiCoherentDuringApproach = true;
@@ -182,6 +209,7 @@ namespace KingmakerMountedCombat.Diagnostics
         public RuntimeCombatScenarioEngine(
             RuntimeRequest request,
             GameMountedRelationshipService relationship,
+            MountedPlayerActionController playerAction,
             MountedCombatController combat,
             MountedLifecycleSubscriber lifecycle,
             DiagnosticSettings settings,
@@ -189,6 +217,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             this.request = request ?? throw new ArgumentNullException(nameof(request));
             this.relationship = relationship ?? throw new ArgumentNullException(nameof(relationship));
+            this.playerAction = playerAction ?? throw new ArgumentNullException(nameof(playerAction));
             this.combat = combat ?? throw new ArgumentNullException(nameof(combat));
             this.lifecycle = lifecycle ?? throw new ArgumentNullException(nameof(lifecycle));
             this.settings = settings ?? throw new ArgumentNullException(nameof(settings));
@@ -219,7 +248,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 string.Equals(scenario, RiderCommandInterruptRealTime, StringComparison.Ordinal) ||
                 string.Equals(scenario, RiderCommandInterruptTurnBased, StringComparison.Ordinal) ||
                 string.Equals(scenario, RiderCombatEndRealTime, StringComparison.Ordinal) ||
-                string.Equals(scenario, RiderCombatEndTurnBased, StringComparison.Ordinal);
+                string.Equals(scenario, RiderCombatEndTurnBased, StringComparison.Ordinal) ||
+                string.Equals(scenario, RiderHumanPlayRealTime, StringComparison.Ordinal) ||
+                string.Equals(scenario, RiderHumanPlayTurnBased, StringComparison.Ordinal);
         }
 
         private bool IsTurnBasedRow =>
@@ -228,13 +259,22 @@ namespace KingmakerMountedCombat.Diagnostics
                 string.Equals(currentRow, RiderMoveToAttackTurnBased, StringComparison.Ordinal) ||
                 string.Equals(currentRow, RiderCommandCancelTurnBased, StringComparison.Ordinal) ||
                 string.Equals(currentRow, RiderCommandInterruptTurnBased, StringComparison.Ordinal) ||
-                string.Equals(currentRow, RiderCombatEndTurnBased, StringComparison.Ordinal);
+                string.Equals(currentRow, RiderCombatEndTurnBased, StringComparison.Ordinal) ||
+                string.Equals(currentRow, RiderHumanPlayTurnBased, StringComparison.Ordinal);
+
+        private bool IsHumanPlayRow =>
+            string.Equals(currentRow, RiderHumanPlayRealTime, StringComparison.Ordinal) ||
+            string.Equals(currentRow, RiderHumanPlayTurnBased, StringComparison.Ordinal);
+
+        private bool IsMountedBeforeModeTransitionRow =>
+            string.Equals(currentRow, RiderHumanPlayTurnBased, StringComparison.Ordinal);
 
         private bool IsMissRow => string.Equals(currentRow, RiderMissRealTime, StringComparison.Ordinal);
 
         private bool IsReachQualificationRow =>
             string.Equals(currentRow, RiderHitRealTime, StringComparison.Ordinal) ||
             string.Equals(currentRow, RiderHitTurnBased, StringComparison.Ordinal) ||
+            IsHumanPlayRow ||
             string.Equals(currentRow, MammothPrimaryHitRealTime, StringComparison.Ordinal) ||
             string.Equals(currentRow, MammothPrimaryHitTurnBased, StringComparison.Ordinal);
 
@@ -332,6 +372,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     case CombatEngineStep.AwaitCombatFrame:
                         IssueAttackWhenReady();
                         break;
+                    case CombatEngineStep.AwaitGroundMovement:
+                        ObserveGroundMovement();
+                        break;
                     case CombatEngineStep.AwaitOutcome:
                         ObserveOutcome();
                         break;
@@ -408,7 +451,7 @@ namespace KingmakerMountedCombat.Diagnostics
             pauseLeaseOwned = true;
             pauseRestored = false;
 
-            if (IsTurnBasedRow)
+            if (IsTurnBasedRow && !IsMountedBeforeModeTransitionRow)
             {
                 turnBasedModeProbe = new NativeModeTransitionProbe();
                 assertions.Check(!turnBasedModeProbe.OriginalValue && turnBasedModeProbe.TemporaryValue,
@@ -435,6 +478,17 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 return;
             }
+            if (IsMountedBeforeModeTransitionRow)
+            {
+                pairRetainedAfterTurnBasedEnable = relationship.State == RelationshipState.Mounted &&
+                    relationship.Rider == rider && relationship.Mount == mount &&
+                    relationship.Runtime.PoseHealthy && relationship.Runtime.PoseFrameApplied;
+                assertions.Check(pairRetainedAfterTurnBasedEnable,
+                    "The exact mounted pair and accepted Mammoth presentation survived RT-to-TB transition.");
+                EnterCombat();
+                return;
+            }
+
             turnBasedModeEnabledAtMount = true;
             ResolveAndMountPair();
         }
@@ -482,6 +536,27 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void EnterCombat()
         {
+            if (IsMountedBeforeModeTransitionRow && turnBasedModeProbe == null)
+            {
+                pairMountedBeforeTurnBasedEnable = relationship.State == RelationshipState.Mounted &&
+                    relationship.Rider == rider && relationship.Mount == mount;
+                assertions.Check(pairMountedBeforeTurnBasedEnable,
+                    "The exact pair mounted in real time before the native turn-based transition.");
+                turnBasedModeProbe = new NativeModeTransitionProbe();
+                assertions.Check(!turnBasedModeProbe.OriginalValue && turnBasedModeProbe.TemporaryValue,
+                    "Human-play TB row leased an exact false-to-true native mode transition after mounting.");
+                if (assertions.FailureCount != 0)
+                {
+                    BeginCleanup();
+                    return;
+                }
+                turnBasedModeRestored = false;
+                turnBasedPersistedSettingUnchanged = false;
+                turnBasedModeProbe.DispatchTemporaryValue();
+                step = CombatEngineStep.AwaitTurnBasedMode;
+                return;
+            }
+
             assertions.Check(relationship.State == RelationshipState.Mounted &&
                     relationship.Runtime.PoseConfigured && relationship.Runtime.PoseHealthy &&
                     relationship.Runtime.PoseFrameApplied,
@@ -653,6 +728,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     return;
                 }
+                if (IsMountedBeforeModeTransitionRow && presentationAfterTurnBasedEnable == null)
+                {
+                    presentationAfterTurnBasedEnable = relationship.CapturePresentationObservation();
+                    assertions.Check(IsRiderUiOwnershipCoherent(presentationAfterTurnBasedEnable),
+                        "The rider view, selection, portrait, action bar, and camera remained coherent after RT-to-TB transition.");
+                }
             }
 
             var handsEquipment = game.HandsEquipmentController;
@@ -678,6 +759,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 handsEquipment != null && !handsEquipment.IsUpdateScheduledFor(actionActor));
             if (!dispatchReadiness.AllPassed)
             {
+                return;
+            }
+
+            if (IsMountedBeforeModeTransitionRow && !groundMovementCompleted)
+            {
+                BeginGroundMovement();
                 return;
             }
 
@@ -779,12 +866,39 @@ namespace KingmakerMountedCombat.Diagnostics
                     "Diagnostic target retained the exact near-boundary mounted-range placement.");
             }
 
+            if (IsHumanPlayRow && !humanPlayOverlayGuardExercised)
+            {
+                humanPlayArmedThroughPlayerAction = playerAction.ArmCombatActionFromOverlay(AttackAction);
+                var propagatedClickAccepted = new ClickUnitHandler().OnClick(
+                    target.View.gameObject,
+                    target.Position,
+                    0,
+                    false,
+                    false);
+                humanPlayPropagatedWorldClickSuppressed = !propagatedClickAccepted;
+                humanPlayArmedActionRetainedAfterOverlayClick =
+                    combat.ArmedAction == AttackAction && !combat.HasActiveCommand;
+                humanPlayOverlayGuardExercised = true;
+                assertions.Check(humanPlayArmedThroughPlayerAction &&
+                        humanPlayPropagatedWorldClickSuppressed &&
+                        humanPlayArmedActionRetainedAfterOverlayClick,
+                    "The exact overlay activation suppressed one propagated world click while retaining the armed rider action.");
+                if (assertions.FailureCount != 0)
+                {
+                    BeginCleanup();
+                }
+                return;
+            }
+
             ruleProbe = new MountedCombatRuleProbe();
             ruleProbe.Arm(rider, mount, AttackActor, target,
                 IsCommandTerminationRow ? (int?)null : IsMissRow ? 1 : 20);
             assertions.Check(targetService != null && targetService.BeginExpectedAttackDispatch(target),
                 "Target incoming-rule observation marked the exact expected pair-action dispatch boundary.");
-            assertions.Check(combat.ArmedAction == AttackAction || combat.Arm(AttackAction),
+            var attackArmed = IsHumanPlayRow
+                ? humanPlayArmedThroughPlayerAction && combat.ArmedAction == AttackAction
+                : combat.ArmedAction == AttackAction || combat.Arm(AttackAction);
+            assertions.Check(attackArmed,
                 AttackAction + " armed through the combat controller on the exact action actor turn.");
             if (assertions.FailureCount != 0)
             {
@@ -792,7 +906,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
+            directClickedUnitView = target.View.gameObject.GetComponent<UnitEntityView>() == target.View;
             clickAccepted = new ClickUnitHandler().OnClick(target.View.gameObject, target.Position, 0, false, false);
+            admissionFeedback = combat.LastFeedback;
+            admissionRejectionCodes = combat.LastRejectionCodes.Select(code => code.ToString()).ToArray();
             assertions.Check(clickAccepted &&
                     combat.ArmedAction == MountedCombatActionKind.None &&
                     combat.HasActiveCommand,
@@ -805,6 +922,94 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
             step = CombatEngineStep.AwaitOutcome;
+        }
+
+        private void BeginGroundMovement()
+        {
+            if (groundMovementStarted)
+            {
+                step = CombatEngineStep.AwaitGroundMovement;
+                return;
+            }
+
+            SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
+            var selected = SelectionManager.Instance.SelectedUnits;
+            assertions.Check(selected != null && selected.Count == 1 && selected[0] == rider,
+                "Exactly the rider owned selection before the ordinary turn-based ground click.");
+            assertions.Check(!combat.HasActiveCommand && !combat.HasActiveGroundMovement,
+                "Mounted command routing was idle before the ordinary turn-based ground click.");
+            if (assertions.FailureCount != 0)
+            {
+                BeginCleanup();
+                return;
+            }
+
+            riderPositionBeforeGroundMovement = rider.Position;
+            mountPositionBeforeGroundMovement = mount.Position;
+            targetPositionBeforeGroundMovement = target.Position;
+            groundMovementDestination = FindWalkablePoint(mount.Position, 2.0f, 0.4f);
+            groundMovementStarted = true;
+            ClickGroundHandler.MoveSelectedUnitsToPoint(groundMovementDestination, false);
+            assertions.Check(combat.HasActiveGroundMovement,
+                "Ordinary ClickGroundHandler input admitted one exact Mammoth Move-slot command on the rider turn. Feedback=" +
+                combat.LastFeedback + ".");
+            if (assertions.FailureCount != 0)
+            {
+                BeginCleanup();
+                return;
+            }
+            step = CombatEngineStep.AwaitGroundMovement;
+        }
+
+        private void ObserveGroundMovement()
+        {
+            if (targetService == null || !targetService.RefreshBidirectionalCombatMemoryLease())
+            {
+                assertions.Fail("Exact bidirectional combat-memory lease was lost during rider-turn ground movement.");
+                BeginCleanup();
+                return;
+            }
+
+            groundMovementPairRetained = relationship.State == RelationshipState.Mounted &&
+                relationship.Rider == rider && relationship.Mount == mount;
+            var selected = SelectionManager.Instance?.SelectedUnits;
+            groundMovementSelectionRetained = selected != null && selected.Count == 1 && selected[0] == rider;
+            groundMovementPoseHealthy = relationship.Runtime.PoseHealthy && relationship.Runtime.PoseFrameApplied;
+            if (combat.HasActiveGroundMovement)
+            {
+                return;
+            }
+            if (string.IsNullOrEmpty(combat.LastGroundMoveResult))
+            {
+                return;
+            }
+
+            riderGroundMovementDisplacement = HorizontalDistance(riderPositionBeforeGroundMovement, rider.Position);
+            mountGroundMovementDisplacement = HorizontalDistance(mountPositionBeforeGroundMovement, mount.Position);
+            targetGroundMovementDisplacement = HorizontalDistance(targetPositionBeforeGroundMovement, target.Position);
+            assertions.Check(string.Equals(combat.LastGroundMoveResult, "Success", StringComparison.Ordinal) &&
+                    combat.LastGroundMoveDriveCount > 0 && combat.LastGroundMoveUsedRiderTurnAdapter,
+                "Rider-turn ground movement completed successfully through the bounded Mammoth-command adapter.");
+            assertions.Check(string.Equals(combat.LastGroundMoveExecutorId, mount.UniqueId, StringComparison.Ordinal) &&
+                    combat.LastGroundMoveSlotRestored,
+                "Ground movement retained exact Mammoth execution and restored its exact Move slot and queue.");
+            assertions.Check(combat.LastGroundMoveRiderMoveAfter > combat.LastGroundMoveRiderMoveBefore &&
+                    Math.Abs(combat.LastGroundMoveMountMoveAfter - combat.LastGroundMoveMountMoveBefore) <= 0.01f,
+                "Turn-based ground movement charged only the rider Move ledger.");
+            assertions.Check(riderGroundMovementDisplacement >= 0.75f &&
+                    mountGroundMovementDisplacement >= 0.75f &&
+                    targetGroundMovementDisplacement <= MountedCombatSpatialPolicy.RangeTolerance,
+                "The exact mounted pair moved measurably while the diagnostic target remained stationary.");
+            assertions.Check(groundMovementPairRetained && groundMovementSelectionRetained && groundMovementPoseHealthy,
+                "Ground movement retained the exact pair, rider selection, and accepted Mammoth presentation.");
+            if (assertions.FailureCount != 0)
+            {
+                BeginCleanup();
+                return;
+            }
+
+            groundMovementCompleted = true;
+            step = CombatEngineStep.AwaitCombatFrame;
         }
 
         private bool RetainDiagnosticTargetPlacementAtDispatch()
@@ -1283,6 +1488,20 @@ namespace KingmakerMountedCombat.Diagnostics
 
             try
             {
+                if (IsMountedBeforeModeTransitionRow && turnBasedModeProbe != null &&
+                    turnBasedModeProbe.TemporaryDeliveryAttempted && !turnBasedModeProbe.RestoreDeliveryCompleted)
+                {
+                    RestoreTurnBasedMode();
+                    pairRetainedAfterRealtimeRestore = turnBasedModeRestored &&
+                        relationship.State == RelationshipState.Mounted &&
+                        relationship.Rider == rider && relationship.Mount == mount &&
+                        relationship.Runtime.PoseHealthy && relationship.Runtime.PoseFrameApplied;
+                    assertions.Check(pairRetainedAfterRealtimeRestore,
+                        "The exact mounted pair and accepted Mammoth presentation survived TB-to-RT restoration.");
+                    presentationAfterRealtimeRestore = relationship.CapturePresentationObservation();
+                    assertions.Check(IsRiderUiOwnershipCoherent(presentationAfterRealtimeRestore),
+                        "The rider view, selection, portrait, action bar, and camera remained coherent after TB-to-RT restoration.");
+                }
                 combat.Cancel("runtime combat row cleanup");
                 var cleanup = relationship.Dismount(CleanupTrigger.Manual);
                 relationshipClean = cleanup.Succeeded && !cleanup.MovementAuthorityResidual &&
@@ -1404,7 +1623,9 @@ namespace KingmakerMountedCombat.Diagnostics
             var selected = SelectionManager.Instance?.SelectedUnits;
             var record = new CombatEvidenceRecord
             {
-                SchemaVersion = IsCommandTerminationRow
+                SchemaVersion = IsHumanPlayRow
+                    ? (IsTurnBasedRow ? 45 : 44)
+                    : IsCommandTerminationRow
                     ? IsCombatEndTerminationRow
                         ? (IsTurnBasedRow ? 41 : 40)
                         : (IsTurnBasedRow ? 39 : 38)
@@ -1440,6 +1661,17 @@ namespace KingmakerMountedCombat.Diagnostics
                 TargetBrainLease = CombatTargetBrainLeaseEvidence.From(targetService),
                 Reach = reachEvidence,
                 ClickAccepted = clickAccepted,
+                Admission = IsHumanPlayRow
+                    ? new CombatAdmissionEvidence
+                    {
+                        ArmedThroughPlayerFacingCombatController = humanPlayArmedThroughPlayerAction,
+                        OverlayActivationWorldClickSuppressed = humanPlayPropagatedWorldClickSuppressed,
+                        ArmedActionRetainedAfterOverlayClick = humanPlayArmedActionRetainedAfterOverlayClick,
+                        DirectClickedUnitView = directClickedUnitView,
+                        Feedback = admissionFeedback,
+                        RejectionCodes = admissionRejectionCodes
+                    }
+                    : null,
                 PairApproachRadius = pairApproachRadius,
                 TargetDistanceAtClick = targetDistanceAtClick,
                 RiderPositionAtClick = PositionEvidence.From(riderPositionAtClick),
@@ -1460,6 +1692,11 @@ namespace KingmakerMountedCombat.Diagnostics
                     ? TurnBasedCombatEvidence.Capture(
                         turnBasedModeProbe,
                         turnBasedModeEnabledAtMount,
+                        pairMountedBeforeTurnBasedEnable,
+                        pairRetainedAfterTurnBasedEnable,
+                        pairRetainedAfterRealtimeRestore,
+                        presentationAfterTurnBasedEnable,
+                        presentationAfterRealtimeRestore,
                         turnBasedControllerInitialized,
                         turnRosterContainsRider,
                         turnRosterContainsMount,
@@ -1475,6 +1712,32 @@ namespace KingmakerMountedCombat.Diagnostics
                             !string.Equals(currentTurnUnitIdAtOutcome, mount?.UniqueId, StringComparison.Ordinal)),
                         turnBasedModeRestored,
                         turnBasedPersistedSettingUnchanged)
+                    : null,
+                GroundMovement = IsMountedBeforeModeTransitionRow
+                    ? new CombatGroundMovementEvidence
+                    {
+                        Requested = groundMovementStarted,
+                        Destination = PositionEvidence.From(groundMovementDestination),
+                        Result = combat.LastGroundMoveResult,
+                        DriveCount = combat.LastGroundMoveDriveCount,
+                        ExecutorId = combat.LastGroundMoveExecutorId,
+                        ExecutorIsExactMount = mount != null && string.Equals(
+                            combat.LastGroundMoveExecutorId,
+                            mount.UniqueId,
+                            StringComparison.Ordinal),
+                        UsedRiderTurnAdapter = combat.LastGroundMoveUsedRiderTurnAdapter,
+                        SlotRestored = combat.LastGroundMoveSlotRestored,
+                        RiderMoveBefore = combat.LastGroundMoveRiderMoveBefore,
+                        RiderMoveAfter = combat.LastGroundMoveRiderMoveAfter,
+                        MountMoveBefore = combat.LastGroundMoveMountMoveBefore,
+                        MountMoveAfter = combat.LastGroundMoveMountMoveAfter,
+                        RiderDisplacement = riderGroundMovementDisplacement,
+                        MountDisplacement = mountGroundMovementDisplacement,
+                        TargetDisplacement = targetGroundMovementDisplacement,
+                        PairRetained = groundMovementPairRetained,
+                        SelectionRetained = groundMovementSelectionRetained,
+                        PoseHealthy = groundMovementPoseHealthy
+                    }
                     : null,
                 Resources = new CombatResourceEvidence
                 {
@@ -1734,6 +1997,26 @@ namespace KingmakerMountedCombat.Diagnostics
             return false;
         }
 
+        private bool IsRiderUiOwnershipCoherent(string observation)
+        {
+            if (rider == null || string.IsNullOrWhiteSpace(observation))
+            {
+                return false;
+            }
+
+            var riderId = rider.UniqueId;
+            return observation.IndexOf("uiOwnershipObservationError=", StringComparison.Ordinal) < 0 &&
+                observation.IndexOf("riderViewActiveInHierarchy=True", StringComparison.Ordinal) >= 0 &&
+                observation.IndexOf("riderSelected=True", StringComparison.Ordinal) >= 0 &&
+                observation.IndexOf("actionBarOwner=" + riderId, StringComparison.Ordinal) >= 0 &&
+                observation.IndexOf("actionBarActive=True", StringComparison.Ordinal) >= 0 &&
+                observation.IndexOf("portraitActiveOwnerCount=1", StringComparison.Ordinal) >= 0 &&
+                observation.IndexOf("portraitActive=True", StringComparison.Ordinal) >= 0 &&
+                observation.IndexOf("portraitSelected=True", StringComparison.Ordinal) >= 0 &&
+                observation.IndexOf("cameraOn=True", StringComparison.Ordinal) >= 0 &&
+                observation.IndexOf("cameraOwner=" + riderId, StringComparison.Ordinal) >= 0;
+        }
+
         private static void TryLeaveCombat(UnitEntityData unit)
         {
             if (unit != null && unit.IsInState && unit.IsInCombat)
@@ -1898,6 +2181,7 @@ namespace KingmakerMountedCombat.Diagnostics
             AwaitTurnBasedMode,
             AwaitMountedFrame,
             AwaitCombatFrame,
+            AwaitGroundMovement,
             AwaitOutcome,
             AwaitCleanupFrame
         }
@@ -1961,6 +2245,9 @@ namespace KingmakerMountedCombat.Diagnostics
             public CombatTargetBrainLeaseEvidence TargetBrainLease { get; set; }
             [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
             public CombatReachEvidence Reach { get; set; }
+
+            [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            public CombatAdmissionEvidence Admission { get; set; }
             public bool ClickAccepted { get; set; }
             public float PairApproachRadius { get; set; }
             public float TargetDistanceAtClick { get; set; }
@@ -1971,6 +2258,9 @@ namespace KingmakerMountedCombat.Diagnostics
             public CombatDispatchEvidence Dispatch { get; set; }
             [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
             public TurnBasedCombatEvidence TurnBased { get; set; }
+
+            [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            public CombatGroundMovementEvidence GroundMovement { get; set; }
             public CombatResourceEvidence Resources { get; set; }
             public CombatCommandEvidence Command { get; set; }
             public CombatRuleEvidence Rules { get; set; }
@@ -1985,6 +2275,38 @@ namespace KingmakerMountedCombat.Diagnostics
             public int AssertionPassCount { get; set; }
             public int AssertionFailCount { get; set; }
             public IReadOnlyList<string> Errors { get; set; }
+        }
+
+        private sealed class CombatAdmissionEvidence
+        {
+            public bool ArmedThroughPlayerFacingCombatController { get; set; }
+            public bool OverlayActivationWorldClickSuppressed { get; set; }
+            public bool ArmedActionRetainedAfterOverlayClick { get; set; }
+            public bool DirectClickedUnitView { get; set; }
+            public string Feedback { get; set; }
+            public string[] RejectionCodes { get; set; }
+        }
+
+        private sealed class CombatGroundMovementEvidence
+        {
+            public bool Requested { get; set; }
+            public PositionEvidence Destination { get; set; }
+            public string Result { get; set; }
+            public int DriveCount { get; set; }
+            public string ExecutorId { get; set; }
+            public bool ExecutorIsExactMount { get; set; }
+            public bool UsedRiderTurnAdapter { get; set; }
+            public bool SlotRestored { get; set; }
+            public float RiderMoveBefore { get; set; }
+            public float RiderMoveAfter { get; set; }
+            public float MountMoveBefore { get; set; }
+            public float MountMoveAfter { get; set; }
+            public float RiderDisplacement { get; set; }
+            public float MountDisplacement { get; set; }
+            public float TargetDisplacement { get; set; }
+            public bool PairRetained { get; set; }
+            public bool SelectionRetained { get; set; }
+            public bool PoseHealthy { get; set; }
         }
 
         private void CaptureInitialReachEvidence()
@@ -2277,6 +2599,13 @@ namespace KingmakerMountedCombat.Diagnostics
             public bool TemporaryEnabled { get; set; }
             public bool OriginalRawCacheHadValue { get; set; }
             public bool EnabledAtMount { get; set; }
+            public bool PairMountedBeforeEnable { get; set; }
+            public bool PairRetainedAfterEnable { get; set; }
+            public bool PairRetainedAfterRealtimeRestore { get; set; }
+            [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            public string PresentationAfterEnable { get; set; }
+            [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            public string PresentationAfterRealtimeRestore { get; set; }
             public bool ControllerInitialized { get; set; }
             public bool RosterContainsRider { get; set; }
             public bool RosterContainsMount { get; set; }
@@ -2296,6 +2625,11 @@ namespace KingmakerMountedCombat.Diagnostics
             public static TurnBasedCombatEvidence Capture(
                 NativeModeTransitionProbe probe,
                 bool enabledAtMount,
+                bool pairMountedBeforeEnable,
+                bool pairRetainedAfterEnable,
+                bool pairRetainedAfterRealtimeRestore,
+                string presentationAfterEnable,
+                string presentationAfterRealtimeRestore,
                 bool controllerInitialized,
                 bool rosterContainsRider,
                 bool rosterContainsMount,
@@ -2318,6 +2652,11 @@ namespace KingmakerMountedCombat.Diagnostics
                     TemporaryEnabled = probe != null && probe.TemporaryValue,
                     OriginalRawCacheHadValue = probe != null && probe.OriginalRawCacheHadValue,
                     EnabledAtMount = enabledAtMount,
+                    PairMountedBeforeEnable = pairMountedBeforeEnable,
+                    PairRetainedAfterEnable = pairRetainedAfterEnable,
+                    PairRetainedAfterRealtimeRestore = pairRetainedAfterRealtimeRestore,
+                    PresentationAfterEnable = presentationAfterEnable,
+                    PresentationAfterRealtimeRestore = presentationAfterRealtimeRestore,
                     ControllerInitialized = controllerInitialized,
                     RosterContainsRider = rosterContainsRider,
                     RosterContainsMount = rosterContainsMount,

@@ -1,0 +1,92 @@
+using System;
+using KingmakerMountedCombat.Domain;
+
+namespace KingmakerMountedCombat.Tests
+{
+    internal static class MountedStabilizationPolicyTests
+    {
+        public static void Register(TestRunner runner)
+        {
+            runner.Run("mounted UI modes preserve the relationship without admitting combat", UiModesPreserveWithoutCombatAdmission);
+            runner.Run("world-changing modes cleanly dismount", WorldChangingModesDismount);
+            runner.Run("same-view attachment observes while replacement attachment cleans", ViewAttachmentClassificationIsExact);
+            runner.Run("non-world UI treats stock visibility as transient while world mode remains strict", UiViewActivityIsModeScoped);
+            runner.Run("mounted stock rider attack is pair-local and explains ranged rejection", StockAttackRejectionIsPairLocal);
+            runner.Run("mounted overlay world-click guard is one-shot and frame-bounded", OverlayWorldClickGuardIsBounded);
+            runner.Run("cleanup feedback explains intentional transient boundaries", ExplainsIntentionalCleanupBoundaries);
+        }
+
+        private static void UiModesPreserveWithoutCombatAdmission()
+        {
+            foreach (var mode in new[] { "Pause", "FullScreenUi", "EscMode" })
+            {
+                TestRunner.Equal(MountedGameModeDisposition.PreserveNonWorldUi, MountedGameModePolicy.Classify(mode), mode + " was not classified as non-world UI.");
+                TestRunner.True(MountedGameModePolicy.CanRetainMountedRelationship(mode), mode + " dismounted the pair.");
+                TestRunner.True(!MountedGameModePolicy.CanAdmitMountedAction(mode), mode + " admitted a combat action.");
+            }
+            TestRunner.True(MountedGameModePolicy.CanAdmitMountedAction("Default"), "Default mode rejected mounted action admission.");
+        }
+
+        private static void WorldChangingModesDismount()
+        {
+            foreach (var mode in new[] { "None", "GlobalMap", "Dialog", "Cutscene", "Rest", "Kingdom", "GameOver", "BugReport", "KingdomSettlement", "CutsceneGlobalMap" })
+            {
+                TestRunner.Equal(MountedGameModeDisposition.CleanDismount, MountedGameModePolicy.Classify(mode), mode + " escaped the clean-dismount boundary.");
+            }
+        }
+
+        private static void ViewAttachmentClassificationIsExact()
+        {
+            TestRunner.Equal(MountedViewAttachmentDisposition.ObserveExactView, MountedViewAttachmentPolicy.Classify(true, true, true, false), "An exact same-view attachment was treated as replacement.");
+            TestRunner.Equal(MountedViewAttachmentDisposition.CleanReplacementFromOwnedAnchor, MountedViewAttachmentPolicy.Classify(true, true, false, true), "A replacement inherited through the owned anchor was not isolated.");
+            TestRunner.Equal(MountedViewAttachmentDisposition.CleanChangedView, MountedViewAttachmentPolicy.Classify(true, true, false, false), "A changed pair view escaped fail-closed cleanup.");
+            TestRunner.Equal(MountedViewAttachmentDisposition.IgnoreNonPair, MountedViewAttachmentPolicy.Classify(true, false, false, true), "A non-pair view was adopted by KMC cleanup.");
+        }
+
+        private static void UiViewActivityIsModeScoped()
+        {
+            TestRunner.True(MountedViewActivityPolicy.IsAdmissible(MountedGameModeDisposition.PreserveNonWorldUi, true, true, false, false), "A coherently hidden world beneath non-world UI was rejected.");
+            TestRunner.True(MountedViewActivityPolicy.IsAdmissible(MountedGameModeDisposition.PreserveNonWorldUi, true, true, false, true), "Transient asymmetric hierarchy activity under stock UI was treated as relationship invalidation.");
+            TestRunner.True(MountedViewActivityPolicy.IsAdmissible(MountedGameModeDisposition.PreserveNonWorldUi, false, true, false, false), "Transient stock rider visibility under non-world UI was treated as relationship invalidation.");
+            TestRunner.True(MountedViewActivityPolicy.IsAdmissible(MountedGameModeDisposition.PreserveWorldInteraction, true, true, true, true), "Active world views were rejected.");
+            TestRunner.True(!MountedViewActivityPolicy.IsAdmissible(MountedGameModeDisposition.PreserveWorldInteraction, false, true, false, true), "Inactive rider view was accepted after returning to the world.");
+            TestRunner.True(!MountedViewActivityPolicy.IsAdmissible(MountedGameModeDisposition.CleanDismount, true, true, true, true), "A true world-changing boundary retained view activity authority.");
+        }
+
+        private static void StockAttackRejectionIsPairLocal()
+        {
+            TestRunner.True(MountedStockAttackPolicy.ShouldReject(true, true, true), "Exact mounted stock rider attack escaped rejection.");
+            TestRunner.True(!MountedStockAttackPolicy.ShouldReject(false, true, true), "Unmounted rider attack was changed.");
+            TestRunner.True(!MountedStockAttackPolicy.ShouldReject(true, false, true), "Non-rider attack was changed.");
+            TestRunner.True(!MountedStockAttackPolicy.ShouldReject(true, true, false), "A non-exact UnitAttack subclass, including an opportunity or KMC child attack, was changed.");
+            TestRunner.Equal("Mounted ranged attacks are not supported in this private alpha.", MountedStockAttackPolicy.RejectionFeedback(true), "Mounted ranged feedback changed.");
+        }
+
+        private static void OverlayWorldClickGuardIsBounded()
+        {
+            var guard = new MountedOverlayWorldInputGuard();
+            guard.MarkActivation(100);
+            TestRunner.True(guard.TryConsumePropagatedWorldClick(101), "The immediate post-overlay world click was not suppressed.");
+            TestRunner.True(!guard.TryConsumePropagatedWorldClick(101), "The overlay world-click guard suppressed more than one click.");
+
+            guard.MarkActivation(200);
+            TestRunner.True(!guard.TryConsumePropagatedWorldClick(203), "A later deliberate world click remained suppressed.");
+            guard.MarkActivation(300);
+            guard.Clear();
+            TestRunner.True(!guard.TryConsumePropagatedWorldClick(300), "A cleared overlay guard retained input ownership.");
+        }
+
+        private static void ExplainsIntentionalCleanupBoundaries()
+        {
+            TestRunner.True(
+                MountedCleanupFeedbackPolicy.Describe(CleanupTrigger.SaveRequested).IndexOf("saving", StringComparison.OrdinalIgnoreCase) >= 0,
+                "Save cleanup feedback did not identify the save boundary.");
+            TestRunner.True(
+                MountedCleanupFeedbackPolicy.Describe(CleanupTrigger.AreaUnloading).IndexOf("area", StringComparison.OrdinalIgnoreCase) >= 0,
+                "Area cleanup feedback did not identify the area boundary.");
+            TestRunner.True(
+                MountedCleanupFeedbackPolicy.Describe(CleanupTrigger.ViewReplaced).IndexOf("body", StringComparison.OrdinalIgnoreCase) >= 0,
+                "Body/view replacement feedback did not explain the automatic dismount.");
+        }
+    }
+}
