@@ -4,6 +4,12 @@ Status: `IN PROGRESS`
 
 This continuation repairs player-facing defects found in the first qualified Mammoth private alpha. It does not authorize horses, persistence, ranged mounted combat, mounted spellcasting rules, mounted feats, explicit mounted attacks of opportunity, mounted charge, another body profile, Phase 3 implementation, a public release, or a merge to `main`.
 
+## Current native TB-to-RT stabilization checkpoint
+
+Suite-2 schema-v44 RT A/B each passed `81/0`. Schema-v46 TB attempt `20260822T201000Z-private-alpha-stabilization-v46-suite2-tb-passA` is immutable uncredited `FAIL 103/1` after an immediate exact restoration audit. Every movement, player-click melee, action/resource, attack/rule, pair, view, pose, roster, Pause/Default, and Mammoth AI-lease assertion passed. Native TB shutdown left the exact visible rider without `SelectionManager` or action-bar ownership while portrait and camera ownership remained exact.
+
+Forward-only schema v47 adds one exact native-exit UI-lease repair: only an armed still-mounted pair in exact `Default`, after the owned Mammoth AI boundary, may reselect the exact captured rider once. It rejects replaced views and inexact relationships and does not alter turn, command, movement, attack, action/resource, timeout, or cleanup ownership. Offline gates pass source/component/visual/harness/assembly `21/232/17/219/282`, parsers `27/0` / `7/0`, diff, and prohibited payload. Fresh clean-package RT/TB A/B and doorway evidence remain required; no stabilization runtime qualification is claimed from the failed process.
+
 ## Preserved historical artifact
 
 The reported artifact remains immutable qualification history:

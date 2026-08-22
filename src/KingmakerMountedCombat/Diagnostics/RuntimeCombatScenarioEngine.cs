@@ -1617,6 +1617,18 @@ namespace KingmakerMountedCombat.Diagnostics
 
             turnBasedModeRestored = turnBasedRestoreDeliveryCompleted &&
                 turnBasedPersistedSettingUnchanged;
+            if (relationship.NativeTurnBasedExitUiLeaseRestoreAttemptCount == 0)
+            {
+                if (rowClock.Elapsed.TotalSeconds - modeRestoreStartedAtSeconds < CleanupTimeoutSeconds)
+                {
+                    return;
+                }
+                assertions.Fail("Exact post-native-exit rider UI lease restoration did not complete within its " +
+                    CleanupTimeoutSeconds + " second cleanup deadline. State: " +
+                    DescribeTurnBasedRestoreState() + ".");
+                BeginRelationshipCleanup();
+                return;
+            }
             assertions.Check(nativeRealtimePauseObserved && realtimeUnpauseRequested,
                 "Native TB disable entered its exact combat Pause boundary before a stock unpause resumed Default real time.");
             assertions.Check(
@@ -1626,6 +1638,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 relationship.NativeTurnBasedExitAiLeaseReassertionSuccessCount == 1 &&
                 string.Equals(relationship.NativeTurnBasedExitAiLeaseReassertionResult, "reasserted", StringComparison.Ordinal),
                 "Exact native TB shutdown AI reset was isolated by one successful reassertion of the already-owned Mammoth AI-disable lease.");
+            assertions.Check(
+                relationship.NativeTurnBasedExitUiLeaseRestoreArmedCount == 1 &&
+                relationship.NativeTurnBasedExitUiLeaseRestoreAttemptCount == 1 &&
+                relationship.NativeTurnBasedExitUiLeaseRestoreMutationCount == 1 &&
+                relationship.NativeTurnBasedExitUiLeaseRestoreSuccessCount == 1 &&
+                string.Equals(relationship.NativeTurnBasedExitUiLeaseRestoreResult, "reselected-rider", StringComparison.Ordinal),
+                "Exact native TB shutdown UI reset was isolated by one rider-selection/UI-principal restoration.");
             pairRetainedAfterRealtimeRestore = turnBasedModeRestored &&
                 relationship.State == RelationshipState.Mounted &&
                 relationship.Rider == rider && relationship.Mount == mount &&
@@ -1655,7 +1674,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 ";nativeRealtimePauseObserved=" + nativeRealtimePauseObserved +
                 ";realtimeUnpauseRequested=" + realtimeUnpauseRequested +
                 ";restoreDeliveryCompleted=" + turnBasedRestoreDeliveryCompleted +
-                ";persistedValueUnchanged=" + turnBasedPersistedSettingUnchanged;
+                ";persistedValueUnchanged=" + turnBasedPersistedSettingUnchanged +
+                ";uiLeaseRestoreResult=" + relationship.NativeTurnBasedExitUiLeaseRestoreResult;
         }
 
         private void BeginRelationshipCleanup()
@@ -1790,7 +1810,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var record = new CombatEvidenceRecord
             {
                 SchemaVersion = IsHumanPlayRow
-                    ? (IsTurnBasedRow ? 46 : 44)
+                    ? (IsTurnBasedRow ? 47 : 44)
                     : IsCommandTerminationRow
                     ? IsCombatEndTerminationRow
                         ? (IsTurnBasedRow ? 41 : 40)
@@ -1885,7 +1905,12 @@ namespace KingmakerMountedCombat.Diagnostics
                         relationship.NativeTurnBasedExitAiLeaseReassertionAttemptCount,
                         relationship.NativeTurnBasedExitAiLeaseReassertionMutationCount,
                         relationship.NativeTurnBasedExitAiLeaseReassertionSuccessCount,
-                        relationship.NativeTurnBasedExitAiLeaseReassertionResult)
+                        relationship.NativeTurnBasedExitAiLeaseReassertionResult,
+                        relationship.NativeTurnBasedExitUiLeaseRestoreArmedCount,
+                        relationship.NativeTurnBasedExitUiLeaseRestoreAttemptCount,
+                        relationship.NativeTurnBasedExitUiLeaseRestoreMutationCount,
+                        relationship.NativeTurnBasedExitUiLeaseRestoreSuccessCount,
+                        relationship.NativeTurnBasedExitUiLeaseRestoreResult)
                     : null,
                 GroundMovement = IsMountedBeforeModeTransitionRow
                     ? new CombatGroundMovementEvidence
@@ -2857,6 +2882,11 @@ namespace KingmakerMountedCombat.Diagnostics
             public int MountAiLeaseReassertionMutationCount { get; set; }
             public int MountAiLeaseReassertionSuccessCount { get; set; }
             public string MountAiLeaseReassertionResult { get; set; }
+            public int RiderUiLeaseRestoreArmedCount { get; set; }
+            public int RiderUiLeaseRestoreAttemptCount { get; set; }
+            public int RiderUiLeaseRestoreMutationCount { get; set; }
+            public int RiderUiLeaseRestoreSuccessCount { get; set; }
+            public string RiderUiLeaseRestoreResult { get; set; }
 
             public static TurnBasedCombatEvidence Capture(
                 bool originalEnabled,
@@ -2887,7 +2917,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 int mountAiLeaseReassertionAttemptCount,
                 int mountAiLeaseReassertionMutationCount,
                 int mountAiLeaseReassertionSuccessCount,
-                string mountAiLeaseReassertionResult)
+                string mountAiLeaseReassertionResult,
+                int riderUiLeaseRestoreArmedCount,
+                int riderUiLeaseRestoreAttemptCount,
+                int riderUiLeaseRestoreMutationCount,
+                int riderUiLeaseRestoreSuccessCount,
+                string riderUiLeaseRestoreResult)
             {
                 return new TurnBasedCombatEvidence
                 {
@@ -2920,7 +2955,12 @@ namespace KingmakerMountedCombat.Diagnostics
                     MountAiLeaseReassertionAttemptCount = mountAiLeaseReassertionAttemptCount,
                     MountAiLeaseReassertionMutationCount = mountAiLeaseReassertionMutationCount,
                     MountAiLeaseReassertionSuccessCount = mountAiLeaseReassertionSuccessCount,
-                    MountAiLeaseReassertionResult = mountAiLeaseReassertionResult
+                    MountAiLeaseReassertionResult = mountAiLeaseReassertionResult,
+                    RiderUiLeaseRestoreArmedCount = riderUiLeaseRestoreArmedCount,
+                    RiderUiLeaseRestoreAttemptCount = riderUiLeaseRestoreAttemptCount,
+                    RiderUiLeaseRestoreMutationCount = riderUiLeaseRestoreMutationCount,
+                    RiderUiLeaseRestoreSuccessCount = riderUiLeaseRestoreSuccessCount,
+                    RiderUiLeaseRestoreResult = riderUiLeaseRestoreResult
                 };
             }
         }

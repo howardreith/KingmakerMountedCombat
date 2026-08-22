@@ -1,5 +1,12 @@
 # Mounted Combat journal
 
+## 2026-08-22T20:42:00Z - exact native TB-exit rider UI reset observed and isolated
+
+- Published `061192c...` package `4cd5f39a...` and suite snapshot `eace3b4a...` passed separate RT/TB WhatIf and audits. RT A/B `...192600Z...rt-passA` / `...194700Z...rt-passB` each pass schema v44 `81/0` with immediate exact restoration.
+- TB `20260822T201000Z-private-alpha-stabilization-v46-suite2-tb-passA` is immutable uncredited `FAIL 103/1`; its audit passed before evidence inspection. It proved the full rider-turn ground-movement/player-melee/action/resource/rule/pair/pose/roster/native-transition path and one exact Mammoth AI reassertion. The only failed state was the final UI principal: the exact rider remained visible and attached, its portrait and camera owner remained exact, but selection was empty and action-bar owner was `<none>` after native TB shutdown.
+- The narrow production repair arms only on mounted TB-false delivery, waits until the existing AI repair has crossed the native controller boundary and the game is exact `Default`, requires the exact captured rider view, and invokes native selection once only when the rider is no longer exactly selected. Schema v47 records arm/attempt/mutation/success/result and waits one frame for the composition-root update ordering before asserting the complete UI observation. No command, turn, path, action/resource, timeout, or threshold changes.
+- Complete gates pass source `21/0`, Release, component `232/0`, visual/source-order `17/0`, unfiltered harness `219/0`, assembly `282/0`, PowerShell `27/0`, JSON `7/0`, diff, and prohibited payload. Dirty DLL SHA-256/MVID are `d01a75c173c692198963e4c72acb20e1c5891d89a95916a4f649ab7d1d417777` / `f2b69d04-07de-4e4c-a1fb-027ea8178612`. Next: coherent guarded publication, fresh clean package/suite/WhatIf, then full fresh RT/TB A/B and doorway regression.
+
 ## 2026-08-22T18:00:00Z - v46 proves AI repair; target lifetime and Pause observation narrowed
 
 - Published `df48862b...` package/suite passed separate RT/TB WhatIf and audits. RT A/B `...164900Z...rt-passA` / `...171100Z...rt-passB` each pass `81/0` with immediate exact restoration audits.

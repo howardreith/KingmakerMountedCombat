@@ -1,5 +1,9 @@
 # Combat action economy contract
 
+## Native TB-exit UI principal repair preserves separate ledgers (2026-08-22)
+
+Uncredited TB `20260822T201000Z-private-alpha-stabilization-v46-suite2-tb-passA` proved exact Mammoth-owned rider-turn ground movement, rider-only Move/Standard cost, zero Mammoth Move/Standard cost, one rider attack/roll/damage chain, and zero duplicate/opportunity chain. Its sole failure was native TB shutdown clearing selection and action-bar ownership while the still-mounted rider view, portrait, camera owner, pose, relationship, roster, and independent ledgers remained exact. Schema v47 performs one exact native rider reselection only after the TB predicate is false, the game is `Default`, and the owned Mammoth AI boundary completed. It does not create a shared ledger, turn, command, movement, attack, cooldown, or resource write. Fresh same-package RT/TB A/B remains required.
+
 ## Human TB ground-movement completion and native AI-lease isolation (2026-08-22)
 
 The exact schema-v46 human-transition diagnostic target carries the existing reversible 128 temporary-hit-point lease so the forced hit cannot end the sole-hostile combat and erase the native rider turn/resource ledger before TB-to-RT observation. This is diagnostic target lifetime isolation only: production targets, damage, turn ownership, action costs, and command semantics are unchanged, and the lease must be released exactly during target cleanup.

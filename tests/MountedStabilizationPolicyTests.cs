@@ -12,6 +12,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("same-view attachment observes while replacement attachment cleans", ViewAttachmentClassificationIsExact);
             runner.Run("non-world UI treats stock visibility as transient while world mode remains strict", UiViewActivityIsModeScoped);
             runner.Run("native TB exit AI lease repair is exact and boundary-scoped", NativeTurnBasedExitAiLeaseRepairIsExact);
+            runner.Run("native TB exit UI lease repair is exact and post-boundary", NativeTurnBasedExitUiLeaseRepairIsExact);
             runner.Run("mounted stock rider attack is pair-local and explains ranged rejection", StockAttackRejectionIsPairLocal);
             runner.Run("mounted overlay world-click guard is one-shot and frame-bounded", OverlayWorldClickGuardIsBounded);
             runner.Run("cleanup feedback explains intentional transient boundaries", ExplainsIntentionalCleanupBoundaries);
@@ -84,6 +85,42 @@ namespace KingmakerMountedCombat.Tests
                 NativeTurnBasedExitAiLeaseDisposition.ReassertExactLease,
                 NativeTurnBasedExitAiLeasePolicy.Classify(true, true, false, false, true, true),
                 "The exact post-controller stock AI reset was not isolated.");
+        }
+
+        private static void NativeTurnBasedExitUiLeaseRepairIsExact()
+        {
+            TestRunner.Equal(
+                NativeTurnBasedExitUiLeaseDisposition.NotPending,
+                NativeTurnBasedExitUiLeasePolicy.Classify(false, true, false, "Default", true, true, false),
+                "An unarmed path acquired player UI ownership.");
+            TestRunner.Equal(
+                NativeTurnBasedExitUiLeaseDisposition.AwaitNativeRealtimeBoundary,
+                NativeTurnBasedExitUiLeasePolicy.Classify(true, true, true, "Default", true, true, false),
+                "The policy raced the native TB predicate.");
+            TestRunner.Equal(
+                NativeTurnBasedExitUiLeaseDisposition.AwaitNativeRealtimeBoundary,
+                NativeTurnBasedExitUiLeasePolicy.Classify(true, true, false, "Pause", true, true, false),
+                "The policy raced the exact native Pause boundary.");
+            TestRunner.Equal(
+                NativeTurnBasedExitUiLeaseDisposition.AwaitNativeRealtimeBoundary,
+                NativeTurnBasedExitUiLeasePolicy.Classify(true, true, false, "Default", false, true, false),
+                "The policy raced the Mammoth AI-lease boundary.");
+            TestRunner.Equal(
+                NativeTurnBasedExitUiLeaseDisposition.RejectInexactPair,
+                NativeTurnBasedExitUiLeasePolicy.Classify(true, false, false, "Default", true, true, false),
+                "An unmounted relationship acquired UI ownership.");
+            TestRunner.Equal(
+                NativeTurnBasedExitUiLeaseDisposition.RejectInexactPair,
+                NativeTurnBasedExitUiLeasePolicy.Classify(true, true, false, "Default", true, false, false),
+                "A replaced rider view was selected by the repair.");
+            TestRunner.Equal(
+                NativeTurnBasedExitUiLeaseDisposition.AlreadyExact,
+                NativeTurnBasedExitUiLeasePolicy.Classify(true, true, false, "Default", true, true, true),
+                "An exact rider selection requested a write.");
+            TestRunner.Equal(
+                NativeTurnBasedExitUiLeaseDisposition.RestoreExactRiderSelection,
+                NativeTurnBasedExitUiLeasePolicy.Classify(true, true, false, "Default", true, true, false),
+                "The exact post-native-exit rider selection loss was not isolated.");
         }
 
         private static void StockAttackRejectionIsPairLocal()

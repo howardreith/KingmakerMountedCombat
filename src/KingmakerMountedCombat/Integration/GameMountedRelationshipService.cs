@@ -21,6 +21,7 @@ namespace KingmakerMountedCombat.Integration
         private bool cleanupRetryRequired;
         private CleanupTrigger cleanupRetryTrigger = CleanupTrigger.Exception;
         private bool nativeTurnBasedExitAiLeaseReassertionPending;
+        private bool nativeTurnBasedExitUiLeaseRestorePending;
         private bool disposed;
 
         public GameMountedRelationshipService(IModLogger logger, DiagnosticSettings settings)
@@ -56,6 +57,16 @@ namespace KingmakerMountedCombat.Integration
         internal int NativeTurnBasedExitAiLeaseReassertionSuccessCount { get; private set; }
 
         internal string NativeTurnBasedExitAiLeaseReassertionResult { get; private set; } = "not-requested";
+
+        internal int NativeTurnBasedExitUiLeaseRestoreArmedCount { get; private set; }
+
+        internal int NativeTurnBasedExitUiLeaseRestoreAttemptCount { get; private set; }
+
+        internal int NativeTurnBasedExitUiLeaseRestoreMutationCount { get; private set; }
+
+        internal int NativeTurnBasedExitUiLeaseRestoreSuccessCount { get; private set; }
+
+        internal string NativeTurnBasedExitUiLeaseRestoreResult { get; private set; } = "not-requested";
 
         public string LastResult { get; private set; } = "No diagnostic action has run.";
 
@@ -325,10 +336,12 @@ namespace KingmakerMountedCombat.Integration
             if (coordinator.State != RelationshipState.Mounted)
             {
                 nativeTurnBasedExitAiLeaseReassertionPending = false;
+                nativeTurnBasedExitUiLeaseRestorePending = false;
                 return;
             }
 
             CompleteNativeTurnBasedExitAiLeaseReassertion();
+            CompleteNativeTurnBasedExitUiLeaseRestore();
 
             var error = runtime.ValidateMountedInvariants();
             if (error != null)
@@ -347,12 +360,16 @@ namespace KingmakerMountedCombat.Integration
             if (enabled || coordinator.State != RelationshipState.Mounted)
             {
                 nativeTurnBasedExitAiLeaseReassertionPending = false;
+                nativeTurnBasedExitUiLeaseRestorePending = false;
                 return;
             }
 
             nativeTurnBasedExitAiLeaseReassertionPending = true;
             NativeTurnBasedExitAiLeaseReassertionArmedCount++;
             NativeTurnBasedExitAiLeaseReassertionResult = "armed";
+            nativeTurnBasedExitUiLeaseRestorePending = true;
+            NativeTurnBasedExitUiLeaseRestoreArmedCount++;
+            NativeTurnBasedExitUiLeaseRestoreResult = "armed";
         }
 
         private void CompleteNativeTurnBasedExitAiLeaseReassertion()
@@ -402,11 +419,74 @@ namespace KingmakerMountedCombat.Integration
         private void ResetNativeTurnBasedExitAiLeaseEvidence()
         {
             nativeTurnBasedExitAiLeaseReassertionPending = false;
+            nativeTurnBasedExitUiLeaseRestorePending = false;
             NativeTurnBasedExitAiLeaseReassertionArmedCount = 0;
             NativeTurnBasedExitAiLeaseReassertionAttemptCount = 0;
             NativeTurnBasedExitAiLeaseReassertionMutationCount = 0;
             NativeTurnBasedExitAiLeaseReassertionSuccessCount = 0;
             NativeTurnBasedExitAiLeaseReassertionResult = "not-requested";
+            NativeTurnBasedExitUiLeaseRestoreArmedCount = 0;
+            NativeTurnBasedExitUiLeaseRestoreAttemptCount = 0;
+            NativeTurnBasedExitUiLeaseRestoreMutationCount = 0;
+            NativeTurnBasedExitUiLeaseRestoreSuccessCount = 0;
+            NativeTurnBasedExitUiLeaseRestoreResult = "not-requested";
+        }
+
+        private void CompleteNativeTurnBasedExitUiLeaseRestore()
+        {
+            var rider = runtime.Rider;
+            var selection = SelectionManager.Instance;
+            var selected = selection?.SelectedUnits;
+            var exactRiderSelected = rider != null && selected != null &&
+                selected.Count == 1 && selected[0] == rider;
+            var aiLeaseBoundaryCompleted =
+                NativeTurnBasedExitAiLeaseReassertionAttemptCount == 1 &&
+                NativeTurnBasedExitAiLeaseReassertionSuccessCount == 1;
+            var disposition = NativeTurnBasedExitUiLeasePolicy.Classify(
+                nativeTurnBasedExitUiLeaseRestorePending,
+                coordinator.State == RelationshipState.Mounted,
+                CombatController.IsInTurnBasedCombat(),
+                Game.Instance?.CurrentMode.ToString(),
+                aiLeaseBoundaryCompleted,
+                rider != null && runtime.IsExactCapturedView(rider),
+                exactRiderSelected);
+            if (disposition == NativeTurnBasedExitUiLeaseDisposition.NotPending ||
+                disposition == NativeTurnBasedExitUiLeaseDisposition.AwaitNativeRealtimeBoundary)
+            {
+                return;
+            }
+
+            nativeTurnBasedExitUiLeaseRestorePending = false;
+            NativeTurnBasedExitUiLeaseRestoreAttemptCount++;
+            if (disposition == NativeTurnBasedExitUiLeaseDisposition.RejectInexactPair)
+            {
+                NativeTurnBasedExitUiLeaseRestoreResult = "rejected-inexact-pair";
+                return;
+            }
+
+            if (disposition == NativeTurnBasedExitUiLeaseDisposition.AlreadyExact)
+            {
+                NativeTurnBasedExitUiLeaseRestoreSuccessCount++;
+                NativeTurnBasedExitUiLeaseRestoreResult = "already-exact";
+                return;
+            }
+
+            NativeTurnBasedExitUiLeaseRestoreMutationCount++;
+            if (selection != null && rider?.View != null)
+            {
+                selection.SelectUnit(rider.View, true, true, false);
+                selected = selection.SelectedUnits;
+            }
+            if (selected != null && selected.Count == 1 && selected[0] == rider)
+            {
+                NativeTurnBasedExitUiLeaseRestoreSuccessCount++;
+                NativeTurnBasedExitUiLeaseRestoreResult = "reselected-rider";
+                logger.Info("Restored the exact rider selection/UI principal after native TB combat-controller shutdown.");
+            }
+            else
+            {
+                NativeTurnBasedExitUiLeaseRestoreResult = "selection-restore-failed";
+            }
         }
 
         private void ObserveCleanupState(TransitionResult result)

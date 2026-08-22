@@ -132,6 +132,49 @@ namespace KingmakerMountedCombat.Domain
         }
     }
 
+    public enum NativeTurnBasedExitUiLeaseDisposition
+    {
+        NotPending,
+        AwaitNativeRealtimeBoundary,
+        RejectInexactPair,
+        AlreadyExact,
+        RestoreExactRiderSelection
+    }
+
+    public static class NativeTurnBasedExitUiLeasePolicy
+    {
+        public static NativeTurnBasedExitUiLeaseDisposition Classify(
+            bool exitDeliveryPending,
+            bool relationshipMounted,
+            bool nativeTurnBasedPredicate,
+            string exactGameMode,
+            bool aiLeaseBoundaryCompleted,
+            bool exactCapturedRiderView,
+            bool exactRiderSelected)
+        {
+            if (!exitDeliveryPending)
+            {
+                return NativeTurnBasedExitUiLeaseDisposition.NotPending;
+            }
+
+            if (nativeTurnBasedPredicate ||
+                !string.Equals(exactGameMode, "Default", StringComparison.Ordinal) ||
+                !aiLeaseBoundaryCompleted)
+            {
+                return NativeTurnBasedExitUiLeaseDisposition.AwaitNativeRealtimeBoundary;
+            }
+
+            if (!relationshipMounted || !exactCapturedRiderView)
+            {
+                return NativeTurnBasedExitUiLeaseDisposition.RejectInexactPair;
+            }
+
+            return exactRiderSelected
+                ? NativeTurnBasedExitUiLeaseDisposition.AlreadyExact
+                : NativeTurnBasedExitUiLeaseDisposition.RestoreExactRiderSelection;
+        }
+    }
+
     public static class MountedStockAttackPolicy
     {
         public static bool ShouldReject(

@@ -7743,13 +7743,13 @@ function Assert-KmcCombatScenarioEvidence {
     if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -ge 24) {
         $recordFields = @($recordFields + 'targetBrainLease')
     }
-    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(42,43,44,45,46)) {
+    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(42,43,44,45,46,47)) {
         $recordFields = @($recordFields + 'reach')
     }
-    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(44,45,46)) {
+    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(44,45,46,47)) {
         $recordFields = @($recordFields + 'admission')
     }
-    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(45,46)) {
+    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(45,46,47)) {
         $recordFields = @($recordFields + 'groundMovement')
     }
     if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(28,29,30,31,32,33,34,35,36,37,38,39,40,41)) {
@@ -7758,11 +7758,11 @@ function Assert-KmcCombatScenarioEvidence {
     if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(36,37,38,39,40,41)) {
         $recordFields = @($recordFields + 'commandTermination')
     }
-    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39,41,43,45,46)) {
+    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39,41,43,45,46,47)) {
         $recordFields = @($recordFields + 'turnBased')
     }
     Assert-KmcExactProperties $record $recordFields 'combat evidence record'
-    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -notin @(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46) -or
+    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -notin @(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47) -or
         [string]$record.artifactKind -cne 'combat-scenario-evidence') {
         throw 'Combat evidence schemaVersion or artifactKind is not exact.'
     }
@@ -8111,17 +8111,17 @@ function Assert-KmcCombatScenarioEvidence {
             throw 'Combat target brain lease validation count is invalid.'
         }
     }
-    if ([long]$record.schemaVersion -in @(5,7,9,11,13,15,17,19,21,23,25,37,39,45,46)) {
+    if ([long]$record.schemaVersion -in @(5,7,9,11,13,15,17,19,21,23,25,37,39,45,46,47)) {
         $turnActorBooleanFields = if ([long]$record.schemaVersion -ge 21) {
             @('nativeActionActorTurnStarted','actionActorTurnEndedAfterCommand')
         } else {
             @('nativeRiderTurnStarted')
         }
         $turnActorIdentityFields = if ([long]$record.schemaVersion -ge 21) { @('expectedTurnActor') } else { @() }
-        $turnTransitionFields = if ([long]$record.schemaVersion -in @(45,46)) {
+        $turnTransitionFields = if ([long]$record.schemaVersion -in @(45,46,47)) {
             @('pairMountedBeforeEnable','pairRetainedAfterEnable','pairRetainedAfterRealtimeRestore')
         } else { @() }
-        $turnTransitionObservationFields = if ([long]$record.schemaVersion -in @(45,46)) {
+        $turnTransitionObservationFields = if ([long]$record.schemaVersion -in @(45,46,47)) {
             @('presentationAfterEnable','presentationAfterRealtimeRestore')
         } else { @() }
         $turnBooleanFields = @(
@@ -8131,13 +8131,18 @@ function Assert-KmcCombatScenarioEvidence {
             $turnActorBooleanFields +
             @('currentTurnActingAtDispatch','currentTurnActingAtOutcome',
               'restoreDeliveryCompleted','modeRestored','persistedValueUnchanged'))
-        $turnAiLeaseFields = if ([long]$record.schemaVersion -eq 46) {
+        $turnAiLeaseFields = if ([long]$record.schemaVersion -in @(46,47)) {
             @('mountAiLeaseReassertionArmedCount','mountAiLeaseReassertionAttemptCount',
               'mountAiLeaseReassertionMutationCount','mountAiLeaseReassertionSuccessCount',
               'mountAiLeaseReassertionResult')
         } else { @() }
+        $turnUiLeaseFields = if ([long]$record.schemaVersion -eq 47) {
+            @('riderUiLeaseRestoreArmedCount','riderUiLeaseRestoreAttemptCount',
+              'riderUiLeaseRestoreMutationCount','riderUiLeaseRestoreSuccessCount',
+              'riderUiLeaseRestoreResult')
+        } else { @() }
         Assert-KmcExactProperties $record.turnBased @($turnBooleanFields + $turnActorIdentityFields +
-            $turnTransitionObservationFields + $turnAiLeaseFields + @(
+            $turnTransitionObservationFields + $turnAiLeaseFields + $turnUiLeaseFields + @(
             'currentTurnUnitIdAtDispatch','roundNumberAtDispatch','currentTurnUnitIdAtOutcome')) 'combat turn-based evidence'
         foreach ($name in $turnBooleanFields) {
             if ($record.turnBased.$name -isnot [bool]) { throw "Combat turn-based evidence is not Boolean: $name" }
@@ -8164,7 +8169,7 @@ function Assert-KmcCombatScenarioEvidence {
             [long]$record.turnBased.roundNumberAtDispatch -lt -1) {
             throw 'Combat turn-based round identity is invalid.'
         }
-        if ([long]$record.schemaVersion -eq 46) {
+        if ([long]$record.schemaVersion -in @(46,47)) {
             foreach ($name in @(
                 'mountAiLeaseReassertionArmedCount','mountAiLeaseReassertionAttemptCount',
                 'mountAiLeaseReassertionMutationCount','mountAiLeaseReassertionSuccessCount')) {
@@ -8176,6 +8181,20 @@ function Assert-KmcCombatScenarioEvidence {
             if ($record.turnBased.mountAiLeaseReassertionResult -isnot [string] -or
                 [string]::IsNullOrWhiteSpace([string]$record.turnBased.mountAiLeaseReassertionResult)) {
                 throw 'Combat turn-based Mammoth AI-lease reassertion result is invalid.'
+            }
+        }
+        if ([long]$record.schemaVersion -eq 47) {
+            foreach ($name in @(
+                'riderUiLeaseRestoreArmedCount','riderUiLeaseRestoreAttemptCount',
+                'riderUiLeaseRestoreMutationCount','riderUiLeaseRestoreSuccessCount')) {
+                if (-not (Test-KmcExactJsonInteger $record.turnBased.$name) -or
+                    [long]$record.turnBased.$name -lt 0) {
+                    throw "Combat turn-based rider UI-lease restoration count is invalid: $name"
+                }
+            }
+            if ($record.turnBased.riderUiLeaseRestoreResult -isnot [string] -or
+                [string]::IsNullOrWhiteSpace([string]$record.turnBased.riderUiLeaseRestoreResult)) {
+                throw 'Combat turn-based rider UI-lease restoration result is invalid.'
             }
         }
     }
@@ -8379,7 +8398,7 @@ function Assert-KmcCombatScenarioEvidence {
             'mounted-rider-melee-combat-end-tb','mounted-rider-melee-human-play-path-tb')
         $missScenario = [string]$Request.scenario -ceq 'mounted-rider-melee-miss-rt'
         $expectedCombatSchemas = if ($humanPlayScenario) {
-            if ($turnBasedScenario) { @(46) } else { @(44) }
+            if ($turnBasedScenario) { @(47) } else { @(44) }
         } elseif ($combatEndTerminationScenario) {
             if ($turnBasedScenario) { @(41) } else { @(40) }
         } elseif ($commandTerminationScenario) {
@@ -8400,7 +8419,7 @@ function Assert-KmcCombatScenarioEvidence {
             [long]$record.assertionPassCount -le 0 -or @($record.errors).Count -ne 0) {
             throw "PASS combat evidence does not contain an error-free compatible PASS row."
         }
-        if ([long]$record.schemaVersion -in @(42,43,44,45,46)) {
+        if ([long]$record.schemaVersion -in @(42,43,44,45,46,47)) {
             Assert-KmcExactProperties $record.reach @(
                 'riderWeaponBlueprintId','mountWeaponBlueprintId','riderWeaponRange','mountWeaponRange',
                 'mountCorpulence','targetCorpulence','riderStoppingRadius','mountStoppingRadius',
@@ -8441,7 +8460,7 @@ function Assert-KmcCombatScenarioEvidence {
                 throw 'PASS mounted reach evidence does not prove independent immutable rider/Mammoth boundaries and bidirectional pair-member targetability.'
             }
         }
-        if ([long]$record.schemaVersion -in @(45,46)) {
+        if ([long]$record.schemaVersion -in @(45,46,47)) {
             Assert-KmcExactProperties $record.groundMovement @(
                 'requested','destination','result','driveCount','executorId','executorIsExactMount',
                 'usedRiderTurnAdapter','slotRestored','riderMoveBefore','riderMoveAfter',
@@ -8476,10 +8495,10 @@ function Assert-KmcCombatScenarioEvidence {
                 $record.groundMovement.pairRetained -ne $true -or
                 $record.groundMovement.selectionRetained -ne $true -or
                 $record.groundMovement.poseHealthy -ne $true) {
-                throw 'PASS schema-v45 combat evidence does not prove exact rider-turn Mammoth-owned ground movement and restoration.'
+                throw 'PASS schema-v45+ combat evidence does not prove exact rider-turn Mammoth-owned ground movement and restoration.'
             }
         }
-        if ([long]$record.schemaVersion -in @(44,45,46)) {
+        if ([long]$record.schemaVersion -in @(44,45,46,47)) {
             Assert-KmcExactProperties $record.admission @(
                 'armedThroughPlayerFacingCombatController','overlayActivationWorldClickSuppressed',
                 'armedActionRetainedAfterOverlayClick','directClickedUnitView','feedback','rejectionCodes') 'combat admission'
@@ -8567,13 +8586,21 @@ function Assert-KmcCombatScenarioEvidence {
              $record.turnBased.persistedValueUnchanged -ne $true)) {
             throw 'PASS turn-based combat evidence does not prove the exact native action-actor turn and mode restoration.'
         }
-        if ([long]$record.schemaVersion -eq 46 -and
+        if ([long]$record.schemaVersion -in @(46,47) -and
             ([long]$record.turnBased.mountAiLeaseReassertionArmedCount -ne 1 -or
              [long]$record.turnBased.mountAiLeaseReassertionAttemptCount -ne 1 -or
              [long]$record.turnBased.mountAiLeaseReassertionMutationCount -ne 1 -or
              [long]$record.turnBased.mountAiLeaseReassertionSuccessCount -ne 1 -or
              [string]$record.turnBased.mountAiLeaseReassertionResult -cne 'reasserted')) {
-            throw 'PASS schema-v46 combat evidence does not prove one exact native TB-exit Mammoth AI-lease reassertion.'
+            throw 'PASS schema-v46+ combat evidence does not prove one exact native TB-exit Mammoth AI-lease reassertion.'
+        }
+        if ([long]$record.schemaVersion -eq 47 -and
+            ([long]$record.turnBased.riderUiLeaseRestoreArmedCount -ne 1 -or
+             [long]$record.turnBased.riderUiLeaseRestoreAttemptCount -ne 1 -or
+             [long]$record.turnBased.riderUiLeaseRestoreMutationCount -ne 1 -or
+             [long]$record.turnBased.riderUiLeaseRestoreSuccessCount -ne 1 -or
+             [string]$record.turnBased.riderUiLeaseRestoreResult -cne 'reselected-rider')) {
+            throw 'PASS schema-v47 combat evidence does not prove one exact native TB-exit rider UI-lease restoration.'
         }
         $riderInitiative = [double]$record.combatEntry.riderInitiative
         $entryInitiativeInvalid = if ([long]$record.schemaVersion -ge 26) {
