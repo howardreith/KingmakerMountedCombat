@@ -24,6 +24,16 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool disposed;
 
         public NativeModeTransitionProbe()
+            : this(null)
+        {
+        }
+
+        public NativeModeTransitionProbe(bool temporaryValue)
+            : this((bool?)temporaryValue)
+        {
+        }
+
+        private NativeModeTransitionProbe(bool? requestedTemporaryValue)
         {
             setting = SettingsRoot.Instance == null ? null : SettingsRoot.Instance.EnableTurnBasedMode;
             if (setting == null)
@@ -60,7 +70,7 @@ namespace KingmakerMountedCombat.Diagnostics
             originalRawCache = (bool?)cachedField.GetValue(setting);
             persistedValueBefore = setting.GetSavedValueString();
             OriginalValue = setting.CurrentValue;
-            TemporaryValue = !OriginalValue;
+            TemporaryValue = requestedTemporaryValue ?? !OriginalValue;
         }
 
         public bool OriginalValue { get; }
@@ -77,7 +87,9 @@ namespace KingmakerMountedCombat.Diagnostics
 
         public bool TemporaryDeliveryAttempted => temporaryAttempted;
 
-        public bool TemporaryValueIsCurrent => temporaryAttempted && setting.CurrentValue == TemporaryValue;
+        public bool TransitionRequired => OriginalValue != TemporaryValue;
+
+        public bool TemporaryValueIsCurrent => setting.CurrentValue == TemporaryValue;
 
         public bool RestoreDeliveryCompleted => restoreCompleted;
 
@@ -92,6 +104,15 @@ namespace KingmakerMountedCombat.Diagnostics
             temporaryAttempted = true;
             cachedField.SetValue(setting, (bool?)TemporaryValue);
             setting.OnInvokeUpdateCallback();
+        }
+
+        public void DispatchTemporaryValueIfRequired()
+        {
+            ThrowIfDisposed();
+            if (TransitionRequired)
+            {
+                DispatchTemporaryValue();
+            }
         }
 
         public void DispatchRestoreAndRestoreRawCache()

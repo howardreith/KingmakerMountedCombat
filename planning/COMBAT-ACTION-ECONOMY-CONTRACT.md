@@ -1,5 +1,9 @@
 # Combat action economy contract
 
+## Diagnostic mode ownership is explicit and non-persistent (2026-08-22)
+
+An RT-requested stabilization row timed out before dispatch because ordinary ambient Enable Turn-Based Mode activated native TB on combat entry. Exact observation proves `2549` rider cooldown callbacks with zero initiative decrement or rewrite; exact installed token `0x06009349` returns before RT cooldown processing while TB is active. Qualification rows now lease RT false before combat and stack TB true only for TB rows, restoring the exact original cached/persisted setting afterward. This changes no rider/Mammoth Standard or Move ledger, command admission, turn ownership, readiness threshold, or production behavior. The failed row remains uncredited and fresh same-package mode-specific evidence is required.
+
 ## Bounded mounted-reach action economy qualified (2026-08-21)
 
 Status: `PASS` for the two supported basic melee actions. The complete same-package suite passes reach `498/0` plus controls `160/0`. Stationary rider RT A/B charges only the rider Standard timer; stationary rider TB A/B changes rider Standard `0 -> 6` with stationary Move accounting `0`, while Mammoth Standard remains `0`. Mammoth RT A/B charges only Mammoth Standard; Mammoth TB A/B changes Mammoth Standard `0 -> 6` while rider Standard remains `0`. Every row emits exactly one requested attack chain and zero unexpected pair, opportunity, duplicate, movement, or resource chain. The same-package controls prove zero child/resource chains on invalidation/cleanup and unchanged non-mounted delegation. No generalized reach, explicit mounted-AoO resource, or charge action is inferred.

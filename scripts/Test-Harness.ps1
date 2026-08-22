@@ -4967,8 +4967,10 @@ try {
             $engineSource.Contains('(bool)targetState.IsIgnoredByCombat') -and
             $engineSource.Contains('nativeJoinReadiness?.FailureSummary') -and
             $engineSource.Contains('Every exact native UnitCombatJoinController eligibility gate remained healthy at dispatch.')) 'native combat-entry diagnosis does not bind the exact in-game, conscious, ignored, group, enemy-list, fog, and ambush gates before dispatch'
-        $modeProbeIndex = $engineSource.IndexOf('turnBasedModeProbe = new NativeModeTransitionProbe();', [StringComparison]::Ordinal)
-        $modeDispatchIndex = $engineSource.IndexOf('turnBasedModeProbe.DispatchTemporaryValue();', [StringComparison]::Ordinal)
+        $realTimeModeProbeIndex = $engineSource.IndexOf('realTimeBaselineModeProbe = new NativeModeTransitionProbe(false);', [StringComparison]::Ordinal)
+        $realTimeModeDispatchIndex = $engineSource.IndexOf('realTimeBaselineModeProbe.DispatchTemporaryValueIfRequired();', [StringComparison]::Ordinal)
+        $modeProbeIndex = $engineSource.IndexOf('turnBasedModeProbe = new NativeModeTransitionProbe(true);', [StringComparison]::Ordinal)
+        $modeDispatchIndex = $engineSource.IndexOf('turnBasedModeProbe.DispatchTemporaryValueIfRequired();', [StringComparison]::Ordinal)
         $turnBasedMountIndex = $engineSource.IndexOf('private void AwaitTurnBasedModeAndMount()', [StringComparison]::Ordinal)
         $turnBasedMountEndIndex = $engineSource.IndexOf('private void ResolveAndMountPair()', $turnBasedMountIndex, [StringComparison]::Ordinal)
         $turnBasedMountBody = if ($turnBasedMountIndex -ge 0 -and $turnBasedMountEndIndex -gt $turnBasedMountIndex) {
@@ -4981,12 +4983,17 @@ try {
         $actingAfterDispatchIndex = $engineSource.IndexOf('if (IsTurnBasedRow && !nativeActionActorTurnActingObservedAfterDispatch)', [StringComparison]::Ordinal)
         $cleanupDestroyIndex = $engineSource.IndexOf('targetRemoved = targetService.DestroyAndVerify();', [StringComparison]::Ordinal)
         $modeRestoreIndex = $engineSource.IndexOf('RestoreTurnBasedMode();', $cleanupDestroyIndex, [StringComparison]::Ordinal)
-        Assert-Test ($modeProbeIndex -ge 0 -and $modeDispatchIndex -gt $modeProbeIndex -and
+        Assert-Test ($realTimeModeProbeIndex -ge 0 -and $realTimeModeDispatchIndex -gt $realTimeModeProbeIndex -and
+            $modeProbeIndex -gt $realTimeModeDispatchIndex -and $modeDispatchIndex -gt $modeProbeIndex -and
             $turnBasedMountIndex -gt $modeDispatchIndex -and $turnRosterIndex -gt $turnBasedMountIndex -and
             $nativeActionActorTurnIndex -gt $turnRosterIndex -and $turnDispatchIndex -gt $nativeActionActorTurnIndex -and
             $nativeClickIndex -gt $turnDispatchIndex -and $actingAfterDispatchIndex -gt $nativeClickIndex -and
             $cleanupDestroyIndex -gt $turnDispatchIndex -and $modeRestoreIndex -gt $cleanupDestroyIndex -and
-            $nativeModeProbeSource.Contains('public bool TemporaryValueIsCurrent => temporaryAttempted && setting.CurrentValue == TemporaryValue;') -and
+            $nativeModeProbeSource.Contains('public NativeModeTransitionProbe(bool temporaryValue)') -and
+            $nativeModeProbeSource.Contains('TemporaryValue = requestedTemporaryValue ?? !OriginalValue;') -and
+            $nativeModeProbeSource.Contains('public bool TransitionRequired => OriginalValue != TemporaryValue;') -and
+            $nativeModeProbeSource.Contains('public bool TemporaryValueIsCurrent => setting.CurrentValue == TemporaryValue;') -and
+            $nativeModeProbeSource.Contains('public void DispatchTemporaryValueIfRequired()') -and
             $turnBasedMountBody.Contains('!turnBasedModeProbe.TemporaryValueIsCurrent') -and
             -not $turnBasedMountBody.Contains('!CombatController.IsInTurnBasedCombat()') -and
             $engineSource.Contains('CombatController.IsInTurnBasedCombat()') -and
@@ -5004,7 +5011,10 @@ try {
             $engineSource.Contains('currentTurn != null && currentTurn.IsActing') -and
             $engineSource.Contains('currentTurnActingAtDispatch = true;') -and
             $engineSource.Contains('currentTurnActingAtOutcome = currentTurn != null && currentTurn.IsActing') -and
-            $controllerSource.Contains('turn.ForceToEnd(false);')) 'turn-based combat does not admit the native Preparing action-actor turn, observe Acting after dispatch, bound the Mammoth turn after its action, and restore mode after cleanup'
+            $controllerSource.Contains('turn.ForceToEnd(false);') -and
+            $engineSource.Contains('realTimeBaselineModeProbe.DispatchRestoreAndRestoreRawCache();') -and
+            $engineSource.Contains('turnBasedPersistedUnchanged &&') -and
+            $engineSource.Contains('realTimePersistedUnchanged;')) 'combat rows do not lease an exact real-time baseline independently of ambient settings, admit the native Preparing action-actor turn, observe Acting after dispatch, bound the Mammoth turn after its action, and restore both stacked mode leases after cleanup'
         Assert-Test ($engineSource.Contains('CleanupTimeoutSeconds = 10.0d') -and
             $engineSource.Contains('rowClock.Elapsed.TotalSeconds - cleanupStartedAtSeconds < CleanupTimeoutSeconds')) 'combat cleanup does not retain an independent bounded drain after a row deadline'
         Assert-Test ($engineSource.Contains('SchemaVersion = IsHumanPlayRow') -and

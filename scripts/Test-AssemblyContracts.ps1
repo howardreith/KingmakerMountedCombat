@@ -276,11 +276,22 @@ if($Target-eq'Kingmaker'){
         $attackOfOpportunity[0].GetParameters()[1].ParameterType.FullName-ceq'System.Boolean') `
         'UnitCombatState.AttackOfOpportunity exact public instance Boolean signature'
     $combatCooldownTick=@(Find-Token 'Kingmaker.Controllers.Combat.UnitCombatCooldownsController' 0x0600934A)
+    $combatCooldownTurnBasedGate=@(Find-Token 'Kingmaker.Controllers.Combat.UnitCombatCooldownsController' 0x06009349)
     Assert-Contract ($combatCooldownTick.Count-eq1 -and $combatCooldownTick[0] -is [Reflection.MethodInfo] -and
         -not $combatCooldownTick[0].IsStatic -and $combatCooldownTick[0].ReturnType.FullName-ceq'System.Void' -and
         $combatCooldownTick[0].GetParameters().Count-eq1 -and
         $combatCooldownTick[0].GetParameters()[0].ParameterType.FullName-ceq'Kingmaker.EntitySystem.Entities.UnitEntityData') `
         'UnitCombatCooldownsController.TickOnUnit exact instance Void(UnitEntityData) signature'
+    Assert-Contract ($combatCooldownTurnBasedGate.Count-eq1 -and
+        $combatCooldownTurnBasedGate[0] -is [Reflection.MethodInfo] -and
+        -not $combatCooldownTurnBasedGate[0].IsStatic -and
+        $combatCooldownTurnBasedGate[0].ReturnType.FullName-ceq'System.Boolean' -and
+        $combatCooldownTurnBasedGate[0].GetParameters().Count-eq1 -and
+        $combatCooldownTurnBasedGate[0].GetParameters()[0].ParameterType.FullName-ceq'Kingmaker.EntitySystem.Entities.UnitEntityData' -and
+        (Test-MethodIlContainsToken $combatCooldownTurnBasedGate[0] 0x06000BF6) -and
+        (Test-MethodIlContainsToken $combatCooldownTick[0] 0x06009349) -and
+        (Test-MethodIlContainsToken $combatCooldownTick[0] 0x0600938E)) `
+        'combat cooldown exact turn-based early-return gate precedes native initiative decrement'
     $disengage=@(Find-Token 'Kingmaker.Controllers.Combat.UnitCombatState' 0x0600939B)
     $shouldAttackOnDisengage=@(Find-Token 'Kingmaker.Controllers.Combat.UnitCombatState' 0x060093A2)
     $opportunityAction=@(Find-Token 'Kingmaker.UnitLogic.Commands.UnitAttackOfOpportunity' 0x06002699)

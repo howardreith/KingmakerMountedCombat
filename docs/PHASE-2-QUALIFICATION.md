@@ -1,5 +1,11 @@
 # Phase 2 qualification
 
+## Stabilization native-mode lease repair pending fresh evidence (2026-08-22)
+
+Status: `IN PROGRESS`; no stabilization PASS is claimed. Uncredited observation run `20260822T043600Z-private-alpha-stabilization-initiative-observation-rt-probeA` passed independent restoration-before-read and proves the exact rider received `2549` native cooldown callbacks across `28.902130593545735` positive game seconds while Initiative remained `4`, with zero decrement or rewrite. Exact installed `TickOnUnitTurnBased` token `0x06009349` returns before the RT initiative decrement when native turn-based combat is active; the RT-requested row retained a native turn in `Preparing`. Ambient turn-based configuration, not KMC cooldown mutation or a rider action defect, caused the readiness timeout.
+
+Every combat diagnostic now owns a non-persistent native real-time baseline lease before mounting/combat, stacks a TB lease only for TB rows, and restores both leases and the original raw/persisted setting exactly after cleanup. No production combat, schema, timeout, action economy, pathfinding, opportunity, or restoration threshold changed. Offline source/component/visual/harness/assembly totals pass `21/230/17/219/277`. The accidentally overlapping RT/TB preflights and live observation receive no qualification credit. Fresh clean-package sequential WhatIf/audits and same-suite RT/TB runtime evidence remain mandatory.
+
 ## Stabilization RT initiative observation pending (2026-08-22)
 
 Status: `IN PROGRESS`; no runtime stabilization PASS is claimed. Clean published package input `3859bb92b81c25b458ab691f063f3dd92369b7e8` and suite `20260822T025300Z-private-alpha-stabilization-suite1` passed separate RT/TB WhatIf and exact independent audits. RT attempt `20260822T040000Z-private-alpha-stabilization-rt-passA` is immutable uncredited `FAIL 22/1`: the exact prepared rider remained at positive Initiative `2` and failed native action readiness before the player-facing overlay/click path or any command/rule/resource chain. Immediate audit-before-read proved exact restoration.

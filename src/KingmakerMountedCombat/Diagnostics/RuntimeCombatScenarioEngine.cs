@@ -149,6 +149,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private DiagnosticCombatActionActorReadinessSnapshot actionActorReadiness;
         private DiagnosticNativeCombatJoinReadinessSnapshot nativeJoinReadiness;
         private DiagnosticTurnBasedDispatchReadinessSnapshot turnBasedReadiness;
+        private NativeModeTransitionProbe realTimeBaselineModeProbe;
         private NativeModeTransitionProbe turnBasedModeProbe;
         private bool turnBasedModeEnabledAtMount;
         private bool pairMountedBeforeTurnBasedEnable;
@@ -447,6 +448,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 try { turnBasedModeProbe?.Dispose(); }
                 catch (Exception exception) { errors.Add("Turn-based mode probe disposal failed: " + exception.Message); }
                 turnBasedModeProbe = null;
+                try { realTimeBaselineModeProbe?.Dispose(); }
+                catch (Exception exception) { errors.Add("Real-time baseline mode probe disposal failed: " + exception.Message); }
+                realTimeBaselineModeProbe = null;
                 RestorePause();
                 RestoreSettings();
                 rowClock.Stop();
@@ -477,9 +481,22 @@ namespace KingmakerMountedCombat.Diagnostics
             pauseLeaseOwned = true;
             pauseRestored = false;
 
+            realTimeBaselineModeProbe = new NativeModeTransitionProbe(false);
+            assertions.Check(!realTimeBaselineModeProbe.TemporaryValue,
+                "Combat row leased the exact native real-time setting baseline.");
+            realTimeBaselineModeProbe.DispatchTemporaryValueIfRequired();
+            assertions.Check(realTimeBaselineModeProbe.TemporaryValueIsCurrent &&
+                    !CombatController.IsInTurnBasedCombat(),
+                "Combat row established real-time mode before mounting or combat entry.");
+            if (assertions.FailureCount != 0)
+            {
+                BeginCleanup();
+                return;
+            }
+
             if (IsTurnBasedRow && !IsMountedBeforeModeTransitionRow)
             {
-                turnBasedModeProbe = new NativeModeTransitionProbe();
+                turnBasedModeProbe = new NativeModeTransitionProbe(true);
                 assertions.Check(!turnBasedModeProbe.OriginalValue && turnBasedModeProbe.TemporaryValue,
                     "Turn-based combat row leased an exact false-to-true native mode transition.");
                 if (assertions.FailureCount != 0)
@@ -489,7 +506,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
                 turnBasedModeRestored = false;
                 turnBasedPersistedSettingUnchanged = false;
-                turnBasedModeProbe.DispatchTemporaryValue();
+                turnBasedModeProbe.DispatchTemporaryValueIfRequired();
                 step = CombatEngineStep.AwaitTurnBasedMode;
                 return;
             }
@@ -568,7 +585,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     relationship.Rider == rider && relationship.Mount == mount;
                 assertions.Check(pairMountedBeforeTurnBasedEnable,
                     "The exact pair mounted in real time before the native turn-based transition.");
-                turnBasedModeProbe = new NativeModeTransitionProbe();
+                turnBasedModeProbe = new NativeModeTransitionProbe(true);
                 assertions.Check(!turnBasedModeProbe.OriginalValue && turnBasedModeProbe.TemporaryValue,
                     "Human-play TB row leased an exact false-to-true native mode transition after mounting.");
                 if (assertions.FailureCount != 0)
@@ -578,7 +595,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
                 turnBasedModeRestored = false;
                 turnBasedPersistedSettingUnchanged = false;
-                turnBasedModeProbe.DispatchTemporaryValue();
+                turnBasedModeProbe.DispatchTemporaryValueIfRequired();
                 step = CombatEngineStep.AwaitTurnBasedMode;
                 return;
             }
@@ -2062,22 +2079,37 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void RestoreTurnBasedMode()
         {
-            if (!IsTurnBasedRow || turnBasedModeProbe == null)
+            var turnBasedPersistedUnchanged = true;
+            if (turnBasedModeProbe != null)
             {
-                return;
+                if (turnBasedModeProbe.TemporaryDeliveryAttempted &&
+                    !turnBasedModeProbe.RestoreDeliveryCompleted)
+                {
+                    turnBasedModeProbe.DispatchRestoreAndRestoreRawCache();
+                }
+                turnBasedModeProbe.Dispose();
+                turnBasedPersistedUnchanged = !turnBasedModeProbe.TemporaryDeliveryAttempted ||
+                    turnBasedModeProbe.PersistedValueUnchanged;
+                turnBasedModeProbe = null;
             }
 
-            if (turnBasedModeProbe.TemporaryDeliveryAttempted &&
-                !turnBasedModeProbe.RestoreDeliveryCompleted)
+            var realTimePersistedUnchanged = true;
+            if (realTimeBaselineModeProbe != null)
             {
-                turnBasedModeProbe.DispatchRestoreAndRestoreRawCache();
+                if (realTimeBaselineModeProbe.TemporaryDeliveryAttempted &&
+                    !realTimeBaselineModeProbe.RestoreDeliveryCompleted)
+                {
+                    realTimeBaselineModeProbe.DispatchRestoreAndRestoreRawCache();
+                }
+                realTimeBaselineModeProbe.Dispose();
+                realTimePersistedUnchanged = !realTimeBaselineModeProbe.TemporaryDeliveryAttempted ||
+                    realTimeBaselineModeProbe.PersistedValueUnchanged;
+                realTimeBaselineModeProbe = null;
             }
-            turnBasedModeProbe.Dispose();
-            turnBasedPersistedSettingUnchanged = !turnBasedModeProbe.TemporaryDeliveryAttempted ||
-                turnBasedModeProbe.PersistedValueUnchanged;
+
+            turnBasedPersistedSettingUnchanged = turnBasedPersistedUnchanged &&
+                realTimePersistedUnchanged;
             turnBasedModeRestored = !CombatController.IsInTurnBasedCombat() &&
-                (!turnBasedModeProbe.TemporaryDeliveryAttempted ||
-                 turnBasedModeProbe.RestoreDeliveryCompleted) &&
                 turnBasedPersistedSettingUnchanged;
         }
 

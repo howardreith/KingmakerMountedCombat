@@ -1,5 +1,9 @@
 # Phase 2 runtime scenario matrix
 
+## Stabilization RT/TB mode admission repair pending fresh evidence (2026-08-22)
+
+Status: `IN PROGRESS`. Uncredited observation row `20260822T043600Z-private-alpha-stabilization-initiative-observation-rt-probeA` proves exact rider cooldown callbacks were present but the RT request entered native TB `Preparing`, so installed token `0x06009349` returned before initiative decrement. Each v44/v45 combat row now establishes an exact non-persistent real-time setting baseline before mounting or combat; v45 then stacks the native TB transition after mounting and unwinds to baseline before restoring the user's original setting. Schema shape and validators remain unchanged. Offline totals pass `21/230/17/219/277`; fresh clean-package v44 RT A/B and v45 TB A/B remain required, and no overlapping preflight/run receives credit.
+
 ## Private-alpha stabilization pending fresh evidence (2026-08-21)
 
 Status: `IN PROGRESS`. Human play against exact historical handoff `ff4bae7ca5dc145373771b718574d15f7babdd5e` found non-world UI dismount/invisibility, polymorph replacement-view loss, ordinary rider-melee failure without rejection evidence, and broken turn-based roster/ground movement. The historical package and all prior qualifications remain immutable; they do not qualify the stabilization repair.
