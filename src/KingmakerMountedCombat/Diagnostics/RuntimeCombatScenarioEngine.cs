@@ -168,7 +168,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool pairMountedBeforeTurnBasedEnable;
         private bool pairRetainedAfterTurnBasedEnable;
         private bool pairRetainedAfterRealtimeRestore;
-        private string presentationAfterTurnBasedEnable;
+        private string presentationAfterTurnBasedEnable = "<not-observed>";
         private string presentationAfterRealtimeRestore = "<not-observed>";
         private bool turnBasedControllerInitialized;
         private bool turnRosterContainsRider;
@@ -179,8 +179,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool nativeMammothGroundInputStarted;
         private bool nativeMammothGroundInputCompleted;
         private bool nativeMammothGroundSelectionRetained;
-        private string presentationDuringMammothTurn;
-        private string presentationAfterNativeMammothGroundInput;
+        private string presentationDuringMammothTurn = "<not-observed>";
+        private string presentationAfterNativeMammothGroundInput = "<not-observed>";
+        private string nativeMammothPhysicalPointerQualification = "manual-required";
         private Vector3 mammothPositionBeforeNativeGroundInput;
         private Vector3 nativeMammothGroundDestination;
         private float mammothNativeGroundDisplacement;
@@ -839,7 +840,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     return;
                 }
-                if (IsMountedBeforeModeTransitionRow && presentationAfterTurnBasedEnable == null)
+                if (IsMountedBeforeModeTransitionRow &&
+                    string.Equals(presentationAfterTurnBasedEnable, "<not-observed>", StringComparison.Ordinal))
                 {
                     presentationAfterTurnBasedEnable = relationship.CapturePresentationObservation();
                     assertions.Check(IsRiderUiOwnershipCoherent(presentationAfterTurnBasedEnable, false),
@@ -1053,7 +1055,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (!nativeMammothTurnUiObserved)
             {
                 presentationDuringMammothTurn = relationship.CapturePresentationObservation();
-                nativeMammothTurnUiObserved = IsNativeTurnUiInteractable(
+                nativeMammothTurnUiObserved = IsNativeTurnUiStructurallyInteractable(
                     presentationDuringMammothTurn,
                     mount);
                 assertions.Check(nativeMammothTurnUiObserved,
@@ -1971,7 +1973,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var record = new CombatEvidenceRecord
             {
                 SchemaVersion = IsHumanPlayRow
-                    ? (IsTurnBasedRow ? 51 : 48)
+                    ? (IsTurnBasedRow ? 52 : 48)
                     : IsCommandTerminationRow
                     ? IsCombatEndTerminationRow
                         ? (IsTurnBasedRow ? 41 : 40)
@@ -2063,6 +2065,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         nativeMammothGroundCommandResult,
                         nativeMammothGroundRawMoveSlotState,
                         nativeMammothGroundInterruptSource,
+                        nativeMammothPhysicalPointerQualification,
                         nativeMammothGroundEnoughCloseAtTerminal,
                         nativeMammothGroundAgentReallyMovingAtTerminal,
                         nativeMammothGroundAgentWantsToMoveAtTerminal,
@@ -2400,7 +2403,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 observation.IndexOf("cameraOwner=" + riderId, StringComparison.Ordinal) >= 0;
         }
 
-        private static bool IsNativeTurnUiInteractable(string observation, UnitEntityData expectedActor)
+        private static bool IsNativeTurnUiStructurallyInteractable(string observation, UnitEntityData expectedActor)
         {
             if (expectedActor == null || string.IsNullOrWhiteSpace(observation))
             {
@@ -2419,8 +2422,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 observation.IndexOf("selectedUnit=" + actorId, StringComparison.Ordinal) >= 0 &&
                 observation.IndexOf("turnUnit=" + actorId, StringComparison.Ordinal) >= 0 &&
                 observation.IndexOf("turnUnitDirectlyControllable=True", StringComparison.Ordinal) >= 0 &&
-                observation.IndexOf("turnCanMove=True", StringComparison.Ordinal) >= 0 &&
-                observation.IndexOf("pointerInGui=False", StringComparison.Ordinal) >= 0;
+                observation.IndexOf("turnCanMove=True", StringComparison.Ordinal) >= 0;
         }
 
         private static bool IsNativeTurnUiCoherentAfterGroundCommand(string observation, UnitEntityData expectedActor)
@@ -2442,8 +2444,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 observation.IndexOf("selectedUnit=" + actorId, StringComparison.Ordinal) >= 0 &&
                 observation.IndexOf("turnUnit=" + actorId, StringComparison.Ordinal) >= 0 &&
                 observation.IndexOf("turnUnitDirectlyControllable=True", StringComparison.Ordinal) >= 0 &&
-                observation.IndexOf("turnCanEndNoActing=True", StringComparison.Ordinal) >= 0 &&
-                observation.IndexOf("pointerInGui=False", StringComparison.Ordinal) >= 0;
+                observation.IndexOf("turnCanEndNoActing=True", StringComparison.Ordinal) >= 0;
         }
 
         private static void TryLeaveCombat(UnitEntityData unit)
@@ -3108,6 +3109,7 @@ namespace KingmakerMountedCombat.Diagnostics
             public string NativeMammothGroundCommandResult { get; set; }
             public string NativeMammothGroundRawMoveSlotState { get; set; }
             public string NativeMammothGroundInterruptSource { get; set; }
+            public string NativeMammothPhysicalPointerQualification { get; set; }
             public bool NativeMammothGroundEnoughCloseAtTerminal { get; set; }
             public bool NativeMammothGroundAgentReallyMovingAtTerminal { get; set; }
             public bool NativeMammothGroundAgentWantsToMoveAtTerminal { get; set; }
@@ -3166,6 +3168,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 string nativeMammothGroundCommandResult,
                 string nativeMammothGroundRawMoveSlotState,
                 string nativeMammothGroundInterruptSource,
+                string nativeMammothPhysicalPointerQualification,
                 bool nativeMammothGroundEnoughCloseAtTerminal,
                 bool nativeMammothGroundAgentReallyMovingAtTerminal,
                 bool nativeMammothGroundAgentWantsToMoveAtTerminal,
@@ -3224,6 +3227,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     NativeMammothGroundCommandResult = nativeMammothGroundCommandResult,
                     NativeMammothGroundRawMoveSlotState = nativeMammothGroundRawMoveSlotState,
                     NativeMammothGroundInterruptSource = nativeMammothGroundInterruptSource,
+                    NativeMammothPhysicalPointerQualification = nativeMammothPhysicalPointerQualification,
                     NativeMammothGroundEnoughCloseAtTerminal = nativeMammothGroundEnoughCloseAtTerminal,
                     NativeMammothGroundAgentReallyMovingAtTerminal = nativeMammothGroundAgentReallyMovingAtTerminal,
                     NativeMammothGroundAgentWantsToMoveAtTerminal = nativeMammothGroundAgentWantsToMoveAtTerminal,

@@ -1,5 +1,11 @@
 # Private-alpha stabilization
 
+## Round 2 v52 evidence-boundary correction - 2026-08-23T12:52:42Z
+
+Run `20260823T121800Z-round2-v51-interrupt-source-observation` remains an immutable uncredited failure with exact external restoration. It proved a healthy selected/directly-controllable Mammoth native turn and visible/enabled/reactive action bar, but the current physical cursor was over GUI and the row stopped before ground input. This does not prove the human TB defect fixed or broken, and it provides no terminal interrupt source.
+
+Exact installed code shows physical cursor hover is upstream environmental state, while the project can repeatably exercise and prove the native `ClickGroundHandler` command seam. Schema v52 records physical pointer usability as `manual-required`; automated PASS can prove structural native UI, native handler admission, command ownership/result, resources, and cleanup without claiming real mouse usability. Historical v51 still requires its original pointer token. Early failed rows now carry explicit observation sentinels so strict validation does not mask the first gameplay failure. Manual TB movement/attack remains mandatory for the eventual Round-2 handoff.
+
 ## Round-2 native Mammoth command-terminal diagnosis
 
 Fresh restored schema-v50 run `20260823T100217Z-round2-v50-terminal-observation` proves ordinary Mammoth-turn ground input reaches a native Mammoth `UnitMoveTo`, moves the visible pair `0.9619302`, and charges only Mammoth Move `0 -> 0.231707692`. The native command ends `Interrupt` with `0.5389647` horizontal distance remaining. Selection, direct control, active turn, rendered/enabled/reactive action bar, pointer state, command queues, pair, pose, and attachment remain coherent.

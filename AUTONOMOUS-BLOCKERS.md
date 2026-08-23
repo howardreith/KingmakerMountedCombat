@@ -1,5 +1,9 @@
 # Autonomous blockers
 
+## 2026-08-23T12:52:42Z - physical pointer remains an explicit manual gate; v51 attempt did not reach interrupt observation
+
+Status: `IN PROGRESS`, not a core-architecture or safety blocker. Restored run `20260823T121800Z-round2-v51-interrupt-source-observation` stopped before ground input only because the current physical pointer was over GUI while every native Mammoth turn/action-bar/control field was healthy. Computer Use was unavailable due missing kernel assets. Schema v52 truthfully separates repeatable native handler admission from physical pointer usability (`manual-required`), preserves pointer telemetry and historical v51 semantics, and fixes omitted fields on early FAIL rows. A fresh clean-package observation remains required before any terminal-movement repair.
+
 ## Native Mammoth move interrupt source requires one reference-exact observation - 2026-08-23T10:48:25Z
 
 Status: `IN PROGRESS`; no safety or core-architecture blocker is proven. Restored run `20260823T100217Z-round2-v50-terminal-observation` proves ordinary input, native Mammoth selection/control/action bar, measurable movement, exact Mammoth-only Move cost, and healthy post-command UI ownership. The stock move nevertheless ends `Interrupt` with `0.5389647` horizontal distance remaining. Exact installed code proves post-command `turnCanMove=False` follows positive Move expenditure and is not a hidden action bar, so that diagnostic predicate is corrected without changing native behavior. Schema v51 now observes the one exact command's interrupt caller, terminal proximity, and movement-agent state. No timeout, movement, turn, resource, or PASS result has been weakened.

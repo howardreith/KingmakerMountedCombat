@@ -1,5 +1,12 @@
 # Mounted Combat journal
 
+## 2026-08-23T12:52:42Z - v51 run isolates incidental pointer position and failed-row schema defect
+
+- Published v51 commit/package/suite `7351efc6e5192157b23a6e4498ea21bbe3f9e4f5` / `dd479009175eadc0b4e552d819af6d83238278f80e63e4f4f344a62d0d182483` / `5880b2dd1be4b0fef9b508bfdd98b6d5abb94bbb580941e6477040b3d7439cf5` passed separate RT/TB WhatIf and audits.
+- Run `20260823T121800Z-round2-v51-interrupt-source-observation` is immutable uncredited `FAIL 36/1`; immediate restoration passed before evidence read. Native Mammoth turn ownership/UI were healthy, but `pointerInGui=True` stopped the row before ordinary ground input, so no interrupt caller was observed.
+- Installed click code confirms current hover state is not the repeatable `ClickGroundHandler` command seam. Computer Use initialization failed before any UI action because kernel assets were absent. Schema v52 therefore retains pointer telemetry and an explicit `manual-required` physical-pointer boundary while allowing structural native UI plus actual native handler/command admission to proceed automatically. It also initializes presentation sentinels so early failed rows remain exact and validator-readable.
+- Affected source/build/component/harness/assembly gates pass `21/Release/237/226/295`. Full final offline gate, publication, repackage/resnapshot/WhatIf, and a fresh terminal-source observation remain.
+
 ## 2026-08-23T10:48:25Z - v50 isolates native terminal interrupt; v51 adds exact caller observation
 
 - Published commit/package `4c3e0206f9dd47e927b703f3f8ec5158fadf8ac0` / `78546bf63c9d8fa1e8264a629a1e44498cd2be4429b94bb7bc58d4e356998b86` bind manifest/DLL/MVID `86201b2ac5ca030835d11154e6f52c735df76c8fac961e537a78f34ca8597dfa` / `9f8788f6ca87f522f676caf91a1bfc2c0afb4bb467010293ed76b278f0a38575` / `d66fa37d-a3b4-4630-a9c8-5fc8e3a74343`. Suite `20260823T084000Z-round2-v50-terminal-observation-suite1` snapshot/save/Mods hashes are `e1efb2b0fefc5f87086b46382404f33ad68260bc20a32dcd875d0fc68ea19852` / `ee70e270a366029de4259c47f924d8e45ace4b8562e837f543f8400473b51b50` / `c55acede4b945ae888d1a2c347d894449a3b1ec21d6f49e5003bec7263306e03` after separate mode WhatIf/audits.
