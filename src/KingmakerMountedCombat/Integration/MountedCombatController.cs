@@ -110,7 +110,7 @@ namespace KingmakerMountedCombat.Integration
             }
 
             var frames = new System.Diagnostics.StackTrace(1, false).GetFrames();
-            LastNativeMountTurnMoveInterruptSource = frames == null
+            var source = frames == null
                 ? "<stack-unavailable>"
                 : string.Join(" <- ", frames.Take(12).Select(frame =>
                 {
@@ -119,6 +119,65 @@ namespace KingmakerMountedCombat.Integration
                         ? "<unknown>"
                         : (method.DeclaringType?.FullName ?? "<global>") + "." + method.Name;
                 }).ToArray());
+            LastNativeMountTurnMoveInterruptSource = source +
+                "; terminalState=" + DescribeNativeMountTurnMoveInterruptState(command as UnitMoveTo);
+        }
+
+        private string DescribeNativeMountTurnMoveInterruptState(UnitMoveTo command)
+        {
+            try
+            {
+                var mount = relationship.Mount;
+                var view = mount?.View;
+                var agent = view?.AgentASP;
+                var path = agent?.Path;
+                var pathPoints = path?.vectorPath;
+                var hasPathEnd = pathPoints != null && pathPoints.Count != 0;
+                var target = command == null ? Vector3.zero : command.Target;
+                var viewPosition = view == null ? Vector3.zero : view.transform.position;
+                var entityPosition = mount == null ? Vector3.zero : mount.Position;
+                var pathEnd = hasPathEnd ? pathPoints[pathPoints.Count - 1] : Vector3.zero;
+                var turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
+                var rawMove = mount?.Commands?.GetCommand(UnitCommand.CommandType.Move);
+                return "createdByPlayer=" + (command?.CreatedByPlayer ?? false) +
+                    ",executorExact=" + (command != null && command.Executor == mount) +
+                    ",rawMoveExact=" + ReferenceEquals(rawMove, command) +
+                    ",turnUnitExact=" + (turn?.Unit == mount) +
+                    ",turnStatus=" + (turn == null ? "<none>" : turn.Status.ToString()) +
+                    ",turnActing=" + (turn?.IsActing ?? false) +
+                    ",turnCanMove=" + (turn?.CanMove ?? false) +
+                    ",commandApproachRadius=" + FormatFloat(command?.ApproachRadius ?? -1f) +
+                    ",agentApproachRadius=" + FormatFloat(agent == null ? -1f : agent.ApproachRadius) +
+                    ",agentMaxApproachRadius=" + FormatFloat(agent == null ? -1f : agent.MaxApproachRadius) +
+                    ",entityToTarget=" + FormatFloat(command == null ? -1f : HorizontalDistance(entityPosition, target)) +
+                    ",viewToTarget=" + FormatFloat(command == null ? -1f : HorizontalDistance(viewPosition, target)) +
+                    ",mechanicsToTarget=" + FormatFloat(command == null
+                        ? -1f
+                        : Kingmaker.Utility.GeometryUtils.MechanicsDistance(viewPosition, target)) +
+                    ",pathPointCount=" + (pathPoints?.Count ?? 0) +
+                    ",entityToPathEnd=" + FormatFloat(hasPathEnd ? HorizontalDistance(entityPosition, pathEnd) : -1f) +
+                    ",targetToPathEnd=" + FormatFloat(command == null || !hasPathEnd
+                        ? -1f
+                        : HorizontalDistance(target, pathEnd)) +
+                    ",agentReallyMoving=" + (agent?.IsReallyMoving ?? false) +
+                    ",agentWantsToMove=" + (agent?.WantsToMove ?? false);
+            }
+            catch (Exception exception)
+            {
+                return "observation-error:" + exception.GetType().FullName + ":" + exception.Message;
+            }
+        }
+
+        private static string FormatFloat(float value)
+        {
+            return value.ToString("R", CultureInfo.InvariantCulture);
+        }
+
+        private static float HorizontalDistance(Vector3 left, Vector3 right)
+        {
+            var delta = left - right;
+            delta.y = 0f;
+            return delta.magnitude;
         }
 
         internal void EndNativeMountTurnMoveObservation(UnitMoveTo command)

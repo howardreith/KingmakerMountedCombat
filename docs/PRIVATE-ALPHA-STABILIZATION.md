@@ -1,5 +1,15 @@
 # Private-alpha stabilization
 
+## Round 2 exact Mammoth native completion boundary - 2026-08-23T17:00:53Z
+
+Fresh schema-v52 run `20260823T162726Z-round2-v52-recovered-interrupt-source-observation` is immutable uncredited `FAIL 41/1`; its independent external-state audit passed before gameplay evidence was read. The selected, directly controllable Mammoth received one ordinary player-created native ground command, moved visibly `0.9619302`, charged only Mammoth Move, and retained coherent native turn/action-bar state. The exact command ended `Interrupt` through `UnitMovementAgent.TickMovement -> CompleteMovement -> InterruptMovement -> UnitEntityView.OnMovementInterrupted -> UnitCommand.Interrupt`, with no KMC Stop/Hold caller.
+
+Exact installed 2.1.7b code creates ordinary ground movement as `UnitMoveTo(p, 0.3f)`. `CompleteMovement` stops normally only if exact squared mechanics distance to its destination is within the movement-agent approach radius; otherwise it emits the observed interruption chain. The existing evidence records `0.5389647` to the original click but does not record whether native formation placement changed the command target, where the final path endpoint landed, or which exact mechanics distance failed.
+
+The next checkpoint therefore adds bounded observation only for the one reference-exact armed Mammoth command: command and agent approach radii, entity/view/mechanics distance to the command target, path endpoint distance, exact raw-slot/current-turn identity, and stopped-agent state. It does not alter commands, movement, action resources, turns, timeouts, or PASS predicates. One fresh guarded observation after publication is required before behavioral repair.
+
+The complete observation-only gate passes source `21/0`, Release, component `237/0`, visual/source-order `17/0`, harness/protocol `226/0`, exact assembly `295/0`, PowerShell/JSON parsers `27/0` / `7/0`, diff, and prohibited-payload checks. This does not qualify human-facing TB movement; it only makes the exact native completion boundary observable.
+
 ## Round 2 v52 recovered transaction-staging interruption - 2026-08-23T14:56:11Z
 
 Run `20260823T142435Z-round2-v52-interrupt-source-observation` is preserved as immutable uncredited evidence. It did not exercise schema-v52 gameplay behavior: no Kingmaker process, request, orchestration, monitor, game log, combat result, or game result was created. Its restricted launcher context was denied access during the run-specific live Mods directory handoff. The repository-owned guarded recovery subsequently restored the exact admitted external state, and an independent audit passed the complete suite snapshot, save inventory, Mods inventory, Baseline, Working, and zero-residue assertions.

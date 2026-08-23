@@ -1,5 +1,13 @@
 # Autonomous blockers
 
+## 2026-08-23T17:00:53Z - exact native completion source proven; target/path geometry observation pending
+
+- Status: `IN PROGRESS`, not a safety or architecture block. Run `20260823T162726Z-round2-v52-recovered-interrupt-source-observation` is immutable uncredited `FAIL 41/1`; its immediate independent suite/save/Mods/Baseline/Working/zero-residue audit passed before evidence inspection.
+- The exact stock terminal chain is `UnitMovementAgent.TickMovement -> CompleteMovement -> InterruptMovement -> UnitEntityView.OnMovementInterrupted -> UnitCommand.Interrupt`. It moved the selected Mammoth `0.9619302`, charged only Mammoth Move, then ended the exact player-created native move as `Interrupt` while stopped with `IsUnitEnoughClose=False`.
+- Installed IL proves ordinary ground input uses approach radius `0.3`; `CompleteMovement` interrupts only when its exact mechanics-distance test fails. Existing evidence measures only the original click point and cannot yet distinguish command target, path endpoint, and formation/clamping geometry. No timeout, turn, command-result, or success predicate is weakened.
+- Observation-only telemetry now records the exact command/agent radii, command target, entity/view mechanics distances, native path endpoint distances, slot/turn identity, and terminal agent state for the one armed reference-exact command. Exact next action is a clean published observation package and one fresh audited TB process, followed by only the attributable repair.
+- Its complete offline gate is green: source/component/visual/harness/assembly `21/237/17/226/295`, Release, PowerShell/JSON parsers `27/0` / `7/0`, diff, and prohibited payload. This remains an evidence-gathering checkpoint, not a behavioral qualification claim.
+
 ## 2026-08-23T14:56:11Z - v52 staging interruption recovered; elevated guarded invocation required
 
 Status: `IN PROGRESS`, not a gameplay or core-architecture blocker. Run `20260823T142435Z-round2-v52-interrupt-source-observation` failed before Kingmaker launch, request creation, or gameplay evidence because its restricted launcher context was denied access during the run-specific Mods directory handoff. Repository-owned guarded recovery and the following independent suite audit passed exact complete save/Mods restoration, immutable Baseline, restored Working, and zero residue. The run remains immutable and uncredited. Schema v52 is unchanged; the fresh observation must use the already authorized elevated KMC runtime-script scope.

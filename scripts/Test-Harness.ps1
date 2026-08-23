@@ -8607,6 +8607,12 @@ try {
             $patchSource.Contains('PatchBridge.Combat?.ObserveCommandInterrupt(__instance);') -and
             $combatSource.Contains('ReferenceEquals(command, observedNativeMountTurnMove)') -and
             $combatSource.Contains('new System.Diagnostics.StackTrace(1, false)') -and
+            $combatSource.Contains('DescribeNativeMountTurnMoveInterruptState(command as UnitMoveTo)') -and
+            $combatSource.Contains('commandApproachRadius=') -and
+            $combatSource.Contains('agentApproachRadius=') -and
+            $combatSource.Contains('mechanicsToTarget=') -and
+            $combatSource.Contains('targetToPathEnd=') -and
+            $combatSource.Contains('turnUnitExact=') -and
             $combatEngineSource.Contains('combat.BeginNativeMountTurnMoveObservation(nativeMammothGroundCommand);') -and
             $combatEngineSource.Contains('nativeMammothGroundInterruptSource = combat.LastNativeMountTurnMoveInterruptSource;')) `
             'native Mammoth terminal diagnosis mutates or observes commands beyond the one exact armed stock move'
