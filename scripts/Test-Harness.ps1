@@ -1157,7 +1157,7 @@ function New-TestCombatEvidenceRecord {
     $actorRole = if ($isMammoth) { 'mount' } else { 'rider' }
     $action = if ($isMammoth) { 'MountPrimaryNatural' } else { 'RiderMelee' }
     $record = [ordered]@{
-        schemaVersion=$(if ($isHumanPlay) { if ($isTurnBased) { 49 } else { 48 } } elseif ($isCombatEnd) { if ($isTurnBased) { 41 } else { 40 } } elseif ($isTermination) { if ($isTurnBased) { 39 } else { 38 } } elseif ($isMovementToAttack) { if ($isTurnBased) { 35 } else { 34 } } elseif ($isReach) { if ($isTurnBased) { 43 } else { 42 } } elseif ($isTurnBased) { 27 } else { 26 });artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
+        schemaVersion=$(if ($isHumanPlay) { if ($isTurnBased) { 50 } else { 48 } } elseif ($isCombatEnd) { if ($isTurnBased) { 41 } else { 40 } } elseif ($isTermination) { if ($isTurnBased) { 39 } else { 38 } } elseif ($isMovementToAttack) { if ($isTurnBased) { 35 } else { 34 } } elseif ($isReach) { if ($isTurnBased) { 43 } else { 42 } } elseif ($isTurnBased) { 27 } else { 26 });artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
         scenario=[string]$Request.scenario;row=[string]$Request.scenario;rowIndex=0;sequence=0;frame=30
         utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o');branch=[string]$Request.branch
         commit=[string]$Request.commit;productVersion=[string]$Request.productVersion
@@ -1396,12 +1396,18 @@ function New-TestCombatEvidenceRecord {
             $record.turnBased.presentationAfterEnable = $presentation
             $record.turnBased.presentationAfterRealtimeRestore = $presentation.Replace('turnBased=True','turnBased=False')
             $record.turnBased.presentationDuringMammothTurn = $presentation.Replace('actionBarOwner=' + $rider,'actionBarOwner=' + $mount).Replace('selectedUnit=' + $rider,'selectedUnit=' + $mount).Replace('turnUnit=' + $rider,'turnUnit=' + $mount)
+            $record.turnBased.presentationAfterNativeMammothGroundInput = $record.turnBased.presentationDuringMammothTurn
             $record.turnBased.nativeMammothTurnStarted = $true
             $record.turnBased.nativeMammothTurnUiObserved = $true
             $record.turnBased.nativeMammothGroundInputStarted = $true
             $record.turnBased.nativeMammothGroundInputCompleted = $true
             $record.turnBased.nativeMammothGroundSelectionRetained = $true
+            $record.turnBased.nativeMammothGroundUiObservedAfterInput = $true
+            $record.turnBased.nativeMammothGroundCommandFinished = $true
+            $record.turnBased.nativeMammothGroundCommandResult = 'Success'
+            $record.turnBased.nativeMammothGroundRawMoveSlotState = 'empty'
             $record.turnBased.mammothNativeGroundDisplacement = 1.5
+            $record.turnBased.mammothNativeGroundRemainingDistance = 0.0
             $record.turnBased.mammothNativeMoveBefore = 0.0
             $record.turnBased.mammothNativeMoveAfter = 1.5
             $record.turnBased.riderMoveBeforeMammothNativeGroundInput = 0.0
@@ -5111,7 +5117,7 @@ try {
         Assert-Test ($engineSource.Contains('CleanupTimeoutSeconds = 10.0d') -and
             $engineSource.Contains('rowClock.Elapsed.TotalSeconds - cleanupStartedAtSeconds < CleanupTimeoutSeconds')) 'combat cleanup does not retain an independent bounded drain after a row deadline'
         Assert-Test ($engineSource.Contains('SchemaVersion = IsHumanPlayRow') -and
-            $engineSource.Contains('? (IsTurnBasedRow ? 49 : 48)') -and
+            $engineSource.Contains('? (IsTurnBasedRow ? 50 : 48)') -and
             $engineSource.Contains(': IsCommandTerminationRow') -and
             $engineSource.Contains('? IsCombatEndTerminationRow') -and
             $engineSource.Contains('? (IsTurnBasedRow ? 41 : 40)') -and
@@ -5442,17 +5448,34 @@ try {
     $humanPlayTurnManifest = Read-KmcJson (Join-Path $humanPlayTurnRequest.evidenceRoot 'runtime-artifacts.json')
     $humanPlayTurnSubresult = [ordered]@{name=$humanPlayTurnRequest.scenario;status='PASS';assertionPassCount=25;assertionFailCount=0;errors=@()}
 
-    Invoke-HarnessTest 'runtime request and schema-v49 evidence accept native Mammoth controls TB-exit leases rider ground movement and player-click melee' {
+    Invoke-HarnessTest 'runtime request and schema-v50 evidence accept native Mammoth controls exact completion observations TB-exit leases rider ground movement and player-click melee' {
         & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $humanPlayTurnRequestPath
         Assert-KmcCombatScenarioEvidence -Request $humanPlayTurnRequest -Manifest $humanPlayTurnManifest -Status 'PASS' -SubscenarioResults @($humanPlayTurnSubresult)
+    }
+
+    Invoke-HarnessTest 'historical schema-v49 native Mammoth control evidence semantics remain valid' {
+        $historical = Copy-TestJsonValue $humanPlayTurnRecord
+        $historical.schemaVersion = 49
+        foreach ($name in @('presentationAfterNativeMammothGroundInput','nativeMammothGroundUiObservedAfterInput',
+            'nativeMammothGroundCommandFinished','nativeMammothGroundCommandResult',
+            'nativeMammothGroundRawMoveSlotState','mammothNativeGroundRemainingDistance')) {
+            $historical.turnBased.PSObject.Properties.Remove($name)
+        }
+        [void](Write-TestCombatEvidence -EvidenceRoot $humanPlayTurnRequest.evidenceRoot -Request $humanPlayTurnRequest -Record $historical)
+        $historicalManifest = Read-KmcJson (Join-Path $humanPlayTurnRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $humanPlayTurnRequest -Manifest $historicalManifest -Status 'PASS' -SubscenarioResults @($humanPlayTurnSubresult)
+        [void](Write-TestCombatEvidence -EvidenceRoot $humanPlayTurnRequest.evidenceRoot -Request $humanPlayTurnRequest -Record $humanPlayTurnRecord)
     }
 
     Invoke-HarnessTest 'historical schema-v47 human-play evidence semantics remain valid' {
         $historical = Copy-TestJsonValue $humanPlayTurnRecord
         $historical.schemaVersion = 47
-        foreach ($name in @('presentationDuringMammothTurn','nativeMammothTurnStarted','nativeMammothTurnUiObserved',
+        foreach ($name in @('presentationDuringMammothTurn','presentationAfterNativeMammothGroundInput',
+            'nativeMammothTurnStarted','nativeMammothTurnUiObserved',
             'nativeMammothGroundInputStarted','nativeMammothGroundInputCompleted','nativeMammothGroundSelectionRetained',
-            'mammothNativeGroundDisplacement','mammothNativeMoveBefore','mammothNativeMoveAfter',
+            'nativeMammothGroundUiObservedAfterInput','nativeMammothGroundCommandFinished',
+            'nativeMammothGroundCommandResult','nativeMammothGroundRawMoveSlotState',
+            'mammothNativeGroundDisplacement','mammothNativeGroundRemainingDistance','mammothNativeMoveBefore','mammothNativeMoveAfter',
             'riderMoveBeforeMammothNativeGroundInput','riderMoveAfterMammothNativeGroundInput')) {
             $historical.turnBased.PSObject.Properties.Remove($name)
         }
@@ -5462,7 +5485,7 @@ try {
         [void](Write-TestCombatEvidence -EvidenceRoot $humanPlayTurnRequest.evidenceRoot -Request $humanPlayTurnRequest -Record $humanPlayTurnRecord)
     }
 
-    Invoke-HarnessTest 'schema-v49 evidence rejects native-control transition lease-isolation or movement contradictions' {
+    Invoke-HarnessTest 'schema-v50 evidence rejects native-control transition lease-isolation completion-observation or movement contradictions' {
         $cases = @(
             { param($record) $record.turnBased.pairRetainedAfterEnable=$false;return $record },
             { param($record) $record.turnBased.presentationAfterEnable=$record.turnBased.presentationAfterEnable.Replace('actionBarOwner=combat-rider','actionBarOwner=combat-mount');return $record },
@@ -5490,6 +5513,11 @@ try {
             { param($record) $record.turnBased.presentationDuringMammothTurn=$record.turnBased.presentationDuringMammothTurn.Replace('actionBarCanUseAbilities=True','actionBarCanUseAbilities=False');return $record },
             { param($record) $record.turnBased.presentationDuringMammothTurn=$record.turnBased.presentationDuringMammothTurn.Replace('selectedUnit=combat-mount','selectedUnit=combat-rider');return $record },
             { param($record) $record.turnBased.nativeMammothGroundInputCompleted=$false;return $record },
+            { param($record) $record.turnBased.nativeMammothGroundUiObservedAfterInput=$false;return $record },
+            { param($record) $record.turnBased.nativeMammothGroundCommandFinished=$false;return $record },
+            { param($record) $record.turnBased.nativeMammothGroundCommandResult='Interrupted';return $record },
+            { param($record) $record.turnBased.nativeMammothGroundRawMoveSlotState='replacement:wrong';return $record },
+            { param($record) $record.turnBased.presentationAfterNativeMammothGroundInput=$record.turnBased.presentationAfterNativeMammothGroundInput.Replace('actionBarCanUseAbilities=True','actionBarCanUseAbilities=False');return $record },
             { param($record) $record.turnBased.mammothNativeGroundDisplacement=0.0;return $record },
             { param($record) $record.turnBased.mammothNativeMoveAfter=0.0;return $record },
             { param($record) $record.turnBased.riderMoveAfterMammothNativeGroundInput=1.0;return $record }
@@ -5502,7 +5530,7 @@ try {
             $threw = $false
             try { Assert-KmcCombatScenarioEvidence -Request $humanPlayTurnRequest -Manifest $candidateManifest -Status 'PASS' -SubscenarioResults @($humanPlayTurnSubresult) }
             catch { $threw = $true }
-            Assert-Test $threw 'schema-v49 validator accepted a native-control transition lease-isolation or movement ownership contradiction'
+            Assert-Test $threw 'schema-v50 validator accepted a native-control transition lease-isolation completion-observation or movement ownership contradiction'
         }
         [void](Write-TestCombatEvidence -EvidenceRoot $humanPlayTurnRequest.evidenceRoot -Request $humanPlayTurnRequest -Record $humanPlayTurnRecord)
         $humanPlayTurnManifest = Read-KmcJson (Join-Path $humanPlayTurnRequest.evidenceRoot 'runtime-artifacts.json')
@@ -8489,10 +8517,10 @@ try {
         Assert-Test ($combatEngineSource.Contains('playerAction.ArmCombatActionFromOverlay(AttackAction)') -and
             $combatEngineSource.Contains('ArmedThroughPlayerFacingCombatController = humanPlayArmedThroughPlayerAction') -and
             $combatEngineSource.Contains('OverlayActivationWorldClickSuppressed = humanPlayPropagatedWorldClickSuppressed') -and
-            $combatEngineSource.Contains('? (IsTurnBasedRow ? 49 : 48)') -and
+            $combatEngineSource.Contains('? (IsTurnBasedRow ? 50 : 48)') -and
             $combatEngineSource.Contains('ObserveNativeMammothTurnControls(turnController)') -and
             $combatEngineSource.Contains('IsNativeTurnUiInteractable(') -and
-            $combatEngineSource.Contains('ClickGroundHandler.MoveSelectedUnitsToPoint(destination, false);') -and
+            $combatEngineSource.Contains('ClickGroundHandler.MoveSelectedUnitsToPoint(nativeMammothGroundDestination, false);') -and
             $combatEngineSource.Contains('nativeMammothGroundCommand.Executor == mount') -and
             $automationHostSource.Contains('request, relationship, playerAction, combat, lifecycle')) `
             'human-play qualification bypasses the exact player-facing combat-action controller before its native unit click'

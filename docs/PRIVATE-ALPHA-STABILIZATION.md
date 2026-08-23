@@ -4,6 +4,16 @@ Status: round-2 stabilization `IN PROGRESS`; the exact round-1 automated package
 
 This continuation repairs player-facing defects found in the first qualified Mammoth private alpha. It does not authorize horses, persistence, ranged mounted combat, mounted spellcasting rules, mounted feats, explicit mounted attacks of opportunity, mounted charge, another body profile, Phase 3 implementation, a public release, or a merge to `main`.
 
+## Round-2 schema-v50 native command-terminal observation
+
+Exact clean package `4778122f5a706b2f4234a56c89c90b36ea212f9731f0cc348ff9ad2820c5dc6a` from commit `7a6506e38fb0fc6d16d8b5e3b24fa85fac134f9e` produced fresh RT A/B `81/0` passes in suite `20260823T055100Z-round2-v49-reactive-fields-suite1`. Both independent restoration audits passed before evidence reads. This proves the repaired package's supported RT overlay/native-click path, but not TB.
+
+TB attempt `20260823T075815Z-round2-reactive-suite1-tb-passA` remains immutable and uncredited at `40/2`, with exact audit-before-read restoration. It disproves the earlier unavailable-reactive-value theory: the exact Mammoth native turn was selected, directly controllable, movement-eligible, and exposed an active/interactable action bar with both reactive values true. Ordinary ground input admitted and visibly moved the Mammoth `0.9619302`, charged only Mammoth Move `0 -> 0.23123309`, left rider Move at zero, and emitted no attack. The native command then finished with a non-success result and the post-command action-bar predicate was false.
+
+Schema v49 does not record which native result occurred or which post-command UI/turn token changed. Forward-only schema v50 therefore records exact command finished/result, raw Move-slot terminal state, destination remaining distance, selection, and a complete post-command UI/turn presentation snapshot. Failure messages also carry these values. This is observation-only and does not change behavior, thresholds, timeouts, selection, commands, action bars, movement, or action/resource ownership. No behavioral repair is permitted until fresh guarded evidence identifies the exact terminal boundary.
+
+The complete observation gate passes source/component/visual/harness/assembly `21/237/17/223/294`, Release build, PowerShell/JSON parsers `27/0` / `7/0`, diff, and prohibited-payload validation. Historical v49 evidence remains accepted under its exact prior shape and is never relabeled.
+
 ## Round-2 v49 TB observation checkpoint
 
 The first clean-package v49 TB process, `20260823T054000Z-round2-v49-suite1-tb-passA`, is preserved as uncredited `FAIL 36/1`. Exact independent restoration passed before its gameplay evidence was read. The process objectively proved a selected, directly controllable Mammoth native turn with movement eligibility and a visible, active, enabled action bar. It stopped because the two reactive action-bar values were unavailable, before any movement or attack claim.

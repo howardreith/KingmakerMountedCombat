@@ -180,13 +180,20 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool nativeMammothGroundInputCompleted;
         private bool nativeMammothGroundSelectionRetained;
         private string presentationDuringMammothTurn;
+        private string presentationAfterNativeMammothGroundInput;
         private Vector3 mammothPositionBeforeNativeGroundInput;
+        private Vector3 nativeMammothGroundDestination;
         private float mammothNativeGroundDisplacement;
+        private float mammothNativeGroundRemainingDistance;
         private float mammothNativeMoveBefore;
         private float mammothNativeMoveAfter;
         private float riderMoveBeforeMammothNativeGroundInput;
         private float riderMoveAfterMammothNativeGroundInput;
         private UnitMoveTo nativeMammothGroundCommand;
+        private bool nativeMammothGroundCommandFinished;
+        private string nativeMammothGroundCommandResult = "<not-observed>";
+        private string nativeMammothGroundRawMoveSlotState = "<not-observed>";
+        private bool nativeMammothGroundUiObservedAfterInput;
         private bool nativeActionActorTurnStarted;
         private bool nativeActionActorTurnActingObservedAfterDispatch;
         private string currentTurnUnitIdAtDispatch;
@@ -1071,8 +1078,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 mammothPositionBeforeNativeGroundInput = mount.Position;
                 mammothNativeMoveBefore = mount.CombatState.Cooldown.MoveAction;
                 riderMoveBeforeMammothNativeGroundInput = rider.CombatState.Cooldown.MoveAction;
-                var destination = FindWalkablePoint(mount.Position, 1.5f, 0.35f);
-                ClickGroundHandler.MoveSelectedUnitsToPoint(destination, false);
+                nativeMammothGroundDestination = FindWalkablePoint(mount.Position, 1.5f, 0.35f);
+                ClickGroundHandler.MoveSelectedUnitsToPoint(nativeMammothGroundDestination, false);
                 nativeMammothGroundCommand = mount.Commands?.GetCommand(UnitCommand.CommandType.Move) as UnitMoveTo;
                 nativeMammothGroundInputStarted = true;
                 assertions.Check(nativeMammothGroundCommand != null &&
@@ -1095,21 +1102,43 @@ namespace KingmakerMountedCombat.Diagnostics
             mammothNativeGroundDisplacement = HorizontalDistance(
                 mammothPositionBeforeNativeGroundInput,
                 mount.Position);
+            mammothNativeGroundRemainingDistance = HorizontalDistance(
+                mount.Position,
+                nativeMammothGroundDestination);
             mammothNativeMoveAfter = mount.CombatState.Cooldown.MoveAction;
             riderMoveAfterMammothNativeGroundInput = rider.CombatState.Cooldown.MoveAction;
             var currentSelection = SelectionManager.Instance?.SelectedUnits;
             nativeMammothGroundSelectionRetained = currentSelection != null &&
                 currentSelection.Count == 1 && currentSelection[0] == mount;
+            nativeMammothGroundCommandFinished = nativeMammothGroundCommand != null &&
+                nativeMammothGroundCommand.IsFinished;
+            nativeMammothGroundCommandResult = nativeMammothGroundCommand == null
+                ? "<missing>"
+                : nativeMammothGroundCommand.Result.ToString();
+            var rawMove = mount.Commands?.GetCommand(UnitCommand.CommandType.Move);
+            nativeMammothGroundRawMoveSlotState = rawMove == null
+                ? "empty"
+                : ReferenceEquals(rawMove, nativeMammothGroundCommand)
+                    ? "exact"
+                    : "replacement:" + rawMove.GetType().FullName;
+            presentationAfterNativeMammothGroundInput = relationship.CapturePresentationObservation();
+            nativeMammothGroundUiObservedAfterInput = IsNativeTurnUiInteractable(
+                presentationAfterNativeMammothGroundInput,
+                mount);
             assertions.Check(nativeMammothGroundCommand != null &&
                     nativeMammothGroundCommand.Result == UnitCommand.ResultType.Success &&
                     mammothNativeGroundDisplacement >= 0.5f,
-                "The ordinary Mammoth-turn ground command completed with measurable player-visible movement.");
+                "The ordinary Mammoth-turn ground command completed with measurable player-visible movement. " +
+                "Result=" + nativeMammothGroundCommandResult +
+                "; displacement=" + mammothNativeGroundDisplacement.ToString("R", CultureInfo.InvariantCulture) +
+                "; remainingDistance=" + mammothNativeGroundRemainingDistance.ToString("R", CultureInfo.InvariantCulture) +
+                "; rawMoveSlot=" + nativeMammothGroundRawMoveSlotState + ".");
             assertions.Check(mammothNativeMoveAfter > mammothNativeMoveBefore &&
                     Math.Abs(riderMoveAfterMammothNativeGroundInput - riderMoveBeforeMammothNativeGroundInput) <= 0.01f,
                 "The Mammoth native turn charged only the Mammoth Move ledger.");
-            assertions.Check(nativeMammothGroundSelectionRetained &&
-                    IsNativeTurnUiInteractable(relationship.CapturePresentationObservation(), mount),
-                "Mammoth selection and native action-bar commandability remained coherent after its ground movement.");
+            assertions.Check(nativeMammothGroundSelectionRetained && nativeMammothGroundUiObservedAfterInput,
+                "Mammoth selection and native action-bar commandability remained coherent after its ground movement. " +
+                "Observation=" + presentationAfterNativeMammothGroundInput + ".");
             if (assertions.FailureCount != 0)
             {
                 BeginCleanup();
@@ -1925,7 +1954,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var record = new CombatEvidenceRecord
             {
                 SchemaVersion = IsHumanPlayRow
-                    ? (IsTurnBasedRow ? 49 : 48)
+                    ? (IsTurnBasedRow ? 50 : 48)
                     : IsCommandTerminationRow
                     ? IsCombatEndTerminationRow
                         ? (IsTurnBasedRow ? 41 : 40)
@@ -2006,12 +2035,18 @@ namespace KingmakerMountedCombat.Diagnostics
                         turnRosterContainsMount,
                         turnRosterContainsTarget,
                         presentationDuringMammothTurn,
+                        presentationAfterNativeMammothGroundInput,
                         nativeMammothTurnStarted,
                         nativeMammothTurnUiObserved,
                         nativeMammothGroundInputStarted,
                         nativeMammothGroundInputCompleted,
                         nativeMammothGroundSelectionRetained,
+                        nativeMammothGroundUiObservedAfterInput,
+                        nativeMammothGroundCommandFinished,
+                        nativeMammothGroundCommandResult,
+                        nativeMammothGroundRawMoveSlotState,
                         mammothNativeGroundDisplacement,
+                        mammothNativeGroundRemainingDistance,
                         mammothNativeMoveBefore,
                         mammothNativeMoveAfter,
                         riderMoveBeforeMammothNativeGroundInput,
@@ -3017,12 +3052,19 @@ namespace KingmakerMountedCombat.Diagnostics
             public bool RosterContainsTarget { get; set; }
             [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
             public string PresentationDuringMammothTurn { get; set; }
+            [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            public string PresentationAfterNativeMammothGroundInput { get; set; }
             public bool NativeMammothTurnStarted { get; set; }
             public bool NativeMammothTurnUiObserved { get; set; }
             public bool NativeMammothGroundInputStarted { get; set; }
             public bool NativeMammothGroundInputCompleted { get; set; }
             public bool NativeMammothGroundSelectionRetained { get; set; }
+            public bool NativeMammothGroundUiObservedAfterInput { get; set; }
+            public bool NativeMammothGroundCommandFinished { get; set; }
+            public string NativeMammothGroundCommandResult { get; set; }
+            public string NativeMammothGroundRawMoveSlotState { get; set; }
             public float MammothNativeGroundDisplacement { get; set; }
+            public float MammothNativeGroundRemainingDistance { get; set; }
             public float MammothNativeMoveBefore { get; set; }
             public float MammothNativeMoveAfter { get; set; }
             public float RiderMoveBeforeMammothNativeGroundInput { get; set; }
@@ -3065,12 +3107,18 @@ namespace KingmakerMountedCombat.Diagnostics
                 bool rosterContainsMount,
                 bool rosterContainsTarget,
                 string presentationDuringMammothTurn,
+                string presentationAfterNativeMammothGroundInput,
                 bool nativeMammothTurnStarted,
                 bool nativeMammothTurnUiObserved,
                 bool nativeMammothGroundInputStarted,
                 bool nativeMammothGroundInputCompleted,
                 bool nativeMammothGroundSelectionRetained,
+                bool nativeMammothGroundUiObservedAfterInput,
+                bool nativeMammothGroundCommandFinished,
+                string nativeMammothGroundCommandResult,
+                string nativeMammothGroundRawMoveSlotState,
                 float mammothNativeGroundDisplacement,
+                float mammothNativeGroundRemainingDistance,
                 float mammothNativeMoveBefore,
                 float mammothNativeMoveAfter,
                 float riderMoveBeforeMammothNativeGroundInput,
@@ -3113,12 +3161,18 @@ namespace KingmakerMountedCombat.Diagnostics
                     RosterContainsMount = rosterContainsMount,
                     RosterContainsTarget = rosterContainsTarget,
                     PresentationDuringMammothTurn = presentationDuringMammothTurn,
+                    PresentationAfterNativeMammothGroundInput = presentationAfterNativeMammothGroundInput,
                     NativeMammothTurnStarted = nativeMammothTurnStarted,
                     NativeMammothTurnUiObserved = nativeMammothTurnUiObserved,
                     NativeMammothGroundInputStarted = nativeMammothGroundInputStarted,
                     NativeMammothGroundInputCompleted = nativeMammothGroundInputCompleted,
                     NativeMammothGroundSelectionRetained = nativeMammothGroundSelectionRetained,
+                    NativeMammothGroundUiObservedAfterInput = nativeMammothGroundUiObservedAfterInput,
+                    NativeMammothGroundCommandFinished = nativeMammothGroundCommandFinished,
+                    NativeMammothGroundCommandResult = nativeMammothGroundCommandResult,
+                    NativeMammothGroundRawMoveSlotState = nativeMammothGroundRawMoveSlotState,
                     MammothNativeGroundDisplacement = mammothNativeGroundDisplacement,
+                    MammothNativeGroundRemainingDistance = mammothNativeGroundRemainingDistance,
                     MammothNativeMoveBefore = mammothNativeMoveBefore,
                     MammothNativeMoveAfter = mammothNativeMoveAfter,
                     RiderMoveBeforeMammothNativeGroundInput = riderMoveBeforeMammothNativeGroundInput,

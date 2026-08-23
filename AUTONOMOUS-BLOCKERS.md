@@ -1,5 +1,9 @@
 # Autonomous blockers
 
+## Native Mammoth command terminal state requires exact observation - 2026-08-23T08:29:34Z
+
+Status: `IN PROGRESS`; no safety or core-architecture blocker is proven. `20260823T075815Z-round2-reactive-suite1-tb-passA` is immutable uncredited `FAIL 40/2`; its immediate independent restoration audit passed before evidence inspection. The reactive-field repair succeeded, ordinary ground input moved the Mammoth `0.9619302`, and only Mammoth Move changed `0 -> 0.23123309`. The command reached `IsFinished`, but v49 does not record the non-success `Result` or the post-command action-bar/turn state that caused the two exact failures. Forward-only schema v50 adds only command result/finished/raw-slot/remaining-distance and post-command presentation observations. No behavior or threshold changes before that fresh guarded observation.
+
 ## TB action-bar observation defect repaired; fresh package evidence pending - 2026-08-23T05:47:20Z
 
 Status: `IN PROGRESS`; no safety or core-architecture blocker is proven. Exact package/suite TB attempt `20260823T054000Z-round2-v49-suite1-tb-passA` is immutable uncredited `FAIL 36/1`, with exact independent restoration before evidence inspection. Native selection, turn actor, direct control, movement eligibility, action-bar GameObject/enabled/hierarchy state, pointer state, and queues were healthy; only the two reactive values were unavailable. Installed reflection proves they are public fields (`Active` `0x04002E2F`, `CanUseAbilities` `0x04002E30`) while KMC observed only properties. The narrow field-compatible reader is offline-green at source/component/visual/harness/assembly `21/237/17/222/294`, parsers `27/0` and `7/0`, diff and prohibited payload. It changes telemetry only. Fresh clean-package/suite runtime evidence must determine whether a separate TB behavior defect remains.
