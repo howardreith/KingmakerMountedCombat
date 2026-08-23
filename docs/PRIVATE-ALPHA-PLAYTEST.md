@@ -2,15 +2,15 @@
 
 ## Stabilization notice
 
-The artifact below is preserved historical qualification and is no longer the package to install for a new regression test. Human testing found rider visibility, non-world UI, ordinary overlay melee input, and turn-based control defects. A replacement package identity and focused checklist will be inserted only after the stabilization technical gates pass. Until then, status is `IN PROGRESS`; do not treat the historical package as the stabilized build.
+Automated stabilization is `PASS`: fresh same-package RT A/B, TB A/B, and doorway qualification total `434/0`, with exact independent save/Mods restoration after every process. The remaining checkpoint is a focused human regression for UI-screen visibility, polymorph/revert visibility, ranged rejection/control, and ordinary play feel.
 
 Historical status: `PRIVATE ALPHA COMPLETE — PLAYTEST HANDOFF`
 
-This is a private diagnostic playtest handoff, not a public release. Install only the exact artifact identity below.
+This is a private diagnostic playtest handoff, not a public release. Install only the fresh package named in the final handoff response and its adjacent sidecar manifest. The historical artifact below remains immutable evidence and must not be installed as the stabilized build.
 
-## Final artifact identity
+## Historical artifact identity — do not install for stabilization regression
 
-| Field | Required final value |
+| Field | Preserved historical value |
 |---|---|
 | Branch | `codex/mounted-combat-phase2-alpha` |
 | Commit | `eae1abd554e67f8e864571a97d48f479a75304af` |
@@ -21,7 +21,7 @@ This is a private diagnostic playtest handoff, not a public release. Install onl
 | DLL SHA-256 | `9f715f4ddd4e086cee8f2aa3aaa4e746401cec113fc529809d1376eab1caf6c1` |
 | DLL MVID | `292982ba-6486-4807-b4fa-c15dc0558266` |
 
-Do not substitute an earlier diagnostic package. The ZIP, sidecar manifest, commit, DLL hash, and MVID are one inseparable identity.
+The final stabilization package uses the same artifact path after guarded rebinding to the final clean documentation HEAD. Verify its ZIP, sidecar manifest, commit, DLL hash, and MVID against the final handoff response; those values are one inseparable identity. Do not use the historical hashes above for the new regression.
 
 ## Supported profile and environment
 
@@ -57,20 +57,20 @@ The bottom-right `Kingmaker Mounted Combat` overlay is the only player-facing su
 
 Rejected clicks or actions should explain the reason and make no partial change. Do not interpret a disabled button as a request to alter the character, save, or another mod to satisfy the test.
 
-## Suggested playtest sequence
+## Focused stabilization regression checklist
 
-Run the sequence independently in real-time and turn-based mode:
+Use an expendable save and the supported Medium-humanoid/Mammoth/one-handed profile:
 
-1. Mount, idle, walk, run, turn, reverse, stop, and pass a doorway.
-2. Switch selection away and back; observe portrait, action bar, selection circle, camera follow, and group movement.
-3. Make a stationary rider melee hit and miss when naturally available.
-4. Make a rider movement-to-attack from clearly outside melee range.
-5. Make a stationary Mammoth primary attack.
-6. Cancel one approach with Stop/Hold; interrupt another with a different command.
-7. Let combat end while mounted, then begin a new combat.
-8. On expendable state only, observe cleanup after rider or Mammoth unconsciousness/death and companion/pair invalidation.
-9. Dismount, save, load, change area, disable/re-enable the mod, and confirm no relationship or visual residue returns automatically.
-10. Repeat any defect once if safe, recording RT/TB mode, exact preceding actions, target, and whether restoration remained clean.
+1. Mount, then open and close the character sheet, inventory/spellbook, map, pause menu, and combat menu. Confirm the rider stays mounted, visible, selected, attached, and usable.
+2. While mounted, Wild Shape to the previously failing elemental form. Confirm a clean dismount and a visible, controllable stock elemental. Revert and confirm the ordinary humanoid view is visible, selected, and free of stale pose/parent residue.
+3. In real time, use `Rider melee` through the overlay and click a hostile target. Confirm one rider attack and useful rejection feedback if the click is invalid.
+4. Enter turn-based mode while mounted. Confirm rider and Mammoth roster/turn representation remains understandable, ground movement on the rider turn moves through the Mammoth, and `Rider melee` performs one rider attack.
+5. Exit turn-based mode while still mounted. Confirm the rider remains selected and owns the portrait, action bar, and camera without pressing Mount again.
+6. Use `Mammoth primary` once and confirm only the Mammoth attacks and pays its own Standard action.
+7. Open and traverse a door while mounted; confirm the pair remains mounted and mobile.
+8. Attempt a mounted ranged attack in RT and TB; confirm the deterministic private-alpha rejection. Dismount and confirm the same ranged attack remains stock.
+9. Save and perform a true area transition while mounted; confirm the intentional clean dismount message. Loading remains unmounted and automatic remount does not occur.
+10. Finish with explicit `Dismount`; confirm rider/Mammoth visibility, selection, action bar, camera, pose, parent, and movement are clean.
 
 ## Report immediately
 

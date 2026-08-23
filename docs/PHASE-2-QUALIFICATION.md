@@ -1,5 +1,11 @@
 # Phase 2 qualification
 
+## Private-alpha stabilization automated qualification - 2026-08-23
+
+Status: `PASS` for automated stabilization and `IN PROGRESS` for the required focused human regression. Clean runtime input `e77a3079e2e258a3f1b33ec8929f810854cf5f23`, package `b16535f94ee914c4953b40fd19e88f97dfa117f984f8134855b1eae79fa6eaaf`, DLL `d01a75c173c692198963e4c72acb20e1c5891d89a95916a4f649ab7d1d417777`, MVID `f2b69d04-07de-4e4c-a1fb-027ea8178612`, and suite snapshot `04cc10c11ff78a1899405c7387d6c990bc035e756545bff9f639694c57af62bd` produced RT A/B `81/0` each, TB A/B `105/0` each, and doorway `62/0`. Aggregate automated stabilization credit is `434/0`.
+
+The credited set proves ordinary player-facing rider melee in both modes, exact single rider rule/resource ownership, zero duplicate/opportunity chain, rider-turn Mammoth-routed ground movement, explicit rider/Mammoth native roster ownership, repeatable RT-to-TB/TB-to-RT pair and presentation coherence, one exact owned Mammoth AI reassertion, one exact rider UI-principal restoration, and mounted door opening/traversal. Every independent post-process audit passed before evidence inspection and proved exact Baseline, restored Working, complete save/Mods equality, and zero residue. Screen-open/close visibility, polymorph/revert visibility, mounted ranged rejection, and unmounted ranged control remain reserved for the manual regression package and are not claimed from automation.
+
 ## Stabilization RT A/B passed; schema-v45 rerun required after staged cleanup repair (2026-08-22)
 
 Status: `IN PROGRESS`; no stabilization PASS is claimed. Exact package `e8d5078875a94338e970fecf4d8fec747dbf72d6f5b2ab871a714be594fdef83` under suite `20260822T050700Z-private-alpha-stabilization-native-mode-suite1` passed separate RT/TB WhatIf and independent audits. Schema-v44 RT A/B `20260822T061700Z-private-alpha-stabilization-native-mode-rt-passA` / `20260822T063700Z-private-alpha-stabilization-native-mode-rt-passB` pass `81/0` each with ordinary player-click admission, exact single rider chain, zero opportunity/duplicate/repath chain, rider-only cost, healthy pose, and exact restoration.

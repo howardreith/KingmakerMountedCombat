@@ -1,5 +1,11 @@
 # Combat action economy contract
 
+## Stabilization qualification checkpoint - 2026-08-23
+
+Fresh same-package RT A/B pass `81/0` each and TB A/B pass `105/0` each under suite snapshot `04cc10c11ff78a1899405c7387d6c990bc035e756545bff9f639694c57af62bd`. In both TB runs rider-turn ground movement executes through the exact Mammoth Move-slot command, charges only rider Move, restores the command slot, and creates no synthetic rider command or shared ledger. Rider melee then charges rider Standard and owns exactly one attack/roll/damage chain; Mammoth Standard/Move remain unchanged and no duplicate or opportunity chain occurs.
+
+Native TB exit retains the independent rider/Mammoth roster and relationship. One exact owned Mammoth AI lease reassertion precedes one exact captured-rider native reselect; neither operation writes a turn, command, cooldown, attack, path, or resource. The automated action-economy stabilization boundary is `PASS`; UI/polymorph/ranged manual checks remain outside this contract's runtime credit.
+
 ## Native TB-exit UI principal repair preserves separate ledgers (2026-08-22)
 
 Uncredited TB `20260822T201000Z-private-alpha-stabilization-v46-suite2-tb-passA` proved exact Mammoth-owned rider-turn ground movement, rider-only Move/Standard cost, zero Mammoth Move/Standard cost, one rider attack/roll/damage chain, and zero duplicate/opportunity chain. Its sole failure was native TB shutdown clearing selection and action-bar ownership while the still-mounted rider view, portrait, camera owner, pose, relationship, roster, and independent ledgers remained exact. Schema v47 performs one exact native rider reselection only after the TB predicate is false, the game is `Default`, and the owned Mammoth AI boundary completed. It does not create a shared ledger, turn, command, movement, attack, cooldown, or resource write. Fresh same-package RT/TB A/B remains required.

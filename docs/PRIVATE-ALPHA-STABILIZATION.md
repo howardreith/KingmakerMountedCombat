@@ -1,10 +1,18 @@
 # Private-alpha stabilization
 
-Status: `IN PROGRESS`
+Status: automated stabilization `PASS`; final clean-HEAD package binding and guarded manual regression handoff pending.
 
 This continuation repairs player-facing defects found in the first qualified Mammoth private alpha. It does not authorize horses, persistence, ranged mounted combat, mounted spellcasting rules, mounted feats, explicit mounted attacks of opportunity, mounted charge, another body profile, Phase 3 implementation, a public release, or a merge to `main`.
 
 ## Current native TB-to-RT stabilization checkpoint
+
+Clean guarded-published runtime input `e77a3079e2e258a3f1b33ec8929f810854cf5f23` produced package/manifest/DLL SHA-256 `b16535f94ee914c4953b40fd19e88f97dfa117f984f8134855b1eae79fa6eaaf` / `24bca8dd2b3d3b9e8b2d94824b724c14f27005c9930f3ee392ad963d341508e3` / `d01a75c173c692198963e4c72acb20e1c5891d89a95916a4f649ab7d1d417777`, MVID `f2b69d04-07de-4e4c-a1fb-027ea8178612`. One admitted suite snapshot `04cc10c11ff78a1899405c7387d6c990bc035e756545bff9f639694c57af62bd` bound all credited runs after separate RT/TB WhatIf and independent zero-mutation audits.
+
+Fresh RT A/B `20260822T222335Z-private-alpha-stabilization-v47-suite1-rt-passA` / `20260822T224523Z-private-alpha-stabilization-v47-suite1-rt-passB` pass `81/0` each. Fresh TB A/B `20260822T230812Z-private-alpha-stabilization-v47-suite1-tb-passA` / `20260822T233145Z-private-alpha-stabilization-v47-suite1-tb-passB` pass `105/0` each. Doorway `20260822T235432Z-private-alpha-stabilization-v47-suite1-doorway` passes `62/0`. Automated aggregate is `434/0`. Every credited process restored exact save/Mods state before gameplay evidence was opened.
+
+Both TB runs prove the exact native-exit repair repeats deterministically: one arm/attempt/mutation/success with result `reselected-rider`, after one exact owned Mammoth AI reassertion. After TB-to-RT the pair, rider/Mammoth/target roster, active rider view/renderers, pose/attachment, selection, action bar, portrait, and rider camera ownership are coherent. Rider-turn ground movement uses the exact Mammoth Move-slot command while charging only the rider Move ledger; rider melee owns exactly one Standard/attack/roll/damage chain with zero duplicate or opportunity chain. No synthetic turn or shared action ledger was introduced.
+
+The earlier suite-2 failure below remains immutable historical diagnosis and receives no credit. The focused human regression remains required for screen open/close visibility, polymorph/revert visibility, mounted ranged rejection, and unmounted ranged stock control; automated evidence does not substitute for those UI observations.
 
 Suite-2 schema-v44 RT A/B each passed `81/0`. Schema-v46 TB attempt `20260822T201000Z-private-alpha-stabilization-v46-suite2-tb-passA` is immutable uncredited `FAIL 103/1` after an immediate exact restoration audit. Every movement, player-click melee, action/resource, attack/rule, pair, view, pose, roster, Pause/Default, and Mammoth AI-lease assertion passed. Native TB shutdown left the exact visible rider without `SelectionManager` or action-bar ownership while portrait and camera ownership remained exact.
 
@@ -84,12 +92,12 @@ Stock mounted rider `UnitAttack` admission is rejected only for the exact mounte
 | `mounted-polymorph-clean-dismount` | exact installed replacement contract plus deterministic lease cleanup PASS; guarded manual proof pending |
 | `mounted-polymorph-view-visible` | replacement release/visibility invariants deterministic PASS; guarded manual proof pending |
 | `mounted-polymorph-revert-visible` | stock restore ownership preserved; guarded manual proof pending |
-| `mounted-rider-melee-human-play-path-rt` | schema v44 protocol/validator PASS; fresh guarded runtime A/B pending |
-| `mounted-rider-melee-human-play-path-tb` | schema v46 protocol/validator PASS; fresh guarded runtime A/B pending |
-| `mounted-enter-turn-based` | schema v46 exact RT-to-TB pair/roster proof pending live A/B |
-| `mounted-turn-based-ground-movement` | schema v46 exact command/ledger/slot proof pending live A/B |
-| `mounted-exit-turn-based` | schema v46 exact TB-to-RT retained-pair and owned-AI-lease proof pending live A/B |
-| `mounted-door-open-and-traverse-regression` | prior doorway proof preserved; fresh guarded regression pending |
+| `mounted-rider-melee-human-play-path-rt` | fresh schema v44 RT A/B PASS `81/0` each |
+| `mounted-rider-melee-human-play-path-tb` | fresh schema v47 TB A/B PASS `105/0` each |
+| `mounted-enter-turn-based` | schema v47 exact RT-to-TB pair/roster proof PASS twice |
+| `mounted-turn-based-ground-movement` | schema v47 exact Mammoth command/rider-ledger/slot proof PASS twice |
+| `mounted-exit-turn-based` | schema v47 exact TB-to-RT pair, AI lease, and rider UI-principal proof PASS twice |
+| `mounted-door-open-and-traverse-regression` | fresh exact-door regression PASS `62/0` |
 | `mounted-ranged-rejected-rt` | exact pair-local stock-command policy PASS; guarded manual RT proof pending |
 | `mounted-ranged-rejected-tb` | exact pair-local stock-command policy PASS; guarded manual TB proof pending |
 | `non-mounted-ranged-control` | pair-local negative control PASS; guarded manual control pending |

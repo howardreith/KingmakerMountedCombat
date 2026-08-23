@@ -1,5 +1,13 @@
 # Mounted Combat journal
 
+## 2026-08-23T00:18:00Z - stabilization automated qualification passes
+
+- Clean guarded-published `e77a3079e2e258a3f1b33ec8929f810854cf5f23` produced package/manifest/DLL SHA-256 `b16535f94ee914c4953b40fd19e88f97dfa117f984f8134855b1eae79fa6eaaf` / `24bca8dd2b3d3b9e8b2d94824b724c14f27005c9930f3ee392ad963d341508e3` / `d01a75c173c692198963e4c72acb20e1c5891d89a95916a4f649ab7d1d417777`, MVID `f2b69d04-07de-4e4c-a1fb-027ea8178612`. Suite `20260822T204800Z-private-alpha-stabilization-v47-suite1` snapshot/save/Mods SHA-256 are `04cc10c11ff78a1899405c7387d6c990bc035e756545bff9f639694c57af62bd` / `537fee5c86e3035ae1f1459cf5a6639dd818381cf5996992fdeac670bbab9f9b` / `5b47c2e88968a5b208a5c8fa11acdf10890365eb97e0d41db5107e87b669891d`. Separate RT/TB WhatIf and audits passed.
+- Fresh RT A/B `...222335Z...rt-passA` / `...224523Z...rt-passB` pass `81/0` each. Fresh TB A/B `...230812Z...tb-passA` / `...233145Z...tb-passB` pass `105/0` each. Both TB rows repeat one exact owned Mammoth AI reassertion and one exact captured-rider reselect after native TB shutdown, retain rider/Mammoth/target roster and pair presentation, route rider-turn ground movement through the Mammoth with rider-only movement accounting, and produce one rider-owned melee chain with zero duplicate or opportunity chain.
+- Doorway `20260822T235432Z-private-alpha-stabilization-v47-suite1-doorway` passes `62/0`, retaining the mounted relationship while opening and traversing exact door `DoorHolder/dwarf_dungeon_door_01`. Every credited process received audit-before-read exact restoration.
+- Pre-launch `20260822T220224Z...rt-passA` remains uncredited. Sandbox access denied guarded Mods staging and rollback before Kingmaker launch. The repository recovery script, rerun with required filesystem permission, restored the exact admitted suite; the independent audit passed before evidence read. This is tooling evidence only and no gameplay credit was inferred.
+- Automated stabilization aggregate is `434/0`. UI-screen visibility, polymorph/revert visibility, and mounted/unmounted ranged behavior retain deterministic technical coverage but remain reserved for the focused human regression. Next: final documentation checkpoint, guarded publication, clean-HEAD package binding, and manual-regression handoff only. Horses, Phase 3, persistence, public release, and `main` remain forbidden.
+
 ## 2026-08-22T20:42:00Z - exact native TB-exit rider UI reset observed and isolated
 
 - Published `061192c...` package `4cd5f39a...` and suite snapshot `eace3b4a...` passed separate RT/TB WhatIf and audits. RT A/B `...192600Z...rt-passA` / `...194700Z...rt-passB` each pass schema v44 `81/0` with immediate exact restoration.
