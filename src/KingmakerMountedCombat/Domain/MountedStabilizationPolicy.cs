@@ -269,6 +269,28 @@ namespace KingmakerMountedCombat.Domain
         }
     }
 
+    public static class MountedDistanceDoorFixturePolicy
+    {
+        public static bool CanTemporarilyEnable(
+            bool doorCanInteract,
+            bool doorEnabled,
+            bool disableOnOpen,
+            bool playerInCombat)
+        {
+            return !doorCanInteract && !doorEnabled && disableOnOpen && !playerInCombat;
+        }
+
+        public static bool IsExactlyRestored(
+            bool leaseCaptured,
+            bool originalOpen,
+            bool originalEnabled,
+            bool currentOpen,
+            bool currentEnabled)
+        {
+            return leaseCaptured && originalOpen == currentOpen && originalEnabled == currentEnabled;
+        }
+    }
+
     public sealed class MountedOverlayWorldInputGuard
     {
         private const int MaximumPropagationFrameDelta = 2;

@@ -421,6 +421,13 @@ namespace KingmakerMountedCombat.Diagnostics
         private Vector3 doorFarPoint;
         private Vector3 doorInteractionRiderStart;
         private Vector3 doorInteractionMountStart;
+        private bool rowMountedAtLeastOnce;
+        private bool distanceDoorFixtureLeaseCaptured;
+        private bool distanceDoorFixtureOriginalOpen;
+        private bool distanceDoorFixtureOriginalEnabled;
+        private bool distanceDoorFixtureDisableOnOpen;
+        private bool distanceDoorFixtureTemporaryEnableUsed;
+        private bool distanceDoorFixtureRestored;
 
         public RuntimeMovementScenarioEngine(
             RuntimeRequest request,
@@ -571,6 +578,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 screenshotCapture.Dispose();
                 StopTouchedMovement();
+                RestoreDistanceDoorFixtureLease();
                 RestorePresentationTestLeases();
                 BestEffortDismount(CleanupTrigger.ProcessTeardown);
                 RestorePause();
@@ -952,9 +960,27 @@ namespace KingmakerMountedCombat.Diagnostics
                 selectedDoor = candidate.Door;
                 doorNearPoint = candidate.Near;
                 doorFarPoint = candidate.Far;
+                distanceDoorFixtureLeaseCaptured = true;
+                distanceDoorFixtureOriginalOpen = selectedDoor.GetState();
+                distanceDoorFixtureOriginalEnabled = selectedDoor.Enabled;
+                distanceDoorFixtureDisableOnOpen = selectedDoor.DisableOnOpen;
+                if (!selectedDoor.CanInteract() && MountedDistanceDoorFixturePolicy.CanTemporarilyEnable(
+                        selectedDoor.CanInteract(),
+                        selectedDoor.Enabled,
+                        selectedDoor.DisableOnOpen,
+                        Game.Instance.Player.IsInCombat))
+                {
+                    selectedDoor.Enabled = true;
+                    distanceDoorFixtureTemporaryEnableUsed = true;
+                }
                 assertions.Check(selectedDoor.GetState() && selectedDoor.CanInteract(),
                     "The distance-interaction setup selected one active stock open StandardDoor.",
                     "The selected distance-interaction door was not an active interactable open StandardDoor.");
+                if (assertions.FailureCount != 0)
+                {
+                    BeginCleanup(CleanupTrigger.Manual);
+                    return;
+                }
                 selectedDoor.Interact(rider);
                 rowPhase = 1;
                 return;
@@ -962,8 +988,25 @@ namespace KingmakerMountedCombat.Diagnostics
 
             if (rowPhase == 1)
             {
-                if (selectedDoor.GetState() || !selectedDoor.CanInteract())
+                if (selectedDoor.GetState())
                 {
+                    return;
+                }
+                if (!selectedDoor.CanInteract() && MountedDistanceDoorFixturePolicy.CanTemporarilyEnable(
+                        selectedDoor.CanInteract(),
+                        selectedDoor.Enabled,
+                        selectedDoor.DisableOnOpen,
+                        Game.Instance.Player.IsInCombat))
+                {
+                    selectedDoor.Enabled = true;
+                    distanceDoorFixtureTemporaryEnableUsed = true;
+                }
+                assertions.Check(selectedDoor.CanInteract(),
+                    "The closed stock door was interactable before the mounted player click.",
+                    "The closed selected door could not be admitted after exact fixture preparation.");
+                if (assertions.FailureCount != 0)
+                {
+                    BeginCleanup(CleanupTrigger.Manual);
                     return;
                 }
                 rowUnmountedDoorControlPassed = true;
@@ -1010,7 +1053,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     return;
                 }
-                if (!selectedDoor.GetState() || !selectedDoor.CanInteract())
+                if (!selectedDoor.GetState())
                 {
                     return;
                 }
@@ -1032,6 +1075,15 @@ namespace KingmakerMountedCombat.Diagnostics
                         relationship.Runtime.PoseHealthy,
                     "Door opening retained the exact pair, rider selection, and accepted Mammoth pose.",
                     "Door opening lost pair, selection, pose, or exact open state.");
+                distanceDoorFixtureRestored = MountedDistanceDoorFixturePolicy.IsExactlyRestored(
+                    distanceDoorFixtureLeaseCaptured,
+                    distanceDoorFixtureOriginalOpen,
+                    distanceDoorFixtureOriginalEnabled,
+                    selectedDoor.GetState(),
+                    selectedDoor.Enabled);
+                assertions.Check(distanceDoorFixtureRestored,
+                    "The bounded door fixture lease returned to its exact captured open/enabled state.",
+                    "The door fixture retained changed open or enabled state after the mounted interaction.");
                 assertions.Check(PlanarDistance(doorInteractionMountStart, mount.Position) >= 0.5f &&
                         PlanarDistance(doorInteractionRiderStart, rider.Position) >= 0.5f,
                     "Both pair members moved measurably during the Mammoth-authoritative door approach.",
@@ -1946,6 +1998,49 @@ namespace KingmakerMountedCombat.Diagnostics
             rowCameraMinimumRigResidual = double.MaxValue;
         }
 
+        private bool RestoreDistanceDoorFixtureLease()
+        {
+            if (!distanceDoorFixtureLeaseCaptured)
+            {
+                return true;
+            }
+            if (selectedDoor == null)
+            {
+                RecordPresentationLeaseFailure("Distance-door fixture lease lost its exact StandardDoor reference.");
+                return false;
+            }
+
+            try
+            {
+                if (selectedDoor.GetState() != distanceDoorFixtureOriginalOpen)
+                {
+                    if (!selectedDoor.Enabled)
+                    {
+                        selectedDoor.Enabled = true;
+                    }
+                    selectedDoor.Open();
+                }
+                selectedDoor.Enabled = distanceDoorFixtureOriginalEnabled;
+                distanceDoorFixtureRestored = MountedDistanceDoorFixturePolicy.IsExactlyRestored(
+                    distanceDoorFixtureLeaseCaptured,
+                    distanceDoorFixtureOriginalOpen,
+                    distanceDoorFixtureOriginalEnabled,
+                    selectedDoor.GetState(),
+                    selectedDoor.Enabled);
+                if (!distanceDoorFixtureRestored)
+                {
+                    RecordPresentationLeaseFailure("Distance-door fixture lease did not restore exact open/enabled state.");
+                }
+                return distanceDoorFixtureRestored;
+            }
+            catch (Exception exception)
+            {
+                RecordPresentationLeaseFailure("Distance-door fixture lease restoration failed: " +
+                    exception.GetType().Name + ": " + exception.Message);
+                return false;
+            }
+        }
+
         private bool RestorePresentationTestLeases()
         {
             var restored = true;
@@ -2032,6 +2127,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 return false;
             }
+            rowMountedAtLeastOnce = true;
 
             var runtime = relationship.Runtime;
             assertions.Check(pairSnapshot.RiderView.AgentASP == pairSnapshot.RiderStockAgent && !pairSnapshot.RiderStockAgent.enabled,
@@ -2899,6 +2995,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 StopTouchedMovement();
                 cleanupMovementStoppedBeforeFinalSynchronization = true;
             }
+            if (!RestoreDistanceDoorFixtureLease())
+            {
+                fatalResidue = true;
+            }
             if (!RestorePresentationTestLeases())
             {
                 fatalResidue = true;
@@ -3169,11 +3269,11 @@ namespace KingmakerMountedCombat.Diagnostics
                         "Owned RiderMovementAgent component count returned to its exact prior value.",
                         "A RiderMovementAgent component remained/disappeared, or its Unity view was destroyed after cleanup.");
                     assertions.Check(pairSnapshot.RiderPoseComponentCountRestored() &&
-                            relationship.Runtime.PoseBaselineRestoreVerified,
+                            (!rowMountedAtLeastOnce || relationship.Runtime.PoseBaselineRestoreVerified),
                         "Owned pose component count returned to its exact prior value and the bone baseline restoration was verified.",
                         "A MountedRiderPoseAdapter component or unverified pose baseline remained after cleanup.");
                     assertions.Check(pairSnapshot.RiderAttachmentStateRestored() &&
-                        relationship.Runtime.PresentationAttachmentRestoreVerified &&
+                        (!rowMountedAtLeastOnce || relationship.Runtime.PresentationAttachmentRestoreVerified) &&
                         !relationship.Runtime.PresentationAttachmentLeaseActive && !relationship.Runtime.HasPresentationAttachmentResidue,
                         "Rider attachment restored its exact parent, sibling index, and local scale; the lease verified captured world pose before nav-safe dismount placement.",
                         "Rider attachment retained parent/carrier residue, lost its Unity view, or did not verify the captured transform state.");
@@ -3401,6 +3501,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 minimumPairNonPairSeparationWorldUnits = minimumPairNonPairSeparation,
                 requiredPairNonPairSeparationWorldUnits = requiredPairNonPairSeparation,
                 unmountedDoorControlPassed = rowUnmountedDoorControlPassed,
+                doorFixtureLeaseCaptured = distanceDoorFixtureLeaseCaptured,
+                doorFixtureOriginalOpen = distanceDoorFixtureOriginalOpen,
+                doorFixtureOriginalEnabled = distanceDoorFixtureOriginalEnabled,
+                doorFixtureDisableOnOpen = distanceDoorFixtureDisableOnOpen,
+                doorFixtureTemporaryEnableUsed = distanceDoorFixtureTemporaryEnableUsed,
+                doorFixtureRestored = distanceDoorFixtureRestored,
                 doorApproachSkipped = rowDoorApproachSkipped,
                 stopCommandIssuedCount = rowStopCommandIssuedCount,
                 restartCompleted = rowRestartCompleted,
@@ -4189,6 +4295,13 @@ namespace KingmakerMountedCombat.Diagnostics
             doorFarPoint = Vector3.zero;
             doorInteractionRiderStart = Vector3.zero;
             doorInteractionMountStart = Vector3.zero;
+            rowMountedAtLeastOnce = false;
+            distanceDoorFixtureLeaseCaptured = false;
+            distanceDoorFixtureOriginalOpen = false;
+            distanceDoorFixtureOriginalEnabled = false;
+            distanceDoorFixtureDisableOnOpen = false;
+            distanceDoorFixtureTemporaryEnableUsed = false;
+            distanceDoorFixtureRestored = false;
             uninvolvedCommands = null;
             requiredPairNonPairSeparation = 0.0d;
         }
@@ -4404,6 +4517,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     return row;
                 }
+            }
+            if (string.Equals(row, "mounted-distance-door-interaction", StringComparison.Ordinal))
+            {
+                return row;
             }
             throw new InvalidOperationException("Screenshot row is outside the fixed movement allowlist.");
         }

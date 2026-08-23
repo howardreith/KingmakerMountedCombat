@@ -1065,7 +1065,11 @@ function New-TestMovementRowRecord {
         nonPairUnitId=$(if($selection -or $formation -or $uiPresentation -or $cameraPresentation){'movement-non-pair'}else{$null});mountFinalTargetDistanceWorldUnits=$(if($cancel){0.0}else{0.5})
         nonPairBestTargetDistanceWorldUnits=$(if($formation){0.4}else{0.0});nonPairFinalTargetDistanceWorldUnits=$(if($formation){0.5}else{0.0})
         minimumPairNonPairSeparationWorldUnits=$(if($formation){3.0}else{0.0});requiredPairNonPairSeparationWorldUnits=$(if($formation){2.0}else{0.0})
-        unmountedDoorControlPassed=$doorway;doorApproachSkipped=$false;stopCommandIssuedCount=$(if($stopStart -or $cancel -or $poseTurnStop){1}else{0})
+        unmountedDoorControlPassed=$doorway
+        doorFixtureLeaseCaptured=$distanceDoor;doorFixtureOriginalOpen=$distanceDoor
+        doorFixtureOriginalEnabled=$false;doorFixtureDisableOnOpen=$distanceDoor
+        doorFixtureTemporaryEnableUsed=$distanceDoor;doorFixtureRestored=$distanceDoor
+        doorApproachSkipped=$false;stopCommandIssuedCount=$(if($stopStart -or $cancel -or $poseTurnStop){1}else{0})
         restartCompleted=$stopStart;selectionMountNormalized=($selection -or $cameraPresentation);selectionSwitchedAway=$selection;selectionSwitchedBack=$selection
         formationSelectionNormalized=$formation;pauseEntered=$pause;pauseObservationSeconds=$(if($pause){1.1}else{0.0})
         pauseMaximumDriftWorldUnits=$(if($pause){0.01}else{0.0});pauseExited=$pause
@@ -7350,7 +7354,8 @@ try {
         $manifest = Read-KmcJson (Join-Path $doorRequest.evidenceRoot 'runtime-artifacts.json')
         Assert-KmcMovementScenarioEvidence -Request $doorRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($doorSubresult)
 
-        foreach ($mutation in @('missing-control','missing-door','wrong-waypoint','wrong-target','non-strict','extra-interaction-leg')) {
+        foreach ($mutation in @('missing-control','missing-door','wrong-waypoint','wrong-target','non-strict','extra-interaction-leg',
+            'missing-fixture-lease','wrong-original-state','missing-temporary-enable','fixture-not-restored')) {
             $rowRecord = New-TestMovementRowRecord $doorRequest $doorRow 1
             $probe = New-TestMovementPathProbeRecord $doorRequest $doorRow 0 'DoorFar' $true
             switch ($mutation) {
@@ -7360,6 +7365,10 @@ try {
                 'wrong-target' { $probe.requested.x = 3.5; $probe.endpoint.x = 3.5 }
                 'non-strict' { $probe.strictDoor = $false }
                 'extra-interaction-leg' { $rowRecord.screenshots = @(New-TestMovementScreenshotRecords 'mounted-pair-doorway' $true) }
+                'missing-fixture-lease' { $rowRecord.doorFixtureLeaseCaptured = $false }
+                'wrong-original-state' { $rowRecord.doorFixtureOriginalEnabled = $true }
+                'missing-temporary-enable' { $rowRecord.doorFixtureTemporaryEnableUsed = $false }
+                'fixture-not-restored' { $rowRecord.doorFixtureRestored = $false }
             }
             $records = @($probe,$rowRecord)
             [void](Write-TestMovementEvidence $doorRequest.evidenceRoot $doorRequest $doorTelemetry $records)
@@ -8379,9 +8388,9 @@ try {
             ForEach-Object { $_.Groups[1].Value })
         $rowProducerNames = @($rowOwnedNames + $rowPayloadNames)
         $rowFixtureNames = @((New-TestMovementRowRecord $movementRequest $movementRow 1).Keys | ForEach-Object { [string]$_ })
-        Assert-Test ($rowPayloadNames.Count -eq 198 -and $rowProducerNames.Count -eq 209 -and $rowFixtureNames.Count -eq 209 -and
+        Assert-Test ($rowPayloadNames.Count -eq 204 -and $rowProducerNames.Count -eq 215 -and $rowFixtureNames.Count -eq 215 -and
             @($rowProducerNames | Where-Object { [Array]::IndexOf($rowFixtureNames, $_) -lt 0 }).Count -eq 0 -and
-            @($rowFixtureNames | Where-Object { [Array]::IndexOf($rowProducerNames, $_) -lt 0 }).Count -eq 0) 'movement row fixture/validator field set is not the exact 209-field producer schema'
+            @($rowFixtureNames | Where-Object { [Array]::IndexOf($rowProducerNames, $_) -lt 0 }).Count -eq 0) 'movement row fixture/validator field set is not the exact 215-field producer schema'
         $runtimeSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\KingmakerMountedPairRuntime.cs'))
         Assert-Test ($runtimeSource.Contains('riderAvoidanceWasDisabled = riderStockAgent.AvoidanceDisabled;') -and
             $runtimeSource.Contains('riderStockAgent.AvoidanceDisabled = false;') -and
@@ -8576,6 +8585,10 @@ try {
             $movementEngineSource.Contains('clickAccepted && combat.HasActiveDoorInteraction') -and
             $movementEngineSource.Contains('outcome.InteractionCount == 1 && outcome.DelegatedMoveStartCount == 1') -and
             $movementEngineSource.Contains('outcome.DoorStateChanged && outcome.RiderPathSuppressed && outcome.MountMoveSlotRestored') -and
+            $movementEngineSource.Contains('MountedDistanceDoorFixturePolicy.CanTemporarilyEnable(') -and
+            $movementEngineSource.Contains('RestoreDistanceDoorFixtureLease()') -and
+            $movementEngineSource.Contains('MountedDistanceDoorFixturePolicy.IsExactlyRestored(') -and
+            $movementEngineSource.Contains('string.Equals(row, "mounted-distance-door-interaction", StringComparison.Ordinal)') -and
             $movementEngineSource.Contains('BeginExactNavigation(NavigationMode.Normal, doorFarPoint, true, "door-mounted")') -and
             $automationHostSource.Contains('new RuntimeMovementScenarioEngine(') -and
             $automationHostSource.Contains('request, relationship, playerAction, combat, diagnosticSettings,') -and

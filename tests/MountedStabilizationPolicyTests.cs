@@ -16,6 +16,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("mounted stock pair attack is pair-local and explains explicit controls", StockAttackRejectionIsPairLocal);
             runner.Run("native TB actor selection preserves separate rider and Mammoth turns", NativeTurnSelectionPreservesActorOwnership);
             runner.Run("mounted distant-door routing is exact rider-owned and turn-bounded", DistantDoorRoutingIsExact);
+            runner.Run("distance-door fixture lease is exact disabled-on-open and restorable", DistanceDoorFixtureLeaseIsExact);
             runner.Run("mounted overlay world-click guard is one-shot and frame-bounded", OverlayWorldClickGuardIsBounded);
             runner.Run("cleanup feedback explains intentional transient boundaries", ExplainsIntentionalCleanupBoundaries);
         }
@@ -160,6 +161,25 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(MountedInteractionRoutingPolicy.CanAdmitInCurrentTurn(true, true, true, false), "Rider Preparing turn rejected exact door interaction.");
             TestRunner.True(MountedInteractionRoutingPolicy.CanAdmitInCurrentTurn(true, true, false, true), "Rider Acting turn rejected exact door interaction.");
             TestRunner.True(!MountedInteractionRoutingPolicy.CanAdmitInCurrentTurn(true, false, true, true), "Door interaction escaped exact rider-turn ownership.");
+        }
+
+        private static void DistanceDoorFixtureLeaseIsExact()
+        {
+            TestRunner.True(
+                MountedDistanceDoorFixturePolicy.CanTemporarilyEnable(false, false, true, false),
+                "Exact stock disabled-on-open fixture could not acquire its test-only enable lease.");
+            TestRunner.True(
+                !MountedDistanceDoorFixturePolicy.CanTemporarilyEnable(true, false, true, false) &&
+                !MountedDistanceDoorFixturePolicy.CanTemporarilyEnable(false, true, true, false) &&
+                !MountedDistanceDoorFixturePolicy.CanTemporarilyEnable(false, false, false, false) &&
+                !MountedDistanceDoorFixturePolicy.CanTemporarilyEnable(false, false, true, true),
+                "Door fixture lease admitted an interactable, enabled, ordinary, or combat-blocked door.");
+            TestRunner.True(
+                MountedDistanceDoorFixturePolicy.IsExactlyRestored(true, true, false, true, false) &&
+                !MountedDistanceDoorFixturePolicy.IsExactlyRestored(false, true, false, true, false) &&
+                !MountedDistanceDoorFixturePolicy.IsExactlyRestored(true, true, false, false, false) &&
+                !MountedDistanceDoorFixturePolicy.IsExactlyRestored(true, true, false, true, true),
+                "Door fixture restoration did not require its exact captured state and identity.");
         }
 
         private static void OverlayWorldClickGuardIsBounded()

@@ -1,5 +1,13 @@
 # Private-alpha stabilization
 
+## Round 2 path-end qualification and exact door-fixture correction - 2026-08-23T23:22:44Z
+
+Clean package `5311020e7ad3f227c46ac2284b520da74d3a9c674f05232271db51b1d5117d1c` from published `a05d40d4e08508e611cedc4eae4e3bee406822c8` produced RT A/B `81/0` each and TB A/B `111/0` each under suite snapshot `3ad2100c957fc38e31f6a95d19ebc80cdc0fa1345cdf77e6a791acb684a56ebf`. Every process had an immediate exact restoration audit before evidence inspection. Both TB runs prove ordinary native Mammoth command success, visible movement, actor-specific ledgers, rider-turn routing and rider melee once, with no duplicate/opportunity chain. Physical mouse and rendered usability remain manual gates.
+
+Distance-door run `20260823T222943Z-round2-v52-path-end-repair-distance-door` is preserved uncredited at `FAIL 9/5` despite exact restoration. It selected a stock authored `DisableOnOpen` door already open and interaction-disabled. The old diagnostic could not close that fixture, incorrectly expected it to remain interactable after stock open, omitted its screenshot token, and emitted cascading pre-mount failures. It did not reach mounted production door routing.
+
+The narrow repair is diagnostic-only: capture exact door open/enabled/`DisableOnOpen` state, temporarily enable only an out-of-combat disabled-on-open fixture, close it through stock rider interaction, and restore exact original state after the mounted attempt. Schema and deterministic tests prove the lease and prevent cross-row contamination. Complete gates pass `21/239/17/226/296`, Release, parsers `27/0` / `7/0`, diff, and prohibited payload. Fresh package RT/TB A/B and distance-door evidence remain required.
+
 ## Round 2 exact TB path-end completion repair - 2026-08-23T19:12:44Z
 
 Fresh guarded observation `20260823T183800Z-round2-v52-terminal-geometry-observation` is immutable uncredited `FAIL 41/1`, with exact audit-before-read restoration. It proves the Mammoth reached its exact two-point TB navmesh path endpoint after moving `0.9619302`, but the endpoint remained `0.5389647` from the raw click. The stock command and agent used radius `0.3`; the Mammoth's measured corpulence was `1.060606`. Exact stock `CompleteMovement` therefore interrupted a valid clearance-clamped path solely because it rechecked the unreachable raw click against `0.3`.

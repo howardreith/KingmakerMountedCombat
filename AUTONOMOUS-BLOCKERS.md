@@ -1,5 +1,11 @@
 # Autonomous blockers
 
+## 2026-08-23T23:22:44Z - path-end repair qualified; distance-door fixture failure repaired offline
+
+- Status: `IN PROGRESS`, not a safety, gameplay, or core-architecture block. Clean package `5311020e7ad3f227c46ac2284b520da74d3a9c674f05232271db51b1d5117d1c` produced credited RT A/B `81/0` each and TB A/B `111/0` each under one exact suite, with immediate independent restoration before every evidence read. Native Mammoth command success, separate turn/Move ledgers, rider melee, and zero duplicate/opportunity chains are proven.
+- `20260823T222943Z-round2-v52-path-end-repair-distance-door` is immutable uncredited `FAIL 9/5` with exact restoration. It selected a stock door already open and disabled by `DisableOnOpen`; the diagnostic incorrectly assumed it could directly close it, expected post-open `CanInteract=true`, and omitted its screenshot token. No mounted approach or production door wrapper was reached.
+- The offline repair grants one reversible diagnostic fixture lease only for an exact out-of-combat open/disabled `DisableOnOpen` door, uses stock interaction to establish and restore state, and corrects screenshot/pre-mount evidence. Production routing, action ownership, timeouts, and restoration thresholds are unchanged. Complete gates are `21/239/17/226/296`, parsers `27/0` / `7/0`, diff and prohibited payload PASS. Fresh publication/package/suite/WhatIf and complete RT/TB A/B plus door retry remain required.
+
 ## 2026-08-23T19:12:44Z - exact TB clearance endpoint defect repaired offline; fresh runtime qualification pending
 
 - Status: `IN PROGRESS`, not a safety or architecture block. Restored observation `20260823T183800Z-round2-v52-terminal-geometry-observation` remains immutable uncredited `FAIL 41/1`.

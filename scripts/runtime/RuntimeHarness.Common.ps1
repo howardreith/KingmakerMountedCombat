@@ -6751,6 +6751,8 @@ function Assert-KmcMovementScenarioRecord {
             'nonPairUnitId',
             'mountFinalTargetDistanceWorldUnits','nonPairBestTargetDistanceWorldUnits','nonPairFinalTargetDistanceWorldUnits',
             'minimumPairNonPairSeparationWorldUnits','requiredPairNonPairSeparationWorldUnits','unmountedDoorControlPassed',
+            'doorFixtureLeaseCaptured','doorFixtureOriginalOpen','doorFixtureOriginalEnabled','doorFixtureDisableOnOpen',
+            'doorFixtureTemporaryEnableUsed','doorFixtureRestored',
             'doorApproachSkipped','stopCommandIssuedCount','restartCompleted','selectionMountNormalized',
             'selectionSwitchedAway','selectionSwitchedBack','formationSelectionNormalized','pauseEntered',
             'pauseObservationSeconds','pauseMaximumDriftWorldUnits','pauseExited','destinationCancelCommandAbsent',
@@ -6842,7 +6844,9 @@ function Assert-KmcMovementScenarioRecord {
         'cameraMinimumRigResidualWorldUnits','cameraMaximumRigResidualWorldUnits')) {
         if (-not (Test-KmcFiniteNonnegativeJsonNumber $Record.$name)) { throw "Movement row-result $name must be a finite nonnegative JSON number." }
     }
-    foreach ($name in @('unmountedDoorControlPassed','cleanupSucceeded','cleanupResidual','finalSynchronizationSnapshotCaptured',
+    foreach ($name in @('unmountedDoorControlPassed','doorFixtureLeaseCaptured','doorFixtureOriginalOpen',
+        'doorFixtureOriginalEnabled','doorFixtureDisableOnOpen','doorFixtureTemporaryEnableUsed','doorFixtureRestored',
+        'cleanupSucceeded','cleanupResidual','finalSynchronizationSnapshotCaptured',
         'finalSynchronizationQualificationPassed','finalSynchronizationMovementStoppedBeforeSnapshot',
         'finalSynchronizationBoundaryMovementCommandAbsent','finalSynchronizationBoundaryWantsToMove',
         'finalSynchronizationBoundaryIsReallyMoving','finalSynchronizationBoundaryClosureAttempted',
@@ -7119,8 +7123,23 @@ function Assert-KmcMovementScenarioRecord {
             if ($Record.unmountedDoorControlPassed -ne $true -or [string]::IsNullOrWhiteSpace([string]$Record.door)) {
                 throw 'PASS doorway row does not contain the required matched unmounted Mammoth control and exact unchanged door identity.'
             }
+            if ($row -ceq 'mounted-distance-door-interaction' -and
+                ($Record.doorFixtureLeaseCaptured -ne $true -or $Record.doorFixtureOriginalOpen -ne $true -or
+                 $Record.doorFixtureOriginalEnabled -ne $false -or $Record.doorFixtureDisableOnOpen -ne $true -or
+                 $Record.doorFixtureTemporaryEnableUsed -ne $true -or $Record.doorFixtureRestored -ne $true)) {
+                throw 'PASS distance-door row does not prove the exact reversible stock disabled-on-open fixture lease.'
+            }
+            if ($row -cne 'mounted-distance-door-interaction' -and
+                ($Record.doorFixtureLeaseCaptured -ne $false -or $Record.doorFixtureOriginalOpen -ne $false -or
+                 $Record.doorFixtureOriginalEnabled -ne $false -or $Record.doorFixtureDisableOnOpen -ne $false -or
+                 $Record.doorFixtureTemporaryEnableUsed -ne $false -or $Record.doorFixtureRestored -ne $false)) {
+                throw 'PASS ordinary doorway row retained distance-door fixture-lease evidence.'
+            }
         }
-        elseif ($Record.unmountedDoorControlPassed -ne $false -or $Record.doorApproachSkipped -ne $false -or $null -ne $Record.door) {
+        elseif ($Record.unmountedDoorControlPassed -ne $false -or $Record.doorFixtureLeaseCaptured -ne $false -or
+            $Record.doorFixtureOriginalOpen -ne $false -or $Record.doorFixtureOriginalEnabled -ne $false -or
+            $Record.doorFixtureDisableOnOpen -ne $false -or $Record.doorFixtureTemporaryEnableUsed -ne $false -or
+            $Record.doorFixtureRestored -ne $false -or $Record.doorApproachSkipped -ne $false -or $null -ne $Record.door) {
             throw 'Non-doorway PASS row retained doorway-only semantic evidence.'
         }
         if ($isStopStart) {

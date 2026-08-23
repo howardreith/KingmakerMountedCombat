@@ -1,5 +1,11 @@
 # Combat action economy contract
 
+## Stabilization Round 2 path-end bridge qualified - 2026-08-23T23:22:44Z
+
+Exact package `5311020e7ad3f227c46ac2284b520da74d3a9c674f05232271db51b1d5117d1c` and suite snapshot `3ad2100c957fc38e31f6a95d19ebc80cdc0fa1345cdf77e6a791acb684a56ebf` produced RT A/B `81/0` each and TB A/B `111/0` each. In both TB processes, the independent Mammoth turn owns its player-created native Move and only Mammoth Move increases; the rider turn separately delegates movement to the Mammoth while only rider Move increases. Rider melee then owns its one Standard/weapon/attack/roll/damage chain. Mammoth Standard remains unchanged, raw Move slots restore, and no duplicate turn, path, command, attack, roll, damage, opportunity, or resource chain appears.
+
+The exact clearance endpoint bridge finishes the same stock Mammoth command as `Success`; it creates no synthetic turn or shared ledger. This action-economy boundary is `PASS` for the exact supported profile. The uncredited door attempt did not mount or exercise its approach wrapper because its diagnostic door began stock-open and disabled; its fixture-only repair changes no action ledger. A fresh package restart is nevertheless required for final Round-2 evidence identity.
+
 ## Stabilization Round 2 TB ground endpoint contract - 2026-08-23T19:12:44Z
 
 Exact installed TB pathing can clamp a large unit's final path point short of the raw player click even when the path is valid. Observation `20260823T183800Z-round2-v52-terminal-geometry-observation` proves the exact mounted Mammoth reached its two-point path endpoint while the click remained `0.5389647` away; stock command/agent approach radius was `0.3` and Mammoth corpulence was `1.060606`. `UnitMovementAgent.CompleteMovement` `0x060018B0` consequently called the stock interruption chain despite completed visible movement.

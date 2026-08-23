@@ -1,5 +1,11 @@
 # Phase 2 runtime scenario matrix
 
+## Round-2 path-end A/B PASS; distance-door fixture retry pending - 2026-08-23T23:22:44Z
+
+Published commit/package `a05d40d4e08508e611cedc4eae4e3bee406822c8` / `5311020e7ad3f227c46ac2284b520da74d3a9c674f05232271db51b1d5117d1c` produced credited RT A/B `81/0` each and TB A/B `111/0` each under snapshot `3ad2100c957fc38e31f6a95d19ebc80cdc0fa1345cdf77e6a791acb684a56ebf`. Every audit passed before evidence inspection. Schema-v52 TB proves ordinary native Mammoth `Success`, `<not-interrupted>`, `0.9619302` movement, separate turn/Move ownership, restored slots, one rider melee chain, and zero unexpected pair/AoO/duplicate chain. Physical pointer usability remains manual-required.
+
+`mounted-distance-door-interaction` attempt `20260823T222943Z-round2-v52-path-end-repair-distance-door` remains uncredited `FAIL 9/5`. It selected an already-open stock `DisableOnOpen` door whose interaction component was disabled; the diagnostic could not establish its closed start, incorrectly expected post-open eligibility, and lacked a screenshot token. No mounted approach was exercised. A fixture-only lease now establishes a closed/enabled start through stock interaction and must restore the same door's exact original open/disabled state. Fresh package/suite/WhatIf, RT/TB A/B, and a new door row are required.
+
 ## Round-2 TB path-end repair pending fresh qualification - 2026-08-23T19:12:44Z
 
 Restored schema-v52 observation `20260823T183800Z-round2-v52-terminal-geometry-observation` is immutable uncredited `FAIL 41/1`. It proves ordinary native Mammoth-turn input, visible `0.9619302` movement, Mammoth-only Move cost, exact selection/action-bar/turn ownership, and a reached two-point native path endpoint. The sole failure is stock command terminal: the clearance-clamped endpoint remains `0.5389647` from the raw click, outside stock radius `0.3` but within Mammoth corpulence `1.060606`, so installed `UnitMovementAgent.CompleteMovement` interrupts.
