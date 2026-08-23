@@ -1,6 +1,14 @@
 # Player action and UI contract
 
-Status: PASS — PRIVATE-ALPHA CORE CONTROLS
+## Round-2 human-control correction - 2026-08-23
+
+The round-1 manual regression supersedes any interpretation that owner/roster fields alone prove usable controls. Player-facing qualification now requires both exact internal ownership and actual ordinary input admission with observable behavior. Schema v48/v49 retain the supported overlay-arm then native target-click path, record every activation/admission rejection, and prove the resulting exact attack chain. Exact-pair stock attacks remain rejected with immediate Rider-melee, Mammoth-primary, or mounted-ranged feedback rather than a neutral no-op.
+
+During an independent native Mammoth TB turn, Mammoth selection is no longer normalized to the rider. KMC requires the native action bar object and its active/can-use controls to be visible and interactable for the exact selected, directly controllable turn actor before ordinary ground input receives automated credit. Rider-turn selection and separate action ownership remain unchanged.
+
+Non-world UI mode delivery uses a lightweight observation that does not enumerate portrait/action-bar objects while the menu is opening. It does not toggle fog, camera, world mode, scene, pause, or visibility. Exact menu latency, fog/world-flash absence, and real rendered/interactable controls remain guarded manual gates where automation cannot establish them.
+
+Historical status: `PASS` for the superseded automated private-alpha core-control boundary. Round-2 ordinary human-control qualification is `IN PROGRESS`.
 
 Manual review exposed one truthful projection defect: automation mounted the pair without passing through `MountedPlayerActionController.Activate`, so `Dismount` could be rendered beside stale readiness-to-mount feedback. The post-acceptance controller now retains operation feedback only while the complete availability projection is stable and immediately adopts the current evaluator feedback after an external action/state transition. Deterministic regressions cover both behaviors.
 

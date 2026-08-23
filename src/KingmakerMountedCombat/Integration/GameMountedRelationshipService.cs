@@ -44,7 +44,8 @@ namespace KingmakerMountedCombat.Integration
 
         internal bool IsChangedViewChildOfOwnedAnchor(UnitEntityData unit) => runtime.IsChangedViewChildOfOwnedAnchor(unit);
 
-        internal string CapturePresentationObservation() => "relationship=" + State + ";" + runtime.CapturePresentationObservation();
+        internal string CapturePresentationObservation(bool includeUiOwnership = true) =>
+            "relationship=" + State + ";" + runtime.CapturePresentationObservation(includeUiOwnership);
 
         public long RiderGroundPlacementSuppressionCount { get; private set; }
 
@@ -225,6 +226,19 @@ namespace KingmakerMountedCombat.Integration
                 return true;
             }
 
+            var selected = SelectionManager.Instance?.SelectedUnits;
+            var exactMountSelection = selected != null && selected.Count == 1 && selected[0] == runtime.Mount;
+            var turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
+            if (MountedTurnSelectionPolicy.CanUseNativeMountTurnGroundCommand(
+                true,
+                CombatController.IsInTurnBasedCombat(),
+                turn?.Unit == runtime.Mount,
+                unit == runtime.Mount,
+                exactMountSelection))
+            {
+                return true;
+            }
+
             var decision = CommandRouter.RouteGroundMove(coordinator.ActivePair, unit.UniqueId);
             if (decision.Action == CommandRoutingAction.SuppressDuplicateMount)
             {
@@ -246,7 +260,13 @@ namespace KingmakerMountedCombat.Integration
 
         public bool NormalizeSingleSelection(ref UnitEntityView view, bool single)
         {
-            if (coordinator.State == RelationshipState.Mounted && runtime.Mount?.View == view && runtime.Rider?.View != null)
+            var turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
+            var disposition = MountedTurnSelectionPolicy.Classify(
+                coordinator.State == RelationshipState.Mounted,
+                runtime.Mount?.View == view,
+                CombatController.IsInTurnBasedCombat(),
+                turn?.Unit == runtime.Mount);
+            if (disposition == MountedSelectionDisposition.ProjectMountToRider && runtime.Rider?.View != null)
             {
                 view = runtime.Rider.View;
             }
@@ -292,9 +312,15 @@ namespace KingmakerMountedCombat.Integration
             }
 
             var normalized = new List<UnitEntityView>();
+            var turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
+            var preserveNativeMountTurn = MountedTurnSelectionPolicy.Classify(
+                true,
+                true,
+                CombatController.IsInTurnBasedCombat(),
+                turn?.Unit == runtime.Mount) == MountedSelectionDisposition.PreserveNativeMountTurn;
             foreach (var view in views)
             {
-                var effective = view == runtime.Mount.View ? runtime.Rider.View : view;
+                var effective = view == runtime.Mount.View && !preserveNativeMountTurn ? runtime.Rider.View : view;
                 if (effective != null && !normalized.Contains(effective))
                 {
                     normalized.Add(effective);

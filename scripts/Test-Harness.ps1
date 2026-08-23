@@ -900,6 +900,7 @@ function Get-TestMovementScreenshotMilestones {
             if ($DoorApproachSkipped) { return @('door-control','door-mounted','door-mounted','dismounted') }
             return @('door-control','door-control','door-mounted','door-mounted','dismounted')
         }
+        'mounted-distance-door-interaction' { return @('door-mounted','dismounted') }
         'mounted-pair-open-ground' { return @('mounted-idle','moving','stopped','dismounted') }
         'mounted-pair-stop-start' { return @('mounted-idle','moving','stopped','restarted','dismounted') }
         'mounted-pair-turns-and-corners' { return @('mounted-idle','moving','corner','corner','dismounted') }
@@ -973,14 +974,16 @@ function New-TestMovementRowRecord {
     $poseEquipment = $Row -ceq 'pose-equipment-variants'
     $uiPresentation = $Row -ceq 'ui-selection-portrait-actionbar'
     $cameraPresentation = $Row -ceq 'camera-follow-and-command-routing'
+    $distanceDoor = $Row -ceq 'mounted-distance-door-interaction'
     $formation = $Row -ceq 'mounted-pair-party-formation' -or $poseDoorway
-    $doorway = $Row -ceq 'mounted-pair-doorway' -or $poseDoorway
+    $doorway = $Row -ceq 'mounted-pair-doorway' -or $poseDoorway -or $distanceDoor
     $stopStart = $Row -ceq 'mounted-pair-stop-start'
     $turns = $Row -ceq 'mounted-pair-turns-and-corners' -or $poseTurnStop
     $selection = $Row -ceq 'mounted-pair-selection'
     $pause = $Row -ceq 'mounted-pair-pause-unpause'
     $cancel = $Row -ceq 'mounted-pair-destination-cancel'
     $waypointCount = if ($poseIdle -or $poseEquipment -or $uiPresentation) { 0 }
+        elseif ($distanceDoor) { 1 }
         elseif ($poseDoorway) { 4 }
         elseif ($doorway -or $turns) { 3 }
         elseif ($stopStart -or $poseWalkRun) { 2 }
@@ -1154,7 +1157,7 @@ function New-TestCombatEvidenceRecord {
     $actorRole = if ($isMammoth) { 'mount' } else { 'rider' }
     $action = if ($isMammoth) { 'MountPrimaryNatural' } else { 'RiderMelee' }
     $record = [ordered]@{
-        schemaVersion=$(if ($isHumanPlay) { if ($isTurnBased) { 47 } else { 44 } } elseif ($isCombatEnd) { if ($isTurnBased) { 41 } else { 40 } } elseif ($isTermination) { if ($isTurnBased) { 39 } else { 38 } } elseif ($isMovementToAttack) { if ($isTurnBased) { 35 } else { 34 } } elseif ($isReach) { if ($isTurnBased) { 43 } else { 42 } } elseif ($isTurnBased) { 27 } else { 26 });artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
+        schemaVersion=$(if ($isHumanPlay) { if ($isTurnBased) { 49 } else { 48 } } elseif ($isCombatEnd) { if ($isTurnBased) { 41 } else { 40 } } elseif ($isTermination) { if ($isTurnBased) { 39 } else { 38 } } elseif ($isMovementToAttack) { if ($isTurnBased) { 35 } else { 34 } } elseif ($isReach) { if ($isTurnBased) { 43 } else { 42 } } elseif ($isTurnBased) { 27 } else { 26 });artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
         scenario=[string]$Request.scenario;row=[string]$Request.scenario;rowIndex=0;sequence=0;frame=30
         utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o');branch=[string]$Request.branch
         commit=[string]$Request.commit;productVersion=[string]$Request.productVersion
@@ -1389,9 +1392,20 @@ function New-TestCombatEvidenceRecord {
             $record.turnBased.riderUiLeaseRestoreMutationCount = 1
             $record.turnBased.riderUiLeaseRestoreSuccessCount = 1
             $record.turnBased.riderUiLeaseRestoreResult = 'reselected-rider'
-            $presentation = 'mode=Default;turnBased=True;riderViewExact=True;riderViewActiveSelf=True;riderViewActiveInHierarchy=True;riderParent=KMC_RiderPositionAnchor;riderSibling=0;riderRendererCount=3;riderEnabledRendererCount=3;mountViewExact=True;mountViewActiveSelf=True;mountViewActiveInHierarchy=True;poseLease=True;attachmentLease=True;replacementReleased=False;riderSelected=True;actionBarOwner=' + $rider + ';actionBarActive=True;portraitOwnerCount=2;portraitActiveOwnerCount=1;portraitActive=True;portraitSelected=True;cameraOn=False;cameraOwner=' + $rider
+            $presentation = 'mode=Default;turnBased=True;riderViewExact=True;riderViewActiveSelf=True;riderViewActiveInHierarchy=True;riderParent=KMC_RiderPositionAnchor;riderSibling=0;riderRendererCount=3;riderEnabledRendererCount=3;mountViewExact=True;mountViewActiveSelf=True;mountViewActiveInHierarchy=True;poseLease=True;attachmentLease=True;replacementReleased=False;riderSelected=True;observationScope=full-ui;actionBarOwner=' + $rider + ';actionBarActive=True;actionBarEnabled=True;actionBarActiveSelf=True;actionBarActiveInHierarchy=True;actionBarReactiveActive=True;actionBarCanUseAbilities=True;actionBarSectionShown=True;portraitOwnerCount=2;portraitActiveOwnerCount=1;portraitActive=True;portraitSelected=True;cameraOn=False;cameraOwner=' + $rider + ';selectedUnit=' + $rider + ';turnUnit=' + $rider + ';turnStatus=Acting;turnUnitDirectlyControllable=True;turnCanMove=True;turnCanEndNoActing=False;pointerInGui=False;pointerControllerAvailable=True;pointerMode=Default;riderCommands=0;mountCommands=0;riderAiEnabled=False;mountAiEnabled=False'
             $record.turnBased.presentationAfterEnable = $presentation
             $record.turnBased.presentationAfterRealtimeRestore = $presentation.Replace('turnBased=True','turnBased=False')
+            $record.turnBased.presentationDuringMammothTurn = $presentation.Replace('actionBarOwner=' + $rider,'actionBarOwner=' + $mount).Replace('selectedUnit=' + $rider,'selectedUnit=' + $mount).Replace('turnUnit=' + $rider,'turnUnit=' + $mount)
+            $record.turnBased.nativeMammothTurnStarted = $true
+            $record.turnBased.nativeMammothTurnUiObserved = $true
+            $record.turnBased.nativeMammothGroundInputStarted = $true
+            $record.turnBased.nativeMammothGroundInputCompleted = $true
+            $record.turnBased.nativeMammothGroundSelectionRetained = $true
+            $record.turnBased.mammothNativeGroundDisplacement = 1.5
+            $record.turnBased.mammothNativeMoveBefore = 0.0
+            $record.turnBased.mammothNativeMoveAfter = 1.5
+            $record.turnBased.riderMoveBeforeMammothNativeGroundInput = 0.0
+            $record.turnBased.riderMoveAfterMammothNativeGroundInput = 0.0
             $record.groundMovement = [ordered]@{
                 requested=$true;destination=[ordered]@{x=2.0;y=0.0;z=0.0};result='Success'
                 driveCount=12;executorId=$mount;executorIsExactMount=$true
@@ -5097,7 +5111,7 @@ try {
         Assert-Test ($engineSource.Contains('CleanupTimeoutSeconds = 10.0d') -and
             $engineSource.Contains('rowClock.Elapsed.TotalSeconds - cleanupStartedAtSeconds < CleanupTimeoutSeconds')) 'combat cleanup does not retain an independent bounded drain after a row deadline'
         Assert-Test ($engineSource.Contains('SchemaVersion = IsHumanPlayRow') -and
-            $engineSource.Contains('? (IsTurnBasedRow ? 47 : 44)') -and
+            $engineSource.Contains('? (IsTurnBasedRow ? 49 : 48)') -and
             $engineSource.Contains(': IsCommandTerminationRow') -and
             $engineSource.Contains('? IsCombatEndTerminationRow') -and
             $engineSource.Contains('? (IsTurnBasedRow ? 41 : 40)') -and
@@ -5403,9 +5417,18 @@ try {
     $humanPlayManifest = Read-KmcJson (Join-Path $humanPlayRequest.evidenceRoot 'runtime-artifacts.json')
     $humanPlaySubresult = [ordered]@{name=$humanPlayRequest.scenario;status='PASS';assertionPassCount=25;assertionFailCount=0;errors=@()}
 
-    Invoke-HarnessTest 'runtime request and schema-v44 evidence accept the ordinary RT player-click rider melee path' {
+    Invoke-HarnessTest 'runtime request and schema-v48 evidence accept the ordinary RT player-click rider melee path' {
         & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $humanPlayRequestPath
         Assert-KmcCombatScenarioEvidence -Request $humanPlayRequest -Manifest $humanPlayManifest -Status 'PASS' -SubscenarioResults @($humanPlaySubresult)
+    }
+
+    Invoke-HarnessTest 'historical schema-v44 human-play evidence semantics remain valid' {
+        $historical = Copy-TestJsonValue $humanPlayRecord
+        $historical.schemaVersion = 44
+        [void](Write-TestCombatEvidence -EvidenceRoot $humanPlayRequest.evidenceRoot -Request $humanPlayRequest -Record $historical)
+        $historicalManifest = Read-KmcJson (Join-Path $humanPlayRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $humanPlayRequest -Manifest $historicalManifest -Status 'PASS' -SubscenarioResults @($humanPlaySubresult)
+        [void](Write-TestCombatEvidence -EvidenceRoot $humanPlayRequest.evidenceRoot -Request $humanPlayRequest -Record $humanPlayRecord)
     }
 
     $humanPlayTurnRequestPath = Join-Path $testRoot 'runtime-request-combat-human-play-turn-based.json'
@@ -5419,12 +5442,27 @@ try {
     $humanPlayTurnManifest = Read-KmcJson (Join-Path $humanPlayTurnRequest.evidenceRoot 'runtime-artifacts.json')
     $humanPlayTurnSubresult = [ordered]@{name=$humanPlayTurnRequest.scenario;status='PASS';assertionPassCount=25;assertionFailCount=0;errors=@()}
 
-    Invoke-HarnessTest 'runtime request and schema-v47 evidence accept native TB-exit lease isolation ground movement and player-click melee' {
+    Invoke-HarnessTest 'runtime request and schema-v49 evidence accept native Mammoth controls TB-exit leases rider ground movement and player-click melee' {
         & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $humanPlayTurnRequestPath
         Assert-KmcCombatScenarioEvidence -Request $humanPlayTurnRequest -Manifest $humanPlayTurnManifest -Status 'PASS' -SubscenarioResults @($humanPlayTurnSubresult)
     }
 
-    Invoke-HarnessTest 'schema-v47 evidence rejects turn transition lease-isolation or ground-movement contradictions' {
+    Invoke-HarnessTest 'historical schema-v47 human-play evidence semantics remain valid' {
+        $historical = Copy-TestJsonValue $humanPlayTurnRecord
+        $historical.schemaVersion = 47
+        foreach ($name in @('presentationDuringMammothTurn','nativeMammothTurnStarted','nativeMammothTurnUiObserved',
+            'nativeMammothGroundInputStarted','nativeMammothGroundInputCompleted','nativeMammothGroundSelectionRetained',
+            'mammothNativeGroundDisplacement','mammothNativeMoveBefore','mammothNativeMoveAfter',
+            'riderMoveBeforeMammothNativeGroundInput','riderMoveAfterMammothNativeGroundInput')) {
+            $historical.turnBased.PSObject.Properties.Remove($name)
+        }
+        [void](Write-TestCombatEvidence -EvidenceRoot $humanPlayTurnRequest.evidenceRoot -Request $humanPlayTurnRequest -Record $historical)
+        $historicalManifest = Read-KmcJson (Join-Path $humanPlayTurnRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $humanPlayTurnRequest -Manifest $historicalManifest -Status 'PASS' -SubscenarioResults @($humanPlayTurnSubresult)
+        [void](Write-TestCombatEvidence -EvidenceRoot $humanPlayTurnRequest.evidenceRoot -Request $humanPlayTurnRequest -Record $humanPlayTurnRecord)
+    }
+
+    Invoke-HarnessTest 'schema-v49 evidence rejects native-control transition lease-isolation or movement contradictions' {
         $cases = @(
             { param($record) $record.turnBased.pairRetainedAfterEnable=$false;return $record },
             { param($record) $record.turnBased.presentationAfterEnable=$record.turnBased.presentationAfterEnable.Replace('actionBarOwner=combat-rider','actionBarOwner=combat-mount');return $record },
@@ -5447,7 +5485,14 @@ try {
             { param($record) $record.admission.overlayActivationWorldClickSuppressed=$false;return $record },
             { param($record) $record.admission.armedActionRetainedAfterOverlayClick=$false;return $record },
             { param($record) $record.admission.directClickedUnitView=$false;return $record },
-            { param($record) $record.admission.rejectionCodes=@('OutsideSupportedRange');return $record }
+            { param($record) $record.admission.rejectionCodes=@('OutsideSupportedRange');return $record },
+            { param($record) $record.turnBased.nativeMammothTurnUiObserved=$false;return $record },
+            { param($record) $record.turnBased.presentationDuringMammothTurn=$record.turnBased.presentationDuringMammothTurn.Replace('actionBarCanUseAbilities=True','actionBarCanUseAbilities=False');return $record },
+            { param($record) $record.turnBased.presentationDuringMammothTurn=$record.turnBased.presentationDuringMammothTurn.Replace('selectedUnit=combat-mount','selectedUnit=combat-rider');return $record },
+            { param($record) $record.turnBased.nativeMammothGroundInputCompleted=$false;return $record },
+            { param($record) $record.turnBased.mammothNativeGroundDisplacement=0.0;return $record },
+            { param($record) $record.turnBased.mammothNativeMoveAfter=0.0;return $record },
+            { param($record) $record.turnBased.riderMoveAfterMammothNativeGroundInput=1.0;return $record }
         )
         foreach ($mutate in $cases) {
             $candidate = Copy-TestJsonValue $humanPlayTurnRecord
@@ -5457,7 +5502,7 @@ try {
             $threw = $false
             try { Assert-KmcCombatScenarioEvidence -Request $humanPlayTurnRequest -Manifest $candidateManifest -Status 'PASS' -SubscenarioResults @($humanPlayTurnSubresult) }
             catch { $threw = $true }
-            Assert-Test $threw 'schema-v47 validator accepted a transition lease-isolation or movement ownership contradiction'
+            Assert-Test $threw 'schema-v49 validator accepted a native-control transition lease-isolation or movement ownership contradiction'
         }
         [void](Write-TestCombatEvidence -EvidenceRoot $humanPlayTurnRequest.evidenceRoot -Request $humanPlayTurnRequest -Record $humanPlayTurnRecord)
         $humanPlayTurnManifest = Read-KmcJson (Join-Path $humanPlayTurnRequest.evidenceRoot 'runtime-artifacts.json')
@@ -7195,6 +7240,40 @@ try {
         $manifest = Read-KmcJson (Join-Path $movementRequest.evidenceRoot 'runtime-artifacts.json')
         Assert-KmcMovementScenarioEvidence -Request $movementRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($movementSubresult)
     }
+    Invoke-HarnessTest 'PASS distance-door validator requires ordinary input, exact door identity, and strict post-open traversal' {
+        $doorRow = 'mounted-distance-door-interaction'
+        $doorRequest = [pscustomobject][ordered]@{
+            runId='distance-door-evidence-test';scenario=$doorRow;branch=$v2Request.branch;commit=$v2Request.commit
+            productVersion=$v2Request.productVersion;dllSha256=$v2Request.dllSha256;dllMvid=$v2Request.dllMvid
+            evidenceRoot=(Join-Path $runtimeEvidenceTestRoot 'distance-door-evidence-test')
+        }
+        $doorSubresult = [pscustomobject][ordered]@{name=$doorRow;status='PASS';assertionPassCount=20;assertionFailCount=0;errors=@()}
+        $doorTelemetry = @((New-TestMovementTelemetryRecord $doorRequest $doorRow 0))
+        $doorRowRecord = New-TestMovementRowRecord $doorRequest $doorRow 1
+        $doorScenario = @((New-TestMovementPathProbeRecord $doorRequest $doorRow 0 'DoorFar' $true),$doorRowRecord)
+        [void](Write-TestMovementEvidence $doorRequest.evidenceRoot $doorRequest $doorTelemetry $doorScenario)
+        $manifest = Read-KmcJson (Join-Path $doorRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcMovementScenarioEvidence -Request $doorRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($doorSubresult)
+
+        foreach ($mutation in @('missing-control','missing-door','wrong-waypoint','wrong-target','non-strict','extra-interaction-leg')) {
+            $rowRecord = New-TestMovementRowRecord $doorRequest $doorRow 1
+            $probe = New-TestMovementPathProbeRecord $doorRequest $doorRow 0 'DoorFar' $true
+            switch ($mutation) {
+                'missing-control' { $rowRecord.unmountedDoorControlPassed = $false }
+                'missing-door' { $rowRecord.door = $null }
+                'wrong-waypoint' { $rowRecord.waypointCount = 2; $rowRecord.endpointQualifiedWaypointCount = 2 }
+                'wrong-target' { $probe.requested.x = 3.5; $probe.endpoint.x = 3.5 }
+                'non-strict' { $probe.strictDoor = $false }
+                'extra-interaction-leg' { $rowRecord.screenshots = @(New-TestMovementScreenshotRecords 'mounted-pair-doorway' $true) }
+            }
+            $records = @($probe,$rowRecord)
+            [void](Write-TestMovementEvidence $doorRequest.evidenceRoot $doorRequest $doorTelemetry $records)
+            $mutatedManifest = Read-KmcJson (Join-Path $doorRequest.evidenceRoot 'runtime-artifacts.json')
+            $threw = $false
+            try { Assert-KmcMovementScenarioEvidence -Request $doorRequest -Manifest $mutatedManifest -Status 'PASS' -SubscenarioResults @($doorSubresult) } catch { $threw = $true }
+            Assert-Test $threw "PASS distance-door evidence accepted mutation $mutation"
+        }
+    }
     Invoke-HarnessTest 'PASS movement telemetry requires exact row-aware pause and game-mode coherence' {
         $pauseRow = 'mounted-pair-pause-unpause'
         $pauseRequest = [pscustomobject][ordered]@{
@@ -8305,12 +8384,15 @@ try {
         $attachmentSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\ScopedTransformAttachmentLease.cs'))
         $stabilizationSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedStabilizationPolicy.cs'))
         $combatSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedCombatController.cs'))
+        $relationshipSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\GameMountedRelationshipService.cs'))
+        $doorSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedDoorInteractionCommand.cs'))
         $playerActionSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPlayerActionController.cs'))
         $overlaySource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPlayerActionOverlay.cs'))
         $patchSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPatchController.cs'))
         $turnPolicySource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedCombatSpatialPolicy.cs'))
         $ledgerSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\NativeLifecycleDeliveryLedger.cs'))
         $combatEngineSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeCombatScenarioEngine.cs'))
+        $movementEngineSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeMovementScenarioEngine.cs'))
         $automationHostSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeAutomationHost.cs'))
 
         Assert-Test ($stabilizationSource.Contains('string.Equals(exactModeName, "FullScreenUi", StringComparison.Ordinal)') -and
@@ -8319,8 +8401,17 @@ try {
             $lifecycleSource.Contains('MountedGameModePolicy.CanRetainMountedRelationship(gameMode.ToString())')) `
             'character, map, or menu modes are still treated as generic cleanup boundaries'
         Assert-Test ($ledgerSource.Contains('public string Detail { get; set; }') -and
-            $lifecycleSource.Contains('Observe(boundary, source, service.CapturePresentationObservation())') -and
+            $lifecycleSource.Contains('Observe(boundary, source, service.CapturePresentationObservation(false))') -and
+            $lifecycleSource.Contains('Cleanup(boundary, source, CleanupTrigger.GameModeBoundary, service.CapturePresentationObservation(false))') -and
+            $runtimeSource.Contains('observationScope=') -and
+            $runtimeSource.Contains('includeUiOwnership ? "full-ui" : "mode-lightweight"') -and
             $runtimeSource.Contains('actionBarOwner=') -and
+            $runtimeSource.Contains('actionBarReactiveActive=') -and
+            $runtimeSource.Contains('actionBarCanUseAbilities=') -and
+            $runtimeSource.Contains('turnUnitDirectlyControllable=') -and
+            $runtimeSource.Contains('pointerInGui=') -and
+            $runtimeSource.Contains('riderCommands=') -and
+            $runtimeSource.Contains('mountCommands=') -and
             $runtimeSource.Contains('portraitOwnerCount=') -and
             $runtimeSource.Contains('portraitActiveOwnerCount=') -and
             $runtimeSource.Contains('cameraOwner=') -and
@@ -8356,6 +8447,10 @@ try {
             $turnPolicySource.Contains('public static bool CanAdmitRiderGroundMovement(')) `
             'turn-based rider ground clicks do not retain exact Mammoth Move-slot ownership and rider-turn accounting'
         Assert-Test ($turnPolicySource.Contains('public static bool ShouldPreserveIndependentMountTurn(') -and
+            $stabilizationSource.Contains('public static class MountedTurnSelectionPolicy') -and
+            $relationshipSource.Contains('MountedTurnSelectionPolicy.Classify(') -and
+            $relationshipSource.Contains('MountedSelectionDisposition.PreserveNativeMountTurn') -and
+            $relationshipSource.Contains('MountedTurnSelectionPolicy.CanUseNativeMountTurnGroundCommand(') -and
             -not $patchSource.Contains('CombatController), "StartTurn"') -and
             -not $patchSource.Contains('StartTurnPostfix') -and
             -not $combatSource.Contains('ShouldEndMountTurn')) `
@@ -8365,11 +8460,40 @@ try {
             $combatSource.Contains('MountedStockAttackPolicy.ShouldReject(') -and
             $combatSource.Contains('command.GetType() == typeof(UnitAttack)') -and
             $stabilizationSource.Contains('Mounted ranged attacks are not supported in this private alpha.') -and
-            $stabilizationSource.Contains('relationshipMounted && ownerIsExactRider && commandIsExactStockUnitAttack')) `
-            'mounted stock ranged rejection is not exact-pair-local at the native UnitCommands admission seam'
+            $stabilizationSource.Contains('relationshipMounted && (ownerIsExactRider || ownerIsExactMount) &&') -and
+            $stabilizationSource.Contains('commandIsExactStockUnitAttack;')) `
+            'mounted stock attack rejection is not exact-pair-local at the native UnitCommands admission seam'
+        Assert-Test ($stabilizationSource.Contains('public static class MountedInteractionRoutingPolicy') -and
+            $stabilizationSource.Contains('relationshipMounted && commandOwnerIsExactRider &&') -and
+            $combatSource.Contains('command.GetType() == typeof(UnitInteractWithObject)') -and
+            $combatSource.Contains('stockInteraction.Interaction.GetType() == typeof(StandardDoor)') -and
+            $patchSource.Contains('TryRouteMountedDoorInteraction(__instance, ref cmd)') -and
+            $doorSource.Contains('new UnitMoveTo(door.transform.position, GetDoorApproachRadius())') -and
+            $doorSource.Contains('mount.Commands.Run(delegatedMove);') -and
+            $doorSource.Contains('door.Interact(rider);') -and
+            $doorSource.Contains('interactionCount != 0') -and
+            $doorSource.Contains('mountMoveSlotRestored = mount.Commands != null') -and
+            -not $doorSource.Contains('rider.Commands.Run(') -and
+            -not $doorSource.Contains('door.Interact(mount)')) `
+            'distant door routing is not exact StandardDoor-only with Mammoth path and rider interaction ownership'
+        Assert-Test ($movementEngineSource.Contains('string.Equals(currentRow, "mounted-distance-door-interaction", StringComparison.Ordinal)') -and
+            $movementEngineSource.Contains('new ClickMapObjectHandler().OnClick(') -and
+            $movementEngineSource.Contains('clickAccepted && combat.HasActiveDoorInteraction') -and
+            $movementEngineSource.Contains('outcome.InteractionCount == 1 && outcome.DelegatedMoveStartCount == 1') -and
+            $movementEngineSource.Contains('outcome.DoorStateChanged && outcome.RiderPathSuppressed && outcome.MountMoveSlotRestored') -and
+            $movementEngineSource.Contains('BeginExactNavigation(NavigationMode.Normal, doorFarPoint, true, "door-mounted")') -and
+            $automationHostSource.Contains('new RuntimeMovementScenarioEngine(') -and
+            $automationHostSource.Contains('request, relationship, playerAction, combat, diagnosticSettings,') -and
+            $automationHostSource.Contains('logger, request.EvidenceRoot);')) `
+            'distance-door runtime proof bypasses ordinary map-object input, exact one-shot interaction, or strict post-open traversal'
         Assert-Test ($combatEngineSource.Contains('playerAction.ArmCombatActionFromOverlay(AttackAction)') -and
             $combatEngineSource.Contains('ArmedThroughPlayerFacingCombatController = humanPlayArmedThroughPlayerAction') -and
             $combatEngineSource.Contains('OverlayActivationWorldClickSuppressed = humanPlayPropagatedWorldClickSuppressed') -and
+            $combatEngineSource.Contains('? (IsTurnBasedRow ? 49 : 48)') -and
+            $combatEngineSource.Contains('ObserveNativeMammothTurnControls(turnController)') -and
+            $combatEngineSource.Contains('IsNativeTurnUiInteractable(') -and
+            $combatEngineSource.Contains('ClickGroundHandler.MoveSelectedUnitsToPoint(destination, false);') -and
+            $combatEngineSource.Contains('nativeMammothGroundCommand.Executor == mount') -and
             $automationHostSource.Contains('request, relationship, playerAction, combat, lifecycle')) `
             'human-play qualification bypasses the exact player-facing combat-action controller before its native unit click'
         Assert-Test ($patchSource.Contains('PatchExact(typeof(UnitCombatCooldownsController), "TickOnUnit", 0x0600934A') -and

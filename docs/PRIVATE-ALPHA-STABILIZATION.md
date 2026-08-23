@@ -1,8 +1,26 @@
 # Private-alpha stabilization
 
-Status: automated stabilization `PASS`; final clean-HEAD package binding and guarded manual regression handoff pending.
+Status: round-2 stabilization `IN PROGRESS`; the exact round-1 automated package failed guarded human regression.
 
 This continuation repairs player-facing defects found in the first qualified Mammoth private alpha. It does not authorize horses, persistence, ranged mounted combat, mounted spellcasting rules, mounted feats, explicit mounted attacks of opportunity, mounted charge, another body profile, Phase 3 implementation, a public release, or a merge to `main`.
+
+## Round-2 human regression correction
+
+The human regression of exact final commit `942262a1173d657db209dc321b298702dfd655cb` used package/manifest/DLL SHA-256 `3bc8d52bed3035ec61c519b035aa726600e6c72d82f26642f5bbf332145aae08` / `de56eb322624e402939f02e7ecbce90e93d6cb6e82cabb53d650fad8764b9cc8` / `d01a75c173c692198963e4c72acb20e1c5891d89a95916a4f649ab7d1d417777`, MVID `f2b69d04-07de-4e4c-a1fb-027ea8178612`. That package and its `434/0` automated result remain immutable history, but the human result rejects any claim that those internal assertions proved ordinary human-play controls.
+
+The exact local session log is `analysis-cache\manual-stabilization-regression-20260822\output_log.txt`, `83286` bytes, SHA-256 `6c8f5ea1258ef6ddb581760ef30836548cbbeb055c0f55ae3aae524d2c3e79dc`. It was read completely before behavioral work. It records repeated stock mounted-attack rejections and one internally successful rider-turn Mammoth ground route, but no supported overlay target-click or attack-command acceptance. Human play nevertheless found TB controls inert, RT attacks ignored/ambiguous, no distant door approach, and visible menu latency plus a brief fog/world flash. Basic mounting/movement, Wild Shape cleanup/visibility, adjacent door opening, reload dismount, and explicit Dismount passed and remain must-preserve controls.
+
+Player-facing qualification now has two mandatory levels: exact internal state/ownership and actual native user-input admission with player-visible behavior. A test that directly invokes a downstream service or records only selection, action-bar ownership, roster membership, or resource state cannot claim human usability. Rendered/interactable UI and real-mouse behavior remain manual-gated wherever automation cannot observe them reliably.
+
+## Round-2 implementation checkpoint
+
+Exact installed input contracts identify three narrow attributable seams. KMC previously normalized every Mammoth selection to the rider, including the independent native Mammoth TB turn; the repaired policy preserves Mammoth selection only for that exact turn and otherwise retains rider projection. Schema v49 now observes the action-bar GameObject, enabled/hierarchy/reactive state, selected and active turn entity, direct controllability, movement eligibility, pointer mode, command queues, and AI state before issuing ordinary Mammoth ground input. It then separately exercises the existing rider-turn routed ground movement and native target click. RT schema v48 retains the exact overlay-to-native-click proof. These are forward-only schemas; earlier failed or automated evidence receives no retroactive credit.
+
+Stock distant interaction creates `UnitInteractWithObject` on the selected rider, whose stock movement agent is intentionally disabled while mounted. KMC now replaces only an exact active-pair rider command targeting exact `StandardDoor` at the native `UnitCommands.Run` seam. The bounded rider Standard wrapper delegates one Move-slot approach to the Mammoth, invokes `door.Interact(rider)` once, restores the slot, and reports every terminal outcome. New `mounted-distance-door-interaction` uses ordinary `ClickMapObjectHandler.OnClick`, requires a start outside proximity range, then proves open-once and strict mounted traversal. No generic foreign interactable, sibling mod, or rider path is adopted.
+
+The non-world mode handler's prior full portrait/action-bar hierarchy scan was an attributable KMC-owned latency amplifier during screen entry. Mode delivery now records only lightweight relationship/view state; the full UI scan remains available at explicit diagnostic checkpoints. KMC performs no fog, camera, scene, pause, or game-mode write. The reported fog/world flash and stock-comparable latency remain manual acceptance gates rather than fabricated automated PASS claims.
+
+Complete offline gates are source `21/0`, Release, component `234/0`, visual/source-order `17/0`, unfiltered harness `222/0`, exact assembly `292/0`, PowerShell/JSON parsers `26/0` / `7/0`, diff, and prohibited payload. Coherent publication, clean package/suite, mode-specific WhatIf, fresh RT/TB A/B, and the distance-door process remain required.
 
 ## Current native TB-to-RT stabilization checkpoint
 

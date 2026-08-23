@@ -180,16 +180,92 @@ namespace KingmakerMountedCombat.Domain
         public static bool ShouldReject(
             bool relationshipMounted,
             bool ownerIsExactRider,
+            bool ownerIsExactMount,
             bool commandIsExactStockUnitAttack)
         {
-            return relationshipMounted && ownerIsExactRider && commandIsExactStockUnitAttack;
+            return relationshipMounted && (ownerIsExactRider || ownerIsExactMount) &&
+                commandIsExactStockUnitAttack;
         }
 
-        public static string RejectionFeedback(bool selectedWeaponIsRanged)
+        public static string RejectionFeedback(bool ownerIsExactMount, bool selectedWeaponIsRanged)
         {
+            if (ownerIsExactMount)
+            {
+                return "Use Mammoth primary, then click one visible hostile target.";
+            }
             return selectedWeaponIsRanged
                 ? "Mounted ranged attacks are not supported in this private alpha."
                 : "Use Rider melee, then click one visible hostile target.";
+        }
+    }
+
+    public enum MountedSelectionDisposition
+    {
+        Unchanged,
+        ProjectMountToRider,
+        PreserveNativeMountTurn
+    }
+
+    public static class MountedTurnSelectionPolicy
+    {
+        public static MountedSelectionDisposition Classify(
+            bool relationshipMounted,
+            bool requestedUnitIsExactMount,
+            bool turnBasedCombat,
+            bool currentTurnIsExactMount)
+        {
+            if (!relationshipMounted || !requestedUnitIsExactMount)
+            {
+                return MountedSelectionDisposition.Unchanged;
+            }
+
+            return turnBasedCombat && currentTurnIsExactMount
+                ? MountedSelectionDisposition.PreserveNativeMountTurn
+                : MountedSelectionDisposition.ProjectMountToRider;
+        }
+
+        public static bool CanUseNativeMountTurnGroundCommand(
+            bool relationshipMounted,
+            bool turnBasedCombat,
+            bool currentTurnIsExactMount,
+            bool requestedUnitIsExactMount,
+            bool exactMountSelection)
+        {
+            return relationshipMounted && turnBasedCombat && currentTurnIsExactMount &&
+                requestedUnitIsExactMount && exactMountSelection;
+        }
+
+        public static bool IsExpectedActionSelection(
+            bool turnBasedCombat,
+            bool actionIsMountOwned,
+            bool exactRiderSelected,
+            bool exactMountSelected)
+        {
+            return actionIsMountOwned && turnBasedCombat
+                ? exactMountSelected
+                : exactRiderSelected;
+        }
+    }
+
+    public static class MountedInteractionRoutingPolicy
+    {
+        public static bool ShouldRouteExactDoor(
+            bool relationshipMounted,
+            bool commandOwnerIsExactRider,
+            bool commandIsExactStockInteraction,
+            bool targetIsExactStandardDoor)
+        {
+            return relationshipMounted && commandOwnerIsExactRider &&
+                commandIsExactStockInteraction && targetIsExactStandardDoor;
+        }
+
+        public static bool CanAdmitInCurrentTurn(
+            bool turnBasedCombat,
+            bool currentTurnIsExactRider,
+            bool turnPreparing,
+            bool turnActing)
+        {
+            return !turnBasedCombat || currentTurnIsExactRider && (turnPreparing || turnActing);
         }
     }
 

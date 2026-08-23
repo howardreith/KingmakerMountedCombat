@@ -13,7 +13,9 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("non-world UI treats stock visibility as transient while world mode remains strict", UiViewActivityIsModeScoped);
             runner.Run("native TB exit AI lease repair is exact and boundary-scoped", NativeTurnBasedExitAiLeaseRepairIsExact);
             runner.Run("native TB exit UI lease repair is exact and post-boundary", NativeTurnBasedExitUiLeaseRepairIsExact);
-            runner.Run("mounted stock rider attack is pair-local and explains ranged rejection", StockAttackRejectionIsPairLocal);
+            runner.Run("mounted stock pair attack is pair-local and explains explicit controls", StockAttackRejectionIsPairLocal);
+            runner.Run("native TB actor selection preserves separate rider and Mammoth turns", NativeTurnSelectionPreservesActorOwnership);
+            runner.Run("mounted distant-door routing is exact rider-owned and turn-bounded", DistantDoorRoutingIsExact);
             runner.Run("mounted overlay world-click guard is one-shot and frame-bounded", OverlayWorldClickGuardIsBounded);
             runner.Run("cleanup feedback explains intentional transient boundaries", ExplainsIntentionalCleanupBoundaries);
         }
@@ -125,11 +127,39 @@ namespace KingmakerMountedCombat.Tests
 
         private static void StockAttackRejectionIsPairLocal()
         {
-            TestRunner.True(MountedStockAttackPolicy.ShouldReject(true, true, true), "Exact mounted stock rider attack escaped rejection.");
-            TestRunner.True(!MountedStockAttackPolicy.ShouldReject(false, true, true), "Unmounted rider attack was changed.");
-            TestRunner.True(!MountedStockAttackPolicy.ShouldReject(true, false, true), "Non-rider attack was changed.");
-            TestRunner.True(!MountedStockAttackPolicy.ShouldReject(true, true, false), "A non-exact UnitAttack subclass, including an opportunity or KMC child attack, was changed.");
-            TestRunner.Equal("Mounted ranged attacks are not supported in this private alpha.", MountedStockAttackPolicy.RejectionFeedback(true), "Mounted ranged feedback changed.");
+            TestRunner.True(MountedStockAttackPolicy.ShouldReject(true, true, false, true), "Exact mounted stock rider attack escaped rejection.");
+            TestRunner.True(MountedStockAttackPolicy.ShouldReject(true, false, true, true), "Exact mounted stock Mammoth attack escaped the explicit-primary boundary.");
+            TestRunner.True(!MountedStockAttackPolicy.ShouldReject(false, true, false, true), "Unmounted rider attack was changed.");
+            TestRunner.True(!MountedStockAttackPolicy.ShouldReject(true, false, false, true), "Non-pair attack was changed.");
+            TestRunner.True(!MountedStockAttackPolicy.ShouldReject(true, true, false, false), "A non-exact UnitAttack subclass, including an opportunity or KMC child attack, was changed.");
+            TestRunner.Equal("Mounted ranged attacks are not supported in this private alpha.", MountedStockAttackPolicy.RejectionFeedback(false, true), "Mounted ranged feedback changed.");
+            TestRunner.Equal("Use Mammoth primary, then click one visible hostile target.", MountedStockAttackPolicy.RejectionFeedback(true, false), "Mounted Mammoth stock-attack feedback changed.");
+        }
+
+        private static void NativeTurnSelectionPreservesActorOwnership()
+        {
+            TestRunner.Equal(MountedSelectionDisposition.ProjectMountToRider, MountedTurnSelectionPolicy.Classify(true, true, false, false), "Real-time Mammoth selection escaped rider-principal projection.");
+            TestRunner.Equal(MountedSelectionDisposition.ProjectMountToRider, MountedTurnSelectionPolicy.Classify(true, true, true, false), "A non-Mammoth TB turn exposed the Mammoth principal.");
+            TestRunner.Equal(MountedSelectionDisposition.PreserveNativeMountTurn, MountedTurnSelectionPolicy.Classify(true, true, true, true), "The exact native Mammoth turn was projected onto the wrong actor.");
+            TestRunner.Equal(MountedSelectionDisposition.Unchanged, MountedTurnSelectionPolicy.Classify(false, true, true, true), "Unmounted selection was changed.");
+            TestRunner.True(MountedTurnSelectionPolicy.CanUseNativeMountTurnGroundCommand(true, true, true, true, true), "Exact Mammoth-turn ground input was not admitted.");
+            TestRunner.True(!MountedTurnSelectionPolicy.CanUseNativeMountTurnGroundCommand(true, true, false, true, true), "Mammoth ground input was admitted on the wrong turn.");
+            TestRunner.True(MountedTurnSelectionPolicy.IsExpectedActionSelection(true, true, false, true), "Mammoth primary did not require exact Mammoth TB selection.");
+            TestRunner.True(!MountedTurnSelectionPolicy.IsExpectedActionSelection(true, true, true, false), "Mammoth primary accepted rider selection during the Mammoth turn.");
+            TestRunner.True(MountedTurnSelectionPolicy.IsExpectedActionSelection(true, false, true, false), "Rider melee rejected exact rider selection.");
+        }
+
+        private static void DistantDoorRoutingIsExact()
+        {
+            TestRunner.True(MountedInteractionRoutingPolicy.ShouldRouteExactDoor(true, true, true, true), "Exact mounted rider StandardDoor interaction was not routed.");
+            TestRunner.True(!MountedInteractionRoutingPolicy.ShouldRouteExactDoor(false, true, true, true), "Unmounted door interaction was changed.");
+            TestRunner.True(!MountedInteractionRoutingPolicy.ShouldRouteExactDoor(true, false, true, true), "Mammoth or foreign command ownership was adopted.");
+            TestRunner.True(!MountedInteractionRoutingPolicy.ShouldRouteExactDoor(true, true, false, true), "A derived or non-stock interaction command was adopted.");
+            TestRunner.True(!MountedInteractionRoutingPolicy.ShouldRouteExactDoor(true, true, true, false), "A chest, switch, trap, or other non-door interaction was adopted without evidence.");
+            TestRunner.True(MountedInteractionRoutingPolicy.CanAdmitInCurrentTurn(false, false, false, false), "Real-time exact door interaction was rejected.");
+            TestRunner.True(MountedInteractionRoutingPolicy.CanAdmitInCurrentTurn(true, true, true, false), "Rider Preparing turn rejected exact door interaction.");
+            TestRunner.True(MountedInteractionRoutingPolicy.CanAdmitInCurrentTurn(true, true, false, true), "Rider Acting turn rejected exact door interaction.");
+            TestRunner.True(!MountedInteractionRoutingPolicy.CanAdmitInCurrentTurn(true, false, true, true), "Door interaction escaped exact rider-turn ownership.");
         }
 
         private static void OverlayWorldClickGuardIsBounded()

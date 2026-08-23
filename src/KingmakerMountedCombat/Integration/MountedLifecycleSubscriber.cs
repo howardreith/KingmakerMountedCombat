@@ -252,11 +252,11 @@ namespace KingmakerMountedCombat.Integration
         {
             if (MountedGameModePolicy.CanRetainMountedRelationship(gameMode.ToString()) || service.State != RelationshipState.Mounted)
             {
-                Observe(boundary, source, service.CapturePresentationObservation());
+                Observe(boundary, source, service.CapturePresentationObservation(false));
                 return;
             }
 
-            Cleanup(boundary, source, CleanupTrigger.GameModeBoundary, service.CapturePresentationObservation());
+            Cleanup(boundary, source, CleanupTrigger.GameModeBoundary, service.CapturePresentationObservation(false));
         }
     }
 

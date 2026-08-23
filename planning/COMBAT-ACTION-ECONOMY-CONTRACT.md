@@ -1,5 +1,11 @@
 # Combat action economy contract
 
+## Round-2 native-control correction - 2026-08-23
+
+Human evidence proved that the earlier internal TB ownership record did not establish commandability. During the exact native Mammoth turn KMC now preserves Mammoth selection instead of projecting it to the rider, leaves the independent native turn and ledger intact, and admits ordinary Mammoth ground input without the rider-turn adapter. Schema v49 requires the selected native actor, active/interactable action bar, direct controllability, move eligibility, ordinary click admission, one native Mammoth Move command, Mammoth-only Move cost, and retained selection. The later rider turn remains separately rider-owned: ground input routes through the Mammoth while charging rider Move, and Rider melee charges only rider Standard. No shared ledger, synthetic turn, or duplicate action is introduced.
+
+The bounded distance-door wrapper is a rider Standard command. It may delegate exactly one Mammoth Move-slot approach and may invoke the exact stock door interaction once as the rider; it never runs an independent rider path. Fresh runtime evidence is required before credit, including exact slot restoration and zero duplicate interaction.
+
 ## Stabilization qualification checkpoint - 2026-08-23
 
 Fresh same-package RT A/B pass `81/0` each and TB A/B pass `105/0` each under suite snapshot `04cc10c11ff78a1899405c7387d6c990bc035e756545bff9f639694c57af62bd`. In both TB runs rider-turn ground movement executes through the exact Mammoth Move-slot command, charges only rider Move, restores the command slot, and creates no synthetic rider command or shared ledger. Rider melee then charges rider Standard and owns exactly one attack/roll/damage chain; Mammoth Standard/Move remain unchanged and no duplicate or opportunity chain occurs.

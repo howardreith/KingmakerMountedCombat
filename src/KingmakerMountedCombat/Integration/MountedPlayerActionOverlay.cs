@@ -7,7 +7,7 @@ namespace KingmakerMountedCombat.Integration
     internal sealed class MountedPlayerActionOverlay : MonoBehaviour
     {
         private const float Width = 330f;
-        private const float Height = 126f;
+        private const float Height = 158f;
         private MountedPlayerActionController controller;
 
         public void Configure(MountedPlayerActionController actionController)
@@ -65,7 +65,7 @@ namespace KingmakerMountedCombat.Integration
                     }
                     GUI.enabled = combatPriorEnabled;
                     feedbackTop = top + 94f;
-                    feedbackHeight = 24f;
+                    feedbackHeight = 54f;
                 }
 
                 var feedback = controller.CombatActionsVisible

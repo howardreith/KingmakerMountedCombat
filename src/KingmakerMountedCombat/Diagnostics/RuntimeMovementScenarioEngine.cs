@@ -133,6 +133,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly RuntimeRequest request;
         private readonly GameMountedRelationshipService relationship;
         private readonly MountedPlayerActionController playerAction;
+        private readonly MountedCombatController combat;
         private readonly DiagnosticSettings settings;
         private readonly IModLogger logger;
         private readonly string evidenceRoot;
@@ -418,11 +419,14 @@ namespace KingmakerMountedCombat.Diagnostics
         private StandardDoor selectedDoor;
         private Vector3 doorNearPoint;
         private Vector3 doorFarPoint;
+        private Vector3 doorInteractionRiderStart;
+        private Vector3 doorInteractionMountStart;
 
         public RuntimeMovementScenarioEngine(
             RuntimeRequest request,
             GameMountedRelationshipService relationship,
             MountedPlayerActionController playerAction,
+            MountedCombatController combat,
             DiagnosticSettings settings,
             IModLogger logger,
             string evidenceRoot)
@@ -430,6 +434,7 @@ namespace KingmakerMountedCombat.Diagnostics
             this.request = request ?? throw new ArgumentNullException(nameof(request));
             this.relationship = relationship ?? throw new ArgumentNullException(nameof(relationship));
             this.playerAction = playerAction ?? throw new ArgumentNullException(nameof(playerAction));
+            this.combat = combat ?? throw new ArgumentNullException(nameof(combat));
             this.settings = settings ?? throw new ArgumentNullException(nameof(settings));
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
             if (string.IsNullOrWhiteSpace(evidenceRoot))
@@ -721,6 +726,10 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 AdvanceDoorway();
             }
+            else if (string.Equals(currentRow, "mounted-distance-door-interaction", StringComparison.Ordinal))
+            {
+                AdvanceDistanceDoorInteraction();
+            }
             else if (string.Equals(currentRow, "mounted-pair-selection", StringComparison.Ordinal))
             {
                 AdvanceSelection();
@@ -923,6 +932,126 @@ namespace KingmakerMountedCombat.Diagnostics
                 assertions.Check(selectedDoor != null && selectedDoor.isActiveAndEnabled && selectedDoor.IsOpen,
                     "Mounted pair traversed the same unchanged active open StandardDoor.",
                     "Selected StandardDoor was no longer active and open after mounted traversal.");
+                AssertRowMovementQuality();
+                BeginCleanup(CleanupTrigger.Manual);
+            }
+        }
+
+        private void AdvanceDistanceDoorInteraction()
+        {
+            if (rowPhase == 0)
+            {
+                DoorCandidate candidate;
+                string reason;
+                if (!TrySelectOpenDoorCandidate(out candidate, out reason, true))
+                {
+                    assertions.Fail(reason);
+                    BeginCleanup(CleanupTrigger.Manual);
+                    return;
+                }
+                selectedDoor = candidate.Door;
+                doorNearPoint = candidate.Near;
+                doorFarPoint = candidate.Far;
+                assertions.Check(selectedDoor.GetState() && selectedDoor.CanInteract(),
+                    "The distance-interaction setup selected one active stock open StandardDoor.",
+                    "The selected distance-interaction door was not an active interactable open StandardDoor.");
+                selectedDoor.Interact(rider);
+                rowPhase = 1;
+                return;
+            }
+
+            if (rowPhase == 1)
+            {
+                if (selectedDoor.GetState() || !selectedDoor.CanInteract())
+                {
+                    return;
+                }
+                rowUnmountedDoorControlPassed = true;
+                assertions.Check(rowUnmountedDoorControlPassed,
+                    "The unmounted stock setup closed exactly the selected door without KMC routing.",
+                    "The stock setup did not leave the selected closed door interactable.");
+                if (!MountPair())
+                {
+                    BeginCleanup(CleanupTrigger.Exception);
+                    return;
+                }
+                SelectOnly(rider);
+                var initialDistance = PlanarDistance(mount.Position, selectedDoor.transform.position);
+                assertions.Check(initialDistance > selectedDoor.ProximityRadius + 0.5f,
+                    "The ordinary player door click began outside exact immediate interaction range.",
+                    "The selected door was not far enough away to prove approach-plus-interaction: distance=" +
+                    initialDistance.ToString("0.000", CultureInfo.InvariantCulture) +
+                    "; radius=" + selectedDoor.ProximityRadius.ToString("0.000", CultureInfo.InvariantCulture) + ".");
+                if (assertions.FailureCount != 0)
+                {
+                    BeginCleanup(CleanupTrigger.Manual);
+                    return;
+                }
+
+                doorInteractionRiderStart = rider.Position;
+                doorInteractionMountStart = mount.Position;
+                var clickAccepted = new ClickMapObjectHandler().OnClick(
+                    selectedDoor.gameObject,
+                    selectedDoor.transform.position,
+                    0,
+                    false,
+                    false);
+                assertions.Check(clickAccepted && combat.HasActiveDoorInteraction,
+                    "Ordinary ClickMapObjectHandler input admitted the exact mounted distance-door command.",
+                    "Ordinary door click did not admit the mounted approach-plus-interaction command. Feedback=" +
+                    combat.LastFeedback + ".");
+                rowPhase = 2;
+                return;
+            }
+
+            if (rowPhase == 2)
+            {
+                if (combat.HasActiveDoorInteraction || combat.LastDoorInteractionOutcome == null)
+                {
+                    return;
+                }
+                if (!selectedDoor.GetState() || !selectedDoor.CanInteract())
+                {
+                    return;
+                }
+                var outcome = combat.LastDoorInteractionOutcome;
+                var selected = SelectionManager.Instance?.SelectedUnits;
+                assertions.Check(string.Equals(outcome.Result, "Success", StringComparison.Ordinal) &&
+                        outcome.InteractionCount == 1 && outcome.DelegatedMoveStartCount == 1 &&
+                        outcome.DoorStateChanged && outcome.RiderPathSuppressed && outcome.MountMoveSlotRestored,
+                    "The exact door opened once after one Mammoth-owned approach and restored its Move slot.",
+                    "Mounted door outcome was not exact: result=" + outcome.Result +
+                    "; interactions=" + outcome.InteractionCount +
+                    "; moveStarts=" + outcome.DelegatedMoveStartCount +
+                    "; stateChanged=" + outcome.DoorStateChanged +
+                    "; riderPathSuppressed=" + outcome.RiderPathSuppressed +
+                    "; slotRestored=" + outcome.MountMoveSlotRestored + ".");
+                assertions.Check(selectedDoor.GetState() && selectedDoor.IsOpen &&
+                        relationship.State == RelationshipState.Mounted &&
+                        selected != null && selected.Count == 1 && selected[0] == rider &&
+                        relationship.Runtime.PoseHealthy,
+                    "Door opening retained the exact pair, rider selection, and accepted Mammoth pose.",
+                    "Door opening lost pair, selection, pose, or exact open state.");
+                assertions.Check(PlanarDistance(doorInteractionMountStart, mount.Position) >= 0.5f &&
+                        PlanarDistance(doorInteractionRiderStart, rider.Position) >= 0.5f,
+                    "Both pair members moved measurably during the Mammoth-authoritative door approach.",
+                    "Door interaction completed without a measurable approach by both synchronized pair members.");
+                if (assertions.FailureCount != 0)
+                {
+                    BeginCleanup(CleanupTrigger.Manual);
+                    return;
+                }
+                BeginExactNavigation(NavigationMode.Normal, doorFarPoint, true, "door-mounted");
+                rowPhase = 3;
+                return;
+            }
+
+            if (rowPhase == 3 && PollNavigation())
+            {
+                assertions.Check(selectedDoor.GetState() && selectedDoor.IsOpen &&
+                        relationship.State == RelationshipState.Mounted,
+                    "The mounted pair traversed the exact door after opening it once.",
+                    "The pair or open-door state was lost during post-interaction traversal.");
                 AssertRowMovementQuality();
                 BeginCleanup(CleanupTrigger.Manual);
             }
@@ -3510,7 +3639,10 @@ namespace KingmakerMountedCombat.Diagnostics
             return null;
         }
 
-        private bool TrySelectOpenDoorCandidate(out DoorCandidate selected, out string reason)
+        private bool TrySelectOpenDoorCandidate(
+            out DoorCandidate selected,
+            out string reason,
+            bool requireOutsideInteractionRange = false)
         {
             selected = null;
             reason = null;
@@ -3538,6 +3670,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 openCount++;
                 var centerDistance = PlanarDistance(mount.Position, door.transform.position);
                 if (centerDistance > 28.0d)
+                {
+                    continue;
+                }
+                if (requireOutsideInteractionRange && centerDistance <= door.ProximityRadius + 0.5f)
                 {
                     continue;
                 }
@@ -3571,7 +3707,9 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             reason = openCount == 0
                 ? "Doorway row found no active open StandardDoor; no door was mutated and no mounted inference was made."
-                : "Doorway row found " + openCount + " active open StandardDoor object(s), but none had a bounded nearby geometry candidate for the Mammoth control.";
+                : "Doorway row found " + openCount + " active open StandardDoor object(s), but none had a bounded nearby geometry candidate" +
+                    (requireOutsideInteractionRange ? " outside immediate interaction range" : string.Empty) +
+                    " for the Mammoth control.";
             return false;
         }
 
@@ -4049,6 +4187,8 @@ namespace KingmakerMountedCombat.Diagnostics
             selectedDoor = null;
             doorNearPoint = Vector3.zero;
             doorFarPoint = Vector3.zero;
+            doorInteractionRiderStart = Vector3.zero;
+            doorInteractionMountStart = Vector3.zero;
             uninvolvedCommands = null;
             requiredPairNonPairSeparation = 0.0d;
         }
@@ -4135,6 +4275,10 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 return PresentationRows;
             }
+            if (string.Equals(scenario, "mounted-distance-door-interaction", StringComparison.Ordinal))
+            {
+                return new[] { scenario };
+            }
             foreach (var row in SuiteRows)
             {
                 if (string.Equals(row, scenario, StringComparison.Ordinal))
@@ -4160,7 +4304,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private static bool IsDoorwayPresentationRow(string row)
         {
             return string.Equals(row, "mounted-pair-doorway", StringComparison.Ordinal) ||
-                string.Equals(row, "pose-doorway-formation", StringComparison.Ordinal);
+                string.Equals(row, "pose-doorway-formation", StringComparison.Ordinal) ||
+                string.Equals(row, "mounted-distance-door-interaction", StringComparison.Ordinal);
         }
 
         private static string FormatTransitionErrors(TransitionResult result)

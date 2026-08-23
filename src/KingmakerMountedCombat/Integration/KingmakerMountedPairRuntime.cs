@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using Kingmaker;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.GameModes;
 using Kingmaker.UI.ActionBar;
 using Kingmaker.UI.Group;
+using Kingmaker.UI.Selection;
 using Kingmaker.View;
 using KingmakerMountedCombat.Diagnostics;
 using KingmakerMountedCombat.Domain;
@@ -739,7 +741,7 @@ namespace KingmakerMountedCombat.Integration
                 unit.View.transform.parent == positionAnchor;
         }
 
-        internal string CapturePresentationObservation()
+        internal string CapturePresentationObservation(bool includeUiOwnership = true)
         {
             var currentRiderView = rider?.View;
             var currentMountView = mount?.View;
@@ -761,7 +763,8 @@ namespace KingmakerMountedCombat.Integration
                 ";attachmentLease=" + riderAttachmentLease.IsAcquired +
                 ";replacementReleased=" + replacementRiderViewReleaseVerified +
                 ";riderSelected=" + riderSelected +
-                ";" + CaptureUiOwnershipObservation();
+                ";observationScope=" + (includeUiOwnership ? "full-ui" : "mode-lightweight") +
+                (includeUiOwnership ? ";" + CaptureUiOwnershipObservation() : string.Empty);
         }
 
         private string CaptureUiOwnershipObservation()
@@ -816,20 +819,59 @@ namespace KingmakerMountedCombat.Integration
                 var cameraUnitField = followerType?.GetField("m_Unit", BindingFlags.Instance | BindingFlags.NonPublic);
                 var cameraOn = cameraOnField != null && (bool)cameraOnField.GetValue(follower);
                 var cameraUnit = cameraUnitField?.GetValue(follower) as UnitEntityData;
+                var turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
+                var pointer = Game.Instance?.DefaultPointerController;
+                var selected = SelectionManager.Instance?.SelectedUnits;
+                var selectedUnit = selected != null && selected.Count == 1 ? selected[0] : null;
 
                 return "actionBarOwner=" + (actionBarOwner?.UniqueId ?? "<none>") +
                     ";actionBarActive=" + (actionBar != null && actionBar.isActiveAndEnabled && actionBar.gameObject.activeInHierarchy) +
+                    ";actionBarEnabled=" + (actionBar != null && actionBar.enabled) +
+                    ";actionBarActiveSelf=" + (actionBar != null && actionBar.gameObject.activeSelf) +
+                    ";actionBarActiveInHierarchy=" + (actionBar != null && actionBar.gameObject.activeInHierarchy) +
+                    ";actionBarReactiveActive=" + ReadReactiveBooleanValue(actionBar, "Active") +
+                    ";actionBarCanUseAbilities=" + ReadReactiveBooleanValue(actionBar, "CanUseAbilities") +
+                    ";actionBarSectionShown=" + (actionBar != null && actionBar.UISection != null && actionBar.UISection.IsShowed) +
                     ";portraitOwnerCount=" + portraitCount +
                     ";portraitActiveOwnerCount=" + portraitActiveOwnerCount +
                     ";portraitActive=" + portraitActive +
                     ";portraitSelected=" + portraitSelected +
                     ";cameraOn=" + cameraOn +
-                    ";cameraOwner=" + (cameraUnit?.UniqueId ?? "<none>");
+                    ";cameraOwner=" + (cameraUnit?.UniqueId ?? "<none>") +
+                    ";selectedUnit=" + (selectedUnit?.UniqueId ?? "<none>") +
+                    ";turnUnit=" + (turn?.Unit?.UniqueId ?? "<none>") +
+                    ";turnStatus=" + (turn == null ? "<none>" : turn.Status.ToString()) +
+                    ";turnUnitDirectlyControllable=" + (turn?.Unit != null && turn.Unit.IsDirectlyControllable) +
+                    ";turnCanMove=" + (turn != null && turn.CanMove) +
+                    ";turnCanEndNoActing=" + (turn != null && turn.CanEndTurnAndNoActing()) +
+                    ";pointerInGui=" + Kingmaker.Controllers.Clicks.PointerController.InGui +
+                    ";pointerControllerAvailable=" + (Game.Instance?.ClickEventsController != null) +
+                    ";pointerMode=" + (pointer == null ? "<none>" : pointer.Mode.ToString()) +
+                    ";riderCommands=" + (rider?.Commands == null ? -1 : rider.Commands.Raw.Count(command => command != null)) +
+                    ";mountCommands=" + (mount?.Commands == null ? -1 : mount.Commands.Raw.Count(command => command != null)) +
+                    ";riderAiEnabled=" + (rider != null && rider.IsAIEnabled) +
+                    ";mountAiEnabled=" + (mount != null && mount.IsAIEnabled);
             }
             catch (Exception exception)
             {
                 return "uiOwnershipObservationError=" + exception.GetType().Name;
             }
+        }
+
+        private static string ReadReactiveBooleanValue(object owner, string propertyName)
+        {
+            if (owner == null || string.IsNullOrEmpty(propertyName))
+            {
+                return "<unavailable>";
+            }
+
+            var reactive = owner.GetType().GetProperty(
+                propertyName,
+                BindingFlags.Instance | BindingFlags.Public)?.GetValue(owner, null);
+            var value = reactive?.GetType().GetProperty(
+                "Value",
+                BindingFlags.Instance | BindingFlags.Public)?.GetValue(reactive, null);
+            return value is bool boolean ? boolean.ToString() : "<unavailable>";
         }
 
         private void ReleaseReplacementRiderViewFromOwnedAnchor()

@@ -9,6 +9,7 @@ using Kingmaker.UI.Selection;
 using Kingmaker.UnitLogic.Commands;
 using Kingmaker.UnitLogic.Commands.Base;
 using Kingmaker.View;
+using Kingmaker.View.MapObjects;
 using KingmakerMountedCombat.Diagnostics;
 using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Logging;
@@ -32,6 +33,7 @@ namespace KingmakerMountedCombat.Integration
         private readonly MountedOverlayWorldInputGuard overlayWorldInputGuard = new MountedOverlayWorldInputGuard();
         private MountedPairAttackCommand activeCommand;
         private MountedPairAttackCommand finishedCommandPendingSweep;
+        private MountedDoorInteractionCommand activeDoorInteraction;
         private UnitMoveTo activeRiderTurnGroundMove;
         private bool riderTurnGroundMoveAdmissionPending;
         private int activeGroundMoveDriveCount;
@@ -61,6 +63,10 @@ namespace KingmakerMountedCombat.Integration
         public bool HasActiveCommand => activeCommand != null && !activeCommand.IsFinished;
 
         public bool HasActiveGroundMovement => activeRiderTurnGroundMove != null && !activeRiderTurnGroundMove.IsFinished;
+
+        public bool HasActiveDoorInteraction => activeDoorInteraction != null && !activeDoorInteraction.IsFinished;
+
+        internal MountedDoorInteractionOutcome LastDoorInteractionOutcome { get; private set; }
 
         internal int LastGroundMoveDriveCount { get; private set; }
 
@@ -147,11 +153,13 @@ namespace KingmakerMountedCombat.Integration
             if (!CanShowCombatActions)
             {
                 LastFeedback = "Mounted combat actions require the exact active pair in combat.";
+                logger.Info("Rejected mounted overlay action activation: action=" + action + "; feedback=" + LastFeedback);
                 return false;
             }
             if (HasActiveCommand || HasActiveGroundMovement || riderTurnGroundMoveAdmissionPending)
             {
                 LastFeedback = "A mounted pair command is already active.";
+                logger.Info("Rejected mounted overlay action activation: action=" + action + "; feedback=" + LastFeedback);
                 return false;
             }
 
@@ -160,6 +168,7 @@ namespace KingmakerMountedCombat.Integration
             LastFeedback = action == MountedCombatActionKind.RiderMelee
                 ? "Rider melee armed: select one visible enemy."
                 : "Mammoth primary armed: select one visible enemy.";
+            logger.Info("Mounted overlay action armed: action=" + action + "; frame=" + Time.frameCount + "; feedback=" + LastFeedback);
             return true;
         }
 
@@ -254,6 +263,10 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
             SweepFinishedCommand();
+            if (activeDoorInteraction != null && activeDoorInteraction.IsFinished)
+            {
+                activeDoorInteraction = null;
+            }
             DriveRiderTurnGroundMovement();
             SweepRiderTurnGroundMovement();
             if (activeCommand != null && activeCommand.IsFinished)
@@ -285,6 +298,12 @@ namespace KingmakerMountedCombat.Integration
             if (command != null && !command.IsFinished)
             {
                 command.Interrupt();
+            }
+            var doorInteraction = activeDoorInteraction;
+            activeDoorInteraction = null;
+            if (doorInteraction != null && !doorInteraction.IsFinished)
+            {
+                doorInteraction.Interrupt();
             }
             CancelRiderTurnGroundMovement();
             SweepFinishedCommand();
@@ -319,8 +338,9 @@ namespace KingmakerMountedCombat.Integration
         {
             result = false;
             var attackApproachActive = activeCommand != null && !activeCommand.IsFinished;
+            var doorApproachActive = activeDoorInteraction != null && !activeDoorInteraction.IsFinished;
             var riderGroundMoveActive = activeRiderTurnGroundMove != null && !activeRiderTurnGroundMove.IsFinished;
-            if (disposed || !attackApproachActive && !riderGroundMoveActive ||
+            if (disposed || !attackApproachActive && !doorApproachActive && !riderGroundMoveActive ||
                 agent == null || agent.Unit?.EntityData != relationship.Mount)
             {
                 return false;
@@ -455,22 +475,78 @@ namespace KingmakerMountedCombat.Integration
             if (!MountedStockAttackPolicy.ShouldReject(
                 relationship.State == RelationshipState.Mounted,
                 rider != null && commands == rider.Commands,
+                relationship.Mount != null && commands == relationship.Mount.Commands,
                 command != null && command.GetType() == typeof(UnitAttack)))
             {
                 return true;
             }
 
-            var selectedWeapon = rider?.GetFirstWeapon();
+            var ownerIsMount = relationship.Mount != null && commands == relationship.Mount.Commands;
+            var selectedWeapon = ownerIsMount ? relationship.Mount.GetFirstWeapon() : rider?.GetFirstWeapon();
             var ranged = selectedWeapon?.Blueprint != null && selectedWeapon.Blueprint.IsRanged;
-            LastFeedback = MountedStockAttackPolicy.RejectionFeedback(ranged);
+            LastFeedback = MountedStockAttackPolicy.RejectionFeedback(ownerIsMount, ranged);
             LastRejectionCodes = new[]
             {
                 ranged
                     ? MountedCombatRejectionCode.MountedRangedUnsupported
                     : MountedCombatRejectionCode.WrongActionState
             };
-            logger.Info("Rejected exact mounted rider stock UnitAttack: " + LastFeedback);
+            logger.Info("Rejected exact mounted pair stock UnitAttack: owner=" +
+                (ownerIsMount ? "Mammoth" : "rider") + "; feedback=" + LastFeedback);
             return false;
+        }
+
+        public bool TryRouteMountedDoorInteraction(UnitCommands commands, ref UnitCommand command)
+        {
+            var stockInteraction = command as UnitInteractWithObject;
+            var exactDoor = stockInteraction?.Interaction as StandardDoor;
+            if (disposed || !MountedInteractionRoutingPolicy.ShouldRouteExactDoor(
+                relationship.State == RelationshipState.Mounted,
+                commands != null && commands == relationship.Rider?.Commands,
+                stockInteraction != null && command.GetType() == typeof(UnitInteractWithObject),
+                exactDoor != null && stockInteraction.Interaction.GetType() == typeof(StandardDoor)))
+            {
+                return true;
+            }
+
+            if (HasActiveCommand || HasActiveGroundMovement || HasActiveDoorInteraction ||
+                riderTurnGroundMoveAdmissionPending)
+            {
+                LastFeedback = "Mounted door interaction rejected: another pair command is active.";
+                LastRejectionCodes = new[] { MountedCombatRejectionCode.AlreadyActiveCommand };
+                logger.Info(LastFeedback);
+                return false;
+            }
+
+            var turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
+            if (!MountedInteractionRoutingPolicy.CanAdmitInCurrentTurn(
+                CombatController.IsInTurnBasedCombat(),
+                turn?.Unit == relationship.Rider,
+                turn != null && turn.Status == TurnController.TurnStatus.Preparing,
+                turn != null && turn.IsActing))
+            {
+                LastFeedback = "Open an approached door during the rider's turn.";
+                LastRejectionCodes = new[] { MountedCombatRejectionCode.WrongTurn };
+                logger.Info("Rejected mounted door interaction: " + LastFeedback);
+                return false;
+            }
+
+            var routed = new MountedDoorInteractionCommand(
+                relationship,
+                relationship.Rider,
+                relationship.Mount,
+                exactDoor,
+                logger,
+                HandleDoorInteractionTerminal);
+            activeDoorInteraction = routed;
+            LastDoorInteractionOutcome = null;
+            LastRejectionCodes = new MountedCombatRejectionCode[0];
+            LastFeedback = "Mounted door interaction accepted: Mammoth approach, rider interaction.";
+            command = routed;
+            logger.Info("Mounted door interaction routed: riderId=" + relationship.Rider.UniqueId +
+                "; mountId=" + relationship.Mount.UniqueId +
+                "; door=" + exactDoor.name + "; feedback=" + LastFeedback);
+            return true;
         }
 
         public void Dispose()
@@ -492,14 +568,16 @@ namespace KingmakerMountedCombat.Integration
             var rider = relationship.Rider;
             var mount = relationship.Mount;
             var selection = SelectionManager.Instance?.SelectedUnits;
-            var exactSelection = selection != null && selection.Count == 1 && selection[0] == rider;
+            var exactRiderSelection = selection != null && selection.Count == 1 && selection[0] == rider;
+            var exactMountSelection = selection != null && selection.Count == 1 && selection[0] == mount;
             var targetState = target?.Descriptor?.State;
             var riderState = rider?.Descriptor?.State;
             var mountState = mount?.Descriptor?.State;
             var turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
             var actionActor = action == MountedCombatActionKind.RiderMelee ? rider : mount;
+            var turnBasedCombat = CombatController.IsInTurnBasedCombat();
             var actionActorTurn = MountedPairTurnPolicy.CanIssueAction(
-                CombatController.IsInTurnBasedCombat(),
+                turnBasedCombat,
                 turn?.Unit == actionActor,
                 turn != null && turn.Status == TurnBased.Controllers.TurnController.TurnStatus.Preparing,
                 turn != null && turn.IsActing);
@@ -515,7 +593,11 @@ namespace KingmakerMountedCombat.Integration
                 ExactMountedPair = relationship.State == RelationshipState.Mounted &&
                     rider != null && mount != null && rider.Descriptor?.Pet == mount &&
                     mount.Descriptor?.Master.Value == rider,
-                ExactRiderSelection = exactSelection,
+                ExactRiderSelection = MountedTurnSelectionPolicy.IsExpectedActionSelection(
+                    turnBasedCombat,
+                    action == MountedCombatActionKind.MountPrimaryNatural,
+                    exactRiderSelection,
+                    exactMountSelection),
                 SupportedMammothProfile = mount?.Blueprint != null &&
                     string.Equals(mount.Blueprint.AssetGuid, KingmakerMountedPairRuntime.MammothBlueprintGuid, StringComparison.Ordinal),
                 SupportedRiderBodyProfile = rider != null && rider.GetActivePolymorph() == null &&
@@ -593,6 +675,30 @@ namespace KingmakerMountedCombat.Integration
                     turn.ForceToEnd(false);
                 }
             }
+        }
+
+        private void HandleDoorInteractionTerminal(
+            MountedDoorInteractionCommand command,
+            MountedDoorInteractionOutcome outcome)
+        {
+            LastDoorInteractionOutcome = outcome;
+            if (activeDoorInteraction == command)
+            {
+                activeDoorInteraction = null;
+            }
+            LastFeedback = outcome.Result == UnitCommand.ResultType.Success.ToString() &&
+                outcome.InteractionCount == 1 && outcome.DoorStateChanged
+                ? "Mounted door interaction completed."
+                : "Mounted door interaction ended: " + outcome.Result + ".";
+            logger.Info("Mounted door interaction terminal: result=" + outcome.Result +
+                "; interactions=" + outcome.InteractionCount +
+                "; moveStarts=" + outcome.DelegatedMoveStartCount +
+                "; moveTicks=" + outcome.DelegatedMoveTickCount +
+                "; doorStateChanged=" + outcome.DoorStateChanged +
+                "; riderPathSuppressed=" + outcome.RiderPathSuppressed +
+                "; mountMoveSlotRestored=" + outcome.MountMoveSlotRestored +
+                "; reason=" + (outcome.TerminalReason ?? "<none>") +
+                "; feedback=" + LastFeedback);
         }
 
         private void SweepFinishedCommand()

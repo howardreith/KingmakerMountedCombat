@@ -12,6 +12,8 @@ using Kingmaker.Controllers.Clicks.Handlers;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.GameModes;
 using Kingmaker.UI.Selection;
+using Kingmaker.UnitLogic.Commands;
+using Kingmaker.UnitLogic.Commands.Base;
 using Kingmaker.View;
 using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Integration;
@@ -172,6 +174,19 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool turnRosterContainsRider;
         private bool turnRosterContainsMount;
         private bool turnRosterContainsTarget;
+        private bool nativeMammothTurnStarted;
+        private bool nativeMammothTurnUiObserved;
+        private bool nativeMammothGroundInputStarted;
+        private bool nativeMammothGroundInputCompleted;
+        private bool nativeMammothGroundSelectionRetained;
+        private string presentationDuringMammothTurn;
+        private Vector3 mammothPositionBeforeNativeGroundInput;
+        private float mammothNativeGroundDisplacement;
+        private float mammothNativeMoveBefore;
+        private float mammothNativeMoveAfter;
+        private float riderMoveBeforeMammothNativeGroundInput;
+        private float riderMoveAfterMammothNativeGroundInput;
+        private UnitMoveTo nativeMammothGroundCommand;
         private bool nativeActionActorTurnStarted;
         private bool nativeActionActorTurnActingObservedAfterDispatch;
         private string currentTurnUnitIdAtDispatch;
@@ -787,6 +802,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     turnBasedReadiness = CaptureTurnBasedReadiness(turnController);
                     return;
                 }
+                if (IsMountedBeforeModeTransitionRow && !ObserveNativeMammothTurnControls(turnController))
+                {
+                    return;
+                }
                 if (!nativeActionActorTurnStarted)
                 {
                     if (IsMammothPrimaryRow && combat.ArmedAction != AttackAction)
@@ -1003,6 +1022,102 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
             step = CombatEngineStep.AwaitOutcome;
+        }
+
+        private bool ObserveNativeMammothTurnControls(TurnBased.Controllers.CombatController turnController)
+        {
+            if (nativeMammothGroundInputCompleted)
+            {
+                return true;
+            }
+
+            if (!nativeMammothTurnStarted)
+            {
+                turnController.StartTurn(mount);
+                nativeMammothTurnStarted = true;
+                return false;
+            }
+
+            var turn = turnController.CurrentTurn;
+            if (!nativeMammothTurnUiObserved)
+            {
+                presentationDuringMammothTurn = relationship.CapturePresentationObservation();
+                nativeMammothTurnUiObserved = IsNativeTurnUiInteractable(
+                    presentationDuringMammothTurn,
+                    mount);
+                assertions.Check(nativeMammothTurnUiObserved,
+                    "The exact Mammoth native turn exposed a selected, directly controllable actor and a visible enabled action bar. Observation=" +
+                    presentationDuringMammothTurn + ".");
+                if (assertions.FailureCount != 0)
+                {
+                    BeginCleanup();
+                    return false;
+                }
+            }
+
+            if (!nativeMammothGroundInputStarted)
+            {
+                var selected = SelectionManager.Instance?.SelectedUnits;
+                assertions.Check(turn?.Unit == mount &&
+                        (turn.Status == TurnController.TurnStatus.Preparing || turn.IsActing) &&
+                        selected != null && selected.Count == 1 && selected[0] == mount,
+                    "The ordinary Mammoth ground click began only on its exact native turn and selection.");
+                if (assertions.FailureCount != 0)
+                {
+                    BeginCleanup();
+                    return false;
+                }
+
+                mammothPositionBeforeNativeGroundInput = mount.Position;
+                mammothNativeMoveBefore = mount.CombatState.Cooldown.MoveAction;
+                riderMoveBeforeMammothNativeGroundInput = rider.CombatState.Cooldown.MoveAction;
+                var destination = FindWalkablePoint(mount.Position, 1.5f, 0.35f);
+                ClickGroundHandler.MoveSelectedUnitsToPoint(destination, false);
+                nativeMammothGroundCommand = mount.Commands?.GetCommand(UnitCommand.CommandType.Move) as UnitMoveTo;
+                nativeMammothGroundInputStarted = true;
+                assertions.Check(nativeMammothGroundCommand != null &&
+                        nativeMammothGroundCommand.Executor == mount &&
+                        !combat.HasActiveGroundMovement,
+                    "Ordinary Mammoth-turn ground input admitted one native Mammoth Move command without the rider-turn adapter. Feedback=" +
+                    combat.LastFeedback + ".");
+                if (assertions.FailureCount != 0)
+                {
+                    BeginCleanup();
+                }
+                return false;
+            }
+
+            if (nativeMammothGroundCommand != null && !nativeMammothGroundCommand.IsFinished)
+            {
+                return false;
+            }
+
+            mammothNativeGroundDisplacement = HorizontalDistance(
+                mammothPositionBeforeNativeGroundInput,
+                mount.Position);
+            mammothNativeMoveAfter = mount.CombatState.Cooldown.MoveAction;
+            riderMoveAfterMammothNativeGroundInput = rider.CombatState.Cooldown.MoveAction;
+            var currentSelection = SelectionManager.Instance?.SelectedUnits;
+            nativeMammothGroundSelectionRetained = currentSelection != null &&
+                currentSelection.Count == 1 && currentSelection[0] == mount;
+            assertions.Check(nativeMammothGroundCommand != null &&
+                    nativeMammothGroundCommand.Result == UnitCommand.ResultType.Success &&
+                    mammothNativeGroundDisplacement >= 0.5f,
+                "The ordinary Mammoth-turn ground command completed with measurable player-visible movement.");
+            assertions.Check(mammothNativeMoveAfter > mammothNativeMoveBefore &&
+                    Math.Abs(riderMoveAfterMammothNativeGroundInput - riderMoveBeforeMammothNativeGroundInput) <= 0.01f,
+                "The Mammoth native turn charged only the Mammoth Move ledger.");
+            assertions.Check(nativeMammothGroundSelectionRetained &&
+                    IsNativeTurnUiInteractable(relationship.CapturePresentationObservation(), mount),
+                "Mammoth selection and native action-bar commandability remained coherent after its ground movement.");
+            if (assertions.FailureCount != 0)
+            {
+                BeginCleanup();
+                return false;
+            }
+
+            nativeMammothGroundInputCompleted = true;
+            return true;
         }
 
         private void BeginGroundMovement()
@@ -1810,7 +1925,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var record = new CombatEvidenceRecord
             {
                 SchemaVersion = IsHumanPlayRow
-                    ? (IsTurnBasedRow ? 47 : 44)
+                    ? (IsTurnBasedRow ? 49 : 48)
                     : IsCommandTerminationRow
                     ? IsCombatEndTerminationRow
                         ? (IsTurnBasedRow ? 41 : 40)
@@ -1890,6 +2005,17 @@ namespace KingmakerMountedCombat.Diagnostics
                         turnRosterContainsRider,
                         turnRosterContainsMount,
                         turnRosterContainsTarget,
+                        presentationDuringMammothTurn,
+                        nativeMammothTurnStarted,
+                        nativeMammothTurnUiObserved,
+                        nativeMammothGroundInputStarted,
+                        nativeMammothGroundInputCompleted,
+                        nativeMammothGroundSelectionRetained,
+                        mammothNativeGroundDisplacement,
+                        mammothNativeMoveBefore,
+                        mammothNativeMoveAfter,
+                        riderMoveBeforeMammothNativeGroundInput,
+                        riderMoveAfterMammothNativeGroundInput,
                         ExpectedActorRole,
                         nativeActionActorTurnStarted,
                         currentTurnUnitIdAtDispatch,
@@ -2216,6 +2342,29 @@ namespace KingmakerMountedCombat.Diagnostics
                 observation.IndexOf("portraitSelected=True", StringComparison.Ordinal) >= 0 &&
                 observation.IndexOf("cameraOn=" + expectedCameraOn, StringComparison.Ordinal) >= 0 &&
                 observation.IndexOf("cameraOwner=" + riderId, StringComparison.Ordinal) >= 0;
+        }
+
+        private static bool IsNativeTurnUiInteractable(string observation, UnitEntityData expectedActor)
+        {
+            if (expectedActor == null || string.IsNullOrWhiteSpace(observation))
+            {
+                return false;
+            }
+
+            var actorId = expectedActor.UniqueId;
+            return observation.IndexOf("uiOwnershipObservationError=", StringComparison.Ordinal) < 0 &&
+                observation.IndexOf("actionBarOwner=" + actorId, StringComparison.Ordinal) >= 0 &&
+                observation.IndexOf("actionBarEnabled=True", StringComparison.Ordinal) >= 0 &&
+                observation.IndexOf("actionBarActiveSelf=True", StringComparison.Ordinal) >= 0 &&
+                observation.IndexOf("actionBarActiveInHierarchy=True", StringComparison.Ordinal) >= 0 &&
+                observation.IndexOf("actionBarReactiveActive=True", StringComparison.Ordinal) >= 0 &&
+                observation.IndexOf("actionBarCanUseAbilities=True", StringComparison.Ordinal) >= 0 &&
+                observation.IndexOf("actionBarSectionShown=True", StringComparison.Ordinal) >= 0 &&
+                observation.IndexOf("selectedUnit=" + actorId, StringComparison.Ordinal) >= 0 &&
+                observation.IndexOf("turnUnit=" + actorId, StringComparison.Ordinal) >= 0 &&
+                observation.IndexOf("turnUnitDirectlyControllable=True", StringComparison.Ordinal) >= 0 &&
+                observation.IndexOf("turnCanMove=True", StringComparison.Ordinal) >= 0 &&
+                observation.IndexOf("pointerInGui=False", StringComparison.Ordinal) >= 0;
         }
 
         private static void TryLeaveCombat(UnitEntityData unit)
@@ -2866,6 +3015,18 @@ namespace KingmakerMountedCombat.Diagnostics
             public bool RosterContainsRider { get; set; }
             public bool RosterContainsMount { get; set; }
             public bool RosterContainsTarget { get; set; }
+            [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            public string PresentationDuringMammothTurn { get; set; }
+            public bool NativeMammothTurnStarted { get; set; }
+            public bool NativeMammothTurnUiObserved { get; set; }
+            public bool NativeMammothGroundInputStarted { get; set; }
+            public bool NativeMammothGroundInputCompleted { get; set; }
+            public bool NativeMammothGroundSelectionRetained { get; set; }
+            public float MammothNativeGroundDisplacement { get; set; }
+            public float MammothNativeMoveBefore { get; set; }
+            public float MammothNativeMoveAfter { get; set; }
+            public float RiderMoveBeforeMammothNativeGroundInput { get; set; }
+            public float RiderMoveAfterMammothNativeGroundInput { get; set; }
             public string ExpectedTurnActor { get; set; }
             public bool NativeActionActorTurnStarted { get; set; }
             public string CurrentTurnUnitIdAtDispatch { get; set; }
@@ -2903,6 +3064,17 @@ namespace KingmakerMountedCombat.Diagnostics
                 bool rosterContainsRider,
                 bool rosterContainsMount,
                 bool rosterContainsTarget,
+                string presentationDuringMammothTurn,
+                bool nativeMammothTurnStarted,
+                bool nativeMammothTurnUiObserved,
+                bool nativeMammothGroundInputStarted,
+                bool nativeMammothGroundInputCompleted,
+                bool nativeMammothGroundSelectionRetained,
+                float mammothNativeGroundDisplacement,
+                float mammothNativeMoveBefore,
+                float mammothNativeMoveAfter,
+                float riderMoveBeforeMammothNativeGroundInput,
+                float riderMoveAfterMammothNativeGroundInput,
                 string expectedTurnActor,
                 bool nativeActionActorTurnStarted,
                 string currentTurnUnitIdAtDispatch,
@@ -2940,6 +3112,17 @@ namespace KingmakerMountedCombat.Diagnostics
                     RosterContainsRider = rosterContainsRider,
                     RosterContainsMount = rosterContainsMount,
                     RosterContainsTarget = rosterContainsTarget,
+                    PresentationDuringMammothTurn = presentationDuringMammothTurn,
+                    NativeMammothTurnStarted = nativeMammothTurnStarted,
+                    NativeMammothTurnUiObserved = nativeMammothTurnUiObserved,
+                    NativeMammothGroundInputStarted = nativeMammothGroundInputStarted,
+                    NativeMammothGroundInputCompleted = nativeMammothGroundInputCompleted,
+                    NativeMammothGroundSelectionRetained = nativeMammothGroundSelectionRetained,
+                    MammothNativeGroundDisplacement = mammothNativeGroundDisplacement,
+                    MammothNativeMoveBefore = mammothNativeMoveBefore,
+                    MammothNativeMoveAfter = mammothNativeMoveAfter,
+                    RiderMoveBeforeMammothNativeGroundInput = riderMoveBeforeMammothNativeGroundInput,
+                    RiderMoveAfterMammothNativeGroundInput = riderMoveAfterMammothNativeGroundInput,
                     ExpectedTurnActor = expectedTurnActor,
                     NativeActionActorTurnStarted = nativeActionActorTurnStarted,
                     CurrentTurnUnitIdAtDispatch = currentTurnUnitIdAtDispatch,

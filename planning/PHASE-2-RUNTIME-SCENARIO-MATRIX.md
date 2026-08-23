@@ -1,5 +1,13 @@
 # Phase 2 runtime scenario matrix
 
+## Round-2 human-input qualification pending fresh runtime evidence - 2026-08-23
+
+Status: `IN PROGRESS`. Human regression rejects the earlier `434/0` as proof of ordinary controls. Forward-only RT schema v48 still enters the exact overlay-arm plus native unit-click seam and now binds explicit activation/admission telemetry. Forward-only TB schema v49 first starts the independent native Mammoth turn, requires the actual action-bar object and reactive controls to be active/interactable for the exact selected/controllable turn actor, sends ordinary `ClickGroundHandler` input, proves a native Mammoth Move command and Mammoth-only Move cost, then separately proves rider-turn Mammoth-routed movement and player-click rider melee. Internal owner fields alone receive no usability credit.
+
+New `mounted-distance-door-interaction` begins outside immediate `StandardDoor` range and uses ordinary `ClickMapObjectHandler.OnClick`; the exact rider-owned stock interaction is replaced only at `UnitCommands.Run` by a bounded wrapper whose approach path belongs only to the Mammoth and whose interaction belongs only to the rider. It requires one approach, one state-changing interaction, exact Move-slot restoration, retained pair/selection/pose, and strict post-open traversal. Adjacent-door and unmounted controls remain separate.
+
+Non-world mode delivery now captures lightweight relationship/view state and does not enumerate the full UI hierarchy during screen entry. No KMC fog, camera, scene, or game-mode write was added. Menu latency/fog continuity and rendered mouse/UI behavior remain explicit manual gates. Complete offline totals are source/component/visual/harness/assembly `21/234/17/222/292`, PowerShell/JSON parsers `26/0` / `7/0`, diff and prohibited payload `PASS`; fresh package/suite/WhatIf and RT/TB A/B plus the distance-door row remain mandatory.
+
 ## Private-alpha stabilization automated qualification - 2026-08-23
 
 Status: `PASS` for the automated boundary. Exact package/DLL `b16535f94ee914c4953b40fd19e88f97dfa117f984f8134855b1eae79fa6eaaf` / `d01a75c173c692198963e4c72acb20e1c5891d89a95916a4f649ab7d1d417777` and suite snapshot `04cc10c11ff78a1899405c7387d6c990bc035e756545bff9f639694c57af62bd` produced RT A/B `81/0` each, TB A/B `105/0` each, and doorway `62/0`, aggregate `434/0`. Every process received an independent exact restoration audit before evidence inspection.

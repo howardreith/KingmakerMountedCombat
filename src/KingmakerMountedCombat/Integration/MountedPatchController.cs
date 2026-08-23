@@ -142,8 +142,12 @@ namespace KingmakerMountedCombat.Integration
                 PatchBridge.Combat?.CompleteGroundCommandAdmission(unit);
             }
 
-            internal static bool UnitCommandRunPrefix(UnitCommands __instance, UnitCommand cmd)
+            internal static bool UnitCommandRunPrefix(UnitCommands __instance, ref UnitCommand cmd)
             {
+                if (PatchBridge.Combat != null && !PatchBridge.Combat.TryRouteMountedDoorInteraction(__instance, ref cmd))
+                {
+                    return false;
+                }
                 return PatchBridge.Combat == null || PatchBridge.Combat.ShouldAllowStockCommand(__instance, cmd);
             }
 

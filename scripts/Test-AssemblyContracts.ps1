@@ -70,6 +70,15 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.View.UnitMovementAgent',0x060018C2,'Stop'),@('Kingmaker.View.UnitMovementAgentBase',0x060018E2,'get_Velocity'),
         @('Kingmaker.View.UnitMovementAgentBase',0x060018E6,'get_Speed'),@('Kingmaker.EntitySystem.Entities.UnitEntityData',0x06008345,'Translocate'),
         @('Kingmaker.Controllers.Clicks.Handlers.ClickGroundHandler',0x060093DA,'MoveSelectedUnitsToPoint'),
+        @('Kingmaker.Controllers.Clicks.Handlers.ClickMapObjectHandler',0x060093E2,'OnClick'),
+        @('Kingmaker.Controllers.Clicks.Handlers.ClickMapObjectHandler',0x060093E4,'Interact'),
+        @('Kingmaker.Controllers.Clicks.Handlers.ClickMapObjectHandler',0x060093E5,'TryInteract'),
+        @('Kingmaker.UnitLogic.Commands.UnitInteractWithObject',0x060026D6,'.ctor'),
+        @('Kingmaker.UnitLogic.Commands.UnitInteractWithObject',0x060026DE,'OnAction'),
+        @('Kingmaker.View.MapObjects.StandardDoor',0x060019ED,'Interact'),
+        @('Kingmaker.View.MapObjects.StandardDoor',0x060019F0,'CanInteract'),
+        @('Kingmaker.View.MapObjects.StandardDoor',0x06001AA5,'OnInteract'),
+        @('Kingmaker.View.MapObjects.StandardDoor',0x06001AA7,'GetState'),
         @('Kingmaker.UnitLogic.Commands.UnitCommands',0x0600269F,'get_Move'),@('Kingmaker.UnitLogic.Commands.UnitCommands',0x060026A9,'GetCommand'),
         @('Kingmaker.UnitLogic.Commands.Base.UnitCommand',0x0600275E,'get_IsFinished'),@('Kingmaker.UnitLogic.Commands.UnitMoveTo',0x060026F4,'get_Target'),
         @('Kingmaker.View.UnitMovementAgent',0x060018A8,'FindPath'),@('Kingmaker.UI.Selection.SelectionManager',0x060034E2,'get_Instance'),
@@ -514,6 +523,31 @@ if($Target-eq'Kingmaker'){
         [int]$turnStatus[0].ReturnType.GetField('Preparing').GetRawConstantValue()-eq2 -and
         [int]$turnStatus[0].ReturnType.GetField('Acting').GetRawConstantValue()-eq3) `
         'native turn-based controller roster, rider-turn, and mode signatures'
+    $clickMapObject=@(Find-Token 'Kingmaker.Controllers.Clicks.Handlers.ClickMapObjectHandler' 0x060093E2)
+    $interactCtor=@(Find-Token 'Kingmaker.UnitLogic.Commands.UnitInteractWithObject' 0x060026D6)
+    $interactAction=@(Find-Token 'Kingmaker.UnitLogic.Commands.UnitInteractWithObject' 0x060026DE)
+    $doorInteract=@(Find-Token 'Kingmaker.View.MapObjects.StandardDoor' 0x060019ED)
+    $doorCanInteract=@(Find-Token 'Kingmaker.View.MapObjects.StandardDoor' 0x060019F0)
+    $doorState=@(Find-Token 'Kingmaker.View.MapObjects.StandardDoor' 0x06001AA7)
+    Assert-Contract ($clickMapObject.Count-eq1 -and $clickMapObject[0] -is [Reflection.MethodInfo] -and
+        $clickMapObject[0].IsPublic -and -not $clickMapObject[0].IsStatic -and
+        $clickMapObject[0].ReturnType.FullName-ceq'System.Boolean' -and
+        $clickMapObject[0].GetParameters().Count-eq5 -and
+        $clickMapObject[0].GetParameters()[0].ParameterType.FullName-ceq'UnityEngine.GameObject' -and
+        $interactCtor.Count-eq1 -and $interactCtor[0] -is [Reflection.ConstructorInfo] -and
+        $interactCtor[0].IsPublic -and $interactCtor[0].GetParameters().Count-eq1 -and
+        $interactCtor[0].GetParameters()[0].ParameterType.FullName-ceq'Kingmaker.View.MapObjects.InteractionComponent' -and
+        $interactAction.Count-eq1 -and $interactAction[0] -is [Reflection.MethodInfo] -and
+        $interactAction[0].IsFamily -and $interactAction[0].GetParameters().Count-eq0 -and
+        $interactAction[0].ReturnType.FullName-ceq'Kingmaker.UnitLogic.Commands.Base.UnitCommand+ResultType' -and
+        $doorInteract.Count-eq1 -and $doorInteract[0].IsPublic -and -not $doorInteract[0].IsStatic -and
+        $doorInteract[0].GetParameters().Count-eq1 -and
+        $doorInteract[0].GetParameters()[0].ParameterType.FullName-ceq'Kingmaker.EntitySystem.Entities.UnitEntityData' -and
+        $doorCanInteract.Count-eq1 -and $doorCanInteract[0].IsPublic -and
+        $doorCanInteract[0].ReturnType.FullName-ceq'System.Boolean' -and
+        $doorState.Count-eq1 -and $doorState[0].IsPublic -and
+        $doorState[0].ReturnType.FullName-ceq'System.Boolean') `
+        'native map-object input stock interaction command and exact StandardDoor seams'
     $unityChecks=@(
         @('UnityEngine.SceneManagement.SceneManager',0x060019D5,'GetSceneByName'),
         @('UnityEngine.SceneManagement.Scene',0x060019C4,'get_isLoaded'))
