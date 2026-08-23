@@ -137,6 +137,7 @@
     <Compile Include="Domain\TwoBonePoseSolver.cs" />
     <Compile Include="Integration\GameMountedRelationshipService.cs" />
     <Compile Include="Integration\KingmakerMountedPairRuntime.cs" />
+    <Compile Include="Integration\ReactiveBooleanValueReader.cs" />
     <Compile Include="Integration\MountedLifecycleSubscriber.cs" />
     <Compile Include="Integration\ExactTurnMovementAdapter.cs" />
     <Compile Include="Integration\MountedCombatController.cs" />

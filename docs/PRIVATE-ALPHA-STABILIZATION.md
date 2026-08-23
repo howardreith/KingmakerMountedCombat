@@ -4,6 +4,12 @@ Status: round-2 stabilization `IN PROGRESS`; the exact round-1 automated package
 
 This continuation repairs player-facing defects found in the first qualified Mammoth private alpha. It does not authorize horses, persistence, ranged mounted combat, mounted spellcasting rules, mounted feats, explicit mounted attacks of opportunity, mounted charge, another body profile, Phase 3 implementation, a public release, or a merge to `main`.
 
+## Round-2 v49 TB observation checkpoint
+
+The first clean-package v49 TB process, `20260823T054000Z-round2-v49-suite1-tb-passA`, is preserved as uncredited `FAIL 36/1`. Exact independent restoration passed before its gameplay evidence was read. The process objectively proved a selected, directly controllable Mammoth native turn with movement eligibility and a visible, active, enabled action bar. It stopped because the two reactive action-bar values were unavailable, before any movement or attack claim.
+
+This was an observation implementation error: exact installed `ActionBarManager.Active` and `CanUseAbilities` are public reactive fields, not properties. KMC now reads either public representation and still requires an exact Boolean `Value`; assembly tokens and deterministic field/property/unavailable tests bind the contract. No gameplay state or threshold changed. Fresh clean-package evidence remains required to reveal whether the human-reported inert TB behavior has an additional cause. The old package's RT A/B cannot be combined with evidence from the repaired package.
+
 ## Round-2 human regression correction
 
 The human regression of exact final commit `942262a1173d657db209dc321b298702dfd655cb` used package/manifest/DLL SHA-256 `3bc8d52bed3035ec61c519b035aa726600e6c72d82f26642f5bbf332145aae08` / `de56eb322624e402939f02e7ecbce90e93d6cb6e82cabb53d650fad8764b9cc8` / `d01a75c173c692198963e4c72acb20e1c5891d89a95916a4f649ab7d1d417777`, MVID `f2b69d04-07de-4e4c-a1fb-027ea8178612`. That package and its `434/0` automated result remain immutable history, but the human result rejects any claim that those internal assertions proved ordinary human-play controls.

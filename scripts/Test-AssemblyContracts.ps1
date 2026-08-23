@@ -93,6 +93,8 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.Visual.CharacterSystem.Character',0x0600140B,'OnAnimatorUpdated'),
         @('Kingmaker.Visual.CharacterSystem.Character',0x0600140C,'LateUpdate'),
         @('Kingmaker.UI.ActionBar.ActionBarManager',0x04002E23,'m_Selected'),
+        @('Kingmaker.UI.ActionBar.ActionBarManager',0x04002E2F,'Active'),
+        @('Kingmaker.UI.ActionBar.ActionBarManager',0x04002E30,'CanUseAbilities'),
         @('Kingmaker.UI.Group.GroupCharacterPortraitController',0x04002AF6,'m_Unit'),
         @('Kingmaker.UI.Group.GroupCharacterPortraitController',0x04002AEB,'m_SelectionSprite'),
         @('Kingmaker.UI.Group.GroupCharacterPortraitController',0x04002AEA,'Frame'),

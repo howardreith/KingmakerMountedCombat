@@ -829,8 +829,8 @@ namespace KingmakerMountedCombat.Integration
                     ";actionBarEnabled=" + (actionBar != null && actionBar.enabled) +
                     ";actionBarActiveSelf=" + (actionBar != null && actionBar.gameObject.activeSelf) +
                     ";actionBarActiveInHierarchy=" + (actionBar != null && actionBar.gameObject.activeInHierarchy) +
-                    ";actionBarReactiveActive=" + ReadReactiveBooleanValue(actionBar, "Active") +
-                    ";actionBarCanUseAbilities=" + ReadReactiveBooleanValue(actionBar, "CanUseAbilities") +
+                    ";actionBarReactiveActive=" + ReactiveBooleanValueReader.Read(actionBar, "Active") +
+                    ";actionBarCanUseAbilities=" + ReactiveBooleanValueReader.Read(actionBar, "CanUseAbilities") +
                     ";actionBarSectionShown=" + (actionBar != null && actionBar.UISection != null && actionBar.UISection.IsShowed) +
                     ";portraitOwnerCount=" + portraitCount +
                     ";portraitActiveOwnerCount=" + portraitActiveOwnerCount +
@@ -856,22 +856,6 @@ namespace KingmakerMountedCombat.Integration
             {
                 return "uiOwnershipObservationError=" + exception.GetType().Name;
             }
-        }
-
-        private static string ReadReactiveBooleanValue(object owner, string propertyName)
-        {
-            if (owner == null || string.IsNullOrEmpty(propertyName))
-            {
-                return "<unavailable>";
-            }
-
-            var reactive = owner.GetType().GetProperty(
-                propertyName,
-                BindingFlags.Instance | BindingFlags.Public)?.GetValue(owner, null);
-            var value = reactive?.GetType().GetProperty(
-                "Value",
-                BindingFlags.Instance | BindingFlags.Public)?.GetValue(reactive, null);
-            return value is bool boolean ? boolean.ToString() : "<unavailable>";
         }
 
         private void ReleaseReplacementRiderViewFromOwnedAnchor()
