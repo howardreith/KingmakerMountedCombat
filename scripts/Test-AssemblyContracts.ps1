@@ -80,7 +80,7 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.View.MapObjects.StandardDoor',0x06001AA5,'OnInteract'),
         @('Kingmaker.View.MapObjects.StandardDoor',0x06001AA7,'GetState'),
         @('Kingmaker.UnitLogic.Commands.UnitCommands',0x0600269F,'get_Move'),@('Kingmaker.UnitLogic.Commands.UnitCommands',0x060026A9,'GetCommand'),
-        @('Kingmaker.UnitLogic.Commands.Base.UnitCommand',0x0600275E,'get_IsFinished'),@('Kingmaker.UnitLogic.Commands.UnitMoveTo',0x060026F4,'get_Target'),
+        @('Kingmaker.UnitLogic.Commands.Base.UnitCommand',0x0600275E,'get_IsFinished'),@('Kingmaker.UnitLogic.Commands.Base.UnitCommand',0x060027AC,'Interrupt'),@('Kingmaker.UnitLogic.Commands.UnitMoveTo',0x060026F4,'get_Target'),
         @('Kingmaker.View.UnitMovementAgent',0x060018A8,'FindPath'),@('Kingmaker.UI.Selection.SelectionManager',0x060034E2,'get_Instance'),
         @('Kingmaker.UI.Selection.SelectionManager',0x060034E4,'get_SelectedUnits'),@('Kingmaker.Game',0x06000C9A,'get_IsPaused'),
         @('Kingmaker.Game',0x06000C9B,'set_IsPaused'),@('Kingmaker.Game',0x06000CD6,'ReloadArea'),

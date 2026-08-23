@@ -1,5 +1,13 @@
 # Private-alpha stabilization
 
+## Round-2 native Mammoth command-terminal diagnosis
+
+Fresh restored schema-v50 run `20260823T100217Z-round2-v50-terminal-observation` proves ordinary Mammoth-turn ground input reaches a native Mammoth `UnitMoveTo`, moves the visible pair `0.9619302`, and charges only Mammoth Move `0 -> 0.231707692`. The native command ends `Interrupt` with `0.5389647` horizontal distance remaining. Selection, direct control, active turn, rendered/enabled/reactive action bar, pointer state, command queues, pair, pose, and attachment remain coherent.
+
+The installed native `TurnController.CanMove` property is false after any movement expenditure because it requires `!IsActed()`. Therefore post-command `turnCanMove=False` is not evidence of an inert UI; exact action-bar ownership plus `turnCanEndNoActing=True` describes the observed usable native boundary. The successful command result remains mandatory.
+
+Forward-only schema v51 adds a reference-exact observation at installed `UnitCommand.Interrupt(Boolean)` token `0x060027AC` for only the armed stock Mammoth move, plus terminal `IsUnitEnoughClose` and movement-agent state. This must identify whether native `UnitEntityView.OnMovementInterrupted`, KMC stop/hold forwarding, or another exact caller ends the command before any behavioral repair. Historical v47/v49/v50 evidence remains unchanged and uncredited where failed.
+
 Status: round-2 stabilization `IN PROGRESS`; the exact round-1 automated package failed guarded human regression.
 
 This continuation repairs player-facing defects found in the first qualified Mammoth private alpha. It does not authorize horses, persistence, ranged mounted combat, mounted spellcasting rules, mounted feats, explicit mounted attacks of opportunity, mounted charge, another body profile, Phase 3 implementation, a public release, or a merge to `main`.

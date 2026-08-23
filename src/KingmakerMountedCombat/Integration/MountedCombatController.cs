@@ -35,6 +35,7 @@ namespace KingmakerMountedCombat.Integration
         private MountedPairAttackCommand finishedCommandPendingSweep;
         private MountedDoorInteractionCommand activeDoorInteraction;
         private UnitMoveTo activeRiderTurnGroundMove;
+        private UnitMoveTo observedNativeMountTurnMove;
         private bool riderTurnGroundMoveAdmissionPending;
         private int activeGroundMoveDriveCount;
         private float groundMoveRiderMoveBefore;
@@ -85,6 +86,48 @@ namespace KingmakerMountedCombat.Integration
         internal float LastGroundMoveMountMoveBefore { get; private set; }
 
         internal float LastGroundMoveMountMoveAfter { get; private set; }
+
+        internal string LastNativeMountTurnMoveInterruptSource { get; private set; } = "<not-observed>";
+
+        internal void BeginNativeMountTurnMoveObservation(UnitMoveTo command)
+        {
+            observedNativeMountTurnMove = command != null &&
+                relationship.State == RelationshipState.Mounted &&
+                command.Executor == relationship.Mount
+                    ? command
+                    : null;
+            LastNativeMountTurnMoveInterruptSource = observedNativeMountTurnMove == null
+                ? "<invalid-observation-command>"
+                : "<not-interrupted>";
+        }
+
+        internal void ObserveCommandInterrupt(UnitCommand command)
+        {
+            if (!ReferenceEquals(command, observedNativeMountTurnMove) ||
+                !string.Equals(LastNativeMountTurnMoveInterruptSource, "<not-interrupted>", StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            var frames = new System.Diagnostics.StackTrace(1, false).GetFrames();
+            LastNativeMountTurnMoveInterruptSource = frames == null
+                ? "<stack-unavailable>"
+                : string.Join(" <- ", frames.Take(12).Select(frame =>
+                {
+                    var method = frame.GetMethod();
+                    return method == null
+                        ? "<unknown>"
+                        : (method.DeclaringType?.FullName ?? "<global>") + "." + method.Name;
+                }).ToArray());
+        }
+
+        internal void EndNativeMountTurnMoveObservation(UnitMoveTo command)
+        {
+            if (ReferenceEquals(command, observedNativeMountTurnMove))
+            {
+                observedNativeMountTurnMove = null;
+            }
+        }
 
         internal bool HasActivePreChildCommandForTarget(UnitEntityData exactTarget)
         {

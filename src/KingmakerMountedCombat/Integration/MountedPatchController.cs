@@ -55,7 +55,8 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(UnitAttack), "GetApproachRadius", 0x06002685, new[] { typeof(UnitEntityData) }, null, nameof(PatchMethods.AttackRangePostfix));
                 PatchExact(typeof(UnitCombatState), "AttackOfOpportunity", 0x060093A1, new[] { typeof(UnitEntityData), typeof(bool) }, nameof(PatchMethods.AttackOfOpportunityPrefix));
                 PatchExact(typeof(UnitCombatCooldownsController), "TickOnUnit", 0x0600934A, new[] { typeof(UnitEntityData) }, nameof(PatchMethods.CombatCooldownPrefix), nameof(PatchMethods.CombatCooldownPostfix));
-                logger.Info("Installed fourteen exact-token Harmony12 active-pair guards plus one observation-only native combat-cooldown probe.");
+                PatchExact(typeof(UnitCommand), "Interrupt", 0x060027AC, new[] { typeof(bool) }, nameof(PatchMethods.CommandInterruptPrefix));
+                logger.Info("Installed fourteen exact-token Harmony12 active-pair guards plus two observation-only native probes.");
             }
             catch
             {
@@ -149,6 +150,11 @@ namespace KingmakerMountedCombat.Integration
                     return false;
                 }
                 return PatchBridge.Combat == null || PatchBridge.Combat.ShouldAllowStockCommand(__instance, cmd);
+            }
+
+            internal static void CommandInterruptPrefix(UnitCommand __instance)
+            {
+                PatchBridge.Combat?.ObserveCommandInterrupt(__instance);
             }
 
             internal static bool SelectUnitPrefix(ref UnitEntityView unit, bool single)

@@ -1,5 +1,9 @@
 # Autonomous blockers
 
+## Native Mammoth move interrupt source requires one reference-exact observation - 2026-08-23T10:48:25Z
+
+Status: `IN PROGRESS`; no safety or core-architecture blocker is proven. Restored run `20260823T100217Z-round2-v50-terminal-observation` proves ordinary input, native Mammoth selection/control/action bar, measurable movement, exact Mammoth-only Move cost, and healthy post-command UI ownership. The stock move nevertheless ends `Interrupt` with `0.5389647` horizontal distance remaining. Exact installed code proves post-command `turnCanMove=False` follows positive Move expenditure and is not a hidden action bar, so that diagnostic predicate is corrected without changing native behavior. Schema v51 now observes the one exact command's interrupt caller, terminal proximity, and movement-agent state. No timeout, movement, turn, resource, or PASS result has been weakened.
+
 ## Native Mammoth command terminal state requires exact observation - 2026-08-23T08:29:34Z
 
 Status: `IN PROGRESS`; no safety or core-architecture blocker is proven. `20260823T075815Z-round2-reactive-suite1-tb-passA` is immutable uncredited `FAIL 40/2`; its immediate independent restoration audit passed before evidence inspection. The reactive-field repair succeeded, ordinary ground input moved the Mammoth `0.9619302`, and only Mammoth Move changed `0 -> 0.23123309`. The command reached `IsFinished`, but v49 does not record the non-success `Result` or the post-command action-bar/turn state that caused the two exact failures. Forward-only schema v50 adds only command result/finished/raw-slot/remaining-distance and post-command presentation observations. No behavior or threshold changes before that fresh guarded observation.

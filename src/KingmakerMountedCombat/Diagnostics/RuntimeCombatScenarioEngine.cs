@@ -193,6 +193,10 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool nativeMammothGroundCommandFinished;
         private string nativeMammothGroundCommandResult = "<not-observed>";
         private string nativeMammothGroundRawMoveSlotState = "<not-observed>";
+        private string nativeMammothGroundInterruptSource = "<not-observed>";
+        private bool nativeMammothGroundEnoughCloseAtTerminal;
+        private bool nativeMammothGroundAgentReallyMovingAtTerminal;
+        private bool nativeMammothGroundAgentWantsToMoveAtTerminal;
         private bool nativeMammothGroundUiObservedAfterInput;
         private bool nativeActionActorTurnStarted;
         private bool nativeActionActorTurnActingObservedAfterDispatch;
@@ -1081,6 +1085,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 nativeMammothGroundDestination = FindWalkablePoint(mount.Position, 1.5f, 0.35f);
                 ClickGroundHandler.MoveSelectedUnitsToPoint(nativeMammothGroundDestination, false);
                 nativeMammothGroundCommand = mount.Commands?.GetCommand(UnitCommand.CommandType.Move) as UnitMoveTo;
+                combat.BeginNativeMountTurnMoveObservation(nativeMammothGroundCommand);
                 nativeMammothGroundInputStarted = true;
                 assertions.Check(nativeMammothGroundCommand != null &&
                         nativeMammothGroundCommand.Executor == mount &&
@@ -1121,8 +1126,16 @@ namespace KingmakerMountedCombat.Diagnostics
                 : ReferenceEquals(rawMove, nativeMammothGroundCommand)
                     ? "exact"
                     : "replacement:" + rawMove.GetType().FullName;
+            nativeMammothGroundInterruptSource = combat.LastNativeMountTurnMoveInterruptSource;
+            nativeMammothGroundEnoughCloseAtTerminal = nativeMammothGroundCommand != null &&
+                nativeMammothGroundCommand.IsUnitEnoughClose;
+            nativeMammothGroundAgentReallyMovingAtTerminal = mount.View?.MovementAgent != null &&
+                mount.View.MovementAgent.IsReallyMoving;
+            nativeMammothGroundAgentWantsToMoveAtTerminal = mount.View?.AgentASP != null &&
+                mount.View.AgentASP.WantsToMove;
+            combat.EndNativeMountTurnMoveObservation(nativeMammothGroundCommand);
             presentationAfterNativeMammothGroundInput = relationship.CapturePresentationObservation();
-            nativeMammothGroundUiObservedAfterInput = IsNativeTurnUiInteractable(
+            nativeMammothGroundUiObservedAfterInput = IsNativeTurnUiCoherentAfterGroundCommand(
                 presentationAfterNativeMammothGroundInput,
                 mount);
             assertions.Check(nativeMammothGroundCommand != null &&
@@ -1132,7 +1145,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Result=" + nativeMammothGroundCommandResult +
                 "; displacement=" + mammothNativeGroundDisplacement.ToString("R", CultureInfo.InvariantCulture) +
                 "; remainingDistance=" + mammothNativeGroundRemainingDistance.ToString("R", CultureInfo.InvariantCulture) +
-                "; rawMoveSlot=" + nativeMammothGroundRawMoveSlotState + ".");
+                "; rawMoveSlot=" + nativeMammothGroundRawMoveSlotState +
+                "; enoughClose=" + nativeMammothGroundEnoughCloseAtTerminal +
+                "; agentReallyMoving=" + nativeMammothGroundAgentReallyMovingAtTerminal +
+                "; agentWantsToMove=" + nativeMammothGroundAgentWantsToMoveAtTerminal +
+                "; interruptSource=" + nativeMammothGroundInterruptSource + ".");
             assertions.Check(mammothNativeMoveAfter > mammothNativeMoveBefore &&
                     Math.Abs(riderMoveAfterMammothNativeGroundInput - riderMoveBeforeMammothNativeGroundInput) <= 0.01f,
                 "The Mammoth native turn charged only the Mammoth Move ledger.");
@@ -1954,7 +1971,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var record = new CombatEvidenceRecord
             {
                 SchemaVersion = IsHumanPlayRow
-                    ? (IsTurnBasedRow ? 50 : 48)
+                    ? (IsTurnBasedRow ? 51 : 48)
                     : IsCommandTerminationRow
                     ? IsCombatEndTerminationRow
                         ? (IsTurnBasedRow ? 41 : 40)
@@ -2045,6 +2062,10 @@ namespace KingmakerMountedCombat.Diagnostics
                         nativeMammothGroundCommandFinished,
                         nativeMammothGroundCommandResult,
                         nativeMammothGroundRawMoveSlotState,
+                        nativeMammothGroundInterruptSource,
+                        nativeMammothGroundEnoughCloseAtTerminal,
+                        nativeMammothGroundAgentReallyMovingAtTerminal,
+                        nativeMammothGroundAgentWantsToMoveAtTerminal,
                         mammothNativeGroundDisplacement,
                         mammothNativeGroundRemainingDistance,
                         mammothNativeMoveBefore,
@@ -2399,6 +2420,29 @@ namespace KingmakerMountedCombat.Diagnostics
                 observation.IndexOf("turnUnit=" + actorId, StringComparison.Ordinal) >= 0 &&
                 observation.IndexOf("turnUnitDirectlyControllable=True", StringComparison.Ordinal) >= 0 &&
                 observation.IndexOf("turnCanMove=True", StringComparison.Ordinal) >= 0 &&
+                observation.IndexOf("pointerInGui=False", StringComparison.Ordinal) >= 0;
+        }
+
+        private static bool IsNativeTurnUiCoherentAfterGroundCommand(string observation, UnitEntityData expectedActor)
+        {
+            if (expectedActor == null || string.IsNullOrWhiteSpace(observation))
+            {
+                return false;
+            }
+
+            var actorId = expectedActor.UniqueId;
+            return observation.IndexOf("uiOwnershipObservationError=", StringComparison.Ordinal) < 0 &&
+                observation.IndexOf("actionBarOwner=" + actorId, StringComparison.Ordinal) >= 0 &&
+                observation.IndexOf("actionBarEnabled=True", StringComparison.Ordinal) >= 0 &&
+                observation.IndexOf("actionBarActiveSelf=True", StringComparison.Ordinal) >= 0 &&
+                observation.IndexOf("actionBarActiveInHierarchy=True", StringComparison.Ordinal) >= 0 &&
+                observation.IndexOf("actionBarReactiveActive=True", StringComparison.Ordinal) >= 0 &&
+                observation.IndexOf("actionBarCanUseAbilities=True", StringComparison.Ordinal) >= 0 &&
+                observation.IndexOf("actionBarSectionShown=True", StringComparison.Ordinal) >= 0 &&
+                observation.IndexOf("selectedUnit=" + actorId, StringComparison.Ordinal) >= 0 &&
+                observation.IndexOf("turnUnit=" + actorId, StringComparison.Ordinal) >= 0 &&
+                observation.IndexOf("turnUnitDirectlyControllable=True", StringComparison.Ordinal) >= 0 &&
+                observation.IndexOf("turnCanEndNoActing=True", StringComparison.Ordinal) >= 0 &&
                 observation.IndexOf("pointerInGui=False", StringComparison.Ordinal) >= 0;
         }
 
@@ -3063,6 +3107,10 @@ namespace KingmakerMountedCombat.Diagnostics
             public bool NativeMammothGroundCommandFinished { get; set; }
             public string NativeMammothGroundCommandResult { get; set; }
             public string NativeMammothGroundRawMoveSlotState { get; set; }
+            public string NativeMammothGroundInterruptSource { get; set; }
+            public bool NativeMammothGroundEnoughCloseAtTerminal { get; set; }
+            public bool NativeMammothGroundAgentReallyMovingAtTerminal { get; set; }
+            public bool NativeMammothGroundAgentWantsToMoveAtTerminal { get; set; }
             public float MammothNativeGroundDisplacement { get; set; }
             public float MammothNativeGroundRemainingDistance { get; set; }
             public float MammothNativeMoveBefore { get; set; }
@@ -3117,6 +3165,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 bool nativeMammothGroundCommandFinished,
                 string nativeMammothGroundCommandResult,
                 string nativeMammothGroundRawMoveSlotState,
+                string nativeMammothGroundInterruptSource,
+                bool nativeMammothGroundEnoughCloseAtTerminal,
+                bool nativeMammothGroundAgentReallyMovingAtTerminal,
+                bool nativeMammothGroundAgentWantsToMoveAtTerminal,
                 float mammothNativeGroundDisplacement,
                 float mammothNativeGroundRemainingDistance,
                 float mammothNativeMoveBefore,
@@ -3171,6 +3223,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     NativeMammothGroundCommandFinished = nativeMammothGroundCommandFinished,
                     NativeMammothGroundCommandResult = nativeMammothGroundCommandResult,
                     NativeMammothGroundRawMoveSlotState = nativeMammothGroundRawMoveSlotState,
+                    NativeMammothGroundInterruptSource = nativeMammothGroundInterruptSource,
+                    NativeMammothGroundEnoughCloseAtTerminal = nativeMammothGroundEnoughCloseAtTerminal,
+                    NativeMammothGroundAgentReallyMovingAtTerminal = nativeMammothGroundAgentReallyMovingAtTerminal,
+                    NativeMammothGroundAgentWantsToMoveAtTerminal = nativeMammothGroundAgentWantsToMoveAtTerminal,
                     MammothNativeGroundDisplacement = mammothNativeGroundDisplacement,
                     MammothNativeGroundRemainingDistance = mammothNativeGroundRemainingDistance,
                     MammothNativeMoveBefore = mammothNativeMoveBefore,
