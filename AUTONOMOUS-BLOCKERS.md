@@ -1,5 +1,9 @@
 # Autonomous blockers
 
+## 2026-08-23T14:56:11Z - v52 staging interruption recovered; elevated guarded invocation required
+
+Status: `IN PROGRESS`, not a gameplay or core-architecture blocker. Run `20260823T142435Z-round2-v52-interrupt-source-observation` failed before Kingmaker launch, request creation, or gameplay evidence because its restricted launcher context was denied access during the run-specific Mods directory handoff. Repository-owned guarded recovery and the following independent suite audit passed exact complete save/Mods restoration, immutable Baseline, restored Working, and zero residue. The run remains immutable and uncredited. Schema v52 is unchanged; the fresh observation must use the already authorized elevated KMC runtime-script scope.
+
 ## 2026-08-23T12:52:42Z - physical pointer remains an explicit manual gate; v51 attempt did not reach interrupt observation
 
 Status: `IN PROGRESS`, not a core-architecture or safety blocker. Restored run `20260823T121800Z-round2-v51-interrupt-source-observation` stopped before ground input only because the current physical pointer was over GUI while every native Mammoth turn/action-bar/control field was healthy. Computer Use was unavailable due missing kernel assets. Schema v52 truthfully separates repeatable native handler admission from physical pointer usability (`manual-required`), preserves pointer telemetry and historical v51 semantics, and fixes omitted fields on early FAIL rows. A fresh clean-package observation remains required before any terminal-movement repair.

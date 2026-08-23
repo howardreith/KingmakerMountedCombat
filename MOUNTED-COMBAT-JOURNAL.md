@@ -1,5 +1,12 @@
 # Mounted Combat journal
 
+## 2026-08-23T14:56:11Z - v52 live attempt stopped at restricted Mods handoff and was exactly recovered
+
+- Clean published v52 input/package/suite are `4581d60bdb804aa361ee0898627f1f1311284cad` / `1151e02efbbca07cd2daf8f03ee2e0d1d821fc43a7f2a8ba823e9d18ba51825d` / `65f4af9f09be278e977c3ede67355728b5a006e1b691a40788de6adf148d6e98`. Separate RT/TB WhatIf and immediate independent audits passed.
+- `20260823T142435Z-round2-v52-interrupt-source-observation` is immutable uncredited staging evidence. The restricted launcher copied the admitted Mods tree and package into run-specific staging, then access was denied while handing off `Mods-ready`/`Mods-original`. Kingmaker never launched; no request, orchestration, monitor, log, combat, or game-result artifact exists.
+- The user completed repository-owned guarded recovery. Run/Mods/save transaction ledgers are `restored`; the independent audit proves snapshot/save/Mods SHA-256 `65f4af9f09be278e977c3ede67355728b5a006e1b691a40788de6adf148d6e98` / `ee70e270a366029de4259c47f924d8e45ace4b8562e837f543f8400473b51b50` / `c55acede4b945ae888d1a2c347d894449a3b1ec21d6f49e5003bec7263306e03`, exact fixture pins, and zero residue.
+- No production behavior, timeout, evidence predicate, or schema-v52 contract is changed because none was exercised. The narrow operational correction is to run the next guarded launcher under the authorized elevated KMC scope, after a fresh clean-HEAD package/suite and separate WhatIf audits.
+
 ## 2026-08-23T12:52:42Z - v51 run isolates incidental pointer position and failed-row schema defect
 
 - Published v51 commit/package/suite `7351efc6e5192157b23a6e4498ea21bbe3f9e4f5` / `dd479009175eadc0b4e552d819af6d83238278f80e63e4f4f344a62d0d182483` / `5880b2dd1be4b0fef9b508bfdd98b6d5abb94bbb580941e6477040b3d7439cf5` passed separate RT/TB WhatIf and audits.

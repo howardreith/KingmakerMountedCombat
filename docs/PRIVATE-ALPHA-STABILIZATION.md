@@ -1,5 +1,11 @@
 # Private-alpha stabilization
 
+## Round 2 v52 recovered transaction-staging interruption - 2026-08-23T14:56:11Z
+
+Run `20260823T142435Z-round2-v52-interrupt-source-observation` is preserved as immutable uncredited evidence. It did not exercise schema-v52 gameplay behavior: no Kingmaker process, request, orchestration, monitor, game log, combat result, or game result was created. Its restricted launcher context was denied access during the run-specific live Mods directory handoff. The repository-owned guarded recovery subsequently restored the exact admitted external state, and an independent audit passed the complete suite snapshot, save inventory, Mods inventory, Baseline, Working, and zero-residue assertions.
+
+No gameplay repair is attributable to this interruption. Schema v52, its physical-pointer `manual-required` boundary, and all native command predicates remain unchanged. A fresh clean-HEAD package and suite must be used, and the next live observation must invoke the repository-owned launcher under the explicitly authorized elevated KMC scope.
+
 ## Round 2 v52 evidence-boundary correction - 2026-08-23T12:52:42Z
 
 Run `20260823T121800Z-round2-v51-interrupt-source-observation` remains an immutable uncredited failure with exact external restoration. It proved a healthy selected/directly-controllable Mammoth native turn and visible/enabled/reactive action bar, but the current physical cursor was over GUI and the row stopped before ground input. This does not prove the human TB defect fixed or broken, and it provides no terminal interrupt source.
