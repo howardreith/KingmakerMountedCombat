@@ -1,5 +1,11 @@
 # Autonomous blockers
 
+## 2026-08-23T19:12:44Z - exact TB clearance endpoint defect repaired offline; fresh runtime qualification pending
+
+- Status: `IN PROGRESS`, not a safety or architecture block. Restored observation `20260823T183800Z-round2-v52-terminal-geometry-observation` remains immutable uncredited `FAIL 41/1`.
+- Exact evidence proves the two-point TB clearance path ended at the visible Mammoth position while the raw click remained `0.5389647` away, above stock radius `0.3` but below Mammoth corpulence `1.060606`. Stock `CompleteMovement` therefore interrupted a reached valid path endpoint.
+- The repair is limited to the exact mounted Mammoth player-created Move slot, authorized pair turn, reached native endpoint, and corpulence-bounded clearance. It does not convert arbitrary interrupts, broaden timeouts, modify turn/resource state, accept an unreached path, or change non-mounted movement. Complete source/component/visual/harness/assembly gates pass `21/238/17/226/296`, PowerShell/JSON parsers pass `27/0` / `7/0`, and diff/prohibited-payload checks pass. Clean publication and fresh runtime evidence remain required.
+
 ## 2026-08-23T17:00:53Z - exact native completion source proven; target/path geometry observation pending
 
 - Status: `IN PROGRESS`, not a safety or architecture block. Run `20260823T162726Z-round2-v52-recovered-interrupt-source-observation` is immutable uncredited `FAIL 41/1`; its immediate independent suite/save/Mods/Baseline/Working/zero-residue audit passed before evidence inspection.

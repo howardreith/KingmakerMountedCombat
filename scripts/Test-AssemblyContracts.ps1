@@ -66,7 +66,7 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.Controllers.Units.UnitMoveController',0x06009183,'Tick'),@('Kingmaker.View.UnitEntityView',0x0600184D,'MoveTo'),
         @('Kingmaker.View.UnitEntityView',0x06001848,'ForcePlaceAboveGround'),
         @('Kingmaker.View.UnitEntityView',0x06001851,'StopMoving'),
-        @('Kingmaker.View.UnitMovementAgent',0x060018BE,'get_WantsToMove'),@('Kingmaker.View.UnitMovementAgent',0x060018C0,'get_IsReallyMoving'),
+        @('Kingmaker.View.UnitMovementAgent',0x060018B0,'CompleteMovement'),@('Kingmaker.View.UnitMovementAgent',0x060018BE,'get_WantsToMove'),@('Kingmaker.View.UnitMovementAgent',0x060018C0,'get_IsReallyMoving'),
         @('Kingmaker.View.UnitMovementAgent',0x060018C2,'Stop'),@('Kingmaker.View.UnitMovementAgentBase',0x060018E2,'get_Velocity'),
         @('Kingmaker.View.UnitMovementAgentBase',0x060018E6,'get_Speed'),@('Kingmaker.EntitySystem.Entities.UnitEntityData',0x06008345,'Translocate'),
         @('Kingmaker.Controllers.Clicks.Handlers.ClickGroundHandler',0x060093DA,'MoveSelectedUnitsToPoint'),

@@ -1,5 +1,11 @@
 # Phase 2 runtime scenario matrix
 
+## Round-2 TB path-end repair pending fresh qualification - 2026-08-23T19:12:44Z
+
+Restored schema-v52 observation `20260823T183800Z-round2-v52-terminal-geometry-observation` is immutable uncredited `FAIL 41/1`. It proves ordinary native Mammoth-turn input, visible `0.9619302` movement, Mammoth-only Move cost, exact selection/action-bar/turn ownership, and a reached two-point native path endpoint. The sole failure is stock command terminal: the clearance-clamped endpoint remains `0.5389647` from the raw click, outside stock radius `0.3` but within Mammoth corpulence `1.060606`, so installed `UnitMovementAgent.CompleteMovement` interrupts.
+
+The forward repair preserves schema-v52 thresholds and requires the same native command to finish `Success`, raw Move-slot cleanup, `<not-interrupted>`, terminal proximity through the exact-command bridge, stopped agent, visible displacement, exact Mammoth Move cost, and unchanged rider Move. The bridge itself is accepted only for an exact player-created stock Mammoth Move slot, authorized pair turn, reached native endpoint, and corpulence-bounded remainder. Fresh clean-package RT/TB A/B and `mounted-distance-door-interaction` remain mandatory; this failed observation receives no credit.
+
 ## Round-2 human-input qualification pending fresh runtime evidence - 2026-08-23
 
 Status: `IN PROGRESS`. Human regression rejects the earlier `434/0` as proof of ordinary controls. Forward-only RT schema v48 still enters the exact overlay-arm plus native unit-click seam and now binds explicit activation/admission telemetry. Forward-only TB schema v49 first starts the independent native Mammoth turn, requires the actual action-bar object and reactive controls to be active/interactable for the exact selected/controllable turn actor, sends ordinary `ClickGroundHandler` input, proves a native Mammoth Move command and Mammoth-only Move cost, then separately proves rider-turn Mammoth-routed movement and player-click rider melee. Internal owner fields alone receive no usability credit.

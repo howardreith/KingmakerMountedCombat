@@ -52,11 +52,13 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(UnitEntityView), "ForcePlaceAboveGround", 0x06001848, Type.EmptyTypes, nameof(PatchMethods.ForcePlaceAboveGroundPrefix));
                 PatchExact(typeof(ClickUnitHandler), "OnClick", 0x060093ED, new[] { typeof(UnityEngine.GameObject), typeof(UnityEngine.Vector3), typeof(int), typeof(bool), typeof(bool) }, nameof(PatchMethods.UnitClickPrefix));
                 PatchExact(typeof(UnitMovementAgent), "CanMoveInTurnBased", 0x060018A9, new[] { typeof(float).MakeByRefType() }, nameof(PatchMethods.MountMovementPrefix));
+                PatchExact(typeof(UnitMovementAgent), "CompleteMovement", 0x060018B0, Type.EmptyTypes, nameof(PatchMethods.CompleteMovementPrefix));
+                PatchExact(typeof(UnitCommand), "get_IsUnitEnoughClose", 0x06002784, Type.EmptyTypes, null, nameof(PatchMethods.IsUnitEnoughClosePostfix));
                 PatchExact(typeof(UnitAttack), "GetApproachRadius", 0x06002685, new[] { typeof(UnitEntityData) }, null, nameof(PatchMethods.AttackRangePostfix));
                 PatchExact(typeof(UnitCombatState), "AttackOfOpportunity", 0x060093A1, new[] { typeof(UnitEntityData), typeof(bool) }, nameof(PatchMethods.AttackOfOpportunityPrefix));
                 PatchExact(typeof(UnitCombatCooldownsController), "TickOnUnit", 0x0600934A, new[] { typeof(UnitEntityData) }, nameof(PatchMethods.CombatCooldownPrefix), nameof(PatchMethods.CombatCooldownPostfix));
                 PatchExact(typeof(UnitCommand), "Interrupt", 0x060027AC, new[] { typeof(bool) }, nameof(PatchMethods.CommandInterruptPrefix));
-                logger.Info("Installed fourteen exact-token Harmony12 active-pair guards plus two observation-only native probes.");
+                logger.Info("Installed eighteen exact-token Harmony12 active-pair guards and bounded probes.");
             }
             catch
             {
@@ -212,6 +214,21 @@ namespace KingmakerMountedCombat.Integration
                     return false;
                 }
                 return true;
+            }
+
+            internal static bool CompleteMovementPrefix(UnitMovementAgent __instance)
+            {
+                return PatchBridge.Combat == null ||
+                    !PatchBridge.Combat.TryCompleteNativeMountTurnMoveAtReachedPathEnd(__instance);
+            }
+
+            internal static void IsUnitEnoughClosePostfix(UnitCommand __instance, ref bool __result)
+            {
+                if (!__result && PatchBridge.Combat != null &&
+                    PatchBridge.Combat.ShouldTreatNativeMountTurnMoveAsEnoughClose(__instance))
+                {
+                    __result = true;
+                }
             }
 
             internal static void AttackRangePostfix(

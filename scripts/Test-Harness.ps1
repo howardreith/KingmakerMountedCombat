@@ -8613,6 +8613,13 @@ try {
             $combatSource.Contains('mechanicsToTarget=') -and
             $combatSource.Contains('targetToPathEnd=') -and
             $combatSource.Contains('turnUnitExact=') -and
+            $patchSource.Contains('PatchExact(typeof(UnitMovementAgent), "CompleteMovement", 0x060018B0, Type.EmptyTypes, nameof(PatchMethods.CompleteMovementPrefix));') -and
+            $patchSource.Contains('PatchExact(typeof(UnitCommand), "get_IsUnitEnoughClose", 0x06002784, Type.EmptyTypes, null, nameof(PatchMethods.IsUnitEnoughClosePostfix));') -and
+            $patchSource.Contains('TryCompleteNativeMountTurnMoveAtReachedPathEnd(__instance)') -and
+            $patchSource.Contains('ShouldTreatNativeMountTurnMoveAsEnoughClose(__instance)') -and
+            $combatSource.Contains('MountedTurnGroundCompletionPolicy.CanBridgeReachedPathEnd(') -and
+            $combatSource.Contains('command.GetType() == typeof(UnitMoveTo)') -and
+            $combatSource.Contains('agent.Stop();') -and
             $combatEngineSource.Contains('combat.BeginNativeMountTurnMoveObservation(nativeMammothGroundCommand);') -and
             $combatEngineSource.Contains('nativeMammothGroundInterruptSource = combat.LastNativeMountTurnMoveInterruptSource;')) `
             'native Mammoth terminal diagnosis mutates or observes commands beyond the one exact armed stock move'

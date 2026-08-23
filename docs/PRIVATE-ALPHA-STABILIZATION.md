@@ -1,5 +1,13 @@
 # Private-alpha stabilization
 
+## Round 2 exact TB path-end completion repair - 2026-08-23T19:12:44Z
+
+Fresh guarded observation `20260823T183800Z-round2-v52-terminal-geometry-observation` is immutable uncredited `FAIL 41/1`, with exact audit-before-read restoration. It proves the Mammoth reached its exact two-point TB navmesh path endpoint after moving `0.9619302`, but the endpoint remained `0.5389647` from the raw click. The stock command and agent used radius `0.3`; the Mammoth's measured corpulence was `1.060606`. Exact stock `CompleteMovement` therefore interrupted a valid clearance-clamped path solely because it rechecked the unreachable raw click against `0.3`.
+
+The repair does not synthesize movement or convert arbitrary interruption to success. It intercepts only exact installed `UnitMovementAgent.CompleteMovement` for the active mounted pair's reference-exact player-created stock Mammoth Move slot during an authorized native Mammoth turn or exact rider-turn delegation. The native path must contain at least two points, the visible agent must have reached its final point within `0.01`, and the raw click must remain outside stock radius but within Mammoth corpulence plus `0.01`. KMC calls the stock agent `Stop`; a paired exact-command proximity postfix then permits the same stock `UnitMoveTo` to run its normal `Start`/`OnAction` success path. The lease is reference-, frame-, relationship-, and cleanup-bounded.
+
+Non-mounted movement, another unit, wrong turns, replacement/queued/custom moves, unreached or missing paths, already-stock-close commands, and targets beyond the body-radius cap retain exact stock behavior. Complete gates pass source/component/visual/harness/assembly `21/238/17/226/296` plus Release, PowerShell/JSON parsers `27/0` / `7/0`, diff, and prohibited payload. Fresh clean-package runtime evidence remains mandatory; no human-readiness claim is made from the repair alone.
+
 ## Round 2 exact Mammoth native completion boundary - 2026-08-23T17:00:53Z
 
 Fresh schema-v52 run `20260823T162726Z-round2-v52-recovered-interrupt-source-observation` is immutable uncredited `FAIL 41/1`; its independent external-state audit passed before gameplay evidence was read. The selected, directly controllable Mammoth received one ordinary player-created native ground command, moved visibly `0.9619302`, charged only Mammoth Move, and retained coherent native turn/action-bar state. The exact command ended `Interrupt` through `UnitMovementAgent.TickMovement -> CompleteMovement -> InterruptMovement -> UnitEntityView.OnMovementInterrupted -> UnitCommand.Interrupt`, with no KMC Stop/Hold caller.

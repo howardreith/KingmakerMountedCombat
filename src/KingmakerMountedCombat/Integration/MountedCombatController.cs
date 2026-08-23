@@ -36,6 +36,8 @@ namespace KingmakerMountedCombat.Integration
         private MountedDoorInteractionCommand activeDoorInteraction;
         private UnitMoveTo activeRiderTurnGroundMove;
         private UnitMoveTo observedNativeMountTurnMove;
+        private UnitMoveTo projectedNativeMountTurnGroundMove;
+        private int projectedNativeMountTurnGroundMoveFrame = -1;
         private bool riderTurnGroundMoveAdmissionPending;
         private int activeGroundMoveDriveCount;
         private float groundMoveRiderMoveBefore;
@@ -106,6 +108,10 @@ namespace KingmakerMountedCombat.Integration
             if (!ReferenceEquals(command, observedNativeMountTurnMove) ||
                 !string.Equals(LastNativeMountTurnMoveInterruptSource, "<not-interrupted>", StringComparison.Ordinal))
             {
+                if (ReferenceEquals(command, projectedNativeMountTurnGroundMove))
+                {
+                    ClearProjectedNativeMountTurnGroundMove();
+                }
                 return;
             }
 
@@ -121,6 +127,91 @@ namespace KingmakerMountedCombat.Integration
                 }).ToArray());
             LastNativeMountTurnMoveInterruptSource = source +
                 "; terminalState=" + DescribeNativeMountTurnMoveInterruptState(command as UnitMoveTo);
+            if (ReferenceEquals(command, projectedNativeMountTurnGroundMove))
+            {
+                ClearProjectedNativeMountTurnGroundMove();
+            }
+        }
+
+        internal bool TryCompleteNativeMountTurnMoveAtReachedPathEnd(UnitMovementAgent agent)
+        {
+            var mount = relationship.Mount;
+            var rider = relationship.Rider;
+            var command = mount?.Commands?.GetCommand(UnitCommand.CommandType.Move) as UnitMoveTo;
+            var turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
+            var turnIsOpen = turn != null &&
+                (turn.Status == TurnController.TurnStatus.Preparing || turn.IsActing);
+            var independentMountTurn = turnIsOpen && turn.Unit == mount &&
+                activeCommand == null && activeDoorInteraction == null && activeRiderTurnGroundMove == null;
+            var delegatedRiderTurn = turnIsOpen && turn.Unit == rider &&
+                ReferenceEquals(command, activeRiderTurnGroundMove);
+            var pathPoints = agent?.Path?.vectorPath;
+            var pathHasAtLeastTwoPoints = pathPoints != null && pathPoints.Count >= 2;
+            var pathEnd = pathHasAtLeastTwoPoints
+                ? pathPoints[pathPoints.Count - 1]
+                : Vector3.zero;
+            var viewPosition = agent == null ? Vector3.zero : agent.transform.position;
+            var pathEndpointDistance = pathHasAtLeastTwoPoints
+                ? HorizontalDistance(viewPosition, pathEnd)
+                : float.PositiveInfinity;
+            var mechanicsDistanceToTarget = command == null
+                ? float.PositiveInfinity
+                : Kingmaker.Utility.GeometryUtils.MechanicsDistance(viewPosition, command.Target);
+            var exactPlayerCreatedMountMove = command != null &&
+                command.GetType() == typeof(UnitMoveTo) && command.CreatedByPlayer &&
+                command.Executor == mount && !command.IsFinished &&
+                mount != null && !mount.Commands.Queue.Contains(command);
+            var exactMoveSlot = command != null &&
+                ReferenceEquals(mount?.Commands?.GetCommand(UnitCommand.CommandType.Move), command);
+            var movementAgentActive = agent != null && agent.Unit?.EntityData == mount &&
+                agent.IsReallyMoving && agent.WantsToMove;
+
+            if (!MountedTurnGroundCompletionPolicy.CanBridgeReachedPathEnd(
+                    relationship.State == RelationshipState.Mounted,
+                    CombatController.IsInTurnBasedCombat(),
+                    independentMountTurn || delegatedRiderTurn,
+                    exactPlayerCreatedMountMove,
+                    exactMoveSlot,
+                    pathHasAtLeastTwoPoints,
+                    movementAgentActive,
+                    pathEndpointDistance,
+                    command == null ? float.PositiveInfinity : command.ApproachRadius,
+                    mechanicsDistanceToTarget,
+                    mount?.View == null ? float.PositiveInfinity : mount.View.Corpulence))
+            {
+                return false;
+            }
+
+            projectedNativeMountTurnGroundMove = command;
+            projectedNativeMountTurnGroundMoveFrame = Time.frameCount;
+            agent.Stop();
+            logger.Info("Accepted exact mounted Mammoth TB path endpoint: commandTargetDistance=" +
+                mechanicsDistanceToTarget.ToString("R", CultureInfo.InvariantCulture) +
+                "; pathEndpointDistance=" + pathEndpointDistance.ToString("R", CultureInfo.InvariantCulture) +
+                "; stockApproachRadius=" + command.ApproachRadius.ToString("R", CultureInfo.InvariantCulture) +
+                "; mountCorpulence=" + mount.View.Corpulence.ToString("R", CultureInfo.InvariantCulture) +
+                "; independentMountTurn=" + independentMountTurn +
+                "; delegatedRiderTurn=" + delegatedRiderTurn + ".");
+            return true;
+        }
+
+        internal bool ShouldTreatNativeMountTurnMoveAsEnoughClose(UnitCommand command)
+        {
+            if (!ReferenceEquals(command, projectedNativeMountTurnGroundMove))
+            {
+                return false;
+            }
+
+            if (disposed || relationship.State != RelationshipState.Mounted ||
+                command == null || command.Executor != relationship.Mount)
+            {
+                ClearProjectedNativeMountTurnGroundMove();
+                return false;
+            }
+
+            return !command.IsFinished ||
+                command.Result == UnitCommand.ResultType.Success &&
+                Time.frameCount <= projectedNativeMountTurnGroundMoveFrame + 2;
         }
 
         private string DescribeNativeMountTurnMoveInterruptState(UnitMoveTo command)
@@ -185,6 +276,10 @@ namespace KingmakerMountedCombat.Integration
             if (ReferenceEquals(command, observedNativeMountTurnMove))
             {
                 observedNativeMountTurnMove = null;
+            }
+            if (ReferenceEquals(command, projectedNativeMountTurnGroundMove))
+            {
+                ClearProjectedNativeMountTurnGroundMove();
             }
         }
 
@@ -365,6 +460,12 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
             SweepFinishedCommand();
+            if (projectedNativeMountTurnGroundMove != null &&
+                projectedNativeMountTurnGroundMove.IsFinished &&
+                Time.frameCount > projectedNativeMountTurnGroundMoveFrame + 2)
+            {
+                ClearProjectedNativeMountTurnGroundMove();
+            }
             if (activeDoorInteraction != null && activeDoorInteraction.IsFinished)
             {
                 activeDoorInteraction = null;
@@ -378,6 +479,7 @@ namespace KingmakerMountedCombat.Integration
             if (relationship.State != RelationshipState.Mounted)
             {
                 ArmedAction = MountedCombatActionKind.None;
+                ClearProjectedNativeMountTurnGroundMove();
             }
             else if (!IsPairInCombat() && (ArmedAction != MountedCombatActionKind.None || HasActiveCommand))
             {
@@ -394,6 +496,7 @@ namespace KingmakerMountedCombat.Integration
             var endingExplicitMountAction = ArmedAction == MountedCombatActionKind.MountPrimaryNatural ||
                 activeCommand?.Action == MountedCombatActionKind.MountPrimaryNatural;
             ArmedAction = MountedCombatActionKind.None;
+            ClearProjectedNativeMountTurnGroundMove();
             overlayWorldInputGuard.Clear();
             var command = activeCommand;
             activeCommand = null;
@@ -974,6 +1077,12 @@ namespace KingmakerMountedCombat.Integration
             {
                 command.Interrupt(false);
             }
+        }
+
+        private void ClearProjectedNativeMountTurnGroundMove()
+        {
+            projectedNativeMountTurnGroundMove = null;
+            projectedNativeMountTurnGroundMoveFrame = -1;
         }
 
         private void ThrowIfDisposed()

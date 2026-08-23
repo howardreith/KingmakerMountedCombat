@@ -1,5 +1,13 @@
 # Mounted Combat journal
 
+## 2026-08-23T19:12:44Z - exact TB clearance endpoint identified and pair-local completion bridge implemented
+
+- Published observation input/package/suite are `08b3701c9b50d663e27560097e29f337e1fa13c6` / `48840ae229c9969b731cd68433d4ba63d25eec50c325fe8262a4594775697fd4` / `c7e8f81c9ceb52dcf1c84f0c4f42be14dec16170b056ce44c628dc675c9e6a23`. Separate RT/TB WhatIf gates and immediate audits passed before live use.
+- Restored live run `20260823T183800Z-round2-v52-terminal-geometry-observation` remains immutable uncredited `FAIL 41/1`. It reproduced identical `0.9619302` Mammoth displacement and isolated the endpoint geometry: stock command/agent radius `0.3`, two-point path, raw-click/path-end gap `0.5389647`, and Mammoth corpulence `1.060606`.
+- The agent reached the exact native path endpoint; the failure is not pointer, UI, selection, turn ownership, KMC stop/hold, path progress, or external restoration. Exact installed `CompleteMovement` compared the endpoint position to the raw click and called `InterruptMovement` solely because `0.5389647 > 0.3`.
+- The production bridge is exact and bounded: only the active pair's exact player-created stock Mammoth Move slot, only in TB during the independent Mammoth turn or exact delegated rider-turn lease, only with a reached two-point-or-longer native path, and only within Mammoth corpulence plus `0.01`. KMC stops the exact agent at the reached endpoint and temporarily reports exact-command proximity so the same native `UnitMoveTo` executes its unchanged success path. All other commands retain stock completion.
+- Deterministic policy mutations reject unmounted/wrong-turn/non-player/non-slot commands, an unreached endpoint, an already-stock-close command, and corpulence escape. Complete gates pass component `238/0`, visual `17/0`, harness `226/0`, assemblies `296/0`, source `21/0`, Release build, PowerShell parser `27/0`, JSON parser `7/0`, diff, and prohibited payload. Dirty-build DLL SHA-256/MVID `0478aaef52cfc07e57909b10bb6b981dcf12ca85e79040a8f725e4da0474e1b0` / `85bc4b23-36b7-4b22-817a-7689f133e2cb` are local build evidence only; clean-HEAD package binding remains required.
+
 ## 2026-08-23T17:00:53Z - v52 identifies exact native movement-completion interrupt chain
 
 - Clean published `e168dfa72c75f9524f0639addc34528e89d115f6` produced package/manifest/DLL SHA-256 `badbfb5aa3a80b0ebfe8389e72605df19afac2e9f22a160a519357483e949a12` / `77ace77c813ed7e6f56d1d3bc89bb745bd1743a1fcde8865f99cf9e77eb5db27` / `25fb5cfcc165a41a163bb2ae98c46650bc39b6c34f173a2daa94fb7be40d1791`, MVID `285f0521-d6bb-489e-b03a-b2f12fc3a775`. Fresh suite `20260823T150312Z-round2-v52-recovered-suite1` and separate elevated RT/TB WhatIf/audits passed exact external-state purity.

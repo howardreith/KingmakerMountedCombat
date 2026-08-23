@@ -1,5 +1,11 @@
 # Combat action economy contract
 
+## Stabilization Round 2 TB ground endpoint contract - 2026-08-23T19:12:44Z
+
+Exact installed TB pathing can clamp a large unit's final path point short of the raw player click even when the path is valid. Observation `20260823T183800Z-round2-v52-terminal-geometry-observation` proves the exact mounted Mammoth reached its two-point path endpoint while the click remained `0.5389647` away; stock command/agent approach radius was `0.3` and Mammoth corpulence was `1.060606`. `UnitMovementAgent.CompleteMovement` `0x060018B0` consequently called the stock interruption chain despite completed visible movement.
+
+The stabilization bridge applies only to the exact player-created stock Mammoth Move-slot command for the active pair during either the independent native Mammoth turn or the exact rider-turn delegation lease. A path with at least two points must be complete, the agent must be within `0.01` of its native endpoint, and the raw target distance must be greater than the stock radius but no greater than Mammoth corpulence plus `0.01`. The agent is stopped through stock `Stop`; `UnitCommand.get_IsUnitEnoughClose` `0x06002784` is overridden only for that reference-exact leased command so its unchanged native start/action/result path completes. The bridge writes no cooldown, turn, selection, path, target, Standard, or Move ledger and expires on command terminal, replacement, interruption, cleanup, or a two-frame post-success observation bound.
+
 ## Round-2 native-control correction - 2026-08-23
 
 Human evidence proved that the earlier internal TB ownership record did not establish commandability. During the exact native Mammoth turn KMC now preserves Mammoth selection instead of projecting it to the rider, leaves the independent native turn and ledger intact, and admits ordinary Mammoth ground input without the rider-turn adapter. Schema v49 requires the selected native actor, active/interactable action bar, direct controllability, move eligibility, ordinary click admission, one native Mammoth Move command, Mammoth-only Move cost, and retained selection. The later rider turn remains separately rider-owned: ground input routes through the Mammoth while charging rider Move, and Rider melee charges only rider Standard. No shared ledger, synthetic turn, or duplicate action is introduced.

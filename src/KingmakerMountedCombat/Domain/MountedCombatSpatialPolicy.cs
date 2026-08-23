@@ -394,4 +394,49 @@ namespace KingmakerMountedCombat.Domain
                 movingAgentIsExactMount;
         }
     }
+
+    public static class MountedTurnGroundCompletionPolicy
+    {
+        public const float PathEndpointTolerance = 0.01f;
+        public const float CompletionRadiusTolerance = 0.01f;
+
+        public static bool CanBridgeReachedPathEnd(
+            bool exactMountedPair,
+            bool turnBasedCombat,
+            bool authorizedPairTurn,
+            bool exactPlayerCreatedMountMove,
+            bool exactMoveSlot,
+            bool pathHasAtLeastTwoPoints,
+            bool movementAgentActive,
+            float pathEndpointDistance,
+            float commandApproachRadius,
+            float mechanicsDistanceToTarget,
+            float mountCorpulence)
+        {
+            if (!exactMountedPair || !turnBasedCombat || !authorizedPairTurn ||
+                !exactPlayerCreatedMountMove || !exactMoveSlot || !pathHasAtLeastTwoPoints ||
+                !movementAgentActive || !IsFiniteNonNegative(pathEndpointDistance) ||
+                !IsFiniteNonNegative(commandApproachRadius) ||
+                !IsFiniteNonNegative(mechanicsDistanceToTarget) ||
+                !IsFiniteNonNegative(mountCorpulence))
+            {
+                return false;
+            }
+
+            if (pathEndpointDistance > PathEndpointTolerance ||
+                mechanicsDistanceToTarget <= commandApproachRadius)
+            {
+                return false;
+            }
+
+            var maximumCompletionRadius = Math.Max(commandApproachRadius, mountCorpulence) +
+                CompletionRadiusTolerance;
+            return mechanicsDistanceToTarget <= maximumCompletionRadius;
+        }
+
+        private static bool IsFiniteNonNegative(float value)
+        {
+            return !float.IsNaN(value) && !float.IsInfinity(value) && value >= 0f;
+        }
+    }
 }

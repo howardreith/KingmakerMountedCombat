@@ -35,6 +35,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("mounted pair admits ground movement only through the rider turn", AdmitsGroundMovementOnlyThroughRiderTurn);
             runner.Run("mounted pair admits rider action in exact native command window", AdmitsExactRiderActionWindow);
             runner.Run("mounted pair delegates movement only through the exact rider turn", DelegatesOnlyExactMovement);
+            runner.Run("mounted Mammoth TB path endpoint bridge is exact and corpulence bounded", BridgesOnlyExactReachedMountPathEnd);
             runner.Run("native single attack prefers an eligible primary hand", NativeSingleAttackPrefersPrimary);
             runner.Run("native single attack falls back through secondary then additional limbs", NativeSingleAttackFallbackOrder);
             runner.Run("native single attack skips hand slots when hands are disabled", NativeSingleAttackSkipsDisabledHands);
@@ -520,6 +521,42 @@ namespace KingmakerMountedCombat.Tests
                     !MountedPairTurnPolicy.CanDriveRiderGroundMovement(true, true, true, false, false, true) &&
                     !MountedPairTurnPolicy.CanDriveRiderGroundMovement(true, true, true, true, true, false),
                 "Ground movement admitted another actor, a non-action turn, or a non-Mammoth mover.");
+        }
+
+        private static void BridgesOnlyExactReachedMountPathEnd()
+        {
+            TestRunner.True(
+                MountedTurnGroundCompletionPolicy.CanBridgeReachedPathEnd(
+                    true, true, true, true, true, true, true,
+                    0.0f, 0.3f, 0.5389647f, 1.060606f),
+                "The exact observed reached Mammoth path endpoint was rejected.");
+
+            TestRunner.True(
+                !MountedTurnGroundCompletionPolicy.CanBridgeReachedPathEnd(
+                    false, true, true, true, true, true, true,
+                    0.0f, 0.3f, 0.5389647f, 1.060606f) &&
+                !MountedTurnGroundCompletionPolicy.CanBridgeReachedPathEnd(
+                    true, true, false, true, true, true, true,
+                    0.0f, 0.3f, 0.5389647f, 1.060606f) &&
+                !MountedTurnGroundCompletionPolicy.CanBridgeReachedPathEnd(
+                    true, true, true, false, true, true, true,
+                    0.0f, 0.3f, 0.5389647f, 1.060606f) &&
+                !MountedTurnGroundCompletionPolicy.CanBridgeReachedPathEnd(
+                    true, true, true, true, false, true, true,
+                    0.0f, 0.3f, 0.5389647f, 1.060606f),
+                "The bridge admitted an unmounted, wrong-turn, non-player, or non-slot command.");
+
+            TestRunner.True(
+                !MountedTurnGroundCompletionPolicy.CanBridgeReachedPathEnd(
+                    true, true, true, true, true, true, true,
+                    0.02f, 0.3f, 0.5389647f, 1.060606f) &&
+                !MountedTurnGroundCompletionPolicy.CanBridgeReachedPathEnd(
+                    true, true, true, true, true, true, true,
+                    0.0f, 0.3f, 1.080607f, 1.060606f) &&
+                !MountedTurnGroundCompletionPolicy.CanBridgeReachedPathEnd(
+                    true, true, true, true, true, true, true,
+                    0.0f, 0.3f, 0.29f, 1.060606f),
+                "The bridge admitted an unreached endpoint, body-radius escape, or already-stock-close command.");
         }
 
         private static void AdmitsExactRiderActionWindow()
