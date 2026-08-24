@@ -6304,7 +6304,8 @@ function Assert-KmcMovementTelemetryRecord {
         'riderSelected','mountSelected','selectedUnitIds','riderCommandCount','mountCommandCount',
         'riderActiveCommandTypes','mountActiveCommandTypes','mountIsReallyMoving','mountVelocity','mountSpeed','mountMoveDirection',
         'mountPathId','mountPathFailed','mountRepathNeeded','mountPathError','mountPathErrorLog','mountPathPointCount','mountPathLength',
-        'astarPathPresent','astarGraphUpdatesQueued',
+        'astarPathPresent','astarGraphUpdatesQueued','unityFrameCount','tileHandlerLastUpdateFrame',
+        'unityFrameStrictlyAfterTileHandlerLastUpdate',
         'synchronizationPhase','synchronizationSampleCount','synchronizationCorrectionCount',
         'initialConfigurationSynchronizationSampleCount','initialConfigurationSynchronizationCorrectionCount',
         'updateSynchronizationSampleCount','updateSynchronizationCorrectionCount','lateUpdateSynchronizationSampleCount',
@@ -6358,6 +6359,17 @@ function Assert-KmcMovementTelemetryRecord {
     }
     if ($Record.astarPathPresent -ne $true) { throw 'Movement telemetry must prove that the exact AstarPath singleton is present.' }
     if ($Record.astarGraphUpdatesQueued -isnot [bool]) { throw 'Movement telemetry astarGraphUpdatesQueued must be a JSON boolean.' }
+    if (-not (Test-KmcExactJsonInteger $Record.unityFrameCount) -or [long]$Record.unityFrameCount -lt 0) {
+        throw 'Movement telemetry unityFrameCount must be a nonnegative exact JSON integer.'
+    }
+    if (-not (Test-KmcExactJsonInteger $Record.tileHandlerLastUpdateFrame)) {
+        throw 'Movement telemetry tileHandlerLastUpdateFrame must be an exact JSON integer.'
+    }
+    if ($Record.unityFrameStrictlyAfterTileHandlerLastUpdate -isnot [bool] -or
+        $Record.unityFrameStrictlyAfterTileHandlerLastUpdate -ne
+            ([long]$Record.unityFrameCount -gt [long]$Record.tileHandlerLastUpdateFrame)) {
+        throw 'Movement telemetry Unity/TileHandler frame relation is incoherent.'
+    }
     foreach ($name in @('latestPreviousAuthoritativeSameFrame','latestPreviousAuthoritativeReferenceEligible','latestPhaseLagObserved',
         'latestPhaseLagPermitted','latestPhaseLagViolation','latestRecoveryRequiredBeforeSample','latestRecoveryUpdateObserved',
         'latestRecoverySatisfied','latestRecoveryViolation','latestRecoveryPendingAfterSample','latestStationaryAuthority',
@@ -6693,7 +6705,7 @@ function Assert-KmcMovementScenarioRecord {
         [Parameter(Mandatory = $true)]$Manifest
     )
     $common = @('schemaVersion','runId','scenario','row','branch','commit','productVersion','dllSha256','dllMvid','sequence','utcTimestamp','kind')
-    if ($Record.kind -isnot [string] -or [string]$Record.kind -cnotin @('path-probe','door-traversal-readiness','movement-row-result')) { throw 'Movement scenario evidence kind is invalid.' }
+    if ($Record.kind -isnot [string] -or [string]$Record.kind -cnotin @('path-probe','door-traversal-readiness','navigation-path-replacement','movement-row-result')) { throw 'Movement scenario evidence kind is invalid.' }
     if ([string]$Record.kind -ceq 'path-probe') {
         Assert-KmcExactProperties $Record ($common + @('requested','endpoint','pathLength','accepted','strictDoor')) 'movement path-probe record'
     }
@@ -6701,8 +6713,17 @@ function Assert-KmcMovementScenarioRecord {
         Assert-KmcExactProperties $Record ($common + @(
             'door','doorOpen','disableNavmeshCutWhenOpen','navmeshCutPresent','navmeshCutEnabled',
             'initialNavmeshCutRequiresUpdate','finalNavmeshCutRequiresUpdate','astarPathPresent','astarGraphUpdatesQueued',
+            'unityFrameCount','tileHandlerLastUpdateFrame','unityFrameStrictlyAfterTileHandlerLastUpdate',
             'observationCount','elapsedSeconds','ready')) `
             'movement door-traversal-readiness record'
+    }
+    elseif ([string]$Record.kind -ceq 'navigation-path-replacement') {
+        Assert-KmcExactProperties $Record ($common + @(
+            'replacementIndex','previousPathId','newPathId','previousPathFirstObservedFrame','replacementObservedFrame',
+            'tileHandlerLastUpdateFrame','previousPathFirstObservedNotNewerThanTileUpdateFrame',
+            'astarPathPresent','astarGraphUpdatesQueued','agentRepathNeeded','pathFailed','pathError',
+            'commandReferenceRetained','commandType')) `
+            'movement navigation-path-replacement record'
     }
     else {
         Assert-KmcExactProperties $Record ($common + @(
@@ -6803,6 +6824,13 @@ function Assert-KmcMovementScenarioRecord {
             if ($Record.$name -isnot [bool]) { throw "Movement door-traversal-readiness $name must be a JSON boolean." }
         }
         if ($Record.astarPathPresent -ne $true) { throw 'Movement door-traversal-readiness must prove that the exact AstarPath singleton is present.' }
+        if (-not (Test-KmcExactJsonInteger $Record.unityFrameCount) -or [long]$Record.unityFrameCount -lt 0 -or
+            -not (Test-KmcExactJsonInteger $Record.tileHandlerLastUpdateFrame) -or
+            $Record.unityFrameStrictlyAfterTileHandlerLastUpdate -isnot [bool] -or
+            $Record.unityFrameStrictlyAfterTileHandlerLastUpdate -ne
+                ([long]$Record.unityFrameCount -gt [long]$Record.tileHandlerLastUpdateFrame)) {
+            throw 'Movement door-traversal-readiness Unity/TileHandler frame relation is invalid.'
+        }
         if (-not (Test-KmcExactJsonInteger $Record.observationCount) -or [long]$Record.observationCount -le 0 -or
             -not (Test-KmcFiniteNonnegativeJsonNumber $Record.elapsedSeconds)) {
             throw 'Movement door-traversal-readiness count or elapsed time is invalid.'
@@ -6812,6 +6840,36 @@ function Assert-KmcMovementScenarioRecord {
                 ($Record.navmeshCutPresent -ne $true -or $Record.navmeshCutEnabled -ne $false -or
                  $Record.finalNavmeshCutRequiresUpdate -ne $false)))) {
             throw 'PASS distance-door readiness did not prove the exact open door and consumed stock navmesh-cut transition.'
+        }
+        return
+    }
+    if ([string]$Record.kind -ceq 'navigation-path-replacement') {
+        foreach ($name in @('replacementIndex','previousPathId','newPathId','previousPathFirstObservedFrame','replacementObservedFrame','tileHandlerLastUpdateFrame')) {
+            if (-not (Test-KmcExactJsonInteger $Record.$name)) {
+                throw "Movement navigation-path-replacement $name must be an exact JSON integer."
+            }
+        }
+        if ([long]$Record.replacementIndex -le 0 -or [long]$Record.previousPathId -lt 0 -or
+            [long]$Record.newPathId -lt 0 -or [long]$Record.previousPathId -eq [long]$Record.newPathId -or
+            [long]$Record.previousPathFirstObservedFrame -lt 0 -or
+            [long]$Record.replacementObservedFrame -lt [long]$Record.previousPathFirstObservedFrame) {
+            throw 'Movement navigation-path-replacement indices, path identities, or observed frames are invalid.'
+        }
+        foreach ($name in @('previousPathFirstObservedNotNewerThanTileUpdateFrame','astarPathPresent',
+            'astarGraphUpdatesQueued','agentRepathNeeded','pathFailed','pathError','commandReferenceRetained')) {
+            if ($Record.$name -isnot [bool]) { throw "Movement navigation-path-replacement $name must be a JSON boolean." }
+        }
+        if ($Record.previousPathFirstObservedNotNewerThanTileUpdateFrame -ne
+            ([long]$Record.previousPathFirstObservedFrame -le [long]$Record.tileHandlerLastUpdateFrame)) {
+            throw 'Movement navigation-path-replacement TileHandler frame relation is incoherent.'
+        }
+        if ($Record.commandType -isnot [string] -or [string]$Record.commandType -cne 'Kingmaker.UnitLogic.Commands.UnitMoveTo') {
+            throw 'Movement navigation-path-replacement command type is not the exact native UnitMoveTo.'
+        }
+        if ($RequireComplete -and ($Record.astarPathPresent -ne $true -or
+            $Record.agentRepathNeeded -ne $false -or $Record.pathFailed -ne $false -or
+            $Record.pathError -ne $false -or $Record.commandReferenceRetained -ne $true)) {
+            throw 'PASS movement path replacement did not retain the exact command and healthy native path state.'
         }
         return
     }
@@ -7486,13 +7544,15 @@ function Assert-KmcMovementScenarioEvidence {
     $rowResults = New-Object 'Collections.Generic.List[object]'
     $pathProbeRows = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
     $doorReadinessRecords = New-Object 'Collections.Generic.List[object]'
+    $pathReplacementRecords = New-Object 'Collections.Generic.List[object]'
     foreach ($record in $scenarioRecords) {
         $rowPosition = [Array]::IndexOf($expectedRows, [string]$record.row)
         if ($rowPosition -lt $lastScenarioRow) { throw 'Movement scenario evidence row order regressed.' }
         $lastScenarioRow = $rowPosition
         if ([string]$record.kind -ceq 'movement-row-result') { $rowResults.Add($record) }
         elseif ([string]$record.kind -ceq 'path-probe') { [void]$pathProbeRows.Add([string]$record.row) }
-        else { $doorReadinessRecords.Add($record) }
+        elseif ([string]$record.kind -ceq 'door-traversal-readiness') { $doorReadinessRecords.Add($record) }
+        else { $pathReplacementRecords.Add($record) }
     }
     if ($requireComplete) {
         if ($rowResults.Count -ne $expectedRows.Count) { throw 'PASS movement evidence does not contain exactly one row-result for every expected row.' }
@@ -7510,6 +7570,15 @@ function Assert-KmcMovementScenarioEvidence {
             $rowPathProbes = @($scenarioRecords | Where-Object { [string]$_.kind -ceq 'path-probe' -and [string]$_.row -ceq [string]$rowRecord.row })
             if ($rowPathProbes.Count -ne [long]$rowRecord.waypointCount) {
                 throw "PASS movement evidence path-probe count does not equal the exact completed waypoint count for $($rowRecord.row)."
+            }
+            $rowPathReplacements = @($pathReplacementRecords | Where-Object { [string]$_.row -ceq [string]$rowRecord.row })
+            if ($rowPathReplacements.Count -ne [long]$rowRecord.unexpectedRepathCount) {
+                throw "PASS movement evidence path-replacement count does not equal the exact unexpected-repath count for $($rowRecord.row)."
+            }
+            for ($replacementIndex = 0; $replacementIndex -lt $rowPathReplacements.Count; $replacementIndex++) {
+                if ([long]$rowPathReplacements[$replacementIndex].replacementIndex -ne ($replacementIndex + 1)) {
+                    throw "PASS movement evidence path-replacement indices are not exact and contiguous for $($rowRecord.row)."
+                }
             }
             if ([string]$rowRecord.row -ceq 'mounted-distance-door-interaction') {
                 $rowDoorReadiness = @($doorReadinessRecords | Where-Object { [string]$_.row -ceq [string]$rowRecord.row })

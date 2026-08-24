@@ -81,7 +81,7 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.View.MapObjects.StandardDoor',0x06001AA7,'GetState'),
         @('Kingmaker.UnitLogic.Commands.UnitCommands',0x0600269F,'get_Move'),@('Kingmaker.UnitLogic.Commands.UnitCommands',0x060026A9,'GetCommand'),
         @('Kingmaker.UnitLogic.Commands.Base.UnitCommand',0x0600275E,'get_IsFinished'),@('Kingmaker.UnitLogic.Commands.Base.UnitCommand',0x060027AC,'Interrupt'),@('Kingmaker.UnitLogic.Commands.UnitMoveTo',0x060026F4,'get_Target'),
-        @('Kingmaker.View.UnitMovementAgent',0x060018A8,'FindPath'),@('Kingmaker.UI.Selection.SelectionManager',0x060034E2,'get_Instance'),
+        @('Kingmaker.View.UnitMovementAgent',0x060018A3,'PathTo'),@('Kingmaker.View.UnitMovementAgent',0x060018A8,'FindPath'),@('Kingmaker.UI.Selection.SelectionManager',0x060034E2,'get_Instance'),
         @('Kingmaker.UI.Selection.SelectionManager',0x060034E4,'get_SelectedUnits'),@('Kingmaker.Game',0x06000C9A,'get_IsPaused'),
         @('Kingmaker.Game',0x06000C9B,'set_IsPaused'),@('Kingmaker.Game',0x06000CD6,'ReloadArea'),
         @('Kingmaker.Game',0x06000CE4,'SaveGame'),@('Kingmaker.Game',0x06000CE9,'GetCamera'),
@@ -535,6 +535,9 @@ if($Target-eq'Kingmaker'){
     $navmeshCutRequiresUpdate=if($null-eq$navmeshCutType){$null}else{$navmeshCutType.GetMethod('RequiresUpdate',[Reflection.BindingFlags]'Public,Instance')}
     $tileHandlerHelperType=$firstpass.GetType('Pathfinding.TileHandlerHelper',$false)
     $tileHandlerUpdate=if($null-eq$tileHandlerHelperType){$null}else{$tileHandlerHelperType.GetMethod('ForceUpdate',[Reflection.BindingFlags]'Public,Instance')}
+    $tileHandlerType=$firstpass.GetType('Pathfinding.Util.TileHandler',$false)
+    $tileHandlerLastUpdateFrame=if($null-eq$tileHandlerType){$null}else{$tileHandlerType.GetProperty('LastUpdateFrame',[Reflection.BindingFlags]'Public,Static')}
+    $unitMovementPathTo=@(Find-Token 'Kingmaker.View.UnitMovementAgent' 0x060018A3)
     $astarPathType=$firstpass.GetType('AstarPath',$false)
     $astarPathActive=if($null-eq$astarPathType){$null}else{$astarPathType.GetField('active',[Reflection.BindingFlags]'Public,Static')}
     $astarGraphUpdatesQueued=if($null-eq$astarPathType){$null}else{$astarPathType.GetProperty('IsAnyGraphUpdatesQueued',[Reflection.BindingFlags]'Public,Instance')}
@@ -570,6 +573,23 @@ if($Target-eq'Kingmaker'){
         -not $astarGraphUpdatesQueued.GetGetMethod().IsStatic -and
         $astarGraphUpdatesQueued.GetGetMethod().GetParameters().Count-eq0) `
         'native AstarPath graph-update queue observation seams'
+    Assert-Contract ($null-ne$tileHandlerType -and $tileHandlerType.MetadataToken-eq0x020006C4 -and
+        $null-ne$tileHandlerLastUpdateFrame -and $tileHandlerLastUpdateFrame.MetadataToken-eq0x170005E6 -and
+        $tileHandlerLastUpdateFrame.PropertyType.FullName-ceq'System.Int32' -and
+        $null-ne$tileHandlerLastUpdateFrame.GetGetMethod() -and
+        $tileHandlerLastUpdateFrame.GetGetMethod().MetadataToken-eq0x060036E8 -and
+        $tileHandlerLastUpdateFrame.GetGetMethod().IsPublic -and
+        $tileHandlerLastUpdateFrame.GetGetMethod().IsStatic -and
+        $unitMovementPathTo.Count-eq1 -and $unitMovementPathTo[0] -is [Reflection.MethodInfo] -and
+        $unitMovementPathTo[0].IsPublic -and -not $unitMovementPathTo[0].IsStatic -and
+        $unitMovementPathTo[0].ReturnType.FullName-ceq'System.Void' -and
+        $unitMovementPathTo[0].GetParameters().Count-eq5 -and
+        $unitMovementPathTo[0].GetParameters()[0].ParameterType.FullName-ceq'Kingmaker.UnitLogic.Commands.Base.UnitCommand' -and
+        $unitMovementPathTo[0].GetParameters()[1].ParameterType.FullName-ceq'UnityEngine.Vector3' -and
+        $unitMovementPathTo[0].GetParameters()[2].ParameterType.FullName-ceq'System.Single' -and
+        $unitMovementPathTo[0].GetParameters()[3].ParameterType.FullName-ceq'System.Single' -and
+        $unitMovementPathTo[0].GetParameters()[4].ParameterType.FullName-ceq'Kingmaker.View.UnitMovementAgentBase') `
+        'native UnitMovementAgent.PathTo and TileHandler frame-suppression observation seams'
     $unityChecks=@(
         @('UnityEngine.SceneManagement.SceneManager',0x060019D5,'GetSceneByName'),
         @('UnityEngine.SceneManagement.Scene',0x060019C4,'get_isLoaded'))

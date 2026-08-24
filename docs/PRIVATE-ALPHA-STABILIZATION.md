@@ -1,5 +1,13 @@
 # Private-alpha stabilization
 
+## Round 2 exact TileHandler frame observation - 2026-08-24T18:07:26Z
+
+The fresh `17d4d745...` observation package and suite passed separate RT/TB WhatIf gates with immediate exact audits. Distance-door observation `20260824T172215Z-round2-v52-astar-queue-observation-suite1-distance-door` remains uncredited `FAIL 57/2`, also with exact audit-before-read restoration.
+
+The public queue result is conclusive but negative: every readiness/movement sample reported `AstarPath` present and `IsAnyGraphUpdatesQueued=false`, while the far-side path object still changed four times under one healthy reference-identical Move command. Exact installed `UnitMovementAgent.PathTo` instead keys same-destination reuse to `m_PathFrame > Pathfinding.Util.TileHandler.LastUpdateFrame`. Stock cut notification may finish before the queued tile work advances that public frame.
+
+The next diagnostic build therefore records only this exact frame relation and one structured record per replacement. It does not force graph work, change the four-second readiness deadline, relax the two-repath bound, or alter production door/movement behavior. Offline gates pass `21/240/17/227/299`, Release, parser/diff/prohibited-payload checks. One fresh guarded observation remains required before the narrow repair and complete A/B restart.
+
 ## Round 2 distance-door A* queue observation - 2026-08-24T15:38:17Z
 
 Fresh suite-2 RT A/B pass `81/0` each and TB A/B pass `111/0` each under one exact package and snapshot, with immediate restoration audits before every result read. The remaining distance-door run `20260824T150021Z-round2-v52-navmesh-readiness-suite2-distance-door` is preserved uncredited at `FAIL 57/2`, with exact restoration.

@@ -208,6 +208,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private Vector3 navigationStablePosition;
         private object navigationCommand;
         private object navigationPath;
+        private int navigationPathFirstObservedFrame;
         private double navigationStartedAt;
         private double navigationStableStartedAt;
         private double navigationPreviousDistance;
@@ -1143,6 +1144,10 @@ namespace KingmakerMountedCombat.Diagnostics
                         finalNavmeshCutRequiresUpdate = cutRequiresUpdate,
                         astarPathPresent = astarPath != null,
                         astarGraphUpdatesQueued = astarPath == null ? (bool?)null : astarPath.IsAnyGraphUpdatesQueued,
+                        unityFrameCount = Time.frameCount,
+                        tileHandlerLastUpdateFrame = Pathfinding.Util.TileHandler.LastUpdateFrame,
+                        unityFrameStrictlyAfterTileHandlerLastUpdate =
+                            Time.frameCount > Pathfinding.Util.TileHandler.LastUpdateFrame,
                         observationCount = distanceDoorTraversalReadinessObservationCount,
                         elapsedSeconds = distanceDoorTraversalReadinessElapsedSeconds,
                         ready = true
@@ -2580,6 +2585,7 @@ namespace KingmakerMountedCombat.Diagnostics
             navigationPreviousDistance = initialTargetDistance;
             navigationStartedAt = suiteClock.Elapsed.TotalSeconds;
             navigationPath = mount.View.AgentASP.Path;
+            navigationPathFirstObservedFrame = navigationPath == null ? -1 : Time.frameCount;
 
             if (mounted)
             {
@@ -2672,13 +2678,46 @@ namespace KingmakerMountedCombat.Diagnostics
             navigationPreviousDistance = distance;
 
             var currentPath = mount.View.AgentASP.Path;
-            if (currentPath != null && navigationPath != null && !ReferenceEquals(currentPath, navigationPath))
-            {
-                navigationRepaths++;
-            }
-            if (currentPath != null)
+            if (currentPath != null && navigationPath == null)
             {
                 navigationPath = currentPath;
+                navigationPathFirstObservedFrame = Time.frameCount;
+            }
+            else if (currentPath != null && navigationPath != null && !ReferenceEquals(currentPath, navigationPath))
+            {
+                var previousPath = navigationPath as Pathfinding.Path;
+                var currentCommandAtReplacement = mount.Commands.Move;
+                var astarPathAtReplacement = AstarPath.active;
+                var tileHandlerLastUpdateFrame = Pathfinding.Util.TileHandler.LastUpdateFrame;
+                navigationRepaths++;
+                WriteEvidence(new
+                {
+                    kind = "navigation-path-replacement",
+                    replacementIndex = navigationRepaths,
+                    previousPathId = previousPath == null ? (uint?)null : previousPath.pathID,
+                    newPathId = currentPath.pathID,
+                    previousPathFirstObservedFrame = navigationPathFirstObservedFrame,
+                    replacementObservedFrame = Time.frameCount,
+                    tileHandlerLastUpdateFrame,
+                    previousPathFirstObservedNotNewerThanTileUpdateFrame =
+                        navigationPathFirstObservedFrame >= 0 &&
+                        navigationPathFirstObservedFrame <= tileHandlerLastUpdateFrame,
+                    astarPathPresent = astarPathAtReplacement != null,
+                    astarGraphUpdatesQueued = astarPathAtReplacement == null
+                        ? (bool?)null
+                        : astarPathAtReplacement.IsAnyGraphUpdatesQueued,
+                    agentRepathNeeded = mount.View.AgentASP.RepathNeeded,
+                    pathFailed = mount.View.AgentASP.PathFailed,
+                    pathError = currentPath.error,
+                    commandReferenceRetained = currentCommandAtReplacement != null &&
+                        navigationCommand != null &&
+                        ReferenceEquals(currentCommandAtReplacement, navigationCommand),
+                    commandType = currentCommandAtReplacement == null
+                        ? null
+                        : currentCommandAtReplacement.GetType().FullName
+                });
+                navigationPath = currentPath;
+                navigationPathFirstObservedFrame = Time.frameCount;
             }
 
             var currentCommand = mount.Commands.Move;
@@ -4396,6 +4435,7 @@ namespace KingmakerMountedCombat.Diagnostics
             navigationStablePosition = Vector3.zero;
             navigationCommand = null;
             navigationPath = null;
+            navigationPathFirstObservedFrame = -1;
             navigationStartedAt = 0.0d;
             navigationStableStartedAt = 0.0d;
             navigationEndpointDistance.Reset();

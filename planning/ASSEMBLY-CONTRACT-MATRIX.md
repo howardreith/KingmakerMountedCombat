@@ -1,5 +1,9 @@
 # Assembly contract matrix
 
+Round-2 follow-up pins the exact path-reuse boundary that the public graph queue does not expose. Public instance `Kingmaker.View.UnitMovementAgent.PathTo(UnitCommand,Vector3,Single,Single,UnitMovementAgentBase)` is token `0x060018A3`. Public static `Pathfinding.Util.TileHandler.LastUpdateFrame` is type token `0x020006C4`, property token `0x170005E6`, and getter token `0x060036E8`. Exact installed code suppresses a same-destination path request only when the agent's private request frame is strictly newer than `LastUpdateFrame` and `RepathNeeded` is false. `TileHandler.EndBatchLoad` advances `LastUpdateFrame` in an Astar work item after cut notification, while `AstarPath.IsAnyGraphUpdatesQueued` observes only its graph-update queue. KMC may observe Unity frame and `LastUpdateFrame`; it may not infer work-item completion from cut readiness or the graph queue, invoke `ForceUpdate`, write pathfinding internals, or relax path-quality gates.
+
+Status: PASS
+
 Round-2 distance-door qualification pins the exact installed post-open pathfinding boundary. `Kingmaker.View.MapObjects.StandardDoor.Open()` toggles state and, when `DisableNavmeshCutWhenOpen` is true, disables its child `Pathfinding.NavmeshCut`. `NavmeshCut.RequiresUpdate()` remains true until stock `Pathfinding.TileHandlerHelper.Update()` reloads the dirty bounds and calls `NotifyUpdated()`. The pinned first-pass assembly also exposes public static `AstarPath.active` field token `0x0400089B` and public instance Boolean `IsAnyGraphUpdatesQueued` getter token `0x06000517`. The diagnostic may observe those public readiness surfaces within a separate bounded deadline; it must not call `ForceUpdate`, relax endpoint/door-plane/path-replacement checks, or infer that synchronous door state implies completed tile-graph work.
 
 Status: PASS

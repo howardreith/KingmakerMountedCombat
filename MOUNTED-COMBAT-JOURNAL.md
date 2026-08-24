@@ -1,5 +1,13 @@
 # Mounted Combat journal
 
+## 2026-08-24T18:07:26Z - public A* queue theory rejected; exact TileHandler frame probe added
+
+- Published observation input/package/suite are `17d4d7459a4a8671b6c828221ec8ef2f0b4ea132`, package SHA-256 `0733aa6d60c9e2612317d2ecea9d6bc4cb09d62a5d1e80b369ff2162593fc736`, and snapshot SHA-256 `0ef856893c9a661942a79003c2002227c13caf41e35eea5be7dcc4de662243fb`. Separate RT/TB WhatIf gates and immediate independent audits passed.
+- Distance-door `20260824T172215Z...` remains immutable uncredited `FAIL 57/2`; its audit passed before read. All 34 movement samples and readiness reported an exact `AstarPath` singleton with no public graph updates queued, yet the native far-side path changed `8 -> 9 -> 10 -> 11 -> 12`. The same Move command remained healthy and completed. Rejected theories: public graph-update queue, failed/repath-needed agent state, command replacement, blocked door, and external restoration.
+- Exact installed `UnitCommand.TickApproaching` calls `UnitMovementAgent.PathTo` every approaching tick. `PathTo` suppresses a same-target request only when `m_PathFrame > Pathfinding.Util.TileHandler.LastUpdateFrame` and `RepathNeeded` is false. `TileHandlerHelper.ForceUpdate` calls cut `NotifyUpdated()` before its `EndBatchLoad` work item completes; that work item advances `LastUpdateFrame`, while `IsAnyGraphUpdatesQueued` observes a different queue.
+- The new observation records Unity frame/`LastUpdateFrame` coherence in readiness and telemetry and emits a validated `navigation-path-replacement` record for every replacement. Each record binds prior/new path IDs, prior-first/replacement frames, the `LastUpdateFrame` relation, queue and agent state, and exact `UnitMoveTo` reference retention. No production behavior, readiness policy, timeout, updater, or path-quality threshold changes.
+- Complete gates pass source/component/visual/harness/assembly `21/240/17/227/299`, Release, PowerShell parsing, diff, and prohibited payload. Dirty DLL/MVID are `1a96e91ba4e94d9a28cff311a84b5e4534c0ca902292da36d976820283ee71cd` / `d6ac92fc-701d-4ddb-b875-d595b75ff303`. Next: guarded-publish/package/resnapshot/WhatIf, one audited door observation, then only the frame-attributable repair and fresh complete qualification.
+
 ## 2026-08-24T15:38:17Z - suite-2 A/B passes; distance-door isolates four native path replacements
 
 - Published input/package/suite are `cc361c0ee6f5c7cee34b1a03c14444a47caeb8d9`, package SHA-256 `76047b0e60c4720275766253ef62447cfe93261251f6aaf8e645dc9a12346338`, and snapshot SHA-256 `156b1b8524f827cfeb29c5fb0660e1eff8361da25f3d287672364c9bcfb50430`. Separate RT/TB WhatIf gates and audits passed.

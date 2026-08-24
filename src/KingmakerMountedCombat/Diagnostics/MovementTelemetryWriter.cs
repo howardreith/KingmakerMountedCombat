@@ -242,6 +242,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 mountPathLength = mountPath == null ? (float?)null : mountPath.GetTotalLength(),
                 astarPathPresent = astarPath != null,
                 astarGraphUpdatesQueued = astarPath == null ? (bool?)null : astarPath.IsAnyGraphUpdatesQueued,
+                unityFrameCount = UnityEngine.Time.frameCount,
+                tileHandlerLastUpdateFrame = Pathfinding.Util.TileHandler.LastUpdateFrame,
+                unityFrameStrictlyAfterTileHandlerLastUpdate =
+                    UnityEngine.Time.frameCount > Pathfinding.Util.TileHandler.LastUpdateFrame,
                 synchronizationPhase = agent.LatestSynchronizationPhase.ToString(),
                 synchronizationSampleCount = agent.SampleCount,
                 synchronizationCorrectionCount = agent.CorrectionCount,

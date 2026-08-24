@@ -1,5 +1,12 @@
 # Autonomous blockers
 
+## 2026-08-24T18:07:26Z - public graph queue rejected; exact TileHandler frame observation pending
+
+- Status: `IN PROGRESS`, not a safety or architecture blocker. The `17d4d745...` observation package passed separate RT/TB WhatIf and exact audits. Distance-door run `20260824T172215Z-round2-v52-astar-queue-observation-suite1-distance-door` is immutable uncredited `FAIL 57/2`, with immediate audit-before-read restoration.
+- Every public queue sample was healthy and empty while four native path replacements persisted, so `AstarPath.IsAnyGraphUpdatesQueued` is not the causal readiness boundary. Production door input, Mammoth-only approach, rider-owned interaction, strict traversal, command identity, pair/presentation continuity, and cleanup all remain healthy.
+- Installed `UnitMovementAgent.PathTo` `0x060018A3` instead suppresses a same-destination request only when its request frame is strictly newer than `Pathfinding.Util.TileHandler.LastUpdateFrame` getter `0x060036E8`. Stock cut notification can complete before the queued work item advances that frame. One final observation-only checkpoint records this exact relation and every replacement boundary; it invokes no updater and changes no behavior or threshold.
+- Complete gates pass `21/240/17/227/299`, Release, parser/diff/prohibited-payload checks. Remaining work is guarded publication/package/suite/WhatIf, one audited observation, then an attributable narrow repair and fresh complete qualification. This is recoverable diagnostic work, not a hard stop.
+
 ## 2026-08-24T15:38:17Z - distance-door path replacements require exact A* queue observation
 
 - Status: `IN PROGRESS`, not a safety or architecture blocker. Suite-2 RT A/B pass `81/0` each and TB A/B pass `111/0` each with immediate exact restoration audits. Distance-door run `20260824T150021Z-round2-v52-navmesh-readiness-suite2-distance-door` is immutable uncredited `FAIL 57/2`, also with exact audit-before-read restoration.

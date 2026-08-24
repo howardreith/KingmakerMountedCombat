@@ -827,7 +827,8 @@ function New-TestMovementTelemetryRecord {
         riderActiveCommandTypes=@();mountActiveCommandTypes=@('Kingmaker.UnitLogic.Commands.UnitMoveTo');mountIsReallyMoving=$true
         mountVelocity=$vector;mountSpeed=3.0;mountMoveDirection=$vector;mountPathId=1;mountPathFailed=$false;mountRepathNeeded=$false
         mountPathError=0;mountPathErrorLog=$null;mountPathPointCount=2;mountPathLength=5.0
-        astarPathPresent=$true;astarGraphUpdatesQueued=$false;synchronizationPhase='Update'
+        astarPathPresent=$true;astarGraphUpdatesQueued=$false;unityFrameCount=120;tileHandlerLastUpdateFrame=119
+        unityFrameStrictlyAfterTileHandlerLastUpdate=$true;synchronizationPhase='Update'
         synchronizationSampleCount=6;synchronizationCorrectionCount=2;initialConfigurationSynchronizationSampleCount=1
         initialConfigurationSynchronizationCorrectionCount=1;updateSynchronizationSampleCount=3;updateSynchronizationCorrectionCount=1
         lateUpdateSynchronizationSampleCount=2;lateUpdateSynchronizationCorrectionCount=0;preCorrectionPositionResidualWorldUnits=0.0
@@ -1453,7 +1454,27 @@ function New-TestMovementDoorReadinessRecord {
         kind='door-traversal-readiness';door='Area/Door';doorOpen=$true;disableNavmeshCutWhenOpen=$true
         navmeshCutPresent=$true;navmeshCutEnabled=$false;initialNavmeshCutRequiresUpdate=$true
         finalNavmeshCutRequiresUpdate=$false;astarPathPresent=$true;astarGraphUpdatesQueued=$true
+        unityFrameCount=120;tileHandlerLastUpdateFrame=119;unityFrameStrictlyAfterTileHandlerLastUpdate=$true
         observationCount=2;elapsedSeconds=0.25;ready=$true
+    }
+}
+
+function New-TestMovementPathReplacementRecord {
+    param(
+        [Parameter(Mandatory = $true)]$Request,
+        [Parameter(Mandatory = $true)][long]$Sequence
+    )
+    return [ordered]@{
+        schemaVersion=1;runId=[string]$Request.runId;scenario=[string]$Request.scenario
+        row='mounted-distance-door-interaction';branch=[string]$Request.branch;commit=[string]$Request.commit
+        productVersion=[string]$Request.productVersion;dllSha256=[string]$Request.dllSha256;dllMvid=[string]$Request.dllMvid
+        sequence=$Sequence;utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o')
+        kind='navigation-path-replacement';replacementIndex=1;previousPathId=8;newPathId=9
+        previousPathFirstObservedFrame=120;replacementObservedFrame=121;tileHandlerLastUpdateFrame=120
+        previousPathFirstObservedNotNewerThanTileUpdateFrame=$true
+        astarPathPresent=$true;astarGraphUpdatesQueued=$false;agentRepathNeeded=$false
+        pathFailed=$false;pathError=$false;commandReferenceRetained=$true
+        commandType='Kingmaker.UnitLogic.Commands.UnitMoveTo'
     }
 }
 
@@ -7371,10 +7392,12 @@ try {
         }
         $doorSubresult = [pscustomobject][ordered]@{name=$doorRow;status='PASS';assertionPassCount=20;assertionFailCount=0;errors=@()}
         $doorTelemetry = @((New-TestMovementTelemetryRecord $doorRequest $doorRow 0))
-        $doorRowRecord = New-TestMovementRowRecord $doorRequest $doorRow 2
+        $doorRowRecord = New-TestMovementRowRecord $doorRequest $doorRow 3
+        $doorRowRecord.unexpectedRepathCount = 1
         $doorScenario = @(
             (New-TestMovementDoorReadinessRecord $doorRequest 0),
             (New-TestMovementPathProbeRecord $doorRequest $doorRow 1 'DoorFar' $true),
+            (New-TestMovementPathReplacementRecord $doorRequest 2),
             $doorRowRecord)
         [void](Write-TestMovementEvidence $doorRequest.evidenceRoot $doorRequest $doorTelemetry $doorScenario)
         $manifest = Read-KmcJson (Join-Path $doorRequest.evidenceRoot 'runtime-artifacts.json')
@@ -7382,10 +7405,14 @@ try {
 
         foreach ($mutation in @('missing-control','missing-door','wrong-waypoint','wrong-target','non-strict','extra-interaction-leg',
             'missing-fixture-lease','wrong-original-state','missing-temporary-enable','fixture-not-restored',
-            'missing-readiness','pending-cut','missing-astar','invalid-graph-queue','readiness-row-mismatch')) {
-            $rowRecord = New-TestMovementRowRecord $doorRequest $doorRow 2
+            'missing-readiness','pending-cut','missing-astar','invalid-graph-queue','readiness-row-mismatch',
+            'readiness-frame-coherence','invalid-tile-frame','missing-replacement','replacement-count-mismatch',
+            'replacement-frame-coherence','replacement-command-lost','replacement-path-error')) {
+            $rowRecord = New-TestMovementRowRecord $doorRequest $doorRow 3
+            $rowRecord.unexpectedRepathCount = 1
             $readiness = New-TestMovementDoorReadinessRecord $doorRequest 0
             $probe = New-TestMovementPathProbeRecord $doorRequest $doorRow 1 'DoorFar' $true
+            $replacement = New-TestMovementPathReplacementRecord $doorRequest 2
             switch ($mutation) {
                 'missing-control' { $rowRecord.unmountedDoorControlPassed = $false }
                 'missing-door' { $rowRecord.door = $null }
@@ -7401,14 +7428,25 @@ try {
                 'missing-astar' { $readiness.astarPathPresent = $false }
                 'invalid-graph-queue' { $readiness.astarGraphUpdatesQueued = $null }
                 'readiness-row-mismatch' { $readiness.door = 'Area/OtherDoor' }
+                'readiness-frame-coherence' { $readiness.unityFrameStrictlyAfterTileHandlerLastUpdate = $false }
+                'invalid-tile-frame' { $readiness.tileHandlerLastUpdateFrame = 'not-a-frame' }
+                'replacement-count-mismatch' { $rowRecord.unexpectedRepathCount = 2 }
+                'replacement-frame-coherence' { $replacement.previousPathFirstObservedNotNewerThanTileUpdateFrame = $false }
+                'replacement-command-lost' { $replacement.commandReferenceRetained = $false }
+                'replacement-path-error' { $replacement.pathError = $true }
             }
             if ($mutation -ceq 'missing-readiness') {
                 $probe.sequence = 0L
-                $rowRecord.sequence = 1L
-                $records = @($probe,$rowRecord)
+                $replacement.sequence = 1L
+                $rowRecord.sequence = 2L
+                $records = @($probe,$replacement,$rowRecord)
+            }
+            elseif ($mutation -ceq 'missing-replacement') {
+                $rowRecord.sequence = 2L
+                $records = @($readiness,$probe,$rowRecord)
             }
             else {
-                $records = @($readiness,$probe,$rowRecord)
+                $records = @($readiness,$probe,$replacement,$rowRecord)
             }
             [void](Write-TestMovementEvidence $doorRequest.evidenceRoot $doorRequest $doorTelemetry $records)
             $mutatedManifest = Read-KmcJson (Join-Path $doorRequest.evidenceRoot 'runtime-artifacts.json')
@@ -7503,6 +7541,19 @@ try {
         [void](Write-TestMovementEvidence $movementRequest.evidenceRoot $movementRequest @($telemetry) $scenario)
         $manifest = Read-KmcJson (Join-Path $movementRequest.evidenceRoot 'runtime-artifacts.json')
         Assert-KmcMovementScenarioEvidence -Request $movementRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($movementSubresult)
+    }
+    Invoke-HarnessTest 'movement telemetry rejects invalid TileHandler frame identity or relation' {
+        foreach ($mutation in @('invalid-frame','incoherent-relation')) {
+            $telemetry = New-TestMovementTelemetryRecord $movementRequest $movementRow 0
+            if ($mutation -ceq 'invalid-frame') { $telemetry.tileHandlerLastUpdateFrame = 'not-a-frame' }
+            else { $telemetry.unityFrameStrictlyAfterTileHandlerLastUpdate = $false }
+            $scenario = @((New-TestMovementPathProbeRecord $movementRequest $movementRow 0),(New-TestMovementRowRecord $movementRequest $movementRow 1))
+            [void](Write-TestMovementEvidence $movementRequest.evidenceRoot $movementRequest @($telemetry) $scenario)
+            $manifest = Read-KmcJson (Join-Path $movementRequest.evidenceRoot 'runtime-artifacts.json')
+            $threw = $false
+            try { Assert-KmcMovementScenarioEvidence -Request $movementRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($movementSubresult) } catch { $threw = $true }
+            Assert-Test $threw "movement telemetry accepted TileHandler frame mutation $mutation"
+        }
     }
     Invoke-HarnessTest 'PASS movement validator rejects calibrated residual threshold mutation' {
         $telemetry = @((New-TestMovementTelemetryRecord $movementRequest $movementRow 0))
@@ -8414,9 +8465,9 @@ try {
         $telemetryProducerNames = @([regex]::Matches($writerBlock, '(?m)^\s{16}([A-Za-z_]\w*)\s*(?:=|,)') |
             ForEach-Object { $_.Groups[1].Value })
         $telemetryFixtureNames = @((New-TestMovementTelemetryRecord $movementRequest $movementRow 0).Keys | ForEach-Object { [string]$_ })
-        Assert-Test ($telemetryProducerNames.Count -eq 219 -and $telemetryFixtureNames.Count -eq 219 -and
+        Assert-Test ($telemetryProducerNames.Count -eq 222 -and $telemetryFixtureNames.Count -eq 222 -and
             @($telemetryProducerNames | Where-Object { [Array]::IndexOf($telemetryFixtureNames, $_) -lt 0 }).Count -eq 0 -and
-            @($telemetryFixtureNames | Where-Object { [Array]::IndexOf($telemetryProducerNames, $_) -lt 0 }).Count -eq 0) 'movement telemetry fixture/validator field set is not the exact 219-field producer schema'
+            @($telemetryFixtureNames | Where-Object { [Array]::IndexOf($telemetryProducerNames, $_) -lt 0 }).Count -eq 0) 'movement telemetry fixture/validator field set is not the exact 222-field producer schema'
 
         $rowPayloadMarker = $engineSource.IndexOf('kind = "movement-row-result"', [StringComparison]::Ordinal)
         $rowStart = $engineSource.LastIndexOf('WriteEvidence(new', $rowPayloadMarker, [StringComparison]::Ordinal)
@@ -8634,6 +8685,11 @@ try {
             $movementEngineSource.Contains('kind = "door-traversal-readiness"') -and
             $movementEngineSource.Contains('astarGraphUpdatesQueued = astarPath == null ? (bool?)null : astarPath.IsAnyGraphUpdatesQueued') -and
             $movementTelemetrySource.Contains('astarGraphUpdatesQueued = astarPath == null ? (bool?)null : astarPath.IsAnyGraphUpdatesQueued') -and
+            $movementEngineSource.Contains('tileHandlerLastUpdateFrame = Pathfinding.Util.TileHandler.LastUpdateFrame') -and
+            $movementTelemetrySource.Contains('tileHandlerLastUpdateFrame = Pathfinding.Util.TileHandler.LastUpdateFrame') -and
+            $movementEngineSource.Contains('kind = "navigation-path-replacement"') -and
+            $movementEngineSource.Contains('previousPathFirstObservedNotNewerThanTileUpdateFrame') -and
+            $movementEngineSource.Contains('commandReferenceRetained = currentCommandAtReplacement != null') -and
             $movementEngineSource.Contains('DoorTraversalReadinessTimeoutSeconds') -and
             -not $movementEngineSource.Contains('TileHandlerHelper') -and
             -not $movementEngineSource.Contains('.ForceUpdate()') -and

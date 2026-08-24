@@ -1,5 +1,11 @@
 # Phase 2 runtime scenario matrix
 
+## Round-2 exact TileHandler frame observation pending - 2026-08-24T18:07:26Z
+
+Suite `20260824T154642Z-round2-v52-astar-queue-observation-suite1`, snapshot `0ef856893c9a661942a79003c2002227c13caf41e35eea5be7dcc4de662243fb`, passed separate RT/TB WhatIf and exact audits. `mounted-distance-door-interaction` run `20260824T172215Z-round2-v52-astar-queue-observation-suite1-distance-door` is immutable uncredited `FAIL 57/2` with audit-before-read restoration.
+
+All production interaction/traversal behavior remains healthy. The public graph queue was empty in readiness and all 34 movement samples, so that theory is rejected. Exact installed `UnitMovementAgent.PathTo` uses the distinct `m_PathFrame > Pathfinding.Util.TileHandler.LastUpdateFrame` reuse boundary. Forward observation now requires coherent Unity/TileHandler frames and one validated record per path replacement; one fresh clean-package run is `TODO`. No behavior repair or PASS credit is permitted before that audited frame correlation.
+
 ## Round-2 A/B PASS; distance-door A* queue observation pending - 2026-08-24T15:38:17Z
 
 Suite `20260824T115200Z-round2-v52-navmesh-readiness-suite2`, snapshot `156b1b8524f827cfeb29c5fb0660e1eff8361da25f3d287672364c9bcfb50430`, passed separate RT/TB WhatIf and audits. Credited RT A/B `20260824T132154Z...` / `20260824T134633Z...` pass `81/0` each; credited TB A/B `20260824T141121Z...` / `20260824T143535Z...` pass `111/0` each. Every audit-before-read proved exact restoration.
