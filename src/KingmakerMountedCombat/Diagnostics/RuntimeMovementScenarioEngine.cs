@@ -219,6 +219,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool navigationWasApproaching;
         private int navigationOscillations;
         private int navigationRepaths;
+        private int navigationUnattributedRepaths;
         private int navigationCommandReplacements;
         private int navigationSelectionLosses;
         private bool navigationMovingCaptureTaken;
@@ -330,6 +331,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private double rowMaximumStuckSeconds;
         private int rowOscillations;
         private int rowUnexpectedRepaths;
+        private int rowUnattributedRepaths;
         private int rowCommandReplacements;
         private int rowSelectionLosses;
         private int rowWaypointCount;
@@ -2689,7 +2691,35 @@ namespace KingmakerMountedCombat.Diagnostics
                 var currentCommandAtReplacement = mount.Commands.Move;
                 var astarPathAtReplacement = AstarPath.active;
                 var tileHandlerLastUpdateFrame = Pathfinding.Util.TileHandler.LastUpdateFrame;
+                var replacementObservedFrame = Time.frameCount;
+                var previousPathFirstObservedNotNewerThanTileUpdateFrame =
+                    navigationPathFirstObservedFrame >= 0 &&
+                    navigationPathFirstObservedFrame <= tileHandlerLastUpdateFrame;
+                var astarGraphUpdatesQueued = astarPathAtReplacement == null
+                    ? (bool?)null
+                    : astarPathAtReplacement.IsAnyGraphUpdatesQueued;
+                var agentRepathNeeded = mount.View.AgentASP.RepathNeeded;
+                var pathFailed = mount.View.AgentASP.PathFailed;
+                var pathError = currentPath.error;
+                var commandReferenceRetained = currentCommandAtReplacement != null &&
+                    navigationCommand != null &&
+                    ReferenceEquals(currentCommandAtReplacement, navigationCommand);
+                var tileFrameAttributedRefresh =
+                    string.Equals(currentRow, "mounted-distance-door-interaction", StringComparison.Ordinal) &&
+                    previousPathFirstObservedNotNewerThanTileUpdateFrame &&
+                    replacementObservedFrame > tileHandlerLastUpdateFrame &&
+                    astarPathAtReplacement != null &&
+                    astarGraphUpdatesQueued.HasValue &&
+                    !astarGraphUpdatesQueued.Value &&
+                    !agentRepathNeeded &&
+                    !pathFailed &&
+                    !pathError &&
+                    commandReferenceRetained;
                 navigationRepaths++;
+                if (!tileFrameAttributedRefresh)
+                {
+                    navigationUnattributedRepaths++;
+                }
                 WriteEvidence(new
                 {
                     kind = "navigation-path-replacement",
@@ -2697,21 +2727,15 @@ namespace KingmakerMountedCombat.Diagnostics
                     previousPathId = previousPath == null ? (uint?)null : previousPath.pathID,
                     newPathId = currentPath.pathID,
                     previousPathFirstObservedFrame = navigationPathFirstObservedFrame,
-                    replacementObservedFrame = Time.frameCount,
+                    replacementObservedFrame,
                     tileHandlerLastUpdateFrame,
-                    previousPathFirstObservedNotNewerThanTileUpdateFrame =
-                        navigationPathFirstObservedFrame >= 0 &&
-                        navigationPathFirstObservedFrame <= tileHandlerLastUpdateFrame,
+                    previousPathFirstObservedNotNewerThanTileUpdateFrame,
                     astarPathPresent = astarPathAtReplacement != null,
-                    astarGraphUpdatesQueued = astarPathAtReplacement == null
-                        ? (bool?)null
-                        : astarPathAtReplacement.IsAnyGraphUpdatesQueued,
-                    agentRepathNeeded = mount.View.AgentASP.RepathNeeded,
-                    pathFailed = mount.View.AgentASP.PathFailed,
-                    pathError = currentPath.error,
-                    commandReferenceRetained = currentCommandAtReplacement != null &&
-                        navigationCommand != null &&
-                        ReferenceEquals(currentCommandAtReplacement, navigationCommand),
+                    astarGraphUpdatesQueued,
+                    agentRepathNeeded,
+                    pathFailed,
+                    pathError,
+                    commandReferenceRetained,
                     commandType = currentCommandAtReplacement == null
                         ? null
                         : currentCommandAtReplacement.GetType().FullName
@@ -2778,6 +2802,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             rowOscillations += navigationOscillations;
             rowUnexpectedRepaths += navigationRepaths;
+            rowUnattributedRepaths += navigationUnattributedRepaths;
             rowCommandReplacements += navigationCommandReplacements;
             rowSelectionLosses += navigationSelectionLosses;
             rowMaximumStationaryDrift = Math.Max(rowMaximumStationaryDrift, navigationMaximumStationaryDrift);
@@ -2820,9 +2845,10 @@ namespace KingmakerMountedCombat.Diagnostics
             assertions.Check(navigationOscillations <= MaximumOscillations,
                 "Movement leg remained within the oscillation bound.",
                 "Movement leg observed " + navigationOscillations + " oscillations.");
-            assertions.Check(navigationRepaths <= MaximumUnexpectedRepaths,
-                "Movement leg remained within the unexpected-repath bound.",
-                "Movement leg observed " + navigationRepaths + " unexpected path replacements.");
+            assertions.Check(navigationUnattributedRepaths <= MaximumUnexpectedRepaths,
+                "Movement leg path replacements were frame-attributed or remained within the unexpected-repath bound.",
+                "Movement leg observed " + navigationUnattributedRepaths + " unattributed path replacements (" +
+                navigationRepaths + " raw).");
             assertions.Check(navigationCommandReplacements == 0,
                 "Movement command was not unexpectedly replaced.",
                 "Movement command was unexpectedly replaced " + navigationCommandReplacements + " time(s).");
@@ -3060,9 +3086,10 @@ namespace KingmakerMountedCombat.Diagnostics
             assertions.Check(rowOscillations <= MaximumOscillations * Math.Max(1, rowWaypointCount),
                 "Row oscillation count remained bounded.",
                 "Row oscillation count was " + rowOscillations + ".");
-            assertions.Check(rowUnexpectedRepaths <= MaximumUnexpectedRepaths * Math.Max(1, rowWaypointCount),
-                "Row unexpected-repath count remained bounded.",
-                "Row unexpected-repath count was " + rowUnexpectedRepaths + ".");
+            assertions.Check(rowUnattributedRepaths <= MaximumUnexpectedRepaths * Math.Max(1, rowWaypointCount),
+                "Row path replacements were frame-attributed or remained within the unexpected-repath bound.",
+                "Row unattributed/raw path-replacement counts were " + rowUnattributedRepaths + "/" +
+                rowUnexpectedRepaths + ".");
             assertions.Check(rowCommandReplacements == 0,
                 "No routed Mammoth command was unexpectedly replaced.",
                 "Observed " + rowCommandReplacements + " routed-command replacements.");
@@ -3591,6 +3618,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 maximumStationaryDriftWorldUnits = rowMaximumStationaryDrift,
                 maximumStuckSeconds = rowMaximumStuckSeconds,
                 oscillationCount = rowOscillations,
+                // This schema-v1 field remains the raw replacement count so every native path identity
+                // change stays present and independently auditable in historical and forward evidence.
                 unexpectedRepathCount = rowUnexpectedRepaths,
                 commandReplacementCount = rowCommandReplacements,
                 selectionLossCount = rowSelectionLosses,
@@ -4319,6 +4348,7 @@ namespace KingmakerMountedCombat.Diagnostics
             rowMaximumStuckSeconds = 0.0d;
             rowOscillations = 0;
             rowUnexpectedRepaths = 0;
+            rowUnattributedRepaths = 0;
             rowCommandReplacements = 0;
             rowSelectionLosses = 0;
             rowWaypointCount = 0;
@@ -4447,6 +4477,7 @@ namespace KingmakerMountedCombat.Diagnostics
             navigationWasApproaching = false;
             navigationOscillations = 0;
             navigationRepaths = 0;
+            navigationUnattributedRepaths = 0;
             navigationCommandReplacements = 0;
             navigationSelectionLosses = 0;
             navigationPauseRequested = false;

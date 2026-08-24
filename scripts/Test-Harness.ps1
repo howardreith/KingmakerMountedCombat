@@ -7403,6 +7403,27 @@ try {
         $manifest = Read-KmcJson (Join-Path $doorRequest.evidenceRoot 'runtime-artifacts.json')
         Assert-KmcMovementScenarioEvidence -Request $doorRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($doorSubresult)
 
+        $attributedReplacements = New-Object 'Collections.Generic.List[object]'
+        for ($replacementIndex = 1; $replacementIndex -le 5; $replacementIndex++) {
+            $replacement = New-TestMovementPathReplacementRecord $doorRequest (1 + $replacementIndex)
+            $replacement.replacementIndex = $replacementIndex
+            $replacement.previousPathId = 7 + $replacementIndex
+            $replacement.newPathId = 8 + $replacementIndex
+            $replacement.previousPathFirstObservedFrame = 100 + (10 * $replacementIndex)
+            $replacement.tileHandlerLastUpdateFrame = $replacement.previousPathFirstObservedFrame
+            $replacement.replacementObservedFrame = $replacement.tileHandlerLastUpdateFrame + 2
+            $attributedReplacements.Add($replacement)
+        }
+        $attributedRowRecord = New-TestMovementRowRecord $doorRequest $doorRow 7
+        $attributedRowRecord.unexpectedRepathCount = 5
+        $attributedScenario = @(
+            (New-TestMovementDoorReadinessRecord $doorRequest 0),
+            (New-TestMovementPathProbeRecord $doorRequest $doorRow 1 'DoorFar' $true)) +
+            @($attributedReplacements.ToArray()) + @($attributedRowRecord)
+        [void](Write-TestMovementEvidence $doorRequest.evidenceRoot $doorRequest $doorTelemetry $attributedScenario)
+        $attributedManifest = Read-KmcJson (Join-Path $doorRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcMovementScenarioEvidence -Request $doorRequest -Manifest $attributedManifest -Status 'PASS' -SubscenarioResults @($doorSubresult)
+
         foreach ($mutation in @('missing-control','missing-door','wrong-waypoint','wrong-target','non-strict','extra-interaction-leg',
             'missing-fixture-lease','wrong-original-state','missing-temporary-enable','fixture-not-restored',
             'missing-readiness','pending-cut','missing-astar','invalid-graph-queue','readiness-row-mismatch',
@@ -7454,6 +7475,30 @@ try {
             try { Assert-KmcMovementScenarioEvidence -Request $doorRequest -Manifest $mutatedManifest -Status 'PASS' -SubscenarioResults @($doorSubresult) } catch { $threw = $true }
             Assert-Test $threw "PASS distance-door evidence accepted mutation $mutation"
         }
+
+        $unattributedReplacements = New-Object 'Collections.Generic.List[object]'
+        for ($replacementIndex = 1; $replacementIndex -le 3; $replacementIndex++) {
+            $replacement = New-TestMovementPathReplacementRecord $doorRequest (1 + $replacementIndex)
+            $replacement.replacementIndex = $replacementIndex
+            $replacement.previousPathId = 7 + $replacementIndex
+            $replacement.newPathId = 8 + $replacementIndex
+            $replacement.previousPathFirstObservedFrame = 200 + (10 * $replacementIndex)
+            $replacement.tileHandlerLastUpdateFrame = $replacement.previousPathFirstObservedFrame - 1
+            $replacement.replacementObservedFrame = $replacement.previousPathFirstObservedFrame + 1
+            $replacement.previousPathFirstObservedNotNewerThanTileUpdateFrame = $false
+            $unattributedReplacements.Add($replacement)
+        }
+        $unattributedRowRecord = New-TestMovementRowRecord $doorRequest $doorRow 5
+        $unattributedRowRecord.unexpectedRepathCount = 3
+        $unattributedScenario = @(
+            (New-TestMovementDoorReadinessRecord $doorRequest 0),
+            (New-TestMovementPathProbeRecord $doorRequest $doorRow 1 'DoorFar' $true)) +
+            @($unattributedReplacements.ToArray()) + @($unattributedRowRecord)
+        [void](Write-TestMovementEvidence $doorRequest.evidenceRoot $doorRequest $doorTelemetry $unattributedScenario)
+        $unattributedManifest = Read-KmcJson (Join-Path $doorRequest.evidenceRoot 'runtime-artifacts.json')
+        $threw = $false
+        try { Assert-KmcMovementScenarioEvidence -Request $doorRequest -Manifest $unattributedManifest -Status 'PASS' -SubscenarioResults @($doorSubresult) } catch { $threw = $true }
+        Assert-Test $threw 'PASS distance-door evidence accepted excessive healthy but non-frame-attributed path replacements'
     }
     Invoke-HarnessTest 'PASS movement telemetry requires exact row-aware pause and game-mode coherence' {
         $pauseRow = 'mounted-pair-pause-unpause'
@@ -8589,6 +8634,7 @@ try {
         $movementEngineSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeMovementScenarioEngine.cs'))
         $movementTelemetrySource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\MovementTelemetryWriter.cs'))
         $automationHostSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeAutomationHost.cs'))
+        $movementValidatorSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\runtime\RuntimeHarness.Common.ps1'))
 
         Assert-Test ($stabilizationSource.Contains('string.Equals(exactModeName, "FullScreenUi", StringComparison.Ordinal)') -and
             $stabilizationSource.Contains('string.Equals(exactModeName, "EscMode", StringComparison.Ordinal)') -and
@@ -8699,6 +8745,13 @@ try {
             $automationHostSource.Contains('request, relationship, playerAction, combat, diagnosticSettings,') -and
             $automationHostSource.Contains('logger, request.EvidenceRoot);')) `
             'distance-door runtime proof bypasses ordinary map-object input, exact one-shot interaction, or strict post-open traversal'
+        Assert-Test ($movementEngineSource.Contains('var tileFrameAttributedRefresh =') -and
+            $movementEngineSource.Contains('navigationUnattributedRepaths <= MaximumUnexpectedRepaths') -and
+            $movementEngineSource.Contains('rowUnattributedRepaths <= MaximumUnexpectedRepaths * Math.Max(1, rowWaypointCount)') -and
+            $movementEngineSource.Contains('unexpectedRepathCount = rowUnexpectedRepaths') -and
+            $movementValidatorSource.Contains('$rowUnattributedPathReplacements = @($rowPathReplacements | Where-Object') -and
+            $movementValidatorSource.Contains('excessive unattributed path replacements')) `
+            'distance-door TileHandler refresh classification does not preserve raw telemetry and independently reject excessive unattributed churn'
         Assert-Test ($combatEngineSource.Contains('playerAction.ArmCombatActionFromOverlay(AttackAction)') -and
             $combatEngineSource.Contains('ArmedThroughPlayerFacingCombatController = humanPlayArmedThroughPlayerAction') -and
             $combatEngineSource.Contains('OverlayActivationWorldClickSuppressed = humanPlayPropagatedWorldClickSuppressed') -and

@@ -7580,6 +7580,19 @@ function Assert-KmcMovementScenarioEvidence {
                     throw "PASS movement evidence path-replacement indices are not exact and contiguous for $($rowRecord.row)."
                 }
             }
+            $rowUnattributedPathReplacements = @($rowPathReplacements | Where-Object {
+                [string]$rowRecord.row -cne 'mounted-distance-door-interaction' -or
+                $_.previousPathFirstObservedNotNewerThanTileUpdateFrame -ne $true -or
+                [long]$_.replacementObservedFrame -le [long]$_.tileHandlerLastUpdateFrame -or
+                $_.astarPathPresent -ne $true -or $_.astarGraphUpdatesQueued -ne $false -or
+                $_.agentRepathNeeded -ne $false -or $_.pathFailed -ne $false -or
+                $_.pathError -ne $false -or $_.commandReferenceRetained -ne $true
+            })
+            $rowWaypointBound = [long]$rowRecord.waypointCount
+            if ($rowWaypointBound -lt 1) { $rowWaypointBound = 1 }
+            if ($rowUnattributedPathReplacements.Count -gt (2 * $rowWaypointBound)) {
+                throw "PASS movement evidence contains excessive unattributed path replacements for $($rowRecord.row): $($rowUnattributedPathReplacements.Count) unattributed / $($rowPathReplacements.Count) raw."
+            }
             if ([string]$rowRecord.row -ceq 'mounted-distance-door-interaction') {
                 $rowDoorReadiness = @($doorReadinessRecords | Where-Object { [string]$_.row -ceq [string]$rowRecord.row })
                 if ($rowDoorReadiness.Count -ne 1 -or [string]$rowDoorReadiness[0].door -cne [string]$rowRecord.door -or

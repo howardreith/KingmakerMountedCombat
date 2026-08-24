@@ -1,5 +1,12 @@
 # Autonomous blockers
 
+## 2026-08-24T22:27:24Z - TileHandler replacement cause established; final targeted qualification pending
+
+- Status: `IN PROGRESS`, not a safety, architecture, or player-visible gameplay blocker. Exact restored observation `20260824T220000Z-round2-v52-tile-frame-suite1-distance-door` remains immutable uncredited `FAIL 57/2`; both failures are the old raw path-object replacement gates. All user-facing door criteria pass, including one rider interaction, Mammoth-only movement, strict far-side path acceptance and target reach, exact command retention, zero failure/oscillation/backtracking/duplicates, pair/presentation continuity, and cleanup.
+- Every one of five replacements is exactly correlated with `TileHandler.LastUpdateFrame` overtaking the prior path request frame, then a healthy later-frame native replacement. The public graph queue is empty, `RepathNeeded`/`PathFailed`/path error are false, and the original command is reference-identical. The path stabilizes after the final tile update. The observation's independent restoration audit passed before evidence read.
+- A one-time readiness delay is not supported: the existing readiness condition was true before traversal while subsequent tile updates advanced during the retained command. The bounded repair therefore changes diagnostic fatality classification only, preserves all raw telemetry, and leaves production behavior untouched. Offline gates pass `21/240/17/227/299`, Release, parsers `26/0` / `7/0`, diff, and prohibited payload.
+- Remaining work is one coherent publication/package and one final targeted audited door qualification, followed by Round-2 documentation/manual-package closure. A genuine player-visible failure in that final process is the stop condition; no second repair cycle is permitted.
+
 ## 2026-08-24T18:07:26Z - public graph queue rejected; exact TileHandler frame observation pending
 
 - Status: `IN PROGRESS`, not a safety or architecture blocker. The `17d4d745...` observation package passed separate RT/TB WhatIf and exact audits. Distance-door run `20260824T172215Z-round2-v52-astar-queue-observation-suite1-distance-door` is immutable uncredited `FAIL 57/2`, with immediate audit-before-read restoration.

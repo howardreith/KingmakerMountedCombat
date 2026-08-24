@@ -1,5 +1,13 @@
 # Phase 2 runtime scenario matrix
 
+## Round-2 bounded TileHandler refresh classification repair - 2026-08-24T22:27:24Z
+
+Status: `IN PROGRESS`. Audited observation `20260824T220000Z-round2-v52-tile-frame-suite1-distance-door` is immutable `FAIL 57/2` only because five native path-object replacements were counted as fatal churn. Its movement evidence SHA-256 is `ad7dcd19d538403c7ed54c91333c1e5e0eb755226d365f4b4958155e63ffc04e`; the exact restoration audit passed before that evidence was read.
+
+All five replacements are attributed to the installed stock tile-refresh boundary: each prior path request frame is not newer than `TileHandler.LastUpdateFrame`, each replacement is requested on a later Unity frame, the exact player-owned `UnitMoveTo` command remains reference-identical, `RepathNeeded` and `PathFailed` remain false, the replacement path is healthy, and the public graph queue remains empty. The sequence ends with a stable path after the final tile update, reaches the accepted far-side target without oscillation or backtracking, opens the door exactly once through the rider, retains the pair/presentation, and cleans up exactly.
+
+The one authorized repair is diagnostic classification only. Every native path replacement and the legacy raw `unexpectedRepathCount` remain emitted and strictly validated. A replacement is excluded from fatal churn only when the exact frame relation and all healthy command/agent/path conditions above are simultaneously proven; unattributed replacements remain bounded by the unchanged threshold and any command replacement, path failure, target failure, oscillation, duplicate interaction, non-mounted regression, or restoration failure remains fatal. Production movement, commands, interaction, timeouts, reach, pathfinding, and graph-update behavior must not change. One fresh clean-package distant-door qualification and targeted offline regressions are required; no further observation schema or repair cycle is authorized.
+
 ## Round-2 exact TileHandler frame observation pending - 2026-08-24T18:07:26Z
 
 Suite `20260824T154642Z-round2-v52-astar-queue-observation-suite1`, snapshot `0ef856893c9a661942a79003c2002227c13caf41e35eea5be7dcc4de662243fb`, passed separate RT/TB WhatIf and exact audits. `mounted-distance-door-interaction` run `20260824T172215Z-round2-v52-astar-queue-observation-suite1-distance-door` is immutable uncredited `FAIL 57/2` with audit-before-read restoration.
