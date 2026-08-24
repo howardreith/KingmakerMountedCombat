@@ -1,5 +1,13 @@
 # Private-alpha stabilization
 
+## Round 2 distance-door A* queue observation - 2026-08-24T15:38:17Z
+
+Fresh suite-2 RT A/B pass `81/0` each and TB A/B pass `111/0` each under one exact package and snapshot, with immediate restoration audits before every result read. The remaining distance-door run `20260824T150021Z-round2-v52-navmesh-readiness-suite2-distance-door` is preserved uncredited at `FAIL 57/2`, with exact restoration.
+
+The player-facing door behavior now succeeds through the tested boundary: an ordinary click admits one Mammoth-owned approach, the rider opens the exact stock door once, the selected cut becomes disabled and reports updated, the strict far-side path is accepted, the pair traverses to the endpoint, and relationship/presentation/fixture cleanup is exact. The only failure is four replacements of the native far-side path object. The command itself is unchanged and does not fail.
+
+Before changing behavior, the next diagnostic build records the exact public `AstarPath.active.IsAnyGraphUpdatesQueued` state at door-cut readiness and alongside every sampled path ID. This is observation-only: it does not force graph work, delay or shorten an existing movement timeout, relax the two-repath bound, or modify production interaction/movement. Complete offline gates pass `21/240/17/226/297`, Release, PowerShell/JSON parsers `28/0` / `7/0`, diff, and prohibited payload. One fresh guarded observation is required before the narrow repair and complete A/B restart.
+
 ## Round 2 suite restart after delayed TB B audit - 2026-08-24T11:49:00Z
 
 The `faa76ded...` package produced audited RT A/B `81/0` each and audited TB A `111/0`. TB B durably completed, but it is not credited: its first independent audit occurred only after a lingering Kingmaker process was closed and found timestamp-only drift in four foreign-Mod files. All file content, saves, Baseline, Working, and KMC transaction restoration remain exact, and no foreign file is rewritten. The suite is closed under the standing between-suite policy; a fresh stable snapshot and complete A/B restart are required before the distance-door retry or manual handoff.

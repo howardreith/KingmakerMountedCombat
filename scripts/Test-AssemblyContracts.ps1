@@ -535,6 +535,9 @@ if($Target-eq'Kingmaker'){
     $navmeshCutRequiresUpdate=if($null-eq$navmeshCutType){$null}else{$navmeshCutType.GetMethod('RequiresUpdate',[Reflection.BindingFlags]'Public,Instance')}
     $tileHandlerHelperType=$firstpass.GetType('Pathfinding.TileHandlerHelper',$false)
     $tileHandlerUpdate=if($null-eq$tileHandlerHelperType){$null}else{$tileHandlerHelperType.GetMethod('ForceUpdate',[Reflection.BindingFlags]'Public,Instance')}
+    $astarPathType=$firstpass.GetType('AstarPath',$false)
+    $astarPathActive=if($null-eq$astarPathType){$null}else{$astarPathType.GetField('active',[Reflection.BindingFlags]'Public,Static')}
+    $astarGraphUpdatesQueued=if($null-eq$astarPathType){$null}else{$astarPathType.GetProperty('IsAnyGraphUpdatesQueued',[Reflection.BindingFlags]'Public,Instance')}
     Assert-Contract ($clickMapObject.Count-eq1 -and $clickMapObject[0] -is [Reflection.MethodInfo] -and
         $clickMapObject[0].IsPublic -and -not $clickMapObject[0].IsStatic -and
         $clickMapObject[0].ReturnType.FullName-ceq'System.Boolean' -and
@@ -558,6 +561,15 @@ if($Target-eq'Kingmaker'){
         $null-ne$tileHandlerUpdate -and $tileHandlerUpdate.ReturnType.FullName-ceq'System.Void' -and
         $tileHandlerUpdate.GetParameters().Count-eq0) `
         'native map-object input, StandardDoor, and deferred navmesh-cut update seams'
+    Assert-Contract ($null-ne$astarPathType -and $null-ne$astarPathActive -and
+        $astarPathActive.FieldType.FullName-ceq'AstarPath' -and
+        $null-ne$astarGraphUpdatesQueued -and
+        $astarGraphUpdatesQueued.PropertyType.FullName-ceq'System.Boolean' -and
+        $null-ne$astarGraphUpdatesQueued.GetGetMethod() -and
+        $astarGraphUpdatesQueued.GetGetMethod().IsPublic -and
+        -not $astarGraphUpdatesQueued.GetGetMethod().IsStatic -and
+        $astarGraphUpdatesQueued.GetGetMethod().GetParameters().Count-eq0) `
+        'native AstarPath graph-update queue observation seams'
     $unityChecks=@(
         @('UnityEngine.SceneManagement.SceneManager',0x060019D5,'GetSceneByName'),
         @('UnityEngine.SceneManagement.Scene',0x060019C4,'get_isLoaded'))

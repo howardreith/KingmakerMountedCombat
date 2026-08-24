@@ -6304,6 +6304,7 @@ function Assert-KmcMovementTelemetryRecord {
         'riderSelected','mountSelected','selectedUnitIds','riderCommandCount','mountCommandCount',
         'riderActiveCommandTypes','mountActiveCommandTypes','mountIsReallyMoving','mountVelocity','mountSpeed','mountMoveDirection',
         'mountPathId','mountPathFailed','mountRepathNeeded','mountPathError','mountPathErrorLog','mountPathPointCount','mountPathLength',
+        'astarPathPresent','astarGraphUpdatesQueued',
         'synchronizationPhase','synchronizationSampleCount','synchronizationCorrectionCount',
         'initialConfigurationSynchronizationSampleCount','initialConfigurationSynchronizationCorrectionCount',
         'updateSynchronizationSampleCount','updateSynchronizationCorrectionCount','lateUpdateSynchronizationSampleCount',
@@ -6355,6 +6356,8 @@ function Assert-KmcMovementTelemetryRecord {
     foreach ($name in @('partyCombat','paused','riderStockAgentEnabled','mountStockAgentEnabled','riderAvoidanceDisabled','mountAvoidanceDisabled','mountIsReallyMoving','mountPathFailed','mountRepathNeeded')) {
         Assert-KmcNullableJsonBoolean $Record.$name "movement telemetry $name"
     }
+    if ($Record.astarPathPresent -ne $true) { throw 'Movement telemetry must prove that the exact AstarPath singleton is present.' }
+    if ($Record.astarGraphUpdatesQueued -isnot [bool]) { throw 'Movement telemetry astarGraphUpdatesQueued must be a JSON boolean.' }
     foreach ($name in @('latestPreviousAuthoritativeSameFrame','latestPreviousAuthoritativeReferenceEligible','latestPhaseLagObserved',
         'latestPhaseLagPermitted','latestPhaseLagViolation','latestRecoveryRequiredBeforeSample','latestRecoveryUpdateObserved',
         'latestRecoverySatisfied','latestRecoveryViolation','latestRecoveryPendingAfterSample','latestStationaryAuthority',
@@ -6697,7 +6700,8 @@ function Assert-KmcMovementScenarioRecord {
     elseif ([string]$Record.kind -ceq 'door-traversal-readiness') {
         Assert-KmcExactProperties $Record ($common + @(
             'door','doorOpen','disableNavmeshCutWhenOpen','navmeshCutPresent','navmeshCutEnabled',
-            'initialNavmeshCutRequiresUpdate','finalNavmeshCutRequiresUpdate','observationCount','elapsedSeconds','ready')) `
+            'initialNavmeshCutRequiresUpdate','finalNavmeshCutRequiresUpdate','astarPathPresent','astarGraphUpdatesQueued',
+            'observationCount','elapsedSeconds','ready')) `
             'movement door-traversal-readiness record'
     }
     else {
@@ -6795,9 +6799,10 @@ function Assert-KmcMovementScenarioRecord {
             throw 'Movement door-traversal-readiness door identity is invalid.'
         }
         foreach ($name in @('doorOpen','disableNavmeshCutWhenOpen','navmeshCutPresent','navmeshCutEnabled',
-            'initialNavmeshCutRequiresUpdate','finalNavmeshCutRequiresUpdate','ready')) {
+            'initialNavmeshCutRequiresUpdate','finalNavmeshCutRequiresUpdate','astarPathPresent','astarGraphUpdatesQueued','ready')) {
             if ($Record.$name -isnot [bool]) { throw "Movement door-traversal-readiness $name must be a JSON boolean." }
         }
+        if ($Record.astarPathPresent -ne $true) { throw 'Movement door-traversal-readiness must prove that the exact AstarPath singleton is present.' }
         if (-not (Test-KmcExactJsonInteger $Record.observationCount) -or [long]$Record.observationCount -le 0 -or
             -not (Test-KmcFiniteNonnegativeJsonNumber $Record.elapsedSeconds)) {
             throw 'Movement door-traversal-readiness count or elapsed time is invalid.'

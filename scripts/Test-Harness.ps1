@@ -826,7 +826,8 @@ function New-TestMovementTelemetryRecord {
         riderSelected=$true;mountSelected=$false;selectedUnitIds=@('movement-rider');riderCommandCount=0;mountCommandCount=1
         riderActiveCommandTypes=@();mountActiveCommandTypes=@('Kingmaker.UnitLogic.Commands.UnitMoveTo');mountIsReallyMoving=$true
         mountVelocity=$vector;mountSpeed=3.0;mountMoveDirection=$vector;mountPathId=1;mountPathFailed=$false;mountRepathNeeded=$false
-        mountPathError=0;mountPathErrorLog=$null;mountPathPointCount=2;mountPathLength=5.0;synchronizationPhase='Update'
+        mountPathError=0;mountPathErrorLog=$null;mountPathPointCount=2;mountPathLength=5.0
+        astarPathPresent=$true;astarGraphUpdatesQueued=$false;synchronizationPhase='Update'
         synchronizationSampleCount=6;synchronizationCorrectionCount=2;initialConfigurationSynchronizationSampleCount=1
         initialConfigurationSynchronizationCorrectionCount=1;updateSynchronizationSampleCount=3;updateSynchronizationCorrectionCount=1
         lateUpdateSynchronizationSampleCount=2;lateUpdateSynchronizationCorrectionCount=0;preCorrectionPositionResidualWorldUnits=0.0
@@ -1451,7 +1452,8 @@ function New-TestMovementDoorReadinessRecord {
         sequence=$Sequence;utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o')
         kind='door-traversal-readiness';door='Area/Door';doorOpen=$true;disableNavmeshCutWhenOpen=$true
         navmeshCutPresent=$true;navmeshCutEnabled=$false;initialNavmeshCutRequiresUpdate=$true
-        finalNavmeshCutRequiresUpdate=$false;observationCount=2;elapsedSeconds=0.25;ready=$true
+        finalNavmeshCutRequiresUpdate=$false;astarPathPresent=$true;astarGraphUpdatesQueued=$true
+        observationCount=2;elapsedSeconds=0.25;ready=$true
     }
 }
 
@@ -7380,7 +7382,7 @@ try {
 
         foreach ($mutation in @('missing-control','missing-door','wrong-waypoint','wrong-target','non-strict','extra-interaction-leg',
             'missing-fixture-lease','wrong-original-state','missing-temporary-enable','fixture-not-restored',
-            'missing-readiness','pending-cut','readiness-row-mismatch')) {
+            'missing-readiness','pending-cut','missing-astar','invalid-graph-queue','readiness-row-mismatch')) {
             $rowRecord = New-TestMovementRowRecord $doorRequest $doorRow 2
             $readiness = New-TestMovementDoorReadinessRecord $doorRequest 0
             $probe = New-TestMovementPathProbeRecord $doorRequest $doorRow 1 'DoorFar' $true
@@ -7396,6 +7398,8 @@ try {
                 'missing-temporary-enable' { $rowRecord.doorFixtureTemporaryEnableUsed = $false }
                 'fixture-not-restored' { $rowRecord.doorFixtureRestored = $false }
                 'pending-cut' { $readiness.finalNavmeshCutRequiresUpdate = $true }
+                'missing-astar' { $readiness.astarPathPresent = $false }
+                'invalid-graph-queue' { $readiness.astarGraphUpdatesQueued = $null }
                 'readiness-row-mismatch' { $readiness.door = 'Area/OtherDoor' }
             }
             if ($mutation -ceq 'missing-readiness') {
@@ -8410,9 +8414,9 @@ try {
         $telemetryProducerNames = @([regex]::Matches($writerBlock, '(?m)^\s{16}([A-Za-z_]\w*)\s*(?:=|,)') |
             ForEach-Object { $_.Groups[1].Value })
         $telemetryFixtureNames = @((New-TestMovementTelemetryRecord $movementRequest $movementRow 0).Keys | ForEach-Object { [string]$_ })
-        Assert-Test ($telemetryProducerNames.Count -eq 217 -and $telemetryFixtureNames.Count -eq 217 -and
+        Assert-Test ($telemetryProducerNames.Count -eq 219 -and $telemetryFixtureNames.Count -eq 219 -and
             @($telemetryProducerNames | Where-Object { [Array]::IndexOf($telemetryFixtureNames, $_) -lt 0 }).Count -eq 0 -and
-            @($telemetryFixtureNames | Where-Object { [Array]::IndexOf($telemetryProducerNames, $_) -lt 0 }).Count -eq 0) 'movement telemetry fixture/validator field set is not the exact 217-field producer schema'
+            @($telemetryFixtureNames | Where-Object { [Array]::IndexOf($telemetryProducerNames, $_) -lt 0 }).Count -eq 0) 'movement telemetry fixture/validator field set is not the exact 219-field producer schema'
 
         $rowPayloadMarker = $engineSource.IndexOf('kind = "movement-row-result"', [StringComparison]::Ordinal)
         $rowStart = $engineSource.LastIndexOf('WriteEvidence(new', $rowPayloadMarker, [StringComparison]::Ordinal)
@@ -8532,6 +8536,7 @@ try {
         $ledgerSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\NativeLifecycleDeliveryLedger.cs'))
         $combatEngineSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeCombatScenarioEngine.cs'))
         $movementEngineSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeMovementScenarioEngine.cs'))
+        $movementTelemetrySource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\MovementTelemetryWriter.cs'))
         $automationHostSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeAutomationHost.cs'))
 
         Assert-Test ($stabilizationSource.Contains('string.Equals(exactModeName, "FullScreenUi", StringComparison.Ordinal)') -and
@@ -8627,6 +8632,8 @@ try {
             $movementEngineSource.Contains('distanceDoorNavmeshCut.RequiresUpdate()') -and
             $movementEngineSource.Contains('MountedDistanceDoorTraversalReadinessPolicy.IsReady(') -and
             $movementEngineSource.Contains('kind = "door-traversal-readiness"') -and
+            $movementEngineSource.Contains('astarGraphUpdatesQueued = astarPath == null ? (bool?)null : astarPath.IsAnyGraphUpdatesQueued') -and
+            $movementTelemetrySource.Contains('astarGraphUpdatesQueued = astarPath == null ? (bool?)null : astarPath.IsAnyGraphUpdatesQueued') -and
             $movementEngineSource.Contains('DoorTraversalReadinessTimeoutSeconds') -and
             -not $movementEngineSource.Contains('TileHandlerHelper') -and
             -not $movementEngineSource.Contains('.ForceUpdate()') -and

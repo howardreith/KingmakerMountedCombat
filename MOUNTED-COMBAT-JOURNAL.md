@@ -1,5 +1,14 @@
 # Mounted Combat journal
 
+## 2026-08-24T15:38:17Z - suite-2 A/B passes; distance-door isolates four native path replacements
+
+- Published input/package/suite are `cc361c0ee6f5c7cee34b1a03c14444a47caeb8d9`, package SHA-256 `76047b0e60c4720275766253ef62447cfe93261251f6aaf8e645dc9a12346338`, and snapshot SHA-256 `156b1b8524f827cfeb29c5fb0660e1eff8361da25f3d287672364c9bcfb50430`. Separate RT/TB WhatIf gates and audits passed.
+- Credited fresh RT A/B `20260824T132154Z...` / `20260824T134633Z...` pass `81/0`; credited TB A/B `20260824T141121Z...` / `20260824T143535Z...` pass `111/0`. Each immediate audit proved exact suite/save/Mods/Baseline/Working state and zero process, lock, sentinel, transaction, or deployment residue before evidence read.
+- Distance-door `20260824T150021Z...` remains immutable uncredited `FAIL 57/2`; its immediate audit also passed. It proves the production interaction, `door-traversal-readiness` in `0.0446968` seconds, strict path probe, traversal, endpoint, and cleanup. The only failed assertions report four far-side path replacements. Telemetry shows native path IDs `8 -> 9 -> 10 -> 11 -> 12`, no path error, no command replacement, and successful final distance `1.2359247` within the unchanged tolerance.
+- Rejected theories: the new readiness wait did not fail; the door remained open; the path was not blocked; the Mammoth command was not replaced; rider pathfinding did not resume; external restoration did not fail. The remaining uncertainty is whether stock A* graph-update work remained queued while those paths were replaced.
+- Exact installed contracts prove public static `AstarPath.active` `0x0400089B` and public instance Boolean `IsAnyGraphUpdatesQueued` getter `0x06000517`. The observation checkpoint records those values at readiness and in every movement sample only. Complete gates pass source/component/visual/harness/assembly `21/240/17/226/297`, Release, parsers `28/0` / `7/0`, diff, and prohibited payload; dirty DLL/MVID are `460c2137ba24f53dea1f9c3cd168d092fd675c3c5b2a21f843721ba1f3e30f7a` / `492f04f2-b6b2-4742-ad7b-480479f5da56`.
+- Next: commit/publish, bind a fresh package/suite, pass separate WhatIf/audits, run one audited door observation, and repair only after queue/path correlation is exact. No failed run receives credit.
+
 ## 2026-08-24T11:49:00Z - TB B preserved uncredited after delayed audit found foreign timestamp drift
 
 - `faa76ded4a6ffce1614753ced18ba95dfb695918` remains clean and equal upstream. Package/manifest/DLL/MVID are `1732b5de9acc5eff37d9aca274e54cb1b192827124d62c8412f7c7c22a63a4f3` / `7bee2cb98c8cf7344d8fbbebc785806d5d05804a3a4c72def654962aa48592bb` / `f5e9a2ca803b89205f3826580bf71ee4d1a693f84f8794aaccde1609d421a924` / `fccb6ad3-b20e-49a6-b016-0a3c1613dbbe`.

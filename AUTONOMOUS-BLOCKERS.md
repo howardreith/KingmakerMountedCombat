@@ -1,5 +1,12 @@
 # Autonomous blockers
 
+## 2026-08-24T15:38:17Z - distance-door path replacements require exact A* queue observation
+
+- Status: `IN PROGRESS`, not a safety or architecture blocker. Suite-2 RT A/B pass `81/0` each and TB A/B pass `111/0` each with immediate exact restoration audits. Distance-door run `20260824T150021Z-round2-v52-navmesh-readiness-suite2-distance-door` is immutable uncredited `FAIL 57/2`, also with exact audit-before-read restoration.
+- The door route itself is healthy: ordinary click admission, one Mammoth approach, one rider stock interaction, exact cut readiness, strict far-side probe, traversal endpoint, pair/pose/selection continuity, and cleanup pass. The only failures are the per-leg and row bounds for four native far-side path-object replacements; the Move command is never replaced or failed.
+- Installed `AstarPath.active.IsAnyGraphUpdatesQueued` is an exact public read-only observation seam. The current checkpoint adds it to readiness and interval telemetry only. No timeout, threshold, movement predicate, production command, or graph updater is changed or invoked.
+- Complete gates pass `21/240/17/226/297`, Release, parsers `28/0` / `7/0`, diff, and prohibited payload. Remaining work is guarded publication/package/suite/WhatIf, one audited observation process, then an evidence-attributable narrow repair and fresh full qualification. This is recoverable diagnostic work, not a hard stop.
+
 ## 2026-08-24T11:49:00Z - TB B uncredited; suite closed for foreign timestamp drift
 
 - Status: `IN PROGRESS`, not a critical safety or architecture blocker. TB B `20260824T061000Z-round2-v52-navmesh-readiness-tb-passB` has three durable `restored` transaction records and no KMC residue, but its first independent audit rejected four foreign-Mod timestamp changes after a lingering Kingmaker process was closed.

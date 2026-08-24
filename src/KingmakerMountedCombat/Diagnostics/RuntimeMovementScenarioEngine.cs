@@ -1130,6 +1130,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     cutRequiresUpdate);
                 if (distanceDoorTraversalReadinessQualified)
                 {
+                    var astarPath = AstarPath.active;
                     WriteEvidence(new
                     {
                         kind = "door-traversal-readiness",
@@ -1140,6 +1141,8 @@ namespace KingmakerMountedCombat.Diagnostics
                         navmeshCutEnabled = cutEnabled,
                         initialNavmeshCutRequiresUpdate = distanceDoorInitialCutRequiresUpdate,
                         finalNavmeshCutRequiresUpdate = cutRequiresUpdate,
+                        astarPathPresent = astarPath != null,
+                        astarGraphUpdatesQueued = astarPath == null ? (bool?)null : astarPath.IsAnyGraphUpdatesQueued,
                         observationCount = distanceDoorTraversalReadinessObservationCount,
                         elapsedSeconds = distanceDoorTraversalReadinessElapsedSeconds,
                         ready = true

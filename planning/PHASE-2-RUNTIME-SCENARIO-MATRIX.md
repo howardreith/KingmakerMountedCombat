@@ -1,5 +1,11 @@
 # Phase 2 runtime scenario matrix
 
+## Round-2 A/B PASS; distance-door A* queue observation pending - 2026-08-24T15:38:17Z
+
+Suite `20260824T115200Z-round2-v52-navmesh-readiness-suite2`, snapshot `156b1b8524f827cfeb29c5fb0660e1eff8361da25f3d287672364c9bcfb50430`, passed separate RT/TB WhatIf and audits. Credited RT A/B `20260824T132154Z...` / `20260824T134633Z...` pass `81/0` each; credited TB A/B `20260824T141121Z...` / `20260824T143535Z...` pass `111/0` each. Every audit-before-read proved exact restoration.
+
+`mounted-distance-door-interaction` run `20260824T150021Z-round2-v52-navmesh-readiness-suite2-distance-door` is immutable uncredited `FAIL 57/2`. Ordinary input, Mammoth-only approach, one rider-owned interaction, exact door/cut readiness, strict far-side path probe, endpoint, retained pair, and cleanup pass. Only four native far-side path-object replacements exceed the unchanged `2` bound; the exact Move command is never replaced. Observation-only telemetry now binds installed `AstarPath.active.IsAnyGraphUpdatesQueued` to readiness and every path sample. One fresh clean-package audited observation is `TODO`; no behavioral repair or PASS credit is permitted before its queue/path correlation is read after restoration.
+
 ## Round-2 suite restart required after TB B audit - 2026-08-24T11:49:00Z
 
 Suite `20260824T032700Z-round2-v52-navmesh-readiness-suite1` is closed. RT A/B `81/0` each and TB A `111/0` remain preserved historical process evidence, but cannot form the final same-snapshot set. TB B `20260824T061000Z...` is immutable and uncredited because its delayed independent audit found four foreign-Mod timestamp changes after a lingering game process was closed; gameplay evidence was not read. Exact content, saves, KMC fixtures, and restored transaction records remain healthy. Fresh suite admission, separate WhatIf/audits, complete RT/TB A/B, and distance-door are `TODO`.

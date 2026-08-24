@@ -1,6 +1,6 @@
 # Assembly contract matrix
 
-Round-2 distance-door qualification pins the exact installed post-open pathfinding boundary. `Kingmaker.View.MapObjects.StandardDoor.Open()` toggles state and, when `DisableNavmeshCutWhenOpen` is true, disables its child `Pathfinding.NavmeshCut`. `NavmeshCut.RequiresUpdate()` remains true until stock `Pathfinding.TileHandlerHelper.Update()` reloads the dirty bounds and calls `NotifyUpdated()`. The diagnostic may observe that public readiness surface and wait within a separate bounded deadline; it must not call `ForceUpdate`, relax endpoint/door-plane checks, or infer that synchronous door state implies synchronous tile-graph readiness.
+Round-2 distance-door qualification pins the exact installed post-open pathfinding boundary. `Kingmaker.View.MapObjects.StandardDoor.Open()` toggles state and, when `DisableNavmeshCutWhenOpen` is true, disables its child `Pathfinding.NavmeshCut`. `NavmeshCut.RequiresUpdate()` remains true until stock `Pathfinding.TileHandlerHelper.Update()` reloads the dirty bounds and calls `NotifyUpdated()`. The pinned first-pass assembly also exposes public static `AstarPath.active` field token `0x0400089B` and public instance Boolean `IsAnyGraphUpdatesQueued` getter token `0x06000517`. The diagnostic may observe those public readiness surfaces within a separate bounded deadline; it must not call `ForceUpdate`, relax endpoint/door-plane/path-replacement checks, or infer that synchronous door state implies completed tile-graph work.
 
 Status: PASS
 

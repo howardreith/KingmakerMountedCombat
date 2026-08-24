@@ -82,6 +82,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var selected = SelectionManager.Instance?.SelectedUnits;
             var mountAgent = mount.View?.AgentASP;
             var mountPath = mountAgent?.Path;
+            var astarPath = AstarPath.active;
             var move = mount.Commands?.Move;
             var riderViewPositionResidual = rider.View == null ? (double?)null : Domain.MovementTelemetrySample.CalculateDistance(
                 expected.x, expected.y, expected.z, rider.View.transform.position.x, rider.View.transform.position.y, rider.View.transform.position.z);
@@ -239,6 +240,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 mountPathErrorLog = mountPath?.errorLog,
                 mountPathPointCount = mountPath?.vectorPath?.Count,
                 mountPathLength = mountPath == null ? (float?)null : mountPath.GetTotalLength(),
+                astarPathPresent = astarPath != null,
+                astarGraphUpdatesQueued = astarPath == null ? (bool?)null : astarPath.IsAnyGraphUpdatesQueued,
                 synchronizationPhase = agent.LatestSynchronizationPhase.ToString(),
                 synchronizationSampleCount = agent.SampleCount,
                 synchronizationCorrectionCount = agent.CorrectionCount,
