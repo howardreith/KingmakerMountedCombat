@@ -1,5 +1,11 @@
 # Autonomous blockers
 
+## 2026-08-24T11:49:00Z - TB B uncredited; suite closed for foreign timestamp drift
+
+- Status: `IN PROGRESS`, not a critical safety or architecture blocker. TB B `20260824T061000Z-round2-v52-navmesh-readiness-tb-passB` has three durable `restored` transaction records and no KMC residue, but its first independent audit rejected four foreign-Mod timestamp changes after a lingering Kingmaker process was closed.
+- All four foreign files retain their exact paths, lengths, and hashes; the complete Mods content digest remains `f91fe3ab...`. Saves, Baseline, and Working remain exact. KMC does not rewrite the foreign timestamps or read TB B gameplay evidence.
+- Per suite policy, TB B is immutable and uncredited, the suite is closed, and the full A/B set must restart under a new stable snapshot. This is recoverable between-suite drift, not a core blocker.
+
 ## 2026-08-24T03:15:00Z - post-open path graph readiness isolated
 
 - Status: `IN PROGRESS`, not a critical blocker. Repository and full suite restoration are exact at published `3121de1944600dc7d9e7371dcb5f392e3b8158c2`; no process, lock, sentinel, transaction, deployment, save, Mods, Baseline, or Working discrepancy remains.

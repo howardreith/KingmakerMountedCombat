@@ -1,5 +1,9 @@
 # Private-alpha stabilization
 
+## Round 2 suite restart after delayed TB B audit - 2026-08-24T11:49:00Z
+
+The `faa76ded...` package produced audited RT A/B `81/0` each and audited TB A `111/0`. TB B durably completed, but it is not credited: its first independent audit occurred only after a lingering Kingmaker process was closed and found timestamp-only drift in four foreign-Mod files. All file content, saves, Baseline, Working, and KMC transaction restoration remain exact, and no foreign file is rewritten. The suite is closed under the standing between-suite policy; a fresh stable snapshot and complete A/B restart are required before the distance-door retry or manual handoff.
+
 ## Round 2 post-open pathfinding readiness correction - 2026-08-24T03:15:00Z
 
 Published package input `3121de1944600dc7d9e7371dcb5f392e3b8158c2` repeated fresh RT A/B at `81/0` each and TB A/B at `111/0` each under suite snapshot `9398f96a0ab558f052ad53c722dd45faddfacd523a95d0842fb6010fc9d2cf02`, with exact restoration before every evidence read. The separate distance-door run `20260824T023300Z-round2-v52-distance-door-fixture-door-pass` remains immutable, uncredited `FAIL 29/1`.

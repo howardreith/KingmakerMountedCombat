@@ -1,5 +1,12 @@
 # Mounted Combat journal
 
+## 2026-08-24T11:49:00Z - TB B preserved uncredited after delayed audit found foreign timestamp drift
+
+- `faa76ded4a6ffce1614753ced18ba95dfb695918` remains clean and equal upstream. Package/manifest/DLL/MVID are `1732b5de9acc5eff37d9aca274e54cb1b192827124d62c8412f7c7c22a63a4f3` / `7bee2cb98c8cf7344d8fbbebc785806d5d05804a3a4c72def654962aa48592bb` / `f5e9a2ca803b89205f3826580bf71ee4d1a693f84f8794aaccde1609d421a924` / `fccb6ad3-b20e-49a6-b016-0a3c1613dbbe`.
+- Old-suite RT A/B passed `81/0` each and TB A passed `111/0`, each after immediate exact restoration audit. TB B durably reported PASS and its run/Mods/save records are all `restored`, but a verified Kingmaker process remained alive until the later audit boundary.
+- After guarded process closure, the independent audit found timestamp-only drift at four foreign-Mod paths. Content digest, saves, immutable Baseline, and restored Working remain exact; no KMC lock, sentinel, transaction, deployment, or process residue exists. No foreign timestamp was changed by KMC.
+- TB B gameplay evidence was not read and receives no credit. Rejected disposition: retroactive credit from durable scenario PASS without exact audit. Exact next action is a coherent evidence checkpoint, fresh clean package, stable suite admission, separate RT/TB WhatIf/audits, then complete fresh RT/TB A/B and distance-door.
+
 ## 2026-08-24T03:15:00Z - Round-2 exact post-open navmesh readiness repair
 
 - Starting authority: clean guarded-published `3121de1944600dc7d9e7371dcb5f392e3b8158c2`, package/manifest/DLL SHA-256 `c1af2734f80873643f806b72d3a704e15fec701b890f7cea6f42c0e56a9ccd54` / `684f1d9a095a3ba421fc16530a9414c73dfd0f3d97c617c43cafd896c181dd3a` / `1555ecd9b4ff9c6107ee7377cbded71fd42c4470d9ba0084b65db2cc8a2b9136`, MVID `bb23098a-2d0e-4d6b-be72-b33721027775`.

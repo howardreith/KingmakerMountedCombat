@@ -1,5 +1,9 @@
 # Phase 2 runtime scenario matrix
 
+## Round-2 suite restart required after TB B audit - 2026-08-24T11:49:00Z
+
+Suite `20260824T032700Z-round2-v52-navmesh-readiness-suite1` is closed. RT A/B `81/0` each and TB A `111/0` remain preserved historical process evidence, but cannot form the final same-snapshot set. TB B `20260824T061000Z...` is immutable and uncredited because its delayed independent audit found four foreign-Mod timestamp changes after a lingering game process was closed; gameplay evidence was not read. Exact content, saves, KMC fixtures, and restored transaction records remain healthy. Fresh suite admission, separate WhatIf/audits, complete RT/TB A/B, and distance-door are `TODO`.
+
 ## Round-2 post-open navmesh readiness retry pending - 2026-08-24T03:15:00Z
 
 Round-2 package `3121de1944600dc7d9e7371dcb5f392e3b8158c2` produced fresh same-suite RT A/B `81/0` each and TB A/B `111/0` each, all with exact restoration. `mounted-distance-door-interaction` run `20260824T023300Z-round2-v52-distance-door-fixture-door-pass` remains uncredited `FAIL 29/1`: ordinary click, Mammoth-only approach, one rider-owned stock open, pair/selection/pose continuity, and exact fixture restoration passed; only the immediate post-open far-side path ended `4.00` short. Installed `StandardDoor`/A* contracts prove the door disables a `NavmeshCut` synchronously but tile rebuilding and `NotifyUpdated()` are deferred. The corrected row must emit exactly one selected-door readiness record proving open state, disabled cut, and `RequiresUpdate()==false` before its unchanged strict far-side probe. It may wait at most four seconds, must not call `ForceUpdate`, and receives no credit until a fresh package/suite repeats RT/TB A/B plus this row.
