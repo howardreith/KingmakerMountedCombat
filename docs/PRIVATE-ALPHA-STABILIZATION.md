@@ -1,5 +1,15 @@
 # Private-alpha stabilization
 
+## Round 2 post-open pathfinding readiness correction - 2026-08-24T03:15:00Z
+
+Published package input `3121de1944600dc7d9e7371dcb5f392e3b8158c2` repeated fresh RT A/B at `81/0` each and TB A/B at `111/0` each under suite snapshot `9398f96a0ab558f052ad53c722dd45faddfacd523a95d0842fb6010fc9d2cf02`, with exact restoration before every evidence read. The separate distance-door run `20260824T023300Z-round2-v52-distance-door-fixture-door-pass` remains immutable, uncredited `FAIL 29/1`.
+
+That run now proves the player-facing interaction path itself: ordinary map-object click admission, one Mammoth-authoritative approach, one rider-owned stock door interaction, retained mounted relationship, and exact fixture/command/presentation cleanup. The sole failure was the immediate strict traversal path ending exactly four units before its requested far-side point.
+
+Exact installed contracts establish a deferred stock boundary. `StandardDoor.Open()` disables its child `NavmeshCut`, but the A* tile graph is refreshed later by `TileHandlerHelper.Update()`, which reloads dirty bounds and calls `NavmeshCut.NotifyUpdated()`. The diagnostic now observes only the exact selected cut and waits within a distinct four-second deadline until the door is open, the cut is disabled, and `RequiresUpdate()` is false. It then applies the unchanged endpoint and door-plane path gates. KMC does not force a graph update, increase a timeout, relax path validation, or alter production interaction routing.
+
+This remains technically unqualified until a new clean package repeats RT/TB A/B and the exact distance-door row under one fresh suite. Wild Shape, explicit Dismount, basic mounted movement, and the already credited Round-2 RT/TB combat evidence remain preserved.
+
 ## Round 2 path-end qualification and exact door-fixture correction - 2026-08-23T23:22:44Z
 
 Clean package `5311020e7ad3f227c46ac2284b520da74d3a9c674f05232271db51b1d5117d1c` from published `a05d40d4e08508e611cedc4eae4e3bee406822c8` produced RT A/B `81/0` each and TB A/B `111/0` each under suite snapshot `3ad2100c957fc38e31f6a95d19ebc80cdc0fa1345cdf77e6a791acb684a56ebf`. Every process had an immediate exact restoration audit before evidence inspection. Both TB runs prove ordinary native Mammoth command success, visible movement, actor-specific ledgers, rider-turn routing and rider melee once, with no duplicate/opportunity chain. Physical mouse and rendered usability remain manual gates.

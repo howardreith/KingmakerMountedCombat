@@ -1,5 +1,13 @@
 # Autonomous blockers
 
+## 2026-08-24T03:15:00Z - post-open path graph readiness isolated
+
+- Status: `IN PROGRESS`, not a critical blocker. Repository and full suite restoration are exact at published `3121de1944600dc7d9e7371dcb5f392e3b8158c2`; no process, lock, sentinel, transaction, deployment, save, Mods, Baseline, or Working discrepancy remains.
+- `20260824T023300Z-round2-v52-distance-door-fixture-door-pass` is immutable uncredited `FAIL 29/1`. It proves ordinary mounted input, Mammoth-only approach, one stock rider-owned door interaction, exact pair/UI/pose continuity, and exact fixture restoration. It fails only because the strict post-open path was requested before the disabled door cut had been consumed by stock tile rebuilding; the returned endpoint was exactly `4.00` short.
+- Installed contracts prove `StandardDoor.Open` disables the child `NavmeshCut`, while `TileHandlerHelper.Update/ForceUpdate` owns deferred tile reload and `NavmeshCut.NotifyUpdated`. The current narrow repair observes `RequiresUpdate` only and waits within a separate four-second readiness deadline. It does not force the updater or weaken any existing path, endpoint, timeout, production-command, or restoration gate.
+- Complete repaired offline gates pass source/component/visual/harness/assembly `21/240/17/226/296`, PowerShell/JSON parsers `27/0` / `7/0`, diff, and prohibited-payload checks.
+- Remaining evidence requirement: clean checkpoint/package/suite, separate RT/TB WhatIf/audits, fresh same-package RT A/B and TB A/B, and one passing distance-door row with exactly one readiness record and unchanged strict traversal. No architecture stop is established.
+
 ## 2026-08-23T23:22:44Z - path-end repair qualified; distance-door fixture failure repaired offline
 
 - Status: `IN PROGRESS`, not a safety, gameplay, or core-architecture block. Clean package `5311020e7ad3f227c46ac2284b520da74d3a9c674f05232271db51b1d5117d1c` produced credited RT A/B `81/0` each and TB A/B `111/0` each under one exact suite, with immediate independent restoration before every evidence read. Native Mammoth command success, separate turn/Move ledgers, rider melee, and zero duplicate/opportunity chains are proven.

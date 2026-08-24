@@ -1,5 +1,9 @@
 # Phase 2 runtime scenario matrix
 
+## Round-2 post-open navmesh readiness retry pending - 2026-08-24T03:15:00Z
+
+Round-2 package `3121de1944600dc7d9e7371dcb5f392e3b8158c2` produced fresh same-suite RT A/B `81/0` each and TB A/B `111/0` each, all with exact restoration. `mounted-distance-door-interaction` run `20260824T023300Z-round2-v52-distance-door-fixture-door-pass` remains uncredited `FAIL 29/1`: ordinary click, Mammoth-only approach, one rider-owned stock open, pair/selection/pose continuity, and exact fixture restoration passed; only the immediate post-open far-side path ended `4.00` short. Installed `StandardDoor`/A* contracts prove the door disables a `NavmeshCut` synchronously but tile rebuilding and `NotifyUpdated()` are deferred. The corrected row must emit exactly one selected-door readiness record proving open state, disabled cut, and `RequiresUpdate()==false` before its unchanged strict far-side probe. It may wait at most four seconds, must not call `ForceUpdate`, and receives no credit until a fresh package/suite repeats RT/TB A/B plus this row.
+
 ## Round-2 path-end A/B PASS; distance-door fixture retry pending - 2026-08-23T23:22:44Z
 
 Published commit/package `a05d40d4e08508e611cedc4eae4e3bee406822c8` / `5311020e7ad3f227c46ac2284b520da74d3a9c674f05232271db51b1d5117d1c` produced credited RT A/B `81/0` each and TB A/B `111/0` each under snapshot `3ad2100c957fc38e31f6a95d19ebc80cdc0fa1345cdf77e6a791acb684a56ebf`. Every audit passed before evidence inspection. Schema-v52 TB proves ordinary native Mammoth `Success`, `<not-interrupted>`, `0.9619302` movement, separate turn/Move ownership, restored slots, one rider melee chain, and zero unexpected pair/AoO/duplicate chain. Physical pointer usability remains manual-required.

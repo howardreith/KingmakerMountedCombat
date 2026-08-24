@@ -1,5 +1,9 @@
 # Combat action economy contract
 
+## Round-2 post-open pathfinding readiness isolation - 2026-08-24T03:15:00Z
+
+Round-2 package `3121de1944600dc7d9e7371dcb5f392e3b8158c2` repeats the stabilized combat contract in RT A/B at `81/0` each and TB A/B at `111/0` each under one exact suite, with audit-before-read restoration. The later distance-door `FAIL 29/1` occurred only in diagnostic post-open traversal readiness after the rider-owned interaction and Mammoth-owned approach had completed and restored their exact command slots. It changes no combat action, turn, Standard, Move, attack, opportunity, or resource contract. The diagnostic readiness repair observes the stock door cut updater only; it does not manufacture movement or transfer action ownership.
+
 ## Stabilization Round 2 path-end bridge qualified - 2026-08-23T23:22:44Z
 
 Exact package `5311020e7ad3f227c46ac2284b520da74d3a9c674f05232271db51b1d5117d1c` and suite snapshot `3ad2100c957fc38e31f6a95d19ebc80cdc0fa1345cdf77e6a791acb684a56ebf` produced RT A/B `81/0` each and TB A/B `111/0` each. In both TB processes, the independent Mammoth turn owns its player-created native Move and only Mammoth Move increases; the rider turn separately delegates movement to the Mammoth while only rider Move increases. Rider melee then owns its one Standard/weapon/attack/roll/damage chain. Mammoth Standard remains unchanged, raw Move slots restore, and no duplicate turn, path, command, attack, roll, damage, opportunity, or resource chain appears.

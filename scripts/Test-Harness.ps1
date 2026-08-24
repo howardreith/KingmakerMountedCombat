@@ -1069,6 +1069,11 @@ function New-TestMovementRowRecord {
         doorFixtureLeaseCaptured=$distanceDoor;doorFixtureOriginalOpen=$distanceDoor
         doorFixtureOriginalEnabled=$false;doorFixtureDisableOnOpen=$distanceDoor
         doorFixtureTemporaryEnableUsed=$distanceDoor;doorFixtureRestored=$distanceDoor
+        doorDisableNavmeshCutWhenOpen=$distanceDoor;doorNavmeshCutPresent=$distanceDoor;doorNavmeshCutEnabled=$false
+        doorInitialNavmeshCutRequiresUpdate=$(if($distanceDoor){$true}else{$null})
+        doorFinalNavmeshCutRequiresUpdate=$false;doorTraversalReadinessQualified=$distanceDoor
+        doorTraversalReadinessObservationCount=$(if($distanceDoor){2}else{0})
+        doorTraversalReadinessElapsedSeconds=$(if($distanceDoor){0.25}else{0.0})
         doorApproachSkipped=$false;stopCommandIssuedCount=$(if($stopStart -or $cancel -or $poseTurnStop){1}else{0})
         restartCompleted=$stopStart;selectionMountNormalized=($selection -or $cameraPresentation);selectionSwitchedAway=$selection;selectionSwitchedBack=$selection
         formationSelectionNormalized=$formation;pauseEntered=$pause;pauseObservationSeconds=$(if($pause){1.1}else{0.0})
@@ -1432,6 +1437,22 @@ function New-TestCombatEvidenceRecord {
         }
     }
     return $record
+}
+
+function New-TestMovementDoorReadinessRecord {
+    param(
+        [Parameter(Mandatory = $true)]$Request,
+        [Parameter(Mandatory = $true)][long]$Sequence
+    )
+    return [ordered]@{
+        schemaVersion=1;runId=[string]$Request.runId;scenario=[string]$Request.scenario
+        row='mounted-distance-door-interaction';branch=[string]$Request.branch;commit=[string]$Request.commit
+        productVersion=[string]$Request.productVersion;dllSha256=[string]$Request.dllSha256;dllMvid=[string]$Request.dllMvid
+        sequence=$Sequence;utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o')
+        kind='door-traversal-readiness';door='Area/Door';doorOpen=$true;disableNavmeshCutWhenOpen=$true
+        navmeshCutPresent=$true;navmeshCutEnabled=$false;initialNavmeshCutRequiresUpdate=$true
+        finalNavmeshCutRequiresUpdate=$false;observationCount=2;elapsedSeconds=0.25;ready=$true
+    }
 }
 
 function Write-TestCombatEvidence {
@@ -7348,16 +7369,21 @@ try {
         }
         $doorSubresult = [pscustomobject][ordered]@{name=$doorRow;status='PASS';assertionPassCount=20;assertionFailCount=0;errors=@()}
         $doorTelemetry = @((New-TestMovementTelemetryRecord $doorRequest $doorRow 0))
-        $doorRowRecord = New-TestMovementRowRecord $doorRequest $doorRow 1
-        $doorScenario = @((New-TestMovementPathProbeRecord $doorRequest $doorRow 0 'DoorFar' $true),$doorRowRecord)
+        $doorRowRecord = New-TestMovementRowRecord $doorRequest $doorRow 2
+        $doorScenario = @(
+            (New-TestMovementDoorReadinessRecord $doorRequest 0),
+            (New-TestMovementPathProbeRecord $doorRequest $doorRow 1 'DoorFar' $true),
+            $doorRowRecord)
         [void](Write-TestMovementEvidence $doorRequest.evidenceRoot $doorRequest $doorTelemetry $doorScenario)
         $manifest = Read-KmcJson (Join-Path $doorRequest.evidenceRoot 'runtime-artifacts.json')
         Assert-KmcMovementScenarioEvidence -Request $doorRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($doorSubresult)
 
         foreach ($mutation in @('missing-control','missing-door','wrong-waypoint','wrong-target','non-strict','extra-interaction-leg',
-            'missing-fixture-lease','wrong-original-state','missing-temporary-enable','fixture-not-restored')) {
-            $rowRecord = New-TestMovementRowRecord $doorRequest $doorRow 1
-            $probe = New-TestMovementPathProbeRecord $doorRequest $doorRow 0 'DoorFar' $true
+            'missing-fixture-lease','wrong-original-state','missing-temporary-enable','fixture-not-restored',
+            'missing-readiness','pending-cut','readiness-row-mismatch')) {
+            $rowRecord = New-TestMovementRowRecord $doorRequest $doorRow 2
+            $readiness = New-TestMovementDoorReadinessRecord $doorRequest 0
+            $probe = New-TestMovementPathProbeRecord $doorRequest $doorRow 1 'DoorFar' $true
             switch ($mutation) {
                 'missing-control' { $rowRecord.unmountedDoorControlPassed = $false }
                 'missing-door' { $rowRecord.door = $null }
@@ -7369,8 +7395,17 @@ try {
                 'wrong-original-state' { $rowRecord.doorFixtureOriginalEnabled = $true }
                 'missing-temporary-enable' { $rowRecord.doorFixtureTemporaryEnableUsed = $false }
                 'fixture-not-restored' { $rowRecord.doorFixtureRestored = $false }
+                'pending-cut' { $readiness.finalNavmeshCutRequiresUpdate = $true }
+                'readiness-row-mismatch' { $readiness.door = 'Area/OtherDoor' }
             }
-            $records = @($probe,$rowRecord)
+            if ($mutation -ceq 'missing-readiness') {
+                $probe.sequence = 0L
+                $rowRecord.sequence = 1L
+                $records = @($probe,$rowRecord)
+            }
+            else {
+                $records = @($readiness,$probe,$rowRecord)
+            }
             [void](Write-TestMovementEvidence $doorRequest.evidenceRoot $doorRequest $doorTelemetry $records)
             $mutatedManifest = Read-KmcJson (Join-Path $doorRequest.evidenceRoot 'runtime-artifacts.json')
             $threw = $false
@@ -8388,9 +8423,9 @@ try {
             ForEach-Object { $_.Groups[1].Value })
         $rowProducerNames = @($rowOwnedNames + $rowPayloadNames)
         $rowFixtureNames = @((New-TestMovementRowRecord $movementRequest $movementRow 1).Keys | ForEach-Object { [string]$_ })
-        Assert-Test ($rowPayloadNames.Count -eq 204 -and $rowProducerNames.Count -eq 215 -and $rowFixtureNames.Count -eq 215 -and
+        Assert-Test ($rowPayloadNames.Count -eq 212 -and $rowProducerNames.Count -eq 223 -and $rowFixtureNames.Count -eq 223 -and
             @($rowProducerNames | Where-Object { [Array]::IndexOf($rowFixtureNames, $_) -lt 0 }).Count -eq 0 -and
-            @($rowFixtureNames | Where-Object { [Array]::IndexOf($rowProducerNames, $_) -lt 0 }).Count -eq 0) 'movement row fixture/validator field set is not the exact 215-field producer schema'
+            @($rowFixtureNames | Where-Object { [Array]::IndexOf($rowProducerNames, $_) -lt 0 }).Count -eq 0) 'movement row fixture/validator field set is not the exact 223-field producer schema'
         $runtimeSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\KingmakerMountedPairRuntime.cs'))
         Assert-Test ($runtimeSource.Contains('riderAvoidanceWasDisabled = riderStockAgent.AvoidanceDisabled;') -and
             $runtimeSource.Contains('riderStockAgent.AvoidanceDisabled = false;') -and
@@ -8588,6 +8623,13 @@ try {
             $movementEngineSource.Contains('MountedDistanceDoorFixturePolicy.CanTemporarilyEnable(') -and
             $movementEngineSource.Contains('RestoreDistanceDoorFixtureLease()') -and
             $movementEngineSource.Contains('MountedDistanceDoorFixturePolicy.IsExactlyRestored(') -and
+            $stabilizationSource.Contains('public static class MountedDistanceDoorTraversalReadinessPolicy') -and
+            $movementEngineSource.Contains('distanceDoorNavmeshCut.RequiresUpdate()') -and
+            $movementEngineSource.Contains('MountedDistanceDoorTraversalReadinessPolicy.IsReady(') -and
+            $movementEngineSource.Contains('kind = "door-traversal-readiness"') -and
+            $movementEngineSource.Contains('DoorTraversalReadinessTimeoutSeconds') -and
+            -not $movementEngineSource.Contains('TileHandlerHelper') -and
+            -not $movementEngineSource.Contains('.ForceUpdate()') -and
             $movementEngineSource.Contains('string.Equals(row, "mounted-distance-door-interaction", StringComparison.Ordinal)') -and
             $movementEngineSource.Contains('BeginExactNavigation(NavigationMode.Normal, doorFarPoint, true, "door-mounted")') -and
             $automationHostSource.Contains('new RuntimeMovementScenarioEngine(') -and

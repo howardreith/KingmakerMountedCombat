@@ -40,6 +40,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private const double SuiteTimeoutSeconds = 250.0d;
         private const double RowTimeoutSeconds = 42.0d;
         private const double PathProbeTimeoutSeconds = 4.0d;
+        private const double DoorTraversalReadinessTimeoutSeconds = 4.0d;
         private const double MovementTimeoutSeconds = 12.0d;
         private const double StableWindowSeconds = 0.75d;
         private const double PauseObservationSeconds = 1.0d;
@@ -428,6 +429,14 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool distanceDoorFixtureDisableOnOpen;
         private bool distanceDoorFixtureTemporaryEnableUsed;
         private bool distanceDoorFixtureRestored;
+        private Pathfinding.NavmeshCut distanceDoorNavmeshCut;
+        private bool distanceDoorDisableNavmeshCutWhenOpen;
+        private bool? distanceDoorInitialCutRequiresUpdate;
+        private bool distanceDoorFinalCutRequiresUpdate;
+        private bool distanceDoorTraversalReadinessQualified;
+        private int distanceDoorTraversalReadinessObservationCount;
+        private double distanceDoorTraversalReadinessStartedAt;
+        private double distanceDoorTraversalReadinessElapsedSeconds;
 
         public RuntimeMovementScenarioEngine(
             RuntimeRequest request,
@@ -964,6 +973,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 distanceDoorFixtureOriginalOpen = selectedDoor.GetState();
                 distanceDoorFixtureOriginalEnabled = selectedDoor.Enabled;
                 distanceDoorFixtureDisableOnOpen = selectedDoor.DisableOnOpen;
+                distanceDoorDisableNavmeshCutWhenOpen = selectedDoor.DisableNavmeshCutWhenOpen;
+                distanceDoorNavmeshCut = selectedDoor.GetComponentInChildren<Pathfinding.NavmeshCut>();
                 if (!selectedDoor.CanInteract() && MountedDistanceDoorFixturePolicy.CanTemporarilyEnable(
                         selectedDoor.CanInteract(),
                         selectedDoor.Enabled,
@@ -1093,12 +1104,65 @@ namespace KingmakerMountedCombat.Diagnostics
                     BeginCleanup(CleanupTrigger.Manual);
                     return;
                 }
-                BeginExactNavigation(NavigationMode.Normal, doorFarPoint, true, "door-mounted");
+                distanceDoorTraversalReadinessStartedAt = suiteClock.Elapsed.TotalSeconds;
                 rowPhase = 3;
                 return;
             }
 
-            if (rowPhase == 3 && PollNavigation())
+            if (rowPhase == 3)
+            {
+                var cutPresent = distanceDoorNavmeshCut != null;
+                var cutEnabled = cutPresent && distanceDoorNavmeshCut.enabled;
+                var cutRequiresUpdate = cutPresent && distanceDoorNavmeshCut.RequiresUpdate();
+                if (!distanceDoorInitialCutRequiresUpdate.HasValue)
+                {
+                    distanceDoorInitialCutRequiresUpdate = cutRequiresUpdate;
+                }
+                distanceDoorFinalCutRequiresUpdate = cutRequiresUpdate;
+                distanceDoorTraversalReadinessObservationCount++;
+                distanceDoorTraversalReadinessElapsedSeconds =
+                    suiteClock.Elapsed.TotalSeconds - distanceDoorTraversalReadinessStartedAt;
+                distanceDoorTraversalReadinessQualified = MountedDistanceDoorTraversalReadinessPolicy.IsReady(
+                    selectedDoor.GetState(),
+                    distanceDoorDisableNavmeshCutWhenOpen,
+                    cutPresent,
+                    cutEnabled,
+                    cutRequiresUpdate);
+                if (distanceDoorTraversalReadinessQualified)
+                {
+                    WriteEvidence(new
+                    {
+                        kind = "door-traversal-readiness",
+                        door = BuildHierarchyName(selectedDoor.transform),
+                        doorOpen = selectedDoor.GetState(),
+                        disableNavmeshCutWhenOpen = distanceDoorDisableNavmeshCutWhenOpen,
+                        navmeshCutPresent = cutPresent,
+                        navmeshCutEnabled = cutEnabled,
+                        initialNavmeshCutRequiresUpdate = distanceDoorInitialCutRequiresUpdate,
+                        finalNavmeshCutRequiresUpdate = cutRequiresUpdate,
+                        observationCount = distanceDoorTraversalReadinessObservationCount,
+                        elapsedSeconds = distanceDoorTraversalReadinessElapsedSeconds,
+                        ready = true
+                    });
+                    BeginExactNavigation(NavigationMode.Normal, doorFarPoint, true, "door-mounted");
+                    rowPhase = 4;
+                    return;
+                }
+                if (distanceDoorTraversalReadinessElapsedSeconds > DoorTraversalReadinessTimeoutSeconds)
+                {
+                    assertions.Fail(
+                        "The exact opened door did not reach stock navmesh-cut readiness within " +
+                        DoorTraversalReadinessTimeoutSeconds.ToString("0", CultureInfo.InvariantCulture) +
+                        " seconds: disableWhenOpen=" + distanceDoorDisableNavmeshCutWhenOpen +
+                        "; cutPresent=" + cutPresent +
+                        "; cutEnabled=" + cutEnabled +
+                        "; cutRequiresUpdate=" + cutRequiresUpdate + ".");
+                    BeginCleanup(CleanupTrigger.Exception);
+                }
+                return;
+            }
+
+            if (rowPhase == 4 && PollNavigation())
             {
                 assertions.Check(selectedDoor.GetState() && selectedDoor.IsOpen &&
                         relationship.State == RelationshipState.Mounted,
@@ -3507,6 +3571,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 doorFixtureDisableOnOpen = distanceDoorFixtureDisableOnOpen,
                 doorFixtureTemporaryEnableUsed = distanceDoorFixtureTemporaryEnableUsed,
                 doorFixtureRestored = distanceDoorFixtureRestored,
+                doorDisableNavmeshCutWhenOpen = distanceDoorDisableNavmeshCutWhenOpen,
+                doorNavmeshCutPresent = distanceDoorNavmeshCut != null,
+                doorNavmeshCutEnabled = distanceDoorNavmeshCut != null && distanceDoorNavmeshCut.enabled,
+                doorInitialNavmeshCutRequiresUpdate = distanceDoorInitialCutRequiresUpdate,
+                doorFinalNavmeshCutRequiresUpdate = distanceDoorFinalCutRequiresUpdate,
+                doorTraversalReadinessQualified = distanceDoorTraversalReadinessQualified,
+                doorTraversalReadinessObservationCount = distanceDoorTraversalReadinessObservationCount,
+                doorTraversalReadinessElapsedSeconds = distanceDoorTraversalReadinessElapsedSeconds,
                 doorApproachSkipped = rowDoorApproachSkipped,
                 stopCommandIssuedCount = rowStopCommandIssuedCount,
                 restartCompleted = rowRestartCompleted,
@@ -4302,6 +4374,14 @@ namespace KingmakerMountedCombat.Diagnostics
             distanceDoorFixtureDisableOnOpen = false;
             distanceDoorFixtureTemporaryEnableUsed = false;
             distanceDoorFixtureRestored = false;
+            distanceDoorNavmeshCut = null;
+            distanceDoorDisableNavmeshCutWhenOpen = false;
+            distanceDoorInitialCutRequiresUpdate = null;
+            distanceDoorFinalCutRequiresUpdate = false;
+            distanceDoorTraversalReadinessQualified = false;
+            distanceDoorTraversalReadinessObservationCount = 0;
+            distanceDoorTraversalReadinessStartedAt = 0.0d;
+            distanceDoorTraversalReadinessElapsedSeconds = 0.0d;
             uninvolvedCommands = null;
             requiredPairNonPairSeparation = 0.0d;
         }

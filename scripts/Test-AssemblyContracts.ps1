@@ -531,6 +531,10 @@ if($Target-eq'Kingmaker'){
     $doorInteract=@(Find-Token 'Kingmaker.View.MapObjects.StandardDoor' 0x060019ED)
     $doorCanInteract=@(Find-Token 'Kingmaker.View.MapObjects.StandardDoor' 0x060019F0)
     $doorState=@(Find-Token 'Kingmaker.View.MapObjects.StandardDoor' 0x06001AA7)
+    $navmeshCutType=$firstpass.GetType('Pathfinding.NavmeshCut',$false)
+    $navmeshCutRequiresUpdate=if($null-eq$navmeshCutType){$null}else{$navmeshCutType.GetMethod('RequiresUpdate',[Reflection.BindingFlags]'Public,Instance')}
+    $tileHandlerHelperType=$firstpass.GetType('Pathfinding.TileHandlerHelper',$false)
+    $tileHandlerUpdate=if($null-eq$tileHandlerHelperType){$null}else{$tileHandlerHelperType.GetMethod('ForceUpdate',[Reflection.BindingFlags]'Public,Instance')}
     Assert-Contract ($clickMapObject.Count-eq1 -and $clickMapObject[0] -is [Reflection.MethodInfo] -and
         $clickMapObject[0].IsPublic -and -not $clickMapObject[0].IsStatic -and
         $clickMapObject[0].ReturnType.FullName-ceq'System.Boolean' -and
@@ -548,8 +552,12 @@ if($Target-eq'Kingmaker'){
         $doorCanInteract.Count-eq1 -and $doorCanInteract[0].IsPublic -and
         $doorCanInteract[0].ReturnType.FullName-ceq'System.Boolean' -and
         $doorState.Count-eq1 -and $doorState[0].IsPublic -and
-        $doorState[0].ReturnType.FullName-ceq'System.Boolean') `
-        'native map-object input stock interaction command and exact StandardDoor seams'
+        $doorState[0].ReturnType.FullName-ceq'System.Boolean' -and
+        $null-ne$navmeshCutRequiresUpdate -and $navmeshCutRequiresUpdate.ReturnType.FullName-ceq'System.Boolean' -and
+        $navmeshCutRequiresUpdate.GetParameters().Count-eq0 -and
+        $null-ne$tileHandlerUpdate -and $tileHandlerUpdate.ReturnType.FullName-ceq'System.Void' -and
+        $tileHandlerUpdate.GetParameters().Count-eq0) `
+        'native map-object input, StandardDoor, and deferred navmesh-cut update seams'
     $unityChecks=@(
         @('UnityEngine.SceneManagement.SceneManager',0x060019D5,'GetSceneByName'),
         @('UnityEngine.SceneManagement.Scene',0x060019C4,'get_isLoaded'))

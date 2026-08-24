@@ -291,6 +291,29 @@ namespace KingmakerMountedCombat.Domain
         }
     }
 
+    public static class MountedDistanceDoorTraversalReadinessPolicy
+    {
+        public static bool IsReady(
+            bool doorOpen,
+            bool disableNavmeshCutWhenOpen,
+            bool navmeshCutPresent,
+            bool navmeshCutEnabled,
+            bool navmeshCutRequiresUpdate)
+        {
+            if (!doorOpen)
+            {
+                return false;
+            }
+
+            if (!disableNavmeshCutWhenOpen)
+            {
+                return true;
+            }
+
+            return navmeshCutPresent && !navmeshCutEnabled && !navmeshCutRequiresUpdate;
+        }
+    }
+
     public sealed class MountedOverlayWorldInputGuard
     {
         private const int MaximumPropagationFrameDelta = 2;

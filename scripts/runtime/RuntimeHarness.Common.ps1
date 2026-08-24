@@ -6690,9 +6690,15 @@ function Assert-KmcMovementScenarioRecord {
         [Parameter(Mandatory = $true)]$Manifest
     )
     $common = @('schemaVersion','runId','scenario','row','branch','commit','productVersion','dllSha256','dllMvid','sequence','utcTimestamp','kind')
-    if ($Record.kind -isnot [string] -or [string]$Record.kind -cnotin @('path-probe','movement-row-result')) { throw 'Movement scenario evidence kind is invalid.' }
+    if ($Record.kind -isnot [string] -or [string]$Record.kind -cnotin @('path-probe','door-traversal-readiness','movement-row-result')) { throw 'Movement scenario evidence kind is invalid.' }
     if ([string]$Record.kind -ceq 'path-probe') {
         Assert-KmcExactProperties $Record ($common + @('requested','endpoint','pathLength','accepted','strictDoor')) 'movement path-probe record'
+    }
+    elseif ([string]$Record.kind -ceq 'door-traversal-readiness') {
+        Assert-KmcExactProperties $Record ($common + @(
+            'door','doorOpen','disableNavmeshCutWhenOpen','navmeshCutPresent','navmeshCutEnabled',
+            'initialNavmeshCutRequiresUpdate','finalNavmeshCutRequiresUpdate','observationCount','elapsedSeconds','ready')) `
+            'movement door-traversal-readiness record'
     }
     else {
         Assert-KmcExactProperties $Record ($common + @(
@@ -6752,7 +6758,10 @@ function Assert-KmcMovementScenarioRecord {
             'mountFinalTargetDistanceWorldUnits','nonPairBestTargetDistanceWorldUnits','nonPairFinalTargetDistanceWorldUnits',
             'minimumPairNonPairSeparationWorldUnits','requiredPairNonPairSeparationWorldUnits','unmountedDoorControlPassed',
             'doorFixtureLeaseCaptured','doorFixtureOriginalOpen','doorFixtureOriginalEnabled','doorFixtureDisableOnOpen',
-            'doorFixtureTemporaryEnableUsed','doorFixtureRestored',
+            'doorFixtureTemporaryEnableUsed','doorFixtureRestored','doorDisableNavmeshCutWhenOpen',
+            'doorNavmeshCutPresent','doorNavmeshCutEnabled','doorInitialNavmeshCutRequiresUpdate',
+            'doorFinalNavmeshCutRequiresUpdate','doorTraversalReadinessQualified',
+            'doorTraversalReadinessObservationCount','doorTraversalReadinessElapsedSeconds',
             'doorApproachSkipped','stopCommandIssuedCount','restartCompleted','selectionMountNormalized',
             'selectionSwitchedAway','selectionSwitchedBack','formationSelectionNormalized','pauseEntered',
             'pauseObservationSeconds','pauseMaximumDriftWorldUnits','pauseExited','destinationCancelCommandAbsent',
@@ -6781,6 +6790,26 @@ function Assert-KmcMovementScenarioRecord {
         if ($RequireComplete -and $Record.accepted -ne $true) { throw 'PASS movement path-probe was not accepted.' }
         return
     }
+    if ([string]$Record.kind -ceq 'door-traversal-readiness') {
+        if ($Record.door -isnot [string] -or [string]::IsNullOrWhiteSpace([string]$Record.door)) {
+            throw 'Movement door-traversal-readiness door identity is invalid.'
+        }
+        foreach ($name in @('doorOpen','disableNavmeshCutWhenOpen','navmeshCutPresent','navmeshCutEnabled',
+            'initialNavmeshCutRequiresUpdate','finalNavmeshCutRequiresUpdate','ready')) {
+            if ($Record.$name -isnot [bool]) { throw "Movement door-traversal-readiness $name must be a JSON boolean." }
+        }
+        if (-not (Test-KmcExactJsonInteger $Record.observationCount) -or [long]$Record.observationCount -le 0 -or
+            -not (Test-KmcFiniteNonnegativeJsonNumber $Record.elapsedSeconds)) {
+            throw 'Movement door-traversal-readiness count or elapsed time is invalid.'
+        }
+        if ($RequireComplete -and ($Record.doorOpen -ne $true -or $Record.ready -ne $true -or
+            ($Record.disableNavmeshCutWhenOpen -and
+                ($Record.navmeshCutPresent -ne $true -or $Record.navmeshCutEnabled -ne $false -or
+                 $Record.finalNavmeshCutRequiresUpdate -ne $false)))) {
+            throw 'PASS distance-door readiness did not prove the exact open door and consumed stock navmesh-cut transition.'
+        }
+        return
+    }
 
     if ($Record.status -isnot [string] -or [string]$Record.status -cnotin @('PASS','FAIL')) { throw 'Movement row-result status is invalid.' }
     foreach ($name in @('assertionPassCount','assertionFailCount','synchronizationObservationCount','updateSynchronizationSampleCount',
@@ -6807,7 +6836,8 @@ function Assert-KmcMovementScenarioRecord {
         'stationaryBoundaryClosureSucceededCount','stationaryBoundaryClosureFailedCount',
         'yawPhaseLagStationaryBoundaryClosureCount','positionPhaseLagStationaryBoundaryClosureCount','oscillationCount',
         'unexpectedRepathCount','commandReplacementCount','selectionLossCount','waypointCount','endpointQualifiedWaypointCount',
-        'nonPairInterferenceCount','stopCommandIssuedCount','poseObservationCount','poseHealthyObservationCount',
+        'nonPairInterferenceCount','stopCommandIssuedCount','doorTraversalReadinessObservationCount',
+        'poseObservationCount','poseHealthyObservationCount',
         'poseFrameAppliedObservationCount','poseApplicationFrameCount','poseFootTargetClampCount','poseMaximumComponentCount',
         'poseMaximumBoneCount','walkMovingSampleCount','runMovingSampleCount','uiOverlayRepaintCountBefore',
         'uiOverlayRepaintCountAfter','uiOverlayButtonActivationCount','cameraObservationCount')) {
@@ -6841,11 +6871,13 @@ function Assert-KmcMovementScenarioRecord {
         'poseAverageApplyMicroseconds','poseMaximumPelvisLocalFrameDeltaWorldUnits','poseMaximumLeftFootLocalFrameDeltaWorldUnits',
         'poseMaximumRightFootLocalFrameDeltaWorldUnits','walkMaximumSpeedWorldUnitsPerSecond','runMaximumSpeedWorldUnitsPerSecond',
         'cameraMinimumTargetResidualWorldUnits','cameraMaximumTargetResidualWorldUnits','cameraFinalTargetResidualWorldUnits',
-        'cameraMinimumRigResidualWorldUnits','cameraMaximumRigResidualWorldUnits')) {
+        'cameraMinimumRigResidualWorldUnits','cameraMaximumRigResidualWorldUnits','doorTraversalReadinessElapsedSeconds')) {
         if (-not (Test-KmcFiniteNonnegativeJsonNumber $Record.$name)) { throw "Movement row-result $name must be a finite nonnegative JSON number." }
     }
     foreach ($name in @('unmountedDoorControlPassed','doorFixtureLeaseCaptured','doorFixtureOriginalOpen',
         'doorFixtureOriginalEnabled','doorFixtureDisableOnOpen','doorFixtureTemporaryEnableUsed','doorFixtureRestored',
+        'doorDisableNavmeshCutWhenOpen','doorNavmeshCutPresent','doorNavmeshCutEnabled',
+        'doorFinalNavmeshCutRequiresUpdate','doorTraversalReadinessQualified',
         'cleanupSucceeded','cleanupResidual','finalSynchronizationSnapshotCaptured',
         'finalSynchronizationQualificationPassed','finalSynchronizationMovementStoppedBeforeSnapshot',
         'finalSynchronizationBoundaryMovementCommandAbsent','finalSynchronizationBoundaryWantsToMove',
@@ -6862,6 +6894,9 @@ function Assert-KmcMovementScenarioRecord {
         if ($Record.$name -isnot [string] -or [string]::IsNullOrWhiteSpace([string]$Record.$name)) { throw "Movement row-result $name must be a nonempty JSON string." }
     }
     if ($null -ne $Record.door -and $Record.door -isnot [string]) { throw 'Movement row-result door must be a string or null.' }
+    if ($null -ne $Record.doorInitialNavmeshCutRequiresUpdate -and $Record.doorInitialNavmeshCutRequiresUpdate -isnot [bool]) {
+        throw 'Movement row-result doorInitialNavmeshCutRequiresUpdate must be a JSON boolean or null.'
+    }
     if ($null -ne $Record.nonPairUnitId -and ($Record.nonPairUnitId -isnot [string] -or [string]::IsNullOrWhiteSpace([string]$Record.nonPairUnitId))) {
         throw 'Movement row-result nonPairUnitId must be a nonempty string or null.'
     }
@@ -7126,20 +7161,37 @@ function Assert-KmcMovementScenarioRecord {
             if ($row -ceq 'mounted-distance-door-interaction' -and
                 ($Record.doorFixtureLeaseCaptured -ne $true -or $Record.doorFixtureOriginalOpen -ne $true -or
                  $Record.doorFixtureOriginalEnabled -ne $false -or $Record.doorFixtureDisableOnOpen -ne $true -or
-                 $Record.doorFixtureTemporaryEnableUsed -ne $true -or $Record.doorFixtureRestored -ne $true)) {
-                throw 'PASS distance-door row does not prove the exact reversible stock disabled-on-open fixture lease.'
+                 $Record.doorFixtureTemporaryEnableUsed -ne $true -or $Record.doorFixtureRestored -ne $true -or
+                 $Record.doorTraversalReadinessQualified -ne $true -or
+                 [long]$Record.doorTraversalReadinessObservationCount -le 0 -or
+                 [double]$Record.doorTraversalReadinessElapsedSeconds -gt 4.0 -or
+                 ($Record.doorDisableNavmeshCutWhenOpen -and
+                    ($Record.doorNavmeshCutPresent -ne $true -or $Record.doorFinalNavmeshCutRequiresUpdate -ne $false)))) {
+                throw 'PASS distance-door row does not prove the exact reversible fixture lease and stock navmesh-cut readiness.'
             }
             if ($row -cne 'mounted-distance-door-interaction' -and
                 ($Record.doorFixtureLeaseCaptured -ne $false -or $Record.doorFixtureOriginalOpen -ne $false -or
                  $Record.doorFixtureOriginalEnabled -ne $false -or $Record.doorFixtureDisableOnOpen -ne $false -or
-                 $Record.doorFixtureTemporaryEnableUsed -ne $false -or $Record.doorFixtureRestored -ne $false)) {
+                 $Record.doorFixtureTemporaryEnableUsed -ne $false -or $Record.doorFixtureRestored -ne $false -or
+                 $Record.doorDisableNavmeshCutWhenOpen -ne $false -or $Record.doorNavmeshCutPresent -ne $false -or
+                 $Record.doorNavmeshCutEnabled -ne $false -or $null -ne $Record.doorInitialNavmeshCutRequiresUpdate -or
+                 $Record.doorFinalNavmeshCutRequiresUpdate -ne $false -or
+                 $Record.doorTraversalReadinessQualified -ne $false -or
+                 [long]$Record.doorTraversalReadinessObservationCount -ne 0 -or
+                 [double]$Record.doorTraversalReadinessElapsedSeconds -ne 0.0)) {
                 throw 'PASS ordinary doorway row retained distance-door fixture-lease evidence.'
             }
         }
         elseif ($Record.unmountedDoorControlPassed -ne $false -or $Record.doorFixtureLeaseCaptured -ne $false -or
             $Record.doorFixtureOriginalOpen -ne $false -or $Record.doorFixtureOriginalEnabled -ne $false -or
             $Record.doorFixtureDisableOnOpen -ne $false -or $Record.doorFixtureTemporaryEnableUsed -ne $false -or
-            $Record.doorFixtureRestored -ne $false -or $Record.doorApproachSkipped -ne $false -or $null -ne $Record.door) {
+            $Record.doorFixtureRestored -ne $false -or $Record.doorDisableNavmeshCutWhenOpen -ne $false -or
+            $Record.doorNavmeshCutPresent -ne $false -or $Record.doorNavmeshCutEnabled -ne $false -or
+            $null -ne $Record.doorInitialNavmeshCutRequiresUpdate -or $Record.doorFinalNavmeshCutRequiresUpdate -ne $false -or
+            $Record.doorTraversalReadinessQualified -ne $false -or
+            [long]$Record.doorTraversalReadinessObservationCount -ne 0 -or
+            [double]$Record.doorTraversalReadinessElapsedSeconds -ne 0.0 -or
+            $Record.doorApproachSkipped -ne $false -or $null -ne $Record.door) {
             throw 'Non-doorway PASS row retained doorway-only semantic evidence.'
         }
         if ($isStopStart) {
@@ -7428,14 +7480,21 @@ function Assert-KmcMovementScenarioEvidence {
     $lastScenarioRow = -1
     $rowResults = New-Object 'Collections.Generic.List[object]'
     $pathProbeRows = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
+    $doorReadinessRecords = New-Object 'Collections.Generic.List[object]'
     foreach ($record in $scenarioRecords) {
         $rowPosition = [Array]::IndexOf($expectedRows, [string]$record.row)
         if ($rowPosition -lt $lastScenarioRow) { throw 'Movement scenario evidence row order regressed.' }
         $lastScenarioRow = $rowPosition
-        if ([string]$record.kind -ceq 'movement-row-result') { $rowResults.Add($record) } else { [void]$pathProbeRows.Add([string]$record.row) }
+        if ([string]$record.kind -ceq 'movement-row-result') { $rowResults.Add($record) }
+        elseif ([string]$record.kind -ceq 'path-probe') { [void]$pathProbeRows.Add([string]$record.row) }
+        else { $doorReadinessRecords.Add($record) }
     }
     if ($requireComplete) {
         if ($rowResults.Count -ne $expectedRows.Count) { throw 'PASS movement evidence does not contain exactly one row-result for every expected row.' }
+        $expectedDoorReadinessCount = @($expectedRows | Where-Object { [string]$_ -ceq 'mounted-distance-door-interaction' }).Count
+        if ($doorReadinessRecords.Count -ne $expectedDoorReadinessCount) {
+            throw 'PASS movement evidence contains an inexact number of distance-door readiness records.'
+        }
         for ($index = 0; $index -lt $expectedRows.Count; $index++) {
             $rowRecord = $rowResults[$index]
             if ([string]$rowRecord.row -cne [string]$expectedRows[$index] -or
@@ -7448,6 +7507,11 @@ function Assert-KmcMovementScenarioEvidence {
                 throw "PASS movement evidence path-probe count does not equal the exact completed waypoint count for $($rowRecord.row)."
             }
             if ([string]$rowRecord.row -ceq 'mounted-distance-door-interaction') {
+                $rowDoorReadiness = @($doorReadinessRecords | Where-Object { [string]$_.row -ceq [string]$rowRecord.row })
+                if ($rowDoorReadiness.Count -ne 1 -or [string]$rowDoorReadiness[0].door -cne [string]$rowRecord.door -or
+                    $rowDoorReadiness[0].ready -ne $true) {
+                    throw 'PASS distance-door interaction lacks one exact stock navmesh-cut readiness record.'
+                }
                 if ($rowPathProbes.Count -ne 1 -or $rowPathProbes[0].strictDoor -ne $true -or
                     -not (Test-KmcApproximatelyEqual ([double]$rowPathProbes[0].requested.x) ([double]$rowRecord.doorFar.x) 0.000001) -or
                     -not (Test-KmcApproximatelyEqual ([double]$rowPathProbes[0].requested.y) ([double]$rowRecord.doorFar.y) 0.000001) -or

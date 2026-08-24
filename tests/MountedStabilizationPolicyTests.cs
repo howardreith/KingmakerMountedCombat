@@ -17,6 +17,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("native TB actor selection preserves separate rider and Mammoth turns", NativeTurnSelectionPreservesActorOwnership);
             runner.Run("mounted distant-door routing is exact rider-owned and turn-bounded", DistantDoorRoutingIsExact);
             runner.Run("distance-door fixture lease is exact disabled-on-open and restorable", DistanceDoorFixtureLeaseIsExact);
+            runner.Run("distance-door traversal waits for the exact stock navmesh-cut update", DistanceDoorTraversalReadinessIsExact);
             runner.Run("mounted overlay world-click guard is one-shot and frame-bounded", OverlayWorldClickGuardIsBounded);
             runner.Run("cleanup feedback explains intentional transient boundaries", ExplainsIntentionalCleanupBoundaries);
         }
@@ -180,6 +181,22 @@ namespace KingmakerMountedCombat.Tests
                 !MountedDistanceDoorFixturePolicy.IsExactlyRestored(true, true, false, false, false) &&
                 !MountedDistanceDoorFixturePolicy.IsExactlyRestored(true, true, false, true, true),
                 "Door fixture restoration did not require its exact captured state and identity.");
+        }
+
+        private static void DistanceDoorTraversalReadinessIsExact()
+        {
+            TestRunner.True(
+                MountedDistanceDoorTraversalReadinessPolicy.IsReady(true, false, false, false, false),
+                "A stock open door without cut-disabling behavior was delayed.");
+            TestRunner.True(
+                MountedDistanceDoorTraversalReadinessPolicy.IsReady(true, true, true, false, false),
+                "An exact disabled and stock-consumed door cut was not ready.");
+            TestRunner.True(
+                !MountedDistanceDoorTraversalReadinessPolicy.IsReady(false, true, true, false, false) &&
+                !MountedDistanceDoorTraversalReadinessPolicy.IsReady(true, true, false, false, false) &&
+                !MountedDistanceDoorTraversalReadinessPolicy.IsReady(true, true, true, true, false) &&
+                !MountedDistanceDoorTraversalReadinessPolicy.IsReady(true, true, true, false, true),
+                "Traversal readiness accepted a closed door, missing/enabled cut, or pending stock graph update.");
         }
 
         private static void OverlayWorldClickGuardIsBounded()

@@ -1,5 +1,7 @@
 # Assembly contract matrix
 
+Round-2 distance-door qualification pins the exact installed post-open pathfinding boundary. `Kingmaker.View.MapObjects.StandardDoor.Open()` toggles state and, when `DisableNavmeshCutWhenOpen` is true, disables its child `Pathfinding.NavmeshCut`. `NavmeshCut.RequiresUpdate()` remains true until stock `Pathfinding.TileHandlerHelper.Update()` reloads the dirty bounds and calls `NotifyUpdated()`. The diagnostic may observe that public readiness surface and wait within a separate bounded deadline; it must not call `ForceUpdate`, relax endpoint/door-plane checks, or infer that synchronous door state implies synchronous tile-graph readiness.
+
 Status: PASS
 
 The Phase 1 responsibility map is complete. The settled forensics below are unchanged; the final runtime overlay records which bounded seams qualified and which mandatory fixture-dependent rows remain deferred.
