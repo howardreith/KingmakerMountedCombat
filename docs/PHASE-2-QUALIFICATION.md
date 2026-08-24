@@ -1,5 +1,21 @@
 # Phase 2 qualification
 
+## Round 2 technical closure — 2026-08-24
+
+Status: `PASS` for the complete automated/technical boundary; focused human regression remains `IN PROGRESS`.
+
+Final implementation `1241222459209aea1e6127bedd7d630df3940b99`, qualification package/DLL/MVID `c7fa0773865d7f3d769159f8689e3fe462d72302b97c88a40854435a8ff9c3cf` / `41680c98b90f1d941693e2b42d01c58cbc09f7b197f842acccb2673b4eb630ba` / `2dc5c5b3-559b-4e54-870f-8c76a911ec08`, and the credited RT/TB A/B plus final distant-door row pass `443/0`. The final offline gate passes source/component/visual/harness/assembly `21/240/17/227/299`, Release, PowerShell/JSON parsers `26/0` / `7/0`, diff, and prohibited-payload checks.
+
+Credited RT rows `20260824T132154Z-round2-v52-navmesh-readiness-suite2-rt-passA` and `20260824T134633Z-round2-v52-navmesh-readiness-suite2-rt-passB` pass `81/0` each. Credited TB rows `20260824T141121Z-round2-v52-navmesh-readiness-suite2-tb-passA` and `20260824T143535Z-round2-v52-navmesh-readiness-suite2-tb-passB` pass `111/0` each. Final door row `20260824T233600Z-round2-final-tile-refresh-distance-door` passes `59/0`. The final diff is diagnostic classification only, so the RT/TB behavioral credit remains applicable under the explicit qualification-economy rule; the directly affected door row was rerun on the final implementation package.
+
+Five raw native path replacements remain visible in the final telemetry and are exactly attributed to stock `TileHandler.LastUpdateFrame` advancement. The exact player command remained reference-identical and healthy, the door opened once through the rider after Mammoth-only approach, the far-side path was accepted, the target was reached without oscillation/backtracking, and cleanup/restoration were exact. No further readiness wait or production movement repair is supported.
+
+Final suite `20260824T223200Z-round2-final-tile-refresh-suite1` and every credited process passed independent audit-before-read restoration. Exact save/Mods/Baseline/Working identities and zero process/lock/sentinel/transaction/deployment residue are recorded in `docs/PHASE-2-CLOSURE-AND-HORSE-HANDOFF.md`.
+
+Ordinary mouse usability, physical pointer feel, rendered portrait/action-bar/selection, menu fog/world flash, and subjective pose/presentation are not inferred from internal fields. They remain the focused manual checklist in `docs/PRIVATE-ALPHA-PLAYTEST.md`.
+
+Final disposition: `PRIVATE ALPHA STABILIZATION ROUND 2 COMPLETE  MANUAL REGRESSION REQUIRED`.
+
 ## Private-alpha stabilization automated qualification - 2026-08-23
 
 Status: `PASS` for automated stabilization and `IN PROGRESS` for the required focused human regression. Clean runtime input `e77a3079e2e258a3f1b33ec8929f810854cf5f23`, package `b16535f94ee914c4953b40fd19e88f97dfa117f984f8134855b1eae79fa6eaaf`, DLL `d01a75c173c692198963e4c72acb20e1c5891d89a95916a4f649ab7d1d417777`, MVID `f2b69d04-07de-4e4c-a1fb-027ea8178612`, and suite snapshot `04cc10c11ff78a1899405c7387d6c990bc035e756545bff9f639694c57af62bd` produced RT A/B `81/0` each, TB A/B `105/0` each, and doorway `62/0`. Aggregate automated stabilization credit is `434/0`.

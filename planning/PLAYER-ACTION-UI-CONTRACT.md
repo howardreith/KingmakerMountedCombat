@@ -1,5 +1,11 @@
 # Player action and UI contract
 
+## Round 2 technical closure — 2026-08-24
+
+Status: `PASS` for the bounded technical contract; human ordinary-mouse/UI regression remains `IN PROGRESS`. Fresh RT/TB evidence proves actual native command admission and exact internal ownership, while final distant-door evidence proves ordinary map-object admission, Mammoth-only approach, and one rider interaction. The final implementation changes no player action or UI behavior.
+
+Physical pointer feel, rendered portrait/action-bar/selection usability, menu latency/fog/world flash, and subjective feedback remain the exact checklist in `docs/PRIVATE-ALPHA-PLAYTEST.md`. No ownership field alone receives human-usability credit.
+
 ## Round-2 human-control correction - 2026-08-23
 
 The round-1 manual regression supersedes any interpretation that owner/roster fields alone prove usable controls. Player-facing qualification now requires both exact internal ownership and actual ordinary input admission with observable behavior. Schema v48/v49 retain the supported overlay-arm then native target-click path, record every activation/admission rejection, and prove the resulting exact attack chain. Exact-pair stock attacks remain rejected with immediate Rider-melee, Mammoth-primary, or mounted-ranged feedback rather than a neutral no-op.

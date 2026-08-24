@@ -1,6 +1,53 @@
 # Private alpha playtest
 
-## Stabilization notice
+## Round 2 final manual regression — superseding handoff
+
+Status: `PRIVATE ALPHA STABILIZATION ROUND 2 COMPLETE  MANUAL REGRESSION REQUIRED`.
+
+Use only the immutable package at `C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-phase2b-dev.1-round2-manual-regression.zip` after matching its ZIP, adjacent manifest, DLL, MVID, branch, and commit to `C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-phase2b-dev.1-round2-manual-regression-identity.json`. The external identity record supersedes every historical artifact table below. Do not install a historical package from `artifacts\historical`.
+
+Do not manually extract into or curate the live `Mods` tree. With Kingmaker and Unity Mod Manager closed, install through the guarded helper:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "C:\Dev\KingmakerMountedCombatLab\codex-policy\Manage-KingmakerMountedCombatDeployment.ps1" -Operation Install -PackagePath "C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-phase2b-dev.1-round2-manual-regression.zip" -Confirm:$false
+```
+
+If an exact KMC deployment already exists, use `-Operation Replace` with the same package. After play, uninstall and verify absence:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "C:\Dev\KingmakerMountedCombatLab\codex-policy\Manage-KingmakerMountedCombatDeployment.ps1" -Operation Uninstall -Confirm:$false
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "C:\Dev\KingmakerMountedCombatLab\codex-policy\Manage-KingmakerMountedCombatDeployment.ps1" -Operation VerifyAbsent
+```
+
+Use only an expendable non-protected save. Never alter `KMC_AUTOMATION_BASELINE`; do not use KMC automation fixtures for ordinary manual play.
+
+### Focused checklist
+
+Record `PASS` or `FAIL`, a concise observation, and any screenshot/log timestamp for every row:
+
+| # | Manual exercise | Required observation |
+|---|---|---|
+| 1 | RT rider melee, adjacent | One rider attack/roll/damage/resource chain; no Mammoth attack or duplicate |
+| 2 | RT rider melee, approach required | Mammoth alone approaches; rider performs one supported melee attack |
+| 3 | TB Mammoth turn movement | Ordinary ground click visibly moves the Mammoth/pair; native turn and controls remain understandable |
+| 4 | TB rider turn movement and melee | Rider-turn ground input routes through the Mammoth, then one rider melee action uses the rider ledger |
+| 5 | RT-to-TB and TB-to-RT | Pair, rider selection, portrait, action bar, camera, attachment, and pose remain coherent |
+| 6 | Distant door approach/open/traverse | One Mammoth approach, one rider-owned open, doorway traversal, no repeat/oscillation/backtracking |
+| 7 | Menus and fog/world flash | Character, inventory/spellbook, map, pause, and combat menus preserve visible mounted pair and usable UI; report latency or any fog/world flash |
+| 8 | Wild Shape and revert | Clean dismount; transformed rider remains visible/controllable; reverted rider view, parent, pose, and selection are clean |
+| 9 | Mounted ranged rejection | RT and TB reject visibly and deterministically without partial command/resource change |
+| 10 | Unmounted ranged control | The same ranged action remains stock after dismount |
+| 11 | Mammoth primary | Exactly one Mammoth natural attack and Mammoth-owned Standard cost; no rider attack |
+| 12 | Save/load and area boundary | Intentional clean dismount; load/arrival remains unmounted; no automatic remount or residue |
+| 13 | Explicit Dismount | Rider/Mammoth visibility, selection, portrait/action bar, camera, pose, parent, agents, and controls restore cleanly |
+
+Also assess ordinary mouse target selection, physical pointer feel, button feedback, clipping, rider leg/mount contact, weapon pose, camera framing, and overall presentation. These are human judgments; internal ownership fields and automation do not substitute for them.
+
+Stop and report immediately on a competing rider path, separation, wrong actor/target/weapon/turn/resource, duplicate movement/command/attack/roll/damage/interaction/opportunity chain, real path/target failure, repeated door interaction, rider disappearance, stale attachment/pose/UI state, save residue, unexpected dialog, Steam/Steam Guard/account/cloud/update prompt, or deployment/restoration ambiguity.
+
+Human acceptance must explicitly name the exact package SHA-256, manifest SHA-256, DLL SHA-256, and MVID. It authorizes neither a `main` merge nor horse execution by itself; those remain separate decisions.
+
+## Historical stabilization notice
 
 Automated stabilization is `PASS`: fresh same-package RT A/B, TB A/B, and doorway qualification total `434/0`, with exact independent save/Mods restoration after every process. The remaining checkpoint is a focused human regression for UI-screen visibility, polymorph/revert visibility, ranged rejection/control, and ordinary play feel.
 
@@ -33,15 +80,9 @@ The final stabilization package uses the same artifact path after guarded rebind
 
 Bag of Tricks, Kingmaker Buff Planner, and other mods are neither dependencies nor KMC-owned content. Their presence and behavior are outside KMC qualification.
 
-## Installation
+## Historical installation guidance — superseded
 
-1. Close Kingmaker and Unity Mod Manager. Confirm no game, updater, Steam prompt, or mod deployment is active.
-2. Verify the final ZIP and sidecar hashes with `Get-FileHash -Algorithm SHA256` and compare them character-for-character with the completed table above.
-3. Open the ZIP and confirm it contains exactly one `KingmakerMountedCombat` directory with `Info.json` and `KingmakerMountedCombat.dll`; do not add foreign files.
-4. Install that directory as a normal UMM mod, or extract it to the Kingmaker `Mods` directory so the resulting path is `Mods\KingmakerMountedCombat`.
-5. Start Kingmaker normally. Verify UMM lists `Kingmaker Mounted Combat` at the exact product version before loading an expendable test save.
-
-The guarded automation scripts are qualification tooling, not required for ordinary private-alpha play. Do not run a qualification request or use the protected KMC automation fixtures for casual testing.
+Do not use the former manual extraction/UMM installation path. Use only the guarded install, replace, uninstall, and verification commands in the superseding Round 2 section above. The qualification scenario scripts are not manual-play launchers, and protected KMC automation fixtures remain off-limits for casual testing.
 
 ## Controls and expected ownership
 

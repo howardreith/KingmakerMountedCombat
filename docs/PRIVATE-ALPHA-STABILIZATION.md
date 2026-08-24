@@ -1,5 +1,17 @@
 # Private-alpha stabilization
 
+## Round 2 automated closure — 2026-08-24T23:47:53Z
+
+Status: `PASS` for technical stabilization and `IN PROGRESS` for final human regression. Implementation `1241222459209aea1e6127bedd7d630df3940b99` passes all applicable offline gates and the credited RT/TB A/B plus final distant-door set at `443/0`.
+
+Final door run `20260824T233600Z-round2-final-tile-refresh-distance-door` passes `59/0`: one Mammoth-owned approach, one rider-owned stock door interaction, stock-cut readiness, strict far-side path acceptance, target reach, retained exact command/pair/presentation, zero oscillation/backtracking/duplicate interaction/path failure, and exact cleanup. All five raw native path replacements remain telemetry and satisfy the exact healthy `TileHandler.LastUpdateFrame` attribution contract; they are not player-visible failures.
+
+No second readiness wait, global graph update, broad path patch, command replacement, timeout increase, reach relaxation, or failure acceptance was introduced. Final independent restoration audit passed before evidence read. The final package binding, complete ledger, guarded deployment commands, and horse boundary are in `docs/PHASE-2-CLOSURE-AND-HORSE-HANDOFF.md`.
+
+Ordinary mouse controls, physical pointer feel, rendered UI continuity, menu fog/world flash, and subjective presentation remain explicitly human-gated. No horse work is authorized before exact-package human acceptance.
+
+Final disposition: `PRIVATE ALPHA STABILIZATION ROUND 2 COMPLETE  MANUAL REGRESSION REQUIRED`.
+
 ## Round 2 exact TileHandler frame observation - 2026-08-24T18:07:26Z
 
 The fresh `17d4d745...` observation package and suite passed separate RT/TB WhatIf gates with immediate exact audits. Distance-door observation `20260824T172215Z-round2-v52-astar-queue-observation-suite1-distance-door` remains uncredited `FAIL 57/2`, also with exact audit-before-read restoration.

@@ -2,6 +2,12 @@
 
 ## Kingmaker Mounted Combat - Phase 2: Presentation and Private Combat Alpha
 
+## Superseding execution status — 2026-08-24
+
+Automated Phase 2 Round 2 stabilization is `PASS`; focused final human regression is `IN PROGRESS`. The technical implementation closes at `1241222459209aea1e6127bedd7d630df3940b99` with credited RT/TB/door assertions `443/0`, complete final offline gates, and exact external restoration. The final package-bound documentation identity is recorded in `docs/PHASE-2-CLOSURE-AND-HORSE-HANDOFF.md` and its external immutable identity record.
+
+Current stop disposition is `PRIVATE ALPHA STABILIZATION ROUND 2 COMPLETE  MANUAL REGRESSION REQUIRED`. This mission authorizes no further implementation before exact-package human acceptance. The proposed horse work in `docs/PHASE-3-HORSE-MISSION-DRAFT.md` is not execution authority and requires a separate user authorization; the historical mission text below remains evidence of the original scope.
+
 You are the primary implementation, investigation, and qualification agent for the independent `KingmakerMountedCombat` mod.
 
 Work continuously and autonomously through every authorized tranche below. Do not ask the user ordinary implementation questions. Inspect the exact repository, current Phase 1 records, exact installed Kingmaker assemblies, existing runtime harness, native assets and animation metadata, and actual game behavior. Make conservative engineering decisions, preserve evidence, test each contract, commit coherent checkpoints, and continue.

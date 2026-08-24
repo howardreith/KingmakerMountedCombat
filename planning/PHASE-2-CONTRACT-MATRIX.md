@@ -1,8 +1,14 @@
 # Phase 2 contract matrix
 
-Status: IN PROGRESS
+Status: `PASS`
 
-Authority: `planning/MOUNTED-COMBAT-PHASE-2-MASTER-MISSION.md`, SHA-256 `d4e7340954af34fb011434ec5952e893a2b109769f7941bd6e52c45f455b541e`.
+## Superseding Round 2 closure — 2026-08-24
+
+The supported Medium-humanoid/Mammoth technical contract is closed at implementation `1241222459209aea1e6127bedd7d630df3940b99`. Credited fresh RT/TB A/B plus final distant-door evidence passes `443/0`; final source/component/visual/harness/assembly gates pass `21/240/17/227/299`; exact external restoration passes. The Mammoth remains sole pathfinder, rider and Mammoth retain independent attack/resource ledgers, state remains transient/nonserialized, and no Phase 2 kill criterion fired.
+
+The detailed matrix and chronological updates below remain historical evidence. Any older `IN PROGRESS`/`TODO` text for the supported Round 2 core is superseded by this closure and `docs/PHASE-2-CLOSURE-AND-HORSE-HANDOFF.md`. Explicit mounted AoO and charge remain `DEFER — EVIDENCED`; horse work and every other scope expansion remain unauthorized. Ordinary mouse usability, rendered UI/fog continuity, and subjective presentation remain a separate final human gate, not an open implementation contract.
+
+Authority: `planning/MOUNTED-COMBAT-PHASE-2-MASTER-MISSION.md`; original authorized content SHA-256 `d4e7340954af34fb011434ec5952e893a2b109769f7941bd6e52c45f455b541e`, closure-annotated file SHA-256 `e8d9f78d1fce067a5703da4f6b45f79019c30ccc9b47f6059ed1acdaa268beac`.
 
 Historical baseline: Phase 1 evidence commit `d5bd7fa9c434f04c6f8487b61ea49e3cf983c397`, final ledger `25 PASS / 0 attributable FAIL / 0 DEFER`, Architecture B selected. Phase 1 claims remain bounded exactly as recorded; no Phase 2 row is qualified by inheritance alone.
 

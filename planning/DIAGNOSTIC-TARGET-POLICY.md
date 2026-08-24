@@ -1,6 +1,8 @@
 # Diagnostic combat target policy
 
-Status: IN PROGRESS
+Status: `PASS` for the supported Phase 2 private-alpha scenarios.
+
+Round 2 RT/TB evidence retains exact target identity, stationary/AI leases, attack admission, zero XP/loot/command residue, deterministic destroy/drain, and independent external restoration. The final door-only diagnostic creates no combat-target contract change. Historical investigation details below remain authoritative evidence; a future horse mission must requalify any target use within its own package and scenario boundary.
 
 No suitable quest-independent hostile is assumed to exist in the exact Working fixture. Runtime qualification may create one project-owned diagnostic target only after the guarded loader proves the exact `KMC_AUTOMATION_WORKING` identity.
 

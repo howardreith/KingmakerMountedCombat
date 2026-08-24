@@ -1,5 +1,13 @@
 # Autonomous blockers
 
+## 2026-08-24T23:47:53Z - no active Round 2 technical blocker; human acceptance gate remains
+
+- Status: `PASS` for technical closure. Final door run `20260824T233600Z-round2-final-tile-refresh-distance-door` passes `59/0`; the complete credited RT/TB/door set is `443/0`. All external restoration gates pass and no runtime or Git ambiguity remains.
+- The former path-object blocker is closed under the user's product boundary. Five replacements are preserved telemetry and are exactly attributed to stock TileHandler-frame advancement while the same healthy command reaches its target without player-visible failure. Unattributed or failure-correlated churn remains fatal.
+- Focused human regression is a deliberate acceptance gate, not an unresolved technical diagnosis. Physical pointer feel, ordinary mouse usability, rendered UI/fog continuity, and subjective presentation cannot be promoted to PASS by automation.
+- Horse work is unavailable under the current authority. The draft horse mission is a handoff proposal only and cannot begin before exact-package human acceptance plus a separate user authorization.
+- Exact next action: run the immutable manual-regression package through the guarded deployment helper and return the completed checklist. No further automated observation or repair cycle is authorized.
+
 ## 2026-08-24T22:27:24Z - TileHandler replacement cause established; final targeted qualification pending
 
 - Status: `IN PROGRESS`, not a safety, architecture, or player-visible gameplay blocker. Exact restored observation `20260824T220000Z-round2-v52-tile-frame-suite1-distance-door` remains immutable uncredited `FAIL 57/2`; both failures are the old raw path-object replacement gates. All user-facing door criteria pass, including one rider interaction, Mammoth-only movement, strict far-side path acceptance and target reach, exact command retention, zero failure/oscillation/backtracking/duplicates, pair/presentation continuity, and cleanup.

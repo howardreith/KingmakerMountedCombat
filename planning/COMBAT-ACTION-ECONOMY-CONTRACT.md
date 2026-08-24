@@ -1,5 +1,11 @@
 # Combat action economy contract
 
+## Round 2 final disposition — 2026-08-24
+
+Status: `PASS` for the supported rider melee, Mammoth primary, RT/TB movement, transition, and door-interaction ledgers. Credited final RT/TB/door evidence is `443/0` with zero duplicate movement, command, turn, attack, roll, damage, interaction, opportunity, or resource chain. The final TileHandler classification is diagnostic only and changes no action-economy or command behavior.
+
+Mounted ranged remains deterministic rejection; unmounted ranged remains stock. Explicit mounted AoO and charge remain `DEFER — EVIDENCED`, absent/default-off. Human ordinary-mouse feedback is separately `IN PROGRESS`.
+
 ## Round-2 post-open pathfinding readiness isolation - 2026-08-24T03:15:00Z
 
 Round-2 package `3121de1944600dc7d9e7371dcb5f392e3b8158c2` repeats the stabilized combat contract in RT A/B at `81/0` each and TB A/B at `111/0` each under one exact suite, with audit-before-read restoration. The later distance-door `FAIL 29/1` occurred only in diagnostic post-open traversal readiness after the rider-owned interaction and Mammoth-owned approach had completed and restored their exact command slots. It changes no combat action, turn, Standard, Move, attack, opportunity, or resource contract. The diagnostic readiness repair observes the stock door cut updater only; it does not manufacture movement or transfer action ownership.

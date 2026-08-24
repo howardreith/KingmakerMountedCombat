@@ -1,6 +1,8 @@
 # Presentation pose strategy
 
-Status: PASS - ACCEPTED MAMMOTH-SPECIFIC FOUNDATION
+Status: `PASS` for the accepted Mammoth-specific foundation; final Round 2 human presentation regression is `IN PROGRESS`.
+
+The final technical package retains exact pose/view/attachment cleanup and does not change the accepted profile. Subsequent UI, transition, Wild Shape, and command repairs require one final human check for clipping, rider visibility, physical pointer feel, camera framing, menu fog/world flash, and overall presentation. This does not authorize reuse of Mammoth offsets for a horse.
 
 The exact `medium-humanoid-mammoth-v1` presentation was explicitly accepted for continued private-alpha engineering at commit `09a63729e0847c540ae7e79e9e3876d005ee9afe`. Acceptance retains a slight seat gap, analytical stiffness, no saddle/reins, and the exact one-handed fixture-only coverage as known issues; it confers no support for another rider category or mount anatomy.
 

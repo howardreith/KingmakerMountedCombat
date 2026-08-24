@@ -1,5 +1,13 @@
 # Phase 2 runtime scenario matrix
 
+## Round-2 final qualification — 2026-08-24T23:47:53Z
+
+Status: `PASS` for the automated technical boundary. Final implementation `1241222459209aea1e6127bedd7d630df3940b99` retains credited RT A/B `81/0` each and TB A/B `111/0` each from stable suite `20260824T115200Z-round2-v52-navmesh-readiness-suite2` under the documented diagnostic-only qualification boundary. Final directly affected run `20260824T233600Z-round2-final-tile-refresh-distance-door` passes `59/0` on suite `20260824T223200Z-round2-final-tile-refresh-suite1`; total credited assertions are `443/0`.
+
+The final door row preserves all five raw native path replacements and proves each exact stock-frame attribution, reference-identical healthy command, false `RepathNeeded`/`PathFailed`, empty graph queue, accepted far-side path, target reach, zero oscillation/backtracking/duplicate interaction, one rider interaction after Mammoth approach, pair/presentation continuity, fixture restoration, and cleanup. The fatal path-quality gate now applies to unattributed churn and every correlated player-facing failure. No second observation or repair cycle remains authorized or required.
+
+Independent restoration audits passed before every credited evidence read. Human physical-pointer feel, ordinary mouse usability, rendered UI/fog continuity, and subjective presentation remain `IN PROGRESS` in the manual package and are not automated scenario claims.
+
 ## Round-2 bounded TileHandler refresh classification repair - 2026-08-24T22:27:24Z
 
 Status: `IN PROGRESS`. Audited observation `20260824T220000Z-round2-v52-tile-frame-suite1-distance-door` is immutable `FAIL 57/2` only because five native path-object replacements were counted as fatal churn. Its movement evidence SHA-256 is `ad7dcd19d538403c7ed54c91333c1e5e0eb755226d365f4b4958155e63ffc04e`; the exact restoration audit passed before that evidence was read.

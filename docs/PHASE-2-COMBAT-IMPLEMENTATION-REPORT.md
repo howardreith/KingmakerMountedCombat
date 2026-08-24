@@ -1,6 +1,18 @@
 # Phase 2 combat implementation report
 
+## Round 2 closure (2026-08-24)
+
+Status: `PRIVATE ALPHA STABILIZATION ROUND 2 COMPLETE  MANUAL REGRESSION REQUIRED`.
+
+Final implementation `1241222459209aea1e6127bedd7d630df3940b99` retains Architecture B: the Mammoth is sole mounted pathfinding authority; the rider owns supported rider melee and its resources; the Mammoth owns its primary natural attack and independent ledger. Credited fresh RT/TB A/B plus the final distant-door process pass `443/0`, with complete applicable offline gates `21/240/17/227/299` and exact audit-before-read restoration.
+
+The last change classifies only fully evidenced stock TileHandler-frame path-object refreshes for the distant-door diagnostic. It changes no production combat, movement, command routing, interaction, action economy, turn ownership, reach, UI, lifecycle, or cleanup behavior. Raw replacements remain recorded and correlated failures remain fatal.
+
+Technical implementation is closed. Human ordinary-mouse/UI/presentation regression remains required; horse work, public release, and `main` merge remain unauthorized. See `docs/PHASE-2-CLOSURE-AND-HORSE-HANDOFF.md`.
+
 Status: `PRIVATE ALPHA COMPLETE — PLAYTEST HANDOFF`
+
+The status immediately above is preserved historical text and is superseded by the Round 2 closure status at the top of this file.
 
 ## Bounded reach runtime qualification complete (2026-08-21)
 
