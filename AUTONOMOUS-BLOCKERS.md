@@ -1,5 +1,13 @@
 # Autonomous blockers
 
+## 2026-08-25T15:43:49Z - no critical horse blocker; exact observation gate active
+
+- Horse Tranche 0 is complete from exact read-only Wrath assembly evidence. Its conclusion deliberately preserves the accepted separate-turn fallback; it does not block native horse companion work.
+- `CR1_HorseRiding` file identity is reverified. Summoned-pony identity, the exact Ranger selection, and exact Paladin Divine Bond contracts remain unresolved inputs for one bounded observation, not guessed implementation details.
+- Production horse blueprint registration is fail-closed until that observation passes and proves GUID noncollision, exact stock arrays/components, and native resource ownership.
+- No game/process/transaction/recovery ambiguity exists. No horse runtime evidence has been attempted or claimed.
+- The separate Phase 2 `main` integration policy boundary below remains pending but is explicitly nonblocking under the user-authorized branch fallback.
+
 ## 2026-08-25T15:21:52Z - Phase 2 main integration pending at local policy boundary
 
 - This is not a Phase 2 product blocker and must not stall the authorized horse phase. The closure branch is guarded-published, while the local GitHub authentication/merge workflow was rejected by policy before any PR or `main` mutation.

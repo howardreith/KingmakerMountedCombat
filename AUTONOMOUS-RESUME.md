@@ -1,5 +1,17 @@
 # Autonomous resume
 
+## Horse Tranche 0 complete; native horse/pony observation next — 2026-08-25T15:43:49Z
+
+- Status: `IN PROGRESS` on `codex/mounted-combat-phase3-horse`, exact clean starting HEAD `ecb89500eb36eabbf889ccda7185843bd1e3e7c5`. The branch was created from the final guarded-published Phase 2 closure under the user-authorized policy fallback; it has no upstream yet. The inherited tree was clean and no merge/rebase/cherry-pick/bisect/detached-HEAD/Git-lock state existed.
+- Runtime intake found no Kingmaker, Wrath, UMM, build, or KMC launcher process. There is no live runtime lock, sentinel, staging deployment, or nonterminal transaction; historical restored transaction files remain immutable evidence. The accepted Phase 2 KMC payload remains intentionally installed and is not horse evidence.
+- Required horse mission, asset, companion, profile, runtime, risk, implementation, playtest, and Paladin design records now exist as uncommitted documentation. They reserve original KMC blueprint GUIDs `4016c7db400ab721ff125aef9e65e202`, `7db7c50677e39f09feef56f3831fc723`, and `98e651899e6278d938de77af1d69bd32`; runtime registration must reject any collision.
+- Exact installed `CR1_HorseRiding` files were rehashed without mutation: bundle/manifest/sharedassets SHA-256 `1aada90ae55bab86806afc276247ff7e22498ed22f7ae5effbc95ac5621f2643` / `d1f1dbe4eae196d596368cfff025f15c14832b3b4aca9d3e5f64a43dd159f837` / `cc779caf2fef21d111856a57d40b510677b0c236ad2723d1849564626445f785`. The summoned pony is not guessed; exact runtime blueprint/resource resolution remains pending.
+- Wrath Tranche 0 is assembly-backed PASS against exact SHA/MVID `2cb7160b...` / `90a9869c-...`; Wrath was not launched or modified. One `TurnController` literally owns Rider and Mount, while separate actor ledgers remain. The mount is skipped by `ChooseNextUnit`; `SaddledUnitController` creates explicitly linked counterpart commands and propagates interruption. Selection/action bar can switch between pair members. The recommendation is to retain Phase 2 separate turns through horse alpha and defer any generic coordinated-turn rewrite to a separately qualified tranche.
+- No production code, game save, live Mods tree, package, runtime evidence, or version changed. The new records have not yet been committed or published.
+- Exact next action: add bounded horse/pony plus Ranger/Paladin blueprint-contract runtime instrumentation; extend request/result and artifact validation without changing production behavior; run complete offline gates; commit/publish a clean observation package; uninstall the accepted live payload only through the KMC deployment helper for suite admission; then run one guarded audited `horse-native-asset-audit` process. Read evidence only after exact external restoration.
+
+This entry supersedes the horse-forensics next action in the entry below. The recorded pending Phase 2 `main` integration remains an external policy item and does not block horse work.
+
 ## Phase 2 human acceptance bound; closure publication and integration next — 2026-08-25T12:00:39Z
 
 - Status: Mammoth private-alpha foundation human accepted. Exact implementation `1241222459209aea1e6127bedd7d630df3940b99`; exact package documentation commit `49c970f9445d435c530a8ce949bdfddee4e1ef03`; human-acceptance record `ac57acd53a315f9c27d32288332aa342b95cb6cf` on `codex/mounted-combat-phase2-closure`.
