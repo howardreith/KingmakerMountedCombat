@@ -1,5 +1,14 @@
 # Mounted Combat journal
 
+## 2026-08-25T17:43:39Z - first native horse audit restored; exact observation repair offline-green
+
+- Published observation package `a04d9edcf1567269f66a91aa43d289aa851d4aef58844fe520a9bb8f75fb1f82` and suite snapshot `50372e4fa25f332b7cfce973afd15a27db352fe796dc904dd8920781c4e0864c` passed guarded WhatIf purity. Actual run `20260825T162200Z-horse-native-asset-audit-passA` exited and restored all three transactions; immediate independent suite audit passed before evidence inspection.
+- The run is immutable uncredited `FAIL 15/5`. Request/audit manifest/game/orchestration/final SHA-256 are `c09b0de94d999dd1a734e3abedc3978c5e91f687ec415bc95a99ac487ed582db`, `eb9340966a05344782c84dcb919de4cce804b49dea90d8c35f22880b349fbafc`, `2fb820d36689c73b94386da0de96e3ab16bf5d68b11ddbbdd65308f2b7485c89`, `1b1c0b36395307e157ef7b3730ed2cf00a5b5d37cc21d9d44493f1c75f2d2830`, `0278ee42c0363f021425d7c17636c5ab2248233dc4f755518efc2aebba01c64e`, and `4ee99baae9f963be0334fc71a72a31cbab20ee9b7fa48c79e42b1f1afefa6080`.
+- Run/Mods/save transaction records are `restored` with SHA-256 `f9d271629b742fe3344f241e40cafc09573f4b56a13a3d3af19820b13d551886`, `0804026d5bdd96d6541e7e32b4dfc0fd8cf09e73e98a48a99d40d8b86591b8c1`, and `e4f78301911616363120abe9a0834decbdb70e334fb2efe52348d79bbb241757`. Independent save/Mods and Baseline/Working identities are exact; no runtime residue remains.
+- The initialized library resolves exact `PonySummoned` `3f95557fc806db741b500a5735990841` using native `Pony_02` resource `447d2907feec82545b3773fbb4709588`. It also proves all three reserved KMC GUIDs absent and resolves the horse, Mammoth AddPet baseline, companion selections, Ranger, and Paladin inputs. No initialized blueprint owns a direct bounded reference to the pony candidates; the complete zero-result scan is preserved.
+- Cause: the observer requested parameterless `UnitViewLink.Load`; exact installed Kingmaker instead exposes `WeakResourceLink<T>.Load(Boolean ignorePreloadWarning=false)` token `0x06007478`. The repair invokes `Load(false)`, pins exact PonySummoned identity, and treats the nontruncated zero-owner scan as factual negative evidence. It changes observation only.
+- Repaired gates pass source/Release/component/visual/harness/assembly `21/Release/241/17/229/314`, parsers `26/0` / `7/0`, and diff. Next: coherent guarded publication, fresh package/suite/WhatIf, one final audited audit retry, then interpretation before production blueprint work.
+
 ## 2026-08-25T16:14:40Z - distinct Phase 3A diagnostic version assigned
 
 - Observation implementation commit `9e1a3d46dda81d4059a48ae7ded11d88b7ff763d` is guarded-published and local/remote equal.

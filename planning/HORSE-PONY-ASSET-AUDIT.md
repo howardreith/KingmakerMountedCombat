@@ -39,9 +39,25 @@ The stock unit is a campaign/prototype horse, not a native animal-companion feat
 
 ## Summoned pony audit
 
-Current status: exact blueprint and resource identity pending one bounded runtime blueprint/resource inventory. Name-based assumptions are forbidden: the complete blueprint library must be queried for pony/summon ownership and each candidate must be resolved through exact component and resource references.
+Current status: exact blueprint and resource identity established; one repaired view comparison remains pending.
 
-The observation implementation is now qualified offline as `horse-native-asset-audit`. Its one create-new artifact is `horse-native-asset-audit.json`, independently manifested as `horse-asset-audit`. The scanner uses the exact initialized `BlueprintsByAssetId` and `ResourceNamesByAssetId` dictionaries, resolves horse/pony resource IDs back to BlueprintUnit prefabs, and follows bounded object/GUID reference paths. It reports progress every 5,000 blueprint owners, caps reference output at 500, and never registers or instantiates a gameplay unit. Evidence remains pending until one guarded process exits and the independent external-state audit passes.
+The first guarded initialized-library observation, `20260825T162200Z-horse-native-asset-audit-passA`, resolved:
+
+| Item | Exact result |
+|---|---|
+| Blueprint | `PonySummoned` / `BlueprintUnit` |
+| Blueprint GUID | `3f95557fc806db741b500a5735990841` |
+| Size | `Medium` (`4`) |
+| Prefab resource | `447d2907feec82545b3773fbb4709588` |
+| Prefab resource name | `Pony_02` |
+| Ability scores | Str 13, Dex 13, Con 14, Int 2, Wis 11, Cha 4 |
+| Speed | 40 feet |
+| Natural attacks | two native `SmallHoof1d3` additional limbs (`085547b82eded104ba7e1870dd0563bf`) |
+| Initialized-library reverse owners | zero after a complete nontruncated bounded scan |
+
+The run is preserved as uncredited `FAIL 15/5`. Four failures arose because the observer requested nonexistent `UnitViewLink.Load()`; exact installed Kingmaker exposes `WeakResourceLink<T>.Load(Boolean ignorePreloadWarning=false)` token `0x06007478`. The fifth failure treated the complete zero-owner result as fatal. Neither establishes an asset or gameplay failure. The attributable repair calls `Load(false)`, pins exact summoned-pony identity, and preserves zero reverse owners as negative evidence while requiring scan completion.
+
+The repaired observation implementation remains `horse-native-asset-audit`. Its one create-new artifact is `horse-native-asset-audit.json`, independently manifested as `horse-asset-audit`. The scanner uses the exact initialized `BlueprintsByAssetId` and `ResourceNamesByAssetId` dictionaries, resolves horse/pony resource IDs back to BlueprintUnit prefabs, and follows bounded object/GUID reference paths. It reports progress every 5,000 blueprint owners, caps reference output at 500, and never registers or instantiates a gameplay unit. Horse-versus-pony mesh/rig/controller/clip/scale/collider/material comparison remains pending one final clean guarded retry and audit-before-read.
 
 The runtime observation must record, for both horse and pony:
 

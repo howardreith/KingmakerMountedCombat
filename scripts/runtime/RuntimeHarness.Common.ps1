@@ -4702,9 +4702,22 @@ function Assert-KmcHorseNativeAssetAuditEvidence {
         }
         if (@($artifact.ponyDiscovery.resourceMatches).Count -eq 0 -or
             @($artifact.ponyDiscovery.ponyCandidateUnits).Count -eq 0 -or
-            @($artifact.ponyDiscovery.reverseReferences).Count -eq 0 -or
-            $artifact.ponyDiscovery.reverseReferenceTruncated -isnot [bool]) {
-            throw 'PASS horse native-asset audit lacks a resolved pony resource, unit, or owner reference.'
+            $artifact.ponyDiscovery.reverseReferenceTruncated -ne $false) {
+            throw 'PASS horse native-asset audit lacks a resolved pony resource/unit or has an incomplete reference scan.'
+        }
+        $summonedPony = @($artifact.ponyDiscovery.ponyCandidateUnits | Where-Object {
+            [string]$_.name -ceq 'PonySummoned' -and [string]$_.assetGuid -ceq '3f95557fc806db741b500a5735990841'
+        })
+        if ($summonedPony.Count -ne 1) { throw 'PASS horse native-asset audit lacks the exact summoned pony.' }
+        Assert-KmcExactProperties $summonedPony[0] @(
+            'name','assetGuid','type','size','sizeValue','prefabAssetId','prefabResourceName',
+            'strength','dexterity','constitution','intelligence','wisdom','charisma','speedFeet',
+            'componentTypes','body','view'
+        ) 'exact summoned pony record'
+        if ([string]$summonedPony[0].type -cne 'Kingmaker.Blueprints.BlueprintUnit' -or
+            [string]$summonedPony[0].prefabAssetId -cne '447d2907feec82545b3773fbb4709588' -or
+            $null -eq $summonedPony[0].view) {
+            throw 'PASS horse native-asset audit summoned-pony identity or view is wrong.'
         }
         if ($artifact.companionSelections -isnot [Array] -or @($artifact.companionSelections).Count -eq 0 -or
             $null -eq $artifact.ranger -or $null -eq $artifact.paladin) {

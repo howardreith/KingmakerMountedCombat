@@ -21,6 +21,8 @@ namespace KingmakerMountedCombat.Diagnostics
         internal const string EvidenceKind = "horse-asset-audit";
         internal const string HorseBlueprintGuid = "9e9e75c484e68734487e609714565202";
         internal const string HorsePrefabGuid = "5e0b93738ad54dd4ba101b3513ac4590";
+        internal const string SummonedPonyBlueprintGuid = "3f95557fc806db741b500a5735990841";
+        internal const string SummonedPonyPrefabGuid = "447d2907feec82545b3773fbb4709588";
         internal const string MammothUnitGuid = "e7aa96d15a45238438ae4cfb476f6bb9";
         internal const string MammothFeatureGuid = "6adc3aab7cde56b40aa189a797254271";
         internal const string MammothUpgradeGuid = "6a23d16a4476af644af89d91f9f96790";
@@ -137,6 +139,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     ContainsPonyTerm(ReadResourceName(resourceNames, ReadPrefabAssetId(item.Value))) ||
                     ContainsPonyTerm(ReadLoadedViewRootName(item.Value))).ToList();
                 var ponyRecords = new JArray(ponyCandidates.Select(item => BuildUnitRecord(item, resourceNames)));
+                var summonedPony = ponyCandidates.SingleOrDefault(item =>
+                    string.Equals(item.AssetGuid, SummonedPonyBlueprintGuid, StringComparison.Ordinal));
+                var summonedPonyRecord = ponyRecords.Children<JObject>().SingleOrDefault(item =>
+                    string.Equals((string)item["assetGuid"], SummonedPonyBlueprintGuid, StringComparison.Ordinal));
 
                 var ponyDiscovery = new JObject
                 {
@@ -147,16 +153,21 @@ namespace KingmakerMountedCombat.Diagnostics
                 artifact["ponyDiscovery"] = ponyDiscovery;
                 AddAssertion(assertions, errors, resourceCandidates.Count > 0,
                     "native-horse-or-pony-resources-found", "The stock resource catalog contains horse/pony paths.", ref passed, ref failed);
-                AddAssertion(assertions, errors, ponyCandidates.Count > 0,
-                    "summoned-pony-candidate-resolved", "At least one exact BlueprintUnit/view candidate is attributable to the native pony.", ref passed, ref failed);
+                AddAssertion(assertions, errors, summonedPony != null &&
+                    string.Equals(summonedPony.Name, "PonySummoned", StringComparison.Ordinal) &&
+                    string.Equals(ReadPrefabAssetId(summonedPony.Value), SummonedPonyPrefabGuid, StringComparison.Ordinal),
+                    "summoned-pony-candidate-resolved", "PonySummoned resolves by exact GUID and uses the native Pony_02 prefab.", ref passed, ref failed);
+                AddAssertion(assertions, errors, summonedPonyRecord != null && summonedPonyRecord["view"] is JObject,
+                    "summoned-pony-view-resolved", "The exact PonySummoned native view loaded for structural comparison.", ref passed, ref failed);
 
                 logger.Info("Horse native-asset audit: scanning bounded blueprint references for candidate ownership and summon contracts.");
                 var referenceScanner = new BlueprintReferenceScanner(blueprints, logger);
                 var reverseReferences = referenceScanner.FindReferences(ponyCandidates);
                 ponyDiscovery["reverseReferences"] = reverseReferences;
                 ponyDiscovery["reverseReferenceTruncated"] = referenceScanner.Truncated;
-                AddAssertion(assertions, errors, reverseReferences.Count > 0,
-                    "pony-reverse-reference-owner", "The resolved pony candidate has at least one exact blueprint owner/reference path.", ref passed, ref failed);
+                AddAssertion(assertions, errors, ponyCandidates.Count > 0 && !referenceScanner.Truncated,
+                    "pony-reference-scan-complete", "The bounded initialized-library reference scan completed without truncation and found " +
+                    reverseReferences.Count + " exact owner/reference paths; zero is an explicit negative result.", ref passed, ref failed);
 
                 var mammothFeature = blueprints.SingleOrDefault(item => string.Equals(item.AssetGuid, MammothFeatureGuid, StringComparison.Ordinal));
                 var mammothUnit = blueprints.SingleOrDefault(item => string.Equals(item.AssetGuid, MammothUnitGuid, StringComparison.Ordinal));
@@ -285,12 +296,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private static JObject BuildViewRecord(object unit)
         {
-            var prefab = ReadMember(unit, "Prefab");
-            if (prefab == null) { throw new InvalidOperationException("BlueprintUnit.Prefab is null."); }
-            var load = prefab.GetType().GetMethod("Load", BindingFlags.Public | BindingFlags.Instance, null, Type.EmptyTypes, null);
-            if (load == null) { throw new MissingMethodException(prefab.GetType().FullName, "Load"); }
-            var view = load.Invoke(prefab, null) as Component;
-            if (view == null) { throw new InvalidOperationException("UnitViewLink.Load returned no Component."); }
+            var view = LoadPrefabView(unit);
 
             var components = view.GetComponentsInChildren<Component>(true).Where(item => item != null).ToArray();
             var transforms = view.GetComponentsInChildren<Transform>(true).Where(item => item != null).ToArray();
@@ -600,12 +606,22 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             try
             {
-                var prefab = ReadMember(unit, "Prefab");
-                var load = prefab?.GetType().GetMethod("Load", BindingFlags.Public | BindingFlags.Instance, null, Type.EmptyTypes, null);
-                var view = load?.Invoke(prefab, null) as Component;
+                var view = LoadPrefabView(unit);
                 return view == null ? null : view.name;
             }
             catch { return null; }
+        }
+
+        private static Component LoadPrefabView(object unit)
+        {
+            var prefab = ReadMember(unit, "Prefab");
+            if (prefab == null) { throw new InvalidOperationException("BlueprintUnit.Prefab is null."); }
+            var load = prefab.GetType().GetMethod("Load", BindingFlags.Public | BindingFlags.Instance, null,
+                new[] { typeof(bool) }, null);
+            if (load == null) { throw new MissingMethodException(prefab.GetType().FullName, "Load(Boolean)"); }
+            var view = load.Invoke(prefab, new object[] { false }) as Component;
+            if (view == null) { throw new InvalidOperationException("UnitViewLink.Load(false) returned no Component."); }
+            return view;
         }
 
         private static string ReadResourceName(IDictionary names, string assetId)

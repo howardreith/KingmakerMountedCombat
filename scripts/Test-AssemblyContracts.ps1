@@ -63,6 +63,7 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.EntitySystem.Persistence.SaveManager',0x06008012,'LoadZipSave'),@('Kingmaker.EntitySystem.Persistence.SaveManager',0x06008029,'SaveRoutine'),
         @('Kingmaker.EntitySystem.Persistence.SaveManager',0x0600802C,'LoadRoutine'),@('Kingmaker.EntitySystem.Persistence.SaveManager',0x06008030,'AddCallbackAfterLoad'),
         @('Kingmaker.Game',0x06000CE0,'LoadGame'),@('Kingmaker.Blueprints.BlueprintScriptableObject',0x06009637,'get_AssetGuidThreadSafe'),
+        @('Kingmaker.ResourceLinks.WeakResourceLink`1',0x06007478,'Load'),
         @('Kingmaker.Controllers.Units.UnitMoveController',0x06009183,'Tick'),@('Kingmaker.View.UnitEntityView',0x0600184D,'MoveTo'),
         @('Kingmaker.View.UnitEntityView',0x06001848,'ForcePlaceAboveGround'),
         @('Kingmaker.View.UnitEntityView',0x06001851,'StopMoving'),
@@ -270,6 +271,13 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.EntitySystem.Persistence.LoadingProcess',0x06007FBC,'get_IsLoadingInProcess'),
         @('Kingmaker.Utility.Screenshot',0x06001D41,'CapturePNG'),@('Kingmaker.View.MapObjects.StandardDoor',0x06001AA0,'get_IsOpen'))
     foreach($check in $checks){$member=@(Find-Token $check[0] $check[1]);$matches=$member.Count -eq 1;if($matches){$matches=[string]$member[0].Name -ceq [string]$check[2]};Assert-Contract $matches "token $($check[1].ToString('X8')) $($check[0]).$($check[2])"}
+    $weakResourceLoad=@(Find-Token 'Kingmaker.ResourceLinks.WeakResourceLink`1' 0x06007478)
+    $weakResourceLoadParameters=@()
+    if($weakResourceLoad.Count-eq1){$weakResourceLoadParameters=@($weakResourceLoad[0].GetParameters())}
+    Assert-Contract ($weakResourceLoad.Count-eq1 -and $weakResourceLoad[0].IsPublic -and -not $weakResourceLoad[0].IsStatic -and
+        $weakResourceLoadParameters.Count-eq1 -and $weakResourceLoadParameters[0].ParameterType.FullName-ceq'System.Boolean' -and
+        $weakResourceLoadParameters[0].IsOptional -and $weakResourceLoadParameters[0].DefaultValue-eq$false) `
+        'native WeakResourceLink<T>.Load(Boolean ignorePreloadWarning=false) view-observation seam'
     $globalRulebookHandler=$assembly.GetType('Kingmaker.PubSubSystem.IGlobalRulebookHandler`1',$false)
     $globalRulebookSubscriber=$assembly.GetType('Kingmaker.PubSubSystem.IGlobalRulebookSubscriber',$false)
     Assert-Contract ($null-ne$globalRulebookHandler -and $globalRulebookHandler.MetadataToken-eq0x02000DC3 -and

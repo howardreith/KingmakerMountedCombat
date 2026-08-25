@@ -8846,6 +8846,18 @@ try {
         & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeResult.ps1') -ResultPath $combatResultPath -RequestPath $combatRequestPath
     }
 
+    Invoke-HarnessTest 'horse native-asset audit uses exact Kingmaker view-load and summoned-pony contracts' {
+        $horseAuditSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\HorseNativeAssetAuditService.cs')
+        Assert-Test ($horseAuditSource.Contains('new[] { typeof(bool) }, null);') -and
+            $horseAuditSource.Contains('load.Invoke(prefab, new object[] { false })') -and
+            -not $horseAuditSource.Contains('BindingFlags.Public | BindingFlags.Instance, null, Type.EmptyTypes, null')) `
+            'horse audit does not bind the exact WeakResourceLink Load(Boolean) runtime contract'
+        Assert-Test ($horseAuditSource.Contains('SummonedPonyBlueprintGuid = "3f95557fc806db741b500a5735990841"') -and
+            $horseAuditSource.Contains('SummonedPonyPrefabGuid = "447d2907feec82545b3773fbb4709588"') -and
+            $horseAuditSource.Contains('"pony-reference-scan-complete"')) `
+            'horse audit does not distinguish the exact summoned pony from a completed negative reverse-reference scan'
+    }
+
     Invoke-HarnessTest 'horse native-asset audit validator binds exact manifested evidence and subscenario totals' {
         $horseRoot = Join-Path $runtimeEvidenceTestRoot 'horse-native-audit-validator'
         New-Item -ItemType Directory -Path $horseRoot -Force | Out-Null
@@ -8871,6 +8883,12 @@ try {
             strength=16;dexterity=14;constitution=15;intelligence=2;wisdom=12;charisma=6;speedFeet=50
             componentTypes=@('Kingmaker.UnitLogic.FactLogic.AddClassLevels');body=$horseBody;view=$horseView
         }
+        $ponyRecord = [ordered]@{
+            name='PonySummoned';assetGuid='3f95557fc806db741b500a5735990841';type='Kingmaker.Blueprints.BlueprintUnit'
+            size='Medium';sizeValue=4;prefabAssetId='447d2907feec82545b3773fbb4709588';prefabResourceName='Pony_02'
+            strength=13;dexterity=13;constitution=14;intelligence=2;wisdom=11;charisma=4;speedFeet=40
+            componentTypes=@('Kingmaker.UnitLogic.FactLogic.AddClassLevels');body=$horseBody;view=$horseView
+        }
         $reserved = @(
             [ordered]@{assetGuid='4016c7db400ab721ff125aef9e65e202';resolved=$false;blueprint=$null},
             [ordered]@{assetGuid='7db7c50677e39f09feef56f3831fc723';resolved=$false;blueprint=$null},
@@ -8880,7 +8898,7 @@ try {
             schemaVersion=1;evidenceKind='horse-asset-audit';runId=$horseRequest.runId;scenario=$horseRequest.scenario
             branch=$horseRequest.branch;commit=$horseRequest.commit;productVersion=$horseRequest.productVersion;createdAtUtc=[DateTimeOffset]::UtcNow.ToString('o')
             loadedBlueprintCount=100;resourceNameCount=100;reservedGuidCollisions=$reserved;exactHorse=$horseRecord
-            ponyDiscovery=[ordered]@{resourceMatches=@([ordered]@{assetId='pony';resourceName='Pony.prefab'});candidateUnits=@($horseRecord);ponyCandidateUnits=@($horseRecord);reverseReferences=@([ordered]@{ownerAssetGuid='owner'});reverseReferenceTruncated=$false}
+            ponyDiscovery=[ordered]@{resourceMatches=@([ordered]@{assetId='pony';resourceName='Pony.prefab'});candidateUnits=@($horseRecord,$ponyRecord);ponyCandidateUnits=@($ponyRecord);reverseReferences=@();reverseReferenceTruncated=$false}
             stockCompanionBaseline=[ordered]@{feature=[ordered]@{};unit=[ordered]@{};upgrade=[ordered]@{};addPet=[ordered]@{}}
             companionSelections=@([ordered]@{assetGuid='selection'});ranger=[ordered]@{class='RangerClass'};paladin=[ordered]@{class='PaladinClass'}
             assertions=@([ordered]@{name='synthetic-contract';status='PASS';detail='Synthetic validator contract.'})

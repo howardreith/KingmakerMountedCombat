@@ -1,5 +1,16 @@
 # Autonomous resume
 
+## First horse audit restored; exact view-load repair offline-green - 2026-08-25T17:43:39Z
+
+- Status: `IN PROGRESS` on `codex/mounted-combat-phase3-horse`. Clean published input/package were `b872d55376a54e85aba0474d4d0811f0d83de175` / `a04d9edcf1567269f66a91aa43d289aa851d4aef58844fe520a9bb8f75fb1f82`; suite `20260825T162100Z-horse-native-asset-audit-suite1` is bound by snapshot SHA-256 `50372e4fa25f332b7cfce973afd15a27db352fe796dc904dd8920781c4e0864c`.
+- WhatIf passed complete purity. Guarded run `20260825T162200Z-horse-native-asset-audit-passA` is immutable uncredited `FAIL 15/5`. Immediate independent audit ran before evidence inspection and re-proved save/Mods digests `8db675f6866e34399f62a2893ed480fb5246303ca3ec444fb6af9f6a11872726` / `9179a5026662fa86b5126c1179fc164e7c24beafa58f41399d8229ca91e5005c`, Baseline/Working `c29d965c9ff5dc0f971659d9ae154877aa4a9a461ca220d1ce28e7c7fd9d2512` / `5eb4e0b4cbd8d60dc879a02ff71aadfde3f517304754857f0cc68d0f9a93f1c6`, and zero process, lock, sentinel, deployment, or nonrestored transaction residue.
+- Evidence identified exact `PonySummoned` GUID/prefab `3f95557fc806db741b500a5735990841` / `447d2907feec82545b3773fbb4709588` (`Pony_02`), all three reserved KMC GUIDs unclaimed, exact horse identity/stats/body, stock Mammoth `AddPet`, companion selections, Ranger progression, and Paladin level 5. The five failures are observation defects: the producer requested nonexistent parameterless `UnitViewLink.Load`, leaving every view null, and treated a complete zero-result initialized-library pony reverse-reference scan as fatal.
+- Exact installed assembly inspection proves `WeakResourceLink<T>.Load(Boolean ignorePreloadWarning=false)` token `0x06007478`. The single observation-only repair invokes that exact public instance signature, requires the exact summoned pony rather than any name match, preserves zero reverse owners as explicit negative telemetry, and requires the bounded scan to complete without truncation. It registers no blueprint, spawns no unit, changes no command, and changes no ordinary gameplay behavior.
+- Repaired offline gates pass source `21/0`, Release, component `241/0`, visual/source-order `17/0`, harness `229/0`, assembly `314/0` (`290` Kingmaker + `24` Wrath), PowerShell parser `26/0`, JSON parser `7/0`, and diff. Dirty DLL SHA-256/MVID are `25980e63478cc5b2d6259c8c595172cca8ad81a023c07651800158045e5ec43d` / `9261dfb2-de69-4872-8d11-693b05576378`; they are not package identity.
+- Exact next action: commit and guarded-publish this attributable observation repair plus durable record; build/validate a fresh clean immutable package and stable suite; pass one targeted WhatIf; run one final guarded `horse-native-asset-audit`; independently audit restoration before evidence read. Do not begin blueprint registration until that result is interpreted.
+
+This entry supersedes the observation next action below. Historical failed evidence is preserved.
+
 ## Phase 3A version assigned; clean package checkpoint next - 2026-08-25T16:14:40Z
 
 - The guarded-published observation implementation is commit `9e1a3d46dda81d4059a48ae7ded11d88b7ff763d`. The horse branch now tracks `origin/codex/mounted-combat-phase3-horse` at that exact SHA.

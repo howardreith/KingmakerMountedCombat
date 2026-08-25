@@ -1,5 +1,12 @@
 # Autonomous blockers
 
+## 2026-08-25T17:43:39Z - no critical blocker; one attributable audit retry pending
+
+- First guarded horse audit `20260825T162200Z-horse-native-asset-audit-passA` is immutable uncredited `FAIL 15/5`, with exact independent suite restoration before evidence read. This is not a horse gameplay or asset-feasibility failure.
+- Exact installed token `0x06007478` proves the audit used the wrong reflection signature: Kingmaker exposes `WeakResourceLink<T>.Load(Boolean ignorePreloadWarning=false)`, not `Load()`. Four failed view gates are downstream of that mismatch.
+- The fifth failure incorrectly required at least one initialized-blueprint reverse owner. The complete, nontruncated scan found zero; that is an exact negative ownership result, not an incomplete audit. The repaired gate instead requires exact `PonySummoned` GUID/prefab identity and scan completion while preserving the empty owner list.
+- The single observation-only repair passes all offline gates and has no production gameplay route. One clean package/suite/WhatIf and one guarded retry remain. Horse blueprint registration remains fail-closed until the retry is audited and interpreted.
+
 ## 2026-08-25T16:09:33Z - no critical blocker; one exact native-asset observation is ready
 
 - The observation-only source, request/result contracts, artifact allowlist, independent semantic validator, and bounded scanner pass all applicable offline gates. No production horse blueprint exists yet, and no ordinary-play route can invoke the audit without the exact guarded automation request.
