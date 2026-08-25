@@ -1,5 +1,18 @@
 # Autonomous resume
 
+## Phase 2 human acceptance bound; closure publication and integration next — 2026-08-25T12:00:39Z
+
+- Status: Mammoth private-alpha foundation human accepted. Exact implementation `1241222459209aea1e6127bedd7d630df3940b99`; exact package documentation commit `49c970f9445d435c530a8ce949bdfddee4e1ef03`; human-acceptance record `ac57acd53a315f9c27d32288332aa342b95cb6cf` on `codex/mounted-combat-phase2-closure`.
+- The installed UMM payload is byte-identical to immutable package `C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-phase2b-dev.1-round2-manual-regression.zip`. ZIP/manifest/DLL SHA-256 are `de25bb753a7b902206e474a59d23fe1474b4a7c631aea19caa678fd12962a427` / `d6992dc8e28431512477f8ace5bdec8c05ada57b690f502aaedb5b94ab618cd8` / `41680c98b90f1d941693e2b42d01c58cbc09f7b197f842acccb2673b4eb630ba`; MVID is `2dc5c5b3-559b-4e54-870f-8c76a911ec08`; ID/version are `KingmakerMountedCombat` / `0.1.0-phase2b-dev.1`.
+- Human PASS and accepted limitations are exact in `docs/PHASE-2-HUMAN-ACCEPTANCE.md` and `docs/PHASE-2-KNOWN-LIMITATIONS.md`. Stock attack/right-click, mounted auto-attack, combined TB turns, animated TB locomotion, mounted ranged combat, persistent mounting, automatic remount, release-quality Mammoth presentation, and public-release readiness are not claimed.
+- The door diagnostic is closed under the player-facing result. Stock TileHandler-attributed path replacements remain preserved telemetry; command/path/target/oscillation/duplication/regression/restoration failures remain fatal.
+- Fresh intake found no Git operation/lock, game/launcher/build process, runtime lock/sentinel, active transaction, staging deployment, or recovery ambiguity. The exact tested UMM deployment remains intentionally installed and verified. No code or dirty work newer than the tested artifact existed.
+- Phase 2 automated identity remains source/Release/component/visual/harness/assembly `21/Release/240/17/227/299`, parsers `26/0` / `7/0`, and credited runtime `443/0`, with exact audit-before-read restoration. Closure is documentation-only and requires no new multi-hour RT/TB evidence.
+- During the first final harness invocation, the user's still-open responsive Steam-parented `Kingmaker.exe` became visible and the harness correctly failed closed. No runtime transaction was entered. The test runner was stopped, the user exited Kingmaker normally, and read-only re-intake proved zero relevant process and zero live lock/sentinel/nonterminal transaction. The clean rerun passed harness `227/0` and assembly `299/0`; the interrupted attempt is uncredited.
+- Exact next action: run applicable final offline/document gates, commit `docs: close Phase 2 and hand off horse development`, guarded-publish `codex/mounted-combat-phase2-closure`, create and merge a history-preserving PR to `main` if local policy permits, then branch `codex/mounted-combat-phase3-horse` from the exact integrated closure. Do not create a public release or merge future horse work without later human acceptance.
+
+The manual-regression-required next action in the entry below is complete and superseded.
+
 ## Round 2 technical closure; final human regression is the only next action — 2026-08-24T23:47:53Z
 
 - Status: `PRIVATE ALPHA STABILIZATION ROUND 2 COMPLETE  MANUAL REGRESSION REQUIRED`. Branch `codex/mounted-combat-phase2-alpha`; final behavioral/diagnostic implementation `1241222459209aea1e6127bedd7d630df3940b99` is guarded-published. The self-referential final documentation/package commit and deployable ZIP identity are bound after this entry is committed in `C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-phase2b-dev.1-round2-manual-regression-identity.json`.

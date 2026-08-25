@@ -1,6 +1,18 @@
 # Phase 2 Round 2 closure and horse-ready handoff
 
-Recorded: `2026-08-24T23:47:53Z`
+## Superseding human acceptance and execution handoff — 2026-08-25
+
+The user completed the exact-package Mammoth regression and accepted the implementation as a successful private-alpha foundation. The exact accepted implementation is `1241222459209aea1e6127bedd7d630df3940b99`; the installed immutable ZIP/manifest/DLL SHA-256 values are `de25bb753a7b902206e474a59d23fe1474b4a7c631aea19caa678fd12962a427` / `d6992dc8e28431512477f8ace5bdec8c05ada57b690f502aaedb5b94ab618cd8` / `41680c98b90f1d941693e2b42d01c58cbc09f7b197f842acccb2673b4eb630ba`, with MVID `2dc5c5b3-559b-4e54-870f-8c76a911ec08`.
+
+Phase 2 is now closed with the accepted limitations in `docs/PHASE-2-KNOWN-LIMITATIONS.md`. Exact human results are in `docs/PHASE-2-HUMAN-ACCEPTANCE.md`; the combined closure ledger is in `docs/PHASE-2-FINAL-CLOSURE.md`.
+
+The distant-door loop is retired: the user confirms that the click works well, the Mammoth approaches, the door opens, and the interaction succeeds. Raw stock path refreshes remain historical telemetry and do not independently negate a healthy player-owned command. Genuine navigation, duplication, regression, or restoration failures remain fatal.
+
+Horse execution is separately authorized through the native Kingmaker horse companion, Ranger selection, and one independent horse-mounted private alpha. Exact local Wrath command-model research precedes generic control-model changes. Paladin Divine Steed remains design-only pending technical qualification and human acceptance of the horse companion/profile. Public release remains unauthorized, and the horse branch must not be merged to `main` before its own human acceptance.
+
+The original technical closure below is preserved as the pre-human historical record. Its statements that human acceptance, horse execution, and `main` integration were not yet authorized are superseded only by this section and the 2026-08-25 mission authorization.
+
+Recorded: `2026-08-24T23:47:53Z` (historical technical handoff)
 
 Status: automated technical boundary `PASS`; focused human regression `IN PROGRESS`.
 
