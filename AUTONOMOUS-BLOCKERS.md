@@ -1,5 +1,15 @@
 # Autonomous blockers
 
+## 2026-08-25T12:00:39Z - Mammoth human gate accepted; no active Phase 2 blocker
+
+- Status: `PASS` for the exact Phase 2 private-alpha artifact. The user completed the manual regression and accepted the Mammoth implementation with the limitations in `docs/PHASE-2-HUMAN-ACCEPTANCE.md` and `docs/PHASE-2-KNOWN-LIMITATIONS.md`.
+- Installed/package correlation is exact: implementation `1241222459209aea1e6127bedd7d630df3940b99`, documentation/package commit `49c970f9445d435c530a8ce949bdfddee4e1ef03`, ZIP/manifest/DLL SHA-256 `de25bb753a7b902206e474a59d23fe1474b4a7c631aea19caa678fd12962a427` / `d6992dc8e28431512477f8ace5bdec8c05ada57b690f502aaedb5b94ab618cd8` / `41680c98b90f1d941693e2b42d01c58cbc09f7b197f842acccb2673b4eb630ba`, MVID `2dc5c5b3-559b-4e54-870f-8c76a911ec08`.
+- The distant-door diagnostic loop is closed. Raw stock path-object refreshes remain historical telemetry; player-visible or unattributed navigation failures remain fatal.
+- The accepted limitations are explicit and do not block Phase 2 closure or Horse Tranches A-C. Public release remains unauthorized. Paladin Divine Steed remains design-only until the horse companion/profile qualify and receive human visual acceptance.
+- No repository, Git, process, transaction, lock, sentinel, save, staging, or recovery ambiguity was present at fresh-session intake. The exact accepted UMM payload remains intentionally installed and verified.
+
+The human-acceptance gate in the entry below is resolved and superseded.
+
 ## 2026-08-24T23:47:53Z - no active Round 2 technical blocker; human acceptance gate remains
 
 - Status: `PASS` for technical closure. Final door run `20260824T233600Z-round2-final-tile-refresh-distance-door` passes `59/0`; the complete credited RT/TB/door set is `443/0`. All external restoration gates pass and no runtime or Git ambiguity remains.

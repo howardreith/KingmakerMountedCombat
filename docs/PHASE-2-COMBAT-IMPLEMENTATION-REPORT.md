@@ -1,6 +1,14 @@
 # Phase 2 combat implementation report
 
-## Round 2 closure (2026-08-24)
+## Human-accepted private-alpha foundation (2026-08-25)
+
+The user completed the final Mammoth regression against the installed immutable manual package and accepted the current implementation as a successful private-alpha foundation. Exact accepted implementation/package identities are `1241222459209aea1e6127bedd7d630df3940b99`, ZIP `de25bb753a7b902206e474a59d23fe1474b4a7c631aea19caa678fd12962a427`, manifest `d6992dc8e28431512477f8ace5bdec8c05ada57b690f502aaedb5b94ab618cd8`, DLL `41680c98b90f1d941693e2b42d01c58cbc09f7b197f842acccb2673b4eb630ba`, and MVID `2dc5c5b3-559b-4e54-870f-8c76a911ec08`.
+
+Human PASS covers basic mounting/dismount, mounted movement, menus, Wild Shape/revert visibility, distant-door approach/open, intentional save/load/area clean dismount, TB rider-turn movement through the Mammoth, overall TB controllability, Rider primary and Mammoth primary through KMC controls, and no observed duplicate command/attack/damage behavior.
+
+The accepted private alpha still requires KMC overlay primary controls, uses separate rider/Mammoth TB turns, may show sliding Mammoth TB locomotion, does not support mounted ranged attacks, does not serialize or automatically restore mounting, and retains Mammoth presentation gaps. It does not claim stock right-click attack or auto-attack integration, Wrath-style combined turns, animated TB locomotion, mounted ranged combat, or public-release readiness. See `docs/PHASE-2-HUMAN-ACCEPTANCE.md` and `docs/PHASE-2-KNOWN-LIMITATIONS.md`.
+
+## Round 2 automated closure (2026-08-24)
 
 Status: `PRIVATE ALPHA STABILIZATION ROUND 2 COMPLETE  MANUAL REGRESSION REQUIRED`.
 

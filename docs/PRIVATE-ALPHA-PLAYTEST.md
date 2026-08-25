@@ -1,6 +1,14 @@
 # Private alpha playtest
 
-## Round 2 final manual regression — superseding handoff
+## Human acceptance recorded — 2026-08-25
+
+The user completed the focused regression against the exact installed `0.1.0-phase2b-dev.1` manual-regression package and accepted the Mammoth implementation as a successful private-alpha foundation. The accepted DLL SHA-256/MVID are `41680c98b90f1d941693e2b42d01c58cbc09f7b197f842acccb2673b4eb630ba` / `2dc5c5b3-559b-4e54-870f-8c76a911ec08`; package/manifest SHA-256 are `de25bb753a7b902206e474a59d23fe1474b4a7c631aea19caa678fd12962a427` / `d6992dc8e28431512477f8ace5bdec8c05ada57b690f502aaedb5b94ab618cd8`.
+
+The human-confirmed PASS set covers mounting, dismounting, movement, menus, Wild Shape/revert visibility, distant-door approach/open, save/load/area clean dismount, TB controllability and rider-turn delegation, both KMC primary controls, and no observed duplicate command/attack/damage chain. The accepted limitations include overlay-required attacks, absent stock right-click/auto-attack integration, separate TB turns, possible Mammoth TB locomotion sliding, unsupported mounted ranged attacks, transient state, no automatic remount, and private-alpha Mammoth presentation.
+
+This acceptance supersedes the manual-regression-required status immediately below. Exact results and nonclaims are recorded in `docs/PHASE-2-HUMAN-ACCEPTANCE.md`; historical checklists remain preserved for traceability.
+
+## Round 2 final manual regression — completed historical handoff
 
 Status: `PRIVATE ALPHA STABILIZATION ROUND 2 COMPLETE  MANUAL REGRESSION REQUIRED`.
 
