@@ -1,6 +1,6 @@
 # Horse and pony native-asset audit
 
-Status: IN PROGRESS
+Status: PASS
 
 Date: 2026-08-25
 
@@ -24,7 +24,7 @@ The Phase 1 in-memory UnityFS/type-tree result was re-bound on 2026-08-25 to the
 | Blueprint container | `sharedassets1.assets`, 212,953,824 bytes; SHA-256 `cc779caf2fef21d111856a57d40b510677b0c236ad2723d1849564626445f785` |
 | View ID | `aafc2343-db64-42fb-b190-ad9165830711` |
 
-Exact previously established prefab facts remain authoritative pending a clean runtime re-observation:
+The clean initialized-library/runtime view audit reverified and extended these prefab facts:
 
 - root `HorseRiding`; 122 transforms;
 - rig `HorseRiding_body_RIG`;
@@ -33,13 +33,14 @@ Exact previously established prefab facts remain authoritative pending a clean r
 - left/right stirrups are Chest children at approximately `(+/-0.305183, -0.12273, -0.04402)`;
 - stock movement agent acceleration `8`, minimum speed `0.2`, angular speed `360`, combat angular speed `720`, obstacle connection enabled, avoidance enabled;
 - corpulence `0.9`, soft-collider height `2.4`, radius field `1.0`, core collider scale `(1.8, 1.8, 2.499)`;
-- `ArmoredHorseAnimationSet_LocoMotion` and a dedicated controller cover idle, walk, run, stop, hoof, bite, gore, stun, stand-up, and death.
+- the live view exposes the stock `UnitMovementAgent`, two colliders, the dedicated rig/mesh/materials, and native locomotion, special-attack, reaction, stand-up, and idle actions;
+- the file-level animation inventory additionally identifies native idle, walk, run, stop, hoof, bite, gore, reaction, stand-up, and death coverage.
 
 The stock unit is a campaign/prototype horse, not a native animal-companion feature: it has `AddClassLevels` and `Experience`, and no stock `AddPet` ownership contract points to it. That is why it was rejected for Phase 1, but it is suitable native view evidence for the newly authorized original KMC companion blueprint.
 
 ## Summoned pony audit
 
-Current status: exact blueprint and resource identity established; one repaired view comparison remains pending.
+Current status: PASS. The one repaired view comparison completed and restored exactly.
 
 The first guarded initialized-library observation, `20260825T162200Z-horse-native-asset-audit-passA`, resolved:
 
@@ -57,9 +58,30 @@ The first guarded initialized-library observation, `20260825T162200Z-horse-nativ
 
 The run is preserved as uncredited `FAIL 15/5`. Four failures arose because the observer requested nonexistent `UnitViewLink.Load()`; exact installed Kingmaker exposes `WeakResourceLink<T>.Load(Boolean ignorePreloadWarning=false)` token `0x06007478`. The fifth failure treated the complete zero-owner result as fatal. Neither establishes an asset or gameplay failure. The attributable repair calls `Load(false)`, pins exact summoned-pony identity, and preserves zero reverse owners as negative evidence while requiring scan completion.
 
-The repaired observation implementation remains `horse-native-asset-audit`. Its one create-new artifact is `horse-native-asset-audit.json`, independently manifested as `horse-asset-audit`. The scanner uses the exact initialized `BlueprintsByAssetId` and `ResourceNamesByAssetId` dictionaries, resolves horse/pony resource IDs back to BlueprintUnit prefabs, and follows bounded object/GUID reference paths. It reports progress every 5,000 blueprint owners, caps reference output at 500, and never registers or instantiates a gameplay unit. Horse-versus-pony mesh/rig/controller/clip/scale/collider/material comparison remains pending one final clean guarded retry and audit-before-read.
+The repaired observation implementation remains `horse-native-asset-audit`. Its one create-new artifact is `horse-native-asset-audit.json`, independently manifested as `horse-asset-audit`. The scanner uses the exact initialized `BlueprintsByAssetId` and `ResourceNamesByAssetId` dictionaries, resolves horse/pony resource IDs back to BlueprintUnit prefabs, and follows bounded object/GUID reference paths. It reports progress every 5,000 blueprint owners, caps reference output at 500, and never registers or instantiates a gameplay unit.
 
-The runtime observation must record, for both horse and pony:
+The clean retry `20260825T180000Z-horse-native-asset-audit-repair-passB` is credited `PASS 21/0` on implementation commit `9431cbb0beb999900187ee13f9f58f4a18bd9066`, version `0.1.0-phase3a-dev.2`, DLL SHA-256 `450f1758ef8fa07a27ac4993344b4566f954b7fe6afa73ac180ab5e098870686`, MVID `9ee3c613-b957-4d35-8fb7-d6b897edbe39`. Its audit artifact SHA-256 is `fb9a9f5157a427d545a31ab5b41b69746a2c19cc3e710c8dc656242a0d68ac8d`. Immediate independent audit re-proved the pinned suite snapshot `27a4f4c8606b07296164d4efcdf966f475d0348b93d0e7d2d161b550b6632c8e`, save digest `8db675f6866e34399f62a2893ed480fb5246303ca3ec444fb6af9f6a11872726`, Mods digest `9179a5026662fa86b5126c1179fc164e7c24beafa58f41399d8229ca91e5005c`, immutable Baseline, restored Working, and zero process/lock/sentinel/deployment residue before evidence was read.
+
+## Exact horse-versus-pony conclusion
+
+`PonySummoned` and `CR1_HorseRiding` do not share a mount-ready view contract:
+
+| Property | `CR1_HorseRiding` | `PonySummoned` |
+|---|---|---|
+| Size / root scale | Large / `(1,1,1)` | Medium / `(1,1,1)` |
+| Prefab | `HorseRiding` | `Pony_02` |
+| Mesh | `horse_riding`, `horse_riding_equip` | `Base` |
+| Rig inventory | 33 named bones; `HorseRiding_body_RIG` | 36 named bones; `Pony_body_01` family |
+| Seat geometry | `Chest`, `L_Stirrup`, `R_Stirrup` present | all three absent |
+| Corpulence | `0.9` | `0.5` |
+| Soft collider | radius `1.17`, height `2.4` | radius `0.65`, height `1.8` |
+| Natural weapons | two `Hoof1d4` additional limbs | primary plus additional `SmallHoof1d3` |
+
+Both views use stock Kingmaker movement/collider/animation systems, but their prefab, mesh, skeleton, material, footprint, and seat geometry are distinct. The pony supplies no Chest/stirrup evidence and is not resized. The Large native riding horse remains the selected view authority. `HorseSummoned` separately confirms another Large native horse family with Chest/stirrups; it does not supersede exact `CR1_HorseRiding` authority.
+
+The initialized-library reverse scan found zero exact owners of `PonySummoned` and completed without truncation. This is a factual negative result, not a failed audit.
+
+The runtime observation recorded, for both horse and pony:
 
 | Contract | Required comparison |
 |---|---|
@@ -73,4 +95,4 @@ The runtime observation must record, for both horse and pony:
 | Combat | body hand sets, bite/hoof/gore weapon identities, additional limbs |
 | Materials | native material/renderer identities only; no extraction |
 
-Decision rule: do not resize the pony merely because it is called a pony. Prefer the already proven Large riding horse unless exact evidence shows the pony supplies a superior native companion or riding contract without imported content or broad behavioral compromise.
+Decision: do not resize the pony. Build the original KMC companion mechanics around the native Large `CR1_HorseRiding` view, and qualify that companion unmounted before using its Chest/stirrup geometry for `medium-humanoid-horse-v1`.

@@ -1,5 +1,9 @@
 # Autonomous blockers
 
+## Horse native-asset gate resolved — 2026-08-25T19:12:00Z
+
+Status: PASS. The sole repaired retry `20260825T180000Z-horse-native-asset-audit-repair-passB` passed `21/0`, and its immediate independent suite/save/Mods/process/lock/sentinel/deployment audit passed before evidence read. The pony is conclusively a distinct Medium prefab/rig without riding-seat geometry; the Large native `CR1_HorseRiding` view is selected. All reserved KMC GUIDs are unclaimed and the exact Ranger selection is bound. No asset, restoration, transaction, or production-construction blocker remains. Unmounted horse qualification is the next gate, not a blocker.
+
 ## 2026-08-25T17:51:10Z - no critical blocker; dev.2 audit package checkpoint active
 
 - The exact observation repair is guarded-published as `d4c4505fa9fababf6af0e65dc589cf189453b128`; no unqualified production horse registration is present.

@@ -1,5 +1,16 @@
 # Autonomous resume
 
+## Horse/pony native-asset tranche complete; companion construction gate open — 2026-08-25T19:12:00Z
+
+- Exact branch/HEAD/package: `codex/mounted-combat-phase3-horse` at clean published `9431cbb0beb999900187ee13f9f58f4a18bd9066`; version `0.1.0-phase3a-dev.2`; package SHA-256 `5c76bf40f494453bf9d24e1514a12ee336792fb5a69e67800fbc29e4304fce37`; manifest SHA-256 `502222a4d0ba2b02d59c352c59906f7e0fc888d7644834fdeb7fde78faf4c33d`; DLL SHA-256/MVID `450f1758ef8fa07a27ac4993344b4566f954b7fe6afa73ac180ab5e098870686` / `9ee3c613-b957-4d35-8fb7-d6b897edbe39`.
+- Guarded run `20260825T180000Z-horse-native-asset-audit-repair-passB` is credited `PASS 21/0`. Horse artifact SHA-256 is `fb9a9f5157a427d545a31ab5b41b69746a2c19cc3e710c8dc656242a0d68ac8d`; runtime game result SHA-256 is `a9f445e09260d4e957bee99332a00dc498a7332f5055d53feb045e988daa24d8`.
+- Immediate independent audit passed before evidence read: suite snapshot `27a4f4c8606b07296164d4efcdf966f475d0348b93d0e7d2d161b550b6632c8e`; save/Mods digests `8db675f6866e34399f62a2893ed480fb5246303ca3ec444fb6af9f6a11872726` / `9179a5026662fa86b5126c1179fc164e7c24beafa58f41399d8229ca91e5005c`; immutable Baseline, restored Working, and zero process/lock/sentinel/live deployment.
+- Exact conclusion: `PonySummoned` is a distinct Medium `Pony_02` view with no Chest/stirrups; it does not share the riding horse prefab, mesh, rig, footprint, or seat geometry and will not be resized. `CR1_HorseRiding` remains the native Large horse authority.
+- Exact Ranger selection is `AnimalCompanionSelectionRanger` `ee63330662126374e8785cc901941ac7` with seven stock options. All three reserved KMC horse GUIDs are unclaimed. The companion production gate is open.
+- Exact next action: implement the original KMC horse blueprint trio and compare-before-restore Ranger append transaction behind a dedicated service; add exact assembly contracts and deterministic tests; qualify the horse unmounted before mounted-profile work.
+
+This entry supersedes the pending final audit action below. The failed dev.1 evidence remains immutable historical telemetry.
+
 ## Horse audit repair published; immutable dev.2 package checkpoint - 2026-08-25T17:51:10Z
 
 - Exact observation repair commit `d4c4505fa9fababf6af0e65dc589cf189453b128` is cleanly guarded-published and local/remote-equal on `codex/mounted-combat-phase3-horse` before this metadata-only version assignment.

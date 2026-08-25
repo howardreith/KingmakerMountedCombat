@@ -1,6 +1,6 @@
 # Horse animal-companion contract
 
-Status: IN PROGRESS — production gate closed pending exact runtime blueprint audit
+Status: PASS — production construction gate open; runtime qualification remains required
 
 Date: 2026-08-25
 
@@ -29,15 +29,18 @@ Exact Kingmaker 2.1.7b contracts:
 
 Implementation must use those native seams. Harmony/UMM callbacks may schedule registration, but blueprint construction and validation belong in a dedicated service. No persistent mounted relationship is added.
 
-## Exact source contracts to resolve before construction
+## Resolved construction inputs
 
-One runtime audit must identify and bind:
+The credited audit `20260825T180000Z-horse-native-asset-audit-repair-passB` binds:
 
-1. the current Ranger animal-companion `BlueprintFeatureSelection` and its exact pre-KMC feature array;
-2. a proven stock companion feature/unit/upgrade trio, initially Mammoth, including every `AddPet` field;
-3. `AnimalCompanionRank`, animal-companion class, progression, portrait, player faction, body natural weapons, upgrade components, death/recovery behavior, and respec path;
-4. `CR1_HorseRiding` view, body, stats, movement, and animation fields;
-5. the exact uninstallation consequence when a save references a KMC blueprint.
+1. `AnimalCompanionSelectionRanger` GUID `ee63330662126374e8785cc901941ac7`, whose exact seven pre-KMC options are Empty, Dog, Ekun, Elk, Leopard, Monitor, and Wolf;
+2. stock Mammoth feature/unit/upgrade `6adc3aab7cde56b40aa189a797254271` / `e7aa96d15a45238438ae4cfb476f6bb9` / `6a23d16a4476af644af89d91f9f96790` and its `AddPet` rank `1670990255e4fe948a863bafd5dbda5d`, upgrade level `7`;
+3. Dog as a Ranger-present rank-4 companion baseline: feature/unit/upgrade `f894e003d31461f48a02f5caec4e3359` / `918939943bf32ba4a95470ea696c2ba5` / `9763e77bfdcd32541848a9095ac53455`;
+4. native `CR1_HorseRiding` Large view/stats/body/movement/rig contract, including `Chest` and both stirrups;
+5. all three reserved KMC GUIDs as unclaimed across the initialized 104,660-blueprint library;
+6. the save consequence below: a selected KMC companion is persistent content even though mounting remains transient.
+
+Production construction may now begin. It must still fail closed if any exact lookup changes at runtime, and runtime evidence—not construction or compilation—must qualify creation, progression, lifecycle, and uninstall guidance.
 
 ## Product behavior
 
@@ -61,4 +64,3 @@ Save truth: a selected KMC companion blueprint is necessarily referenced by the 
 ## Ranger integration transaction
 
 Registration must snapshot the exact stock selection array and append the horse feature once. Disable/unload may restore the exact in-process array only when it is still the KMC-produced value; it must not overwrite later changes by another mod. Duplicate registration is idempotent. A collision, missing stock contract, or third-party mutation ambiguity is a hard failure, not permission to replace the selection.
-

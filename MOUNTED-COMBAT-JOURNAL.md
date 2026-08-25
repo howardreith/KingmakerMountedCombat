@@ -1,5 +1,13 @@
 # Mounted Combat journal
 
+## 2026-08-25T19:12:00Z — Horse/pony native-asset audit credited; companion construction admitted
+
+- Branch/package authority: `codex/mounted-combat-phase3-horse` at published `9431cbb0beb999900187ee13f9f58f4a18bd9066`, version `0.1.0-phase3a-dev.2`, package `5c76bf40f494453bf9d24e1514a12ee336792fb5a69e67800fbc29e4304fce37`, DLL `450f1758ef8fa07a27ac4993344b4566f954b7fe6afa73ac180ab5e098870686`, MVID `9ee3c613-b957-4d35-8fb7-d6b897edbe39`.
+- Guarded `horse-native-asset-audit` run `20260825T180000Z-horse-native-asset-audit-repair-passB` passed `21/0`. Runtime result and horse audit hashes are `a9f445e09260d4e957bee99332a00dc498a7332f5055d53feb045e988daa24d8` and `fb9a9f5157a427d545a31ab5b41b69746a2c19cc3e710c8dc656242a0d68ac8d`.
+- Independent audit ran before evidence interpretation and passed exact pinned suite, save/Mods equality, immutable Baseline, restored Working, and zero external residue.
+- `CR1_HorseRiding` is Large with exact riding mesh/rig, Chest, two stirrups, stock movement agent, two colliders, and native locomotion/combat/reaction coverage. `PonySummoned` is a separate Medium `Pony_02` mesh/rig with no Chest/stirrups. It will not be resized.
+- Exact Ranger selection `ee63330662126374e8785cc901941ac7` has seven stock options and no Mammoth. Reserved Horse unit/feature/upgrade GUIDs have zero collisions across 104,660 loaded blueprints. Companion construction is now admitted under `planning/HORSE-COMPANION-CONTRACT.md`.
+
 ## 2026-08-25T17:51:10Z - observation repair published; dev.2 identity assigned
 
 - Guarded publication completed for exact repair commit `d4c4505fa9fababf6af0e65dc589cf189453b128`; local and upstream were equal before metadata changes.

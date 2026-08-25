@@ -17,7 +17,9 @@ Phase 2 remains accepted with its documented private-alpha limitations. Horse wo
 
 Tranche 0 assembly forensics is complete. Exact Wrath evidence supports a later coordinated shared-turn design but not a broad port during horse development. The Phase 2 separate-turn model remains the functioning fallback.
 
-The exact native `CR1_HorseRiding` file identities have been reverified. First bounded run `20260825T162200Z-horse-native-asset-audit-passA` restored exactly and is preserved uncredited `FAIL 15/5`: it established exact `PonySummoned` GUID/resource and class/companion inputs, but a wrong parameterless view-load reflection assumption prevented every view comparison. Exact installed token `0x06007478` proves `Load(Boolean ignorePreloadWarning=false)`; the one observation-only repair is offline-green and pending a clean audited retry. It does not alter ordinary gameplay.
+The exact native `CR1_HorseRiding` file identities have been reverified. First bounded run `20260825T162200Z-horse-native-asset-audit-passA` restored exactly and remains historical uncredited `FAIL 15/5`. Exact installed token `0x06007478` proved its observer defect. The single repaired retry `20260825T180000Z-horse-native-asset-audit-repair-passB` is credited `PASS 21/0`; independent audit passed before evidence read.
+
+The resulting decision is exact: `PonySummoned` is a separate Medium `Pony_02` prefab/mesh/rig with no `Chest` or stirrup transforms. It shares stock movement and broad animation infrastructure, but not the riding horse prefab, mesh, skeleton/view family, footprint, or seat geometry. The pony will not be resized. The Large `HorseRiding` native view remains the authority for the KMC horse companion and mounted profile.
 
 KMC companion implementation, Ranger integration, unmounted qualification, mounted profile work, target-selected Mount, final packaging, and horse runtime evidence remain in progress.
 
@@ -27,9 +29,9 @@ KMC companion implementation, Ranger integration, unmounted qualification, mount
 |---|---|---|
 | Wrath command/turn model | PASS | `planning/WOTR-MOUNTED-COMMAND-MODEL.md` |
 | Horse native file identity | PASS | `planning/HORSE-PONY-ASSET-AUDIT.md` |
-| Pony comparison | IN PROGRESS | exact `PonySummoned` identity established; repaired view audit pending |
-| KMC blueprint trio | TODO | contract defined; production gate closed |
-| Ranger selection | TODO | exact stock selection pending runtime audit |
+| Pony comparison | PASS | credited audited run `20260825T180000Z-horse-native-asset-audit-repair-passB`, `21/0` |
+| KMC blueprint trio | IN PROGRESS | exact inputs/GUID availability proven; production gate open |
+| Ranger selection | PASS (input contract) | exact stock seven-option selection bound; append implementation pending |
 | Unmounted horse | TODO | no credited runtime rows |
 | Mounted horse profile | TODO | blocked on unmounted qualification |
 | Target-selected Mount | TODO | design/implementation authorized |
