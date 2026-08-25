@@ -94,7 +94,7 @@ elseif ($schemaVersion -eq 2) {
 else { throw 'Runtime request schemaVersion must be 1 or 2.' }
 
 $missionScenarios = @(
-    'mod-load-smoke', 'export-mounted-contracts', 'export-candidate-mount-rigs', 'observe-mount-diagnostic-availability',
+    'mod-load-smoke', 'export-mounted-contracts', 'export-candidate-mount-rigs', 'observe-mount-diagnostic-availability', 'horse-native-asset-audit',
     'player-action-availability', 'mount-dismount-user-flow',
     'mounted-pair-create-and-clear', 'mounted-pair-double-mount-rejected', 'mounted-pair-invalid-pair-rejected',
     'mounted-pair-cleanup-idempotent', 'mounted-pair-death-cleanup', 'mounted-pair-combat-start-cleanup',

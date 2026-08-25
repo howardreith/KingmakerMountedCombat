@@ -3624,7 +3624,7 @@ function Restore-KmcModsTransaction {
 
 function Get-KmcSaveBackedRuntimeScenarios {
     return @(
-        'export-mounted-contracts', 'export-candidate-mount-rigs', 'observe-mount-diagnostic-availability',
+        'export-mounted-contracts', 'export-candidate-mount-rigs', 'observe-mount-diagnostic-availability', 'horse-native-asset-audit',
         'player-action-availability', 'mount-dismount-user-flow',
         'mounted-pair-create-and-clear', 'mounted-pair-double-mount-rejected', 'mounted-pair-invalid-pair-rejected',
         'mounted-pair-cleanup-idempotent', 'mounted-pair-death-cleanup', 'mounted-pair-combat-start-cleanup',
@@ -4537,7 +4537,7 @@ function Assert-KmcKnownRuntimeArtifactsManifested {
     )
     $manifested = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
     foreach ($artifact in @($Manifest.artifacts)) { [void]$manifested.Add([string]$artifact.relativePath) }
-    foreach ($leaf in @('lifecycle-scenario-evidence.jsonl','movement-telemetry.jsonl','movement-scenario-evidence.jsonl','boundary-scenario-evidence.jsonl','combat-scenario-evidence.jsonl')) {
+    foreach ($leaf in @('lifecycle-scenario-evidence.jsonl','movement-telemetry.jsonl','movement-scenario-evidence.jsonl','boundary-scenario-evidence.jsonl','combat-scenario-evidence.jsonl','horse-native-asset-audit.json')) {
         if ((Test-Path -LiteralPath (Join-Path $EvidenceRoot $leaf) -PathType Leaf) -and -not $manifested.Contains($leaf)) {
             throw "Known runtime artifact exists without a manifest record: $leaf"
         }
@@ -4548,6 +4548,173 @@ function Assert-KmcKnownRuntimeArtifactsManifested {
             $relative = 'movement-visuals/' + $path.Name
             if (-not $manifested.Contains($relative)) { throw "Known runtime artifact exists without a manifest record: $relative" }
         }
+    }
+}
+
+function Assert-KmcHorseNativeAssetAuditEvidence {
+    param(
+        [Parameter(Mandatory = $true)]$Request,
+        [Parameter(Mandatory = $true)]$Manifest,
+        [AllowNull()][string]$Status,
+        $SubscenarioResults
+    )
+
+    $isAudit = [string]$Request.scenario -ceq 'horse-native-asset-audit'
+    $records = @($Manifest.artifacts | Where-Object {
+        [string]$_.relativePath -ceq 'horse-native-asset-audit.json' -or [string]$_.kind -ceq 'horse-asset-audit'
+    })
+    if (-not $isAudit) {
+        if ($records.Count -ne 0) { throw 'Non-audit runtime scenario manifested horse native-asset evidence.' }
+        return
+    }
+    if ([string]$Status -ceq 'PASS' -and $records.Count -ne 1) {
+        throw 'PASS horse native-asset audit requires exactly one manifested audit artifact.'
+    }
+    if ($records.Count -eq 0) {
+        if ([string]$Status -ceq 'PASS') { throw 'PASS horse native-asset audit omitted its audit artifact.' }
+        return
+    }
+    if ($records.Count -ne 1 -or [string]$records[0].relativePath -cne 'horse-native-asset-audit.json' -or
+        [string]$records[0].kind -cne 'horse-asset-audit') {
+        throw 'Horse native-asset audit manifest record is not exact.'
+    }
+
+    $evidenceRoot = [IO.Path]::GetFullPath([string]$Request.evidenceRoot).TrimEnd('\')
+    $path = Assert-KmcChildPath (Join-Path $evidenceRoot 'horse-native-asset-audit.json') $evidenceRoot 'horse native-asset audit evidence'
+    Assert-KmcNotReparsePoint $path 'horse native-asset audit evidence'
+    Assert-KmcNotHardLink $path 'horse native-asset audit evidence'
+    $before = Get-Item -LiteralPath $path -Force
+    $artifact = Read-KmcJson $path
+    Assert-KmcExactProperties $artifact @(
+        'schemaVersion','evidenceKind','runId','scenario','branch','commit','productVersion','createdAtUtc',
+        'loadedBlueprintCount','resourceNameCount','reservedGuidCollisions','exactHorse','ponyDiscovery',
+        'stockCompanionBaseline','companionSelections','ranger','paladin','assertions',
+        'assertionPassCount','assertionFailCount','errors','status'
+    ) 'horse native-asset audit evidence'
+    if (-not (Test-KmcExactJsonInteger $artifact.schemaVersion) -or [long]$artifact.schemaVersion -ne 1 -or
+        [string]$artifact.evidenceKind -cne 'horse-asset-audit') {
+        throw 'Horse native-asset audit schema or evidence kind is invalid.'
+    }
+    foreach ($name in @('runId','scenario','branch','commit','productVersion')) {
+        if ($artifact.$name -isnot [string] -or [string]$artifact.$name -cne [string]$Request.$name) {
+            throw "Horse native-asset audit identity mismatch: $name"
+        }
+    }
+    $createdAt = [DateTimeOffset]::MinValue
+    if ($artifact.createdAtUtc -isnot [string] -or
+        -not [DateTimeOffset]::TryParse([string]$artifact.createdAtUtc, [ref]$createdAt)) {
+        throw 'Horse native-asset audit createdAtUtc is invalid.'
+    }
+    if ([string]$artifact.status -cnotin @('PASS','FAIL') -or $artifact.assertions -isnot [Array] -or
+        $artifact.errors -isnot [Array] -or -not (Test-KmcExactJsonInteger $artifact.assertionPassCount) -or
+        -not (Test-KmcExactJsonInteger $artifact.assertionFailCount)) {
+        throw 'Horse native-asset audit status, assertion, or error shape is invalid.'
+    }
+
+    $assertionNames = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    $assertionPass = 0
+    $assertionFail = 0
+    foreach ($assertion in @($artifact.assertions)) {
+        Assert-KmcExactProperties $assertion @('name','status','detail') 'horse native-asset audit assertion'
+        if ($assertion.name -isnot [string] -or [string]$assertion.name -cnotmatch '^[a-z0-9-]{1,100}$' -or
+            -not $assertionNames.Add([string]$assertion.name) -or $assertion.detail -isnot [string] -or
+            [string]::IsNullOrWhiteSpace([string]$assertion.detail) -or [string]$assertion.status -cnotin @('PASS','FAIL')) {
+            throw 'Horse native-asset audit contains an invalid or duplicate assertion.'
+        }
+        if ([string]$assertion.status -ceq 'PASS') { $assertionPass++ } else { $assertionFail++ }
+    }
+    if ($assertionPass + $assertionFail -eq 0 -or [long]$artifact.assertionPassCount -ne $assertionPass -or
+        [long]$artifact.assertionFailCount -ne $assertionFail -or
+        ([string]$artifact.status -ceq 'PASS') -ne ($assertionFail -eq 0 -and @($artifact.errors).Count -eq 0)) {
+        throw 'Horse native-asset audit assertion totals or status do not reconcile.'
+    }
+
+    if ($null -ne $SubscenarioResults) {
+        $matches = @($SubscenarioResults | Where-Object { [string]$_.name -ceq 'horse-native-asset-audit' })
+        if ($matches.Count -ne 1) { throw 'Horse native-asset audit does not map to exactly one runtime subscenario.' }
+        $subresult = $matches[0]
+        if ([string]$artifact.status -cne [string]$subresult.status -or
+            [long]$artifact.assertionPassCount -ne [long]$subresult.assertionPassCount -or
+            [long]$artifact.assertionFailCount -ne [long]$subresult.assertionFailCount -or
+            (@($artifact.errors) -join "`n") -cne (@($subresult.errors) -join "`n")) {
+            throw 'Horse native-asset audit does not reconcile with its runtime subscenario.'
+        }
+    }
+
+    if ([string]$artifact.status -ceq 'PASS') {
+        if (-not (Test-KmcExactJsonInteger $artifact.loadedBlueprintCount) -or [long]$artifact.loadedBlueprintCount -le 0 -or
+            -not (Test-KmcExactJsonInteger $artifact.resourceNameCount) -or [long]$artifact.resourceNameCount -le 0) {
+            throw 'PASS horse native-asset audit lacks initialized blueprint/resource counts.'
+        }
+        if ($artifact.reservedGuidCollisions -isnot [Array] -or @($artifact.reservedGuidCollisions).Count -ne 3) {
+            throw 'PASS horse native-asset audit must report all three reserved KMC GUIDs.'
+        }
+        $reserved = @(
+            '4016c7db400ab721ff125aef9e65e202',
+            '7db7c50677e39f09feef56f3831fc723',
+            '98e651899e6278d938de77af1d69bd32'
+        )
+        foreach ($guid in $reserved) {
+            $matches = @($artifact.reservedGuidCollisions | Where-Object { [string]$_.assetGuid -ceq $guid })
+            if ($matches.Count -ne 1) { throw "PASS horse audit omitted reserved GUID: $guid" }
+            Assert-KmcExactProperties $matches[0] @('assetGuid','resolved','blueprint') 'horse reserved-GUID record'
+            if ($matches[0].resolved -ne $false -or $null -ne $matches[0].blueprint) {
+                throw "Reserved KMC horse GUID is already claimed: $guid"
+            }
+        }
+
+        $horse = $artifact.exactHorse
+        Assert-KmcExactProperties $horse @(
+            'name','assetGuid','type','size','sizeValue','prefabAssetId','prefabResourceName',
+            'strength','dexterity','constitution','intelligence','wisdom','charisma','speedFeet',
+            'componentTypes','body','view'
+        ) 'exact native horse record'
+        if ([string]$horse.name -cne 'CR1_HorseRiding' -or
+            [string]$horse.assetGuid -cne '9e9e75c484e68734487e609714565202' -or
+            [string]$horse.type -cne 'Kingmaker.Blueprints.BlueprintUnit' -or
+            [long]$horse.sizeValue -ne 5 -or
+            [string]$horse.prefabAssetId -cne '5e0b93738ad54dd4ba101b3513ac4590') {
+            throw 'PASS horse native-asset audit exact horse identity is wrong.'
+        }
+        Assert-KmcExactProperties $horse.body @(
+            'disableHands','emptyHandWeapon','primaryHand','secondaryHand','additionalLimbs','additionalSecondaryLimbs'
+        ) 'exact native horse body record'
+        Assert-KmcExactProperties $horse.view @(
+            'rootName','viewType','rootLocalPosition','rootLocalRotation','rootLocalScale','transformCount','transformNames',
+            'importantTransforms','boneNames','meshNames','materialNames','componentTypes','colliders','movementAgents',
+            'animatorControllers','animationClips','animationActions','viewCorpulence','selectionRelatedComponents'
+        ) 'exact native horse view record'
+        if ($horse.view.transformNames -isnot [Array] -or
+            @($horse.view.transformNames | Where-Object { [string]$_ -ceq 'Chest' }).Count -ne 1 -or
+            @($horse.view.transformNames | Where-Object { [string]$_ -ceq 'L_Stirrup' }).Count -ne 1 -or
+            @($horse.view.transformNames | Where-Object { [string]$_ -ceq 'R_Stirrup' }).Count -ne 1 -or
+            $horse.view.colliders -isnot [Array] -or @($horse.view.colliders).Count -eq 0 -or
+            $horse.view.movementAgents -isnot [Array] -or @($horse.view.movementAgents).Count -eq 0 -or
+            $horse.view.animationActions -isnot [Array] -or @($horse.view.animationActions).Count -eq 0) {
+            throw 'PASS horse native-asset audit lacks the required view/rig/agent/animation evidence.'
+        }
+
+        Assert-KmcExactProperties $artifact.ponyDiscovery @(
+            'resourceMatches','candidateUnits','ponyCandidateUnits','reverseReferences','reverseReferenceTruncated'
+        ) 'pony discovery record'
+        foreach ($name in @('resourceMatches','candidateUnits','ponyCandidateUnits','reverseReferences')) {
+            if ($artifact.ponyDiscovery.$name -isnot [Array]) { throw "Pony discovery $name must be an array." }
+        }
+        if (@($artifact.ponyDiscovery.resourceMatches).Count -eq 0 -or
+            @($artifact.ponyDiscovery.ponyCandidateUnits).Count -eq 0 -or
+            @($artifact.ponyDiscovery.reverseReferences).Count -eq 0 -or
+            $artifact.ponyDiscovery.reverseReferenceTruncated -isnot [bool]) {
+            throw 'PASS horse native-asset audit lacks a resolved pony resource, unit, or owner reference.'
+        }
+        if ($artifact.companionSelections -isnot [Array] -or @($artifact.companionSelections).Count -eq 0 -or
+            $null -eq $artifact.ranger -or $null -eq $artifact.paladin) {
+            throw 'PASS horse native-asset audit lacks companion-selection, Ranger, or Paladin contracts.'
+        }
+    }
+
+    $after = Get-Item -LiteralPath $path -Force
+    if ($after.Length -ne $before.Length -or $after.LastWriteTimeUtc.Ticks -ne $before.LastWriteTimeUtc.Ticks) {
+        throw 'Horse native-asset audit evidence changed while being validated.'
     }
 }
 
@@ -9516,6 +9683,7 @@ function Get-KmcValidatedOrchestrationArtifactManifestHash {
             ($relative -ceq 'movement-scenario-evidence.jsonl' -and $kind -ceq 'scenario-evidence') -or
             ($relative -ceq 'boundary-scenario-evidence.jsonl' -and $kind -ceq 'boundary-evidence') -or
             ($relative -ceq 'combat-scenario-evidence.jsonl' -and $kind -ceq 'combat-evidence') -or
+            ($relative -ceq 'horse-native-asset-audit.json' -and $kind -ceq 'horse-asset-audit') -or
             ($relative -cmatch '^movement-visuals/[A-Za-z0-9._-]+\.png$' -and $kind -ceq 'screenshot')
         if (-not $seen.Add($relative) -or -not $allowed -or [long]$artifact.length -le 0 -or
             [string]$artifact.sha256 -cnotmatch '^[0-9a-f]{64}$') {
@@ -9535,6 +9703,7 @@ function Get-KmcValidatedOrchestrationArtifactManifestHash {
         Assert-KmcMovementScenarioEvidence -Request $Request -Manifest $manifestValue
         Assert-KmcBoundaryScenarioEvidence -Request $Request -Manifest $manifestValue
         Assert-KmcCombatScenarioEvidence -Request $Request -Manifest $manifestValue
+        Assert-KmcHorseNativeAssetAuditEvidence -Request $Request -Manifest $manifestValue
     }
     $hash = Get-KmcSha256 $manifestPath
     $after = Get-Item -LiteralPath $manifestPath -Force

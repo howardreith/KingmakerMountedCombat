@@ -598,6 +598,10 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 subscenarioResults = new[] { EvaluateDiagnosticAvailability() };
             }
+            else if (string.Equals(request.Scenario, HorseNativeAssetAuditService.ScenarioName, StringComparison.Ordinal))
+            {
+                subscenarioResults = new[] { HorseNativeAssetAuditService.Run(request, logger) };
+            }
             else
             {
                 var name = RuntimeRequest.IsMissionScenario(request.Scenario)
@@ -1416,6 +1420,11 @@ namespace KingmakerMountedCombat.Diagnostics
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, "movement-telemetry.jsonl", "telemetry");
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, "movement-scenario-evidence.jsonl", "scenario-evidence");
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, "combat-scenario-evidence.jsonl", "combat-evidence");
+            AddRuntimeArtifactIfPresent(
+                artifacts,
+                request.EvidenceRoot,
+                HorseNativeAssetAuditService.EvidenceFileName,
+                HorseNativeAssetAuditService.EvidenceKind);
 
             var visualRoot = Path.Combine(request.EvidenceRoot, "movement-visuals");
             if (Directory.Exists(visualRoot))

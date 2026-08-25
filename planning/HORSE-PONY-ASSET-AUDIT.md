@@ -41,6 +41,8 @@ The stock unit is a campaign/prototype horse, not a native animal-companion feat
 
 Current status: exact blueprint and resource identity pending one bounded runtime blueprint/resource inventory. Name-based assumptions are forbidden: the complete blueprint library must be queried for pony/summon ownership and each candidate must be resolved through exact component and resource references.
 
+The observation implementation is now qualified offline as `horse-native-asset-audit`. Its one create-new artifact is `horse-native-asset-audit.json`, independently manifested as `horse-asset-audit`. The scanner uses the exact initialized `BlueprintsByAssetId` and `ResourceNamesByAssetId` dictionaries, resolves horse/pony resource IDs back to BlueprintUnit prefabs, and follows bounded object/GUID reference paths. It reports progress every 5,000 blueprint owners, caps reference output at 500, and never registers or instantiates a gameplay unit. Evidence remains pending until one guarded process exits and the independent external-state audit passes.
+
 The runtime observation must record, for both horse and pony:
 
 | Contract | Required comparison |
@@ -56,4 +58,3 @@ The runtime observation must record, for both horse and pony:
 | Materials | native material/renderer identities only; no extraction |
 
 Decision rule: do not resize the pony merely because it is called a pony. Prefer the already proven Large riding horse unless exact evidence shows the pony supplies a superior native companion or riding contract without imported content or broad behavioral compromise.
-

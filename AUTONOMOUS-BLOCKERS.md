@@ -1,5 +1,11 @@
 # Autonomous blockers
 
+## 2026-08-25T16:09:33Z - no critical blocker; one exact native-asset observation is ready
+
+- The observation-only source, request/result contracts, artifact allowlist, independent semantic validator, and bounded scanner pass all applicable offline gates. No production horse blueprint exists yet, and no ordinary-play route can invoke the audit without the exact guarded automation request.
+- The accepted Phase 2 UMM payload remains intentionally installed. This is not ambiguity: the exact next suite admission step is its guarded helper uninstall after a clean observation package exists. Manual deletion remains forbidden.
+- Production horse registration remains fail-closed until the audited artifact proves reserved GUID noncollision and resolves the exact pony, companion selection, Ranger, and stock ownership contracts. Paladin remains design-only.
+
 ## 2026-08-25T15:43:49Z - no critical horse blocker; exact observation gate active
 
 - Horse Tranche 0 is complete from exact read-only Wrath assembly evidence. Its conclusion deliberately preserves the accepted separate-turn fallback; it does not block native horse companion work.

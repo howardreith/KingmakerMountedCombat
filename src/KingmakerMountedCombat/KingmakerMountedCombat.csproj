@@ -83,6 +83,7 @@
     <Compile Include="Diagnostics\DiagnosticSettings.cs" />
     <Compile Include="Diagnostics\DiagnosticCombatTargetService.cs" />
     <Compile Include="Diagnostics\DiagnosticNonPairPartyAiLease.cs" />
+    <Compile Include="Diagnostics\HorseNativeAssetAuditService.cs" />
     <Compile Include="Diagnostics\BoundaryFailureDrain.cs" />
     <Compile Include="Diagnostics\BoundaryScenarioEvidenceContract.cs" />
     <Compile Include="Diagnostics\MovementScreenshotCaptureCoordinator.cs" />

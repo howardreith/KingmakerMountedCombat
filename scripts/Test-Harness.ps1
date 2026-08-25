@@ -8846,6 +8846,58 @@ try {
         & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeResult.ps1') -ResultPath $combatResultPath -RequestPath $combatRequestPath
     }
 
+    Invoke-HarnessTest 'horse native-asset audit validator binds exact manifested evidence and subscenario totals' {
+        $horseRoot = Join-Path $runtimeEvidenceTestRoot 'horse-native-audit-validator'
+        New-Item -ItemType Directory -Path $horseRoot -Force | Out-Null
+        $horseRequest = [pscustomobject]@{
+            runId='horse-native-audit-validator';scenario='horse-native-asset-audit';branch='codex/mounted-combat-phase3-horse'
+            commit=('1'*40);productVersion='0.1.0-phase2b-dev.1';evidenceRoot=$horseRoot
+        }
+        $horseBody = [ordered]@{
+            disableHands=$false;emptyHandWeapon=$null;primaryHand=$null;secondaryHand=$null
+            additionalLimbs=@();additionalSecondaryLimbs=@()
+        }
+        $horseView = [ordered]@{
+            rootName='HorseRiding';viewType='Kingmaker.View.UnitEntityView'
+            rootLocalPosition=[ordered]@{x=0;y=0;z=0};rootLocalRotation=[ordered]@{x=0;y=0;z=0;w=1};rootLocalScale=[ordered]@{x=1;y=1;z=1}
+            transformCount=122;transformNames=@('Chest','L_Stirrup','R_Stirrup');importantTransforms=@();boneNames=@();meshNames=@();materialNames=@()
+            componentTypes=@('Kingmaker.View.UnitMovementAgent');colliders=@([ordered]@{type='UnityEngine.CapsuleCollider'})
+            movementAgents=@([ordered]@{type='Kingmaker.View.UnitMovementAgent'});animatorControllers=@();animationClips=@('Idle','Walk','Run')
+            animationActions=@('Idle|Synthetic');viewCorpulence=0.75;selectionRelatedComponents=@()
+        }
+        $horseRecord = [ordered]@{
+            name='CR1_HorseRiding';assetGuid='9e9e75c484e68734487e609714565202';type='Kingmaker.Blueprints.BlueprintUnit'
+            size='Large';sizeValue=5;prefabAssetId='5e0b93738ad54dd4ba101b3513ac4590';prefabResourceName='HorseRiding.prefab'
+            strength=16;dexterity=14;constitution=15;intelligence=2;wisdom=12;charisma=6;speedFeet=50
+            componentTypes=@('Kingmaker.UnitLogic.FactLogic.AddClassLevels');body=$horseBody;view=$horseView
+        }
+        $reserved = @(
+            [ordered]@{assetGuid='4016c7db400ab721ff125aef9e65e202';resolved=$false;blueprint=$null},
+            [ordered]@{assetGuid='7db7c50677e39f09feef56f3831fc723';resolved=$false;blueprint=$null},
+            [ordered]@{assetGuid='98e651899e6278d938de77af1d69bd32';resolved=$false;blueprint=$null}
+        )
+        $horseArtifact = [ordered]@{
+            schemaVersion=1;evidenceKind='horse-asset-audit';runId=$horseRequest.runId;scenario=$horseRequest.scenario
+            branch=$horseRequest.branch;commit=$horseRequest.commit;productVersion=$horseRequest.productVersion;createdAtUtc=[DateTimeOffset]::UtcNow.ToString('o')
+            loadedBlueprintCount=100;resourceNameCount=100;reservedGuidCollisions=$reserved;exactHorse=$horseRecord
+            ponyDiscovery=[ordered]@{resourceMatches=@([ordered]@{assetId='pony';resourceName='Pony.prefab'});candidateUnits=@($horseRecord);ponyCandidateUnits=@($horseRecord);reverseReferences=@([ordered]@{ownerAssetGuid='owner'});reverseReferenceTruncated=$false}
+            stockCompanionBaseline=[ordered]@{feature=[ordered]@{};unit=[ordered]@{};upgrade=[ordered]@{};addPet=[ordered]@{}}
+            companionSelections=@([ordered]@{assetGuid='selection'});ranger=[ordered]@{class='RangerClass'};paladin=[ordered]@{class='PaladinClass'}
+            assertions=@([ordered]@{name='synthetic-contract';status='PASS';detail='Synthetic validator contract.'})
+            assertionPassCount=1;assertionFailCount=0;errors=@();status='PASS'
+        }
+        $horsePath = Join-Path $horseRoot 'horse-native-asset-audit.json'
+        Write-KmcJsonDurable -Path $horsePath -Value $horseArtifact
+        $horseArtifactRecord = [ordered]@{
+            relativePath='horse-native-asset-audit.json';kind='horse-asset-audit'
+            length=(Get-Item -LiteralPath $horsePath).Length;sha256=(Get-KmcSha256 $horsePath)
+        }
+        [void](New-TestArtifactManifest -EvidenceRoot $horseRoot -RunId $horseRequest.runId -Scenario $horseRequest.scenario -Artifacts @($horseArtifactRecord))
+        $horseManifest = Read-KmcJson (Join-Path $horseRoot 'runtime-artifacts.json')
+        $horseSubresult = [pscustomobject]@{name='horse-native-asset-audit';status='PASS';assertionPassCount=1;assertionFailCount=0;errors=@()}
+        Assert-KmcHorseNativeAssetAuditEvidence -Request $horseRequest -Manifest $horseManifest -Status PASS -SubscenarioResults @($horseSubresult)
+    }
+
     $resultPath = Join-Path $testRoot 'runtime-result.json'
     $result = [ordered]@{
         schemaVersion = 1; runId = $request.runId; scenario = $request.scenario; status = 'PASS'

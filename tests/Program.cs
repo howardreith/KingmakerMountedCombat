@@ -18,6 +18,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("request requires exact hash and MVID formats", RequestRequiresBuildIdentity);
             runner.Run("request accepts exact save-backed fixture", RequestAcceptsExactSaveBackedFixture);
             runner.Run("request accepts combat core control suite", RequestAcceptsCombatCoreControlSuite);
+            runner.Run("request accepts observation-only horse native asset audit", RequestAcceptsHorseNativeAssetAudit);
             runner.Run("request accepts private-alpha human-play combat rows", RequestAcceptsHumanPlayCombatRows);
             runner.Run("request requires exact qualification-suite identity", RequestRequiresQualificationSuiteIdentity);
             runner.Run("request accepts read-only manual visual review", RequestAcceptsReadOnlyManualReview);
@@ -123,6 +124,13 @@ namespace KingmakerMountedCombat.Tests
             var request = ValidSaveBackedRequest();
             request.Scenario = "combat-core-control-suite";
             TestRunner.Equal(0, request.Validate().Count, "Combat core control suite request was rejected.");
+        }
+
+        private static void RequestAcceptsHorseNativeAssetAudit()
+        {
+            var request = ValidSaveBackedRequest();
+            request.Scenario = "horse-native-asset-audit";
+            TestRunner.Equal(0, request.Validate().Count, "Horse native-asset audit request was rejected.");
         }
 
         private static void RequestAcceptsHumanPlayCombatRows()

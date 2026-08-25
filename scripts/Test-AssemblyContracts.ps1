@@ -618,9 +618,21 @@ if($Target-eq'Kingmaker'){
     foreach($name in @('Kingmaker.UnitLogic.Parts.UnitPartRider','Kingmaker.UnitLogic.Parts.UnitPartSaddled','Kingmaker.Controllers.Units.SaddledUnitController')){Assert-Contract ($null-ne$assembly.GetType($name,$false)) "mounted type present: $name"}
     $checks=@(
         @('Kingmaker.UnitLogic.Parts.UnitPartRider',0x0600C263,'Mount'),@('Kingmaker.UnitLogic.Parts.UnitPartRider',0x0600C264,'Dismount'),
-        @('Kingmaker.Controllers.Units.SaddledUnitController',0x0600AB06,'TickDelegateRiderToMount'),@('Kingmaker.Controllers.Units.UnitMoveController',0x0600ABAA,'TickUnit'),
-        @('Kingmaker.UnitLogic.Commands.Base.UnitCommand',0x0600CA7E,'TickApproaching'),@('Kingmaker.UnitLogic.Commands.UnitCommands',0x0600C935,'FixTargetIfTargetOnMount'))
+        @('TurnBased.Controllers.CombatController',0x06000E88,'ChooseNextUnit'),@('TurnBased.Controllers.CombatController',0x06000E91,'StartTurn'),
+        @('TurnBased.Controllers.TurnController',0x06000F08,'Start'),@('TurnBased.Controllers.TurnController',0x06000F22,'IsAllActed'),
+        @('TurnBased.Controllers.TurnController',0x06000F33,'HandleUnitCommandDidStart'),@('TurnBased.Controllers.TurnController',0x06000F34,'HandleUnitCommandDidEnd'),
+        @('Kingmaker.Controllers.Units.SaddledUnitController',0x0600AB05,'TickDelegateMountToRider'),@('Kingmaker.Controllers.Units.SaddledUnitController',0x0600AB06,'TickDelegateRiderToMount'),
+        @('Kingmaker.Controllers.Units.UnitMoveController',0x0600ABAA,'TickUnit'),
+        @('Kingmaker.UnitLogic.Commands.Base.UnitCommand',0x0600CA6B,'AddRiderCommand'),@('Kingmaker.UnitLogic.Commands.Base.UnitCommand',0x0600CA6C,'AddMountCommand'),
+        @('Kingmaker.UnitLogic.Commands.Base.UnitCommand',0x0600CA7E,'TickApproaching'),@('Kingmaker.UnitLogic.Commands.Base.UnitCommand',0x0600CA86,'Interrupt'),
+        @('Kingmaker.UnitLogic.Commands.UnitCommands',0x0600C935,'FixTargetIfTargetOnMount'),
+        @('Kingmaker.EntitySystem.Entities.UnitEntityData',0x0600A123,'IsCurrentUnit'),
+        @('Kingmaker.UI.MVVM._VM.ActionBar.ActionBarVM',0x06005ADD,'UpdateSelection'))
     foreach($check in $checks){$member=@(Find-Token $check[0] $check[1]);$matches=$member.Count -eq 1;if($matches){$matches=[string]$member[0].Name -ceq [string]$check[2]};Assert-Contract $matches "token $($check[1].ToString('X8')) $($check[0]).$($check[2])"}
+    $turnType=$assembly.GetType('TurnBased.Controllers.TurnController',$false)
+    $turnFields=if($null-eq$turnType){@()}else{@($turnType.GetFields([Reflection.BindingFlags]'Public,NonPublic,Instance,DeclaredOnly'))}
+    Assert-Contract (@('m_Rider','m_Mount','m_RiderCommands','m_MountCommands','m_RiderCombatState','m_MountCombatState','m_RiderCooldown','m_MountCooldown','m_RiderMovementStats','m_MountMovementStats','m_RiderActionState','m_MountActionState' | Where-Object {$name=$_;@($turnFields|Where-Object Name -ceq $name).Count-ne1}).Count-eq0) `
+        'TurnController retains distinct rider and mount command combat cooldown movement and action ledgers'
 }
 Write-Host "TOTAL PASS=$passes FAIL=$($failures.Count)"
 if($failures.Count-ne0){exit 1}

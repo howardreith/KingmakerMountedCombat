@@ -1,5 +1,14 @@
 # Mounted Combat journal
 
+## 2026-08-25T16:09:33Z - native horse/pony audit instrumentation qualified offline
+
+- Starting branch/HEAD were `codex/mounted-combat-phase3-horse` / `48a911198dced8ba03073999f047dd3d771252de`; intake was clean and no relevant process or transaction state existed.
+- Added only the exact automation scenario `horse-native-asset-audit`. It enumerates initialized blueprint/resource dictionaries read-only, loads native view references read-only, produces factual metadata, runs a bounded reverse-reference scan, and writes one create-new artifact beneath its request-owned evidence root. It does not register a blueprint, instantiate a world unit, issue a command, mutate a save, or alter normal gameplay routing.
+- Artifact validation is independent of the producer and binds exact request identity, manifest bytes, three collision records, `CR1_HorseRiding` GUID/size/prefab, Chest/stirrups, movement/collider/animation evidence, pony resource/unit/reverse-owner evidence, companion selection plus Ranger/Paladin presence, assertion totals, and game/orchestration subresults. A synthetic valid artifact regression passes.
+- Exact Wrath contract coverage expanded from `11/0` to `24/0`, binding the shared `TurnController`, distinct rider/mount ledgers, command pairing, both delegation directions, interruption, pair-aware current-unit selection, and action-bar selection surface without launching or modifying Wrath.
+- Offline gates: source `21/0`; Release; component `241/0`; visual/source-order `17/0`; harness `228/0`; assembly `312/0` (`288` Kingmaker + `24` Wrath); PowerShell parser `26/0`; JSON parser `7/0`; diff check PASS. Dirty Release DLL SHA-256/MVID are `2d424517149d2befc98922d5132437896955fb82a36a8f1707ea2c9abb180f73` / `41df9f83-d15c-40b3-bcc5-d6d12bb3396f`; these are not yet a packaged or runtime-qualified identity.
+- No game, package, save, live Mods, runtime evidence, lock, sentinel, or transaction changed. Next: coherent guarded commit/publication, clean package/suite admission, helper-only removal of the accepted installed payload, and one audited observation with restoration-before-read.
+
 ## 2026-08-25T15:43:49Z - horse mission contracts opened and exact Wrath model resolved
 
 - Branch / starting HEAD: `codex/mounted-combat-phase3-horse` / `ecb89500eb36eabbf889ccda7185843bd1e3e7c5`, created from the final published Phase 2 closure after local policy prohibited authenticated PR/merge execution. Worktree intake was clean; no Git operation/lock, relevant process, live runtime lock/sentinel, staging deployment, or nonterminal transaction existed.

@@ -1,5 +1,16 @@
 # Autonomous resume
 
+## Horse native-asset observation instrumentation admitted - 2026-08-25T16:09:33Z
+
+- Status: `IN PROGRESS` on `codex/mounted-combat-phase3-horse`; exact inherited clean HEAD `48a911198dced8ba03073999f047dd3d771252de`. Fresh continuation intake again found a clean tree before work, no Git operation/lock, and no Kingmaker, Wrath, UMM, build, or KMC launcher process.
+- Observation-only `horse-native-asset-audit` now has an exact save-backed request route, one create-new JSON artifact, manifest allowlisting, independent structural/semantic validation, and a bounded reference scan with 5,000-blueprint progress markers and a 500-record ceiling. It registers no blueprint, spawns no unit, changes no command/gameplay path, and writes no save. Outside the exact automation command-line scenario, regular production behavior is unchanged.
+- The artifact captures the exact native horse BlueprintUnit/view, resource path, body/natural-attack fields, rig/stirrups, mesh/material names, animator/action/clip coverage, movement/collider/corpulence/selection metadata, pony candidates and reverse owners, the stock Mammoth `AddPet` baseline, stock companion selections, Ranger progression entries, Paladin level-5 entries, and collisions for all three reserved KMC GUIDs.
+- Exact offline gates pass: source `21/0`, Release build, component `241/0`, visual/source-order `17/0`, harness `228/0`, assembly `312/0` (`288` Kingmaker + `24` Wrath), PowerShell parser `26/0`, JSON parser `7/0`, and diff check. The expanded Wrath gate now binds the exact shared-turn, separate-ledger, paired-command, cancellation, selection, and action-bar tokens recorded in `planning/WOTR-MOUNTED-COMMAND-MODEL.md`.
+- No game, save, live Mods tree, package, runtime state, or evidence directory was changed. The accepted Phase 2 payload remains intentionally installed and must be removed only through the guarded deployment helper before suite admission.
+- Exact next action: commit and guarded-publish this coherent observation checkpoint; create and validate a clean immutable observation package; remove the accepted installed payload through the KMC deployment helper; create one stable suite, pass `WhatIf` and audit admission, then run exactly one guarded `horse-native-asset-audit`. Audit external restoration before reading the artifact.
+
+This entry supersedes the instrumentation next action immediately below. It does not authorize horse blueprint registration before exact audit interpretation.
+
 ## Horse Tranche 0 complete; native horse/pony observation next — 2026-08-25T15:43:49Z
 
 - Status: `IN PROGRESS` on `codex/mounted-combat-phase3-horse`, exact clean starting HEAD `ecb89500eb36eabbf889ccda7185843bd1e3e7c5`. The branch was created from the final guarded-published Phase 2 closure under the user-authorized policy fallback; it has no upstream yet. The inherited tree was clean and no merge/rebase/cherry-pick/bisect/detached-HEAD/Git-lock state existed.
