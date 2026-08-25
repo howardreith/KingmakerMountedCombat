@@ -1,5 +1,11 @@
 # Autonomous blockers
 
+## 2026-08-25T17:51:10Z - no critical blocker; dev.2 audit package checkpoint active
+
+- The exact observation repair is guarded-published as `d4c4505fa9fababf6af0e65dc589cf189453b128`; no unqualified production horse registration is present.
+- `0.1.0-phase3a-dev.2` is a new immutable artifact identity for the repaired audit. It does not overwrite or relabel the failed dev.1 package or evidence.
+- The only remaining audit step is the already-bounded final guarded retry after clean packaging, stable-suite admission, WhatIf purity, and independent restoration audit.
+
 ## 2026-08-25T17:43:39Z - no critical blocker; one attributable audit retry pending
 
 - First guarded horse audit `20260825T162200Z-horse-native-asset-audit-passA` is immutable uncredited `FAIL 15/5`, with exact independent suite restoration before evidence read. This is not a horse gameplay or asset-feasibility failure.

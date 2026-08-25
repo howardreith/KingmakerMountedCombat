@@ -1,5 +1,12 @@
 # Mounted Combat journal
 
+## 2026-08-25T17:51:10Z - observation repair published; dev.2 identity assigned
+
+- Guarded publication completed for exact repair commit `d4c4505fa9fababf6af0e65dc589cf189453b128`; local and upstream were equal before metadata changes.
+- Assigned product/informational version `0.1.0-phase3a-dev.2` for the repaired native horse/pony audit package. Assembly version remains `0.1.0.0`; immutable dev.1 package/evidence remain historical and unmodified.
+- Version-bound full gates pass source/Release/component/visual/harness/assembly `21/Release/241/17/229/314`; the pre-commit build is `450f1758ef8fa07a27ac4993344b4566f954b7fe6afa73ac180ab5e098870686` / MVID `9ee3c613-b957-4d35-8fb7-d6b897edbe39` and is not yet package identity.
+- Next: coherent publication, clean package/suite, WhatIf, then the single final guarded audit retry and audit-before-evidence interpretation.
+
 ## 2026-08-25T17:43:39Z - first native horse audit restored; exact observation repair offline-green
 
 - Published observation package `a04d9edcf1567269f66a91aa43d289aa851d4aef58844fe520a9bb8f75fb1f82` and suite snapshot `50372e4fa25f332b7cfce973afd15a27db352fe796dc904dd8920781c4e0864c` passed guarded WhatIf purity. Actual run `20260825T162200Z-horse-native-asset-audit-passA` exited and restored all three transactions; immediate independent suite audit passed before evidence inspection.

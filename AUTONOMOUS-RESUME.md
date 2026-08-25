@@ -1,5 +1,14 @@
 # Autonomous resume
 
+## Horse audit repair published; immutable dev.2 package checkpoint - 2026-08-25T17:51:10Z
+
+- Exact observation repair commit `d4c4505fa9fababf6af0e65dc589cf189453b128` is cleanly guarded-published and local/remote-equal on `codex/mounted-combat-phase3-horse` before this metadata-only version assignment.
+- Active repair artifact version is `0.1.0-phase3a-dev.2`; assembly version remains `0.1.0.0`. Historical `phase3a-dev.1` package/evidence identities remain immutable and continue to identify the first failed observation.
+- Version-bound full gates pass source `21/0`, Release, component `241/0`, visual/source-order `17/0`, harness `229/0`, and assembly `314/0` (`290` Kingmaker + `24` Wrath). Pre-commit DLL SHA-256/MVID are `450f1758ef8fa07a27ac4993344b4566f954b7fe6afa73ac180ab5e098870686` / `9ee3c613-b957-4d35-8fb7-d6b897edbe39`; clean packaging must rebind these after commit.
+- Exact next action: commit and guarded-publish this metadata checkpoint, create and validate the clean dev.2 package, admit a fresh stable suite, pass its guarded WhatIf, and run the one final audited `horse-native-asset-audit` retry.
+
+This entry supersedes only the packaging next action below; the failed dev.1 evidence remains historical fact.
+
 ## First horse audit restored; exact view-load repair offline-green - 2026-08-25T17:43:39Z
 
 - Status: `IN PROGRESS` on `codex/mounted-combat-phase3-horse`. Clean published input/package were `b872d55376a54e85aba0474d4d0811f0d83de175` / `a04d9edcf1567269f66a91aa43d289aa851d4aef58844fe520a9bb8f75fb1f82`; suite `20260825T162100Z-horse-native-asset-audit-suite1` is bound by snapshot SHA-256 `50372e4fa25f332b7cfce973afd15a27db352fe796dc904dd8920781c4e0864c`.
