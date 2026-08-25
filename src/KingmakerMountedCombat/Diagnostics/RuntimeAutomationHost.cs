@@ -65,6 +65,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private RuntimeBoundaryScenarioEngine boundaryEngine;
         private RuntimeCombatControlScenarioEngine combatControlEngine;
         private RuntimeCombatScenarioEngine combatEngine;
+        private HorseCompanionUnmountedScenarioEngine horseCompanionEngine;
         private readonly List<string> scenarioEngineErrors = new List<string>();
         private readonly BoundaryFailureDrain saveBackedFailureDrain = new BoundaryFailureDrain();
         private IReadOnlyList<string> saveBackedFailureErrors;
@@ -483,7 +484,27 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
-            if (RuntimeCombatControlScenarioEngine.SupportsScenario(request.Scenario))
+            if (HorseCompanionUnmountedScenarioEngine.SupportsScenario(request.Scenario))
+            {
+                if (horseCompanionEngine == null)
+                {
+                    horseCompanionEngine = new HorseCompanionUnmountedScenarioEngine(
+                        request, horseCompanion, relationship, logger);
+                    horseCompanionEngine.Start();
+                }
+                horseCompanionEngine.Update();
+                if (!horseCompanionEngine.IsCompleted)
+                {
+                    return;
+                }
+                subscenarioResults = horseCompanionEngine.Results;
+                CollectEngineErrors(horseCompanionEngine.Errors, "Horse companion");
+                try { horseCompanionEngine.Dispose(); }
+                catch (Exception exception) { scenarioEngineErrors.Add("Horse-companion engine disposal failed: " + exception.GetType().Name + ": " + exception.Message); }
+                CollectEngineErrors(horseCompanionEngine.Errors, "Horse companion");
+                horseCompanionEngine = null;
+            }
+            else if (RuntimeCombatControlScenarioEngine.SupportsScenario(request.Scenario))
             {
                 if (combatControlEngine == null)
                 {
@@ -818,6 +839,8 @@ namespace KingmakerMountedCombat.Diagnostics
             movementEngine = null;
             boundaryEngine?.Dispose();
             boundaryEngine = null;
+            horseCompanionEngine?.Dispose();
+            horseCompanionEngine = null;
             saveAuthorizationLease?.Dispose();
             saveAuthorizationLease = null;
             if (ReferenceEquals(active, this)) { active = null; }
@@ -1165,6 +1188,17 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void FinalizeActiveScenarioEngines(List<string> finalErrors)
         {
+            if (horseCompanionEngine != null)
+            {
+                var engine = horseCompanionEngine;
+                horseCompanionEngine = null;
+                if (!engine.IsCompleted) { finalErrors.Add("Horse-companion engine was interrupted before completing its selected rows."); }
+                if ((subscenarioResults == null || subscenarioResults.Count == 0) && engine.Results.Count != 0) { subscenarioResults = engine.Results; }
+                CollectEngineErrors(engine.Errors, "Horse companion");
+                try { engine.Dispose(); }
+                catch (Exception exception) { finalErrors.Add("Horse-companion engine disposal failed: " + exception.GetType().Name + ": " + exception.Message); }
+                CollectEngineErrors(engine.Errors, "Horse companion");
+            }
             if (combatControlEngine != null)
             {
                 var engine = combatControlEngine;
@@ -1438,6 +1472,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 request.EvidenceRoot,
                 HorseCompanionBlueprintRegistrationAuditService.EvidenceFileName,
                 HorseCompanionBlueprintRegistrationAuditService.EvidenceKind);
+            AddRuntimeArtifactIfPresent(
+                artifacts,
+                request.EvidenceRoot,
+                HorseCompanionUnmountedScenarioEngine.EvidenceFileName,
+                HorseCompanionUnmountedScenarioEngine.EvidenceKind);
 
             var visualRoot = Path.Combine(request.EvidenceRoot, "movement-visuals");
             if (Directory.Exists(visualRoot))

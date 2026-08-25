@@ -213,11 +213,13 @@ namespace KingmakerMountedCombat.Diagnostics
             bool requireDurabilityLease)
         {
             ThrowIfDisposed();
+            var mountGuid = mount?.Blueprint?.AssetGuid;
             if (rider == null || !rider.IsInState || mount == null || !mount.IsInState ||
-                !string.Equals(mount.Blueprint?.AssetGuid, KingmakerMountedPairRuntime.MammothBlueprintGuid, StringComparison.Ordinal) ||
+                (!string.Equals(mountGuid, KingmakerMountedPairRuntime.MammothBlueprintGuid, StringComparison.Ordinal) &&
+                 !string.Equals(mountGuid, HorseCompanionBlueprintService.UnitGuid, StringComparison.Ordinal)) ||
                 string.IsNullOrWhiteSpace(runId))
             {
-                throw new InvalidOperationException("Diagnostic target requires the exact live rider, Mammoth profile, and run ID.");
+                throw new InvalidOperationException("Diagnostic target requires an exact live KMC rider/animal pair and run ID.");
             }
             if (!lifecycle.BeginCreate("pending:" + runId, exactWorkingAuthorized))
             {

@@ -1,5 +1,11 @@
 # Autonomous blockers
 
+## No critical blocker; aggregate unmounted runtime gate active — 2026-08-25T21:29:32Z
+
+Status: IN PROGRESS. The first registration process is preserved as `FAIL 12/1`, but exact runtime/decompiled stock Mammoth and Dog evidence establishes an observer defect rather than a horse construction failure: all three blueprint class components begin at zero and native `AddPet` owns rank-driven leveling. The corrected observer, Bite/Hoof stock-enumeration repair, exact respec cleanup, aggregate unmounted scenario, strict validator, and new assembly pins pass all current offline gates. One clean package/suite/WhatIf and one audited unmounted process remain before mounted-profile work. Actual disk save/reload is a declared final human gate under the repository's crash-safe save restriction, not a concealed automated PASS.
+
+This supersedes the registration-audit blocker state below.
+
 ## No critical blocker; horse registration runtime gate active — 2026-08-25T19:44:49Z
 
 Status: IN PROGRESS. Production blueprint construction and exact Ranger append/restore logic pass every applicable offline gate at version `0.1.0-phase3b-dev.1`. The next gate is one clean, guarded, observation-only registration audit against the initialized Kingmaker library. That audit must pass exact external restoration before its evidence is read. Horse spawning, progression, unmounted play, and mounted-profile work remain unclaimed rather than blocked.

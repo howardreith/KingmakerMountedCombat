@@ -1,5 +1,7 @@
 # Horse animal-companion contract
 
+Superseding status (2026-08-25T21:29:32Z): PASS — construction and unmounted runtime contracts implemented; live aggregate qualification remains required.
+
 Status: PASS — production construction gate open; runtime qualification remains required
 
 Date: 2026-08-25
@@ -67,14 +69,16 @@ Registration must snapshot the exact stock selection array and append the horse 
 
 ## Implemented production checkpoint
 
-Version `0.1.0-phase3b-dev.1` implements the construction contract behind `HorseCompanionBlueprintService`:
+Version `0.1.0-phase3b-dev.2` implements the construction and first unmounted-runtime contracts behind `HorseCompanionBlueprintService`:
 
 - original KMC unit/feature/upgrade definitions with the reserved GUIDs above;
 - exact native `CR1_HorseRiding` prefab/visual/speed and a proven stock companion class;
 - explicit Large size and base ability scores `16/13/15/2/12/6`;
-- one exact `Bite1d4` primary plus two exact `Hoof1d4` additional limbs;
+- hands-enabled stock attack enumeration with one exact `Bite1d4` primary/empty-hand weapon plus two exact `Hoof1d4` additional limbs;
 - stock `AddPet` with exact `AnimalCompanionRank` and a KMC-owned rank-4 upgrade containing only racial `+2 Strength` and `+2 Constitution`;
+- exact zero-level blueprint bootstrap parity with the stock Mammoth and Dog, followed by native `AddPet` rank-to-level application after spawn;
+- a narrow `HorseCompanionAddPet` deactivation extension that first invokes stock master removal and then destroys only the exact KMC horse, preventing respec orphan residue;
 - four KMC-owned localization keys and a native/fallback Kingmaker icon;
 - a reference-exact, append-only Ranger selection lease with compare-before-restore semantics.
 
-The offline contract is `PASS`: source `21/0`, Release, component `247/0`, visual/source-order `17/0`, harness `230/0`, assembly `335/0`, parsers `26/0` and `7/0`, and diff. Runtime registration and all actual companion lifecycle/play gates remain required.
+The current offline contract is `PASS`: source `21/0`, Release, component `248/0`, visual/source-order `17/0`, harness `231/0`, assembly `340/0`, PowerShell parser `26/0`, JSON parser `7/0`, diff, and prohibited-payload validation. The preserved first registration run is historical `FAIL 12/1` solely because the obsolete observer required positive blueprint class levels. One clean aggregate unmounted runtime process remains required; actual disk save/reload stays human-gated under the guarded harness's crash-safe save restriction.

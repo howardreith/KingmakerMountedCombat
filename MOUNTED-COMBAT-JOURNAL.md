@@ -1,5 +1,14 @@
 # Mounted Combat journal
 
+## 2026-08-25T21:29:32Z — registration 12/1 interpreted; unmounted suite ready for clean qualification
+
+- Guarded registration run `20260825T195200Z-horse-companion-registration-passA` used published `3c4b390d8078cbfdb0b81cf805d54bd2a6823a8a` and package SHA-256 `b18b150b93aba2d73e4a4f24562c174309d58131ef9150b3001f4dfe749fa820`; independent audit passed before evidence read with exact external restoration.
+- Twelve production assertions passed. Only `companion-class-contract` failed because its observer required `AddClassLevels.Levels > 0`. Exact stock `AddPet.TryUpdatePet` and Mammoth/Dog blueprints prove zero is the native bootstrap and level 4 is applied from owner rank 4 after spawn. No construction, registration, Ranger, view, statistic, attack-array, localization, or restoration failure occurred.
+- Dev.2 binds the corrected stock comparison and adds the first bounded live unmounted suite. It also corrects stock attack enumeration to Bite then two Hooves and adds exact KMC-horse respec destruction after native master removal.
+- Complete pre-commit gates pass source `21/0`, Release, component `248/0`, visual/source-order `17/0`, harness/protocol `231/0`, assembly `340/0`, PowerShell parser `26/0`, JSON parser `7/0`, diff, and prohibited-payload validation. Dirty DLL SHA-256/MVID are `18650ece9864d80e3a1a8a6fcc5b5d21bab845500fc7bd6b2b485a90f7ed5dc7` / `ba02ee90-4e4c-43fd-8d51-1a536a530c65`; clean packaging must rebind them after commit. No Kingmaker process or external state was changed by this implementation work.
+- Rejected claim: a blueprint's zero initial class-level field means the spawned companion is level zero. Native `AddPet` explicitly computes rank-to-level and invokes `AddClassLevels.LevelUp` after spawn.
+- Next: clean commit/publication/package/suite, targeted WhatIf, one audited aggregate unmounted process, audit-before-evidence interpretation.
+
 ## 2026-08-25T19:44:49Z — Original horse companion blueprint registration offline-green
 
 - Starting authority is published `f18859626fdc0b9896eace80659fff83f03806ac` on `codex/mounted-combat-phase3-horse`; production version is now `0.1.0-phase3b-dev.1`.

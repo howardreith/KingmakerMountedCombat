@@ -44,7 +44,8 @@ namespace KingmakerMountedCombat.Diagnostics
             if (request == null) { throw new ArgumentNullException(nameof(request)); }
             if (service == null) { throw new ArgumentNullException(nameof(service)); }
             if (logger == null) { throw new ArgumentNullException(nameof(logger)); }
-            if (!string.Equals(request.Scenario, ScenarioName, StringComparison.Ordinal))
+            if (!string.Equals(request.Scenario, ScenarioName, StringComparison.Ordinal) &&
+                !string.Equals(request.Scenario, HorseCompanionUnmountedScenarioEngine.ScenarioName, StringComparison.Ordinal))
             {
                 throw new InvalidOperationException("Horse companion registration audit received a different scenario.");
             }
@@ -106,8 +107,12 @@ namespace KingmakerMountedCombat.Diagnostics
                     ReferenceEquals(addPet.UpgradeFeature, horseUpgrade) && addPet.UpgradeLevel == 4,
                     "add-pet-contract", "AddPet owns the exact horse, rank, rank-4 upgrade, and KMC upgrade feature.", ref passed, ref failed);
                 AddAssertion(assertions, errors,
-                    classLevels != null && classLevels.CharacterClass != null && classLevels.Levels > 0,
-                    "companion-class-contract", "The horse has a concrete stock animal-companion class and positive initial class levels.", ref passed, ref failed);
+                    classLevels != null && classLevels.CharacterClass != null && classLevels.Levels == 0 &&
+                    initial.InitialClassLevels == 0 && initial.StockMammothInitialClassLevels == 0 &&
+                    initial.StockDogInitialClassLevels == 0,
+                    "companion-class-contract",
+                    "The horse matches the exact stock Mammoth/Dog zero-level bootstrap; AddPet owns rank-driven runtime leveling.",
+                    ref passed, ref failed);
                 AddAssertion(assertions, errors,
                     horseUnit != null && horseUnit.Size == Size.Large && horseUnit.Speed.Value == 50 &&
                     string.Equals(horseUnit.Prefab?.AssetId, NativeHorsePrefabAssetId, StringComparison.Ordinal),
@@ -120,7 +125,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
                 var body = horseUnit?.Body;
                 AddAssertion(assertions, errors,
-                    body != null && body.PrimaryHand != null &&
+                    body != null && !body.DisableHands && body.EmptyHandWeapon != null && body.PrimaryHand != null &&
+                    ReferenceEquals(body.EmptyHandWeapon, body.PrimaryHand) &&
                     string.Equals(body.PrimaryHand.AssetGuid, initial.BiteGuid, StringComparison.Ordinal) &&
                     string.Equals(body.PrimaryHand.name, "Bite1d4", StringComparison.Ordinal) &&
                     body.AdditionalLimbs != null && body.AdditionalLimbs.Length == 2 &&

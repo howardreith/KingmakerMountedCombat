@@ -39,6 +39,9 @@ namespace KingmakerMountedCombat.Integration
         public bool RangerSelectionDesired { get; set; }
         public string NativeViewAssetId { get; set; }
         public string CompanionClassGuid { get; set; }
+        public int InitialClassLevels { get; set; }
+        public int StockMammothInitialClassLevels { get; set; }
+        public int StockDogInitialClassLevels { get; set; }
         public string LevelRankGuid { get; set; }
         public int UpgradeLevel { get; set; }
         public string BiteGuid { get; set; }
@@ -106,6 +109,8 @@ namespace KingmakerMountedCombat.Integration
         private string hoofName;
         private BlueprintCharacterClass companionClass;
         private BlueprintFeature levelRank;
+        private int stockMammothInitialClassLevels;
+        private int stockDogInitialClassLevels;
         private int upgradeLevel;
         private bool disposed;
 
@@ -124,6 +129,8 @@ namespace KingmakerMountedCombat.Integration
         public BlueprintFeature HorseFeature => horseFeature;
 
         public BlueprintFeature HorseUpgrade => horseUpgrade;
+
+        public BlueprintFeature LevelRank => levelRank;
 
         public void Update()
         {
@@ -202,6 +209,9 @@ namespace KingmakerMountedCombat.Integration
                 RangerSelectionDesired = selectionDesired,
                 NativeViewAssetId = horseUnit?.Prefab?.AssetId,
                 CompanionClassGuid = classLevels?.CharacterClass?.AssetGuid,
+                InitialClassLevels = classLevels?.Levels ?? -1,
+                StockMammothInitialClassLevels = stockMammothInitialClassLevels,
+                StockDogInitialClassLevels = stockDogInitialClassLevels,
                 LevelRankGuid = levelRank?.AssetGuid,
                 UpgradeLevel = upgradeLevel,
                 BiteGuid = biteGuid,
@@ -263,7 +273,17 @@ namespace KingmakerMountedCombat.Integration
             {
                 throw new InvalidOperationException("The exact stock Mammoth companion has no usable AddClassLevels contract.");
             }
+            var dogUnit = dogFeature.GetComponent<AddPet>()?.Pet;
+            var dogClassLevels = dogUnit?.GetComponent<AddClassLevels>();
+            if (dogClassLevels == null || dogClassLevels.CharacterClass == null ||
+                !ReferenceEquals(dogClassLevels.CharacterClass, classLevels.CharacterClass) ||
+                classLevels.Levels != 0 || dogClassLevels.Levels != 0)
+            {
+                throw new InvalidOperationException("The exact stock Mammoth/Dog zero-level AddPet bootstrap contract changed.");
+            }
             companionClass = classLevels.CharacterClass;
+            stockMammothInitialClassLevels = classLevels.Levels;
+            stockDogInitialClassLevels = dogClassLevels.Levels;
 
             var name = NewLocalizedString("KMC.Horse.Name");
             var description = NewLocalizedString("KMC.Horse.Description");
@@ -323,7 +343,7 @@ namespace KingmakerMountedCombat.Integration
             horseFeature.AssetGuid = FeatureGuid;
             CopyFeatureContract(mammothFeature, horseFeature);
             SetFeaturePresentation(horseFeature, name, description, ResolveHorseIcon(nativeHorse, dogFeature));
-            var addPet = CreateOwned<AddPet>("KMC_Horse_AddPet");
+            var addPet = CreateOwned<HorseCompanionAddPet>("KMC_Horse_AddPet");
             addPet.Pet = horseUnit;
             addPet.LevelRank = levelRank;
             addPet.UpgradeFeature = horseUpgrade;
@@ -391,7 +411,12 @@ namespace KingmakerMountedCombat.Integration
             if (addPet == null || !ReferenceEquals(addPet.Pet, horseUnit) || !ReferenceEquals(addPet.LevelRank, levelRank) ||
                 !ReferenceEquals(addPet.UpgradeFeature, horseUpgrade) || addPet.UpgradeLevel != 4 ||
                 classLevels == null || !ReferenceEquals(classLevels.CharacterClass, companionClass) ||
-                horseUnit.Size != Size.Large || horseUnit.Body?.PrimaryHand == null || horseUnit.Body.AdditionalLimbs.Length != 2)
+                classLevels.Levels != stockMammothInitialClassLevels ||
+                classLevels.Levels != stockDogInitialClassLevels ||
+                horseUnit.Size != Size.Large || horseUnit.Body == null || horseUnit.Body.DisableHands ||
+                horseUnit.Body.PrimaryHand == null ||
+                !ReferenceEquals(horseUnit.Body.EmptyHandWeapon, horseUnit.Body.PrimaryHand) ||
+                horseUnit.Body.AdditionalLimbs.Length != 2)
             {
                 throw new InvalidOperationException("The constructed KMC horse companion contract failed exact self-validation.");
             }
@@ -429,7 +454,10 @@ namespace KingmakerMountedCombat.Integration
             if (source == null) { throw new InvalidOperationException("The native horse body is unavailable."); }
             return new BlueprintUnit.UnitBody
             {
-                DisableHands = true,
+                // Kingmaker's stock UnitAttack enumerator consults the primary
+                // hand only when hands are enabled, then appends AdditionalLimbs.
+                // This yields the intended Bite primary plus two Hoof limbs.
+                DisableHands = false,
                 EmptyHandWeapon = bite,
                 PrimaryHand = bite,
                 SecondaryHand = null,

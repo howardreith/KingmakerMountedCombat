@@ -61,7 +61,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 !expectedRider.Group.IsPlayerParty || AiBackingField == null ||
                 AiBackingField.FieldType != typeof(bool))
             {
-                throw new InvalidOperationException("The exact live rider/Mammoth player-party AI scope is unavailable.");
+                throw new InvalidOperationException("The exact live owner/animal player-party AI scope is unavailable.");
             }
 
             rider = expectedRider;
@@ -150,7 +150,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (group == null || group != rider?.Group || group != mount?.Group || !group.IsPlayerParty)
             {
-                throw new InvalidOperationException("The exact rider/Mammoth player-party group changed.");
+                throw new InvalidOperationException("The exact owner/animal player-party group changed.");
             }
 
             var current = new List<UnitEntityData>();

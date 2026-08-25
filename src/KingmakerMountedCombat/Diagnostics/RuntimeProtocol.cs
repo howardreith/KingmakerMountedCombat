@@ -19,6 +19,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "observe-mount-diagnostic-availability",
             "horse-native-asset-audit",
             "horse-companion-blueprint-registration",
+            "horse-companion-unmounted-suite",
             "player-action-availability",
             "mount-dismount-user-flow",
             "mounted-pair-create-and-clear",
@@ -152,7 +153,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 errors.Add("commit must be a 40-character lowercase Git SHA.");
             }
 
-            if (!string.Equals(ProductVersion, "0.1.0-phase3b-dev.1", StringComparison.Ordinal))
+            if (!string.Equals(ProductVersion, "0.1.0-phase3b-dev.2", StringComparison.Ordinal))
             {
                 errors.Add("productVersion does not match this diagnostic build.");
             }
@@ -477,6 +478,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "observe-mount-diagnostic-availability",
             "horse-native-asset-audit",
             "horse-companion-blueprint-registration",
+            "horse-companion-unmounted-suite",
             "player-action-availability",
             "mount-dismount-user-flow",
             "mounted-pair-create-and-clear",

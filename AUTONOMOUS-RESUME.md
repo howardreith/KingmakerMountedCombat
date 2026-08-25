@@ -1,5 +1,17 @@
 # Autonomous resume
 
+## Registration observer repaired; bounded unmounted suite offline-green — 2026-08-25T21:29:32Z
+
+- Exact state: `codex/mounted-combat-phase3-horse`, published input `3c4b390d8078cbfdb0b81cf805d54bd2a6823a8a`, intentional uncommitted version `0.1.0-phase3b-dev.2` implementation/harness work.
+- Preserved run `20260825T195200Z-horse-companion-registration-passA` is immutable historical `FAIL 12/1`, not product evidence. Its independent post-process audit passed before evidence read and re-proved exact save/Mods digests `8db675f6866e34399f62a2893ed480fb5246303ca3ec444fb6af9f6a11872726` / `9179a5026662fa86b5126c1179fc164e7c24beafa58f41399d8229ca91e5005c`, restored transactions, and no process/lock/sentinel residue.
+- The sole failed assertion incorrectly required positive blueprint `AddClassLevels.Levels`. Exact stock Mammoth and Dog both use zero; native `AddPet` maps owner rank to runtime pet level after spawn. The repaired observer now requires horse/Mammoth/Dog zero-level parity and retains the same concrete animal-companion class gate.
+- The horse body now follows stock `UnitAttack` enumeration: hands enabled, Bite1d4 primary/empty-hand weapon, then two Hoof1d4 additional limbs. `HorseCompanionAddPet` retains native spawn/level/area ownership and destroys only the exact KMC horse after native feature-deactivation clears its master, closing respec orphan residue.
+- One aggregate `horse-companion-unmounted-suite` now covers corrected registration plus live creation/ownership, rank-4→level-4 progression/upgrade, native selection/movement, Bite+Hoof enumeration, one exact RT Bite chain, one exact horse-turn TB Bite chain, death/recovery, respec cleanup, Ranger disable/re-enable, unrelated-pet/Mammoth isolation, and exact mode/pause/selection/target cleanup. Actual disk save/reload remains explicitly manual because the guarded harness forbids Kingmaker's crash-unsafe temporary save leaf.
+- Complete pre-commit gates pass source `21/0`, Release, component `248/0`, visual/source-order `17/0`, harness/protocol `231/0`, assembly `340/0` (`316` Kingmaker + `24` Wrath), PowerShell parser `26/0`, JSON parser `7/0`, diff, and prohibited-payload validation. Dirty Release DLL SHA-256/MVID are `18650ece9864d80e3a1a8a6fcc5b5d21bab845500fc7bd6b2b485a90f7ed5dc7` / `ba02ee90-4e4c-43fd-8d51-1a536a530c65`; clean packaging must rebind them after commit.
+- Exact next action: commit and guarded-publish dev.2, create/validate one clean package and stable suite, pass one targeted WhatIf, then run one guarded aggregate unmounted process and independently audit exact restoration before reading evidence. Do not begin the mounted profile until that result is interpreted.
+
+This entry supersedes the registration-audit next action below. The 12/1 run remains historical evidence and is not relabeled.
+
 ## Horse companion registration implemented and offline-green; one guarded registration audit next — 2026-08-25T19:44:49Z
 
 - Exact state: `codex/mounted-combat-phase3-horse`, clean published input `f18859626fdc0b9896eace80659fff83f03806ac`, production checkpoint currently uncommitted, version `0.1.0-phase3b-dev.1`.
