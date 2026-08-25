@@ -1,5 +1,12 @@
 # Mounted Combat journal
 
+## 2026-08-25T16:14:40Z - distinct Phase 3A diagnostic version assigned
+
+- Observation implementation commit `9e1a3d46dda81d4059a48ae7ded11d88b7ff763d` is guarded-published and local/remote equal.
+- Product/informational version advanced from the immutable Phase 2 identity to `0.1.0-phase3a-dev.1`; assembly version stays `0.1.0.0`. No historical package path or bytes were overwritten.
+- Version-bound source/Release/component/harness gates pass `21/0`, Release, `241/0`, and `228/0`; dirty versioned DLL SHA-256/MVID are `860107929e050b1b2b99dea28fd3b0f6cd42f2cc0d3b3283c512cdb8a684dc38` / `9bdbfcd3-0671-412f-8dd1-32d4008c11f2`.
+- This is package identity metadata, not production horse behavior. Next: coherent commit/publication and a clean immutable observation package.
+
 ## 2026-08-25T16:09:33Z - native horse/pony audit instrumentation qualified offline
 
 - Starting branch/HEAD were `codex/mounted-combat-phase3-horse` / `48a911198dced8ba03073999f047dd3d771252de`; intake was clean and no relevant process or transaction state existed.

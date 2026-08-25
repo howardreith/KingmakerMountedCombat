@@ -7,7 +7,8 @@ Status: IN PROGRESS
 - branch: `codex/mounted-combat-phase3-horse`
 - exact Phase 2 closure base: `ecb89500eb36eabbf889ccda7185843bd1e3e7c5`
 - accepted Mammoth implementation: `1241222459209aea1e6127bedd7d630df3940b99`
-- initial product version: `0.1.0-phase2b-dev.1` (horse version not yet assigned)
+- inherited Phase 2 product version: `0.1.0-phase2b-dev.1`
+- active Horse Tranche A version: `0.1.0-phase3a-dev.1`
 
 Phase 2 remains accepted with its documented private-alpha limitations. Horse work does not retroactively claim stock right-click mounted attacks, mounted auto-attack, unified Wrath-style turns, animated Mammoth TB locomotion, or public-release quality.
 

@@ -1,5 +1,14 @@
 # Autonomous resume
 
+## Phase 3A version assigned; clean package checkpoint next - 2026-08-25T16:14:40Z
+
+- The guarded-published observation implementation is commit `9e1a3d46dda81d4059a48ae7ded11d88b7ff763d`. The horse branch now tracks `origin/codex/mounted-combat-phase3-horse` at that exact SHA.
+- Active horse diagnostic version is assigned as `0.1.0-phase3a-dev.1`; the assembly version remains `0.1.0.0`. This produces a distinct artifact path and preserves the immutable Phase 2 `0.1.0-phase2b-dev.1` packages byte-for-byte.
+- Version-bound source/Release/component/harness gates pass `21/0`, Release, `241/0`, and `228/0`. Dirty versioned DLL SHA-256/MVID are `860107929e050b1b2b99dea28fd3b0f6cd42f2cc0d3b3283c512cdb8a684dc38` / `9bdbfcd3-0671-412f-8dd1-32d4008c11f2`; they are not the final package identity until this metadata checkpoint is committed and rebuilt from clean HEAD.
+- Exact next action: commit/publish the Phase 3A version assignment, build and validate the clean observation package, then continue the helper-only uninstall and single audited observation sequence recorded below.
+
+This entry supersedes only the packaging identity portion of the entry below.
+
 ## Horse native-asset observation instrumentation admitted - 2026-08-25T16:09:33Z
 
 - Status: `IN PROGRESS` on `codex/mounted-combat-phase3-horse`; exact inherited clean HEAD `48a911198dced8ba03073999f047dd3d771252de`. Fresh continuation intake again found a clean tree before work, no Git operation/lock, and no Kingmaker, Wrath, UMM, build, or KMC launcher process.
