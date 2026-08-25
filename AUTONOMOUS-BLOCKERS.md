@@ -1,5 +1,12 @@
 # Autonomous blockers
 
+## 2026-08-25T15:21:52Z - Phase 2 main integration pending at local policy boundary
+
+- This is not a Phase 2 product blocker and must not stall the authorized horse phase. The closure branch is guarded-published, while the local GitHub authentication/merge workflow was rejected by policy before any PR or `main` mutation.
+- Remote `main` is `72dcbeb19d03985509f1ed71d3550dfb74f0ac15`, exactly the merge base of published closure `a135fc7553b9e2a5cc82ae2181e9cd5198f57afb`; no unexpected main divergence was observed.
+- Pending external procedure: open a pull request from `codex/mounted-combat-phase2-closure` to `main`, reverify exact head/base identities, merge with **Create a merge commit**, do not squash/rebase/delete branches/create a release, and verify the exact final closure commit is an ancestor of merged `main`.
+- Per the user-authorized fallback, horse work proceeds from the exact final guarded-published closure commit. No attempt will be made to circumvent the local merge policy.
+
 ## 2026-08-25T12:00:39Z - Mammoth human gate accepted; no active Phase 2 blocker
 
 - Status: `PASS` for the exact Phase 2 private-alpha artifact. The user completed the manual regression and accepted the Mammoth implementation with the limitations in `docs/PHASE-2-HUMAN-ACCEPTANCE.md` and `docs/PHASE-2-KNOWN-LIMITATIONS.md`.

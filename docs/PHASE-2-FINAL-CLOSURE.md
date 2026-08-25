@@ -83,4 +83,15 @@ The first closure-gate harness invocation detected the user's still-open respons
 
 Phase 2 integration into `main` is authorized through a merge-preserving pull request. No public release is authorized. The horse branch must start from the exact integrated closure commit, or from the exact published closure commit only if local policy blocks main integration. Horse work must retain the Mammoth implementation as its regression baseline and use an independent horse profile.
 
+Local policy rejected the authenticated GitHub PR/merge workflow before any remote mutation. At that boundary, remote `main` was `72dcbeb19d03985509f1ed71d3550dfb74f0ac15`, exactly the closure merge base, and the guarded-published closure head was `a135fc7553b9e2a5cc82ae2181e9cd5198f57afb`. No unexpected divergence was present. The final policy-record commit is bound in the external closure identity after publication.
+
+The exact pending integration procedure is:
+
+1. Create a pull request with base `main` and head `codex/mounted-combat-phase2-closure`.
+2. Reverify the exact final closure SHA from the external closure identity and verify `main` has not unexpectedly diverged from the recorded base.
+3. Merge with **Create a merge commit**. Do not squash, rebase, force, delete historical branches, or create a release.
+4. Verify the exact closure commit is an ancestor of the resulting remote `main` and that all closure documents are present.
+
+Per the authorized fallback, `codex/mounted-combat-phase3-horse` is created from the exact final guarded-published closure commit and does not wait on the policy-blocked merge.
+
 Phase 2 status: `PASS` — private-alpha foundation accepted and closed.
