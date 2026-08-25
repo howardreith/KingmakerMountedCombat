@@ -1,5 +1,14 @@
 # Mounted Combat journal
 
+## 2026-08-25T19:44:49Z — Original horse companion blueprint registration offline-green
+
+- Starting authority is published `f18859626fdc0b9896eace80659fff83f03806ac` on `codex/mounted-combat-phase3-horse`; production version is now `0.1.0-phase3b-dev.1`.
+- Added a dedicated original-blueprint service for unit/feature/upgrade GUIDs `4016c7db400ab721ff125aef9e65e202`, `7db7c50677e39f09feef56f3831fc723`, and `98e651899e6278d938de77af1d69bd32`. It uses exact installed contracts and no Wrath code or asset.
+- The horse is explicitly Large with the native HorseRiding view, animal-companion class plumbing, base abilities `16/13/15/2/12/6`, speed 50, Bite1d4 plus two Hoof1d4 limbs, stock `AddPet`/`SetMaster` ownership, rank feature `1670990255e4fe948a863bafd5dbda5d`, and a KMC-owned rank-4 Strength/Constitution upgrade.
+- Ranger integration is append-only, exact-order, idempotent, and compare-before-restore. A deterministic five-test domain lease covers source order, exact restoration, idempotence, duplicates, and third-party mutation.
+- The new guarded `horse-companion-blueprint-registration` evidence route and independent validator cover 13 exact production assertions without spawning a unit or writing a save.
+- Gates pass source/Release/component/visual/harness/assembly `21/Release/247/17/230/335`, parsers `26/0` and `7/0`, plus diff. Dirty build identity is DLL `eaa149bb8af0dce1f6568f28319190b404d7e4d488459dd65218b08bced072e1`, MVID `d893d120-0960-45bd-a6d5-1893656039c4`; clean commit/package rebinding remains required.
+
 ## 2026-08-25T19:12:00Z — Horse/pony native-asset audit credited; companion construction admitted
 
 - Branch/package authority: `codex/mounted-combat-phase3-horse` at published `9431cbb0beb999900187ee13f9f58f4a18bd9066`, version `0.1.0-phase3a-dev.2`, package `5c76bf40f494453bf9d24e1514a12ee336792fb5a69e67800fbc29e4304fce37`, DLL `450f1758ef8fa07a27ac4993344b4566f954b7fe6afa73ac180ab5e098870686`, MVID `9ee3c613-b957-4d35-8fb7-d6b897edbe39`.

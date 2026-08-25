@@ -41,6 +41,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly MountedLifecycleSubscriber lifecycle;
         private readonly MountedPlayerActionController playerAction;
         private readonly MountedCombatController combat;
+        private readonly HorseCompanionBlueprintService horseCompanion;
         private readonly DiagnosticSettings diagnosticSettings;
         private readonly Func<bool, bool> registeredToggle;
         private readonly string resultPath;
@@ -110,6 +111,7 @@ namespace KingmakerMountedCombat.Diagnostics
             MountedLifecycleSubscriber lifecycle,
             MountedPlayerActionController playerAction,
             MountedCombatController combat,
+            HorseCompanionBlueprintService horseCompanion,
             DiagnosticSettings diagnosticSettings,
             Func<bool, bool> registeredToggle)
         {
@@ -123,6 +125,7 @@ namespace KingmakerMountedCombat.Diagnostics
             this.lifecycle = lifecycle ?? throw new ArgumentNullException(nameof(lifecycle));
             this.playerAction = playerAction ?? throw new ArgumentNullException(nameof(playerAction));
             this.combat = combat ?? throw new ArgumentNullException(nameof(combat));
+            this.horseCompanion = horseCompanion ?? throw new ArgumentNullException(nameof(horseCompanion));
             this.diagnosticSettings = diagnosticSettings ?? throw new ArgumentNullException(nameof(diagnosticSettings));
             this.registeredToggle = registeredToggle ?? throw new ArgumentNullException(nameof(registeredToggle));
             resultPath = Path.Combine(request.EvidenceRoot, "runtime-game-result.json");
@@ -154,6 +157,7 @@ namespace KingmakerMountedCombat.Diagnostics
             MountedLifecycleSubscriber lifecycle,
             MountedPlayerActionController playerAction,
             MountedCombatController combat,
+            HorseCompanionBlueprintService horseCompanion,
             DiagnosticSettings diagnosticSettings,
             Func<bool, bool> registeredToggle)
         {
@@ -222,7 +226,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
             logger.Info("Runtime automation request accepted: " + request.RunId + " / " + request.Scenario);
             return new RuntimeAutomationHost(logger, request, loadedModId, relationshipStateProvider, movementExperimentProvider,
-                saveAuthorization, relationship, lifecycle, playerAction, combat, diagnosticSettings, registeredToggle);
+                saveAuthorization, relationship, lifecycle, playerAction, combat, horseCompanion, diagnosticSettings, registeredToggle);
         }
 
         internal static void ObserveSaveRequest()
@@ -601,6 +605,10 @@ namespace KingmakerMountedCombat.Diagnostics
             else if (string.Equals(request.Scenario, HorseNativeAssetAuditService.ScenarioName, StringComparison.Ordinal))
             {
                 subscenarioResults = new[] { HorseNativeAssetAuditService.Run(request, logger) };
+            }
+            else if (string.Equals(request.Scenario, HorseCompanionBlueprintRegistrationAuditService.ScenarioName, StringComparison.Ordinal))
+            {
+                subscenarioResults = new[] { HorseCompanionBlueprintRegistrationAuditService.Run(request, horseCompanion, logger) };
             }
             else
             {
@@ -1425,6 +1433,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 request.EvidenceRoot,
                 HorseNativeAssetAuditService.EvidenceFileName,
                 HorseNativeAssetAuditService.EvidenceKind);
+            AddRuntimeArtifactIfPresent(
+                artifacts,
+                request.EvidenceRoot,
+                HorseCompanionBlueprintRegistrationAuditService.EvidenceFileName,
+                HorseCompanionBlueprintRegistrationAuditService.EvidenceKind);
 
             var visualRoot = Path.Combine(request.EvidenceRoot, "movement-visuals");
             if (Directory.Exists(visualRoot))

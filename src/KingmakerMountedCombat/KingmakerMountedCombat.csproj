@@ -84,6 +84,7 @@
     <Compile Include="Diagnostics\DiagnosticCombatTargetService.cs" />
     <Compile Include="Diagnostics\DiagnosticNonPairPartyAiLease.cs" />
     <Compile Include="Diagnostics\HorseNativeAssetAuditService.cs" />
+    <Compile Include="Diagnostics\HorseCompanionBlueprintRegistrationAuditService.cs" />
     <Compile Include="Diagnostics\BoundaryFailureDrain.cs" />
     <Compile Include="Diagnostics\BoundaryScenarioEvidenceContract.cs" />
     <Compile Include="Diagnostics\MovementScreenshotCaptureCoordinator.cs" />
@@ -114,6 +115,7 @@
     <Compile Include="Domain\CleanupTrigger.cs" />
     <Compile Include="Domain\AvoidanceRestorationExpectation.cs" />
     <Compile Include="Domain\CommandRouting.cs" />
+    <Compile Include="Domain\ExactAppendOnlyArrayLease.cs" />
     <Compile Include="Domain\IMountedPairRuntime.cs" />
     <Compile Include="Domain\MountedPair.cs" />
     <Compile Include="Domain\MountedPairCandidate.cs" />
@@ -137,6 +139,7 @@
     <Compile Include="Domain\TransitionResult.cs" />
     <Compile Include="Domain\TwoBonePoseSolver.cs" />
     <Compile Include="Integration\GameMountedRelationshipService.cs" />
+    <Compile Include="Integration\HorseCompanionBlueprintService.cs" />
     <Compile Include="Integration\KingmakerMountedPairRuntime.cs" />
     <Compile Include="Integration\ReactiveBooleanValueReader.cs" />
     <Compile Include="Integration\MountedLifecycleSubscriber.cs" />

@@ -7,6 +7,7 @@ All save-backed rows use only the project-owned `KMC_AUTOMATION_WORKING` fixture
 | Tranche | Scenario | Mode | Required result |
 |---|---|---|---|
 | A | `horse-native-asset-audit` | loaded Working fixture, observation only | exact horse/pony blueprint, resource, rig, animation, collider, body, ownership, and reverse-reference record; no unit/save mutation |
+| B | `horse-companion-blueprint-registration` | loaded Working fixture, observation only | exact KMC GUID/object identities, AddPet/class/view/stats/attacks/upgrade/localization, Ranger 7→8 append, exact 8→7 restore, exact 7→8 re-enable; no spawn/save mutation |
 | B | `horse-companion-create` | RT | Ranger selection contains stock choices plus one KMC horse; exact AddPet/SetMaster pair; Large native view; selectable and controllable |
 | B | `horse-companion-progression` | RT | expected pet level/rank/upgrade/stat/natural-attack progression at bounded checkpoints |
 | B | `horse-unmounted-movement` | RT A/B | ordinary party movement and selection; no duplicate command; non-horse matched control |
@@ -29,4 +30,3 @@ No row may produce duplicate movement, command, turn, attack, roll, damage, inte
 ## Human-only rows
 
 The exact final horse package requires human review of ordinary pointer targeting, seat and stirrup appearance, idle/walk/run/turn/stop/reverse feel, doorway/indoor clipping, selection/portrait/action bar/camera feel, menus and fog/world flash, Rider/Horse primary discoverability, and mount/dismount presentation.
-

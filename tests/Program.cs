@@ -19,6 +19,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("request accepts exact save-backed fixture", RequestAcceptsExactSaveBackedFixture);
             runner.Run("request accepts combat core control suite", RequestAcceptsCombatCoreControlSuite);
             runner.Run("request accepts observation-only horse native asset audit", RequestAcceptsHorseNativeAssetAudit);
+            runner.Run("request accepts horse companion blueprint registration audit", RequestAcceptsHorseCompanionBlueprintRegistration);
             runner.Run("request accepts private-alpha human-play combat rows", RequestAcceptsHumanPlayCombatRows);
             runner.Run("request requires exact qualification-suite identity", RequestRequiresQualificationSuiteIdentity);
             runner.Run("request accepts read-only manual visual review", RequestAcceptsReadOnlyManualReview);
@@ -53,6 +54,7 @@ namespace KingmakerMountedCombat.Tests
             StopEarlyCaptureBoundaryTests.Register(runner);
             PresentationOverlayEvidenceTests.Register(runner);
             ScopedDiagnosticAiLeaseTests.Register(runner);
+            ExactAppendOnlyArrayLeaseTests.Register(runner);
             return runner.Complete();
         }
 
@@ -131,6 +133,13 @@ namespace KingmakerMountedCombat.Tests
             var request = ValidSaveBackedRequest();
             request.Scenario = "horse-native-asset-audit";
             TestRunner.Equal(0, request.Validate().Count, "Horse native-asset audit request was rejected.");
+        }
+
+        private static void RequestAcceptsHorseCompanionBlueprintRegistration()
+        {
+            var request = ValidSaveBackedRequest();
+            request.Scenario = "horse-companion-blueprint-registration";
+            TestRunner.Equal(0, request.Validate().Count, "Horse companion blueprint registration request was rejected.");
         }
 
         private static void RequestAcceptsHumanPlayCombatRows()
@@ -225,7 +234,7 @@ namespace KingmakerMountedCombat.Tests
                 Scenario = "mod-load-smoke",
                 Branch = "codex/mounted-combat-feasibility",
                 Commit = "3801345720241eeab75f2944d91948f182ca26aa",
-                ProductVersion = "0.1.0-phase3a-dev.2",
+                ProductVersion = "0.1.0-phase3b-dev.1",
                 DllSha256 = Sha,
                 DllMvid = Mvid,
                 EvidenceRoot = "runtime-evidence/kmc-smoke-001",
@@ -245,7 +254,7 @@ namespace KingmakerMountedCombat.Tests
                 Status = "PASS",
                 Branch = "codex/mounted-combat-feasibility",
                 Commit = "3801345720241eeab75f2944d91948f182ca26aa",
-                ProductVersion = "0.1.0-phase3a-dev.2",
+                ProductVersion = "0.1.0-phase3b-dev.1",
                 DllSha256 = Sha,
                 DllMvid = Mvid,
                 TransactionToken = Sha,
@@ -267,7 +276,7 @@ namespace KingmakerMountedCombat.Tests
                 Scenario = "fixture-intake",
                 Branch = "codex/mounted-combat-feasibility",
                 Commit = "3801345720241eeab75f2944d91948f182ca26aa",
-                ProductVersion = "0.1.0-phase3a-dev.2",
+                ProductVersion = "0.1.0-phase3b-dev.1",
                 DllSha256 = Sha,
                 DllMvid = Mvid,
                 EvidenceRoot = "runtime-evidence/kmc-fixture-001",
@@ -291,7 +300,7 @@ namespace KingmakerMountedCombat.Tests
                 Status = "PASS",
                 Branch = "codex/mounted-combat-feasibility",
                 Commit = "3801345720241eeab75f2944d91948f182ca26aa",
-                ProductVersion = "0.1.0-phase3a-dev.2",
+                ProductVersion = "0.1.0-phase3b-dev.1",
                 DllSha256 = Sha,
                 DllMvid = Mvid,
                 TransactionToken = Sha,

@@ -104,6 +104,7 @@ function Assert-RuntimeArtifactManifest {
             ($relativePath -ceq 'boundary-scenario-evidence.jsonl' -and $kind -ceq 'boundary-evidence') -or
             ($relativePath -ceq 'combat-scenario-evidence.jsonl' -and $kind -ceq 'combat-evidence') -or
             ($relativePath -ceq 'horse-native-asset-audit.json' -and $kind -ceq 'horse-asset-audit') -or
+            ($relativePath -ceq 'horse-companion-blueprint-registration.json' -and $kind -ceq 'horse-companion-blueprint-registration') -or
             ($relativePath -cmatch '^movement-visuals/[A-Za-z0-9._-]+\.png$' -and $kind -ceq 'screenshot')
         if (-not $allowed) { throw "Runtime artifact manifest record is outside the exact allowlist: $relativePath ($kind)" }
         if (-not (Test-ExactJsonInteger $artifact.length) -or [long]$artifact.length -le 0 -or
@@ -145,7 +146,7 @@ function Assert-FixtureEcho {
 function Assert-SubscenarioResults {
     param($Result)
     $missionScenarios = @(
-        'mod-load-smoke', 'export-mounted-contracts', 'export-candidate-mount-rigs', 'observe-mount-diagnostic-availability', 'horse-native-asset-audit',
+        'mod-load-smoke', 'export-mounted-contracts', 'export-candidate-mount-rigs', 'observe-mount-diagnostic-availability', 'horse-native-asset-audit', 'horse-companion-blueprint-registration',
         'player-action-availability', 'mount-dismount-user-flow',
         'mounted-pair-create-and-clear', 'mounted-pair-double-mount-rejected', 'mounted-pair-invalid-pair-rejected',
         'mounted-pair-cleanup-idempotent', 'mounted-pair-death-cleanup', 'mounted-pair-combat-start-cleanup',

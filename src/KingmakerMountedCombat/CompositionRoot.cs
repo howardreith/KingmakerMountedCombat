@@ -13,6 +13,7 @@ namespace KingmakerMountedCombat
         private readonly RuntimeAutomationHost runtimeAutomation;
         private readonly RuntimeSaveAuthorization saveAuthorization;
         private readonly DiagnosticSettings settings;
+        private readonly HorseCompanionBlueprintService horseCompanion;
         private readonly GameMountedRelationshipService relationship;
         private readonly MountedLifecycleSubscriber lifecycle;
         private readonly NativeLifecycleDeliveryLedger lifecycleLedger;
@@ -28,6 +29,7 @@ namespace KingmakerMountedCombat
             try
             {
                 settings = new DiagnosticSettings();
+                horseCompanion = new HorseCompanionBlueprintService(logger);
                 relationship = new GameMountedRelationshipService(logger, settings);
                 lifecycleLedger = new NativeLifecycleDeliveryLedger();
                 combat = new MountedCombatController(relationship, settings, logger);
@@ -45,6 +47,7 @@ namespace KingmakerMountedCombat
                     lifecycle,
                     playerAction,
                     combat,
+                    horseCompanion,
                     settings,
                     Main.InvokeRegisteredToggleForAutomation);
                 if (runtimeAutomation != null && !runtimeAutomation.IsManualReview)
@@ -67,6 +70,7 @@ namespace KingmakerMountedCombat
                 try { patches?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { lifecycle?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { relationship?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
+                try { horseCompanion?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 if (rollbackException != null)
                 {
                     throw new AggregateException("Composition-root construction and rollback both failed.", constructionException, rollbackException);
@@ -87,6 +91,11 @@ namespace KingmakerMountedCombat
             if (enabled)
             {
                 if (IsEnabled) { return true; }
+                if (!horseCompanion.SetSelectionEnabled(true))
+                {
+                    logger.Error("Private-alpha services could not enable the exact Ranger horse selection transaction.");
+                    return false;
+                }
                 IsEnabled = true;
                 playerAction.SetOverlayEnabled(true);
                 logger.Info("Private-alpha services and transient mounted-action overlay enabled.");
@@ -99,6 +108,11 @@ namespace KingmakerMountedCombat
             if (!lifecycle.HandleModDisable())
             {
                 logger.Error("Diagnostic services could not be disabled because mounted cleanup retained residue.");
+                return false;
+            }
+            if (!horseCompanion.SetSelectionEnabled(false))
+            {
+                logger.Error("Private-alpha services could not disable without overwriting an externally changed Ranger selection.");
                 return false;
             }
             IsEnabled = false;
@@ -145,6 +159,7 @@ namespace KingmakerMountedCombat
         public void Update(float deltaTime)
         {
             ThrowIfDisposed();
+            horseCompanion.Update();
             runtimeAutomation?.Update(deltaTime);
             if (runtimeAutomation != null && runtimeAutomation.IsSaveBackedFailurePending)
             {
@@ -185,6 +200,8 @@ namespace KingmakerMountedCombat
             GUI.enabled = priorEnabled;
             GUILayout.EndHorizontal();
             GUILayout.Label("Relationship: " + relationship.State);
+            GUILayout.Label("Horse companion blueprints: " + horseCompanion.State +
+                (string.IsNullOrEmpty(horseCompanion.Failure) ? string.Empty : " — " + horseCompanion.Failure));
             GUILayout.Label(relationship.LastResult);
             if (combat.CanShowCombatActions)
             {
@@ -216,6 +233,7 @@ namespace KingmakerMountedCombat
             patches.Dispose();
             lifecycle.Dispose();
             relationship.Dispose();
+            horseCompanion.Dispose();
             IsEnabled = false;
             disposed = true;
             logger.Info("Composition root disposed; no mounted relationship was serialized.");

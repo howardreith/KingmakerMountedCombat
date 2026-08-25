@@ -1,5 +1,17 @@
 # Autonomous resume
 
+## Horse companion registration implemented and offline-green; one guarded registration audit next — 2026-08-25T19:44:49Z
+
+- Exact state: `codex/mounted-combat-phase3-horse`, clean published input `f18859626fdc0b9896eace80659fff83f03806ac`, production checkpoint currently uncommitted, version `0.1.0-phase3b-dev.1`.
+- The original KMC-owned `AnimalCompanionUnitHorse` / `AnimalCompanionFeatureHorse` / `AnimalCompanionUpgradeHorse` trio now registers through a dedicated fail-closed service. It uses the exact native Large `HorseRiding` view, a stock animal-companion class contract, explicit `16/13/15/2/12/6` statistics, speed 50, one `Bite1d4`, two exact `Hoof1d4`, and a rank-4 `+2 Strength/+2 Constitution` upgrade.
+- Ranger integration is a reference-exact append lease over the proved seven-option stock array. Enable appends once; disable restores only the exact KMC-produced value; collision, reordered stock input, duplicate ownership, and third-party mutation fail without overwriting the foreign state. Blueprint definitions remain available in-process for active save references while the selectable surface is leased.
+- New bounded scenario `horse-companion-blueprint-registration` records exact library identities, `AddPet`, class, view, statistics, attacks, upgrade, localization, Ranger append, exact disable restore, and re-enable append. It spawns no unit and writes no save.
+- Complete offline gates pass source `21/0`, Release, component `247/0`, visual/source-order `17/0`, harness/protocol `230/0`, assembly `335/0` (`311` Kingmaker + `24` Wrath), PowerShell parser `26/0`, JSON parser `7/0`, and diff. Dirty pre-commit DLL SHA-256/MVID are `eaa149bb8af0dce1f6568f28319190b404d7e4d488459dd65218b08bced072e1` / `d893d120-0960-45bd-a6d5-1893656039c4`; they are not package identity.
+- No Kingmaker process, live deployment, save, transaction, or runtime evidence was changed by this implementation/gate pass. No horse creation, progression, unmounted-control, or mounted-profile claim is made yet.
+- Exact next action: commit and guarded-publish this coherent production checkpoint, rebuild/package from clean HEAD, admit one stable suite, pass targeted `WhatIf`, run one guarded registration audit, and independently prove restoration before reading evidence. Only then begin the unmounted horse scenarios.
+
+This entry supersedes the companion-construction next action below. The credited native-asset audit remains authoritative.
+
 ## Horse/pony native-asset tranche complete; companion construction gate open — 2026-08-25T19:12:00Z
 
 - Exact branch/HEAD/package: `codex/mounted-combat-phase3-horse` at clean published `9431cbb0beb999900187ee13f9f58f4a18bd9066`; version `0.1.0-phase3a-dev.2`; package SHA-256 `5c76bf40f494453bf9d24e1514a12ee336792fb5a69e67800fbc29e4304fce37`; manifest SHA-256 `502222a4d0ba2b02d59c352c59906f7e0fc888d7644834fdeb7fde78faf4c33d`; DLL SHA-256/MVID `450f1758ef8fa07a27ac4993344b4566f954b7fe6afa73ac180ab5e098870686` / `9ee3c613-b957-4d35-8fb7-d6b897edbe39`.

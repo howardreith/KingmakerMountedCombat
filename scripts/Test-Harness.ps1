@@ -4336,7 +4336,7 @@ try {
         }
         $manualRequest = [ordered]@{
             schemaVersion=2;runId='manual-review-validator';scenario='manual-visual-review';branch='codex/mounted-combat-phase2-alpha';
-            commit=('c'*40);productVersion='0.1.0-phase3a-dev.2';dllSha256=('d'*64);dllMvid='aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+            commit=('c'*40);productVersion='0.1.0-phase3b-dev.1';dllSha256=('d'*64);dllMvid='aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
             transactionToken=('e'*64);evidenceRoot=$manualEvidence;fixture=$manualFixture
             qualificationSuite=[ordered]@{suiteId='manual-suite';snapshotSha256=('f'*64)}
         }
@@ -4643,7 +4643,7 @@ try {
             writeAuthorization=[ordered]@{mode='working-only';allowedInternalName='KMC_AUTOMATION_WORKING';allowedFileName='Manual_2_KMC_AUTOMATION_WORKING.zks';baselineImmutable=$true}
         }
         $recomputeEvidence = Join-Path $runtimeEvidenceTestRoot 'recompute-evidence'
-        $v2Request=[pscustomobject]@{runId='recompute-test';scenario='fixture-intake';branch='codex/mounted-combat-feasibility';commit=('0'*40);productVersion='0.1.0-phase3a-dev.2';dllSha256=('a'*64);dllMvid=[Guid]::Empty.ToString();transactionToken=('b'*64);evidenceRoot=$recomputeEvidence;fixture=$fixture}
+        $v2Request=[pscustomobject]@{runId='recompute-test';scenario='fixture-intake';branch='codex/mounted-combat-feasibility';commit=('0'*40);productVersion='0.1.0-phase3b-dev.1';dllSha256=('a'*64);dllMvid=[Guid]::Empty.ToString();transactionToken=('b'*64);evidenceRoot=$recomputeEvidence;fixture=$fixture}
         $recomputeManifestHash = New-TestArtifactManifest -EvidenceRoot $recomputeEvidence -RunId $v2Request.runId -Scenario $v2Request.scenario
         $game=[pscustomobject]@{status='PASS';fixture=$fixture;evidenceManifestSha256=$recomputeManifestHash;subscenarioTotal=99;subscenarioPassCount=0;subscenarioFailCount=99;assertionPassCount=0;assertionFailCount=99;subscenarioResults=@([pscustomobject]@{name='observe-mount-diagnostic-availability';status='PASS';assertionPassCount=4;assertionFailCount=0;errors=@()})}
         $final=New-KmcRuntimeResultV2 -Request $v2Request -ValidatedGameResult $game -StartedAtUtc ([DateTimeOffset]::UtcNow) -ModsRestored $true -BaselineImmutable $true -WorkingRestored $true -SaveWriteAllowlistPassed $true -RestoredSaveInventoryDigest ('c'*64) -GameResultSha256 ('d'*64)
@@ -4654,7 +4654,7 @@ try {
 
     Invoke-HarnessTest 'schema-v2 fallback creates and binds a validated orchestration artifact manifest' {
         $fallbackEvidence = Join-Path $runtimeEvidenceTestRoot 'fallback-evidence'
-        $fallbackRequest=[pscustomobject]@{runId='fallback-test';scenario='fixture-intake';branch='codex/mounted-combat-feasibility';commit=('0'*40);productVersion='0.1.0-phase3a-dev.2';dllSha256=('a'*64);dllMvid=[Guid]::Empty.ToString();transactionToken=('b'*64);evidenceRoot=$fallbackEvidence;fixture=[ordered]@{baseline=[ordered]@{};working=[ordered]@{};writeAuthorization=[ordered]@{}}}
+        $fallbackRequest=[pscustomobject]@{runId='fallback-test';scenario='fixture-intake';branch='codex/mounted-combat-feasibility';commit=('0'*40);productVersion='0.1.0-phase3b-dev.1';dllSha256=('a'*64);dllMvid=[Guid]::Empty.ToString();transactionToken=('b'*64);evidenceRoot=$fallbackEvidence;fixture=[ordered]@{baseline=[ordered]@{};working=[ordered]@{};writeAuthorization=[ordered]@{}}}
         $final=New-KmcRuntimeResultV2 -Request $fallbackRequest -ValidatedGameResult $null -StartedAtUtc ([DateTimeOffset]::UtcNow) -ModsRestored $true -BaselineImmutable $true -WorkingRestored $true -SaveWriteAllowlistPassed $true -RestoredSaveInventoryDigest ('c'*64) -GameResultSha256 $null -Errors @('synthetic missing game result')
         $manifestPath = Join-Path $fallbackEvidence 'runtime-artifacts.json'
         Assert-Test ([string]$final.status -ceq 'FAIL') 'missing game result did not force final FAIL'
@@ -4670,7 +4670,7 @@ try {
             working=[ordered]@{internalName='KMC_AUTOMATION_WORKING';fileName='Manual_2_KMC_AUTOMATION_WORKING.zks';sha256=('22'*32);length=1;lastWriteTimeUtcTicks=1;gameId='11111111-2222-3333-4444-555555555555';gameName='KMC Test Campaign';area='0123456789abcdef0123456789abcdef'}
             writeAuthorization=[ordered]@{mode='working-only';allowedInternalName='KMC_AUTOMATION_WORKING';allowedFileName='Manual_2_KMC_AUTOMATION_WORKING.zks';baselineImmutable=$true}
         }
-        $fallbackRequest=[pscustomobject]@{runId='combat-fallback-test';scenario='combat-core-control-suite';branch='codex/mounted-combat-phase2-alpha';commit=('0'*40);productVersion='0.1.0-phase3a-dev.2';dllSha256=('a'*64);dllMvid=[Guid]::Empty.ToString();transactionToken=('b'*64);evidenceRoot=$fallbackEvidence;fixture=$fallbackFixture}
+        $fallbackRequest=[pscustomobject]@{runId='combat-fallback-test';scenario='combat-core-control-suite';branch='codex/mounted-combat-phase2-alpha';commit=('0'*40);productVersion='0.1.0-phase3b-dev.1';dllSha256=('a'*64);dllMvid=[Guid]::Empty.ToString();transactionToken=('b'*64);evidenceRoot=$fallbackEvidence;fixture=$fallbackFixture}
         $originalError = 'synthetic attributed launcher failure'
         $final=New-KmcRuntimeResultV2 -Request $fallbackRequest -ValidatedGameResult $null -StartedAtUtc ([DateTimeOffset]::UtcNow) -ModsRestored $false -BaselineImmutable $false -WorkingRestored $false -SaveWriteAllowlistPassed $false -RestoredSaveInventoryDigest ('c'*64) -GameResultSha256 $null -Errors @($originalError)
         Assert-Test ([string]$final.status -ceq 'FAIL' -and @($final.errors).Count -eq 1 -and [string]$final.errors[0] -ceq $originalError) 'combat fallback masked or replaced the original launcher error'
@@ -4741,7 +4741,7 @@ try {
     $request = [ordered]@{
         schemaVersion = 1; runId = 'schema-test'; scenario = 'mod-load-smoke'
         branch = 'codex/mounted-combat-feasibility'; commit = '0123456789abcdef0123456789abcdef01234567'
-        productVersion = '0.1.0-phase3a-dev.2'; dllSha256 = ('ab' * 32)
+        productVersion = '0.1.0-phase3b-dev.1'; dllSha256 = ('ab' * 32)
         dllMvid = '07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'
         transactionToken = ('cd' * 32)
         evidenceRoot = (Join-Path $runtimeEvidenceTestRoot 'schema-test')
@@ -8914,6 +8914,65 @@ try {
         $horseManifest = Read-KmcJson (Join-Path $horseRoot 'runtime-artifacts.json')
         $horseSubresult = [pscustomobject]@{name='horse-native-asset-audit';status='PASS';assertionPassCount=1;assertionFailCount=0;errors=@()}
         Assert-KmcHorseNativeAssetAuditEvidence -Request $horseRequest -Manifest $horseManifest -Status PASS -SubscenarioResults @($horseSubresult)
+    }
+
+    Invoke-HarnessTest 'horse companion registration validator binds exact production snapshots and lease restoration' {
+        $registrationRoot = Join-Path $runtimeEvidenceTestRoot 'horse-companion-registration-validator'
+        New-Item -ItemType Directory -Path $registrationRoot -Force | Out-Null
+        $registrationRequest = [pscustomobject]@{
+            runId='horse-companion-registration-validator';scenario='horse-companion-blueprint-registration';branch='codex/mounted-combat-phase3-horse'
+            commit=('2'*40);productVersion='0.1.0-phase3b-dev.1';evidenceRoot=$registrationRoot
+        }
+        $initial = [ordered]@{
+            state=1;failure=$null;unitGuid='4016c7db400ab721ff125aef9e65e202';featureGuid='7db7c50677e39f09feef56f3831fc723'
+            upgradeGuid='98e651899e6278d938de77af1d69bd32';rangerSelectionGuid='ee63330662126374e8785cc901941ac7'
+            rangerOriginalOptionCount=7;rangerCurrentOptionCount=8;rangerAppendOwned=$true;rangerSelectionDesired=$true
+            nativeViewAssetId='5e0b93738ad54dd4ba101b3513ac4590';companionClassGuid=('3'*32)
+            levelRankGuid='1670990255e4fe948a863bafd5dbda5d';upgradeLevel=4;biteGuid=('4'*32);biteName='Bite1d4'
+            hoofGuid='b0e472a49ff2a294f93faa3ab757a4a5';hoofName='Hoof1d4';naturalAttackCount=3
+            unitComponentCount=1;upgradeComponentCount=2;strength=16;dexterity=13;constitution=15
+            intelligence=2;wisdom=12;charisma=6;speedFeet=50;size='Large'
+        }
+        $disabled = [ordered]@{}
+        $reenabled = [ordered]@{}
+        foreach ($pair in $initial.GetEnumerator()) { $disabled[$pair.Key]=$pair.Value; $reenabled[$pair.Key]=$pair.Value }
+        $disabled.rangerCurrentOptionCount=7;$disabled.rangerAppendOwned=$false;$disabled.rangerSelectionDesired=$false
+        $requiredAssertions = @(
+            'registration-state','initialized-blueprint-library','exact-library-identities','add-pet-contract',
+            'companion-class-contract','native-view-size-speed','base-ability-scores','natural-attack-loadout',
+            'rank-four-upgrade','localization-contract','ranger-append','exact-disable-restore','exact-reenable-append'
+        )
+        $assertions = @($requiredAssertions | ForEach-Object { [ordered]@{name=$_;status='PASS';detail="Synthetic exact contract for $_."} })
+        $registrationArtifact = [ordered]@{
+            schemaVersion=1;evidenceKind='horse-companion-blueprint-registration';runId=$registrationRequest.runId
+            scenario=$registrationRequest.scenario;branch=$registrationRequest.branch;commit=$registrationRequest.commit
+            productVersion=$registrationRequest.productVersion;createdAtUtc=[DateTimeOffset]::UtcNow.ToString('o')
+            initial=$initial;selectionDisabled=$disabled;selectionReenabled=$reenabled;assertions=$assertions
+            assertionPassCount=$assertions.Count;assertionFailCount=0;errors=@();status='PASS'
+        }
+        $registrationPath = Join-Path $registrationRoot 'horse-companion-blueprint-registration.json'
+        Write-KmcJsonDurable -Path $registrationPath -Value $registrationArtifact
+        $registrationRecord = [ordered]@{
+            relativePath='horse-companion-blueprint-registration.json';kind='horse-companion-blueprint-registration'
+            length=(Get-Item -LiteralPath $registrationPath).Length;sha256=(Get-KmcSha256 $registrationPath)
+        }
+        [void](New-TestArtifactManifest -EvidenceRoot $registrationRoot -RunId $registrationRequest.runId -Scenario $registrationRequest.scenario -Artifacts @($registrationRecord))
+        $registrationManifest = Read-KmcJson (Join-Path $registrationRoot 'runtime-artifacts.json')
+        $registrationSubresult = [pscustomobject]@{
+            name='horse-companion-blueprint-registration';status='PASS';assertionPassCount=$assertions.Count;assertionFailCount=0;errors=@()
+        }
+        Assert-KmcHorseCompanionBlueprintRegistrationEvidence -Request $registrationRequest -Manifest $registrationManifest -Status PASS -SubscenarioResults @($registrationSubresult)
+
+        $registrationArtifact.selectionDisabled.rangerCurrentOptionCount = 8
+        Write-KmcJsonAtomic -Path $registrationPath -Value $registrationArtifact
+        $registrationRecord.length=(Get-Item -LiteralPath $registrationPath).Length
+        $registrationRecord.sha256=(Get-KmcSha256 $registrationPath)
+        [void](New-TestArtifactManifest -EvidenceRoot $registrationRoot -RunId $registrationRequest.runId -Scenario $registrationRequest.scenario -Artifacts @($registrationRecord))
+        $mutatedManifest = Read-KmcJson (Join-Path $registrationRoot 'runtime-artifacts.json')
+        $threw = $false
+        try { Assert-KmcHorseCompanionBlueprintRegistrationEvidence -Request $registrationRequest -Manifest $mutatedManifest -Status PASS -SubscenarioResults @($registrationSubresult) }
+        catch { $threw = $true }
+        Assert-Test $threw 'horse companion registration validator accepted a false seven-option restore snapshot'
     }
 
     $resultPath = Join-Path $testRoot 'runtime-result.json'

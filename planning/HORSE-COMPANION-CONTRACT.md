@@ -64,3 +64,17 @@ Save truth: a selected KMC companion blueprint is necessarily referenced by the 
 ## Ranger integration transaction
 
 Registration must snapshot the exact stock selection array and append the horse feature once. Disable/unload may restore the exact in-process array only when it is still the KMC-produced value; it must not overwrite later changes by another mod. Duplicate registration is idempotent. A collision, missing stock contract, or third-party mutation ambiguity is a hard failure, not permission to replace the selection.
+
+## Implemented production checkpoint
+
+Version `0.1.0-phase3b-dev.1` implements the construction contract behind `HorseCompanionBlueprintService`:
+
+- original KMC unit/feature/upgrade definitions with the reserved GUIDs above;
+- exact native `CR1_HorseRiding` prefab/visual/speed and a proven stock companion class;
+- explicit Large size and base ability scores `16/13/15/2/12/6`;
+- one exact `Bite1d4` primary plus two exact `Hoof1d4` additional limbs;
+- stock `AddPet` with exact `AnimalCompanionRank` and a KMC-owned rank-4 upgrade containing only racial `+2 Strength` and `+2 Constitution`;
+- four KMC-owned localization keys and a native/fallback Kingmaker icon;
+- a reference-exact, append-only Ranger selection lease with compare-before-restore semantics.
+
+The offline contract is `PASS`: source `21/0`, Release, component `247/0`, visual/source-order `17/0`, harness `230/0`, assembly `335/0`, parsers `26/0` and `7/0`, and diff. Runtime registration and all actual companion lifecycle/play gates remain required.

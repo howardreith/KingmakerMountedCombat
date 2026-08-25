@@ -63,6 +63,26 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.EntitySystem.Persistence.SaveManager',0x06008012,'LoadZipSave'),@('Kingmaker.EntitySystem.Persistence.SaveManager',0x06008029,'SaveRoutine'),
         @('Kingmaker.EntitySystem.Persistence.SaveManager',0x0600802C,'LoadRoutine'),@('Kingmaker.EntitySystem.Persistence.SaveManager',0x06008030,'AddCallbackAfterLoad'),
         @('Kingmaker.Game',0x06000CE0,'LoadGame'),@('Kingmaker.Blueprints.BlueprintScriptableObject',0x06009637,'get_AssetGuidThreadSafe'),
+        @('Kingmaker.Blueprints.BlueprintScriptableObject',0x06009632,'get_ComponentsArray'),
+        @('Kingmaker.Blueprints.BlueprintScriptableObject',0x06009633,'set_ComponentsArray'),
+        @('Kingmaker.Blueprints.BlueprintScriptableObject',0x06009636,'set_AssetGuid'),
+        @('Kingmaker.Blueprints.ResourcesLibrary',0x060096FE,'get_LibraryObject'),
+        @('Kingmaker.Blueprints.LibraryScriptableObject',0x060096CA,'get_BlueprintsByAssetId'),
+        @('Kingmaker.Blueprints.Classes.Selection.BlueprintFeatureSelection',0x04006AE9,'AllFeatures'),
+        @('Kingmaker.Blueprints.BlueprintUnit',0x04005FFD,'m_Portrait'),
+        @('Kingmaker.Blueprints.Facts.BlueprintUnitFact',0x04006955,'m_DisplayName'),
+        @('Kingmaker.Blueprints.Facts.BlueprintUnitFact',0x04006956,'m_Description'),
+        @('Kingmaker.Blueprints.Facts.BlueprintUnitFact',0x04006957,'m_Icon'),
+        @('Kingmaker.Localization.LocalizedString',0x04004C56,'m_Key'),
+        @('Kingmaker.UnitLogic.FactLogic.AddPet',0x0400197B,'Pet'),
+        @('Kingmaker.UnitLogic.FactLogic.AddPet',0x0400197C,'LevelRank'),
+        @('Kingmaker.UnitLogic.FactLogic.AddPet',0x0400197D,'UpgradeFeature'),
+        @('Kingmaker.UnitLogic.FactLogic.AddPet',0x0400197E,'UpgradeLevel'),
+        @('Kingmaker.UnitLogic.FactLogic.AddPet',0x06002510,'TryUpdatePet'),
+        @('Kingmaker.Blueprints.Classes.AddClassLevels',0x040069CE,'CharacterClass'),
+        @('Kingmaker.Blueprints.Classes.AddClassLevels',0x040069D0,'Levels'),
+        @('Kingmaker.UnitLogic.UnitDescriptor',0x06001F17,'SetMaster'),
+        @('Kingmaker.UnitLogic.UnitDescriptor',0x06001F16,'RemoveMaster'),
         @('Kingmaker.ResourceLinks.WeakResourceLink`1',0x06007478,'Load'),
         @('Kingmaker.Controllers.Units.UnitMoveController',0x06009183,'Tick'),@('Kingmaker.View.UnitEntityView',0x0600184D,'MoveTo'),
         @('Kingmaker.View.UnitEntityView',0x06001848,'ForcePlaceAboveGround'),
@@ -278,6 +298,17 @@ if($Target-eq'Kingmaker'){
         $weakResourceLoadParameters.Count-eq1 -and $weakResourceLoadParameters[0].ParameterType.FullName-ceq'System.Boolean' -and
         $weakResourceLoadParameters[0].IsOptional -and $weakResourceLoadParameters[0].DefaultValue-eq$false) `
         'native WeakResourceLink<T>.Load(Boolean ignorePreloadWarning=false) view-observation seam'
+    $addPetUpdate=@(Find-Token 'Kingmaker.UnitLogic.FactLogic.AddPet' 0x06002510)
+    $addPetDeactivate=@(Find-Token 'Kingmaker.UnitLogic.FactLogic.AddPet' 0x0600250D)
+    $addPetLevel=@(Find-Token 'Kingmaker.UnitLogic.FactLogic.AddPet' 0x06002512)
+    Assert-Contract ($addPetUpdate.Count-eq1 -and $addPetUpdate[0] -is [Reflection.MethodInfo] -and
+        $addPetUpdate[0].IsPublic -and -not $addPetUpdate[0].IsStatic -and
+        $addPetUpdate[0].ReturnType.FullName-ceq'System.Void' -and $addPetUpdate[0].GetParameters().Count-eq0 -and
+        (Test-MethodIlContainsToken $addPetUpdate[0] 0x0600901F) -and
+        (Test-MethodIlContainsToken $addPetUpdate[0] 0x06001F17) -and
+        $addPetDeactivate.Count-eq1 -and (Test-MethodIlContainsToken $addPetDeactivate[0] 0x06001F16) -and
+        $addPetLevel.Count-eq1 -and (Test-MethodIlContainsToken $addPetLevel[0] 0x06009B1B)) `
+        'native AddPet owns spawn SetMaster level progression upgrade and RemoveMaster lifecycle'
     $globalRulebookHandler=$assembly.GetType('Kingmaker.PubSubSystem.IGlobalRulebookHandler`1',$false)
     $globalRulebookSubscriber=$assembly.GetType('Kingmaker.PubSubSystem.IGlobalRulebookSubscriber',$false)
     Assert-Contract ($null-ne$globalRulebookHandler -and $globalRulebookHandler.MetadataToken-eq0x02000DC3 -and

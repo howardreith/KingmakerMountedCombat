@@ -1,7 +1,7 @@
 [CmdletBinding(SupportsShouldProcess=$true,ConfirmImpact='High')]
 param(
     [ValidateSet(
-        'mod-load-smoke','export-mounted-contracts','export-candidate-mount-rigs','observe-mount-diagnostic-availability','horse-native-asset-audit',
+        'mod-load-smoke','export-mounted-contracts','export-candidate-mount-rigs','observe-mount-diagnostic-availability','horse-native-asset-audit','horse-companion-blueprint-registration',
         'player-action-availability','mount-dismount-user-flow',
         'mounted-pair-create-and-clear','mounted-pair-double-mount-rejected','mounted-pair-invalid-pair-rejected',
         'mounted-pair-cleanup-idempotent','mounted-pair-death-cleanup','mounted-pair-combat-start-cleanup',

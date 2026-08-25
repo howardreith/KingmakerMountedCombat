@@ -1,5 +1,9 @@
 # Autonomous blockers
 
+## No critical blocker; horse registration runtime gate active — 2026-08-25T19:44:49Z
+
+Status: IN PROGRESS. Production blueprint construction and exact Ranger append/restore logic pass every applicable offline gate at version `0.1.0-phase3b-dev.1`. The next gate is one clean, guarded, observation-only registration audit against the initialized Kingmaker library. That audit must pass exact external restoration before its evidence is read. Horse spawning, progression, unmounted play, and mounted-profile work remain unclaimed rather than blocked.
+
 ## Horse native-asset gate resolved — 2026-08-25T19:12:00Z
 
 Status: PASS. The sole repaired retry `20260825T180000Z-horse-native-asset-audit-repair-passB` passed `21/0`, and its immediate independent suite/save/Mods/process/lock/sentinel/deployment audit passed before evidence read. The pony is conclusively a distinct Medium prefab/rig without riding-seat geometry; the Large native `CR1_HorseRiding` view is selected. All reserved KMC GUIDs are unclaimed and the exact Ranger selection is bound. No asset, restoration, transaction, or production-construction blocker remains. Unmounted horse qualification is the next gate, not a blocker.
