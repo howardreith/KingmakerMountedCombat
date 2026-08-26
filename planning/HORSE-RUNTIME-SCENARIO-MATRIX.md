@@ -1,5 +1,7 @@
 # Horse runtime scenario matrix
 
+Superseding status (2026-08-25T23:15:42Z): IN PROGRESS — first aggregate is historical restored `FAIL 22/1`; one exact dev.3 progression-repair retry remains before mounted-profile admission.
+
 Superseding status (2026-08-25T21:29:32Z): IN PROGRESS — native asset audit credited; unmounted aggregate implemented but not yet runtime-credited.
 
 Status: TODO — scenario contracts defined; runtime evidence not yet credited

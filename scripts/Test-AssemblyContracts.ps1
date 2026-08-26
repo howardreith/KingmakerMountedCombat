@@ -82,6 +82,9 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.UnitLogic.FactLogic.AddPet',0x06002510,'TryUpdatePet'),
         @('Kingmaker.Blueprints.Classes.AddClassLevels',0x040069CE,'CharacterClass'),
         @('Kingmaker.Blueprints.Classes.AddClassLevels',0x040069D0,'Levels'),
+        @('Kingmaker.Blueprints.Classes.AddClassLevels',0x06009B1B,'LevelUp'),
+        @('Kingmaker.Blueprints.Classes.AddClassLevels',0x06009B1C,'LevelUp'),
+        @('Kingmaker.ElementsSystem.ElementsContext',0x060083E5,'GetData'),
         @('Kingmaker.UnitLogic.UnitDescriptor',0x06001F17,'SetMaster'),
         @('Kingmaker.UnitLogic.UnitDescriptor',0x06001F16,'RemoveMaster'),
         @('Kingmaker.UnitLogic.UnitDescriptor',0x06001F12,'ResurrectAndFullRestore'),
@@ -314,6 +317,18 @@ if($Target-eq'Kingmaker'){
         $addPetDeactivate.Count-eq1 -and (Test-MethodIlContainsToken $addPetDeactivate[0] 0x06001F16) -and
         $addPetLevel.Count-eq1 -and (Test-MethodIlContainsToken $addPetLevel[0] 0x06009B1B)) `
         'native AddPet owns spawn SetMaster level progression upgrade and RemoveMaster lifecycle'
+    $addClassLevelsPublic=@(Find-Token 'Kingmaker.Blueprints.Classes.AddClassLevels' 0x06009B1B)
+    $addClassLevelsPrivate=@(Find-Token 'Kingmaker.Blueprints.Classes.AddClassLevels' 0x06009B1C)
+    $defaultBuildData=$assembly.GetType('Kingmaker.Assets.UI.LevelUp.DefaultBuildData',$false)
+    $elementsContextGetData=@(Find-Token 'Kingmaker.ElementsSystem.ElementsContext' 0x060083E5)
+    Assert-Contract ($addClassLevelsPublic.Count-eq1 -and $addClassLevelsPublic[0].IsPublic -and
+        -not $addClassLevelsPublic[0].IsStatic -and $addClassLevelsPublic[0].GetParameters().Count-eq2 -and
+        $addClassLevelsPrivate.Count-eq1 -and $addClassLevelsPrivate[0].IsPrivate -and
+        $addClassLevelsPrivate[0].GetParameters().Count-eq3 -and
+        $null-ne$defaultBuildData -and $defaultBuildData.MetadataToken-eq0x02001761 -and
+        $elementsContextGetData.Count-eq1 -and $elementsContextGetData[0].IsPublic -and
+        $elementsContextGetData[0].IsStatic -and $elementsContextGetData[0].IsGenericMethodDefinition) `
+        'native AddClassLevels public level update and DefaultBuildData context boundary'
     $globalRulebookHandler=$assembly.GetType('Kingmaker.PubSubSystem.IGlobalRulebookHandler`1',$false)
     $globalRulebookSubscriber=$assembly.GetType('Kingmaker.PubSubSystem.IGlobalRulebookSubscriber',$false)
     Assert-Contract ($null-ne$globalRulebookHandler -and $globalRulebookHandler.MetadataToken-eq0x02000DC3 -and

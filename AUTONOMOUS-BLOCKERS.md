@@ -1,5 +1,11 @@
 # Autonomous blockers
 
+## No critical blocker; one exact unmounted progression retry pending — 2026-08-25T23:15:42Z
+
+Status: IN PROGRESS. Dev.2 aggregate `20260825T222800Z-horse-companion-unmounted-passA` is preserved historical `FAIL 22/1` with exact audit-before-read restoration. Its only failure was live level `1` at owner rank `4`; creation, reciprocal ownership, direct control, rank-4 upgrade, native view/statistics, selection, and cleanup passed. Installed contracts support a narrow one-shot native retry after the activation stack and outside `DefaultBuildData`; dev.3 enforces exact horse/ownership/deficit/attempt guards and records both paths. Offline component and harness gates are green. One fresh immutable package/suite/WhatIf and one audited aggregate retry remain before mounted-profile work. This is an attributable, bounded production repair—not an external-state, architecture, or safety blocker.
+
+This supersedes the aggregate-gate state below. The dev.2 failure is not relabeled.
+
 ## No critical blocker; aggregate unmounted runtime gate active — 2026-08-25T21:29:32Z
 
 Status: IN PROGRESS. The first registration process is preserved as `FAIL 12/1`, but exact runtime/decompiled stock Mammoth and Dog evidence establishes an observer defect rather than a horse construction failure: all three blueprint class components begin at zero and native `AddPet` owns rank-driven leveling. The corrected observer, Bite/Hoof stock-enumeration repair, exact respec cleanup, aggregate unmounted scenario, strict validator, and new assembly pins pass all current offline gates. One clean package/suite/WhatIf and one audited unmounted process remain before mounted-profile work. Actual disk save/reload is a declared final human gate under the repository's crash-safe save restriction, not a concealed automated PASS.

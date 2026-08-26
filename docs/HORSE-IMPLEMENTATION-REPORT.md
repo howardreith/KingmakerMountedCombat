@@ -9,8 +9,8 @@ Status: IN PROGRESS
 - accepted Mammoth implementation: `1241222459209aea1e6127bedd7d630df3940b99`
 - inherited Phase 2 product version: `0.1.0-phase2b-dev.1`
 - credited Horse Tranche A audit version: `0.1.0-phase3a-dev.2`
-- active Horse Tranche B version: `0.1.0-phase3b-dev.2`
-- current version-bound offline gates: source `21/0`, Release, component `248/0`, visual/source-order `17/0`, harness `231/0`, assembly `340/0` (`316` Kingmaker + `24` Wrath), PowerShell parser `26/0`, JSON parser `7/0`, diff, and prohibited-payload validation; clean package and runtime gates remain pending
+- active Horse Tranche B version: `0.1.0-phase3b-dev.3`
+- current version-bound offline gates: source `21/0`, Release, component `250/0`, visual/source-order `17/0`, harness `231/0`, assembly `344/0` (`320` Kingmaker + `24` Wrath), PowerShell parser `26/0`, JSON parser `7/0`, diff, and prohibited-payload validation; clean package and runtime gates remain pending
 
 Phase 2 remains accepted with its documented private-alpha limitations. Horse work does not retroactively claim stock right-click mounted attacks, mounted auto-attack, unified Wrath-style turns, animated Mammoth TB locomotion, or public-release quality.
 
@@ -24,7 +24,9 @@ The resulting decision is exact: `PonySummoned` is a separate Medium `Pony_02` p
 
 The first registration run `20260825T195200Z-horse-companion-registration-passA` is preserved historical `FAIL 12/1` with exact restoration. Its only failure was an observer assumption: stock Mammoth and Dog blueprint class components also begin at zero, and native `AddPet` performs rank-driven runtime leveling. Dev.2 corrects that comparison, makes stock UnitAttack enumerate Bite then two Hooves, and removes only an exact KMC horse after native respec deactivation clears ownership.
 
-One bounded `horse-companion-unmounted-suite` now exercises corrected registration, live creation/progression/ownership, selection/movement, RT/TB natural attack cardinality, death/recovery, respec, uninstall surface, non-horse isolation, and exact internal restoration. It is offline-green but has not yet run from a clean published package. Actual disk save/reload is explicitly reserved for final manual review because guarded automation may not enter Kingmaker's crash-unsafe temporary-save write path.
+The first aggregate run `20260825T222800Z-horse-companion-unmounted-passA` is immutable historical `FAIL 22/1`; its immediate independent audit passed exact external restoration before gameplay evidence was read. Registration passed `13/0`, and the unmounted row passed creation, reciprocal ownership, direct control, rank-4 upgrade, native view/statistics, selection, and exact cleanup. Its sole failure observed character level `1` where installed `AddPet` maps rank 4 to level 4.
+
+Installed `AddPet`/`AddClassLevels` inspection identifies a narrow non-exception boundary that can explain the observation: an activation-stack `DefaultBuildData` context diverts levels into a plan instead of committing the live descriptor. Dev.3 keeps native spawn/ownership/rank/upgrade logic, then permits at most one later exact native `TryUpdatePet` after that context is absent. Exact horse identity, reciprocal ownership, expected rank deficit, and a zero prior-attempt count are all mandatory. The aggregate suite records activation/deferred levels and context state so the retry can confirm or reject that theory while remaining fail-closed. A fresh immutable dev.3 package and one audited retry are pending.
 
 ## Implementation ledger
 
@@ -41,4 +43,4 @@ One bounded `horse-companion-unmounted-suite` now exercises corrected registrati
 | Mammoth regression | TODO | required only after relevant shared changes |
 | Paladin Divine Steed | DESIGN ONLY | `docs/PALADIN-DIVINE-STEED-DESIGN.md` |
 
-No horse package or runtime claim exists yet.
+The dev.2 package and restored partial runtime observation are historical inputs. No technically qualified horse playtest package exists yet.

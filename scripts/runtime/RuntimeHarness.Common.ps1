@@ -4977,7 +4977,10 @@ function Assert-KmcHorseCompanionUnmountedEvidence {
         }
         $observationNames = @(
             'originalPause','originalTurnBased','originalSelectionCount','saveLoadAutomationScope','ownerId','ownerBlueprintGuid',
-            'horseId','horseBlueprintGuid','characterLevel','rank','upgradeRank','runtimeSize','speedFeet','hitPoints','armorClass',
+            'horseId','horseBlueprintGuid','characterLevel','expectedCharacterLevel','rank','upgradeRank',
+            'activationDefaultBuildContextPresent','activationCharacterLevelAfterNativeTry','deferredNativeAttempts',
+            'defaultBuildContextWaitFrames','lastDeferredDefaultBuildContextPresent','deferredCharacterLevelBefore',
+            'deferredCharacterLevelAfter','deferredProgressionSynchronized','runtimeSize','speedFeet','hitPoints','armorClass',
             'movementDisplacement','movementRemainingDistance','ownerDisplacementDuringHorseMove','fullAttackWeaponGuids',
             'realTimeAttackWeaponGuid','realTimeAttackRules','realTimeAttackRolls','realTimeDamageRules','realTimeDamage',
             'turnBasedAttackWeaponGuid','turnBasedAttackRules','turnBasedAttackRolls','turnBasedDamageRules','turnBasedDamage',
@@ -4986,8 +4989,26 @@ function Assert-KmcHorseCompanionUnmountedEvidence {
         )
         Assert-KmcExactProperties $artifact.observations $observationNames 'horse unmounted observations'
         $o = $artifact.observations
+        $deferredShape =
+            ([long]$o.deferredNativeAttempts -eq 0 -and
+             [long]$o.activationCharacterLevelAfterNativeTry -eq 4 -and
+             [long]$o.deferredCharacterLevelBefore -eq 4 -and
+             [long]$o.deferredCharacterLevelAfter -eq 4) -or
+            ([long]$o.deferredNativeAttempts -eq 1 -and
+             [long]$o.deferredCharacterLevelBefore -ge 1 -and
+             [long]$o.deferredCharacterLevelBefore -lt 4 -and
+             [long]$o.deferredCharacterLevelAfter -eq 4 -and
+             $o.lastDeferredDefaultBuildContextPresent -eq $false)
         if ([string]$o.horseBlueprintGuid -cne '4016c7db400ab721ff125aef9e65e202' -or
-            [long]$o.characterLevel -ne 4 -or [long]$o.rank -ne 4 -or [long]$o.upgradeRank -ne 1 -or
+            [long]$o.characterLevel -ne 4 -or [long]$o.expectedCharacterLevel -ne 4 -or
+            [long]$o.rank -ne 4 -or [long]$o.upgradeRank -ne 1 -or
+            $o.activationDefaultBuildContextPresent -isnot [bool] -or
+            [long]$o.activationCharacterLevelAfterNativeTry -lt 1 -or
+            [long]$o.activationCharacterLevelAfterNativeTry -gt 4 -or
+            [long]$o.deferredNativeAttempts -lt 0 -or [long]$o.deferredNativeAttempts -gt 1 -or
+            [long]$o.defaultBuildContextWaitFrames -lt 0 -or [long]$o.defaultBuildContextWaitFrames -gt 300 -or
+            $o.lastDeferredDefaultBuildContextPresent -isnot [bool] -or
+            $o.deferredProgressionSynchronized -ne $true -or -not $deferredShape -or
             [string]$o.runtimeSize -cne 'Large' -or [long]$o.speedFeet -ne 50 -or
             [long]$o.hitPoints -le 0 -or [long]$o.armorClass -le 0 -or
             [double]$o.movementDisplacement -lt 1.0 -or [double]$o.movementRemainingDistance -gt 0.75 -or

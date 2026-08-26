@@ -69,7 +69,7 @@ Registration must snapshot the exact stock selection array and append the horse 
 
 ## Implemented production checkpoint
 
-Version `0.1.0-phase3b-dev.2` implements the construction and first unmounted-runtime contracts behind `HorseCompanionBlueprintService`:
+Version `0.1.0-phase3b-dev.3` implements the construction and first unmounted-runtime contracts behind `HorseCompanionBlueprintService`:
 
 - original KMC unit/feature/upgrade definitions with the reserved GUIDs above;
 - exact native `CR1_HorseRiding` prefab/visual/speed and a proven stock companion class;
@@ -77,8 +77,9 @@ Version `0.1.0-phase3b-dev.2` implements the construction and first unmounted-ru
 - hands-enabled stock attack enumeration with one exact `Bite1d4` primary/empty-hand weapon plus two exact `Hoof1d4` additional limbs;
 - stock `AddPet` with exact `AnimalCompanionRank` and a KMC-owned rank-4 upgrade containing only racial `+2 Strength` and `+2 Constitution`;
 - exact zero-level blueprint bootstrap parity with the stock Mammoth and Dog, followed by native `AddPet` rank-to-level application after spawn;
+- one bounded deferred invocation of the exact native `AddPet.TryUpdatePet` only when the exact owned KMC horse remains below the installed rank mapping and no `DefaultBuildData` context exists; a second attempt, another pet, ambiguous ownership, or an already synchronized horse is rejected;
 - a narrow `HorseCompanionAddPet` deactivation extension that first invokes stock master removal and then destroys only the exact KMC horse, preventing respec orphan residue;
 - four KMC-owned localization keys and a native/fallback Kingmaker icon;
 - a reference-exact, append-only Ranger selection lease with compare-before-restore semantics.
 
-The current offline contract is `PASS`: source `21/0`, Release, component `248/0`, visual/source-order `17/0`, harness `231/0`, assembly `340/0`, PowerShell parser `26/0`, JSON parser `7/0`, diff, and prohibited-payload validation. The preserved first registration run is historical `FAIL 12/1` solely because the obsolete observer required positive blueprint class levels. One clean aggregate unmounted runtime process remains required; actual disk save/reload stays human-gated under the guarded harness's crash-safe save restriction.
+The current offline contract is `PASS`: source `21/0`, Release, component `250/0`, visual/source-order `17/0`, harness `231/0`, assembly `344/0` (`320` Kingmaker + `24` Wrath), PowerShell parser `26/0`, JSON parser `7/0`, diff, and prohibited-payload validation. The preserved registration run is historical `FAIL 12/1` solely because its obsolete observer required positive blueprint class levels. The first aggregate dev.2 run is historical `FAIL 22/1`: rank-4 upgrade and all pre-progression ownership/control gates passed, but live class level remained 1. Its exact restoration passed. One clean dev.3 aggregate retry remains required; actual disk save/reload stays human-gated under the guarded harness's crash-safe save restriction.

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using Kingmaker;
 using Kingmaker.Blueprints;
 using Kingmaker.Blueprints.Classes;
 using Kingmaker.Blueprints.Classes.Selection;
@@ -10,6 +11,7 @@ using Kingmaker.Blueprints.Items.Weapons;
 using Kingmaker.EntitySystem.Stats;
 using Kingmaker.Enums;
 using Kingmaker.Localization;
+using Kingmaker.UnitLogic;
 using Kingmaker.UnitLogic.FactLogic;
 using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Logging;
@@ -135,6 +137,11 @@ namespace KingmakerMountedCombat.Integration
         public void Update()
         {
             if (disposed) { return; }
+            if (state == HorseCompanionBlueprintState.Registered)
+            {
+                SynchronizeLiveHorseCompanionProgression();
+                return;
+            }
             if (state != HorseCompanionBlueprintState.Pending) { return; }
             LibraryScriptableObject library = null;
             try
@@ -164,6 +171,39 @@ namespace KingmakerMountedCombat.Integration
                 }
                 state = HorseCompanionBlueprintState.Faulted;
                 logger.Exception("Horse companion blueprint registration", exception);
+            }
+        }
+
+        private void SynchronizeLiveHorseCompanionProgression()
+        {
+            var player = Game.Instance?.Player;
+            if (player?.PartyCharacters == null || horseFeature == null) { return; }
+
+            foreach (var reference in player.PartyCharacters)
+            {
+                var owner = reference.Value;
+                var fact = owner?.Descriptor?.GetFact(horseFeature);
+                var addPet = fact?.Get<HorseCompanionAddPet>();
+                if (addPet == null || !addPet.DeferredProgressionPending) { continue; }
+
+                try
+                {
+                    addPet.TryDeferredProgressionSynchronization();
+                    if (addPet.TryMarkDeferredProgressionFailureReported())
+                    {
+                        logger.Error(
+                            "The exact KMC horse remained below its native AddPet rank mapping after the one bounded deferred retry: owner=" +
+                            owner.UniqueId + ", expected=" + addPet.ExpectedCharacterLevel +
+                            ", observed=" + addPet.DeferredCharacterLevelAfter + ".");
+                    }
+                }
+                catch (Exception exception)
+                {
+                    if (addPet.TryMarkDeferredProgressionFailureReported())
+                    {
+                        logger.Exception("Deferred exact KMC horse AddPet synchronization", exception);
+                    }
+                }
             }
         }
 

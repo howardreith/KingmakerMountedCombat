@@ -273,14 +273,28 @@ namespace KingmakerMountedCombat.Diagnostics
             horse = owner?.Descriptor?.Pet;
             if (horse == null || !horse.IsInState || horse.View == null || horse.View.AgentASP == null) { return; }
 
+            var companionAddPet = horseFeatureFact?.Get<HorseCompanionAddPet>();
+            if (companionAddPet != null && companionAddPet.DeferredProgressionPending) { return; }
+
             horseId = horse.UniqueId;
             var player = Game.Instance.Player;
             var upgrade = horse.Descriptor.GetFact(service.HorseUpgrade);
             observations["horseId"] = horseId;
             observations["horseBlueprintGuid"] = horse.Blueprint?.AssetGuid;
             observations["characterLevel"] = horse.Descriptor.Progression.CharacterLevel;
+            observations["expectedCharacterLevel"] = companionAddPet?.ExpectedCharacterLevel ?? -1;
             observations["rank"] = rankFact.GetRank();
             observations["upgradeRank"] = upgrade?.GetRank() ?? 0;
+            observations["activationDefaultBuildContextPresent"] = companionAddPet?.ActivationDefaultBuildContextPresent ?? false;
+            observations["activationCharacterLevelAfterNativeTry"] = companionAddPet?.ActivationCharacterLevelAfterNativeTry ?? -1;
+            observations["deferredNativeAttempts"] = companionAddPet?.DeferredNativeAttempts ?? -1;
+            observations["defaultBuildContextWaitFrames"] = companionAddPet?.DefaultBuildContextWaitFrames ?? -1;
+            observations["lastDeferredDefaultBuildContextPresent"] = companionAddPet?.LastDeferredDefaultBuildContextPresent ?? false;
+            observations["deferredCharacterLevelBefore"] = companionAddPet?.DeferredCharacterLevelBefore ?? -1;
+            observations["deferredCharacterLevelAfter"] = companionAddPet?.DeferredCharacterLevelAfter ?? -1;
+            observations["deferredProgressionSynchronized"] = companionAddPet != null &&
+                                                               !companionAddPet.DeferredProgressionPending &&
+                                                               !companionAddPet.DeferredProgressionFailed;
             observations["runtimeSize"] = horse.Descriptor.State.Size.ToString();
             observations["speedFeet"] = horse.Blueprint.Speed.Value;
             observations["hitPoints"] = (int)horse.Stats.HitPoints;
@@ -294,10 +308,13 @@ namespace KingmakerMountedCombat.Diagnostics
                     player.ControllableCharacters.Contains(horse) && !player.PartyCharacters.Any(item => item.Value == horse),
                 "party-control-surface",
                 "The horse is directly controllable through the native pet surface without becoming a duplicate party character.");
-            Check(horse.Descriptor.Progression.CharacterLevel == 4 && rankFact.GetRank() == 4 &&
+            Check(companionAddPet != null && companionAddPet.ExpectedCharacterLevel == 4 &&
+                    horse.Descriptor.Progression.CharacterLevel == 4 && rankFact.GetRank() == 4 &&
+                    !companionAddPet.DeferredProgressionPending && !companionAddPet.DeferredProgressionFailed &&
+                    companionAddPet.DeferredNativeAttempts <= HorseCompanionProgressionPolicy.MaximumDeferredNativeAttempts &&
                     upgrade != null && upgrade.GetRank() == 1,
                 "rank-progression-and-upgrade",
-                "Stock AddPet mapped rank 4 to animal-companion level 4 and applied the KMC rank-4 upgrade once.");
+                "Stock AddPet mapped rank 4 to animal-companion level 4 and applied the KMC rank-4 upgrade once; any activation-stack deferral used at most one later exact native update outside DefaultBuildData.");
             Check(horse.Descriptor.State.Size == Size.Large && horse.Blueprint.Speed.Value == 50 &&
                     string.Equals(horse.Blueprint.Prefab?.AssetId, "5e0b93738ad54dd4ba101b3513ac4590", StringComparison.Ordinal) &&
                     (int)horse.Stats.HitPoints > 0 && (int)horse.Stats.AC > 0,

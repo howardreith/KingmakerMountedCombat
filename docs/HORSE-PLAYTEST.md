@@ -1,5 +1,7 @@
 # Horse private-alpha playtest
 
+Technical note (2026-08-25T23:15:42Z): dev.2 aggregate `20260825T222800Z-horse-companion-unmounted-passA` remains historical `FAIL 22/1` with exact external restoration. It is not a playtest artifact. Dev.3's single guarded native progression retry must pass before this checklist is activated.
+
 Status: TODO — do not use until an exact qualified package is recorded below
 
 ## Artifact identity
@@ -33,4 +35,3 @@ Before uninstalling a save that selected the KMC horse companion, respec to a st
 - repeat the focused Mammoth controls to detect shared-subsystem regression.
 
 Report visual feel separately from rule/control failures. Horse acceptance does not authorize Paladin Divine Steed or merge to `main`.
-
