@@ -1,5 +1,13 @@
 # Autonomous blockers
 
+## No critical blocker; native-turn-settlement aggregate retry pending - 2026-08-26T18:27:24Z
+
+Status: IN PROGRESS. Dev.12 aggregate `20260826T171000Z-horse-mounted-dev12-passA` is immutable historical restored `FAIL 32/1`: registration passed `13/0`, the horse aggregate passed `19/1`, and every reached unmounted contract through exact TB Standard-slot admission plus exact cleanup/isolation passed. Its only failure was the still-unstarted TB Bite being interrupted by the scenario's one post-dispatch `StartTurn` recovery. Exact installed controller code proves that recovery raced the private native next-unit queue and then disposed the admitted command itself. Dev.13 waits for a native current turn to settle before requesting the diagnostic horse/rider turn, prohibits all post-dispatch turn restarts, and changes no production behavior. Complete offline gates pass `21/Release/253/17/232/349`, parsers pass `28/0` and `7/0`; one clean audited aggregate remains. No external-state, horse-product, Mammoth, architecture, or safety blocker is established.
+
+The immediate independent audit passed before evidence interpretation: exact suite/save/Mods/Baseline/Working continuity, all restoration booleans, and zero process/lock/sentinel/live-KMC residue.
+
+This supersedes the stable-turn retry state below. Dev.12 is not relabeled.
+
 ## No critical blocker; stable exact horse-turn retry pending - 2026-08-26T15:03:02Z
 
 Status: IN PROGRESS. Dev.10 aggregate `20260826T142426Z-horse-companion-unmounted-dev10-passJ` is immutable historical restored `FAIL 32/1`: registration passed `13/0`, unmounted behavior passed `19/1`, and exact TB command admission passed. Its sole failure was the start-eligible Bite remaining queued after the native controller's preexisting next-unit handoff replaced the first public diagnostic `StartTurn`. Exact installed code establishes the cause. Dev.11 requires a two-frame stable exact horse turn and reasserts it at most once only after observing that replacement; both acquisition and execution remain bounded to 20 seconds. Full local gates pass. One clean dev.11 package/suite/WhatIf and one audited aggregate remain. No external-state, production-combat, Mammoth, architecture, or safety blocker exists.

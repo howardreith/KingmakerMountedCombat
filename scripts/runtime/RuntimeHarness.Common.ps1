@@ -5093,10 +5093,9 @@ function Assert-KmcHorseCompanionUnmountedEvidence {
             [long]$o.turnBasedAttackRules -ne 1 -or [long]$o.turnBasedAttackRolls -ne 1 -or
             [long]$o.turnBasedDamageRules -ne 1 -or [long]$o.turnBasedDamage -le 0 -or
             ([long]$artifact.schemaVersion -ge 2 -and
-             ([long]$o.realTimeForcedD20Count -lt 1 -or [long]$o.realTimeUnexpectedPairAttackCount -ne 0 -or
-              [long]$o.turnBasedForcedD20Count -lt 1 -or [long]$o.turnBasedUnexpectedPairAttackCount -ne 0 -or
-              [long]$o.turnBasedPostDispatchStartTurnRequestCount -lt 0 -or
-              [long]$o.turnBasedPostDispatchStartTurnRequestCount -gt 1)) -or
+              ([long]$o.realTimeForcedD20Count -lt 1 -or [long]$o.realTimeUnexpectedPairAttackCount -ne 0 -or
+               [long]$o.turnBasedForcedD20Count -lt 1 -or [long]$o.turnBasedUnexpectedPairAttackCount -ne 0 -or
+               [long]$o.turnBasedPostDispatchStartTurnRequestCount -ne 0)) -or
             $o.targetCleanupExact -ne $true -or [long]$o.lethalDamage -le 0 -or [long]$o.recoveredDamage -ne 0 -or
             $o.finalPause -ne $o.originalPause -or $o.finalTurnBased -ne $o.originalTurnBased -or
             [long]$o.finalSelectionCount -ne [long]$o.originalSelectionCount -or
@@ -5133,8 +5132,7 @@ function Assert-KmcHorseCompanionUnmountedEvidence {
                 [double]$o.mountedTurnHorseDisplacement -lt 0.75 -or
                 [double]$o.mountedTurnTargetDisplacement -gt 0.25 -or
                 [long]$o.mountedTurnDriveCount -le 0 -or
-                [long]$o.mountedTurnPostDispatchReassertions -lt 0 -or
-                [long]$o.mountedTurnPostDispatchReassertions -gt 1 -or
+                [long]$o.mountedTurnPostDispatchReassertions -ne 0 -or
                 [string]$o.horsePresentationAfterTurnBasedRestore -cnotmatch 'turnBased=False' -or
                 [long]$o.mountedRiderAttackRules -ne 1 -or [long]$o.mountedRiderAttackRolls -ne 1 -or
                 [long]$o.mountedRiderDamageRules -ne 1 -or

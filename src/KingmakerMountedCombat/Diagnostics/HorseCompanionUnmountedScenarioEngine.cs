@@ -105,7 +105,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool turnStarted;
         private double turnBasedTurnAcquisitionStartedAtSeconds;
         private int turnBasedStartTurnRequestCount;
-        private int turnBasedPostDispatchStartTurnRequestCount;
+        private const int TurnBasedPostDispatchStartTurnRequestCount = 0;
+        private int turnBasedNativeTurnStableFrames;
         private int turnBasedStableReadyFrames;
         private bool mountedAlphaStarted;
         private bool mountedAlphaDismounted;
@@ -114,8 +115,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private Vector3 mountedRealTimeHorseStart;
         private Vector3 mountedRealTimeDestination;
         private int mountedRiderTurnStartRequests;
+        private int mountedNativeTurnStableFrames;
         private int mountedRiderTurnStableFrames;
-        private int mountedPostMoveTurnReassertions;
+        private const int MountedPostMoveTurnReassertions = 0;
         private Vector3 mountedTurnRiderStart;
         private Vector3 mountedTurnHorseStart;
         private Vector3 mountedTurnTargetStart;
@@ -570,6 +572,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
             turnBasedModeProbe = new NativeModeTransitionProbe(true);
             turnBasedModeProbe.DispatchTemporaryValueIfRequired();
+            turnBasedTurnAcquisitionStartedAtSeconds = clock.Elapsed.TotalSeconds;
+            turnBasedNativeTurnStableFrames = 0;
             step = EngineStep.AwaitTurnBasedMode;
         }
 
@@ -655,8 +659,31 @@ namespace KingmakerMountedCombat.Diagnostics
             if (!CombatController.IsInTurnBasedCombat() || controller == null || !controller.Initialized ||
                 !ContainsTurnRosterUnit(controller, horse) || !ContainsTurnRosterUnit(controller, target))
             {
+                turnBasedNativeTurnStableFrames = 0;
                 return;
             }
+            if (clock.Elapsed.TotalSeconds - turnBasedTurnAcquisitionStartedAtSeconds >
+                TurnBasedTurnAcquisitionTimeoutSeconds)
+            {
+                Fail("turn-based-native-turn-deadline",
+                    "The native controller did not settle its initial queued turn within the bounded 20-second leaf.");
+                BeginCleanup();
+                return;
+            }
+
+            var nativeTurn = controller.CurrentTurn;
+            if (nativeTurn == null ||
+                (nativeTurn.Status != TurnController.TurnStatus.Preparing && !nativeTurn.IsActing))
+            {
+                turnBasedNativeTurnStableFrames = 0;
+                return;
+            }
+            turnBasedNativeTurnStableFrames++;
+            if (turnBasedNativeTurnStableFrames < 2)
+            {
+                return;
+            }
+
             Check(ContainsTurnRosterUnit(controller, owner) && relationship.State == RelationshipState.Unmounted,
                 "turn-based-roster",
                 "Owner, horse, and target entered the native turn roster while KMC remained unmounted.");
@@ -766,24 +793,6 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (!turnBasedAttack.IsFinished)
             {
-                var controller = Game.Instance?.TurnBasedCombatController;
-                var exactHealthyPendingCommand = !turnBasedAttack.IsStarted &&
-                    turnBasedAttack.Result == UnitCommand.ResultType.None &&
-                    turnBasedAttack.CanStart &&
-                    horse?.Commands != null &&
-                    ReferenceEquals(horse.Commands.Standard, turnBasedAttack);
-                if (controller != null && controller.CurrentTurn?.Unit != horse &&
-                    exactHealthyPendingCommand && turnBasedPostDispatchStartTurnRequestCount == 0)
-                {
-                    // The native next-unit handoff queued during turn-mode entry can
-                    // land immediately after the exact command is admitted. Preserve
-                    // that command reference and reassert only its owning horse turn
-                    // once; do not recreate, replace, or relax the command.
-                    controller.StartTurn(horse);
-                    turnBasedPostDispatchStartTurnRequestCount++;
-                    observations["turnBasedPostDispatchStartTurnRequestCount"] =
-                        turnBasedPostDispatchStartTurnRequestCount;
-                }
                 if (clock.Elapsed.TotalSeconds - turnBasedAttackIssuedAtSeconds <= TurnBasedAttackTimeoutSeconds)
                 {
                     return;
@@ -806,7 +815,7 @@ namespace KingmakerMountedCombat.Diagnostics
             observations["turnBasedUnexpectedPairAttackCount"] = ruleProbe.UnexpectedPairAttackCount;
             observations["turnBasedDamage"] = ruleProbe.TotalDamage;
             observations["turnBasedPostDispatchStartTurnRequestCount"] =
-                turnBasedPostDispatchStartTurnRequestCount;
+                TurnBasedPostDispatchStartTurnRequestCount;
             var exactOutcome = turnBasedAttack.Result == UnitCommand.ResultType.Success &&
                 turnBasedAttack.IsStarted && turnBasedAttack.IsActed &&
                 ruleProbe.AttackRuleCount == 1 && ruleProbe.AttackRollCount == 1 &&
@@ -1027,6 +1036,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
             turnBasedModeProbe = new NativeModeTransitionProbe(true);
             turnBasedModeProbe.DispatchTemporaryValueIfRequired();
+            turnBasedTurnAcquisitionStartedAtSeconds = clock.Elapsed.TotalSeconds;
+            mountedNativeTurnStableFrames = 0;
             step = EngineStep.AwaitMountedTurnBasedMode;
         }
 
@@ -1038,8 +1049,31 @@ namespace KingmakerMountedCombat.Diagnostics
                 !ContainsTurnRosterUnit(controller, owner) || !ContainsTurnRosterUnit(controller, horse) ||
                 !ContainsTurnRosterUnit(controller, target))
             {
+                mountedNativeTurnStableFrames = 0;
                 return;
             }
+            if (clock.Elapsed.TotalSeconds - turnBasedTurnAcquisitionStartedAtSeconds >
+                TurnBasedTurnAcquisitionTimeoutSeconds)
+            {
+                Fail("mounted-native-turn-deadline",
+                    "The native controller did not settle its initial queued mounted-combat turn within the bounded 20-second leaf.");
+                BeginCleanup();
+                return;
+            }
+
+            var nativeTurn = controller.CurrentTurn;
+            if (nativeTurn == null ||
+                (nativeTurn.Status != TurnController.TurnStatus.Preparing && !nativeTurn.IsActing))
+            {
+                mountedNativeTurnStableFrames = 0;
+                return;
+            }
+            mountedNativeTurnStableFrames++;
+            if (mountedNativeTurnStableFrames < 2)
+            {
+                return;
+            }
+
             Check(relationship.State == RelationshipState.Mounted &&
                     relationship.Rider == owner && relationship.Mount == horse,
                 "horse-pair-retained-in-turn-based-transition",
@@ -1102,14 +1136,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private void AwaitMountedTurnBasedMovement()
         {
             targetService.RefreshBidirectionalCombatMemoryLease();
-            var controller = Game.Instance.TurnBasedCombatController;
             if (combat.HasActiveGroundMovement)
             {
-                if (controller?.CurrentTurn?.Unit != owner && mountedPostMoveTurnReassertions == 0)
-                {
-                    controller?.StartTurn(owner);
-                    mountedPostMoveTurnReassertions++;
-                }
                 return;
             }
             if (string.IsNullOrEmpty(combat.LastGroundMoveResult)) { return; }
@@ -1121,7 +1149,7 @@ namespace KingmakerMountedCombat.Diagnostics
             observations["mountedTurnHorseDisplacement"] = horseDistance;
             observations["mountedTurnTargetDisplacement"] = targetDistance;
             observations["mountedTurnDriveCount"] = combat.LastGroundMoveDriveCount;
-            observations["mountedTurnPostDispatchReassertions"] = mountedPostMoveTurnReassertions;
+            observations["mountedTurnPostDispatchReassertions"] = MountedPostMoveTurnReassertions;
             Check(string.Equals(combat.LastGroundMoveResult, "Success", StringComparison.Ordinal) &&
                     combat.LastGroundMoveDriveCount > 0 && combat.LastGroundMoveUsedRiderTurnAdapter &&
                     combat.LastGroundMoveSlotRestored &&
