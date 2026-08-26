@@ -36,6 +36,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal const string EvidenceKind = "horse-companion-unmounted";
 
         private const double ScenarioTimeoutSeconds = 180.0;
+        private const double RealTimeAttackTimeoutSeconds = 20.0;
         private const float MovementDistance = 2.0f;
         private const float MovementTolerance = 0.75f;
         private const float TargetDistance = 4.0f;
@@ -81,6 +82,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private Feature horseFeatureFact;
         private UnitMoveTo movementCommand;
         private UnitAttack realTimeAttack;
+        private double realTimeAttackIssuedAtSeconds;
         private UnitAttack turnBasedAttack;
         private DiagnosticCombatTargetService targetService;
         private MountedCombatRuleProbe ruleProbe;
@@ -425,13 +427,36 @@ namespace KingmakerMountedCombat.Diagnostics
             realTimeAttack = new UnitAttack(target) { IsSingleAttack = true, CreatedByPlayer = true };
             realTimeAttack.IgnoreCooldown();
             horse.Commands.Run(realTimeAttack);
+            realTimeAttackIssuedAtSeconds = clock.Elapsed.TotalSeconds;
+            observations["realTimeAttackAtDispatch"] = CaptureRealTimeAttackState(realTimeAttack);
             step = EngineStep.AwaitRealTimeAttack;
         }
 
         private void AwaitRealTimeAttack()
         {
             targetService.RefreshBidirectionalCombatMemoryLease();
-            if (realTimeAttack == null || !realTimeAttack.IsFinished) { return; }
+            if (realTimeAttack == null)
+            {
+                Fail("real-time-attack-command", "The stock real-time Bite command reference became null.");
+                BeginCleanup();
+                return;
+            }
+            if (!realTimeAttack.IsFinished)
+            {
+                if (clock.Elapsed.TotalSeconds - realTimeAttackIssuedAtSeconds <= RealTimeAttackTimeoutSeconds)
+                {
+                    return;
+                }
+
+                var diagnostic = CaptureRealTimeAttackState(realTimeAttack);
+                observations["realTimeAttackAtDeadline"] = diagnostic;
+                Fail(
+                    "real-time-attack-deadline",
+                    "The stock real-time Bite command did not finish within its bounded 20-second leaf. State=" +
+                    diagnostic.ToString(Formatting.None) + ".");
+                BeginCleanup();
+                return;
+            }
             var weaponGuid = realTimeAttack.LastExecutedAttack?.Weapon?.Blueprint?.AssetGuid;
             observations["realTimeAttackWeaponGuid"] = weaponGuid;
             observations["realTimeAttackRules"] = ruleProbe.AttackRuleCount;
@@ -449,6 +474,81 @@ namespace KingmakerMountedCombat.Diagnostics
             turnBasedModeProbe = new NativeModeTransitionProbe(true);
             turnBasedModeProbe.DispatchTemporaryValueIfRequired();
             step = EngineStep.AwaitTurnBasedMode;
+        }
+
+        private JObject CaptureRealTimeAttackState(UnitAttack command)
+        {
+            var game = Game.Instance;
+            var planned = command?.PlannedAttack;
+            var animation = command?.Animation;
+            var agent = horse?.View?.AgentASP;
+            var path = agent?.Path;
+            var state = horse?.Descriptor?.State;
+            var combatState = horse?.CombatState;
+            var handsEquipment = game?.HandsEquipmentController;
+            var horizontalDistance = horse == null || target == null
+                ? float.MaxValue
+                : HorizontalDistance(horse.Position, target.Position);
+            var directDistance = horse == null || target == null
+                ? float.MaxValue
+                : Vector3.Distance(horse.Position, target.Position);
+
+            return new JObject
+            {
+                ["scenarioSeconds"] = clock.Elapsed.TotalSeconds,
+                ["secondsSinceDispatch"] = clock.Elapsed.TotalSeconds - realTimeAttackIssuedAtSeconds,
+                ["gamePaused"] = game?.IsPaused,
+                ["gameMode"] = game?.CurrentMode.ToString(),
+                ["gameDeltaTime"] = game?.TimeController?.GameDeltaTime,
+                ["commandReferenceInStandardSlot"] = horse?.Commands != null &&
+                    ReferenceEquals(horse.Commands.Standard, command),
+                ["commandContained"] = horse?.Commands != null && horse.Commands.Contains(command),
+                ["commandResult"] = command?.Result.ToString(),
+                ["commandStarted"] = command?.IsStarted,
+                ["commandFinished"] = command?.IsFinished,
+                ["commandRunning"] = command?.IsRunning,
+                ["commandActed"] = command?.IsActed,
+                ["commandCanStart"] = command?.CanStart,
+                ["commandTimeSinceStart"] = command?.TimeSinceStart,
+                ["commandAttackIndex"] = command?.GetAttackIndex(),
+                ["commandApproachRadius"] = command?.ApproachRadius,
+                ["commandMaximumApproachRadius"] = command?.MaxApproachRadius,
+                ["commandEnoughClose"] = command?.IsUnitEnoughClose,
+                ["commandShouldApproach"] = command?.ShouldUnitApproach,
+                ["commandMovedUnit"] = command?.IsMoveUnit,
+                ["commandFinishedApproaching"] = command?.FinishedApproaching,
+                ["commandNeedsLineOfSight"] = command?.NeedLoS,
+                ["plannedWeaponGuid"] = planned?.Weapon?.Blueprint?.AssetGuid,
+                ["plannedWeaponRange"] = planned?.WeaponRange,
+                ["animationPresent"] = animation != null,
+                ["animationActed"] = animation?.IsActed,
+                ["animationFinished"] = animation?.IsFinished,
+                ["horseTargetHorizontalDistance"] = horizontalDistance,
+                ["horseTargetDirectDistance"] = directDistance,
+                ["distanceBeyondApproachRadius"] = command == null
+                    ? float.MaxValue
+                    : horizontalDistance - command.ApproachRadius,
+                ["horseCorpulence"] = horse?.View?.Corpulence,
+                ["targetCorpulence"] = target?.View?.Corpulence,
+                ["horseCanAct"] = state?.CanAct,
+                ["horseHandsBusy"] = horse?.AreHandsBusyWithAnimation,
+                ["horseEquipmentUpdateScheduled"] = horse != null && handsEquipment != null &&
+                    handsEquipment.IsUpdateScheduledFor(horse),
+                ["horseCombatPrepared"] = combatState?.Prepared,
+                ["horseCombatCanAct"] = combatState?.CanActInCombat,
+                ["horseStandardCooldown"] = combatState?.Cooldown.StandardAction,
+                ["agentEnabled"] = agent?.enabled,
+                ["agentWantsToMove"] = agent?.WantsToMove,
+                ["agentReallyMoving"] = agent?.IsReallyMoving,
+                ["agentSpeed"] = agent?.Speed,
+                ["agentVelocitySquared"] = agent?.Velocity.sqrMagnitude,
+                ["agentPathFailed"] = agent?.PathFailed,
+                ["agentPathPresent"] = path != null,
+                ["agentPathPointCount"] = path?.vectorPath?.Count,
+                ["moveSlotPresent"] = horse?.Commands?.Move != null,
+                ["targetConscious"] = target?.Descriptor?.State.IsConscious,
+                ["targetVisible"] = target?.IsVisibleForPlayer
+            };
         }
 
         private void AwaitTurnBasedMode()

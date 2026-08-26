@@ -1,5 +1,11 @@
 # Autonomous blockers
 
+## No critical blocker; bounded stock RT start-gate observation pending - 2026-08-26T08:08:44Z
+
+Status: IN PROGRESS. Dev.6 aggregate `20260826T072604Z-horse-companion-unmounted-dev6-passE` is immutable historical `FAIL 28/1` with exact audit-before-read restoration. It proves the corrected stock Bite/Hoof/Hoof topology and all preceding registration, ownership, progression, control, movement, target, and combat-entry gates. Its only failure is a stock RT Bite command that remained unfinished to the old 180-second scenario deadline. Exact installed command code proves a started command cannot remain live that long, narrowing the uncertainty to the native start/approach boundary. Dev.7 adds a diagnostic-only, 20-second exact-state snapshot; all current offline gates pass. One clean dev.7 package/suite/WhatIf and one audited aggregate remain. No external-state, architecture, Mammoth, or safety blocker exists.
+
+This supersedes the natural-limb retry state below. Dev.6 is not relabeled.
+
 ## No critical blocker; exact natural-limb retry pending - 2026-08-26T06:33:22Z
 
 Status: IN PROGRESS. Dev.5 aggregate `20260826T055857Z-horse-companion-unmounted-dev5-passD` is immutable historical `FAIL 26/1` with exact audit-before-read restoration. It proves registration, creation/ownership/control, native manual-leveling handoff, selection, movement, owner-relative target placement, and combat entry. Its sole failure is attributable production blueprint topology: enabled hands caused stock `UnitAttack` to enumerate the Bite through both primary and secondary empty-hand slots before two Hooves. Dev.6 adopts the exact native horse no-hands topology with ordered `[Bite, Hoof, Hoof]` natural limbs; full offline gates pass. One clean dev.6 package/suite/WhatIf and one audited aggregate remain before mounted-profile work. No external-state, architecture, Mammoth, or safety blocker exists.

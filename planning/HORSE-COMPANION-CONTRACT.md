@@ -1,5 +1,7 @@
 # Horse animal-companion contract
 
+Superseding status (2026-08-26T08:08:44Z): PASS (production topology, partial runtime) - dev.6 proves exact Bite/Hoof/Hoof enumeration and every prior unmounted gate. Its first stock RT Bite remained preterminal to the old deadline; dev.7 observes the exact native start/approach boundary without changing production behavior. Combat/death/respec remain uncredited pending that bounded result.
+
 Superseding status (2026-08-26T06:33:22Z): PASS (offline repair) - dev.5 reached combat and exposed one duplicate Bite from the obsolete hands-enabled body. Dev.6 follows the credited native horse's disabled-hands contract and orders natural limbs Bite/Hoof/Hoof; one clean aggregate remains required.
 
 Superseding status (2026-08-26T05:10:00Z): PASS (partial runtime) - dev.4 proves exact native XP handoff, zero duplicate update, creation/ownership/control, selection, view/stats, and stock movement. Combat/death/respec remain uncredited after a later diagnostic-target geometry failure; dev.5 repairs that guarded test only.
