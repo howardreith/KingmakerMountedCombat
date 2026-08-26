@@ -45,7 +45,8 @@ namespace KingmakerMountedCombat.Diagnostics
             if (service == null) { throw new ArgumentNullException(nameof(service)); }
             if (logger == null) { throw new ArgumentNullException(nameof(logger)); }
             if (!string.Equals(request.Scenario, ScenarioName, StringComparison.Ordinal) &&
-                !string.Equals(request.Scenario, HorseCompanionUnmountedScenarioEngine.ScenarioName, StringComparison.Ordinal))
+                !string.Equals(request.Scenario, HorseCompanionUnmountedScenarioEngine.ScenarioName, StringComparison.Ordinal) &&
+                !string.Equals(request.Scenario, HorseCompanionUnmountedScenarioEngine.MountedScenarioName, StringComparison.Ordinal))
             {
                 throw new InvalidOperationException("Horse companion registration audit received a different scenario.");
             }

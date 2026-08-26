@@ -338,13 +338,15 @@ namespace KingmakerMountedCombat.Integration
             relationship.State == RelationshipState.Mounted &&
             IsPairInCombat();
 
+        private string MountDisplayName => relationship.Runtime.MountDisplayName ?? "Mount";
+
         public bool Arm(MountedCombatActionKind action)
         {
             ThrowIfDisposed();
             if (action != MountedCombatActionKind.RiderMelee &&
                 action != MountedCombatActionKind.MountPrimaryNatural)
             {
-                LastFeedback = "Choose Rider melee or Mammoth primary.";
+                LastFeedback = "Choose Rider melee or " + MountDisplayName + " primary.";
                 return false;
             }
             if (!CanShowCombatActions)
@@ -364,7 +366,7 @@ namespace KingmakerMountedCombat.Integration
             LastRejectionCodes = new MountedCombatRejectionCode[0];
             LastFeedback = action == MountedCombatActionKind.RiderMelee
                 ? "Rider melee armed: select one visible enemy."
-                : "Mammoth primary armed: select one visible enemy.";
+                : MountDisplayName + " primary armed: select one visible enemy.";
             logger.Info("Mounted overlay action armed: action=" + action + "; frame=" + Time.frameCount + "; feedback=" + LastFeedback);
             return true;
         }
@@ -689,7 +691,7 @@ namespace KingmakerMountedCombat.Integration
             var ownerIsMount = relationship.Mount != null && commands == relationship.Mount.Commands;
             var selectedWeapon = ownerIsMount ? relationship.Mount.GetFirstWeapon() : rider?.GetFirstWeapon();
             var ranged = selectedWeapon?.Blueprint != null && selectedWeapon.Blueprint.IsRanged;
-            LastFeedback = MountedStockAttackPolicy.RejectionFeedback(ownerIsMount, ranged);
+            LastFeedback = MountedStockAttackPolicy.RejectionFeedback(ownerIsMount, ranged, MountDisplayName);
             LastRejectionCodes = new[]
             {
                 ranged
@@ -697,7 +699,7 @@ namespace KingmakerMountedCombat.Integration
                     : MountedCombatRejectionCode.WrongActionState
             };
             logger.Info("Rejected exact mounted pair stock UnitAttack: owner=" +
-                (ownerIsMount ? "Mammoth" : "rider") + "; feedback=" + LastFeedback);
+                (ownerIsMount ? MountDisplayName : "rider") + "; feedback=" + LastFeedback);
             return false;
         }
 
@@ -803,8 +805,11 @@ namespace KingmakerMountedCombat.Integration
                     action == MountedCombatActionKind.MountPrimaryNatural,
                     exactRiderSelection,
                     exactMountSelection),
-                SupportedMammothProfile = mount?.Blueprint != null &&
-                    string.Equals(mount.Blueprint.AssetGuid, KingmakerMountedPairRuntime.MammothBlueprintGuid, StringComparison.Ordinal),
+                SupportedMountProfile = SupportedMountedProfiles.Resolve(mount) != null &&
+                    string.Equals(relationship.Runtime.MountProfileId,
+                        SupportedMountedProfiles.Resolve(mount)?.Id,
+                        StringComparison.Ordinal),
+                MountDisplayName = relationship.Runtime.MountDisplayName,
                 SupportedRiderBodyProfile = rider != null && rider.GetActivePolymorph() == null &&
                     relationship.Runtime.PoseHealthy && relationship.IsExactCapturedView(rider),
                 InCombat = IsPairInCombat(),

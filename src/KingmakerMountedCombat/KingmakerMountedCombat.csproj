@@ -144,6 +144,7 @@
     <Compile Include="Integration\HorseCompanionAddPet.cs" />
     <Compile Include="Integration\HorseCompanionBlueprintService.cs" />
     <Compile Include="Integration\KingmakerMountedPairRuntime.cs" />
+    <Compile Include="Integration\SupportedMountedProfile.cs" />
     <Compile Include="Integration\ReactiveBooleanValueReader.cs" />
     <Compile Include="Integration\MountedLifecycleSubscriber.cs" />
     <Compile Include="Integration\ExactTurnMovementAdapter.cs" />

@@ -189,9 +189,18 @@ namespace KingmakerMountedCombat.Domain
 
         public static string RejectionFeedback(bool ownerIsExactMount, bool selectedWeaponIsRanged)
         {
+            return RejectionFeedback(ownerIsExactMount, selectedWeaponIsRanged, "Mammoth");
+        }
+
+        public static string RejectionFeedback(
+            bool ownerIsExactMount,
+            bool selectedWeaponIsRanged,
+            string mountDisplayName)
+        {
             if (ownerIsExactMount)
             {
-                return "Use Mammoth primary, then click one visible hostile target.";
+                return "Use " + (string.IsNullOrWhiteSpace(mountDisplayName) ? "Mount" : mountDisplayName) +
+                    " primary, then click one visible hostile target.";
             }
             return selectedWeaponIsRanged
                 ? "Mounted ranged attacks are not supported in this private alpha."

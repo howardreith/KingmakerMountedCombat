@@ -18,7 +18,8 @@ namespace KingmakerMountedCombat.Integration
 {
     internal sealed class KingmakerMountedPairRuntime : IMountedPairRuntime
     {
-        internal const string MammothBlueprintGuid = "e7aa96d15a45238438ae4cfb476f6bb9";
+        internal const string MammothBlueprintGuid = SupportedMountedProfiles.MammothBlueprintGuid;
+        internal const string HorseBlueprintGuid = SupportedMountedProfiles.HorseBlueprintGuid;
         private const int MammothAiBackingFieldToken = 0x040054BA;
         private static readonly FieldInfo MammothAiBackingField = ResolveMammothAiBackingField();
 
@@ -27,6 +28,7 @@ namespace KingmakerMountedCombat.Integration
         private readonly ScopedTransformAttachmentLease<Transform, Vector3, Quaternion, Vector3> riderAttachmentLease;
         private UnitEntityData rider;
         private UnitEntityData mount;
+        private SupportedMountedProfile supportedProfile;
         private UnitEntityView riderView;
         private UnitEntityView mountView;
         private UnitMovementAgent riderStockAgent;
@@ -78,6 +80,10 @@ namespace KingmakerMountedCombat.Integration
         public UnitEntityData Mount => mount;
 
         public RiderMovementAgent MovementAgent => riderOverride;
+
+        public string MountProfileId => supportedProfile?.Id;
+
+        public string MountDisplayName => supportedProfile?.DisplayName;
 
         public bool PresentationAttachmentLeaseActive => riderAttachmentLease.IsAcquired;
 
@@ -175,6 +181,7 @@ namespace KingmakerMountedCombat.Integration
 
             rider = riderUnit ?? throw new ArgumentNullException(nameof(riderUnit));
             mount = mountUnit ?? throw new ArgumentNullException(nameof(mountUnit));
+            supportedProfile = SupportedMountedProfiles.Resolve(mount);
         }
 
         public MountedPairCandidate CreateCandidate()
@@ -197,14 +204,14 @@ namespace KingmakerMountedCombat.Integration
             var riderState = riderUnit.Descriptor?.State;
             var mountState = mountUnit.Descriptor?.State;
             var exactCompanion = riderUnit.Descriptor?.Pet == mountUnit && mountUnit.Descriptor?.Master.Value == riderUnit && mountUnit.Descriptor.IsPet;
-            var exactMammoth = mountUnit.Blueprint != null && string.Equals(mountUnit.Blueprint.AssetGuid, MammothBlueprintGuid, StringComparison.Ordinal);
+            var exactSupportedMount = SupportedMountedProfiles.Resolve(mountUnit) != null;
             return new MountedPairCandidate(riderUnit.UniqueId, mountUnit.UniqueId)
             {
                 RiderIsDirectlyControllable = riderUnit.IsInGame && riderUnit.IsDirectlyControllable,
                 MountIsDirectlyControllable = mountUnit.IsInGame && mountUnit.IsDirectlyControllable,
                 RiderIsAliveAndConscious = riderState != null && riderState.IsConscious && !riderState.IsFinallyDead,
                 MountIsAliveAndConscious = mountState != null && mountState.IsConscious && !mountState.IsFinallyDead,
-                ExactReciprocalCompanionRelationship = exactCompanion && exactMammoth,
+                ExactReciprocalCompanionRelationship = exactCompanion && exactSupportedMount,
                 RiderIsInCombat = riderUnit.IsInCombat,
                 MountIsInCombat = mountUnit.IsInCombat,
                 PartyIsInCombat = Game.Instance?.Player?.IsInCombat ?? false,
@@ -243,7 +250,7 @@ namespace KingmakerMountedCombat.Integration
                 riderView.gameObject.activeInHierarchy,
                 mountView.gameObject.activeInHierarchy))
             {
-                return "Mounted rider/Mammoth view activity is incoherent for the exact current game mode.";
+                return "Mounted rider/mount view activity is incoherent for the exact current game mode.";
             }
 
             if (rider.Descriptor?.Pet != mount || mount.Descriptor?.Master.Value != rider || !mount.Descriptor.IsPet)
@@ -251,9 +258,10 @@ namespace KingmakerMountedCombat.Integration
                 return "The reciprocal active-companion relationship changed.";
             }
 
-            if (mount.Blueprint == null || !string.Equals(mount.Blueprint.AssetGuid, MammothBlueprintGuid, StringComparison.Ordinal))
+            if (supportedProfile == null || mount.Blueprint == null ||
+                !string.Equals(mount.Blueprint.AssetGuid, supportedProfile.BlueprintGuid, StringComparison.Ordinal))
             {
-                return "The active companion is no longer the selected Mammoth blueprint.";
+                return "The active companion is no longer the selected supported mount blueprint.";
             }
 
             if (!rider.IsInGame || !mount.IsInGame || !rider.IsDirectlyControllable || !mount.IsDirectlyControllable ||
@@ -287,16 +295,17 @@ namespace KingmakerMountedCombat.Integration
 
             if (!mountAiLeaseOwned || (bool)MammothAiBackingField.GetValue(mount))
             {
-                return "The scoped Mammoth AI lease changed.";
+                return "The scoped mount AI lease changed.";
             }
 
             if (!presentationConfigured || sourceAnchor == null || positionAnchor == null ||
                 positionAnchor.parent != mountView.transform || !riderAttachmentLease.IsAcquired ||
                 riderView.transform.parent != positionAnchor || !poseComponentOwned || poseAdapter == null ||
-                !poseAdapter.IsHealthy || poseAdapter.ProfileId != MountedRiderPoseProfiles.MediumHumanoidOnMammoth.Id ||
+                !poseAdapter.IsHealthy || supportedProfile == null ||
+                poseAdapter.ProfileId != supportedProfile.RiderPoseProfile.Id ||
                 poseAdapter.BoneCount != 7 || riderView.GetComponents<MountedRiderPoseAdapter>().Length != 1)
             {
-                return "The scoped Mammoth position attachment or exact supported rider pose is unavailable or changed.";
+                return "The scoped mount position attachment or exact supported rider pose is unavailable or changed.";
             }
 
             return null;
@@ -324,7 +333,7 @@ namespace KingmakerMountedCombat.Integration
             mount.IsAIEnabled = false;
             if ((bool)MammothAiBackingField.GetValue(mount))
             {
-                throw new InvalidOperationException("Mammoth AI backing state did not enter the scoped disabled lease.");
+                throw new InvalidOperationException("Mount AI backing state did not enter the scoped disabled lease.");
             }
             mountAiLeaseOwned = true;
 
@@ -345,10 +354,16 @@ namespace KingmakerMountedCombat.Integration
         public void AttachPresentation(MountedPair pair)
         {
             RequirePreparedPair(pair);
-            sourceAnchor = FindTransform(mountView.transform, "Spine");
+            if (supportedProfile == null)
+            {
+                throw new InvalidOperationException("The prepared mount has no exact supported mounted profile.");
+            }
+
+            sourceAnchor = FindTransform(mountView.transform, supportedProfile.SourceAnchorName);
             if (sourceAnchor == null)
             {
-                throw new InvalidOperationException("Selected Mammoth view has no exact Spine transform.");
+                throw new InvalidOperationException("Selected " + supportedProfile.DisplayName +
+                    " view has no exact " + supportedProfile.SourceAnchorName + " transform.");
             }
 
             // Pilot evidence showed the animated Spine moved 0.113 world units
@@ -358,10 +373,13 @@ namespace KingmakerMountedCombat.Integration
             // authoritative mount root instead. Parenting makes mount translation
             // and yaw continuous without another nav agent; the static root-local
             // point intentionally does not inherit gait-driven bone rotation.
-            var desiredWorldPosition = sourceAnchor.TransformPoint(new Vector3(
-                settings.RiderOffsetX,
-                settings.RiderOffsetY,
-                settings.RiderOffsetZ));
+            var sourceOffset = supportedProfile.UsesDiagnosticMammothOffsets
+                ? new Vector3(settings.RiderOffsetX, settings.RiderOffsetY, settings.RiderOffsetZ)
+                : ToUnity(supportedProfile.SourceAnchorOffset);
+            var riderEuler = supportedProfile.UsesDiagnosticMammothOffsets
+                ? new Vector3(0f, settings.RiderYawDegrees, 0f)
+                : ToUnity(supportedProfile.RiderEulerOffset);
+            var desiredWorldPosition = sourceAnchor.TransformPoint(sourceOffset);
             positionAnchorObject = new GameObject("KMC_RiderPositionAnchor");
             positionAnchorObject.hideFlags = HideFlags.HideAndDontSave;
             positionAnchor = positionAnchorObject.transform;
@@ -375,13 +393,14 @@ namespace KingmakerMountedCombat.Integration
                 mount,
                 positionAnchor,
                 Vector3.zero,
-                new Vector3(0f, settings.RiderYawDegrees, 0f));
+                riderEuler);
             poseAdapter = riderView.gameObject.AddComponent<MountedRiderPoseAdapter>();
             poseComponentOwned = true;
             poseBaselineRestoreVerified = false;
-            poseAdapter.Configure(riderView, MountedRiderPoseProfiles.MediumHumanoidOnMammoth);
+            poseAdapter.Configure(riderView, supportedProfile.RiderPoseProfile);
             presentationConfigured = true;
-            logger.Info("Rider presentation attached through an owned Mammoth-root position lease and exact Medium-humanoid procedural pose profile.");
+            logger.Info("Rider presentation attached through an owned " + supportedProfile.DisplayName +
+                "-root position lease and exact " + supportedProfile.RiderPoseProfile.Id + " procedural pose profile.");
         }
 
         internal bool ReassertMountAiLeaseAfterNativeTurnBasedExit()
@@ -525,12 +544,12 @@ namespace KingmakerMountedCombat.Integration
                 {
                     if (mount == null)
                     {
-                        throw new InvalidOperationException("Mammoth disappeared before its AI lease could be restored.");
+                        throw new InvalidOperationException("Mount disappeared before its AI lease could be restored.");
                     }
                     mount.IsAIEnabled = mountAiBackingWasEnabled;
                     if ((bool)MammothAiBackingField.GetValue(mount) != mountAiBackingWasEnabled)
                     {
-                        throw new InvalidOperationException("Mammoth AI backing state did not return to its captured value.");
+                        throw new InvalidOperationException("Mount AI backing state did not return to its captured value.");
                     }
                     mountAiLeaseOwned = false;
                 }
@@ -717,6 +736,7 @@ namespace KingmakerMountedCombat.Integration
             mountView = null;
             rider = null;
             mount = null;
+            supportedProfile = null;
         }
 
         internal bool IsExactCapturedView(UnitEntityData unit)
@@ -942,6 +962,11 @@ namespace KingmakerMountedCombat.Integration
         private static bool IsSafeMovementMode(GameModeType mode)
         {
             return MountedGameModePolicy.CanAdmitMountedAction(mode.ToString());
+        }
+
+        private static Vector3 ToUnity(PoseVector3 value)
+        {
+            return new Vector3(value.X, value.Y, value.Z);
         }
 
         private static FieldInfo ResolveMammothAiBackingField()

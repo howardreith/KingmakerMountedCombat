@@ -20,6 +20,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("pose baseline lease retains failed restoration for retry", PoseLeaseRetainsFailedRestorationForRetry);
             runner.Run("pose baseline lease rejects duplicate nodes", PoseLeaseRejectsDuplicateNodes);
             runner.Run("supported Mammoth rider pose profile validates", SupportedProfileValidates);
+            runner.Run("independent Horse rider pose profile validates", HorseProfileValidates);
             runner.Run("pose profile rejects duplicate bone ownership", ProfileRejectsDuplicateBones);
             runner.Run("pose cost evidence retains the latest cumulative average", PoseCostEvidenceRetainsLatestCumulativeAverage);
             runner.Run("stationary presentation phase coverage accepts LateUpdate only", StationaryPresentationPhaseCoverageAcceptsLateUpdateOnly);
@@ -245,6 +246,19 @@ namespace KingmakerMountedCombat.Tests
         {
             TestRunner.Equal(null, MountedRiderPoseProfiles.MediumHumanoidOnMammoth.Validate(), "Supported pose profile is invalid.");
             TestRunner.Equal("medium-humanoid-mammoth-v1", MountedRiderPoseProfiles.MediumHumanoidOnMammoth.Id, "Supported profile identity changed.");
+        }
+
+        private static void HorseProfileValidates()
+        {
+            var profile = MountedRiderPoseProfiles.MediumHumanoidOnHorse;
+            TestRunner.Equal(null, profile.Validate(), "Horse pose profile is invalid.");
+            TestRunner.Equal("medium-humanoid-horse-v1", profile.Id, "Horse profile identity changed.");
+            TestRunner.Equal(-0.305f, profile.LeftLeg.FootTargetFromThigh.X, "Horse left stirrup span changed.");
+            TestRunner.Equal(0.305f, profile.RightLeg.FootTargetFromThigh.X, "Horse right stirrup span changed.");
+            TestRunner.True(
+                profile.LeftLeg.FootTargetFromThigh.Z != MountedRiderPoseProfiles.MediumHumanoidOnMammoth.LeftLeg.FootTargetFromThigh.Z &&
+                profile.LeftLeg.KneeHintFromThigh.Z != MountedRiderPoseProfiles.MediumHumanoidOnMammoth.LeftLeg.KneeHintFromThigh.Z,
+                "Horse pose reused Mammoth longitudinal leg values.");
         }
 
         private static void ProfileRejectsDuplicateBones()

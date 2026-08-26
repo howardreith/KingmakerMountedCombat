@@ -151,7 +151,9 @@ namespace KingmakerMountedCombat.Domain
 
         public bool ExactRiderSelection { get; set; }
 
-        public bool SupportedMammothProfile { get; set; }
+        public bool SupportedMountProfile { get; set; }
+
+        public string MountDisplayName { get; set; }
 
         public bool SupportedRiderBodyProfile { get; set; }
 
@@ -307,9 +309,12 @@ namespace KingmakerMountedCombat.Domain
 
             var reasons = new List<string>();
             var codes = new List<MountedCombatRejectionCode>();
+            var mountName = string.IsNullOrWhiteSpace(context.MountDisplayName)
+                ? "mount"
+                : context.MountDisplayName;
             if (context.Action == MountedCombatActionKind.None)
             {
-                reasons.Add("Choose Rider melee or Mammoth primary.");
+                reasons.Add("Choose Rider melee or " + mountName + " primary.");
                 codes.Add(MountedCombatRejectionCode.WrongActionState);
             }
             if (!context.FeatureEnabled)
@@ -327,9 +332,9 @@ namespace KingmakerMountedCombat.Domain
                 reasons.Add("The exact mounted relationship is no longer valid.");
                 codes.Add(MountedCombatRejectionCode.RelationshipInvalidated);
             }
-            if (!context.SupportedMammothProfile || !context.SupportedRiderBodyProfile)
+            if (!context.SupportedMountProfile || !context.SupportedRiderBodyProfile)
             {
-                reasons.Add("Combat requires the exact active Medium-humanoid/Mammoth profile.");
+                reasons.Add("Combat requires the exact active Medium-humanoid/" + mountName + " profile.");
                 codes.Add(MountedCombatRejectionCode.BodyProfileUnsupported);
             }
             if (!context.InCombat)
@@ -339,7 +344,7 @@ namespace KingmakerMountedCombat.Domain
             }
             if (!context.RiderAliveAndConscious || !context.MountAliveAndConscious)
             {
-                reasons.Add("Rider and Mammoth must both be alive and conscious.");
+                reasons.Add("Rider and " + mountName + " must both be alive and conscious.");
                 codes.Add(MountedCombatRejectionCode.PairLifeStateInvalid);
             }
             if (!context.TargetExists || !context.TargetAliveAndConscious)
@@ -401,12 +406,12 @@ namespace KingmakerMountedCombat.Domain
             if (context.Action == MountedCombatActionKind.MountPrimaryNatural &&
                 !context.MountPrimaryNaturalAttackIsExact)
             {
-                reasons.Add("The Mammoth primary natural attack could not be identified exactly.");
+                reasons.Add("The " + mountName + " primary natural attack could not be identified exactly.");
                 codes.Add(MountedCombatRejectionCode.NoEligibleWeapon);
             }
             if (context.PathKnownUnavailable)
             {
-                reasons.Add("The Mammoth has no supported path to that target.");
+                reasons.Add("The " + mountName + " has no supported path to that target.");
                 codes.Add(MountedCombatRejectionCode.NoPath);
             }
             if (!context.WithinSupportedRangeEnvelope)
@@ -416,7 +421,7 @@ namespace KingmakerMountedCombat.Domain
             }
             if (!context.RangeOriginConsistent)
             {
-                reasons.Add("The mounted Mammoth-origin and native rider range gates disagree.");
+                reasons.Add("The mounted " + mountName + "-origin and native rider range gates disagree.");
                 codes.Add(MountedCombatRejectionCode.RangeOriginMismatch);
             }
             if (!context.CommandAdmissionReady)

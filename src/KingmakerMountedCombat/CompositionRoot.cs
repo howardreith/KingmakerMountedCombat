@@ -35,8 +35,8 @@ namespace KingmakerMountedCombat
                 combat = new MountedCombatController(relationship, settings, logger);
                 lifecycle = new MountedLifecycleSubscriber(relationship, lifecycleLedger, combat);
                 saveAuthorization = new RuntimeSaveAuthorization();
-                patches = new MountedPatchController(relationship, combat, saveAuthorization, lifecycleLedger, logger);
                 playerAction = new MountedPlayerActionController(relationship, settings, logger, combat);
+                patches = new MountedPatchController(relationship, playerAction, combat, saveAuthorization, lifecycleLedger, logger);
                 runtimeAutomation = RuntimeAutomationHost.CreateFromCommandLine(
                     logger,
                     loadedModId,
@@ -65,9 +65,9 @@ namespace KingmakerMountedCombat
                 Exception rollbackException = null;
                 try { movementTelemetry?.Dispose(); } catch (Exception exception) { rollbackException = exception; }
                 try { runtimeAutomation?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
+                try { patches?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { playerAction?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { combat?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
-                try { patches?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { lifecycle?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { relationship?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { horseCompanion?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
@@ -182,8 +182,8 @@ namespace KingmakerMountedCombat
         {
             ThrowIfDisposed();
             GUILayout.Label("Phase 2 private-alpha presentation work. The mounted relationship is transient and is cleaned before save/load/area boundaries.");
-            settings.EnableUnsafeMovementExperiment = GUILayout.Toggle(settings.EnableUnsafeMovementExperiment, "Enable private-alpha Mammoth player action");
-            GUILayout.Label("Candidate: selected supported Medium rider + exact active, currently larger Mammoth companion.");
+            settings.EnableUnsafeMovementExperiment = GUILayout.Toggle(settings.EnableUnsafeMovementExperiment, "Enable private-alpha mounted player action");
+            GUILayout.Label("Candidate: selected supported Medium rider + exact active, currently larger Mammoth or KMC Horse companion.");
             GUILayout.BeginHorizontal();
             var availability = playerAction.GetAvailability();
             var priorEnabled = GUI.enabled;
@@ -207,7 +207,7 @@ namespace KingmakerMountedCombat
             {
                 GUILayout.BeginHorizontal();
                 if (GUILayout.Button("Arm rider melee")) { combat.Arm(MountedCombatActionKind.RiderMelee); }
-                if (GUILayout.Button("Arm Mammoth primary")) { combat.Arm(MountedCombatActionKind.MountPrimaryNatural); }
+                if (GUILayout.Button("Arm " + playerAction.MountPrimaryLabel)) { combat.Arm(MountedCombatActionKind.MountPrimaryNatural); }
                 GUILayout.EndHorizontal();
                 GUILayout.Label(combat.LastFeedback);
             }
@@ -228,9 +228,9 @@ namespace KingmakerMountedCombat
 
             movementTelemetry?.Dispose();
             runtimeAutomation?.Dispose();
+            patches.Dispose();
             playerAction.Dispose();
             combat.Dispose();
-            patches.Dispose();
             lifecycle.Dispose();
             relationship.Dispose();
             horseCompanion.Dispose();

@@ -6,6 +6,7 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using Kingmaker;
+using Kingmaker.Controllers.Clicks.Handlers;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.Enums;
 using Kingmaker.GameModes;
@@ -33,10 +34,14 @@ namespace KingmakerMountedCombat.Diagnostics
     internal sealed class HorseCompanionUnmountedScenarioEngine : IDisposable
     {
         internal const string ScenarioName = "horse-companion-unmounted-suite";
+        internal const string MountedScenarioName = "horse-mounted-alpha-suite";
         internal const string EvidenceFileName = "horse-companion-unmounted.json";
         internal const string EvidenceKind = "horse-companion-unmounted";
+        internal const string MountedEvidenceFileName = "horse-mounted-alpha.json";
+        internal const string MountedEvidenceKind = "horse-mounted-alpha";
 
         private const double ScenarioTimeoutSeconds = 180.0;
+        private const double MountedScenarioTimeoutSeconds = 300.0;
         private const double RealTimeAttackTimeoutSeconds = 20.0;
         private const double TurnBasedTurnAcquisitionTimeoutSeconds = 20.0;
         private const double TurnBasedAttackTimeoutSeconds = 20.0;
@@ -57,6 +62,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly RuntimeRequest request;
         private readonly HorseCompanionBlueprintService service;
         private readonly GameMountedRelationshipService relationship;
+        private readonly MountedPlayerActionController playerAction;
+        private readonly MountedCombatController combat;
+        private readonly DiagnosticSettings settings;
         private readonly IModLogger logger;
         private readonly Stopwatch clock = new Stopwatch();
         private readonly List<RuntimeSubscenarioResult> results = new List<RuntimeSubscenarioResult>();
@@ -77,6 +85,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private int failed;
         private bool originalPause;
         private bool originalTurnBased;
+        private bool originalUnsafeExperimentSetting;
         private UnitEntityData[] originalSelection = new UnitEntityData[0];
         private UnitEntityData owner;
         private UnitEntityData horse;
@@ -96,7 +105,23 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool turnStarted;
         private double turnBasedTurnAcquisitionStartedAtSeconds;
         private int turnBasedStartTurnRequestCount;
+        private int turnBasedPostDispatchStartTurnRequestCount;
         private int turnBasedStableReadyFrames;
+        private bool mountedAlphaStarted;
+        private bool mountedAlphaDismounted;
+        private UnitMoveTo mountedRealTimeMove;
+        private Vector3 mountedRealTimeRiderStart;
+        private Vector3 mountedRealTimeHorseStart;
+        private Vector3 mountedRealTimeDestination;
+        private int mountedRiderTurnStartRequests;
+        private int mountedRiderTurnStableFrames;
+        private int mountedPostMoveTurnReassertions;
+        private Vector3 mountedTurnRiderStart;
+        private Vector3 mountedTurnHorseStart;
+        private Vector3 mountedTurnTargetStart;
+        private Vector3 mountedTurnDestination;
+        private MountedPairAttackOutcome mountedRiderOutcome;
+        private MountedPairAttackOutcome mountedHorseOutcome;
         private Vector3 ownerPositionBeforeMovement;
         private Vector3 horsePositionBeforeMovement;
         private Vector3 movementDestination;
@@ -107,11 +132,17 @@ namespace KingmakerMountedCombat.Diagnostics
             RuntimeRequest request,
             HorseCompanionBlueprintService service,
             GameMountedRelationshipService relationship,
+            MountedPlayerActionController playerAction,
+            MountedCombatController combat,
+            DiagnosticSettings settings,
             IModLogger logger)
         {
             this.request = request ?? throw new ArgumentNullException(nameof(request));
             this.service = service ?? throw new ArgumentNullException(nameof(service));
             this.relationship = relationship ?? throw new ArgumentNullException(nameof(relationship));
+            this.playerAction = playerAction ?? throw new ArgumentNullException(nameof(playerAction));
+            this.combat = combat ?? throw new ArgumentNullException(nameof(combat));
+            this.settings = settings ?? throw new ArgumentNullException(nameof(settings));
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
@@ -123,8 +154,12 @@ namespace KingmakerMountedCombat.Diagnostics
 
         internal static bool SupportsScenario(string scenario)
         {
-            return string.Equals(scenario, ScenarioName, StringComparison.Ordinal);
+            return string.Equals(scenario, ScenarioName, StringComparison.Ordinal) ||
+                string.Equals(scenario, MountedScenarioName, StringComparison.Ordinal);
         }
+
+        private bool IncludesMountedAlpha =>
+            string.Equals(request.Scenario, MountedScenarioName, StringComparison.Ordinal);
 
         public void Start()
         {
@@ -156,6 +191,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
                 originalPause = game.IsPaused;
                 originalTurnBased = CombatController.IsInTurnBasedCombat();
+                originalUnsafeExperimentSetting = settings.EnableUnsafeMovementExperiment;
                 originalSelection = selection.SelectedUnits.Where(unit => unit != null).ToArray();
                 CaptureOriginalPartyPets(game);
                 observations["originalPause"] = originalPause;
@@ -184,9 +220,13 @@ namespace KingmakerMountedCombat.Diagnostics
             frame++;
             try
             {
-                if (!cleanupStarted && clock.Elapsed.TotalSeconds > ScenarioTimeoutSeconds)
+                var scenarioDeadline = IncludesMountedAlpha
+                    ? MountedScenarioTimeoutSeconds
+                    : ScenarioTimeoutSeconds;
+                if (!cleanupStarted && clock.Elapsed.TotalSeconds > scenarioDeadline)
                 {
-                    Fail("bounded-deadline", "Horse unmounted qualification exceeded 180 seconds at " + step + ".");
+                    Fail("bounded-deadline", "Horse qualification exceeded " +
+                        scenarioDeadline.ToString("0") + " seconds at " + step + ".");
                     BeginCleanup();
                 }
 
@@ -221,6 +261,36 @@ namespace KingmakerMountedCombat.Diagnostics
                         break;
                     case EngineStep.AwaitTargetRemoval:
                         AwaitTargetRemoval();
+                        break;
+                    case EngineStep.AwaitMountedReady:
+                        AwaitMountedReady();
+                        break;
+                    case EngineStep.AwaitMountedRealTimeMovement:
+                        AwaitMountedRealTimeMovement();
+                        break;
+                    case EngineStep.AwaitMountedCombatEntry:
+                        AwaitMountedCombatEntry();
+                        break;
+                    case EngineStep.AwaitMountedTurnBasedMode:
+                        AwaitMountedTurnBasedMode();
+                        break;
+                    case EngineStep.AwaitMountedRiderTurn:
+                        AwaitMountedRiderTurn();
+                        break;
+                    case EngineStep.AwaitMountedTurnBasedMovement:
+                        AwaitMountedTurnBasedMovement();
+                        break;
+                    case EngineStep.AwaitMountedRealTimeRestore:
+                        AwaitMountedRealTimeRestore();
+                        break;
+                    case EngineStep.AwaitMountedRiderAttack:
+                        AwaitMountedRiderAttack();
+                        break;
+                    case EngineStep.AwaitMountedHorseAttack:
+                        AwaitMountedHorseAttack();
+                        break;
+                    case EngineStep.AwaitMountedDismount:
+                        AwaitMountedDismount();
                         break;
                     case EngineStep.AwaitDeath:
                         AwaitDeath();
@@ -696,6 +766,24 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (!turnBasedAttack.IsFinished)
             {
+                var controller = Game.Instance?.TurnBasedCombatController;
+                var exactHealthyPendingCommand = !turnBasedAttack.IsStarted &&
+                    turnBasedAttack.Result == UnitCommand.ResultType.None &&
+                    turnBasedAttack.CanStart &&
+                    horse?.Commands != null &&
+                    ReferenceEquals(horse.Commands.Standard, turnBasedAttack);
+                if (controller != null && controller.CurrentTurn?.Unit != horse &&
+                    exactHealthyPendingCommand && turnBasedPostDispatchStartTurnRequestCount == 0)
+                {
+                    // The native next-unit handoff queued during turn-mode entry can
+                    // land immediately after the exact command is admitted. Preserve
+                    // that command reference and reassert only its owning horse turn
+                    // once; do not recreate, replace, or relax the command.
+                    controller.StartTurn(horse);
+                    turnBasedPostDispatchStartTurnRequestCount++;
+                    observations["turnBasedPostDispatchStartTurnRequestCount"] =
+                        turnBasedPostDispatchStartTurnRequestCount;
+                }
                 if (clock.Elapsed.TotalSeconds - turnBasedAttackIssuedAtSeconds <= TurnBasedAttackTimeoutSeconds)
                 {
                     return;
@@ -717,6 +805,8 @@ namespace KingmakerMountedCombat.Diagnostics
             observations["turnBasedForcedD20Count"] = ruleProbe.ForcedD20Count;
             observations["turnBasedUnexpectedPairAttackCount"] = ruleProbe.UnexpectedPairAttackCount;
             observations["turnBasedDamage"] = ruleProbe.TotalDamage;
+            observations["turnBasedPostDispatchStartTurnRequestCount"] =
+                turnBasedPostDispatchStartTurnRequestCount;
             var exactOutcome = turnBasedAttack.Result == UnitCommand.ResultType.Success &&
                 turnBasedAttack.IsStarted && turnBasedAttack.IsActed &&
                 ruleProbe.AttackRuleCount == 1 && ruleProbe.AttackRollCount == 1 &&
@@ -798,13 +888,382 @@ namespace KingmakerMountedCombat.Diagnostics
                 step = EngineStep.AwaitTargetRemoval;
                 return;
             }
-            BeginDeathProbe();
+            ContinueAfterTargetRemoval();
         }
 
         private void AwaitTargetRemoval()
         {
             if (targetService != null && !targetService.DestroyAndVerify()) { return; }
+            ContinueAfterTargetRemoval();
+        }
+
+        private void ContinueAfterTargetRemoval()
+        {
+            var targetClean = targetService == null ||
+                (targetService.TargetEntityRemoved && targetService.RuntimeGroupRemoved &&
+                 targetService.RuntimeFactionRemoved && targetService.CombatMemoryRemoved &&
+                 targetService.TargetDurabilityLeaseReleased && targetService.TargetBrainLeaseReleased &&
+                 targetService.TargetSleeplessLeaseReleased && targetService.NonPairPartyAiLeaseRestored);
+            if (IncludesMountedAlpha)
+            {
+                observations[mountedAlphaStarted ? "mountedTargetCleanupExact" : "unmountedTargetCleanupExact"] = targetClean;
+            }
+            try { targetService?.Dispose(); }
+            catch (Exception exception) { errors.Add("Completed target disposal: " + exception.Message); }
+            targetService = null;
+            target = null;
+
+            if (IncludesMountedAlpha && !mountedAlphaStarted)
+            {
+                BeginMountedAlpha();
+                return;
+            }
             BeginDeathProbe();
+        }
+
+        private void BeginMountedAlpha()
+        {
+            mountedAlphaStarted = true;
+            settings.EnableUnsafeMovementExperiment = true;
+            var selection = SelectionManager.Instance;
+            selection.SelectUnit(owner.View, true, true, false);
+            var armCountBefore = playerAction.MountTargetArmCount;
+            var clickCountBefore = playerAction.MountTargetClickCount;
+            var armed = playerAction.ArmMountTarget();
+            var click = armed
+                ? playerAction.TryHandleMountTargetClick(horse.View.gameObject, 0, false)
+                : MountedCombatClickResult.NotHandled;
+            observations["mountTargetArmDelta"] = playerAction.MountTargetArmCount - armCountBefore;
+            observations["mountTargetClickDelta"] = playerAction.MountTargetClickCount - clickCountBefore;
+            observations["mountTargetFeedback"] = playerAction.LastFeedback;
+            Check(armed && click == MountedCombatClickResult.HandledAccepted &&
+                    relationship.State == RelationshipState.Mounted &&
+                    relationship.Rider == owner && relationship.Mount == horse,
+                "target-selected-mount-action",
+                "The rider armed Mount, clicked the exact KMC horse, and created one exact transient pair through the player-facing target path.");
+            if (failed != 0) { BeginCleanup(); return; }
+            step = EngineStep.AwaitMountedReady;
+        }
+
+        private void AwaitMountedReady()
+        {
+            var runtime = relationship.Runtime;
+            if (relationship.State != RelationshipState.Mounted ||
+                runtime.PoseApplicationFrameCount == 0 || !runtime.PoseFrameApplied)
+            {
+                return;
+            }
+
+            var selected = SelectionManager.Instance.SelectedUnits;
+            observations["horseProfileId"] = runtime.MountProfileId;
+            observations["horsePoseProfileId"] = runtime.PoseProfileId;
+            observations["horseSourceAnchor"] = runtime.PresentationSourceAnchorName;
+            observations["horsePresentationAtMount"] = relationship.CapturePresentationObservation();
+            Check(string.Equals(runtime.MountProfileId, SupportedMountedProfiles.Horse.Id, StringComparison.Ordinal) &&
+                    string.Equals(runtime.PoseProfileId, SupportedMountedProfiles.Horse.Id, StringComparison.Ordinal) &&
+                    string.Equals(runtime.PresentationSourceAnchorName, "Chest", StringComparison.Ordinal) &&
+                    runtime.PresentationAttachmentLeaseActive && runtime.RiderParentMatchesAttachment &&
+                    runtime.PoseHealthy && runtime.PoseFrameApplied &&
+                    owner.View != null && !owner.View.AgentASP.enabled &&
+                    horse.View != null && horse.View.AgentASP.enabled &&
+                    selected.Count == 1 && selected[0] == owner,
+                "independent-horse-mounted-profile",
+                "The exact horse profile used Chest, its independent rider pose, Mammoth-style sole pathfinding, and rider-owned selection without Mammoth offsets.");
+            if (failed != 0) { BeginCleanup(); return; }
+
+            mountedRealTimeRiderStart = owner.Position;
+            mountedRealTimeHorseStart = horse.Position;
+            mountedRealTimeDestination = FindWalkablePoint(horse.Position, MovementDistance, 0.45f);
+            ClickGroundHandler.MoveSelectedUnitsToPoint(mountedRealTimeDestination, false);
+            mountedRealTimeMove = horse.Commands?.Move as UnitMoveTo;
+            Check(mountedRealTimeMove != null && mountedRealTimeMove.Executor == horse &&
+                    mountedRealTimeMove.CreatedByPlayer && owner.Commands?.Move == null,
+                "mounted-real-time-command-routing",
+                "One ordinary rider-owned ground input created one exact player command in the horse Move slot and none on the rider.");
+            if (failed != 0) { BeginCleanup(); return; }
+            step = EngineStep.AwaitMountedRealTimeMovement;
+        }
+
+        private void AwaitMountedRealTimeMovement()
+        {
+            if (mountedRealTimeMove == null || !mountedRealTimeMove.IsFinished) { return; }
+            var riderDistance = HorizontalDistance(mountedRealTimeRiderStart, owner.Position);
+            var horseDistance = HorizontalDistance(mountedRealTimeHorseStart, horse.Position);
+            var remaining = HorizontalDistance(horse.Position, mountedRealTimeDestination);
+            observations["mountedRealTimeRiderDisplacement"] = riderDistance;
+            observations["mountedRealTimeHorseDisplacement"] = horseDistance;
+            observations["mountedRealTimeRemaining"] = remaining;
+            Check(mountedRealTimeMove.Result == UnitCommand.ResultType.Success &&
+                    riderDistance >= 1.0f && horseDistance >= 1.0f &&
+                    remaining <= MovementTolerance &&
+                    relationship.State == RelationshipState.Mounted &&
+                    relationship.Runtime.PoseHealthy && relationship.Runtime.PoseFrameApplied,
+                "mounted-real-time-movement",
+                "The KMC horse remained sole pathfinder while the attached rider and horse reached the real-time destination with the exact pair and pose retained.");
+            if (failed != 0) { BeginCleanup(); return; }
+
+            targetService = new DiagnosticCombatTargetService(logger);
+            var spawnPoint = FindWalkablePoint(owner.Position, TargetDistance, 0.45f);
+            target = targetService.Spawn(owner, horse, spawnPoint, request.RunId + "-mounted", true, true);
+            Check(targetService.PrepareForPlayerClick(target) &&
+                    targetService.QueueBidirectionalCombatMemory(owner, target),
+                "mounted-transient-combat-target",
+                "A second runtime-only hostile target entered the exact visibility, memory, durability, and cleanup lease for mounted qualification.");
+            if (failed != 0) { BeginCleanup(); return; }
+            step = EngineStep.AwaitMountedCombatEntry;
+        }
+
+        private void AwaitMountedCombatEntry()
+        {
+            if (Game.Instance.IsPaused) { Game.Instance.IsPaused = false; }
+            if (!targetService.RefreshBidirectionalCombatMemoryLease() ||
+                !owner.IsInCombat || !horse.IsInCombat || !target.IsInCombat ||
+                !owner.CombatState.Prepared || !horse.CombatState.Prepared ||
+                !owner.CombatState.CanActInCombat || !horse.CombatState.CanActInCombat ||
+                !target.Descriptor.State.IsConscious)
+            {
+                return;
+            }
+
+            turnBasedModeProbe = new NativeModeTransitionProbe(true);
+            turnBasedModeProbe.DispatchTemporaryValueIfRequired();
+            step = EngineStep.AwaitMountedTurnBasedMode;
+        }
+
+        private void AwaitMountedTurnBasedMode()
+        {
+            targetService.RefreshBidirectionalCombatMemoryLease();
+            var controller = Game.Instance.TurnBasedCombatController;
+            if (!CombatController.IsInTurnBasedCombat() || controller == null || !controller.Initialized ||
+                !ContainsTurnRosterUnit(controller, owner) || !ContainsTurnRosterUnit(controller, horse) ||
+                !ContainsTurnRosterUnit(controller, target))
+            {
+                return;
+            }
+            Check(relationship.State == RelationshipState.Mounted &&
+                    relationship.Rider == owner && relationship.Mount == horse,
+                "horse-pair-retained-in-turn-based-transition",
+                "The exact horse pair and independent horse profile survived the native real-time-to-turn-based transition.");
+            if (failed != 0) { BeginCleanup(); return; }
+            controller.StartTurn(owner);
+            mountedRiderTurnStartRequests = 1;
+            mountedRiderTurnStableFrames = 0;
+            turnBasedTurnAcquisitionStartedAtSeconds = clock.Elapsed.TotalSeconds;
+            step = EngineStep.AwaitMountedRiderTurn;
+        }
+
+        private void AwaitMountedRiderTurn()
+        {
+            targetService.RefreshBidirectionalCombatMemoryLease();
+            var controller = Game.Instance.TurnBasedCombatController;
+            var turn = controller?.CurrentTurn;
+            if (clock.Elapsed.TotalSeconds - turnBasedTurnAcquisitionStartedAtSeconds >
+                TurnBasedTurnAcquisitionTimeoutSeconds)
+            {
+                Fail("mounted-rider-turn-deadline",
+                    "The native controller did not retain a stable actionable rider turn within its bounded 20-second leaf.");
+                BeginCleanup();
+                return;
+            }
+            if (turn?.Unit != owner)
+            {
+                mountedRiderTurnStableFrames = 0;
+                if (controller != null && mountedRiderTurnStartRequests < 2)
+                {
+                    controller.StartTurn(owner);
+                    mountedRiderTurnStartRequests++;
+                }
+                return;
+            }
+            if ((turn.Status != TurnController.TurnStatus.Preparing && !turn.IsActing) ||
+                owner.Commands == null || !owner.Commands.Empty ||
+                horse.Commands == null || !horse.Commands.Empty ||
+                owner.AreHandsBusyWithAnimation || horse.AreHandsBusyWithAnimation)
+            {
+                mountedRiderTurnStableFrames = 0;
+                return;
+            }
+            mountedRiderTurnStableFrames++;
+            if (mountedRiderTurnStableFrames < 2) { return; }
+
+            SelectionManager.Instance.SelectUnit(owner.View, true, true, false);
+            mountedTurnRiderStart = owner.Position;
+            mountedTurnHorseStart = horse.Position;
+            mountedTurnTargetStart = target.Position;
+            mountedTurnDestination = FindWalkablePoint(horse.Position, 1.5f, 0.45f);
+            ClickGroundHandler.MoveSelectedUnitsToPoint(mountedTurnDestination, false);
+            Check(combat.HasActiveGroundMovement,
+                "mounted-rider-turn-ground-admission",
+                "One ordinary ground click on the rider turn admitted one exact horse-owned Move command through the bounded turn adapter.");
+            if (failed != 0) { BeginCleanup(); return; }
+            step = EngineStep.AwaitMountedTurnBasedMovement;
+        }
+
+        private void AwaitMountedTurnBasedMovement()
+        {
+            targetService.RefreshBidirectionalCombatMemoryLease();
+            var controller = Game.Instance.TurnBasedCombatController;
+            if (combat.HasActiveGroundMovement)
+            {
+                if (controller?.CurrentTurn?.Unit != owner && mountedPostMoveTurnReassertions == 0)
+                {
+                    controller?.StartTurn(owner);
+                    mountedPostMoveTurnReassertions++;
+                }
+                return;
+            }
+            if (string.IsNullOrEmpty(combat.LastGroundMoveResult)) { return; }
+
+            var riderDistance = HorizontalDistance(mountedTurnRiderStart, owner.Position);
+            var horseDistance = HorizontalDistance(mountedTurnHorseStart, horse.Position);
+            var targetDistance = HorizontalDistance(mountedTurnTargetStart, target.Position);
+            observations["mountedTurnRiderDisplacement"] = riderDistance;
+            observations["mountedTurnHorseDisplacement"] = horseDistance;
+            observations["mountedTurnTargetDisplacement"] = targetDistance;
+            observations["mountedTurnDriveCount"] = combat.LastGroundMoveDriveCount;
+            observations["mountedTurnPostDispatchReassertions"] = mountedPostMoveTurnReassertions;
+            Check(string.Equals(combat.LastGroundMoveResult, "Success", StringComparison.Ordinal) &&
+                    combat.LastGroundMoveDriveCount > 0 && combat.LastGroundMoveUsedRiderTurnAdapter &&
+                    combat.LastGroundMoveSlotRestored &&
+                    string.Equals(combat.LastGroundMoveExecutorId, horse.UniqueId, StringComparison.Ordinal) &&
+                    combat.LastGroundMoveRiderMoveAfter > combat.LastGroundMoveRiderMoveBefore &&
+                    Math.Abs(combat.LastGroundMoveMountMoveAfter - combat.LastGroundMoveMountMoveBefore) <= 0.01f &&
+                    riderDistance >= 0.75f && horseDistance >= 0.75f && targetDistance <= 0.25f &&
+                    relationship.State == RelationshipState.Mounted && relationship.Runtime.PoseHealthy,
+                "mounted-turn-based-rider-movement",
+                "The rider turn charged only the rider Move ledger while the exact horse command moved the retained pair and left the target stationary.");
+            if (failed != 0) { BeginCleanup(); return; }
+            turnBasedModeProbe.Dispose();
+            turnBasedModeProbe = null;
+            step = EngineStep.AwaitMountedRealTimeRestore;
+        }
+
+        private void AwaitMountedRealTimeRestore()
+        {
+            if (CombatController.IsInTurnBasedCombat()) { return; }
+            targetService.RefreshBidirectionalCombatMemoryLease();
+            if (relationship.State != RelationshipState.Mounted ||
+                relationship.Rider != owner || relationship.Mount != horse ||
+                !relationship.Runtime.PoseHealthy || !relationship.Runtime.PoseFrameApplied ||
+                owner.CombatState == null || horse.CombatState == null ||
+                !owner.CombatState.Prepared || !horse.CombatState.Prepared ||
+                !owner.HasStandardAction() || !horse.HasStandardAction() ||
+                !owner.Commands.Empty || !horse.Commands.Empty ||
+                owner.AreHandsBusyWithAnimation || horse.AreHandsBusyWithAnimation)
+            {
+                return;
+            }
+            observations["horsePresentationAfterTurnBasedRestore"] = relationship.CapturePresentationObservation();
+            SelectionManager.Instance.SelectUnit(owner.View, true, true, false);
+            ruleProbe.Arm(owner, horse, owner, target, 20);
+            var dispatchStarted = targetService.BeginExpectedAttackDispatch(target);
+            var armed = combat.Arm(MountedCombatActionKind.RiderMelee);
+            var clicked = armed && new ClickUnitHandler().OnClick(
+                target.View.gameObject, target.Position, 0, false, false);
+            Check(dispatchStarted && armed && clicked && combat.HasActiveCommand,
+                "mounted-rider-primary-admission",
+                "The KMC Rider melee control admitted exactly one rider-owned mounted command after the native turn-based-to-real-time transition.");
+            if (failed != 0) { BeginCleanup(); return; }
+            step = EngineStep.AwaitMountedRiderAttack;
+        }
+
+        private void AwaitMountedRiderAttack()
+        {
+            targetService.RefreshBidirectionalCombatMemoryLease();
+            if (combat.HasActiveCommand || combat.LastOutcome == null) { return; }
+            mountedRiderOutcome = combat.LastOutcome;
+            observations["mountedRiderOutcome"] = CaptureMountedOutcome(mountedRiderOutcome);
+            observations["mountedRiderAttackRules"] = ruleProbe.AttackRuleCount;
+            observations["mountedRiderAttackRolls"] = ruleProbe.AttackRollCount;
+            observations["mountedRiderDamageRules"] = ruleProbe.DamageRuleCount;
+            Check(mountedRiderOutcome.Action == MountedCombatActionKind.RiderMelee &&
+                    string.Equals(mountedRiderOutcome.Result, UnitCommand.ResultType.Success.ToString(), StringComparison.Ordinal) &&
+                    string.Equals(mountedRiderOutcome.ActorId, owner.UniqueId, StringComparison.Ordinal) &&
+                    string.Equals(mountedRiderOutcome.CommandOwnerId, owner.UniqueId, StringComparison.Ordinal) &&
+                    string.Equals(mountedRiderOutcome.ResourceOwnerId, owner.UniqueId, StringComparison.Ordinal) &&
+                    mountedRiderOutcome.ChildAttackStartCount == 1 &&
+                    ruleProbe.AttackRuleCount == 1 && ruleProbe.AttackRollCount == 1 &&
+                    ruleProbe.DamageRuleCount == 1 && ruleProbe.UnexpectedPairAttackCount == 0 &&
+                    ruleProbe.TotalDamage > 0,
+                "mounted-rider-primary-outcome",
+                "Exactly one supported rider melee chain used rider command/resource ownership with no duplicate pair attack.");
+            if (failed != 0) { BeginCleanup(); return; }
+            step = EngineStep.AwaitMountedHorseAttack;
+        }
+
+        private void AwaitMountedHorseAttack()
+        {
+            targetService.RefreshBidirectionalCombatMemoryLease();
+            if (mountedHorseOutcome == null && combat.LastOutcome == mountedRiderOutcome)
+            {
+                if (!horse.HasStandardAction() || !horse.Commands.Empty || horse.AreHandsBusyWithAnimation ||
+                    target == null || !target.IsInState || !target.Descriptor.State.IsConscious)
+                {
+                    return;
+                }
+                SelectionManager.Instance.SelectUnit(owner.View, true, true, false);
+                ruleProbe.Arm(owner, horse, horse, target, 20);
+                var armed = combat.Arm(MountedCombatActionKind.MountPrimaryNatural);
+                var clicked = armed && new ClickUnitHandler().OnClick(
+                    target.View.gameObject, target.Position, 0, false, false);
+                Check(armed && clicked && combat.HasActiveCommand,
+                    "mounted-horse-primary-admission",
+                    "The KMC Horse primary control admitted exactly one horse-owned natural-attack command without replacing the rider command surface.");
+                if (failed != 0) { BeginCleanup(); }
+                return;
+            }
+            if (combat.HasActiveCommand || combat.LastOutcome == null) { return; }
+
+            mountedHorseOutcome = combat.LastOutcome;
+            observations["mountedHorseOutcome"] = CaptureMountedOutcome(mountedHorseOutcome);
+            observations["mountedHorseAttackRules"] = ruleProbe.AttackRuleCount;
+            observations["mountedHorseAttackRolls"] = ruleProbe.AttackRollCount;
+            observations["mountedHorseDamageRules"] = ruleProbe.DamageRuleCount;
+            Check(mountedHorseOutcome.Action == MountedCombatActionKind.MountPrimaryNatural &&
+                    string.Equals(mountedHorseOutcome.Result, UnitCommand.ResultType.Success.ToString(), StringComparison.Ordinal) &&
+                    string.Equals(mountedHorseOutcome.ActorId, horse.UniqueId, StringComparison.Ordinal) &&
+                    string.Equals(mountedHorseOutcome.CommandOwnerId, horse.UniqueId, StringComparison.Ordinal) &&
+                    string.Equals(mountedHorseOutcome.ResourceOwnerId, horse.UniqueId, StringComparison.Ordinal) &&
+                    mountedHorseOutcome.ChildAttackStartCount == 1 && mountedHorseOutcome.AttackWeaponIsNatural &&
+                    ruleProbe.AttackRuleCount == 1 && ruleProbe.AttackRollCount == 1 &&
+                    ruleProbe.DamageRuleCount == 1 && ruleProbe.UnexpectedPairAttackCount == 0 &&
+                    ruleProbe.TotalDamage > 0,
+                "mounted-horse-primary-outcome",
+                "Exactly one Horse primary chain used horse command/resource ownership and a natural primary with no duplicate rider attack.");
+            if (failed != 0) { BeginCleanup(); return; }
+
+            var dismounted = playerAction.Activate();
+            mountedAlphaDismounted = dismounted;
+            Check(dismounted,
+                "mounted-explicit-dismount-dispatch",
+                "The player-facing Dismount action accepted after both exact mounted attacks.");
+            if (failed != 0) { BeginCleanup(); return; }
+            step = EngineStep.AwaitMountedDismount;
+        }
+
+        private void AwaitMountedDismount()
+        {
+            if (!mountedAlphaDismounted || relationship.State != RelationshipState.Unmounted) { return; }
+            var selected = SelectionManager.Instance.SelectedUnits;
+            Check(relationship.Rider == null && relationship.Mount == null &&
+                    !relationship.Runtime.PresentationAttachmentLeaseActive &&
+                    !relationship.Runtime.HasPresentationAttachmentResidue &&
+                    relationship.Runtime.PoseComponentCount == 0 &&
+                    relationship.Runtime.PoseBaselineRestoreVerified &&
+                    owner.View.AgentASP.enabled && horse.View.AgentASP.enabled &&
+                    selected.Count == 1 && selected[0] == owner,
+                "mounted-explicit-dismount-restoration",
+                "Explicit Dismount restored both stock agents, rider selection, pose baseline, attachment parent, and zero KMC presentation residue.");
+            if (failed != 0) { BeginCleanup(); return; }
+            TryLeaveCombat(target);
+            TryLeaveCombat(horse);
+            TryLeaveCombat(owner);
+            if (targetService != null && !targetService.DestroyAndVerify())
+            {
+                step = EngineStep.AwaitTargetRemoval;
+                return;
+            }
+            ContinueAfterTargetRemoval();
         }
 
         private void BeginDeathProbe()
@@ -816,6 +1275,30 @@ namespace KingmakerMountedCombat.Diagnostics
             horse.Damage = lethalDamage;
             observations["lethalDamage"] = lethalDamage;
             step = EngineStep.AwaitDeath;
+        }
+
+        private static JObject CaptureMountedOutcome(MountedPairAttackOutcome outcome)
+        {
+            if (outcome == null) { return null; }
+            return new JObject
+            {
+                ["action"] = outcome.Action.ToString(),
+                ["actorId"] = outcome.ActorId,
+                ["commandOwnerId"] = outcome.CommandOwnerId,
+                ["resourceOwnerId"] = outcome.ResourceOwnerId,
+                ["targetId"] = outcome.TargetId,
+                ["result"] = outcome.Result,
+                ["childAttackStartCount"] = outcome.ChildAttackStartCount,
+                ["repathCount"] = outcome.RepathCount,
+                ["attackWeaponBlueprintId"] = outcome.AttackWeaponBlueprintId,
+                ["attackWeaponIsNatural"] = outcome.AttackWeaponIsNatural,
+                ["attackWeaponIsRanged"] = outcome.AttackWeaponIsRanged,
+                ["delegatedMoveExecutorId"] = outcome.DelegatedMoveExecutorId,
+                ["delegatedMoveExecutorIsExactMount"] = outcome.DelegatedMoveExecutorIsExactMount,
+                ["riderStandardCharged"] = outcome.RiderStandardCharged,
+                ["actionStandardCharged"] = outcome.ActionStandardCharged,
+                ["terminalReason"] = outcome.TerminalReason
+            };
         }
 
         private void AwaitDeath()
@@ -878,9 +1361,24 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void BestEffortCleanup()
         {
+            try { combat.Cancel("horse qualification cleanup"); }
+            catch (Exception exception) { errors.Add("Mounted combat cleanup: " + exception.Message); }
+            if (relationship.State != RelationshipState.Unmounted)
+            {
+                try
+                {
+                    var cleanup = relationship.Dismount(CleanupTrigger.Exception);
+                    if (!cleanup.Succeeded || cleanup.MovementAuthorityResidual || cleanup.PresentationResidual)
+                    {
+                        errors.Add("Mounted relationship cleanup retained runtime residue.");
+                    }
+                }
+                catch (Exception exception) { errors.Add("Mounted relationship cleanup: " + exception.Message); }
+            }
             try { realTimeAttack?.Interrupt(); } catch (Exception exception) { errors.Add("RT attack cleanup: " + exception.Message); }
             try { turnBasedAttack?.Interrupt(); } catch (Exception exception) { errors.Add("TB attack cleanup: " + exception.Message); }
             try { movementCommand?.Interrupt(); } catch (Exception exception) { errors.Add("Movement cleanup: " + exception.Message); }
+            try { mountedRealTimeMove?.Interrupt(); } catch (Exception exception) { errors.Add("Mounted RT movement cleanup: " + exception.Message); }
             TryLeaveCombat(target);
             TryLeaveCombat(horse);
             TryLeaveCombat(owner);
@@ -908,6 +1406,7 @@ namespace KingmakerMountedCombat.Diagnostics
             turnBasedModeProbe = null;
             try { realTimeModeProbe?.Dispose(); } catch (Exception exception) { errors.Add("RT mode cleanup: " + exception.Message); }
             realTimeModeProbe = null;
+            settings.EnableUnsafeMovementExperiment = originalUnsafeExperimentSetting;
             try { service.SetSelectionEnabled(true); } catch (Exception exception) { errors.Add("Ranger selection cleanup: " + exception.Message); }
         }
 
@@ -983,9 +1482,28 @@ namespace KingmakerMountedCombat.Diagnostics
                     candidate.Descriptor.Pet == null && candidate.Descriptor.State.IsConscious &&
                     candidate.Descriptor.State.Size == Size.Medium && !candidate.IsInCombat &&
                     candidate.Commands != null && candidate.Commands.Empty &&
-                    candidate.Descriptor.GetFact(service.LevelRank) == null)
+                    candidate.Descriptor.GetFact(service.LevelRank) == null &&
+                    (!IncludesMountedAlpha || IsSupportedHorseRider(candidate)))
                 .OrderBy(candidate => candidate.UniqueId, StringComparer.Ordinal)
                 .FirstOrDefault();
+        }
+
+        private static bool IsSupportedHorseRider(UnitEntityData candidate)
+        {
+            if (candidate?.View == null || candidate.GetActivePolymorph() != null)
+            {
+                return false;
+            }
+            var weapon = candidate.GetFirstWeapon()?.Blueprint;
+            if (weapon == null || weapon.IsRanged || weapon.IsTwoHanded || weapon.IsNatural)
+            {
+                return false;
+            }
+            string error;
+            return MountedRiderPoseAdapter.TryValidateSupportedSurface(
+                candidate.View,
+                SupportedMountedProfiles.Horse.RiderPoseProfile,
+                out error);
         }
 
         private void CaptureOriginalPartyPets(Game game)
@@ -1106,7 +1624,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var artifact = new JObject
             {
                 ["schemaVersion"] = 2,
-                ["evidenceKind"] = EvidenceKind,
+                ["evidenceKind"] = IncludesMountedAlpha ? MountedEvidenceKind : EvidenceKind,
                 ["runId"] = request.RunId,
                 ["scenario"] = request.Scenario,
                 ["branch"] = request.Branch,
@@ -1125,20 +1643,21 @@ namespace KingmakerMountedCombat.Diagnostics
             WriteArtifact(artifact);
             results.Add(new RuntimeSubscenarioResult
             {
-                Name = ScenarioName,
+                Name = request.Scenario,
                 Status = status,
                 AssertionPassCount = passed,
                 AssertionFailCount = failed,
                 Errors = errors.ToArray()
             });
             completed = true;
-            logger.Info("Horse companion unmounted qualification completed with PASS=" + passed + " FAIL=" + failed + ".");
+            logger.Info("Horse qualification completed: scenario=" + request.Scenario +
+                "; PASS=" + passed + " FAIL=" + failed + ".");
         }
 
         private void WriteArtifact(JObject artifact)
         {
             var root = Path.GetFullPath(request.EvidenceRoot).TrimEnd(Path.DirectorySeparatorChar);
-            var path = Path.Combine(root, EvidenceFileName);
+            var path = Path.Combine(root, IncludesMountedAlpha ? MountedEvidenceFileName : EvidenceFileName);
             if (!Directory.Exists(root)) { throw new DirectoryNotFoundException("Runtime evidence root is missing."); }
             if (File.Exists(path)) { throw new InvalidOperationException("Horse unmounted evidence artifact already exists."); }
             var temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
@@ -1179,6 +1698,16 @@ namespace KingmakerMountedCombat.Diagnostics
             AwaitTurnBasedAttack,
             AwaitRealTimeRestore,
             AwaitTargetRemoval,
+            AwaitMountedReady,
+            AwaitMountedRealTimeMovement,
+            AwaitMountedCombatEntry,
+            AwaitMountedTurnBasedMode,
+            AwaitMountedRiderTurn,
+            AwaitMountedTurnBasedMovement,
+            AwaitMountedRealTimeRestore,
+            AwaitMountedRiderAttack,
+            AwaitMountedHorseAttack,
+            AwaitMountedDismount,
             AwaitDeath,
             AwaitRecovery,
             AwaitRespecRemoval,

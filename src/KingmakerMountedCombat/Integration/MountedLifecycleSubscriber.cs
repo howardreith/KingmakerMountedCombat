@@ -220,16 +220,10 @@ namespace KingmakerMountedCombat.Integration
                 return false;
             }
 
-            var unitIsMammoth = unit.Blueprint != null && string.Equals(
-                unit.Blueprint.AssetGuid,
-                KingmakerMountedPairRuntime.MammothBlueprintGuid,
-                StringComparison.Ordinal);
+            var unitIsSupportedMount = SupportedMountedProfiles.IsSupported(unit);
             var pet = unit.Descriptor?.Pet;
-            var ownsMammoth = pet?.Blueprint != null && string.Equals(
-                pet.Blueprint.AssetGuid,
-                KingmakerMountedPairRuntime.MammothBlueprintGuid,
-                StringComparison.Ordinal);
-            return unitIsMammoth || ownsMammoth;
+            var ownsSupportedMount = SupportedMountedProfiles.IsSupported(pet);
+            return unitIsSupportedMount || ownsSupportedMount;
         }
 
         private bool Cleanup(NativeLifecycleBoundary boundary, string source, CleanupTrigger trigger, string detail = null)

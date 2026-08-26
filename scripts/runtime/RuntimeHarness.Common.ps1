@@ -3624,7 +3624,7 @@ function Restore-KmcModsTransaction {
 
 function Get-KmcSaveBackedRuntimeScenarios {
     return @(
-        'export-mounted-contracts', 'export-candidate-mount-rigs', 'observe-mount-diagnostic-availability', 'horse-native-asset-audit', 'horse-companion-blueprint-registration', 'horse-companion-unmounted-suite',
+        'export-mounted-contracts', 'export-candidate-mount-rigs', 'observe-mount-diagnostic-availability', 'horse-native-asset-audit', 'horse-companion-blueprint-registration', 'horse-companion-unmounted-suite', 'horse-mounted-alpha-suite',
         'player-action-availability', 'mount-dismount-user-flow',
         'mounted-pair-create-and-clear', 'mounted-pair-double-mount-rejected', 'mounted-pair-invalid-pair-rejected',
         'mounted-pair-cleanup-idempotent', 'mounted-pair-death-cleanup', 'mounted-pair-combat-start-cleanup',
@@ -4537,7 +4537,7 @@ function Assert-KmcKnownRuntimeArtifactsManifested {
     )
     $manifested = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
     foreach ($artifact in @($Manifest.artifacts)) { [void]$manifested.Add([string]$artifact.relativePath) }
-    foreach ($leaf in @('lifecycle-scenario-evidence.jsonl','movement-telemetry.jsonl','movement-scenario-evidence.jsonl','boundary-scenario-evidence.jsonl','combat-scenario-evidence.jsonl','horse-native-asset-audit.json','horse-companion-blueprint-registration.json','horse-companion-unmounted.json')) {
+    foreach ($leaf in @('lifecycle-scenario-evidence.jsonl','movement-telemetry.jsonl','movement-scenario-evidence.jsonl','boundary-scenario-evidence.jsonl','combat-scenario-evidence.jsonl','horse-native-asset-audit.json','horse-companion-blueprint-registration.json','horse-companion-unmounted.json','horse-mounted-alpha.json')) {
         if ((Test-Path -LiteralPath (Join-Path $EvidenceRoot $leaf) -PathType Leaf) -and -not $manifested.Contains($leaf)) {
             throw "Known runtime artifact exists without a manifest record: $leaf"
         }
@@ -4742,7 +4742,7 @@ function Assert-KmcHorseCompanionBlueprintRegistrationEvidence {
     $scenario = 'horse-companion-blueprint-registration'
     $leaf = 'horse-companion-blueprint-registration.json'
     $kind = 'horse-companion-blueprint-registration'
-    $isAudit = [string]$Request.scenario -cin @($scenario, 'horse-companion-unmounted-suite')
+    $isAudit = [string]$Request.scenario -cin @($scenario, 'horse-companion-unmounted-suite', 'horse-mounted-alpha-suite')
     $records = @($Manifest.artifacts | Where-Object {
         [string]$_.relativePath -ceq $leaf -or [string]$_.kind -ceq $kind
     })
@@ -4889,17 +4889,25 @@ function Assert-KmcHorseCompanionUnmountedEvidence {
         $SubscenarioResults
     )
 
-    $scenario = 'horse-companion-unmounted-suite'
-    $leaf = 'horse-companion-unmounted.json'
-    $kind = 'horse-companion-unmounted'
-    $isSuite = [string]$Request.scenario -ceq $scenario
-    $records = @($Manifest.artifacts | Where-Object {
+    $unmountedScenario = 'horse-companion-unmounted-suite'
+    $mountedScenario = 'horse-mounted-alpha-suite'
+    $isMounted = [string]$Request.scenario -ceq $mountedScenario
+    $scenario = if ($isMounted) { $mountedScenario } else { $unmountedScenario }
+    $leaf = if ($isMounted) { 'horse-mounted-alpha.json' } else { 'horse-companion-unmounted.json' }
+    $kind = if ($isMounted) { 'horse-mounted-alpha' } else { 'horse-companion-unmounted' }
+    $isSuite = [string]$Request.scenario -cin @($unmountedScenario, $mountedScenario)
+    $knownRecords = @($Manifest.artifacts | Where-Object {
+        [string]$_.relativePath -cin @('horse-companion-unmounted.json','horse-mounted-alpha.json') -or
+        [string]$_.kind -cin @('horse-companion-unmounted','horse-mounted-alpha')
+    })
+    $records = @($knownRecords | Where-Object {
         [string]$_.relativePath -ceq $leaf -or [string]$_.kind -ceq $kind
     })
     if (-not $isSuite) {
-        if ($records.Count -ne 0) { throw 'Non-horse-unmounted scenario manifested horse unmounted evidence.' }
+        if ($knownRecords.Count -ne 0) { throw 'Non-horse scenario manifested horse qualification evidence.' }
         return
     }
+    if ($knownRecords.Count -ne $records.Count) { throw 'Horse scenario manifested evidence for the other horse scenario.' }
     if ([string]$Status -ceq 'PASS' -and $records.Count -ne 1) {
         throw 'PASS horse unmounted suite requires exactly one manifested artifact.'
     }
@@ -4965,14 +4973,26 @@ function Assert-KmcHorseCompanionUnmountedEvidence {
     }
 
     if ([string]$artifact.status -ceq 'PASS') {
-        foreach ($required in @(
+        $requiredAssertions = @(
             'eligible-owner','feature-activation','creation-and-ownership','party-control-surface',
             'rank-progression-and-upgrade','native-view-size-statistics','horse-selection','stock-movement-command',
             'unmounted-party-movement','transient-combat-target','bite-and-hoof-full-attack','expected-attack-boundary',
             'real-time-natural-attack','turn-based-roster','turn-based-horse-control','turn-based-natural-attack',
             'death-ownership','death-and-recovery','respec-runtime-cleanup','respec-and-uninstall-surface',
             'entity-and-target-restoration','mode-pause-selection-restoration','non-horse-isolation'
-        )) {
+        )
+        if ($isMounted) {
+            $requiredAssertions = @($requiredAssertions + @(
+                'target-selected-mount-action','independent-horse-mounted-profile',
+                'mounted-real-time-command-routing','mounted-real-time-movement',
+                'mounted-transient-combat-target','horse-pair-retained-in-turn-based-transition',
+                'mounted-rider-turn-ground-admission','mounted-turn-based-rider-movement',
+                'mounted-rider-primary-admission','mounted-rider-primary-outcome',
+                'mounted-horse-primary-admission','mounted-horse-primary-outcome',
+                'mounted-explicit-dismount-dispatch','mounted-explicit-dismount-restoration'
+            ))
+        }
+        foreach ($required in $requiredAssertions) {
             if (-not $names.Contains($required)) { throw "PASS horse unmounted evidence omitted assertion: $required" }
         }
         $observationNames = @(
@@ -4993,7 +5013,20 @@ function Assert-KmcHorseCompanionUnmountedEvidence {
         if ([long]$artifact.schemaVersion -ge 2) {
             $observationNames = @($observationNames + @(
                 'realTimeForcedD20Count','realTimeUnexpectedPairAttackCount',
-                'turnBasedForcedD20Count','turnBasedUnexpectedPairAttackCount'
+                'turnBasedForcedD20Count','turnBasedUnexpectedPairAttackCount',
+                'turnBasedPostDispatchStartTurnRequestCount'
+            ))
+        }
+        if ($isMounted) {
+            $observationNames = @($observationNames + @(
+                'unmountedTargetCleanupExact','mountTargetArmDelta','mountTargetClickDelta','mountTargetFeedback',
+                'horseProfileId','horsePoseProfileId','horseSourceAnchor','horsePresentationAtMount',
+                'mountedRealTimeRiderDisplacement','mountedRealTimeHorseDisplacement','mountedRealTimeRemaining',
+                'horsePresentationAfterTurnBasedRestore','mountedTurnRiderDisplacement','mountedTurnHorseDisplacement',
+                'mountedTurnTargetDisplacement','mountedTurnDriveCount','mountedTurnPostDispatchReassertions',
+                'mountedRiderOutcome','mountedRiderAttackRules','mountedRiderAttackRolls','mountedRiderDamageRules',
+                'mountedHorseOutcome','mountedHorseAttackRules','mountedHorseAttackRolls','mountedHorseDamageRules',
+                'mountedTargetCleanupExact'
             ))
         }
         Assert-KmcExactProperties $artifact.observations $observationNames 'horse unmounted observations'
@@ -5061,7 +5094,9 @@ function Assert-KmcHorseCompanionUnmountedEvidence {
             [long]$o.turnBasedDamageRules -ne 1 -or [long]$o.turnBasedDamage -le 0 -or
             ([long]$artifact.schemaVersion -ge 2 -and
              ([long]$o.realTimeForcedD20Count -lt 1 -or [long]$o.realTimeUnexpectedPairAttackCount -ne 0 -or
-              [long]$o.turnBasedForcedD20Count -lt 1 -or [long]$o.turnBasedUnexpectedPairAttackCount -ne 0)) -or
+              [long]$o.turnBasedForcedD20Count -lt 1 -or [long]$o.turnBasedUnexpectedPairAttackCount -ne 0 -or
+              [long]$o.turnBasedPostDispatchStartTurnRequestCount -lt 0 -or
+              [long]$o.turnBasedPostDispatchStartTurnRequestCount -gt 1)) -or
             $o.targetCleanupExact -ne $true -or [long]$o.lethalDamage -le 0 -or [long]$o.recoveredDamage -ne 0 -or
             $o.finalPause -ne $o.originalPause -or $o.finalTurnBased -ne $o.originalTurnBased -or
             [long]$o.finalSelectionCount -ne [long]$o.originalSelectionCount -or
@@ -5069,6 +5104,59 @@ function Assert-KmcHorseCompanionUnmountedEvidence {
             $o.horseRemoved -ne $true -or $o.targetRemoved -ne $true -or
             [string]$o.saveLoadAutomationScope -cnotmatch '^CONTRACT-ONLY:') {
             throw 'PASS horse unmounted observations do not satisfy the exact technical contract.'
+        }
+        if ($isMounted) {
+            Assert-KmcExactProperties $o.mountedRiderOutcome @(
+                'action','actorId','commandOwnerId','resourceOwnerId','targetId','result','childAttackStartCount',
+                'repathCount','attackWeaponBlueprintId','attackWeaponIsNatural','attackWeaponIsRanged',
+                'delegatedMoveExecutorId','delegatedMoveExecutorIsExactMount','riderStandardCharged',
+                'actionStandardCharged','terminalReason'
+            ) 'mounted rider outcome'
+            Assert-KmcExactProperties $o.mountedHorseOutcome @(
+                'action','actorId','commandOwnerId','resourceOwnerId','targetId','result','childAttackStartCount',
+                'repathCount','attackWeaponBlueprintId','attackWeaponIsNatural','attackWeaponIsRanged',
+                'delegatedMoveExecutorId','delegatedMoveExecutorIsExactMount','riderStandardCharged',
+                'actionStandardCharged','terminalReason'
+            ) 'mounted horse outcome'
+            $riderOutcome = $o.mountedRiderOutcome
+            $horseOutcome = $o.mountedHorseOutcome
+            if ($o.unmountedTargetCleanupExact -ne $true -or $o.mountedTargetCleanupExact -ne $true -or
+                [long]$o.mountTargetArmDelta -ne 1 -or [long]$o.mountTargetClickDelta -ne 1 -or
+                [string]$o.horseProfileId -cne 'medium-humanoid-horse-v1' -or
+                [string]$o.horsePoseProfileId -cne 'medium-humanoid-horse-v1' -or
+                [string]$o.horseSourceAnchor -cne 'Chest' -or
+                [string]$o.horsePresentationAtMount -cnotmatch 'poseLease=True;attachmentLease=True' -or
+                [double]$o.mountedRealTimeRiderDisplacement -lt 1.0 -or
+                [double]$o.mountedRealTimeHorseDisplacement -lt 1.0 -or
+                [double]$o.mountedRealTimeRemaining -gt 0.75 -or
+                [double]$o.mountedTurnRiderDisplacement -lt 0.75 -or
+                [double]$o.mountedTurnHorseDisplacement -lt 0.75 -or
+                [double]$o.mountedTurnTargetDisplacement -gt 0.25 -or
+                [long]$o.mountedTurnDriveCount -le 0 -or
+                [long]$o.mountedTurnPostDispatchReassertions -lt 0 -or
+                [long]$o.mountedTurnPostDispatchReassertions -gt 1 -or
+                [string]$o.horsePresentationAfterTurnBasedRestore -cnotmatch 'turnBased=False' -or
+                [long]$o.mountedRiderAttackRules -ne 1 -or [long]$o.mountedRiderAttackRolls -ne 1 -or
+                [long]$o.mountedRiderDamageRules -ne 1 -or
+                [string]$riderOutcome.action -cne 'RiderMelee' -or [string]$riderOutcome.result -cne 'Success' -or
+                [string]$riderOutcome.actorId -cne [string]$o.ownerId -or
+                [string]$riderOutcome.commandOwnerId -cne [string]$o.ownerId -or
+                [string]$riderOutcome.resourceOwnerId -cne [string]$o.ownerId -or
+                [long]$riderOutcome.childAttackStartCount -ne 1 -or
+                $riderOutcome.attackWeaponIsNatural -ne $false -or $riderOutcome.attackWeaponIsRanged -ne $false -or
+                $riderOutcome.riderStandardCharged -ne $true -or $riderOutcome.actionStandardCharged -ne $true -or
+                [long]$o.mountedHorseAttackRules -ne 1 -or [long]$o.mountedHorseAttackRolls -ne 1 -or
+                [long]$o.mountedHorseDamageRules -ne 1 -or
+                [string]$horseOutcome.action -cne 'MountPrimaryNatural' -or [string]$horseOutcome.result -cne 'Success' -or
+                [string]$horseOutcome.actorId -cne [string]$o.horseId -or
+                [string]$horseOutcome.commandOwnerId -cne [string]$o.horseId -or
+                [string]$horseOutcome.resourceOwnerId -cne [string]$o.horseId -or
+                [long]$horseOutcome.childAttackStartCount -ne 1 -or
+                $horseOutcome.attackWeaponIsNatural -ne $true -or $horseOutcome.attackWeaponIsRanged -ne $false -or
+                $horseOutcome.riderStandardCharged -ne $false -or $horseOutcome.actionStandardCharged -ne $true -or
+                [string]$riderOutcome.targetId -cne [string]$horseOutcome.targetId) {
+                throw 'PASS mounted horse observations do not satisfy the exact technical contract.'
+            }
         }
     }
 
@@ -10046,6 +10134,7 @@ function Get-KmcValidatedOrchestrationArtifactManifestHash {
             ($relative -ceq 'horse-native-asset-audit.json' -and $kind -ceq 'horse-asset-audit') -or
             ($relative -ceq 'horse-companion-blueprint-registration.json' -and $kind -ceq 'horse-companion-blueprint-registration') -or
             ($relative -ceq 'horse-companion-unmounted.json' -and $kind -ceq 'horse-companion-unmounted') -or
+            ($relative -ceq 'horse-mounted-alpha.json' -and $kind -ceq 'horse-mounted-alpha') -or
             ($relative -cmatch '^movement-visuals/[A-Za-z0-9._-]+\.png$' -and $kind -ceq 'screenshot')
         if (-not $seen.Add($relative) -or -not $allowed -or [long]$artifact.length -le 0 -or
             [string]$artifact.sha256 -cnotmatch '^[0-9a-f]{64}$') {

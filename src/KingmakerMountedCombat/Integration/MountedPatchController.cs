@@ -24,9 +24,10 @@ namespace KingmakerMountedCombat.Integration
         private readonly HarmonyInstance harmony;
         private bool disposed;
 
-        public MountedPatchController(GameMountedRelationshipService service, MountedCombatController combat, RuntimeSaveAuthorization saveAuthorization, NativeLifecycleDeliveryLedger lifecycleLedger, IModLogger logger)
+        public MountedPatchController(GameMountedRelationshipService service, MountedPlayerActionController playerAction, MountedCombatController combat, RuntimeSaveAuthorization saveAuthorization, NativeLifecycleDeliveryLedger lifecycleLedger, IModLogger logger)
         {
             PatchBridge.Service = service ?? throw new ArgumentNullException(nameof(service));
+            PatchBridge.PlayerAction = playerAction ?? throw new ArgumentNullException(nameof(playerAction));
             PatchBridge.Combat = combat ?? throw new ArgumentNullException(nameof(combat));
             PatchBridge.SaveAuthorization = saveAuthorization ?? throw new ArgumentNullException(nameof(saveAuthorization));
             PatchBridge.LifecycleLedger = lifecycleLedger ?? throw new ArgumentNullException(nameof(lifecycleLedger));
@@ -69,6 +70,7 @@ namespace KingmakerMountedCombat.Integration
                 finally
                 {
                     PatchBridge.Service = null;
+                    PatchBridge.PlayerAction = null;
                     PatchBridge.Combat = null;
                     PatchBridge.SaveAuthorization = null;
                     PatchBridge.LifecycleLedger = null;
@@ -87,6 +89,7 @@ namespace KingmakerMountedCombat.Integration
             }
             harmony.UnpatchAll(HarmonyId);
             PatchBridge.Service = null;
+            PatchBridge.PlayerAction = null;
             PatchBridge.Combat = null;
             PatchBridge.SaveAuthorization = null;
             PatchBridge.LifecycleLedger = null;
@@ -123,6 +126,7 @@ namespace KingmakerMountedCombat.Integration
         private static class PatchBridge
         {
             internal static GameMountedRelationshipService Service;
+            internal static MountedPlayerActionController PlayerAction;
             internal static MountedCombatController Combat;
             internal static RuntimeSaveAuthorization SaveAuthorization;
             internal static NativeLifecycleDeliveryLedger LifecycleLedger;
@@ -191,8 +195,13 @@ namespace KingmakerMountedCombat.Integration
                 bool simulate,
                 ref bool __result)
             {
-                var result = PatchBridge.Combat?.TryHandleUnitClick(gameObject, button, simulate) ??
+                var result = PatchBridge.PlayerAction?.TryHandleMountTargetClick(gameObject, button, simulate) ??
                     MountedCombatClickResult.NotHandled;
+                if (result == MountedCombatClickResult.NotHandled)
+                {
+                    result = PatchBridge.Combat?.TryHandleUnitClick(gameObject, button, simulate) ??
+                        MountedCombatClickResult.NotHandled;
+                }
                 if (result == MountedCombatClickResult.NotHandled)
                 {
                     return true;

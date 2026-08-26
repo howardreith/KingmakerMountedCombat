@@ -91,7 +91,7 @@ namespace KingmakerMountedCombat.Integration
             var selection = SelectionManager.Instance?.SelectedUnits;
             if (selection == null || selection.Count != 1 || selection[0] == null)
             {
-                return Record(new TransitionResult(false, coordinator.State, null, new[] { "Select exactly one Medium rider with an active rank-7+ Mammoth companion." }, false, false));
+                return Record(new TransitionResult(false, coordinator.State, null, new[] { "Select exactly one Medium rider with an active supported companion." }, false, false));
             }
 
             var rider = selection[0];
@@ -99,6 +99,26 @@ namespace KingmakerMountedCombat.Integration
             if (mount == null)
             {
                 return Record(new TransitionResult(false, coordinator.State, null, new[] { "Selected rider has no active companion." }, false, false));
+            }
+
+            return MountRiderOn(rider, mount);
+        }
+
+        public TransitionResult MountRiderOn(UnitEntityData rider, UnitEntityData mount)
+        {
+            ThrowIfDisposed();
+            if (!settings.EnableUnsafeMovementExperiment)
+            {
+                return Record(new TransitionResult(false, coordinator.State, null, new[] { "Movement experiment is disabled." }, false, false));
+            }
+            if (coordinator.State != RelationshipState.Unmounted)
+            {
+                return Record(coordinator.Mount(null));
+            }
+            if (rider == null || mount == null)
+            {
+                return Record(new TransitionResult(false, coordinator.State, null,
+                    new[] { "An exact rider and supported active companion are required." }, false, false));
             }
 
             runtime.Prepare(rider, mount);
@@ -117,6 +137,15 @@ namespace KingmakerMountedCombat.Integration
 
         public bool TryResolveAutomationPair(out UnitEntityData rider, out UnitEntityData mount, out string error)
         {
+            return TryResolveAutomationPair(KingmakerMountedPairRuntime.MammothBlueprintGuid, out rider, out mount, out error);
+        }
+
+        public bool TryResolveAutomationPair(
+            string expectedMountBlueprintGuid,
+            out UnitEntityData rider,
+            out UnitEntityData mount,
+            out string error)
+        {
             ThrowIfDisposed();
             rider = null;
             mount = null;
@@ -130,10 +159,12 @@ namespace KingmakerMountedCombat.Integration
 
             var candidates = party.Where(unit =>
                 unit != null && unit.Descriptor?.Pet != null && unit.Descriptor.Pet.Blueprint != null &&
-                string.Equals(unit.Descriptor.Pet.Blueprint.AssetGuid, KingmakerMountedPairRuntime.MammothBlueprintGuid, StringComparison.Ordinal)).ToList();
+                string.Equals(unit.Descriptor.Pet.Blueprint.AssetGuid, expectedMountBlueprintGuid, StringComparison.Ordinal)).ToList();
             if (candidates.Count != 1)
             {
-                error = "Expected exactly one party rider with the exact Mammoth active companion; observed " + candidates.Count + ".";
+                var profile = SupportedMountedProfiles.Resolve(expectedMountBlueprintGuid);
+                error = "Expected exactly one party rider with the exact " +
+                    (profile?.DisplayName ?? "supported mount") + " active companion; observed " + candidates.Count + ".";
                 return false;
             }
 
@@ -153,6 +184,11 @@ namespace KingmakerMountedCombat.Integration
 
         public TransitionResult MountAutomationPair()
         {
+            return MountAutomationPair(KingmakerMountedPairRuntime.MammothBlueprintGuid);
+        }
+
+        public TransitionResult MountAutomationPair(string expectedMountBlueprintGuid)
+        {
             ThrowIfDisposed();
             if (!settings.EnableUnsafeMovementExperiment)
             {
@@ -166,23 +202,12 @@ namespace KingmakerMountedCombat.Integration
             UnitEntityData rider;
             UnitEntityData mount;
             string error;
-            if (!TryResolveAutomationPair(out rider, out mount, out error))
+            if (!TryResolveAutomationPair(expectedMountBlueprintGuid, out rider, out mount, out error))
             {
                 return Record(new TransitionResult(false, coordinator.State, null, new[] { error }, false, false));
             }
 
-            runtime.Prepare(rider, mount);
-            var result = coordinator.Mount(runtime.CreateCandidate());
-            ObserveCleanupState(result);
-            if (result.Succeeded)
-            {
-                ResetNativeTurnBasedExitAiLeaseEvidence();
-            }
-            if (!result.Succeeded)
-            {
-                runtime.ClearPreparedPairWhenUnmounted();
-            }
-            return Record(result);
+            return MountRiderOn(rider, mount);
         }
 
         internal TransitionResult RejectSyntheticInvalidPairForAutomation()

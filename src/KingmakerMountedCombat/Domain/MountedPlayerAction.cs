@@ -24,7 +24,9 @@ namespace KingmakerMountedCombat.Domain
 
         public bool RiderBodyProfileSupported { get; set; }
 
-        public bool ExactActiveOwnedMammoth { get; set; }
+        public bool ExactActiveOwnedSupportedMount { get; set; }
+
+        public string MountDisplayName { get; set; }
 
         public bool MountIsStrictlyLarger { get; set; }
 
@@ -123,6 +125,9 @@ namespace KingmakerMountedCombat.Domain
             }
 
             var reasons = new List<string>();
+            var mountName = string.IsNullOrWhiteSpace(context.MountDisplayName)
+                ? "supported mount"
+                : context.MountDisplayName;
             if (!context.FeatureEnabled)
             {
                 reasons.Add("Enable the private-alpha mounted movement feature in this mod's settings.");
@@ -147,21 +152,21 @@ namespace KingmakerMountedCombat.Domain
             {
                 reasons.Add("The selected rider's current body rig is not supported by the private-alpha pose profile.");
             }
-            if (!context.ExactActiveOwnedMammoth)
+            if (!context.ExactActiveOwnedSupportedMount)
             {
-                reasons.Add("The selected rider must own the exact active Mammoth companion; nearby creatures are never inferred.");
+                reasons.Add("The selected rider must own an exact active supported mount; nearby creatures are never inferred.");
             }
-            if (context.ExactActiveOwnedMammoth && !context.MountIsStrictlyLarger)
+            if (context.ExactActiveOwnedSupportedMount && !context.MountIsStrictlyLarger)
             {
-                reasons.Add("The active Mammoth must currently be larger than the rider.");
+                reasons.Add("The active " + mountName + " must currently be larger than the rider.");
             }
             if (!context.RiderIsAliveAndConscious || !context.MountIsAliveAndConscious)
             {
-                reasons.Add("Rider and Mammoth must both be alive and conscious.");
+                reasons.Add("Rider and " + mountName + " must both be alive and conscious.");
             }
             if (!context.RiderIsDirectlyControllableAndInGame || !context.MountIsDirectlyControllableAndInGame)
             {
-                reasons.Add("Rider and Mammoth must both be directly controllable in the active area.");
+                reasons.Add("Rider and " + mountName + " must both be directly controllable in the active area.");
             }
             if (context.ConflictingMountedRelationship)
             {
@@ -185,11 +190,11 @@ namespace KingmakerMountedCombat.Domain
             }
             if (!context.ViewsAndStockAgentsAvailable)
             {
-                reasons.Add("Rider and Mammoth views and stock movement agents must be attached.");
+                reasons.Add("Rider and " + mountName + " views and stock movement agents must be attached.");
             }
             if (!context.StockAgentsReady)
             {
-                reasons.Add("Rider and Mammoth stock movement agents must be enabled before mounting.");
+                reasons.Add("Rider and " + mountName + " stock movement agents must be enabled before mounting.");
             }
             if (!context.AgentOverridesAvailable)
             {

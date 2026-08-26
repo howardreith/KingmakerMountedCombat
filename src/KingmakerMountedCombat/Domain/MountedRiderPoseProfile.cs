@@ -150,5 +150,30 @@ namespace KingmakerMountedCombat.Domain
                 new PoseVector3(0.32f, -0.50f, 0.10f),
                 new PoseVector3(0.42f, -0.08f, 0.42f),
                 new PoseVector3(0f, 0f, 0f)));
+
+        // Independent native-horse profile. The lateral targets derive from the
+        // exact HorseRiding Chest children L_Stirrup/R_Stirrup (0.6103663 total
+        // span); its longitudinal and bend values do not reuse the Mammoth pose.
+        // Human visual acceptance remains required for the resulting seat and
+        // limb presentation.
+        public static readonly MountedRiderPoseProfile MediumHumanoidOnHorse = new MountedRiderPoseProfile(
+            "medium-humanoid-horse-v1",
+            "Pelvis",
+            new PoseVector3(0f, 0.02f, -0.02f),
+            new PoseVector3(5f, 0f, 0f),
+            new MountedRiderLegPoseProfile(
+                "L_Up_leg",
+                "L_leg",
+                "L_foot",
+                new PoseVector3(-0.305f, -0.46f, 0.044f),
+                new PoseVector3(-0.38f, -0.12f, 0.26f),
+                new PoseVector3(0f, 0f, 0f)),
+            new MountedRiderLegPoseProfile(
+                "R_Up_leg",
+                "R_leg",
+                "R_foot",
+                new PoseVector3(0.305f, -0.46f, 0.044f),
+                new PoseVector3(0.38f, -0.12f, 0.26f),
+                new PoseVector3(0f, 0f, 0f)));
     }
 }

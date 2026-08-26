@@ -489,7 +489,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (horseCompanionEngine == null)
                 {
                     horseCompanionEngine = new HorseCompanionUnmountedScenarioEngine(
-                        request, horseCompanion, relationship, logger);
+                        request,
+                        horseCompanion,
+                        relationship,
+                        playerAction,
+                        combat,
+                        diagnosticSettings,
+                        logger);
                     horseCompanionEngine.Start();
                 }
                 horseCompanionEngine.Update();
@@ -1477,6 +1483,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 request.EvidenceRoot,
                 HorseCompanionUnmountedScenarioEngine.EvidenceFileName,
                 HorseCompanionUnmountedScenarioEngine.EvidenceKind);
+            AddRuntimeArtifactIfPresent(
+                artifacts,
+                request.EvidenceRoot,
+                HorseCompanionUnmountedScenarioEngine.MountedEvidenceFileName,
+                HorseCompanionUnmountedScenarioEngine.MountedEvidenceKind);
 
             var visualRoot = Path.Combine(request.EvidenceRoot, "movement-visuals");
             if (Directory.Exists(visualRoot))

@@ -4,6 +4,7 @@ using Kingmaker.EntitySystem.Entities;
 using Kingmaker.EntitySystem.Persistence;
 using Kingmaker.GameModes;
 using Kingmaker.UI.Selection;
+using Kingmaker.View;
 using KingmakerMountedCombat.Diagnostics;
 using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Logging;
@@ -19,10 +20,13 @@ namespace KingmakerMountedCombat.Integration
         private readonly DiagnosticSettings settings;
         private readonly IModLogger logger;
         private readonly MountedCombatController combat;
+        private readonly MountedOverlayWorldInputGuard mountTargetWorldInputGuard = new MountedOverlayWorldInputGuard();
         private readonly MountedPlayerActionFeedbackState feedbackState =
             new MountedPlayerActionFeedbackState("Ready to mount when the selected rider is eligible.");
         private GameObject overlayObject;
         private MountedPlayerActionOverlay overlay;
+        private UnitEntityData armedRider;
+        private UnitEntityData armedMount;
         private TransitionResult lastObservedTransition;
         private bool disposed;
 
@@ -42,6 +46,11 @@ namespace KingmakerMountedCombat.Integration
         {
             ThrowIfDisposed();
             var availability = MountedPlayerActionEvaluator.Evaluate(CaptureContext());
+            if (IsMountTargetArmed &&
+                (availability.Action != MountedPlayerActionKind.Mount || !availability.IsEnabled))
+            {
+                ClearMountTargetSelection();
+            }
             feedbackState.ObserveAvailability(availability);
             var transition = relationship.LastTransition;
             if (transition != null && !ReferenceEquals(transition, lastObservedTransition))
@@ -64,6 +73,14 @@ namespace KingmakerMountedCombat.Integration
 
         internal MountedCombatActionKind ArmedCombatAction => combat.ArmedAction;
 
+        internal bool IsMountTargetArmed => armedRider != null && armedMount != null;
+
+        internal string MountPrimaryLabel => (relationship.Runtime.MountDisplayName ?? ResolveSelectedMountProfile()?.DisplayName ?? "Mount") + " primary";
+
+        internal long MountTargetArmCount { get; private set; }
+
+        internal long MountTargetClickCount { get; private set; }
+
         internal bool ArmCombatAction(MountedCombatActionKind action)
         {
             return combat.Arm(action);
@@ -73,6 +90,106 @@ namespace KingmakerMountedCombat.Integration
         {
             ObserveOverlayButtonActivation();
             return ArmCombatAction(action);
+        }
+
+        internal bool ArmMountTargetFromOverlay()
+        {
+            ObserveOverlayButtonActivation();
+            return ArmMountTarget();
+        }
+
+        internal bool ArmMountTarget()
+        {
+            ThrowIfDisposed();
+            if (IsMountTargetArmed)
+            {
+                ClearMountTargetSelection();
+                feedbackState.SetOperationFeedback("Mount targeting cancelled.");
+                return false;
+            }
+
+            var availability = GetAvailability();
+            if (!availability.IsVisible || !availability.IsEnabled ||
+                availability.Action != MountedPlayerActionKind.Mount)
+            {
+                feedbackState.SetOperationFeedback(availability.Feedback);
+                return false;
+            }
+
+            var selection = SelectionManager.Instance?.SelectedUnits;
+            var rider = selection != null && selection.Count == 1 ? selection[0] : null;
+            var mount = rider?.Descriptor?.Pet;
+            var profile = SupportedMountedProfiles.Resolve(mount);
+            if (rider == null || mount == null || profile == null)
+            {
+                feedbackState.SetOperationFeedback("Mount targeting failed closed: the selected rider's supported active companion changed.");
+                return false;
+            }
+
+            armedRider = rider;
+            armedMount = mount;
+            MountTargetArmCount++;
+            feedbackState.SetOperationFeedback("Mount armed: click the exact active " + profile.DisplayName + ".");
+            logger.Info("Target-selected Mount armed: riderId=" + rider.UniqueId +
+                "; mountId=" + mount.UniqueId + "; profile=" + profile.Id + ".");
+            return true;
+        }
+
+        internal MountedCombatClickResult TryHandleMountTargetClick(
+            GameObject gameObject,
+            int button,
+            bool simulate)
+        {
+            if (disposed || !IsMountTargetArmed || simulate || button != 0)
+            {
+                return MountedCombatClickResult.NotHandled;
+            }
+            if (mountTargetWorldInputGuard.TryConsumePropagatedWorldClick(Time.frameCount))
+            {
+                logger.Info("Suppressed one frame-bounded world click propagated from the target-selected Mount overlay; targeting remains armed.");
+                return MountedCombatClickResult.HandledRejected;
+            }
+
+            MountTargetClickCount++;
+            var targetView = gameObject == null ? null : gameObject.GetComponent<UnitEntityView>();
+            var target = targetView?.EntityData;
+            var selection = SelectionManager.Instance?.SelectedUnits;
+            var exactRiderStillSelected = selection != null && selection.Count == 1 && selection[0] == armedRider;
+            if (target != armedMount || targetView == null || !exactRiderStillSelected ||
+                armedRider.Descriptor?.Pet != armedMount || armedMount.Descriptor?.Master.Value != armedRider ||
+                !SupportedMountedProfiles.IsSupported(armedMount))
+            {
+                feedbackState.SetOperationFeedback(
+                    "Mount target rejected: click the selected rider's exact active supported companion.");
+                logger.Info("Target-selected Mount rejected: targetId=" + (target?.UniqueId ?? "<none>") +
+                    "; expectedMountId=" + (armedMount?.UniqueId ?? "<none>") +
+                    "; exactRiderSelection=" + exactRiderStillSelected + ".");
+                return MountedCombatClickResult.HandledRejected;
+            }
+
+            var rider = armedRider;
+            var mount = armedMount;
+            ClearMountTargetSelection();
+            try
+            {
+                var transition = relationship.MountRiderOn(rider, mount);
+                NormalizeSelectionToRider(rider);
+                feedbackState.SetOperationFeedback(relationship.LastResult);
+                return transition.Succeeded
+                    ? MountedCombatClickResult.HandledAccepted
+                    : MountedCombatClickResult.HandledRejected;
+            }
+            catch (Exception exception)
+            {
+                feedbackState.SetOperationFeedback("Target-selected Mount failed closed: " + exception.GetType().Name + ".");
+                logger.Exception("Target-selected Mount click", exception);
+                var cleanup = relationship.Dismount(CleanupTrigger.Exception);
+                if (!cleanup.Succeeded || cleanup.MovementAuthorityResidual || cleanup.PresentationResidual)
+                {
+                    throw new InvalidOperationException("Target-selected Mount failure cleanup retained mounted residue.", exception);
+                }
+                return MountedCombatClickResult.HandledRejected;
+            }
         }
 
         internal bool OverlayPresent => overlay != null && overlayObject != null;
@@ -114,6 +231,7 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
 
+            ClearMountTargetSelection();
             DestroyOverlay();
         }
 
@@ -129,6 +247,7 @@ namespace KingmakerMountedCombat.Integration
 
             try
             {
+                ClearMountTargetSelection();
                 UnitEntityData rider = relationship.Rider;
                 TransitionResult transition;
                 if (availability.Action == MountedPlayerActionKind.Dismount)
@@ -172,6 +291,7 @@ namespace KingmakerMountedCombat.Integration
             }
 
             feedbackState.SetOperationFeedback("Transient mounted-action UI disabled after an exception: " + exception.GetType().Name + ".");
+            ClearMountTargetSelection();
             logger.Error(LastFeedback);
             var cleanup = relationship.Dismount(CleanupTrigger.Exception);
             if (!cleanup.Succeeded || cleanup.MovementAuthorityResidual || cleanup.PresentationResidual)
@@ -207,6 +327,7 @@ namespace KingmakerMountedCombat.Integration
             if (!disposed)
             {
                 OverlayButtonActivationCount++;
+                mountTargetWorldInputGuard.MarkActivation(Time.frameCount);
                 combat.MarkPlayerFacingOverlayActivation(Time.frameCount);
             }
         }
@@ -219,6 +340,7 @@ namespace KingmakerMountedCombat.Integration
             }
 
             DestroyOverlay();
+            ClearMountTargetSelection();
             disposed = true;
         }
 
@@ -253,14 +375,14 @@ namespace KingmakerMountedCombat.Integration
             var mount = rider.Descriptor?.Pet;
             var riderState = rider.Descriptor?.State;
             var mountState = mount?.Descriptor?.State;
-            var exactMammoth = mount != null && mount.Blueprint != null &&
-                string.Equals(mount.Blueprint.AssetGuid, KingmakerMountedPairRuntime.MammothBlueprintGuid, StringComparison.Ordinal);
-            var exactOwnership = exactMammoth && rider.Descriptor.Pet == mount &&
+            var profile = SupportedMountedProfiles.Resolve(mount);
+            var exactOwnership = profile != null && rider.Descriptor.Pet == mount &&
                 mount.Descriptor?.Master.Value == rider && mount.Descriptor.IsPet;
 
             context.RiderIsExactlyMedium = riderState != null && (int)riderState.Size == 4;
-            context.RiderBodyProfileSupported = IsSupportedRiderBodySurface(rider);
-            context.ExactActiveOwnedMammoth = exactOwnership;
+            context.RiderBodyProfileSupported = IsSupportedRiderBodySurface(rider, profile);
+            context.ExactActiveOwnedSupportedMount = exactOwnership;
+            context.MountDisplayName = profile?.DisplayName;
             context.MountIsStrictlyLarger = riderState != null && mountState != null &&
                 (int)mountState.Size > (int)riderState.Size;
             context.RiderIsAliveAndConscious = riderState != null && riderState.IsConscious && !riderState.IsFinallyDead;
@@ -289,9 +411,9 @@ namespace KingmakerMountedCombat.Integration
                 game.CurrentMode == GameModeType.Cutscene || game.CurrentMode == GameModeType.CutsceneGlobalMap;
         }
 
-        private static bool IsSupportedRiderBodySurface(UnitEntityData rider)
+        private static bool IsSupportedRiderBodySurface(UnitEntityData rider, SupportedMountedProfile profile)
         {
-            if (rider?.View == null || rider.GetActivePolymorph() != null)
+            if (rider?.View == null || rider.GetActivePolymorph() != null || profile == null)
             {
                 return false;
             }
@@ -299,8 +421,22 @@ namespace KingmakerMountedCombat.Integration
             string ignoredError;
             return MountedRiderPoseAdapter.TryValidateSupportedSurface(
                 rider.View,
-                MountedRiderPoseProfiles.MediumHumanoidOnMammoth,
+                profile.RiderPoseProfile,
                 out ignoredError);
+        }
+
+        private SupportedMountedProfile ResolveSelectedMountProfile()
+        {
+            var selection = SelectionManager.Instance?.SelectedUnits;
+            var rider = selection != null && selection.Count == 1 ? selection[0] : null;
+            return SupportedMountedProfiles.Resolve(rider?.Descriptor?.Pet);
+        }
+
+        private void ClearMountTargetSelection()
+        {
+            armedRider = null;
+            armedMount = null;
+            mountTargetWorldInputGuard.Clear();
         }
 
         private static void NormalizeSelectionToRider(UnitEntityData rider)

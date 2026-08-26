@@ -51,7 +51,7 @@ namespace KingmakerMountedCombat.Tests
             var context = EligibleContext();
             context.RiderIsExactlyMedium = false;
             context.RiderBodyProfileSupported = false;
-            context.ExactActiveOwnedMammoth = false;
+            context.ExactActiveOwnedSupportedMount = false;
             context.RiderIsAliveAndConscious = false;
             context.MountIsAliveAndConscious = false;
             context.RiderIsDirectlyControllableAndInGame = false;
@@ -70,7 +70,7 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.Equal(false, result.IsEnabled, "Invalid pair was accepted.");
             TestRunner.True(feedback.Contains("Medium"), "Current-size reason missing.");
             TestRunner.True(feedback.Contains("body rig"), "Body-profile reason missing.");
-            TestRunner.True(feedback.Contains("exact active Mammoth"), "Owned-Mammoth reason missing.");
+            TestRunner.True(feedback.Contains("active supported mount"), "Owned-supported-mount reason missing.");
             TestRunner.True(feedback.Contains("alive and conscious"), "Life-state reason missing.");
             TestRunner.True(feedback.Contains("directly controllable"), "Control/area reason missing.");
             TestRunner.True(feedback.Contains("conflicting"), "Relationship-conflict reason missing.");
@@ -151,7 +151,8 @@ namespace KingmakerMountedCombat.Tests
                 ExactlyOneRiderSelected = true,
                 RiderIsExactlyMedium = true,
                 RiderBodyProfileSupported = true,
-                ExactActiveOwnedMammoth = true,
+                ExactActiveOwnedSupportedMount = true,
+                MountDisplayName = "Horse",
                 MountIsStrictlyLarger = true,
                 RiderIsAliveAndConscious = true,
                 MountIsAliveAndConscious = true,

@@ -7,7 +7,7 @@ namespace KingmakerMountedCombat.Integration
     internal sealed class MountedPlayerActionOverlay : MonoBehaviour
     {
         private const float Width = 330f;
-        private const float Height = 158f;
+        private const float Height = 194f;
         private MountedPlayerActionController controller;
 
         public void Configure(MountedPlayerActionController actionController)
@@ -44,14 +44,34 @@ namespace KingmakerMountedCombat.Integration
                 GUI.enabled = availability.IsEnabled;
                 if (GUI.Button(new Rect(left + 12f, top + 27f, Width - 24f, 32f), availability.Label))
                 {
-                    controller.ObserveOverlayButtonActivation();
-                    controller.Activate();
+                    if (availability.Action == MountedPlayerActionKind.Mount)
+                    {
+                        controller.ArmMountTargetFromOverlay();
+                    }
+                    else
+                    {
+                        controller.ObserveOverlayButtonActivation();
+                        controller.Activate();
+                    }
                 }
                 GUI.enabled = priorEnabled;
 
                 var feedbackTop = top + 64f;
                 var feedbackHeight = 54f;
-                if (controller.CombatActionsVisible)
+                if (availability.Action == MountedPlayerActionKind.Mount)
+                {
+                    var fallbackPriorEnabled = GUI.enabled;
+                    GUI.enabled = availability.IsEnabled;
+                    if (GUI.Button(new Rect(left + 12f, top + 63f, Width - 24f, 28f), "Mount active companion (fallback)"))
+                    {
+                        controller.ObserveOverlayButtonActivation();
+                        controller.Activate();
+                    }
+                    GUI.enabled = fallbackPriorEnabled;
+                    feedbackTop = top + 99f;
+                    feedbackHeight = 72f;
+                }
+                else if (controller.CombatActionsVisible)
                 {
                     var combatPriorEnabled = GUI.enabled;
                     GUI.enabled = true;
@@ -59,7 +79,7 @@ namespace KingmakerMountedCombat.Integration
                     {
                         controller.ArmCombatActionFromOverlay(MountedCombatActionKind.RiderMelee);
                     }
-                    if (GUI.Button(new Rect(left + 170f, top + 63f, 148f, 28f), "Mammoth primary"))
+                    if (GUI.Button(new Rect(left + 170f, top + 63f, 148f, 28f), controller.MountPrimaryLabel))
                     {
                         controller.ArmCombatActionFromOverlay(MountedCombatActionKind.MountPrimaryNatural);
                     }
