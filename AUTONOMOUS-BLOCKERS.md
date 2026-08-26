@@ -1,5 +1,11 @@
 # Autonomous blockers
 
+## No critical blocker; exact stock-roll validator retry pending - 2026-08-26T11:20:50Z
+
+Status: IN PROGRESS. Dev.8 aggregate `20260826T104000Z-horse-companion-unmounted-dev8-passG` is immutable historical `FAIL 28/1` with exact audit-before-read restoration. It proves reference-identical Standard ownership and one correct RT Bite chain (`1` attack, `1` roll, `1` damage rule, `15` damage). Its compound assertion used an invalid `ForcedD20Count == 1` condition; credited Mammoth critical evidence records four D20 events for the same exact `1/1/1` stock chain, and the established production validator requires `>= 1`. Dev.9 corrects only that diagnostic boundary, serializes RT/TB forced-roll and unexpected-pair counters, and retains zero duplicate attacks. Full local gates pass. One clean dev.9 package/suite/WhatIf and one audited aggregate remain. No external-state, production-combat, Mammoth, architecture, or safety blocker exists.
+
+This supersedes the native-merge retry state below. Dev.8 is not relabeled.
+
 ## No critical blocker; exact native-merge dispatch retry pending - 2026-08-26T09:47:04Z
 
 Status: IN PROGRESS. Dev.7 aggregate `20260826T051000Z-horse-companion-unmounted-dev7-passF` is immutable historical `FAIL 28/1` with exact audit-before-read restoration. It proves the requested Bite is unpaused, time-advancing, in range, line-of-sight eligible, hands/equipment ready, cooldown-free, and start-eligible, but never owns the native Standard slot. The target later dies under native combat. Exact installed `UnitCommands.Run` and `UnitAttack.TryMergeInto` establish same-target active-command merging as the cause. Dev.8 clears only the temporary diagnostic horse's command surface at explicit RT/TB test dispatch, then requires the player-created single Bite to own Standard. Full local gates pass. One clean dev.8 package/suite/WhatIf and one audited aggregate remain. No external-state, production-combat, Mammoth, architecture, or safety blocker exists.

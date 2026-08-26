@@ -153,7 +153,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 errors.Add("commit must be a 40-character lowercase Git SHA.");
             }
 
-            if (!string.Equals(ProductVersion, "0.1.0-phase3b-dev.8", StringComparison.Ordinal))
+            if (!string.Equals(ProductVersion, "0.1.0-phase3b-dev.9", StringComparison.Ordinal))
             {
                 errors.Add("productVersion does not match this diagnostic build.");
             }

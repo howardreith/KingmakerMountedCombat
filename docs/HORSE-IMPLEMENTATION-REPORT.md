@@ -2,6 +2,8 @@
 
 Status: IN PROGRESS
 
+Superseding Tranche B state (2026-08-26T11:20:50Z): dev.8 proves the exact temporary-horse command now owns Standard and completes one correct RT Bite chain (`1/1/1`, `15` damage). Its sole compound assertion still failed because the horse validator required exactly one D20 event even though credited stock Mammoth critical evidence records four D20 events for one exact attack chain. Dev.9 adopts the established `>= 1` forced-roll contract, serializes RT/TB forced-roll and unexpected-pair counters, retains zero duplicate attacks, and changes no production behavior. Full local gates pass; one clean audited aggregate remains before mounted-profile admission.
+
 Superseding Tranche B state (2026-08-26T09:47:04Z): dev.7 proves the requested single Bite was healthy but intentionally consumed by Kingmaker's same-target `UnitAttack` merge into an already active native RT attack. The diagnostic waited on the discarded request while native combat killed the target. Dev.8 isolates only the temporary horse's commands at explicit test dispatch and requires reference-identical Standard ownership; no production behavior changes. Full local gates pass and one clean audited aggregate remains before mounted-profile admission.
 
 Superseding Tranche B state (2026-08-26T08:08:44Z): dev.6 proves exact Bite/Hoof/Hoof enumeration and every preceding registration, ownership, progression, control, movement, target, and combat-entry gate. Aggregate `20260826T072604Z-horse-companion-unmounted-dev6-passE` remains historical restored `FAIL 28/1` because its first stock RT Bite did not terminate before the old 180-second global deadline. Dev.7 adds one diagnostic-only 20-second snapshot of the native start/approach boundary; no production behavior changes.
@@ -19,7 +21,7 @@ Superseding Tranche B state (2026-08-26T03:40:00Z): dev.3 aggregate `20260826T02
 - accepted Mammoth implementation: `1241222459209aea1e6127bedd7d630df3940b99`
 - inherited Phase 2 product version: `0.1.0-phase2b-dev.1`
 - credited Horse Tranche A audit version: `0.1.0-phase3a-dev.2`
-- active Horse Tranche B version: `0.1.0-phase3b-dev.7`
+- active Horse Tranche B version: `0.1.0-phase3b-dev.9`
 - current version-bound offline gates: source `21/0`, Release, component `251/0`, visual/source-order `17/0`, harness `231/0`, assembly `349/0` (`325` Kingmaker + `24` Wrath), PowerShell parser `26/0`, JSON parser `7/0`, diff, and prohibited-payload validation; clean-package and runtime gates remain pending
 
 Phase 2 remains accepted with its documented private-alpha limitations. Horse work does not retroactively claim stock right-click mounted attacks, mounted auto-attack, unified Wrath-style turns, animated Mammoth TB locomotion, or public-release quality.
@@ -42,6 +44,8 @@ The dev.3 retry rejected that explanation: activation was already outside `Defau
 
 Dev.5 then proved the corrected target boundary and native combat entry, but exact `UnitAttack.AllAttacks` exposed Bite/Bite/Hoof/Hoof. Exact Kingmaker code and the credited native horse audit establish why: enabled hands enumerate both primary and secondary attack counts, while `CR1_HorseRiding` disables hands. Dev.6 uses null hand weapons and ordered additional natural limbs Bite/Hoof/Hoof. Runtime now proves that topology exactly. Its next stock RT Bite command remained unfinished to the old global deadline; exact installed command code narrows that to a native pre-start/approach boundary, and dev.7 observes that boundary without changing production behavior.
 
+Dev.7 then established that Kingmaker merged the requested same-target attack into an already active native command. Dev.8 isolated the temporary horse at the explicit diagnostic dispatch boundary and proved reference-identical Standard ownership plus one completed RT Bite, one roll, one damage event, and `15` damage. The remaining failure was an evidence-validator cardinality defect: one critical stock attack can emit multiple D20 rule events. Dev.9 aligns the horse gate with the already qualified `ForcedD20Count >= 1` contract and independently publishes zero-duplicate counters for both modes.
+
 ## Implementation ledger
 
 | Area | Status | Evidence |
@@ -51,7 +55,7 @@ Dev.5 then proved the corrected target boundary and native combat entry, but exa
 | Pony comparison | PASS | credited audited run `20260825T180000Z-horse-native-asset-audit-repair-passB`, `21/0` |
 | KMC blueprint trio | PASS (offline) | corrected Mammoth/Dog bootstrap comparison; historical run passed 12/13 production assertions |
 | Ranger selection | PASS (runtime observed) | historical restored run proved exact 7→8→7→8 lease even though aggregate status was 12/1 |
-| Unmounted horse | IN PROGRESS | dev.6 historical restored `28/1`; Bite/Hoof/Hoof proved; one bounded dev.7 RT start/approach observation pending |
+| Unmounted horse | IN PROGRESS | dev.8 historical restored `28/1`; exact RT Bite `1/1/1` proved; one dev.9 corrected-validator aggregate pending |
 | Mounted horse profile | TODO | blocked on unmounted qualification |
 | Target-selected Mount | TODO | design/implementation authorized |
 | Mammoth regression | TODO | required only after relevant shared changes |

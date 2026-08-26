@@ -4922,7 +4922,7 @@ function Assert-KmcHorseCompanionUnmountedEvidence {
         'schemaVersion','evidenceKind','runId','scenario','branch','commit','productVersion','dllSha256','dllMvid',
         'createdAtUtc','status','assertions','observations','assertionPassCount','assertionFailCount','errors'
     ) 'horse unmounted evidence'
-    if (-not (Test-KmcExactJsonInteger $artifact.schemaVersion) -or [long]$artifact.schemaVersion -ne 1 -or
+    if (-not (Test-KmcExactJsonInteger $artifact.schemaVersion) -or [long]$artifact.schemaVersion -notin @(1,2) -or
         [string]$artifact.evidenceKind -cne $kind -or [string]$artifact.status -cnotin @('PASS','FAIL') -or
         $artifact.assertions -isnot [Array] -or $artifact.errors -isnot [Array] -or $null -eq $artifact.observations -or
         [string]$artifact.dllSha256 -cnotmatch '^[0-9a-f]{64}$' -or
@@ -4990,6 +4990,12 @@ function Assert-KmcHorseCompanionUnmountedEvidence {
             'targetCleanupExact','lethalDamage','recoveredDamage','finalPause','finalTurnBased','finalSelectionCount',
             'unrelatedPartyPetsPreserved','relationshipState','horseRemoved','targetRemoved'
         )
+        if ([long]$artifact.schemaVersion -ge 2) {
+            $observationNames = @($observationNames + @(
+                'realTimeForcedD20Count','realTimeUnexpectedPairAttackCount',
+                'turnBasedForcedD20Count','turnBasedUnexpectedPairAttackCount'
+            ))
+        }
         Assert-KmcExactProperties $artifact.observations $observationNames 'horse unmounted observations'
         $o = $artifact.observations
         $classLevelSettlement =
@@ -5053,6 +5059,9 @@ function Assert-KmcHorseCompanionUnmountedEvidence {
             [long]$o.realTimeDamageRules -ne 1 -or [long]$o.realTimeDamage -le 0 -or
             [long]$o.turnBasedAttackRules -ne 1 -or [long]$o.turnBasedAttackRolls -ne 1 -or
             [long]$o.turnBasedDamageRules -ne 1 -or [long]$o.turnBasedDamage -le 0 -or
+            ([long]$artifact.schemaVersion -ge 2 -and
+             ([long]$o.realTimeForcedD20Count -lt 1 -or [long]$o.realTimeUnexpectedPairAttackCount -ne 0 -or
+              [long]$o.turnBasedForcedD20Count -lt 1 -or [long]$o.turnBasedUnexpectedPairAttackCount -ne 0)) -or
             $o.targetCleanupExact -ne $true -or [long]$o.lethalDamage -le 0 -or [long]$o.recoveredDamage -ne 0 -or
             $o.finalPause -ne $o.originalPause -or $o.finalTurnBased -ne $o.originalTurnBased -or
             [long]$o.finalSelectionCount -ne [long]$o.originalSelectionCount -or

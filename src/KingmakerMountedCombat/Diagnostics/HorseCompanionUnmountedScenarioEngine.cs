@@ -479,9 +479,11 @@ namespace KingmakerMountedCombat.Diagnostics
             observations["realTimeAttackRules"] = ruleProbe.AttackRuleCount;
             observations["realTimeAttackRolls"] = ruleProbe.AttackRollCount;
             observations["realTimeDamageRules"] = ruleProbe.DamageRuleCount;
+            observations["realTimeForcedD20Count"] = ruleProbe.ForcedD20Count;
+            observations["realTimeUnexpectedPairAttackCount"] = ruleProbe.UnexpectedPairAttackCount;
             observations["realTimeDamage"] = ruleProbe.TotalDamage;
             Check(ruleProbe.AttackRuleCount == 1 && ruleProbe.AttackRollCount == 1 &&
-                    ruleProbe.DamageRuleCount == 1 && ruleProbe.ForcedD20Count == 1 &&
+                    ruleProbe.DamageRuleCount == 1 && ruleProbe.ForcedD20Count >= 1 &&
                     ruleProbe.UnexpectedPairAttackCount == 0 && ruleProbe.TotalDamage > 0 &&
                     string.Equals(weaponGuid, service.CaptureSnapshot().BiteGuid, StringComparison.Ordinal),
                 "real-time-natural-attack",
@@ -622,9 +624,11 @@ namespace KingmakerMountedCombat.Diagnostics
             observations["turnBasedAttackRules"] = ruleProbe.AttackRuleCount;
             observations["turnBasedAttackRolls"] = ruleProbe.AttackRollCount;
             observations["turnBasedDamageRules"] = ruleProbe.DamageRuleCount;
+            observations["turnBasedForcedD20Count"] = ruleProbe.ForcedD20Count;
+            observations["turnBasedUnexpectedPairAttackCount"] = ruleProbe.UnexpectedPairAttackCount;
             observations["turnBasedDamage"] = ruleProbe.TotalDamage;
             Check(ruleProbe.AttackRuleCount == 1 && ruleProbe.AttackRollCount == 1 &&
-                    ruleProbe.DamageRuleCount == 1 && ruleProbe.ForcedD20Count == 1 &&
+                    ruleProbe.DamageRuleCount == 1 && ruleProbe.ForcedD20Count >= 1 &&
                     ruleProbe.UnexpectedPairAttackCount == 0 && ruleProbe.TotalDamage > 0 &&
                     string.Equals(weaponGuid, service.CaptureSnapshot().BiteGuid, StringComparison.Ordinal),
                 "turn-based-natural-attack",
@@ -954,7 +958,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var status = failed == 0 ? "PASS" : "FAIL";
             var artifact = new JObject
             {
-                ["schemaVersion"] = 1,
+                ["schemaVersion"] = 2,
                 ["evidenceKind"] = EvidenceKind,
                 ["runId"] = request.RunId,
                 ["scenario"] = request.Scenario,
