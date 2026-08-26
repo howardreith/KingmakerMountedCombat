@@ -12,6 +12,7 @@ using Kingmaker.GameModes;
 using Kingmaker.UI.Selection;
 using Kingmaker.UnitLogic;
 using Kingmaker.UnitLogic.Commands;
+using Kingmaker.UnitLogic.Commands.Base;
 using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Integration;
 using KingmakerMountedCombat.Logging;
@@ -37,6 +38,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private const double ScenarioTimeoutSeconds = 180.0;
         private const double RealTimeAttackTimeoutSeconds = 20.0;
+        private const double TurnBasedAttackTimeoutSeconds = 20.0;
         private const float MovementDistance = 2.0f;
         private const float MovementTolerance = 0.75f;
         private const float TargetDistance = 4.0f;
@@ -84,6 +86,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private UnitAttack realTimeAttack;
         private double realTimeAttackIssuedAtSeconds;
         private UnitAttack turnBasedAttack;
+        private double turnBasedAttackIssuedAtSeconds;
+        private JObject turnBasedAttackAtDispatch;
         private DiagnosticCombatTargetService targetService;
         private MountedCombatRuleProbe ruleProbe;
         private NativeModeTransitionProbe realTimeModeProbe;
@@ -591,34 +595,73 @@ namespace KingmakerMountedCombat.Diagnostics
         private void AwaitTurnBasedTurn()
         {
             targetService.RefreshBidirectionalCombatMemoryLease();
+            var game = Game.Instance;
             var controller = Game.Instance.TurnBasedCombatController;
             var turn = controller?.CurrentTurn;
             if (!turnStarted || turn?.Unit != horse ||
                 (turn.Status != TurnController.TurnStatus.Preparing && !turn.IsActing) ||
-                horse.CombatState == null || !horse.CombatState.CanActInCombat)
+                horse.CombatState == null || !horse.CombatState.Prepared || !horse.CombatState.CanActInCombat ||
+                game.IsPaused || horse.Commands == null || !horse.Commands.Empty ||
+                horse.AreHandsBusyWithAnimation || game.HandsEquipmentController == null ||
+                game.HandsEquipmentController.IsUpdateScheduledFor(horse) || !horse.HasStandardAction() ||
+                target == null || !target.IsInState || !target.Descriptor.State.IsConscious ||
+                !horse.CanAttack(target))
             {
                 return;
             }
 
             var selection = SelectionManager.Instance;
-            selection.SelectUnit(horse.View, true, true, false);
+            if (selection.SelectedUnits.Count != 1 || selection.SelectedUnits[0] != horse)
+            {
+                selection.SelectUnit(horse.View, true, true, false);
+                return;
+            }
             Check(selection.SelectedUnits.Count == 1 && selection.SelectedUnits[0] == horse,
                 "turn-based-horse-control",
-                "The horse owned its native turn and exact selection surface.");
+                "The horse owned its native turn, exact selection, idle hands, empty command surface, and available Standard action.");
             if (failed != 0) { BeginCleanup(); return; }
 
-            horse.Commands.InterruptAll(false);
             ruleProbe.Arm(owner, horse, horse, target, 20);
             turnBasedAttack = new UnitAttack(target) { IsSingleAttack = true, CreatedByPlayer = true };
-            turnBasedAttack.IgnoreCooldown();
             horse.Commands.Run(turnBasedAttack);
+            turnBasedAttackIssuedAtSeconds = clock.Elapsed.TotalSeconds;
+            turnBasedAttackAtDispatch = CaptureTurnBasedAttackState(turnBasedAttack);
+            Check(ReferenceEquals(horse.Commands.Standard, turnBasedAttack),
+                "turn-based-command-admission",
+                "The exact player-created single Bite owned the horse's native Standard slot without command merging or replacement.");
+            if (failed != 0)
+            {
+                observations["turnBasedAttackAtDispatch"] = turnBasedAttackAtDispatch;
+                BeginCleanup();
+                return;
+            }
             step = EngineStep.AwaitTurnBasedAttack;
         }
 
         private void AwaitTurnBasedAttack()
         {
             targetService.RefreshBidirectionalCombatMemoryLease();
-            if (turnBasedAttack == null || !turnBasedAttack.IsFinished) { return; }
+            if (turnBasedAttack == null)
+            {
+                Fail("turn-based-attack-command", "The stock turn-based Bite command reference became null.");
+                BeginCleanup();
+                return;
+            }
+            if (!turnBasedAttack.IsFinished)
+            {
+                if (clock.Elapsed.TotalSeconds - turnBasedAttackIssuedAtSeconds <= TurnBasedAttackTimeoutSeconds)
+                {
+                    return;
+                }
+
+                observations["turnBasedAttackAtDispatch"] = turnBasedAttackAtDispatch;
+                observations["turnBasedAttackAtDeadline"] = CaptureTurnBasedAttackState(turnBasedAttack);
+                Fail("turn-based-attack-deadline",
+                    "The stock turn-based Bite command did not finish within its bounded 20-second leaf.");
+                BeginCleanup();
+                return;
+            }
+            var terminal = CaptureTurnBasedAttackState(turnBasedAttack);
             var weaponGuid = turnBasedAttack.LastExecutedAttack?.Weapon?.Blueprint?.AssetGuid;
             observations["turnBasedAttackWeaponGuid"] = weaponGuid;
             observations["turnBasedAttackRules"] = ruleProbe.AttackRuleCount;
@@ -627,17 +670,74 @@ namespace KingmakerMountedCombat.Diagnostics
             observations["turnBasedForcedD20Count"] = ruleProbe.ForcedD20Count;
             observations["turnBasedUnexpectedPairAttackCount"] = ruleProbe.UnexpectedPairAttackCount;
             observations["turnBasedDamage"] = ruleProbe.TotalDamage;
-            Check(ruleProbe.AttackRuleCount == 1 && ruleProbe.AttackRollCount == 1 &&
+            var exactOutcome = turnBasedAttack.Result == UnitCommand.ResultType.Success &&
+                turnBasedAttack.IsStarted && turnBasedAttack.IsActed &&
+                ruleProbe.AttackRuleCount == 1 && ruleProbe.AttackRollCount == 1 &&
                     ruleProbe.DamageRuleCount == 1 && ruleProbe.ForcedD20Count >= 1 &&
                     ruleProbe.UnexpectedPairAttackCount == 0 && ruleProbe.TotalDamage > 0 &&
-                    string.Equals(weaponGuid, service.CaptureSnapshot().BiteGuid, StringComparison.Ordinal),
+                    string.Equals(weaponGuid, service.CaptureSnapshot().BiteGuid, StringComparison.Ordinal);
+            if (!exactOutcome)
+            {
+                observations["turnBasedAttackAtDispatch"] = turnBasedAttackAtDispatch;
+                observations["turnBasedAttackAtTerminal"] = terminal;
+            }
+            Check(exactOutcome,
                 "turn-based-natural-attack",
-                "One forced-hit stock turn-based Bite produced one attack, roll, and damage chain on the horse's own turn.");
+                "One admitted stock turn-based Bite finished Success and produced one attack, roll, and damage chain on the horse's own Standard action.");
             if (failed != 0) { BeginCleanup(); return; }
 
             turnBasedModeProbe.Dispose();
             turnBasedModeProbe = null;
             step = EngineStep.AwaitRealTimeRestore;
+        }
+
+        private JObject CaptureTurnBasedAttackState(UnitAttack command)
+        {
+            var game = Game.Instance;
+            var controller = game?.TurnBasedCombatController;
+            var turn = controller?.CurrentTurn;
+            var animation = command?.Animation;
+            var combatState = horse?.CombatState;
+            var selected = SelectionManager.Instance?.SelectedUnits;
+            return new JObject
+            {
+                ["scenarioSeconds"] = clock.Elapsed.TotalSeconds,
+                ["secondsSinceDispatch"] = clock.Elapsed.TotalSeconds - turnBasedAttackIssuedAtSeconds,
+                ["gamePaused"] = game?.IsPaused,
+                ["currentTurnUnitId"] = turn?.Unit?.UniqueId,
+                ["currentTurnStatus"] = turn?.Status.ToString(),
+                ["currentTurnIsActing"] = turn?.IsActing,
+                ["horseSelectedExact"] = selected != null && selected.Count == 1 && selected[0] == horse,
+                ["commandReferenceInStandardSlot"] = command != null && ReferenceEquals(horse?.Commands?.Standard, command),
+                ["commandResult"] = command?.Result.ToString(),
+                ["commandStarted"] = command?.IsStarted,
+                ["commandFinished"] = command?.IsFinished,
+                ["commandRunning"] = command?.IsRunning,
+                ["commandActed"] = command?.IsActed,
+                ["commandCanStart"] = command?.CanStart,
+                ["commandTimeSinceStart"] = command?.TimeSinceStart,
+                ["commandAttackIndex"] = command?.GetAttackIndex(),
+                ["commandEnoughClose"] = command?.IsUnitEnoughClose,
+                ["commandShouldApproach"] = command?.ShouldUnitApproach,
+                ["plannedWeaponGuid"] = command?.PlannedAttack?.Weapon?.Blueprint?.AssetGuid,
+                ["animationPresent"] = animation != null,
+                ["animationActed"] = animation?.IsActed,
+                ["animationFinished"] = animation?.IsFinished,
+                ["horseCommandsEmpty"] = horse?.Commands?.Empty,
+                ["horsePrepared"] = combatState?.Prepared,
+                ["horseCanActInCombat"] = combatState?.CanActInCombat,
+                ["horseHasStandardAction"] = horse != null && horse.HasStandardAction(),
+                ["horseStandardCooldown"] = combatState?.Cooldown.StandardAction,
+                ["horseHandsBusy"] = horse?.AreHandsBusyWithAnimation,
+                ["horseEquipmentUpdateScheduled"] = horse != null && game?.HandsEquipmentController != null &&
+                    game.HandsEquipmentController.IsUpdateScheduledFor(horse),
+                ["horseTargetHorizontalDistance"] = horse == null || target == null
+                    ? float.MaxValue
+                    : HorizontalDistance(horse.Position, target.Position),
+                ["targetInState"] = target?.IsInState,
+                ["targetConscious"] = target?.Descriptor?.State.IsConscious,
+                ["targetDamage"] = target?.Damage
+            };
         }
 
         private void AwaitRealTimeRestore()

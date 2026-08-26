@@ -1,5 +1,13 @@
 # Autonomous blockers
 
+## No critical blocker; exact native TB readiness retry pending - 2026-08-26T13:26:50Z
+
+Status: IN PROGRESS. Dev.9 aggregate `20260826T124422Z-horse-companion-unmounted-dev9-passI` is immutable historical `FAIL 31/1` with exact audit-before-read restoration. Registration passed `13/0`; unmounted behavior passed `18/1`, including exact RT Bite `1/1/1`, forced D20 `3`, zero unexpected pair attacks, and `16` damage. Its only failure was a TB Bite dispatched on the first merely admissible native turn frame, before the complete stock readiness/Standard-slot boundary, yielding `0/0/0`. Dev.10 removes the redundant scenario-only post-prepare command interruption and waits for exact Prepared/CanAct, unpaused, empty-command, idle-hand/equipment, Standard-action, live-target, attackable readiness before requiring reference-identical Standard ownership and terminal success. Full local gates pass. One clean dev.10 package/suite/WhatIf and one audited aggregate remain. No external-state, production-combat, Mammoth, architecture, or safety blocker exists.
+
+The earlier dev.9 prelaunch directory-access failure was recovered only through the repository-owned guarded recovery path; independent audit passed before evidence use. It is orchestration history, not a gameplay failure or active ambiguity.
+
+This supersedes the stock-roll validator retry state below. Dev.9 is not relabeled.
+
 ## No critical blocker; exact stock-roll validator retry pending - 2026-08-26T11:20:50Z
 
 Status: IN PROGRESS. Dev.8 aggregate `20260826T104000Z-horse-companion-unmounted-dev8-passG` is immutable historical `FAIL 28/1` with exact audit-before-read restoration. It proves reference-identical Standard ownership and one correct RT Bite chain (`1` attack, `1` roll, `1` damage rule, `15` damage). Its compound assertion used an invalid `ForcedD20Count == 1` condition; credited Mammoth critical evidence records four D20 events for the same exact `1/1/1` stock chain, and the established production validator requires `>= 1`. Dev.9 corrects only that diagnostic boundary, serializes RT/TB forced-roll and unexpected-pair counters, and retains zero duplicate attacks. Full local gates pass. One clean dev.9 package/suite/WhatIf and one audited aggregate remain. No external-state, production-combat, Mammoth, architecture, or safety blocker exists.
