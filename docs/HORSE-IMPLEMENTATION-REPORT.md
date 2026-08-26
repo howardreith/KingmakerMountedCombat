@@ -2,6 +2,8 @@
 
 Status: IN PROGRESS
 
+Superseding horse-alpha state (2026-08-26T20:02:37Z): dev.13 exact-package aggregate is historical restored `FAIL 33/1`: registration `13/0`, aggregate `20/1`. Both native attacks now pass exactly in RT and TB with one attack/roll/damage chain, zero unexpected pair attacks, and zero post-dispatch turn restarts. The only failure occurred later because the diagnostic attempted target-selected Mount in the same frame it requested native combat and mode exit; production correctly rejected that unsafe frame. Dev.14 waits for the exact visible/enabled production Mount availability, bounded to 20 seconds. Production horse/Mammoth behavior is unchanged; one clean audited horse-mounted aggregate remains.
+
 Superseding horse-alpha state (2026-08-26T18:27:24Z): the exact dev.12 horse companion, independent mounted profile, and target-selected Mount implementation are clean, packaged, and published at `2c996e8e91868a33d57577d21f66b0cf9cda300a`. Aggregate `20260826T171000Z-horse-mounted-dev12-passA` is historical restored `FAIL 32/1`: registration `13/0`, aggregate `19/1`, and every reached contract through exact TB command admission passed. Its only failure was caused by the diagnostic's post-dispatch turn restart interrupting its own still-unstarted Bite after Kingmaker's private queued handoff landed. Dev.13 waits for the native queue to establish a real turn before requesting horse/rider ownership and requires zero post-dispatch turn restarts. Production horse/Mammoth behavior is unchanged; one clean audited horse-mounted aggregate remains.
 
 Superseding Tranche B state (2026-08-26T15:03:02Z): dev.10 package/suite/WhatIf identities are clean and exact, and aggregate `20260826T142426Z-horse-companion-unmounted-dev10-passJ` is historical restored `FAIL 32/1`. Registration passes `13/0`; unmounted behavior reaches `19/1`; the TB Bite is reference-identical Standard on the exact ready horse turn. The sole failure occurs afterward because the controller consumes a preexisting queued next-unit handoff and replaces that first diagnostic turn before command start. Dev.11 requires two-frame stable turn ownership and reasserts public `StartTurn(horse)` at most once only after observing replacement. No production behavior changes. Full local gates pass; one clean audited aggregate remains before mounted-profile admission.
@@ -27,7 +29,7 @@ Superseding Tranche B state (2026-08-26T03:40:00Z): dev.3 aggregate `20260826T02
 - accepted Mammoth implementation: `1241222459209aea1e6127bedd7d630df3940b99`
 - inherited Phase 2 product version: `0.1.0-phase2b-dev.1`
 - credited Horse Tranche A audit version: `0.1.0-phase3a-dev.2`
-- active horse-alpha version: `0.1.0-phase3b-dev.13`
+- active horse-alpha version: `0.1.0-phase3b-dev.14`
 - current version-bound offline gates: source `21/0`, Release, component `253/0`, visual/source-order `17/0`, harness `232/0`, assembly `349/0` (`325` Kingmaker + `24` Wrath), PowerShell parser `28/0`, JSON parser `7/0`, diff, and prohibited-payload validation; clean-package and runtime gates remain pending
 
 Phase 2 remains accepted with its documented private-alpha limitations. Horse work does not retroactively claim stock right-click mounted attacks, mounted auto-attack, unified Wrath-style turns, animated Mammoth TB locomotion, or public-release quality.
@@ -61,9 +63,9 @@ Dev.7 then established that Kingmaker merged the requested same-target attack in
 | Pony comparison | PASS | credited audited run `20260825T180000Z-horse-native-asset-audit-repair-passB`, `21/0` |
 | KMC blueprint trio | PASS (offline) | corrected Mammoth/Dog bootstrap comparison; historical run passed 12/13 production assertions |
 | Ranger selection | PASS (runtime observed) | historical restored run proved exact 7→8→7→8 lease even though aggregate status was 12/1 |
-| Unmounted horse | IN PROGRESS | dev.12 historical restored aggregate proves all reached rows through TB admission; one dev.13 native-turn-settlement aggregate pending |
-| Mounted horse profile | PASS (offline), runtime pending | independent `medium-humanoid-horse-v1`, native `Chest` anchor, horse-only pose/profile dispatch; same dev.13 aggregate pending |
-| Target-selected Mount | PASS (offline), runtime pending | arm Mount then click exact eligible horse/Mammoth; immediate overlay fallback retained; same dev.13 aggregate pending |
+| Unmounted horse | IN PROGRESS | dev.13 proves exact RT/TB natural attacks and all preceding rows; death/recovery/respec await the continued dev.14 aggregate |
+| Mounted horse profile | PASS (offline), runtime pending | independent `medium-humanoid-horse-v1`, native `Chest` anchor, horse-only pose/profile dispatch; same dev.14 aggregate pending |
+| Target-selected Mount | PASS (offline), runtime pending | production correctly rejected dev.13's unsafe same-frame post-combat attempt; dev.14 waits for exact exploration admission before arm/click |
 | Mammoth regression | TODO | required only after relevant shared changes |
 | Paladin Divine Steed | DESIGN ONLY | `docs/PALADIN-DIVINE-STEED-DESIGN.md` |
 

@@ -1,5 +1,13 @@
 # Autonomous blockers
 
+## No critical blocker; exact exploration-admission retry pending - 2026-08-26T20:02:37Z
+
+Status: IN PROGRESS. Dev.13 aggregate `20260826T184000Z-horse-mounted-dev13-passB` is immutable historical restored `FAIL 33/1`: registration passed `13/0`, horse behavior passed `20/1`, and exact RT and TB Bite chains each passed `1/1/1` with zero unexpected pair attacks and zero post-dispatch turn restarts. Its only failure was the guarded scenario asking production target-selected Mount to arm on the same frame it requested native combat/mode exit. Production correctly rejected that still-combat, non-exploration frame. Dev.14 waits up to 20 seconds for the exact production availability surface to become the visible/enabled Mount action before arm/click. Production behavior is unchanged. Complete offline gates pass `21/Release/253/17/232/349`, parsers pass `28/0` and `7/0`; one clean audited aggregate remains. No external-state, horse-product, Mammoth, architecture, or safety blocker is established.
+
+The immediate independent audit passed before evidence interpretation: exact suite/save/Mods/Baseline/Working continuity, all restoration booleans, and zero process/lock/sentinel/transaction/live-KMC residue.
+
+This supersedes the native-turn-settlement retry state below. Dev.13 is not relabeled.
+
 ## No critical blocker; native-turn-settlement aggregate retry pending - 2026-08-26T18:27:24Z
 
 Status: IN PROGRESS. Dev.12 aggregate `20260826T171000Z-horse-mounted-dev12-passA` is immutable historical restored `FAIL 32/1`: registration passed `13/0`, the horse aggregate passed `19/1`, and every reached unmounted contract through exact TB Standard-slot admission plus exact cleanup/isolation passed. Its only failure was the still-unstarted TB Bite being interrupted by the scenario's one post-dispatch `StartTurn` recovery. Exact installed controller code proves that recovery raced the private native next-unit queue and then disposed the admitted command itself. Dev.13 waits for a native current turn to settle before requesting the diagnostic horse/rider turn, prohibits all post-dispatch turn restarts, and changes no production behavior. Complete offline gates pass `21/Release/253/17/232/349`, parsers pass `28/0` and `7/0`; one clean audited aggregate remains. No external-state, horse-product, Mammoth, architecture, or safety blocker is established.

@@ -45,6 +45,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private const double RealTimeAttackTimeoutSeconds = 20.0;
         private const double TurnBasedTurnAcquisitionTimeoutSeconds = 20.0;
         private const double TurnBasedAttackTimeoutSeconds = 20.0;
+        private const double MountedAlphaAdmissionTimeoutSeconds = 20.0;
         private const float MovementDistance = 2.0f;
         private const float MovementTolerance = 0.75f;
         private const float TargetDistance = 4.0f;
@@ -110,6 +111,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private int turnBasedStableReadyFrames;
         private bool mountedAlphaStarted;
         private bool mountedAlphaDismounted;
+        private double mountedAlphaAdmissionStartedAtSeconds;
         private UnitMoveTo mountedRealTimeMove;
         private Vector3 mountedRealTimeRiderStart;
         private Vector3 mountedRealTimeHorseStart;
@@ -263,6 +265,9 @@ namespace KingmakerMountedCombat.Diagnostics
                         break;
                     case EngineStep.AwaitTargetRemoval:
                         AwaitTargetRemoval();
+                        break;
+                    case EngineStep.AwaitMountedAlphaAdmission:
+                        AwaitMountedAlphaAdmission();
                         break;
                     case EngineStep.AwaitMountedReady:
                         AwaitMountedReady();
@@ -924,10 +929,53 @@ namespace KingmakerMountedCombat.Diagnostics
 
             if (IncludesMountedAlpha && !mountedAlphaStarted)
             {
-                BeginMountedAlpha();
+                BeginMountedAlphaAdmission();
                 return;
             }
             BeginDeathProbe();
+        }
+
+        private void BeginMountedAlphaAdmission()
+        {
+            settings.EnableUnsafeMovementExperiment = true;
+            mountedAlphaAdmissionStartedAtSeconds = clock.Elapsed.TotalSeconds;
+            SelectionManager.Instance.SelectUnit(owner.View, true, true, false);
+            step = EngineStep.AwaitMountedAlphaAdmission;
+        }
+
+        private void AwaitMountedAlphaAdmission()
+        {
+            TryLeaveCombat(horse);
+            TryLeaveCombat(owner);
+
+            var selection = SelectionManager.Instance;
+            var selected = selection?.SelectedUnits;
+            if (selection != null && (selected == null || selected.Count != 1 || selected[0] != owner))
+            {
+                selection.SelectUnit(owner.View, true, true, false);
+                return;
+            }
+
+            var availability = playerAction.GetAvailability();
+            if (availability.IsVisible && availability.IsEnabled &&
+                availability.Action == MountedPlayerActionKind.Mount)
+            {
+                BeginMountedAlpha();
+                return;
+            }
+
+            if (clock.Elapsed.TotalSeconds - mountedAlphaAdmissionStartedAtSeconds <=
+                MountedAlphaAdmissionTimeoutSeconds)
+            {
+                return;
+            }
+
+            var game = Game.Instance;
+            Fail("target-selected-mount-admission-deadline",
+                "Kingmaker did not restore ordinary out-of-combat Mount admission within the bounded 20-second leaf. " +
+                "Latest gate: " + availability.Feedback + "; mode=" +
+                (game == null ? "<none>" : game.CurrentMode.ToString()) + ".");
+            BeginCleanup();
         }
 
         private void BeginMountedAlpha()
@@ -1726,6 +1774,7 @@ namespace KingmakerMountedCombat.Diagnostics
             AwaitTurnBasedAttack,
             AwaitRealTimeRestore,
             AwaitTargetRemoval,
+            AwaitMountedAlphaAdmission,
             AwaitMountedReady,
             AwaitMountedRealTimeMovement,
             AwaitMountedCombatEntry,
