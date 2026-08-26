@@ -1,5 +1,7 @@
 # Horse implementation report
 
+Superseding technical checkpoint (2026-08-26T22:58:55Z): dev.15's exact package/suite/run are `03240f13eab6848bdbd6010ea862622ebb0493439b83b9e917ccc452a07c7ada` / `20260826T213500Z-horse-mounted-dev15-suite1` / `20260826T214000Z-horse-mounted-dev15-passD`. The independently audited restored result is historical `FAIL 41/1`; registration passed `13/0`, horse behavior passed `28/1`, and target-selected Mount, the independent horse profile, RT/TB mounted movement, and transition retention all passed. The sole failure was the diagnostic invoking Rider primary while native post-TB mode remained `Pause`; production rejected the click exactly as `LifecycleBoundary`. Dev.16 releases that scenario-owned pause before the unchanged production click, and cleanup restores the original pause. No production behavior changed. Offline gates pass source/Release/component/visual/harness/assembly `21/Release/253/17/232/349`, parsers `28/0` and `7/0`, diff, and prohibited payload. One clean audited aggregate remains required before horse-alpha qualification.
+
 Superseding technical checkpoint (2026-08-26T21:30:54Z): dev.14's exact package/suite/run are `c281da9f01f419aeddbdc5e78cd0f67f00e9b67266374e89c7d53e0321f7924a` / `20260826T200700Z-horse-mounted-dev14-suite1` / `20260826T201000Z-horse-mounted-dev14-passC`. The independently audited restored result is historical `FAIL 33/1`; registration passed `13/0`, horse behavior passed `20/1`, and the sole failure was a diagnostic deadlock at native post-TB `Pause` before exploration remount. Dev.15 releases that scenario-owned pause before requesting stock combat departure and waiting for the unchanged production Mount gate; the existing cleanup lease restores the original pause. No production behavior changed. Offline gates pass source/Release/component/visual/harness/assembly `21/Release/253/17/232/349`, parsers `28/0` and `7/0`, diff, and prohibited payload. The single final clean audited aggregate remains required before this report can claim horse-alpha qualification.
 
 Status: IN PROGRESS
@@ -31,7 +33,7 @@ Superseding Tranche B state (2026-08-26T03:40:00Z): dev.3 aggregate `20260826T02
 - accepted Mammoth implementation: `1241222459209aea1e6127bedd7d630df3940b99`
 - inherited Phase 2 product version: `0.1.0-phase2b-dev.1`
 - credited Horse Tranche A audit version: `0.1.0-phase3a-dev.2`
-- active horse-alpha version: `0.1.0-phase3b-dev.15`
+- active horse-alpha version: `0.1.0-phase3b-dev.16`
 - current version-bound offline gates: source `21/0`, Release, component `253/0`, visual/source-order `17/0`, harness `232/0`, assembly `349/0` (`325` Kingmaker + `24` Wrath), PowerShell parser `28/0`, JSON parser `7/0`, diff, and prohibited-payload validation; clean-package and runtime gates remain pending
 
 Phase 2 remains accepted with its documented private-alpha limitations. Horse work does not retroactively claim stock right-click mounted attacks, mounted auto-attack, unified Wrath-style turns, animated Mammoth TB locomotion, or public-release quality.

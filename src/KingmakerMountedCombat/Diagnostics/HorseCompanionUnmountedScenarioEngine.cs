@@ -1217,6 +1217,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void AwaitMountedRealTimeRestore()
         {
+            if (Game.Instance.IsPaused) { Game.Instance.IsPaused = false; }
             if (CombatController.IsInTurnBasedCombat()) { return; }
             targetService.RefreshBidirectionalCombatMemoryLease();
             if (relationship.State != RelationshipState.Mounted ||
