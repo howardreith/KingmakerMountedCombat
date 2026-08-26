@@ -1,5 +1,11 @@
 # Autonomous blockers
 
+## No critical blocker; owner-relative diagnostic-target retry pending - 2026-08-26T05:10:00Z
+
+Status: IN PROGRESS. Dev.4 aggregate `20260826T043600Z-horse-companion-unmounted-dev4-passC` is immutable historical `FAIL 25/1` with exact audit-before-read restoration. It proves the Call of the Wild compatibility repair, creation/ownership/control, native horse view/statistics, selection, and stock unmounted movement. Its sole failure is an attributable guarded-scenario geometry mismatch: target creation validates the rider/owner-relative `3..20` range, but the scenario derived a 1.5-unit point from the already moved horse. Dev.5 derives a four-unit point from the owner authority and independently validates both owner and horse distances. All current offline gates pass. One fresh package/suite/WhatIf and one audited aggregate remain before mounted-profile work. No external-state, companion-progression, movement, architecture, or safety blocker exists.
+
+This supersedes the compatibility-retry state below. The dev.4 aggregate is not relabeled.
+
 ## No critical blocker; native manual-leveling compatibility retry pending - 2026-08-26T03:40:00Z
 
 Status: IN PROGRESS. Dev.3 aggregate `20260826T024500Z-horse-companion-unmounted-dev3-passB` is preserved historical `FAIL 22/1` with exact audit-before-read restoration. Its only failure again concerned the observation of live class level `1`; creation, reciprocal ownership, direct control, rank-4 upgrade, native view/statistics, selection, isolation, and cleanup passed. Exact installed Call of the Wild SHA-256 `4ebf8e1ed3e66ffed72ea33ea325595629423dacd5bffa23e3c9109144b26915` intentionally redirects native animal-companion progression into exact target XP and the native experience event for manual player leveling, so synchronous class level `4` is not the only correct native outcome. Dev.4 accepts exact class-level commitment or exact XP handoff, records which occurred, and prohibits a duplicate `TryUpdatePet` after either settlement. All current offline source/build/component/visual/harness/assembly gates pass. One fresh immutable dev.4 package/suite/WhatIf and one audited aggregate remain before mounted-profile work. This is a bounded compatibility repair, not an external-state, architecture, or safety blocker.

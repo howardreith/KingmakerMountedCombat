@@ -1,5 +1,7 @@
 # Horse animal-companion contract
 
+Superseding status (2026-08-26T05:10:00Z): PASS (partial runtime) - dev.4 proves exact native XP handoff, zero duplicate update, creation/ownership/control, selection, view/stats, and stock movement. Combat/death/respec remain uncredited after a later diagnostic-target geometry failure; dev.5 repairs that guarded test only.
+
 Superseding status (2026-08-26T03:40:00Z): PASS (offline) - native progression means committed target class level or exact target-XP handoff for manual companion leveling; one dev.4 runtime aggregate remains required.
 
 Superseding status (2026-08-25T21:29:32Z): PASS — construction and unmounted runtime contracts implemented; live aggregate qualification remains required.
@@ -71,7 +73,7 @@ Registration must snapshot the exact stock selection array and append the horse 
 
 ## Implemented production checkpoint
 
-Version `0.1.0-phase3b-dev.4` implements the construction and first unmounted-runtime contracts behind `HorseCompanionBlueprintService`:
+Version `0.1.0-phase3b-dev.5` contains the construction and first unmounted-runtime contracts behind `HorseCompanionBlueprintService`:
 
 - original KMC unit/feature/upgrade definitions with the reserved GUIDs above;
 - exact native `CR1_HorseRiding` prefab/visual/speed and a proven stock companion class;

@@ -2,6 +2,8 @@
 
 Status: IN PROGRESS
 
+Superseding Tranche B state (2026-08-26T05:10:00Z): dev.4 runtime proved exact native manual-leveling XP settlement with zero duplicate retries, plus horse creation/control/selection and stock movement. Aggregate `20260826T043600Z-horse-companion-unmounted-dev4-passC` remains historical `FAIL 25/1` because the later diagnostic target was derived from the moved horse while the target service correctly validates distance from the owner. Dev.5 repairs only that guarded scenario boundary and requires fresh aggregate evidence for combat/death/respec.
+
 Superseding Tranche B state (2026-08-26T03:40:00Z): dev.3 aggregate `20260826T024500Z-horse-companion-unmounted-dev3-passB` is immutable historical `FAIL 22/1` with exact restoration. Exact installed Call of the Wild behavior disproves the dev.3 `DefaultBuildData` theory: its native animal-companion patch settles progression by assigning exact target XP and raising the native experience event for manual pet leveling, rather than committing class levels synchronously. Dev.4 accepts that exact native handoff or a committed class level, records the disposition, and suppresses duplicate native updates. A fresh dev.4 aggregate remains required.
 
 ## Starting point
@@ -11,7 +13,7 @@ Superseding Tranche B state (2026-08-26T03:40:00Z): dev.3 aggregate `20260826T02
 - accepted Mammoth implementation: `1241222459209aea1e6127bedd7d630df3940b99`
 - inherited Phase 2 product version: `0.1.0-phase2b-dev.1`
 - credited Horse Tranche A audit version: `0.1.0-phase3a-dev.2`
-- active Horse Tranche B version: `0.1.0-phase3b-dev.4`
+- active Horse Tranche B version: `0.1.0-phase3b-dev.5`
 - current version-bound offline gates: source `21/0`, Release, component `251/0`, visual/source-order `17/0`, harness `231/0`, assembly `349/0` (`325` Kingmaker + `24` Wrath), PowerShell parser `26/0`, JSON parser `7/0`, diff, and prohibited-payload validation; clean-package and runtime gates remain pending
 
 Phase 2 remains accepted with its documented private-alpha limitations. Horse work does not retroactively claim stock right-click mounted attacks, mounted auto-attack, unified Wrath-style turns, animated Mammoth TB locomotion, or public-release quality.

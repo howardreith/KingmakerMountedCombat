@@ -4983,7 +4983,8 @@ function Assert-KmcHorseCompanionUnmountedEvidence {
             'deferredCharacterLevelAfter','deferredExperienceBefore','deferredExperienceAfter',
             'nativeClassProgressionSynchronized','nativeManualLevelingReady','nativeProgressionDisposition',
             'deferredProgressionSynchronized','runtimeSize','speedFeet','hitPoints','armorClass',
-            'movementDisplacement','movementRemainingDistance','ownerDisplacementDuringHorseMove','fullAttackWeaponGuids',
+            'movementDisplacement','movementRemainingDistance','ownerDisplacementDuringHorseMove',
+            'targetOwnerDistance','targetHorseDistance','fullAttackWeaponGuids',
             'realTimeAttackWeaponGuid','realTimeAttackRules','realTimeAttackRolls','realTimeDamageRules','realTimeDamage',
             'turnBasedAttackWeaponGuid','turnBasedAttackRules','turnBasedAttackRolls','turnBasedDamageRules','turnBasedDamage',
             'targetCleanupExact','lethalDamage','recoveredDamage','finalPause','finalTurnBased','finalSelectionCount',
@@ -5038,7 +5039,10 @@ function Assert-KmcHorseCompanionUnmountedEvidence {
             [string]$o.runtimeSize -cne 'Large' -or [long]$o.speedFeet -ne 50 -or
             [long]$o.hitPoints -le 0 -or [long]$o.armorClass -le 0 -or
             [double]$o.movementDisplacement -lt 1.0 -or [double]$o.movementRemainingDistance -gt 0.75 -or
-            [double]$o.ownerDisplacementDuringHorseMove -gt 0.2 -or $o.fullAttackWeaponGuids -isnot [Array] -or
+            [double]$o.ownerDisplacementDuringHorseMove -gt 0.2 -or
+            [double]$o.targetOwnerDistance -lt 3.0 -or [double]$o.targetOwnerDistance -gt 20.0 -or
+            [double]$o.targetHorseDistance -le 0.25 -or [double]$o.targetHorseDistance -gt 7.0 -or
+            $o.fullAttackWeaponGuids -isnot [Array] -or
             @($o.fullAttackWeaponGuids).Count -ne 3 -or
             [string]$o.fullAttackWeaponGuids[0] -cnotmatch '^[0-9a-f]{32}$' -or
             [string]$o.fullAttackWeaponGuids[1] -cne 'b0e472a49ff2a294f93faa3ab757a4a5' -or

@@ -1,6 +1,6 @@
 # Horse private-alpha playtest
 
-Technical note (2026-08-26T03:40:00Z): dev.2 and dev.3 aggregates remain historical `FAIL 22/1` observations with exact external restoration; neither is a playtest artifact. Exact installed Call of the Wild behavior established native target-XP handoff for manual companion leveling and disproved the dev.3 synchronous-level theory. Dev.4's exact compatibility contract is offline-green, but its single guarded aggregate must pass before this checklist is activated.
+Technical note (2026-08-26T05:10:00Z): dev.4 runtime proves the exact Call of the Wild target-XP handoff and zero duplicate progression retries, but aggregate `20260826T043600Z-horse-companion-unmounted-dev4-passC` remains historical `FAIL 25/1` after a later guarded diagnostic-target placement defect. Dev.5 repairs only that owner-relative test boundary. No package is a playtest artifact until the complete aggregate and mounted-horse qualification pass.
 
 Status: TODO — do not use until an exact qualified package is recorded below
 

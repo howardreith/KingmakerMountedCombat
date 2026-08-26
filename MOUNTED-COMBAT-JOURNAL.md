@@ -1,5 +1,14 @@
 # Mounted Combat journal
 
+## 2026-08-26T05:10:00Z - dev.4 progression passed; unmounted target authority corrected
+
+- Guarded dev.4 package/suite identities are ZIP/manifest/DLL/MVID `d865c57a4c9c9990920079ee6e8770416ece4035a5cce7ef66b9da3dde1106a2` / `7aab7af1a1e811b3337263999f0ba78a04ae21823e708ed7a6c5fe308341745e` / `e123a46719f7c161f545156a42982b06cf515558f61cb863e2cc917b2b9a45c8` / `f1aaa3ec-4184-48f7-8b44-8e83f1ed7367` and suite `20260826T034900Z-horse-companion-unmounted-dev4-suite1` SHA-256 `9865a65ba4d863096a8ce15ea227842f647440777f62148f67553a8868e1c121`. Targeted WhatIf passed exact purity.
+- Run `20260826T043600Z-horse-companion-unmounted-dev4-passC` exited `FAIL 25/1`. The independent audit ran first and proved exact suite/save/Mods/Baseline/Working identity, all three transactions restored, and zero process/lock/live-deployment residue.
+- The compatibility repair is runtime-proven: native level `1`, XP `9000/9000`, manual-leveling-ready, zero duplicate native updates, rank `4`, and upgrade rank `1`. Exact horse creation/SetMaster, control, Large view/stats, selection, one stock movement command, target-free movement, non-horse isolation, and cleanup passed.
+- The sole failure happened at later diagnostic target creation. `DiagnosticCombatTargetService` correctly enforced its existing three-unit minimum from the owner, while the horse scenario derived a 1.5-unit point from the horse after moving it independently. No attack was attempted and no horse combat result was claimed.
+- Dev.5 derives the target from the exact owner authority at four units, records both owner and horse distances, retains the existing service floor and ceiling, and adds independent source/semantic rejection coverage. It changes only guarded runtime diagnostics. Version-bound gates pass `21/Release/251/17/231/349`, parsers `26/0` and `7/0`, diff, and prohibited-payload validation; dirty DLL SHA-256/MVID are `c6adfb5d7374c0b75b958dce44d8ef5c731145e1ec4143d8403e8542a3835bbf` / `5acd416b-b2e2-4721-8dd3-6d81f4ca8c9b`.
+- Next: coherent publication, clean package/suite/WhatIf, one audited aggregate, then mounted-profile admission only on PASS.
+
 ## 2026-08-26T03:40:00Z - dev.3 aggregate restored; Call of the Wild manual-leveling contract bound
 
 - Published dev.3 commit/package/suite were `c4b7ada4f3e9fc665397b951bd1d23515c274d8e` / `576ca98b3d174221f57e404f81f745b96e92ef70ba4a714f5be123441a36881c` / `20260826T020300Z-horse-companion-unmounted-dev3-suite1`; package manifest/DLL/MVID were `9963fd4d9cf1a3730509445f3c189685db8e964809e10023cc528752533f487b` / `d2691cf1d40633bf7315563e4a9ff70738e4fefde0babd13ff84341ed0aaf3b5` / `ddafc3f9-00a4-4f77-8c07-e0ff1dfdc0d9`. Targeted WhatIf passed exact purity.

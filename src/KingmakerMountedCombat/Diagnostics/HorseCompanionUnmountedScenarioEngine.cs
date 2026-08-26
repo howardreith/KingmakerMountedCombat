@@ -38,7 +38,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private const double ScenarioTimeoutSeconds = 180.0;
         private const float MovementDistance = 2.0f;
         private const float MovementTolerance = 0.75f;
-        private const float TargetDistance = 1.5f;
+        private const float TargetDistance = 4.0f;
 
         private static readonly JsonSerializerSettings JsonSettings = new JsonSerializerSettings
         {
@@ -376,7 +376,13 @@ namespace KingmakerMountedCombat.Diagnostics
             if (failed != 0) { BeginCleanup(); return; }
 
             targetService = new DiagnosticCombatTargetService(logger);
-            var spawnPoint = FindWalkablePoint(horse.Position, TargetDistance, 0.45f);
+            // DiagnosticCombatTargetService validates its placement against the
+            // rider/owner authority. The horse has already completed an
+            // independent movement leg, so deriving this point from the horse
+            // can put it inside the service's three-unit owner-relative floor.
+            var spawnPoint = FindWalkablePoint(owner.Position, TargetDistance, 0.45f);
+            observations["targetOwnerDistance"] = HorizontalDistance(owner.Position, spawnPoint);
+            observations["targetHorseDistance"] = HorizontalDistance(horse.Position, spawnPoint);
             target = targetService.Spawn(owner, horse, spawnPoint, request.RunId, true, true);
             Check(targetService.PrepareForPlayerClick(target) && targetService.QueueBidirectionalCombatMemory(owner, target),
                 "transient-combat-target",
