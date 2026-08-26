@@ -1,5 +1,7 @@
 # Horse animal-companion contract
 
+Superseding status (2026-08-26T09:47:04Z): PASS (production topology, partial runtime) - dev.7 establishes native same-target command merging as a guarded-scenario identity defect. Dev.8 clears only the temporary horse's commands at explicit RT/TB test dispatch and requires exact player-command admission. Production horse behavior is unchanged; combat/death/respec remain uncredited pending one clean aggregate.
+
 Superseding status (2026-08-26T08:08:44Z): PASS (production topology, partial runtime) - dev.6 proves exact Bite/Hoof/Hoof enumeration and every prior unmounted gate. Its first stock RT Bite remained preterminal to the old deadline; dev.7 observes the exact native start/approach boundary without changing production behavior. Combat/death/respec remain uncredited pending that bounded result.
 
 Superseding status (2026-08-26T06:33:22Z): PASS (offline repair) - dev.5 reached combat and exposed one duplicate Bite from the obsolete hands-enabled body. Dev.6 follows the credited native horse's disabled-hands contract and orders natural limbs Bite/Hoof/Hoof; one clean aggregate remains required.

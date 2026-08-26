@@ -1,5 +1,7 @@
 # Horse runtime scenario matrix
 
+Superseding status (2026-08-26T09:47:04Z): IN PROGRESS - dev.7 aggregate is historical restored `FAIL 28/1` and proves the submitted Bite was consumed by Kingmaker's native same-target active-command merge while native combat continued. Dev.8 isolates only the temporary horse's explicit RT/TB dispatch and requires reference-identical Standard ownership. One clean audited aggregate remains before mounted-profile admission.
+
 Superseding status (2026-08-26T08:08:44Z): IN PROGRESS - dev.6 runtime proves exact Bite/Hoof/Hoof enumeration and all preceding gates, but remains historical restored `FAIL 28/1` because its first stock RT Bite never reached a terminal state before the old global deadline. Dev.7 adds one 20-second exact start/approach-state snapshot and no production behavior change; one audited aggregate observation remains before repair or mounted-profile admission.
 
 Superseding status (2026-08-26T06:33:22Z): IN PROGRESS - dev.5 reached combat but remains historical restored `FAIL 26/1` because enabled hands repeated Bite through the secondary empty-hand fallback. Dev.6 adopts the exact native no-hands Bite/Hoof/Hoof topology; one clean aggregate remains before mounted-profile admission.

@@ -1,5 +1,7 @@
 # Horse private-alpha playtest
 
+Technical note (2026-08-26T09:47:04Z): dev.7 is historical restored `FAIL 28/1`; it established a guarded-scenario identity error, not a horse product failure. Kingmaker merged the requested same-target Bite into an already active native attack, so the submitted object never owned Standard while native combat continued. Dev.8 deterministically isolates the temporary horse's explicit RT/TB test commands. It is offline-green but not a playtest artifact until the complete unmounted aggregate and mounted horse qualification pass.
+
 Technical note (2026-08-26T08:08:44Z): dev.6 proves exact Bite/Hoof/Hoof enumeration and every preceding unmounted gate, but remains historical restored `FAIL 28/1` because its first stock RT Bite did not terminate before the old global deadline. Dev.7 observes the exact native start/approach boundary with a 20-second diagnostic-only snapshot. No package is a playtest artifact until unmounted and mounted horse qualification pass.
 
 Technical note (2026-08-26T06:33:22Z): dev.5 reached combat but remains historical `FAIL 26/1` because its hands-enabled body made stock full attack enumerate Bite twice. Dev.6 uses the exact native horse no-hands topology with ordered Bite/Hoof/Hoof natural limbs. It is offline-green but not yet a playtest artifact; one clean unmounted aggregate remains required.

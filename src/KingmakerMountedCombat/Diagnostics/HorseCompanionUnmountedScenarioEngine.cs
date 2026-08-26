@@ -419,14 +419,31 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Stock UnitAttack enumerated one Bite primary followed by exactly two Hoof limbs.");
             if (failed != 0) { BeginCleanup(); return; }
 
+            var preDispatchStandard = horse.Commands.Standard;
+            observations["realTimePreDispatchStandardType"] = preDispatchStandard?.GetType().FullName;
+            observations["realTimePreDispatchStandardRunning"] = preDispatchStandard?.IsRunning;
+            observations["realTimePreDispatchStandardAiActionPresent"] = preDispatchStandard?.AiAction != null;
+            observations["realTimePreDispatchStandardTargetExact"] = preDispatchStandard != null &&
+                ReferenceEquals(preDispatchStandard.Target?.Unit, target);
+
+            // Native real-time auto-combat can already own a same-target UnitAttack
+            // by the time the bidirectional combat-memory lease is ready. UnitAttack
+            // then merges a newly submitted same-target command into that active
+            // command, intentionally leaving the submitted object outside the
+            // Standard slot. This scenario needs one exact player-created single
+            // Bite, so clear only this temporary horse's command surface at the
+            // explicit dispatch boundary before arming the rule probe.
+            horse.Commands.InterruptAll(false);
             ruleProbe = new MountedCombatRuleProbe();
             ruleProbe.Arm(owner, horse, horse, target, 20);
-            Check(targetService.BeginExpectedAttackDispatch(target),
-                "expected-attack-boundary",
-                "The exact horse attack dispatch began only after target safety and combat entry passed.");
+            var expectedDispatchStarted = targetService.BeginExpectedAttackDispatch(target);
             realTimeAttack = new UnitAttack(target) { IsSingleAttack = true, CreatedByPlayer = true };
             realTimeAttack.IgnoreCooldown();
             horse.Commands.Run(realTimeAttack);
+            Check(expectedDispatchStarted && ReferenceEquals(horse.Commands.Standard, realTimeAttack),
+                "expected-attack-boundary",
+                "After target safety and combat entry passed, one exact player-created stock Bite owned the horse's native Standard slot.");
+            if (failed != 0) { BeginCleanup(); return; }
             realTimeAttackIssuedAtSeconds = clock.Elapsed.TotalSeconds;
             observations["realTimeAttackAtDispatch"] = CaptureRealTimeAttackState(realTimeAttack);
             step = EngineStep.AwaitRealTimeAttack;
@@ -588,6 +605,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 "The horse owned its native turn and exact selection surface.");
             if (failed != 0) { BeginCleanup(); return; }
 
+            horse.Commands.InterruptAll(false);
             ruleProbe.Arm(owner, horse, horse, target, 20);
             turnBasedAttack = new UnitAttack(target) { IsSingleAttack = true, CreatedByPlayer = true };
             turnBasedAttack.IgnoreCooldown();

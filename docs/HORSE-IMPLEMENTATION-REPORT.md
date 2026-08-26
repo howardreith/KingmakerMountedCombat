@@ -2,6 +2,8 @@
 
 Status: IN PROGRESS
 
+Superseding Tranche B state (2026-08-26T09:47:04Z): dev.7 proves the requested single Bite was healthy but intentionally consumed by Kingmaker's same-target `UnitAttack` merge into an already active native RT attack. The diagnostic waited on the discarded request while native combat killed the target. Dev.8 isolates only the temporary horse's commands at explicit test dispatch and requires reference-identical Standard ownership; no production behavior changes. Full local gates pass and one clean audited aggregate remains before mounted-profile admission.
+
 Superseding Tranche B state (2026-08-26T08:08:44Z): dev.6 proves exact Bite/Hoof/Hoof enumeration and every preceding registration, ownership, progression, control, movement, target, and combat-entry gate. Aggregate `20260826T072604Z-horse-companion-unmounted-dev6-passE` remains historical restored `FAIL 28/1` because its first stock RT Bite did not terminate before the old 180-second global deadline. Dev.7 adds one diagnostic-only 20-second snapshot of the native start/approach boundary; no production behavior changes.
 
 Superseding Tranche B state (2026-08-26T06:33:22Z): dev.5 reached stock combat after all preceding companion and target gates passed. Aggregate `20260826T055857Z-horse-companion-unmounted-dev5-passD` remains historical `FAIL 26/1`: enabled hands caused the empty secondary slot to repeat Bite, yielding Bite/Bite/Hoof/Hoof. Dev.6 adopts the exact native horse no-hands body with ordered Bite/Hoof/Hoof natural limbs. Full offline gates pass; one clean aggregate remains required before mounted-profile admission.

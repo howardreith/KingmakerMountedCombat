@@ -1,5 +1,11 @@
 # Autonomous blockers
 
+## No critical blocker; exact native-merge dispatch retry pending - 2026-08-26T09:47:04Z
+
+Status: IN PROGRESS. Dev.7 aggregate `20260826T051000Z-horse-companion-unmounted-dev7-passF` is immutable historical `FAIL 28/1` with exact audit-before-read restoration. It proves the requested Bite is unpaused, time-advancing, in range, line-of-sight eligible, hands/equipment ready, cooldown-free, and start-eligible, but never owns the native Standard slot. The target later dies under native combat. Exact installed `UnitCommands.Run` and `UnitAttack.TryMergeInto` establish same-target active-command merging as the cause. Dev.8 clears only the temporary diagnostic horse's command surface at explicit RT/TB test dispatch, then requires the player-created single Bite to own Standard. Full local gates pass. One clean dev.8 package/suite/WhatIf and one audited aggregate remain. No external-state, production-combat, Mammoth, architecture, or safety blocker exists.
+
+This supersedes the bounded-observation state below. Dev.7 is not relabeled.
+
 ## No critical blocker; bounded stock RT start-gate observation pending - 2026-08-26T08:08:44Z
 
 Status: IN PROGRESS. Dev.6 aggregate `20260826T072604Z-horse-companion-unmounted-dev6-passE` is immutable historical `FAIL 28/1` with exact audit-before-read restoration. It proves the corrected stock Bite/Hoof/Hoof topology and all preceding registration, ownership, progression, control, movement, target, and combat-entry gates. Its only failure is a stock RT Bite command that remained unfinished to the old 180-second scenario deadline. Exact installed command code proves a started command cannot remain live that long, narrowing the uncertainty to the native start/approach boundary. Dev.7 adds a diagnostic-only, 20-second exact-state snapshot; all current offline gates pass. One clean dev.7 package/suite/WhatIf and one audited aggregate remain. No external-state, architecture, Mammoth, or safety blocker exists.
