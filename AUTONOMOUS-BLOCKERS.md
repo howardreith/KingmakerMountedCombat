@@ -1,5 +1,13 @@
 # Autonomous blockers
 
+## No critical blocker; stable exact horse-turn retry pending - 2026-08-26T15:03:02Z
+
+Status: IN PROGRESS. Dev.10 aggregate `20260826T142426Z-horse-companion-unmounted-dev10-passJ` is immutable historical restored `FAIL 32/1`: registration passed `13/0`, unmounted behavior passed `19/1`, and exact TB command admission passed. Its sole failure was the start-eligible Bite remaining queued after the native controller's preexisting next-unit handoff replaced the first public diagnostic `StartTurn`. Exact installed code establishes the cause. Dev.11 requires a two-frame stable exact horse turn and reasserts it at most once only after observing that replacement; both acquisition and execution remain bounded to 20 seconds. Full local gates pass. One clean dev.11 package/suite/WhatIf and one audited aggregate remain. No external-state, production-combat, Mammoth, architecture, or safety blocker exists.
+
+The independent post-run audit re-proved exact suite/save/Mods/Baseline/Working identity, all restoration booleans, and no process/lock/sentinel/live-KMC residue before evidence interpretation.
+
+This supersedes the dev.10 readiness retry state below. Dev.10 is not relabeled.
+
 ## No critical blocker; exact native TB readiness retry pending - 2026-08-26T13:26:50Z
 
 Status: IN PROGRESS. Dev.9 aggregate `20260826T124422Z-horse-companion-unmounted-dev9-passI` is immutable historical `FAIL 31/1` with exact audit-before-read restoration. Registration passed `13/0`; unmounted behavior passed `18/1`, including exact RT Bite `1/1/1`, forced D20 `3`, zero unexpected pair attacks, and `16` damage. Its only failure was a TB Bite dispatched on the first merely admissible native turn frame, before the complete stock readiness/Standard-slot boundary, yielding `0/0/0`. Dev.10 removes the redundant scenario-only post-prepare command interruption and waits for exact Prepared/CanAct, unpaused, empty-command, idle-hand/equipment, Standard-action, live-target, attackable readiness before requiring reference-identical Standard ownership and terminal success. Full local gates pass. One clean dev.10 package/suite/WhatIf and one audited aggregate remain. No external-state, production-combat, Mammoth, architecture, or safety blocker exists.

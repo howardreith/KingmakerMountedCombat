@@ -38,6 +38,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private const double ScenarioTimeoutSeconds = 180.0;
         private const double RealTimeAttackTimeoutSeconds = 20.0;
+        private const double TurnBasedTurnAcquisitionTimeoutSeconds = 20.0;
         private const double TurnBasedAttackTimeoutSeconds = 20.0;
         private const float MovementDistance = 2.0f;
         private const float MovementTolerance = 0.75f;
@@ -93,6 +94,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private NativeModeTransitionProbe realTimeModeProbe;
         private NativeModeTransitionProbe turnBasedModeProbe;
         private bool turnStarted;
+        private double turnBasedTurnAcquisitionStartedAtSeconds;
+        private int turnBasedStartTurnRequestCount;
+        private int turnBasedStableReadyFrames;
         private Vector3 ownerPositionBeforeMovement;
         private Vector3 horsePositionBeforeMovement;
         private Vector3 movementDestination;
@@ -589,6 +593,9 @@ namespace KingmakerMountedCombat.Diagnostics
             if (failed != 0) { BeginCleanup(); return; }
             controller.StartTurn(horse);
             turnStarted = true;
+            turnBasedTurnAcquisitionStartedAtSeconds = clock.Elapsed.TotalSeconds;
+            turnBasedStartTurnRequestCount = 1;
+            turnBasedStableReadyFrames = 0;
             step = EngineStep.AwaitTurnBasedTurn;
         }
 
@@ -598,7 +605,39 @@ namespace KingmakerMountedCombat.Diagnostics
             var game = Game.Instance;
             var controller = Game.Instance.TurnBasedCombatController;
             var turn = controller?.CurrentTurn;
-            if (!turnStarted || turn?.Unit != horse ||
+            if (!turnStarted || controller == null)
+            {
+                return;
+            }
+
+            if (clock.Elapsed.TotalSeconds - turnBasedTurnAcquisitionStartedAtSeconds >
+                TurnBasedTurnAcquisitionTimeoutSeconds)
+            {
+                observations["turnBasedAttackAtDispatch"] = CaptureTurnBasedAttackState(null);
+                Fail("turn-based-turn-deadline",
+                    "The native controller did not retain a stable actionable horse turn within its bounded 20-second leaf.");
+                BeginCleanup();
+                return;
+            }
+
+            if (turn?.Unit != horse)
+            {
+                turnBasedStableReadyFrames = 0;
+                if (turnBasedStartTurnRequestCount < 2)
+                {
+                    // CombatController can still own a queued next-unit handoff
+                    // when turn-based mode first initializes. That handoff may
+                    // replace an otherwise healthy diagnostic StartTurn request
+                    // on the following native tick. Reassert the exact horse turn
+                    // once after observing that replacement, then require it to
+                    // remain ready across two subsequent engine frames.
+                    controller.StartTurn(horse);
+                    turnBasedStartTurnRequestCount++;
+                }
+                return;
+            }
+
+            if (
                 (turn.Status != TurnController.TurnStatus.Preparing && !turn.IsActing) ||
                 horse.CombatState == null || !horse.CombatState.Prepared || !horse.CombatState.CanActInCombat ||
                 game.IsPaused || horse.Commands == null || !horse.Commands.Empty ||
@@ -606,6 +645,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 game.HandsEquipmentController.IsUpdateScheduledFor(horse) || !horse.HasStandardAction() ||
                 target == null || !target.IsInState || !target.Descriptor.State.IsConscious ||
                 !horse.CanAttack(target))
+            {
+                turnBasedStableReadyFrames = 0;
+                return;
+            }
+
+            turnBasedStableReadyFrames++;
+            if (turnBasedStableReadyFrames < 2)
             {
                 return;
             }
@@ -626,9 +672,10 @@ namespace KingmakerMountedCombat.Diagnostics
             horse.Commands.Run(turnBasedAttack);
             turnBasedAttackIssuedAtSeconds = clock.Elapsed.TotalSeconds;
             turnBasedAttackAtDispatch = CaptureTurnBasedAttackState(turnBasedAttack);
-            Check(ReferenceEquals(horse.Commands.Standard, turnBasedAttack),
+            Check(ReferenceEquals(controller.CurrentTurn, turn) &&
+                    ReferenceEquals(horse.Commands.Standard, turnBasedAttack),
                 "turn-based-command-admission",
-                "The exact player-created single Bite owned the horse's native Standard slot without command merging or replacement.");
+                "The stable exact horse turn retained one player-created single Bite in its native Standard slot without command merging or replacement.");
             if (failed != 0)
             {
                 observations["turnBasedAttackAtDispatch"] = turnBasedAttackAtDispatch;
