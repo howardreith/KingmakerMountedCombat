@@ -1,5 +1,13 @@
 # Autonomous blockers
 
+## No critical blocker; final scenario-owned Pause-boundary retry pending - 2026-08-26T21:30:54Z
+
+Status: IN PROGRESS. Dev.14 aggregate `20260826T201000Z-horse-mounted-dev14-passC` is immutable historical restored `FAIL 33/1`: registration passed `13/0`, horse behavior passed `20/1`, and exact RT/TB Bite chains plus all earlier horse rows remained green. The sole failure was the production Mount availability staying correctly closed for the full bounded wait because exact game mode remained `Pause` after native TB/combat exit. Exact installed contracts establish that combat-leave progression cannot finish while time remains paused. Dev.15 changes only the guarded scenario: it unpauses within the already-owned pause-restoration lease, requests stock departure, then waits for the unchanged production exploration/Mount gates. Cleanup restores the captured pause state. Complete offline gates pass `21/Release/253/17/232/349`, parsers pass `28/0` and `7/0`; one clean audited final aggregate remains. No external-state, horse-product, Mammoth, architecture, safety, or restoration blocker is established.
+
+The dev.14 independent audit passed before evidence interpretation: exact suite/save/Mods/Baseline/Working continuity, all restoration booleans, and zero process/lock/sentinel/transaction/live-KMC residue.
+
+This supersedes the exploration-admission retry state below. Dev.14 is not relabeled.
+
 ## No critical blocker; exact exploration-admission retry pending - 2026-08-26T20:02:37Z
 
 Status: IN PROGRESS. Dev.13 aggregate `20260826T184000Z-horse-mounted-dev13-passB` is immutable historical restored `FAIL 33/1`: registration passed `13/0`, horse behavior passed `20/1`, and exact RT and TB Bite chains each passed `1/1/1` with zero unexpected pair attacks and zero post-dispatch turn restarts. Its only failure was the guarded scenario asking production target-selected Mount to arm on the same frame it requested native combat/mode exit. Production correctly rejected that still-combat, non-exploration frame. Dev.14 waits up to 20 seconds for the exact production availability surface to become the visible/enabled Mount action before arm/click. Production behavior is unchanged. Complete offline gates pass `21/Release/253/17/232/349`, parsers pass `28/0` and `7/0`; one clean audited aggregate remains. No external-state, horse-product, Mammoth, architecture, or safety blocker is established.

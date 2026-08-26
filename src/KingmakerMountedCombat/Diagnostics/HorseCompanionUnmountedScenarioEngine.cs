@@ -945,6 +945,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void AwaitMountedAlphaAdmission()
         {
+            if (Game.Instance.IsPaused) { Game.Instance.IsPaused = false; }
             TryLeaveCombat(horse);
             TryLeaveCombat(owner);
 
