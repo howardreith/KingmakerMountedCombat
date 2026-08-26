@@ -1,5 +1,7 @@
 # Horse animal-companion contract
 
+Superseding status (2026-08-26T06:33:22Z): PASS (offline repair) - dev.5 reached combat and exposed one duplicate Bite from the obsolete hands-enabled body. Dev.6 follows the credited native horse's disabled-hands contract and orders natural limbs Bite/Hoof/Hoof; one clean aggregate remains required.
+
 Superseding status (2026-08-26T05:10:00Z): PASS (partial runtime) - dev.4 proves exact native XP handoff, zero duplicate update, creation/ownership/control, selection, view/stats, and stock movement. Combat/death/respec remain uncredited after a later diagnostic-target geometry failure; dev.5 repairs that guarded test only.
 
 Superseding status (2026-08-26T03:40:00Z): PASS (offline) - native progression means committed target class level or exact target-XP handoff for manual companion leveling; one dev.4 runtime aggregate remains required.
@@ -73,12 +75,12 @@ Registration must snapshot the exact stock selection array and append the horse 
 
 ## Implemented production checkpoint
 
-Version `0.1.0-phase3b-dev.5` contains the construction and first unmounted-runtime contracts behind `HorseCompanionBlueprintService`:
+Version `0.1.0-phase3b-dev.6` contains the construction and first unmounted-runtime contracts behind `HorseCompanionBlueprintService`:
 
 - original KMC unit/feature/upgrade definitions with the reserved GUIDs above;
 - exact native `CR1_HorseRiding` prefab/visual/speed and a proven stock companion class;
 - explicit Large size and base ability scores `16/13/15/2/12/6`;
-- hands-enabled stock attack enumeration with one exact `Bite1d4` primary/empty-hand weapon plus two exact `Hoof1d4` additional limbs;
+- the exact native no-hands animal topology with null hand fallbacks and ordered natural limbs `[Bite1d4, Hoof1d4, Hoof1d4]`; stock single attack therefore selects Bite and stock full attack enumerates each intended limb once;
 - stock `AddPet` with exact `AnimalCompanionRank` and a KMC-owned rank-4 upgrade containing only racial `+2 Strength` and `+2 Constitution`;
 - exact zero-level blueprint bootstrap parity with the stock Mammoth and Dog, followed by native `AddPet` rank-to-level application after spawn;
 - exact native progression recognition for either committed target class level or exact `XPTable.GetBonus(targetLevel)` settlement ready for manual companion leveling;
@@ -89,4 +91,4 @@ Version `0.1.0-phase3b-dev.5` contains the construction and first unmounted-runt
 
 Exact installed Call of the Wild SHA-256 `4ebf8e1ed3e66ffed72ea33ea325595629423dacd5bffa23e3c9109144b26915` establishes why target XP is a valid native outcome: its animal-companion prefix sets `Progression.Experience` to the stock XP-table target, raises the native gain-experience event, applies the upgrade, and preserves manual player level-up rather than committing levels synchronously. KMC does not depend on or patch Call of the Wild and never directly mutates progression state.
 
-The current offline contract is `PASS`: source `21/0`, Release, component `251/0`, visual/source-order `17/0`, harness `231/0`, assembly `349/0` (`325` Kingmaker + `24` Wrath), PowerShell parser `26/0`, JSON parser `7/0`, diff, and prohibited-payload validation. The preserved registration run is historical `FAIL 12/1` solely because its obsolete observer required positive blueprint class levels. Aggregate dev.2 and dev.3 runs are historical `FAIL 22/1` observations: both proved exact restoration and all pre-progression creation/ownership/control gates, while dev.3 disproved the deferred synchronous-level theory. One clean dev.4 aggregate remains required; actual disk save/reload stays human-gated under the guarded harness's crash-safe save restriction.
+The current offline contract is `PASS`: source `21/0`, Release, component `251/0`, visual/source-order `17/0`, harness `231/0`, assembly `349/0` (`325` Kingmaker + `24` Wrath), PowerShell parser `26/0`, JSON parser `7/0`, diff, and prohibited-payload validation. Historical dev.2/dev.3/dev.4/dev.5 aggregate evidence remains immutable and uncredited; each passed exact restoration and progressively established progression, movement, target, and natural-attack boundaries. Dev.5's sole failure was the now-repaired Bite duplication. One clean dev.6 aggregate remains required; actual disk save/reload stays human-gated under the guarded harness's crash-safe save restriction.

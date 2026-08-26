@@ -1,5 +1,14 @@
 # Mounted Combat journal
 
+## 2026-08-26T06:33:22Z - dev.5 reached combat; duplicate Bite cause repaired
+
+- Published dev.5 commit/package/suite are `597f1a67d5c25cc153893288336a72a4b3970080` / `d2777b2b015331931d5cc41464ad7263a25afdb6c9938c53ab1776aee7f2e90b` / `20260826T051300Z-horse-companion-unmounted-dev5-suite1`; manifest/DLL/MVID are `85f9abf6a0bbb4f2b89c4193b333e859165ae4b55f223f207f8600db19186b79` / `c6adfb5d7374c0b75b958dce44d8ef5c731145e1ec4143d8403e8542a3835bbf` / `5acd416b-b2e2-4721-8dd3-6d81f4ca8c9b`. Targeted WhatIf passed exact purity.
+- Aggregate `20260826T055857Z-horse-companion-unmounted-dev5-passD` exited `FAIL 26/1`. Independent audit ran first and proved exact save/Mods/Baseline/Working identity, restored run/Mods/save transactions, and zero process/lock/sentinel/live-deployment residue.
+- Registration passed `13/0`; unmounted behavior reached `13/1`. The dev.5 target repair passed at exact owner/horse distances `4.0` / `3.62906766`. The sole failure observed stock full-attack weapon GUID order Bite, Bite, Hoof, Hoof. Fail-fast correctly withheld RT/TB damage, death/recovery, and respec credit.
+- Exact installed `UnitAttack.CreateFullAttack` establishes the cause: enabled hands enumerate primary and secondary attack counts, and the empty secondary slot used the configured Bite fallback. Credited asset evidence establishes the native horse body instead has disabled hands. Dev.6 uses null hand weapons and ordered natural limbs Bite, Hoof, Hoof, so native single attack selects Bite and native full attack enumerates each limb once.
+- Runtime registration self-validation and audit bind disabled hands, null hand fallbacks, three exact ordered limbs, and no secondary limbs. A source regression rejects the obsolete two-Hoof hands-enabled topology. No generic combat command or shared Mammoth subsystem changes.
+- Dev.6 gates pass source/Release/component/visual/harness/assembly `21/Release/251/17/231/349`, parsers `26/0` and `7/0`, diff, and prohibited-payload validation. Dirty DLL SHA-256/MVID are `ab11ecd14a082eff77faeaf887ed53f73ec1928666f2295a27a02b8a51833991` / `a97b9201-8461-4eeb-b69b-262375f0b44f`. Next: guarded publication, clean package/suite/WhatIf, one audited aggregate retry.
+
 ## 2026-08-26T05:10:00Z - dev.4 progression passed; unmounted target authority corrected
 
 - Guarded dev.4 package/suite identities are ZIP/manifest/DLL/MVID `d865c57a4c9c9990920079ee6e8770416ece4035a5cce7ef66b9da3dde1106a2` / `7aab7af1a1e811b3337263999f0ba78a04ae21823e708ed7a6c5fe308341745e` / `e123a46719f7c161f545156a42982b06cf515558f61cb863e2cc917b2b9a45c8` / `f1aaa3ec-4184-48f7-8b44-8e83f1ed7367` and suite `20260826T034900Z-horse-companion-unmounted-dev4-suite1` SHA-256 `9865a65ba4d863096a8ce15ea227842f647440777f62148f67553a8868e1c121`. Targeted WhatIf passed exact purity.

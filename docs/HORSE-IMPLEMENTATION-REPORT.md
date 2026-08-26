@@ -2,6 +2,8 @@
 
 Status: IN PROGRESS
 
+Superseding Tranche B state (2026-08-26T06:33:22Z): dev.5 reached stock combat after all preceding companion and target gates passed. Aggregate `20260826T055857Z-horse-companion-unmounted-dev5-passD` remains historical `FAIL 26/1`: enabled hands caused the empty secondary slot to repeat Bite, yielding Bite/Bite/Hoof/Hoof. Dev.6 adopts the exact native horse no-hands body with ordered Bite/Hoof/Hoof natural limbs. Full offline gates pass; one clean aggregate remains required before mounted-profile admission.
+
 Superseding Tranche B state (2026-08-26T05:10:00Z): dev.4 runtime proved exact native manual-leveling XP settlement with zero duplicate retries, plus horse creation/control/selection and stock movement. Aggregate `20260826T043600Z-horse-companion-unmounted-dev4-passC` remains historical `FAIL 25/1` because the later diagnostic target was derived from the moved horse while the target service correctly validates distance from the owner. Dev.5 repairs only that guarded scenario boundary and requires fresh aggregate evidence for combat/death/respec.
 
 Superseding Tranche B state (2026-08-26T03:40:00Z): dev.3 aggregate `20260826T024500Z-horse-companion-unmounted-dev3-passB` is immutable historical `FAIL 22/1` with exact restoration. Exact installed Call of the Wild behavior disproves the dev.3 `DefaultBuildData` theory: its native animal-companion patch settles progression by assigning exact target XP and raising the native experience event for manual pet leveling, rather than committing class levels synchronously. Dev.4 accepts that exact native handoff or a committed class level, records the disposition, and suppresses duplicate native updates. A fresh dev.4 aggregate remains required.
@@ -13,7 +15,7 @@ Superseding Tranche B state (2026-08-26T03:40:00Z): dev.3 aggregate `20260826T02
 - accepted Mammoth implementation: `1241222459209aea1e6127bedd7d630df3940b99`
 - inherited Phase 2 product version: `0.1.0-phase2b-dev.1`
 - credited Horse Tranche A audit version: `0.1.0-phase3a-dev.2`
-- active Horse Tranche B version: `0.1.0-phase3b-dev.5`
+- active Horse Tranche B version: `0.1.0-phase3b-dev.6`
 - current version-bound offline gates: source `21/0`, Release, component `251/0`, visual/source-order `17/0`, harness `231/0`, assembly `349/0` (`325` Kingmaker + `24` Wrath), PowerShell parser `26/0`, JSON parser `7/0`, diff, and prohibited-payload validation; clean-package and runtime gates remain pending
 
 Phase 2 remains accepted with its documented private-alpha limitations. Horse work does not retroactively claim stock right-click mounted attacks, mounted auto-attack, unified Wrath-style turns, animated Mammoth TB locomotion, or public-release quality.
@@ -34,6 +36,8 @@ Installed `AddPet`/`AddClassLevels` inspection identifies a narrow non-exception
 
 The dev.3 retry rejected that explanation: activation was already outside `DefaultBuildData` and the deferred stock update still left class level `1`. Exact installed Call of the Wild analysis established the actual contract. Its `AddPet.TryLevelUpPet` prefix handles the exact animal-companion class by assigning native target XP and raising the gain-experience event, preserving manual level-up selection while returning without synchronous class-level commitment. Dev.4 therefore treats exact target XP as a successful native manual-leveling handoff, treats committed level as the stock alternative, and never retries after either settlement. No foreign mod is patched and no level or XP is directly mutated by KMC.
 
+Dev.5 then proved the corrected target boundary and native combat entry, but exact `UnitAttack.AllAttacks` exposed Bite/Bite/Hoof/Hoof. Exact Kingmaker code and the credited native horse audit establish why: enabled hands enumerate both primary and secondary attack counts, while `CR1_HorseRiding` disables hands. Dev.6 now uses null hand weapons and ordered additional natural limbs Bite/Hoof/Hoof. This makes the first natural limb the stock single-attack Bite and makes the stock full attack enumerate each intended natural limb once.
+
 ## Implementation ledger
 
 | Area | Status | Evidence |
@@ -43,7 +47,7 @@ The dev.3 retry rejected that explanation: activation was already outside `Defau
 | Pony comparison | PASS | credited audited run `20260825T180000Z-horse-native-asset-audit-repair-passB`, `21/0` |
 | KMC blueprint trio | PASS (offline) | corrected Mammoth/Dog bootstrap comparison; historical run passed 12/13 production assertions |
 | Ranger selection | PASS (runtime observed) | historical restored run proved exact 7→8→7→8 lease even though aggregate status was 12/1 |
-| Unmounted horse | IN PROGRESS | dev.3 historical `22/1`; exact manual-leveling compatibility repair offline-green; clean dev.4 live run pending |
+| Unmounted horse | IN PROGRESS | dev.5 historical `26/1`; exact native no-hands Bite/Hoof/Hoof repair offline-green; clean dev.6 live run pending |
 | Mounted horse profile | TODO | blocked on unmounted qualification |
 | Target-selected Mount | TODO | design/implementation authorized |
 | Mammoth regression | TODO | required only after relevant shared changes |

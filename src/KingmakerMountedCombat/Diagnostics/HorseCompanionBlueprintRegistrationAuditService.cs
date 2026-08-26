@@ -125,14 +125,16 @@ namespace KingmakerMountedCombat.Diagnostics
 
                 var body = horseUnit?.Body;
                 AddAssertion(assertions, errors,
-                    body != null && !body.DisableHands && body.EmptyHandWeapon != null && body.PrimaryHand != null &&
-                    ReferenceEquals(body.EmptyHandWeapon, body.PrimaryHand) &&
-                    string.Equals(body.PrimaryHand.AssetGuid, initial.BiteGuid, StringComparison.Ordinal) &&
-                    string.Equals(body.PrimaryHand.name, "Bite1d4", StringComparison.Ordinal) &&
-                    body.AdditionalLimbs != null && body.AdditionalLimbs.Length == 2 &&
-                    body.AdditionalLimbs.All(item => item != null &&
-                        string.Equals(item.AssetGuid, HorseCompanionBlueprintService.HoofGuid, StringComparison.Ordinal)),
-                    "natural-attack-loadout", "The horse owns one Bite1d4 primary and two exact Hoof1d4 additional limbs.", ref passed, ref failed);
+                    body != null && body.DisableHands && body.EmptyHandWeapon == null &&
+                    body.PrimaryHand == null && body.SecondaryHand == null &&
+                    body.AdditionalLimbs != null && body.AdditionalLimbs.Length == 3 &&
+                    body.AdditionalLimbs[0] != null &&
+                    string.Equals(body.AdditionalLimbs[0].AssetGuid, initial.BiteGuid, StringComparison.Ordinal) &&
+                    string.Equals(body.AdditionalLimbs[0].name, "Bite1d4", StringComparison.Ordinal) &&
+                    body.AdditionalLimbs.Skip(1).All(item => item != null &&
+                        string.Equals(item.AssetGuid, HorseCompanionBlueprintService.HoofGuid, StringComparison.Ordinal)) &&
+                    body.AdditionalSecondaryLimbs != null && body.AdditionalSecondaryLimbs.Length == 0,
+                    "natural-attack-loadout", "The horse uses the stock no-hands animal topology with one Bite1d4 followed by two exact Hoof1d4 natural limbs.", ref passed, ref failed);
 
                 var bonuses = horseUpgrade?.ComponentsArray?.OfType<AddStatBonus>().ToArray() ?? new AddStatBonus[0];
                 AddAssertion(assertions, errors,

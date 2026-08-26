@@ -1,5 +1,7 @@
 # Horse runtime scenario matrix
 
+Superseding status (2026-08-26T06:33:22Z): IN PROGRESS - dev.5 reached combat but remains historical restored `FAIL 26/1` because enabled hands repeated Bite through the secondary empty-hand fallback. Dev.6 adopts the exact native no-hands Bite/Hoof/Hoof topology; one clean aggregate remains before mounted-profile admission.
+
 Superseding status (2026-08-26T05:10:00Z): IN PROGRESS - dev.4 progression and stock movement passed; aggregate remains historical restored `FAIL 25/1` at the later diagnostic target placement boundary. One dev.5 owner-relative harness retry remains before mounted-profile admission.
 
 Superseding status (2026-08-26T03:40:00Z): IN PROGRESS - dev.3 aggregate is historical restored `FAIL 22/1`; exact Call of the Wild manual-leveling compatibility repair is offline-green and one dev.4 aggregate remains before mounted-profile admission.

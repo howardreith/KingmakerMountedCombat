@@ -1,5 +1,7 @@
 # Horse private-alpha playtest
 
+Technical note (2026-08-26T06:33:22Z): dev.5 reached combat but remains historical `FAIL 26/1` because its hands-enabled body made stock full attack enumerate Bite twice. Dev.6 uses the exact native horse no-hands topology with ordered Bite/Hoof/Hoof natural limbs. It is offline-green but not yet a playtest artifact; one clean unmounted aggregate remains required.
+
 Technical note (2026-08-26T05:10:00Z): dev.4 runtime proves the exact Call of the Wild target-XP handoff and zero duplicate progression retries, but aggregate `20260826T043600Z-horse-companion-unmounted-dev4-passC` remains historical `FAIL 25/1` after a later guarded diagnostic-target placement defect. Dev.5 repairs only that owner-relative test boundary. No package is a playtest artifact until the complete aggregate and mounted-horse qualification pass.
 
 Status: TODO — do not use until an exact qualified package is recorded below

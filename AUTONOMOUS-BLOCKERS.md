@@ -1,5 +1,11 @@
 # Autonomous blockers
 
+## No critical blocker; exact natural-limb retry pending - 2026-08-26T06:33:22Z
+
+Status: IN PROGRESS. Dev.5 aggregate `20260826T055857Z-horse-companion-unmounted-dev5-passD` is immutable historical `FAIL 26/1` with exact audit-before-read restoration. It proves registration, creation/ownership/control, native manual-leveling handoff, selection, movement, owner-relative target placement, and combat entry. Its sole failure is attributable production blueprint topology: enabled hands caused stock `UnitAttack` to enumerate the Bite through both primary and secondary empty-hand slots before two Hooves. Dev.6 adopts the exact native horse no-hands topology with ordered `[Bite, Hoof, Hoof]` natural limbs; full offline gates pass. One clean dev.6 package/suite/WhatIf and one audited aggregate remain before mounted-profile work. No external-state, architecture, Mammoth, or safety blocker exists.
+
+This supersedes the owner-relative retry state below. Dev.5 is not relabeled.
+
 ## No critical blocker; owner-relative diagnostic-target retry pending - 2026-08-26T05:10:00Z
 
 Status: IN PROGRESS. Dev.4 aggregate `20260826T043600Z-horse-companion-unmounted-dev4-passC` is immutable historical `FAIL 25/1` with exact audit-before-read restoration. It proves the Call of the Wild compatibility repair, creation/ownership/control, native horse view/statistics, selection, and stock unmounted movement. Its sole failure is an attributable guarded-scenario geometry mismatch: target creation validates the rider/owner-relative `3..20` range, but the scenario derived a 1.5-unit point from the already moved horse. Dev.5 derives a four-unit point from the owner authority and independently validates both owner and horse distances. All current offline gates pass. One fresh package/suite/WhatIf and one audited aggregate remain before mounted-profile work. No external-state, companion-progression, movement, architecture, or safety blocker exists.

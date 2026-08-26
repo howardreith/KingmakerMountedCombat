@@ -256,9 +256,9 @@ namespace KingmakerMountedCombat.Integration
                 UpgradeLevel = upgradeLevel,
                 BiteGuid = biteGuid,
                 BiteName = biteName,
-                HoofGuid = body?.AdditionalLimbs?.FirstOrDefault()?.AssetGuid,
+                HoofGuid = body?.AdditionalLimbs?.Skip(1).FirstOrDefault()?.AssetGuid,
                 HoofName = hoofName,
-                NaturalAttackCount = (body?.PrimaryHand == null ? 0 : 1) + (body?.AdditionalLimbs?.Length ?? 0),
+                NaturalAttackCount = body?.AdditionalLimbs?.Length ?? 0,
                 UnitComponentCount = horseUnit?.ComponentsArray?.Length ?? 0,
                 UpgradeComponentCount = horseUpgrade?.ComponentsArray?.Length ?? 0,
                 Strength = horseUnit?.Strength ?? 0,
@@ -453,10 +453,15 @@ namespace KingmakerMountedCombat.Integration
                 classLevels == null || !ReferenceEquals(classLevels.CharacterClass, companionClass) ||
                 classLevels.Levels != stockMammothInitialClassLevels ||
                 classLevels.Levels != stockDogInitialClassLevels ||
-                horseUnit.Size != Size.Large || horseUnit.Body == null || horseUnit.Body.DisableHands ||
-                horseUnit.Body.PrimaryHand == null ||
-                !ReferenceEquals(horseUnit.Body.EmptyHandWeapon, horseUnit.Body.PrimaryHand) ||
-                horseUnit.Body.AdditionalLimbs.Length != 2)
+                horseUnit.Size != Size.Large || horseUnit.Body == null || !horseUnit.Body.DisableHands ||
+                horseUnit.Body.EmptyHandWeapon != null || horseUnit.Body.PrimaryHand != null ||
+                horseUnit.Body.SecondaryHand != null || horseUnit.Body.AdditionalLimbs == null ||
+                horseUnit.Body.AdditionalLimbs.Length != 3 ||
+                !string.Equals(horseUnit.Body.AdditionalLimbs[0]?.AssetGuid, biteGuid, StringComparison.Ordinal) ||
+                horseUnit.Body.AdditionalLimbs.Skip(1).Any(item => item == null ||
+                    !string.Equals(item.AssetGuid, HoofGuid, StringComparison.Ordinal)) ||
+                horseUnit.Body.AdditionalSecondaryLimbs == null ||
+                horseUnit.Body.AdditionalSecondaryLimbs.Length != 0)
             {
                 throw new InvalidOperationException("The constructed KMC horse companion contract failed exact self-validation.");
             }
@@ -494,12 +499,14 @@ namespace KingmakerMountedCombat.Integration
             if (source == null) { throw new InvalidOperationException("The native horse body is unavailable."); }
             return new BlueprintUnit.UnitBody
             {
-                // Kingmaker's stock UnitAttack enumerator consults the primary
-                // hand only when hands are enabled, then appends AdditionalLimbs.
-                // This yields the intended Bite primary plus two Hoof limbs.
-                DisableHands = false,
-                EmptyHandWeapon = bite,
-                PrimaryHand = bite,
+                // The exact native horse disables hands. Kingmaker gives both
+                // enabled hand slots attacks, including the secondary empty-hand
+                // fallback, so a hand-owned Bite is duplicated in a full attack.
+                // Ordered natural limbs yield one Bite and exactly two Hooves;
+                // the same first Bite is stock CreateSingleAttack's selection.
+                DisableHands = true,
+                EmptyHandWeapon = null,
+                PrimaryHand = null,
                 SecondaryHand = null,
                 PrimaryHandAlternative1 = null,
                 SecondaryHandAlternative1 = null,
@@ -508,7 +515,7 @@ namespace KingmakerMountedCombat.Integration
                 PrimaryHandAlternative3 = null,
                 SecondaryHandAlternative3 = null,
                 ActiveHandSet = 0,
-                AdditionalLimbs = new[] { hoof, hoof },
+                AdditionalLimbs = new[] { bite, hoof, hoof },
                 AdditionalSecondaryLimbs = new BlueprintItemWeapon[0],
                 Armor = source.Armor,
                 Belt = source.Belt,
