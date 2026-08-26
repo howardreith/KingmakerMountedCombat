@@ -5,7 +5,9 @@ namespace KingmakerMountedCombat.Domain
     /// <summary>
     /// Exact Kingmaker 2.1.7b animal-companion rank mapping used by AddPet.
     /// Keeping the decision in a pure policy lets the runtime adapter remain a
-    /// narrow, bounded retry of the native operation.
+    /// narrow, bounded retry of the native operation. The installed runtime may
+    /// either commit class levels synchronously or hand the same target to the
+    /// native manual-leveling surface as exact experience.
     /// </summary>
     internal static class HorseCompanionProgressionPolicy
     {
@@ -26,9 +28,39 @@ namespace KingmakerMountedCombat.Domain
             return RankToCharacterLevel[boundedRank];
         }
 
-        internal static bool RequiresSynchronization(int rank, int characterLevel)
+        internal static bool IsClassLevelSynchronized(int rank, int characterLevel)
         {
-            return characterLevel < ExpectedCharacterLevel(rank);
+            return characterLevel >= ExpectedCharacterLevel(rank);
+        }
+
+        internal static bool IsNativeManualLevelingReady(
+            int rank,
+            int characterLevel,
+            int experience,
+            int expectedExperience)
+        {
+            return characterLevel < ExpectedCharacterLevel(rank) &&
+                   expectedExperience >= 0 &&
+                   experience == expectedExperience;
+        }
+
+        internal static bool IsNativeProgressionReady(
+            int rank,
+            int characterLevel,
+            int experience,
+            int expectedExperience)
+        {
+            return IsClassLevelSynchronized(rank, characterLevel) ||
+                   IsNativeManualLevelingReady(rank, characterLevel, experience, expectedExperience);
+        }
+
+        internal static bool RequiresSynchronization(
+            int rank,
+            int characterLevel,
+            int experience,
+            int expectedExperience)
+        {
+            return !IsNativeProgressionReady(rank, characterLevel, experience, expectedExperience);
         }
 
         internal static bool CanInvokeDeferredNativeUpdate(
@@ -37,13 +69,15 @@ namespace KingmakerMountedCombat.Domain
             bool defaultBuildContextPresent,
             int rank,
             int characterLevel,
+            int experience,
+            int expectedExperience,
             int nativeAttempts)
         {
             return exactHorse &&
                    exactOwnership &&
                    !defaultBuildContextPresent &&
                    nativeAttempts < MaximumDeferredNativeAttempts &&
-                   RequiresSynchronization(rank, characterLevel);
+                   RequiresSynchronization(rank, characterLevel, experience, expectedExperience);
         }
     }
 }

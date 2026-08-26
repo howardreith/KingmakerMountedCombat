@@ -1,4 +1,5 @@
 using System;
+using Kingmaker;
 using Kingmaker.Assets.UI.LevelUp;
 using Kingmaker.ElementsSystem;
 using Kingmaker.UnitLogic;
@@ -24,6 +25,8 @@ namespace KingmakerMountedCombat.Integration
 
         internal int ActivationCharacterLevelAfterNativeTry { get; private set; } = -1;
 
+        internal int ActivationExperienceAfterNativeTry { get; private set; } = -1;
+
         internal bool DeferredProgressionPending => deferredProgressionPending;
 
         internal bool DeferredProgressionFailed => deferredProgressionFailed;
@@ -38,6 +41,10 @@ namespace KingmakerMountedCombat.Integration
 
         internal int DeferredCharacterLevelAfter { get; private set; } = -1;
 
+        internal int DeferredExperienceBefore { get; private set; } = -1;
+
+        internal int DeferredExperienceAfter { get; private set; } = -1;
+
         internal int ExpectedCharacterLevel
         {
             get
@@ -47,11 +54,40 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
+        internal int ExpectedExperience => GetExpectedExperience(ExpectedCharacterLevel);
+
+        internal bool NativeClassProgressionSynchronized
+        {
+            get
+            {
+                var level = SpawnedPet?.Descriptor?.Progression?.CharacterLevel ?? -1;
+                return HorseCompanionProgressionPolicy.IsClassLevelSynchronized(
+                    LevelRank == null ? 0 : Owner.GetFact(LevelRank)?.GetRank() ?? 0,
+                    level);
+            }
+        }
+
+        internal bool NativeManualLevelingReady
+        {
+            get
+            {
+                var progression = SpawnedPet?.Descriptor?.Progression;
+                return progression != null && HorseCompanionProgressionPolicy.IsNativeManualLevelingReady(
+                    LevelRank == null ? 0 : Owner.GetFact(LevelRank)?.GetRank() ?? 0,
+                    progression.CharacterLevel,
+                    progression.Experience,
+                    ExpectedExperience);
+            }
+        }
+
+        internal bool NativeProgressionReady => NativeClassProgressionSynchronized || NativeManualLevelingReady;
+
         public override void OnFactActivate()
         {
             ActivationDefaultBuildContextPresent = HasDefaultBuildContext();
             base.OnFactActivate();
             ActivationCharacterLevelAfterNativeTry = SpawnedPet?.Descriptor?.Progression?.CharacterLevel ?? -1;
+            ActivationExperienceAfterNativeTry = SpawnedPet?.Descriptor?.Progression?.Experience ?? -1;
             ArmDeferredProgressionSynchronization();
         }
 
@@ -72,6 +108,8 @@ namespace KingmakerMountedCombat.Integration
                                  Owner.Pet == spawned;
             var rank = LevelRank == null ? 0 : Owner.GetFact(LevelRank)?.GetRank() ?? 0;
             var currentLevel = spawned?.Descriptor?.Progression?.CharacterLevel ?? -1;
+            var currentExperience = spawned?.Descriptor?.Progression?.Experience ?? -1;
+            var expectedExperience = GetExpectedExperience(HorseCompanionProgressionPolicy.ExpectedCharacterLevel(rank));
             var defaultBuildContextPresent = HasDefaultBuildContext();
             LastDeferredDefaultBuildContextPresent = defaultBuildContextPresent;
 
@@ -92,27 +130,38 @@ namespace KingmakerMountedCombat.Integration
                     false,
                     rank,
                     currentLevel,
+                    currentExperience,
+                    expectedExperience,
                     deferredNativeAttempts))
             {
                 deferredProgressionPending = false;
                 deferredProgressionFailed = !exactHorse ||
                                             !exactOwnership ||
-                                            HorseCompanionProgressionPolicy.RequiresSynchronization(rank, currentLevel);
+                                            HorseCompanionProgressionPolicy.RequiresSynchronization(
+                                                rank,
+                                                currentLevel,
+                                                currentExperience,
+                                                expectedExperience);
                 return;
             }
 
             DeferredCharacterLevelBefore = currentLevel;
+            DeferredExperienceBefore = currentExperience;
             deferredNativeAttempts++;
             try
             {
-                // This is the exact native AddPet operation. The only KMC
-                // behavior is deferring it beyond the activation call stack so
-                // AddClassLevels cannot be diverted into DefaultBuildData plans.
+                // This is the exact native AddPet operation. KMC never mutates
+                // class levels or experience: a compatible runtime may either
+                // commit the class levels or hand the target to its native
+                // manual-leveling surface as exact experience.
                 TryUpdatePet();
                 DeferredCharacterLevelAfter = spawned.Descriptor.Progression.CharacterLevel;
+                DeferredExperienceAfter = spawned.Descriptor.Progression.Experience;
                 deferredProgressionPending = HorseCompanionProgressionPolicy.RequiresSynchronization(
                     rank,
-                    DeferredCharacterLevelAfter);
+                    DeferredCharacterLevelAfter,
+                    DeferredExperienceAfter,
+                    expectedExperience);
                 deferredProgressionFailed = deferredProgressionPending;
             }
             catch
@@ -157,7 +206,13 @@ namespace KingmakerMountedCombat.Integration
 
             var rank = LevelRank == null ? 0 : Owner.GetFact(LevelRank)?.GetRank() ?? 0;
             var characterLevel = spawned.Descriptor.Progression.CharacterLevel;
-            deferredProgressionPending = HorseCompanionProgressionPolicy.RequiresSynchronization(rank, characterLevel);
+            var experience = spawned.Descriptor.Progression.Experience;
+            var expectedExperience = GetExpectedExperience(HorseCompanionProgressionPolicy.ExpectedCharacterLevel(rank));
+            deferredProgressionPending = HorseCompanionProgressionPolicy.RequiresSynchronization(
+                rank,
+                characterLevel,
+                experience,
+                expectedExperience);
             deferredProgressionFailed = false;
             deferredProgressionFailureReported = false;
             deferredNativeAttempts = 0;
@@ -165,11 +220,19 @@ namespace KingmakerMountedCombat.Integration
             LastDeferredDefaultBuildContextPresent = false;
             DeferredCharacterLevelBefore = characterLevel;
             DeferredCharacterLevelAfter = characterLevel;
+            DeferredExperienceBefore = experience;
+            DeferredExperienceAfter = experience;
         }
 
         private static bool HasDefaultBuildContext()
         {
             return ElementsContext.GetData<DefaultBuildData>() != null;
+        }
+
+        private static int GetExpectedExperience(int characterLevel)
+        {
+            var table = Game.Instance?.BlueprintRoot?.Progression?.XPTable;
+            return table == null || characterLevel < 0 ? -1 : table.GetBonus(characterLevel);
         }
 
         private static bool IsExactHorse(Kingmaker.EntitySystem.Entities.UnitEntityData unit)

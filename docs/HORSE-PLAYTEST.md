@@ -1,6 +1,6 @@
 # Horse private-alpha playtest
 
-Technical note (2026-08-25T23:15:42Z): dev.2 aggregate `20260825T222800Z-horse-companion-unmounted-passA` remains historical `FAIL 22/1` with exact external restoration. It is not a playtest artifact. Dev.3's single guarded native progression retry must pass before this checklist is activated.
+Technical note (2026-08-26T03:40:00Z): dev.2 and dev.3 aggregates remain historical `FAIL 22/1` observations with exact external restoration; neither is a playtest artifact. Exact installed Call of the Wild behavior established native target-XP handoff for manual companion leveling and disproved the dev.3 synchronous-level theory. Dev.4's exact compatibility contract is offline-green, but its single guarded aggregate must pass before this checklist is activated.
 
 Status: TODO — do not use until an exact qualified package is recorded below
 

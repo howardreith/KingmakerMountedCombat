@@ -1,5 +1,7 @@
 # Horse animal-companion contract
 
+Superseding status (2026-08-26T03:40:00Z): PASS (offline) - native progression means committed target class level or exact target-XP handoff for manual companion leveling; one dev.4 runtime aggregate remains required.
+
 Superseding status (2026-08-25T21:29:32Z): PASS — construction and unmounted runtime contracts implemented; live aggregate qualification remains required.
 
 Status: PASS — production construction gate open; runtime qualification remains required
@@ -69,7 +71,7 @@ Registration must snapshot the exact stock selection array and append the horse 
 
 ## Implemented production checkpoint
 
-Version `0.1.0-phase3b-dev.3` implements the construction and first unmounted-runtime contracts behind `HorseCompanionBlueprintService`:
+Version `0.1.0-phase3b-dev.4` implements the construction and first unmounted-runtime contracts behind `HorseCompanionBlueprintService`:
 
 - original KMC unit/feature/upgrade definitions with the reserved GUIDs above;
 - exact native `CR1_HorseRiding` prefab/visual/speed and a proven stock companion class;
@@ -77,9 +79,12 @@ Version `0.1.0-phase3b-dev.3` implements the construction and first unmounted-ru
 - hands-enabled stock attack enumeration with one exact `Bite1d4` primary/empty-hand weapon plus two exact `Hoof1d4` additional limbs;
 - stock `AddPet` with exact `AnimalCompanionRank` and a KMC-owned rank-4 upgrade containing only racial `+2 Strength` and `+2 Constitution`;
 - exact zero-level blueprint bootstrap parity with the stock Mammoth and Dog, followed by native `AddPet` rank-to-level application after spawn;
-- one bounded deferred invocation of the exact native `AddPet.TryUpdatePet` only when the exact owned KMC horse remains below the installed rank mapping and no `DefaultBuildData` context exists; a second attempt, another pet, ambiguous ownership, or an already synchronized horse is rejected;
+- exact native progression recognition for either committed target class level or exact `XPTable.GetBonus(targetLevel)` settlement ready for manual companion leveling;
+- one bounded deferred invocation of the exact native `AddPet.TryUpdatePet` only when the exact owned KMC horse has neither settlement and no `DefaultBuildData` context exists; a second attempt, another pet, ambiguous ownership, exact XP settlement, or an already synchronized horse is rejected;
 - a narrow `HorseCompanionAddPet` deactivation extension that first invokes stock master removal and then destroys only the exact KMC horse, preventing respec orphan residue;
 - four KMC-owned localization keys and a native/fallback Kingmaker icon;
 - a reference-exact, append-only Ranger selection lease with compare-before-restore semantics.
 
-The current offline contract is `PASS`: source `21/0`, Release, component `250/0`, visual/source-order `17/0`, harness `231/0`, assembly `344/0` (`320` Kingmaker + `24` Wrath), PowerShell parser `26/0`, JSON parser `7/0`, diff, and prohibited-payload validation. The preserved registration run is historical `FAIL 12/1` solely because its obsolete observer required positive blueprint class levels. The first aggregate dev.2 run is historical `FAIL 22/1`: rank-4 upgrade and all pre-progression ownership/control gates passed, but live class level remained 1. Its exact restoration passed. One clean dev.3 aggregate retry remains required; actual disk save/reload stays human-gated under the guarded harness's crash-safe save restriction.
+Exact installed Call of the Wild SHA-256 `4ebf8e1ed3e66ffed72ea33ea325595629423dacd5bffa23e3c9109144b26915` establishes why target XP is a valid native outcome: its animal-companion prefix sets `Progression.Experience` to the stock XP-table target, raises the native gain-experience event, applies the upgrade, and preserves manual player level-up rather than committing levels synchronously. KMC does not depend on or patch Call of the Wild and never directly mutates progression state.
+
+The current offline contract is `PASS`: source `21/0`, Release, component `251/0`, visual/source-order `17/0`, harness `231/0`, assembly `349/0` (`325` Kingmaker + `24` Wrath), PowerShell parser `26/0`, JSON parser `7/0`, diff, and prohibited-payload validation. The preserved registration run is historical `FAIL 12/1` solely because its obsolete observer required positive blueprint class levels. Aggregate dev.2 and dev.3 runs are historical `FAIL 22/1` observations: both proved exact restoration and all pre-progression creation/ownership/control gates, while dev.3 disproved the deferred synchronous-level theory. One clean dev.4 aggregate remains required; actual disk save/reload stays human-gated under the guarded harness's crash-safe save restriction.

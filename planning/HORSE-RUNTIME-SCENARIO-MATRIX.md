@@ -1,5 +1,7 @@
 # Horse runtime scenario matrix
 
+Superseding status (2026-08-26T03:40:00Z): IN PROGRESS - dev.3 aggregate is historical restored `FAIL 22/1`; exact Call of the Wild manual-leveling compatibility repair is offline-green and one dev.4 aggregate remains before mounted-profile admission.
+
 Superseding status (2026-08-25T23:15:42Z): IN PROGRESS — first aggregate is historical restored `FAIL 22/1`; one exact dev.3 progression-repair retry remains before mounted-profile admission.
 
 Superseding status (2026-08-25T21:29:32Z): IN PROGRESS — native asset audit credited; unmounted aggregate implemented but not yet runtime-credited.
@@ -10,7 +12,7 @@ All save-backed rows use only the project-owned `KMC_AUTOMATION_WORKING` fixture
 
 | Tranche | Scenario | Mode | Required result |
 |---|---|---|---|
-| B | `horse-companion-unmounted-suite` | one bounded RT→TB→RT Working process | corrected stock-baseline registration; creation/ownership; rank 4→level 4; native selection/movement; Bite+two-Hoof enumeration; exact RT/TB Bite chains; death/recovery; respec destruction; Ranger uninstall/re-enable; unrelated-pet/Mammoth and mode/pause/selection/target restoration |
+| B | `horse-companion-unmounted-suite` | one bounded RT-to-TB-to-RT Working process | corrected stock-baseline registration; creation/ownership; rank 4 with either committed class level 4 or exact native target-XP handoff for manual leveling; native selection/movement; Bite+two-Hoof enumeration; exact RT/TB Bite chains; death/recovery; respec destruction; Ranger uninstall/re-enable; unrelated-pet/Mammoth and mode/pause/selection/target restoration |
 | A | `horse-native-asset-audit` | loaded Working fixture, observation only | exact horse/pony blueprint, resource, rig, animation, collider, body, ownership, and reverse-reference record; no unit/save mutation |
 | B | `horse-companion-blueprint-registration` | loaded Working fixture, observation only | exact KMC GUID/object identities, AddPet/class/view/stats/attacks/upgrade/localization, Ranger 7→8 append, exact 8→7 restore, exact 7→8 re-enable; no spawn/save mutation |
 | B | `horse-companion-create` | RT | Ranger selection contains stock choices plus one KMC horse; exact AddPet/SetMaster pair; Large native view; selectable and controllable |

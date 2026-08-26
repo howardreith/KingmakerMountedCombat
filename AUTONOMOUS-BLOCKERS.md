@@ -1,5 +1,11 @@
 # Autonomous blockers
 
+## No critical blocker; native manual-leveling compatibility retry pending - 2026-08-26T03:40:00Z
+
+Status: IN PROGRESS. Dev.3 aggregate `20260826T024500Z-horse-companion-unmounted-dev3-passB` is preserved historical `FAIL 22/1` with exact audit-before-read restoration. Its only failure again concerned the observation of live class level `1`; creation, reciprocal ownership, direct control, rank-4 upgrade, native view/statistics, selection, isolation, and cleanup passed. Exact installed Call of the Wild SHA-256 `4ebf8e1ed3e66ffed72ea33ea325595629423dacd5bffa23e3c9109144b26915` intentionally redirects native animal-companion progression into exact target XP and the native experience event for manual player leveling, so synchronous class level `4` is not the only correct native outcome. Dev.4 accepts exact class-level commitment or exact XP handoff, records which occurred, and prohibits a duplicate `TryUpdatePet` after either settlement. All current offline source/build/component/visual/harness/assembly gates pass. One fresh immutable dev.4 package/suite/WhatIf and one audited aggregate remain before mounted-profile work. This is a bounded compatibility repair, not an external-state, architecture, or safety blocker.
+
+This supersedes the dev.3 `DefaultBuildData` theory below. The dev.2 and dev.3 failures are not relabeled.
+
 ## No critical blocker; one exact unmounted progression retry pending — 2026-08-25T23:15:42Z
 
 Status: IN PROGRESS. Dev.2 aggregate `20260825T222800Z-horse-companion-unmounted-passA` is preserved historical `FAIL 22/1` with exact audit-before-read restoration. Its only failure was live level `1` at owner rank `4`; creation, reciprocal ownership, direct control, rank-4 upgrade, native view/statistics, selection, and cleanup passed. Installed contracts support a narrow one-shot native retry after the activation stack and outside `DefaultBuildData`; dev.3 enforces exact horse/ownership/deficit/attempt guards and records both paths. Offline component and harness gates are green. One fresh immutable package/suite/WhatIf and one audited aggregate retry remain before mounted-profile work. This is an attributable, bounded production repair—not an external-state, architecture, or safety blocker.

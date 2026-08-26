@@ -4977,10 +4977,12 @@ function Assert-KmcHorseCompanionUnmountedEvidence {
         }
         $observationNames = @(
             'originalPause','originalTurnBased','originalSelectionCount','saveLoadAutomationScope','ownerId','ownerBlueprintGuid',
-            'horseId','horseBlueprintGuid','characterLevel','expectedCharacterLevel','rank','upgradeRank',
-            'activationDefaultBuildContextPresent','activationCharacterLevelAfterNativeTry','deferredNativeAttempts',
+            'horseId','horseBlueprintGuid','characterLevel','expectedCharacterLevel','experience','expectedExperience','rank','upgradeRank',
+            'activationDefaultBuildContextPresent','activationCharacterLevelAfterNativeTry','activationExperienceAfterNativeTry','deferredNativeAttempts',
             'defaultBuildContextWaitFrames','lastDeferredDefaultBuildContextPresent','deferredCharacterLevelBefore',
-            'deferredCharacterLevelAfter','deferredProgressionSynchronized','runtimeSize','speedFeet','hitPoints','armorClass',
+            'deferredCharacterLevelAfter','deferredExperienceBefore','deferredExperienceAfter',
+            'nativeClassProgressionSynchronized','nativeManualLevelingReady','nativeProgressionDisposition',
+            'deferredProgressionSynchronized','runtimeSize','speedFeet','hitPoints','armorClass',
             'movementDisplacement','movementRemainingDistance','ownerDisplacementDuringHorseMove','fullAttackWeaponGuids',
             'realTimeAttackWeaponGuid','realTimeAttackRules','realTimeAttackRolls','realTimeDamageRules','realTimeDamage',
             'turnBasedAttackWeaponGuid','turnBasedAttackRules','turnBasedAttackRolls','turnBasedDamageRules','turnBasedDamage',
@@ -4989,25 +4991,49 @@ function Assert-KmcHorseCompanionUnmountedEvidence {
         )
         Assert-KmcExactProperties $artifact.observations $observationNames 'horse unmounted observations'
         $o = $artifact.observations
+        $classLevelSettlement =
+            [long]$o.characterLevel -eq 4 -and
+            $o.nativeClassProgressionSynchronized -eq $true -and
+            $o.nativeManualLevelingReady -eq $false -and
+            [string]$o.nativeProgressionDisposition -ceq 'class-level-synchronized'
+        $manualLevelingSettlement =
+            [long]$o.characterLevel -ge 1 -and [long]$o.characterLevel -lt 4 -and
+            [long]$o.experience -eq [long]$o.expectedExperience -and
+            $o.nativeClassProgressionSynchronized -eq $false -and
+            $o.nativeManualLevelingReady -eq $true -and
+            [string]$o.nativeProgressionDisposition -ceq 'native-manual-leveling-ready'
+        $activationReady =
+            [long]$o.activationCharacterLevelAfterNativeTry -eq 4 -or
+            ([long]$o.activationCharacterLevelAfterNativeTry -ge 1 -and
+             [long]$o.activationCharacterLevelAfterNativeTry -lt 4 -and
+             [long]$o.activationExperienceAfterNativeTry -eq [long]$o.expectedExperience)
+        $deferredReady =
+            [long]$o.deferredCharacterLevelAfter -eq 4 -or
+            ([long]$o.deferredCharacterLevelAfter -ge 1 -and
+             [long]$o.deferredCharacterLevelAfter -lt 4 -and
+             [long]$o.deferredExperienceAfter -eq [long]$o.expectedExperience)
         $deferredShape =
-            ([long]$o.deferredNativeAttempts -eq 0 -and
-             [long]$o.activationCharacterLevelAfterNativeTry -eq 4 -and
-             [long]$o.deferredCharacterLevelBefore -eq 4 -and
-             [long]$o.deferredCharacterLevelAfter -eq 4) -or
+            ([long]$o.deferredNativeAttempts -eq 0 -and $activationReady -and
+             [long]$o.deferredCharacterLevelBefore -eq [long]$o.deferredCharacterLevelAfter -and
+             [long]$o.deferredExperienceBefore -eq [long]$o.deferredExperienceAfter) -or
             ([long]$o.deferredNativeAttempts -eq 1 -and
-             [long]$o.deferredCharacterLevelBefore -ge 1 -and
-             [long]$o.deferredCharacterLevelBefore -lt 4 -and
-             [long]$o.deferredCharacterLevelAfter -eq 4 -and
-             $o.lastDeferredDefaultBuildContextPresent -eq $false)
+             [long]$o.deferredCharacterLevelBefore -ge 1 -and [long]$o.deferredCharacterLevelBefore -lt 4 -and
+             [long]$o.deferredExperienceBefore -lt [long]$o.expectedExperience -and
+             $deferredReady -and $o.lastDeferredDefaultBuildContextPresent -eq $false)
         if ([string]$o.horseBlueprintGuid -cne '4016c7db400ab721ff125aef9e65e202' -or
-            [long]$o.characterLevel -ne 4 -or [long]$o.expectedCharacterLevel -ne 4 -or
+            [long]$o.expectedCharacterLevel -ne 4 -or [long]$o.expectedExperience -lt 0 -or
+            [long]$o.experience -lt 0 -or (-not $classLevelSettlement -and -not $manualLevelingSettlement) -or
             [long]$o.rank -ne 4 -or [long]$o.upgradeRank -ne 1 -or
             $o.activationDefaultBuildContextPresent -isnot [bool] -or
             [long]$o.activationCharacterLevelAfterNativeTry -lt 1 -or
             [long]$o.activationCharacterLevelAfterNativeTry -gt 4 -or
+            [long]$o.activationExperienceAfterNativeTry -lt 0 -or
             [long]$o.deferredNativeAttempts -lt 0 -or [long]$o.deferredNativeAttempts -gt 1 -or
             [long]$o.defaultBuildContextWaitFrames -lt 0 -or [long]$o.defaultBuildContextWaitFrames -gt 300 -or
             $o.lastDeferredDefaultBuildContextPresent -isnot [bool] -or
+            [long]$o.deferredCharacterLevelBefore -lt 1 -or [long]$o.deferredCharacterLevelAfter -lt 1 -or
+            [long]$o.deferredExperienceBefore -lt 0 -or [long]$o.deferredExperienceAfter -lt 0 -or
+            $o.nativeClassProgressionSynchronized -isnot [bool] -or $o.nativeManualLevelingReady -isnot [bool] -or
             $o.deferredProgressionSynchronized -ne $true -or -not $deferredShape -or
             [string]$o.runtimeSize -cne 'Large' -or [long]$o.speedFeet -ne 50 -or
             [long]$o.hitPoints -le 0 -or [long]$o.armorClass -le 0 -or

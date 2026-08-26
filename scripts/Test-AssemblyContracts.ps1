@@ -84,6 +84,10 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.Blueprints.Classes.AddClassLevels',0x040069D0,'Levels'),
         @('Kingmaker.Blueprints.Classes.AddClassLevels',0x06009B1B,'LevelUp'),
         @('Kingmaker.Blueprints.Classes.AddClassLevels',0x06009B1C,'LevelUp'),
+        @('Kingmaker.Blueprints.Root.ProgressionRoot',0x0400621C,'XPTable'),
+        @('Kingmaker.Blueprints.Classes.BlueprintStatProgression',0x06009B59,'GetBonus'),
+        @('Kingmaker.UnitLogic.UnitProgressionData',0x06001F61,'get_CharacterLevel'),
+        @('Kingmaker.UnitLogic.UnitProgressionData',0x06001F64,'get_Experience'),
         @('Kingmaker.ElementsSystem.ElementsContext',0x060083E5,'GetData'),
         @('Kingmaker.UnitLogic.UnitDescriptor',0x06001F17,'SetMaster'),
         @('Kingmaker.UnitLogic.UnitDescriptor',0x06001F16,'RemoveMaster'),
@@ -329,6 +333,20 @@ if($Target-eq'Kingmaker'){
         $elementsContextGetData.Count-eq1 -and $elementsContextGetData[0].IsPublic -and
         $elementsContextGetData[0].IsStatic -and $elementsContextGetData[0].IsGenericMethodDefinition) `
         'native AddClassLevels public level update and DefaultBuildData context boundary'
+    $xpTableField=@(Find-Token 'Kingmaker.Blueprints.Root.ProgressionRoot' 0x0400621C)
+    $xpGetBonus=@(Find-Token 'Kingmaker.Blueprints.Classes.BlueprintStatProgression' 0x06009B59)
+    $progressionCharacterLevel=@(Find-Token 'Kingmaker.UnitLogic.UnitProgressionData' 0x06001F61)
+    $progressionExperience=@(Find-Token 'Kingmaker.UnitLogic.UnitProgressionData' 0x06001F64)
+    Assert-Contract ($xpTableField.Count-eq1 -and $xpTableField[0] -is [Reflection.FieldInfo] -and
+        $xpTableField[0].IsPublic -and $xpTableField[0].FieldType.FullName-ceq'Kingmaker.Blueprints.Classes.BlueprintStatProgression' -and
+        $xpGetBonus.Count-eq1 -and $xpGetBonus[0].IsPublic -and -not $xpGetBonus[0].IsStatic -and
+        $xpGetBonus[0].ReturnType.FullName-ceq'System.Int32' -and $xpGetBonus[0].GetParameters().Count-eq1 -and
+        $xpGetBonus[0].GetParameters()[0].ParameterType.FullName-ceq'System.Int32' -and
+        $progressionCharacterLevel.Count-eq1 -and $progressionCharacterLevel[0].IsPublic -and
+        $progressionCharacterLevel[0].ReturnType.FullName-ceq'System.Int32' -and
+        $progressionExperience.Count-eq1 -and $progressionExperience[0].IsPublic -and
+        $progressionExperience[0].ReturnType.FullName-ceq'System.Int32') `
+        'native companion class-level or exact XP progression settlement observation surface'
     $globalRulebookHandler=$assembly.GetType('Kingmaker.PubSubSystem.IGlobalRulebookHandler`1',$false)
     $globalRulebookSubscriber=$assembly.GetType('Kingmaker.PubSubSystem.IGlobalRulebookSubscriber',$false)
     Assert-Contract ($null-ne$globalRulebookHandler -and $globalRulebookHandler.MetadataToken-eq0x02000DC3 -and
