@@ -34,6 +34,7 @@ Historical status below: TODO (superseded by the ready artifact above)
 
 - branch: `codex/mounted-combat-phase3-horse`
 - implementation commit: `04a86870322f136bc3d7423b2e0ef31cf06d4145`
+- closure documentation/harness commit: `a5c5d513f0cb4e281803a0e7c895119377610611`
 - version / UMM ID: `0.1.0-phase3b-dev.17` / `KingmakerMountedCombat`
 - package: `C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-phase3b-dev.17-diagnostic.zip`
 - package SHA-256: `5d61b8febad67637954ad52f7e0bf8f6081fc2ffa87266407721fc00b4d5585e`

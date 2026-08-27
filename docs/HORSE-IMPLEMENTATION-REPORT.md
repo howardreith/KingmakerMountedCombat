@@ -17,7 +17,7 @@ Status: PASS (technical) - private-alpha package installed; human visual/gamepla
 - `Info.json` SHA-256: `ae8693f40687afd68598a19833529fb7362c2d04fd09812124b7a4b2cd246744`
 - package contents: `KingmakerMountedCombat/Info.json` (335 bytes) and `KingmakerMountedCombat/KingmakerMountedCombat.dll` (1,339,904 bytes)
 
-The closure documentation commit and final local/remote branch equality are recorded in the final publication ledger after this report's coherent closure commit. The package remains bound to implementation commit `04a8687`; later documentation and harness-parser commits do not change its bytes or expand the accepted production implementation.
+The coherent closure documentation/harness commit is `a5c5d513f0cb4e281803a0e7c895119377610611`. Final local/remote branch equality is recorded at handoff after the following ledger-binding commit. The package remains bound to implementation commit `04a8687`; later documentation and harness-parser commits do not change its bytes or expand the accepted production implementation.
 
 ### Native assets and owned content
 
