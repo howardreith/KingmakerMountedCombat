@@ -1,5 +1,15 @@
 # Horse implementation report
 
+## Dev.23 bounded lifecycle blocker - 2026-08-27T23:34:08Z
+
+Status: `BLOCKED — CRITICAL` for complete unmounted Horse qualification; no current Horse Alpha artifact is installable.
+
+The requested Ranger creation/spawn repair is technically demonstrated. Exact dev.23 run `20260827T230400Z-horse-levelup-dev23-passA` used clean published commit `a2f053f86f7993d9e60a43dabb0dc7b7d48c7e00` and passed registration `13/0`. Its Horse row passed every creation, persistent ownership/view, direct control, stock movement, natural-attack, RT Bite, and TB Bite gate reached. Four genuine Ranger commits select Horse at Ranger 4/rank 1, and the same exact Horse remains reciprocal to its owner with the native Large HorseRiding view.
+
+The row nevertheless remains immutable restored `FAIL 21/1`. The exact event-backed lifecycle probe began with a conscious, awake Horse at `11` HP and applied `27` direct damage, but observed no exact `Conscious -> Unconscious|Dead` `IUnitLifeStateChanged` event during 30 seconds. Recovery and respec cleanup were not reached. This is a genuine qualification gap, not enough evidence to claim ordinary combat immortality or to waive lifecycle behavior.
+
+The independent audit passed exact suite/save/Mods/Baseline/Working continuity and zero runtime residue before evidence read. Deployment inspection reports KMC absent. The dev.23 package is retained as immutable diagnostic evidence but was not installed or designated for human testing. Mounted Horse review, Paladin Divine Steed, horse-branch merge, and public release remain frozen pending a newly authorized lifecycle decision.
+
 ## Dev.19 registration failure and dev.20 narrow repair - 2026-08-27T16:01:32Z
 
 Status: IN PROGRESS - no current Horse Alpha artifact; mounted review is paused.

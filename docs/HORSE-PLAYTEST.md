@@ -1,5 +1,13 @@
 # Horse private-alpha playtest
 
+## Dev.23 lifecycle qualification blocker - 2026-08-27T23:34:08Z
+
+Status: NOT READY. Do not install dev.23, resume mounted Horse review, merge the horse branch, or begin Paladin work.
+
+Automated evidence now proves that a real Ranger level-up can select, create, and retain the exact Horse companion with reciprocal ownership, an active native view, direct control, stock movement, and exact RT/TB Bite behavior. However, the final bounded lifecycle process did not observe the exact Horse entering `Unconscious` or `Dead` after its direct lethal-damage probe, so recovery and respec cleanup were not qualified. The guarded deployment helper confirms that no KMC version is currently installed.
+
+A human test artifact requires either a separately authorized lifecycle investigation/repair that passes cleanly or an explicit user decision accepting this unqualified lifecycle boundary. No such decision is inferred from the creation/spawn stabilization request.
+
 ## Dev.20 qualification hold - 2026-08-27T16:01:32Z
 
 Status: NOT READY. Dev.19 is preserved as an independently restored registration failure and must not be installed. It stopped before Ranger level-up because its new dual-array hardening imposed the seven-entry AllFeatures shape on the distinct live `Features` field.

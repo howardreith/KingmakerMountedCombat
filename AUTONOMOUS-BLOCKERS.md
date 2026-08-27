@@ -1,5 +1,17 @@
 # Autonomous blockers
 
+## Horse lifecycle qualification is blocked after the final dev.23 event-backed process - 2026-08-27T23:34:08Z
+
+Status: `BLOCKED — CRITICAL`. Exact clean package/suite `e2a903503f415fb96c69104731e1ebedc517ff4db45b1014a6aa4e460add67a2` / `20260827T214800Z-horse-levelup-dev23-suite1` passed targeted WhatIf purity. Corrected live run `20260827T230400Z-horse-levelup-dev23-passA` is immutable restored `FAIL 34/1`: registration passed `13/0`; Horse behavior passed `21/1`.
+
+The requested first player-facing boundary is technically proven: four native Ranger commits select Horse at Ranger 4/rank 1, the exact Horse persists with reciprocal AddPet/SetMaster ownership and an active Large native view, and it remains directly controllable through stock movement and exact RT/TB Bite chains. The sole failure is the bounded lifecycle gate. Starting from exact `Conscious`/awake state, direct lethal damage changed the exact Horse's damage `0 -> 27` against `11` HP, but its reference-filtered `IUnitLifeStateChanged` probe received no `Conscious -> Unconscious|Dead` transition in 30 seconds. The run therefore could not credit recovery or respec removal. This is a qualification blocker; it is not sufficient evidence to claim that ordinary combat can never kill the Horse.
+
+The independent audit passed before evidence read: suite/save/Mods/Baseline/Working identities are exact, all three transaction phases are `restored`, all restoration flags are true, and no process, lock, sentinel, or live KMC remains. The deployment helper reports `exists: false`. The failed package is not installed.
+
+The predeclared bounded stop condition has fired. No second lifecycle repair/runtime loop, mounted horse testing, Paladin Divine Steed, `main` integration, or public release may proceed without new user authorization. The safe next decision is either a separately authorized lifecycle investigation/repair or explicit product acceptance of an unqualified lifecycle limitation; neither is inferred here.
+
+This supersedes the dev.23 qualification-pending status below.
+
 ## No critical blocker; one final dev.23 event-backed lifecycle qualification is pending - 2026-08-27T21:43:31Z
 
 Status: IN PROGRESS. Dev.22 run `20260827T205200Z-horse-levelup-dev22-passB` is immutable restored `FAIL 34/1`, but it passes every real Ranger creation, persistent ownership/view/control, movement, RT/TB natural-attack, cleanup, and isolation assertion reached. Independent audit passed exact suite/save/Mods/Baseline/Working identity, all three restored transactions, every restoration flag, and zero process/lock/sentinel/live-KMC residue.
