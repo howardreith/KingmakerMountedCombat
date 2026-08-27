@@ -56,6 +56,7 @@
     <Compile Include="PresentationOverlayEvidenceTests.cs" />
     <Compile Include="ScopedDiagnosticAiLeaseTests.cs" />
     <Compile Include="ExactAppendOnlyArrayLeaseTests.cs" />
+    <Compile Include="HorseCompanionLifeTransitionPolicyTests.cs" />
     <Compile Include="HorseCompanionProgressionPolicyTests.cs" />
     <Compile Include="HorseCompanionScenarioDeadlinePolicyTests.cs" />
     <Compile Include="TestRunner.cs" />
@@ -135,6 +136,7 @@
     <Compile Include="..\src\KingmakerMountedCombat\Domain\ScopedTransformAttachmentLease.cs"><Link>Shared\Domain\ScopedTransformAttachmentLease.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\TransitionResult.cs"><Link>Shared\Domain\TransitionResult.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\ExactAppendOnlyArrayLease.cs"><Link>Shared\Domain\ExactAppendOnlyArrayLease.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\HorseCompanionLifeTransitionPolicy.cs"><Link>Shared\Domain\HorseCompanionLifeTransitionPolicy.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\HorseCompanionProgressionPolicy.cs"><Link>Shared\Domain\HorseCompanionProgressionPolicy.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\HorseCompanionScenarioDeadlinePolicy.cs"><Link>Shared\Domain\HorseCompanionScenarioDeadlinePolicy.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\TwoBonePoseSolver.cs"><Link>Shared\Domain\TwoBonePoseSolver.cs</Link></Compile>

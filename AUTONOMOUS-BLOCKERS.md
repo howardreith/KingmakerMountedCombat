@@ -1,5 +1,15 @@
 # Autonomous blockers
 
+## No critical blocker; one final dev.23 event-backed lifecycle qualification is pending - 2026-08-27T21:43:31Z
+
+Status: IN PROGRESS. Dev.22 run `20260827T205200Z-horse-levelup-dev22-passB` is immutable restored `FAIL 34/1`, but it passes every real Ranger creation, persistent ownership/view/control, movement, RT/TB natural-attack, cleanup, and isolation assertion reached. Independent audit passed exact suite/save/Mods/Baseline/Working identity, all three restored transactions, every restoration flag, and zero process/lock/sentinel/live-KMC residue.
+
+The sole failure is not evidence that the Horse ignored native damage. The scenario polled `IsConscious` after controller updates and had no event subscription. Exact installed `UnitLifeController` emits `IUnitLifeStateChanged` inside its tick, while credited Mammoth evidence proves native incapacitation can recover before the following scenario poll. Dev.23 therefore requires the exact Horse's reference-filtered `Conscious -> Unconscious|Dead` event, rejects a later conscious poll by itself, and retains recovery, respec destruction, Ranger append restoration, and external cleanup as fatal gates. Complete offline gates pass source/Release/component/visual/harness/assembly `21/Release/260/17/232/357`, parsers `28/0` and `7/0`, diff, and prohibited payload. Production behavior is unchanged.
+
+One clean dev.23 package/suite/WhatIf/live unmounted process and audit-before-read remain. Absence of the exact event, failed recovery/respec cleanup, or restoration failure is the final blocker condition. Mounted horse testing, Paladin Divine Steed, `main` integration, and local installation remain frozen until PASS.
+
+This supersedes the dev.22 qualification-pending status below.
+
 ## No critical blocker; one dev.22 diagnostic-lifecycle qualification is pending - 2026-08-27T19:58:00Z
 
 Status: IN PROGRESS. Dev.21 run `20260827T192000Z-horse-levelup-dev21-passB` is immutable restored `FAIL 34/1`, but it passes every creation/ownership/view/control/movement/RT/TB attack assertion through `21` unmounted PASSes. This technically proves the real Ranger level-up now creates a stable persistent Horse. Independent audit passed exact suite/save/Mods/Baseline/Working identity, three restored transactions, every restoration result, and zero process/lock/live-KMC residue.

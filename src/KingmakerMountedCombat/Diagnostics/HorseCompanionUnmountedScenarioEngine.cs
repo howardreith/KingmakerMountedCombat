@@ -13,6 +13,7 @@ using Kingmaker.Controllers.Clicks.Handlers;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.Enums;
 using Kingmaker.GameModes;
+using Kingmaker.PubSubSystem;
 using Kingmaker.UI.Selection;
 using Kingmaker.UI.SettingsUI;
 using Kingmaker.UnitLogic;
@@ -140,6 +141,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private string horseId;
         private int lethalDamage;
         private double lifecycleStartedAtSeconds = -1.0;
+        private NativeHorseLifeStateProbe horseLifeStateProbe;
 
         public HorseCompanionUnmountedScenarioEngine(
             RuntimeRequest request,
@@ -353,6 +355,7 @@ namespace KingmakerMountedCombat.Diagnostics
             try { targetService?.Dispose(); }
             catch (Exception exception) { errors.Add("Target-service disposal: " + exception.Message); }
             targetService = null;
+            DisposeHorseLifeStateProbe();
             disposed = true;
         }
 
@@ -1512,9 +1515,17 @@ namespace KingmakerMountedCombat.Diagnostics
             observations["targetCleanupExact"] = targetService == null ||
                 (targetService.TargetEntityRemoved && targetService.RuntimeGroupRemoved &&
                  targetService.RuntimeFactionRemoved && targetService.CombatMemoryRemoved);
+            DisposeHorseLifeStateProbe();
+            horseLifeStateProbe = new NativeHorseLifeStateProbe(horse);
+            observations["deathLifeStateBefore"] = horse.Descriptor.State.LifeState.ToString();
+            observations["deathFinallyDeadBefore"] = horse.Descriptor.State.IsFinallyDead;
+            observations["deathAwakeBefore"] = horse.IsAwake;
+            observations["deathInAwakeUnitsBefore"] = Game.Instance.State.AwakeUnits.Contains(horse);
+            observations["damageBeforeDeathProbe"] = horse.Damage;
             lethalDamage = (int)horse.Stats.HitPoints + (int)horse.Stats.Constitution + 1;
             horse.Damage = lethalDamage;
             observations["lethalDamage"] = lethalDamage;
+            observations["damageImmediatelyAfterDeathProbe"] = horse.Damage;
             lifecycleStartedAtSeconds = clock.Elapsed.TotalSeconds;
             step = EngineStep.AwaitDeath;
         }
@@ -1546,10 +1557,29 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void AwaitDeath()
         {
-            if (horse.Descriptor.State.IsConscious) { return; }
-            Check(owner.Descriptor.Pet == horse && horse.Descriptor.Master.Value == owner,
+            var lifeTransitions = horseLifeStateProbe?.Snapshot() ?? new NativeHorseLifeStateObservation[0];
+            var expectedTransitions = lifeTransitions.Where(item =>
+                HorseCompanionLifeTransitionPolicy.IsExpectedNonConsciousTransition(
+                    horseId,
+                    item.ActorId,
+                    item.PreviousLifeState,
+                    item.CurrentLifeState)).ToArray();
+            if (expectedTransitions.Length == 0) { return; }
+
+            var transition = expectedTransitions[0];
+            observations["deathLifeTransitionEventCountAtDetection"] = lifeTransitions.Count;
+            observations["deathExpectedNonConsciousTransitionCount"] = expectedTransitions.Length;
+            observations["deathTransitionActorId"] = transition.ActorId;
+            observations["deathTransitionPreviousLifeState"] = transition.PreviousLifeState;
+            observations["deathTransitionCurrentLifeState"] = transition.CurrentLifeState;
+            observations["deathLifeStateAtDetection"] = horse.Descriptor.State.LifeState.ToString();
+            observations["deathConsciousAtDetection"] = horse.Descriptor.State.IsConscious;
+            observations["damageAtDeathDetection"] = horse.Damage;
+            Check(expectedTransitions.Length == 1 && owner.Descriptor.Pet == horse &&
+                    horse.Descriptor.Master.Value == owner,
                 "death-ownership",
-                "Native incapacitation retained the exact companion ownership relation for recovery.");
+                "One exact native Horse life-state event entered a non-conscious state and retained the reciprocal companion ownership relation for recovery.");
+            if (failed != 0) { BeginCleanup(); return; }
             horse.Descriptor.ResurrectAndFullRestore();
             step = EngineStep.AwaitRecovery;
         }
@@ -1558,11 +1588,14 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (!horse.Descriptor.State.IsConscious || horse.Damage != 0) { return; }
             observations["recoveredDamage"] = horse.Damage;
+            observations["deathLifeTransitionEventCountAtRecovery"] = horseLifeStateProbe?.Snapshot().Count ?? 0;
             Check(horse.IsInState && horse.View != null && horse.View.gameObject.activeInHierarchy &&
                     owner.Descriptor.Pet == horse && horse.Descriptor.Master.Value == owner,
                 "death-and-recovery",
                 "The horse recovered visibly with zero damage and the same reciprocal owner relation.");
             if (failed != 0) { BeginCleanup(); return; }
+
+            DisposeHorseLifeStateProbe();
 
             owner.Descriptor.Progression.Features.RemoveFact(horseFeatureFact);
             horseFeatureFact = null;
@@ -1628,6 +1661,7 @@ namespace KingmakerMountedCombat.Diagnostics
             try { targetService?.DestroyAndVerify(); } catch (Exception exception) { errors.Add("Target cleanup: " + exception.Message); }
             try { ruleProbe?.Dispose(); } catch (Exception exception) { errors.Add("Rule-probe cleanup: " + exception.Message); }
             ruleProbe = null;
+            DisposeHorseLifeStateProbe();
 
             if (owner != null && horseFeatureFact != null)
             {
@@ -1651,6 +1685,14 @@ namespace KingmakerMountedCombat.Diagnostics
             realTimeModeProbe = null;
             settings.EnableUnsafeMovementExperiment = originalUnsafeExperimentSetting;
             try { service.SetSelectionEnabled(true); } catch (Exception exception) { errors.Add("Ranger selection cleanup: " + exception.Message); }
+        }
+
+        private void DisposeHorseLifeStateProbe()
+        {
+            if (horseLifeStateProbe == null) { return; }
+            try { horseLifeStateProbe.Dispose(); }
+            catch (Exception exception) { errors.Add("Horse life-state probe cleanup: " + exception.Message); }
+            horseLifeStateProbe = null;
         }
 
         private void AwaitCleanup()
@@ -1927,6 +1969,57 @@ namespace KingmakerMountedCombat.Diagnostics
         private void ThrowIfDisposed()
         {
             if (disposed) { throw new ObjectDisposedException(nameof(HorseCompanionUnmountedScenarioEngine)); }
+        }
+
+        private sealed class NativeHorseLifeStateProbe : IUnitLifeStateChanged, IDisposable
+        {
+            private readonly UnitEntityData expectedHorse;
+            private readonly object gate = new object();
+            private readonly List<NativeHorseLifeStateObservation> observations =
+                new List<NativeHorseLifeStateObservation>();
+            private readonly IDisposable subscription;
+            private bool disposed;
+
+            internal NativeHorseLifeStateProbe(UnitEntityData expectedHorse)
+            {
+                this.expectedHorse = expectedHorse ?? throw new ArgumentNullException(nameof(expectedHorse));
+                subscription = EventBus.Subscribe(this);
+            }
+
+            public void HandleUnitLifeStateChanged(UnitEntityData unit, UnitLifeState prevLifeState)
+            {
+                if (!ReferenceEquals(unit, expectedHorse)) { return; }
+                lock (gate)
+                {
+                    observations.Add(new NativeHorseLifeStateObservation
+                    {
+                        ActorId = unit.UniqueId,
+                        PreviousLifeState = prevLifeState.ToString(),
+                        CurrentLifeState = unit.Descriptor.State.LifeState.ToString()
+                    });
+                }
+            }
+
+            internal IReadOnlyList<NativeHorseLifeStateObservation> Snapshot()
+            {
+                lock (gate) { return observations.ToArray(); }
+            }
+
+            public void Dispose()
+            {
+                if (disposed) { return; }
+                subscription.Dispose();
+                disposed = true;
+            }
+        }
+
+        private sealed class NativeHorseLifeStateObservation
+        {
+            internal string ActorId { get; set; }
+
+            internal string PreviousLifeState { get; set; }
+
+            internal string CurrentLifeState { get; set; }
         }
 
         private enum EngineStep

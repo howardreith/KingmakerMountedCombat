@@ -117,6 +117,7 @@
     <Compile Include="Domain\AvoidanceRestorationExpectation.cs" />
     <Compile Include="Domain\CommandRouting.cs" />
     <Compile Include="Domain\ExactAppendOnlyArrayLease.cs" />
+    <Compile Include="Domain\HorseCompanionLifeTransitionPolicy.cs" />
     <Compile Include="Domain\HorseCompanionProgressionPolicy.cs" />
     <Compile Include="Domain\HorseCompanionScenarioDeadlinePolicy.cs" />
     <Compile Include="Domain\IMountedPairRuntime.cs" />
