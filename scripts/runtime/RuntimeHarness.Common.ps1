@@ -4930,7 +4930,8 @@ function Assert-KmcHorseCompanionUnmountedEvidence {
         'schemaVersion','evidenceKind','runId','scenario','branch','commit','productVersion','dllSha256','dllMvid',
         'createdAtUtc','status','assertions','observations','assertionPassCount','assertionFailCount','errors'
     ) 'horse unmounted evidence'
-    if (-not (Test-KmcExactJsonInteger $artifact.schemaVersion) -or [long]$artifact.schemaVersion -notin @(1,2) -or
+    if (-not (Test-KmcExactJsonInteger $artifact.schemaVersion) -or [long]$artifact.schemaVersion -notin @(1,2,3) -or
+        ([long]$artifact.schemaVersion -eq 3 -and -not $isMounted) -or
         [string]$artifact.evidenceKind -cne $kind -or [string]$artifact.status -cnotin @('PASS','FAIL') -or
         $artifact.assertions -isnot [Array] -or $artifact.errors -isnot [Array] -or $null -eq $artifact.observations -or
         [string]$artifact.dllSha256 -cnotmatch '^[0-9a-f]{64}$' -or
@@ -5105,20 +5106,23 @@ function Assert-KmcHorseCompanionUnmountedEvidence {
             throw 'PASS horse unmounted observations do not satisfy the exact technical contract.'
         }
         if ($isMounted) {
-            Assert-KmcExactProperties $o.mountedRiderOutcome @(
+            $mountedOutcomeNames = @(
                 'action','actorId','commandOwnerId','resourceOwnerId','targetId','result','childAttackStartCount',
                 'repathCount','attackWeaponBlueprintId','attackWeaponIsNatural','attackWeaponIsRanged',
                 'delegatedMoveExecutorId','delegatedMoveExecutorIsExactMount','riderStandardCharged',
                 'actionStandardCharged','terminalReason'
-            ) 'mounted rider outcome'
-            Assert-KmcExactProperties $o.mountedHorseOutcome @(
-                'action','actorId','commandOwnerId','resourceOwnerId','targetId','result','childAttackStartCount',
-                'repathCount','attackWeaponBlueprintId','attackWeaponIsNatural','attackWeaponIsRanged',
-                'delegatedMoveExecutorId','delegatedMoveExecutorIsExactMount','riderStandardCharged',
-                'actionStandardCharged','terminalReason'
-            ) 'mounted horse outcome'
+            )
+            if ([long]$artifact.schemaVersion -ge 3) {
+                $mountedOutcomeNames = @($mountedOutcomeNames + @('attackWeaponSlot'))
+            }
+            Assert-KmcExactProperties $o.mountedRiderOutcome $mountedOutcomeNames 'mounted rider outcome'
+            Assert-KmcExactProperties $o.mountedHorseOutcome $mountedOutcomeNames 'mounted horse outcome'
             $riderOutcome = $o.mountedRiderOutcome
             $horseOutcome = $o.mountedHorseOutcome
+            $mountedWeaponIdentityInvalid = [long]$artifact.schemaVersion -ge 3 -and
+                ([string]$riderOutcome.attackWeaponSlot -cne 'EquippedMelee' -or
+                 [string]$horseOutcome.attackWeaponSlot -cne 'AdditionalLimb' -or
+                 [string]$horseOutcome.attackWeaponBlueprintId -cne [string]$o.fullAttackWeaponGuids[0])
             if ($o.unmountedTargetCleanupExact -ne $true -or $o.mountedTargetCleanupExact -ne $true -or
                 [long]$o.mountTargetArmDelta -ne 1 -or [long]$o.mountTargetClickDelta -ne 1 -or
                 [string]$o.horseProfileId -cne 'medium-humanoid-horse-v1' -or
@@ -5145,6 +5149,7 @@ function Assert-KmcHorseCompanionUnmountedEvidence {
                 $riderOutcome.riderStandardCharged -ne $true -or $riderOutcome.actionStandardCharged -ne $true -or
                 [long]$o.mountedHorseAttackRules -ne 1 -or [long]$o.mountedHorseAttackRolls -ne 1 -or
                 [long]$o.mountedHorseDamageRules -ne 1 -or
+                $mountedWeaponIdentityInvalid -or
                 [string]$horseOutcome.action -cne 'MountPrimaryNatural' -or [string]$horseOutcome.result -cne 'Success' -or
                 [string]$horseOutcome.actorId -cne [string]$o.horseId -or
                 [string]$horseOutcome.commandOwnerId -cne [string]$o.horseId -or

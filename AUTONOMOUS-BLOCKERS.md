@@ -1,5 +1,13 @@
 # Autonomous blockers
 
+## No critical blocker; one exact Horse-primary repair qualification pending - 2026-08-27T00:31:21Z
+
+Status: IN PROGRESS. Dev.16 aggregate `20260826T230500Z-horse-mounted-dev16-passE` is immutable historical restored `FAIL 43/1`: registration passed `13/0`, horse behavior passed `30/1`, and mounted Rider primary now passes exact actor/command/resource ownership, terminal Success, one attack/roll/damage, zero repaths, and no duplicate. The sole failure is attributable product behavior: Horse primary was rejected as `NoEligibleWeapon` because its qualified Bite occupies additional-limb index `0` while two retained Mammoth-era checks required `PrimaryHand`. Dev.17 narrowly admits an exact natural, non-ranged primary hand or first additional limb and preserves exact slot/weapon reference identity. Secondary hands, later hooves, ranged/non-natural weapons, and all inexact child selections remain rejected. Complete offline gates pass `21/Release/254/17/232/349`, parsers `28/0` and `7/0`, diff, and prohibited payload. One clean audited aggregate is the final authorized behavioral-repair qualification. No external-state, restoration, architecture, credential, or tooling blocker is established.
+
+The dev.16 independent audit passed before evidence interpretation: exact suite/save/Mods/Baseline/Working continuity, all restoration booleans, and zero process/lock/sentinel/transaction/live-KMC residue.
+
+This supersedes the post-TB Pause-boundary state below. Dev.16 is not relabeled.
+
 ## No critical blocker; later post-TB Pause-boundary retry pending - 2026-08-26T22:58:55Z
 
 Status: IN PROGRESS. Dev.15 aggregate `20260826T214000Z-horse-mounted-dev15-passD` is immutable historical restored `FAIL 41/1`: registration passed `13/0`, horse behavior passed `28/1`, and it newly proves target-selected Mount, the independent horse profile, mounted RT movement, retained-pair RT-to-TB transition, rider-turn routing, and TB horse movement. Its sole failure occurred after disabling TB: the Rider control armed, but the click was correctly rejected as `LifecycleBoundary` while exact native mode remained `Pause`. Dev.16 changes only the guarded scenario by unpausing inside the existing pause-restoration lease before that production click. Cleanup restores the captured state. Complete offline gates pass `21/Release/253/17/232/349`, parsers pass `28/0` and `7/0`; one clean audited aggregate remains. No external-state, horse-product, Mammoth, architecture, safety, or restoration blocker is established.

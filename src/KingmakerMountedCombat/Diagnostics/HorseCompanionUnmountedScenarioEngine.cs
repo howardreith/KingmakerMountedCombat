@@ -1297,12 +1297,16 @@ namespace KingmakerMountedCombat.Diagnostics
             observations["mountedHorseAttackRules"] = ruleProbe.AttackRuleCount;
             observations["mountedHorseAttackRolls"] = ruleProbe.AttackRollCount;
             observations["mountedHorseDamageRules"] = ruleProbe.DamageRuleCount;
+            var expectedHorseBiteGuid = service.CaptureSnapshot().BiteGuid;
             Check(mountedHorseOutcome.Action == MountedCombatActionKind.MountPrimaryNatural &&
                     string.Equals(mountedHorseOutcome.Result, UnitCommand.ResultType.Success.ToString(), StringComparison.Ordinal) &&
                     string.Equals(mountedHorseOutcome.ActorId, horse.UniqueId, StringComparison.Ordinal) &&
                     string.Equals(mountedHorseOutcome.CommandOwnerId, horse.UniqueId, StringComparison.Ordinal) &&
                     string.Equals(mountedHorseOutcome.ResourceOwnerId, horse.UniqueId, StringComparison.Ordinal) &&
                     mountedHorseOutcome.ChildAttackStartCount == 1 && mountedHorseOutcome.AttackWeaponIsNatural &&
+                    string.Equals(mountedHorseOutcome.AttackWeaponBlueprintId, expectedHorseBiteGuid, StringComparison.Ordinal) &&
+                    string.Equals(mountedHorseOutcome.AttackWeaponSlot,
+                        NativeSingleAttackSlotKind.AdditionalLimb.ToString(), StringComparison.Ordinal) &&
                     ruleProbe.AttackRuleCount == 1 && ruleProbe.AttackRollCount == 1 &&
                     ruleProbe.DamageRuleCount == 1 && ruleProbe.UnexpectedPairAttackCount == 0 &&
                     ruleProbe.TotalDamage > 0,
@@ -1371,6 +1375,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["attackWeaponBlueprintId"] = outcome.AttackWeaponBlueprintId,
                 ["attackWeaponIsNatural"] = outcome.AttackWeaponIsNatural,
                 ["attackWeaponIsRanged"] = outcome.AttackWeaponIsRanged,
+                ["attackWeaponSlot"] = outcome.AttackWeaponSlot,
                 ["delegatedMoveExecutorId"] = outcome.DelegatedMoveExecutorId,
                 ["delegatedMoveExecutorIsExactMount"] = outcome.DelegatedMoveExecutorIsExactMount,
                 ["riderStandardCharged"] = outcome.RiderStandardCharged,
@@ -1701,7 +1706,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var status = failed == 0 ? "PASS" : "FAIL";
             var artifact = new JObject
             {
-                ["schemaVersion"] = 2,
+                ["schemaVersion"] = IncludesMountedAlpha ? 3 : 2,
                 ["evidenceKind"] = IncludesMountedAlpha ? MountedEvidenceKind : EvidenceKind,
                 ["runId"] = request.RunId,
                 ["scenario"] = request.Scenario,

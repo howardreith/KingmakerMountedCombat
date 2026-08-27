@@ -4336,7 +4336,7 @@ try {
         }
         $manualRequest = [ordered]@{
             schemaVersion=2;runId='manual-review-validator';scenario='manual-visual-review';branch='codex/mounted-combat-phase2-alpha';
-            commit=('c'*40);productVersion='0.1.0-phase3b-dev.16';dllSha256=('d'*64);dllMvid='aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+            commit=('c'*40);productVersion='0.1.0-phase3b-dev.17';dllSha256=('d'*64);dllMvid='aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
             transactionToken=('e'*64);evidenceRoot=$manualEvidence;fixture=$manualFixture
             qualificationSuite=[ordered]@{suiteId='manual-suite';snapshotSha256=('f'*64)}
         }
@@ -4643,7 +4643,7 @@ try {
             writeAuthorization=[ordered]@{mode='working-only';allowedInternalName='KMC_AUTOMATION_WORKING';allowedFileName='Manual_2_KMC_AUTOMATION_WORKING.zks';baselineImmutable=$true}
         }
         $recomputeEvidence = Join-Path $runtimeEvidenceTestRoot 'recompute-evidence'
-        $v2Request=[pscustomobject]@{runId='recompute-test';scenario='fixture-intake';branch='codex/mounted-combat-feasibility';commit=('0'*40);productVersion='0.1.0-phase3b-dev.16';dllSha256=('a'*64);dllMvid=[Guid]::Empty.ToString();transactionToken=('b'*64);evidenceRoot=$recomputeEvidence;fixture=$fixture}
+        $v2Request=[pscustomobject]@{runId='recompute-test';scenario='fixture-intake';branch='codex/mounted-combat-feasibility';commit=('0'*40);productVersion='0.1.0-phase3b-dev.17';dllSha256=('a'*64);dllMvid=[Guid]::Empty.ToString();transactionToken=('b'*64);evidenceRoot=$recomputeEvidence;fixture=$fixture}
         $recomputeManifestHash = New-TestArtifactManifest -EvidenceRoot $recomputeEvidence -RunId $v2Request.runId -Scenario $v2Request.scenario
         $game=[pscustomobject]@{status='PASS';fixture=$fixture;evidenceManifestSha256=$recomputeManifestHash;subscenarioTotal=99;subscenarioPassCount=0;subscenarioFailCount=99;assertionPassCount=0;assertionFailCount=99;subscenarioResults=@([pscustomobject]@{name='observe-mount-diagnostic-availability';status='PASS';assertionPassCount=4;assertionFailCount=0;errors=@()})}
         $final=New-KmcRuntimeResultV2 -Request $v2Request -ValidatedGameResult $game -StartedAtUtc ([DateTimeOffset]::UtcNow) -ModsRestored $true -BaselineImmutable $true -WorkingRestored $true -SaveWriteAllowlistPassed $true -RestoredSaveInventoryDigest ('c'*64) -GameResultSha256 ('d'*64)
@@ -4654,7 +4654,7 @@ try {
 
     Invoke-HarnessTest 'schema-v2 fallback creates and binds a validated orchestration artifact manifest' {
         $fallbackEvidence = Join-Path $runtimeEvidenceTestRoot 'fallback-evidence'
-        $fallbackRequest=[pscustomobject]@{runId='fallback-test';scenario='fixture-intake';branch='codex/mounted-combat-feasibility';commit=('0'*40);productVersion='0.1.0-phase3b-dev.16';dllSha256=('a'*64);dllMvid=[Guid]::Empty.ToString();transactionToken=('b'*64);evidenceRoot=$fallbackEvidence;fixture=[ordered]@{baseline=[ordered]@{};working=[ordered]@{};writeAuthorization=[ordered]@{}}}
+        $fallbackRequest=[pscustomobject]@{runId='fallback-test';scenario='fixture-intake';branch='codex/mounted-combat-feasibility';commit=('0'*40);productVersion='0.1.0-phase3b-dev.17';dllSha256=('a'*64);dllMvid=[Guid]::Empty.ToString();transactionToken=('b'*64);evidenceRoot=$fallbackEvidence;fixture=[ordered]@{baseline=[ordered]@{};working=[ordered]@{};writeAuthorization=[ordered]@{}}}
         $final=New-KmcRuntimeResultV2 -Request $fallbackRequest -ValidatedGameResult $null -StartedAtUtc ([DateTimeOffset]::UtcNow) -ModsRestored $true -BaselineImmutable $true -WorkingRestored $true -SaveWriteAllowlistPassed $true -RestoredSaveInventoryDigest ('c'*64) -GameResultSha256 $null -Errors @('synthetic missing game result')
         $manifestPath = Join-Path $fallbackEvidence 'runtime-artifacts.json'
         Assert-Test ([string]$final.status -ceq 'FAIL') 'missing game result did not force final FAIL'
@@ -4670,7 +4670,7 @@ try {
             working=[ordered]@{internalName='KMC_AUTOMATION_WORKING';fileName='Manual_2_KMC_AUTOMATION_WORKING.zks';sha256=('22'*32);length=1;lastWriteTimeUtcTicks=1;gameId='11111111-2222-3333-4444-555555555555';gameName='KMC Test Campaign';area='0123456789abcdef0123456789abcdef'}
             writeAuthorization=[ordered]@{mode='working-only';allowedInternalName='KMC_AUTOMATION_WORKING';allowedFileName='Manual_2_KMC_AUTOMATION_WORKING.zks';baselineImmutable=$true}
         }
-        $fallbackRequest=[pscustomobject]@{runId='combat-fallback-test';scenario='combat-core-control-suite';branch='codex/mounted-combat-phase2-alpha';commit=('0'*40);productVersion='0.1.0-phase3b-dev.16';dllSha256=('a'*64);dllMvid=[Guid]::Empty.ToString();transactionToken=('b'*64);evidenceRoot=$fallbackEvidence;fixture=$fallbackFixture}
+        $fallbackRequest=[pscustomobject]@{runId='combat-fallback-test';scenario='combat-core-control-suite';branch='codex/mounted-combat-phase2-alpha';commit=('0'*40);productVersion='0.1.0-phase3b-dev.17';dllSha256=('a'*64);dllMvid=[Guid]::Empty.ToString();transactionToken=('b'*64);evidenceRoot=$fallbackEvidence;fixture=$fallbackFixture}
         $originalError = 'synthetic attributed launcher failure'
         $final=New-KmcRuntimeResultV2 -Request $fallbackRequest -ValidatedGameResult $null -StartedAtUtc ([DateTimeOffset]::UtcNow) -ModsRestored $false -BaselineImmutable $false -WorkingRestored $false -SaveWriteAllowlistPassed $false -RestoredSaveInventoryDigest ('c'*64) -GameResultSha256 $null -Errors @($originalError)
         Assert-Test ([string]$final.status -ceq 'FAIL' -and @($final.errors).Count -eq 1 -and [string]$final.errors[0] -ceq $originalError) 'combat fallback masked or replaced the original launcher error'
@@ -4741,7 +4741,7 @@ try {
     $request = [ordered]@{
         schemaVersion = 1; runId = 'schema-test'; scenario = 'mod-load-smoke'
         branch = 'codex/mounted-combat-feasibility'; commit = '0123456789abcdef0123456789abcdef01234567'
-        productVersion = '0.1.0-phase3b-dev.16'; dllSha256 = ('ab' * 32)
+        productVersion = '0.1.0-phase3b-dev.17'; dllSha256 = ('ab' * 32)
         dllMvid = '07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'
         transactionToken = ('cd' * 32)
         evidenceRoot = (Join-Path $runtimeEvidenceTestRoot 'schema-test')
@@ -4932,8 +4932,14 @@ try {
         $limbPolicyIndex = $policySource.IndexOf('additionalLimbHasWeapon[index]', [StringComparison]::Ordinal)
         Assert-Test ($primaryPolicyIndex -ge 0 -and $secondaryPolicyIndex -gt $primaryPolicyIndex -and $limbPolicyIndex -gt $secondaryPolicyIndex) 'project single-attack policy diverges from native primary-secondary-additional ordering'
         Assert-Test ($controllerSource.Contains('NativeSingleAttackWeaponResolver.Resolve(mount)') -and
+            $controllerSource.Contains('NativePrimaryNaturalAttackPolicy.IsExact(') -and
+            $policySource.Contains('kind == NativeSingleAttackSlotKind.PrimaryHand') -and
+            $policySource.Contains('kind == NativeSingleAttackSlotKind.AdditionalLimb && additionalLimbIndex == 0') -and
+            $commandSource.Contains('NativePrimaryNaturalAttackPolicy.IsExact(') -and
             $commandSource.Contains('childAttack.PlannedAttack.Hand != expectedMountPrimary.Slot') -and
-            -not $commandSource.Contains('mount.Body.AdditionalLimbs.FirstOrDefault')) 'Mammoth action does not retain and verify the exact native primary selection across click and child initialization'
+            $commandSource.Contains('childAttack.PlannedAttack.Weapon != expectedMountPrimary.Weapon') -and
+            $commandSource.Contains('? expectedMountPrimary?.Kind.ToString()') -and
+            -not $commandSource.Contains('mount.Body.AdditionalLimbs.FirstOrDefault')) 'mount primary action does not retain and verify the exact primary-hand or first-additional-limb native natural attack across click and child initialization'
         Assert-Test ($commandSource.Contains('var requiresApproach = !childAttack.IsPairEnoughClose;') -and
             $commandSource.Contains('if (!childAttack.TryPrepareNativeStartAdmission())') -and
             $singleAttackSource.Contains('GeometryUtils.MechanicsDistance(mount.Position, target.Position)') -and
@@ -8929,7 +8935,7 @@ try {
         New-Item -ItemType Directory -Path $registrationRoot -Force | Out-Null
         $registrationRequest = [pscustomobject]@{
             runId='horse-companion-registration-validator';scenario='horse-companion-blueprint-registration';branch='codex/mounted-combat-phase3-horse'
-            commit=('2'*40);productVersion='0.1.0-phase3b-dev.16';evidenceRoot=$registrationRoot
+            commit=('2'*40);productVersion='0.1.0-phase3b-dev.17';evidenceRoot=$registrationRoot
         }
         $initial = [ordered]@{
             state=1;failure=$null;unitGuid='4016c7db400ab721ff125aef9e65e202';featureGuid='7db7c50677e39f09feef56f3831fc723'
@@ -9037,7 +9043,7 @@ try {
         New-Item -ItemType Directory -Path $unmountedRoot -Force | Out-Null
         $unmountedRequest = [pscustomobject]@{
             runId='horse-companion-unmounted-validator';scenario='horse-companion-unmounted-suite';branch='codex/mounted-combat-phase3-horse'
-            commit=('5'*40);productVersion='0.1.0-phase3b-dev.16';dllSha256=('6'*64)
+            commit=('5'*40);productVersion='0.1.0-phase3b-dev.17';dllSha256=('6'*64)
             dllMvid='11111111-2222-3333-4444-555555555555';evidenceRoot=$unmountedRoot
         }
         $required = @(
@@ -9168,7 +9174,7 @@ try {
         New-Item -ItemType Directory -Path $mountedRoot -Force | Out-Null
         $mountedRequest = [pscustomobject]@{
             runId='horse-mounted-alpha-validator';scenario='horse-mounted-alpha-suite';branch='codex/mounted-combat-phase3-horse'
-            commit=('9'*40);productVersion='0.1.0-phase3b-dev.16';dllSha256=('a'*64)
+            commit=('9'*40);productVersion='0.1.0-phase3b-dev.17';dllSha256=('a'*64)
             dllMvid='22222222-3333-4444-5555-666666666666';evidenceRoot=$mountedRoot
         }
         $baseRequired = @(
@@ -9231,7 +9237,7 @@ try {
         $mountedObservations.mountedRiderOutcome = [ordered]@{
             action='RiderMelee';actorId='owner';commandOwnerId='owner';resourceOwnerId='owner';targetId='mounted-target'
             result='Success';childAttackStartCount=1;repathCount=1;attackWeaponBlueprintId=('b'*32)
-            attackWeaponIsNatural=$false;attackWeaponIsRanged=$false;delegatedMoveExecutorId='horse'
+            attackWeaponIsNatural=$false;attackWeaponIsRanged=$false;attackWeaponSlot='EquippedMelee';delegatedMoveExecutorId='horse'
             delegatedMoveExecutorIsExactMount=$true;riderStandardCharged=$true;actionStandardCharged=$true;terminalReason=$null
         }
         $mountedObservations.mountedRiderAttackRules = 1
@@ -9240,7 +9246,7 @@ try {
         $mountedObservations.mountedHorseOutcome = [ordered]@{
             action='MountPrimaryNatural';actorId='horse';commandOwnerId='horse';resourceOwnerId='horse';targetId='mounted-target'
             result='Success';childAttackStartCount=1;repathCount=0;attackWeaponBlueprintId=$biteGuid
-            attackWeaponIsNatural=$true;attackWeaponIsRanged=$false;delegatedMoveExecutorId=$null
+            attackWeaponIsNatural=$true;attackWeaponIsRanged=$false;attackWeaponSlot='AdditionalLimb';delegatedMoveExecutorId=$null
             delegatedMoveExecutorIsExactMount=$false;riderStandardCharged=$false;actionStandardCharged=$true;terminalReason=$null
         }
         $mountedObservations.mountedHorseAttackRules = 1
@@ -9248,7 +9254,7 @@ try {
         $mountedObservations.mountedHorseDamageRules = 1
         $mountedObservations.mountedTargetCleanupExact = $true
         $mountedArtifact = [ordered]@{
-            schemaVersion=2;evidenceKind='horse-mounted-alpha';runId=$mountedRequest.runId;scenario=$mountedRequest.scenario
+            schemaVersion=3;evidenceKind='horse-mounted-alpha';runId=$mountedRequest.runId;scenario=$mountedRequest.scenario
             branch=$mountedRequest.branch;commit=$mountedRequest.commit;productVersion=$mountedRequest.productVersion
             dllSha256=$mountedRequest.dllSha256;dllMvid=$mountedRequest.dllMvid;createdAtUtc=[DateTimeOffset]::UtcNow.ToString('o')
             status='PASS';assertions=$mountedAssertions;observations=$mountedObservations

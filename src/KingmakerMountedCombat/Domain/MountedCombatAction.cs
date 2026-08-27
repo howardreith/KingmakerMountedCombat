@@ -120,6 +120,24 @@ namespace KingmakerMountedCombat.Domain
         }
     }
 
+    public static class NativePrimaryNaturalAttackPolicy
+    {
+        public static bool IsExact(
+            NativeSingleAttackSlotKind kind,
+            int additionalLimbIndex,
+            bool weaponIsNatural,
+            bool weaponIsRanged)
+        {
+            if (!weaponIsNatural || weaponIsRanged)
+            {
+                return false;
+            }
+
+            return (kind == NativeSingleAttackSlotKind.PrimaryHand && additionalLimbIndex == -1) ||
+                (kind == NativeSingleAttackSlotKind.AdditionalLimb && additionalLimbIndex == 0);
+        }
+    }
+
     public static class NativeSingleAttackTerminalPolicy
     {
         public static bool ShouldAwaitNativeAnimation(

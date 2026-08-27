@@ -830,9 +830,12 @@ namespace KingmakerMountedCombat.Integration
                     !riderWeapon.Blueprint.IsTwoHanded && !riderWeapon.Blueprint.IsNatural,
                 RiderWeaponIsSupportedMelee = riderWeapon?.Blueprint != null && !riderWeapon.Blueprint.IsRanged &&
                     !riderWeapon.Blueprint.IsTwoHanded && !riderWeapon.Blueprint.IsNatural,
-                MountPrimaryNaturalAttackIsExact = mountPrimary?.Kind == NativeSingleAttackSlotKind.PrimaryHand &&
-                    mountPrimary.Weapon?.Blueprint != null &&
-                    mountPrimary.Weapon.Blueprint.IsNatural && !mountPrimary.Weapon.Blueprint.IsRanged,
+                MountPrimaryNaturalAttackIsExact = mountPrimary?.Weapon?.Blueprint != null &&
+                    NativePrimaryNaturalAttackPolicy.IsExact(
+                        mountPrimary.Kind,
+                        mountPrimary.AdditionalLimbIndex,
+                        mountPrimary.Weapon.Blueprint.IsNatural,
+                        mountPrimary.Weapon.Blueprint.IsRanged),
                 TransactionIdle = !HasActiveCommand && !HasActiveGroundMovement && !riderTurnGroundMoveAdmissionPending,
                 LoadingOrLifecycleBoundary = Game.Instance == null ||
                     !MountedGameModePolicy.CanAdmitMountedAction(Game.Instance.CurrentMode.ToString()),

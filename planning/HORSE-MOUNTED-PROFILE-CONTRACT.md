@@ -1,6 +1,8 @@
 # Horse-mounted profile contract
 
-Status: TODO — blocked on unmounted horse qualification
+Status: IN PROGRESS — profile, target-selected Mount, RT/TB routing, movement, transitions, and Rider primary are runtime-proven; one exact Horse-primary repair qualification remains.
+
+Superseding checkpoint (2026-08-27T00:31:21Z): dev.16 independently audited aggregate `20260826T230500Z-horse-mounted-dev16-passE` reached `30/1` horse rows after registration `13/0`. It proves the independent profile and mounted movement/control chain plus exact Rider primary. The sole remaining failure is not pose or routing: the already-qualified no-hands horse stores Bite at additional-limb index `0`, while inherited controller/command checks required a Mammoth-style primary hand. Dev.17 admits only that exact first-limb natural attack (or the unchanged exact primary hand), keeps click-to-child slot/weapon reference identity, and rejects every broader category. One clean audited aggregate is required; visual feel remains human-gated.
 
 Profile ID: `medium-humanoid-horse-v1`
 
@@ -35,4 +37,3 @@ Technical rows must cover mount/dismount, idle, walk, run, turn, stop, reverse, 
 Fatal outcomes include duplicate commands/attacks/resources/turns, rider pathfinding, horse movement ownership loss, target or door failure, visible automation-detectable oscillation, relationship residue, Mammoth profile mutation, non-mounted regression, or external restoration failure.
 
 Human review remains mandatory for seat gap, silhouette, pelvis/leg posture, stirrup placement, gait feel, turn/stop/reverse animation, clipping, weapon clearance, selection/camera feel, menus/fog flash, and ordinary physical-pointer usability. Internal fields alone do not prove human usability.
-

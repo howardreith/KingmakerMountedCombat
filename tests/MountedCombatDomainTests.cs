@@ -40,6 +40,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("native single attack falls back through secondary then additional limbs", NativeSingleAttackFallbackOrder);
             runner.Run("native single attack skips hand slots when hands are disabled", NativeSingleAttackSkipsDisabledHands);
             runner.Run("native single attack rejects negative attack counts and empty weapon sets", NativeSingleAttackRejectsInvalidOrEmptyInputs);
+            runner.Run("native primary natural attack admits exact primary hand or first additional limb only", NativePrimaryNaturalAttackAdmitsExactSlotsOnly);
             runner.Run("native single attack preserves exact turn-based terminal success", NativeSingleAttackPreservesTurnBasedTerminalSuccess);
             runner.Run("diagnostic target requires Working authorization", TargetRequiresWorkingAuthorization);
             runner.Run("diagnostic target creation and removal are exact and idempotent", TargetLifecycleIsExact);
@@ -667,6 +668,38 @@ namespace KingmakerMountedCombat.Tests
                 threw = true;
             }
             TestRunner.True(threw, "Negative native primary attack count was accepted.");
+        }
+
+        private static void NativePrimaryNaturalAttackAdmitsExactSlotsOnly()
+        {
+            TestRunner.True(
+                NativePrimaryNaturalAttackPolicy.IsExact(
+                    NativeSingleAttackSlotKind.PrimaryHand, -1, true, false),
+                "An exact primary-hand natural attack was rejected.");
+            TestRunner.True(
+                NativePrimaryNaturalAttackPolicy.IsExact(
+                    NativeSingleAttackSlotKind.AdditionalLimb, 0, true, false),
+                "The horse's exact first additional-limb Bite was rejected.");
+            TestRunner.True(
+                !NativePrimaryNaturalAttackPolicy.IsExact(
+                    NativeSingleAttackSlotKind.SecondaryHand, -1, true, false),
+                "A secondary-hand natural attack was admitted as the primary.");
+            TestRunner.True(
+                !NativePrimaryNaturalAttackPolicy.IsExact(
+                    NativeSingleAttackSlotKind.PrimaryHand, 0, true, false),
+                "A primary-hand selection retaining a limb index was admitted.");
+            TestRunner.True(
+                !NativePrimaryNaturalAttackPolicy.IsExact(
+                    NativeSingleAttackSlotKind.AdditionalLimb, 1, true, false),
+                "A later additional-limb natural attack was admitted as the primary.");
+            TestRunner.True(
+                !NativePrimaryNaturalAttackPolicy.IsExact(
+                    NativeSingleAttackSlotKind.AdditionalLimb, 0, false, false),
+                "A non-natural first additional-limb weapon was admitted.");
+            TestRunner.True(
+                !NativePrimaryNaturalAttackPolicy.IsExact(
+                    NativeSingleAttackSlotKind.AdditionalLimb, 0, true, true),
+                "A ranged first additional-limb natural weapon was admitted.");
         }
 
         private static void TargetRequiresWorkingAuthorization()

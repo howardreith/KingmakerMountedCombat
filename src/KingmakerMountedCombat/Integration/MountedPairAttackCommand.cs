@@ -556,15 +556,17 @@ namespace KingmakerMountedCombat.Integration
             retainedAttackWeaponIsRanged = childAttack.PlannedAttack.Weapon.Blueprint.IsRanged;
             if (action == MountedCombatActionKind.MountPrimaryNatural)
             {
-                if (expectedMountPrimary?.Kind != NativeSingleAttackSlotKind.PrimaryHand ||
+                if (expectedMountPrimary?.Weapon?.Blueprint == null ||
+                    !NativePrimaryNaturalAttackPolicy.IsExact(
+                        expectedMountPrimary.Kind,
+                        expectedMountPrimary.AdditionalLimbIndex,
+                        expectedMountPrimary.Weapon.Blueprint.IsNatural,
+                        expectedMountPrimary.Weapon.Blueprint.IsRanged) ||
                     expectedMountPrimary.Slot == null ||
                     childAttack.PlannedAttack.Hand != expectedMountPrimary.Slot ||
-                    childAttack.PlannedAttack.Weapon != expectedMountPrimary.Weapon ||
-                    expectedMountPrimary.Weapon?.Blueprint == null ||
-                    !expectedMountPrimary.Weapon.Blueprint.IsNatural ||
-                    expectedMountPrimary.Weapon.Blueprint.IsRanged)
+                    childAttack.PlannedAttack.Weapon != expectedMountPrimary.Weapon)
                 {
-                    throw new InvalidOperationException("Native Mammoth attack was not the exact primary-hand natural attack selected by stock single-attack order.");
+                    throw new InvalidOperationException("Native mount attack was not the exact primary natural attack selected by stock single-attack order.");
                 }
             }
         }
@@ -658,7 +660,7 @@ namespace KingmakerMountedCombat.Integration
                 AttackWeaponIsNatural = retainedAttackWeaponIsNatural,
                 AttackWeaponIsRanged = retainedAttackWeaponIsRanged,
                 AttackWeaponSlot = action == MountedCombatActionKind.MountPrimaryNatural
-                    ? NativeSingleAttackSlotKind.PrimaryHand.ToString()
+                    ? expectedMountPrimary?.Kind.ToString()
                     : "EquippedMelee",
                 TerminalReason = transaction.TerminalReason,
                 PairRangeSatisfiedAtStart = childAttack != null && childAttack.PairRangeSatisfiedAtNativeStart,
