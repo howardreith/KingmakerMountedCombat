@@ -1,12 +1,60 @@
 # Horse implementation report
 
+## Final technical qualification - 2026-08-27T03:40:27Z
+
+Status: PASS (technical) - private-alpha package installed; human visual/gameplay review required.
+
+### Exact identity
+
+- branch: `codex/mounted-combat-phase3-horse`
+- accepted horse implementation commit: `04a86870322f136bc3d7423b2e0ef31cf06d4145` (local and remote equal when the package was created)
+- version: `0.1.0-phase3b-dev.17`
+- package: `C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-phase3b-dev.17-diagnostic.zip`
+- package SHA-256: `5d61b8febad67637954ad52f7e0bf8f6081fc2ffa87266407721fc00b4d5585e`
+- manifest SHA-256: `75bb23b5289cce77799f8001f6966346cd324ac80c787fe1bcf49ea4e0963ced`
+- DLL SHA-256: `505c5c983ad94bbfc7e287284743427bc331d90fd6d4f9d6aacc16fe653e6875`
+- DLL MVID: `4d9fff51-a040-41d4-b642-6f433c7a4b6a`
+- `Info.json` SHA-256: `ae8693f40687afd68598a19833529fb7362c2d04fd09812124b7a4b2cd246744`
+- package contents: `KingmakerMountedCombat/Info.json` (335 bytes) and `KingmakerMountedCombat/KingmakerMountedCombat.dll` (1,339,904 bytes)
+
+The closure documentation commit and final local/remote branch equality are recorded in the final publication ledger after this report's coherent closure commit. The package remains bound to implementation commit `04a8687`; later documentation and harness-parser commits do not change its bytes or expand the accepted production implementation.
+
+### Native assets and owned content
+
+- Kingmaker native riding horse: `CR1_HorseRiding`, GUID `9e9e75c484e68734487e609714565202`, Large, view asset `5e0b93738ad54dd4ba101b3513ac4590`, `HorseRiding.prefab`.
+- Native pony: `PonySummoned`, GUID `3f95557fc806db741b500a5735990841`, Medium, view asset `447d2907feec82545b3773fbb4709588`, `Pony_02`. It is a separate prefab/mesh/rig family, has no riding-horse `Chest` or stirrup geometry, and was not resized or reused.
+- KMC blueprints: `AnimalCompanionUnitHorse` `4016c7db400ab721ff125aef9e65e202`; `AnimalCompanionFeatureHorse` `7db7c50677e39f09feef56f3831fc723`; `AnimalCompanionUpgradeHorse` `98e651899e6278d938de77af1d69bd32`.
+- Horse contract: Large, speed 50, abilities 16/13/15/2/12/6, Bite `35dfad6517f401145af54111be04d6cf`, Hoof `b0e472a49ff2a294f93faa3ab757a4a5`, natural topology Bite/Hoof/Hoof. Exact native/Call of the Wild compatibility accepts committed stock levels or the native target-XP manual-leveling handoff; KMC does not duplicate the update.
+- Ranger integration appends one KMC option without replacing stock choices. Runtime proves exact `7->8->7->8` enable/disable/re-enable behavior and native `AddPet`/`SetMaster` ownership.
+- Mounted profile: independent `medium-humanoid-horse-v1`, native `Chest` anchor, authored stirrup evidence L `(0.305183,-0.122728452,-0.04402188)` and R `(-0.3051833,-0.122732729,-0.0440214761)`. No Mammoth offsets or pose values are reused.
+
+No Wrath code, asset, model, animation, assembly, or blueprint was shipped. Exact read-only Wrath inspection indicates a literal shared turn controller with separate rider/mount ledgers and paired commands; KMC retains the functioning separate-turn overlay model for this alpha. A broad generic control-model port was neither required nor authorized.
+
+### Qualification result
+
+Stable suite `20260827T005000Z-horse-mounted-dev17-suite1` has snapshot SHA-256 `5337b241cd43839e2a00d46cb6d9a60038b0d28b2e663b9a1be99b0e10134058`; exact WhatIf purity and live admission passed. Guarded run `20260827T014000Z-horse-mounted-dev17-passF` produced immutable in-game `PASS 51/0`: registration `13/0`, horse aggregate `38/0`. Its game result SHA-256 is `42d599476b9f0b4b67a072fc80a03ffde948fd8d9a75d7870f0497b6a2386723`; evidence manifest SHA-256 is `a2c7a87bf42662d8a926f5ba24e23641b15144cb979bb3dd50c35492b38ed09c`. Independent audit ran before evidence interpretation and passed exact suite/save/Mods/Baseline/Working identities, all restoration booleans, and zero process/lock/sentinel/transaction/live-deployment residue.
+
+The run proves unmounted creation, progression handoff, ownership, selection, movement, RT/TB Bite, death/recovery, respec, cleanup, and isolation. It also proves target-selected Mount, the independent horse profile, mounted RT/TB movement and transitions, exact Rider primary, exact Horse primary, explicit dismount, and cleanup. Rider primary retains rider actor/command/resource ownership and exact one attack/roll/damage chain. Horse primary retains horse actor/command/resource ownership, Bite at `AdditionalLimb[0]`, terminal Success, one child, one attack/roll/damage chain, and zero repaths.
+
+The original external wrapper result for that run remains immutable historical `FAIL 0/1`: its strict PASS parser omitted five observations already emitted by the game. The parser now validates those properties and rejects altered values; the unchanged game result passes direct schema revalidation `33/0` and `39/0`, and the complete harness passes `232/0`. No second game run was performed or needed for this external-only defect.
+
+Same-package targeted Mammoth run `20260827T030300Z-mammoth-primary-dev17-passA` passes `62/0`, with result/manifest SHA-256 `91994552d5abf43060e814aa3c4fd1ec9e47ba5c4740d9075bae55e4cc7a513d` / `8e4b85f144950d60cd1dcd233fd04837afe24bd84bbf363fb363facb0cdc8450`. Mammoth remains exact `PrimaryHand` weapon `5d7d23f5e35254d4bb087f7476163509` owner, with one attack/roll/damage for 25 damage, Mammoth-only Standard cost, unchanged rider resources, zero repaths/duplicates, healthy presentation, exact cleanup, and independently audited restoration.
+
+All final applicable offline gates pass against the closure tree: source `21/0`, Release build, component `254/0`, visual/source-order `17/0`, harness/protocol `232/0`, assembly `349/0` (`325` Kingmaker + `24` Wrath), PowerShell parser `28/0`, JSON parser `7/0`, diff check, package validation `10/0`, and prohibited-payload validation.
+
+### Accepted limits and human boundary
+
+This private alpha does not provide stock right-click mounted attacks, mounted auto-attack, a unified Wrath-style turn, mounted ranged combat, persistent mounting, automatic remount, Paladin Divine Steed, or public-release quality. Rider/Horse overlay controls remain required, rider and horse keep separate TB turns, and mounting remains transient. Actual disk save/reload companion persistence, ordinary physical-pointer targeting, seat/stirrup/leg posture, locomotion and turn/stop/reverse feel, clipping/doorway appearance, selection/camera/action-bar feel, menus/fog flash, Wild Shape/revert presentation, and complete ordinary gameplay flow remain human-gated.
+
+The exact package is already installed locally through the guarded deployment helper and verified byte-identical. A save that selected the KMC horse must be respecced to a stock companion and saved unmounted before uninstall. Exact commands and the focused checklist are in `docs/HORSE-PLAYTEST.md`. Paladin work remains design only in `docs/PALADIN-DIVINE-STEED-DESIGN.md`.
+
 Superseding technical checkpoint (2026-08-27T00:31:21Z): dev.16's exact package/suite/run are `631a3e04d45b3f07847b9f0650e060155d3eca9648f9ad5c4715fb75e6fa9273` / `20260826T230300Z-horse-mounted-dev16-suite1` / `20260826T230500Z-horse-mounted-dev16-passE`. The independently audited restored result is historical `FAIL 43/1`; registration passed `13/0`, horse behavior passed `30/1`, and the exact mounted Rider-primary command passed actor, command, resource, terminal, cardinality, and duplicate gates. Horse primary alone was rejected as `NoEligibleWeapon`. Exact source and prior body evidence establish the cause: the resolver returned the horse's qualified first additional-limb Bite, but admission and child validation still required Mammoth's primary-hand slot kind. Dev.17 accepts only natural non-ranged primary hand or additional-limb index `0`, retains exact slot/weapon identity, and rejects secondary/later/ranged/non-natural candidates. Mammoth remains on the unchanged primary-hand path. Offline gates pass source/Release/component/visual/harness/assembly `21/Release/254/17/232/349`, parsers `28/0` and `7/0`, diff, and prohibited payload. One clean audited behavioral-repair aggregate remains before horse-alpha qualification.
 
 Superseding technical checkpoint (2026-08-26T22:58:55Z): dev.15's exact package/suite/run are `03240f13eab6848bdbd6010ea862622ebb0493439b83b9e917ccc452a07c7ada` / `20260826T213500Z-horse-mounted-dev15-suite1` / `20260826T214000Z-horse-mounted-dev15-passD`. The independently audited restored result is historical `FAIL 41/1`; registration passed `13/0`, horse behavior passed `28/1`, and target-selected Mount, the independent horse profile, RT/TB mounted movement, and transition retention all passed. The sole failure was the diagnostic invoking Rider primary while native post-TB mode remained `Pause`; production rejected the click exactly as `LifecycleBoundary`. Dev.16 releases that scenario-owned pause before the unchanged production click, and cleanup restores the original pause. No production behavior changed. Offline gates pass source/Release/component/visual/harness/assembly `21/Release/253/17/232/349`, parsers `28/0` and `7/0`, diff, and prohibited payload. One clean audited aggregate remains required before horse-alpha qualification.
 
 Superseding technical checkpoint (2026-08-26T21:30:54Z): dev.14's exact package/suite/run are `c281da9f01f419aeddbdc5e78cd0f67f00e9b67266374e89c7d53e0321f7924a` / `20260826T200700Z-horse-mounted-dev14-suite1` / `20260826T201000Z-horse-mounted-dev14-passC`. The independently audited restored result is historical `FAIL 33/1`; registration passed `13/0`, horse behavior passed `20/1`, and the sole failure was a diagnostic deadlock at native post-TB `Pause` before exploration remount. Dev.15 releases that scenario-owned pause before requesting stock combat departure and waiting for the unchanged production Mount gate; the existing cleanup lease restores the original pause. No production behavior changed. Offline gates pass source/Release/component/visual/harness/assembly `21/Release/253/17/232/349`, parsers `28/0` and `7/0`, diff, and prohibited payload. The single final clean audited aggregate remains required before this report can claim horse-alpha qualification.
 
-Status: IN PROGRESS
+Historical status below: IN PROGRESS (superseded by final technical qualification above)
 
 Superseding horse-alpha state (2026-08-26T20:02:37Z): dev.13 exact-package aggregate is historical restored `FAIL 33/1`: registration `13/0`, aggregate `20/1`. Both native attacks now pass exactly in RT and TB with one attack/roll/damage chain, zero unexpected pair attacks, and zero post-dispatch turn restarts. The only failure occurred later because the diagnostic attempted target-selected Mount in the same frame it requested native combat and mode exit; production correctly rejected that unsafe frame. Dev.14 waits for the exact visible/enabled production Mount availability, bounded to 20 seconds. Production horse/Mammoth behavior is unchanged; one clean audited horse-mounted aggregate remains.
 
@@ -36,7 +84,7 @@ Superseding Tranche B state (2026-08-26T03:40:00Z): dev.3 aggregate `20260826T02
 - inherited Phase 2 product version: `0.1.0-phase2b-dev.1`
 - credited Horse Tranche A audit version: `0.1.0-phase3a-dev.2`
 - active horse-alpha version: `0.1.0-phase3b-dev.17`
-- current version-bound offline gates: source `21/0`, Release, component `254/0`, visual/source-order `17/0`, harness `232/0`, assembly `349/0` (`325` Kingmaker + `24` Wrath), PowerShell parser `28/0`, JSON parser `7/0`, diff, and prohibited-payload validation; clean-package and final runtime gates remain pending
+- final version-bound offline gates: source `21/0`, Release, component `254/0`, visual/source-order `17/0`, harness `232/0`, assembly `349/0` (`325` Kingmaker + `24` Wrath), PowerShell parser `28/0`, JSON parser `7/0`, diff, package, and prohibited-payload validation
 
 Phase 2 remains accepted with its documented private-alpha limitations. Horse work does not retroactively claim stock right-click mounted attacks, mounted auto-attack, unified Wrath-style turns, animated Mammoth TB locomotion, or public-release quality.
 
@@ -67,12 +115,12 @@ Dev.7 then established that Kingmaker merged the requested same-target attack in
 | Wrath command/turn model | PASS | `planning/WOTR-MOUNTED-COMMAND-MODEL.md` |
 | Horse native file identity | PASS | `planning/HORSE-PONY-ASSET-AUDIT.md` |
 | Pony comparison | PASS | credited audited run `20260825T180000Z-horse-native-asset-audit-repair-passB`, `21/0` |
-| KMC blueprint trio | PASS (offline) | corrected Mammoth/Dog bootstrap comparison; historical run passed 12/13 production assertions |
-| Ranger selection | PASS (runtime observed) | historical restored run proved exact 7→8→7→8 lease even though aggregate status was 12/1 |
-| Unmounted horse | IN PROGRESS | dev.13 proves exact RT/TB natural attacks and all preceding rows; death/recovery/respec await the continued dev.14 aggregate |
-| Mounted horse profile | PASS (offline), runtime pending | independent `medium-humanoid-horse-v1`, native `Chest` anchor, horse-only pose/profile dispatch; same dev.14 aggregate pending |
-| Target-selected Mount | PASS (offline), runtime pending | production correctly rejected dev.13's unsafe same-frame post-combat attempt; dev.14 waits for exact exploration admission before arm/click |
-| Mammoth regression | TODO | required only after relevant shared changes |
+| KMC blueprint trio | PASS | dev.17 registration `13/0`; exact KMC GUID/object identities and topology |
+| Ranger selection | PASS | dev.17 exact `7->8->7->8` transaction and native ownership |
+| Unmounted horse | PASS (technical) | dev.17 creation/progression/ownership/control/movement/RT/TB Bite/death/recovery/respec/cleanup; actual disk save/reload human-gated |
+| Mounted horse profile | PASS (technical) | dev.17 independent profile, RT/TB movement/transitions, Rider/Horse primaries, dismount/cleanup; visual feel human-gated |
+| Target-selected Mount | PASS (technical) | dev.17 arm then exact eligible click; overlay fallback retained; ordinary pointer feel human-gated |
+| Mammoth regression | PASS | `20260827T030300Z-mammoth-primary-dev17-passA`, `62/0` |
 | Paladin Divine Steed | DESIGN ONLY | `docs/PALADIN-DIVINE-STEED-DESIGN.md` |
 
-The dev.2 package and restored partial runtime observation are historical inputs. No technically qualified horse playtest package exists yet.
+All earlier failed packages and observations remain immutable historical inputs. The exact technically qualified dev.17 package is ready and installed for mandatory human review.

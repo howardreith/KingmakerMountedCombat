@@ -2,6 +2,8 @@
 
 Status: DESIGN ONLY — implementation forbidden before horse technical and human acceptance
 
+Dependency update (2026-08-27T03:40:27Z): the unmounted horse companion and `medium-humanoid-horse-v1` have now passed bounded technical qualification on exact dev.17. The third gate - human visual/gameplay acceptance of that exact package - remains open. This document remains design only and grants no Paladin implementation authority.
+
 ## Dependency gate
 
 Production may begin only after:
@@ -41,4 +43,3 @@ Do not combine every feature into the first checkpoint. Each checkpoint requires
 ## Save and uninstall policy
 
 Like the Ranger horse, a Paladin steed feature would introduce KMC blueprint references into saves. The design must require respec away from Divine Steed before uninstalling unless later evidence establishes a safe native replacement transaction. The mounted relationship itself remains nonserialized and clears across existing save/area boundaries.
-

@@ -1,5 +1,15 @@
 # Autonomous blockers
 
+## No critical blocker; horse alpha awaits human visual/gameplay review - 2026-08-27T03:40:27Z
+
+Status: PASS (technical) / MANUAL REVIEW REQUIRED. Exact dev.17 implementation commit `04a86870322f136bc3d7423b2e0ef31cf06d4145`, immutable package SHA-256 `5d61b8febad67637954ad52f7e0bf8f6081fc2ffa87266407721fc00b4d5585e`, and stable suite `20260827T005000Z-horse-mounted-dev17-suite1` produced in-game horse qualification `51/0` (`13/0` registration plus `38/0` horse behavior). Audit-before-read passed exact suite/save/Mods/Baseline/Working identity, all restoration booleans, and zero runtime residue. Targeted Mammoth shared-subsystem regression `20260827T030300Z-mammoth-primary-dev17-passA` passed `62/0` with the exact Mammoth-owned primary-hand chain and exact restoration. No horse-product, Mammoth, architecture, external-state, credential, or tooling blocker remains.
+
+The original external wrapper result for `20260827T014000Z-horse-mounted-dev17-passF` remains historical `FAIL 0/1` solely because its strict parser omitted five already-emitted pre-dispatch fields. The immutable game result was not changed; after the parser repair it directly passes both relevant schemas (`33/0` and `39/0`), and the full harness passes `232/0`. This does not conceal or relabel gameplay evidence.
+
+Human-only gates remain: ordinary physical-pointer targeting, seat/stirrup/leg pose, gait/turn/stop/reverse feel, clipping and doorway presentation, selection/camera/action-bar feel, menus/fog flash, Wild Shape/revert presentation, actual disk save/reload companion persistence, and the complete private-alpha checklist. Paladin Divine Steed remains design only. The horse branch must not merge to `main` until later human acceptance.
+
+This supersedes the repair-pending state below. Dev.16 and every prior failed run remain historical evidence.
+
 ## No critical blocker; one exact Horse-primary repair qualification pending - 2026-08-27T00:31:21Z
 
 Status: IN PROGRESS. Dev.16 aggregate `20260826T230500Z-horse-mounted-dev16-passE` is immutable historical restored `FAIL 43/1`: registration passed `13/0`, horse behavior passed `30/1`, and mounted Rider primary now passes exact actor/command/resource ownership, terminal Success, one attack/roll/damage, zero repaths, and no duplicate. The sole failure is attributable product behavior: Horse primary was rejected as `NoEligibleWeapon` because its qualified Bite occupies additional-limb index `0` while two retained Mammoth-era checks required `PrimaryHand`. Dev.17 narrowly admits an exact natural, non-ranged primary hand or first additional limb and preserves exact slot/weapon reference identity. Secondary hands, later hooves, ranged/non-natural weapons, and all inexact child selections remain rejected. Complete offline gates pass `21/Release/254/17/232/349`, parsers `28/0` and `7/0`, diff, and prohibited payload. One clean audited aggregate is the final authorized behavioral-repair qualification. No external-state, restoration, architecture, credential, or tooling blocker is established.

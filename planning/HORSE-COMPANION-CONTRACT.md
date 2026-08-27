@@ -1,5 +1,7 @@
 # Horse animal-companion contract
 
+Final superseding status (2026-08-27T03:40:27Z): PASS (technical) - exact dev.17 aggregate `20260827T014000Z-horse-mounted-dev17-passF` passes in-game registration `13/0` and horse behavior `38/0`, with independent audit-before-read restoration. The run proves the KMC blueprint trio, Ranger `7->8->7->8` transaction, creation, reciprocal ownership, direct control, Large HorseRiding view, native manual-leveling XP handoff without duplicate progression, selection, stock movement, Bite/Hoof/Hoof topology, exact RT/TB Bite chains, death/recovery, respec removal, cleanup, and non-horse isolation. Actual disk save/reload remains human-gated under the guarded harness safety policy; respec-before-uninstall remains mandatory for any save that selected the KMC horse.
+
 Superseding status (2026-08-26T22:58:55Z): PASS (production topology and RT/TB runtime) - dev.15 again proves the exact companion creation, ownership, progression handoff, control, movement, Bite/Hoof/Hoof topology, and RT/TB Bite chains. It also advances the aggregate through mounted RT/TB movement. Its later restored `FAIL 41/1` is confined to a Rider-primary diagnostic click while native post-TB mode remained `Pause`; it is not a companion failure. Dev.16 changes only that diagnostic transition and leaves the production companion contract unchanged. Death/recovery/respec remain pending the continued aggregate.
 
 Superseding status (2026-08-26T21:30:54Z): PASS (production topology and RT/TB runtime) - dev.14 again proves the exact companion registration, progression handoff, control, movement, Bite/Hoof/Hoof topology, and one exact RT and TB Bite chain. Its later restored `FAIL 33/1` is confined to the mounted aggregate's scenario-owned post-TB Pause boundary before remount; it is not a companion failure. Dev.15 changes only that diagnostic transition and leaves the production companion contract unchanged. Death/recovery/respec and mounted rows remain pending the single final aggregate.
@@ -24,7 +26,7 @@ Superseding status (2026-08-26T03:40:00Z): PASS (offline) - native progression m
 
 Superseding status (2026-08-25T21:29:32Z): PASS — construction and unmounted runtime contracts implemented; live aggregate qualification remains required.
 
-Status: PASS — production construction gate open; runtime qualification remains required
+Status: PASS - production construction and bounded runtime qualification complete; human save/load review required
 
 Date: 2026-08-25
 

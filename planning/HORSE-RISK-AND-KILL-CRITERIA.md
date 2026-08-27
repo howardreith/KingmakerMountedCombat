@@ -1,6 +1,8 @@
 # Horse risk and kill criteria
 
-Status: IN PROGRESS
+Status: PASS (technical) - no kill criterion fired; mandatory human review remains
+
+Final disposition (2026-08-27T03:40:27Z): exact dev.17 horse runtime passed in-game `51/0`, same-package targeted Mammoth regression passed `62/0`, independent restoration audits passed, prohibited-payload gates remained clean, and the exact package was installed through the guarded helper. H1-H7 and H9-H14 are technically mitigated within the authorized private-alpha scope. H8 remains a human judgment gate for seat/stirrup/leg pose, gait/turn/stop/reverse feel, clipping, and overall usability; it is not a technical failure and is not waived. Actual save/reload persistence and respec-before-uninstall behavior also remain on the manual checklist. No result authorizes Paladin Divine Steed, public release, horse-branch merge, or other excluded content.
 
 | ID | Risk | Required mitigation | Kill / stop criterion |
 |---|---|---|---|
@@ -20,4 +22,3 @@ Status: IN PROGRESS
 | H14 | Scope expands to unauthorized rules/content | explicit source and review gates | Paladin implementation, small riders, ranged/spells/feats/AoO/charge/enemy riders/persistent mounting/auto-remount appears |
 
 Failed evidence is preserved and never relabeled. A build or main-menu load is not runtime qualification. A technically qualified horse still stops for the required human visual/gameplay judgment.
-

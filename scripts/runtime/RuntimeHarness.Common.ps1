@@ -5013,6 +5013,9 @@ function Assert-KmcHorseCompanionUnmountedEvidence {
         )
         if ([long]$artifact.schemaVersion -ge 2) {
             $observationNames = @($observationNames + @(
+                'realTimePreDispatchStandardType','realTimePreDispatchStandardRunning',
+                'realTimePreDispatchStandardAiActionPresent','realTimePreDispatchStandardTargetExact',
+                'realTimeAttackAtDispatch',
                 'realTimeForcedD20Count','realTimeUnexpectedPairAttackCount',
                 'turnBasedForcedD20Count','turnBasedUnexpectedPairAttackCount',
                 'turnBasedPostDispatchStartTurnRequestCount'
@@ -5094,7 +5097,16 @@ function Assert-KmcHorseCompanionUnmountedEvidence {
             [long]$o.turnBasedAttackRules -ne 1 -or [long]$o.turnBasedAttackRolls -ne 1 -or
             [long]$o.turnBasedDamageRules -ne 1 -or [long]$o.turnBasedDamage -le 0 -or
             ([long]$artifact.schemaVersion -ge 2 -and
-              ([long]$o.realTimeForcedD20Count -lt 1 -or [long]$o.realTimeUnexpectedPairAttackCount -ne 0 -or
+              ([string]$o.realTimePreDispatchStandardType -cne 'Kingmaker.UnitLogic.Commands.UnitAttack' -or
+               $o.realTimePreDispatchStandardRunning -ne $true -or
+               $o.realTimePreDispatchStandardAiActionPresent -ne $true -or
+               $o.realTimePreDispatchStandardTargetExact -ne $true -or
+               $null -eq $o.realTimeAttackAtDispatch -or
+               [string]$o.realTimeAttackAtDispatch.plannedWeaponGuid -cne [string]$o.fullAttackWeaponGuids[0] -or
+               $o.realTimeAttackAtDispatch.commandReferenceInStandardSlot -ne $true -or
+               $o.realTimeAttackAtDispatch.commandContained -ne $true -or
+               $o.realTimeAttackAtDispatch.commandCanStart -ne $true -or
+               [long]$o.realTimeForcedD20Count -lt 1 -or [long]$o.realTimeUnexpectedPairAttackCount -ne 0 -or
                [long]$o.turnBasedForcedD20Count -lt 1 -or [long]$o.turnBasedUnexpectedPairAttackCount -ne 0 -or
                [long]$o.turnBasedPostDispatchStartTurnRequestCount -ne 0)) -or
             $o.targetCleanupExact -ne $true -or [long]$o.lethalDamage -le 0 -or [long]$o.recoveredDamage -ne 0 -or

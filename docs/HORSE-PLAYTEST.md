@@ -1,5 +1,11 @@
 # Horse private-alpha playtest
 
+## Ready artifact - 2026-08-27T03:40:27Z
+
+Status: READY - exact package installed; manual visual and gameplay review required.
+
+The exact dev.17 implementation passed in-game horse qualification `51/0` and same-package targeted Mammoth regression `62/0`, with independent audit-before-evidence restoration. Automation proves command/action ownership and bounded behavior; it does not claim ordinary mouse feel, presentation quality, or real save/reload usability.
+
 Technical note (2026-08-27T00:31:21Z): dev.16 is historical independently audited restored `FAIL 43/1`. It proves registration `13/0`, horse behavior `30/1`, and the complete mounted Rider-primary production chain. Its only failure is the Horse-primary admission gate treating the qualified first additional-limb Bite as ineligible because of a retained Mammoth primary-hand assumption. Dev.17 narrowly accepts exact first-limb Bite while preserving exact slot/weapon identity and rejecting every broader candidate. It is offline-green but is not a playtest artifact until the one authorized clean mounted aggregate passes.
 
 Technical note (2026-08-26T22:58:55Z): dev.15 is historical independently audited restored `FAIL 41/1`. It proves registration `13/0`, horse behavior `28/1`, target-selected Mount, the horse-specific profile, RT/TB mounted movement, and pair retention. Its only failure is the guarded scenario clicking Rider primary while native post-TB mode remained `Pause`, producing the intended `LifecycleBoundary` rejection. Dev.16 releases time within the existing pause-restoration lease before that click. It is offline-green but is not a playtest artifact until the continued mounted aggregate passes.
@@ -22,15 +28,43 @@ Technical note (2026-08-26T06:33:22Z): dev.5 reached combat but remains historic
 
 Technical note (2026-08-26T05:10:00Z): dev.4 runtime proves the exact Call of the Wild target-XP handoff and zero duplicate progression retries, but aggregate `20260826T043600Z-horse-companion-unmounted-dev4-passC` remains historical `FAIL 25/1` after a later guarded diagnostic-target placement defect. Dev.5 repairs only that owner-relative test boundary. No package is a playtest artifact until the complete aggregate and mounted-horse qualification pass.
 
-Status: TODO — do not use until an exact qualified package is recorded below
+Historical status below: TODO (superseded by the ready artifact above)
 
 ## Artifact identity
 
-Branch, commit, version, package path/hash, manifest hash, DLL hash/MVID, gate totals, and credited runtime rows will be filled only after technical qualification. A locally built or ad hoc DLL is not a playtest artifact.
+- branch: `codex/mounted-combat-phase3-horse`
+- implementation commit: `04a86870322f136bc3d7423b2e0ef31cf06d4145`
+- version / UMM ID: `0.1.0-phase3b-dev.17` / `KingmakerMountedCombat`
+- package: `C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-phase3b-dev.17-diagnostic.zip`
+- package SHA-256: `5d61b8febad67637954ad52f7e0bf8f6081fc2ffa87266407721fc00b4d5585e`
+- manifest SHA-256: `75bb23b5289cce77799f8001f6966346cd324ac80c787fe1bcf49ea4e0963ced`
+- DLL SHA-256 / MVID: `505c5c983ad94bbfc7e287284743427bc331d90fd6d4f9d6aacc16fe653e6875` / `4d9fff51-a040-41d4-b642-6f433c7a4b6a`
+- package contents: 335-byte `Info.json`; 1,339,904-byte `KingmakerMountedCombat.dll`
+- horse runtime: `20260827T014000Z-horse-mounted-dev17-passF`, in-game `51/0` (`13/0` registration, `38/0` behavior)
+- Mammoth regression: `20260827T030300Z-mammoth-primary-dev17-passA`, `62/0`
+- offline gates: source `21/0`, Release, component `254/0`, visual/source-order `17/0`, harness `232/0`, assembly `349/0`, PowerShell parser `28/0`, JSON parser `7/0`, diff/package/prohibited-payload PASS
 
 ## Installation and uninstall
 
-Exact guarded deployment-helper commands will be recorded for the immutable package. Do not manually copy files into the live Mods directory.
+The exact package is already installed and byte-verified in the local Kingmaker UMM Mods directory. Do not manually copy or edit the live payload.
+
+Fresh install when KMC is absent:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "C:\Dev\KingmakerMountedCombatLab\codex-policy\Manage-KingmakerMountedCombatDeployment.ps1" -Operation Install -PackagePath "C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-phase3b-dev.17-diagnostic.zip" -Confirm:$false
+```
+
+Guarded replacement when another KMC version is installed:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "C:\Dev\KingmakerMountedCombatLab\codex-policy\Manage-KingmakerMountedCombatDeployment.ps1" -Operation Replace -PackagePath "C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-phase3b-dev.17-diagnostic.zip" -Confirm:$false
+```
+
+Guarded uninstall:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "C:\Dev\KingmakerMountedCombatLab\codex-policy\Manage-KingmakerMountedCombatDeployment.ps1" -Operation Uninstall -Confirm:$false
+```
 
 Before uninstalling a save that selected the KMC horse companion, respec to a stock companion choice and save unmounted. Removing a mod-defined companion blueprint from a save that still references it is unsupported.
 

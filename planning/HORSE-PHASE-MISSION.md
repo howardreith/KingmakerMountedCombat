@@ -1,8 +1,16 @@
 # Horse phase mission
 
-Status: IN PROGRESS
+Status: PASS (technical) - manual visual/gameplay review required
 
 Date: 2026-08-25
+
+## Final technical disposition - 2026-08-27
+
+The authorized horse-alpha implementation is complete at exact implementation commit `04a86870322f136bc3d7423b2e0ef31cf06d4145`, version `0.1.0-phase3b-dev.17`. Immutable package SHA-256 is `5d61b8febad67637954ad52f7e0bf8f6081fc2ffa87266407721fc00b4d5585e`; its manifest/DLL SHA-256 are `75bb23b5289cce77799f8001f6966346cd324ac80c787fe1bcf49ea4e0963ced` / `505c5c983ad94bbfc7e287284743427bc331d90fd6d4f9d6aacc16fe653e6875`, with MVID `4d9fff51-a040-41d4-b642-6f433c7a4b6a`.
+
+Credited audited runtime evidence is horse aggregate `20260827T014000Z-horse-mounted-dev17-passF`, whose immutable game records pass registration `13/0` and horse behavior `38/0` (`51/0` total), plus targeted Mammoth regression `20260827T030300Z-mammoth-primary-dev17-passA`, `62/0`. The exact package is installed locally through the guarded deployment helper. Technical completion does not claim ordinary pointer feel, visual seat/gait quality, actual disk save/reload, public-release readiness, stock mounted right-click/auto-attack, unified turns, mounted ranged combat, or Paladin implementation. Those boundaries remain explicit in the playtest and implementation reports.
+
+Tranches 0 through D are technically complete within the private-alpha scope. Tranche E remains design only. The next authorized action is human visual/gameplay review of the exact installed package; the horse branch must not merge to `main` before acceptance.
 
 ## Authority and starting identity
 
@@ -75,4 +83,3 @@ Map the exact Paladin level-5 Divine Bond selection and design horse progression
 ## Explicit exclusions
 
 This mission does not authorize Paladin Divine Steed implementation, Small riders, another mount species, mounted ranged combat, mounted spellcasting rules, mounted feats, mounted AoO, mounted charge, enemy riders, persistent mounted state, automatic remount, public release, or horse-branch integration to `main`.
-

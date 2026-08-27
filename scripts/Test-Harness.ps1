@@ -9069,6 +9069,9 @@ try {
             runtimeSize='Large';speedFeet=50;hitPoints=40;armorClass=18;movementDisplacement=1.8
             movementRemainingDistance=0.1;ownerDisplacementDuringHorseMove=0.0;targetOwnerDistance=4.0;targetHorseDistance=2.0
             fullAttackWeaponGuids=@($biteGuid,'b0e472a49ff2a294f93faa3ab757a4a5','b0e472a49ff2a294f93faa3ab757a4a5')
+            realTimePreDispatchStandardType='Kingmaker.UnitLogic.Commands.UnitAttack';realTimePreDispatchStandardRunning=$true
+            realTimePreDispatchStandardAiActionPresent=$true;realTimePreDispatchStandardTargetExact=$true
+            realTimeAttackAtDispatch=[ordered]@{plannedWeaponGuid=$biteGuid;commandReferenceInStandardSlot=$true;commandContained=$true;commandCanStart=$true}
             realTimeAttackWeaponGuid=$biteGuid;realTimeAttackRules=1;realTimeAttackRolls=1;realTimeDamageRules=1
             realTimeForcedD20Count=4;realTimeUnexpectedPairAttackCount=0;realTimeDamage=8
             turnBasedAttackWeaponGuid=$biteGuid;turnBasedAttackRules=1;turnBasedAttackRolls=1;turnBasedDamageRules=1
@@ -9097,6 +9100,18 @@ try {
         }
         Assert-KmcHorseCompanionUnmountedEvidence -Request $unmountedRequest -Manifest $unmountedManifest -Status PASS -SubscenarioResults @($unmountedSubresult)
 
+        $unmountedArtifact.observations.realTimePreDispatchStandardTargetExact = $false
+        Write-KmcJsonAtomic -Path $unmountedPath -Value $unmountedArtifact
+        $unmountedRecord.length=(Get-Item -LiteralPath $unmountedPath).Length
+        $unmountedRecord.sha256=(Get-KmcSha256 $unmountedPath)
+        [void](New-TestArtifactManifest -EvidenceRoot $unmountedRoot -RunId $unmountedRequest.runId -Scenario $unmountedRequest.scenario -Artifacts @($unmountedRecord))
+        $mutatedUnmountedManifest = Read-KmcJson (Join-Path $unmountedRoot 'runtime-artifacts.json')
+        $threw = $false
+        try { Assert-KmcHorseCompanionUnmountedEvidence -Request $unmountedRequest -Manifest $mutatedUnmountedManifest -Status PASS -SubscenarioResults @($unmountedSubresult) }
+        catch { $threw = $true }
+        Assert-Test $threw 'horse companion unmounted validator accepted an inexact pre-dispatch target identity'
+
+        $unmountedArtifact.observations.realTimePreDispatchStandardTargetExact = $true
         $unmountedArtifact.observations.experience = 8999
         Write-KmcJsonAtomic -Path $unmountedPath -Value $unmountedArtifact
         $unmountedRecord.length=(Get-Item -LiteralPath $unmountedPath).Length
@@ -9209,6 +9224,9 @@ try {
             runtimeSize='Large';speedFeet=50;hitPoints=40;armorClass=18;movementDisplacement=1.8
             movementRemainingDistance=0.1;ownerDisplacementDuringHorseMove=0.0;targetOwnerDistance=4.0;targetHorseDistance=2.0
             fullAttackWeaponGuids=@($biteGuid,'b0e472a49ff2a294f93faa3ab757a4a5','b0e472a49ff2a294f93faa3ab757a4a5')
+            realTimePreDispatchStandardType='Kingmaker.UnitLogic.Commands.UnitAttack';realTimePreDispatchStandardRunning=$true
+            realTimePreDispatchStandardAiActionPresent=$true;realTimePreDispatchStandardTargetExact=$true
+            realTimeAttackAtDispatch=[ordered]@{plannedWeaponGuid=$biteGuid;commandReferenceInStandardSlot=$true;commandContained=$true;commandCanStart=$true}
             realTimeAttackWeaponGuid=$biteGuid;realTimeAttackRules=1;realTimeAttackRolls=1;realTimeDamageRules=1
             realTimeForcedD20Count=4;realTimeUnexpectedPairAttackCount=0;realTimeDamage=8
             turnBasedAttackWeaponGuid=$biteGuid;turnBasedAttackRules=1;turnBasedAttackRolls=1;turnBasedDamageRules=1
