@@ -355,9 +355,12 @@ namespace KingmakerMountedCombat.Diagnostics
             CreateHorseThroughNativeRangerLevelUp();
             rankFact = owner.Descriptor.GetFact(service.LevelRank) as Feature;
             horseFeatureFact = owner.Descriptor.GetFact(service.HorseFeature) as Feature;
-            Check(rankFact != null && rankFact.GetRank() == 4 && horseFeatureFact != null,
+            Check(rankFact != null && rankFact.GetRank() == 1 && horseFeatureFact != null &&
+                    owner.Descriptor.Pet != null &&
+                    string.Equals(owner.Descriptor.Pet.Blueprint?.AssetGuid,
+                        HorseCompanionBlueprintService.UnitGuid, StringComparison.Ordinal),
                 "feature-activation",
-                "Four native Ranger LevelUpController commits produced exact rank 4 and activated the selected KMC Horse feature once.");
+                "Four native Ranger LevelUpController commits reached Ranger 4, produced the exact Ranger-offset companion rank 1, activated Horse once, and created the exact pet.");
             if (failed != 0) { BeginCleanup(); return; }
             step = EngineStep.AwaitHorseSpawn;
         }
@@ -379,6 +382,12 @@ namespace KingmakerMountedCombat.Diagnostics
             var originalRangerLevel = owner.Descriptor.Progression.GetClassLevel(ranger);
             var originalAutoLevelup = SettingsRoot.Instance.AutoLevelup.CurrentValue;
             var commits = 0;
+            var huntersBondSelectionLevel = -1;
+            var rangerCompanionSelectionLevel = -1;
+            if (originalRangerLevel != 0)
+            {
+                throw new InvalidOperationException("The disposable native-level-up owner already has Ranger levels: " + originalRangerLevel + ".");
+            }
             try
             {
                 // The Working fixture enables automatic plans globally. Disable
@@ -400,6 +409,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         if (rangerLevel == 4)
                         {
                             var bondState = FindExactSelection(controller, huntersBond);
+                            huntersBondSelectionLevel = bondState.Level;
                             var companionItem = bondState.Selection.Items.SingleOrDefault(item =>
                                 ReferenceEquals(item.Feature, rangerCompanion));
                             if (companionItem == null || !controller.SelectFeature(bondState, companionItem))
@@ -408,6 +418,7 @@ namespace KingmakerMountedCombat.Diagnostics
                             }
 
                             var companionState = FindExactSelection(controller, rangerCompanion);
+                            rangerCompanionSelectionLevel = companionState.Level;
                             var horseItem = companionState.Selection.Items.SingleOrDefault(item =>
                                 ReferenceEquals(item.Feature, service.HorseFeature));
                             if (horseItem == null || !controller.SelectFeature(companionState, horseItem))
@@ -442,19 +453,30 @@ namespace KingmakerMountedCombat.Diagnostics
                 SettingsRoot.Instance.AutoLevelup.CurrentValue = originalAutoLevelup;
             }
 
-            var selectionLevel = owner.Descriptor.Progression.CharacterLevel;
-            var bondSelections = owner.Descriptor.Progression.GetSelections(huntersBond, selectionLevel);
-            var companionSelections = owner.Descriptor.Progression.GetSelections(rangerCompanion, selectionLevel);
+            var bondSelections = owner.Descriptor.Progression.GetSelections(huntersBond, huntersBondSelectionLevel);
+            var companionSelections = owner.Descriptor.Progression.GetSelections(
+                rangerCompanion, rangerCompanionSelectionLevel);
             var feature = owner.Descriptor.GetFact(service.HorseFeature) as Feature;
+            var rank = owner.Descriptor.GetFact(service.LevelRank)?.GetRank() ?? 0;
+            var pet = owner.Descriptor.Pet;
+            observations["nativeRangerCommitCount"] = commits;
+            observations["huntersBondSelectionLevel"] = huntersBondSelectionLevel;
+            observations["rangerCompanionSelectionLevel"] = rangerCompanionSelectionLevel;
+            observations["horseFactRankAtCommit"] = rank;
+            observations["horsePresentAtNativeCommit"] = pet != null &&
+                string.Equals(pet.Blueprint?.AssetGuid, HorseCompanionBlueprintService.UnitGuid, StringComparison.Ordinal);
+            observations["horseFeatureSourceGuid"] = feature?.Source?.AssetGuid;
             Check(
                 commits == 4 &&
                 owner.Descriptor.Progression.CharacterLevel == originalCharacterLevel + 4 &&
                 owner.Descriptor.Progression.GetClassLevel(ranger) == originalRangerLevel + 4 &&
+                huntersBondSelectionLevel == 4 && rangerCompanionSelectionLevel == 4 &&
                 bondSelections.Count(item => ReferenceEquals(item, rangerCompanion)) == 1 &&
                 companionSelections.Count(item => ReferenceEquals(item, service.HorseFeature)) == 1 &&
-                feature != null && feature.Source != null,
+                feature != null && feature.Source != null && rank == 1 && pet != null &&
+                string.Equals(pet.Blueprint?.AssetGuid, HorseCompanionBlueprintService.UnitGuid, StringComparison.Ordinal),
                 "native-ranger-level-up-commit",
-                "The exact native preview/select/commit pipeline recorded Hunter's Bond -> Ranger companion -> Horse at the committed character level.");
+                "The exact native preview/select/commit pipeline recorded Hunter's Bond -> Ranger companion -> Horse at Ranger progression level 4, retained feature source, granted rank 1, and created the exact pet.");
         }
 
         private static FeatureSelectionState FindExactSelection(
@@ -534,16 +556,16 @@ namespace KingmakerMountedCombat.Diagnostics
                     player.ControllableCharacters.Contains(horse) && !player.PartyCharacters.Any(item => item.Value == horse),
                 "party-control-surface",
                 "The horse is directly controllable through the native pet surface without becoming a duplicate party character.");
-            Check(companionAddPet != null && expectedCharacterLevel == 4 && expectedExperience >= 0 &&
+            Check(companionAddPet != null && expectedCharacterLevel == 2 && expectedExperience >= 0 &&
                     companionAddPet.NativeProgressionReady &&
                     (classProgressionSynchronized ||
                      (manualLevelingReady && experience == expectedExperience)) &&
-                    rankFact.GetRank() == 4 &&
+                    rankFact.GetRank() == 1 &&
                     !companionAddPet.DeferredProgressionPending && !companionAddPet.DeferredProgressionFailed &&
                     companionAddPet.DeferredNativeAttempts <= HorseCompanionProgressionPolicy.MaximumDeferredNativeAttempts &&
-                    upgrade != null && upgrade.GetRank() == 1,
+                    upgrade == null,
                 "rank-progression-and-upgrade",
-                "Stock AddPet mapped rank 4 to committed animal-companion level 4 or the exact native manual-leveling XP threshold, and applied the KMC rank-4 upgrade once without a duplicate progression update.");
+                "Stock AddPet mapped Ranger 4's effective companion rank 1 to animal-companion level 2 or the exact native manual-leveling XP threshold, without prematurely applying the rank-4 upgrade or duplicating progression.");
             Check(horse.Descriptor.State.Size == Size.Large && horse.Blueprint.Speed.Value == 50 &&
                     string.Equals(horse.Blueprint.Prefab?.AssetId, "5e0b93738ad54dd4ba101b3513ac4590", StringComparison.Ordinal) &&
                     (int)horse.Stats.HitPoints > 0 && (int)horse.Stats.AC > 0,

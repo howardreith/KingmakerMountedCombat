@@ -68,7 +68,10 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.Blueprints.BlueprintScriptableObject',0x06009636,'set_AssetGuid'),
         @('Kingmaker.Blueprints.ResourcesLibrary',0x060096FE,'get_LibraryObject'),
         @('Kingmaker.Blueprints.LibraryScriptableObject',0x060096CA,'get_BlueprintsByAssetId'),
+        @('Kingmaker.Blueprints.LibraryScriptableObject',0x060096D1,'GetAllBlueprints'),
+        @('Kingmaker.Blueprints.Classes.Selection.BlueprintFeatureSelection',0x04006AE8,'Features'),
         @('Kingmaker.Blueprints.Classes.Selection.BlueprintFeatureSelection',0x04006AE9,'AllFeatures'),
+        @('Kingmaker.Blueprints.Classes.BlueprintFeature',0x04006A1D,'DlcType'),
         @('Kingmaker.Blueprints.BlueprintUnit',0x04005FFD,'m_Portrait'),
         @('Kingmaker.Blueprints.Facts.BlueprintUnitFact',0x04006955,'m_DisplayName'),
         @('Kingmaker.Blueprints.Facts.BlueprintUnitFact',0x04006956,'m_Description'),
@@ -88,6 +91,9 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.Blueprints.Classes.BlueprintStatProgression',0x06009B59,'GetBonus'),
         @('Kingmaker.UnitLogic.UnitProgressionData',0x06001F61,'get_CharacterLevel'),
         @('Kingmaker.UnitLogic.UnitProgressionData',0x06001F64,'get_Experience'),
+        @('Kingmaker.UnitLogic.UnitProgressionData',0x06001F70,'AddSelection'),
+        @('Kingmaker.UnitLogic.Feature',0x04001521,'<Source>k__BackingField'),
+        @('Kingmaker.UnitLogic.Class.LevelUp.Actions.SelectFeature',0x060028E4,'Apply'),
         @('Kingmaker.ElementsSystem.ElementsContext',0x060083E5,'GetData'),
         @('Kingmaker.UnitLogic.UnitDescriptor',0x06001F17,'SetMaster'),
         @('Kingmaker.UnitLogic.UnitDescriptor',0x06001F16,'RemoveMaster'),
@@ -310,6 +316,27 @@ if($Target-eq'Kingmaker'){
         $weakResourceLoadParameters.Count-eq1 -and $weakResourceLoadParameters[0].ParameterType.FullName-ceq'System.Boolean' -and
         $weakResourceLoadParameters[0].IsOptional -and $weakResourceLoadParameters[0].DefaultValue-eq$false) `
         'native WeakResourceLink<T>.Load(Boolean ignorePreloadWarning=false) view-observation seam'
+    $allBlueprintsMethod=@(Find-Token 'Kingmaker.Blueprints.LibraryScriptableObject' 0x060096D1)
+    $selectionFeaturesField=@(Find-Token 'Kingmaker.Blueprints.Classes.Selection.BlueprintFeatureSelection' 0x04006AE8)
+    $selectionAllFeaturesField=@(Find-Token 'Kingmaker.Blueprints.Classes.Selection.BlueprintFeatureSelection' 0x04006AE9)
+    $dlcTypeField=@(Find-Token 'Kingmaker.Blueprints.Classes.BlueprintFeature' 0x04006A1D)
+    Assert-Contract ($allBlueprintsMethod.Count-eq1 -and $allBlueprintsMethod[0].IsPublic -and
+        -not $allBlueprintsMethod[0].IsStatic -and $allBlueprintsMethod[0].GetParameters().Count-eq0 -and
+        $allBlueprintsMethod[0].ReturnType.FullName-ceq'System.Collections.Generic.List`1[[Kingmaker.Blueprints.BlueprintScriptableObject, Assembly-CSharp, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null]]' -and
+        $selectionFeaturesField.Count-eq1 -and $selectionFeaturesField[0].IsPublic -and
+        $selectionFeaturesField[0].FieldType.FullName-ceq'Kingmaker.Blueprints.Classes.BlueprintFeature[]' -and
+        $selectionAllFeaturesField.Count-eq1 -and $selectionAllFeaturesField[0].IsPublic -and
+        $selectionAllFeaturesField[0].FieldType.FullName-ceq'Kingmaker.Blueprints.Classes.BlueprintFeature[]' -and
+        $dlcTypeField.Count-eq1 -and $dlcTypeField[0].IsPublic -and
+        $dlcTypeField[0].FieldType.FullName-ceq'Kingmaker.Blueprints.Root.DlcType') `
+        'native canonical blueprint list dual Ranger selection arrays and DLC entitlement surface'
+    $selectFeatureApply=@(Find-Token 'Kingmaker.UnitLogic.Class.LevelUp.Actions.SelectFeature' 0x060028E4)
+    Assert-Contract ($selectFeatureApply.Count-eq1 -and $selectFeatureApply[0].IsPublic -and
+        -not $selectFeatureApply[0].IsStatic -and $selectFeatureApply[0].ReturnType.FullName-ceq'System.Void' -and
+        $selectFeatureApply[0].GetParameters().Count-eq2 -and
+        (Test-MethodIlContainsToken $selectFeatureApply[0] 0x06001F70) -and
+        (Test-MethodIlContainsToken $selectFeatureApply[0] 0x06001E20)) `
+        'native SelectFeature commit records progression-level selection and assigns feature source'
     $addPetUpdate=@(Find-Token 'Kingmaker.UnitLogic.FactLogic.AddPet' 0x06002510)
     $addPetDeactivate=@(Find-Token 'Kingmaker.UnitLogic.FactLogic.AddPet' 0x0600250D)
     $addPetLevel=@(Find-Token 'Kingmaker.UnitLogic.FactLogic.AddPet' 0x06002512)

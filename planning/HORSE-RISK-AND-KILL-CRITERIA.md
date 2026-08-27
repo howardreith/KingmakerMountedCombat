@@ -1,5 +1,7 @@
 # Horse risk and kill criteria
 
+Superseding checkpoint (2026-08-27T14:16:40Z): H6 is reopened at the human Ranger creation/persistence boundary. Dev.18 proves native selection commit and immediate pet creation but does not override the human failure or prove disk persistence. Dev.19 receives one clean unmounted qualification after its canonical registration repair. A genuine creation/ownership/control failure or any restoration ambiguity ends the cycle; mounted presentation and Paladin work remain frozen.
+
 Status: PASS (technical) - no kill criterion fired; mandatory human review remains
 
 Final disposition (2026-08-27T03:40:27Z): exact dev.17 horse runtime passed in-game `51/0`, same-package targeted Mammoth regression passed `62/0`, independent restoration audits passed, prohibited-payload gates remained clean, and the exact package was installed through the guarded helper. H1-H7 and H9-H14 are technically mitigated within the authorized private-alpha scope. H8 remains a human judgment gate for seat/stirrup/leg pose, gait/turn/stop/reverse feel, clipping, and overall usability; it is not a technical failure and is not waived. Actual save/reload persistence and respec-before-uninstall behavior also remain on the manual checklist. No result authorizes Paladin Divine Steed, public release, horse-branch merge, or other excluded content.

@@ -1,5 +1,13 @@
 # Horse private-alpha playtest
 
+## Stabilization hold - 2026-08-27T14:16:40Z
+
+Status: NOT READY. The dev.17 artifact below failed the human Ranger companion-creation gate and has been removed through the guarded deployment helper. Do not reinstall it, continue mounted presentation review, merge the horse branch, or begin Paladin work.
+
+Dev.18 proved that the exact native Ranger level-up path can commit the Horse feature and create the exact pet; its two failures were incorrect rank/selection-level assertions. Dev.19 hardens canonical registration and corrects the Ranger-4 contract. A new install command and focused Ranger level-up/save/reload/respec checklist will replace this hold only after one clean independently audited unmounted qualification.
+
+The older ready-artifact section is retained solely as historical identity and is superseded by this hold.
+
 ## Ready artifact - 2026-08-27T03:40:27Z
 
 Status: READY - exact package installed; manual visual and gameplay review required.

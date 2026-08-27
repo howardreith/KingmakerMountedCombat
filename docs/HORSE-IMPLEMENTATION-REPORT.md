@@ -1,5 +1,17 @@
 # Horse implementation report
 
+## Human creation failure and bounded stabilization - 2026-08-27T14:16:40Z
+
+Status: IN PROGRESS - dev.17 is no longer a current Horse Alpha artifact; mounted review is paused.
+
+The human Ranger test saw and selected the dev.17 Horse option but did not obtain a visible companion. The exact package and failure evidence remain preserved. The prior automated creation claim was not sufficient because it inserted the rank and Horse facts directly instead of executing native level-up.
+
+Dev.18 corrected that coverage and produced decisive, independently restored evidence: four real Ranger `LevelUpController` commits exposed and selected `Hunter's Bond -> Ranger companion -> Horse`; after the fourth commit, the owner had the exact Horse feature and a non-null exact pet. The immutable run `20260827T123600Z-horse-levelup-dev18-observation` remains `FAIL 17/2`, but both failures were diagnostic: Ranger level 4 grants effective companion rank 1, not rank 4, and native selection records use Ranger progression level 4 rather than total character level 11. Native AddPet maps rank 1 to pet target level 2.
+
+Dev.19 is the bounded attributable repair. It registers each KMC blueprint exactly once in both the canonical list and GUID dictionary; updates and restores both Ranger `Features` and `AllFeatures`; assigns base-game DLC entitlement; presents `Animal Companion — Horse`; validates exactly one eligible selection item; observes feature/pet/master identity in normal play; and tests the correct Ranger-4 rank/progression result. It does not change AddPet spawn semantics, mounted behavior, the Mammoth profile, or persistence policy. Current offline gates pass source `21/0`, Release, component `254/0`, visual `17/0`, harness `232/0`, and assembly `357/0`. One clean unmounted package/suite/runtime result is required before dev.19 can be installed for focused human save/reload testing.
+
+The older “Final technical qualification” section below is historical and superseded at the player-facing companion-creation boundary. It is not a merge or test authorization.
+
 ## Final technical qualification - 2026-08-27T03:40:27Z
 
 Status: PASS (technical) - private-alpha package installed; human visual/gameplay review required.

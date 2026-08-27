@@ -1,5 +1,15 @@
 # Autonomous blockers
 
+## No critical blocker; one dev.19 real-level-up qualification is pending - 2026-08-27T14:16:40Z
+
+Status: IN PROGRESS. Dev.18's one authorized observation is complete and exactly restored. It proves the native Ranger preview/select/commit path does activate the KMC Horse feature and create a real pet at Ranger level 4. Its `FAIL 17/2` is retained honestly, but both failures are attributable to diagnostic assumptions that confused character level with Ranger progression selection level and assumed companion rank 4 instead of Ranger's effective rank 1. No AddPet spawn defect, restoration failure, repository ambiguity, account boundary, or tooling blocker is established.
+
+Dev.19 is the single attributable registration stabilization cycle. It registers the KMC trio in both canonical library surfaces, leases both Ranger selection arrays together, removes inherited DLC entitlement, uses the explicit `Animal Companion — Horse` label, records activation identity, and validates native Ranger-4 rank-1/pet-level-2 behavior without a premature rank-4 upgrade. Complete source/build/component/visual/harness/assembly gates pass `21/Release/254/17/232/357`. One clean unmounted-only package/suite/process and audit-before-read remain before a manual artifact can be installed.
+
+Mounted horse testing, Paladin Divine Steed, and `main` integration remain frozen. A genuine creation, ownership, control, persistence-precondition, or restoration failure in the one fresh dev.19 cycle is the exact stop condition.
+
+This supersedes the dev.18 observation-pending status below; neither dev.17 nor dev.18 is a current test artifact.
+
 ## Horse companion creation is reopened at the real Ranger level-up boundary - 2026-08-27T12:22:01Z
 
 Status: IN PROGRESS. Human testing invalidated dev.17 at the first required companion-creation boundary. The exact failed package and installed DLL are preserved, the repository/external-state intake is unambiguous, and no restoration, credential, account, tooling, or repository blocker exists. Mounted horse presentation/behavior testing and Paladin Divine Steed are frozen.

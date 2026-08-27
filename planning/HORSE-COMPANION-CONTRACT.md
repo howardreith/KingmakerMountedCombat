@@ -1,5 +1,7 @@
 # Horse animal-companion contract
 
+Superseding status (2026-08-27T14:16:40Z): IN PROGRESS - dev.17 failed the human Ranger-creation gate and is withdrawn as a current artifact. Exact dev.18 native observation `20260827T123600Z-horse-levelup-dev18-observation` proves four real Ranger commits select the nested Horse feature and immediately create the exact pet, but remains historical `FAIL 17/2` because the diagnostic incorrectly expected rank 4 and queried selection records at total character level. The exact Ranger-4 contract is selection level 4, effective companion rank 1, native pet target level 2 (or exact target-XP handoff), and no rank-4 upgrade. Dev.19 makes canonical list+dictionary registration, coherent `Features`+`AllFeatures` leases, base-game DLC entitlement, explicit `Animal Companion — Horse` labeling, and exact activation telemetry. Offline gates pass; one clean unmounted-only qualification and later human save/reload remain required.
+
 Final superseding status (2026-08-27T03:40:27Z): PASS (technical) - exact dev.17 aggregate `20260827T014000Z-horse-mounted-dev17-passF` passes in-game registration `13/0` and horse behavior `38/0`, with independent audit-before-read restoration. The run proves the KMC blueprint trio, Ranger `7->8->7->8` transaction, creation, reciprocal ownership, direct control, Large HorseRiding view, native manual-leveling XP handoff without duplicate progression, selection, stock movement, Bite/Hoof/Hoof topology, exact RT/TB Bite chains, death/recovery, respec removal, cleanup, and non-horse isolation. Actual disk save/reload remains human-gated under the guarded harness safety policy; respec-before-uninstall remains mandatory for any save that selected the KMC horse.
 
 Superseding status (2026-08-26T22:58:55Z): PASS (production topology and RT/TB runtime) - dev.15 again proves the exact companion creation, ownership, progression handoff, control, movement, Bite/Hoof/Hoof topology, and RT/TB Bite chains. It also advances the aggregate through mounted RT/TB movement. Its later restored `FAIL 41/1` is confined to a Rider-primary diagnostic click while native post-TB mode remained `Pause`; it is not a companion failure. Dev.16 changes only that diagnostic transition and leaves the production companion contract unchanged. Death/recovery/respec remain pending the continued aggregate.
@@ -46,9 +48,9 @@ These are runtime blueprints owned by KMC. They are not copied native GUIDs and 
 
 Exact Kingmaker 2.1.7b contracts:
 
-- `ResourcesLibrary.LibraryObject.BlueprintsByAssetId` is the loaded blueprint dictionary; `ResourcesLibrary.GetBlueprints<T>()` enumerates the exact library.
+- `ResourcesLibrary.LibraryObject.GetAllBlueprints()` and `BlueprintsByAssetId` are the canonical loaded library surfaces; every KMC definition must occur exactly once by reference and GUID in both.
 - `BlueprintScriptableObject.AssetGuid` and `ComponentsArray` are writable runtime surfaces.
-- `BlueprintFeatureSelection.AllFeatures` is the authoritative selectable list.
+- `BlueprintFeatureSelection.Items` filters `AllFeatures` through `IsDlcAvailable()`. KMC therefore keeps the serialized `Features` and runtime `AllFeatures` arrays reference-coherent under independent compare-before-restore leases, while KMC-owned features use base-game `DlcType.None`.
 - native `AddPet` owns spawn, reciprocal `SetMaster`, party event delivery, rank-to-level mapping, upgrade-level application, area-load recovery, and feature deactivation cleanup.
 - `AddClassLevels` applies the animal-companion class progression and can level an existing pet when `AddPet.TryUpdatePet` advances it.
 - `UnitDescriptor.SetMaster` establishes the reciprocal master/pet link, copies group/faction control, updates unit grouping, and supplies pet identity used by party/selection/save systems.

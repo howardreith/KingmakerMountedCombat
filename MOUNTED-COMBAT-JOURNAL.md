@@ -1,5 +1,13 @@
 # Mounted Combat journal
 
+## 2026-08-27T14:16:40Z - native Ranger level-up proves spawn; dev.19 hardens canonical registration
+
+- Diagnostic checkpoint `b09363236aa7f323569bdb1df52de093032297c1` was guarded-published and packaged as dev.18. Its package/manifest/DLL SHA-256 are `8ef44d9855aac7b7dd7c19130d2c581b18b9d50b6caad368226320152a0df6b0` / `d1a2514c5d8e730af2e1050a8dabb008c059ec332257cf04d761ac6bb409f398` / `e1e8b63dcf69515484c5db9942dd2b8bbcd3a54792f43e33f9f6ac9ce9cac180`; MVID is `3cbc278c-6f60-4178-95ae-2ffdf5f422ea`.
+- Stable suite `20260827T123200Z-horse-levelup-dev18-suite1` and targeted run `20260827T123600Z-horse-levelup-dev18-observation` completed under Working-only authority. Audit-before-read passed exact suite/save/Mods/Baseline/Working identities, all three restored transactions, and no runtime residue.
+- Registration passed `13/0`. The Horse leaf's `4/2` proves four real Ranger commits, exact nested Horse selection, committed Horse fact, and non-null exact pet. The failed assertions required the wrong selection-record level and rank. Exact `SelectFeature.Apply` records `selectionState.Level` and feature source; Ranger 4 uses progression selection level 4 and effective companion rank 1; native `AddPet` maps that rank to pet level 2. The earlier synthetic rank-4 scenario had hidden this distinction.
+- Dev.19 retains native AddPet and fixes the player-facing registration envelope: exact single registration in library list and GUID dictionary; coherent independent `Features`/`AllFeatures` leases across enable/disable/re-enable/rollback; base-game DLC entitlement; distinct `Animal Companion — Horse` selection text; one eligible Items entry; and bounded activation/pet/master telemetry. Its scenario now treats rank 1, pet level 2, and no rank-4 upgrade as the exact Ranger-4 contract.
+- Offline gates pass source `21/0`, Release, component `254/0`, visual/source-order `17/0`, harness `232/0`, and assembly `357/0`. Only one clean unmounted qualification remains; mounted and Paladin work are stopped.
+
 ## 2026-08-27T12:22:01Z - human companion creation failed; synthetic qualification replaced with native Ranger level-up
 
 - The exact dev.17 artifact installed for review failed the first player-facing horse-companion creation gate. Its identities remain handoff HEAD `2495b05dc5920746bc5a0584d97c1d3b626f0902`, package/manifest/DLL SHA-256 `5d61b8febad67637954ad52f7e0bf8f6081fc2ffa87266407721fc00b4d5585e` / `75bb23b5289cce77799f8001f6966346cd324ac80c787fe1bcf49ea4e0963ced` / `505c5c983ad94bbfc7e287284743427bc331d90fd6d4f9d6aacc16fe653e6875`, MVID `4d9fff51-a040-41d4-b642-6f433c7a4b6a`. No mounted horse result can advance until this boundary is repaired.

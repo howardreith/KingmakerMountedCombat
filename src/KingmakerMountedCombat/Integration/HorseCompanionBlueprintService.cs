@@ -93,11 +93,14 @@ namespace KingmakerMountedCombat.Integration
         private readonly Dictionary<string, string> localization = new Dictionary<string, string>(StringComparer.Ordinal)
         {
             { "KMC.Horse.Name", "Horse" },
+            { "KMC.Horse.Feature.Name", "Animal Companion — Horse" },
             { "KMC.Horse.Description", "A Large native Kingmaker horse animal companion. It is fully controllable while unmounted and can be used by KMC's private-alpha mounted profile." },
             { "KMC.Horse.Upgrade.Name", "Horse Animal Companion Advancement" },
             { "KMC.Horse.Upgrade.Description", "At animal-companion rank 4, the horse gains +2 Strength and +2 Constitution." }
         };
         private readonly List<UnityEngine.Object> ownedObjects = new List<UnityEngine.Object>();
+        private readonly Dictionary<string, string> observedActivationByOwner =
+            new Dictionary<string, string>(StringComparer.Ordinal);
         private HorseCompanionBlueprintState state;
         private string failure;
         private bool selectionDesired;
@@ -105,7 +108,9 @@ namespace KingmakerMountedCombat.Integration
         private BlueprintFeature horseFeature;
         private BlueprintFeature horseUpgrade;
         private BlueprintFeatureSelection rangerSelection;
-        private ExactAppendOnlyArrayLease<BlueprintFeature> selectionLease;
+        private ExactAppendOnlyArrayLease<BlueprintFeature> selectionFeaturesLease;
+        private ExactAppendOnlyArrayLease<BlueprintFeature> selectionAllFeaturesLease;
+        private List<BlueprintScriptableObject> blueprintList;
         private string biteGuid;
         private string biteName;
         private string hoofName;
@@ -184,6 +189,22 @@ namespace KingmakerMountedCombat.Integration
                 var owner = reference.Value;
                 var fact = owner?.Descriptor?.GetFact(horseFeature);
                 var addPet = fact?.Get<HorseCompanionAddPet>();
+                if (fact != null)
+                {
+                    var pet = owner.Descriptor.Pet;
+                    var signature = "rank=" + fact.GetRank() +
+                        ";addPet=" + (addPet != null) +
+                        ";pet=" + (pet?.UniqueId ?? "<null>") +
+                        ";blueprint=" + (pet?.Blueprint?.AssetGuid ?? "<null>") +
+                        ";master=" + (pet?.Descriptor?.Master.Value?.UniqueId ?? "<null>");
+                    string prior;
+                    if (!observedActivationByOwner.TryGetValue(owner.UniqueId, out prior) ||
+                        !string.Equals(prior, signature, StringComparison.Ordinal))
+                    {
+                        observedActivationByOwner[owner.UniqueId] = signature;
+                        logger.Info("Observed live KMC Horse feature: owner=" + owner.UniqueId + ";" + signature + ".");
+                    }
+                }
                 if (addPet == null || !addPet.DeferredProgressionPending) { continue; }
 
                 try
@@ -243,9 +264,11 @@ namespace KingmakerMountedCombat.Integration
                 FeatureGuid = horseFeature?.AssetGuid,
                 UpgradeGuid = horseUpgrade?.AssetGuid,
                 RangerSelectionGuid = rangerSelection?.AssetGuid,
-                RangerOriginalOptionCount = selectionLease?.OriginalCount ?? 0,
+                RangerOriginalOptionCount = selectionAllFeaturesLease?.OriginalCount ?? 0,
                 RangerCurrentOptionCount = rangerSelection?.AllFeatures?.Length ?? 0,
-                RangerAppendOwned = selectionLease != null && selectionLease.MatchesAppended(rangerSelection?.AllFeatures),
+                RangerAppendOwned = selectionFeaturesLease != null && selectionAllFeaturesLease != null &&
+                    selectionFeaturesLease.MatchesAppended(rangerSelection?.Features) &&
+                    selectionAllFeaturesLease.MatchesAppended(rangerSelection?.AllFeatures),
                 RangerSelectionDesired = selectionDesired,
                 NativeViewAssetId = horseUnit?.Prefab?.AssetId,
                 CompanionClassGuid = classLevels?.CharacterClass?.AssetGuid,
@@ -275,15 +298,14 @@ namespace KingmakerMountedCombat.Integration
         public void Dispose()
         {
             if (disposed) { return; }
-            if (state == HorseCompanionBlueprintState.Registered && rangerSelection != null && selectionLease != null)
+            if (state == HorseCompanionBlueprintState.Registered && rangerSelection != null &&
+                selectionFeaturesLease != null && selectionAllFeaturesLease != null)
             {
-                BlueprintFeature[] restored;
                 string error;
-                if (!selectionLease.TryRestore(rangerSelection.AllFeatures, out restored, out error))
+                if (!TryRestoreSelectionArrays(out error))
                 {
                     throw new InvalidOperationException(error);
                 }
-                rangerSelection.AllFeatures = restored;
             }
 
             // Blueprint facts may already be serialized into the active Working
@@ -295,9 +317,14 @@ namespace KingmakerMountedCombat.Integration
 
         private void Register(LibraryScriptableObject library)
         {
-            AssertReservedGuidAbsent(library, UnitGuid);
-            AssertReservedGuidAbsent(library, FeatureGuid);
-            AssertReservedGuidAbsent(library, UpgradeGuid);
+            blueprintList = library.GetAllBlueprints();
+            if (blueprintList == null)
+            {
+                throw new InvalidOperationException("The initialized blueprint library has no canonical all-blueprints list.");
+            }
+            AssertReservedGuidAbsent(library, blueprintList, UnitGuid);
+            AssertReservedGuidAbsent(library, blueprintList, FeatureGuid);
+            AssertReservedGuidAbsent(library, blueprintList, UpgradeGuid);
 
             var nativeHorse = RequireBlueprint<BlueprintUnit>(library, NativeHorseGuid, "CR1_HorseRiding");
             var mammothUnit = RequireBlueprint<BlueprintUnit>(library, MammothUnitGuid, "AnimalCompanionUnitMammoth");
@@ -326,6 +353,7 @@ namespace KingmakerMountedCombat.Integration
             stockDogInitialClassLevels = dogClassLevels.Levels;
 
             var name = NewLocalizedString("KMC.Horse.Name");
+            var featureName = NewLocalizedString("KMC.Horse.Feature.Name");
             var description = NewLocalizedString("KMC.Horse.Description");
             var upgradeName = NewLocalizedString("KMC.Horse.Upgrade.Name");
             var upgradeDescription = NewLocalizedString("KMC.Horse.Upgrade.Description");
@@ -382,7 +410,7 @@ namespace KingmakerMountedCombat.Integration
             horseFeature = CreateOwned<BlueprintFeature>("AnimalCompanionFeatureHorse");
             horseFeature.AssetGuid = FeatureGuid;
             CopyFeatureContract(mammothFeature, horseFeature);
-            SetFeaturePresentation(horseFeature, name, description, ResolveHorseIcon(nativeHorse, dogFeature));
+            SetFeaturePresentation(horseFeature, featureName, description, ResolveHorseIcon(nativeHorse, dogFeature));
             var addPet = CreateOwned<HorseCompanionAddPet>("KMC_Horse_AddPet");
             addPet.Pet = horseUnit;
             addPet.LevelRank = levelRank;
@@ -391,14 +419,24 @@ namespace KingmakerMountedCombat.Integration
             upgradeLevel = addPet.UpgradeLevel;
             horseFeature.ComponentsArray = new BlueprintComponent[] { addPet };
 
-            library.BlueprintsByAssetId.Add(UnitGuid, horseUnit);
-            library.BlueprintsByAssetId.Add(UpgradeGuid, horseUpgrade);
-            library.BlueprintsByAssetId.Add(FeatureGuid, horseFeature);
+            AddExactBlueprintRegistration(library, horseUnit);
+            AddExactBlueprintRegistration(library, horseUpgrade);
+            AddExactBlueprintRegistration(library, horseFeature);
 
             biteGuid = bite.AssetGuid;
             biteName = bite.name;
             hoofName = hoof.name;
-            selectionLease = new ExactAppendOnlyArrayLease<BlueprintFeature>(RequireExactRangerOptions(rangerSelection), horseFeature);
+            var exactFeatures = RequireExactRangerOptions(rangerSelection.Features, "Features");
+            var exactAllFeatures = RequireExactRangerOptions(rangerSelection.AllFeatures, "AllFeatures");
+            for (var index = 0; index < exactFeatures.Length; index++)
+            {
+                if (!ReferenceEquals(exactFeatures[index], exactAllFeatures[index]))
+                {
+                    throw new InvalidOperationException("The exact Ranger Features/AllFeatures references differ at index " + index + ".");
+                }
+            }
+            selectionFeaturesLease = new ExactAppendOnlyArrayLease<BlueprintFeature>(exactFeatures, horseFeature);
+            selectionAllFeaturesLease = new ExactAppendOnlyArrayLease<BlueprintFeature>(exactAllFeatures, horseFeature);
             string error;
             if (!ApplySelectionDesired(out error))
             {
@@ -410,31 +448,54 @@ namespace KingmakerMountedCombat.Integration
         private bool ApplySelectionDesired(out string error)
         {
             error = null;
-            if (rangerSelection == null || selectionLease == null)
+            if (rangerSelection == null || selectionFeaturesLease == null || selectionAllFeaturesLease == null)
             {
                 error = "The exact Ranger selection lease is unavailable.";
                 return false;
             }
 
-            var current = rangerSelection.AllFeatures;
+            var currentFeatures = rangerSelection.Features;
+            var currentAllFeatures = rangerSelection.AllFeatures;
             if (selectionDesired)
             {
-                if (selectionLease.MatchesAppended(current)) { return true; }
-                if (!selectionLease.MatchesOriginal(current))
+                if (selectionFeaturesLease.MatchesAppended(currentFeatures) &&
+                    selectionAllFeaturesLease.MatchesAppended(currentAllFeatures))
                 {
-                    error = "The Ranger companion selection changed outside KMC before append; no overwrite was attempted.";
+                    return true;
+                }
+                if (!selectionFeaturesLease.MatchesOriginal(currentFeatures) ||
+                    !selectionAllFeaturesLease.MatchesOriginal(currentAllFeatures))
+                {
+                    error = "The Ranger companion Features/AllFeatures selection changed outside KMC before append; no overwrite was attempted.";
                     return false;
                 }
-                rangerSelection.AllFeatures = selectionLease.CreateAppendedValue();
+                rangerSelection.Features = selectionFeaturesLease.CreateAppendedValue();
+                rangerSelection.AllFeatures = selectionAllFeaturesLease.CreateAppendedValue();
                 return true;
             }
 
-            BlueprintFeature[] restored;
-            if (!selectionLease.TryRestore(current, out restored, out error))
+            return TryRestoreSelectionArrays(out error);
+        }
+
+        private bool TryRestoreSelectionArrays(out string error)
+        {
+            error = null;
+            BlueprintFeature[] restoredFeatures;
+            BlueprintFeature[] restoredAllFeatures;
+            string featuresError;
+            string allFeaturesError;
+            if (!selectionFeaturesLease.TryRestore(rangerSelection.Features, out restoredFeatures, out featuresError))
             {
+                error = "Ranger Features restore rejected: " + featuresError;
                 return false;
             }
-            rangerSelection.AllFeatures = restored;
+            if (!selectionAllFeaturesLease.TryRestore(rangerSelection.AllFeatures, out restoredAllFeatures, out allFeaturesError))
+            {
+                error = "Ranger AllFeatures restore rejected: " + allFeaturesError;
+                return false;
+            }
+            rangerSelection.Features = restoredFeatures;
+            rangerSelection.AllFeatures = restoredAllFeatures;
             return true;
         }
 
@@ -442,9 +503,16 @@ namespace KingmakerMountedCombat.Integration
         {
             if (!ReferenceEquals(library.BlueprintsByAssetId[UnitGuid], horseUnit) ||
                 !ReferenceEquals(library.BlueprintsByAssetId[FeatureGuid], horseFeature) ||
-                !ReferenceEquals(library.BlueprintsByAssetId[UpgradeGuid], horseUpgrade))
+                !ReferenceEquals(library.BlueprintsByAssetId[UpgradeGuid], horseUpgrade) ||
+                CountExactBlueprint(blueprintList, horseUnit) != 1 ||
+                CountExactBlueprint(blueprintList, horseFeature) != 1 ||
+                CountExactBlueprint(blueprintList, horseUpgrade) != 1 ||
+                horseFeature.DlcType != Kingmaker.Blueprints.Root.DlcType.None ||
+                horseUpgrade.DlcType != Kingmaker.Blueprints.Root.DlcType.None ||
+                !selectionFeaturesLease.MatchesAppended(rangerSelection.Features) ||
+                !selectionAllFeaturesLease.MatchesAppended(rangerSelection.AllFeatures))
             {
-                throw new InvalidOperationException("The initialized blueprint dictionary did not retain exact KMC horse references.");
+                throw new InvalidOperationException("The initialized library, entitlement, or Ranger selection surfaces did not retain the exact KMC horse contract.");
             }
             var addPet = horseFeature.GetComponent<AddPet>();
             var classLevels = horseUnit.GetComponent<AddClassLevels>();
@@ -467,7 +535,7 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
-        private BlueprintFeature[] RequireExactRangerOptions(BlueprintFeatureSelection selection)
+        private static BlueprintFeature[] RequireExactRangerOptions(BlueprintFeature[] features, string surface)
         {
             var expectedGuids = new[]
             {
@@ -479,16 +547,15 @@ namespace KingmakerMountedCombat.Integration
                 "ece6bde3dfc76ba4791376428e70621a",
                 "67a9dc42b15d0954ca4689b13e8dedea"
             };
-            var features = selection.AllFeatures;
             if (features == null || features.Length != expectedGuids.Length)
             {
-                throw new InvalidOperationException("The exact Ranger companion selection no longer has seven stock options.");
+                throw new InvalidOperationException("The exact Ranger companion " + surface + " surface no longer has seven stock options.");
             }
             for (var index = 0; index < expectedGuids.Length; index++)
             {
                 if (features[index] == null || !string.Equals(features[index].AssetGuid, expectedGuids[index], StringComparison.Ordinal))
                 {
-                    throw new InvalidOperationException("The exact Ranger companion option order changed at index " + index + ".");
+                    throw new InvalidOperationException("The exact Ranger companion " + surface + " option order changed at index " + index + ".");
                 }
             }
             return features;
@@ -585,7 +652,11 @@ namespace KingmakerMountedCombat.Integration
             target.HideInUI = source.HideInUI;
             target.HideInCharacterSheetAndLevelUp = source.HideInCharacterSheetAndLevelUp;
             target.HideNotAvailibleInUI = source.HideNotAvailibleInUI;
-            target.DlcType = source.DlcType;
+            // KMC owns these definitions. Copying the stock Mammoth's DLC
+            // entitlement can hide or reject the Horse on installations whose
+            // owned DLC set differs, so the private-alpha feature is explicitly
+            // base-game available.
+            target.DlcType = Kingmaker.Blueprints.Root.DlcType.None;
         }
 
         private static void SetFeaturePresentation(BlueprintFeature target, LocalizedString name, LocalizedString description, Sprite icon)
@@ -664,28 +735,48 @@ namespace KingmakerMountedCombat.Integration
             return matches[0];
         }
 
-        private static void AssertReservedGuidAbsent(LibraryScriptableObject library, string guid)
+        private static void AssertReservedGuidAbsent(
+            LibraryScriptableObject library,
+            IEnumerable<BlueprintScriptableObject> allBlueprints,
+            string guid)
         {
-            if (library.BlueprintsByAssetId.ContainsKey(guid))
+            if (library.BlueprintsByAssetId.ContainsKey(guid) ||
+                allBlueprints.Any(item => item != null && string.Equals(item.AssetGuid, guid, StringComparison.Ordinal)))
             {
                 throw new InvalidOperationException("Reserved KMC blueprint GUID collision: " + guid + ".");
             }
         }
 
+        private void AddExactBlueprintRegistration(LibraryScriptableObject library, BlueprintScriptableObject blueprint)
+        {
+            if (library == null || blueprintList == null || blueprint == null)
+            {
+                throw new InvalidOperationException("The exact KMC blueprint registration surface is unavailable.");
+            }
+            AssertReservedGuidAbsent(library, blueprintList, blueprint.AssetGuid);
+            library.BlueprintsByAssetId.Add(blueprint.AssetGuid, blueprint);
+            blueprintList.Add(blueprint);
+        }
+
+        private static int CountExactBlueprint(
+            IEnumerable<BlueprintScriptableObject> values,
+            BlueprintScriptableObject expected)
+        {
+            if (values == null || expected == null) { return 0; }
+            return values.Count(item => ReferenceEquals(item, expected) &&
+                string.Equals(item.AssetGuid, expected.AssetGuid, StringComparison.Ordinal));
+        }
+
         private void RollBackPartialRegistration(LibraryScriptableObject library)
         {
-            if (selectionLease != null && rangerSelection != null)
+            if (selectionFeaturesLease != null && selectionAllFeaturesLease != null && rangerSelection != null)
             {
-                BlueprintFeature[] restored;
                 string ignored;
-                if (selectionLease.TryRestore(rangerSelection.AllFeatures, out restored, out ignored))
-                {
-                    rangerSelection.AllFeatures = restored;
-                }
+                TryRestoreSelectionArrays(out ignored);
             }
-            RemoveExact(library, FeatureGuid, horseFeature);
-            RemoveExact(library, UpgradeGuid, horseUpgrade);
-            RemoveExact(library, UnitGuid, horseUnit);
+            RemoveExact(library, blueprintList, FeatureGuid, horseFeature);
+            RemoveExact(library, blueprintList, UpgradeGuid, horseUpgrade);
+            RemoveExact(library, blueprintList, UnitGuid, horseUnit);
             for (var index = ownedObjects.Count - 1; index >= 0; index--)
             {
                 if (ownedObjects[index] != null) { UnityEngine.Object.Destroy(ownedObjects[index]); }
@@ -695,16 +786,31 @@ namespace KingmakerMountedCombat.Integration
             horseFeature = null;
             horseUpgrade = null;
             rangerSelection = null;
-            selectionLease = null;
+            selectionFeaturesLease = null;
+            selectionAllFeaturesLease = null;
+            blueprintList = null;
         }
 
-        private static void RemoveExact(LibraryScriptableObject library, string guid, BlueprintScriptableObject expected)
+        private static void RemoveExact(
+            LibraryScriptableObject library,
+            IList<BlueprintScriptableObject> allBlueprints,
+            string guid,
+            BlueprintScriptableObject expected)
         {
-            if (library == null || expected == null) { return; }
+            if (expected == null) { return; }
             BlueprintScriptableObject current;
-            if (library.BlueprintsByAssetId.TryGetValue(guid, out current) && ReferenceEquals(current, expected))
+            if (library != null && library.BlueprintsByAssetId != null &&
+                library.BlueprintsByAssetId.TryGetValue(guid, out current) && ReferenceEquals(current, expected))
             {
                 library.BlueprintsByAssetId.Remove(guid);
+            }
+            if (allBlueprints == null) { return; }
+            for (var index = allBlueprints.Count - 1; index >= 0; index--)
+            {
+                if (ReferenceEquals(allBlueprints[index], expected))
+                {
+                    allBlueprints.RemoveAt(index);
+                }
             }
         }
 

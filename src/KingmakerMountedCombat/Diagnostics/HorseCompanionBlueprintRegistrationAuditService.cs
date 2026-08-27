@@ -88,14 +88,20 @@ namespace KingmakerMountedCombat.Diagnostics
                 BlueprintScriptableObject unitValue;
                 BlueprintScriptableObject featureValue;
                 BlueprintScriptableObject upgradeValue;
+                var allBlueprints = library?.GetAllBlueprints();
                 var exactDefinitions = library != null && library.BlueprintsByAssetId != null &&
                     library.BlueprintsByAssetId.TryGetValue(HorseCompanionBlueprintService.UnitGuid, out unitValue) &&
                     library.BlueprintsByAssetId.TryGetValue(HorseCompanionBlueprintService.FeatureGuid, out featureValue) &&
                     library.BlueprintsByAssetId.TryGetValue(HorseCompanionBlueprintService.UpgradeGuid, out upgradeValue) &&
                     ReferenceEquals(unitValue, service.HorseUnit) && ReferenceEquals(featureValue, service.HorseFeature) &&
-                    ReferenceEquals(upgradeValue, service.HorseUpgrade);
+                    ReferenceEquals(upgradeValue, service.HorseUpgrade) &&
+                    CountExactBlueprint(allBlueprints, service.HorseUnit) == 1 &&
+                    CountExactBlueprint(allBlueprints, service.HorseFeature) == 1 &&
+                    CountExactBlueprint(allBlueprints, service.HorseUpgrade) == 1 &&
+                    service.HorseFeature.DlcType == Kingmaker.Blueprints.Root.DlcType.None &&
+                    service.HorseUpgrade.DlcType == Kingmaker.Blueprints.Root.DlcType.None;
                 AddAssertion(assertions, errors, exactDefinitions,
-                    "exact-library-identities", "All three reserved KMC GUIDs resolve to the exact production-owned objects.", ref passed, ref failed);
+                    "exact-library-identities", "All three reserved KMC GUIDs resolve once by exact reference in the dictionary and canonical list with base-game entitlement.", ref passed, ref failed);
 
                 var horseUnit = service.HorseUnit;
                 var horseFeature = service.HorseFeature;
@@ -143,30 +149,35 @@ namespace KingmakerMountedCombat.Diagnostics
                     HasExactBonus(bonuses, StatType.Constitution, 2),
                     "rank-four-upgrade", "The original rank-4 upgrade contains only +2 Strength and +2 Constitution racial bonuses.", ref passed, ref failed);
                 AddAssertion(assertions, errors, HasExactLocalization(),
-                    "localization-contract", "All four KMC horse localization keys resolve to their exact owned text.", ref passed, ref failed);
+                    "localization-contract", "All five KMC horse localization keys resolve to their exact owned text, including the distinct Animal Companion — Horse selection label.", ref passed, ref failed);
 
                 var ranger = library.BlueprintsByAssetId[HorseCompanionBlueprintService.RangerSelectionGuid] as BlueprintFeatureSelection;
                 AddAssertion(assertions, errors,
-                    ranger != null && ranger.AllFeatures != null && ranger.AllFeatures.Length == 8 &&
-                    ReferenceEquals(ranger.AllFeatures[7], horseFeature) && initial.RangerAppendOwned,
-                    "ranger-append", "The exact seven stock Ranger options are preserved and Horse is appended at index 7.", ref passed, ref failed);
+                    ranger != null && HasExactHorseAppend(ranger.Features, horseFeature) &&
+                    HasExactHorseAppend(ranger.AllFeatures, horseFeature) && initial.RangerAppendOwned &&
+                    ranger.Items.Count(item => ReferenceEquals(item.Feature, horseFeature)) == 1,
+                    "ranger-append", "The exact seven stock Ranger options are preserved in Features and AllFeatures, and one eligible Horse item is appended at index 7.", ref passed, ref failed);
 
                 var disableSucceeded = service.SetSelectionEnabled(false);
                 selectionDisabled = disableSucceeded;
                 var disabled = service.CaptureSnapshot();
                 artifact["selectionDisabled"] = JObject.FromObject(disabled, JsonSerializer.Create(JsonSettings));
                 AddAssertion(assertions, errors,
-                    disableSucceeded && ranger.AllFeatures.Length == 7 && !ranger.AllFeatures.Contains(horseFeature),
-                    "exact-disable-restore", "Disabling the selection lease restores the exact seven stock options without residue.", ref passed, ref failed);
+                    disableSucceeded && HasExactStockRestore(ranger.Features, horseFeature) &&
+                    HasExactStockRestore(ranger.AllFeatures, horseFeature) &&
+                    !ranger.Items.Any(item => ReferenceEquals(item.Feature, horseFeature)),
+                    "exact-disable-restore", "Disabling both selection leases restores the exact seven stock options without an eligible Horse residue.", ref passed, ref failed);
 
                 var enableSucceeded = service.SetSelectionEnabled(true);
                 selectionDisabled = !enableSucceeded;
                 var reenabled = service.CaptureSnapshot();
                 artifact["selectionReenabled"] = JObject.FromObject(reenabled, JsonSerializer.Create(JsonSettings));
                 AddAssertion(assertions, errors,
-                    enableSucceeded && ranger.AllFeatures.Length == 8 && ReferenceEquals(ranger.AllFeatures[7], horseFeature) &&
+                    enableSucceeded && HasExactHorseAppend(ranger.Features, horseFeature) &&
+                    HasExactHorseAppend(ranger.AllFeatures, horseFeature) &&
+                    ranger.Items.Count(item => ReferenceEquals(item.Feature, horseFeature)) == 1 &&
                     reenabled.RangerAppendOwned,
-                    "exact-reenable-append", "Re-enabling restores the same reference-exact append with no duplicate.", ref passed, ref failed);
+                    "exact-reenable-append", "Re-enabling restores both reference-exact appends and one eligible Horse item with no duplicate.", ref passed, ref failed);
             }
             catch (Exception exception)
             {
@@ -219,6 +230,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var strings = LocalizationManager.CurrentPack?.Strings;
             if (strings == null) { return false; }
             return HasExactString(strings, "KMC.Horse.Name", "Horse") &&
+                HasExactString(strings, "KMC.Horse.Feature.Name", "Animal Companion — Horse") &&
                 HasExactString(strings, "KMC.Horse.Description", "A Large native Kingmaker horse animal companion. It is fully controllable while unmounted and can be used by KMC's private-alpha mounted profile.") &&
                 HasExactString(strings, "KMC.Horse.Upgrade.Name", "Horse Animal Companion Advancement") &&
                 HasExactString(strings, "KMC.Horse.Upgrade.Description", "At animal-companion rank 4, the horse gains +2 Strength and +2 Constitution.");
@@ -228,6 +240,27 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             string value;
             return strings.TryGetValue(key, out value) && string.Equals(value, expected, StringComparison.Ordinal);
+        }
+
+        private static int CountExactBlueprint(
+            IEnumerable<BlueprintScriptableObject> values,
+            BlueprintScriptableObject expected)
+        {
+            if (values == null || expected == null) { return 0; }
+            return values.Count(item => ReferenceEquals(item, expected) &&
+                string.Equals(item.AssetGuid, expected.AssetGuid, StringComparison.Ordinal));
+        }
+
+        private static bool HasExactHorseAppend(BlueprintFeature[] values, BlueprintFeature horseFeature)
+        {
+            return values != null && values.Length == 8 && ReferenceEquals(values[7], horseFeature) &&
+                values.Count(item => ReferenceEquals(item, horseFeature)) == 1;
+        }
+
+        private static bool HasExactStockRestore(BlueprintFeature[] values, BlueprintFeature horseFeature)
+        {
+            return values != null && values.Length == 7 &&
+                !values.Any(item => ReferenceEquals(item, horseFeature));
         }
 
         private static void AddAssertion(JArray assertions, IList<string> errors, bool condition, string name, string detail,
