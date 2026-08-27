@@ -47,6 +47,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private const double ScenarioTimeoutSeconds = 180.0;
         private const double MountedScenarioTimeoutSeconds = 300.0;
+        private const double LifecycleTimeoutSeconds = 30.0;
         private const double RealTimeAttackTimeoutSeconds = 20.0;
         private const double TurnBasedTurnAcquisitionTimeoutSeconds = 20.0;
         private const double TurnBasedAttackTimeoutSeconds = 20.0;
@@ -138,6 +139,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private Vector3 movementDestination;
         private string horseId;
         private int lethalDamage;
+        private double lifecycleStartedAtSeconds = -1.0;
 
         public HorseCompanionUnmountedScenarioEngine(
             RuntimeRequest request,
@@ -234,10 +236,23 @@ namespace KingmakerMountedCombat.Diagnostics
                 var scenarioDeadline = IncludesMountedAlpha
                     ? MountedScenarioTimeoutSeconds
                     : ScenarioTimeoutSeconds;
-                if (!cleanupStarted && clock.Elapsed.TotalSeconds > scenarioDeadline)
+                var lifecyclePhase = step == EngineStep.AwaitDeath ||
+                    step == EngineStep.AwaitRecovery ||
+                    step == EngineStep.AwaitRespecRemoval;
+                var expiredDeadline = HorseCompanionScenarioDeadlinePolicy.Evaluate(
+                    clock.Elapsed.TotalSeconds,
+                    scenarioDeadline,
+                    lifecyclePhase,
+                    lifecycleStartedAtSeconds,
+                    LifecycleTimeoutSeconds);
+                if (!cleanupStarted && expiredDeadline != HorseCompanionDeadlineKind.None)
                 {
-                    Fail("bounded-deadline", "Horse qualification exceeded " +
-                        scenarioDeadline.ToString("0") + " seconds at " + step + ".");
+                    var lifecycleExpired = expiredDeadline == HorseCompanionDeadlineKind.Lifecycle;
+                    var deadlineSeconds = lifecycleExpired ? LifecycleTimeoutSeconds : scenarioDeadline;
+                    Fail(
+                        lifecycleExpired ? "lifecycle-deadline" : "bounded-deadline",
+                        (lifecycleExpired ? "Horse lifecycle qualification exceeded " : "Horse qualification exceeded ") +
+                        deadlineSeconds.ToString("0") + " seconds at " + step + ".");
                     BeginCleanup();
                 }
 
@@ -1500,6 +1515,7 @@ namespace KingmakerMountedCombat.Diagnostics
             lethalDamage = (int)horse.Stats.HitPoints + (int)horse.Stats.Constitution + 1;
             horse.Damage = lethalDamage;
             observations["lethalDamage"] = lethalDamage;
+            lifecycleStartedAtSeconds = clock.Elapsed.TotalSeconds;
             step = EngineStep.AwaitDeath;
         }
 

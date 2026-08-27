@@ -1,5 +1,15 @@
 # Autonomous blockers
 
+## No critical blocker; one dev.22 diagnostic-lifecycle qualification is pending - 2026-08-27T19:58:00Z
+
+Status: IN PROGRESS. Dev.21 run `20260827T192000Z-horse-levelup-dev21-passB` is immutable restored `FAIL 34/1`, but it passes every creation/ownership/view/control/movement/RT/TB attack assertion through `21` unmounted PASSes. This technically proves the real Ranger level-up now creates a stable persistent Horse. Independent audit passed exact suite/save/Mods/Baseline/Working identity, three restored transactions, every restoration result, and zero process/lock/live-KMC residue.
+
+The only failure is the scenario's aggregate clock preempting `AwaitDeath` one frame after lethal damage was applied. Dev.22 changes diagnostics only: the existing 180-second creation/movement/combat budget remains unchanged, followed by an independently bounded 30-second death/recovery/respec window. Pure tests fail closed on invalid arming and reject overruns without inheriting the exhausted aggregate budget. Complete source/Release/component/visual/harness/assembly gates pass `21/Release/256/17/232/357`; parsers `28/0` and `7/0`, diff, and prohibited-payload checks also pass. Production behavior is byte-different only because diagnostics ship in the same DLL; Horse, Mammoth, mounting, commands, movement, attack, and persistence code are unchanged.
+
+One clean dev.22 package/suite/WhatIf/live unmounted process and audit-before-read remain. A genuine death, recovery, respec-cleanup, creation, ownership, or restoration failure in that cycle is the stop condition. Mounted horse testing, Paladin Divine Steed, and `main` integration remain frozen.
+
+This supersedes the dev.21 repair-qualification status below.
+
 ## No critical blocker; one dev.21 native level-up lifecycle repair qualification is pending - 2026-08-27T18:22:00Z
 
 Status: IN PROGRESS. Dev.20 run `20260827T173700Z-horse-levelup-dev20-passB` is immutable restored `FAIL 19/1`. It proves the real Ranger selection/commit pipeline creates the exact Horse at Ranger 4, but the Horse disappears before acquiring a stable in-world view and the run times out at `AwaitHorseSpawn`. Independent audit passed exact suite/save/Mods/Baseline/Working identity, all three restored transactions, every restoration flag, and zero process/lock/sentinel/live-KMC residue.

@@ -118,6 +118,7 @@
     <Compile Include="Domain\CommandRouting.cs" />
     <Compile Include="Domain\ExactAppendOnlyArrayLease.cs" />
     <Compile Include="Domain\HorseCompanionProgressionPolicy.cs" />
+    <Compile Include="Domain\HorseCompanionScenarioDeadlinePolicy.cs" />
     <Compile Include="Domain\IMountedPairRuntime.cs" />
     <Compile Include="Domain\MountedPair.cs" />
     <Compile Include="Domain\MountedPairCandidate.cs" />
