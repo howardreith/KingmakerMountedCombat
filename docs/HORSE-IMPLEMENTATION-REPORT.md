@@ -1,5 +1,15 @@
 # Horse implementation report
 
+## Dev.19 registration failure and dev.20 narrow repair - 2026-08-27T16:01:32Z
+
+Status: IN PROGRESS - no current Horse Alpha artifact; mounted review is paused.
+
+The clean dev.19 package reached the guarded live process but failed before Ranger level-up. Run `20260827T143000Z-horse-levelup-dev19-passA` is immutable `FAIL 4/14`: the production service rejected the live `BlueprintFeatureSelection.Features` field because it was not the exact seven-entry stock array. Independent audit passed exact suite/save/Mods/Baseline/Working restoration, all three transaction records, and zero runtime residue.
+
+This failure narrows the contract. Installed Kingmaker's selectable `Items` enumerate `AllFeatures`; the separate live `Features` field is not the Items-authoritative seven-entry array. Dev.20 leaves `Features` reference/content untouched and applies KMC's append-once, compare-before-restore lease only to exact `AllFeatures`. It retains exact single registration in the canonical list and GUID dictionary, base-game DLC entitlement, `Animal Companion — Horse`, one eligible Items entry, native AddPet, correct Ranger-4 rank-1/pet-level-2 behavior, and activation/pet/master telemetry. It changes no mounted profile, Mammoth behavior, command/action ownership, or persistence policy.
+
+Dev.20 passes source `21/0`, Release build, component `254/0`, visual/source-order `17/0`, harness `232/0`, and exact assembly `357/0`. It still requires one clean unmounted package/suite/runtime result and independent audit before installation for focused human Ranger level-up/save/reload testing.
+
 ## Human creation failure and bounded stabilization - 2026-08-27T14:16:40Z
 
 Status: IN PROGRESS - dev.17 is no longer a current Horse Alpha artifact; mounted review is paused.

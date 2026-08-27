@@ -1,5 +1,13 @@
 # Mounted Combat journal
 
+## 2026-08-27T16:01:32Z - dev.19 live registration rejection narrows selection ownership to AllFeatures
+
+- Clean published dev.19 commit/package/suite are `d86dc3f4bc445599f3384dfab53f31e8d9576222`, package SHA-256 `215af4e43acd4869939ad54c3dba0a5289367ba2bdaea7e3903f184b815c1de5`, and `20260827T142600Z-horse-levelup-dev19-suite1` / snapshot `f52a0774b7b1e083f8c0c8ecb792b6fe6f992aa93b8507708e7b40e971ae763a`. WhatIf passed exact purity.
+- Unmounted run `20260827T143000Z-horse-levelup-dev19-passA` stopped before level-up with game `FAIL 4/14`: dev.19 production registration rejected the live `Features` field because it was not the seven-entry stock selection array. The dependent Horse scenario did not run. This is an attributable regression in dev.19 hardening, not AddPet or companion-spawn evidence.
+- Audit-before-read re-proved the exact suite, save/Mods digests, immutable Baseline, restored Working, three terminal `restored` transactions, every restoration flag, and zero residue. Immutable runtime/game/registration/Horse/manifest SHA-256 are `b6f1773fd099c08479c1e963e847dff9caeed5330f722926e94bbbf07d32d826` / `e816ac2de5fd81568c830e24edc74ac8425a444e9d92ed3051c28d80bbbc2942` / `df077c62b8a8443a23ac2088e4ab200d920682d52483fd2674304e7d419b084f` / `3b5c9caf63236c9bca3216bb787636abd67b4826ab553aff54084efb8e437960` / `5c244603024c0d727e6f4e00b2fefeacfaf52cc002801a2bc9215191b7c7c2f8`.
+- Exact installed semantics resolve the repair: `Items` enumerates `AllFeatures`; `Features` is a distinct non-authoritative live field and must not be forced into the AllFeatures shape. Dev.20 leases only exact `AllFeatures`, records the untouched `Features` reference/content across enable/disable/re-enable, and changes no blueprint definition, AddPet behavior, rank mapping, mount profile, command, Mammoth behavior, or persistence policy.
+- Dev.20 offline gates pass source `21/0`, Release, component `254/0`, visual/source-order `17/0`, harness `232/0`, and assembly `357/0`. One clean unmounted runtime cycle remains before local installation and focused human persistence testing. Mounted and Paladin work remain stopped.
+
 ## 2026-08-27T14:16:40Z - native Ranger level-up proves spawn; dev.19 hardens canonical registration
 
 - Diagnostic checkpoint `b09363236aa7f323569bdb1df52de093032297c1` was guarded-published and packaged as dev.18. Its package/manifest/DLL SHA-256 are `8ef44d9855aac7b7dd7c19130d2c581b18b9d50b6caad368226320152a0df6b0` / `d1a2514c5d8e730af2e1050a8dabb008c059ec332257cf04d761ac6bb409f398` / `e1e8b63dcf69515484c5db9942dd2b8bbcd3a54792f43e33f9f6ac9ce9cac180`; MVID is `3cbc278c-6f60-4178-95ae-2ffdf5f422ea`.

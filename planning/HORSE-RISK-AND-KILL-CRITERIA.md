@@ -1,5 +1,7 @@
 # Horse risk and kill criteria
 
+Superseding checkpoint (2026-08-27T16:01:32Z): dev.19 is an exact restored registration failure, not a spawn result. Its strict dual-array lease collided with the live non-authoritative `Features` shape before Ranger level-up. Dev.20 follows the installed Items contract by leaving `Features` untouched and leasing only exact `AllFeatures`. One clean unmounted qualification remains; genuine creation/ownership/control or restoration failure stops the cycle, and mounted/Paladin work stays frozen.
+
 Superseding checkpoint (2026-08-27T14:16:40Z): H6 is reopened at the human Ranger creation/persistence boundary. Dev.18 proves native selection commit and immediate pet creation but does not override the human failure or prove disk persistence. Dev.19 receives one clean unmounted qualification after its canonical registration repair. A genuine creation/ownership/control failure or any restoration ambiguity ends the cycle; mounted presentation and Paladin work remain frozen.
 
 Status: PASS (technical) - no kill criterion fired; mandatory human review remains

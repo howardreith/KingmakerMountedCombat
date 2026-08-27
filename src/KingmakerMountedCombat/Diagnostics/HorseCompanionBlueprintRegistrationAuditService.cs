@@ -152,32 +152,37 @@ namespace KingmakerMountedCombat.Diagnostics
                     "localization-contract", "All five KMC horse localization keys resolve to their exact owned text, including the distinct Animal Companion — Horse selection label.", ref passed, ref failed);
 
                 var ranger = library.BlueprintsByAssetId[HorseCompanionBlueprintService.RangerSelectionGuid] as BlueprintFeatureSelection;
+                var untouchedFeaturesReference = ranger?.Features;
+                var untouchedFeaturesItems = ranger?.Features == null ? null : ranger.Features.ToArray();
                 AddAssertion(assertions, errors,
-                    ranger != null && HasExactHorseAppend(ranger.Features, horseFeature) &&
+                    ranger != null && FeaturesStayedUntouched(
+                        ranger.Features, untouchedFeaturesReference, untouchedFeaturesItems, horseFeature) &&
                     HasExactHorseAppend(ranger.AllFeatures, horseFeature) && initial.RangerAppendOwned &&
                     ranger.Items.Count(item => ReferenceEquals(item.Feature, horseFeature)) == 1,
-                    "ranger-append", "The exact seven stock Ranger options are preserved in Features and AllFeatures, and one eligible Horse item is appended at index 7.", ref passed, ref failed);
+                    "ranger-append", "The live Features surface remains byte-for-byte untouched; Items-authoritative AllFeatures preserves seven stock options and appends one eligible Horse at index 7.", ref passed, ref failed);
 
                 var disableSucceeded = service.SetSelectionEnabled(false);
                 selectionDisabled = disableSucceeded;
                 var disabled = service.CaptureSnapshot();
                 artifact["selectionDisabled"] = JObject.FromObject(disabled, JsonSerializer.Create(JsonSettings));
                 AddAssertion(assertions, errors,
-                    disableSucceeded && HasExactStockRestore(ranger.Features, horseFeature) &&
+                    disableSucceeded && FeaturesStayedUntouched(
+                        ranger.Features, untouchedFeaturesReference, untouchedFeaturesItems, horseFeature) &&
                     HasExactStockRestore(ranger.AllFeatures, horseFeature) &&
                     !ranger.Items.Any(item => ReferenceEquals(item.Feature, horseFeature)),
-                    "exact-disable-restore", "Disabling both selection leases restores the exact seven stock options without an eligible Horse residue.", ref passed, ref failed);
+                    "exact-disable-restore", "Disabling the AllFeatures lease restores the exact seven stock options without touching Features or leaving an eligible Horse residue.", ref passed, ref failed);
 
                 var enableSucceeded = service.SetSelectionEnabled(true);
                 selectionDisabled = !enableSucceeded;
                 var reenabled = service.CaptureSnapshot();
                 artifact["selectionReenabled"] = JObject.FromObject(reenabled, JsonSerializer.Create(JsonSettings));
                 AddAssertion(assertions, errors,
-                    enableSucceeded && HasExactHorseAppend(ranger.Features, horseFeature) &&
+                    enableSucceeded && FeaturesStayedUntouched(
+                        ranger.Features, untouchedFeaturesReference, untouchedFeaturesItems, horseFeature) &&
                     HasExactHorseAppend(ranger.AllFeatures, horseFeature) &&
                     ranger.Items.Count(item => ReferenceEquals(item.Feature, horseFeature)) == 1 &&
                     reenabled.RangerAppendOwned,
-                    "exact-reenable-append", "Re-enabling restores both reference-exact appends and one eligible Horse item with no duplicate.", ref passed, ref failed);
+                    "exact-reenable-append", "Re-enabling restores the reference-exact AllFeatures append and one eligible Horse item with no duplicate while Features remains untouched.", ref passed, ref failed);
             }
             catch (Exception exception)
             {
@@ -261,6 +266,28 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             return values != null && values.Length == 7 &&
                 !values.Any(item => ReferenceEquals(item, horseFeature));
+        }
+
+        private static bool FeaturesStayedUntouched(
+            BlueprintFeature[] current,
+            BlueprintFeature[] originalReference,
+            BlueprintFeature[] originalItems,
+            BlueprintFeature horseFeature)
+        {
+            if (!ReferenceEquals(current, originalReference)) { return false; }
+            if (current == null || originalItems == null)
+            {
+                return current == null && originalItems == null;
+            }
+            if (current.Length != originalItems.Length || current.Any(item => ReferenceEquals(item, horseFeature)))
+            {
+                return false;
+            }
+            for (var index = 0; index < current.Length; index++)
+            {
+                if (!ReferenceEquals(current[index], originalItems[index])) { return false; }
+            }
+            return true;
         }
 
         private static void AddAssertion(JArray assertions, IList<string> errors, bool condition, string name, string detail,

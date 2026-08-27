@@ -108,8 +108,7 @@ namespace KingmakerMountedCombat.Integration
         private BlueprintFeature horseFeature;
         private BlueprintFeature horseUpgrade;
         private BlueprintFeatureSelection rangerSelection;
-        private ExactAppendOnlyArrayLease<BlueprintFeature> selectionFeaturesLease;
-        private ExactAppendOnlyArrayLease<BlueprintFeature> selectionAllFeaturesLease;
+        private ExactAppendOnlyArrayLease<BlueprintFeature> selectionLease;
         private List<BlueprintScriptableObject> blueprintList;
         private string biteGuid;
         private string biteName;
@@ -264,11 +263,10 @@ namespace KingmakerMountedCombat.Integration
                 FeatureGuid = horseFeature?.AssetGuid,
                 UpgradeGuid = horseUpgrade?.AssetGuid,
                 RangerSelectionGuid = rangerSelection?.AssetGuid,
-                RangerOriginalOptionCount = selectionAllFeaturesLease?.OriginalCount ?? 0,
+                RangerOriginalOptionCount = selectionLease?.OriginalCount ?? 0,
                 RangerCurrentOptionCount = rangerSelection?.AllFeatures?.Length ?? 0,
-                RangerAppendOwned = selectionFeaturesLease != null && selectionAllFeaturesLease != null &&
-                    selectionFeaturesLease.MatchesAppended(rangerSelection?.Features) &&
-                    selectionAllFeaturesLease.MatchesAppended(rangerSelection?.AllFeatures),
+                RangerAppendOwned = selectionLease != null &&
+                    selectionLease.MatchesAppended(rangerSelection?.AllFeatures),
                 RangerSelectionDesired = selectionDesired,
                 NativeViewAssetId = horseUnit?.Prefab?.AssetId,
                 CompanionClassGuid = classLevels?.CharacterClass?.AssetGuid,
@@ -299,10 +297,10 @@ namespace KingmakerMountedCombat.Integration
         {
             if (disposed) { return; }
             if (state == HorseCompanionBlueprintState.Registered && rangerSelection != null &&
-                selectionFeaturesLease != null && selectionAllFeaturesLease != null)
+                selectionLease != null)
             {
                 string error;
-                if (!TryRestoreSelectionArrays(out error))
+                if (!TryRestoreSelection(out error))
                 {
                     throw new InvalidOperationException(error);
                 }
@@ -426,17 +424,12 @@ namespace KingmakerMountedCombat.Integration
             biteGuid = bite.AssetGuid;
             biteName = bite.name;
             hoofName = hoof.name;
-            var exactFeatures = RequireExactRangerOptions(rangerSelection.Features, "Features");
-            var exactAllFeatures = RequireExactRangerOptions(rangerSelection.AllFeatures, "AllFeatures");
-            for (var index = 0; index < exactFeatures.Length; index++)
-            {
-                if (!ReferenceEquals(exactFeatures[index], exactAllFeatures[index]))
-                {
-                    throw new InvalidOperationException("The exact Ranger Features/AllFeatures references differ at index " + index + ".");
-                }
-            }
-            selectionFeaturesLease = new ExactAppendOnlyArrayLease<BlueprintFeature>(exactFeatures, horseFeature);
-            selectionAllFeaturesLease = new ExactAppendOnlyArrayLease<BlueprintFeature>(exactAllFeatures, horseFeature);
+            // Installed BlueprintFeatureSelection.Items enumerates AllFeatures,
+            // not Features. The live Ranger Features surface is not the same
+            // seven-entry runtime selection array, so it is intentionally left
+            // untouched. Lease only the exact Items-authoritative surface.
+            selectionLease = new ExactAppendOnlyArrayLease<BlueprintFeature>(
+                RequireExactRangerOptions(rangerSelection.AllFeatures, "AllFeatures"), horseFeature);
             string error;
             if (!ApplySelectionDesired(out error))
             {
@@ -448,54 +441,39 @@ namespace KingmakerMountedCombat.Integration
         private bool ApplySelectionDesired(out string error)
         {
             error = null;
-            if (rangerSelection == null || selectionFeaturesLease == null || selectionAllFeaturesLease == null)
+            if (rangerSelection == null || selectionLease == null)
             {
                 error = "The exact Ranger selection lease is unavailable.";
                 return false;
             }
 
-            var currentFeatures = rangerSelection.Features;
-            var currentAllFeatures = rangerSelection.AllFeatures;
+            var current = rangerSelection.AllFeatures;
             if (selectionDesired)
             {
-                if (selectionFeaturesLease.MatchesAppended(currentFeatures) &&
-                    selectionAllFeaturesLease.MatchesAppended(currentAllFeatures))
+                if (selectionLease.MatchesAppended(current)) { return true; }
+                if (!selectionLease.MatchesOriginal(current))
                 {
-                    return true;
-                }
-                if (!selectionFeaturesLease.MatchesOriginal(currentFeatures) ||
-                    !selectionAllFeaturesLease.MatchesOriginal(currentAllFeatures))
-                {
-                    error = "The Ranger companion Features/AllFeatures selection changed outside KMC before append; no overwrite was attempted.";
+                    error = "The Ranger companion AllFeatures selection changed outside KMC before append; no overwrite was attempted.";
                     return false;
                 }
-                rangerSelection.Features = selectionFeaturesLease.CreateAppendedValue();
-                rangerSelection.AllFeatures = selectionAllFeaturesLease.CreateAppendedValue();
+                rangerSelection.AllFeatures = selectionLease.CreateAppendedValue();
                 return true;
             }
 
-            return TryRestoreSelectionArrays(out error);
+            return TryRestoreSelection(out error);
         }
 
-        private bool TryRestoreSelectionArrays(out string error)
+        private bool TryRestoreSelection(out string error)
         {
             error = null;
-            BlueprintFeature[] restoredFeatures;
-            BlueprintFeature[] restoredAllFeatures;
-            string featuresError;
-            string allFeaturesError;
-            if (!selectionFeaturesLease.TryRestore(rangerSelection.Features, out restoredFeatures, out featuresError))
+            BlueprintFeature[] restored;
+            string leaseError;
+            if (!selectionLease.TryRestore(rangerSelection.AllFeatures, out restored, out leaseError))
             {
-                error = "Ranger Features restore rejected: " + featuresError;
+                error = "Ranger AllFeatures restore rejected: " + leaseError;
                 return false;
             }
-            if (!selectionAllFeaturesLease.TryRestore(rangerSelection.AllFeatures, out restoredAllFeatures, out allFeaturesError))
-            {
-                error = "Ranger AllFeatures restore rejected: " + allFeaturesError;
-                return false;
-            }
-            rangerSelection.Features = restoredFeatures;
-            rangerSelection.AllFeatures = restoredAllFeatures;
+            rangerSelection.AllFeatures = restored;
             return true;
         }
 
@@ -509,8 +487,7 @@ namespace KingmakerMountedCombat.Integration
                 CountExactBlueprint(blueprintList, horseUpgrade) != 1 ||
                 horseFeature.DlcType != Kingmaker.Blueprints.Root.DlcType.None ||
                 horseUpgrade.DlcType != Kingmaker.Blueprints.Root.DlcType.None ||
-                !selectionFeaturesLease.MatchesAppended(rangerSelection.Features) ||
-                !selectionAllFeaturesLease.MatchesAppended(rangerSelection.AllFeatures))
+                !selectionLease.MatchesAppended(rangerSelection.AllFeatures))
             {
                 throw new InvalidOperationException("The initialized library, entitlement, or Ranger selection surfaces did not retain the exact KMC horse contract.");
             }
@@ -769,10 +746,10 @@ namespace KingmakerMountedCombat.Integration
 
         private void RollBackPartialRegistration(LibraryScriptableObject library)
         {
-            if (selectionFeaturesLease != null && selectionAllFeaturesLease != null && rangerSelection != null)
+            if (selectionLease != null && rangerSelection != null)
             {
                 string ignored;
-                TryRestoreSelectionArrays(out ignored);
+                TryRestoreSelection(out ignored);
             }
             RemoveExact(library, blueprintList, FeatureGuid, horseFeature);
             RemoveExact(library, blueprintList, UpgradeGuid, horseUpgrade);
@@ -786,8 +763,7 @@ namespace KingmakerMountedCombat.Integration
             horseFeature = null;
             horseUpgrade = null;
             rangerSelection = null;
-            selectionFeaturesLease = null;
-            selectionAllFeaturesLease = null;
+            selectionLease = null;
             blueprintList = null;
         }
 

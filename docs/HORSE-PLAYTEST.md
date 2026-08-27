@@ -1,5 +1,11 @@
 # Horse private-alpha playtest
 
+## Dev.20 qualification hold - 2026-08-27T16:01:32Z
+
+Status: NOT READY. Dev.19 is preserved as an independently restored registration failure and must not be installed. It stopped before Ranger level-up because its new dual-array hardening imposed the seven-entry AllFeatures shape on the distinct live `Features` field.
+
+Dev.20 leaves `Features` untouched and leases only Kingmaker's Items-authoritative `AllFeatures`. Offline gates pass, but no dev.20 package is a playtest artifact until one clean native Ranger-level-up run and audit pass. Do not resume mounted horse review, merge the horse branch, or begin Paladin work.
+
 ## Stabilization hold - 2026-08-27T14:16:40Z
 
 Status: NOT READY. The dev.17 artifact below failed the human Ranger companion-creation gate and has been removed through the guarded deployment helper. Do not reinstall it, continue mounted presentation review, merge the horse branch, or begin Paladin work.

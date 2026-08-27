@@ -1,5 +1,15 @@
 # Autonomous blockers
 
+## No critical blocker; one dev.20 Items-authoritative registration qualification is pending - 2026-08-27T16:01:32Z
+
+Status: IN PROGRESS. Dev.19 run `20260827T143000Z-horse-levelup-dev19-passA` is immutable restored `FAIL 4/14`. It never reached Ranger level-up: the newly added production requirement that `Features` itself equal the exact seven stock options faulted registration. Independent audit passed exact suite/save/Mods/Baseline/Working identity, all three restored transactions, every restoration flag, and zero process/lock/sentinel/live-KMC residue.
+
+Exact installed evidence says `BlueprintFeatureSelection.Items` is sourced from `AllFeatures`; dev.18 already proved that this Items-authoritative surface exposes Horse and native Ranger commit creates the exact pet. Dev.20 removes only the erroneous `Features` lease/shape requirement, proves that surface remains reference/content untouched during audit, and retains exact append/restore ownership on `AllFeatures`, canonical blueprint registration, base-game entitlement, explicit label, native AddPet, and all rank/progression gates. Complete source/build/component/visual/harness/assembly gates pass `21/Release/254/17/232/357`.
+
+One clean unmounted package/suite/process remains. A genuine native creation, ownership, control, or restoration failure in that exact dev.20 cycle is the stop condition. Mounted horse testing, Paladin Divine Steed, and `main` integration remain frozen.
+
+This supersedes the dev.19 qualification-pending status below; dev.19 is not a current test artifact.
+
 ## No critical blocker; one dev.19 real-level-up qualification is pending - 2026-08-27T14:16:40Z
 
 Status: IN PROGRESS. Dev.18's one authorized observation is complete and exactly restored. It proves the native Ranger preview/select/commit path does activate the KMC Horse feature and create a real pet at Ranger level 4. Its `FAIL 17/2` is retained honestly, but both failures are attributable to diagnostic assumptions that confused character level with Ranger progression selection level and assumed companion rank 4 instead of Ranger's effective rank 1. No AddPet spawn defect, restoration failure, repository ambiguity, account boundary, or tooling blocker is established.
