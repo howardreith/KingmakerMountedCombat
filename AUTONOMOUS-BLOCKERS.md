@@ -1,5 +1,13 @@
 # Autonomous blockers
 
+## Horse companion creation is reopened at the real Ranger level-up boundary - 2026-08-27T12:22:01Z
+
+Status: IN PROGRESS. Human testing invalidated dev.17 at the first required companion-creation boundary. The exact failed package and installed DLL are preserved, the repository/external-state intake is unambiguous, and no restoration, credential, account, tooling, or repository blocker exists. Mounted horse presentation/behavior testing and Paladin Divine Steed are frozen.
+
+The established qualification defect is that prior automation inserted the rank and Horse facts directly. It proved downstream `AddPet` behavior but not the player-facing Ranger selection/commit path. Dev.18 now drives the exact native `LevelUpController` preview/select/commit chain and requires durable Hunter's Bond and Ranger selection records before any downstream horse test. One targeted observation will distinguish selection filtering/registration from activation/spawn. The likely narrow production surfaces are the copied Mammoth DLC entitlement and KMC's incomplete library/selection registration contract; neither is being guessed into acceptance before runtime evidence.
+
+This supersedes the prior “horse alpha awaits review” status. Dev.17 is a historical human-gate failure, not a merge candidate.
+
 ## No critical blocker; horse alpha awaits human visual/gameplay review - 2026-08-27T03:40:27Z
 
 Status: PASS (technical) / MANUAL REVIEW REQUIRED. Exact dev.17 implementation commit `04a86870322f136bc3d7423b2e0ef31cf06d4145`, immutable package SHA-256 `5d61b8febad67637954ad52f7e0bf8f6081fc2ffa87266407721fc00b4d5585e`, and stable suite `20260827T005000Z-horse-mounted-dev17-suite1` produced in-game horse qualification `51/0` (`13/0` registration plus `38/0` horse behavior). Audit-before-read passed exact suite/save/Mods/Baseline/Working identity, all restoration booleans, and zero runtime residue. Targeted Mammoth shared-subsystem regression `20260827T030300Z-mammoth-primary-dev17-passA` passed `62/0` with the exact Mammoth-owned primary-hand chain and exact restoration. No horse-product, Mammoth, architecture, external-state, credential, or tooling blocker remains.
