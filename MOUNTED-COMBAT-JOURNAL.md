@@ -1,5 +1,13 @@
 # Mounted Combat journal
 
+## 2026-08-27T18:22:00Z - dev.20 reproduces the player-facing spawn failure; dev.21 preserves native reattachment
+
+- Starting authority is clean guarded-published `fc2d29785e6fd4e8e65c51e82403c295e87b2610`, version `0.1.0-phase3b-dev.20`, package/suite `a9298d5a35e02e6d1c6118640bfb969bfec40953f888d9e4ecc7f092c029618e` / `20260827T161431Z-horse-levelup-dev20-suite1`. Suite snapshot SHA-256 is `af1cc6cd9dcf8773d7d0de232be97b6aabc83e6b069109d1efc14230f4412f7b`; exact WhatIf passed.
+- The sandboxed passA reservation never launched Kingmaker and was recovered/audited exactly. Elevated passB `20260827T173700Z-horse-levelup-dev20-passB` is credited historical `FAIL 19/1`: registration `13/0`, unmounted `6/1`, sole failure `AwaitHorseSpawn` deadline. It proves four native Ranger commits, both exact nested level-4 selections, rank 1, retained feature source, and an exact Horse present at native commit; the next observation sees no pet/view. Audit-before-read passed exact external restoration and zero residue.
+- Installed code contracts and runtime ordering identify KMC's eager `HorseCompanionAddPet.OnFactDeactivate` destruction as the defect. Native commit invokes owner `TurnOff(false)` / `TurnOn`; stock `AddPet` only removes the master during deactivation so the same pet can be reattached. KMC instead destroyed it before reactivation.
+- Version advances immutably to `0.1.0-phase3b-dev.21`. The repair schedules one-frame deferred cleanup and destroys only the exact live Horse that remains masterless and nonreciprocal to its former owner. It preserves native transient reattachment and retains true respec/removal orphan cleanup. Complete offline gates pass source/Release/component/visual/harness/assembly `21/Release/255/17/232/357` (`333` Kingmaker + `24` Wrath), parsers `28/0` and `7/0`, diff, and prohibited payload. Dirty DLL SHA-256/MVID are `8f19ec5f0d2331d4ebcae0cc6514d1b2c01682ad11e2b245181260f44ed88ea0` / `d56bfc1d-bc70-4037-a7b0-2e890aec03b0` and are not package identity.
+- Next: full gates, guarded publication, clean package/suite/WhatIf, one elevated unmounted-only run, mandatory audit, then evidence interpretation and local install only on complete PASS. Mounted horse, Paladin, `main`, and public release remain out of scope.
+
 ## 2026-08-27T16:01:32Z - dev.19 live registration rejection narrows selection ownership to AllFeatures
 
 - Clean published dev.19 commit/package/suite are `d86dc3f4bc445599f3384dfab53f31e8d9576222`, package SHA-256 `215af4e43acd4869939ad54c3dba0a5289367ba2bdaea7e3903f184b815c1de5`, and `20260827T142600Z-horse-levelup-dev19-suite1` / snapshot `f52a0774b7b1e083f8c0c8ecb792b6fe6f992aa93b8507708e7b40e971ae763a`. WhatIf passed exact purity.

@@ -9,6 +9,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("horse companion rank mapping matches installed AddPet", RankMappingMatchesInstalledAddPet);
             runner.Run("horse companion progression accepts exact class or native XP settlement", NativeProgressionSettlementIsExact);
             runner.Run("horse companion deferred update is exact and bounded", DeferredUpdateIsExactAndBounded);
+            runner.Run("horse companion deferred deactivation preserves native reattachment", DeferredDeactivationCleanupIsExact);
         }
 
         private static void RankMappingMatchesInstalledAddPet()
@@ -78,6 +79,30 @@ namespace KingmakerMountedCombat.Tests
                 false,
                 HorseCompanionProgressionPolicy.CanInvokeDeferredNativeUpdate(true, true, false, 4, 1, 9000, 9000, 0),
                 "An exact native XP handoff admitted a duplicate retry.");
+        }
+
+        private static void DeferredDeactivationCleanupIsExact()
+        {
+            TestRunner.Equal(
+                false,
+                HorseCompanionProgressionPolicy.ShouldDestroyDeferredDeactivationOrphan(true, false, false, true),
+                "A natively reattached horse was admitted for orphan destruction.");
+            TestRunner.Equal(
+                false,
+                HorseCompanionProgressionPolicy.ShouldDestroyDeferredDeactivationOrphan(true, false, true, true),
+                "An owner-referenced horse was admitted for orphan destruction.");
+            TestRunner.Equal(
+                false,
+                HorseCompanionProgressionPolicy.ShouldDestroyDeferredDeactivationOrphan(true, true, true, false),
+                "An already destroyed horse was admitted for duplicate destruction.");
+            TestRunner.Equal(
+                false,
+                HorseCompanionProgressionPolicy.ShouldDestroyDeferredDeactivationOrphan(false, false, true, false),
+                "A non-horse unit was admitted for orphan destruction.");
+            TestRunner.Equal(
+                true,
+                HorseCompanionProgressionPolicy.ShouldDestroyDeferredDeactivationOrphan(true, false, true, false),
+                "A genuine exact-horse orphan was not admitted for destruction.");
         }
     }
 }

@@ -1,5 +1,15 @@
 # Autonomous blockers
 
+## No critical blocker; one dev.21 native level-up lifecycle repair qualification is pending - 2026-08-27T18:22:00Z
+
+Status: IN PROGRESS. Dev.20 run `20260827T173700Z-horse-levelup-dev20-passB` is immutable restored `FAIL 19/1`. It proves the real Ranger selection/commit pipeline creates the exact Horse at Ranger 4, but the Horse disappears before acquiring a stable in-world view and the run times out at `AwaitHorseSpawn`. Independent audit passed exact suite/save/Mods/Baseline/Working identity, all three restored transactions, every restoration flag, and zero process/lock/sentinel/live-KMC residue.
+
+The cause is exact and attributable: native `LevelUpController.Commit` turns the owner off and on after applying the feature; stock `AddPet` deliberately retains its temporarily masterless pet for reattachment, while KMC's immediate respec-orphan destruction deleted that same Horse during the transient cycle. Dev.21 defers the KMC cleanup one frame and requires exact Horse identity, live state, continued masterlessness, and absence from the former owner's reciprocal pet reference. Pure tests cover both preservation and genuine orphan cleanup. Complete source/Release/component/visual/harness/assembly gates pass `21/Release/255/17/232/357`, with parsers `28/0` and `7/0`, diff, and prohibited-payload checks also green.
+
+One clean package/suite/WhatIf/live unmounted process and audit-before-read remain. A genuine creation, stable view, ownership, progression, control, respec-cleanup, or restoration failure in that exact cycle is the stop condition. Dev.20 is not test-ready. Mounted horse testing, Paladin Divine Steed, and `main` integration remain frozen.
+
+This supersedes the dev.20 qualification-pending status below.
+
 ## No critical blocker; one dev.20 Items-authoritative registration qualification is pending - 2026-08-27T16:01:32Z
 
 Status: IN PROGRESS. Dev.19 run `20260827T143000Z-horse-levelup-dev19-passA` is immutable restored `FAIL 4/14`. It never reached Ranger level-up: the newly added production requirement that `Features` itself equal the exact seven stock options faulted registration. Independent audit passed exact suite/save/Mods/Baseline/Working identity, all three restored transactions, every restoration flag, and zero process/lock/sentinel/live-KMC residue.

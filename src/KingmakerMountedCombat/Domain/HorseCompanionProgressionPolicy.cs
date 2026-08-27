@@ -79,5 +79,17 @@ namespace KingmakerMountedCombat.Domain
                    nativeAttempts < MaximumDeferredNativeAttempts &&
                    RequiresSynchronization(rank, characterLevel, experience, expectedExperience);
         }
+
+        internal static bool ShouldDestroyDeferredDeactivationOrphan(
+            bool exactHorse,
+            bool destroyed,
+            bool masterless,
+            bool ownerStillPointsToCandidate)
+        {
+            return exactHorse &&
+                   !destroyed &&
+                   masterless &&
+                   !ownerStillPointsToCandidate;
+        }
     }
 }

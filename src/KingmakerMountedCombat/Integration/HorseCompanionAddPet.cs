@@ -4,6 +4,7 @@ using Kingmaker.Assets.UI.LevelUp;
 using Kingmaker.ElementsSystem;
 using Kingmaker.UnitLogic;
 using Kingmaker.UnitLogic.FactLogic;
+using Kingmaker.Utility;
 using KingmakerMountedCombat.Domain;
 
 namespace KingmakerMountedCombat.Integration
@@ -183,16 +184,33 @@ namespace KingmakerMountedCombat.Integration
         {
             deferredProgressionPending = false;
             var spawned = SpawnedPet;
+            var owner = Owner;
             base.OnFactDeactivate();
 
-            if (spawned == null ||
-                !IsExactHorse(spawned) ||
-                spawned.Descriptor?.Master.Value != null)
+            if (!IsExactHorse(spawned))
             {
                 return;
             }
 
-            spawned.Destroy();
+            // LevelUpController.Commit turns the owner off and back on after
+            // applying level-up facts. Stock AddPet preserves its pet across
+            // that transient deactivation so OnTurnOn can reattach it. Defer
+            // KMC's stricter orphan cleanup long enough for that native cycle;
+            // true removal/respec leaves this exact horse masterless and no
+            // longer referenced by its former owner.
+            DelayedInvoker.InvokeInFrames(
+                () =>
+                {
+                    if (HorseCompanionProgressionPolicy.ShouldDestroyDeferredDeactivationOrphan(
+                            IsExactHorse(spawned),
+                            spawned.Destroyed,
+                            spawned.Descriptor?.Master.Value == null,
+                            owner?.Pet == spawned))
+                    {
+                        spawned.Destroy();
+                    }
+                },
+                1);
         }
 
         private void ArmDeferredProgressionSynchronization()
