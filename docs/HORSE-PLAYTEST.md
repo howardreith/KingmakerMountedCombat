@@ -1,5 +1,50 @@
 # Horse private-alpha playtest
 
+## Final dev.27 package installed - focused review required
+
+Status: `INSTALLED - FINAL MANUAL VISUAL AND LIFECYCLE REVIEW REQUIRED`.
+
+The guarded deployment helper installed and byte-verified:
+
+- version / UMM ID: `0.1.0-phase3b-dev.27` / `KingmakerMountedCombat`;
+- package: `C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-phase3b-dev.27-stabilization-final-diagnostic.zip`;
+- package SHA-256: `2b6629338b35d9f01fab607201fd999e6fad97bc63d73e42860c08c25c3870b7`;
+- manifest SHA-256: `bfb2d69ef62389432353a726627958afd648806c26b179330fdf1f9d38834781`;
+- DLL SHA-256 / MVID: `066a38e35b099aa93e54b79c0b9b9d2c60eeb8f42d4412bb7948a7142809832d` / `ee787dd4-f79f-4e5f-9975-1cb7ef13eecf`;
+- installed inventory digest: `fe46ae0fdd37225e314d4a890cf1f7dc3f4563779eaba007e4e8fbd96db95572`.
+
+Do not manually copy or edit the live Mods directory. In a PowerShell terminal, the guarded commands are:
+
+```powershell
+# Install when KMC is absent
+& 'C:\Dev\KingmakerMountedCombatLab\codex-policy\Manage-KingmakerMountedCombatDeployment.ps1' -Operation Install -PackagePath 'C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-phase3b-dev.27-stabilization-final-diagnostic.zip' -Confirm:$false
+
+# Replace an existing exact KMC deployment with this package
+& 'C:\Dev\KingmakerMountedCombatLab\codex-policy\Manage-KingmakerMountedCombatDeployment.ps1' -Operation Replace -PackagePath 'C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-phase3b-dev.27-stabilization-final-diagnostic.zip' -Confirm:$false
+
+# Back up and uninstall only KMC
+& 'C:\Dev\KingmakerMountedCombatLab\codex-policy\Manage-KingmakerMountedCombatDeployment.ps1' -Operation Uninstall -Confirm:$false
+```
+
+Close Kingmaker and UMM before deployment operations. Before uninstalling a save that selected the KMC Horse, respec to a stock companion choice and save unmounted.
+
+### Focused checklist
+
+1. Level a real Ranger through the Animal Companion choice, select Horse, and confirm exactly one visible, selectable, controllable Horse appears.
+2. While unmounted, save, exit to menu, reload, and confirm the same usable Horse relationship, exact owner/Pet/Master links, portrait, view, and control.
+3. In ordinary combat, let the Horse become unconscious or die through stock attacks; confirm the native state/animation, then rest or resurrect and confirm recovery and retained ownership.
+4. Respec away from Horse and verify the old KMC Horse, portrait, roster entry, and Master link are gone; respec back and verify exactly one usable Horse exists.
+5. Mount and inspect side and three-quarter views: pelvis near the saddle, narrower thighs, knees following the barrel, feet plausibly near the native stirrups, no severe neck/tack/torso clipping, and clear shield/one-handed weapon space.
+6. Inspect idle, walk, run, turn, stop, reverse, group movement, and doorway motion for stable pose, native Horse locomotion, no drift, and no jitter.
+7. Exercise RT and TB movement plus KMC Rider primary and Horse primary; verify one command/attack/roll/damage/resource chain and controllable separate turns.
+8. Click a distant door, confirm Horse approach, exactly one rider-owned stock interaction, opening, traversal, and target reach.
+9. Use Wild Shape and revert; confirm a clean dismount and a visible transformed/reverted rider.
+10. Use explicit Dismount; confirm selection, view, pose, command, and relationship cleanup.
+
+Also check an unmounted area transition, a mounted save/area transition producing the intentional clean dismount, menus/fog/world flash, target-selected Mount, overlay fallback Mount, ineligible-target rejection, RT-to-TB-to-RT, and ordinary unmounted controls. Report pose/animation feel separately from rule or ownership failures.
+
+Known private-alpha limitations remain: overlay primaries are required because stock right-click/auto-attack integration is not implemented; rider and Horse have separate TB turns; mounted ranged combat is unsupported; mounted state is transient, nonserialized, and has no automatic remount; final pose and lifecycle UI surfaces require this human review. This package is not a public release and does not authorize Paladin Divine Steed.
+
 ## Current hold - dev.24 stabilization package not yet installed
 
 The user-confirmed dev.23 result is now recorded: real Ranger Horse creation, visibility, control, Mount, and mounted relationship are PASS. The current package remains dev.23 while one bounded dev.24 stock-lifecycle comparison and Horse-only seat/leg calibration are qualified. Continue using dev.23 only as historical human evidence; wait for the next exact install command before final lifecycle and pose review.

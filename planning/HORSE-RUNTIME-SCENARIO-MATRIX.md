@@ -1,5 +1,23 @@
 # Horse runtime scenario matrix
 
+Final superseding stabilization checkpoint (2026-08-28T16:28:49Z): exact dev.27 production repair `87d0edcffe13be693b242a1ff11fa9b75d0b7828`, package/tooling checkpoint `bd5134a5cec91554829aa9c536bbf1ab071e546d`, and final package SHA-256 `2b6629338b35d9f01fab607201fd999e6fad97bc63d73e42860c08c25c3870b7` are technically qualified and installed. Immutable Horse process `20260828T133000Z-horse-stabilization-dev27-passB` passes in-game `58/0` (`14/0` registration + `44/0` behavior) after corrected strict validation of the same audited artifacts; targeted Mammoth process `20260828T153000Z-horse-stabilization-dev27-mammoth-rt-passA` passes `62/0`. External restoration and suite continuity passed before evidence interpretation. Candidate B is technically stable. Final human save/reload, area, rest, UI respec away/back, pose, locomotion, and ordinary-control rows remain uncredited.
+
+| Final stabilization row | Disposition | Exact evidence |
+|---|---|---|
+| real Ranger Horse creation, ownership, view, selection, control | PASS automated + human-confirmed core | dev.27 registration/aggregate plus dev.23 human review |
+| ordinary stock damage and native life-state transition | PASS automated | 11 HP; eleven 1-damage stock attack/roll/damage chains; exact one `Conscious -> Unconscious` event on attack 11 |
+| same-Horse recovery and reciprocal ownership | PASS automated | Conscious, zero damage, exact owner/Pet/Master after recovery |
+| respec/feature-removal cleanup and duplicate prevention | PASS diagnostic contract | KMC Horse removed, unrelated pets preserved, relation Unmounted; actual UI respec away/back remains human-gated |
+| target-selected Mount, mounted RT/TB movement, Rider/Horse primaries, Dismount | PASS automated | Horse behavior aggregate `44/0`, no duplicate chain |
+| Horse-only pose candidate B | PASS technical / human review required | stirrup distances `0.434307426` / `0.472957283`, zero clamps, residuals below `0.000004` |
+| Mammoth shared-subsystem regression | PASS automated | targeted Mammoth primary `62/0` |
+| disk save, menu, reload, same persistent Horse | MANUAL REVIEW REQUIRED | guarded automation does not perform the crash-unsafe disk save/reload boundary |
+| area transition, rest UI, recovery presentation | MANUAL REVIEW REQUIRED | contract/policy only; no fabricated runtime credit |
+| actual UI respec away/back and exactly one Horse | MANUAL REVIEW REQUIRED | diagnostic feature-removal cleanup is not relabeled as UI respec |
+| side/three-quarter appearance and idle/walk/run/turn/stop feel | MANUAL REVIEW REQUIRED | numerical stability is not visual acceptance |
+
+The original passB launcher final remains immutable parser-layer failure because its then-current external schema omitted the emitted maximum stock-attack budget. The corrected validator requires that budget to equal `max(1, hitPoints - damage)` and passes the unchanged request/game artifacts `33/0` and `39/0`; no gameplay failure is hidden and no second Horse process was consumed.
+
 Superseding stabilization checkpoint (2026-08-28T01:58:04Z): human dev.23 review proves real Ranger Horse creation/control/Mount and supersedes the prior no-Horse human failure. It also rejects the current seat/leg pose: rider too high and too wide. Dev.24 is one bounded Horse-only pose candidate plus one exact same-Horse stock-attack/direct-damage lifecycle comparison; all applicable offline gates pass and one clean audited `horse-mounted-alpha-suite` observation is pending. Save/reload, area, rest, respec away/back, final visual pose, mounted regression, and targeted Mammoth regression remain uncredited.
 
 Superseding checkpoint (2026-08-27T16:01:32Z): dev.19 package `215af4e43acd4869939ad54c3dba0a5289367ba2bdaea7e3903f184b815c1de5`, suite `20260827T142600Z-horse-levelup-dev19-suite1` / `f52a0774b7b1e083f8c0c8ecb792b6fe6f992aa93b8507708e7b40e971ae763a`, and restored unmounted run `20260827T143000Z-horse-levelup-dev19-passA` remain immutable `FAIL 4/14`. Registration rejected dev.19's erroneous seven-entry requirement on the non-authoritative live `Features` field before native level-up. Audit-before-read passed exact restoration. Dev.20 leaves `Features` untouched and leases only Items-authoritative `AllFeatures`; all offline gates pass and one fresh unmounted-only run is pending. No mounted row is authorized.

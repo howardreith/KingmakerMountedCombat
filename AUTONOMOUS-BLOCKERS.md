@@ -1,5 +1,15 @@
 # Autonomous blockers
 
+## No critical blocker; Horse stabilization awaits final human lifecycle and visual review - 2026-08-28T16:28:49Z
+
+Status: `PASS` for bounded technical stabilization. The former GitHub credential/publication boundary is resolved: feature-branch publication through `C:\Dev\CodexPolicy\Push-KingmakerFeatureBranch.ps1` established local/upstream/remote equality at package/tooling checkpoint `bd5134a5cec91554829aa9c536bbf1ab071e546d`. The dev.27 lifecycle defect is also resolved by implementation commit `87d0edcffe13be693b242a1ff11fa9b75d0b7828`.
+
+The final Horse gameplay artifacts pass `58/0`, including exact native stock-damage `Conscious -> Unconscious`, same-Horse recovery with retained reciprocal ownership, cleanup on feature removal, target-selected Mount, mounted RT/TB movement and primaries, Dismount, and isolation. Candidate-B pose telemetry is stable. The targeted Mammoth regression passes `62/0`. External restoration passed before either gameplay result was credited, and the final package is hash-bound, installed, and verified.
+
+Remaining items are explicit human acceptance gates, not autonomous blockers: real disk save/reload; area transition; rest/recovery presentation; actual UI respec away/back with exactly one Horse; side/three-quarter seat and stirrup appearance; locomotion feel; ordinary pointer use; and the focused mounted controls. Paladin Divine Steed remains design-only until that review passes. No further diagnostic or gameplay process is authorized by this stabilization mission.
+
+This entry explicitly supersedes the credential blocker and all older lifecycle/pose investigation blockers below without rewriting their historical evidence.
+
 ## Guarded publication blocked by invalid GitHub authentication - 2026-08-28T07:15:22Z
 
 Status: `BLOCKED — CRITICAL` at the account/publication boundary. Dev.27 implementation commit `87d0edcffe13be693b242a1ff11fa9b75d0b7828` is locally complete and offline-green, but the project-owned guarded publisher stopped before push with Schannel `SEC_E_NO_CREDENTIALS`. `gh auth status` confirms the active `howardreith` token is invalid. Direct push, bypass, clean packaging before guarded publication, runtime qualification, and final installation are forbidden.

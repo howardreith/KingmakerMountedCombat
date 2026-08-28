@@ -1,5 +1,48 @@
 # Horse implementation report
 
+## Final stabilization handoff - dev.27 - 2026-08-28
+
+Status: `PASS (technical) - FINAL MANUAL VISUAL AND LIFECYCLE REVIEW REQUIRED`.
+
+The working real Ranger Horse foundation confirmed by the dev.23 human review remains intact. The exact final implementation is the dev.27 production repair `87d0edcffe13be693b242a1ff11fa9b75d0b7828`, packaged from clean validator/tooling descendant `bd5134a5cec91554829aa9c536bbf1ab071e546d` as version `0.1.0-phase3b-dev.27`.
+
+### Lifecycle resolution
+
+The lifecycle defect was real and Horse-specific. The KMC Horse unit blueprint copied the native companion level contract but omitted `Kingmaker.UnitLogic.FactLogic.AllowDyingCondition`. Kingmaker's native `UnitLifeController` companion path requires that blueprint component, along with the native pet/master relationship flags, to progress lethal damage into the companion life-state flow. Dev.27 adds one original KMC-owned instance of that exact component; it does not force `IsDead`, synthesize an event, destroy the Horse, invoke a death handler, or modify health statistics.
+
+The sole final audited Horse process passed in-game `58/0` (`14/0` registration + `44/0` Horse behavior). With 11 current/maximum HP and zero temporary HP, eleven exact hostile stock attacks each produced one attack, roll, damage chain and one point of damage. Attacks 1-10 remained Conscious; attack 11 emitted exactly one native `Conscious -> Unconscious` transition. Stock recovery returned the same Horse to Conscious with zero damage and retained exact `owner.Pet` / `Horse.Master` references. The direct-mutation control produced its separately observed native lifecycle event. Diagnostic feature-removal cleanup removed the KMC Horse, left unrelated pets intact, returned the relation to Unmounted, and prevented duplicates.
+
+The original dev.27 launcher result is preserved as a parser-layer failure because the first strict external validator did not admit the newly emitted `maximumStockLifecycleAttacks` field. The repaired validator passes the same immutable, independently restored request/game evidence `33/0` and `39/0`. No replacement Horse process was run and no predicate was weakened.
+
+### Horse-only pose calibration
+
+Candidate B is the selected `medium-humanoid-horse-v1` parameter set:
+
+| Parameter | Before | After |
+|---|---:|---:|
+| pelvis local position | `(0, 0.02, -0.02)` | `(0, -0.12, -0.02)` |
+| left/right foot target | `(+/-0.305, -0.46, 0.044)` | `(+/-0.18, -0.58, 0.11)` |
+| left/right knee hint | `(+/-0.38, -0.12, 0.26)` | `(+/-0.20, -0.14, 0.16)` |
+
+Across three measured frames, left/right native-stirrup distances were `0.434307426` / `0.472957283`, pose clamps were zero, maximum foot/knee/segment residuals were `0.000001431` / `0.000003997` / `0.000001818`, and maximum/average application time was `21.6` / `19.533333333333335` microseconds. The Mammoth profile, Horse scale, native Horse assets, and other rider categories are unchanged. These measurements prove bounded numerical stability, not visual taste; side and three-quarter human review remains required.
+
+### Regression and artifact identity
+
+- targeted Mammoth run `20260828T153000Z-horse-stabilization-dev27-mammoth-rt-passA`: `62/0`;
+- complete offline gates: source/prohibited payload `21/0`, clean Release, component `261/0`, visual/source-order `18/0`, harness/protocol `232/0`, assembly `361/0` (`337` Kingmaker + `24` Wrath), PowerShell parser `26/0`, JSON parser `7/0`, diff/package PASS;
+- package: `C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-phase3b-dev.27-stabilization-final-diagnostic.zip`;
+- package / manifest SHA-256: `2b6629338b35d9f01fab607201fd999e6fad97bc63d73e42860c08c25c3870b7` / `bfb2d69ef62389432353a726627958afd648806c26b179330fdf1f9d38834781`;
+- DLL SHA-256 / MVID: `066a38e35b099aa93e54b79c0b9b9d2c60eeb8f42d4412bb7948a7142809832d` / `ee787dd4-f79f-4e5f-9975-1cb7ef13eecf`;
+- package contents: 335-byte `Info.json`; 1,376,256-byte `KingmakerMountedCombat.dll`;
+- stable suite: `20260828T143000Z-horse-stabilization-dev27-final-suite1`, SHA-256 `755f83d84eb67121a54fc6d40117c106a8f744981e846d821d9003159c8ea76c`;
+- installed UMM version/inventory: `0.1.0-phase3b-dev.27` / `fe46ae0fdd37225e314d4a890cf1f7dc3f4563779eaba007e4e8fbd96db95572`.
+
+### Exact acceptance boundary
+
+Automation qualifies real Horse creation/ownership, native view/control, RT/TB unmounted attacks, target-selected Mount, independent Horse profile, mounted movement, Rider/Horse primaries, native damage-to-life-state progression, same-Horse recovery, feature-removal cleanup, Dismount, isolation, cardinality, and restoration. The prior human review independently confirms ordinary visible Ranger Horse creation, control, Mount, and the native model/tack silhouette.
+
+Actual disk save/reload, area transition, rest/recovery presentation, UI respec away/back with exactly one Horse, final seat/stirrup appearance, locomotion appearance, and ordinary mouse/control feel remain human-gated. The mounted relationship is intentionally transient and is not required to survive save/load or area transitions. Paladin Divine Steed is not implemented.
+
 ## Stabilization checkpoint - 2026-08-28
 
 Human review of exact dev.23 supersedes the earlier no-Horse report: a real Ranger Horse appears, is visible, selectable, controllable, mountable, and retains the mounted relation. This confirms the level-up/spawn repair and native Horse foundation. It does not yet prove save/reload, area, ordinary death/recovery, respec, or final presentation.
