@@ -1,5 +1,15 @@
 # Autonomous blockers
 
+## No critical blocker; dev.27 is the final native lifecycle repair - 2026-08-28T07:12:57Z
+
+Status: `IN PROGRESS`. Restored dev.26 run `20260828T062039Z-horse-stabilization-dev26-passA` is immutable `FAIL 50/1`, with the only failure in ordinary stock Horse lifecycle transition. Exact Kingmaker contracts and the live snapshot establish that KMC's Horse omitted the native `AllowDyingCondition` blueprint component while the stock companion contract requires it; stock Mammoth evidence proves the expected unconscious/recovery path. The fixed six-hit diagnostic bound also did not prove cumulative damage reached the Horse's observed `11` HP boundary.
+
+Dev.27 is the one narrow attributable behavior repair: require the component on stock Mammoth and Dog inputs, add an original KMC-owned component to the Horse, and bound stock positive-damage attacks by remaining HP with complete failure telemetry. It does not force state/events or alter Horse statistics, pose candidate B, Mammoth, movement, commands, attacks, or native assets. Complete offline gates pass `21/Release/261/18/232/361`, parsers `26/0` and `7/0`, diff, and prohibited payload.
+
+One clean published dev.27 package/suite/WhatIf and one audited aggregate process remain. A genuine lifecycle, recovery, mounted, pose, or restoration failure is the exact stop condition; no further lifecycle instrumentation or behavioral repair cycle is authorized. Actual disk save/reload, ordinary UI respec away/back, and final pose feel remain human-review boundaries unless separately proven by a guarded native scenario. Paladin implementation, `main`, public release, and out-of-scope mounted features remain unauthorized.
+
+This entry supersedes the dev.26 observation-pending entry below.
+
 ## No critical blocker; dev.26 is the final lifecycle-control repair - 2026-08-28T05:24:30Z
 
 Status: `IN PROGRESS`. Restored dev.25 run `20260828T035000Z-horse-stabilization-dev25-passA` passed `50/1` overall and technically accepts candidate B: both feet are below the unchanged `0.5` stirrup bound, with zero clamps and stable residuals, and every reached real-Horse, mounted movement, attack, dismount, and cleanup gate passed. Human visual acceptance remains required.

@@ -44,6 +44,9 @@ namespace KingmakerMountedCombat.Integration
         public int InitialClassLevels { get; set; }
         public int StockMammothInitialClassLevels { get; set; }
         public int StockDogInitialClassLevels { get; set; }
+        public bool StockMammothAllowDyingConditionComponent { get; set; }
+        public bool StockDogAllowDyingConditionComponent { get; set; }
+        public bool HorseAllowDyingConditionComponent { get; set; }
         public string LevelRankGuid { get; set; }
         public int UpgradeLevel { get; set; }
         public string BiteGuid { get; set; }
@@ -117,6 +120,8 @@ namespace KingmakerMountedCombat.Integration
         private BlueprintFeature levelRank;
         private int stockMammothInitialClassLevels;
         private int stockDogInitialClassLevels;
+        private bool stockMammothAllowDyingConditionComponent;
+        private bool stockDogAllowDyingConditionComponent;
         private int upgradeLevel;
         private bool disposed;
 
@@ -273,6 +278,9 @@ namespace KingmakerMountedCombat.Integration
                 InitialClassLevels = classLevels?.Levels ?? -1,
                 StockMammothInitialClassLevels = stockMammothInitialClassLevels,
                 StockDogInitialClassLevels = stockDogInitialClassLevels,
+                StockMammothAllowDyingConditionComponent = stockMammothAllowDyingConditionComponent,
+                StockDogAllowDyingConditionComponent = stockDogAllowDyingConditionComponent,
+                HorseAllowDyingConditionComponent = horseUnit?.GetComponent<AllowDyingCondition>() != null,
                 LevelRankGuid = levelRank?.AssetGuid,
                 UpgradeLevel = upgradeLevel,
                 BiteGuid = biteGuid,
@@ -349,6 +357,13 @@ namespace KingmakerMountedCombat.Integration
             companionClass = classLevels.CharacterClass;
             stockMammothInitialClassLevels = classLevels.Levels;
             stockDogInitialClassLevels = dogClassLevels.Levels;
+            stockMammothAllowDyingConditionComponent = mammothUnit.GetComponent<AllowDyingCondition>() != null;
+            stockDogAllowDyingConditionComponent = dogUnit.GetComponent<AllowDyingCondition>() != null;
+            if (!stockMammothAllowDyingConditionComponent || !stockDogAllowDyingConditionComponent)
+            {
+                throw new InvalidOperationException(
+                    "The exact stock Mammoth/Dog companion dying-condition component contract changed.");
+            }
 
             var name = NewLocalizedString("KMC.Horse.Name");
             var featureName = NewLocalizedString("KMC.Horse.Feature.Name");
@@ -403,7 +418,11 @@ namespace KingmakerMountedCombat.Integration
             horseUnit.MaxHP = nativeHorse.MaxHP;
             horseUnit.AdditionalTemplates = CloneArray(mammothUnit.AdditionalTemplates);
             horseUnit.AddFacts = CloneArray(mammothUnit.AddFacts);
-            horseUnit.ComponentsArray = new BlueprintComponent[] { CopyAddClassLevels(classLevels) };
+            horseUnit.ComponentsArray = new BlueprintComponent[]
+            {
+                CopyAddClassLevels(classLevels),
+                CreateOwned<AllowDyingCondition>("KMC_Horse_AllowDyingCondition")
+            };
 
             horseFeature = CreateOwned<BlueprintFeature>("AnimalCompanionFeatureHorse");
             horseFeature.AssetGuid = FeatureGuid;

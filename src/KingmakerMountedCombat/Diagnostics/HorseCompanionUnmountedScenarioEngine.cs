@@ -54,7 +54,6 @@ namespace KingmakerMountedCombat.Diagnostics
         private const double MountedScenarioTimeoutSeconds = 300.0;
         private const double LifecycleTimeoutSeconds = 60.0;
         private const double DirectDamageObservationSeconds = 5.0;
-        private const int MaximumStockLifecycleAttacks = 6;
         private const double RealTimeAttackTimeoutSeconds = 20.0;
         private const double TurnBasedTurnAcquisitionTimeoutSeconds = 20.0;
         private const double TurnBasedAttackTimeoutSeconds = 20.0;
@@ -160,6 +159,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private int stockLifecycleDamageRuleCount;
         private int stockLifecycleForcedD20Count;
         private int stockLifecycleDamage;
+        private int maximumStockLifecycleAttacks;
         private int stockLifecycleTransitionBaseline;
         private bool ownerAiBeforeLifecycle;
         private bool horseAiBeforeLifecycle;
@@ -1673,6 +1673,11 @@ namespace KingmakerMountedCombat.Diagnostics
             observations["stockLifecycleBefore"] = CaptureHorseLifeState();
             lethalDamage = (int)horse.Stats.HitPoints + (int)horse.Stats.Constitution + 1;
             observations["lethalDamage"] = lethalDamage;
+            maximumStockLifecycleAttacks =
+                HorseCompanionLifeTransitionPolicy.MaximumPositiveDamageAttacksToReachHitPointBoundary(
+                    horse.Damage,
+                    (int)horse.Stats.HitPoints);
+            observations["maximumStockLifecycleAttacks"] = maximumStockLifecycleAttacks;
 
             owner.Commands.InterruptAll(false);
             horse.Commands.InterruptAll(false);
@@ -1708,10 +1713,12 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void IssueStockLifecycleAttack()
         {
-            if (stockLifecycleAttackCount >= MaximumStockLifecycleAttacks)
+            if (stockLifecycleAttackCount >= maximumStockLifecycleAttacks)
             {
+                RecordStockLifecycleSummary();
                 Fail("ordinary-stock-damage-lifecycle",
-                    "Six exact forced-hit stock attacks did not produce a native non-conscious Horse transition.");
+                    maximumStockLifecycleAttacks +
+                    " exact forced-hit stock attacks, each required to deal positive damage, did not produce a native non-conscious Horse transition.");
                 BeginCleanup();
                 return;
             }
@@ -1838,19 +1845,13 @@ namespace KingmakerMountedCombat.Diagnostics
             }
 
             var transition = expectedTransitions[0];
-            observations["stockLifecycleAttacks"] = stockLifecycleAttacks;
-            observations["stockLifecycleAttackCount"] = stockLifecycleAttackCount;
-            observations["stockLifecycleAttackRules"] = stockLifecycleAttackRuleCount;
-            observations["stockLifecycleAttackRolls"] = stockLifecycleAttackRollCount;
-            observations["stockLifecycleDamageRules"] = stockLifecycleDamageRuleCount;
-            observations["stockLifecycleForcedD20Count"] = stockLifecycleForcedD20Count;
-            observations["stockLifecycleRuleDamage"] = stockLifecycleDamage;
+            RecordStockLifecycleSummary();
             observations["stockLifecycleTransitionEventCount"] = expectedTransitions.Length;
             observations["stockLifecycleTransitionActorId"] = transition.ActorId;
             observations["stockLifecycleTransitionPreviousLifeState"] = transition.PreviousLifeState;
             observations["stockLifecycleTransitionCurrentLifeState"] = transition.CurrentLifeState;
             observations["stockLifecycleAfter"] = CaptureHorseLifeState();
-            Check(stockLifecycleAttackCount >= 1 && stockLifecycleAttackCount <= MaximumStockLifecycleAttacks &&
+            Check(stockLifecycleAttackCount >= 1 && stockLifecycleAttackCount <= maximumStockLifecycleAttacks &&
                     stockLifecycleAttackRuleCount == stockLifecycleAttackCount &&
                     stockLifecycleAttackRollCount == stockLifecycleAttackCount &&
                     stockLifecycleDamageRuleCount == stockLifecycleAttackCount &&
@@ -1919,6 +1920,17 @@ namespace KingmakerMountedCombat.Diagnostics
             directDamageStartedAtSeconds = clock.Elapsed.TotalSeconds;
             AppendDirectDamageTimeline();
             step = EngineStep.AwaitDirectDamage;
+        }
+
+        private void RecordStockLifecycleSummary()
+        {
+            observations["stockLifecycleAttacks"] = stockLifecycleAttacks;
+            observations["stockLifecycleAttackCount"] = stockLifecycleAttackCount;
+            observations["stockLifecycleAttackRules"] = stockLifecycleAttackRuleCount;
+            observations["stockLifecycleAttackRolls"] = stockLifecycleAttackRollCount;
+            observations["stockLifecycleDamageRules"] = stockLifecycleDamageRuleCount;
+            observations["stockLifecycleForcedD20Count"] = stockLifecycleForcedD20Count;
+            observations["stockLifecycleRuleDamage"] = stockLifecycleDamage;
         }
 
         private void AwaitDirectDamage()

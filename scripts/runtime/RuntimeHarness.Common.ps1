@@ -4824,7 +4824,8 @@ function Assert-KmcHorseCompanionBlueprintRegistrationEvidence {
         $snapshotProperties = @(
             'state','failure','unitGuid','featureGuid','upgradeGuid','rangerSelectionGuid',
             'rangerOriginalOptionCount','rangerCurrentOptionCount','rangerAppendOwned','rangerSelectionDesired',
-            'nativeViewAssetId','companionClassGuid','initialClassLevels','stockMammothInitialClassLevels','stockDogInitialClassLevels','levelRankGuid','upgradeLevel','biteGuid','biteName',
+            'nativeViewAssetId','companionClassGuid','initialClassLevels','stockMammothInitialClassLevels','stockDogInitialClassLevels',
+            'stockMammothAllowDyingConditionComponent','stockDogAllowDyingConditionComponent','horseAllowDyingConditionComponent','levelRankGuid','upgradeLevel','biteGuid','biteName',
             'hoofGuid','hoofName','naturalAttackCount','unitComponentCount','upgradeComponentCount',
             'strength','dexterity','constitution','intelligence','wisdom','charisma','speedFeet','size'
         )
@@ -4843,11 +4844,14 @@ function Assert-KmcHorseCompanionBlueprintRegistrationEvidence {
             [string]$initial.nativeViewAssetId -cne '5e0b93738ad54dd4ba101b3513ac4590' -or
             [long]$initial.initialClassLevels -ne 0 -or [long]$initial.stockMammothInitialClassLevels -ne 0 -or
             [long]$initial.stockDogInitialClassLevels -ne 0 -or
+            $initial.stockMammothAllowDyingConditionComponent -ne $true -or
+            $initial.stockDogAllowDyingConditionComponent -ne $true -or
+            $initial.horseAllowDyingConditionComponent -ne $true -or
             [string]$initial.levelRankGuid -cne '1670990255e4fe948a863bafd5dbda5d' -or
             [long]$initial.upgradeLevel -ne 4 -or [string]$initial.biteName -cne 'Bite1d4' -or
             [string]$initial.hoofGuid -cne 'b0e472a49ff2a294f93faa3ab757a4a5' -or
             [string]$initial.hoofName -cne 'Hoof1d4' -or [long]$initial.naturalAttackCount -ne 3 -or
-            [long]$initial.unitComponentCount -ne 1 -or [long]$initial.upgradeComponentCount -ne 2 -or
+            [long]$initial.unitComponentCount -ne 2 -or [long]$initial.upgradeComponentCount -ne 2 -or
             [long]$initial.strength -ne 16 -or [long]$initial.dexterity -ne 13 -or
             [long]$initial.constitution -ne 15 -or [long]$initial.intelligence -ne 2 -or
             [long]$initial.wisdom -ne 12 -or [long]$initial.charisma -ne 6 -or
@@ -4866,7 +4870,7 @@ function Assert-KmcHorseCompanionBlueprintRegistrationEvidence {
         }
         foreach ($requiredAssertion in @(
             'registration-state','initialized-blueprint-library','exact-library-identities','add-pet-contract',
-            'companion-class-contract','native-view-size-speed','base-ability-scores','natural-attack-loadout',
+            'companion-class-contract','native-dying-condition-contract','native-view-size-speed','base-ability-scores','natural-attack-loadout',
             'rank-four-upgrade','localization-contract','ranger-append','exact-disable-restore','exact-reenable-append'
         )) {
             if (-not $assertionNames.Contains($requiredAssertion)) {

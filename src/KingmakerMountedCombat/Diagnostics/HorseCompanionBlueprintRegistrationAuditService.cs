@@ -121,6 +121,14 @@ namespace KingmakerMountedCombat.Diagnostics
                     "The horse matches the exact stock Mammoth/Dog zero-level bootstrap; AddPet owns rank-driven runtime leveling.",
                     ref passed, ref failed);
                 AddAssertion(assertions, errors,
+                    initial.StockMammothAllowDyingConditionComponent &&
+                    initial.StockDogAllowDyingConditionComponent &&
+                    initial.HorseAllowDyingConditionComponent &&
+                    horseUnit?.GetComponent<AllowDyingCondition>() != null,
+                    "native-dying-condition-contract",
+                    "The Horse owns one native dying-condition component after exact stock Mammoth/Dog companion parity was verified.",
+                    ref passed, ref failed);
+                AddAssertion(assertions, errors,
                     horseUnit != null && horseUnit.Size == Size.Large && horseUnit.Speed.Value == 50 &&
                     string.Equals(horseUnit.Prefab?.AssetId, NativeHorsePrefabAssetId, StringComparison.Ordinal),
                     "native-view-size-speed", "The KMC horse is Large, speed 50, and uses the exact native HorseRiding prefab.", ref passed, ref failed);

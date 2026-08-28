@@ -83,6 +83,9 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.UnitLogic.FactLogic.AddPet',0x0400197E,'UpgradeLevel'),
         @('Kingmaker.UnitLogic.FactLogic.AddPet',0x0600250B,'get_SpawnedPet'),
         @('Kingmaker.UnitLogic.FactLogic.AddPet',0x06002510,'TryUpdatePet'),
+        @('Kingmaker.UnitLogic.FactLogic.AllowDyingCondition',0x06002562,'OnEntityCreated'),
+        @('Kingmaker.UnitLogic.FactLogic.AllowDyingCondition',0x06002563,'OnEntityRemoved'),
+        @('Kingmaker.UnitLogic.UnitState',0x04001600,'AllowDyingCondition'),
         @('Kingmaker.Blueprints.Classes.AddClassLevels',0x040069CE,'CharacterClass'),
         @('Kingmaker.Blueprints.Classes.AddClassLevels',0x040069D0,'Levels'),
         @('Kingmaker.Blueprints.Classes.AddClassLevels',0x06009B1B,'LevelUp'),
@@ -348,6 +351,21 @@ if($Target-eq'Kingmaker'){
         $addPetDeactivate.Count-eq1 -and (Test-MethodIlContainsToken $addPetDeactivate[0] 0x06001F16) -and
         $addPetLevel.Count-eq1 -and (Test-MethodIlContainsToken $addPetLevel[0] 0x06009B1B)) `
         'native AddPet owns spawn SetMaster level progression upgrade and RemoveMaster lifecycle'
+    $allowDyingCreated=@(Find-Token 'Kingmaker.UnitLogic.FactLogic.AllowDyingCondition' 0x06002562)
+    $allowDyingField=@(Find-Token 'Kingmaker.UnitLogic.UnitState' 0x04001600)
+    Assert-Contract ($allowDyingCreated.Count-eq1 -and $allowDyingCreated[0] -is [Reflection.MethodInfo] -and
+        $allowDyingCreated[0].IsPublic -and -not $allowDyingCreated[0].IsStatic -and
+        $allowDyingCreated[0].ReturnType.FullName-ceq'System.Void' -and
+        $allowDyingCreated[0].GetParameters().Count-eq1 -and
+        $allowDyingCreated[0].GetParameters()[0].ParameterType.FullName-ceq'Kingmaker.EntitySystem.Entities.UnitEntityData' -and
+        $allowDyingField.Count-eq1 -and $allowDyingField[0] -is [Reflection.FieldInfo] -and
+        $allowDyingField[0].IsPublic -and $allowDyingField[0].IsInitOnly -and
+        $allowDyingField[0].FieldType.FullName-ceq'Kingmaker.Utility.CountableFlag' -and
+        (Test-MethodIlContainsToken $allowDyingCreated[0] 0x060082DB) -and
+        (Test-MethodIlContainsToken $allowDyingCreated[0] 0x04001564) -and
+        (Test-MethodIlContainsToken $allowDyingCreated[0] 0x04001600) -and
+        (Test-MethodIlContainsToken $allowDyingCreated[0] 0x06001C0C)) `
+        'native dying-condition component retains the exact UnitState CountableFlag on entity creation'
     $addClassLevelsPublic=@(Find-Token 'Kingmaker.Blueprints.Classes.AddClassLevels' 0x06009B1B)
     $addClassLevelsPrivate=@(Find-Token 'Kingmaker.Blueprints.Classes.AddClassLevels' 0x06009B1C)
     $defaultBuildData=$assembly.GetType('Kingmaker.Assets.UI.LevelUp.DefaultBuildData',$false)

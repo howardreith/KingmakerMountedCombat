@@ -4,6 +4,15 @@ namespace KingmakerMountedCombat.Domain
 {
     internal static class HorseCompanionLifeTransitionPolicy
     {
+        internal static int MaximumPositiveDamageAttacksToReachHitPointBoundary(
+            int currentDamage,
+            int hitPoints)
+        {
+            if (currentDamage < 0) { throw new ArgumentOutOfRangeException(nameof(currentDamage)); }
+            if (hitPoints <= 0) { throw new ArgumentOutOfRangeException(nameof(hitPoints)); }
+            return Math.Max(1, hitPoints - currentDamage);
+        }
+
         internal static bool IsExpectedNonConsciousTransition(
             string expectedActorId,
             string observedActorId,
