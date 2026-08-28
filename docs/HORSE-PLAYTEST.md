@@ -1,5 +1,9 @@
 # Horse private-alpha playtest
 
+## Current hold - dev.24 stabilization package not yet installed
+
+The user-confirmed dev.23 result is now recorded: real Ranger Horse creation, visibility, control, Mount, and mounted relationship are PASS. The current package remains dev.23 while one bounded dev.24 stock-lifecycle comparison and Horse-only seat/leg calibration are qualified. Continue using dev.23 only as historical human evidence; wait for the next exact install command before final lifecycle and pose review.
+
 ## Dev.23 focused test installation - 2026-08-28T00:55:52Z
 
 Status: INSTALLED FOR FOCUSED HUMAN TEST. Automated lifecycle qualification remains blocked; do not proceed into mounted Horse presentation testing yet.

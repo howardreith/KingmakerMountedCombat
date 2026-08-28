@@ -4336,7 +4336,7 @@ try {
         }
         $manualRequest = [ordered]@{
             schemaVersion=2;runId='manual-review-validator';scenario='manual-visual-review';branch='codex/mounted-combat-phase2-alpha';
-            commit=('c'*40);productVersion='0.1.0-phase3b-dev.23';dllSha256=('d'*64);dllMvid='aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+            commit=('c'*40);productVersion='0.1.0-phase3b-dev.24';dllSha256=('d'*64);dllMvid='aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
             transactionToken=('e'*64);evidenceRoot=$manualEvidence;fixture=$manualFixture
             qualificationSuite=[ordered]@{suiteId='manual-suite';snapshotSha256=('f'*64)}
         }
@@ -4643,7 +4643,7 @@ try {
             writeAuthorization=[ordered]@{mode='working-only';allowedInternalName='KMC_AUTOMATION_WORKING';allowedFileName='Manual_2_KMC_AUTOMATION_WORKING.zks';baselineImmutable=$true}
         }
         $recomputeEvidence = Join-Path $runtimeEvidenceTestRoot 'recompute-evidence'
-        $v2Request=[pscustomobject]@{runId='recompute-test';scenario='fixture-intake';branch='codex/mounted-combat-feasibility';commit=('0'*40);productVersion='0.1.0-phase3b-dev.23';dllSha256=('a'*64);dllMvid=[Guid]::Empty.ToString();transactionToken=('b'*64);evidenceRoot=$recomputeEvidence;fixture=$fixture}
+        $v2Request=[pscustomobject]@{runId='recompute-test';scenario='fixture-intake';branch='codex/mounted-combat-feasibility';commit=('0'*40);productVersion='0.1.0-phase3b-dev.24';dllSha256=('a'*64);dllMvid=[Guid]::Empty.ToString();transactionToken=('b'*64);evidenceRoot=$recomputeEvidence;fixture=$fixture}
         $recomputeManifestHash = New-TestArtifactManifest -EvidenceRoot $recomputeEvidence -RunId $v2Request.runId -Scenario $v2Request.scenario
         $game=[pscustomobject]@{status='PASS';fixture=$fixture;evidenceManifestSha256=$recomputeManifestHash;subscenarioTotal=99;subscenarioPassCount=0;subscenarioFailCount=99;assertionPassCount=0;assertionFailCount=99;subscenarioResults=@([pscustomobject]@{name='observe-mount-diagnostic-availability';status='PASS';assertionPassCount=4;assertionFailCount=0;errors=@()})}
         $final=New-KmcRuntimeResultV2 -Request $v2Request -ValidatedGameResult $game -StartedAtUtc ([DateTimeOffset]::UtcNow) -ModsRestored $true -BaselineImmutable $true -WorkingRestored $true -SaveWriteAllowlistPassed $true -RestoredSaveInventoryDigest ('c'*64) -GameResultSha256 ('d'*64)
@@ -4654,7 +4654,7 @@ try {
 
     Invoke-HarnessTest 'schema-v2 fallback creates and binds a validated orchestration artifact manifest' {
         $fallbackEvidence = Join-Path $runtimeEvidenceTestRoot 'fallback-evidence'
-        $fallbackRequest=[pscustomobject]@{runId='fallback-test';scenario='fixture-intake';branch='codex/mounted-combat-feasibility';commit=('0'*40);productVersion='0.1.0-phase3b-dev.23';dllSha256=('a'*64);dllMvid=[Guid]::Empty.ToString();transactionToken=('b'*64);evidenceRoot=$fallbackEvidence;fixture=[ordered]@{baseline=[ordered]@{};working=[ordered]@{};writeAuthorization=[ordered]@{}}}
+        $fallbackRequest=[pscustomobject]@{runId='fallback-test';scenario='fixture-intake';branch='codex/mounted-combat-feasibility';commit=('0'*40);productVersion='0.1.0-phase3b-dev.24';dllSha256=('a'*64);dllMvid=[Guid]::Empty.ToString();transactionToken=('b'*64);evidenceRoot=$fallbackEvidence;fixture=[ordered]@{baseline=[ordered]@{};working=[ordered]@{};writeAuthorization=[ordered]@{}}}
         $final=New-KmcRuntimeResultV2 -Request $fallbackRequest -ValidatedGameResult $null -StartedAtUtc ([DateTimeOffset]::UtcNow) -ModsRestored $true -BaselineImmutable $true -WorkingRestored $true -SaveWriteAllowlistPassed $true -RestoredSaveInventoryDigest ('c'*64) -GameResultSha256 $null -Errors @('synthetic missing game result')
         $manifestPath = Join-Path $fallbackEvidence 'runtime-artifacts.json'
         Assert-Test ([string]$final.status -ceq 'FAIL') 'missing game result did not force final FAIL'
@@ -4670,7 +4670,7 @@ try {
             working=[ordered]@{internalName='KMC_AUTOMATION_WORKING';fileName='Manual_2_KMC_AUTOMATION_WORKING.zks';sha256=('22'*32);length=1;lastWriteTimeUtcTicks=1;gameId='11111111-2222-3333-4444-555555555555';gameName='KMC Test Campaign';area='0123456789abcdef0123456789abcdef'}
             writeAuthorization=[ordered]@{mode='working-only';allowedInternalName='KMC_AUTOMATION_WORKING';allowedFileName='Manual_2_KMC_AUTOMATION_WORKING.zks';baselineImmutable=$true}
         }
-        $fallbackRequest=[pscustomobject]@{runId='combat-fallback-test';scenario='combat-core-control-suite';branch='codex/mounted-combat-phase2-alpha';commit=('0'*40);productVersion='0.1.0-phase3b-dev.23';dllSha256=('a'*64);dllMvid=[Guid]::Empty.ToString();transactionToken=('b'*64);evidenceRoot=$fallbackEvidence;fixture=$fallbackFixture}
+        $fallbackRequest=[pscustomobject]@{runId='combat-fallback-test';scenario='combat-core-control-suite';branch='codex/mounted-combat-phase2-alpha';commit=('0'*40);productVersion='0.1.0-phase3b-dev.24';dllSha256=('a'*64);dllMvid=[Guid]::Empty.ToString();transactionToken=('b'*64);evidenceRoot=$fallbackEvidence;fixture=$fallbackFixture}
         $originalError = 'synthetic attributed launcher failure'
         $final=New-KmcRuntimeResultV2 -Request $fallbackRequest -ValidatedGameResult $null -StartedAtUtc ([DateTimeOffset]::UtcNow) -ModsRestored $false -BaselineImmutable $false -WorkingRestored $false -SaveWriteAllowlistPassed $false -RestoredSaveInventoryDigest ('c'*64) -GameResultSha256 $null -Errors @($originalError)
         Assert-Test ([string]$final.status -ceq 'FAIL' -and @($final.errors).Count -eq 1 -and [string]$final.errors[0] -ceq $originalError) 'combat fallback masked or replaced the original launcher error'
@@ -4741,7 +4741,7 @@ try {
     $request = [ordered]@{
         schemaVersion = 1; runId = 'schema-test'; scenario = 'mod-load-smoke'
         branch = 'codex/mounted-combat-feasibility'; commit = '0123456789abcdef0123456789abcdef01234567'
-        productVersion = '0.1.0-phase3b-dev.23'; dllSha256 = ('ab' * 32)
+        productVersion = '0.1.0-phase3b-dev.24'; dllSha256 = ('ab' * 32)
         dllMvid = '07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'
         transactionToken = ('cd' * 32)
         evidenceRoot = (Join-Path $runtimeEvidenceTestRoot 'schema-test')
@@ -8935,7 +8935,7 @@ try {
         New-Item -ItemType Directory -Path $registrationRoot -Force | Out-Null
         $registrationRequest = [pscustomobject]@{
             runId='horse-companion-registration-validator';scenario='horse-companion-blueprint-registration';branch='codex/mounted-combat-phase3-horse'
-            commit=('2'*40);productVersion='0.1.0-phase3b-dev.23';evidenceRoot=$registrationRoot
+            commit=('2'*40);productVersion='0.1.0-phase3b-dev.24';evidenceRoot=$registrationRoot
         }
         $initial = [ordered]@{
             state=1;failure=$null;unitGuid='4016c7db400ab721ff125aef9e65e202';featureGuid='7db7c50677e39f09feef56f3831fc723'
@@ -8996,8 +8996,9 @@ try {
             $unmountedEngineSource.Contains('FindWalkablePoint(owner.Position, TargetDistance, 0.45f)') -and
             -not $unmountedEngineSource.Contains('FindWalkablePoint(horse.Position, TargetDistance, 0.45f)')) `
             'horse companion combat target is not derived from the exact owner-relative placement authority'
-        Assert-Test ($unmountedEngineSource.Contains('private const double LifecycleTimeoutSeconds = 30.0;') -and
+        Assert-Test ($unmountedEngineSource.Contains('private const double LifecycleTimeoutSeconds = 60.0;') -and
             $unmountedEngineSource.Contains('var lifecyclePhase = step == EngineStep.AwaitDeath ||') -and
+            $unmountedEngineSource.Contains('step == EngineStep.AwaitDirectDamage ||') -and
             $unmountedEngineSource.Contains('HorseCompanionScenarioDeadlinePolicy.Evaluate(') -and
             $unmountedEngineSource.Contains('lifecycleStartedAtSeconds = clock.Elapsed.TotalSeconds;') -and
             $unmountedEngineSource.IndexOf('lifecycleStartedAtSeconds = clock.Elapsed.TotalSeconds;', [StringComparison]::Ordinal) -lt
@@ -9026,7 +9027,7 @@ try {
             $unmountedEngineSource.Contains('availability.Action == MountedPlayerActionKind.Mount') -and
             $unmountedEngineSource.Contains('"target-selected-mount-admission-deadline"') -and
             ([regex]::Matches($unmountedEngineSource, [regex]::Escape('if (Game.Instance.IsPaused) { Game.Instance.IsPaused = false; }'))).Count -eq 4 -and
-            ([regex]::Matches($unmountedEngineSource, [regex]::Escape('horse.Commands.InterruptAll(false);'))).Count -eq 1 -and
+            ([regex]::Matches($unmountedEngineSource, [regex]::Escape('horse.Commands.InterruptAll(false);'))).Count -ge 2 -and
             $unmountedEngineSource.Contains('var nativeTurn = controller.CurrentTurn;') -and
             $unmountedEngineSource.Contains('turnBasedNativeTurnStableFrames++') -and
             $unmountedEngineSource.Contains('if (turnBasedNativeTurnStableFrames < 2)') -and
@@ -9051,7 +9052,7 @@ try {
         New-Item -ItemType Directory -Path $unmountedRoot -Force | Out-Null
         $unmountedRequest = [pscustomobject]@{
             runId='horse-companion-unmounted-validator';scenario='horse-companion-unmounted-suite';branch='codex/mounted-combat-phase3-horse'
-            commit=('5'*40);productVersion='0.1.0-phase3b-dev.23';dllSha256=('6'*64)
+            commit=('5'*40);productVersion='0.1.0-phase3b-dev.24';dllSha256=('6'*64)
             dllMvid='11111111-2222-3333-4444-555555555555';evidenceRoot=$unmountedRoot
         }
         $required = @(
@@ -9059,11 +9060,36 @@ try {
             'rank-progression-and-upgrade','native-view-size-statistics','horse-selection','stock-movement-command',
             'unmounted-party-movement','transient-combat-target','bite-and-hoof-full-attack','expected-attack-boundary',
             'real-time-natural-attack','turn-based-roster','turn-based-horse-control','turn-based-natural-attack',
-            'death-ownership','death-and-recovery','respec-runtime-cleanup','respec-and-uninstall-surface',
+            'stock-lifecycle-admission','ordinary-stock-damage-lifecycle','death-ownership','death-and-recovery',
+            'direct-damage-control-disposition','direct-damage-control-recovery',
+            'respec-runtime-cleanup','respec-and-uninstall-surface',
             'entity-and-target-restoration','mode-pause-selection-restoration','non-horse-isolation'
         )
         $unmountedAssertions = @($required | ForEach-Object { [ordered]@{name=$_;status='PASS';detail="Synthetic exact contract for $_."} })
         $biteGuid = ('7'*32)
+        $newHorseLifeSnapshot = {
+            param([string]$LifeState,[bool]$Conscious,[bool]$Dead,[int]$Damage,[bool]$InAwakeUnits)
+            [ordered]@{
+                lifeState=$LifeState;isConscious=$Conscious;isDead=$Dead;stateIsDead=$Dead;isFinallyDead=$false
+                damage=$Damage;nonLethalDamage=0;hitPoints=40;temporaryHitPoints=0;constitution=19;negativeHitPointThreshold=59
+                allowDyingCondition=$true;masterAllowDyingCondition=$true;immortality=$false;regeneration=$false
+                ferocity=$false;halfOrcFerocity=$false;dualCompanionPartPresent=$false;dualCompanionPartDead=$false
+                dualCompanionPairId=$null;isInState=$true;inStateUnits=$true;inAwakeUnits=$InAwakeUnits
+                isAwake=$InAwakeUnits;isSleeping=(-not $InAwakeUnits);awakeTimer=$(if($InAwakeUnits){1.0}else{-1.0})
+                sleepless=$false;viewPresent=$true;viewActive=$true;animatorPresent=$true;animatorLayerCount=1
+                animatorStateFullPathHash=1;animatorStateShortNameHash=2;animatorStateNormalizedTime=0.5
+                animatorInTransition=$false;ownerPetExact=$true;masterExact=$true;ownerPetId='horse';masterId='owner'
+                controllableRosterContainsHorse=$true;controllableRosterCount=2;groupIsPlayerParty=$true
+            }
+        }
+        $lifeConscious = & $newHorseLifeSnapshot 'Conscious' $true $false 0 $true
+        $lifeDead = & $newHorseLifeSnapshot 'Dead' $false $true 60 $true
+        $lifeDirectImmediate = & $newHorseLifeSnapshot 'Conscious' $true $false 60 $true
+        $lifeDirectAfter = & $newHorseLifeSnapshot 'Conscious' $true $false 60 $false
+        $stockLifecycleAttacks = @(
+            [ordered]@{sequence=1;result='Success';attackRules=1;attackRolls=1;damageRules=1;forcedD20Count=1;damage=30;horseDamageAfter=30;horseLifeStateAfter='Conscious'},
+            [ordered]@{sequence=2;result='Success';attackRules=1;attackRolls=1;damageRules=1;forcedD20Count=1;damage=30;horseDamageAfter=60;horseLifeStateAfter='Dead'}
+        )
         $unmountedObservations = [ordered]@{
             originalPause=$false;originalTurnBased=$false;originalSelectionCount=1
             saveLoadAutomationScope='CONTRACT-ONLY: synthetic guarded boundary.';ownerId='owner';ownerBlueprintGuid=('8'*32)
@@ -9089,9 +9115,19 @@ try {
             turnBasedPostDispatchStartTurnRequestCount=0
             targetCleanupExact=$true;lethalDamage=60;recoveredDamage=0;finalPause=$false;finalTurnBased=$false;finalSelectionCount=1
             unrelatedPartyPetsPreserved=$true;relationshipState='Unmounted';horseRemoved=$true;targetRemoved=$true
+            stockLifecycleBefore=$lifeConscious;stockLifecycleAttacks=$stockLifecycleAttacks;stockLifecycleAttackCount=2
+            stockLifecycleAttackRules=2;stockLifecycleAttackRolls=2;stockLifecycleDamageRules=2
+            stockLifecycleForcedD20Count=2;stockLifecycleRuleDamage=60;stockLifecycleTransitionEventCount=1
+            stockLifecycleTransitionActorId='horse';stockLifecycleTransitionPreviousLifeState='Conscious'
+            stockLifecycleTransitionCurrentLifeState='Dead';stockLifecycleAfter=$lifeDead;stockLifecycleRecovery=$lifeConscious
+            directDamageBefore=$lifeConscious;directDamageImmediatelyAfterMutation=$lifeDirectImmediate
+            directDamageDisposition='direct-mutation-left-native-awake-schedule-without-life-event'
+            directDamageTransitionEventCount=0;directDamageAfterObservation=$lifeDirectAfter
+            directDamageTimeline=@([ordered]@{secondsSinceMutation=1.0;lifeState='Conscious';damage=60;inAwakeUnits=$false;isAwake=$false;isSleeping=$true;awakeTimer=-1.0})
+            directDamageRecovery=$lifeConscious
         }
         $unmountedArtifact = [ordered]@{
-            schemaVersion=2;evidenceKind='horse-companion-unmounted';runId=$unmountedRequest.runId;scenario=$unmountedRequest.scenario
+            schemaVersion=4;evidenceKind='horse-companion-unmounted';runId=$unmountedRequest.runId;scenario=$unmountedRequest.scenario
             branch=$unmountedRequest.branch;commit=$unmountedRequest.commit;productVersion=$unmountedRequest.productVersion
             dllSha256=$unmountedRequest.dllSha256;dllMvid=$unmountedRequest.dllMvid;createdAtUtc=[DateTimeOffset]::UtcNow.ToString('o')
             status='PASS';assertions=$unmountedAssertions;observations=$unmountedObservations
@@ -9199,7 +9235,7 @@ try {
         New-Item -ItemType Directory -Path $mountedRoot -Force | Out-Null
         $mountedRequest = [pscustomobject]@{
             runId='horse-mounted-alpha-validator';scenario='horse-mounted-alpha-suite';branch='codex/mounted-combat-phase3-horse'
-            commit=('9'*40);productVersion='0.1.0-phase3b-dev.23';dllSha256=('a'*64)
+            commit=('9'*40);productVersion='0.1.0-phase3b-dev.24';dllSha256=('a'*64)
             dllMvid='22222222-3333-4444-5555-666666666666';evidenceRoot=$mountedRoot
         }
         $baseRequired = @(
@@ -9207,11 +9243,13 @@ try {
             'rank-progression-and-upgrade','native-view-size-statistics','horse-selection','stock-movement-command',
             'unmounted-party-movement','transient-combat-target','bite-and-hoof-full-attack','expected-attack-boundary',
             'real-time-natural-attack','turn-based-roster','turn-based-horse-control','turn-based-natural-attack',
-            'death-ownership','death-and-recovery','respec-runtime-cleanup','respec-and-uninstall-surface',
+            'stock-lifecycle-admission','ordinary-stock-damage-lifecycle','death-ownership','death-and-recovery',
+            'direct-damage-control-disposition','direct-damage-control-recovery',
+            'respec-runtime-cleanup','respec-and-uninstall-surface',
             'entity-and-target-restoration','mode-pause-selection-restoration','non-horse-isolation'
         )
         $mountedRequired = @($baseRequired + @(
-            'target-selected-mount-action','independent-horse-mounted-profile',
+            'target-selected-mount-action','independent-horse-mounted-profile','horse-pose-calibration',
             'mounted-real-time-command-routing','mounted-real-time-movement',
             'mounted-transient-combat-target','horse-pair-retained-in-turn-based-transition',
             'mounted-rider-turn-ground-admission','mounted-turn-based-rider-movement',
@@ -9221,6 +9259,29 @@ try {
         ))
         $mountedAssertions = @($mountedRequired | ForEach-Object { [ordered]@{name=$_;status='PASS';detail="Synthetic exact mounted contract for $_."} })
         $biteGuid = ('7'*32)
+        $newHorseLifeSnapshot = {
+            param([string]$LifeState,[bool]$Conscious,[bool]$Dead,[int]$Damage,[bool]$InAwakeUnits)
+            [ordered]@{
+                lifeState=$LifeState;isConscious=$Conscious;isDead=$Dead;stateIsDead=$Dead;isFinallyDead=$false
+                damage=$Damage;nonLethalDamage=0;hitPoints=40;temporaryHitPoints=0;constitution=19;negativeHitPointThreshold=59
+                allowDyingCondition=$true;masterAllowDyingCondition=$true;immortality=$false;regeneration=$false
+                ferocity=$false;halfOrcFerocity=$false;dualCompanionPartPresent=$false;dualCompanionPartDead=$false
+                dualCompanionPairId=$null;isInState=$true;inStateUnits=$true;inAwakeUnits=$InAwakeUnits
+                isAwake=$InAwakeUnits;isSleeping=(-not $InAwakeUnits);awakeTimer=$(if($InAwakeUnits){1.0}else{-1.0})
+                sleepless=$false;viewPresent=$true;viewActive=$true;animatorPresent=$true;animatorLayerCount=1
+                animatorStateFullPathHash=1;animatorStateShortNameHash=2;animatorStateNormalizedTime=0.5
+                animatorInTransition=$false;ownerPetExact=$true;masterExact=$true;ownerPetId='horse';masterId='owner'
+                controllableRosterContainsHorse=$true;controllableRosterCount=2;groupIsPlayerParty=$true
+            }
+        }
+        $lifeConscious = & $newHorseLifeSnapshot 'Conscious' $true $false 0 $true
+        $lifeDead = & $newHorseLifeSnapshot 'Dead' $false $true 60 $true
+        $lifeDirectImmediate = & $newHorseLifeSnapshot 'Conscious' $true $false 60 $true
+        $lifeDirectAfter = & $newHorseLifeSnapshot 'Conscious' $true $false 60 $false
+        $stockLifecycleAttacks = @(
+            [ordered]@{sequence=1;result='Success';attackRules=1;attackRolls=1;damageRules=1;forcedD20Count=1;damage=30;horseDamageAfter=30;horseLifeStateAfter='Conscious'},
+            [ordered]@{sequence=2;result='Success';attackRules=1;attackRolls=1;damageRules=1;forcedD20Count=1;damage=30;horseDamageAfter=60;horseLifeStateAfter='Dead'}
+        )
         $mountedObservations = [ordered]@{
             originalPause=$false;originalTurnBased=$false;originalSelectionCount=1
             saveLoadAutomationScope='CONTRACT-ONLY: synthetic guarded boundary.';ownerId='owner';ownerBlueprintGuid=('8'*32)
@@ -9246,6 +9307,16 @@ try {
             turnBasedPostDispatchStartTurnRequestCount=0
             targetCleanupExact=$true;lethalDamage=60;recoveredDamage=0;finalPause=$false;finalTurnBased=$false;finalSelectionCount=1
             unrelatedPartyPetsPreserved=$true;relationshipState='Unmounted';horseRemoved=$true;targetRemoved=$true
+            stockLifecycleBefore=$lifeConscious;stockLifecycleAttacks=$stockLifecycleAttacks;stockLifecycleAttackCount=2
+            stockLifecycleAttackRules=2;stockLifecycleAttackRolls=2;stockLifecycleDamageRules=2
+            stockLifecycleForcedD20Count=2;stockLifecycleRuleDamage=60;stockLifecycleTransitionEventCount=1
+            stockLifecycleTransitionActorId='horse';stockLifecycleTransitionPreviousLifeState='Conscious'
+            stockLifecycleTransitionCurrentLifeState='Dead';stockLifecycleAfter=$lifeDead;stockLifecycleRecovery=$lifeConscious
+            directDamageBefore=$lifeConscious;directDamageImmediatelyAfterMutation=$lifeDirectImmediate
+            directDamageDisposition='direct-mutation-left-native-awake-schedule-without-life-event'
+            directDamageTransitionEventCount=0;directDamageAfterObservation=$lifeDirectAfter
+            directDamageTimeline=@([ordered]@{secondsSinceMutation=1.0;lifeState='Conscious';damage=60;inAwakeUnits=$false;isAwake=$false;isSleeping=$true;awakeTimer=-1.0})
+            directDamageRecovery=$lifeConscious
         }
         $mountedObservations.unmountedTargetCleanupExact = $true
         $mountedObservations.mountTargetArmDelta = 1
@@ -9255,6 +9326,26 @@ try {
         $mountedObservations.horsePoseProfileId = 'medium-humanoid-horse-v1'
         $mountedObservations.horseSourceAnchor = 'Chest'
         $mountedObservations.horsePresentationAtMount = 'poseLease=True;attachmentLease=True'
+        $mountedObservations.horsePoseCalibration = [ordered]@{
+            candidateCount=1;candidateId='horse-human-review-20260828-a'
+            dev23PelvisPositionOffset=[ordered]@{x=0.0;y=0.02;z=-0.02}
+            selectedPelvisPositionOffset=[ordered]@{x=0.0;y=-0.12;z=-0.02}
+            dev23LeftFootTargetFromThigh=[ordered]@{x=-0.305;y=-0.46;z=0.044}
+            selectedLeftFootTargetFromThigh=[ordered]@{x=-0.18;y=-0.48;z=0.02}
+            dev23RightFootTargetFromThigh=[ordered]@{x=0.305;y=-0.46;z=0.044}
+            selectedRightFootTargetFromThigh=[ordered]@{x=0.18;y=-0.48;z=0.02}
+            dev23LeftKneeHintFromThigh=[ordered]@{x=-0.38;y=-0.12;z=0.26}
+            selectedLeftKneeHintFromThigh=[ordered]@{x=-0.20;y=-0.14;z=0.16}
+            dev23RightKneeHintFromThigh=[ordered]@{x=0.38;y=-0.12;z=0.26}
+            selectedRightKneeHintFromThigh=[ordered]@{x=0.20;y=-0.14;z=0.16}
+            crossedStirrupAssignment=$false;pelvisFromChestMountLocal=[ordered]@{x=0;y=0.2;z=0}
+            leftFootFromAssignedStirrupMountLocal=[ordered]@{x=0.1;y=0.1;z=0.1}
+            rightFootFromAssignedStirrupMountLocal=[ordered]@{x=-0.1;y=0.1;z=0.1}
+            leftFootToAssignedStirrup=0.2;rightFootToAssignedStirrup=0.2
+            poseApplicationFrameCount=4;footTargetClampCount=0;maximumFootTargetResidualWorldUnits=0.001
+            maximumKneeTargetResidualWorldUnits=0.001;maximumSegmentLengthResidualWorldUnits=0.00001
+            maximumApplyMicroseconds=100.0;averageApplyMicroseconds=50.0
+        }
         $mountedObservations.mountedRealTimeRiderDisplacement = 1.8
         $mountedObservations.mountedRealTimeHorseDisplacement = 1.8
         $mountedObservations.mountedRealTimeRemaining = 0.1
@@ -9284,7 +9375,7 @@ try {
         $mountedObservations.mountedHorseDamageRules = 1
         $mountedObservations.mountedTargetCleanupExact = $true
         $mountedArtifact = [ordered]@{
-            schemaVersion=3;evidenceKind='horse-mounted-alpha';runId=$mountedRequest.runId;scenario=$mountedRequest.scenario
+            schemaVersion=4;evidenceKind='horse-mounted-alpha';runId=$mountedRequest.runId;scenario=$mountedRequest.scenario
             branch=$mountedRequest.branch;commit=$mountedRequest.commit;productVersion=$mountedRequest.productVersion
             dllSha256=$mountedRequest.dllSha256;dllMvid=$mountedRequest.dllMvid;createdAtUtc=[DateTimeOffset]::UtcNow.ToString('o')
             status='PASS';assertions=$mountedAssertions;observations=$mountedObservations

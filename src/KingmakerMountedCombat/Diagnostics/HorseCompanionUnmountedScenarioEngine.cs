@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using Kingmaker;
@@ -14,12 +15,15 @@ using Kingmaker.EntitySystem.Entities;
 using Kingmaker.Enums;
 using Kingmaker.GameModes;
 using Kingmaker.PubSubSystem;
+using Kingmaker.RuleSystem.Rules;
+using Kingmaker.RuleSystem.Rules.Damage;
 using Kingmaker.UI.Selection;
 using Kingmaker.UI.SettingsUI;
 using Kingmaker.UnitLogic;
 using Kingmaker.UnitLogic.Class.LevelUp;
 using Kingmaker.UnitLogic.Commands;
 using Kingmaker.UnitLogic.Commands.Base;
+using Kingmaker.UnitLogic.Parts;
 using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Integration;
 using KingmakerMountedCombat.Logging;
@@ -48,7 +52,9 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private const double ScenarioTimeoutSeconds = 180.0;
         private const double MountedScenarioTimeoutSeconds = 300.0;
-        private const double LifecycleTimeoutSeconds = 30.0;
+        private const double LifecycleTimeoutSeconds = 60.0;
+        private const double DirectDamageObservationSeconds = 5.0;
+        private const int MaximumStockLifecycleAttacks = 6;
         private const double RealTimeAttackTimeoutSeconds = 20.0;
         private const double TurnBasedTurnAcquisitionTimeoutSeconds = 20.0;
         private const double TurnBasedAttackTimeoutSeconds = 20.0;
@@ -58,6 +64,10 @@ namespace KingmakerMountedCombat.Diagnostics
         private const float TargetDistance = 4.0f;
         private const string RangerClassGuid = "cda0615668a6df14eb36ba19ee881af6";
         private const string HuntersBondSelectionGuid = "b705c5184a96a84428eeb35ae2517a14";
+
+        private static readonly FieldInfo AiBackingField = typeof(UnitEntityData).GetField(
+            "m_AiEnabled",
+            BindingFlags.Instance | BindingFlags.NonPublic);
 
         private static readonly JsonSerializerSettings JsonSettings = new JsonSerializerSettings
         {
@@ -142,6 +152,24 @@ namespace KingmakerMountedCombat.Diagnostics
         private int lethalDamage;
         private double lifecycleStartedAtSeconds = -1.0;
         private NativeHorseLifeStateProbe horseLifeStateProbe;
+        private UnitAttack stockLifecycleAttack;
+        private double stockLifecycleAttackIssuedAtSeconds;
+        private int stockLifecycleAttackCount;
+        private int stockLifecycleAttackRuleCount;
+        private int stockLifecycleAttackRollCount;
+        private int stockLifecycleDamageRuleCount;
+        private int stockLifecycleForcedD20Count;
+        private int stockLifecycleDamage;
+        private int stockLifecycleTransitionBaseline;
+        private bool ownerAiBeforeLifecycle;
+        private bool horseAiBeforeLifecycle;
+        private bool pairAiSuppressedForLifecycle;
+        private int directDamageTransitionBaseline;
+        private double directDamageStartedAtSeconds;
+        private bool directDamageObservedOutsideAwakeSchedule;
+        private string directDamageTimelineState;
+        private readonly JArray stockLifecycleAttacks = new JArray();
+        private readonly JArray directDamageTimeline = new JArray();
 
         public HorseCompanionUnmountedScenarioEngine(
             RuntimeRequest request,
@@ -240,6 +268,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     : ScenarioTimeoutSeconds;
                 var lifecyclePhase = step == EngineStep.AwaitDeath ||
                     step == EngineStep.AwaitRecovery ||
+                    step == EngineStep.AwaitLifecycleTargetRemoval ||
+                    step == EngineStep.AwaitDirectDamage ||
+                    step == EngineStep.AwaitDirectRecovery ||
                     step == EngineStep.AwaitRespecRemoval;
                 var expiredDeadline = HorseCompanionScenarioDeadlinePolicy.Evaluate(
                     clock.Elapsed.TotalSeconds,
@@ -328,6 +359,15 @@ namespace KingmakerMountedCombat.Diagnostics
                         break;
                     case EngineStep.AwaitRecovery:
                         AwaitRecovery();
+                        break;
+                    case EngineStep.AwaitLifecycleTargetRemoval:
+                        AwaitLifecycleTargetRemoval();
+                        break;
+                    case EngineStep.AwaitDirectDamage:
+                        AwaitDirectDamage();
+                        break;
+                    case EngineStep.AwaitDirectRecovery:
+                        AwaitDirectRecovery();
                         break;
                     case EngineStep.AwaitRespecRemoval:
                         AwaitRespecRemoval();
@@ -1056,6 +1096,11 @@ namespace KingmakerMountedCombat.Diagnostics
         private void AwaitRealTimeRestore()
         {
             if (CombatController.IsInTurnBasedCombat()) { return; }
+            if (!IncludesMountedAlpha)
+            {
+                BeginDeathProbe();
+                return;
+            }
             TryLeaveCombat(target);
             TryLeaveCombat(horse);
             TryLeaveCombat(owner);
@@ -1094,7 +1139,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 BeginMountedAlphaAdmission();
                 return;
             }
-            BeginDeathProbe();
+            Fail("unexpected-pre-lifecycle-target-removal",
+                "The final Horse lifecycle target was removed before the stock-damage comparison began.");
+            BeginCleanup();
         }
 
         private void BeginMountedAlphaAdmission()
@@ -1169,7 +1216,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             var runtime = relationship.Runtime;
             if (relationship.State != RelationshipState.Mounted ||
-                runtime.PoseApplicationFrameCount == 0 || !runtime.PoseFrameApplied)
+                runtime.PoseApplicationFrameCount < 3 || !runtime.PoseFrameApplied)
             {
                 return;
             }
@@ -1189,6 +1236,19 @@ namespace KingmakerMountedCombat.Diagnostics
                     selected.Count == 1 && selected[0] == owner,
                 "independent-horse-mounted-profile",
                 "The exact horse profile used Chest, its independent rider pose, Mammoth-style sole pathfinding, and rider-owned selection without Mammoth offsets.");
+            if (failed != 0) { BeginCleanup(); return; }
+
+            var poseCalibration = CaptureHorsePoseCalibration();
+            observations["horsePoseCalibration"] = poseCalibration;
+            Check(poseCalibration != null &&
+                    runtime.PoseFootTargetClampCount == 0 &&
+                    runtime.PoseMaximumFootTargetResidualWorldUnits <= 0.01d &&
+                    runtime.PoseMaximumKneeTargetResidualWorldUnits <= 0.01d &&
+                    runtime.PoseMaximumSegmentLengthResidualWorldUnits <= 0.0001d &&
+                    (double)poseCalibration["leftFootToAssignedStirrup"] <= 0.5d &&
+                    (double)poseCalibration["rightFootToAssignedStirrup"] <= 0.5d,
+                "horse-pose-calibration",
+                "One Horse-only calibration lowered the dev.23 pelvis, narrowed thigh-relative foot and knee targets, retained exact segment lengths, and placed both feet within a bounded native-stirrup neighborhood; human visual acceptance remains required.");
             if (failed != 0) { BeginCleanup(); return; }
 
             mountedRealTimeRiderStart = owner.Position;
@@ -1499,35 +1559,93 @@ namespace KingmakerMountedCombat.Diagnostics
                 "mounted-explicit-dismount-restoration",
                 "Explicit Dismount restored both stock agents, rider selection, pose baseline, attachment parent, and zero KMC presentation residue.");
             if (failed != 0) { BeginCleanup(); return; }
-            TryLeaveCombat(target);
-            TryLeaveCombat(horse);
-            TryLeaveCombat(owner);
-            if (targetService != null && !targetService.DestroyAndVerify())
-            {
-                step = EngineStep.AwaitTargetRemoval;
-                return;
-            }
-            ContinueAfterTargetRemoval();
+            BeginDeathProbe();
         }
 
         private void BeginDeathProbe()
         {
-            observations["targetCleanupExact"] = targetService == null ||
-                (targetService.TargetEntityRemoved && targetService.RuntimeGroupRemoved &&
-                 targetService.RuntimeFactionRemoved && targetService.CombatMemoryRemoved);
+            if (relationship.State != RelationshipState.Unmounted || targetService == null ||
+                target == null || !target.IsInState || horse == null || !horse.IsInState ||
+                owner == null || !owner.IsInState || AiBackingField == null ||
+                AiBackingField.FieldType != typeof(bool))
+            {
+                Fail("stock-lifecycle-admission",
+                    "The exact unmounted Horse, owner, hostile stock attacker, or raw AI contract was unavailable.");
+                BeginCleanup();
+                return;
+            }
+
             DisposeHorseLifeStateProbe();
             horseLifeStateProbe = new NativeHorseLifeStateProbe(horse);
-            observations["deathLifeStateBefore"] = horse.Descriptor.State.LifeState.ToString();
-            observations["deathFinallyDeadBefore"] = horse.Descriptor.State.IsFinallyDead;
-            observations["deathAwakeBefore"] = horse.IsAwake;
-            observations["deathInAwakeUnitsBefore"] = Game.Instance.State.AwakeUnits.Contains(horse);
-            observations["damageBeforeDeathProbe"] = horse.Damage;
+            stockLifecycleTransitionBaseline = horseLifeStateProbe.Snapshot().Count;
+            observations["stockLifecycleBefore"] = CaptureHorseLifeState();
             lethalDamage = (int)horse.Stats.HitPoints + (int)horse.Stats.Constitution + 1;
-            horse.Damage = lethalDamage;
             observations["lethalDamage"] = lethalDamage;
-            observations["damageImmediatelyAfterDeathProbe"] = horse.Damage;
+
+            owner.Commands.InterruptAll(false);
+            horse.Commands.InterruptAll(false);
+            target.Commands.InterruptAll(false);
+            owner.Commands.RemoveFinishedAndUpdateQueue();
+            horse.Commands.RemoveFinishedAndUpdateQueue();
+            target.Commands.RemoveFinishedAndUpdateQueue();
+            ownerAiBeforeLifecycle = (bool)AiBackingField.GetValue(owner);
+            horseAiBeforeLifecycle = (bool)AiBackingField.GetValue(horse);
+            owner.IsAIEnabled = false;
+            horse.IsAIEnabled = false;
+            pairAiSuppressedForLifecycle = !(bool)AiBackingField.GetValue(owner) &&
+                !(bool)AiBackingField.GetValue(horse);
+            Check(pairAiSuppressedForLifecycle && owner.Commands.Empty && horse.Commands.Empty && target.Commands.Empty,
+                "stock-lifecycle-admission",
+                "The exact hostile stock-attack comparison suppressed only owner/Horse autonomous commands and began from empty queues.");
+            if (failed != 0) { BeginCleanup(); return; }
+
+            stockLifecycleAttackCount = 0;
+            stockLifecycleAttackRuleCount = 0;
+            stockLifecycleAttackRollCount = 0;
+            stockLifecycleDamageRuleCount = 0;
+            stockLifecycleForcedD20Count = 0;
+            stockLifecycleDamage = 0;
+            stockLifecycleAttacks.Clear();
             lifecycleStartedAtSeconds = clock.Elapsed.TotalSeconds;
             step = EngineStep.AwaitDeath;
+            IssueStockLifecycleAttack();
+        }
+
+        private void IssueStockLifecycleAttack()
+        {
+            if (stockLifecycleAttackCount >= MaximumStockLifecycleAttacks)
+            {
+                Fail("ordinary-stock-damage-lifecycle",
+                    "Six exact forced-hit stock attacks did not produce a native non-conscious Horse transition.");
+                BeginCleanup();
+                return;
+            }
+            if (targetService == null || !targetService.RefreshBidirectionalCombatMemoryLease() ||
+                target == null || horse == null || !target.IsInState || !horse.IsInState ||
+                !horse.Descriptor.State.IsConscious)
+            {
+                return;
+            }
+
+            target.Commands.InterruptAll(false);
+            target.Commands.RemoveFinishedAndUpdateQueue();
+            if (ruleProbe == null)
+            {
+                ruleProbe = new MountedCombatRuleProbe();
+            }
+            ruleProbe.Arm(owner, horse, target, horse, 20);
+            stockLifecycleAttack = new UnitAttack(horse) { IsSingleAttack = true };
+            stockLifecycleAttack.IgnoreCooldown();
+            target.Commands.Run(stockLifecycleAttack);
+            stockLifecycleAttackCount++;
+            stockLifecycleAttackIssuedAtSeconds = clock.Elapsed.TotalSeconds;
+            if (!ReferenceEquals(target.Commands.Standard, stockLifecycleAttack) ||
+                stockLifecycleAttack.Executor != target)
+            {
+                Fail("ordinary-stock-damage-command",
+                    "The exact hostile Mammoth did not retain its stock single attack against the Horse.");
+                BeginCleanup();
+            }
         }
 
         private static JObject CaptureMountedOutcome(MountedPairAttackOutcome outcome)
@@ -1558,27 +1676,95 @@ namespace KingmakerMountedCombat.Diagnostics
         private void AwaitDeath()
         {
             var lifeTransitions = horseLifeStateProbe?.Snapshot() ?? new NativeHorseLifeStateObservation[0];
-            var expectedTransitions = lifeTransitions.Where(item =>
+            var expectedTransitions = lifeTransitions.Skip(stockLifecycleTransitionBaseline).Where(item =>
                 HorseCompanionLifeTransitionPolicy.IsExpectedNonConsciousTransition(
                     horseId,
                     item.ActorId,
                     item.PreviousLifeState,
                     item.CurrentLifeState)).ToArray();
-            if (expectedTransitions.Length == 0) { return; }
+
+            if (stockLifecycleAttack != null && !stockLifecycleAttack.IsFinished)
+            {
+                if (clock.Elapsed.TotalSeconds - stockLifecycleAttackIssuedAtSeconds <= RealTimeAttackTimeoutSeconds)
+                {
+                    return;
+                }
+                Fail("ordinary-stock-damage-command-deadline",
+                    "A hostile stock Horse lifecycle attack exceeded its bounded 20-second command leaf.");
+                BeginCleanup();
+                return;
+            }
+
+            if (stockLifecycleAttack != null)
+            {
+                stockLifecycleAttackRuleCount += ruleProbe.AttackRuleCount;
+                stockLifecycleAttackRollCount += ruleProbe.AttackRollCount;
+                stockLifecycleDamageRuleCount += ruleProbe.DamageRuleCount;
+                stockLifecycleForcedD20Count += ruleProbe.ForcedD20Count;
+                stockLifecycleDamage += ruleProbe.TotalDamage;
+                stockLifecycleAttacks.Add(new JObject
+                {
+                    ["sequence"] = stockLifecycleAttackCount,
+                    ["result"] = stockLifecycleAttack.Result.ToString(),
+                    ["attackRules"] = ruleProbe.AttackRuleCount,
+                    ["attackRolls"] = ruleProbe.AttackRollCount,
+                    ["damageRules"] = ruleProbe.DamageRuleCount,
+                    ["forcedD20Count"] = ruleProbe.ForcedD20Count,
+                    ["damage"] = ruleProbe.TotalDamage,
+                    ["horseDamageAfter"] = horse.Damage,
+                    ["horseLifeStateAfter"] = horse.Descriptor.State.LifeState.ToString()
+                });
+                if (ruleProbe.AttackRuleCount != 1 || ruleProbe.AttackRollCount != 1 ||
+                    ruleProbe.DamageRuleCount != 1 || ruleProbe.ForcedD20Count < 1 ||
+                    ruleProbe.TotalDamage <= 0 || ruleProbe.UnexpectedPairAttackCount != 0)
+                {
+                    Fail("ordinary-stock-damage-rule-chain",
+                        "A hostile stock lifecycle attack did not retain one exact attack/roll/damage chain.");
+                    BeginCleanup();
+                    return;
+                }
+                stockLifecycleAttack = null;
+            }
+
+            if (expectedTransitions.Length == 0)
+            {
+                if (!horse.Descriptor.State.IsConscious)
+                {
+                    Fail("ordinary-stock-damage-event",
+                        "The Horse entered a non-conscious state without the exact native life-state callback.");
+                    BeginCleanup();
+                    return;
+                }
+                IssueStockLifecycleAttack();
+                return;
+            }
 
             var transition = expectedTransitions[0];
-            observations["deathLifeTransitionEventCountAtDetection"] = lifeTransitions.Count;
-            observations["deathExpectedNonConsciousTransitionCount"] = expectedTransitions.Length;
-            observations["deathTransitionActorId"] = transition.ActorId;
-            observations["deathTransitionPreviousLifeState"] = transition.PreviousLifeState;
-            observations["deathTransitionCurrentLifeState"] = transition.CurrentLifeState;
-            observations["deathLifeStateAtDetection"] = horse.Descriptor.State.LifeState.ToString();
-            observations["deathConsciousAtDetection"] = horse.Descriptor.State.IsConscious;
-            observations["damageAtDeathDetection"] = horse.Damage;
+            observations["stockLifecycleAttacks"] = stockLifecycleAttacks;
+            observations["stockLifecycleAttackCount"] = stockLifecycleAttackCount;
+            observations["stockLifecycleAttackRules"] = stockLifecycleAttackRuleCount;
+            observations["stockLifecycleAttackRolls"] = stockLifecycleAttackRollCount;
+            observations["stockLifecycleDamageRules"] = stockLifecycleDamageRuleCount;
+            observations["stockLifecycleForcedD20Count"] = stockLifecycleForcedD20Count;
+            observations["stockLifecycleRuleDamage"] = stockLifecycleDamage;
+            observations["stockLifecycleTransitionEventCount"] = expectedTransitions.Length;
+            observations["stockLifecycleTransitionActorId"] = transition.ActorId;
+            observations["stockLifecycleTransitionPreviousLifeState"] = transition.PreviousLifeState;
+            observations["stockLifecycleTransitionCurrentLifeState"] = transition.CurrentLifeState;
+            observations["stockLifecycleAfter"] = CaptureHorseLifeState();
+            Check(stockLifecycleAttackCount >= 1 && stockLifecycleAttackCount <= MaximumStockLifecycleAttacks &&
+                    stockLifecycleAttackRuleCount == stockLifecycleAttackCount &&
+                    stockLifecycleAttackRollCount == stockLifecycleAttackCount &&
+                    stockLifecycleDamageRuleCount == stockLifecycleAttackCount &&
+                    stockLifecycleForcedD20Count >= stockLifecycleAttackCount &&
+                    stockLifecycleDamage > 0 && expectedTransitions.Length == 1 &&
+                    !horse.Descriptor.State.IsConscious,
+                "ordinary-stock-damage-lifecycle",
+                "Ordinary hostile stock attacks produced exact attack/roll/damage chains and one native non-conscious Horse transition.");
             Check(expectedTransitions.Length == 1 && owner.Descriptor.Pet == horse &&
                     horse.Descriptor.Master.Value == owner,
                 "death-ownership",
-                "One exact native Horse life-state event entered a non-conscious state and retained the reciprocal companion ownership relation for recovery.");
+                "The stock Horse life-state transition retained the reciprocal companion ownership relation for recovery.");
             if (failed != 0) { BeginCleanup(); return; }
             horse.Descriptor.ResurrectAndFullRestore();
             step = EngineStep.AwaitRecovery;
@@ -1588,11 +1774,106 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (!horse.Descriptor.State.IsConscious || horse.Damage != 0) { return; }
             observations["recoveredDamage"] = horse.Damage;
-            observations["deathLifeTransitionEventCountAtRecovery"] = horseLifeStateProbe?.Snapshot().Count ?? 0;
+            observations["stockLifecycleRecovery"] = CaptureHorseLifeState();
             Check(horse.IsInState && horse.View != null && horse.View.gameObject.activeInHierarchy &&
                     owner.Descriptor.Pet == horse && horse.Descriptor.Master.Value == owner,
                 "death-and-recovery",
-                "The horse recovered visibly with zero damage and the same reciprocal owner relation.");
+                "The Horse recovered visibly from ordinary stock damage with zero damage and the same reciprocal owner relation.");
+            if (failed != 0) { BeginCleanup(); return; }
+
+            TryLeaveCombat(target);
+            TryLeaveCombat(horse);
+            TryLeaveCombat(owner);
+            if (targetService != null && !targetService.DestroyAndVerify())
+            {
+                step = EngineStep.AwaitLifecycleTargetRemoval;
+                return;
+            }
+            BeginDirectDamageControl();
+        }
+
+        private void AwaitLifecycleTargetRemoval()
+        {
+            if (targetService != null && !targetService.DestroyAndVerify()) { return; }
+            BeginDirectDamageControl();
+        }
+
+        private void BeginDirectDamageControl()
+        {
+            observations["targetCleanupExact"] = targetService == null ||
+                (targetService.TargetEntityRemoved && targetService.RuntimeGroupRemoved &&
+                 targetService.RuntimeFactionRemoved && targetService.CombatMemoryRemoved &&
+                 targetService.TargetDurabilityLeaseReleased && targetService.TargetBrainLeaseReleased &&
+                 targetService.TargetSleeplessLeaseReleased && targetService.NonPairPartyAiLeaseRestored);
+            try { targetService?.Dispose(); }
+            catch (Exception exception) { errors.Add("Lifecycle target disposal: " + exception.Message); }
+            targetService = null;
+            target = null;
+
+            RestoreLifecyclePairAi();
+            directDamageTransitionBaseline = horseLifeStateProbe?.Snapshot().Count ?? 0;
+            directDamageObservedOutsideAwakeSchedule = false;
+            directDamageTimelineState = null;
+            directDamageTimeline.Clear();
+            observations["directDamageBefore"] = CaptureHorseLifeState();
+            horse.Damage = lethalDamage;
+            observations["directDamageImmediatelyAfterMutation"] = CaptureHorseLifeState();
+            directDamageStartedAtSeconds = clock.Elapsed.TotalSeconds;
+            AppendDirectDamageTimeline();
+            step = EngineStep.AwaitDirectDamage;
+        }
+
+        private void AwaitDirectDamage()
+        {
+            AppendDirectDamageTimeline();
+            var transitions = (horseLifeStateProbe?.Snapshot() ?? new NativeHorseLifeStateObservation[0])
+                .Skip(directDamageTransitionBaseline)
+                .Where(item => HorseCompanionLifeTransitionPolicy.IsExpectedNonConsciousTransition(
+                    horseId, item.ActorId, item.PreviousLifeState, item.CurrentLifeState))
+                .ToArray();
+            if (transitions.Length != 0)
+            {
+                observations["directDamageDisposition"] = "native-life-controller-observed-direct-mutation";
+                observations["directDamageTransitionEventCount"] = transitions.Length;
+                observations["directDamageAfterObservation"] = CaptureHorseLifeState();
+                observations["directDamageTimeline"] = directDamageTimeline;
+                Check(transitions.Length == 1 && !horse.Descriptor.State.IsConscious,
+                    "direct-damage-control-disposition",
+                    "The old direct mutation was observed separately and reached one native event in this exact runtime context; stock combat remains the qualification authority.");
+                if (failed != 0) { BeginCleanup(); return; }
+                horse.Descriptor.ResurrectAndFullRestore();
+                step = EngineStep.AwaitDirectRecovery;
+                return;
+            }
+
+            if (clock.Elapsed.TotalSeconds - directDamageStartedAtSeconds < DirectDamageObservationSeconds)
+            {
+                return;
+            }
+
+            observations["directDamageDisposition"] = directDamageObservedOutsideAwakeSchedule
+                ? "direct-mutation-left-native-awake-schedule-without-life-event"
+                : "direct-mutation-remained-awake-without-life-event";
+            observations["directDamageTransitionEventCount"] = 0;
+            observations["directDamageAfterObservation"] = CaptureHorseLifeState();
+            observations["directDamageTimeline"] = directDamageTimeline;
+            Check(directDamageObservedOutsideAwakeSchedule && horse.Descriptor.State.IsConscious &&
+                    horse.Damage == lethalDamage,
+                "direct-damage-control-disposition",
+                "The old direct assignment changed damage but, after combat teardown, the Horse left the native AwakeUnits schedule before any life-state callback; it is not a valid stock lifecycle qualification path.");
+            if (failed != 0) { BeginCleanup(); return; }
+            horse.Descriptor.ResurrectAndFullRestore();
+            step = EngineStep.AwaitDirectRecovery;
+        }
+
+        private void AwaitDirectRecovery()
+        {
+            if (!horse.Descriptor.State.IsConscious || horse.Damage != 0) { return; }
+            observations["directDamageRecovery"] = CaptureHorseLifeState();
+            Check(owner.Descriptor.Pet == horse && horse.Descriptor.Master.Value == owner &&
+                    horse.IsInState && horse.View != null && horse.View.gameObject.activeInHierarchy,
+                "direct-damage-control-recovery",
+                "The diagnostic-only direct-damage control restored the same visible Horse and reciprocal ownership without synthesizing a life event.");
             if (failed != 0) { BeginCleanup(); return; }
 
             DisposeHorseLifeStateProbe();
@@ -1601,6 +1882,190 @@ namespace KingmakerMountedCombat.Diagnostics
             horseFeatureFact = null;
             Game.Instance.EntityDestroyer.Tick();
             step = EngineStep.AwaitRespecRemoval;
+        }
+
+        private JObject CaptureHorseLifeState()
+        {
+            var state = horse?.Descriptor?.State;
+            var stats = horse?.Stats;
+            var animator = horse?.View?.Animator;
+            var animatorAvailable = animator != null && animator.layerCount > 0;
+            var animatorState = animatorAvailable
+                ? animator.GetCurrentAnimatorStateInfo(0)
+                : default(AnimatorStateInfo);
+            var dualCompanion = horse?.Get<UnitPartDualCompanion>();
+            var master = horse?.Descriptor?.Master.Value;
+            var player = Game.Instance?.Player;
+            return new JObject
+            {
+                ["lifeState"] = state?.LifeState.ToString(),
+                ["isConscious"] = state != null && state.IsConscious,
+                ["isDead"] = state != null && state.IsDead,
+                ["stateIsDead"] = state != null && state.IsDead,
+                ["isFinallyDead"] = state != null && state.IsFinallyDead,
+                ["damage"] = horse?.Damage,
+                ["nonLethalDamage"] = horse?.DamageNonLethal,
+                ["hitPoints"] = stats == null ? 0 : (int)stats.HitPoints,
+                ["temporaryHitPoints"] = stats == null ? 0 : (int)stats.TemporaryHitPoints,
+                ["constitution"] = stats == null ? 0 : (int)stats.Constitution,
+                ["negativeHitPointThreshold"] = stats == null ? 0 : (int)stats.HitPoints + (int)stats.Constitution,
+                ["allowDyingCondition"] = state != null && (bool)state.AllowDyingCondition,
+                ["masterAllowDyingCondition"] = master?.Descriptor?.State != null &&
+                    (bool)master.Descriptor.State.AllowDyingCondition,
+                ["immortality"] = state != null && (bool)state.Immortality,
+                ["regeneration"] = state != null && (bool)state.IsRegenerate,
+                ["ferocity"] = state != null && (bool)state.Features.Ferocity,
+                ["halfOrcFerocity"] = state != null && (bool)state.Features.HalfOrcFerocity,
+                ["dualCompanionPartPresent"] = dualCompanion != null,
+                ["dualCompanionPartDead"] = dualCompanion != null && dualCompanion.IsDead,
+                ["dualCompanionPairId"] = dualCompanion?.PairCompanion.Value?.UniqueId,
+                ["isInState"] = horse != null && horse.IsInState,
+                ["inStateUnits"] = horse != null && Game.Instance.State.Units.Contains(horse),
+                ["inAwakeUnits"] = horse != null && Game.Instance.State.AwakeUnits.Contains(horse),
+                ["isAwake"] = horse != null && horse.IsAwake,
+                ["isSleeping"] = horse != null && horse.IsSleeping,
+                ["awakeTimer"] = horse?.AwakeTimer,
+                ["sleepless"] = horse != null && horse.Sleepless,
+                ["viewPresent"] = horse?.View != null,
+                ["viewActive"] = horse?.View != null && horse.View.gameObject.activeInHierarchy,
+                ["animatorPresent"] = animator != null,
+                ["animatorLayerCount"] = animator == null ? 0 : animator.layerCount,
+                ["animatorStateFullPathHash"] = animatorAvailable ? animatorState.fullPathHash : 0,
+                ["animatorStateShortNameHash"] = animatorAvailable ? animatorState.shortNameHash : 0,
+                ["animatorStateNormalizedTime"] = animatorAvailable ? animatorState.normalizedTime : 0f,
+                ["animatorInTransition"] = animatorAvailable && animator.IsInTransition(0),
+                ["ownerPetExact"] = owner != null && owner.Descriptor.Pet == horse,
+                ["masterExact"] = master == owner,
+                ["ownerPetId"] = owner?.Descriptor?.Pet?.UniqueId,
+                ["masterId"] = master?.UniqueId,
+                ["controllableRosterContainsHorse"] = player != null && horse != null &&
+                    player.ControllableCharacters.Contains(horse),
+                ["controllableRosterCount"] = player?.ControllableCharacters.Count ?? 0,
+                ["groupIsPlayerParty"] = horse?.Group != null && horse.Group.IsPlayerParty
+            };
+        }
+
+        private JObject CaptureHorsePoseCalibration()
+        {
+            var riderRoot = owner?.View?.CharacterAvatar?.transform;
+            var mountRoot = horse?.View?.transform;
+            var pelvis = FindUniqueTransform(riderRoot, "Pelvis");
+            var leftFoot = FindUniqueTransform(riderRoot, "L_foot");
+            var rightFoot = FindUniqueTransform(riderRoot, "R_foot");
+            var chest = FindUniqueTransform(mountRoot, "Chest");
+            var leftStirrup = FindUniqueTransform(mountRoot, "L_Stirrup");
+            var rightStirrup = FindUniqueTransform(mountRoot, "R_Stirrup");
+            if (pelvis == null || leftFoot == null || rightFoot == null || chest == null ||
+                leftStirrup == null || rightStirrup == null)
+            {
+                return null;
+            }
+
+            var directDistance = Vector3.Distance(leftFoot.position, leftStirrup.position) +
+                Vector3.Distance(rightFoot.position, rightStirrup.position);
+            var crossedDistance = Vector3.Distance(leftFoot.position, rightStirrup.position) +
+                Vector3.Distance(rightFoot.position, leftStirrup.position);
+            var crossedAssignment = crossedDistance < directDistance;
+            var assignedLeft = crossedAssignment ? rightStirrup : leftStirrup;
+            var assignedRight = crossedAssignment ? leftStirrup : rightStirrup;
+            var pelvisFromChest = mountRoot.InverseTransformVector(pelvis.position - chest.position);
+            var leftFootFromStirrup = mountRoot.InverseTransformVector(leftFoot.position - assignedLeft.position);
+            var rightFootFromStirrup = mountRoot.InverseTransformVector(rightFoot.position - assignedRight.position);
+            var profile = MountedRiderPoseProfiles.MediumHumanoidOnHorse;
+            var runtime = relationship.Runtime;
+            return new JObject
+            {
+                ["candidateCount"] = 1,
+                ["candidateId"] = "horse-human-review-20260828-a",
+                ["dev23PelvisPositionOffset"] = PoseVector(new PoseVector3(0f, 0.02f, -0.02f)),
+                ["selectedPelvisPositionOffset"] = PoseVector(profile.PelvisPositionOffset),
+                ["dev23LeftFootTargetFromThigh"] = PoseVector(new PoseVector3(-0.305f, -0.46f, 0.044f)),
+                ["selectedLeftFootTargetFromThigh"] = PoseVector(profile.LeftLeg.FootTargetFromThigh),
+                ["dev23RightFootTargetFromThigh"] = PoseVector(new PoseVector3(0.305f, -0.46f, 0.044f)),
+                ["selectedRightFootTargetFromThigh"] = PoseVector(profile.RightLeg.FootTargetFromThigh),
+                ["dev23LeftKneeHintFromThigh"] = PoseVector(new PoseVector3(-0.38f, -0.12f, 0.26f)),
+                ["selectedLeftKneeHintFromThigh"] = PoseVector(profile.LeftLeg.KneeHintFromThigh),
+                ["dev23RightKneeHintFromThigh"] = PoseVector(new PoseVector3(0.38f, -0.12f, 0.26f)),
+                ["selectedRightKneeHintFromThigh"] = PoseVector(profile.RightLeg.KneeHintFromThigh),
+                ["crossedStirrupAssignment"] = crossedAssignment,
+                ["pelvisFromChestMountLocal"] = UnityVector(pelvisFromChest),
+                ["leftFootFromAssignedStirrupMountLocal"] = UnityVector(leftFootFromStirrup),
+                ["rightFootFromAssignedStirrupMountLocal"] = UnityVector(rightFootFromStirrup),
+                ["leftFootToAssignedStirrup"] = Vector3.Distance(leftFoot.position, assignedLeft.position),
+                ["rightFootToAssignedStirrup"] = Vector3.Distance(rightFoot.position, assignedRight.position),
+                ["poseApplicationFrameCount"] = runtime.PoseApplicationFrameCount,
+                ["footTargetClampCount"] = runtime.PoseFootTargetClampCount,
+                ["maximumFootTargetResidualWorldUnits"] = runtime.PoseMaximumFootTargetResidualWorldUnits,
+                ["maximumKneeTargetResidualWorldUnits"] = runtime.PoseMaximumKneeTargetResidualWorldUnits,
+                ["maximumSegmentLengthResidualWorldUnits"] = runtime.PoseMaximumSegmentLengthResidualWorldUnits,
+                ["maximumApplyMicroseconds"] = runtime.PoseMaximumApplyMicroseconds,
+                ["averageApplyMicroseconds"] = runtime.PoseAverageApplyMicroseconds
+            };
+        }
+
+        private static JObject PoseVector(PoseVector3 value)
+        {
+            return new JObject { ["x"] = value.X, ["y"] = value.Y, ["z"] = value.Z };
+        }
+
+        private static JObject UnityVector(Vector3 value)
+        {
+            return new JObject { ["x"] = value.x, ["y"] = value.y, ["z"] = value.z };
+        }
+
+        private static Transform FindUniqueTransform(Transform root, string exactName)
+        {
+            Transform found = null;
+            var count = 0;
+            FindTransforms(root, exactName, ref found, ref count);
+            return count == 1 ? found : null;
+        }
+
+        private static void FindTransforms(Transform current, string exactName, ref Transform found, ref int count)
+        {
+            if (current == null || count > 1) { return; }
+            if (string.Equals(current.name, exactName, StringComparison.Ordinal))
+            {
+                found = current;
+                count++;
+            }
+            for (var index = 0; index < current.childCount; index++)
+            {
+                FindTransforms(current.GetChild(index), exactName, ref found, ref count);
+            }
+        }
+
+        private void RestoreLifecyclePairAi()
+        {
+            if (!pairAiSuppressedForLifecycle) { return; }
+            owner.IsAIEnabled = ownerAiBeforeLifecycle;
+            horse.IsAIEnabled = horseAiBeforeLifecycle;
+            if ((bool)AiBackingField.GetValue(owner) != ownerAiBeforeLifecycle ||
+                (bool)AiBackingField.GetValue(horse) != horseAiBeforeLifecycle)
+            {
+                throw new InvalidOperationException("The stock lifecycle comparison did not restore exact owner/Horse raw AI state.");
+            }
+            pairAiSuppressedForLifecycle = false;
+        }
+
+        private void AppendDirectDamageTimeline()
+        {
+            var state = horse.Descriptor.State;
+            var inAwakeUnits = Game.Instance.State.AwakeUnits.Contains(horse);
+            if (!inAwakeUnits) { directDamageObservedOutsideAwakeSchedule = true; }
+            var key = state.LifeState + "|" + horse.Damage + "|" + inAwakeUnits + "|" + horse.IsSleeping;
+            if (string.Equals(key, directDamageTimelineState, StringComparison.Ordinal)) { return; }
+            directDamageTimelineState = key;
+            directDamageTimeline.Add(new JObject
+            {
+                ["secondsSinceMutation"] = clock.Elapsed.TotalSeconds - directDamageStartedAtSeconds,
+                ["lifeState"] = state.LifeState.ToString(),
+                ["damage"] = horse.Damage,
+                ["inAwakeUnits"] = inAwakeUnits,
+                ["isAwake"] = horse.IsAwake,
+                ["isSleeping"] = horse.IsSleeping,
+                ["awakeTimer"] = horse.AwakeTimer
+            });
         }
 
         private void AwaitRespecRemoval()
@@ -1653,6 +2118,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             try { realTimeAttack?.Interrupt(); } catch (Exception exception) { errors.Add("RT attack cleanup: " + exception.Message); }
             try { turnBasedAttack?.Interrupt(); } catch (Exception exception) { errors.Add("TB attack cleanup: " + exception.Message); }
+            try { stockLifecycleAttack?.Interrupt(); } catch (Exception exception) { errors.Add("Stock lifecycle attack cleanup: " + exception.Message); }
             try { movementCommand?.Interrupt(); } catch (Exception exception) { errors.Add("Movement cleanup: " + exception.Message); }
             try { mountedRealTimeMove?.Interrupt(); } catch (Exception exception) { errors.Add("Mounted RT movement cleanup: " + exception.Message); }
             TryLeaveCombat(target);
@@ -1662,6 +2128,7 @@ namespace KingmakerMountedCombat.Diagnostics
             try { ruleProbe?.Dispose(); } catch (Exception exception) { errors.Add("Rule-probe cleanup: " + exception.Message); }
             ruleProbe = null;
             DisposeHorseLifeStateProbe();
+            try { RestoreLifecyclePairAi(); } catch (Exception exception) { errors.Add("Lifecycle pair AI cleanup: " + exception.Message); }
 
             if (owner != null && horseFeatureFact != null)
             {
@@ -1908,7 +2375,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var status = failed == 0 ? "PASS" : "FAIL";
             var artifact = new JObject
             {
-                ["schemaVersion"] = IncludesMountedAlpha ? 3 : 2,
+                ["schemaVersion"] = 4,
                 ["evidenceKind"] = IncludesMountedAlpha ? MountedEvidenceKind : EvidenceKind,
                 ["runId"] = request.RunId,
                 ["scenario"] = request.Scenario,
@@ -2047,6 +2514,9 @@ namespace KingmakerMountedCombat.Diagnostics
             AwaitMountedDismount,
             AwaitDeath,
             AwaitRecovery,
+            AwaitLifecycleTargetRemoval,
+            AwaitDirectDamage,
+            AwaitDirectRecovery,
             AwaitRespecRemoval,
             AwaitCleanup
         }

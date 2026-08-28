@@ -4930,7 +4930,7 @@ function Assert-KmcHorseCompanionUnmountedEvidence {
         'schemaVersion','evidenceKind','runId','scenario','branch','commit','productVersion','dllSha256','dllMvid',
         'createdAtUtc','status','assertions','observations','assertionPassCount','assertionFailCount','errors'
     ) 'horse unmounted evidence'
-    if (-not (Test-KmcExactJsonInteger $artifact.schemaVersion) -or [long]$artifact.schemaVersion -notin @(1,2,3) -or
+    if (-not (Test-KmcExactJsonInteger $artifact.schemaVersion) -or [long]$artifact.schemaVersion -notin @(1,2,3,4) -or
         ([long]$artifact.schemaVersion -eq 3 -and -not $isMounted) -or
         [string]$artifact.evidenceKind -cne $kind -or [string]$artifact.status -cnotin @('PASS','FAIL') -or
         $artifact.assertions -isnot [Array] -or $artifact.errors -isnot [Array] -or $null -eq $artifact.observations -or
@@ -4982,9 +4982,15 @@ function Assert-KmcHorseCompanionUnmountedEvidence {
             'death-ownership','death-and-recovery','respec-runtime-cleanup','respec-and-uninstall-surface',
             'entity-and-target-restoration','mode-pause-selection-restoration','non-horse-isolation'
         )
+        if ([long]$artifact.schemaVersion -ge 4) {
+            $requiredAssertions = @($requiredAssertions + @(
+                'stock-lifecycle-admission','ordinary-stock-damage-lifecycle',
+                'direct-damage-control-disposition','direct-damage-control-recovery'
+            ))
+        }
         if ($isMounted) {
             $requiredAssertions = @($requiredAssertions + @(
-                'target-selected-mount-action','independent-horse-mounted-profile',
+                'target-selected-mount-action','independent-horse-mounted-profile','horse-pose-calibration',
                 'mounted-real-time-command-routing','mounted-real-time-movement',
                 'mounted-transient-combat-target','horse-pair-retained-in-turn-based-transition',
                 'mounted-rider-turn-ground-admission','mounted-turn-based-rider-movement',
@@ -5023,6 +5029,18 @@ function Assert-KmcHorseCompanionUnmountedEvidence {
                 'turnBasedPostDispatchStartTurnRequestCount'
             ))
         }
+        if ([long]$artifact.schemaVersion -ge 4) {
+            $observationNames = @($observationNames + @(
+                'stockLifecycleBefore','stockLifecycleAttacks','stockLifecycleAttackCount',
+                'stockLifecycleAttackRules','stockLifecycleAttackRolls','stockLifecycleDamageRules',
+                'stockLifecycleForcedD20Count','stockLifecycleRuleDamage','stockLifecycleTransitionEventCount',
+                'stockLifecycleTransitionActorId','stockLifecycleTransitionPreviousLifeState',
+                'stockLifecycleTransitionCurrentLifeState','stockLifecycleAfter','stockLifecycleRecovery',
+                'directDamageBefore','directDamageImmediatelyAfterMutation','directDamageDisposition',
+                'directDamageTransitionEventCount','directDamageAfterObservation','directDamageTimeline',
+                'directDamageRecovery'
+            ))
+        }
         if ($isMounted) {
             $observationNames = @($observationNames + @(
                 'unmountedTargetCleanupExact','mountTargetArmDelta','mountTargetClickDelta','mountTargetFeedback',
@@ -5032,7 +5050,7 @@ function Assert-KmcHorseCompanionUnmountedEvidence {
                 'mountedTurnTargetDisplacement','mountedTurnDriveCount','mountedTurnPostDispatchReassertions',
                 'mountedRiderOutcome','mountedRiderAttackRules','mountedRiderAttackRolls','mountedRiderDamageRules',
                 'mountedHorseOutcome','mountedHorseAttackRules','mountedHorseAttackRolls','mountedHorseDamageRules',
-                'mountedTargetCleanupExact'
+                'mountedTargetCleanupExact','horsePoseCalibration'
             ))
         }
         Assert-KmcExactProperties $artifact.observations $observationNames 'horse unmounted observations'
@@ -5176,6 +5194,110 @@ function Assert-KmcHorseCompanionUnmountedEvidence {
                 $horseOutcome.riderStandardCharged -ne $false -or $horseOutcome.actionStandardCharged -ne $true -or
                 [string]$riderOutcome.targetId -cne [string]$horseOutcome.targetId) {
                 throw 'PASS mounted horse observations do not satisfy the exact technical contract.'
+            }
+        }
+        if ([long]$artifact.schemaVersion -ge 4) {
+            $lifeSnapshotNames = @(
+                'lifeState','isConscious','isDead','stateIsDead','isFinallyDead','damage','nonLethalDamage',
+                'hitPoints','temporaryHitPoints','constitution','negativeHitPointThreshold','allowDyingCondition',
+                'masterAllowDyingCondition','immortality','regeneration','ferocity','halfOrcFerocity',
+                'dualCompanionPartPresent','dualCompanionPartDead','dualCompanionPairId','isInState','inStateUnits',
+                'inAwakeUnits','isAwake','isSleeping','awakeTimer','sleepless','viewPresent','viewActive',
+                'animatorPresent','animatorLayerCount','animatorStateFullPathHash','animatorStateShortNameHash',
+                'animatorStateNormalizedTime','animatorInTransition','ownerPetExact','masterExact','ownerPetId',
+                'masterId','controllableRosterContainsHorse','controllableRosterCount','groupIsPlayerParty'
+            )
+            foreach ($snapshotName in @(
+                'stockLifecycleBefore','stockLifecycleAfter','stockLifecycleRecovery','directDamageBefore',
+                'directDamageImmediatelyAfterMutation','directDamageAfterObservation','directDamageRecovery')) {
+                Assert-KmcExactProperties $o.$snapshotName $lifeSnapshotNames "horse lifecycle $snapshotName"
+            }
+            if ($o.stockLifecycleAttacks -isnot [Array] -or
+                [long]$o.stockLifecycleAttackCount -lt 1 -or [long]$o.stockLifecycleAttackCount -gt 6 -or
+                @($o.stockLifecycleAttacks).Count -ne [long]$o.stockLifecycleAttackCount -or
+                [long]$o.stockLifecycleAttackRules -ne [long]$o.stockLifecycleAttackCount -or
+                [long]$o.stockLifecycleAttackRolls -ne [long]$o.stockLifecycleAttackCount -or
+                [long]$o.stockLifecycleDamageRules -ne [long]$o.stockLifecycleAttackCount -or
+                [long]$o.stockLifecycleForcedD20Count -lt [long]$o.stockLifecycleAttackCount -or
+                [long]$o.stockLifecycleRuleDamage -le 0 -or [long]$o.stockLifecycleTransitionEventCount -ne 1 -or
+                [string]$o.stockLifecycleTransitionActorId -cne [string]$o.horseId -or
+                [string]$o.stockLifecycleTransitionPreviousLifeState -cne 'Conscious' -or
+                [string]$o.stockLifecycleTransitionCurrentLifeState -cnotin @('Unconscious','Dead') -or
+                $o.stockLifecycleBefore.isConscious -ne $true -or [long]$o.stockLifecycleBefore.damage -ne 0 -or
+                $o.stockLifecycleAfter.isConscious -ne $false -or
+                [string]$o.stockLifecycleAfter.lifeState -cnotin @('Unconscious','Dead') -or
+                $o.stockLifecycleRecovery.isConscious -ne $true -or [long]$o.stockLifecycleRecovery.damage -ne 0 -or
+                $o.directDamageBefore.isConscious -ne $true -or [long]$o.directDamageBefore.damage -ne 0 -or
+                [long]$o.directDamageImmediatelyAfterMutation.damage -ne [long]$o.lethalDamage -or
+                $o.directDamageTimeline -isnot [Array] -or @($o.directDamageTimeline).Count -lt 1 -or
+                [string]$o.directDamageDisposition -cnotin @(
+                    'native-life-controller-observed-direct-mutation',
+                    'direct-mutation-left-native-awake-schedule-without-life-event') -or
+                (($o.directDamageDisposition -ceq 'native-life-controller-observed-direct-mutation') -and
+                    ([long]$o.directDamageTransitionEventCount -ne 1 -or $o.directDamageAfterObservation.isConscious -ne $false)) -or
+                (($o.directDamageDisposition -ceq 'direct-mutation-left-native-awake-schedule-without-life-event') -and
+                    ([long]$o.directDamageTransitionEventCount -ne 0 -or $o.directDamageAfterObservation.isConscious -ne $true -or
+                     [long]$o.directDamageAfterObservation.damage -ne [long]$o.lethalDamage -or
+                     @($o.directDamageTimeline | Where-Object { $_.inAwakeUnits -eq $false }).Count -lt 1)) -or
+                $o.directDamageRecovery.isConscious -ne $true -or [long]$o.directDamageRecovery.damage -ne 0 -or
+                $o.stockLifecycleBefore.ownerPetExact -ne $true -or $o.stockLifecycleAfter.ownerPetExact -ne $true -or
+                $o.stockLifecycleRecovery.ownerPetExact -ne $true -or $o.directDamageRecovery.ownerPetExact -ne $true -or
+                $o.stockLifecycleBefore.masterExact -ne $true -or $o.stockLifecycleAfter.masterExact -ne $true -or
+                $o.stockLifecycleRecovery.masterExact -ne $true -or $o.directDamageRecovery.masterExact -ne $true) {
+                throw 'PASS Horse lifecycle comparison does not satisfy the exact schema-v4 stock/direct contract.'
+            }
+            foreach ($attack in @($o.stockLifecycleAttacks)) {
+                Assert-KmcExactProperties $attack @(
+                    'sequence','result','attackRules','attackRolls','damageRules','forcedD20Count','damage',
+                    'horseDamageAfter','horseLifeStateAfter') 'horse stock lifecycle attack'
+                if ([long]$attack.sequence -lt 1 -or [long]$attack.sequence -gt [long]$o.stockLifecycleAttackCount -or
+                    [long]$attack.attackRules -ne 1 -or [long]$attack.attackRolls -ne 1 -or
+                    [long]$attack.damageRules -ne 1 -or [long]$attack.forcedD20Count -lt 1 -or [long]$attack.damage -le 0) {
+                    throw 'PASS Horse lifecycle comparison contains an inexact hostile stock attack row.'
+                }
+            }
+            foreach ($timeline in @($o.directDamageTimeline)) {
+                Assert-KmcExactProperties $timeline @(
+                    'secondsSinceMutation','lifeState','damage','inAwakeUnits','isAwake','isSleeping','awakeTimer') `
+                    'horse direct-damage timeline'
+            }
+            if ($isMounted) {
+                $pose = $o.horsePoseCalibration
+                Assert-KmcExactProperties $pose @(
+                    'candidateCount','candidateId','dev23PelvisPositionOffset','selectedPelvisPositionOffset',
+                    'dev23LeftFootTargetFromThigh','selectedLeftFootTargetFromThigh',
+                    'dev23RightFootTargetFromThigh','selectedRightFootTargetFromThigh',
+                    'dev23LeftKneeHintFromThigh','selectedLeftKneeHintFromThigh',
+                    'dev23RightKneeHintFromThigh','selectedRightKneeHintFromThigh','crossedStirrupAssignment',
+                    'pelvisFromChestMountLocal','leftFootFromAssignedStirrupMountLocal',
+                    'rightFootFromAssignedStirrupMountLocal','leftFootToAssignedStirrup',
+                    'rightFootToAssignedStirrup','poseApplicationFrameCount','footTargetClampCount',
+                    'maximumFootTargetResidualWorldUnits','maximumKneeTargetResidualWorldUnits',
+                    'maximumSegmentLengthResidualWorldUnits','maximumApplyMicroseconds','averageApplyMicroseconds') `
+                    'horse pose calibration'
+                foreach ($vectorName in @(
+                    'dev23PelvisPositionOffset','selectedPelvisPositionOffset','dev23LeftFootTargetFromThigh',
+                    'selectedLeftFootTargetFromThigh','dev23RightFootTargetFromThigh','selectedRightFootTargetFromThigh',
+                    'dev23LeftKneeHintFromThigh','selectedLeftKneeHintFromThigh','dev23RightKneeHintFromThigh',
+                    'selectedRightKneeHintFromThigh','pelvisFromChestMountLocal',
+                    'leftFootFromAssignedStirrupMountLocal','rightFootFromAssignedStirrupMountLocal')) {
+                    Assert-KmcExactProperties $pose.$vectorName @('x','y','z') "horse pose $vectorName"
+                }
+                if ([long]$pose.candidateCount -ne 1 -or [string]$pose.candidateId -cne 'horse-human-review-20260828-a' -or
+                    [double]$pose.dev23PelvisPositionOffset.y -ne 0.02 -or
+                    [double]$pose.selectedPelvisPositionOffset.y -ne -0.12 -or
+                    [double]$pose.dev23LeftFootTargetFromThigh.x -ne -0.305 -or
+                    [double]$pose.selectedLeftFootTargetFromThigh.x -ne -0.18 -or
+                    [double]$pose.dev23RightFootTargetFromThigh.x -ne 0.305 -or
+                    [double]$pose.selectedRightFootTargetFromThigh.x -ne 0.18 -or
+                    [long]$pose.poseApplicationFrameCount -lt 3 -or [long]$pose.footTargetClampCount -ne 0 -or
+                    [double]$pose.maximumFootTargetResidualWorldUnits -gt 0.01 -or
+                    [double]$pose.maximumKneeTargetResidualWorldUnits -gt 0.01 -or
+                    [double]$pose.maximumSegmentLengthResidualWorldUnits -gt 0.0001 -or
+                    [double]$pose.leftFootToAssignedStirrup -gt 0.5 -or
+                    [double]$pose.rightFootToAssignedStirrup -gt 0.5) {
+                    throw 'PASS Horse pose calibration does not satisfy the exact schema-v4 candidate contract.'
+                }
             }
         }
     }

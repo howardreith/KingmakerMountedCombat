@@ -151,29 +151,32 @@ namespace KingmakerMountedCombat.Domain
                 new PoseVector3(0.42f, -0.08f, 0.42f),
                 new PoseVector3(0f, 0f, 0f)));
 
-        // Independent native-horse profile. The lateral targets derive from the
-        // exact HorseRiding Chest children L_Stirrup/R_Stirrup (0.6103663 total
-        // span); its longitudinal and bend values do not reuse the Mammoth pose.
-        // Human visual acceptance remains required for the resulting seat and
-        // limb presentation.
+        // Independent native-horse profile. The exact HorseRiding Chest children
+        // L_Stirrup/R_Stirrup are 0.6103663 world units apart, but the solver's
+        // target is a delta from each thigh rather than an absolute Chest-local
+        // coordinate. The narrower 0.18 lateral deltas therefore account for the
+        // rider's existing hip span instead of adding that span to the stirrup
+        // span. The pelvis is lowered 0.14 from the human-reviewed dev.23 value;
+        // longitudinal and bend values remain Horse-specific and do not reuse the
+        // Mammoth pose. Final human visual acceptance remains required.
         public static readonly MountedRiderPoseProfile MediumHumanoidOnHorse = new MountedRiderPoseProfile(
             "medium-humanoid-horse-v1",
             "Pelvis",
-            new PoseVector3(0f, 0.02f, -0.02f),
+            new PoseVector3(0f, -0.12f, -0.02f),
             new PoseVector3(5f, 0f, 0f),
             new MountedRiderLegPoseProfile(
                 "L_Up_leg",
                 "L_leg",
                 "L_foot",
-                new PoseVector3(-0.305f, -0.46f, 0.044f),
-                new PoseVector3(-0.38f, -0.12f, 0.26f),
+                new PoseVector3(-0.18f, -0.48f, 0.02f),
+                new PoseVector3(-0.20f, -0.14f, 0.16f),
                 new PoseVector3(0f, 0f, 0f)),
             new MountedRiderLegPoseProfile(
                 "R_Up_leg",
                 "R_leg",
                 "R_foot",
-                new PoseVector3(0.305f, -0.46f, 0.044f),
-                new PoseVector3(0.38f, -0.12f, 0.26f),
+                new PoseVector3(0.18f, -0.48f, 0.02f),
+                new PoseVector3(0.20f, -0.14f, 0.16f),
                 new PoseVector3(0f, 0f, 0f)));
     }
 }

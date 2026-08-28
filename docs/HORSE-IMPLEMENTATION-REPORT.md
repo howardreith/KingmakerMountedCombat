@@ -1,5 +1,13 @@
 # Horse implementation report
 
+## Stabilization checkpoint - 2026-08-28
+
+Human review of exact dev.23 supersedes the earlier no-Horse report: a real Ranger Horse appears, is visible, selectable, controllable, mountable, and retains the mounted relation. This confirms the level-up/spawn repair and native Horse foundation. It does not yet prove save/reload, area, ordinary death/recovery, respec, or final presentation.
+
+The supplied side and three-quarter views identify one Horse-profile defect: the rider pelvis is too high and the thigh/foot targets are too wide. Dev.24 changes only `medium-humanoid-horse-v1`: pelvis Y `0.02 -> -0.12`, foot targets X `+/-0.305 -> +/-0.18`, and knee hints X `+/-0.38 -> +/-0.20`, with small Y/Z adjustments recorded in the durable journal. It leaves Mammoth transforms, horse scale, native assets, and every other rider profile untouched. One human visual checkpoint remains mandatory.
+
+Dev.24 also replaces the ambiguous direct-damage qualification with one bounded, exact same-Horse comparison: ordinary hostile stock `UnitAttack`/rule damage versus direct `Damage` assignment. It observes the native life-state event, HP/threshold/state, AwakeUnits scheduling, animation, roster, and reciprocal ownership, and uses only stock resurrection/full restore for recovery. It does not synthesize an event or force death. Complete applicable offline gates pass; live evidence remains pending.
+
 ## Explicitly authorized dev.23 test deployment - 2026-08-28T00:55:52Z
 
 Status: INSTALLED FOR FOCUSED HUMAN TEST; automated lifecycle qualification remains `BLOCKED — CRITICAL`.

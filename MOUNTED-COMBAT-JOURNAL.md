@@ -1,5 +1,13 @@
 # Mounted Combat journal
 
+## 2026-08-28T01:58:04Z - Human Horse foundation PASS; dev.24 lifecycle/pose observation offline-green
+
+- Intake reconciled exact branch/head `codex/mounted-combat-phase3-horse` / `ff66e83d1182a25787cde6d3cbb28f3c566b9230`, clean inherited state, no operation/process/transaction ambiguity, and exact installed dev.23 identity.
+- Read and preserved the local human review outside Git. It confirms real Ranger Horse creation, visibility, selection/control, Mount, retained relation, and good native Horse/tack silhouette. Side and three-quarter evidence show the rider hovering above the saddle and excessively wide legs.
+- Selected one interpretable Horse-only calibration: pelvis Y `0.02 -> -0.12`; feet X `+/-0.305 -> +/-0.18`, Y `-0.46 -> -0.48`, Z `0.044 -> 0.02`; knee hints X `+/-0.38 -> +/-0.20`, Y/Z `-0.12/0.26 -> -0.14/0.16`. Exact native stirrups span `0.6103663`, but the solver targets are thigh-relative, so copying stirrup half-span into each leg compounded the runtime hip span. No Mammoth/asset/scale change was made.
+- Exact Kingmaker decompilation establishes that stock `RuleDealDamage` applies damage while `UnitLifeController.TickOnUnit` evaluates life state and raises `IUnitLifeStateChanged`; raw `Damage` assignment is not itself a complete stock attack/event pipeline. Dev.24 nevertheless makes no assumption: it measures forced-hit hostile stock attacks and direct mutation independently on the same exact Horse, including AwakeUnits scheduling and reciprocal ownership.
+- Source `21/0`, Release, component `260/0`, visual/source-order `17/0`, harness `232/0`, parsers, and diff checks pass. Next is one clean guarded-published package/suite/WhatIf and one audited mounted-Horse observation. Evidence will be read only after exact restoration.
+
 ## 2026-08-28T00:55:52Z - user authorizes focused dev.23 installation despite lifecycle hold
 
 - User direction explicitly authorizes local testing of the exact dev.23 artifact without changing its qualification status. Package/manifest remain `e2a903503f415fb96c69104731e1ebedc517ff4db45b1014a6aa4e460add67a2` / `a0d6fd066bb2dde4ec0ebe8f1ba0c1d47d10dc0765ffef2ac96ad464617fd902` at implementation commit `a2f053f86f7993d9e60a43dabb0dc7b7d48c7e00`.

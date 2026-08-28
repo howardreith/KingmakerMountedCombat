@@ -1,5 +1,13 @@
 # Autonomous blockers
 
+## No critical blocker; bounded Horse lifecycle comparison and pose calibration pending - 2026-08-28T01:58:04Z
+
+Status: `IN PROGRESS`. Human dev.23 evidence now proves a real Ranger-created Horse appears, remains visible/selectable/controllable, mounts successfully, and retains the mounted relation. The remaining presentation defect is exact and bounded: the rider sits too high and the legs spread beyond the Horse barrel/stirrups. Dev.24 contains one Horse-only candidate that lowers the pelvis and narrows feet/knees; Mammoth and native Horse assets are unchanged.
+
+The old direct-damage non-transition remains unqualified, not concealed. Dev.24 performs one authorized same-Horse comparison between ordinary hostile stock attack/rule damage and the former direct `Damage` assignment, records the complete native life/ownership schedule, and recovers without forcing a state or event. All applicable offline gates currently pass. One clean audited observation remains before the lifecycle cause can be classified. Actual save/reload, area, rest, respec away/back, final pose, mounted Horse regression, and targeted Mammoth regression remain pending.
+
+This supersedes the dev.23 critical-stop disposition below. It does not relabel dev.23's immutable failure or authorize Paladin Divine Steed, `main` merge, public release, or broader mounted features.
+
 ## Dev.23 installed by explicit user direction; lifecycle qualification remains blocked - 2026-08-28T00:55:52Z
 
 Status: `BLOCKED — CRITICAL` for automated lifecycle qualification / `INSTALLED — FOCUSED HUMAN TEST AUTHORIZED`. The user explicitly requested installation after reviewing the blocker. Guarded installation and package-bound verification passed for `0.1.0-phase3b-dev.23`; installed DLL SHA-256/MVID are `eb946528bd7e0518dee61217de584f5c6ab8413de6242facc79143f9d5c6f9b1` / `511f3511-2392-4f7e-a7ca-643701ced087`. Deployment record SHA-256 is `763a4da391a6184d0b1248bc2c843a0f594acb0fcb3904ff23895d161923d9e9`, and foreign Mods remained exact.
