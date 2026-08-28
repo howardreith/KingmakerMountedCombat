@@ -1,5 +1,11 @@
 # Mounted Combat journal
 
+## 2026-08-28T07:15:22Z - dev.27 commit complete; guarded publication stops at credential boundary
+
+- Committed the exact offline-green repair as `87d0edcffe13be693b242a1ff11fa9b75d0b7828` (`fix: restore native Horse dying condition`). The worktree was clean and the branch was one commit ahead of locally known tracking ref `1438db9bfe4cfdd22c1c22ba5f14db5bf3684ad2`.
+- The project-owned guarded publisher failed during remote preflight with Schannel `SEC_E_NO_CREDENTIALS`; independent `gh auth status` reports the active `howardreith` token invalid. It made no push. No package, suite, WhatIf, runtime process, transaction, deployment, or install was started after the failure.
+- Publication cannot be bypassed. Resume only after user reauthentication by rerunning the guarded helper, proving exact local/upstream/remote equality, and then continuing with clean packaging and the one final audited dev.27 process.
+
 ## 2026-08-28T07:12:57Z - dev.26 establishes missing native dying-condition contract; dev.27 repair is offline-green
 
 - Guarded-published dev.26 commit/package/suite are `1438db9bfe4cfdd22c1c22ba5f14db5bf3684ad2` / `e050030eb5ed12c6ed6a5bff47f8124fbb8af107468c5c7f29a43e8b4ce7aa9a` / `20260828T052700Z-horse-stabilization-dev26-suite1`; manifest/DLL/MVID are `408fdedcc8deea09ca3b13e1505eafae99f83251514ce62edf816b8ecbc016ec` / `9aad4be73a63134af76bd1ffd0da84c93d2a2302fc139896b14f5cb1e848eb63` / `1c39bc88-150f-40de-be3f-0d8cceeba2a0`.

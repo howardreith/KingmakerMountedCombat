@@ -1,5 +1,13 @@
 # Autonomous blockers
 
+## Guarded publication blocked by invalid GitHub authentication - 2026-08-28T07:15:22Z
+
+Status: `BLOCKED — CRITICAL` at the account/publication boundary. Dev.27 implementation commit `87d0edcffe13be693b242a1ff11fa9b75d0b7828` is locally complete and offline-green, but the project-owned guarded publisher stopped before push with Schannel `SEC_E_NO_CREDENTIALS`. `gh auth status` confirms the active `howardreith` token is invalid. Direct push, bypass, clean packaging before guarded publication, runtime qualification, and final installation are forbidden.
+
+No game, suite, transaction, deployment, package, or external state was changed. After the user reauthenticates GitHub, retry the exact guarded helper once and continue from the clean implementation checkpoint. This is an account credential boundary, not a code, lifecycle, restoration, or architecture failure.
+
+This supersedes the no-critical-blocker status below until authentication is restored.
+
 ## No critical blocker; dev.27 is the final native lifecycle repair - 2026-08-28T07:12:57Z
 
 Status: `IN PROGRESS`. Restored dev.26 run `20260828T062039Z-horse-stabilization-dev26-passA` is immutable `FAIL 50/1`, with the only failure in ordinary stock Horse lifecycle transition. Exact Kingmaker contracts and the live snapshot establish that KMC's Horse omitted the native `AllowDyingCondition` blueprint component while the stock companion contract requires it; stock Mammoth evidence proves the expected unconscious/recovery path. The fixed six-hit diagnostic bound also did not prove cumulative damage reached the Horse's observed `11` HP boundary.

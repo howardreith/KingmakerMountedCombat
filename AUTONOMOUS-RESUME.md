@@ -1,5 +1,13 @@
 # Autonomous resume
 
+## Dev.27 implementation is committed; guarded publication is credential-blocked - 2026-08-28T07:15:22Z
+
+- Branch `codex/mounted-combat-phase3-horse` has clean implementation commit `87d0edcffe13be693b242a1ff11fa9b75d0b7828` over the last locally known tracking ref `1438db9bfe4cfdd22c1c22ba5f14db5bf3684ad2`. The required guarded publisher stopped during its pre-push `ls-remote`; Windows Schannel returned `SEC_E_NO_CREDENTIALS`. `gh auth status` independently reports the active `howardreith` token invalid. No push was attempted, and fresh remote state could not be verified.
+- No package, qualification suite, WhatIf, Kingmaker launch, runtime transaction, deployment, install, or external-state mutation followed the credential failure. The complete dev.27 offline gate remains green as recorded below.
+- Exact resume action after the user restores GitHub authentication is: rerun only `powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File C:\Dev\KingmakerMountedCombatLab\codex-policy\Push-KingmakerMountedCombat.ps1`; require local/upstream/remote equality, then create the clean dev.27 package, stable suite, targeted WhatIf, and single final audited Horse aggregate. Do not bypass the helper or package an unpublished production repair.
+
+This account boundary supersedes the immediate publication next action below; the implementation and diagnosis remain authoritative.
+
 ## Dev.26 proves the native Horse lifecycle defect; dev.27 narrow repair is offline-green - 2026-08-28T07:12:57Z
 
 - Branch `codex/mounted-combat-phase3-horse` is at clean published parent `1438db9bfe4cfdd22c1c22ba5f14db5bf3684ad2` beneath the intentional dev.27 worktree. Dev.26 package/manifest/DLL SHA-256 are `e050030eb5ed12c6ed6a5bff47f8124fbb8af107468c5c7f29a43e8b4ce7aa9a` / `408fdedcc8deea09ca3b13e1505eafae99f83251514ce62edf816b8ecbc016ec` / `9aad4be73a63134af76bd1ffd0da84c93d2a2302fc139896b14f5cb1e848eb63`; MVID is `1c39bc88-150f-40de-be3f-0d8cceeba2a0`. Stable suite `20260828T052700Z-horse-stabilization-dev26-suite1` has SHA-256 `d7f6b6261b09f38116cb405d9d1f3fbc7560ec8430c5cc5429c9a628f73e2112`.
