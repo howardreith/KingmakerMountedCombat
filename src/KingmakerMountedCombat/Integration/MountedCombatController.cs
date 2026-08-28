@@ -400,6 +400,103 @@ namespace KingmakerMountedCombat.Integration
                 "; targetId=" + (target?.UniqueId ?? "<none>") +
                 "; mode=" + (Game.Instance == null ? "<none>" : Game.Instance.CurrentMode.ToString()) +
                 "; turnBased=" + CombatController.IsInTurnBasedCombat() + ".");
+            return TryExecuteAction(action, target, "overlay", null);
+        }
+
+        internal NativeMountedControlAvailability GetNativeAbilityAvailability(
+            MountedCombatActionKind action,
+            UnitEntityData caster)
+        {
+            if (disposed || action != MountedCombatActionKind.RiderMelee &&
+                action != MountedCombatActionKind.MountPrimaryNatural)
+            {
+                return new NativeMountedControlAvailability(false, false, "Mounted primary control is unavailable.");
+            }
+
+            var kind = action == MountedCombatActionKind.RiderMelee
+                ? NativeMountedControlKind.RiderPrimary
+                : NativeMountedControlKind.MountPrimary;
+            var turnBased = CombatController.IsInTurnBasedCombat();
+            var casterExpected = NativeMountedControlPolicy.IsExpectedPrimaryCaster(
+                kind,
+                turnBased,
+                caster != null && caster == relationship.Rider,
+                caster != null && caster == relationship.Mount);
+            if (!casterExpected)
+            {
+                return new NativeMountedControlAvailability(
+                    true,
+                    false,
+                    NativeMountedControlPolicy.WrongTurnReason(kind, MountDisplayName));
+            }
+
+            NativeSingleAttackWeaponSelection ignored;
+            var context = CaptureContext(action, null, out ignored, true);
+            var availability = MountedCombatActionEvaluator.Evaluate(context);
+            return new NativeMountedControlAvailability(true, availability.IsAllowed, availability.Feedback);
+        }
+
+        internal bool CanNativeAbilityTarget(
+            MountedCombatActionKind action,
+            UnitEntityData caster,
+            UnitEntityData target)
+        {
+            if (!GetNativeAbilityAvailability(action, caster).IsEnabled)
+            {
+                return false;
+            }
+            NativeSingleAttackWeaponSelection ignored;
+            return MountedCombatActionEvaluator.Evaluate(
+                CaptureContext(action, target, out ignored)).IsAllowed;
+        }
+
+        internal string DescribeNativeAbilityTargetRejection(
+            MountedCombatActionKind action,
+            UnitEntityData caster,
+            UnitEntityData target)
+        {
+            var activation = GetNativeAbilityAvailability(action, caster);
+            if (!activation.IsEnabled)
+            {
+                return activation.Reason;
+            }
+            NativeSingleAttackWeaponSelection ignored;
+            return MountedCombatActionEvaluator.Evaluate(
+                CaptureContext(action, target, out ignored)).Feedback;
+        }
+
+        internal MountedCombatClickResult TryExecuteNativeAbility(
+            MountedCombatActionKind action,
+            UnitEntityData caster,
+            UnitEntityData target)
+        {
+            var availability = GetNativeAbilityAvailability(action, caster);
+            logger.Info("Native mounted primary delivery observed: action=" + action +
+                "; casterId=" + (caster?.UniqueId ?? "<none>") +
+                "; targetId=" + (target?.UniqueId ?? "<none>") +
+                "; mode=" + (Game.Instance == null ? "<none>" : Game.Instance.CurrentMode.ToString()) +
+                "; turnBased=" + CombatController.IsInTurnBasedCombat() +
+                "; activationEnabled=" + availability.IsEnabled + ".");
+            if (!availability.IsEnabled)
+            {
+                LastFeedback = availability.Reason;
+                LastRejectionCodes = new[]
+                {
+                    availability.Reason.IndexOf("turn", StringComparison.OrdinalIgnoreCase) >= 0
+                        ? MountedCombatRejectionCode.WrongTurn
+                        : MountedCombatRejectionCode.WrongActionState
+                };
+                return MountedCombatClickResult.HandledRejected;
+            }
+            return TryExecuteAction(action, target, "native-ability", caster);
+        }
+
+        private MountedCombatClickResult TryExecuteAction(
+            MountedCombatActionKind action,
+            UnitEntityData target,
+            string inputSurface,
+            UnitEntityData abilityCaster)
+        {
             NativeSingleAttackWeaponSelection mountPrimary;
             var context = CaptureContext(action, target, out mountPrimary);
             var availability = MountedCombatActionEvaluator.Evaluate(context);
@@ -407,7 +504,10 @@ namespace KingmakerMountedCombat.Integration
             {
                 LastFeedback = availability.Feedback;
                 LastRejectionCodes = availability.RejectionCodes.ToArray();
-                logger.Info("Rejected mounted combat click: codes=" + string.Join(",", LastRejectionCodes.Select(code => code.ToString()).ToArray()) + "; feedback=" + LastFeedback);
+                logger.Info("Rejected mounted combat request: inputSurface=" + inputSurface +
+                    "; abilityCasterId=" + (abilityCaster?.UniqueId ?? "<none>") +
+                    "; codes=" + string.Join(",", LastRejectionCodes.Select(code => code.ToString()).ToArray()) +
+                    "; feedback=" + LastFeedback);
                 return MountedCombatClickResult.HandledRejected;
             }
 
@@ -439,6 +539,8 @@ namespace KingmakerMountedCombat.Integration
                 actionActor.CombatState.ManualTarget = target;
                 LastFeedback = "Mounted pair command accepted: " + action + ".";
                 logger.Info("Mounted combat command accepted: action=" + action +
+                    "; inputSurface=" + inputSurface +
+                    "; abilityCasterId=" + (abilityCaster?.UniqueId ?? "<none>") +
                     "; actorId=" + actionActor.UniqueId +
                     "; targetId=" + target.UniqueId +
                     "; commandOwner=" + command.Executor.UniqueId +
@@ -450,7 +552,7 @@ namespace KingmakerMountedCombat.Integration
                 activeCommand = null;
                 LastFeedback = "Mounted pair command failed closed: " + exception.GetType().Name + ".";
                 LastRejectionCodes = new[] { MountedCombatRejectionCode.CommandAdmissionFailure };
-                logger.Exception("Mounted combat click", exception);
+                logger.Exception("Mounted combat request from " + inputSurface, exception);
                 return MountedCombatClickResult.HandledRejected;
             }
         }
@@ -770,7 +872,8 @@ namespace KingmakerMountedCombat.Integration
         private MountedCombatActionContext CaptureContext(
             MountedCombatActionKind action,
             UnitEntityData target,
-            out NativeSingleAttackWeaponSelection mountPrimary)
+            out NativeSingleAttackWeaponSelection mountPrimary,
+            bool assumeTargetAvailable = false)
         {
             var rider = relationship.Rider;
             var mount = relationship.Mount;
@@ -792,7 +895,7 @@ namespace KingmakerMountedCombat.Integration
             mountPrimary = action == MountedCombatActionKind.MountPrimaryNatural
                 ? NativeSingleAttackWeaponResolver.Resolve(mount)
                 : null;
-            var targetValid = target != null && target.IsInState && target.View != null;
+            var targetValid = assumeTargetAvailable || target != null && target.IsInState && target.View != null;
             return new MountedCombatActionContext
             {
                 Action = action,
@@ -816,11 +919,12 @@ namespace KingmakerMountedCombat.Integration
                 RiderAliveAndConscious = riderState != null && riderState.IsConscious && !riderState.IsFinallyDead,
                 MountAliveAndConscious = mountState != null && mountState.IsConscious && !mountState.IsFinallyDead,
                 TargetExists = targetValid,
-                TargetAliveAndConscious = targetState != null && targetState.IsConscious && !targetState.IsFinallyDead,
-                TargetVisible = targetValid && target.IsVisibleForPlayer,
-                TargetHostile = targetValid && actionActor != null && actionActor.IsEnemy(target),
-                TargetAttackable = targetValid && actionActor != null && actionActor.CanAttack(target),
-                TargetIsVisibleEnemy = targetValid && target.IsVisibleForPlayer && actionActor != null &&
+                TargetAliveAndConscious = assumeTargetAvailable ||
+                    targetState != null && targetState.IsConscious && !targetState.IsFinallyDead,
+                TargetVisible = assumeTargetAvailable || targetValid && target.IsVisibleForPlayer,
+                TargetHostile = assumeTargetAvailable || targetValid && actionActor != null && actionActor.IsEnemy(target),
+                TargetAttackable = assumeTargetAvailable || targetValid && actionActor != null && actionActor.CanAttack(target),
+                TargetIsVisibleEnemy = assumeTargetAvailable || targetValid && target.IsVisibleForPlayer && actionActor != null &&
                     actionActor.IsEnemy(target) && actionActor.CanAttack(target),
                 ActionActorOwnsCurrentTurnOrRealTime = actionActorTurn,
                 ActionActorHasStandardAction = actionActor != null && actionActor.HasStandardAction(),

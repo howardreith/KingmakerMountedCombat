@@ -24,11 +24,12 @@ namespace KingmakerMountedCombat.Integration
         private readonly HarmonyInstance harmony;
         private bool disposed;
 
-        public MountedPatchController(GameMountedRelationshipService service, MountedPlayerActionController playerAction, MountedCombatController combat, RuntimeSaveAuthorization saveAuthorization, NativeLifecycleDeliveryLedger lifecycleLedger, IModLogger logger)
+        public MountedPatchController(GameMountedRelationshipService service, MountedPlayerActionController playerAction, MountedCombatController combat, NativeMountedControlService nativeControls, RuntimeSaveAuthorization saveAuthorization, NativeLifecycleDeliveryLedger lifecycleLedger, IModLogger logger)
         {
             PatchBridge.Service = service ?? throw new ArgumentNullException(nameof(service));
             PatchBridge.PlayerAction = playerAction ?? throw new ArgumentNullException(nameof(playerAction));
             PatchBridge.Combat = combat ?? throw new ArgumentNullException(nameof(combat));
+            PatchBridge.NativeControls = nativeControls ?? throw new ArgumentNullException(nameof(nativeControls));
             PatchBridge.SaveAuthorization = saveAuthorization ?? throw new ArgumentNullException(nameof(saveAuthorization));
             PatchBridge.LifecycleLedger = lifecycleLedger ?? throw new ArgumentNullException(nameof(lifecycleLedger));
             PatchBridge.Logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -48,7 +49,7 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(SelectionManagerBase), "Stop", 0x060000B9, Type.EmptyTypes, nameof(PatchMethods.StopOrHoldPrefix));
                 PatchExact(typeof(SelectionManagerBase), "Hold", 0x060000BA, Type.EmptyTypes, nameof(PatchMethods.StopOrHoldPrefix));
                 PatchExact(typeof(UnitMoveContiniously), "Init", 0x060026F0, new[] { typeof(UnitEntityData) }, nameof(PatchMethods.ContinuousMovePrefix));
-                PatchExact(typeof(SaveManager), "SaveRoutine", 0x06008029, new[] { typeof(SaveInfo), typeof(bool) }, nameof(PatchMethods.SavePrefix));
+                PatchExact(typeof(SaveManager), "SaveRoutine", 0x06008029, new[] { typeof(SaveInfo), typeof(bool) }, nameof(PatchMethods.SavePrefix), nameof(PatchMethods.SavePostfix));
                 PatchExact(typeof(SaveManager), "LoadRoutine", 0x0600802C, new[] { typeof(SaveInfo), typeof(bool) }, nameof(PatchMethods.LoadPrefix));
                 PatchExact(typeof(UnitEntityView), "ForcePlaceAboveGround", 0x06001848, Type.EmptyTypes, nameof(PatchMethods.ForcePlaceAboveGroundPrefix));
                 PatchExact(typeof(ClickUnitHandler), "OnClick", 0x060093ED, new[] { typeof(UnityEngine.GameObject), typeof(UnityEngine.Vector3), typeof(int), typeof(bool), typeof(bool) }, nameof(PatchMethods.UnitClickPrefix));
@@ -72,6 +73,7 @@ namespace KingmakerMountedCombat.Integration
                     PatchBridge.Service = null;
                     PatchBridge.PlayerAction = null;
                     PatchBridge.Combat = null;
+                    PatchBridge.NativeControls = null;
                     PatchBridge.SaveAuthorization = null;
                     PatchBridge.LifecycleLedger = null;
                     PatchBridge.Logger = null;
@@ -91,6 +93,7 @@ namespace KingmakerMountedCombat.Integration
             PatchBridge.Service = null;
             PatchBridge.PlayerAction = null;
             PatchBridge.Combat = null;
+            PatchBridge.NativeControls = null;
             PatchBridge.SaveAuthorization = null;
             PatchBridge.LifecycleLedger = null;
             PatchBridge.Logger = null;
@@ -128,6 +131,7 @@ namespace KingmakerMountedCombat.Integration
             internal static GameMountedRelationshipService Service;
             internal static MountedPlayerActionController PlayerAction;
             internal static MountedCombatController Combat;
+            internal static NativeMountedControlService NativeControls;
             internal static RuntimeSaveAuthorization SaveAuthorization;
             internal static NativeLifecycleDeliveryLedger LifecycleLedger;
             internal static IModLogger Logger;
@@ -299,7 +303,29 @@ namespace KingmakerMountedCombat.Integration
                     return false;
                 }
 
-                return AuthorizeSaveBoundary(RuntimeSaveOperation.Write, __instance, saveInfo, ref __result);
+                if (!AuthorizeSaveBoundary(RuntimeSaveOperation.Write, __instance, saveInfo, ref __result))
+                {
+                    return false;
+                }
+                if (PatchBridge.NativeControls != null &&
+                    !PatchBridge.NativeControls.BeginSaveSerializationScope())
+                {
+                    PatchBridge.SaveAuthorization?.ReportBoundaryFailure(
+                        RuntimeSaveOperation.Write,
+                        "native mounted-control serialization scope could not start");
+                    __result = EmptyRoutine();
+                    return false;
+                }
+                return true;
+            }
+
+            internal static void SavePostfix(ref IEnumerator<object> __result)
+            {
+                if (PatchBridge.NativeControls != null &&
+                    PatchBridge.NativeControls.SerializationSuspended)
+                {
+                    __result = PatchBridge.NativeControls.WrapSaveRoutine(__result);
+                }
             }
 
             internal static bool LoadPrefix(SaveManager __instance, SaveInfo saveInfo, bool isSmokeTest, ref IEnumerator<object> __result)

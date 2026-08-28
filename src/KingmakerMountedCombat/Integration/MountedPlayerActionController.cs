@@ -135,6 +135,134 @@ namespace KingmakerMountedCombat.Integration
             return true;
         }
 
+        internal NativeMountedControlAvailability GetNativeMountAvailability(UnitEntityData caster)
+        {
+            ThrowIfDisposed();
+            var availability = GetAvailability();
+            var selection = SelectionManager.Instance?.SelectedUnits;
+            var exactCasterSelected = caster != null && selection != null && selection.Count == 1 &&
+                selection[0] == caster;
+            if (!availability.IsVisible || availability.Action != MountedPlayerActionKind.Mount)
+            {
+                return new NativeMountedControlAvailability(false, false, "Mount Companion is available only while unmounted.");
+            }
+            if (!exactCasterSelected)
+            {
+                return new NativeMountedControlAvailability(true, false, "Select the exact prospective rider.");
+            }
+            return new NativeMountedControlAvailability(true, availability.IsEnabled, availability.Feedback);
+        }
+
+        internal NativeMountedControlAvailability GetNativeDismountAvailability(UnitEntityData caster)
+        {
+            ThrowIfDisposed();
+            var availability = GetAvailability();
+            var exactRider = caster != null && caster == relationship.Rider;
+            if (!availability.IsVisible || availability.Action != MountedPlayerActionKind.Dismount || !exactRider)
+            {
+                return new NativeMountedControlAvailability(false, false, "Dismount is available only to the exact mounted rider.");
+            }
+            return new NativeMountedControlAvailability(true, availability.IsEnabled, availability.Feedback);
+        }
+
+        internal bool CanNativeMountTarget(UnitEntityData caster, UnitEntityData target)
+        {
+            if (!GetNativeMountAvailability(caster).IsEnabled)
+            {
+                return false;
+            }
+            var mount = caster?.Descriptor?.Pet;
+            return target != null && target == mount &&
+                mount.Descriptor?.Master.Value == caster &&
+                SupportedMountedProfiles.IsSupported(mount);
+        }
+
+        internal string DescribeNativeMountTargetRejection(UnitEntityData caster, UnitEntityData target)
+        {
+            var availability = GetNativeMountAvailability(caster);
+            if (!availability.IsEnabled)
+            {
+                return availability.Reason;
+            }
+            var mount = caster?.Descriptor?.Pet;
+            var mountName = SupportedMountedProfiles.Resolve(mount)?.DisplayName ?? "supported companion";
+            return target == null
+                ? "Mount Companion requires a creature target. Click the rider's exact active " + mountName + "."
+                : "Mount target rejected: click the selected rider's exact active " + mountName + ".";
+        }
+
+        internal bool TryExecuteNativeMount(UnitEntityData caster, UnitEntityData target)
+        {
+            ThrowIfDisposed();
+            MountTargetClickCount++;
+            if (!CanNativeMountTarget(caster, target))
+            {
+                var reason = DescribeNativeMountTargetRejection(caster, target);
+                feedbackState.SetOperationFeedback(reason);
+                logger.Info("Native Mount Companion target rejected: casterId=" +
+                    (caster?.UniqueId ?? "<none>") + "; targetId=" +
+                    (target?.UniqueId ?? "<none>") + "; reason=" + reason + ".");
+                return false;
+            }
+
+            try
+            {
+                ClearMountTargetSelection();
+                var transition = relationship.MountRiderOn(caster, target);
+                NormalizeSelectionToRider(caster);
+                feedbackState.SetOperationFeedback(relationship.LastResult);
+                logger.Info("Native Mount Companion dispatch: riderId=" + caster.UniqueId +
+                    "; mountId=" + target.UniqueId + "; succeeded=" + transition.Succeeded + ".");
+                return transition.Succeeded;
+            }
+            catch (Exception exception)
+            {
+                feedbackState.SetOperationFeedback("Native Mount Companion failed closed: " +
+                    exception.GetType().Name + ".");
+                logger.Exception("Native Mount Companion", exception);
+                var cleanup = relationship.Dismount(CleanupTrigger.Exception);
+                if (!cleanup.Succeeded || cleanup.MovementAuthorityResidual || cleanup.PresentationResidual)
+                {
+                    throw new InvalidOperationException("Native Mount failure cleanup retained mounted residue.", exception);
+                }
+                return false;
+            }
+        }
+
+        internal bool TryExecuteNativeDismount(UnitEntityData caster)
+        {
+            ThrowIfDisposed();
+            var availability = GetNativeDismountAvailability(caster);
+            if (!availability.IsEnabled)
+            {
+                feedbackState.SetOperationFeedback(availability.Reason);
+                return false;
+            }
+
+            try
+            {
+                ClearMountTargetSelection();
+                var transition = relationship.Dismount(CleanupTrigger.Manual);
+                NormalizeSelectionToRider(caster);
+                feedbackState.SetOperationFeedback(relationship.LastResult);
+                logger.Info("Native Dismount dispatch: riderId=" + caster.UniqueId +
+                    "; succeeded=" + transition.Succeeded + ".");
+                return transition.Succeeded;
+            }
+            catch (Exception exception)
+            {
+                feedbackState.SetOperationFeedback("Native Dismount failed closed: " +
+                    exception.GetType().Name + ".");
+                logger.Exception("Native Dismount", exception);
+                var cleanup = relationship.Dismount(CleanupTrigger.Exception);
+                if (!cleanup.Succeeded || cleanup.MovementAuthorityResidual || cleanup.PresentationResidual)
+                {
+                    throw new InvalidOperationException("Native Dismount failure cleanup retained residue.", exception);
+                }
+                return false;
+            }
+        }
+
         internal MountedCombatClickResult TryHandleMountTargetClick(
             GameObject gameObject,
             int button,

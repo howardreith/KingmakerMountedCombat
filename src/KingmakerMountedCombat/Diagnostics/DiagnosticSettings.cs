@@ -4,7 +4,8 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         public DiagnosticSettings()
         {
-            EnableUnsafeMovementExperiment = false;
+            EnableUnsafeMovementExperiment = true;
+            EnableDiagnosticOverlay = false;
             MaximumAnchorResidualWorldUnits = 0.10d;
             TelemetryIntervalSeconds = 0.10d;
             RiderOffsetX = 0f;
@@ -14,6 +15,8 @@ namespace KingmakerMountedCombat.Diagnostics
         }
 
         public bool EnableUnsafeMovementExperiment { get; set; }
+
+        public bool EnableDiagnosticOverlay { get; set; }
 
         public double MaximumAnchorResidualWorldUnits { get; set; }
 

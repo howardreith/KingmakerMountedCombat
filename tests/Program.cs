@@ -52,6 +52,7 @@ namespace KingmakerMountedCombat.Tests
             MountedRiderPoseTests.Register(runner);
             MountedRiderGroundingPolicyTests.Register(runner);
             MountedStabilizationPolicyTests.Register(runner);
+            NativeMountedControlPolicyTests.Register(runner);
             ReactiveBooleanValueReaderTests.Register(runner);
             StopEarlyCaptureBoundaryTests.Register(runner);
             PresentationOverlayEvidenceTests.Register(runner);
@@ -66,7 +67,8 @@ namespace KingmakerMountedCombat.Tests
         private static void DiagnosticSettingsDefaultsAreSafe()
         {
             var settings = new DiagnosticSettings();
-            TestRunner.Equal(false, settings.EnableUnsafeMovementExperiment, "Unsafe movement experiment must default off.");
+            TestRunner.Equal(true, settings.EnableUnsafeMovementExperiment, "Native mounted controls must default on for the enabled private alpha.");
+            TestRunner.Equal(false, settings.EnableDiagnosticOverlay, "The legacy diagnostic overlay must default hidden.");
             TestRunner.Equal(0.10d, settings.MaximumAnchorResidualWorldUnits, "Residual threshold changed.");
             TestRunner.Equal(null, settings.Validate(), "Default settings must validate.");
         }
