@@ -1,5 +1,28 @@
 # Horse private-alpha playtest
 
+## Dev.23 focused test installation - 2026-08-28T00:55:52Z
+
+Status: INSTALLED FOR FOCUSED HUMAN TEST. Automated lifecycle qualification remains blocked; do not proceed into mounted Horse presentation testing yet.
+
+Installed identity:
+
+- version: `0.1.0-phase3b-dev.23`;
+- UMM ID: `KingmakerMountedCombat`;
+- package SHA-256: `e2a903503f415fb96c69104731e1ebedc517ff4db45b1014a6aa4e460add67a2`;
+- DLL SHA-256: `eb946528bd7e0518dee61217de584f5c6ab8413de6242facc79143f9d5c6f9b1`;
+- DLL MVID: `511f3511-2392-4f7e-a7ca-643701ced087`.
+
+Focused checklist:
+
+1. Use a real Ranger level-up and choose `Hunter's Bond -> Animal Companion -> Horse`.
+2. Commit the level-up and confirm the Horse appears, remains visible after leaving the level-up UI, has a portrait, is owned by the Ranger, can be selected, and can move independently.
+3. Save while unmounted, reload, and confirm the same Horse relationship remains usable.
+4. In ordinary combat, observe whether damage can make the Horse unconscious or dead; record whether normal recovery or resurrection works.
+5. Respec away from Horse and confirm the Horse is removed without an orphan or duplicate; respec back only if desired.
+6. Stop and report these results before testing mounting or mounted presentation.
+
+Known automated failure: the guarded dev.23 probe applied `27` direct damage to an `11`-HP Horse but received no exact non-conscious life-state event within 30 seconds. The manual ordinary-combat check is intended to distinguish a diagnostic injection limitation from an actual player-facing lifecycle defect.
+
 ## Dev.23 lifecycle qualification blocker - 2026-08-27T23:34:08Z
 
 Status: NOT READY. Do not install dev.23, resume mounted Horse review, merge the horse branch, or begin Paladin work.

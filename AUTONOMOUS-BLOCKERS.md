@@ -1,5 +1,13 @@
 # Autonomous blockers
 
+## Dev.23 installed by explicit user direction; lifecycle qualification remains blocked - 2026-08-28T00:55:52Z
+
+Status: `BLOCKED — CRITICAL` for automated lifecycle qualification / `INSTALLED — FOCUSED HUMAN TEST AUTHORIZED`. The user explicitly requested installation after reviewing the blocker. Guarded installation and package-bound verification passed for `0.1.0-phase3b-dev.23`; installed DLL SHA-256/MVID are `eb946528bd7e0518dee61217de584f5c6ab8413de6242facc79143f9d5c6f9b1` / `511f3511-2392-4f7e-a7ca-643701ced087`. Deployment record SHA-256 is `763a4da391a6184d0b1248bc2c843a0f594acb0fcb3904ff23895d161923d9e9`, and foreign Mods remained exact.
+
+Installation does not waive the dev.23 `AwaitDeath` failure or credit unexecuted recovery/respec gates. Human testing should focus on real Ranger creation/persistence and ordinary lifecycle behavior, then report the exact result. Mounted Horse testing, Paladin Divine Steed, `main` integration, and public release remain frozen.
+
+This supersedes the prior statement that dev.23 was not installed; the lifecycle blocker below remains authoritative.
+
 ## Horse lifecycle qualification is blocked after the final dev.23 event-backed process - 2026-08-27T23:34:08Z
 
 Status: `BLOCKED — CRITICAL`. Exact clean package/suite `e2a903503f415fb96c69104731e1ebedc517ff4db45b1014a6aa4e460add67a2` / `20260827T214800Z-horse-levelup-dev23-suite1` passed targeted WhatIf purity. Corrected live run `20260827T230400Z-horse-levelup-dev23-passA` is immutable restored `FAIL 34/1`: registration passed `13/0`; Horse behavior passed `21/1`.

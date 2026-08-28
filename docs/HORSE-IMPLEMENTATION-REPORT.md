@@ -1,5 +1,13 @@
 # Horse implementation report
 
+## Explicitly authorized dev.23 test deployment - 2026-08-28T00:55:52Z
+
+Status: INSTALLED FOR FOCUSED HUMAN TEST; automated lifecycle qualification remains `BLOCKED — CRITICAL`.
+
+At the user's explicit direction, exact dev.23 was installed through the guarded deployment helper after its lifecycle limitation was disclosed. Installed version is `0.1.0-phase3b-dev.23`; DLL SHA-256/MVID are `eb946528bd7e0518dee61217de584f5c6ab8413de6242facc79143f9d5c6f9b1` / `511f3511-2392-4f7e-a7ca-643701ced087`, exactly matching immutable package SHA-256 `e2a903503f415fb96c69104731e1ebedc517ff4db45b1014a6aa4e460add67a2`. Installation and independent package-bound verification passed, and foreign Mods remained unchanged.
+
+This is test access, not technical acceptance. The focused human boundary is Ranger selection/commit, persistent visible Horse ownership/control, save/reload, ordinary damage/death/recovery, and respec removal. Mounted profile review remains paused.
+
 ## Dev.23 bounded lifecycle blocker - 2026-08-27T23:34:08Z
 
 Status: `BLOCKED — CRITICAL` for complete unmounted Horse qualification; no current Horse Alpha artifact is installable.

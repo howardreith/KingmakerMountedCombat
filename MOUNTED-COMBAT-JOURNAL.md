@@ -1,5 +1,12 @@
 # Mounted Combat journal
 
+## 2026-08-28T00:55:52Z - user authorizes focused dev.23 installation despite lifecycle hold
+
+- User direction explicitly authorizes local testing of the exact dev.23 artifact without changing its qualification status. Package/manifest remain `e2a903503f415fb96c69104731e1ebedc517ff4db45b1014a6aa4e460add67a2` / `a0d6fd066bb2dde4ec0ebe8f1ba0c1d47d10dc0765ffef2ac96ad464617fd902` at implementation commit `a2f053f86f7993d9e60a43dabb0dc7b7d48c7e00`.
+- Because current clean HEAD `b3c5fd25319e3dd5d0a5b64113e07cf75f12a3e6` adds only the six blocker-record Markdown files, the deployment helper gained an explicit fail-closed documentation-descendant mode. It requires Git ancestry and allowlists only the durable top-level ledgers plus `docs/*.md` and `planning/*.md`; parser and install WhatIf passed before mutation.
+- Guarded install and `VerifyInstalled` passed. Installed UMM ID/version are `KingmakerMountedCombat` / `0.1.0-phase3b-dev.23`; `Info.json` SHA-256 is `2174032cb9764344dc083f924878e8bf75e4a9f3b48c0ef79a4f5196ca5424d2`; DLL SHA-256/MVID are `eb946528bd7e0518dee61217de584f5c6ab8413de6242facc79143f9d5c6f9b1` / `511f3511-2392-4f7e-a7ca-643701ced087`; installed inventory digest is `bf41c8ad3004a2fd36ea80c5f1c1dd6e3eae9eddb7bffb469a33d4373a427e42`.
+- Deployment record `20260828T0055040233229Z-f7e5b1f10ebf4283928bb9e8e93c5a0d.json` has SHA-256 `763a4da391a6184d0b1248bc2c843a0f594acb0fcb3904ff23895d161923d9e9` and postcondition `installed-and-verified`; foreign Mods were unchanged. The `FAIL 34/1` lifecycle blocker remains intact. Human testing is limited to Ranger creation/persistence and ordinary lifecycle/respec behavior before mounted review resumes.
+
 ## 2026-08-27T23:34:08Z - dev.23 final event-backed run proves Ranger persistence and stops at lifecycle
 
 - Dev.23 is clean and guarded-published at `a2f053f86f7993d9e60a43dabb0dc7b7d48c7e00`, version `0.1.0-phase3b-dev.23`. Package/manifest/DLL SHA-256 are `e2a903503f415fb96c69104731e1ebedc517ff4db45b1014a6aa4e460add67a2` / `a0d6fd066bb2dde4ec0ebe8f1ba0c1d47d10dc0765ffef2ac96ad464617fd902` / `eb946528bd7e0518dee61217de584f5c6ab8413de6242facc79143f9d5c6f9b1`; MVID is `511f3511-2392-4f7e-a7ca-643701ced087`. Suite `20260827T214800Z-horse-levelup-dev23-suite1` / `17b59cdd0b25c10ee78df0fd2833ac94f9042ad6716db34feed5c7e71b70b537` passed WhatIf purity.
