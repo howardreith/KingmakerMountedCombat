@@ -1,5 +1,15 @@
 # Autonomous blockers
 
+## No critical blocker; dev.26 is the final lifecycle-control repair - 2026-08-28T05:24:30Z
+
+Status: `IN PROGRESS`. Restored dev.25 run `20260828T035000Z-horse-stabilization-dev25-passA` passed `50/1` overall and technically accepts candidate B: both feet are below the unchanged `0.5` stirrup bound, with zero clamps and stable residuals, and every reached real-Horse, mounted movement, attack, dismount, and cleanup gate passed. Human visual acceptance remains required.
+
+The one failure did not exercise Horse damage. The diagnostic reused the spent mounted target after Dismount, lost its combat-memory lease, and silently declined to issue the first stock attack until the outer lifecycle clock expired. Dev.26 replaces only this diagnostic boundary with an exactly removed spent target, a fresh leased hostile target, explicit readiness, and fail-closed attack admission. It does not change Horse production health or any Mammoth/mounted behavior. Complete offline gates pass `21/Release/260/18/232/357`, parsers `26/0` and `7/0`, diff, and prohibited payload.
+
+One clean published dev.26 package/suite/WhatIf and one audited aggregate process remain. Because this consumes the authorized lifecycle repair cycle, a genuine health, recovery, respec, mounted, pose, or restoration failure is the exact blocker; no further lifecycle instrumentation loop will follow. Persistence/area/rest/respec-back and targeted Mammoth qualification proceed only after a pass. Paladin implementation, `main`, and public release remain unauthorized.
+
+This supersedes the dev.25 observation-pending entry below.
+
 ## No critical blocker; dev.25 is offline-green and the single repaired process remains - 2026-08-28T03:43:19Z
 
 Status: `IN PROGRESS`. Candidate B has passed the complete applicable offline gate set: source `21/0`, Release, component `260/0`, visual/source-order `17/0`, harness/protocol `232/0`, assembly `357/0`, parsers `26/0` and `7/0`, diff, and prohibited payload. The change is confined to the Horse profile and bound diagnostics; Mammoth, native Horse assets/scale, and the existing stirrup threshold remain exact.

@@ -10,6 +10,7 @@ $statePath = Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\Movemen
 $enginePath = Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeMovementScenarioEngine.cs'
 $poseAdapterPath = Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedRiderPoseAdapter.cs'
 $manualReviewPath = Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeManualReviewSession.cs'
+$horseEnginePath = Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\HorseCompanionUnmountedScenarioEngine.cs'
 $compositionPath = Join-Path $repoRoot 'src\KingmakerMountedCombat\CompositionRoot.cs'
 $projectPath = Join-Path $repoRoot 'src\KingmakerMountedCombat\KingmakerMountedCombat.csproj'
 $coordinator = [IO.File]::ReadAllText($coordinatorPath)
@@ -17,6 +18,7 @@ $state = [IO.File]::ReadAllText($statePath)
 $engine = [IO.File]::ReadAllText($enginePath)
 $poseAdapter = [IO.File]::ReadAllText($poseAdapterPath)
 $manualReview = [IO.File]::ReadAllText($manualReviewPath)
+$horseEngine = [IO.File]::ReadAllText($horseEnginePath)
 $composition = [IO.File]::ReadAllText($compositionPath)
 $project = [IO.File]::ReadAllText($projectPath)
 $passes = 0
@@ -131,6 +133,21 @@ Assert-VisualCapture ($manualReview.Contains('if (!ValidateReadOnlyBoundary())')
     $manualReview.Contains('ManualReviewBoundaryDecision.BeginProcessTeardown') -and
     $manualReview.Contains('ManualReviewFixtureBoundary.Invalid') -and
     $composition.Contains('runtimeAutomation != null && !runtimeAutomation.IsManualReview')) 'manual review establishes exact mounted pose/UI state without writes or unbounded telemetry and retains process-teardown cleanup'
+$horseDismountIndex = $horseEngine.IndexOf('private void AwaitMountedDismount()', [StringComparison]::Ordinal)
+$horseReplacementIndex = $horseEngine.IndexOf('BeginMountedLifecycleTargetReplacement();', $horseDismountIndex, [StringComparison]::Ordinal)
+$horseReplacementMethodIndex = $horseEngine.IndexOf('private void BeginMountedLifecycleTargetReplacement()', $horseReplacementIndex, [StringComparison]::Ordinal)
+$horseOldTargetDestroyIndex = $horseEngine.IndexOf('targetService.DestroyAndVerify()', $horseReplacementMethodIndex, [StringComparison]::Ordinal)
+$horseFreshTargetIndex = $horseEngine.IndexOf('request.RunId + "-lifecycle"', $horseOldTargetDestroyIndex, [StringComparison]::Ordinal)
+$horseLifecycleReadyIndex = $horseEngine.IndexOf('private void AwaitLifecycleCombatEntry()', $horseFreshTargetIndex, [StringComparison]::Ordinal)
+$horseDeathProbeIndex = $horseEngine.IndexOf('BeginDeathProbe();', $horseLifecycleReadyIndex, [StringComparison]::Ordinal)
+Assert-VisualCapture ($horseDismountIndex -ge 0 -and
+    $horseReplacementIndex -gt $horseDismountIndex -and
+    $horseReplacementMethodIndex -gt $horseReplacementIndex -and
+    $horseOldTargetDestroyIndex -gt $horseReplacementMethodIndex -and
+    $horseFreshTargetIndex -gt $horseOldTargetDestroyIndex -and
+    $horseLifecycleReadyIndex -gt $horseFreshTargetIndex -and
+    $horseDeathProbeIndex -gt $horseLifecycleReadyIndex -and
+    $horseEngine.Contains('The fresh exact hostile lifecycle attacker lost admission before its stock attack.')) 'mounted Horse lifecycle retires the spent combat target, admits one fresh hostile stock attacker, and fails closed on lease loss'
 $cameraResolveIndex = $coordinator.IndexOf('var camera = Game.GetCamera();', [StringComparison]::Ordinal)
 $cameraGuardIndex = $coordinator.IndexOf('if (!camera)', $cameraResolveIndex, [StringComparison]::Ordinal)
 $captureIndex = $coordinator.IndexOf('Screenshot.CapturePNG(camera);', [StringComparison]::Ordinal)

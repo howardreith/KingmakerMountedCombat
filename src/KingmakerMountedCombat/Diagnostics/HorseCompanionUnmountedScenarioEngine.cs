@@ -266,7 +266,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 var scenarioDeadline = IncludesMountedAlpha
                     ? MountedScenarioTimeoutSeconds
                     : ScenarioTimeoutSeconds;
-                var lifecyclePhase = step == EngineStep.AwaitDeath ||
+                var lifecyclePhase = step == EngineStep.AwaitMountedLifecycleTargetRemoval ||
+                    step == EngineStep.AwaitLifecycleCombatEntry ||
+                    step == EngineStep.AwaitDeath ||
                     step == EngineStep.AwaitRecovery ||
                     step == EngineStep.AwaitLifecycleTargetRemoval ||
                     step == EngineStep.AwaitDirectDamage ||
@@ -353,6 +355,12 @@ namespace KingmakerMountedCombat.Diagnostics
                         break;
                     case EngineStep.AwaitMountedDismount:
                         AwaitMountedDismount();
+                        break;
+                    case EngineStep.AwaitMountedLifecycleTargetRemoval:
+                        AwaitMountedLifecycleTargetRemoval();
+                        break;
+                    case EngineStep.AwaitLifecycleCombatEntry:
+                        AwaitLifecycleCombatEntry();
                         break;
                     case EngineStep.AwaitDeath:
                         AwaitDeath();
@@ -1559,12 +1567,96 @@ namespace KingmakerMountedCombat.Diagnostics
                 "mounted-explicit-dismount-restoration",
                 "Explicit Dismount restored both stock agents, rider selection, pose baseline, attachment parent, and zero KMC presentation residue.");
             if (failed != 0) { BeginCleanup(); return; }
+            BeginMountedLifecycleTargetReplacement();
+        }
+
+        private void BeginMountedLifecycleTargetReplacement()
+        {
+            lifecycleStartedAtSeconds = clock.Elapsed.TotalSeconds;
+            TryLeaveCombat(target);
+            TryLeaveCombat(horse);
+            TryLeaveCombat(owner);
+            if (targetService != null && !targetService.DestroyAndVerify())
+            {
+                step = EngineStep.AwaitMountedLifecycleTargetRemoval;
+                return;
+            }
+            ContinueAfterMountedLifecycleTargetRemoval();
+        }
+
+        private void AwaitMountedLifecycleTargetRemoval()
+        {
+            if (targetService != null && !targetService.DestroyAndVerify()) { return; }
+            ContinueAfterMountedLifecycleTargetRemoval();
+        }
+
+        private void ContinueAfterMountedLifecycleTargetRemoval()
+        {
+            var targetClean = targetService == null ||
+                (targetService.TargetEntityRemoved && targetService.RuntimeGroupRemoved &&
+                 targetService.RuntimeFactionRemoved && targetService.CombatMemoryRemoved &&
+                 targetService.TargetDurabilityLeaseReleased && targetService.TargetBrainLeaseReleased &&
+                 targetService.TargetSleeplessLeaseReleased && targetService.NonPairPartyAiLeaseRestored);
+            observations["mountedTargetCleanupExact"] = targetClean;
+            try { targetService?.Dispose(); }
+            catch (Exception exception) { errors.Add("Mounted lifecycle target disposal: " + exception.Message); }
+            targetService = null;
+            target = null;
+            if (!targetClean)
+            {
+                Fail("stock-lifecycle-admission",
+                    "The spent mounted-combat target did not restore exactly before lifecycle qualification.");
+                BeginCleanup();
+                return;
+            }
+
+            targetService = new DiagnosticCombatTargetService(logger);
+            var spawnPoint = FindWalkablePoint(owner.Position, TargetDistance, 0.45f);
+            target = targetService.Spawn(owner, horse, spawnPoint, request.RunId + "-lifecycle", true, true);
+            if (!targetService.PrepareForPlayerClick(target) ||
+                !targetService.QueueBidirectionalCombatMemory(owner, target))
+            {
+                Fail("stock-lifecycle-admission",
+                    "A fresh exact hostile lifecycle attacker could not acquire its bounded native leases.");
+                BeginCleanup();
+                return;
+            }
+            step = EngineStep.AwaitLifecycleCombatEntry;
+        }
+
+        private void AwaitLifecycleCombatEntry()
+        {
+            if (Game.Instance.IsPaused) { Game.Instance.IsPaused = false; }
+            if (targetService == null || target == null || horse == null || owner == null ||
+                !target.IsInState || !horse.IsInState || !owner.IsInState)
+            {
+                Fail("stock-lifecycle-admission",
+                    "The fresh exact hostile lifecycle attacker or Horse contract became unavailable.");
+                BeginCleanup();
+                return;
+            }
+            if (!targetService.RefreshBidirectionalCombatMemoryLease())
+            {
+                Fail("stock-lifecycle-admission",
+                    "The fresh exact hostile lifecycle attacker lost its combat-memory or AI lease.");
+                BeginCleanup();
+                return;
+            }
+            if (!owner.IsInCombat || !horse.IsInCombat || !target.IsInCombat ||
+                target.CombatState == null || !target.CombatState.Prepared ||
+                !target.CombatState.CanActInCombat || !target.CanAttack(horse) ||
+                !target.Descriptor.State.IsConscious)
+            {
+                return;
+            }
             BeginDeathProbe();
         }
 
         private void BeginDeathProbe()
         {
-            if (relationship.State != RelationshipState.Unmounted || targetService == null ||
+            var memoryLeaseHealthy = targetService != null &&
+                targetService.RefreshBidirectionalCombatMemoryLease();
+            if (relationship.State != RelationshipState.Unmounted || !memoryLeaseHealthy ||
                 target == null || !target.IsInState || horse == null || !horse.IsInState ||
                 owner == null || !owner.IsInState || AiBackingField == null ||
                 AiBackingField.FieldType != typeof(bool))
@@ -1606,7 +1698,10 @@ namespace KingmakerMountedCombat.Diagnostics
             stockLifecycleForcedD20Count = 0;
             stockLifecycleDamage = 0;
             stockLifecycleAttacks.Clear();
-            lifecycleStartedAtSeconds = clock.Elapsed.TotalSeconds;
+            if (lifecycleStartedAtSeconds < 0.0)
+            {
+                lifecycleStartedAtSeconds = clock.Elapsed.TotalSeconds;
+            }
             step = EngineStep.AwaitDeath;
             IssueStockLifecycleAttack();
         }
@@ -1624,6 +1719,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 target == null || horse == null || !target.IsInState || !horse.IsInState ||
                 !horse.Descriptor.State.IsConscious)
             {
+                Fail("ordinary-stock-damage-command",
+                    "The fresh exact hostile lifecycle attacker lost admission before its stock attack.");
+                BeginCleanup();
                 return;
             }
 
@@ -2512,6 +2610,8 @@ namespace KingmakerMountedCombat.Diagnostics
             AwaitMountedRiderAttack,
             AwaitMountedHorseAttack,
             AwaitMountedDismount,
+            AwaitMountedLifecycleTargetRemoval,
+            AwaitLifecycleCombatEntry,
             AwaitDeath,
             AwaitRecovery,
             AwaitLifecycleTargetRemoval,
