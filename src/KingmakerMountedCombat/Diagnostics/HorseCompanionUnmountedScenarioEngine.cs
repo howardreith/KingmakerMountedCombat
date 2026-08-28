@@ -1975,8 +1975,8 @@ namespace KingmakerMountedCombat.Diagnostics
             var runtime = relationship.Runtime;
             return new JObject
             {
-                ["candidateCount"] = 1,
-                ["candidateId"] = "horse-human-review-20260828-a",
+                ["candidateCount"] = 2,
+                ["candidateId"] = "horse-human-review-20260828-b",
                 ["dev23PelvisPositionOffset"] = PoseVector(new PoseVector3(0f, 0.02f, -0.02f)),
                 ["selectedPelvisPositionOffset"] = PoseVector(profile.PelvisPositionOffset),
                 ["dev23LeftFootTargetFromThigh"] = PoseVector(new PoseVector3(-0.305f, -0.46f, 0.044f)),

@@ -156,9 +156,12 @@ namespace KingmakerMountedCombat.Domain
         // target is a delta from each thigh rather than an absolute Chest-local
         // coordinate. The narrower 0.18 lateral deltas therefore account for the
         // rider's existing hip span instead of adding that span to the stirrup
-        // span. The pelvis is lowered 0.14 from the human-reviewed dev.23 value;
-        // longitudinal and bend values remain Horse-specific and do not reuse the
-        // Mammoth pose. Final human visual acceptance remains required.
+        // span. The pelvis is lowered 0.14 from the human-reviewed dev.23 value.
+        // Candidate A proved stable but left the feet 0.557/0.598 world units
+        // above and behind the assigned native stirrups. Candidate B retains the
+        // narrow lateral target and moves the feet 0.10 down and 0.09 toward the
+        // measured stirrup plane. Bend values remain Horse-specific and do not
+        // reuse the Mammoth pose. Final human visual acceptance remains required.
         public static readonly MountedRiderPoseProfile MediumHumanoidOnHorse = new MountedRiderPoseProfile(
             "medium-humanoid-horse-v1",
             "Pelvis",
@@ -168,14 +171,14 @@ namespace KingmakerMountedCombat.Domain
                 "L_Up_leg",
                 "L_leg",
                 "L_foot",
-                new PoseVector3(-0.18f, -0.48f, 0.02f),
+                new PoseVector3(-0.18f, -0.58f, 0.11f),
                 new PoseVector3(-0.20f, -0.14f, 0.16f),
                 new PoseVector3(0f, 0f, 0f)),
             new MountedRiderLegPoseProfile(
                 "R_Up_leg",
                 "R_leg",
                 "R_foot",
-                new PoseVector3(0.18f, -0.48f, 0.02f),
+                new PoseVector3(0.18f, -0.58f, 0.11f),
                 new PoseVector3(0.20f, -0.14f, 0.16f),
                 new PoseVector3(0f, 0f, 0f)));
     }

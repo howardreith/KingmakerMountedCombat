@@ -1,5 +1,19 @@
 # Mounted Combat journal
 
+## 2026-08-28T03:43:19Z - dev.25 candidate B passes the complete offline gate set
+
+- Candidate B remains exactly the bounded Horse-only correction: feet `(X +/-0.18, Y -0.58, Z 0.11)` with candidate-A pelvis/knees retained. It is candidate 2 of at most 3 and the sole attributable repair cycle. No Mammoth, native Horse asset/scale, general command, movement, combat, or global rider-scale change exists.
+- Source/prohibited payload `21/0`, Release build, component `260/0`, visual/source-order `17/0`, harness/protocol `232/0`, assembly contracts `357/0` (`333` Kingmaker + `24` Wrath), PowerShell parser `26/0`, JSON parser `7/0`, and diff check all pass. Pre-commit Release DLL SHA-256/MVID are `eeebb54a77f3456b5a3c0552e3efcb74c5fafadf5ab35b166cba3380d23e4bdd` / `297e09ee-1aa5-4a9c-89a4-bd576b671427`; clean packaging will establish artifact identity.
+- Next is guarded publication, one clean package, fresh stable suite, exact WhatIf, and the single repaired aggregate with audit-before-read. No evidence receives credit until restoration passes.
+
+## 2026-08-28T03:34:14Z - dev.24 objectively rejects candidate A; dev.25 candidate B begins the sole repair cycle
+
+- Clean dev.24 commit/package/manifest/DLL/MVID are `8860e8b25f9014eadc436b6dffcf724f223fcb4f` / `f48bb2b1bbb3b32afcb36206958a6983b6012cb41e5fbbf642416bd76d383528` / `497072fef9a6cf618e02b78f4ce330d62d38011a51f28ff7a827bc7104a19808` / `56f4c16dfb79d59bd4fb6f2a0e1a702cec7e52a4dd38a2726cfe4e89128ed0fa` / `ad77d90f-8f2a-403e-a0c2-75c3009c3db1`. Suite `20260828T021000Z-horse-stabilization-dev24-suite1` / `ce86ef41df33d43304cfd29602a0548ae05a605fa61813fa3fa32cd013e242bb` passed admission and WhatIf purity.
+- Run `20260828T030000Z-horse-stabilization-dev24-passA` is immutable restored `FAIL 36/1`. Registration passed `13/0`; Horse passed `23/1`, including ordinary real Ranger creation, ownership, native control/view, RT/TB Bite, target-selected Mount, independent Horse profile, and cleanup. Candidate A had zero clamps and micro-residuals, but exact left/right stirrup distances were `0.556775` / `0.5978967`, so the unchanged `0.5` quality gate stopped the row before lifecycle or later mounted qualification.
+- Independent audit-before-read passed full suite/save/Mods identity, immutable Baseline, restored Working, three restored transaction ledgers, and zero process/lock/sentinel/live-deployment residue. Runtime/game/registration/Horse/orchestration SHA-256 are `0a7e2c4199860e66772dc9f8855f02abd66243a6480c2bf002865eb6a222aa58` / `b2d1f1f6c4b9dbc8d591b6c312799cb7d1ac4a365c8d4bfa99c9837daca7e34b` / `b90f05425019ef0160ff6ce0e78a13fdb023878dc55bdfc9eac637cac8eda518` / `eec087d17161b1791e884779660795b44b7c4b75c182159fcd3d34e8cc7a401a` / `311a79bab96f504f2f9c168574d85548bc3305b3f1b522186276337bc1b192b0`.
+- Candidate B (`0.1.0-phase3b-dev.25`) is candidate 2 and the sole repair cycle: retain pelvis `(0,-0.12,-0.02)`, knee hints `(+/-0.20,-0.14,0.16)`, and foot X `+/-0.18`; move only foot Y/Z `-0.48/0.02 -> -0.58/0.11`. This is the smallest symmetric correction supported by the measured dev.24 vectors, predicts both feet inside the existing gate, and remains independent from the Mammoth longitudinal value. Mammoth and all native Horse data are untouched.
+- Next: full gates, guarded publication, clean dev.25 package/suite/WhatIf, one repaired aggregate, audit-before-read, then only the authorized lifecycle/persistence/respec and targeted Mammoth work if green.
+
 ## 2026-08-28T01:58:04Z - Human Horse foundation PASS; dev.24 lifecycle/pose observation offline-green
 
 - Intake reconciled exact branch/head `codex/mounted-combat-phase3-horse` / `ff66e83d1182a25787cde6d3cbb28f3c566b9230`, clean inherited state, no operation/process/transaction ambiguity, and exact installed dev.23 identity.

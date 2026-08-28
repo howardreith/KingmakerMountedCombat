@@ -5283,13 +5283,17 @@ function Assert-KmcHorseCompanionUnmountedEvidence {
                     'leftFootFromAssignedStirrupMountLocal','rightFootFromAssignedStirrupMountLocal')) {
                     Assert-KmcExactProperties $pose.$vectorName @('x','y','z') "horse pose $vectorName"
                 }
-                if ([long]$pose.candidateCount -ne 1 -or [string]$pose.candidateId -cne 'horse-human-review-20260828-a' -or
+                if ([long]$pose.candidateCount -ne 2 -or [string]$pose.candidateId -cne 'horse-human-review-20260828-b' -or
                     [double]$pose.dev23PelvisPositionOffset.y -ne 0.02 -or
                     [double]$pose.selectedPelvisPositionOffset.y -ne -0.12 -or
                     [double]$pose.dev23LeftFootTargetFromThigh.x -ne -0.305 -or
                     [double]$pose.selectedLeftFootTargetFromThigh.x -ne -0.18 -or
+                    [double]$pose.selectedLeftFootTargetFromThigh.y -ne -0.58 -or
+                    [double]$pose.selectedLeftFootTargetFromThigh.z -ne 0.11 -or
                     [double]$pose.dev23RightFootTargetFromThigh.x -ne 0.305 -or
                     [double]$pose.selectedRightFootTargetFromThigh.x -ne 0.18 -or
+                    [double]$pose.selectedRightFootTargetFromThigh.y -ne -0.58 -or
+                    [double]$pose.selectedRightFootTargetFromThigh.z -ne 0.11 -or
                     [long]$pose.poseApplicationFrameCount -lt 3 -or [long]$pose.footTargetClampCount -ne 0 -or
                     [double]$pose.maximumFootTargetResidualWorldUnits -gt 0.01 -or
                     [double]$pose.maximumKneeTargetResidualWorldUnits -gt 0.01 -or

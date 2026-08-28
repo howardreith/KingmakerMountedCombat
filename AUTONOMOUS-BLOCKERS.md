@@ -1,5 +1,21 @@
 # Autonomous blockers
 
+## No critical blocker; dev.25 is offline-green and the single repaired process remains - 2026-08-28T03:43:19Z
+
+Status: `IN PROGRESS`. Candidate B has passed the complete applicable offline gate set: source `21/0`, Release, component `260/0`, visual/source-order `17/0`, harness/protocol `232/0`, assembly `357/0`, parsers `26/0` and `7/0`, diff, and prohibited payload. The change is confined to the Horse profile and bound diagnostics; Mammoth, native Horse assets/scale, and the existing stirrup threshold remain exact.
+
+One clean guarded-published package/suite/WhatIf and one audited `horse-mounted-alpha-suite` remain. A genuine pose, mounted, lifecycle, command, or restoration failure in that process is the stop condition. Persistence/area/rest/respec and the targeted Mammoth regression proceed only after it passes; Paladin implementation, `main`, and public release remain unauthorized.
+
+This supersedes the pending-offline-gates portion of the entry below.
+
+## No critical blocker; sole dev.25 repair cycle pending - 2026-08-28T03:34:14Z
+
+Status: `IN PROGRESS`. Dev.24 observation `20260828T030000Z-horse-stabilization-dev24-passA` restored exactly and passed registration/real-Horse foundations `36/1` overall. Its only failure was objective pose quality: candidate A produced stable zero-clamp leg solving but left the feet `0.556775` / `0.5978967` units from the native stirrups, above the unchanged `0.5` bound. That fail-fast correctly prevented mounted and lifecycle credit; it is not Horse immortality or command-failure evidence.
+
+The one authorized attributable repair cycle is dev.25 candidate B. It keeps the accepted Horse-only pelvis and narrowed knees/hips, adjusts only both foot targets by `Y -0.10` / `Z +0.09`, and does not weaken the stirrup gate or touch Mammoth/native assets/scale. Full offline gates, clean publication/package/suite, one repaired runtime, audit-before-read, persistence/area/rest/respec qualification, and targeted Mammoth regression remain pending. A genuine failure after this cycle is the stop condition; Paladin implementation, `main`, and public release remain unauthorized.
+
+This supersedes the dev.24 observation-pending status below.
+
 ## No critical blocker; bounded Horse lifecycle comparison and pose calibration pending - 2026-08-28T01:58:04Z
 
 Status: `IN PROGRESS`. Human dev.23 evidence now proves a real Ranger-created Horse appears, remains visible/selectable/controllable, mounts successfully, and retains the mounted relation. The remaining presentation defect is exact and bounded: the rider sits too high and the legs spread beyond the Horse barrel/stirrups. Dev.24 contains one Horse-only candidate that lowers the pelvis and narrows feet/knees; Mammoth and native Horse assets are unchanged.
