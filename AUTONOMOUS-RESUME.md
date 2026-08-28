@@ -1,5 +1,16 @@
 # Autonomous resume
 
+## Phase 3C native-controls contract intake complete - 2026-08-28T21:15:00Z
+
+- Exact accepted input `codex/mounted-combat-phase3-horse` HEAD `8ff5813b36eb1af04e1329a1993b2476ae6ad691` was clean and equal locally/upstream/remotely before branching. New branch `codex/mounted-combat-phase3c-native-controls` was created from that exact commit; dev.27 package/evidence remain immutable.
+- Runtime intake found no Kingmaker, Wrath, UMM, KMC launcher, build process, active lock/sentinel/staging tree, or nonterminal transaction. The installed KMC DLL remains exact dev.27 SHA-256/MVID `066a38e35b099aa93e54b79c0b9b9d2c60eeb8f42d4412bb7948a7142809832d` / `ee787dd4-f79f-4e5f-9975-1cb7ef13eecf`.
+- Complete human dev.27 report, excerpts, screenshots, and preserved 1,456-line output log were correlated. TB overlay clicks arm KMC actions and stock pair attacks are intercepted, but no native KMC target-click/accepted command occurs; the same production chains complete in RT. The log separately proves successful door retry, Mammoth terminology on Horse feedback, and repeated IK setup exceptions requiring attribution.
+- Exact installed Kingmaker contracts now bind `BlueprintAbility`, `AbilityData`, `AbilityCollection`, native selected-ability pointer handling, `UnitUseAbility`, action-bar refresh/disabled-state, `UnitUISettings` autofill, and `SaveManager.SaveRoutine`. The selected design uses four original runtime ability blueprints, native target selection, no automatic hotbar mutation, and save-scoped removal of runtime facts.
+- New contract records are `planning/NATIVE-MOUNTED-CONTROLS-CONTRACT.md`, `planning/HORSE-MOVEMENT-AND-ANIMATION-CONTRACT.md`, `planning/HORSE-PORTRAIT-ASSET-AUDIT.md`, `planning/HORSE-UX-RUNTIME-SCENARIO-MATRIX.md`, and `planning/WOTR-PRESENTATION-REFERENCE.md`.
+- Exact next action: implement the native-control blueprint/fact lease and pointer-to-existing-command bridge, default-hide the IMGUI overlay, add regression tests and assembly/source-order contracts, then run the applicable offline gates before any package or game launch.
+
+This entry supersedes the dev.27 manual-review next action below. It does not supersede dev.27 artifact identities or accepted Horse behavior.
+
 ## Horse stabilization complete; final dev.27 manual review is installed - 2026-08-28T16:28:49Z
 
 - Branch `codex/mounted-combat-phase3-horse` reached published clean package/tooling checkpoint `bd5134a5cec91554829aa9c536bbf1ab071e546d`. The production lifecycle repair remains implementation commit `87d0edcffe13be693b242a1ff11fa9b75d0b7828`; `99712cf3ac9a09049e4dbb9c83bb5490bd369895` is its documentation descendant, and `bd5134a5cec91554829aa9c536bbf1ab071e546d` adds only the exact evidence-budget validator and immutable-artifact qualifier needed to close qualification. Do not relabel either descendant as the production repair.

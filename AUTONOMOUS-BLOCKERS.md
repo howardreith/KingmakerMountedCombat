@@ -1,5 +1,13 @@
 # Autonomous blockers
 
+## Phase 3C native-controls tranche - no current hard blocker - 2026-08-28T21:15:00Z
+
+Status: `IN PROGRESS`.
+
+The accepted dev.27 input, external state, human evidence, and exact Kingmaker native ability/UI contracts are reconciled. No repository, transaction, deployment, credential, architecture, or human-decision boundary currently prevents implementation. Final physical pointer feel, portrait quality, pose, locomotion, and attack-animation readability remain planned human gates rather than present blockers.
+
+This entry supersedes older publication and Horse lifecycle blockers as current next-action authority; their failed evidence remains immutable history.
+
 ## No critical blocker; Horse stabilization awaits final human lifecycle and visual review - 2026-08-28T16:28:49Z
 
 Status: `PASS` for bounded technical stabilization. The former GitHub credential/publication boundary is resolved: feature-branch publication through `C:\Dev\CodexPolicy\Push-KingmakerFeatureBranch.ps1` established local/upstream/remote equality at package/tooling checkpoint `bd5134a5cec91554829aa9c536bbf1ab071e546d`. The dev.27 lifecycle defect is also resolved by implementation commit `87d0edcffe13be693b242a1ff11fa9b75d0b7828`.

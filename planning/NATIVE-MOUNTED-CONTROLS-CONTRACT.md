@@ -1,0 +1,59 @@
+# Native mounted controls contract
+
+Status: `IN PROGRESS`
+
+Date: 2026-08-28
+
+Branch: `codex/mounted-combat-phase3c-native-controls`
+
+## Accepted input
+
+The immutable input is Horse stabilization HEAD `8ff5813b36eb1af04e1329a1993b2476ae6ad691`, version `0.1.0-phase3b-dev.27`, package SHA-256 `2b6629338b35d9f01fab607201fd999e6fad97bc63d73e42860c08c25c3870b7`. Human review confirms that target-selected Mount and the RT Rider/Horse attack implementations work, while ordinary TB clicks from the IMGUI overlay do not enter the accepted KMC target-command chain.
+
+## Exact Kingmaker 2.1.7b contracts
+
+The inspected `Assembly-CSharp.dll` remains SHA-256 `3b6450ffec440e296e586f71c711b195aed144b28d53e1cbb29406d18fef5afb`, MVID `07fa1e4d-8618-41b3-9b8d-faa17d3b26f7`.
+
+| Contract | Exact member | Consequence |
+|---|---|---|
+| native ability definition | `BlueprintAbility` type `0x020005FE`; fact/collection methods `0x06002CF1` / `0x06002CF2` | a runtime-owned `BlueprintAbility` becomes a normal `Ability` in `UnitDescriptor.Abilities` |
+| availability and target predicates | `AbilityData.IsAvailable` `0x06002B48`; `CanTarget` `0x06002B63`; `GetUnavailableReason` `0x06002B66`; `IsVisible` `0x06002B69` | KMC can provide native disabled state, tooltip reason, visibility, and target highlighting through stock interfaces |
+| native pointer pipeline | `ClickWithSelectedAbilityHandler.SetAbility` `0x060093F8`; `GetPriority` `0x060093F4`; `GetTarget` `0x060093F5`; `OnClick` `0x060093F6`; `DropAbility` `0x060093F9` | toolbar/drawer activation enters the stock ability cursor and physical unit-click path |
+| native command | `UnitUseAbility.CreateCastCommand` `0x06002725`; `Init` `0x06002728`; `OnAction` `0x06002737` | the player click creates a stock ability command before KMC delegates to its already-qualified mounted command |
+| action-bar refresh | `ActionBarManager.HandleAbilityAdded` / `HandleAbilityRemoved` `0x060044DD` / `0x060044DE` | direct ability facts refresh the ordinary selected-unit ability surface |
+| TB disabled state | `MechanicActionBarSlotAbility.CanUseIfTurnBased` `0x06002F6D`; `WarningMessage` `0x06002F6B` | exact current-turn and action-state rules remain native, supplemented by KMC availability reasons |
+| hotbar policy | `UnitUISettings.TryToInitialize` `0x06003005`; `SetSlotAutomatically` `0x06003001`; `SetSlotInternal` `0x06003002` | `ActionBarAutoFillIgnored=true` keeps KMC out of serialized user slots; abilities remain in the native abilities drawer for optional drag |
+| fact lifecycle | `AbilityCollection.GetAbility` `0x06002B0D`; inherited `AddFact` `0x060096AE`; `RemoveFact` `0x06009699` | KMC can own exact reference leases, prevent duplicates, and remove only its facts |
+| serialization boundary | `SaveManager.SaveRoutine` `0x06008029` | a guarded coroutine scope can suspend/remove runtime control facts before `Player.PreSave` and restore them only after the save routine exits |
+
+## Selected surface
+
+Four original KMC runtime blueprints are reserved, with fail-closed collision checks:
+
+| Ability | GUID | Target | Native command type |
+|---|---|---|---|
+| `KMC_MountCompanionAbility` | `f053faad986631688defa003cd7bda0e` | exact owned supported companion | Free; exploration-only transition |
+| `KMC_DismountAbility` | `3af2b81f4d72bbb30501fa730fcdf36e` | owner | Free; exact cleanup path |
+| `KMC_RiderPrimaryAbility` | `27364df661b3c121eabb97a31aa73a83` | one visible hostile unit | Free native handoff; rider KMC command owns Standard |
+| `KMC_MountPrimaryAbility` | `f88a50d6fdbebbd709c3e323d2f52f5e` | one visible hostile unit | Free native handoff; Horse/Mammoth KMC command owns Standard |
+
+The Free native handoff is deliberate: the existing KMC attack wrapper, not the UI activation shell, remains the reference-identical Standard-action owner. Availability refuses the ability unless the correct action actor owns the current RT/TB opportunity and has Standard available. No second Standard cost is introduced.
+
+Both primary abilities are present on both pair members while mounted. On the rider turn the rider ability is enabled and the mount ability explains the wrong-turn boundary. On the mount turn the inverse applies. In RT the rider remains the visible selected unit and may request either native primary; the exact attack actor still owns its command and ledger.
+
+## Persistence and hotbar policy
+
+- No KMC control is automatically written into a user action-bar slot.
+- No nonempty slot is overwritten and no serialized slot binding is removed.
+- Ability facts are runtime leases. They are removed on disable, stale-unit replacement, respec/pet change, and process disposal.
+- Save serialization suspends and removes every exact KMC control fact for the entire `SaveRoutine` enumeration, then rebuilds the current runtime surface afterward. Load reconstructs the surface from current owner/pet/relationship state.
+- The Horse companion blueprint itself remains persistent content under the existing respec-before-uninstall policy; the new control facts and mounted relationship do not add persistent state.
+
+## Feedback and telemetry
+
+Native activation records blueprint identity, caster, active turn, Standard availability, pointer selection start/end, hover/target admission, physical click, native command, KMC command acceptance, and terminal result. Wrong turn, spent Standard, invalid target, unsupported weapon, lifecycle boundary, and active-command conflicts must produce a native disabled reason, warning, and/or precise KMC feedback. A click that never reaches this pipeline is not credited as human-input proof.
+
+## Overlay disposition
+
+The IMGUI overlay becomes default-hidden. A separate UMM diagnostic toggle may instantiate it as an emergency fallback. Guarded runtime scenarios may explicitly request it; ordinary play does not depend on it.
+

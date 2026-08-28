@@ -1,5 +1,15 @@
 # Mounted Combat journal
 
+## 2026-08-28T21:15:00Z - Phase 3C branches from accepted dev.27 and selects the native ability seam
+
+- Verified clean local/upstream/remote equality at accepted Horse stabilization HEAD `8ff5813b36eb1af04e1329a1993b2476ae6ad691`, then created `codex/mounted-combat-phase3c-native-controls` from that exact commit. No game/build/launcher/transaction/lock/sentinel/deployment ambiguity existed.
+- Preserved dev.27 package SHA-256 `2b6629338b35d9f01fab607201fd999e6fad97bc63d73e42860c08c25c3870b7` and installed DLL SHA-256/MVID `066a38e35b099aa93e54b79c0b9b9d2c60eeb8f42d4412bb7948a7142809832d` / `ee787dd4-f79f-4e5f-9975-1cb7ef13eecf`.
+- Read the full supplied human log and evidence. The TB defect is an input-surface gap: overlay arming occurs, but the failed physical attempts never enter a KMC mounted target-click/accepted command chain; RT uses the same production attack implementation successfully. This supports replacing overlay click interception with Kingmaker's stock selected-ability handler rather than rewriting attack ownership.
+- Exact Kingmaker 2.1.7b analysis binds runtime `BlueprintAbility` facts to `UnitDescriptor.Abilities`, native `ClickWithSelectedAbilityHandler` pointer targeting, stock `UnitUseAbility`, native disabled/warning surfaces, and action-bar refresh. `ActionBarAutoFillIgnored=true` prevents automatic user-slot mutation while retaining the ability drawer. `SaveManager.SaveRoutine` provides the bounded coroutine scope needed to keep runtime control facts out of serialization.
+- Selected four original KMC ability identities: Mount `f053faad986631688defa003cd7bda0e`, Dismount `3af2b81f4d72bbb30501fa730fcdf36e`, Rider primary `27364df661b3c121eabb97a31aa73a83`, Mount primary `f88a50d6fdbebbd709c3e323d2f52f5e`. Native Free commands hand off to the already-qualified KMC Standard-owning attack wrapper so no double Standard cost is introduced.
+- The current Horse portrait fallback cause is confirmed in source and human evidence: `CR1_HorseRiding` has no usable portrait, so production falls back to Mammoth art. The bounded initialized-library portrait search remains pending before original KMC art is created.
+- Contract-first documents were added. No production behavior changed in this checkpoint.
+
 ## 2026-08-28T16:28:49Z - dev.27 Horse stabilization qualifies, Mammoth regresses cleanly, final package installed
 
 - Preserved production implementation `87d0edcffe13be693b242a1ff11fa9b75d0b7828` separately from documentation descendant `99712cf3ac9a09049e4dbb9c83bb5490bd369895` and validator/package checkpoint `bd5134a5cec91554829aa9c536bbf1ab071e546d`. The generic feature publisher established exact local/upstream/remote equality at `bd5134a`; no raw push was used.
