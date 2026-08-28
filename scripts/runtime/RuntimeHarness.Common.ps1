@@ -5035,7 +5035,7 @@ function Assert-KmcHorseCompanionUnmountedEvidence {
         }
         if ([long]$artifact.schemaVersion -ge 4) {
             $observationNames = @($observationNames + @(
-                'stockLifecycleBefore','stockLifecycleAttacks','stockLifecycleAttackCount',
+                'stockLifecycleBefore','stockLifecycleAttacks','stockLifecycleAttackCount','maximumStockLifecycleAttacks',
                 'stockLifecycleAttackRules','stockLifecycleAttackRolls','stockLifecycleDamageRules',
                 'stockLifecycleForcedD20Count','stockLifecycleRuleDamage','stockLifecycleTransitionEventCount',
                 'stockLifecycleTransitionActorId','stockLifecycleTransitionPreviousLifeState',
@@ -5216,8 +5216,13 @@ function Assert-KmcHorseCompanionUnmountedEvidence {
                 'directDamageImmediatelyAfterMutation','directDamageAfterObservation','directDamageRecovery')) {
                 Assert-KmcExactProperties $o.$snapshotName $lifeSnapshotNames "horse lifecycle $snapshotName"
             }
+            $expectedMaximumStockLifecycleAttacks = [Math]::Max(
+                1,
+                [int]$o.stockLifecycleBefore.hitPoints - [int]$o.stockLifecycleBefore.damage)
             if ($o.stockLifecycleAttacks -isnot [Array] -or
-                [long]$o.stockLifecycleAttackCount -lt 1 -or [long]$o.stockLifecycleAttackCount -gt 6 -or
+                [long]$o.maximumStockLifecycleAttacks -ne [long]$expectedMaximumStockLifecycleAttacks -or
+                [long]$o.stockLifecycleAttackCount -lt 1 -or
+                [long]$o.stockLifecycleAttackCount -gt [long]$o.maximumStockLifecycleAttacks -or
                 @($o.stockLifecycleAttacks).Count -ne [long]$o.stockLifecycleAttackCount -or
                 [long]$o.stockLifecycleAttackRules -ne [long]$o.stockLifecycleAttackCount -or
                 [long]$o.stockLifecycleAttackRolls -ne [long]$o.stockLifecycleAttackCount -or

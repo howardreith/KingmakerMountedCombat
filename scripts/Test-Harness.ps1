@@ -9119,6 +9119,7 @@ try {
             targetCleanupExact=$true;lethalDamage=60;recoveredDamage=0;finalPause=$false;finalTurnBased=$false;finalSelectionCount=1
             unrelatedPartyPetsPreserved=$true;relationshipState='Unmounted';horseRemoved=$true;targetRemoved=$true
             stockLifecycleBefore=$lifeConscious;stockLifecycleAttacks=$stockLifecycleAttacks;stockLifecycleAttackCount=2
+            maximumStockLifecycleAttacks=40
             stockLifecycleAttackRules=2;stockLifecycleAttackRolls=2;stockLifecycleDamageRules=2
             stockLifecycleForcedD20Count=2;stockLifecycleRuleDamage=60;stockLifecycleTransitionEventCount=1
             stockLifecycleTransitionActorId='horse';stockLifecycleTransitionPreviousLifeState='Conscious'
@@ -9149,6 +9150,18 @@ try {
         }
         Assert-KmcHorseCompanionUnmountedEvidence -Request $unmountedRequest -Manifest $unmountedManifest -Status PASS -SubscenarioResults @($unmountedSubresult)
 
+        $unmountedArtifact.observations.maximumStockLifecycleAttacks = 39
+        Write-KmcJsonAtomic -Path $unmountedPath -Value $unmountedArtifact
+        $unmountedRecord.length=(Get-Item -LiteralPath $unmountedPath).Length
+        $unmountedRecord.sha256=(Get-KmcSha256 $unmountedPath)
+        [void](New-TestArtifactManifest -EvidenceRoot $unmountedRoot -RunId $unmountedRequest.runId -Scenario $unmountedRequest.scenario -Artifacts @($unmountedRecord))
+        $mutatedUnmountedManifest = Read-KmcJson (Join-Path $unmountedRoot 'runtime-artifacts.json')
+        $threw = $false
+        try { Assert-KmcHorseCompanionUnmountedEvidence -Request $unmountedRequest -Manifest $mutatedUnmountedManifest -Status PASS -SubscenarioResults @($unmountedSubresult) }
+        catch { $threw = $true }
+        Assert-Test $threw 'horse companion unmounted validator accepted an inexact stock lifecycle attack budget'
+
+        $unmountedArtifact.observations.maximumStockLifecycleAttacks = 40
         $unmountedArtifact.observations.realTimePreDispatchStandardTargetExact = $false
         Write-KmcJsonAtomic -Path $unmountedPath -Value $unmountedArtifact
         $unmountedRecord.length=(Get-Item -LiteralPath $unmountedPath).Length
@@ -9311,6 +9324,7 @@ try {
             targetCleanupExact=$true;lethalDamage=60;recoveredDamage=0;finalPause=$false;finalTurnBased=$false;finalSelectionCount=1
             unrelatedPartyPetsPreserved=$true;relationshipState='Unmounted';horseRemoved=$true;targetRemoved=$true
             stockLifecycleBefore=$lifeConscious;stockLifecycleAttacks=$stockLifecycleAttacks;stockLifecycleAttackCount=2
+            maximumStockLifecycleAttacks=40
             stockLifecycleAttackRules=2;stockLifecycleAttackRolls=2;stockLifecycleDamageRules=2
             stockLifecycleForcedD20Count=2;stockLifecycleRuleDamage=60;stockLifecycleTransitionEventCount=1
             stockLifecycleTransitionActorId='horse';stockLifecycleTransitionPreviousLifeState='Conscious'
