@@ -4585,15 +4585,30 @@ function Assert-KmcHorseNativeAssetAuditEvidence {
     Assert-KmcNotHardLink $path 'horse native-asset audit evidence'
     $before = Get-Item -LiteralPath $path -Force
     $artifact = Read-KmcJson $path
-    Assert-KmcExactProperties $artifact @(
+    if (-not (Test-KmcExactJsonInteger $artifact.schemaVersion) -or [long]$artifact.schemaVersion -notin @(1,2) -or
+        [string]$artifact.evidenceKind -cne 'horse-asset-audit') {
+        throw 'Horse native-asset audit schema or evidence kind is invalid.'
+    }
+    $expectedHorseAuditProperties = @(
         'schemaVersion','evidenceKind','runId','scenario','branch','commit','productVersion','createdAtUtc',
         'loadedBlueprintCount','resourceNameCount','reservedGuidCollisions','exactHorse','ponyDiscovery',
         'stockCompanionBaseline','companionSelections','ranger','paladin','assertions',
         'assertionPassCount','assertionFailCount','errors','status'
-    ) 'horse native-asset audit evidence'
-    if (-not (Test-KmcExactJsonInteger $artifact.schemaVersion) -or [long]$artifact.schemaVersion -ne 1 -or
-        [string]$artifact.evidenceKind -cne 'horse-asset-audit') {
-        throw 'Horse native-asset audit schema or evidence kind is invalid.'
+    )
+    if ([long]$artifact.schemaVersion -eq 2) { $expectedHorseAuditProperties += 'portraitDiscovery' }
+    Assert-KmcExactProperties $artifact $expectedHorseAuditProperties 'horse native-asset audit evidence'
+    if ([long]$artifact.schemaVersion -eq 2) {
+        Assert-KmcExactProperties $artifact.portraitDiscovery @(
+            'blueprintPortraitCount','namedHorsePonyBlueprintPortraits','horsePonyUnitPortraitOwners',
+            'horsePonyIconOwners','exactNativeHorsePortrait'
+        ) 'horse native portrait discovery'
+        if (-not (Test-KmcExactJsonInteger $artifact.portraitDiscovery.blueprintPortraitCount) -or
+            [long]$artifact.portraitDiscovery.blueprintPortraitCount -le 0 -or
+            $artifact.portraitDiscovery.namedHorsePonyBlueprintPortraits -isnot [Array] -or
+            $artifact.portraitDiscovery.horsePonyUnitPortraitOwners -isnot [Array] -or
+            $artifact.portraitDiscovery.horsePonyIconOwners -isnot [Array]) {
+            throw 'Horse native portrait discovery shape is invalid.'
+        }
     }
     foreach ($name in @('runId','scenario','branch','commit','productVersion')) {
         if ($artifact.$name -isnot [string] -or [string]$artifact.$name -cne [string]$Request.$name) {

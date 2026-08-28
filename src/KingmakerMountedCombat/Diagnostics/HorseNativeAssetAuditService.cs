@@ -58,7 +58,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var failed = 0;
             var artifact = new JObject
             {
-                ["schemaVersion"] = 1,
+                ["schemaVersion"] = 2,
                 ["evidenceKind"] = EvidenceKind,
                 ["runId"] = request.RunId,
                 ["scenario"] = request.Scenario,
@@ -71,6 +71,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["reservedGuidCollisions"] = new JArray(),
                 ["exactHorse"] = JValue.CreateNull(),
                 ["ponyDiscovery"] = new JObject(),
+                ["portraitDiscovery"] = new JObject(),
                 ["stockCompanionBaseline"] = new JObject(),
                 ["companionSelections"] = new JArray(),
                 ["ranger"] = JValue.CreateNull(),
@@ -159,6 +160,22 @@ namespace KingmakerMountedCombat.Diagnostics
                     "summoned-pony-candidate-resolved", "PonySummoned resolves by exact GUID and uses the native Pony_02 prefab.", ref passed, ref failed);
                 AddAssertion(assertions, errors, summonedPonyRecord != null && summonedPonyRecord["view"] is JObject,
                     "summoned-pony-view-resolved", "The exact PonySummoned native view loaded for structural comparison.", ref passed, ref failed);
+
+                logger.Info("Horse native-asset audit: enumerating exact Horse/Pony portrait and icon owners.");
+                var portraitDiscovery = BuildPortraitDiscovery(blueprints, unitCandidates, horse);
+                artifact["portraitDiscovery"] = portraitDiscovery;
+                AddAssertion(assertions, errors,
+                    portraitDiscovery["exactNativeHorsePortrait"] == null ||
+                    portraitDiscovery["exactNativeHorsePortrait"].Type == JTokenType.Null,
+                    "exact-native-horse-portrait-absent",
+                    "CR1_HorseRiding has no BlueprintPortrait; the current Mammoth portrait is a KMC fallback rather than native Horse art.",
+                    ref passed, ref failed);
+                AddAssertion(assertions, errors,
+                    portraitDiscovery["blueprintPortraitCount"] != null &&
+                    portraitDiscovery["blueprintPortraitCount"].Value<int>() > 0,
+                    "native-portrait-search-complete",
+                    "The initialized library portrait scan completed and recorded all Horse/Pony-named portrait, unit-owner, and icon-owner candidates.",
+                    ref passed, ref failed);
 
                 logger.Info("Horse native-asset audit: scanning bounded blueprint references for candidate ownership and summon contracts.");
                 var referenceScanner = new BlueprintReferenceScanner(blueprints, logger);
@@ -523,6 +540,87 @@ namespace KingmakerMountedCombat.Diagnostics
                 selections.Add(record);
             }
             return new JArray(selections.OrderBy(item => (string)item["assetGuid"], StringComparer.Ordinal));
+        }
+
+        private static JObject BuildPortraitDiscovery(
+            IReadOnlyList<BlueprintEntry> blueprints,
+            IReadOnlyList<BlueprintEntry> unitCandidates,
+            BlueprintEntry exactHorse)
+        {
+            var portraits = blueprints.Where(item => string.Equals(
+                    item.Value.GetType().FullName,
+                    "Kingmaker.Blueprints.BlueprintPortrait",
+                    StringComparison.Ordinal))
+                .OrderBy(item => item.AssetGuid, StringComparer.Ordinal)
+                .ToList();
+            var namedPortraits = portraits.Where(item => ContainsHorseTerm(item.Name))
+                .Select(BuildPortraitRecord)
+                .ToList();
+
+            var unitOwners = new JArray();
+            foreach (var unit in unitCandidates.OrderBy(item => item.AssetGuid, StringComparer.Ordinal))
+            {
+                var portrait = ReadMember(unit.Value, "m_Portrait") ?? ReadMember(unit.Value, "Portrait");
+                var owner = BlueprintIdentity(unit);
+                owner["portrait"] = portrait == null ? (JToken)JValue.CreateNull() :
+                    BuildPortraitRecord(new BlueprintEntry(
+                        ReadStringMember(portrait, "AssetGuid"),
+                        ReadObjectName(portrait),
+                        portrait));
+                unitOwners.Add(owner);
+            }
+
+            var iconOwners = new JArray();
+            foreach (var owner in blueprints.Where(item => ContainsHorseTerm(item.Name))
+                .OrderBy(item => item.AssetGuid, StringComparer.Ordinal))
+            {
+                var icon = ReadMember(owner.Value, "m_Icon") ?? ReadMember(owner.Value, "Icon");
+                if (!(icon is Sprite)) { continue; }
+                var record = BlueprintIdentity(owner);
+                record["icon"] = SpriteToken(icon as Sprite);
+                iconOwners.Add(record);
+            }
+
+            var exactPortrait = exactHorse == null
+                ? null
+                : ReadMember(exactHorse.Value, "m_Portrait") ?? ReadMember(exactHorse.Value, "Portrait");
+            return new JObject
+            {
+                ["blueprintPortraitCount"] = portraits.Count,
+                ["namedHorsePonyBlueprintPortraits"] = new JArray(namedPortraits),
+                ["horsePonyUnitPortraitOwners"] = unitOwners,
+                ["horsePonyIconOwners"] = iconOwners,
+                ["exactNativeHorsePortrait"] = exactPortrait == null ? (JToken)JValue.CreateNull() :
+                    BuildPortraitRecord(new BlueprintEntry(
+                        ReadStringMember(exactPortrait, "AssetGuid"),
+                        ReadObjectName(exactPortrait),
+                        exactPortrait))
+            };
+        }
+
+        private static JObject BuildPortraitRecord(BlueprintEntry portrait)
+        {
+            var result = BlueprintIdentity(portrait);
+            var data = ReadMember(portrait.Value, "Data");
+            result["dataPresent"] = data != null;
+            result["small"] = SpriteToken(ReadMember(portrait.Value, "SmallPortrait") as Sprite);
+            result["medium"] = SpriteToken(ReadMember(portrait.Value, "HalfLengthPortrait") as Sprite);
+            result["large"] = SpriteToken(ReadMember(portrait.Value, "FullLengthPortrait") as Sprite);
+            result["backupPortrait"] = BlueprintToken(ReadMember(portrait.Value, "BackupPortrait"));
+            return result;
+        }
+
+        private static JToken SpriteToken(Sprite sprite)
+        {
+            if (sprite == null) { return JValue.CreateNull(); }
+            return new JObject
+            {
+                ["name"] = sprite.name ?? string.Empty,
+                ["width"] = sprite.texture == null ? 0 : sprite.texture.width,
+                ["height"] = sprite.texture == null ? 0 : sprite.texture.height,
+                ["textureName"] = sprite.texture == null ? string.Empty : sprite.texture.name ?? string.Empty,
+                ["textureType"] = sprite.texture == null ? string.Empty : sprite.texture.GetType().FullName
+            };
         }
 
         private static JObject BuildClassRecord(BlueprintEntry characterClass, JArray companionSelections)
