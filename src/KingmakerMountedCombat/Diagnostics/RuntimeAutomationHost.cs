@@ -43,6 +43,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly MountedCombatController combat;
         private readonly HorseCompanionBlueprintService horseCompanion;
         private readonly NativeMountedControlService nativeControls;
+        private readonly MountedAnimationAdapter animation;
+        private readonly MountedDollRoomIkAdapter dollRoomIk;
         private readonly DiagnosticSettings diagnosticSettings;
         private readonly Func<bool, bool> registeredToggle;
         private readonly string resultPath;
@@ -115,6 +117,8 @@ namespace KingmakerMountedCombat.Diagnostics
             MountedCombatController combat,
             HorseCompanionBlueprintService horseCompanion,
             NativeMountedControlService nativeControls,
+            MountedAnimationAdapter animation,
+            MountedDollRoomIkAdapter dollRoomIk,
             DiagnosticSettings diagnosticSettings,
             Func<bool, bool> registeredToggle)
         {
@@ -130,6 +134,8 @@ namespace KingmakerMountedCombat.Diagnostics
             this.combat = combat ?? throw new ArgumentNullException(nameof(combat));
             this.horseCompanion = horseCompanion ?? throw new ArgumentNullException(nameof(horseCompanion));
             this.nativeControls = nativeControls ?? throw new ArgumentNullException(nameof(nativeControls));
+            this.animation = animation ?? throw new ArgumentNullException(nameof(animation));
+            this.dollRoomIk = dollRoomIk ?? throw new ArgumentNullException(nameof(dollRoomIk));
             this.diagnosticSettings = diagnosticSettings ?? throw new ArgumentNullException(nameof(diagnosticSettings));
             this.registeredToggle = registeredToggle ?? throw new ArgumentNullException(nameof(registeredToggle));
             resultPath = Path.Combine(request.EvidenceRoot, "runtime-game-result.json");
@@ -163,6 +169,8 @@ namespace KingmakerMountedCombat.Diagnostics
             MountedCombatController combat,
             HorseCompanionBlueprintService horseCompanion,
             NativeMountedControlService nativeControls,
+            MountedAnimationAdapter animation,
+            MountedDollRoomIkAdapter dollRoomIk,
             DiagnosticSettings diagnosticSettings,
             Func<bool, bool> registeredToggle)
         {
@@ -231,7 +239,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
             logger.Info("Runtime automation request accepted: " + request.RunId + " / " + request.Scenario);
             return new RuntimeAutomationHost(logger, request, loadedModId, relationshipStateProvider, movementExperimentProvider,
-                saveAuthorization, relationship, lifecycle, playerAction, combat, horseCompanion, nativeControls, diagnosticSettings, registeredToggle);
+                saveAuthorization, relationship, lifecycle, playerAction, combat, horseCompanion, nativeControls,
+                animation, dollRoomIk, diagnosticSettings, registeredToggle);
         }
 
         internal static void ObserveSaveRequest()
@@ -498,6 +507,9 @@ namespace KingmakerMountedCombat.Diagnostics
                         relationship,
                         playerAction,
                         combat,
+                        nativeControls,
+                        animation,
+                        dollRoomIk,
                         diagnosticSettings,
                         logger);
                     horseCompanionEngine.Start();
@@ -1492,6 +1504,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 request.EvidenceRoot,
                 HorseCompanionUnmountedScenarioEngine.MountedEvidenceFileName,
                 HorseCompanionUnmountedScenarioEngine.MountedEvidenceKind);
+            AddRuntimeArtifactIfPresent(
+                artifacts,
+                request.EvidenceRoot,
+                HorseCompanionUnmountedScenarioEngine.NativeControlsEvidenceFileName,
+                HorseCompanionUnmountedScenarioEngine.NativeControlsEvidenceKind);
 
             var visualRoot = Path.Combine(request.EvidenceRoot, "movement-visuals");
             if (Directory.Exists(visualRoot))

@@ -91,6 +91,62 @@ namespace KingmakerMountedCombat.Integration
 
         internal string LastNativeMountTurnMoveInterruptSource { get; private set; } = "<not-observed>";
 
+        internal bool TryGetExactRiderTurnDelegatedMoveForAnimation(
+            UnitEntityData mountCandidate,
+            out UnitMoveTo move,
+            out string source)
+        {
+            move = null;
+            source = null;
+            var turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
+            if (disposed || relationship.State != RelationshipState.Mounted ||
+                !CombatController.IsInTurnBasedCombat() || mountCandidate == null ||
+                mountCandidate != relationship.Mount || turn?.Unit != relationship.Rider ||
+                turn.Status != TurnController.TurnStatus.Preparing && !turn.IsActing)
+            {
+                return false;
+            }
+
+            if (activeRiderTurnGroundMove != null && !activeRiderTurnGroundMove.IsFinished)
+            {
+                move = activeRiderTurnGroundMove;
+                source = "rider-turn-ground";
+            }
+            else if (activeCommand?.DelegatedMove != null && !activeCommand.DelegatedMove.IsFinished)
+            {
+                move = activeCommand.DelegatedMove;
+                source = "attack-approach";
+            }
+            else if (activeDoorInteraction?.DelegatedMove != null && !activeDoorInteraction.DelegatedMove.IsFinished)
+            {
+                move = activeDoorInteraction.DelegatedMove;
+                source = "door-approach";
+            }
+
+            var commands = relationship.Mount?.Commands;
+            return move != null && move.Executor == relationship.Mount && commands != null &&
+                ReferenceEquals(commands.GetCommand(UnitCommand.CommandType.Move), move) &&
+                !commands.Queue.Contains(move);
+        }
+
+        internal bool TryGetExactHorsePrimaryAnimationContext(
+            AttackHandInfo attack,
+            out MountedPairAttackCommand command,
+            out UnitEntityData horse)
+        {
+            command = activeCommand;
+            horse = relationship.Mount;
+            return !disposed && relationship.State == RelationshipState.Mounted &&
+                command != null && !command.IsFinished &&
+                command.Action == MountedCombatActionKind.MountPrimaryNatural &&
+                horse != null && string.Equals(horse.Blueprint?.AssetGuid,
+                    HorseCompanionBlueprintService.UnitGuid, StringComparison.Ordinal) &&
+                command.ActionActor == horse && command.ChildAttack != null &&
+                ReferenceEquals(command.ChildAttack.PlannedAttack, attack) &&
+                attack?.Hand?.Owner?.Unit == horse &&
+                ReferenceEquals(attack.Weapon, command.ChildAttack.PlannedAttack.Weapon);
+        }
+
         internal void BeginNativeMountTurnMoveObservation(UnitMoveTo command)
         {
             observedNativeMountTurnMove = command != null &&
@@ -185,7 +241,7 @@ namespace KingmakerMountedCombat.Integration
             projectedNativeMountTurnGroundMove = command;
             projectedNativeMountTurnGroundMoveFrame = Time.frameCount;
             agent.Stop();
-            logger.Info("Accepted exact mounted Mammoth TB path endpoint: commandTargetDistance=" +
+            logger.Info("Accepted exact mounted " + MountDisplayName + " TB path endpoint: commandTargetDistance=" +
                 mechanicsDistanceToTarget.ToString("R", CultureInfo.InvariantCulture) +
                 "; pathEndpointDistance=" + pathEndpointDistance.ToString("R", CultureInfo.InvariantCulture) +
                 "; stockApproachRadius=" + command.ApproachRadius.ToString("R", CultureInfo.InvariantCulture) +
@@ -730,14 +786,14 @@ namespace KingmakerMountedCombat.Integration
                 relationship.Mount.Commands.GetCommand(UnitCommand.CommandType.Move) != null ||
                 relationship.Mount.Commands.Queue.Count != 0)
             {
-                LastFeedback = "Mounted ground movement rejected: the Mammoth Move slot is not idle.";
+                LastFeedback = "Mounted ground movement rejected: the " + MountDisplayName + " Move slot is not idle.";
                 LastRejectionCodes = new[] { MountedCombatRejectionCode.AlreadyActiveCommand };
                 return false;
             }
 
             riderTurnGroundMoveAdmissionPending = true;
             LastRejectionCodes = new MountedCombatRejectionCode[0];
-            LastFeedback = "Mounted rider-turn ground movement admitted; the Mammoth owns pathfinding.";
+            LastFeedback = "Mounted rider-turn ground movement admitted; " + MountDisplayName + " owns pathfinding.";
             return true;
         }
 
@@ -758,7 +814,7 @@ namespace KingmakerMountedCombat.Integration
                     command.Interrupt(false);
                 }
                 relationship.Runtime.CancelMountMovement();
-                LastFeedback = "Mounted ground movement rejected: exact Mammoth command admission failed.";
+                LastFeedback = "Mounted ground movement rejected: exact " + MountDisplayName + " command admission failed.";
                 LastRejectionCodes = new[] { MountedCombatRejectionCode.CommandAdmissionFailure };
                 return;
             }
@@ -771,7 +827,7 @@ namespace KingmakerMountedCombat.Integration
             LastGroundMoveExecutorId = command.Executor?.UniqueId;
             LastGroundMoveUsedRiderTurnAdapter = false;
             LastGroundMoveSlotRestored = false;
-            LastFeedback = "Mounted ground movement active: Mammoth pathfinding, rider Move accounting.";
+            LastFeedback = "Mounted ground movement active: " + MountDisplayName + " pathfinding, rider Move accounting.";
             logger.Info("Mounted ground movement accepted: riderId=" + relationship.Rider.UniqueId +
                 "; executorId=" + LastGroundMoveExecutorId +
                 "; turnStatus=" + (Game.Instance?.TurnBasedCombatController?.CurrentTurn?.Status.ToString() ?? "<none>") +
@@ -827,6 +883,16 @@ namespace KingmakerMountedCombat.Integration
                 return false;
             }
 
+            var mountCommands = relationship.Mount?.Commands;
+            if (mountCommands == null || !mountCommands.Empty || mountCommands.Queue.Count != 0)
+            {
+                LastFeedback = "Mounted door interaction rejected: " + MountDisplayName +
+                    " is busy; wait for its current command to finish.";
+                LastRejectionCodes = new[] { MountedCombatRejectionCode.AlreadyActiveCommand };
+                logger.Info(LastFeedback);
+                return false;
+            }
+
             var turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
             if (!MountedInteractionRoutingPolicy.CanAdmitInCurrentTurn(
                 CombatController.IsInTurnBasedCombat(),
@@ -850,7 +916,7 @@ namespace KingmakerMountedCombat.Integration
             activeDoorInteraction = routed;
             LastDoorInteractionOutcome = null;
             LastRejectionCodes = new MountedCombatRejectionCode[0];
-            LastFeedback = "Mounted door interaction accepted: Mammoth approach, rider interaction.";
+            LastFeedback = "Mounted door interaction accepted: " + MountDisplayName + " approach, rider interaction.";
             command = routed;
             logger.Info("Mounted door interaction routed: riderId=" + relationship.Rider.UniqueId +
                 "; mountId=" + relationship.Mount.UniqueId +
@@ -1105,7 +1171,7 @@ namespace KingmakerMountedCombat.Integration
             if (!exactTurn || rawMove != command && !command.IsFinished)
             {
                 CancelRiderTurnGroundMovement();
-                LastFeedback = "Mounted ground movement cancelled: rider turn or exact Mammoth Move-slot ownership changed.";
+                LastFeedback = "Mounted ground movement cancelled: rider turn or exact " + MountDisplayName + " Move-slot ownership changed.";
                 return;
             }
 

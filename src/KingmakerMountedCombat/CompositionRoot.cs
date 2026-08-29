@@ -21,6 +21,8 @@ namespace KingmakerMountedCombat
         private readonly MountedPlayerActionController playerAction;
         private readonly NativeMountedControlService nativeControls;
         private readonly MountedCombatController combat;
+        private readonly MountedAnimationAdapter animation;
+        private readonly MountedDollRoomIkAdapter dollRoomIk;
         private readonly MovementTelemetryWriter movementTelemetry;
         private bool disposed;
 
@@ -34,6 +36,8 @@ namespace KingmakerMountedCombat
                 relationship = new GameMountedRelationshipService(logger, settings);
                 lifecycleLedger = new NativeLifecycleDeliveryLedger();
                 combat = new MountedCombatController(relationship, settings, logger);
+                animation = new MountedAnimationAdapter(relationship, combat, logger);
+                dollRoomIk = new MountedDollRoomIkAdapter(relationship, logger);
                 lifecycle = new MountedLifecycleSubscriber(relationship, lifecycleLedger, combat);
                 saveAuthorization = new RuntimeSaveAuthorization();
                 playerAction = new MountedPlayerActionController(relationship, settings, logger, combat);
@@ -44,7 +48,7 @@ namespace KingmakerMountedCombat
                     horseCompanion,
                     settings,
                     logger);
-                patches = new MountedPatchController(relationship, playerAction, combat, nativeControls, saveAuthorization, lifecycleLedger, logger);
+                patches = new MountedPatchController(relationship, playerAction, combat, nativeControls, animation, dollRoomIk, saveAuthorization, lifecycleLedger, logger);
                 runtimeAutomation = RuntimeAutomationHost.CreateFromCommandLine(
                     logger,
                     loadedModId,
@@ -57,6 +61,8 @@ namespace KingmakerMountedCombat
                     combat,
                     horseCompanion,
                     nativeControls,
+                    animation,
+                    dollRoomIk,
                     settings,
                     Main.InvokeRegisteredToggleForAutomation);
                 if (runtimeAutomation != null && !runtimeAutomation.IsManualReview)

@@ -65,6 +65,10 @@
       <HintPath>$(KingmakerManagedDir)\UnityEngine.AnimationModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="UnityEngine.ImageConversionModule">
+      <HintPath>$(KingmakerManagedDir)\UnityEngine.ImageConversionModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="UnityModManager">
       <HintPath>$(UnityModManagerDir)\UnityModManager.dll</HintPath>
       <Private>False</Private>
@@ -77,6 +81,21 @@
       <HintPath>$(UnityModManagerDir)\0Harmony12.dll</HintPath>
       <Private>False</Private>
     </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Assets\HorsePortraitOriginalMaster.png" />
+    <EmbeddedResource Include="Assets\HorsePortraitLarge.png">
+      <LogicalName>KingmakerMountedCombat.Assets.HorsePortraitLarge.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Assets\HorsePortraitMedium.png">
+      <LogicalName>KingmakerMountedCombat.Assets.HorsePortraitMedium.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Assets\HorsePortraitSmall.png">
+      <LogicalName>KingmakerMountedCombat.Assets.HorsePortraitSmall.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Assets\HorseIcon.png">
+      <LogicalName>KingmakerMountedCombat.Assets.HorseIcon.png</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BuildIdentity.cs" />
@@ -151,6 +170,8 @@
     <Compile Include="Integration\SupportedMountedProfile.cs" />
     <Compile Include="Integration\ReactiveBooleanValueReader.cs" />
     <Compile Include="Integration\MountedLifecycleSubscriber.cs" />
+    <Compile Include="Integration\MountedAnimationAdapter.cs" />
+    <Compile Include="Integration\MountedDollRoomIkAdapter.cs" />
     <Compile Include="Integration\ExactTurnMovementAdapter.cs" />
     <Compile Include="Integration\MountedCombatController.cs" />
     <Compile Include="Integration\MountedDoorInteractionCommand.cs" />

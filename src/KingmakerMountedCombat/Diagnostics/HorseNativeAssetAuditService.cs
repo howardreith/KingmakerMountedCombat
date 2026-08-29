@@ -33,6 +33,7 @@ namespace KingmakerMountedCombat.Diagnostics
             HorseCompanionBlueprintService.UnitGuid,
             HorseCompanionBlueprintService.FeatureGuid,
             HorseCompanionBlueprintService.UpgradeGuid,
+            HorseCompanionBlueprintService.PortraitGuid,
             NativeMountedControlService.MountAbilityGuid,
             NativeMountedControlService.DismountAbilityGuid,
             NativeMountedControlService.RiderPrimaryAbilityGuid,
@@ -129,7 +130,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         item["exactSelfOwned"] != null && item["exactSelfOwned"].Value<bool>() &&
                         item["foreignCollisionCount"] != null && item["foreignCollisionCount"].Value<int>() == 0),
                     "kmc-runtime-blueprints-exact-self-owned",
-                    "The initialized library contains exactly the seven reference-identical KMC Horse/native-control blueprints registered behind collision guards.",
+                    "The initialized library contains exactly the eight reference-identical KMC Horse/portrait/native-control blueprints registered behind collision guards.",
                     ref passed, ref failed);
 
                 var runtimeValues = new HashSet<object>(
@@ -141,7 +142,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     runtimeValues.Count == runtimeExpectations.Length &&
                     blueprints.Count == loadedBlueprints.Count - runtimeExpectations.Length,
                     "stock-projection-excludes-only-kmc-runtime-blueprints",
-                    "The stock audit projection excludes only the seven exact reference-identical KMC runtime definitions.",
+                    "The stock audit projection excludes only the eight exact reference-identical KMC runtime definitions.",
                     ref passed, ref failed);
 
                 var reservedCollisions = new JArray();
@@ -159,7 +160,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 artifact["reservedGuidCollisions"] = reservedCollisions;
                 AddAssertion(assertions, errors, reservedCollisions.All(item => item["resolved"] != null && !item["resolved"].Value<bool>()),
                     "reserved-kmc-guids-unclaimed-by-stock",
-                    "All seven deterministic KMC Horse/native-control GUIDs are absent from the stock projection after exact KMC self-ownership is proven.",
+                    "All eight deterministic KMC Horse/portrait/native-control GUIDs are absent from the stock projection after exact KMC self-ownership is proven.",
                     ref passed, ref failed);
 
                 var horse = blueprints.SingleOrDefault(item => string.Equals(item.AssetGuid, HorseBlueprintGuid, StringComparison.Ordinal));
@@ -347,6 +348,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 new RuntimeBlueprintExpectation("horse-unit", HorseCompanionBlueprintService.UnitGuid, horseCompanion.HorseUnit),
                 new RuntimeBlueprintExpectation("horse-feature", HorseCompanionBlueprintService.FeatureGuid, horseCompanion.HorseFeature),
                 new RuntimeBlueprintExpectation("horse-upgrade", HorseCompanionBlueprintService.UpgradeGuid, horseCompanion.HorseUpgrade),
+                new RuntimeBlueprintExpectation("horse-portrait", HorseCompanionBlueprintService.PortraitGuid, horseCompanion.HorsePortrait),
                 new RuntimeBlueprintExpectation("mount-ability", NativeMountedControlService.MountAbilityGuid, nativeControls.MountAbility),
                 new RuntimeBlueprintExpectation("dismount-ability", NativeMountedControlService.DismountAbilityGuid, nativeControls.DismountAbility),
                 new RuntimeBlueprintExpectation("rider-primary-ability", NativeMountedControlService.RiderPrimaryAbilityGuid, nativeControls.RiderPrimaryAbility),

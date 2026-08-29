@@ -10,6 +10,9 @@ using Kingmaker.UI.Selection;
 using Kingmaker.UnitLogic.Commands;
 using Kingmaker.UnitLogic.Commands.Base;
 using Kingmaker.View;
+using Kingmaker.Visual.Animation;
+using Kingmaker.Visual.Animation.Kingmaker;
+using Kingmaker.Visual.CharacterSystem;
 using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Diagnostics;
 using KingmakerMountedCombat.Logging;
@@ -24,12 +27,14 @@ namespace KingmakerMountedCombat.Integration
         private readonly HarmonyInstance harmony;
         private bool disposed;
 
-        public MountedPatchController(GameMountedRelationshipService service, MountedPlayerActionController playerAction, MountedCombatController combat, NativeMountedControlService nativeControls, RuntimeSaveAuthorization saveAuthorization, NativeLifecycleDeliveryLedger lifecycleLedger, IModLogger logger)
+        public MountedPatchController(GameMountedRelationshipService service, MountedPlayerActionController playerAction, MountedCombatController combat, NativeMountedControlService nativeControls, MountedAnimationAdapter animation, MountedDollRoomIkAdapter dollRoomIk, RuntimeSaveAuthorization saveAuthorization, NativeLifecycleDeliveryLedger lifecycleLedger, IModLogger logger)
         {
             PatchBridge.Service = service ?? throw new ArgumentNullException(nameof(service));
             PatchBridge.PlayerAction = playerAction ?? throw new ArgumentNullException(nameof(playerAction));
             PatchBridge.Combat = combat ?? throw new ArgumentNullException(nameof(combat));
             PatchBridge.NativeControls = nativeControls ?? throw new ArgumentNullException(nameof(nativeControls));
+            PatchBridge.Animation = animation ?? throw new ArgumentNullException(nameof(animation));
+            PatchBridge.DollRoomIk = dollRoomIk ?? throw new ArgumentNullException(nameof(dollRoomIk));
             PatchBridge.SaveAuthorization = saveAuthorization ?? throw new ArgumentNullException(nameof(saveAuthorization));
             PatchBridge.LifecycleLedger = lifecycleLedger ?? throw new ArgumentNullException(nameof(lifecycleLedger));
             PatchBridge.Logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -60,7 +65,11 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(UnitCombatState), "AttackOfOpportunity", 0x060093A1, new[] { typeof(UnitEntityData), typeof(bool) }, nameof(PatchMethods.AttackOfOpportunityPrefix));
                 PatchExact(typeof(UnitCombatCooldownsController), "TickOnUnit", 0x0600934A, new[] { typeof(UnitEntityData) }, nameof(PatchMethods.CombatCooldownPrefix), nameof(PatchMethods.CombatCooldownPostfix));
                 PatchExact(typeof(UnitCommand), "Interrupt", 0x060027AC, new[] { typeof(bool) }, nameof(PatchMethods.CommandInterruptPrefix));
-                logger.Info("Installed eighteen exact-token Harmony12 active-pair guards and bounded probes.");
+                PatchExact(typeof(UnitAnimationManager), "Tick", 0x06001605, Type.EmptyTypes, nameof(PatchMethods.AnimationTickPrefix));
+                PatchExact(typeof(AttackHandInfo), "CreateAnimationHandleForAttack", 0x0600265A, new[] { typeof(IEnumerable<AttackHandInfo>) }, null, nameof(PatchMethods.AttackAnimationPostfix));
+                PatchExact(typeof(IKController), "SetupIkSystem", 0x0600156C, new[] { typeof(Character) }, nameof(PatchMethods.DollRoomIkSetupPrefix));
+                PatchExact(typeof(IKController), "SetupFbbik", 0x0600156D, Type.EmptyTypes, nameof(PatchMethods.DollRoomFbbikPrefix), nameof(PatchMethods.DollRoomFbbikPostfix));
+                logger.Info("Installed twenty-two exact-token Harmony12 active-pair guards and bounded probes.");
             }
             catch
             {
@@ -74,6 +83,8 @@ namespace KingmakerMountedCombat.Integration
                     PatchBridge.PlayerAction = null;
                     PatchBridge.Combat = null;
                     PatchBridge.NativeControls = null;
+                    PatchBridge.Animation = null;
+                    PatchBridge.DollRoomIk = null;
                     PatchBridge.SaveAuthorization = null;
                     PatchBridge.LifecycleLedger = null;
                     PatchBridge.Logger = null;
@@ -94,6 +105,8 @@ namespace KingmakerMountedCombat.Integration
             PatchBridge.PlayerAction = null;
             PatchBridge.Combat = null;
             PatchBridge.NativeControls = null;
+            PatchBridge.Animation = null;
+            PatchBridge.DollRoomIk = null;
             PatchBridge.SaveAuthorization = null;
             PatchBridge.LifecycleLedger = null;
             PatchBridge.Logger = null;
@@ -132,6 +145,8 @@ namespace KingmakerMountedCombat.Integration
             internal static MountedPlayerActionController PlayerAction;
             internal static MountedCombatController Combat;
             internal static NativeMountedControlService NativeControls;
+            internal static MountedAnimationAdapter Animation;
+            internal static MountedDollRoomIkAdapter DollRoomIk;
             internal static RuntimeSaveAuthorization SaveAuthorization;
             internal static NativeLifecycleDeliveryLedger LifecycleLedger;
             internal static IModLogger Logger;
@@ -165,6 +180,32 @@ namespace KingmakerMountedCombat.Integration
             internal static void CommandInterruptPrefix(UnitCommand __instance)
             {
                 PatchBridge.Combat?.ObserveCommandInterrupt(__instance);
+            }
+
+            internal static void AnimationTickPrefix(UnitAnimationManager __instance)
+            {
+                PatchBridge.Animation?.RestoreExactDelegatedMountLocomotion(__instance);
+            }
+
+            internal static void AttackAnimationPostfix(AttackHandInfo __instance)
+            {
+                PatchBridge.Animation?.SupplyExactHorsePrimaryAnimation(__instance);
+            }
+
+            internal static void DollRoomIkSetupPrefix(IKController __instance)
+            {
+                PatchBridge.DollRoomIk?.BindExactMountedRiderIfRequired(__instance);
+            }
+
+            internal static void DollRoomFbbikPrefix(IKController __instance, out bool __state)
+            {
+                __state = PatchBridge.DollRoomIk != null &&
+                    PatchBridge.DollRoomIk.BeginExactFbbikObservation(__instance);
+            }
+
+            internal static void DollRoomFbbikPostfix(bool __state)
+            {
+                PatchBridge.DollRoomIk?.CompleteExactFbbikObservation(__state);
             }
 
             internal static bool SelectUnitPrefix(ref UnitEntityView unit, bool single)

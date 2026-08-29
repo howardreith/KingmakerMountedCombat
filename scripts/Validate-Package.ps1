@@ -62,7 +62,7 @@ try {
     $identity = $identityJson | ConvertFrom-Json
     if ([string]$identity.name -cne 'KingmakerMountedCombat' -or [string]$identity.version -cne $expectedAssemblyVersion) { throw 'Packaged DLL assembly identity is not exact.' }
     if ([string]$identity.targetFramework -cne '.NETFramework,Version=v4.7') { throw 'Packaged DLL does not target exact .NET Framework 4.7.' }
-    $allowedReferences = @('mscorlib','System','System.Core','Assembly-CSharp','Assembly-CSharp-firstpass','UnityEngine','UnityEngine.CoreModule','UnityEngine.IMGUIModule','UnityEngine.AnimationModule','UnityModManager','Newtonsoft.Json','0Harmony12')
+    $allowedReferences = @('mscorlib','System','System.Core','Assembly-CSharp','Assembly-CSharp-firstpass','UnityEngine','UnityEngine.CoreModule','UnityEngine.IMGUIModule','UnityEngine.AnimationModule','UnityEngine.ImageConversionModule','UnityModManager','Newtonsoft.Json','0Harmony12')
     $references = @($identity.references | Sort-Object)
     $unexpected = @($references | Where-Object { $_ -cnotin $allowedReferences })
     if ($unexpected.Count -ne 0 -or $references -contains '0Harmony' -or @($references | Where-Object { $_ -match '(?i)Wrath|BuffPlanner|Gunslinger|Tabletop|CallOfTheWild' }).Count -ne 0) {

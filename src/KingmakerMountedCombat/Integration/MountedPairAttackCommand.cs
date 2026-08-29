@@ -2,6 +2,8 @@ using System;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.UnitLogic.Commands;
 using Kingmaker.UnitLogic.Commands.Base;
+using Kingmaker.Visual.Animation.Kingmaker;
+using Kingmaker.Visual.Animation.Kingmaker.Actions;
 using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Logging;
 using UnityEngine;
@@ -101,6 +103,18 @@ namespace KingmakerMountedCombat.Integration
         public float MountDisplacementAtAttackStart { get; set; }
 
         public float TargetDisplacementAtAttackStart { get; set; }
+
+        public bool AttackAnimationHandleCreated { get; set; }
+
+        public string AttackAnimationActionName { get; set; }
+
+        public string AttackAnimationActionType { get; set; }
+
+        public bool AttackAnimationActed { get; set; }
+
+        public bool AttackAnimationFinished { get; set; }
+
+        public bool AttackAnimationInterrupted { get; set; }
     }
 
     internal sealed class MountedPairAttackCommand : UnitCommand
@@ -152,6 +166,9 @@ namespace KingmakerMountedCombat.Integration
         private float riderDisplacementAtAttackStart;
         private float mountDisplacementAtAttackStart;
         private float targetDisplacementAtAttackStart;
+        private UnitAnimationActionHandle horsePrimaryAnimationHandle;
+        private string horsePrimaryAnimationActionName;
+        private string horsePrimaryAnimationActionType;
 
         public MountedPairAttackCommand(
             GameMountedRelationshipService relationship,
@@ -191,6 +208,8 @@ namespace KingmakerMountedCombat.Integration
 
         internal MountedPairSingleAttack ChildAttack => childAttack;
 
+        internal UnitMoveTo DelegatedMove => delegatedMove;
+
         internal UnitEntityData Rider => rider;
 
         internal UnitEntityData Mount => mount;
@@ -198,6 +217,20 @@ namespace KingmakerMountedCombat.Integration
         internal UnitEntityData ActionActor => actionActor;
 
         internal MountedCombatActionKind Action => action;
+
+        internal void RecordHorsePrimaryAnimation(
+            UnitAnimationActionHandle handle,
+            UnitAnimationActionSpecialAttack animationAction)
+        {
+            if (action != MountedCombatActionKind.MountPrimaryNatural ||
+                handle == null || animationAction == null || horsePrimaryAnimationHandle != null)
+            {
+                throw new InvalidOperationException("Horse primary animation telemetry rejected a nonexact or duplicate handle.");
+            }
+            horsePrimaryAnimationHandle = handle;
+            horsePrimaryAnimationActionName = animationAction.name ?? "<unnamed>";
+            horsePrimaryAnimationActionType = animationAction.Type.ToString();
+        }
 
         internal bool HasAcceptedTargetBeforeChildAttack(UnitEntityData exactTarget)
         {
@@ -692,7 +725,13 @@ namespace KingmakerMountedCombat.Integration
                 PairDistanceAtAttackStart = pairDistanceAtAttackStart,
                 RiderDisplacementAtAttackStart = riderDisplacementAtAttackStart,
                 MountDisplacementAtAttackStart = mountDisplacementAtAttackStart,
-                TargetDisplacementAtAttackStart = targetDisplacementAtAttackStart
+                TargetDisplacementAtAttackStart = targetDisplacementAtAttackStart,
+                AttackAnimationHandleCreated = horsePrimaryAnimationHandle != null,
+                AttackAnimationActionName = horsePrimaryAnimationActionName,
+                AttackAnimationActionType = horsePrimaryAnimationActionType,
+                AttackAnimationActed = horsePrimaryAnimationHandle != null && horsePrimaryAnimationHandle.IsActed,
+                AttackAnimationFinished = horsePrimaryAnimationHandle != null && horsePrimaryAnimationHandle.IsFinished,
+                AttackAnimationInterrupted = horsePrimaryAnimationHandle != null && horsePrimaryAnimationHandle.IsInterrupted
             });
         }
 

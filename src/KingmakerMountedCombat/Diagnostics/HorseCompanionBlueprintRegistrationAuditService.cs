@@ -46,7 +46,8 @@ namespace KingmakerMountedCombat.Diagnostics
             if (logger == null) { throw new ArgumentNullException(nameof(logger)); }
             if (!string.Equals(request.Scenario, ScenarioName, StringComparison.Ordinal) &&
                 !string.Equals(request.Scenario, HorseCompanionUnmountedScenarioEngine.ScenarioName, StringComparison.Ordinal) &&
-                !string.Equals(request.Scenario, HorseCompanionUnmountedScenarioEngine.MountedScenarioName, StringComparison.Ordinal))
+                !string.Equals(request.Scenario, HorseCompanionUnmountedScenarioEngine.MountedScenarioName, StringComparison.Ordinal) &&
+                !string.Equals(request.Scenario, HorseCompanionUnmountedScenarioEngine.NativeControlsScenarioName, StringComparison.Ordinal))
             {
                 throw new InvalidOperationException("Horse companion registration audit received a different scenario.");
             }
@@ -88,20 +89,26 @@ namespace KingmakerMountedCombat.Diagnostics
                 BlueprintScriptableObject unitValue;
                 BlueprintScriptableObject featureValue;
                 BlueprintScriptableObject upgradeValue;
+                BlueprintScriptableObject portraitValue;
                 var allBlueprints = library?.GetAllBlueprints();
                 var exactDefinitions = library != null && library.BlueprintsByAssetId != null &&
                     library.BlueprintsByAssetId.TryGetValue(HorseCompanionBlueprintService.UnitGuid, out unitValue) &&
                     library.BlueprintsByAssetId.TryGetValue(HorseCompanionBlueprintService.FeatureGuid, out featureValue) &&
                     library.BlueprintsByAssetId.TryGetValue(HorseCompanionBlueprintService.UpgradeGuid, out upgradeValue) &&
+                    library.BlueprintsByAssetId.TryGetValue(HorseCompanionBlueprintService.PortraitGuid, out portraitValue) &&
                     ReferenceEquals(unitValue, service.HorseUnit) && ReferenceEquals(featureValue, service.HorseFeature) &&
-                    ReferenceEquals(upgradeValue, service.HorseUpgrade) &&
+                    ReferenceEquals(upgradeValue, service.HorseUpgrade) && ReferenceEquals(portraitValue, service.HorsePortrait) &&
                     CountExactBlueprint(allBlueprints, service.HorseUnit) == 1 &&
                     CountExactBlueprint(allBlueprints, service.HorseFeature) == 1 &&
                     CountExactBlueprint(allBlueprints, service.HorseUpgrade) == 1 &&
+                    CountExactBlueprint(allBlueprints, service.HorsePortrait) == 1 &&
+                    service.HorsePortrait.Data != null && service.HorsePortrait.Data.HasPortrait &&
+                    service.HorseIcon != null && service.HorseIcon.texture != null &&
+                    service.HorseIcon.texture.width == 128 && service.HorseIcon.texture.height == 128 &&
                     service.HorseFeature.DlcType == Kingmaker.Blueprints.Root.DlcType.None &&
                     service.HorseUpgrade.DlcType == Kingmaker.Blueprints.Root.DlcType.None;
                 AddAssertion(assertions, errors, exactDefinitions,
-                    "exact-library-identities", "All three reserved KMC GUIDs resolve once by exact reference in the dictionary and canonical list with base-game entitlement.", ref passed, ref failed);
+                    "exact-library-identities", "The Horse unit, feature, upgrade, and original KMC portrait GUIDs resolve once by exact reference with base-game entitlement and a 128x128 Horse icon.", ref passed, ref failed);
 
                 var horseUnit = service.HorseUnit;
                 var horseFeature = service.HorseFeature;

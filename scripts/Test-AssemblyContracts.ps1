@@ -43,6 +43,16 @@ if($Target-eq'Kingmaker'){
     $unityCore=[Reflection.Assembly]::ReflectionOnlyLoadFrom($unityCorePath)
     Assert-Contract ((Get-FileHash -Algorithm SHA256 -LiteralPath $unityCorePath).Hash.ToLowerInvariant()-ceq'3a76df7f709d465e3273502e08edbffb536b1c2f78c3a132b8668e59fddd2803') 'UnityEngine.CoreModule SHA-256'
     Assert-Contract ($unityCore.ManifestModule.ModuleVersionId.ToString()-ceq'bd5ffe06-494e-4588-a068-c8443cc48c47') 'UnityEngine.CoreModule MVID'
+    $imageConversionPath=Join-Path $managed 'UnityEngine.ImageConversionModule.dll'
+    $imageConversion=[Reflection.Assembly]::ReflectionOnlyLoadFrom($imageConversionPath)
+    Assert-Contract ((Get-FileHash -Algorithm SHA256 -LiteralPath $imageConversionPath).Hash.ToLowerInvariant()-ceq'1b30743ab1830b9b45e79f88c1acefd7517eafcef4fd1a7a3eb853a07ca5bb17') 'UnityEngine.ImageConversionModule SHA-256'
+    Assert-Contract ($imageConversion.ManifestModule.ModuleVersionId.ToString()-ceq'05cb8ac7-57d6-45bb-99c6-b21b00a9ccd7') 'UnityEngine.ImageConversionModule MVID'
+    $loadImageMethods=@($imageConversion.GetType('UnityEngine.ImageConversion',$false).GetMethods([Reflection.BindingFlags]'Public,Static')|Where-Object Name -eq 'LoadImage')
+    Assert-Contract ($loadImageMethods.Count-ge1 -and @($loadImageMethods|Where-Object {
+        $_.ReturnType.FullName-ceq'System.Boolean' -and $_.GetParameters().Count-ge2 -and
+        $_.GetParameters()[0].ParameterType.FullName-ceq'UnityEngine.Texture2D' -and
+        $_.GetParameters()[1].ParameterType.FullName-ceq'System.Byte[]'
+    }).Count-ge1) 'ImageConversion.LoadImage exact embedded-texture seam'
     $ummPath=Join-Path $managed 'UnityModManager\UnityModManager.dll'
     $ummAssembly=[Reflection.Assembly]::ReflectionOnlyLoadFrom($ummPath)
     Assert-Contract ((Get-FileHash -Algorithm SHA256 -LiteralPath $ummPath).Hash.ToLowerInvariant()-ceq'75b96e25a3a9fbadb47dd14a4ab490cb8c98143a6242aff3bba6145cd3047f39') 'UnityModManager SHA-256'
@@ -132,6 +142,18 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.View.UnitEntityView',0x06001839,'get_IkController'),
         @('Kingmaker.Visual.Animation.IKController',0x06001565,'get_BipedIk'),
         @('Kingmaker.Visual.Animation.IKController',0x06001567,'get_GrounderIk'),
+        @('Kingmaker.Visual.Animation.IKController',0x0600156C,'SetupIkSystem'),
+        @('Kingmaker.Visual.Animation.IKController',0x0600156D,'SetupFbbik'),
+        @('Kingmaker.Visual.Animation.Kingmaker.UnitAnimationManager',0x06001605,'Tick'),
+        @('Kingmaker.UnitLogic.Commands.AttackHandInfo',0x0600265A,'CreateAnimationHandleForAttack'),
+        @('Kingmaker.UI.ServiceWindow.DollRoom',0x06004683,'get_Unit'),
+        @('Kingmaker.UI.ServiceWindow.DollRoom',0x06004688,'Show'),
+        @('Kingmaker.UI.ServiceWindow.DollRoom',0x06004690,'SetupInfo'),
+        @('Kingmaker.Controllers.Clicks.Handlers.ClickWithSelectedAbilityHandler',0x060093F4,'GetPriority'),
+        @('Kingmaker.Controllers.Clicks.Handlers.ClickWithSelectedAbilityHandler',0x060093F5,'GetTarget'),
+        @('Kingmaker.Controllers.Clicks.Handlers.ClickWithSelectedAbilityHandler',0x060093F6,'OnClick'),
+        @('Kingmaker.Controllers.Clicks.Handlers.ClickWithSelectedAbilityHandler',0x060093F8,'SetAbility'),
+        @('Kingmaker.Controllers.Clicks.Handlers.ClickWithSelectedAbilityHandler',0x060093F9,'DropAbility'),
         @('Kingmaker.Visual.CharacterSystem.Character',0x0600140B,'OnAnimatorUpdated'),
         @('Kingmaker.Visual.CharacterSystem.Character',0x0600140C,'LateUpdate'),
         @('Kingmaker.UI.ActionBar.ActionBarManager',0x04002E23,'m_Selected'),

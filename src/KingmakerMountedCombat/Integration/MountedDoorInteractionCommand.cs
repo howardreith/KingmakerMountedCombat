@@ -116,7 +116,7 @@ namespace KingmakerMountedCombat.Integration
 
                 if (delegatedMove == null || delegatedMove.IsFinished)
                 {
-                    throw new InvalidOperationException("Mammoth door approach ended outside exact interaction range.");
+                    throw new InvalidOperationException("Mount door approach ended outside exact interaction range.");
                 }
                 if (TurnBased.Controllers.CombatController.IsInTurnBasedCombat())
                 {
@@ -151,7 +151,7 @@ namespace KingmakerMountedCombat.Integration
         {
             if (mount.Commands == null || !mount.Commands.Empty || mount.Commands.Queue.Count != 0)
             {
-                throw new InvalidOperationException("Mammoth Move slot is not idle for exact door approach.");
+                throw new InvalidOperationException("Mount Move slot is not idle for exact door approach.");
             }
             delegatedMove = new UnitMoveTo(door.transform.position, GetDoorApproachRadius())
             {

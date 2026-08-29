@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using Kingmaker;
@@ -71,6 +72,7 @@ namespace KingmakerMountedCombat.Integration
         internal const string UnitGuid = "4016c7db400ab721ff125aef9e65e202";
         internal const string FeatureGuid = "7db7c50677e39f09feef56f3831fc723";
         internal const string UpgradeGuid = "98e651899e6278d938de77af1d69bd32";
+        internal const string PortraitGuid = "6874a165bf8bda3531ee4e2abc10c899";
         internal const string NativeHorseGuid = "9e9e75c484e68734487e609714565202";
         internal const string MammothUnitGuid = "e7aa96d15a45238438ae4cfb476f6bb9";
         internal const string MammothFeatureGuid = "6adc3aab7cde56b40aa189a797254271";
@@ -107,6 +109,8 @@ namespace KingmakerMountedCombat.Integration
         private HorseCompanionBlueprintState state;
         private string failure;
         private bool selectionDesired;
+        private BlueprintPortrait horsePortrait;
+        private Sprite horseIcon;
         private BlueprintUnit horseUnit;
         private BlueprintFeature horseFeature;
         private BlueprintFeature horseUpgrade;
@@ -136,6 +140,10 @@ namespace KingmakerMountedCombat.Integration
         public string Failure => failure;
 
         public BlueprintUnit HorseUnit => horseUnit;
+
+        public BlueprintPortrait HorsePortrait => horsePortrait;
+
+        public Sprite HorseIcon => horseIcon;
 
         public BlueprintFeature HorseFeature => horseFeature;
 
@@ -331,6 +339,7 @@ namespace KingmakerMountedCombat.Integration
             AssertReservedGuidAbsent(library, blueprintList, UnitGuid);
             AssertReservedGuidAbsent(library, blueprintList, FeatureGuid);
             AssertReservedGuidAbsent(library, blueprintList, UpgradeGuid);
+            AssertReservedGuidAbsent(library, blueprintList, PortraitGuid);
 
             var nativeHorse = RequireBlueprint<BlueprintUnit>(library, NativeHorseGuid, "CR1_HorseRiding");
             var mammothUnit = RequireBlueprint<BlueprintUnit>(library, MammothUnitGuid, "AnimalCompanionUnitMammoth");
@@ -373,10 +382,15 @@ namespace KingmakerMountedCombat.Integration
             var sharedName = CreateOwned<SharedStringAsset>("KMC_Horse_LocalizedName");
             sharedName.String = name;
 
+            horsePortrait = CreateOriginalHorsePortrait();
+            horseIcon = CreateEmbeddedSprite(
+                "KingmakerMountedCombat.Assets.HorseIcon.png",
+                "KMC_Horse_Icon");
+
             horseUpgrade = CreateOwned<BlueprintFeature>("AnimalCompanionUpgradeHorse");
             horseUpgrade.AssetGuid = UpgradeGuid;
             CopyFeatureContract(mammothUpgrade, horseUpgrade);
-            SetFeaturePresentation(horseUpgrade, upgradeName, upgradeDescription, ResolveHorseIcon(nativeHorse, dogFeature));
+            SetFeaturePresentation(horseUpgrade, upgradeName, upgradeDescription, horseIcon);
             horseUpgrade.ComponentsArray = new BlueprintComponent[]
             {
                 CreateStatBonus("KMC_HorseUpgrade_Strength", StatType.Strength, 2),
@@ -393,7 +407,7 @@ namespace KingmakerMountedCombat.Integration
             horseUnit.Color = nativeHorse.Color;
             horseUnit.Race = nativeHorse.Race;
             horseUnit.Alignment = nativeHorse.Alignment;
-            PortraitField.SetValue(horseUnit, PortraitField.GetValue(nativeHorse) ?? PortraitField.GetValue(mammothUnit));
+            PortraitField.SetValue(horseUnit, horsePortrait);
             horseUnit.Prefab = nativeHorse.Prefab;
             horseUnit.CustomizationPreset = nativeHorse.CustomizationPreset;
             horseUnit.ConsoleOverridePrefab = nativeHorse.ConsoleOverridePrefab;
@@ -427,7 +441,7 @@ namespace KingmakerMountedCombat.Integration
             horseFeature = CreateOwned<BlueprintFeature>("AnimalCompanionFeatureHorse");
             horseFeature.AssetGuid = FeatureGuid;
             CopyFeatureContract(mammothFeature, horseFeature);
-            SetFeaturePresentation(horseFeature, featureName, description, ResolveHorseIcon(nativeHorse, dogFeature));
+            SetFeaturePresentation(horseFeature, featureName, description, horseIcon);
             var addPet = CreateOwned<HorseCompanionAddPet>("KMC_Horse_AddPet");
             addPet.Pet = horseUnit;
             addPet.LevelRank = levelRank;
@@ -436,6 +450,7 @@ namespace KingmakerMountedCombat.Integration
             upgradeLevel = addPet.UpgradeLevel;
             horseFeature.ComponentsArray = new BlueprintComponent[] { addPet };
 
+            AddExactBlueprintRegistration(library, horsePortrait);
             AddExactBlueprintRegistration(library, horseUnit);
             AddExactBlueprintRegistration(library, horseUpgrade);
             AddExactBlueprintRegistration(library, horseFeature);
@@ -501,9 +516,15 @@ namespace KingmakerMountedCombat.Integration
             if (!ReferenceEquals(library.BlueprintsByAssetId[UnitGuid], horseUnit) ||
                 !ReferenceEquals(library.BlueprintsByAssetId[FeatureGuid], horseFeature) ||
                 !ReferenceEquals(library.BlueprintsByAssetId[UpgradeGuid], horseUpgrade) ||
+                !ReferenceEquals(library.BlueprintsByAssetId[PortraitGuid], horsePortrait) ||
                 CountExactBlueprint(blueprintList, horseUnit) != 1 ||
                 CountExactBlueprint(blueprintList, horseFeature) != 1 ||
                 CountExactBlueprint(blueprintList, horseUpgrade) != 1 ||
+                CountExactBlueprint(blueprintList, horsePortrait) != 1 ||
+                !ReferenceEquals(PortraitField.GetValue(horseUnit), horsePortrait) ||
+                horsePortrait.Data == null || !horsePortrait.Data.HasPortrait ||
+                !ReferenceEquals(horseFeature.Icon, horseIcon) ||
+                !ReferenceEquals(horseUpgrade.Icon, horseIcon) ||
                 horseFeature.DlcType != Kingmaker.Blueprints.Root.DlcType.None ||
                 horseUpgrade.DlcType != Kingmaker.Blueprints.Root.DlcType.None ||
                 !selectionLease.MatchesAppended(rangerSelection.AllFeatures))
@@ -662,10 +683,68 @@ namespace KingmakerMountedCombat.Integration
             IconField.SetValue(target, icon);
         }
 
-        private static Sprite ResolveHorseIcon(BlueprintUnit nativeHorse, BlueprintFeature fallback)
+        private BlueprintPortrait CreateOriginalHorsePortrait()
         {
-            var portrait = PortraitField.GetValue(nativeHorse) as BlueprintPortrait;
-            return portrait == null ? fallback.Icon : portrait.SmallPortrait;
+            var small = CreateEmbeddedSprite(
+                "KingmakerMountedCombat.Assets.HorsePortraitSmall.png",
+                "KMC_Horse_Portrait_Small");
+            var medium = CreateEmbeddedSprite(
+                "KingmakerMountedCombat.Assets.HorsePortraitMedium.png",
+                "KMC_Horse_Portrait_Medium");
+            var large = CreateEmbeddedSprite(
+                "KingmakerMountedCombat.Assets.HorsePortraitLarge.png",
+                "KMC_Horse_Portrait_Large");
+            var portrait = CreateOwned<BlueprintPortrait>("KMC_Horse_Portrait");
+            portrait.AssetGuid = PortraitGuid;
+            portrait.ComponentsArray = new BlueprintComponent[0];
+            // Direct in-memory sprites keep this runtime-owned portrait out of
+            // Kingmaker's serialized custom-portrait directory contract.
+            portrait.Data = new PortraitData(null, small, medium, large);
+            portrait.BackupPortrait = null;
+            return portrait;
+        }
+
+        private Sprite CreateEmbeddedSprite(string resourceName, string objectName)
+        {
+            byte[] bytes;
+            var assembly = typeof(HorseCompanionBlueprintService).Assembly;
+            using (var stream = assembly.GetManifestResourceStream(resourceName))
+            {
+                if (stream == null)
+                {
+                    throw new InvalidOperationException("Embedded original Horse art is missing: " + resourceName + ".");
+                }
+                using (var buffer = new MemoryStream())
+                {
+                    stream.CopyTo(buffer);
+                    bytes = buffer.ToArray();
+                }
+            }
+
+            var texture = new Texture2D(2, 2, TextureFormat.ARGB32, false)
+            {
+                name = objectName + "_Texture",
+                hideFlags = HideFlags.HideAndDontSave,
+                wrapMode = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Bilinear,
+                anisoLevel = 1
+            };
+            ownedObjects.Add(texture);
+            if (!ImageConversion.LoadImage(texture, bytes, true) || texture.width <= 0 || texture.height <= 0)
+            {
+                throw new InvalidOperationException("Embedded original Horse art could not be decoded: " + resourceName + ".");
+            }
+            var sprite = Sprite.Create(
+                texture,
+                new Rect(0f, 0f, texture.width, texture.height),
+                new Vector2(0.5f, 0.5f),
+                100f,
+                0u,
+                SpriteMeshType.FullRect);
+            sprite.name = objectName;
+            sprite.hideFlags = HideFlags.HideAndDontSave;
+            ownedObjects.Add(sprite);
+            return sprite;
         }
 
         private LocalizedString NewLocalizedString(string key)
@@ -773,12 +852,15 @@ namespace KingmakerMountedCombat.Integration
             RemoveExact(library, blueprintList, FeatureGuid, horseFeature);
             RemoveExact(library, blueprintList, UpgradeGuid, horseUpgrade);
             RemoveExact(library, blueprintList, UnitGuid, horseUnit);
+            RemoveExact(library, blueprintList, PortraitGuid, horsePortrait);
             for (var index = ownedObjects.Count - 1; index >= 0; index--)
             {
                 if (ownedObjects[index] != null) { UnityEngine.Object.Destroy(ownedObjects[index]); }
             }
             ownedObjects.Clear();
             horseUnit = null;
+            horsePortrait = null;
+            horseIcon = null;
             horseFeature = null;
             horseUpgrade = null;
             rangerSelection = null;

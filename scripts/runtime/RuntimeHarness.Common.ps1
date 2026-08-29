@@ -3624,7 +3624,7 @@ function Restore-KmcModsTransaction {
 
 function Get-KmcSaveBackedRuntimeScenarios {
     return @(
-        'export-mounted-contracts', 'export-candidate-mount-rigs', 'observe-mount-diagnostic-availability', 'horse-native-asset-audit', 'horse-companion-blueprint-registration', 'horse-companion-unmounted-suite', 'horse-mounted-alpha-suite',
+        'export-mounted-contracts', 'export-candidate-mount-rigs', 'observe-mount-diagnostic-availability', 'horse-native-asset-audit', 'horse-companion-blueprint-registration', 'horse-companion-unmounted-suite', 'horse-mounted-alpha-suite', 'horse-native-controls-ux-suite',
         'player-action-availability', 'mount-dismount-user-flow',
         'mounted-pair-create-and-clear', 'mounted-pair-double-mount-rejected', 'mounted-pair-invalid-pair-rejected',
         'mounted-pair-cleanup-idempotent', 'mounted-pair-death-cleanup', 'mounted-pair-combat-start-cleanup',
@@ -4537,7 +4537,7 @@ function Assert-KmcKnownRuntimeArtifactsManifested {
     )
     $manifested = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
     foreach ($artifact in @($Manifest.artifacts)) { [void]$manifested.Add([string]$artifact.relativePath) }
-    foreach ($leaf in @('lifecycle-scenario-evidence.jsonl','movement-telemetry.jsonl','movement-scenario-evidence.jsonl','boundary-scenario-evidence.jsonl','combat-scenario-evidence.jsonl','horse-native-asset-audit.json','horse-companion-blueprint-registration.json','horse-companion-unmounted.json','horse-mounted-alpha.json')) {
+    foreach ($leaf in @('lifecycle-scenario-evidence.jsonl','movement-telemetry.jsonl','movement-scenario-evidence.jsonl','boundary-scenario-evidence.jsonl','combat-scenario-evidence.jsonl','horse-native-asset-audit.json','horse-companion-blueprint-registration.json','horse-companion-unmounted.json','horse-mounted-alpha.json','horse-native-controls-ux.json')) {
         if ((Test-Path -LiteralPath (Join-Path $EvidenceRoot $leaf) -PathType Leaf) -and -not $manifested.Contains($leaf)) {
             throw "Known runtime artifact exists without a manifest record: $leaf"
         }
@@ -4667,13 +4667,15 @@ function Assert-KmcHorseNativeAssetAuditEvidence {
         $reserved = @(
             '4016c7db400ab721ff125aef9e65e202',
             '7db7c50677e39f09feef56f3831fc723',
-            '98e651899e6278d938de77af1d69bd32'
+            '98e651899e6278d938de77af1d69bd32',
+            '6874a165bf8bda3531ee4e2abc10c899'
         )
         if ([long]$artifact.schemaVersion -eq 3) {
             $expectedKmc = [ordered]@{
                 'horse-unit'='4016c7db400ab721ff125aef9e65e202'
                 'horse-feature'='7db7c50677e39f09feef56f3831fc723'
                 'horse-upgrade'='98e651899e6278d938de77af1d69bd32'
+                'horse-portrait'='6874a165bf8bda3531ee4e2abc10c899'
                 'mount-ability'='f053faad986631688defa003cd7bda0e'
                 'dismount-ability'='3af2b81f4d72bbb30501fa730fcdf36e'
                 'rider-primary-ability'='27364df661b3c121eabb97a31aa73a83'
@@ -4799,7 +4801,7 @@ function Assert-KmcHorseCompanionBlueprintRegistrationEvidence {
     $scenario = 'horse-companion-blueprint-registration'
     $leaf = 'horse-companion-blueprint-registration.json'
     $kind = 'horse-companion-blueprint-registration'
-    $isAudit = [string]$Request.scenario -cin @($scenario, 'horse-companion-unmounted-suite', 'horse-mounted-alpha-suite')
+    $isAudit = [string]$Request.scenario -cin @($scenario, 'horse-companion-unmounted-suite', 'horse-mounted-alpha-suite', 'horse-native-controls-ux-suite')
     $records = @($Manifest.artifacts | Where-Object {
         [string]$_.relativePath -ceq $leaf -or [string]$_.kind -ceq $kind
     })
@@ -5349,16 +5351,16 @@ function Assert-KmcHorseCompanionUnmountedEvidence {
                     'leftFootFromAssignedStirrupMountLocal','rightFootFromAssignedStirrupMountLocal')) {
                     Assert-KmcExactProperties $pose.$vectorName @('x','y','z') "horse pose $vectorName"
                 }
-                if ([long]$pose.candidateCount -ne 2 -or [string]$pose.candidateId -cne 'horse-human-review-20260828-b' -or
+                if ([long]$pose.candidateCount -ne 3 -or [string]$pose.candidateId -cne 'horse-human-review-20260829-c' -or
                     [double]$pose.dev23PelvisPositionOffset.y -ne 0.02 -or
-                    [double]$pose.selectedPelvisPositionOffset.y -ne -0.12 -or
+                    [double]$pose.selectedPelvisPositionOffset.y -ne -0.17 -or
                     [double]$pose.dev23LeftFootTargetFromThigh.x -ne -0.305 -or
-                    [double]$pose.selectedLeftFootTargetFromThigh.x -ne -0.18 -or
-                    [double]$pose.selectedLeftFootTargetFromThigh.y -ne -0.58 -or
+                    [double]$pose.selectedLeftFootTargetFromThigh.x -ne -0.15 -or
+                    [double]$pose.selectedLeftFootTargetFromThigh.y -ne -0.62 -or
                     [double]$pose.selectedLeftFootTargetFromThigh.z -ne 0.11 -or
                     [double]$pose.dev23RightFootTargetFromThigh.x -ne 0.305 -or
-                    [double]$pose.selectedRightFootTargetFromThigh.x -ne 0.18 -or
-                    [double]$pose.selectedRightFootTargetFromThigh.y -ne -0.58 -or
+                    [double]$pose.selectedRightFootTargetFromThigh.x -ne 0.15 -or
+                    [double]$pose.selectedRightFootTargetFromThigh.y -ne -0.62 -or
                     [double]$pose.selectedRightFootTargetFromThigh.z -ne 0.11 -or
                     [long]$pose.poseApplicationFrameCount -lt 3 -or [long]$pose.footTargetClampCount -ne 0 -or
                     [double]$pose.maximumFootTargetResidualWorldUnits -gt 0.01 -or
@@ -5375,6 +5377,219 @@ function Assert-KmcHorseCompanionUnmountedEvidence {
     $after = Get-Item -LiteralPath $path -Force
     if ($after.Length -ne $before.Length -or $after.LastWriteTimeUtc.Ticks -ne $before.LastWriteTimeUtc.Ticks) {
         throw 'Horse unmounted evidence changed while being validated.'
+    }
+}
+
+function Assert-KmcHorseNativeControlsUxEvidence {
+    param(
+        [Parameter(Mandatory = $true)]$Request,
+        [Parameter(Mandatory = $true)]$Manifest,
+        [AllowNull()][string]$Status,
+        $SubscenarioResults
+    )
+
+    $scenario = 'horse-native-controls-ux-suite'
+    $leaf = 'horse-native-controls-ux.json'
+    $kind = 'horse-native-controls-ux'
+    $records = @($Manifest.artifacts | Where-Object {
+        [string]$_.relativePath -ceq $leaf -or [string]$_.kind -ceq $kind
+    })
+    if ([string]$Request.scenario -cne $scenario) {
+        if ($records.Count -ne 0) { throw 'Non-native-controls scenario manifested Horse UX evidence.' }
+        return
+    }
+    if ([string]$Status -ceq 'PASS' -and $records.Count -ne 1) {
+        throw 'PASS Horse native-controls UX suite requires exactly one manifested artifact.'
+    }
+    if ($records.Count -eq 0) {
+        if ([string]$Status -ceq 'PASS') { throw 'PASS Horse native-controls UX suite omitted its artifact.' }
+        return
+    }
+    if ($records.Count -ne 1 -or [string]$records[0].relativePath -cne $leaf -or
+        [string]$records[0].kind -cne $kind) {
+        throw 'Horse native-controls UX manifest record is not exact.'
+    }
+
+    $root = [IO.Path]::GetFullPath([string]$Request.evidenceRoot).TrimEnd('\')
+    $path = Assert-KmcChildPath (Join-Path $root $leaf) $root 'Horse native-controls UX evidence'
+    Assert-KmcNotReparsePoint $path 'Horse native-controls UX evidence'
+    Assert-KmcNotHardLink $path 'Horse native-controls UX evidence'
+    $before = Get-Item -LiteralPath $path -Force
+    $artifact = Read-KmcJson $path
+    Assert-KmcExactProperties $artifact @(
+        'schemaVersion','evidenceKind','runId','scenario','branch','commit','productVersion','dllSha256','dllMvid',
+        'createdAtUtc','status','assertions','observations','assertionPassCount','assertionFailCount','errors'
+    ) 'Horse native-controls UX evidence'
+    if (-not (Test-KmcExactJsonInteger $artifact.schemaVersion) -or [long]$artifact.schemaVersion -ne 5 -or
+        [string]$artifact.evidenceKind -cne $kind -or [string]$artifact.status -cnotin @('PASS','FAIL') -or
+        $artifact.assertions -isnot [Array] -or $artifact.errors -isnot [Array] -or
+        [string]$artifact.dllSha256 -cnotmatch '^[0-9a-f]{64}$' -or
+        [string]$artifact.dllMvid -cnotmatch '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') {
+        throw 'Horse native-controls UX schema, status, or DLL identity is invalid.'
+    }
+    foreach ($name in @('runId','scenario','branch','commit','productVersion','dllSha256','dllMvid')) {
+        if ([string]$artifact.$name -cne [string]$Request.$name) {
+            throw "Horse native-controls UX identity mismatch: $name"
+        }
+    }
+
+    $assertionNames = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    $pass = 0
+    $fail = 0
+    foreach ($assertion in @($artifact.assertions)) {
+        Assert-KmcExactProperties $assertion @('name','status','detail') 'Horse native-controls UX assertion'
+        if ($assertion.name -isnot [string] -or [string]$assertion.name -cnotmatch '^[a-z0-9-]{1,100}$' -or
+            -not $assertionNames.Add([string]$assertion.name) -or [string]$assertion.status -cnotin @('PASS','FAIL') -or
+            $assertion.detail -isnot [string] -or [string]::IsNullOrWhiteSpace([string]$assertion.detail)) {
+            throw 'Horse native-controls UX contains an invalid or duplicate assertion.'
+        }
+        if ([string]$assertion.status -ceq 'PASS') { $pass++ } else { $fail++ }
+    }
+    if ([long]$artifact.assertionPassCount -ne $pass -or [long]$artifact.assertionFailCount -ne $fail -or
+        ([string]$artifact.status -ceq 'PASS') -ne ($fail -eq 0 -and @($artifact.errors).Count -eq 0)) {
+        throw 'Horse native-controls UX assertion totals or status do not reconcile.'
+    }
+    if ($null -ne $SubscenarioResults) {
+        $matches = @($SubscenarioResults | Where-Object { [string]$_.name -ceq $scenario })
+        if ($matches.Count -ne 1 -or [string]$matches[0].status -cne [string]$artifact.status -or
+            [long]$matches[0].assertionPassCount -ne $pass -or [long]$matches[0].assertionFailCount -ne $fail) {
+            throw 'Horse native-controls UX does not reconcile to one exact runtime subscenario.'
+        }
+    }
+
+    if ([string]$artifact.status -ceq 'PASS') {
+        foreach ($required in @(
+            'original-horse-portrait-and-icon',
+            'native-mount-ability-present-no-slot-overwrite',
+            'native-control-disable-reenable',
+            'native-control-save-load-presence',
+            'native-saddle-up-invalid-target',
+            'native-saddle-up-target-valid-horse',
+            'native-mounted-control-surface',
+            'inventory-horse-preview-no-ik-exception',
+            'mounted-turn-based-rider-movement',
+            'human-input-tb-rider-primary-rider-turn',
+            'human-input-tb-target-click-admitted',
+            'human-input-tb-horse-primary-horse-turn',
+            'horse-primary-animation-tb',
+            'human-input-rt-rider-primary',
+            'human-input-rt-horse-primary',
+            'mounted-rider-primary-outcome',
+            'mounted-horse-primary-outcome',
+            'native-dismount-ability',
+            'entity-and-target-restoration',
+            'mode-pause-selection-restoration',
+            'non-horse-isolation')) {
+            if (-not $assertionNames.Contains($required)) {
+                throw "PASS Horse native-controls UX omitted required assertion: $required"
+            }
+        }
+
+        $o = $artifact.observations
+        $controlNames = @(
+            'registered','enabled','serializationSuspended','exactFactCount','duplicateFactCount',
+            'managedHotbarSlotCount','targetSelectionStartCount','targetSelectionEndCount',
+            'nativeCastRequestCount','nativeRefusalCount','dispatchAcceptedCount','dispatchRejectedCount'
+        )
+        foreach ($snapshotName in @(
+            'nativeControlsBeforeMount','nativeControlsDuringSaveScope','nativeControlsAfterSaveScope',
+            'nativeControlsMounted','nativeControlsAfterDismount')) {
+            Assert-KmcExactProperties $o.$snapshotName $controlNames "Horse native controls $snapshotName"
+        }
+        if ([long]$o.nativeControlsBeforeMount.duplicateFactCount -ne 0 -or
+            [long]$o.nativeControlsBeforeMount.managedHotbarSlotCount -ne 0 -or
+            $o.nativeControlsDuringSaveScope.serializationSuspended -ne $true -or
+            [long]$o.nativeControlsDuringSaveScope.exactFactCount -ne 0 -or
+            $o.nativeControlsAfterSaveScope.serializationSuspended -ne $false -or
+            [long]$o.nativeControlsMounted.duplicateFactCount -ne 0 -or
+            [long]$o.nativeControlsMounted.managedHotbarSlotCount -ne 0 -or
+            [long]$o.nativeControlsAfterDismount.duplicateFactCount -ne 0 -or
+            [long]$o.nativeControlsAfterDismount.managedHotbarSlotCount -ne 0) {
+            throw 'PASS Horse native controls retained a duplicate, hotbar overwrite, or save-scope residue.'
+        }
+
+        $clickNames = @(
+            'abilityGuid','casterId','clickedTargetId','resolvedTargetId','priority','clicked',
+            'targetSelectionStartDelta','targetSelectionEndDelta','nativeCastRequestDelta',
+            'nativeRefusalDelta','dispatchAcceptedDelta','dispatchRejectedDelta'
+        )
+        foreach ($clickName in @(
+            'nativeMountInvalidTarget','nativeMountValidHorse','nativeTbRiderPrimaryClick',
+            'nativeTbHorsePrimaryClick','nativeRtRiderPrimaryClick','nativeRtHorsePrimaryClick',
+            'nativeDismountClick')) {
+            Assert-KmcExactProperties $o.$clickName $clickNames "Horse native click $clickName"
+        }
+        if ($o.nativeMountInvalidTarget.clicked -ne $false -or
+            $o.nativeMountValidHorse.clicked -ne $true -or
+            [string]$o.nativeMountValidHorse.resolvedTargetId -cne [string]$o.horseId -or
+            $o.nativeTbRiderPrimaryClick.clicked -ne $true -or
+            $o.nativeTbHorsePrimaryClick.clicked -ne $true -or
+            $o.nativeRtRiderPrimaryClick.clicked -ne $true -or
+            $o.nativeRtHorsePrimaryClick.clicked -ne $true -or
+            $o.nativeDismountClick.clicked -ne $true) {
+            throw 'PASS Horse native controls did not preserve the exact physical target-click outcomes.'
+        }
+
+        $outcomeNames = @(
+            'action','actorId','commandOwnerId','resourceOwnerId','targetId','result','childAttackStartCount',
+            'repathCount','attackWeaponBlueprintId','attackWeaponIsNatural','attackWeaponIsRanged','attackWeaponSlot',
+            'delegatedMoveExecutorId','delegatedMoveExecutorIsExactMount','riderStandardCharged',
+            'actionStandardCharged','terminalReason','attackAnimationHandleCreated','attackAnimationActionName',
+            'attackAnimationActionType','attackAnimationActed','attackAnimationFinished','attackAnimationInterrupted'
+        )
+        foreach ($outcomeName in @(
+            'mountedTurnRiderOutcome','mountedTurnHorseOutcome','mountedRiderOutcome','mountedHorseOutcome')) {
+            Assert-KmcExactProperties $o.$outcomeName $outcomeNames "Horse native outcome $outcomeName"
+        }
+        if ([string]$o.mountedTurnRiderOutcome.action -cne 'RiderMelee' -or
+            [string]$o.mountedTurnRiderOutcome.actorId -cne [string]$o.ownerId -or
+            [string]$o.mountedTurnRiderOutcome.result -cne 'Success' -or
+            [long]$o.mountedTurnRiderOutcome.childAttackStartCount -ne 1 -or
+            [string]$o.mountedTurnHorseOutcome.action -cne 'MountPrimaryNatural' -or
+            [string]$o.mountedTurnHorseOutcome.actorId -cne [string]$o.horseId -or
+            [string]$o.mountedTurnHorseOutcome.result -cne 'Success' -or
+            [long]$o.mountedTurnHorseOutcome.childAttackStartCount -ne 1 -or
+            $o.mountedTurnHorseOutcome.attackAnimationHandleCreated -ne $true -or
+            $o.mountedTurnHorseOutcome.attackAnimationInterrupted -ne $false -or
+            [string]$o.mountedRiderOutcome.result -cne 'Success' -or
+            [long]$o.mountedRiderOutcome.childAttackStartCount -ne 1 -or
+            [string]$o.mountedHorseOutcome.result -cne 'Success' -or
+            [long]$o.mountedHorseOutcome.childAttackStartCount -ne 1 -or
+            $o.mountedHorseOutcome.attackAnimationHandleCreated -ne $true -or
+            $o.mountedHorseOutcome.attackAnimationInterrupted -ne $false) {
+            throw 'PASS Horse native Rider/Horse primary ownership, cardinality, or animation is invalid.'
+        }
+
+        if ([long]$o.unmountedHorseBlueprintSpeedFeet -ne 50 -or
+            [long]$o.mountedHorseBlueprintSpeedFeet -ne 50 -or
+            [double]$o.unmountedHorseAgentMaxSpeed -le 0 -or
+            [double]$o.mountedHorseAgentMaxSpeed -le 0 -or
+            [double]$o.unmountedHorseAverageWorldSpeed -le 0 -or
+            [double]$o.mountedRealTimeAverageWorldSpeed -le 0 -or
+            [string]$o.horseProfileId -cne 'medium-humanoid-horse-v1' -or
+            [string]$o.horsePoseProfileId -cne 'medium-humanoid-horse-v1' -or
+            [string]$o.horseSourceAnchor -cne 'Chest' -or
+            [string]$o.relationshipState -cne 'Unmounted' -or
+            $o.horseRemoved -ne $true -or $o.targetRemoved -ne $true -or
+            $o.unrelatedPartyPetsPreserved -ne $true) {
+            throw 'PASS Horse movement, profile, or restoration observations are invalid.'
+        }
+
+        $pose = $o.horsePoseCalibration
+        if ([long]$pose.candidateCount -ne 3 -or
+            [string]$pose.candidateId -cne 'horse-human-review-20260829-c' -or
+            [double]$pose.selectedPelvisPositionOffset.y -ne -0.17 -or
+            [double]$pose.selectedLeftFootTargetFromThigh.x -ne -0.15 -or
+            [double]$pose.selectedRightFootTargetFromThigh.x -ne 0.15 -or
+            [double]$pose.leftFootToAssignedStirrup -gt 0.5 -or
+            [double]$pose.rightFootToAssignedStirrup -gt 0.5) {
+            throw 'PASS Horse native-controls pose does not match final bounded Candidate C.'
+        }
+    }
+
+    $after = Get-Item -LiteralPath $path -Force
+    if ($after.Length -ne $before.Length -or $after.LastWriteTimeUtc.Ticks -ne $before.LastWriteTimeUtc.Ticks) {
+        throw 'Horse native-controls UX evidence changed while being validated.'
     }
 }
 
@@ -10347,6 +10562,7 @@ function Get-KmcValidatedOrchestrationArtifactManifestHash {
             ($relative -ceq 'horse-companion-blueprint-registration.json' -and $kind -ceq 'horse-companion-blueprint-registration') -or
             ($relative -ceq 'horse-companion-unmounted.json' -and $kind -ceq 'horse-companion-unmounted') -or
             ($relative -ceq 'horse-mounted-alpha.json' -and $kind -ceq 'horse-mounted-alpha') -or
+            ($relative -ceq 'horse-native-controls-ux.json' -and $kind -ceq 'horse-native-controls-ux') -or
             ($relative -cmatch '^movement-visuals/[A-Za-z0-9._-]+\.png$' -and $kind -ceq 'screenshot')
         if (-not $seen.Add($relative) -or -not $allowed -or [long]$artifact.length -le 0 -or
             [string]$artifact.sha256 -cnotmatch '^[0-9a-f]{64}$') {
@@ -10369,6 +10585,7 @@ function Get-KmcValidatedOrchestrationArtifactManifestHash {
         Assert-KmcHorseNativeAssetAuditEvidence -Request $Request -Manifest $manifestValue
         Assert-KmcHorseCompanionBlueprintRegistrationEvidence -Request $Request -Manifest $manifestValue
         Assert-KmcHorseCompanionUnmountedEvidence -Request $Request -Manifest $manifestValue
+        Assert-KmcHorseNativeControlsUxEvidence -Request $Request -Manifest $manifestValue
     }
     $hash = Get-KmcSha256 $manifestPath
     $after = Get-Item -LiteralPath $manifestPath -Force

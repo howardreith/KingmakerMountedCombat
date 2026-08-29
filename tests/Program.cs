@@ -23,6 +23,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("request accepts horse companion blueprint registration audit", RequestAcceptsHorseCompanionBlueprintRegistration);
             runner.Run("request accepts horse companion unmounted suite", RequestAcceptsHorseCompanionUnmountedSuite);
             runner.Run("request accepts horse mounted alpha suite", RequestAcceptsHorseMountedAlphaSuite);
+            runner.Run("request accepts horse native-controls UX suite", RequestAcceptsHorseNativeControlsUxSuite);
             runner.Run("request accepts private-alpha human-play combat rows", RequestAcceptsHumanPlayCombatRows);
             runner.Run("request requires exact qualification-suite identity", RequestRequiresQualificationSuiteIdentity);
             runner.Run("request accepts read-only manual visual review", RequestAcceptsReadOnlyManualReview);
@@ -162,6 +163,13 @@ namespace KingmakerMountedCombat.Tests
             var request = ValidSaveBackedRequest();
             request.Scenario = "horse-mounted-alpha-suite";
             TestRunner.Equal(0, request.Validate().Count, "Horse mounted alpha suite request was rejected.");
+        }
+
+        private static void RequestAcceptsHorseNativeControlsUxSuite()
+        {
+            var request = ValidSaveBackedRequest();
+            request.Scenario = "horse-native-controls-ux-suite";
+            TestRunner.Equal(0, request.Validate().Count, "Horse native-controls UX suite request was rejected.");
         }
 
         private static void RequestAcceptsHumanPlayCombatRows()

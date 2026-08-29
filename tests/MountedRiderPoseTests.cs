@@ -253,15 +253,17 @@ namespace KingmakerMountedCombat.Tests
             var profile = MountedRiderPoseProfiles.MediumHumanoidOnHorse;
             TestRunner.Equal(null, profile.Validate(), "Horse pose profile is invalid.");
             TestRunner.Equal("medium-humanoid-horse-v1", profile.Id, "Horse profile identity changed.");
-            TestRunner.Equal(-0.12f, profile.PelvisPositionOffset.Y, "Horse pelvis calibration changed.");
-            TestRunner.Equal(-0.18f, profile.LeftLeg.FootTargetFromThigh.X, "Horse left thigh-relative stirrup target changed.");
-            TestRunner.Equal(0.18f, profile.RightLeg.FootTargetFromThigh.X, "Horse right thigh-relative stirrup target changed.");
-            TestRunner.Equal(-0.58f, profile.LeftLeg.FootTargetFromThigh.Y, "Horse left foot height target changed.");
-            TestRunner.Equal(-0.58f, profile.RightLeg.FootTargetFromThigh.Y, "Horse right foot height target changed.");
+            TestRunner.Equal(-0.17f, profile.PelvisPositionOffset.Y, "Horse pelvis calibration changed.");
+            TestRunner.Equal(-0.15f, profile.LeftLeg.FootTargetFromThigh.X, "Horse left thigh-relative stirrup target changed.");
+            TestRunner.Equal(0.15f, profile.RightLeg.FootTargetFromThigh.X, "Horse right thigh-relative stirrup target changed.");
+            TestRunner.Equal(-0.62f, profile.LeftLeg.FootTargetFromThigh.Y, "Horse left foot height target changed.");
+            TestRunner.Equal(-0.62f, profile.RightLeg.FootTargetFromThigh.Y, "Horse right foot height target changed.");
             TestRunner.Equal(0.11f, profile.LeftLeg.FootTargetFromThigh.Z, "Horse left stirrup-plane target changed.");
             TestRunner.Equal(0.11f, profile.RightLeg.FootTargetFromThigh.Z, "Horse right stirrup-plane target changed.");
-            TestRunner.Equal(-0.20f, profile.LeftLeg.KneeHintFromThigh.X, "Horse left knee calibration changed.");
-            TestRunner.Equal(0.20f, profile.RightLeg.KneeHintFromThigh.X, "Horse right knee calibration changed.");
+            TestRunner.Equal(-0.16f, profile.LeftLeg.KneeHintFromThigh.X, "Horse left knee calibration changed.");
+            TestRunner.Equal(0.16f, profile.RightLeg.KneeHintFromThigh.X, "Horse right knee calibration changed.");
+            TestRunner.Equal(-0.16f, profile.LeftLeg.KneeHintFromThigh.Y, "Horse left knee height calibration changed.");
+            TestRunner.Equal(-0.16f, profile.RightLeg.KneeHintFromThigh.Y, "Horse right knee height calibration changed.");
             TestRunner.True(
                 profile.LeftLeg.FootTargetFromThigh.Z != MountedRiderPoseProfiles.MediumHumanoidOnMammoth.LeftLeg.FootTargetFromThigh.Z &&
                 profile.LeftLeg.KneeHintFromThigh.Z != MountedRiderPoseProfiles.MediumHumanoidOnMammoth.LeftLeg.KneeHintFromThigh.Z,

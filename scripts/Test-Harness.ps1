@@ -8880,8 +8880,61 @@ try {
         Assert-Test ($horseBlueprintSource.Contains('AssertReservedGuidAbsent(library, blueprintList, UnitGuid);') -and
             $horseBlueprintSource.Contains('AssertReservedGuidAbsent(library, blueprintList, FeatureGuid);') -and
             $horseBlueprintSource.Contains('AssertReservedGuidAbsent(library, blueprintList, UpgradeGuid);') -and
+            $horseBlueprintSource.Contains('AssertReservedGuidAbsent(library, blueprintList, PortraitGuid);') -and
             $nativeControlSource.Contains('AssertGuidAbsent(library, guid);')) `
             'KMC Horse/native-control production registration no longer rejects pre-existing deterministic-GUID collisions'
+    }
+
+    Invoke-HarnessTest 'horse native-controls UX repairs are exact-pair scoped and preserve historical schema' {
+        $patchSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPatchController.cs'))
+        $animationSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedAnimationAdapter.cs'))
+        $ikSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedDollRoomIkAdapter.cs'))
+        $horseBlueprintSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\HorseCompanionBlueprintService.cs'))
+        $horseScenarioSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\HorseCompanionUnmountedScenarioEngine.cs'))
+        $projectSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\KingmakerMountedCombat.csproj'))
+
+        Assert-Test ($patchSource.Contains('PatchExact(typeof(UnitAnimationManager), "Tick", 0x06001605, Type.EmptyTypes, nameof(PatchMethods.AnimationTickPrefix));') -and
+            $patchSource.Contains('PatchExact(typeof(AttackHandInfo), "CreateAnimationHandleForAttack", 0x0600265A, new[] { typeof(IEnumerable<AttackHandInfo>) }, null, nameof(PatchMethods.AttackAnimationPostfix));') -and
+            $patchSource.Contains('PatchBridge.Animation?.RestoreExactDelegatedMountLocomotion(__instance);') -and
+            $patchSource.Contains('PatchBridge.Animation?.SupplyExactHorsePrimaryAnimation(__instance);') -and
+            $animationSource.Contains('combat.TryGetExactRiderTurnDelegatedMoveForAnimation(mount, out move, out source)') -and
+            $animationSource.Contains('combat.TryGetExactHorsePrimaryAnimationContext(attack, out command, out horse)') -and
+            $animationSource.Contains('.OfType<UnitAnimationActionSpecialAttack>()') -and
+            $animationSource.Contains('if (actions.Length != 1)') -and
+            $animationSource.Contains('attack.AnimationHandle = handle;') -and
+            -not $animationSource.Contains('catch')) `
+            'Horse locomotion or primary-animation repair is not exact-token, exact-context, single-native-action, or exception-transparent'
+
+        Assert-Test ($patchSource.Contains('PatchExact(typeof(IKController), "SetupIkSystem", 0x0600156C, new[] { typeof(Character) }, nameof(PatchMethods.DollRoomIkSetupPrefix));') -and
+            $patchSource.Contains('PatchExact(typeof(IKController), "SetupFbbik", 0x0600156D, Type.EmptyTypes, nameof(PatchMethods.DollRoomFbbikPrefix), nameof(PatchMethods.DollRoomFbbikPostfix));') -and
+            $ikSource.Contains('relationship.State != RelationshipState.Mounted') -and
+            $ikSource.Contains('(!ReferenceEquals(unit, rider) && !ReferenceEquals(unit, mount))') -and
+            $ikSource.Contains('controller.CharacterUnitEntity = unit.View;') -and
+            $ikSource.Contains('(ReferenceEquals(unit, rider) || ReferenceEquals(unit, mount))') -and
+            -not $ikSource.Contains('catch')) `
+            'DollRoom IK attribution repair is not exact mounted-pair scoped or still hides a stock exception'
+
+        Assert-Test ($horseBlueprintSource.Contains('internal const string PortraitGuid = "6874a165bf8bda3531ee4e2abc10c899";') -and
+            $horseBlueprintSource.Contains('new PortraitData(null, small, medium, large)') -and
+            $horseBlueprintSource.Contains('ImageConversion.LoadImage(texture, bytes, true)') -and
+            $projectSource.Contains('EmbeddedResource Include="Assets\HorsePortraitLarge.png"') -and
+            $projectSource.Contains('EmbeddedResource Include="Assets\HorsePortraitMedium.png"') -and
+            $projectSource.Contains('EmbeddedResource Include="Assets\HorsePortraitSmall.png"') -and
+            $projectSource.Contains('EmbeddedResource Include="Assets\HorseIcon.png"')) `
+            'Horse portrait surfaces are not bound to the exact original embedded KMC portrait/icon set'
+
+        Assert-Test ($horseScenarioSource.Contains('Game.Instance?.SelectedAbilityHandler') -and
+            $horseScenarioSource.Contains('handler.SetAbility(data);') -and
+            $horseScenarioSource.Contains('handler.GetPriority(targetObject, targetPosition);') -and
+            $horseScenarioSource.Contains('handler.GetTarget(targetObject, targetPosition, data);') -and
+            $horseScenarioSource.Contains('handler.OnClick(targetObject, targetPosition, 0, false, false);') -and
+            $horseScenarioSource.Contains('handler.DropAbility();') -and
+            $horseScenarioSource.Contains('dollRoomPhaseStartedAtSeconds') -and
+            $horseScenarioSource.Contains('observations["mountedRiderOutcome"] = CaptureMountedOutcome(') -and
+            $horseScenarioSource.Contains('mountedRiderOutcome,') -and
+            $horseScenarioSource.Contains('IncludesNativeControlsUx);') -and
+            $horseScenarioSource.Contains('if (includeAnimation)')) `
+            'focused Horse UX scenario bypasses the native selected-ability path, lacks bounded DollRoom observation, or changes historical schema-v4 output'
     }
 
     Invoke-HarnessTest 'horse native-asset audit validator binds exact manifested evidence and subscenario totals' {
@@ -8919,6 +8972,7 @@ try {
             'horse-unit'='4016c7db400ab721ff125aef9e65e202'
             'horse-feature'='7db7c50677e39f09feef56f3831fc723'
             'horse-upgrade'='98e651899e6278d938de77af1d69bd32'
+            'horse-portrait'='6874a165bf8bda3531ee4e2abc10c899'
             'mount-ability'='f053faad986631688defa003cd7bda0e'
             'dismount-ability'='3af2b81f4d72bbb30501fa730fcdf36e'
             'rider-primary-ability'='27364df661b3c121eabb97a31aa73a83'
@@ -8937,7 +8991,7 @@ try {
         $horseArtifact = [ordered]@{
             schemaVersion=3;evidenceKind='horse-asset-audit';runId=$horseRequest.runId;scenario=$horseRequest.scenario
             branch=$horseRequest.branch;commit=$horseRequest.commit;productVersion=$horseRequest.productVersion;createdAtUtc=[DateTimeOffset]::UtcNow.ToString('o')
-            loadedBlueprintCount=100;stockBlueprintCount=93;resourceNameCount=100;kmcRuntimeBlueprints=$kmcRuntimeBlueprints
+            loadedBlueprintCount=100;stockBlueprintCount=92;resourceNameCount=100;kmcRuntimeBlueprints=$kmcRuntimeBlueprints
             reservedGuidCollisions=$reserved;exactHorse=$horseRecord
             ponyDiscovery=[ordered]@{resourceMatches=@([ordered]@{assetId='pony';resourceName='Pony.prefab'});candidateUnits=@($horseRecord,$ponyRecord);ponyCandidateUnits=@($ponyRecord);reverseReferences=@();reverseReferenceTruncated=$false}
             portraitDiscovery=[ordered]@{blueprintPortraitCount=1;namedHorsePonyBlueprintPortraits=@();horsePonyUnitPortraitOwners=@();horsePonyIconOwners=@();exactNativeHorsePortrait=$null}
@@ -9081,7 +9135,7 @@ try {
             $unmountedEngineSource.Contains('ReferenceEquals(horse.Commands.Standard, turnBasedAttack)') -and
             -not $unmountedEngineSource.Contains('exactHealthyPendingCommand') -and
             -not $unmountedEngineSource.Contains('mountedPostMoveTurnReassertions == 0') -and
-            ([regex]::Matches($unmountedEngineSource, [regex]::Escape('controller.StartTurn(horse);'))).Count -eq 2 -and
+            ([regex]::Matches($unmountedEngineSource, [regex]::Escape('controller.StartTurn(horse);'))).Count -eq 4 -and
             $unmountedEngineSource.Contains('controller.StartTurn(horse);') -and
             $unmountedEngineSource.Contains('turnBasedAttack.Result == UnitCommand.ResultType.Success') -and
             $unmountedEngineSource.Contains('observations["turnBasedAttackAtDeadline"] = CaptureTurnBasedAttackState(turnBasedAttack);') -and
@@ -9380,17 +9434,17 @@ try {
         $mountedObservations.horseSourceAnchor = 'Chest'
         $mountedObservations.horsePresentationAtMount = 'poseLease=True;attachmentLease=True'
         $mountedObservations.horsePoseCalibration = [ordered]@{
-            candidateCount=2;candidateId='horse-human-review-20260828-b'
+            candidateCount=3;candidateId='horse-human-review-20260829-c'
             dev23PelvisPositionOffset=[ordered]@{x=0.0;y=0.02;z=-0.02}
-            selectedPelvisPositionOffset=[ordered]@{x=0.0;y=-0.12;z=-0.02}
+            selectedPelvisPositionOffset=[ordered]@{x=0.0;y=-0.17;z=-0.02}
             dev23LeftFootTargetFromThigh=[ordered]@{x=-0.305;y=-0.46;z=0.044}
-            selectedLeftFootTargetFromThigh=[ordered]@{x=-0.18;y=-0.58;z=0.11}
+            selectedLeftFootTargetFromThigh=[ordered]@{x=-0.15;y=-0.62;z=0.11}
             dev23RightFootTargetFromThigh=[ordered]@{x=0.305;y=-0.46;z=0.044}
-            selectedRightFootTargetFromThigh=[ordered]@{x=0.18;y=-0.58;z=0.11}
+            selectedRightFootTargetFromThigh=[ordered]@{x=0.15;y=-0.62;z=0.11}
             dev23LeftKneeHintFromThigh=[ordered]@{x=-0.38;y=-0.12;z=0.26}
-            selectedLeftKneeHintFromThigh=[ordered]@{x=-0.20;y=-0.14;z=0.16}
+            selectedLeftKneeHintFromThigh=[ordered]@{x=-0.16;y=-0.16;z=0.16}
             dev23RightKneeHintFromThigh=[ordered]@{x=0.38;y=-0.12;z=0.26}
-            selectedRightKneeHintFromThigh=[ordered]@{x=0.20;y=-0.14;z=0.16}
+            selectedRightKneeHintFromThigh=[ordered]@{x=0.16;y=-0.16;z=0.16}
             crossedStirrupAssignment=$false;pelvisFromChestMountLocal=[ordered]@{x=0;y=0.2;z=0}
             leftFootFromAssignedStirrupMountLocal=[ordered]@{x=0.1;y=0.1;z=0.1}
             rightFootFromAssignedStirrupMountLocal=[ordered]@{x=-0.1;y=0.1;z=0.1}
@@ -9469,6 +9523,128 @@ try {
         try { Assert-KmcHorseCompanionUnmountedEvidence -Request $mountedRequest -Manifest $mountedManifest -Status PASS -SubscenarioResults @($mountedSubresult) }
         catch { $threw = $true }
         Assert-Test $threw 'horse mounted alpha validator accepted rider resource ownership for Horse primary'
+    }
+
+    Invoke-HarnessTest 'horse native-controls UX validator binds physical targeting animation pose and cleanup' {
+        $nativeRoot = Join-Path $runtimeEvidenceTestRoot 'horse-native-controls-ux-validator'
+        New-Item -ItemType Directory -Path $nativeRoot -Force | Out-Null
+        $nativeRequest = [pscustomobject]@{
+            runId='horse-native-controls-ux-validator';scenario='horse-native-controls-ux-suite'
+            branch='codex/mounted-combat-phase3c-native-controls';commit=('c'*40)
+            productVersion=$currentProductVersion;dllSha256=('d'*64)
+            dllMvid='33333333-4444-5555-6666-777777777777';evidenceRoot=$nativeRoot
+        }
+        $nativeRequired = @(
+            'original-horse-portrait-and-icon','native-mount-ability-present-no-slot-overwrite',
+            'native-control-disable-reenable','native-control-save-load-presence',
+            'native-saddle-up-invalid-target','native-saddle-up-target-valid-horse',
+            'native-mounted-control-surface','inventory-horse-preview-no-ik-exception',
+            'mounted-turn-based-rider-movement','human-input-tb-rider-primary-rider-turn',
+            'human-input-tb-target-click-admitted','human-input-tb-horse-primary-horse-turn',
+            'horse-primary-animation-tb','human-input-rt-rider-primary','human-input-rt-horse-primary',
+            'mounted-rider-primary-outcome','mounted-horse-primary-outcome','native-dismount-ability',
+            'entity-and-target-restoration','mode-pause-selection-restoration','non-horse-isolation'
+        )
+        $nativeAssertions = @($nativeRequired | ForEach-Object {
+            [ordered]@{name=$_;status='PASS';detail="Synthetic exact native UX contract for $_."}
+        })
+        $newControlSnapshot = {
+            param([bool]$Suspended,[int]$FactCount)
+            [ordered]@{
+                registered=$true;enabled=$true;serializationSuspended=$Suspended;exactFactCount=$FactCount
+                duplicateFactCount=0;managedHotbarSlotCount=0;targetSelectionStartCount=1
+                targetSelectionEndCount=1;nativeCastRequestCount=1;nativeRefusalCount=0
+                dispatchAcceptedCount=1;dispatchRejectedCount=0
+            }
+        }
+        $newClick = {
+            param([string]$Ability,[string]$Caster,[string]$Clicked,[string]$Resolved,[bool]$Accepted)
+            [ordered]@{
+                abilityGuid=$Ability;casterId=$Caster;clickedTargetId=$Clicked;resolvedTargetId=$Resolved
+                priority='Ability';clicked=$Accepted;targetSelectionStartDelta=1;targetSelectionEndDelta=1
+                nativeCastRequestDelta=$(if($Accepted){1}else{0});nativeRefusalDelta=$(if($Accepted){0}else{1})
+                dispatchAcceptedDelta=$(if($Accepted){1}else{0});dispatchRejectedDelta=0
+            }
+        }
+        $newOutcome = {
+            param([string]$Action,[string]$Actor,[bool]$Natural,[bool]$Animation)
+            [ordered]@{
+                action=$Action;actorId=$Actor;commandOwnerId=$Actor;resourceOwnerId=$Actor
+                targetId='target';result='Success';childAttackStartCount=1;repathCount=0
+                attackWeaponBlueprintId=('7'*32);attackWeaponIsNatural=$Natural;attackWeaponIsRanged=$false
+                attackWeaponSlot=$(if($Natural){'AdditionalLimb'}else{'EquippedMelee'})
+                delegatedMoveExecutorId='horse';delegatedMoveExecutorIsExactMount=$true
+                riderStandardCharged=(-not $Natural);actionStandardCharged=$true;terminalReason=$null
+                attackAnimationHandleCreated=$Animation
+                attackAnimationActionName=$(if($Animation){'SpecialAttack'}else{$null})
+                attackAnimationActionType=$(if($Animation){'SpecialAttack'}else{$null})
+                attackAnimationActed=$Animation;attackAnimationFinished=$Animation;attackAnimationInterrupted=$false
+            }
+        }
+        $nativeObservations = [ordered]@{
+            ownerId='owner';horseId='horse'
+            nativeControlsBeforeMount=(& $newControlSnapshot $false 1)
+            nativeControlsDuringSaveScope=(& $newControlSnapshot $true 0)
+            nativeControlsAfterSaveScope=(& $newControlSnapshot $false 1)
+            nativeControlsMounted=(& $newControlSnapshot $false 5)
+            nativeControlsAfterDismount=(& $newControlSnapshot $false 1)
+            nativeMountInvalidTarget=(& $newClick ('1'*32) 'owner' 'owner' 'owner' $false)
+            nativeMountValidHorse=(& $newClick ('1'*32) 'owner' 'horse' 'horse' $true)
+            nativeTbRiderPrimaryClick=(& $newClick ('2'*32) 'owner' 'target' 'target' $true)
+            nativeTbHorsePrimaryClick=(& $newClick ('3'*32) 'horse' 'target' 'target' $true)
+            nativeRtRiderPrimaryClick=(& $newClick ('2'*32) 'owner' 'target' 'target' $true)
+            nativeRtHorsePrimaryClick=(& $newClick ('3'*32) 'owner' 'target' 'target' $true)
+            nativeDismountClick=(& $newClick ('4'*32) 'owner' 'owner' 'owner' $true)
+            mountedTurnRiderOutcome=(& $newOutcome 'RiderMelee' 'owner' $false $false)
+            mountedTurnHorseOutcome=(& $newOutcome 'MountPrimaryNatural' 'horse' $true $true)
+            mountedRiderOutcome=(& $newOutcome 'RiderMelee' 'owner' $false $false)
+            mountedHorseOutcome=(& $newOutcome 'MountPrimaryNatural' 'horse' $true $true)
+            unmountedHorseBlueprintSpeedFeet=50;mountedHorseBlueprintSpeedFeet=50
+            unmountedHorseAgentMaxSpeed=4.0;mountedHorseAgentMaxSpeed=4.0
+            unmountedHorseAverageWorldSpeed=3.5;mountedRealTimeAverageWorldSpeed=3.4
+            horseProfileId='medium-humanoid-horse-v1';horsePoseProfileId='medium-humanoid-horse-v1'
+            horseSourceAnchor='Chest';relationshipState='Unmounted';horseRemoved=$true;targetRemoved=$true
+            unrelatedPartyPetsPreserved=$true
+            horsePoseCalibration=[ordered]@{
+                candidateCount=3;candidateId='horse-human-review-20260829-c'
+                selectedPelvisPositionOffset=[ordered]@{x=0.0;y=-0.17;z=-0.02}
+                selectedLeftFootTargetFromThigh=[ordered]@{x=-0.15;y=-0.62;z=0.11}
+                selectedRightFootTargetFromThigh=[ordered]@{x=0.15;y=-0.62;z=0.11}
+                leftFootToAssignedStirrup=0.2;rightFootToAssignedStirrup=0.2
+            }
+        }
+        $nativeArtifact = [ordered]@{
+            schemaVersion=5;evidenceKind='horse-native-controls-ux';runId=$nativeRequest.runId
+            scenario=$nativeRequest.scenario;branch=$nativeRequest.branch;commit=$nativeRequest.commit
+            productVersion=$nativeRequest.productVersion;dllSha256=$nativeRequest.dllSha256
+            dllMvid=$nativeRequest.dllMvid;createdAtUtc=[DateTimeOffset]::UtcNow.ToString('o')
+            status='PASS';assertions=$nativeAssertions;observations=$nativeObservations
+            assertionPassCount=$nativeAssertions.Count;assertionFailCount=0;errors=@()
+        }
+        $nativePath = Join-Path $nativeRoot 'horse-native-controls-ux.json'
+        Write-KmcJsonDurable -Path $nativePath -Value $nativeArtifact
+        $nativeRecord = [ordered]@{
+            relativePath='horse-native-controls-ux.json';kind='horse-native-controls-ux'
+            length=(Get-Item -LiteralPath $nativePath).Length;sha256=(Get-KmcSha256 $nativePath)
+        }
+        [void](New-TestArtifactManifest -EvidenceRoot $nativeRoot -RunId $nativeRequest.runId -Scenario $nativeRequest.scenario -Artifacts @($nativeRecord))
+        $nativeManifest = Read-KmcJson (Join-Path $nativeRoot 'runtime-artifacts.json')
+        $nativeSubresult = [pscustomobject]@{
+            name='horse-native-controls-ux-suite';status='PASS'
+            assertionPassCount=$nativeAssertions.Count;assertionFailCount=0;errors=@()
+        }
+        Assert-KmcHorseNativeControlsUxEvidence -Request $nativeRequest -Manifest $nativeManifest -Status PASS -SubscenarioResults @($nativeSubresult)
+
+        $nativeArtifact.observations.mountedTurnHorseOutcome.attackAnimationHandleCreated = $false
+        Write-KmcJsonAtomic -Path $nativePath -Value $nativeArtifact
+        $nativeRecord.length=(Get-Item -LiteralPath $nativePath).Length
+        $nativeRecord.sha256=(Get-KmcSha256 $nativePath)
+        [void](New-TestArtifactManifest -EvidenceRoot $nativeRoot -RunId $nativeRequest.runId -Scenario $nativeRequest.scenario -Artifacts @($nativeRecord))
+        $nativeManifest = Read-KmcJson (Join-Path $nativeRoot 'runtime-artifacts.json')
+        $threw = $false
+        try { Assert-KmcHorseNativeControlsUxEvidence -Request $nativeRequest -Manifest $nativeManifest -Status PASS -SubscenarioResults @($nativeSubresult) }
+        catch { $threw = $true }
+        Assert-Test $threw 'Horse native-controls UX validator accepted a missing TB Horse animation handle'
     }
 
     $resultPath = Join-Path $testRoot 'runtime-result.json'
