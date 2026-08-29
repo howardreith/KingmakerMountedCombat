@@ -134,6 +134,10 @@ namespace KingmakerMountedCombat.Diagnostics
         private JObject turnBasedAttackAtDispatch;
         private DiagnosticCombatTargetService targetService;
         private MountedCombatRuleProbe ruleProbe;
+        private ScopedDiagnosticAiLease<UnitEntityData> unmountedAttackOwnerAiLease;
+        private bool unmountedAttackOwnerAiLeaseRestored = true;
+        private int unmountedAttackOwnerAiStableFrames;
+        private string unmountedAttackOwnerAiLeaseError;
         private NativeModeTransitionProbe realTimeModeProbe;
         private NativeModeTransitionProbe turnBasedModeProbe;
         private bool turnStarted;
@@ -860,6 +864,126 @@ namespace KingmakerMountedCombat.Diagnostics
                 ReferenceEquals(item.Blueprint, blueprint)) ?? 0;
         }
 
+        private bool PrepareUnmountedAttackOwnerAiIsolation()
+        {
+            try
+            {
+                if (unmountedAttackOwnerAiLease == null)
+                {
+                    if (owner?.Commands == null || horse == null || owner.Group == null ||
+                        owner.Group != horse.Group || relationship.State != RelationshipState.Unmounted ||
+                        AiBackingField == null || AiBackingField.FieldType != typeof(bool))
+                    {
+                        throw new InvalidOperationException(
+                            "The exact unmounted owner/Horse AI-isolation contract is unavailable.");
+                    }
+
+                    owner.Commands.InterruptAll(false);
+                    owner.Commands.RemoveFinishedAndUpdateQueue();
+                    if (!owner.Commands.Empty)
+                    {
+                        throw new InvalidOperationException(
+                            "The exact owner command surface did not become idle before AI isolation.");
+                    }
+
+                    unmountedAttackOwnerAiLease = new ScopedDiagnosticAiLease<UnitEntityData>(
+                        unit => unit.UniqueId,
+                        unit => ReferenceEquals(unit, owner) && unit.IsInState &&
+                            unit.IsDirectlyControllable && unit.Group == horse.Group &&
+                            relationship.State == RelationshipState.Unmounted,
+                        unit => unit.Commands != null && unit.Commands.Empty,
+                        unit => (bool)AiBackingField.GetValue(unit),
+                        unit => unit.IsAIEnabled,
+                        (unit, value) => unit.IsAIEnabled = value);
+                    unmountedAttackOwnerAiLeaseRestored = false;
+                    unmountedAttackOwnerAiLease.Acquire(new[] { owner });
+                    unmountedAttackOwnerAiStableFrames = 0;
+                    unmountedAttackOwnerAiLeaseError = null;
+                    return false;
+                }
+
+                unmountedAttackOwnerAiLease.ValidateActive(new[] { owner });
+                unmountedAttackOwnerAiStableFrames++;
+                unmountedAttackOwnerAiLeaseError = null;
+                return unmountedAttackOwnerAiStableFrames >= 2;
+            }
+            catch (Exception exception)
+            {
+                unmountedAttackOwnerAiLeaseError = exception.GetType().Name + ": " + exception.Message;
+                unmountedAttackOwnerAiLeaseRestored = unmountedAttackOwnerAiLease == null ||
+                    unmountedAttackOwnerAiLease.LastRestoreVerified;
+                Fail("unmounted-attack-owner-ai-isolation",
+                    "The exact unmounted owner could not enter a stable reversible AI-isolation lease: " +
+                    unmountedAttackOwnerAiLeaseError + ".");
+                BeginCleanup();
+                return false;
+            }
+        }
+
+        private bool ValidateUnmountedAttackOwnerAiIsolation()
+        {
+            try
+            {
+                if (unmountedAttackOwnerAiLease == null || !unmountedAttackOwnerAiLease.IsAcquired)
+                {
+                    throw new InvalidOperationException(
+                        "The exact owner AI-isolation lease is not active.");
+                }
+                unmountedAttackOwnerAiLease.ValidateActive(new[] { owner });
+                unmountedAttackOwnerAiLeaseError = null;
+                return true;
+            }
+            catch (Exception exception)
+            {
+                unmountedAttackOwnerAiLeaseError = exception.GetType().Name + ": " + exception.Message;
+                Fail("unmounted-attack-owner-ai-isolation",
+                    "The exact unmounted owner AI-isolation lease lost its command or state invariant: " +
+                    unmountedAttackOwnerAiLeaseError + ".");
+                BeginCleanup();
+                return false;
+            }
+        }
+
+        private bool RestoreUnmountedAttackOwnerAiIsolation()
+        {
+            if (unmountedAttackOwnerAiLease == null)
+            {
+                unmountedAttackOwnerAiLeaseRestored = true;
+                unmountedAttackOwnerAiLeaseError = null;
+                return true;
+            }
+            if (!unmountedAttackOwnerAiLease.IsAcquired)
+            {
+                unmountedAttackOwnerAiLeaseRestored = unmountedAttackOwnerAiLease.LastRestoreVerified;
+                return unmountedAttackOwnerAiLeaseRestored;
+            }
+
+            try
+            {
+                if (owner?.Commands == null)
+                {
+                    throw new InvalidOperationException(
+                        "The exact owner command surface is unavailable for AI restoration.");
+                }
+                owner.Commands.InterruptAll(false);
+                owner.Commands.RemoveFinishedAndUpdateQueue();
+                unmountedAttackOwnerAiLease.Restore(new[] { owner });
+                unmountedAttackOwnerAiLeaseRestored =
+                    !unmountedAttackOwnerAiLease.IsAcquired &&
+                    unmountedAttackOwnerAiLease.LastRestoreVerified;
+                unmountedAttackOwnerAiLeaseError = unmountedAttackOwnerAiLeaseRestored
+                    ? null
+                    : "The exact owner AI lease did not report verified restoration.";
+                return unmountedAttackOwnerAiLeaseRestored;
+            }
+            catch (Exception exception)
+            {
+                unmountedAttackOwnerAiLeaseRestored = false;
+                unmountedAttackOwnerAiLeaseError = exception.GetType().Name + ": " + exception.Message;
+                return false;
+            }
+        }
+
         private void AwaitCombatEntry()
         {
             if (Game.Instance.IsPaused) { Game.Instance.IsPaused = false; }
@@ -867,6 +991,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 !owner.IsInCombat || !horse.IsInCombat || !target.IsInCombat ||
                 horse.CombatState == null || !horse.CombatState.Prepared || !horse.CombatState.CanActInCombat ||
                 !horse.CanAttack(target) || !target.Descriptor.State.IsConscious)
+            {
+                return;
+            }
+
+            if (!PrepareUnmountedAttackOwnerAiIsolation())
             {
                 return;
             }
@@ -893,13 +1022,12 @@ namespace KingmakerMountedCombat.Diagnostics
             observations["realTimePreDispatchStandardTargetExact"] = preDispatchStandard != null &&
                 ReferenceEquals(preDispatchStandard.Target?.Unit, target);
 
-            // Native real-time auto-combat can already own a same-target UnitAttack
-            // by the time the bidirectional combat-memory lease is ready. UnitAttack
-            // then merges a newly submitted same-target command into that active
-            // command, intentionally leaving the submitted object outside the
-            // Standard slot. This scenario needs one exact player-created single
-            // Bite, so clear only this temporary horse's command surface at the
-            // explicit dispatch boundary before arming the rule probe.
+            // Native real-time auto-combat can already own same-target commands by
+            // the time the bidirectional combat-memory lease is ready. The owner is
+            // independently entitled to stock unmounted attacks, so isolate that
+            // actor with an exact reversible AI lease before arming the pair-wide
+            // duplicate-chain probe. The temporary horse remains the expected actor;
+            // clear only its exact command surface at the explicit dispatch boundary.
             horse.Commands.InterruptAll(false);
             ruleProbe = new MountedCombatRuleProbe();
             ruleProbe.Arm(owner, horse, horse, target, 20);
@@ -907,9 +1035,11 @@ namespace KingmakerMountedCombat.Diagnostics
             realTimeAttack = new UnitAttack(target) { IsSingleAttack = true, CreatedByPlayer = true };
             realTimeAttack.IgnoreCooldown();
             horse.Commands.Run(realTimeAttack);
-            Check(expectedDispatchStarted && ReferenceEquals(horse.Commands.Standard, realTimeAttack),
+            Check(unmountedAttackOwnerAiLease != null && unmountedAttackOwnerAiLease.IsAcquired &&
+                    unmountedAttackOwnerAiLease.LastActiveValidationPassed &&
+                    expectedDispatchStarted && ReferenceEquals(horse.Commands.Standard, realTimeAttack),
                 "expected-attack-boundary",
-                "After target safety and combat entry passed, one exact player-created stock Bite owned the horse's native Standard slot.");
+                "After target safety and combat entry passed, a reversible exact-owner AI lease isolated one player-created stock Bite in the horse's native Standard slot.");
             if (failed != 0) { BeginCleanup(); return; }
             realTimeAttackIssuedAtSeconds = clock.Elapsed.TotalSeconds;
             observations["realTimeAttackAtDispatch"] = CaptureRealTimeAttackState(realTimeAttack);
@@ -918,6 +1048,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void AwaitRealTimeAttack()
         {
+            if (!ValidateUnmountedAttackOwnerAiIsolation()) { return; }
             targetService.RefreshBidirectionalCombatMemoryLease();
             if (realTimeAttack == null)
             {
@@ -1041,6 +1172,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void AwaitTurnBasedMode()
         {
+            if (!ValidateUnmountedAttackOwnerAiIsolation()) { return; }
             targetService.RefreshBidirectionalCombatMemoryLease();
             var controller = Game.Instance.TurnBasedCombatController;
             if (!CombatController.IsInTurnBasedCombat() || controller == null || !controller.Initialized ||
@@ -1085,6 +1217,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void AwaitTurnBasedTurn()
         {
+            if (!ValidateUnmountedAttackOwnerAiIsolation()) { return; }
             targetService.RefreshBidirectionalCombatMemoryLease();
             var game = Game.Instance;
             var controller = Game.Instance.TurnBasedCombatController;
@@ -1171,6 +1304,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void AwaitTurnBasedAttack()
         {
+            if (!ValidateUnmountedAttackOwnerAiIsolation()) { return; }
             targetService.RefreshBidirectionalCombatMemoryLease();
             if (turnBasedAttack == null)
             {
@@ -1276,6 +1410,14 @@ namespace KingmakerMountedCombat.Diagnostics
         private void AwaitRealTimeRestore()
         {
             if (CombatController.IsInTurnBasedCombat()) { return; }
+            if (!RestoreUnmountedAttackOwnerAiIsolation())
+            {
+                Fail("unmounted-attack-owner-ai-isolation",
+                    "The exact unmounted owner AI lease did not restore before the next Horse qualification tranche: " +
+                    (unmountedAttackOwnerAiLeaseError ?? "unknown restoration failure") + ".");
+                BeginCleanup();
+                return;
+            }
             if (!IncludesMountedAlpha)
             {
                 BeginDeathProbe();
@@ -2942,6 +3084,12 @@ namespace KingmakerMountedCombat.Diagnostics
             try { stockLifecycleAttack?.Interrupt(); } catch (Exception exception) { errors.Add("Stock lifecycle attack cleanup: " + exception.Message); }
             try { movementCommand?.Interrupt(); } catch (Exception exception) { errors.Add("Movement cleanup: " + exception.Message); }
             try { mountedRealTimeMove?.Interrupt(); } catch (Exception exception) { errors.Add("Mounted RT movement cleanup: " + exception.Message); }
+            if (!RestoreUnmountedAttackOwnerAiIsolation())
+            {
+                var message = "Unmounted attack owner AI cleanup: " +
+                    (unmountedAttackOwnerAiLeaseError ?? "unknown restoration failure") + ".";
+                if (!errors.Contains(message)) { errors.Add(message); }
+            }
             if (dollRoomShown)
             {
                 try { Game.Instance?.UI?.Common?.DollRoom?.Show(false); }
@@ -3021,6 +3169,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 expectedSelection.All(unit => selection.Contains(unit));
             var unrelatedPetsExact = OriginalPartyPetsMatch();
             var selectionSnapshot = service.CaptureSnapshot();
+            var attackOwnerAiClean = unmountedAttackOwnerAiLease == null ||
+                (unmountedAttackOwnerAiLeaseRestored && !unmountedAttackOwnerAiLease.IsAcquired &&
+                 unmountedAttackOwnerAiLease.LastRestoreVerified);
             try
             {
                 targetService?.Dispose();
@@ -3030,9 +3181,9 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 Fail("target-subscription-cleanup", exception.GetType().Name + ": " + exception.Message);
             }
-            Check(targetClean && horseClean,
+            Check(targetClean && horseClean && attackOwnerAiClean,
                 "entity-and-target-restoration",
-                "Horse, hostile target, combat memory, runtime group/faction, and diagnostic leases were removed exactly.");
+                "Horse, hostile target, combat memory, runtime group/faction, owner attack-isolation, and diagnostic leases were removed exactly.");
             Check(modeRestored && Game.Instance.IsPaused == originalPause && selectionExact,
                 "mode-pause-selection-restoration",
                 "Native mode, pause state, and the original exact selection were restored.");

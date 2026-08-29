@@ -9138,6 +9138,16 @@ try {
             $unmountedEngineSource.Contains('observations["turnBasedUnexpectedPairAttackCount"] = ruleProbe.UnexpectedPairAttackCount;') -and
             $unmountedEngineSource.Contains('ruleProbe.DamageRuleCount == 1 && ruleProbe.ForcedD20Count >= 1 &&')) `
             'horse companion RT attack leaf lost its bounded native-merge repair or exact command-identity diagnostic'
+        Assert-Test ($unmountedEngineSource.Contains('private ScopedDiagnosticAiLease<UnitEntityData> unmountedAttackOwnerAiLease;') -and
+            $unmountedEngineSource.Contains('private bool PrepareUnmountedAttackOwnerAiIsolation()') -and
+            $unmountedEngineSource.Contains('owner.Commands.InterruptAll(false);') -and
+            $unmountedEngineSource.Contains('unmountedAttackOwnerAiLease.Acquire(new[] { owner });') -and
+            $unmountedEngineSource.Contains('unmountedAttackOwnerAiLease.ValidateActive(new[] { owner });') -and
+            $unmountedEngineSource.Contains('private bool RestoreUnmountedAttackOwnerAiIsolation()') -and
+            $unmountedEngineSource.Contains('unmountedAttackOwnerAiLease.Restore(new[] { owner });') -and
+            $unmountedEngineSource.Contains('unmountedAttackOwnerAiLease.LastRestoreVerified') -and
+            $unmountedEngineSource.Contains('targetClean && horseClean && attackOwnerAiClean')) `
+            'horse companion unmounted attack control lost exact owner-AI isolation or restoration without weakening the pair-wide duplicate-chain probe'
         Assert-Test ($unmountedEngineSource.Contains('private const double TurnBasedTurnAcquisitionTimeoutSeconds = 20.0;') -and
             $unmountedEngineSource.Contains('private const double TurnBasedAttackTimeoutSeconds = 20.0;') -and
             $unmountedEngineSource.Contains('private const double MountedAlphaAdmissionTimeoutSeconds = 20.0;') -and
