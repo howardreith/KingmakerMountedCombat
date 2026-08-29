@@ -8891,6 +8891,7 @@ try {
         $ikSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedDollRoomIkAdapter.cs'))
         $horseBlueprintSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\HorseCompanionBlueprintService.cs'))
         $horseScenarioSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\HorseCompanionUnmountedScenarioEngine.cs'))
+        $runtimeLauncherSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\runtime\Invoke-KingmakerRuntimeScenario.ps1'))
         $projectSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\KingmakerMountedCombat.csproj'))
 
         Assert-Test ($patchSource.Contains('PatchExact(typeof(UnitAnimationManager), "Tick", 0x06001605, Type.EmptyTypes, nameof(PatchMethods.AnimationTickPrefix));') -and
@@ -8933,7 +8934,8 @@ try {
             $horseScenarioSource.Contains('observations["mountedRiderOutcome"] = CaptureMountedOutcome(') -and
             $horseScenarioSource.Contains('mountedRiderOutcome,') -and
             $horseScenarioSource.Contains('IncludesNativeControlsUx);') -and
-            $horseScenarioSource.Contains('if (includeAnimation)')) `
+            $horseScenarioSource.Contains('if (includeAnimation)') -and
+            $runtimeLauncherSource.Contains("'horse-native-controls-ux-suite'")) `
             'focused Horse UX scenario bypasses the native selected-ability path, lacks bounded DollRoom observation, or changes historical schema-v4 output'
     }
 
