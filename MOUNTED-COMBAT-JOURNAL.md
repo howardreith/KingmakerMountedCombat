@@ -1,5 +1,14 @@
 # Mounted Combat journal
 
+## 2026-08-29T16:02:32Z - dev.8 native click succeeds; reused diagnostic dispatch marker activates bounded stop
+
+- Exact published input is `codex/mounted-combat-phase3c-native-controls` at `c2fce74379a51a07fbda5b20ac16c010362b7b02`; production implementation remains `d563676ff26fa253b3b49c6c7e9aa9f749268836`. Dev.8 package/manifest/DLL SHA-256 are `add4ee89e7cabf94464177744a61352cc3f1d14f47c485b60c71aaec15a40464` / `dc902e228e934d692ba8754d152bec92f786db0f00f90496c3617408d3b698fe` / `23a61d98f8136e1ad06bad6a68f348885c32c5320dacab6fcd8560c8ab89373e`; MVID `3e45aaa7-0539-49d1-81c7-bd0b524c1c21`; suite `20260829T143556Z-phase3c-dev8-native-controls-suite6` snapshot `1ea195fc1eeb98ec2f33adf724ebb5e7aeef8c62837a3a5bd86d610a8edfb1b9`.
+- Offline/source/build/component/visual/harness/assembly totals pass `22/Release/266/18/235/378`; parsers, diff, prohibited payload, package, targeted WhatIf, and independent admission audit pass.
+- Aggregate `20260829T153000Z-phase3c-dev8-native-controls-passC` exited and restored `FAIL 57/1`. Registration passed. The sole failure was `human-input-tb-horse-primary-horse-turn`. Its exact native target click succeeded (`clicked=true`, selection start/end `1/1`, native cast request `1`, refusal `0`), but the scenario's separate expected-dispatch guard returned false.
+- Root cause is diagnostic: one `DiagnosticCombatTargetService` instance exposes a one-shot `expectedAttackDispatchStarted` flag. The preceding successful Rider-primary test sets it; the Horse-primary test reuses the same service and target and cannot set it again. The combined `dispatchStarted && clicked` check fails and cleanup begins before terminal Horse-command observation. No production rejection is present in this evidence, but no terminal Horse chain exists to credit.
+- Dev.6 and dev.7 remain immutable uncredited diagnostic failures. Dev.8 successfully repaired their owner-AI/command-idle setup boundary; no new repair/run is permitted by the bounded disposition.
+- Independent audit before reading gameplay evidence passed exact suite/save/Mods/Baseline/Working restoration and zero process/lock/sentinel/live-deployment residue. No dev.8 install or targeted Mammoth regression followed. Status is `BLOCKED — DIAGNOSTIC QUALIFICATION BOUNDARY`; the Phase 3C completion phrase is not earned.
+
 ## 2026-08-29T03:29:00Z - dev.2 exposes stale runtime version admission; dev.3 centralizes build identity
 
 - Dev.2 clean commit/package/suite are `73f07192063301b2b06b0fce087ebfbf10f0c08e` / `2d5f77cdac7c6325026c3e41888b5ed371d23ab8fd9bd67471f401daf0e1909e` / `20260829T015200Z-phase3c-dev2-stock-portrait-suite1`; suite snapshot SHA-256 is `a17da314ec18810e2f7a0689ebf87f96480801e9bb925636d775edb4dbbfedf1`. The attached stock-portrait WhatIf passed exact zero mutation.

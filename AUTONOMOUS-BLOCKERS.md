@@ -1,5 +1,17 @@
 # Autonomous blockers
 
+## Phase 3C bounded stop: TB Horse-primary terminal command remains unqualified - 2026-08-29T16:02:32Z
+
+Status: `BLOCKED — DIAGNOSTIC QUALIFICATION BOUNDARY`.
+
+The final authorized dev.8 aggregate `20260829T153000Z-phase3c-dev8-native-controls-passC` restored exactly but is immutable `FAIL 57/1`. Its sole failure is `human-input-tb-horse-primary-horse-turn`. The physical/native selected-ability path itself succeeded: exact Horse-primary ability and hostile target, `clicked=true`, one target-selection start/end, one native cast request, and no native refusal. The scenario then failed its compound admission check because `BeginExpectedAttackDispatch` is a one-shot target-service marker already consumed by the preceding Rider-primary test. It stopped before observing the Horse KMC command or its terminal rule chain.
+
+This is established diagnostic reuse, not evidence of a player-visible rejection or production Horse-command defect. It also cannot be converted into PASS: TB Horse primary, Horse attack animation on that path, later aggregate rows, the targeted Mammoth regression, and final installation remain unqualified. Dev.8 is therefore not installed as a review build.
+
+The bounded retry disposition is active. No additional instrumentation/repair/package/runtime cycle may begin under the current mission. A new explicit authorization would be needed for one narrow diagnostic-marker lifecycle correction and one fresh audited aggregate. Exact external restoration passed; no repository, Git-operation, process, transaction, lock, sentinel, or live-deployment ambiguity remains.
+
+This entry supersedes all older Phase 3C in-progress/no-blocker entries without altering their historical evidence.
+
 ## No hard blocker; dev.3 corrects the runtime admission identity - 2026-08-29T03:29:00Z
 
 Status: `IN PROGRESS`.

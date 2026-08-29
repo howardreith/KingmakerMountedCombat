@@ -1,8 +1,10 @@
 # Horse UX runtime scenario matrix
 
-Status: `IN PROGRESS`
+Status: `BLOCKED — DIAGNOSTIC QUALIFICATION BOUNDARY`
 
 Date: 2026-08-28
+
+Superseding execution result (2026-08-29): dev.8 aggregate `20260829T153000Z-phase3c-dev8-native-controls-passC` restored exactly at `57 PASS / 1 FAIL`. The native Horse-primary cursor admitted the hostile target and created one native cast request, but the scenario reused the preceding Rider-primary row's one-shot expected-dispatch marker and stopped before terminal Horse-command observation. This is not a production rejection, but the Horse-turn row cannot be credited. The bounded retry budget is exhausted; later rows, the targeted Mammoth regression, and final installation remain pending separate authorization.
 
 All live rows require stable-suite admission, KMC Working-only save authority, KMC-only Mods staging, targeted WhatIf, audit-before-evidence, same-package identity, and exact restoration.
 
@@ -17,4 +19,3 @@ All live rows require stable-suite admission, KMC Working-only save authority, K
 | lifecycle/isolation | save and area clean dismount; inventory preserves pair; door busy/success; Wild Shape; explicit Dismount; Mammoth targeted regression; foreign-mod isolation | exact cleanup and terminology; no mutation outside KMC |
 
 Physical pointer feel, icon readability, portrait quality, final pose, attack-animation readability, and ordinary gameplay flow remain manual gates when automation cannot prove them truthfully.
-
