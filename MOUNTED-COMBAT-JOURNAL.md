@@ -1,5 +1,14 @@
 # Mounted Combat journal
 
+## 2026-08-29T19:46:01Z - dev.9 native TB Horse input and Bite chain pass; attack animation remains blocked
+
+- Guarded publication established exact dev.9 input `990938faaced373dda1554b836219b748edaffa4`. Clean package/manifest/DLL SHA-256 are `25f76fe24785bf03702f4c5d1cceb35212c803cc0ca8bdfcbc8cb319b4832f9b` / `10dfb044c128a4765ead89a339e0da4ed545ef639331b7f3d85aa7e905d960a3` / `88260a92c4841dca7ceee0d5f5d33efdd28513922b7133a075d93de752a696c5`; MVID `d2f4321e-271f-4ba4-8959-ad8ec4cf56c5`. Suite `20260829T165734Z-phase3c-dev9-native-controls-suite7` is bound by snapshot SHA-256 `a039a9a16dd2796209cab2898af0f1151c03167f01e9719fcab122ba411b8484`.
+- A first command-line invocation omitted explicit noninteractive confirmation and stopped at `ShouldProcess` before transaction/game/evidence. After zero-mutation verification, the corrected exact command ran the sole authorized aggregate. This is launcher history, not a gameplay attempt.
+- Run `20260829T170000Z-phase3c-dev9-native-controls-passD` is immutable uncredited `FAIL 58/1`. The sequential dispatch repair passes: exact mark delta `1`; native Horse Primary target click true; selection start/end `1/1`; native cast request `1`; refusal `0`. The exact Horse Bite command ends `Success`, with Horse as actor/command/resource owner, `AdditionalLimb` natural weapon `35dfad6517f401145af54111be04d6cf`, one child, one attack/roll/damage chain, `14` damage, Horse-only Standard cost, zero unexpected pair attacks, and zero repaths.
+- The sole failed row is `horse-primary-animation-tb`. Both command and adapter record no handle: `AttackAnimationHandleCreated=false`, create/reject `0/0`, action `<none>`, and no animation supply/rejection log. Because rejection count is also zero, the configured postfix did not enter the exact supply branch for the actual mounted TB Bite. The production animation bridge therefore remains unqualified even though native targeting and combat are healthy.
+- All three runtime transaction ledgers are `restored`. Separate post-run repository-owned `WhatIf` continuity passed exact descriptor validation and zero evidence/lock/transaction/Mods/process/game/save mutation before gameplay evidence was read. No KMC live deployment exists.
+- The bounded dev.9 cycle stops here. No Mammoth regression or UMM installation follows a failed Horse gate. A separate production-animation repair authorization is required before another package/runtime cycle; the animation criterion, one-chain cardinality, action ownership, and native timing remain unchanged.
+
 ## 2026-08-29T16:54:31Z - user authorizes one final pass; dev.9 sequential dispatch ledger is offline-green
 
 - Re-intake at clean published `d2045d853e38604dee52df155d8a7ab8076f2b90` passed exact repository/origin/branch, no Git/runtime/process/lock/sentinel/deployment ambiguity, and independent suite-6 external-state audit.

@@ -1,8 +1,10 @@
 # Horse UX runtime scenario matrix
 
-Status: `IN PROGRESS`
+Status: `FAIL` — bounded at TB Horse primary animation
 
 Date: 2026-08-28
+
+Superseding bounded result (2026-08-29): dev.9 aggregate `20260829T170000Z-phase3c-dev9-native-controls-passD` restored exactly at `58 PASS / 1 FAIL`. The sequential expected-dispatch ledger, actual native target click, native cast, exact Horse-owned Bite command, one attack/roll/damage chain, Horse-only Standard cost, zero duplicates/repaths, and cleanup all pass. The sole failure is `horse-primary-animation-tb`: command handle absent, adapter create/reject `0/0`, and no native `SpecialAttack` identity. Independent audit passed before evidence read. The authorized cycle is exhausted; Mammoth regression and final installation remain blocked pending separately authorized production-animation repair and one fresh complete Horse pass.
 
 Superseding authorization and repair (2026-08-29): the user authorized one additional diagnostic-marker correction and aggregate. Dev.9 preserves exact target/state admission and sticky pre-first-dispatch classification while recording each sequential validated action; the TB Horse row must prove an exact one-mark delta before its native click is credited. Complete offline gates pass. One fresh suite-bound audited aggregate remains, followed by the single targeted Mammoth regression and final installation only if green.
 

@@ -1,5 +1,19 @@
 # Autonomous blockers
 
+## Phase 3C bounded stop: TB Horse Bite completes but its native animation bridge is not reached - 2026-08-29T19:46:01Z
+
+Status: `FAIL`.
+
+The one explicitly authorized dev.9 aggregate `20260829T170000Z-phase3c-dev9-native-controls-passD` completed under exact package/suite identity and restored exactly at `58 PASS / 1 FAIL`. Dev.9 resolves the prior diagnostic contradiction: the Horse action receives an exact `+1` expected-dispatch mark, the physical native cursor admits the hostile target, one native cast request occurs with no refusal, and the terminal KMC command succeeds.
+
+The remaining failure is genuine against the mission's unchanged automated animation predicate. The exact Horse-owned natural Bite command starts one child, produces one attack/roll/damage chain for `14` damage, charges only Horse Standard, and has zero duplicates or repaths, but it creates no attack-animation handle. The command reports `AttackAnimationHandleCreated=false`; the Horse animation adapter reports create/reject `0/0` and no action identity; the output log contains no supplied/rejected Horse `SpecialAttack` line. The current `AttackHandInfo.CreateAnimationHandleForAttack` postfix does not bind this mounted TB Bite execution path. This evidence does not prove the Horse visibly animates, and the gate is not weakened.
+
+Independent audit-before-read passed through the repository-owned zero-mutation `WhatIf` path after all three transaction ledgers reached `restored`. Exact suite/save/Mods/Baseline/Working continuity and zero process/lock/sentinel/deployment residue are preserved. There is no restoration, repository, credential, or target-input ambiguity.
+
+The authorized aggregate/repair budget is exhausted. Do not run Mammoth regression, install dev.9, or claim the Phase 3C completion phrase. One separately authorized production-animation repair and fresh audited Horse aggregate would be required; it must preserve exact native command ownership, action cost, one-chain cardinality, and stock timing while mapping the actual TB animation lifecycle. The Mammoth regression and final guarded install remain conditional on that aggregate passing.
+
+This entry supersedes the dev.9 in-progress status below without rewriting dev.6-dev.9 historical evidence.
+
 ## No current hard blocker; dev.9 final aggregate is explicitly authorized - 2026-08-29T16:54:31Z
 
 Status: `IN PROGRESS`.
