@@ -9138,16 +9138,45 @@ try {
             $unmountedEngineSource.Contains('observations["turnBasedUnexpectedPairAttackCount"] = ruleProbe.UnexpectedPairAttackCount;') -and
             $unmountedEngineSource.Contains('ruleProbe.DamageRuleCount == 1 && ruleProbe.ForcedD20Count >= 1 &&')) `
             'horse companion RT attack leaf lost its bounded native-merge repair or exact command-identity diagnostic'
+        $preTargetIsolationIndex = $unmountedEngineSource.IndexOf(
+            'private void AwaitUnmountedAttackOwnerAiIsolation()', [StringComparison]::Ordinal)
+        $preTargetPrepareIndex = $unmountedEngineSource.IndexOf(
+            'if (!PrepareUnmountedAttackOwnerAiIsolation())', $preTargetIsolationIndex, [StringComparison]::Ordinal)
+        $preTargetSpawnIndex = $unmountedEngineSource.IndexOf(
+            'targetService = new DiagnosticCombatTargetService(logger);', $preTargetIsolationIndex, [StringComparison]::Ordinal)
+        $combatEntryIndex = $unmountedEngineSource.IndexOf(
+            'private void AwaitCombatEntry()', [StringComparison]::Ordinal)
+        $prepareIsolationIndex = $unmountedEngineSource.IndexOf(
+            'private bool PrepareUnmountedAttackOwnerAiIsolation()', [StringComparison]::Ordinal)
+        $validateIsolationIndex = $unmountedEngineSource.IndexOf(
+            'private bool ValidateUnmountedAttackOwnerAiIsolation()', [StringComparison]::Ordinal)
+        $prepareIsolationBody = if ($prepareIsolationIndex -ge 0 -and $validateIsolationIndex -gt $prepareIsolationIndex) {
+            $unmountedEngineSource.Substring(
+                $prepareIsolationIndex, $validateIsolationIndex - $prepareIsolationIndex)
+        } else { '' }
         Assert-Test ($unmountedEngineSource.Contains('private ScopedDiagnosticAiLease<UnitEntityData> unmountedAttackOwnerAiLease;') -and
+            $unmountedEngineSource.Contains('private const double UnmountedAttackOwnerAiSettleTimeoutSeconds = 5.0;') -and
+            $unmountedEngineSource.Contains('case EngineStep.AwaitUnmountedAttackOwnerAiIsolation:') -and
+            $unmountedEngineSource.Contains('step = EngineStep.AwaitUnmountedAttackOwnerAiIsolation;') -and
+            $unmountedEngineSource.Contains('private void AwaitUnmountedAttackOwnerAiIsolation()') -and
+            $preTargetIsolationIndex -ge 0 -and
+            $preTargetPrepareIndex -gt $preTargetIsolationIndex -and
+            $preTargetSpawnIndex -gt $preTargetPrepareIndex -and
+            $combatEntryIndex -gt $preTargetSpawnIndex -and
+            ([regex]::Matches($unmountedEngineSource, [regex]::Escape('if (!PrepareUnmountedAttackOwnerAiIsolation())'))).Count -eq 1 -and
+            $prepareIsolationIndex -ge 0 -and
+            $validateIsolationIndex -gt $prepareIsolationIndex -and
+            -not $prepareIsolationBody.Contains('InterruptAll(false)') -and
             $unmountedEngineSource.Contains('private bool PrepareUnmountedAttackOwnerAiIsolation()') -and
-            $unmountedEngineSource.Contains('owner.Commands.InterruptAll(false);') -and
+            $unmountedEngineSource.Contains('owner.Commands.RemoveFinishedAndUpdateQueue();') -and
+            $unmountedEngineSource.Contains('UnmountedAttackOwnerAiSettleTimeoutSeconds)') -and
             $unmountedEngineSource.Contains('unmountedAttackOwnerAiLease.Acquire(new[] { owner });') -and
             $unmountedEngineSource.Contains('unmountedAttackOwnerAiLease.ValidateActive(new[] { owner });') -and
             $unmountedEngineSource.Contains('private bool RestoreUnmountedAttackOwnerAiIsolation()') -and
             $unmountedEngineSource.Contains('unmountedAttackOwnerAiLease.Restore(new[] { owner });') -and
             $unmountedEngineSource.Contains('unmountedAttackOwnerAiLease.LastRestoreVerified') -and
             $unmountedEngineSource.Contains('targetClean && horseClean && attackOwnerAiClean')) `
-            'horse companion unmounted attack control lost exact owner-AI isolation or restoration without weakening the pair-wide duplicate-chain probe'
+            'horse companion unmounted attack control lost bounded pre-target owner-AI isolation or restoration without weakening the pair-wide duplicate-chain probe'
         Assert-Test ($unmountedEngineSource.Contains('private const double TurnBasedTurnAcquisitionTimeoutSeconds = 20.0;') -and
             $unmountedEngineSource.Contains('private const double TurnBasedAttackTimeoutSeconds = 20.0;') -and
             $unmountedEngineSource.Contains('private const double MountedAlphaAdmissionTimeoutSeconds = 20.0;') -and

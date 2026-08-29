@@ -60,6 +60,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private const double MountedScenarioTimeoutSeconds = 300.0;
         private const double LifecycleTimeoutSeconds = 60.0;
         private const double DirectDamageObservationSeconds = 5.0;
+        private const double UnmountedAttackOwnerAiSettleTimeoutSeconds = 5.0;
         private const double RealTimeAttackTimeoutSeconds = 20.0;
         private const double TurnBasedTurnAcquisitionTimeoutSeconds = 20.0;
         private const double TurnBasedAttackTimeoutSeconds = 20.0;
@@ -136,6 +137,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private MountedCombatRuleProbe ruleProbe;
         private ScopedDiagnosticAiLease<UnitEntityData> unmountedAttackOwnerAiLease;
         private bool unmountedAttackOwnerAiLeaseRestored = true;
+        private bool unmountedAttackOwnerAiSettleRequested;
+        private double unmountedAttackOwnerAiSettleStartedAtSeconds;
         private int unmountedAttackOwnerAiStableFrames;
         private string unmountedAttackOwnerAiLeaseError;
         private NativeModeTransitionProbe realTimeModeProbe;
@@ -356,6 +359,9 @@ namespace KingmakerMountedCombat.Diagnostics
                         break;
                     case EngineStep.AwaitMovement:
                         AwaitMovement();
+                        break;
+                    case EngineStep.AwaitUnmountedAttackOwnerAiIsolation:
+                        AwaitUnmountedAttackOwnerAiIsolation();
                         break;
                     case EngineStep.AwaitCombatEntry:
                         AwaitCombatEntry();
@@ -772,6 +778,16 @@ namespace KingmakerMountedCombat.Diagnostics
                 "The horse completed its own stock path while the owner retained position and no command ownership was duplicated.");
             if (failed != 0) { BeginCleanup(); return; }
 
+            step = EngineStep.AwaitUnmountedAttackOwnerAiIsolation;
+        }
+
+        private void AwaitUnmountedAttackOwnerAiIsolation()
+        {
+            if (!PrepareUnmountedAttackOwnerAiIsolation())
+            {
+                return;
+            }
+
             targetService = new DiagnosticCombatTargetService(logger);
             // DiagnosticCombatTargetService validates its placement against the
             // rider/owner authority. The horse has already completed an
@@ -878,12 +894,21 @@ namespace KingmakerMountedCombat.Diagnostics
                             "The exact unmounted owner/Horse AI-isolation contract is unavailable.");
                     }
 
-                    owner.Commands.InterruptAll(false);
+                    if (!unmountedAttackOwnerAiSettleRequested)
+                    {
+                        unmountedAttackOwnerAiSettleRequested = true;
+                        unmountedAttackOwnerAiSettleStartedAtSeconds = clock.Elapsed.TotalSeconds;
+                    }
                     owner.Commands.RemoveFinishedAndUpdateQueue();
                     if (!owner.Commands.Empty)
                     {
+                        if (clock.Elapsed.TotalSeconds - unmountedAttackOwnerAiSettleStartedAtSeconds <=
+                            UnmountedAttackOwnerAiSettleTimeoutSeconds)
+                        {
+                            return false;
+                        }
                         throw new InvalidOperationException(
-                            "The exact owner command surface did not become idle before AI isolation.");
+                            "The exact owner command surface did not settle within the bounded five-second pre-target window.");
                     }
 
                     unmountedAttackOwnerAiLease = new ScopedDiagnosticAiLease<UnitEntityData>(
@@ -991,11 +1016,6 @@ namespace KingmakerMountedCombat.Diagnostics
                 !owner.IsInCombat || !horse.IsInCombat || !target.IsInCombat ||
                 horse.CombatState == null || !horse.CombatState.Prepared || !horse.CombatState.CanActInCombat ||
                 !horse.CanAttack(target) || !target.Descriptor.State.IsConscious)
-            {
-                return;
-            }
-
-            if (!PrepareUnmountedAttackOwnerAiIsolation())
             {
                 return;
             }
@@ -3477,6 +3497,7 @@ namespace KingmakerMountedCombat.Diagnostics
             AwaitRealTimeMode,
             AwaitHorseSpawn,
             AwaitMovement,
+            AwaitUnmountedAttackOwnerAiIsolation,
             AwaitCombatEntry,
             AwaitRealTimeAttack,
             AwaitTurnBasedMode,
