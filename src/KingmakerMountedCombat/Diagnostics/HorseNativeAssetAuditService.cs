@@ -7,6 +7,7 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
+using KingmakerMountedCombat.Integration;
 using KingmakerMountedCombat.Logging;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -29,9 +30,13 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private static readonly string[] ReservedKmcGuids =
         {
-            "4016c7db400ab721ff125aef9e65e202",
-            "7db7c50677e39f09feef56f3831fc723",
-            "98e651899e6278d938de77af1d69bd32"
+            HorseCompanionBlueprintService.UnitGuid,
+            HorseCompanionBlueprintService.FeatureGuid,
+            HorseCompanionBlueprintService.UpgradeGuid,
+            NativeMountedControlService.MountAbilityGuid,
+            NativeMountedControlService.DismountAbilityGuid,
+            NativeMountedControlService.RiderPrimaryAbilityGuid,
+            NativeMountedControlService.MountPrimaryAbilityGuid
         };
 
         private static readonly JsonSerializerSettings JsonSettings = new JsonSerializerSettings
@@ -43,9 +48,15 @@ namespace KingmakerMountedCombat.Diagnostics
             TypeNameHandling = TypeNameHandling.None
         };
 
-        public static RuntimeSubscenarioResult Run(RuntimeRequest request, IModLogger logger)
+        public static RuntimeSubscenarioResult Run(
+            RuntimeRequest request,
+            HorseCompanionBlueprintService horseCompanion,
+            NativeMountedControlService nativeControls,
+            IModLogger logger)
         {
             if (request == null) { throw new ArgumentNullException(nameof(request)); }
+            if (horseCompanion == null) { throw new ArgumentNullException(nameof(horseCompanion)); }
+            if (nativeControls == null) { throw new ArgumentNullException(nameof(nativeControls)); }
             if (logger == null) { throw new ArgumentNullException(nameof(logger)); }
             if (!string.Equals(request.Scenario, ScenarioName, StringComparison.Ordinal))
             {
@@ -58,7 +69,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var failed = 0;
             var artifact = new JObject
             {
-                ["schemaVersion"] = 2,
+                ["schemaVersion"] = 3,
                 ["evidenceKind"] = EvidenceKind,
                 ["runId"] = request.RunId,
                 ["scenario"] = request.Scenario,
@@ -67,7 +78,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["productVersion"] = request.ProductVersion,
                 ["createdAtUtc"] = DateTimeOffset.UtcNow.ToString("o"),
                 ["loadedBlueprintCount"] = 0,
+                ["stockBlueprintCount"] = 0,
                 ["resourceNameCount"] = 0,
+                ["kmcRuntimeBlueprints"] = new JArray(),
                 ["reservedGuidCollisions"] = new JArray(),
                 ["exactHorse"] = JValue.CreateNull(),
                 ["ponyDiscovery"] = new JObject(),
@@ -82,26 +95,72 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 logger.Info("Horse native-asset audit started: enumerating the initialized Kingmaker blueprint library.");
                 IDictionary resourceNames;
-                var blueprints = LoadBlueprintLibrary(out resourceNames);
-                artifact["loadedBlueprintCount"] = blueprints.Count;
+                var loadedBlueprints = LoadBlueprintLibrary(out resourceNames);
+                artifact["loadedBlueprintCount"] = loadedBlueprints.Count;
                 artifact["resourceNameCount"] = resourceNames == null ? 0 : resourceNames.Count;
-                AddAssertion(assertions, errors, blueprints.Count > 0,
-                    "blueprint-library-initialized", "The initialized blueprint library contains " + blueprints.Count + " entries.", ref passed, ref failed);
+                AddAssertion(assertions, errors, loadedBlueprints.Count > 0,
+                    "blueprint-library-initialized", "The initialized blueprint library contains " + loadedBlueprints.Count + " entries.", ref passed, ref failed);
+
+                var runtimeExpectations = BuildRuntimeBlueprintExpectations(horseCompanion, nativeControls);
+                var runtimeBlueprints = new JArray();
+                foreach (var expectation in runtimeExpectations)
+                {
+                    var matches = loadedBlueprints.Where(item =>
+                        string.Equals(item.AssetGuid, expectation.AssetGuid, StringComparison.Ordinal)).ToList();
+                    var exactReferences = matches.Where(item => ReferenceEquals(item.Value, expectation.Value)).ToList();
+                    runtimeBlueprints.Add(new JObject
+                    {
+                        ["role"] = expectation.Role,
+                        ["assetGuid"] = expectation.AssetGuid,
+                        ["matchingGuidCount"] = matches.Count,
+                        ["exactReferenceCount"] = exactReferences.Count,
+                        ["foreignCollisionCount"] = matches.Count - exactReferences.Count,
+                        ["exactSelfOwned"] = expectation.Value != null && matches.Count == 1 && exactReferences.Count == 1,
+                        ["blueprint"] = exactReferences.Count == 1
+                            ? (JToken)BlueprintIdentity(exactReferences[0])
+                            : JValue.CreateNull()
+                    });
+                }
+                artifact["kmcRuntimeBlueprints"] = runtimeBlueprints;
+                AddAssertion(assertions, errors,
+                    runtimeBlueprints.Count == runtimeExpectations.Length &&
+                    runtimeExpectations.Select(item => item.AssetGuid).SequenceEqual(ReservedKmcGuids) &&
+                    runtimeBlueprints.All(item =>
+                        item["exactSelfOwned"] != null && item["exactSelfOwned"].Value<bool>() &&
+                        item["foreignCollisionCount"] != null && item["foreignCollisionCount"].Value<int>() == 0),
+                    "kmc-runtime-blueprints-exact-self-owned",
+                    "The initialized library contains exactly the seven reference-identical KMC Horse/native-control blueprints registered behind collision guards.",
+                    ref passed, ref failed);
+
+                var runtimeValues = new HashSet<object>(
+                    runtimeExpectations.Where(item => item.Value != null).Select(item => item.Value),
+                    ReferenceComparer.Instance);
+                var blueprints = loadedBlueprints.Where(item => !runtimeValues.Contains(item.Value)).ToList();
+                artifact["stockBlueprintCount"] = blueprints.Count;
+                AddAssertion(assertions, errors,
+                    runtimeValues.Count == runtimeExpectations.Length &&
+                    blueprints.Count == loadedBlueprints.Count - runtimeExpectations.Length,
+                    "stock-projection-excludes-only-kmc-runtime-blueprints",
+                    "The stock audit projection excludes only the seven exact reference-identical KMC runtime definitions.",
+                    ref passed, ref failed);
 
                 var reservedCollisions = new JArray();
-                foreach (var guid in ReservedKmcGuids)
+                foreach (var expectation in runtimeExpectations)
                 {
-                    var collision = blueprints.FirstOrDefault(item => string.Equals(item.AssetGuid, guid, StringComparison.Ordinal));
+                    var collision = blueprints.FirstOrDefault(item =>
+                        string.Equals(item.AssetGuid, expectation.AssetGuid, StringComparison.Ordinal));
                     reservedCollisions.Add(new JObject
                     {
-                        ["assetGuid"] = guid,
+                        ["assetGuid"] = expectation.AssetGuid,
                         ["resolved"] = collision != null,
                         ["blueprint"] = collision == null ? (JToken)JValue.CreateNull() : BlueprintIdentity(collision)
                     });
                 }
                 artifact["reservedGuidCollisions"] = reservedCollisions;
                 AddAssertion(assertions, errors, reservedCollisions.All(item => item["resolved"] != null && !item["resolved"].Value<bool>()),
-                    "reserved-kmc-guids-unclaimed", "All three deterministic KMC horse blueprint GUIDs are absent from the stock library.", ref passed, ref failed);
+                    "reserved-kmc-guids-unclaimed-by-stock",
+                    "All seven deterministic KMC Horse/native-control GUIDs are absent from the stock projection after exact KMC self-ownership is proven.",
+                    ref passed, ref failed);
 
                 var horse = blueprints.SingleOrDefault(item => string.Equals(item.AssetGuid, HorseBlueprintGuid, StringComparison.Ordinal));
                 var horseRecord = horse == null ? null : BuildUnitRecord(horse, resourceNames);
@@ -277,6 +336,22 @@ namespace KingmakerMountedCombat.Diagnostics
                 result.Add(new BlueprintEntry(guid, ReadObjectName(pair.Value), pair.Value));
             }
             return result.OrderBy(item => item.AssetGuid, StringComparer.Ordinal).ToList();
+        }
+
+        private static RuntimeBlueprintExpectation[] BuildRuntimeBlueprintExpectations(
+            HorseCompanionBlueprintService horseCompanion,
+            NativeMountedControlService nativeControls)
+        {
+            return new[]
+            {
+                new RuntimeBlueprintExpectation("horse-unit", HorseCompanionBlueprintService.UnitGuid, horseCompanion.HorseUnit),
+                new RuntimeBlueprintExpectation("horse-feature", HorseCompanionBlueprintService.FeatureGuid, horseCompanion.HorseFeature),
+                new RuntimeBlueprintExpectation("horse-upgrade", HorseCompanionBlueprintService.UpgradeGuid, horseCompanion.HorseUpgrade),
+                new RuntimeBlueprintExpectation("mount-ability", NativeMountedControlService.MountAbilityGuid, nativeControls.MountAbility),
+                new RuntimeBlueprintExpectation("dismount-ability", NativeMountedControlService.DismountAbilityGuid, nativeControls.DismountAbility),
+                new RuntimeBlueprintExpectation("rider-primary-ability", NativeMountedControlService.RiderPrimaryAbilityGuid, nativeControls.RiderPrimaryAbility),
+                new RuntimeBlueprintExpectation("mount-primary-ability", NativeMountedControlService.MountPrimaryAbilityGuid, nativeControls.MountPrimaryAbility)
+            };
         }
 
         private static JObject BuildUnitRecord(BlueprintEntry entry, IDictionary resourceNames)
@@ -941,6 +1016,20 @@ namespace KingmakerMountedCombat.Diagnostics
 
             public string AssetGuid { get; }
             public string Name { get; }
+            public object Value { get; }
+        }
+
+        private sealed class RuntimeBlueprintExpectation
+        {
+            public RuntimeBlueprintExpectation(string role, string assetGuid, object value)
+            {
+                Role = role;
+                AssetGuid = assetGuid;
+                Value = value;
+            }
+
+            public string Role { get; }
+            public string AssetGuid { get; }
             public object Value { get; }
         }
 

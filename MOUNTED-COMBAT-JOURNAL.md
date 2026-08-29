@@ -1,5 +1,12 @@
 # Mounted Combat journal
 
+## 2026-08-29T01:50:00Z - dev.2 repairs the stock portrait audit boundary before live observation
+
+- Published dev.1 checkpoint `d67a726d0a1645934d4eadf400ee55f3eb0626c5` and its immutable package/suite passed an attached targeted `WhatIf` with explicit zero mutation. The package/manifest/DLL hashes are `f2c6cb5c43aa14c47d2343108e844d4b5c140c6fd75865ed29ab736223c147e3` / `268e6c9115266db13973f97dda910a6ddc91b8aa6e8423c4b6e9cda0b8305410` / `ffef98ac284920617ada8c40860d0d3c1662917c9b565c268f77746576d66605`; MVID `69c08786-ff0c-4451-b878-9a299b9d3e2e`; suite snapshot `b762a35c9039492c459a19a01913b83ef4a045d56ad82f9244df6003c707e9cf`.
+- No live process was launched. Review of `CompositionRoot.Update` showed that KMC Horse and native-control definitions are registered before runtime automation invokes the audit. The dev.1 schema therefore could falsely call exact KMC objects stock collisions and contaminate Horse/Pony portrait results with KMC's current Mammoth fallback.
+- Dev.2 schema v3 receives the two production registration services, proves seven exact reference-identical KMC objects, filters only those objects, searches the remaining stock projection, and keeps the production pre-registration collision guards bound by source regression. Historical schema v1/v2 evidence remains valid.
+- Observation-only gates pass source `21/0`, Release, component `265/0`, harness `232/0`, strict synthetic schema-v3 evidence, and diff. Next is a coherent guarded publication, clean package-bound suite and WhatIf, then the single native portrait observation with audit-before-read.
+
 ## 2026-08-28T21:15:00Z - Phase 3C branches from accepted dev.27 and selects the native ability seam
 
 - Verified clean local/upstream/remote equality at accepted Horse stabilization HEAD `8ff5813b36eb1af04e1329a1993b2476ae6ad691`, then created `codex/mounted-combat-phase3c-native-controls` from that exact commit. No game/build/launcher/transaction/lock/sentinel/deployment ambiguity existed.

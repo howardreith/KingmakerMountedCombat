@@ -4585,7 +4585,7 @@ function Assert-KmcHorseNativeAssetAuditEvidence {
     Assert-KmcNotHardLink $path 'horse native-asset audit evidence'
     $before = Get-Item -LiteralPath $path -Force
     $artifact = Read-KmcJson $path
-    if (-not (Test-KmcExactJsonInteger $artifact.schemaVersion) -or [long]$artifact.schemaVersion -notin @(1,2) -or
+    if (-not (Test-KmcExactJsonInteger $artifact.schemaVersion) -or [long]$artifact.schemaVersion -notin @(1,2,3) -or
         [string]$artifact.evidenceKind -cne 'horse-asset-audit') {
         throw 'Horse native-asset audit schema or evidence kind is invalid.'
     }
@@ -4595,9 +4595,12 @@ function Assert-KmcHorseNativeAssetAuditEvidence {
         'stockCompanionBaseline','companionSelections','ranger','paladin','assertions',
         'assertionPassCount','assertionFailCount','errors','status'
     )
-    if ([long]$artifact.schemaVersion -eq 2) { $expectedHorseAuditProperties += 'portraitDiscovery' }
+    if ([long]$artifact.schemaVersion -ge 2) { $expectedHorseAuditProperties += 'portraitDiscovery' }
+    if ([long]$artifact.schemaVersion -eq 3) {
+        $expectedHorseAuditProperties += @('stockBlueprintCount','kmcRuntimeBlueprints')
+    }
     Assert-KmcExactProperties $artifact $expectedHorseAuditProperties 'horse native-asset audit evidence'
-    if ([long]$artifact.schemaVersion -eq 2) {
+    if ([long]$artifact.schemaVersion -ge 2) {
         Assert-KmcExactProperties $artifact.portraitDiscovery @(
             'blueprintPortraitCount','namedHorsePonyBlueprintPortraits','horsePonyUnitPortraitOwners',
             'horsePonyIconOwners','exactNativeHorsePortrait'
@@ -4661,14 +4664,53 @@ function Assert-KmcHorseNativeAssetAuditEvidence {
             -not (Test-KmcExactJsonInteger $artifact.resourceNameCount) -or [long]$artifact.resourceNameCount -le 0) {
             throw 'PASS horse native-asset audit lacks initialized blueprint/resource counts.'
         }
-        if ($artifact.reservedGuidCollisions -isnot [Array] -or @($artifact.reservedGuidCollisions).Count -ne 3) {
-            throw 'PASS horse native-asset audit must report all three reserved KMC GUIDs.'
-        }
         $reserved = @(
             '4016c7db400ab721ff125aef9e65e202',
             '7db7c50677e39f09feef56f3831fc723',
             '98e651899e6278d938de77af1d69bd32'
         )
+        if ([long]$artifact.schemaVersion -eq 3) {
+            $expectedKmc = [ordered]@{
+                'horse-unit'='4016c7db400ab721ff125aef9e65e202'
+                'horse-feature'='7db7c50677e39f09feef56f3831fc723'
+                'horse-upgrade'='98e651899e6278d938de77af1d69bd32'
+                'mount-ability'='f053faad986631688defa003cd7bda0e'
+                'dismount-ability'='3af2b81f4d72bbb30501fa730fcdf36e'
+                'rider-primary-ability'='27364df661b3c121eabb97a31aa73a83'
+                'mount-primary-ability'='f88a50d6fdbebbd709c3e323d2f52f5e'
+            }
+            $reserved = @($expectedKmc.Values)
+            if (-not (Test-KmcExactJsonInteger $artifact.stockBlueprintCount) -or
+                [long]$artifact.stockBlueprintCount -le 0 -or
+                [long]$artifact.loadedBlueprintCount - [long]$artifact.stockBlueprintCount -ne $expectedKmc.Count -or
+                $artifact.kmcRuntimeBlueprints -isnot [Array] -or
+                @($artifact.kmcRuntimeBlueprints).Count -ne $expectedKmc.Count) {
+                throw 'PASS schema-v3 horse audit stock projection or KMC runtime-blueprint count is invalid.'
+            }
+            foreach ($pair in $expectedKmc.GetEnumerator()) {
+                $matches = @($artifact.kmcRuntimeBlueprints | Where-Object {
+                    [string]$_.role -ceq [string]$pair.Key -and [string]$_.assetGuid -ceq [string]$pair.Value
+                })
+                if ($matches.Count -ne 1) { throw "PASS schema-v3 horse audit omitted exact KMC runtime blueprint: $($pair.Key)" }
+                $record = $matches[0]
+                Assert-KmcExactProperties $record @(
+                    'role','assetGuid','matchingGuidCount','exactReferenceCount','foreignCollisionCount','exactSelfOwned','blueprint'
+                ) 'horse KMC runtime-blueprint ownership record'
+                if (-not (Test-KmcExactJsonInteger $record.matchingGuidCount) -or [long]$record.matchingGuidCount -ne 1 -or
+                    -not (Test-KmcExactJsonInteger $record.exactReferenceCount) -or [long]$record.exactReferenceCount -ne 1 -or
+                    -not (Test-KmcExactJsonInteger $record.foreignCollisionCount) -or [long]$record.foreignCollisionCount -ne 0 -or
+                    $record.exactSelfOwned -ne $true -or $null -eq $record.blueprint) {
+                    throw "PASS schema-v3 horse audit did not prove exact self-ownership: $($pair.Key)"
+                }
+                Assert-KmcExactProperties $record.blueprint @('name','assetGuid','type') 'horse KMC runtime-blueprint identity'
+                if ([string]$record.blueprint.assetGuid -cne [string]$pair.Value) {
+                    throw "PASS schema-v3 horse audit runtime-blueprint identity is wrong: $($pair.Key)"
+                }
+            }
+        }
+        if ($artifact.reservedGuidCollisions -isnot [Array] -or @($artifact.reservedGuidCollisions).Count -ne $reserved.Count) {
+            throw "PASS horse native-asset audit must report all $($reserved.Count) reserved KMC GUIDs."
+        }
         foreach ($guid in $reserved) {
             $matches = @($artifact.reservedGuidCollisions | Where-Object { [string]$_.assetGuid -ceq $guid })
             if ($matches.Count -ne 1) { throw "PASS horse audit omitted reserved GUID: $guid" }

@@ -8867,6 +8867,21 @@ try {
             $horseAuditSource.Contains('"exact-native-horse-portrait-absent"') -and
             $horseAuditSource.Contains('"native-portrait-search-complete"')) `
             'horse audit does not preserve the bounded native Horse/Pony portrait and icon search contract'
+        Assert-Test ($horseAuditSource.Contains('["schemaVersion"] = 3') -and
+            $horseAuditSource.Contains('["kmcRuntimeBlueprints"] = new JArray()') -and
+            $horseAuditSource.Contains('runtimeValues.Contains(item.Value)') -and
+            $horseAuditSource.Contains('ReferenceEquals(item.Value, expectation.Value)') -and
+            $horseAuditSource.Contains('"kmc-runtime-blueprints-exact-self-owned"') -and
+            $horseAuditSource.Contains('"reserved-kmc-guids-unclaimed-by-stock"') -and
+            $horseAuditSource.Contains('NativeMountedControlService.MountAbilityGuid')) `
+            'horse audit does not distinguish reference-identical KMC runtime definitions from its stock portrait/asset projection'
+        $horseBlueprintSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\HorseCompanionBlueprintService.cs')
+        $nativeControlSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\NativeMountedControlService.cs')
+        Assert-Test ($horseBlueprintSource.Contains('AssertReservedGuidAbsent(library, blueprintList, UnitGuid);') -and
+            $horseBlueprintSource.Contains('AssertReservedGuidAbsent(library, blueprintList, FeatureGuid);') -and
+            $horseBlueprintSource.Contains('AssertReservedGuidAbsent(library, blueprintList, UpgradeGuid);') -and
+            $nativeControlSource.Contains('AssertGuidAbsent(library, guid);')) `
+            'KMC Horse/native-control production registration no longer rejects pre-existing deterministic-GUID collisions'
     }
 
     Invoke-HarnessTest 'horse native-asset audit validator binds exact manifested evidence and subscenario totals' {
@@ -8900,16 +8915,32 @@ try {
             strength=13;dexterity=13;constitution=14;intelligence=2;wisdom=11;charisma=4;speedFeet=40
             componentTypes=@('Kingmaker.UnitLogic.FactLogic.AddClassLevels');body=$horseBody;view=$horseView
         }
-        $reserved = @(
-            [ordered]@{assetGuid='4016c7db400ab721ff125aef9e65e202';resolved=$false;blueprint=$null},
-            [ordered]@{assetGuid='7db7c50677e39f09feef56f3831fc723';resolved=$false;blueprint=$null},
-            [ordered]@{assetGuid='98e651899e6278d938de77af1d69bd32';resolved=$false;blueprint=$null}
-        )
+        $kmcGuidByRole = [ordered]@{
+            'horse-unit'='4016c7db400ab721ff125aef9e65e202'
+            'horse-feature'='7db7c50677e39f09feef56f3831fc723'
+            'horse-upgrade'='98e651899e6278d938de77af1d69bd32'
+            'mount-ability'='f053faad986631688defa003cd7bda0e'
+            'dismount-ability'='3af2b81f4d72bbb30501fa730fcdf36e'
+            'rider-primary-ability'='27364df661b3c121eabb97a31aa73a83'
+            'mount-primary-ability'='f88a50d6fdbebbd709c3e323d2f52f5e'
+        }
+        $kmcRuntimeBlueprints = @($kmcGuidByRole.GetEnumerator() | ForEach-Object {
+            [ordered]@{
+                role=[string]$_.Key;assetGuid=[string]$_.Value;matchingGuidCount=1;exactReferenceCount=1
+                foreignCollisionCount=0;exactSelfOwned=$true
+                blueprint=[ordered]@{name=('KMC_'+$_.Key);assetGuid=[string]$_.Value;type='Kingmaker.Blueprints.BlueprintScriptableObject'}
+            }
+        })
+        $reserved = @($kmcGuidByRole.Values | ForEach-Object {
+            [ordered]@{assetGuid=[string]$_;resolved=$false;blueprint=$null}
+        })
         $horseArtifact = [ordered]@{
-            schemaVersion=1;evidenceKind='horse-asset-audit';runId=$horseRequest.runId;scenario=$horseRequest.scenario
+            schemaVersion=3;evidenceKind='horse-asset-audit';runId=$horseRequest.runId;scenario=$horseRequest.scenario
             branch=$horseRequest.branch;commit=$horseRequest.commit;productVersion=$horseRequest.productVersion;createdAtUtc=[DateTimeOffset]::UtcNow.ToString('o')
-            loadedBlueprintCount=100;resourceNameCount=100;reservedGuidCollisions=$reserved;exactHorse=$horseRecord
+            loadedBlueprintCount=100;stockBlueprintCount=93;resourceNameCount=100;kmcRuntimeBlueprints=$kmcRuntimeBlueprints
+            reservedGuidCollisions=$reserved;exactHorse=$horseRecord
             ponyDiscovery=[ordered]@{resourceMatches=@([ordered]@{assetId='pony';resourceName='Pony.prefab'});candidateUnits=@($horseRecord,$ponyRecord);ponyCandidateUnits=@($ponyRecord);reverseReferences=@();reverseReferenceTruncated=$false}
+            portraitDiscovery=[ordered]@{blueprintPortraitCount=1;namedHorsePonyBlueprintPortraits=@();horsePonyUnitPortraitOwners=@();horsePonyIconOwners=@();exactNativeHorsePortrait=$null}
             stockCompanionBaseline=[ordered]@{feature=[ordered]@{};unit=[ordered]@{};upgrade=[ordered]@{};addPet=[ordered]@{}}
             companionSelections=@([ordered]@{assetGuid='selection'});ranger=[ordered]@{class='RangerClass'};paladin=[ordered]@{class='PaladinClass'}
             assertions=@([ordered]@{name='synthetic-contract';status='PASS';detail='Synthetic validator contract.'})

@@ -1,5 +1,15 @@
 # Autonomous resume
 
+## Phase 3C dev.2 stock-only portrait observation is offline-green - 2026-08-29T01:50:00Z
+
+- Clean published parent `d67a726d0a1645934d4eadf400ee55f3eb0626c5` produced dev.1 package/manifest/DLL SHA-256 `f2c6cb5c43aa14c47d2343108e844d4b5c140c6fd75865ed29ab736223c147e3` / `268e6c9115266db13973f97dda910a6ddc91b8aa6e8423c4b6e9cda0b8305410` / `ffef98ac284920617ada8c40860d0d3c1662917c9b565c268f77746576d66605`; MVID `69c08786-ff0c-4451-b878-9a299b9d3e2e`. Stable suite `20260828T235500Z-phase3c-dev1-portrait-audit-suite1` has snapshot SHA-256 `b762a35c9039492c459a19a01913b83ef4a045d56ad82f9244df6003c707e9cf`.
+- An attached `horse-native-asset-audit -WhatIf` completed with explicit zero-mutation `PASS`. No live observation was launched. Before spending that one process, source-order review proved the audit ran after KMC had registered its Horse trio and four native-control abilities, so schema v2 would misclassify exact KMC self-owned definitions as stock GUID collisions and could include them in native portrait candidates.
+- Version `0.1.0-phase3c-dev.2` fixes only observation instrumentation. Schema v3 first proves the exact seven GUIDs resolve to the reference-identical objects owned by `HorseCompanionBlueprintService` and `NativeMountedControlService`, then excludes only those exact references from a stock projection. Stock collision guards remain independently source-bound, and every Horse/Pony portrait, icon, unit, reference, Ranger, and Paladin search now uses the filtered stock projection.
+- Applicable offline gates pass: source/prohibited payload `21/0`, clean Release build, component `265/0`, harness/protocol `232/0`, strict schema-v3 synthetic evidence, and diff check. No production relationship, command, movement, combat, UI, pose, lifecycle, or cleanup behavior changed.
+- Exact next action: commit and guarded-publish this observation-only checkpoint, create a clean dev.2 package and fresh package-bound stable suite, pass one targeted WhatIf, then run the single audited native Horse/Pony portrait observation. Audit exact external restoration before reading its evidence. Use a suitable native Kingmaker Horse/Pony portrait only if that evidence proves one; otherwise create original redistributable KMC Horse art.
+
+This entry supersedes the pending portrait-search portion of the Phase 3C intake entry below. It does not supersede the native-control implementation identities or dev.27 accepted foundation.
+
 ## Phase 3C native-controls contract intake complete - 2026-08-28T21:15:00Z
 
 - Exact accepted input `codex/mounted-combat-phase3-horse` HEAD `8ff5813b36eb1af04e1329a1993b2476ae6ad691` was clean and equal locally/upstream/remotely before branching. New branch `codex/mounted-combat-phase3c-native-controls` was created from that exact commit; dev.27 package/evidence remain immutable.

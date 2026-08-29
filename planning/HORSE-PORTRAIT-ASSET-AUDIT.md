@@ -20,7 +20,8 @@ Candidate order:
 
 The supplied Kingmaker and YouTube/Wrath screenshots are evidence only. They may not be cropped, traced, transformed, committed, or shipped. No Wrath asset may be used.
 
+The runtime audit executes after KMC registration. Schema v3 must therefore prove the exact Horse unit/feature/upgrade and four native-control abilities are reference-identical KMC-owned definitions, exclude only those seven references, and scan the resulting stock projection. A matching GUID owned by any other object remains a fatal collision. This prevents the current KMC Mammoth fallback from being rediscovered and mislabeled as a native Horse candidate.
+
 ## Acceptance
 
 The final Horse unit must expose large, medium, and small Horse art; the party portrait, Ranger selection, Horse feature, and native mounted controls must not show Mammoth art. Asset provenance, source files, dimensions, package paths, and hashes must be recorded. The Mammoth keeps its own portrait unchanged.
-

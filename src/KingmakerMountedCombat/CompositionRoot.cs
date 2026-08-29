@@ -56,6 +56,7 @@ namespace KingmakerMountedCombat
                     playerAction,
                     combat,
                     horseCompanion,
+                    nativeControls,
                     settings,
                     Main.InvokeRegisteredToggleForAutomation);
                 if (runtimeAutomation != null && !runtimeAutomation.IsManualReview)

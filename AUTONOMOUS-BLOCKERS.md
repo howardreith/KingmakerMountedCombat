@@ -1,5 +1,15 @@
 # Autonomous blockers
 
+## No hard blocker; corrected stock-only portrait observation is pending - 2026-08-29T01:50:00Z
+
+Status: `IN PROGRESS`.
+
+The dev.1 package and stable suite passed an explicit attached `WhatIf` with zero mutation, and no live portrait process was spent. A prelaunch source-order audit found and repaired an observation-only defect: KMC's already-registered Horse trio and four native abilities must be proven as exact self-owned references and excluded before stock asset/portrait scanning. Dev.2 is offline-green at source/build/component/harness totals `21/Release/265/232` with strict schema-v3 validation.
+
+One clean publication/package/suite/WhatIf and one audited native portrait observation remain. Native portrait suitability is an evidence decision, not a blocker: absent a suitable exact Kingmaker asset, original redistributable KMC Horse art is authorized. Final portrait quality, actual physical target-click feel, attack-animation readability, locomotion feel, and pose remain human gates. No repository, transaction, credential, architecture, or restoration blocker is active.
+
+This entry supersedes the current-next-action portion of the Phase 3C intake status below.
+
 ## Phase 3C native-controls tranche - no current hard blocker - 2026-08-28T21:15:00Z
 
 Status: `IN PROGRESS`.
