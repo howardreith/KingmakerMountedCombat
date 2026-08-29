@@ -59,6 +59,7 @@
     <Compile Include="ReactiveBooleanValueReaderTests.cs" />
     <Compile Include="PresentationOverlayEvidenceTests.cs" />
     <Compile Include="ScopedDiagnosticAiLeaseTests.cs" />
+    <Compile Include="ExpectedAttackDispatchLedgerTests.cs" />
     <Compile Include="ExactAppendOnlyArrayLeaseTests.cs" />
     <Compile Include="HorseCompanionLifeTransitionPolicyTests.cs" />
     <Compile Include="HorseCompanionProgressionPolicyTests.cs" />
@@ -81,6 +82,9 @@
     </Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\BoundaryFailureDrain.cs">
       <Link>Shared\BoundaryFailureDrain.cs</Link>
+    </Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\ExpectedAttackDispatchLedger.cs">
+      <Link>Shared\ExpectedAttackDispatchLedger.cs</Link>
     </Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\BoundaryScenarioEvidenceContract.cs">
       <Link>Shared\BoundaryScenarioEvidenceContract.cs</Link>

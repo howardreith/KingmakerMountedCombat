@@ -1,5 +1,12 @@
 # Mounted Combat journal
 
+## 2026-08-29T16:54:31Z - user authorizes one final pass; dev.9 sequential dispatch ledger is offline-green
+
+- Re-intake at clean published `d2045d853e38604dee52df155d8a7ab8076f2b90` passed exact repository/origin/branch, no Git/runtime/process/lock/sentinel/deployment ambiguity, and independent suite-6 external-state audit.
+- Dev.9 changes diagnostic state only. `ExpectedAttackDispatchLedger` keeps `Started` sticky so pre-dispatch rule classification is unchanged, while `MarkCount` admits and records each independently validated sequential attack. `DiagnosticCombatTargetService` retains exact target identity, Active state, and in-state gates. The TB Horse row additionally requires and emits a one-mark delta.
+- Regression coverage proves two sequential valid marks and source-binds the service/row integration. Final gates pass source `22/0`, Release, component `267/0`, visual/source-order `18/0`, harness/protocol `235/0`, assembly `378/0`, PowerShell `26/0`, JSON `7/0`, diff, and prohibited payload. Dirty DLL SHA-256/MVID are `88260a92c4841dca7ceee0d5f5d33efdd28513922b7133a075d93de752a696c5` / `d2f4321e-271f-4ba4-8959-ad8ec4cf56c5` and are not package identity.
+- The user-authorized sequence is now publication, clean package, fresh suite, WhatIf/audit, and one Horse aggregate. Targeted Mammoth and final UMM installation are conditional on a complete Horse PASS; no second repair cycle follows a genuine failure.
+
 ## 2026-08-29T16:02:32Z - dev.8 native click succeeds; reused diagnostic dispatch marker activates bounded stop
 
 - Exact published input is `codex/mounted-combat-phase3c-native-controls` at `c2fce74379a51a07fbda5b20ac16c010362b7b02`; production implementation remains `d563676ff26fa253b3b49c6c7e9aa9f749268836`. Dev.8 package/manifest/DLL SHA-256 are `add4ee89e7cabf94464177744a61352cc3f1d14f47c485b60c71aaec15a40464` / `dc902e228e934d692ba8754d152bec92f786db0f00f90496c3617408d3b698fe` / `23a61d98f8136e1ad06bad6a68f348885c32c5320dacab6fcd8560c8ab89373e`; MVID `3e45aaa7-0539-49d1-81c7-bd0b524c1c21`; suite `20260829T143556Z-phase3c-dev8-native-controls-suite6` snapshot `1ea195fc1eeb98ec2f33adf724ebb5e7aeef8c62837a3a5bd86d610a8edfb1b9`.

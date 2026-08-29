@@ -59,6 +59,7 @@ namespace KingmakerMountedCombat.Tests
             StopEarlyCaptureBoundaryTests.Register(runner);
             PresentationOverlayEvidenceTests.Register(runner);
             ScopedDiagnosticAiLeaseTests.Register(runner);
+            ExpectedAttackDispatchLedgerTests.Register(runner);
             ExactAppendOnlyArrayLeaseTests.Register(runner);
             HorseCompanionLifeTransitionPolicyTests.Register(runner);
             HorseCompanionProgressionPolicyTests.Register(runner);

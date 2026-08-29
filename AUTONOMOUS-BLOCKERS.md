@@ -1,5 +1,15 @@
 # Autonomous blockers
 
+## No current hard blocker; dev.9 final aggregate is explicitly authorized - 2026-08-29T16:54:31Z
+
+Status: `IN PROGRESS`.
+
+The user explicitly superseded the dev.8 bounded stop by authorizing one narrow expected-dispatch lifecycle correction and one fresh aggregate. Dev.9 preserves exact target/state admission and sticky pre-first-dispatch classification, but records each sequential validated Rider/Horse action rather than rejecting every action after the first. The Horse-turn scenario now requires an exact one-mark increment as well as the native target click.
+
+Complete applicable gates pass `22/Release/267/18/235/378`; PowerShell/JSON parsers, diff, and prohibited payload pass. No production mounted behavior changed. One clean publication/package/suite/WhatIf and one audited Horse aggregate remain. If green, the existing authorization admits exactly one targeted Mammoth regression, final records, and guarded UMM installation. If the aggregate exposes a genuine player-facing or unchanged terminal predicate failure, stop without another repair loop.
+
+This entry supersedes the dev.8 active blocker only as current next-action authority; the dev.8 `57/1` result remains immutable and uncredited.
+
 ## Phase 3C bounded stop: TB Horse-primary terminal command remains unqualified - 2026-08-29T16:02:32Z
 
 Status: `BLOCKED — DIAGNOSTIC QUALIFICATION BOUNDARY`.

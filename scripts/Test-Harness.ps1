@@ -4872,6 +4872,7 @@ try {
 
     Invoke-HarnessTest 'combat target source uses isolated group exact native primary raw AI no-loot and zero weapon mutation' {
         $targetSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\DiagnosticCombatTargetService.cs'))
+        $dispatchLedgerSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\ExpectedAttackDispatchLedger.cs'))
         $targetLifecycleSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\DiagnosticCombatTargetLifecycle.cs'))
         $nonPairLeaseSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\DiagnosticNonPairPartyAiLease.cs'))
         $scopedAiLeaseSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\ScopedDiagnosticAiLease.cs'))
@@ -4906,6 +4907,12 @@ try {
             $targetSource.Contains('target.IsInFogOfWar = false;') -and
             $targetSource.Contains('target.View.SetVisible(true, true);') -and
             $targetSource.Contains('TargetVisibleForPlayer = target.IsVisibleForPlayer;')) 'diagnostic player-click visibility is not exact-target-only, explicit, and independently verified'
+        Assert-Test ($targetSource.Contains('ExpectedAttackDispatchLedger expectedAttackDispatchLedger') -and
+            $targetSource.Contains('public int ExpectedAttackDispatchMarkCount => expectedAttackDispatchLedger.MarkCount;') -and
+            $targetSource.Contains('return expectedAttackDispatchLedger.Mark();') -and
+            -not $targetSource.Contains('expectedAttackDispatchStarted ||') -and
+            $dispatchLedgerSource.Contains('Started = true;') -and
+            $dispatchLedgerSource.Contains('MarkCount++;')) 'diagnostic expected-dispatch boundary still rejects a second independently validated action or lost its sticky pre-dispatch classification'
         Assert-Test ($targetSource.Contains('combatMemoryObserverGroup = rider.Group;') -and
             $targetSource.Contains('combatMemoryTargetGroup = target.Group;') -and
             $targetSource.Contains('targetSleeplessBefore = target.Sleepless;') -and
@@ -9180,6 +9187,8 @@ try {
         Assert-Test ($unmountedEngineSource.Contains('private const double TurnBasedTurnAcquisitionTimeoutSeconds = 20.0;') -and
             $unmountedEngineSource.Contains('private const double TurnBasedAttackTimeoutSeconds = 20.0;') -and
             $unmountedEngineSource.Contains('private const double MountedAlphaAdmissionTimeoutSeconds = 20.0;') -and
+            $unmountedEngineSource.Contains('observations["nativeTbHorseExpectedDispatchMarkDelta"] =') -and
+            $unmountedEngineSource.Contains('targetService.ExpectedAttackDispatchMarkCount - dispatchMarkCountBefore == 1') -and
             $unmountedEngineSource.Contains('step = EngineStep.AwaitMountedAlphaAdmission;') -and
             $unmountedEngineSource.Contains('private void AwaitMountedAlphaAdmission()') -and
             $unmountedEngineSource.Contains('var availability = playerAction.GetAvailability();') -and

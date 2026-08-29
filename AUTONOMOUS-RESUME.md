@@ -1,5 +1,15 @@
 # Autonomous resume
 
+## Phase 3C dev.9 sequential dispatch-ledger repair is offline-green - 2026-08-29T16:54:31Z
+
+- The user explicitly authorized one narrow diagnostic-marker correction, one fresh audited Horse aggregate, the targeted Mammoth regression if green, and final guarded installation. Intake re-proved clean published `codex/mounted-combat-phase3c-native-controls` at local/upstream `d2045d853e38604dee52df155d8a7ab8076f2b90`, exact origin, no Git operation/lock, no relevant process, no runtime lock/sentinel/deployment, and independent suite-6 audit PASS.
+- Version `0.1.0-phase3c-dev.9` replaces only the one-shot diagnostic Boolean with `ExpectedAttackDispatchLedger`. Every exact target/state eligibility check remains in `DiagnosticCombatTargetService`; each independently validated sequential dispatch now increments one mark while `Started` remains sticky for the unchanged pre-dispatch incoming-rule boundary. The Horse-turn row records and requires an exact `+1` mark delta before crediting the native click.
+- A component regression proves first and second validated dispatches are admitted exactly once each. Harness source contracts forbid restoration of the one-shot rejection and bind the live Horse-turn delta. No production integration/domain relationship, command, action-economy, movement, animation, pose, UI, save, or cleanup implementation changed.
+- Complete dirty-tree dev.9 gate passes source `22/0`, clean Release build, component `267/0`, visual/source-order `18/0`, harness/protocol `235/0`, exact assembly `378/0` (`354` Kingmaker + `24` Wrath), PowerShell parser `26/0`, JSON parser `7/0`, diff, and prohibited-payload validation. Dirty-build DLL SHA-256/MVID `88260a92c4841dca7ceee0d5f5d33efdd28513922b7133a075d93de752a696c5` / `d2f4321e-271f-4ba4-8959-ad8ec4cf56c5` are not package identity.
+- Exact next action: coherent guarded publication; clean-head dev.9 package and immutable hashes; fresh stable-suite admission; targeted WhatIf and independent zero-mutation audit; then exactly one fresh Horse native-controls aggregate. Audit complete restoration before evidence. Run the one targeted Mammoth regression and final install only if the Horse aggregate passes every unchanged terminal/cardinality/ownership/animation/cleanup predicate.
+
+This entry supersedes the bounded-stop next action below because the user explicitly authorized the one additional correction and aggregate. Dev.6-dev.8 evidence remains immutable and uncredited.
+
 ## Phase 3C dev.8 bounded aggregate stops at a reused one-shot dispatch marker - 2026-08-29T16:02:32Z
 
 - Exact branch state before this record: clean published `codex/mounted-combat-phase3c-native-controls` at local/upstream/remote `c2fce74379a51a07fbda5b20ac16c010362b7b02`. Accepted Horse-stabilization input remains `8ff5813b36eb1af04e1329a1993b2476ae6ad691`; Phase 3C production implementation remains `d563676ff26fa253b3b49c6c7e9aa9f749268836`. The later commits through `c2fce74` are diagnostic/tooling descendants and are not relabeled as production implementation.

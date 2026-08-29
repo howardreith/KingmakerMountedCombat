@@ -102,6 +102,7 @@
     <Compile Include="CompositionRoot.cs" />
     <Compile Include="Diagnostics\DiagnosticSettings.cs" />
     <Compile Include="Diagnostics\DiagnosticCombatTargetService.cs" />
+    <Compile Include="Diagnostics\ExpectedAttackDispatchLedger.cs" />
     <Compile Include="Diagnostics\DiagnosticNonPairPartyAiLease.cs" />
     <Compile Include="Diagnostics\HorseNativeAssetAuditService.cs" />
     <Compile Include="Diagnostics\HorseCompanionBlueprintRegistrationAuditService.cs" />

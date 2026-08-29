@@ -2151,16 +2151,21 @@ namespace KingmakerMountedCombat.Diagnostics
 
             SelectionManager.Instance.SelectUnit(horse.View, true, true, false);
             ruleProbe.Arm(owner, horse, horse, target, 20);
+            var dispatchMarkCountBefore = targetService.ExpectedAttackDispatchMarkCount;
             var dispatchStarted = targetService.BeginExpectedAttackDispatch(target);
+            observations["nativeTbHorseExpectedDispatchMarkDelta"] =
+                targetService.ExpectedAttackDispatchMarkCount - dispatchMarkCountBefore;
             var clicked = TryNativeAbilityTargetClick(
                 horse,
                 nativeControls.MountPrimaryAbility,
                 target,
                 "nativeTbHorsePrimaryClick");
             turnBasedAttackIssuedAtSeconds = clock.Elapsed.TotalSeconds;
-            Check(dispatchStarted && clicked,
+            Check(dispatchStarted &&
+                    targetService.ExpectedAttackDispatchMarkCount - dispatchMarkCountBefore == 1 &&
+                    clicked,
                 "human-input-tb-horse-primary-horse-turn",
-                "The actual selected-ability cursor admitted the hostile target for Horse Primary on the Horse's native turn.");
+                "The expected-dispatch ledger re-armed once and the actual selected-ability cursor admitted the hostile target for Horse Primary on the Horse's native turn.");
             if (failed != 0) { BeginCleanup(); return; }
             step = EngineStep.AwaitMountedTurnHorseAttack;
         }

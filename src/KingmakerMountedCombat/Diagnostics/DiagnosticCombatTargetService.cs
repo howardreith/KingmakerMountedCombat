@@ -57,7 +57,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool targetSleeplessLeaseActive;
         private bool combatMemoryQueued;
         private bool combatMemoryRemoved = true;
-        private bool expectedAttackDispatchStarted;
+        private readonly ExpectedAttackDispatchLedger expectedAttackDispatchLedger =
+            new ExpectedAttackDispatchLedger();
         private bool runtimeFactionDestroyPending;
         private bool disposed;
 
@@ -159,7 +160,9 @@ namespace KingmakerMountedCombat.Diagnostics
 
         public int PreDispatchIncomingDamageRuleCount { get; private set; }
 
-        public bool ExpectedAttackDispatchStarted => expectedAttackDispatchStarted;
+        public bool ExpectedAttackDispatchStarted => expectedAttackDispatchLedger.Started;
+
+        public int ExpectedAttackDispatchMarkCount => expectedAttackDispatchLedger.MarkCount;
 
         public DiagnosticIncomingAttackSnapshot FirstIncomingAttack { get; private set; }
 
@@ -533,14 +536,13 @@ namespace KingmakerMountedCombat.Diagnostics
         public bool BeginExpectedAttackDispatch(UnitEntityData expectedTarget)
         {
             ThrowIfDisposed();
-            if (expectedAttackDispatchStarted || expectedTarget == null || expectedTarget != target ||
+            if (expectedTarget == null || expectedTarget != target ||
                 State != DiagnosticCombatTargetState.Active || !expectedTarget.IsInState)
             {
                 return false;
             }
 
-            expectedAttackDispatchStarted = true;
-            return true;
+            return expectedAttackDispatchLedger.Mark();
         }
 
         public void OnEventAboutToTrigger(RuleAttackWithWeapon evt)
@@ -551,7 +553,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
 
             IncomingAttackRuleCount++;
-            var beforeExpectedDispatch = !expectedAttackDispatchStarted;
+            var beforeExpectedDispatch = !expectedAttackDispatchLedger.Started;
             if (beforeExpectedDispatch)
             {
                 PreDispatchIncomingAttackRuleCount++;
@@ -583,7 +585,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
 
             IncomingDamageRuleCount++;
-            var beforeExpectedDispatch = !expectedAttackDispatchStarted;
+            var beforeExpectedDispatch = !expectedAttackDispatchLedger.Started;
             if (beforeExpectedDispatch)
             {
                 PreDispatchIncomingDamageRuleCount++;

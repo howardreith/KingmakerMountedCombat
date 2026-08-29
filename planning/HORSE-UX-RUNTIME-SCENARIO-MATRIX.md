@@ -1,8 +1,10 @@
 # Horse UX runtime scenario matrix
 
-Status: `BLOCKED — DIAGNOSTIC QUALIFICATION BOUNDARY`
+Status: `IN PROGRESS`
 
 Date: 2026-08-28
+
+Superseding authorization and repair (2026-08-29): the user authorized one additional diagnostic-marker correction and aggregate. Dev.9 preserves exact target/state admission and sticky pre-first-dispatch classification while recording each sequential validated action; the TB Horse row must prove an exact one-mark delta before its native click is credited. Complete offline gates pass. One fresh suite-bound audited aggregate remains, followed by the single targeted Mammoth regression and final installation only if green.
 
 Superseding execution result (2026-08-29): dev.8 aggregate `20260829T153000Z-phase3c-dev8-native-controls-passC` restored exactly at `57 PASS / 1 FAIL`. The native Horse-primary cursor admitted the hostile target and created one native cast request, but the scenario reused the preceding Rider-primary row's one-shot expected-dispatch marker and stopped before terminal Horse-command observation. This is not a production rejection, but the Horse-turn row cannot be credited. The bounded retry budget is exhausted; later rows, the targeted Mammoth regression, and final installation remain pending separate authorization.
 
