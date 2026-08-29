@@ -8950,11 +8950,16 @@ try {
             $horseScenarioSource.Contains('mountedRiderOutcome,') -and
             $horseScenarioSource.Contains('IncludesNativeControlsUx);') -and
             $horseScenarioSource.Contains('if (includeAnimation)') -and
+            $horseScenarioSource.Contains('["schemaVersion"] = IncludesNativeControlsUx ? 6 : 4') -and
+            $horseScenarioSource.Contains('"legacy-overlay-default-hidden"') -and
+            $horseScenarioSource.Contains('"legacy-overlay-debug-fallback"') -and
             $runtimeLauncherSource.Contains("'horse-native-controls-ux-suite'") -and
             $runtimeRequestValidatorSource.Contains("'horse-native-controls-ux-suite'") -and
             $runtimeGameResultValidatorSource.Contains("'horse-native-controls-ux-suite'") -and
-            $runtimeResultValidatorSource.Contains("'horse-native-controls-ux-suite'")) `
-            'focused Horse UX scenario bypasses the native selected-ability path, lacks bounded DollRoom observation, changes historical schema-v4 output, or is missing from an independent runtime allowlist'
+            $runtimeResultValidatorSource.Contains("'horse-native-controls-ux-suite'") -and
+            $runtimeGameResultValidatorSource.Contains('($relativePath -ceq ''horse-native-controls-ux.json'' -and $kind -ceq ''horse-native-controls-ux'')') -and
+            $runtimeResultValidatorSource.Contains('($relativePath -ceq ''horse-native-controls-ux.json'' -and $kind -ceq ''horse-native-controls-ux'')')) `
+            'focused Horse UX scenario bypasses the native selected-ability path, lacks bounded overlay/DollRoom observation, changes historical schema-v4 output, or is missing from an independent runtime/artifact allowlist'
     }
 
     Invoke-HarnessTest 'horse native-asset audit validator binds exact manifested evidence and subscenario totals' {
@@ -9555,7 +9560,8 @@ try {
             dllMvid='33333333-4444-5555-6666-777777777777';evidenceRoot=$nativeRoot
         }
         $nativeRequired = @(
-            'original-horse-portrait-and-icon','native-mount-ability-present-no-slot-overwrite',
+            'original-horse-portrait-and-icon','legacy-overlay-default-hidden','legacy-overlay-debug-fallback',
+            'native-mount-ability-present-no-slot-overwrite',
             'native-control-disable-reenable','native-control-save-load-presence',
             'native-saddle-up-invalid-target','native-saddle-up-target-valid-horse',
             'native-mounted-control-surface','inventory-horse-preview-no-ik-exception',
@@ -9603,6 +9609,12 @@ try {
         }
         $nativeObservations = [ordered]@{
             ownerId='owner';horseId='horse'
+            legacyOverlay=[ordered]@{
+                automationPresentBeforeExplicitPolicy=$true;automationObjectCountBeforeExplicitPolicy=1
+                defaultHiddenPresent=$false;defaultHiddenObjectCount=0
+                debugFallbackPresent=$true;debugFallbackObjectCount=1
+                finalHiddenPresent=$false;finalHiddenObjectCount=0
+            }
             nativeControlsBeforeMount=(& $newControlSnapshot $false 1)
             nativeControlsDuringSaveScope=(& $newControlSnapshot $true 0)
             nativeControlsAfterSaveScope=(& $newControlSnapshot $false 1)
@@ -9634,7 +9646,7 @@ try {
             }
         }
         $nativeArtifact = [ordered]@{
-            schemaVersion=5;evidenceKind='horse-native-controls-ux';runId=$nativeRequest.runId
+            schemaVersion=6;evidenceKind='horse-native-controls-ux';runId=$nativeRequest.runId
             scenario=$nativeRequest.scenario;branch=$nativeRequest.branch;commit=$nativeRequest.commit
             productVersion=$nativeRequest.productVersion;dllSha256=$nativeRequest.dllSha256
             dllMvid=$nativeRequest.dllMvid;createdAtUtc=[DateTimeOffset]::UtcNow.ToString('o')
@@ -9654,6 +9666,18 @@ try {
             assertionPassCount=$nativeAssertions.Count;assertionFailCount=0;errors=@()
         }
         Assert-KmcHorseNativeControlsUxEvidence -Request $nativeRequest -Manifest $nativeManifest -Status PASS -SubscenarioResults @($nativeSubresult)
+
+        $nativeArtifact.observations.legacyOverlay.debugFallbackObjectCount = 2
+        Write-KmcJsonAtomic -Path $nativePath -Value $nativeArtifact
+        $nativeRecord.length=(Get-Item -LiteralPath $nativePath).Length
+        $nativeRecord.sha256=(Get-KmcSha256 $nativePath)
+        [void](New-TestArtifactManifest -EvidenceRoot $nativeRoot -RunId $nativeRequest.runId -Scenario $nativeRequest.scenario -Artifacts @($nativeRecord))
+        $nativeManifest = Read-KmcJson (Join-Path $nativeRoot 'runtime-artifacts.json')
+        $threw = $false
+        try { Assert-KmcHorseNativeControlsUxEvidence -Request $nativeRequest -Manifest $nativeManifest -Status PASS -SubscenarioResults @($nativeSubresult) }
+        catch { $threw = $true }
+        Assert-Test $threw 'Horse native-controls UX validator accepted duplicate debug overlay objects'
+        $nativeArtifact.observations.legacyOverlay.debugFallbackObjectCount = 1
 
         $nativeArtifact.observations.mountedTurnHorseOutcome.attackAnimationHandleCreated = $false
         Write-KmcJsonAtomic -Path $nativePath -Value $nativeArtifact

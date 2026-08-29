@@ -113,6 +113,7 @@ function Assert-RuntimeArtifactManifest {
             ($relativePath -ceq 'horse-companion-blueprint-registration.json' -and $kind -ceq 'horse-companion-blueprint-registration') -or
             ($relativePath -ceq 'horse-companion-unmounted.json' -and $kind -ceq 'horse-companion-unmounted') -or
             ($relativePath -ceq 'horse-mounted-alpha.json' -and $kind -ceq 'horse-mounted-alpha') -or
+            ($relativePath -ceq 'horse-native-controls-ux.json' -and $kind -ceq 'horse-native-controls-ux') -or
             ($relativePath -cmatch '^movement-visuals/[A-Za-z0-9._-]+\.png$' -and $kind -ceq 'screenshot')
         if (-not $allowed) { throw "Runtime artifact manifest record is outside the exact allowlist: $relativePath ($kind)" }
         if (-not (Test-ExactJsonInteger $artifact.length) -or [long]$artifact.length -le 0 -or

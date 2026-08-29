@@ -5420,7 +5420,7 @@ function Assert-KmcHorseNativeControlsUxEvidence {
         'schemaVersion','evidenceKind','runId','scenario','branch','commit','productVersion','dllSha256','dllMvid',
         'createdAtUtc','status','assertions','observations','assertionPassCount','assertionFailCount','errors'
     ) 'Horse native-controls UX evidence'
-    if (-not (Test-KmcExactJsonInteger $artifact.schemaVersion) -or [long]$artifact.schemaVersion -ne 5 -or
+    if (-not (Test-KmcExactJsonInteger $artifact.schemaVersion) -or [long]$artifact.schemaVersion -notin @(5,6) -or
         [string]$artifact.evidenceKind -cne $kind -or [string]$artifact.status -cnotin @('PASS','FAIL') -or
         $artifact.assertions -isnot [Array] -or $artifact.errors -isnot [Array] -or
         [string]$artifact.dllSha256 -cnotmatch '^[0-9a-f]{64}$' -or
@@ -5458,8 +5458,13 @@ function Assert-KmcHorseNativeControlsUxEvidence {
     }
 
     if ([string]$artifact.status -ceq 'PASS') {
+        if ([long]$artifact.schemaVersion -ne 6) {
+            throw 'PASS Horse native-controls UX evidence requires schema 6 explicit overlay-policy observations.'
+        }
         foreach ($required in @(
             'original-horse-portrait-and-icon',
+            'legacy-overlay-default-hidden',
+            'legacy-overlay-debug-fallback',
             'native-mount-ability-present-no-slot-overwrite',
             'native-control-disable-reenable',
             'native-control-save-load-presence',
@@ -5486,6 +5491,28 @@ function Assert-KmcHorseNativeControlsUxEvidence {
         }
 
         $o = $artifact.observations
+        Assert-KmcExactProperties $o.legacyOverlay @(
+            'automationPresentBeforeExplicitPolicy','automationObjectCountBeforeExplicitPolicy',
+            'defaultHiddenPresent','defaultHiddenObjectCount','debugFallbackPresent',
+            'debugFallbackObjectCount','finalHiddenPresent','finalHiddenObjectCount'
+        ) 'Horse native controls legacyOverlay'
+        foreach ($name in @(
+            'automationObjectCountBeforeExplicitPolicy','defaultHiddenObjectCount',
+            'debugFallbackObjectCount','finalHiddenObjectCount')) {
+            if (-not (Test-KmcExactJsonInteger $o.legacyOverlay.$name)) {
+                throw "Horse native controls legacyOverlay count is not an exact integer: $name"
+            }
+        }
+        if ($o.legacyOverlay.automationPresentBeforeExplicitPolicy -ne $true -or
+            [long]$o.legacyOverlay.automationObjectCountBeforeExplicitPolicy -ne 1 -or
+            $o.legacyOverlay.defaultHiddenPresent -ne $false -or
+            [long]$o.legacyOverlay.defaultHiddenObjectCount -ne 0 -or
+            $o.legacyOverlay.debugFallbackPresent -ne $true -or
+            [long]$o.legacyOverlay.debugFallbackObjectCount -ne 1 -or
+            $o.legacyOverlay.finalHiddenPresent -ne $false -or
+            [long]$o.legacyOverlay.finalHiddenObjectCount -ne 0) {
+            throw 'PASS Horse native controls did not prove automation admission, production-default overlay absence, one explicit debug fallback, and final overlay absence.'
+        }
         $controlNames = @(
             'registered','enabled','serializationSuspended','exactFactCount','duplicateFactCount',
             'managedHotbarSlotCount','targetSelectionStartCount','targetSelectionEndCount',

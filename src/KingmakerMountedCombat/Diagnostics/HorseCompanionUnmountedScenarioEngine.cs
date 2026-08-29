@@ -112,6 +112,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool originalPause;
         private bool originalTurnBased;
         private bool originalUnsafeExperimentSetting;
+        private double nativeOverlayPolicyStartedAtSeconds;
         private UnitEntityData[] originalSelection = new UnitEntityData[0];
         private UnitEntityData owner;
         private UnitEntityData horse;
@@ -272,6 +273,17 @@ namespace KingmakerMountedCombat.Diagnostics
                 observations["originalSelectionCount"] = originalSelection.Length;
                 observations["saveLoadAutomationScope"] =
                     "CONTRACT-ONLY: reciprocal native AddPet/SetMaster/UnitReference state is observed; actual disk save/reload is reserved for manual review because guarded automation forbids Kingmaker's crash-unsafe temporary save leaf.";
+
+                if (IncludesNativeControlsUx)
+                {
+                    observations["legacyOverlay"] = new JObject
+                    {
+                        ["automationPresentBeforeExplicitPolicy"] = playerAction.OverlayPresent,
+                        ["automationObjectCountBeforeExplicitPolicy"] = MountedPlayerActionController.CountOverlayObjects()
+                    };
+                    playerAction.SetOverlayEnabled(false);
+                    nativeOverlayPolicyStartedAtSeconds = clock.Elapsed.TotalSeconds;
+                }
 
                 realTimeModeProbe = new NativeModeTransitionProbe(false);
                 realTimeModeProbe.DispatchTemporaryValueIfRequired();
@@ -612,6 +624,18 @@ namespace KingmakerMountedCombat.Diagnostics
             horse = owner?.Descriptor?.Pet;
             if (horse == null || !horse.IsInState || horse.View == null || horse.View.AgentASP == null) { return; }
 
+            if (IncludesNativeControlsUx &&
+                (playerAction.OverlayPresent || MountedPlayerActionController.CountOverlayObjects() != 0))
+            {
+                if (clock.Elapsed.TotalSeconds - nativeOverlayPolicyStartedAtSeconds > 5.0)
+                {
+                    Fail("legacy-overlay-default-hidden",
+                        "The automation-owned legacy overlay did not leave the live UI within five seconds after the focused native-control scenario explicitly selected the default-hidden policy.");
+                    BeginCleanup();
+                }
+                return;
+            }
+
             var companionAddPet = horseFeatureFact?.Get<HorseCompanionAddPet>();
             if (companionAddPet != null && companionAddPet.DeferredProgressionPending) { return; }
 
@@ -753,6 +777,22 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void ValidateNativeControlLifecycleBeforeMount()
         {
+            var legacyOverlay = observations["legacyOverlay"] as JObject ?? new JObject();
+            legacyOverlay["defaultHiddenPresent"] = playerAction.OverlayPresent;
+            legacyOverlay["defaultHiddenObjectCount"] = MountedPlayerActionController.CountOverlayObjects();
+            observations["legacyOverlay"] = legacyOverlay;
+            Check(!playerAction.OverlayPresent && MountedPlayerActionController.CountOverlayObjects() == 0,
+                "legacy-overlay-default-hidden",
+                "The focused native-control scenario explicitly selected the production default-off policy and observed no owned legacy overlay reference or object after Unity completed destruction.");
+
+            playerAction.SetOverlayEnabled(true);
+            legacyOverlay["debugFallbackPresent"] = playerAction.OverlayPresent;
+            legacyOverlay["debugFallbackObjectCount"] = MountedPlayerActionController.CountOverlayObjects();
+            Check(playerAction.OverlayPresent && MountedPlayerActionController.CountOverlayObjects() == 1,
+                "legacy-overlay-debug-fallback",
+                "The guarded diagnostic fallback created exactly one owned legacy overlay on explicit request.");
+            playerAction.SetOverlayEnabled(false);
+
             settings.EnableUnsafeMovementExperiment = true;
             nativeControls.Update();
             var initial = nativeControls.CaptureSnapshot();
@@ -1462,6 +1502,10 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 nativeControls.Update();
                 var controlSnapshot = nativeControls.CaptureSnapshot();
+                var legacyOverlay = observations["legacyOverlay"] as JObject ?? new JObject();
+                legacyOverlay["finalHiddenPresent"] = playerAction.OverlayPresent;
+                legacyOverlay["finalHiddenObjectCount"] = MountedPlayerActionController.CountOverlayObjects();
+                observations["legacyOverlay"] = legacyOverlay;
                 observations["nativeControlsMounted"] = JObject.FromObject(
                     controlSnapshot, JsonSerializer.Create(JsonSettings));
                 Check(controlSnapshot.Registered && controlSnapshot.Enabled &&
@@ -1473,6 +1517,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         CountAbilityFacts(horse, nativeControls.RiderPrimaryAbility) == 1 &&
                         CountAbilityFacts(horse, nativeControls.MountPrimaryAbility) == 1 &&
                         !playerAction.OverlayPresent &&
+                        MountedPlayerActionController.CountOverlayObjects() == 0 &&
                         controlSnapshot.DispatchAcceptedCount >= 1,
                     "native-mounted-control-surface",
                     "The mounted pair exposes one contextual Dismount and exact Rider/Mount primary facts through the native drawer, keeps the legacy overlay hidden, and retains zero automatic hotbar bindings or duplicates.");
@@ -3082,7 +3127,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var status = failed == 0 ? "PASS" : "FAIL";
             var artifact = new JObject
             {
-                ["schemaVersion"] = IncludesNativeControlsUx ? 5 : 4,
+                ["schemaVersion"] = IncludesNativeControlsUx ? 6 : 4,
                 ["evidenceKind"] = IncludesNativeControlsUx
                     ? NativeControlsEvidenceKind
                     : IncludesMountedAlpha ? MountedEvidenceKind : EvidenceKind,
