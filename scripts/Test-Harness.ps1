@@ -4824,6 +4824,18 @@ try {
         & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath
     }
 
+    Invoke-HarnessTest 'runtime request schema accepts focused Horse native-controls aggregate' {
+        $v2Request.scenario = 'horse-native-controls-ux-suite'
+        $v2Request.runId = 'schema-v2-horse-native-controls-ux-suite'
+        $v2Request.evidenceRoot = Join-Path $runtimeEvidenceTestRoot $v2Request.runId
+        Write-KmcJsonAtomic $v2RequestPath $v2Request
+        & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath
+        $v2Request.scenario = 'mounted-pair-create-and-clear'
+        $v2Request.runId = 'schema-v2-test'
+        $v2Request.evidenceRoot = Join-Path $runtimeEvidenceTestRoot 'schema-v2-test'
+        Write-KmcJsonAtomic $v2RequestPath $v2Request
+    }
+
     Invoke-HarnessTest 'runtime request schema accepts every exact native lifecycle row' {
         foreach ($nativeRow in @(
             'native-save-clean-dismount',
@@ -8892,6 +8904,9 @@ try {
         $horseBlueprintSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\HorseCompanionBlueprintService.cs'))
         $horseScenarioSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\HorseCompanionUnmountedScenarioEngine.cs'))
         $runtimeLauncherSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\runtime\Invoke-KingmakerRuntimeScenario.ps1'))
+        $runtimeRequestValidatorSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\runtime\Test-RuntimeRequest.ps1'))
+        $runtimeGameResultValidatorSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\runtime\Test-RuntimeGameResult.ps1'))
+        $runtimeResultValidatorSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\runtime\Test-RuntimeResult.ps1'))
         $projectSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\KingmakerMountedCombat.csproj'))
 
         Assert-Test ($patchSource.Contains('PatchExact(typeof(UnitAnimationManager), "Tick", 0x06001605, Type.EmptyTypes, nameof(PatchMethods.AnimationTickPrefix));') -and
@@ -8935,8 +8950,11 @@ try {
             $horseScenarioSource.Contains('mountedRiderOutcome,') -and
             $horseScenarioSource.Contains('IncludesNativeControlsUx);') -and
             $horseScenarioSource.Contains('if (includeAnimation)') -and
-            $runtimeLauncherSource.Contains("'horse-native-controls-ux-suite'")) `
-            'focused Horse UX scenario bypasses the native selected-ability path, lacks bounded DollRoom observation, or changes historical schema-v4 output'
+            $runtimeLauncherSource.Contains("'horse-native-controls-ux-suite'") -and
+            $runtimeRequestValidatorSource.Contains("'horse-native-controls-ux-suite'") -and
+            $runtimeGameResultValidatorSource.Contains("'horse-native-controls-ux-suite'") -and
+            $runtimeResultValidatorSource.Contains("'horse-native-controls-ux-suite'")) `
+            'focused Horse UX scenario bypasses the native selected-ability path, lacks bounded DollRoom observation, changes historical schema-v4 output, or is missing from an independent runtime allowlist'
     }
 
     Invoke-HarnessTest 'horse native-asset audit validator binds exact manifested evidence and subscenario totals' {
