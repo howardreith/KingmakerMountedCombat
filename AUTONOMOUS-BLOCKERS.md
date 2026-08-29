@@ -1,5 +1,15 @@
 # Autonomous blockers
 
+## No hard blocker; dev.3 corrects the runtime admission identity - 2026-08-29T03:29:00Z
+
+Status: `IN PROGRESS`.
+
+The dev.2 WhatIf passed zero mutation, but its single live reservation never entered the Horse/Pony audit. The exact dev.2 DLL rejected the exact dev.2 request because two stale compiled literals still identified dev.27. Independent audit proved exact suite/save/Mods/Baseline/Working restoration and zero process/lock/sentinel/deployment residue before the output log established that cause. The failed process contains no native portrait evidence and is not credited.
+
+Dev.3 centralizes the compiled product version and binds it to `version.json` in the source gate. Complete applicable offline gates pass `22/Release/265/18/232/361`; no product behavior changed. One clean publication/package/suite/WhatIf and one corrected audited stock-asset observation remain. Native asset absence is not a blocker because original redistributable Horse art is authorized. Physical pointer feel, animation readability, locomotion feel, and final pose remain human gates.
+
+This entry supersedes the dev.2 observation-pending status below without rewriting its immutable package or failed reservation.
+
 ## No hard blocker; corrected stock-only portrait observation is pending - 2026-08-29T01:50:00Z
 
 Status: `IN PROGRESS`.

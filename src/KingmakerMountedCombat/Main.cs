@@ -7,7 +7,6 @@ namespace KingmakerMountedCombat
 {
     public static class Main
     {
-        private const string Version = "0.1.0-phase3c-dev.2";
         private static CompositionRoot root;
         private static UnityModManager.ModEntry activeModEntry;
 
@@ -28,7 +27,7 @@ namespace KingmakerMountedCombat
                 modEntry.OnUpdate = OnUpdate;
                 modEntry.OnGUI = OnGui;
                 modEntry.OnSessionStop = OnSessionStop;
-                logger.Info("Kingmaker Mounted Combat " + Version + " loaded with transient private-alpha mounted melee services.");
+                logger.Info("Kingmaker Mounted Combat " + BuildIdentity.ProductVersion + " loaded with transient private-alpha mounted melee services.");
                 return true;
             }
             catch (Exception exception)

@@ -22,6 +22,12 @@ The supplied Kingmaker and YouTube/Wrath screenshots are evidence only. They may
 
 The runtime audit executes after KMC registration. Schema v3 must therefore prove the exact Horse unit/feature/upgrade and four native-control abilities are reference-identical KMC-owned definitions, exclude only those seven references, and scan the resulting stock projection. A matching GUID owned by any other object remains a fatal collision. This prevents the current KMC Mammoth fallback from being rediscovered and mislabeled as a native Horse candidate.
 
+## Dev.2 admission-only failure
+
+The immutable dev.2 reservation `20260829T023000Z-phase3c-dev2-stock-portrait-passA` produced no asset result. The exact dev.2 package loaded, but a stale compiled dev.27 product-version check rejected the request before the audit began. No game result or `horse-native-asset-audit.json` exists, so neither native-asset presence nor absence may be inferred. Independent suite/restoration audit passed before the output log was interpreted.
+
+Dev.3 centralizes the compiled product version and binds it to the repository version source. A fresh clean package/suite/WhatIf and one corrected stock-only observation are required before selecting the portrait source.
+
 ## Acceptance
 
 The final Horse unit must expose large, medium, and small Horse art; the party portrait, Ranger selection, Horse feature, and native mounted controls must not show Mammoth art. Asset provenance, source files, dimensions, package paths, and hashes must be recorded. The Mammoth keeps its own portrait unchanged.

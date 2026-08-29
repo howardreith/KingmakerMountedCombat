@@ -7,6 +7,7 @@ namespace KingmakerMountedCombat.Tests
     {
         private const string Sha = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
         private const string Mvid = "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7";
+        private const string ProductVersion = BuildIdentity.ProductVersion;
 
         private static int Main()
         {
@@ -255,7 +256,7 @@ namespace KingmakerMountedCombat.Tests
                 Scenario = "mod-load-smoke",
                 Branch = "codex/mounted-combat-feasibility",
                 Commit = "3801345720241eeab75f2944d91948f182ca26aa",
-                ProductVersion = "0.1.0-phase3b-dev.27",
+                ProductVersion = ProductVersion,
                 DllSha256 = Sha,
                 DllMvid = Mvid,
                 EvidenceRoot = "runtime-evidence/kmc-smoke-001",
@@ -275,7 +276,7 @@ namespace KingmakerMountedCombat.Tests
                 Status = "PASS",
                 Branch = "codex/mounted-combat-feasibility",
                 Commit = "3801345720241eeab75f2944d91948f182ca26aa",
-                ProductVersion = "0.1.0-phase3b-dev.27",
+                ProductVersion = ProductVersion,
                 DllSha256 = Sha,
                 DllMvid = Mvid,
                 TransactionToken = Sha,
@@ -297,7 +298,7 @@ namespace KingmakerMountedCombat.Tests
                 Scenario = "fixture-intake",
                 Branch = "codex/mounted-combat-feasibility",
                 Commit = "3801345720241eeab75f2944d91948f182ca26aa",
-                ProductVersion = "0.1.0-phase3b-dev.27",
+                ProductVersion = ProductVersion,
                 DllSha256 = Sha,
                 DllMvid = Mvid,
                 EvidenceRoot = "runtime-evidence/kmc-fixture-001",
@@ -321,7 +322,7 @@ namespace KingmakerMountedCombat.Tests
                 Status = "PASS",
                 Branch = "codex/mounted-combat-feasibility",
                 Commit = "3801345720241eeab75f2944d91948f182ca26aa",
-                ProductVersion = "0.1.0-phase3b-dev.27",
+                ProductVersion = ProductVersion,
                 DllSha256 = Sha,
                 DllMvid = Mvid,
                 TransactionToken = Sha,

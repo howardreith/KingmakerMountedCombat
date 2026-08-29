@@ -34,6 +34,9 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Program.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\BuildIdentity.cs">
+      <Link>Shared\BuildIdentity.cs</Link>
+    </Compile>
     <Compile Include="MountedRelationshipTests.cs" />
     <Compile Include="MountedPlayerActionTests.cs" />
     <Compile Include="MountedCombatDomainTests.cs" />
