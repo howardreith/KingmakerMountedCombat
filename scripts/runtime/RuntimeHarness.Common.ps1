@@ -5420,7 +5420,7 @@ function Assert-KmcHorseNativeControlsUxEvidence {
         'schemaVersion','evidenceKind','runId','scenario','branch','commit','productVersion','dllSha256','dllMvid',
         'createdAtUtc','status','assertions','observations','assertionPassCount','assertionFailCount','errors'
     ) 'Horse native-controls UX evidence'
-    if (-not (Test-KmcExactJsonInteger $artifact.schemaVersion) -or [long]$artifact.schemaVersion -notin @(5,6) -or
+    if (-not (Test-KmcExactJsonInteger $artifact.schemaVersion) -or [long]$artifact.schemaVersion -notin @(5,6,7) -or
         [string]$artifact.evidenceKind -cne $kind -or [string]$artifact.status -cnotin @('PASS','FAIL') -or
         $artifact.assertions -isnot [Array] -or $artifact.errors -isnot [Array] -or
         [string]$artifact.dllSha256 -cnotmatch '^[0-9a-f]{64}$' -or
@@ -5458,8 +5458,8 @@ function Assert-KmcHorseNativeControlsUxEvidence {
     }
 
     if ([string]$artifact.status -ceq 'PASS') {
-        if ([long]$artifact.schemaVersion -ne 6) {
-            throw 'PASS Horse native-controls UX evidence requires schema 6 explicit overlay-policy observations.'
+        if ([long]$artifact.schemaVersion -ne 7) {
+            throw 'PASS Horse native-controls UX evidence requires schema 7 explicit overlay-policy and native simple-Horse-preview observations.'
         }
         foreach ($required in @(
             'original-horse-portrait-and-icon',
@@ -5512,6 +5512,39 @@ function Assert-KmcHorseNativeControlsUxEvidence {
             $o.legacyOverlay.finalHiddenPresent -ne $false -or
             [long]$o.legacyOverlay.finalHiddenObjectCount -ne 0) {
             throw 'PASS Horse native controls did not prove automation admission, production-default overlay absence, one explicit debug fallback, and final overlay absence.'
+        }
+
+        $ikNames = @('exactBindingCount','exactSetupStartCount','exactSetupCompleteCount','lastUnitId','lastUnitRole')
+        Assert-KmcExactProperties $o.mountedRiderDollRoomIk $ikNames 'Horse native controls mountedRiderDollRoomIk'
+        Assert-KmcExactProperties $o.mountedHorseDollRoomIk $ikNames 'Horse native controls mountedHorseDollRoomIk'
+        Assert-KmcExactProperties $o.mountedHorseDollRoomPreview @(
+            'mode','sourceCharacterAvatarPresent','simpleAvatarFieldToken','simpleAvatarPresent',
+            'simpleAvatarActiveInHierarchy','dollRoomVisible','dollRoomPublicAvatarPresent',
+            'dollRoomPublicUnitPresent','setupStartDelta','setupCompleteDelta','bindingDelta','stableFrameCount'
+        ) 'Horse native controls mountedHorseDollRoomPreview'
+        foreach ($name in @('setupStartDelta','setupCompleteDelta','bindingDelta','stableFrameCount')) {
+            if (-not (Test-KmcExactJsonInteger $o.mountedHorseDollRoomPreview.$name)) {
+                throw "Horse native controls simple Horse preview count is not an exact integer: $name"
+            }
+        }
+        if ([string]$o.mountedHorseDollRoomExpectedPath -cne 'simple-unit-view' -or
+            [long]$o.mountedRiderDollRoomIk.exactSetupStartCount -lt 1 -or
+            [long]$o.mountedRiderDollRoomIk.exactSetupCompleteCount -ne [long]$o.mountedRiderDollRoomIk.exactSetupStartCount -or
+            [long]$o.mountedHorseDollRoomIk.exactSetupStartCount -ne [long]$o.mountedRiderDollRoomIk.exactSetupStartCount -or
+            [long]$o.mountedHorseDollRoomIk.exactSetupCompleteCount -ne [long]$o.mountedRiderDollRoomIk.exactSetupCompleteCount -or
+            [string]$o.mountedHorseDollRoomPreview.mode -cne 'simple-unit-view' -or
+            $o.mountedHorseDollRoomPreview.sourceCharacterAvatarPresent -ne $false -or
+            [string]$o.mountedHorseDollRoomPreview.simpleAvatarFieldToken -cne '0x04002F58' -or
+            $o.mountedHorseDollRoomPreview.simpleAvatarPresent -ne $true -or
+            $o.mountedHorseDollRoomPreview.simpleAvatarActiveInHierarchy -ne $true -or
+            $o.mountedHorseDollRoomPreview.dollRoomVisible -ne $true -or
+            $o.mountedHorseDollRoomPreview.dollRoomPublicAvatarPresent -ne $false -or
+            $o.mountedHorseDollRoomPreview.dollRoomPublicUnitPresent -ne $false -or
+            [long]$o.mountedHorseDollRoomPreview.setupStartDelta -ne 0 -or
+            [long]$o.mountedHorseDollRoomPreview.setupCompleteDelta -ne 0 -or
+            [long]$o.mountedHorseDollRoomPreview.bindingDelta -ne 0 -or
+            [long]$o.mountedHorseDollRoomPreview.stableFrameCount -lt 3) {
+            throw 'PASS Horse native controls did not prove exception-free rider FBBIK plus the exact native simple UnitEntityView Horse preview path.'
         }
         $controlNames = @(
             'registered','enabled','serializationSuspended','exactFactCount','duplicateFactCount',

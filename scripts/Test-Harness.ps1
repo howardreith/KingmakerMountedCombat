@@ -8950,9 +8950,11 @@ try {
             $horseScenarioSource.Contains('mountedRiderOutcome,') -and
             $horseScenarioSource.Contains('IncludesNativeControlsUx);') -and
             $horseScenarioSource.Contains('if (includeAnimation)') -and
-            $horseScenarioSource.Contains('["schemaVersion"] = IncludesNativeControlsUx ? 6 : 4') -and
+            $horseScenarioSource.Contains('["schemaVersion"] = IncludesNativeControlsUx ? 7 : 4') -and
             $horseScenarioSource.Contains('"legacy-overlay-default-hidden"') -and
             $horseScenarioSource.Contains('"legacy-overlay-debug-fallback"') -and
+            $horseScenarioSource.Contains('DollRoomSimpleAvatarField.MetadataToken == 0x04002F58') -and
+            $horseScenarioSource.Contains('"simple-unit-view"') -and
             $runtimeLauncherSource.Contains("'horse-native-controls-ux-suite'") -and
             $runtimeRequestValidatorSource.Contains("'horse-native-controls-ux-suite'") -and
             $runtimeGameResultValidatorSource.Contains("'horse-native-controls-ux-suite'") -and
@@ -9615,6 +9617,22 @@ try {
                 debugFallbackPresent=$true;debugFallbackObjectCount=1
                 finalHiddenPresent=$false;finalHiddenObjectCount=0
             }
+            mountedRiderDollRoomIk=[ordered]@{
+                exactBindingCount=0;exactSetupStartCount=1;exactSetupCompleteCount=1
+                lastUnitId='<none>';lastUnitRole='<none>'
+            }
+            mountedHorseDollRoomExpectedPath='simple-unit-view'
+            mountedHorseDollRoomIk=[ordered]@{
+                exactBindingCount=0;exactSetupStartCount=1;exactSetupCompleteCount=1
+                lastUnitId='<none>';lastUnitRole='<none>'
+            }
+            mountedHorseDollRoomPreview=[ordered]@{
+                mode='simple-unit-view';sourceCharacterAvatarPresent=$false
+                simpleAvatarFieldToken='0x04002F58';simpleAvatarPresent=$true
+                simpleAvatarActiveInHierarchy=$true;dollRoomVisible=$true
+                dollRoomPublicAvatarPresent=$false;dollRoomPublicUnitPresent=$false
+                setupStartDelta=0;setupCompleteDelta=0;bindingDelta=0;stableFrameCount=3
+            }
             nativeControlsBeforeMount=(& $newControlSnapshot $false 1)
             nativeControlsDuringSaveScope=(& $newControlSnapshot $true 0)
             nativeControlsAfterSaveScope=(& $newControlSnapshot $false 1)
@@ -9646,7 +9664,7 @@ try {
             }
         }
         $nativeArtifact = [ordered]@{
-            schemaVersion=6;evidenceKind='horse-native-controls-ux';runId=$nativeRequest.runId
+            schemaVersion=7;evidenceKind='horse-native-controls-ux';runId=$nativeRequest.runId
             scenario=$nativeRequest.scenario;branch=$nativeRequest.branch;commit=$nativeRequest.commit
             productVersion=$nativeRequest.productVersion;dllSha256=$nativeRequest.dllSha256
             dllMvid=$nativeRequest.dllMvid;createdAtUtc=[DateTimeOffset]::UtcNow.ToString('o')

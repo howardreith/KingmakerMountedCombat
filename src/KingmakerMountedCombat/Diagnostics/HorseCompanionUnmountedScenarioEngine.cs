@@ -18,6 +18,7 @@ using Kingmaker.PubSubSystem;
 using Kingmaker.RuleSystem.Rules;
 using Kingmaker.RuleSystem.Rules.Damage;
 using Kingmaker.UI.Selection;
+using Kingmaker.UI.ServiceWindow;
 using Kingmaker.UI.SettingsUI;
 using Kingmaker.UnitLogic;
 using Kingmaker.UnitLogic.Abilities.Blueprints;
@@ -25,6 +26,7 @@ using Kingmaker.UnitLogic.Class.LevelUp;
 using Kingmaker.UnitLogic.Commands;
 using Kingmaker.UnitLogic.Commands.Base;
 using Kingmaker.UnitLogic.Parts;
+using Kingmaker.View;
 using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Integration;
 using KingmakerMountedCombat.Logging;
@@ -62,6 +64,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private const double TurnBasedTurnAcquisitionTimeoutSeconds = 20.0;
         private const double TurnBasedAttackTimeoutSeconds = 20.0;
         private const double MountedAlphaAdmissionTimeoutSeconds = 20.0;
+        private const int SimpleDollRoomStableFrameCount = 3;
         private const float MovementDistance = 2.0f;
         private const float MovementTolerance = 0.75f;
         private const float TargetDistance = 4.0f;
@@ -70,6 +73,10 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private static readonly FieldInfo AiBackingField = typeof(UnitEntityData).GetField(
             "m_AiEnabled",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        private static readonly FieldInfo DollRoomSimpleAvatarField = typeof(DollRoom).GetField(
+            "m_SimpleAvatar",
             BindingFlags.Instance | BindingFlags.NonPublic);
 
         private static readonly JsonSerializerSettings JsonSettings = new JsonSerializerSettings
@@ -162,6 +169,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private double unmountedMovementStartedAtSeconds;
         private bool dollRoomShown;
         private int dollRoomPhase;
+        private bool dollRoomHorseUsesSimpleAvatar;
+        private int dollRoomHorseSimpleStableFrames;
         private double dollRoomPhaseStartedAtSeconds;
         private MountedDollRoomIkSnapshot dollRoomPhaseBaseline;
         private Vector3 ownerPositionBeforeMovement;
@@ -777,10 +786,14 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void ValidateNativeControlLifecycleBeforeMount()
         {
-            var legacyOverlay = observations["legacyOverlay"] as JObject ?? new JObject();
+            var legacyOverlay = observations["legacyOverlay"] as JObject;
+            if (legacyOverlay == null)
+            {
+                legacyOverlay = new JObject();
+                observations["legacyOverlay"] = legacyOverlay;
+            }
             legacyOverlay["defaultHiddenPresent"] = playerAction.OverlayPresent;
             legacyOverlay["defaultHiddenObjectCount"] = MountedPlayerActionController.CountOverlayObjects();
-            observations["legacyOverlay"] = legacyOverlay;
             Check(!playerAction.OverlayPresent && MountedPlayerActionController.CountOverlayObjects() == 0,
                 "legacy-overlay-default-hidden",
                 "The focused native-control scenario explicitly selected the production default-off policy and observed no owned legacy overlay reference or object after Unity completed destruction.");
@@ -1502,10 +1515,14 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 nativeControls.Update();
                 var controlSnapshot = nativeControls.CaptureSnapshot();
-                var legacyOverlay = observations["legacyOverlay"] as JObject ?? new JObject();
+                var legacyOverlay = observations["legacyOverlay"] as JObject;
+                if (legacyOverlay == null)
+                {
+                    legacyOverlay = new JObject();
+                    observations["legacyOverlay"] = legacyOverlay;
+                }
                 legacyOverlay["finalHiddenPresent"] = playerAction.OverlayPresent;
                 legacyOverlay["finalHiddenObjectCount"] = MountedPlayerActionController.CountOverlayObjects();
-                observations["legacyOverlay"] = legacyOverlay;
                 observations["nativeControlsMounted"] = JObject.FromObject(
                     controlSnapshot, JsonSerializer.Create(JsonSettings));
                 Check(controlSnapshot.Registered && controlSnapshot.Enabled &&
@@ -1549,6 +1566,60 @@ namespace KingmakerMountedCombat.Diagnostics
             var snapshot = dollRoomIk.CaptureSnapshot();
             var startDelta = snapshot.ExactSetupStartCount - dollRoomPhaseBaseline.ExactSetupStartCount;
             var completeDelta = snapshot.ExactSetupCompleteCount - dollRoomPhaseBaseline.ExactSetupCompleteCount;
+            if (dollRoomPhase == 2 && dollRoomHorseUsesSimpleAvatar)
+            {
+                var dollRoom = Game.Instance.UI.Common.DollRoom;
+                var simpleAvatar = DollRoomSimpleAvatarField?.GetValue(dollRoom) as UnitEntityView;
+                var bindingDelta = snapshot.ExactBindingCount - dollRoomPhaseBaseline.ExactBindingCount;
+                var simplePathStable = DollRoomSimpleAvatarField != null &&
+                    DollRoomSimpleAvatarField.MetadataToken == 0x04002F58 &&
+                    dollRoom.IsVisible && dollRoom.GetAvatar() == null && dollRoom.Unit == null &&
+                    simpleAvatar != null && simpleAvatar.gameObject.activeInHierarchy &&
+                    startDelta == 0 && completeDelta == 0 && bindingDelta == 0 &&
+                    relationship.State == RelationshipState.Mounted &&
+                    relationship.Rider == owner && relationship.Mount == horse;
+                dollRoomHorseSimpleStableFrames = simplePathStable
+                    ? dollRoomHorseSimpleStableFrames + 1
+                    : 0;
+                if (dollRoomHorseSimpleStableFrames < SimpleDollRoomStableFrameCount)
+                {
+                    if (clock.Elapsed.TotalSeconds - dollRoomPhaseStartedAtSeconds >
+                        MountedAlphaAdmissionTimeoutSeconds)
+                    {
+                        Fail("inventory-horse-preview-no-ik-exception",
+                            "The native Horse did not retain Kingmaker's exact simple UnitEntityView DollRoom path for three stable frames within the bounded 20-second leaf.");
+                        BeginCleanup();
+                    }
+                    return;
+                }
+
+                observations["mountedHorseDollRoomIk"] = JObject.FromObject(
+                    snapshot, JsonSerializer.Create(JsonSettings));
+                observations["mountedHorseDollRoomPreview"] = new JObject
+                {
+                    ["mode"] = "simple-unit-view",
+                    ["sourceCharacterAvatarPresent"] = horse.View.CharacterAvatar != null,
+                    ["simpleAvatarFieldToken"] = "0x04002F58",
+                    ["simpleAvatarPresent"] = simpleAvatar != null,
+                    ["simpleAvatarActiveInHierarchy"] = simpleAvatar != null && simpleAvatar.gameObject.activeInHierarchy,
+                    ["dollRoomVisible"] = dollRoom.IsVisible,
+                    ["dollRoomPublicAvatarPresent"] = dollRoom.GetAvatar() != null,
+                    ["dollRoomPublicUnitPresent"] = dollRoom.Unit != null,
+                    ["setupStartDelta"] = startDelta,
+                    ["setupCompleteDelta"] = completeDelta,
+                    ["bindingDelta"] = bindingDelta,
+                    ["stableFrameCount"] = dollRoomHorseSimpleStableFrames
+                };
+                dollRoom.Show(false);
+                dollRoomShown = false;
+                Check(simplePathStable,
+                    "inventory-horse-preview-no-ik-exception",
+                    "The rider's exact DollRoom FBBIK setup completed without exception, while the native Horse used Kingmaker's distinct simple UnitEntityView preview path for three stable frames with no fabricated Horse FBBIK event and the mounted relationship retained.");
+                if (failed != 0) { BeginCleanup(); return; }
+                BeginMountedRealTimeMovement();
+                return;
+            }
+
             if (startDelta <= 0 || completeDelta < startDelta)
             {
                 if (clock.Elapsed.TotalSeconds - dollRoomPhaseStartedAtSeconds >
@@ -1567,6 +1638,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 observations["mountedRiderDollRoomIk"] = JObject.FromObject(
                     snapshot, JsonSerializer.Create(JsonSettings));
                 dollRoomPhaseBaseline = snapshot;
+                dollRoomHorseUsesSimpleAvatar = horse.View?.CharacterAvatar == null;
+                observations["mountedHorseDollRoomExpectedPath"] = dollRoomHorseUsesSimpleAvatar
+                    ? "simple-unit-view"
+                    : "character-avatar-fbbik";
                 Game.Instance.UI.Common.DollRoom.SetupInfo(horse);
                 dollRoomPhase = 2;
                 dollRoomPhaseStartedAtSeconds = clock.Elapsed.TotalSeconds;
@@ -3127,7 +3202,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var status = failed == 0 ? "PASS" : "FAIL";
             var artifact = new JObject
             {
-                ["schemaVersion"] = IncludesNativeControlsUx ? 6 : 4,
+                ["schemaVersion"] = IncludesNativeControlsUx ? 7 : 4,
                 ["evidenceKind"] = IncludesNativeControlsUx
                     ? NativeControlsEvidenceKind
                     : IncludesMountedAlpha ? MountedEvidenceKind : EvidenceKind,
