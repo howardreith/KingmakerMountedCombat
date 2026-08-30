@@ -106,6 +106,8 @@ namespace KingmakerMountedCombat.Integration
 
         public bool AttackAnimationHandleCreated { get; set; }
 
+        public string AttackAnimationHandleSource { get; set; }
+
         public string AttackAnimationActionName { get; set; }
 
         public string AttackAnimationActionType { get; set; }
@@ -170,6 +172,7 @@ namespace KingmakerMountedCombat.Integration
         private UnitAnimationActionHandle horsePrimaryAnimationHandle;
         private string horsePrimaryAnimationActionName;
         private string horsePrimaryAnimationActionType;
+        private string horsePrimaryAnimationHandleSource;
 
         public MountedPairAttackCommand(
             GameMountedRelationshipService relationship,
@@ -224,16 +227,25 @@ namespace KingmakerMountedCombat.Integration
 
         internal void RecordHorsePrimaryAnimation(
             UnitAnimationActionHandle handle,
-            UnitAnimationActionSpecialAttack animationAction)
+            UnitAnimationActionSpecialAttack animationAction,
+            string handleSource)
         {
             if (action != MountedCombatActionKind.MountPrimaryNatural ||
-                handle == null || animationAction == null || horsePrimaryAnimationHandle != null)
+                handle == null || animationAction == null ||
+                (handleSource != "stock-created" && handleSource != "kmc-supplied") ||
+                horsePrimaryAnimationHandle != null)
             {
                 throw new InvalidOperationException("Horse primary animation telemetry rejected a nonexact or duplicate handle.");
             }
             horsePrimaryAnimationHandle = handle;
+            horsePrimaryAnimationHandleSource = handleSource;
             horsePrimaryAnimationActionName = animationAction.name ?? "<unnamed>";
             horsePrimaryAnimationActionType = animationAction.Type.ToString();
+        }
+
+        internal bool HasRecordedHorsePrimaryAnimation(UnitAnimationActionHandle handle)
+        {
+            return handle != null && ReferenceEquals(horsePrimaryAnimationHandle, handle);
         }
 
         internal bool HasAcceptedTargetBeforeChildAttack(UnitEntityData exactTarget)
@@ -735,6 +747,7 @@ namespace KingmakerMountedCombat.Integration
                 MountDisplacementAtAttackStart = mountDisplacementAtAttackStart,
                 TargetDisplacementAtAttackStart = targetDisplacementAtAttackStart,
                 AttackAnimationHandleCreated = horsePrimaryAnimationHandle != null,
+                AttackAnimationHandleSource = horsePrimaryAnimationHandleSource,
                 AttackAnimationActionName = horsePrimaryAnimationActionName,
                 AttackAnimationActionType = horsePrimaryAnimationActionType,
                 AttackAnimationActed = horsePrimaryAnimationHandle != null && horsePrimaryAnimationHandle.IsActed,

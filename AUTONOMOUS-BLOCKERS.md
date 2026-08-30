@@ -1,5 +1,17 @@
 # Autonomous blockers
 
+## No current hard blocker; dev.11 exact stock-handle adoption is offline-green - 2026-08-30T04:13:48Z
+
+Status: `IN PROGRESS`.
+
+Dev.10's one audited aggregate is immutable historical `FAIL 58/1`, with only the animation-handle predicate failing. Exact assembly order and packaged-code inspection establish the attributable boundary: stock initializes the Horse Bite animation before KMC's direct post-init binding call, while dev.10 returned immediately on any already-present handle and therefore emitted create/reject `0/0` and no command telemetry.
+
+Dev.11 validates and adopts only the exact stock-created Horse `SpecialAttack` handle, retains the Horse-only fallback when stock returns none, and records truthful create/adopt/source telemetry without replacing the handle. The exact native command, one attack/roll/damage chain, Standard ownership, timing, and Mammoth path remain unchanged. Offline gates pass `22/Release/267/18/235/378`, parsers `26/0` and `7/0`, diff, and prohibited payload.
+
+No repository, credential, restoration, transaction, architecture, or safety blocker exists. One clean publication/package/suite/WhatIf and one audited Horse aggregate remain; a complete pass is required before the targeted Mammoth regression and guarded final installation.
+
+This entry supersedes the dev.10 in-progress interpretation without rewriting its failed artifact.
+
 ## No current hard blocker; dev.10 exact Horse animation repair is offline-green - 2026-08-30T01:34:41Z
 
 Status: `IN PROGRESS`.

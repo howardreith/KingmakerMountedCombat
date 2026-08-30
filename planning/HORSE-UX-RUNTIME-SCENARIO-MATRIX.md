@@ -1,8 +1,10 @@
 # Horse UX runtime scenario matrix
 
-Status: `IN PROGRESS` — dev.10 Horse animation repair pending runtime qualification
+Status: `IN PROGRESS` — dev.11 exact stock-handle adoption pending runtime qualification
 
 Date: 2026-08-28
+
+Superseding dev.11 checkpoint (2026-08-30): dev.10 aggregate `20260830T023500Z-phase3c-dev10-native-controls-passE` restored exactly at `58 PASS / 1 FAIL`; only `horse-primary-animation-tb` failed, while the native click, Horse-owned Bite, one chain, action cost, terminal result, and cleanup passed. Exact `UnitAttack.Init` order proves stock configures the Bite animation before the direct KMC seam. Dev.10 discarded that case from telemetry by returning on a non-null handle. Dev.11 preserves and validates the stock handle, records adoption separately from fallback creation, and uses schema 8 to require exactly one TB and one later RT binding with exact source/action identity and zero rejection. Offline gates pass; one clean suite-bound aggregate remains before the conditional Mammoth regression and install.
 
 Superseding repair checkpoint (2026-08-30): the user authorized one attributable production-animation repair and work through an installed test build. Exact installed Kingmaker contracts prove the additional-limb Horse Bite is stock-classified as `UnitAnimationType.None`. Dev.10 supplies the exact Horse action immediately after stock child attack initialization and before native start, with exact pair/action/actor/planned-weapon/single-native-action guards and the prior postfix retained as an idempotent fallback. Complete offline gates pass. One fresh audited Horse aggregate must satisfy the unchanged `horse-primary-animation-tb`, ownership, one-chain, action-cost, and cleanup gates before the targeted Mammoth regression and final installation.
 

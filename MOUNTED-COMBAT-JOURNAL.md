@@ -1,5 +1,14 @@
 # Mounted Combat journal
 
+## 2026-08-30T04:13:48Z - dev.11 preserves and binds stock Horse Bite animation
+
+- Dev.10 package `f7c96623a3a6f311dbcf9d3c180d4d36f0203199cb73c31bb66505009ed87a8a` and suite `20260830T014100Z-phase3c-dev10-native-controls-suite8` produced restored aggregate `20260830T023500Z-phase3c-dev10-native-controls-passE`, immutable `58/1`. Only `horse-primary-animation-tb` failed; the physical native target click, exact Horse Bite command, ownership, Standard cost, one rule chain, terminal success, movement, and cleanup passed. Mandatory post-run `WhatIf` passed before evidence interpretation.
+- Bounded exact decompilation proves `UnitAttack.Init` runs stock `ConfigureAnimations` before returning. The packaged dev.10 call then executes, but its adapter returned on a non-null stock handle. This reconciles the exact direct call with adapter counters `0/0`, no adapter log, and complete command success.
+- Dev.11 adopts rather than replaces that stock handle after exact manager, action-set membership, `UnitAnimationActionSpecialAttack`, and Bite special-type validation. If stock supplies none, the existing single native-action fallback remains. Duplicate binding across postfix/direct seams is idempotent.
+- Schema 8 records `stock-created` versus `kmc-supplied`, distinct create/adopt counts, and requires one TB plus one RT handle with zero rejection alongside existing acted/finished/interrupted and one-chain gates. No gameplay acceptance threshold is relaxed.
+- Complete gates pass source/Release/component/visual/harness/assembly `22/Release/267/18/235/378`, parsers `26/0` and `7/0`, diff, and prohibited payload. Dirty DLL SHA-256/MVID are `f7efd5b693a16a04a5bd0619c422f817751ba880fbacc028ebd3b79decb8569c` / `ab22e591-a9cf-483f-bb92-53616ee2d9a2`; clean package binding remains required.
+- Next: guarded publication, clean dev.11 package and suite, targeted WhatIf, one audited Horse aggregate, then the conditional same-package Mammoth regression and guarded install.
+
 ## 2026-08-30T01:34:41Z - dev.10 binds the exact Horse Bite plan before native attack start
 
 - User authorization supersedes the dev.9 bounded stop and extends through a testable installed build. Fresh intake passed clean published `ae0bcee2b1db8f95d633072b37b53c91cb35c6fd`, exact branch/origin/upstream equality, no Git operation/lock, and no runtime/process/transaction/deployment ambiguity.

@@ -13,16 +13,18 @@ namespace KingmakerMountedCombat.Integration
         public string LastDelegatedLocomotionSource { get; set; }
         public float LastDelegatedLocomotionSpeed { get; set; }
         public int HorsePrimaryHandleCreateCount { get; set; }
+        public int HorsePrimaryHandleAdoptCount { get; set; }
         public int HorsePrimaryHandleRejectCount { get; set; }
+        public string LastHorsePrimaryHandleSource { get; set; }
         public string LastHorsePrimaryActionName { get; set; }
         public string LastHorsePrimaryActionType { get; set; }
     }
 
     /// <summary>
-    /// Pair-scoped animation bridges for two exact Kingmaker gaps: delegated
-    /// mount locomotion on the rider's TB turn, and the native Horse's
-    /// additional-limb Bite having no stock attack-animation classification.
-    /// Neither bridge changes rules, commands, timing, blueprints, or assets.
+    /// Pair-scoped animation bridges for delegated mount locomotion on the
+    /// rider's TB turn and exact capture/fallback of the native Horse Bite
+    /// animation handle. Neither bridge changes rules, commands, timing,
+    /// blueprints, or assets.
     /// </summary>
     internal sealed class MountedAnimationAdapter
     {
@@ -53,7 +55,11 @@ namespace KingmakerMountedCombat.Integration
 
         internal int HorsePrimaryHandleCreateCount => horsePrimaryAttackAnimation.HandleCreateCount;
 
+        internal int HorsePrimaryHandleAdoptCount => horsePrimaryAttackAnimation.HandleAdoptCount;
+
         internal int HorsePrimaryHandleRejectCount => horsePrimaryAttackAnimation.HandleRejectCount;
+
+        internal string LastHorsePrimaryHandleSource => horsePrimaryAttackAnimation.LastHandleSource;
 
         internal string LastHorsePrimaryActionName => horsePrimaryAttackAnimation.LastActionName;
 
@@ -100,7 +106,7 @@ namespace KingmakerMountedCombat.Integration
         {
             MountedPairAttackCommand command;
             UnitEntityData horse;
-            if (attack == null || attack.AnimationHandle != null ||
+            if (attack == null ||
                 !combat.TryGetExactHorsePrimaryAnimationContext(attack, out command, out horse))
             {
                 return;
@@ -116,7 +122,9 @@ namespace KingmakerMountedCombat.Integration
                 LastDelegatedLocomotionSource = LastDelegatedLocomotionSource,
                 LastDelegatedLocomotionSpeed = LastDelegatedLocomotionSpeed,
                 HorsePrimaryHandleCreateCount = HorsePrimaryHandleCreateCount,
+                HorsePrimaryHandleAdoptCount = HorsePrimaryHandleAdoptCount,
                 HorsePrimaryHandleRejectCount = HorsePrimaryHandleRejectCount,
+                LastHorsePrimaryHandleSource = LastHorsePrimaryHandleSource,
                 LastHorsePrimaryActionName = LastHorsePrimaryActionName,
                 LastHorsePrimaryActionType = LastHorsePrimaryActionType
             };

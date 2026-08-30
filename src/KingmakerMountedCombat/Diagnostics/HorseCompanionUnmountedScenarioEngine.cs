@@ -2209,8 +2209,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     ruleProbe.DamageRuleCount == 1 && ruleProbe.UnexpectedPairAttackCount == 0 &&
                     ruleProbe.TotalDamage > 0 && !horse.HasStandardAction() &&
                     mountedTurnHorseOutcome.AttackAnimationHandleCreated &&
+                    IsExactHorsePrimaryAnimationSource(mountedTurnHorseOutcome.AttackAnimationHandleSource) &&
                     !mountedTurnHorseOutcome.AttackAnimationInterrupted &&
-                    animationSnapshot.HorsePrimaryHandleCreateCount > 0 &&
+                    animationSnapshot.HorsePrimaryHandleCreateCount +
+                        animationSnapshot.HorsePrimaryHandleAdoptCount == 1 &&
                     animationSnapshot.HorsePrimaryHandleRejectCount == 0,
                 "horse-primary-animation-tb",
                 "One physical native Horse Primary click produced one Horse-owned Bite chain and one plausible stock SpecialAttack handle without duplicate damage or interrupted animation.");
@@ -2365,8 +2367,9 @@ namespace KingmakerMountedCombat.Diagnostics
             observations["mountedHorseAttackRules"] = ruleProbe.AttackRuleCount;
             observations["mountedHorseAttackRolls"] = ruleProbe.AttackRollCount;
             observations["mountedHorseDamageRules"] = ruleProbe.DamageRuleCount;
+            var mountedHorseAnimationSnapshot = animation.CaptureSnapshot();
             observations["mountedHorseAnimation"] = JObject.FromObject(
-                animation.CaptureSnapshot(), JsonSerializer.Create(JsonSettings));
+                mountedHorseAnimationSnapshot, JsonSerializer.Create(JsonSettings));
             var expectedHorseBiteGuid = service.CaptureSnapshot().BiteGuid;
             Check(mountedHorseOutcome.Action == MountedCombatActionKind.MountPrimaryNatural &&
                     string.Equals(mountedHorseOutcome.Result, UnitCommand.ResultType.Success.ToString(), StringComparison.Ordinal) &&
@@ -2382,8 +2385,11 @@ namespace KingmakerMountedCombat.Diagnostics
                     ruleProbe.TotalDamage > 0 &&
                     (!IncludesNativeControlsUx ||
                      (mountedHorseOutcome.AttackAnimationHandleCreated &&
+                      IsExactHorsePrimaryAnimationSource(mountedHorseOutcome.AttackAnimationHandleSource) &&
                       !mountedHorseOutcome.AttackAnimationInterrupted &&
-                      animation.CaptureSnapshot().HorsePrimaryHandleRejectCount == 0)),
+                      mountedHorseAnimationSnapshot.HorsePrimaryHandleCreateCount +
+                          mountedHorseAnimationSnapshot.HorsePrimaryHandleAdoptCount == 2 &&
+                      mountedHorseAnimationSnapshot.HorsePrimaryHandleRejectCount == 0)),
                 "mounted-horse-primary-outcome",
                 "Exactly one Horse primary chain used horse command/resource ownership and a natural primary with no duplicate rider attack.");
             if (failed != 0) { BeginCleanup(); return; }
@@ -2647,6 +2653,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (includeAnimation)
             {
                 result["attackAnimationHandleCreated"] = outcome.AttackAnimationHandleCreated;
+                result["attackAnimationHandleSource"] = outcome.AttackAnimationHandleSource;
                 result["attackAnimationActionName"] = outcome.AttackAnimationActionName;
                 result["attackAnimationActionType"] = outcome.AttackAnimationActionType;
                 result["attackAnimationActed"] = outcome.AttackAnimationActed;
@@ -2654,6 +2661,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 result["attackAnimationInterrupted"] = outcome.AttackAnimationInterrupted;
             }
             return result;
+        }
+
+        private static bool IsExactHorsePrimaryAnimationSource(string source)
+        {
+            return string.Equals(source, "stock-created", StringComparison.Ordinal) ||
+                string.Equals(source, "kmc-supplied", StringComparison.Ordinal);
         }
 
         private void AwaitDeath()
@@ -3378,7 +3391,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var status = failed == 0 ? "PASS" : "FAIL";
             var artifact = new JObject
             {
-                ["schemaVersion"] = IncludesNativeControlsUx ? 7 : 4,
+                ["schemaVersion"] = IncludesNativeControlsUx ? 8 : 4,
                 ["evidenceKind"] = IncludesNativeControlsUx
                     ? NativeControlsEvidenceKind
                     : IncludesMountedAlpha ? MountedEvidenceKind : EvidenceKind,

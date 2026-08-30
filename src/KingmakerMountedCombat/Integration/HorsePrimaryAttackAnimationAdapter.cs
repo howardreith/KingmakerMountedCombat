@@ -12,10 +12,11 @@ using UnityEngine;
 namespace KingmakerMountedCombat.Integration
 {
     /// <summary>
-    /// Supplies the exact native Horse SpecialAttack handle that Kingmaker does
-    /// not classify for the Horse's additional-limb Bite. This adapter changes
-    /// animation presentation only; the stock UnitAttack remains responsible
-    /// for command execution, rules, timing, and damage.
+    /// Binds the exact native Horse SpecialAttack handle for KMC telemetry. The
+    /// stock UnitAttack normally creates that handle while initializing the
+    /// Horse's Bite; a narrow fallback supplies it only when stock returns no
+    /// handle. This adapter changes animation presentation only; the stock
+    /// UnitAttack remains responsible for execution, rules, timing, and damage.
     /// </summary>
     internal sealed class HorsePrimaryAttackAnimationAdapter
     {
@@ -32,7 +33,11 @@ namespace KingmakerMountedCombat.Integration
 
         internal int HandleCreateCount { get; private set; }
 
+        internal int HandleAdoptCount { get; private set; }
+
         internal int HandleRejectCount { get; private set; }
+
+        internal string LastHandleSource { get; private set; } = "<none>";
 
         internal string LastActionName { get; private set; } = "<none>";
 
@@ -43,15 +48,49 @@ namespace KingmakerMountedCombat.Integration
             AttackHandInfo attack,
             UnitEntityData horse)
         {
-            if (!IsExactHorsePrimaryContext(command, attack, horse) || attack.AnimationHandle != null)
+            if (!IsExactHorsePrimaryContext(command, attack, horse))
             {
                 return;
             }
 
             var manager = horse.View?.AnimationManager;
+            if (attack.AnimationHandle != null)
+            {
+                if (command.HasRecordedHorsePrimaryAnimation(attack.AnimationHandle))
+                {
+                    return;
+                }
+
+                var stockAction = attack.AnimationHandle.Action as UnitAnimationActionSpecialAttack;
+                var expectedAttackType = attack.Weapon.Blueprint.VisualParameters.SpecialAnimation;
+                if (manager == null ||
+                    !ReferenceEquals(attack.AnimationHandle.Manager, manager) ||
+                    stockAction == null ||
+                    stockAction.AttackType != expectedAttackType ||
+                    expectedAttackType == UnitAnimationSpecialAttackType.None ||
+                    !manager.ActionSet.OfType<UnitAnimationActionSpecialAttack>()
+                        .Any(candidate => ReferenceEquals(candidate, stockAction)))
+                {
+                    HandleRejectCount++;
+                    logger.Error("Exact KMC Horse primary animation rejected: the stock Bite handle was not the exact native Horse SpecialAttack action.");
+                    return;
+                }
+
+                command.RecordHorsePrimaryAnimation(attack.AnimationHandle, stockAction, "stock-created");
+                HandleAdoptCount++;
+                LastHandleSource = "stock-created";
+                LastActionName = stockAction.name ?? "<unnamed>";
+                LastActionType = stockAction.Type.ToString();
+                logger.Info("Adopted the stock-created native Horse SpecialAttack handle for the exact KMC Bite: action=" +
+                    LastActionName + "; variant=" + attack.AnimationHandle.Variant + ".");
+                return;
+            }
+
+            var expectedType = attack.Weapon.Blueprint.VisualParameters.SpecialAnimation;
             var actions = manager?.ActionSet
                 .OfType<UnitAnimationActionSpecialAttack>()
-                .Where(candidate => candidate != null)
+                .Where(candidate => candidate != null &&
+                    (expectedType == UnitAnimationSpecialAttackType.None || candidate.AttackType == expectedType))
                 .ToArray() ?? new UnitAnimationActionSpecialAttack[0];
             if (actions.Length != 1)
             {
@@ -76,8 +115,9 @@ namespace KingmakerMountedCombat.Integration
                 handle.Variant = Math.Abs(Time.frameCount) % handle.VariantsCount;
             }
             attack.AnimationHandle = handle;
-            command.RecordHorsePrimaryAnimation(handle, action);
+            command.RecordHorsePrimaryAnimation(handle, action, "kmc-supplied");
             HandleCreateCount++;
+            LastHandleSource = "kmc-supplied";
             LastActionName = action.name ?? "<unnamed>";
             LastActionType = action.Type.ToString();
             logger.Info("Supplied one native Horse SpecialAttack handle for the exact KMC Bite: action=" +

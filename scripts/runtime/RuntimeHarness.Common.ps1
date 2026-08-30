@@ -5420,7 +5420,7 @@ function Assert-KmcHorseNativeControlsUxEvidence {
         'schemaVersion','evidenceKind','runId','scenario','branch','commit','productVersion','dllSha256','dllMvid',
         'createdAtUtc','status','assertions','observations','assertionPassCount','assertionFailCount','errors'
     ) 'Horse native-controls UX evidence'
-    if (-not (Test-KmcExactJsonInteger $artifact.schemaVersion) -or [long]$artifact.schemaVersion -notin @(5,6,7) -or
+    if (-not (Test-KmcExactJsonInteger $artifact.schemaVersion) -or [long]$artifact.schemaVersion -notin @(5,6,7,8) -or
         [string]$artifact.evidenceKind -cne $kind -or [string]$artifact.status -cnotin @('PASS','FAIL') -or
         $artifact.assertions -isnot [Array] -or $artifact.errors -isnot [Array] -or
         [string]$artifact.dllSha256 -cnotmatch '^[0-9a-f]{64}$' -or
@@ -5458,8 +5458,8 @@ function Assert-KmcHorseNativeControlsUxEvidence {
     }
 
     if ([string]$artifact.status -ceq 'PASS') {
-        if ([long]$artifact.schemaVersion -ne 7) {
-            throw 'PASS Horse native-controls UX evidence requires schema 7 explicit overlay-policy and native simple-Horse-preview observations.'
+        if ([long]$artifact.schemaVersion -notin @(7,8)) {
+            throw 'PASS Horse native-controls UX evidence requires schema 7 or 8 explicit overlay-policy and native simple-Horse-preview observations.'
         }
         foreach ($required in @(
             'original-horse-portrait-and-icon',
@@ -5597,6 +5597,7 @@ function Assert-KmcHorseNativeControlsUxEvidence {
             'actionStandardCharged','terminalReason','attackAnimationHandleCreated','attackAnimationActionName',
             'attackAnimationActionType','attackAnimationActed','attackAnimationFinished','attackAnimationInterrupted'
         )
+        if ([long]$artifact.schemaVersion -eq 8) { $outcomeNames += 'attackAnimationHandleSource' }
         foreach ($outcomeName in @(
             'mountedTurnRiderOutcome','mountedTurnHorseOutcome','mountedRiderOutcome','mountedHorseOutcome')) {
             Assert-KmcExactProperties $o.$outcomeName $outcomeNames "Horse native outcome $outcomeName"
@@ -5618,6 +5619,30 @@ function Assert-KmcHorseNativeControlsUxEvidence {
             $o.mountedHorseOutcome.attackAnimationHandleCreated -ne $true -or
             $o.mountedHorseOutcome.attackAnimationInterrupted -ne $false) {
             throw 'PASS Horse native Rider/Horse primary ownership, cardinality, or animation is invalid.'
+        }
+
+        if ([long]$artifact.schemaVersion -eq 8) {
+            $animationNames = @(
+                'delegatedLocomotionRestoreCount','lastDelegatedLocomotionSource','lastDelegatedLocomotionSpeed',
+                'horsePrimaryHandleCreateCount','horsePrimaryHandleAdoptCount','horsePrimaryHandleRejectCount',
+                'lastHorsePrimaryHandleSource','lastHorsePrimaryActionName','lastHorsePrimaryActionType'
+            )
+            Assert-KmcExactProperties $o.mountedTurnHorseAnimation $animationNames 'Horse native controls mountedTurnHorseAnimation'
+            Assert-KmcExactProperties $o.mountedHorseAnimation $animationNames 'Horse native controls mountedHorseAnimation'
+            if ([string]$o.mountedTurnHorseOutcome.attackAnimationHandleSource -cnotin @('stock-created','kmc-supplied') -or
+                [string]$o.mountedHorseOutcome.attackAnimationHandleSource -cnotin @('stock-created','kmc-supplied') -or
+                [long]$o.mountedTurnHorseAnimation.horsePrimaryHandleCreateCount +
+                    [long]$o.mountedTurnHorseAnimation.horsePrimaryHandleAdoptCount -ne 1 -or
+                [long]$o.mountedHorseAnimation.horsePrimaryHandleCreateCount +
+                    [long]$o.mountedHorseAnimation.horsePrimaryHandleAdoptCount -ne 2 -or
+                [long]$o.mountedTurnHorseAnimation.horsePrimaryHandleRejectCount -ne 0 -or
+                [long]$o.mountedHorseAnimation.horsePrimaryHandleRejectCount -ne 0 -or
+                [string]$o.mountedTurnHorseAnimation.lastHorsePrimaryHandleSource -cne
+                    [string]$o.mountedTurnHorseOutcome.attackAnimationHandleSource -or
+                [string]$o.mountedHorseAnimation.lastHorsePrimaryHandleSource -cne
+                    [string]$o.mountedHorseOutcome.attackAnimationHandleSource) {
+                throw 'PASS Horse native animation did not prove one exact TB and one exact RT stock-adopted or KMC-supplied handle.'
+            }
         }
 
         if ([long]$o.unmountedHorseBlueprintSpeedFeet -ne 50 -or

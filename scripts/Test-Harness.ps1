@@ -8943,7 +8943,10 @@ try {
             $directAnimationIndex -gt $childInitIndex -and
             $childValidationIndex -gt $directAnimationIndex -and
             $attackCommandSource.Contains('if (action == MountedCombatActionKind.MountPrimaryNatural)') -and
-            $horsePrimaryAnimationSource.Contains('if (!IsExactHorsePrimaryContext(command, attack, horse) || attack.AnimationHandle != null)')) `
+            $horsePrimaryAnimationSource.Contains('if (!IsExactHorsePrimaryContext(command, attack, horse))') -and
+            $horsePrimaryAnimationSource.Contains('command.HasRecordedHorsePrimaryAnimation(attack.AnimationHandle)') -and
+            $horsePrimaryAnimationSource.Contains('command.RecordHorsePrimaryAnimation(attack.AnimationHandle, stockAction, "stock-created");') -and
+            $horsePrimaryAnimationSource.Contains('HandleAdoptCount++;')) `
             'Horse primary animation is not supplied exactly once after stock child initialization and before native attack start/validation'
 
         Assert-Test ($patchSource.Contains('PatchExact(typeof(IKController), "SetupIkSystem", 0x0600156C, new[] { typeof(Character) }, nameof(PatchMethods.DollRoomIkSetupPrefix));') -and
@@ -8975,7 +8978,7 @@ try {
             $horseScenarioSource.Contains('mountedRiderOutcome,') -and
             $horseScenarioSource.Contains('IncludesNativeControlsUx);') -and
             $horseScenarioSource.Contains('if (includeAnimation)') -and
-            $horseScenarioSource.Contains('["schemaVersion"] = IncludesNativeControlsUx ? 7 : 4') -and
+            $horseScenarioSource.Contains('["schemaVersion"] = IncludesNativeControlsUx ? 8 : 4') -and
             $horseScenarioSource.Contains('"legacy-overlay-default-hidden"') -and
             $horseScenarioSource.Contains('"legacy-overlay-debug-fallback"') -and
             $horseScenarioSource.Contains('DollRoomSimpleAvatarField.MetadataToken == 0x04002F58') -and
@@ -9670,6 +9673,7 @@ try {
                 delegatedMoveExecutorId='horse';delegatedMoveExecutorIsExactMount=$true
                 riderStandardCharged=(-not $Natural);actionStandardCharged=$true;terminalReason=$null
                 attackAnimationHandleCreated=$Animation
+                attackAnimationHandleSource=$(if($Animation){'stock-created'}else{$null})
                 attackAnimationActionName=$(if($Animation){'SpecialAttack'}else{$null})
                 attackAnimationActionType=$(if($Animation){'SpecialAttack'}else{$null})
                 attackAnimationActed=$Animation;attackAnimationFinished=$Animation;attackAnimationInterrupted=$false
@@ -9713,8 +9717,18 @@ try {
             nativeDismountClick=(& $newClick ('4'*32) 'owner' 'owner' 'owner' $true)
             mountedTurnRiderOutcome=(& $newOutcome 'RiderMelee' 'owner' $false $false)
             mountedTurnHorseOutcome=(& $newOutcome 'MountPrimaryNatural' 'horse' $true $true)
+            mountedTurnHorseAnimation=[ordered]@{
+                delegatedLocomotionRestoreCount=1;lastDelegatedLocomotionSource='attack-approach';lastDelegatedLocomotionSpeed=1.0
+                horsePrimaryHandleCreateCount=0;horsePrimaryHandleAdoptCount=1;horsePrimaryHandleRejectCount=0
+                lastHorsePrimaryHandleSource='stock-created';lastHorsePrimaryActionName='SpecialAttack';lastHorsePrimaryActionType='SpecialAttack'
+            }
             mountedRiderOutcome=(& $newOutcome 'RiderMelee' 'owner' $false $false)
             mountedHorseOutcome=(& $newOutcome 'MountPrimaryNatural' 'horse' $true $true)
+            mountedHorseAnimation=[ordered]@{
+                delegatedLocomotionRestoreCount=1;lastDelegatedLocomotionSource='attack-approach';lastDelegatedLocomotionSpeed=1.0
+                horsePrimaryHandleCreateCount=0;horsePrimaryHandleAdoptCount=2;horsePrimaryHandleRejectCount=0
+                lastHorsePrimaryHandleSource='stock-created';lastHorsePrimaryActionName='SpecialAttack';lastHorsePrimaryActionType='SpecialAttack'
+            }
             unmountedHorseBlueprintSpeedFeet=50;mountedHorseBlueprintSpeedFeet=50
             unmountedHorseAgentMaxSpeed=4.0;mountedHorseAgentMaxSpeed=4.0
             unmountedHorseAverageWorldSpeed=3.5;mountedRealTimeAverageWorldSpeed=3.4
@@ -9730,7 +9744,7 @@ try {
             }
         }
         $nativeArtifact = [ordered]@{
-            schemaVersion=7;evidenceKind='horse-native-controls-ux';runId=$nativeRequest.runId
+            schemaVersion=8;evidenceKind='horse-native-controls-ux';runId=$nativeRequest.runId
             scenario=$nativeRequest.scenario;branch=$nativeRequest.branch;commit=$nativeRequest.commit
             productVersion=$nativeRequest.productVersion;dllSha256=$nativeRequest.dllSha256
             dllMvid=$nativeRequest.dllMvid;createdAtUtc=[DateTimeOffset]::UtcNow.ToString('o')
