@@ -35,6 +35,8 @@ namespace KingmakerMountedCombat.Integration
 
         internal int HandleAdoptCount { get; private set; }
 
+        internal int HandleRefreshCount { get; private set; }
+
         internal int HandleRejectCount { get; private set; }
 
         internal string LastHandleSource { get; private set; } = "<none>";
@@ -73,6 +75,18 @@ namespace KingmakerMountedCombat.Integration
                 {
                     HandleRejectCount++;
                     logger.Error("Exact KMC Horse primary animation rejected: the stock Bite handle was not the exact native Horse SpecialAttack action.");
+                    return;
+                }
+
+                if (command.HasAnyRecordedHorsePrimaryAnimation)
+                {
+                    command.RefreshStockCreatedHorsePrimaryAnimation(attack.AnimationHandle, stockAction);
+                    HandleRefreshCount++;
+                    LastHandleSource = "stock-created";
+                    LastActionName = stockAction.name ?? "<unnamed>";
+                    LastActionType = stockAction.Type.ToString();
+                    logger.Info("Refreshed Horse primary telemetry to the later exact stock-created Bite handle: action=" +
+                        LastActionName + "; variant=" + attack.AnimationHandle.Variant + ".");
                     return;
                 }
 

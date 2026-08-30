@@ -170,6 +170,7 @@ namespace KingmakerMountedCombat.Integration
         private float mountDisplacementAtAttackStart;
         private float targetDisplacementAtAttackStart;
         private UnitAnimationActionHandle horsePrimaryAnimationHandle;
+        private UnitAnimationActionSpecialAttack horsePrimaryAnimationAction;
         private string horsePrimaryAnimationActionName;
         private string horsePrimaryAnimationActionType;
         private string horsePrimaryAnimationHandleSource;
@@ -238,14 +239,39 @@ namespace KingmakerMountedCombat.Integration
                 throw new InvalidOperationException("Horse primary animation telemetry rejected a nonexact or duplicate handle.");
             }
             horsePrimaryAnimationHandle = handle;
+            horsePrimaryAnimationAction = animationAction;
             horsePrimaryAnimationHandleSource = handleSource;
             horsePrimaryAnimationActionName = animationAction.name ?? "<unnamed>";
             horsePrimaryAnimationActionType = animationAction.Type.ToString();
         }
 
+        internal bool HasAnyRecordedHorsePrimaryAnimation => horsePrimaryAnimationHandle != null;
+
         internal bool HasRecordedHorsePrimaryAnimation(UnitAnimationActionHandle handle)
         {
             return handle != null && ReferenceEquals(horsePrimaryAnimationHandle, handle);
+        }
+
+        internal void RefreshStockCreatedHorsePrimaryAnimation(
+            UnitAnimationActionHandle handle,
+            UnitAnimationActionSpecialAttack animationAction)
+        {
+            if (action != MountedCombatActionKind.MountPrimaryNatural ||
+                handle == null || animationAction == null ||
+                horsePrimaryAnimationHandle == null ||
+                ReferenceEquals(horsePrimaryAnimationHandle, handle) ||
+                horsePrimaryAnimationAction == null ||
+                !ReferenceEquals(horsePrimaryAnimationAction, animationAction) ||
+                (horsePrimaryAnimationHandleSource != "stock-created" &&
+                 horsePrimaryAnimationHandleSource != "kmc-supplied"))
+            {
+                throw new InvalidOperationException("Horse primary animation telemetry rejected a nonexact stock-handle refresh.");
+            }
+
+            horsePrimaryAnimationHandle = handle;
+            horsePrimaryAnimationHandleSource = "stock-created";
+            horsePrimaryAnimationActionName = animationAction.name ?? "<unnamed>";
+            horsePrimaryAnimationActionType = animationAction.Type.ToString();
         }
 
         internal bool HasAcceptedTargetBeforeChildAttack(UnitEntityData exactTarget)

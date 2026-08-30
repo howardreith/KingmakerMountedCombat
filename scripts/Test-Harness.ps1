@@ -8945,9 +8945,14 @@ try {
             $attackCommandSource.Contains('if (action == MountedCombatActionKind.MountPrimaryNatural)') -and
             $horsePrimaryAnimationSource.Contains('if (!IsExactHorsePrimaryContext(command, attack, horse))') -and
             $horsePrimaryAnimationSource.Contains('command.HasRecordedHorsePrimaryAnimation(attack.AnimationHandle)') -and
+            $horsePrimaryAnimationSource.Contains('if (command.HasAnyRecordedHorsePrimaryAnimation)') -and
+            $horsePrimaryAnimationSource.Contains('command.RefreshStockCreatedHorsePrimaryAnimation(attack.AnimationHandle, stockAction);') -and
+            $horsePrimaryAnimationSource.Contains('HandleRefreshCount++;') -and
             $horsePrimaryAnimationSource.Contains('command.RecordHorsePrimaryAnimation(attack.AnimationHandle, stockAction, "stock-created");') -and
-            $horsePrimaryAnimationSource.Contains('HandleAdoptCount++;')) `
-            'Horse primary animation is not supplied exactly once after stock child initialization and before native attack start/validation'
+            $horsePrimaryAnimationSource.Contains('HandleAdoptCount++;') -and
+            $attackCommandSource.Contains('!ReferenceEquals(horsePrimaryAnimationAction, animationAction)') -and
+            $attackCommandSource.Contains('horsePrimaryAnimationHandleSource = "stock-created";')) `
+            'Horse primary animation does not bind once after stock child initialization and safely follow a later reference-distinct exact stock Bite handle'
 
         Assert-Test ($patchSource.Contains('PatchExact(typeof(IKController), "SetupIkSystem", 0x0600156C, new[] { typeof(Character) }, nameof(PatchMethods.DollRoomIkSetupPrefix));') -and
             $patchSource.Contains('PatchExact(typeof(IKController), "SetupFbbik", 0x0600156D, Type.EmptyTypes, nameof(PatchMethods.DollRoomFbbikPrefix), nameof(PatchMethods.DollRoomFbbikPostfix));') -and
