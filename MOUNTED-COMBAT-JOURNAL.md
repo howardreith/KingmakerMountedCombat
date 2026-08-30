@@ -1,5 +1,17 @@
 # Mounted Combat journal
 
+## 2026-08-30T21:21:46Z - Phase 3D presentation tranche is offline-green
+
+- Branch/HEAD before checkpoint: `codex/mounted-combat-phase3d-unified-combat` / `9bf83d21b5367e057130b41bf7379512a638c025`; this original-art/presentation tranche and record are uncommitted. Phase 3C assets, package, branch, and evidence remain immutable.
+- Exact read-only installed-data audit found zero standalone `saddle`/`tack` filenames and zero such terms across every Kingmaker bundle manifest. No stable native resource path/GUID/owner could be established, so KMC selected the authorized original-art fallback without extracting a proprietary texture.
+- OpenAI ImageGen produced original text-only saddle art. Runtime `MountSaddleIcon.png` is 128x128, SHA-256 `75b02adb8eeef7bc0676a8c3f8b9d22603f524a416bffa94c33fc306cfdaa5a1`; its committed 1254x1254 source is `0f8efb42227c375e61ebdd0b0254a71cca5f4372a862b4ae8d558497600b8d23`. Only Mount/Dismount use it; Horse companion and primary-action identity retain the accepted Horse icon.
+- The new small close-up was edited only from KMC's accepted original Horse master. `HorsePortraitSmall.png` remains 185x242 and now hashes `5154944913525ff6596aab2bc6cbd623a08557c595b63a1b63eb880f203a99c1`; the close-up master hashes `4f3a190fdb44a1c59e8c2034ecdc2401e6b550526996c9e2b3d38cc2ad962912`. Large, medium, original master, and Horse identity icon remain byte-identical.
+- The one final Horse-only vertical cycle bounded pelvis-local candidates to `-0.25`, `-0.27`, and `-0.29` from Phase 3C `-0.17`. Selected `-0.29` is the requested substantive `-0.12` lowering at the rider Pelvis under the exact Chest/root attachment. Horse lateral/longitudinal leg targets, anchor, rotation, scale, and animation remain unchanged. Mammoth values are unchanged and explicitly component-locked.
+- Offline gates: source `22/0`; Release build PASS; component `290/0`; visual/source-order `18/0`; harness/protocol `236/0`; assembly `378/0` (`354` Kingmaker + `24` Wrath); diff/prohibited-payload PASS. Non-package DLL SHA-256/MVID are `4de92dd32945d7b1ba3ceb3b2433b686ff71c5b68268ba7fd7219c5a9ea669bd` / `fd5b791d-cadf-4f6c-85aa-fedd60f21c94`.
+- One harness attempt failed solely because the new source assertion referenced an uninitialized local test variable. The assertion was bound inside the correct test scope and the complete harness rerun passed `236/0`; no production repair or acceptance threshold changed.
+- Rejected claims: bitmap inspection and offline pose constants do not prove in-game bar/tracker legibility, saddle contact, clipping, gait stability, or Mammoth behavior. Those remain runtime/manual gates.
+- External state: no Kingmaker/Wrath launch, save access, live Mods staging, installed-package change, runtime transaction, or remote publication. Exact next action is the strict Phase 3D runtime artifact/schema/engine plus grouped RT/TB/presentation/Mammoth scenarios.
+
 ## 2026-08-30T20:46:46Z - Phase 3D unified combat primary implementation is offline-green
 
 - Branch/HEAD before checkpoint: `codex/mounted-combat-phase3d-unified-combat` / `2d7fa364b3e9418c7069bd6e251d15e006444ecf`; implementation and this record are uncommitted. Phase 3C historical refs/artifacts remain immutable.

@@ -571,10 +571,15 @@ namespace KingmakerMountedCombat.Integration
                 AssertGuidAbsent(library, guid);
             }
 
-            var icon = horseCompanion.HorseFeature.Icon;
-            if (icon == null)
+            var horseIcon = horseCompanion.HorseFeature.Icon;
+            var saddleIcon = horseCompanion.MountSaddleIcon;
+            if (horseIcon == null)
             {
                 throw new InvalidOperationException("The exact Horse feature has no icon for native controls.");
+            }
+            if (saddleIcon == null)
+            {
+                throw new InvalidOperationException("The original KMC saddle icon is unavailable for Mount/Dismount controls.");
             }
 
             mountAbility = CreateAbility(
@@ -588,7 +593,7 @@ namespace KingmakerMountedCombat.Integration
                 true,
                 false,
                 UnitCommand.CommandType.Move,
-                icon);
+                saddleIcon);
             dismountAbility = CreateAbility(
                 "KMC_DismountAbility",
                 DismountAbilityGuid,
@@ -600,7 +605,7 @@ namespace KingmakerMountedCombat.Integration
                 false,
                 true,
                 UnitCommand.CommandType.Move,
-                icon);
+                saddleIcon);
             riderPrimaryAbility = CreateAbility(
                 "KMC_RiderPrimaryAbility",
                 RiderPrimaryAbilityGuid,
@@ -612,7 +617,7 @@ namespace KingmakerMountedCombat.Integration
                 false,
                 false,
                 UnitCommand.CommandType.Free,
-                icon);
+                horseIcon);
             mountPrimaryAbility = CreateAbility(
                 "KMC_MountPrimaryAbility",
                 MountPrimaryAbilityGuid,
@@ -624,7 +629,7 @@ namespace KingmakerMountedCombat.Integration
                 false,
                 false,
                 UnitCommand.CommandType.Free,
-                icon);
+                horseIcon);
 
             foreach (var ability in EnumerateBlueprints())
             {

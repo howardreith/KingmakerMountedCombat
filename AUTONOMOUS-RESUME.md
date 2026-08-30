@@ -1,5 +1,17 @@
 # Autonomous resume
 
+## Phase 3D original art and final Horse seat calibration offline-green - 2026-08-30T21:21:46Z
+
+- Branch is `codex/mounted-combat-phase3d-unified-combat`; current committed implementation checkpoint is `9bf83d21b5367e057130b41bf7379512a638c025`, with this presentation tranche and records intentionally uncommitted until the coherent checkpoint below. Phase 3C historical refs/artifacts are untouched.
+- The exact installed bundle filename/manifest scan found no discoverable saddle/tack resource, so the original-art fallback is selected. `planning/MOUNT-ICON-ASSET-AUDIT.md` records the text-only ImageGen prompt, rights boundary, dimensions, and hashes. `MountSaddleIcon.png` is embedded separately and used only by Mount/Dismount; Horse identity/primary surfaces keep `HorseIcon.png`.
+- The accepted Horse master/large/medium art remains byte-identical. ImageGen edited only the KMC master into `HorsePortraitSmallCloseupMaster.png`; its exact 185x242 derivative replaces only `HorsePortraitSmall.png` with SHA-256 `5154944913525ff6596aab2bc6cbd623a08557c595b63a1b63eb880f203a99c1`.
+- The final Horse-only vertical cycle compared pelvis-local `Y=-0.25/-0.27/-0.29` against the Phase 3C human screenshot and exact Chest/stirrup coordinate contract. `Y=-0.29` is selected for fresh runtime/manual review. Foot/knee deltas, anchor, rotation, scale, Horse animation, and every Mammoth constant remain unchanged; tests lock the accepted Mammoth values.
+- Offline gates pass source/Release/component/visual/harness/assembly `22/Release/290/18/236/378` (`354` Kingmaker + `24` Wrath), diff, and prohibited payload. Current non-package DLL SHA-256/MVID are `4de92dd32945d7b1ba3ceb3b2433b686ff71c5b68268ba7fd7219c5a9ea669bd` / `fd5b791d-cadf-4f6c-85aa-fedd60f21c94`.
+- One intermediate harness failure was test-scope-only: the new icon segregation assertion referenced a variable initialized in a different harness closure. Binding the read inside the correct closure restored full `236/0`; production code did not change for that repair.
+- No game, save, live Mods tree, installed package, runtime transaction, or remote ref changed. Exact next action: commit this presentation checkpoint, then implement strict Phase 3D runtime schemas/validators/scenario engine before creating any gameplay package or claiming runtime credit.
+
+Status remains `IN PROGRESS`; icon/portrait/pose runtime and human gates are open.
+
 ## Phase 3D unified-combat primary implementation offline-green - 2026-08-30T20:46:46Z
 
 - Branch is `codex/mounted-combat-phase3d-unified-combat`; current committed contract checkpoint is `2d7fa364b3e9418c7069bd6e251d15e006444ecf`, with the reviewed primary implementation and tests intentionally uncommitted until this record/checkpoint. Phase 3C refs and accepted package remain untouched.

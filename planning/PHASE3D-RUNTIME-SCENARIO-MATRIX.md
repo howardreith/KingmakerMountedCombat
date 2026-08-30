@@ -82,12 +82,12 @@ Each mounted row records actual `ClickUnitHandler` admission, exact stock comman
 | Scenario | Required proof | Status |
 |---|---|---|
 | mounted-single-rider-turn-portrait | one rider tracker portrait, rider selection/action bar/camera | TODO |
-| Horse-small-portrait-close-up | original KMC art crop readable at party/tracker size | TODO |
-| saddle-icon | native safe reference or original KMC-owned saddle art; no Wrath asset | TODO |
+| Horse-small-portrait-close-up | original KMC art crop readable at party/tracker size | IN PROGRESS - original close-up integrated; runtime rendering/human legibility pending |
+| saddle-icon | native safe reference or original KMC-owned saddle art; no Wrath asset | IN PROGRESS - native path/manifest scan found no safe reference; original KMC saddle integrated; runtime rendering/human legibility pending |
 | mount-ability-in-combat | visible, eligible, one rider Move cost | TODO |
 | dismount-ability-in-combat | visible, one rider Move cost, no extra turn | TODO |
-| Horse-pose-final-idle-walk-run-turn-stop | final one-cycle lower-seat acceptance | TODO |
-| Horse-pose-Mammoth-unchanged | Mammoth profile bytes and behavior unchanged | TODO |
+| Horse-pose-final-idle-walk-run-turn-stop | final one-cycle lower-seat acceptance | IN PROGRESS - Phase3D-C `Y=-0.29` selected; fresh runtime/manual evidence pending |
+| Horse-pose-Mammoth-unchanged | Mammoth profile bytes and behavior unchanged | IN PROGRESS - source constants and component locks unchanged; focused runtime regression pending |
 | Horse creation/lifecycle/save reload | previously qualified behavior remains exact | TODO |
 | door approach/open/traverse | pair interaction remains exact | TODO |
 | Wild Shape and save/area cleanup | clean dismount | TODO |

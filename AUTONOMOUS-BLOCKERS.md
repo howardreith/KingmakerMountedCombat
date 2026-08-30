@@ -1,5 +1,15 @@
 # Autonomous blockers
 
+## Phase 3D presentation is offline-green; runtime/manual proof remains open - 2026-08-30T21:21:46Z
+
+Status: `IN PROGRESS`.
+
+No current hard blocker is proven. The original saddle icon and close-up small Horse portrait are integrated with exact provenance and independent resource ownership. The final Horse pelvis candidate is a substantive `-0.12` local-unit reduction from Phase 3C, while every Mammoth profile constant remains unchanged. All applicable offline gates pass.
+
+The unresolved presentation risk is exclusively fresh in-game evidence: ability-bar icon legibility, party/tracker crop readability, actual pelvis-to-saddle contact, torso/weapon/shield/leg clipping, locomotion/turn/stop/reverse stability, and focused Mammoth behavior. The selected `Y=-0.29` intentionally accepts limited clipping before obvious suspension, but offline source cannot determine that visual judgment.
+
+The principal mission risk remains the unified runtime control model listed below. Exact next action is to commit this checkpoint and implement grouped strict Phase 3D RT/TB/presentation/Mammoth protocol evidence. If the first runtime presentation pass shows severe clipping, the authorized final calibration cycle is exhausted; preserve the result and place the visual decision in the manual gate rather than starting another unbounded pose loop.
+
 ## Phase 3D primary implementation offline-green; runtime proof remains open - 2026-08-30T20:46:46Z
 
 Status: `IN PROGRESS`.

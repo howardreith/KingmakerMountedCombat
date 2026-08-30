@@ -44,3 +44,19 @@ The live Horse blueprint remains 50 feet and the exact agent maximum remains `5.
 Exact Horse Bite `35dfad6517f401145af54111be04d6cf` remains `AdditionalLimb[0]`. The final adapter follows the refreshed stock-created handle, validates exact Horse manager/action-set membership, and records `HorseAnimationSet_Bite` / `SpecialAttack`. TB and RT each produced one successful Horse-owned command and one attack/roll/damage chain. The handle acted, finished, and was not interrupted; create/adopt/reject totals after both actions were `0/2/0`. Visual readability remains a human gate.
 
 Candidate C is final for this bounded cycle: pelvis `(0,-0.17,-0.02)`, feet `(+/-0.15,-0.62,0.11)`, knees `(+/-0.16,-0.16,0.16)`. Left/right stirrup distances are `0.39243558` / `0.4600763`; clamps are zero; maximum foot/knee/segment residuals remain at microunit scale; maximum/average cost is `19.0` / `13.9` microseconds. Mammoth values, Horse scale/assets, and every other rider category are unchanged.
+
+## Phase 3D final seat-lowering cycle - 2026-08-30
+
+The Phase 3C human screenshot supersedes the earlier visual disposition: Candidate C is mechanically stable but the pelvis remains visibly suspended above the stock saddle. Phase 3D therefore authorizes exactly one final Horse-only vertical cycle. The coordinate seam is the rider `Pelvis.localPosition` inside the rider root leased at the native Horse `Chest`; the exact `L_Stirrup` and `R_Stirrup` remain authored children of that Chest at approximately `(+/-0.305183,-0.12273,-0.04402)`. This is not a blind mount-root translation.
+
+The bounded candidates are:
+
+| Candidate | Pelvis local offset | Delta from Phase 3C | Disposition |
+|---|---:|---:|---|
+| Phase3D-A | `(0,-0.25,-0.02)` | `-0.08 Y` | evidence boundary |
+| Phase3D-B | `(0,-0.27,-0.02)` | `-0.10 Y` | intermediate |
+| Phase3D-C | `(0,-0.29,-0.02)` | `-0.12 Y` | selected for runtime/manual review |
+
+Phase3D-C is selected because the authoritative screenshot shows material suspension and the user explicitly prioritizes seat contact over a small amount of clipping. The procedural pose applies the pelvis translation before resolving both thigh-root-relative leg chains, so the rider body and existing stable Horse-only foot/knee targets descend together. Lateral, longitudinal, bend, rotation, Horse scale, source anchor, and native animation values remain unchanged.
+
+The accepted Mammoth constants remain exactly pelvis `(0,0.04,-0.05)`, feet `(+/-0.32,-0.50,0.10)`, and knees `(+/-0.42,-0.08,0.42)`; component tests lock those values. Runtime idle/walk/run/turn/stop/reverse, clipping, jitter, stirrup distance, and Mammoth behavior still require fresh evidence. No additional pose candidate cycle is authorized after this one.

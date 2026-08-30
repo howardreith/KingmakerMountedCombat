@@ -8923,6 +8923,7 @@ try {
         $attackCommandSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPairAttackCommand.cs'))
         $ikSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedDollRoomIkAdapter.cs'))
         $horseBlueprintSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\HorseCompanionBlueprintService.cs'))
+        $nativeControlSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\NativeMountedControlService.cs'))
         $horseScenarioSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\HorseCompanionUnmountedScenarioEngine.cs'))
         $runtimeLauncherSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\runtime\Invoke-KingmakerRuntimeScenario.ps1'))
         $runtimeRequestValidatorSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\runtime\Test-RuntimeRequest.ps1'))
@@ -8978,11 +8979,19 @@ try {
         Assert-Test ($horseBlueprintSource.Contains('internal const string PortraitGuid = "6874a165bf8bda3531ee4e2abc10c899";') -and
             $horseBlueprintSource.Contains('new PortraitData(null, small, medium, large)') -and
             $horseBlueprintSource.Contains('ImageConversion.LoadImage(texture, bytes, true)') -and
+            $horseBlueprintSource.Contains('KingmakerMountedCombat.Assets.MountSaddleIcon.png') -and
+            $horseBlueprintSource.Contains('public Sprite MountSaddleIcon => mountSaddleIcon;') -and
             $projectSource.Contains('EmbeddedResource Include="Assets\HorsePortraitLarge.png"') -and
             $projectSource.Contains('EmbeddedResource Include="Assets\HorsePortraitMedium.png"') -and
             $projectSource.Contains('EmbeddedResource Include="Assets\HorsePortraitSmall.png"') -and
-            $projectSource.Contains('EmbeddedResource Include="Assets\HorseIcon.png"')) `
-            'Horse portrait surfaces are not bound to the exact original embedded KMC portrait/icon set'
+            $projectSource.Contains('EmbeddedResource Include="Assets\HorseIcon.png"') -and
+            $projectSource.Contains('EmbeddedResource Include="Assets\MountSaddleIcon.png"') -and
+            $nativeControlSource.Contains('var saddleIcon = horseCompanion.MountSaddleIcon;') -and
+            $nativeControlSource.Contains('"KMC_MountCompanionAbility"') -and
+            $nativeControlSource.Contains('"KMC_DismountAbility"') -and
+            $nativeControlSource.Contains('saddleIcon);') -and
+            $nativeControlSource.Contains('horseIcon);')) `
+            'Horse portrait/identity art and the original saddle-oriented Mount/Dismount art are not segregated on exact embedded KMC surfaces'
 
         Assert-Test ($horseScenarioSource.Contains('Game.Instance?.SelectedAbilityHandler') -and
             $horseScenarioSource.Contains('handler.SetAbility(data);') -and

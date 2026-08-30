@@ -111,6 +111,7 @@ namespace KingmakerMountedCombat.Integration
         private bool selectionDesired;
         private BlueprintPortrait horsePortrait;
         private Sprite horseIcon;
+        private Sprite mountSaddleIcon;
         private BlueprintUnit horseUnit;
         private BlueprintFeature horseFeature;
         private BlueprintFeature horseUpgrade;
@@ -144,6 +145,8 @@ namespace KingmakerMountedCombat.Integration
         public BlueprintPortrait HorsePortrait => horsePortrait;
 
         public Sprite HorseIcon => horseIcon;
+
+        public Sprite MountSaddleIcon => mountSaddleIcon;
 
         public BlueprintFeature HorseFeature => horseFeature;
 
@@ -386,6 +389,9 @@ namespace KingmakerMountedCombat.Integration
             horseIcon = CreateEmbeddedSprite(
                 "KingmakerMountedCombat.Assets.HorseIcon.png",
                 "KMC_Horse_Icon");
+            mountSaddleIcon = CreateEmbeddedSprite(
+                "KingmakerMountedCombat.Assets.MountSaddleIcon.png",
+                "KMC_Mount_Saddle_Icon");
 
             horseUpgrade = CreateOwned<BlueprintFeature>("AnimalCompanionUpgradeHorse");
             horseUpgrade.AssetGuid = UpgradeGuid;
@@ -861,6 +867,7 @@ namespace KingmakerMountedCombat.Integration
             horseUnit = null;
             horsePortrait = null;
             horseIcon = null;
+            mountSaddleIcon = null;
             horseFeature = null;
             horseUpgrade = null;
             rangerSelection = null;

@@ -253,7 +253,7 @@ namespace KingmakerMountedCombat.Tests
             var profile = MountedRiderPoseProfiles.MediumHumanoidOnHorse;
             TestRunner.Equal(null, profile.Validate(), "Horse pose profile is invalid.");
             TestRunner.Equal("medium-humanoid-horse-v1", profile.Id, "Horse profile identity changed.");
-            TestRunner.Equal(-0.17f, profile.PelvisPositionOffset.Y, "Horse pelvis calibration changed.");
+            TestRunner.Equal(-0.29f, profile.PelvisPositionOffset.Y, "Horse final Phase 3D pelvis calibration changed.");
             TestRunner.Equal(-0.15f, profile.LeftLeg.FootTargetFromThigh.X, "Horse left thigh-relative stirrup target changed.");
             TestRunner.Equal(0.15f, profile.RightLeg.FootTargetFromThigh.X, "Horse right thigh-relative stirrup target changed.");
             TestRunner.Equal(-0.62f, profile.LeftLeg.FootTargetFromThigh.Y, "Horse left foot height target changed.");
@@ -268,6 +268,12 @@ namespace KingmakerMountedCombat.Tests
                 profile.LeftLeg.FootTargetFromThigh.Z != MountedRiderPoseProfiles.MediumHumanoidOnMammoth.LeftLeg.FootTargetFromThigh.Z &&
                 profile.LeftLeg.KneeHintFromThigh.Z != MountedRiderPoseProfiles.MediumHumanoidOnMammoth.LeftLeg.KneeHintFromThigh.Z,
                 "Horse pose reused Mammoth longitudinal leg values.");
+            var mammoth = MountedRiderPoseProfiles.MediumHumanoidOnMammoth;
+            TestRunner.Equal(0.04f, mammoth.PelvisPositionOffset.Y, "Horse calibration mutated the accepted Mammoth pelvis height.");
+            TestRunner.Equal(-0.50f, mammoth.LeftLeg.FootTargetFromThigh.Y, "Horse calibration mutated the accepted Mammoth left foot target.");
+            TestRunner.Equal(-0.50f, mammoth.RightLeg.FootTargetFromThigh.Y, "Horse calibration mutated the accepted Mammoth right foot target.");
+            TestRunner.Equal(-0.08f, mammoth.LeftLeg.KneeHintFromThigh.Y, "Horse calibration mutated the accepted Mammoth left knee target.");
+            TestRunner.Equal(-0.08f, mammoth.RightLeg.KneeHintFromThigh.Y, "Horse calibration mutated the accepted Mammoth right knee target.");
         }
 
         private static void ProfileRejectsDuplicateBones()
