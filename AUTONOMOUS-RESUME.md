@@ -1,5 +1,17 @@
 # Autonomous resume
 
+## Phase 3D unified-combat primary implementation offline-green - 2026-08-30T20:46:46Z
+
+- Branch is `codex/mounted-combat-phase3d-unified-combat`; current committed contract checkpoint is `2d7fa364b3e9418c7069bd6e251d15e006444ecf`, with the reviewed primary implementation and tests intentionally uncommitted until this record/checkpoint. Phase 3C refs and accepted package remain untouched.
+- Added a pair-local `UnifiedMountedTurnCoordinator`: exact mount-candidate skip, rider-only tracker projection, rider initiative-result override before native caching, mount initiative/tie-break mirroring, one mount-ledger preparation per natural rider turn, rider-led turn retention, deferred split through the current round, separate-turn fail-closed setting, mount-resource movement transfer, and exact mounted five-foot-step AoO isolation.
+- Added actual hostile-click admission from `IUnitCommandActHandler.OnAttackRequested` through the exact stock rider `UnitAttack`; rider selection stays principal, mount owns approach, one RT intent persists, TB sequences independent rider then mount actions, cancellation is bounded, and ranged riders use native `BlueprintItemWeapon.IsRanged`, range/LoS, ammunition/reload observations, and never force mount melee.
+- Combat Mount/Dismount now use native Move command cost and exact adjacency/turn/resource gates. Rider Primary activation-to-lifecycle telemetry records caster, selection, target mode, pair/view identities, lifecycle deliveries, transition, cleanup trigger, and terminal result.
+- P0 source root cause: Phase 3C's `UnitMoveContiniously.Init` prefix treated any pair member's continuous move as `UnexpectedCommand` and dismounted. Phase 3D rewrites rider continuous movement to the mount and cancels only superseded attack intent; it never invokes relationship cleanup. Preserved Phase 3C logs still show both recorded Primary outcomes retaining the pair, so fresh runtime regression remains required.
+- Offline gates: source `22/0`; Release build PASS; component `290/0`; visual/source-order `18/0`; Kingmaker assembly contracts `354/0`; harness/protocol `236/0`, including the new Phase 3D source-boundary checks; `git diff --check` PASS. Current diagnostic DLL SHA-256/MVID `b242bb3c98d984ab5971a943889707d7e27dcf0b9668fbc03c4f2c6b62a28e62` / `ec6fe341-572b-45f1-bf4a-ae32ee1e46b7` are not package identity.
+- No Kingmaker process, save, live Mods tree, installed package, runtime transaction, or remote ref was changed. Exact next action: commit this coherent production checkpoint, then perform the authorized original-art/presentation tranche and build a strict Phase 3D runtime protocol before any gameplay qualification claim.
+
+Status remains `IN PROGRESS`; no runtime row is credited yet.
+
 ## Phase 3D contract checkpoint complete; shared-turn implementation next - 2026-08-30T19:41:26Z
 
 - Branch remains `codex/mounted-combat-phase3d-unified-combat` at inherited HEAD `63595b832f7f89c854edef5a9eb4d21dee026590`; the current changes are uncommitted contract/journal records only. No runtime, installed game, save, Mods, package, or remote state changed.

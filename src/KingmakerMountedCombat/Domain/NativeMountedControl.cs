@@ -35,6 +35,21 @@ namespace KingmakerMountedCombat.Domain
             bool casterIsRider,
             bool casterIsMount)
         {
+            return IsExpectedPrimaryCaster(
+                kind,
+                turnBased,
+                false,
+                casterIsRider,
+                casterIsMount);
+        }
+
+        public static bool IsExpectedPrimaryCaster(
+            NativeMountedControlKind kind,
+            bool turnBased,
+            bool unifiedMountedTurn,
+            bool casterIsRider,
+            bool casterIsMount)
+        {
             if (kind == NativeMountedControlKind.RiderPrimary)
             {
                 return casterIsRider;
@@ -45,12 +60,38 @@ namespace KingmakerMountedCombat.Domain
                 return false;
             }
 
+            if (unifiedMountedTurn)
+            {
+                return casterIsRider;
+            }
+
             return turnBased ? casterIsMount : casterIsRider;
         }
 
         public static bool ShouldLease(
             NativeMountedControlKind kind,
             bool featureEnabled,
+            bool ownerHasSupportedMount,
+            bool relationshipMounted,
+            bool relationshipFaulted,
+            bool unitIsRider,
+            bool unitIsMount)
+        {
+            return ShouldLease(
+                kind,
+                featureEnabled,
+                false,
+                ownerHasSupportedMount,
+                relationshipMounted,
+                relationshipFaulted,
+                unitIsRider,
+                unitIsMount);
+        }
+
+        public static bool ShouldLease(
+            NativeMountedControlKind kind,
+            bool featureEnabled,
+            bool unifiedMountedTurn,
             bool ownerHasSupportedMount,
             bool relationshipMounted,
             bool relationshipFaulted,
@@ -80,6 +121,11 @@ namespace KingmakerMountedCombat.Domain
             if (kind == NativeMountedControlKind.RiderPrimary ||
                 kind == NativeMountedControlKind.MountPrimary)
             {
+                if (unifiedMountedTurn)
+                {
+                    return unitIsRider;
+                }
+
                 return unitIsRider || unitIsMount;
             }
 
@@ -87,6 +133,14 @@ namespace KingmakerMountedCombat.Domain
         }
 
         public static string WrongTurnReason(NativeMountedControlKind kind, string mountName)
+        {
+            return WrongTurnReason(kind, mountName, false);
+        }
+
+        public static string WrongTurnReason(
+            NativeMountedControlKind kind,
+            string mountName,
+            bool unifiedMountedTurn)
         {
             var exactMountName = string.IsNullOrWhiteSpace(mountName) ? "mount" : mountName;
             if (kind == NativeMountedControlKind.RiderPrimary)
@@ -96,6 +150,11 @@ namespace KingmakerMountedCombat.Domain
 
             if (kind == NativeMountedControlKind.MountPrimary)
             {
+                if (unifiedMountedTurn)
+                {
+                    return exactMountName + " primary belongs to the rider-led shared turn.";
+                }
+
                 return exactMountName + " primary belongs to the " + exactMountName + "'s turn.";
             }
 

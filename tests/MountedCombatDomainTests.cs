@@ -10,7 +10,7 @@ namespace KingmakerMountedCombat.Tests
         {
             runner.Run("mounted rider melee uses rider actor and rider resource ownership", RiderMeleeOwnership);
             runner.Run("mounted Mammoth primary uses mount actor and mount resource ownership", MountAttackOwnership);
-            runner.Run("mounted combat rejects ranged rider attack", RejectsRangedRider);
+            runner.Run("mounted ranged uses rider actor and native ranged weapon", AdmitsRangedRider);
             runner.Run("mounted combat rejects invalid target and unavailable Standard action", RejectsInvalidContext);
             runner.Run("mounted combat reports every required player-facing admission reason", ReportsRequiredAdmissionReasons);
             runner.Run("mounted combat transaction starts exactly one child attack", PreventsDuplicateAttack);
@@ -84,14 +84,17 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.Equal(MountedCombatActor.Mount, result.PathfindingOwner, "Mammoth did not retain pathfinding authority.");
         }
 
-        private static void RejectsRangedRider()
+        private static void AdmitsRangedRider()
         {
-            var context = Eligible(MountedCombatActionKind.RiderMelee);
+            var context = Eligible(MountedCombatActionKind.RiderRanged);
             context.RiderWeaponIsSupportedMelee = false;
             context.RiderWeaponIsRanged = true;
             var result = MountedCombatActionEvaluator.Evaluate(context);
-            TestRunner.True(!result.IsAllowed, "Ranged mounted rider attack was accepted.");
-            TestRunner.True(result.Feedback.Contains("ranged attacks"), "Ranged rejection was not explicit.");
+            TestRunner.True(result.IsAllowed, "Eligible native ranged mounted attack was rejected.");
+            TestRunner.Equal(MountedCombatActor.Rider, result.Actor,
+                "Mounted ranged attack changed actor ownership.");
+            TestRunner.Equal(MountedCombatActor.Mount, result.PathfindingOwner,
+                "Mounted ranged approach changed pathfinding ownership.");
         }
 
         private static void RejectsInvalidContext()

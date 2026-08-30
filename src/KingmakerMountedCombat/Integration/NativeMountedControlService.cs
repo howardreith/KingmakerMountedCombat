@@ -9,6 +9,7 @@ using Kingmaker.EntitySystem.Entities;
 using Kingmaker.EntitySystem.Persistence;
 using Kingmaker.Localization;
 using Kingmaker.PubSubSystem;
+using Kingmaker.UI.Selection;
 using Kingmaker.UI.UnitSettings;
 using Kingmaker.UnitLogic.Abilities;
 using Kingmaker.UnitLogic.Abilities.Blueprints;
@@ -18,6 +19,7 @@ using Kingmaker.Visual.Animation.Kingmaker.Actions;
 using KingmakerMountedCombat.Diagnostics;
 using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Logging;
+using TurnBased.Controllers;
 using UnityEngine;
 
 namespace KingmakerMountedCombat.Integration
@@ -36,6 +38,8 @@ namespace KingmakerMountedCombat.Integration
         public long NativeRefusalCount { get; set; }
         public long DispatchAcceptedCount { get; set; }
         public long DispatchRejectedCount { get; set; }
+        public int ActivationRecordCount { get; set; }
+        public int RiderPrimaryRelationshipEndCount { get; set; }
     }
 
     internal sealed class NativeMountedControlService : IDisposable,
@@ -66,6 +70,9 @@ namespace KingmakerMountedCombat.Integration
         private readonly MountedCombatController combat;
         private readonly HorseCompanionBlueprintService horseCompanion;
         private readonly DiagnosticSettings settings;
+        private readonly NativeLifecycleDeliveryLedger lifecycleLedger;
+        private readonly NativeMountedAbilityActivationLedger activationLedger =
+            new NativeMountedAbilityActivationLedger();
         private readonly IModLogger logger;
         private readonly List<UnityEngine.Object> ownedObjects = new List<UnityEngine.Object>();
         private readonly List<UnitEntityData> observedUnits = new List<UnitEntityData>();
@@ -79,7 +86,7 @@ namespace KingmakerMountedCombat.Integration
                 { "KMC.Native.Dismount.Name", "Dismount" },
                 { "KMC.Native.Dismount.Description", "End the transient mounted relationship and restore the rider and mount through KMC's exact cleanup path." },
                 { "KMC.Native.RiderPrimary.Name", "Rider Primary" },
-                { "KMC.Native.RiderPrimary.Description", "Make one supported mounted rider melee attack. The rider owns the attack, weapon, command, and Standard action; the mount owns approach pathfinding." },
+                { "KMC.Native.RiderPrimary.Description", "Make one mounted rider attack with the equipped native melee or ranged weapon. The rider owns the attack and Standard action; the mount owns any approach movement." },
                 { "KMC.Native.MountPrimary.Name", "Mount Primary" },
                 { "KMC.Native.MountPrimary.Description", "Make one primary natural attack with the exact Horse or Mammoth. The mount owns the attack, command, weapon, and Standard action." }
             };
@@ -93,6 +100,8 @@ namespace KingmakerMountedCombat.Integration
         private bool enabled;
         private bool subscribed;
         private bool serializationSuspended;
+        private bool targetSelectionMode;
+        private PendingNativeActivation pendingActivation;
         private bool disposed;
 
         public NativeMountedControlService(
@@ -101,6 +110,7 @@ namespace KingmakerMountedCombat.Integration
             MountedCombatController combat,
             HorseCompanionBlueprintService horseCompanion,
             DiagnosticSettings settings,
+            NativeLifecycleDeliveryLedger lifecycleLedger,
             IModLogger logger)
         {
             this.relationship = relationship ?? throw new ArgumentNullException(nameof(relationship));
@@ -108,6 +118,7 @@ namespace KingmakerMountedCombat.Integration
             this.combat = combat ?? throw new ArgumentNullException(nameof(combat));
             this.horseCompanion = horseCompanion ?? throw new ArgumentNullException(nameof(horseCompanion));
             this.settings = settings ?? throw new ArgumentNullException(nameof(settings));
+            this.lifecycleLedger = lifecycleLedger ?? throw new ArgumentNullException(nameof(lifecycleLedger));
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
             NativeMountedAbilityBridge.Service = this;
         }
@@ -153,6 +164,7 @@ namespace KingmakerMountedCombat.Integration
 
         internal void Update()
         {
+            ObservePendingRiderPrimaryOutcome();
             if (disposed || !enabled || serializationSuspended)
             {
                 return;
@@ -199,7 +211,7 @@ namespace KingmakerMountedCombat.Integration
                 case NativeMountedControlKind.Dismount:
                     return playerAction.GetNativeDismountAvailability(caster);
                 case NativeMountedControlKind.RiderPrimary:
-                    return combat.GetNativeAbilityAvailability(MountedCombatActionKind.RiderMelee, caster);
+                    return combat.GetNativeAbilityAvailability(combat.ResolveRiderPrimaryAction(), caster);
                 case NativeMountedControlKind.MountPrimary:
                     return combat.GetNativeAbilityAvailability(MountedCombatActionKind.MountPrimaryNatural, caster);
                 default:
@@ -224,7 +236,7 @@ namespace KingmakerMountedCombat.Integration
                 case NativeMountedControlKind.Dismount:
                     return target == caster;
                 case NativeMountedControlKind.RiderPrimary:
-                    return combat.CanNativeAbilityTarget(MountedCombatActionKind.RiderMelee, caster, target);
+                    return combat.CanNativeAbilityTarget(combat.ResolveRiderPrimaryAction(), caster, target);
                 case NativeMountedControlKind.MountPrimary:
                     return combat.CanNativeAbilityTarget(MountedCombatActionKind.MountPrimaryNatural, caster, target);
                 default:
@@ -237,28 +249,51 @@ namespace KingmakerMountedCombat.Integration
             UnitEntityData caster,
             UnitEntityData target)
         {
+            var activation = EnsureActivation(kind, caster);
+            RecordActivation(
+                activation,
+                NativeMountedAbilityActivationPhase.DispatchStarted,
+                caster,
+                target,
+                null,
+                "dispatch-started");
             bool accepted;
-            switch (kind)
+            try
             {
-                case NativeMountedControlKind.MountCompanion:
-                    accepted = playerAction.TryExecuteNativeMount(caster, target);
-                    break;
-                case NativeMountedControlKind.Dismount:
-                    accepted = playerAction.TryExecuteNativeDismount(caster);
-                    break;
-                case NativeMountedControlKind.RiderPrimary:
-                    accepted = combat.TryExecuteNativeAbility(
-                        MountedCombatActionKind.RiderMelee, caster, target) ==
-                        MountedCombatClickResult.HandledAccepted;
-                    break;
-                case NativeMountedControlKind.MountPrimary:
-                    accepted = combat.TryExecuteNativeAbility(
-                        MountedCombatActionKind.MountPrimaryNatural, caster, target) ==
-                        MountedCombatClickResult.HandledAccepted;
-                    break;
-                default:
-                    accepted = false;
-                    break;
+                switch (kind)
+                {
+                    case NativeMountedControlKind.MountCompanion:
+                        accepted = playerAction.TryExecuteNativeMount(caster, target);
+                        break;
+                    case NativeMountedControlKind.Dismount:
+                        accepted = playerAction.TryExecuteNativeDismount(caster);
+                        break;
+                    case NativeMountedControlKind.RiderPrimary:
+                        accepted = combat.TryExecuteNativeAbility(
+                            combat.ResolveRiderPrimaryAction(), caster, target) ==
+                            MountedCombatClickResult.HandledAccepted;
+                        break;
+                    case NativeMountedControlKind.MountPrimary:
+                        accepted = combat.TryExecuteNativeAbility(
+                            MountedCombatActionKind.MountPrimaryNatural, caster, target) ==
+                            MountedCombatClickResult.HandledAccepted;
+                        break;
+                    default:
+                        accepted = false;
+                        break;
+                }
+            }
+            catch (Exception exception)
+            {
+                RecordActivation(
+                    activation,
+                    NativeMountedAbilityActivationPhase.DispatchCompleted,
+                    caster,
+                    target,
+                    false,
+                    "exception:" + exception.GetType().FullName);
+                pendingActivation = null;
+                throw;
             }
 
             if (accepted)
@@ -274,6 +309,24 @@ namespace KingmakerMountedCombat.Integration
                 "; casterId=" + (caster?.UniqueId ?? "<none>") +
                 "; targetId=" + (target?.UniqueId ?? "<none>") +
                 "; accepted=" + accepted + ".");
+            RecordActivation(
+                activation,
+                NativeMountedAbilityActivationPhase.DispatchCompleted,
+                caster,
+                target,
+                accepted,
+                accepted ? "accepted" : "rejected");
+            if (kind == NativeMountedControlKind.RiderPrimary && accepted &&
+                relationship.State == RelationshipState.Mounted)
+            {
+                activation.AwaitingCommandTerminal = true;
+                activation.ActiveCommandObserved = combat.HasActiveCommand;
+                activation.TerminalDeadline = Time.realtimeSinceStartup + 90.0f;
+            }
+            else
+            {
+                pendingActivation = null;
+            }
             return accepted;
         }
 
@@ -331,6 +384,7 @@ namespace KingmakerMountedCombat.Integration
                 slotCount += CountManagedHotbarSlots(unit);
             }
 
+            var activations = activationLedger.Snapshot();
             return new NativeMountedControlSnapshot
             {
                 Registered = registered,
@@ -344,8 +398,16 @@ namespace KingmakerMountedCombat.Integration
                 NativeCastRequestCount = NativeCastRequestCount,
                 NativeRefusalCount = NativeRefusalCount,
                 DispatchAcceptedCount = DispatchAcceptedCount,
-                DispatchRejectedCount = DispatchRejectedCount
+                DispatchRejectedCount = DispatchRejectedCount,
+                ActivationRecordCount = activations.Count,
+                RiderPrimaryRelationshipEndCount = activations.Count(record =>
+                    record.Kind == NativeMountedControlKind.RiderPrimary && record.RelationshipEnded)
             };
+        }
+
+        internal IReadOnlyList<NativeMountedAbilityActivationRecord> SnapshotAbilityActivations()
+        {
+            return activationLedger.Snapshot();
         }
 
         public void HandleAbilityTargetSelectionStart(AbilityData ability)
@@ -356,6 +418,15 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
             TargetSelectionStartCount++;
+            targetSelectionMode = true;
+            pendingActivation = StartActivation(kind, ability?.Caster?.Unit);
+            RecordActivation(
+                pendingActivation,
+                NativeMountedAbilityActivationPhase.TargetSelectionStarted,
+                ability?.Caster?.Unit,
+                null,
+                null,
+                "target-selection-started");
             logger.Info("Native mounted target selection started: kind=" + kind +
                 "; casterId=" + (ability?.Caster?.Unit?.UniqueId ?? "<none>") +
                 "; frame=" + Time.frameCount + ".");
@@ -369,6 +440,19 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
             TargetSelectionEndCount++;
+            var activation = EnsureActivation(kind, ability?.Caster?.Unit);
+            RecordActivation(
+                activation,
+                NativeMountedAbilityActivationPhase.TargetSelectionEnded,
+                ability?.Caster?.Unit,
+                null,
+                null,
+                activation.CastRequested ? "selection-ended-after-cast" : "target-selection-cancelled");
+            targetSelectionMode = false;
+            if (!activation.CastRequested)
+            {
+                pendingActivation = null;
+            }
             logger.Info("Native mounted target selection ended: kind=" + kind +
                 "; frame=" + Time.frameCount + ".");
         }
@@ -381,6 +465,15 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
             NativeCastRequestCount++;
+            var activation = EnsureActivation(kind, ability?.Caster?.Unit);
+            activation.CastRequested = true;
+            RecordActivation(
+                activation,
+                NativeMountedAbilityActivationPhase.CastRequested,
+                ability?.Caster?.Unit,
+                target?.Unit,
+                null,
+                "native-cast-requested");
             logger.Info("Native mounted cast requested: kind=" + kind +
                 "; casterId=" + (ability?.Caster?.Unit?.UniqueId ?? "<none>") +
                 "; targetId=" + (target?.Unit?.UniqueId ?? "<none>") +
@@ -395,7 +488,16 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
             NativeRefusalCount++;
+            var activation = EnsureActivation(kind, ability?.Caster?.Unit);
             var reason = DescribeRefusal(kind, ability?.Caster?.Unit, target?.Unit);
+            RecordActivation(
+                activation,
+                NativeMountedAbilityActivationPhase.CastRefused,
+                ability?.Caster?.Unit,
+                target?.Unit,
+                false,
+                reason);
+            pendingActivation = null;
             RaiseWarning(reason);
             logger.Info("Native mounted target rejected: kind=" + kind +
                 "; casterId=" + (ability?.Caster?.Unit?.UniqueId ?? "<none>") +
@@ -405,14 +507,23 @@ namespace KingmakerMountedCombat.Integration
 
         public void OnMoveRequested(Vector3 target)
         {
+            if (combat.HasStockAttackIntent)
+            {
+                combat.Cancel("native move request replaced stock attack intent");
+            }
         }
 
         public void OnItemUseRequested(Kingmaker.Items.ItemEntity item, TargetWrapper target)
         {
+            if (combat.HasStockAttackIntent)
+            {
+                combat.Cancel("native item-use request replaced stock attack intent");
+            }
         }
 
         public void OnAttackRequested(UnitEntityData unit, Kingmaker.View.UnitEntityView target)
         {
+            combat.ObserveStockAttackRequested(unit, target?.EntityData);
         }
 
         public void Dispose()
@@ -476,6 +587,7 @@ namespace KingmakerMountedCombat.Integration
                 false,
                 true,
                 false,
+                UnitCommand.CommandType.Move,
                 icon);
             dismountAbility = CreateAbility(
                 "KMC_DismountAbility",
@@ -487,6 +599,7 @@ namespace KingmakerMountedCombat.Integration
                 false,
                 false,
                 true,
+                UnitCommand.CommandType.Move,
                 icon);
             riderPrimaryAbility = CreateAbility(
                 "KMC_RiderPrimaryAbility",
@@ -498,6 +611,7 @@ namespace KingmakerMountedCombat.Integration
                 true,
                 false,
                 false,
+                UnitCommand.CommandType.Free,
                 icon);
             mountPrimaryAbility = CreateAbility(
                 "KMC_MountPrimaryAbility",
@@ -509,6 +623,7 @@ namespace KingmakerMountedCombat.Integration
                 true,
                 false,
                 false,
+                UnitCommand.CommandType.Free,
                 icon);
 
             foreach (var ability in EnumerateBlueprints())
@@ -530,6 +645,7 @@ namespace KingmakerMountedCombat.Integration
             bool targetEnemies,
             bool targetFriends,
             bool targetSelf,
+            UnitCommand.CommandType actionType,
             Sprite icon)
         {
             var ability = CreateOwned<BlueprintAbility>(objectName);
@@ -544,7 +660,7 @@ namespace KingmakerMountedCombat.Integration
             ability.ActionBarAutoFillIgnored = true;
             ability.Hidden = false;
             ability.NeedEquipWeapons = false;
-            ability.ActionType = UnitCommand.CommandType.Free;
+            ability.ActionType = actionType;
             ability.Animation = UnitAnimationActionCastSpell.CastAnimationStyle.Immediate;
             ability.HasFastAnimation = true;
             ability.DisableLog = false;
@@ -614,6 +730,7 @@ namespace KingmakerMountedCombat.Integration
             return NativeMountedControlPolicy.ShouldLease(
                 kind,
                 settings.EnableUnsafeMovementExperiment,
+                settings.EnableUnifiedMountedTurn,
                 ownerHasSupportedMount,
                 mounted,
                 faulted,
@@ -769,6 +886,197 @@ namespace KingmakerMountedCombat.Integration
                     NativeMountedControlKind.None);
         }
 
+        private PendingNativeActivation StartActivation(
+            NativeMountedControlKind kind,
+            UnitEntityData caster)
+        {
+            var deliveries = lifecycleLedger.Snapshot();
+            var rider = relationship.Rider;
+            var mount = relationship.Mount;
+            return new PendingNativeActivation
+            {
+                Id = activationLedger.BeginActivation(),
+                Kind = kind,
+                StateAtStart = relationship.State,
+                RiderIdAtStart = rider?.UniqueId,
+                MountIdAtStart = mount?.UniqueId,
+                RiderViewAtStart = ViewIdentity(rider),
+                MountViewAtStart = ViewIdentity(mount),
+                LifecycleSequenceAtStart = deliveries.Count == 0 ? 0 : deliveries[deliveries.Count - 1].Sequence,
+                TransitionAtStart = relationship.LastTransition,
+                CasterId = caster?.UniqueId
+            };
+        }
+
+        private PendingNativeActivation EnsureActivation(
+            NativeMountedControlKind kind,
+            UnitEntityData caster)
+        {
+            if (pendingActivation == null || pendingActivation.Kind != kind)
+            {
+                pendingActivation = StartActivation(kind, caster);
+            }
+            return pendingActivation;
+        }
+
+        private void ObservePendingRiderPrimaryOutcome()
+        {
+            var activation = pendingActivation;
+            if (disposed || activation == null ||
+                activation.Kind != NativeMountedControlKind.RiderPrimary ||
+                !activation.AwaitingCommandTerminal)
+            {
+                return;
+            }
+
+            if (relationship.State != RelationshipState.Mounted)
+            {
+                RecordActivation(
+                    activation,
+                    NativeMountedAbilityActivationPhase.RelationshipEnded,
+                    relationship.Rider,
+                    null,
+                    true,
+                    "relationship-ended-before-primary-terminal");
+                pendingActivation = null;
+                return;
+            }
+
+            if (combat.HasActiveCommand)
+            {
+                activation.ActiveCommandObserved = true;
+                return;
+            }
+
+            if (!activation.ActiveCommandObserved && Time.realtimeSinceStartup < activation.TerminalDeadline)
+            {
+                return;
+            }
+
+            var outcome = combat.LastOutcome;
+            var terminal = outcome == null
+                ? "no-active-command-observed"
+                : (outcome.Result ?? "<no-result>") + ":" + (outcome.TerminalReason ?? "<no-reason>");
+            RecordActivation(
+                activation,
+                NativeMountedAbilityActivationPhase.CommandTerminal,
+                relationship.Rider,
+                null,
+                true,
+                terminal);
+            pendingActivation = null;
+        }
+
+        private void RecordActivation(
+            PendingNativeActivation activation,
+            NativeMountedAbilityActivationPhase phase,
+            UnitEntityData caster,
+            UnitEntityData target,
+            bool? dispatchAccepted,
+            string terminalResult)
+        {
+            if (activation == null)
+            {
+                return;
+            }
+
+            var deliveries = lifecycleLedger.Snapshot();
+            var newDeliveries = deliveries.Where(delivery =>
+                delivery.Sequence > activation.LifecycleSequenceAtStart).ToArray();
+            var lastDelivery = newDeliveries.LastOrDefault(delivery => delivery.CleanupAttempted) ??
+                newDeliveries.LastOrDefault();
+            var transition = relationship.LastTransition;
+            var transitionChanged = !ReferenceEquals(activation.TransitionAtStart, transition);
+            var rider = relationship.Rider;
+            var mount = relationship.Mount;
+            var riderView = ViewIdentity(rider);
+            var mountView = ViewIdentity(mount);
+            var relationshipEnded = activation.StateAtStart == RelationshipState.Mounted &&
+                relationship.State != RelationshipState.Mounted;
+            var cleanupTrigger = lastDelivery?.CleanupTrigger;
+            if (!cleanupTrigger.HasValue && relationshipEnded && transitionChanged)
+            {
+                cleanupTrigger = transition?.Trigger;
+            }
+            var selected = SelectionManager.Instance?.SelectedUnits;
+            var selectedIds = selected == null || selected.Count == 0
+                ? "<none>"
+                : string.Join(",", selected.Select(unit => unit?.UniqueId ?? "<null>").ToArray());
+            var currentTurn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
+            var record = new NativeMountedAbilityActivationRecord
+            {
+                ActivationId = activation.Id,
+                Phase = phase,
+                Kind = activation.Kind,
+                AbilityGuid = AbilityGuid(activation.Kind),
+                Frame = Time.frameCount,
+                CasterId = caster?.UniqueId ?? activation.CasterId ?? "<none>",
+                ActiveSelectedUnitIds = selectedIds,
+                TargetId = target?.UniqueId ?? "<none>",
+                TargetSelectionMode = targetSelectionMode,
+                RelationshipStateAtStart = activation.StateAtStart,
+                RelationshipStateObserved = relationship.State,
+                RiderIdAtStart = activation.RiderIdAtStart ?? "<none>",
+                MountIdAtStart = activation.MountIdAtStart ?? "<none>",
+                RiderViewAtStart = activation.RiderViewAtStart,
+                MountViewAtStart = activation.MountViewAtStart,
+                RiderViewObserved = riderView,
+                MountViewObserved = mountView,
+                RiderViewChanged = !string.Equals(activation.RiderViewAtStart, riderView, StringComparison.Ordinal),
+                MountViewChanged = !string.Equals(activation.MountViewAtStart, mountView, StringComparison.Ordinal),
+                InCombat = rider?.IsInCombat == true || mount?.IsInCombat == true,
+                TurnBased = CombatController.IsInTurnBasedCombat(),
+                GameMode = Game.Instance == null ? "<none>" : Game.Instance.CurrentMode.ToString(),
+                CurrentTurnUnitId = currentTurn?.Unit?.UniqueId ?? "<none>",
+                LifecycleSequenceAtStart = activation.LifecycleSequenceAtStart,
+                LifecycleSequenceObserved = deliveries.Count == 0 ? 0 : deliveries[deliveries.Count - 1].Sequence,
+                LifecycleDeliveries = newDeliveries.Length == 0
+                    ? "<none>"
+                    : string.Join("|", newDeliveries.Select(item =>
+                        item.Sequence + ":" + item.Boundary + ":" + item.Source +
+                        (item.CleanupTrigger.HasValue ? ":cleanup=" + item.CleanupTrigger.Value : string.Empty)).ToArray()),
+                CleanupTrigger = cleanupTrigger,
+                DispatchAccepted = dispatchAccepted,
+                RelationshipEnded = relationshipEnded,
+                RelationshipTransitionChanged = transitionChanged,
+                RelationshipTransitionResult = transition == null
+                    ? "<none>"
+                    : "succeeded=" + transition.Succeeded + ";state=" + transition.State +
+                        ";trigger=" + (transition.Trigger.HasValue ? transition.Trigger.Value.ToString() : "<none>"),
+                TerminalResult = terminalResult ?? string.Empty
+            };
+            activationLedger.Record(record);
+            logger.Info("Native mounted ability activation: activationId=" + record.ActivationId +
+                "; phase=" + record.Phase +
+                "; kind=" + record.Kind +
+                "; casterId=" + record.CasterId +
+                "; selected=" + record.ActiveSelectedUnitIds +
+                "; targetId=" + record.TargetId +
+                "; targetSelection=" + record.TargetSelectionMode +
+                "; state=" + record.RelationshipStateAtStart + "->" + record.RelationshipStateObserved +
+                "; lifecycle=" + record.LifecycleDeliveries +
+                "; cleanup=" + (record.CleanupTrigger.HasValue ? record.CleanupTrigger.Value.ToString() : "<none>") +
+                "; ended=" + record.RelationshipEnded +
+                "; terminal=" + record.TerminalResult + ".");
+        }
+
+        private static string AbilityGuid(NativeMountedControlKind kind)
+        {
+            switch (kind)
+            {
+                case NativeMountedControlKind.MountCompanion: return MountAbilityGuid;
+                case NativeMountedControlKind.Dismount: return DismountAbilityGuid;
+                case NativeMountedControlKind.RiderPrimary: return RiderPrimaryAbilityGuid;
+                case NativeMountedControlKind.MountPrimary: return MountPrimaryAbilityGuid;
+                default: return "<none>";
+            }
+        }
+
+        private static string ViewIdentity(UnitEntityData unit)
+        {
+            return unit?.View == null ? "<none>" : unit.View.GetInstanceID().ToString();
+        }
+
         private int CountFacts(UnitEntityData unit, BlueprintAbility blueprint)
         {
             return unit?.Descriptor?.Abilities?.Enumerable.Count(
@@ -792,7 +1100,7 @@ namespace KingmakerMountedCombat.Integration
             if (kind == NativeMountedControlKind.RiderPrimary)
             {
                 return combat.DescribeNativeAbilityTargetRejection(
-                    MountedCombatActionKind.RiderMelee, caster, target);
+                    combat.ResolveRiderPrimaryAction(), caster, target);
             }
             if (kind == NativeMountedControlKind.MountPrimary)
             {
@@ -990,6 +1298,24 @@ namespace KingmakerMountedCombat.Integration
             public int Index { get; }
             public BlueprintAbility Blueprint { get; }
             public MechanicActionBarSlotEmpty Placeholder { get; }
+        }
+
+        private sealed class PendingNativeActivation
+        {
+            public long Id { get; set; }
+            public NativeMountedControlKind Kind { get; set; }
+            public RelationshipState StateAtStart { get; set; }
+            public string RiderIdAtStart { get; set; }
+            public string MountIdAtStart { get; set; }
+            public string RiderViewAtStart { get; set; }
+            public string MountViewAtStart { get; set; }
+            public long LifecycleSequenceAtStart { get; set; }
+            public TransitionResult TransitionAtStart { get; set; }
+            public string CasterId { get; set; }
+            public bool CastRequested { get; set; }
+            public bool AwaitingCommandTerminal { get; set; }
+            public bool ActiveCommandObserved { get; set; }
+            public float TerminalDeadline { get; set; }
         }
     }
 }

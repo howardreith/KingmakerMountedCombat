@@ -637,6 +637,7 @@ if($Target-eq'Kingmaker'){
     $turnStart=@(Find-Token 'TurnBased.Controllers.CombatController' 0x06000BDA)
     $turnCurrent=@(Find-Token 'TurnBased.Controllers.CombatController' 0x06000BBE)
     $turnMode=@(Find-Token 'TurnBased.Controllers.CombatController' 0x06000BF6)
+    $initiativeOverrideResult=@(Find-Token 'Kingmaker.RuleSystem.Rules.RuleInitiativeRoll' 0x04004B5B)
     $turnUnit=@(Find-Token 'TurnBased.Controllers.TurnController' 0x04000669)
     $turnActing=@(Find-Token 'TurnBased.Controllers.TurnController' 0x06000C24)
     $turnStatus=@(Find-Token 'TurnBased.Controllers.TurnController' 0x06000C0E)
@@ -669,7 +670,14 @@ if($Target-eq'Kingmaker'){
         $turnStatus[0].ReturnType.FullName-ceq'TurnBased.Controllers.TurnController+TurnStatus' -and
         $turnStatus[0].GetParameters().Count-eq0 -and
         [int]$turnStatus[0].ReturnType.GetField('Preparing').GetRawConstantValue()-eq2 -and
-        [int]$turnStatus[0].ReturnType.GetField('Acting').GetRawConstantValue()-eq3) `
+        [int]$turnStatus[0].ReturnType.GetField('Acting').GetRawConstantValue()-eq3 -and
+        $initiativeOverrideResult.Count-eq1 -and
+        $initiativeOverrideResult[0] -is [Reflection.FieldInfo] -and
+        $initiativeOverrideResult[0].IsPrivate -and -not $initiativeOverrideResult[0].IsStatic -and
+        $initiativeOverrideResult[0].FieldType.IsGenericType -and
+        $initiativeOverrideResult[0].FieldType.GetGenericTypeDefinition().FullName-ceq'System.Nullable`1' -and
+        @($initiativeOverrideResult[0].FieldType.GetGenericArguments()).Count-eq1 -and
+        @($initiativeOverrideResult[0].FieldType.GetGenericArguments())[0].FullName-ceq'System.Int32') `
         'native turn-based controller roster, rider-turn, and mode signatures'
     $clickMapObject=@(Find-Token 'Kingmaker.Controllers.Clicks.Handlers.ClickMapObjectHandler' 0x060093E2)
     $interactCtor=@(Find-Token 'Kingmaker.UnitLogic.Commands.UnitInteractWithObject' 0x060026D6)

@@ -1,5 +1,16 @@
 # Mounted Combat journal
 
+## 2026-08-30T20:46:46Z - Phase 3D unified combat primary implementation is offline-green
+
+- Branch/HEAD before checkpoint: `codex/mounted-combat-phase3d-unified-combat` / `2d7fa364b3e9418c7069bd6e251d15e006444ecf`; implementation and this record are uncommitted. Phase 3C historical refs/artifacts remain immutable.
+- Implemented exact pair-local shared initiative/turn projection with one rider principal, hidden redundant mount turn/tracker entry, rider result/bonus authority, separately prepared and retained rider/mount cooldown ledgers, shared-turn completion, safe current-round split deferral, and a user-visible fallback toggle.
+- Implemented mount-owned TB movement accounting and native five-foot-step transfer. AoO suppression requires exact active mount movement, rider-led current turn, native step mode, unused ordinary movement, and in-cap distance; ordinary mounted movement and every non-pair/unmounted path pass through stock.
+- Implemented ordinary stock hostile-click interception only after exact native `OnAttackRequested` evidence, persistent RT intent, rider-first then mount TB sequencing, exact cancellation, rider melee/ranged action resolution, LoS-aware mount approach, no ranged forced melee, and weapon/ammunition/reload terminal telemetry without a foreign gameplay dependency.
+- Combat Mount/Dismount use native Move command types and adjacency/turn/Move gates. Exact Rider Primary activation/lifecycle records were added. The Phase 3C continuous-move cleanup seam was identified as the only code path capable of the reported non-lifecycle dismount and replaced with rider-to-mount routing that retains the pair.
+- Tests/checks: source `22/0`; Release build PASS; component `290/0`; visual/source-order `18/0`; exact Kingmaker assembly `354/0`; harness/protocol `236/0`, including the new Phase 3D source-boundary test; diff check PASS. Current non-package DLL is `b242bb3c98d984ab5971a943889707d7e27dcf0b9668fbc03c4f2c6b62a28e62`, MVID `ec6fe341-572b-45f1-bf4a-ae32ee1e46b7`.
+- Rejected claims: no compile/test result proves tracker rendering, hostile-click usability, AoO cardinality, combat action cost, persistent native ranged fire, or Rider Primary retention in game. No runtime row is credited.
+- External state: no game launch, save access, live Mods staging, package install, or remote publication. Exact next action is checkpoint commit, then the bounded original-art/Horse-seat tranche and strict Phase 3D runtime protocol.
+
 ## 2026-08-30T19:41:26Z - Phase 3D exact shared-turn and input contracts recorded
 
 - Branch/HEAD: `codex/mounted-combat-phase3d-unified-combat` / `63595b832f7f89c854edef5a9eb4d21dee026590`; changes are not yet committed or published.

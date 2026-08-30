@@ -9,6 +9,8 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("native controls lease Mount only to an eligible unmounted owner", LeasesUnmountedMountOnly);
             runner.Run("native controls lease contextual pair actions while mounted", LeasesMountedPairActions);
             runner.Run("native controls preserve exact RT and TB primary caster ownership", PreservesPrimaryCasterOwnership);
+            runner.Run("native controls project unified primary ownership to the rider", ProjectsUnifiedPrimaryOwnership);
+            runner.Run("native controls lease unified actions only to the rider principal", LeasesUnifiedActionsToRider);
             runner.Run("native controls explain separate-turn primary ownership", ExplainsWrongTurn);
         }
 
@@ -106,6 +108,35 @@ namespace KingmakerMountedCombat.Tests
                 NativeMountedControlPolicy.WrongTurnReason(
                     NativeMountedControlKind.MountPrimary, "Horse"),
                 "Horse wrong-turn feedback changed.");
+        }
+
+        private static void ProjectsUnifiedPrimaryOwnership()
+        {
+            TestRunner.True(
+                NativeMountedControlPolicy.IsExpectedPrimaryCaster(
+                    NativeMountedControlKind.MountPrimary, true, true, true, false),
+                "Unified Mount primary rejected the rider principal.");
+            TestRunner.True(
+                !NativeMountedControlPolicy.IsExpectedPrimaryCaster(
+                    NativeMountedControlKind.MountPrimary, true, true, false, true),
+                "Unified Mount primary admitted the hidden mount surface.");
+            TestRunner.Equal(
+                "Horse primary belongs to the rider-led shared turn.",
+                NativeMountedControlPolicy.WrongTurnReason(
+                    NativeMountedControlKind.MountPrimary, "Horse", true),
+                "Unified wrong-principal feedback changed.");
+        }
+
+        private static void LeasesUnifiedActionsToRider()
+        {
+            TestRunner.True(
+                NativeMountedControlPolicy.ShouldLease(
+                    NativeMountedControlKind.MountPrimary, true, true, false, true, false, true, false),
+                "Unified rider principal did not receive Mount primary.");
+            TestRunner.True(
+                !NativeMountedControlPolicy.ShouldLease(
+                    NativeMountedControlKind.MountPrimary, true, true, false, true, false, false, true),
+                "Unified mount retained a duplicate primary surface.");
         }
     }
 }

@@ -11,6 +11,10 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("player action reports exact selection requirement", ReportsSelectionRequirement);
             runner.Run("player action accepts a complete eligible pair", AcceptsEligiblePair);
             runner.Run("player action reports every material pair rejection", ReportsMaterialPairRejections);
+            runner.Run("player action admits eligible combat Mount", AdmitsEligibleCombatMount);
+            runner.Run("player action reports exact combat Mount gates", ReportsCombatMountGates);
+            runner.Run("player action charges combat Dismount only on rider turn with Move", GatesCombatDismount);
+            runner.Run("combat mount adjacency includes both native corpulence radii", UsesNativeAdjacencyEnvelope);
             runner.Run("player action becomes dismount while mounted", BecomesDismountWhileMounted);
             runner.Run("player action permits fault cleanup when feature disabled", PermitsFaultCleanupWhenFeatureDisabled);
             runner.Run("player action rejects double activation during transition", RejectsDoubleActivationDuringTransition);
@@ -60,6 +64,9 @@ namespace KingmakerMountedCombat.Tests
             context.UnsupportedPolymorphOrSizeState = true;
             context.LoadingTransitionOrCutscene = true;
             context.InCombat = true;
+            context.CombatTurnEligible = false;
+            context.RiderHasMoveAction = false;
+            context.PairAdjacent = false;
             context.SafeGameMode = false;
             context.ViewsAndStockAgentsAvailable = false;
             context.StockAgentsReady = false;
@@ -76,7 +83,9 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(feedback.Contains("conflicting"), "Relationship-conflict reason missing.");
             TestRunner.True(feedback.Contains("Polymorphed"), "Polymorph reason missing.");
             TestRunner.True(feedback.Contains("loading"), "Lifecycle-boundary reason missing.");
-            TestRunner.True(feedback.Contains("outside combat"), "Combat reason missing.");
+            TestRunner.True(feedback.Contains("adjacent") && feedback.Contains("current turn") &&
+                    feedback.Contains("no Move action"),
+                "Combat Mount gate reasons missing.");
             TestRunner.True(feedback.Contains("ordinary exploration"), "Game-mode reason missing.");
             TestRunner.True(feedback.Contains("views and stock movement agents"), "View/agent reason missing.");
             TestRunner.True(feedback.Contains("enabled before mounting"), "Stock-agent readiness reason missing.");
@@ -93,6 +102,61 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.Equal(true, result.IsEnabled, "Mounted cleanup was blocked by stale eligibility.");
             TestRunner.Equal(MountedPlayerActionKind.Dismount, result.Action, "Mounted action did not become Dismount.");
             TestRunner.Equal("Dismount", result.Label, "Mounted action label is unclear.");
+        }
+
+        private static void AdmitsEligibleCombatMount()
+        {
+            var context = EligibleContext();
+            context.InCombat = true;
+            context.CombatTurnEligible = true;
+            context.RiderHasMoveAction = true;
+            context.PairAdjacent = true;
+            var result = MountedPlayerActionEvaluator.Evaluate(context);
+            TestRunner.True(result.IsEnabled, "Eligible combat Mount was rejected.");
+            TestRunner.Equal(0, result.UnavailableReasons.Count,
+                "Eligible combat Mount retained a rejection reason.");
+        }
+
+        private static void ReportsCombatMountGates()
+        {
+            var context = EligibleContext();
+            context.InCombat = true;
+            context.CombatTurnEligible = false;
+            context.RiderHasMoveAction = false;
+            context.PairAdjacent = false;
+            var result = MountedPlayerActionEvaluator.Evaluate(context);
+            TestRunner.True(!result.IsEnabled, "Ineligible combat Mount was admitted.");
+            TestRunner.True(result.Feedback.Contains("adjacent"), "Combat adjacency reason missing.");
+            TestRunner.True(result.Feedback.Contains("current turn"), "Combat turn reason missing.");
+            TestRunner.True(result.Feedback.Contains("no Move action"), "Combat Move-action reason missing.");
+        }
+
+        private static void GatesCombatDismount()
+        {
+            var context = EligibleContext();
+            context.RelationshipState = RelationshipState.Mounted;
+            context.InCombat = true;
+            context.CombatTurnEligible = false;
+            context.RiderHasMoveAction = false;
+            var result = MountedPlayerActionEvaluator.Evaluate(context);
+            TestRunner.True(!result.IsEnabled, "Combat Dismount bypassed rider turn/action gates.");
+            TestRunner.True(result.Feedback.Contains("rider-led current turn"),
+                "Combat Dismount turn feedback missing.");
+            TestRunner.True(result.Feedback.Contains("no Move action"),
+                "Combat Dismount Move feedback missing.");
+        }
+
+        private static void UsesNativeAdjacencyEnvelope()
+        {
+            TestRunner.True(
+                CombatMountDismountPolicy.IsAdjacent(2.8f, 0.5f, 0.8f),
+                "Native adjacent reach rejected touching actor radii.");
+            TestRunner.True(
+                !CombatMountDismountPolicy.IsAdjacent(2.81f, 0.5f, 0.8f),
+                "Combat Mount adjacency leaked beyond the bounded native envelope.");
+            TestRunner.True(
+                !CombatMountDismountPolicy.IsAdjacent(float.NaN, 0.5f, 0.8f),
+                "Nonfinite combat Mount distance was accepted.");
         }
 
         private static void PermitsFaultCleanupWhenFeatureDisabled()
@@ -162,6 +226,9 @@ namespace KingmakerMountedCombat.Tests
                 UnsupportedPolymorphOrSizeState = false,
                 LoadingTransitionOrCutscene = false,
                 InCombat = false,
+                CombatTurnEligible = true,
+                RiderHasMoveAction = true,
+                PairAdjacent = true,
                 SafeGameMode = true,
                 ViewsAndStockAgentsAvailable = true,
                 StockAgentsReady = true,

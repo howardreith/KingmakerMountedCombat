@@ -4,8 +4,10 @@ using System.Reflection;
 using Harmony12;
 using Kingmaker.Controllers.Combat;
 using Kingmaker.Controllers.Clicks.Handlers;
+using Kingmaker.Controllers.Units;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.EntitySystem.Persistence;
+using Kingmaker.RuleSystem.Rules;
 using Kingmaker.UI.Selection;
 using Kingmaker.UnitLogic.Commands;
 using Kingmaker.UnitLogic.Commands.Base;
@@ -27,11 +29,12 @@ namespace KingmakerMountedCombat.Integration
         private readonly HarmonyInstance harmony;
         private bool disposed;
 
-        public MountedPatchController(GameMountedRelationshipService service, MountedPlayerActionController playerAction, MountedCombatController combat, NativeMountedControlService nativeControls, MountedAnimationAdapter animation, MountedDollRoomIkAdapter dollRoomIk, RuntimeSaveAuthorization saveAuthorization, NativeLifecycleDeliveryLedger lifecycleLedger, IModLogger logger)
+        public MountedPatchController(GameMountedRelationshipService service, MountedPlayerActionController playerAction, MountedCombatController combat, UnifiedMountedTurnCoordinator unifiedTurn, NativeMountedControlService nativeControls, MountedAnimationAdapter animation, MountedDollRoomIkAdapter dollRoomIk, RuntimeSaveAuthorization saveAuthorization, NativeLifecycleDeliveryLedger lifecycleLedger, IModLogger logger)
         {
             PatchBridge.Service = service ?? throw new ArgumentNullException(nameof(service));
             PatchBridge.PlayerAction = playerAction ?? throw new ArgumentNullException(nameof(playerAction));
             PatchBridge.Combat = combat ?? throw new ArgumentNullException(nameof(combat));
+            PatchBridge.UnifiedTurn = unifiedTurn ?? throw new ArgumentNullException(nameof(unifiedTurn));
             PatchBridge.NativeControls = nativeControls ?? throw new ArgumentNullException(nameof(nativeControls));
             PatchBridge.Animation = animation ?? throw new ArgumentNullException(nameof(animation));
             PatchBridge.DollRoomIk = dollRoomIk ?? throw new ArgumentNullException(nameof(dollRoomIk));
@@ -69,7 +72,17 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(AttackHandInfo), "CreateAnimationHandleForAttack", 0x0600265A, new[] { typeof(IEnumerable<AttackHandInfo>) }, null, nameof(PatchMethods.AttackAnimationPostfix));
                 PatchExact(typeof(IKController), "SetupIkSystem", 0x0600156C, new[] { typeof(Character) }, nameof(PatchMethods.DollRoomIkSetupPrefix));
                 PatchExact(typeof(IKController), "SetupFbbik", 0x0600156D, Type.EmptyTypes, nameof(PatchMethods.DollRoomFbbikPrefix), nameof(PatchMethods.DollRoomFbbikPostfix));
-                logger.Info("Installed twenty-two exact-token Harmony12 active-pair guards and bounded probes.");
+                PatchExact(typeof(CombatController), "ChooseNextUnit", 0x06000BD2, Type.EmptyTypes, null, nameof(PatchMethods.ChooseNextUnitPostfix));
+                PatchExact(typeof(TurnController), "Prepare", 0x06000C3C, Type.EmptyTypes, null, nameof(PatchMethods.TurnPreparePostfix));
+                PatchExact(typeof(TurnController), "ContinueActing", 0x06000C3D, Type.EmptyTypes, null, nameof(PatchMethods.ContinueActingPostfix));
+                PatchExact(typeof(CombatController), "HandleUnitRollsInitiative", 0x06000BEE, new[] { typeof(RuleInitiativeRoll) }, nameof(PatchMethods.InitiativePrefix));
+                PatchExact(typeof(CombatController), "get_SortedUnits", 0x06000BC7, Type.EmptyTypes, null, nameof(PatchMethods.SortedUnitsPostfix));
+                var trackerType = typeof(UnitEntityData).Assembly.GetType(
+                    "Kingmaker.UI._ConsoleUI.TurnBasedMode.InitiativeTrackerVM",
+                    true);
+                PatchExact(trackerType, "UpdateUnits", 0x06004F0E, Type.EmptyTypes, nameof(PatchMethods.TrackerUpdatePrefix), nameof(PatchMethods.TrackerUpdatePostfix));
+                PatchExact(typeof(UnitActionController), "TickCommandTurnBased", 0x0600911D, new[] { typeof(UnitCommand) }, null, nameof(PatchMethods.TickCommandTurnBasedPostfix));
+                logger.Info("Installed twenty-nine exact-token Harmony12 active-pair guards, unified-turn adapters, and bounded probes.");
             }
             catch
             {
@@ -82,6 +95,7 @@ namespace KingmakerMountedCombat.Integration
                     PatchBridge.Service = null;
                     PatchBridge.PlayerAction = null;
                     PatchBridge.Combat = null;
+                    PatchBridge.UnifiedTurn = null;
                     PatchBridge.NativeControls = null;
                     PatchBridge.Animation = null;
                     PatchBridge.DollRoomIk = null;
@@ -104,6 +118,7 @@ namespace KingmakerMountedCombat.Integration
             PatchBridge.Service = null;
             PatchBridge.PlayerAction = null;
             PatchBridge.Combat = null;
+            PatchBridge.UnifiedTurn = null;
             PatchBridge.NativeControls = null;
             PatchBridge.Animation = null;
             PatchBridge.DollRoomIk = null;
@@ -144,6 +159,7 @@ namespace KingmakerMountedCombat.Integration
             internal static GameMountedRelationshipService Service;
             internal static MountedPlayerActionController PlayerAction;
             internal static MountedCombatController Combat;
+            internal static UnifiedMountedTurnCoordinator UnifiedTurn;
             internal static NativeMountedControlService NativeControls;
             internal static MountedAnimationAdapter Animation;
             internal static MountedDollRoomIkAdapter DollRoomIk;
@@ -171,6 +187,10 @@ namespace KingmakerMountedCombat.Integration
             internal static bool UnitCommandRunPrefix(UnitCommands __instance, ref UnitCommand cmd)
             {
                 if (PatchBridge.Combat != null && !PatchBridge.Combat.TryRouteMountedDoorInteraction(__instance, ref cmd))
+                {
+                    return false;
+                }
+                if (PatchBridge.Combat != null && !PatchBridge.Combat.TryRouteMountedStockAttack(__instance, cmd))
                 {
                     return false;
                 }
@@ -208,6 +228,47 @@ namespace KingmakerMountedCombat.Integration
                 PatchBridge.DollRoomIk?.CompleteExactFbbikObservation(__state);
             }
 
+            internal static void ChooseNextUnitPostfix(CombatController __instance)
+            {
+                PatchBridge.UnifiedTurn?.HandleChooseNextUnit(__instance);
+            }
+
+            internal static void TurnPreparePostfix(TurnController __instance)
+            {
+                PatchBridge.UnifiedTurn?.HandleTurnPrepared(__instance);
+            }
+
+            internal static void ContinueActingPostfix(TurnController __instance, ref bool __result)
+            {
+                PatchBridge.UnifiedTurn?.ExtendTurnIfMountActionable(__instance, ref __result);
+            }
+
+            internal static void InitiativePrefix(RuleInitiativeRoll rule)
+            {
+                PatchBridge.UnifiedTurn?.MirrorInitiativeEvent(rule);
+            }
+
+            internal static void SortedUnitsPostfix(ref IEnumerable<UnitEntityData> __result)
+            {
+                PatchBridge.UnifiedTurn?.FilterTrackerSortedUnits(ref __result);
+            }
+
+            internal static void TrackerUpdatePrefix(out bool __state)
+            {
+                __state = PatchBridge.UnifiedTurn != null &&
+                    PatchBridge.UnifiedTurn.BeginTrackerProjection();
+            }
+
+            internal static void TrackerUpdatePostfix(bool __state)
+            {
+                PatchBridge.UnifiedTurn?.EndTrackerProjection(__state);
+            }
+
+            internal static void TickCommandTurnBasedPostfix(UnitCommand command, ref bool __result)
+            {
+                PatchBridge.UnifiedTurn?.AdmitExactMountCommand(command, ref __result);
+            }
+
             internal static bool SelectUnitPrefix(ref UnitEntityView unit, bool single)
             {
                 return PatchBridge.Service == null || PatchBridge.Service.NormalizeSingleSelection(ref unit, single);
@@ -224,9 +285,13 @@ namespace KingmakerMountedCombat.Integration
                 PatchBridge.Service?.ForwardStopOrHold();
             }
 
-            internal static void ContinuousMovePrefix(UnitEntityData executor)
+            internal static bool ContinuousMovePrefix(ref UnitEntityData executor)
             {
-                PatchBridge.Service?.HandleUnexpectedPairCommand(executor);
+                if (PatchBridge.Service != null && PatchBridge.Service.IsExactActivePairUnit(executor))
+                {
+                    PatchBridge.Combat?.Cancel("continuous movement replaced the active mounted combat intent");
+                }
+                return PatchBridge.Service == null || PatchBridge.Service.RouteContinuousMove(ref executor);
             }
 
             internal static bool ForcePlaceAboveGroundPrefix(UnitEntityView __instance)
@@ -303,8 +368,10 @@ namespace KingmakerMountedCombat.Integration
                 UnitEntityData target,
                 ref bool __result)
             {
-                if (PatchBridge.Combat == null ||
-                    !PatchBridge.Combat.ShouldSuppressStockOpportunityAttack(__instance?.Unit, target))
+                var suppressStep = PatchBridge.UnifiedTurn != null &&
+                    PatchBridge.UnifiedTurn.ShouldSuppressStepOpportunity(target);
+                if (!suppressStep && (PatchBridge.Combat == null ||
+                    !PatchBridge.Combat.ShouldSuppressStockOpportunityAttack(__instance?.Unit, target)))
                 {
                     return true;
                 }

@@ -8,6 +8,7 @@ using Kingmaker.View;
 using KingmakerMountedCombat.Diagnostics;
 using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Logging;
+using TurnBased.Controllers;
 using UnityEngine;
 
 namespace KingmakerMountedCombat.Integration
@@ -92,6 +93,12 @@ namespace KingmakerMountedCombat.Integration
             return ArmCombatAction(action);
         }
 
+        internal bool ArmRiderPrimaryFromOverlay()
+        {
+            ObserveOverlayButtonActivation();
+            return combat.ArmRiderPrimary();
+        }
+
         internal bool ArmMountTargetFromOverlay()
         {
             ObserveOverlayButtonActivation();
@@ -101,6 +108,12 @@ namespace KingmakerMountedCombat.Integration
         internal bool ArmMountTarget()
         {
             ThrowIfDisposed();
+            if (IsSelectedOrMountedRiderInCombat())
+            {
+                feedbackState.SetOperationFeedback(
+                    "Use the native Mount Companion ability during combat so Kingmaker charges the rider's Move action.");
+                return false;
+            }
             if (IsMountTargetArmed)
             {
                 ClearMountTargetSelection();
@@ -373,6 +386,15 @@ namespace KingmakerMountedCombat.Integration
                 return false;
             }
 
+            if (IsSelectedOrMountedRiderInCombat())
+            {
+                feedbackState.SetOperationFeedback(
+                    "Use the native " +
+                    (availability.Action == MountedPlayerActionKind.Dismount ? "Dismount" : "Mount Companion") +
+                    " ability during combat so Kingmaker charges the rider's Move action.");
+                return false;
+            }
+
             try
             {
                 ClearMountTargetSelection();
@@ -487,20 +509,33 @@ namespace KingmakerMountedCombat.Integration
                     state != RelationshipState.Faulted
             };
 
-            if (state == RelationshipState.Mounted || state == RelationshipState.Faulted || !gameAvailable)
+            if (!gameAvailable)
             {
                 return context;
             }
 
             var selection = SelectionManager.Instance?.SelectedUnits;
-            context.ExactlyOneRiderSelected = selection != null && selection.Count == 1 && selection[0] != null;
+            UnitEntityData rider;
+            UnitEntityData mount;
+            if (state == RelationshipState.Mounted || state == RelationshipState.Faulted)
+            {
+                rider = relationship.Rider;
+                mount = relationship.Mount;
+                context.ExactlyOneRiderSelected = selection != null && selection.Count == 1 &&
+                    selection[0] == rider;
+            }
+            else
+            {
+                context.ExactlyOneRiderSelected = selection != null && selection.Count == 1 &&
+                    selection[0] != null;
+                rider = context.ExactlyOneRiderSelected ? selection[0] : null;
+                mount = rider?.Descriptor?.Pet;
+            }
             if (!context.ExactlyOneRiderSelected)
             {
                 return context;
             }
 
-            var rider = selection[0];
-            var mount = rider.Descriptor?.Pet;
             var riderState = rider.Descriptor?.State;
             var mountState = mount?.Descriptor?.State;
             var profile = SupportedMountedProfiles.Resolve(mount);
@@ -521,6 +556,19 @@ namespace KingmakerMountedCombat.Integration
                 (mount != null && mount.GetActivePolymorph() != null) || !context.RiderIsExactlyMedium;
             context.LoadingTransitionOrCutscene = IsLoadingOrCutscene(game, rider, mount);
             context.InCombat = rider.IsInCombat || (mount?.IsInCombat ?? false) || game.Player.IsInCombat;
+            var turnBased = CombatController.IsInTurnBasedCombat();
+            var turn = game.TurnBasedCombatController?.CurrentTurn;
+            context.CombatTurnEligible = CombatMountDismountPolicy.IsTurnEligible(
+                turnBased,
+                turn?.Unit == rider,
+                turn != null && turn.Status == TurnController.TurnStatus.Preparing,
+                turn != null && turn.IsActing);
+            context.RiderHasMoveAction = rider.HasMoveAction();
+            context.PairAdjacent = mount != null && rider.View != null && mount.View != null &&
+                CombatMountDismountPolicy.IsAdjacent(
+                    rider.DistanceTo(mount),
+                    rider.View.Corpulence,
+                    mount.View.Corpulence);
             context.SafeGameMode = MountedGameModePolicy.CanAdmitMountedAction(game.CurrentMode.ToString());
             context.ViewsAndStockAgentsAvailable = rider.View != null && rider.View.AgentASP != null &&
                 mount?.View != null && mount.View.AgentASP != null;
@@ -529,6 +577,20 @@ namespace KingmakerMountedCombat.Integration
             context.AgentOverridesAvailable = rider.View != null && rider.View.AgentOverride == null &&
                 mount?.View != null && mount.View.AgentOverride == null;
             return context;
+        }
+
+        private bool IsSelectedOrMountedRiderInCombat()
+        {
+            var rider = relationship.Rider;
+            if (rider == null)
+            {
+                var selection = SelectionManager.Instance?.SelectedUnits;
+                rider = selection != null && selection.Count == 1 ? selection[0] : null;
+            }
+            var mount = relationship.Mount ?? rider?.Descriptor?.Pet;
+            return rider != null &&
+                (rider.IsInCombat || (mount?.IsInCombat ?? false) ||
+                 (Game.Instance?.Player?.IsInCombat ?? false));
         }
 
         private static bool IsLoadingOrCutscene(Game game, UnitEntityData rider, UnitEntityData mount)

@@ -21,6 +21,7 @@ namespace KingmakerMountedCombat
         private readonly MountedPlayerActionController playerAction;
         private readonly NativeMountedControlService nativeControls;
         private readonly MountedCombatController combat;
+        private readonly UnifiedMountedTurnCoordinator unifiedTurn;
         private readonly HorsePrimaryAttackAnimationAdapter horsePrimaryAttackAnimation;
         private readonly MountedAnimationAdapter animation;
         private readonly MountedDollRoomIkAdapter dollRoomIk;
@@ -37,10 +38,17 @@ namespace KingmakerMountedCombat
                 relationship = new GameMountedRelationshipService(logger, settings);
                 lifecycleLedger = new NativeLifecycleDeliveryLedger();
                 horsePrimaryAttackAnimation = new HorsePrimaryAttackAnimationAdapter(relationship, logger);
-                combat = new MountedCombatController(relationship, settings, horsePrimaryAttackAnimation, logger);
+                unifiedTurn = new UnifiedMountedTurnCoordinator(relationship, settings, logger);
+                combat = new MountedCombatController(
+                    relationship,
+                    settings,
+                    horsePrimaryAttackAnimation,
+                    unifiedTurn,
+                    logger);
+                unifiedTurn.BindCombat(combat);
                 animation = new MountedAnimationAdapter(relationship, combat, horsePrimaryAttackAnimation, logger);
                 dollRoomIk = new MountedDollRoomIkAdapter(relationship, logger);
-                lifecycle = new MountedLifecycleSubscriber(relationship, lifecycleLedger, combat);
+                lifecycle = new MountedLifecycleSubscriber(relationship, lifecycleLedger, combat, unifiedTurn);
                 saveAuthorization = new RuntimeSaveAuthorization();
                 playerAction = new MountedPlayerActionController(relationship, settings, logger, combat);
                 nativeControls = new NativeMountedControlService(
@@ -49,8 +57,9 @@ namespace KingmakerMountedCombat
                     combat,
                     horseCompanion,
                     settings,
+                    lifecycleLedger,
                     logger);
-                patches = new MountedPatchController(relationship, playerAction, combat, nativeControls, animation, dollRoomIk, saveAuthorization, lifecycleLedger, logger);
+                patches = new MountedPatchController(relationship, playerAction, combat, unifiedTurn, nativeControls, animation, dollRoomIk, saveAuthorization, lifecycleLedger, logger);
                 runtimeAutomation = RuntimeAutomationHost.CreateFromCommandLine(
                     logger,
                     loadedModId,
@@ -86,6 +95,7 @@ namespace KingmakerMountedCombat
                 try { playerAction?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { nativeControls?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { combat?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
+                try { unifiedTurn?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { lifecycle?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { relationship?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { horseCompanion?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
@@ -197,6 +207,7 @@ namespace KingmakerMountedCombat
             }
 
             combat.Update();
+            unifiedTurn.Update();
             relationship.ValidateActivePair();
         }
 
@@ -205,6 +216,7 @@ namespace KingmakerMountedCombat
             ThrowIfDisposed();
             GUILayout.Label("Phase 2 private-alpha presentation work. The mounted relationship is transient and is cleaned before save/load/area boundaries.");
             settings.EnableUnsafeMovementExperiment = GUILayout.Toggle(settings.EnableUnsafeMovementExperiment, "Enable private-alpha mounted player action");
+            settings.EnableUnifiedMountedTurn = GUILayout.Toggle(settings.EnableUnifiedMountedTurn, "Enable Phase 3D unified mounted turn (fallback: Phase 3C separate turns)");
             var diagnosticOverlay = GUILayout.Toggle(settings.EnableDiagnosticOverlay, "Show diagnostic mounted-control overlay");
             if (diagnosticOverlay != settings.EnableDiagnosticOverlay)
             {
@@ -234,7 +246,7 @@ namespace KingmakerMountedCombat
             if (combat.CanShowCombatActions)
             {
                 GUILayout.BeginHorizontal();
-                if (GUILayout.Button("Arm rider melee")) { combat.Arm(MountedCombatActionKind.RiderMelee); }
+                if (GUILayout.Button("Arm Rider Primary")) { combat.ArmRiderPrimary(); }
                 if (GUILayout.Button("Arm " + playerAction.MountPrimaryLabel)) { combat.Arm(MountedCombatActionKind.MountPrimaryNatural); }
                 GUILayout.EndHorizontal();
                 GUILayout.Label(combat.LastFeedback);
@@ -260,6 +272,7 @@ namespace KingmakerMountedCombat
             nativeControls.Dispose();
             playerAction.Dispose();
             combat.Dispose();
+            unifiedTurn.Dispose();
             lifecycle.Dispose();
             relationship.Dispose();
             horseCompanion.Dispose();

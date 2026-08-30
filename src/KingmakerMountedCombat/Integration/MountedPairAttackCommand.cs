@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.UnitLogic.Commands;
 using Kingmaker.UnitLogic.Commands.Base;
@@ -41,6 +44,16 @@ namespace KingmakerMountedCombat.Integration
         public bool AttackWeaponIsRanged { get; set; }
 
         public string AttackWeaponSlot { get; set; }
+
+        public string AttackWeaponTypeBlueprintId { get; set; }
+
+        public string AmmunitionStateBefore { get; set; }
+
+        public string AmmunitionStateAfter { get; set; }
+
+        public string ReloadStateBefore { get; set; }
+
+        public string ReloadStateAfter { get; set; }
 
         public string TerminalReason { get; set; }
 
@@ -134,6 +147,7 @@ namespace KingmakerMountedCombat.Integration
         private readonly HorsePrimaryAttackAnimationAdapter horsePrimaryAttackAnimation;
         private readonly IModLogger logger;
         private readonly Action<MountedPairAttackCommand, MountedPairAttackOutcome> terminal;
+        private readonly bool allowApproach;
         private readonly MountedCombatTransaction transaction = new MountedCombatTransaction();
         private MountedPairSingleAttack childAttack;
         private UnitMoveTo delegatedMove;
@@ -141,6 +155,9 @@ namespace KingmakerMountedCombat.Integration
         private string retainedAttackWeaponBlueprintId;
         private bool retainedAttackWeaponIsNatural;
         private bool retainedAttackWeaponIsRanged;
+        private string retainedAttackWeaponTypeBlueprintId;
+        private string ammunitionStateBefore;
+        private string reloadStateBefore;
         private bool terminalReported;
         private bool approachRequiredAtStart;
         private int delegatedMoveStartCount;
@@ -184,7 +201,8 @@ namespace KingmakerMountedCombat.Integration
             NativeSingleAttackWeaponSelection expectedMountPrimary,
             HorsePrimaryAttackAnimationAdapter horsePrimaryAttackAnimation,
             IModLogger logger,
-            Action<MountedPairAttackCommand, MountedPairAttackOutcome> terminal)
+            Action<MountedPairAttackCommand, MountedPairAttackOutcome> terminal,
+            bool allowApproach = true)
             : base(CommandType.Standard, target)
         {
             this.relationship = relationship ?? throw new ArgumentNullException(nameof(relationship));
@@ -193,16 +211,18 @@ namespace KingmakerMountedCombat.Integration
             attackTarget = target ?? throw new ArgumentNullException(nameof(target));
             this.action = action;
             if (action != MountedCombatActionKind.RiderMelee &&
+                action != MountedCombatActionKind.RiderRanged &&
                 action != MountedCombatActionKind.MountPrimaryNatural)
             {
                 throw new ArgumentOutOfRangeException(nameof(action));
             }
-            actionActor = action == MountedCombatActionKind.RiderMelee ? rider : mount;
+            actionActor = action == MountedCombatActionKind.MountPrimaryNatural ? mount : rider;
             this.expectedMountPrimary = expectedMountPrimary;
             this.horsePrimaryAttackAnimation = horsePrimaryAttackAnimation ??
                 throw new ArgumentNullException(nameof(horsePrimaryAttackAnimation));
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
             this.terminal = terminal ?? throw new ArgumentNullException(nameof(terminal));
+            this.allowApproach = allowApproach;
             ApproachRadius = InfiniteRange;
             MaxApproachRadius = InfiniteRange;
             NeedLoS = false;
@@ -296,6 +316,11 @@ namespace KingmakerMountedCombat.Integration
                 targetSnapshot = attackTarget.Position;
                 var requiresApproach = !childAttack.IsPairEnoughClose;
                 approachRequiredAtStart = requiresApproach;
+                if (requiresApproach && !allowApproach)
+                {
+                    throw new InvalidOperationException(
+                        "Mounted stock ranged intent forbids automatic mount melee approach.");
+                }
                 if (!transaction.AcceptTarget(attackTarget.UniqueId, requiresApproach))
                 {
                     throw new InvalidOperationException("Mounted combat transaction rejected its exact target.");
@@ -527,7 +552,8 @@ namespace KingmakerMountedCombat.Integration
             delegatedMove = new UnitMoveTo(targetSnapshot, childAttack.PairApproachRadius)
             {
                 CreatedByPlayer = true,
-                ShowTargetMarker = false
+                ShowTargetMarker = false,
+                NeedLoS = true
             };
             delegatedMoveStartCount++;
             delegatedMoveDrivenByStockController =
@@ -616,7 +642,7 @@ namespace KingmakerMountedCombat.Integration
                 attackTarget,
                 rider,
                 mount,
-                action == MountedCombatActionKind.RiderMelee);
+                action != MountedCombatActionKind.MountPrimaryNatural);
             childAttack.Init(actionActor);
             if (action == MountedCombatActionKind.MountPrimaryNatural)
             {
@@ -626,13 +652,29 @@ namespace KingmakerMountedCombat.Integration
             {
                 throw new InvalidOperationException("Native child did not resolve to exactly one attack.");
             }
-            if (childAttack.PlannedAttack.Weapon == null || childAttack.PlannedAttack.Weapon.Blueprint.IsRanged)
+            if (childAttack.PlannedAttack.Weapon == null)
             {
-                throw new InvalidOperationException("Mounted combat rejected a missing or ranged planned weapon.");
+                throw new InvalidOperationException("Mounted combat rejected a missing planned weapon.");
+            }
+            var plannedRanged = childAttack.PlannedAttack.Weapon.Blueprint.IsRanged;
+            if (action == MountedCombatActionKind.RiderRanged && !plannedRanged ||
+                action != MountedCombatActionKind.RiderRanged && plannedRanged)
+            {
+                throw new InvalidOperationException(
+                    "Mounted combat planned weapon did not match the exact melee/ranged action kind.");
             }
             retainedAttackWeaponBlueprintId = childAttack.PlannedAttack.Weapon.Blueprint.AssetGuid;
             retainedAttackWeaponIsNatural = childAttack.PlannedAttack.Weapon.Blueprint.IsNatural;
             retainedAttackWeaponIsRanged = childAttack.PlannedAttack.Weapon.Blueprint.IsRanged;
+            retainedAttackWeaponTypeBlueprintId =
+                childAttack.PlannedAttack.Weapon.Blueprint.Type?.AssetGuid ?? "<none>";
+            ammunitionStateBefore = DescribeOptionalRangedState(
+                childAttack.PlannedAttack.Weapon,
+                "ammo",
+                "ammunition");
+            reloadStateBefore = DescribeOptionalRangedState(
+                childAttack.PlannedAttack.Weapon,
+                "reload");
             if (action == MountedCombatActionKind.MountPrimaryNatural)
             {
                 if (expectedMountPrimary?.Weapon?.Blueprint == null ||
@@ -740,7 +782,23 @@ namespace KingmakerMountedCombat.Integration
                 AttackWeaponIsRanged = retainedAttackWeaponIsRanged,
                 AttackWeaponSlot = action == MountedCombatActionKind.MountPrimaryNatural
                     ? expectedMountPrimary?.Kind.ToString()
-                    : "EquippedMelee",
+                    : action == MountedCombatActionKind.RiderRanged
+                        ? "EquippedRanged"
+                        : "EquippedMelee",
+                AttackWeaponTypeBlueprintId = retainedAttackWeaponTypeBlueprintId,
+                AmmunitionStateBefore = ammunitionStateBefore,
+                AmmunitionStateAfter = childAttack?.PlannedAttack?.Weapon == null
+                    ? "<unavailable>"
+                    : DescribeOptionalRangedState(
+                        childAttack.PlannedAttack.Weapon,
+                        "ammo",
+                        "ammunition"),
+                ReloadStateBefore = reloadStateBefore,
+                ReloadStateAfter = childAttack?.PlannedAttack?.Weapon == null
+                    ? "<unavailable>"
+                    : DescribeOptionalRangedState(
+                        childAttack.PlannedAttack.Weapon,
+                        "reload"),
                 TerminalReason = transaction.TerminalReason,
                 PairRangeSatisfiedAtStart = childAttack != null && childAttack.PairRangeSatisfiedAtNativeStart,
                 PairDistanceAtStart = childAttack?.PairDistanceAtNativeStart ?? 0f,
@@ -780,6 +838,100 @@ namespace KingmakerMountedCombat.Integration
                 AttackAnimationFinished = horsePrimaryAnimationHandle != null && horsePrimaryAnimationHandle.IsFinished,
                 AttackAnimationInterrupted = horsePrimaryAnimationHandle != null && horsePrimaryAnimationHandle.IsInterrupted
             });
+        }
+
+        private static string DescribeOptionalRangedState(object weapon, params string[] terms)
+        {
+            if (weapon == null || terms == null || terms.Length == 0)
+            {
+                return "<unavailable>";
+            }
+
+            var observations = new List<string>();
+            var candidates = new List<object> { weapon };
+            var blueprint = ReadPublicProperty(weapon, "Blueprint");
+            if (blueprint != null)
+            {
+                candidates.Add(blueprint);
+                var weaponType = ReadPublicProperty(blueprint, "Type");
+                if (weaponType != null)
+                {
+                    candidates.Add(weaponType);
+                }
+            }
+
+            foreach (var candidate in candidates)
+            {
+                var type = candidate.GetType();
+                foreach (var property in type.GetProperties(BindingFlags.Instance | BindingFlags.Public)
+                    .Where(property => property.GetIndexParameters().Length == 0 &&
+                        terms.Any(term => property.Name.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0))
+                    .Take(16))
+                {
+                    try
+                    {
+                        var value = property.GetValue(candidate, null);
+                        if (value == null || value is string || value.GetType().IsPrimitive || value.GetType().IsEnum)
+                        {
+                            observations.Add(type.FullName + "." + property.Name + "=" +
+                                (value == null ? "<null>" : value.ToString()));
+                        }
+                        else
+                        {
+                            observations.Add(type.FullName + "." + property.Name + "=<" +
+                                value.GetType().FullName + ">");
+                        }
+                    }
+                    catch (Exception exception)
+                    {
+                        observations.Add(type.FullName + "." + property.Name + "=<error:" +
+                            exception.GetType().Name + ">");
+                    }
+                }
+
+                var components = ReadPublicProperty(candidate, "ComponentsArray") as
+                    System.Collections.IEnumerable;
+                if (components == null)
+                {
+                    continue;
+                }
+                foreach (var component in components)
+                {
+                    var componentType = component?.GetType();
+                    if (componentType != null && terms.Any(term =>
+                        componentType.FullName.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0))
+                    {
+                        observations.Add("component=" + componentType.FullName);
+                    }
+                }
+            }
+
+            return observations.Count == 0
+                ? "native-core:no-separate-" + string.Join("-or-", terms) + "-state"
+                : string.Join("|", observations.Distinct().Take(32).ToArray());
+        }
+
+        private static object ReadPublicProperty(object instance, string name)
+        {
+            if (instance == null)
+            {
+                return null;
+            }
+            var property = instance.GetType().GetProperty(
+                name,
+                BindingFlags.Instance | BindingFlags.Public);
+            if (property == null || property.GetIndexParameters().Length != 0)
+            {
+                return null;
+            }
+            try
+            {
+                return property.GetValue(instance, null);
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         private static float HorizontalDistance(Vector3 first, Vector3 second)

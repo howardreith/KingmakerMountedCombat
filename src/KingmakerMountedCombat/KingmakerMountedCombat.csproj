@@ -118,6 +118,7 @@
     <Compile Include="Diagnostics\MovementRadialDistanceOrder.cs" />
     <Compile Include="Diagnostics\NavigationEndpointDistanceTracker.cs" />
     <Compile Include="Diagnostics\NativeLifecycleDeliveryLedger.cs" />
+    <Compile Include="Diagnostics\NativeMountedAbilityActivationLedger.cs" />
     <Compile Include="Diagnostics\NativeModeTransitionProbe.cs" />
     <Compile Include="Diagnostics\NativeAreaBoundaryProgress.cs" />
     <Compile Include="Diagnostics\PresentationRuntimeEvidencePolicy.cs" />
@@ -147,6 +148,8 @@
     <Compile Include="Domain\MountedCombatAction.cs" />
     <Compile Include="Domain\MountedCombatSpatialPolicy.cs" />
     <Compile Include="Domain\MountedCombatTransaction.cs" />
+    <Compile Include="Domain\MountedStockAttack.cs" />
+    <Compile Include="Domain\UnifiedMountedTurn.cs" />
     <Compile Include="Domain\DiagnosticCombatTargetLifecycle.cs" />
     <Compile Include="Domain\DiagnosticCombatInitiativeObservation.cs" />
     <Compile Include="Domain\MountedPlayerAction.cs" />
@@ -175,6 +178,7 @@
     <Compile Include="Integration\MountedAnimationAdapter.cs" />
     <Compile Include="Integration\MountedDollRoomIkAdapter.cs" />
     <Compile Include="Integration\ExactTurnMovementAdapter.cs" />
+    <Compile Include="Integration\UnifiedMountedTurnCoordinator.cs" />
     <Compile Include="Integration\MountedCombatController.cs" />
     <Compile Include="Integration\MountedDoorInteractionCommand.cs" />
     <Compile Include="Integration\NativeSingleAttackWeaponResolver.cs" />

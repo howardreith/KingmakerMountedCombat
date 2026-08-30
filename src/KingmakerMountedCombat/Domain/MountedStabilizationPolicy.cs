@@ -223,12 +223,27 @@ namespace KingmakerMountedCombat.Domain
             bool turnBasedCombat,
             bool currentTurnIsExactMount)
         {
+            return Classify(
+                relationshipMounted,
+                requestedUnitIsExactMount,
+                turnBasedCombat,
+                currentTurnIsExactMount,
+                false);
+        }
+
+        public static MountedSelectionDisposition Classify(
+            bool relationshipMounted,
+            bool requestedUnitIsExactMount,
+            bool turnBasedCombat,
+            bool currentTurnIsExactMount,
+            bool unifiedMountedTurn)
+        {
             if (!relationshipMounted || !requestedUnitIsExactMount)
             {
                 return MountedSelectionDisposition.Unchanged;
             }
 
-            return turnBasedCombat && currentTurnIsExactMount
+            return turnBasedCombat && currentTurnIsExactMount && !unifiedMountedTurn
                 ? MountedSelectionDisposition.PreserveNativeMountTurn
                 : MountedSelectionDisposition.ProjectMountToRider;
         }
@@ -250,6 +265,26 @@ namespace KingmakerMountedCombat.Domain
             bool exactRiderSelected,
             bool exactMountSelected)
         {
+            return IsExpectedActionSelection(
+                turnBasedCombat,
+                actionIsMountOwned,
+                false,
+                exactRiderSelected,
+                exactMountSelected);
+        }
+
+        public static bool IsExpectedActionSelection(
+            bool turnBasedCombat,
+            bool actionIsMountOwned,
+            bool unifiedMountedTurn,
+            bool exactRiderSelected,
+            bool exactMountSelected)
+        {
+            if (unifiedMountedTurn)
+            {
+                return exactRiderSelected;
+            }
+
             return actionIsMountOwned && turnBasedCombat
                 ? exactMountSelected
                 : exactRiderSelected;

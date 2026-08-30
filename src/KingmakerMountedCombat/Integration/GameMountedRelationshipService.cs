@@ -75,6 +75,8 @@ namespace KingmakerMountedCombat.Integration
 
         internal event Action<CleanupTrigger> Dismounting;
 
+        internal event Action<UnitEntityData, UnitEntityData> MountedPairActivated;
+
         public TransitionResult MountSelectedRider()
         {
             ThrowIfDisposed();
@@ -127,6 +129,7 @@ namespace KingmakerMountedCombat.Integration
             if (result.Succeeded)
             {
                 ResetNativeTurnBasedExitAiLeaseEvidence();
+                MountedPairActivated?.Invoke(rider, mount);
             }
             if (!result.Succeeded)
             {
@@ -362,12 +365,31 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
-        public void HandleUnexpectedPairCommand(UnitEntityData executor)
+        internal bool IsExactActivePairUnit(UnitEntityData unit)
         {
-            if (coordinator.State == RelationshipState.Mounted && (executor == runtime.Rider || executor == runtime.Mount))
+            return coordinator.State == RelationshipState.Mounted &&
+                unit != null && (unit == runtime.Rider || unit == runtime.Mount);
+        }
+
+        public bool RouteContinuousMove(ref UnitEntityData executor)
+        {
+            if (!IsExactActivePairUnit(executor))
             {
-                Dismount(CleanupTrigger.UnexpectedCommand);
+                return true;
             }
+
+            if (executor == runtime.Rider)
+            {
+                if (runtime.Mount == null)
+                {
+                    logger.Warning("Rejected mounted continuous movement because the exact physical mover was unavailable; relationship retained for invariant validation.");
+                    return false;
+                }
+                executor = runtime.Mount;
+                logger.Info("Routed exact rider continuous movement through the mounted physical mover without relationship cleanup.");
+            }
+
+            return true;
         }
 
         public bool GuardBoundary(CleanupTrigger trigger)

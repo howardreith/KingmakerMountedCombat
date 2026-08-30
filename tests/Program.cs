@@ -50,11 +50,14 @@ namespace KingmakerMountedCombat.Tests
             MovementRadialDistanceOrderTests.Register(runner);
             NavigationEndpointDistanceTrackerTests.Register(runner);
             NativeLifecycleDeliveryLedgerTests.Register(runner);
+            NativeMountedAbilityActivationLedgerTests.Register(runner);
             NativeAreaBoundaryProgressTests.Register(runner);
             MountedRiderPoseTests.Register(runner);
             MountedRiderGroundingPolicyTests.Register(runner);
             MountedStabilizationPolicyTests.Register(runner);
             NativeMountedControlPolicyTests.Register(runner);
+            UnifiedMountedTurnPolicyTests.Register(runner);
+            MountedStockAttackPolicyTests.Register(runner);
             ReactiveBooleanValueReaderTests.Register(runner);
             StopEarlyCaptureBoundaryTests.Register(runner);
             PresentationOverlayEvidenceTests.Register(runner);

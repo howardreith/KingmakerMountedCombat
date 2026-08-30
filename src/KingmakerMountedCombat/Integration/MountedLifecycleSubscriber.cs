@@ -16,17 +16,19 @@ namespace KingmakerMountedCombat.Integration
         private readonly GameMountedRelationshipService service;
         private readonly NativeLifecycleDeliveryLedger ledger;
         private readonly MountedCombatController combat;
+        private readonly UnifiedMountedTurnCoordinator unifiedTurn;
         private readonly IDisposable subscription;
         private readonly object lifeTransitionGate = new object();
         private readonly List<NativePairLifeStateObservation> pairLifeTransitions = new List<NativePairLifeStateObservation>();
         private long pairLifeTransitionSequence;
         private bool disposed;
 
-        public MountedLifecycleSubscriber(GameMountedRelationshipService service, NativeLifecycleDeliveryLedger ledger, MountedCombatController combat)
+        public MountedLifecycleSubscriber(GameMountedRelationshipService service, NativeLifecycleDeliveryLedger ledger, MountedCombatController combat, UnifiedMountedTurnCoordinator unifiedTurn)
         {
             this.service = service ?? throw new ArgumentNullException(nameof(service));
             this.ledger = ledger ?? throw new ArgumentNullException(nameof(ledger));
             this.combat = combat ?? throw new ArgumentNullException(nameof(combat));
+            this.unifiedTurn = unifiedTurn ?? throw new ArgumentNullException(nameof(unifiedTurn));
             subscription = EventBus.Subscribe(this);
         }
 
@@ -73,6 +75,7 @@ namespace KingmakerMountedCombat.Integration
         {
             combat.Cancel("real-time/turn-based mode changed");
             service.ObserveNativeTurnBasedModeChanged(enabled);
+            unifiedTurn.ObserveModeChanged(enabled);
             Observe(
                 enabled ? NativeLifecycleBoundary.TurnBasedEnabled : NativeLifecycleBoundary.RealtimeEnabled,
                 "ITurnBasedModeEnabledHandler.HandleTurnBasedModeStateChanged(" + enabled + ")");

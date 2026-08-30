@@ -344,6 +344,21 @@ namespace KingmakerMountedCombat.Domain
                 (currentUnitIsExactActor && (actorTurnIsPreparing || actorTurnIsActing));
         }
 
+        public static bool CanIssueSharedAction(
+            bool turnBasedCombat,
+            bool unifiedMountedTurn,
+            bool currentUnitIsExactRider,
+            bool currentUnitIsExactActionActor,
+            bool turnIsPreparing,
+            bool turnIsActing)
+        {
+            return CanIssueAction(
+                turnBasedCombat,
+                unifiedMountedTurn ? currentUnitIsExactRider : currentUnitIsExactActionActor,
+                turnIsPreparing,
+                turnIsActing);
+        }
+
         public static bool ShouldPreserveIndependentMountTurn(
             bool exactMountedPair,
             bool turnBasedCombat,

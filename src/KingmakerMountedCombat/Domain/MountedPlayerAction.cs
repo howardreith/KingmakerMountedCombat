@@ -46,6 +46,12 @@ namespace KingmakerMountedCombat.Domain
 
         public bool InCombat { get; set; }
 
+        public bool CombatTurnEligible { get; set; }
+
+        public bool RiderHasMoveAction { get; set; }
+
+        public bool PairAdjacent { get; set; }
+
         public bool SafeGameMode { get; set; }
 
         public bool ViewsAndStockAgentsAvailable { get; set; }
@@ -103,12 +109,31 @@ namespace KingmakerMountedCombat.Domain
             if (context.RelationshipState == RelationshipState.Mounted ||
                 context.RelationshipState == RelationshipState.Faulted)
             {
+                if (context.RelationshipState == RelationshipState.Faulted)
+                {
+                    return new MountedPlayerActionAvailability(
+                        true,
+                        true,
+                        MountedPlayerActionKind.Dismount,
+                        "Clear mounted state",
+                        Array.Empty<string>());
+                }
+
+                var dismountReasons = new List<string>();
+                if (context.InCombat && !context.CombatTurnEligible)
+                {
+                    dismountReasons.Add("Dismount during turn-based combat belongs to the rider-led current turn.");
+                }
+                if (context.InCombat && !context.RiderHasMoveAction)
+                {
+                    dismountReasons.Add("The rider has no Move action available to dismount.");
+                }
                 return new MountedPlayerActionAvailability(
                     true,
-                    true,
+                    dismountReasons.Count == 0,
                     MountedPlayerActionKind.Dismount,
-                    context.RelationshipState == RelationshipState.Faulted ? "Clear mounted state" : "Dismount",
-                    Array.Empty<string>());
+                    "Dismount",
+                    dismountReasons);
             }
 
             if (!context.GameAvailable)
@@ -180,9 +205,17 @@ namespace KingmakerMountedCombat.Domain
             {
                 reasons.Add("Mounting is blocked during loading, area transitions, and cutscenes.");
             }
-            if (context.InCombat)
+            if (context.InCombat && !context.PairAdjacent)
             {
-                reasons.Add("Mounting is available only outside combat in this private alpha.");
+                reasons.Add("Rider and " + mountName + " must be adjacent to mount during combat.");
+            }
+            if (context.InCombat && !context.CombatTurnEligible)
+            {
+                reasons.Add("Mount Companion during turn-based combat belongs to the rider's current turn.");
+            }
+            if (context.InCombat && !context.RiderHasMoveAction)
+            {
+                reasons.Add("The rider has no Move action available to mount.");
             }
             if (!context.SafeGameMode)
             {
@@ -230,6 +263,41 @@ namespace KingmakerMountedCombat.Domain
                 action,
                 label,
                 new[] { reason });
+        }
+    }
+
+    public static class CombatMountDismountPolicy
+    {
+        public const float NativeAdjacentReachMeters = 1.5f;
+
+        public static bool IsTurnEligible(
+            bool turnBasedCombat,
+            bool currentTurnIsExactRider,
+            bool turnPreparing,
+            bool turnActing)
+        {
+            return !turnBasedCombat || currentTurnIsExactRider && (turnPreparing || turnActing);
+        }
+
+        public static bool IsAdjacent(
+            float centerDistance,
+            float riderCorpulence,
+            float mountCorpulence)
+        {
+            if (!IsFiniteNonNegative(centerDistance) ||
+                !IsFiniteNonNegative(riderCorpulence) ||
+                !IsFiniteNonNegative(mountCorpulence))
+            {
+                return false;
+            }
+
+            return centerDistance <= riderCorpulence + mountCorpulence +
+                NativeAdjacentReachMeters;
+        }
+
+        private static bool IsFiniteNonNegative(float value)
+        {
+            return !float.IsNaN(value) && !float.IsInfinity(value) && value >= 0f;
         }
     }
 }

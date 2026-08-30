@@ -51,11 +51,14 @@
     <Compile Include="MovementRadialDistanceOrderTests.cs" />
     <Compile Include="NavigationEndpointDistanceTrackerTests.cs" />
     <Compile Include="NativeLifecycleDeliveryLedgerTests.cs" />
+    <Compile Include="NativeMountedAbilityActivationLedgerTests.cs" />
     <Compile Include="NativeAreaBoundaryProgressTests.cs" />
     <Compile Include="MountedRiderPoseTests.cs" />
     <Compile Include="MountedRiderGroundingPolicyTests.cs" />
     <Compile Include="MountedStabilizationPolicyTests.cs" />
     <Compile Include="NativeMountedControlPolicyTests.cs" />
+    <Compile Include="UnifiedMountedTurnPolicyTests.cs" />
+    <Compile Include="MountedStockAttackPolicyTests.cs" />
     <Compile Include="ReactiveBooleanValueReaderTests.cs" />
     <Compile Include="PresentationOverlayEvidenceTests.cs" />
     <Compile Include="ScopedDiagnosticAiLeaseTests.cs" />
@@ -107,6 +110,9 @@
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\NativeLifecycleDeliveryLedger.cs">
       <Link>Shared\NativeLifecycleDeliveryLedger.cs</Link>
     </Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\NativeMountedAbilityActivationLedger.cs">
+      <Link>Shared\NativeMountedAbilityActivationLedger.cs</Link>
+    </Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\NativeAreaBoundaryProgress.cs">
       <Link>Shared\NativeAreaBoundaryProgress.cs</Link>
     </Compile>
@@ -128,6 +134,8 @@
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedCombatAction.cs"><Link>Shared\Domain\MountedCombatAction.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedCombatSpatialPolicy.cs"><Link>Shared\Domain\MountedCombatSpatialPolicy.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedCombatTransaction.cs"><Link>Shared\Domain\MountedCombatTransaction.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedStockAttack.cs"><Link>Shared\Domain\MountedStockAttack.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\UnifiedMountedTurn.cs"><Link>Shared\Domain\UnifiedMountedTurn.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\DiagnosticCombatTargetLifecycle.cs"><Link>Shared\Domain\DiagnosticCombatTargetLifecycle.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\DiagnosticCombatInitiativeObservation.cs"><Link>Shared\Domain\DiagnosticCombatInitiativeObservation.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedPlayerAction.cs"><Link>Shared\Domain\MountedPlayerAction.cs</Link></Compile>

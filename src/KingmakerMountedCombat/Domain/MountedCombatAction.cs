@@ -7,6 +7,7 @@ namespace KingmakerMountedCombat.Domain
     {
         None,
         RiderMelee,
+        RiderRanged,
         MountPrimaryNatural
     }
 
@@ -332,7 +333,7 @@ namespace KingmakerMountedCombat.Domain
                 : context.MountDisplayName;
             if (context.Action == MountedCombatActionKind.None)
             {
-                reasons.Add("Choose Rider melee or " + mountName + " primary.");
+                reasons.Add("Choose Rider Primary or " + mountName + " Primary.");
                 codes.Add(MountedCombatRejectionCode.WrongActionState);
             }
             if (!context.FeatureEnabled)
@@ -405,20 +406,28 @@ namespace KingmakerMountedCombat.Domain
                 reasons.Add("Mounted attacks are blocked during lifecycle transitions.");
                 codes.Add(MountedCombatRejectionCode.LifecycleBoundary);
             }
-            if (context.Action == MountedCombatActionKind.RiderMelee && !context.RiderHasEligibleWeapon)
+            var riderAction = context.Action == MountedCombatActionKind.RiderMelee ||
+                context.Action == MountedCombatActionKind.RiderRanged;
+            if (riderAction && !context.RiderHasEligibleWeapon)
             {
                 reasons.Add("The rider has no eligible equipped weapon.");
                 codes.Add(MountedCombatRejectionCode.NoEligibleWeapon);
             }
             else if (context.Action == MountedCombatActionKind.RiderMelee && context.RiderWeaponIsRanged)
             {
-                reasons.Add("Mounted ranged attacks are not supported in this private alpha.");
-                codes.Add(MountedCombatRejectionCode.MountedRangedUnsupported);
+                reasons.Add("Rider melee requires a melee weapon; the equipped primary weapon is ranged.");
+                codes.Add(MountedCombatRejectionCode.UnsupportedWeaponCategory);
             }
             else if (context.Action == MountedCombatActionKind.RiderMelee &&
                 (!context.RiderWeaponCategorySupported || !context.RiderWeaponIsSupportedMelee))
             {
-                reasons.Add("Rider melee requires one ordinary one-handed melee weapon in this private alpha.");
+                reasons.Add("Rider melee requires an ordinary native melee weapon.");
+                codes.Add(MountedCombatRejectionCode.UnsupportedWeaponCategory);
+            }
+            else if (context.Action == MountedCombatActionKind.RiderRanged &&
+                (!context.RiderWeaponIsRanged || !context.RiderWeaponCategorySupported))
+            {
+                reasons.Add("Rider ranged requires an ordinary native ranged weapon.");
                 codes.Add(MountedCombatRejectionCode.UnsupportedWeaponCategory);
             }
             if (context.Action == MountedCombatActionKind.MountPrimaryNatural &&
@@ -448,7 +457,8 @@ namespace KingmakerMountedCombat.Domain
                 codes.Add(MountedCombatRejectionCode.CommandAdmissionFailure);
             }
 
-            var actor = context.Action == MountedCombatActionKind.RiderMelee
+            var actor = context.Action == MountedCombatActionKind.RiderMelee ||
+                context.Action == MountedCombatActionKind.RiderRanged
                 ? MountedCombatActor.Rider
                 : context.Action == MountedCombatActionKind.MountPrimaryNatural
                     ? MountedCombatActor.Mount

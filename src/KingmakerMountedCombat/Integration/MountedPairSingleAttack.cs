@@ -123,7 +123,8 @@ namespace KingmakerMountedCombat.Integration
                 float executorDistance;
                 UnitEntityData target = Target;
                 return TryObserveDistances(target, out pairDistance, out executorDistance) &&
-                    pairDistance <= pairApproachRadius + MountedCombatSpatialPolicy.RangeTolerance;
+                    pairDistance <= pairApproachRadius + MountedCombatSpatialPolicy.RangeTolerance &&
+                    rider.HasLOS(target);
             }
         }
 

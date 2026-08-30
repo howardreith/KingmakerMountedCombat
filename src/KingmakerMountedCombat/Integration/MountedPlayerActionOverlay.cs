@@ -77,7 +77,7 @@ namespace KingmakerMountedCombat.Integration
                     GUI.enabled = true;
                     if (GUI.Button(new Rect(left + 12f, top + 63f, 148f, 28f), "Rider melee"))
                     {
-                        controller.ArmCombatActionFromOverlay(MountedCombatActionKind.RiderMelee);
+                        controller.ArmRiderPrimaryFromOverlay();
                     }
                     if (GUI.Button(new Rect(left + 170f, top + 63f, 148f, 28f), controller.MountPrimaryLabel))
                     {

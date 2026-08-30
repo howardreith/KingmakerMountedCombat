@@ -5148,8 +5148,11 @@ try {
             $engineSource.Contains('currentTurn?.Unit == AttackActor') -and
             $spatialPolicySource.Contains('public static bool CanIssueRiderAction(') -and
             $spatialPolicySource.Contains('public static bool CanIssueAction(') -and
+            $spatialPolicySource.Contains('public static bool CanIssueSharedAction(') -and
             $spatialPolicySource.Contains('(currentUnitIsExactActor && (actorTurnIsPreparing || actorTurnIsActing))') -and
-            $controllerSource.Contains('var actionActorTurn = MountedPairTurnPolicy.CanIssueAction(') -and
+            $spatialPolicySource.Contains('unifiedMountedTurn ? currentUnitIsExactRider : currentUnitIsExactActionActor') -and
+            $controllerSource.Contains('var actionActorTurn = MountedPairTurnPolicy.CanIssueSharedAction(') -and
+            $controllerSource.Contains('settings.EnableUnifiedMountedTurn,') -and
             $controllerSource.Contains('turn.Status == TurnBased.Controllers.TurnController.TurnStatus.Preparing') -and
             $controllerSource.Contains('turn != null && turn.IsActing') -and
             $engineSource.Contains('MountedPairTurnPolicy.CanIssueAction(') -and
@@ -8826,7 +8829,12 @@ try {
             'native Mammoth terminal diagnosis mutates or observes commands beyond the one exact armed stock move'
         Assert-Test ($stabilizationSource.Contains('public sealed class MountedOverlayWorldInputGuard') -and
             $stabilizationSource.Contains('private const int MaximumPropagationFrameDelta = 2;') -and
-            $overlaySource.Contains('ArmCombatActionFromOverlay(MountedCombatActionKind.RiderMelee)') -and
+            $overlaySource.Contains('ArmRiderPrimaryFromOverlay()') -and
+            $playerActionSource.Contains('internal bool ArmRiderPrimaryFromOverlay()') -and
+            $playerActionSource.IndexOf('ObserveOverlayButtonActivation();',
+                $playerActionSource.IndexOf('internal bool ArmRiderPrimaryFromOverlay()', [StringComparison]::Ordinal),
+                [StringComparison]::Ordinal) -lt
+                $playerActionSource.IndexOf('return combat.ArmRiderPrimary();', [StringComparison]::Ordinal) -and
             $playerActionSource.Contains('combat.MarkPlayerFacingOverlayActivation(Time.frameCount);') -and
             $combatSource.Contains('overlayWorldInputGuard.TryConsumePropagatedWorldClick(Time.frameCount)') -and
             $combatSource.IndexOf('TrySuppressPropagatedOverlayWorldClick()', [StringComparison]::Ordinal) -lt
@@ -9796,6 +9804,52 @@ try {
         try { Assert-KmcHorseNativeControlsUxEvidence -Request $nativeRequest -Manifest $nativeManifest -Status PASS -SubscenarioResults @($nativeSubresult) }
         catch { $threw = $true }
         Assert-Test $threw 'Horse native-controls UX validator accepted a missing TB Horse animation handle'
+    }
+
+    Invoke-HarnessTest 'Phase 3D unified combat source boundaries are exact and pair-local' {
+        $unifiedSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\UnifiedMountedTurnCoordinator.cs'))
+        $patchSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPatchController.cs'))
+        $combatSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedCombatController.cs'))
+        $relationshipSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\GameMountedRelationshipService.cs'))
+        $nativeSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\NativeMountedControlService.cs'))
+        $attackSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPairAttackCommand.cs'))
+
+        Assert-Test ($unifiedSource.Contains('InitiativeOverrideResultFieldToken = 0x04004B5B') -and
+            $unifiedSource.Contains('InitiativeOverrideResultField.SetValue(rule, rider.CombatState.Initiative);') -and
+            $unifiedSource.Contains('MountInitiativeOverrideCount++') -and
+            $unifiedSource.Contains('PrepareExactMountLedger(mount);') -and
+            $unifiedSource.Contains('ShouldSuppressStepOpportunity(UnitEntityData target)') -and
+            $unifiedSource.Contains('settings.EnableUnifiedMountedTurn = false;')) `
+            'unified-turn coordinator lost exact initiative, ledger, five-foot-step, or fallback ownership'
+        Assert-Test ($patchSource.Contains('TryRouteMountedStockAttack(__instance, cmd)') -and
+            $patchSource.Contains('PatchBridge.UnifiedTurn?.HandleChooseNextUnit(__instance);') -and
+            $patchSource.Contains('PatchBridge.UnifiedTurn?.FilterTrackerSortedUnits(ref __result);') -and
+            $patchSource.Contains('PatchBridge.UnifiedTurn.ShouldSuppressStepOpportunity(target)') -and
+            $patchSource.Contains('PatchBridge.Service.RouteContinuousMove(ref executor)') -and
+            -not $patchSource.Contains('Dismount(CleanupTrigger.UnexpectedCommand)')) `
+            'Phase 3D exact-token orchestration lost stock-input, tracker, step, or continuous-move isolation'
+        Assert-Test ($relationshipSource.Contains('public bool RouteContinuousMove(ref UnitEntityData executor)') -and
+            $relationshipSource.Contains('executor = runtime.Mount;') -and
+            -not $relationshipSource.Contains('HandleUnexpectedPairCommand')) `
+            'continuous mounted movement can still end the relationship as an unexpected command'
+        Assert-Test ($combatSource.Contains('UnifiedMountedStockAttackPolicy.IsExactObservedPlayerRequest(') -and
+            $combatSource.Contains('rider.CombatState.ManualTarget = target;') -and
+            $combatSource.Contains('TryDriveStockAttackIntent();') -and
+            $combatSource.Contains('ResolveRiderPrimaryAction()') -and
+            $combatSource.Contains('!ranged || action != MountedCombatActionKind.MountPrimaryNatural')) `
+            'stock hostile-click intent lost exact native admission, persistence, or ranged no-melee behavior'
+        Assert-Test ($nativeSource.Contains('NativeMountedAbilityActivationLedger') -and
+            $nativeSource.Contains('NativeMountedAbilityActivationPhase.RelationshipEnded') -and
+            $nativeSource.Contains('UnitCommand.CommandType.Move,') -and
+            $nativeSource.Contains('combat.ObserveStockAttackRequested(unit, target?.EntityData);')) `
+            'native ability instrumentation or combat Move/stock request delivery is incomplete'
+        Assert-Test ($attackSource.Contains('delegatedMove = new UnitMoveTo(targetSnapshot, childAttack.PairApproachRadius)') -and
+            $attackSource.Contains('NeedLoS = true') -and
+            $attackSource.Contains('AttackWeaponTypeBlueprintId') -and
+            $attackSource.Contains('AmmunitionStateBefore') -and
+            $attackSource.Contains('ReloadStateAfter') -and
+            -not $attackSource.Contains('Gunslinger')) `
+            'ranged native LoS, ammunition/reload telemetry, or foreign-mod isolation changed'
     }
 
     $resultPath = Join-Path $testRoot 'runtime-result.json'

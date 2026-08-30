@@ -1,5 +1,15 @@
 # Autonomous blockers
 
+## Phase 3D primary implementation offline-green; runtime proof remains open - 2026-08-30T20:46:46Z
+
+Status: `IN PROGRESS`.
+
+No current hard blocker is proven. The bounded primary architecture compiles and passes component, visual/source-order, harness/protocol, and exact Kingmaker assembly gates. It retains the Phase 3C separate-turn fallback setting and has not touched runtime or external state.
+
+The principal unresolved risk is real Kingmaker behavior: one rider tracker entry, no unrelated turn skip, independent rider/mount action consumption, native five-foot-step distance/AoO cardinality, combat Mount/Dismount charging, ordinary hostile-click persistence, native ranged stopping/LoS/reload behavior, and Rider Primary relationship retention all still require fresh guarded runtime evidence. Offline success is not gameplay credit.
+
+Exact next action is a coherent implementation checkpoint, followed by original Horse asset/seat work and a strict Phase 3D scenario schema/engine. If the first shared-turn runtime aggregate shows duplicate/skipped turns or resource refresh and one attributable repair cannot contain it, preserve evidence and enter the accepted Phase 3C fallback disposition rather than broadening controller patches.
+
 ## Phase 3D exact seams established; no current hard blocker - 2026-08-30T19:41:26Z
 
 Status: `IN PROGRESS`.
