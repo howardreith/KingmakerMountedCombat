@@ -1509,6 +1509,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 request.EvidenceRoot,
                 HorseCompanionUnmountedScenarioEngine.NativeControlsEvidenceFileName,
                 HorseCompanionUnmountedScenarioEngine.NativeControlsEvidenceKind);
+            AddRuntimeArtifactIfPresent(
+                artifacts,
+                request.EvidenceRoot,
+                Phase3dHorseScenarioTranche.EvidenceFileName,
+                Phase3dHorseScenarioTranche.EvidenceKind);
 
             var visualRoot = Path.Combine(request.EvidenceRoot, "movement-visuals");
             if (Directory.Exists(visualRoot))

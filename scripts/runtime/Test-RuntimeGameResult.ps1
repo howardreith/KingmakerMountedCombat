@@ -114,6 +114,7 @@ function Assert-RuntimeArtifactManifest {
             ($relativePath -ceq 'horse-companion-unmounted.json' -and $kind -ceq 'horse-companion-unmounted') -or
             ($relativePath -ceq 'horse-mounted-alpha.json' -and $kind -ceq 'horse-mounted-alpha') -or
             ($relativePath -ceq 'horse-native-controls-ux.json' -and $kind -ceq 'horse-native-controls-ux') -or
+            ($relativePath -ceq 'phase3d-horse-scenario-evidence.json' -and $kind -ceq 'phase3d-horse-scenario-evidence') -or
             ($relativePath -cmatch '^movement-visuals/[A-Za-z0-9._-]+\.png$' -and $kind -ceq 'screenshot')
         if (-not $allowed) { throw "Runtime artifact manifest record is outside the exact allowlist: $relativePath ($kind)" }
         if (-not (Test-ExactJsonInteger $artifact.length) -or [long]$artifact.length -le 0 -or
@@ -183,6 +184,7 @@ function Assert-SubscenarioResults {
         'mounted-rider-melee-invalid-target', 'mounted-rider-melee-target-death',
         'mounted-rider-melee-cleanup', 'non-mounted-melee-control'
     )
+    $missionScenarios += @(Get-KmcPhase3dHorseRuntimeRows)
     if ($null -eq $Game.subscenarioResults -or $Game.subscenarioResults -is [string]) { throw 'Runtime game-result subscenarioResults must be an array.' }
     $items = @($Game.subscenarioResults)
     if ($items.Count -eq 0) { throw 'Runtime game-result contains no named subscenarios.' }
@@ -278,6 +280,7 @@ Assert-KmcCombatScenarioEvidence -Request $request -Manifest $validatedArtifactM
 Assert-KmcHorseNativeAssetAuditEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -SubscenarioResults $game.subscenarioResults
 Assert-KmcHorseCompanionBlueprintRegistrationEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -SubscenarioResults $game.subscenarioResults
 Assert-KmcHorseCompanionUnmountedEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -SubscenarioResults $game.subscenarioResults
+Assert-KmcPhase3dHorseScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -SubscenarioResults $game.subscenarioResults
 if ([string]$game.status -ceq 'PASS') {
     if ($game.fixtureIdentityVerified -ne $true -or [string]$game.relationshipState -cne 'Unmounted') { throw 'Save-backed PASS did not finish with verified fixture identity and an unmounted relationship.' }
     $expectedWorkingLoads = if ([string]$game.scenario -cin @('mounted-pair-load-safety','boundary-suite')) { 2 } else { 1 }

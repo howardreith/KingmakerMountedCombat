@@ -98,6 +98,11 @@ namespace KingmakerMountedCombat.Integration
 
         internal string LastStockAttackObservation { get; private set; } = "not-observed";
 
+        internal UnifiedMountedTurnSnapshot CaptureUnifiedTurnSnapshot()
+        {
+            return unifiedTurn.CaptureSnapshot();
+        }
+
         internal bool HasExactMountMovement =>
             activeRiderTurnGroundMove != null && !activeRiderTurnGroundMove.IsFinished ||
             activeCommand?.DelegatedMove != null && !activeCommand.DelegatedMove.IsFinished ||

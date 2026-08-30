@@ -9815,6 +9815,192 @@ try {
         Assert-Test $threw 'Horse native-controls UX validator accepted a missing TB Horse animation handle'
     }
 
+    Invoke-HarnessTest 'Phase 3D Horse validator binds exact scenario rows and semantic cardinality' {
+        foreach ($phase3dScenario in @(
+            'phase3d-horse-presentation-suite',
+            'phase3d-unified-combat-rt-suite',
+            'phase3d-unified-combat-tb-suite')) {
+            $phase3dRoot = Join-Path $runtimeEvidenceTestRoot $phase3dScenario
+            New-Item -ItemType Directory -Path $phase3dRoot -Force | Out-Null
+            $phase3dRequest = [pscustomobject]@{
+                runId=('validator-' + $phase3dScenario);scenario=$phase3dScenario
+                branch='codex/mounted-combat-phase3d-unified-combat';commit=('e'*40)
+                productVersion=$currentProductVersion;dllSha256=('f'*64)
+                dllMvid='44444444-5555-6666-7777-888888888888';evidenceRoot=$phase3dRoot
+            }
+            $required = switch -CaseSensitive ($phase3dScenario) {
+                'phase3d-horse-presentation-suite' {
+                    @('Horse-small-portrait-close-up','saddle-icon','Horse-pose-final-idle-walk-run-turn-stop','mounted-single-rider-turn-portrait')
+                    break
+                }
+                'phase3d-unified-combat-rt-suite' {
+                    @(
+                        'rider-primary-target-cancel-does-not-dismount','rider-primary-rejection-does-not-dismount',
+                        'rider-primary-does-not-dismount-rt','rider-primary-after-movement-does-not-dismount',
+                        'rider-primary-after-shared-turn-transition-does-not-dismount',
+                        'mounted-combat-start-single-initiative-entry','mounted-rider-initiative-bonus','mounted-turn-rider-portrait',
+                        'mounted-stock-click-melee-adjacent-rt','mounted-stock-click-melee-approach-rt',
+                        'mounted-stock-click-melee-auto-repeat-rt','mounted-stock-click-melee-cancel-rt',
+                        'mounted-separate-action-ledgers','mounted-stock-click-melee-rider-only-explicit',
+                        'mounted-stock-click-melee-mount-only-explicit','mounted-stock-click-invalid-target-feedback',
+                        'mounted-bow-approach-to-range-rt',
+                        'mounted-bow-auto-fire-rt','mounted-ranged-does-not-force-melee','mounted-ranged-line-of-sight',
+                        'mounted-bow-cancel-rt','mounted-bow-adjacent-rt','mounted-ranged-cover-concealment',
+                        'mounted-ranged-aao-native-control','mounted-crossbow-or-reload-control','mounted-sling-control',
+                        'RT-to-TB-shared-turn','TB-to-RT-shared-turn','unmounted-stock-attack-control','unmounted-ranged-control')
+                    break
+                }
+                'phase3d-unified-combat-tb-suite' {
+                    @(
+                        'mount-in-combat-before-either-acted','mount-in-combat-rider-already-acted',
+                        'mount-in-combat-mount-already-acted','mount-ability-in-combat',
+                        'mounted-combat-start-single-initiative-entry','mounted-rider-initiative-bonus',
+                        'mounted-turn-rider-portrait','mounted-single-rider-turn-portrait','mounted-separate-action-ledgers',
+                        'rider-primary-does-not-dismount-tb','mounted-stock-click-melee-rider-only-explicit',
+                        'mounted-stock-click-melee-mount-only-explicit',
+                        'mounted-stock-click-melee-shared-turn-tb','mounted-shared-turn-action-order',
+                        'mounted-bow-shared-turn-tb','mounted-ranged-does-not-force-melee','mounted-ranged-line-of-sight',
+                        'mounted-five-foot-step-no-aao','mounted-five-foot-step-distance','mounted-five-foot-step-resource',
+                        'mounted-five-foot-step-after-movement-rejected','mounted-ordinary-move-aao-control',
+                        'dismount-in-combat-no-extra-turn','dismount-ability-in-combat','unmounted-five-foot-step-control')
+                    break
+                }
+            }
+            $rows = @($required | ForEach-Object {
+                [ordered]@{name=$_;status='PASS';detail=('Synthetic exact Phase 3D contract for ' + $_ + '.');frame=10;seconds=1.0;evidence=[ordered]@{}}
+            })
+            $rowByName = @{}
+            foreach ($row in $rows) { $rowByName[[string]$row.name] = $row }
+            $observations = [ordered]@{
+                riderId='rider';horseId='horse';cleanup=[ordered]@{relationshipState='Unmounted'}
+            }
+            if ($phase3dScenario -ceq 'phase3d-horse-presentation-suite') {
+                $rowByName['Horse-small-portrait-close-up'].evidence = [ordered]@{sprite=[ordered]@{textureWidth=185;textureHeight=242}}
+                $rowByName['saddle-icon'].evidence = [ordered]@{sprite=[ordered]@{textureWidth=128;textureHeight=128}}
+                $observations.pelvisOffset = [ordered]@{x=0.0;y=-0.29;z=-0.02}
+            }
+            elseif ($phase3dScenario -ceq 'phase3d-unified-combat-rt-suite') {
+                $primaryEvidence = [ordered]@{
+                    outcome=[ordered]@{action=1;resourceOwnerId='rider'}
+                    activations=@([ordered]@{relationshipEnded=$false;cleanupTrigger=$null})
+                    horseMovementDistance=2.5
+                    rules=[ordered]@{riderAttackRules=1;mountAttackRules=0}
+                }
+                $rowByName['rider-primary-does-not-dismount-rt'].evidence = $primaryEvidence
+                $rowByName['rider-primary-after-movement-does-not-dismount'].evidence = $primaryEvidence
+                $rowByName['mounted-stock-click-melee-mount-only-explicit'].evidence = [ordered]@{
+                    outcome=[ordered]@{action=3;resourceOwnerId='horse'}
+                    rules=[ordered]@{riderAttackRules=0;mountAttackRules=1}
+                }
+                $melee = [ordered]@{nativeRequestDelta=1;intentStartDelta=1;intentCancelDelta=0;riderDispatchDelta=2;mountDispatchDelta=1;duplicateDispatchDelta=0;intentActive=$true}
+                $cancel = [ordered]@{nativeRequestDelta=1;intentStartDelta=1;intentCancelDelta=1;riderDispatchDelta=2;mountDispatchDelta=1;duplicateDispatchDelta=0;intentActive=$false}
+                $ranged = [ordered]@{nativeRequestDelta=1;intentStartDelta=1;intentCancelDelta=0;riderDispatchDelta=2;mountDispatchDelta=0;duplicateDispatchDelta=0;intentActive=$true;weaponCategory='Shortbow'}
+                $rowByName['mounted-stock-click-melee-auto-repeat-rt'].evidence = $melee
+                $rowByName['mounted-stock-click-melee-cancel-rt'].evidence = $cancel
+                $rowByName['mounted-bow-auto-fire-rt'].evidence = $ranged
+                $rowByName['mounted-stock-click-invalid-target-feedback'].evidence = [ordered]@{nativeRequestDelta=0;intentStartDelta=0}
+                $rowByName['mounted-ranged-aao-native-control'].evidence = [ordered]@{opportunity=[ordered]@{attackRules=1;attackRolls=1}}
+                $rowByName['mounted-crossbow-or-reload-control'].evidence = [ordered]@{
+                    weaponCategory='LightCrossbow';outcome=[ordered]@{ammunitionStateBefore='native';reloadStateAfter='native'}
+                }
+                $rowByName['mounted-sling-control'].evidence = [ordered]@{
+                    weaponCategory='Sling';outcome=[ordered]@{ammunitionStateBefore='native';reloadStateAfter='native'}
+                }
+                $rowByName['RT-to-TB-shared-turn'].evidence = [ordered]@{
+                    trackerRiderCount=1;trackerHorseCount=0;trackerRiderPortraitExact=$true
+                    after=[ordered]@{sharedInitiativeOwnerId='rider';rider=[ordered]@{unitId='rider'}}
+                }
+                $rowByName['TB-to-RT-shared-turn'].evidence = [ordered]@{
+                    persistedValueUnchanged=$true;restoreDeliveryCompleted=$true;relationshipState='Mounted'
+                }
+                $rowByName['unmounted-stock-attack-control'].evidence = [ordered]@{
+                    nativeRequestDelta=0;intentStartDelta=0;relationshipState='Unmounted'
+                }
+                $rowByName['unmounted-ranged-control'].evidence = [ordered]@{
+                    nativeRequestDelta=0;intentStartDelta=0;weaponCategory='Sling';relationshipState='Unmounted'
+                }
+            }
+            else {
+                $rowByName['mounted-combat-start-single-initiative-entry'].evidence = [ordered]@{
+                    trackerRiderCount=1;trackerHorseCount=0;trackerRiderPortraitExact=$true;selectionRiderExact=$true
+                }
+                $rowByName['mounted-stock-click-melee-shared-turn-tb'].evidence = [ordered]@{
+                    nativeRequestDelta=1;intentStartDelta=1;riderDispatchDelta=1;mountDispatchDelta=1;duplicateDispatchDelta=0
+                }
+                $rowByName['mounted-bow-shared-turn-tb'].evidence = [ordered]@{
+                    nativeRequestDelta=1;intentStartDelta=1;riderDispatchDelta=1;mountDispatchDelta=0;duplicateDispatchDelta=0;weaponCategory='Shortbow'
+                }
+                $rowByName['mounted-five-foot-step-no-aao'].evidence = [ordered]@{
+                    physicalDistance=1.2;nativeFiveFootMaximumMeters=2.25;opportunity=[ordered]@{attackRules=0}
+                }
+                $rowByName['mounted-ordinary-move-aao-control'].evidence = [ordered]@{
+                    physicalDistance=3.5;opportunity=[ordered]@{attackRules=1;attackRolls=1}
+                }
+                $rowByName['mounted-five-foot-step-after-movement-rejected'].evidence = [ordered]@{
+                    restrictsFiveFootStep=$true;changeAdmitted=$false;fiveFootEnabledAfterAttempt=$false
+                }
+                $rowByName['mount-in-combat-before-either-acted'].evidence = [ordered]@{
+                    before=[ordered]@{riderStandard=0.0;riderMove=0.0;mountStandard=0.0;mountMove=0.0}
+                    after=[ordered]@{riderStandard=0.0;riderMove=3.0;mountStandard=0.0;mountMove=0.0}
+                    unifiedAfter=[ordered]@{sharedInitiativeOwnerId='rider';rider=[ordered]@{unitId='rider'}}
+                }
+                $rowByName['mount-in-combat-rider-already-acted'].evidence = [ordered]@{
+                    before=[ordered]@{riderStandard=3.0;riderMove=0.0;mountStandard=0.0;mountMove=0.0}
+                    after=[ordered]@{riderStandard=3.0;riderMove=3.0;mountStandard=0.0;mountMove=0.0}
+                }
+                $rowByName['mount-in-combat-mount-already-acted'].evidence = [ordered]@{
+                    before=[ordered]@{riderStandard=0.0;riderMove=0.0;mountStandard=3.0;mountMove=0.0}
+                    after=[ordered]@{riderStandard=0.0;riderMove=3.0;mountStandard=3.0;mountMove=0.0}
+                }
+                $rowByName['dismount-in-combat-no-extra-turn'].evidence = [ordered]@{
+                    before=[ordered]@{rider=[ordered]@{unitId='rider'}}
+                    after=[ordered]@{pendingSplit=$true};currentTurnUnitId='rider'
+                }
+                $rowByName['unmounted-five-foot-step-control'].evidence = [ordered]@{
+                    relationshipState='Unmounted';opportunity=[ordered]@{attackRules=0};stepSuppressionBefore=1;stepSuppressionAfter=1
+                }
+            }
+            $phase3dArtifact = [ordered]@{
+                schemaVersion=1;evidenceKind='phase3d-horse-scenario-evidence';runId=$phase3dRequest.runId
+                scenario=$phase3dRequest.scenario;branch=$phase3dRequest.branch;commit=$phase3dRequest.commit
+                productVersion=$phase3dRequest.productVersion;dllSha256=$phase3dRequest.dllSha256
+                dllMvid=$phase3dRequest.dllMvid;createdAtUtc=[DateTimeOffset]::UtcNow.ToString('o')
+                status='PASS';rows=@($rows);observations=$observations
+                subscenarioPassCount=$rows.Count;subscenarioFailCount=0;errors=@()
+            }
+            $phase3dPath = Join-Path $phase3dRoot 'phase3d-horse-scenario-evidence.json'
+            Write-KmcJsonDurable -Path $phase3dPath -Value $phase3dArtifact
+            $phase3dRecord = [ordered]@{
+                relativePath='phase3d-horse-scenario-evidence.json';kind='phase3d-horse-scenario-evidence'
+                length=(Get-Item -LiteralPath $phase3dPath).Length;sha256=(Get-KmcSha256 $phase3dPath)
+            }
+            [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+            $phase3dManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+            $phase3dSubresults = @($rows | ForEach-Object {
+                [pscustomobject]@{name=$_.name;status='PASS';assertionPassCount=1;assertionFailCount=0;errors=@()}
+            })
+            Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
+
+            if ($phase3dScenario -ceq 'phase3d-horse-presentation-suite') {
+                $phase3dArtifact.observations.pelvisOffset.y = -0.17
+            }
+            elseif ($phase3dScenario -ceq 'phase3d-unified-combat-rt-suite') {
+                $rowByName['mounted-bow-auto-fire-rt'].evidence.mountDispatchDelta = 1
+            }
+            else {
+                $rowByName['mounted-five-foot-step-no-aao'].evidence.opportunity.attackRules = 1
+            }
+            Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
+            $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
+            $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
+            [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+            $phase3dManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+            Assert-TestThrows {
+                Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
+            } ('Phase 3D validator accepted false semantic evidence for ' + $phase3dScenario + '.')
+        }
+    }
+
     Invoke-HarnessTest 'Phase 3D unified combat source boundaries are exact and pair-local' {
         $unifiedSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\UnifiedMountedTurnCoordinator.cs'))
         $patchSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPatchController.cs'))
@@ -9822,6 +10008,7 @@ try {
         $relationshipSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\GameMountedRelationshipService.cs'))
         $nativeSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\NativeMountedControlService.cs'))
         $attackSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPairAttackCommand.cs'))
+        $phase3dSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\Phase3dHorseScenarioTranche.cs'))
 
         Assert-Test ($unifiedSource.Contains('InitiativeOverrideResultFieldToken = 0x04004B5B') -and
             $unifiedSource.Contains('InitiativeOverrideResultField.SetValue(rule, rider.CombatState.Initiative);') -and
@@ -9859,6 +10046,19 @@ try {
             $attackSource.Contains('ReloadStateAfter') -and
             -not $attackSource.Contains('Gunslinger')) `
             'ranged native LoS, ammunition/reload telemetry, or foreign-mod isolation changed'
+        Assert-Test ($phase3dSource.Contains('new ClickUnitHandler().OnClick(target.View.gameObject, target.Position, 0, false, false)') -and
+            $phase3dSource.Contains('ClickGroundHandler.MoveSelectedUnitsToPoint(movementDestination, false);') -and
+            $phase3dSource.Contains('turn.TryChangeSmartAction();') -and
+            $phase3dSource.Contains('new InitiativeTrackerVM()') -and
+            $phase3dSource.Contains('rangedWeaponLease.Acquire(WeaponCategory.Shortbow);') -and
+            $phase3dSource.Contains('.DefaultIfEmpty(-1)') -and
+            $phase3dSource.Contains('.Select(item => item.Sequence)') -and
+            $phase3dSource.Contains('activations.Length > 0') -and
+            $phase3dSource.Contains('movementDistance > 0.25f') -and
+            $phase3dSource.Contains('TryNativeAbilityTargetClick(nativeControls.MountPrimaryAbility, target, "rt-mount-primary")') -and
+            $phase3dSource.Contains('errors.Count == 0 &&') -and
+            -not $phase3dSource.Contains('Gunslinger')) `
+            'Phase 3D runtime tranche lost native input admission, explicit actor isolation, exact tracker/five-foot surfaces, or cleanup-safe evidence status'
     }
 
     $resultPath = Join-Path $testRoot 'runtime-result.json'

@@ -1,5 +1,27 @@
 # Autonomous resume
 
+## Phase 3D runtime checkpoint is fully offline-green and ready for commit - 2026-08-30T22:55:55Z
+
+- Branch/committed HEAD are `codex/mounted-combat-phase3d-unified-combat` / `63d324d909ec333cd16cde5e942f419759faa664`; the reviewed Phase 3D runtime tranche, `0.1.0-phase3d-dev.1`, and its durable records remain uncommitted until the immediately following coherent checkpoint. No upstream is configured for the new branch yet, and no Phase 3C ref or artifact changed.
+- Final review now requires a real Rider Primary activation record, more than `0.25` units of actual Horse movement before the post-movement Primary, an explicit RT Mount Primary with Horse resource/rule ownership distinct from stock paired dispatch, exact non-null rider/Horse ledger snapshots, zero scenario errors, and exact mode/restoration cleanup. Synthetic mutation tests reject each weakened semantic.
+- Complete pre-commit gates pass: source/prohibited payload `22/0`; clean Release build; component `291/0`; visual/source-order `18/0`; harness/protocol `237/0`; assembly `378/0` (`354` Kingmaker + `24` exact local Wrath); PowerShell parser `26/0`; JSON parser `7/0`; and diff check. The non-package DLL SHA-256/MVID are `38df7b7b177589d6ea8fcdae9b47e59a885979790cb164a5fd2c10866bd84126` / `8dbda12f-ce20-40b2-88e9-49d63e8fd208`.
+- External state remains unchanged: no game process, live Mods transaction, save mutation, installed KMC change, package, suite, remote ref, or deployment was created by this checkpoint.
+- Exact next action: commit this reviewed runtime checkpoint; publish only with the guarded feature-branch helper; create and validate one exact clean-HEAD package; admit one stable suite; then run separate RT/TB `WhatIf` and independent zero-mutation audits before fresh live Phase 3D A/B processes.
+
+Status remains `IN PROGRESS`; no runtime or player-visible claim is inferred from the offline gate.
+
+## Phase 3D strict runtime tranche is offline-green; full gate and publication next - 2026-08-30T22:31:43Z
+
+- Branch is `codex/mounted-combat-phase3d-unified-combat` at committed presentation HEAD `63d324d909ec333cd16cde5e942f419759faa664`; runtime protocol/scenario, version, and documentation changes are intentionally uncommitted until one coherent gate. No Phase 3C ref or accepted package changed.
+- Version is advanced to `0.1.0-phase3d-dev.1`. The new `Phase3dHorseScenarioTranche` routes strict presentation, RT unified-combat, and TB unified-combat aggregates through the existing guarded Horse fixture and publishes one manifest-bound `phase3d-horse-scenario-evidence.json` artifact.
+- RT automation performs actual native Rider Primary target cancel/rejection/terminal retention, persistent melee and Shortbow intent, cancellation, Light Crossbow/Sling observations, adjacent native ranged AoO, RT-to-TB-to-RT reconciliation, and unmounted melee/ranged controls. TB automation begins unmounted in combat and performs three resource-preserving combat Mount cases, tracker projection, explicit and ordinary pair attacks, ranged rider-only dispatch, mounted five-foot/ordinary AoO controls, combat Dismount, and an unmounted step control.
+- External validation requires exact row sets, reconciled final subresults, immutable artifact bytes, exact tracker/selection/resource/dispatch/cardinality semantics, and zero unknown/duplicate rows. Synthetic PASS evidence and one semantic mutation per suite pass/reject as intended.
+- Current local gates after the final semantic expansion: component `291/0`; harness/protocol `237/0`. The last pre-version exact build passed source `22/0`; the version bump requires a fresh Release build and complete gate before commit. No runtime, package, live Mods, save, game process, transaction, remote ref, or installed KMC changed.
+- New required documents `docs/PHASE3D-UNIFIED-MOUNTED-COMBAT-IMPLEMENTATION.md` and `docs/PHASE3D-PLAYTEST.md` now distinguish offline readiness from runtime/manual credit. The Phase 3D matrix and Paladin design dependency are updated; Paladin remains unauthorized.
+- Exact next action: run fresh source/Release/component/visual/harness/combined-assembly/parser/diff/prohibited-payload gates at `phase3d-dev.1`; review the full diff; commit and guarded-publish one coherent runtime checkpoint; create and validate an exact clean-HEAD package; then admit a stable suite and run separate RT/TB `WhatIf` plus independent zero-mutation audits before any live process.
+
+Status remains `IN PROGRESS`; no Phase 3D runtime row is credited yet.
+
 ## Phase 3D original art and final Horse seat calibration offline-green - 2026-08-30T21:21:46Z
 
 - Branch is `codex/mounted-combat-phase3d-unified-combat`; current committed implementation checkpoint is `9bf83d21b5367e057130b41bf7379512a638c025`, with this presentation tranche and records intentionally uncommitted until the coherent checkpoint below. Phase 3C historical refs/artifacts are untouched.

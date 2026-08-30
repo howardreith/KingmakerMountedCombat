@@ -3625,6 +3625,7 @@ function Restore-KmcModsTransaction {
 function Get-KmcSaveBackedRuntimeScenarios {
     return @(
         'export-mounted-contracts', 'export-candidate-mount-rigs', 'observe-mount-diagnostic-availability', 'horse-native-asset-audit', 'horse-companion-blueprint-registration', 'horse-companion-unmounted-suite', 'horse-mounted-alpha-suite', 'horse-native-controls-ux-suite',
+        'phase3d-unified-combat-rt-suite', 'phase3d-unified-combat-tb-suite', 'phase3d-horse-presentation-suite',
         'player-action-availability', 'mount-dismount-user-flow',
         'mounted-pair-create-and-clear', 'mounted-pair-double-mount-rejected', 'mounted-pair-invalid-pair-rejected',
         'mounted-pair-cleanup-idempotent', 'mounted-pair-death-cleanup', 'mounted-pair-combat-start-cleanup',
@@ -3665,6 +3666,68 @@ function Get-KmcLifecycleRuntimeRows {
         'mounted-pair-combat-start-cleanup',
         'mounted-pair-area-unload-cleanup',
         'mounted-pair-mod-disable-cleanup'
+    )
+}
+
+function Get-KmcPhase3dHorseRuntimeRows {
+    return @(
+        'phase3d-unified-combat-rt-suite',
+        'phase3d-unified-combat-tb-suite',
+        'phase3d-horse-presentation-suite',
+        'Horse-small-portrait-close-up',
+        'saddle-icon',
+        'Horse-pose-final-idle-walk-run-turn-stop',
+        'mounted-single-rider-turn-portrait',
+        'rider-primary-target-cancel-does-not-dismount',
+        'rider-primary-rejection-does-not-dismount',
+        'rider-primary-does-not-dismount-rt',
+        'rider-primary-does-not-dismount-tb',
+        'rider-primary-after-movement-does-not-dismount',
+        'rider-primary-after-shared-turn-transition-does-not-dismount',
+        'mounted-stock-click-melee-adjacent-rt',
+        'mounted-stock-click-melee-approach-rt',
+        'mounted-stock-click-melee-auto-repeat-rt',
+        'mounted-stock-click-melee-cancel-rt',
+        'mounted-stock-click-melee-rider-only-explicit',
+        'mounted-stock-click-melee-mount-only-explicit',
+        'mounted-stock-click-invalid-target-feedback',
+        'mounted-stock-click-melee-shared-turn-tb',
+        'mounted-separate-action-ledgers',
+        'mounted-bow-adjacent-rt',
+        'mounted-bow-approach-to-range-rt',
+        'mounted-bow-auto-fire-rt',
+        'mounted-bow-cancel-rt',
+        'mounted-bow-shared-turn-tb',
+        'mounted-ranged-line-of-sight',
+        'mounted-ranged-cover-concealment',
+        'mounted-ranged-does-not-force-melee',
+        'mounted-ranged-aao-native-control',
+        'mounted-crossbow-or-reload-control',
+        'mounted-sling-control',
+        'unmounted-ranged-control',
+        'unmounted-stock-attack-control',
+        'RT-to-TB-shared-turn',
+        'TB-to-RT-shared-turn',
+        'mount-in-combat-before-either-acted',
+        'mount-in-combat-rider-already-acted',
+        'mount-in-combat-mount-already-acted',
+        'mount-ability-in-combat',
+        'mounted-combat-start-single-initiative-entry',
+        'mounted-rider-initiative-bonus',
+        'mounted-turn-rider-portrait',
+        'mounted-shared-turn-action-order',
+        'mounted-five-foot-step-no-aao',
+        'mounted-five-foot-step-distance',
+        'mounted-five-foot-step-resource',
+        'mounted-five-foot-step-after-movement-rejected',
+        'mounted-ordinary-move-aao-control',
+        'unmounted-five-foot-step-control',
+        'dismount-in-combat-no-extra-turn',
+        'dismount-ability-in-combat',
+        'phase3d-horse-tranche-cleanup',
+        'phase3d-horse-scenario-deadline',
+        'phase3d-horse-leaf-deadline',
+        'phase3d-horse-runtime-exception'
     )
 }
 
@@ -4537,7 +4600,7 @@ function Assert-KmcKnownRuntimeArtifactsManifested {
     )
     $manifested = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
     foreach ($artifact in @($Manifest.artifacts)) { [void]$manifested.Add([string]$artifact.relativePath) }
-    foreach ($leaf in @('lifecycle-scenario-evidence.jsonl','movement-telemetry.jsonl','movement-scenario-evidence.jsonl','boundary-scenario-evidence.jsonl','combat-scenario-evidence.jsonl','horse-native-asset-audit.json','horse-companion-blueprint-registration.json','horse-companion-unmounted.json','horse-mounted-alpha.json','horse-native-controls-ux.json')) {
+    foreach ($leaf in @('lifecycle-scenario-evidence.jsonl','movement-telemetry.jsonl','movement-scenario-evidence.jsonl','boundary-scenario-evidence.jsonl','combat-scenario-evidence.jsonl','horse-native-asset-audit.json','horse-companion-blueprint-registration.json','horse-companion-unmounted.json','horse-mounted-alpha.json','horse-native-controls-ux.json','phase3d-horse-scenario-evidence.json')) {
         if ((Test-Path -LiteralPath (Join-Path $EvidenceRoot $leaf) -PathType Leaf) -and -not $manifested.Contains($leaf)) {
             throw "Known runtime artifact exists without a manifest record: $leaf"
         }
@@ -4801,7 +4864,14 @@ function Assert-KmcHorseCompanionBlueprintRegistrationEvidence {
     $scenario = 'horse-companion-blueprint-registration'
     $leaf = 'horse-companion-blueprint-registration.json'
     $kind = 'horse-companion-blueprint-registration'
-    $isAudit = [string]$Request.scenario -cin @($scenario, 'horse-companion-unmounted-suite', 'horse-mounted-alpha-suite', 'horse-native-controls-ux-suite')
+    $isAudit = [string]$Request.scenario -cin @(
+        $scenario,
+        'horse-companion-unmounted-suite',
+        'horse-mounted-alpha-suite',
+        'horse-native-controls-ux-suite',
+        'phase3d-unified-combat-rt-suite',
+        'phase3d-unified-combat-tb-suite',
+        'phase3d-horse-presentation-suite')
     $records = @($Manifest.artifacts | Where-Object {
         [string]$_.relativePath -ceq $leaf -or [string]$_.kind -ceq $kind
     })
@@ -5377,6 +5447,274 @@ function Assert-KmcHorseCompanionUnmountedEvidence {
     $after = Get-Item -LiteralPath $path -Force
     if ($after.Length -ne $before.Length -or $after.LastWriteTimeUtc.Ticks -ne $before.LastWriteTimeUtc.Ticks) {
         throw 'Horse unmounted evidence changed while being validated.'
+    }
+}
+
+function Assert-KmcPhase3dHorseScenarioEvidence {
+    param(
+        [Parameter(Mandatory = $true)]$Request,
+        [Parameter(Mandatory = $true)]$Manifest,
+        [AllowNull()][string]$Status,
+        $SubscenarioResults
+    )
+
+    $scenarios = @(
+        'phase3d-unified-combat-rt-suite',
+        'phase3d-unified-combat-tb-suite',
+        'phase3d-horse-presentation-suite')
+    $leaf = 'phase3d-horse-scenario-evidence.json'
+    $kind = 'phase3d-horse-scenario-evidence'
+    $isSuite = [string]$Request.scenario -cin $scenarios
+    $records = @($Manifest.artifacts | Where-Object {
+        [string]$_.relativePath -ceq $leaf -or [string]$_.kind -ceq $kind
+    })
+    if (-not $isSuite) {
+        if ($records.Count -ne 0) { throw 'Non-Phase3D scenario manifested Phase 3D Horse evidence.' }
+        return
+    }
+    if ([string]$Status -ceq 'PASS' -and $records.Count -ne 1) {
+        throw 'PASS Phase 3D Horse suite requires exactly one manifested evidence artifact.'
+    }
+    if ($records.Count -eq 0) {
+        if ([string]$Status -ceq 'PASS') { throw 'PASS Phase 3D Horse suite omitted its evidence artifact.' }
+        return
+    }
+    if ($records.Count -ne 1 -or [string]$records[0].relativePath -cne $leaf -or
+        [string]$records[0].kind -cne $kind) {
+        throw 'Phase 3D Horse evidence manifest record is not exact.'
+    }
+
+    $root = [IO.Path]::GetFullPath([string]$Request.evidenceRoot).TrimEnd('\')
+    $path = Assert-KmcChildPath (Join-Path $root $leaf) $root 'Phase 3D Horse evidence'
+    Assert-KmcNotReparsePoint $path 'Phase 3D Horse evidence'
+    Assert-KmcNotHardLink $path 'Phase 3D Horse evidence'
+    $beforeFile = Get-Item -LiteralPath $path -Force
+    $artifact = Read-KmcJson $path
+    Assert-KmcExactProperties $artifact @(
+        'schemaVersion','evidenceKind','runId','scenario','branch','commit','productVersion','dllSha256','dllMvid',
+        'createdAtUtc','status','rows','observations','subscenarioPassCount','subscenarioFailCount','errors'
+    ) 'Phase 3D Horse evidence'
+    if (-not (Test-KmcExactJsonInteger $artifact.schemaVersion) -or [long]$artifact.schemaVersion -ne 1L -or
+        [string]$artifact.evidenceKind -cne $kind -or [string]$artifact.status -cnotin @('PASS','FAIL') -or
+        $artifact.rows -isnot [Array] -or $null -eq $artifact.observations -or
+        $artifact.observations -is [Array] -or $artifact.observations -is [string] -or
+        $artifact.errors -isnot [Array] -or
+        -not (Test-KmcExactJsonInteger $artifact.subscenarioPassCount) -or
+        -not (Test-KmcExactJsonInteger $artifact.subscenarioFailCount) -or
+        [string]$artifact.dllSha256 -cnotmatch '^[0-9a-f]{64}$' -or
+        [string]$artifact.dllMvid -cnotmatch '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') {
+        throw 'Phase 3D Horse evidence schema, status, row shape, or DLL identity is invalid.'
+    }
+    foreach ($name in @('runId','scenario','branch','commit','productVersion','dllSha256','dllMvid')) {
+        if ($artifact.$name -isnot [string] -or [string]$artifact.$name -cne [string]$Request.$name) {
+            throw "Phase 3D Horse evidence identity mismatch: $name"
+        }
+    }
+    $createdAt = [DateTimeOffset]::MinValue
+    if ($artifact.createdAtUtc -isnot [string] -or
+        -not [DateTimeOffset]::TryParse([string]$artifact.createdAtUtc, [ref]$createdAt)) {
+        throw 'Phase 3D Horse evidence createdAtUtc is invalid.'
+    }
+
+    $failureRows = @(
+        'phase3d-horse-tranche-cleanup',
+        'phase3d-horse-scenario-deadline',
+        'phase3d-horse-leaf-deadline',
+        'phase3d-horse-runtime-exception')
+    $requiredRows = switch -CaseSensitive ([string]$Request.scenario) {
+        'phase3d-horse-presentation-suite' {
+            @('Horse-small-portrait-close-up','saddle-icon','Horse-pose-final-idle-walk-run-turn-stop','mounted-single-rider-turn-portrait')
+            break
+        }
+        'phase3d-unified-combat-rt-suite' {
+            @(
+                'rider-primary-target-cancel-does-not-dismount','rider-primary-rejection-does-not-dismount',
+                'rider-primary-does-not-dismount-rt','rider-primary-after-movement-does-not-dismount',
+                'rider-primary-after-shared-turn-transition-does-not-dismount',
+                'mounted-combat-start-single-initiative-entry','mounted-rider-initiative-bonus','mounted-turn-rider-portrait',
+                'mounted-stock-click-melee-adjacent-rt','mounted-stock-click-melee-approach-rt',
+                'mounted-stock-click-melee-auto-repeat-rt','mounted-stock-click-melee-cancel-rt',
+                'mounted-separate-action-ledgers','mounted-stock-click-melee-rider-only-explicit',
+                'mounted-stock-click-melee-mount-only-explicit','mounted-stock-click-invalid-target-feedback',
+                'mounted-bow-approach-to-range-rt',
+                'mounted-bow-auto-fire-rt','mounted-ranged-does-not-force-melee','mounted-ranged-line-of-sight',
+                'mounted-bow-cancel-rt','mounted-bow-adjacent-rt','mounted-ranged-cover-concealment',
+                'mounted-ranged-aao-native-control','mounted-crossbow-or-reload-control','mounted-sling-control',
+                'RT-to-TB-shared-turn','TB-to-RT-shared-turn','unmounted-stock-attack-control','unmounted-ranged-control')
+            break
+        }
+        'phase3d-unified-combat-tb-suite' {
+            @(
+                'mount-in-combat-before-either-acted','mount-in-combat-rider-already-acted',
+                'mount-in-combat-mount-already-acted','mount-ability-in-combat',
+                'mounted-combat-start-single-initiative-entry','mounted-rider-initiative-bonus',
+                'mounted-turn-rider-portrait','mounted-single-rider-turn-portrait','mounted-separate-action-ledgers',
+                'rider-primary-does-not-dismount-tb','mounted-stock-click-melee-rider-only-explicit',
+                'mounted-stock-click-melee-mount-only-explicit',
+                'mounted-stock-click-melee-shared-turn-tb','mounted-shared-turn-action-order',
+                'mounted-bow-shared-turn-tb','mounted-ranged-does-not-force-melee','mounted-ranged-line-of-sight',
+                'mounted-five-foot-step-no-aao','mounted-five-foot-step-distance','mounted-five-foot-step-resource',
+                'mounted-five-foot-step-after-movement-rejected','mounted-ordinary-move-aao-control',
+                'dismount-in-combat-no-extra-turn','dismount-ability-in-combat','unmounted-five-foot-step-control')
+            break
+        }
+        default { throw 'Phase 3D Horse evidence scenario routing is invalid.' }
+    }
+    $allowedRows = @($requiredRows + $failureRows)
+    $rowNames = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    $rowMap = @{}
+    $pass = 0
+    $fail = 0
+    foreach ($row in @($artifact.rows)) {
+        if ($null -eq $row) { throw 'Phase 3D Horse evidence contains a null row.' }
+        Assert-KmcExactProperties $row @('name','status','detail','frame','seconds','evidence') 'Phase 3D Horse evidence row'
+        if ($row.name -isnot [string] -or @($allowedRows | Where-Object { $_ -ceq [string]$row.name }).Count -ne 1 -or
+            -not $rowNames.Add([string]$row.name) -or [string]$row.status -cnotin @('PASS','FAIL') -or
+            $row.detail -isnot [string] -or [string]::IsNullOrWhiteSpace([string]$row.detail) -or
+            -not (Test-KmcExactJsonInteger $row.frame) -or [long]$row.frame -lt 0L -or
+            $null -eq $row.seconds -or [double]$row.seconds -lt 0.0d) {
+            throw 'Phase 3D Horse evidence contains an invalid, unknown, or duplicate row.'
+        }
+        $rowMap[[string]$row.name] = $row
+        if ([string]$row.status -ceq 'PASS') { $pass++ } else { $fail++ }
+    }
+    if ($pass + $fail -eq 0 -or [long]$artifact.subscenarioPassCount -ne $pass -or
+        [long]$artifact.subscenarioFailCount -ne $fail -or
+        ([string]$artifact.status -ceq 'PASS') -ne ($fail -eq 0 -and @($artifact.errors).Count -eq 0)) {
+        throw 'Phase 3D Horse evidence row totals, errors, or status do not reconcile.'
+    }
+    if ([string]$artifact.status -ceq 'PASS') {
+        foreach ($required in $requiredRows) {
+            if (-not $rowNames.Contains($required) -or [string]$rowMap[$required].status -cne 'PASS') {
+                throw "PASS Phase 3D Horse evidence omitted required passing row: $required"
+            }
+        }
+        if ($rowNames.Count -ne $requiredRows.Count) {
+            throw 'PASS Phase 3D Horse evidence contains rows outside its exact scenario contract.'
+        }
+    }
+    if ($null -ne $SubscenarioResults) {
+        foreach ($row in @($artifact.rows)) {
+            $matches = @($SubscenarioResults | Where-Object { [string]$_.name -ceq [string]$row.name })
+            if ($matches.Count -ne 1 -or [string]$matches[0].status -cne [string]$row.status -or
+                [long]$matches[0].assertionPassCount -ne $(if ([string]$row.status -ceq 'PASS') { 1L } else { 0L }) -or
+                [long]$matches[0].assertionFailCount -ne $(if ([string]$row.status -ceq 'FAIL') { 1L } else { 0L })) {
+                throw "Phase 3D Horse row does not reconcile to one exact runtime subscenario: $($row.name)"
+            }
+        }
+    }
+
+    if ([string]$artifact.status -ceq 'PASS' -and [string]$Request.scenario -ceq 'phase3d-horse-presentation-suite') {
+        if ([long]$rowMap['Horse-small-portrait-close-up'].evidence.sprite.textureWidth -ne 185L -or
+            [long]$rowMap['Horse-small-portrait-close-up'].evidence.sprite.textureHeight -ne 242L -or
+            [long]$rowMap['saddle-icon'].evidence.sprite.textureWidth -ne 128L -or
+            [long]$rowMap['saddle-icon'].evidence.sprite.textureHeight -ne 128L -or
+            [double]$artifact.observations.pelvisOffset.y -ne -0.29d) {
+            throw 'PASS Phase 3D Horse presentation evidence does not bind the exact final portrait, saddle, and pelvis profile.'
+        }
+    }
+    elseif ([string]$artifact.status -ceq 'PASS' -and [string]$Request.scenario -ceq 'phase3d-unified-combat-rt-suite') {
+        $melee = $rowMap['mounted-stock-click-melee-auto-repeat-rt'].evidence
+        $cancel = $rowMap['mounted-stock-click-melee-cancel-rt'].evidence
+        $ranged = $rowMap['mounted-bow-auto-fire-rt'].evidence
+        $riderPrimary = $rowMap['rider-primary-does-not-dismount-rt'].evidence
+        $riderPrimaryMovement = $rowMap['rider-primary-after-movement-does-not-dismount'].evidence
+        $explicitMount = $rowMap['mounted-stock-click-melee-mount-only-explicit'].evidence
+        $invalid = $rowMap['mounted-stock-click-invalid-target-feedback'].evidence
+        $adjacent = $rowMap['mounted-ranged-aao-native-control'].evidence
+        $crossbow = $rowMap['mounted-crossbow-or-reload-control'].evidence
+        $sling = $rowMap['mounted-sling-control'].evidence
+        $rtToTb = $rowMap['RT-to-TB-shared-turn'].evidence
+        $tbToRt = $rowMap['TB-to-RT-shared-turn'].evidence
+        $unmountedMelee = $rowMap['unmounted-stock-attack-control'].evidence
+        $unmountedRanged = $rowMap['unmounted-ranged-control'].evidence
+        if (@($riderPrimary.activations).Count -lt 1 -or
+            @($riderPrimary.activations | Where-Object { $_.relationshipEnded -eq $true -or $null -ne $_.cleanupTrigger }).Count -ne 0 -or
+            [double]$riderPrimaryMovement.horseMovementDistance -le 0.25d -or
+            [long]$explicitMount.outcome.action -ne 3L -or
+            [string]$explicitMount.outcome.resourceOwnerId -cne [string]$artifact.observations.horseId -or
+            [long]$explicitMount.rules.riderAttackRules -ne 0L -or [long]$explicitMount.rules.mountAttackRules -ne 1L -or
+            [long]$melee.nativeRequestDelta -ne 1L -or [long]$melee.intentStartDelta -ne 1L -or
+            [long]$melee.riderDispatchDelta -lt 2L -or [long]$melee.mountDispatchDelta -lt 1L -or
+            [long]$melee.duplicateDispatchDelta -ne 0L -or $melee.intentActive -ne $true -or
+            [long]$cancel.intentCancelDelta -ne 1L -or [long]$cancel.duplicateDispatchDelta -ne 0L -or
+            [long]$ranged.riderDispatchDelta -lt 2L -or [long]$ranged.mountDispatchDelta -ne 0L -or
+            [long]$ranged.duplicateDispatchDelta -ne 0L -or $ranged.intentActive -ne $true -or
+            [string]$ranged.weaponCategory -cne 'Shortbow' -or
+            [long]$invalid.nativeRequestDelta -ne 0L -or [long]$invalid.intentStartDelta -ne 0L -or
+            [long]$adjacent.opportunity.attackRules -lt 1L -or [long]$adjacent.opportunity.attackRolls -lt 1L -or
+            [string]$crossbow.weaponCategory -cne 'LightCrossbow' -or
+            [string]::IsNullOrWhiteSpace([string]$crossbow.outcome.ammunitionStateBefore) -or
+            [string]::IsNullOrWhiteSpace([string]$crossbow.outcome.reloadStateAfter) -or
+            [string]$sling.weaponCategory -cne 'Sling' -or
+            [string]::IsNullOrWhiteSpace([string]$sling.outcome.ammunitionStateBefore) -or
+            [long]$rtToTb.trackerRiderCount -ne 1L -or [long]$rtToTb.trackerHorseCount -ne 0L -or
+            $rtToTb.trackerRiderPortraitExact -ne $true -or
+            [string]$rtToTb.after.sharedInitiativeOwnerId -cne [string]$rtToTb.after.rider.unitId -or
+            $tbToRt.persistedValueUnchanged -ne $true -or $tbToRt.restoreDeliveryCompleted -ne $true -or
+            [string]$tbToRt.relationshipState -cne 'Mounted' -or
+            [long]$unmountedMelee.nativeRequestDelta -ne 0L -or [long]$unmountedMelee.intentStartDelta -ne 0L -or
+            [string]$unmountedMelee.relationshipState -cne 'Unmounted' -or
+            [long]$unmountedRanged.nativeRequestDelta -ne 0L -or [long]$unmountedRanged.intentStartDelta -ne 0L -or
+            [string]$unmountedRanged.weaponCategory -cne 'Sling' -or
+            [string]$unmountedRanged.relationshipState -cne 'Unmounted') {
+            throw 'PASS Phase 3D RT evidence does not prove one admitted persistent melee/ranged intent with exact dispatch cardinality.'
+        }
+    }
+    elseif ([string]$artifact.status -ceq 'PASS' -and [string]$Request.scenario -ceq 'phase3d-unified-combat-tb-suite') {
+        $initiative = $rowMap['mounted-combat-start-single-initiative-entry'].evidence
+        $stock = $rowMap['mounted-stock-click-melee-shared-turn-tb'].evidence
+        $ranged = $rowMap['mounted-bow-shared-turn-tb'].evidence
+        $step = $rowMap['mounted-five-foot-step-no-aao'].evidence
+        $ordinary = $rowMap['mounted-ordinary-move-aao-control'].evidence
+        $stepRejected = $rowMap['mounted-five-foot-step-after-movement-rejected'].evidence
+        $mount = $rowMap['mount-in-combat-before-either-acted'].evidence
+        $riderSpentMount = $rowMap['mount-in-combat-rider-already-acted'].evidence
+        $mountSpentMount = $rowMap['mount-in-combat-mount-already-acted'].evidence
+        $dismount = $rowMap['dismount-in-combat-no-extra-turn'].evidence
+        $unmountedStep = $rowMap['unmounted-five-foot-step-control'].evidence
+        if ([long]$initiative.trackerRiderCount -ne 1L -or [long]$initiative.trackerHorseCount -ne 0L -or
+            $initiative.trackerRiderPortraitExact -ne $true -or $initiative.selectionRiderExact -ne $true -or
+            [long]$stock.nativeRequestDelta -ne 1L -or [long]$stock.intentStartDelta -ne 1L -or
+            [long]$stock.riderDispatchDelta -ne 1L -or [long]$stock.mountDispatchDelta -ne 1L -or
+            [long]$stock.duplicateDispatchDelta -ne 0L -or
+            [long]$ranged.riderDispatchDelta -ne 1L -or [long]$ranged.mountDispatchDelta -ne 0L -or
+            [long]$ranged.duplicateDispatchDelta -ne 0L -or [string]$ranged.weaponCategory -cne 'Shortbow' -or
+            [double]$step.physicalDistance -le 0.1d -or
+            [double]$step.physicalDistance -gt ([double]$step.nativeFiveFootMaximumMeters + 0.15d) -or
+            [long]$step.opportunity.attackRules -ne 0L -or
+            [double]$ordinary.physicalDistance -le [double]$step.nativeFiveFootMaximumMeters -or
+            [long]$ordinary.opportunity.attackRules -lt 1L -or [long]$ordinary.opportunity.attackRolls -lt 1L -or
+            $stepRejected.restrictsFiveFootStep -ne $true -or $stepRejected.changeAdmitted -ne $false -or
+            $stepRejected.fiveFootEnabledAfterAttempt -ne $false -or
+            [double]$mount.before.riderStandard -ge 0.001d -or [double]$mount.before.mountStandard -ge 0.001d -or
+            [double]$mount.after.riderMove -lt ([double]$mount.before.riderMove + 2.9d) -or
+            [double]$mount.after.mountStandard -ne [double]$mount.before.mountStandard -or
+            [double]$mount.after.mountMove -ne [double]$mount.before.mountMove -or
+            [string]$mount.unifiedAfter.sharedInitiativeOwnerId -cne [string]$mount.unifiedAfter.rider.unitId -or
+            [double]$riderSpentMount.before.riderStandard -lt 2.9d -or
+            [double]$riderSpentMount.after.riderStandard -ne [double]$riderSpentMount.before.riderStandard -or
+            [double]$riderSpentMount.after.riderMove -lt ([double]$riderSpentMount.before.riderMove + 2.9d) -or
+            [double]$riderSpentMount.after.mountStandard -ne [double]$riderSpentMount.before.mountStandard -or
+            [double]$mountSpentMount.before.mountStandard -lt 2.9d -or
+            [double]$mountSpentMount.after.mountStandard -ne [double]$mountSpentMount.before.mountStandard -or
+            [double]$mountSpentMount.after.mountMove -ne [double]$mountSpentMount.before.mountMove -or
+            $dismount.after.pendingSplit -ne $true -or
+            [string]$dismount.currentTurnUnitId -cne [string]$dismount.before.rider.unitId -or
+            [string]$unmountedStep.relationshipState -cne 'Unmounted' -or
+            [long]$unmountedStep.opportunity.attackRules -ne 0L -or
+            [long]$unmountedStep.stepSuppressionAfter -ne [long]$unmountedStep.stepSuppressionBefore) {
+            throw 'PASS Phase 3D TB evidence does not prove exact tracker projection, separate pair dispatch, five-foot result, and deferred split.'
+        }
+    }
+
+    if ([string]$Status -ceq 'PASS' -and [string]$artifact.status -cne 'PASS') {
+        throw 'PASS runtime result contains non-PASS Phase 3D Horse evidence.'
+    }
+    $afterFile = Get-Item -LiteralPath $path -Force
+    if ($afterFile.Length -ne $beforeFile.Length -or
+        $afterFile.LastWriteTimeUtc.Ticks -ne $beforeFile.LastWriteTimeUtc.Ticks) {
+        throw 'Phase 3D Horse evidence changed while being validated.'
     }
 }
 
@@ -10648,6 +10986,7 @@ function Get-KmcValidatedOrchestrationArtifactManifestHash {
             ($relative -ceq 'horse-companion-unmounted.json' -and $kind -ceq 'horse-companion-unmounted') -or
             ($relative -ceq 'horse-mounted-alpha.json' -and $kind -ceq 'horse-mounted-alpha') -or
             ($relative -ceq 'horse-native-controls-ux.json' -and $kind -ceq 'horse-native-controls-ux') -or
+            ($relative -ceq 'phase3d-horse-scenario-evidence.json' -and $kind -ceq 'phase3d-horse-scenario-evidence') -or
             ($relative -cmatch '^movement-visuals/[A-Za-z0-9._-]+\.png$' -and $kind -ceq 'screenshot')
         if (-not $seen.Add($relative) -or -not $allowed -or [long]$artifact.length -le 0 -or
             [string]$artifact.sha256 -cnotmatch '^[0-9a-f]{64}$') {
@@ -10671,6 +11010,7 @@ function Get-KmcValidatedOrchestrationArtifactManifestHash {
         Assert-KmcHorseCompanionBlueprintRegistrationEvidence -Request $Request -Manifest $manifestValue
         Assert-KmcHorseCompanionUnmountedEvidence -Request $Request -Manifest $manifestValue
         Assert-KmcHorseNativeControlsUxEvidence -Request $Request -Manifest $manifestValue
+        Assert-KmcPhase3dHorseScenarioEvidence -Request $Request -Manifest $manifestValue
     }
     $hash = Get-KmcSha256 $manifestPath
     $after = Get-Item -LiteralPath $manifestPath -Force

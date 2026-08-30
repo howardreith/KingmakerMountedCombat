@@ -1,5 +1,25 @@
 # Autonomous blockers
 
+## Phase 3D complete offline gate has no current hard blocker - 2026-08-30T22:55:55Z
+
+Status: `IN PROGRESS`.
+
+The reviewed runtime tranche passes every applicable offline gate: source `22/0`, Release, component `291/0`, visual `18/0`, harness `237/0`, exact assembly `378/0`, PowerShell `26/0`, JSON `7/0`, diff, and prohibited-payload validation. Final semantic checks require real activation/movement/explicit-Mount ownership and exact cleanup, so no known parser shortcut can grant runtime credit.
+
+The remaining uncertainty is intentionally live-only. Exact tracker projection, action-ledger preservation under native turns, five-foot/AoO cardinality, persistent native attacks, ranged equipment behavior, and cleanup must still survive the guarded game. The retained separate-turn fallback remains the architecture disposition if one attributable repair cannot prevent duplicate/skipped turns or refreshed resources.
+
+Exact next action is coherent commit and guarded publication, then clean package/suite admission and mode-specific `WhatIf` plus independent zero-mutation audits. No Phase 3D runtime PASS exists yet.
+
+## Phase 3D runtime automation is offline-green; no current hard blocker - 2026-08-30T22:31:43Z
+
+Status: `IN PROGRESS`.
+
+No safety, repository, dependency, or architecture blocker is proven. The strict three-suite runtime engine, protocol, immutable artifact validator, and synthetic mutation regressions pass locally. The long TB aggregate is deliberately bounded by one scenario deadline and retains the required separate-turn fallback if live Kingmaker exposes duplicate/skipped turns or resource refresh that one attributable repair cannot contain.
+
+The unresolved risks are live-only: exact tracker projection, natural round advancement after deferred split, adjacency after the mount-spent setup, native AoO target/cardinality, target durability across the aggregate, ranged inventory/equipment lease cleanup, and player-visible command outcomes. Native incapacitation/lifecycle, door/save/area/Wild Shape, and focused Mammoth evidence remain separate regression work rather than being inferred from this aggregate.
+
+Exact next action is the complete fresh `phase3d-dev.1` offline gate, coherent guarded publication, clean package/suite admission, separate RT/TB `WhatIf`, and independent zero-mutation audit before the first live process. Any first attributable aggregate failure receives at most one narrow repair cycle; it is not relabeled or hidden.
+
 ## Phase 3D presentation is offline-green; runtime/manual proof remains open - 2026-08-30T21:21:46Z
 
 Status: `IN PROGRESS`.

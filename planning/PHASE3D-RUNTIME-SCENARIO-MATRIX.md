@@ -4,6 +4,12 @@ Status: IN PROGRESS
 
 All rows require a fresh clean Phase 3D package, guarded `KMC_AUTOMATION_WORKING` use, exact Mods/save restoration, structured telemetry, and independent post-run zero-mutation audit. `PASS` requires actual native input admission and visible outcome where specified; internal service invocation alone receives no usability credit.
 
+## Runtime automation checkpoint — 2026-08-30T22:31:43Z
+
+The strict runtime tranche is implemented for three guarded outer scenarios: `phase3d-horse-presentation-suite`, `phase3d-unified-combat-rt-suite`, and `phase3d-unified-combat-tb-suite`. Their exact required row sets, semantic ownership/resource/cardinality checks, immutable artifact validation, and synthetic mutation regressions pass locally. Every table row below remains `TODO` or `IN PROGRESS` until fresh clean-package Kingmaker evidence is admitted; offline or synthetic evidence is not relabeled as runtime PASS.
+
+The new aggregates directly cover the core presentation, Rider Primary, stock melee, Shortbow/Light Crossbow/Sling, mode-transition, shared-turn, combat Mount/Dismount, five-foot, ordinary AoO, and unmounted-control rows. Rider/mount native incapacitation, full lifecycle/save/area/Wild Shape/door regressions, and the focused Mammoth regression remain separate existing guarded scenarios. Any matrix item not physically exercised by the aggregates must be run separately or retained as an explicit manual/known-limit gate.
+
 ## Shared initiative
 
 | Scenario | RT | TB | Required proof | Status |

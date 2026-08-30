@@ -1,5 +1,23 @@
 # Mounted Combat journal
 
+## 2026-08-30T22:55:55Z - Phase 3D runtime checkpoint passes the complete reviewed offline gate
+
+- Branch/committed HEAD: `codex/mounted-combat-phase3d-unified-combat` / `63d324d909ec333cd16cde5e942f419759faa664`; the runtime checkpoint and version `0.1.0-phase3d-dev.1` are intentionally uncommitted until the immediately following coherent commit. The new branch has no upstream yet.
+- Final semantic review added hard evidence requirements for actual Rider Primary activation, actual Horse movement before the post-movement Primary, explicit RT Mount Primary actor/resource/rule cardinality, exact distinct ledgers, zero scenario errors, and cleanup-mode restoration. This closes places where downstream service admission could otherwise have been mistaken for native control evidence.
+- Exact gates: source/prohibited payload `22 PASS / 0 FAIL`; Release build PASS; component `291/0`; visual/source-order `18/0`; harness/protocol `237/0`; assembly contracts `378/0` (`354` Kingmaker and `24` exact local Wrath); PowerShell parser `26/0`; JSON parser `7/0`; diff check PASS. Non-package DLL SHA-256/MVID: `38df7b7b177589d6ea8fcdae9b47e59a885979790cb164a5fd2c10866bd84126` / `8dbda12f-ce20-40b2-88e9-49d63e8fd208`.
+- Rejected claim: these deterministic and synthetic tests qualify source/protocol behavior only. They do not prove live shared-turn rendering, attacks, AoO, combat Mount/Dismount, ranged behavior, pose quality, or restoration.
+- External state: no Kingmaker process, save, live Mods transaction, installed package, runtime suite, remote ref, or deployment changed. Exact next action is coherent commit, guarded publication, clean package/suite admission, separate RT/TB `WhatIf`, independent restoration audits, and fresh live evidence.
+
+## 2026-08-30T22:31:43Z - Phase 3D strict runtime tranche reaches offline-green checkpoint
+
+- Branch/HEAD: `codex/mounted-combat-phase3d-unified-combat` / committed `63d324d909ec333cd16cde5e942f419759faa664`; runtime protocol/scenario, `0.1.0-phase3d-dev.1`, and documentation changes remain uncommitted for the coherent gate. Historical Phase 3C refs/artifacts remain untouched.
+- Work completed: added `Phase3dHorseScenarioTranche`, exact outer-scenario routing, new manifest-bound evidence artifact, strict required-row/semantic/immutability validation, final-result reconciliation, source-order contracts, and synthetic PASS plus semantic-mutation regressions for presentation, RT, and TB.
+- RT scope performs native Rider Primary cancel/rejection/retention, persistent ordinary melee, Shortbow approach/autofire/cancel, Light Crossbow/Sling telemetry, adjacent native ranged AoO, RT/TB mode reconciliation, and unmounted controls. TB scope performs all three combat-Mount spent-resource states, one rider tracker entry/portrait, explicit and ordinary pair attacks, rider-only Shortbow dispatch, mounted five-foot and ordinary-AoO controls, combat Dismount, deferred split, and unmounted step control.
+- Tests/checks: component runner `291 PASS / 0 FAIL`; harness/protocol `237 PASS / 0 FAIL`. The last exact source/build gate before the version bump was source `22/0` and Release PASS; a fresh full gate remains mandatory before commit/package.
+- Documentation: created the required implementation/playtest records, updated the Phase 3D runtime matrix, and updated the Paladin design dependency without authorizing implementation.
+- Rejected claims: synthetic protocol PASS is not runtime qualification; open-ground native LoS does not prove a positive cover/concealment modifier; compilation does not prove tracker rendering, native pointer feel, AoO behavior, or Horse-seat quality.
+- External state: no game/save/live Mods/package/runtime transaction/remote/deployment mutation. Exact next action is a full fresh offline gate, diff review, coherent guarded publication, and exact clean package before stable-suite/WhatIf/runtime work.
+
 ## 2026-08-30T21:21:46Z - Phase 3D presentation tranche is offline-green
 
 - Branch/HEAD before checkpoint: `codex/mounted-combat-phase3d-unified-combat` / `9bf83d21b5367e057130b41bf7379512a638c025`; this original-art/presentation tranche and record are uncommitted. Phase 3C assets, package, branch, and evidence remain immutable.

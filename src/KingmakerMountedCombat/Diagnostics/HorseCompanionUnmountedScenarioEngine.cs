@@ -206,6 +206,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private string directDamageTimelineState;
         private readonly JArray stockLifecycleAttacks = new JArray();
         private readonly JArray directDamageTimeline = new JArray();
+        private Phase3dHorseScenarioTranche phase3dTranche;
 
         public HorseCompanionUnmountedScenarioEngine(
             RuntimeRequest request,
@@ -241,7 +242,8 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             return string.Equals(scenario, ScenarioName, StringComparison.Ordinal) ||
                 string.Equals(scenario, MountedScenarioName, StringComparison.Ordinal) ||
-                string.Equals(scenario, NativeControlsScenarioName, StringComparison.Ordinal);
+                string.Equals(scenario, NativeControlsScenarioName, StringComparison.Ordinal) ||
+                Phase3dHorseScenarioTranche.SupportsScenario(scenario);
         }
 
         private bool IncludesMountedAlpha =>
@@ -249,7 +251,11 @@ namespace KingmakerMountedCombat.Diagnostics
             IncludesNativeControlsUx;
 
         private bool IncludesNativeControlsUx =>
-            string.Equals(request.Scenario, NativeControlsScenarioName, StringComparison.Ordinal);
+            string.Equals(request.Scenario, NativeControlsScenarioName, StringComparison.Ordinal) ||
+            IsPhase3dScenario;
+
+        private bool IsPhase3dScenario =>
+            Phase3dHorseScenarioTranche.SupportsScenario(request.Scenario);
 
         public void Start()
         {
@@ -390,6 +396,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     case EngineStep.AwaitMountedReady:
                         AwaitMountedReady();
                         break;
+                    case EngineStep.AwaitPhase3dTranche:
+                        AwaitPhase3dTranche();
+                        break;
                     case EngineStep.AwaitMountedDollRoom:
                         AwaitMountedDollRoom();
                         break;
@@ -476,6 +485,9 @@ namespace KingmakerMountedCombat.Diagnostics
             try { targetService?.Dispose(); }
             catch (Exception exception) { errors.Add("Target-service disposal: " + exception.Message); }
             targetService = null;
+            try { phase3dTranche?.Dispose(); }
+            catch (Exception exception) { errors.Add("Phase 3D tranche disposal: " + exception.Message); }
+            phase3dTranche = null;
             DisposeHorseLifeStateProbe();
             disposed = true;
         }
@@ -1552,6 +1564,15 @@ namespace KingmakerMountedCombat.Diagnostics
                     "The stock selected-ability pointer rejected the rider as an ineligible Mount Companion target without creating a pair or accepted KMC dispatch.");
                 if (failed != 0) { BeginCleanup(); return; }
 
+                if (IsPhase3dScenario && string.Equals(
+                        request.Scenario,
+                        Phase3dHorseScenarioTranche.TurnBasedScenario,
+                        StringComparison.Ordinal))
+                {
+                    BeginPhase3dTranche(false);
+                    return;
+                }
+
                 var before = nativeControls.CaptureSnapshot();
                 var nativeClicked = TryNativeAbilityTargetClick(
                     owner,
@@ -1673,6 +1694,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 "One Horse-only calibration lowered the dev.23 pelvis, narrowed thigh-relative foot and knee targets, retained exact segment lengths, and placed both feet within a bounded native-stirrup neighborhood; human visual acceptance remains required.");
             if (failed != 0) { BeginCleanup(); return; }
 
+            if (IsPhase3dScenario)
+            {
+                BeginPhase3dTranche(true);
+                return;
+            }
+
             if (IncludesNativeControlsUx)
             {
                 nativeControls.Update();
@@ -1721,6 +1748,49 @@ namespace KingmakerMountedCombat.Diagnostics
             }
 
             BeginMountedRealTimeMovement();
+        }
+
+        private void BeginPhase3dTranche(bool pairAlreadyMounted)
+        {
+            if (phase3dTranche != null)
+            {
+                throw new InvalidOperationException("Phase 3D Horse tranche was already created.");
+            }
+            phase3dTranche = new Phase3dHorseScenarioTranche(
+                request,
+                relationship,
+                playerAction,
+                combat,
+                nativeControls,
+                service,
+                settings,
+                logger,
+                owner,
+                horse);
+            phase3dTranche.Start(pairAlreadyMounted);
+            step = EngineStep.AwaitPhase3dTranche;
+        }
+
+        private void AwaitPhase3dTranche()
+        {
+            phase3dTranche.Update();
+            if (!phase3dTranche.IsCompleted)
+            {
+                return;
+            }
+
+            foreach (var result in phase3dTranche.Results)
+            {
+                results.Add(result);
+            }
+            observations["phase3dTranche"] = phase3dTranche.EvidenceSummary;
+            foreach (var error in phase3dTranche.Errors)
+            {
+                Fail("phase3d-tranche-" + failed, error);
+            }
+            phase3dTranche.Dispose();
+            phase3dTranche = null;
+            BeginCleanup();
         }
 
         private void AwaitMountedDollRoom()
@@ -3410,7 +3480,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["assertionFailCount"] = failed,
                 ["errors"] = new JArray(errors)
             };
-            WriteArtifact(artifact);
+            if (!IsPhase3dScenario)
+            {
+                WriteArtifact(artifact);
+            }
             results.Add(new RuntimeSubscenarioResult
             {
                 Name = request.Scenario,
@@ -3525,6 +3598,7 @@ namespace KingmakerMountedCombat.Diagnostics
             AwaitTargetRemoval,
             AwaitMountedAlphaAdmission,
             AwaitMountedReady,
+            AwaitPhase3dTranche,
             AwaitMountedDollRoom,
             AwaitMountedRealTimeMovement,
             AwaitMountedCombatEntry,
