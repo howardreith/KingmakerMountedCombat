@@ -1,6 +1,6 @@
 # Horse movement and animation contract
 
-Status: `IN PROGRESS`
+Status: `PASS (bounded technical) - HUMAN MOVEMENT/ANIMATION REVIEW REQUIRED`
 
 Date: 2026-08-28
 
@@ -36,3 +36,11 @@ Superseding handle disposition (2026-08-30): exact `UnitAttack.Init` ordering ca
 ## Pose calibration boundary
 
 Only `medium-humanoid-horse-v1` may change. Candidate B begins at pelvis `(0,-0.12,-0.02)`, feet `(+/-0.18,-0.58,0.11)`, knees `(+/-0.20,-0.14,0.16)`. One further cycle may evaluate no more than three small, interpretable parameter sets against side/front/three-quarter views, stirrup distance, clearance, idle/walk/run/turn/stop stability, drift, and jitter. Mammoth values and native Horse scale/assets remain fixed.
+
+## Final bounded disposition - 2026-08-30
+
+The live Horse blueprint remains 50 feet and the exact agent maximum remains `5.08`. The bounded solo control measured unmounted displacement `1.96599746` in `0.8531311` seconds (`2.30402027` average world units/second) and mounted displacement `1.95371664` in `0.6567715` seconds (`2.97469866` average). Mounted solo behavior was not slower than unmounted Horse behavior in this bound, so no rules-speed or global-party change was justified. Mixed-party formation pacing and long-run stock comparison remain human observations.
+
+Exact Horse Bite `35dfad6517f401145af54111be04d6cf` remains `AdditionalLimb[0]`. The final adapter follows the refreshed stock-created handle, validates exact Horse manager/action-set membership, and records `HorseAnimationSet_Bite` / `SpecialAttack`. TB and RT each produced one successful Horse-owned command and one attack/roll/damage chain. The handle acted, finished, and was not interrupted; create/adopt/reject totals after both actions were `0/2/0`. Visual readability remains a human gate.
+
+Candidate C is final for this bounded cycle: pelvis `(0,-0.17,-0.02)`, feet `(+/-0.15,-0.62,0.11)`, knees `(+/-0.16,-0.16,0.16)`. Left/right stirrup distances are `0.39243558` / `0.4600763`; clamps are zero; maximum foot/knee/segment residuals remain at microunit scale; maximum/average cost is `19.0` / `13.9` microseconds. Mammoth values, Horse scale/assets, and every other rider category are unchanged.

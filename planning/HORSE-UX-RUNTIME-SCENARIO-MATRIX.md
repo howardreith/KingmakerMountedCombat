@@ -1,8 +1,14 @@
 # Horse UX runtime scenario matrix
 
-Status: `IN PROGRESS` — dev.11 exact stock-handle adoption pending runtime qualification
+Status: `PASS (technical) - MANUAL REVIEW REQUIRED`
 
 Date: 2026-08-28
+
+Superseding final result (2026-08-30): final production commit `e951fb5394ff4f8e791dd27f49b75d71d76a8b1f` passed audited Horse native-controls aggregate `20260830T074300Z-phase3c-dev12-native-controls-passG` at `66/0` (`14/0` registration plus `52/0` UX). Native Mount/Dismount and RT/TB Rider/Horse primary actions traverse the actual selected-ability target handler; exact ownership, action cost, one-chain cardinality, stock-created Bite animation, control-fact save suspension, default-hidden overlay, no hotbar mutation, movement, pose, IK observation, and cleanup pass. Final dev.13 changes only the diagnostic Mammoth selection plus build identity.
+
+Final same-package dev.13 Mammoth regression `20260830T122900Z-phase3c-dev13-mammoth-tb-passI` passes `67/0`. The older dev.12 `FAIL 48/1` is immutable diagnostic history: its scenario forced rider selection for a mount-owned TB primary, and production correctly rejected it. Dev.13 selects the exact policy-required actor without changing product policy or weakening any predicate.
+
+Final package/suite identity is version `0.1.0-phase3c-dev.13`, commit `42debbb814823dbdcd3a39cdc4353a5c3ee3d12d`, package SHA-256 `5f23757e17c51a2fe67374da6d218cb9efc1c4fb49ae282060d02577bf7a9fa3`, and suite `20260830T113500Z-phase3c-dev13-native-controls-suite11` / `675b7868a3c0565d2139764a41782a971fd5e90fbf0059cffc5c13d8c06123be`. Admission, preflight WhatIf, three transaction restorations, and postrun WhatIf all pass exact external-state integrity.
 
 Superseding dev.11 checkpoint (2026-08-30): dev.10 aggregate `20260830T023500Z-phase3c-dev10-native-controls-passE` restored exactly at `58 PASS / 1 FAIL`; only `horse-primary-animation-tb` failed, while the native click, Horse-owned Bite, one chain, action cost, terminal result, and cleanup passed. Exact `UnitAttack.Init` order proves stock configures the Bite animation before the direct KMC seam. Dev.10 discarded that case from telemetry by returning on a non-null handle. Dev.11 preserves and validates the stock handle, records adoption separately from fallback creation, and uses schema 8 to require exactly one TB and one later RT binding with exact source/action identity and zero rejection. Offline gates pass; one clean suite-bound aggregate remains before the conditional Mammoth regression and install.
 

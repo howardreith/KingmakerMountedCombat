@@ -1,5 +1,19 @@
 # Autonomous blockers
 
+## No current technical blocker; final human review is required - 2026-08-30T14:05:47Z
+
+Status: `PASS (technical) - MANUAL REVIEW REQUIRED`.
+
+Final Horse native-controls aggregate `20260830T074300Z-phase3c-dev12-native-controls-passG` passes `66/0`, and final dev.13 Mammoth TB regression `20260830T122900Z-phase3c-dev13-mammoth-tb-passI` passes `67/0`. Stable suite admission, preflight WhatIf, all three transaction restorations, and postrun WhatIf prove exact external restoration. Final package `5f23757e17c51a2fe67374da6d218cb9efc1c4fb49ae282060d02577bf7a9fa3` is installed and byte-verified as UMM version `0.1.0-phase3c-dev.13`.
+
+The dev.12 Mammoth `FAIL 48/1` is not a product blocker. Its historical scenario forced rider selection immediately before a mount-owned TB primary, and production correctly rejected it. Dev.13 repairs only that diagnostic selection; the unchanged product contract passes `67/0`.
+
+Remaining gates are intentionally human-only: physical pointer/action-drawer usability, portrait quality/readability, final seat/leg/clipping silhouette, visible Horse Bite readability, mixed-party movement feel, real Inventory/Character-screen IK behavior, door-busy feedback feel, and ordinary save/area/Wild Shape/Dismount flow. These are not claimed by internal ownership fields or controlled automation.
+
+No repository, credential, restoration, transaction, architecture, deployment, or tooling blocker remains. Paladin Divine Steed, unified turns, stock right-click integration, persistent mounting, public release, and merge to `main` remain unauthorized.
+
+This entry supersedes every older active Phase 3C blocker. Historical failures remain preserved and are not rewritten as passes.
+
 ## No current hard blocker; dev.11 exact stock-handle adoption is offline-green - 2026-08-30T04:13:48Z
 
 Status: `IN PROGRESS`.

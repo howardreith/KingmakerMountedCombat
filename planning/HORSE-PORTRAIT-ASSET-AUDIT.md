@@ -1,6 +1,6 @@
 # Horse portrait asset audit
 
-Status: `IN PROGRESS`
+Status: `PASS (technical) - HUMAN ART REVIEW REQUIRED`
 
 Date: 2026-08-28
 
@@ -31,3 +31,19 @@ Dev.3 centralizes the compiled product version and binds it to the repository ve
 ## Acceptance
 
 The final Horse unit must expose large, medium, and small Horse art; the party portrait, Ranger selection, Horse feature, and native mounted controls must not show Mammoth art. Asset provenance, source files, dimensions, package paths, and hashes must be recorded. The Mammoth keeps its own portrait unchanged.
+
+## Completed audit and disposition - 2026-08-30
+
+Corrected initialized-library run `20260829T043500Z-phase3c-dev3-stock-portrait-passA` inspected 104,667 objects after excluding only the exact KMC definitions. It found no suitable stock Kingmaker Horse/Pony `BlueprintPortrait` or icon set. `CR1_HorseRiding` has no usable portrait, confirming the exact Mammoth-fallback cause.
+
+KMC therefore uses an original project-owned, redistributable portrait set. It was not copied, cropped, traced, or derived from Kingmaker, Wrath, YouTube, or the supplied human screenshots. Runtime portrait GUID is `6874a165bf8bda3531ee4e2abc10c899`.
+
+| File | Dimensions | SHA-256 |
+|---|---:|---|
+| `HorsePortraitOriginalMaster.png` | 1024x1536 | `0b623b98440de8131c138d08f45d87e02b51f034cba313aeb36f81cbe078520f` |
+| `HorsePortraitLarge.png` | 692x1024 | `8b7b4386de1b5adbd9f7f9f1c3728de32325b03c5f2dfc2fe6c7babf95a712e7` |
+| `HorsePortraitMedium.png` | 330x432 | `890327ecc9e9b092b4343140fd9eb839800bb1044d8e4aeafeaaa1476a44ba61` |
+| `HorsePortraitSmall.png` | 185x242 | `d0c5c876a827a0b8842d35833492e2d40b632ad5fbec7e70c8c2d72f7209fa16` |
+| `HorseIcon.png` | 128x128 | `b088d4b29de3cdfc536c254cf47abbe52af4000aa8f25ac742c3d0612a253f02` |
+
+Registration and UX evidence prove exact KMC Horse portrait/icon identities and no Mammoth reference on Horse-specific surfaces. Human review remains responsible for composition, readability, and aesthetic acceptance.

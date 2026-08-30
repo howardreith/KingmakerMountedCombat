@@ -1,6 +1,6 @@
 # Native mounted controls contract
 
-Status: `IN PROGRESS`
+Status: `PASS (technical) - HUMAN PHYSICAL-INPUT REVIEW REQUIRED`
 
 Date: 2026-08-28
 
@@ -57,3 +57,12 @@ Native activation records blueprint identity, caster, active turn, Standard avai
 
 The IMGUI overlay becomes default-hidden. A separate UMM diagnostic toggle may instantiate it as an emergency fallback. Guarded runtime scenarios may explicitly request it; ordinary play does not depend on it.
 
+## Final qualification - 2026-08-30
+
+Production implementation `e951fb5394ff4f8e791dd27f49b75d71d76a8b1f` and final diagnostic/package checkpoint `42debbb814823dbdcd3a39cdc4353a5c3ee3d12d` close the technical contract as version `0.1.0-phase3c-dev.13`.
+
+Audited Horse aggregate `20260830T074300Z-phase3c-dev12-native-controls-passG` passed `66/0`. The actual Kingmaker selected-ability handler admitted exact Horse Mount, Dismount, TB Rider Primary, TB Horse Primary, RT Rider Primary, and RT Horse Primary clicks. Exact actor/command/resource ownership, Standard cost, one-chain cardinality, target selection, terminal success, control-fact save suspension, zero hotbar mutation, default-hidden overlay policy, and cleanup all passed. The final dev.13 diff is restricted to the Mammoth diagnostic engine, so qualification economy did not repeat this unaffected Horse aggregate.
+
+Final same-package Mammoth TB regression `20260830T122900Z-phase3c-dev13-mammoth-tb-passI` passed `67/0`. It proves the policy-required Mammoth selection, native target click, Mammoth turn/command/resource ownership, exact PrimaryHand natural weapon, one attack/roll/damage chain, zero duplicate/repath, unchanged Mammoth profile, and exact cleanup.
+
+No KMC fact is auto-filled into a serialized user slot. The ability drawer is the supported discovery surface; optional player drag to an empty slot is allowed. Physical pointer feel, toolbar discoverability, disabled-tooltip presentation, and ordinary human RT/TB usability remain manual gates.
