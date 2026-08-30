@@ -1,5 +1,27 @@
 # Mounted Combat journal
 
+## 2026-08-30T19:41:26Z - Phase 3D exact shared-turn and input contracts recorded
+
+- Branch/HEAD: `codex/mounted-combat-phase3d-unified-combat` / `63595b832f7f89c854edef5a9eb4d21dee026590`; changes are not yet committed or published.
+- Wrote `planning/UNIFIED-MOUNTED-TURN-CONTRACT.md`, `MOUNTED-STOCK-ATTACK-CONTRACT.md`, `MOUNTED-RANGED-COMBAT-CONTRACT.md`, `MOUNTED-FIVE-FOOT-STEP-CONTRACT.md`, `COMBAT-MOUNT-DISMOUNT-CONTRACT.md`, `WOTR-SHARED-TURN-MAP.md`, and `PHASE3D-RUNTIME-SCENARIO-MATRIX.md` before production work.
+- Exact Kingmaker members/tokens: next unit `06000BD2`, start turn `06000BDA`, initiative handler `06000BEE`, turn prepare `06000C3C`, continue `06000C3D`, movement `06000C37`, force end `06000C47`, and initiative-tracker update `06004F0E`.
+- Rejected theories: the current build does not accidentally lose hostile clicks; it intentionally rejects mounted stock `UnitAttack`. The preserved log does not establish Rider Primary as a cleanup trigger; its visible symptom still requires exact reproduction. Mounted-step AoO is not a global rules failure; it is the exact rider-current/mount-moving identity mismatch in stock disengage immunity.
+- Exact Wrath finding: one rider-led `TurnController` owns two command/cooldown/movement/action-state sets; next-unit selection skips a saddled mount; both actors' remaining resources hold the turn open; ranged rider routing stops at rider range and does not inherently force mount melee.
+- Commands/checks: bounded local `ilspycmd` type inspection only; reflection-only token query; `git diff --check` PASS; `scripts/Validate-Source.ps1` `22 PASS / 0 FAIL`. No game launch or external mutation.
+- Current uncertainty: safe mid-round split and precise mount resource transfer must be proven in component and assembly-backed tests before runtime. Rider Primary root cause remains unproven.
+- Exact next action: commit the contract checkpoint, implement and test the pair-local shared-turn coordinator and exact Harmony bridges, then proceed to stock/ranged routing only if the turn model remains bounded.
+
+## 2026-08-30T19:22:17Z - Phase 3D unified-combat mission intake
+
+- Branch/HEAD: created `codex/mounted-combat-phase3d-unified-combat` from exact accepted Phase 3C `63595b832f7f89c854edef5a9eb4d21dee026590`; no upstream/remote Phase 3D ref exists. Live remote Phase 3C is the same SHA and `main` remains `72dcbeb19d03985509f1ed71d3550dfb74f0ac15`.
+- Accepted artifact audit: version `0.1.0-phase3c-dev.13`; ZIP/manifest/DLL hashes `5f23757e17c51a2fe67374da6d218cb9efc1c4fb49ae282060d02577bf7a9fa3` / `82bd78046ec3d393fd45f7af250bae3c2b8194da6e379648b7b6a2c26e9c3a1b` / `6fce17eee8b8f5d8b6b987dd7408ab6ddb9a177ad0236429c41e40ffcc3c282e`; MVID `9f3344f0-4314-4b2e-ac15-08729c3727d4`.
+- Evidence read: `PHASE3C-MANUAL-REVIEW.md`, `README-FIRST.md`, preserved `output_log.txt`, and prior dev.27 Horse/Wrath textual evidence. Confirmed the mission input and retained screenshots/logs as ignored local evidence.
+- Commands/checks: `git status`, branch/ref/log/remote inspection, outside-sandbox read-only `git ls-remote`, ZIP entry/hash/MVID inspection, evidence inventory/read, and process/runtime-state inventory. Intake result: exact identities `PASS`; no active game/build process; no Phase 3D runtime execution; historical final transaction remains restored.
+- Rejected theory: the accepted `manifest SHA-256` is not the embedded `Info.json` hash; it is the adjacent package manifest sidecar, whose verified hash matches the handoff. Embedded `Info.json` separately hashes to `b9c95d8f0c86ee8c5de402572a631f7dc0c1812f0d9d3f3575ec6694440a57e2`.
+- Current uncertainty: exact safe Kingmaker seam for a rider-owned shared turn with separate action ledgers, plus native five-foot-step and persistent hostile-attack routing semantics.
+- External state: no live runtime mutation; accepted Phase 3C package remains installed from the prior guarded operation; historical staging/evidence was only read.
+- Exact next action: complete bounded Kingmaker/Wrath contract mapping and write the Phase 3D contracts/scenario matrix before behavioral implementation.
+
 ## 2026-08-30T14:05:47Z - Phase 3C native controls and presentation alpha reaches installed manual-review handoff
 
 - Reconciled the final production implementation as `e951fb5394ff4f8e791dd27f49b75d71d76a8b1f`, with diagnostic/package checkpoint `42debbb814823dbdcd3a39cdc4353a5c3ee3d12d`. The dev.13 diff selects the exact policy-required actor only inside `RuntimeCombatScenarioEngine`, adds a source regression, and advances version identity; production relationship, commands, movement, UI, attacks, animation, action economy, save, and cleanup are unchanged.

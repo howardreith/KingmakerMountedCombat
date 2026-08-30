@@ -1,5 +1,27 @@
 # Autonomous blockers
 
+## Phase 3D exact seams established; no current hard blocker - 2026-08-30T19:41:26Z
+
+Status: `IN PROGRESS`.
+
+The contract-first audit resolves the initial architectural unknown far enough for one bounded primary implementation. Kingmaker exposes exact pair-local seams for next-unit selection, rider-turn setup/continuation, movement accounting, initiative observation, and tracker projection. Wrath confirms the responsibility split but is not a source dependency. Source validation is `22/0`, and no external state changed.
+
+The shared-turn architecture is not yet qualified. The active risk is whether the exact scoped adapters can skip only the redundant mount turn, preserve unrelated turn order, keep both native cooldown ledgers independent, and reconcile mid-round split without refresh. The mission fallback remains mandatory after at most one attributable repair cycle.
+
+Rider Primary relationship loss also remains an unresolved P0 reproduction requirement. Preserved logs show successful Rider Primary outcomes retaining the pair and separately identify explicit Dismount; therefore no root cause is claimed yet. Exact ability/lifecycle correlation telemetry and the six required regression scenarios must decide it.
+
+Exact next action is a coherent contract checkpoint commit followed by the pair-local coordinator and deterministic contract tests. No runtime or gameplay PASS is claimed.
+
+## Phase 3D contract audit active; no current hard blocker - 2026-08-30T19:22:17Z
+
+Status: `IN PROGRESS`.
+
+The accepted Phase 3C branch, package, manifest, DLL, and MVID all reconcile exactly. Local and live remote Phase 3C refs are `63595b832f7f89c854edef5a9eb4d21dee026590`; the authorized local Phase 3D branch was created from that exact commit and has not yet been published. The human evidence and preserved log establish the reported control-model defects but do not yet establish their exact engine root causes.
+
+No repository, credential, transaction, process, restoration, or artifact-identity blocker is active. The present uncertainty is architectural: whether exact Kingmaker turn-controller seams permit one rider portrait/initiative slot with two independent ledgers without duplicate or skipped turns. The mission's fallback rule remains binding: if the exact shared-turn seam cannot be implemented safely within the bounded primary plus one attributable repair cycle, preserve the accepted separate-turn implementation behind a fallback setting and record an exact architecture blocker rather than layering broad global patches.
+
+Exact next action is contract-first Kingmaker/Wrath assembly inspection and written Phase 3D contract/scenario records. No runtime credit or production claim is made at intake.
+
 ## No current technical blocker; final human review is required - 2026-08-30T14:05:47Z
 
 Status: `PASS (technical) - MANUAL REVIEW REQUIRED`.

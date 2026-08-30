@@ -1,5 +1,28 @@
 # Autonomous resume
 
+## Phase 3D contract checkpoint complete; shared-turn implementation next - 2026-08-30T19:41:26Z
+
+- Branch remains `codex/mounted-combat-phase3d-unified-combat` at inherited HEAD `63595b832f7f89c854edef5a9eb4d21dee026590`; the current changes are uncommitted contract/journal records only. No runtime, installed game, save, Mods, package, or remote state changed.
+- Added the seven required contract-first records for unified turn, stock melee, ranged, five-foot step, combat Mount/Dismount, exact Wrath shared-turn mapping, and the Phase 3D runtime matrix. Source validation passes `22/0`; `git diff --check` passes.
+- Exact Kingmaker seams are now pinned: `CombatController.ChooseNextUnit` `0x06000BD2`, `StartTurn` `0x06000BDA`, `HandleUnitRollsInitiative` `0x06000BEE`, `TurnController.Prepare` `0x06000C3C`, `ContinueActing` `0x06000C3D`, `TickMovement` `0x06000C37`, `ForceToEnd` `0x06000C47`, and `InitiativeTrackerVM.UpdateUnits` `0x06004F0E`.
+- Root-cause findings: Phase 3C deliberately rejects every exact mounted stock `UnitAttack`; combat Mount is deliberately rejected by the player-action evaluator; all four KMC native abilities are currently Free and share the Horse icon; and the observed mounted-step AoO follows from stock checking disengage immunity only when the physical target equals Kingmaker's single `CurrentUnit` (the rider, not the moving mount).
+- The preserved human log does not show Rider Primary directly dismounting: both logged Rider Primary executions finish `Success` while mounted, and the nearby relationship end is an engine-identified explicit Dismount activation. Root cause remains unresolved and must be reproduced with activation-to-cleanup telemetry; the symptom is not dismissed or hidden by remounting.
+- Exact Wrath audit confirms a rider-led real turn, skipped saddled-mount candidate, separate rider/mount commands, cooldowns, movement stats and action states, both-ledger turn continuation, mount-owned movement, shared five-foot mode, and ranged routing that does not force mount melee. These are bounded contracts only; no Wrath code or asset is copied.
+- Exact next action: commit this reviewable contract checkpoint, then implement a pair-local `UnifiedMountedTurnCoordinator` plus exact-token adapters and deterministic tests before stock/ranged routing. Preserve Phase 3C separate-turn behavior as the fail-closed fallback if duplicate/skipped turns cannot be bounded within one implementation and one repair cycle.
+
+This entry supersedes the intake next action. Status remains `IN PROGRESS`.
+
+## Phase 3D unified mounted-combat intake and contract audit - 2026-08-30T19:22:17Z
+
+- User authorization supersedes the completed Phase 3C stop only for the bounded unified-combat/ranged-alpha mission. Paladin Divine Steed, public release, `main` merge, persistent mounting, mounted spellcasting/feats/charge, additional mounts/rider sizes, and enemy riders remain unauthorized.
+- Created local branch `codex/mounted-combat-phase3d-unified-combat` directly from immutable accepted Phase 3C HEAD `63595b832f7f89c854edef5a9eb4d21dee026590`; the Phase 3C branch remains unchanged. Phase 3D has no upstream or remote ref yet. Live read-only remote inspection found Phase 3C at `63595b832f7f89c854edef5a9eb4d21dee026590`, `main` at `72dcbeb19d03985509f1ed71d3550dfb74f0ac15`, and no Phase 3D branch.
+- Reconciled the accepted package at `C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-phase3c-dev.13-native-controls-ux-final-diagnostic.zip`: ZIP/sidecar-manifest/DLL SHA-256 are exactly `5f23757e17c51a2fe67374da6d218cb9efc1c4fb49ae282060d02577bf7a9fa3` / `82bd78046ec3d393fd45f7af250bae3c2b8194da6e379648b7b6a2c26e9c3a1b` / `6fce17eee8b8f5d8b6b987dd7408ab6ddb9a177ad0236429c41e40ffcc3c282e`; DLL MVID is `9f3344f0-4314-4b2e-ac15-08729c3727d4`. Version is `0.1.0-phase3c-dev.13`; manifest commit is package checkpoint `42debbb814823dbdcd3a39cdc4353a5c3ee3d12d`.
+- Read the complete Phase 3C manual-review summary and preserved log plus the prior dev.27 Horse/Wrath visual-reference textual evidence. The exact new P0s are Rider Primary relationship loss, mounted five-foot-step AoO, unavailable combat Mount, disconnected TB initiative/turns, and rejected stock hostile `UnitAttack`; ranged combat and final Horse presentation are newly authorized within the stated bounds.
+- No Kingmaker, Wrath, UMM, MSBuild, or runtime process was active at intake. Historical staging/evidence remains present; the final Phase 3C records are terminal `restored`. No runtime mutation or game launch has occurred in Phase 3D.
+- Current state: `IN PROGRESS`. Exact next action is bounded exact-assembly inspection of Kingmaker and Wrath initiative/turn-order/action-ledger/five-foot-step/combat-mount/stock-attack/ranged contracts, followed by the five Phase 3D contract documents and scenario matrix before production implementation.
+
+This entry supersedes Phase 3C's human-review next action without relabeling or modifying any Phase 3C evidence.
+
 ## Phase 3C native controls and presentation alpha complete - 2026-08-30T14:05:47Z
 
 - Final branch is `codex/mounted-combat-phase3c-native-controls`. Final production implementation is `e951fb5394ff4f8e791dd27f49b75d71d76a8b1f`; diagnostic/package checkpoint is clean guarded-published `42debbb814823dbdcd3a39cdc4353a5c3ee3d12d`. The latter changes only the Mammoth TB scenario's policy-required selected actor and build version; it is not relabeled as a production behavior repair.

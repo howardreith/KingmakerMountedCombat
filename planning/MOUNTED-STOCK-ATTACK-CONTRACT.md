@@ -1,0 +1,38 @@
+# Phase 3D Mounted Stock Attack Contract
+
+Status: IN PROGRESS
+
+## Native admission seam
+
+Installed Kingmaker `ClickUnitHandler.OnClick` `0x060093ED` constructs an ordinary stock `UnitAttack` for each selected unit and submits it through `UnitCommands.Run` `0x060026B2`. Phase 3C intentionally rejected exact mounted-pair stock `UnitAttack` commands in `MountedCombatController.ShouldAllowStockCommand`; that rejection is the proven cause of the silent hostile-click behavior.
+
+Phase 3D must accept the actual stock-created rider `UnitAttack` as the player input. The exact `UnitCommands.Run` prefix may consume that command only after recording its owner, target, weapon, target-selection state, and `CreatedByPlayer` identity, then establish a bounded mounted attack intent. It must not synthesize credit from a downstream controller call.
+
+## Principal and ownership
+
+- The rider is the only required selected unit.
+- The mount owns approach pathfinding and physical movement.
+- Rider attacks execute as rider-native `UnitAttack` children and spend rider cooldowns.
+- Mount primary attacks execute as mount-native `UnitAttack` children and spend mount cooldowns.
+- One input may create at most one rider attack and one mount attack per legal action/cooldown opportunity.
+- Explicit Rider Primary and Mount Primary remain single-actor alternatives.
+
+## Melee behavior
+
+For a rider melee weapon, the pair approaches to a mount-origin position satisfying the rider's native reach bridge. The deterministic shared-turn default is rider first, then mount when its exact primary natural attack and Standard action are legal. Native full-attack/iterative behavior is not claimed unless reused without duplicate rules or costs.
+
+## Persistent RTWP intent
+
+One real hostile click records one target intent. When no child command is active, the controller may submit a legal rider attack and then a legal mount primary according to their independent native cooldowns. Intent survives individual successful attacks and ordinary cooldown waits. It ends on Stop/Hold, new ground/target command, explicit cancellation, target death/invalidation, relationship invalidation, mode/lifecycle boundary, or command rejection. No attack may start after cancellation.
+
+## Turn-based behavior
+
+The same stock input is admitted only during the rider-led shared turn. Available rider and mount Standard actions are evaluated and consumed independently. The player can interrupt the automatic two-actor sequence by cancellation or use an explicit primary to spend only one actor's action.
+
+## Rejection and telemetry
+
+Invalid target, wrong turn, unavailable action, incompatible body/lifecycle, busy command surface, or path failure returns precise visible feedback and leaves the mounted relationship intact. Telemetry records input surface, stock command identity, selected principal, target, actor, command/resource owner, weapon, cooldowns before/after, rule/roll/damage counts, cancellation, terminal result, and duplicate counts.
+
+## Regression rule
+
+Rider Primary activation, target cancel, rejection, miss, hit, movement, or shared-turn transition must never call relationship cleanup. Only a named lifecycle invalidation may end the relationship; automatic remount is forbidden.
