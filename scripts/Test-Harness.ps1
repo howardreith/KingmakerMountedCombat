@@ -4960,6 +4960,10 @@ try {
             $commandSource.Contains('childAttack.PlannedAttack.Weapon != expectedMountPrimary.Weapon') -and
             $commandSource.Contains('? expectedMountPrimary?.Kind.ToString()') -and
             -not $commandSource.Contains('mount.Body.AdditionalLimbs.FirstOrDefault')) 'mount primary action does not retain and verify the exact primary-hand or first-additional-limb native natural attack across click and child initialization'
+        Assert-Test ($engineSource.Contains('var expectedActionSelectionUnit = IsTurnBasedRow && IsMammothPrimaryRow') -and
+            $engineSource.Contains('SelectionManager.Instance.SelectUnit(expectedActionSelectionUnit.View, true, true, false);') -and
+            $engineSource.Contains('selected[0] == expectedActionSelectionUnit') -and
+            $engineSource.Contains('Exactly the policy-required action actor owned player selection at dispatch.')) 'combat diagnostic does not preserve exact mount selection for a mount-owned turn-based primary action'
         Assert-Test ($commandSource.Contains('var requiresApproach = !childAttack.IsPairEnoughClose;') -and
             $commandSource.Contains('if (!childAttack.TryPrepareNativeStartAdmission())') -and
             $singleAttackSource.Contains('GeometryUtils.MechanicsDistance(mount.Position, target.Position)') -and

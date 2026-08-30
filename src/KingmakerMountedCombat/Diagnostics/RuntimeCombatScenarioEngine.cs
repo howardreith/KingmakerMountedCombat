@@ -933,10 +933,13 @@ namespace KingmakerMountedCombat.Diagnostics
             assertions.Check(clickSafety.AllPassed,
                 "Diagnostic target passed exact player-click gates: " + clickSafety.FailureSummary + ".");
 
-            SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
+            var expectedActionSelectionUnit = IsTurnBasedRow && IsMammothPrimaryRow
+                ? mount
+                : rider;
+            SelectionManager.Instance.SelectUnit(expectedActionSelectionUnit.View, true, true, false);
             var selected = SelectionManager.Instance.SelectedUnits;
-            assertions.Check(selected != null && selected.Count == 1 && selected[0] == rider,
-                "Exactly the rider owned player selection at dispatch.");
+            assertions.Check(selected != null && selected.Count == 1 && selected[0] == expectedActionSelectionUnit,
+                "Exactly the policy-required action actor owned player selection at dispatch.");
             assertions.Check(combat.CanShowCombatActions,
                 "Mounted combat actions were available only for the exact selected pair in combat.");
             assertions.Check(actionActor.HasStandardAction(),
