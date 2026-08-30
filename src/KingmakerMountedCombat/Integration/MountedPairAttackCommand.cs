@@ -129,6 +129,7 @@ namespace KingmakerMountedCombat.Integration
         private readonly UnitEntityData actionActor;
         private readonly MountedCombatActionKind action;
         private readonly NativeSingleAttackWeaponSelection expectedMountPrimary;
+        private readonly HorsePrimaryAttackAnimationAdapter horsePrimaryAttackAnimation;
         private readonly IModLogger logger;
         private readonly Action<MountedPairAttackCommand, MountedPairAttackOutcome> terminal;
         private readonly MountedCombatTransaction transaction = new MountedCombatTransaction();
@@ -177,6 +178,7 @@ namespace KingmakerMountedCombat.Integration
             UnitEntityData target,
             MountedCombatActionKind action,
             NativeSingleAttackWeaponSelection expectedMountPrimary,
+            HorsePrimaryAttackAnimationAdapter horsePrimaryAttackAnimation,
             IModLogger logger,
             Action<MountedPairAttackCommand, MountedPairAttackOutcome> terminal)
             : base(CommandType.Standard, target)
@@ -193,6 +195,8 @@ namespace KingmakerMountedCombat.Integration
             }
             actionActor = action == MountedCombatActionKind.RiderMelee ? rider : mount;
             this.expectedMountPrimary = expectedMountPrimary;
+            this.horsePrimaryAttackAnimation = horsePrimaryAttackAnimation ??
+                throw new ArgumentNullException(nameof(horsePrimaryAttackAnimation));
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
             this.terminal = terminal ?? throw new ArgumentNullException(nameof(terminal));
             ApproachRadius = InfiniteRange;
@@ -576,6 +580,10 @@ namespace KingmakerMountedCombat.Integration
                 mount,
                 action == MountedCombatActionKind.RiderMelee);
             childAttack.Init(actionActor);
+            if (action == MountedCombatActionKind.MountPrimaryNatural)
+            {
+                horsePrimaryAttackAnimation.SupplyExact(this, childAttack.PlannedAttack, mount);
+            }
             if (childAttack.IsFullAttack || childAttack.AllAttacks.Count != 1 || childAttack.PlannedAttack == null)
             {
                 throw new InvalidOperationException("Native child did not resolve to exactly one attack.");

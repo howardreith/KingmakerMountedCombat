@@ -171,6 +171,7 @@
     <Compile Include="Integration\SupportedMountedProfile.cs" />
     <Compile Include="Integration\ReactiveBooleanValueReader.cs" />
     <Compile Include="Integration\MountedLifecycleSubscriber.cs" />
+    <Compile Include="Integration\HorsePrimaryAttackAnimationAdapter.cs" />
     <Compile Include="Integration\MountedAnimationAdapter.cs" />
     <Compile Include="Integration\MountedDollRoomIkAdapter.cs" />
     <Compile Include="Integration\ExactTurnMovementAdapter.cs" />

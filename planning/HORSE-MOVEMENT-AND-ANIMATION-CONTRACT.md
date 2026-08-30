@@ -29,7 +29,8 @@ For each row record blueprint feet, movement-agent type, `Speed`, `MaxSpeedOverr
 
 The exact Horse primary remains Bite GUID `35dfad6517f401145af54111be04d6cf` at `AdditionalLimb[0]`. The investigation must correlate the child `UnitAttack`, selected weapon slot, `UnitAnimationActionAttack`, Horse animation manager handle, attack event, facing, rule attack/roll/damage, and terminal command. One plausible native Horse attack animation is required without duplicate attack/damage or an artificial command delay. No Wrath animation may be imported.
 
+Superseding exact contract (2026-08-30): installed Kingmaker `AttackHandInfo.GetAnimationType` returns `SpecialAttack` only for a blueprint-marked special weapon, returns main/off-hand attack only for `HandSlot`, and otherwise returns `None`. The exact Horse Bite is `AdditionalLimb[0]`, so the stock plan can legitimately contain no handle. KMC may supply exactly one action only when the live relationship is the exact KMC Horse pair, the active action is `MountPrimaryNatural`, the actor/hand owner is that Horse, the `AttackHandInfo` and weapon are reference-identical to the planned Bite, and the Horse action set contains exactly one native `UnitAnimationActionSpecialAttack`. Supply occurs after stock `UnitAttack.Init` and before start. It may not replace the stock command, change rule timing, synthesize attack events, import an asset, affect Mammoth/non-Horse attacks, or conceal an animation interruption.
+
 ## Pose calibration boundary
 
 Only `medium-humanoid-horse-v1` may change. Candidate B begins at pelvis `(0,-0.12,-0.02)`, feet `(+/-0.18,-0.58,0.11)`, knees `(+/-0.20,-0.14,0.16)`. One further cycle may evaluate no more than three small, interpretable parameter sets against side/front/three-quarter views, stirrup distance, clearance, idle/walk/run/turn/stop stability, drift, and jitter. Mammoth values and native Horse scale/assets remain fixed.
-

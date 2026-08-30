@@ -1,5 +1,13 @@
 # Mounted Combat journal
 
+## 2026-08-30T01:34:41Z - dev.10 binds the exact Horse Bite plan before native attack start
+
+- User authorization supersedes the dev.9 bounded stop and extends through a testable installed build. Fresh intake passed clean published `ae0bcee2b1db8f95d633072b37b53c91cb35c6fd`, exact branch/origin/upstream equality, no Git operation/lock, and no runtime/process/transaction/deployment ambiguity.
+- Exact Kingmaker forensics establish that additional-limb Horse Bite receives `UnitAnimationType.None` when it is neither a `HandSlot` nor blueprint-marked special. The old postfix recorded create/reject `0/0` in dev.9, so it was not a reliable lifecycle seam.
+- Dev.10 extracts exact Horse handle creation into a pair-scoped adapter and calls it directly after stock `MountedPairSingleAttack.Init`, before validation/start. It requires the exact KMC Horse, exact `MountPrimaryNatural` command and actor, exact planned Bite, and one native Horse `SpecialAttack`; the Harmony postfix remains idempotent fallback. Stock `UnitAttack`, rules, attack/roll/damage cardinality, resource ownership, timing, movement, and Mammoth behavior are unchanged.
+- Complete dirty-tree gates pass source/Release/component/visual/harness/assembly `22/Release/267/18/235/378`, parsers `26/0` and `7/0`, diff, and prohibited payload. Dirty DLL SHA-256/MVID `926c2b645aded9c6591100f0e80030cfa25de331dab09c12d372cdf98c2c5b70` / `ab0886a5-af91-4e4d-88aa-51f02df35e0f` are not package identity.
+- Next: coherent commit and guarded feature publication, clean dev.10 package, fresh suite and `WhatIf`, one audited Horse aggregate, then the conditional same-package Mammoth regression and final guarded installation.
+
 ## 2026-08-29T19:46:01Z - dev.9 native TB Horse input and Bite chain pass; attack animation remains blocked
 
 - Guarded publication established exact dev.9 input `990938faaced373dda1554b836219b748edaffa4`. Clean package/manifest/DLL SHA-256 are `25f76fe24785bf03702f4c5d1cceb35212c803cc0ca8bdfcbc8cb319b4832f9b` / `10dfb044c128a4765ead89a339e0da4ed545ef639331b7f3d85aa7e905d960a3` / `88260a92c4841dca7ceee0d5f5d33efdd28513922b7133a075d93de752a696c5`; MVID `d2f4321e-271f-4ba4-8959-ad8ec4cf56c5`. Suite `20260829T165734Z-phase3c-dev9-native-controls-suite7` is bound by snapshot SHA-256 `a039a9a16dd2796209cab2898af0f1151c03167f01e9719fcab122ba411b8484`.

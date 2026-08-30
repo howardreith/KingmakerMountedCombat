@@ -21,6 +21,7 @@ namespace KingmakerMountedCombat
         private readonly MountedPlayerActionController playerAction;
         private readonly NativeMountedControlService nativeControls;
         private readonly MountedCombatController combat;
+        private readonly HorsePrimaryAttackAnimationAdapter horsePrimaryAttackAnimation;
         private readonly MountedAnimationAdapter animation;
         private readonly MountedDollRoomIkAdapter dollRoomIk;
         private readonly MovementTelemetryWriter movementTelemetry;
@@ -35,8 +36,9 @@ namespace KingmakerMountedCombat
                 horseCompanion = new HorseCompanionBlueprintService(logger);
                 relationship = new GameMountedRelationshipService(logger, settings);
                 lifecycleLedger = new NativeLifecycleDeliveryLedger();
-                combat = new MountedCombatController(relationship, settings, logger);
-                animation = new MountedAnimationAdapter(relationship, combat, logger);
+                horsePrimaryAttackAnimation = new HorsePrimaryAttackAnimationAdapter(relationship, logger);
+                combat = new MountedCombatController(relationship, settings, horsePrimaryAttackAnimation, logger);
+                animation = new MountedAnimationAdapter(relationship, combat, horsePrimaryAttackAnimation, logger);
                 dollRoomIk = new MountedDollRoomIkAdapter(relationship, logger);
                 lifecycle = new MountedLifecycleSubscriber(relationship, lifecycleLedger, combat);
                 saveAuthorization = new RuntimeSaveAuthorization();

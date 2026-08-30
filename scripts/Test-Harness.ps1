@@ -8907,6 +8907,8 @@ try {
     Invoke-HarnessTest 'horse native-controls UX repairs are exact-pair scoped and preserve historical schema' {
         $patchSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPatchController.cs'))
         $animationSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedAnimationAdapter.cs'))
+        $horsePrimaryAnimationSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\HorsePrimaryAttackAnimationAdapter.cs'))
+        $attackCommandSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPairAttackCommand.cs'))
         $ikSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedDollRoomIkAdapter.cs'))
         $horseBlueprintSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\HorseCompanionBlueprintService.cs'))
         $horseScenarioSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\HorseCompanionUnmountedScenarioEngine.cs'))
@@ -8922,11 +8924,27 @@ try {
             $patchSource.Contains('PatchBridge.Animation?.SupplyExactHorsePrimaryAnimation(__instance);') -and
             $animationSource.Contains('combat.TryGetExactRiderTurnDelegatedMoveForAnimation(mount, out move, out source)') -and
             $animationSource.Contains('combat.TryGetExactHorsePrimaryAnimationContext(attack, out command, out horse)') -and
-            $animationSource.Contains('.OfType<UnitAnimationActionSpecialAttack>()') -and
-            $animationSource.Contains('if (actions.Length != 1)') -and
-            $animationSource.Contains('attack.AnimationHandle = handle;') -and
-            -not $animationSource.Contains('catch')) `
+            $animationSource.Contains('horsePrimaryAttackAnimation.SupplyExact(command, attack, horse);') -and
+            $horsePrimaryAnimationSource.Contains('relationship.State == RelationshipState.Mounted') -and
+            $horsePrimaryAnimationSource.Contains('command.Action == MountedCombatActionKind.MountPrimaryNatural') -and
+            $horsePrimaryAnimationSource.Contains('HorseCompanionBlueprintService.UnitGuid') -and
+            $horsePrimaryAnimationSource.Contains('.OfType<UnitAnimationActionSpecialAttack>()') -and
+            $horsePrimaryAnimationSource.Contains('if (actions.Length != 1)') -and
+            $horsePrimaryAnimationSource.Contains('attack.AnimationHandle = handle;') -and
+            $projectSource.Contains('Compile Include="Integration\HorsePrimaryAttackAnimationAdapter.cs"') -and
+            -not $animationSource.Contains('catch') -and
+            -not $horsePrimaryAnimationSource.Contains('catch')) `
             'Horse locomotion or primary-animation repair is not exact-token, exact-context, single-native-action, or exception-transparent'
+
+        $childInitIndex = $attackCommandSource.IndexOf('childAttack.Init(actionActor);', [StringComparison]::Ordinal)
+        $directAnimationIndex = $attackCommandSource.IndexOf('horsePrimaryAttackAnimation.SupplyExact(this, childAttack.PlannedAttack, mount);', [StringComparison]::Ordinal)
+        $childValidationIndex = $attackCommandSource.IndexOf('if (childAttack.IsFullAttack || childAttack.AllAttacks.Count != 1 || childAttack.PlannedAttack == null)', [StringComparison]::Ordinal)
+        Assert-Test ($childInitIndex -ge 0 -and
+            $directAnimationIndex -gt $childInitIndex -and
+            $childValidationIndex -gt $directAnimationIndex -and
+            $attackCommandSource.Contains('if (action == MountedCombatActionKind.MountPrimaryNatural)') -and
+            $horsePrimaryAnimationSource.Contains('if (!IsExactHorsePrimaryContext(command, attack, horse) || attack.AnimationHandle != null)')) `
+            'Horse primary animation is not supplied exactly once after stock child initialization and before native attack start/validation'
 
         Assert-Test ($patchSource.Contains('PatchExact(typeof(IKController), "SetupIkSystem", 0x0600156C, new[] { typeof(Character) }, nameof(PatchMethods.DollRoomIkSetupPrefix));') -and
             $patchSource.Contains('PatchExact(typeof(IKController), "SetupFbbik", 0x0600156D, Type.EmptyTypes, nameof(PatchMethods.DollRoomFbbikPrefix), nameof(PatchMethods.DollRoomFbbikPostfix));') -and

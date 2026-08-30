@@ -1,8 +1,10 @@
 # Horse UX runtime scenario matrix
 
-Status: `FAIL` — bounded at TB Horse primary animation
+Status: `IN PROGRESS` — dev.10 Horse animation repair pending runtime qualification
 
 Date: 2026-08-28
+
+Superseding repair checkpoint (2026-08-30): the user authorized one attributable production-animation repair and work through an installed test build. Exact installed Kingmaker contracts prove the additional-limb Horse Bite is stock-classified as `UnitAnimationType.None`. Dev.10 supplies the exact Horse action immediately after stock child attack initialization and before native start, with exact pair/action/actor/planned-weapon/single-native-action guards and the prior postfix retained as an idempotent fallback. Complete offline gates pass. One fresh audited Horse aggregate must satisfy the unchanged `horse-primary-animation-tb`, ownership, one-chain, action-cost, and cleanup gates before the targeted Mammoth regression and final installation.
 
 Superseding bounded result (2026-08-29): dev.9 aggregate `20260829T170000Z-phase3c-dev9-native-controls-passD` restored exactly at `58 PASS / 1 FAIL`. The sequential expected-dispatch ledger, actual native target click, native cast, exact Horse-owned Bite command, one attack/roll/damage chain, Horse-only Standard cost, zero duplicates/repaths, and cleanup all pass. The sole failure is `horse-primary-animation-tb`: command handle absent, adapter create/reject `0/0`, and no native `SpecialAttack` identity. Independent audit passed before evidence read. The authorized cycle is exhausted; Mammoth regression and final installation remain blocked pending separately authorized production-animation repair and one fresh complete Horse pass.
 

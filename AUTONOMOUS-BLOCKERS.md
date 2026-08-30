@@ -1,5 +1,15 @@
 # Autonomous blockers
 
+## No current hard blocker; dev.10 exact Horse animation repair is offline-green - 2026-08-30T01:34:41Z
+
+Status: `IN PROGRESS`.
+
+The user explicitly authorized the attributable production-animation repair and all safe work through a testable installed package. Exact Kingmaker inspection proves the KMC Horse Bite is an additional-limb weapon that stock classifies as `UnitAnimationType.None` unless its blueprint advertises a special animation. Dev.10 supplies the existing exact native Horse `SpecialAttack` handle after stock child attack initialization and before native start, guarded by the exact mounted KMC Horse, command, action, planned Bite, and single-action identities. The prior Harmony seam remains only as an idempotent fallback.
+
+All applicable offline gates pass without weakening the unchanged runtime predicate: source `22/0`, Release, component `267/0`, visual/source-order `18/0`, harness/protocol `235/0`, assembly `378/0`, PowerShell `26/0`, JSON `7/0`, diff, and prohibited payload. No repository, credential, external-state, architecture, or safety blocker exists. A clean package, stable-suite `WhatIf`, one audited Horse aggregate, the conditional targeted Mammoth regression, final publication, and guarded UMM installation remain.
+
+This entry supersedes the dev.9 authorization-exhausted status below. Dev.9 remains immutable uncredited `FAIL 58/1` historical evidence.
+
 ## Phase 3C bounded stop: TB Horse Bite completes but its native animation bridge is not reached - 2026-08-29T19:46:01Z
 
 Status: `FAIL`.

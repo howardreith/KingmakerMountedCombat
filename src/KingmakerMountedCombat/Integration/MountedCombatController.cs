@@ -29,6 +29,7 @@ namespace KingmakerMountedCombat.Integration
     {
         private readonly GameMountedRelationshipService relationship;
         private readonly DiagnosticSettings settings;
+        private readonly HorsePrimaryAttackAnimationAdapter horsePrimaryAttackAnimation;
         private readonly IModLogger logger;
         private readonly MountedOverlayWorldInputGuard overlayWorldInputGuard = new MountedOverlayWorldInputGuard();
         private MountedPairAttackCommand activeCommand;
@@ -47,10 +48,13 @@ namespace KingmakerMountedCombat.Integration
         public MountedCombatController(
             GameMountedRelationshipService relationship,
             DiagnosticSettings settings,
+            HorsePrimaryAttackAnimationAdapter horsePrimaryAttackAnimation,
             IModLogger logger)
         {
             this.relationship = relationship ?? throw new ArgumentNullException(nameof(relationship));
             this.settings = settings ?? throw new ArgumentNullException(nameof(settings));
+            this.horsePrimaryAttackAnimation = horsePrimaryAttackAnimation ??
+                throw new ArgumentNullException(nameof(horsePrimaryAttackAnimation));
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
             relationship.Dismounting += HandleDismounting;
         }
@@ -576,6 +580,7 @@ namespace KingmakerMountedCombat.Integration
                     target,
                     action,
                     mountPrimary,
+                    horsePrimaryAttackAnimation,
                     logger,
                     HandleCommandTerminal);
                 activeCommand = command;

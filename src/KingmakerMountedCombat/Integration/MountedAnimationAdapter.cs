@@ -1,13 +1,9 @@
 using System;
 using System.Globalization;
-using System.Linq;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.UnitLogic.Commands;
-using Kingmaker.View.Animation;
 using Kingmaker.Visual.Animation.Kingmaker;
-using Kingmaker.Visual.Animation.Kingmaker.Actions;
 using KingmakerMountedCombat.Logging;
-using UnityEngine;
 
 namespace KingmakerMountedCombat.Integration
 {
@@ -32,16 +28,20 @@ namespace KingmakerMountedCombat.Integration
     {
         private readonly GameMountedRelationshipService relationship;
         private readonly MountedCombatController combat;
+        private readonly HorsePrimaryAttackAnimationAdapter horsePrimaryAttackAnimation;
         private readonly IModLogger logger;
         private UnitMoveTo lastLoggedLocomotionMove;
 
         internal MountedAnimationAdapter(
             GameMountedRelationshipService relationship,
             MountedCombatController combat,
+            HorsePrimaryAttackAnimationAdapter horsePrimaryAttackAnimation,
             IModLogger logger)
         {
             this.relationship = relationship ?? throw new ArgumentNullException(nameof(relationship));
             this.combat = combat ?? throw new ArgumentNullException(nameof(combat));
+            this.horsePrimaryAttackAnimation = horsePrimaryAttackAnimation ??
+                throw new ArgumentNullException(nameof(horsePrimaryAttackAnimation));
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
@@ -51,13 +51,13 @@ namespace KingmakerMountedCombat.Integration
 
         internal float LastDelegatedLocomotionSpeed { get; private set; }
 
-        internal int HorsePrimaryHandleCreateCount { get; private set; }
+        internal int HorsePrimaryHandleCreateCount => horsePrimaryAttackAnimation.HandleCreateCount;
 
-        internal int HorsePrimaryHandleRejectCount { get; private set; }
+        internal int HorsePrimaryHandleRejectCount => horsePrimaryAttackAnimation.HandleRejectCount;
 
-        internal string LastHorsePrimaryActionName { get; private set; } = "<none>";
+        internal string LastHorsePrimaryActionName => horsePrimaryAttackAnimation.LastActionName;
 
-        internal string LastHorsePrimaryActionType { get; private set; } = "<none>";
+        internal string LastHorsePrimaryActionType => horsePrimaryAttackAnimation.LastActionType;
 
         internal void RestoreExactDelegatedMountLocomotion(UnitAnimationManager manager)
         {
@@ -105,41 +105,7 @@ namespace KingmakerMountedCombat.Integration
             {
                 return;
             }
-
-            var manager = horse.View?.AnimationManager;
-            var actions = manager?.ActionSet
-                .OfType<UnitAnimationActionSpecialAttack>()
-                .Where(candidate => candidate != null)
-                .ToArray() ?? new UnitAnimationActionSpecialAttack[0];
-            if (actions.Length != 1)
-            {
-                HorsePrimaryHandleRejectCount++;
-                logger.Error("Exact KMC Horse primary animation rejected: expected one native SpecialAttack action, observed " +
-                    actions.Length + ".");
-                return;
-            }
-
-            var action = actions[0];
-            var handle = manager.CreateHandle(action) as UnitAnimationActionHandle;
-            if (handle == null)
-            {
-                HorsePrimaryHandleRejectCount++;
-                logger.Error("Exact KMC Horse primary animation rejected: native SpecialAttack handle creation returned null.");
-                return;
-            }
-
-            handle.SpecialAttackCount = 0;
-            if (handle.VariantsCount > 0)
-            {
-                handle.Variant = Math.Abs(Time.frameCount) % handle.VariantsCount;
-            }
-            attack.AnimationHandle = handle;
-            command.RecordHorsePrimaryAnimation(handle, action);
-            HorsePrimaryHandleCreateCount++;
-            LastHorsePrimaryActionName = action.name ?? "<unnamed>";
-            LastHorsePrimaryActionType = action.Type.ToString();
-            logger.Info("Supplied one native Horse SpecialAttack handle for the exact KMC Bite: action=" +
-                LastHorsePrimaryActionName + "; variant=" + handle.Variant + ".");
+            horsePrimaryAttackAnimation.SupplyExact(command, attack, horse);
         }
 
         internal MountedAnimationSnapshot CaptureSnapshot()
