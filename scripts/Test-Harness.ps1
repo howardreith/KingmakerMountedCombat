@@ -10063,6 +10063,7 @@ try {
         $relationshipSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\GameMountedRelationshipService.cs'))
         $nativeSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\NativeMountedControlService.cs'))
         $attackSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPairAttackCommand.cs'))
+        $optionalPropertySource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\OptionalPublicPropertyReader.cs'))
         $phase3dSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\Phase3dHorseScenarioTranche.cs'))
 
         Assert-Test ($unifiedSource.Contains('InitiativeOverrideResultFieldToken = 0x04004B5B') -and
@@ -10104,8 +10105,12 @@ try {
             $attackSource.Contains('AttackWeaponTypeBlueprintId') -and
             $attackSource.Contains('AmmunitionStateBefore') -and
             $attackSource.Contains('ReloadStateAfter') -and
+            $attackSource.Contains('OptionalPublicPropertyReader.Read') -and
+            $optionalPropertySource.Contains('BindingFlags.DeclaredOnly') -and
+            $optionalPropertySource.Contains('type = type.BaseType') -and
+            -not $optionalPropertySource.Contains('.GetProperty(') -and
             -not $attackSource.Contains('Gunslinger')) `
-            'ranged native LoS, ammunition/reload telemetry, or foreign-mod isolation changed'
+            'ranged native LoS, non-throwing ammunition/reload telemetry, or foreign-mod isolation changed'
         Assert-Test ($phase3dSource.Contains('new ClickUnitHandler().OnClick(target.View.gameObject, target.Position, 0, false, false)') -and
             $phase3dSource.Contains('ClickGroundHandler.MoveSelectedUnitsToPoint(movementDestination, false);') -and
             $phase3dSource.Contains('turn.TryChangeSmartAction();') -and

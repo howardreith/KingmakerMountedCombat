@@ -849,11 +849,11 @@ namespace KingmakerMountedCombat.Integration
 
             var observations = new List<string>();
             var candidates = new List<object> { weapon };
-            var blueprint = ReadPublicProperty(weapon, "Blueprint");
+            var blueprint = OptionalPublicPropertyReader.Read(weapon, "Blueprint");
             if (blueprint != null)
             {
                 candidates.Add(blueprint);
-                var weaponType = ReadPublicProperty(blueprint, "Type");
+                var weaponType = OptionalPublicPropertyReader.Read(blueprint, "Type");
                 if (weaponType != null)
                 {
                     candidates.Add(weaponType);
@@ -889,7 +889,7 @@ namespace KingmakerMountedCombat.Integration
                     }
                 }
 
-                var components = ReadPublicProperty(candidate, "ComponentsArray") as
+                var components = OptionalPublicPropertyReader.Read(candidate, "ComponentsArray") as
                     System.Collections.IEnumerable;
                 if (components == null)
                 {
@@ -909,29 +909,6 @@ namespace KingmakerMountedCombat.Integration
             return observations.Count == 0
                 ? "native-core:no-separate-" + string.Join("-or-", terms) + "-state"
                 : string.Join("|", observations.Distinct().Take(32).ToArray());
-        }
-
-        private static object ReadPublicProperty(object instance, string name)
-        {
-            if (instance == null)
-            {
-                return null;
-            }
-            var property = instance.GetType().GetProperty(
-                name,
-                BindingFlags.Instance | BindingFlags.Public);
-            if (property == null || property.GetIndexParameters().Length != 0)
-            {
-                return null;
-            }
-            try
-            {
-                return property.GetValue(instance, null);
-            }
-            catch
-            {
-                return null;
-            }
         }
 
         private static float HorizontalDistance(Vector3 first, Vector3 second)

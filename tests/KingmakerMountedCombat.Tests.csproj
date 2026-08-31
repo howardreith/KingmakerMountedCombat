@@ -59,6 +59,7 @@
     <Compile Include="NativeMountedControlPolicyTests.cs" />
     <Compile Include="UnifiedMountedTurnPolicyTests.cs" />
     <Compile Include="MountedStockAttackPolicyTests.cs" />
+    <Compile Include="OptionalPublicPropertyReaderTests.cs" />
     <Compile Include="ReactiveBooleanValueReaderTests.cs" />
     <Compile Include="PresentationOverlayEvidenceTests.cs" />
     <Compile Include="ScopedDiagnosticAiLeaseTests.cs" />
@@ -138,6 +139,7 @@
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedCombatSpatialPolicy.cs"><Link>Shared\Domain\MountedCombatSpatialPolicy.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedCombatTransaction.cs"><Link>Shared\Domain\MountedCombatTransaction.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedStockAttack.cs"><Link>Shared\Domain\MountedStockAttack.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\OptionalPublicPropertyReader.cs"><Link>Shared\Domain\OptionalPublicPropertyReader.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\UnifiedMountedTurn.cs"><Link>Shared\Domain\UnifiedMountedTurn.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\DiagnosticCombatTargetLifecycle.cs"><Link>Shared\Domain\DiagnosticCombatTargetLifecycle.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\DiagnosticCombatInitiativeObservation.cs"><Link>Shared\Domain\DiagnosticCombatInitiativeObservation.cs</Link></Compile>

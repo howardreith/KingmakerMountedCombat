@@ -156,6 +156,7 @@
     <Compile Include="Domain\MountedCombatSpatialPolicy.cs" />
     <Compile Include="Domain\MountedCombatTransaction.cs" />
     <Compile Include="Domain\MountedStockAttack.cs" />
+    <Compile Include="Domain\OptionalPublicPropertyReader.cs" />
     <Compile Include="Domain\UnifiedMountedTurn.cs" />
     <Compile Include="Domain\DiagnosticCombatTargetLifecycle.cs" />
     <Compile Include="Domain\DiagnosticCombatInitiativeObservation.cs" />

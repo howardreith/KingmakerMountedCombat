@@ -1,5 +1,15 @@
 # Autonomous blockers
 
+## Phase 3D dev.5 optional telemetry repair is offline-green; fresh child-attack attribution remains (2026-08-31T14:07:28-04:00)
+
+Status: `IN PROGRESS`.
+
+There is no current external or proven architecture blocker. Dev.4 crossed the exact native input boundary: the Rider Primary shell prepared, started, acted, finished `Success`, delivered once, and dispatched one accepted RiderMelee command while the pair stayed mounted. The run then failed before child attack start because observation-only ammunition/reload reflection threw `AmbiguousMatchException` on duplicate inherited `Blueprint` declarations. Genuine exception cleanup dismounted afterward; no evidence attributes relationship loss to Primary activation or resolution.
+
+Dev.5 changes only that observer. Deterministic most-derived `DeclaredOnly` traversal catches both reflection discovery and getter failures and returns unavailable when optional foreign state cannot safely be described. The complete tree passes source `22/0`, Release, component `294/0`, visual `18/0`, harness `237/0`, assembly `380/0`, PowerShell `26/0`, JSON `7/0`, and diff. Pre-commit DLL SHA-256/MVID are `7e3d6f5ba3cf445a3f809e15fb57e6927c0d8d2f913de8149e1f7b5e6ef2cd8c` / `b22d25e6-1197-4a87-a1e7-b26e8f82fca5`. No external state changed.
+
+Fresh clean-package runtime evidence must now prove the native child attack, exact actor Standard charge, zero rider Move shell charge, one rule chain, terminal outcome, and retained relationship. Dev.4 remains immutable failed evidence and receives no gameplay credit. If dev.5 exposes a genuine shared-turn/control-model defect that cannot be contained within the remaining bounded architecture allowance, retain the accepted separate-turn fallback and record the exact disposition; do not add global dispatcher, turn-controller, LoS, cooldown, AoO, or remount patches.
+
 ## Phase 3D dev.4 bounded primary-shell repair is offline-green; live attribution remains (2026-08-31T09:07:57-04:00)
 
 Status: `IN PROGRESS`.
