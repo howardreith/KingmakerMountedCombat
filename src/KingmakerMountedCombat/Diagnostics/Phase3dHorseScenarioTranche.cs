@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
@@ -88,6 +89,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private UnitEntityData target;
         private UnitMoveTo movementCommand;
         private UnitCommand unmountedCommand;
+        private UnitUseAbility lastNativeAbilityShell;
+        private UnifiedMountedTurnSnapshot explicitPrimaryLedgerBefore;
         private Vector3 movementStart;
         private Vector3 movementDestination;
         private UnifiedMountedTurnSnapshot turnSnapshotBefore;
@@ -263,6 +266,9 @@ namespace KingmakerMountedCombat.Diagnostics
                         break;
                     case Phase3dHorseStep.AwaitRiderPrimaryRt:
                         AwaitRiderPrimaryRt();
+                        break;
+                    case Phase3dHorseStep.AwaitMountPrimaryRtAdmission:
+                        AwaitMountPrimaryRtAdmission();
                         break;
                     case Phase3dHorseStep.AwaitMountPrimaryRt:
                         AwaitMountPrimaryRt();
@@ -539,10 +545,21 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 Game.Instance.IsPaused = false;
             }
-            if (!IsCombatReady(true))
+            if (!IsCombatReady(true) ||
+                !IsExactRealTimePrimaryAdmissionReady(
+                    NativeMountedControlKind.RiderPrimary,
+                    rider,
+                    "rtRiderPrimaryReadiness"))
+            {
+                stableFrames = 0;
+                return;
+            }
+            stableFrames++;
+            if (stableFrames < 2)
             {
                 return;
             }
+            stableFrames = 0;
 
             RunRiderPrimaryCancelAndRejectionControls();
             outcomeBefore = combat.LastOutcome;
@@ -552,10 +569,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 .Max();
             ruleProbe.Arm(target, true);
             movementStart = horse.Position;
+            explicitPrimaryLedgerBefore = combat.CaptureUnifiedTurnSnapshot();
+            var expectedDispatchStarted = targetService.BeginExpectedAttackDispatch(target);
             var clicked = TryNativeAbilityTargetClick(nativeControls.RiderPrimaryAbility, target, "rt-rider-primary");
-            if (!clicked)
+            if (!expectedDispatchStarted || !clicked)
             {
-                FailCurrent("rider-primary-does-not-dismount-rt", "Native Rider Primary target click was not admitted.");
+                FailCurrent("rider-primary-does-not-dismount-rt", "Native Rider Primary expected-dispatch boundary or target click was not admitted.");
                 BeginCleanup();
                 return;
             }
@@ -600,6 +619,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void AwaitRiderPrimaryRt()
         {
+            observations["rtRiderPrimaryShellLatest"] = CaptureNativeAbilityShell(lastNativeAbilityShell);
             if (combat.HasActiveCommand || ReferenceEquals(combat.LastOutcome, outcomeBefore))
             {
                 return;
@@ -616,10 +636,19 @@ namespace KingmakerMountedCombat.Diagnostics
                 activations.All(item => !item.RelationshipEnded && !item.CleanupTrigger.HasValue);
             var evidence = CaptureOutcome(outcome, activations);
             evidence["horseMovementDistance"] = movementDistance;
+            evidence["admissionReadiness"] = observations["rtRiderPrimaryReadiness"]?.DeepClone();
+            evidence["nativeInput"] = observations["rt-rider-primary"]?.DeepClone();
+            evidence["nativeShellTerminal"] = CaptureNativeAbilityShell(lastNativeAbilityShell);
+            evidence["ledgerBefore"] = JObject.FromObject(
+                explicitPrimaryLedgerBefore, JsonSerializer.Create(JsonSettings));
+            var ledgerAfter = combat.CaptureUnifiedTurnSnapshot();
+            evidence["ledgerAfter"] = JObject.FromObject(
+                ledgerAfter, JsonSerializer.Create(JsonSettings));
             AddRow(
                 "rider-primary-does-not-dismount-rt",
                 retained && outcome != null && outcome.Action == MountedCombatActionKind.RiderMelee &&
-                    outcome.ChildAttackStartCount == 1,
+                    outcome.ChildAttackStartCount == 1 && outcome.ActionStandardCharged &&
+                    ledgerAfter.Rider.Move <= explicitPrimaryLedgerBefore.Rider.Move + 0.001f,
                 "One admitted native RT Rider Primary reached one terminal rider attack and retained the exact pair.",
                 evidence);
             AddRow(
@@ -634,6 +663,28 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
+            step = Phase3dHorseStep.AwaitMountPrimaryRtAdmission;
+            stableFrames = 0;
+            ResetLeafClock();
+        }
+
+        private void AwaitMountPrimaryRtAdmission()
+        {
+            if (!IsExactRealTimePrimaryAdmissionReady(
+                    NativeMountedControlKind.MountPrimary,
+                    horse,
+                    "rtMountPrimaryReadiness"))
+            {
+                stableFrames = 0;
+                return;
+            }
+            stableFrames++;
+            if (stableFrames < 2)
+            {
+                return;
+            }
+
+            stableFrames = 0;
             BeginMountPrimaryRt();
         }
 
@@ -641,10 +692,12 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             outcomeBefore = combat.LastOutcome;
             ruleProbe.Arm(target, true);
+            explicitPrimaryLedgerBefore = combat.CaptureUnifiedTurnSnapshot();
+            var expectedDispatchStarted = targetService.BeginExpectedAttackDispatch(target);
             var clicked = TryNativeAbilityTargetClick(nativeControls.MountPrimaryAbility, target, "rt-mount-primary");
-            if (!clicked)
+            if (!expectedDispatchStarted || !clicked)
             {
-                FailCurrent("mounted-stock-click-melee-mount-only-explicit", "Native RT Mount Primary target click was not admitted.");
+                FailCurrent("mounted-stock-click-melee-mount-only-explicit", "Native RT Mount Primary expected-dispatch boundary or target click was not admitted.");
                 BeginCleanup();
                 return;
             }
@@ -663,11 +716,20 @@ namespace KingmakerMountedCombat.Diagnostics
             var retained = relationship.State == RelationshipState.Mounted &&
                 relationship.Rider == rider && relationship.Mount == horse;
             var evidence = CaptureOutcome(outcome, new NativeMountedAbilityActivationRecord[0]);
+            evidence["admissionReadiness"] = observations["rtMountPrimaryReadiness"]?.DeepClone();
+            evidence["nativeInput"] = observations["rt-mount-primary"]?.DeepClone();
+            evidence["nativeShellTerminal"] = CaptureNativeAbilityShell(lastNativeAbilityShell);
+            evidence["ledgerBefore"] = JObject.FromObject(
+                explicitPrimaryLedgerBefore, JsonSerializer.Create(JsonSettings));
+            var ledgerAfter = combat.CaptureUnifiedTurnSnapshot();
+            evidence["ledgerAfter"] = JObject.FromObject(
+                ledgerAfter, JsonSerializer.Create(JsonSettings));
             AddRow(
                 "mounted-stock-click-melee-mount-only-explicit",
                 retained && outcome != null && outcome.Action == MountedCombatActionKind.MountPrimaryNatural &&
                     outcome.ResourceOwnerId == horse.UniqueId && ruleProbe.RiderAttackRuleCount == 0 &&
-                    ruleProbe.MountAttackRuleCount == 1,
+                    ruleProbe.MountAttackRuleCount == 1 && outcome.ActionStandardCharged &&
+                    ledgerAfter.Rider.Move <= explicitPrimaryLedgerBefore.Rider.Move + 0.001f,
                 "Explicit RT Mount Primary spent only the Horse attack ledger and retained the exact pair.",
                 evidence);
             if (!retained)
@@ -2381,6 +2443,95 @@ namespace KingmakerMountedCombat.Diagnostics
                 (!requireMounted || relationship.State == RelationshipState.Mounted);
         }
 
+        private bool IsExactRealTimePrimaryAdmissionReady(
+            NativeMountedControlKind kind,
+            UnitEntityData actionActor,
+            string observationName)
+        {
+            var game = Game.Instance;
+            var handsEquipment = game?.HandsEquipmentController;
+            var selection = SelectionManager.Instance?.SelectedUnits;
+            var availability = nativeControls.Evaluate(kind, rider);
+            var exactActionActor = actionActor != null &&
+                (kind == NativeMountedControlKind.RiderPrimary && actionActor == rider ||
+                 kind == NativeMountedControlKind.MountPrimary && actionActor == horse);
+            var relationshipExact = relationship.State == RelationshipState.Mounted &&
+                relationship.Rider == rider && relationship.Mount == horse;
+            var modeExact = !CombatController.IsInTurnBasedCombat();
+            var gameUnpaused = game != null && !game.IsPaused;
+            var selectionExact = selection != null && selection.Count == 1 && selection[0] == rider;
+            var targetReady = target != null && target.IsInState && target.Descriptor.State.IsConscious &&
+                actionActor != null && actionActor.IsEnemy(target) && actionActor.CanAttack(target);
+            var combatMemoryReady = targetService != null && targetService.RefreshBidirectionalCombatMemoryLease();
+            var riderPrepared = rider.CombatState != null && rider.CombatState.Prepared;
+            var riderCanAct = rider.Descriptor.State.CanAct && riderPrepared && rider.CombatState.CanActInCombat;
+            var riderInitiativeReady = riderPrepared &&
+                Math.Abs(rider.CombatState.Cooldown.Initiative) <= 0.000001f;
+            var horsePrepared = horse.CombatState != null && horse.CombatState.Prepared;
+            var horseCanAct = horse.Descriptor.State.CanAct && horsePrepared && horse.CombatState.CanActInCombat;
+            var horseInitiativeReady = horsePrepared &&
+                Math.Abs(horse.CombatState.Cooldown.Initiative) <= 0.000001f;
+            var riderCommandsIdle = rider.Commands != null && rider.Commands.Empty;
+            var horseCommandsIdle = horse.Commands != null && horse.Commands.Empty;
+            var riderHandsIdle = !rider.AreHandsBusyWithAnimation;
+            var horseHandsIdle = !horse.AreHandsBusyWithAnimation;
+            var equipmentControllerReady = handsEquipment != null;
+            var riderEquipmentIdle = equipmentControllerReady && !handsEquipment.IsUpdateScheduledFor(rider);
+            var horseEquipmentIdle = equipmentControllerReady && !handsEquipment.IsUpdateScheduledFor(horse);
+            var actionStandardReady = actionActor != null && actionActor.HasStandardAction();
+            var transactionIdle = !combat.HasActiveCommand && !combat.HasActiveGroundMovement &&
+                !combat.HasStockAttackIntent;
+            var allPassed = availability.IsEnabled && exactActionActor && relationshipExact && modeExact &&
+                gameUnpaused && selectionExact && targetReady && combatMemoryReady && riderCanAct &&
+                riderInitiativeReady && horseCanAct && horseInitiativeReady && riderCommandsIdle &&
+                horseCommandsIdle && riderHandsIdle && horseHandsIdle && equipmentControllerReady &&
+                riderEquipmentIdle && horseEquipmentIdle && actionStandardReady && transactionIdle &&
+                relationship.Runtime.PoseHealthy;
+
+            observations[observationName] = new JObject
+            {
+                ["allPassed"] = allPassed,
+                ["kind"] = kind.ToString(),
+                ["frame"] = frame,
+                ["stableFrames"] = stableFrames,
+                ["availabilityEnabled"] = availability.IsEnabled,
+                ["availabilityReason"] = availability.Reason,
+                ["exactActionActor"] = exactActionActor,
+                ["actionActorId"] = actionActor?.UniqueId,
+                ["relationshipExact"] = relationshipExact,
+                ["modeRealTime"] = modeExact,
+                ["gameUnpaused"] = gameUnpaused,
+                ["selectionExact"] = selectionExact,
+                ["targetReady"] = targetReady,
+                ["combatMemoryReady"] = combatMemoryReady,
+                ["riderPrepared"] = riderPrepared,
+                ["riderCanAct"] = riderCanAct,
+                ["riderCanActInCombat"] = rider.CombatState?.CanActInCombat,
+                ["riderInitiative"] = rider.CombatState?.Cooldown.Initiative,
+                ["riderInitiativeReady"] = riderInitiativeReady,
+                ["horsePrepared"] = horsePrepared,
+                ["horseCanAct"] = horseCanAct,
+                ["horseCanActInCombat"] = horse.CombatState?.CanActInCombat,
+                ["horseInitiative"] = horse.CombatState?.Cooldown.Initiative,
+                ["horseInitiativeReady"] = horseInitiativeReady,
+                ["riderCommandsIdle"] = riderCommandsIdle,
+                ["horseCommandsIdle"] = horseCommandsIdle,
+                ["riderFreeCommand"] = rider.Commands?.Free?.GetType().FullName,
+                ["riderStandardCommand"] = rider.Commands?.Standard?.GetType().FullName,
+                ["horseFreeCommand"] = horse.Commands?.Free?.GetType().FullName,
+                ["horseStandardCommand"] = horse.Commands?.Standard?.GetType().FullName,
+                ["riderHandsIdle"] = riderHandsIdle,
+                ["horseHandsIdle"] = horseHandsIdle,
+                ["equipmentControllerReady"] = equipmentControllerReady,
+                ["riderEquipmentIdle"] = riderEquipmentIdle,
+                ["horseEquipmentIdle"] = horseEquipmentIdle,
+                ["actionStandardReady"] = actionStandardReady,
+                ["transactionIdle"] = transactionIdle,
+                ["poseHealthy"] = relationship.Runtime.PoseHealthy
+            };
+            return allPassed;
+        }
+
         private bool IsStableRiderTurn(TurnController turn)
         {
             return turn?.Unit == rider &&
@@ -2417,6 +2568,11 @@ namespace KingmakerMountedCombat.Diagnostics
             var resolvedTarget = handler.GetTarget(targetObject, position, data);
             var clicked = handler.OnClick(targetObject, position, 0, false, false);
             var after = nativeControls.CaptureSnapshot();
+            var shell = rider.Commands?.Free as UnitUseAbility;
+            if (clicked && shell != null && ReferenceEquals(shell.Spell?.Blueprint, blueprint))
+            {
+                lastNativeAbilityShell = shell;
+            }
             observations[observationName] = new JObject
             {
                 ["abilityGuid"] = blueprint.AssetGuid,
@@ -2429,10 +2585,67 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["nativeCastRequestDelta"] = after.NativeCastRequestCount - before.NativeCastRequestCount,
                 ["nativeRefusalDelta"] = after.NativeRefusalCount - before.NativeRefusalCount,
                 ["dispatchAcceptedDelta"] = after.DispatchAcceptedCount - before.DispatchAcceptedCount,
-                ["dispatchRejectedDelta"] = after.DispatchRejectedCount - before.DispatchRejectedCount
+                ["dispatchRejectedDelta"] = after.DispatchRejectedCount - before.DispatchRejectedCount,
+                ["nativePrimaryShellPrepareDelta"] = after.NativePrimaryShellPrepareCount -
+                    before.NativePrimaryShellPrepareCount,
+                ["nativePrimaryShellObservation"] = after.LastNativePrimaryShellObservation,
+                ["nativeShell"] = CaptureNativeAbilityShell(shell)
             };
             handler.DropAbility();
             return clicked;
+        }
+
+        private JObject CaptureNativeAbilityShell(UnitUseAbility command)
+        {
+            if (command == null)
+            {
+                return new JObject { ["present"] = false };
+            }
+
+            try
+            {
+                var executor = command.Executor;
+                var commands = executor?.Commands;
+                return new JObject
+                {
+                    ["present"] = true,
+                    ["abilityGuid"] = command.Spell?.Blueprint?.AssetGuid,
+                    ["executorId"] = executor?.UniqueId,
+                    ["targetId"] = command.Target?.Unit?.UniqueId,
+                    ["type"] = command.Type.ToString(),
+                    ["contained"] = commands != null && commands.Contains(command),
+                    ["inFreeSlot"] = commands != null && ReferenceEquals(commands.Free, command),
+                    ["queued"] = commands != null && commands.Queue.Contains(command),
+                    ["started"] = command.IsStarted,
+                    ["running"] = command.IsRunning,
+                    ["finished"] = command.IsFinished,
+                    ["acted"] = command.IsActed,
+                    ["result"] = command.Result.ToString(),
+                    ["canStart"] = command.CanStart,
+                    ["unitEnoughClose"] = command.IsUnitEnoughClose,
+                    ["shouldUnitApproach"] = command.ShouldUnitApproach,
+                    ["needLineOfSight"] = command.NeedLoS,
+                    ["approachRadius"] = command.ApproachRadius.ToString("R", CultureInfo.InvariantCulture),
+                    ["dontWaitForHands"] = command.DontWaitForHands,
+                    ["awaitMovementFinish"] = command.AwaitMovementFinish,
+                    ["ignoreCooldown"] = command.IsIgnoreCooldown,
+                    ["hasCooldown"] = executor?.CombatState != null &&
+                        executor.CombatState.HasCooldownForCommand(command),
+                    ["executorPrepared"] = executor?.CombatState?.Prepared,
+                    ["executorCanAct"] = executor?.Descriptor?.State?.CanAct,
+                    ["executorCanActInCombat"] = executor?.CombatState?.CanActInCombat,
+                    ["executorInitiative"] = executor?.CombatState?.Cooldown.Initiative,
+                    ["executorHandsBusy"] = executor?.AreHandsBusyWithAnimation
+                };
+            }
+            catch (Exception exception)
+            {
+                return new JObject
+                {
+                    ["present"] = true,
+                    ["captureError"] = exception.GetType().FullName + ": " + exception.Message
+                };
+            }
         }
 
         private JObject CaptureOutcome(
@@ -2449,7 +2662,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["relationshipState"] = relationship.State.ToString(),
                 ["presentation"] = JObject.FromObject(
                     relationship.CapturePresentationObservation(), JsonSerializer.Create(JsonSettings)),
-                ["rules"] = ruleProbe.CapturePairEvidence()
+                ["rules"] = ruleProbe.CapturePairEvidence(),
+                ["nativeControls"] = JObject.FromObject(
+                    nativeControls.CaptureSnapshot(), JsonSerializer.Create(JsonSettings))
             };
         }
 
@@ -2505,7 +2720,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["step"] = step.ToString(),
                 ["relationshipState"] = relationship.State.ToString(),
                 ["stockObservation"] = combat.LastStockAttackObservation,
-                ["feedback"] = combat.LastFeedback
+                ["feedback"] = combat.LastFeedback,
+                ["nativeControls"] = JObject.FromObject(
+                    nativeControls.CaptureSnapshot(), JsonSerializer.Create(JsonSettings)),
+                ["lastNativeAbilityShell"] = CaptureNativeAbilityShell(lastNativeAbilityShell)
             });
         }
 
@@ -2811,6 +3029,7 @@ namespace KingmakerMountedCombat.Diagnostics
             PresentationSettle,
             AwaitMountedCombat,
             AwaitRiderPrimaryRt,
+            AwaitMountPrimaryRtAdmission,
             AwaitMountPrimaryRt,
             AwaitStockMeleeRt,
             AwaitStockCancelRt,

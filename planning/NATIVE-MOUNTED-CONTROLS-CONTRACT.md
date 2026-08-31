@@ -1,10 +1,10 @@
 # Native mounted controls contract
 
-Status: `PASS (technical) - HUMAN PHYSICAL-INPUT REVIEW REQUIRED`
+Status: `IN PROGRESS - PHASE 3D NATIVE-SHELL REPAIR OFFLINE-GREEN; FRESH RUNTIME REQUIRED`
 
-Date: 2026-08-28
+Date: 2026-08-31
 
-Branch: `codex/mounted-combat-phase3c-native-controls`
+Branch: `codex/mounted-combat-phase3d-unified-combat`
 
 ## Accepted input
 
@@ -25,6 +25,21 @@ The inspected `Assembly-CSharp.dll` remains SHA-256 `3b6450ffec440e296e586f71c71
 | hotbar policy | `UnitUISettings.TryToInitialize` `0x06003005`; `SetSlotAutomatically` `0x06003001`; `SetSlotInternal` `0x06003002` | `ActionBarAutoFillIgnored=true` keeps KMC out of serialized user slots; abilities remain in the native abilities drawer for optional drag |
 | fact lifecycle | `AbilityCollection.GetAbility` `0x06002B0D`; inherited `AddFact` `0x060096AE`; `RemoveFact` `0x06009699` | KMC can own exact reference leases, prevent duplicates, and remove only its facts |
 | serialization boundary | `SaveManager.SaveRoutine` `0x06008029` | a guarded coroutine scope can suspend/remove runtime control facts before `Player.PreSave` and restore them only after the save routine exits |
+
+## Phase 3D native-shell admission addendum
+
+The immutable dev.3 RT run `20260831T062000Z-phase3d-dev3-rt-passA` proved that one exact Rider Primary physical target click reached the selected-ability handler and created one native cast request, but no `DispatchStarted` event or KMC child command followed before the 30-second leaf deadline. The relationship remained `Mounted`; target cancel and friendly-target rejection also retained it. This failed run is diagnostic evidence only and earns no gameplay credit.
+
+Exact installed control flow adds two contracts:
+
+| Contract | Exact member | Phase 3D consequence |
+|---|---|---|
+| RT command-start admission | `UnitActionController.ShouldStartCommand` `0x0600911F` | a runtime click is not attempted until the rider and Horse are prepared, `State.CanAct` and `CanActInCombat` are true, initiative is ready, command containers and hands are idle, equipment updates are idle, the exact action actor has Standard, and KMC has no active child/ground/stock transaction |
+| native ability-shell approach and cost | `UnitUseAbility.Init` `0x06002728`; `UnitCommand.set_NeedLoS` `0x0600276D`; `UnitCommand.IgnoreCooldown` `0x060027BA`; `UnitActionController.UpdateCooldowns` `0x06009120` | stock initializes the KMC intent shell with LoS approach semantics, and RTWP maps an acted `Free` shell to rider Move cooldown; an exact-token postfix sets `NeedLoS=false` and `IgnoreCooldown=true` only for reference-identical KMC Rider Primary or Mount Primary cast by the exact active rider while the exact relationship is mounted |
+
+This postfix changes only the Free native intent shell. `IgnoreCooldown` makes that shell resource-neutral; it neither grants nor refreshes an actor resource. This is required because exact RTWP `UpdateCooldowns` otherwise treats an acted `Free` command as Move, while TB already charges no resource for `Free`. The postfix does not dispatch directly, alter the child command, rewrite attack LoS/range, suppress a rule, or affect Mount Companion, Dismount, foreign abilities, unmounted actors, or the wrong caster. The existing mounted child transaction continues to give approach movement to the mount and uses native rider/mount `UnitAttack` range, LoS, weapon, and sole Standard-resource ownership.
+
+Runtime evidence records the two stable admission frames, every command/action/equipment gate, exact shell slot and executor, `NeedLoS=false`, `IgnoreCooldown=true`, approach state, cooldown state, one preparation delta, native selection/cast cardinality, terminal KMC outcome, and relationship state. The external validator fails closed if admission was premature or if the exact shell preparation was not observed.
 
 ## Selected surface
 

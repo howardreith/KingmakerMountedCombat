@@ -9891,16 +9891,37 @@ try {
             }
             elseif ($phase3dScenario -ceq 'phase3d-unified-combat-rt-suite') {
                 $primaryEvidence = [ordered]@{
-                    outcome=[ordered]@{action=1;resourceOwnerId='rider'}
+                    outcome=[ordered]@{action=1;resourceOwnerId='rider';actionStandardCharged=$true}
                     activations=@([ordered]@{relationshipEnded=$false;cleanupTrigger=$null})
                     horseMovementDistance=2.5
                     rules=[ordered]@{riderAttackRules=1;mountAttackRules=0}
+                    admissionReadiness=[ordered]@{
+                        allPassed=$true;riderCanActInCombat=$true;horseCanActInCombat=$true
+                        riderCommandsIdle=$true;horseCommandsIdle=$true
+                        riderEquipmentIdle=$true;horseEquipmentIdle=$true
+                    }
+                    nativeInput=[ordered]@{
+                        targetSelectionStartDelta=1;targetSelectionEndDelta=1;nativeCastRequestDelta=1
+                        nativeRefusalDelta=0;nativePrimaryShellPrepareDelta=1
+                        nativeShell=[ordered]@{present=$true;needLineOfSight=$false;inFreeSlot=$true;ignoreCooldown=$true;executorId='rider';type='Free'}
+                    }
+                    nativeControls=[ordered]@{nativePrimaryShellPrepareCount=1}
+                    ledgerBefore=[ordered]@{rider=[ordered]@{unitId='rider';move=0.0};mount=[ordered]@{unitId='horse';move=0.0}}
+                    ledgerAfter=[ordered]@{rider=[ordered]@{unitId='rider';move=0.0};mount=[ordered]@{unitId='horse';move=0.0}}
                 }
                 $rowByName['rider-primary-does-not-dismount-rt'].evidence = $primaryEvidence
                 $rowByName['rider-primary-after-movement-does-not-dismount'].evidence = $primaryEvidence
                 $rowByName['mounted-stock-click-melee-mount-only-explicit'].evidence = [ordered]@{
-                    outcome=[ordered]@{action=3;resourceOwnerId='horse'}
+                    outcome=[ordered]@{action=3;resourceOwnerId='horse';actionStandardCharged=$true}
                     rules=[ordered]@{riderAttackRules=0;mountAttackRules=1}
+                    admissionReadiness=[ordered]@{allPassed=$true}
+                    nativeInput=[ordered]@{
+                        nativePrimaryShellPrepareDelta=1
+                        nativeShell=[ordered]@{needLineOfSight=$false;ignoreCooldown=$true;executorId='rider'}
+                    }
+                    nativeControls=[ordered]@{nativePrimaryShellPrepareCount=2}
+                    ledgerBefore=[ordered]@{rider=[ordered]@{unitId='rider';move=0.0};mount=[ordered]@{unitId='horse';move=0.0}}
+                    ledgerAfter=[ordered]@{rider=[ordered]@{unitId='rider';move=0.0};mount=[ordered]@{unitId='horse';move=0.0}}
                 }
                 $melee = [ordered]@{nativeRequestDelta=1;intentStartDelta=1;intentCancelDelta=0;riderDispatchDelta=2;mountDispatchDelta=1;duplicateDispatchDelta=0;intentActive=$true}
                 $cancel = [ordered]@{nativeRequestDelta=1;intentStartDelta=1;intentCancelDelta=1;riderDispatchDelta=2;mountDispatchDelta=1;duplicateDispatchDelta=0;intentActive=$false}
@@ -10008,6 +10029,30 @@ try {
             Assert-TestThrows {
                 Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
             } ('Phase 3D validator accepted false semantic evidence for ' + $phase3dScenario + '.')
+
+            if ($phase3dScenario -ceq 'phase3d-unified-combat-rt-suite') {
+                $rowByName['mounted-bow-auto-fire-rt'].evidence.mountDispatchDelta = 0
+                $rowByName['rider-primary-does-not-dismount-rt'].evidence.admissionReadiness.riderCanActInCombat = $false
+                Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
+                $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
+                $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
+                [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+                $phase3dManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+                Assert-TestThrows {
+                    Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
+                } 'Phase 3D RT validator accepted a Rider Primary click without exact native CanActInCombat admission.'
+
+                $rowByName['rider-primary-does-not-dismount-rt'].evidence.admissionReadiness.riderCanActInCombat = $true
+                $rowByName['rider-primary-does-not-dismount-rt'].evidence.ledgerAfter.rider.move = 3.0
+                Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
+                $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
+                $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
+                [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+                $phase3dManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+                Assert-TestThrows {
+                    Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
+                } 'Phase 3D RT validator accepted an explicit primary shell that consumed rider Move in addition to actor Standard.'
+            }
         }
     }
 
@@ -10047,7 +10092,12 @@ try {
         Assert-Test ($nativeSource.Contains('NativeMountedAbilityActivationLedger') -and
             $nativeSource.Contains('NativeMountedAbilityActivationPhase.RelationshipEnded') -and
             $nativeSource.Contains('UnitCommand.CommandType.Move,') -and
-            $nativeSource.Contains('combat.ObserveStockAttackRequested(unit, target?.EntityData);')) `
+            $nativeSource.Contains('combat.ObserveStockAttackRequested(unit, target?.EntityData);') -and
+            $nativeSource.Contains('NativeMountedControlPolicy.ShouldPreparePrimaryIntentShell(') -and
+            $nativeSource.Contains('command.NeedLoS = false;') -and
+            $nativeSource.Contains('command.IgnoreCooldown();') -and
+            $patchSource.Contains('PatchExact(typeof(UnitUseAbility), "Init", 0x06002728') -and
+            $patchSource.Contains('PrepareNativePrimaryIntentShell(__instance);')) `
             'native ability instrumentation or combat Move/stock request delivery is incomplete'
         Assert-Test ($attackSource.Contains('delegatedMove = new UnitMoveTo(targetSnapshot, childAttack.PairApproachRadius)') -and
             $attackSource.Contains('NeedLoS = true') -and
@@ -10066,6 +10116,9 @@ try {
             $phase3dSource.Contains('activations.Length > 0') -and
             $phase3dSource.Contains('movementDistance > 0.25f') -and
             $phase3dSource.Contains('TryNativeAbilityTargetClick(nativeControls.MountPrimaryAbility, target, "rt-mount-primary")') -and
+            $phase3dSource.Contains('IsExactRealTimePrimaryAdmissionReady(') -and
+            $phase3dSource.Contains('rider.CombatState.CanActInCombat') -and
+            $phase3dSource.Contains('CaptureNativeAbilityShell(lastNativeAbilityShell)') -and
             $phase3dSource.Contains('errors.Count == 0 &&') -and
             -not $phase3dSource.Contains('Gunslinger')) `
             'Phase 3D runtime tranche lost native input admission, explicit actor isolation, exact tracker/five-foot surfaces, or cleanup-safe evidence status'

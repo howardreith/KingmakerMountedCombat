@@ -12,6 +12,8 @@ The new aggregates directly cover the core presentation, Rider Primary, stock me
 
 Dev.1 RT attempt `20260830T233000Z-phase3d-dev1-rt-passA` is immutable uncredited `FAIL 3/1` before this matrix began: its nested Horse registration prerequisite rejected the new outer scenario name, so no Phase 3D artifact or gameplay row existed. Mandatory postrun restoration passed. Dev.2 repairs only that exact closed scenario allowlist and passes the complete offline gate; every matrix row below remains uncredited until fresh dev.2 evidence.
 
+Dev.2 then stopped at the unchanged Horse presentation precondition; dev.3 repaired only the attributable coordinate frame and reached real Phase 3D RT input. Dev.3 RT A `20260831T062000Z-phase3d-dev3-rt-passA` is immutable uncredited `FAIL 3/2`: exact Rider Primary target cancel and rejection retained the pair, and one hostile click produced exactly one native selection-start/end and cast request, but the native `UnitUseAbility` shell never dispatched. Postrun restoration audit passed before evidence inspection. Dev.4 performs the one bounded repair: require two stable frames of exact Kingmaker RT command-start gates, clear pre-dispatch `NeedLoS`, and make only exact mounted KMC primary intent shells cooldown-neutral so RT's Free-to-Move mapping cannot double-consume resources. No row below is credited until a fresh clean dev.4 package crosses the runtime boundary.
+
 ## Shared initiative
 
 | Scenario | RT | TB | Required proof | Status |

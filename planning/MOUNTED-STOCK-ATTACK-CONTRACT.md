@@ -8,6 +8,8 @@ Installed Kingmaker `ClickUnitHandler.OnClick` `0x060093ED` constructs an ordina
 
 Phase 3D must accept the actual stock-created rider `UnitAttack` as the player input. The exact `UnitCommands.Run` prefix may consume that command only after recording its owner, target, weapon, target-selection state, and `CreatedByPlayer` identity, then establish a bounded mounted attack intent. It must not synthesize credit from a downstream controller call.
 
+Explicit Rider Primary and Mount Primary use a related but distinct native admission seam. Their stock `UnitUseAbility` commands are Free intent shells; the mounted child `UnitAttack` remains the actor-owned Standard command. Exact Kingmaker `UnitUseAbility.Init` normally gives the shell `NeedLoS=true`, which can strand pre-dispatch approach on the rider's disabled movement agent. Exact RTWP `UnitActionController.UpdateCooldowns` also maps an acted Free shell to rider Move cooldown, unlike TB's no-cost Free handling. Phase 3D sets `NeedLoS=false` and `IgnoreCooldown=true` only on reference-identical KMC primary shells cast by the exact active rider in the exact mounted pair. The shell still must be admitted through the selected-ability handler, and the child transaction retains native approach-range/LoS and sole actor-owned Standard resource consumption. No ordinary stock hostile-click command and no foreign ability receives this adapter.
+
 ## Principal and ownership
 
 - The rider is the only required selected unit.

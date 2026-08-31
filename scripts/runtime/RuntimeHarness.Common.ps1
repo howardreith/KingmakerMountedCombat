@@ -5638,10 +5638,43 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
         $unmountedRanged = $rowMap['unmounted-ranged-control'].evidence
         if (@($riderPrimary.activations).Count -lt 1 -or
             @($riderPrimary.activations | Where-Object { $_.relationshipEnded -eq $true -or $null -ne $_.cleanupTrigger }).Count -ne 0 -or
+            $riderPrimary.admissionReadiness.allPassed -ne $true -or
+            $riderPrimary.admissionReadiness.riderCanActInCombat -ne $true -or
+            $riderPrimary.admissionReadiness.horseCanActInCombat -ne $true -or
+            $riderPrimary.admissionReadiness.riderCommandsIdle -ne $true -or
+            $riderPrimary.admissionReadiness.horseCommandsIdle -ne $true -or
+            $riderPrimary.admissionReadiness.riderEquipmentIdle -ne $true -or
+            $riderPrimary.admissionReadiness.horseEquipmentIdle -ne $true -or
+            [long]$riderPrimary.nativeInput.targetSelectionStartDelta -ne 1L -or
+            [long]$riderPrimary.nativeInput.targetSelectionEndDelta -ne 1L -or
+            [long]$riderPrimary.nativeInput.nativeCastRequestDelta -ne 1L -or
+            [long]$riderPrimary.nativeInput.nativeRefusalDelta -ne 0L -or
+            [long]$riderPrimary.nativeInput.nativePrimaryShellPrepareDelta -ne 1L -or
+            $riderPrimary.nativeInput.nativeShell.present -ne $true -or
+            $riderPrimary.nativeInput.nativeShell.needLineOfSight -ne $false -or
+            $riderPrimary.nativeInput.nativeShell.inFreeSlot -ne $true -or
+            $riderPrimary.nativeInput.nativeShell.ignoreCooldown -ne $true -or
+            [string]$riderPrimary.nativeInput.nativeShell.executorId -cne [string]$artifact.observations.riderId -or
+            [string]$riderPrimary.nativeInput.nativeShell.type -cne 'Free' -or
+            [long]$riderPrimary.nativeControls.nativePrimaryShellPrepareCount -lt 1L -or
+            $riderPrimary.outcome.actionStandardCharged -ne $true -or
+            [string]$riderPrimary.ledgerBefore.rider.unitId -cne [string]$artifact.observations.riderId -or
+            [string]$riderPrimary.ledgerAfter.rider.unitId -cne [string]$artifact.observations.riderId -or
+            [double]$riderPrimary.ledgerAfter.rider.move -gt [double]$riderPrimary.ledgerBefore.rider.move + 0.001d -or
             [double]$riderPrimaryMovement.horseMovementDistance -le 0.25d -or
             [long]$explicitMount.outcome.action -ne 3L -or
             [string]$explicitMount.outcome.resourceOwnerId -cne [string]$artifact.observations.horseId -or
             [long]$explicitMount.rules.riderAttackRules -ne 0L -or [long]$explicitMount.rules.mountAttackRules -ne 1L -or
+            $explicitMount.admissionReadiness.allPassed -ne $true -or
+            [long]$explicitMount.nativeInput.nativePrimaryShellPrepareDelta -ne 1L -or
+            $explicitMount.nativeInput.nativeShell.needLineOfSight -ne $false -or
+            $explicitMount.nativeInput.nativeShell.ignoreCooldown -ne $true -or
+            [string]$explicitMount.nativeInput.nativeShell.executorId -cne [string]$artifact.observations.riderId -or
+            [long]$explicitMount.nativeControls.nativePrimaryShellPrepareCount -lt 2L -or
+            $explicitMount.outcome.actionStandardCharged -ne $true -or
+            [string]$explicitMount.ledgerBefore.mount.unitId -cne [string]$artifact.observations.horseId -or
+            [string]$explicitMount.ledgerAfter.mount.unitId -cne [string]$artifact.observations.horseId -or
+            [double]$explicitMount.ledgerAfter.rider.move -gt [double]$explicitMount.ledgerBefore.rider.move + 0.001d -or
             [long]$melee.nativeRequestDelta -ne 1L -or [long]$melee.intentStartDelta -ne 1L -or
             [long]$melee.riderDispatchDelta -lt 2L -or [long]$melee.mountDispatchDelta -lt 1L -or
             [long]$melee.duplicateDispatchDelta -ne 0L -or $melee.intentActive -ne $true -or

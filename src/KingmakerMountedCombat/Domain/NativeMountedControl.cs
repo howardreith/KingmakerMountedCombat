@@ -43,6 +43,18 @@ namespace KingmakerMountedCombat.Domain
                 casterIsMount);
         }
 
+        public static bool ShouldPreparePrimaryIntentShell(
+            NativeMountedControlKind kind,
+            bool featureEnabled,
+            bool relationshipMounted,
+            bool exactManagedAbility,
+            bool casterIsExactRider)
+        {
+            return featureEnabled && relationshipMounted && exactManagedAbility && casterIsExactRider &&
+                (kind == NativeMountedControlKind.RiderPrimary ||
+                 kind == NativeMountedControlKind.MountPrimary);
+        }
+
         public static bool IsExpectedPrimaryCaster(
             NativeMountedControlKind kind,
             bool turnBased,

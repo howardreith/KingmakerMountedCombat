@@ -11,6 +11,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("native controls preserve exact RT and TB primary caster ownership", PreservesPrimaryCasterOwnership);
             runner.Run("native controls project unified primary ownership to the rider", ProjectsUnifiedPrimaryOwnership);
             runner.Run("native controls lease unified actions only to the rider principal", LeasesUnifiedActionsToRider);
+            runner.Run("native primary intent shell preparation is exact and pair local", PreparesOnlyExactMountedPrimaryShell);
             runner.Run("native controls explain separate-turn primary ownership", ExplainsWrongTurn);
         }
 
@@ -137,6 +138,46 @@ namespace KingmakerMountedCombat.Tests
                 !NativeMountedControlPolicy.ShouldLease(
                     NativeMountedControlKind.MountPrimary, true, true, false, true, false, false, true),
                 "Unified mount retained a duplicate primary surface.");
+        }
+
+        private static void PreparesOnlyExactMountedPrimaryShell()
+        {
+            foreach (var kind in new[]
+            {
+                NativeMountedControlKind.RiderPrimary,
+                NativeMountedControlKind.MountPrimary
+            })
+            {
+                TestRunner.True(
+                    NativeMountedControlPolicy.ShouldPreparePrimaryIntentShell(
+                        kind, true, true, true, true),
+                    kind + " did not delegate pre-dispatch approach ownership to KMC.");
+            }
+
+            TestRunner.True(
+                !NativeMountedControlPolicy.ShouldPreparePrimaryIntentShell(
+                    NativeMountedControlKind.MountCompanion, true, true, true, true),
+                "Mount Companion lost its native approach contract.");
+            TestRunner.True(
+                !NativeMountedControlPolicy.ShouldPreparePrimaryIntentShell(
+                    NativeMountedControlKind.Dismount, true, true, true, true),
+                "Dismount lost its native approach contract.");
+            TestRunner.True(
+                !NativeMountedControlPolicy.ShouldPreparePrimaryIntentShell(
+                    NativeMountedControlKind.RiderPrimary, true, false, true, true),
+                "An unmounted primary shell received the mounted bypass.");
+            TestRunner.True(
+                !NativeMountedControlPolicy.ShouldPreparePrimaryIntentShell(
+                    NativeMountedControlKind.RiderPrimary, true, true, false, true),
+                "A foreign ability received the KMC primary bypass.");
+            TestRunner.True(
+                !NativeMountedControlPolicy.ShouldPreparePrimaryIntentShell(
+                    NativeMountedControlKind.RiderPrimary, true, true, true, false),
+                "A non-rider caster received the KMC primary bypass.");
+            TestRunner.True(
+                !NativeMountedControlPolicy.ShouldPreparePrimaryIntentShell(
+                    NativeMountedControlKind.RiderPrimary, false, true, true, true),
+                "A disabled KMC surface received the primary bypass.");
         }
     }
 }

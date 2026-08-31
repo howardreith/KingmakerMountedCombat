@@ -1,5 +1,22 @@
 # Autonomous blockers
 
+## Phase 3D dev.4 bounded primary-shell repair is offline-green; live attribution remains (2026-08-31T09:07:57-04:00)
+
+Status: `IN PROGRESS`.
+
+There is no current external or proven architecture blocker. Dev.4 implements the one bounded repair authorized by the immutable dev.3 RT A failure: exact native-start readiness evidence plus an exact-reference mounted-primary `UnitUseAbility.Init` shell correction. A later exact cooldown audit supersedes the earlier provisional "no IgnoreCooldown" disposition: Kingmaker RT charges an acted `Free` shell to rider Move, so leaving it chargeable would double-consume rider Move and child-actor Standard. Pair-local native `IgnoreCooldown()` makes only this delivery shell resource-neutral; the child Standard command remains fully native and separately charged.
+
+The complete repaired tree passes source `22/0`, Release, component `293/0`, visual `18/0`, harness `237/0`, assembly `380/0`, PowerShell `26/0`, JSON `7/0`, diff, and prohibited-payload gates. The exact pre-commit DLL SHA-256/MVID are `49e0d0e22a9cccd2747d2764451b4a2d9ac128cb43dddde91a5c1e7bed9c14a1` / `5c5d523a-3c48-4129-9cd0-0cff0d9c53e8`. No live state changed.
+
+The remaining question is now exact live attribution. Publish/package/suite admission and fresh audited RT A/B must prove one native selected-ability request, one resource-neutral shell delivery, one KMC child command, one correct actor Standard charge, zero rider Move shell charge, one attack outcome, and an intact pair. If that evidence fails after this bounded repair, retain the accepted separate-turn fallback and record the architecture disposition; do not layer another global LoS, cooldown, dispatcher, initiative, or remount patch.
+
+## Phase 3D dev.3 native Rider Primary pre-dispatch deadline - attributable repair in progress (2026-08-31T08:08:27-04:00)
+
+- This is not an external blocker and does not justify stopping. Guarded RT A `20260831T062000Z-phase3d-dev3-rt-passA` restored exactly, and its mandatory audit passed before inspection.
+- The native handler admitted one exact Rider Primary hostile cast request while mounted, but no ability delivery or KMC child command began before the 30-second deadline. Target cancel and invalid friendly rejection independently retained the pair.
+- Exact audit found two pre-dispatch ownership gaps: the Phase 3D diagnostic admitted the click before Kingmaker's complete RT command-start gates, and the stock `UnitUseAbility` shell retained its own LoS/approach contract even though the KMC mount-owned child transaction is the authorized approach owner.
+- Disposition: consume the one bounded attributable repair cycle with exact readiness evidence and an exact KMC-primary-only non-approaching intent shell. Do not weaken the deadline, call KMC dispatch directly, ignore cooldowns, globally suppress LoS, or auto-remount. If the fresh repaired package still cannot produce one exact native delivery without duplicate action/resource behavior, record the architecture disposition and retain the Phase 3C separate-turn fallback.
+
 ## Phase 3D dev.2 Horse pose precondition repaired once in stable mount-root coordinates - 2026-08-31T04:29:18Z
 
 Status: `IN PROGRESS`.

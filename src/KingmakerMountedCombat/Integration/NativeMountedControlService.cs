@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Reflection;
 using Kingmaker;
@@ -13,6 +14,7 @@ using Kingmaker.UI.Selection;
 using Kingmaker.UI.UnitSettings;
 using Kingmaker.UnitLogic.Abilities;
 using Kingmaker.UnitLogic.Abilities.Blueprints;
+using Kingmaker.UnitLogic.Commands;
 using Kingmaker.UnitLogic.Commands.Base;
 using Kingmaker.Utility;
 using Kingmaker.Visual.Animation.Kingmaker.Actions;
@@ -38,6 +40,8 @@ namespace KingmakerMountedCombat.Integration
         public long NativeRefusalCount { get; set; }
         public long DispatchAcceptedCount { get; set; }
         public long DispatchRejectedCount { get; set; }
+        public long NativePrimaryShellPrepareCount { get; set; }
+        public string LastNativePrimaryShellObservation { get; set; }
         public int ActivationRecordCount { get; set; }
         public int RiderPrimaryRelationshipEndCount { get; set; }
     }
@@ -144,6 +148,47 @@ namespace KingmakerMountedCombat.Integration
         internal long DispatchAcceptedCount { get; private set; }
 
         internal long DispatchRejectedCount { get; private set; }
+
+        internal long NativePrimaryShellPrepareCount { get; private set; }
+
+        internal string LastNativePrimaryShellObservation { get; private set; } = "not-observed";
+
+        internal bool PrepareNativePrimaryIntentShell(UnitUseAbility command)
+        {
+            var blueprint = command?.Spell?.Blueprint;
+            var kind = ResolveKind(blueprint);
+            var rider = relationship.Rider;
+            var exactManagedAbility = ReferenceEquals(blueprint, riderPrimaryAbility) ||
+                ReferenceEquals(blueprint, mountPrimaryAbility);
+            var casterIsExactRider = command?.Executor != null && command.Executor == rider &&
+                command.Spell?.Caster?.Unit == rider;
+            if (!NativeMountedControlPolicy.ShouldPreparePrimaryIntentShell(
+                    kind,
+                    !disposed && enabled && registered && !serializationSuspended,
+                    relationship.State == RelationshipState.Mounted,
+                    exactManagedAbility,
+                    casterIsExactRider))
+            {
+                return false;
+            }
+
+            var needLineOfSightBefore = command.NeedLoS;
+            var ignoreCooldownBefore = command.IsIgnoreCooldown;
+            command.NeedLoS = false;
+            command.IgnoreCooldown();
+            NativePrimaryShellPrepareCount++;
+            LastNativePrimaryShellObservation = "kind=" + kind +
+                ";commandOwner=" + rider.UniqueId +
+                ";target=" + (command.Target?.Unit?.UniqueId ?? "<none>") +
+                ";needLoSBefore=" + needLineOfSightBefore +
+                ";needLoSAfter=" + command.NeedLoS +
+                ";ignoreCooldownBefore=" + ignoreCooldownBefore +
+                ";ignoreCooldownAfter=" + command.IsIgnoreCooldown +
+                ";approachRadius=" + command.ApproachRadius.ToString("R", CultureInfo.InvariantCulture);
+            logger.Info("Prepared exact mounted primary native intent shell: " +
+                LastNativePrimaryShellObservation + ".");
+            return true;
+        }
 
         internal void SetEnabled(bool value)
         {
@@ -399,6 +444,8 @@ namespace KingmakerMountedCombat.Integration
                 NativeRefusalCount = NativeRefusalCount,
                 DispatchAcceptedCount = DispatchAcceptedCount,
                 DispatchRejectedCount = DispatchRejectedCount,
+                NativePrimaryShellPrepareCount = NativePrimaryShellPrepareCount,
+                LastNativePrimaryShellObservation = LastNativePrimaryShellObservation,
                 ActivationRecordCount = activations.Count,
                 RiderPrimaryRelationshipEndCount = activations.Count(record =>
                     record.Kind == NativeMountedControlKind.RiderPrimary && record.RelationshipEnded)

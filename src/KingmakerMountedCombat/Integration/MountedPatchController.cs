@@ -52,6 +52,7 @@ namespace KingmakerMountedCombat.Integration
 
                 PatchExact(typeof(ClickGroundHandler), "RunCommand", 0x060093DC, new[] { typeof(UnitEntityData), typeof(UnityEngine.Vector3), typeof(float?), typeof(float), typeof(float), typeof(bool) }, nameof(PatchMethods.GroundCommandPrefix), nameof(PatchMethods.GroundCommandPostfix));
                 PatchExact(typeof(UnitCommands), "Run", 0x060026B2, new[] { typeof(UnitCommand) }, nameof(PatchMethods.UnitCommandRunPrefix));
+                PatchExact(typeof(UnitUseAbility), "Init", 0x06002728, new[] { typeof(UnitEntityData) }, null, nameof(PatchMethods.NativeAbilityInitPostfix));
                 PatchExact(typeof(SelectionManager), "SelectUnit", 0x060034F0, new[] { typeof(UnitEntityView), typeof(bool), typeof(bool), typeof(bool) }, nameof(PatchMethods.SelectUnitPrefix));
                 PatchExact(typeof(SelectionManager), "MultiSelect", 0x060034F5, new[] { typeof(IEnumerable<UnitEntityView>), typeof(bool) }, nameof(PatchMethods.MultiSelectPrefix));
                 PatchExact(typeof(SelectionManagerBase), "Stop", 0x060000B9, Type.EmptyTypes, nameof(PatchMethods.StopOrHoldPrefix));
@@ -82,7 +83,7 @@ namespace KingmakerMountedCombat.Integration
                     true);
                 PatchExact(trackerType, "UpdateUnits", 0x06004F0E, Type.EmptyTypes, nameof(PatchMethods.TrackerUpdatePrefix), nameof(PatchMethods.TrackerUpdatePostfix));
                 PatchExact(typeof(UnitActionController), "TickCommandTurnBased", 0x0600911D, new[] { typeof(UnitCommand) }, null, nameof(PatchMethods.TickCommandTurnBasedPostfix));
-                logger.Info("Installed twenty-nine exact-token Harmony12 active-pair guards, unified-turn adapters, and bounded probes.");
+                logger.Info("Installed thirty exact-token Harmony12 active-pair guards, unified-turn adapters, and bounded probes.");
             }
             catch
             {
@@ -195,6 +196,11 @@ namespace KingmakerMountedCombat.Integration
                     return false;
                 }
                 return PatchBridge.Combat == null || PatchBridge.Combat.ShouldAllowStockCommand(__instance, cmd);
+            }
+
+            internal static void NativeAbilityInitPostfix(UnitUseAbility __instance)
+            {
+                PatchBridge.NativeControls?.PrepareNativePrimaryIntentShell(__instance);
             }
 
             internal static void CommandInterruptPrefix(UnitCommand __instance)
