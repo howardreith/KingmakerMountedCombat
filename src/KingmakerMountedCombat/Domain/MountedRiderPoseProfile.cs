@@ -131,6 +131,12 @@ namespace KingmakerMountedCombat.Domain
 
     public static class MountedRiderPoseProfiles
     {
+        public static readonly PoseVector3 MediumHumanoidOnMammothMountRootPositionOffset =
+            new PoseVector3(0f, 0f, 0f);
+
+        public static readonly PoseVector3 MediumHumanoidOnHorseMountRootPositionOffset =
+            new PoseVector3(0f, -0.08f, 0f);
+
         public static readonly MountedRiderPoseProfile MediumHumanoidOnMammoth = new MountedRiderPoseProfile(
             "medium-humanoid-mammoth-v1",
             "Pelvis",
@@ -157,13 +163,14 @@ namespace KingmakerMountedCombat.Domain
         // coordinate. The narrower lateral deltas therefore account for the
         // rider's existing hip span instead of adding that span to the stirrup
         // span. Phase 3C Candidate C was lowered 0.14 from the human-reviewed
-        // dev.23 value but still showed a visible saddle gap. Phase 3D bounded
-        // the final vertical-only comparison to -0.25, -0.27, and -0.29 in this
-        // exact pelvis-local coordinate space (current minus 0.08/0.10/0.12).
-        // The -0.29 candidate deliberately favors saddle contact over the
-        // Phase 3C suspended silhouette. The complete rider leg chain follows
-        // the pelvis translation, so the already stable Horse-only stirrup,
-        // knee, bend, and longitudinal targets remain unchanged.
+        // dev.23 value but still showed a visible saddle gap. Phase 3D runtime
+        // evidence proved that another pelvis-local delta is projected through
+        // animation-dependent bone axes: local -0.12 became a diagonal ~0.29
+        // world-unit displacement and put the right foot 0.533 from its native
+        // stirrup. Keep the accepted Phase 3C procedural pose here. The final
+        // Horse-only lowering is an exact -0.08 mount-root-local translation in
+        // the profile catalog and applied by SupportedMountedProfiles; Mammoth
+        // retains a zero root translation.
         // Candidate A proved stable but left the feet 0.557/0.598 world units
         // above and behind the assigned native stirrups. Candidate B was stable
         // and materially improved the human silhouette but remained slightly
@@ -174,7 +181,7 @@ namespace KingmakerMountedCombat.Domain
         public static readonly MountedRiderPoseProfile MediumHumanoidOnHorse = new MountedRiderPoseProfile(
             "medium-humanoid-horse-v1",
             "Pelvis",
-            new PoseVector3(0f, -0.29f, -0.02f),
+            new PoseVector3(0f, -0.17f, -0.02f),
             new PoseVector3(5f, 0f, 0f),
             new MountedRiderLegPoseProfile(
                 "L_Up_leg",

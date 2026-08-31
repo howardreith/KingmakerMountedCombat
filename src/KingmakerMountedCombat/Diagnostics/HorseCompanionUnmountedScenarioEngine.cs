@@ -3047,9 +3047,11 @@ namespace KingmakerMountedCombat.Diagnostics
             return new JObject
             {
                 ["candidateCount"] = 3,
-                ["candidateId"] = "horse-human-review-20260829-c",
+                ["candidateId"] = "phase3d-horse-root-minus-0.08",
                 ["dev23PelvisPositionOffset"] = PoseVector(new PoseVector3(0f, 0.02f, -0.02f)),
                 ["selectedPelvisPositionOffset"] = PoseVector(profile.PelvisPositionOffset),
+                ["selectedMountRootPositionOffset"] = PoseVector(
+                    SupportedMountedProfiles.Horse.MountRootPositionOffset),
                 ["dev23LeftFootTargetFromThigh"] = PoseVector(new PoseVector3(-0.305f, -0.46f, 0.044f)),
                 ["selectedLeftFootTargetFromThigh"] = PoseVector(profile.LeftLeg.FootTargetFromThigh),
                 ["dev23RightFootTargetFromThigh"] = PoseVector(new PoseVector3(0.305f, -0.46f, 0.044f)),

@@ -1,5 +1,15 @@
 # Autonomous blockers
 
+## Phase 3D dev.2 Horse pose precondition repaired once in stable mount-root coordinates - 2026-08-31T04:29:18Z
+
+Status: `IN PROGRESS`.
+
+Dev.2 RT A is an immutable uncredited `44/1` pre-gameplay failure. It did not test shared initiative, stock attacks, ranged behavior, combat Mount/Dismount, or five-foot steps. A focused same-DLL observation proved a genuine presentation precondition defect: applying local pelvis `-0.12` through animated bone axes produced a diagonal ~`0.29` world displacement and right-stirrup distance `0.5325693`, above the unchanged `0.5` gate. Both failed runs independently restored Mods, protected saves, Baseline, Working, locks, and processes before evidence inspection.
+
+The one bounded Horse calibration repair is now offline-green in dev.3. It restores the accepted Phase 3C procedural pelvis/leg pose and applies exact Horse-only mount-root-local `Y=-0.08`; Mammoth root offset remains zero. Thresholds are unchanged. No current safety or architecture blocker is established, but live pose and gameplay uncertainty remain. If the repaired pose still fails its mechanical gate, preserve the evidence and stop pose iteration; do not start another calibration loop.
+
+Exact next action is clean dev.3 publication/package/suite admission and fresh audited RT/TB qualification. The separate-turn fallback remains mandatory if the first actual shared-turn evidence exposes duplicate/skipped turns or resource refresh that the already bounded architecture repair allowance cannot safely contain.
+
 ## Phase 3D dev.1 diagnostic admission failure repaired; gameplay uncertainty remains live-only - 2026-08-31T01:30:04Z
 
 Status: `IN PROGRESS`.

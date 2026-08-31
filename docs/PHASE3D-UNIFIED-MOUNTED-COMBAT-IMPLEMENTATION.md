@@ -6,7 +6,7 @@ Status: IN PROGRESS — production and runtime automation are offline-green; fre
 
 Phase 3D starts from accepted Phase 3C HEAD `63595b832f7f89c854edef5a9eb4d21dee026590` on `codex/mounted-combat-phase3d-unified-combat`. The production implementation checkpoint is `9bf83d21b5367e057130b41bf7379512a638c025`; the presentation checkpoint is `63d324d909ec333cd16cde5e942f419759faa664`. The runtime protocol/scenario checkpoint described here is not a runtime PASS until it is committed, guarded-published, packaged from clean HEAD, and exercised against the exact guarded Kingmaker fixture.
 
-Current development version is `0.1.0-phase3d-dev.2`. The immutable dev.1 package reached Kingmaker but failed before Phase 3D gameplay because the nested Horse registration prerequisite omitted the new outer scenario names. Dev.2 changes only that exact diagnostic admission boundary through a seven-name closed policy with an unknown-scenario regression; no production gameplay behavior changed. Fresh clean dev.2 package identity remains pending.
+Current development version is `0.1.0-phase3d-dev.3`. The immutable dev.1 package failed before gameplay at nested registration admission. Dev.2 repaired that boundary, passed RT/TB WhatIf, and reached the Horse presentation precondition, where RT A stopped before the Phase 3D tranche because the Phase 3D pelvis-local lowering exceeded the unchanged right-stirrup gate. Dev.3 is the single evidence-backed Horse-coordinate repair described below; fresh clean identity and runtime evidence remain pending.
 
 ## First runtime checkpoint
 
@@ -38,10 +38,12 @@ The exact Kingmaker bundle inventory did not expose a safely reusable saddle/tac
 
 - `MountSaddleIcon.png`, 128x128, is used only for Mount/Dismount and communicates tack rather than Horse identity;
 - `HorsePortraitSmall.png`, 185x242, is a tighter original close-up derived from the KMC-owned Horse master; large and medium Horse portraits remain unchanged;
-- the final Horse pelvis candidate is local `Y=-0.29`, a substantive `-0.12` reduction from the Phase 3C baseline;
+- the accepted Horse procedural pelvis/leg pose remains local `Y=-0.17`; the final lowering is exact Horse mount-root-local `Y=-0.08`, applied after source-anchor resolution so animation-driven pelvis axes cannot turn a vertical product decision into a diagonal displacement;
 - all Mammoth profile constants and resources remain unchanged.
 
 The image-generation skill supplied the original KMC saddle master and the KMC-master-derived small portrait crop. No Wrath, Kingmaker, YouTube, screenshot, or third-party artwork is embedded or redistributed. Exact prompts, dimensions, rights boundary, and hashes are recorded in `planning/MOUNT-ICON-ASSET-AUDIT.md`.
+
+Dev.2 runtime attribution is exact: `Pelvis.localPosition Y=-0.29` produced left/right stirrup distances `0.491643876/0.5325693` despite zero clamps and microunit solver residuals. The second value truthfully failed the existing `0.5` gate. Dev.3 restores the Phase 3C procedural pose and moves the owned Horse rider root by `(0,-0.08,0)` in the stable mount-root frame. Mammoth root offset is `(0,0,0)`. The gate is unchanged, and actual saddle contact/clipping remains manual review.
 
 ## Strict runtime tranche
 

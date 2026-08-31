@@ -455,6 +455,9 @@ namespace KingmakerMountedCombat.Diagnostics
             observations["pelvisOffset"] = JObject.FromObject(
                 horsePose.PelvisPositionOffset,
                 JsonSerializer.Create(JsonSettings));
+            observations["mountRootPositionOffset"] = JObject.FromObject(
+                SupportedMountedProfiles.Horse.MountRootPositionOffset,
+                JsonSerializer.Create(JsonSettings));
 
             AddRow(
                 "Horse-small-portrait-close-up",
@@ -473,10 +476,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Horse-pose-final-idle-walk-run-turn-stop",
                 relationship.State == RelationshipState.Mounted && runtime.PoseHealthy && runtime.PoseFrameApplied &&
                     string.Equals(runtime.MountProfileId, SupportedMountedProfiles.Horse.Id, StringComparison.Ordinal) &&
-                    Math.Abs(horsePose.PelvisPositionOffset.Y - (-0.29d)) <= 0.0001d &&
+                    Math.Abs(horsePose.PelvisPositionOffset.Y - (-0.17d)) <= 0.0001d &&
+                    Math.Abs(SupportedMountedProfiles.Horse.MountRootPositionOffset.Y - (-0.08d)) <= 0.0001d &&
+                    SupportedMountedProfiles.Mammoth.MountRootPositionOffset.Magnitude <= 0.0001f &&
                     runtime.PoseFootTargetClampCount == 0 &&
                     runtime.PoseMaximumSegmentLengthResidualWorldUnits <= 0.0001d,
-                "The final Horse-only profile applies pelvis Y=-0.29 with healthy bounded procedural pose state; visual contact remains a manual gate.",
+                "The final Horse-only profile preserves the accepted pelvis/leg pose and lowers the rider by exact mount-root-local Y=-0.08 with healthy bounded procedural pose state; visual contact remains a manual gate.",
                 JObject.FromObject(presentation, JsonSerializer.Create(JsonSettings)));
             AddRow(
                 "mounted-single-rider-turn-portrait",

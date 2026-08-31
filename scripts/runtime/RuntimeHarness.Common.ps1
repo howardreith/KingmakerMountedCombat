@@ -5403,6 +5403,7 @@ function Assert-KmcHorseCompanionUnmountedEvidence {
                 $pose = $o.horsePoseCalibration
                 Assert-KmcExactProperties $pose @(
                     'candidateCount','candidateId','dev23PelvisPositionOffset','selectedPelvisPositionOffset',
+                    'selectedMountRootPositionOffset',
                     'dev23LeftFootTargetFromThigh','selectedLeftFootTargetFromThigh',
                     'dev23RightFootTargetFromThigh','selectedRightFootTargetFromThigh',
                     'dev23LeftKneeHintFromThigh','selectedLeftKneeHintFromThigh',
@@ -5414,16 +5415,20 @@ function Assert-KmcHorseCompanionUnmountedEvidence {
                     'maximumSegmentLengthResidualWorldUnits','maximumApplyMicroseconds','averageApplyMicroseconds') `
                     'horse pose calibration'
                 foreach ($vectorName in @(
-                    'dev23PelvisPositionOffset','selectedPelvisPositionOffset','dev23LeftFootTargetFromThigh',
+                    'dev23PelvisPositionOffset','selectedPelvisPositionOffset','selectedMountRootPositionOffset',
+                    'dev23LeftFootTargetFromThigh',
                     'selectedLeftFootTargetFromThigh','dev23RightFootTargetFromThigh','selectedRightFootTargetFromThigh',
                     'dev23LeftKneeHintFromThigh','selectedLeftKneeHintFromThigh','dev23RightKneeHintFromThigh',
                     'selectedRightKneeHintFromThigh','pelvisFromChestMountLocal',
                     'leftFootFromAssignedStirrupMountLocal','rightFootFromAssignedStirrupMountLocal')) {
                     Assert-KmcExactProperties $pose.$vectorName @('x','y','z') "horse pose $vectorName"
                 }
-                if ([long]$pose.candidateCount -ne 3 -or [string]$pose.candidateId -cne 'horse-human-review-20260829-c' -or
+                if ([long]$pose.candidateCount -ne 3 -or [string]$pose.candidateId -cne 'phase3d-horse-root-minus-0.08' -or
                     [double]$pose.dev23PelvisPositionOffset.y -ne 0.02 -or
                     [double]$pose.selectedPelvisPositionOffset.y -ne -0.17 -or
+                    [double]$pose.selectedMountRootPositionOffset.x -ne 0.0 -or
+                    [double]$pose.selectedMountRootPositionOffset.y -ne -0.08 -or
+                    [double]$pose.selectedMountRootPositionOffset.z -ne 0.0 -or
                     [double]$pose.dev23LeftFootTargetFromThigh.x -ne -0.305 -or
                     [double]$pose.selectedLeftFootTargetFromThigh.x -ne -0.15 -or
                     [double]$pose.selectedLeftFootTargetFromThigh.y -ne -0.62 -or
@@ -5609,8 +5614,11 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
             [long]$rowMap['Horse-small-portrait-close-up'].evidence.sprite.textureHeight -ne 242L -or
             [long]$rowMap['saddle-icon'].evidence.sprite.textureWidth -ne 128L -or
             [long]$rowMap['saddle-icon'].evidence.sprite.textureHeight -ne 128L -or
-            [double]$artifact.observations.pelvisOffset.y -ne -0.29d) {
-            throw 'PASS Phase 3D Horse presentation evidence does not bind the exact final portrait, saddle, and pelvis profile.'
+            [double]$artifact.observations.pelvisOffset.y -ne -0.17d -or
+            [double]$artifact.observations.mountRootPositionOffset.x -ne 0.0d -or
+            [double]$artifact.observations.mountRootPositionOffset.y -ne -0.08d -or
+            [double]$artifact.observations.mountRootPositionOffset.z -ne 0.0d) {
+            throw 'PASS Phase 3D Horse presentation evidence does not bind the exact final portrait, saddle, procedural pose, and mount-root vertical offset.'
         }
     }
     elseif ([string]$artifact.status -ceq 'PASS' -and [string]$Request.scenario -ceq 'phase3d-unified-combat-rt-suite') {
@@ -6000,8 +6008,11 @@ function Assert-KmcHorseNativeControlsUxEvidence {
 
         $pose = $o.horsePoseCalibration
         if ([long]$pose.candidateCount -ne 3 -or
-            [string]$pose.candidateId -cne 'horse-human-review-20260829-c' -or
+            [string]$pose.candidateId -cne 'phase3d-horse-root-minus-0.08' -or
             [double]$pose.selectedPelvisPositionOffset.y -ne -0.17 -or
+            [double]$pose.selectedMountRootPositionOffset.x -ne 0.0 -or
+            [double]$pose.selectedMountRootPositionOffset.y -ne -0.08 -or
+            [double]$pose.selectedMountRootPositionOffset.z -ne 0.0 -or
             [double]$pose.selectedLeftFootTargetFromThigh.x -ne -0.15 -or
             [double]$pose.selectedRightFootTargetFromThigh.x -ne 0.15 -or
             [double]$pose.leftFootToAssignedStirrup -gt 0.5 -or

@@ -94,7 +94,7 @@ Each mounted row records actual `ClickUnitHandler` admission, exact stock comman
 | saddle-icon | native safe reference or original KMC-owned saddle art; no Wrath asset | IN PROGRESS - native path/manifest scan found no safe reference; original KMC saddle integrated; runtime rendering/human legibility pending |
 | mount-ability-in-combat | visible, eligible, one rider Move cost | TODO |
 | dismount-ability-in-combat | visible, one rider Move cost, no extra turn | TODO |
-| Horse-pose-final-idle-walk-run-turn-stop | final one-cycle lower-seat acceptance | IN PROGRESS - Phase3D-C `Y=-0.29` selected; fresh runtime/manual evidence pending |
+| Horse-pose-final-idle-walk-run-turn-stop | final one-cycle lower-seat acceptance | IN PROGRESS - dev.2 pelvis-local `Y=-0.29` failed exact right-stirrup gate (`0.5325693`); single repair preserves pelvis `Y=-0.17` and applies stable Horse mount-root `Y=-0.08`; fresh dev.3 runtime/manual evidence pending |
 | Horse-pose-Mammoth-unchanged | Mammoth profile bytes and behavior unchanged | IN PROGRESS - source constants and component locks unchanged; focused runtime regression pending |
 | Horse creation/lifecycle/save reload | previously qualified behavior remains exact | TODO |
 | door approach/open/traverse | pair interaction remains exact | TODO |

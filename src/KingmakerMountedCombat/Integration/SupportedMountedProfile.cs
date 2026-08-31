@@ -12,6 +12,7 @@ namespace KingmakerMountedCombat.Integration
             string displayName,
             string sourceAnchorName,
             PoseVector3 sourceAnchorOffset,
+            PoseVector3 mountRootPositionOffset,
             PoseVector3 riderEulerOffset,
             MountedRiderPoseProfile riderPoseProfile,
             bool usesDiagnosticMammothOffsets)
@@ -21,6 +22,7 @@ namespace KingmakerMountedCombat.Integration
             DisplayName = displayName ?? throw new ArgumentNullException(nameof(displayName));
             SourceAnchorName = sourceAnchorName ?? throw new ArgumentNullException(nameof(sourceAnchorName));
             SourceAnchorOffset = sourceAnchorOffset;
+            MountRootPositionOffset = mountRootPositionOffset;
             RiderEulerOffset = riderEulerOffset;
             RiderPoseProfile = riderPoseProfile ?? throw new ArgumentNullException(nameof(riderPoseProfile));
             UsesDiagnosticMammothOffsets = usesDiagnosticMammothOffsets;
@@ -35,6 +37,15 @@ namespace KingmakerMountedCombat.Integration
         public string SourceAnchorName { get; }
 
         public PoseVector3 SourceAnchorOffset { get; }
+
+        /// <summary>
+        /// A stable mount-root-local translation applied after resolving the
+        /// animated source anchor. This remains zero for the historical
+        /// Mammoth profile. Horse seat-height calibration belongs here so a
+        /// vertical product decision is not projected through an animated
+        /// humanoid pelvis bone's local axes.
+        /// </summary>
+        public PoseVector3 MountRootPositionOffset { get; }
 
         public PoseVector3 RiderEulerOffset { get; }
 
@@ -54,6 +65,7 @@ namespace KingmakerMountedCombat.Integration
             "Mammoth",
             "Spine",
             new PoseVector3(0f, 0f, 0f),
+            MountedRiderPoseProfiles.MediumHumanoidOnMammothMountRootPositionOffset,
             new PoseVector3(0f, 0f, 0f),
             MountedRiderPoseProfiles.MediumHumanoidOnMammoth,
             true);
@@ -64,6 +76,7 @@ namespace KingmakerMountedCombat.Integration
             "Horse",
             "Chest",
             new PoseVector3(0f, 0f, 0f),
+            MountedRiderPoseProfiles.MediumHumanoidOnHorseMountRootPositionOffset,
             new PoseVector3(0f, 0f, 0f),
             MountedRiderPoseProfiles.MediumHumanoidOnHorse,
             false);

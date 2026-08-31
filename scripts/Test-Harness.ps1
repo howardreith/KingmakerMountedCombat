@@ -9563,9 +9563,10 @@ try {
         $mountedObservations.horseSourceAnchor = 'Chest'
         $mountedObservations.horsePresentationAtMount = 'poseLease=True;attachmentLease=True'
         $mountedObservations.horsePoseCalibration = [ordered]@{
-            candidateCount=3;candidateId='horse-human-review-20260829-c'
+            candidateCount=3;candidateId='phase3d-horse-root-minus-0.08'
             dev23PelvisPositionOffset=[ordered]@{x=0.0;y=0.02;z=-0.02}
             selectedPelvisPositionOffset=[ordered]@{x=0.0;y=-0.17;z=-0.02}
+            selectedMountRootPositionOffset=[ordered]@{x=0.0;y=-0.08;z=0.0}
             dev23LeftFootTargetFromThigh=[ordered]@{x=-0.305;y=-0.46;z=0.044}
             selectedLeftFootTargetFromThigh=[ordered]@{x=-0.15;y=-0.62;z=0.11}
             dev23RightFootTargetFromThigh=[ordered]@{x=0.305;y=-0.46;z=0.044}
@@ -9769,8 +9770,9 @@ try {
             horseSourceAnchor='Chest';relationshipState='Unmounted';horseRemoved=$true;targetRemoved=$true
             unrelatedPartyPetsPreserved=$true
             horsePoseCalibration=[ordered]@{
-                candidateCount=3;candidateId='horse-human-review-20260829-c'
+                candidateCount=3;candidateId='phase3d-horse-root-minus-0.08'
                 selectedPelvisPositionOffset=[ordered]@{x=0.0;y=-0.17;z=-0.02}
+                selectedMountRootPositionOffset=[ordered]@{x=0.0;y=-0.08;z=0.0}
                 selectedLeftFootTargetFromThigh=[ordered]@{x=-0.15;y=-0.62;z=0.11}
                 selectedRightFootTargetFromThigh=[ordered]@{x=0.15;y=-0.62;z=0.11}
                 leftFootToAssignedStirrup=0.2;rightFootToAssignedStirrup=0.2
@@ -9884,7 +9886,8 @@ try {
             if ($phase3dScenario -ceq 'phase3d-horse-presentation-suite') {
                 $rowByName['Horse-small-portrait-close-up'].evidence = [ordered]@{sprite=[ordered]@{textureWidth=185;textureHeight=242}}
                 $rowByName['saddle-icon'].evidence = [ordered]@{sprite=[ordered]@{textureWidth=128;textureHeight=128}}
-                $observations.pelvisOffset = [ordered]@{x=0.0;y=-0.29;z=-0.02}
+                $observations.pelvisOffset = [ordered]@{x=0.0;y=-0.17;z=-0.02}
+                $observations.mountRootPositionOffset = [ordered]@{x=0.0;y=-0.08;z=0.0}
             }
             elseif ($phase3dScenario -ceq 'phase3d-unified-combat-rt-suite') {
                 $primaryEvidence = [ordered]@{
@@ -9989,7 +9992,7 @@ try {
             Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
 
             if ($phase3dScenario -ceq 'phase3d-horse-presentation-suite') {
-                $phase3dArtifact.observations.pelvisOffset.y = -0.17
+                $phase3dArtifact.observations.mountRootPositionOffset.y = 0.0
             }
             elseif ($phase3dScenario -ceq 'phase3d-unified-combat-rt-suite') {
                 $rowByName['mounted-bow-auto-fire-rt'].evidence.mountDispatchDelta = 1

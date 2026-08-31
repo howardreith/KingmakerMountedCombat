@@ -384,7 +384,8 @@ namespace KingmakerMountedCombat.Integration
             positionAnchorObject.hideFlags = HideFlags.HideAndDontSave;
             positionAnchor = positionAnchorObject.transform;
             positionAnchor.SetParent(mountView.transform, false);
-            positionAnchor.localPosition = mountView.transform.InverseTransformPoint(desiredWorldPosition);
+            positionAnchor.localPosition = mountView.transform.InverseTransformPoint(desiredWorldPosition) +
+                ToUnity(supportedProfile.MountRootPositionOffset);
             positionAnchor.localRotation = Quaternion.identity;
             positionAnchor.localScale = Vector3.one;
 
