@@ -25,6 +25,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("request accepts horse mounted alpha suite", RequestAcceptsHorseMountedAlphaSuite);
             runner.Run("request accepts horse native-controls UX suite", RequestAcceptsHorseNativeControlsUxSuite);
             runner.Run("request accepts Phase 3D Horse suites", RequestAcceptsPhase3dHorseSuites);
+            runner.Run("registration audit accepts exact Horse parent scenarios", RegistrationAuditAcceptsExactHorseParentScenarios);
             runner.Run("request accepts private-alpha human-play combat rows", RequestAcceptsHumanPlayCombatRows);
             runner.Run("request requires exact qualification-suite identity", RequestRequiresQualificationSuiteIdentity);
             runner.Run("request accepts read-only manual visual review", RequestAcceptsReadOnlyManualReview);
@@ -190,6 +191,31 @@ namespace KingmakerMountedCombat.Tests
                 request.Scenario = scenario;
                 TestRunner.Equal(0, request.Validate().Count, scenario + " request was rejected.");
             }
+        }
+
+        private static void RegistrationAuditAcceptsExactHorseParentScenarios()
+        {
+            foreach (var scenario in new[]
+            {
+                "horse-companion-blueprint-registration",
+                "horse-companion-unmounted-suite",
+                "horse-mounted-alpha-suite",
+                "horse-native-controls-ux-suite",
+                "phase3d-unified-combat-rt-suite",
+                "phase3d-unified-combat-tb-suite",
+                "phase3d-horse-presentation-suite"
+            })
+            {
+                TestRunner.Equal(
+                    true,
+                    HorseCompanionRegistrationScenarioPolicy.SupportsScenario(scenario),
+                    scenario + " was rejected by the registration prerequisite.");
+            }
+
+            TestRunner.Equal(
+                false,
+                HorseCompanionRegistrationScenarioPolicy.SupportsScenario("foreign-horse-scenario"),
+                "The registration prerequisite accepted an unknown scenario.");
         }
 
         private static void RequestAcceptsHumanPlayCombatRows()

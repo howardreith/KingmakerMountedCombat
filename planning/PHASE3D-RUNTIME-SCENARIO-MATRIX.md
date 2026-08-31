@@ -10,6 +10,8 @@ The strict runtime tranche is implemented for three guarded outer scenarios: `ph
 
 The new aggregates directly cover the core presentation, Rider Primary, stock melee, Shortbow/Light Crossbow/Sling, mode-transition, shared-turn, combat Mount/Dismount, five-foot, ordinary AoO, and unmounted-control rows. Rider/mount native incapacitation, full lifecycle/save/area/Wild Shape/door regressions, and the focused Mammoth regression remain separate existing guarded scenarios. Any matrix item not physically exercised by the aggregates must be run separately or retained as an explicit manual/known-limit gate.
 
+Dev.1 RT attempt `20260830T233000Z-phase3d-dev1-rt-passA` is immutable uncredited `FAIL 3/1` before this matrix began: its nested Horse registration prerequisite rejected the new outer scenario name, so no Phase 3D artifact or gameplay row existed. Mandatory postrun restoration passed. Dev.2 repairs only that exact closed scenario allowlist and passes the complete offline gate; every matrix row below remains uncredited until fresh dev.2 evidence.
+
 ## Shared initiative
 
 | Scenario | RT | TB | Required proof | Status |

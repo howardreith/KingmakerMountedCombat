@@ -1,5 +1,13 @@
 # Autonomous blockers
 
+## Phase 3D dev.1 diagnostic admission failure repaired; gameplay uncertainty remains live-only - 2026-08-31T01:30:04Z
+
+Status: `IN PROGRESS`.
+
+Dev.1 RT A is an immutable uncredited pre-gameplay `FAIL`, not a shared-turn or attack architecture failure. The exact nested Horse registration prerequisite omitted the new outer scenario names. The one attributable instrumentation repair is complete in dev.2 through a closed seven-name policy with an unknown-scenario rejection regression. Complete repaired offline gates pass.
+
+The postrun audit proves the failure left exact save/Mods/Baseline/Working state and zero process/lock/deployment residue. No current safety or architecture blocker is established. Gameplay qualification still requires a clean dev.2 package/suite and fresh live evidence; dev.1 contributes no gameplay PASS. If the next package exposes a genuine control-model failure that cannot be contained within the mission's bounded repair rule, retain the Phase 3C separate-turn fallback and record the exact architecture disposition rather than stacking broad patches.
+
 ## Phase 3D complete offline gate has no current hard blocker - 2026-08-30T22:55:55Z
 
 Status: `IN PROGRESS`.

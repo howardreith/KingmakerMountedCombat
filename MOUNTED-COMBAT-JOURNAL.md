@@ -1,5 +1,14 @@
 # Mounted Combat journal
 
+## 2026-08-31T01:30:04Z - dev.1 pre-gameplay scenario admission failure repaired exactly once in dev.2
+
+- Published dev.1 commit/package/manifest/DLL/MVID were `86fffe235332e611d0225cc9fc2ebb2fa9150f31` / `28406ec450f60cd6e426be7b87f9146a7f0609df9dc85f014b584ba7754752d9` / `3c262539e6c5276bfa1821c15132d7c1c7ecdc91f6eec963b6eec78f54345919` / `38df7b7b177589d6ea8fcdae9b47e59a885979790cb164a5fd2c10866bd84126` / `8dbda12f-ce20-40b2-88e9-49d63e8fd208`. Stable suite `20260830T230000Z-phase3d-dev1-unified-combat-suite1` snapshot SHA-256 is `ce00bb5a5a210618b661cd8b6d5bdde616a0524d076c60d4d98e69453ba217b4`; RT/TB WhatIf and separate no-mutation audits passed.
+- The installed accepted Phase 3C payload was exact dev.13 and was transactionally backed up/removed only through the guarded deployment helper. Backup manifest `ea1bcdd3517eab3acf978bcc55e258db64075dd33a39e6277413b7c68563bd3b`; uninstall record `bfc9baa54603d3302fb5f59ba5ed7485bb7bc30c6002d357c44481b059d33076`; foreign Mods unchanged.
+- RT process `20260830T233000Z-phase3d-dev1-rt-passA` is immutable uncredited `FAIL 3/1`. It loaded exact Kingmaker 2.1.7b and KMC dev.1, then stopped at scenario start because the nested Horse blueprint registration audit omitted the three new Phase 3D outer names. No Phase 3D artifact or gameplay row existed. Game/final result SHA-256: `87be2d2e4415761704db118623eba6cd91cc1e965cae6214d5f2e0697c245ff3` / `3ef290277d6514e10d5b1279c401b1fe63e51fb0a3846bc555ea2025ce6bca04`.
+- Independent postrun audit ran before evidence inspection and passed exact suite/save/Mods/Baseline/Working continuity, restored orchestration and transactions, and zero process/lock/live-deployment residue.
+- Dev.2's only behavioral delta is an exact dependency-free registration-scenario policy admitting the audit itself, three legacy Horse parents, and three Phase 3D parents. A linked deterministic regression accepts all seven and rejects an unknown name. No gameplay implementation changed.
+- Repaired offline totals: source `22/0`; Release; component `292/0`; visual `18/0`; harness `237/0`; assembly `378/0`; PowerShell `26/0`; JSON `7/0`; diff/prohibited payload PASS. Dirty DLL SHA-256/MVID `d3d3e26ebd7a619ea0ddc560277c1c93310c079c6f7206ee7dd4d599c6cc8d7b` / `4dc1393c-76e7-4d9f-b382-15aeb345a5af` are not package identity.
+
 ## 2026-08-30T22:55:55Z - Phase 3D runtime checkpoint passes the complete reviewed offline gate
 
 - Branch/committed HEAD: `codex/mounted-combat-phase3d-unified-combat` / `63d324d909ec333cd16cde5e942f419759faa664`; the runtime checkpoint and version `0.1.0-phase3d-dev.1` are intentionally uncommitted until the immediately following coherent commit. The new branch has no upstream yet.

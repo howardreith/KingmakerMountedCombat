@@ -1,0 +1,18 @@
+using System;
+
+namespace KingmakerMountedCombat.Diagnostics
+{
+    internal static class HorseCompanionRegistrationScenarioPolicy
+    {
+        internal static bool SupportsScenario(string scenario)
+        {
+            return string.Equals(scenario, "horse-companion-blueprint-registration", StringComparison.Ordinal) ||
+                string.Equals(scenario, "horse-companion-unmounted-suite", StringComparison.Ordinal) ||
+                string.Equals(scenario, "horse-mounted-alpha-suite", StringComparison.Ordinal) ||
+                string.Equals(scenario, "horse-native-controls-ux-suite", StringComparison.Ordinal) ||
+                string.Equals(scenario, "phase3d-unified-combat-rt-suite", StringComparison.Ordinal) ||
+                string.Equals(scenario, "phase3d-unified-combat-tb-suite", StringComparison.Ordinal) ||
+                string.Equals(scenario, "phase3d-horse-presentation-suite", StringComparison.Ordinal);
+        }
+    }
+}

@@ -111,6 +111,7 @@
     <Compile Include="Diagnostics\DiagnosticNonPairPartyAiLease.cs" />
     <Compile Include="Diagnostics\HorseNativeAssetAuditService.cs" />
     <Compile Include="Diagnostics\HorseCompanionBlueprintRegistrationAuditService.cs" />
+    <Compile Include="Diagnostics\HorseCompanionRegistrationScenarioPolicy.cs" />
     <Compile Include="Diagnostics\HorseCompanionUnmountedScenarioEngine.cs" />
     <Compile Include="Diagnostics\Phase3dHorseScenarioTranche.cs" />
     <Compile Include="Diagnostics\BoundaryFailureDrain.cs" />

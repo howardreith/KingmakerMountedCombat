@@ -74,6 +74,9 @@
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\RuntimeProtocol.cs">
       <Link>Shared\RuntimeProtocol.cs</Link>
     </Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\HorseCompanionRegistrationScenarioPolicy.cs">
+      <Link>Shared\HorseCompanionRegistrationScenarioPolicy.cs</Link>
+    </Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\RuntimeSaveAuthorization.cs">
       <Link>Shared\RuntimeSaveAuthorization.cs</Link>
     </Compile>

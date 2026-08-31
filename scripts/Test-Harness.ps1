@@ -9096,6 +9096,13 @@ try {
     Invoke-HarnessTest 'horse companion registration validator binds exact production snapshots and lease restoration' {
         $horseBlueprintSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\HorseCompanionBlueprintService.cs')
         $horseRegistrationAuditSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\HorseCompanionBlueprintRegistrationAuditService.cs')
+        $horseRegistrationScenarioPolicySource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\HorseCompanionRegistrationScenarioPolicy.cs')
+        Assert-Test ($horseRegistrationAuditSource.Contains('HorseCompanionRegistrationScenarioPolicy.SupportsScenario(request.Scenario)') -and
+            $horseRegistrationScenarioPolicySource.Contains('phase3d-unified-combat-rt-suite') -and
+            $horseRegistrationScenarioPolicySource.Contains('phase3d-unified-combat-tb-suite') -and
+            $horseRegistrationScenarioPolicySource.Contains('phase3d-horse-presentation-suite') -and
+            $horseRegistrationScenarioPolicySource.Contains('StringComparison.Ordinal')) `
+            'horse registration prerequisite does not admit the exact Phase 3D parent scenarios through the closed ordinal policy'
         Assert-Test ($horseBlueprintSource.Contains('DisableHands = true,') -and
             $horseBlueprintSource.Contains('AdditionalLimbs = new[] { bite, hoof, hoof },') -and
             -not $horseBlueprintSource.Contains('AdditionalLimbs = new[] { hoof, hoof },') -and

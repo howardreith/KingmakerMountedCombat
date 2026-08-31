@@ -6,7 +6,11 @@ Status: IN PROGRESS — production and runtime automation are offline-green; fre
 
 Phase 3D starts from accepted Phase 3C HEAD `63595b832f7f89c854edef5a9eb4d21dee026590` on `codex/mounted-combat-phase3d-unified-combat`. The production implementation checkpoint is `9bf83d21b5367e057130b41bf7379512a638c025`; the presentation checkpoint is `63d324d909ec333cd16cde5e942f419759faa664`. The runtime protocol/scenario checkpoint described here is not a runtime PASS until it is committed, guarded-published, packaged from clean HEAD, and exercised against the exact guarded Kingmaker fixture.
 
-Current development version is `0.1.0-phase3d-dev.1`. Package, manifest, DLL, and MVID identities will be recorded only after a clean-HEAD package exists.
+Current development version is `0.1.0-phase3d-dev.2`. The immutable dev.1 package reached Kingmaker but failed before Phase 3D gameplay because the nested Horse registration prerequisite omitted the new outer scenario names. Dev.2 changes only that exact diagnostic admission boundary through a seven-name closed policy with an unknown-scenario regression; no production gameplay behavior changed. Fresh clean dev.2 package identity remains pending.
+
+## First runtime checkpoint
+
+Dev.1 package/manifest/DLL/MVID were `28406ec450f60cd6e426be7b87f9146a7f0609df9dc85f014b584ba7754752d9` / `3c262539e6c5276bfa1821c15132d7c1c7ecdc91f6eec963b6eec78f54345919` / `38df7b7b177589d6ea8fcdae9b47e59a885979790cb164a5fd2c10866bd84126` / `8dbda12f-ce20-40b2-88e9-49d63e8fd208`. Suite `20260830T230000Z-phase3d-dev1-unified-combat-suite1` passed RT/TB WhatIf and independent audits. RT A `20260830T233000Z-phase3d-dev1-rt-passA` is immutable uncredited `FAIL 3/1` at scenario start: the registration prerequisite rejected the Phase 3D name, so no Phase 3D artifact or gameplay row was produced. Mandatory restoration audit passed before evidence read. This result provides diagnostic attribution only.
 
 ## Implemented architecture
 
