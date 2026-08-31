@@ -453,7 +453,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var mountAbility = nativeControls.MountAbility;
             var dismountAbility = nativeControls.DismountAbility;
             var presentation = relationship.CapturePresentationObservation();
-            observations["presentation"] = JObject.FromObject(presentation, JsonSerializer.Create(JsonSettings));
+            observations["presentation"] = presentation;
             observations["smallPortrait"] = SpriteEvidence(small);
             observations["horseIdentityIcon"] = SpriteEvidence(horseIcon);
             observations["saddleIcon"] = SpriteEvidence(saddle);
@@ -488,7 +488,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     runtime.PoseFootTargetClampCount == 0 &&
                     runtime.PoseMaximumSegmentLengthResidualWorldUnits <= 0.0001d,
                 "The final Horse-only profile preserves the accepted pelvis/leg pose and lowers the rider by exact mount-root-local Y=-0.08 with healthy bounded procedural pose state; visual contact remains a manual gate.",
-                JObject.FromObject(presentation, JsonSerializer.Create(JsonSettings)));
+                new JObject { ["observation"] = presentation });
             AddRow(
                 "mounted-single-rider-turn-portrait",
                 SelectionManager.Instance.SelectedUnits.Count == 1 &&
@@ -2660,8 +2660,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["activations"] = JArray.FromObject(activations ?? new NativeMountedAbilityActivationRecord[0],
                     JsonSerializer.Create(JsonSettings)),
                 ["relationshipState"] = relationship.State.ToString(),
-                ["presentation"] = JObject.FromObject(
-                    relationship.CapturePresentationObservation(), JsonSerializer.Create(JsonSettings)),
+                ["presentation"] = relationship.CapturePresentationObservation(),
                 ["rules"] = ruleProbe.CapturePairEvidence(),
                 ["nativeControls"] = JObject.FromObject(
                     nativeControls.CaptureSnapshot(), JsonSerializer.Create(JsonSettings))

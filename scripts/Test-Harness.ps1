@@ -10111,6 +10111,12 @@ try {
             -not $optionalPropertySource.Contains('.GetProperty(') -and
             -not $attackSource.Contains('Gunslinger')) `
             'ranged native LoS, non-throwing ammunition/reload telemetry, or foreign-mod isolation changed'
+        Assert-Test ($phase3dSource.Contains('observations["presentation"] = presentation;') -and
+            $phase3dSource.Contains('new JObject { ["observation"] = presentation }') -and
+            $phase3dSource.Contains('["presentation"] = relationship.CapturePresentationObservation(),') -and
+            -not $phase3dSource.Contains('JObject.FromObject(presentation') -and
+            -not $phase3dSource.Contains('relationship.CapturePresentationObservation(), JsonSerializer.Create')) `
+            'Phase 3D scalar presentation evidence was routed back through JObject.FromObject'
         Assert-Test ($phase3dSource.Contains('new ClickUnitHandler().OnClick(target.View.gameObject, target.Position, 0, false, false)') -and
             $phase3dSource.Contains('ClickGroundHandler.MoveSelectedUnitsToPoint(movementDestination, false);') -and
             $phase3dSource.Contains('turn.TryChangeSmartAction();') -and

@@ -1,5 +1,15 @@
 # Autonomous blockers
 
+## Phase 3D dev.5 gameplay path succeeds; dev.6 artifact-shape repair needs fresh qualification (2026-08-31T18:53:21-04:00)
+
+Status: `IN PROGRESS`.
+
+There is no current external or proven architecture blocker. Clean dev.5 RT A `20260831T212000Z-phase3d-dev5-rt-passA` delivered one exact native Rider Primary and completed one accepted RiderMelee command with one child attack, zero repaths, terminal `Success`, and relationship state `Mounted` through command terminal. The mandatory independent postrun audit passed exact restoration before evidence inspection. The activation did not dismount the rider; later exception recovery did.
+
+The immutable run is nevertheless uncredited `FAIL` because post-terminal diagnostic capture called `JObject.FromObject` on the scalar string returned by `CapturePresentationObservation()`. Dev.6 corrects only the three evidence-shape sites and binds them with a source regression. It does not alter command admission, attack ownership, initiative, action economy, movement, LoS, AoO, lifecycle, presentation, or cleanup behavior.
+
+The complete dev.6 offline gate passes source `22/0`, Release, component `294/0`, visual `18/0`, harness `237/0`, assembly `380/0`, PowerShell `26/0`, JSON `7/0`, and diff. Pre-commit DLL SHA-256/MVID are `115b6e9f88bb0a7a12be6bfb11a6e1f111131771f7eff1395262e9bf29ee266f` / `aaee9cb1-59f9-4a6b-999c-43424dbf2a2e`. Fresh clean-package evidence must still complete the dev.6 artifact and its exact assertions before any Phase 3D row receives credit. If that run exposes a genuine shared-turn/control-model defect, preserve the evidence and use the retained Phase 3C separate-turn fallback disposition rather than adding global dispatcher, turn-controller, LoS, cooldown, AoO, or remount patches. The exact scalar/JObject defect itself is closed at source; repeating it is not an architecture repair allowance.
+
 ## Phase 3D dev.5 optional telemetry repair is offline-green; fresh child-attack attribution remains (2026-08-31T14:07:28-04:00)
 
 Status: `IN PROGRESS`.
