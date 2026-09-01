@@ -5684,16 +5684,44 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
             [long]$ranged.duplicateDispatchDelta -ne 0L -or $ranged.intentActive -ne $true -or
             [string]$ranged.weaponCategory -cne 'Shortbow' -or
             [long]$invalid.nativeRequestDelta -ne 0L -or [long]$invalid.intentStartDelta -ne 0L -or
+            [long]$adjacent.nativeRequestDelta -ne 1L -or [long]$adjacent.intentStartDelta -ne 1L -or
+            [long]$adjacent.riderDispatchDelta -ne 1L -or [long]$adjacent.mountDispatchDelta -ne 0L -or
+            $adjacent.intentActive -ne $true -or
             $adjacent.opportunityReadyAtAdmission.ready -ne $true -or
+            $adjacent.opportunityReadyAtAdmission.relationshipMounted -ne $true -or
+            $adjacent.opportunityReadyAtAdmission.modeRealTime -ne $true -or
+            $adjacent.opportunityReadyAtAdmission.gameUnpaused -ne $true -or
+            $adjacent.opportunityReadyAtAdmission.riderSelectedPrincipal -ne $true -or
+            $adjacent.opportunityReadyAtAdmission.pairCommandIdle -ne $true -or
+            $adjacent.opportunityReadyAtAdmission.pairGroundMovementIdle -ne $true -or
+            $adjacent.opportunityReadyAtAdmission.exactMountMovementIdle -ne $true -or
+            $adjacent.opportunityReadyAtAdmission.stockIntentIdle -ne $true -or
+            $adjacent.opportunityReadyAtAdmission.riderStandardReady -ne $true -or
+            $adjacent.opportunityReadyAtAdmission.riderCommandsIdle -ne $true -or
+            $adjacent.opportunityReadyAtAdmission.horseCommandsIdle -ne $true -or
+            $adjacent.opportunityReadyAtAdmission.targetCommandsIdle -ne $true -or
+            $adjacent.opportunityReadyAtAdmission.riderHandsIdle -ne $true -or
+            $adjacent.opportunityReadyAtAdmission.horseHandsIdle -ne $true -or
+            $adjacent.opportunityReadyAtAdmission.targetHandsIdle -ne $true -or
+            $adjacent.opportunityReadyAtAdmission.riderEquipmentIdle -ne $true -or
+            $adjacent.opportunityReadyAtAdmission.horseEquipmentIdle -ne $true -or
+            $adjacent.opportunityReadyAtAdmission.nativeOpportunitySimulationReady -ne $true -or
+            [long]$adjacent.opportunityReadyAtAdmission.targetOpportunityCount -ne 1L -or
+            [long]$adjacent.rules.riderAttackRules -ne 1L -or
+            [long]$adjacent.rules.mountAttackRules -ne 0L -or
+            [long]$adjacent.rules.pairAttackRolls -ne 1L -or
+            [string]$adjacent.rules.lastRiderAttackType -cne 'Ranged' -or
+            $adjacent.rules.lastRiderAttackDoNotProvoke -ne $false -or
             [long]$adjacent.opportunity.attackRules -ne 1L -or
             [long]$adjacent.opportunity.attackRolls -ne 1L -or
             [long]$adjacent.opportunity.damageRules -ne 1L -or
+            [long]$adjacent.opportunity.expectedTargetForcedD20 -lt 1L -or
             [string]$adjacent.opportunity.lastActorId -cne [string]$adjacent.opportunityReadyAtAdmission.targetId -or
             [string]$adjacent.opportunity.lastTargetId -cne [string]$artifact.observations.riderId -or
-            [long]$adjacent.mountDispatchDelta -gt 1L -or
-            ([long]$adjacent.mountDispatchDelta -eq 1L -and $adjacent.mountAlreadyInMeleeAtAdmission -ne $true) -or
+            [long]$adjacent.targetOpportunityCountAfter -ne 0L -or
             [double]$adjacent.horseMovementDistanceAfterAdmission -gt 0.25d -or
             [long]$adjacent.duplicateDispatchDelta -ne 0L -or
+            [string]$adjacent.relationshipState -cne 'Mounted' -or
             [string]$crossbow.weaponCategory -cne 'LightCrossbow' -or
             [string]::IsNullOrWhiteSpace([string]$crossbow.outcome.ammunitionStateBefore) -or
             [string]::IsNullOrWhiteSpace([string]$crossbow.outcome.reloadStateAfter) -or

@@ -1,5 +1,17 @@
 # Autonomous blockers
 
+## Phase 3D dev.7 isolates rider-cooldown contamination of the ranged-AoO control; dev.8 one-shot repair in progress (2026-09-01T04:19:17-04:00)
+
+Status: `IN PROGRESS`.
+
+Clean guarded-published dev.7 is `c1f8e460cc5f4766b41eb5860eed2df181e20327`, package ZIP/manifest/DLL SHA-256 `d2eaf37cfff0ebc49b34e854b2c8e26979e2aa9f276334b5f0bd278cd3d7a9a5` / `14be90cdc13dd37037aedec69cba66a8a22057d7aa17d7aba18c5dc2870c6bbc` / `d16e472c56f59532362ce1822688fef5f232f5a979823d713840b1c363408d13`, MVID `f9f2aa4a-d38e-4b90-b049-a3383a332cb2`. Its suite and three separate WhatIf/audit paths passed exact purity.
+
+RT A `20260901T064000Z-phase3d-dev7-rt-passA` is immutable historical `FAIL` (`19/2` outer; `18/1` Phase 3D). Independent audit `20260901T073000Z-phase3d-dev7-rt-passA-postrun-audit` passed before read. The only gameplay failure is a leaf deadline at the adjacent Shortbow AoO control. All prior Rider Primary, explicit Horse Primary, persistent stock melee, separate-ledger, cancellation, invalid-target, and long-range persistent Shortbow rows passed. The ignored local log proves adjacent intent itself continued alternating legal Horse and rider attacks; no production command stalled.
+
+The blocker is diagnostic admission order, not a broad AoO architecture defect. Dev.7 waited for hostile threat/engagement/count readiness but admitted while the rider still lacked a Standard action after two long-range shots. The contract-correct persistent policy therefore chose the already-in-melee Horse first. Exact Kingmaker code queues ranged provocation at `RuleAttackRoll` and delivers it on a later engagement tick; a focused test must begin with a rider-first action and completely idle rider/Horse/hostile command surfaces. Dev.8 performs that one repair, adds native `AttackOfOpportunity(rider,true)` simulation and exact roll/progress evidence, and cancels after the first rider plus `1/1/1` native hostile chain. Its complete offline gate is green: source `22/0`, Release, component `294/0`, visual `18/0`, harness `237/0`, exact assembly `382/0`, PowerShell `26/0`, JSON `7/0`, and diff. If the fresh dev.8 run fails this simulate-ready rider-first contract, no further AoO/controller patch is authorized; preserve evidence and issue the architecture disposition.
+
+No external-state, safety, production shared-turn, persistent-attack, Rider Primary, or Horse-presentation blocker is currently proven. Paladin Divine Steed remains unauthorized.
+
 ## Phase 3D dev.6 isolates diagnostic timing; dev.7 bounded repair in progress (2026-08-31T23:38:43-04:00)
 
 Status: `IN PROGRESS`.

@@ -9931,10 +9931,26 @@ try {
                 $rowByName['mounted-bow-auto-fire-rt'].evidence = $ranged
                 $rowByName['mounted-stock-click-invalid-target-feedback'].evidence = [ordered]@{nativeRequestDelta=0;intentStartDelta=0}
                 $rowByName['mounted-ranged-aao-native-control'].evidence = [ordered]@{
-                    nativeRequestDelta=1;intentStartDelta=1;riderDispatchDelta=1;mountDispatchDelta=1;duplicateDispatchDelta=0
+                    nativeRequestDelta=1;intentStartDelta=1;riderDispatchDelta=1;mountDispatchDelta=0;duplicateDispatchDelta=0
+                    intentActive=$true;relationshipState='Mounted'
                     mountAlreadyInMeleeAtAdmission=$true;horseMovementDistanceAfterAdmission=0.0
-                    opportunityReadyAtAdmission=[ordered]@{ready=$true;targetId='target'}
-                    opportunity=[ordered]@{attackRules=1;attackRolls=1;damageRules=1;lastActorId='target';lastTargetId='rider'}
+                    opportunityReadyAtAdmission=[ordered]@{
+                        ready=$true;targetId='target';targetOpportunityCount=1;relationshipMounted=$true
+                        modeRealTime=$true;gameUnpaused=$true;riderSelectedPrincipal=$true
+                        pairCommandIdle=$true;pairGroundMovementIdle=$true;exactMountMovementIdle=$true;stockIntentIdle=$true
+                        riderStandardReady=$true;riderCommandsIdle=$true;horseCommandsIdle=$true;targetCommandsIdle=$true
+                        riderHandsIdle=$true;horseHandsIdle=$true;targetHandsIdle=$true
+                        riderEquipmentIdle=$true;horseEquipmentIdle=$true;nativeOpportunitySimulationReady=$true
+                    }
+                    rules=[ordered]@{
+                        riderAttackRules=1;mountAttackRules=0;pairAttackRolls=1
+                        lastRiderAttackType='Ranged';lastRiderAttackDoNotProvoke=$false
+                    }
+                    opportunity=[ordered]@{
+                        attackRules=1;attackRolls=1;damageRules=1;expectedTargetForcedD20=1
+                        lastActorId='target';lastTargetId='rider'
+                    }
+                    targetOpportunityCountAfter=0
                 }
                 $rowByName['mounted-crossbow-or-reload-control'].evidence = [ordered]@{
                     weaponCategory='LightCrossbow';riderDispatchDelta=1;mountDispatchDelta=1;duplicateDispatchDelta=0
@@ -10042,7 +10058,7 @@ try {
 
             if ($phase3dScenario -ceq 'phase3d-unified-combat-rt-suite') {
                 $rowByName['mounted-bow-auto-fire-rt'].evidence.mountDispatchDelta = 0
-                $rowByName['mounted-ranged-aao-native-control'].evidence.mountAlreadyInMeleeAtAdmission = $false
+                $rowByName['mounted-ranged-aao-native-control'].evidence.opportunityReadyAtAdmission.riderStandardReady = $false
                 Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
                 $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
                 $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
@@ -10050,9 +10066,20 @@ try {
                 $phase3dManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
                 Assert-TestThrows {
                     Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
-                } 'Phase 3D RT validator accepted a Horse primary from an adjacent ranged order without exact already-legal melee evidence.'
+                } 'Phase 3D RT validator accepted adjacent ranged AoO evidence without a ready rider Standard action.'
 
-                $rowByName['mounted-ranged-aao-native-control'].evidence.mountAlreadyInMeleeAtAdmission = $true
+                $rowByName['mounted-ranged-aao-native-control'].evidence.opportunityReadyAtAdmission.riderStandardReady = $true
+                $rowByName['mounted-ranged-aao-native-control'].evidence.rules.lastRiderAttackDoNotProvoke = $true
+                Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
+                $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
+                $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
+                [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+                $phase3dManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+                Assert-TestThrows {
+                    Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
+                } 'Phase 3D RT validator accepted a native rider ranged roll marked not to provoke.'
+
+                $rowByName['mounted-ranged-aao-native-control'].evidence.rules.lastRiderAttackDoNotProvoke = $false
                 $rowByName['rider-primary-does-not-dismount-rt'].evidence.admissionReadiness.riderCanActInCombat = $false
                 Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
                 $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
@@ -10145,6 +10172,12 @@ try {
             $phase3dSource.Contains('if (currentTurn == null)') -and
             $phase3dSource.Contains('transitionRiderTurnObserved = true;') -and
             $phase3dSource.Contains('rangedOpportunityReadinessAtAdmission = CaptureRangedOpportunityReadiness();') -and
+            $phase3dSource.Contains('target.CombatState.AttackOfOpportunity(rider, true)') -and
+            $phase3dSource.Contains('rider.HasStandardAction()') -and
+            $phase3dSource.Contains('target.Commands != null && target.Commands.Empty') -and
+            $phase3dSource.Contains('observations["rangedOpportunityProgress"] = CaptureRangedOpportunityProgress();') -and
+            $phase3dSource.Contains('LastRiderAttackDoNotProvoke = evt.DoNotProvokeAttacksOfOpportunity;') -and
+            $phase3dSource.Contains('mountDispatches == 0') -and
             $phase3dSource.Contains('ruleProbe.OpportunityAttackRuleCount == 1') -and
             $phase3dSource.Contains('mountAlreadyInMeleeAtAdmission') -and
             $phase3dSource.Contains('rangedWeaponLease.Acquire(WeaponCategory.Shortbow);') -and

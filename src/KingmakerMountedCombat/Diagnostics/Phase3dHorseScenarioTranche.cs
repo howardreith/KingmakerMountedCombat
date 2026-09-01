@@ -260,6 +260,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
                 else if (!cleanupStarted && leafClock.Elapsed.TotalSeconds > LeafDeadlineSeconds)
                 {
+                    observations["leafDeadlineProgress"] = CaptureLeafDeadlineProgress();
                     FailCurrent("phase3d-horse-leaf-deadline", "Phase 3D Horse tranche leaf exceeded 30 seconds at " + step + ".");
                     BeginCleanup();
                 }
@@ -1065,6 +1066,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private void AwaitRangedAdjacentAttackRt()
         {
             ObserveCurrentRangedRiderOutcome();
+            observations["rangedOpportunityProgress"] = CaptureRangedOpportunityProgress();
             if (combat.HasActiveCommand || combat.StockAttackRiderDispatchCount - stockRiderBefore < 1 ||
                 rangedRiderOutcome == null || ruleProbe.OpportunityAttackRuleCount < 1 ||
                 ruleProbe.OpportunityAttackRollCount < 1 || ruleProbe.OpportunityDamageRuleCount < 1)
@@ -1084,24 +1086,30 @@ namespace KingmakerMountedCombat.Diagnostics
             evidence["mountAlreadyInMeleeAtAdmission"] = rangedMountMeleeReadyAtAdmission;
             evidence["opportunityReadyAtAdmission"] = rangedOpportunityReadinessAtAdmission?.DeepClone();
             evidence["opportunity"] = ruleProbe.CaptureOpportunityEvidence();
+            evidence["targetOpportunityCountAfter"] = target.CombatState.AttackOfOpportunityCount;
             AddRow(
                 "mounted-bow-adjacent-rt",
                 rider.DistanceTo(target) <= 2.5f && outcome != null && outcome.AttackWeaponIsRanged &&
-                    outcome.NativeAttackRuleObserved && ruleProbe.RiderAttackRuleCount >= 1 &&
-                    mountDispatches >= 0 && mountDispatches <= 1 &&
-                    (mountDispatches == 0 || rangedMountMeleeReadyAtAdmission &&
-                        ruleProbe.MountAttackRuleCount == 1) &&
+                    outcome.NativeAttackRuleObserved && outcome.Action == MountedCombatActionKind.RiderRanged &&
+                    outcome.ResourceOwnerId == rider.UniqueId &&
+                    combat.StockAttackRiderDispatchCount - stockRiderBefore == 1 && mountDispatches == 0 &&
+                    ruleProbe.RiderAttackRuleCount == 1 && ruleProbe.MountAttackRuleCount == 0 &&
+                    ruleProbe.PairAttackRollCount == 1 &&
+                    string.Equals(ruleProbe.LastRiderAttackType, "Ranged", StringComparison.Ordinal) &&
+                    ruleProbe.LastRiderAttackDoNotProvoke == false &&
                     horseMovementDistance <= 0.25f &&
                     combat.StockAttackDuplicateDispatchCount - stockDuplicateBefore == 0,
-                "An ordinary adjacent Shortbow click produced a rider-owned native ranged attack; any single Horse primary was admitted only from its already-legal melee position without further approach.",
+                "An ordinary adjacent Shortbow click produced one rider-first native ranged attack; the focused AoO control cancelled before any Horse primary dispatch or further approach.",
                 evidence);
             AddRow(
                 "mounted-ranged-aao-native-control",
                 ruleProbe.OpportunityAttackRuleCount == 1 && ruleProbe.OpportunityAttackRollCount == 1 &&
                     ruleProbe.OpportunityDamageRuleCount == 1 &&
                     ruleProbe.LastOpportunityActorId == target.UniqueId &&
-                    ruleProbe.LastOpportunityTargetId == rider.UniqueId,
-                "The readiness-proven adjacent ranged attack retained exactly one Kingmaker hostile AoO chain; KMC applied no ranged AoO suppression.",
+                    ruleProbe.LastOpportunityTargetId == rider.UniqueId &&
+                    ruleProbe.ExpectedTargetForcedD20Count >= 1 &&
+                    target.CombatState.AttackOfOpportunityCount == 0,
+                "The rider-first, simulate-ready adjacent ranged attack queued and completed exactly one Kingmaker hostile AoO attack/roll/damage chain; KMC applied no ranged AoO suppression.",
                 evidence);
             attackRulesBeforeCancel = ruleProbe.PairAttackRuleCount;
             stockCancelBefore = combat.StockAttackIntentCancelCount;
@@ -1113,7 +1121,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void AwaitRangedAdjacentCancelRt()
         {
-            if (combat.HasStockAttackIntent || combat.HasActiveCommand)
+            if (combat.HasStockAttackIntent || combat.HasActiveCommand ||
+                target?.Commands == null || !target.Commands.Empty || target.AreHandsBusyWithAnimation)
             {
                 return;
             }
@@ -2630,6 +2639,9 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private bool IsRangedOpportunityControlReady()
         {
+            var game = Game.Instance;
+            var selected = SelectionManager.Instance?.SelectedUnits;
+            var equipment = game?.HandsEquipmentController;
             return target != null && target.CombatState != null && rider.CombatState != null &&
                 target.IsInState && rider.IsInState && target.IsEnemy(rider) &&
                 target.CombatState.CanActInCombat && target.CombatState.CanAttackOfOpportunity &&
@@ -2637,7 +2649,18 @@ namespace KingmakerMountedCombat.Diagnostics
                 target.GetThreatHand() != null && target.IsEngage(rider) &&
                 target.CombatState.EngagedUnits.Contains(rider) &&
                 rider.CombatState.EngagedBy.Contains(target) && rider.Memory.Contains(target) &&
-                !target.HasMotionThisTick;
+                !target.HasMotionThisTick && rider.HasLOS(target) &&
+                relationship.State == RelationshipState.Mounted &&
+                !CombatController.IsInTurnBasedCombat() && game != null && !game.IsPaused &&
+                selected != null && selected.Count == 1 && selected[0] == rider &&
+                !combat.HasActiveCommand && !combat.HasActiveGroundMovement &&
+                !combat.HasExactMountMovement && !combat.HasStockAttackIntent &&
+                rider.HasStandardAction() && rider.Commands != null && rider.Commands.Empty &&
+                horse.Commands != null && horse.Commands.Empty && target.Commands != null && target.Commands.Empty &&
+                !rider.AreHandsBusyWithAnimation && !horse.AreHandsBusyWithAnimation &&
+                !target.AreHandsBusyWithAnimation && equipment != null &&
+                !equipment.IsUpdateScheduledFor(rider) && !equipment.IsUpdateScheduledFor(horse) &&
+                target.CombatState.AttackOfOpportunity(rider, true);
         }
 
         private void ObserveCurrentRangedRiderOutcome()
@@ -2656,6 +2679,11 @@ namespace KingmakerMountedCombat.Diagnostics
             var targetCombat = target?.CombatState;
             var riderCombat = rider?.CombatState;
             var threat = target?.GetThreatHand()?.Weapon?.Blueprint;
+            var game = Game.Instance;
+            var selected = SelectionManager.Instance?.SelectedUnits;
+            var equipment = game?.HandsEquipmentController;
+            var nativeOpportunitySimulationReady = targetCombat != null && rider != null &&
+                targetCombat.AttackOfOpportunity(rider, true);
             return new JObject
             {
                 ["ready"] = IsRangedOpportunityControlReady(),
@@ -2670,8 +2698,61 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["targetTracksRiderEngagement"] = targetCombat != null && targetCombat.EngagedUnits.Contains(rider),
                 ["riderTracksTargetThreat"] = riderCombat != null && riderCombat.EngagedBy.Contains(target),
                 ["riderMemoryContainsTarget"] = target != null && rider.Memory.Contains(target),
-                ["targetHasMotionThisTick"] = target?.HasMotionThisTick
+                ["targetHasMotionThisTick"] = target?.HasMotionThisTick,
+                ["riderHasLineOfSight"] = target != null && rider.HasLOS(target),
+                ["relationshipMounted"] = relationship.State == RelationshipState.Mounted,
+                ["modeRealTime"] = !CombatController.IsInTurnBasedCombat(),
+                ["gameUnpaused"] = game != null && !game.IsPaused,
+                ["riderSelectedPrincipal"] = selected != null && selected.Count == 1 && selected[0] == rider,
+                ["pairCommandIdle"] = !combat.HasActiveCommand,
+                ["pairGroundMovementIdle"] = !combat.HasActiveGroundMovement,
+                ["exactMountMovementIdle"] = !combat.HasExactMountMovement,
+                ["stockIntentIdle"] = !combat.HasStockAttackIntent,
+                ["riderStandardReady"] = rider.HasStandardAction(),
+                ["riderCommandsIdle"] = rider.Commands != null && rider.Commands.Empty,
+                ["horseCommandsIdle"] = horse.Commands != null && horse.Commands.Empty,
+                ["targetCommandsIdle"] = target?.Commands != null && target.Commands.Empty,
+                ["riderStandardCommand"] = rider.Commands?.Standard?.GetType().FullName,
+                ["horseStandardCommand"] = horse.Commands?.Standard?.GetType().FullName,
+                ["targetStandardCommand"] = target?.Commands?.Standard?.GetType().FullName,
+                ["riderHandsIdle"] = !rider.AreHandsBusyWithAnimation,
+                ["horseHandsIdle"] = !horse.AreHandsBusyWithAnimation,
+                ["targetHandsIdle"] = target != null && !target.AreHandsBusyWithAnimation,
+                ["equipmentControllerReady"] = equipment != null,
+                ["riderEquipmentIdle"] = equipment != null && !equipment.IsUpdateScheduledFor(rider),
+                ["horseEquipmentIdle"] = equipment != null && !equipment.IsUpdateScheduledFor(horse),
+                ["nativeOpportunitySimulationReady"] = nativeOpportunitySimulationReady
             };
+        }
+
+        private JObject CaptureRangedOpportunityProgress()
+        {
+            var outcome = rangedRiderOutcome;
+            return new JObject
+            {
+                ["activePairCommand"] = combat.HasActiveCommand,
+                ["stockIntentActive"] = combat.HasStockAttackIntent,
+                ["riderDispatchDelta"] = combat.StockAttackRiderDispatchCount - stockRiderBefore,
+                ["mountDispatchDelta"] = combat.StockAttackMountDispatchCount - stockMountBefore,
+                ["duplicateDispatchDelta"] = combat.StockAttackDuplicateDispatchCount - stockDuplicateBefore,
+                ["riderOutcomeObserved"] = outcome != null,
+                ["riderOutcome"] = outcome == null
+                    ? null
+                    : JObject.FromObject(outcome, JsonSerializer.Create(JsonSettings)),
+                ["rules"] = ruleProbe?.CapturePairEvidence(),
+                ["opportunity"] = ruleProbe?.CaptureOpportunityEvidence(),
+                ["targetOpportunityCount"] = target?.CombatState?.AttackOfOpportunityCount,
+                ["readinessNow"] = CaptureRangedOpportunityReadiness()
+            };
+        }
+
+        private JToken CaptureLeafDeadlineProgress()
+        {
+            return step == Phase3dHorseStep.AwaitRangedAdjacentMoveRt ||
+                step == Phase3dHorseStep.AwaitRangedAdjacentAttackRt ||
+                step == Phase3dHorseStep.AwaitRangedAdjacentCancelRt
+                ? (JToken)CaptureRangedOpportunityProgress()
+                : JValue.CreateNull();
         }
 
         private bool TryNativeAbilityTargetClick(
@@ -2859,6 +2940,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["currentTurnStatus"] = Game.Instance?.TurnBasedCombatController?.CurrentTurn?.Status.ToString(),
                 ["transitionRiderTurnObserved"] = transitionRiderTurnObserved,
                 ["transitionRiderStartRequestCount"] = transitionRiderStartRequestCount,
+                ["leafDeadlineProgress"] = CaptureLeafDeadlineProgress(),
                 ["nativeControls"] = JObject.FromObject(
                     nativeControls.CaptureSnapshot(), JsonSerializer.Create(JsonSettings)),
                 ["lastNativeAbilityShell"] = CaptureNativeAbilityShell(lastNativeAbilityShell)
@@ -3364,8 +3446,11 @@ namespace KingmakerMountedCombat.Diagnostics
         internal int OpportunityAttackRuleCount { get; private set; }
         internal int OpportunityAttackRollCount { get; private set; }
         internal int OpportunityDamageRuleCount { get; private set; }
+        internal int ExpectedTargetForcedD20Count { get; private set; }
         internal string FirstPairAttackActorId { get; private set; }
         internal string LastPairAttackActorId { get; private set; }
+        internal string LastRiderAttackType { get; private set; }
+        internal bool? LastRiderAttackDoNotProvoke { get; private set; }
         internal string LastOpportunityActorId { get; private set; }
         internal string LastOpportunityTargetId { get; private set; }
 
@@ -3383,8 +3468,11 @@ namespace KingmakerMountedCombat.Diagnostics
             PairDamageRuleCount = 0;
             PairForcedD20Count = 0;
             PairDamage = 0;
+            ExpectedTargetForcedD20Count = 0;
             FirstPairAttackActorId = null;
             LastPairAttackActorId = null;
+            LastRiderAttackType = null;
+            LastRiderAttackDoNotProvoke = null;
             ResetOpportunityCounts();
         }
 
@@ -3408,7 +3496,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["pairForcedD20"] = PairForcedD20Count,
                 ["pairDamage"] = PairDamage,
                 ["firstPairActorId"] = FirstPairAttackActorId,
-                ["lastPairActorId"] = LastPairAttackActorId
+                ["lastPairActorId"] = LastPairAttackActorId,
+                ["lastRiderAttackType"] = LastRiderAttackType,
+                ["lastRiderAttackDoNotProvoke"] = LastRiderAttackDoNotProvoke
             };
         }
 
@@ -3419,6 +3509,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["attackRules"] = OpportunityAttackRuleCount,
                 ["attackRolls"] = OpportunityAttackRollCount,
                 ["damageRules"] = OpportunityDamageRuleCount,
+                ["expectedTargetForcedD20"] = ExpectedTargetForcedD20Count,
                 ["lastActorId"] = LastOpportunityActorId,
                 ["lastTargetId"] = LastOpportunityTargetId
             };
@@ -3482,6 +3573,11 @@ namespace KingmakerMountedCombat.Diagnostics
             else if (evt.Target == expectedTarget && (evt.Initiator == rider || evt.Initiator == mount))
             {
                 PairAttackRollCount++;
+                if (evt.Initiator == rider)
+                {
+                    LastRiderAttackType = evt.AttackType.ToString();
+                    LastRiderAttackDoNotProvoke = evt.DoNotProvokeAttacksOfOpportunity;
+                }
             }
         }
 
@@ -3500,6 +3596,7 @@ namespace KingmakerMountedCombat.Diagnostics
             else if (expectedTarget != null && evt.Initiator == expectedTarget)
             {
                 evt.Override(20);
+                ExpectedTargetForcedD20Count++;
             }
         }
 

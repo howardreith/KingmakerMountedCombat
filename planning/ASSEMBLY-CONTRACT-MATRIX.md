@@ -84,6 +84,8 @@ Phase 2 dev.12 adds one bounded contract discovered by strict camera repeat evid
 - Assigning null to `AgentOverride` destroys the current override. Cleanup clears it only when reference equality proves KMC owns it.
 - `UnitEntityData.Translocate` `0x06008345` is the supported entity/view relocation primitive for a validated nearby dismount location. Phase 1 does not write private movement caches.
 
+- Exact Kingmaker `UnitCombatEngagementController.OnEventDidTrigger(RuleAttackRoll)` token `0x06009352` queues a ranged or ranged-touch initiator only when `RuleAttackRoll.DoNotProvokeAttacksOfOpportunity` is false, then calls `ProvokeAttackOfOpportunity` token `0x06009353`. `Tick` token `0x0600934C` later enumerates the queued unit's then-current `CombatState.EngagedBy` set and calls each hostile's stock `UnitCombatState.AttackOfOpportunity`; ranged provocation is therefore asynchronous rather than inline with `UnitAttack.TriggerAttackRule`. A focused control must preserve the native roll, later tick, hostile eligibility/counter, and separate opportunity command. It cannot infer suppression from a same-frame sample or synthesize the chain downstream.
+
 ## Final Phase 1 runtime qualification overlay
 
 - Lifecycle qualifies twice at 8/0 rows and 339/0 assertions per process in direct service/handler scope. Open ground, stop/start, turns/corners, pause/unpause, and destination cancellation each qualify A/B with one mount-authoritative mover, bounded synchronization, exact cleanup, and exact external restoration.

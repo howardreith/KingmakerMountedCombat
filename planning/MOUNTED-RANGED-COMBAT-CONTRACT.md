@@ -6,6 +6,8 @@ Status: IN PROGRESS
 
 Ranged participation is determined from the exact native planned `UnitAttack`/weapon blueprint (`IsRanged`, native attack range, command LoS and target APIs), not a hard-coded bow list. No compile-time or runtime reference to Gunslinger or another gameplay mod is permitted.
 
+Exact Kingmaker ranged-AoO delivery is asynchronous. `UnitCombatEngagementController.OnEventDidTrigger(RuleAttackRoll)` adds the initiator to a private provocation set only for `Ranged`/`RangedTouch` rolls with `DoNotProvokeAttacksOfOpportunity=false`. Its later `Tick` enumerates the rider's then-current `CombatState.EngagedBy` set and calls each hostile's ordinary `UnitCombatState.AttackOfOpportunity(rider)`. The latter owns native counter, threat-hand, memory, motion, untargetable, force-move, immunity, and action checks and enqueues the hostile `UnitAttackOfOpportunity`. KMC must neither synthesize that chain nor globally suppress it. A deterministic mounted control therefore requires an idle rider-first ranged admission, exact native `AttackOfOpportunity(rider,true)` preflight, the rider roll's attack type/no-provoke flag, hostile counter consumption, and one exact hostile attack/roll/damage chain.
+
 The native rider attack remains authoritative for ammunition, reload, attack roll, concealment, cover, range increments, line of sight, animation, and ranged AoO behavior. KMC records these surfaces but does not duplicate their rule implementations.
 
 ## Approach-to-range
