@@ -9,6 +9,7 @@ using System.Text;
 using Kingmaker;
 using Kingmaker.Blueprints;
 using Kingmaker.Blueprints.Items.Weapons;
+using Kingmaker.Controllers.Combat;
 using Kingmaker.Controllers.Clicks.Handlers;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.Enums;
@@ -119,6 +120,13 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool cleanupStarted;
         private bool cleanupError;
         private bool transitionPrimaryDispatched;
+        private bool transitionRiderTurnObserved;
+        private int transitionRiderStartRequestCount;
+        private string transitionFirstNativeTurnUnitId;
+        private bool rangedMountMeleeReadyAtAdmission;
+        private JObject rangedOpportunityReadinessAtAdmission;
+        private MountedPairAttackOutcome rangedRiderOutcome;
+        private MountedPairAttackOutcome rangedRiderOutcomeBaseline;
         private bool targetCleanupComplete;
         private bool modeRestored;
         private int cleanupFrame;
@@ -773,7 +781,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             var riderDispatches = combat.StockAttackRiderDispatchCount - stockRiderBefore;
             var mountDispatches = combat.StockAttackMountDispatchCount - stockMountBefore;
-            if (riderDispatches < 2 || mountDispatches < 1 || combat.HasActiveCommand)
+            if (riderDispatches < 2 || mountDispatches < 1)
             {
                 return;
             }
@@ -791,7 +799,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 "The pair retained mount-owned physical approach and rider-owned attack semantics.", evidence);
             AddRow("mounted-stock-click-melee-auto-repeat-rt",
                 riderDispatches >= 2 && mountDispatches >= 1 && combat.HasStockAttackIntent,
-                "One hostile click persisted through at least two rider dispatches and one separately owned Horse primary dispatch.", evidence);
+                "One hostile click remained active through two rider dispatch admissions and one completed separately owned Horse primary dispatch.", evidence);
             AddRow("mounted-separate-action-ledgers",
                 combat.CaptureUnifiedTurnSnapshot().Rider != null &&
                     combat.CaptureUnifiedTurnSnapshot().Mount != null &&
@@ -988,6 +996,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private void BeginRangedAdjacentMoveRt()
         {
             SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
+            stableFrames = 0;
             movementStart = horse.Position;
             movementDestination = FindWalkablePointNearTarget(target.Position, horse.Position, 1.35f);
             ClickGroundHandler.MoveSelectedUnitsToPoint(movementDestination, false);
@@ -1015,13 +1024,32 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
+            rangedOpportunityReadinessAtAdmission = CaptureRangedOpportunityReadiness();
+            observations["rangedOpportunityReadiness"] = rangedOpportunityReadinessAtAdmission.DeepClone();
+            if (!IsRangedOpportunityControlReady())
+            {
+                stableFrames = 0;
+                return;
+            }
+            stableFrames++;
+            if (stableFrames < 2)
+            {
+                return;
+            }
+
             SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
             ruleProbe.Arm(target, true);
+            ruleProbe.ResetOpportunityCounts();
             stockNativeBefore = combat.StockAttackNativeRequestCount;
             stockIntentBefore = combat.StockAttackIntentStartCount;
             stockRiderBefore = combat.StockAttackRiderDispatchCount;
             stockMountBefore = combat.StockAttackMountDispatchCount;
             stockDuplicateBefore = combat.StockAttackDuplicateDispatchCount;
+            movementStart = horse.Position;
+            rangedMountMeleeReadyAtAdmission = horse.IsEngage(target);
+            rangedOpportunityReadinessAtAdmission = CaptureRangedOpportunityReadiness();
+            rangedRiderOutcome = null;
+            rangedRiderOutcomeBaseline = combat.LastOutcome;
             targetService.BeginExpectedAttackDispatch(target);
             var clicked = new ClickUnitHandler().OnClick(target.View.gameObject, target.Position, 0, false, false);
             if (!clicked && combat.StockAttackIntentStartCount == stockIntentBefore)
@@ -1036,30 +1064,44 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void AwaitRangedAdjacentAttackRt()
         {
-            if (combat.HasActiveCommand || combat.StockAttackRiderDispatchCount - stockRiderBefore < 1)
+            ObserveCurrentRangedRiderOutcome();
+            if (combat.HasActiveCommand || combat.StockAttackRiderDispatchCount - stockRiderBefore < 1 ||
+                rangedRiderOutcome == null || ruleProbe.OpportunityAttackRuleCount < 1 ||
+                ruleProbe.OpportunityAttackRollCount < 1 || ruleProbe.OpportunityDamageRuleCount < 1)
             {
                 return;
             }
 
-            var outcome = combat.LastOutcome;
+            var outcome = rangedRiderOutcome;
+            var mountDispatches = combat.StockAttackMountDispatchCount - stockMountBefore;
+            var horseMovementDistance = HorizontalDistance(movementStart, horse.Position);
             var evidence = CaptureStockEvidence();
             evidence["outcome"] = outcome == null
                 ? null
                 : JObject.FromObject(outcome, JsonSerializer.Create(JsonSettings));
             evidence["riderDistanceToTarget"] = rider.DistanceTo(target);
+            evidence["horseMovementDistanceAfterAdmission"] = horseMovementDistance;
+            evidence["mountAlreadyInMeleeAtAdmission"] = rangedMountMeleeReadyAtAdmission;
+            evidence["opportunityReadyAtAdmission"] = rangedOpportunityReadinessAtAdmission?.DeepClone();
             evidence["opportunity"] = ruleProbe.CaptureOpportunityEvidence();
             AddRow(
                 "mounted-bow-adjacent-rt",
                 rider.DistanceTo(target) <= 2.5f && outcome != null && outcome.AttackWeaponIsRanged &&
                     outcome.NativeAttackRuleObserved && ruleProbe.RiderAttackRuleCount >= 1 &&
-                    combat.StockAttackMountDispatchCount - stockMountBefore == 0,
-                "An ordinary adjacent Shortbow click produced a rider-owned native ranged attack with zero automatic Horse melee.",
+                    mountDispatches >= 0 && mountDispatches <= 1 &&
+                    (mountDispatches == 0 || rangedMountMeleeReadyAtAdmission &&
+                        ruleProbe.MountAttackRuleCount == 1) &&
+                    horseMovementDistance <= 0.25f &&
+                    combat.StockAttackDuplicateDispatchCount - stockDuplicateBefore == 0,
+                "An ordinary adjacent Shortbow click produced a rider-owned native ranged attack; any single Horse primary was admitted only from its already-legal melee position without further approach.",
                 evidence);
             AddRow(
                 "mounted-ranged-aao-native-control",
-                ruleProbe.OpportunityAttackRuleCount >= 1 && ruleProbe.OpportunityAttackRollCount >= 1 &&
+                ruleProbe.OpportunityAttackRuleCount == 1 && ruleProbe.OpportunityAttackRollCount == 1 &&
+                    ruleProbe.OpportunityDamageRuleCount == 1 &&
+                    ruleProbe.LastOpportunityActorId == target.UniqueId &&
                     ruleProbe.LastOpportunityTargetId == rider.UniqueId,
-                "The adjacent ranged attack retained Kingmaker's native hostile AoO chain; KMC applied no ranged AoO suppression.",
+                "The readiness-proven adjacent ranged attack retained exactly one Kingmaker hostile AoO chain; KMC applied no ranged AoO suppression.",
                 evidence);
             attackRulesBeforeCancel = ruleProbe.PairAttackRuleCount;
             stockCancelBefore = combat.StockAttackIntentCancelCount;
@@ -1096,6 +1138,10 @@ namespace KingmakerMountedCombat.Diagnostics
             stockRiderBefore = combat.StockAttackRiderDispatchCount;
             stockMountBefore = combat.StockAttackMountDispatchCount;
             stockDuplicateBefore = combat.StockAttackDuplicateDispatchCount;
+            movementStart = horse.Position;
+            rangedMountMeleeReadyAtAdmission = horse.IsEngage(target);
+            rangedRiderOutcome = null;
+            rangedRiderOutcomeBaseline = combat.LastOutcome;
             targetService.BeginExpectedAttackDispatch(target);
             var clicked = new ClickUnitHandler().OnClick(target.View.gameObject, target.Position, 0, false, false);
             var row = category == WeaponCategory.LightCrossbow
@@ -1113,15 +1159,21 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void AwaitRangedVariantRt()
         {
-            if (combat.HasActiveCommand || combat.StockAttackRiderDispatchCount - stockRiderBefore < 1)
+            ObserveCurrentRangedRiderOutcome();
+            if (combat.HasActiveCommand || combat.StockAttackRiderDispatchCount - stockRiderBefore < 1 ||
+                rangedRiderOutcome == null)
             {
                 return;
             }
 
-            var outcome = combat.LastOutcome;
+            var outcome = rangedRiderOutcome;
             var weapon = rider.GetFirstWeapon()?.Blueprint;
+            var mountDispatches = combat.StockAttackMountDispatchCount - stockMountBefore;
+            var horseMovementDistance = HorizontalDistance(movementStart, horse.Position);
             var evidence = CaptureStockEvidence();
             evidence["weaponCategory"] = weapon?.Category.ToString();
+            evidence["horseMovementDistanceAfterAdmission"] = horseMovementDistance;
+            evidence["mountAlreadyInMeleeAtAdmission"] = rangedMountMeleeReadyAtAdmission;
             evidence["outcome"] = outcome == null
                 ? null
                 : JObject.FromObject(outcome, JsonSerializer.Create(JsonSettings));
@@ -1136,9 +1188,12 @@ namespace KingmakerMountedCombat.Diagnostics
                     !string.IsNullOrWhiteSpace(outcome.AmmunitionStateAfter) &&
                     !string.IsNullOrWhiteSpace(outcome.ReloadStateBefore) &&
                     !string.IsNullOrWhiteSpace(outcome.ReloadStateAfter) &&
-                    combat.StockAttackMountDispatchCount - stockMountBefore == 0 &&
+                    mountDispatches >= 0 && mountDispatches <= 1 &&
+                    (mountDispatches == 0 || rangedMountMeleeReadyAtAdmission &&
+                        ruleProbe.MountAttackRuleCount == 1) &&
+                    horseMovementDistance <= 0.25f &&
                     combat.StockAttackDuplicateDispatchCount - stockDuplicateBefore == 0,
-                "Ordinary mounted " + rangedVariantCategory + " fire stayed on native weapon/ammunition/reload surfaces with zero Horse melee dispatch.",
+                "Ordinary mounted " + rangedVariantCategory + " fire stayed on native weapon/ammunition/reload surfaces; any single Horse primary remained bounded to an already-legal melee position with no forced approach.",
                 evidence);
             stockCancelBefore = combat.StockAttackIntentCancelCount;
             combat.Cancel("Phase 3D " + rangedVariantCategory + " control complete");
@@ -1175,6 +1230,9 @@ namespace KingmakerMountedCombat.Diagnostics
             turnSnapshotBefore = combat.CaptureUnifiedTurnSnapshot();
             turnBasedModeProbe = new NativeModeTransitionProbe(true);
             turnBasedModeProbe.DispatchTemporaryValueIfRequired();
+            transitionRiderTurnObserved = false;
+            transitionRiderStartRequestCount = 0;
+            transitionFirstNativeTurnUnitId = null;
             step = Phase3dHorseStep.AwaitRtToTbTransition;
             stableFrames = 0;
             ResetLeafClock();
@@ -1190,11 +1248,39 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
-            var after = combat.CaptureUnifiedTurnSnapshot();
+            var currentTurn = controller.CurrentTurn;
+            if (currentTurn == null)
+            {
+                return;
+            }
+            if (!transitionRiderTurnObserved)
+            {
+                transitionFirstNativeTurnUnitId = currentTurn.Unit?.UniqueId;
+                transitionRiderTurnObserved = true;
+                if (currentTurn.Unit != rider)
+                {
+                    controller.StartTurn(rider);
+                    transitionRiderStartRequestCount++;
+                }
+                stableFrames = 0;
+                return;
+            }
+            if (!IsStableRiderTurn(currentTurn))
+            {
+                stableFrames = 0;
+                return;
+            }
+            stableFrames++;
+            if (stableFrames < 2)
+            {
+                return;
+            }
+
             InitiativeTrackerVM tracker = null;
             try
             {
                 tracker = new InitiativeTrackerVM();
+                var after = combat.CaptureUnifiedTurnSnapshot();
                 var riderEntries = tracker.Units.Count(item => item.Unit == rider);
                 var horseEntries = tracker.Units.Count(item => item.Unit == horse);
                 var riderEntry = tracker.Units.SingleOrDefault(item => item.Unit == rider);
@@ -1206,6 +1292,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["trackerHorseCount"] = horseEntries,
                     ["trackerRiderPortraitExact"] = riderEntry != null &&
                         ReferenceEquals(riderEntry.Portrait, rider.Portrait.SmallPortrait),
+                    ["currentTurnUnitId"] = currentTurn.Unit?.UniqueId,
+                    ["currentTurnStatus"] = currentTurn.Status.ToString(),
+                    ["firstNativeTurnUnitId"] = transitionFirstNativeTurnUnitId,
+                    ["riderStartTurnRequestCount"] = transitionRiderStartRequestCount,
                     ["transitionRequired"] = turnBasedModeProbe.TransitionRequired,
                     ["temporaryValueCurrent"] = turnBasedModeProbe.TemporaryValueIsCurrent
                 };
@@ -1241,7 +1331,6 @@ namespace KingmakerMountedCombat.Diagnostics
                 tracker?.Dispose();
             }
 
-            controller.StartTurn(rider);
             transitionPrimaryDispatched = false;
             stableFrames = 0;
             step = Phase3dHorseStep.AwaitRiderPrimaryAfterTransition;
@@ -2539,6 +2628,52 @@ namespace KingmakerMountedCombat.Diagnostics
                 rider.Commands.Empty && horse.Commands.Empty;
         }
 
+        private bool IsRangedOpportunityControlReady()
+        {
+            return target != null && target.CombatState != null && rider.CombatState != null &&
+                target.IsInState && rider.IsInState && target.IsEnemy(rider) &&
+                target.CombatState.CanActInCombat && target.CombatState.CanAttackOfOpportunity &&
+                target.CombatState.AttackOfOpportunityCount > 0 && target.Descriptor.State.CanAct &&
+                target.GetThreatHand() != null && target.IsEngage(rider) &&
+                target.CombatState.EngagedUnits.Contains(rider) &&
+                rider.CombatState.EngagedBy.Contains(target) && rider.Memory.Contains(target) &&
+                !target.HasMotionThisTick;
+        }
+
+        private void ObserveCurrentRangedRiderOutcome()
+        {
+            var outcome = combat.LastOutcome;
+            if (outcome != null && !ReferenceEquals(outcome, rangedRiderOutcomeBaseline) &&
+                outcome.Action == MountedCombatActionKind.RiderRanged &&
+                string.Equals(outcome.TargetId, target?.UniqueId, StringComparison.Ordinal))
+            {
+                rangedRiderOutcome = outcome;
+            }
+        }
+
+        private JObject CaptureRangedOpportunityReadiness()
+        {
+            var targetCombat = target?.CombatState;
+            var riderCombat = rider?.CombatState;
+            var threat = target?.GetThreatHand()?.Weapon?.Blueprint;
+            return new JObject
+            {
+                ["ready"] = IsRangedOpportunityControlReady(),
+                ["targetId"] = target?.UniqueId,
+                ["riderId"] = rider?.UniqueId,
+                ["targetCanActInCombat"] = targetCombat?.CanActInCombat,
+                ["targetCanAttackOfOpportunity"] = targetCombat?.CanAttackOfOpportunity,
+                ["targetOpportunityCount"] = targetCombat?.AttackOfOpportunityCount,
+                ["targetOpportunityPerRound"] = targetCombat?.AttackOfOpportunityPerRound,
+                ["targetThreatWeaponGuid"] = threat?.AssetGuid,
+                ["targetThreatsRider"] = target != null && target.IsEngage(rider),
+                ["targetTracksRiderEngagement"] = targetCombat != null && targetCombat.EngagedUnits.Contains(rider),
+                ["riderTracksTargetThreat"] = riderCombat != null && riderCombat.EngagedBy.Contains(target),
+                ["riderMemoryContainsTarget"] = target != null && rider.Memory.Contains(target),
+                ["targetHasMotionThisTick"] = target?.HasMotionThisTick
+            };
+        }
+
         private bool TryNativeAbilityTargetClick(
             BlueprintAbility blueprint,
             UnitEntityData clickedTarget,
@@ -2720,6 +2855,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["relationshipState"] = relationship.State.ToString(),
                 ["stockObservation"] = combat.LastStockAttackObservation,
                 ["feedback"] = combat.LastFeedback,
+                ["currentTurnUnitId"] = Game.Instance?.TurnBasedCombatController?.CurrentTurn?.Unit?.UniqueId,
+                ["currentTurnStatus"] = Game.Instance?.TurnBasedCombatController?.CurrentTurn?.Status.ToString(),
+                ["transitionRiderTurnObserved"] = transitionRiderTurnObserved,
+                ["transitionRiderStartRequestCount"] = transitionRiderStartRequestCount,
                 ["nativeControls"] = JObject.FromObject(
                     nativeControls.CaptureSnapshot(), JsonSerializer.Create(JsonSettings)),
                 ["lastNativeAbilityShell"] = CaptureNativeAbilityShell(lastNativeAbilityShell)

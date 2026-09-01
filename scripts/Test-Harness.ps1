@@ -9930,16 +9930,26 @@ try {
                 $rowByName['mounted-stock-click-melee-cancel-rt'].evidence = $cancel
                 $rowByName['mounted-bow-auto-fire-rt'].evidence = $ranged
                 $rowByName['mounted-stock-click-invalid-target-feedback'].evidence = [ordered]@{nativeRequestDelta=0;intentStartDelta=0}
-                $rowByName['mounted-ranged-aao-native-control'].evidence = [ordered]@{opportunity=[ordered]@{attackRules=1;attackRolls=1}}
+                $rowByName['mounted-ranged-aao-native-control'].evidence = [ordered]@{
+                    nativeRequestDelta=1;intentStartDelta=1;riderDispatchDelta=1;mountDispatchDelta=1;duplicateDispatchDelta=0
+                    mountAlreadyInMeleeAtAdmission=$true;horseMovementDistanceAfterAdmission=0.0
+                    opportunityReadyAtAdmission=[ordered]@{ready=$true;targetId='target'}
+                    opportunity=[ordered]@{attackRules=1;attackRolls=1;damageRules=1;lastActorId='target';lastTargetId='rider'}
+                }
                 $rowByName['mounted-crossbow-or-reload-control'].evidence = [ordered]@{
-                    weaponCategory='LightCrossbow';outcome=[ordered]@{ammunitionStateBefore='native';reloadStateAfter='native'}
+                    weaponCategory='LightCrossbow';riderDispatchDelta=1;mountDispatchDelta=1;duplicateDispatchDelta=0
+                    mountAlreadyInMeleeAtAdmission=$true;horseMovementDistanceAfterAdmission=0.0
+                    outcome=[ordered]@{ammunitionStateBefore='native';reloadStateAfter='native'}
                 }
                 $rowByName['mounted-sling-control'].evidence = [ordered]@{
-                    weaponCategory='Sling';outcome=[ordered]@{ammunitionStateBefore='native';reloadStateAfter='native'}
+                    weaponCategory='Sling';riderDispatchDelta=1;mountDispatchDelta=1;duplicateDispatchDelta=0
+                    mountAlreadyInMeleeAtAdmission=$true;horseMovementDistanceAfterAdmission=0.0
+                    outcome=[ordered]@{ammunitionStateBefore='native';reloadStateAfter='native'}
                 }
                 $rowByName['RT-to-TB-shared-turn'].evidence = [ordered]@{
                     trackerRiderCount=1;trackerHorseCount=0;trackerRiderPortraitExact=$true
-                    after=[ordered]@{sharedInitiativeOwnerId='rider';rider=[ordered]@{unitId='rider'}}
+                    currentTurnUnitId='rider';firstNativeTurnUnitId='target';riderStartTurnRequestCount=1
+                    after=[ordered]@{sharedInitiativeOwnerId='rider';trackerMountFilterCount=1;rider=[ordered]@{unitId='rider'}}
                 }
                 $rowByName['TB-to-RT-shared-turn'].evidence = [ordered]@{
                     persistedValueUnchanged=$true;restoreDeliveryCompleted=$true;relationshipState='Mounted'
@@ -10032,6 +10042,17 @@ try {
 
             if ($phase3dScenario -ceq 'phase3d-unified-combat-rt-suite') {
                 $rowByName['mounted-bow-auto-fire-rt'].evidence.mountDispatchDelta = 0
+                $rowByName['mounted-ranged-aao-native-control'].evidence.mountAlreadyInMeleeAtAdmission = $false
+                Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
+                $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
+                $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
+                [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+                $phase3dManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+                Assert-TestThrows {
+                    Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
+                } 'Phase 3D RT validator accepted a Horse primary from an adjacent ranged order without exact already-legal melee evidence.'
+
+                $rowByName['mounted-ranged-aao-native-control'].evidence.mountAlreadyInMeleeAtAdmission = $true
                 $rowByName['rider-primary-does-not-dismount-rt'].evidence.admissionReadiness.riderCanActInCombat = $false
                 Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
                 $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
@@ -10121,6 +10142,11 @@ try {
             $phase3dSource.Contains('ClickGroundHandler.MoveSelectedUnitsToPoint(movementDestination, false);') -and
             $phase3dSource.Contains('turn.TryChangeSmartAction();') -and
             $phase3dSource.Contains('new InitiativeTrackerVM()') -and
+            $phase3dSource.Contains('if (currentTurn == null)') -and
+            $phase3dSource.Contains('transitionRiderTurnObserved = true;') -and
+            $phase3dSource.Contains('rangedOpportunityReadinessAtAdmission = CaptureRangedOpportunityReadiness();') -and
+            $phase3dSource.Contains('ruleProbe.OpportunityAttackRuleCount == 1') -and
+            $phase3dSource.Contains('mountAlreadyInMeleeAtAdmission') -and
             $phase3dSource.Contains('rangedWeaponLease.Acquire(WeaponCategory.Shortbow);') -and
             $phase3dSource.Contains('.DefaultIfEmpty(-1)') -and
             $phase3dSource.Contains('.Select(item => item.Sequence)') -and

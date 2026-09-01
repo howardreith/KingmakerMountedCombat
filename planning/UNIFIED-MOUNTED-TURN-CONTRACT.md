@@ -22,9 +22,11 @@ Authority is `Assembly-CSharp.dll` SHA-256 `3b6450ffec440e296e586f71c711b195aed1
 | Movement accounting | private `TurnController.TickMovement(ref float,bool)` `0x06000C37` | Physical motion remains the mount's; Phase 3D transfers ordinary Move cost to the mount ledger and retains exact five-foot-step state. |
 | Explicit end | `TurnController.ForceToEnd(bool)` `0x06000C47` | Never invoke merely because the rider spent its resources; honor only player/native end or terminal shared-turn state. |
 | Initiative events | `CombatController.HandleUnitRollsInitiative` `0x06000BEE` | Pair placement and visible initiative use the rider result/bonus. Mount state is synchronized without refreshing actions. |
-| Tracker projection | private `InitiativeTrackerVM.UpdateUnits()` `0x06004F0E` | Remove only the exact active mount VM; current entry remains the rider and therefore uses the rider portrait. |
+| Tracker projection | private `InitiativeTrackerVM.UpdateUnits()` `0x06004F0E` | The exact method returns without populating when `CurrentTurn?.Unit` is null. Observe only after a stable native rider turn exists; then remove only the exact active mount VM so the current entry and portrait remain the rider. |
 
 Kingmaker has no native rider/mount pair fields in `TurnController`. The implementation must therefore be a pair-local coordinator behind exact-token Harmony12 adapters, not a global replacement combat controller.
+
+Exact dev.6 transition attribution confirms the tracker constructor calls `UpdateUnits()` immediately, and that method exits before enumerating `SortedUnits` when there is no current turn. A newly constructed empty VM at the RT-to-TB initialization boundary is therefore not evidence that projection failed. Qualification waits for Kingmaker to consume its native pending next-unit handoff, establishes at most one public `StartTurn(rider)` request if that settled turn belongs to another fixture actor, requires two stable rider-turn frames, and only then constructs and inspects the tracker. No private next-unit, status, initiative, cooldown, or tracker collection is written.
 
 ## State model
 

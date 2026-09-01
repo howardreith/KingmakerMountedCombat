@@ -5679,18 +5679,40 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
             [long]$melee.riderDispatchDelta -lt 2L -or [long]$melee.mountDispatchDelta -lt 1L -or
             [long]$melee.duplicateDispatchDelta -ne 0L -or $melee.intentActive -ne $true -or
             [long]$cancel.intentCancelDelta -ne 1L -or [long]$cancel.duplicateDispatchDelta -ne 0L -or
+            $cancel.intentActive -ne $false -or
             [long]$ranged.riderDispatchDelta -lt 2L -or [long]$ranged.mountDispatchDelta -ne 0L -or
             [long]$ranged.duplicateDispatchDelta -ne 0L -or $ranged.intentActive -ne $true -or
             [string]$ranged.weaponCategory -cne 'Shortbow' -or
             [long]$invalid.nativeRequestDelta -ne 0L -or [long]$invalid.intentStartDelta -ne 0L -or
-            [long]$adjacent.opportunity.attackRules -lt 1L -or [long]$adjacent.opportunity.attackRolls -lt 1L -or
+            $adjacent.opportunityReadyAtAdmission.ready -ne $true -or
+            [long]$adjacent.opportunity.attackRules -ne 1L -or
+            [long]$adjacent.opportunity.attackRolls -ne 1L -or
+            [long]$adjacent.opportunity.damageRules -ne 1L -or
+            [string]$adjacent.opportunity.lastActorId -cne [string]$adjacent.opportunityReadyAtAdmission.targetId -or
+            [string]$adjacent.opportunity.lastTargetId -cne [string]$artifact.observations.riderId -or
+            [long]$adjacent.mountDispatchDelta -gt 1L -or
+            ([long]$adjacent.mountDispatchDelta -eq 1L -and $adjacent.mountAlreadyInMeleeAtAdmission -ne $true) -or
+            [double]$adjacent.horseMovementDistanceAfterAdmission -gt 0.25d -or
+            [long]$adjacent.duplicateDispatchDelta -ne 0L -or
             [string]$crossbow.weaponCategory -cne 'LightCrossbow' -or
             [string]::IsNullOrWhiteSpace([string]$crossbow.outcome.ammunitionStateBefore) -or
             [string]::IsNullOrWhiteSpace([string]$crossbow.outcome.reloadStateAfter) -or
+            [long]$crossbow.riderDispatchDelta -ne 1L -or [long]$crossbow.mountDispatchDelta -gt 1L -or
+            ([long]$crossbow.mountDispatchDelta -eq 1L -and $crossbow.mountAlreadyInMeleeAtAdmission -ne $true) -or
+            [double]$crossbow.horseMovementDistanceAfterAdmission -gt 0.25d -or
+            [long]$crossbow.duplicateDispatchDelta -ne 0L -or
             [string]$sling.weaponCategory -cne 'Sling' -or
             [string]::IsNullOrWhiteSpace([string]$sling.outcome.ammunitionStateBefore) -or
+            [long]$sling.riderDispatchDelta -ne 1L -or [long]$sling.mountDispatchDelta -gt 1L -or
+            ([long]$sling.mountDispatchDelta -eq 1L -and $sling.mountAlreadyInMeleeAtAdmission -ne $true) -or
+            [double]$sling.horseMovementDistanceAfterAdmission -gt 0.25d -or
+            [long]$sling.duplicateDispatchDelta -ne 0L -or
             [long]$rtToTb.trackerRiderCount -ne 1L -or [long]$rtToTb.trackerHorseCount -ne 0L -or
             $rtToTb.trackerRiderPortraitExact -ne $true -or
+            [string]$rtToTb.currentTurnUnitId -cne [string]$artifact.observations.riderId -or
+            [string]::IsNullOrWhiteSpace([string]$rtToTb.firstNativeTurnUnitId) -or
+            [long]$rtToTb.riderStartTurnRequestCount -gt 1L -or
+            [long]$rtToTb.after.trackerMountFilterCount -lt 1L -or
             [string]$rtToTb.after.sharedInitiativeOwnerId -cne [string]$rtToTb.after.rider.unitId -or
             $tbToRt.persistedValueUnchanged -ne $true -or $tbToRt.restoreDeliveryCompleted -ne $true -or
             [string]$tbToRt.relationshipState -cne 'Mounted' -or

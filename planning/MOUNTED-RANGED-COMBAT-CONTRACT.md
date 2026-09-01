@@ -20,7 +20,7 @@ For a stock hostile click outside range:
 6. permit at most one bounded repath when target displacement crosses the existing threshold;
 7. stop immediately on cancel/new command/target invalidation.
 
-The mount never closes toward melee merely because it has a natural weapon. A mount attack occurs only if it is already legally in melee during a coordinated melee order or the user separately invokes Mount Primary.
+The mount never closes toward melee merely because it has a natural weapon. During an ordinary ranged intent, the mount may spend one separately owned primary only when its current position already satisfies the exact native natural-weapon range and line-of-sight contract; it may also attack when the user separately invokes Mount Primary. If it is not already in legal melee, ranged intent produces no mount-primary dispatch and no melee approach.
 
 ## RTWP and turn-based
 
@@ -32,4 +32,4 @@ Bows, crossbows, slings, and compatible modded ranged weapons may participate th
 
 ## Qualification
 
-Credit requires a real hostile click, visible mount approach or stationary fire, one native rider attack chain, exact ammunition/reload observations where applicable, zero forced melee closure, native LoS/cover/concealment/AoO controls, cancellation with no late attack, and unmounted controls unchanged.
+Credit requires a real hostile click, visible mount approach or stationary fire, one native rider attack chain, exact ammunition/reload observations where applicable, zero forced melee closure, native LoS/cover/concealment/AoO controls, cancellation with no late attack, and unmounted controls unchanged. The outside-range control requires zero mount-primary dispatch. An adjacent control permits at most one mount primary, only with recorded legal-melee readiness and no additional Horse movement.

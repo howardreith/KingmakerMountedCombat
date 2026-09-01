@@ -1,5 +1,15 @@
 # Autonomous blockers
 
+## Phase 3D dev.6 isolates diagnostic timing; dev.7 bounded repair in progress (2026-08-31T23:38:43-04:00)
+
+Status: `IN PROGRESS`.
+
+There is no current external or proven architecture blocker. Guarded dev.6 RT A `20260901T015000Z-phase3d-dev6-rt-passA` completed the exact artifact and restored all external state; independent audit `20260901T022500Z-phase3d-dev6-rt-passA-postrun-audit` passed before inspection. The immutable result remains uncredited `FAIL` (`18/11` outer; `17/10` Phase 3D rows), but it demonstrates functioning native Rider Primary retention, explicit Horse Primary, persistent stock melee dispatch, separate ledgers, long-range ranged approach/autofire/cancel, three native ranged weapon categories, and rider initiative authority.
+
+Every remaining dev.6 failure maps to one of four scenario-attribution errors: cancellation was attempted only after target-death invalidation; already-legal adjacent Horse attacks were disallowed contrary to the mission text; native ranged AoO was sampled before engagement/tick delivery; and tracker construction occurred before `CurrentTurn`, where exact installed `UpdateUnits` intentionally returns empty. The subsequent Primary shell was startable but lost its turn to the native pending handoff. None supports a global turn, AoO, attack, remount, or action-pool patch.
+
+Dev.7 uses the one bounded repair: earlier ordinary-ground cancellation, readiness-proven exact native ranged AoO, contract-correct adjacent melee allowance with zero forced approach, and tracker/Primary observation only after a settled native current turn. Its complete pre-commit gate passes source/Release/component/visual/harness/assembly `22/Release/294/18/237/382` (`358` Kingmaker + `24` Wrath), PowerShell/JSON parsers `26/0` / `7/0`, diff, and prohibited payload. Dirty DLL SHA-256/MVID are `d16e472c56f59532362ce1822688fef5f232f5a979823d713840b1c363408d13` / `f9f2aa4a-d38e-4b90-b049-a3383a332cb2`. Fresh clean-package runtime evidence remains required. If dev.7 still demonstrates a genuine duplicate/skipped turn, action refresh, global AoO change, or unusable stock-control defect after these corrected observation boundaries, preserve the evidence and use the accepted Phase 3C separate-turn fallback disposition rather than layering broader patches.
+
 ## Phase 3D dev.5 gameplay path succeeds; dev.6 artifact-shape repair needs fresh qualification (2026-08-31T18:53:21-04:00)
 
 Status: `IN PROGRESS`.

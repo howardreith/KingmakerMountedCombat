@@ -438,6 +438,18 @@ if($Target-eq'Kingmaker'){
         $attackOfOpportunity[0].GetParameters()[0].ParameterType.FullName-ceq'Kingmaker.EntitySystem.Entities.UnitEntityData' -and
         $attackOfOpportunity[0].GetParameters()[1].ParameterType.FullName-ceq'System.Boolean') `
         'UnitCombatState.AttackOfOpportunity exact public instance Boolean signature'
+    $rangedOpportunityQueue=@(Find-Token 'Kingmaker.Controllers.Combat.UnitCombatEngagementController' 0x06009352)
+    $provokeOpportunity=@(Find-Token 'Kingmaker.Controllers.Combat.UnitCombatEngagementController' 0x06009353)
+    $engagementTick=@(Find-Token 'Kingmaker.Controllers.Combat.UnitCombatEngagementController' 0x0600934C)
+    Assert-Contract ($rangedOpportunityQueue.Count-eq1 -and $rangedOpportunityQueue[0] -is [Reflection.MethodInfo] -and
+        $rangedOpportunityQueue[0].GetParameters().Count-eq1 -and
+        $rangedOpportunityQueue[0].GetParameters()[0].ParameterType.FullName-ceq'Kingmaker.RuleSystem.Rules.RuleAttackRoll' -and
+        $provokeOpportunity.Count-eq1 -and $provokeOpportunity[0] -is [Reflection.MethodInfo] -and
+        (Test-MethodIlContainsToken $rangedOpportunityQueue[0] 0x06009353) -and
+        $engagementTick.Count-eq1 -and $engagementTick[0] -is [Reflection.MethodInfo] -and
+        $engagementTick[0].ReturnType.FullName-ceq'System.Void' -and
+        $engagementTick[0].GetParameters().Count-eq0) `
+        'native ranged attack roll queues opportunity provocation for later engagement tick delivery'
     $combatCooldownTick=@(Find-Token 'Kingmaker.Controllers.Combat.UnitCombatCooldownsController' 0x0600934A)
     $combatCooldownTurnBasedGate=@(Find-Token 'Kingmaker.Controllers.Combat.UnitCombatCooldownsController' 0x06009349)
     Assert-Contract ($combatCooldownTick.Count-eq1 -and $combatCooldownTick[0] -is [Reflection.MethodInfo] -and
@@ -681,6 +693,17 @@ if($Target-eq'Kingmaker'){
         @($initiativeOverrideResult[0].FieldType.GetGenericArguments()).Count-eq1 -and
         @($initiativeOverrideResult[0].FieldType.GetGenericArguments())[0].FullName-ceq'System.Int32') `
         'native turn-based controller roster, rider-turn, and mode signatures'
+    $trackerType=$assembly.GetType('Kingmaker.UI._ConsoleUI.TurnBasedMode.InitiativeTrackerVM',$false)
+    $trackerConstructor=if($null-eq$trackerType){$null}else{@($trackerType.GetConstructors([Reflection.BindingFlags]'Public,NonPublic,Instance')|Where-Object MetadataToken -eq 0x06004F00|Select-Object -First 1)}
+    $trackerUpdate=@(Find-Token 'Kingmaker.UI._ConsoleUI.TurnBasedMode.InitiativeTrackerVM' 0x06004F0E)
+    Assert-Contract ($null-ne$trackerType -and $null-ne$trackerConstructor -and @($trackerConstructor).Count-eq1 -and
+        @($trackerConstructor)[0].IsPublic -and @($trackerConstructor)[0].GetParameters().Count-eq0 -and
+        $trackerUpdate.Count-eq1 -and $trackerUpdate[0] -is [Reflection.MethodInfo] -and
+        $trackerUpdate[0].IsPrivate -and -not $trackerUpdate[0].IsStatic -and
+        $trackerUpdate[0].ReturnType.FullName-ceq'System.Void' -and $trackerUpdate[0].GetParameters().Count-eq0 -and
+        (Test-MethodIlContainsToken $trackerUpdate[0] 0x06000BBE) -and
+        (Test-MethodIlContainsToken $trackerUpdate[0] 0x06000BC7)) `
+        'native tracker constructor and UpdateUnits current-turn then sorted-roster projection seams'
     $clickMapObject=@(Find-Token 'Kingmaker.Controllers.Clicks.Handlers.ClickMapObjectHandler' 0x060093E2)
     $interactCtor=@(Find-Token 'Kingmaker.UnitLogic.Commands.UnitInteractWithObject' 0x060026D6)
     $interactAction=@(Find-Token 'Kingmaker.UnitLogic.Commands.UnitInteractWithObject' 0x060026DE)
