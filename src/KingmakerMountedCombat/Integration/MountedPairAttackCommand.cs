@@ -553,7 +553,7 @@ namespace KingmakerMountedCombat.Integration
             {
                 CreatedByPlayer = true,
                 ShowTargetMarker = false,
-                NeedLoS = true
+                NeedLoS = MountedCombatSpatialPolicy.DelegatedPointMoveRequiresLineOfSight
             };
             delegatedMoveStartCount++;
             delegatedMoveDrivenByStockController =

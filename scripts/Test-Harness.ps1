@@ -9955,12 +9955,40 @@ try {
                 $rowByName['mounted-crossbow-or-reload-control'].evidence = [ordered]@{
                     weaponCategory='LightCrossbow';riderDispatchDelta=1;mountDispatchDelta=1;duplicateDispatchDelta=0
                     mountAlreadyInMeleeAtAdmission=$true;horseMovementDistanceAfterAdmission=0.0
-                    outcome=[ordered]@{ammunitionStateBefore='native';reloadStateAfter='native'}
+                    previousTargetId='shortbow-target';previousTargetCleanupPassed=$true;isolatedTargetId='crossbow-target'
+                    admissionReadiness=[ordered]@{
+                        ready=$true;category='LightCrossbow';relationshipMounted=$true;modeRealTime=$true;gameUnpaused=$true
+                        riderSelectedPrincipal=$true;weaponLeaseReady=$true;weaponCategory='LightCrossbow';targetReady=$true
+                        combatMemoryReady=$true;pairCommandIdle=$true;pairGroundMovementIdle=$true;exactMountMovementIdle=$true
+                        stockIntentIdle=$true;riderStandardReady=$true;riderCommandsIdle=$true;horseCommandsIdle=$true
+                        targetCommandsIdle=$true;riderHandsIdle=$true;horseHandsIdle=$true;targetHandsIdle=$true
+                        riderEquipmentIdle=$true;horseEquipmentIdle=$true
+                    }
+                    input=[ordered]@{expectedDispatchStarted=$true;nativeRequestDelta=1;intentStartDelta=1}
+                    rules=[ordered]@{riderAttackRules=1;mountAttackRules=1;pairAttackRolls=2}
+                    outcome=[ordered]@{
+                        targetId='crossbow-target';childAttackStartCount=1;nativeAttackRuleObserved=$true
+                        ammunitionStateBefore='native';reloadStateBefore='native';reloadStateAfter='native'
+                    }
                 }
                 $rowByName['mounted-sling-control'].evidence = [ordered]@{
                     weaponCategory='Sling';riderDispatchDelta=1;mountDispatchDelta=1;duplicateDispatchDelta=0
                     mountAlreadyInMeleeAtAdmission=$true;horseMovementDistanceAfterAdmission=0.0
-                    outcome=[ordered]@{ammunitionStateBefore='native';reloadStateAfter='native'}
+                    previousTargetId='crossbow-target';previousTargetCleanupPassed=$true;isolatedTargetId='sling-target'
+                    admissionReadiness=[ordered]@{
+                        ready=$true;category='Sling';relationshipMounted=$true;modeRealTime=$true;gameUnpaused=$true
+                        riderSelectedPrincipal=$true;weaponLeaseReady=$true;weaponCategory='Sling';targetReady=$true
+                        combatMemoryReady=$true;pairCommandIdle=$true;pairGroundMovementIdle=$true;exactMountMovementIdle=$true
+                        stockIntentIdle=$true;riderStandardReady=$true;riderCommandsIdle=$true;horseCommandsIdle=$true
+                        targetCommandsIdle=$true;riderHandsIdle=$true;horseHandsIdle=$true;targetHandsIdle=$true
+                        riderEquipmentIdle=$true;horseEquipmentIdle=$true
+                    }
+                    input=[ordered]@{expectedDispatchStarted=$true;nativeRequestDelta=1;intentStartDelta=1}
+                    rules=[ordered]@{riderAttackRules=1;mountAttackRules=1;pairAttackRolls=2}
+                    outcome=[ordered]@{
+                        targetId='sling-target';childAttackStartCount=1;nativeAttackRuleObserved=$true
+                        ammunitionStateBefore='native';reloadStateBefore='native';reloadStateAfter='native'
+                    }
                 }
                 $rowByName['RT-to-TB-shared-turn'].evidence = [ordered]@{
                     trackerRiderCount=1;trackerHorseCount=0;trackerRiderPortraitExact=$true
@@ -10080,6 +10108,17 @@ try {
                 } 'Phase 3D RT validator accepted a native rider ranged roll marked not to provoke.'
 
                 $rowByName['mounted-ranged-aao-native-control'].evidence.rules.lastRiderAttackDoNotProvoke = $false
+                $rowByName['mounted-crossbow-or-reload-control'].evidence.previousTargetCleanupPassed = $false
+                Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
+                $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
+                $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
+                [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+                $phase3dManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+                Assert-TestThrows {
+                    Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
+                } 'Phase 3D RT validator accepted a ranged weapon control that reused an uncleared target.'
+
+                $rowByName['mounted-crossbow-or-reload-control'].evidence.previousTargetCleanupPassed = $true
                 $rowByName['rider-primary-does-not-dismount-rt'].evidence.admissionReadiness.riderCanActInCombat = $false
                 Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
                 $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
@@ -10111,6 +10150,8 @@ try {
         $relationshipSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\GameMountedRelationshipService.cs'))
         $nativeSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\NativeMountedControlService.cs'))
         $attackSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPairAttackCommand.cs'))
+        $singleAttackSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPairSingleAttack.cs'))
+        $spatialSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedCombatSpatialPolicy.cs'))
         $optionalPropertySource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\OptionalPublicPropertyReader.cs'))
         $phase3dSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\Phase3dHorseScenarioTranche.cs'))
 
@@ -10149,7 +10190,10 @@ try {
             $patchSource.Contains('PrepareNativePrimaryIntentShell(__instance);')) `
             'native ability instrumentation or combat Move/stock request delivery is incomplete'
         Assert-Test ($attackSource.Contains('delegatedMove = new UnitMoveTo(targetSnapshot, childAttack.PairApproachRadius)') -and
-            $attackSource.Contains('NeedLoS = true') -and
+            $attackSource.Contains('NeedLoS = MountedCombatSpatialPolicy.DelegatedPointMoveRequiresLineOfSight') -and
+            -not $attackSource.Contains('NeedLoS = true') -and
+            $spatialSource.Contains('public const bool DelegatedPointMoveRequiresLineOfSight = false;') -and
+            $singleAttackSource.Contains('rider.HasLOS(target)') -and
             $attackSource.Contains('AttackWeaponTypeBlueprintId') -and
             $attackSource.Contains('AmmunitionStateBefore') -and
             $attackSource.Contains('ReloadStateAfter') -and
@@ -10178,6 +10222,10 @@ try {
             $phase3dSource.Contains('observations["rangedOpportunityProgress"] = CaptureRangedOpportunityProgress();') -and
             $phase3dSource.Contains('LastRiderAttackDoNotProvoke = evt.DoNotProvokeAttacksOfOpportunity;') -and
             $phase3dSource.Contains('mountDispatches == 0') -and
+            $phase3dSource.Contains('AwaitRangedVariantTargetCleanupRt()') -and
+            $phase3dSource.Contains('AwaitRangedVariantAdmissionRt()') -and
+            $phase3dSource.Contains('rangedVariantPreviousTargetCleanupPassed = true;') -and
+            $phase3dSource.Contains('weapon.Category == rangedVariantCategory') -and
             $phase3dSource.Contains('ruleProbe.OpportunityAttackRuleCount == 1') -and
             $phase3dSource.Contains('mountAlreadyInMeleeAtAdmission') -and
             $phase3dSource.Contains('rangedWeaponLease.Acquire(WeaponCategory.Shortbow);') -and

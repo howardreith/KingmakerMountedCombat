@@ -22,6 +22,8 @@ Dev.6 RT A `20260901T015000Z-phase3d-dev6-rt-passA` completed the artifact and i
 
 Dev.7 RT A `20260901T064000Z-phase3d-dev7-rt-passA` is immutable uncredited `FAIL` (`19/2` outer; `18/1` Phase 3D rows) after mandatory audit `20260901T073000Z-phase3d-dev7-rt-passA-postrun-audit` passed before inspection. Every row through long-range ranged cancellation passed, including the repaired active melee cancellation. The only gameplay failure was `AwaitRangedAdjacentAttackRt`. Local ignored log attribution proves the adjacent intent remained healthy and alternating; the Horse attacked first because the rider still lacked a Standard action after two long-range shots. Exact Kingmaker `UnitCombatEngagementController` queues ranged provocation on the rider's `RuleAttackRoll` and delivers it on a later engagement tick. Dev.8 therefore isolates one rider-first control with idle rider/Horse/hostile commands, native `AttackOfOpportunity(rider,true)` admission, explicit ranged/no-suppression roll evidence, exact stock counter consumption, and immediate cancellation after one `1/1/1` hostile chain. This is the only repair for the newly exposed cooldown-contaminated control; another failure receives an architecture disposition, not another patch.
 
+Dev.8 RT A `20260901T120000Z-phase3d-dev8-rt-passA` is immutable uncredited `FAIL` (`19/5` outer; `18/4` Phase 3D rows; `63/8` assertions) after mandatory audit `20260901T130000Z-phase3d-dev8-rt-passA-postrun-audit` passed before inspection. The focused adjacent Shortbow and native ranged-AoO rows passed exactly with one unsuppressed rider roll, zero Horse dispatch/movement, native opportunity count `1 -> 0`, and one hostile attack/roll/damage chain. Rider Primary retained the pair with zero cleanup/end events but timed out because a point-target delegated `UnitMoveTo` incorrectly required LoS and never became terminal after valid Horse approach. Crossbow fired natively but reused-target rule capture was contaminated; the immediate Sling swap was not admitted. Dev.9 is the one bounded repair: delegated point movement is LoS-free while the child attack retains native hostile LoS, and each ranged variant receives a freshly verified target plus stable readiness and exact input/child/rule cardinality evidence.
+
 ## Shared initiative
 
 | Scenario | RT | TB | Required proof | Status |
@@ -55,7 +57,7 @@ Dev.7 RT A `20260901T064000Z-phase3d-dev7-rt-passA` is immutable uncredited `FAI
 
 | Scenario | Required proof | Status |
 |---|---|---|
-| rider-primary-does-not-dismount-rt | relationship remains mounted after terminal hit/miss | TODO |
+| rider-primary-does-not-dismount-rt | relationship remains mounted after terminal hit/miss | IN PROGRESS - dev.8 proves retention through native/KMC admission but the child timed out; dev.9 terminal repair pending |
 | rider-primary-does-not-dismount-tb | same under rider-led shared turn | TODO |
 | rider-primary-rejection-does-not-dismount | no transition/cleanup event | TODO |
 | rider-primary-target-cancel-does-not-dismount | target selector cancel has no cleanup | TODO |
@@ -87,11 +89,11 @@ Each mounted row records actual `ClickUnitHandler` admission, exact stock comman
 | mounted-bow-auto-fire | yes |  | TODO |
 | mounted-bow-cancel | yes |  | TODO |
 | mounted-bow-shared-turn |  | yes | TODO |
-| mounted-crossbow-or-reload-control | yes | yes | TODO |
-| mounted-sling-control | yes | yes | TODO |
+| mounted-crossbow-or-reload-control | yes | yes | IN PROGRESS - native dev.8 shot observed; fresh-target exact-cardinality rerun pending |
+| mounted-sling-control | yes | yes | IN PROGRESS - dev.9 stable equipment/target admission rerun pending |
 | mounted-ranged-line-of-sight | yes | yes | TODO |
 | mounted-ranged-cover-concealment | yes | yes | TODO |
-| mounted-ranged-aao-native-control | yes | yes | TODO |
+| mounted-ranged-aao-native-control | yes | yes | IN PROGRESS - exact dev.8 RT row PASS inside an uncredited aggregate; clean aggregate/TB pending |
 | mounted-ranged-does-not-force-melee | yes | yes | TODO |
 | unmounted-ranged-control | yes | yes | TODO |
 

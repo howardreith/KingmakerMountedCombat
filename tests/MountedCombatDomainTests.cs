@@ -27,6 +27,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("mounted combat approach placement starts outside exact pair range", DiagnosticApproachPlacementStartsOutsideRange);
             runner.Run("mounted combat approach evidence preserves mount-only pathfinding", ApproachEvidencePreservesMountAuthority);
             runner.Run("mounted combat approach raw Move slot preserves the exact finished command boundary", ApproachRawMoveSlotPreservesFinishedBoundary);
+            runner.Run("mounted combat delegated point movement leaves LoS to the native child attack", DelegatedPointMoveLeavesLineOfSightToChildAttack);
             runner.Run("mounted combat approach rejects an empty Mammoth command controller", ApproachEvidenceRejectsEmptyMountCommandController);
             runner.Run("mounted combat approach evidence reports command movement and pose drift", ApproachEvidenceReportsExactFailures);
             runner.Run("mounted combat native admission bridges only an in-range Mammoth origin", NativeAdmissionUsesMountOrigin);
@@ -452,6 +453,13 @@ namespace KingmakerMountedCombat.Tests
                 "A detached delegated move passed despite stock empty-container movement cancellation.");
             TestRunner.True(Array.IndexOf(missingMoveSlot.FailedGateNames, "mount-move-slot-owned") >= 0,
                 "The exact Mammoth Move-slot failure was not reported.");
+        }
+
+        private static void DelegatedPointMoveLeavesLineOfSightToChildAttack()
+        {
+            TestRunner.True(
+                !MountedCombatSpatialPolicy.DelegatedPointMoveRequiresLineOfSight,
+                "A delegated point move still required LoS and can deadlock on the hostile target blocker.");
         }
 
         private static MountedCombatApproachSnapshot PassingApproachSnapshot()

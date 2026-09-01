@@ -125,6 +125,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private string transitionFirstNativeTurnUnitId;
         private bool rangedMountMeleeReadyAtAdmission;
         private JObject rangedOpportunityReadinessAtAdmission;
+        private JObject rangedVariantReadinessAtAdmission;
+        private string rangedVariantPreviousTargetId;
+        private bool rangedVariantPreviousTargetCleanupPassed;
         private MountedPairAttackOutcome rangedRiderOutcome;
         private MountedPairAttackOutcome rangedRiderOutcomeBaseline;
         private bool targetCleanupComplete;
@@ -308,6 +311,12 @@ namespace KingmakerMountedCombat.Diagnostics
                         break;
                     case Phase3dHorseStep.AwaitRangedAdjacentCancelRt:
                         AwaitRangedAdjacentCancelRt();
+                        break;
+                    case Phase3dHorseStep.AwaitRangedVariantTargetCleanupRt:
+                        AwaitRangedVariantTargetCleanupRt();
+                        break;
+                    case Phase3dHorseStep.AwaitRangedVariantAdmissionRt:
+                        AwaitRangedVariantAdmissionRt();
                         break;
                     case Phase3dHorseStep.AwaitRangedVariantRt:
                         AwaitRangedVariantRt();
@@ -1131,15 +1140,63 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 return;
             }
-            BeginRangedVariantRt(WeaponCategory.LightCrossbow);
+            BeginRangedVariantTargetReplacement(WeaponCategory.LightCrossbow);
         }
 
-        private void BeginRangedVariantRt(WeaponCategory category)
+        private void BeginRangedVariantTargetReplacement(WeaponCategory category)
         {
+            rangedVariantCategory = category;
+            rangedVariantPreviousTargetId = target?.UniqueId;
+            rangedVariantPreviousTargetCleanupPassed = false;
+            rangedVariantReadinessAtAdmission = null;
+            combat.Cancel("Phase 3D " + category + " isolated target boundary");
+            TryLeaveCombat(target);
+            targetCleanupComplete = targetService != null && targetService.DestroyAndVerify();
+            step = Phase3dHorseStep.AwaitRangedVariantTargetCleanupRt;
+            stableFrames = 0;
+            ResetLeafClock();
+        }
+
+        private void AwaitRangedVariantTargetCleanupRt()
+        {
+            if (!targetCleanupComplete && targetService != null)
+            {
+                targetCleanupComplete = targetService.DestroyAndVerify();
+            }
+            if (!targetCleanupComplete)
+            {
+                return;
+            }
+
+            targetService.Dispose();
+            targetService = null;
+            target = null;
+            rangedVariantPreviousTargetCleanupPassed = true;
             rangedWeaponLease?.Dispose();
             rangedWeaponLease = new Phase3dRangedWeaponLease(rider);
-            rangedWeaponLease.Acquire(category);
-            rangedVariantCategory = category;
+            rangedWeaponLease.Acquire(rangedVariantCategory);
+            BeginTarget(2.0f, "rt-" + rangedVariantCategory.ToString().ToLowerInvariant());
+            step = Phase3dHorseStep.AwaitRangedVariantAdmissionRt;
+            stableFrames = 0;
+            ResetLeafClock();
+        }
+
+        private void AwaitRangedVariantAdmissionRt()
+        {
+            var readiness = CaptureRangedVariantReadiness();
+            observations["rangedVariantReadiness"] = readiness;
+            if (!(bool)readiness["ready"])
+            {
+                stableFrames = 0;
+                return;
+            }
+            stableFrames++;
+            if (stableFrames < 2)
+            {
+                return;
+            }
+
+            stableFrames = 0;
             SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
             ruleProbe.Arm(target, true);
             stockNativeBefore = combat.StockAttackNativeRequestCount;
@@ -1149,16 +1206,29 @@ namespace KingmakerMountedCombat.Diagnostics
             stockDuplicateBefore = combat.StockAttackDuplicateDispatchCount;
             movementStart = horse.Position;
             rangedMountMeleeReadyAtAdmission = horse.IsEngage(target);
+            rangedVariantReadinessAtAdmission = readiness.DeepClone() as JObject;
             rangedRiderOutcome = null;
             rangedRiderOutcomeBaseline = combat.LastOutcome;
-            targetService.BeginExpectedAttackDispatch(target);
+            var expectedDispatchStarted = targetService.BeginExpectedAttackDispatch(target);
             var clicked = new ClickUnitHandler().OnClick(target.View.gameObject, target.Position, 0, false, false);
-            var row = category == WeaponCategory.LightCrossbow
+            var nativeRequestDelta = combat.StockAttackNativeRequestCount - stockNativeBefore;
+            var intentStartDelta = combat.StockAttackIntentStartCount - stockIntentBefore;
+            observations["rangedVariantInput"] = new JObject
+            {
+                ["category"] = rangedVariantCategory.ToString(),
+                ["clicked"] = clicked,
+                ["expectedDispatchStarted"] = expectedDispatchStarted,
+                ["nativeRequestDelta"] = nativeRequestDelta,
+                ["intentStartDelta"] = intentStartDelta,
+                ["lastObservation"] = combat.LastStockAttackObservation,
+                ["feedback"] = combat.LastFeedback
+            };
+            var row = rangedVariantCategory == WeaponCategory.LightCrossbow
                 ? "mounted-crossbow-or-reload-control"
                 : "mounted-sling-control";
-            if (!clicked && combat.StockAttackIntentStartCount == stockIntentBefore)
+            if (!expectedDispatchStarted || nativeRequestDelta != 1 || intentStartDelta != 1)
             {
-                FailCurrent(row, "Ordinary native ranged hostile click did not admit the " + category + " control.");
+                FailCurrent(row, "Ordinary native ranged hostile click did not admit the isolated, readiness-proven " + rangedVariantCategory + " control.");
                 BeginCleanup();
                 return;
             }
@@ -1183,6 +1253,11 @@ namespace KingmakerMountedCombat.Diagnostics
             evidence["weaponCategory"] = weapon?.Category.ToString();
             evidence["horseMovementDistanceAfterAdmission"] = horseMovementDistance;
             evidence["mountAlreadyInMeleeAtAdmission"] = rangedMountMeleeReadyAtAdmission;
+            evidence["admissionReadiness"] = rangedVariantReadinessAtAdmission?.DeepClone();
+            evidence["input"] = observations["rangedVariantInput"]?.DeepClone();
+            evidence["previousTargetId"] = rangedVariantPreviousTargetId;
+            evidence["previousTargetCleanupPassed"] = rangedVariantPreviousTargetCleanupPassed;
+            evidence["isolatedTargetId"] = target.UniqueId;
             evidence["outcome"] = outcome == null
                 ? null
                 : JObject.FromObject(outcome, JsonSerializer.Create(JsonSettings));
@@ -1193,10 +1268,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 row,
                 weapon != null && weapon.IsRanged && weapon.Category == rangedVariantCategory &&
                     outcome != null && outcome.AttackWeaponIsRanged && outcome.NativeAttackRuleObserved &&
+                    outcome.ChildAttackStartCount == 1 &&
                     !string.IsNullOrWhiteSpace(outcome.AmmunitionStateBefore) &&
                     !string.IsNullOrWhiteSpace(outcome.AmmunitionStateAfter) &&
                     !string.IsNullOrWhiteSpace(outcome.ReloadStateBefore) &&
                     !string.IsNullOrWhiteSpace(outcome.ReloadStateAfter) &&
+                    ruleProbe.RiderAttackRuleCount == 1 &&
+                    ruleProbe.PairAttackRollCount == 1 + mountDispatches &&
                     mountDispatches >= 0 && mountDispatches <= 1 &&
                     (mountDispatches == 0 || rangedMountMeleeReadyAtAdmission &&
                         ruleProbe.MountAttackRuleCount == 1) &&
@@ -1225,7 +1303,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
             if (rangedVariantCategory == WeaponCategory.LightCrossbow)
             {
-                BeginRangedVariantRt(WeaponCategory.Sling);
+                BeginRangedVariantTargetReplacement(WeaponCategory.Sling);
                 return;
             }
             rangedWeaponLease.Dispose();
@@ -2746,13 +2824,105 @@ namespace KingmakerMountedCombat.Diagnostics
             };
         }
 
+        private JObject CaptureRangedVariantReadiness()
+        {
+            var game = Game.Instance;
+            var selected = SelectionManager.Instance?.SelectedUnits;
+            var equipment = game?.HandsEquipmentController;
+            var weapon = rider.GetFirstWeapon()?.Blueprint;
+            var targetReady = target != null && target.IsInState && target.Descriptor.State.IsConscious &&
+                rider.IsEnemy(target) && rider.CanAttack(target);
+            var combatMemoryReady = targetService != null &&
+                targetService.RefreshBidirectionalCombatMemoryLease();
+            var ready = IsCombatReady(true) && !CombatController.IsInTurnBasedCombat() &&
+                game != null && !game.IsPaused && selected != null && selected.Count == 1 && selected[0] == rider &&
+                rangedWeaponLease != null && rangedWeaponLease.IsReady && weapon != null && weapon.IsRanged &&
+                weapon.Category == rangedVariantCategory && targetReady && combatMemoryReady &&
+                !combat.HasActiveCommand && !combat.HasActiveGroundMovement && !combat.HasExactMountMovement &&
+                !combat.HasStockAttackIntent && rider.HasStandardAction() &&
+                rider.Commands != null && rider.Commands.Empty && horse.Commands != null && horse.Commands.Empty &&
+                target.Commands != null && target.Commands.Empty && !rider.AreHandsBusyWithAnimation &&
+                !horse.AreHandsBusyWithAnimation && !target.AreHandsBusyWithAnimation && equipment != null &&
+                !equipment.IsUpdateScheduledFor(rider) && !equipment.IsUpdateScheduledFor(horse) &&
+                relationship.Runtime.PoseHealthy;
+            return new JObject
+            {
+                ["ready"] = ready,
+                ["category"] = rangedVariantCategory.ToString(),
+                ["relationshipMounted"] = relationship.State == RelationshipState.Mounted,
+                ["modeRealTime"] = !CombatController.IsInTurnBasedCombat(),
+                ["gameUnpaused"] = game != null && !game.IsPaused,
+                ["riderSelectedPrincipal"] = selected != null && selected.Count == 1 && selected[0] == rider,
+                ["weaponLeaseReady"] = rangedWeaponLease != null && rangedWeaponLease.IsReady,
+                ["weaponCategory"] = weapon?.Category.ToString(),
+                ["targetReady"] = targetReady,
+                ["combatMemoryReady"] = combatMemoryReady,
+                ["pairCommandIdle"] = !combat.HasActiveCommand,
+                ["pairGroundMovementIdle"] = !combat.HasActiveGroundMovement,
+                ["exactMountMovementIdle"] = !combat.HasExactMountMovement,
+                ["stockIntentIdle"] = !combat.HasStockAttackIntent,
+                ["riderStandardReady"] = rider.HasStandardAction(),
+                ["riderCommandsIdle"] = rider.Commands != null && rider.Commands.Empty,
+                ["horseCommandsIdle"] = horse.Commands != null && horse.Commands.Empty,
+                ["targetCommandsIdle"] = target?.Commands != null && target.Commands.Empty,
+                ["riderHandsIdle"] = !rider.AreHandsBusyWithAnimation,
+                ["horseHandsIdle"] = !horse.AreHandsBusyWithAnimation,
+                ["targetHandsIdle"] = target != null && !target.AreHandsBusyWithAnimation,
+                ["equipmentControllerReady"] = equipment != null,
+                ["riderEquipmentIdle"] = equipment != null && !equipment.IsUpdateScheduledFor(rider),
+                ["horseEquipmentIdle"] = equipment != null && !equipment.IsUpdateScheduledFor(horse),
+                ["previousTargetId"] = rangedVariantPreviousTargetId,
+                ["previousTargetCleanupPassed"] = rangedVariantPreviousTargetCleanupPassed,
+                ["isolatedTargetId"] = target?.UniqueId
+            };
+        }
+
+        private JObject CaptureRangedVariantProgress()
+        {
+            return new JObject
+            {
+                ["category"] = rangedVariantCategory.ToString(),
+                ["previousTargetId"] = rangedVariantPreviousTargetId,
+                ["previousTargetCleanupPassed"] = rangedVariantPreviousTargetCleanupPassed,
+                ["isolatedTargetId"] = target?.UniqueId,
+                ["targetInState"] = target != null && target.IsInState,
+                ["targetConscious"] = target != null && target.Descriptor.State.IsConscious,
+                ["activePairCommand"] = combat.HasActiveCommand,
+                ["stockIntentActive"] = combat.HasStockAttackIntent,
+                ["riderDispatchDelta"] = combat.StockAttackRiderDispatchCount - stockRiderBefore,
+                ["mountDispatchDelta"] = combat.StockAttackMountDispatchCount - stockMountBefore,
+                ["duplicateDispatchDelta"] = combat.StockAttackDuplicateDispatchCount - stockDuplicateBefore,
+                ["riderOutcomeObserved"] = rangedRiderOutcome != null,
+                ["rules"] = ruleProbe?.CapturePairEvidence(),
+                ["readinessNow"] = target == null ? null : CaptureRangedVariantReadiness()
+            };
+        }
+
         private JToken CaptureLeafDeadlineProgress()
         {
-            return step == Phase3dHorseStep.AwaitRangedAdjacentMoveRt ||
+            if (step == Phase3dHorseStep.AwaitRangedAdjacentMoveRt ||
                 step == Phase3dHorseStep.AwaitRangedAdjacentAttackRt ||
-                step == Phase3dHorseStep.AwaitRangedAdjacentCancelRt
-                ? (JToken)CaptureRangedOpportunityProgress()
-                : JValue.CreateNull();
+                step == Phase3dHorseStep.AwaitRangedAdjacentCancelRt)
+            {
+                return CaptureRangedOpportunityProgress();
+            }
+            if (step == Phase3dHorseStep.AwaitRangedVariantTargetCleanupRt)
+            {
+                return new JObject
+                {
+                    ["category"] = rangedVariantCategory.ToString(),
+                    ["previousTargetId"] = rangedVariantPreviousTargetId,
+                    ["previousTargetCleanupPassed"] = rangedVariantPreviousTargetCleanupPassed,
+                    ["targetCleanupComplete"] = targetCleanupComplete
+                };
+            }
+            if (step == Phase3dHorseStep.AwaitRangedVariantAdmissionRt ||
+                step == Phase3dHorseStep.AwaitRangedVariantRt ||
+                step == Phase3dHorseStep.AwaitRangedVariantCancelRt)
+            {
+                return CaptureRangedVariantProgress();
+            }
+            return JValue.CreateNull();
         }
 
         private bool TryNativeAbilityTargetClick(
@@ -3260,6 +3430,8 @@ namespace KingmakerMountedCombat.Diagnostics
             AwaitRangedAdjacentMoveRt,
             AwaitRangedAdjacentAttackRt,
             AwaitRangedAdjacentCancelRt,
+            AwaitRangedVariantTargetCleanupRt,
+            AwaitRangedVariantAdmissionRt,
             AwaitRangedVariantRt,
             AwaitRangedVariantCancelRt,
             AwaitRtToTbTransition,

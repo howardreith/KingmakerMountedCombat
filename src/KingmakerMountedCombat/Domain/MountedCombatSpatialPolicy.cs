@@ -24,6 +24,10 @@ namespace KingmakerMountedCombat.Domain
         public const float MinimumDiagnosticApproachDisplacement = 0.5f;
         public const float NativeAdmissionEpsilon = 0.001f;
         public const float MaximumNativeExecutorRadiusAdjustment = 0.75f;
+        // The delegated command targets a world point, not the hostile unit. Requiring
+        // point LoS makes the hostile itself an unignored blocker after the mount reaches
+        // attack range. The native child attack remains the sole LoS authority.
+        public const bool DelegatedPointMoveRequiresLineOfSight = false;
 
         public static float CalculateStoppingRadius(
             float mammothCorpulence,

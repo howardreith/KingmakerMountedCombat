@@ -35,3 +35,5 @@ Bows, crossbows, slings, and compatible modded ranged weapons may participate th
 ## Qualification
 
 Credit requires a real hostile click, visible mount approach or stationary fire, one native rider attack chain, exact ammunition/reload observations where applicable, zero forced melee closure, native LoS/cover/concealment/AoO controls, cancellation with no late attack, and unmounted controls unchanged. The outside-range control requires zero mount-primary dispatch. An adjacent control permits at most one mount primary, only with recorded legal-melee readiness and no additional Horse movement.
+
+Each Light Crossbow and Sling control uses its own freshly created hostile after verified destruction of the previous target. Admission waits for stable exact weapon, selection, combat-memory, action, command, hands, equipment, relationship, and pair-intent readiness. Evidence binds distinct previous/current target IDs, one native request, one intent, one child rider attack, and exact rider/Horse rule cardinality. This prevents late same-target rules or an in-flight equipment swap from being mistaken for weapon compatibility evidence.

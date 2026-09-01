@@ -23,6 +23,8 @@ Explicit Rider Primary and Mount Primary use a related but distinct native admis
 
 For a rider melee weapon, the pair approaches to a mount-origin position satisfying the rider's native reach bridge. The deterministic shared-turn default is rider first, then mount when its exact primary natural attack and Standard action are legal. Native full-attack/iterative behavior is not claimed unless reused without duplicate rules or costs.
 
+The delegated `UnitMoveTo` targets a world point and therefore must not require LoS. Exact installed `UnitCommand.IsUnitEnoughClose` applies `NeedLoS` through `GetTargetLOSObjectId`; a point target returns object ID zero, allowing the hostile itself to remain an unignored blocker after the mount has physically reached the point. The delegated point move uses `NeedLoS=false`; the native child attack alone retains rider-to-hostile `HasLOS`, range, weapon, and rule admission. This is not a global LoS bypass.
+
 ## Persistent RTWP intent
 
 One real hostile click records one target intent. When no child command is active, the controller may submit a legal rider attack and then a legal mount primary according to their independent native cooldowns. Intent survives individual successful attacks and ordinary cooldown waits. It ends on Stop/Hold, new ground/target command, explicit cancellation, target death/invalidation, relationship invalidation, mode/lifecycle boundary, or command rejection. No attack may start after cancellation.

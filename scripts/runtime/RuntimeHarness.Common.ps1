@@ -5636,6 +5636,55 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
         $tbToRt = $rowMap['TB-to-RT-shared-turn'].evidence
         $unmountedMelee = $rowMap['unmounted-stock-attack-control'].evidence
         $unmountedRanged = $rowMap['unmounted-ranged-control'].evidence
+        foreach ($variantContract in @(
+            [pscustomobject]@{ evidence = $crossbow; category = 'LightCrossbow' },
+            [pscustomobject]@{ evidence = $sling; category = 'Sling' }
+        )) {
+            $variant = $variantContract.evidence
+            $expectedCategory = [string]$variantContract.category
+            if ($variant.previousTargetCleanupPassed -ne $true -or
+                [string]::IsNullOrWhiteSpace([string]$variant.previousTargetId) -or
+                [string]::IsNullOrWhiteSpace([string]$variant.isolatedTargetId) -or
+                [string]$variant.previousTargetId -ceq [string]$variant.isolatedTargetId -or
+                $variant.admissionReadiness.ready -ne $true -or
+                [string]$variant.admissionReadiness.category -cne $expectedCategory -or
+                $variant.admissionReadiness.relationshipMounted -ne $true -or
+                $variant.admissionReadiness.modeRealTime -ne $true -or
+                $variant.admissionReadiness.gameUnpaused -ne $true -or
+                $variant.admissionReadiness.riderSelectedPrincipal -ne $true -or
+                $variant.admissionReadiness.weaponLeaseReady -ne $true -or
+                [string]$variant.admissionReadiness.weaponCategory -cne $expectedCategory -or
+                $variant.admissionReadiness.targetReady -ne $true -or
+                $variant.admissionReadiness.combatMemoryReady -ne $true -or
+                $variant.admissionReadiness.pairCommandIdle -ne $true -or
+                $variant.admissionReadiness.pairGroundMovementIdle -ne $true -or
+                $variant.admissionReadiness.exactMountMovementIdle -ne $true -or
+                $variant.admissionReadiness.stockIntentIdle -ne $true -or
+                $variant.admissionReadiness.riderStandardReady -ne $true -or
+                $variant.admissionReadiness.riderCommandsIdle -ne $true -or
+                $variant.admissionReadiness.horseCommandsIdle -ne $true -or
+                $variant.admissionReadiness.targetCommandsIdle -ne $true -or
+                $variant.admissionReadiness.riderHandsIdle -ne $true -or
+                $variant.admissionReadiness.horseHandsIdle -ne $true -or
+                $variant.admissionReadiness.targetHandsIdle -ne $true -or
+                $variant.admissionReadiness.riderEquipmentIdle -ne $true -or
+                $variant.admissionReadiness.horseEquipmentIdle -ne $true -or
+                $variant.input.expectedDispatchStarted -ne $true -or
+                [long]$variant.input.nativeRequestDelta -ne 1L -or
+                [long]$variant.input.intentStartDelta -ne 1L -or
+                [string]$variant.outcome.targetId -cne [string]$variant.isolatedTargetId -or
+                [long]$variant.outcome.childAttackStartCount -ne 1L -or
+                $variant.outcome.nativeAttackRuleObserved -ne $true -or
+                [long]$variant.rules.riderAttackRules -ne 1L -or
+                [long]$variant.rules.mountAttackRules -ne [long]$variant.mountDispatchDelta -or
+                [long]$variant.rules.pairAttackRolls -ne (1L + [long]$variant.mountDispatchDelta)) {
+                throw "PASS Phase 3D RT $expectedCategory evidence does not prove isolated target cleanup, readiness-proven native admission, and exact one-child dispatch/rule cardinality."
+            }
+        }
+        if ([string]$sling.previousTargetId -cne [string]$crossbow.isolatedTargetId -or
+            [string]$sling.isolatedTargetId -ceq [string]$crossbow.isolatedTargetId) {
+            throw 'PASS Phase 3D RT ranged-variant evidence reused or failed to retire an exact target between weapon controls.'
+        }
         if (@($riderPrimary.activations).Count -lt 1 -or
             @($riderPrimary.activations | Where-Object { $_.relationshipEnded -eq $true -or $null -ne $_.cleanupTrigger }).Count -ne 0 -or
             $riderPrimary.admissionReadiness.allPassed -ne $true -or
@@ -5724,6 +5773,7 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
             [string]$adjacent.relationshipState -cne 'Mounted' -or
             [string]$crossbow.weaponCategory -cne 'LightCrossbow' -or
             [string]::IsNullOrWhiteSpace([string]$crossbow.outcome.ammunitionStateBefore) -or
+            [string]::IsNullOrWhiteSpace([string]$crossbow.outcome.reloadStateBefore) -or
             [string]::IsNullOrWhiteSpace([string]$crossbow.outcome.reloadStateAfter) -or
             [long]$crossbow.riderDispatchDelta -ne 1L -or [long]$crossbow.mountDispatchDelta -gt 1L -or
             ([long]$crossbow.mountDispatchDelta -eq 1L -and $crossbow.mountAlreadyInMeleeAtAdmission -ne $true) -or
@@ -5731,6 +5781,8 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
             [long]$crossbow.duplicateDispatchDelta -ne 0L -or
             [string]$sling.weaponCategory -cne 'Sling' -or
             [string]::IsNullOrWhiteSpace([string]$sling.outcome.ammunitionStateBefore) -or
+            [string]::IsNullOrWhiteSpace([string]$sling.outcome.reloadStateBefore) -or
+            [string]::IsNullOrWhiteSpace([string]$sling.outcome.reloadStateAfter) -or
             [long]$sling.riderDispatchDelta -ne 1L -or [long]$sling.mountDispatchDelta -gt 1L -or
             ([long]$sling.mountDispatchDelta -eq 1L -and $sling.mountAlreadyInMeleeAtAdmission -ne $true) -or
             [double]$sling.horseMovementDistanceAfterAdmission -gt 0.25d -or

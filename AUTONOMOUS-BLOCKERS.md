@@ -1,5 +1,17 @@
 # Autonomous blockers
 
+## Phase 3D dev.8 closes ranged AoO; dev.9 is the bounded repair for point movement and variant isolation (2026-09-01T09:13:41-04:00)
+
+Status: `IN PROGRESS`. No external-state or broad shared-turn/AoO architecture blocker is active.
+
+Dev.8 RT A `20260901T120000Z-phase3d-dev8-rt-passA` is immutable uncredited `FAIL`; mandatory postrun audit `20260901T130000Z-phase3d-dev8-rt-passA-postrun-audit` passed before evidence inspection. Its focused adjacent-ranged control passed the exact native rider-first contract and produced one unsuppressed rider ranged roll plus one exact hostile `1/1/1` opportunity chain with native counter consumption, zero Horse dispatch, and zero KMC AoO rewriting. The dev.7 ranged-AoO blocker is closed.
+
+The remaining Rider Primary failure is command termination, not dismount. The exact pair stayed `Mounted`, every activation recorded no cleanup trigger or relationship end, and the native Free shell succeeded. Exact installed `UnitCommand.IsUnitEnoughClose` requires LoS when the delegated `UnitMoveTo` has `NeedLoS=true`; because this command targets a world point, its LoS object ID is zero and the hostile remains an unignored blocker. The Horse moved `6.1207m` into approach range but the point move never became terminal, so the wrapper timed out before child attack. Dev.9's one bounded production repair sets only this delegated point move to `NeedLoS=false`; the child rider attack retains native `HasLOS(target)`, range, weapon, and rule ownership.
+
+The Light Crossbow and Sling failures share a diagnostic isolation boundary. Crossbow succeeded natively but its reused target/rule window contained extra prior/same-target events; Sling was attempted immediately after an equipment swap and no exact current native request was observed. Dev.9 gives each variant a freshly destroyed/verified target boundary and waits for exact stable weapon, selection, combat-memory, command, hands, equipment, ledger, relationship, and intent readiness. The validator requires distinct target IDs, successful prior cleanup, one native request/intent, one child, and exact rider/Horse rule cardinality.
+
+The current dev.9 offline gate passes source `22/0`, Release, component `295/0`, visual `18/0`, harness `237/0`, and assembly `382/0`. A fresh clean package and audited RT run remain mandatory. Repetition of either exact failure after this repair is an architecture disposition, not authority for another patch.
+
 ## Phase 3D dev.7 isolates rider-cooldown contamination of the ranged-AoO control; dev.8 one-shot repair in progress (2026-09-01T04:19:17-04:00)
 
 Status: `IN PROGRESS`.
