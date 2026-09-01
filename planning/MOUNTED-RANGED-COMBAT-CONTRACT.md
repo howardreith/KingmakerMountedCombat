@@ -2,6 +2,12 @@
 
 Status: IN PROGRESS
 
+## Exact hostile-click admission checkpoint
+
+Installed Kingmaker's `ClickUnitHandler.OnClick` true return is not sufficient attack-admission evidence. The same return value can represent switching to a directly controllable target, handling loot, or completing an attack-loop pass in which a selected unit was skipped. Qualification therefore binds the exact UI selection-manager instance, exactly one selected rider, that rider as `GetNearestSelectedUnit` for the hostile position, a visible hostile target that is outside the party, not directly controllable, and not a dead-loot target, plus the same-frame `IClickActionHandler.OnAttackRequested`-derived KMC request and mounted-intent deltas.
+
+The long-range Shortbow control waits for two stable frames of those facts together with its native weapon lease, combat memory, idle command/hands/equipment surfaces, no active pair intent/movement, real-time unpaused mode, exact mounted pair, and healthy pose. `OnClick=true` must be accompanied by exactly one native request and one mounted intent; otherwise it fails immediately and records admission/input state. This is evidence attribution, not a replacement click path.
+
 ## Weapon contract
 
 Ranged participation is determined from the exact native planned `UnitAttack`/weapon blueprint (`IsRanged`, native attack range, command LoS and target APIs), not a hard-coded bow list. No compile-time or runtime reference to Gunslinger or another gameplay mod is permitted.
@@ -37,3 +43,5 @@ Bows, crossbows, slings, and compatible modded ranged weapons may participate th
 Credit requires a real hostile click, visible mount approach or stationary fire, one native rider attack chain, exact ammunition/reload observations where applicable, zero forced melee closure, native LoS/cover/concealment/AoO controls, cancellation with no late attack, and unmounted controls unchanged. The outside-range control requires zero mount-primary dispatch. An adjacent control permits at most one mount primary, only with recorded legal-melee readiness and no additional Horse movement.
 
 Each Light Crossbow and Sling control uses its own freshly created hostile after verified destruction of the previous target. Admission waits for stable exact weapon, selection, combat-memory, action, command, hands, equipment, relationship, and pair-intent readiness. Evidence binds distinct previous/current target IDs, one native request, one intent, one child rider attack, and exact rider/Horse rule cardinality. This prevents late same-target rules or an in-flight equipment swap from being mistaken for weapon compatibility evidence.
+
+Dev.10 RT evidence reached the long-range Shortbow target but did not cross this exact admission boundary: the click was reported handled while current native request/intent deltas remained `0/0`, immediately after a friendly Horse click. That failed process is attribution only. Dev.11 adds the exact selection/target branch and same-frame cardinality gate without changing production ranged routing. A second readiness-proven absence requires an architecture disposition rather than a global click patch.

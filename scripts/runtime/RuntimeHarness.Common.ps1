@@ -5682,6 +5682,62 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
             [string]$melee.relationshipState -cne 'Mounted') {
             throw 'PASS Phase 3D RT stock-melee evidence does not prove isolated target cleanup, exact readiness/input admission, mount-owned approach, and matching native pair rule cardinality.'
         }
+        if ($ranged.admissionReadiness.ready -ne $true -or
+            $ranged.admissionReadiness.relationshipMounted -ne $true -or
+            $ranged.admissionReadiness.relationshipExact -ne $true -or
+            $ranged.admissionReadiness.modeRealTime -ne $true -or
+            $ranged.admissionReadiness.gameUnpaused -ne $true -or
+            $ranged.admissionReadiness.selectionManagerExact -ne $true -or
+            [long]$ranged.admissionReadiness.selectionCount -ne 1L -or
+            $ranged.admissionReadiness.riderSelectedPrincipal -ne $true -or
+            $ranged.admissionReadiness.nearestSelectedRider -ne $true -or
+            [string]$ranged.admissionReadiness.nearestSelectedUnitId -cne
+                [string]$artifact.observations.riderId -or
+            $ranged.admissionReadiness.weaponLeaseReady -ne $true -or
+            [string]$ranged.admissionReadiness.weaponCategory -cne 'Shortbow' -or
+            $ranged.admissionReadiness.weaponRanged -ne $true -or
+            $ranged.admissionReadiness.clickLeaseReady -ne $true -or
+            $ranged.admissionReadiness.targetFogOfWarCleared -ne $true -or
+            $ranged.admissionReadiness.targetViewVisible -ne $true -or
+            $ranged.admissionReadiness.targetVisibleForPlayer -ne $true -or
+            $ranged.admissionReadiness.targetVisibleNow -ne $true -or
+            $ranged.admissionReadiness.targetNotDirectlyControllable -ne $true -or
+            $ranged.admissionReadiness.targetOutsideParty -ne $true -or
+            $ranged.admissionReadiness.targetNotLoot -ne $true -or
+            $ranged.admissionReadiness.targetReady -ne $true -or
+            $ranged.admissionReadiness.combatMemoryReady -ne $true -or
+            $ranged.admissionReadiness.pairCommandIdle -ne $true -or
+            $ranged.admissionReadiness.pairGroundMovementIdle -ne $true -or
+            $ranged.admissionReadiness.exactMountMovementIdle -ne $true -or
+            $ranged.admissionReadiness.stockIntentIdle -ne $true -or
+            $ranged.admissionReadiness.riderCommandsIdle -ne $true -or
+            $ranged.admissionReadiness.horseCommandsIdle -ne $true -or
+            $ranged.admissionReadiness.targetCommandsIdle -ne $true -or
+            $ranged.admissionReadiness.riderHandsIdle -ne $true -or
+            $ranged.admissionReadiness.horseHandsIdle -ne $true -or
+            $ranged.admissionReadiness.targetHandsIdle -ne $true -or
+            $ranged.admissionReadiness.equipmentControllerReady -ne $true -or
+            $ranged.admissionReadiness.riderEquipmentIdle -ne $true -or
+            $ranged.admissionReadiness.horseEquipmentIdle -ne $true -or
+            $ranged.admissionReadiness.poseHealthy -ne $true -or
+            [string]::IsNullOrWhiteSpace([string]$ranged.admissionReadiness.targetId) -or
+            $ranged.input.clicked -ne $true -or $ranged.input.expectedDispatchStarted -ne $true -or
+            [long]$ranged.input.nativeRequestDelta -ne 1L -or
+            [long]$ranged.input.intentStartDelta -ne 1L -or
+            [long]$ranged.input.selectionCount -ne 1L -or $ranged.input.selectedRiderExact -ne $true -or
+            [string]$ranged.input.nearestSelectedUnitId -cne [string]$artifact.observations.riderId -or
+            [string]$ranged.input.targetId -cne [string]$ranged.admissionReadiness.targetId -or
+            [double]$ranged.horseApproachDistance -le 0.25d -or
+            [string]$ranged.outcome.targetId -cne [string]$ranged.admissionReadiness.targetId -or
+            $ranged.outcome.nativeAttackRuleObserved -ne $true -or
+            $ranged.outcome.attackWeaponIsRanged -ne $true -or
+            [long]$ranged.rules.riderAttackRules -lt 2L -or
+            [long]$ranged.rules.riderAttackRules -ne [long]$ranged.riderDispatchDelta -or
+            [long]$ranged.rules.mountAttackRules -ne 0L -or
+            [long]$ranged.rules.pairAttackRolls -ne [long]$ranged.riderDispatchDelta -or
+            [string]$ranged.relationshipState -cne 'Mounted') {
+            throw 'PASS Phase 3D RT Shortbow evidence does not prove exact selected-principal hostile-click admission, native rider-only approach/auto-fire, and matching attack-rule cardinality.'
+        }
         foreach ($variantContract in @(
             [pscustomobject]@{ evidence = $crossbow; category = 'LightCrossbow' },
             [pscustomobject]@{ evidence = $sling; category = 'Sling' }

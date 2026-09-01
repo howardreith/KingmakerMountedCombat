@@ -124,6 +124,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private int transitionRiderStartRequestCount;
         private string transitionFirstNativeTurnUnitId;
         private bool rangedMountMeleeReadyAtAdmission;
+        private JObject rangedReadinessAtAdmission;
         private JObject stockMeleeReadinessAtAdmission;
         private string stockMeleePreviousTargetId;
         private bool stockMeleePreviousTargetCleanupPassed;
@@ -971,6 +972,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void BeginRangedTargetReplacement()
         {
+            rangedReadinessAtAdmission = null;
             combat.Cancel("Phase 3D ranged boundary");
             TryLeaveCombat(target);
             targetCleanupComplete = targetService.DestroyAndVerify();
@@ -1000,12 +1002,31 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void AwaitRangedCombat()
         {
-            if (!IsCombatReady(true) || !rangedWeaponLease.IsReady)
+            var selected = SelectionManager.Instance?.SelectedUnits;
+            if (selected == null || selected.Count != 1 || selected[0] != rider)
+            {
+                SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
+                observations["rangedRtReadiness"] = CaptureLongRangeRangedReadiness(false);
+                stableFrames = 0;
+                return;
+            }
+
+            var clickLeaseReady = targetService != null && targetService.PrepareForPlayerClick(target);
+            var readiness = CaptureLongRangeRangedReadiness(clickLeaseReady);
+            observations["rangedRtReadiness"] = readiness;
+            if (!(bool)readiness["ready"])
+            {
+                stableFrames = 0;
+                return;
+            }
+            stableFrames++;
+            if (stableFrames < 2)
             {
                 return;
             }
 
-            SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
+            stableFrames = 0;
+            rangedReadinessAtAdmission = readiness.DeepClone() as JObject;
             movementStart = horse.Position;
             ruleProbe.Arm(target, true);
             stockNativeBefore = combat.StockAttackNativeRequestCount;
@@ -1013,11 +1034,31 @@ namespace KingmakerMountedCombat.Diagnostics
             stockRiderBefore = combat.StockAttackRiderDispatchCount;
             stockMountBefore = combat.StockAttackMountDispatchCount;
             stockDuplicateBefore = combat.StockAttackDuplicateDispatchCount;
-            targetService.BeginExpectedAttackDispatch(target);
+            var expectedDispatchStarted = targetService.BeginExpectedAttackDispatch(target);
+            var selectionBeforeClick = SelectionManager.Instance.SelectedUnits;
+            var nearestBeforeClick = Game.Instance.UI.SelectionManager.GetNearestSelectedUnit(target.View.transform.position);
             var clicked = new ClickUnitHandler().OnClick(target.View.gameObject, target.Position, 0, false, false);
-            if (!clicked && combat.StockAttackIntentStartCount == stockIntentBefore)
+            var nativeRequestDelta = combat.StockAttackNativeRequestCount - stockNativeBefore;
+            var intentStartDelta = combat.StockAttackIntentStartCount - stockIntentBefore;
+            observations["rangedRtInput"] = new JObject
             {
-                FailCurrent("mounted-bow-approach-to-range-rt", "Ordinary native ranged hostile click was not admitted.");
+                ["clicked"] = clicked,
+                ["expectedDispatchStarted"] = expectedDispatchStarted,
+                ["nativeRequestDelta"] = nativeRequestDelta,
+                ["intentStartDelta"] = intentStartDelta,
+                ["targetId"] = target.UniqueId,
+                ["selectionCount"] = selectionBeforeClick?.Count ?? 0,
+                ["selectedRiderExact"] = selectionBeforeClick != null &&
+                    selectionBeforeClick.Count == 1 && selectionBeforeClick[0] == rider,
+                ["nearestSelectedUnitId"] = nearestBeforeClick?.UniqueId,
+                ["lastObservation"] = combat.LastStockAttackObservation,
+                ["feedback"] = combat.LastFeedback
+            };
+            if (!clicked || !expectedDispatchStarted || nativeRequestDelta != 1 || intentStartDelta != 1)
+            {
+                FailCurrent(
+                    "mounted-bow-approach-to-range-rt",
+                    "Ordinary native Shortbow hostile click did not admit the readiness-proven rider request and mounted intent exactly once.");
                 BeginCleanup();
                 return;
             }
@@ -1042,6 +1083,8 @@ namespace KingmakerMountedCombat.Diagnostics
             evidence["weaponGuid"] = weapon?.AssetGuid;
             evidence["weaponCategory"] = weapon?.Category.ToString();
             evidence["weaponRangeMeters"] = weapon?.AttackRange.Meters;
+            evidence["admissionReadiness"] = rangedReadinessAtAdmission?.DeepClone();
+            evidence["input"] = observations["rangedRtInput"]?.DeepClone();
             evidence["outcome"] = outcome == null ? null : JObject.FromObject(outcome, JsonSerializer.Create(JsonSettings));
 
             AddRow("mounted-bow-approach-to-range-rt",
@@ -2927,6 +2970,118 @@ namespace KingmakerMountedCombat.Diagnostics
             };
         }
 
+        private JObject CaptureLongRangeRangedReadiness(bool clickLeaseReady)
+        {
+            var game = Game.Instance;
+            var selected = SelectionManager.Instance?.SelectedUnits;
+            var uiSelection = game?.UI?.SelectionManager;
+            var equipment = game?.HandsEquipmentController;
+            var weapon = rider.GetFirstWeapon()?.Blueprint;
+            var nearestSelected = uiSelection != null && target?.View != null
+                ? uiSelection.GetNearestSelectedUnit(target.View.transform.position)
+                : null;
+            var targetReady = target != null && target.IsInState && target.Descriptor.State.IsConscious &&
+                rider.IsEnemy(target) && rider.CanAttack(target);
+            var combatMemoryReady = targetService != null &&
+                targetService.RefreshBidirectionalCombatMemoryLease();
+            var relationshipExact = relationship.State == RelationshipState.Mounted &&
+                relationship.Rider == rider && relationship.Mount == horse;
+            var selectionManagerExact = uiSelection != null &&
+                ReferenceEquals(SelectionManager.Instance, uiSelection);
+            var riderSelectedPrincipal = selected != null && selected.Count == 1 && selected[0] == rider;
+            var targetVisibleNow = target != null && target.View != null && !target.IsInFogOfWar &&
+                target.View.IsVisible && target.IsVisibleForPlayer;
+            var targetNotDirectlyControllable = target != null && !target.IsDirectlyControllable;
+            var targetOutsideParty = game != null && game.Player != null && target != null &&
+                !game.Player.Party.Contains(target);
+            var targetNotLoot = target != null && !target.IsDeadAndHasLoot;
+            var ready = IsCombatReady(true) && relationshipExact && !CombatController.IsInTurnBasedCombat() &&
+                game != null && !game.IsPaused && selectionManagerExact && riderSelectedPrincipal &&
+                nearestSelected == rider && rangedWeaponLease != null && rangedWeaponLease.IsReady &&
+                weapon != null && weapon.IsRanged && weapon.Category == WeaponCategory.Shortbow &&
+                clickLeaseReady && targetService != null && targetService.TargetFogOfWarCleared &&
+                targetService.TargetViewVisible && targetService.TargetVisibleForPlayer && targetVisibleNow &&
+                targetNotDirectlyControllable && targetOutsideParty && targetNotLoot && targetReady &&
+                combatMemoryReady && !combat.HasActiveCommand && !combat.HasActiveGroundMovement &&
+                !combat.HasExactMountMovement && !combat.HasStockAttackIntent &&
+                rider.Commands != null && rider.Commands.Empty && horse.Commands != null && horse.Commands.Empty &&
+                target.Commands != null && target.Commands.Empty && !rider.AreHandsBusyWithAnimation &&
+                !horse.AreHandsBusyWithAnimation && !target.AreHandsBusyWithAnimation && equipment != null &&
+                !equipment.IsUpdateScheduledFor(rider) && !equipment.IsUpdateScheduledFor(horse) &&
+                relationship.Runtime.PoseHealthy;
+            return new JObject
+            {
+                ["ready"] = ready,
+                ["relationshipMounted"] = relationship.State == RelationshipState.Mounted,
+                ["relationshipExact"] = relationshipExact,
+                ["modeRealTime"] = !CombatController.IsInTurnBasedCombat(),
+                ["gameUnpaused"] = game != null && !game.IsPaused,
+                ["selectionManagerExact"] = selectionManagerExact,
+                ["selectionCount"] = selected?.Count ?? 0,
+                ["riderSelectedPrincipal"] = riderSelectedPrincipal,
+                ["nearestSelectedUnitId"] = nearestSelected?.UniqueId,
+                ["nearestSelectedRider"] = nearestSelected == rider,
+                ["weaponLeaseReady"] = rangedWeaponLease != null && rangedWeaponLease.IsReady,
+                ["weaponGuid"] = weapon?.AssetGuid,
+                ["weaponCategory"] = weapon?.Category.ToString(),
+                ["weaponRanged"] = weapon != null && weapon.IsRanged,
+                ["clickLeaseReady"] = clickLeaseReady,
+                ["targetFogOfWarCleared"] = targetService != null && targetService.TargetFogOfWarCleared,
+                ["targetViewVisible"] = targetService != null && targetService.TargetViewVisible,
+                ["targetVisibleForPlayer"] = targetService != null && targetService.TargetVisibleForPlayer,
+                ["targetVisibleNow"] = targetVisibleNow,
+                ["targetNotDirectlyControllable"] = targetNotDirectlyControllable,
+                ["targetOutsideParty"] = targetOutsideParty,
+                ["targetNotLoot"] = targetNotLoot,
+                ["targetReady"] = targetReady,
+                ["combatMemoryReady"] = combatMemoryReady,
+                ["pairCommandIdle"] = !combat.HasActiveCommand,
+                ["pairGroundMovementIdle"] = !combat.HasActiveGroundMovement,
+                ["exactMountMovementIdle"] = !combat.HasExactMountMovement,
+                ["stockIntentIdle"] = !combat.HasStockAttackIntent,
+                ["riderStandardReady"] = rider.HasStandardAction(),
+                ["horseStandardReady"] = horse.HasStandardAction(),
+                ["riderCommandsIdle"] = rider.Commands != null && rider.Commands.Empty,
+                ["horseCommandsIdle"] = horse.Commands != null && horse.Commands.Empty,
+                ["targetCommandsIdle"] = target?.Commands != null && target.Commands.Empty,
+                ["riderHandsIdle"] = !rider.AreHandsBusyWithAnimation,
+                ["horseHandsIdle"] = !horse.AreHandsBusyWithAnimation,
+                ["targetHandsIdle"] = target != null && !target.AreHandsBusyWithAnimation,
+                ["equipmentControllerReady"] = equipment != null,
+                ["riderEquipmentIdle"] = equipment != null && !equipment.IsUpdateScheduledFor(rider),
+                ["horseEquipmentIdle"] = equipment != null && !equipment.IsUpdateScheduledFor(horse),
+                ["poseHealthy"] = relationship.Runtime.PoseHealthy,
+                ["targetId"] = target?.UniqueId,
+                ["riderDistanceToTarget"] = target == null ? (double?)null : rider.DistanceTo(target)
+            };
+        }
+
+        private JObject CaptureLongRangeRangedProgress()
+        {
+            var clickLeaseReady = targetService != null && targetService.TargetFogOfWarCleared &&
+                targetService.TargetViewVisible && targetService.TargetVisibleForPlayer;
+            return new JObject
+            {
+                ["targetId"] = target?.UniqueId,
+                ["targetInState"] = target != null && target.IsInState,
+                ["targetConscious"] = target != null && target.Descriptor.State.IsConscious,
+                ["activePairCommand"] = combat.HasActiveCommand,
+                ["stockIntentActive"] = combat.HasStockAttackIntent,
+                ["nativeRequestDelta"] = combat.StockAttackNativeRequestCount - stockNativeBefore,
+                ["intentStartDelta"] = combat.StockAttackIntentStartCount - stockIntentBefore,
+                ["riderDispatchDelta"] = combat.StockAttackRiderDispatchCount - stockRiderBefore,
+                ["mountDispatchDelta"] = combat.StockAttackMountDispatchCount - stockMountBefore,
+                ["duplicateDispatchDelta"] = combat.StockAttackDuplicateDispatchCount - stockDuplicateBefore,
+                ["horseMovementDistanceAfterAdmission"] = HorizontalDistance(movementStart, horse.Position),
+                ["rules"] = ruleProbe?.CapturePairEvidence(),
+                ["readinessNow"] = target == null
+                    ? null
+                    : CaptureLongRangeRangedReadiness(clickLeaseReady),
+                ["admissionReadiness"] = rangedReadinessAtAdmission?.DeepClone(),
+                ["input"] = observations["rangedRtInput"]?.DeepClone()
+            };
+        }
+
         private JObject CaptureRangedOpportunityReadiness()
         {
             var targetCombat = target?.CombatState;
@@ -3088,6 +3243,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 step == Phase3dHorseStep.AwaitStockMeleeRt)
             {
                 return CaptureStockMeleeProgress();
+            }
+            if (step == Phase3dHorseStep.AwaitRangedCombat ||
+                step == Phase3dHorseStep.AwaitRangedAttackRt)
+            {
+                return CaptureLongRangeRangedProgress();
             }
             if (step == Phase3dHorseStep.AwaitRangedAdjacentMoveRt ||
                 step == Phase3dHorseStep.AwaitRangedAdjacentAttackRt ||

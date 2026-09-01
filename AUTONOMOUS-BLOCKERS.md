@@ -1,5 +1,17 @@
 # Autonomous blockers
 
+## Dev.10 closes stock melee; dev.11 is the bounded Shortbow input-attribution checkpoint (2026-09-01T19:28:01-04:00)
+
+Status: `IN PROGRESS`. No safety, external-state, stock-melee, Rider Primary, or production point-movement blocker is active.
+
+Dev.10 RT A `20260901T214000Z-phase3d-dev10-rt-passA` is immutable uncredited `FAIL`; mandatory independent audit `20260901T224000Z-phase3d-dev10-rt-passA-postrun-audit` passed before inspection. Its isolated stock-melee control passed with distinct retired/current targets, exact readiness, one native click/request/intent, positive Horse approach, rider/Horse dispatch `2/1`, matching `3/3/3` native attack/roll/damage events, zero duplicates, exact cancellation, surviving target, and retained pair. Rider Primary and explicit Horse Primary also retained the relationship. No further stock-melee or point-movement repair is authorized by this run.
+
+The only failure occurred before the long-range Shortbow executor began. Kingmaker reported the click handled but KMC observed no current `OnAttackRequested`, native request, or mounted intent. Exact installed `ClickUnitHandler` behavior establishes that a true return also covers switching a directly controllable unit and loot paths, and that an attack loop can skip a selected unit while still returning true. The dev.10 scenario had not re-proved the rider selection/nearest-selected/target branch after its preceding friendly Horse click, so the run does not establish a production ranged executor defect.
+
+Dev.11 is one diagnostic/evidence-only repair cycle. It requires two stable frames of exact rider principal, UI selection-manager identity, nearest-selected rider, visible hostile nonparty/nonloot/noncontrollable target, Shortbow lease, combat memory, idle commands/hands/equipment, no active pair intent/movement, and healthy pose; it then requires exact same-frame `1/1` native request/intent admission. The external validator binds every field and a negative mutation rejects a false rider-principal claim. Complete offline gates pass source/Release/component/visual/harness/assembly `22/Release/295/18/237/382`, PowerShell/JSON parsers `26/0` / `7/0`, and diff. Fresh clean-package evidence remains mandatory.
+
+If dev.11 reaches exact readiness but still observes no native request, the bounded repair allowance is exhausted for this admission uncertainty. Preserve evidence and record an architecture disposition; do not broaden click routing, synthesize a downstream request for credit, or patch global target selection. Paladin Divine Steed remains unauthorized.
+
 ## Phase 3D dev.9 proves the production repair; dev.10 isolates exhausted stock-melee evidence (2026-09-01T14:02:18-04:00)
 
 Status: `IN PROGRESS`. No external-state or production architecture blocker is active.

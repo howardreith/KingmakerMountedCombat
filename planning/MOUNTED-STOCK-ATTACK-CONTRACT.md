@@ -2,6 +2,12 @@
 
 Status: IN PROGRESS
 
+## Fresh RT melee qualification result
+
+Audited dev.10 RT evidence closes the isolated melee control at its exercised boundary. The explicit-primary target was destroyed and verified; a distinct six-metre target then passed two stable readiness frames. One ordinary hostile click produced exactly one native request and one mounted intent, positive Horse-owned approach, two rider and one Horse dispatch, matching `3/3/3` native attack/roll/damage cardinality, zero duplicates, target survival, exact cancellation, and retained mounted relationship. This is evidence for ordinary RT melee input and persistence, not a claim of full iterative/full-attack parity.
+
+The same run's later Shortbow boundary remains separate. Kingmaker returning true from `ClickUnitHandler.OnClick` does not prove an attack request because selection-switching and loot branches share that result. Ranged qualification additionally requires exact selected-principal/nearest-selected/hostile-target branch evidence and one current request/intent; it may not inherit credit from the melee result.
+
 ## Native admission seam
 
 Installed Kingmaker `ClickUnitHandler.OnClick` `0x060093ED` constructs an ordinary stock `UnitAttack` for each selected unit and submits it through `UnitCommands.Run` `0x060026B2`. Phase 3C intentionally rejected exact mounted-pair stock `UnitAttack` commands in `MountedCombatController.ShouldAllowStockCommand`; that rejection is the proven cause of the silent hostile-click behavior.
