@@ -5636,6 +5636,52 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
         $tbToRt = $rowMap['TB-to-RT-shared-turn'].evidence
         $unmountedMelee = $rowMap['unmounted-stock-attack-control'].evidence
         $unmountedRanged = $rowMap['unmounted-ranged-control'].evidence
+        if ($melee.previousTargetCleanupPassed -ne $true -or
+            [string]::IsNullOrWhiteSpace([string]$melee.previousTargetId) -or
+            [string]::IsNullOrWhiteSpace([string]$melee.isolatedTargetId) -or
+            [string]$melee.previousTargetId -ceq [string]$melee.isolatedTargetId -or
+            $melee.admissionReadiness.ready -ne $true -or
+            $melee.admissionReadiness.relationshipMounted -ne $true -or
+            $melee.admissionReadiness.relationshipExact -ne $true -or
+            $melee.admissionReadiness.modeRealTime -ne $true -or
+            $melee.admissionReadiness.gameUnpaused -ne $true -or
+            $melee.admissionReadiness.riderSelectedPrincipal -ne $true -or
+            $melee.admissionReadiness.weaponMelee -ne $true -or
+            $melee.admissionReadiness.targetReady -ne $true -or
+            $melee.admissionReadiness.combatMemoryReady -ne $true -or
+            $melee.admissionReadiness.pairCommandIdle -ne $true -or
+            $melee.admissionReadiness.pairGroundMovementIdle -ne $true -or
+            $melee.admissionReadiness.exactMountMovementIdle -ne $true -or
+            $melee.admissionReadiness.stockIntentIdle -ne $true -or
+            $melee.admissionReadiness.riderStandardReady -ne $true -or
+            $melee.admissionReadiness.horseStandardReady -ne $true -or
+            $melee.admissionReadiness.riderCommandsIdle -ne $true -or
+            $melee.admissionReadiness.horseCommandsIdle -ne $true -or
+            $melee.admissionReadiness.targetCommandsIdle -ne $true -or
+            $melee.admissionReadiness.riderHandsIdle -ne $true -or
+            $melee.admissionReadiness.horseHandsIdle -ne $true -or
+            $melee.admissionReadiness.targetHandsIdle -ne $true -or
+            $melee.admissionReadiness.riderEquipmentIdle -ne $true -or
+            $melee.admissionReadiness.horseEquipmentIdle -ne $true -or
+            $melee.admissionReadiness.poseHealthy -ne $true -or
+            $melee.admissionReadiness.previousTargetCleanupPassed -ne $true -or
+            $melee.admissionReadiness.freshTarget -ne $true -or
+            [string]$melee.admissionReadiness.previousTargetId -cne [string]$melee.previousTargetId -or
+            [string]$melee.admissionReadiness.isolatedTargetId -cne [string]$melee.isolatedTargetId -or
+            $melee.input.clicked -ne $true -or $melee.input.expectedDispatchStarted -ne $true -or
+            [long]$melee.input.nativeRequestDelta -ne 1L -or [long]$melee.input.intentStartDelta -ne 1L -or
+            [string]$melee.input.targetId -cne [string]$melee.isolatedTargetId -or
+            [double]$melee.horseMovementDistanceAfterAdmission -le 0.25d -or
+            [long]$melee.rules.riderAttackRules -lt 2L -or [long]$melee.rules.mountAttackRules -lt 1L -or
+            [long]$melee.rules.riderAttackRules -ne [long]$melee.riderDispatchDelta -or
+            [long]$melee.rules.mountAttackRules -ne [long]$melee.mountDispatchDelta -or
+            [long]$melee.rules.pairAttackRolls -ne
+                ([long]$melee.riderDispatchDelta + [long]$melee.mountDispatchDelta) -or
+            [long]$melee.rules.pairDamageRules -ne
+                ([long]$melee.riderDispatchDelta + [long]$melee.mountDispatchDelta) -or
+            [string]$melee.relationshipState -cne 'Mounted') {
+            throw 'PASS Phase 3D RT stock-melee evidence does not prove isolated target cleanup, exact readiness/input admission, mount-owned approach, and matching native pair rule cardinality.'
+        }
         foreach ($variantContract in @(
             [pscustomobject]@{ evidence = $crossbow; category = 'LightCrossbow' },
             [pscustomobject]@{ evidence = $sling; category = 'Sling' }

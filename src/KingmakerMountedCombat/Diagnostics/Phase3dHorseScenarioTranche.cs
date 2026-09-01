@@ -124,6 +124,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private int transitionRiderStartRequestCount;
         private string transitionFirstNativeTurnUnitId;
         private bool rangedMountMeleeReadyAtAdmission;
+        private JObject stockMeleeReadinessAtAdmission;
+        private string stockMeleePreviousTargetId;
+        private bool stockMeleePreviousTargetCleanupPassed;
         private JObject rangedOpportunityReadinessAtAdmission;
         private JObject rangedVariantReadinessAtAdmission;
         private string rangedVariantPreviousTargetId;
@@ -284,6 +287,12 @@ namespace KingmakerMountedCombat.Diagnostics
                         break;
                     case Phase3dHorseStep.AwaitMountPrimaryRt:
                         AwaitMountPrimaryRt();
+                        break;
+                    case Phase3dHorseStep.AwaitStockMeleeTargetCleanupRt:
+                        AwaitStockMeleeTargetCleanupRt();
+                        break;
+                    case Phase3dHorseStep.AwaitStockMeleeAdmissionRt:
+                        AwaitStockMeleeAdmissionRt();
                         break;
                     case Phase3dHorseStep.AwaitStockMeleeRt:
                         AwaitStockMeleeRt();
@@ -756,6 +765,61 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
+            BeginStockMeleeTargetReplacement();
+        }
+
+        private void BeginStockMeleeTargetReplacement()
+        {
+            stockMeleePreviousTargetId = target?.UniqueId;
+            stockMeleePreviousTargetCleanupPassed = false;
+            stockMeleeReadinessAtAdmission = null;
+            combat.Cancel("Phase 3D stock melee isolated target boundary");
+            TryLeaveCombat(target);
+            targetCleanupComplete = targetService != null && targetService.DestroyAndVerify();
+            step = Phase3dHorseStep.AwaitStockMeleeTargetCleanupRt;
+            stableFrames = 0;
+            ResetLeafClock();
+        }
+
+        private void AwaitStockMeleeTargetCleanupRt()
+        {
+            if (!targetCleanupComplete && targetService != null)
+            {
+                targetCleanupComplete = targetService.DestroyAndVerify();
+            }
+            if (!targetCleanupComplete)
+            {
+                return;
+            }
+
+            targetService.Dispose();
+            targetService = null;
+            target = null;
+            stockMeleePreviousTargetCleanupPassed = true;
+            BeginTarget(TargetDistance, "rt-stock-melee-persistent");
+            SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
+            step = Phase3dHorseStep.AwaitStockMeleeAdmissionRt;
+            stableFrames = 0;
+            ResetLeafClock();
+        }
+
+        private void AwaitStockMeleeAdmissionRt()
+        {
+            var readiness = CaptureStockMeleeReadiness();
+            observations["stockMeleeRtReadiness"] = readiness;
+            if (!(bool)readiness["ready"])
+            {
+                stableFrames = 0;
+                return;
+            }
+            stableFrames++;
+            if (stableFrames < 2)
+            {
+                return;
+            }
+
+            stockMeleeReadinessAtAdmission = readiness.DeepClone() as JObject;
+            stableFrames = 0;
             BeginStockMeleeRt();
         }
 
@@ -764,22 +828,30 @@ namespace KingmakerMountedCombat.Diagnostics
             SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
             combat.Cancel("Phase 3D stock melee boundary");
             ruleProbe.Arm(target, true);
+            movementStart = horse.Position;
             stockNativeBefore = combat.StockAttackNativeRequestCount;
             stockIntentBefore = combat.StockAttackIntentStartCount;
             stockRiderBefore = combat.StockAttackRiderDispatchCount;
             stockMountBefore = combat.StockAttackMountDispatchCount;
+            stockCancelBefore = combat.StockAttackIntentCancelCount;
             stockDuplicateBefore = combat.StockAttackDuplicateDispatchCount;
-            targetService.BeginExpectedAttackDispatch(target);
+            var expectedDispatchStarted = targetService.BeginExpectedAttackDispatch(target);
             var clicked = new ClickUnitHandler().OnClick(target.View.gameObject, target.Position, 0, false, false);
+            var nativeRequestDelta = combat.StockAttackNativeRequestCount - stockNativeBefore;
+            var intentStartDelta = combat.StockAttackIntentStartCount - stockIntentBefore;
             observations["stockMeleeRtAdmission"] = new JObject
             {
                 ["clicked"] = clicked,
+                ["expectedDispatchStarted"] = expectedDispatchStarted,
+                ["nativeRequestDelta"] = nativeRequestDelta,
+                ["intentStartDelta"] = intentStartDelta,
+                ["targetId"] = target.UniqueId,
                 ["lastObservation"] = combat.LastStockAttackObservation,
                 ["feedback"] = combat.LastFeedback
             };
-            if (!clicked && combat.StockAttackIntentStartCount == stockIntentBefore)
+            if (!clicked || !expectedDispatchStarted || nativeRequestDelta != 1 || intentStartDelta != 1)
             {
-                FailCurrent("mounted-stock-click-melee-adjacent-rt", "Ordinary native hostile click did not create mounted stock intent.");
+                FailCurrent("mounted-stock-click-melee-adjacent-rt", "Ordinary native hostile click did not admit the isolated, readiness-proven mounted stock melee intent.");
                 BeginCleanup();
                 return;
             }
@@ -791,24 +863,41 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             var riderDispatches = combat.StockAttackRiderDispatchCount - stockRiderBefore;
             var mountDispatches = combat.StockAttackMountDispatchCount - stockMountBefore;
-            if (riderDispatches < 2 || mountDispatches < 1)
+            if (riderDispatches < 2 || mountDispatches < 1 ||
+                ruleProbe.RiderAttackRuleCount < 2 || ruleProbe.MountAttackRuleCount < 1)
             {
+                if (target == null || !target.IsInState || !target.Descriptor.State.IsConscious)
+                {
+                    FailCurrent("mounted-stock-click-melee-auto-repeat-rt", "The isolated stock-melee target became invalid before two rider attacks and one separately owned Horse primary completed.");
+                    BeginCleanup();
+                }
                 return;
             }
 
             var exactNative = combat.StockAttackNativeRequestCount - stockNativeBefore == 1 &&
                 combat.StockAttackIntentStartCount - stockIntentBefore == 1;
             var zeroDuplicates = combat.StockAttackDuplicateDispatchCount - stockDuplicateBefore == 0;
+            var horseMovementDistance = HorizontalDistance(movementStart, horse.Position);
             var evidence = CaptureStockEvidence();
+            evidence["admissionReadiness"] = stockMeleeReadinessAtAdmission?.DeepClone();
+            evidence["input"] = observations["stockMeleeRtAdmission"]?.DeepClone();
+            evidence["previousTargetId"] = stockMeleePreviousTargetId;
+            evidence["previousTargetCleanupPassed"] = stockMeleePreviousTargetCleanupPassed;
+            evidence["isolatedTargetId"] = target.UniqueId;
+            evidence["horseMovementDistanceAfterAdmission"] = horseMovementDistance;
             AddRow("mounted-stock-click-melee-adjacent-rt",
-                exactNative && riderDispatches >= 1 && ruleProbe.RiderAttackRuleCount >= 1,
+                exactNative && riderDispatches >= 2 && ruleProbe.RiderAttackRuleCount >= 2 &&
+                    stockMeleePreviousTargetCleanupPassed &&
+                    !string.Equals(stockMeleePreviousTargetId, target.UniqueId, StringComparison.Ordinal),
                 "One ordinary native hostile click admitted rider-principal mounted melee.", evidence);
             AddRow("mounted-stock-click-melee-approach-rt",
                 relationship.State == RelationshipState.Mounted && relationship.Runtime.PoseHealthy &&
-                    ruleProbe.PairAttackRuleCount >= 2,
+                    horseMovementDistance > 0.25f && ruleProbe.RiderAttackRuleCount >= 2 &&
+                    ruleProbe.MountAttackRuleCount >= 1,
                 "The pair retained mount-owned physical approach and rider-owned attack semantics.", evidence);
             AddRow("mounted-stock-click-melee-auto-repeat-rt",
-                riderDispatches >= 2 && mountDispatches >= 1 && combat.HasStockAttackIntent,
+                riderDispatches >= 2 && mountDispatches >= 1 && combat.HasStockAttackIntent &&
+                    ruleProbe.RiderAttackRuleCount >= 2 && ruleProbe.MountAttackRuleCount >= 1 && zeroDuplicates,
                 "One hostile click remained active through two rider dispatch admissions and one completed separately owned Horse primary dispatch.", evidence);
             AddRow("mounted-separate-action-ledgers",
                 combat.CaptureUnifiedTurnSnapshot().Rider != null &&
@@ -2752,6 +2841,92 @@ namespace KingmakerMountedCombat.Diagnostics
             }
         }
 
+        private JObject CaptureStockMeleeReadiness()
+        {
+            var game = Game.Instance;
+            var selected = SelectionManager.Instance?.SelectedUnits;
+            var equipment = game?.HandsEquipmentController;
+            var weapon = rider.GetFirstWeapon()?.Blueprint;
+            var targetReady = target != null && target.IsInState && target.Descriptor.State.IsConscious &&
+                rider.IsEnemy(target) && rider.CanAttack(target) && horse.IsEnemy(target) && horse.CanAttack(target);
+            var combatMemoryReady = targetService != null &&
+                targetService.RefreshBidirectionalCombatMemoryLease();
+            var relationshipExact = relationship.State == RelationshipState.Mounted &&
+                relationship.Rider == rider && relationship.Mount == horse;
+            var freshTarget = stockMeleePreviousTargetCleanupPassed &&
+                !string.IsNullOrWhiteSpace(stockMeleePreviousTargetId) &&
+                target != null && !string.Equals(stockMeleePreviousTargetId, target.UniqueId, StringComparison.Ordinal);
+            var ready = IsCombatReady(true) && relationshipExact && !CombatController.IsInTurnBasedCombat() &&
+                game != null && !game.IsPaused && selected != null && selected.Count == 1 && selected[0] == rider &&
+                weapon != null && !weapon.IsRanged && targetReady && combatMemoryReady && freshTarget &&
+                !combat.HasActiveCommand && !combat.HasActiveGroundMovement && !combat.HasExactMountMovement &&
+                !combat.HasStockAttackIntent && rider.HasStandardAction() && horse.HasStandardAction() &&
+                rider.Commands != null && rider.Commands.Empty && horse.Commands != null && horse.Commands.Empty &&
+                target.Commands != null && target.Commands.Empty && !rider.AreHandsBusyWithAnimation &&
+                !horse.AreHandsBusyWithAnimation && !target.AreHandsBusyWithAnimation && equipment != null &&
+                !equipment.IsUpdateScheduledFor(rider) && !equipment.IsUpdateScheduledFor(horse) &&
+                relationship.Runtime.PoseHealthy;
+            return new JObject
+            {
+                ["ready"] = ready,
+                ["relationshipMounted"] = relationship.State == RelationshipState.Mounted,
+                ["relationshipExact"] = relationshipExact,
+                ["modeRealTime"] = !CombatController.IsInTurnBasedCombat(),
+                ["gameUnpaused"] = game != null && !game.IsPaused,
+                ["riderSelectedPrincipal"] = selected != null && selected.Count == 1 && selected[0] == rider,
+                ["weaponGuid"] = weapon?.AssetGuid,
+                ["weaponCategory"] = weapon?.Category.ToString(),
+                ["weaponMelee"] = weapon != null && !weapon.IsRanged,
+                ["targetReady"] = targetReady,
+                ["combatMemoryReady"] = combatMemoryReady,
+                ["pairCommandIdle"] = !combat.HasActiveCommand,
+                ["pairGroundMovementIdle"] = !combat.HasActiveGroundMovement,
+                ["exactMountMovementIdle"] = !combat.HasExactMountMovement,
+                ["stockIntentIdle"] = !combat.HasStockAttackIntent,
+                ["riderStandardReady"] = rider.HasStandardAction(),
+                ["horseStandardReady"] = horse.HasStandardAction(),
+                ["riderCommandsIdle"] = rider.Commands != null && rider.Commands.Empty,
+                ["horseCommandsIdle"] = horse.Commands != null && horse.Commands.Empty,
+                ["targetCommandsIdle"] = target?.Commands != null && target.Commands.Empty,
+                ["riderHandsIdle"] = !rider.AreHandsBusyWithAnimation,
+                ["horseHandsIdle"] = !horse.AreHandsBusyWithAnimation,
+                ["targetHandsIdle"] = target != null && !target.AreHandsBusyWithAnimation,
+                ["equipmentControllerReady"] = equipment != null,
+                ["riderEquipmentIdle"] = equipment != null && !equipment.IsUpdateScheduledFor(rider),
+                ["horseEquipmentIdle"] = equipment != null && !equipment.IsUpdateScheduledFor(horse),
+                ["poseHealthy"] = relationship.Runtime.PoseHealthy,
+                ["previousTargetId"] = stockMeleePreviousTargetId,
+                ["previousTargetCleanupPassed"] = stockMeleePreviousTargetCleanupPassed,
+                ["isolatedTargetId"] = target?.UniqueId,
+                ["freshTarget"] = freshTarget,
+                ["riderDistanceToTarget"] = target == null ? (double?)null : rider.DistanceTo(target)
+            };
+        }
+
+        private JObject CaptureStockMeleeProgress()
+        {
+            return new JObject
+            {
+                ["previousTargetId"] = stockMeleePreviousTargetId,
+                ["previousTargetCleanupPassed"] = stockMeleePreviousTargetCleanupPassed,
+                ["isolatedTargetId"] = target?.UniqueId,
+                ["targetInState"] = target != null && target.IsInState,
+                ["targetConscious"] = target != null && target.Descriptor.State.IsConscious,
+                ["activePairCommand"] = combat.HasActiveCommand,
+                ["stockIntentActive"] = combat.HasStockAttackIntent,
+                ["nativeRequestDelta"] = combat.StockAttackNativeRequestCount - stockNativeBefore,
+                ["intentStartDelta"] = combat.StockAttackIntentStartCount - stockIntentBefore,
+                ["riderDispatchDelta"] = combat.StockAttackRiderDispatchCount - stockRiderBefore,
+                ["mountDispatchDelta"] = combat.StockAttackMountDispatchCount - stockMountBefore,
+                ["duplicateDispatchDelta"] = combat.StockAttackDuplicateDispatchCount - stockDuplicateBefore,
+                ["horseMovementDistanceAfterAdmission"] = HorizontalDistance(movementStart, horse.Position),
+                ["rules"] = ruleProbe?.CapturePairEvidence(),
+                ["readinessNow"] = target == null ? null : CaptureStockMeleeReadiness(),
+                ["admissionReadiness"] = stockMeleeReadinessAtAdmission?.DeepClone(),
+                ["input"] = observations["stockMeleeRtAdmission"]?.DeepClone()
+            };
+        }
+
         private JObject CaptureRangedOpportunityReadiness()
         {
             var targetCombat = target?.CombatState;
@@ -2900,6 +3075,20 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private JToken CaptureLeafDeadlineProgress()
         {
+            if (step == Phase3dHorseStep.AwaitStockMeleeTargetCleanupRt)
+            {
+                return new JObject
+                {
+                    ["previousTargetId"] = stockMeleePreviousTargetId,
+                    ["previousTargetCleanupPassed"] = stockMeleePreviousTargetCleanupPassed,
+                    ["targetCleanupComplete"] = targetCleanupComplete
+                };
+            }
+            if (step == Phase3dHorseStep.AwaitStockMeleeAdmissionRt ||
+                step == Phase3dHorseStep.AwaitStockMeleeRt)
+            {
+                return CaptureStockMeleeProgress();
+            }
             if (step == Phase3dHorseStep.AwaitRangedAdjacentMoveRt ||
                 step == Phase3dHorseStep.AwaitRangedAdjacentAttackRt ||
                 step == Phase3dHorseStep.AwaitRangedAdjacentCancelRt)
@@ -3421,6 +3610,8 @@ namespace KingmakerMountedCombat.Diagnostics
             AwaitRiderPrimaryRt,
             AwaitMountPrimaryRtAdmission,
             AwaitMountPrimaryRt,
+            AwaitStockMeleeTargetCleanupRt,
+            AwaitStockMeleeAdmissionRt,
             AwaitStockMeleeRt,
             AwaitStockCancelRt,
             AwaitRangedTargetCleanup,

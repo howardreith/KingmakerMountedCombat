@@ -1,5 +1,17 @@
 # Autonomous blockers
 
+## Phase 3D dev.9 proves the production repair; dev.10 isolates exhausted stock-melee evidence (2026-09-01T14:02:18-04:00)
+
+Status: `IN PROGRESS`. No external-state or production architecture blocker is active.
+
+Dev.9 RT A `20260901T163000Z-phase3d-dev9-rt-passA` is immutable uncredited `FAIL`; mandatory audit `20260901T173000Z-phase3d-dev9-rt-passA-postrun-audit` passed before inspection. The exact production repair succeeded: Rider Primary completed its native/KMC child after one terminal Horse-owned point move, charged only rider Standard, emitted one rider attack/roll/damage chain, and retained the relationship. Explicit Horse Primary also completed one native Bite on the Horse Standard ledger and retained the pair. No further production point-movement or Rider Primary repair is authorized by this run.
+
+The remaining leaf is diagnostic target exhaustion. One normal hostile click was admitted, created persistent mounted intent, and completed a native RiderMelee attack, but the scenario had reused the 128-HP target already struck by forced-natural-20 explicit Rider and Horse attacks. Target invalidation and party combat end then correctly cancelled intent before the two-rider/one-Horse observation window. This does not establish a stock-input, persistence, movement, or relationship defect.
+
+Dev.10 is one scenario-only isolation checkpoint. It destroys/verifies the explicit-primary target, spawns a fresh stock-melee target, proves two stable frames of exact admission readiness, and binds distinct target identities, one native click/request/intent, positive Horse approach, independent rider/Horse Standards, matching dispatch/rule/roll/damage counts, zero duplicates, and retained relationship. The external validator rejects an uncleared or reused target. Complete offline gates pass source/Release/component/visual/harness/assembly `22/Release/295/18/237/382`, PowerShell/JSON `26/0` / `7/0`, and diff; dirty DLL SHA-256/MVID are `e4500336170500f98cabedbd273969159d1618ec0757318975fe1eb9828d28ec` / `2d1018d0-5fb1-4144-ac67-7c0f196a1a29`.
+
+Fresh clean-package runtime evidence remains mandatory. If the isolated dev.10 target still invalidates before its exact minimum cardinality or normal stock intent otherwise fails under the readiness gate, preserve the evidence and issue the bounded architecture disposition; do not change the validated production point-move seam or layer a global attack/controller patch. Paladin Divine Steed remains unauthorized.
+
 ## Phase 3D dev.8 closes ranged AoO; dev.9 is the bounded repair for point movement and variant isolation (2026-09-01T09:13:41-04:00)
 
 Status: `IN PROGRESS`. No external-state or broad shared-turn/AoO architecture blocker is active.

@@ -9923,9 +9923,35 @@ try {
                     ledgerBefore=[ordered]@{rider=[ordered]@{unitId='rider';move=0.0};mount=[ordered]@{unitId='horse';move=0.0}}
                     ledgerAfter=[ordered]@{rider=[ordered]@{unitId='rider';move=0.0};mount=[ordered]@{unitId='horse';move=0.0}}
                 }
-                $melee = [ordered]@{nativeRequestDelta=1;intentStartDelta=1;intentCancelDelta=0;riderDispatchDelta=2;mountDispatchDelta=1;duplicateDispatchDelta=0;intentActive=$true}
+                $melee = [ordered]@{
+                    nativeRequestDelta=1;intentStartDelta=1;intentCancelDelta=0
+                    riderDispatchDelta=2;mountDispatchDelta=1;duplicateDispatchDelta=0;intentActive=$true
+                    relationshipState='Mounted';horseMovementDistanceAfterAdmission=3.0
+                    previousTargetId='explicit-primary-target';previousTargetCleanupPassed=$true
+                    isolatedTargetId='stock-melee-target'
+                    admissionReadiness=[ordered]@{
+                        ready=$true;relationshipMounted=$true;relationshipExact=$true;modeRealTime=$true;gameUnpaused=$true
+                        riderSelectedPrincipal=$true;weaponMelee=$true;targetReady=$true;combatMemoryReady=$true
+                        pairCommandIdle=$true;pairGroundMovementIdle=$true;exactMountMovementIdle=$true
+                        stockIntentIdle=$true;riderStandardReady=$true;horseStandardReady=$true
+                        riderCommandsIdle=$true;horseCommandsIdle=$true;targetCommandsIdle=$true
+                        riderHandsIdle=$true;horseHandsIdle=$true;targetHandsIdle=$true
+                        riderEquipmentIdle=$true;horseEquipmentIdle=$true;poseHealthy=$true
+                        previousTargetId='explicit-primary-target';previousTargetCleanupPassed=$true
+                        isolatedTargetId='stock-melee-target';freshTarget=$true
+                    }
+                    input=[ordered]@{
+                        clicked=$true;expectedDispatchStarted=$true;nativeRequestDelta=1;intentStartDelta=1
+                        targetId='stock-melee-target'
+                    }
+                    rules=[ordered]@{
+                        riderAttackRules=2;mountAttackRules=1;pairAttackRolls=3;pairDamageRules=3
+                    }
+                }
                 $cancel = [ordered]@{nativeRequestDelta=1;intentStartDelta=1;intentCancelDelta=1;riderDispatchDelta=2;mountDispatchDelta=1;duplicateDispatchDelta=0;intentActive=$false}
                 $ranged = [ordered]@{nativeRequestDelta=1;intentStartDelta=1;intentCancelDelta=0;riderDispatchDelta=2;mountDispatchDelta=0;duplicateDispatchDelta=0;intentActive=$true;weaponCategory='Shortbow'}
+                $rowByName['mounted-stock-click-melee-adjacent-rt'].evidence = $melee
+                $rowByName['mounted-stock-click-melee-approach-rt'].evidence = $melee
                 $rowByName['mounted-stock-click-melee-auto-repeat-rt'].evidence = $melee
                 $rowByName['mounted-stock-click-melee-cancel-rt'].evidence = $cancel
                 $rowByName['mounted-bow-auto-fire-rt'].evidence = $ranged
@@ -10086,6 +10112,17 @@ try {
 
             if ($phase3dScenario -ceq 'phase3d-unified-combat-rt-suite') {
                 $rowByName['mounted-bow-auto-fire-rt'].evidence.mountDispatchDelta = 0
+                $rowByName['mounted-stock-click-melee-auto-repeat-rt'].evidence.previousTargetCleanupPassed = $false
+                Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
+                $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
+                $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
+                [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+                $phase3dManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+                Assert-TestThrows {
+                    Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
+                } 'Phase 3D RT validator accepted stock melee that reused an uncleared target.'
+
+                $rowByName['mounted-stock-click-melee-auto-repeat-rt'].evidence.previousTargetCleanupPassed = $true
                 $rowByName['mounted-ranged-aao-native-control'].evidence.opportunityReadyAtAdmission.riderStandardReady = $false
                 Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
                 $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
@@ -10225,6 +10262,11 @@ try {
             $phase3dSource.Contains('AwaitRangedVariantTargetCleanupRt()') -and
             $phase3dSource.Contains('AwaitRangedVariantAdmissionRt()') -and
             $phase3dSource.Contains('rangedVariantPreviousTargetCleanupPassed = true;') -and
+            $phase3dSource.Contains('AwaitStockMeleeTargetCleanupRt()') -and
+            $phase3dSource.Contains('AwaitStockMeleeAdmissionRt()') -and
+            $phase3dSource.Contains('stockMeleePreviousTargetCleanupPassed = true;') -and
+            $phase3dSource.Contains('CaptureStockMeleeReadiness()') -and
+            $phase3dSource.Contains('BeginTarget(TargetDistance, "rt-stock-melee-persistent")') -and
             $phase3dSource.Contains('weapon.Category == rangedVariantCategory') -and
             $phase3dSource.Contains('ruleProbe.OpportunityAttackRuleCount == 1') -and
             $phase3dSource.Contains('mountAlreadyInMeleeAtAdmission') -and
