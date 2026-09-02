@@ -45,8 +45,15 @@ namespace KingmakerMountedCombat.Integration
 
         public MountedPlayerActionAvailability GetAvailability()
         {
+            return GetAvailability(false);
+        }
+
+        private MountedPlayerActionAvailability GetAvailability(bool nativeMoveActionShellAdmitted)
+        {
             ThrowIfDisposed();
-            var availability = MountedPlayerActionEvaluator.Evaluate(CaptureContext());
+            var context = CaptureContext();
+            context.NativeMoveActionShellAdmitted = nativeMoveActionShellAdmitted;
+            var availability = MountedPlayerActionEvaluator.Evaluate(context);
             if (IsMountTargetArmed &&
                 (availability.Action != MountedPlayerActionKind.Mount || !availability.IsEnabled))
             {
@@ -148,10 +155,12 @@ namespace KingmakerMountedCombat.Integration
             return true;
         }
 
-        internal NativeMountedControlAvailability GetNativeMountAvailability(UnitEntityData caster)
+        internal NativeMountedControlAvailability GetNativeMountAvailability(
+            UnitEntityData caster,
+            bool nativeMoveActionShellAdmitted = false)
         {
             ThrowIfDisposed();
-            var availability = GetAvailability();
+            var availability = GetAvailability(nativeMoveActionShellAdmitted);
             var selection = SelectionManager.Instance?.SelectedUnits;
             var exactCasterSelected = caster != null && selection != null && selection.Count == 1 &&
                 selection[0] == caster;
@@ -166,10 +175,12 @@ namespace KingmakerMountedCombat.Integration
             return new NativeMountedControlAvailability(true, availability.IsEnabled, availability.Feedback);
         }
 
-        internal NativeMountedControlAvailability GetNativeDismountAvailability(UnitEntityData caster)
+        internal NativeMountedControlAvailability GetNativeDismountAvailability(
+            UnitEntityData caster,
+            bool nativeMoveActionShellAdmitted = false)
         {
             ThrowIfDisposed();
-            var availability = GetAvailability();
+            var availability = GetAvailability(nativeMoveActionShellAdmitted);
             var exactRider = caster != null && caster == relationship.Rider;
             if (!availability.IsVisible || availability.Action != MountedPlayerActionKind.Dismount || !exactRider)
             {
@@ -190,9 +201,12 @@ namespace KingmakerMountedCombat.Integration
                 SupportedMountedProfiles.IsSupported(mount);
         }
 
-        internal string DescribeNativeMountTargetRejection(UnitEntityData caster, UnitEntityData target)
+        internal string DescribeNativeMountTargetRejection(
+            UnitEntityData caster,
+            UnitEntityData target,
+            bool nativeMoveActionShellAdmitted = false)
         {
-            var availability = GetNativeMountAvailability(caster);
+            var availability = GetNativeMountAvailability(caster, nativeMoveActionShellAdmitted);
             if (!availability.IsEnabled)
             {
                 return availability.Reason;
@@ -208,9 +222,15 @@ namespace KingmakerMountedCombat.Integration
         {
             ThrowIfDisposed();
             MountTargetClickCount++;
-            if (!CanNativeMountTarget(caster, target))
+            var availability = GetNativeMountAvailability(caster, true);
+            var mount = caster?.Descriptor?.Pet;
+            var exactTarget = target != null && target == mount &&
+                mount.Descriptor?.Master.Value == caster && SupportedMountedProfiles.IsSupported(mount);
+            if (!availability.IsEnabled || !exactTarget)
             {
-                var reason = DescribeNativeMountTargetRejection(caster, target);
+                var reason = !availability.IsEnabled
+                    ? availability.Reason
+                    : DescribeNativeMountTargetRejection(caster, target, true);
                 feedbackState.SetOperationFeedback(reason);
                 logger.Info("Native Mount Companion target rejected: casterId=" +
                     (caster?.UniqueId ?? "<none>") + "; targetId=" +
@@ -245,7 +265,7 @@ namespace KingmakerMountedCombat.Integration
         internal bool TryExecuteNativeDismount(UnitEntityData caster)
         {
             ThrowIfDisposed();
-            var availability = GetNativeDismountAvailability(caster);
+            var availability = GetNativeDismountAvailability(caster, true);
             if (!availability.IsEnabled)
             {
                 feedbackState.SetOperationFeedback(availability.Reason);

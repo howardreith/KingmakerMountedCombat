@@ -39,6 +39,8 @@ Exact installed control flow adds two contracts:
 
 This postfix changes only the Free native intent shell. `IgnoreCooldown` makes that shell resource-neutral; it neither grants nor refreshes an actor resource. This is required because exact RTWP `UpdateCooldowns` otherwise treats an acted `Free` command as Move, while TB already charges no resource for `Free`. The postfix does not dispatch directly, alter the child command, rewrite attack LoS/range, suppress a rule, or affect Mount Companion, Dismount, foreign abilities, unmounted actors, or the wrong caster. The existing mounted child transaction continues to give approach movement to the mount and uses native rider/mount `UnitAttack` range, LoS, weapon, and sole Standard-resource ownership.
 
+Mount Companion and Dismount are intentionally different: their exact native shells are `Move`, `IgnoreCooldown=false`, and are the sole rider Move-cost owners in combat. Because native custom delivery can run after the admitted shell becomes acted and `UpdateCooldowns` commits the resource, the delivery callback marks only that exact shell as already admitted. Its second evaluator pass skips only the now-stale Move-availability predicate; every identity, target, turn, adjacency, body, ownership, lifecycle, control, view, and mode predicate remains active. This prevents a successfully admitted Move shell from rejecting its own delivery without weakening pre-input availability or editing cooldowns.
+
 Runtime evidence records the two stable admission frames, every command/action/equipment gate, exact shell slot and executor, `NeedLoS=false`, `IgnoreCooldown=true`, approach state, cooldown state, one preparation delta, native selection/cast cardinality, terminal KMC outcome, and relationship state. The external validator fails closed if admission was premature or if the exact shell preparation was not observed.
 
 ## Selected surface
@@ -47,8 +49,8 @@ Four original KMC runtime blueprints are reserved, with fail-closed collision ch
 
 | Ability | GUID | Target | Native command type |
 |---|---|---|---|
-| `KMC_MountCompanionAbility` | `f053faad986631688defa003cd7bda0e` | exact owned supported companion | Free; exploration-only transition |
-| `KMC_DismountAbility` | `3af2b81f4d72bbb30501fa730fcdf36e` | owner | Free; exact cleanup path |
+| `KMC_MountCompanionAbility` | `f053faad986631688defa003cd7bda0e` | exact owned supported companion | Move; native rider cost in combat, free exploration transition |
+| `KMC_DismountAbility` | `3af2b81f4d72bbb30501fa730fcdf36e` | owner | Move; native rider cost in combat, exact cleanup path |
 | `KMC_RiderPrimaryAbility` | `27364df661b3c121eabb97a31aa73a83` | one visible hostile unit | Free native handoff; rider KMC command owns Standard |
 | `KMC_MountPrimaryAbility` | `f88a50d6fdbebbd709c3e323d2f52f5e` | one visible hostile unit | Free native handoff; Horse/Mammoth KMC command owns Standard |
 

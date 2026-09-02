@@ -97,6 +97,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private Vector3 movementStart;
         private Vector3 movementDestination;
         private UnifiedMountedTurnSnapshot turnSnapshotBefore;
+        private UnifiedMountedTurnSnapshot rtCombatDismountBefore;
         private long stockNativeBefore;
         private long stockIntentBefore;
         private long stockRiderBefore;
@@ -346,6 +347,9 @@ namespace KingmakerMountedCombat.Diagnostics
                         break;
                     case Phase3dHorseStep.AwaitTbToRtTransition:
                         AwaitTbToRtTransition();
+                        break;
+                    case Phase3dHorseStep.AwaitRtCombatDismountAdmission:
+                        AwaitRtCombatDismountAdmission();
                         break;
                     case Phase3dHorseStep.AwaitRtCombatDismount:
                         AwaitRtCombatDismount();
@@ -1675,8 +1679,22 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void BeginRtCombatDismount()
         {
-            nativeControls.Update();
             SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
+            step = Phase3dHorseStep.AwaitRtCombatDismountAdmission;
+            ResetLeafClock();
+        }
+
+        private void AwaitRtCombatDismountAdmission()
+        {
+            nativeControls.Update();
+            var availability = nativeControls.Evaluate(NativeMountedControlKind.Dismount, rider);
+            observations["rtCombatDismountReadiness"] = CaptureRtCombatDismountState(availability);
+            if (!availability.IsEnabled)
+            {
+                return;
+            }
+
+            rtCombatDismountBefore = combat.CaptureUnifiedTurnSnapshot();
             if (!TryNativeAbilityTargetClick(nativeControls.DismountAbility, rider, "rt-combat-dismount"))
             {
                 FailCurrent("unmounted-stock-attack-control", "Native Dismount was not admitted before unmounted stock controls.");
@@ -1693,6 +1711,21 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 return;
             }
+            observations["rtCombatDismountCompletion"] = new JObject
+            {
+                ["before"] = JObject.FromObject(rtCombatDismountBefore, JsonSerializer.Create(JsonSettings)),
+                ["after"] = JObject.FromObject(
+                    combat.CaptureUnifiedTurnSnapshot(), JsonSerializer.Create(JsonSettings)),
+                ["relationshipState"] = relationship.State.ToString(),
+                ["riderMoveCooldown"] = rider.CombatState?.Cooldown.MoveAction,
+                ["riderStandardCooldown"] = rider.CombatState?.Cooldown.StandardAction,
+                ["playerActionFeedback"] = playerAction.LastFeedback,
+                ["commands"] = CapturePairCommandState(),
+                ["dismountActivations"] = JArray.FromObject(
+                    nativeControls.SnapshotAbilityActivations()
+                        .Where(item => item.Kind == NativeMountedControlKind.Dismount).ToArray(),
+                    JsonSerializer.Create(JsonSettings))
+            };
             BeginUnmountedMeleeRt();
         }
 
@@ -3302,6 +3335,12 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private JToken CaptureLeafDeadlineProgress()
         {
+            if (step == Phase3dHorseStep.AwaitRtCombatDismountAdmission ||
+                step == Phase3dHorseStep.AwaitRtCombatDismount)
+            {
+                var availability = nativeControls.Evaluate(NativeMountedControlKind.Dismount, rider);
+                return CaptureRtCombatDismountState(availability);
+            }
             if (step == Phase3dHorseStep.AwaitStockMeleeTargetCleanupRt)
             {
                 return new JObject
@@ -3346,6 +3385,36 @@ namespace KingmakerMountedCombat.Diagnostics
             return JValue.CreateNull();
         }
 
+        private JObject CaptureRtCombatDismountState(NativeMountedControlAvailability availability)
+        {
+            var game = Game.Instance;
+            var selected = SelectionManager.Instance?.SelectedUnits;
+            return new JObject
+            {
+                ["availabilityVisible"] = availability?.IsVisible,
+                ["availabilityEnabled"] = availability?.IsEnabled,
+                ["availabilityReason"] = availability?.Reason,
+                ["relationshipState"] = relationship.State.ToString(),
+                ["turnBased"] = CombatController.IsInTurnBasedCombat(),
+                ["riderSelectedPrincipal"] = selected != null && selected.Count == 1 && selected[0] == rider,
+                ["riderInCombat"] = rider.IsInCombat,
+                ["horseInCombat"] = horse.IsInCombat,
+                ["partyInCombat"] = game?.Player?.IsInCombat,
+                ["riderHasMoveAction"] = rider.HasMoveAction(),
+                ["riderMoveCooldown"] = rider.CombatState?.Cooldown.MoveAction,
+                ["riderStandardCooldown"] = rider.CombatState?.Cooldown.StandardAction,
+                ["abilityActionType"] = nativeControls.DismountAbility?.ActionType.ToString(),
+                ["playerActionFeedback"] = playerAction.LastFeedback,
+                ["nativeControls"] = JObject.FromObject(
+                    nativeControls.CaptureSnapshot(), JsonSerializer.Create(JsonSettings)),
+                ["commands"] = CapturePairCommandState(),
+                ["dismountActivations"] = JArray.FromObject(
+                    nativeControls.SnapshotAbilityActivations()
+                        .Where(item => item.Kind == NativeMountedControlKind.Dismount).ToArray(),
+                    JsonSerializer.Create(JsonSettings))
+            };
+        }
+
         private bool TryNativeAbilityTargetClick(
             BlueprintAbility blueprint,
             UnitEntityData clickedTarget,
@@ -3369,13 +3438,18 @@ namespace KingmakerMountedCombat.Diagnostics
                 return false;
             }
 
+            lastNativeAbilityShell = null;
             var before = nativeControls.CaptureSnapshot();
             handler.SetAbility(data);
             var priority = handler.GetPriority(targetObject, position);
             var resolvedTarget = handler.GetTarget(targetObject, position, data);
             var clicked = handler.OnClick(targetObject, position, 0, false, false);
             var after = nativeControls.CaptureSnapshot();
-            var shell = rider.Commands?.Free as UnitUseAbility;
+            var rawCommands = rider.Commands?.Raw;
+            var shell = rawCommands == null
+                ? null
+                : rawCommands.OfType<UnitUseAbility>().FirstOrDefault(
+                    item => ReferenceEquals(item.Spell?.Blueprint, blueprint));
             if (clicked && shell != null && ReferenceEquals(shell.Spell?.Blueprint, blueprint))
             {
                 lastNativeAbilityShell = shell;
@@ -3422,6 +3496,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["type"] = command.Type.ToString(),
                     ["contained"] = commands != null && commands.Contains(command),
                     ["inFreeSlot"] = commands != null && ReferenceEquals(commands.Free, command),
+                    ["inMoveSlot"] = commands != null && ReferenceEquals(commands.Move, command),
                     ["queued"] = commands != null && commands.Queue.Contains(command),
                     ["started"] = command.IsStarted,
                     ["running"] = command.IsRunning,
@@ -3965,6 +4040,7 @@ namespace KingmakerMountedCombat.Diagnostics
             AwaitRtToTbTransition,
             AwaitRiderPrimaryAfterTransition,
             AwaitTbToRtTransition,
+            AwaitRtCombatDismountAdmission,
             AwaitRtCombatDismount,
             AwaitUnmountedMeleeRt,
             AwaitUnmountedMeleeCancelRt,

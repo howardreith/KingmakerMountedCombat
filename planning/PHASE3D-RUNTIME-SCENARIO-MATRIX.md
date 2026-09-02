@@ -32,6 +32,8 @@ Dev.11 RT A `20260902T024000Z-phase3d-dev11-rt-passA` is immutable uncredited ag
 
 Dev.12 RT A `20260902T072000Z-phase3d-dev12-rt-passA` is immutable uncredited aggregate `FAIL` (`6/2` outer; `50/2` assertions) after mandatory audit `20260902T080000Z-phase3d-dev12-rt-passA-postrun-audit` passed before inspection. Every reached explicit Rider/Horse primary retention row passed. A fresh stock target passed exact readiness and real request/intent admission `1/1`; the Horse moved `4.7231493m`, then the delegated native point move remained nonterminal until the unchanged pair-command bound. No attack rule fired, the target remained valid, and the rider was `1.70507455m` away at the deadline. Since dev.10/dev.11 completed the same geometry, dev.13 adds only the missing full terminal outcome, final mechanics distance/radius, LoS, movement-agent, and raw-command evidence. One fresh audited run must attribute this boundary before any production repair.
 
+Dev.13 RT A `20260902T102000Z-phase3d-dev13-rt-passA` is immutable uncredited aggregate `FAIL` (`29/2` outer; `73/2` assertions; `28/1` Phase 3D rows) after mandatory audit `20260902T113000Z-phase3d-dev13-rt-passA-postrun-audit` passed before inspection. The dev.12 stock-melee stall did not reproduce. Every reached Rider Primary retention, explicit Horse Primary, normal melee click/approach/repeat/cancel, separate-ledger, invalid-target, Shortbow, Light Crossbow, Sling, native ranged-AoO, rider tracker/initiative/portrait, and RT-to-TB-to-RT row passed. The sole Phase 3D failure was combat Dismount: a Move-ready rider admitted one exact native Dismount cast, then asynchronous delivery returned `accepted=False` after that Move shell had become acted and committed its cooldown. Dev.14 marks only the exact delivery context as an already-admitted native Move shell, suppresses only the duplicate Move-resource recheck, and adds strict shell/cooldown/activation/cleanup evidence. All non-resource gates and native cost ownership remain unchanged; fresh clean-package aggregate evidence is pending.
+
 ## Shared initiative
 
 | Scenario | RT | TB | Required proof | Status |
@@ -39,14 +41,14 @@ Dev.12 RT A `20260902T072000Z-phase3d-dev12-rt-passA` is immutable uncredited ag
 | mounted-combat-start-single-initiative-entry |  | yes | one rider entry, zero mount entries | TODO |
 | mounted-rider-initiative-bonus |  | yes | rider roll/result/bonus owns pair placement | TODO |
 | mounted-turn-rider-portrait |  | yes | tracker current entry and portrait are rider | TODO |
-| mounted-separate-action-ledgers | yes | yes | independent before/after cooldowns | TODO |
+| mounted-separate-action-ledgers | yes | yes | independent before/after cooldowns | IN PROGRESS - dev.13 RT row PASS inside an uncredited aggregate; TB pending |
 | mounted-shared-turn-action-order |  | yes | mount move, rider attack, mount attack without duplicate | TODO |
 | mount-in-combat-before-either-acted |  | yes | merge preserves both ledgers; no extra turn | TODO |
 | mount-in-combat-rider-already-acted |  | yes | spent rider resources preserved | TODO |
 | mount-in-combat-mount-already-acted |  | yes | spent mount resources preserved | TODO |
 | dismount-in-combat-no-extra-turn |  | yes | split deferred to safe next-round boundary | TODO |
-| RT-to-TB-shared-turn | yes | yes | one rider turn, cooldown preservation | TODO |
-| TB-to-RT-shared-turn | yes | yes | pair initiative/cooldown reconciliation | TODO |
+| RT-to-TB-shared-turn | yes | yes | one rider turn, cooldown preservation | IN PROGRESS - dev.13 row PASS inside an uncredited aggregate; clean aggregate pending |
+| TB-to-RT-shared-turn | yes | yes | pair initiative/cooldown reconciliation | IN PROGRESS - dev.13 row PASS inside an uncredited aggregate; clean aggregate pending |
 | rider-incapacitation-turn-cleanup | yes | yes | clean dismount, coherent next actor | TODO |
 | mount-incapacitation-turn-cleanup | yes | yes | clean dismount/removal, coherent next actor | TODO |
 
@@ -65,25 +67,25 @@ Dev.12 RT A `20260902T072000Z-phase3d-dev12-rt-passA` is immutable uncredited ag
 
 | Scenario | Required proof | Status |
 |---|---|---|
-| rider-primary-does-not-dismount-rt | relationship remains mounted after terminal hit/miss | IN PROGRESS - dev.8 proves retention through native/KMC admission but the child timed out; dev.9 terminal repair pending |
+| rider-primary-does-not-dismount-rt | relationship remains mounted after terminal hit/miss | IN PROGRESS - dev.13 terminal row PASS inside an uncredited aggregate; clean aggregate pending |
 | rider-primary-does-not-dismount-tb | same under rider-led shared turn | TODO |
-| rider-primary-rejection-does-not-dismount | no transition/cleanup event | TODO |
-| rider-primary-target-cancel-does-not-dismount | target selector cancel has no cleanup | TODO |
-| rider-primary-after-movement-does-not-dismount | movement plus attack retains exact pair | TODO |
-| rider-primary-after-shared-turn-transition-does-not-dismount | RT/TB transition plus attack retains pair | TODO |
+| rider-primary-rejection-does-not-dismount | no transition/cleanup event | IN PROGRESS - dev.13 RT row PASS inside an uncredited aggregate; TB pending |
+| rider-primary-target-cancel-does-not-dismount | target selector cancel has no cleanup | IN PROGRESS - dev.13 RT row PASS inside an uncredited aggregate; TB pending |
+| rider-primary-after-movement-does-not-dismount | movement plus attack retains exact pair | IN PROGRESS - dev.13 RT row PASS inside an uncredited aggregate; TB pending |
+| rider-primary-after-shared-turn-transition-does-not-dismount | RT/TB transition plus attack retains pair | IN PROGRESS - dev.13 row PASS inside an uncredited aggregate; clean aggregate pending |
 
 ## Stock melee
 
 | Scenario | RT | TB | Status |
 |---|---:|---:|---|
-| mounted-stock-click-melee-adjacent | yes |  | TODO |
-| mounted-stock-click-melee-approach | yes |  | TODO |
-| mounted-stock-click-melee-auto-repeat | yes |  | TODO |
-| mounted-stock-click-melee-cancel | yes |  | TODO |
+| mounted-stock-click-melee-adjacent | yes |  | IN PROGRESS - dev.13 RT row PASS inside an uncredited aggregate; clean aggregate pending |
+| mounted-stock-click-melee-approach | yes |  | IN PROGRESS - dev.13 RT row PASS inside an uncredited aggregate; clean aggregate pending |
+| mounted-stock-click-melee-auto-repeat | yes |  | IN PROGRESS - dev.13 RT row PASS inside an uncredited aggregate; clean aggregate pending |
+| mounted-stock-click-melee-cancel | yes |  | IN PROGRESS - dev.13 RT row PASS inside an uncredited aggregate; clean aggregate pending |
 | mounted-stock-click-melee-shared-turn |  | yes | TODO |
-| mounted-stock-click-melee-rider-only-explicit | yes | yes | TODO |
-| mounted-stock-click-melee-mount-only-explicit | yes | yes | TODO |
-| mounted-stock-click-invalid-target-feedback | yes | yes | TODO |
+| mounted-stock-click-melee-rider-only-explicit | yes | yes | IN PROGRESS - dev.13 RT row PASS inside an uncredited aggregate; TB pending |
+| mounted-stock-click-melee-mount-only-explicit | yes | yes | IN PROGRESS - dev.13 RT row PASS inside an uncredited aggregate; TB pending |
+| mounted-stock-click-invalid-target-feedback | yes | yes | IN PROGRESS - dev.13 RT row PASS inside an uncredited aggregate; TB pending |
 | unmounted-stock-attack-control | yes | yes | TODO |
 
 Each mounted row records actual `ClickUnitHandler` admission, exact stock command identity, movement, attack/rule/roll/damage cardinality, actor/resource owner, terminal result, cancellation, and relationship retention.
@@ -92,28 +94,28 @@ Each mounted row records actual `ClickUnitHandler` admission, exact stock comman
 
 | Scenario | RT | TB | Status |
 |---|---:|---:|---|
-| mounted-bow-adjacent | yes |  | TODO |
-| mounted-bow-approach-to-range | yes |  | TODO |
-| mounted-bow-auto-fire | yes |  | TODO |
-| mounted-bow-cancel | yes |  | TODO |
+| mounted-bow-adjacent | yes |  | IN PROGRESS - dev.13 RT row PASS inside an uncredited aggregate; clean aggregate pending |
+| mounted-bow-approach-to-range | yes |  | IN PROGRESS - dev.13 RT row PASS inside an uncredited aggregate; clean aggregate pending |
+| mounted-bow-auto-fire | yes |  | IN PROGRESS - dev.13 RT row PASS inside an uncredited aggregate; clean aggregate pending |
+| mounted-bow-cancel | yes |  | IN PROGRESS - dev.13 RT row PASS inside an uncredited aggregate; clean aggregate pending |
 | mounted-bow-shared-turn |  | yes | TODO |
-| mounted-crossbow-or-reload-control | yes | yes | IN PROGRESS - native dev.8 shot observed; fresh-target exact-cardinality rerun pending |
-| mounted-sling-control | yes | yes | IN PROGRESS - dev.9 stable equipment/target admission rerun pending |
-| mounted-ranged-line-of-sight | yes | yes | TODO |
-| mounted-ranged-cover-concealment | yes | yes | TODO |
-| mounted-ranged-aao-native-control | yes | yes | IN PROGRESS - exact dev.8 RT row PASS inside an uncredited aggregate; clean aggregate/TB pending |
-| mounted-ranged-does-not-force-melee | yes | yes | TODO |
+| mounted-crossbow-or-reload-control | yes | yes | IN PROGRESS - dev.13 RT row PASS inside an uncredited aggregate; TB pending |
+| mounted-sling-control | yes | yes | IN PROGRESS - dev.13 RT row PASS inside an uncredited aggregate; TB pending |
+| mounted-ranged-line-of-sight | yes | yes | IN PROGRESS - dev.13 RT row PASS inside an uncredited aggregate; TB pending |
+| mounted-ranged-cover-concealment | yes | yes | IN PROGRESS - dev.13 RT observation PASS inside an uncredited aggregate; TB pending |
+| mounted-ranged-aao-native-control | yes | yes | IN PROGRESS - dev.13 RT row PASS inside an uncredited aggregate; TB pending |
+| mounted-ranged-does-not-force-melee | yes | yes | IN PROGRESS - dev.13 RT row PASS inside an uncredited aggregate; TB pending |
 | unmounted-ranged-control | yes | yes | TODO |
 
 ## UI, presentation, and regression
 
 | Scenario | Required proof | Status |
 |---|---|---|
-| mounted-single-rider-turn-portrait | one rider tracker portrait, rider selection/action bar/camera | TODO |
+| mounted-single-rider-turn-portrait | one rider tracker portrait, rider selection/action bar/camera | IN PROGRESS - dev.13 exact tracker/principal row PASS inside an uncredited aggregate; visible rendering remains manual |
 | Horse-small-portrait-close-up | original KMC art crop readable at party/tracker size | IN PROGRESS - original close-up integrated; runtime rendering/human legibility pending |
 | saddle-icon | native safe reference or original KMC-owned saddle art; no Wrath asset | IN PROGRESS - native path/manifest scan found no safe reference; original KMC saddle integrated; runtime rendering/human legibility pending |
 | mount-ability-in-combat | visible, eligible, one rider Move cost | TODO |
-| dismount-ability-in-combat | visible, one rider Move cost, no extra turn | TODO |
+| dismount-ability-in-combat | visible, one rider Move cost, no extra turn | IN PROGRESS - dev.13 exposed post-admission Move-shell double gate; dev.14 exact repair/runtime rerun pending |
 | Horse-pose-final-idle-walk-run-turn-stop | final one-cycle lower-seat acceptance | IN PROGRESS - dev.2 pelvis-local `Y=-0.29` failed exact right-stirrup gate (`0.5325693`); single repair preserves pelvis `Y=-0.17` and applies stable Horse mount-root `Y=-0.08`; fresh dev.3 runtime/manual evidence pending |
 | Horse-pose-Mammoth-unchanged | Mammoth profile bytes and behavior unchanged | IN PROGRESS - source constants and component locks unchanged; focused runtime regression pending |
 | Horse creation/lifecycle/save reload | previously qualified behavior remains exact | TODO |

@@ -50,6 +50,8 @@ namespace KingmakerMountedCombat.Domain
 
         public bool RiderHasMoveAction { get; set; }
 
+        public bool NativeMoveActionShellAdmitted { get; set; }
+
         public bool PairAdjacent { get; set; }
 
         public bool SafeGameMode { get; set; }
@@ -124,7 +126,8 @@ namespace KingmakerMountedCombat.Domain
                 {
                     dismountReasons.Add("Dismount during turn-based combat belongs to the rider-led current turn.");
                 }
-                if (context.InCombat && !context.RiderHasMoveAction)
+                if (context.InCombat && !context.RiderHasMoveAction &&
+                    !context.NativeMoveActionShellAdmitted)
                 {
                     dismountReasons.Add("The rider has no Move action available to dismount.");
                 }
@@ -213,7 +216,8 @@ namespace KingmakerMountedCombat.Domain
             {
                 reasons.Add("Mount Companion during turn-based combat belongs to the rider's current turn.");
             }
-            if (context.InCombat && !context.RiderHasMoveAction)
+            if (context.InCombat && !context.RiderHasMoveAction &&
+                !context.NativeMoveActionShellAdmitted)
             {
                 reasons.Add("The rider has no Move action available to mount.");
             }

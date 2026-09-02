@@ -7,8 +7,8 @@ Status: IN PROGRESS — do not install until this document records a clean guard
 - branch: `codex/mounted-combat-phase3d-unified-combat`;
 - production implementation: `9bf83d21b5367e057130b41bf7379512a638c025`;
 - presentation checkpoint: `63d324d909ec333cd16cde5e942f419759faa664`;
-- runtime/package checkpoint: dev.1-dev.12 are immutable diagnostic history; dev.12 retained every reached Rider/Horse primary relationship but stopped at one nonterminal native stock-melee approach; observation-only dev.13 qualification pending;
-- version: `0.1.0-phase3d-dev.13`;
+- runtime/package checkpoint: dev.1-dev.13 are immutable diagnostic history; dev.13 passed every reached RT combat row through TB-to-RT and exposed one combat-Dismount native Move-shell delivery double gate; dev.14 repair qualification is pending;
+- version: `0.1.0-phase3d-dev.14`;
 - package, manifest, DLL SHA-256, and DLL MVID: pending clean-HEAD packaging and guarded runtime qualification.
 
 Do not manually copy, replace, merge, or curate the live Kingmaker `Mods` directory. Installation and removal commands will be bound to the final exact package after the guarded runtime tranche passes.

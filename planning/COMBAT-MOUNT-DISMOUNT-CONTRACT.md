@@ -10,9 +10,11 @@ Outside combat, the existing action remains free and retains its Phase 3C behavi
 
 ## Native control surface
 
-The KMC-owned Mount Companion and Dismount blueprints currently use `CommandType.Free`; Phase 3D assigns `CommandType.Move` so Kingmaker performs native action admission and cooldown charging in combat. The player-action evaluator must no longer reject combat categorically. It instead reports exact adjacency, turn, action, body, ownership, agent, or lifecycle failures.
+The KMC-owned Mount Companion and Dismount blueprints use `CommandType.Move`, so Kingmaker performs native action admission and cooldown charging in combat. The player-action evaluator does not reject combat categorically. It reports exact adjacency, turn, action, body, ownership, agent, or lifecycle failures.
 
 Mount requires the rider to own the current turn in TB and have a Move action. Dismount uses the rider-led current turn while mounted. RTWP uses the rider's native Move cooldown. Rejected or canceled targeting performs no transition and no charge.
+
+The ordinary availability provider performs the complete pre-input check, including rider Move availability. Exact installed `UnitActionController.TickCommand` then calls `UpdateCooldowns` when the admitted shell changes from not acted to acted; RTWP maps that Move shell to `MoveAction = 3 - TimeSinceStart`. Custom ability delivery can occur asynchronously after that native resource commitment. The exact Mount/Dismount delivery callback therefore sets `NativeMoveActionShellAdmitted`: this suppresses only a duplicate post-commit `RiderHasMoveAction` rejection. It does not bypass turn, adjacency, identity, ownership, body, life, control, lifecycle, selection, game-mode, view, agent, or target gates. The native Move shell remains the sole cost owner; KMC never writes, refunds, or refreshes a cooldown.
 
 ## Transition accounting
 
@@ -23,6 +25,12 @@ Mid-combat mount invokes the shared-initiative merge contract. Mid-combat dismou
 ## Rider Primary isolation
 
 Every native mounted ability activation records kind, blueprint GUID, caster, selected unit, target-selection state, relationship before/after, lifecycle ledger sequence, view identity, game/combat mode, transition identity, and cleanup reason. Rider Primary, rejection, cancel, miss, hit, and completion are non-lifecycle outcomes and cannot dismount.
+
+## Dev.13 runtime attribution and dev.14 repair
+
+Audited RT run `20260902T102000Z-phase3d-dev13-rt-passA` passed every reached Phase 3D row through TB-to-RT reconciliation, then failed only at combat Dismount. Immediately before input the relationship was `Mounted`, the rider was selected in RTWP, rider Move cooldown was zero, and `hasMove=true`. One exact Dismount selection/cast request was admitted. Delivery logged `DispatchStarted` followed by `accepted=False`; the relationship stayed mounted until fail-closed scenario cleanup. This immutable aggregate remains uncredited because it ended `FAIL` (`28/1` Phase 3D rows).
+
+The root cause was pair-local double gating: the delivery handler repeated the Move-resource condition after its exact native shell had already committed that resource. Dev.14 implements the admitted-shell context above, adds direct pre/post cooldown, shell-slot, activation, relationship, intent, and command evidence, and requires exactly one accepted relationship-ending delivery with rider Move cooldown `2.5..3.01` and no residual mounted command. Offline regression and protocol gates pass; fresh clean-package RT/TB evidence remains required.
 
 ## Exact Wrath reference disposition
 

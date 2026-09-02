@@ -1,5 +1,17 @@
 # Autonomous blockers
 
+## Dev.13 closes stock-melee uncertainty and exposes native combat Dismount double-gating (2026-09-02T07:55:35-04:00)
+
+Status: `IN PROGRESS`. No external-state, stock-melee, ranged, Rider Primary, shared-initiative, or broad action-economy blocker is active.
+
+Dev.13 RT A `20260902T102000Z-phase3d-dev13-rt-passA` is immutable uncredited `FAIL`; independent audit `20260902T113000Z-phase3d-dev13-rt-passA-postrun-audit` passed exact zero mutation before inspection. It passed 28 Phase 3D gameplay rows, including the previously uncertain six-metre stock melee path, exact post-cancel attribution, all implemented RT ranged controls, shared initiative/portrait projection, mode transitions, and post-transition Rider Primary retention. The dev.12 approach stall did not reproduce and authorizes no further attack/pathing change.
+
+The sole leaf reached native RT combat Dismount. Immediately before input, the rider was mounted, selected, in RT combat, at Move cooldown `0`, and `HasMoveAction=true`. The exact self-target control produced one selected-ability cast request, but its later custom delivery returned `accepted=False` and retained the relationship until diagnostic cleanup. Exact installed Kingmaker `UnitActionController.TickCommand`/`UpdateCooldowns` plus the KMC blueprint/delivery path establish the race: the `CommandType.Move` shell is admitted while Move is available, then its asynchronous delivery can occur after the acted transition charges Move; KMC's delivery handler incorrectly re-ran the same `HasMoveAction()` gate.
+
+Dev.14 is the one attributable pair-local production repair. An exact admitted KMC Mount/Dismount Move shell bypasses only the already-consumed resource check at delivery. The player-facing/pre-click evaluator still rejects absent Move; every turn, adjacency, identity, ownership, body, life, lifecycle, selection, world-mode, view, agent, and target check remains active. Kingmaker's native shell remains sole Move owner. The diagnostic and external validator now require the real Move-slot shell, exact pre-charge readiness, one accepted relationship-ending delivery, one `2.5..3.01` rider Move cooldown, and no residual command/intent. Complete offline gates pass source/Release/component/visual/harness/assembly `22/Release/297/18/237/382`, PowerShell/JSON parsers `26/0` / `7/0`, diff, and prohibited payload. Pre-commit DLL SHA-256/MVID are `2222f84a70ff7838fbf01cc625bbdae6ebb45a661e6908e28072653fe10e4930` / `56601a6d-dfbb-4969-959d-313cac661f70`.
+
+Fresh clean-package RT and TB evidence is mandatory. If dev.14 still rejects delivery despite the exact admitted-shell contract, preserve the evidence and issue an architecture disposition; do not set the ability Free, manually charge/refund cooldowns, bypass non-resource eligibility, lengthen a deadline, or implement Paladin Divine Steed.
+
 ## Dev.12 stock-melee approach stall needs one exact attribution checkpoint (2026-09-02T05:01:21-04:00)
 
 Status: `IN PROGRESS`. External state is exact-restored. No broad stock-input, Rider Primary, shared-turn, AoO, or safety blocker is established.

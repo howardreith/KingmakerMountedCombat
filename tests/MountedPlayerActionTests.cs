@@ -14,6 +14,8 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("player action admits eligible combat Mount", AdmitsEligibleCombatMount);
             runner.Run("player action reports exact combat Mount gates", ReportsCombatMountGates);
             runner.Run("player action charges combat Dismount only on rider turn with Move", GatesCombatDismount);
+            runner.Run("admitted native Move shell is not rejected after its resource commitment", AdmitsCommittedNativeMoveShell);
+            runner.Run("admitted native Move shell preserves non-resource combat gates", CommittedNativeMoveShellPreservesOtherGates);
             runner.Run("combat mount adjacency includes both native corpulence radii", UsesNativeAdjacencyEnvelope);
             runner.Run("player action becomes dismount while mounted", BecomesDismountWhileMounted);
             runner.Run("player action permits fault cleanup when feature disabled", PermitsFaultCleanupWhenFeatureDisabled);
@@ -144,6 +146,51 @@ namespace KingmakerMountedCombat.Tests
                 "Combat Dismount turn feedback missing.");
             TestRunner.True(result.Feedback.Contains("no Move action"),
                 "Combat Dismount Move feedback missing.");
+        }
+
+        private static void AdmitsCommittedNativeMoveShell()
+        {
+            var mountContext = EligibleContext();
+            mountContext.InCombat = true;
+            mountContext.RiderHasMoveAction = false;
+            mountContext.NativeMoveActionShellAdmitted = true;
+            var mount = MountedPlayerActionEvaluator.Evaluate(mountContext);
+            TestRunner.True(mount.IsEnabled,
+                "An exact native Mount shell was rejected after Kingmaker admitted its Move resource.");
+
+            var dismountContext = EligibleContext();
+            dismountContext.RelationshipState = RelationshipState.Mounted;
+            dismountContext.InCombat = true;
+            dismountContext.RiderHasMoveAction = false;
+            dismountContext.NativeMoveActionShellAdmitted = true;
+            var dismount = MountedPlayerActionEvaluator.Evaluate(dismountContext);
+            TestRunner.True(dismount.IsEnabled,
+                "An exact native Dismount shell was rejected after Kingmaker admitted its Move resource.");
+        }
+
+        private static void CommittedNativeMoveShellPreservesOtherGates()
+        {
+            var mountContext = EligibleContext();
+            mountContext.InCombat = true;
+            mountContext.RiderHasMoveAction = false;
+            mountContext.NativeMoveActionShellAdmitted = true;
+            mountContext.PairAdjacent = false;
+            mountContext.CombatTurnEligible = false;
+            var mount = MountedPlayerActionEvaluator.Evaluate(mountContext);
+            TestRunner.True(!mount.IsEnabled && mount.Feedback.Contains("adjacent") &&
+                    mount.Feedback.Contains("current turn") && !mount.Feedback.Contains("no Move action"),
+                "Native Mount delivery bypassed a non-resource combat gate.");
+
+            var dismountContext = EligibleContext();
+            dismountContext.RelationshipState = RelationshipState.Mounted;
+            dismountContext.InCombat = true;
+            dismountContext.RiderHasMoveAction = false;
+            dismountContext.NativeMoveActionShellAdmitted = true;
+            dismountContext.CombatTurnEligible = false;
+            var dismount = MountedPlayerActionEvaluator.Evaluate(dismountContext);
+            TestRunner.True(!dismount.IsEnabled && dismount.Feedback.Contains("rider-led current turn") &&
+                    !dismount.Feedback.Contains("no Move action"),
+                "Native Dismount delivery bypassed the rider-turn gate.");
         }
 
         private static void UsesNativeAdjacencyEnvelope()

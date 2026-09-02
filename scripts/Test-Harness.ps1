@@ -10077,6 +10077,26 @@ try {
                 $rowByName['TB-to-RT-shared-turn'].evidence = [ordered]@{
                     persistedValueUnchanged=$true;restoreDeliveryCompleted=$true;relationshipState='Mounted'
                 }
+                $observations.rtCombatDismountReadiness = [ordered]@{
+                    availabilityVisible=$true;availabilityEnabled=$true;availabilityReason='Mounted relationship is active.'
+                    relationshipState='Mounted';turnBased=$false;riderSelectedPrincipal=$true
+                    riderInCombat=$true;horseInCombat=$true;partyInCombat=$true;riderHasMoveAction=$true
+                    riderMoveCooldown=0.0;riderStandardCooldown=5.8;abilityActionType='Move'
+                    playerActionFeedback='Mounted relationship is active.';nativeControls=[ordered]@{}
+                    commands=[ordered]@{};dismountActivations=@()
+                }
+                $observations['rt-combat-dismount'] = [ordered]@{
+                    resolvedTargetId='rider';clicked=$true;targetSelectionStartDelta=1;targetSelectionEndDelta=1
+                    nativeCastRequestDelta=1
+                    nativeShell=[ordered]@{present=$true;type='Move';inMoveSlot=$true;ignoreCooldown=$false}
+                }
+                $observations.rtCombatDismountCompletion = [ordered]@{
+                    relationshipState='Unmounted';riderMoveCooldown=2.9
+                    commands=[ordered]@{activePairCommand=$false;stockIntentActive=$false}
+                    dismountActivations=@([ordered]@{
+                        dispatchAccepted=$true;relationshipEnded=$true;relationshipTransitionChanged=$true
+                    })
+                }
                 $rowByName['unmounted-stock-attack-control'].evidence = [ordered]@{
                     nativeRequestDelta=0;intentStartDelta=0;relationshipState='Unmounted'
                 }
@@ -10242,6 +10262,17 @@ try {
                 } 'Phase 3D RT validator accepted a Rider Primary click without exact native CanActInCombat admission.'
 
                 $rowByName['rider-primary-does-not-dismount-rt'].evidence.admissionReadiness.riderCanActInCombat = $true
+                $phase3dArtifact.observations.rtCombatDismountCompletion.riderMoveCooldown = 0.0
+                Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
+                $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
+                $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
+                [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+                $phase3dManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+                Assert-TestThrows {
+                    Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
+                } 'Phase 3D RT validator accepted combat Dismount without one native rider Move charge.'
+
+                $phase3dArtifact.observations.rtCombatDismountCompletion.riderMoveCooldown = 2.9
                 $rowByName['rider-primary-does-not-dismount-rt'].evidence.ledgerAfter.rider.move = 3.0
                 Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
                 $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
@@ -10261,6 +10292,8 @@ try {
         $combatSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedCombatController.cs'))
         $relationshipSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\GameMountedRelationshipService.cs'))
         $nativeSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\NativeMountedControlService.cs'))
+        $playerActionSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPlayerActionController.cs'))
+        $playerActionDomainSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedPlayerAction.cs'))
         $attackSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPairAttackCommand.cs'))
         $singleAttackSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPairSingleAttack.cs'))
         $spatialSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedCombatSpatialPolicy.cs'))
@@ -10301,6 +10334,12 @@ try {
             $patchSource.Contains('PatchExact(typeof(UnitUseAbility), "Init", 0x06002728') -and
             $patchSource.Contains('PrepareNativePrimaryIntentShell(__instance);')) `
             'native ability instrumentation or combat Move/stock request delivery is incomplete'
+        Assert-Test ($playerActionDomainSource.Contains('public bool NativeMoveActionShellAdmitted { get; set; }') -and
+            $playerActionDomainSource.Contains('!context.NativeMoveActionShellAdmitted') -and
+            $playerActionSource.Contains('GetNativeMountAvailability(caster, true)') -and
+            $playerActionSource.Contains('GetNativeDismountAvailability(caster, true)') -and
+            $playerActionSource.Contains('context.NativeMoveActionShellAdmitted = nativeMoveActionShellAdmitted;')) `
+            'native Mount/Dismount delivery can re-reject the exact Move resource already admitted by Kingmaker'
         Assert-Test ($attackSource.Contains('delegatedMove = new UnitMoveTo(targetSnapshot, childAttack.PairApproachRadius)') -and
             $attackSource.Contains('NeedLoS = MountedCombatSpatialPolicy.DelegatedPointMoveRequiresLineOfSight') -and
             -not $attackSource.Contains('NeedLoS = true') -and
@@ -10347,6 +10386,10 @@ try {
             $phase3dSource.Contains('["riderHasLineOfSight"]') -and
             $phase3dSource.Contains('["movementAgentWantsToMove"]') -and
             $phase3dSource.Contains('["currentCommands"] = CapturePairCommandState()') -and
+            $phase3dSource.Contains('AwaitRtCombatDismountAdmission()') -and
+            $phase3dSource.Contains('observations["rtCombatDismountReadiness"] = CaptureRtCombatDismountState(availability);') -and
+            $phase3dSource.Contains('["dismountActivations"] = JArray.FromObject(') -and
+            $phase3dSource.Contains('rawCommands.OfType<UnitUseAbility>().FirstOrDefault(') -and
             $phase3dSource.Contains('CaptureLongRangeRangedReadiness(clickLeaseReady)') -and
             $phase3dSource.Contains('observations["rangedRtInput"]') -and
             $phase3dSource.Contains('nativeRequestDelta != 1 || intentStartDelta != 1') -and

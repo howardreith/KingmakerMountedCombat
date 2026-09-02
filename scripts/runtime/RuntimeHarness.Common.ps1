@@ -5634,6 +5634,9 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
         $sling = $rowMap['mounted-sling-control'].evidence
         $rtToTb = $rowMap['RT-to-TB-shared-turn'].evidence
         $tbToRt = $rowMap['TB-to-RT-shared-turn'].evidence
+        $rtDismountReadiness = $artifact.observations.rtCombatDismountReadiness
+        $rtDismountInput = $artifact.observations.'rt-combat-dismount'
+        $rtDismountCompletion = $artifact.observations.rtCombatDismountCompletion
         $unmountedMelee = $rowMap['unmounted-stock-attack-control'].evidence
         $unmountedRanged = $rowMap['unmounted-ranged-control'].evidence
         if ($melee.previousTargetCleanupPassed -ne $true -or
@@ -5786,6 +5789,37 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
         if ([string]$sling.previousTargetId -cne [string]$crossbow.isolatedTargetId -or
             [string]$sling.isolatedTargetId -ceq [string]$crossbow.isolatedTargetId) {
             throw 'PASS Phase 3D RT ranged-variant evidence reused or failed to retire an exact target between weapon controls.'
+        }
+        $acceptedDismountDeliveries = @($rtDismountCompletion.dismountActivations | Where-Object {
+            $_.dispatchAccepted -eq $true -and $_.relationshipEnded -eq $true -and
+            $_.relationshipTransitionChanged -eq $true
+        })
+        if ($null -eq $rtDismountReadiness -or $null -eq $rtDismountInput -or
+            $null -eq $rtDismountCompletion -or
+            $rtDismountReadiness.availabilityVisible -ne $true -or
+            $rtDismountReadiness.availabilityEnabled -ne $true -or
+            [string]$rtDismountReadiness.relationshipState -cne 'Mounted' -or
+            $rtDismountReadiness.turnBased -ne $false -or
+            $rtDismountReadiness.riderSelectedPrincipal -ne $true -or
+            $rtDismountReadiness.riderHasMoveAction -ne $true -or
+            [string]$rtDismountReadiness.abilityActionType -cne 'Move' -or
+            [double]$rtDismountReadiness.riderMoveCooldown -gt 0.001d -or
+            $rtDismountInput.clicked -ne $true -or
+            [string]$rtDismountInput.resolvedTargetId -cne [string]$artifact.observations.riderId -or
+            [long]$rtDismountInput.targetSelectionStartDelta -ne 1L -or
+            [long]$rtDismountInput.targetSelectionEndDelta -ne 1L -or
+            [long]$rtDismountInput.nativeCastRequestDelta -ne 1L -or
+            $rtDismountInput.nativeShell.present -ne $true -or
+            [string]$rtDismountInput.nativeShell.type -cne 'Move' -or
+            $rtDismountInput.nativeShell.inMoveSlot -ne $true -or
+            $rtDismountInput.nativeShell.ignoreCooldown -ne $false -or
+            [string]$rtDismountCompletion.relationshipState -cne 'Unmounted' -or
+            [double]$rtDismountCompletion.riderMoveCooldown -lt 2.5d -or
+            [double]$rtDismountCompletion.riderMoveCooldown -gt 3.01d -or
+            $rtDismountCompletion.commands.activePairCommand -ne $false -or
+            $rtDismountCompletion.commands.stockIntentActive -ne $false -or
+            $acceptedDismountDeliveries.Count -ne 1) {
+            throw 'PASS Phase 3D RT combat Dismount does not prove pre-charge native admission, one Move-shell charge, exact accepted delivery, and clean relationship termination.'
         }
         if (@($riderPrimary.activations).Count -lt 1 -or
             @($riderPrimary.activations | Where-Object { $_.relationshipEnded -eq $true -or $null -ne $_.cleanupTrigger }).Count -ne 0 -or
