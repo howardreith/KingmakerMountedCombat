@@ -5831,6 +5831,32 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
             [long]$melee.duplicateDispatchDelta -ne 0L -or $melee.intentActive -ne $true -or
             [long]$cancel.intentCancelDelta -ne 1L -or [long]$cancel.duplicateDispatchDelta -ne 0L -or
             $cancel.intentActive -ne $false -or
+            [long]$cancel.pairNonOpportunityAttackRuleDeltaAfterCancel -ne 0L -or
+            [long]$cancel.pairOpportunityAttackRuleDeltaAfterCancel -lt 0L -or
+            [long]$cancel.pairOpportunityAttackRuleDeltaAfterCancel -gt 1L -or
+            [long]$cancel.rules.pairNonOpportunityAttackRules -ne
+                [long]$cancel.pairNonOpportunityAttackRulesBeforeCancel -or
+            [long]$cancel.rules.pairOpportunityAttackRules -ne
+                ([long]$cancel.pairOpportunityAttackRulesBeforeCancel +
+                 [long]$cancel.pairOpportunityAttackRuleDeltaAfterCancel) -or
+            [long]$cancel.pairAttackRulesBeforeCancel -ne
+                ([long]$cancel.pairNonOpportunityAttackRulesBeforeCancel +
+                 [long]$cancel.pairOpportunityAttackRulesBeforeCancel) -or
+            @($cancel.rules.attackRuleEvents).Count -ne
+                ([long]$cancel.rules.riderAttackRules + [long]$cancel.rules.mountAttackRules) -or
+            @($cancel.rules.attackRuleEvents | Where-Object {
+                [long]$_.sequence -gt [long]$cancel.pairAttackRulesBeforeCancel -and
+                $_.attackOfOpportunity -ne $true
+            }).Count -ne 0 -or
+            $null -eq $cancel.commandStateBeforeGround -or
+            $null -eq $cancel.commandStateAfterGroundAdmission -or
+            $null -eq $cancel.commandStateAfterStableCancel -or
+            @($cancel.commandStateBeforeGround.PSObject.Properties.Name) -ccontains 'captureError' -or
+            @($cancel.commandStateAfterGroundAdmission.PSObject.Properties.Name) -ccontains 'captureError' -or
+            @($cancel.commandStateAfterStableCancel.PSObject.Properties.Name) -ccontains 'captureError' -or
+            @($cancel.commandStateBeforeGround.riderRaw).Count -lt 4 -or
+            @($cancel.commandStateAfterGroundAdmission.mountRaw).Count -lt 4 -or
+            @($cancel.commandStateAfterStableCancel.riderRaw).Count -lt 4 -or
             [long]$ranged.riderDispatchDelta -lt 2L -or [long]$ranged.mountDispatchDelta -ne 0L -or
             [long]$ranged.duplicateDispatchDelta -ne 0L -or $ranged.intentActive -ne $true -or
             [string]$ranged.weaponCategory -cne 'Shortbow' -or

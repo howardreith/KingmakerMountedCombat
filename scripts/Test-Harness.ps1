@@ -9948,7 +9948,35 @@ try {
                         riderAttackRules=2;mountAttackRules=1;pairAttackRolls=3;pairDamageRules=3
                     }
                 }
-                $cancel = [ordered]@{nativeRequestDelta=1;intentStartDelta=1;intentCancelDelta=1;riderDispatchDelta=2;mountDispatchDelta=1;duplicateDispatchDelta=0;intentActive=$false}
+                $cancelCommandState = [ordered]@{
+                    frame=100;stockIntentActive=$false;activePairCommand=$false
+                    riderRaw=@(
+                        [ordered]@{present=$false},[ordered]@{present=$false},
+                        [ordered]@{present=$false},[ordered]@{present=$false})
+                    riderQueue=@()
+                    mountRaw=@(
+                        [ordered]@{present=$false},[ordered]@{present=$false},
+                        [ordered]@{present=$false},[ordered]@{present=$false})
+                    mountQueue=@()
+                }
+                $cancel = [ordered]@{
+                    nativeRequestDelta=1;intentStartDelta=1;intentCancelDelta=1
+                    riderDispatchDelta=2;mountDispatchDelta=1;duplicateDispatchDelta=0;intentActive=$false
+                    pairAttackRulesBeforeCancel=3;pairNonOpportunityAttackRulesBeforeCancel=3
+                    pairOpportunityAttackRulesBeforeCancel=0
+                    pairNonOpportunityAttackRuleDeltaAfterCancel=0;pairOpportunityAttackRuleDeltaAfterCancel=0
+                    commandStateBeforeGround=$cancelCommandState
+                    commandStateAfterGroundAdmission=$cancelCommandState
+                    commandStateAfterStableCancel=$cancelCommandState
+                    rules=[ordered]@{
+                        riderAttackRules=2;mountAttackRules=1;pairNonOpportunityAttackRules=3
+                        pairOpportunityAttackRules=0
+                        attackRuleEvents=@(
+                            [ordered]@{sequence=1;attackOfOpportunity=$false},
+                            [ordered]@{sequence=2;attackOfOpportunity=$false},
+                            [ordered]@{sequence=3;attackOfOpportunity=$false})
+                    }
+                }
                 $ranged = [ordered]@{
                     nativeRequestDelta=1;intentStartDelta=1;intentCancelDelta=0
                     riderDispatchDelta=2;mountDispatchDelta=0;duplicateDispatchDelta=0;intentActive=$true
@@ -10159,6 +10187,17 @@ try {
                 } 'Phase 3D RT validator accepted stock melee that reused an uncleared target.'
 
                 $rowByName['mounted-stock-click-melee-auto-repeat-rt'].evidence.previousTargetCleanupPassed = $true
+                $rowByName['mounted-stock-click-melee-cancel-rt'].evidence.pairNonOpportunityAttackRuleDeltaAfterCancel = 1
+                Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
+                $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
+                $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
+                [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+                $phase3dManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+                Assert-TestThrows {
+                    Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
+                } 'Phase 3D RT validator accepted an ordinary pair attack after stock-intent cancellation.'
+
+                $rowByName['mounted-stock-click-melee-cancel-rt'].evidence.pairNonOpportunityAttackRuleDeltaAfterCancel = 0
                 $rowByName['mounted-ranged-aao-native-control'].evidence.opportunityReadyAtAdmission.riderStandardReady = $false
                 Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
                 $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
@@ -10306,6 +10345,11 @@ try {
             $phase3dSource.Contains('observations["rangedRtInput"]') -and
             $phase3dSource.Contains('nativeRequestDelta != 1 || intentStartDelta != 1') -and
             $phase3dSource.Contains('BeginTarget(TargetDistance, "rt-stock-melee-persistent")') -and
+            $phase3dSource.Contains('private const float RangedVariantTargetDistance = 4.0f;') -and
+            $phase3dSource.Contains('BeginTarget(RangedVariantTargetDistance, "rt-" + rangedVariantCategory.ToString().ToLowerInvariant())') -and
+            $phase3dSource.Contains('ruleProbe.PairNonOpportunityAttackRuleCount == nonOpportunityAttackRulesBeforeCancel') -and
+            $phase3dSource.Contains('observations["stockMeleeCancelBeforeGround"] = CapturePairCommandState();') -and
+            $phase3dSource.Contains('["attackOfOpportunity"] = evt.IsAttackOfOpportunity') -and
             $phase3dSource.Contains('weapon.Category == rangedVariantCategory') -and
             $phase3dSource.Contains('ruleProbe.OpportunityAttackRuleCount == 1') -and
             $phase3dSource.Contains('mountAlreadyInMeleeAtAdmission') -and

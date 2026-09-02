@@ -1,5 +1,17 @@
 # Autonomous blockers
 
+## Dev.11 ranged admission passes; dev.12 isolates post-cancel rule ownership (2026-09-02T00:20:36-04:00)
+
+Status: `IN PROGRESS`. No safety, external-state, Shortbow-admission, Rider Primary, point-movement, or broad shared-turn/AoO blocker is active.
+
+Dev.11 RT A `20260902T024000Z-phase3d-dev11-rt-passA` is immutable uncredited `FAIL`; mandatory audit `20260902T034000Z-phase3d-dev11-rt-passA-postrun-audit` passed before inspection. Exact selected-principal and hostile-target evidence closes the dev.10 Shortbow uncertainty: the click produced one current request/intent and native rider ranged attacks, and every implemented ranged RT leaf through the native AoO control passed.
+
+One melee cancellation rule remains unattributed. A ground command produced exactly one intent cancellation, no new KMC rider/Horse dispatch, and no duplicate dispatch, yet one additional rider rule/roll/damage event appeared over the next five frames. Dev.11 did not record whether that rule was `IsAttackOfOpportunity`. Treating it as either a late canceled-command attack or a legitimate independent native AoO would be speculation.
+
+Dev.12 is a diagnostic/evidence-only observation checkpoint. It records exact ordinary/AoO rule cardinality and raw/queued command ownership across the cancellation boundary. The strict validator requires zero post-cancel ordinary attacks and permits at most one event only when every such event is explicitly marked native AoO. Separately, it moves ranged-variant diagnostic targets from invalid `2m` placement to a contract-valid `4m`; the service minimum remains `3m`. Complete offline source/build/component/visual/harness/assembly/PowerShell/JSON gates are green at `22/Release/295/18/237/382/26/7`, and diff validation passes.
+
+Fresh clean-package evidence is mandatory. A dev.12 ordinary post-cancel rule would authorize only one attributable exact-owner repair; a confirmed independent AoO closes the cancellation uncertainty without a production change. Do not suppress AoOs globally, clear unrelated commands, synthesize attack credit, or implement Paladin Divine Steed.
+
 ## Dev.10 closes stock melee; dev.11 is the bounded Shortbow input-attribution checkpoint (2026-09-01T19:28:01-04:00)
 
 Status: `IN PROGRESS`. No safety, external-state, stock-melee, Rider Primary, or production point-movement blocker is active.

@@ -52,6 +52,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private const double LeafDeadlineSeconds = 30.0d;
         private const float TargetDistance = 6.0f;
         private const float LongRangeTargetDistance = 19.0f;
+        private const float RangedVariantTargetDistance = 4.0f;
         private const float MovementTolerance = 0.8f;
 
         private static readonly JsonSerializerSettings JsonSettings = new JsonSerializerSettings
@@ -104,6 +105,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private MountedPairAttackOutcome outcomeBefore;
         private long activationSequenceBefore;
         private int attackRulesBeforeCancel;
+        private int nonOpportunityAttackRulesBeforeCancel;
+        private int pairOpportunityAttackRulesBeforeCancel;
         private long stepSuppressionBefore;
         private float riderStandardBeforeMount;
         private float riderMoveBeforeMount;
@@ -915,9 +918,13 @@ namespace KingmakerMountedCombat.Diagnostics
                     string.Equals(item.Status, "PASS", StringComparison.Ordinal)),
                 "Native Rider Primary spent only the rider attack before stock pair intent.", null);
             attackRulesBeforeCancel = ruleProbe.PairAttackRuleCount;
+            nonOpportunityAttackRulesBeforeCancel = ruleProbe.PairNonOpportunityAttackRuleCount;
+            pairOpportunityAttackRulesBeforeCancel = ruleProbe.PairOpportunityAttackRuleCount;
             stockCancelBefore = combat.StockAttackIntentCancelCount;
+            observations["stockMeleeCancelBeforeGround"] = CapturePairCommandState();
             var cancelPoint = FindWalkablePoint(horse.Position, 2.0f, 0.6f);
             ClickGroundHandler.MoveSelectedUnitsToPoint(cancelPoint, false);
+            observations["stockMeleeCancelAfterGroundAdmission"] = CapturePairCommandState();
             step = Phase3dHorseStep.AwaitStockCancelRt;
             ResetLeafClock();
         }
@@ -935,11 +942,22 @@ namespace KingmakerMountedCombat.Diagnostics
             }
 
             var evidence = CaptureStockEvidence();
+            evidence["pairAttackRulesBeforeCancel"] = attackRulesBeforeCancel;
+            evidence["pairNonOpportunityAttackRulesBeforeCancel"] = nonOpportunityAttackRulesBeforeCancel;
+            evidence["pairOpportunityAttackRulesBeforeCancel"] = pairOpportunityAttackRulesBeforeCancel;
+            evidence["pairNonOpportunityAttackRuleDeltaAfterCancel"] =
+                ruleProbe.PairNonOpportunityAttackRuleCount - nonOpportunityAttackRulesBeforeCancel;
+            evidence["pairOpportunityAttackRuleDeltaAfterCancel"] =
+                ruleProbe.PairOpportunityAttackRuleCount - pairOpportunityAttackRulesBeforeCancel;
+            evidence["commandStateBeforeGround"] = observations["stockMeleeCancelBeforeGround"]?.DeepClone();
+            evidence["commandStateAfterGroundAdmission"] =
+                observations["stockMeleeCancelAfterGroundAdmission"]?.DeepClone();
+            evidence["commandStateAfterStableCancel"] = CapturePairCommandState();
             AddRow("mounted-stock-click-melee-cancel-rt",
                 combat.StockAttackIntentCancelCount - stockCancelBefore == 1 &&
-                    ruleProbe.PairAttackRuleCount == attackRulesBeforeCancel &&
+                    ruleProbe.PairNonOpportunityAttackRuleCount == nonOpportunityAttackRulesBeforeCancel &&
                     combat.StockAttackDuplicateDispatchCount - stockDuplicateBefore == 0,
-                "One native ground command cancelled persistent stock intent and no late or duplicate pair attack completed.", evidence);
+                "One native ground command cancelled persistent stock intent and no late ordinary or duplicate pair attack completed; independently emitted native AoOs remain separately attributed.", evidence);
             var nativeBeforeFriendlyClick = combat.StockAttackNativeRequestCount;
             var intentBeforeFriendlyClick = combat.StockAttackIntentStartCount;
             SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
@@ -1307,7 +1325,7 @@ namespace KingmakerMountedCombat.Diagnostics
             rangedWeaponLease?.Dispose();
             rangedWeaponLease = new Phase3dRangedWeaponLease(rider);
             rangedWeaponLease.Acquire(rangedVariantCategory);
-            BeginTarget(2.0f, "rt-" + rangedVariantCategory.ToString().ToLowerInvariant());
+            BeginTarget(RangedVariantTargetDistance, "rt-" + rangedVariantCategory.ToString().ToLowerInvariant());
             step = Phase3dHorseStep.AwaitRangedVariantAdmissionRt;
             stableFrames = 0;
             ResetLeafClock();
@@ -3383,6 +3401,111 @@ namespace KingmakerMountedCombat.Diagnostics
             }
         }
 
+        private JObject CapturePairCommandState()
+        {
+            try
+            {
+                var outcome = combat.LastOutcome;
+                return new JObject
+                {
+                    ["frame"] = Time.frameCount,
+                    ["stockIntentActive"] = combat.HasStockAttackIntent,
+                    ["activePairCommand"] = combat.HasActiveCommand,
+                    ["riderManualTargetId"] = rider.CombatState?.ManualTarget?.UniqueId,
+                    ["mountManualTargetId"] = horse.CombatState?.ManualTarget?.UniqueId,
+                    ["riderRaw"] = CaptureRawCommandSlots(rider),
+                    ["riderQueue"] = CaptureQueuedCommands(rider),
+                    ["mountRaw"] = CaptureRawCommandSlots(horse),
+                    ["mountQueue"] = CaptureQueuedCommands(horse),
+                    ["lastOutcome"] = outcome == null
+                        ? null
+                        : new JObject
+                        {
+                            ["action"] = outcome.Action.ToString(),
+                            ["actorId"] = outcome.ActorId,
+                            ["targetId"] = outcome.TargetId,
+                            ["result"] = outcome.Result,
+                            ["terminalReason"] = outcome.TerminalReason,
+                            ["childAttackStartCount"] = outcome.ChildAttackStartCount,
+                            ["nativeAttackRuleObserved"] = outcome.NativeAttackRuleObserved
+                        }
+                };
+            }
+            catch (Exception exception)
+            {
+                return new JObject
+                {
+                    ["frame"] = Time.frameCount,
+                    ["captureError"] = exception.GetType().FullName + ": " + exception.Message
+                };
+            }
+        }
+
+        private static JArray CaptureRawCommandSlots(UnitEntityData unit)
+        {
+            var result = new JArray();
+            var raw = unit?.Commands?.Raw;
+            if (raw == null)
+            {
+                return result;
+            }
+            for (var index = 0; index < raw.Length; index++)
+            {
+                var item = CaptureCommandState(raw[index]);
+                item["slotIndex"] = index;
+                item["slot"] = ((UnitCommand.CommandType)index).ToString();
+                result.Add(item);
+            }
+            return result;
+        }
+
+        private static JArray CaptureQueuedCommands(UnitEntityData unit)
+        {
+            var result = new JArray();
+            var queue = unit?.Commands?.Queue;
+            if (queue == null)
+            {
+                return result;
+            }
+            var index = 0;
+            foreach (var command in queue)
+            {
+                var item = CaptureCommandState(command);
+                item["queueIndex"] = index++;
+                result.Add(item);
+            }
+            return result;
+        }
+
+        private static JObject CaptureCommandState(UnitCommand command)
+        {
+            if (command == null)
+            {
+                return new JObject { ["present"] = false };
+            }
+            return new JObject
+            {
+                ["present"] = true,
+                ["type"] = command.GetType().FullName,
+                ["executorId"] = command.Executor?.UniqueId,
+                ["targetId"] = command.Target?.Unit?.UniqueId,
+                ["commandType"] = command.Type.ToString(),
+                ["exactStockUnitAttack"] = command.GetType() == typeof(UnitAttack),
+                ["attackOfOpportunity"] = command is UnitAttackOfOpportunity,
+                ["mountedPairWrapper"] = command is MountedPairAttackCommand,
+                ["createdByPlayer"] = command.CreatedByPlayer,
+                ["aiActionPresent"] = command.AiAction != null,
+                ["aiActionType"] = command.AiAction?.GetType().FullName,
+                ["started"] = command.IsStarted,
+                ["running"] = command.IsRunning,
+                ["finished"] = command.IsFinished,
+                ["acted"] = command.IsActed,
+                ["result"] = command.Result.ToString(),
+                ["interruptible"] = command.IsInterruptible,
+                ["interruptAsSoonAsPossible"] = command.InterruptAsSoonAsPossible
+            };
+        }
+
         private JObject CaptureOutcome(
             MountedPairAttackOutcome outcome,
             IReadOnlyList<NativeMountedAbilityActivationRecord> activations)
@@ -3948,6 +4071,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly UnitEntityData rider;
         private readonly UnitEntityData mount;
         private readonly IDisposable subscription;
+        private readonly JArray pairAttackRuleEvents = new JArray();
         private UnitEntityData expectedTarget;
         private bool forcePairHit;
         private bool disposed;
@@ -3962,7 +4086,14 @@ namespace KingmakerMountedCombat.Diagnostics
         internal int RiderAttackRuleCount { get; private set; }
         internal int MountAttackRuleCount { get; private set; }
         internal int PairAttackRuleCount => RiderAttackRuleCount + MountAttackRuleCount;
+        internal int RiderOpportunityAttackRuleCount { get; private set; }
+        internal int MountOpportunityAttackRuleCount { get; private set; }
+        internal int PairOpportunityAttackRuleCount =>
+            RiderOpportunityAttackRuleCount + MountOpportunityAttackRuleCount;
+        internal int PairNonOpportunityAttackRuleCount =>
+            PairAttackRuleCount - PairOpportunityAttackRuleCount;
         internal int PairAttackRollCount { get; private set; }
+        internal int PairOpportunityAttackRollCount { get; private set; }
         internal int PairDamageRuleCount { get; private set; }
         internal int PairForcedD20Count { get; private set; }
         internal int PairDamage { get; private set; }
@@ -3987,7 +4118,10 @@ namespace KingmakerMountedCombat.Diagnostics
             forcePairHit = forceHit;
             RiderAttackRuleCount = 0;
             MountAttackRuleCount = 0;
+            RiderOpportunityAttackRuleCount = 0;
+            MountOpportunityAttackRuleCount = 0;
             PairAttackRollCount = 0;
+            PairOpportunityAttackRollCount = 0;
             PairDamageRuleCount = 0;
             PairForcedD20Count = 0;
             PairDamage = 0;
@@ -3996,6 +4130,7 @@ namespace KingmakerMountedCombat.Diagnostics
             LastPairAttackActorId = null;
             LastRiderAttackType = null;
             LastRiderAttackDoNotProvoke = null;
+            pairAttackRuleEvents.Clear();
             ResetOpportunityCounts();
         }
 
@@ -4014,14 +4149,20 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 ["riderAttackRules"] = RiderAttackRuleCount,
                 ["mountAttackRules"] = MountAttackRuleCount,
+                ["pairNonOpportunityAttackRules"] = PairNonOpportunityAttackRuleCount,
+                ["riderOpportunityAttackRules"] = RiderOpportunityAttackRuleCount,
+                ["mountOpportunityAttackRules"] = MountOpportunityAttackRuleCount,
+                ["pairOpportunityAttackRules"] = PairOpportunityAttackRuleCount,
                 ["pairAttackRolls"] = PairAttackRollCount,
+                ["pairOpportunityAttackRolls"] = PairOpportunityAttackRollCount,
                 ["pairDamageRules"] = PairDamageRuleCount,
                 ["pairForcedD20"] = PairForcedD20Count,
                 ["pairDamage"] = PairDamage,
                 ["firstPairActorId"] = FirstPairAttackActorId,
                 ["lastPairActorId"] = LastPairAttackActorId,
                 ["lastRiderAttackType"] = LastRiderAttackType,
-                ["lastRiderAttackDoNotProvoke"] = LastRiderAttackDoNotProvoke
+                ["lastRiderAttackDoNotProvoke"] = LastRiderAttackDoNotProvoke,
+                ["attackRuleEvents"] = pairAttackRuleEvents.DeepClone()
             };
         }
 
@@ -4062,10 +4203,18 @@ namespace KingmakerMountedCombat.Diagnostics
             if (evt.Initiator == rider)
             {
                 RiderAttackRuleCount++;
+                if (evt.IsAttackOfOpportunity)
+                {
+                    RiderOpportunityAttackRuleCount++;
+                }
             }
             else if (evt.Initiator == mount)
             {
                 MountAttackRuleCount++;
+                if (evt.IsAttackOfOpportunity)
+                {
+                    MountOpportunityAttackRuleCount++;
+                }
             }
             else
             {
@@ -4076,6 +4225,20 @@ namespace KingmakerMountedCombat.Diagnostics
                 FirstPairAttackActorId = evt.Initiator.UniqueId;
             }
             LastPairAttackActorId = evt.Initiator.UniqueId;
+            pairAttackRuleEvents.Add(new JObject
+            {
+                ["sequence"] = PairAttackRuleCount,
+                ["frame"] = Time.frameCount,
+                ["actorId"] = evt.Initiator.UniqueId,
+                ["targetId"] = evt.Target.UniqueId,
+                ["attackOfOpportunity"] = evt.IsAttackOfOpportunity,
+                ["firstAttack"] = evt.IsFirstAttack,
+                ["fullAttack"] = evt.IsFullAttack,
+                ["charge"] = evt.IsCharge,
+                ["attackNumber"] = evt.AttackNumber,
+                ["attacksCount"] = evt.AttacksCount,
+                ["weaponGuid"] = evt.Weapon?.Blueprint?.AssetGuid
+            });
         }
 
         public void OnEventAboutToTrigger(RuleAttackRoll evt)
@@ -4096,6 +4259,10 @@ namespace KingmakerMountedCombat.Diagnostics
             else if (evt.Target == expectedTarget && (evt.Initiator == rider || evt.Initiator == mount))
             {
                 PairAttackRollCount++;
+                if (evt.RuleAttackWithWeapon != null && evt.RuleAttackWithWeapon.IsAttackOfOpportunity)
+                {
+                    PairOpportunityAttackRollCount++;
+                }
                 if (evt.Initiator == rider)
                 {
                     LastRiderAttackType = evt.AttackType.ToString();
