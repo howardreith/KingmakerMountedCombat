@@ -1,5 +1,27 @@
 # Mounted Combat journal
 
+## 2026-09-02T17:20:34-04:00 - dev.16 exact native admission and isolated unmounted controls pass offline
+
+- Starting branch/local/upstream/remote: `codex/mounted-combat-phase3d-unified-combat` / `2f3a170f07e31b8e11e8b597c641bb05538bde03`; working version `0.1.0-phase3d-dev.16`.
+- Replaced cached rider visibility as the mounted child gate with an attributed native-admission state machine: unavailable, outside pair range, unsupported executor offset, outside native distance, direct LoS blocked, or admitted. Horse-origin range and the bounded rider-executor bridge remain explicit; exact native `IsUnitEnoughClose` remains final authority.
+- A single Horse-owned point move now has a collision-safe terminal radius but is observed each tick and stopped as soon as exact native admission passes. This permits LoS recovery without forcing a ranged rider into melee, weakening `NeedLoS`, moving the rider independently, or changing stock ranged rules.
+- After combat Dismount, the scenario now acquires an exact reversible diagnostic-only AI lease on the idle Horse, destroys the reused hostile, creates a fresh unmounted-control hostile, and requires rider non-AoO rule ownership with zero Horse attack rules. Cleanup must prove the Horse's original raw/effective AI state and empty command surface are restored.
+- Complete pre-commit results: source/prohibited payload `22/0`; Release; component `298/0`; visual/source-order `18/0`; harness/protocol `237/0`; exact assembly `382/0` (`358` Kingmaker + `24` Wrath); PowerShell parser `26/0`; JSON parser `7/0`; diff PASS. DLL SHA-256/MVID are `f4961a9ae9e3ab7cedb66b9bf0f50666976c3585562434f9c0c492bf17a17a3c` / `2374f3bb-f573-49a6-9823-4bad14f68461` before the clean package build.
+- Next: aggregate gate, coherent commit, guarded publication, clean package/suite admission, separate mode/presentation WhatIf, and a fresh RT A with audit-before-read discipline.
+
+Status: `IN PROGRESS`.
+
+## 2026-09-02T16:51:24-04:00 - dev.15 proves legal-range stop; dev.16 repairs direct-LoS recovery and unmounted-control isolation
+
+- Clean guarded-published branch/local/upstream/remote are `codex/mounted-combat-phase3d-unified-combat` / `2f3a170f07e31b8e11e8b597c641bb05538bde03`; version `0.1.0-phase3d-dev.15`. Package/manifest/DLL SHA-256 are `00da3730ad74847a0a03766660369fe48aa0e61e67042618b3921de77af24982` / `3df770efa8b9c5f5756943e6071c36c0fd8edebed8a33fda2ccfff3b96f792cb` / `976685fbc45018477376b20f05904e9760114ab1766aae6d971d971d1238c5c8`; MVID `24af2d25-258f-47c9-941a-7a195c2d6941`. Suite15 snapshot SHA-256 is `8725e4d925b87cd0a5a461dc6ac1d1ff7baa53c59754e9cdd3ae64a73a641f66`.
+- All offline/package gates and separate RT/TB/presentation WhatIf paths passed. RT A `20260902T191700Z-phase3d-dev15-rt-passA` is preserved uncredited `FAIL` (`26/6` outer; `70/10` assertions). Postrun audit `20260902T194600Z-phase3d-dev15-rt-passA-postrun-audit` passed before inspection and re-proved exact save/Mods restoration. Phase3D/game/final SHA-256 are `f60d1643f1ed1faee0d04d132e778a92558241ec752f20b13cbc6f2884cfe70f` / `ca7c05e2220d257479df0c82b47010ee11955a3f977a78416fb93c361ac57293` / `fd5c912034133b0a361f705249ab7c13960a3ab2e29b4a27b38288674ffc952c`.
+- Dev.15 closes its intended production boundary: Rider Primary moved the Horse, stopped the exact unfinished Move only after the pair entered native child range, restored its slot/queue, completed one rider child/rule, and retained the relationship with zero lifecycle cleanup. Normal melee persistence/cancel, separate action ledgers, initiative/portrait projection, both mode transitions, post-transition Rider Primary, and combat Dismount also passed.
+- Shortbow persistent dispatch `2` failed before child start despite pair/rider distances inside `13.7920008m`. Exact IL plus the immediately preceding cached `HasLOS` success isolates the direct `LineOfSightGeometry.HasObstacle` clause in native `IsUnitEnoughClose`. The bounded dev.16 repair makes this direct native predicate the pair attack boundary and gives the Horse a narrower recovery path only while in-range direct LoS is blocked, stopping at first native admission.
+- The unmounted melee row was falsely satisfied by a rider AoO while autonomous Horse AI emitted two full-attack rules. This also contaminated the final Sling target/combat lease. Dev.16 adds an exact post-Dismount diagnostic Horse AI lease with mandatory raw/effective restoration and requires a rider non-AoO rule before unmounted control credit. No production Horse AI or unmounted combat behavior changes.
+- Next: implement/test dev.16, run the complete gate, publish/package/suite/WhatIf, then one fresh audited RT A. Another failure at the same direct-LoS recovery boundary receives the recorded architecture disposition.
+
+Status: `IN PROGRESS`.
+
 ## 2026-09-02T13:36:48-04:00 - dev.14 proves combat Dismount; dev.15 closes one exact legal-range terminal mismatch
 
 - Branch and clean starting local/upstream/remote HEAD: `codex/mounted-combat-phase3d-unified-combat` / `0c27307999703bb69aad6b3f0d5c5141d1f5b570`.

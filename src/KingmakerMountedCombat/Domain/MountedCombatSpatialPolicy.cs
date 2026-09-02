@@ -139,6 +139,17 @@ namespace KingmakerMountedCombat.Domain
             return nativeAdmissionRadius - pairApproachRadius <= MaximumNativeExecutorRadiusAdjustment;
         }
 
+        public static float CalculateDelegatedMoveApproachRadius(
+            float pairApproachRadius,
+            float mountCorpulence,
+            float targetCorpulence)
+        {
+            RequireFiniteNonNegative(pairApproachRadius, nameof(pairApproachRadius));
+            RequireFiniteNonNegative(mountCorpulence, nameof(mountCorpulence));
+            RequireFiniteNonNegative(targetCorpulence, nameof(targetCorpulence));
+            return Math.Min(pairApproachRadius, mountCorpulence + targetCorpulence);
+        }
+
         public static bool IsExactRawMoveSlotLifecycle(
             bool rawMoveSlotIsExactDelegatedMove,
             bool rawMoveSlotIsEmpty,

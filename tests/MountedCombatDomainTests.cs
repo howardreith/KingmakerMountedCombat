@@ -485,6 +485,17 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(
                 !MountedCombatSpatialPolicy.DelegatedPointMoveRequiresLineOfSight,
                 "A delegated point move still required LoS and can deadlock on the hostile target blocker.");
+            var delegatedRadius = MountedCombatSpatialPolicy.CalculateDelegatedMoveApproachRadius(
+                13f,
+                1.25f,
+                0.75f);
+            TestRunner.True(
+                Math.Abs(delegatedRadius - 2f) < 0.00001f && delegatedRadius < 13f,
+                "The delegated move can terminate at ranged radius before the exact native child LoS gate admits.");
+            TestRunner.True(
+                Math.Abs(MountedCombatSpatialPolicy.CalculateDelegatedMoveApproachRadius(1.5f, 1.25f, 0.75f) - 1.5f) <
+                    0.00001f,
+                "The delegated move expanded beyond the pair's legal approach radius.");
         }
 
         private static MountedCombatApproachSnapshot PassingApproachSnapshot(

@@ -9,6 +9,16 @@ using TurnBased.Controllers;
 
 namespace KingmakerMountedCombat.Integration
 {
+    internal enum MountedPairNativeAdmissionState
+    {
+        Unavailable,
+        OutsidePairRange,
+        UnsupportedExecutorOffset,
+        OutsideNativeDistance,
+        BlockedLineOfSight,
+        Admitted
+    }
+
     internal sealed class MountedPairSingleAttack : UnitAttack
     {
         private readonly UnitEntityData rider;
@@ -101,6 +111,27 @@ namespace KingmakerMountedCombat.Integration
 
         internal float PairApproachRadius => pairApproachRadius;
 
+        internal float DelegatedMoveApproachRadius
+        {
+            get
+            {
+                UnitEntityData target = Target;
+                if (mount?.View == null || target?.View == null || pairApproachRadius < 0f)
+                {
+                    return pairApproachRadius;
+                }
+
+                return MountedCombatSpatialPolicy.CalculateDelegatedMoveApproachRadius(
+                    pairApproachRadius,
+                    mount.View.Corpulence,
+                    target.View.Corpulence);
+            }
+        }
+
+        internal MountedPairNativeAdmissionState LastNativeAdmissionState { get; private set; }
+
+        internal bool LastNativeDistanceSatisfied { get; private set; }
+
         internal bool PairRangeSatisfiedAtNativeStart { get; private set; }
 
         internal float PairDistanceAtNativeStart { get; private set; }
@@ -111,21 +142,59 @@ namespace KingmakerMountedCombat.Integration
 
         internal bool NativeAdmissionAdjustedAtStart { get; private set; }
 
+        internal MountedPairNativeAdmissionState NativeAdmissionStateAtStart { get; private set; }
+
+        internal bool NativeDistanceSatisfiedAtStart { get; private set; }
+
         internal bool IsPairEnoughClose
         {
             get
             {
-                if (!usesMountedRiderReach)
-                {
-                    return IsUnitEnoughClose;
-                }
-                float pairDistance;
-                float executorDistance;
-                UnitEntityData target = Target;
-                return TryObserveDistances(target, out pairDistance, out executorDistance) &&
-                    pairDistance <= pairApproachRadius + MountedCombatSpatialPolicy.RangeTolerance &&
-                    rider.HasLOS(target);
+                return EvaluateCurrentNativeAdmission() == MountedPairNativeAdmissionState.Admitted;
             }
+        }
+
+        internal MountedPairNativeAdmissionState EvaluateCurrentNativeAdmission()
+        {
+            LastNativeDistanceSatisfied = false;
+            UnitEntityData target = Target;
+            if (Executor == null || target == null)
+            {
+                LastNativeAdmissionState = MountedPairNativeAdmissionState.Unavailable;
+                return LastNativeAdmissionState;
+            }
+
+            if (!usesMountedRiderReach)
+            {
+                return EvaluateExactNativeGate();
+            }
+
+            float pairDistance;
+            float executorDistance;
+            if (!TryObserveDistances(target, out pairDistance, out executorDistance))
+            {
+                LastNativeAdmissionState = MountedPairNativeAdmissionState.Unavailable;
+                return LastNativeAdmissionState;
+            }
+            if (pairDistance > pairApproachRadius + MountedCombatSpatialPolicy.RangeTolerance)
+            {
+                LastNativeAdmissionState = MountedPairNativeAdmissionState.OutsidePairRange;
+                return LastNativeAdmissionState;
+            }
+
+            float nativeAdmissionRadius;
+            if (!MountedCombatSpatialPolicy.TryCalculateNativeExecutorAdmissionRadius(
+                    pairApproachRadius,
+                    pairDistance,
+                    executorDistance,
+                    out nativeAdmissionRadius))
+            {
+                LastNativeAdmissionState = MountedPairNativeAdmissionState.UnsupportedExecutorOffset;
+                return LastNativeAdmissionState;
+            }
+
+            ApproachRadius = nativeAdmissionRadius;
+            return EvaluateExactNativeGate();
         }
 
         internal bool TryPrepareNativeStartAdmission()
@@ -135,6 +204,8 @@ namespace KingmakerMountedCombat.Integration
             NativeExecutorDistanceAtStart = 0f;
             NativeAdmissionRadiusAtStart = pairApproachRadius;
             NativeAdmissionAdjustedAtStart = false;
+            NativeAdmissionStateAtStart = MountedPairNativeAdmissionState.Unavailable;
+            NativeDistanceSatisfiedAtStart = false;
 
             if (!usesMountedRiderReach)
             {
@@ -147,7 +218,10 @@ namespace KingmakerMountedCombat.Integration
                 PairDistanceAtNativeStart = nativeDistance;
                 NativeExecutorDistanceAtStart = nativeDistance;
                 NativeAdmissionRadiusAtStart = ApproachRadius;
-                PairRangeSatisfiedAtNativeStart = IsUnitEnoughClose;
+                NativeAdmissionStateAtStart = EvaluateCurrentNativeAdmission();
+                NativeDistanceSatisfiedAtStart = LastNativeDistanceSatisfied;
+                PairRangeSatisfiedAtNativeStart =
+                    NativeAdmissionStateAtStart == MountedPairNativeAdmissionState.Admitted;
                 return PairRangeSatisfiedAtNativeStart;
             }
 
@@ -175,7 +249,26 @@ namespace KingmakerMountedCombat.Integration
             NativeAdmissionRadiusAtStart = nativeAdmissionRadius;
             NativeAdmissionAdjustedAtStart = nativeAdmissionRadius > pairApproachRadius;
             ApproachRadius = nativeAdmissionRadius;
-            return IsUnitEnoughClose;
+            NativeAdmissionStateAtStart = EvaluateExactNativeGate();
+            NativeDistanceSatisfiedAtStart = LastNativeDistanceSatisfied;
+            return NativeAdmissionStateAtStart == MountedPairNativeAdmissionState.Admitted;
+        }
+
+        private MountedPairNativeAdmissionState EvaluateExactNativeGate()
+        {
+            LastNativeDistanceSatisfied =
+                GeometryUtils.SqrMechanicsDistance(ApproachPoint, Executor.Position) <=
+                ApproachRadius * ApproachRadius;
+            if (!LastNativeDistanceSatisfied)
+            {
+                LastNativeAdmissionState = MountedPairNativeAdmissionState.OutsideNativeDistance;
+                return LastNativeAdmissionState;
+            }
+
+            LastNativeAdmissionState = IsUnitEnoughClose
+                ? MountedPairNativeAdmissionState.Admitted
+                : MountedPairNativeAdmissionState.BlockedLineOfSight;
+            return LastNativeAdmissionState;
         }
 
         protected override void OnTick()

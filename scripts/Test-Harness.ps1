@@ -4978,15 +4978,18 @@ try {
             $engineSource.Contains('SelectionManager.Instance.SelectUnit(expectedActionSelectionUnit.View, true, true, false);') -and
             $engineSource.Contains('selected[0] == expectedActionSelectionUnit') -and
             $engineSource.Contains('Exactly the policy-required action actor owned player selection at dispatch.')) 'combat diagnostic does not preserve exact mount selection for a mount-owned turn-based primary action'
-        Assert-Test ($commandSource.Contains('var requiresApproach = !childAttack.IsPairEnoughClose;') -and
+        Assert-Test ($commandSource.Contains('initialNativeAdmissionState = childAttack.EvaluateCurrentNativeAdmission();') -and
+            $commandSource.Contains('initialNativeAdmissionState != MountedPairNativeAdmissionState.Admitted') -and
             $commandSource.Contains('if (!childAttack.TryPrepareNativeStartAdmission())') -and
             $singleAttackSource.Contains('GeometryUtils.MechanicsDistance(mount.Position, target.Position)') -and
             $singleAttackSource.Contains('GeometryUtils.MechanicsDistance(rider.Position, target.Position)') -and
+            $singleAttackSource.Contains('GeometryUtils.SqrMechanicsDistance(ApproachPoint, Executor.Position)') -and
+            $singleAttackSource.Contains('LastNativeAdmissionState = IsUnitEnoughClose') -and
             $singleAttackSource.Contains('MountedCombatSpatialPolicy.TryCalculateNativeExecutorAdmissionRadius(') -and
             $patchControllerSource.Contains('attack.TryCalculateNativeApproachRadius(unit, out radius)') -and
             $spatialPolicySource.Contains('MaximumNativeExecutorRadiusAdjustment = 0.75f') -and
             $spatialPolicySource.Contains('NativeAdmissionEpsilon = 0.001f') -and
-            -not $commandSource.Contains('var requiresApproach = !childAttack.IsUnitEnoughClose;')) 'mounted reach does not gate approach on the Mammoth origin before a bounded exact native rider-executor admission bridge'
+            -not $singleAttackSource.Contains('rider.HasLOS(target)')) 'mounted reach does not gate approach on the Mammoth origin and exact native child admission before a bounded rider-executor bridge'
         $placementRefreshIndex = $engineSource.IndexOf('RetainDiagnosticTargetPlacementAtDispatch()', [StringComparison]::Ordinal)
         $placementCaptureIndex = $engineSource.IndexOf('targetDistanceAtClick = HorizontalDistance(mountPositionAtClick, targetPositionAtClick);', [StringComparison]::Ordinal)
         Assert-Test ($placementRefreshIndex -ge 0 -and $placementCaptureIndex -gt $placementRefreshIndex -and
@@ -10044,7 +10047,11 @@ try {
                         nearestSelectedUnitId='rider'
                     }
                     rules=[ordered]@{riderAttackRules=2;mountAttackRules=0;pairAttackRolls=2}
-                    outcome=[ordered]@{targetId='shortbow-target';nativeAttackRuleObserved=$true;attackWeaponIsRanged=$true}
+                    outcome=[ordered]@{
+                        targetId='shortbow-target';nativeAttackRuleObserved=$true;attackWeaponIsRanged=$true
+                        initialNativeAdmissionState='BlockedLineOfSight';nativeAdmissionStateAtStart='Admitted'
+                        nativeDistanceSatisfiedAtStart=$true;nativeLineOfSightRecoveryObserved=$true
+                    }
                 }
                 $rowByName['mounted-stock-click-melee-adjacent-rt'].evidence = $melee
                 $rowByName['mounted-stock-click-melee-approach-rt'].evidence = $melee
@@ -10140,23 +10147,57 @@ try {
                         dispatchAccepted=$true;relationshipEnded=$true;relationshipTransitionChanged=$true
                     })
                 }
+                $activeHorseAiIsolation = [ordered]@{
+                    present=$true;acquired=$true;activeValidationPassed=$true;restoreVerified=$false
+                    restored=$false;stableFrames=2;error=$null
+                    states=@([ordered]@{
+                        unitId='horse';commandsEmptyBefore=$true;rawAiBefore=$true;effectiveAiBefore=$true
+                        commandsEmptyDuring=$true;rawAiDuring=$false;effectiveAiDuring=$false
+                        commandsEmptyAfter=$false;rawAiAfter=$false;effectiveAiAfter=$false
+                    })
+                }
+                $restoredHorseAiIsolation = [ordered]@{
+                    present=$true;acquired=$false;activeValidationPassed=$true;restoreVerified=$true
+                    restored=$true;stableFrames=2;error=$null
+                    states=@([ordered]@{
+                        unitId='horse';commandsEmptyBefore=$true;rawAiBefore=$true;effectiveAiBefore=$true
+                        commandsEmptyDuring=$true;rawAiDuring=$false;effectiveAiDuring=$false
+                        commandsEmptyAfter=$true;rawAiAfter=$true;effectiveAiAfter=$true
+                    })
+                }
+                $observations.unmountedHorseAiIsolation = $activeHorseAiIsolation
+                $observations.cleanup = [ordered]@{
+                    relationshipState='Unmounted';unmountedHorseAiLeaseRestored=$true
+                    unmountedHorseAiIsolation=$restoredHorseAiIsolation
+                }
                 $rowByName['unmounted-stock-attack-control'].evidence = [ordered]@{
                     nativeRequestDelta=0;intentStartDelta=0;relationshipState='Unmounted'
+                    previousTargetId='sling-target';previousTargetCleanupPassed=$true
+                    isolatedTargetId='unmounted-target';horseAiIsolation=$activeHorseAiIsolation
+                    rules=[ordered]@{
+                        riderAttackRules=1;mountAttackRules=0;riderNonOpportunityAttackRules=1
+                        mountNonOpportunityAttackRules=0;riderOpportunityAttackRules=0
+                    }
                 }
                 $rowByName['unmounted-ranged-control'].evidence = [ordered]@{
-                    nativeRequestDelta=0;intentStartDelta=0;weaponCategory='Sling';targetId='sling-target'
-                    relationshipState='Unmounted'
+                    nativeRequestDelta=0;intentStartDelta=0;weaponCategory='Sling';targetId='unmounted-target'
+                    relationshipState='Unmounted';horseAiIsolation=$activeHorseAiIsolation
+                    rules=[ordered]@{
+                        riderAttackRules=1;mountAttackRules=0;riderNonOpportunityAttackRules=1
+                        mountNonOpportunityAttackRules=0;riderOpportunityAttackRules=0
+                    }
                     admissionReadiness=[ordered]@{
                         ready=$true;relationshipState='Unmounted';modeRealTime=$true;gameUnpaused=$true
                         riderSelected=$true;weaponLeaseReady=$true;weaponCategory='Sling';targetReady=$true
                         combatMemoryReady=$true;riderStandardReady=$true;riderCommandsIdle=$true
-                        targetCommandsIdle=$true;riderHandsIdle=$true;targetHandsIdle=$true
+                        horseAiIsolated=$true;horseCommandsIdle=$true;targetCommandsIdle=$true
+                        riderHandsIdle=$true;targetHandsIdle=$true
                         equipmentControllerReady=$true;riderEquipmentIdle=$true
                     }
                     input=[ordered]@{
                         clicked=$true;expectedDispatchStarted=$true
                         command=[ordered]@{
-                            present=$true;executorId='rider';targetId='sling-target';contained=$true
+                            present=$true;executorId='rider';targetId='unmounted-target';contained=$true
                             inStandardSlot=$true;queued=$false
                         }
                     }
@@ -10254,6 +10295,17 @@ try {
                 } 'Phase 3D RT validator accepted Shortbow admission without the exact selected rider principal.'
 
                 $rowByName['mounted-bow-auto-fire-rt'].evidence.admissionReadiness.riderSelectedPrincipal = $true
+                $rowByName['mounted-bow-auto-fire-rt'].evidence.outcome.nativeAdmissionStateAtStart = 'BlockedLineOfSight'
+                Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
+                $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
+                $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
+                [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+                $phase3dManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+                Assert-TestThrows {
+                    Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
+                } 'Phase 3D RT validator accepted a Shortbow child before exact direct native admission.'
+
+                $rowByName['mounted-bow-auto-fire-rt'].evidence.outcome.nativeAdmissionStateAtStart = 'Admitted'
                 $rowByName['mounted-stock-click-melee-auto-repeat-rt'].evidence.previousTargetCleanupPassed = $false
                 Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
                 $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
@@ -10346,6 +10398,28 @@ try {
                 } 'Phase 3D RT validator accepted unmounted ranged input without a stable exact readiness boundary.'
 
                 $rowByName['unmounted-ranged-control'].evidence.admissionReadiness.ready = $true
+                $rowByName['unmounted-stock-attack-control'].evidence.rules.mountAttackRules = 1
+                Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
+                $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
+                $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
+                [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+                $phase3dManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+                Assert-TestThrows {
+                    Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
+                } 'Phase 3D RT validator accepted an autonomous Horse attack as unmounted rider-control evidence.'
+
+                $rowByName['unmounted-stock-attack-control'].evidence.rules.mountAttackRules = 0
+                $phase3dArtifact.observations.cleanup.unmountedHorseAiLeaseRestored = $false
+                Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
+                $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
+                $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
+                [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+                $phase3dManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+                Assert-TestThrows {
+                    Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
+                } 'Phase 3D RT validator accepted unmounted Horse AI isolation without exact restoration.'
+
+                $phase3dArtifact.observations.cleanup.unmountedHorseAiLeaseRestored = $true
                 $phase3dArtifact.observations.'rt-combat-dismount'.nativeShell.inMoveSlot = $false
                 Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
                 $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
@@ -10435,11 +10509,16 @@ try {
             $playerActionSource.Contains('GetNativeDismountAvailability(caster, true)') -and
             $playerActionSource.Contains('context.NativeMoveActionShellAdmitted = nativeMoveActionShellAdmitted;')) `
             'native Mount/Dismount delivery can re-reject the exact Move resource already admitted by Kingmaker'
-        Assert-Test ($attackSource.Contains('delegatedMove = new UnitMoveTo(targetSnapshot, childAttack.PairApproachRadius)') -and
+        Assert-Test ($attackSource.Contains('delegatedMove = new UnitMoveTo(targetSnapshot, delegatedMoveApproachRadius)') -and
             $attackSource.Contains('NeedLoS = MountedCombatSpatialPolicy.DelegatedPointMoveRequiresLineOfSight') -and
             -not $attackSource.Contains('NeedLoS = true') -and
             $spatialSource.Contains('public const bool DelegatedPointMoveRequiresLineOfSight = false;') -and
-            $singleAttackSource.Contains('rider.HasLOS(target)') -and
+            $spatialSource.Contains('CalculateDelegatedMoveApproachRadius(') -and
+            $singleAttackSource.Contains('EvaluateCurrentNativeAdmission()') -and
+            $singleAttackSource.Contains('MountedPairNativeAdmissionState.BlockedLineOfSight') -and
+            $singleAttackSource.Contains('LastNativeAdmissionState = IsUnitEnoughClose') -and
+            $attackSource.Contains('NativeDistanceSatisfiedAtStart') -and
+            -not $singleAttackSource.Contains('rider.HasLOS(target)') -and
             $attackSource.Contains('AttackWeaponTypeBlueprintId') -and
             $attackSource.Contains('AmmunitionStateBefore') -and
             $attackSource.Contains('ReloadStateAfter') -and
@@ -10510,6 +10589,12 @@ try {
             $phase3dSource.Contains('AwaitUnmountedRangedAdmissionRt()') -and
             $phase3dSource.Contains('CaptureUnmountedRangedReadiness()') -and
             $phase3dSource.Contains('observations["unmountedRangedInput"]') -and
+            $phase3dSource.Contains('new ScopedDiagnosticAiLease<UnitEntityData>(') -and
+            $phase3dSource.Contains('AwaitUnmountedHorseAiIsolation()') -and
+            $phase3dSource.Contains('AwaitUnmountedTargetCleanupRt()') -and
+            $phase3dSource.Contains('ruleProbe.RiderNonOpportunityAttackRuleCount < 1') -and
+            $phase3dSource.Contains('ruleProbe.MountAttackRuleCount == 0') -and
+            $phase3dSource.Contains('RestoreUnmountedHorseAiIsolation()') -and
             $phase3dSource.Contains('errors.Count == 0 &&') -and
             -not $phase3dSource.Contains('Gunslinger')) `
             'Phase 3D runtime tranche lost native input admission, explicit actor isolation, exact tracker/five-foot surfaces, or cleanup-safe evidence status'

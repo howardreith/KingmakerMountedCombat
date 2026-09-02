@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using Kingmaker;
@@ -51,10 +52,15 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private const double ScenarioDeadlineSeconds = 300.0d;
         private const double LeafDeadlineSeconds = 30.0d;
+        private const double UnmountedHorseAiSettleTimeoutSeconds = 5.0d;
         private const float TargetDistance = 6.0f;
         private const float LongRangeTargetDistance = 19.0f;
         private const float RangedVariantTargetDistance = 4.0f;
         private const float MovementTolerance = 0.8f;
+
+        private static readonly FieldInfo AiBackingField = typeof(UnitEntityData).GetField(
+            "m_AiEnabled",
+            BindingFlags.Instance | BindingFlags.NonPublic);
 
         private static readonly JsonSerializerSettings JsonSettings = new JsonSerializerSettings
         {
@@ -88,6 +94,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private Phase3dCombatRuleProbe ruleProbe;
         private NativeModeTransitionProbe turnBasedModeProbe;
         private Phase3dRangedWeaponLease rangedWeaponLease;
+        private ScopedDiagnosticAiLease<UnitEntityData> unmountedHorseAiLease;
         private WeaponCategory rangedVariantCategory;
         private UnitEntityData target;
         private UnitMoveTo movementCommand;
@@ -137,6 +144,13 @@ namespace KingmakerMountedCombat.Diagnostics
         private JObject rangedVariantReadinessAtAdmission;
         private string rangedVariantPreviousTargetId;
         private bool rangedVariantPreviousTargetCleanupPassed;
+        private string unmountedPreviousTargetId;
+        private bool unmountedPreviousTargetCleanupPassed;
+        private bool unmountedHorseAiLeaseRestored = true;
+        private bool unmountedHorseAiSettleRequested;
+        private double unmountedHorseAiSettleStartedAtSeconds;
+        private int unmountedHorseAiStableFrames;
+        private string unmountedHorseAiLeaseError;
         private MountedPairAttackOutcome rangedRiderOutcome;
         private MountedPairAttackOutcome rangedRiderOutcomeBaseline;
         private bool targetCleanupComplete;
@@ -353,6 +367,12 @@ namespace KingmakerMountedCombat.Diagnostics
                         break;
                     case Phase3dHorseStep.AwaitRtCombatDismount:
                         AwaitRtCombatDismount();
+                        break;
+                    case Phase3dHorseStep.AwaitUnmountedHorseAiIsolation:
+                        AwaitUnmountedHorseAiIsolation();
+                        break;
+                    case Phase3dHorseStep.AwaitUnmountedTargetCleanupRt:
+                        AwaitUnmountedTargetCleanupRt();
                         break;
                     case Phase3dHorseStep.AwaitUnmountedMeleeRt:
                         AwaitUnmountedMeleeRt();
@@ -1125,8 +1145,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Ranged intent produced zero automatic Horse-primary dispatches and zero duplicate dispatches.", evidence);
             AddRow("mounted-ranged-line-of-sight",
                 outcome != null && outcome.NativeAttackRuleObserved && outcome.AttackWeaponIsRanged &&
-                    rider.HasLOS(target),
-                "The native ranged child retained and satisfied its exact line-of-sight requirement.", evidence);
+                    string.Equals(
+                        outcome.NativeAdmissionStateAtStart,
+                        MountedPairNativeAdmissionState.Admitted.ToString(),
+                        StringComparison.Ordinal),
+                "The native ranged child entered only after its exact direct range-and-line-of-sight gate admitted.", evidence);
 
             attackRulesBeforeCancel = ruleProbe.PairAttackRuleCount;
             stockCancelBefore = combat.StockAttackIntentCancelCount;
@@ -1729,11 +1752,61 @@ namespace KingmakerMountedCombat.Diagnostics
                         .Where(item => item.Kind == NativeMountedControlKind.Dismount).ToArray(),
                     JsonSerializer.Create(JsonSettings))
             };
+            step = Phase3dHorseStep.AwaitUnmountedHorseAiIsolation;
+            ResetLeafClock();
+            AwaitUnmountedHorseAiIsolation();
+        }
+
+        private void AwaitUnmountedHorseAiIsolation()
+        {
+            if (!PrepareUnmountedHorseAiIsolation())
+            {
+                return;
+            }
+
+            observations["unmountedHorseAiIsolation"] = CaptureUnmountedHorseAiIsolation();
+            BeginUnmountedTargetReplacement();
+        }
+
+        private void BeginUnmountedTargetReplacement()
+        {
+            unmountedPreviousTargetId = target?.UniqueId;
+            unmountedPreviousTargetCleanupPassed = false;
+            TryLeaveCombat(target);
+            targetCleanupComplete = targetService != null && targetService.DestroyAndVerify();
+            step = Phase3dHorseStep.AwaitUnmountedTargetCleanupRt;
+            ResetLeafClock();
+        }
+
+        private void AwaitUnmountedTargetCleanupRt()
+        {
+            if (!ValidateUnmountedHorseAiIsolation())
+            {
+                return;
+            }
+            if (!targetCleanupComplete && targetService != null)
+            {
+                targetCleanupComplete = targetService.DestroyAndVerify();
+            }
+            if (!targetCleanupComplete)
+            {
+                return;
+            }
+
+            targetService.Dispose();
+            targetService = null;
+            target = null;
+            unmountedPreviousTargetCleanupPassed = true;
+            BeginTarget(TargetDistance, "rt-unmounted-controls");
             BeginUnmountedMeleeRt();
         }
 
         private void BeginUnmountedMeleeRt()
         {
+            if (!ValidateUnmountedHorseAiIsolation())
+            {
+                return;
+            }
             SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
             ruleProbe.Arm(target, true);
             stockNativeBefore = combat.StockAttackNativeRequestCount;
@@ -1753,7 +1826,11 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void AwaitUnmountedMeleeRt()
         {
-            if (ruleProbe.RiderAttackRuleCount < 1)
+            if (!ValidateUnmountedHorseAiIsolation())
+            {
+                return;
+            }
+            if (ruleProbe.RiderNonOpportunityAttackRuleCount < 1)
             {
                 return;
             }
@@ -1763,13 +1840,21 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["nativeRequestDelta"] = combat.StockAttackNativeRequestCount - stockNativeBefore,
                 ["intentStartDelta"] = combat.StockAttackIntentStartCount - stockIntentBefore,
                 ["rules"] = ruleProbe.CapturePairEvidence(),
-                ["relationshipState"] = relationship.State.ToString()
+                ["relationshipState"] = relationship.State.ToString(),
+                ["horseAiIsolation"] = CaptureUnmountedHorseAiIsolation(),
+                ["previousTargetId"] = unmountedPreviousTargetId,
+                ["previousTargetCleanupPassed"] = unmountedPreviousTargetCleanupPassed,
+                ["isolatedTargetId"] = target?.UniqueId
             };
             AddRow(
                 "unmounted-stock-attack-control",
                 relationship.State == RelationshipState.Unmounted && unmountedCommand?.GetType() == typeof(UnitAttack) &&
                     combat.StockAttackNativeRequestCount == stockNativeBefore &&
-                    combat.StockAttackIntentStartCount == stockIntentBefore && ruleProbe.RiderAttackRuleCount >= 1,
+                    combat.StockAttackIntentStartCount == stockIntentBefore &&
+                    ruleProbe.RiderNonOpportunityAttackRuleCount >= 1 &&
+                    ruleProbe.RiderOpportunityAttackRuleCount == 0 && ruleProbe.MountAttackRuleCount == 0 &&
+                    unmountedPreviousTargetCleanupPassed &&
+                    !string.Equals(unmountedPreviousTargetId, target?.UniqueId, StringComparison.Ordinal),
                 "Ordinary unmounted hostile click remained a stock rider UnitAttack and bypassed all mounted intent routing.",
                 evidence);
             rider.Commands.InterruptAll(false);
@@ -1780,6 +1865,10 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void AwaitUnmountedMeleeCancelRt()
         {
+            if (!ValidateUnmountedHorseAiIsolation())
+            {
+                return;
+            }
             if (!rider.Commands.Empty)
             {
                 stableFrames = 0;
@@ -1800,6 +1889,10 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void AwaitUnmountedRangedAdmissionRt()
         {
+            if (!ValidateUnmountedHorseAiIsolation())
+            {
+                return;
+            }
             var readiness = CaptureUnmountedRangedReadiness();
             observations["unmountedRangedReadiness"] = readiness;
             if (!(bool)readiness["ready"])
@@ -1840,7 +1933,11 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void AwaitUnmountedRangedRt()
         {
-            if (ruleProbe.RiderAttackRuleCount < 1)
+            if (!ValidateUnmountedHorseAiIsolation())
+            {
+                return;
+            }
+            if (ruleProbe.RiderNonOpportunityAttackRuleCount < 1)
             {
                 return;
             }
@@ -1854,6 +1951,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["intentStartDelta"] = combat.StockAttackIntentStartCount - stockIntentBefore,
                 ["rules"] = ruleProbe.CapturePairEvidence(),
                 ["relationshipState"] = relationship.State.ToString(),
+                ["horseAiIsolation"] = CaptureUnmountedHorseAiIsolation(),
                 ["admissionReadiness"] = observations["unmountedRangedReadiness"]?.DeepClone(),
                 ["input"] = observations["unmountedRangedInput"]?.DeepClone(),
                 ["command"] = CaptureUnmountedRangedCommand()
@@ -1863,7 +1961,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 relationship.State == RelationshipState.Unmounted && weapon != null && weapon.IsRanged &&
                     weapon.Category == WeaponCategory.Sling && unmountedCommand?.GetType() == typeof(UnitAttack) &&
                     combat.StockAttackNativeRequestCount == stockNativeBefore &&
-                    combat.StockAttackIntentStartCount == stockIntentBefore && ruleProbe.RiderAttackRuleCount >= 1 &&
+                    combat.StockAttackIntentStartCount == stockIntentBefore &&
+                    ruleProbe.RiderNonOpportunityAttackRuleCount >= 1 &&
+                    ruleProbe.RiderOpportunityAttackRuleCount == 0 && ruleProbe.MountAttackRuleCount == 0 &&
                     observations["unmountedRangedInput"]?["clicked"]?.Value<bool>() == true &&
                     observations["unmountedRangedInput"]?["expectedDispatchStarted"]?.Value<bool>() == true,
                 "Ordinary unmounted Sling fire remained stock UnitAttack behavior and bypassed mounted intent routing.",
@@ -3380,6 +3480,33 @@ namespace KingmakerMountedCombat.Diagnostics
                 var availability = nativeControls.Evaluate(NativeMountedControlKind.Dismount, rider);
                 return CaptureRtCombatDismountState(availability);
             }
+            if (step == Phase3dHorseStep.AwaitUnmountedHorseAiIsolation)
+            {
+                return CaptureUnmountedHorseAiIsolation();
+            }
+            if (step == Phase3dHorseStep.AwaitUnmountedTargetCleanupRt)
+            {
+                return new JObject
+                {
+                    ["previousTargetId"] = unmountedPreviousTargetId,
+                    ["previousTargetCleanupPassed"] = unmountedPreviousTargetCleanupPassed,
+                    ["targetCleanupComplete"] = targetCleanupComplete,
+                    ["horseAiIsolation"] = CaptureUnmountedHorseAiIsolation()
+                };
+            }
+            if (step == Phase3dHorseStep.AwaitUnmountedMeleeRt ||
+                step == Phase3dHorseStep.AwaitUnmountedMeleeCancelRt)
+            {
+                return new JObject
+                {
+                    ["command"] = CaptureCommandState(unmountedCommand),
+                    ["rules"] = ruleProbe?.CapturePairEvidence(),
+                    ["targetInState"] = target != null && target.IsInState,
+                    ["targetConscious"] = target != null && target.Descriptor.State.IsConscious,
+                    ["targetDamage"] = target?.Damage,
+                    ["horseAiIsolation"] = CaptureUnmountedHorseAiIsolation()
+                };
+            }
             if (step == Phase3dHorseStep.AwaitStockMeleeTargetCleanupRt)
             {
                 return new JObject
@@ -3442,6 +3569,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 target.Descriptor.State.IsConscious && rider.IsEnemy(target) && rider.CanAttack(target);
             var combatMemoryReady = targetService != null &&
                 targetService.RefreshBidirectionalCombatMemoryLease();
+            var horseAiIsolated = AiBackingField != null &&
+                unmountedHorseAiLease != null && unmountedHorseAiLease.IsAcquired &&
+                unmountedHorseAiLease.LastActiveValidationPassed && horse.Commands != null && horse.Commands.Empty &&
+                !((bool)AiBackingField.GetValue(horse)) && !horse.IsAIEnabled;
             var ready = relationship.State == RelationshipState.Unmounted &&
                 !CombatController.IsInTurnBasedCombat() && game != null && !game.IsPaused &&
                 selected != null && selected.Count == 1 && selected[0] == rider &&
@@ -3449,6 +3580,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 weapon.IsRanged && weapon.Category == WeaponCategory.Sling &&
                 targetReady && combatMemoryReady && rider.HasStandardAction() &&
                 rider.Commands != null && rider.Commands.Empty &&
+                horseAiIsolated &&
                 target.Commands != null && target.Commands.Empty &&
                 !rider.AreHandsBusyWithAnimation && !target.AreHandsBusyWithAnimation &&
                 equipment != null && !equipment.IsUpdateScheduledFor(rider);
@@ -3466,11 +3598,183 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["riderStandardReady"] = rider.HasStandardAction(),
                 ["riderStandardCooldown"] = rider.CombatState?.Cooldown.StandardAction,
                 ["riderCommandsIdle"] = rider.Commands != null && rider.Commands.Empty,
+                ["horseAiIsolated"] = horseAiIsolated,
+                ["horseCommandsIdle"] = horse.Commands != null && horse.Commands.Empty,
                 ["targetCommandsIdle"] = target?.Commands != null && target.Commands.Empty,
                 ["riderHandsIdle"] = !rider.AreHandsBusyWithAnimation,
                 ["targetHandsIdle"] = target != null && !target.AreHandsBusyWithAnimation,
                 ["equipmentControllerReady"] = equipment != null,
-                ["riderEquipmentIdle"] = equipment != null && !equipment.IsUpdateScheduledFor(rider)
+                ["riderEquipmentIdle"] = equipment != null && !equipment.IsUpdateScheduledFor(rider),
+                ["previousTargetId"] = unmountedPreviousTargetId,
+                ["previousTargetCleanupPassed"] = unmountedPreviousTargetCleanupPassed,
+                ["isolatedTargetId"] = target?.UniqueId,
+                ["targetDamage"] = target?.Damage
+            };
+        }
+
+        private bool PrepareUnmountedHorseAiIsolation()
+        {
+            try
+            {
+                if (unmountedHorseAiLease == null)
+                {
+                    if (horse?.Commands == null || rider == null || horse.Group == null ||
+                        horse.Group != rider.Group || relationship.State != RelationshipState.Unmounted ||
+                        AiBackingField == null || AiBackingField.FieldType != typeof(bool))
+                    {
+                        throw new InvalidOperationException(
+                            "The exact unmounted Horse AI-isolation contract is unavailable.");
+                    }
+
+                    if (!unmountedHorseAiSettleRequested)
+                    {
+                        unmountedHorseAiSettleRequested = true;
+                        unmountedHorseAiSettleStartedAtSeconds = clock.Elapsed.TotalSeconds;
+                    }
+                    horse.Commands.RemoveFinishedAndUpdateQueue();
+                    if (!horse.Commands.Empty)
+                    {
+                        if (clock.Elapsed.TotalSeconds - unmountedHorseAiSettleStartedAtSeconds <=
+                            UnmountedHorseAiSettleTimeoutSeconds)
+                        {
+                            return false;
+                        }
+                        throw new InvalidOperationException(
+                            "The exact Horse command surface did not settle within the bounded five-second post-Dismount window.");
+                    }
+
+                    unmountedHorseAiLease = new ScopedDiagnosticAiLease<UnitEntityData>(
+                        unit => unit.UniqueId,
+                        unit => ReferenceEquals(unit, horse) && unit.IsInState &&
+                            unit.IsDirectlyControllable && unit.Group == rider.Group &&
+                            relationship.State == RelationshipState.Unmounted,
+                        unit => unit.Commands != null && unit.Commands.Empty,
+                        unit => (bool)AiBackingField.GetValue(unit),
+                        unit => unit.IsAIEnabled,
+                        (unit, value) => unit.IsAIEnabled = value);
+                    unmountedHorseAiLeaseRestored = false;
+                    unmountedHorseAiLease.Acquire(new[] { horse });
+                    unmountedHorseAiStableFrames = 0;
+                    unmountedHorseAiLeaseError = null;
+                    return false;
+                }
+
+                unmountedHorseAiLease.ValidateActive(new[] { horse });
+                unmountedHorseAiStableFrames++;
+                unmountedHorseAiLeaseError = null;
+                return unmountedHorseAiStableFrames >= 2;
+            }
+            catch (Exception exception)
+            {
+                unmountedHorseAiLeaseError = exception.GetType().Name + ": " + exception.Message;
+                unmountedHorseAiLeaseRestored = unmountedHorseAiLease == null ||
+                    unmountedHorseAiLease.LastRestoreVerified;
+                FailCurrent(
+                    "phase3d-horse-runtime-exception",
+                    "The exact unmounted Horse could not enter a stable reversible AI-isolation lease: " +
+                    unmountedHorseAiLeaseError + ".");
+                BeginCleanup();
+                return false;
+            }
+        }
+
+        private bool ValidateUnmountedHorseAiIsolation()
+        {
+            try
+            {
+                if (unmountedHorseAiLease == null || !unmountedHorseAiLease.IsAcquired)
+                {
+                    throw new InvalidOperationException("The exact Horse AI-isolation lease is not active.");
+                }
+                unmountedHorseAiLease.ValidateActive(new[] { horse });
+                unmountedHorseAiLeaseError = null;
+                return true;
+            }
+            catch (Exception exception)
+            {
+                unmountedHorseAiLeaseError = exception.GetType().Name + ": " + exception.Message;
+                FailCurrent(
+                    "phase3d-horse-runtime-exception",
+                    "The exact unmounted Horse AI-isolation lease lost its command or state invariant: " +
+                    unmountedHorseAiLeaseError + ".");
+                BeginCleanup();
+                return false;
+            }
+        }
+
+        private bool RestoreUnmountedHorseAiIsolation()
+        {
+            if (unmountedHorseAiLease == null)
+            {
+                unmountedHorseAiLeaseRestored = true;
+                unmountedHorseAiLeaseError = null;
+                return true;
+            }
+            if (!unmountedHorseAiLease.IsAcquired)
+            {
+                unmountedHorseAiLeaseRestored = unmountedHorseAiLease.LastRestoreVerified;
+                return unmountedHorseAiLeaseRestored;
+            }
+
+            try
+            {
+                if (horse?.Commands == null)
+                {
+                    throw new InvalidOperationException(
+                        "The exact Horse command surface is unavailable for AI restoration.");
+                }
+                horse.Commands.InterruptAll(false);
+                horse.Commands.RemoveFinishedAndUpdateQueue();
+                unmountedHorseAiLease.Restore(new[] { horse });
+                unmountedHorseAiLeaseRestored = !unmountedHorseAiLease.IsAcquired &&
+                    unmountedHorseAiLease.LastRestoreVerified;
+                unmountedHorseAiLeaseError = unmountedHorseAiLeaseRestored
+                    ? null
+                    : "The exact Horse AI lease did not report verified restoration.";
+                return unmountedHorseAiLeaseRestored;
+            }
+            catch (Exception exception)
+            {
+                unmountedHorseAiLeaseRestored = false;
+                unmountedHorseAiLeaseError = exception.GetType().Name + ": " + exception.Message;
+                return false;
+            }
+        }
+
+        private JObject CaptureUnmountedHorseAiIsolation()
+        {
+            var states = new JArray();
+            if (unmountedHorseAiLease != null)
+            {
+                foreach (var state in unmountedHorseAiLease.States)
+                {
+                    states.Add(new JObject
+                    {
+                        ["unitId"] = state.UnitId,
+                        ["commandsEmptyBefore"] = state.CommandsEmptyBefore,
+                        ["rawAiBefore"] = state.RawAiBefore,
+                        ["effectiveAiBefore"] = state.EffectiveAiBefore,
+                        ["commandsEmptyDuring"] = state.CommandsEmptyDuring,
+                        ["rawAiDuring"] = state.RawAiDuring,
+                        ["effectiveAiDuring"] = state.EffectiveAiDuring,
+                        ["commandsEmptyAfter"] = state.CommandsEmptyAfter,
+                        ["rawAiAfter"] = state.RawAiAfter,
+                        ["effectiveAiAfter"] = state.EffectiveAiAfter
+                    });
+                }
+            }
+            return new JObject
+            {
+                ["present"] = unmountedHorseAiLease != null,
+                ["acquired"] = unmountedHorseAiLease != null && unmountedHorseAiLease.IsAcquired,
+                ["activeValidationPassed"] = unmountedHorseAiLease != null &&
+                    unmountedHorseAiLease.LastActiveValidationPassed,
+                ["restoreVerified"] = unmountedHorseAiLease != null &&
+                    unmountedHorseAiLease.LastRestoreVerified,
+                ["restored"] = unmountedHorseAiLeaseRestored,
+                ["stableFrames"] = unmountedHorseAiStableFrames,
+                ["error"] = unmountedHorseAiLeaseError,
+                ["states"] = states
             };
         }
 
@@ -3867,6 +4171,8 @@ namespace KingmakerMountedCombat.Diagnostics
             catch (Exception exception) { AddCleanupError("combat", exception); }
             try { movementCommand?.Interrupt(); }
             catch (Exception exception) { AddCleanupError("movement", exception); }
+            try { unmountedCommand?.Interrupt(); }
+            catch (Exception exception) { AddCleanupError("unmounted command", exception); }
             try { rangedWeaponLease?.Dispose(); }
             catch (Exception exception) { AddCleanupError("ranged weapon", exception); }
             rangedWeaponLease = null;
@@ -3883,6 +4189,16 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
             }
             catch (Exception exception) { AddCleanupError("relationship", exception); }
+            if (!RestoreUnmountedHorseAiIsolation())
+            {
+                cleanupError = true;
+                var message = "unmounted Horse AI cleanup: " +
+                    (unmountedHorseAiLeaseError ?? "unknown restoration failure") + ".";
+                if (!errors.Contains(message))
+                {
+                    errors.Add(message);
+                }
+            }
             TryLeaveCombat(target);
             TryLeaveCombat(horse);
             TryLeaveCombat(rider);
@@ -3905,6 +4221,10 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             try
             {
+                if (!unmountedHorseAiLeaseRestored)
+                {
+                    RestoreUnmountedHorseAiIsolation();
+                }
                 if (!targetCleanupComplete && targetService != null)
                 {
                     targetCleanupComplete = targetService.DestroyAndVerify();
@@ -3917,6 +4237,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
 
             if (frame <= cleanupFrame || !targetCleanupComplete || !modeRestored ||
+                !unmountedHorseAiLeaseRestored ||
                 relationship.State != RelationshipState.Unmounted)
             {
                 return;
@@ -3943,7 +4264,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 rider.Body.CurrentHandEquipmentSetIndex == originalEquipmentSet &&
                 settings.EnableUnsafeMovementExperiment == originalUnsafeExperiment &&
                 relationship.State == RelationshipState.Unmounted &&
-                (targetService == null || targetCleanupComplete) && modeRestored && !cleanupError;
+                (targetService == null || targetCleanupComplete) && modeRestored &&
+                unmountedHorseAiLeaseRestored && !cleanupError;
             observations["cleanup"] = new JObject
             {
                 ["selectionRestored"] = selectionRestored,
@@ -3951,7 +4273,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["settingRestored"] = settings.EnableUnsafeMovementExperiment == originalUnsafeExperiment,
                 ["relationshipState"] = relationship.State.ToString(),
                 ["targetClean"] = targetCleanupComplete,
-                ["modeRestored"] = modeRestored
+                ["modeRestored"] = modeRestored,
+                ["unmountedHorseAiLeaseRestored"] = unmountedHorseAiLeaseRestored,
+                ["unmountedHorseAiIsolation"] = CaptureUnmountedHorseAiIsolation()
             };
             if (!cleanupPassed)
             {
@@ -4172,6 +4496,8 @@ namespace KingmakerMountedCombat.Diagnostics
             AwaitTbToRtTransition,
             AwaitRtCombatDismountAdmission,
             AwaitRtCombatDismount,
+            AwaitUnmountedHorseAiIsolation,
+            AwaitUnmountedTargetCleanupRt,
             AwaitUnmountedMeleeRt,
             AwaitUnmountedMeleeCancelRt,
             AwaitUnmountedRangedAdmissionRt,
@@ -4353,6 +4679,10 @@ namespace KingmakerMountedCombat.Diagnostics
             RiderOpportunityAttackRuleCount + MountOpportunityAttackRuleCount;
         internal int PairNonOpportunityAttackRuleCount =>
             PairAttackRuleCount - PairOpportunityAttackRuleCount;
+        internal int RiderNonOpportunityAttackRuleCount =>
+            RiderAttackRuleCount - RiderOpportunityAttackRuleCount;
+        internal int MountNonOpportunityAttackRuleCount =>
+            MountAttackRuleCount - MountOpportunityAttackRuleCount;
         internal int PairAttackRollCount { get; private set; }
         internal int PairOpportunityAttackRollCount { get; private set; }
         internal int PairDamageRuleCount { get; private set; }
@@ -4410,6 +4740,8 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 ["riderAttackRules"] = RiderAttackRuleCount,
                 ["mountAttackRules"] = MountAttackRuleCount,
+                ["riderNonOpportunityAttackRules"] = RiderNonOpportunityAttackRuleCount,
+                ["mountNonOpportunityAttackRules"] = MountNonOpportunityAttackRuleCount,
                 ["pairNonOpportunityAttackRules"] = PairNonOpportunityAttackRuleCount,
                 ["riderOpportunityAttackRules"] = RiderOpportunityAttackRuleCount,
                 ["mountOpportunityAttackRules"] = MountOpportunityAttackRuleCount,

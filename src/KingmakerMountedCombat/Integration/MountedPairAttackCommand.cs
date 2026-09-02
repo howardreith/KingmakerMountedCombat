@@ -70,9 +70,19 @@ namespace KingmakerMountedCombat.Integration
 
         public bool NativeAdmissionAdjusted { get; set; }
 
+        public string InitialNativeAdmissionState { get; set; }
+
+        public string NativeAdmissionStateAtStart { get; set; }
+
+        public bool NativeDistanceSatisfiedAtStart { get; set; }
+
+        public bool NativeLineOfSightRecoveryObserved { get; set; }
+
         public bool ApproachRequiredAtStart { get; set; }
 
         public int DelegatedMoveStartCount { get; set; }
+
+        public float DelegatedMoveApproachRadius { get; set; }
 
         public int DelegatedMoveTickCount { get; set; }
 
@@ -167,6 +177,9 @@ namespace KingmakerMountedCombat.Integration
         private string reloadStateBefore;
         private bool terminalReported;
         private bool approachRequiredAtStart;
+        private MountedPairNativeAdmissionState initialNativeAdmissionState;
+        private bool nativeLineOfSightRecoveryObserved;
+        private float delegatedMoveApproachRadius;
         private int delegatedMoveStartCount;
         private int delegatedMoveTickCount;
         private string delegatedMoveExecutorId;
@@ -324,7 +337,9 @@ namespace KingmakerMountedCombat.Integration
                 targetPositionAtCommandStart = attackTarget.Position;
                 initialPairDistance = HorizontalDistance(mountPositionAtCommandStart, targetPositionAtCommandStart);
                 targetSnapshot = attackTarget.Position;
-                var requiresApproach = !childAttack.IsPairEnoughClose;
+                initialNativeAdmissionState = childAttack.EvaluateCurrentNativeAdmission();
+                ObserveNativeAdmission(initialNativeAdmissionState);
+                var requiresApproach = initialNativeAdmissionState != MountedPairNativeAdmissionState.Admitted;
                 approachRequiredAtStart = requiresApproach;
                 if (requiresApproach && !allowApproach)
                 {
@@ -478,7 +493,9 @@ namespace KingmakerMountedCombat.Integration
         private void TickApproach()
         {
             ObserveApproachInvariants();
-            if (childAttack.IsPairEnoughClose)
+            var nativeAdmission = childAttack.EvaluateCurrentNativeAdmission();
+            ObserveNativeAdmission(nativeAdmission);
+            if (nativeAdmission == MountedPairNativeAdmissionState.Admitted)
             {
                 if (delegatedMove == null)
                 {
@@ -521,9 +538,14 @@ namespace KingmakerMountedCombat.Integration
                 DriveDelegatedMoveOnRiderTurn();
             }
 
-            if (delegatedMove.IsFinished && !childAttack.IsPairEnoughClose)
+            if (delegatedMove.IsFinished)
             {
-                Repath();
+                var finishedMoveAdmission = childAttack.EvaluateCurrentNativeAdmission();
+                ObserveNativeAdmission(finishedMoveAdmission);
+                if (finishedMoveAdmission != MountedPairNativeAdmissionState.Admitted)
+                {
+                    Repath();
+                }
             }
         }
 
@@ -559,7 +581,7 @@ namespace KingmakerMountedCombat.Integration
 
         private void BeginDelegatedMove()
         {
-            if (childAttack == null || childAttack.PairApproachRadius < 0f)
+            if (childAttack == null || childAttack.DelegatedMoveApproachRadius < 0f)
             {
                 throw new InvalidOperationException("Mounted pair attack radius is unavailable.");
             }
@@ -567,7 +589,8 @@ namespace KingmakerMountedCombat.Integration
             {
                 throw new InvalidOperationException("Mammoth command container was not empty before exact delegated movement ownership.");
             }
-            delegatedMove = new UnitMoveTo(targetSnapshot, childAttack.PairApproachRadius)
+            delegatedMoveApproachRadius = childAttack.DelegatedMoveApproachRadius;
+            delegatedMove = new UnitMoveTo(targetSnapshot, delegatedMoveApproachRadius)
             {
                 CreatedByPlayer = true,
                 ShowTargetMarker = false,
@@ -638,6 +661,7 @@ namespace KingmakerMountedCombat.Integration
             {
                 throw new InvalidOperationException("Native child attack failed the bounded Mammoth-origin admission bridge.");
             }
+            ObserveNativeAdmission(childAttack.NativeAdmissionStateAtStart);
             pairDistanceAtAttackStart = childAttack.PairDistanceAtNativeStart;
             riderDisplacementAtAttackStart = HorizontalDistance(riderPositionAtCommandStart, rider.Position);
             mountDisplacementAtAttackStart = HorizontalDistance(mountPositionAtCommandStart, mount.Position);
@@ -824,8 +848,14 @@ namespace KingmakerMountedCombat.Integration
                 NativeExecutorDistanceAtStart = childAttack?.NativeExecutorDistanceAtStart ?? 0f,
                 NativeAdmissionRadiusAtStart = childAttack?.NativeAdmissionRadiusAtStart ?? 0f,
                 NativeAdmissionAdjusted = childAttack != null && childAttack.NativeAdmissionAdjustedAtStart,
+                InitialNativeAdmissionState = initialNativeAdmissionState.ToString(),
+                NativeAdmissionStateAtStart = childAttack?.NativeAdmissionStateAtStart.ToString(),
+                NativeDistanceSatisfiedAtStart = childAttack != null &&
+                    childAttack.NativeDistanceSatisfiedAtStart,
+                NativeLineOfSightRecoveryObserved = nativeLineOfSightRecoveryObserved,
                 ApproachRequiredAtStart = approachRequiredAtStart,
                 DelegatedMoveStartCount = delegatedMoveStartCount,
+                DelegatedMoveApproachRadius = delegatedMoveApproachRadius,
                 DelegatedMoveTickCount = delegatedMoveTickCount,
                 DelegatedMoveExecutorId = delegatedMoveExecutorId,
                 DelegatedMoveExecutorIsExactMount = delegatedMoveExecutorIsExactMount,
@@ -859,6 +889,12 @@ namespace KingmakerMountedCombat.Integration
                 AttackAnimationFinished = horsePrimaryAnimationHandle != null && horsePrimaryAnimationHandle.IsFinished,
                 AttackAnimationInterrupted = horsePrimaryAnimationHandle != null && horsePrimaryAnimationHandle.IsInterrupted
             });
+        }
+
+        private void ObserveNativeAdmission(MountedPairNativeAdmissionState state)
+        {
+            nativeLineOfSightRecoveryObserved |=
+                state == MountedPairNativeAdmissionState.BlockedLineOfSight;
         }
 
         private static string DescribeOptionalRangedState(object weapon, params string[] terms)

@@ -5639,6 +5639,10 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
         $rtDismountCompletion = $artifact.observations.rtCombatDismountCompletion
         $unmountedMelee = $rowMap['unmounted-stock-attack-control'].evidence
         $unmountedRanged = $rowMap['unmounted-ranged-control'].evidence
+        $unmountedAiAtAcquisition = $artifact.observations.unmountedHorseAiIsolation
+        $unmountedAiAtCleanup = $artifact.observations.cleanup.unmountedHorseAiIsolation
+        $unmountedAiAcquisitionStates = @($unmountedAiAtAcquisition.states)
+        $unmountedAiCleanupStates = @($unmountedAiAtCleanup.states)
         $riderPrimaryNativeMoveSuccess = $riderPrimary.outcome.delegatedMoveFinishedSuccessfully -eq $true
         $riderPrimaryLegalRangeStop = $riderPrimary.outcome.delegatedMoveStoppedAtLegalRange -eq $true
         $riderPrimaryApproachTerminalValid =
@@ -5746,6 +5750,8 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
             [string]$ranged.outcome.targetId -cne [string]$ranged.admissionReadiness.targetId -or
             $ranged.outcome.nativeAttackRuleObserved -ne $true -or
             $ranged.outcome.attackWeaponIsRanged -ne $true -or
+            [string]$ranged.outcome.nativeAdmissionStateAtStart -cne 'Admitted' -or
+            $ranged.outcome.nativeDistanceSatisfiedAtStart -ne $true -or
             [long]$ranged.rules.riderAttackRules -lt 2L -or
             [long]$ranged.rules.riderAttackRules -ne [long]$ranged.riderDispatchDelta -or
             [long]$ranged.rules.mountAttackRules -ne 0L -or
@@ -5973,8 +5979,22 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
             [string]$tbToRt.relationshipState -cne 'Mounted' -or
             [long]$unmountedMelee.nativeRequestDelta -ne 0L -or [long]$unmountedMelee.intentStartDelta -ne 0L -or
             [string]$unmountedMelee.relationshipState -cne 'Unmounted' -or
+            $unmountedMelee.previousTargetCleanupPassed -ne $true -or
+            [string]::IsNullOrWhiteSpace([string]$unmountedMelee.previousTargetId) -or
+            [string]::IsNullOrWhiteSpace([string]$unmountedMelee.isolatedTargetId) -or
+            [string]$unmountedMelee.previousTargetId -ceq [string]$unmountedMelee.isolatedTargetId -or
+            [long]$unmountedMelee.rules.riderNonOpportunityAttackRules -lt 1L -or
+            [long]$unmountedMelee.rules.riderOpportunityAttackRules -ne 0L -or
+            [long]$unmountedMelee.rules.mountAttackRules -ne 0L -or
+            $unmountedMelee.horseAiIsolation.acquired -ne $true -or
+            $unmountedMelee.horseAiIsolation.activeValidationPassed -ne $true -or
             [long]$unmountedRanged.nativeRequestDelta -ne 0L -or [long]$unmountedRanged.intentStartDelta -ne 0L -or
             [string]$unmountedRanged.weaponCategory -cne 'Sling' -or
+            [long]$unmountedRanged.rules.riderNonOpportunityAttackRules -lt 1L -or
+            [long]$unmountedRanged.rules.riderOpportunityAttackRules -ne 0L -or
+            [long]$unmountedRanged.rules.mountAttackRules -ne 0L -or
+            $unmountedRanged.horseAiIsolation.acquired -ne $true -or
+            $unmountedRanged.horseAiIsolation.activeValidationPassed -ne $true -or
             $unmountedRanged.admissionReadiness.ready -ne $true -or
             [string]$unmountedRanged.admissionReadiness.relationshipState -cne 'Unmounted' -or
             $unmountedRanged.admissionReadiness.modeRealTime -ne $true -or
@@ -5986,6 +6006,8 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
             $unmountedRanged.admissionReadiness.combatMemoryReady -ne $true -or
             $unmountedRanged.admissionReadiness.riderStandardReady -ne $true -or
             $unmountedRanged.admissionReadiness.riderCommandsIdle -ne $true -or
+            $unmountedRanged.admissionReadiness.horseAiIsolated -ne $true -or
+            $unmountedRanged.admissionReadiness.horseCommandsIdle -ne $true -or
             $unmountedRanged.admissionReadiness.targetCommandsIdle -ne $true -or
             $unmountedRanged.admissionReadiness.riderHandsIdle -ne $true -or
             $unmountedRanged.admissionReadiness.targetHandsIdle -ne $true -or
@@ -5999,8 +6021,32 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
             $unmountedRanged.input.command.contained -ne $true -or
             $unmountedRanged.input.command.inStandardSlot -ne $true -or
             $unmountedRanged.input.command.queued -ne $false -or
-            [string]$unmountedRanged.relationshipState -cne 'Unmounted') {
-            throw 'PASS Phase 3D RT evidence does not prove one admitted persistent melee/ranged intent with exact dispatch cardinality.'
+            [string]$unmountedRanged.relationshipState -cne 'Unmounted' -or
+            $null -eq $unmountedAiAtAcquisition -or $unmountedAiAtAcquisition.present -ne $true -or
+            $unmountedAiAtAcquisition.acquired -ne $true -or
+            $unmountedAiAtAcquisition.activeValidationPassed -ne $true -or
+            $unmountedAiAtAcquisition.restoreVerified -ne $false -or
+            $unmountedAiAtAcquisition.restored -ne $false -or
+            [long]$unmountedAiAtAcquisition.stableFrames -lt 2L -or
+            $null -ne $unmountedAiAtAcquisition.error -or
+            $unmountedAiAcquisitionStates.Count -ne 1 -or
+            [string]$unmountedAiAcquisitionStates[0].unitId -cne [string]$artifact.observations.horseId -or
+            $unmountedAiAcquisitionStates[0].commandsEmptyBefore -ne $true -or
+            $unmountedAiAcquisitionStates[0].commandsEmptyDuring -ne $true -or
+            $unmountedAiAcquisitionStates[0].rawAiDuring -ne $false -or
+            $unmountedAiAcquisitionStates[0].effectiveAiDuring -ne $false -or
+            $artifact.observations.cleanup.unmountedHorseAiLeaseRestored -ne $true -or
+            $null -eq $unmountedAiAtCleanup -or $unmountedAiAtCleanup.present -ne $true -or
+            $unmountedAiAtCleanup.acquired -ne $false -or
+            $unmountedAiAtCleanup.restoreVerified -ne $true -or
+            $unmountedAiAtCleanup.restored -ne $true -or
+            $null -ne $unmountedAiAtCleanup.error -or
+            $unmountedAiCleanupStates.Count -ne 1 -or
+            [string]$unmountedAiCleanupStates[0].unitId -cne [string]$artifact.observations.horseId -or
+            $unmountedAiCleanupStates[0].commandsEmptyAfter -ne $true -or
+            $unmountedAiCleanupStates[0].rawAiAfter -ne $unmountedAiCleanupStates[0].rawAiBefore -or
+            $unmountedAiCleanupStates[0].effectiveAiAfter -ne $unmountedAiCleanupStates[0].effectiveAiBefore) {
+            throw 'PASS Phase 3D RT evidence does not prove isolated unmounted stock controls, exact non-AoO rider rule ownership, or reversible Horse AI suppression.'
         }
     }
     elseif ([string]$artifact.status -ceq 'PASS' -and [string]$Request.scenario -ceq 'phase3d-unified-combat-tb-suite') {

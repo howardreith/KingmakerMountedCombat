@@ -1,5 +1,27 @@
 # Autonomous blockers
 
+## Dev.16 offline gate is green; clean package runtime proof remains (2026-09-02T17:20:34-04:00)
+
+Status: `IN PROGRESS`. There is no current code-build, contract, parser, external-state, or publication blocker. The fresh package/runtime gate has not yet run, so no dev.16 gameplay PASS is claimed.
+
+The one authorized direct-LoS repair is implemented. Exact native admission, not cached visibility, owns child start; only the Horse moves, toward a collision-safe endpoint, and the wrapper stops that move at the first native distance+LoS admission. The separate unmounted-control attribution repair is diagnostic-only and must restore the exact Horse AI state. All pre-commit gates pass at source/component/visual/harness/assembly `22/298/18/237/382`, plus Release, PowerShell/JSON parsers `26/0` / `7/0`, diff, and prohibited-payload validation.
+
+Remaining uncertainty is runtime-only: whether Kingmaker's direct geometry gate admits during the bounded Horse move and whether the isolated stock controls complete without Horse or AoO contamination. If the same exact direct-LoS recovery fails again, record an architecture disposition and retain the accepted fallback; do not add a global LoS override, teleport, unlimited repath, or another controller patch.
+
+## Dev.15 closes legal-range movement; one direct-LoS recovery and diagnostic isolation repair is active (2026-09-02T16:51:24-04:00)
+
+Status: `IN PROGRESS`. External state is exact-restored. No Rider Primary dismount, legal-range movement-terminal, combat-Dismount, shared-initiative, melee-routing, or broad ranged architecture blocker is active.
+
+Clean guarded-published dev.15 is `2f3a170f07e31b8e11e8b597c641bb05538bde03`; its full offline/package gates and separate RT/TB/presentation WhatIf paths passed. RT A `20260902T191700Z-phase3d-dev15-rt-passA` is immutable uncredited `FAIL` (`26/6` outer, `70/10` assertions). Mandatory postrun audit `20260902T194600Z-phase3d-dev15-rt-passA-postrun-audit` passed before inspection and all external transactions are restored.
+
+Dev.15's exact movement repair succeeded. The first Rider Primary stopped only its unfinished Horse Move after positive physical progress at the proven child range boundary, restored the exact raw slot/queue, completed one rider attack, retained `Mounted`, and emitted no cleanup/end lifecycle event. The later post-transition Rider Primary passed as well. This closes the dev.14 legal-range terminal mismatch and forbids another repair to that seam.
+
+One newly exposed product seam remains. The first long-range Shortbow shot completed, but the second dispatch saw pair/rider distances `8.92802048m` / `8.455866m` inside radius `13.7920008m` and still failed exact native admission. The prior pair gate had just passed cached `rider.HasLOS(target)`. Installed `UnitCommand.IsUnitEnoughClose` token `0x06002784` can therefore be false only at its direct `LineOfSightGeometry.HasObstacle` clause. Dev.16 uses that direct native predicate for attack readiness and, when in range but blocked, routes only a narrower recovery move through the Horse until the same predicate passes. It never disables `NeedLoS`, changes cover/concealment, or globally patches attack admission.
+
+The final failure is diagnostic interference, not evidence of broken stock unmounted ranged behavior. After Dismount the Horse's restored AI started a native full attack; two Horse rules and one rider AoO were observed before the scenario interrupted the rider command, and the reused target/combat lease later became invalid. Dev.16 holds only that exact former mount under a reversible diagnostic AI lease after Dismount, waits for a rider non-AoO stock rule, and proves exact AI restoration. If the isolated stock unmounted attack/ranged control still fails, preserve the result and disposition it; do not alter production unmounted combat.
+
+Fresh clean-package RT evidence is mandatory. A repeated direct-LoS recovery failure after this one bounded repair is an architecture disposition, not authority for a global LoS override, teleport, target mutation, unlimited repath, or another attack-controller layer. Paladin Divine Steed remains unauthorized.
+
 ## Dev.14 proves combat Dismount; dev.15 is the bounded legal-range terminal repair (2026-09-02T13:36:48-04:00)
 
 Status: `IN PROGRESS`. No external-state, combat-Dismount, Rider Primary relationship, stock-input, ranged, shared-initiative, or broad pathing blocker is active.
