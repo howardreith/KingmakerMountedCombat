@@ -32,6 +32,8 @@ Audited RT run `20260902T102000Z-phase3d-dev13-rt-passA` passed every reached Ph
 
 The root cause was pair-local double gating: the delivery handler repeated the Move-resource condition after its exact native shell had already committed that resource. Dev.14 implements the admitted-shell context above, adds direct pre/post cooldown, shell-slot, activation, relationship, intent, and command evidence, and requires exactly one accepted relationship-ending delivery with rider Move cooldown `2.5..3.01` and no residual mounted command. Offline regression and protocol gates pass; fresh clean-package RT/TB evidence remains required.
 
+Audited dev.14 RT A `20260902T153000Z-phase3d-dev14-rt-passA` proves this repair at its exercised boundary inside an otherwise failed aggregate. One native Dismount shell produced one accepted delivery, exact manual `Mounted -> Unmounted`, rider Move cooldown `2.97256064`, no action refresh, and no residual pair command/intent. The diagnostic initially reported `inMoveSlot=false` because `UnitCommands.Move` is a typed `UnitMoveTo` view and cannot return a Move-slot `UnitUseAbility`. Exact installed `UnitCommands.GetCommand(CommandType.Move)` returns the raw slot; dev.15 corrects that observation and retains the strict Move-slot requirement. No additional Dismount production change is authorized by dev.14.
+
 ## Exact Wrath reference disposition
 
 Exact local Wrath `ContextActionMount` and `ContextActionDismount` perform relationship mutation, while cost is carried by the enclosing ability/command surface. Phase 3D follows that separation but uses the conservative user-authorized rider Move cost rather than importing a Wrath blueprint or asset.

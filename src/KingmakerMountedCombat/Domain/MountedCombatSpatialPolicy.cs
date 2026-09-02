@@ -179,6 +179,8 @@ namespace KingmakerMountedCombat.Domain
             bool mountMoveSlotUnreplacedThroughoutApproach,
             bool mountQueueEmptyThroughoutApproach,
             bool delegatedMoveFinishedSuccessfully,
+            bool delegatedMoveStoppedAtLegalRange,
+            float delegatedMovePairDistanceAtLegalRangeStop,
             bool mountMoveSlotRestoredAfterApproach,
             bool delegatedMoveDrivenByStockController,
             bool delegatedMoveDrivenByRiderTurnAdapter,
@@ -208,6 +210,8 @@ namespace KingmakerMountedCombat.Domain
             MountMoveSlotUnreplacedThroughoutApproach = mountMoveSlotUnreplacedThroughoutApproach;
             MountQueueEmptyThroughoutApproach = mountQueueEmptyThroughoutApproach;
             DelegatedMoveFinishedSuccessfully = delegatedMoveFinishedSuccessfully;
+            DelegatedMoveStoppedAtLegalRange = delegatedMoveStoppedAtLegalRange;
+            DelegatedMovePairDistanceAtLegalRangeStop = delegatedMovePairDistanceAtLegalRangeStop;
             MountMoveSlotRestoredAfterApproach = mountMoveSlotRestoredAfterApproach;
             DelegatedMoveDrivenByStockController = delegatedMoveDrivenByStockController;
             DelegatedMoveDrivenByRiderTurnAdapter = delegatedMoveDrivenByRiderTurnAdapter;
@@ -238,6 +242,8 @@ namespace KingmakerMountedCombat.Domain
         public bool MountMoveSlotUnreplacedThroughoutApproach { get; }
         public bool MountQueueEmptyThroughoutApproach { get; }
         public bool DelegatedMoveFinishedSuccessfully { get; }
+        public bool DelegatedMoveStoppedAtLegalRange { get; }
+        public float DelegatedMovePairDistanceAtLegalRangeStop { get; }
         public bool MountMoveSlotRestoredAfterApproach { get; }
         public bool DelegatedMoveDrivenByStockController { get; }
         public bool DelegatedMoveDrivenByRiderTurnAdapter { get; }
@@ -273,7 +279,19 @@ namespace KingmakerMountedCombat.Domain
                 AddFailure(failures, DelegatedMoveOwnedByMountMoveSlot, "mount-move-slot-owned");
                 AddFailure(failures, MountMoveSlotUnreplacedThroughoutApproach, "mount-move-slot-unreplaced");
                 AddFailure(failures, MountQueueEmptyThroughoutApproach, "mount-command-queue-empty");
-                AddFailure(failures, DelegatedMoveFinishedSuccessfully, "delegated-move-finished-successfully");
+                AddFailure(
+                    failures,
+                    DelegatedMoveFinishedSuccessfully != DelegatedMoveStoppedAtLegalRange,
+                    "delegated-move-terminal-boundary-exact");
+                AddFailure(
+                    failures,
+                    DelegatedMoveStoppedAtLegalRange
+                        ?
+                        DelegatedMovePairDistanceAtLegalRangeStop >= 0f &&
+                        DelegatedMovePairDistanceAtLegalRangeStop <=
+                            PairApproachRadius + MountedCombatSpatialPolicy.RangeTolerance
+                        : DelegatedMovePairDistanceAtLegalRangeStop == 0f,
+                    "legal-range-stop-inside-range");
                 AddFailure(failures, MountMoveSlotRestoredAfterApproach, "mount-move-slot-restored");
                 AddFailure(failures,
                     TurnBasedApproach

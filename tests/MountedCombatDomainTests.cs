@@ -26,6 +26,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("mounted combat diagnostic placement refreshes exact Mammoth actor drift", DiagnosticPlacementRefreshesObservedMammothDrift);
             runner.Run("mounted combat approach placement starts outside exact pair range", DiagnosticApproachPlacementStartsOutsideRange);
             runner.Run("mounted combat approach evidence preserves mount-only pathfinding", ApproachEvidencePreservesMountAuthority);
+            runner.Run("mounted combat approach may stop its exact move only at legal attack range", ApproachEvidenceAdmitsOnlyLegalRangeStop);
             runner.Run("mounted combat approach raw Move slot preserves the exact finished command boundary", ApproachRawMoveSlotPreservesFinishedBoundary);
             runner.Run("mounted combat delegated point movement leaves LoS to the native child attack", DelegatedPointMoveLeavesLineOfSightToChildAttack);
             runner.Run("mounted combat approach rejects an empty Mammoth command controller", ApproachEvidenceRejectsEmptyMountCommandController);
@@ -380,14 +381,14 @@ namespace KingmakerMountedCombat.Tests
         {
             var snapshot = new MountedCombatApproachSnapshot(
                 true, 2, 1, false, false, false,
-                false, false, false, false, false, false, true, false, 0,
+                false, false, false, false, false, 0f, false, false, true, false, 0,
                 false, false, false, 0, false, false,
                 2.37f, 2.42f, 2.43f, 0.1f, 0.2f, 0.051f, 1);
             TestRunner.True(!snapshot.AllPassed, "An unsafe approach evidence snapshot passed.");
             TestRunner.Equal(
                 "one-delegated-move,delegated-move-drive-mode,delegated-move-executor-is-mount," +
                 "wrapper-command-retained,delegated-move-not-queued,mount-move-slot-owned," +
-                "mount-move-slot-unreplaced,mount-command-queue-empty,delegated-move-finished-successfully," +
+                "mount-move-slot-unreplaced,mount-command-queue-empty,delegated-move-terminal-boundary-exact," +
                 "mount-move-slot-restored,delegated-move-controller-exact,delegated-move-progress-observed," +
                 "rider-stock-agent-suppressed," +
                 "mount-stock-agent-authoritative,pose-healthy-throughout,runtime-approach-observed," +
@@ -396,6 +397,28 @@ namespace KingmakerMountedCombat.Tests
                 "no-unexpected-repath",
                 snapshot.FailureSummary,
                 "Unsafe approach gates were not reported in exact order.");
+        }
+
+        private static void ApproachEvidenceAdmitsOnlyLegalRangeStop()
+        {
+            var stoppedAtRange = PassingApproachSnapshot(false, true, 2.36f);
+            TestRunner.True(stoppedAtRange.AllPassed,
+                "An exact delegated move stopped inside legal attack range was rejected.");
+
+            var stoppedOutsideRange = PassingApproachSnapshot(false, true, 2.421f);
+            TestRunner.True(!stoppedOutsideRange.AllPassed &&
+                    Array.IndexOf(stoppedOutsideRange.FailedGateNames, "legal-range-stop-inside-range") >= 0,
+                "A delegated move stopped outside legal attack range was accepted.");
+
+            var duplicateTerminal = PassingApproachSnapshot(true, true, 2.36f);
+            TestRunner.True(!duplicateTerminal.AllPassed &&
+                    Array.IndexOf(duplicateTerminal.FailedGateNames, "delegated-move-terminal-boundary-exact") >= 0,
+                "A delegated move claimed both native success and a KMC legal-range stop.");
+
+            var nativeSuccessWithStopResidue = PassingApproachSnapshot(true, false, 2.36f);
+            TestRunner.True(!nativeSuccessWithStopResidue.AllPassed &&
+                    Array.IndexOf(nativeSuccessWithStopResidue.FailedGateNames, "legal-range-stop-inside-range") >= 0,
+                "A native-success delegated move retained false legal-range stop distance evidence.");
         }
 
         private static void ApproachRawMoveSlotPreservesFinishedBoundary()
@@ -431,6 +454,8 @@ namespace KingmakerMountedCombat.Tests
                 snapshot.MountMoveSlotUnreplacedThroughoutApproach,
                 snapshot.MountQueueEmptyThroughoutApproach,
                 snapshot.DelegatedMoveFinishedSuccessfully,
+                snapshot.DelegatedMoveStoppedAtLegalRange,
+                snapshot.DelegatedMovePairDistanceAtLegalRangeStop,
                 snapshot.MountMoveSlotRestoredAfterApproach,
                 snapshot.DelegatedMoveDrivenByStockController,
                 snapshot.DelegatedMoveDrivenByRiderTurnAdapter,
@@ -462,11 +487,15 @@ namespace KingmakerMountedCombat.Tests
                 "A delegated point move still required LoS and can deadlock on the hostile target blocker.");
         }
 
-        private static MountedCombatApproachSnapshot PassingApproachSnapshot()
+        private static MountedCombatApproachSnapshot PassingApproachSnapshot(
+            bool finishedSuccessfully = true,
+            bool stoppedAtLegalRange = false,
+            float legalRangeStopDistance = 0f)
         {
             return new MountedCombatApproachSnapshot(
                 true, 1, 0, true, true, true,
-                true, true, true, true, true, true, false, false, 8,
+                true, true, true, finishedSuccessfully, stoppedAtLegalRange,
+                legalRangeStopDistance, true, true, false, false, 8,
                 true, true, true, 10, true, true,
                 2.37f, 4.37f, 2.36f, 2.0f, 2.0f, 0.0f, 0);
         }

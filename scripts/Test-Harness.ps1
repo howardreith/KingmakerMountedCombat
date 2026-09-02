@@ -1169,7 +1169,7 @@ function New-TestCombatEvidenceRecord {
     $actorRole = if ($isMammoth) { 'mount' } else { 'rider' }
     $action = if ($isMammoth) { 'MountPrimaryNatural' } else { 'RiderMelee' }
     $record = [ordered]@{
-        schemaVersion=$(if ($isHumanPlay) { if ($isTurnBased) { 52 } else { 48 } } elseif ($isCombatEnd) { if ($isTurnBased) { 41 } else { 40 } } elseif ($isTermination) { if ($isTurnBased) { 39 } else { 38 } } elseif ($isMovementToAttack) { if ($isTurnBased) { 35 } else { 34 } } elseif ($isReach) { if ($isTurnBased) { 43 } else { 42 } } elseif ($isTurnBased) { 27 } else { 26 });artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
+        schemaVersion=$(if ($isHumanPlay) { if ($isTurnBased) { 52 } else { 48 } } elseif ($isCombatEnd) { if ($isTurnBased) { 41 } else { 40 } } elseif ($isTermination) { if ($isTurnBased) { 39 } else { 38 } } elseif ($isMovementToAttack) { if ($isTurnBased) { 54 } else { 53 } } elseif ($isReach) { if ($isTurnBased) { 43 } else { 42 } } elseif ($isTurnBased) { 27 } else { 26 });artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
         scenario=[string]$Request.scenario;row=[string]$Request.scenario;rowIndex=0;sequence=0;frame=30
         utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o');branch=[string]$Request.branch
         commit=[string]$Request.commit;productVersion=[string]$Request.productVersion
@@ -1361,6 +1361,11 @@ function New-TestCombatEvidenceRecord {
             initialPairDistance=6.0;pairDistanceAtAttackStart=$(if ($isTermination) { 0.0 } else { 3.9 })
             riderDisplacementAtAttackStart=$(if ($isTermination) { 0.0 } else { 2.0 });mountDisplacementAtAttackStart=$(if ($isTermination) { 0.0 } else { 2.0 })
             targetDisplacementAtAttackStart=0.0
+        }
+        if ($isMovementToAttack) {
+            $record.movementToAttack['delegatedMoveStoppedAtLegalRange'] = $false
+            $record.movementToAttack['delegatedMoveResultBeforeLegalRangeStop'] = '<not-stopped>'
+            $record.movementToAttack['delegatedMovePairDistanceAtLegalRangeStop'] = 0.0
         }
     }
     if ($isTermination) {
@@ -1689,6 +1694,15 @@ function Remove-TestCombatActionActorReadinessFields {
             'actionActorId','actionActorPrepared','actionActorCanActInCombat','actionActorInitiative')) {
             $Record.combatEntry.PSObject.Properties.Remove($name)
         }
+    }
+}
+
+function Remove-TestCombatLegalRangeStopFields {
+    param([Parameter(Mandatory=$true)]$Record)
+    foreach ($name in @(
+        'delegatedMoveStoppedAtLegalRange','delegatedMoveResultBeforeLegalRangeStop',
+        'delegatedMovePairDistanceAtLegalRangeStop')) {
+        $Record.movementToAttack.PSObject.Properties.Remove($name)
     }
 }
 
@@ -5209,7 +5223,7 @@ try {
             $engineSource.Contains('? (IsTurnBasedRow ? 41 : 40)') -and
             $engineSource.Contains(': (IsTurnBasedRow ? 39 : 38)') -and
             $engineSource.Contains(': IsMovementToAttackRow') -and
-            $engineSource.Contains('? (IsTurnBasedRow ? 35 : 34)') -and
+            $engineSource.Contains('? (IsTurnBasedRow ? 54 : 53)') -and
             $engineSource.Contains(': (IsTurnBasedRow ? 27 : 26)') -and
             $engineSource.Contains('Mode = IsTurnBasedRow ? "turn-based" : "real-time"') -and
             $engineSource.Contains('TurnBased = IsTurnBasedRow') -and
@@ -5282,10 +5296,15 @@ try {
             $commandSource.Contains('mount.Commands.Queue.Count == 0') -and
             $commandSource.Contains('commands.RemoveFinishedAndUpdateQueue();') -and
             -not $commandSource.Contains('mount.Commands.InterruptMove()') -and
+            $commandSource.Contains('delegatedMoveStoppedAtLegalRange = true;') -and
+            $commandSource.Contains('GeometryUtils.MechanicsDistance(mount.Position, attackTarget.Position)') -and
+            $commandSource.Contains('StopDelegatedMove(false);') -and
+            $commandSource.Contains('DelegatedMoveResultBeforeLegalRangeStop') -and
             $commandSource.Contains('WrapperCommandRetainedThroughoutApproach = wrapperCommandRetainedThroughoutApproach') -and
             $engineSource.Contains('MountedCombatApproachSnapshot(') -and
             $engineSource.Contains('MovementToAttack = IsApproachRow') -and
             $combatValidatorSource.Contains("'requestedTargetDistance','approachRequiredAtStart','delegatedMoveStartCount'") -and
+            $combatValidatorSource.Contains("'delegatedMoveStoppedAtLegalRange','delegatedMoveResultBeforeLegalRangeStop'") -and
             $combatValidatorSource.Contains('one retained rider wrapper and one manually driven Mammoth approach')) 'schema-v26-v29 combat evidence does not bind actor-specific readiness, command/resource ownership, movement-to-attack continuity, retained exact weapon identity, target durability and brain lease, native IsHit, target and AI isolation, turn identity, cleanup, and restoration'
         Assert-Test ($targetSource.Contains('DiagnosticDurabilityTemporaryHitPoints = 128') -and
             $targetSource.Contains('temporaryHitPoints.AddModifier(') -and
@@ -5938,6 +5957,15 @@ try {
     }
 
     Invoke-HarnessTest 'movement-to-attack validator rejects mover command resource range and continuity mutations' {
+        $legalRangeStop = Copy-TestJsonValue $moveAttackTurnRecord
+        $legalRangeStop.movementToAttack.delegatedMoveFinishedSuccessfully = $false
+        $legalRangeStop.movementToAttack.delegatedMoveStoppedAtLegalRange = $true
+        $legalRangeStop.movementToAttack.delegatedMoveResultBeforeLegalRangeStop = 'None'
+        $legalRangeStop.movementToAttack.delegatedMovePairDistanceAtLegalRangeStop = 3.9
+        [void](Write-TestCombatEvidence -EvidenceRoot $moveAttackTurnRequest.evidenceRoot -Request $moveAttackTurnRequest -Record $legalRangeStop)
+        $legalRangeStopManifest = Read-KmcJson (Join-Path $moveAttackTurnRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $moveAttackTurnRequest -Manifest $legalRangeStopManifest -Status 'PASS' -SubscenarioResults @($moveAttackTurnSubresult)
+
         $mutations = @(
             @{name='missing movement evidence';apply={param($value) $value.PSObject.Properties.Remove('movementToAttack')}},
             @{name='approach not required';apply={param($value) $value.movementToAttack.approachRequiredAtStart=$false}},
@@ -5950,6 +5978,10 @@ try {
             @{name='Mammoth Move slot replaced';apply={param($value) $value.movementToAttack.mountMoveSlotUnreplacedThroughoutApproach=$false}},
             @{name='Mammoth command queue changed';apply={param($value) $value.movementToAttack.mountQueueEmptyThroughoutApproach=$false}},
             @{name='delegated move did not finish';apply={param($value) $value.movementToAttack.delegatedMoveFinishedSuccessfully=$false}},
+            @{name='delegated move reports duplicate terminal boundary';apply={param($value) $value.movementToAttack.delegatedMoveStoppedAtLegalRange=$true;$value.movementToAttack.delegatedMoveResultBeforeLegalRangeStop='None';$value.movementToAttack.delegatedMovePairDistanceAtLegalRangeStop=3.9}},
+            @{name='legal range stop has wrong native result';apply={param($value) $value.movementToAttack.delegatedMoveFinishedSuccessfully=$false;$value.movementToAttack.delegatedMoveStoppedAtLegalRange=$true;$value.movementToAttack.delegatedMoveResultBeforeLegalRangeStop='Interrupt';$value.movementToAttack.delegatedMovePairDistanceAtLegalRangeStop=3.9}},
+            @{name='legal range stop is outside pair radius';apply={param($value) $value.movementToAttack.delegatedMoveFinishedSuccessfully=$false;$value.movementToAttack.delegatedMoveStoppedAtLegalRange=$true;$value.movementToAttack.delegatedMoveResultBeforeLegalRangeStop='None';$value.movementToAttack.delegatedMovePairDistanceAtLegalRangeStop=4.051}},
+            @{name='native success has legal stop residue';apply={param($value) $value.movementToAttack.delegatedMoveResultBeforeLegalRangeStop='None'}},
             @{name='Mammoth Move slot not restored';apply={param($value) $value.movementToAttack.mountMoveSlotRestoredAfterApproach=$false}},
             @{name='wrong turn drive mode';apply={param($value) $value.movementToAttack.delegatedMoveDrivenByStockController=$true}},
             @{name='no observed movement progress';apply={param($value) $value.movementToAttack.delegatedMoveProgressObservationCount=0}},
@@ -5982,6 +6014,7 @@ try {
     Invoke-HarnessTest 'historical schema-v32 and schema-v33 movement evidence remains valid without the later durability lease' {
         $legacyMove32 = Copy-TestJsonValue $moveAttackRecord
         $legacyMove32.schemaVersion = 32
+        Remove-TestCombatLegalRangeStopFields $legacyMove32
         $legacyMove32.targetProvisioning.temporaryHitPointsAfterProvisioning = 0
         $legacyMove32.targetProvisioning.durabilityLeaseAmount = 0
         $legacyMove32.targetProvisioning.durabilityLeaseAcquired = $false
@@ -5991,6 +6024,7 @@ try {
 
         $legacyMove33 = Copy-TestJsonValue $moveAttackTurnRecord
         $legacyMove33.schemaVersion = 33
+        Remove-TestCombatLegalRangeStopFields $legacyMove33
         $legacyMove33.targetProvisioning.temporaryHitPointsAfterProvisioning = 0
         $legacyMove33.targetProvisioning.durabilityLeaseAmount = 0
         $legacyMove33.targetProvisioning.durabilityLeaseAcquired = $false
@@ -6002,6 +6036,7 @@ try {
     Invoke-HarnessTest 'historical schema-v28 through schema-v31 movement evidence shapes remain valid' {
         $legacyMove30 = Copy-TestJsonValue $moveAttackRecord
         $legacyMove30.schemaVersion = 30
+        Remove-TestCombatLegalRangeStopFields $legacyMove30
         $legacyMove30.targetProvisioning.temporaryHitPointsAfterProvisioning = 0
         $legacyMove30.targetProvisioning.durabilityLeaseAmount = 0
         $legacyMove30.targetProvisioning.durabilityLeaseAcquired = $false
@@ -6011,6 +6046,7 @@ try {
 
         $legacyMove31 = Copy-TestJsonValue $moveAttackTurnRecord
         $legacyMove31.schemaVersion = 31
+        Remove-TestCombatLegalRangeStopFields $legacyMove31
         $legacyMove31.targetProvisioning.temporaryHitPointsAfterProvisioning = 0
         $legacyMove31.targetProvisioning.durabilityLeaseAmount = 0
         $legacyMove31.targetProvisioning.durabilityLeaseAcquired = $false
@@ -6020,6 +6056,7 @@ try {
 
         $legacyMove28 = Copy-TestJsonValue $moveAttackRecord
         $legacyMove28.schemaVersion = 28
+        Remove-TestCombatLegalRangeStopFields $legacyMove28
         $legacyMove28.targetProvisioning.temporaryHitPointsAfterProvisioning = 0
         $legacyMove28.targetProvisioning.durabilityLeaseAmount = 0
         $legacyMove28.targetProvisioning.durabilityLeaseAcquired = $false
@@ -6037,6 +6074,7 @@ try {
 
         $legacyMove29 = Copy-TestJsonValue $moveAttackTurnRecord
         $legacyMove29.schemaVersion = 29
+        Remove-TestCombatLegalRangeStopFields $legacyMove29
         $legacyMove29.targetProvisioning.temporaryHitPointsAfterProvisioning = 0
         $legacyMove29.targetProvisioning.durabilityLeaseAmount = 0
         $legacyMove29.targetProvisioning.durabilityLeaseAcquired = $false
@@ -9891,7 +9929,12 @@ try {
             }
             elseif ($phase3dScenario -ceq 'phase3d-unified-combat-rt-suite') {
                 $primaryEvidence = [ordered]@{
-                    outcome=[ordered]@{action=1;resourceOwnerId='rider';actionStandardCharged=$true}
+                    outcome=[ordered]@{
+                        action=1;resourceOwnerId='rider';actionStandardCharged=$true
+                        delegatedMoveFinishedSuccessfully=$true;delegatedMoveStoppedAtLegalRange=$false
+                        delegatedMoveResultBeforeLegalRangeStop=$null
+                        delegatedMovePairDistanceAtLegalRangeStop=0.0;pairApproachRadiusAtStart=2.2
+                    }
                     activations=@([ordered]@{relationshipEnded=$false;cleanupTrigger=$null})
                     horseMovementDistance=2.5
                     rules=[ordered]@{riderAttackRules=1;mountAttackRules=0}
@@ -10101,7 +10144,22 @@ try {
                     nativeRequestDelta=0;intentStartDelta=0;relationshipState='Unmounted'
                 }
                 $rowByName['unmounted-ranged-control'].evidence = [ordered]@{
-                    nativeRequestDelta=0;intentStartDelta=0;weaponCategory='Sling';relationshipState='Unmounted'
+                    nativeRequestDelta=0;intentStartDelta=0;weaponCategory='Sling';targetId='sling-target'
+                    relationshipState='Unmounted'
+                    admissionReadiness=[ordered]@{
+                        ready=$true;relationshipState='Unmounted';modeRealTime=$true;gameUnpaused=$true
+                        riderSelected=$true;weaponLeaseReady=$true;weaponCategory='Sling';targetReady=$true
+                        combatMemoryReady=$true;riderStandardReady=$true;riderCommandsIdle=$true
+                        targetCommandsIdle=$true;riderHandsIdle=$true;targetHandsIdle=$true
+                        equipmentControllerReady=$true;riderEquipmentIdle=$true
+                    }
+                    input=[ordered]@{
+                        clicked=$true;expectedDispatchStarted=$true
+                        command=[ordered]@{
+                            present=$true;executorId='rider';targetId='sling-target';contained=$true
+                            inStandardSlot=$true;queued=$false
+                        }
+                    }
                 }
             }
             else {
@@ -10262,6 +10320,43 @@ try {
                 } 'Phase 3D RT validator accepted a Rider Primary click without exact native CanActInCombat admission.'
 
                 $rowByName['rider-primary-does-not-dismount-rt'].evidence.admissionReadiness.riderCanActInCombat = $true
+                $rowByName['rider-primary-does-not-dismount-rt'].evidence.outcome.delegatedMoveStoppedAtLegalRange = $true
+                $rowByName['rider-primary-does-not-dismount-rt'].evidence.outcome.delegatedMoveResultBeforeLegalRangeStop = 'None'
+                $rowByName['rider-primary-does-not-dismount-rt'].evidence.outcome.delegatedMovePairDistanceAtLegalRangeStop = 2.0
+                Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
+                $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
+                $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
+                [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+                $phase3dManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+                Assert-TestThrows {
+                    Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
+                } 'Phase 3D RT validator accepted duplicate native-success and legal-range-stop terminal claims for Rider Primary.'
+
+                $rowByName['rider-primary-does-not-dismount-rt'].evidence.outcome.delegatedMoveStoppedAtLegalRange = $false
+                $rowByName['rider-primary-does-not-dismount-rt'].evidence.outcome.delegatedMoveResultBeforeLegalRangeStop = $null
+                $rowByName['rider-primary-does-not-dismount-rt'].evidence.outcome.delegatedMovePairDistanceAtLegalRangeStop = 0.0
+                $rowByName['unmounted-ranged-control'].evidence.admissionReadiness.ready = $false
+                Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
+                $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
+                $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
+                [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+                $phase3dManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+                Assert-TestThrows {
+                    Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
+                } 'Phase 3D RT validator accepted unmounted ranged input without a stable exact readiness boundary.'
+
+                $rowByName['unmounted-ranged-control'].evidence.admissionReadiness.ready = $true
+                $phase3dArtifact.observations.'rt-combat-dismount'.nativeShell.inMoveSlot = $false
+                Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
+                $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
+                $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
+                [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+                $phase3dManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+                Assert-TestThrows {
+                    Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
+                } 'Phase 3D RT validator accepted combat Dismount without the genuine raw native Move-slot shell.'
+
+                $phase3dArtifact.observations.'rt-combat-dismount'.nativeShell.inMoveSlot = $true
                 $phase3dArtifact.observations.rtCombatDismountCompletion.riderMoveCooldown = 0.0
                 Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
                 $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
@@ -10411,6 +10506,10 @@ try {
             $phase3dSource.Contains('IsExactRealTimePrimaryAdmissionReady(') -and
             $phase3dSource.Contains('rider.CombatState.CanActInCombat') -and
             $phase3dSource.Contains('CaptureNativeAbilityShell(lastNativeAbilityShell)') -and
+            $phase3dSource.Contains('commands.GetCommand(UnitCommand.CommandType.Move), command)') -and
+            $phase3dSource.Contains('AwaitUnmountedRangedAdmissionRt()') -and
+            $phase3dSource.Contains('CaptureUnmountedRangedReadiness()') -and
+            $phase3dSource.Contains('observations["unmountedRangedInput"]') -and
             $phase3dSource.Contains('errors.Count == 0 &&') -and
             -not $phase3dSource.Contains('Gunslinger')) `
             'Phase 3D runtime tranche lost native input admission, explicit actor isolation, exact tracker/five-foot surfaces, or cleanup-safe evidence status'

@@ -5639,6 +5639,18 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
         $rtDismountCompletion = $artifact.observations.rtCombatDismountCompletion
         $unmountedMelee = $rowMap['unmounted-stock-attack-control'].evidence
         $unmountedRanged = $rowMap['unmounted-ranged-control'].evidence
+        $riderPrimaryNativeMoveSuccess = $riderPrimary.outcome.delegatedMoveFinishedSuccessfully -eq $true
+        $riderPrimaryLegalRangeStop = $riderPrimary.outcome.delegatedMoveStoppedAtLegalRange -eq $true
+        $riderPrimaryApproachTerminalValid =
+            $riderPrimaryNativeMoveSuccess -ne $riderPrimaryLegalRangeStop -and
+            ((-not $riderPrimaryLegalRangeStop -and
+              $null -eq $riderPrimary.outcome.delegatedMoveResultBeforeLegalRangeStop -and
+              [double]$riderPrimary.outcome.delegatedMovePairDistanceAtLegalRangeStop -eq 0d) -or
+             ($riderPrimaryLegalRangeStop -and
+              [string]$riderPrimary.outcome.delegatedMoveResultBeforeLegalRangeStop -ceq 'None' -and
+              [double]$riderPrimary.outcome.delegatedMovePairDistanceAtLegalRangeStop -ge 0d -and
+              [double]$riderPrimary.outcome.delegatedMovePairDistanceAtLegalRangeStop -le
+                ([double]$riderPrimary.outcome.pairApproachRadiusAtStart + 0.05d)))
         if ($melee.previousTargetCleanupPassed -ne $true -or
             [string]::IsNullOrWhiteSpace([string]$melee.previousTargetId) -or
             [string]::IsNullOrWhiteSpace([string]$melee.isolatedTargetId) -or
@@ -5843,6 +5855,7 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
             [string]$riderPrimary.nativeInput.nativeShell.type -cne 'Free' -or
             [long]$riderPrimary.nativeControls.nativePrimaryShellPrepareCount -lt 1L -or
             $riderPrimary.outcome.actionStandardCharged -ne $true -or
+            -not $riderPrimaryApproachTerminalValid -or
             [string]$riderPrimary.ledgerBefore.rider.unitId -cne [string]$artifact.observations.riderId -or
             [string]$riderPrimary.ledgerAfter.rider.unitId -cne [string]$artifact.observations.riderId -or
             [double]$riderPrimary.ledgerAfter.rider.move -gt [double]$riderPrimary.ledgerBefore.rider.move + 0.001d -or
@@ -5962,6 +5975,30 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
             [string]$unmountedMelee.relationshipState -cne 'Unmounted' -or
             [long]$unmountedRanged.nativeRequestDelta -ne 0L -or [long]$unmountedRanged.intentStartDelta -ne 0L -or
             [string]$unmountedRanged.weaponCategory -cne 'Sling' -or
+            $unmountedRanged.admissionReadiness.ready -ne $true -or
+            [string]$unmountedRanged.admissionReadiness.relationshipState -cne 'Unmounted' -or
+            $unmountedRanged.admissionReadiness.modeRealTime -ne $true -or
+            $unmountedRanged.admissionReadiness.gameUnpaused -ne $true -or
+            $unmountedRanged.admissionReadiness.riderSelected -ne $true -or
+            $unmountedRanged.admissionReadiness.weaponLeaseReady -ne $true -or
+            [string]$unmountedRanged.admissionReadiness.weaponCategory -cne 'Sling' -or
+            $unmountedRanged.admissionReadiness.targetReady -ne $true -or
+            $unmountedRanged.admissionReadiness.combatMemoryReady -ne $true -or
+            $unmountedRanged.admissionReadiness.riderStandardReady -ne $true -or
+            $unmountedRanged.admissionReadiness.riderCommandsIdle -ne $true -or
+            $unmountedRanged.admissionReadiness.targetCommandsIdle -ne $true -or
+            $unmountedRanged.admissionReadiness.riderHandsIdle -ne $true -or
+            $unmountedRanged.admissionReadiness.targetHandsIdle -ne $true -or
+            $unmountedRanged.admissionReadiness.equipmentControllerReady -ne $true -or
+            $unmountedRanged.admissionReadiness.riderEquipmentIdle -ne $true -or
+            $unmountedRanged.input.clicked -ne $true -or
+            $unmountedRanged.input.expectedDispatchStarted -ne $true -or
+            $unmountedRanged.input.command.present -ne $true -or
+            [string]$unmountedRanged.input.command.executorId -cne [string]$artifact.observations.riderId -or
+            [string]$unmountedRanged.input.command.targetId -cne [string]$unmountedRanged.targetId -or
+            $unmountedRanged.input.command.contained -ne $true -or
+            $unmountedRanged.input.command.inStandardSlot -ne $true -or
+            $unmountedRanged.input.command.queued -ne $false -or
             [string]$unmountedRanged.relationshipState -cne 'Unmounted') {
             throw 'PASS Phase 3D RT evidence does not prove one admitted persistent melee/ranged intent with exact dispatch cardinality.'
         }
@@ -9707,17 +9744,17 @@ function Assert-KmcCombatScenarioEvidence {
     if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(45,46,47,49,50,51,52)) {
         $recordFields = @($recordFields + 'groundMovement')
     }
-    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(28,29,30,31,32,33,34,35,36,37,38,39,40,41)) {
+    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(28,29,30,31,32,33,34,35,36,37,38,39,40,41,53,54)) {
         $recordFields = @($recordFields + 'movementToAttack')
     }
     if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(36,37,38,39,40,41)) {
         $recordFields = @($recordFields + 'commandTermination')
     }
-    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39,41,43,45,46,47,49,50,51,52)) {
+    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39,41,43,45,46,47,49,50,51,52,54)) {
         $recordFields = @($recordFields + 'turnBased')
     }
     Assert-KmcExactProperties $record $recordFields 'combat evidence record'
-    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -notin @(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52) -or
+    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -notin @(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54) -or
         [string]$record.artifactKind -cne 'combat-scenario-evidence') {
         throw 'Combat evidence schemaVersion or artifactKind is not exact.'
     }
@@ -10070,7 +10107,7 @@ function Assert-KmcCombatScenarioEvidence {
             throw 'Combat target brain lease validation count is invalid.'
         }
     }
-    if ([long]$record.schemaVersion -in @(5,7,9,11,13,15,17,19,21,23,25,37,39,45,46,47,49,50,51,52)) {
+    if ([long]$record.schemaVersion -in @(5,7,9,11,13,15,17,19,21,23,25,37,39,45,46,47,49,50,51,52,54)) {
         $turnActorBooleanFields = if ([long]$record.schemaVersion -ge 21) {
             @('nativeActionActorTurnStarted','actionActorTurnEndedAfterCommand')
         } else {
@@ -10252,7 +10289,7 @@ function Assert-KmcCombatScenarioEvidence {
             }
         }
     }
-    if ([long]$record.schemaVersion -in @(28,29,30,31,32,33,34,35,36,37,38,39,40,41)) {
+    if ([long]$record.schemaVersion -in @(28,29,30,31,32,33,34,35,36,37,38,39,40,41,53,54)) {
         $movementToAttackFields = @(
             'requestedTargetDistance','approachRequiredAtStart','delegatedMoveStartCount',
             'delegatedMoveTickCount','delegatedMoveExecutorId','delegatedMoveExecutorIsExactMount',
@@ -10268,6 +10305,11 @@ function Assert-KmcCombatScenarioEvidence {
                 'mountQueueEmptyThroughoutApproach','delegatedMoveFinishedSuccessfully',
                 'mountMoveSlotRestoredAfterApproach','delegatedMoveDrivenByStockController',
                 'delegatedMoveDrivenByRiderTurnAdapter','delegatedMoveProgressObservationCount'))
+        }
+        if ([long]$record.schemaVersion -in @(53,54)) {
+            $movementToAttackFields = @($movementToAttackFields + @(
+                'delegatedMoveStoppedAtLegalRange','delegatedMoveResultBeforeLegalRangeStop',
+                'delegatedMovePairDistanceAtLegalRangeStop'))
         }
         Assert-KmcExactProperties $record.movementToAttack $movementToAttackFields 'combat movement-to-attack evidence'
         foreach ($name in @(
@@ -10311,6 +10353,14 @@ function Assert-KmcCombatScenarioEvidence {
                 [long]$record.movementToAttack.delegatedMoveProgressObservationCount -lt 0) {
                 throw 'Combat movement-to-attack progress observation count is invalid.'
             }
+        }
+        if ([long]$record.schemaVersion -in @(53,54) -and
+            ($record.movementToAttack.delegatedMoveStoppedAtLegalRange -isnot [bool] -or
+             $record.movementToAttack.delegatedMoveResultBeforeLegalRangeStop -isnot [string] -or
+             [string]::IsNullOrWhiteSpace([string]$record.movementToAttack.delegatedMoveResultBeforeLegalRangeStop) -or
+             -not (Test-KmcJsonNumber $record.movementToAttack.delegatedMovePairDistanceAtLegalRangeStop) -or
+             [double]$record.movementToAttack.delegatedMovePairDistanceAtLegalRangeStop -lt 0)) {
+            throw 'Combat movement-to-attack legal-range stop evidence is invalid.'
         }
     }
     if ([long]$record.schemaVersion -in @(36,37,38,39,40,41)) {
@@ -10437,7 +10487,7 @@ function Assert-KmcCombatScenarioEvidence {
         } elseif ($commandTerminationScenario) {
             if ($turnBasedScenario) { @(37,39) } else { @(36,38) }
         } elseif ($movementToAttackScenario) {
-            if ($turnBasedScenario) { @(29,31,33,35) } else { @(28,30,32,34) }
+            if ($turnBasedScenario) { @(29,31,33,35,54) } else { @(28,30,32,34,53) }
         } elseif ($mammothScenario) {
             if ($turnBasedScenario) { @(21,23,25,27,43) } else { @(20,22,24,26,42) }
         } elseif ($missScenario) {
@@ -11102,11 +11152,25 @@ function Assert-KmcCombatScenarioEvidence {
         }
         $currentDelegatedMoveInvalid = $false
         if ($movementToAttackScenario -and [long]$record.schemaVersion -ge 30) {
+            $delegatedMoveTerminalInvalid = if ([long]$record.schemaVersion -in @(53,54)) {
+                $nativeSuccess = $record.movementToAttack.delegatedMoveFinishedSuccessfully -eq $true
+                $legalRangeStop = $record.movementToAttack.delegatedMoveStoppedAtLegalRange -eq $true
+                $nativeSuccess -eq $legalRangeStop -or
+                    ($legalRangeStop -and
+                     ([string]$record.movementToAttack.delegatedMoveResultBeforeLegalRangeStop -cne 'None' -or
+                      [double]$record.movementToAttack.delegatedMovePairDistanceAtLegalRangeStop -gt
+                        ([double]$record.pairApproachRadius + 0.05d))) -or
+                    ($nativeSuccess -and
+                     ([string]$record.movementToAttack.delegatedMoveResultBeforeLegalRangeStop -cne '<not-stopped>' -or
+                      [double]$record.movementToAttack.delegatedMovePairDistanceAtLegalRangeStop -ne 0d))
+            } else {
+                $record.movementToAttack.delegatedMoveFinishedSuccessfully -ne $true
+            }
             $currentDelegatedMoveInvalid =
                 $record.movementToAttack.delegatedMoveOwnedByMountMoveSlot -ne $true -or
                 $record.movementToAttack.mountMoveSlotUnreplacedThroughoutApproach -ne $true -or
                 $record.movementToAttack.mountQueueEmptyThroughoutApproach -ne $true -or
-                $record.movementToAttack.delegatedMoveFinishedSuccessfully -ne $true -or
+                $delegatedMoveTerminalInvalid -or
                 $record.movementToAttack.mountMoveSlotRestoredAfterApproach -ne $true -or
                 [long]$record.movementToAttack.delegatedMoveProgressObservationCount -le 0 -or
                 ($turnBasedScenario -and

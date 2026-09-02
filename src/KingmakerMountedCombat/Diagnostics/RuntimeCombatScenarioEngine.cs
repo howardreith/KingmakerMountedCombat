@@ -1499,6 +1499,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     outcome.MountMoveSlotUnreplacedThroughoutApproach,
                     outcome.MountQueueEmptyThroughoutApproach,
                     outcome.DelegatedMoveFinishedSuccessfully,
+                    outcome.DelegatedMoveStoppedAtLegalRange,
+                    outcome.DelegatedMovePairDistanceAtLegalRangeStop,
                     outcome.MountMoveSlotRestoredAfterApproach,
                     outcome.DelegatedMoveDrivenByStockController,
                     outcome.DelegatedMoveDrivenByRiderTurnAdapter,
@@ -1982,7 +1984,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         ? (IsTurnBasedRow ? 41 : 40)
                         : (IsTurnBasedRow ? 39 : 38)
                     : IsMovementToAttackRow
-                        ? (IsTurnBasedRow ? 35 : 34)
+                        ? (IsTurnBasedRow ? 54 : 53)
                         : IsReachQualificationRow
                             ? (IsTurnBasedRow ? 43 : 42)
                             : (IsTurnBasedRow ? 27 : 26),
@@ -2157,7 +2159,8 @@ namespace KingmakerMountedCombat.Diagnostics
                         requestedTargetDistance,
                         movementToAttackObservationCount,
                         selectionRetainedDuringApproach,
-                        uiCoherentDuringApproach)
+                        uiCoherentDuringApproach,
+                        IsMovementToAttackRow)
                     : null,
                 CommandTermination = IsCommandTerminationRow
                     ? new CombatCommandTerminationEvidence
@@ -3458,6 +3461,14 @@ namespace KingmakerMountedCombat.Diagnostics
             public bool MountMoveSlotUnreplacedThroughoutApproach { get; set; }
             public bool MountQueueEmptyThroughoutApproach { get; set; }
             public bool DelegatedMoveFinishedSuccessfully { get; set; }
+            [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            public bool? DelegatedMoveStoppedAtLegalRange { get; set; }
+
+            [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            public string DelegatedMoveResultBeforeLegalRangeStop { get; set; }
+
+            [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            public float? DelegatedMovePairDistanceAtLegalRangeStop { get; set; }
             public bool MountMoveSlotRestoredAfterApproach { get; set; }
             public bool DelegatedMoveDrivenByStockController { get; set; }
             public bool DelegatedMoveDrivenByRiderTurnAdapter { get; set; }
@@ -3480,7 +3491,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 float requestedTargetDistance,
                 int runtimeObservationCount,
                 bool selectionRetained,
-                bool uiCoherent)
+                bool uiCoherent,
+                bool includeLegalRangeStopEvidence)
             {
                 return new CombatMovementToAttackEvidence
                 {
@@ -3496,6 +3508,15 @@ namespace KingmakerMountedCombat.Diagnostics
                     MountMoveSlotUnreplacedThroughoutApproach = value != null && value.MountMoveSlotUnreplacedThroughoutApproach,
                     MountQueueEmptyThroughoutApproach = value != null && value.MountQueueEmptyThroughoutApproach,
                     DelegatedMoveFinishedSuccessfully = value != null && value.DelegatedMoveFinishedSuccessfully,
+                    DelegatedMoveStoppedAtLegalRange = includeLegalRangeStopEvidence
+                        ? (bool?)(value != null && value.DelegatedMoveStoppedAtLegalRange)
+                        : null,
+                    DelegatedMoveResultBeforeLegalRangeStop = includeLegalRangeStopEvidence
+                        ? value?.DelegatedMoveResultBeforeLegalRangeStop ?? "<not-stopped>"
+                        : null,
+                    DelegatedMovePairDistanceAtLegalRangeStop = includeLegalRangeStopEvidence
+                        ? (float?)(value?.DelegatedMovePairDistanceAtLegalRangeStop ?? 0f)
+                        : null,
                     MountMoveSlotRestoredAfterApproach = value != null && value.MountMoveSlotRestoredAfterApproach,
                     DelegatedMoveDrivenByStockController = value != null && value.DelegatedMoveDrivenByStockController,
                     DelegatedMoveDrivenByRiderTurnAdapter = value != null && value.DelegatedMoveDrivenByRiderTurnAdapter,

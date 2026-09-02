@@ -5,6 +5,7 @@ using System.Reflection;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.UnitLogic.Commands;
 using Kingmaker.UnitLogic.Commands.Base;
+using Kingmaker.Utility;
 using Kingmaker.Visual.Animation.Kingmaker;
 using Kingmaker.Visual.Animation.Kingmaker.Actions;
 using KingmakerMountedCombat.Domain;
@@ -91,6 +92,12 @@ namespace KingmakerMountedCombat.Integration
 
         public bool DelegatedMoveFinishedSuccessfully { get; set; }
 
+        public bool DelegatedMoveStoppedAtLegalRange { get; set; }
+
+        public string DelegatedMoveResultBeforeLegalRangeStop { get; set; }
+
+        public float DelegatedMovePairDistanceAtLegalRangeStop { get; set; }
+
         public bool MountMoveSlotRestoredAfterApproach { get; set; }
 
         public bool DelegatedMoveDrivenByStockController { get; set; }
@@ -170,6 +177,9 @@ namespace KingmakerMountedCombat.Integration
         private bool mountMoveSlotUnreplacedThroughoutApproach = true;
         private bool mountQueueEmptyThroughoutApproach = true;
         private bool delegatedMoveFinishedSuccessfully;
+        private bool delegatedMoveStoppedAtLegalRange;
+        private string delegatedMoveResultBeforeLegalRangeStop;
+        private float delegatedMovePairDistanceAtLegalRangeStop;
         private bool mountMoveSlotRestoredAfterApproach = true;
         private bool delegatedMoveDrivenByStockController;
         private bool delegatedMoveDrivenByRiderTurnAdapter;
@@ -470,16 +480,24 @@ namespace KingmakerMountedCombat.Integration
             ObserveApproachInvariants();
             if (childAttack.IsPairEnoughClose)
             {
-                if (delegatedMove != null && !delegatedMove.IsFinished &&
-                    TurnBased.Controllers.CombatController.IsInTurnBasedCombat())
+                if (delegatedMove == null)
                 {
-                    DriveDelegatedMoveOnRiderTurn();
+                    throw new InvalidOperationException(
+                        "Mounted pair command lost its delegated move at the legal attack-range boundary.");
                 }
-                if (delegatedMove != null && !delegatedMove.IsFinished)
+
+                if (!delegatedMove.IsFinished)
                 {
-                    return;
+                    delegatedMoveStoppedAtLegalRange = true;
+                    delegatedMoveResultBeforeLegalRangeStop = delegatedMove.Result.ToString();
+                    delegatedMovePairDistanceAtLegalRangeStop =
+                        GeometryUtils.MechanicsDistance(mount.Position, attackTarget.Position);
+                    StopDelegatedMove(false);
                 }
-                StopDelegatedMove(true);
+                else
+                {
+                    StopDelegatedMove(true);
+                }
                 if (!transaction.Arrive(attackTarget.UniqueId))
                 {
                     throw new InvalidOperationException("Mounted pair transaction could not enter attack range.");
@@ -817,6 +835,9 @@ namespace KingmakerMountedCombat.Integration
                 MountMoveSlotUnreplacedThroughoutApproach = mountMoveSlotUnreplacedThroughoutApproach,
                 MountQueueEmptyThroughoutApproach = mountQueueEmptyThroughoutApproach,
                 DelegatedMoveFinishedSuccessfully = delegatedMoveFinishedSuccessfully,
+                DelegatedMoveStoppedAtLegalRange = delegatedMoveStoppedAtLegalRange,
+                DelegatedMoveResultBeforeLegalRangeStop = delegatedMoveResultBeforeLegalRangeStop,
+                DelegatedMovePairDistanceAtLegalRangeStop = delegatedMovePairDistanceAtLegalRangeStop,
                 MountMoveSlotRestoredAfterApproach = mountMoveSlotRestoredAfterApproach,
                 DelegatedMoveDrivenByStockController = delegatedMoveDrivenByStockController,
                 DelegatedMoveDrivenByRiderTurnAdapter = delegatedMoveDrivenByRiderTurnAdapter,

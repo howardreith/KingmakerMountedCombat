@@ -360,6 +360,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     case Phase3dHorseStep.AwaitUnmountedMeleeCancelRt:
                         AwaitUnmountedMeleeCancelRt();
                         break;
+                    case Phase3dHorseStep.AwaitUnmountedRangedAdmissionRt:
+                        AwaitUnmountedRangedAdmissionRt();
+                        break;
                     case Phase3dHorseStep.AwaitUnmountedRangedRt:
                         AwaitUnmountedRangedRt();
                         break;
@@ -1789,12 +1792,42 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             rangedWeaponLease = new Phase3dRangedWeaponLease(rider);
             rangedWeaponLease.Acquire(WeaponCategory.Sling);
+            SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
+            step = Phase3dHorseStep.AwaitUnmountedRangedAdmissionRt;
+            stableFrames = 0;
+            ResetLeafClock();
+        }
+
+        private void AwaitUnmountedRangedAdmissionRt()
+        {
+            var readiness = CaptureUnmountedRangedReadiness();
+            observations["unmountedRangedReadiness"] = readiness;
+            if (!(bool)readiness["ready"])
+            {
+                stableFrames = 0;
+                return;
+            }
+            stableFrames++;
+            if (stableFrames < 2)
+            {
+                return;
+            }
+
+            stableFrames = 0;
             ruleProbe.Arm(target, true);
             stockNativeBefore = combat.StockAttackNativeRequestCount;
             stockIntentBefore = combat.StockAttackIntentStartCount;
-            targetService.BeginExpectedAttackDispatch(target);
-            new ClickUnitHandler().OnClick(target.View.gameObject, target.Position, 0, false, false);
+            var expectedDispatchStarted = targetService.BeginExpectedAttackDispatch(target);
+            var clicked = new ClickUnitHandler().OnClick(
+                target.View.gameObject, target.Position, 0, false, false);
             unmountedCommand = rider.Commands.Standard;
+            observations["unmountedRangedInput"] = new JObject
+            {
+                ["clicked"] = clicked,
+                ["expectedDispatchStarted"] = expectedDispatchStarted,
+                ["readiness"] = readiness.DeepClone(),
+                ["command"] = CaptureUnmountedRangedCommand()
+            };
             if (unmountedCommand == null || unmountedCommand.GetType() != typeof(UnitAttack))
             {
                 FailCurrent("unmounted-ranged-control", "Ordinary unmounted Sling click did not create the rider's exact native UnitAttack.");
@@ -1816,17 +1849,23 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 ["commandType"] = unmountedCommand?.GetType().FullName,
                 ["weaponCategory"] = weapon?.Category.ToString(),
+                ["targetId"] = target?.UniqueId,
                 ["nativeRequestDelta"] = combat.StockAttackNativeRequestCount - stockNativeBefore,
                 ["intentStartDelta"] = combat.StockAttackIntentStartCount - stockIntentBefore,
                 ["rules"] = ruleProbe.CapturePairEvidence(),
-                ["relationshipState"] = relationship.State.ToString()
+                ["relationshipState"] = relationship.State.ToString(),
+                ["admissionReadiness"] = observations["unmountedRangedReadiness"]?.DeepClone(),
+                ["input"] = observations["unmountedRangedInput"]?.DeepClone(),
+                ["command"] = CaptureUnmountedRangedCommand()
             };
             AddRow(
                 "unmounted-ranged-control",
                 relationship.State == RelationshipState.Unmounted && weapon != null && weapon.IsRanged &&
                     weapon.Category == WeaponCategory.Sling && unmountedCommand?.GetType() == typeof(UnitAttack) &&
                     combat.StockAttackNativeRequestCount == stockNativeBefore &&
-                    combat.StockAttackIntentStartCount == stockIntentBefore && ruleProbe.RiderAttackRuleCount >= 1,
+                    combat.StockAttackIntentStartCount == stockIntentBefore && ruleProbe.RiderAttackRuleCount >= 1 &&
+                    observations["unmountedRangedInput"]?["clicked"]?.Value<bool>() == true &&
+                    observations["unmountedRangedInput"]?["expectedDispatchStarted"]?.Value<bool>() == true,
                 "Ordinary unmounted Sling fire remained stock UnitAttack behavior and bypassed mounted intent routing.",
                 evidence);
             rider.Commands.InterruptAll(false);
@@ -3382,7 +3421,97 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 return CaptureRangedVariantProgress();
             }
+            if (step == Phase3dHorseStep.AwaitUnmountedRangedAdmissionRt)
+            {
+                return CaptureUnmountedRangedReadiness();
+            }
+            if (step == Phase3dHorseStep.AwaitUnmountedRangedRt)
+            {
+                return CaptureUnmountedRangedProgress();
+            }
             return JValue.CreateNull();
+        }
+
+        private JObject CaptureUnmountedRangedReadiness()
+        {
+            var game = Game.Instance;
+            var selected = SelectionManager.Instance?.SelectedUnits;
+            var equipment = game?.HandsEquipmentController;
+            var weapon = rider.GetFirstWeapon()?.Blueprint;
+            var targetReady = target != null && target.IsInState &&
+                target.Descriptor.State.IsConscious && rider.IsEnemy(target) && rider.CanAttack(target);
+            var combatMemoryReady = targetService != null &&
+                targetService.RefreshBidirectionalCombatMemoryLease();
+            var ready = relationship.State == RelationshipState.Unmounted &&
+                !CombatController.IsInTurnBasedCombat() && game != null && !game.IsPaused &&
+                selected != null && selected.Count == 1 && selected[0] == rider &&
+                rangedWeaponLease != null && rangedWeaponLease.IsReady && weapon != null &&
+                weapon.IsRanged && weapon.Category == WeaponCategory.Sling &&
+                targetReady && combatMemoryReady && rider.HasStandardAction() &&
+                rider.Commands != null && rider.Commands.Empty &&
+                target.Commands != null && target.Commands.Empty &&
+                !rider.AreHandsBusyWithAnimation && !target.AreHandsBusyWithAnimation &&
+                equipment != null && !equipment.IsUpdateScheduledFor(rider);
+            return new JObject
+            {
+                ["ready"] = ready,
+                ["relationshipState"] = relationship.State.ToString(),
+                ["modeRealTime"] = !CombatController.IsInTurnBasedCombat(),
+                ["gameUnpaused"] = game != null && !game.IsPaused,
+                ["riderSelected"] = selected != null && selected.Count == 1 && selected[0] == rider,
+                ["weaponLeaseReady"] = rangedWeaponLease != null && rangedWeaponLease.IsReady,
+                ["weaponCategory"] = weapon?.Category.ToString(),
+                ["targetReady"] = targetReady,
+                ["combatMemoryReady"] = combatMemoryReady,
+                ["riderStandardReady"] = rider.HasStandardAction(),
+                ["riderStandardCooldown"] = rider.CombatState?.Cooldown.StandardAction,
+                ["riderCommandsIdle"] = rider.Commands != null && rider.Commands.Empty,
+                ["targetCommandsIdle"] = target?.Commands != null && target.Commands.Empty,
+                ["riderHandsIdle"] = !rider.AreHandsBusyWithAnimation,
+                ["targetHandsIdle"] = target != null && !target.AreHandsBusyWithAnimation,
+                ["equipmentControllerReady"] = equipment != null,
+                ["riderEquipmentIdle"] = equipment != null && !equipment.IsUpdateScheduledFor(rider)
+            };
+        }
+
+        private JObject CaptureUnmountedRangedProgress()
+        {
+            return new JObject
+            {
+                ["readinessNow"] = CaptureUnmountedRangedReadiness(),
+                ["command"] = CaptureUnmountedRangedCommand(),
+                ["rules"] = ruleProbe?.CapturePairEvidence(),
+                ["nativeRequestDelta"] = combat.StockAttackNativeRequestCount - stockNativeBefore,
+                ["intentStartDelta"] = combat.StockAttackIntentStartCount - stockIntentBefore
+            };
+        }
+
+        private JObject CaptureUnmountedRangedCommand()
+        {
+            var command = unmountedCommand;
+            var commands = rider?.Commands;
+            return new JObject
+            {
+                ["present"] = command != null,
+                ["type"] = command?.GetType().FullName,
+                ["executorId"] = command?.Executor?.UniqueId,
+                ["targetId"] = command?.Target?.Unit?.UniqueId,
+                ["contained"] = command != null && commands != null && commands.Contains(command),
+                ["inStandardSlot"] = command != null && commands != null &&
+                    ReferenceEquals(commands.GetCommand(UnitCommand.CommandType.Standard), command),
+                ["queued"] = command != null && commands != null && commands.Queue.Contains(command),
+                ["started"] = command?.IsStarted,
+                ["running"] = command?.IsRunning,
+                ["finished"] = command?.IsFinished,
+                ["acted"] = command?.IsActed,
+                ["result"] = command?.Result.ToString(),
+                ["canStart"] = command?.CanStart,
+                ["unitEnoughClose"] = command?.IsUnitEnoughClose,
+                ["shouldUnitApproach"] = command?.ShouldUnitApproach,
+                ["needLineOfSight"] = command?.NeedLoS,
+                ["approachRadius"] = command?.ApproachRadius,
+                ["riderStandardCooldown"] = rider?.CombatState?.Cooldown.StandardAction
+            };
         }
 
         private JObject CaptureRtCombatDismountState(NativeMountedControlAvailability availability)
@@ -3496,7 +3625,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["type"] = command.Type.ToString(),
                     ["contained"] = commands != null && commands.Contains(command),
                     ["inFreeSlot"] = commands != null && ReferenceEquals(commands.Free, command),
-                    ["inMoveSlot"] = commands != null && ReferenceEquals(commands.Move, command),
+                    ["inMoveSlot"] = commands != null && ReferenceEquals(
+                        commands.GetCommand(UnitCommand.CommandType.Move), command),
                     ["queued"] = commands != null && commands.Queue.Contains(command),
                     ["started"] = command.IsStarted,
                     ["running"] = command.IsRunning,
@@ -4044,6 +4174,7 @@ namespace KingmakerMountedCombat.Diagnostics
             AwaitRtCombatDismount,
             AwaitUnmountedMeleeRt,
             AwaitUnmountedMeleeCancelRt,
+            AwaitUnmountedRangedAdmissionRt,
             AwaitUnmountedRangedRt,
             AwaitUnmountedCombat,
             AwaitTurnBasedMode,

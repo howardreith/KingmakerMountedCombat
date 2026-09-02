@@ -1,5 +1,19 @@
 # Autonomous blockers
 
+## Dev.14 proves combat Dismount; dev.15 is the bounded legal-range terminal repair (2026-09-02T13:36:48-04:00)
+
+Status: `IN PROGRESS`. No external-state, combat-Dismount, Rider Primary relationship, stock-input, ranged, shared-initiative, or broad pathing blocker is active.
+
+Clean guarded-published dev.14 is `0c27307999703bb69aad6b3f0d5c5141d1f5b570`. Its exact package/suite passed separate RT/TB/presentation purity gates. RT A `20260902T153000Z-phase3d-dev14-rt-passA` is immutable uncredited `FAIL` (`27/3` Phase 3D rows, `28/4` outer, `72/6` assertions); the independent audit passed before inspection and all three transactions are `restored`.
+
+The dev.14 production fix passed. One real combat Dismount Move shell produced one accepted delivery, one manual `Mounted -> Unmounted` transition, rider Move cooldown `2.97256064`, and no residual pair command/intent. Its reported `inMoveSlot=false` is an evidence accessor defect: exact installed `UnitCommands.Move` casts raw slot 3 to `UnitMoveTo`, while Dismount is a `UnitUseAbility`; `GetCommand(CommandType.Move)` is the authoritative raw slot and dev.15 now uses it.
+
+The first Rider Primary did not dismount. It retained the exact pair with no lifecycle/cleanup event, but timed out before its child after `6.125914m` of Horse movement because its native point move remained nonterminal. The same run later completed post-transition Rider Primary and every ordinary mounted melee/ranged row. Exact installed control flow and runtime geometry isolate a mismatch between native point-move terminalization and the already-satisfied child range/LoS boundary. Dev.15 stops only that exact unfinished move at the legal child boundary and proceeds; it neither changes range/LoS nor lengthens timeouts. XOR terminal evidence, stop distance, slot/queue cleanup, and schema `53/54` reject false credit.
+
+The final unmounted Sling deadline lacks readiness evidence and follows an immediate weapon swap. Dev.15 adds a two-frame exact stock readiness/admission observation and no product behavior. The complete pre-commit gate is green: source/prohibited payload `22/0`, clean Release, component `298/0`, visual/source-order `18/0`, harness/protocol `237/0`, exact assembly `382/0` (`358` Kingmaker + `24` Wrath), PowerShell parser `26/0`, JSON parser `7/0`, and diff. The pre-commit DLL SHA-256/MVID are `976685fbc45018477376b20f05904e9760114ab1766aae6d971d971d1238c5c8` / `24af2d25-258f-47c9-941a-7a195c2d6941`; fresh clean-package runtime evidence remains mandatory.
+
+If dev.15 repeats the same legal-range terminal mismatch, preserve it and record the architecture disposition; do not add another movement patch, broaden command interception, weaken native LoS/range, raise the timeout, or implement Paladin Divine Steed.
+
 ## Dev.13 closes stock-melee uncertainty and exposes native combat Dismount double-gating (2026-09-02T07:55:35-04:00)
 
 Status: `IN PROGRESS`. No external-state, stock-melee, ranged, Rider Primary, shared-initiative, or broad action-economy blocker is active.
