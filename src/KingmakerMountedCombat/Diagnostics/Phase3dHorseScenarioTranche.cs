@@ -23,6 +23,7 @@ using Kingmaker.UI._ConsoleUI.TurnBasedMode;
 using Kingmaker.UnitLogic.Abilities.Blueprints;
 using Kingmaker.UnitLogic.Commands;
 using Kingmaker.UnitLogic.Commands.Base;
+using Kingmaker.Utility;
 using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Integration;
 using KingmakerMountedCombat.Logging;
@@ -2917,6 +2918,8 @@ namespace KingmakerMountedCombat.Diagnostics
             var freshTarget = stockMeleePreviousTargetCleanupPassed &&
                 !string.IsNullOrWhiteSpace(stockMeleePreviousTargetId) &&
                 target != null && !string.Equals(stockMeleePreviousTargetId, target.UniqueId, StringComparison.Ordinal);
+            var riderHasLineOfSight = target != null && rider.HasLOS(target);
+            var horseHasLineOfSight = target != null && horse.HasLOS(target);
             var ready = IsCombatReady(true) && relationshipExact && !CombatController.IsInTurnBasedCombat() &&
                 game != null && !game.IsPaused && selected != null && selected.Count == 1 && selected[0] == rider &&
                 weapon != null && !weapon.IsRanged && targetReady && combatMemoryReady && freshTarget &&
@@ -2960,12 +2963,24 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["previousTargetCleanupPassed"] = stockMeleePreviousTargetCleanupPassed,
                 ["isolatedTargetId"] = target?.UniqueId,
                 ["freshTarget"] = freshTarget,
-                ["riderDistanceToTarget"] = target == null ? (double?)null : rider.DistanceTo(target)
+                ["riderDistanceToTarget"] = target == null ? (double?)null : rider.DistanceTo(target),
+                ["horseDistanceToTarget"] = target == null ? (double?)null : horse.DistanceTo(target),
+                ["pairMechanicsDistanceToTarget"] = target == null
+                    ? (double?)null
+                    : GeometryUtils.MechanicsDistance(horse.Position, target.Position),
+                ["riderHasLineOfSight"] = riderHasLineOfSight,
+                ["horseHasLineOfSight"] = horseHasLineOfSight
             };
         }
 
         private JObject CaptureStockMeleeProgress()
         {
+            var lastOutcome = combat.LastOutcome;
+            var movementAgent = horse.View?.AgentASP;
+            var pairMechanicsDistance = target == null
+                ? (float?)null
+                : GeometryUtils.MechanicsDistance(horse.Position, target.Position);
+            var pairRadius = lastOutcome == null ? (float?)null : lastOutcome.PairApproachRadiusAtStart;
             return new JObject
             {
                 ["previousTargetId"] = stockMeleePreviousTargetId,
@@ -2981,10 +2996,49 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["mountDispatchDelta"] = combat.StockAttackMountDispatchCount - stockMountBefore,
                 ["duplicateDispatchDelta"] = combat.StockAttackDuplicateDispatchCount - stockDuplicateBefore,
                 ["horseMovementDistanceAfterAdmission"] = HorizontalDistance(movementStart, horse.Position),
+                ["lastOutcomeMatchesIsolatedTarget"] = lastOutcome != null && target != null &&
+                    string.Equals(lastOutcome.TargetId, target.UniqueId, StringComparison.Ordinal),
+                ["lastOutcome"] = lastOutcome == null
+                    ? null
+                    : JObject.FromObject(lastOutcome, JsonSerializer.Create(JsonSettings)),
+                ["currentSpatial"] = new JObject
+                {
+                    ["riderPosition"] = CapturePosition(rider.Position),
+                    ["horsePosition"] = CapturePosition(horse.Position),
+                    ["targetPosition"] = target == null ? null : CapturePosition(target.Position),
+                    ["riderHorizontalDistanceToTarget"] = target == null
+                        ? (double?)null
+                        : HorizontalDistance(rider.Position, target.Position),
+                    ["horseHorizontalDistanceToTarget"] = target == null
+                        ? (double?)null
+                        : HorizontalDistance(horse.Position, target.Position),
+                    ["pairMechanicsDistanceToTarget"] = pairMechanicsDistance,
+                    ["pairApproachRadiusAtTerminal"] = pairRadius,
+                    ["pairInsideApproachRadiusAtTerminal"] = pairMechanicsDistance.HasValue && pairRadius.HasValue &&
+                        pairMechanicsDistance.Value <= pairRadius.Value + MountedCombatSpatialPolicy.RangeTolerance,
+                    ["riderHasLineOfSight"] = target != null && rider.HasLOS(target),
+                    ["horseHasLineOfSight"] = target != null && horse.HasLOS(target),
+                    ["movementAgentPresent"] = movementAgent != null,
+                    ["movementAgentEnabled"] = movementAgent != null && movementAgent.enabled,
+                    ["movementAgentWantsToMove"] = movementAgent != null && movementAgent.WantsToMove,
+                    ["movementAgentIsReallyMoving"] = movementAgent != null && movementAgent.IsReallyMoving,
+                    ["movementAgentAvoidanceDisabled"] = movementAgent != null && movementAgent.AvoidanceDisabled
+                },
+                ["currentCommands"] = CapturePairCommandState(),
                 ["rules"] = ruleProbe?.CapturePairEvidence(),
                 ["readinessNow"] = target == null ? null : CaptureStockMeleeReadiness(),
                 ["admissionReadiness"] = stockMeleeReadinessAtAdmission?.DeepClone(),
                 ["input"] = observations["stockMeleeRtAdmission"]?.DeepClone()
+            };
+        }
+
+        private static JObject CapturePosition(Vector3 value)
+        {
+            return new JObject
+            {
+                ["x"] = value.x,
+                ["y"] = value.y,
+                ["z"] = value.z
             };
         }
 

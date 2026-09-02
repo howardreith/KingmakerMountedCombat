@@ -10341,6 +10341,12 @@ try {
             $phase3dSource.Contains('AwaitStockMeleeAdmissionRt()') -and
             $phase3dSource.Contains('stockMeleePreviousTargetCleanupPassed = true;') -and
             $phase3dSource.Contains('CaptureStockMeleeReadiness()') -and
+            $phase3dSource.Contains('["lastOutcomeMatchesIsolatedTarget"]') -and
+            $phase3dSource.Contains('["pairMechanicsDistanceToTarget"]') -and
+            $phase3dSource.Contains('["pairInsideApproachRadiusAtTerminal"]') -and
+            $phase3dSource.Contains('["riderHasLineOfSight"]') -and
+            $phase3dSource.Contains('["movementAgentWantsToMove"]') -and
+            $phase3dSource.Contains('["currentCommands"] = CapturePairCommandState()') -and
             $phase3dSource.Contains('CaptureLongRangeRangedReadiness(clickLeaseReady)') -and
             $phase3dSource.Contains('observations["rangedRtInput"]') -and
             $phase3dSource.Contains('nativeRequestDelta != 1 || intentStartDelta != 1') -and

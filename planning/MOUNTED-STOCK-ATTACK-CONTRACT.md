@@ -10,6 +10,8 @@ Dev.11 tightens but temporarily reopens cancellation attribution. One native gro
 
 Dev.11 separately closes the Shortbow input boundary: two stable frames proved the exact selected and nearest rider plus the hostile-target branch, and one real click produced exactly one current native request and one mounted intent. Ranged qualification remains independent from the melee result and still requires its own actor, resource, movement, native-rule, cancellation, and cleanup evidence.
 
+Dev.12's fresh isolated melee input was also admitted exactly, but its first Horse-owned native point move stalled after `4.7231493m` and the bounded pair command ended before any attack rule. The still-valid rider was `1.70507455m` from the target at the diagnostic deadline. Because dev.10 and dev.11 completed the same six-metre control, this single result does not overturn their admission/persistence proof or authorize a broad movement change. Dev.13 adds the omitted terminal outcome, pair mechanics distance/radius, position, LoS, movement-agent, and raw-command evidence. The next run must distinguish diagnostic placement/LoS from an exact pair-local native movement terminal defect before any repair.
+
 ## Native admission seam
 
 Installed Kingmaker `ClickUnitHandler.OnClick` `0x060093ED` constructs an ordinary stock `UnitAttack` for each selected unit and submits it through `UnitCommands.Run` `0x060026B2`. Phase 3C intentionally rejected exact mounted-pair stock `UnitAttack` commands in `MountedCombatController.ShouldAllowStockCommand`; that rejection is the proven cause of the silent hostile-click behavior.

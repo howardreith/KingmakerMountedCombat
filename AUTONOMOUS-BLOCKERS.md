@@ -1,5 +1,15 @@
 # Autonomous blockers
 
+## Dev.12 stock-melee approach stall needs one exact attribution checkpoint (2026-09-02T05:01:21-04:00)
+
+Status: `IN PROGRESS`. External state is exact-restored. No broad stock-input, Rider Primary, shared-turn, AoO, or safety blocker is established.
+
+Dev.12 RT A `20260902T072000Z-phase3d-dev12-rt-passA` is immutable uncredited `FAIL`; mandatory postrun audit `20260902T080000Z-phase3d-dev12-rt-passA-postrun-audit` passed before inspection. The first six reached gameplay rows passed, including native Rider Primary cancel/rejection/success/post-movement retention and explicit Horse Primary. A fresh six-metre stock target passed exact readiness and one real hostile click produced request/intent `1/1` with zero duplicates.
+
+The Horse then moved `4.7231493m`, but its delegated native `UnitMoveTo` remained nonterminal until the pair command's unchanged `8.5s` bound. No rider or Horse attack rule fired. At the later diagnostic deadline the still-conscious target and mounted pair remained valid, the rider was `1.70507455m` away, and all action/command surfaces were idle. Earlier dev.10/dev.11 processes completed the same control, so neither a production range defect nor a disconnected diagnostic point is proven by current evidence. The artifact omitted final pair mechanics distance, native move terminal flags, and LoS.
+
+Dev.13 is the one observation-only checkpoint for that uncertainty. It captures the full exact terminal outcome, final positions/distances/radius comparison, rider/Horse LoS, movement-agent state, and command slots/queues. Complete local gates pass `22/Release/295/18/237/382/26/7`; no production behavior changed. Fresh clean-package evidence is mandatory. Do not raise the timeout, teleport, bypass the native child LoS contract, broaden click/path patches, or implement Paladin Divine Steed.
+
 ## Dev.11 ranged admission passes; dev.12 isolates post-cancel rule ownership (2026-09-02T00:20:36-04:00)
 
 Status: `IN PROGRESS`. No safety, external-state, Shortbow-admission, Rider Primary, point-movement, or broad shared-turn/AoO blocker is active.
