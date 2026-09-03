@@ -1,5 +1,13 @@
 # Autonomous blockers
 
+## Dev.16 production repair passes; dev.17 has one diagnostic-only target boundary (2026-09-02T21:28:27-04:00)
+
+Status: `IN PROGRESS`. There is no current architecture, production-behavior, external-state, build, or publication blocker. Dev.16 RT A passed `29/30` Phase 3D rows after exact audit-before-read restoration. Exact native ranged admission and Horse-owned LoS recovery passed, as did Rider Primary retention, stock melee/ranged behavior, shared initiative/portrait observations, combat Dismount, and the isolated unmounted melee control.
+
+The sole leaf reused the unmounted melee target for the subsequent Sling control after a valid rider full attack killed it. This is a diagnostic sequencing defect: `targetReady=false` and `combatMemoryReady=false` correctly prevented the click. Dev.17 performs one verified target retirement and creates a distinct Sling target while retaining the exact reversible Horse AI lease. Its validator rejects missing cleanup, equal target identities, false readiness, Horse attack ownership, or incomplete AI restoration. Production mounted and unmounted combat behavior is unchanged. Complete pre-commit gates pass `22/Release/298/18/237/382`, PowerShell/JSON parsers `26/0` / `7/0`, diff, and prohibited payload.
+
+Remaining uncertainty is qualification runtime only. A clean dev.17 package must pass fresh RT A/B and TB A/B plus presentation/Mammoth regression. If the isolated fresh Sling target still fails at the same boundary, preserve and disposition the evidence rather than adding another diagnostic repair loop or altering production stock combat.
+
 ## Dev.16 offline gate is green; clean package runtime proof remains (2026-09-02T17:20:34-04:00)
 
 Status: `IN PROGRESS`. There is no current code-build, contract, parser, external-state, or publication blocker. The fresh package/runtime gate has not yet run, so no dev.16 gameplay PASS is claimed.

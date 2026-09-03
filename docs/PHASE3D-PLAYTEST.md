@@ -7,8 +7,8 @@ Status: IN PROGRESS — do not install until this document records a clean guard
 - branch: `codex/mounted-combat-phase3d-unified-combat`;
 - production implementation: `9bf83d21b5367e057130b41bf7379512a638c025`;
 - presentation checkpoint: `63d324d909ec333cd16cde5e942f419759faa664`;
-- runtime/package checkpoint: dev.1-dev.15 are immutable diagnostic history; dev.15 proved the legal-range Rider Primary terminal repair and retained the relationship, then isolated one direct native LoS recovery boundary and Horse-AI contamination of the final unmounted controls; dev.16 repairs those exact seams and is offline-green but still requires clean-package runtime qualification;
-- version: `0.1.0-phase3d-dev.16`;
+- runtime/package checkpoint: dev.1-dev.15 are immutable diagnostic history; clean guarded-published dev.16 proved its native-LoS production repair and passed `29/30` Phase 3D RT rows. Its only failure reused a target killed by the immediately preceding valid unmounted melee control. Dev.17 isolates a distinct final Sling target and changes no production gameplay behavior; clean-package RT/TB qualification remains pending;
+- version: `0.1.0-phase3d-dev.17`;
 - package, manifest, DLL SHA-256, and DLL MVID: pending clean-HEAD packaging and guarded runtime qualification.
 
 Do not manually copy, replace, merge, or curate the live Kingmaker `Mods` directory. Installation and removal commands will be bound to the final exact package after the guarded runtime tranche passes.

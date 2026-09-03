@@ -5990,6 +5990,11 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
             $unmountedMelee.horseAiIsolation.activeValidationPassed -ne $true -or
             [long]$unmountedRanged.nativeRequestDelta -ne 0L -or [long]$unmountedRanged.intentStartDelta -ne 0L -or
             [string]$unmountedRanged.weaponCategory -cne 'Sling' -or
+            $unmountedRanged.previousMeleeTargetCleanupPassed -ne $true -or
+            [string]::IsNullOrWhiteSpace([string]$unmountedRanged.previousMeleeTargetId) -or
+            [string]::IsNullOrWhiteSpace([string]$unmountedRanged.isolatedTargetId) -or
+            [string]$unmountedRanged.previousMeleeTargetId -ceq [string]$unmountedRanged.isolatedTargetId -or
+            [string]$unmountedRanged.targetId -cne [string]$unmountedRanged.isolatedTargetId -or
             [long]$unmountedRanged.rules.riderNonOpportunityAttackRules -lt 1L -or
             [long]$unmountedRanged.rules.riderOpportunityAttackRules -ne 0L -or
             [long]$unmountedRanged.rules.mountAttackRules -ne 0L -or
@@ -6013,6 +6018,12 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
             $unmountedRanged.admissionReadiness.targetHandsIdle -ne $true -or
             $unmountedRanged.admissionReadiness.equipmentControllerReady -ne $true -or
             $unmountedRanged.admissionReadiness.riderEquipmentIdle -ne $true -or
+            $unmountedRanged.admissionReadiness.previousMeleeTargetCleanupPassed -ne $true -or
+            $unmountedRanged.admissionReadiness.freshTarget -ne $true -or
+            [string]$unmountedRanged.admissionReadiness.previousMeleeTargetId -cne
+                [string]$unmountedRanged.previousMeleeTargetId -or
+            [string]$unmountedRanged.admissionReadiness.isolatedTargetId -cne
+                [string]$unmountedRanged.isolatedTargetId -or
             $unmountedRanged.input.clicked -ne $true -or
             $unmountedRanged.input.expectedDispatchStarted -ne $true -or
             $unmountedRanged.input.command.present -ne $true -or

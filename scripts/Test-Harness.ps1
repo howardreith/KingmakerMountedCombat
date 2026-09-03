@@ -10173,15 +10173,17 @@ try {
                 $rowByName['unmounted-stock-attack-control'].evidence = [ordered]@{
                     nativeRequestDelta=0;intentStartDelta=0;relationshipState='Unmounted'
                     previousTargetId='sling-target';previousTargetCleanupPassed=$true
-                    isolatedTargetId='unmounted-target';horseAiIsolation=$activeHorseAiIsolation
+                    isolatedTargetId='unmounted-melee-target';horseAiIsolation=$activeHorseAiIsolation
                     rules=[ordered]@{
                         riderAttackRules=1;mountAttackRules=0;riderNonOpportunityAttackRules=1
                         mountNonOpportunityAttackRules=0;riderOpportunityAttackRules=0
                     }
                 }
                 $rowByName['unmounted-ranged-control'].evidence = [ordered]@{
-                    nativeRequestDelta=0;intentStartDelta=0;weaponCategory='Sling';targetId='unmounted-target'
+                    nativeRequestDelta=0;intentStartDelta=0;weaponCategory='Sling';targetId='unmounted-ranged-target'
                     relationshipState='Unmounted';horseAiIsolation=$activeHorseAiIsolation
+                    previousMeleeTargetId='unmounted-melee-target';previousMeleeTargetCleanupPassed=$true
+                    isolatedTargetId='unmounted-ranged-target'
                     rules=[ordered]@{
                         riderAttackRules=1;mountAttackRules=0;riderNonOpportunityAttackRules=1
                         mountNonOpportunityAttackRules=0;riderOpportunityAttackRules=0
@@ -10193,11 +10195,13 @@ try {
                         horseAiIsolated=$true;horseCommandsIdle=$true;targetCommandsIdle=$true
                         riderHandsIdle=$true;targetHandsIdle=$true
                         equipmentControllerReady=$true;riderEquipmentIdle=$true
+                        previousMeleeTargetId='unmounted-melee-target';previousMeleeTargetCleanupPassed=$true
+                        isolatedTargetId='unmounted-ranged-target';freshTarget=$true
                     }
                     input=[ordered]@{
                         clicked=$true;expectedDispatchStarted=$true
                         command=[ordered]@{
-                            present=$true;executorId='rider';targetId='unmounted-target';contained=$true
+                            present=$true;executorId='rider';targetId='unmounted-ranged-target';contained=$true
                             inStandardSlot=$true;queued=$false
                         }
                     }
@@ -10398,6 +10402,23 @@ try {
                 } 'Phase 3D RT validator accepted unmounted ranged input without a stable exact readiness boundary.'
 
                 $rowByName['unmounted-ranged-control'].evidence.admissionReadiness.ready = $true
+                $rowByName['unmounted-ranged-control'].evidence.isolatedTargetId = 'unmounted-melee-target'
+                $rowByName['unmounted-ranged-control'].evidence.targetId = 'unmounted-melee-target'
+                $rowByName['unmounted-ranged-control'].evidence.admissionReadiness.isolatedTargetId = 'unmounted-melee-target'
+                $rowByName['unmounted-ranged-control'].evidence.input.command.targetId = 'unmounted-melee-target'
+                Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
+                $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
+                $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
+                [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+                $phase3dManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+                Assert-TestThrows {
+                    Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
+                } 'Phase 3D RT validator accepted an unmounted ranged control that reused the unmounted melee target.'
+
+                $rowByName['unmounted-ranged-control'].evidence.isolatedTargetId = 'unmounted-ranged-target'
+                $rowByName['unmounted-ranged-control'].evidence.targetId = 'unmounted-ranged-target'
+                $rowByName['unmounted-ranged-control'].evidence.admissionReadiness.isolatedTargetId = 'unmounted-ranged-target'
+                $rowByName['unmounted-ranged-control'].evidence.input.command.targetId = 'unmounted-ranged-target'
                 $rowByName['unmounted-stock-attack-control'].evidence.rules.mountAttackRules = 1
                 Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
                 $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
@@ -10587,6 +10608,10 @@ try {
             $phase3dSource.Contains('CaptureNativeAbilityShell(lastNativeAbilityShell)') -and
             $phase3dSource.Contains('commands.GetCommand(UnitCommand.CommandType.Move), command)') -and
             $phase3dSource.Contains('AwaitUnmountedRangedAdmissionRt()') -and
+            $phase3dSource.Contains('AwaitUnmountedRangedTargetCleanupRt()') -and
+            $phase3dSource.Contains('BeginTarget(TargetDistance, "rt-unmounted-ranged-control")') -and
+            $phase3dSource.Contains('unmountedMeleeTargetCleanupPassed = true;') -and
+            $phase3dSource.Contains('["freshTarget"] = freshTarget') -and
             $phase3dSource.Contains('CaptureUnmountedRangedReadiness()') -and
             $phase3dSource.Contains('observations["unmountedRangedInput"]') -and
             $phase3dSource.Contains('new ScopedDiagnosticAiLease<UnitEntityData>(') -and

@@ -1,5 +1,16 @@
 # Mounted Combat journal
 
+## 2026-09-02T21:28:27-04:00 - dev.16 passes 29/30 RT rows; dev.17 splits the final control target
+
+- Dev.16 is clean and guarded-published at `e9aee929272ede4b94501e5167d384e3b0d868c3`; local/upstream/remote agree. Package/manifest/DLL SHA-256 are `12902b7501c21b212aadf5d776f532d3282d59c0ec52708cb2e156242102fbab` / `5f4b9d03ae06e2844a819a678cb3f10f8c6626b0f8fd7b040d062383ea1c6ee5` / `f4961a9ae9e3ab7cedb66b9bf0f50666976c3585562434f9c0c492bf17a17a3c`; MVID `2374f3bb-f573-49a6-9823-4bad14f68461`.
+- Suite16 snapshot `20260902T213000Z-phase3d-dev16-unified-combat-suite16` / `4f65a7bc32733bc822f923ed1d7c41d93052b78ee36cb36d26b9785e41e768c5` admitted only after package `10/0`. Separate RT/TB/presentation WhatIf runs passed exact zero mutation.
+- Live RT A `20260903T000500Z-phase3d-dev16-rt-passA` produced `29 PASS / 1 FAIL` Phase 3D rows. Independent audit `20260903T010000Z-phase3d-dev16-rt-passA-postrun-audit` passed before evidence/log inspection. Phase3D/runtime-result/game/orchestration/request/manifest/registration SHA-256 are `27c6cde447880ba5099e4c569747ecfdee9c5ca509d68c966540a73cf9ebb0d8` / `545e72946b1f8f6a653e4a3656d0f3183b59ff77d3c3af16f6aa8b9b271fc5a4` / `c90e6f0939a4fcca618477623013d9271f121a6aa64b06992ca1ee92cf2e2be0` / `9db8ac6f7dc89ff2faa815de6698b83cc41ba399101e93d3937d0a1c774e9c62` / `54af080b88be2c43dee865f3cc1daaf24fdeee7c5e0bd093c6ccf90e13d10553` / `544cf4dd11610a07af34e2489c0de0b9e798e57c65918b1da6c065e4d08287bc` / `7dfa6f55cdcb32fd9467a28dac2b9ea6c9bad6107435d04047518144b0dd30a1`.
+- The dev.16 production repair passed. Persistent Shortbow dispatch began only at exact native `Admitted`, stopped after `14.0967741m` of Horse approach, completed two rider attacks, zero Horse attacks, and zero duplicates. The isolated unmounted melee control also passed with one rider non-AoO rule, zero Horse rules, fresh identity, and exact Horse AI restoration.
+- The single failure followed that successful melee control: its native full attack killed the 48-damage target, and the scenario reused it for Sling readiness. Dev.17 retires/verifies the melee target, creates `rt-unmounted-ranged-control`, and binds distinct target identities through readiness, command, row, validator, and negative synthetic evidence. This changes no production gameplay behavior.
+- Complete dev.17 pre-commit gates pass source/prohibited payload `22/0`, Release, component `298/0`, visual/source-order `18/0`, harness/protocol `237/0`, exact assembly `382/0` (`358` Kingmaker + `24` Wrath), PowerShell parser `26/0`, JSON parser `7/0`, and diff. DLL SHA-256/MVID are `c139b340f1dfde2a4dfbade965d5c06d7da90efae8b1c6fe38a4e3182bc2d2c1` / `aff14dfb-a767-426d-877a-5ba3e5fc382c` before clean-HEAD package binding.
+
+Status: `IN PROGRESS`.
+
 ## 2026-09-02T17:20:34-04:00 - dev.16 exact native admission and isolated unmounted controls pass offline
 
 - Starting branch/local/upstream/remote: `codex/mounted-combat-phase3d-unified-combat` / `2f3a170f07e31b8e11e8b597c641bb05538bde03`; working version `0.1.0-phase3d-dev.16`.

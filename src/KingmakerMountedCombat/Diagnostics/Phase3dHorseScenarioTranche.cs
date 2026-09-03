@@ -146,6 +146,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool rangedVariantPreviousTargetCleanupPassed;
         private string unmountedPreviousTargetId;
         private bool unmountedPreviousTargetCleanupPassed;
+        private string unmountedMeleeTargetId;
+        private bool unmountedMeleeTargetCleanupPassed;
         private bool unmountedHorseAiLeaseRestored = true;
         private bool unmountedHorseAiSettleRequested;
         private double unmountedHorseAiSettleStartedAtSeconds;
@@ -379,6 +381,9 @@ namespace KingmakerMountedCombat.Diagnostics
                         break;
                     case Phase3dHorseStep.AwaitUnmountedMeleeCancelRt:
                         AwaitUnmountedMeleeCancelRt();
+                        break;
+                    case Phase3dHorseStep.AwaitUnmountedRangedTargetCleanupRt:
+                        AwaitUnmountedRangedTargetCleanupRt();
                         break;
                     case Phase3dHorseStep.AwaitUnmountedRangedAdmissionRt:
                         AwaitUnmountedRangedAdmissionRt();
@@ -1879,8 +1884,42 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 return;
             }
+            BeginUnmountedRangedTargetReplacement();
+        }
+
+        private void BeginUnmountedRangedTargetReplacement()
+        {
+            unmountedMeleeTargetId = target?.UniqueId;
+            unmountedMeleeTargetCleanupPassed = false;
+            TryLeaveCombat(target);
+            targetCleanupComplete = targetService != null && targetService.DestroyAndVerify();
+            step = Phase3dHorseStep.AwaitUnmountedRangedTargetCleanupRt;
+            stableFrames = 0;
+            ResetLeafClock();
+        }
+
+        private void AwaitUnmountedRangedTargetCleanupRt()
+        {
+            if (!ValidateUnmountedHorseAiIsolation())
+            {
+                return;
+            }
+            if (!targetCleanupComplete && targetService != null)
+            {
+                targetCleanupComplete = targetService.DestroyAndVerify();
+            }
+            if (!targetCleanupComplete)
+            {
+                return;
+            }
+
+            targetService.Dispose();
+            targetService = null;
+            target = null;
+            unmountedMeleeTargetCleanupPassed = true;
             rangedWeaponLease = new Phase3dRangedWeaponLease(rider);
             rangedWeaponLease.Acquire(WeaponCategory.Sling);
+            BeginTarget(TargetDistance, "rt-unmounted-ranged-control");
             SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
             step = Phase3dHorseStep.AwaitUnmountedRangedAdmissionRt;
             stableFrames = 0;
@@ -1954,7 +1993,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["horseAiIsolation"] = CaptureUnmountedHorseAiIsolation(),
                 ["admissionReadiness"] = observations["unmountedRangedReadiness"]?.DeepClone(),
                 ["input"] = observations["unmountedRangedInput"]?.DeepClone(),
-                ["command"] = CaptureUnmountedRangedCommand()
+                ["command"] = CaptureUnmountedRangedCommand(),
+                ["previousMeleeTargetId"] = unmountedMeleeTargetId,
+                ["previousMeleeTargetCleanupPassed"] = unmountedMeleeTargetCleanupPassed,
+                ["isolatedTargetId"] = target?.UniqueId
             };
             AddRow(
                 "unmounted-ranged-control",
@@ -1964,6 +2006,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     combat.StockAttackIntentStartCount == stockIntentBefore &&
                     ruleProbe.RiderNonOpportunityAttackRuleCount >= 1 &&
                     ruleProbe.RiderOpportunityAttackRuleCount == 0 && ruleProbe.MountAttackRuleCount == 0 &&
+                    unmountedMeleeTargetCleanupPassed &&
+                    !string.Equals(unmountedMeleeTargetId, target?.UniqueId, StringComparison.Ordinal) &&
                     observations["unmountedRangedInput"]?["clicked"]?.Value<bool>() == true &&
                     observations["unmountedRangedInput"]?["expectedDispatchStarted"]?.Value<bool>() == true,
                 "Ordinary unmounted Sling fire remained stock UnitAttack behavior and bypassed mounted intent routing.",
@@ -3507,6 +3551,16 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["horseAiIsolation"] = CaptureUnmountedHorseAiIsolation()
                 };
             }
+            if (step == Phase3dHorseStep.AwaitUnmountedRangedTargetCleanupRt)
+            {
+                return new JObject
+                {
+                    ["previousMeleeTargetId"] = unmountedMeleeTargetId,
+                    ["previousMeleeTargetCleanupPassed"] = unmountedMeleeTargetCleanupPassed,
+                    ["targetCleanupComplete"] = targetCleanupComplete,
+                    ["horseAiIsolation"] = CaptureUnmountedHorseAiIsolation()
+                };
+            }
             if (step == Phase3dHorseStep.AwaitStockMeleeTargetCleanupRt)
             {
                 return new JObject
@@ -3573,12 +3627,15 @@ namespace KingmakerMountedCombat.Diagnostics
                 unmountedHorseAiLease != null && unmountedHorseAiLease.IsAcquired &&
                 unmountedHorseAiLease.LastActiveValidationPassed && horse.Commands != null && horse.Commands.Empty &&
                 !((bool)AiBackingField.GetValue(horse)) && !horse.IsAIEnabled;
+            var freshTarget = unmountedMeleeTargetCleanupPassed &&
+                !string.IsNullOrWhiteSpace(unmountedMeleeTargetId) && target != null &&
+                !string.Equals(unmountedMeleeTargetId, target.UniqueId, StringComparison.Ordinal);
             var ready = relationship.State == RelationshipState.Unmounted &&
                 !CombatController.IsInTurnBasedCombat() && game != null && !game.IsPaused &&
                 selected != null && selected.Count == 1 && selected[0] == rider &&
                 rangedWeaponLease != null && rangedWeaponLease.IsReady && weapon != null &&
                 weapon.IsRanged && weapon.Category == WeaponCategory.Sling &&
-                targetReady && combatMemoryReady && rider.HasStandardAction() &&
+                targetReady && combatMemoryReady && freshTarget && rider.HasStandardAction() &&
                 rider.Commands != null && rider.Commands.Empty &&
                 horseAiIsolated &&
                 target.Commands != null && target.Commands.Empty &&
@@ -3608,6 +3665,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["previousTargetId"] = unmountedPreviousTargetId,
                 ["previousTargetCleanupPassed"] = unmountedPreviousTargetCleanupPassed,
                 ["isolatedTargetId"] = target?.UniqueId,
+                ["previousMeleeTargetId"] = unmountedMeleeTargetId,
+                ["previousMeleeTargetCleanupPassed"] = unmountedMeleeTargetCleanupPassed,
+                ["freshTarget"] = freshTarget,
                 ["targetDamage"] = target?.Damage
             };
         }
@@ -4500,6 +4560,7 @@ namespace KingmakerMountedCombat.Diagnostics
             AwaitUnmountedTargetCleanupRt,
             AwaitUnmountedMeleeRt,
             AwaitUnmountedMeleeCancelRt,
+            AwaitUnmountedRangedTargetCleanupRt,
             AwaitUnmountedRangedAdmissionRt,
             AwaitUnmountedRangedRt,
             AwaitUnmountedCombat,
