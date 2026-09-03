@@ -1,5 +1,13 @@
 # Autonomous blockers
 
+## Dev.19 TB bounded disposition; dev.20 presentation observer repair (2026-09-03T12:21:48-04:00)
+
+Status: `IN PROGRESS`. There is no build, publication, production gameplay, presentation-state, or external-restoration blocker. One automated TB fixture boundary and the final manual visual/usability gates remain open.
+
+Dev.19's stock adjacency setup passed without mutation because the unmounted pair was already adjacent. The exact rider then held an actionable selected `Preparing` turn and Mount was visible/enabled, but the Horse retained a dormant AI-created Standard-slot `UnitAttack`. The diagnostic wait required both command containers empty and therefore never issued the Mount input. Product Mount eligibility has no such Horse-idle gate, and the pair-local post-Mount coordinator already interrupts the mount's exact commands before ledger preparation. The two-cycle TB harness budget is exhausted: do not patch the fixture again, bypass native command ownership, or layer a global turn-controller fix. Combat Mount and downstream TB rows are `DEFER - EVIDENCED` to focused manual review with the accepted separate-turn fallback preserved.
+
+The dev.19 presentation process reached a healthy mounted Horse state but its evidence writer recursively serialized `PoseVector3.normalized` before emitting rows. Dev.20 writes only explicit scalar `x/y/z` evidence and binds that boundary with a source regression. This is the first and only attributable presentation-observer repair; fresh clean-package presentation runtime remains required. The audited failed process proves exact cleanup and does not confer visual PASS.
+
 ## Dev.18 proves fixture adjacency rejection; dev.19 repair is bounded (2026-09-03T06:36:51-04:00)
 
 Status: `IN PROGRESS`. There is no current shared-turn architecture, production gameplay, action-ledger, build, publication, or external-restoration blocker.

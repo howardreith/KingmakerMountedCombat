@@ -1,5 +1,15 @@
 # Mounted Combat journal
 
+## 2026-09-03T12:21:48-04:00 - dev.19 TB disposition; dev.20 repairs presentation vector evidence
+
+- Clean dev.19 is branch/local/upstream/remote `codex/mounted-combat-phase3d-unified-combat` / `a5242b1be793172c93b7553dca32c292c12ba9d2`, package/manifest/DLL SHA-256 `4491ba9254ca26fca1d570c8c3009021c512773d48c936ca9175d9ccbedd014e` / `519d4f398d54a444de5c56cc5435767294c30df730348e52c1f4fbb41e2e5e50` / `e83e6114c9324df8197aae6d665f08a32b0be2fac4d61a2185fc90aa7cf65887`, MVID `ed98fb4a-0b1f-47cb-a386-7e92a838991b`. Suite19 SHA-256 is `17ab4254f8d274bda924638e4a9fe362e0619484fb49eaa9398ca82035953e1b`.
+- TB WhatIf passed. Live TB Pass A and its audit are preserved. The pre-combat adjacency contract passed at `1.10947466m <= 2.9m`; current rider turn, selection, ledgers, Mount availability, and rider commands were exact. Only the Horse Standard slot was nonempty with an AI-created, non-running, never-acted native `UnitAttack`. The scenario's extra idle-container predicate blocked input; no product request or mutation occurred. The bounded TB fixture cycle is exhausted, so combat Mount and downstream TB rows remain manual-gated with no further patch.
+- Presentation WhatIf passed. Live presentation Pass A entered a healthy mounted state with exact rider principal, leases, renderers, icons, portrait, zero commands, and clean restoration, but failed before rows because JSON.NET recursively followed `PoseVector3.normalized`. Independent retry audit passed before inspection. Dev.20 replaces the two generic vector serializations with explicit scalar `x/y/z` evidence and adds a regression forbidding the recursive path.
+- Dev.20 complete pre-commit gate: source/prohibited payload `22/0`; Release; component `298/0`; visual/source-order `18/0`; harness/protocol `238/0`; exact assembly `382/0` (`358` Kingmaker + `24` Wrath); PowerShell/JSON parsers `26/0` / `7/0`; diff PASS. Dirty DLL SHA-256/MVID are `6c9cd8a13967e95c0c5eaf6fce43e99c129d0d6ac010fe7f4d5e049bb2f6425f` / `65097237-4ec6-44b6-8f01-a9e7a85aa13a` and are not package identity.
+- Next: commit/publish, clean package/suite, presentation WhatIf/live/audit, focused Mammoth regression, final manual-review records and package. Paladin implementation remains unauthorized.
+
+Status: `IN PROGRESS`.
+
 ## 2026-09-03T06:36:51-04:00 - dev.18 isolates adjacency; dev.19 stages one stock Horse approach
 
 - Clean dev.18 is `81e007fa97de0e2203728d888fa9906e3b9ebb44`, package/manifest/DLL SHA-256 `f2dd900dd80088b96926839b2bfba15b35bfe65f104f0472505023ce0b2a4c63` / `c005254fd4d9bf0df654c2cef3ba23412d77153f413a2224371fa76136780018` / `e80d1dd25aef4a2b036333bba3ff09ac8f7e0e8500e622380f3b6ee174a08832`, MVID `c7d4a0a8-02e2-4824-9c6d-63c949df309c`. Suite18 plus separate RT/TB WhatIf checks passed.

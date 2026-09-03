@@ -539,12 +539,9 @@ namespace KingmakerMountedCombat.Diagnostics
             observations["horseIdentityIcon"] = SpriteEvidence(horseIcon);
             observations["saddleIcon"] = SpriteEvidence(saddle);
             var horsePose = SupportedMountedProfiles.Horse.RiderPoseProfile;
-            observations["pelvisOffset"] = JObject.FromObject(
-                horsePose.PelvisPositionOffset,
-                JsonSerializer.Create(JsonSettings));
-            observations["mountRootPositionOffset"] = JObject.FromObject(
-                SupportedMountedProfiles.Horse.MountRootPositionOffset,
-                JsonSerializer.Create(JsonSettings));
+            observations["pelvisOffset"] = PoseVectorEvidence(horsePose.PelvisPositionOffset);
+            observations["mountRootPositionOffset"] = PoseVectorEvidence(
+                SupportedMountedProfiles.Horse.MountRootPositionOffset);
 
             AddRow(
                 "Horse-small-portrait-close-up",
@@ -591,6 +588,16 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["textureHeight"] = sprite?.texture?.height,
                 ["rectWidth"] = sprite?.rect.width,
                 ["rectHeight"] = sprite?.rect.height
+            };
+        }
+
+        private static JObject PoseVectorEvidence(PoseVector3 value)
+        {
+            return new JObject
+            {
+                ["x"] = value.X,
+                ["y"] = value.Y,
+                ["z"] = value.Z
             };
         }
 

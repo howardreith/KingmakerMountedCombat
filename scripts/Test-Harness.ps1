@@ -10682,9 +10682,17 @@ try {
         Assert-Test ($phase3dSource.Contains('observations["presentation"] = presentation;') -and
             $phase3dSource.Contains('new JObject { ["observation"] = presentation }') -and
             $phase3dSource.Contains('["presentation"] = relationship.CapturePresentationObservation(),') -and
+            $phase3dSource.Contains('observations["pelvisOffset"] = PoseVectorEvidence(horsePose.PelvisPositionOffset);') -and
+            $phase3dSource.Contains('PoseVectorEvidence(') -and
+            $phase3dSource.Contains('SupportedMountedProfiles.Horse.MountRootPositionOffset);') -and
+            $phase3dSource.Contains('["x"] = value.X') -and
+            $phase3dSource.Contains('["y"] = value.Y') -and
+            $phase3dSource.Contains('["z"] = value.Z') -and
             -not $phase3dSource.Contains('JObject.FromObject(presentation') -and
-            -not $phase3dSource.Contains('relationship.CapturePresentationObservation(), JsonSerializer.Create')) `
-            'Phase 3D scalar presentation evidence was routed back through JObject.FromObject'
+            -not $phase3dSource.Contains('relationship.CapturePresentationObservation(), JsonSerializer.Create') -and
+            -not $phase3dSource.Contains('JObject.FromObject(horsePose.PelvisPositionOffset') -and
+            -not $phase3dSource.Contains('JObject.FromObject(SupportedMountedProfiles.Horse.MountRootPositionOffset')) `
+            'Phase 3D scalar presentation or pose-vector evidence was routed back through JObject.FromObject'
         Assert-Test ($phase3dSource.Contains('new ClickUnitHandler().OnClick(target.View.gameObject, target.Position, 0, false, false)') -and
             $phase3dSource.Contains('ClickGroundHandler.MoveSelectedUnitsToPoint(movementDestination, false);') -and
             $phase3dSource.Contains('turn.TryChangeSmartAction();') -and

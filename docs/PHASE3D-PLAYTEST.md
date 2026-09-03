@@ -7,8 +7,8 @@ Status: IN PROGRESS — do not install until this document records a clean guard
 - branch: `codex/mounted-combat-phase3d-unified-combat`;
 - production implementation: `9bf83d21b5367e057130b41bf7379512a638c025`;
 - presentation checkpoint: `63d324d909ec333cd16cde5e942f419759faa664`;
-- runtime/package checkpoint: dev.1-dev.18 are immutable diagnostic history. Clean dev.17 passed all 29 reached mounted/transition RT rows twice; its final automated unmounted Sling control is `DEFER - EVIDENCED` after a native prior-command continuation contaminated two distinct targets before input. Dev.18 proved the first TB Mount rejection was solely fixture nonadjacency with an exact actionable rider turn, empty command containers, and untouched ledgers. Dev.19 applies one diagnostic-only stock Horse approach; clean-package TB qualification remains pending;
-- version: `0.1.0-phase3d-dev.19`;
+- runtime/package checkpoint: dev.1-dev.19 are immutable diagnostic history. Clean dev.17 passed all 29 reached mounted/transition RT rows twice; its final automated unmounted Sling control is `DEFER - EVIDENCED` after a native prior-command continuation contaminated two distinct targets before input. Dev.19 established exact TB adjacency, actionable rider turn, untouched ledgers, and enabled Mount, but its bounded harness wait stopped before input on a dormant Horse AI attack command; combat Mount and downstream TB rows remain focused manual gates. Dev.19 presentation reached healthy mounted state but its evidence serializer faulted before rows; dev.20 repairs that observer only;
+- version: `0.1.0-phase3d-dev.20`;
 - package, manifest, DLL SHA-256, and DLL MVID: pending clean-HEAD packaging and guarded runtime qualification.
 
 Do not manually copy, replace, merge, or curate the live Kingmaker `Mods` directory. Installation and removal commands will be bound to the final exact package after the guarded runtime tranche passes.
