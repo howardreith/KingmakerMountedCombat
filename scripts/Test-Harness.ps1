@@ -10476,6 +10476,103 @@ try {
         }
     }
 
+    Invoke-HarnessTest 'Phase 3D TB combat-Mount deadline requires exact admission telemetry' {
+        $failureRoot = Join-Path $runtimeEvidenceTestRoot 'phase3d-tb-combat-mount-deadline'
+        New-Item -ItemType Directory -Path $failureRoot -Force | Out-Null
+        $failureRequest = [pscustomobject]@{
+            runId='validator-phase3d-tb-combat-mount-deadline';scenario='phase3d-unified-combat-tb-suite'
+            branch='codex/mounted-combat-phase3d-unified-combat';commit=('d'*40)
+            productVersion=$currentProductVersion;dllSha256=('a'*64)
+            dllMvid='55555555-6666-7777-8888-999999999999';evidenceRoot=$failureRoot
+        }
+        $emptyRaw = @(
+            [ordered]@{present=$false},[ordered]@{present=$false},
+            [ordered]@{present=$false},[ordered]@{present=$false})
+        $riderRaw = @(
+            [ordered]@{present=$false},
+            [ordered]@{present=$true;type='Kingmaker.UnitLogic.Commands.UnitMoveTo'},
+            [ordered]@{present=$false},[ordered]@{present=$false})
+        $actor = {
+            param([string]$Id,[bool]$CommandsIdle)
+            [ordered]@{
+                present=$true;unitId=$Id;isInState=$true;isInCombat=$true;conscious=$true;canAct=$true
+                combatStatePresent=$true;prepared=$true;canActInCombat=$true;initiative=0.0
+                standardCooldown=0.0;moveCooldown=0.0;hasStandardAction=$true;hasMoveAction=$true
+                commandsPresent=$true;commandsIdle=$CommandsIdle;handsIdle=$true
+                equipmentControllerPresent=$true;equipmentIdle=$true
+            }
+        }
+        $progress = [ordered]@{
+            step='AwaitRiderTurnForMount';frame=200;stableFrames=0;startTurnRequestCount=1
+            riderTurnObservedFrames=120;actionableTurnObservedFrames=120;currentTurnMismatchFrames=0
+            turnStatusBlockedFrames=0;riderCommandBlockedFrames=120;horseCommandBlockedFrames=0
+            gamePresent=$true;gamePaused=$false;turnBased=$true;controllerPresent=$true
+            controllerInitialized=$true;currentTurnPresent=$true;currentTurnUnitId='rider'
+            currentTurnStatus='Preparing';currentTurnIsActing=$false;currentTurnRiderExact=$true
+            currentTurnActionable=$true;rosterUnitIds=@('rider','horse','target')
+            rosterRiderCount=1;rosterHorseCount=1;rosterTargetCount=1;selectedUnitIds=@('rider')
+            selectionRiderExact=$true;relationshipState='Unmounted';relationshipExact=$false
+            mountAbilityVisible=$true;mountAbilityEnabled=$false;mountAbilityReason='Rider command container is not idle.'
+            combatMemoryQueued=$true;playerGroupMemoryContainsTarget=$true;targetGroupMemoryContainsRider=$true
+            rider=(& $actor 'rider' $false);mount=(& $actor 'horse' $true)
+            target=[ordered]@{
+                present=$true;unitId='target';isInState=$true;isInCombat=$true;conscious=$true
+                riderEnemy=$true;riderCanAttack=$true;commandsPresent=$true;commandsIdle=$true
+                rawCommands=$emptyRaw;queuedCommands=@()
+            }
+            commands=[ordered]@{
+                frame=200;stockIntentActive=$false;activePairCommand=$false
+                riderManualTargetId=$null;mountManualTargetId=$null;riderRaw=$riderRaw;riderQueue=@()
+                mountRaw=$emptyRaw;mountQueue=@();lastOutcome=$null
+            }
+            lastNativeAbilityShell=[ordered]@{present=$false}
+            unified=[ordered]@{relationshipMounted=$false;rider=[ordered]@{unitId='rider'};mount=[ordered]@{unitId='horse'}}
+        }
+        $failureRow = [ordered]@{
+            name='phase3d-horse-leaf-deadline';status='FAIL'
+            detail='Synthetic combat-Mount admission deadline.';frame=200;seconds=30.1
+            evidence=[ordered]@{
+                step='AwaitRiderTurnForMount';relationshipState='Unmounted';stockObservation='not-observed'
+                feedback='diagnostic';currentTurnUnitId='rider';currentTurnStatus='Preparing'
+                transitionRiderTurnObserved=$false;transitionRiderStartRequestCount=0
+                leafDeadlineProgress=$progress;nativeControls=[ordered]@{};lastNativeAbilityShell=[ordered]@{present=$false}
+            }
+        }
+        $failureArtifact = [ordered]@{
+            schemaVersion=1;evidenceKind='phase3d-horse-scenario-evidence';runId=$failureRequest.runId
+            scenario=$failureRequest.scenario;branch=$failureRequest.branch;commit=$failureRequest.commit
+            productVersion=$failureRequest.productVersion;dllSha256=$failureRequest.dllSha256
+            dllMvid=$failureRequest.dllMvid;createdAtUtc=[DateTimeOffset]::UtcNow.ToString('o')
+            status='FAIL';rows=@($failureRow)
+            observations=[ordered]@{riderId='rider';horseId='horse';leafDeadlineProgress=$progress}
+            subscenarioPassCount=0;subscenarioFailCount=1;errors=@('Synthetic combat-Mount admission deadline.')
+        }
+        $failurePath = Join-Path $failureRoot 'phase3d-horse-scenario-evidence.json'
+        Write-KmcJsonDurable -Path $failurePath -Value $failureArtifact
+        $failureRecord = [ordered]@{
+            relativePath='phase3d-horse-scenario-evidence.json';kind='phase3d-horse-scenario-evidence'
+            length=(Get-Item -LiteralPath $failurePath).Length;sha256=(Get-KmcSha256 $failurePath)
+        }
+        [void](New-TestArtifactManifest -EvidenceRoot $failureRoot -RunId $failureRequest.runId -Scenario $failureRequest.scenario -Artifacts @($failureRecord))
+        $failureManifest = Read-KmcJson (Join-Path $failureRoot 'runtime-artifacts.json')
+        $failureSubresult = [pscustomobject]@{
+            name='phase3d-horse-leaf-deadline';status='FAIL';assertionPassCount=0;assertionFailCount=1
+            errors=@('Synthetic combat-Mount admission deadline.')
+        }
+        Assert-KmcPhase3dHorseScenarioEvidence -Request $failureRequest -Manifest $failureManifest -Status FAIL -SubscenarioResults @($failureSubresult)
+
+        $failureArtifact.rows[0].evidence.leafDeadlineProgress.commands.riderRaw = @()
+        $failureArtifact.observations.leafDeadlineProgress.commands.riderRaw = @()
+        Write-KmcJsonAtomic -Path $failurePath -Value $failureArtifact
+        $failureRecord.length=(Get-Item -LiteralPath $failurePath).Length
+        $failureRecord.sha256=(Get-KmcSha256 $failurePath)
+        [void](New-TestArtifactManifest -EvidenceRoot $failureRoot -RunId $failureRequest.runId -Scenario $failureRequest.scenario -Artifacts @($failureRecord))
+        $failureManifest = Read-KmcJson (Join-Path $failureRoot 'runtime-artifacts.json')
+        Assert-TestThrows {
+            Assert-KmcPhase3dHorseScenarioEvidence -Request $failureRequest -Manifest $failureManifest -Status FAIL -SubscenarioResults @($failureSubresult)
+        } 'Phase 3D TB validator accepted a combat-Mount deadline without exact rider raw command slots.'
+    }
+
     Invoke-HarnessTest 'Phase 3D unified combat source boundaries are exact and pair-local' {
         $unifiedSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\UnifiedMountedTurnCoordinator.cs'))
         $patchSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPatchController.cs'))

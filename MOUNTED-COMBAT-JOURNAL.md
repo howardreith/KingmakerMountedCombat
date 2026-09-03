@@ -1,5 +1,15 @@
 # Mounted Combat journal
 
+## 2026-09-03T03:04:37-04:00 - dev.17 RT bounded disposition; dev.18 observes TB admission
+
+- Clean dev.17 identity is branch/commit/version `codex/mounted-combat-phase3d-unified-combat` / `c0c50beb9919af9c26c05e256d3bf68f4b92796f` / `0.1.0-phase3d-dev.17`. ZIP/manifest/DLL SHA-256 are `f8b39c13fd73b34f6ab77e8ef8e50df877af186dfdfc54c27e2d9d64fa9c80d0` / `52d0d60510e3b01a9ed7e3176ef240b160b336e98f3f6becea7fbc0f5b8c5204` / `c139b340f1dfde2a4dfbade965d5c06d7da90efae8b1c6fe38a4e3182bc2d2c1`; MVID `aff14dfb-a767-426d-877a-5ba3e5fc382c`.
+- Dev.17 RT A/B each passed 29 mounted/transition/control rows and failed only the final automated unmounted Sling leaf. In both fresh processes the exact rider's preceding native four-attack melee continuation hit the replacement target before the Sling click even though its visible command slot had emptied. Both independent audits passed before inspection. This is a diagnostic sequencing collision; the exact aggregate failures remain immutable and automated `unmounted-ranged-control` is `DEFER - EVIDENCED` to one focused manual gate.
+- Dev.17 TB Pass A stopped at `AwaitRiderTurnForMount` with the exact rider current and `Preparing`, relationship `Unmounted`, and zero Mount cast/dispatch/end events. Its postrun audit passed before read. Because dev.17 did not preserve rider/Horse command slots at this boundary, it cannot distinguish the blocking predicate.
+- Dev.18 adds no behavior. One exact observation checkpoint captures native turn and roster, the single diagnostic `StartTurn` request, blocked-frame counters, raw pair/target commands, queues, hands/equipment, separate action cooldowns, selection, combat memory, Mount availability, and unified snapshot. Its failure validator is exact and mutation-tested. Complete gates pass `22/Release/298/18/238/382`, PowerShell/JSON `26/0` / `7/0`, and diff; pre-commit DLL SHA-256/MVID are `e80d1dd25aef4a2b036333bba3ff09ac8f7e0e8500e622380f3b6ee174a08832` / `c7d4a0a8-02e2-4824-9c6d-63c949df309c`.
+- Next: finish the complete gate, guarded-publish/package dev.18, run separate purity checks, then one fresh audited TB observation. Evidence may authorize one narrow attributable repair; otherwise record the architecture disposition and preserve the accepted fallback.
+
+Status: `IN PROGRESS`.
+
 ## 2026-09-02T21:28:27-04:00 - dev.16 passes 29/30 RT rows; dev.17 splits the final control target
 
 - Dev.16 is clean and guarded-published at `e9aee929272ede4b94501e5167d384e3b0d868c3`; local/upstream/remote agree. Package/manifest/DLL SHA-256 are `12902b7501c21b212aadf5d776f532d3282d59c0ec52708cb2e156242102fbab` / `5f4b9d03ae06e2844a819a678cb3f10f8c6626b0f8fd7b040d062383ea1c6ee5` / `f4961a9ae9e3ab7cedb66b9bf0f50666976c3585562434f9c0c492bf17a17a3c`; MVID `2374f3bb-f573-49a6-9823-4bad14f68461`.

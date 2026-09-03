@@ -7,8 +7,8 @@ Status: IN PROGRESS — do not install until this document records a clean guard
 - branch: `codex/mounted-combat-phase3d-unified-combat`;
 - production implementation: `9bf83d21b5367e057130b41bf7379512a638c025`;
 - presentation checkpoint: `63d324d909ec333cd16cde5e942f419759faa664`;
-- runtime/package checkpoint: dev.1-dev.15 are immutable diagnostic history; clean guarded-published dev.16 proved its native-LoS production repair and passed `29/30` Phase 3D RT rows. Its only failure reused a target killed by the immediately preceding valid unmounted melee control. Dev.17 isolates a distinct final Sling target and changes no production gameplay behavior; clean-package RT/TB qualification remains pending;
-- version: `0.1.0-phase3d-dev.17`;
+- runtime/package checkpoint: dev.1-dev.16 are immutable diagnostic history. Clean dev.17 passed all 29 reached mounted/transition RT rows twice; its final automated unmounted Sling control is `DEFER - EVIDENCED` after a native prior-command continuation contaminated two distinct targets before input. Dev.17 TB Pass A stopped before combat Mount input with insufficient command-slot attribution. Dev.18 adds only the exact admission probe; clean-package TB qualification remains pending;
+- version: `0.1.0-phase3d-dev.18`;
 - package, manifest, DLL SHA-256, and DLL MVID: pending clean-HEAD packaging and guarded runtime qualification.
 
 Do not manually copy, replace, merge, or curate the live Kingmaker `Mods` directory. Installation and removal commands will be bound to the final exact package after the guarded runtime tranche passes.

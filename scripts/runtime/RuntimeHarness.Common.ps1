@@ -5588,6 +5588,118 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
         ([string]$artifact.status -ceq 'PASS') -ne ($fail -eq 0 -and @($artifact.errors).Count -eq 0)) {
         throw 'Phase 3D Horse evidence row totals, errors, or status do not reconcile.'
     }
+    if ([string]$artifact.status -ceq 'FAIL' -and
+        [string]$Request.scenario -ceq 'phase3d-unified-combat-tb-suite' -and
+        $rowMap.ContainsKey('phase3d-horse-leaf-deadline')) {
+        $deadline = $rowMap['phase3d-horse-leaf-deadline']
+        $deadlineStep = [string]$deadline.evidence.step
+        if ($deadlineStep -ceq 'AwaitRiderTurnForMount') {
+            $progress = $deadline.evidence.leafDeadlineProgress
+            if ($null -eq $progress -or $progress -is [Array] -or $progress -is [string]) {
+                throw 'Phase 3D TB combat-Mount admission deadline omitted its structured progress checkpoint.'
+            }
+            Assert-KmcExactProperties $progress @(
+                'step','frame','stableFrames','startTurnRequestCount','riderTurnObservedFrames',
+                'actionableTurnObservedFrames','currentTurnMismatchFrames','turnStatusBlockedFrames',
+                'riderCommandBlockedFrames','horseCommandBlockedFrames','gamePresent','gamePaused','turnBased',
+                'controllerPresent','controllerInitialized','currentTurnPresent','currentTurnUnitId',
+                'currentTurnStatus','currentTurnIsActing','currentTurnRiderExact','currentTurnActionable',
+                'rosterUnitIds','rosterRiderCount','rosterHorseCount','rosterTargetCount','selectedUnitIds',
+                'selectionRiderExact','relationshipState','relationshipExact','mountAbilityVisible',
+                'mountAbilityEnabled','mountAbilityReason','combatMemoryQueued','playerGroupMemoryContainsTarget',
+                'targetGroupMemoryContainsRider','rider','mount','target','commands','lastNativeAbilityShell','unified'
+            ) 'Phase 3D TB combat-Mount admission deadline progress'
+            $integerNames = @(
+                'frame','stableFrames','startTurnRequestCount','riderTurnObservedFrames',
+                'actionableTurnObservedFrames','currentTurnMismatchFrames','turnStatusBlockedFrames',
+                'riderCommandBlockedFrames','horseCommandBlockedFrames','rosterRiderCount','rosterHorseCount',
+                'rosterTargetCount')
+            foreach ($integerName in $integerNames) {
+                if (-not (Test-KmcExactJsonInteger $progress.$integerName) -or
+                    [long]$progress.$integerName -lt 0L) {
+                    throw "Phase 3D TB combat-Mount admission progress has an invalid integer: $integerName"
+                }
+            }
+            foreach ($booleanName in @(
+                'gamePresent','gamePaused','turnBased','controllerPresent','controllerInitialized',
+                'currentTurnPresent','currentTurnIsActing','currentTurnRiderExact','currentTurnActionable',
+                'selectionRiderExact','relationshipExact','mountAbilityVisible','mountAbilityEnabled',
+                'combatMemoryQueued','playerGroupMemoryContainsTarget','targetGroupMemoryContainsRider')) {
+                if ($progress.$booleanName -isnot [bool]) {
+                    throw "Phase 3D TB combat-Mount admission progress has a non-Boolean field: $booleanName"
+                }
+            }
+            if ([string]$progress.step -cne $deadlineStep -or
+                $progress.gamePresent -ne $true -or $progress.turnBased -ne $true -or
+                $progress.controllerPresent -ne $true -or $progress.controllerInitialized -ne $true -or
+                [string]$progress.relationshipState -cne 'Unmounted' -or
+                $progress.relationshipExact -ne $false -or
+                @($progress.rosterUnitIds).Count -lt 3 -or
+                [long]$progress.rosterRiderCount -ne 1L -or
+                [long]$progress.rosterHorseCount -ne 1L -or
+                [long]$progress.rosterTargetCount -ne 1L -or
+                $progress.combatMemoryQueued -ne $true -or
+                $progress.playerGroupMemoryContainsTarget -ne $true -or
+                $progress.targetGroupMemoryContainsRider -ne $true -or
+                $progress.mountAbilityReason -isnot [string] -or
+                @($progress.selectedUnitIds).Count -lt 1 -or
+                $null -eq $progress.unified -or $progress.unified -is [Array] -or $progress.unified -is [string]) {
+                throw 'Phase 3D TB combat-Mount admission progress does not bind the exact live combat, roster, relationship, memory, and unified-turn boundary.'
+            }
+            if ($deadlineStep -ceq 'AwaitRiderTurnForMount' -and
+                ([long]$progress.startTurnRequestCount -ne 1L -or
+                 ([long]$progress.currentTurnMismatchFrames + [long]$progress.turnStatusBlockedFrames +
+                  [long]$progress.riderCommandBlockedFrames + [long]$progress.horseCommandBlockedFrames) -lt 1L)) {
+                throw 'Phase 3D TB combat-Mount rider-turn deadline does not identify one diagnostic StartTurn request and at least one observed admission blocker.'
+            }
+            foreach ($actorContract in @(
+                [pscustomobject]@{ value=$progress.rider; id=[string]$artifact.observations.riderId; name='rider' },
+                [pscustomobject]@{ value=$progress.mount; id=[string]$artifact.observations.horseId; name='mount' }
+            )) {
+                $actor = $actorContract.value
+                Assert-KmcExactProperties $actor @(
+                    'present','unitId','isInState','isInCombat','conscious','canAct','combatStatePresent',
+                    'prepared','canActInCombat','initiative','standardCooldown','moveCooldown','hasStandardAction',
+                    'hasMoveAction','commandsPresent','commandsIdle','handsIdle','equipmentControllerPresent',
+                    'equipmentIdle') ("Phase 3D TB combat-Mount " + $actorContract.name + ' admission state')
+                if ($actor.present -ne $true -or [string]$actor.unitId -cne $actorContract.id -or
+                    $actor.commandsPresent -ne $true -or $actor.commandsIdle -isnot [bool] -or
+                    $actor.handsIdle -isnot [bool] -or $actor.equipmentControllerPresent -ne $true -or
+                    $actor.equipmentIdle -isnot [bool]) {
+                    throw "Phase 3D TB combat-Mount $($actorContract.name) admission state is invalid."
+                }
+            }
+            Assert-KmcExactProperties $progress.target @(
+                'present','unitId','isInState','isInCombat','conscious','riderEnemy','riderCanAttack',
+                'commandsPresent','commandsIdle','rawCommands','queuedCommands'
+            ) 'Phase 3D TB combat-Mount target admission state'
+            if ($progress.target.present -ne $true -or
+                [string]::IsNullOrWhiteSpace([string]$progress.target.unitId) -or
+                $progress.target.commandsPresent -ne $true -or
+                $progress.target.commandsIdle -isnot [bool] -or
+                $progress.target.rawCommands -isnot [Array] -or
+                $progress.target.queuedCommands -isnot [Array]) {
+                throw 'Phase 3D TB combat-Mount target admission state is invalid.'
+            }
+            Assert-KmcExactProperties $progress.commands @(
+                'frame','stockIntentActive','activePairCommand','riderManualTargetId','mountManualTargetId',
+                'riderRaw','riderQueue','mountRaw','mountQueue','lastOutcome'
+            ) 'Phase 3D TB combat-Mount pair command state'
+            if ($progress.commands.riderRaw -isnot [Array] -or @($progress.commands.riderRaw).Count -lt 4 -or
+                $progress.commands.riderQueue -isnot [Array] -or
+                $progress.commands.mountRaw -isnot [Array] -or @($progress.commands.mountRaw).Count -lt 4 -or
+                $progress.commands.mountQueue -isnot [Array] -or
+                $progress.lastNativeAbilityShell.present -ne $false) {
+                throw 'Phase 3D TB combat-Mount admission progress omitted exact raw pair command slots, queues, or the pre-input native-shell boundary.'
+            }
+            $storedProgress = $artifact.observations.leafDeadlineProgress
+            if ($null -eq $storedProgress -or [string]$storedProgress.step -cne $deadlineStep -or
+                [long]$storedProgress.frame -ne [long]$progress.frame -or
+                [long]$storedProgress.startTurnRequestCount -ne [long]$progress.startTurnRequestCount) {
+                throw 'Phase 3D TB combat-Mount admission deadline row and top-level progress checkpoint do not reconcile.'
+            }
+        }
+    }
     if ([string]$artifact.status -ceq 'PASS') {
         foreach ($required in $requiredRows) {
             if (-not $rowNames.Contains($required) -or [string]$rowMap[$required].status -cne 'PASS') {

@@ -1,5 +1,15 @@
 # Autonomous blockers
 
+## Dev.17 RT is dispositioned; dev.18 must attribute TB pre-input admission (2026-09-03T03:04:37-04:00)
+
+Status: `IN PROGRESS`. External state is exact-restored and there is no current build, publication, Rider Primary, melee/ranged routing, combat-Dismount, or proven shared-turn architecture blocker.
+
+Dev.17 RT A/B each passed all 29 reached mounted/transition rows. Their sole automated unmounted Sling leaf was contaminated before input by the rider's native four-attack continuation from the preceding stock melee control. The bounded diagnostic allowance is exhausted for that control; it is `DEFER - EVIDENCED` to a focused manual unmounted Sling check. Production stock combat is not changed and neither aggregate is relabeled.
+
+Dev.17 TB Pass A failed before combat Mount input. The exact rider was current with status `Preparing`, but the wait also required empty rider and Horse command containers and dev.17 did not serialize those containers. No native Mount shell, cast, dispatch, resource charge, relationship transition, or duplicate turn occurred. This is insufficient evidence for either a production repair or an architecture blocker.
+
+Dev.18 is the one observation checkpoint. It binds all four actual admission predicates plus exact raw command arrays/queues, actor hands/equipment/combat ledgers, native roster/current turn, selection, target and memory lease, Mount availability, and unified-turn state. The external validator rejects missing attribution. Fresh clean-package TB evidence is mandatory. Once audited, only one exact attributable repair is allowed; if safe shared admission cannot be achieved without duplicate turns/actions, preserve the evidence and record the fallback architecture disposition. Paladin Divine Steed remains unauthorized.
+
 ## Dev.16 production repair passes; dev.17 has one diagnostic-only target boundary (2026-09-02T21:28:27-04:00)
 
 Status: `IN PROGRESS`. There is no current architecture, production-behavior, external-state, build, or publication blocker. Dev.16 RT A passed `29/30` Phase 3D rows after exact audit-before-read restoration. Exact native ranged admission and Horse-owned LoS recovery passed, as did Rider Primary retention, stock melee/ranged behavior, shared initiative/portrait observations, combat Dismount, and the isolated unmounted melee control.
