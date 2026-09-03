@@ -97,12 +97,17 @@ namespace KingmakerMountedCombat.Diagnostics
         private ScopedDiagnosticAiLease<UnitEntityData> unmountedHorseAiLease;
         private WeaponCategory rangedVariantCategory;
         private UnitEntityData target;
+        private UnitMoveTo combatMountAdjacencyCommand;
         private UnitMoveTo movementCommand;
         private UnitCommand unmountedCommand;
         private UnitUseAbility lastNativeAbilityShell;
         private UnifiedMountedTurnSnapshot explicitPrimaryLedgerBefore;
         private Vector3 movementStart;
         private Vector3 movementDestination;
+        private Vector3 combatMountAdjacencyRiderStart;
+        private Vector3 combatMountAdjacencyHorseStart;
+        private Vector3 combatMountAdjacencyDestination;
+        private JObject combatMountAdjacencyAdmission;
         private UnifiedMountedTurnSnapshot turnSnapshotBefore;
         private UnifiedMountedTurnSnapshot rtCombatDismountBefore;
         private long stockNativeBefore;
@@ -266,8 +271,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
             if (string.Equals(request.Scenario, TurnBasedScenario, StringComparison.Ordinal))
             {
-                BeginTarget(TargetDistance, "tb-combat-mount");
-                step = Phase3dHorseStep.AwaitUnmountedCombat;
+                step = Phase3dHorseStep.AwaitCombatMountAdjacencyReadiness;
                 return;
             }
 
@@ -397,6 +401,12 @@ namespace KingmakerMountedCombat.Diagnostics
                         break;
                     case Phase3dHorseStep.AwaitUnmountedRangedRt:
                         AwaitUnmountedRangedRt();
+                        break;
+                    case Phase3dHorseStep.AwaitCombatMountAdjacencyReadiness:
+                        AwaitCombatMountAdjacencyReadiness();
+                        break;
+                    case Phase3dHorseStep.AwaitCombatMountAdjacencyMove:
+                        AwaitCombatMountAdjacencyMove();
                         break;
                     case Phase3dHorseStep.AwaitUnmountedCombat:
                         AwaitUnmountedCombat();
@@ -2023,6 +2033,248 @@ namespace KingmakerMountedCombat.Diagnostics
             BeginCleanup();
         }
 
+        private void AwaitCombatMountAdjacencyReadiness()
+        {
+            if (Game.Instance.IsPaused)
+            {
+                Game.Instance.IsPaused = false;
+            }
+
+            observations["combatMountAdjacencyProgress"] = CaptureCombatMountAdjacencyProgress();
+            if (relationship.State != RelationshipState.Unmounted || target != null ||
+                rider.IsInCombat || horse.IsInCombat || rider.View?.AgentASP == null ||
+                horse.View?.AgentASP == null || rider.Commands == null || horse.Commands == null ||
+                !rider.Commands.Empty || !horse.Commands.Empty)
+            {
+                stableFrames = 0;
+                return;
+            }
+
+            stableFrames++;
+            if (stableFrames < 2)
+            {
+                return;
+            }
+
+            combatMountAdjacencyRiderStart = rider.Position;
+            combatMountAdjacencyHorseStart = horse.Position;
+            var pairDistanceBefore = rider.DistanceTo(horse);
+            var riderCorpulence = rider.View.Corpulence;
+            var mountCorpulence = horse.View.Corpulence;
+            var adjacentBefore = CombatMountDismountPolicy.IsAdjacent(
+                pairDistanceBefore,
+                riderCorpulence,
+                mountCorpulence);
+            combatMountAdjacencyAdmission = new JObject
+            {
+                ["setupRequired"] = !adjacentBefore,
+                ["pairAdjacentBefore"] = adjacentBefore,
+                ["pairDistanceBefore"] = pairDistanceBefore,
+                ["adjacencyThreshold"] = riderCorpulence + mountCorpulence +
+                    CombatMountDismountPolicy.NativeAdjacentReachMeters,
+                ["riderCorpulence"] = riderCorpulence,
+                ["mountCorpulence"] = mountCorpulence,
+                ["riderStart"] = CapturePosition(combatMountAdjacencyRiderStart),
+                ["mountStart"] = CapturePosition(combatMountAdjacencyHorseStart),
+                ["destination"] = JValue.CreateNull(),
+                ["setupMechanism"] = adjacentBefore
+                    ? "already-adjacent"
+                    : "ClickGroundHandler.MoveSelectedUnitsToPoint",
+                ["nativeGroundInputInvoked"] = false,
+                ["nativeGroundInputAdmitted"] = false,
+                ["commandPresent"] = false,
+                ["commandOwnerId"] = JValue.CreateNull(),
+                ["commandCreatedByPlayer"] = false,
+                ["horseMoveSlotExactAtAdmission"] = false,
+                ["riderMoveSlotEmptyAtAdmission"] = rider.Commands.Move == null,
+                ["selectionHorseExactAtAdmission"] = false,
+                ["relationshipStateBefore"] = relationship.State.ToString(),
+                ["targetPresentBefore"] = target != null,
+                ["riderInCombatBefore"] = rider.IsInCombat,
+                ["mountInCombatBefore"] = horse.IsInCombat,
+                ["turnBasedBefore"] = CombatController.IsInTurnBasedCombat()
+            };
+
+            if (adjacentBefore)
+            {
+                SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
+                observations["combatMountAdjacencySetup"] = CaptureCombatMountAdjacencyCompletion();
+                BeginTarget(TargetDistance, "tb-combat-mount");
+                step = Phase3dHorseStep.AwaitUnmountedCombat;
+                stableFrames = 0;
+                ResetLeafClock();
+                return;
+            }
+
+            SelectionManager.Instance.SelectUnit(horse.View, true, true, false);
+            combatMountAdjacencyDestination = FindWalkablePointNearTarget(
+                rider.Position,
+                horse.Position,
+                1.35f);
+            combatMountAdjacencyAdmission["destination"] = CapturePosition(combatMountAdjacencyDestination);
+            combatMountAdjacencyAdmission["nativeGroundInputInvoked"] = true;
+            ClickGroundHandler.MoveSelectedUnitsToPoint(combatMountAdjacencyDestination, false);
+            combatMountAdjacencyCommand = horse.Commands.Move as UnitMoveTo;
+            var selection = SelectionManager.Instance.SelectedUnits;
+            var horseMoveSlotExact = combatMountAdjacencyCommand != null &&
+                ReferenceEquals(horse.Commands.Move, combatMountAdjacencyCommand);
+            var selectionHorseExact = selection != null && selection.Count == 1 && selection[0] == horse;
+            var nativeInputAdmitted = combatMountAdjacencyCommand != null &&
+                combatMountAdjacencyCommand.Executor == horse &&
+                combatMountAdjacencyCommand.CreatedByPlayer && horseMoveSlotExact &&
+                rider.Commands.Move == null && selectionHorseExact;
+            combatMountAdjacencyAdmission["nativeGroundInputAdmitted"] = nativeInputAdmitted;
+            combatMountAdjacencyAdmission["commandPresent"] = combatMountAdjacencyCommand != null;
+            combatMountAdjacencyAdmission["commandOwnerId"] = combatMountAdjacencyCommand?.Executor?.UniqueId;
+            combatMountAdjacencyAdmission["commandCreatedByPlayer"] =
+                combatMountAdjacencyCommand != null && combatMountAdjacencyCommand.CreatedByPlayer;
+            combatMountAdjacencyAdmission["horseMoveSlotExactAtAdmission"] = horseMoveSlotExact;
+            combatMountAdjacencyAdmission["riderMoveSlotEmptyAtAdmission"] = rider.Commands.Move == null;
+            combatMountAdjacencyAdmission["selectionHorseExactAtAdmission"] = selectionHorseExact;
+            observations["combatMountAdjacencyProgress"] = CaptureCombatMountAdjacencyProgress();
+            if (!nativeInputAdmitted)
+            {
+                observations["combatMountAdjacencySetup"] = CaptureCombatMountAdjacencyCompletion();
+                FailCurrent(
+                    "mount-in-combat-before-either-acted",
+                    "Ordinary pre-combat Horse ground input did not admit one exact player-created Horse Move command.");
+                BeginCleanup();
+                return;
+            }
+
+            step = Phase3dHorseStep.AwaitCombatMountAdjacencyMove;
+            stableFrames = 0;
+            ResetLeafClock();
+        }
+
+        private void AwaitCombatMountAdjacencyMove()
+        {
+            observations["combatMountAdjacencyProgress"] = CaptureCombatMountAdjacencyProgress();
+            if (combatMountAdjacencyCommand == null || !combatMountAdjacencyCommand.IsFinished ||
+                !rider.Commands.Empty || !horse.Commands.Empty)
+            {
+                stableFrames = 0;
+                return;
+            }
+
+            stableFrames++;
+            if (stableFrames < 2)
+            {
+                return;
+            }
+
+            SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
+            var evidence = CaptureCombatMountAdjacencyCompletion();
+            observations["combatMountAdjacencySetup"] = evidence;
+            var accepted = combatMountAdjacencyCommand.Result == UnitCommand.ResultType.Success &&
+                evidence["pairAdjacentAfter"].Value<bool>() &&
+                evidence["mountPhysicalDistance"].Value<float>() > 0.25f &&
+                evidence["riderPhysicalDistance"].Value<float>() <= 0.15f &&
+                evidence["selectionRiderExactAfter"].Value<bool>() &&
+                relationship.State == RelationshipState.Unmounted && target == null &&
+                !rider.IsInCombat && !horse.IsInCombat && !CombatController.IsInTurnBasedCombat();
+            if (!accepted)
+            {
+                FailCurrent(
+                    "mount-in-combat-before-either-acted",
+                    "Stock pre-combat Horse movement did not finish adjacent while preserving the stationary unmounted rider and noncombat state.");
+                BeginCleanup();
+                return;
+            }
+
+            BeginTarget(TargetDistance, "tb-combat-mount");
+            step = Phase3dHorseStep.AwaitUnmountedCombat;
+            stableFrames = 0;
+            ResetLeafClock();
+        }
+
+        private JObject CaptureCombatMountAdjacencyCompletion()
+        {
+            var selected = SelectionManager.Instance?.SelectedUnits;
+            var riderCorpulence = rider.View?.Corpulence ?? float.PositiveInfinity;
+            var mountCorpulence = horse.View?.Corpulence ?? float.PositiveInfinity;
+            var pairDistanceAfter = rider.DistanceTo(horse);
+            var evidence = combatMountAdjacencyAdmission == null
+                ? new JObject()
+                : (JObject)combatMountAdjacencyAdmission.DeepClone();
+            evidence["pairAdjacentAfter"] = CombatMountDismountPolicy.IsAdjacent(
+                pairDistanceAfter,
+                riderCorpulence,
+                mountCorpulence);
+            evidence["pairDistanceAfter"] = pairDistanceAfter;
+            evidence["riderFinal"] = CapturePosition(rider.Position);
+            evidence["mountFinal"] = CapturePosition(horse.Position);
+            evidence["mountPhysicalDistance"] = HorizontalDistance(
+                combatMountAdjacencyHorseStart,
+                horse.Position);
+            evidence["riderPhysicalDistance"] = HorizontalDistance(
+                combatMountAdjacencyRiderStart,
+                rider.Position);
+            evidence["commandFinished"] = combatMountAdjacencyCommand != null &&
+                combatMountAdjacencyCommand.IsFinished;
+            evidence["commandResult"] = combatMountAdjacencyCommand == null
+                ? JValue.CreateNull()
+                : new JValue(combatMountAdjacencyCommand.Result.ToString());
+            evidence["commandsIdleAfter"] = rider.Commands != null && rider.Commands.Empty &&
+                horse.Commands != null && horse.Commands.Empty;
+            evidence["selectionRiderExactAfter"] = selected != null && selected.Count == 1 && selected[0] == rider;
+            evidence["relationshipStateAfter"] = relationship.State.ToString();
+            evidence["targetPresentAfter"] = target != null;
+            evidence["riderInCombatAfter"] = rider.IsInCombat;
+            evidence["mountInCombatAfter"] = horse.IsInCombat;
+            evidence["turnBasedAfter"] = CombatController.IsInTurnBasedCombat();
+            return evidence;
+        }
+
+        private JObject CaptureCombatMountAdjacencyProgress()
+        {
+            try
+            {
+                var riderCorpulence = rider.View?.Corpulence ?? float.PositiveInfinity;
+                var mountCorpulence = horse.View?.Corpulence ?? float.PositiveInfinity;
+                var pairDistance = rider.DistanceTo(horse);
+                return new JObject
+                {
+                    ["step"] = step.ToString(),
+                    ["frame"] = Time.frameCount,
+                    ["stableFrames"] = stableFrames,
+                    ["relationshipState"] = relationship.State.ToString(),
+                    ["gamePaused"] = Game.Instance != null && Game.Instance.IsPaused,
+                    ["turnBased"] = CombatController.IsInTurnBasedCombat(),
+                    ["targetPresent"] = target != null,
+                    ["riderInCombat"] = rider.IsInCombat,
+                    ["mountInCombat"] = horse.IsInCombat,
+                    ["riderCommandsIdle"] = rider.Commands != null && rider.Commands.Empty,
+                    ["mountCommandsIdle"] = horse.Commands != null && horse.Commands.Empty,
+                    ["pairDistance"] = pairDistance,
+                    ["riderCorpulence"] = riderCorpulence,
+                    ["mountCorpulence"] = mountCorpulence,
+                    ["pairAdjacent"] = CombatMountDismountPolicy.IsAdjacent(
+                        pairDistance,
+                        riderCorpulence,
+                        mountCorpulence),
+                    ["riderPosition"] = CapturePosition(rider.Position),
+                    ["mountPosition"] = CapturePosition(horse.Position),
+                    ["commandPresent"] = combatMountAdjacencyCommand != null,
+                    ["commandFinished"] = combatMountAdjacencyCommand != null &&
+                        combatMountAdjacencyCommand.IsFinished,
+                    ["commandResult"] = combatMountAdjacencyCommand == null
+                        ? JValue.CreateNull()
+                        : new JValue(combatMountAdjacencyCommand.Result.ToString()),
+                    ["admission"] = combatMountAdjacencyAdmission?.DeepClone()
+                };
+            }
+            catch (Exception exception)
+            {
+                return new JObject
+                {
+                    ["step"] = step.ToString(),
+                    ["frame"] = Time.frameCount,
+                    ["captureError"] = exception.GetType().FullName + ": " + exception.Message
+                };
+            }
+        }
+
         private void AwaitUnmountedCombat()
         {
             if (Game.Instance.IsPaused)
@@ -3557,6 +3809,11 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private JToken CaptureLeafDeadlineProgress()
         {
+            if (step == Phase3dHorseStep.AwaitCombatMountAdjacencyReadiness ||
+                step == Phase3dHorseStep.AwaitCombatMountAdjacencyMove)
+            {
+                return CaptureCombatMountAdjacencyProgress();
+            }
             if (step == Phase3dHorseStep.AwaitTurnBasedMode ||
                 step == Phase3dHorseStep.AwaitRiderTurnForMount)
             {
@@ -4398,6 +4655,8 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             try { combat.Cancel("Phase 3D Horse tranche cleanup"); }
             catch (Exception exception) { AddCleanupError("combat", exception); }
+            try { combatMountAdjacencyCommand?.Interrupt(); }
+            catch (Exception exception) { AddCleanupError("combat Mount adjacency movement", exception); }
             try { movementCommand?.Interrupt(); }
             catch (Exception exception) { AddCleanupError("movement", exception); }
             try { unmountedCommand?.Interrupt(); }
@@ -4732,6 +4991,8 @@ namespace KingmakerMountedCombat.Diagnostics
             AwaitUnmountedRangedTargetCleanupRt,
             AwaitUnmountedRangedAdmissionRt,
             AwaitUnmountedRangedRt,
+            AwaitCombatMountAdjacencyReadiness,
+            AwaitCombatMountAdjacencyMove,
             AwaitUnmountedCombat,
             AwaitTurnBasedMode,
             AwaitRiderTurnForMount,

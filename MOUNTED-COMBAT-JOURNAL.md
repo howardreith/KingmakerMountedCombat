@@ -1,5 +1,14 @@
 # Mounted Combat journal
 
+## 2026-09-03T06:36:51-04:00 - dev.18 isolates adjacency; dev.19 stages one stock Horse approach
+
+- Clean dev.18 is `81e007fa97de0e2203728d888fa9906e3b9ebb44`, package/manifest/DLL SHA-256 `f2dd900dd80088b96926839b2bfba15b35bfe65f104f0472505023ce0b2a4c63` / `c005254fd4d9bf0df654c2cef3ba23412d77153f413a2224371fa76136780018` / `e80d1dd25aef4a2b036333bba3ff09ac8f7e0e8500e622380f3b6ee174a08832`, MVID `c7d4a0a8-02e2-4824-9c6d-63c949df309c`. Suite18 plus separate RT/TB WhatIf checks passed.
+- TB observation A and its independent audit are preserved. Exact admission telemetry proves one stable rider `Preparing` turn, empty pair slots/queues, untouched separate ledgers, exact rider selection, and no turn-status blocker. Native availability rejected only nonadjacency. The pre-target fixture setup—not production Mount or unified-turn code—is the root cause.
+- Dev.19 moves the unmounted Horse before target creation via an ordinary ground click. Qualification requires exact Horse command ownership, player-created stock `UnitMoveTo`, native `Success`, positive Horse-only displacement, final product-policy adjacency, no direct position mutation, no target/combat/TB state during staging, idle commands, and restored rider selection. Harness semantic and source-boundary tests cover the new proof. Complete gates pass source/Release/component/visual/harness/assembly `22/Release/298/18/238/382`, parsers `26/0` / `7/0`, and diff; clean runtime identity remains pending.
+- Next: full gates, commit/publish, clean package and suite, TB WhatIf, fresh audited TB run. No second fixture repair, Paladin implementation, global turn patch, or automated remount is authorized.
+
+Status: `IN PROGRESS`.
+
 ## 2026-09-03T03:04:37-04:00 - dev.17 RT bounded disposition; dev.18 observes TB admission
 
 - Clean dev.17 identity is branch/commit/version `codex/mounted-combat-phase3d-unified-combat` / `c0c50beb9919af9c26c05e256d3bf68f4b92796f` / `0.1.0-phase3d-dev.17`. ZIP/manifest/DLL SHA-256 are `f8b39c13fd73b34f6ab77e8ef8e50df877af186dfdfc54c27e2d9d64fa9c80d0` / `52d0d60510e3b01a9ed7e3176ef240b160b336e98f3f6becea7fbc0f5b8c5204` / `c139b340f1dfde2a4dfbade965d5c06d7da90efae8b1c6fe38a4e3182bc2d2c1`; MVID `aff14dfb-a767-426d-877a-5ba3e5fc382c`.

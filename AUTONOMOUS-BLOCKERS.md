@@ -1,5 +1,13 @@
 # Autonomous blockers
 
+## Dev.18 proves fixture adjacency rejection; dev.19 repair is bounded (2026-09-03T06:36:51-04:00)
+
+Status: `IN PROGRESS`. There is no current shared-turn architecture, production gameplay, action-ledger, build, publication, or external-restoration blocker.
+
+Dev.18 live TB evidence proves exact rider-turn admission and empty rider/Horse command containers. Mount Companion was visible but correctly disabled only because the fixture pair was not adjacent. The fixture had created the hostile before positioning the unmounted Horse; no product Mount request ran and no resource or relationship mutation occurred.
+
+Dev.19 uses the one authorized attributable repair cycle on diagnostic orchestration only. One ordinary pre-combat ground input must create a player-created Horse-owned `UnitMoveTo`, finish `Success`, physically move only the Horse to product-policy adjacency, leave both actors unmounted/out of combat, and restore rider selection before target creation. Strict evidence rejects missing input, wrong owner/slot, rider movement, nonterminal movement, direct position mutation, preexisting target/combat/TB state, or failed adjacency. Fresh clean-package TB runtime remains the only uncertainty. If that process cannot cross combat Mount safely, stop with the exact architecture disposition rather than patching global turn control.
+
 ## Dev.17 RT is dispositioned; dev.18 must attribute TB pre-input admission (2026-09-03T03:04:37-04:00)
 
 Status: `IN PROGRESS`. External state is exact-restored and there is no current build, publication, Rider Primary, melee/ranged routing, combat-Dismount, or proven shared-turn architecture blocker.

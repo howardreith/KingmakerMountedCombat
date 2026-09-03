@@ -6173,6 +6173,81 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
         }
     }
     elseif ([string]$artifact.status -ceq 'PASS' -and [string]$Request.scenario -ceq 'phase3d-unified-combat-tb-suite') {
+        $adjacency = $artifact.observations.combatMountAdjacencySetup
+        if ($null -eq $adjacency -or $adjacency -is [Array] -or $adjacency -is [string]) {
+            throw 'PASS Phase 3D TB evidence omitted the pre-combat Horse adjacency setup.'
+        }
+        Assert-KmcExactProperties $adjacency @(
+            'setupRequired','pairAdjacentBefore','pairDistanceBefore','adjacencyThreshold','riderCorpulence',
+            'mountCorpulence','riderStart','mountStart','destination','setupMechanism','nativeGroundInputInvoked',
+            'nativeGroundInputAdmitted','commandPresent','commandOwnerId','commandCreatedByPlayer',
+            'horseMoveSlotExactAtAdmission','riderMoveSlotEmptyAtAdmission','selectionHorseExactAtAdmission',
+            'relationshipStateBefore','targetPresentBefore','riderInCombatBefore','mountInCombatBefore',
+            'turnBasedBefore','pairAdjacentAfter','pairDistanceAfter','riderFinal','mountFinal',
+            'mountPhysicalDistance','riderPhysicalDistance','commandFinished','commandResult','commandsIdleAfter',
+            'selectionRiderExactAfter','relationshipStateAfter','targetPresentAfter','riderInCombatAfter',
+            'mountInCombatAfter','turnBasedAfter'
+        ) 'Phase 3D TB pre-combat Horse adjacency setup'
+        foreach ($booleanName in @(
+            'setupRequired','pairAdjacentBefore','nativeGroundInputInvoked','nativeGroundInputAdmitted',
+            'commandPresent','commandCreatedByPlayer','horseMoveSlotExactAtAdmission',
+            'riderMoveSlotEmptyAtAdmission','selectionHorseExactAtAdmission','targetPresentBefore',
+            'riderInCombatBefore','mountInCombatBefore','turnBasedBefore','pairAdjacentAfter','commandFinished',
+            'commandsIdleAfter','selectionRiderExactAfter','targetPresentAfter','riderInCombatAfter',
+            'mountInCombatAfter','turnBasedAfter')) {
+            if ($adjacency.$booleanName -isnot [bool]) {
+                throw "Phase 3D TB pre-combat adjacency setup has a non-Boolean field: $booleanName"
+            }
+        }
+        foreach ($numberName in @(
+            'pairDistanceBefore','adjacencyThreshold','riderCorpulence','mountCorpulence',
+            'pairDistanceAfter','mountPhysicalDistance','riderPhysicalDistance')) {
+            if (-not (Test-KmcFiniteNonnegativeJsonNumber $adjacency.$numberName)) {
+                throw "Phase 3D TB pre-combat adjacency setup has an invalid distance: $numberName"
+            }
+        }
+        foreach ($positionName in @('riderStart','mountStart','destination','riderFinal','mountFinal')) {
+            $position = $adjacency.$positionName
+            Assert-KmcExactProperties $position @('x','y','z') "Phase 3D TB pre-combat adjacency $positionName"
+            foreach ($axis in @('x','y','z')) {
+                if (-not (Test-KmcFiniteJsonNumber $position.$axis)) {
+                    throw "Phase 3D TB pre-combat adjacency $positionName has an invalid $axis coordinate."
+                }
+            }
+        }
+        $mountDestinationResidual = [Math]::Sqrt(
+            [Math]::Pow([double]$adjacency.mountFinal.x - [double]$adjacency.destination.x, 2.0) +
+            [Math]::Pow([double]$adjacency.mountFinal.z - [double]$adjacency.destination.z, 2.0))
+        $adjacencyThresholdExact = Test-KmcApproximatelyEqual `
+            ([double]$adjacency.adjacencyThreshold) `
+            ([double]$adjacency.riderCorpulence + [double]$adjacency.mountCorpulence + 1.5d) 0.001d
+        if ($adjacency.setupRequired -ne $true -or $adjacency.pairAdjacentBefore -ne $false -or
+            [double]$adjacency.pairDistanceBefore -le [double]$adjacency.adjacencyThreshold -or
+            $adjacency.nativeGroundInputInvoked -ne $true -or $adjacency.nativeGroundInputAdmitted -ne $true -or
+            [string]$adjacency.setupMechanism -cne 'ClickGroundHandler.MoveSelectedUnitsToPoint' -or
+            $adjacency.commandPresent -ne $true -or
+            [string]$adjacency.commandOwnerId -cne [string]$artifact.observations.horseId -or
+            $adjacency.commandCreatedByPlayer -ne $true -or
+            $adjacency.horseMoveSlotExactAtAdmission -ne $true -or
+            $adjacency.riderMoveSlotEmptyAtAdmission -ne $true -or
+            $adjacency.selectionHorseExactAtAdmission -ne $true -or
+            [string]$adjacency.relationshipStateBefore -cne 'Unmounted' -or
+            $adjacency.targetPresentBefore -ne $false -or $adjacency.riderInCombatBefore -ne $false -or
+            $adjacency.mountInCombatBefore -ne $false -or $adjacency.turnBasedBefore -ne $false -or
+            $adjacency.pairAdjacentAfter -ne $true -or
+            [double]$adjacency.pairDistanceAfter -gt [double]$adjacency.adjacencyThreshold -or
+            [double]$adjacency.mountPhysicalDistance -le 0.25d -or
+            [double]$adjacency.mountPhysicalDistance -gt ([double]$adjacency.pairDistanceBefore + 0.75d) -or
+            [double]$adjacency.riderPhysicalDistance -gt 0.15d -or $mountDestinationResidual -gt 0.8d -or
+            $adjacency.commandFinished -ne $true -or [string]$adjacency.commandResult -cne 'Success' -or
+            $adjacency.commandsIdleAfter -ne $true -or $adjacency.selectionRiderExactAfter -ne $true -or
+            [string]$adjacency.relationshipStateAfter -cne 'Unmounted' -or
+            $adjacency.targetPresentAfter -ne $false -or $adjacency.riderInCombatAfter -ne $false -or
+            $adjacency.mountInCombatAfter -ne $false -or $adjacency.turnBasedAfter -ne $false -or
+            -not $adjacencyThresholdExact) {
+            throw 'PASS Phase 3D TB evidence does not prove a stock, visible, Horse-owned adjacency move without rider displacement or combat-state mutation.'
+        }
+
         $initiative = $rowMap['mounted-combat-start-single-initiative-entry'].evidence
         $stock = $rowMap['mounted-stock-click-melee-shared-turn-tb'].evidence
         $ranged = $rowMap['mounted-bow-shared-turn-tb'].evidence

@@ -10208,6 +10208,27 @@ try {
                 }
             }
             else {
+                $observations.combatMountAdjacencySetup = [ordered]@{
+                    setupRequired=$true;pairAdjacentBefore=$false;pairDistanceBefore=6.0
+                    adjacencyThreshold=2.7;riderCorpulence=0.45;mountCorpulence=0.75
+                    riderStart=[ordered]@{x=0.0;y=0.0;z=0.0}
+                    mountStart=[ordered]@{x=6.0;y=0.0;z=0.0}
+                    destination=[ordered]@{x=1.35;y=0.0;z=0.0}
+                    setupMechanism='ClickGroundHandler.MoveSelectedUnitsToPoint'
+                    nativeGroundInputInvoked=$true;nativeGroundInputAdmitted=$true
+                    commandPresent=$true;commandOwnerId='horse';commandCreatedByPlayer=$true
+                    horseMoveSlotExactAtAdmission=$true;riderMoveSlotEmptyAtAdmission=$true
+                    selectionHorseExactAtAdmission=$true;relationshipStateBefore='Unmounted'
+                    targetPresentBefore=$false;riderInCombatBefore=$false;mountInCombatBefore=$false
+                    turnBasedBefore=$false;pairAdjacentAfter=$true;pairDistanceAfter=1.35
+                    riderFinal=[ordered]@{x=0.0;y=0.0;z=0.0}
+                    mountFinal=[ordered]@{x=1.35;y=0.0;z=0.0}
+                    mountPhysicalDistance=4.65;riderPhysicalDistance=0.0
+                    commandFinished=$true;commandResult='Success';commandsIdleAfter=$true
+                    selectionRiderExactAfter=$true;relationshipStateAfter='Unmounted'
+                    targetPresentAfter=$false;riderInCombatAfter=$false;mountInCombatAfter=$false
+                    turnBasedAfter=$false
+                }
                 $rowByName['mounted-combat-start-single-initiative-entry'].evidence = [ordered]@{
                     trackerRiderCount=1;trackerHorseCount=0;trackerRiderPortraitExact=$true;selectionRiderExact=$true
                 }
@@ -10473,6 +10494,18 @@ try {
                     Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
                 } 'Phase 3D RT validator accepted an explicit primary shell that consumed rider Move in addition to actor Standard.'
             }
+            elseif ($phase3dScenario -ceq 'phase3d-unified-combat-tb-suite') {
+                $rowByName['mounted-five-foot-step-no-aao'].evidence.opportunity.attackRules = 0
+                $phase3dArtifact.observations.combatMountAdjacencySetup.nativeGroundInputAdmitted = $false
+                Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
+                $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
+                $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
+                [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+                $phase3dManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+                Assert-TestThrows {
+                    Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
+                } 'Phase 3D TB validator accepted combat-Mount adjacency staging without exact native Horse input admission.'
+            }
         }
     }
 
@@ -10720,6 +10753,15 @@ try {
             $phase3dSource.Contains('errors.Count == 0 &&') -and
             -not $phase3dSource.Contains('Gunslinger')) `
             'Phase 3D runtime tranche lost native input admission, explicit actor isolation, exact tracker/five-foot surfaces, or cleanup-safe evidence status'
+        Assert-Test ($phase3dSource.Contains('step = Phase3dHorseStep.AwaitCombatMountAdjacencyReadiness;') -and
+            $phase3dSource.Contains('SelectionManager.Instance.SelectUnit(horse.View, true, true, false);') -and
+            $phase3dSource.Contains('ClickGroundHandler.MoveSelectedUnitsToPoint(combatMountAdjacencyDestination, false);') -and
+            $phase3dSource.Contains('combatMountAdjacencyCommand.Executor == horse') -and
+            $phase3dSource.Contains('CombatMountDismountPolicy.IsAdjacent(') -and
+            $phase3dSource.Contains('"ClickGroundHandler.MoveSelectedUnitsToPoint"') -and
+            -not $phase3dSource.Contains('Translocate(') -and
+            -not $phase3dSource.Contains('.Position =')) `
+            'Phase 3D combat-Mount adjacency fixture lost exact stock Horse movement or introduced direct position mutation'
     }
 
     $resultPath = Join-Path $testRoot 'runtime-result.json'
