@@ -1,14 +1,14 @@
 # Phase 3D Unified Mounted Combat Private-Alpha Playtest
 
-Status: IN PROGRESS — do not install until this document records a clean guarded-published package identity
+Status: IN PROGRESS - do not install until this document records the final clean guarded-published manual-review package identity
 
 ## Exact artifact
 
 - branch: `codex/mounted-combat-phase3d-unified-combat`;
 - production implementation: `9bf83d21b5367e057130b41bf7379512a638c025`;
 - presentation checkpoint: `63d324d909ec333cd16cde5e942f419759faa664`;
-- runtime/package checkpoint: dev.1-dev.19 are immutable diagnostic history. Clean dev.17 passed all 29 reached mounted/transition RT rows twice; its final automated unmounted Sling control is `DEFER - EVIDENCED` after a native prior-command continuation contaminated two distinct targets before input. Dev.19 established exact TB adjacency, actionable rider turn, untouched ledgers, and enabled Mount, but its bounded harness wait stopped before input on a dormant Horse AI attack command; combat Mount and downstream TB rows remain focused manual gates. Dev.19 presentation reached healthy mounted state but its evidence serializer faulted before rows; dev.20 repairs that observer only;
-- version: `0.1.0-phase3d-dev.20`;
+- runtime/package checkpoint: dev.1-dev.20 are immutable diagnostic history. Clean dev.17 passed all 29 reached mounted/transition RT rows twice; its final automated unmounted Sling control is `DEFER - EVIDENCED` after a native prior-command continuation contaminated two distinct targets before input. Dev.19 established exact TB adjacency, actionable rider turn, untouched ledgers, and enabled Mount, but its bounded harness wait stopped before input on a dormant Horse AI attack command; combat Mount and downstream TB rows remain focused manual gates. Dev.20 presentation passes all four evidence rows and `49/0` assertions. Its focused Mammoth TB run failed before input because the diagnostic requested the independently suppressed mount turn; dev.21 now uses the rider principal while retaining Mammoth action ownership;
+- version: `0.1.0-phase3d-dev.21`;
 - package, manifest, DLL SHA-256, and DLL MVID: pending clean-HEAD packaging and guarded runtime qualification.
 
 Do not manually copy, replace, merge, or curate the live Kingmaker `Mods` directory. Installation and removal commands will be bound to the final exact package after the guarded runtime tranche passes.

@@ -1,5 +1,15 @@
 # Autonomous blockers
 
+## Dev.20 presentation is qualified; dev.21 repairs only the focused Mammoth fixture (2026-09-03T20:02:00-04:00)
+
+Status: `IN PROGRESS`. There is no production gameplay, shared-turn architecture, presentation-state, build, or external-restoration blocker. Final automated Mammoth evidence and focused human usability/visual review remain open.
+
+Dev.20 presentation now passes all four exact evidence rows, six subscenarios, and `49/0` assertions with independent postrun restoration. The Horse-only `-0.08` mount-root lowering, original saddle icon, and original close-up small portrait are runtime-loaded and identity-exact. Rendered seat contact, clipping, tracker appearance, and pointer feel remain manual gates rather than inferred PASS.
+
+The focused dev.20 Mammoth TB run failed before input because its legacy diagnostic attempted `StartTurn(Mammoth)`. That is incompatible with the authorized Phase 3D model, which intentionally suppresses the mount's redundant native turn and keeps the rider as principal. No gameplay path ran or mutated. Dev.21 is the one diagnostic-only repair cycle: start the rider turn, retain the Mammoth as action actor, require its own Standard ledger, and record both raw native non-actionability and exact shared-turn admission in schema v55. It does not alter the coordinator, combat controller, action economy, movement, presentation, or Mammoth production profile.
+
+Fresh clean-package runtime is mandatory. If dev.21 cannot cross the exact rider-principal/Mammoth-action boundary or produces duplicate/skipped turns, wrong resource ownership, movement, or a product attack failure, preserve the evidence and stop with the bounded architecture disposition. Do not add another fixture repair, global turn patch, synthetic ledger, automatic remount, or Paladin implementation.
+
 ## Dev.19 TB bounded disposition; dev.20 presentation observer repair (2026-09-03T12:21:48-04:00)
 
 Status: `IN PROGRESS`. There is no build, publication, production gameplay, presentation-state, or external-restoration blocker. One automated TB fixture boundary and the final manual visual/usability gates remain open.

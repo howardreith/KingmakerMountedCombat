@@ -2,6 +2,8 @@
 
 Status: IN PROGRESS
 
+Dev.20 focused Mammoth observation confirms an important distinction: under the unified model, raw `mount.CombatState.CanActInCombat` may be false precisely because the mount's redundant native turn is suppressed. That raw flag is not by itself authority to reject a separately ledgered mount action during the rider-owned shared turn. Dev.21 diagnostic schema v55 therefore records raw native actionability unchanged and separately requires pair-local shared admission, the rider as current native turn principal, and the mount's own available Standard. The rider turn remains active after a mount-only Standard action. This is an evidence-fixture correction, not a production controller or action-ledger change.
+
 ## Authority and boundary
 
 This contract implements the user-authorized Phase 3D private alpha on `codex/mounted-combat-phase3d-unified-combat`. The accepted Phase 3C branch and package remain immutable evidence. This contract does not authorize a shared Standard-action pool, persistent mounted state, mounted spellcasting, charge, feats, enemy riders, Paladin Divine Steed, or a public release.

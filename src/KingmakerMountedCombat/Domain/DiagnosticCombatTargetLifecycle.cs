@@ -196,15 +196,36 @@ namespace KingmakerMountedCombat.Domain
             bool actionActorHandsIdle,
             bool equipmentControllerAvailable,
             bool equipmentUpdateIdle)
+            : this(
+                gameUnpaused,
+                actionActorCanActInCombat,
+                false,
+                actionActorHandsIdle,
+                equipmentControllerAvailable,
+                equipmentUpdateIdle)
+        {
+        }
+
+        public DiagnosticCombatDispatchReadinessSnapshot(
+            bool gameUnpaused,
+            bool actionActorCanActInCombat,
+            bool actionActorSharedTurnAdmitted,
+            bool actionActorHandsIdle,
+            bool equipmentControllerAvailable,
+            bool equipmentUpdateIdle)
         {
             GameUnpaused = gameUnpaused;
             ActionActorCanActInCombat = actionActorCanActInCombat;
+            ActionActorSharedTurnAdmitted = actionActorSharedTurnAdmitted;
             ActionActorHandsBusy = !actionActorHandsIdle;
             EquipmentControllerAvailable = equipmentControllerAvailable;
             EquipmentUpdateScheduled = !equipmentUpdateIdle;
             var failures = new List<string>();
             AddFailure(failures, gameUnpaused, "game-unpaused");
-            AddFailure(failures, actionActorCanActInCombat, "action-actor-can-act-in-combat");
+            AddFailure(
+                failures,
+                ActionActorCanDispatch,
+                "action-actor-can-act-in-combat");
             AddFailure(failures, actionActorHandsIdle, "action-actor-hands-idle");
             AddFailure(failures, equipmentControllerAvailable, "equipment-controller-available");
             AddFailure(failures, equipmentUpdateIdle, "equipment-update-idle");
@@ -214,6 +235,11 @@ namespace KingmakerMountedCombat.Domain
         public bool GameUnpaused { get; }
 
         public bool ActionActorCanActInCombat { get; }
+
+        public bool ActionActorSharedTurnAdmitted { get; }
+
+        public bool ActionActorCanDispatch =>
+            ActionActorCanActInCombat || ActionActorSharedTurnAdmitted;
 
         public bool ActionActorHandsBusy { get; }
 
@@ -338,12 +364,32 @@ namespace KingmakerMountedCombat.Domain
             bool actorPrepared,
             bool actorCanActInCombat,
             float actorInitiative)
+            : this(
+                turnBased,
+                expectedActorId,
+                actorId,
+                actorPrepared,
+                actorCanActInCombat,
+                false,
+                actorInitiative)
+        {
+        }
+
+        public DiagnosticCombatActionActorReadinessSnapshot(
+            bool turnBased,
+            string expectedActorId,
+            string actorId,
+            bool actorPrepared,
+            bool actorCanActInCombat,
+            bool actorSharedTurnAdmitted,
+            float actorInitiative)
         {
             TurnBased = turnBased;
             ExpectedActorId = expectedActorId;
             ActorId = actorId;
             ActorPrepared = actorPrepared;
             ActorCanActInCombat = actorCanActInCombat;
+            ActorSharedTurnAdmitted = actorSharedTurnAdmitted;
             ActorInitiative = actorInitiative;
 
             var actorIdentityExact = !string.IsNullOrWhiteSpace(expectedActorId) &&
@@ -358,7 +404,7 @@ namespace KingmakerMountedCombat.Domain
             var failures = new List<string>();
             AddFailure(failures, actorIdentityExact, "exact-action-actor");
             AddFailure(failures, actorPrepared, "action-actor-prepared");
-            AddFailure(failures, actorCanActInCombat, "action-actor-can-act-in-combat");
+            AddFailure(failures, ActorActionable, "action-actor-can-act-in-combat");
             AddFailure(failures, initiativeReady, "action-actor-initiative-ready");
             failedGateNames = failures.ToArray();
         }
@@ -372,6 +418,10 @@ namespace KingmakerMountedCombat.Domain
         public bool ActorPrepared { get; }
 
         public bool ActorCanActInCombat { get; }
+
+        public bool ActorSharedTurnAdmitted { get; }
+
+        public bool ActorActionable => ActorCanActInCombat || ActorSharedTurnAdmitted;
 
         public float ActorInitiative { get; }
 

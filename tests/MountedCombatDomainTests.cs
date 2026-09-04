@@ -51,10 +51,12 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("diagnostic combat click safety preserves every target-only gate", CombatClickSafetyPreservesEveryGate);
             runner.Run("diagnostic combat click safety reports exact visibility and weapon failures", CombatClickSafetyReportsExactFailures);
             runner.Run("diagnostic combat dispatch requires every native real-time start gate", CombatDispatchRequiresEveryStartGate);
+            runner.Run("diagnostic combat dispatch admits a separate actor through the exact shared turn", CombatDispatchAdmitsSharedTurnActor);
             runner.Run("diagnostic combat dispatch reports exact paused initiative and equipment gates", CombatDispatchReportsExactFailures);
             runner.Run("diagnostic combat entry requires native memory preparation and group combat", CombatEntryRequiresNativeMemoryAndCombat);
             runner.Run("diagnostic combat entry reports exact memory combat and time failures", CombatEntryReportsExactFailures);
             runner.Run("diagnostic combat action actor uses its own real-time initiative", CombatActionActorUsesOwnInitiative);
+            runner.Run("diagnostic combat action actor preserves raw shared-turn admission", CombatActionActorUsesSharedTurnAdmission);
             runner.Run("diagnostic combat action actor rejects identity preparation and initiative failures", CombatActionActorReportsExactFailures);
             runner.Run("diagnostic combat initiative observer records native decrement without mutation", CombatInitiativeObserverRecordsNativeDecrement);
             runner.Run("diagnostic combat initiative observer distinguishes absent ticks and cross-tick rewrites", CombatInitiativeObserverDistinguishesAbsentTicksAndRewrites);
@@ -828,6 +830,16 @@ namespace KingmakerMountedCombat.Tests
                 "An all-pass dispatch snapshot changed its exact native gate values.");
         }
 
+        private static void CombatDispatchAdmitsSharedTurnActor()
+        {
+            var snapshot = new DiagnosticCombatDispatchReadinessSnapshot(
+                true, false, true, true, true, true);
+            TestRunner.True(snapshot.AllPassed && snapshot.ActionActorCanDispatch,
+                "An exact shared-turn mount command was rejected because the mount did not own a second native turn.");
+            TestRunner.True(!snapshot.ActionActorCanActInCombat && snapshot.ActionActorSharedTurnAdmitted,
+                "Shared-turn dispatch did not preserve the mount's exact raw native/action-admission split.");
+        }
+
         private static void CombatDispatchReportsExactFailures()
         {
             var snapshot = new DiagnosticCombatDispatchReadinessSnapshot(
@@ -881,6 +893,16 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(turnBased.TurnBased && turnBased.ActorInitiative == 3f &&
                     turnBased.ActorCanActInCombat && turnBased.ActorPrepared,
                 "Action-actor readiness did not preserve its exact observed state.");
+        }
+
+        private static void CombatActionActorUsesSharedTurnAdmission()
+        {
+            var snapshot = new DiagnosticCombatActionActorReadinessSnapshot(
+                true, "mammoth", "mammoth", true, false, true, 3f);
+            TestRunner.True(snapshot.AllPassed && snapshot.ActorActionable,
+                "A prepared Mammoth with its own Standard ledger was rejected on the rider-owned shared turn.");
+            TestRunner.True(!snapshot.ActorCanActInCombat && snapshot.ActorSharedTurnAdmitted,
+                "Shared-turn actor readiness did not preserve the exact native/action-admission split.");
         }
 
         private static void CombatActionActorReportsExactFailures()

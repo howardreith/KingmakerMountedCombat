@@ -352,6 +352,15 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private string ExpectedActorRole => IsMammothPrimaryRow ? "mount" : "rider";
 
+        private bool UsesDistinctSharedTurnPrincipal =>
+            IsTurnBasedRow && IsMammothPrimaryRow && settings.EnableUnifiedMountedTurn;
+
+        private UnitEntityData TurnPrincipal => UsesDistinctSharedTurnPrincipal ? rider : AttackActor;
+
+        private string ExpectedTurnPrincipalRole => UsesDistinctSharedTurnPrincipal
+            ? "rider"
+            : ExpectedActorRole;
+
         public void Start()
         {
             ThrowIfDisposed();
@@ -830,7 +839,7 @@ namespace KingmakerMountedCombat.Diagnostics
                             return;
                         }
                     }
-                    turnController.StartTurn(AttackActor);
+                    turnController.StartTurn(TurnPrincipal);
                     nativeActionActorTurnStarted = true;
                     return;
                 }
@@ -851,12 +860,24 @@ namespace KingmakerMountedCombat.Diagnostics
 
             var handsEquipment = game.HandsEquipmentController;
             var actionActor = AttackActor;
+            var currentTurn = game.TurnBasedCombatController?.CurrentTurn;
+            var sharedTurnActionAdmitted = UsesDistinctSharedTurnPrincipal &&
+                MountedPairTurnPolicy.CanIssueSharedAction(
+                    true,
+                    true,
+                    currentTurn?.Unit == rider,
+                    currentTurn?.Unit == actionActor,
+                    currentTurn != null &&
+                        currentTurn.Status == TurnBased.Controllers.TurnController.TurnStatus.Preparing,
+                    currentTurn != null && currentTurn.IsActing) &&
+                actionActor != null && actionActor.HasStandardAction();
             actionActorReadiness = new DiagnosticCombatActionActorReadinessSnapshot(
                 IsTurnBasedRow,
                 AttackActor?.UniqueId,
                 actionActor?.UniqueId,
                 actionActor?.CombatState != null && actionActor.CombatState.Prepared,
                 actionActor?.CombatState != null && actionActor.CombatState.CanActInCombat,
+                sharedTurnActionAdmitted,
                 actionActor?.CombatState == null
                     ? float.MaxValue
                     : actionActor.CombatState.Cooldown.Initiative);
@@ -867,6 +888,7 @@ namespace KingmakerMountedCombat.Diagnostics
             dispatchReadiness = new DiagnosticCombatDispatchReadinessSnapshot(
                 gameUnpaused,
                 actionActor.CombatState.CanActInCombat,
+                sharedTurnActionAdmitted,
                 !actionActor.AreHandsBusyWithAnimation,
                 handsEquipment != null,
                 handsEquipment != null && !handsEquipment.IsUpdateScheduledFor(actionActor));
@@ -933,13 +955,15 @@ namespace KingmakerMountedCombat.Diagnostics
             assertions.Check(clickSafety.AllPassed,
                 "Diagnostic target passed exact player-click gates: " + clickSafety.FailureSummary + ".");
 
-            var expectedActionSelectionUnit = IsTurnBasedRow && IsMammothPrimaryRow
-                ? mount
-                : rider;
+            var expectedActionSelectionUnit = UsesDistinctSharedTurnPrincipal
+                ? rider
+                : IsTurnBasedRow && IsMammothPrimaryRow
+                    ? mount
+                    : rider;
             SelectionManager.Instance.SelectUnit(expectedActionSelectionUnit.View, true, true, false);
             var selected = SelectionManager.Instance.SelectedUnits;
             assertions.Check(selected != null && selected.Count == 1 && selected[0] == expectedActionSelectionUnit,
-                "Exactly the policy-required action actor owned player selection at dispatch.");
+                "Exactly the policy-required selection principal owned player selection at dispatch.");
             assertions.Check(combat.CanShowCombatActions,
                 "Mounted combat actions were available only for the exact selected pair in combat.");
             assertions.Check(actionActor.HasStandardAction(),
@@ -1324,9 +1348,9 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 var turnController = Game.Instance?.TurnBasedCombatController;
                 var currentTurn = turnController?.CurrentTurn;
-                if (currentTurn?.Unit != AttackActor)
+                if (currentTurn?.Unit != TurnPrincipal)
                 {
-                    assertions.Fail("The exact native action-actor turn changed after mounted attack dispatch.");
+                    assertions.Fail("The exact native turn principal changed after mounted attack dispatch.");
                     BeginCleanup();
                     return;
                 }
@@ -1334,7 +1358,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     if (combat.LastOutcome != null)
                     {
-                        assertions.Fail("The mounted attack completed without an observed native Acting action-actor turn.");
+                        assertions.Fail("The mounted attack completed without an observed native Acting turn principal.");
                         BeginCleanup();
                     }
                     return;
@@ -1473,14 +1497,19 @@ namespace KingmakerMountedCombat.Diagnostics
                 var currentTurn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
                 currentTurnUnitIdAtOutcome = currentTurn?.Unit?.UniqueId;
                 currentTurnActingAtOutcome = currentTurn != null && currentTurn.IsActing;
-                assertions.Check(IsMammothPrimaryRow
-                        ? !currentTurnActingAtOutcome ||
-                            !string.Equals(currentTurnUnitIdAtOutcome, mount.UniqueId, StringComparison.Ordinal)
-                        : string.Equals(currentTurnUnitIdAtOutcome, rider.UniqueId, StringComparison.Ordinal) &&
-                            currentTurnActingAtOutcome,
-                    IsMammothPrimaryRow
-                        ? "The exact native Mammoth turn ended after its bounded stationary action."
-                        : "The exact native rider turn remained active through the stationary attack outcome.");
+                assertions.Check(UsesDistinctSharedTurnPrincipal
+                        ? string.Equals(currentTurnUnitIdAtOutcome, rider.UniqueId, StringComparison.Ordinal) &&
+                            currentTurnActingAtOutcome
+                        : IsMammothPrimaryRow
+                            ? !currentTurnActingAtOutcome ||
+                                !string.Equals(currentTurnUnitIdAtOutcome, mount.UniqueId, StringComparison.Ordinal)
+                            : string.Equals(currentTurnUnitIdAtOutcome, rider.UniqueId, StringComparison.Ordinal) &&
+                                currentTurnActingAtOutcome,
+                    UsesDistinctSharedTurnPrincipal
+                        ? "The rider-owned shared turn remained active after the Mammoth spent only its Standard action."
+                        : IsMammothPrimaryRow
+                            ? "The exact native Mammoth turn ended after its bounded stationary action."
+                            : "The exact native rider turn remained active through the stationary attack outcome.");
             }
             assertions.Check(relationship.State == RelationshipState.Mounted &&
                     relationship.Runtime.PoseHealthy && relationship.Runtime.PoseFrameApplied,
@@ -1977,7 +2006,9 @@ namespace KingmakerMountedCombat.Diagnostics
             var selected = SelectionManager.Instance?.SelectedUnits;
             var record = new CombatEvidenceRecord
             {
-                SchemaVersion = IsHumanPlayRow
+                SchemaVersion = UsesDistinctSharedTurnPrincipal
+                    ? 55
+                    : IsHumanPlayRow
                     ? (IsTurnBasedRow ? 52 : 48)
                     : IsCommandTerminationRow
                     ? IsCombatEndTerminationRow
@@ -2035,13 +2066,15 @@ namespace KingmakerMountedCombat.Diagnostics
                     entryReadiness,
                     actionActorReadiness,
                     nativeJoinReadiness,
-                    combatMemoryRemoved),
+                    combatMemoryRemoved,
+                    UsesDistinctSharedTurnPrincipal),
                 Dispatch = CombatDispatchEvidence.From(
                     originalPause,
                     unpausedForRealTime,
                     pausedAtClick,
                     dispatchReadiness,
-                    pauseRestored),
+                    pauseRestored,
+                    UsesDistinctSharedTurnPrincipal),
                 TurnBased = IsTurnBasedRow
                     ? TurnBasedCombatEvidence.Capture(
                         turnBasedOriginalEnabled,
@@ -2080,14 +2113,14 @@ namespace KingmakerMountedCombat.Diagnostics
                         mammothNativeMoveAfter,
                         riderMoveBeforeMammothNativeGroundInput,
                         riderMoveAfterMammothNativeGroundInput,
-                        ExpectedActorRole,
-                        nativeActionActorTurnStarted,
+                        ExpectedTurnPrincipalRole,
+                        UsesDistinctSharedTurnPrincipal ? false : nativeActionActorTurnStarted,
                         currentTurnUnitIdAtDispatch,
                         currentTurnActingAtDispatch,
                         roundNumberAtDispatch,
                         currentTurnUnitIdAtOutcome,
                         currentTurnActingAtOutcome,
-                        IsMammothPrimaryRow && (!currentTurnActingAtOutcome ||
+                        !UsesDistinctSharedTurnPrincipal && IsMammothPrimaryRow && (!currentTurnActingAtOutcome ||
                             !string.Equals(currentTurnUnitIdAtOutcome, mount?.UniqueId, StringComparison.Ordinal)),
                         turnBasedModeRestored,
                         turnBasedPersistedSettingUnchanged,
@@ -2100,7 +2133,12 @@ namespace KingmakerMountedCombat.Diagnostics
                         relationship.NativeTurnBasedExitUiLeaseRestoreAttemptCount,
                         relationship.NativeTurnBasedExitUiLeaseRestoreMutationCount,
                         relationship.NativeTurnBasedExitUiLeaseRestoreSuccessCount,
-                        relationship.NativeTurnBasedExitUiLeaseRestoreResult)
+                        relationship.NativeTurnBasedExitUiLeaseRestoreResult,
+                        UsesDistinctSharedTurnPrincipal,
+                        ExpectedTurnPrincipalRole,
+                        ExpectedActorRole,
+                        nativeActionActorTurnStarted,
+                        actionActorReadiness != null && actionActorReadiness.ActorSharedTurnAdmitted)
                     : null,
                 GroundMovement = IsMountedBeforeModeTransitionRow
                     ? new CombatGroundMovementEvidence
@@ -2338,6 +2376,7 @@ namespace KingmakerMountedCombat.Diagnostics
             TurnBased.Controllers.CombatController controller)
         {
             var currentTurn = controller?.CurrentTurn;
+            var currentTurnIsPrincipal = currentTurn?.Unit == TurnPrincipal;
             return new DiagnosticTurnBasedDispatchReadinessSnapshot(
                 CombatController.IsInTurnBasedCombat(),
                 controller != null && controller.Initialized,
@@ -2345,9 +2384,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 turnRosterContainsMount,
                 turnRosterContainsTarget,
                 nativeActionActorTurnStarted,
-                currentTurn?.Unit == AttackActor,
-                MountedPairTurnPolicy.CanIssueAction(
+                currentTurnIsPrincipal,
+                MountedPairTurnPolicy.CanIssueSharedAction(
                     true,
+                    UsesDistinctSharedTurnPrincipal,
+                    currentTurn?.Unit == rider,
                     currentTurn?.Unit == AttackActor,
                     currentTurn != null &&
                         currentTurn.Status == TurnBased.Controllers.TurnController.TurnStatus.Preparing,
@@ -2956,6 +2997,10 @@ namespace KingmakerMountedCombat.Diagnostics
             public string ActionActorId { get; set; }
             public bool ActionActorPrepared { get; set; }
             public bool ActionActorCanActInCombat { get; set; }
+            [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            public bool? ActionActorSharedTurnAdmitted { get; set; }
+            [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            public bool? ActionActorActionable { get; set; }
             public float ActionActorInitiative { get; set; }
             public float GameDeltaTime { get; set; }
             public bool MemoryRemovedAtCleanup { get; set; }
@@ -2965,7 +3010,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 DiagnosticCombatEntryReadinessSnapshot readiness,
                 DiagnosticCombatActionActorReadinessSnapshot actionActorReadiness,
                 DiagnosticNativeCombatJoinReadinessSnapshot nativeJoin,
-                bool memoryRemovedAtCleanup)
+                bool memoryRemovedAtCleanup,
+                bool includeSharedTurnEvidence)
             {
                 return new CombatEntryEvidence
                 {
@@ -2984,6 +3030,12 @@ namespace KingmakerMountedCombat.Diagnostics
                     ActionActorId = actionActorReadiness?.ActorId,
                     ActionActorPrepared = actionActorReadiness?.ActorPrepared ?? false,
                     ActionActorCanActInCombat = actionActorReadiness?.ActorCanActInCombat ?? false,
+                    ActionActorSharedTurnAdmitted = includeSharedTurnEvidence
+                        ? (bool?)(actionActorReadiness?.ActorSharedTurnAdmitted ?? false)
+                        : null,
+                    ActionActorActionable = includeSharedTurnEvidence
+                        ? (bool?)(actionActorReadiness?.ActorActionable ?? false)
+                        : null,
                     ActionActorInitiative = actionActorReadiness?.ActorInitiative ?? float.MaxValue,
                     GameDeltaTime = readiness?.GameDeltaTime ?? 0f,
                     MemoryRemovedAtCleanup = memoryRemovedAtCleanup,
@@ -3045,6 +3097,10 @@ namespace KingmakerMountedCombat.Diagnostics
             public bool UnpausedForRealTime { get; set; }
             public bool PausedAtClick { get; set; }
             public bool ActionActorCanActInCombat { get; set; }
+            [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            public bool? ActionActorSharedTurnAdmitted { get; set; }
+            [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            public bool? ActionActorCanDispatch { get; set; }
             public bool ActionActorHandsBusy { get; set; }
             public bool EquipmentControllerAvailable { get; set; }
             public bool EquipmentUpdateScheduled { get; set; }
@@ -3055,7 +3111,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 bool unpaused,
                 bool pausedAtClick,
                 DiagnosticCombatDispatchReadinessSnapshot readiness,
-                bool pauseRestored)
+                bool pauseRestored,
+                bool includeSharedTurnEvidence)
             {
                 return new CombatDispatchEvidence
                 {
@@ -3063,6 +3120,12 @@ namespace KingmakerMountedCombat.Diagnostics
                     UnpausedForRealTime = unpaused,
                     PausedAtClick = pausedAtClick,
                     ActionActorCanActInCombat = readiness?.ActionActorCanActInCombat ?? false,
+                    ActionActorSharedTurnAdmitted = includeSharedTurnEvidence
+                        ? (bool?)(readiness?.ActionActorSharedTurnAdmitted ?? false)
+                        : null,
+                    ActionActorCanDispatch = includeSharedTurnEvidence
+                        ? (bool?)(readiness?.ActionActorCanDispatch ?? false)
+                        : null,
                     ActionActorHandsBusy = readiness?.ActionActorHandsBusy ?? false,
                     EquipmentControllerAvailable = readiness?.EquipmentControllerAvailable ?? false,
                     EquipmentUpdateScheduled = readiness?.EquipmentUpdateScheduled ?? false,
@@ -3133,6 +3196,16 @@ namespace KingmakerMountedCombat.Diagnostics
             public string CurrentTurnUnitIdAtOutcome { get; set; }
             public bool CurrentTurnActingAtOutcome { get; set; }
             public bool ActionActorTurnEndedAfterCommand { get; set; }
+            [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            public bool? UnifiedMountedTurn { get; set; }
+            [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            public string ExpectedTurnPrincipal { get; set; }
+            [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            public string ExpectedActionActor { get; set; }
+            [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            public bool? NativeTurnPrincipalStarted { get; set; }
+            [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            public bool? ActionActorSharedTurnAdmitted { get; set; }
             public bool RestoreDeliveryCompleted { get; set; }
             public bool ModeRestored { get; set; }
             public bool PersistedValueUnchanged { get; set; }
@@ -3203,7 +3276,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 int riderUiLeaseRestoreAttemptCount,
                 int riderUiLeaseRestoreMutationCount,
                 int riderUiLeaseRestoreSuccessCount,
-                string riderUiLeaseRestoreResult)
+                string riderUiLeaseRestoreResult,
+                bool unifiedMountedTurn,
+                string expectedTurnPrincipal,
+                string expectedActionActor,
+                bool nativeTurnPrincipalStarted,
+                bool actionActorSharedTurnAdmitted)
             {
                 return new TurnBasedCombatEvidence
                 {
@@ -3251,6 +3329,15 @@ namespace KingmakerMountedCombat.Diagnostics
                     CurrentTurnUnitIdAtOutcome = currentTurnUnitIdAtOutcome,
                     CurrentTurnActingAtOutcome = currentTurnActingAtOutcome,
                     ActionActorTurnEndedAfterCommand = actionActorTurnEndedAfterCommand,
+                    UnifiedMountedTurn = unifiedMountedTurn ? (bool?)true : null,
+                    ExpectedTurnPrincipal = unifiedMountedTurn ? expectedTurnPrincipal : null,
+                    ExpectedActionActor = unifiedMountedTurn ? expectedActionActor : null,
+                    NativeTurnPrincipalStarted = unifiedMountedTurn
+                        ? (bool?)nativeTurnPrincipalStarted
+                        : null,
+                    ActionActorSharedTurnAdmitted = unifiedMountedTurn
+                        ? (bool?)actionActorSharedTurnAdmitted
+                        : null,
                     RestoreDeliveryCompleted = restoreDeliveryCompleted,
                     ModeRestored = modeRestored,
                     PersistedValueUnchanged = persistedValueUnchanged,
