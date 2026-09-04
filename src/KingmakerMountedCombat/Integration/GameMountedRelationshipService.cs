@@ -22,6 +22,7 @@ namespace KingmakerMountedCombat.Integration
         private CleanupTrigger cleanupRetryTrigger = CleanupTrigger.Exception;
         private bool nativeTurnBasedExitAiLeaseReassertionPending;
         private bool nativeTurnBasedExitUiLeaseRestorePending;
+        private long mountedPairGeneration;
         private bool disposed;
 
         public GameMountedRelationshipService(IModLogger logger, DiagnosticSettings settings)
@@ -37,6 +38,8 @@ namespace KingmakerMountedCombat.Integration
         public UnitEntityData Rider => runtime.Rider;
 
         public UnitEntityData Mount => runtime.Mount;
+
+        internal long MountedPairGeneration => mountedPairGeneration;
 
         internal KingmakerMountedPairRuntime Runtime => runtime;
 
@@ -128,6 +131,7 @@ namespace KingmakerMountedCombat.Integration
             ObserveCleanupState(result);
             if (result.Succeeded)
             {
+                mountedPairGeneration = checked(mountedPairGeneration + 1);
                 ResetNativeTurnBasedExitAiLeaseEvidence();
                 MountedPairActivated?.Invoke(rider, mount);
             }

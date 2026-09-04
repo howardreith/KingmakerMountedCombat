@@ -1,5 +1,16 @@
 # Mounted Combat journal
 
+## 2026-09-04T04:34:16-04:00 - dev.2 primary Option A scheduler passes offline gates
+
+- Starting clean guarded-published branch/HEAD is `codex/mounted-combat-phase3e-paired-scheduler` / `80a75ee6b3011cb4ec52d1b296776db25f6b0f15`; working version is `0.1.0-phase3e-dev.2`. Phase 3D/dev.21 and Phase 3E/dev.1 packages and evidence remain unchanged.
+- Implemented `PairedCommandSchedulerLeaseStateMachine` plus injected `MountedPairCommandScheduler`. The service leases one exact KMC mount-primary Standard wrapper, exact pair generation and rider turn, and changes only the installed `UnitActionController.TickCommandTurnBased` Boolean after all pair-local gates pass. Stock `TickCommand` still owns start, native child action/animation/rules, executor cooldown, result, and slot removal.
+- The scheduler independently checks the exact command/executor/slot/queue, player/KMC origin, relationship generation, rider current-turn reference, native Preparing/Acting/started-Ending status, AwakeUnits membership, UI wait, and mode. It grants at most once per Unity frame. Unexpected stock admission, stale state, slot replacement, mode/turn/pair drift, duplicate drive, or resource-owner drift faults closed, interrupts only the exact KMC command, archives the lease, and does not rewrite settings.
+- Added 15 scheduler component tests and schema-56 runtime evidence/validation. Historical schema 55 now validates its complete emitted property set. The focused Mammoth TB scenario temporarily enables only the new gate and restores it in cleanup. `EnablePairedCommandScheduler` remains default false; `EnableUnifiedMountedTurn=false` remains the untouched separate-turn fallback.
+- Complete candidate gate PASS: source/prohibited payload `22/0`; Release; component `315/0`; visual/source-order `18/0`; harness/protocol `241/0`; exact assembly `388/0` (`364` Kingmaker + `24` Wrath); diff. Dirty DLL SHA-256/MVID are `d71529ba6006bc6fa2c8916953cb773f1c5319e49ce4a0c9d70420e1aee26d87` / `89de0fcc-ca6f-41cd-944b-097a5860716c` and are not package identity.
+- No live process or package was created, no external state was touched, no runtime credit is claimed, and no repair cycle was consumed. Next: coherent commit and guarded publication, clean package/suite/WhatIf, then two fresh-process in-range mount-primary vertical slices with mandatory audit-before-read. Do not begin broader tranches first.
+
+Status: `IN PROGRESS`.
+
 ## 2026-09-04T03:33:19-04:00 - dev.1 proves stock enumeration and selects Option A
 
 - Clean published dev.1 is branch/commit/version `codex/mounted-combat-phase3e-paired-scheduler` / `62ce96b0618ff1d9074bfcdafd0d42ce14df3406` / `0.1.0-phase3e-dev.1`. Package/manifest/DLL SHA-256 are `17bc227dd6a1c89e66f9d20009f1f28c470cce7f4dea5663f13178de866ed3b5` / `10c560eec8740898a56c83cfbe2e1bf6fa9309fd721dc57fceb1cb7b7d148fbd` / `f684b85baaea3f9fe53fc5a48ef87a6d85e4895795d1bad1c52d22b343be7d95`; DLL MVID is `15ea753e-0f0d-4dc4-b0f5-9a7be9926dbf`. Suite1 is `20260904T045000Z-phase3e-dev1-command-lifecycle-observation-suite1` / `290f7fcf7820711a9e31ba4226dc99842315684ff864f0471826f3599ff1c211`.

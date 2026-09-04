@@ -54,6 +54,8 @@ The one observation checkpoint is consumed. Dev.1 proved positive exact stock en
 
 Runtime disposition: R1 is `PASS` and closed; stock does enumerate the exact active mount command. R2 is confirmed as a real simultaneous false input and remains an active vertical-slice gate. No K1-K12 criterion fired during observation.
 
+Dev.2 offline disposition: the primary Option A source contains no current-turn/unit/status substitution, explicit command start/tick, global unit advancement, cooldown write, AoO adoption, or serialized lease. Exact-reference/component and source-boundary tests pass, including one-drive-per-frame and fault cleanup. This does not close K1-K12 at runtime; all remain live gates for the fresh-process vertical slice. No runtime repair cycle has been consumed.
+
 ## Stop and fallback rules
 
 When a kill criterion fires, record the exact package, run ID, source/assembly identities, pre/post state, restoration audit, rejected theory, and why the remaining primary option is unsafe. Historical evidence remains immutable.

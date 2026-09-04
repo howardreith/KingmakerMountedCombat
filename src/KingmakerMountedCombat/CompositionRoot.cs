@@ -21,6 +21,7 @@ namespace KingmakerMountedCombat
         private readonly MountedPlayerActionController playerAction;
         private readonly NativeMountedControlService nativeControls;
         private readonly MountedCombatController combat;
+        private readonly MountedPairCommandScheduler pairedCommandScheduler;
         private readonly UnifiedMountedTurnCoordinator unifiedTurn;
         private readonly HorsePrimaryAttackAnimationAdapter horsePrimaryAttackAnimation;
         private readonly MountedAnimationAdapter animation;
@@ -38,12 +39,18 @@ namespace KingmakerMountedCombat
                 relationship = new GameMountedRelationshipService(logger, settings);
                 lifecycleLedger = new NativeLifecycleDeliveryLedger();
                 horsePrimaryAttackAnimation = new HorsePrimaryAttackAnimationAdapter(relationship, logger);
-                unifiedTurn = new UnifiedMountedTurnCoordinator(relationship, settings, logger);
+                pairedCommandScheduler = new MountedPairCommandScheduler(relationship, settings, logger);
+                unifiedTurn = new UnifiedMountedTurnCoordinator(
+                    relationship,
+                    settings,
+                    pairedCommandScheduler,
+                    logger);
                 combat = new MountedCombatController(
                     relationship,
                     settings,
                     horsePrimaryAttackAnimation,
                     unifiedTurn,
+                    pairedCommandScheduler,
                     logger);
                 unifiedTurn.BindCombat(combat);
                 animation = new MountedAnimationAdapter(relationship, combat, horsePrimaryAttackAnimation, logger);
@@ -96,6 +103,7 @@ namespace KingmakerMountedCombat
                 try { nativeControls?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { combat?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { unifiedTurn?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
+                try { pairedCommandScheduler?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { lifecycle?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { relationship?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { horseCompanion?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
@@ -276,6 +284,7 @@ namespace KingmakerMountedCombat
             playerAction.Dispose();
             combat.Dispose();
             unifiedTurn.Dispose();
+            pairedCommandScheduler.Dispose();
             lifecycle.Dispose();
             relationship.Dispose();
             horseCompanion.Dispose();

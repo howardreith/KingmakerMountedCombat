@@ -1,5 +1,16 @@
 # Autonomous resume
 
+## Phase 3E dev.2 primary scheduler is offline complete - 2026-09-04T04:34:16-04:00
+
+- Active branch is `codex/mounted-combat-phase3e-paired-scheduler`; clean published parent/local/upstream is `80a75ee6b3011cb4ec52d1b296776db25f6b0f15`. The intentional worktree is the one coherent `0.1.0-phase3e-dev.2` primary Option A implementation plus tests, schema 56, and current mission records.
+- Added a runtime-only injected scheduler and pure lease state machine. One exact player-created KMC Mammoth Standard command is registered before native `UnitCommands.Run`, confirmed by reference in the mount Standard slot, and admitted only by changing the exact `TickCommandTurnBased` returned Boolean. The service revalidates rider/mount/generation/turn/command/executor/slot/queue/origin/AwakeUnits/UI/mode/status and one-drive-per-frame invariants. It never calls command Start/Tick, changes CurrentTurn/status, starts a mount turn, writes cooldowns/results, or adopts AoO/AI/foreign commands.
+- Default `EnablePairedCommandScheduler=false` and `EnableUnifiedMountedTurn=false` separate-turn fallback remain intact. Phase 3D RT paths do not require the scheduler. Runtime evidence schema 56 records complete lease, frame, lifecycle, current-rider, executor/slot, separate Standard ledger, terminal, fault, and cleanup facts while preserving historical schema 55.
+- Complete offline gates PASS: source/prohibited payload `22/0`; Release; component `315/0`; visual/source-order `18/0`; harness/protocol `241/0`; exact assembly `388/0` (`364` Kingmaker + `24` Wrath); diff. Dirty DLL SHA-256/MVID are `d71529ba6006bc6fa2c8916953cb773f1c5319e49ce4a0c9d70420e1aee26d87` / `89de0fcc-ca6f-41cd-944b-097a5860716c`; they are not package identity.
+- No dev.2 package, stable suite, WhatIf, live process, new runtime evidence, or repair cycle exists. External state has not been touched since the audited dev.1 observation. Dev.1 and all Phase 3D evidence remain immutable.
+- Exact next command after final diff review: stage and commit the coherent implementation checkpoint; guarded-publish with `powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "& 'C:\Dev\CodexPolicy\Push-KingmakerFeatureBranch.ps1' -RepositoryRoot 'C:\Dev\KingmakerMountedCombatLab\repo\KingmakerMountedCombat' -Confirm:\`$false"`; verify clean local/upstream/remote equality; package only that clean HEAD; validate and admit one stable suite; run focused WhatIf; then fresh vertical-slice A and B with an immediate independent restoration audit before each evidence read.
+
+Status: `IN PROGRESS`.
+
 ## Dev.1 answers enumeration; Option A is selected - 2026-09-04T03:33:19-04:00
 
 - Clean guarded-published observation commit is `62ce96b0618ff1d9074bfcdafd0d42ce14df3406` on `codex/mounted-combat-phase3e-paired-scheduler`; version `0.1.0-phase3e-dev.1`. ZIP/manifest/DLL SHA-256 are `17bc227dd6a1c89e66f9d20009f1f28c470cce7f4dea5663f13178de866ed3b5` / `10c560eec8740898a56c83cfbe2e1bf6fa9309fd721dc57fceb1cb7b7d148fbd` / `f684b85baaea3f9fe53fc5a48ef87a6d85e4895795d1bad1c52d22b343be7d95`; MVID `15ea753e-0f0d-4dc4-b0f5-9a7be9926dbf`. Suite1 snapshot SHA-256 is `290f7fcf7820711a9e31ba4226dc99842315684ff864f0471826f3599ff1c211`.

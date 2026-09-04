@@ -2,6 +2,14 @@
 
 Status: IN PROGRESS
 
+## Dev.2 implementation checkpoint
+
+The primary Option A implementation is offline-complete on published parent `80a75ee6b3011cb4ec52d1b296776db25f6b0f15`, version `0.1.0-phase3e-dev.2`. `MountedPairCommandScheduler` is an injected runtime-only service and `PairedCommandSchedulerLeaseStateMachine` is a Unity-independent domain object. Harmony retains only the exact installed `TickCommandTurnBased` postfix and no lease fields.
+
+The service registers before `UnitCommands.Run`, confirms the exact mount Standard slot afterward, and may extend only the returned eligibility Boolean for that same object. It independently revalidates pair/generation/turn/executor/slot/queue/origin/AwakeUnits/UI/mode/status gates on every native encounter and every service update. An unexpected stock-true result is forced false and faulted; the implementation never explicitly starts or ticks a command, mutates current turn/status, writes a cooldown/result, or adopts AoO/AI/foreign work.
+
+Offline gates pass source `22/0`, Release, component `315/0`, visual/source-order `18/0`, harness/protocol `241/0`, and exact assembly `388/0`. Schema 56 binds the runtime lease and independent ledgers. This is not runtime credit: fresh clean-package vertical-slice A/B remain mandatory before any broader tranche.
+
 ## Product model
 
 The rider remains the sole native initiative, portrait, selection, camera, action-bar, and `CurrentTurn.Unit` principal. The active mount may execute exactly one explicitly registered pair-local command during that rider-owned turn. Rider and mount retain separate command containers, Standard/Move/five-foot/Swift cooldown ledgers, weapons, abilities, animations, targets, rule initiators, results, and cleanup.

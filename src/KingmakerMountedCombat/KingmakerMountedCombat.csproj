@@ -157,6 +157,7 @@
     <Compile Include="Domain\MountedCombatTransaction.cs" />
     <Compile Include="Domain\MountedStockAttack.cs" />
     <Compile Include="Domain\OptionalPublicPropertyReader.cs" />
+    <Compile Include="Domain\PairedCommandScheduler.cs" />
     <Compile Include="Domain\UnifiedMountedTurn.cs" />
     <Compile Include="Domain\DiagnosticCombatTargetLifecycle.cs" />
     <Compile Include="Domain\DiagnosticCombatInitiativeObservation.cs" />
@@ -186,6 +187,7 @@
     <Compile Include="Integration\MountedAnimationAdapter.cs" />
     <Compile Include="Integration\MountedDollRoomIkAdapter.cs" />
     <Compile Include="Integration\ExactTurnMovementAdapter.cs" />
+    <Compile Include="Integration\MountedPairCommandScheduler.cs" />
     <Compile Include="Integration\UnifiedMountedTurnCoordinator.cs" />
     <Compile Include="Integration\MountedCombatController.cs" />
     <Compile Include="Integration\MountedDoorInteractionCommand.cs" />

@@ -1,5 +1,13 @@
 # Autonomous blockers
 
+## Dev.2 primary scheduler passes offline gates; runtime vertical slice is next (2026-09-04T04:34:16-04:00)
+
+Status: `IN PROGRESS`.
+
+There is no source, component, schema, exact-assembly, Git-state, or architecture-selection blocker. The Option A implementation passes `22/Release/315/18/241/388` offline gates and retains the independent default-false scheduler gate plus Phase 3C fallback. Source controls prove no current-turn substitution, explicit command tick/start, global controller, broad unit advancement, cooldown write, AoO adoption, or persistent scheduler state.
+
+The remaining uncertainty is runtime-only: whether the exact eligibility extension causes one native mount-owned command to start, act, charge the mount once, terminate, and clean up while the rider remains current. No K1-K12 criterion and no scheduler repair cycle has fired. Commit/publish/package/WhatIf and the two same-package fresh-process vertical-slice rows are independently actionable next; broader sequencing, ranged, combat Mount/Dismount, and five-foot-step work remains gated on both passes.
+
 ## Option A selected; no active blocker before primary implementation (2026-09-04T03:33:19-04:00)
 
 Status: `IN PROGRESS`.

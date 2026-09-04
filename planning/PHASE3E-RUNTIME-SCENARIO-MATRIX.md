@@ -9,23 +9,23 @@ All runtime rows require a clean guarded package, fresh run ID, exact package/DL
 | Row | Status | Required evidence |
 |---|---|---|
 | exact-command-lifecycle-observation | PASS | Dev.1 run `20260904T060000Z-phase3e-dev1-mammoth-tb-observation-passA`: exact awake/in-list Mammoth Standard command encountered `2,485` times; stock false `2,485`, true `0`; rider exact current/Preparing; zero override and scheduler drive. Gameplay row remains immutable expected `FAIL 49/1`; immediate independent audit passed before read. |
-| leased-command-accepted | TODO | Exact KMC origin, rider/mount/turn/generation/slot identities all match. |
-| foreign-command-rejected | TODO | Reference-different same-shape command cannot receive a lease. |
-| AI-command-rejected | TODO | AI action/origin cannot receive a lease. |
-| AoO-command-excluded | TODO | `UnitAttackOfOpportunity` remains stock and unleased. |
-| wrong-rider-rejected | TODO | Current turn/reference mismatch rejected. |
-| wrong-mount-rejected | TODO | Executor/relationship mismatch rejected. |
-| stale-generation-rejected | TODO | Dismount/remount generation invalidates old lease. |
-| stale-turn-rejected | TODO | TurnController reference/round change invalidates lease. |
-| slot-replacement-rejected | TODO | Replacement is not adopted or driven. |
-| start-exactly-once | TODO | Duplicate start request faults/refuses without second native start. |
-| tick-at-most-once-per-frame | TODO | Same-frame repeated callback produces one drive. |
-| finish-exactly-once | TODO | One terminal result/end transition. |
-| interrupt-exactly-once | TODO | Repeated cleanup produces one exact interrupt. |
-| cleanup-idempotent | TODO | Repeated cleanup has no mutation/residue. |
-| exception-cleanup | TODO | Fault latches reason, exact interrupt/removal, unrelated state unchanged. |
-| no-serialized-state | TODO | No serializer-visible scheduler state or save mutation. |
-| fallback-disabled-inert | TODO | New gate false produces no registration/admission/drive. |
+| leased-command-accepted | PASS | Component policy/state test binds exact KMC rider/mount/turn/generation/slot identities. Runtime ownership remains Gate 1. |
+| foreign-command-rejected | PASS | Reference-different origin is rejected before drive. |
+| AI-command-rejected | PASS | AI action/origin is rejected before drive. |
+| AoO-command-excluded | PASS | `UnitAttackOfOpportunity` is explicitly ineligible and remains stock. |
+| wrong-rider-rejected | PASS | Current rider mismatch is rejected. |
+| wrong-mount-rejected | PASS | Executor mismatch is rejected. |
+| stale-generation-rejected | PASS | Relationship-generation mismatch is rejected. |
+| stale-turn-rejected | PASS | Exact turn-reference mismatch is rejected. |
+| slot-replacement-rejected | PASS | Expected-slot mismatch is rejected and cannot be adopted. |
+| start-exactly-once | PASS | Repeated lifecycle observation records one start. Native runtime cardinality remains Gate 1. |
+| tick-at-most-once-per-frame | PASS | Same-frame second authorization faults closed with one drive count. |
+| finish-exactly-once | PASS | Second terminal assignment is rejected. |
+| interrupt-exactly-once | PASS | Repeated normal or fault cleanup retains one interrupt. |
+| cleanup-idempotent | PASS | Second dispose is inert and cleanup count remains one. |
+| exception-cleanup | PASS | Component fault/dispose test retains reason and exact cleanup state. Runtime exception isolation remains later. |
+| no-serialized-state | PASS | Domain and integration state are plain runtime services with no serialization attribute or persistent owner. |
+| fallback-disabled-inert | PASS | Default-false component gate rejects admission without a drive. Runtime fallback remains Gate 6. |
 
 ## Gate 1 — minimal in-range mount primary
 

@@ -9979,8 +9979,11 @@ function Assert-KmcCombatScenarioEvidence {
     if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -ge 24) {
         $recordFields = @($recordFields + 'targetBrainLease')
     }
-    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(42,43,44,45,46,47,48,49,50,51,52,55)) {
+    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(42,43,44,45,46,47,48,49,50,51,52,55,56)) {
         $recordFields = @($recordFields + 'reach')
+    }
+    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -eq 56) {
+        $recordFields = @($recordFields + 'pairedScheduler')
     }
     if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(44,45,46,47,48,49,50,51,52)) {
         $recordFields = @($recordFields + 'admission')
@@ -9994,11 +9997,11 @@ function Assert-KmcCombatScenarioEvidence {
     if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(36,37,38,39,40,41)) {
         $recordFields = @($recordFields + 'commandTermination')
     }
-    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39,41,43,45,46,47,49,50,51,52,54,55)) {
+    if ($combatSchemaVersionIsExact -and [long]$record.schemaVersion -in @(5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39,41,43,45,46,47,49,50,51,52,54,55,56)) {
         $recordFields = @($recordFields + 'turnBased')
     }
     Assert-KmcExactProperties $record $recordFields 'combat evidence record'
-    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -notin @(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55) -or
+    if (-not (Test-KmcExactJsonInteger $record.schemaVersion) -or [long]$record.schemaVersion -notin @(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56) -or
         [string]$record.artifactKind -cne 'combat-scenario-evidence') {
         throw 'Combat evidence schemaVersion or artifactKind is not exact.'
     }
@@ -10042,7 +10045,7 @@ function Assert-KmcCombatScenarioEvidence {
         } else {
             @('riderCanActInCombat','riderHandsBusy')
         }
-        if ([long]$record.schemaVersion -eq 55) {
+        if ([long]$record.schemaVersion -in @(55,56)) {
             $dispatchActorFields = @($dispatchActorFields + @(
                 'actionActorSharedTurnAdmitted','actionActorCanDispatch'))
         }
@@ -10066,7 +10069,7 @@ function Assert-KmcCombatScenarioEvidence {
             $combatEntryFields = @($combatEntryFields + @(
                 'actionActorId','actionActorPrepared','actionActorCanActInCombat','actionActorInitiative'))
         }
-        if ([long]$record.schemaVersion -eq 55) {
+        if ([long]$record.schemaVersion -in @(55,56)) {
             $combatEntryFields = @($combatEntryFields + @(
                 'actionActorSharedTurnAdmitted','actionActorActionable'))
         }
@@ -10093,7 +10096,7 @@ function Assert-KmcCombatScenarioEvidence {
                 throw 'Combat action-actor entry evidence is not exact.'
             }
         }
-        if ([long]$record.schemaVersion -eq 55 -and
+        if ([long]$record.schemaVersion -in @(55,56) -and
             ($record.combatEntry.actionActorSharedTurnAdmitted -isnot [bool] -or
              $record.combatEntry.actionActorActionable -isnot [bool])) {
             throw 'Combat shared-turn action-actor entry evidence is not exact.'
@@ -10364,17 +10367,17 @@ function Assert-KmcCombatScenarioEvidence {
             throw 'Combat target brain lease validation count is invalid.'
         }
     }
-    if ([long]$record.schemaVersion -in @(5,7,9,11,13,15,17,19,21,23,25,37,39,45,46,47,49,50,51,52,54,55)) {
+    if ([long]$record.schemaVersion -in @(5,7,9,11,13,15,17,19,21,23,25,37,39,45,46,47,49,50,51,52,54,55,56)) {
         $turnActorBooleanFields = if ([long]$record.schemaVersion -ge 21) {
             @('nativeActionActorTurnStarted','actionActorTurnEndedAfterCommand')
         } else {
             @('nativeRiderTurnStarted')
         }
         $turnActorIdentityFields = if ([long]$record.schemaVersion -ge 21) { @('expectedTurnActor') } else { @() }
-        $turnTransitionFields = if ([long]$record.schemaVersion -in @(45,46,47,49,50,51,52)) {
+        $turnTransitionFields = if ([long]$record.schemaVersion -in @(45,46,47,49,50,51,52,55,56)) {
             @('pairMountedBeforeEnable','pairRetainedAfterEnable','pairRetainedAfterRealtimeRestore')
         } else { @() }
-        $turnTransitionObservationFields = if ([long]$record.schemaVersion -in @(45,46,47,49,50,51,52)) {
+        $turnTransitionObservationFields = if ([long]$record.schemaVersion -in @(45,46,47,49,50,51,52,55,56)) {
             @('presentationAfterEnable','presentationAfterRealtimeRestore')
         } else { @() }
         $turnBooleanFields = @(
@@ -10384,38 +10387,38 @@ function Assert-KmcCombatScenarioEvidence {
             $turnActorBooleanFields +
             @('currentTurnActingAtDispatch','currentTurnActingAtOutcome',
               'restoreDeliveryCompleted','modeRestored','persistedValueUnchanged'))
-        $turnAiLeaseFields = if ([long]$record.schemaVersion -in @(46,47,49,50,51,52)) {
+        $turnAiLeaseFields = if ([long]$record.schemaVersion -in @(46,47,49,50,51,52,55,56)) {
             @('mountAiLeaseReassertionArmedCount','mountAiLeaseReassertionAttemptCount',
               'mountAiLeaseReassertionMutationCount','mountAiLeaseReassertionSuccessCount',
               'mountAiLeaseReassertionResult')
         } else { @() }
-        $turnUiLeaseFields = if ([long]$record.schemaVersion -in @(47,49,50,51,52)) {
+        $turnUiLeaseFields = if ([long]$record.schemaVersion -in @(47,49,50,51,52,55,56)) {
             @('riderUiLeaseRestoreArmedCount','riderUiLeaseRestoreAttemptCount',
               'riderUiLeaseRestoreMutationCount','riderUiLeaseRestoreSuccessCount',
               'riderUiLeaseRestoreResult')
         } else { @() }
-        $nativeMammothTurnFields = if ([long]$record.schemaVersion -in @(49,50,51,52)) {
+        $nativeMammothTurnFields = if ([long]$record.schemaVersion -in @(49,50,51,52,55,56)) {
             @('presentationDuringMammothTurn','nativeMammothTurnStarted','nativeMammothTurnUiObserved',
               'nativeMammothGroundInputStarted','nativeMammothGroundInputCompleted',
               'nativeMammothGroundSelectionRetained','mammothNativeGroundDisplacement',
               'mammothNativeMoveBefore','mammothNativeMoveAfter',
               'riderMoveBeforeMammothNativeGroundInput','riderMoveAfterMammothNativeGroundInput')
         } else { @() }
-        if ([long]$record.schemaVersion -in @(50,51,52)) {
+        if ([long]$record.schemaVersion -in @(50,51,52,55,56)) {
             $nativeMammothTurnFields = @($nativeMammothTurnFields + @(
                 'presentationAfterNativeMammothGroundInput','nativeMammothGroundUiObservedAfterInput',
                 'nativeMammothGroundCommandFinished','nativeMammothGroundCommandResult',
                 'nativeMammothGroundRawMoveSlotState','mammothNativeGroundRemainingDistance'))
         }
-        if ([long]$record.schemaVersion -in @(51,52)) {
+        if ([long]$record.schemaVersion -in @(51,52,55,56)) {
             $nativeMammothTurnFields = @($nativeMammothTurnFields + @(
                 'nativeMammothGroundInterruptSource','nativeMammothGroundEnoughCloseAtTerminal',
                 'nativeMammothGroundAgentReallyMovingAtTerminal','nativeMammothGroundAgentWantsToMoveAtTerminal'))
         }
-        if ([long]$record.schemaVersion -eq 52) {
+        if ([long]$record.schemaVersion -in @(52,55,56)) {
             $nativeMammothTurnFields = @($nativeMammothTurnFields + 'nativeMammothPhysicalPointerQualification')
         }
-        $sharedTurnFields = if ([long]$record.schemaVersion -eq 55) {
+        $sharedTurnFields = if ([long]$record.schemaVersion -in @(55,56)) {
             @('unifiedMountedTurn','expectedTurnPrincipal','expectedActionActor',
               'nativeTurnPrincipalStarted','actionActorSharedTurnAdmitted')
         } else { @() }
@@ -10438,7 +10441,7 @@ function Assert-KmcCombatScenarioEvidence {
              [string]$record.turnBased.expectedTurnActor -cnotin @('rider','mount'))) {
             throw 'Combat turn-based expected turn actor is invalid.'
         }
-        if ([long]$record.schemaVersion -eq 55 -and
+        if ([long]$record.schemaVersion -in @(55,56) -and
             ($record.turnBased.unifiedMountedTurn -isnot [bool] -or
              $record.turnBased.nativeTurnPrincipalStarted -isnot [bool] -or
              $record.turnBased.actionActorSharedTurnAdmitted -isnot [bool] -or
@@ -10454,7 +10457,7 @@ function Assert-KmcCombatScenarioEvidence {
                 throw "Combat turn transition presentation observation is invalid: $name"
             }
         }
-        if ([long]$record.schemaVersion -in @(49,50,51,52)) {
+        if ([long]$record.schemaVersion -in @(49,50,51,52,55,56)) {
             foreach ($name in @('nativeMammothTurnStarted','nativeMammothTurnUiObserved',
                 'nativeMammothGroundInputStarted','nativeMammothGroundInputCompleted',
                 'nativeMammothGroundSelectionRetained')) {
@@ -10474,7 +10477,7 @@ function Assert-KmcCombatScenarioEvidence {
                 }
             }
         }
-        if ([long]$record.schemaVersion -in @(50,51,52)) {
+        if ([long]$record.schemaVersion -in @(50,51,52,55,56)) {
             foreach ($name in @('nativeMammothGroundUiObservedAfterInput','nativeMammothGroundCommandFinished')) {
                 if ($record.turnBased.$name -isnot [bool]) {
                     throw "Combat native Mammoth-turn completion evidence is not Boolean: $name"
@@ -10491,7 +10494,7 @@ function Assert-KmcCombatScenarioEvidence {
                 throw 'Combat native Mammoth-turn remaining distance is invalid.'
             }
         }
-        if ([long]$record.schemaVersion -in @(51,52)) {
+        if ([long]$record.schemaVersion -in @(51,52,55,56)) {
             if ($record.turnBased.nativeMammothGroundInterruptSource -isnot [string] -or
                 [string]::IsNullOrWhiteSpace([string]$record.turnBased.nativeMammothGroundInterruptSource)) {
                 throw 'Combat native Mammoth-turn interrupt-source observation is invalid.'
@@ -10503,7 +10506,7 @@ function Assert-KmcCombatScenarioEvidence {
                 }
             }
         }
-        if ([long]$record.schemaVersion -eq 52 -and
+        if ([long]$record.schemaVersion -in @(52,55,56) -and
             [string]$record.turnBased.nativeMammothPhysicalPointerQualification -cne 'manual-required') {
             throw 'Combat native Mammoth-turn physical-pointer qualification boundary is invalid.'
         }
@@ -10511,7 +10514,7 @@ function Assert-KmcCombatScenarioEvidence {
             [long]$record.turnBased.roundNumberAtDispatch -lt -1) {
             throw 'Combat turn-based round identity is invalid.'
         }
-        if ([long]$record.schemaVersion -in @(46,47)) {
+        if ([long]$record.schemaVersion -in @(46,47,49,50,51,52,55,56)) {
             foreach ($name in @(
                 'mountAiLeaseReassertionArmedCount','mountAiLeaseReassertionAttemptCount',
                 'mountAiLeaseReassertionMutationCount','mountAiLeaseReassertionSuccessCount')) {
@@ -10525,7 +10528,7 @@ function Assert-KmcCombatScenarioEvidence {
                 throw 'Combat turn-based Mammoth AI-lease reassertion result is invalid.'
             }
         }
-        if ([long]$record.schemaVersion -eq 47) {
+        if ([long]$record.schemaVersion -in @(47,49,50,51,52,55,56)) {
             foreach ($name in @(
                 'riderUiLeaseRestoreArmedCount','riderUiLeaseRestoreAttemptCount',
                 'riderUiLeaseRestoreMutationCount','riderUiLeaseRestoreSuccessCount')) {
@@ -10537,6 +10540,52 @@ function Assert-KmcCombatScenarioEvidence {
             if ($record.turnBased.riderUiLeaseRestoreResult -isnot [string] -or
                 [string]::IsNullOrWhiteSpace([string]$record.turnBased.riderUiLeaseRestoreResult)) {
                 throw 'Combat turn-based rider UI-lease restoration result is invalid.'
+            }
+        }
+    }
+    if ([long]$record.schemaVersion -eq 56) {
+        $schedulerBooleanFields = @(
+            'enabled','activeLeaseAtOutcome','activeLeaseAfterCleanup','riderRemainedCurrent',
+            'exactExecutorRetained','exactSlotRetained','mountStandardAvailableBefore',
+            'mountStandardAvailableAfter','riderStandardAvailableBefore','riderStandardAvailableAfter',
+            'preparingObserved','actingObserved','endingObserved')
+        $schedulerIntegerFields = @(
+            'relationshipGeneration','turnRound','creationFrame','admissionFrame','firstGrantFrame',
+            'lastDrivenFrame','startObservedFrame','driveCount','startObservationCount',
+            'terminalObservationCount','interruptCount','resourceChargeObservationCount',
+            'duplicateFrameDriveCount','cleanupCount','foreignCommandAdoptionCount')
+        $schedulerStringFields = @(
+            'stateAtOutcome','stateAfterCleanup','riderId','mountId','turnIdentity','commandIdentity',
+            'commandType','actionOrigin','targetId','weaponBlueprintId','expectedResourceOwnerId',
+            'expectedRuleInitiatorId','terminalResult','firstObservedTurnStatus',
+            'lastObservedTurnStatus','lastRejection','cleanupReason','faultReason')
+        Assert-KmcExactProperties $record.pairedScheduler @(
+            $schedulerBooleanFields + $schedulerIntegerFields + $schedulerStringFields + @(
+                'mountStandardCooldownBefore','mountStandardCooldownAfter',
+                'riderStandardCooldownBefore','riderStandardCooldownAfter')) 'combat paired scheduler evidence'
+        foreach ($name in $schedulerBooleanFields) {
+            if ($record.pairedScheduler.$name -isnot [bool]) {
+                throw "Combat paired scheduler evidence is not Boolean: $name"
+            }
+        }
+        foreach ($name in $schedulerIntegerFields) {
+            if (-not (Test-KmcExactJsonInteger $record.pairedScheduler.$name) -or
+                [long]$record.pairedScheduler.$name -lt -1) {
+                throw "Combat paired scheduler evidence is not a bounded integer: $name"
+            }
+        }
+        foreach ($name in @(
+            'mountStandardCooldownBefore','mountStandardCooldownAfter',
+            'riderStandardCooldownBefore','riderStandardCooldownAfter')) {
+            if (-not (Test-KmcJsonNumber $record.pairedScheduler.$name)) {
+                throw "Combat paired scheduler resource evidence is not numeric: $name"
+            }
+        }
+        foreach ($name in $schedulerStringFields) {
+            if ($null -ne $record.pairedScheduler.$name -and
+                ($record.pairedScheduler.$name -isnot [string] -or
+                 [string]::IsNullOrWhiteSpace([string]$record.pairedScheduler.$name))) {
+                throw "Combat paired scheduler string evidence is invalid: $name"
             }
         }
     }
@@ -10761,7 +10810,7 @@ function Assert-KmcCombatScenarioEvidence {
         } elseif ($movementToAttackScenario) {
             if ($turnBasedScenario) { @(29,31,33,35,54) } else { @(28,30,32,34,53) }
         } elseif ($mammothScenario) {
-            if ($turnBasedScenario) { @(21,23,25,27,43,55) } else { @(20,22,24,26,42) }
+            if ($turnBasedScenario) { @(21,23,25,27,43,55,56) } else { @(20,22,24,26,42) }
         } elseif ($missScenario) {
             @(6,8,10,12,14,16,18,20,22,24,26)
         } elseif ($turnBasedScenario) {
@@ -10774,7 +10823,7 @@ function Assert-KmcCombatScenarioEvidence {
             [long]$record.assertionPassCount -le 0 -or @($record.errors).Count -ne 0) {
             throw "PASS combat evidence does not contain an error-free compatible PASS row."
         }
-        if ([long]$record.schemaVersion -in @(42,43,44,45,46,47,48,49,50,51,52,55)) {
+        if ([long]$record.schemaVersion -in @(42,43,44,45,46,47,48,49,50,51,52,55,56)) {
             Assert-KmcExactProperties $record.reach @(
                 'riderWeaponBlueprintId','mountWeaponBlueprintId','riderWeaponRange','mountWeaponRange',
                 'mountCorpulence','targetCorpulence','riderStoppingRadius','mountStoppingRadius',
@@ -10878,7 +10927,7 @@ function Assert-KmcCombatScenarioEvidence {
         }
         $dispatchCanActField = if ([long]$record.schemaVersion -ge 20) { 'actionActorCanActInCombat' } else { 'riderCanActInCombat' }
         $dispatchHandsField = if ([long]$record.schemaVersion -ge 20) { 'actionActorHandsBusy' } else { 'riderHandsBusy' }
-        $dispatchActorReadyInvalid = if ([long]$record.schemaVersion -eq 55) {
+        $dispatchActorReadyInvalid = if ([long]$record.schemaVersion -in @(55,56)) {
             $record.dispatch.actionActorCanActInCombat -ne $false -or
                 $record.dispatch.actionActorSharedTurnAdmitted -ne $true -or
                 $record.dispatch.actionActorCanDispatch -ne $true
@@ -10922,7 +10971,7 @@ function Assert-KmcCombatScenarioEvidence {
             $record.turnBased.enabledAtMount -ne $true
         }
         $sharedMammothTurn = $turnBasedScenario -and $mammothScenario -and
-            [long]$record.schemaVersion -eq 55
+            [long]$record.schemaVersion -in @(55,56)
         $turnOwnershipInvalid = if (-not $turnBasedScenario) {
             $false
         } elseif ($sharedMammothTurn) {
@@ -10934,9 +10983,11 @@ function Assert-KmcCombatScenarioEvidence {
                 $record.turnBased.nativeTurnPrincipalStarted -ne $true -or
                 $record.turnBased.actionActorSharedTurnAdmitted -ne $true -or
                 [string]$record.turnBased.currentTurnUnitIdAtDispatch -cne [string]$record.riderId -or
-                $record.turnBased.currentTurnActingAtDispatch -ne $true -or
+                ([long]$record.schemaVersion -eq 55 -and
+                 $record.turnBased.currentTurnActingAtDispatch -ne $true) -or
                 [string]$record.turnBased.currentTurnUnitIdAtOutcome -cne [string]$record.riderId -or
-                $record.turnBased.currentTurnActingAtOutcome -ne $true -or
+                ([long]$record.schemaVersion -eq 55 -and
+                 $record.turnBased.currentTurnActingAtOutcome -ne $true) -or
                 $record.turnBased.actionActorTurnEndedAfterCommand -ne $false
         } else {
             ([long]$record.schemaVersion -ge 21 -and
@@ -10967,6 +11018,66 @@ function Assert-KmcCombatScenarioEvidence {
              $record.turnBased.modeRestored -ne $true -or
              $record.turnBased.persistedValueUnchanged -ne $true)) {
             throw 'PASS turn-based combat evidence does not prove the exact native action-actor turn and mode restoration.'
+        }
+        if ([long]$record.schemaVersion -eq 56) {
+            $scheduler = $record.pairedScheduler
+            $outcomeStateInvalid =
+                ([string]$scheduler.stateAtOutcome -cnotin @('Completed','Disposed')) -or
+                ($scheduler.activeLeaseAtOutcome -eq $true -and
+                 [string]$scheduler.stateAtOutcome -cne 'Completed') -or
+                ($scheduler.activeLeaseAtOutcome -eq $false -and
+                 [string]$scheduler.stateAtOutcome -cne 'Disposed')
+            if ($scheduler.enabled -ne $true -or $outcomeStateInvalid -or
+                $scheduler.activeLeaseAfterCleanup -ne $false -or
+                [string]$scheduler.stateAfterCleanup -cne 'Disposed' -or
+                [string]$scheduler.riderId -cne [string]$record.riderId -or
+                [string]$scheduler.mountId -cne [string]$record.mountId -or
+                [long]$scheduler.relationshipGeneration -le 0 -or
+                [string]$scheduler.turnIdentity -cnotmatch '^turn@[0-9a-f]{8}$' -or
+                [long]$scheduler.turnRound -ne [long]$record.turnBased.roundNumberAtDispatch -or
+                [string]$scheduler.commandIdentity -cnotmatch '^command@[0-9a-f]{8}$' -or
+                [string]$scheduler.commandType -cne 'KingmakerMountedCombat.Integration.MountedPairAttackCommand' -or
+                [string]$scheduler.actionOrigin -cne 'MountPrimaryNatural' -or
+                [string]$scheduler.targetId -cne [string]$record.targetId -or
+                [string]$scheduler.weaponBlueprintId -cne [string]$record.command.attackWeaponBlueprintId -or
+                [string]$scheduler.expectedResourceOwnerId -cne [string]$record.mountId -or
+                [string]$scheduler.expectedRuleInitiatorId -cne [string]$record.mountId -or
+                [long]$scheduler.creationFrame -lt 0 -or
+                [long]$scheduler.admissionFrame -lt [long]$scheduler.creationFrame -or
+                [long]$scheduler.firstGrantFrame -lt [long]$scheduler.admissionFrame -or
+                [long]$scheduler.lastDrivenFrame -lt [long]$scheduler.firstGrantFrame -or
+                [long]$scheduler.startObservedFrame -lt [long]$scheduler.firstGrantFrame -or
+                ([long]$scheduler.startObservedFrame - [long]$scheduler.admissionFrame) -gt 2 -or
+                [long]$scheduler.driveCount -le 0 -or
+                [long]$scheduler.startObservationCount -ne 1 -or
+                [long]$scheduler.terminalObservationCount -ne 1 -or
+                [long]$scheduler.interruptCount -ne 0 -or
+                [long]$scheduler.resourceChargeObservationCount -ne 1 -or
+                [long]$scheduler.duplicateFrameDriveCount -ne 0 -or
+                [long]$scheduler.cleanupCount -ne 1 -or
+                [long]$scheduler.foreignCommandAdoptionCount -ne 0 -or
+                $scheduler.riderRemainedCurrent -ne $true -or
+                $scheduler.exactExecutorRetained -ne $true -or
+                $scheduler.exactSlotRetained -ne $true -or
+                $scheduler.mountStandardAvailableBefore -ne $true -or
+                $scheduler.mountStandardAvailableAfter -ne $false -or
+                $scheduler.riderStandardAvailableBefore -ne $true -or
+                $scheduler.riderStandardAvailableAfter -ne $true -or
+                [double]$scheduler.mountStandardCooldownAfter -le
+                    [double]$scheduler.mountStandardCooldownBefore -or
+                [Math]::Abs([double]$scheduler.riderStandardCooldownAfter -
+                    [double]$scheduler.riderStandardCooldownBefore) -gt 0.01 -or
+                [string]$scheduler.terminalResult -cne 'Success' -or
+                [string]$scheduler.firstObservedTurnStatus -cne 'Preparing' -or
+                [string]$scheduler.lastObservedTurnStatus -cnotin @('Preparing','Acting') -or
+                $scheduler.preparingObserved -ne $true -or
+                $scheduler.endingObserved -ne $false -or
+                [string]$scheduler.lastRejection -cne 'None' -or
+                $scheduler.cleanupReason -isnot [string] -or
+                [string]::IsNullOrWhiteSpace([string]$scheduler.cleanupReason) -or
+                $null -ne $scheduler.faultReason) {
+                throw 'PASS schema-v56 combat evidence does not prove one exact pair-local mount command lease, native lifecycle, separate resource ownership, and cleanup.'
+            }
         }
         if ([long]$record.schemaVersion -in @(49,50,51,52)) {
             $mammothTurnObservation = [string]$record.turnBased.presentationDuringMammothTurn
@@ -11039,7 +11150,7 @@ function Assert-KmcCombatScenarioEvidence {
         $riderInitiative = [double]$record.combatEntry.riderInitiative
         $entryInitiativeInvalid = if ([long]$record.schemaVersion -ge 26) {
             $actionActorInitiative = [double]$record.combatEntry.actionActorInitiative
-            if ([long]$record.schemaVersion -eq 55) {
+            if ([long]$record.schemaVersion -in @(55,56)) {
                 [string]$record.combatEntry.actionActorId -cne $expectedActorId -or
                     $record.combatEntry.actionActorPrepared -ne $true -or
                     $record.combatEntry.actionActorCanActInCombat -ne $false -or

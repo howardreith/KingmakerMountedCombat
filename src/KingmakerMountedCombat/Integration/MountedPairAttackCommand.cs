@@ -269,6 +269,8 @@ namespace KingmakerMountedCombat.Integration
 
         internal MountedCombatActionKind Action => action;
 
+        internal NativeSingleAttackWeaponSelection ExpectedMountPrimary => expectedMountPrimary;
+
         internal void RecordHorsePrimaryAnimation(
             UnitAnimationActionHandle handle,
             UnitAnimationActionSpecialAttack animationAction,

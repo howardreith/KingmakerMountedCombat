@@ -31,6 +31,7 @@ namespace KingmakerMountedCombat.Integration
         private readonly DiagnosticSettings settings;
         private readonly HorsePrimaryAttackAnimationAdapter horsePrimaryAttackAnimation;
         private readonly UnifiedMountedTurnCoordinator unifiedTurn;
+        private readonly MountedPairCommandScheduler pairedCommandScheduler;
         private readonly IModLogger logger;
         private readonly MountedOverlayWorldInputGuard overlayWorldInputGuard = new MountedOverlayWorldInputGuard();
         private MountedPairAttackCommand activeCommand;
@@ -57,6 +58,7 @@ namespace KingmakerMountedCombat.Integration
             DiagnosticSettings settings,
             HorsePrimaryAttackAnimationAdapter horsePrimaryAttackAnimation,
             UnifiedMountedTurnCoordinator unifiedTurn,
+            MountedPairCommandScheduler pairedCommandScheduler,
             IModLogger logger)
         {
             this.relationship = relationship ?? throw new ArgumentNullException(nameof(relationship));
@@ -64,6 +66,8 @@ namespace KingmakerMountedCombat.Integration
             this.horsePrimaryAttackAnimation = horsePrimaryAttackAnimation ??
                 throw new ArgumentNullException(nameof(horsePrimaryAttackAnimation));
             this.unifiedTurn = unifiedTurn ?? throw new ArgumentNullException(nameof(unifiedTurn));
+            this.pairedCommandScheduler = pairedCommandScheduler ??
+                throw new ArgumentNullException(nameof(pairedCommandScheduler));
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
             relationship.Dismounting += HandleDismounting;
         }
@@ -101,6 +105,11 @@ namespace KingmakerMountedCombat.Integration
         internal UnifiedMountedTurnSnapshot CaptureUnifiedTurnSnapshot()
         {
             return unifiedTurn.CaptureSnapshot();
+        }
+
+        internal MountedPairCommandSchedulerSnapshot CapturePairedCommandSchedulerSnapshot()
+        {
+            return pairedCommandScheduler.CaptureSnapshot();
         }
 
         internal bool HasExactMountMovement =>
@@ -670,6 +679,16 @@ namespace KingmakerMountedCombat.Integration
                     logger,
                     HandleCommandTerminal,
                     allowApproach);
+                var schedulerRequired = pairedCommandScheduler.RequiresLease(action);
+                string schedulerReason;
+                if (schedulerRequired &&
+                    !pairedCommandScheduler.TryRegister(command, out schedulerReason))
+                {
+                    LastFeedback = "Mounted pair scheduler rejected command registration: " +
+                        schedulerReason + ".";
+                    LastRejectionCodes = new[] { MountedCombatRejectionCode.CommandAdmissionFailure };
+                    return MountedCombatClickResult.HandledRejected;
+                }
                 activeCommand = command;
                 LastOutcome = null;
                 LastRejectionCodes = new MountedCombatRejectionCode[0];
@@ -679,8 +698,20 @@ namespace KingmakerMountedCombat.Integration
                     (!actionActor.Commands.Contains(command) &&
                      !actionActor.Commands.Queue.Contains(command)))
                 {
+                    pairedCommandScheduler.AbandonRegistration(
+                        command,
+                        "native command-container admission failed");
                     activeCommand = null;
                     LastFeedback = "Mounted pair command failed to enter the action actor Standard slot.";
+                    LastRejectionCodes = new[] { MountedCombatRejectionCode.CommandAdmissionFailure };
+                    return MountedCombatClickResult.HandledRejected;
+                }
+                if (schedulerRequired &&
+                    !pairedCommandScheduler.ConfirmAdmission(command, out schedulerReason))
+                {
+                    activeCommand = null;
+                    LastFeedback = "Mounted pair scheduler rejected native admission: " +
+                        schedulerReason + ".";
                     LastRejectionCodes = new[] { MountedCombatRejectionCode.CommandAdmissionFailure };
                     return MountedCombatClickResult.HandledRejected;
                 }
@@ -697,6 +728,9 @@ namespace KingmakerMountedCombat.Integration
             }
             catch (Exception exception)
             {
+                pairedCommandScheduler.AbandonRegistration(
+                    activeCommand,
+                    "command admission exception " + exception.GetType().Name);
                 activeCommand = null;
                 LastFeedback = "Mounted pair command failed closed: " + exception.GetType().Name + ".";
                 LastRejectionCodes = new[] { MountedCombatRejectionCode.CommandAdmissionFailure };
@@ -711,7 +745,9 @@ namespace KingmakerMountedCombat.Integration
             {
                 return;
             }
+            pairedCommandScheduler.Update();
             SweepFinishedCommand();
+            pairedCommandScheduler.Update();
             if (projectedNativeMountTurnGroundMove != null &&
                 projectedNativeMountTurnGroundMove.IsFinished &&
                 Time.frameCount > projectedNativeMountTurnGroundMoveFrame + 2)
@@ -757,6 +793,7 @@ namespace KingmakerMountedCombat.Integration
             activeCommand = null;
             if (command != null && !command.IsFinished)
             {
+                pairedCommandScheduler.ObserveExternalInterrupt(command, reason);
                 command.Interrupt();
             }
             var doorInteraction = activeDoorInteraction;
@@ -1337,7 +1374,9 @@ namespace KingmakerMountedCombat.Integration
                 PathKnownUnavailable = false,
                 WithinSupportedRangeEnvelope = true,
                 RangeOriginConsistent = true,
-                CommandAdmissionReady = true
+                CommandAdmissionReady = action != MountedCombatActionKind.MountPrimaryNatural ||
+                    !turnBasedCombat || !settings.EnableUnifiedMountedTurn ||
+                    pairedCommandScheduler.CanRegisterCurrentPair(out _)
             };
         }
 
@@ -1358,6 +1397,10 @@ namespace KingmakerMountedCombat.Integration
             MountedPairAttackCommand command,
             MountedPairAttackOutcome outcome)
         {
+            pairedCommandScheduler.ObserveTerminal(
+                command,
+                outcome?.Result,
+                outcome?.TerminalReason);
             var stockIntentOwned = ReferenceEquals(stockIntentCommand, command);
             if (stockIntentOwned)
             {

@@ -83,6 +83,7 @@ namespace KingmakerMountedCombat.Integration
 
         private readonly GameMountedRelationshipService relationship;
         private readonly DiagnosticSettings settings;
+        private readonly MountedPairCommandScheduler pairedCommandScheduler;
         private readonly IModLogger logger;
         private MountedCombatController combat;
         private TurnController preparedRiderTurn;
@@ -101,10 +102,13 @@ namespace KingmakerMountedCombat.Integration
         public UnifiedMountedTurnCoordinator(
             GameMountedRelationshipService relationship,
             DiagnosticSettings settings,
+            MountedPairCommandScheduler pairedCommandScheduler,
             IModLogger logger)
         {
             this.relationship = relationship ?? throw new ArgumentNullException(nameof(relationship));
             this.settings = settings ?? throw new ArgumentNullException(nameof(settings));
+            this.pairedCommandScheduler = pairedCommandScheduler ??
+                throw new ArgumentNullException(nameof(pairedCommandScheduler));
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
             relationship.MountedPairActivated += HandleMountedPairActivated;
             relationship.Dismounting += HandleDismounting;
@@ -385,24 +389,15 @@ namespace KingmakerMountedCombat.Integration
             {
                 ObserveExactMountCommandEligibility(command, result, turn);
             }
-            if (result)
+            if (!exactOwnedPairCommand ||
+                !pairedCommandScheduler.TryExtendNativeEligibility(
+                    command,
+                    result,
+                    ref result))
             {
                 return;
             }
 
-            if (!UnifiedMountedTurnPolicy.ShouldAdmitMountCommand(
-                    Enabled,
-                    relationship.State == RelationshipState.Mounted,
-                    CombatController.IsInTurnBasedCombat(),
-                    turn?.Unit == relationship.Rider,
-                    turn != null && (turn.IsActing || turn.IsEnding),
-                    command.Executor == relationship.Mount,
-                    exactOwnedPairCommand))
-            {
-                return;
-            }
-
-            result = true;
             MountCommandAdmissionCount++;
         }
 
@@ -430,7 +425,8 @@ namespace KingmakerMountedCombat.Integration
                     : mountCommands.Standard.GetType().FullName) +
                 ";mountQueueCountNow=" + (mountCommands?.Queue.Count ?? -1) +
                 ";admissionOverrideCount=" + MountCommandAdmissionCount +
-                ";schedulerDriveCount=0" +
+                ";schedulerDriveCount=" + pairedCommandScheduler.DriveCount +
+                ";scheduler={" + pairedCommandScheduler.Describe() + "}" +
                 ";last={" + lastMountCommandEligibilityObservation + "}";
         }
 

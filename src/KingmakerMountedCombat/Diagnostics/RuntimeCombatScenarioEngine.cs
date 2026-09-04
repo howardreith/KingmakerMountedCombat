@@ -90,6 +90,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private string currentRow;
         private CombatEngineStep step;
         private bool originalUnsafeExperimentSetting;
+        private bool originalPairedCommandSchedulerSetting;
         private bool settingLeaseOwned;
         private bool started;
         private bool completed;
@@ -122,6 +123,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private string admissionFeedback;
         private string[] admissionRejectionCodes = new string[0];
         private MountedPairAttackOutcome outcome;
+        private MountedPairCommandSchedulerSnapshot pairedSchedulerAtOutcome;
         private bool targetRemoved;
         private bool targetEntityRemoved;
         private bool targetRuntimeGroupRemoved;
@@ -377,7 +379,12 @@ namespace KingmakerMountedCombat.Diagnostics
             currentRow = request.Scenario;
             assertions = new AssertionRecorder();
             originalUnsafeExperimentSetting = settings.EnableUnsafeMovementExperiment;
+            originalPairedCommandSchedulerSetting = settings.EnablePairedCommandScheduler;
             settings.EnableUnsafeMovementExperiment = true;
+            if (IsTurnBasedRow && IsMammothPrimaryRow)
+            {
+                settings.EnablePairedCommandScheduler = true;
+            }
             settingLeaseOwned = true;
             rowClock.Start();
             step = CombatEngineStep.BeginRow;
@@ -1354,7 +1361,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     BeginCleanup();
                     return;
                 }
-                if (!currentTurn.IsActing)
+                if (!UsesDistinctSharedTurnPrincipal && !currentTurn.IsActing)
                 {
                     if (combat.LastOutcome != null)
                     {
@@ -1363,10 +1370,18 @@ namespace KingmakerMountedCombat.Diagnostics
                     }
                     return;
                 }
+                if (UsesDistinctSharedTurnPrincipal &&
+                    currentTurn.Status != TurnController.TurnStatus.Preparing &&
+                    !currentTurn.IsActing && !currentTurn.IsEnding)
+                {
+                    assertions.Fail("The rider-owned shared turn left every scheduler-eligible native status.");
+                    BeginCleanup();
+                    return;
+                }
 
                 nativeActionActorTurnActingObservedAfterDispatch = true;
                 currentTurnUnitIdAtDispatch = currentTurn.Unit.UniqueId;
-                currentTurnActingAtDispatch = true;
+                currentTurnActingAtDispatch = currentTurn.IsActing;
                 roundNumberAtDispatch = turnController.RoundNumber;
             }
             if (IsApproachRow && combat.HasActiveCommand)
@@ -1383,6 +1398,9 @@ namespace KingmakerMountedCombat.Diagnostics
             }
 
             outcome = combat.LastOutcome;
+            pairedSchedulerAtOutcome = UsesDistinctSharedTurnPrincipal
+                ? combat.CapturePairedCommandSchedulerSnapshot()
+                : null;
             riderStandardAfter = rider.CombatState.Cooldown.StandardAction;
             mountStandardAfter = mount.CombatState.Cooldown.StandardAction;
             riderMoveAfter = rider.CombatState.Cooldown.MoveAction;
@@ -1492,6 +1510,49 @@ namespace KingmakerMountedCombat.Diagnostics
             assertions.Check(string.Equals(ruleProbe.LastInitiatorId, AttackActor.UniqueId, StringComparison.Ordinal) &&
                     string.Equals(ruleProbe.LastTargetId, targetId, StringComparison.Ordinal),
                 "Rulebook identities remained the exact action actor and diagnostic target.");
+            if (UsesDistinctSharedTurnPrincipal)
+            {
+                var scheduler = pairedSchedulerAtOutcome;
+                assertions.Check(scheduler != null && scheduler.Enabled &&
+                        string.Equals(scheduler.RiderId, rider.UniqueId, StringComparison.Ordinal) &&
+                        string.Equals(scheduler.MountId, mount.UniqueId, StringComparison.Ordinal) &&
+                        scheduler.RelationshipGeneration > 0 &&
+                        string.Equals(scheduler.CommandType,
+                            typeof(MountedPairAttackCommand).FullName,
+                            StringComparison.Ordinal) &&
+                        string.Equals(scheduler.ActionOrigin,
+                            MountedCombatActionKind.MountPrimaryNatural.ToString(),
+                            StringComparison.Ordinal) &&
+                        string.Equals(scheduler.TargetId, targetId, StringComparison.Ordinal) &&
+                        string.Equals(scheduler.WeaponBlueprintId,
+                            outcome.AttackWeaponBlueprintId,
+                            StringComparison.Ordinal) &&
+                        string.Equals(scheduler.ExpectedResourceOwnerId, mount.UniqueId, StringComparison.Ordinal) &&
+                        string.Equals(scheduler.ExpectedRuleInitiatorId, mount.UniqueId, StringComparison.Ordinal),
+                    "The scheduler lease retained exact pair, command, target, weapon, resource, and rule ownership.");
+                assertions.Check(scheduler != null && scheduler.DriveCount > 0 &&
+                        scheduler.StartObservationCount == 1 &&
+                        scheduler.TerminalObservationCount == 1 &&
+                        scheduler.ResourceChargeObservationCount == 1 &&
+                        scheduler.DuplicateFrameDriveCount == 0 &&
+                        scheduler.ForeignCommandAdoptionCount == 0 &&
+                        scheduler.AdmissionFrame >= scheduler.CreationFrame &&
+                        scheduler.FirstGrantFrame >= scheduler.AdmissionFrame &&
+                        scheduler.StartObservedFrame >= scheduler.FirstGrantFrame &&
+                        scheduler.StartObservedFrame - scheduler.AdmissionFrame <= 2 &&
+                        string.Equals(scheduler.TerminalResult, "Success", StringComparison.Ordinal),
+                    "The exact leased command started within two actionable frames, drove once per frame, and terminated once.");
+                assertions.Check(scheduler != null && scheduler.RiderRemainedCurrent &&
+                        scheduler.ExactExecutorRetained && scheduler.ExactSlotRetained &&
+                        scheduler.MountStandardAvailableBefore && !scheduler.MountStandardAvailableAfter &&
+                        scheduler.RiderStandardAvailableBefore && scheduler.RiderStandardAvailableAfter &&
+                        scheduler.MountStandardCooldownAfter > scheduler.MountStandardCooldownBefore &&
+                        Math.Abs(scheduler.RiderStandardCooldownAfter -
+                            scheduler.RiderStandardCooldownBefore) <= 0.01f &&
+                        scheduler.PreparingObserved && !scheduler.EndingObserved &&
+                        string.IsNullOrEmpty(scheduler.FaultReason),
+                    "The scheduler preserved the rider principal, exact mount slot/executor, and separate Standard ledgers.");
+            }
             if (IsTurnBasedRow)
             {
                 var currentTurn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
@@ -1499,7 +1560,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 currentTurnActingAtOutcome = currentTurn != null && currentTurn.IsActing;
                 assertions.Check(UsesDistinctSharedTurnPrincipal
                         ? string.Equals(currentTurnUnitIdAtOutcome, rider.UniqueId, StringComparison.Ordinal) &&
-                            currentTurnActingAtOutcome
+                            currentTurn != null &&
+                            (currentTurn.Status == TurnController.TurnStatus.Preparing ||
+                             currentTurn.IsActing || currentTurn.IsEnding)
                         : IsMammothPrimaryRow
                             ? !currentTurnActingAtOutcome ||
                                 !string.Equals(currentTurnUnitIdAtOutcome, mount.UniqueId, StringComparison.Ordinal)
@@ -2007,7 +2070,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var record = new CombatEvidenceRecord
             {
                 SchemaVersion = UsesDistinctSharedTurnPrincipal
-                    ? 55
+                    ? 56
                     : IsHumanPlayRow
                     ? (IsTurnBasedRow ? 52 : 48)
                     : IsCommandTerminationRow
@@ -2178,6 +2241,11 @@ namespace KingmakerMountedCombat.Diagnostics
                     MountMoveAfter = mountMoveAfter
                 },
                 Command = CombatCommandEvidence.From(outcome),
+                PairedScheduler = UsesDistinctSharedTurnPrincipal
+                    ? CombatPairedSchedulerEvidence.From(
+                        pairedSchedulerAtOutcome,
+                        combat.CapturePairedCommandSchedulerSnapshot())
+                    : null,
                 Rules = CombatRuleEvidence.From(ruleProbe),
                 Movement = new CombatMovementEvidence
                 {
@@ -2507,6 +2575,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (settingLeaseOwned)
             {
                 settings.EnableUnsafeMovementExperiment = originalUnsafeExperimentSetting;
+                settings.EnablePairedCommandScheduler = originalPairedCommandSchedulerSetting;
                 settingLeaseOwned = false;
             }
         }
@@ -2795,6 +2864,8 @@ namespace KingmakerMountedCombat.Diagnostics
             public CombatGroundMovementEvidence GroundMovement { get; set; }
             public CombatResourceEvidence Resources { get; set; }
             public CombatCommandEvidence Command { get; set; }
+            [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            public CombatPairedSchedulerEvidence PairedScheduler { get; set; }
             public CombatRuleEvidence Rules { get; set; }
             public CombatMovementEvidence Movement { get; set; }
             [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
@@ -3422,6 +3493,125 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     throw new InvalidOperationException("Native camera-follower fields did not restore to their captured values.");
                 }
+            }
+        }
+
+        private sealed class CombatPairedSchedulerEvidence
+        {
+            public bool Enabled { get; set; }
+            public bool ActiveLeaseAtOutcome { get; set; }
+            public string StateAtOutcome { get; set; }
+            public bool ActiveLeaseAfterCleanup { get; set; }
+            public string StateAfterCleanup { get; set; }
+            public string RiderId { get; set; }
+            public string MountId { get; set; }
+            public long RelationshipGeneration { get; set; }
+            public string TurnIdentity { get; set; }
+            public int TurnRound { get; set; }
+            public string CommandIdentity { get; set; }
+            public string CommandType { get; set; }
+            public string ActionOrigin { get; set; }
+            public string TargetId { get; set; }
+            public string WeaponBlueprintId { get; set; }
+            public string ExpectedResourceOwnerId { get; set; }
+            public string ExpectedRuleInitiatorId { get; set; }
+            public int CreationFrame { get; set; }
+            public int AdmissionFrame { get; set; }
+            public int FirstGrantFrame { get; set; }
+            public int LastDrivenFrame { get; set; }
+            public int StartObservedFrame { get; set; }
+            public int DriveCount { get; set; }
+            public int StartObservationCount { get; set; }
+            public int TerminalObservationCount { get; set; }
+            public int InterruptCount { get; set; }
+            public int ResourceChargeObservationCount { get; set; }
+            public int DuplicateFrameDriveCount { get; set; }
+            public int CleanupCount { get; set; }
+            public int ForeignCommandAdoptionCount { get; set; }
+            public bool RiderRemainedCurrent { get; set; }
+            public bool ExactExecutorRetained { get; set; }
+            public bool ExactSlotRetained { get; set; }
+            public bool MountStandardAvailableBefore { get; set; }
+            public bool MountStandardAvailableAfter { get; set; }
+            public bool RiderStandardAvailableBefore { get; set; }
+            public bool RiderStandardAvailableAfter { get; set; }
+            public float MountStandardCooldownBefore { get; set; }
+            public float MountStandardCooldownAfter { get; set; }
+            public float RiderStandardCooldownBefore { get; set; }
+            public float RiderStandardCooldownAfter { get; set; }
+            public string TerminalResult { get; set; }
+            public string FirstObservedTurnStatus { get; set; }
+            public string LastObservedTurnStatus { get; set; }
+            public bool PreparingObserved { get; set; }
+            public bool ActingObserved { get; set; }
+            public bool EndingObserved { get; set; }
+            public string LastRejection { get; set; }
+            public string CleanupReason { get; set; }
+            public string FaultReason { get; set; }
+
+            public static CombatPairedSchedulerEvidence From(
+                MountedPairCommandSchedulerSnapshot atOutcome,
+                MountedPairCommandSchedulerSnapshot afterCleanup)
+            {
+                var retained = afterCleanup ?? atOutcome;
+                if (retained == null)
+                {
+                    return null;
+                }
+
+                return new CombatPairedSchedulerEvidence
+                {
+                    Enabled = retained.Enabled,
+                    ActiveLeaseAtOutcome = atOutcome != null && atOutcome.HasActiveLease,
+                    StateAtOutcome = atOutcome?.State,
+                    ActiveLeaseAfterCleanup = afterCleanup != null && afterCleanup.HasActiveLease,
+                    StateAfterCleanup = afterCleanup?.State,
+                    RiderId = retained.RiderId,
+                    MountId = retained.MountId,
+                    RelationshipGeneration = retained.RelationshipGeneration,
+                    TurnIdentity = retained.TurnIdentity,
+                    TurnRound = retained.TurnRound,
+                    CommandIdentity = retained.CommandIdentity,
+                    CommandType = retained.CommandType,
+                    ActionOrigin = retained.ActionOrigin,
+                    TargetId = retained.TargetId,
+                    WeaponBlueprintId = retained.WeaponBlueprintId,
+                    ExpectedResourceOwnerId = retained.ExpectedResourceOwnerId,
+                    ExpectedRuleInitiatorId = retained.ExpectedRuleInitiatorId,
+                    CreationFrame = retained.CreationFrame,
+                    AdmissionFrame = retained.AdmissionFrame,
+                    FirstGrantFrame = retained.FirstGrantFrame,
+                    LastDrivenFrame = retained.LastDrivenFrame,
+                    StartObservedFrame = retained.StartObservedFrame,
+                    DriveCount = retained.DriveCount,
+                    StartObservationCount = retained.StartObservationCount,
+                    TerminalObservationCount = retained.TerminalObservationCount,
+                    InterruptCount = retained.InterruptCount,
+                    ResourceChargeObservationCount = retained.ResourceChargeObservationCount,
+                    DuplicateFrameDriveCount = retained.DuplicateFrameDriveCount,
+                    CleanupCount = retained.CleanupCount,
+                    ForeignCommandAdoptionCount = retained.ForeignCommandAdoptionCount,
+                    RiderRemainedCurrent = retained.RiderRemainedCurrent,
+                    ExactExecutorRetained = retained.ExactExecutorRetained,
+                    ExactSlotRetained = retained.ExactSlotRetained,
+                    MountStandardAvailableBefore = retained.MountStandardAvailableBefore,
+                    MountStandardAvailableAfter = retained.MountStandardAvailableAfter,
+                    RiderStandardAvailableBefore = retained.RiderStandardAvailableBefore,
+                    RiderStandardAvailableAfter = retained.RiderStandardAvailableAfter,
+                    MountStandardCooldownBefore = retained.MountStandardCooldownBefore,
+                    MountStandardCooldownAfter = retained.MountStandardCooldownAfter,
+                    RiderStandardCooldownBefore = retained.RiderStandardCooldownBefore,
+                    RiderStandardCooldownAfter = retained.RiderStandardCooldownAfter,
+                    TerminalResult = retained.TerminalResult,
+                    FirstObservedTurnStatus = retained.FirstObservedTurnStatus,
+                    LastObservedTurnStatus = retained.LastObservedTurnStatus,
+                    PreparingObserved = retained.PreparingObserved,
+                    ActingObserved = retained.ActingObserved,
+                    EndingObserved = retained.EndingObserved,
+                    LastRejection = retained.LastRejection,
+                    CleanupReason = retained.CleanupReason,
+                    FaultReason = retained.FaultReason
+                };
             }
         }
 

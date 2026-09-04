@@ -59,6 +59,7 @@ namespace KingmakerMountedCombat.Tests
             MountedStabilizationPolicyTests.Register(runner);
             NativeMountedControlPolicyTests.Register(runner);
             UnifiedMountedTurnPolicyTests.Register(runner);
+            PairedCommandSchedulerTests.Register(runner);
             MountedStockAttackPolicyTests.Register(runner);
             OptionalPublicPropertyReaderTests.Register(runner);
             ReactiveBooleanValueReaderTests.Register(runner);
