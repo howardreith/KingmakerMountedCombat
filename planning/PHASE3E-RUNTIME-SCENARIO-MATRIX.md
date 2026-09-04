@@ -51,7 +51,9 @@ Credited dev.4 A/B use clean published `27e088b4dafe4d449127b5e2920f09b3a0ed4f79
 
 ## Gate 2 — sequencing and separate ledgers
 
-Dev.5 changes only diagnostic setting scope: the existing Horse TB suite temporarily enables and exactly restores `EnablePairedCommandScheduler`. Complete offline gates pass. One clean-package runtime process will attribute existing rows before new Gate 2 evidence is added.
+Dev.5 changes only diagnostic setting scope: the existing Horse TB suite temporarily enables and exactly restores `EnablePairedCommandScheduler`. Its clean package/suite/WhatIf passed, but immutable live `20260904T155035Z-phase3e-dev5-horse-tb-gate2` failed before Mount admission because one foreign AI-created Horse Standard command occupied the unmounted slot. Rider current/actionable identity held for `2,520` frames and the scheduler correctly rejected the foreign command. Independent audit-before-read passed exact restoration. No Gate 2 row receives credit and no scheduler repair cycle is consumed.
+
+Dev.6 reuses the existing reversible diagnostic Horse-AI lease after adjacency and before target creation on both setup paths. Production scheduling is unchanged. One new clean-package runtime process will attribute existing rows before new Gate 2 evidence is added.
 
 | Row | Status | Required evidence |
 |---|---|---|

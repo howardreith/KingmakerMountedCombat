@@ -24,6 +24,21 @@ Dev.4 Gate 1 qualification: clean published commit `27e088b4dafe4d449127b5e2920f
 
 Gate 2 dev.5 seam: `Phase3dHorseScenarioTranche` may capture the incoming `EnablePairedCommandScheduler` value, set it true only when `request.Scenario` is the exact existing turn-based Horse tranche, and restore the captured value in `BestEffortCleanup`. Cleanup success and evidence must require both the scheduler and unsafe-movement settings to equal their captured inputs. The real-time and presentation Horse tranches must not enable the scheduler. This is diagnostic orchestration only: it adds no production command seam, turn mutation, ledger reset, movement driver, attack route, or new runtime row. One clean-package Horse TB process will first attribute which existing Phase 3D rows pass with the qualified scheduler before any missing Gate 2 instrumentation is added.
 
+## Dev.5 Horse TB intake failure and dev.6 diagnostic-isolation contract
+
+Immutable run `20260904T155035Z-phase3e-dev5-horse-tb-gate2` is outer/game `FAIL` before Mount admission. Its exact `AwaitRiderTurnForMount` checkpoint observed the rider as reference-exact, actionable `CurrentTurn.Unit` for all `2,520` sampled frames, with zero rider-turn mismatch, status-blocked, or rider-command-blocked frames. The sole blocker was one unstarted foreign Horse Standard `UnitAttack`: `CreatedByPlayer=false`, `AIAction=BlueprintAiAttack`, exact Horse executor, and no KMC lease. The paired scheduler correctly refused to adopt or drive it. No mount relationship, scheduler lease, KMC attack, rule, resource, or turn-completion path ran, so this is a diagnostic fixture-isolation failure and consumes no scheduler repair cycle.
+
+The dev.6 diagnostic repair must reuse the existing `ScopedDiagnosticAiLease<UnitEntityData>` and its existing exact restoration checks. In the Horse TB tranche only, after optional pre-combat Horse adjacency movement has completed and before `BeginTarget` creates the disposable hostile, enter a distinct bounded state that:
+
+- requires the relationship to remain unmounted, both pair command containers to be empty, the Horse to remain directly controllable in the rider group, and the exact reflected AI backing field contract to remain available;
+- acquires and validates the existing reversible Horse AI lease for two stable frames;
+- records the active lease observation before target creation;
+- then creates the disposable target and continues the unchanged native combat/turn/Mount path;
+- keeps the Horse brain disabled while direct diagnostic inputs create only the explicitly tested commands;
+- restores the exact captured AI state through the existing `BestEffortCleanup` path on PASS, FAIL, exception, or deadline.
+
+The repair must not interrupt or remove the already-preserved dev.5 foreign command, broaden scheduler eligibility, weaken the `horse.Commands.Empty` admission guard, enable a KMC lease for AI work, change production command routing, or alter RT/presentation scenarios. Source-order tests must prove AI isolation precedes target creation on both already-adjacent and movement-required branches, and that target creation cannot occur from the new state before the lease validates.
+
 ## Product model
 
 The rider remains the sole native initiative, portrait, selection, camera, action-bar, and `CurrentTurn.Unit` principal. The active mount may execute exactly one explicitly registered pair-local command during that rider-owned turn. Rider and mount retain separate command containers, Standard/Move/five-foot/Swift cooldown ledgers, weapons, abilities, animations, targets, rule initiators, results, and cleanup.

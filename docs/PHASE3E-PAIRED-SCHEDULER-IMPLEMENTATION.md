@@ -52,6 +52,14 @@ Clean published commit `27e088b4dafe4d449127b5e2920f09b3a0ed4f79`, version `0.1.
 
 Fresh runs `20260904T133300Z-phase3e-dev4-mammoth-tb-passA` and `20260904T140400Z-phase3e-dev4-mammoth-tb-passB` each pass `70/0`. In A/B respectively, the exact lease admitted at `3984/3968`, first granted at `4295/4280`, started one actionable frame later at `4296/4281`, and drove through `4529/4514`; each had `235` distinct drive frames. Each completed one mount-owned `Success` command, attack, roll, damage event, and Standard charge; left rider Standard unchanged; retained rider current identity and mount executor/weapon/rule/resource ownership; emitted no native mount turn; and cleaned the lease, command, target, relationship, presentation, Mods, and protected fixture with no residue. No primary scheduler repair cycle or K1-K12 criterion fired.
 
+## Dev.5 Horse TB intake attribution and dev.6 diagnostic repair
+
+Dev.5 clean package/suite/WhatIf identities are recorded in the playtest report. Immutable run `20260904T155035Z-phase3e-dev5-horse-tb-gate2` failed before Mount admission. For `2,520` sampled frames the rider was exact actionable `CurrentTurn.Unit`, while the Horse held one unstarted foreign Standard `UnitAttack` created by `BlueprintAiAttack`. No KMC lease existed and the scheduler correctly refused to adopt or advance the AI command. This confirms the foreign-command exclusion at runtime; it does not exercise sequencing or consume a scheduler repair cycle.
+
+Dev.6 adds no production code. After either pre-combat adjacency path completes, `Phase3dHorseScenarioTranche` enters `AwaitCombatMountHorseAiIsolation`, acquires and validates its existing reversible `ScopedDiagnosticAiLease<UnitEntityData>` for two stable frames, records the lease, and only then creates the disposable hostile. The lease remains active through direct diagnostic inputs and is restored by the existing cleanup predicate. Source-order coverage proves two convergence calls, one target-creation call, validation-before-target ordering, and no `InterruptAll` in the new state.
+
+The complete dev.6 offline gate passes source/prohibited payload `22/0`, Release, component `315/0`, visual/source-order `18/0`, harness/protocol `241/0`, exact assembly `388/0` (`364` Kingmaker + `24` Wrath), PowerShell/JSON parsers `26/0` / `7/0`, and diff. Candidate DLL SHA-256/MVID are `8e7761a8cb8382e94ef4aaf6b9be1ada5c0fe1a83aace87fee3fa5fe89ba1c0b` / `69d4c696-4a4b-4008-804b-6571ef0bca28`; clean package identity remains pending.
+
 ## Offline verification
 
 The complete pre-commit candidate gate on 2026-09-04 passed:
@@ -72,4 +80,4 @@ Gate 1 is complete except that `exact-turn-completion` intentionally remains ope
 
 Dev.5 complete offline gates pass source/prohibited payload `22/0`, Release, component `315/0`, visual/source-order `18/0`, harness/protocol `241/0`, exact assembly `388/0` (`364` Kingmaker + `24` Wrath), PowerShell parser `26/0`, JSON parser `7/0`, and diff. Dirty DLL SHA-256/MVID are `3b5b75e30ce2380d78a1807f53e5d30379dd7cd08acf4d588e3577f46b5bd0e8` / `4c87923d-2b5a-4232-be7f-d448d377a33f` and are not package identity.
 
-Next: commit/publish/package dev.5, admit a stable suite, pass full-continuity WhatIf, and run one fresh existing Horse TB tranche with independent audit-before-read. Attribute the existing pair-aware `ContinueActing`, mount-ledger preparation, exact movement adapter, hostile-click sequencing, combat Mount/Dismount, and five-foot-step rows before adding missing instrumentation.
+Dev.5 package/suite and full-continuity WhatIf passed. Its one live Horse TB process remains immutable FAIL at the pre-Mount foreign-AI race described above, with exact independent restoration. Dev.6 is the bounded diagnostic-only isolation repair and its full offline gate passes. Next: commit/publish/package/suite/WhatIf, and run one fresh existing Horse TB tranche with independent audit-before-read. Attribute the existing pair-aware `ContinueActing`, mount-ledger preparation, exact movement adapter, hostile-click sequencing, combat Mount/Dismount, and five-foot-step rows before adding missing instrumentation.

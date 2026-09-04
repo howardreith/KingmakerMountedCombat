@@ -414,6 +414,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     case Phase3dHorseStep.AwaitCombatMountAdjacencyMove:
                         AwaitCombatMountAdjacencyMove();
                         break;
+                    case Phase3dHorseStep.AwaitCombatMountHorseAiIsolation:
+                        AwaitCombatMountHorseAiIsolation();
+                        break;
                     case Phase3dHorseStep.AwaitUnmountedCombat:
                         AwaitUnmountedCombat();
                         break;
@@ -2112,10 +2115,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
                 observations["combatMountAdjacencySetup"] = CaptureCombatMountAdjacencyCompletion();
-                BeginTarget(TargetDistance, "tb-combat-mount");
-                step = Phase3dHorseStep.AwaitUnmountedCombat;
-                stableFrames = 0;
-                ResetLeafClock();
+                BeginCombatMountHorseAiIsolation();
                 return;
             }
 
@@ -2195,6 +2195,24 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
+            BeginCombatMountHorseAiIsolation();
+        }
+
+        private void BeginCombatMountHorseAiIsolation()
+        {
+            step = Phase3dHorseStep.AwaitCombatMountHorseAiIsolation;
+            stableFrames = 0;
+            ResetLeafClock();
+        }
+
+        private void AwaitCombatMountHorseAiIsolation()
+        {
+            if (!PrepareUnmountedHorseAiIsolation())
+            {
+                return;
+            }
+
+            observations["combatMountHorseAiIsolation"] = CaptureUnmountedHorseAiIsolation();
             BeginTarget(TargetDistance, "tb-combat-mount");
             step = Phase3dHorseStep.AwaitUnmountedCombat;
             stableFrames = 0;
@@ -5010,6 +5028,7 @@ namespace KingmakerMountedCombat.Diagnostics
             AwaitUnmountedRangedRt,
             AwaitCombatMountAdjacencyReadiness,
             AwaitCombatMountAdjacencyMove,
+            AwaitCombatMountHorseAiIsolation,
             AwaitUnmountedCombat,
             AwaitTurnBasedMode,
             AwaitRiderTurnForMount,

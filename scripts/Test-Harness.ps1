@@ -11026,6 +11026,43 @@ try {
             $phase3dHorseSource.Contains(
                 'settings.EnablePairedCommandScheduler == originalPairedCommandScheduler,')) `
             'Phase 3D Horse TB diagnostic lost its exact paired-scheduler setting lease or cleanup proof'
+        $horseAiIsolationIndex = $phase3dHorseSource.IndexOf(
+            'private void AwaitCombatMountHorseAiIsolation()',
+            [StringComparison]::Ordinal)
+        $horseAiIsolationEndIndex = $phase3dHorseSource.IndexOf(
+            'private JObject CaptureCombatMountAdjacencyCompletion()',
+            $horseAiIsolationIndex,
+            [StringComparison]::Ordinal)
+        $horseAiIsolationBody = if ($horseAiIsolationIndex -ge 0 -and
+            $horseAiIsolationEndIndex -gt $horseAiIsolationIndex) {
+            $phase3dHorseSource.Substring(
+                $horseAiIsolationIndex,
+                $horseAiIsolationEndIndex - $horseAiIsolationIndex)
+        } else { '' }
+        $horseAiPrepareIndex = $horseAiIsolationBody.IndexOf(
+            'if (!PrepareUnmountedHorseAiIsolation())',
+            [StringComparison]::Ordinal)
+        $horseAiObservationIndex = $horseAiIsolationBody.IndexOf(
+            'observations["combatMountHorseAiIsolation"] = CaptureUnmountedHorseAiIsolation();',
+            [StringComparison]::Ordinal)
+        $horseAiTargetIndex = $horseAiIsolationBody.IndexOf(
+            'BeginTarget(TargetDistance, "tb-combat-mount");',
+            [StringComparison]::Ordinal)
+        Assert-Test ($phase3dHorseSource.Contains(
+                'case Phase3dHorseStep.AwaitCombatMountHorseAiIsolation:') -and
+            $phase3dHorseSource.Contains(
+                'AwaitCombatMountHorseAiIsolation,') -and
+            [regex]::Matches(
+                $phase3dHorseSource,
+                [regex]::Escape('BeginCombatMountHorseAiIsolation();')).Count -eq 2 -and
+            [regex]::Matches(
+                $phase3dHorseSource,
+                [regex]::Escape('BeginTarget(TargetDistance, "tb-combat-mount");')).Count -eq 1 -and
+            $horseAiPrepareIndex -ge 0 -and
+            $horseAiObservationIndex -gt $horseAiPrepareIndex -and
+            $horseAiTargetIndex -gt $horseAiObservationIndex -and
+            -not $horseAiIsolationBody.Contains('InterruptAll(')) `
+            'Phase 3D Horse TB diagnostic lost pre-target AI isolation, two-branch routing, or non-interruption ordering'
     }
 
     $resultPath = Join-Path $testRoot 'runtime-result.json'

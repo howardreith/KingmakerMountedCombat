@@ -1,5 +1,13 @@
 # Autonomous blockers
 
+## Dev.5 exposed a diagnostic Horse-AI race; dev.6 repair is independently actionable (2026-09-04T12:30:02-04:00)
+
+Status: `IN PROGRESS`.
+
+Immutable dev.5 run `20260904T155035Z-phase3e-dev5-horse-tb-gate2` failed before Mount admission because the unmounted Horse brain placed one foreign AI `UnitAttack` in its Standard slot. The rider was exact actionable current unit for all `2,520` observed frames; scheduler registration/drive, Mount input, relationship mutation, resources, and rules were all absent. The scheduler correctly rejected the foreign command, so K4 did not fire and no scheduler repair cycle is consumed. Independent restoration audit passed exact suite/save/Mods/Baseline/Working identities before evidence read.
+
+Dev.6 reuses the existing reversible diagnostic Horse-AI lease after adjacency setup and before target creation, on both branches. It neither interrupts the preserved failure nor changes production scheduling. Complete gates pass `22/Release/315/18/241/388`, parsers `26/0` and `7/0`, and diff; a fresh package/WhatIf/live/audit cycle remains independently actionable. Exact turn completion remains TODO.
+
 ## Dev.5 diagnostic lease passes complete offline gate (2026-09-04T10:49:21-04:00)
 
 Status: `IN PROGRESS`.

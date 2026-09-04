@@ -62,6 +62,8 @@ Dev.3 runtime attribution: immutable run `20260904T113800Z-phase3e-dev3-mammoth-
 
 Dev.4 Gate 1 disposition: fresh same-package A/B `20260904T133300Z-phase3e-dev4-mammoth-tb-passA` and `20260904T140400Z-phase3e-dev4-mammoth-tb-passB` pass `70/0` each after independent audit-before-read restoration. Both use Option A without any current-turn substitution, explicit command tick/start, broad unit advance, rider resource mutation, foreign/AI/AoO adoption, duplicate frame drive, nondeterminism, or cleanup residue. Mount command, weapon, rule, animation, target, result, and Standard ownership remain exact. No K1-K12 criterion and no scheduler repair cycle fired. K9 turn-completion behavior remains an explicit Gate 2 test rather than an inferred PASS.
 
+Dev.5 Horse TB disposition: immutable run `20260904T155035Z-phase3e-dev5-horse-tb-gate2` encountered one foreign unmounted-Horse AI `UnitAttack` before Mount input. The rider stayed exact actionable current for all `2,520` sampled frames and the scheduler never registered, leased, or drove the foreign command. Therefore K4 did not fire; the runtime confirms the exclusion rather than requiring AI advancement. Dev.6 repairs only the diagnostic target-introduction race by acquiring the existing reversible Horse-AI lease before target creation. No production path, scheduler repair cycle, or kill criterion is consumed.
+
 ## Stop and fallback rules
 
 When a kill criterion fires, record the exact package, run ID, source/assembly identities, pre/post state, restoration audit, rejected theory, and why the remaining primary option is unsafe. Historical evidence remains immutable.
