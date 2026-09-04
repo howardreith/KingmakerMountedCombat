@@ -43,6 +43,8 @@ These two rows use the same immutable package and suite but fresh game processes
 
 Do not broaden beyond this gate until pass A and B both pass.
 
+Immutable pre-credit attempt: dev.2 run `20260904T094306Z-phase3e-dev2-mammoth-tb-passA` remains `FAIL 69/1` with exact restoration. All gameplay and ownership/cardinality facts passed: admission `3982`, first grant `4293`, start `4294`, last drive `4527`, `235` once-per-frame drives, one start/terminal/mount Standard charge, one mount-owned attack/roll/damage, zero rider cost, rider current retained, no native mount turn, and exact cleanup. The one failing diagnostic counted preserved native `WaitingForUI` frames as actionable. Dev.3 corrects only that calculation; neither Gate 1 row is credited until new same-package A/B passes.
+
 ## Gate 2 — sequencing and separate ledgers
 
 | Row | Status | Required evidence |

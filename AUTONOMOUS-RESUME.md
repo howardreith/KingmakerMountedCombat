@@ -1,5 +1,15 @@
 # Autonomous resume
 
+## Phase 3E dev.3 corrects only the actionable-frame diagnostic - 2026-09-04T06:25:02-04:00
+
+- Active branch is `codex/mounted-combat-phase3e-paired-scheduler`; clean guarded-published local/upstream/remote checkpoint is `20d71e5a5b64b85b1815e9ea0c00ff3d7f03dd4e`. The worktree contains the intentional `0.1.0-phase3e-dev.3` diagnostic calculation/test/documentation correction only; scheduler production behavior is unchanged.
+- Dev.2 package identities are ZIP `70a060cc287fa379de35cb02337ba7e2a3348788db54374e4d3e6f6efd5a852d`, manifest `4dc7fa9ba3ab246b939035f3f6f1bd9fc4ab9eb2f3a52aeeb7d6d0a1d4c6b3d2`, DLL `d71529ba6006bc6fa2c8916953cb773f1c5319e49ce4a0c9d70420e1aee26d87`, MVID `89de0fcc-ca6f-41cd-944b-097a5860716c`. Suite1 is `20260904T084500Z-phase3e-dev2-paired-scheduler-suite1` / `3349e429905be71e2bde6db01c4788647c890cfea8b947d1c8d527eebaf2920f`; its full WhatIf passed.
+- Immutable live run `20260904T094306Z-phase3e-dev2-mammoth-tb-passA` is `FAIL 69/1`, but records a successful exact lifecycle: admission `3982`, first eligibility grant `4293`, start `4294`, last drive `4527`, `235` once-per-frame drives, one Success terminal, one mount Standard charge, zero rider cost, exact mount attack/rule/weapon ownership, rider current retained, no native mount turn, and exact cleanup. Audit-before-read passed exact suite save/Mods/Baseline/Working and no external residue.
+- Root cause is diagnostic only: the bound subtracted admission from start even though native `WaitingForUI` blocked every intervening frame. Dev.3 uses first grant as the actionable origin in both in-game and external validation. Synthetic schema 56 now models the long wait and rejects a start at grant+3. Complete gates pass `22/Release/315/18/241/388`, PowerShell `26/0`, JSON `7/0`, and diff; dirty DLL SHA-256/MVID are `933fc2107a3cd3579b81e6db872139cdff251966fa57aa1dec354918370016bd` / `88dfb6c3-d896-4f71-9dc0-a40f2891925b`. No scheduler repair budget was consumed.
+- Exact next sequence: run the remaining complete offline gates; update any exact results; commit; guarded-helper publication; verify clean local/upstream/remote; create and validate one dev.3 package; admit a fresh stable suite; run full-continuity WhatIf; then fresh A and B from the same package, each followed by the current suite-bound independent audit before evidence inspection. Preserve the dev.2 failure unchanged. No Gate 2+ work begins first.
+
+Status: `IN PROGRESS`.
+
 ## Phase 3E dev.2 primary scheduler is offline complete - 2026-09-04T04:34:16-04:00
 
 - Active branch is `codex/mounted-combat-phase3e-paired-scheduler`; clean published parent/local/upstream is `80a75ee6b3011cb4ec52d1b296776db25f6b0f15`. The intentional worktree is the one coherent `0.1.0-phase3e-dev.2` primary Option A implementation plus tests, schema 56, and current mission records.

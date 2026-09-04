@@ -10,6 +10,14 @@ The service registers before `UnitCommands.Run`, confirms the exact mount Standa
 
 Offline gates pass source `22/0`, Release, component `315/0`, visual/source-order `18/0`, harness/protocol `241/0`, and exact assembly `388/0`. Schema 56 binds the runtime lease and independent ledgers. This is not runtime credit: fresh clean-package vertical-slice A/B remain mandatory before any broader tranche.
 
+## Dev.2 audited runtime attribution and actionable-frame definition
+
+Immutable run `20260904T094306Z-phase3e-dev2-mammoth-tb-passA` proves the primary Option A seam executes the complete vertical-slice gameplay lifecycle. The exact command was admitted at frame `3982`, native `WaitingForUI` remained a hard false gate until the first eligible scheduler grant at frame `4293`, and stock observed command start at frame `4294`. It then drove once per frame, completed `Success`, charged the mount Standard exactly once, left rider Standard unchanged, emitted one mount-owned attack/roll/damage chain, retained the rider as `CurrentTurn.Unit`, emitted no native mount turn, and cleaned the exact lease/slot with no fault or residue.
+
+That run remains immutable `FAIL 69/1` and receives no Gate 1 credit because both the in-game assertion and external schema validator incorrectly measured `startObservedFrame - admissionFrame <= 2`. Frames blocked by the preserved native `WaitingForUI` predicate are not actionable. For this contract an **actionable game frame** is a frame on which the exact native hard gates and pair-local lease gates all pass and the scheduler grants eligibility; `firstGrantFrame` is its durable boundary. Acceptance therefore requires `admissionFrame <= firstGrantFrame <= startObservedFrame` and `startObservedFrame - firstGrantFrame <= 2`. It does not weaken, bypass, or place a time bound on native UI staging.
+
+Version `0.1.0-phase3e-dev.3` changes only that diagnostic calculation and its regression tests. The scheduler implementation and schema shape are unchanged. This is an observation/validator correction, not one of the two authorized scheduler repair cycles. Fresh dev.3 A/B runtime remains mandatory and the dev.2 failure will not be relabeled.
+
 ## Product model
 
 The rider remains the sole native initiative, portrait, selection, camera, action-bar, and `CurrentTurn.Unit` principal. The active mount may execute exactly one explicitly registered pair-local command during that rider-owned turn. Rider and mount retain separate command containers, Standard/Move/five-foot/Swift cooldown ledgers, weapons, abilities, animations, targets, rule initiators, results, and cleanup.
@@ -109,6 +117,8 @@ Any failed invariant refuses admission or faults the exact active lease. It neve
 Exact Kingmaker begins a directly controllable rider turn in `Preparing`. It changes to `Acting` only after the rider has acted, the rider command container becomes nonempty, or the rider becomes unable to act. A mount-only command does not satisfy those stock observations.
 
 Phase 3E may treat the exact registered pair command as eligible while the same rider turn is `Preparing`, but only inside the selected pair-local command seam. It must not mutate `TurnController.Status`, add a rider shell, add a rider command, or emit a turn event merely to cross this boundary. The native rider UI remains in its ordinary controllable-turn state. When a later rider command starts, stock `TurnController` transitions normally.
+
+`TurnBasedCombatController.WaitingForUI` remains independently authoritative during this boundary. Registration/admission may precede UI readiness; no drive is counted until the first frame on which this native gate clears. Runtime must record both raw admission and first grant so non-actionable staging cannot be mistaken for scheduler latency.
 
 ## Resource and gameplay ownership
 

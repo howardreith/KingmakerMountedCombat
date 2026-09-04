@@ -1334,8 +1334,8 @@ function New-TestCombatEvidenceRecord {
             actionOrigin='MountPrimaryNatural';targetId=$target
             weaponBlueprintId='33333333333333333333333333333333'
             expectedResourceOwnerId=$mount;expectedRuleInitiatorId=$mount
-            creationFrame=100;admissionFrame=100;firstGrantFrame=101;lastDrivenFrame=112
-            startObservedFrame=101;driveCount=12;startObservationCount=1
+            creationFrame=100;admissionFrame=100;firstGrantFrame=411;lastDrivenFrame=422
+            startObservedFrame=412;driveCount=12;startObservationCount=1
             terminalObservationCount=1;interruptCount=0;resourceChargeObservationCount=1
             duplicateFrameDriveCount=0;cleanupCount=1;foreignCommandAdoptionCount=0
             riderRemainedCurrent=$true;exactExecutorRetained=$true;exactSlotRetained=$true
@@ -5914,6 +5914,7 @@ try {
             { param($record) $record.pairedScheduler.startObservationCount=2;return $record },
             { param($record) $record.pairedScheduler.resourceChargeObservationCount=0;return $record },
             { param($record) $record.pairedScheduler.duplicateFrameDriveCount=1;return $record },
+            { param($record) $record.pairedScheduler.startObservedFrame=$record.pairedScheduler.firstGrantFrame+3;return $record },
             { param($record) $record.pairedScheduler.faultReason='invariant failure';return $record }
         )
         foreach ($mutate in $cases) {
@@ -10963,6 +10964,7 @@ try {
         $unifiedSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\UnifiedMountedTurnCoordinator.cs'))
         $patchSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPatchController.cs'))
         $settingsSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\DiagnosticSettings.cs'))
+        $runtimeCombatSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeCombatScenarioEngine.cs'))
 
         Assert-Test ($schedulerSource.Contains('ReferenceEquals(lease.Command, command)') -and
             $schedulerSource.Contains('ReferenceEquals(lease.Mount.Commands.Standard, command)') -and
@@ -10997,6 +10999,9 @@ try {
             -not $schedulerSource.Contains('UpdateCooldowns(') -and
             -not $schedulerSource.Contains('Cooldown.StandardAction =')) `
             'paired scheduler enabled by default or acquired forbidden tick, turn, unit, or resource mutation ownership'
+        Assert-Test ($runtimeCombatSource.Contains('scheduler.StartObservedFrame - scheduler.FirstGrantFrame <= 2') -and
+            -not $runtimeCombatSource.Contains('scheduler.StartObservedFrame - scheduler.AdmissionFrame <= 2')) `
+            'paired scheduler diagnostic lost the exact actionable-frame start bound'
     }
 
     $resultPath = Join-Path $testRoot 'runtime-result.json'

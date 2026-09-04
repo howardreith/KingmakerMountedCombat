@@ -56,6 +56,8 @@ Runtime disposition: R1 is `PASS` and closed; stock does enumerate the exact act
 
 Dev.2 offline disposition: the primary Option A source contains no current-turn/unit/status substitution, explicit command start/tick, global unit advancement, cooldown write, AoO adoption, or serialized lease. Exact-reference/component and source-boundary tests pass, including one-drive-per-frame and fault cleanup. This does not close K1-K12 at runtime; all remain live gates for the fresh-process vertical slice. No runtime repair cycle has been consumed.
 
+Dev.2 runtime attribution: immutable run `20260904T094306Z-phase3e-dev2-mammoth-tb-passA` exercised one exact native lifecycle successfully and fired no K1-K12 criterion. It retained rider current identity, mount executor/weapon/rule/resource ownership, one drive per frame, one start/terminal/charge, no foreign/AoO/AI adoption, and exact restoration. The sole `FAIL 69/1` was the diagnostic's incorrect subtraction of admission frame from start frame across a native `WaitingForUI` interval. Dev.3 changes that measurement to first eligible grant and adds a three-frame rejection mutation. This consumes no scheduler repair cycle and grants no runtime PASS until fresh dev.3 A/B.
+
 ## Stop and fallback rules
 
 When a kill criterion fires, record the exact package, run ID, source/assembly identities, pre/post state, restoration audit, rejected theory, and why the remaining primary option is unsafe. Historical evidence remains immutable.

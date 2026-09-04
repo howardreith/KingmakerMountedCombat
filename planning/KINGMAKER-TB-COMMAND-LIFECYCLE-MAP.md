@@ -32,6 +32,12 @@ This selects **Option A — exact native eligibility extension**. Phase 3E will 
 
 The live gameplay row remains immutable `FAIL 49/1` at `AwaitOutcome`, as expected for an observation-only build. Its observation objective is `PASS`. The immediate independent postrun WhatIf audit passed exact zero mutation before these files were read.
 
+## Dev.2 native UI-to-start ordering observation
+
+Audited run `20260904T094306Z-phase3e-dev2-mammoth-tb-passA` records the exact Option A lifecycle under the installed build. `UnitCommands.Run` placed the leased command in the Mammoth Standard slot at Unity frame `3982`. `TickCommandTurnBased` continued to encounter it, but the preserved `TurnBasedCombatController.WaitingForUI` gate prevented an eligible return until frame `4293`. KMC granted that first actionable visit once, and stock observed native command start on frame `4294`. The command then completed through stock action/animation/rule/resource/result/slot behavior.
+
+The raw `311`-frame admission-to-grant interval is native UI staging, not scheduler drive latency. The measured scheduler latency is first grant to start: one frame. Runtime acceptance binds both inequalities (`admission <= firstGrant <= start`) and permits at most two frames from first grant to start. The immutable dev.2 row remains `FAIL 69/1` solely because its diagnostic assertion used raw admission as the subtraction origin; dev.3 corrects the assertion without changing this lifecycle or any native gate.
+
 ## Per-frame controller ordering
 
 `GameModesFactory.Initialize` (`0x06007E08`) registers controllers into the Default-mode `GameMode` array. `GameMode.Tick` (`0x06007E00`) invokes them in registration order and catches/logs each controller exception.

@@ -1,5 +1,13 @@
 # Autonomous blockers
 
+## Dev.2 proves the scheduler lifecycle; dev.3 diagnostic correction is active (2026-09-04T06:25:02-04:00)
+
+Status: `IN PROGRESS`.
+
+There is no scheduler architecture, ownership, command-lifecycle, resource, turn-identity, cleanup, external-restoration, or Git blocker. Immutable dev.2 run `20260904T094306Z-phase3e-dev2-mammoth-tb-passA` exercised one exact mount-owned command successfully with one start/terminal/charge, rider current retained, zero rider cost, no duplicate/foreign drive or native mount turn, and exact cleanup. Immediate suite-bound audit passed before inspection.
+
+The only failure (`69/1`) is a diagnostic measurement defect: it treated native `WaitingForUI` frames between admission `3982` and first eligibility grant `4293` as actionable, despite native start on `4294`. Dev.3 corrects only the bound to first-grant-to-start, keeps every native gate and schema field, and adds positive/negative regression coverage. No K1-K12 criterion and no scheduler repair cycle has fired. Fresh clean-package dev.3 A/B are still required before Gate 1 credit or broader implementation.
+
 ## Dev.2 primary scheduler passes offline gates; runtime vertical slice is next (2026-09-04T04:34:16-04:00)
 
 Status: `IN PROGRESS`.

@@ -1539,7 +1539,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         scheduler.AdmissionFrame >= scheduler.CreationFrame &&
                         scheduler.FirstGrantFrame >= scheduler.AdmissionFrame &&
                         scheduler.StartObservedFrame >= scheduler.FirstGrantFrame &&
-                        scheduler.StartObservedFrame - scheduler.AdmissionFrame <= 2 &&
+                        scheduler.StartObservedFrame - scheduler.FirstGrantFrame <= 2 &&
                         string.Equals(scheduler.TerminalResult, "Success", StringComparison.Ordinal),
                     "The exact leased command started within two actionable frames, drove once per frame, and terminated once.");
                 assertions.Check(scheduler != null && scheduler.RiderRemainedCurrent &&

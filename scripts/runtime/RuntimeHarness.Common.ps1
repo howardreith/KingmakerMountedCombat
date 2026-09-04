@@ -11047,7 +11047,7 @@ function Assert-KmcCombatScenarioEvidence {
                 [long]$scheduler.firstGrantFrame -lt [long]$scheduler.admissionFrame -or
                 [long]$scheduler.lastDrivenFrame -lt [long]$scheduler.firstGrantFrame -or
                 [long]$scheduler.startObservedFrame -lt [long]$scheduler.firstGrantFrame -or
-                ([long]$scheduler.startObservedFrame - [long]$scheduler.admissionFrame) -gt 2 -or
+                ([long]$scheduler.startObservedFrame - [long]$scheduler.firstGrantFrame) -gt 2 -or
                 [long]$scheduler.driveCount -le 0 -or
                 [long]$scheduler.startObservationCount -ne 1 -or
                 [long]$scheduler.terminalObservationCount -ne 1 -or
