@@ -1,8 +1,12 @@
 # Phase 3D Unified Mounted Turn Contract
 
-Status: IN PROGRESS
+Status: BLOCKED — CRITICAL
 
 Dev.20 focused Mammoth observation confirms an important distinction: under the unified model, raw `mount.CombatState.CanActInCombat` may be false precisely because the mount's redundant native turn is suppressed. That raw flag is not by itself authority to reject a separately ledgered mount action during the rider-owned shared turn. Dev.21 diagnostic schema v55 therefore records raw native actionability unchanged and separately requires pair-local shared admission, the rider as current native turn principal, and the mount's own available Standard. The rider turn remains active after a mount-only Standard action. This is an evidence-fixture correction, not a production controller or action-ledger change.
+
+Fresh dev.21 runtime proves that admission is not execution. Kingmaker accepted the in-range Mammoth attack into the Mammoth Standard slot while the rider owned the shared turn, but left it unstarted for the complete 30-second outcome bound. Exact installed `UnitActionController` advances a non-AoO TB command only when its executor is `CurrentTurn.Unit`. Keeping the rider principal and keeping the mount as command/resource/rule owner cannot both be expressed through the stock scheduler. Wrath's two-actor turn controller and paired command links are the missing primitives.
+
+The remaining implementation options require a new architecture mission: manually drive a non-current actor command, introduce a synthetic/proxy command while preserving exact ownership, or replace a broader portion of the TB controller. None is authorized after the bounded repair cycle. `EnableUnifiedMountedTurn=false` preserves the accepted separate-turn fallback; the unified model receives no alpha qualification credit.
 
 ## Authority and boundary
 

@@ -1,5 +1,9 @@
 # Combat action economy contract
 
+## Phase 3D shared-turn disposition - 2026-09-04
+
+Status: `BLOCKED — CRITICAL` for a mount-owned Standard command during the rider-owned unified TB turn. Dev.21 admitted an exact in-range Mammoth `UnitAttack` into the Mammoth Standard slot with rider current-turn principal and separate ledgers. The command remained unstarted for 30 seconds because installed Kingmaker advances a non-AoO command only when its executor is `CurrentTurn.Unit`. No Standard or Move resource changed and no rule event fired. This confirms the installed-Kingmaker scheduler contract documented below and blocks a stock-only shared scheduler. Phase 2 separate-turn qualifications below remain immutable and valid; `EnableUnifiedMountedTurn=false` retains that fallback.
+
 ## Round 2 final disposition — 2026-08-24
 
 Status: `PASS` for the supported rider melee, Mammoth primary, RT/TB movement, transition, and door-interaction ledgers. Credited final RT/TB/door evidence is `443/0` with zero duplicate movement, command, turn, attack, roll, damage, interaction, opportunity, or resource chain. The final TileHandler classification is diagnostic only and changes no action-economy or command behavior.

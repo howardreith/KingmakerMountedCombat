@@ -1,19 +1,23 @@
 # Phase 3D Unified Mounted Combat Private-Alpha Playtest
 
-Status: IN PROGRESS - do not install until this document records the final clean guarded-published manual-review package identity
+Status: BLOCKED — CRITICAL - no manual-review package was issued
 
 ## Exact artifact
 
 - branch: `codex/mounted-combat-phase3d-unified-combat`;
 - production implementation: `9bf83d21b5367e057130b41bf7379512a638c025`;
 - presentation checkpoint: `63d324d909ec333cd16cde5e942f419759faa664`;
-- runtime/package checkpoint: dev.1-dev.20 are immutable diagnostic history. Clean dev.17 passed all 29 reached mounted/transition RT rows twice; its final automated unmounted Sling control is `DEFER - EVIDENCED` after a native prior-command continuation contaminated two distinct targets before input. Dev.19 established exact TB adjacency, actionable rider turn, untouched ledgers, and enabled Mount, but its bounded harness wait stopped before input on a dormant Horse AI attack command; combat Mount and downstream TB rows remain focused manual gates. Dev.20 presentation passes all four evidence rows and `49/0` assertions. Its focused Mammoth TB run failed before input because the diagnostic requested the independently suppressed mount turn; dev.21 now uses the rider principal while retaining Mammoth action ownership;
+- runtime/package checkpoint: dev.1-dev.20 are immutable diagnostic history. Clean dev.17 passed all 29 reached mounted/transition RT rows twice; its final automated unmounted Sling control is `DEFER — EVIDENCED` after a native prior-command continuation contaminated two distinct targets before input. Dev.19 established exact TB adjacency, actionable rider turn, untouched ledgers, and enabled Mount, but its bounded harness wait stopped before input on a dormant Horse AI attack command. Dev.20 presentation passes all four evidence rows and `49/0` assertions. Dev.21 used the rider principal while retaining Mammoth action ownership, crossed real input admission, and then failed `49/1`: the exact Mammoth-owned Standard-slot command remained unstarted for 30 seconds because the Mammoth was not Kingmaker's current turn unit. This is the controlling architecture blocker, not a manual gate;
 - version: `0.1.0-phase3d-dev.21`;
-- package, manifest, DLL SHA-256, and DLL MVID: pending clean-HEAD packaging and guarded runtime qualification.
+- diagnostic package: `C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-phase3d-dev.21-unified-combat-alpha-diagnostic.zip`;
+- package, manifest, DLL SHA-256, and DLL MVID: `067c9b49b8b7767e808a011315769fe996b642c068b9972f300160a1d8a61d26` / `5c1360a6368ffe385cee842b918149b46747180d03866960e77562dd63a9d605` / `198dfe3cf8b187b6803eb6218e2cca68b2cf71530e4cb6d546e1423fe5e9f6c9` / `fb0bbedb-f63a-417c-9cea-f6ee71d3ed18`;
+- qualification disposition: the diagnostic package is not approved for manual playtest. Fresh TB evidence accepted a Mammoth-owned Standard attack on the rider-owned shared turn, but Kingmaker never started it because only the current turn actor's commands advance. Use of the existing fallback or a new scheduler design requires a separate decision.
 
-Do not manually copy, replace, merge, or curate the live Kingmaker `Mods` directory. Installation and removal commands will be bound to the final exact package after the guarded runtime tranche passes.
+Do not install this diagnostic package for ordinary play or manually copy, replace, merge, or curate the live Kingmaker `Mods` directory. No final manual-review package exists.
 
-## Focused manual checklist
+## Deferred focused manual checklist
+
+This checklist is retained as the intended acceptance surface, but it is not authorized for execution against dev.21. It becomes applicable only after a separately authorized architecture disposition produces a qualifying package.
 
 1. Confirm UMM shows the exact Phase 3D version recorded above, no diagnostic overlay is visible by default, and existing hotbar slots are unchanged.
 2. Mount outside combat through the native Mount Companion target cursor. Confirm the new saddle icon is legible and the Horse's small party portrait is a recognizable head/neck close-up.

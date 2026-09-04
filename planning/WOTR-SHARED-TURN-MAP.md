@@ -25,3 +25,7 @@ Authority: exact installed Wrath `Assembly-CSharp.dll` SHA-256 `2cb7160b7154d4ff
 | Invalidation | `SaddledUnitController` force-dismounts for unconscious/prone/pit/incompatible/enemy state. | Existing KMC lifecycle cleanup remains authoritative and notifies shared-turn pending split/cleanup. |
 
 The reference establishes architecture and UX responsibilities, not source parity. Kingmaker lacks Wrath's relationship parts, paired command fields, and two-actor turn controller, so the implementation must remain bounded and reversible.
+
+## Kingmaker runtime disposition
+
+Dev.21 proves the missing paired-command scheduler is material, not merely structural. With the rider as Kingmaker's real current turn, an admitted Mammoth-owned Standard `UnitAttack` remains unstarted because stock TB advances commands only for their executor when that executor is `CurrentTurn.Unit`. Wrath's native controller explicitly owns and ticks both rider and mount commands; the pair-local Kingmaker coordinator cannot reproduce that behavior through initiative filtering and ledger preparation alone. Further emulation requires a separately authorized architecture and risk budget. The accepted separate-turn fallback remains intact.

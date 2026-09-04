@@ -1,5 +1,17 @@
 # Autonomous blockers
 
+## Shared rider turn cannot advance a mount-owned TB command (2026-09-04T03:05:00-04:00)
+
+Status: `BLOCKED — CRITICAL`.
+
+Fresh dev.21 evidence crossed real input admission and isolated the product architecture boundary. The rider was the unified native turn principal, the Mammoth retained its separate Standard ledger and exact natural-attack ownership, shared admission passed, the target was legally in range, and the guarded player-input path created the Mammoth-owned Standard-slot `UnitAttack`. Kingmaker never started that command because turn-based `UnitActionController` advances a non-AoO command only for `CurrentTurn.Unit`, which is necessarily the rider under the user-authoritative principal model. The command remained unstarted for 30 seconds with every ordinary actor readiness predicate true; no attack, rule, damage, or resource cost occurred.
+
+Wrath solves this with native paired rider/mount command links and a turn controller that stores and ticks both actors. Exact Kingmaker has neither primitive. The remaining implementation choices are materially broader than this mission permits: manually tick a non-current actor command, synthesize a rider-owned command that emits a mount-owned rule/resource transition, or replace more of the global turn controller. Each risks duplicate actions/turns or violates separate ownership. The one bounded shared-turn diagnostic repair cycle is exhausted.
+
+Evidence is `20260904T011000Z-phase3d-dev21-mammoth-tb-passA`, combat SHA-256 `9399f2f7d9732da4e1458ff7eabcf1ab6363bb7b9bffe29264513ef98f43b2b6`, game `33ed2a07a3d258feef0e68ac8b98a32d4fa2bb821ab6244b24316e393f29cc4c`, final `1e6711dcc412342a2138b5a696cdfc01769b28281a0e520adc07a1d00490bd31`, and orchestration `a55468e0e821db46e3fb7d2174e90b4bd8a9886ba024a0268c37c760cfb617fc`. The immediate independent audit passed exact restoration before inspection.
+
+The accepted Phase 3C behavior remains available behind `EnableUnifiedMountedTurn=false`. The dev.21 package is diagnostic only; do not issue it as a manual-review alpha, do not relabel the failed Mammoth row, and do not begin Paladin Divine Steed. Resumption requires an explicit next-mission architecture decision and risk budget.
+
 ## Dev.20 presentation is qualified; dev.21 repairs only the focused Mammoth fixture (2026-09-03T20:02:00-04:00)
 
 Status: `IN PROGRESS`. There is no production gameplay, shared-turn architecture, presentation-state, build, or external-restoration blocker. Final automated Mammoth evidence and focused human usability/visual review remain open.
