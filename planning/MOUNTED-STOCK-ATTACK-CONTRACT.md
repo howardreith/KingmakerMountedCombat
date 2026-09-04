@@ -1,6 +1,12 @@
 # Phase 3D Mounted Stock Attack Contract
 
-Status: IN PROGRESS
+Status: BLOCKED — CRITICAL for the required unified TB pair attack; RT contract PASS
+
+## Final Phase 3D disposition — 2026-09-04
+
+Clean dev.17 RT A/B each passed ordinary hostile-click melee admission, adjacent and approach attacks, persistent repeat, cancellation, separate rider/Horse dispatch, invalid-target feedback, explicit rider-only and mount-only attacks, exact native rule cardinality, and relationship retention. The final automated unmounted Sling control remained `DEFER — EVIDENCED` because a prior native command continuation contaminated two isolated targets before input; that does not invalidate the mounted RT rows.
+
+Dev.21 proves the required TB pair sequence cannot complete through stock Kingmaker scheduling. With the rider as current-turn principal, an admitted mount-owned Standard-slot `UnitAttack` never starts because its executor is not `CurrentTurn.Unit`. Rider-first/mount-second ordering therefore cannot receive alpha credit without a separately authorized paired-command scheduler. `EnableUnifiedMountedTurn=false` preserves the accepted separate-turn fallback.
 
 ## Fresh RT melee qualification result
 

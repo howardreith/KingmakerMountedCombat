@@ -1,6 +1,10 @@
 # Phase 3D Mounted Five-Foot-Step Contract
 
-Status: IN PROGRESS
+Status: DEFER — EVIDENCED
+
+## Final Phase 3D disposition — 2026-09-04
+
+The exact native root cause and pair-only repair seam below remain source- and contract-valid, but the required runtime control was not reached before the shared-turn executor blocker stopped the bounded tranche. No fresh claim is made that mounted five-foot step avoids AoO, preserves distance/resources, or leaves ordinary and unmounted AoO behavior unchanged. Those six matrix rows remain uncredited; no global AoO suppression was added.
 
 ## Root cause
 

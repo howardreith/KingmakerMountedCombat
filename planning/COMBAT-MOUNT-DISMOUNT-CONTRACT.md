@@ -1,6 +1,10 @@
 # Phase 3D Combat Mount/Dismount Contract
 
-Status: IN PROGRESS
+Status: DEFER — EVIDENCED
+
+## Final Phase 3D disposition — 2026-09-04
+
+Dev.19 proved the exact adjacent rider/Horse pair, selected actionable rider turn, untouched separate ledgers, and visible/enabled combat Mount ability before a harness-only dormant Horse-command wait prevented input. Clean dev.17 RT A/B passed native combat Dismount delivery with one rider Move charge and exact cleanup, but the TB no-extra-turn split was not separately credited. The subsequent dev.21 scheduler blocker prevents qualification of the merged turn that combat Mount would create. No action refresh, automatic remount, or synthetic shared resource pool was added.
 
 ## Product rule
 

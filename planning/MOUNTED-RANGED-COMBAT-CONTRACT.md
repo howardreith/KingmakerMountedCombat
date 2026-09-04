@@ -1,6 +1,12 @@
 # Phase 3D Mounted Ranged Combat Contract
 
-Status: IN PROGRESS
+Status: BLOCKED — CRITICAL for unified TB movement/action sequencing; RT contract PASS
+
+## Final Phase 3D disposition — 2026-09-04
+
+Clean dev.17 RT A/B passed mounted Shortbow adjacent fire, approach-to-range, auto-fire, cancellation, line of sight, cover/concealment observation, native ranged AoO, no forced melee, Light Crossbow/reload routing, and mounted Sling routing. The Horse stopped at rider-native range/LoS and did not close unnecessarily. No Gunslinger dependency or firearm-specific behavior is claimed. The separate unmounted Sling control remains `DEFER — EVIDENCED` after native prior-command contamination before input.
+
+TB ranged qualification is not credited. Rider fire can retain rider ownership, but any required Horse approach or optional mount attack needs a mount-owned command during the rider-owned turn; dev.21 proves stock Kingmaker will not advance that command. Further work requires the same separately authorized paired-command architecture as unified melee.
 
 ## Exact hostile-click admission checkpoint
 
