@@ -272,6 +272,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 awake);
         }
 
+        internal static void ObserveNativeTurnBasedCommandEligibility(
+            Kingmaker.UnitLogic.Commands.Base.UnitCommand command,
+            bool stockEligible)
+        {
+            active?.horseCompanionEngine?.ObserveNativeTurnBasedCommandEligibility(command, stockEligible);
+        }
+
         internal static bool TryReportBootstrapFailure(IModLogger logger, string loadedModId, Exception exception)
         {
             try

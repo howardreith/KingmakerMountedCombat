@@ -57,6 +57,23 @@ Exact Kingmaker requires player input to be admitted while a directly controllab
 
 Source-order tests must prove both AI leases validate before the sole TB target creation, no pre-target isolation body interrupts commands, the Mount click is guarded by native hands/equipment readiness, and both leases participate in cleanup. The full offline gate is required before one fresh dev.7 package/run; dev.6 evidence remains immutable and uncredited.
 
+## Dev.7 result and dev.8 bounded native-start contract
+
+Clean guarded-published dev.7 is commit `412fa949be558718200781df8221bd4b6f22af3c`, version `0.1.0-phase3e-dev.7`. Package `C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-phase3e-dev.7-paired-scheduler-horse-tb-gate2-diagnostic.zip` has ZIP/manifest/DLL SHA-256 `4e6249211a496574a660935205711276319b80a3a819656acde3effc833f32fa` / `73eb397c5dc4ef3a9131da4088cbadd5e7dd7ec1b768dc28b35e3b8b612f99f2` / `c5d7cf5780ed02a0fb941090e74cd9a9f23642b4d94a067fbe47b2e9bf27a5d0`; DLL MVID is `7b485e8c-d192-4f77-a0f9-1b983250f4f1`. Suite `20260904T185200Z-phase3e-dev7-horse-tb-suite6` has SHA-256 `bb7ee7fe14bf3a9e8711b51234dc0f1f2e3cd24b653ba290c49114e22f9ea5d3`; full-continuity WhatIf passed exact purity.
+
+Immutable live run `20260904T195400Z-phase3e-dev7-horse-tb-gate2` is outer/game `FAIL 42/2` at `AwaitCombatMount`. Independent audit passed before evidence read. Dev.7 closed both AI/readiness races: both pair command containers and raw/effective AI states were empty/false for their required stable frames; both leases restored their original true/true states; the rider's hands/equipment were idle at admission; and adjacency, exact current-turn identity, actions, selection, memory, target, and ability availability all passed. The genuine player-created rider Mount `UnitUseAbility` occupied the exact Move slot with exact Horse target, legal range, `CanStart=true`, available spell, no cooldown, and no approach, yet remained unstarted for 30 seconds and ran only after RT restoration. No relationship, scheduler lease, mount attack, rule, damage, resource, or turn-completion path ran. This is still pre-scheduler diagnostic attribution: no scheduler repair cycle and no K1-K12 criterion is consumed.
+
+Exact installed control flow now requires the final diagnostic correction to preserve the natural turn rather than fabricate one. `CombatController.TickTime` owns `m_NextUnit -> StartTurn -> m_NextUnit=null`; direct `StartTurn(rider)` does not clear a pending next unit. Dev.8 must:
+
+- make zero direct `StartTurn` calls in this combat-Mount entry path and wait for the naturally selected rider turn;
+- require the pending native `m_NextUnit` to be null, `WaitingForUI` false with `GuardCount == 0`, Default/unpaused mode, rider awake and reference-present in `AwakeUnits`, no rigidbody/get-up tick exclusion, no nausea, exact rider selection, exact empty pair containers, and idle rider hands/equipment for two stable frames;
+- admit one exact player-created rider Mount `UnitUseAbility` in the rider Move slot and record its admission frame;
+- passively observe the exact command at the existing token-pinned `TickCommandTurnBased` postfix before scheduler policy runs, recording stock true/false counts, first/last/first-eligible frames, duplicate-frame visits, UI guard, current unit/status, and terminal state;
+- leave the result unchanged because the relationship is still unmounted and this command belongs natively to the rider;
+- publish schema-v2 Horse evidence while retaining strict schema-v1 validation for immutable historical artifacts.
+
+If dev.8 observes stock eligibility and all `ShouldStartCommand` gates true but the shell still does not start, that single comprehensive checkpoint exhausts piecemeal native-start diagnostics: preserve it and attribute the remaining boundary before authorizing any further package. A failed natural-turn admission remains a fixture/diagnostic failure, not a scheduler kill criterion. Production scheduler, ledgers, attack routing, movement, RT, presentation, and fallback remain byte-behavior unchanged.
+
 ## Product model
 
 The rider remains the sole native initiative, portrait, selection, camera, action-bar, and `CurrentTurn.Unit` principal. The active mount may execute exactly one explicitly registered pair-local command during that rider-owned turn. Rider and mount retain separate command containers, Standard/Move/five-foot/Swift cooldown ledgers, weapons, abilities, animations, targets, rule initiators, results, and cleanup.

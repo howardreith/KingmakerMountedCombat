@@ -238,6 +238,11 @@ namespace KingmakerMountedCombat.Diagnostics
 
         public IReadOnlyList<string> Errors => errors;
 
+        internal void ObserveNativeTurnBasedCommandEligibility(UnitCommand command, bool stockEligible)
+        {
+            phase3dTranche?.ObserveNativeTurnBasedCommandEligibility(command, stockEligible);
+        }
+
         internal static bool SupportsScenario(string scenario)
         {
             return string.Equals(scenario, ScenarioName, StringComparison.Ordinal) ||

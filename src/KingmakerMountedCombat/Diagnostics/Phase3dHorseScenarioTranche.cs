@@ -14,6 +14,7 @@ using Kingmaker.Controllers.Combat;
 using Kingmaker.Controllers.Clicks.Handlers;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.Enums;
+using Kingmaker.GameModes;
 using Kingmaker.Items;
 using Kingmaker.Items.Slots;
 using Kingmaker.PubSubSystem;
@@ -21,6 +22,7 @@ using Kingmaker.RuleSystem.Rules;
 using Kingmaker.RuleSystem.Rules.Damage;
 using Kingmaker.UI.Selection;
 using Kingmaker.UI._ConsoleUI.TurnBasedMode;
+using Kingmaker.UnitLogic;
 using Kingmaker.UnitLogic.Abilities.Blueprints;
 using Kingmaker.UnitLogic.Commands;
 using Kingmaker.UnitLogic.Commands.Base;
@@ -53,6 +55,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private const double ScenarioDeadlineSeconds = 300.0d;
         private const double LeafDeadlineSeconds = 30.0d;
         private const double UnmountedHorseAiSettleTimeoutSeconds = 5.0d;
+        private const int CombatMountSyntheticStartTurnRequestCount = 0;
         private const float TargetDistance = 6.0f;
         private const float LongRangeTargetDistance = 19.0f;
         private const float RangedVariantTargetDistance = 4.0f;
@@ -60,6 +63,10 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private static readonly FieldInfo AiBackingField = typeof(UnitEntityData).GetField(
             "m_AiEnabled",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        private static readonly FieldInfo CombatNextUnitField = typeof(CombatController).GetField(
+            "m_NextUnit",
             BindingFlags.Instance | BindingFlags.NonPublic);
 
         private static readonly JsonSerializerSettings JsonSettings = new JsonSerializerSettings
@@ -141,7 +148,6 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool transitionPrimaryDispatched;
         private bool transitionRiderTurnObserved;
         private int transitionRiderStartRequestCount;
-        private int combatMountStartTurnRequestCount;
         private int combatMountRiderTurnObservedFrames;
         private int combatMountActionableTurnObservedFrames;
         private int combatMountCurrentTurnMismatchFrames;
@@ -150,6 +156,29 @@ namespace KingmakerMountedCombat.Diagnostics
         private int combatMountHorseCommandBlockedFrames;
         private int combatMountRiderHandsBlockedFrames;
         private int combatMountRiderEquipmentBlockedFrames;
+        private int combatMountWaitingForUiBlockedFrames;
+        private int combatMountPendingNextUnitBlockedFrames;
+        private int combatMountRiderAwakeBlockedFrames;
+        private int combatMountRiderAwakeScheduleBlockedFrames;
+        private int combatMountRiderUnitTickBlockedFrames;
+        private int combatMountGameModeBlockedFrames;
+        private int combatMountSelectionBlockedFrames;
+        private int combatMountNauseatedBlockedFrames;
+        private int combatMountNativeCommandAdmissionFrame = -1;
+        private int combatMountNativeCommandStartObservedFrame = -1;
+        private int combatMountNativeCommandTerminalObservedFrame = -1;
+        private int combatMountNativeTickEncounterCount;
+        private int combatMountNativeTickEligibleCount;
+        private int combatMountNativeTickRejectedCount;
+        private int combatMountNativeTickDuplicateFrameCount;
+        private int combatMountNativeTickFirstFrame = -1;
+        private int combatMountNativeTickLastFrame = -1;
+        private int combatMountNativeTickFirstEligibleFrame = -1;
+        private bool combatMountNativeTickLastStockEligible;
+        private bool combatMountNativeTickLastWaitingForUi;
+        private int combatMountNativeTickLastWaitingForUiGuardCount;
+        private string combatMountNativeTickLastCurrentTurnUnitId;
+        private string combatMountNativeTickLastCurrentTurnStatus;
         private string transitionFirstNativeTurnUnitId;
         private bool rangedMountMeleeReadyAtAdmission;
         private JObject rangedReadinessAtAdmission;
@@ -515,6 +544,49 @@ namespace KingmakerMountedCombat.Diagnostics
                 FailCurrent("phase3d-horse-runtime-exception", exception.GetType().Name + ": " + exception.Message);
                 BeginCleanup();
             }
+        }
+
+        internal void ObserveNativeTurnBasedCommandEligibility(UnitCommand command, bool stockEligible)
+        {
+            if (step != Phase3dHorseStep.AwaitCombatMount || lastNativeAbilityShell == null ||
+                !ReferenceEquals(command, lastNativeAbilityShell))
+            {
+                return;
+            }
+
+            var observedFrame = Time.frameCount;
+            combatMountNativeTickEncounterCount++;
+            if (combatMountNativeTickFirstFrame < 0)
+            {
+                combatMountNativeTickFirstFrame = observedFrame;
+            }
+            if (combatMountNativeTickLastFrame == observedFrame)
+            {
+                combatMountNativeTickDuplicateFrameCount++;
+            }
+            combatMountNativeTickLastFrame = observedFrame;
+            combatMountNativeTickLastStockEligible = stockEligible;
+            if (stockEligible)
+            {
+                combatMountNativeTickEligibleCount++;
+                if (combatMountNativeTickFirstEligibleFrame < 0)
+                {
+                    combatMountNativeTickFirstEligibleFrame = observedFrame;
+                }
+            }
+            else
+            {
+                combatMountNativeTickRejectedCount++;
+            }
+
+            var controller = Game.Instance?.TurnBasedCombatController;
+            var turn = controller?.CurrentTurn;
+            combatMountNativeTickLastWaitingForUi = controller != null &&
+                (bool)controller.WaitingForUI;
+            combatMountNativeTickLastWaitingForUiGuardCount =
+                controller?.WaitingForUI?.GuardCount ?? -1;
+            combatMountNativeTickLastCurrentTurnUnitId = turn?.Unit?.UniqueId;
+            combatMountNativeTickLastCurrentTurnStatus = turn?.Status.ToString();
         }
 
         public void Dispose()
@@ -2345,10 +2417,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
-            observations["combatMountBeforeDiagnosticStartTurn"] = CaptureCombatMountTurnAdmissionProgress();
-            controller.StartTurn(rider);
-            combatMountStartTurnRequestCount++;
-            observations["combatMountAfterDiagnosticStartTurn"] = CaptureCombatMountTurnAdmissionProgress();
+            // Do not synthesize a rider turn here. Exact Kingmaker TickTime owns the
+            // pending m_NextUnit -> StartTurn transition and clears m_NextUnit only
+            // after that native call. Calling StartTurn directly can leave the native
+            // pending unit intact and strand WaitingForUI in a diagnostic-only turn.
+            observations["combatMountBeforeNaturalRiderTurn"] = CaptureCombatMountTurnAdmissionProgress();
             step = Phase3dHorseStep.AwaitRiderTurnForMount;
             stableFrames = 0;
             ResetLeafClock();
@@ -2361,13 +2434,32 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
-            var turn = Game.Instance.TurnBasedCombatController?.CurrentTurn;
-            var equipment = Game.Instance.HandsEquipmentController;
+            var game = Game.Instance;
+            var controller = game?.TurnBasedCombatController;
+            var turn = controller?.CurrentTurn;
+            var equipment = game?.HandsEquipmentController;
+            var selected = SelectionManager.Instance?.SelectedUnits;
+            var availability = nativeControls.Evaluate(NativeMountedControlKind.MountCompanion, rider);
+            var nextUnit = GetPendingNextUnit(controller);
             var riderTurnExact = turn?.Unit == rider;
             var turnActionable = riderTurnExact &&
                 (turn.Status == TurnController.TurnStatus.Preparing || turn.IsActing);
+            var gameModeReady = game != null && game.CurrentMode == GameModeType.Default;
+            var waitingForUi = controller != null && (bool)controller.WaitingForUI;
+            var waitingForUiCount = controller?.WaitingForUI?.GuardCount ?? -1;
+            var uiReady = controller != null && !waitingForUi && waitingForUiCount == 0;
+            var nextUnitClear = nextUnit == null;
+            var riderAwake = rider.IsAwake;
+            var riderInAwakeSchedule = game?.State?.AwakeUnits != null &&
+                game.State.AwakeUnits.Contains(rider);
+            var riderRigidbodyControlling = rider.View?.RigidbodyController != null &&
+                rider.View.RigidbodyController.IsControllingRigidbody;
+            var riderGetUp = rider.View != null && rider.View.IsGetUp;
+            var riderUnitTickReady = rider.View != null && !riderRigidbodyControlling && !riderGetUp;
+            var riderNauseated = rider.Descriptor.State.HasCondition(UnitCondition.Nauseated);
             var riderHandsIdle = !rider.AreHandsBusyWithAnimation;
             var riderEquipmentIdle = equipment != null && !equipment.IsUpdateScheduledFor(rider);
+            var selectionExact = selected != null && selected.Count == 1 && selected[0] == rider;
             if (riderTurnExact)
             {
                 combatMountRiderTurnObservedFrames++;
@@ -2400,11 +2492,47 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 combatMountRiderEquipmentBlockedFrames++;
             }
+            if (!uiReady)
+            {
+                combatMountWaitingForUiBlockedFrames++;
+            }
+            if (!nextUnitClear)
+            {
+                combatMountPendingNextUnitBlockedFrames++;
+            }
+            if (!riderAwake)
+            {
+                combatMountRiderAwakeBlockedFrames++;
+            }
+            if (!riderInAwakeSchedule)
+            {
+                combatMountRiderAwakeScheduleBlockedFrames++;
+            }
+            if (!riderUnitTickReady)
+            {
+                combatMountRiderUnitTickBlockedFrames++;
+            }
+            if (!gameModeReady || game.IsPaused)
+            {
+                combatMountGameModeBlockedFrames++;
+            }
+            if (!selectionExact)
+            {
+                combatMountSelectionBlockedFrames++;
+            }
+            if (riderNauseated)
+            {
+                combatMountNauseatedBlockedFrames++;
+            }
             observations["combatMountTurnAdmissionProgress"] = CaptureCombatMountTurnAdmissionProgress();
-            if (turn?.Unit != rider ||
+            if (CombatMountSyntheticStartTurnRequestCount != 0 || turn?.Unit != rider ||
                 turn.Status != TurnController.TurnStatus.Preparing && !turn.IsActing ||
+                !gameModeReady || game.IsPaused || !uiReady || !nextUnitClear ||
+                !riderAwake || !riderInAwakeSchedule || !riderUnitTickReady || riderNauseated ||
+                !rider.Descriptor.State.CanAct || !rider.CombatState.CanActInCombat ||
                 !rider.Commands.Empty || !horse.Commands.Empty ||
-                !riderHandsIdle || !riderEquipmentIdle)
+                !riderHandsIdle || !riderEquipmentIdle || !selectionExact ||
+                !availability.IsVisible || !availability.IsEnabled)
             {
                 stableFrames = 0;
                 return;
@@ -2415,16 +2543,26 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
-            SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
             turnSnapshotBefore = combat.CaptureUnifiedTurnSnapshot();
             riderStandardBeforeMount = rider.CombatState.Cooldown.StandardAction;
             riderMoveBeforeMount = rider.CombatState.Cooldown.MoveAction;
             mountStandardBeforeMount = horse.CombatState.Cooldown.StandardAction;
             mountMoveBeforeMount = horse.CombatState.Cooldown.MoveAction;
             var clicked = TryNativeAbilityTargetClick(nativeControls.MountAbility, horse, "tb-combat-mount");
-            if (!clicked)
+            var shell = lastNativeAbilityShell;
+            var exactShellAdmitted = clicked && shell != null && shell.Executor == rider &&
+                shell.Target?.Unit == horse && shell.CreatedByPlayer &&
+                ReferenceEquals(shell.Spell?.Blueprint, nativeControls.MountAbility) &&
+                rider.Commands != null && rider.Commands.Contains(shell) &&
+                ReferenceEquals(rider.Commands.GetCommand(UnitCommand.CommandType.Move), shell) &&
+                !rider.Commands.Queue.Contains(shell);
+            combatMountNativeCommandAdmissionFrame = Time.frameCount;
+            observations["combatMountNativeCommandAtAdmission"] = CaptureCombatMountNativeCommandProgress();
+            if (!exactShellAdmitted)
             {
-                FailCurrent("mount-in-combat-before-either-acted", "Native Mount Companion click was not admitted during the exact rider turn.");
+                FailCurrent(
+                    "mount-in-combat-before-either-acted",
+                    "Native Mount Companion click did not admit one exact player-created rider Move-slot command during the natural rider turn.");
                 BeginCleanup();
                 return;
             }
@@ -2435,6 +2573,18 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void AwaitCombatMount()
         {
+            if (lastNativeAbilityShell != null)
+            {
+                if (combatMountNativeCommandStartObservedFrame < 0 && lastNativeAbilityShell.IsStarted)
+                {
+                    combatMountNativeCommandStartObservedFrame = Time.frameCount;
+                }
+                if (combatMountNativeCommandTerminalObservedFrame < 0 && lastNativeAbilityShell.IsFinished)
+                {
+                    combatMountNativeCommandTerminalObservedFrame = Time.frameCount;
+                }
+            }
+            observations["combatMountNativeCommandProgress"] = CaptureCombatMountNativeCommandProgress();
             if (relationship.State != RelationshipState.Mounted ||
                 !relationship.Runtime.PoseFrameApplied || relationship.Runtime.PoseApplicationFrameCount < 3 ||
                 !rider.Commands.Empty || !horse.Commands.Empty)
@@ -2457,10 +2607,19 @@ namespace KingmakerMountedCombat.Diagnostics
                 Math.Abs(horse.CombatState.Cooldown.MoveAction - mountMoveBeforeMount) <= 0.001f;
             var evidence = CaptureRawLedgerMountEvidence();
             evidence["unifiedAfter"] = JObject.FromObject(after, JsonSerializer.Create(JsonSettings));
+            evidence["nativeMountCommand"] = CaptureCombatMountNativeCommandProgress();
+            var nativeShellStartedPromptly = combatMountNativeTickFirstEligibleFrame >= 0 &&
+                combatMountNativeCommandStartObservedFrame >= combatMountNativeTickFirstEligibleFrame &&
+                combatMountNativeCommandStartObservedFrame - combatMountNativeTickFirstEligibleFrame <= 2;
             AddRow("mount-in-combat-before-either-acted",
                 turn?.Unit == rider && riderStandardBeforeMount < 0.001f && mountStandardBeforeMount < 0.001f &&
                     riderMoveSpent && mountLedgerPreserved &&
-                    after.SharedInitiativeOwnerId == rider.UniqueId,
+                    after.SharedInitiativeOwnerId == rider.UniqueId &&
+                    CombatMountSyntheticStartTurnRequestCount == 0 &&
+                    combatMountNativeTickEncounterCount > 0 && combatMountNativeTickEligibleCount > 0 &&
+                    combatMountNativeTickDuplicateFrameCount == 0 && nativeShellStartedPromptly &&
+                    lastNativeAbilityShell != null && lastNativeAbilityShell.IsFinished &&
+                    lastNativeAbilityShell.Result == UnitCommand.ResultType.Success,
                 "Native combat Mount charged the rider Move ledger, preserved the Horse ledger, and retained the rider current turn.",
                 evidence);
             AddRow("mount-ability-in-combat",
@@ -3886,6 +4045,10 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 return CaptureCombatMountTurnAdmissionProgress();
             }
+            if (step == Phase3dHorseStep.AwaitCombatMount)
+            {
+                return CaptureCombatMountNativeCommandProgress();
+            }
             if (step == Phase3dHorseStep.AwaitRtCombatDismountAdmission ||
                 step == Phase3dHorseStep.AwaitRtCombatDismount)
             {
@@ -3981,6 +4144,142 @@ namespace KingmakerMountedCombat.Diagnostics
             return JValue.CreateNull();
         }
 
+        private JObject CaptureCombatMountNativeCommandProgress()
+        {
+            try
+            {
+                var game = Game.Instance;
+                var controller = game?.TurnBasedCombatController;
+                var turn = controller?.CurrentTurn;
+                var command = lastNativeAbilityShell;
+                var equipment = game?.HandsEquipmentController;
+                var nextUnit = GetPendingNextUnit(controller);
+                var riderInAwakeUnits = game?.State?.AwakeUnits != null &&
+                    game.State.AwakeUnits.Contains(rider);
+                var rigidbodyControlling = rider.View?.RigidbodyController != null &&
+                    rider.View.RigidbodyController.IsControllingRigidbody;
+                var riderIsGetUp = rider.View != null && rider.View.IsGetUp;
+                var unitTickEligible = rider.IsAwake && riderInAwakeUnits && rider.View != null &&
+                    !rigidbodyControlling && !riderIsGetUp;
+                var waitingForUi = controller != null && (bool)controller.WaitingForUI;
+                var waitingForUiGuardCount = controller?.WaitingForUI?.GuardCount ?? -1;
+                var currentTurnRiderExact = turn?.Unit == rider;
+                var currentTurnEligible = currentTurnRiderExact &&
+                    (turn.IsActing || turn.IsEnding);
+                var riderNauseated = rider.Descriptor.State.HasCondition(UnitCondition.Nauseated);
+                var riderEquipmentIdle = equipment != null && !equipment.IsUpdateScheduledFor(rider);
+                var commandPresent = command != null;
+                var commandInMoveSlot = commandPresent && rider.Commands != null &&
+                    ReferenceEquals(rider.Commands.GetCommand(UnitCommand.CommandType.Move), command);
+                var commandQueued = commandPresent && rider.Commands != null &&
+                    rider.Commands.Queue.Contains(command);
+                var commandSpellAvailable = commandPresent && command.Spell != null &&
+                    command.Spell.IsAvailableForCast;
+                var commandHasCooldown = commandPresent && rider.CombatState != null &&
+                    rider.CombatState.HasCooldownForCommand(command);
+                var commandShouldStartReady = commandPresent && !command.IsStarted &&
+                    command.Result == UnitCommand.ResultType.None && command.IsUnitEnoughClose &&
+                    (!rider.AreHandsBusyWithAnimation || command.DontWaitForHands) &&
+                    (!command.AwaitMovementFinish || rider.View?.MovementAgent == null ||
+                     !rider.View.MovementAgent.IsReallyMoving) &&
+                    command.CanStart && rider.Descriptor.State.CanAct && riderEquipmentIdle &&
+                    (command.IsIgnoreCooldown ||
+                     rider.CombatState != null && rider.CombatState.CanActInCombat && !commandHasCooldown) &&
+                    !riderNauseated;
+                var stockTurnGateReady = CombatController.IsInTurnBasedCombat() && !waitingForUi &&
+                    waitingForUiGuardCount == 0 && currentTurnEligible;
+
+                return new JObject
+                {
+                    ["step"] = step.ToString(),
+                    ["frame"] = Time.frameCount,
+                    ["startTurnRequestCount"] = CombatMountSyntheticStartTurnRequestCount,
+                    ["admissionFrame"] = combatMountNativeCommandAdmissionFrame,
+                    ["startObservedFrame"] = combatMountNativeCommandStartObservedFrame,
+                    ["terminalObservedFrame"] = combatMountNativeCommandTerminalObservedFrame,
+                    ["nativeTickEncounterCount"] = combatMountNativeTickEncounterCount,
+                    ["nativeTickEligibleCount"] = combatMountNativeTickEligibleCount,
+                    ["nativeTickRejectedCount"] = combatMountNativeTickRejectedCount,
+                    ["nativeTickDuplicateFrameCount"] = combatMountNativeTickDuplicateFrameCount,
+                    ["nativeTickFirstFrame"] = combatMountNativeTickFirstFrame,
+                    ["nativeTickLastFrame"] = combatMountNativeTickLastFrame,
+                    ["nativeTickFirstEligibleFrame"] = combatMountNativeTickFirstEligibleFrame,
+                    ["nativeTickLastStockEligible"] = combatMountNativeTickLastStockEligible,
+                    ["nativeTickLastWaitingForUi"] = combatMountNativeTickLastWaitingForUi,
+                    ["nativeTickLastWaitingForUiGuardCount"] =
+                        combatMountNativeTickLastWaitingForUiGuardCount,
+                    ["nativeTickLastCurrentTurnUnitId"] = combatMountNativeTickLastCurrentTurnUnitId,
+                    ["nativeTickLastCurrentTurnStatus"] = combatMountNativeTickLastCurrentTurnStatus,
+                    ["gamePaused"] = game != null && game.IsPaused,
+                    ["gameMode"] = game?.CurrentMode.ToString(),
+                    ["gameModeDefault"] = game != null && game.CurrentMode == GameModeType.Default,
+                    ["turnBased"] = CombatController.IsInTurnBasedCombat(),
+                    ["waitingForUi"] = waitingForUi,
+                    ["waitingForUiGuardCount"] = waitingForUiGuardCount,
+                    ["currentTurnUnitId"] = turn?.Unit?.UniqueId,
+                    ["currentTurnStatus"] = turn?.Status.ToString(),
+                    ["currentTurnIsActing"] = turn != null && turn.IsActing,
+                    ["currentTurnIsEnding"] = turn != null && turn.IsEnding,
+                    ["currentTurnRiderExact"] = currentTurnRiderExact,
+                    ["currentTurnEligible"] = currentTurnEligible,
+                    ["nextUnitId"] = nextUnit?.UniqueId,
+                    ["nextUnitClear"] = nextUnit == null,
+                    ["riderIsAwake"] = rider.IsAwake,
+                    ["riderInAwakeUnits"] = riderInAwakeUnits,
+                    ["riderViewPresent"] = rider.View != null,
+                    ["riderRigidbodyControlling"] = rigidbodyControlling,
+                    ["riderIsGetUp"] = riderIsGetUp,
+                    ["riderUnitTickEligible"] = unitTickEligible,
+                    ["riderHandsIdle"] = !rider.AreHandsBusyWithAnimation,
+                    ["riderEquipmentIdle"] = riderEquipmentIdle,
+                    ["riderCanAct"] = rider.Descriptor.State.CanAct,
+                    ["riderCanActInCombat"] = rider.CombatState != null &&
+                        rider.CombatState.CanActInCombat,
+                    ["riderNauseated"] = riderNauseated,
+                    ["commandReferencePresent"] = commandPresent,
+                    ["commandCreatedByPlayer"] = commandPresent && command.CreatedByPlayer,
+                    ["commandExecutorRiderExact"] = commandPresent && command.Executor == rider,
+                    ["commandTargetHorseExact"] = commandPresent && command.Target?.Unit == horse,
+                    ["commandInMoveSlotExact"] = commandInMoveSlot,
+                    ["commandQueued"] = commandQueued,
+                    ["commandStarted"] = commandPresent && command.IsStarted,
+                    ["commandRunning"] = commandPresent && command.IsRunning,
+                    ["commandFinished"] = commandPresent && command.IsFinished,
+                    ["commandActed"] = commandPresent && command.IsActed,
+                    ["commandResult"] = commandPresent ? command.Result.ToString() : null,
+                    ["commandCanStart"] = commandPresent && command.CanStart,
+                    ["commandEnoughClose"] = commandPresent && command.IsUnitEnoughClose,
+                    ["commandShouldApproach"] = commandPresent && command.ShouldUnitApproach,
+                    ["commandSpellAvailable"] = commandSpellAvailable,
+                    ["commandHasCooldown"] = commandHasCooldown,
+                    ["commandNativeShouldStartReady"] = commandShouldStartReady,
+                    ["commandStockTurnGateReady"] = stockTurnGateReady,
+                    ["relationshipState"] = relationship.State.ToString(),
+                    ["commands"] = CapturePairCommandState(),
+                    ["nativeShell"] = CaptureNativeAbilityShell(command)
+                };
+            }
+            catch (Exception exception)
+            {
+                return new JObject
+                {
+                    ["step"] = step.ToString(),
+                    ["frame"] = Time.frameCount,
+                    ["captureError"] = exception.GetType().FullName + ": " + exception.Message
+                };
+            }
+        }
+
+        private static UnitEntityData GetPendingNextUnit(CombatController controller)
+        {
+            if (controller == null || CombatNextUnitField == null ||
+                CombatNextUnitField.FieldType != typeof(UnitEntityData))
+            {
+                return null;
+            }
+            return CombatNextUnitField.GetValue(controller) as UnitEntityData;
+        }
+
         private JObject CaptureCombatMountTurnAdmissionProgress()
         {
             try
@@ -4000,13 +4299,22 @@ namespace KingmakerMountedCombat.Diagnostics
                 var currentTurnRiderExact = turn?.Unit == rider;
                 var currentTurnActionable = currentTurnRiderExact &&
                     (turn.Status == TurnController.TurnStatus.Preparing || turn.IsActing);
+                var nextUnit = GetPendingNextUnit(controller);
+                var waitingForUi = controller != null && (bool)controller.WaitingForUI;
+                var waitingForUiGuardCount = controller?.WaitingForUI?.GuardCount ?? -1;
+                var riderInAwakeUnits = game?.State?.AwakeUnits != null &&
+                    game.State.AwakeUnits.Contains(rider);
+                var riderRigidbodyControlling = rider.View?.RigidbodyController != null &&
+                    rider.View.RigidbodyController.IsControllingRigidbody;
+                var riderIsGetUp = rider.View != null && rider.View.IsGetUp;
+                var riderNauseated = rider.Descriptor.State.HasCondition(UnitCondition.Nauseated);
 
                 return new JObject
                 {
                     ["step"] = step.ToString(),
                     ["frame"] = Time.frameCount,
                     ["stableFrames"] = stableFrames,
-                    ["startTurnRequestCount"] = combatMountStartTurnRequestCount,
+                    ["startTurnRequestCount"] = CombatMountSyntheticStartTurnRequestCount,
                     ["riderTurnObservedFrames"] = combatMountRiderTurnObservedFrames,
                     ["actionableTurnObservedFrames"] = combatMountActionableTurnObservedFrames,
                     ["currentTurnMismatchFrames"] = combatMountCurrentTurnMismatchFrames,
@@ -4015,11 +4323,25 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["horseCommandBlockedFrames"] = combatMountHorseCommandBlockedFrames,
                     ["riderHandsBlockedFrames"] = combatMountRiderHandsBlockedFrames,
                     ["riderEquipmentBlockedFrames"] = combatMountRiderEquipmentBlockedFrames,
+                    ["waitingForUiBlockedFrames"] = combatMountWaitingForUiBlockedFrames,
+                    ["pendingNextUnitBlockedFrames"] = combatMountPendingNextUnitBlockedFrames,
+                    ["riderAwakeBlockedFrames"] = combatMountRiderAwakeBlockedFrames,
+                    ["riderAwakeScheduleBlockedFrames"] = combatMountRiderAwakeScheduleBlockedFrames,
+                    ["riderUnitTickBlockedFrames"] = combatMountRiderUnitTickBlockedFrames,
+                    ["gameModeBlockedFrames"] = combatMountGameModeBlockedFrames,
+                    ["selectionBlockedFrames"] = combatMountSelectionBlockedFrames,
+                    ["riderNauseatedBlockedFrames"] = combatMountNauseatedBlockedFrames,
                     ["gamePresent"] = game != null,
                     ["gamePaused"] = game != null && game.IsPaused,
+                    ["gameMode"] = game?.CurrentMode.ToString(),
+                    ["gameModeDefault"] = game != null && game.CurrentMode == GameModeType.Default,
                     ["turnBased"] = CombatController.IsInTurnBasedCombat(),
                     ["controllerPresent"] = controller != null,
                     ["controllerInitialized"] = controller != null && controller.Initialized,
+                    ["waitingForUi"] = waitingForUi,
+                    ["waitingForUiGuardCount"] = waitingForUiGuardCount,
+                    ["nextUnitId"] = nextUnit?.UniqueId,
+                    ["nextUnitClear"] = nextUnit == null,
                     ["currentTurnPresent"] = turn != null,
                     ["currentTurnUnitId"] = turn?.Unit?.UniqueId,
                     ["currentTurnStatus"] = turn?.Status.ToString(),
@@ -4032,6 +4354,14 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["rosterTargetCount"] = roster == null ? 0 : roster.Count(item => item == target),
                     ["selectedUnitIds"] = selectedIds,
                     ["selectionRiderExact"] = selected != null && selected.Count == 1 && selected[0] == rider,
+                    ["riderIsAwake"] = rider.IsAwake,
+                    ["riderInAwakeUnits"] = riderInAwakeUnits,
+                    ["riderViewPresent"] = rider.View != null,
+                    ["riderRigidbodyControlling"] = riderRigidbodyControlling,
+                    ["riderIsGetUp"] = riderIsGetUp,
+                    ["riderUnitTickEligible"] = rider.IsAwake && riderInAwakeUnits &&
+                        rider.View != null && !riderRigidbodyControlling && !riderIsGetUp,
+                    ["riderNauseated"] = riderNauseated,
                     ["relationshipState"] = relationship.State.ToString(),
                     ["relationshipExact"] = relationship.State == RelationshipState.Mounted &&
                         relationship.Rider == rider && relationship.Mount == horse,
@@ -4063,8 +4393,12 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private static JObject CaptureCombatMountActorState(UnitEntityData unit)
         {
-            var equipment = Game.Instance?.HandsEquipmentController;
+            var game = Game.Instance;
+            var equipment = game?.HandsEquipmentController;
             var combatState = unit?.CombatState;
+            var view = unit?.View;
+            var rigidbodyControlling = view?.RigidbodyController != null &&
+                view.RigidbodyController.IsControllingRigidbody;
             return new JObject
             {
                 ["present"] = unit != null,
@@ -4073,6 +4407,17 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["isInCombat"] = unit != null && unit.IsInCombat,
                 ["conscious"] = unit?.Descriptor?.State?.IsConscious,
                 ["canAct"] = unit?.Descriptor?.State?.CanAct,
+                ["isAwake"] = unit != null && unit.IsAwake,
+                ["inAwakeUnits"] = unit != null && game?.State?.AwakeUnits != null &&
+                    game.State.AwakeUnits.Contains(unit),
+                ["viewPresent"] = view != null,
+                ["rigidbodyControlling"] = rigidbodyControlling,
+                ["isGetUp"] = view != null && view.IsGetUp,
+                ["prone"] = unit?.Descriptor?.State?.Prone?.Active,
+                ["nauseated"] = unit != null && unit.Descriptor.State.HasCondition(UnitCondition.Nauseated),
+                ["movementAgentPresent"] = view?.MovementAgent != null,
+                ["movementAgentReallyMoving"] = view?.MovementAgent != null &&
+                    view.MovementAgent.IsReallyMoving,
                 ["combatStatePresent"] = combatState != null,
                 ["prepared"] = combatState?.Prepared,
                 ["canActInCombat"] = combatState?.CanActInCombat,
@@ -4632,6 +4977,13 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 var executor = command.Executor;
                 var commands = executor?.Commands;
+                var game = Game.Instance;
+                var controller = game?.TurnBasedCombatController;
+                var turn = controller?.CurrentTurn;
+                var equipment = game?.HandsEquipmentController;
+                var view = executor?.View;
+                var rigidbodyControlling = view?.RigidbodyController != null &&
+                    view.RigidbodyController.IsControllingRigidbody;
                 return new JObject
                 {
                     ["present"] = true,
@@ -4663,7 +5015,27 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["executorCanAct"] = executor?.Descriptor?.State?.CanAct,
                     ["executorCanActInCombat"] = executor?.CombatState?.CanActInCombat,
                     ["executorInitiative"] = executor?.CombatState?.Cooldown.Initiative,
-                    ["executorHandsBusy"] = executor?.AreHandsBusyWithAnimation
+                    ["executorHandsBusy"] = executor?.AreHandsBusyWithAnimation,
+                    ["executorEquipmentIdle"] = equipment != null && executor != null &&
+                        !equipment.IsUpdateScheduledFor(executor),
+                    ["executorAwake"] = executor != null && executor.IsAwake,
+                    ["executorInAwakeUnits"] = executor != null && game?.State?.AwakeUnits != null &&
+                        game.State.AwakeUnits.Contains(executor),
+                    ["executorViewPresent"] = view != null,
+                    ["executorRigidbodyControlling"] = rigidbodyControlling,
+                    ["executorIsGetUp"] = view != null && view.IsGetUp,
+                    ["executorNauseated"] = executor != null &&
+                        executor.Descriptor.State.HasCondition(UnitCondition.Nauseated),
+                    ["executorMovementAgentReallyMoving"] = view?.MovementAgent != null &&
+                        view.MovementAgent.IsReallyMoving,
+                    ["spellAvailableForCast"] = command.Spell != null && command.Spell.IsAvailableForCast,
+                    ["shouldBeInterrupted"] = command.ShouldBeInterrupted,
+                    ["waitingForUi"] = controller != null && (bool)controller.WaitingForUI,
+                    ["waitingForUiGuardCount"] = controller?.WaitingForUI?.GuardCount ?? -1,
+                    ["currentTurnUnitId"] = turn?.Unit?.UniqueId,
+                    ["currentTurnStatus"] = turn?.Status.ToString(),
+                    ["currentTurnIsActing"] = turn != null && turn.IsActing,
+                    ["currentTurnIsEnding"] = turn != null && turn.IsEnding
                 };
             }
             catch (Exception exception)
@@ -5032,7 +5404,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             var artifact = new JObject
             {
-                ["schemaVersion"] = 1,
+                ["schemaVersion"] = 2,
                 ["evidenceKind"] = EvidenceKind,
                 ["runId"] = request.RunId,
                 ["scenario"] = request.Scenario,

@@ -272,6 +272,7 @@ namespace KingmakerMountedCombat.Integration
 
             internal static void TickCommandTurnBasedPostfix(UnitCommand command, ref bool __result)
             {
+                RuntimeAutomationHost.ObserveNativeTurnBasedCommandEligibility(command, __result);
                 PatchBridge.UnifiedTurn?.AdmitExactMountCommand(command, ref __result);
             }
 

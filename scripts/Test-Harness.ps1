@@ -10793,6 +10793,104 @@ try {
         } 'Phase 3D TB validator accepted a combat-Mount deadline without exact rider raw command slots.'
     }
 
+    Invoke-HarnessTest 'Phase 3D TB native Mount deadline binds stock lifecycle telemetry' {
+        $failureRoot = Join-Path $runtimeEvidenceTestRoot 'phase3d-tb-native-mount-command-deadline-v2'
+        New-Item -ItemType Directory -Path $failureRoot -Force | Out-Null
+        $failureRequest = [pscustomobject]@{
+            runId='validator-phase3d-tb-native-mount-command-deadline-v2'
+            scenario='phase3d-unified-combat-tb-suite'
+            branch='codex/mounted-combat-phase3e-paired-scheduler';commit=('e'*40)
+            productVersion=$currentProductVersion;dllSha256=('b'*64)
+            dllMvid='66666666-7777-8888-9999-aaaaaaaaaaaa';evidenceRoot=$failureRoot
+        }
+        $emptyRaw = @(
+            [ordered]@{present=$false},[ordered]@{present=$false},
+            [ordered]@{present=$false},[ordered]@{present=$false})
+        $riderRaw = @(
+            [ordered]@{present=$false},[ordered]@{present=$false},
+            [ordered]@{present=$false},
+            [ordered]@{present=$true;type='Kingmaker.UnitLogic.Commands.UnitUseAbility'})
+        $progress = [ordered]@{
+            step='AwaitCombatMount';frame=500;startTurnRequestCount=0;admissionFrame=100
+            startObservedFrame=-1;terminalObservedFrame=-1;nativeTickEncounterCount=120
+            nativeTickEligibleCount=0;nativeTickRejectedCount=120;nativeTickDuplicateFrameCount=0
+            nativeTickFirstFrame=101;nativeTickLastFrame=500;nativeTickFirstEligibleFrame=-1
+            nativeTickLastStockEligible=$false;nativeTickLastWaitingForUi=$true
+            nativeTickLastWaitingForUiGuardCount=1;nativeTickLastCurrentTurnUnitId='rider'
+            nativeTickLastCurrentTurnStatus='Acting';gamePaused=$false;gameMode='Default'
+            gameModeDefault=$true;turnBased=$true;waitingForUi=$true;waitingForUiGuardCount=1
+            currentTurnUnitId='rider';currentTurnStatus='Acting';currentTurnIsActing=$true
+            currentTurnIsEnding=$false;currentTurnRiderExact=$true;currentTurnEligible=$true
+            nextUnitId=$null;nextUnitClear=$true;riderIsAwake=$true;riderInAwakeUnits=$true
+            riderViewPresent=$true;riderRigidbodyControlling=$false;riderIsGetUp=$false
+            riderUnitTickEligible=$true;riderHandsIdle=$true;riderEquipmentIdle=$true
+            riderCanAct=$true;riderCanActInCombat=$true;riderNauseated=$false
+            commandReferencePresent=$true;commandCreatedByPlayer=$true
+            commandExecutorRiderExact=$true;commandTargetHorseExact=$true
+            commandInMoveSlotExact=$true;commandQueued=$false;commandStarted=$false
+            commandRunning=$false;commandFinished=$false;commandActed=$false;commandResult='None'
+            commandCanStart=$true;commandEnoughClose=$true;commandShouldApproach=$false
+            commandSpellAvailable=$true;commandHasCooldown=$false
+            commandNativeShouldStartReady=$true;commandStockTurnGateReady=$false
+            relationshipState='Unmounted'
+            commands=[ordered]@{
+                frame=500;stockIntentActive=$false;activePairCommand=$false
+                riderManualTargetId=$null;mountManualTargetId=$null;riderRaw=$riderRaw;riderQueue=@()
+                mountRaw=$emptyRaw;mountQueue=@();lastOutcome=$null
+            }
+            nativeShell=[ordered]@{present=$true;executorId='rider';targetId='horse'}
+        }
+        $failureRow = [ordered]@{
+            name='phase3d-horse-leaf-deadline';status='FAIL'
+            detail='Synthetic native Mount command deadline.';frame=500;seconds=30.1
+            evidence=[ordered]@{
+                step='AwaitCombatMount';relationshipState='Unmounted';stockObservation='not-observed'
+                feedback='diagnostic';currentTurnUnitId='rider';currentTurnStatus='Acting'
+                transitionRiderTurnObserved=$false;transitionRiderStartRequestCount=0
+                leafDeadlineProgress=$progress;nativeControls=[ordered]@{}
+                lastNativeAbilityShell=[ordered]@{present=$true;executorId='rider';targetId='horse'}
+            }
+        }
+        $failureArtifact = [ordered]@{
+            schemaVersion=2;evidenceKind='phase3d-horse-scenario-evidence';runId=$failureRequest.runId
+            scenario=$failureRequest.scenario;branch=$failureRequest.branch;commit=$failureRequest.commit
+            productVersion=$failureRequest.productVersion;dllSha256=$failureRequest.dllSha256
+            dllMvid=$failureRequest.dllMvid;createdAtUtc=[DateTimeOffset]::UtcNow.ToString('o')
+            status='FAIL';rows=@($failureRow)
+            observations=[ordered]@{riderId='rider';horseId='horse';leafDeadlineProgress=$progress}
+            subscenarioPassCount=0;subscenarioFailCount=1
+            errors=@('Synthetic native Mount command deadline.')
+        }
+        $failurePath = Join-Path $failureRoot 'phase3d-horse-scenario-evidence.json'
+        Write-KmcJsonDurable -Path $failurePath -Value $failureArtifact
+        $failureRecord = [ordered]@{
+            relativePath='phase3d-horse-scenario-evidence.json';kind='phase3d-horse-scenario-evidence'
+            length=(Get-Item -LiteralPath $failurePath).Length;sha256=(Get-KmcSha256 $failurePath)
+        }
+        [void](New-TestArtifactManifest -EvidenceRoot $failureRoot -RunId $failureRequest.runId `
+            -Scenario $failureRequest.scenario -Artifacts @($failureRecord))
+        $failureManifest = Read-KmcJson (Join-Path $failureRoot 'runtime-artifacts.json')
+        $failureSubresult = [pscustomobject]@{
+            name='phase3d-horse-leaf-deadline';status='FAIL';assertionPassCount=0
+            assertionFailCount=1;errors=@('Synthetic native Mount command deadline.')
+        }
+        Assert-KmcPhase3dHorseScenarioEvidence -Request $failureRequest -Manifest $failureManifest `
+            -Status FAIL -SubscenarioResults @($failureSubresult)
+
+        $failureArtifact.rows[0].evidence.leafDeadlineProgress.nativeTickRejectedCount = 119
+        $failureArtifact.observations.leafDeadlineProgress.nativeTickRejectedCount = 119
+        Write-KmcJsonAtomic -Path $failurePath -Value $failureArtifact
+        $failureRecord.length=(Get-Item -LiteralPath $failurePath).Length
+        $failureRecord.sha256=(Get-KmcSha256 $failurePath)
+        [void](New-TestArtifactManifest -EvidenceRoot $failureRoot -RunId $failureRequest.runId `
+            -Scenario $failureRequest.scenario -Artifacts @($failureRecord))
+        $failureManifest = Read-KmcJson (Join-Path $failureRoot 'runtime-artifacts.json')
+        Assert-TestThrows {
+            Assert-KmcPhase3dHorseScenarioEvidence -Request $failureRequest -Manifest $failureManifest `
+                -Status FAIL -SubscenarioResults @($failureSubresult)
+        } 'Phase 3D TB validator accepted unreconciled native Mount eligibility counters.'
+    }
+
     Invoke-HarnessTest 'Phase 3D unified combat source boundaries are exact and pair-local' {
         $unifiedSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\UnifiedMountedTurnCoordinator.cs'))
         $patchSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPatchController.cs'))
@@ -10967,6 +11065,8 @@ try {
         $settingsSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\DiagnosticSettings.cs'))
         $runtimeCombatSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeCombatScenarioEngine.cs'))
         $phase3dHorseSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\Phase3dHorseScenarioTranche.cs'))
+        $runtimeHostSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeAutomationHost.cs'))
+        $horseEngineSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\HorseCompanionUnmountedScenarioEngine.cs'))
 
         Assert-Test ($schedulerSource.Contains('ReferenceEquals(lease.Command, command)') -and
             $schedulerSource.Contains('ReferenceEquals(lease.Mount.Commands.Standard, command)') -and
@@ -10986,11 +11086,19 @@ try {
             $schedulerDomainSource.Contains('CleanupCount = 1;') -and
             -not $schedulerDomainSource.Contains('[Serializable]')) `
             'paired scheduler state machine lost one-frame, fault, cleanup, or nonserialization boundaries'
+        $nativeObserverIndex = $patchSource.IndexOf(
+            'RuntimeAutomationHost.ObserveNativeTurnBasedCommandEligibility(command, __result);',
+            [StringComparison]::Ordinal)
+        $schedulerPostfixIndex = $patchSource.IndexOf(
+            'PatchBridge.UnifiedTurn?.AdmitExactMountCommand(command, ref __result);',
+            [StringComparison]::Ordinal)
         Assert-Test ($unifiedSource.Contains('pairedCommandScheduler.TryExtendNativeEligibility(') -and
             $patchSource.Contains('PatchExact(typeof(UnitActionController), "TickCommandTurnBased", 0x0600911D') -and
-            $patchSource.Contains('PatchBridge.UnifiedTurn?.AdmitExactMountCommand(command, ref __result);') -and
+            $nativeObserverIndex -ge 0 -and $schedulerPostfixIndex -gt $nativeObserverIndex -and
+            $runtimeHostSource.Contains('active?.horseCompanionEngine?.ObserveNativeTurnBasedCommandEligibility(command, stockEligible);') -and
+            $horseEngineSource.Contains('phase3dTranche?.ObserveNativeTurnBasedCommandEligibility(command, stockEligible);') -and
             -not $patchSource.Contains('PairedCommandSchedulerLeaseStateMachine')) `
-            'paired scheduler left the exact token-pinned postfix seam or stored lease state in Harmony patch fields'
+            'paired scheduler left the exact token-pinned postfix seam, lost pre-extension stock observation, or stored lease state in Harmony patch fields'
         Assert-Test ($settingsSource.Contains('EnablePairedCommandScheduler = false;') -and
             -not $schedulerSource.Contains('command.Tick(') -and
             -not $schedulerSource.Contains('command.Start(') -and
@@ -11085,6 +11193,15 @@ try {
                 $mountAdmissionIndex,
                 $mountAdmissionEndIndex - $mountAdmissionIndex)
         } else { '' }
+        $turnBasedAdmissionIndex = $phase3dHorseSource.IndexOf(
+            'private void AwaitTurnBasedMode()',
+            [StringComparison]::Ordinal)
+        $turnBasedAdmissionBody = if ($turnBasedAdmissionIndex -ge 0 -and
+            $mountAdmissionIndex -gt $turnBasedAdmissionIndex) {
+            $phase3dHorseSource.Substring(
+                $turnBasedAdmissionIndex,
+                $mountAdmissionIndex - $turnBasedAdmissionIndex)
+        } else { '' }
         Assert-Test ($phase3dHorseSource.Contains(
                 'private ScopedDiagnosticAiLease<UnitEntityData> combatMountRiderAiLease;') -and
             $phase3dHorseSource.Contains('combatMountRiderAiLease.Acquire(new[] { rider });') -and
@@ -11099,8 +11216,21 @@ try {
                 'var riderEquipmentIdle = equipment != null && !equipment.IsUpdateScheduledFor(rider);') -and
             $mountAdmissionBody.Contains('combatMountRiderHandsBlockedFrames++;') -and
             $mountAdmissionBody.Contains('combatMountRiderEquipmentBlockedFrames++;') -and
-            $mountAdmissionBody.Contains('!riderHandsIdle || !riderEquipmentIdle')) `
-            'Phase 3D Horse TB diagnostic lost reversible rider AI isolation or exact native Mount-shell readiness'
+            $mountAdmissionBody.Contains('controller.WaitingForUI') -and
+            $mountAdmissionBody.Contains('controller?.WaitingForUI?.GuardCount ?? -1') -and
+            $mountAdmissionBody.Contains('game.State.AwakeUnits.Contains(rider)') -and
+            $mountAdmissionBody.Contains('rider.View.RigidbodyController.IsControllingRigidbody') -and
+            $mountAdmissionBody.Contains('game.CurrentMode == GameModeType.Default') -and
+            $mountAdmissionBody.Contains('var nextUnit = GetPendingNextUnit(controller);') -and
+            $mountAdmissionBody.Contains('!riderHandsIdle || !riderEquipmentIdle') -and
+            $phase3dHorseSource.Contains('private const int CombatMountSyntheticStartTurnRequestCount = 0;') -and
+            $phase3dHorseSource.Contains('observations["combatMountBeforeNaturalRiderTurn"]') -and
+            $phase3dHorseSource.Contains('internal void ObserveNativeTurnBasedCommandEligibility(') -and
+            $phase3dHorseSource.Contains('nativeTickEncounterCount') -and
+            $phase3dHorseSource.Contains('CaptureCombatMountNativeCommandProgress()') -and
+            $phase3dHorseSource.Contains('["schemaVersion"] = 2,') -and
+            -not $turnBasedAdmissionBody.Contains('StartTurn(')) `
+            'Phase 3D Horse TB diagnostic lost reversible AI isolation, natural-turn admission, or exact stock Mount-shell lifecycle observation'
     }
 
     $resultPath = Join-Path $testRoot 'runtime-result.json'

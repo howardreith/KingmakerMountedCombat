@@ -40,6 +40,18 @@ The raw `311`-frame admission-to-grant interval is native UI staging, not schedu
 
 Dev.3 independently repeated the lifecycle: admission `3987`, first eligibility grant `4309`, stock start `4310`, last drive `4542`, `234` unique-frame drives, one Success terminal, one mount Standard charge, zero rider cost, and exact mount command/rule/weapon ownership while the rider remained current. Its game result is `PASS 70/0`; the outer result remains immutable FAIL only because the first reachable PASS validator expected `actionActorCanActInCombat=false`. All exact dev.21/dev.2/dev.3 evidence records that ordinary readiness value true. Dev.4 corrects only that external expectation; it does not revise this lifecycle map or the selected seam.
 
+## Dev.7 native rider-command attribution and natural-turn correction
+
+Immutable audited run `20260904T195400Z-phase3e-dev7-horse-tb-gate2` is outer/game `FAIL 42/2` at `AwaitCombatMount`; it grants no Gate 2 credit. It nevertheless closes every previously observed fixture predicate before the rider Mount input: the pair was legally adjacent at `0.843796432m` within the `2.9m` bound, both exact reversible AI leases were active, both command containers were empty, the rider was exact `CurrentTurn.Unit`, and rider hands/equipment were idle. One player-created rider `UnitUseAbility` for Mount entered the exact Move slot with the exact Horse target, `CanStart=true`, `IsUnitEnoughClose=true`, no approach, no cooldown, and all recorded `ShouldStartCommand` predicates true. It remained unstarted for 30 seconds and completed only after cleanup restored real time. The independent audit ran before gameplay inspection and proved exact suite/save/Mods/Baseline/Working restoration with no process, lock, sentinel, or deployment residue.
+
+Bounded exact inspection identifies two omitted native gates and one artificial-turn collision:
+
+- `UnitActionController.TickCommandTurnBased` checks `CombatController.WaitingForUI` before executor/current-turn eligibility. `WaitingForUI.get` is `0x06000BFF`; its `CountingGuard.Value` / `GuardCount` getters are `0x06001C13` / `0x06001C15`. `InitiativeTrackerHorizontalPCView.UpdateUnits` `0x0600302B` acquires the guard through `PauseUnitActions(true)` `0x0600302D`; `WaitHoldedCharacter` `0x0600302C` releases it later. The diagnostic had not captured this predicate.
+- `BaseUnitController.Tick` reaches only `State.AwakeUnits`, and `UnitActionController.TickOnUnit` returns before slot enumeration while the view rigidbody controller is active or `UnitEntityView.IsGetUp` is true. Exact observation therefore also requires rider `IsAwake`, reference membership in `AwakeUnits`, and the view gates (`IsGetUp` `0x0600183B`; `RigidbodyCreatureController.IsControllingRigidbody` `0x060014B0`).
+- Native `CombatController.TickTime` `0x06000BD6` owns the pending `m_NextUnit` (`0x04000652`) transition: it calls `StartTurn(m_NextUnit)` and only then clears that field. The old diagnostic called public `StartTurn(rider)` directly while `CurrentTurn` was null, which creates a real rider turn but does not clear a separately pending `m_NextUnit`. That is not an exact natural-turn fixture and can collide with initiative/UI progression.
+
+Dev.8 therefore makes no production scheduler change. The Horse TB diagnostic waits for Kingmaker to start the natural rider turn, requires `m_NextUnit == null`, `WaitingForUI == false` with `GuardCount == 0`, Default/unpaused mode, rider awake/enumerated, view tick eligibility, no nausea, exact selection, empty commands, and hands/equipment readiness for two stable frames. The existing exact-token postfix passively records the reference-identical rider Mount shell's stock eligibility result before any paired-scheduler extension. Schema-v2 deadline evidence distinguishes: no enumeration; enumerated but stock-ineligible with exact UI/turn state; or stock-eligible but blocked by `ShouldStartCommand`. It never changes the stock Boolean for this unmounted rider command.
+
 ## Per-frame controller ordering
 
 `GameModesFactory.Initialize` (`0x06007E08`) registers controllers into the Default-mode `GameMode` array. `GameMode.Tick` (`0x06007E00`) invokes them in registration order and catches/logs each controller exception.
@@ -63,11 +75,14 @@ KMC's UMM update callback is not treated as a substitute for this native order. 
 | `CombatController.CurrentTurn.set` | `0x06000BBF` | combat-controller lifecycle | Disposes the previous native controller; not a Phase 3E patch seam. |
 | `CombatController.Tick` | `0x06000BD1` | `GameMode.Tick` | Updates navigation grid; calls `CurrentTurn.Tick`; calls `ChooseNextUnit` when no active turn/turn ended; disposes ended turn. |
 | `CombatController.TickTime` | `0x06000BD6` | time/combat flow | Starts the queued `m_NextUnit` after native delay or advances combat timing. |
+| `CombatController.m_NextUnit` | `0x04000652` | `ChooseNextUnit`, `TickTime`, reset/initiative changes | Stores the one pending natural combatant. `TickTime` clears it only after its own `StartTurn(m_NextUnit)` call; an unrelated direct `StartTurn` does not clear it. |
 | `CombatController.ChooseNextUnit` | `0x06000BD2` | `Tick` | Chooses from native initiative roster; Phase 3D filters only the exact active mount candidate. |
 | `CombatController.StartRound` | `0x06000BD3` | initiative advancement | Advances the native round and prepares sorted initiative participation. |
 | `CombatController.StartTurn(UnitEntityData)` | `0x06000BDA` | `TickTime` and diagnostics | Constructs one `TurnController(unit)`, performs native navigation setup, then calls `TurnController.Start`; emits a real native turn. Phase 3E must never call it for the paired mount. |
 | `CombatController.IsInTurnBasedCombat` | `0x06000BF6` | controller and command gates | Requires player combat, TB setting, and non-cutscene state; also clears weapon-change state outside TB. |
 | `CombatController.CurrentUnit.get` | `0x06000BFA` | `UnitEntityData.IsCurrentUnit` | Projects `CurrentTurn?.Unit`; this is the exact stock executor identity authority. |
+| `CombatController.WaitingForUI.get` | `0x06000BFF` | turn/action/time ticks | Returns the reference-counted UI pause guard. Any positive count blocks both `CombatController.Tick` and every TB command in `TickCommandTurnBased`. |
+| `CountingGuard.Value / GuardCount` | `0x06001C13 / 0x06001C15` | UI owner and diagnostics | `Value` is exactly `m_GuardCount > 0`; `GuardCount` exposes the exact count. Assigning true increments and false decrements, so it is not an idempotent Boolean. |
 
 `TurnController` (`0x020000D3`) stores exactly one `Unit`, that unit's `UnitCommands`, `UnitCombatState`, and cooldown ledger. It has no native paired-actor collection.
 

@@ -1,5 +1,13 @@
 # Autonomous blockers
 
+## Dev.7 closes AI/readiness races; dev.8 corrects the artificial native-turn boundary (2026-09-04T17:02:45-04:00)
+
+Status: `IN PROGRESS`.
+
+Immutable audited dev.7 run `20260904T195400Z-phase3e-dev7-horse-tb-gate2` failed before any paired-scheduler lease. It proved both exact rider/Horse AI leases, empty containers, idle rider hands/equipment, legal adjacency, exact selection/memory/target, rider current-turn identity, unused ledgers, and an exact player-created rider Move-slot Mount shell with `CanStart=true`, legal range, no approach, available spell, and no cooldown. The shell remained unstarted for 30 seconds and completed only after RT restoration. No scheduler repair or kill criterion applies.
+
+Exact native inspection identifies the diagnostic's direct `StartTurn(rider)` as non-natural: `TickTime` normally consumes and clears `m_NextUnit`, while the public call alone leaves a pending native unit. `WaitingForUI` is separately reference-counted, and unit-slot enumeration also depends on AwakeUnits and view state. Dev.8 is independently actionable and changes diagnostics only: wait for native initiative to start the rider, require every exact UI/pending-unit/enumeration/view/mode/start predicate, and observe the exact rider shell's stock eligibility before scheduler policy. If that comprehensive evidence shows stock eligibility plus all start predicates with no start, stop piecemeal diagnostic iteration and preserve the exact unresolved native boundary. External state is restored and no critical architecture blocker is presently proven.
+
 ## Dev.6 exposed a rider-AI/native-readiness race; dev.7 is independently actionable (2026-09-04T14:36:54-04:00)
 
 Status: `IN PROGRESS`.
