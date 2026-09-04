@@ -10725,6 +10725,7 @@ try {
             step='AwaitRiderTurnForMount';frame=200;stableFrames=0;startTurnRequestCount=1
             riderTurnObservedFrames=120;actionableTurnObservedFrames=120;currentTurnMismatchFrames=0
             turnStatusBlockedFrames=0;riderCommandBlockedFrames=120;horseCommandBlockedFrames=0
+            riderHandsBlockedFrames=0;riderEquipmentBlockedFrames=0
             gamePresent=$true;gamePaused=$false;turnBased=$true;controllerPresent=$true
             controllerInitialized=$true;currentTurnPresent=$true;currentTurnUnitId='rider'
             currentTurnStatus='Preparing';currentTurnIsActing=$false;currentTurnRiderExact=$true
@@ -11042,8 +11043,14 @@ try {
         $horseAiPrepareIndex = $horseAiIsolationBody.IndexOf(
             'if (!PrepareUnmountedHorseAiIsolation())',
             [StringComparison]::Ordinal)
+        $riderAiPrepareIndex = $horseAiIsolationBody.IndexOf(
+            'if (!PrepareCombatMountRiderAiIsolation())',
+            [StringComparison]::Ordinal)
         $horseAiObservationIndex = $horseAiIsolationBody.IndexOf(
             'observations["combatMountHorseAiIsolation"] = CaptureUnmountedHorseAiIsolation();',
+            [StringComparison]::Ordinal)
+        $riderAiObservationIndex = $horseAiIsolationBody.IndexOf(
+            'observations["combatMountRiderAiIsolation"] = CaptureCombatMountRiderAiIsolation();',
             [StringComparison]::Ordinal)
         $horseAiTargetIndex = $horseAiIsolationBody.IndexOf(
             'BeginTarget(TargetDistance, "tb-combat-mount");',
@@ -11059,10 +11066,41 @@ try {
                 $phase3dHorseSource,
                 [regex]::Escape('BeginTarget(TargetDistance, "tb-combat-mount");')).Count -eq 1 -and
             $horseAiPrepareIndex -ge 0 -and
-            $horseAiObservationIndex -gt $horseAiPrepareIndex -and
-            $horseAiTargetIndex -gt $horseAiObservationIndex -and
+            $riderAiPrepareIndex -gt $horseAiPrepareIndex -and
+            $horseAiObservationIndex -gt $riderAiPrepareIndex -and
+            $riderAiObservationIndex -gt $horseAiObservationIndex -and
+            $horseAiTargetIndex -gt $riderAiObservationIndex -and
             -not $horseAiIsolationBody.Contains('InterruptAll(')) `
-            'Phase 3D Horse TB diagnostic lost pre-target AI isolation, two-branch routing, or non-interruption ordering'
+            'Phase 3D Horse TB diagnostic lost pre-target pair AI isolation, two-branch routing, or non-interruption ordering'
+        $mountAdmissionIndex = $phase3dHorseSource.IndexOf(
+            'private void AwaitRiderTurnForMount()',
+            [StringComparison]::Ordinal)
+        $mountAdmissionEndIndex = $phase3dHorseSource.IndexOf(
+            'private void AwaitCombatMount()',
+            $mountAdmissionIndex,
+            [StringComparison]::Ordinal)
+        $mountAdmissionBody = if ($mountAdmissionIndex -ge 0 -and
+            $mountAdmissionEndIndex -gt $mountAdmissionIndex) {
+            $phase3dHorseSource.Substring(
+                $mountAdmissionIndex,
+                $mountAdmissionEndIndex - $mountAdmissionIndex)
+        } else { '' }
+        Assert-Test ($phase3dHorseSource.Contains(
+                'private ScopedDiagnosticAiLease<UnitEntityData> combatMountRiderAiLease;') -and
+            $phase3dHorseSource.Contains('combatMountRiderAiLease.Acquire(new[] { rider });') -and
+            $phase3dHorseSource.Contains('combatMountRiderAiLease.ValidateActive(new[] { rider });') -and
+            $phase3dHorseSource.Contains('combatMountRiderAiLease.Restore(new[] { rider });') -and
+            $phase3dHorseSource.Contains('RestoreCombatMountRiderAiIsolation();') -and
+            $phase3dHorseSource.Contains('["combatMountRiderAiLeaseRestored"] =') -and
+            $mountAdmissionBody.Contains(
+                'if (!ValidateUnmountedHorseAiIsolation() || !ValidateCombatMountRiderAiIsolation())') -and
+            $mountAdmissionBody.Contains('var riderHandsIdle = !rider.AreHandsBusyWithAnimation;') -and
+            $mountAdmissionBody.Contains(
+                'var riderEquipmentIdle = equipment != null && !equipment.IsUpdateScheduledFor(rider);') -and
+            $mountAdmissionBody.Contains('combatMountRiderHandsBlockedFrames++;') -and
+            $mountAdmissionBody.Contains('combatMountRiderEquipmentBlockedFrames++;') -and
+            $mountAdmissionBody.Contains('!riderHandsIdle || !riderEquipmentIdle')) `
+            'Phase 3D Horse TB diagnostic lost reversible rider AI isolation or exact native Mount-shell readiness'
     }
 
     $resultPath = Join-Path $testRoot 'runtime-result.json'

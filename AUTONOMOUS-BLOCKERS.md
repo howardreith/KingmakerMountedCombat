@@ -1,5 +1,15 @@
 # Autonomous blockers
 
+## Dev.6 exposed a rider-AI/native-readiness race; dev.7 is independently actionable (2026-09-04T14:36:54-04:00)
+
+Status: `IN PROGRESS`.
+
+Immutable dev.6 run `20260904T174752Z-phase3e-dev6-horse-tb-gate2` failed at `AwaitCombatMount` after the exact rider-owned native Mount shell entered the rider Move slot. The dev.6 Horse isolation itself passed and restored exactly. A rider AI Standard attack existed before diagnostic turn preparation; preparation removed it but left rider hands busy. The native Mount shell truthfully remained unstarted with `CanStart=true`, legal proximity, and `executorHandsBusy=true`. It completed only after cleanup restored RT, then the relationship transition correctly refused the mode change. No paired scheduler lease, mount action, attack/rule/damage, resource, or turn-completion behavior ran.
+
+Independent audit passed before evidence inspection with exact suite/save/Mods/Baseline/Working identities and no process, lock, sentinel, or deployment residue. This is a diagnostic fixture/readiness failure, not a scheduler production defect; no repair cycle or K1-K12 kill criterion is consumed.
+
+Dev.7 uses a separate reversible exact rider AI lease after the already-qualified Horse lease and before target creation, then requires the native rider hands/equipment start gates to be idle before admitting Mount while the stock player turn remains `Preparing`. Both leases validate for two frames and restore exactly; deadline telemetry now separates hands and equipment blockers. Production code and RT/presentation paths are unchanged. Complete offline gates pass `22/Release/315/18/241/388`, parsers `26/0` and `7/0`, and diff. One clean package/WhatIf/live/audit cycle remains independently actionable; exact turn completion remains TODO.
+
 ## Dev.5 exposed a diagnostic Horse-AI race; dev.6 repair is independently actionable (2026-09-04T12:30:02-04:00)
 
 Status: `IN PROGRESS`.

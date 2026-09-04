@@ -5601,7 +5601,8 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
             Assert-KmcExactProperties $progress @(
                 'step','frame','stableFrames','startTurnRequestCount','riderTurnObservedFrames',
                 'actionableTurnObservedFrames','currentTurnMismatchFrames','turnStatusBlockedFrames',
-                'riderCommandBlockedFrames','horseCommandBlockedFrames','gamePresent','gamePaused','turnBased',
+                'riderCommandBlockedFrames','horseCommandBlockedFrames','riderHandsBlockedFrames',
+                'riderEquipmentBlockedFrames','gamePresent','gamePaused','turnBased',
                 'controllerPresent','controllerInitialized','currentTurnPresent','currentTurnUnitId',
                 'currentTurnStatus','currentTurnIsActing','currentTurnRiderExact','currentTurnActionable',
                 'rosterUnitIds','rosterRiderCount','rosterHorseCount','rosterTargetCount','selectedUnitIds',
@@ -5612,7 +5613,8 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
             $integerNames = @(
                 'frame','stableFrames','startTurnRequestCount','riderTurnObservedFrames',
                 'actionableTurnObservedFrames','currentTurnMismatchFrames','turnStatusBlockedFrames',
-                'riderCommandBlockedFrames','horseCommandBlockedFrames','rosterRiderCount','rosterHorseCount',
+                'riderCommandBlockedFrames','horseCommandBlockedFrames','riderHandsBlockedFrames',
+                'riderEquipmentBlockedFrames','rosterRiderCount','rosterHorseCount',
                 'rosterTargetCount')
             foreach ($integerName in $integerNames) {
                 if (-not (Test-KmcExactJsonInteger $progress.$integerName) -or
@@ -5649,7 +5651,9 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
             if ($deadlineStep -ceq 'AwaitRiderTurnForMount' -and
                 ([long]$progress.startTurnRequestCount -ne 1L -or
                  ([long]$progress.currentTurnMismatchFrames + [long]$progress.turnStatusBlockedFrames +
-                  [long]$progress.riderCommandBlockedFrames + [long]$progress.horseCommandBlockedFrames) -lt 1L)) {
+                  [long]$progress.riderCommandBlockedFrames + [long]$progress.horseCommandBlockedFrames +
+                  [long]$progress.riderHandsBlockedFrames +
+                  [long]$progress.riderEquipmentBlockedFrames) -lt 1L)) {
                 throw 'Phase 3D TB combat-Mount rider-turn deadline does not identify one diagnostic StartTurn request and at least one observed admission blocker.'
             }
             foreach ($actorContract in @(

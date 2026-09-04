@@ -39,6 +39,24 @@ The dev.6 diagnostic repair must reuse the existing `ScopedDiagnosticAiLease<Uni
 
 The repair must not interrupt or remove the already-preserved dev.5 foreign command, broaden scheduler eligibility, weaken the `horse.Commands.Empty` admission guard, enable a KMC lease for AI work, change production command routing, or alter RT/presentation scenarios. Source-order tests must prove AI isolation precedes target creation on both already-adjacent and movement-required branches, and that target creation cannot occur from the new state before the lease validates.
 
+## Dev.6 native Mount-shell intake failure and dev.7 diagnostic-readiness contract
+
+Immutable run `20260904T174752Z-phase3e-dev6-horse-tb-gate2` is outer/game `FAIL 42/2` at `AwaitCombatMount`. Its independent audit passed before evidence inspection and re-proved the exact suite, save metadata/content, Mods, Baseline, Working, lock, sentinel, live-deployment, and process state. Dev.6 satisfied its intended boundary: the exact Horse AI lease acquired before target creation, validated for two stable frames, kept the Horse command container empty with raw/effective AI false, and restored raw/effective AI exactly during cleanup.
+
+The next blocker was independent and rider-local. Before the diagnostic `StartTurn(rider)` request, exact Kingmaker had created one unstarted rider Standard `UnitAttack` with `CreatedByPlayer=false` and `AIAction=BlueprintAiAttack`. Native rider-turn preparation removed that foreign command, but the rider's hands remained busy. The diagnostic then admitted the genuine rider-owned `UnitUseAbility` Mount shell into the rider Move slot while the exact current rider turn was `Preparing`; the shell reported `CanStart=true`, legal proximity, and `executorHandsBusy=true`, remained unstarted for the 30-second leaf deadline, and completed only during cleanup after the mode lease restored real time. The Mount transition correctly refused at that later boundary with `real-time/turn-based mode changed`. No mounted relationship, paired-scheduler lease, mount-owned command, attack rule, damage, or scheduler resource path ran. This is a second diagnostic fixture/readiness failure, not a production scheduler failure; it consumes no scheduler repair cycle and fires no kill criterion.
+
+Exact Kingmaker requires player input to be admitted while a directly controllable turn is `Preparing`: waiting for `TurnController.IsActing` while the rider command container is empty would deadlock the stock player-input boundary. Dev.7 therefore keeps `Preparing` eligible for admission, but the Horse TB diagnostic must additionally:
+
+- acquire a separate reversible `ScopedDiagnosticAiLease<UnitEntityData>` for the reference-exact rider after the Horse lease validates and before the disposable hostile target is created;
+- require the rider to be directly controllable, in the exact Horse player group, unmounted, out of combat, target-free, and command-empty at acquisition; refuse rather than interrupt or adopt any preexisting rider command;
+- validate raw/effective rider AI false and an empty rider command container for two stable frames, then record the lease before target creation;
+- before the native Mount click, require the exact rider current turn in `Preparing` or `Acting`, both pair command containers empty, rider hands not busy, the exact hands-equipment controller present, and no scheduled rider equipment update for two stable frames;
+- record separate rider-hands and rider-equipment blocked-frame counters in the existing admission progress checkpoint so a later deadline remains attributable;
+- restore the rider's exact captured raw/effective AI state after interrupting only the diagnostic rider command during cleanup, and make cleanup PASS depend on verified rider and Horse AI restoration;
+- keep this rider lease confined to the exact Horse TB diagnostic path. RT and presentation behavior, production command routing, scheduler eligibility, action ledgers, turn status, and gameplay ownership remain unchanged.
+
+Source-order tests must prove both AI leases validate before the sole TB target creation, no pre-target isolation body interrupts commands, the Mount click is guarded by native hands/equipment readiness, and both leases participate in cleanup. The full offline gate is required before one fresh dev.7 package/run; dev.6 evidence remains immutable and uncredited.
+
 ## Product model
 
 The rider remains the sole native initiative, portrait, selection, camera, action-bar, and `CurrentTurn.Unit` principal. The active mount may execute exactly one explicitly registered pair-local command during that rider-owned turn. Rider and mount retain separate command containers, Standard/Move/five-foot/Swift cooldown ledgers, weapons, abilities, animations, targets, rule initiators, results, and cleanup.

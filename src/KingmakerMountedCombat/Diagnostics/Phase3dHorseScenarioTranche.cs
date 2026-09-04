@@ -95,6 +95,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private NativeModeTransitionProbe turnBasedModeProbe;
         private Phase3dRangedWeaponLease rangedWeaponLease;
         private ScopedDiagnosticAiLease<UnitEntityData> unmountedHorseAiLease;
+        private ScopedDiagnosticAiLease<UnitEntityData> combatMountRiderAiLease;
         private WeaponCategory rangedVariantCategory;
         private UnitEntityData target;
         private UnitMoveTo combatMountAdjacencyCommand;
@@ -147,6 +148,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private int combatMountTurnStatusBlockedFrames;
         private int combatMountRiderCommandBlockedFrames;
         private int combatMountHorseCommandBlockedFrames;
+        private int combatMountRiderHandsBlockedFrames;
+        private int combatMountRiderEquipmentBlockedFrames;
         private string transitionFirstNativeTurnUnitId;
         private bool rangedMountMeleeReadyAtAdmission;
         private JObject rangedReadinessAtAdmission;
@@ -166,6 +169,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private double unmountedHorseAiSettleStartedAtSeconds;
         private int unmountedHorseAiStableFrames;
         private string unmountedHorseAiLeaseError;
+        private bool combatMountRiderAiLeaseRestored = true;
+        private int combatMountRiderAiStableFrames;
+        private string combatMountRiderAiLeaseError;
         private MountedPairAttackOutcome rangedRiderOutcome;
         private MountedPairAttackOutcome rangedRiderOutcomeBaseline;
         private bool targetCleanupComplete;
@@ -2211,8 +2217,13 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 return;
             }
+            if (!PrepareCombatMountRiderAiIsolation())
+            {
+                return;
+            }
 
             observations["combatMountHorseAiIsolation"] = CaptureUnmountedHorseAiIsolation();
+            observations["combatMountRiderAiIsolation"] = CaptureCombatMountRiderAiIsolation();
             BeginTarget(TargetDistance, "tb-combat-mount");
             step = Phase3dHorseStep.AwaitUnmountedCombat;
             stableFrames = 0;
@@ -2345,10 +2356,18 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void AwaitRiderTurnForMount()
         {
+            if (!ValidateUnmountedHorseAiIsolation() || !ValidateCombatMountRiderAiIsolation())
+            {
+                return;
+            }
+
             var turn = Game.Instance.TurnBasedCombatController?.CurrentTurn;
+            var equipment = Game.Instance.HandsEquipmentController;
             var riderTurnExact = turn?.Unit == rider;
             var turnActionable = riderTurnExact &&
                 (turn.Status == TurnController.TurnStatus.Preparing || turn.IsActing);
+            var riderHandsIdle = !rider.AreHandsBusyWithAnimation;
+            var riderEquipmentIdle = equipment != null && !equipment.IsUpdateScheduledFor(rider);
             if (riderTurnExact)
             {
                 combatMountRiderTurnObservedFrames++;
@@ -2373,10 +2392,19 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 combatMountHorseCommandBlockedFrames++;
             }
+            if (!riderHandsIdle)
+            {
+                combatMountRiderHandsBlockedFrames++;
+            }
+            if (!riderEquipmentIdle)
+            {
+                combatMountRiderEquipmentBlockedFrames++;
+            }
             observations["combatMountTurnAdmissionProgress"] = CaptureCombatMountTurnAdmissionProgress();
             if (turn?.Unit != rider ||
                 turn.Status != TurnController.TurnStatus.Preparing && !turn.IsActing ||
-                !rider.Commands.Empty || !horse.Commands.Empty)
+                !rider.Commands.Empty || !horse.Commands.Empty ||
+                !riderHandsIdle || !riderEquipmentIdle)
             {
                 stableFrames = 0;
                 return;
@@ -3845,6 +3873,14 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 return CaptureCombatMountAdjacencyProgress();
             }
+            if (step == Phase3dHorseStep.AwaitCombatMountHorseAiIsolation)
+            {
+                return new JObject
+                {
+                    ["horseAiIsolation"] = CaptureUnmountedHorseAiIsolation(),
+                    ["riderAiIsolation"] = CaptureCombatMountRiderAiIsolation()
+                };
+            }
             if (step == Phase3dHorseStep.AwaitTurnBasedMode ||
                 step == Phase3dHorseStep.AwaitRiderTurnForMount)
             {
@@ -3977,6 +4013,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["turnStatusBlockedFrames"] = combatMountTurnStatusBlockedFrames,
                     ["riderCommandBlockedFrames"] = combatMountRiderCommandBlockedFrames,
                     ["horseCommandBlockedFrames"] = combatMountHorseCommandBlockedFrames,
+                    ["riderHandsBlockedFrames"] = combatMountRiderHandsBlockedFrames,
+                    ["riderEquipmentBlockedFrames"] = combatMountRiderEquipmentBlockedFrames,
                     ["gamePresent"] = game != null,
                     ["gamePaused"] = game != null && game.IsPaused,
                     ["turnBased"] = CombatController.IsInTurnBasedCombat(),
@@ -4291,6 +4329,163 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["restored"] = unmountedHorseAiLeaseRestored,
                 ["stableFrames"] = unmountedHorseAiStableFrames,
                 ["error"] = unmountedHorseAiLeaseError,
+                ["states"] = states
+            };
+        }
+
+        private bool PrepareCombatMountRiderAiIsolation()
+        {
+            try
+            {
+                if (combatMountRiderAiLease == null)
+                {
+                    var selected = SelectionManager.Instance?.SelectedUnits;
+                    if (!string.Equals(request.Scenario, TurnBasedScenario, StringComparison.Ordinal) ||
+                        rider?.Commands == null || horse?.Commands == null || !rider.Commands.Empty ||
+                        !horse.Commands.Empty || rider.Group == null || rider.Group != horse.Group ||
+                        !rider.IsDirectlyControllable || relationship.State != RelationshipState.Unmounted ||
+                        rider.IsInCombat || horse.IsInCombat || target != null || selected == null ||
+                        selected.Count != 1 || selected[0] != rider ||
+                        unmountedHorseAiLease == null || !unmountedHorseAiLease.IsAcquired ||
+                        !unmountedHorseAiLease.LastActiveValidationPassed ||
+                        AiBackingField == null || AiBackingField.FieldType != typeof(bool))
+                    {
+                        throw new InvalidOperationException(
+                            "The exact pre-target rider AI-isolation contract is unavailable.");
+                    }
+
+                    combatMountRiderAiLease = new ScopedDiagnosticAiLease<UnitEntityData>(
+                        unit => unit.UniqueId,
+                        unit => ReferenceEquals(unit, rider) && unit.IsInState &&
+                            unit.IsDirectlyControllable && unit.Group == horse.Group &&
+                            relationship.State == RelationshipState.Unmounted,
+                        unit => unit.Commands != null && unit.Commands.Empty,
+                        unit => (bool)AiBackingField.GetValue(unit),
+                        unit => unit.IsAIEnabled,
+                        (unit, value) => unit.IsAIEnabled = value);
+                    combatMountRiderAiLeaseRestored = false;
+                    combatMountRiderAiLease.Acquire(new[] { rider });
+                    combatMountRiderAiStableFrames = 0;
+                    combatMountRiderAiLeaseError = null;
+                    return false;
+                }
+
+                combatMountRiderAiLease.ValidateActive(new[] { rider });
+                combatMountRiderAiStableFrames++;
+                combatMountRiderAiLeaseError = null;
+                return combatMountRiderAiStableFrames >= 2;
+            }
+            catch (Exception exception)
+            {
+                combatMountRiderAiLeaseError = exception.GetType().Name + ": " + exception.Message;
+                combatMountRiderAiLeaseRestored = combatMountRiderAiLease == null ||
+                    combatMountRiderAiLease.LastRestoreVerified;
+                FailCurrent(
+                    "phase3d-horse-runtime-exception",
+                    "The exact combat-Mount rider could not enter a stable reversible AI-isolation lease: " +
+                    combatMountRiderAiLeaseError + ".");
+                BeginCleanup();
+                return false;
+            }
+        }
+
+        private bool ValidateCombatMountRiderAiIsolation()
+        {
+            try
+            {
+                if (combatMountRiderAiLease == null || !combatMountRiderAiLease.IsAcquired)
+                {
+                    throw new InvalidOperationException(
+                        "The exact combat-Mount rider AI-isolation lease is not active.");
+                }
+                combatMountRiderAiLease.ValidateActive(new[] { rider });
+                combatMountRiderAiLeaseError = null;
+                return true;
+            }
+            catch (Exception exception)
+            {
+                combatMountRiderAiLeaseError = exception.GetType().Name + ": " + exception.Message;
+                FailCurrent(
+                    "phase3d-horse-runtime-exception",
+                    "The exact combat-Mount rider AI-isolation lease lost its command or state invariant: " +
+                    combatMountRiderAiLeaseError + ".");
+                BeginCleanup();
+                return false;
+            }
+        }
+
+        private bool RestoreCombatMountRiderAiIsolation()
+        {
+            if (combatMountRiderAiLease == null)
+            {
+                combatMountRiderAiLeaseRestored = true;
+                combatMountRiderAiLeaseError = null;
+                return true;
+            }
+            if (!combatMountRiderAiLease.IsAcquired)
+            {
+                combatMountRiderAiLeaseRestored = combatMountRiderAiLease.LastRestoreVerified;
+                return combatMountRiderAiLeaseRestored;
+            }
+
+            try
+            {
+                if (rider?.Commands == null)
+                {
+                    throw new InvalidOperationException(
+                        "The exact rider command surface is unavailable for AI restoration.");
+                }
+                rider.Commands.InterruptAll(false);
+                rider.Commands.RemoveFinishedAndUpdateQueue();
+                combatMountRiderAiLease.Restore(new[] { rider });
+                combatMountRiderAiLeaseRestored = !combatMountRiderAiLease.IsAcquired &&
+                    combatMountRiderAiLease.LastRestoreVerified;
+                combatMountRiderAiLeaseError = combatMountRiderAiLeaseRestored
+                    ? null
+                    : "The exact rider AI lease did not report verified restoration.";
+                return combatMountRiderAiLeaseRestored;
+            }
+            catch (Exception exception)
+            {
+                combatMountRiderAiLeaseRestored = false;
+                combatMountRiderAiLeaseError = exception.GetType().Name + ": " + exception.Message;
+                return false;
+            }
+        }
+
+        private JObject CaptureCombatMountRiderAiIsolation()
+        {
+            var states = new JArray();
+            if (combatMountRiderAiLease != null)
+            {
+                foreach (var state in combatMountRiderAiLease.States)
+                {
+                    states.Add(new JObject
+                    {
+                        ["unitId"] = state.UnitId,
+                        ["commandsEmptyBefore"] = state.CommandsEmptyBefore,
+                        ["rawAiBefore"] = state.RawAiBefore,
+                        ["effectiveAiBefore"] = state.EffectiveAiBefore,
+                        ["commandsEmptyDuring"] = state.CommandsEmptyDuring,
+                        ["rawAiDuring"] = state.RawAiDuring,
+                        ["effectiveAiDuring"] = state.EffectiveAiDuring,
+                        ["commandsEmptyAfter"] = state.CommandsEmptyAfter,
+                        ["rawAiAfter"] = state.RawAiAfter,
+                        ["effectiveAiAfter"] = state.EffectiveAiAfter
+                    });
+                }
+            }
+            return new JObject
+            {
+                ["present"] = combatMountRiderAiLease != null,
+                ["acquired"] = combatMountRiderAiLease != null && combatMountRiderAiLease.IsAcquired,
+                ["activeValidationPassed"] = combatMountRiderAiLease != null &&
+                    combatMountRiderAiLease.LastActiveValidationPassed,
+                ["restoreVerified"] = combatMountRiderAiLease != null &&
+                    combatMountRiderAiLease.LastRestoreVerified,
+                ["restored"] = combatMountRiderAiLeaseRestored,
+                ["stableFrames"] = combatMountRiderAiStableFrames,
+                ["error"] = combatMountRiderAiLeaseError,
                 ["states"] = states
             };
         }
@@ -4718,6 +4913,16 @@ namespace KingmakerMountedCombat.Diagnostics
                     errors.Add(message);
                 }
             }
+            if (!RestoreCombatMountRiderAiIsolation())
+            {
+                cleanupError = true;
+                var message = "combat-Mount rider AI cleanup: " +
+                    (combatMountRiderAiLeaseError ?? "unknown restoration failure") + ".";
+                if (!errors.Contains(message))
+                {
+                    errors.Add(message);
+                }
+            }
             TryLeaveCombat(target);
             TryLeaveCombat(horse);
             TryLeaveCombat(rider);
@@ -4745,6 +4950,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     RestoreUnmountedHorseAiIsolation();
                 }
+                if (!combatMountRiderAiLeaseRestored)
+                {
+                    RestoreCombatMountRiderAiIsolation();
+                }
                 if (!targetCleanupComplete && targetService != null)
                 {
                     targetCleanupComplete = targetService.DestroyAndVerify();
@@ -4757,7 +4966,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
 
             if (frame <= cleanupFrame || !targetCleanupComplete || !modeRestored ||
-                !unmountedHorseAiLeaseRestored ||
+                !unmountedHorseAiLeaseRestored || !combatMountRiderAiLeaseRestored ||
                 relationship.State != RelationshipState.Unmounted)
             {
                 return;
@@ -4786,7 +4995,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 settings.EnableUnsafeMovementExperiment == originalUnsafeExperiment &&
                 relationship.State == RelationshipState.Unmounted &&
                 (targetService == null || targetCleanupComplete) && modeRestored &&
-                unmountedHorseAiLeaseRestored && !cleanupError;
+                unmountedHorseAiLeaseRestored && combatMountRiderAiLeaseRestored && !cleanupError;
             observations["cleanup"] = new JObject
             {
                 ["selectionRestored"] = selectionRestored,
@@ -4798,7 +5007,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["targetClean"] = targetCleanupComplete,
                 ["modeRestored"] = modeRestored,
                 ["unmountedHorseAiLeaseRestored"] = unmountedHorseAiLeaseRestored,
-                ["unmountedHorseAiIsolation"] = CaptureUnmountedHorseAiIsolation()
+                ["unmountedHorseAiIsolation"] = CaptureUnmountedHorseAiIsolation(),
+                ["combatMountRiderAiLeaseRestored"] = combatMountRiderAiLeaseRestored,
+                ["combatMountRiderAiIsolation"] = CaptureCombatMountRiderAiIsolation()
             };
             if (!cleanupPassed)
             {
