@@ -4,7 +4,7 @@ Status: IN PROGRESS
 
 ## Primary architecture checkpoint
 
-Phase 3E uses Option A: an exact native eligibility extension for one reference-identical KMC mount-primary command. The clean published implementation is `20d71e5a5b64b85b1815e9ea0c00ff3d7f03dd4e` on `codex/mounted-combat-phase3e-paired-scheduler`; the current external-validator correction candidate is version `0.1.0-phase3e-dev.4`. Dev.2 and dev.3 each exercised the complete gameplay lifecycle but remain immutable outer `FAIL`, so this document makes no Gate 1 PASS claim.
+Phase 3E uses Option A: an exact native eligibility extension for one reference-identical KMC mount-primary command. The production implementation is anchored at `20d71e5a5b64b85b1815e9ea0c00ff3d7f03dd4e`; the qualified clean dev.4 package is bound to published commit `27e088b4dafe4d449127b5e2920f09b3a0ed4f79` on `codex/mounted-combat-phase3e-paired-scheduler`. Fresh same-package Pass A/B now qualify the minimal vertical slice at `140/0`.
 
 The selected seam is installed Kingmaker `Kingmaker.Controllers.Units.UnitActionController.TickCommandTurnBased(UnitCommand)`, metadata token `0x0600911D`. The existing Harmony12 postfix delegates immediately to `UnifiedMountedTurnCoordinator`, which delegates the reference-exact command to `MountedPairCommandScheduler`. The scheduler may change only that call's returned Boolean from false to true. It does not call `UnitCommand.Start`, `Tick`, `UpdateCooldowns`, or `StartTurn`; it never writes `CurrentTurn`, `CurrentTurn.Unit`, turn status, command result, or a cooldown.
 
@@ -46,6 +46,12 @@ Run `20260904T113800Z-phase3e-dev3-mammoth-tb-passA` is outer `FAIL`, game `PASS
 
 The only outer failure was a latent schema-55/56 validator fixture requiring raw action-actor `CanActInCombat=false`; all three real runs dev.21/dev.2/dev.3 recorded true. Dev.4 requires true at entry and dispatch and reverses that exact synthetic mutation. Direct validation of immutable dev.3 evidence and the complete harness pass. No production file, schema field, threshold, scheduler behavior, or repair-cycle count changes.
 
+## Qualified dev.4 runtime checkpoint
+
+Clean published commit `27e088b4dafe4d449127b5e2920f09b3a0ed4f79`, version `0.1.0-phase3e-dev.4`, produced ZIP/manifest/DLL SHA-256 `c6636c54eaee15bc1ab7c1c72a867dd0d0bc9ff62ae14d3a62dbd61672da3d7a` / `de999807ffa2114a5b9468c1679b73c5da757329105464a606ef8eb5ce1945aa` / `7f17fbc50ad282eef797be74e807cb6b89d769e3e924d359d4d746939080a13c`, MVID `59008275-8bb0-4763-804a-b4175d917a99`. Stable suite `20260904T123300Z-phase3e-dev4-paired-scheduler-suite3` / `686f131a580377ca0b77ffc28bdd3d04eb12bfc0f6d24d8f59ad5ceb1963ce7b` and its full-continuity WhatIf passed.
+
+Fresh runs `20260904T133300Z-phase3e-dev4-mammoth-tb-passA` and `20260904T140400Z-phase3e-dev4-mammoth-tb-passB` each pass `70/0`. In A/B respectively, the exact lease admitted at `3984/3968`, first granted at `4295/4280`, started one actionable frame later at `4296/4281`, and drove through `4529/4514`; each had `235` distinct drive frames. Each completed one mount-owned `Success` command, attack, roll, damage event, and Standard charge; left rider Standard unchanged; retained rider current identity and mount executor/weapon/rule/resource ownership; emitted no native mount turn; and cleaned the lease, command, target, relationship, presentation, Mods, and protected fixture with no residue. No primary scheduler repair cycle or K1-K12 criterion fired.
+
 ## Offline verification
 
 The complete pre-commit candidate gate on 2026-09-04 passed:
@@ -58,8 +64,8 @@ The complete pre-commit candidate gate on 2026-09-04 passed:
 - exact assembly contracts: `388 PASS / 0 FAIL` (`364` Kingmaker, `24` Wrath);
 - `git diff --check`: PASS.
 
-Those dev.2 DLL values became the clean package identities listed above. The complete dev.3 correction gate passed source/prohibited payload `22/0`, Release, component `315/0`, visual/source-order `18/0`, harness/protocol `241/0`, exact assembly `388/0` (`364` Kingmaker + `24` Wrath), PowerShell parser `26/0`, JSON parser `7/0`, and diff. Dev.4 passes the same complete totals; dirty DLL SHA-256/MVID are `7f17fbc50ad282eef797be74e807cb6b89d769e3e924d359d4d746939080a13c` / `59008275-8bb0-4763-804a-b4175d917a99`. Clean package identity remains pending.
+Those dev.2 DLL values became the clean package identities listed above. The complete dev.3 correction gate passed source/prohibited payload `22/0`, Release, component `315/0`, visual/source-order `18/0`, harness/protocol `241/0`, exact assembly `388/0` (`364` Kingmaker + `24` Wrath), PowerShell parser `26/0`, JSON parser `7/0`, and diff. Dev.4 passes the same complete totals; its clean package DLL SHA-256/MVID are `7f17fbc50ad282eef797be74e807cb6b89d769e3e924d359d4d746939080a13c` / `59008275-8bb0-4763-804a-b4175d917a99`.
 
 ## Next gate
 
-Complete all dev.4 offline gates, commit and guarded-publish the external-validator correction, build one immutable clean-HEAD dev.4 package, admit one stable suite, pass focused WhatIf purity, then run `shared-rider-turn-mount-primary-passA` and `passB` in fresh processes from that same package. Audit restoration immediately after each process and before reading gameplay evidence. No sequencing, ordinary TB melee/ranged, combat Mount/Dismount, or five-foot-step expansion begins until both vertical-slice passes succeed.
+Gate 1 is complete except that `exact-turn-completion` intentionally remains open for an explicit advancement observation. The next bounded change enables the independent scheduler gate only for the existing Horse TB diagnostic lease and restores it in every cleanup path. Reuse the existing pair-aware `ContinueActing`, mount-ledger preparation, exact movement adapter, hostile-click sequencing, combat Mount/Dismount, and five-foot-step controls; do not rewrite those Phase 3D seams. First run component/source gates, then one exact Horse TB package/WhatIf/live/audit process to attribute the existing tranche before adding any missing row-specific instrumentation.

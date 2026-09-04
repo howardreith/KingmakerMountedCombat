@@ -1,5 +1,13 @@
 # Autonomous blockers
 
+## Dev.4 Gate 1 qualifies twice; Gate 2 is independently actionable (2026-09-04T10:34:33-04:00)
+
+Status: `IN PROGRESS`.
+
+There is no scheduler architecture, command lifecycle, ownership, latency, cardinality, resource, cleanup, external-restoration, Git, package, or runtime blocker. Clean published dev.4 commit `27e088b4dafe4d449127b5e2920f09b3a0ed4f79` produced one immutable package and suite; fresh runs `20260904T133300Z-phase3e-dev4-mammoth-tb-passA` and `20260904T140400Z-phase3e-dev4-mammoth-tb-passB` each pass `70/0` after independent audit-before-read restoration. Combined Gate 1 runtime is `140/0` with one-frame grant-to-start, one command/start/terminal/charge/attack/roll/damage per run, exact mount ownership, zero rider cost, rider current retained, no native mount turn, no duplicate/foreign/fault, and no residue.
+
+No K1-K12 criterion and no scheduler repair cycle fired. Exact turn completion remains uncredited until explicit next-combatant advancement is observed. Gate 2 can proceed by leasing `EnablePairedCommandScheduler=true` only inside the existing Phase 3D Horse TB diagnostic and restoring the prior value in cleanup; existing unified-turn, exact-movement, hostile-click, combat Mount/Dismount, and five-foot-step implementations must be reused rather than rewritten.
+
 ## Dev.3 gameplay succeeds; dev.4 outer readiness correction is active (2026-09-04T08:19:04-04:00)
 
 Status: `IN PROGRESS`.

@@ -33,19 +33,21 @@ These two rows use the same immutable package and suite but fresh game processes
 
 | Row | Status | Required evidence |
 |---|---|---|
-| shared-rider-turn-mount-primary-passA | TODO | In-range exact mount Standard command starts within bound, one native action chain, one mount Standard charge, zero rider cost. |
-| shared-rider-turn-mount-primary-passB | TODO | Exact independent repeat of pass A. |
-| rider-remains-current | TODO | Same rider `CurrentTurn.Unit` before/after every drive, start, act, terminal, and cleanup observation. |
-| mount-standard-only | TODO | Mount Standard `0 -> 6` exactly once; rider Standard unchanged. |
-| one-chain-cardinality | TODO | One wrapper start, one child/animation action, one attack roll, at most one damage, one terminal result. |
-| no-native-mount-turn | TODO | Zero `StartTurn(mount)`/turn-start events/extra tracker entry. |
+| shared-rider-turn-mount-primary-passA | PASS | Dev.4 `20260904T133300Z-phase3e-dev4-mammoth-tb-passA`, `70/0`, audited before read. |
+| shared-rider-turn-mount-primary-passB | PASS | Dev.4 `20260904T140400Z-phase3e-dev4-mammoth-tb-passB`, `70/0`, same immutable package/suite, audited before read. |
+| rider-remains-current | PASS | A/B retain the exact rider at dispatch/outcome and every scheduler drive; zero mount turn. |
+| mount-standard-only | PASS | A/B each record mount Standard `0 -> 6` once and rider Standard `0 -> 0`. |
+| one-chain-cardinality | PASS | A/B each record one start, terminal, attack, roll, damage, and resource transition; zero duplicate drive. |
+| no-native-mount-turn | PASS | A/B record zero native action-actor turn start and retain rider principal. |
 | exact-turn-completion | TODO | Rider turn stays while command runs and can advance once after eligible pair work is done. |
 
 Do not broaden beyond this gate until pass A and B both pass.
 
 Immutable pre-credit attempts: dev.2 run `20260904T094306Z-phase3e-dev2-mammoth-tb-passA` remains `FAIL 69/1` with exact restoration. All gameplay and ownership/cardinality facts passed: admission `3982`, first grant `4293`, start `4294`, last drive `4527`, `235` once-per-frame drives, one start/terminal/mount Standard charge, one mount-owned attack/roll/damage, zero rider cost, rider current retained, no native mount turn, and exact cleanup. The one failing in-game diagnostic counted preserved native `WaitingForUI` frames as actionable.
 
-Dev.3 run `20260904T113800Z-phase3e-dev3-mammoth-tb-passA` remains immutable outer `FAIL`, game `PASS 70/0`, after an immediate exact restoration audit. Admission/first grant/start/last drive were `3987/4309/4310/4542`; `234` drives, one start/terminal/mount charge, one mount-owned rule chain, zero rider cost/native mount turn/duplicate/fault/residue all passed. The sole outer contradiction required schema-55/56 action-actor `CanActInCombat=false`, while all real dev.21-dev.3 evidence records true. Dev.4 corrects only that external predicate. Neither Gate 1 row is credited until fresh same-package dev.4 A/B pass.
+Dev.3 run `20260904T113800Z-phase3e-dev3-mammoth-tb-passA` remains immutable outer `FAIL`, game `PASS 70/0`, after an immediate exact restoration audit. Admission/first grant/start/last drive were `3987/4309/4310/4542`; `234` drives, one start/terminal/mount charge, one mount-owned rule chain, zero rider cost/native mount turn/duplicate/fault/residue all passed. The sole outer contradiction required schema-55/56 action-actor `CanActInCombat=false`, while all real dev.21-dev.3 evidence records true. Dev.4 corrects only that external predicate. At that checkpoint neither Gate 1 row was credited; fresh same-package dev.4 A/B below now provide authority.
+
+Credited dev.4 A/B use clean published `27e088b4dafe4d449127b5e2920f09b3a0ed4f79`, ZIP `c6636c54eaee15bc1ab7c1c72a867dd0d0bc9ff62ae14d3a62dbd61672da3d7a`, suite `20260904T123300Z-phase3e-dev4-paired-scheduler-suite3` / `686f131a580377ca0b77ffc28bdd3d04eb12bfc0f6d24d8f59ad5ceb1963ce7b`. Runs A/B pass `70/0` each with frames `3984/4295/4296/4529` and `3968/4280/4281/4514`, `235` unique drives each, and exact audited restoration. Gate 1 runtime total is `140/0`; `exact-turn-completion` remains TODO pending explicit next-combatant advancement evidence.
 
 ## Gate 2 — sequencing and separate ledgers
 
