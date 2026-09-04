@@ -1,5 +1,17 @@
 # Mounted Combat journal
 
+## 2026-09-04T00:16:15-04:00 - Phase 3E begins with exact command-lifecycle contracts
+
+- Reconciled the complete repository and external runtime state without discarding inherited work. Phase 3D branch/local/upstream were exact clean `2f765c15658879236ead17edc40fed6738154ddf`; no Git operation/lock or runtime process/lock/sentinel/staging/deployment ambiguity existed. The dev.21 package and its immutable failure/restoration evidence match their recorded identities.
+- Created `codex/mounted-combat-phase3e-paired-scheduler` from that exact HEAD. Bootstrap mission commit `6837a4c54c4b34ad91c218688b5e36bff1502947` is identical locally and upstream after guarded publication. No raw push or main merge was used.
+- Added the exact Phase 3E lifecycle map, paired-scheduler contract, risk/kill register, and staged runtime matrix. The contracts bind the installed Kingmaker assembly SHA-256 `3b6450ffec440e296e586f71c711b195aed144b28d53e1cbb29406d18fef5afb`, MVID `07fa1e4d-8618-41b3-9b8d-faa17d3b26f7`, and exact metadata tokens.
+- Exact static control flow: Default-mode `CombatController.Tick` precedes `UnitActionController`; `BaseUnitController.Tick` visits `AwakeUnits`; `UnitActionController.TickOnUnit` visits each raw command; `TickCommandTurnBased` gates ordinary commands on executor current identity and native Acting/Ending status while exempting AoOs. Native `TurnController` binds only the rider, so a mount-only first command cannot itself transition the untouched rider from Preparing to Acting.
+- The controlling Phase 3E question remains one fact short: dev.21 did not serialize active-mount awake membership or exact `TickCommandTurnBased` encounter count. The authorized observation build will add only those reference-exact facts. No primary scheduler command drive is implemented or inferred before the fresh audited result.
+- Bounded inspection/tests: local `ilspycmd 10.1.1.8388` and reflection metadata inventory completed; source/prohibited-payload validation `22/0`; `git diff --check` PASS. No runtime was launched and no gameplay PASS is claimed. External state remains exact-restored.
+- Next: commit/publish contracts, create dev.1 observation-only build with scheduler gate default false, pass all offline gates, package clean HEAD, run WhatIf/live/audit, and update the controlling answer before choosing the implementation seam.
+
+Status: `IN PROGRESS`.
+
 ## 2026-09-04T03:05:00-04:00 - dev.21 proves the Kingmaker shared-turn executor blocker
 
 - Dev.21 clean guarded-published implementation/package commit is `ee65550b38ce973db10ad1eb51af8e1f5b8f984c`; version `0.1.0-phase3d-dev.21`; ZIP/manifest/DLL SHA-256 `067c9b49b8b7767e808a011315769fe996b642c068b9972f300160a1d8a61d26` / `5c1360a6368ffe385cee842b918149b46747180d03866960e77562dd63a9d605` / `198dfe3cf8b187b6803eb6218e2cca68b2cf71530e4cb6d546e1423fe5e9f6c9`; MVID `fb0bbedb-f63a-417c-9cea-f6ee71d3ed18`. Suite21 is `20260904T001500Z-phase3d-dev21-unified-combat-suite21` / `8c98e2ccd180801a6728c0e08b6d7876432c6ada251e958502d5ef49cb3035ce`.

@@ -1,5 +1,15 @@
 # Autonomous blockers
 
+## Phase 3E is authorized; exact enumeration answer requires one observation (2026-09-04T00:16:15-04:00)
+
+Status: `IN PROGRESS`.
+
+The Phase 3D architecture stop is preserved as historical evidence, but the user has now authorized a bounded pair-local scheduler mission on `codex/mounted-combat-phase3e-paired-scheduler`. There is no Git, build, runtime-state, save, Mods, process, package, or publication blocker.
+
+Static installed-assembly control flow proves that stock `UnitActionController` visits every non-null raw command slot of every awake unit. It also proves two independent initial false predicates for the dev.21 shape: the mount is not `CurrentTurn.Unit`, and an untouched rider principal remains `Preparing` because its own command container/ledger is empty. The immutable dev.21 evidence does not record whether the exact active Mammoth was a member of `Game.State.AwakeUnits` or whether `TickCommandTurnBased` received the reference-identical wrapper. Therefore it cannot answer whether stock encountered-and-rejected the command or never enumerated it.
+
+One observation-only checkpoint is authorized and required before the primary implementation. It will record exact awake membership and method encounter without driving or admitting the command. If stock encounters it, Option A is evaluated first; otherwise the exact supplied-command seam is evaluated without invoking broad per-unit advancement. No global controller, current-turn swap, synthetic action pool, foreign/AI command adoption, or Paladin implementation is authorized.
+
 ## Shared rider turn cannot advance a mount-owned TB command (2026-09-04T03:05:00-04:00)
 
 Status: `BLOCKED — CRITICAL`.
