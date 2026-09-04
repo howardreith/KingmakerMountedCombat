@@ -2,7 +2,7 @@
 
 Status: IN PROGRESS
 
-Version `0.1.0-phase3e-dev.2` was packaged and exercised once in Kingmaker. No Phase 3E Gate 1 row is credited yet because the immutable run remains `FAIL`; version `0.1.0-phase3e-dev.3` is the diagnostic-only correction candidate.
+Versions dev.2 and dev.3 were each exercised once in Kingmaker. No Phase 3E Gate 1 row is credited yet because both outer runs remain immutable `FAIL`; version `0.1.0-phase3e-dev.4` is the external-validator-only correction candidate. Scheduler production behavior has not changed since dev.2.
 
 The immutable observation input remains `20260904T060000Z-phase3e-dev1-mammoth-tb-observation-passA`: gameplay `FAIL 49/1` by design, exact command encounters `2,485`, stock false `2,485`, stock true `0`, scheduler drives `0`, and immediate independent restoration audit PASS. It selects Option A but is not a vertical-slice success.
 
@@ -16,10 +16,18 @@ The scheduler admitted at frame `3982`; native `WaitingForUI` delayed the first 
 
 The immediate independent suite-bound audit passed before evidence inspection: save content digest `ddba0c041443e8bd12e3cbf5929b6b6aba296b666b26e4d8e73bb97918ecbd45`, Mods digest `82f176c4cb9d8fcfcc21f84948b4fd4b8ed856a9c65dfc7836934a32e2fc61be`, baseline `c29d965c9ff5dc0f971659d9ae154877aa4a9a461ca220d1ce28e7c7fd9d2512`, Working `5eb4e0b4cbd8d60dc879a02ff71aadfde3f517304754857f0cc68d0f9a93f1c6`, and no process/lock/sentinel/live KMC.
 
+## Immutable dev.3 attempt
+
+Package `C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-phase3e-dev.3-paired-scheduler-vertical-slice-diagnostic.zip` is bound to clean published commit `1960bd12acd4976b762185064c058896db3aa376`. ZIP/manifest/DLL SHA-256 are `6f8d8e82e4f1f0b19e6eaa3ee9d6edee763fc91ade1018c28303c03446342e52` / `b93209e4f5d0d4c07c18e8b6dd92e70e1ece87ca42353a257968c2022c01ec05` / `933fc2107a3cd3579b81e6db872139cdff251966fa57aa1dec354918370016bd`; MVID is `88dfb6c3-d896-4f71-9dc0-a40f2891925b`. Suite `20260904T104000Z-phase3e-dev3-paired-scheduler-suite2` / `f1edd88a8a86bb89d64e62141bb1dfb3fee209b8e05910cdb56c153a1ab0c086` and focused full-continuity WhatIf passed.
+
+Fresh run `20260904T113800Z-phase3e-dev3-mammoth-tb-passA` remains outer `FAIL`, game `PASS 70/0`. Admission/first grant/start/last drive were frames `3987/4309/4310/4542`; `234` drives had zero duplicate frame. The run proves one exact mount-owned natural attack/roll/damage chain, one Success terminal, one mount Standard charge `0 -> 6`, unchanged rider Standard, rider current retained, no native mount turn, no foreign command, no fault, and exact cleanup. Immediate independent audit passed before read with exact suite/save/Mods/Baseline/Working state and no residue.
+
+The outer PASS validator still expected schema-55/56 action-actor `CanActInCombat=false` at entry and dispatch. Dev.21, dev.2, and dev.3 all recorded true; only dev.3 reached PASS far enough to expose this latent test-fixture contradiction. Dev.4 changes those two external predicates and the synthetic mutation to the truthful value. The corrected validator accepts immutable dev.3 evidence directly and the complete harness passes `241/0`; the historical outer result remains FAIL and uncredited.
+
 ## Next qualifying runs
 
-The first credited gameplay gate remains the focused `mounted-mammoth-primary-hit-tb` scenario, represented by `shared-rider-turn-mount-primary-passA` and `shared-rider-turn-mount-primary-passB`. Both must use one immutable clean dev.3 package and suite, separate fresh game processes/run IDs, and audit-before-read after each process.
+The first credited gameplay gate remains the focused `mounted-mammoth-primary-hit-tb` scenario, represented by `shared-rider-turn-mount-primary-passA` and `shared-rider-turn-mount-primary-passB`. Both must use one immutable clean dev.4 package and suite, separate fresh game processes/run IDs, and audit-before-read after each process.
 
 Required credit is one in-range mount-owned Standard command, first grant followed by native start within two actionable frames, one wrapper/child/animation/attack-roll chain, at most one damage event, one terminal result, one mount Standard charge, zero rider Standard cost, exact rider `CurrentTurn.Unit` throughout, zero native mount turn, zero duplicate-frame drive, zero foreign adoption, and exact slot/lease cleanup.
 
-Dev.3 changes only the actionable-frame assertion to `start - firstGrant <= 2`; its synthetic evidence uses a `311`-frame UI wait and rejects a start three frames after grant. It does not alter scheduler production behavior or consume a scheduler repair cycle. If either fresh process fails, preserve it unchanged and attribute the exact native boundary before using a bounded repair. Do not weaken schema 56, relabel dev.2, broaden to a global controller, or begin later tranches first.
+Dev.4 changes only the external action-actor readiness expectation exposed by dev.3. It does not alter scheduler production behavior or consume a scheduler repair cycle. If either fresh process fails, preserve it unchanged and attribute the exact native boundary before using a bounded repair. Do not weaken schema 56, relabel dev.2/dev.3, broaden to a global controller, or begin later tranches first.

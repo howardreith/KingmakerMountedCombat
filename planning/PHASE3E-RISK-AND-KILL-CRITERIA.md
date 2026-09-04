@@ -58,6 +58,8 @@ Dev.2 offline disposition: the primary Option A source contains no current-turn/
 
 Dev.2 runtime attribution: immutable run `20260904T094306Z-phase3e-dev2-mammoth-tb-passA` exercised one exact native lifecycle successfully and fired no K1-K12 criterion. It retained rider current identity, mount executor/weapon/rule/resource ownership, one drive per frame, one start/terminal/charge, no foreign/AoO/AI adoption, and exact restoration. The sole `FAIL 69/1` was the diagnostic's incorrect subtraction of admission frame from start frame across a native `WaitingForUI` interval. Dev.3 changes that measurement to first eligible grant and adds a three-frame rejection mutation. This consumes no scheduler repair cycle and grants no runtime PASS until fresh dev.3 A/B.
 
+Dev.3 runtime attribution: immutable run `20260904T113800Z-phase3e-dev3-mammoth-tb-passA` is outer `FAIL`, game `PASS 70/0`, and repeats every K1-K12-safe lifecycle fact with one-frame grant-to-start and exact audited restoration. Its outer validator had a latent schema-55/56 assumption that action-actor `CanActInCombat` must be false; dev.21/dev.2/dev.3 all record true. Dev.4 corrects only that external predicate and its synthetic mutation. Direct validation and harness `241/0` pass. No kill criterion or scheduler repair cycle fired; fresh dev.4 A/B remain the Gate 1 authority.
+
 ## Stop and fallback rules
 
 When a kill criterion fires, record the exact package, run ID, source/assembly identities, pre/post state, restoration audit, rejected theory, and why the remaining primary option is unsafe. Historical evidence remains immutable.

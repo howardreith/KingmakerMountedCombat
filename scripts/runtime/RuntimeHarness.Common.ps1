@@ -10928,7 +10928,7 @@ function Assert-KmcCombatScenarioEvidence {
         $dispatchCanActField = if ([long]$record.schemaVersion -ge 20) { 'actionActorCanActInCombat' } else { 'riderCanActInCombat' }
         $dispatchHandsField = if ([long]$record.schemaVersion -ge 20) { 'actionActorHandsBusy' } else { 'riderHandsBusy' }
         $dispatchActorReadyInvalid = if ([long]$record.schemaVersion -in @(55,56)) {
-            $record.dispatch.actionActorCanActInCombat -ne $false -or
+            $record.dispatch.actionActorCanActInCombat -ne $true -or
                 $record.dispatch.actionActorSharedTurnAdmitted -ne $true -or
                 $record.dispatch.actionActorCanDispatch -ne $true
         } else {
@@ -11153,7 +11153,7 @@ function Assert-KmcCombatScenarioEvidence {
             if ([long]$record.schemaVersion -in @(55,56)) {
                 [string]$record.combatEntry.actionActorId -cne $expectedActorId -or
                     $record.combatEntry.actionActorPrepared -ne $true -or
-                    $record.combatEntry.actionActorCanActInCombat -ne $false -or
+                    $record.combatEntry.actionActorCanActInCombat -ne $true -or
                     $record.combatEntry.actionActorSharedTurnAdmitted -ne $true -or
                     $record.combatEntry.actionActorActionable -ne $true -or
                     $riderInitiative -lt -0.000001 -or $riderInitiative -gt 6.000001 -or

@@ -38,6 +38,8 @@ Audited run `20260904T094306Z-phase3e-dev2-mammoth-tb-passA` records the exact O
 
 The raw `311`-frame admission-to-grant interval is native UI staging, not scheduler drive latency. The measured scheduler latency is first grant to start: one frame. Runtime acceptance binds both inequalities (`admission <= firstGrant <= start`) and permits at most two frames from first grant to start. The immutable dev.2 row remains `FAIL 69/1` solely because its diagnostic assertion used raw admission as the subtraction origin; dev.3 corrects the assertion without changing this lifecycle or any native gate.
 
+Dev.3 independently repeated the lifecycle: admission `3987`, first eligibility grant `4309`, stock start `4310`, last drive `4542`, `234` unique-frame drives, one Success terminal, one mount Standard charge, zero rider cost, and exact mount command/rule/weapon ownership while the rider remained current. Its game result is `PASS 70/0`; the outer result remains immutable FAIL only because the first reachable PASS validator expected `actionActorCanActInCombat=false`. All exact dev.21/dev.2/dev.3 evidence records that ordinary readiness value true. Dev.4 corrects only that external expectation; it does not revise this lifecycle map or the selected seam.
+
 ## Per-frame controller ordering
 
 `GameModesFactory.Initialize` (`0x06007E08`) registers controllers into the Default-mode `GameMode` array. `GameMode.Tick` (`0x06007E00`) invokes them in registration order and catches/logs each controller exception.

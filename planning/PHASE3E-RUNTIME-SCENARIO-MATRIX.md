@@ -43,7 +43,9 @@ These two rows use the same immutable package and suite but fresh game processes
 
 Do not broaden beyond this gate until pass A and B both pass.
 
-Immutable pre-credit attempt: dev.2 run `20260904T094306Z-phase3e-dev2-mammoth-tb-passA` remains `FAIL 69/1` with exact restoration. All gameplay and ownership/cardinality facts passed: admission `3982`, first grant `4293`, start `4294`, last drive `4527`, `235` once-per-frame drives, one start/terminal/mount Standard charge, one mount-owned attack/roll/damage, zero rider cost, rider current retained, no native mount turn, and exact cleanup. The one failing diagnostic counted preserved native `WaitingForUI` frames as actionable. Dev.3 corrects only that calculation; neither Gate 1 row is credited until new same-package A/B passes.
+Immutable pre-credit attempts: dev.2 run `20260904T094306Z-phase3e-dev2-mammoth-tb-passA` remains `FAIL 69/1` with exact restoration. All gameplay and ownership/cardinality facts passed: admission `3982`, first grant `4293`, start `4294`, last drive `4527`, `235` once-per-frame drives, one start/terminal/mount Standard charge, one mount-owned attack/roll/damage, zero rider cost, rider current retained, no native mount turn, and exact cleanup. The one failing in-game diagnostic counted preserved native `WaitingForUI` frames as actionable.
+
+Dev.3 run `20260904T113800Z-phase3e-dev3-mammoth-tb-passA` remains immutable outer `FAIL`, game `PASS 70/0`, after an immediate exact restoration audit. Admission/first grant/start/last drive were `3987/4309/4310/4542`; `234` drives, one start/terminal/mount charge, one mount-owned rule chain, zero rider cost/native mount turn/duplicate/fault/residue all passed. The sole outer contradiction required schema-55/56 action-actor `CanActInCombat=false`, while all real dev.21-dev.3 evidence records true. Dev.4 corrects only that external predicate. Neither Gate 1 row is credited until fresh same-package dev.4 A/B pass.
 
 ## Gate 2 — sequencing and separate ledgers
 

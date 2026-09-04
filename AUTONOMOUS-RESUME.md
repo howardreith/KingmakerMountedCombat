@@ -1,5 +1,17 @@
 # Autonomous resume
 
+## Phase 3E dev.3 gameplay PASS exposes one latent outer predicate - 2026-09-04T08:19:04-04:00
+
+- Active branch is `codex/mounted-combat-phase3e-paired-scheduler`; clean guarded-published dev.3 local/upstream/remote is `1960bd12acd4976b762185064c058896db3aa376`. Version has advanced intentionally to `0.1.0-phase3e-dev.4` for an external-validator-only correction; scheduler production code is unchanged.
+- Dev.3 package/manifest/DLL SHA-256 are `6f8d8e82e4f1f0b19e6eaa3ee9d6edee763fc91ade1018c28303c03446342e52` / `b93209e4f5d0d4c07c18e8b6dd92e70e1ece87ca42353a257968c2022c01ec05` / `933fc2107a3cd3579b81e6db872139cdff251966fa57aa1dec354918370016bd`; MVID `88dfb6c3-d896-4f71-9dc0-a40f2891925b`. Suite2 is `20260904T104000Z-phase3e-dev3-paired-scheduler-suite2` / `f1edd88a8a86bb89d64e62141bb1dfb3fee209b8e05910cdb56c153a1ab0c086`; full-continuity WhatIf passed.
+- Immutable live `20260904T113800Z-phase3e-dev3-mammoth-tb-passA` is outer `FAIL`, game `PASS 70/0`. Frames are admission `3987`, first grant `4309`, start `4310`, last drive `4542`; drive/start/terminal/charge/duplicate are `234/1/1/1/0`. The exact mount natural attack dealt `26`; mount Standard changed `0 -> 6`, rider Standard remained `0`; rider stayed current; native mount turns, foreign commands, faults, and residue were zero.
+- Independent audit-before-read passed exact suite/save/Mods/Baseline/Working identity and no process/lock/sentinel/live deployment. Evidence hashes are request `9e6fb4b5a1444dc1d467b91547c92495fbd91cbeca48d037836b90f25da8d054`, combat `5b1bea7f750899ea6278c932161c467a353f3cd62d574ccf213fe787750f3791`, manifest `ce4b567a364a031391168a97bfa2f76bd57ac9eaa898ccd4b241d1ab20a70901`, game `eb4b56e8c4b52a84cfead138ed99d86dd4ef9c6f6852637f81401afcafee15e4`, outer `3890a09cd1fcd5450a154311910755ef5466bbb93a89baf8ce5bee72074f603b`, orchestration `5d2c9cdb5c2bcfda9477e89b9f34e5d25427977fef28908a5784c4d5a133597f`.
+- The sole outer failure is a latent schema-55/56 test/validator contradiction: two PASS predicates required the exact action actor's raw `CanActInCombat` to be false, although dev.21/dev.2/dev.3 all record true. Dev.4 requires the truthful value at entry and dispatch, and reverses the synthetic mutation. The corrected validator accepts immutable dev.3 evidence and full harness passes `241/0`. No scheduler repair cycle or kill criterion is consumed.
+- Complete dev.4 gates pass source/prohibited payload `22/0`, Release, component `315/0`, visual/source-order `18/0`, harness/protocol `241/0`, exact assembly `388/0` (`364` Kingmaker + `24` Wrath), PowerShell parser `26/0`, JSON parser `7/0`, and diff. Dirty DLL SHA-256/MVID are `7f17fbc50ad282eef797be74e807cb6b89d769e3e924d359d4d746939080a13c` / `59008275-8bb0-4763-804a-b4175d917a99`; they are not package identity.
+- Exact next sequence: commit; guarded-publish; verify clean local/upstream/remote; create one dev.4 package and suite; run full WhatIf; then fresh A/B, each with immediate independent audit before gameplay read. Do not credit or relabel dev.3 and do not start Gate 2 first.
+
+Status: `IN PROGRESS`.
+
 ## Phase 3E dev.3 corrects only the actionable-frame diagnostic - 2026-09-04T06:25:02-04:00
 
 - Active branch is `codex/mounted-combat-phase3e-paired-scheduler`; clean guarded-published local/upstream/remote checkpoint is `20d71e5a5b64b85b1815e9ea0c00ff3d7f03dd4e`. The worktree contains the intentional `0.1.0-phase3e-dev.3` diagnostic calculation/test/documentation correction only; scheduler production behavior is unchanged.

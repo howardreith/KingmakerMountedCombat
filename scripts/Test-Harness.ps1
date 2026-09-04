@@ -1266,7 +1266,7 @@ function New-TestCombatEvidenceRecord {
             riderInCombat=$true;mountInCombat=$true;targetInCombat=$true;playerInCombat=$true
             riderPrepared=$true;riderAwake=$true;targetAwake=$true;defaultGameMode=$true
             riderInitiative=$(if ($isMammoth) { 4.99591351 } else { 0.0 })
-            actionActorId=$actor;actionActorPrepared=$true;actionActorCanActInCombat=(-not $isUnifiedMammothTurn)
+            actionActorId=$actor;actionActorPrepared=$true;actionActorCanActInCombat=$true
             actionActorInitiative=$(if ($isUnifiedMammothTurn) { 4.99591351 } else { 0.0 })
             gameDeltaTime=0.01
             memoryRemovedAtCleanup=$true
@@ -1317,7 +1317,7 @@ function New-TestCombatEvidenceRecord {
         }
         selection=@($rider);assertionPassCount=25;assertionFailCount=0;errors=@()
     }
-    $record.dispatch.actionActorCanActInCombat = -not $isUnifiedMammothTurn
+    $record.dispatch.actionActorCanActInCombat = $true
     $record.dispatch.actionActorHandsBusy = $false
     if ($isUnifiedMammothTurn) {
         $record.combatEntry.actionActorSharedTurnAdmitted = $true
@@ -5904,7 +5904,7 @@ try {
             { param($record) $record.turnBased.currentTurnUnitIdAtDispatch=$record.mountId;return $record },
             { param($record) $record.turnBased.nativeActionActorTurnStarted=$true;return $record },
             { param($record) $record.turnBased.actionActorSharedTurnAdmitted=$false;return $record },
-            { param($record) $record.combatEntry.actionActorCanActInCombat=$true;return $record },
+            { param($record) $record.combatEntry.actionActorCanActInCombat=$false;return $record },
             { param($record) $record.combatEntry.actionActorSharedTurnAdmitted=$false;return $record },
             { param($record) $record.dispatch.actionActorSharedTurnAdmitted=$false;return $record },
             { param($record) $record.resources.riderStandardAfter=5.5;return $record },

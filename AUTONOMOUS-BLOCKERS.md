@@ -1,5 +1,13 @@
 # Autonomous blockers
 
+## Dev.3 gameplay succeeds; dev.4 outer readiness correction is active (2026-09-04T08:19:04-04:00)
+
+Status: `IN PROGRESS`.
+
+Fresh dev.3 run `20260904T113800Z-phase3e-dev3-mammoth-tb-passA` is immutable outer `FAIL`, game `PASS 70/0`, with exact restoration audited before read. It proves the complete mount-owned scheduler lifecycle again: one-frame grant-to-start, one command start/terminal/resource charge, one natural attack/roll/damage chain, zero rider cost, rider current identity retained, no native mount turn, no duplicate/foreign/fault/residue.
+
+The outer failure is diagnostic only. Its first reachable PASS branch expected schema-55/56 `actionActorCanActInCombat=false`, while dev.21, dev.2, and dev.3 all record `true`. Dev.4 corrects the two external predicates and synthetic mutation; direct validation of the immutable game evidence and complete gates `22/Release/315/18/241/388`, parsers `26/0` and `7/0`, and diff pass. Production scheduler source is unchanged. No K1-K12 criterion and no scheduler repair cycle fired. Fresh clean-package dev.4 A/B remain mandatory before Gate 1 credit or broader implementation.
+
 ## Dev.2 proves the scheduler lifecycle; dev.3 diagnostic correction is active (2026-09-04T06:25:02-04:00)
 
 Status: `IN PROGRESS`.
