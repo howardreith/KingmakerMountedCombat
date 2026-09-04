@@ -1,5 +1,13 @@
 # Mounted Combat journal
 
+## 2026-09-04T10:49:21-04:00 - dev.5 scopes the scheduler to the existing Horse TB diagnostic
+
+- Starting clean guarded-published parent is Gate 1 evidence commit `26c0c1837c569bc8759ec36e0e3870671867a606` on `codex/mounted-combat-phase3e-paired-scheduler`. Version advances to `0.1.0-phase3e-dev.5`.
+- Contract-first dev.5 seam changes only `Phase3dHorseScenarioTranche`: capture the incoming `EnablePairedCommandScheduler`, enable it exactly once only for `phase3d-unified-combat-tb-suite`, restore it in `BestEffortCleanup`, and require exact restoration in cleanup success/evidence. RT/presentation remain scheduler-disabled unless the incoming user setting was already enabled. No production scheduler, turn, ledger, movement, attack, native-control, fallback, save, or external-state path changed.
+- Complete offline gate passes source/prohibited payload `22/0`, Release build, component `315/0`, visual/source-order `18/0`, harness/protocol `241/0`, exact assembly `388/0` (`364` Kingmaker + `24` Wrath), PowerShell parser `26/0`, JSON parser `7/0`, and diff. Dirty DLL SHA-256/MVID are `3b5b75e30ce2380d78a1807f53e5d30379dd7cd08acf4d588e3577f46b5bd0e8` / `4c87923d-2b5a-4232-be7f-d448d377a33f` and are not package identity.
+- No new runtime process or external mutation occurred. Gate 1 A/B remains immutable `140/0`; no repair budget or kill criterion is consumed.
+- Exact next action: commit/publish, clean-package dev.5, admit a stable suite, full-continuity WhatIf, then one fresh Phase 3D Horse TB process with audit-before-read. Attribute its existing rows before adding missing Gate 2 instrumentation.
+
 ## 2026-09-04T10:34:33-04:00 - dev.4 qualifies the paired-scheduler vertical slice twice
 
 - Clean guarded-published input is `27e088b4dafe4d449127b5e2920f09b3a0ed4f79` on `codex/mounted-combat-phase3e-paired-scheduler`, version `0.1.0-phase3e-dev.4`. Package/manifest/DLL SHA-256 are `c6636c54eaee15bc1ab7c1c72a867dd0d0bc9ff62ae14d3a62dbd61672da3d7a` / `de999807ffa2114a5b9468c1679b73c5da757329105464a606ef8eb5ce1945aa` / `7f17fbc50ad282eef797be74e807cb6b89d769e3e924d359d4d746939080a13c`; MVID `59008275-8bb0-4763-804a-b4175d917a99`. Suite `20260904T123300Z-phase3e-dev4-paired-scheduler-suite3` / `686f131a580377ca0b77ffc28bdd3d04eb12bfc0f6d24d8f59ad5ceb1963ce7b` and full-continuity WhatIf passed.

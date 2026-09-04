@@ -130,6 +130,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private int originalEquipmentSet;
         private bool originalPause;
         private bool originalUnsafeExperiment;
+        private bool originalPairedCommandScheduler;
         private UnitEntityData[] originalSelection;
         private bool started;
         private bool completed;
@@ -248,9 +249,14 @@ namespace KingmakerMountedCombat.Diagnostics
 
             originalPause = game.IsPaused;
             originalUnsafeExperiment = settings.EnableUnsafeMovementExperiment;
+            originalPairedCommandScheduler = settings.EnablePairedCommandScheduler;
             originalSelection = SelectionManager.Instance.SelectedUnits.Where(item => item != null).ToArray();
             originalEquipmentSet = rider.Body.CurrentHandEquipmentSetIndex;
             settings.EnableUnsafeMovementExperiment = true;
+            if (string.Equals(request.Scenario, TurnBasedScenario, StringComparison.Ordinal))
+            {
+                settings.EnablePairedCommandScheduler = true;
+            }
             nativeControls.Update();
             ruleProbe = new Phase3dCombatRuleProbe(rider, horse);
             started = true;
@@ -4709,6 +4715,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 modeRestored = true;
             }
             catch (Exception exception) { AddCleanupError("mode", exception); }
+            settings.EnablePairedCommandScheduler = originalPairedCommandScheduler;
             settings.EnableUnsafeMovementExperiment = originalUnsafeExperiment;
         }
 
@@ -4757,6 +4764,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 expectedSelection.All(item => selected.Contains(item));
             var cleanupPassed = selectionRestored &&
                 rider.Body.CurrentHandEquipmentSetIndex == originalEquipmentSet &&
+                settings.EnablePairedCommandScheduler == originalPairedCommandScheduler &&
                 settings.EnableUnsafeMovementExperiment == originalUnsafeExperiment &&
                 relationship.State == RelationshipState.Unmounted &&
                 (targetService == null || targetCleanupComplete) && modeRestored &&
@@ -4766,6 +4774,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["selectionRestored"] = selectionRestored,
                 ["equipmentSetRestored"] = rider.Body.CurrentHandEquipmentSetIndex == originalEquipmentSet,
                 ["settingRestored"] = settings.EnableUnsafeMovementExperiment == originalUnsafeExperiment,
+                ["pairedSchedulerSettingRestored"] =
+                    settings.EnablePairedCommandScheduler == originalPairedCommandScheduler,
                 ["relationshipState"] = relationship.State.ToString(),
                 ["targetClean"] = targetCleanupComplete,
                 ["modeRestored"] = modeRestored,

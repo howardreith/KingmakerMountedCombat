@@ -10965,6 +10965,7 @@ try {
         $patchSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPatchController.cs'))
         $settingsSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\DiagnosticSettings.cs'))
         $runtimeCombatSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeCombatScenarioEngine.cs'))
+        $phase3dHorseSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\Phase3dHorseScenarioTranche.cs'))
 
         Assert-Test ($schedulerSource.Contains('ReferenceEquals(lease.Command, command)') -and
             $schedulerSource.Contains('ReferenceEquals(lease.Mount.Commands.Standard, command)') -and
@@ -11002,6 +11003,29 @@ try {
         Assert-Test ($runtimeCombatSource.Contains('scheduler.StartObservedFrame - scheduler.FirstGrantFrame <= 2') -and
             -not $runtimeCombatSource.Contains('scheduler.StartObservedFrame - scheduler.AdmissionFrame <= 2')) `
             'paired scheduler diagnostic lost the exact actionable-frame start bound'
+        $schedulerCaptureIndex = $phase3dHorseSource.IndexOf(
+            'originalPairedCommandScheduler = settings.EnablePairedCommandScheduler;',
+            [StringComparison]::Ordinal)
+        $schedulerEnableIndex = $phase3dHorseSource.IndexOf(
+            'settings.EnablePairedCommandScheduler = true;',
+            [StringComparison]::Ordinal)
+        $schedulerRestoreIndex = $phase3dHorseSource.IndexOf(
+            'settings.EnablePairedCommandScheduler = originalPairedCommandScheduler;',
+            [StringComparison]::Ordinal)
+        Assert-Test ($phase3dHorseSource.Contains('private bool originalPairedCommandScheduler;') -and
+            $schedulerCaptureIndex -ge 0 -and $schedulerEnableIndex -gt $schedulerCaptureIndex -and
+            $schedulerRestoreIndex -gt $schedulerEnableIndex -and
+            [regex]::Matches($phase3dHorseSource, 'settings\.EnablePairedCommandScheduler = true;').Count -eq 1 -and
+            [regex]::IsMatch(
+                $phase3dHorseSource,
+                'if \(string\.Equals\(request\.Scenario, TurnBasedScenario, StringComparison\.Ordinal\)\)\s*\{\s*settings\.EnablePairedCommandScheduler = true;\s*\}') -and
+            $phase3dHorseSource.Contains(
+                'settings.EnablePairedCommandScheduler == originalPairedCommandScheduler &&') -and
+            $phase3dHorseSource.Contains(
+                '["pairedSchedulerSettingRestored"] =') -and
+            $phase3dHorseSource.Contains(
+                'settings.EnablePairedCommandScheduler == originalPairedCommandScheduler,')) `
+            'Phase 3D Horse TB diagnostic lost its exact paired-scheduler setting lease or cleanup proof'
     }
 
     $resultPath = Join-Path $testRoot 'runtime-result.json'

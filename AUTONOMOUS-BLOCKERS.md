@@ -1,5 +1,13 @@
 # Autonomous blockers
 
+## Dev.5 diagnostic lease passes complete offline gate (2026-09-04T10:49:21-04:00)
+
+Status: `IN PROGRESS`.
+
+There is no current build, test, source-order, assembly-contract, Git-state, architecture, or external-restoration blocker. The only dev.5 behavior change is the exact Horse TB diagnostic setting lease; complete gates pass `22/Release/315/18/241/388`, parsers `26/0` and `7/0`, and diff. Production scheduler behavior remains the Gate 1-qualified Option A implementation.
+
+The remaining uncertainty is runtime attribution of the existing Phase 3D Horse TB tranche with the now-qualified scheduler enabled. One clean package/WhatIf/live/audit process is independently actionable. Exact turn completion remains TODO and cannot be inferred until next-combatant advancement is directly observed. No repair cycle or kill criterion has fired.
+
 ## Dev.4 Gate 1 qualifies twice; Gate 2 is independently actionable (2026-09-04T10:34:33-04:00)
 
 Status: `IN PROGRESS`.

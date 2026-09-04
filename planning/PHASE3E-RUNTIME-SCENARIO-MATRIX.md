@@ -51,6 +51,8 @@ Credited dev.4 A/B use clean published `27e088b4dafe4d449127b5e2920f09b3a0ed4f79
 
 ## Gate 2 — sequencing and separate ledgers
 
+Dev.5 changes only diagnostic setting scope: the existing Horse TB suite temporarily enables and exactly restores `EnablePairedCommandScheduler`. Complete offline gates pass. One clean-package runtime process will attribute existing rows before new Gate 2 evidence is added.
+
 | Row | Status | Required evidence |
 |---|---|---|
 | mount-first-rider-second | TODO | Two actor-owned actions, distinct ledgers, deterministic completion. |

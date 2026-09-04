@@ -1,5 +1,15 @@
 # Autonomous resume
 
+## Phase 3E dev.5 Horse TB scheduler lease is offline complete - 2026-09-04T10:49:21-04:00
+
+- Active branch is `codex/mounted-combat-phase3e-paired-scheduler`; clean guarded-published parent/local/upstream/remote is Gate 1 evidence commit `26c0c1837c569bc8759ec36e0e3870671867a606`. Intentional worktree version is `0.1.0-phase3e-dev.5`.
+- Dev.5 changes diagnostic orchestration only. `Phase3dHorseScenarioTranche` captures the incoming scheduler setting, enables it once only for the exact TB suite, restores it in `BestEffortCleanup`, and requires exact restoration in both cleanup success and evidence. RT and presentation do not enable it. Scheduler production, current-turn handling, ledgers, movement, attack routing, native controls, and Phase 3C fallback are unchanged.
+- Complete offline gates pass: source/prohibited payload `22/0`; Release build; component `315/0`; visual/source-order `18/0`; harness/protocol `241/0`; exact assembly `388/0` (`364` Kingmaker + `24` Wrath); PowerShell parser `26/0`; JSON parser `7/0`; diff. Dirty build DLL SHA-256/MVID are `3b5b75e30ce2380d78a1807f53e5d30379dd7cd08acf4d588e3577f46b5bd0e8` / `4c87923d-2b5a-4232-be7f-d448d377a33f`; they are not package identity.
+- Gate 1 A/B remain qualified and immutable at `140/0`; no new runtime process has run since their exact independent audits. External state remains restored and quiescent. No scheduler repair cycle or K1-K12 criterion fired.
+- Exact next action: review diff; commit and guarded-publish dev.5; verify clean local/upstream/remote; package exact clean HEAD; validate package; admit one stable suite; pass full-continuity WhatIf; run one fresh `phase3d-unified-combat-tb-suite` process; independently audit restoration before reading evidence; then attribute every existing Gate 2-5 row and add only missing evidence needed for exact turn completion/cancellation/target-death/next-round cases.
+
+Status: `IN PROGRESS`.
+
 ## Phase 3E dev.4 Gate 1 qualifies A/B - 2026-09-04T10:34:33-04:00
 
 - Active branch is `codex/mounted-combat-phase3e-paired-scheduler`; clean guarded-published local/upstream/remote checkpoint is `27e088b4dafe4d449127b5e2920f09b3a0ed4f79`, version `0.1.0-phase3e-dev.4`.
