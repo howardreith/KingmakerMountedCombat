@@ -1,5 +1,16 @@
 # Mounted Combat journal
 
+## 2026-09-04T03:33:19-04:00 - dev.1 proves stock enumeration and selects Option A
+
+- Clean published dev.1 is branch/commit/version `codex/mounted-combat-phase3e-paired-scheduler` / `62ce96b0618ff1d9074bfcdafd0d42ce14df3406` / `0.1.0-phase3e-dev.1`. Package/manifest/DLL SHA-256 are `17bc227dd6a1c89e66f9d20009f1f28c470cce7f4dea5663f13178de866ed3b5` / `10c560eec8740898a56c83cfbe2e1bf6fa9309fd721dc57fceb1cb7b7d148fbd` / `f684b85baaea3f9fe53fc5a48ef87a6d85e4895795d1bad1c52d22b343be7d95`; DLL MVID is `15ea753e-0f0d-4dc4-b0f5-9a7be9926dbf`. Suite1 is `20260904T045000Z-phase3e-dev1-command-lifecycle-observation-suite1` / `290f7fcf7820711a9e31ba4226dc99842315684ff864f0471826f3599ff1c211`.
+- Pre-live WhatIf passed. Live observation `20260904T060000Z-phase3e-dev1-mammoth-tb-observation-passA` truthfully remains `FAIL 49/1` at the expected unstarted outcome, plus the inherited outer schema-v55 shape failure. Immediate independent audit passed exact zero mutation before read; the outer result confirms Mods/Working restoration, protected-save policy, baseline immutability, and save allowlist.
+- Exact result: Mammoth `IsAwake` and `AwakeUnits` membership were true; one reference-identical Mammoth-executor `MountedPairAttackCommand` remained in its Standard slot; native `TickCommandTurnBased` reached it `2,485` times on consecutive frames; all `2,485` stock results were false. The rider stayed the real current unit with status `Preparing`; no admission override, scheduler drive, command start/action/result, attack/rule/damage, resource, movement, relationship, or presentation mutation occurred.
+- This closes observation objective `PASS`, closes R1, confirms R2, and selects Option A. The primary scheduler will lease only one exact KMC command and let stock `TickCommand` own approach/start/action/resource/result/removal after a narrowly extended eligibility return. It will not explicitly tick, swap current unit, write turn status, or adopt foreign/AI/AoO commands.
+- Evidence SHA-256: request `c1d6be6ede15cdf1750e1fa2cd2fa0b829d12fecd4784e7896b3b58010e9a038`; combat `d9b3d9e50ebd0f54b1ce0393093ea552cab77ddfb01a7dae4745c126d5149b97`; game `42351c1b67ffc3e21956abeb13acb20d1c7f3d50d11b909e805f4b498426ceee`; result `5c04e0cdb27fb586cc73b00c6723f428ea753688265d235973562365653f3c1b`; orchestration `04b459ca62bf79b97f413ae062bb1c93b8a834d3c91d64ed3262c3fb489edf0a`.
+- Next: publish the contract decision, implement/test the primary lease state machine with scheduler default false, then package only the minimal in-range mount-primary vertical slice. No sequencing/ranged/five-foot/combat-Mount expansion begins before fresh-process vertical-slice A/B pass.
+
+Status: `IN PROGRESS`.
+
 ## 2026-09-04T00:41:55-04:00 - Phase 3E dev.1 exact-enumeration observer passes offline gates
 
 - Based dev.1 on clean guarded-published contract checkpoint `faaf07599529e917287f6abca3664a959ff3947e` on `codex/mounted-combat-phase3e-paired-scheduler`; version is `0.1.0-phase3e-dev.1`.

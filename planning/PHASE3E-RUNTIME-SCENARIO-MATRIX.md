@@ -8,7 +8,7 @@ All runtime rows require a clean guarded package, fresh run ID, exact package/DL
 
 | Row | Status | Required evidence |
 |---|---|---|
-| exact-command-lifecycle-observation | TODO | Mount awake-list membership, reference-exact `TickCommandTurnBased` encounter, stock result, rider turn/status, exact slot/queue, and zero scheduler drive. |
+| exact-command-lifecycle-observation | PASS | Dev.1 run `20260904T060000Z-phase3e-dev1-mammoth-tb-observation-passA`: exact awake/in-list Mammoth Standard command encountered `2,485` times; stock false `2,485`, true `0`; rider exact current/Preparing; zero override and scheduler drive. Gameplay row remains immutable expected `FAIL 49/1`; immediate independent audit passed before read. |
 | leased-command-accepted | TODO | Exact KMC origin, rider/mount/turn/generation/slot identities all match. |
 | foreign-command-rejected | TODO | Reference-different same-shape command cannot receive a lease. |
 | AI-command-rejected | TODO | AI action/origin cannot receive a lease. |

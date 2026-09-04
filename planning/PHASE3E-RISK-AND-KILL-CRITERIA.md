@@ -13,6 +13,8 @@ Authorized budget:
 
 An observation build may add fields/counters but no command drive. A repair cycle may correct one native-order predicate, one start predicate, one terminal/slot restoration defect, or one turn-completion defect. A global controller replacement is not authorized.
 
+The one observation checkpoint is consumed. Dev.1 proved positive exact stock enumeration (`2,485` encounters, all stock false) with the mount awake/in `AwakeUnits`, rider exact current, rider status `Preparing`, and zero scheduler drives. Option A is selected as the one primary implementation.
+
 ## Controlling risks and kill criteria
 
 | ID | Criterion | Current status | Required disposition |
@@ -49,6 +51,8 @@ An observation build may add fields/counters but no command drive. A repair cycl
 | R13 | Persistent state contaminates campaign saves. | Plain runtime service only; no `UnitPart`, fact, blueprint state, serializer field, or save payload. | source inspection and save cleanup row. |
 | R14 | Persistent setting auto-flips after transient fault. | Gate is read-only during fault; log and fail closed for current lease only. | exception cleanup/fallback test. |
 | R15 | Phase 3D RT/presentation behavior regresses. | Do not rewrite existing controller paths; run only applicable seam regressions after scheduler stability. | focused RT, Horse, Mammoth checks. |
+
+Runtime disposition: R1 is `PASS` and closed; stock does enumerate the exact active mount command. R2 is confirmed as a real simultaneous false input and remains an active vertical-slice gate. No K1-K12 criterion fired during observation.
 
 ## Stop and fallback rules
 

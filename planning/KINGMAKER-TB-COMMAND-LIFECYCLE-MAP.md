@@ -13,19 +13,24 @@ This map is for the exact installed Pathfinder: Kingmaker 2.1.7b `Assembly-CShar
 
 No Wrath binary or source is used by production code. This document records bounded interoperability facts, not reconstructed proprietary source.
 
-The immutable Phase 3D dev.21 runtime evidence remains at `C:\Dev\KingmakerMountedCombatLab\runtime-evidence\20260904T011000Z-phase3d-dev21-mammoth-tb-passA`. It proves a reference-exact KMC Mammoth Standard-slot wrapper stayed unstarted for 30 seconds while all recorded ordinary readiness predicates passed. It does **not** record Mammoth membership in `Game.State.AwakeUnits` or whether the exact wrapper entered `TickCommandTurnBased`.
+The immutable Phase 3D dev.21 runtime evidence remains at `C:\Dev\KingmakerMountedCombatLab\runtime-evidence\20260904T011000Z-phase3d-dev21-mammoth-tb-passA`. It proves a reference-exact KMC Mammoth Standard-slot wrapper stayed unstarted for 30 seconds while all recorded ordinary readiness predicates passed. The Phase 3E dev.1 observation at `C:\Dev\KingmakerMountedCombatLab\runtime-evidence\20260904T060000Z-phase3e-dev1-mammoth-tb-observation-passA` now resolves the one enumeration fact dev.21 did not record.
 
-## Controlling question
+## Controlling question — answered
 
-The exact static answer is conditional on awake-unit membership:
+**Stock `UnitActionController` encounters the exact active mount command and rejects it at the turn-eligibility gate; it is not missing the mount during enumeration.**
 
-1. `BaseUnitController.Tick` enumerates every member of `Game.Instance.State.AwakeUnits`.
-2. `UnitActionController.TickOnUnit` enumerates every non-null entry in that unit's `UnitCommands.Raw` array.
-3. It calls private `TickCommand` for each entry, and `TickCommand` first calls private `TickCommandTurnBased`.
-4. Consequently, **if the active mount is in `AwakeUnits`, stock `UnitActionController` encounters the exact mount command and rejects it at its turn-eligibility gate**.
-5. If the active mount is absent from `AwakeUnits`, stock `UnitActionController` never visits that unit or command.
+The fresh dev.1 process recorded all of the following before its expected 30-second gameplay deadline:
 
-The dev.21 artifact does not distinguish those paths. One observation-only checkpoint must record both exact mount `AwakeUnits` membership and reference-identical entry into `TickCommandTurnBased`. The primary scheduler implementation remains forbidden until that checkpoint changes this section to one unconditional answer.
+1. the exact Mammoth was `IsAwake=True` and reference-present in `Game.Instance.State.AwakeUnits`;
+2. the reference-identical KMC `MountedPairAttackCommand` remained in the Mammoth Standard slot with the Mammoth as executor and no queue entry;
+3. the `TickCommandTurnBased` postfix encountered that exact object `2,485` times from Unity frames `3995` through `6479`;
+4. stock returned false `2,485` times and true zero times;
+5. the rider remained reference-exact `CurrentTurn.Unit`, and the native status remained `Preparing` rather than Acting/Ending;
+6. `EnablePairedCommandScheduler=False`, existing admission overrides were zero, scheduler drives were zero, and the command never started, acted, finished, or acquired a result.
+
+This selects **Option A — exact native eligibility extension**. Phase 3E will alter only the returned eligibility for one registered, reference-exact pair lease after independently preserving every other native hard gate and terminal side effect. It must handle both false inputs proven by the run—mount executor inequality and first-action rider `Preparing`—without changing `CurrentTurn.Unit`, writing `TurnController.Status`, invoking another native turn, or explicitly ticking the command.
+
+The live gameplay row remains immutable `FAIL 49/1` at `AwaitOutcome`, as expected for an observation-only build. Its observation objective is `PASS`. The immediate independent postrun WhatIf audit passed exact zero mutation before these files were read.
 
 ## Per-frame controller ordering
 
@@ -178,9 +183,11 @@ Phase 3D's exact mount-primary top-level object is an original KMC `MountedPairA
 - `Prepare` is the sole natural rider-led new-round boundary. Phase 3D's mount-ledger preparation must execute once per reference-exact rider turn, never mid-turn and never on a synthetic mount turn.
 - `BaseUnitController.TickUnit`, `UnitActionController.TickOnUnit`, and `GameMode.Tick` catch/log exceptions. Phase 3E cannot rely on those catches for lease cleanup; scheduler code must fault, interrupt only its exact command, dispose idempotently, and preserve unrelated commands.
 
-## Observation checkpoint contract
+## Observation checkpoint result
 
-The single authorized observation checkpoint will add no scheduler drive. For the exact KMC mount-primary wrapper it must record:
+Status: PASS
+
+The single authorized observation checkpoint added no scheduler drive. For the exact KMC mount-primary wrapper it recorded:
 
 - command reference identity and type;
 - executor and exact mount identity;
@@ -192,4 +199,10 @@ The single authorized observation checkpoint will add no scheduler drive. For th
 - command started/running/acted/finished/result state;
 - zero gameplay mutation beyond the already authorized diagnostic action attempt.
 
-The result must be preserved under a fresh run ID and audited restoration before this document is made final.
+Result identities:
+
+- branch/commit/version: `codex/mounted-combat-phase3e-paired-scheduler` / `62ce96b0618ff1d9074bfcdafd0d42ce14df3406` / `0.1.0-phase3e-dev.1`;
+- package SHA-256: `17bc227dd6a1c89e66f9d20009f1f28c470cce7f4dea5663f13178de866ed3b5`;
+- DLL SHA-256/MVID: `f684b85baaea3f9fe53fc5a48ef87a6d85e4895795d1bad1c52d22b343be7d95` / `15ea753e-0f0d-4dc4-b0f5-9a7be9926dbf`;
+- suite snapshot/SHA-256: `20260904T045000Z-phase3e-dev1-command-lifecycle-observation-suite1` / `290f7fcf7820711a9e31ba4226dc99842315684ff864f0471826f3599ff1c211`;
+- live evidence/game/combat/orchestration SHA-256: `20260904T060000Z-phase3e-dev1-mammoth-tb-observation-passA` / `42351c1b67ffc3e21956abeb13acb20d1c7f3d50d11b909e805f4b498426ceee` / `d9b3d9e50ebd0f54b1ce0393093ea552cab77ddfb01a7dae4745c126d5149b97` / `04b459ca62bf79b97f413ae062bb1c93b8a834d3c91d64ed3262c3fb489edf0a`.

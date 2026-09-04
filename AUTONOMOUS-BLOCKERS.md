@@ -1,5 +1,13 @@
 # Autonomous blockers
 
+## Option A selected; no active blocker before primary implementation (2026-09-04T03:33:19-04:00)
+
+Status: `IN PROGRESS`.
+
+Dev.1 consumed the authorized observation checkpoint and proved exact stock enumeration: `2,485` reference-identical encounters, active Mammoth awake/in `AwakeUnits`, every stock result false, rider exact current in native `Preparing`, and zero KMC scheduler drives. The immediate independent audit passed exact restoration before inspection. There is no Git, runtime-state, save, Mods, process, lock, sentinel, staging, publication, or architecture-selection blocker.
+
+Option A is now mandatory for the primary attempt. Both observed false inputs must be handled only through an exact registered lease while every unrelated native predicate remains hard. Options B-D, current-turn substitution, broad unit ticking, and global controller work remain unauthorized unless a recorded kill criterion is reached.
+
 ## Phase 3E dev.1 observation is ready for one guarded runtime process (2026-09-04T00:41:55-04:00)
 
 Status: `IN PROGRESS`.

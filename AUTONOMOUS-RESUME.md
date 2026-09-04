@@ -1,5 +1,16 @@
 # Autonomous resume
 
+## Dev.1 answers enumeration; Option A is selected - 2026-09-04T03:33:19-04:00
+
+- Clean guarded-published observation commit is `62ce96b0618ff1d9074bfcdafd0d42ce14df3406` on `codex/mounted-combat-phase3e-paired-scheduler`; version `0.1.0-phase3e-dev.1`. ZIP/manifest/DLL SHA-256 are `17bc227dd6a1c89e66f9d20009f1f28c470cce7f4dea5663f13178de866ed3b5` / `10c560eec8740898a56c83cfbe2e1bf6fa9309fd721dc57fceb1cb7b7d148fbd` / `f684b85baaea3f9fe53fc5a48ef87a6d85e4895795d1bad1c52d22b343be7d95`; MVID `15ea753e-0f0d-4dc4-b0f5-9a7be9926dbf`. Suite1 snapshot SHA-256 is `290f7fcf7820711a9e31ba4226dc99842315684ff864f0471826f3599ff1c211`.
+- Focused pre-live WhatIf passed exact purity. Live `20260904T060000Z-phase3e-dev1-mammoth-tb-observation-passA` remains immutable gameplay `FAIL 49/1` at the expected observation-only `AwaitOutcome`; the known outer schema-v55 exact-property validator also failed. Immediate independent postrun WhatIf audit `20260904T073000Z-phase3e-dev1-mammoth-tb-observation-postrun-audit` passed exact zero mutation before gameplay evidence was read. Runtime result records Mods restored, save protection, immutable baseline, restored Working, and save allowlist all true.
+- The controlling answer is unconditional: stock encountered the exact Mammoth Standard-slot `MountedPairAttackCommand` `2,485` times across frames `3995..6479`; mount awake/in `AwakeUnits` was true; exact executor/slot identities held; stock result was false `2,485` times and true zero. The rider remained exact `CurrentTurn.Unit` in native `Preparing`. Admission override and scheduler drive counts were both zero; command/gameplay/resource state did not mutate.
+- Option A is selected. The primary implementation will register one exact pair lease in an injected runtime service and allow stock `TickCommand` to proceed through a narrowly guarded `TickCommandTurnBased` postfix. It must independently preserve all hard gates, handle exact rider `Preparing` without writing status, and never explicitly tick a command or change current-turn identity.
+- Evidence hashes: request `c1d6be6ede15cdf1750e1fa2cd2fa0b829d12fecd4784e7896b3b58010e9a038`; combat `d9b3d9e50ebd0f54b1ce0393093ea552cab77ddfb01a7dae4745c126d5149b97`; game `42351c1b67ffc3e21956abeb13acb20d1c7f3d50d11b909e805f4b498426ceee`; final `5c04e0cdb27fb586cc73b00c6723f428ea753688265d235973562365653f3c1b`; orchestration `04b459ca62bf79b97f413ae062bb1c93b8a834d3c91d64ed3262c3fb489edf0a`.
+- Exact next action: commit/publish this evidence-backed contract selection; implement the pure lease/state policy plus injected Option A service and component tests; keep the new gate default false; pass offline gates; then create the first and only primary vertical-slice package with the scheduler enabled only by the focused diagnostic scenario.
+
+Status: `IN PROGRESS`.
+
 ## Phase 3E dev.1 observation checkpoint is offline complete - 2026-09-04T00:41:55-04:00
 
 - Active branch is `codex/mounted-combat-phase3e-paired-scheduler`; clean guarded-published parent/local/upstream is contract checkpoint `faaf07599529e917287f6abca3664a959ff3947e`. The worktree contains only the coherent `0.1.0-phase3e-dev.1` observation checkpoint; no inherited Phase 3D evidence or behavior was rewritten.

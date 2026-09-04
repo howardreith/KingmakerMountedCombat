@@ -10,7 +10,9 @@ There is no shared synthetic action pool and no second turn clock. `EnableUnifie
 
 ## Architecture selection gate
 
-The primary seam is not selected until the observation checkpoint in `KINGMAKER-TB-COMMAND-LIFECYCLE-MAP.md` answers whether stock `UnitActionController` actually visits the reference-exact active mount command.
+Status: PASS — Option A selected
+
+Dev.1 proved that stock `UnitActionController` visited the exact active Mammoth command `2,485` times while the Mammoth was reference-present in `AwakeUnits`; every stock result was false while the exact rider turn remained `Preparing`. Therefore the primary seam is Option A. Options B-D remain inactive and may not be explored unless Option A reaches an exact recorded kill criterion.
 
 Evaluation order:
 
@@ -20,6 +22,8 @@ Evaluation order:
 4. **Option D — rider-owned scheduling shell.** Authorized only after A-C hit an evidenced kill criterion. The shell consumes no rider action and emits no rider attack; one mount-owned child retains actor, weapon, target, animation, rule, damage, and resource ownership.
 
 Changing `CurrentTurn.Unit`, calling `StartTurn(mount)`, replacing the global controller, advancing all mount commands, or admitting foreign/AI/AoO commands is prohibited.
+
+The selected Harmony postfix is only a policy bridge into the injected scheduler service. It stores no lease state. It may change a false native return to true only after the service proves the exact registered lease and independently rechecks all hard conditions whose original false return is otherwise ambiguous. Stock `TickCommand` remains the sole caller of native approach/start/tick/cooldown/result/removal behavior; KMC does not invoke it a second time.
 
 ## State machine
 
