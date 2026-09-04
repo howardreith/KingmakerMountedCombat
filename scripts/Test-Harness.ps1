@@ -10825,7 +10825,7 @@ try {
             riderViewPresent=$true;riderRigidbodyControlling=$false;riderIsGetUp=$false
             riderUnitTickEligible=$true;riderHandsIdle=$true;riderEquipmentIdle=$true
             riderCanAct=$true;riderCanActInCombat=$true;riderNauseated=$false
-            commandReferencePresent=$true;commandCreatedByPlayer=$true
+            commandReferencePresent=$true;commandCreatedByPlayer=$false;commandAiActionPresent=$false
             commandExecutorRiderExact=$true;commandTargetHorseExact=$true
             commandInMoveSlotExact=$true;commandQueued=$false;commandStarted=$false
             commandRunning=$false;commandFinished=$false;commandActed=$false;commandResult='None'
@@ -10852,12 +10852,26 @@ try {
             }
         }
         $failureArtifact = [ordered]@{
-            schemaVersion=2;evidenceKind='phase3d-horse-scenario-evidence';runId=$failureRequest.runId
+            schemaVersion=3;evidenceKind='phase3d-horse-scenario-evidence';runId=$failureRequest.runId
             scenario=$failureRequest.scenario;branch=$failureRequest.branch;commit=$failureRequest.commit
             productVersion=$failureRequest.productVersion;dllSha256=$failureRequest.dllSha256
             dllMvid=$failureRequest.dllMvid;createdAtUtc=[DateTimeOffset]::UtcNow.ToString('o')
             status='FAIL';rows=@($failureRow)
-            observations=[ordered]@{riderId='rider';horseId='horse';leafDeadlineProgress=$progress}
+            observations=[ordered]@{
+                riderId='rider';horseId='horse';leafDeadlineProgress=$progress
+                'tb-combat-mount'=[ordered]@{
+                    abilityGuid='mount-ability';clickedTargetId='horse';resolvedTargetId='horse'
+                    priority='2';clicked=$true;targetSelectionStartDelta=1;targetSelectionEndDelta=1
+                    nativeCastRequestDelta=1;nativeRefusalDelta=0;dispatchAcceptedDelta=0
+                    dispatchRejectedDelta=0;nativePrimaryShellPrepareDelta=0
+                    nativePrimaryShellObservation='not-observed'
+                    nativeShell=[ordered]@{
+                        present=$true;executorId='rider';targetId='horse';type='Move';contained=$true
+                        inMoveSlot=$true;queued=$false;createdByPlayer=$false
+                        aiActionPresent=$false;aiActionType=$null
+                    }
+                }
+            }
             subscenarioPassCount=0;subscenarioFailCount=1
             errors=@('Synthetic native Mount command deadline.')
         }
@@ -10877,6 +10891,49 @@ try {
         Assert-KmcPhase3dHorseScenarioEvidence -Request $failureRequest -Manifest $failureManifest `
             -Status FAIL -SubscenarioResults @($failureSubresult)
 
+        $failureArtifact.rows[0].evidence.leafDeadlineProgress.commandCreatedByPlayer = $true
+        $failureArtifact.observations.leafDeadlineProgress.commandCreatedByPlayer = $true
+        Write-KmcJsonAtomic -Path $failurePath -Value $failureArtifact
+        $failureRecord.length=(Get-Item -LiteralPath $failurePath).Length
+        $failureRecord.sha256=(Get-KmcSha256 $failurePath)
+        [void](New-TestArtifactManifest -EvidenceRoot $failureRoot -RunId $failureRequest.runId `
+            -Scenario $failureRequest.scenario -Artifacts @($failureRecord))
+        $failureManifest = Read-KmcJson (Join-Path $failureRoot 'runtime-artifacts.json')
+        Assert-TestThrows {
+            Assert-KmcPhase3dHorseScenarioEvidence -Request $failureRequest -Manifest $failureManifest `
+                -Status FAIL -SubscenarioResults @($failureSubresult)
+        } 'Phase 3D TB validator accepted a stock ability shell mislabeled CreatedByPlayer.'
+
+        $failureArtifact.rows[0].evidence.leafDeadlineProgress.commandCreatedByPlayer = $false
+        $failureArtifact.observations.leafDeadlineProgress.commandCreatedByPlayer = $false
+        $failureArtifact.rows[0].evidence.leafDeadlineProgress.commandAiActionPresent = $true
+        $failureArtifact.observations.leafDeadlineProgress.commandAiActionPresent = $true
+        Write-KmcJsonAtomic -Path $failurePath -Value $failureArtifact
+        $failureRecord.length=(Get-Item -LiteralPath $failurePath).Length
+        $failureRecord.sha256=(Get-KmcSha256 $failurePath)
+        [void](New-TestArtifactManifest -EvidenceRoot $failureRoot -RunId $failureRequest.runId `
+            -Scenario $failureRequest.scenario -Artifacts @($failureRecord))
+        $failureManifest = Read-KmcJson (Join-Path $failureRoot 'runtime-artifacts.json')
+        Assert-TestThrows {
+            Assert-KmcPhase3dHorseScenarioEvidence -Request $failureRequest -Manifest $failureManifest `
+                -Status FAIL -SubscenarioResults @($failureSubresult)
+        } 'Phase 3D TB validator accepted an AI-owned native Mount shell.'
+
+        $failureArtifact.rows[0].evidence.leafDeadlineProgress.commandAiActionPresent = $false
+        $failureArtifact.observations.leafDeadlineProgress.commandAiActionPresent = $false
+        $failureArtifact.observations.'tb-combat-mount'.nativeCastRequestDelta = 0
+        Write-KmcJsonAtomic -Path $failurePath -Value $failureArtifact
+        $failureRecord.length=(Get-Item -LiteralPath $failurePath).Length
+        $failureRecord.sha256=(Get-KmcSha256 $failurePath)
+        [void](New-TestArtifactManifest -EvidenceRoot $failureRoot -RunId $failureRequest.runId `
+            -Scenario $failureRequest.scenario -Artifacts @($failureRecord))
+        $failureManifest = Read-KmcJson (Join-Path $failureRoot 'runtime-artifacts.json')
+        Assert-TestThrows {
+            Assert-KmcPhase3dHorseScenarioEvidence -Request $failureRequest -Manifest $failureManifest `
+                -Status FAIL -SubscenarioResults @($failureSubresult)
+        } 'Phase 3D TB validator accepted a native Mount shell without one exact cast-request event.'
+
+        $failureArtifact.observations.'tb-combat-mount'.nativeCastRequestDelta = 1
         $failureArtifact.rows[0].evidence.leafDeadlineProgress.nativeTickRejectedCount = 119
         $failureArtifact.observations.leafDeadlineProgress.nativeTickRejectedCount = 119
         Write-KmcJsonAtomic -Path $failurePath -Value $failureArtifact
@@ -11077,6 +11134,7 @@ try {
             $schedulerSource.Contains('result = false;') -and
             $schedulerSource.Contains('stock eligibility unexpectedly admitted a scheduler-leased cross-actor command') -and
             $schedulerSource.Contains('FailInterruptAndDispose(') -and
+            $schedulerSource.Contains('!command.CreatedByPlayer || command.AiAction != null') -and
             $schedulerSource.Contains('Time.frameCount') -and
             $schedulerSource.Contains('command is UnitAttackOfOpportunity')) `
             'paired scheduler lost exact command, slot, turn, generation, frame, or AoO exclusion gates'
@@ -11228,7 +11286,11 @@ try {
             $phase3dHorseSource.Contains('internal void ObserveNativeTurnBasedCommandEligibility(') -and
             $phase3dHorseSource.Contains('nativeTickEncounterCount') -and
             $phase3dHorseSource.Contains('CaptureCombatMountNativeCommandProgress()') -and
-            $phase3dHorseSource.Contains('["schemaVersion"] = 2,') -and
+            $mountAdmissionBody.Contains('!shell.CreatedByPlayer && shell.AiAction == null') -and
+            $phase3dHorseSource.Contains('["commandAiActionPresent"] = commandPresent && command.AiAction != null') -and
+            $phase3dHorseSource.Contains('["createdByPlayer"] = command.CreatedByPlayer') -and
+            $phase3dHorseSource.Contains('["aiActionPresent"] = command.AiAction != null') -and
+            $phase3dHorseSource.Contains('["schemaVersion"] = 3,') -and
             -not $turnBasedAdmissionBody.Contains('StartTurn(')) `
             'Phase 3D Horse TB diagnostic lost reversible AI isolation, natural-turn admission, or exact stock Mount-shell lifecycle observation'
     }

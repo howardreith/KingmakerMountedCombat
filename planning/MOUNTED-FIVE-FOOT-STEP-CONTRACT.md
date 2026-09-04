@@ -1,5 +1,7 @@
 # Phase 3D Mounted Five-Foot-Step Contract
 
+Phase 3E superseding status (2026-09-04): `TODO`. The scheduler vertical slice does not qualify mounted five-foot-step or AoO behavior. Those six controls remain gated behind stable turn completion, sequencing, ranged, and combat Mount/Dismount. Dev.8/dev.9 changes no movement, engagement, opportunity, distance, or resource production seam.
+
 Status: DEFER — EVIDENCED
 
 ## Final Phase 3D disposition — 2026-09-04

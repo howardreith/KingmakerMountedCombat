@@ -23,7 +23,7 @@ $assemblyPath=Join-Path $managed 'Assembly-CSharp.dll'; $passes=0; $failures=New
 $assembly=[Reflection.Assembly]::ReflectionOnlyLoadFrom($assemblyPath)
 function Assert-Contract([bool]$Condition,[string]$Message){if($Condition){$script:passes++;Write-Host "PASS $Target $Message"}else{$script:failures.Add($Message);Write-Host "FAIL $Target $Message"}}
 function Find-Token([string]$TypeName,[int]$Token){$type=$assembly.GetType($TypeName,$false);if($null-eq$type){return $null};return @($type.GetMembers([Reflection.BindingFlags]'Public,NonPublic,Instance,Static')|Where-Object MetadataToken -eq $Token|Select-Object -First 1)}
-function Test-MethodIlContainsToken([Reflection.MethodInfo]$Method,[int]$Token){
+function Test-MethodIlContainsToken([Reflection.MethodBase]$Method,[int]$Token){
     if($null-eq$Method){return $false};$body=$Method.GetMethodBody();if($null-eq$body){return $false}
     [byte[]]$il=$body.GetILAsByteArray();[byte[]]$needle=[BitConverter]::GetBytes($Token)
     for($index=0;$index-le$il.Length-$needle.Length;$index++){
@@ -206,6 +206,9 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.UnitLogic.Commands.UnitAttack',0x06002675,'GetAttackIndex'),
         @('Kingmaker.UnitLogic.Commands.UnitAttack',0x06002680,'OnTick'),
         @('Kingmaker.UnitLogic.Commands.UnitCommands',0x060026B2,'Run'),
+        @('Kingmaker.UnitLogic.Commands.UnitUseAbility',0x06002725,'CreateCastCommand'),
+        @('Kingmaker.UnitLogic.Commands.Base.UnitCommand',0x04001A72,'CreatedByPlayer'),
+        @('Kingmaker.UnitLogic.Commands.Base.UnitCommand',0x06002775,'get_AiAction'),
         @('Kingmaker.UnitLogic.Buffs.Polymorph',0x06002A08,'TryReplaceView'),
         @('Kingmaker.UnitLogic.Buffs.Polymorph',0x06002A09,'RestoreView'),
         @('Kingmaker.EntitySystem.EntityDataBase',0x06007E9D,'AttachToViewOnLoad'),
@@ -446,6 +449,23 @@ if($Target-eq'Kingmaker'){
         $ruleAttackRollIsHit[0].IsPublic -and -not $ruleAttackRollIsHit[0].IsStatic -and
         $ruleAttackRollIsHit[0].ReturnType.FullName-ceq'System.Boolean' -and $ruleAttackRollIsHit[0].GetParameters().Count-eq0) `
         'RuleAttackRoll.IsHit exact public instance Boolean signature'
+    $nativeAbilityClick=@(Find-Token 'Kingmaker.Controllers.Clicks.Handlers.ClickWithSelectedAbilityHandler' 0x060093F6)
+    $createCastCommand=@(Find-Token 'Kingmaker.UnitLogic.Commands.UnitUseAbility' 0x06002725)
+    $runCommand=@(Find-Token 'Kingmaker.UnitLogic.Commands.UnitCommands' 0x060026B2)
+    $unitCommandConstructor=@(Find-Token 'Kingmaker.UnitLogic.Commands.Base.UnitCommand' 0x06002799)
+    Assert-Contract ($nativeAbilityClick.Count-eq1 -and $nativeAbilityClick[0] -is [Reflection.MethodInfo] -and
+        (Test-MethodIlContainsToken $nativeAbilityClick[0] 0x06002725) -and
+        (Test-MethodIlContainsToken $nativeAbilityClick[0] 0x060026B2) -and
+        -not (Test-MethodIlContainsToken $nativeAbilityClick[0] 0x04001A72) -and
+        $createCastCommand.Count-eq1 -and $createCastCommand[0] -is [Reflection.MethodInfo] -and
+        $createCastCommand[0].IsPublic -and $createCastCommand[0].IsStatic -and
+        $createCastCommand[0].ReturnType.FullName-ceq'Kingmaker.UnitLogic.Commands.Base.UnitCommand' -and
+        -not (Test-MethodIlContainsToken $createCastCommand[0] 0x04001A72) -and
+        $runCommand.Count-eq1 -and $runCommand[0] -is [Reflection.MethodInfo] -and
+        -not (Test-MethodIlContainsToken $runCommand[0] 0x04001A72) -and
+        $unitCommandConstructor.Count-eq1 -and $unitCommandConstructor[0] -is [Reflection.ConstructorInfo] -and
+        -not (Test-MethodIlContainsToken $unitCommandConstructor[0] 0x04001A72)) `
+        'native ability click admits a stock command without assigning the CreatedByPlayer field'
     $attackOfOpportunity=@(Find-Token 'Kingmaker.Controllers.Combat.UnitCombatState' 0x060093A1)
     Assert-Contract ($attackOfOpportunity.Count-eq1 -and $attackOfOpportunity[0] -is [Reflection.MethodInfo] -and
         $attackOfOpportunity[0].IsPublic -and -not $attackOfOpportunity[0].IsStatic -and

@@ -1,10 +1,20 @@
 # Autonomous blockers
 
+## Dev.8 proves natural intake and exposes a stock-origin predicate; dev.9 is independently actionable (2026-09-04T19:05:03-04:00)
+
+Status: `IN PROGRESS`.
+
+Immutable audited dev.8 run `20260904T221700Z-phase3e-dev8-horse-tb-gate2` is outer/game `FAIL 42/2` before any scheduler lease. It proved the natural rider turn, cleared pending-unit/UI/view/mode/hands/equipment/AI/command readiness, legal adjacency, exact selection and target memory, unused ledgers, and one accepted native Mount click/cast request. The exact rider Move-slot shell was non-AI but `CreatedByPlayer=false`; dev.8's diagnostic required true and stopped before the next native frame. Cleanup and every external surface restored exactly.
+
+Exact installed code confirms this is stock behavior, not foreign adoption: `ClickWithSelectedAbilityHandler.OnClick` calls `UnitUseAbility.CreateCastCommand` and `UnitCommands.Run`, and none writes the `CreatedByPlayer` field. Dev.9 replaces only that shell-origin predicate with the exact stock click/cast lifecycle, `CreatedByPlayer=false`, and `AiAction==null`; schema 3 and negative validators reject mislabeled or AI shells. The separate production scheduler origin remains strictly `CreatedByPlayer=true` for KMC-created mount attacks. There is no critical architecture blocker, scheduler repair charge, or kill criterion at this checkpoint.
+
+Complete dev.9 offline gates pass `22/Release/315/18/242/402`, PowerShell/JSON parsers `26/0` / `7/0`, and diff. The next independently actionable work is coherent guarded publication, one clean package/suite/WhatIf, and one fresh audited Horse TB process.
+
 ## Dev.7 closes AI/readiness races; dev.8 corrects the artificial native-turn boundary (2026-09-04T17:02:45-04:00)
 
 Status: `IN PROGRESS`.
 
-Immutable audited dev.7 run `20260904T195400Z-phase3e-dev7-horse-tb-gate2` failed before any paired-scheduler lease. It proved both exact rider/Horse AI leases, empty containers, idle rider hands/equipment, legal adjacency, exact selection/memory/target, rider current-turn identity, unused ledgers, and an exact player-created rider Move-slot Mount shell with `CanStart=true`, legal range, no approach, available spell, and no cooldown. The shell remained unstarted for 30 seconds and completed only after RT restoration. No scheduler repair or kill criterion applies.
+Immutable audited dev.7 run `20260904T195400Z-phase3e-dev7-horse-tb-gate2` failed before any paired-scheduler lease. It proved both exact rider/Horse AI leases, empty containers, idle rider hands/equipment, legal adjacency, exact selection/memory/target, rider current-turn identity, unused ledgers, and an exact native click-created rider Move-slot Mount shell with `CanStart=true`, legal range, no approach, available spell, and no cooldown. It did not prove `CreatedByPlayer=true`; earlier prose conflated stock click origin with that raw command field. The shell remained unstarted for 30 seconds and completed only after RT restoration. No scheduler repair or kill criterion applies.
 
 Exact native inspection identifies the diagnostic's direct `StartTurn(rider)` as non-natural: `TickTime` normally consumes and clears `m_NextUnit`, while the public call alone leaves a pending native unit. `WaitingForUI` is separately reference-counted, and unit-slot enumeration also depends on AwakeUnits and view state. Dev.8 is independently actionable and changes diagnostics only: wait for native initiative to start the rider, require every exact UI/pending-unit/enumeration/view/mode/start predicate, and observe the exact rider shell's stock eligibility before scheduler policy. If that comprehensive evidence shows stock eligibility plus all start predicates with no start, stop piecemeal diagnostic iteration and preserve the exact unresolved native boundary. External state is restored and no critical architecture blocker is presently proven.
 

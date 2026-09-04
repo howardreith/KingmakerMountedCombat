@@ -1,5 +1,7 @@
 # Phase 3D Combat Mount/Dismount Contract
 
+Phase 3E superseding status (2026-09-04): `IN PROGRESS`. Dev.8 proved exact natural rider-turn readiness and one native Mount click/cast admission, but its diagnostic stopped in the admission frame on the incorrect assumption that stock `UnitUseAbility.CreatedByPlayer` would be true. Dev.9 requires the exact stock false flag, null AI action, and native click/cast events. No Phase 3E combat Mount/Dismount resource, no-extra-turn, split-boundary, or invalidation row is credited yet.
+
 Status: DEFER — EVIDENCED
 
 ## Final Phase 3D disposition — 2026-09-04

@@ -1,5 +1,7 @@
 # Exact Wrath Shared-Turn Map for Phase 3D
 
+Phase 3E reconciliation (2026-09-04): Kingmaker Gate 1 now qualifies an original pair-local Option A eligibility extension twice (`140/0`) without importing Wrath control flow. The exact Kingmaker seam is `UnitActionController.TickCommandTurnBased` `0x0600911D`; KMC leases one explicit mount-owned command while the rider remains the native principal. Wrath remains evidence only. Dev.8/dev.9 rider Mount-shell provenance work changes no conclusion in this map and does not add a Wrath dependency.
+
 Status: PASS — bounded interoperability contract
 
 Authority: exact installed Wrath `Assembly-CSharp.dll` SHA-256 `2cb7160b7154d4ffacc77b9c51b1eb26199e1294300f04fdfc073367b2ef8953`, MVID `90a9869c-2792-4c7b-bfb7-5a8b33da7c82`. Findings come from bounded local type/member inspection. No Wrath code, assembly, blueprint, icon, animation, or asset is copied into KMC.

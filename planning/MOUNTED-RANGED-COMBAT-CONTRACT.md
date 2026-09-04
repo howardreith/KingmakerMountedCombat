@@ -1,5 +1,7 @@
 # Phase 3D Mounted Ranged Combat Contract
 
+Phase 3E superseding status (2026-09-04): `IN PROGRESS`. The pair-local command scheduler's in-range mount-primary Gate 1 is qualified, but no Phase 3E TB ranged approach, Shortbow, Crossbow/reload, Sling, LoS recovery, or no-forced-melee row has yet run. Dev.8/dev.9 affect only pre-sequencing combat-Mount diagnostic provenance. Phase 3D RT ranged PASS and separate-turn fallback remain immutable.
+
 Status: BLOCKED — CRITICAL for unified TB movement/action sequencing; RT contract PASS
 
 ## Final Phase 3D disposition — 2026-09-04

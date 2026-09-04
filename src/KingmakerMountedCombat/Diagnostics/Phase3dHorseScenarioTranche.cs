@@ -2551,7 +2551,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var clicked = TryNativeAbilityTargetClick(nativeControls.MountAbility, horse, "tb-combat-mount");
             var shell = lastNativeAbilityShell;
             var exactShellAdmitted = clicked && shell != null && shell.Executor == rider &&
-                shell.Target?.Unit == horse && shell.CreatedByPlayer &&
+                shell.Target?.Unit == horse && !shell.CreatedByPlayer && shell.AiAction == null &&
                 ReferenceEquals(shell.Spell?.Blueprint, nativeControls.MountAbility) &&
                 rider.Commands != null && rider.Commands.Contains(shell) &&
                 ReferenceEquals(rider.Commands.GetCommand(UnitCommand.CommandType.Move), shell) &&
@@ -2562,7 +2562,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 FailCurrent(
                     "mount-in-combat-before-either-acted",
-                    "Native Mount Companion click did not admit one exact player-created rider Move-slot command during the natural rider turn.");
+                    "Native Mount Companion click did not admit one exact stock-origin rider Move-slot command during the natural rider turn.");
                 BeginCleanup();
                 return;
             }
@@ -4238,6 +4238,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["riderNauseated"] = riderNauseated,
                     ["commandReferencePresent"] = commandPresent,
                     ["commandCreatedByPlayer"] = commandPresent && command.CreatedByPlayer,
+                    ["commandAiActionPresent"] = commandPresent && command.AiAction != null,
                     ["commandExecutorRiderExact"] = commandPresent && command.Executor == rider,
                     ["commandTargetHorseExact"] = commandPresent && command.Target?.Unit == horse,
                     ["commandInMoveSlotExact"] = commandInMoveSlot,
@@ -4990,6 +4991,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["abilityGuid"] = command.Spell?.Blueprint?.AssetGuid,
                     ["executorId"] = executor?.UniqueId,
                     ["targetId"] = command.Target?.Unit?.UniqueId,
+                    ["createdByPlayer"] = command.CreatedByPlayer,
+                    ["aiActionPresent"] = command.AiAction != null,
+                    ["aiActionType"] = command.AiAction?.GetType().FullName,
                     ["type"] = command.Type.ToString(),
                     ["contained"] = commands != null && commands.Contains(command),
                     ["inFreeSlot"] = commands != null && ReferenceEquals(commands.Free, command),
@@ -5404,7 +5408,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             var artifact = new JObject
             {
-                ["schemaVersion"] = 2,
+                ["schemaVersion"] = 3,
                 ["evidenceKind"] = EvidenceKind,
                 ["runId"] = request.RunId,
                 ["scenario"] = request.Scenario,

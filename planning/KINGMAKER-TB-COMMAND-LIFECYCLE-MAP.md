@@ -2,6 +2,14 @@
 
 Status: IN PROGRESS
 
+## Dev.8 exact stock ability-command origin correction
+
+Immutable audited run `20260904T221700Z-phase3e-dev8-horse-tb-gate2` reached the exact natural rider turn and one accepted native Mount target click, then failed its own admission assertion because the resulting `UnitUseAbility.CreatedByPlayer` field was false. The command was nevertheless exact rider executor, exact Horse target, Move-slot resident, unqueued, non-AI, `CanStart`, in range, available, cooldown-free, and produced target-selection start/end plus cast-request deltas `1/1/1` with zero refusal. The failure occurred in the same frame as admission, before stock command enumeration; it cannot be read as a new command-start failure.
+
+Installed Kingmaker defines the exact origin chain as `ClickWithSelectedAbilityHandler.OnClick` `0x060093F6`, `UnitUseAbility.CreateCastCommand` `0x06002725`, and `UnitCommands.Run` `0x060026B2`. Those methods and base `UnitCommand` construction do not assign `CreatedByPlayer` field `0x04001A72`; its CLR default remains false. `AiAction` is separately null. Therefore native player input is proven by the target-selection/cast-request event path and exact executor/target/slot identity, not by `CreatedByPlayer`. This finding is limited to the rider-owned stock Mount ability shell. KMC-created mount Standard attacks keep the explicit `CreatedByPlayer=true` scheduler-lease invariant.
+
+`TurnController.Tick` `0x06000C34` checks the bound rider command container while `Preparing`; after this shell is admitted, the next native tick may transition the real rider turn to `Acting`. Requiring `Acting` before the first command would invert stock ordering. Dev.9 evidence schema 3 observes that next native lifecycle without altering it.
+
 ## Authority and boundary
 
 This map is for the exact installed Pathfinder: Kingmaker 2.1.7b `Assembly-CSharp.dll` only:
@@ -42,7 +50,7 @@ Dev.3 independently repeated the lifecycle: admission `3987`, first eligibility 
 
 ## Dev.7 native rider-command attribution and natural-turn correction
 
-Immutable audited run `20260904T195400Z-phase3e-dev7-horse-tb-gate2` is outer/game `FAIL 42/2` at `AwaitCombatMount`; it grants no Gate 2 credit. It nevertheless closes every previously observed fixture predicate before the rider Mount input: the pair was legally adjacent at `0.843796432m` within the `2.9m` bound, both exact reversible AI leases were active, both command containers were empty, the rider was exact `CurrentTurn.Unit`, and rider hands/equipment were idle. One player-created rider `UnitUseAbility` for Mount entered the exact Move slot with the exact Horse target, `CanStart=true`, `IsUnitEnoughClose=true`, no approach, no cooldown, and all recorded `ShouldStartCommand` predicates true. It remained unstarted for 30 seconds and completed only after cleanup restored real time. The independent audit ran before gameplay inspection and proved exact suite/save/Mods/Baseline/Working restoration with no process, lock, sentinel, or deployment residue.
+Immutable audited run `20260904T195400Z-phase3e-dev7-horse-tb-gate2` is outer/game `FAIL 42/2` at `AwaitCombatMount`; it grants no Gate 2 credit. It nevertheless closes every previously observed fixture predicate before the rider Mount input: the pair was legally adjacent at `0.843796432m` within the `2.9m` bound, both exact reversible AI leases were active, both command containers were empty, the rider was exact `CurrentTurn.Unit`, and rider hands/equipment were idle. One native click-created rider `UnitUseAbility` for Mount entered the exact Move slot with the exact Horse target, `CanStart=true`, `IsUnitEnoughClose=true`, no approach, no cooldown, and all recorded `ShouldStartCommand` predicates true. Earlier prose incorrectly equated native click origin with `CreatedByPlayer=true`. It remained unstarted for 30 seconds and completed only after cleanup restored real time. The independent audit ran before gameplay inspection and proved exact suite/save/Mods/Baseline/Working restoration with no process, lock, sentinel, or deployment residue.
 
 Bounded exact inspection identifies two omitted native gates and one artificial-turn collision:
 

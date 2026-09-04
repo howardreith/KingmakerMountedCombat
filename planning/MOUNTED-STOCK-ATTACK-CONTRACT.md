@@ -1,5 +1,7 @@
 # Phase 3D Mounted Stock Attack Contract
 
+Phase 3E superseding status (2026-09-04): `IN PROGRESS`. The authorized pair-local scheduler has qualified the isolated mount-primary TB vertical slice twice (`140/0`), while the complete ordinary hostile-click TB sequence remains uncredited. Dev.8 stopped in native combat-Mount admission before a mounted relationship or scheduler lease; dev.9 corrects only the stock rider-shell provenance predicate. Phase 3D RT PASS and separate-turn fallback remain unchanged.
+
 Status: BLOCKED — CRITICAL for the required unified TB pair attack; RT contract PASS
 
 ## Final Phase 3D disposition — 2026-09-04

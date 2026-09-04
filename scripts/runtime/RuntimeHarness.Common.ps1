@@ -5455,6 +5455,51 @@ function Assert-KmcHorseCompanionUnmountedEvidence {
     }
 }
 
+function Assert-KmcPhase3dNativeCombatMountInput {
+    param(
+        [Parameter(Mandatory = $true)]$Value,
+        [Parameter(Mandatory = $true)][string]$RiderId,
+        [Parameter(Mandatory = $true)][string]$HorseId
+    )
+
+    Assert-KmcExactProperties $Value @(
+        'abilityGuid','clickedTargetId','resolvedTargetId','priority','clicked',
+        'targetSelectionStartDelta','targetSelectionEndDelta','nativeCastRequestDelta',
+        'nativeRefusalDelta','dispatchAcceptedDelta','dispatchRejectedDelta',
+        'nativePrimaryShellPrepareDelta','nativePrimaryShellObservation','nativeShell'
+    ) 'Phase 3D TB native combat-Mount input'
+    foreach ($name in @(
+        'targetSelectionStartDelta','targetSelectionEndDelta','nativeCastRequestDelta',
+        'nativeRefusalDelta','dispatchAcceptedDelta','dispatchRejectedDelta',
+        'nativePrimaryShellPrepareDelta')) {
+        if (-not (Test-KmcExactJsonInteger $Value.$name)) {
+            throw "Phase 3D TB native combat-Mount input has an invalid integer: $name"
+        }
+    }
+    if ($Value.clicked -isnot [bool] -or $Value.clicked -ne $true -or
+        [string]$Value.clickedTargetId -cne $HorseId -or
+        [string]$Value.resolvedTargetId -cne $HorseId -or
+        [long]$Value.targetSelectionStartDelta -ne 1L -or
+        [long]$Value.targetSelectionEndDelta -ne 1L -or
+        [long]$Value.nativeCastRequestDelta -ne 1L -or
+        [long]$Value.nativeRefusalDelta -ne 0L -or
+        [long]$Value.dispatchAcceptedDelta -ne 0L -or
+        [long]$Value.dispatchRejectedDelta -ne 0L -or
+        [long]$Value.nativePrimaryShellPrepareDelta -ne 0L -or
+        $Value.nativeShell.present -ne $true -or
+        [string]$Value.nativeShell.executorId -cne $RiderId -or
+        [string]$Value.nativeShell.targetId -cne $HorseId -or
+        [string]$Value.nativeShell.type -cne 'Move' -or
+        $Value.nativeShell.contained -ne $true -or
+        $Value.nativeShell.inMoveSlot -ne $true -or
+        $Value.nativeShell.queued -ne $false -or
+        $Value.nativeShell.createdByPlayer -ne $false -or
+        $Value.nativeShell.aiActionPresent -ne $false -or
+        $null -ne $Value.nativeShell.aiActionType) {
+        throw 'Phase 3D TB native combat-Mount input is not one exact stock click/cast request with a non-AI rider Move-slot shell.'
+    }
+}
+
 function Assert-KmcPhase3dHorseScenarioEvidence {
     param(
         [Parameter(Mandatory = $true)]$Request,
@@ -5502,7 +5547,7 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
     $phase3dSchemaVersion = if (Test-KmcExactJsonInteger $artifact.schemaVersion) {
         [long]$artifact.schemaVersion
     } else { -1L }
-    if ($phase3dSchemaVersion -notin @(1L, 2L) -or
+    if ($phase3dSchemaVersion -notin @(1L, 2L, 3L) -or
         [string]$artifact.evidenceKind -cne $kind -or [string]$artifact.status -cnotin @('PASS','FAIL') -or
         $artifact.rows -isnot [Array] -or $null -eq $artifact.observations -or
         $artifact.observations -is [Array] -or $artifact.observations -is [string] -or
@@ -5766,7 +5811,13 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
             if ($null -eq $progress -or $progress -is [Array] -or $progress -is [string]) {
                 throw 'Phase 3D TB native Mount command deadline omitted its structured lifecycle checkpoint.'
             }
-            Assert-KmcExactProperties $progress @(
+            if ($phase3dSchemaVersion -ge 3L) {
+                Assert-KmcPhase3dNativeCombatMountInput `
+                    $artifact.observations.'tb-combat-mount' `
+                    ([string]$artifact.observations.riderId) `
+                    ([string]$artifact.observations.horseId)
+            }
+            $nativeMountProgressProperties = @(
                 'step','frame','startTurnRequestCount','admissionFrame','startObservedFrame',
                 'terminalObservedFrame','nativeTickEncounterCount','nativeTickEligibleCount',
                 'nativeTickRejectedCount','nativeTickDuplicateFrameCount','nativeTickFirstFrame',
@@ -5784,7 +5835,12 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
                 'commandEnoughClose','commandShouldApproach','commandSpellAvailable','commandHasCooldown',
                 'commandNativeShouldStartReady','commandStockTurnGateReady','relationshipState','commands',
                 'nativeShell'
-            ) 'Phase 3D TB native Mount command lifecycle progress'
+            )
+            if ($phase3dSchemaVersion -ge 3L) {
+                $nativeMountProgressProperties += 'commandAiActionPresent'
+            }
+            Assert-KmcExactProperties $progress $nativeMountProgressProperties `
+                'Phase 3D TB native Mount command lifecycle progress'
             foreach ($integerName in @(
                 'frame','startTurnRequestCount','admissionFrame','startObservedFrame','terminalObservedFrame',
                 'nativeTickEncounterCount','nativeTickEligibleCount','nativeTickRejectedCount',
@@ -5802,7 +5858,7 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
                     throw "Phase 3D TB native Mount command progress has a negative count/frame: $countName"
                 }
             }
-            foreach ($booleanName in @(
+            $nativeMountBooleanProperties = @(
                 'nativeTickLastStockEligible','nativeTickLastWaitingForUi','gamePaused','gameModeDefault',
                 'turnBased','waitingForUi','currentTurnIsActing','currentTurnIsEnding',
                 'currentTurnRiderExact','currentTurnEligible','nextUnitClear','riderIsAwake',
@@ -5812,7 +5868,11 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
                 'commandExecutorRiderExact','commandTargetHorseExact','commandInMoveSlotExact',
                 'commandQueued','commandStarted','commandRunning','commandFinished','commandActed',
                 'commandCanStart','commandEnoughClose','commandShouldApproach','commandSpellAvailable',
-                'commandHasCooldown','commandNativeShouldStartReady','commandStockTurnGateReady')) {
+                'commandHasCooldown','commandNativeShouldStartReady','commandStockTurnGateReady')
+            if ($phase3dSchemaVersion -ge 3L) {
+                $nativeMountBooleanProperties += 'commandAiActionPresent'
+            }
+            foreach ($booleanName in $nativeMountBooleanProperties) {
                 if ($progress.$booleanName -isnot [bool]) {
                     throw "Phase 3D TB native Mount command progress has a non-Boolean field: $booleanName"
                 }
@@ -5825,7 +5885,8 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
                 [long]$progress.nativeTickEligibleCount + [long]$progress.nativeTickRejectedCount -ne
                     [long]$progress.nativeTickEncounterCount -or
                 $progress.commandReferencePresent -ne $true -or
-                $progress.commandCreatedByPlayer -ne $true -or
+                $progress.commandCreatedByPlayer -ne $(if ($phase3dSchemaVersion -ge 3L) { $false } else { $true }) -or
+                ($phase3dSchemaVersion -ge 3L -and $progress.commandAiActionPresent -ne $false) -or
                 $progress.commandExecutorRiderExact -ne $true -or
                 $progress.commandTargetHorseExact -ne $true -or
                 $progress.commandInMoveSlotExact -ne $true -or $progress.commandQueued -ne $false -or
@@ -6411,6 +6472,12 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
         $unmountedStep = $rowMap['unmounted-five-foot-step-control'].evidence
         if ($phase3dSchemaVersion -ge 2L) {
             $nativeMountCommand = $mount.nativeMountCommand
+            if ($phase3dSchemaVersion -ge 3L) {
+                Assert-KmcPhase3dNativeCombatMountInput `
+                    $artifact.observations.'tb-combat-mount' `
+                    ([string]$artifact.observations.riderId) `
+                    ([string]$artifact.observations.horseId)
+            }
             if ($null -eq $nativeMountCommand -or $nativeMountCommand -is [Array] -or
                 $nativeMountCommand -is [string] -or
                 [long]$nativeMountCommand.startTurnRequestCount -ne 0L -or
@@ -6430,7 +6497,8 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
                 [long]$nativeMountCommand.terminalObservedFrame -lt
                     [long]$nativeMountCommand.startObservedFrame -or
                 $nativeMountCommand.commandReferencePresent -ne $true -or
-                $nativeMountCommand.commandCreatedByPlayer -ne $true -or
+                $nativeMountCommand.commandCreatedByPlayer -ne $(if ($phase3dSchemaVersion -ge 3L) { $false } else { $true }) -or
+                ($phase3dSchemaVersion -ge 3L -and $nativeMountCommand.commandAiActionPresent -ne $false) -or
                 $nativeMountCommand.commandExecutorRiderExact -ne $true -or
                 $nativeMountCommand.commandTargetHorseExact -ne $true -or
                 $nativeMountCommand.commandFinished -ne $true -or

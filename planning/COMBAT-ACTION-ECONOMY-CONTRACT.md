@@ -1,5 +1,9 @@
 # Combat action economy contract
 
+## Phase 3E scheduler status - 2026-09-04
+
+Status: `IN PROGRESS`. The stock-only Phase 3D blocker below remains historically correct. Phase 3E Gate 1 separately qualifies one mount-owned Standard attack during the rider-owned turn twice (`140/0`) through the exact pair-local eligibility seam while preserving independent rider/mount ledgers. Gate 2 sequencing, turn completion, combat Mount/Dismount, ranged movement, and five-foot step remain uncredited. Dev.8 failed before mounting because of a diagnostic stock-origin mismatch; dev.9 corrects that diagnostic only and does not change action-economy production behavior.
+
 ## Phase 3D shared-turn disposition - 2026-09-04
 
 Status: `BLOCKED — CRITICAL` for a mount-owned Standard command during the rider-owned unified TB turn. Dev.21 admitted an exact in-range Mammoth `UnitAttack` into the Mammoth Standard slot with rider current-turn principal and separate ledgers. The command remained unstarted for 30 seconds because installed Kingmaker advances a non-AoO command only when its executor is `CurrentTurn.Unit`. No Standard or Move resource changed and no rule event fired. This confirms the installed-Kingmaker scheduler contract documented below and blocks a stock-only shared scheduler. Phase 2 separate-turn qualifications below remain immutable and valid; `EnableUnifiedMountedTurn=false` retains that fallback.
