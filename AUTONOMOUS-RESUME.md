@@ -1,5 +1,15 @@
 # Autonomous resume
 
+## Phase 3E dev.1 observation checkpoint is offline complete - 2026-09-04T00:41:55-04:00
+
+- Active branch is `codex/mounted-combat-phase3e-paired-scheduler`; clean guarded-published parent/local/upstream is contract checkpoint `faaf07599529e917287f6abca3664a959ff3947e`. The worktree contains only the coherent `0.1.0-phase3e-dev.1` observation checkpoint; no inherited Phase 3D evidence or behavior was rewritten.
+- Dev.1 adds the independently disabled `EnablePairedCommandScheduler=false` setting and exact observation at the installed `UnitActionController.TickCommandTurnBased` postfix. It counts only reference-identical KMC-owned active-mount command encounters, preserves the stock Boolean result and existing Phase 3D admission behavior, records awake-list membership/current rider turn/slot/queue/command state, and reports `schedulerDriveCount=0`. It contains no scheduler lease, drive, turn substitution, command start/tick, resource mutation, or gameplay repair.
+- Complete offline gates pass: source/prohibited payload `22/0`; clean Release build; component `300/0`; visual/source-order `18/0`; harness/protocol `239/0`; exact assembly `388/0` (`364` Kingmaker + `24` Wrath); and `git diff --check`. The gate now pins `BaseUnitController.Tick`, `TurnController.Tick/Prepare/ContinueActing`, `UnitEntityData.IsCurrentUnit`, and `UnitActionController.TickCommandTurnBased` by exact installed metadata token. Dirty-build DLL SHA-256/MVID are `f684b85baaea3f9fe53fc5a48ef87a6d85e4895795d1bad1c52d22b343be7d95` / `15ea753e-0f0d-4dc4-b0f5-9a7be9926dbf`; they are not yet package identity.
+- Runtime and external state remain untouched and exact-restored. The immutable dev.21 result was not rerun or relabeled. Phase 3C separate-turn fallback, Phase 3D RT behavior, presentation, assets, saves, and live Mods are unchanged.
+- Exact next action: final diff review; commit and guarded-publish dev.1; package only clean HEAD; admit a fresh stable suite; run focused Mammoth TB WhatIf; run one live observation process; immediately perform the independent restoration audit before reading gameplay evidence; then make the lifecycle answer unconditional and select Option A or B/C. No primary scheduler implementation begins first.
+
+Status: `IN PROGRESS`.
+
 ## Phase 3E contract map and observation boundary - 2026-09-04T00:16:15-04:00
 
 - Active branch is `codex/mounted-combat-phase3e-paired-scheduler`, created from exact clean published Phase 3D HEAD `2f765c15658879236ead17edc40fed6738154ddf`. Mission bootstrap commit/local/upstream/remote is `6837a4c54c4b34ad91c218688b5e36bff1502947`; the guarded feature-branch helper created and verified the remote branch. The worktree contains only intentional uncommitted Phase 3E contract documents.

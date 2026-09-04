@@ -217,6 +217,9 @@ namespace KingmakerMountedCombat
             GUILayout.Label("Phase 2 private-alpha presentation work. The mounted relationship is transient and is cleaned before save/load/area boundaries.");
             settings.EnableUnsafeMovementExperiment = GUILayout.Toggle(settings.EnableUnsafeMovementExperiment, "Enable private-alpha mounted player action");
             settings.EnableUnifiedMountedTurn = GUILayout.Toggle(settings.EnableUnifiedMountedTurn, "Enable Phase 3D unified mounted turn (fallback: Phase 3C separate turns)");
+            settings.EnablePairedCommandScheduler = GUILayout.Toggle(
+                settings.EnablePairedCommandScheduler,
+                "Enable experimental Phase 3E paired-command scheduler");
             var diagnosticOverlay = GUILayout.Toggle(settings.EnableDiagnosticOverlay, "Show diagnostic mounted-control overlay");
             if (diagnosticOverlay != settings.EnableDiagnosticOverlay)
             {

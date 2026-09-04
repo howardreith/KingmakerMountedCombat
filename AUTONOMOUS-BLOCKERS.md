@@ -1,5 +1,13 @@
 # Autonomous blockers
 
+## Phase 3E dev.1 observation is ready for one guarded runtime process (2026-09-04T00:41:55-04:00)
+
+Status: `IN PROGRESS`.
+
+There is no Git, build, package, publication, process, save, Mods, lock, sentinel, staging, or restoration blocker. The observation-only implementation passes source/Release/component/visual/harness/exact-assembly gates at `22/Release/300/18/239/388`, with the new scheduler gate default false and `schedulerDriveCount=0` by construction.
+
+The only remaining architecture uncertainty is intentionally narrow: whether the exact active Mammoth command reaches stock `TickCommandTurnBased` as a member of `Game.State.AwakeUnits`. One clean-package WhatIf/live/audit sequence will resolve it. The result selects Option A when reference-exact encounters are present, or the bounded supplied-command investigation when they are absent. It does not authorize a scheduler before audit-before-read restoration is proved.
+
 ## Phase 3E is authorized; exact enumeration answer requires one observation (2026-09-04T00:16:15-04:00)
 
 Status: `IN PROGRESS`.

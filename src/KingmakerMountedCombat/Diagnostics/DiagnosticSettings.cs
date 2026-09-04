@@ -6,6 +6,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             EnableUnsafeMovementExperiment = true;
             EnableUnifiedMountedTurn = true;
+            EnablePairedCommandScheduler = false;
             EnableDiagnosticOverlay = false;
             MaximumAnchorResidualWorldUnits = 0.10d;
             TelemetryIntervalSeconds = 0.10d;
@@ -18,6 +19,8 @@ namespace KingmakerMountedCombat.Diagnostics
         public bool EnableUnsafeMovementExperiment { get; set; }
 
         public bool EnableUnifiedMountedTurn { get; set; }
+
+        public bool EnablePairedCommandScheduler { get; set; }
 
         public bool EnableDiagnosticOverlay { get; set; }
 

@@ -77,6 +77,8 @@ namespace KingmakerMountedCombat.Tests
         {
             var settings = new DiagnosticSettings();
             TestRunner.Equal(true, settings.EnableUnsafeMovementExperiment, "Native mounted controls must default on for the enabled private alpha.");
+            TestRunner.Equal(true, settings.EnableUnifiedMountedTurn, "The accepted unified-turn experiment default changed before Phase 3E qualification.");
+            TestRunner.Equal(false, settings.EnablePairedCommandScheduler, "The unqualified paired-command scheduler must default off.");
             TestRunner.Equal(false, settings.EnableDiagnosticOverlay, "The legacy diagnostic overlay must default hidden.");
             TestRunner.Equal(0.10d, settings.MaximumAnchorResidualWorldUnits, "Residual threshold changed.");
             TestRunner.Equal(null, settings.Validate(), "Default settings must validate.");

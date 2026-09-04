@@ -431,7 +431,8 @@ namespace KingmakerMountedCombat.Integration
                 ";canAct=" + canAct +
                 ";canActInCombat=" + canActInCombat +
                 ";ignoreCooldown=" + command.IsIgnoreCooldown +
-                ";hasCooldown=" + hasCooldown;
+                ";hasCooldown=" + hasCooldown +
+                ";commandLifecycle={" + unifiedTurn.DescribeMountCommandEligibilityObservation() + "}";
         }
 
         public bool CanShowCombatActions =>

@@ -1,5 +1,15 @@
 # Mounted Combat journal
 
+## 2026-09-04T00:41:55-04:00 - Phase 3E dev.1 exact-enumeration observer passes offline gates
+
+- Based dev.1 on clean guarded-published contract checkpoint `faaf07599529e917287f6abca3664a959ff3947e` on `codex/mounted-combat-phase3e-paired-scheduler`; version is `0.1.0-phase3e-dev.1`.
+- Added `EnablePairedCommandScheduler` default false without implementing scheduler behavior. The exact `TickCommandTurnBased` postfix now observes only the reference-identical active KMC mount command and records stock result, frame, mount `AwakeUnits` membership, rider current-turn identity/status, mount Standard/queue identity, and native command state. Telemetry explicitly reports zero scheduler drives.
+- Strengthened the assembly contract with exact Kingmaker tokens `0x0600910B`, `0x06000C34`, `0x06000C3C`, `0x06000C3D`, `0x0600838E`, and `0x0600911D`. Complete offline results are source/prohibited payload `22/0`, Release, component `300/0`, visual/source-order `18/0`, harness/protocol `239/0`, exact assembly `388/0` (`364` Kingmaker + `24` Wrath), and diff PASS.
+- Dirty-build identity is DLL SHA-256 `f684b85baaea3f9fe53fc5a48ef87a6d85e4895795d1bad1c52d22b343be7d95`, MVID `15ea753e-0f0d-4dc4-b0f5-9a7be9926dbf`; clean package identity remains pending. No runtime process was launched and no new gameplay PASS is claimed.
+- Next: coherent commit/guarded publication, clean package/stable-suite admission, focused WhatIf/live/immediate independent audit, then update the exact lifecycle answer before implementing the primary scheduler seam.
+
+Status: `IN PROGRESS`.
+
 ## 2026-09-04T00:16:15-04:00 - Phase 3E begins with exact command-lifecycle contracts
 
 - Reconciled the complete repository and external runtime state without discarding inherited work. Phase 3D branch/local/upstream were exact clean `2f765c15658879236ead17edc40fed6738154ddf`; no Git operation/lock or runtime process/lock/sentinel/staging/deployment ambiguity existed. The dev.21 package and its immutable failure/restoration evidence match their recorded identities.

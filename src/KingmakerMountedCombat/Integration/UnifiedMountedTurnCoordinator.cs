@@ -91,6 +91,12 @@ namespace KingmakerMountedCombat.Integration
         private bool chooseNextReentry;
         private bool lastTurnBased;
         private bool disposed;
+        private long mountCommandEligibilityEncounterCount;
+        private long mountCommandEligibilityStockTrueCount;
+        private long mountCommandEligibilityStockFalseCount;
+        private int mountCommandEligibilityFirstFrame = -1;
+        private int mountCommandEligibilityLastFrame = -1;
+        private string lastMountCommandEligibilityObservation = "not-observed";
 
         public UnifiedMountedTurnCoordinator(
             GameMountedRelationshipService relationship,
@@ -368,12 +374,22 @@ namespace KingmakerMountedCombat.Integration
 
         internal void AdmitExactMountCommand(UnitCommand command, ref bool result)
         {
-            if (disposed || result || command == null)
+            if (disposed || command == null)
             {
                 return;
             }
 
             var turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
+            var exactOwnedPairCommand = combat != null && combat.OwnsExactUnifiedMountCommand(command);
+            if (exactOwnedPairCommand)
+            {
+                ObserveExactMountCommandEligibility(command, result, turn);
+            }
+            if (result)
+            {
+                return;
+            }
+
             if (!UnifiedMountedTurnPolicy.ShouldAdmitMountCommand(
                     Enabled,
                     relationship.State == RelationshipState.Mounted,
@@ -381,13 +397,89 @@ namespace KingmakerMountedCombat.Integration
                     turn?.Unit == relationship.Rider,
                     turn != null && (turn.IsActing || turn.IsEnding),
                     command.Executor == relationship.Mount,
-                    combat != null && combat.OwnsExactUnifiedMountCommand(command)))
+                    exactOwnedPairCommand))
             {
                 return;
             }
 
             result = true;
             MountCommandAdmissionCount++;
+        }
+
+        internal string DescribeMountCommandEligibilityObservation()
+        {
+            var game = Game.Instance;
+            var turn = game?.TurnBasedCombatController?.CurrentTurn;
+            var mount = relationship.Mount;
+            var mountCommands = mount?.Commands;
+            return "pairedSchedulerEnabled=" + settings.EnablePairedCommandScheduler +
+                ";encounterCount=" + mountCommandEligibilityEncounterCount +
+                ";stockTrueCount=" + mountCommandEligibilityStockTrueCount +
+                ";stockFalseCount=" + mountCommandEligibilityStockFalseCount +
+                ";firstFrame=" + mountCommandEligibilityFirstFrame +
+                ";lastFrame=" + mountCommandEligibilityLastFrame +
+                ";mountIsAwakeNow=" + (mount != null && mount.IsAwake) +
+                ";mountInAwakeUnitsNow=" + (mount != null && game?.State?.AwakeUnits != null &&
+                    game.State.AwakeUnits.Contains(mount)) +
+                ";currentTurnUnitNow=" + (turn?.Unit?.UniqueId ?? "<none>") +
+                ";currentTurnStatusNow=" + (turn == null ? "<none>" : turn.Status.ToString()) +
+                ";currentTurnActingNow=" + (turn != null && turn.IsActing) +
+                ";currentTurnEndingNow=" + (turn != null && turn.IsEnding) +
+                ";mountStandardTypeNow=" + (mountCommands?.Standard == null
+                    ? "<none>"
+                    : mountCommands.Standard.GetType().FullName) +
+                ";mountQueueCountNow=" + (mountCommands?.Queue.Count ?? -1) +
+                ";admissionOverrideCount=" + MountCommandAdmissionCount +
+                ";schedulerDriveCount=0" +
+                ";last={" + lastMountCommandEligibilityObservation + "}";
+        }
+
+        private void ObserveExactMountCommandEligibility(
+            UnitCommand command,
+            bool stockResult,
+            TurnController turn)
+        {
+            var frame = UnityEngine.Time.frameCount;
+            if (mountCommandEligibilityEncounterCount == 0)
+            {
+                mountCommandEligibilityFirstFrame = frame;
+            }
+            mountCommandEligibilityEncounterCount++;
+            mountCommandEligibilityLastFrame = frame;
+            if (stockResult)
+            {
+                mountCommandEligibilityStockTrueCount++;
+            }
+            else
+            {
+                mountCommandEligibilityStockFalseCount++;
+            }
+
+            var game = Game.Instance;
+            var mount = relationship.Mount;
+            var commands = mount?.Commands;
+            lastMountCommandEligibilityObservation =
+                "frame=" + frame +
+                ",stockResult=" + stockResult +
+                ",commandType=" + command.GetType().FullName +
+                ",executorId=" + (command.Executor?.UniqueId ?? "<none>") +
+                ",mountId=" + (mount?.UniqueId ?? "<none>") +
+                ",executorIsMount=" + (command.Executor == mount) +
+                ",inStandardSlot=" + (commands != null && ReferenceEquals(commands.Standard, command)) +
+                ",inQueue=" + (commands != null && commands.Queue.Contains(command)) +
+                ",mountIsAwake=" + (mount != null && mount.IsAwake) +
+                ",mountInAwakeUnits=" + (mount != null && game?.State?.AwakeUnits != null &&
+                    game.State.AwakeUnits.Contains(mount)) +
+                ",currentTurnUnit=" + (turn?.Unit?.UniqueId ?? "<none>") +
+                ",currentTurnIsRider=" + (turn?.Unit == relationship.Rider) +
+                ",turnStatus=" + (turn == null ? "<none>" : turn.Status.ToString()) +
+                ",turnActing=" + (turn != null && turn.IsActing) +
+                ",turnEnding=" + (turn != null && turn.IsEnding) +
+                ",started=" + command.IsStarted +
+                ",running=" + command.IsRunning +
+                ",acted=" + command.IsActed +
+                ",finished=" + command.IsFinished +
+                ",result=" + command.Result;
         }
 
         internal void TickMountMovement(TurnController turn, ref float deltaTime)
