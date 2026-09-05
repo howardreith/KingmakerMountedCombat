@@ -177,6 +177,9 @@ Assert-VisualCapture ($composition.Contains('runtimeAutomation.RequiresLegacyDia
     $automation.Contains('request.Scenario != "mounted-mammoth-primary-hit-rt"') -and
     $automation.Contains('request.Scenario != "combat-lifecycle-suite"')) 'exact Phase 3F runtime scenarios honor overlay-off configuration while historical overlay fixtures remain explicit'
 $tranche = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\Phase3dHorseScenarioTranche.cs'))
+Assert-VisualCapture ($tranche.Contains('if (IsPhase3fNativeControlScope)') -and
+    $tranche -match '(?s)if \(IsPhase3fNativeControlScope\)\s*\{[^}]*BeginRtCombatDismount\(\);\s*return;\s*\}\s*BeginRtToTbTransition\(\);' -and
+    $tranche.Contains('["schemaVersion"] = IsPhase3fNativeControlScope ? 7 : 6,')) 'C0 RT fixture bypasses all legacy shared-turn exercises before any mode transition'
 Assert-VisualCapture ($motion.Contains('MaximumFrames = 64') -and
     $motion.Contains('MaximumFramesPerPhase = 8') -and
     $motion.Contains('clock.ElapsedMilliseconds + 200') -and

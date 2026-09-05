@@ -258,6 +258,10 @@ namespace KingmakerMountedCombat.Diagnostics
 
         internal bool IsCompleted => completed;
 
+        private bool IsPhase3fNativeControlScope =>
+            !string.Equals(request.Scenario, TurnBasedScenario, StringComparison.Ordinal) &&
+            !settings.EnableUnifiedMountedTurn && !settings.EnablePairedCommandScheduler;
+
         internal IReadOnlyList<RuntimeSubscenarioResult> Results => results;
 
         internal IReadOnlyList<string> Errors => errors;
@@ -1642,6 +1646,12 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             rangedWeaponLease.Dispose();
             rangedWeaponLease = null;
+            if (IsPhase3fNativeControlScope)
+            {
+                // C0 qualification stays in native RT. The legacy shared-TB tail is a separate historical experiment.
+                BeginRtCombatDismount();
+                return;
+            }
             BeginRtToTbTransition();
         }
 
@@ -6050,7 +6060,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             var artifact = new JObject
             {
-                ["schemaVersion"] = 6,
+                ["schemaVersion"] = IsPhase3fNativeControlScope ? 7 : 6,
                 ["evidenceKind"] = EvidenceKind,
                 ["runId"] = request.RunId,
                 ["scenario"] = request.Scenario,

@@ -5565,7 +5565,7 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
     $phase3dSchemaVersion = if (Test-KmcExactJsonInteger $artifact.schemaVersion) {
         [long]$artifact.schemaVersion
     } else { -1L }
-    if ($phase3dSchemaVersion -notin @(1L, 2L, 3L, 4L, 5L, 6L) -or
+    if ($phase3dSchemaVersion -notin @(1L, 2L, 3L, 4L, 5L, 6L, 7L) -or
         [string]$artifact.evidenceKind -cne $kind -or [string]$artifact.status -cnotin @('PASS','FAIL') -or
         $artifact.rows -isnot [Array] -or $null -eq $artifact.observations -or
         $artifact.observations -is [Array] -or $artifact.observations -is [string] -or
@@ -5585,6 +5585,20 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
     if ($artifact.createdAtUtc -isnot [string] -or
         -not [DateTimeOffset]::TryParse([string]$artifact.createdAtUtc, [ref]$createdAt)) {
         throw 'Phase 3D Horse evidence createdAtUtc is invalid.'
+    }
+
+    $nativeControlScope = $phase3dSchemaVersion -eq 7L
+    if ($nativeControlScope) {
+        if ([string]$Request.scenario -cnotin @('phase3d-unified-combat-rt-suite','phase3d-horse-presentation-suite')) {
+            throw 'Phase 3F native-control evidence cannot qualify a unified-TB scenario.'
+        }
+        $configuration = $artifact.observations.phase3fActualConfiguration
+        Assert-KmcExactProperties $configuration @('enableUnifiedMountedTurn','enablePairedCommandScheduler','enableDiagnosticOverlay','overlayPresent') 'Phase 3F actual configuration'
+        foreach ($name in @('enableUnifiedMountedTurn','enablePairedCommandScheduler','enableDiagnosticOverlay','overlayPresent')) {
+            if ($configuration.$name -isnot [bool] -or $configuration.$name -ne $false) {
+                throw "Phase 3F native-control evidence requires actual false configuration: $name"
+            }
+        }
     }
 
     $failureRows = @(
@@ -5633,6 +5647,12 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
             break
         }
         default { throw 'Phase 3D Horse evidence scenario routing is invalid.' }
+    }
+    if ($nativeControlScope -and [string]$Request.scenario -ceq 'phase3d-unified-combat-rt-suite') {
+        $historicalSharedRows = @('rider-primary-after-shared-turn-transition-does-not-dismount',
+            'mounted-combat-start-single-initiative-entry','mounted-rider-initiative-bonus','mounted-turn-rider-portrait',
+            'RT-to-TB-shared-turn','TB-to-RT-shared-turn')
+        $requiredRows = @($requiredRows | Where-Object { $_ -cnotin $historicalSharedRows })
     }
     $allowedRows = @($requiredRows + $failureRows)
     $rowNames = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
@@ -5962,10 +5982,22 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
     }
 
     if ([string]$artifact.status -ceq 'PASS' -and [string]$Request.scenario -ceq 'phase3d-horse-presentation-suite') {
+        $iconsInvalid = if ($nativeControlScope) {
+            $mountSprite = $rowMap['saddle-icon'].evidence.mountSprite
+            $dismountSprite = $rowMap['saddle-icon'].evidence.dismountSprite
+            $mountSprite.present -ne $true -or $dismountSprite.present -ne $true -or
+                [long]$mountSprite.textureWidth -ne 96L -or [long]$mountSprite.textureHeight -ne 96L -or
+                [long]$dismountSprite.textureWidth -ne 96L -or [long]$dismountSprite.textureHeight -ne 96L -or
+                [string]::IsNullOrWhiteSpace([string]$mountSprite.name) -or
+                [string]::IsNullOrWhiteSpace([string]$dismountSprite.name) -or
+                [string]$mountSprite.name -ceq [string]$dismountSprite.name
+        } else {
+            [long]$rowMap['saddle-icon'].evidence.sprite.textureWidth -ne 128L -or
+                [long]$rowMap['saddle-icon'].evidence.sprite.textureHeight -ne 128L
+        }
         if ([long]$rowMap['Horse-small-portrait-close-up'].evidence.sprite.textureWidth -ne 185L -or
             [long]$rowMap['Horse-small-portrait-close-up'].evidence.sprite.textureHeight -ne 242L -or
-            [long]$rowMap['saddle-icon'].evidence.sprite.textureWidth -ne 128L -or
-            [long]$rowMap['saddle-icon'].evidence.sprite.textureHeight -ne 128L -or
+            $iconsInvalid -or
             [double]$artifact.observations.pelvisOffset.y -ne -0.17d -or
             [double]$artifact.observations.mountRootPositionOffset.x -ne 0.0d -or
             [double]$artifact.observations.mountRootPositionOffset.y -ne -0.08d -or
@@ -5984,8 +6016,8 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
         $adjacent = $rowMap['mounted-ranged-aao-native-control'].evidence
         $crossbow = $rowMap['mounted-crossbow-or-reload-control'].evidence
         $sling = $rowMap['mounted-sling-control'].evidence
-        $rtToTb = $rowMap['RT-to-TB-shared-turn'].evidence
-        $tbToRt = $rowMap['TB-to-RT-shared-turn'].evidence
+        $rtToTb = if ($nativeControlScope) { $null } else { $rowMap['RT-to-TB-shared-turn'].evidence }
+        $tbToRt = if ($nativeControlScope) { $null } else { $rowMap['TB-to-RT-shared-turn'].evidence }
         $rtDismountReadiness = $artifact.observations.rtCombatDismountReadiness
         $rtDismountInput = $artifact.observations.'rt-combat-dismount'
         $rtDismountCompletion = $artifact.observations.rtCombatDismountCompletion
@@ -6320,6 +6352,7 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
             ([long]$sling.mountDispatchDelta -eq 1L -and $sling.mountAlreadyInMeleeAtAdmission -ne $true) -or
             [double]$sling.horseMovementDistanceAfterAdmission -gt 0.25d -or
             [long]$sling.duplicateDispatchDelta -ne 0L -or
+            (-not $nativeControlScope -and (
             [long]$rtToTb.trackerRiderCount -ne 1L -or [long]$rtToTb.trackerHorseCount -ne 0L -or
             $rtToTb.trackerRiderPortraitExact -ne $true -or
             [string]$rtToTb.currentTurnUnitId -cne [string]$artifact.observations.riderId -or
@@ -6328,7 +6361,7 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
             [long]$rtToTb.after.trackerMountFilterCount -lt 1L -or
             [string]$rtToTb.after.sharedInitiativeOwnerId -cne [string]$rtToTb.after.rider.unitId -or
             $tbToRt.persistedValueUnchanged -ne $true -or $tbToRt.restoreDeliveryCompleted -ne $true -or
-            [string]$tbToRt.relationshipState -cne 'Mounted' -or
+            [string]$tbToRt.relationshipState -cne 'Mounted')) -or
             [long]$unmountedMelee.nativeRequestDelta -ne 0L -or [long]$unmountedMelee.intentStartDelta -ne 0L -or
             [string]$unmountedMelee.relationshipState -cne 'Unmounted' -or
             $unmountedMelee.previousTargetCleanupPassed -ne $true -or

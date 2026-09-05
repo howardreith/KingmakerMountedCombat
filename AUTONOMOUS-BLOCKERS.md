@@ -1,5 +1,7 @@
 # Autonomous blockers
 
+Current at 21:19Z: preview.4's complete offline gate passes. Live budget 1/8; preview.3 RT was guarded-aborted because the inherited fixture contained an out-of-scope shared-TB tail, and independent starting-state restoration passes. The corrected C0 RT fixture cannot enter that tail; strict schema 7 retains applicable RT gates and checks the actual distinct icons. Clean package/suite and final runtime are next. Steam remains verified; pointer bridge, human visual/UI acceptance and TB resources remain blockers. The old missing-Steam/zero-run paragraphs below are historical.
+
 Resumed preview.3 update, `2026-09-05T20:49Z`: Steam is running and passes the existing Offline/cloud guard. The historical absent-Steam blocker below is resolved. The resumed read-only preflight was stopped before live admission and independently audited exact. A full-byte hasher repair preserves every integrity check and completes historical staging in 144.39929 seconds; ten filesystem regressions pass. Current work also preserves default native opportunities and batches bounded motion capture. Runtime remains 0/8 pending final gate/new exact package and suite; pointer bridge, native motion/UI/lifecycle acceptance and the explicit TB resource contract remain unresolved. No permanent candidate installation.
 
 ## Phase 3F current blockers — 2026-09-05

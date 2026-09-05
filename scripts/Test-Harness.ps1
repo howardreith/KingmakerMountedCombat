@@ -10628,6 +10628,49 @@ try {
             })
             Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
 
+            if ($phase3dScenario -cne 'phase3d-unified-combat-tb-suite') {
+                foreach ($mutation in @('none','unified-enabled','overlay-present','missing-required-row')) {
+                    $nativeArtifact = $phase3dArtifact | ConvertTo-Json -Depth 100 | ConvertFrom-Json
+                    $nativeArtifact.schemaVersion = 7
+                    $nativeConfig = [pscustomobject]@{enableUnifiedMountedTurn=$false;enablePairedCommandScheduler=$false;enableDiagnosticOverlay=$false;overlayPresent=$false}
+                    $nativeArtifact.observations | Add-Member -NotePropertyName phase3fActualConfiguration -NotePropertyValue $nativeConfig
+                    if ($phase3dScenario -ceq 'phase3d-unified-combat-rt-suite') {
+                        $sharedRows = @('rider-primary-after-shared-turn-transition-does-not-dismount',
+                            'mounted-combat-start-single-initiative-entry','mounted-rider-initiative-bonus','mounted-turn-rider-portrait',
+                            'RT-to-TB-shared-turn','TB-to-RT-shared-turn')
+                        $nativeArtifact.rows = @($nativeArtifact.rows | Where-Object { $_.name -cnotin $sharedRows })
+                    } else {
+                        $saddleRow = $nativeArtifact.rows | Where-Object name -CEQ 'saddle-icon'
+                        $saddleRow.evidence = [pscustomobject]@{
+                            mountSprite=[pscustomobject]@{present=$true;name='KMC_Mount_Saddle_Icon';textureWidth=96;textureHeight=96}
+                            dismountSprite=[pscustomobject]@{present=$true;name='KMC_Dismount_Saddle_Icon';textureWidth=96;textureHeight=96}
+                        }
+                    }
+                    if ($mutation -ceq 'unified-enabled') { $nativeConfig.enableUnifiedMountedTurn = $true }
+                    if ($mutation -ceq 'overlay-present') { $nativeConfig.overlayPresent = $true }
+                    if ($mutation -ceq 'missing-required-row') { $nativeArtifact.rows = @($nativeArtifact.rows | Select-Object -Skip 1) }
+                    $nativeArtifact.subscenarioPassCount = $nativeArtifact.rows.Count
+                    $nativeSubresults = @($nativeArtifact.rows | ForEach-Object {
+                        [pscustomobject]@{name=$_.name;status='PASS';assertionPassCount=1;assertionFailCount=0;errors=@()}
+                    })
+                    Write-KmcJsonAtomic -Path $phase3dPath -Value $nativeArtifact
+                    $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
+                    $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
+                    [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+                    $nativeManifest=Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+                    if ($mutation -ceq 'none') {
+                        Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $nativeManifest -Status PASS -SubscenarioResults $nativeSubresults
+                    } else {
+                        Assert-TestThrows { Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $nativeManifest -Status PASS -SubscenarioResults $nativeSubresults } ('Phase 3F schema 7 accepted ' + $mutation)
+                    }
+                }
+                Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
+                $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
+                $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
+                [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+                $phase3dManifest=Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+            }
+
             if ($phase3dScenario -ceq 'phase3d-unified-combat-tb-suite') {
                 $phase3eSchedulerEvidence = $rowByName['mounted-stock-click-melee-mount-only-explicit'].evidence
                 $phase3eTraversalEvidence = $phase3dArtifact.observations.nativeTurnTraversal
@@ -11522,7 +11565,7 @@ try {
             $phase3dHorseSource.Contains('["commandAiActionPresent"] = commandPresent && command.AiAction != null') -and
             $phase3dHorseSource.Contains('["createdByPlayer"] = command.CreatedByPlayer') -and
             $phase3dHorseSource.Contains('["aiActionPresent"] = command.AiAction != null') -and
-            $phase3dHorseSource.Contains('["schemaVersion"] = 6,') -and
+            $phase3dHorseSource.Contains('["schemaVersion"] = IsPhase3fNativeControlScope ? 7 : 6,') -and
             $phase3dHorseSource.Contains('explicitPrimaryLedgerBefore = combat.CaptureUnifiedTurnSnapshot();') -and
             $phase3dHorseSource.Contains('var pairedScheduler = combat.CapturePairedCommandSchedulerSnapshot();') -and
             $phase3dHorseSource.Contains('pairedScheduler.CleanupReason == "native terminal slot removal"') -and
