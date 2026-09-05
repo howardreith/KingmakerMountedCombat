@@ -1,6 +1,23 @@
 # Phase 3F playable core
 
-Status: IN PROGRESS — private candidate preparation. Version `0.1.0-phase3f-preview.1`, branch `codex/mounted-combat-phase3f-playable-core`. One active mounted pair. This is not a finished Wrath-equivalent mod.
+Disposition: **Partial candidate with TB resource and runtime/native-pointer/visual blockers.** Version `0.1.0-phase3f-preview.2`, branch `codex/mounted-combat-phase3f-playable-core`. Implementation, offline checks and private packaging are complete. Gameplay qualification is NOT RUN. One active mounted pair; separate native turns remain an intermediate constraint. This is not a finished Wrath-equivalent mod.
+
+## Exact candidate identity
+
+The gameplay implementation is commit `71bb139ba2547cec0d42690d7f09af6a5e26a218`. Final binary source is its tested descendant `a4f54bf959d32caa871baeba3117b081362552ed`, which updates the version and stale icon diagnostic. Later documentation commits do not change that binary source.
+
+| Identity | Value |
+|---|---|
+| Package | `C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-phase3f-preview.2-playable-core-private-preview-diagnostic.zip` |
+| ZIP SHA-256 | `57fe254d5d39773750cba22ef47380d36d69fc5e92c6be5f759ae4d7ab6e2aa2` |
+| Sidecar manifest SHA-256 | `751b72b3b52424c492b698128a0adc030c29ae2a08cdbe3b4ef28eff5500b201` |
+| DLL SHA-256 | `617eba209f3adf459a796d6d5f84ea96648491b1c178e7955d761409e50d6275` |
+| DLL MVID | `d3acb334-ba00-4767-a3a0-f923dbf4c963` |
+| DLL bytes | `4180992`, below the unchanged 4 MiB limit |
+| Configuration C0 | `EnableUnifiedMountedTurn=false`, `EnablePairedCommandScheduler=false`, `EnableDiagnosticOverlay=false` |
+| Installed candidate verification | NOT RUN; candidate has never been installed or loaded by this mission |
+
+The clean-source manifest is qualification-eligible packaging metadata, not a gameplay PASS. ZIP contains only KMC `Info.json` and KMC DLL; no proprietary DLLs/assets, saves, credentials or raw logs. The old fallback ZIP remains unchanged at `9451787c08d39ec2164d75f1c36fb4d54245e4228ff12855950fc26798be6698`. Preview.1 also remains immutable and was never loaded.
 
 ## Confirmed causes and changes
 
@@ -22,32 +39,38 @@ TB movement is UNQUALIFIED. Exact assembly-backed audit confirms native Prepare 
 
 ## Qualification ledger
 
-All Phase 3F gameplay rows require the final clean-source package and settings `EnableUnifiedMountedTurn=false`, `EnablePairedCommandScheduler=false`, `EnableDiagnosticOverlay=false`. Source/package identities and runtime paths will be bound at packaging. `NOT RUN` means no Phase 3F gameplay credit; deterministic/source checks are listed separately.
+Every **F2** row binds source `a4f54bf959d32caa871baeba3117b081362552ed`, the exact preview.2 artifact above, and configuration **C0**. Evidence root **E** is `C:\Dev\KingmakerMountedCombatLab\analysis-cache\phase3f-intake-20260905T1341077001555Z`. No historical gameplay credit transfers. A missing runtime path means no scenario ran, not missing successful evidence.
 
-| Acceptance | Expected behavior | Outcome | Evidence |
-|---|---|---|---|
-| Fallback default admission | RT melee/ranged request admitted without unified mode | PASS component only | intake `red-components.txt`, `core-components3.txt` |
-| Adjacent/distant ordinary melee | Real pointer, mount approach, actor-native attack | NOT RUN | Pointer helper unavailable |
-| Persistent melee/ranged | One click, repeated legal actor cooldowns | NOT RUN | New deterministic policy coverage only |
-| Ranged position/LoS | Genuine rider range, no forced Bite approach | NOT RUN | Historical results do not transfer |
-| Party selection | One pair intent, unrelated commands preserved | NOT RUN | Deterministic selection policy only |
-| Stop/ground/retarget/Primary | No canceled generation dispatch; released effects attributed | NOT RUN | Deterministic generation/lifecycle coverage only |
-| Precombat/paused initiation | Native combat entry/unpause with retained input | NOT RUN | Deterministic combat boundary only |
-| Separate TB rider/mount input | Current actor only; independent Standards | NOT RUN | Deterministic dispatch admission only |
-| Movement epochs, both orders/two rounds | One legal mount budget across all control surfaces | FAIL contract; NOT RUN runtime | Exact native reset/projection counterexamples above |
-| Mount/Dismount, step/mode/remount costs | No resource laundering or extra grants | NOT RUN | Resource blocker |
-| Expected target invalidation | Native terminal result or clean cancellation, no exception storm | NOT RUN | Deterministic termination policy only |
-| Animated idle/gait/turn/stop/Bite/attacks | Convincing saddle following and return to idle | NOT RUN | HUMAN VALIDATION PENDING |
-| Indoor/outdoor front/side/rear | Useful motion sequence and bounded relative error | NOT RUN | HUMAN VALIDATION PENDING |
-| Native icons/states/bindings | Distinct readable normal/hover/disabled/cooldown controls | NOT RUN | Revised assets only |
-| Mammoth/unmounted negative control | Existing profile/native behavior retained | NOT RUN | Existing deterministic Mammoth profile tests |
-| Lifecycle/save/load/view replacement | Transient leases/facts clear, companion content retained | NOT RUN | Existing offline coverage plus new saddle cleanup |
+| Acceptance / expected behavior | Build | Scenario or evidence | Observed outcome | Status |
+|---|---|---|---|---|
+| Fallback-default RT admission, both weapon modes | F2 | E/preview2-release-gate.txt; original red in E/red-components.txt | Repaired production admission policy passes deterministic regressions | PASS component only |
+| Adjacent/distant ordinary melee; native attack after mount approach | F2 | No runtime scenario | Pointer bridge unavailable; no game launched | NOT RUN |
+| Persistent melee/ranged; surviving target and native cooldown waits | F2 | E/preview2-release-gate.txt (policy only) | Cooldown persistence covered offline; real repetition unobserved | NOT RUN gameplay |
+| Ranged range/LoS; no forced Bite approach; ammo/reload/misses | F2 | No runtime scenario | No current native weapon/rule/damage evidence | NOT RUN |
+| Party selection; one pair intent and isolated ally commands | F2 | E/preview2-release-gate.txt (selection policy) | Reference-exact principal tested; no real group click | NOT RUN gameplay |
+| Stop/Hold/ground/retarget/Primary precedence; no stale dispatch | F2 | E/preview2-release-gate.txt (intent generations) | Deterministic cancellation passes; native pending effects/AoOs unobserved | NOT RUN gameplay |
+| Precombat and paused hostile initiation | F2 | E/preview2-release-gate.txt (combat-boundary policy) | Initial precombat state distinguished from combat end; timing race not runtime-qualified | NOT RUN gameplay |
+| Separate TB rider/mount input; only current actor attacks | F2 | E/preview2-release-gate.txt (actor policy) | Off-turn dispatch excluded; native selection/turn input unobserved | NOT RUN gameplay |
+| Movement epochs, both orders/two rounds; one legal mount budget | F2 | E/preview2-native-resource-guard-audit.txt; resource contract | Reconciliation absent; exact native reset and current-actor projection counterexamples; no measured runtime exploit trace | FAIL contract |
+| Combat Mount/Dismount, five-foot step, mode/remount costs | F2 | No runtime scenario | Both-order/epoch/resource-laundering regressions remain outstanding | NOT RUN |
+| Expected target invalidation; actual native terminal result or clean cancellation | F2 | E/preview2-release-gate.txt (termination policy) | Released/terminal/dead/despawn/hostility cases pass offline; live effects unobserved | NOT RUN gameplay |
+| Animated idle/gait/turn/stop/Bite/rider attacks and return to idle | F2 | No motion evidence | Cached projection/cleanup tested offline; HUMAN VALIDATION PENDING | NOT RUN |
+| Indoor/outdoor front/side/rear; motion sequence and seat-relative error | F2 | No frame sequence or clip | Numeric post-write residual is not motion proof | NOT RUN |
+| Native icons, bindings and normal/hover/disabled/cooldown readability | F2 | Original embedded assets; corrected native sprite assertion | Distinct art built; actual action-bar states unobserved | NOT RUN |
+| Mammoth regression and unmounted negative control | F2 | E/preview2-release-gate.txt (profile coverage) | Mammoth values retained; neither native control ran | NOT RUN gameplay |
+| Lifecycle/save/load/view replacement; transient cleanup and persistent Horse preserved | F2 | E/preview2-release-gate.txt (existing domain/lease tests) | Offline cleanup passes; affected native boundaries unobserved | NOT RUN gameplay |
 
 ## Build, runtime and restoration
 
-Focused source/build/component checks currently pass `22/0`, Release and `333/0`. New exact-assembly/resource/guard audit passes `9/0`. Complete release gate, exact package and runtime results are pending. Computer-use initialization was attempted correctly; two `sky.list_apps()` attempts reported native pipe unavailable (os error 2). Direct ClickUnitHandler invocation, if run, is integration evidence only.
+The final applicable gate in E/preview2-release-gate.txt passes source `22/0`, Release build `0 warnings / 0 errors`, components `333/0`, visual/source contracts `19/0`, harness/protocol `243/0`, assembly-backed contracts `402/0` (`378` Kingmaker and `24` Wrath). Additional exact native resource/guard audit is `9/0`; clean package validation is `10/0`. The complete gate includes real filesystem transaction tests proving exact fallback/cache/foreign-settings restoration and rejection of mutated incumbent bytes. These are local harness tests, not live game transactions. Earlier size/stale-assertion failures remain preserved; thresholds were not lowered.
 
-Starting installed fallback includes its exact DLL and UMM cache; KMC inventory digest `22b580f2482c8111c1110979bfc6748b6f3ef8004bfcfd57922eeed462193687`. No game has been launched in Phase 3F. Runtime budget: 0/8 transactions, two reserved for final fresh processes. Temporary testing uses the named deployment helper's exact Phase 3F RuntimeTest route to the existing transactional fixture harness; no permanent deployment is authorized.
+Computer-use initialization was attempted correctly; two `sky.list_apps()` attempts reported native pipe unavailable (os error 2). The read-only Steam safety check also stopped: `Exactly one already-running Steam client is required`. Steam was not running. The user was asked to start it in Offline Mode; no such state was observed before closure. No credential, update or account action was attempted. Direct ClickUnitHandler invocation, if later run, must be labeled integration evidence.
+
+The named deployment guard gained an exact Phase 3F branch allowance and a bounded RuntimeTest route through the existing harness. An initial automated-call/manual-pin mismatch was rejected before mutation and corrected to use immutable suite pins. The subsequent runtime WhatIf inventory pass was stopped after the Steam prerequisite failed; **runtime WhatIf is NOT RUN to completion**, not PASS. Its failed/stopped traces are E/rt-A-whatif.txt and E/rt-A-whatif-repair.txt. The short candidate installation `Replace -WhatIf` does pass in E/preview2-install-whatif.txt; this authorizes no permanent installation and is distinct from runtime purity.
+
+No game launched: **0/8 live transactions**, neither final fresh-process run executed. Starting installed fallback includes its exact DLL and UMM cache, KMC inventory digest `22b580f2482c8111c1110979bfc6748b6f3ef8004bfcfd57922eeed462193687`. Independent post-stop audit in E/phase3f-preview1-readonly-preflight-aborted-independent-restoration.json proves exact saves/Mods and no game/lock/sentinel/non-restored transaction. Initial save/Mods digests are `b42a7a30ed0b9e8b75ddb2c7f2511b5b488f35ef914aa0319897cd336388e19d` / `67601f2186e5e4ffc81cff0abc4ee376322e2e269ccb3a0daa3d91c571ef950c`; final audit E/phase3f-preview2-final-audit.json binds those inventories to the final artifact. The original fallback remains installed; no candidate payload was left behind.
+
+Live continuation requires an existing verified Offline Steam session and a fresh suite for the final source/package. Preview.1 suite1 is not valid for preview.2. The current runtime harness requires its package's exact source HEAD; the deployment helper's documentation-descendant allowance applies to installation and does not override that runtime check. The legacy manual-review scenario establishes a Mammoth/overlay/read-only-save state and cannot qualify the requested Horse/native-controls/save-write checklist. Prepare the proper guarded human fixture before using that checklist; do not bypass these checks.
 
 ## Remaining path to the finished experience
 

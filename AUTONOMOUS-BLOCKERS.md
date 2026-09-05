@@ -2,13 +2,14 @@
 
 ## Phase 3F current blockers — 2026-09-05
 
-Status: IN PROGRESS. Ordinary RT admission, actor-local TB input, Horse animated visual projection and control art are being repaired on `codex/mounted-combat-phase3f-playable-core`. Historical fallback claims of ordinary RT/native presentation qualification do not transfer to fallback.1 or this build.
+Disposition: partial candidate `0.1.0-phase3f-preview.2`, source `a4f54bf959d32caa871baeba3117b081362552ed`, branch `codex/mounted-combat-phase3f-playable-core`. Implemented and packaged ordinary RT/actor-local TB admission, intent lifecycle, expected target invalidation, Horse animated visual projection and distinct control art. Offline gates pass; gameplay qualification remains IN PROGRESS / NOT RUN. Historical fallback claims do not transfer.
 
 - TB resource reconciliation remains a blocker: native Prepare clears mount debit; projection consults rider Standard/restriction state and leaves rider TimeMoved/step/auto-stop side effects. Both native turn orders/two rounds and laundering boundaries need runtime proof. No arbitrary rider movement tax or wider turn-controller implementation is authorized here.
 - Approved Computer Use returns native pipe unavailable (os error 2), twice. Pointer and visual gameplay acceptance remain NOT RUN / HUMAN VALIDATION PENDING; method calls may provide integration evidence only.
-- Handoff ZIP and screenshots were not found in the lab. The human log is available and hash-exact. Final package, release gate, runtime and source identity are pending.
+- Steam is not running. The existing-client/Offline Mode guard blocks live runtime. No game or live transaction started (0/8), including neither final fresh process. Runtime WhatIf was stopped, not passed; guarded installation Replace WhatIf passed. The legacy manual-review scenario is Mammoth/overlay/read-only and must not be substituted for the new Horse/native-controls/Working-write human checklist. Runtime source-HEAD binding also remains stricter than installation's documentation-descendant allowance.
+- Handoff ZIP and screenshots were not found in the lab. The human log is available and hash-exact. Package/source/release gates are complete; exact identities and remaining gates are in docs/PHASE3F-PLAYABLE-CORE-IMPLEMENTATION.md.
 
-No external integrity failure is known. Installed fallback and its UMM cache remain untouched; live transaction count 0/8. Exact resume command is recorded in AUTONOMOUS-RESUME.md.
+No external integrity failure is known. Independent complete save/Mods audit proves the installed fallback/cache, fixtures and foreign content remain exact; no game, runtime lock or sentinel remains. No permanent candidate deployment is authorized. A short human checklist and dependency-ordered roadmap are delivered; TB action-economy, native controls, motion and affected lifecycle gates prevent a Phase 3F completion or Wrath-parity claim.
 
 ## Phase 3E fallback package is complete — 2026-09-05T07:00:29-04:00
 
