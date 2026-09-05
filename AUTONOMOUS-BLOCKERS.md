@@ -1,5 +1,15 @@
 # Autonomous blockers
 
+## Phase 3E final architecture blocker and bounded fallback — 2026-09-05T05:39:53-04:00
+
+Status: `PAIRED SCHEDULER PIVOT — SEPARATE-TURN FALLBACK READY`.
+
+The primary pair-local Option A scheduler is not itself the blocker: immutable dev.4 Mammoth A/B pass `140/0`, and dev.12 Horse rerun passes one exact Horse-owned Standard action with rider current retained, one lifecycle chain, separate resources, and exact cleanup. The critical blocker is K9 in native turn completion. After that lease was disposed, `CombatController.ChooseNextUnit` retained the redundant Horse at a later round boundary. The coordinator failed closed instead of assigning native current/pending state; the relationship cleaned up and unrelated external state restored.
+
+The authorized two repair cycles are exhausted. The authorized scheduling-shell investigation cannot solve K9 within its nonnegotiable ownership rules: the historical rider Standard wrapper is invalid, and a new zero-cost shell would end before native selection and has no lawful pair-local control over the later candidate. Further progress requires a separately authorized broader turn-controller/roster architecture. No global controller replacement, third repair package, combat-Mount tranche, five-foot-step patch, or Paladin implementation is attempted.
+
+The safe independently actionable result is the fallback package: defaults unified mode and the paired scheduler off, preserves Phase 3C separate turns and accepted Phase 3D RT/native-control/presentation behavior, and makes no unified-TB claim. External state is exact and clear. Only offline qualification, guarded publication, clean packaging, hashing, and documentation closure remain.
+
 ## Dev.11 proves the production skip; dev.12 closes diagnostic native-turn traversal (2026-09-05T02:04:27-04:00)
 
 Status: `IN PROGRESS`.

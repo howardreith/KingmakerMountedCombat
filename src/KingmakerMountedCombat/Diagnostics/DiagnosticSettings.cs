@@ -5,7 +5,7 @@ namespace KingmakerMountedCombat.Diagnostics
         public DiagnosticSettings()
         {
             EnableUnsafeMovementExperiment = true;
-            EnableUnifiedMountedTurn = true;
+            EnableUnifiedMountedTurn = false;
             EnablePairedCommandScheduler = false;
             EnableDiagnosticOverlay = false;
             MaximumAnchorResidualWorldUnits = 0.10d;

@@ -1,6 +1,14 @@
 # Phase 3E Risk and Kill-Criteria Register
 
-Status: IN PROGRESS
+Status: PAIRED SCHEDULER PIVOT — SEPARATE-TURN FALLBACK READY
+
+## Final kill-criterion decision — 2026-09-05
+
+K9 is `FAIL` and is decisive. On the final permitted repair cycle, audited dev.12 rerun `20260905T090000Z-phase3e-dev12-horse-tb-gate2-rerun` executed one correct Horse-owned scheduler lease, later reached another native rider turn, and then observed `ChooseNextUnit` retain the redundant Horse. The fail-closed coordinator did not mutate pending/current turn state; it disabled unified mode for the runtime transition and cleaned the mounted relationship. Continuing would require another turn-completion architecture cycle beyond the user's budget.
+
+K10 is also `FAIL` for the comprehensive same-package Gate 2 path, but is supporting rather than controlling: the first fresh process stopped before scheduler admission on the inherited one-frame out-of-combat Mount race, while the rerun reached and passed Mount Primary before K9. This does not invalidate deterministic dev.4 scheduler A/B; it means the broader Horse traversal did not become repeatably qualified.
+
+K1-K8 and K11 did not fire in the qualified minimal scheduler slice. K12 is not asserted: this mission proves that the authorized pair-local scheduler and compliant rider-shell ownership boundary cannot repair native pair-aware turn selection, not that every conceivable future design must replace the complete global controller. Any future broader controller/roster architecture requires a new user decision.
 
 ## Dev.11 runtime disposition and final repair-budget state
 
@@ -51,8 +59,8 @@ The one observation checkpoint is consumed. Dev.1 proved positive exact stock en
 | K6 | Mount resource ownership/cardinality cannot remain exact. | TODO | Kill architecture; do not compensate by manual refund/charge. |
 | K7 | Rider resources are consumed or refreshed by scheduling. | TODO | Stop and repair if narrowly attributable; otherwise kill. |
 | K8 | Unrelated units' command processing changes. | TODO | Kill broad seam and restore fallback. |
-| K9 | Turn completion skips, duplicates, or deadlocks a combatant. | IN PROGRESS | Dev.11 proves the production Horse skip and preserves unrelated order; dev.12 is final cycle 2/2 for exact diagnostic player-turn traversal and complete fresh-process proof. |
-| K10 | Fresh-process A/B results remain nondeterministic. | TODO | Kill after the bounded repeat/repair budget; do not normalize evidence. |
+| K9 | Turn completion skips, duplicates, or deadlocks a combatant. | FAIL | Final dev.12 rerun retained the exact redundant Horse after later rider work; repair budget 2/2 is exhausted. |
+| K10 | Fresh-process A/B results remain nondeterministic. | FAIL | Same dev.12 package diverged at Mount intake versus post-Mount-Primary K9; preserve both results. |
 | K11 | Cleanup leaves command, slot, queue, lease, turn, movement, or presentation residue. | TODO | One narrow terminal/cleanup repair permitted; repeated residue kills primary. |
 | K12 | Only a broad global `TurnController` replacement can satisfy the contract. | TODO | `PAIRED SCHEDULER PIVOT — SEPARATE-TURN FALLBACK READY`. |
 

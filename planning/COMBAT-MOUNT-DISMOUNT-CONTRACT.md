@@ -1,5 +1,11 @@
 # Phase 3D Combat Mount/Dismount Contract
 
+## Phase 3E final disposition
+
+Status: `DEFER — EVIDENCED` for unified-TB combat Mount/Dismount.
+
+The scheduler/turn-completion prerequisite failed under K9, so Tranche 7 was not opened. The existing outside-combat Mount path and accepted RT Dismount behavior remain intact. No Phase 3E claim is made for rider Move cost, upcoming/past native-slot reconciliation, no-extra-turn behavior, or same-round split after combat Dismount. Fallback `0.1.0-phase3e-fallback.1` uses Phase 3C separate turns and both unified experiments default off.
+
 ## Phase 3E dev.11 ordering boundary
 
 Dev.10 used an already-qualified out-of-combat mount solely to reach the earlier scheduler/turn-completion tranches. Its audited failure occurred at redundant Horse turn selection, not combat Mount/Dismount. Dev.11 repairs only that exact selection timing. Combat Mount/Dismount remains `TODO` and the out-of-combat setup consumes no combat action or row credit; implementation remains gated until scheduler sequencing plus ordinary TB melee/ranged pass.

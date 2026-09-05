@@ -1,6 +1,12 @@
 # Phase 3E Paired-Scheduler Runtime Scenario Matrix
 
-Status: IN PROGRESS
+Status: PAIRED SCHEDULER PIVOT — SEPARATE-TURN FALLBACK READY
+
+## Final Phase 3E gate disposition
+
+Gate 1 remains immutable `PASS 140/0` from dev.4 Mammoth A/B. The final dev.12 Horse rerun additionally passes one exact Horse Mount Primary scheduler action (`8 PASS / 1 FAIL` rows overall; Mount Primary itself exact), but `exact-turn-completion` is `FAIL` under K9. Gates 2-5 are `DEFER — EVIDENCED` because mission order forbids broadening after that failure. Gate 6 ships the accepted separate-turn fallback with both experimental gates default false. No failed result is relabeled.
+
+The first same-package dev.12 process `20260905T082300Z-phase3e-dev12-horse-tb-gate2` is an immutable pre-scheduler intake failure caused by the inherited one-frame out-of-combat Mount admission race. Rerun `20260905T090000Z-phase3e-dev12-horse-tb-gate2-rerun` is the decisive architecture result: its Horse Mount Primary lease is exact and residue-free, then native turn selection retains the redundant Horse and triggers fallback. Both runs passed independent restoration audit before gameplay evidence was read.
 
 Dev.11 is clean published commit `b50a44cdfdf160f06f19ee48b8c5af7afc2385fa`; package/suite SHA-256 are `4cc3fd262c06a112d5bdca92032ca0b65262623608c4ba454bc284307425a4a4` / `2577387f77bbf569e50a224b9acc5251be7078e92f9ec431a6785b18c5648b33`, and WhatIf passed. Immutable audited live `20260905T051700Z-phase3e-dev11-horse-tb-gate2` is game `FAIL 52/2` after the first seven PASS rows. The exact log positively proves one post-Tick Horse skip, zero fallback/native Horse turn, and the original next unrelated unit `b6628a77-4962-47a4-a17c-88d9836fc9d5`. The remaining wait was not a production deadlock: this legitimate directly controllable roster member remained in native `Preparing` awaiting player input.
 
@@ -53,7 +59,7 @@ These two rows use the same immutable package and suite but fresh game processes
 | mount-standard-only | PASS | A/B each record mount Standard `0 -> 6` once and rider Standard `0 -> 0`. |
 | one-chain-cardinality | PASS | A/B each record one start, terminal, attack, roll, damage, and resource transition; zero duplicate drive. |
 | no-native-mount-turn | PASS | A/B record zero native action-actor turn start and retain rider principal. |
-| exact-turn-completion | TODO | Rider turn stays while command runs and can advance once after eligible pair work is done. |
+| exact-turn-completion | FAIL | Final dev.12 rerun hit K9 when native selection retained the redundant Horse after the exact pair command had completed. |
 
 Do not broaden beyond this gate until pass A and B both pass.
 
@@ -77,85 +83,85 @@ Dev.7 changes only diagnostic intake/readiness: a separate reversible rider-AI l
 
 | Row | Status | Required evidence |
 |---|---|---|
-| mount-first-rider-second | TODO | Two actor-owned actions, distinct ledgers, deterministic completion. |
-| rider-first-mount-second | TODO | Default ordinary-click order; target remains valid for second action. |
-| mount-action-only | TODO | Mount spends only mount Standard; rider action remains available. |
-| rider-action-only | TODO | Rider spends only rider Standard; mount action remains available. |
-| one-ledger-already-spent | TODO | Available actor acts; spent actor does not refresh or duplicate. |
-| both-ledgers-spent | TODO | Turn advances once, does not stick. |
-| target-dies-after-first | TODO | Second action canceled before start with zero late rule/damage. |
-| cancellation | TODO | Exact active/pending command interrupted once; slots and lease clean. |
-| interruption | TODO | Native interruption result preserved once; no refund/duplicate. |
-| end-turn | TODO | Player end-turn cannot strand or double-run pair work. |
-| next-round-reset-once | TODO | One natural rider prep and one pair-local mount ledger prep; no duplicate events. |
-| unrelated-initiative-order | TODO | No skipped, duplicated, or reordered unrelated combatant. |
+| mount-first-rider-second | DEFER — EVIDENCED | Not broadened after K9; one exact mount-only action passed. |
+| rider-first-mount-second | DEFER — EVIDENCED | The later ordinary sequence was interrupted by fail-closed fallback after K9. |
+| mount-action-only | PASS | Dev.12 rerun: one Horse Bite chain, mount Standard only, rider Standard unchanged. |
+| rider-action-only | PASS | Dev.12 rerun preserved the earlier exact rider-only Phase 3D row. |
+| one-ledger-already-spent | DEFER — EVIDENCED | Not fully qualified before K9. |
+| both-ledgers-spent | DEFER — EVIDENCED | Not fully qualified before K9. |
+| target-dies-after-first | DEFER — EVIDENCED | Not reached before K9. |
+| cancellation | DEFER — EVIDENCED | Scheduler component coverage only; runtime sequencing gate not reached. |
+| interruption | DEFER — EVIDENCED | Scheduler component coverage only; runtime sequencing gate not reached. |
+| end-turn | FAIL | Native post-action turn completion retained the redundant mount. |
+| next-round-reset-once | DEFER — EVIDENCED | Round-boundary K9 prevents qualification. |
+| unrelated-initiative-order | DEFER — EVIDENCED | Dev.11 preserved one unrelated successor, but final comprehensive traversal failed. |
 
 ## Gate 3 — ordinary hostile-click TB melee and ranged
 
 | Row | Status | Required evidence |
 |---|---|---|
-| TB-melee-approach | TODO | Mount-owned approach, then rider Standard and legal mount Standard in deterministic order. |
-| explicit-rider-only | TODO | One rider primary, no mount action/cost. |
-| explicit-mount-only | TODO | One mount primary, no rider action/cost. |
-| TB-ranged-approach-to-range | TODO | Mount stops at rider-native range/LoS; rider fires natively. |
-| TB-ranged-no-forced-melee | TODO | No mount melee closure caused by ranged intent. |
-| TB-Shortbow | TODO | Native rider weapon/range/ammunition/AoO behavior; distinct ledgers. |
-| TB-Crossbow-reload | TODO | Native reload/ammunition/weapon behavior and exact actor cost. |
-| TB-Sling | TODO | Native rider Sling command/rules and no foreign dependency. |
-| LoS-recovery | TODO | Mount-owned bounded recovery; native child LoS remains authority. |
-| target-movement-bounded-repath | TODO | Existing single bounded repath, exact cancellation. |
-| movement-cancellation | TODO | Exact move and action intent terminate without late attack. |
+| TB-melee-approach | DEFER — EVIDENCED | Not reached after the required turn-completion gate failed. |
+| explicit-rider-only | PASS | Dev.12 rerun retained exact rider-only ownership and cost before K9. |
+| explicit-mount-only | PASS | Dev.12 rerun passed exact Horse Mount Primary before K9. |
+| TB-ranged-approach-to-range | DEFER — EVIDENCED | Unified TB ranged remains unqualified; Phase 3D RT behavior is retained. |
+| TB-ranged-no-forced-melee | DEFER — EVIDENCED | Unified TB ranged remains unqualified; Phase 3D RT behavior is retained. |
+| TB-Shortbow | DEFER — EVIDENCED | Not reached after the required turn-completion gate failed. |
+| TB-Crossbow-reload | DEFER — EVIDENCED | Not reached after the required turn-completion gate failed. |
+| TB-Sling | DEFER — EVIDENCED | Not reached after the required turn-completion gate failed. |
+| LoS-recovery | DEFER — EVIDENCED | Not reached after the required turn-completion gate failed. |
+| target-movement-bounded-repath | DEFER — EVIDENCED | Not reached after the required turn-completion gate failed. |
+| movement-cancellation | DEFER — EVIDENCED | Not reached after the required turn-completion gate failed. |
 
 ## Gate 4 — combat Mount/Dismount and lifecycle
 
 | Row | Status | Required evidence |
 |---|---|---|
-| combat-Mount-before-either-acted | TODO | Rider Move cost once; untouched Standards preserved; no extra turn. |
-| combat-Mount-after-rider-acted | TODO | Rider spent state preserved; mount does not refresh rider. |
-| combat-Mount-after-mount-acted | TODO | Mount spent state preserved; upcoming/past slot reconciled safely. |
-| combat-Mount-after-partial-movement | TODO | Both movement ledgers preserved exactly. |
-| combat-Dismount | TODO | Rider Move cost once; split deferred to safe round boundary. |
-| no-extra-turn | TODO | No immediate second rider/mount turn or unrelated skip. |
-| mount-upcoming-native-slot | TODO | Redundant active-round slot suppressed without refresh. |
-| mount-past-native-slot | TODO | Merge does not create another current-round action. |
-| RT-to-TB | TODO | Scheduler starts clean only at exact TB/rider-turn boundary. |
-| TB-to-RT | TODO | Exact lease interrupted/disposed; accepted RT behavior resumes. |
-| rider-unconsciousness | TODO | Exact cleanup/fallback, zero stale drive. |
-| mount-unconsciousness | TODO | Exact cleanup/fallback, zero stale drive. |
-| target-invalidation | TODO | Pending/running action terminates honestly; no late chain. |
-| invalid-during-transition | TODO | No ledger reset, extra turn, or residue. |
-| area-save-cleanup | TODO | No scheduler state serialized; no lease/command residue. |
+| combat-Mount-before-either-acted | DEFER — EVIDENCED | Gated tranche not opened after K9. |
+| combat-Mount-after-rider-acted | DEFER — EVIDENCED | Gated tranche not opened after K9. |
+| combat-Mount-after-mount-acted | DEFER — EVIDENCED | Gated tranche not opened after K9. |
+| combat-Mount-after-partial-movement | DEFER — EVIDENCED | Gated tranche not opened after K9. |
+| combat-Dismount | DEFER — EVIDENCED | Unified-TB split behavior not reached; accepted RT behavior retained. |
+| no-extra-turn | DEFER — EVIDENCED | K9 prevents unified-TB qualification. |
+| mount-upcoming-native-slot | DEFER — EVIDENCED | K9 is the unresolved redundant-slot boundary. |
+| mount-past-native-slot | DEFER — EVIDENCED | Not reached after K9. |
+| RT-to-TB | DEFER — EVIDENCED | Scheduler remains default off in fallback. |
+| TB-to-RT | DEFER — EVIDENCED | Scheduler remains default off in fallback. |
+| rider-unconsciousness | DEFER — EVIDENCED | Component cleanup only; unified runtime tranche not reached. |
+| mount-unconsciousness | DEFER — EVIDENCED | Component cleanup only; unified runtime tranche not reached. |
+| target-invalidation | DEFER — EVIDENCED | Component cleanup only; unified runtime tranche not reached. |
+| invalid-during-transition | DEFER — EVIDENCED | Not reached after K9. |
+| area-save-cleanup | PASS | Scheduler state is runtime-only; audited processes left no lease/deployment/save residue. |
 
 ## Gate 5 — five-foot step and AoO
 
 | Row | Status | Required evidence |
 |---|---|---|
-| mounted-five-foot-step-no-AoO | TODO | Native step mode, mount physical movement, legal bound, zero step-only AoO. |
-| mounted-ordinary-move-AoO-control | TODO | Stock provocation remains possible. |
-| five-foot-distance-bound | TODO | No more than native 7.5-foot bound. |
-| five-foot-one-step-limit | TODO | Second step unavailable. |
-| five-foot-post-movement-rejection | TODO | Ordinary prior movement disqualifies step. |
-| unmounted-five-foot-control | TODO | Stock unmounted behavior unchanged. |
-| unrelated-party-AoO-control | TODO | Another party member remains stock. |
-| hostile-movement-AoO-control | TODO | Hostile movement/opportunity processing remains stock. |
+| mounted-five-foot-step-no-AoO | DEFER — EVIDENCED | Gated tranche not opened after K9. |
+| mounted-ordinary-move-AoO-control | DEFER — EVIDENCED | Gated tranche not opened after K9. |
+| five-foot-distance-bound | DEFER — EVIDENCED | Gated tranche not opened after K9. |
+| five-foot-one-step-limit | DEFER — EVIDENCED | Gated tranche not opened after K9. |
+| five-foot-post-movement-rejection | DEFER — EVIDENCED | Gated tranche not opened after K9. |
+| unmounted-five-foot-control | DEFER — EVIDENCED | No new Phase 3E runtime control; stock path unchanged. |
+| unrelated-party-AoO-control | DEFER — EVIDENCED | No broad AoO patch was added. |
+| hostile-movement-AoO-control | DEFER — EVIDENCED | No broad AoO patch was added. |
 
 ## Gate 6 — fallback and regressions
 
 | Row | Status | Required evidence |
 |---|---|---|
-| separate-turn-fallback | TODO | `EnableUnifiedMountedTurn=false` preserves accepted Phase 3C turns; scheduler inert. |
-| scheduler-gate-disabled | TODO | Unified Phase 3D setting may remain on while scheduler gate false; no mount command eligibility extension. |
-| non-mounted-Horse | TODO | No registration/admission/drive. |
-| non-mounted-Mammoth | TODO | No registration/admission/drive. |
-| unrelated-companion | TODO | Commands and resources unchanged. |
-| unrelated-combatant-initiative | TODO | Native order and turn count exact. |
-| unmounted-melee | TODO | Native command/rule/resource path unchanged. |
-| unmounted-ranged | TODO | Native weapon/ammunition/AoO path unchanged. |
-| RT-hostile-click-melee | TODO | Phase 3D accepted RT seam unchanged where production code overlaps. |
-| RT-ranged | TODO | Phase 3D accepted RT range/LoS/reload/cancel behavior unchanged. |
-| Horse-regression | TODO | Exact supported Horse profile and ownership remain sound. |
-| Mammoth-regression | TODO | Existing Mammoth presentation/movement/primary behavior remains sound. |
-| no-foreign-mod-dependency | TODO | Package and runtime references contain no gameplay-mod dependency. |
+| separate-turn-fallback | PASS | Accepted Phase 3C path retained; fallback package defaults unified mode and scheduler off. |
+| scheduler-gate-disabled | PASS | Default-false component gate remains inert; fallback package also defaults unified mode off. |
+| non-mounted-Horse | DEFER — EVIDENCED | Scheduler defaults inert; no new fallback-package runtime row. |
+| non-mounted-Mammoth | DEFER — EVIDENCED | Scheduler defaults inert; no new fallback-package runtime row. |
+| unrelated-companion | DEFER — EVIDENCED | Dev.11 preserved one unrelated successor; comprehensive order later failed. |
+| unrelated-combatant-initiative | DEFER — EVIDENCED | K9 prevents unified initiative qualification; separate turns remain stock. |
+| unmounted-melee | PASS | Inherited qualified Phase 3D control; fallback changes only settings defaults/version. |
+| unmounted-ranged | DEFER — EVIDENCED | Phase 3D final automated control remained deferred; focused manual control retained. |
+| RT-hostile-click-melee | PASS | Phase 3D dev.17 A/B accepted rows; no RT production seam changed for fallback. |
+| RT-ranged | PASS | Phase 3D dev.17 A/B accepted rows; no RT production seam changed for fallback. |
+| Horse-regression | PASS | Qualified Horse native controls/presentation retained; fallback only changes experimental defaults. |
+| Mammoth-regression | PASS | Gate 1 A/B and inherited presentation remain exact; scheduler is dormant by default. |
+| no-foreign-mod-dependency | PASS | Source/package allowlist and assembly/reference gates remain authoritative. |
 
 ## Qualification order
 

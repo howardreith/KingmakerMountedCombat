@@ -1,5 +1,13 @@
 # Combat action economy contract
 
+## Phase 3E final disposition — 2026-09-05
+
+Status: `BLOCKED — CRITICAL` for one unified TB turn; `PASS` for the accepted separate-turn fallback.
+
+The isolated scheduler preserved separate ledgers exactly: dev.4 A/B each charged only the mount Standard once and charged the rider zero; final dev.12 Horse Mount Primary repeated `mount Standard 0 -> 6`, rider Standard unchanged, with one start/terminal/resource transition. The blocker is not a merged pool or resource defect. Native turn completion later retained the redundant Horse and fired K9 after the permitted repair budget.
+
+Fallback version `0.1.0-phase3e-fallback.1` starts with `EnableUnifiedMountedTurn=false` and `EnablePairedCommandScheduler=false`. Rider and mount therefore use the accepted Phase 3C independent native turns and action ledgers. No action is refunded, synthesized, shared, or reset by the fallback selection. Combat Mount/Dismount unified-round reconciliation remains unqualified.
+
 ## Phase 3E dev.10/dev.11 turn-completion boundary - 2026-09-05
 
 Dev.10 passed the natural pre-mounted rider turn and one exact rider-owned Standard attack, then emitted the Horse's native turn before any scheduler lease. Exact installed ordering attributes this to the old recursive mount-candidate skip running before `CombatController.Tick` cleared the ended rider turn. Dev.11's first narrow completion repair defers that exact native `ChooseNextUnit` re-invocation until the post-`Tick` cleared-turn boundary. It does not prepare a ledger, charge/refund an action, start a turn, or advance a command. Runtime credit remains pending; schema 5 must show one later Horse-owned scheduler Standard charge, unchanged rider Standard, one initialization per natural rider turn, no native Horse turn, no refresh, no fallback, and exact cleanup.

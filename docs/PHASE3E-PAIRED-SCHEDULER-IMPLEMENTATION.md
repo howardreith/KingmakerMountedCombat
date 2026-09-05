@@ -1,6 +1,20 @@
 # Phase 3E Paired-Command Scheduler Implementation
 
-Status: IN PROGRESS
+Status: PAIRED SCHEDULER PIVOT — SEPARATE-TURN FALLBACK READY
+
+## Final architecture result — 2026-09-05
+
+The primary implementation uses the preferred Option A seam: a Harmony postfix observes installed `UnitActionController.TickCommandTurnBased(UnitCommand)` (`0x0600911D`) and changes its eligibility result only for the one reference-exact `MountedPairCommandScheduler` lease. The rider must remain exact `CurrentTurn.Unit`; the executor must remain the exact paired mount; the command must be KMC-created, non-AI, non-AoO, reference-identical to the mount's expected slot, and current for the exact relationship generation and rider turn. All other native predicates and lifecycle work remain stock.
+
+Scheduler state lives in the injected runtime service, not patch fields or save data. Its states are `Idle`, `Registered`, `AwaitingStart`, `Running`, `Finishing`, `Interrupting`, `Completed`, `Faulted`, and `Disposed`. A lease binds rider/mount references and IDs, relationship generation, rider turn reference, command/executor/slot/type/origin/target/weapon, creation/admission/drive frames, native start/terminal/result state, expected resource/rule ownership, and cleanup reason. Reference, one-drive-per-frame, single-start, single-terminal, single-charge, foreign/AI/AoO exclusion, and idempotent cleanup invariants are component-tested.
+
+Dev.4 Mammoth fresh-process A/B qualifies that narrow seam `70/0` each. Final dev.12 Horse rerun independently repeats the exact action facts: admission/grant/start/last drive `5678/5679/5680/5687`; drive/start/terminal/resource/cleanup `9/1/1/1/1`; exact Horse executor, natural Bite weapon, animation, target, attack roll, at-most-one damage, Standard charge; rider Standard unchanged and rider current throughout; no native Horse turn or residue.
+
+Unified completion nevertheless fails K9. After the lease was disposed and later rider work began, installed `CombatController.ChooseNextUnit()` (`0x06000BD2`) retained the exact redundant Horse. The existing fail-closed coordinator refused to write native turn state, logged the invariant failure, and safely cleared the relationship. Repair cycle 2/2 is exhausted.
+
+The rider-owned shell fallback was investigated and rejected without new implementation. Historical commit `2b25bb45556ff62b9f421963ae81dc4d75d63412` proves a rider-resident Standard wrapper charges rider Standard and violates the current contract. A compliant no-cost shell could host the already-proven mount child, but it ends before the later selector decision and cannot repair K9. Doing so would require broader turn-controller/roster ownership outside authorization.
+
+The installable fallback is version `0.1.0-phase3e-fallback.1`. Only its safe defaults differ from dev.12: `EnableUnifiedMountedTurn=false` and `EnablePairedCommandScheduler=false`. It keeps the implementation available for evidence but dormant, retains Phase 3C separate native turns, and preserves the already-qualified Phase 3D RT/native-control/presentation seams. It makes no unified-TB, combat-Mount, five-foot-step, or Paladin claim. Its pre-package gate passes source `22/0`, clean Release, component `322/0`, visual/source-order `18/0`, harness/protocol `242/0`, assembly contracts `402/0` (`378` Kingmaker plus `24` Wrath), PowerShell parser `26/0`, JSON parser `7/0`, and diff validation. Final clean package identity is recorded in the playtest document after packaging.
 
 ## Dev.12 offline implementation checkpoint
 

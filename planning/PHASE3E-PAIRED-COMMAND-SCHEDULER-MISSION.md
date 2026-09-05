@@ -1,6 +1,16 @@
 # Kingmaker Mounted Combat — Phase 3E Paired-Command Scheduler
 
-Status: `IN PROGRESS`
+Status: `PAIRED SCHEDULER PIVOT — SEPARATE-TURN FALLBACK READY`
+
+## Final bounded disposition — 2026-09-05
+
+The authorized primary scheduler proved its narrow command-lifecycle seam but did not qualify unified turn completion. Immutable dev.4 Mammoth runs A/B passed the minimal vertical slice `70/0` each (`140/0` total): the exact mount-owned Standard command started once, terminated once, charged the mount once, emitted one mount-owned rule chain, left the rider Standard unchanged, and kept the rider as `CurrentTurn.Unit`. The exact native seam is the eligibility result of `UnitActionController.TickCommandTurnBased(UnitCommand)` (`0x0600911D`).
+
+The final bounded dev.12 Horse run `20260905T090000Z-phase3e-dev12-horse-tb-gate2-rerun` then passed an exact Horse Mount Primary action but failed later when `CombatController.ChooseNextUnit()` (`0x06000BD2`) retained the redundant Horse at the next round boundary. KMC entered its fail-closed separate-turn fallback, the relationship was safely cleared, and the comprehensive leaf ended `FAIL 8/1` (`31/1` Horse assertions). This is kill criterion K9 after repair cycle 2/2. The prior same-package process `20260905T082300Z-phase3e-dev12-horse-tb-gate2` stopped earlier on an inherited out-of-combat Mount admission race, so the two fresh processes also did not establish deterministic comprehensive traversal.
+
+The one authorized rider-owned scheduling-shell investigation is closed without implementation. Historical shell commit `2b25bb45556ff62b9f421963ae81dc4d75d63412` placed a Standard wrapper in the rider container and charged rider Standard, which violates the required separate ledgers. A compliant no-cost rider shell could schedule one mount child, but it cannot change the later native `ChooseNextUnit` decision after that child and its lease are already disposed. Repairing that decision now requires broader pending-unit/roster/turn-controller ownership outside this mission.
+
+The bounded fallback therefore ships as `0.1.0-phase3e-fallback.1` with `EnableUnifiedMountedTurn=false` and `EnablePairedCommandScheduler=false` by default. It preserves the accepted Phase 3C separate turns and inherited Phase 3D RT melee/ranged, native abilities, and presentation; it makes no unified-TB claim. Paladin implementation remains unauthorized.
 
 ## Authorization and controlling disposition
 

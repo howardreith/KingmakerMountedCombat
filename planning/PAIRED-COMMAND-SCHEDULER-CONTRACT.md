@@ -1,6 +1,16 @@
 # Phase 3E Paired-Command Scheduler Contract
 
-Status: IN PROGRESS
+Status: BLOCKED — CRITICAL
+
+## Final contract disposition — bounded fallback
+
+The pair-local lease and Option A command eligibility contract is technically proven for one exact in-range mount attack. Dev.4 A/B totals are `140 PASS / 0 FAIL`; each run retains rider `CurrentTurn.Unit`, one mount Standard charge, zero rider cost, one exact mount attack/roll/damage chain, one start, one terminal result, one cleanup, and zero duplicate-frame or foreign-command drives.
+
+Unified turn completion is not accepted. Final audited dev.12 Horse rerun `20260905T090000Z-phase3e-dev12-horse-tb-gate2-rerun` passed the exact Horse Mount Primary row with admission/grant/start/last-drive frames `5678/5679/5680/5687`, drive/start/terminal/resource counts `9/1/1/1`, exact Horse Bite ownership, zero rider cost, and disposed cleanup. After later rider work, native `ChooseNextUnit` retained the redundant Horse, KMC raised `ChooseNextUnit retained the exact redundant mount`, entered safe fallback, and the suite timed out. K9 is `FAIL`; the two-cycle budget is exhausted.
+
+The rider-owned scheduling shell is `FEATURE-NOT-PRESENT`. The historical wrapper at `2b25bb45556ff62b9f421963ae81dc4d75d63412` is contract-invalid because its rider-resident Standard shell spends rider Standard. A newly compliant shell could leave the mount child as action/rule/weapon/resource owner, but it would terminate before the later initiative defect and therefore cannot solve K9. No shell is added.
+
+The shipping disposition keeps all scheduler code dormant and nonserialized. Fresh defaults are `EnableUnifiedMountedTurn=false` and `EnablePairedCommandScheduler=false`; the accepted separate-turn path remains authoritative. Re-enabling either experiment is diagnostic-only and makes no qualification claim.
 
 ## Dev.11 result and dev.12 diagnostic traversal contract
 

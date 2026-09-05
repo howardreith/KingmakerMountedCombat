@@ -1,6 +1,12 @@
 # Exact Kingmaker Turn-Based Command Lifecycle Map
 
-Status: IN PROGRESS
+Status: PASS
+
+## Final Phase 3E conclusion
+
+The controlling command question is answered exactly: stock `UnitActionController` does enumerate the mount's exact command, and `TickCommandTurnBased(UnitCommand)` (`0x0600911D`) returns false only at its executor-versus-`CurrentTurn.Unit` eligibility input when every other observed admission predicate is ready. The qualified Option A extension changes only that result for one reference-exact, explicitly leased, non-AoO KMC mount command while its exact rider owns the native turn.
+
+Dev.4 A/B proves that seam can preserve the installed start, animation/action, rule, weapon, result, slot removal, and resource lifecycle. It does not supply pair-aware initiative advancement. Final audited dev.12 run `20260905T090000Z-phase3e-dev12-horse-tb-gate2-rerun` proves `CombatController.ChooseNextUnit()` (`0x06000BD2`) can later retain the exact redundant Horse at a round boundary even after the pair command has completed and its scheduler lease is disposed. That K9 failure is outside command eligibility and cannot be repaired by a rider-owned command shell. No further turn-controller repair is authorized in this mission.
 
 ## Dev.10 exact `ChooseNextUnit` frame-order finding
 
