@@ -1,5 +1,13 @@
 # Autonomous blockers
 
+## Dev.9 proves the stock shell and hits the intentionally deferred combat-Mount policy; dev.10 is independently actionable (2026-09-04T21:52:20-04:00)
+
+Status: `IN PROGRESS`.
+
+Immutable audited dev.9 run `20260905T010000Z-phase3e-dev9-horse-tb-gate2` proves exact stock lifecycle success for the rider-owned Mount shell: one stock encounter/eligibility, start and `Success` terminal on the following frame, zero rejects/duplicates, rider current retained, and exact command provenance. KMC then truthfully refused the relationship transition because `MountedPairCandidate.Validate` still limits Mount to out-of-combat use. That veto predates the scheduler and belongs to mission Tranche 7, after scheduler sequencing; there was no scheduler lease, mount command, attack, resource, or rule path to repair. No kill criterion or repair cycle applies.
+
+Dev.10 removes the ordering conflict without weakening policy. It reuses the qualified native out-of-combat Horse Mount flow, acquires reference-exact reversible pair AI isolation before creating a disposable target, enters TB natively, waits for the natural rider turn, and begins existing scheduler sequencing without issuing combat Mount. Production scheduler, relationship, resources, actions, RT behavior, defaults, and separate-turn fallback remain unchanged. Schema 4 binds the pre-mounted boundary while schemas 1-3 remain accepted. Complete offline gates pass `22/Release/315/18/242/402`, PowerShell/JSON parsers `26/0` / `7/0`, and diff. There is no current critical blocker; one clean package/WhatIf/live/audit cycle is next.
+
 ## Dev.8 proves natural intake and exposes a stock-origin predicate; dev.9 is independently actionable (2026-09-04T19:05:03-04:00)
 
 Status: `IN PROGRESS`.

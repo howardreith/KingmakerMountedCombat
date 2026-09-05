@@ -5547,7 +5547,7 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
     $phase3dSchemaVersion = if (Test-KmcExactJsonInteger $artifact.schemaVersion) {
         [long]$artifact.schemaVersion
     } else { -1L }
-    if ($phase3dSchemaVersion -notin @(1L, 2L, 3L) -or
+    if ($phase3dSchemaVersion -notin @(1L, 2L, 3L, 4L) -or
         [string]$artifact.evidenceKind -cne $kind -or [string]$artifact.status -cnotin @('PASS','FAIL') -or
         $artifact.rows -isnot [Array] -or $null -eq $artifact.observations -or
         $artifact.observations -is [Array] -or $artifact.observations -is [string] -or
@@ -5597,9 +5597,8 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
             break
         }
         'phase3d-unified-combat-tb-suite' {
-            @(
-                'mount-in-combat-before-either-acted','mount-in-combat-rider-already-acted',
-                'mount-in-combat-mount-already-acted','mount-ability-in-combat',
+            $rows = @(
+                'mount-in-combat-rider-already-acted','mount-in-combat-mount-already-acted',
                 'mounted-combat-start-single-initiative-entry','mounted-rider-initiative-bonus',
                 'mounted-turn-rider-portrait','mounted-single-rider-turn-portrait','mounted-separate-action-ledgers',
                 'rider-primary-does-not-dismount-tb','mounted-stock-click-melee-rider-only-explicit',
@@ -5609,6 +5608,10 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
                 'mounted-five-foot-step-no-aao','mounted-five-foot-step-distance','mounted-five-foot-step-resource',
                 'mounted-five-foot-step-after-movement-rejected','mounted-ordinary-move-aao-control',
                 'dismount-in-combat-no-extra-turn','dismount-ability-in-combat','unmounted-five-foot-step-control')
+            if ($phase3dSchemaVersion -le 3L) {
+                $rows = @('mount-in-combat-before-either-acted','mount-ability-in-combat') + $rows
+            }
+            $rows
             break
         }
         default { throw 'Phase 3D Horse evidence scenario routing is invalid.' }
@@ -5710,11 +5713,13 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
                     throw 'Phase 3D TB combat-Mount admission progress has an invalid v2 game mode.'
                 }
             }
+            $expectedAdmissionRelationshipState = if ($phase3dSchemaVersion -ge 4L) { 'Mounted' } else { 'Unmounted' }
+            $expectedAdmissionRelationshipExact = $phase3dSchemaVersion -ge 4L
             if ([string]$progress.step -cne $deadlineStep -or
                 $progress.gamePresent -ne $true -or $progress.turnBased -ne $true -or
                 $progress.controllerPresent -ne $true -or $progress.controllerInitialized -ne $true -or
-                [string]$progress.relationshipState -cne 'Unmounted' -or
-                $progress.relationshipExact -ne $false -or
+                [string]$progress.relationshipState -cne $expectedAdmissionRelationshipState -or
+                $progress.relationshipExact -ne $expectedAdmissionRelationshipExact -or
                 @($progress.rosterUnitIds).Count -lt 3 -or
                 [long]$progress.rosterRiderCount -ne 1L -or
                 [long]$progress.rosterHorseCount -ne 1L -or
@@ -5877,6 +5882,11 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
                     throw "Phase 3D TB native Mount command progress has a non-Boolean field: $booleanName"
                 }
             }
+            $terminalShellClearedFromSlot = $progress.commandInMoveSlotExact -eq $false -and
+                $progress.commandStarted -eq $true -and $progress.commandFinished -eq $true -and
+                $progress.commandActed -eq $true -and [string]$progress.commandResult -ceq 'Success' -and
+                [long]$progress.startObservedFrame -ge [long]$progress.nativeTickFirstEligibleFrame -and
+                [long]$progress.terminalObservedFrame -ge [long]$progress.startObservedFrame
             if ([string]$progress.step -cne $deadlineStep -or
                 [long]$progress.startTurnRequestCount -ne 0L -or
                 [string]$progress.relationshipState -cne 'Unmounted' -or
@@ -5889,7 +5899,8 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
                 ($phase3dSchemaVersion -ge 3L -and $progress.commandAiActionPresent -ne $false) -or
                 $progress.commandExecutorRiderExact -ne $true -or
                 $progress.commandTargetHorseExact -ne $true -or
-                $progress.commandInMoveSlotExact -ne $true -or $progress.commandQueued -ne $false -or
+                ($progress.commandInMoveSlotExact -ne $true -and -not $terminalShellClearedFromSlot) -or
+                $progress.commandQueued -ne $false -or
                 $progress.nativeShell.present -ne $true -or
                 [string]$progress.nativeShell.executorId -cne [string]$artifact.observations.riderId -or
                 [string]$progress.nativeShell.targetId -cne [string]$artifact.observations.horseId -or
@@ -6384,7 +6395,8 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
         }
     }
     elseif ([string]$artifact.status -ceq 'PASS' -and [string]$Request.scenario -ceq 'phase3d-unified-combat-tb-suite') {
-        $adjacency = $artifact.observations.combatMountAdjacencySetup
+        if ($phase3dSchemaVersion -le 3L) {
+            $adjacency = $artifact.observations.combatMountAdjacencySetup
         if ($null -eq $adjacency -or $adjacency -is [Array] -or $adjacency -is [string]) {
             throw 'PASS Phase 3D TB evidence omitted the pre-combat Horse adjacency setup.'
         }
@@ -6432,7 +6444,7 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
         $adjacencyThresholdExact = Test-KmcApproximatelyEqual `
             ([double]$adjacency.adjacencyThreshold) `
             ([double]$adjacency.riderCorpulence + [double]$adjacency.mountCorpulence + 1.5d) 0.001d
-        if ($adjacency.setupRequired -ne $true -or $adjacency.pairAdjacentBefore -ne $false -or
+            if ($adjacency.setupRequired -ne $true -or $adjacency.pairAdjacentBefore -ne $false -or
             [double]$adjacency.pairDistanceBefore -le [double]$adjacency.adjacencyThreshold -or
             $adjacency.nativeGroundInputInvoked -ne $true -or $adjacency.nativeGroundInputAdmitted -ne $true -or
             [string]$adjacency.setupMechanism -cne 'ClickGroundHandler.MoveSelectedUnitsToPoint' -or
@@ -6456,7 +6468,55 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
             $adjacency.targetPresentAfter -ne $false -or $adjacency.riderInCombatAfter -ne $false -or
             $adjacency.mountInCombatAfter -ne $false -or $adjacency.turnBasedAfter -ne $false -or
             -not $adjacencyThresholdExact) {
-            throw 'PASS Phase 3D TB evidence does not prove a stock, visible, Horse-owned adjacency move without rider displacement or combat-state mutation.'
+                throw 'PASS Phase 3D TB evidence does not prove a stock, visible, Horse-owned adjacency move without rider displacement or combat-state mutation.'
+            }
+        }
+        else {
+            $preTarget = $artifact.observations.pairedSchedulerPreTargetSetup
+            $turnAdmission = $artifact.observations.pairedSchedulerMountedTurnAdmission
+            if ($null -eq $preTarget -or $preTarget -is [Array] -or $preTarget -is [string] -or
+                $null -eq $turnAdmission -or $turnAdmission -is [Array] -or $turnAdmission -is [string]) {
+                throw 'PASS Phase 3E TB evidence omitted the exact pre-mounted scheduler setup.'
+            }
+            Assert-KmcExactProperties $preTarget @(
+                'pairInitiallyMounted','relationshipState','relationshipExact','targetAbsent','turnBasedAbsent',
+                'riderInCombat','mountInCombat') 'Phase 3E TB pre-mounted scheduler setup'
+            Assert-KmcExactProperties $turnAdmission @(
+                'pairInitiallyMounted','relationshipExact','currentTurnRiderExact','currentTurnStatus',
+                'selectionRiderExact','nativeCombatMountCommandPresent','riderCommandsIdle',
+                'mountCommandsIdle','unified') 'Phase 3E TB mounted rider-turn admission'
+            foreach ($booleanName in @(
+                'pairInitiallyMounted','relationshipExact','targetAbsent','turnBasedAbsent',
+                'riderInCombat','mountInCombat')) {
+                if ($preTarget.$booleanName -isnot [bool]) {
+                    throw "Phase 3E TB pre-mounted scheduler setup has a non-Boolean field: $booleanName"
+                }
+            }
+            foreach ($booleanName in @(
+                'pairInitiallyMounted','relationshipExact','currentTurnRiderExact','selectionRiderExact',
+                'nativeCombatMountCommandPresent','riderCommandsIdle','mountCommandsIdle')) {
+                if ($turnAdmission.$booleanName -isnot [bool]) {
+                    throw "Phase 3E TB mounted rider-turn admission has a non-Boolean field: $booleanName"
+                }
+            }
+            if ($preTarget.pairInitiallyMounted -ne $true -or
+                [string]$preTarget.relationshipState -cne 'Mounted' -or
+                $preTarget.relationshipExact -ne $true -or $preTarget.targetAbsent -ne $true -or
+                $preTarget.turnBasedAbsent -ne $true -or $preTarget.riderInCombat -ne $false -or
+                $preTarget.mountInCombat -ne $false -or
+                $turnAdmission.pairInitiallyMounted -ne $true -or
+                $turnAdmission.relationshipExact -ne $true -or
+                $turnAdmission.currentTurnRiderExact -ne $true -or
+                $turnAdmission.currentTurnStatus -isnot [string] -or
+                [string]::IsNullOrWhiteSpace([string]$turnAdmission.currentTurnStatus) -or
+                $turnAdmission.selectionRiderExact -ne $true -or
+                $turnAdmission.nativeCombatMountCommandPresent -ne $false -or
+                $turnAdmission.riderCommandsIdle -ne $true -or
+                $turnAdmission.mountCommandsIdle -ne $true -or
+                $null -eq $turnAdmission.unified -or $turnAdmission.unified -is [Array] -or
+                $turnAdmission.unified -is [string]) {
+                throw 'PASS Phase 3E TB evidence does not bind one exact pre-mounted pair to the natural rider turn without a combat-Mount shell.'
+            }
         }
 
         $initiative = $rowMap['mounted-combat-start-single-initiative-entry'].evidence
@@ -6465,12 +6525,14 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
         $step = $rowMap['mounted-five-foot-step-no-aao'].evidence
         $ordinary = $rowMap['mounted-ordinary-move-aao-control'].evidence
         $stepRejected = $rowMap['mounted-five-foot-step-after-movement-rejected'].evidence
-        $mount = $rowMap['mount-in-combat-before-either-acted'].evidence
+        $mount = if ($phase3dSchemaVersion -le 3L) {
+            $rowMap['mount-in-combat-before-either-acted'].evidence
+        } else { $null }
         $riderSpentMount = $rowMap['mount-in-combat-rider-already-acted'].evidence
         $mountSpentMount = $rowMap['mount-in-combat-mount-already-acted'].evidence
         $dismount = $rowMap['dismount-in-combat-no-extra-turn'].evidence
         $unmountedStep = $rowMap['unmounted-five-foot-step-control'].evidence
-        if ($phase3dSchemaVersion -ge 2L) {
+        if ($phase3dSchemaVersion -ge 2L -and $phase3dSchemaVersion -le 3L) {
             $nativeMountCommand = $mount.nativeMountCommand
             if ($phase3dSchemaVersion -ge 3L) {
                 Assert-KmcPhase3dNativeCombatMountInput `
@@ -6510,6 +6572,13 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
                 throw 'PASS Phase 3D TB evidence does not prove one exact naturally scheduled rider Mount shell through stock admission, start, and terminal cleanup.'
             }
         }
+        $initialCombatMountInvalid = $phase3dSchemaVersion -le 3L -and (
+            [double]$mount.before.riderStandard -ge 0.001d -or
+            [double]$mount.before.mountStandard -ge 0.001d -or
+            [double]$mount.after.riderMove -lt ([double]$mount.before.riderMove + 2.9d) -or
+            [double]$mount.after.mountStandard -ne [double]$mount.before.mountStandard -or
+            [double]$mount.after.mountMove -ne [double]$mount.before.mountMove -or
+            [string]$mount.unifiedAfter.sharedInitiativeOwnerId -cne [string]$mount.unifiedAfter.rider.unitId)
         if ([long]$initiative.trackerRiderCount -ne 1L -or [long]$initiative.trackerHorseCount -ne 0L -or
             $initiative.trackerRiderPortraitExact -ne $true -or $initiative.selectionRiderExact -ne $true -or
             [long]$stock.nativeRequestDelta -ne 1L -or [long]$stock.intentStartDelta -ne 1L -or
@@ -6523,12 +6592,7 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
             [double]$ordinary.physicalDistance -le [double]$step.nativeFiveFootMaximumMeters -or
             [long]$ordinary.opportunity.attackRules -lt 1L -or [long]$ordinary.opportunity.attackRolls -lt 1L -or
             $stepRejected.restrictsFiveFootStep -ne $true -or $stepRejected.changeAdmitted -ne $false -or
-            $stepRejected.fiveFootEnabledAfterAttempt -ne $false -or
-            [double]$mount.before.riderStandard -ge 0.001d -or [double]$mount.before.mountStandard -ge 0.001d -or
-            [double]$mount.after.riderMove -lt ([double]$mount.before.riderMove + 2.9d) -or
-            [double]$mount.after.mountStandard -ne [double]$mount.before.mountStandard -or
-            [double]$mount.after.mountMove -ne [double]$mount.before.mountMove -or
-            [string]$mount.unifiedAfter.sharedInitiativeOwnerId -cne [string]$mount.unifiedAfter.rider.unitId -or
+            $stepRejected.fiveFootEnabledAfterAttempt -ne $false -or $initialCombatMountInvalid -or
             [double]$riderSpentMount.before.riderStandard -lt 2.9d -or
             [double]$riderSpentMount.after.riderStandard -ne [double]$riderSpentMount.before.riderStandard -or
             [double]$riderSpentMount.after.riderMove -lt ([double]$riderSpentMount.before.riderMove + 2.9d) -or

@@ -2,6 +2,14 @@
 
 Status: IN PROGRESS
 
+## Immutable dev.9 result and dev.10 test plan
+
+Dev.9 is clean guarded-published commit `f9082b166cd4958281d97707aac90e1c8a7f8ed4`, package `C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-phase3e-dev.9-paired-scheduler-horse-tb-gate2-diagnostic.zip`. ZIP/manifest/DLL SHA-256 are `adeb8a305f647738b765881869215cc1a48e669530ab926a3a607ebe6fb015f5` / `bd1c5d5f822331b5696030afea560d2847d71a0eb64d01379874b83c6f9807b9` / `5f3af2d7949dc674513cbef8297f8cfd70049d515b1c15873dfb6909b48d9bd2`; MVID is `72c99d26-4420-437a-86d2-2b331b7aa69a`. Suite `20260904T232500Z-phase3e-dev9-horse-tb-suite8` / `9cab4d8398ee9a5ea23e22e186b3e777a20e415c724041471ba0138f7f2e98a0` and full-continuity WhatIf passed.
+
+Immutable live `20260905T010000Z-phase3e-dev9-horse-tb-gate2` is game `FAIL 42/2`; the independent suite/save/Mods/process/lock/sentinel/deployment audit passed before evidence read. Admission was frame `4993`; stock encounter, eligibility, start, and terminal counts were each exact with zero rejects/duplicates; start and `Success` terminal occurred at frame `4994`. Rider remained current and the exact shell retained rider/Horse/Move/native provenance. KMC refused only the relationship transition under the intentional out-of-combat Mount policy, so no scheduler command or Gate 2 action ran.
+
+Dev.10 will not repeat that deferred policy test. One clean package starts with native out-of-combat Horse Mount, isolates the exact mounted pair before creating the target, transitions to TB through native settings, waits for the natural rider turn, and enters the existing explicit rider/mount plus ordinary hostile-click sequencing. Evidence schema 4 must prove pre-target mounted identity, no combat-Mount shell, rider-only tracker/UI/current-turn ownership, separate ledgers, and exact lease restoration. Combat Mount rows remain uncredited until their ordered Tranche 7 qualification. Offline gates pass `22/Release/315/18/242/402`, with PowerShell/JSON parsers `26/0` / `7/0`; package, WhatIf, live result, and audit are pending.
+
 ## Immutable dev.8 intake result
 
 Dev.8 is clean guarded-published commit `35eedf9cf9f092f77c65a20ff9ea580702900032`. Its package ZIP/manifest/DLL SHA-256 are `bb2311b6c1da6e66ba0f22b0b9b68f2169d9e1b57b99eaec216deb6f292bc860` / `31bb9c7b87aa8afe67d83f433f22fb4afb4c09b6c29b5f5fe73e80a731676d1f` / `a7288d4548813951529a3fe835e3a0226fbbd567c1d5083f65d98507a9c172bc`; MVID is `b2eee65b-c935-4043-adc5-bdf21eabc610`. Suite `20260904T211500Z-phase3e-dev8-horse-tb-suite7` is `34a702dd9f6684f3a00f0ac4e8c09b1b930e18ee1e53e26c2d7754eff1bc8086`; WhatIf passed.

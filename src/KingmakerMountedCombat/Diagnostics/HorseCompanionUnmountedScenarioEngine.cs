@@ -1569,15 +1569,6 @@ namespace KingmakerMountedCombat.Diagnostics
                     "The stock selected-ability pointer rejected the rider as an ineligible Mount Companion target without creating a pair or accepted KMC dispatch.");
                 if (failed != 0) { BeginCleanup(); return; }
 
-                if (IsPhase3dScenario && string.Equals(
-                        request.Scenario,
-                        Phase3dHorseScenarioTranche.TurnBasedScenario,
-                        StringComparison.Ordinal))
-                {
-                    BeginPhase3dTranche(false);
-                    return;
-                }
-
                 var before = nativeControls.CaptureSnapshot();
                 var nativeClicked = TryNativeAbilityTargetClick(
                     owner,

@@ -1,5 +1,9 @@
 # Phase 3D Combat Mount/Dismount Contract
 
+## Phase 3E dev.9 ordering boundary
+
+Immutable audited run `20260905T010000Z-phase3e-dev9-horse-tb-gate2` proves the native rider Move-slot Mount shell itself is visited, starts, and terminates `Success` under the natural rider turn. Exact installed logging then records `MountedPairCandidate.Validate` rejecting the transition with `Private-alpha mounting is available only outside combat.` That domain guard remains intentionally unchanged: combat Mount/Dismount implementation and qualification are Tranche 7 work and may begin only after scheduler sequencing and turn-completion gates pass. Dev.10 uses a native out-of-combat mounted pair solely as earlier-tranche diagnostic setup; it assigns no combat-Mount PASS and consumes no rider combat action for setup.
+
 Phase 3E superseding status (2026-09-04): `IN PROGRESS`. Dev.8 proved exact natural rider-turn readiness and one native Mount click/cast admission, but its diagnostic stopped in the admission frame on the incorrect assumption that stock `UnitUseAbility.CreatedByPlayer` would be true. Dev.9 requires the exact stock false flag, null AI action, and native click/cast events. No Phase 3E combat Mount/Dismount resource, no-extra-turn, split-boundary, or invalidation row is credited yet.
 
 Status: DEFER — EVIDENCED

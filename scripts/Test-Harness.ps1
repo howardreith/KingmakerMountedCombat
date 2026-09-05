@@ -10088,8 +10088,7 @@ try {
                 }
                 'phase3d-unified-combat-tb-suite' {
                     @(
-                        'mount-in-combat-before-either-acted','mount-in-combat-rider-already-acted',
-                        'mount-in-combat-mount-already-acted','mount-ability-in-combat',
+                        'mount-in-combat-rider-already-acted','mount-in-combat-mount-already-acted',
                         'mounted-combat-start-single-initiative-entry','mounted-rider-initiative-bonus',
                         'mounted-turn-rider-portrait','mounted-single-rider-turn-portrait','mounted-separate-action-ledgers',
                         'rider-primary-does-not-dismount-tb','mounted-stock-click-melee-rider-only-explicit',
@@ -10394,26 +10393,15 @@ try {
                 }
             }
             else {
-                $observations.combatMountAdjacencySetup = [ordered]@{
-                    setupRequired=$true;pairAdjacentBefore=$false;pairDistanceBefore=6.0
-                    adjacencyThreshold=2.7;riderCorpulence=0.45;mountCorpulence=0.75
-                    riderStart=[ordered]@{x=0.0;y=0.0;z=0.0}
-                    mountStart=[ordered]@{x=6.0;y=0.0;z=0.0}
-                    destination=[ordered]@{x=1.35;y=0.0;z=0.0}
-                    setupMechanism='ClickGroundHandler.MoveSelectedUnitsToPoint'
-                    nativeGroundInputInvoked=$true;nativeGroundInputAdmitted=$true
-                    commandPresent=$true;commandOwnerId='horse';commandCreatedByPlayer=$true
-                    horseMoveSlotExactAtAdmission=$true;riderMoveSlotEmptyAtAdmission=$true
-                    selectionHorseExactAtAdmission=$true;relationshipStateBefore='Unmounted'
-                    targetPresentBefore=$false;riderInCombatBefore=$false;mountInCombatBefore=$false
-                    turnBasedBefore=$false;pairAdjacentAfter=$true;pairDistanceAfter=1.35
-                    riderFinal=[ordered]@{x=0.0;y=0.0;z=0.0}
-                    mountFinal=[ordered]@{x=1.35;y=0.0;z=0.0}
-                    mountPhysicalDistance=4.65;riderPhysicalDistance=0.0
-                    commandFinished=$true;commandResult='Success';commandsIdleAfter=$true
-                    selectionRiderExactAfter=$true;relationshipStateAfter='Unmounted'
-                    targetPresentAfter=$false;riderInCombatAfter=$false;mountInCombatAfter=$false
-                    turnBasedAfter=$false
+                $observations.pairedSchedulerPreTargetSetup = [ordered]@{
+                    pairInitiallyMounted=$true;relationshipState='Mounted';relationshipExact=$true
+                    targetAbsent=$true;turnBasedAbsent=$true;riderInCombat=$false;mountInCombat=$false
+                }
+                $observations.pairedSchedulerMountedTurnAdmission = [ordered]@{
+                    pairInitiallyMounted=$true;relationshipExact=$true;currentTurnRiderExact=$true
+                    currentTurnStatus='Acting';selectionRiderExact=$true
+                    nativeCombatMountCommandPresent=$false;riderCommandsIdle=$true;mountCommandsIdle=$true
+                    unified=[ordered]@{sharedInitiativeOwnerId='rider'}
                 }
                 $rowByName['mounted-combat-start-single-initiative-entry'].evidence = [ordered]@{
                     trackerRiderCount=1;trackerHorseCount=0;trackerRiderPortraitExact=$true;selectionRiderExact=$true
@@ -10433,11 +10421,6 @@ try {
                 $rowByName['mounted-five-foot-step-after-movement-rejected'].evidence = [ordered]@{
                     restrictsFiveFootStep=$true;changeAdmitted=$false;fiveFootEnabledAfterAttempt=$false
                 }
-                $rowByName['mount-in-combat-before-either-acted'].evidence = [ordered]@{
-                    before=[ordered]@{riderStandard=0.0;riderMove=0.0;mountStandard=0.0;mountMove=0.0}
-                    after=[ordered]@{riderStandard=0.0;riderMove=3.0;mountStandard=0.0;mountMove=0.0}
-                    unifiedAfter=[ordered]@{sharedInitiativeOwnerId='rider';rider=[ordered]@{unitId='rider'}}
-                }
                 $rowByName['mount-in-combat-rider-already-acted'].evidence = [ordered]@{
                     before=[ordered]@{riderStandard=3.0;riderMove=0.0;mountStandard=0.0;mountMove=0.0}
                     after=[ordered]@{riderStandard=3.0;riderMove=3.0;mountStandard=0.0;mountMove=0.0}
@@ -10455,7 +10438,8 @@ try {
                 }
             }
             $phase3dArtifact = [ordered]@{
-                schemaVersion=1;evidenceKind='phase3d-horse-scenario-evidence';runId=$phase3dRequest.runId
+                schemaVersion=$(if($phase3dScenario -ceq 'phase3d-unified-combat-tb-suite'){4}else{1})
+                evidenceKind='phase3d-horse-scenario-evidence';runId=$phase3dRequest.runId
                 scenario=$phase3dRequest.scenario;branch=$phase3dRequest.branch;commit=$phase3dRequest.commit
                 productVersion=$phase3dRequest.productVersion;dllSha256=$phase3dRequest.dllSha256
                 dllMvid=$phase3dRequest.dllMvid;createdAtUtc=[DateTimeOffset]::UtcNow.ToString('o')
@@ -10682,7 +10666,7 @@ try {
             }
             elseif ($phase3dScenario -ceq 'phase3d-unified-combat-tb-suite') {
                 $rowByName['mounted-five-foot-step-no-aao'].evidence.opportunity.attackRules = 0
-                $phase3dArtifact.observations.combatMountAdjacencySetup.nativeGroundInputAdmitted = $false
+                $phase3dArtifact.observations.pairedSchedulerPreTargetSetup.relationshipExact = $false
                 Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
                 $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
                 $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
@@ -10690,7 +10674,7 @@ try {
                 $phase3dManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
                 Assert-TestThrows {
                     Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
-                } 'Phase 3D TB validator accepted combat-Mount adjacency staging without exact native Horse input admission.'
+                } 'Phase 3E TB validator accepted pre-mounted scheduler staging without the exact relationship.'
             }
         }
     }
@@ -11103,7 +11087,8 @@ try {
             $phase3dSource.Contains('errors.Count == 0 &&') -and
             -not $phase3dSource.Contains('Gunslinger')) `
             'Phase 3D runtime tranche lost native input admission, explicit actor isolation, exact tracker/five-foot surfaces, or cleanup-safe evidence status'
-        Assert-Test ($phase3dSource.Contains('step = Phase3dHorseStep.AwaitCombatMountAdjacencyReadiness;') -and
+        Assert-Test ($phase3dSource.Contains('private void AwaitCombatMountAdjacencyReadiness()') -and
+            $phase3dSource.Contains('AwaitCombatMountAdjacencyReadiness,') -and
             $phase3dSource.Contains('SelectionManager.Instance.SelectUnit(horse.View, true, true, false);') -and
             $phase3dSource.Contains('ClickGroundHandler.MoveSelectedUnitsToPoint(combatMountAdjacencyDestination, false);') -and
             $phase3dSource.Contains('combatMountAdjacencyCommand.Executor == horse') -and
@@ -11219,7 +11204,7 @@ try {
             'observations["combatMountRiderAiIsolation"] = CaptureCombatMountRiderAiIsolation();',
             [StringComparison]::Ordinal)
         $horseAiTargetIndex = $horseAiIsolationBody.IndexOf(
-            'BeginTarget(TargetDistance, "tb-combat-mount");',
+            'BeginTarget(TargetDistance, "tb-paired-scheduler");',
             [StringComparison]::Ordinal)
         Assert-Test ($phase3dHorseSource.Contains(
                 'case Phase3dHorseStep.AwaitCombatMountHorseAiIsolation:') -and
@@ -11227,10 +11212,10 @@ try {
                 'AwaitCombatMountHorseAiIsolation,') -and
             [regex]::Matches(
                 $phase3dHorseSource,
-                [regex]::Escape('BeginCombatMountHorseAiIsolation();')).Count -eq 2 -and
+                [regex]::Escape('BeginCombatMountHorseAiIsolation();')).Count -eq 3 -and
             [regex]::Matches(
                 $phase3dHorseSource,
-                [regex]::Escape('BeginTarget(TargetDistance, "tb-combat-mount");')).Count -eq 1 -and
+                [regex]::Escape('BeginTarget(TargetDistance, "tb-paired-scheduler");')).Count -eq 1 -and
             $horseAiPrepareIndex -ge 0 -and
             $riderAiPrepareIndex -gt $horseAiPrepareIndex -and
             $horseAiObservationIndex -gt $riderAiPrepareIndex -and
@@ -11260,8 +11245,33 @@ try {
                 $turnBasedAdmissionIndex,
                 $mountAdmissionIndex - $turnBasedAdmissionIndex)
         } else { '' }
+        $preMountedAdmissionIndex = $mountAdmissionBody.IndexOf(
+            'if (turnBasedPairInitiallyMounted)',
+            [StringComparison]::Ordinal)
+        $preMountedTrackerIndex = $mountAdmissionBody.IndexOf(
+            'ObserveSharedInitiativeAndTracker(turnSnapshotBefore);',
+            [StringComparison]::Ordinal)
+        $preMountedRiderPrimaryIndex = $mountAdmissionBody.IndexOf(
+            'BeginRiderPrimaryTb();',
+            [StringComparison]::Ordinal)
+        $nativeValidMountIndex = $horseEngineSource.IndexOf(
+            '"nativeMountValidHorse"',
+            [StringComparison]::Ordinal)
+        $parentAwaitMountedIndex = $horseEngineSource.IndexOf(
+            'step = EngineStep.AwaitMountedReady;',
+            $nativeValidMountIndex,
+            [StringComparison]::Ordinal)
+        $parentMountedTrancheIndex = $horseEngineSource.IndexOf(
+            'BeginPhase3dTranche(true);',
+            $parentAwaitMountedIndex,
+            [StringComparison]::Ordinal)
         Assert-Test ($phase3dHorseSource.Contains(
                 'private ScopedDiagnosticAiLease<UnitEntityData> combatMountRiderAiLease;') -and
+            $phase3dHorseSource.Contains('private bool turnBasedPairInitiallyMounted;') -and
+            $phase3dHorseSource.Contains('!IsExactDiagnosticAiIsolationRelationship()') -and
+            [regex]::Matches(
+                $phase3dHorseSource,
+                [regex]::Escape('IsExactDiagnosticAiIsolationRelationship(),')).Count -eq 2 -and
             $phase3dHorseSource.Contains('combatMountRiderAiLease.Acquire(new[] { rider });') -and
             $phase3dHorseSource.Contains('combatMountRiderAiLease.ValidateActive(new[] { rider });') -and
             $phase3dHorseSource.Contains('combatMountRiderAiLease.Restore(new[] { rider });') -and
@@ -11290,9 +11300,17 @@ try {
             $phase3dHorseSource.Contains('["commandAiActionPresent"] = commandPresent && command.AiAction != null') -and
             $phase3dHorseSource.Contains('["createdByPlayer"] = command.CreatedByPlayer') -and
             $phase3dHorseSource.Contains('["aiActionPresent"] = command.AiAction != null') -and
-            $phase3dHorseSource.Contains('["schemaVersion"] = 3,') -and
+            $phase3dHorseSource.Contains('["schemaVersion"] = 4,') -and
+            $phase3dHorseSource.Contains('BeginTarget(TargetDistance, "tb-paired-scheduler");') -and
+            $phase3dHorseSource.Contains('if (!IsCombatReady(turnBasedPairInitiallyMounted))') -and
+            $preMountedAdmissionIndex -ge 0 -and
+            $preMountedTrackerIndex -gt $preMountedAdmissionIndex -and
+            $preMountedRiderPrimaryIndex -gt $preMountedTrackerIndex -and
+            $nativeValidMountIndex -ge 0 -and $parentAwaitMountedIndex -gt $nativeValidMountIndex -and
+            $parentMountedTrancheIndex -gt $parentAwaitMountedIndex -and
+            -not $horseEngineSource.Contains('BeginPhase3dTranche(false);') -and
             -not $turnBasedAdmissionBody.Contains('StartTurn(')) `
-            'Phase 3D Horse TB diagnostic lost reversible AI isolation, natural-turn admission, or exact stock Mount-shell lifecycle observation'
+            'Phase 3E Horse TB diagnostic lost native pre-mount setup, reversible AI isolation, natural rider-turn admission, or retained stock Mount-shell observation'
     }
 
     $resultPath = Join-Path $testRoot 'runtime-result.json'

@@ -2,6 +2,22 @@
 
 Status: IN PROGRESS
 
+## Dev.9 result and dev.10 pre-mounted Gate 2 setup contract
+
+Clean guarded-published dev.9 is commit `f9082b166cd4958281d97707aac90e1c8a7f8ed4`, version `0.1.0-phase3e-dev.9`. Package ZIP/manifest/DLL SHA-256 are `adeb8a305f647738b765881869215cc1a48e669530ab926a3a607ebe6fb015f5` / `bd1c5d5f822331b5696030afea560d2847d71a0eb64d01379874b83c6f9807b9` / `5f3af2d7949dc674513cbef8297f8cfd70049d515b1c15873dfb6909b48d9bd2`; DLL MVID is `72c99d26-4420-437a-86d2-2b331b7aa69a`. Suite `20260904T232500Z-phase3e-dev9-horse-tb-suite8` is `9cab4d8398ee9a5ea23e22e186b3e777a20e415c724041471ba0138f7f2e98a0`; full-continuity WhatIf passed. Immutable live run `20260905T010000Z-phase3e-dev9-horse-tb-gate2` is game `FAIL 42/2` and its independent audit passed before evidence read.
+
+Dev.9 conclusively closes the rider-shell start question. The exact native-click `UnitUseAbility` was admitted at frame `4993`, stock `TickCommandTurnBased` visited it once and returned eligible, and stock started and completed it `Success` at frame `4994`. It remained the exact rider/Move/Horse/ability command, `CreatedByPlayer=false`, `AiAction==null`, with zero duplicate tick. The installed game log then records `NativeMountedAbilityLogic.Deliver -> TryExecuteNativeMount -> MountedPairCandidate.Validate` rejecting the relationship transition only because `RiderIsInCombat || MountIsInCombat || PartyIsInCombat`: `Private-alpha mounting is available only outside combat.` This is not a scheduler lease, predicate, start, tick, ownership, ledger, or turn-completion defect. No scheduler repair cycle and no K1-K12 criterion is consumed.
+
+The Phase 3E qualification order places combat Mount/Dismount after the scheduler vertical slice, turn completion, sequencing, melee/ranged, and movement gates. Dev.10 therefore must not weaken `MountedPairCandidate.Validate`, add a combat bypass, or credit/relabel the failed combat-Mount row. The exact Horse TB diagnostic will instead use the already-qualified parent-engine native out-of-combat Mount path as setup, require the exact mounted Horse relationship and healthy pose, then:
+
+- acquire and validate reversible, pair-exact Horse and rider AI-isolation leases before the disposable target exists; each eligibility predicate may accept `Unmounted` only during legacy setup or the reference-exact `Mounted` rider/Horse pair, never a different or faulted relationship;
+- create the one disposable hostile only after both leases validate, wait for exact mounted combat, request the native RT-to-TB transition, and wait for Kingmaker's natural rider turn without calling `StartTurn`;
+- require the same pending-unit, `WaitingForUI`, AwakeUnits, view, mode, nausea, selection, hands, equipment, empty-command, target, and current-rider gates before entering the existing rider-first/mount-second TB sequence;
+- observe the unified roster/tracker/initiative/separate-ledger projection at that natural rider turn, while assigning no combat-Mount row and claiming no setup action cost;
+- retain exact cleanup/restoration of both AI leases, the scheduler setting, mode lease, target, relationship, selection, and equipment on every terminal path.
+
+This is diagnostic orchestration only. `MountedPairCommandScheduler`, its Harmony seam, command origin, relationship domain policy, combat action routing, cooldown ownership, turn completion, RT behavior, presentation, and both default-off settings remain byte-behavior unchanged. Horse evidence may advance once to bind the new setup. The external validator must report an underlying game failure truthfully rather than replacing it with a structural mapping error. One clean dev.10 package/run must attribute all reached existing rows before another code change.
+
 ## Dev.9 rider-shell provenance boundary
 
 The rider-owned native Mount ability shell and the scheduler-leased mount attack have intentionally different provenance contracts. Exact Kingmaker `ClickWithSelectedAbilityHandler.OnClick` creates the rider `UnitUseAbility` through `CreateCastCommand` and `UnitCommands.Run` without writing `CreatedByPlayer`; the truthful native-player proof is one exact target-selection/cast-request lifecycle, exact rider/Horse/ability/Move-slot identity, `CreatedByPlayer=false`, and `AiAction==null`. By contrast, KMC itself creates the mount-owned `MountedPairAttackCommand` and explicitly sets `CreatedByPlayer=true`; the scheduler continues to require that flag and `AiAction==null` before leasing it.

@@ -2,6 +2,12 @@
 
 Status: IN PROGRESS
 
+## Dev.9 result and dev.10 setup risk control
+
+Clean published/package/suite identities are `f9082b166cd4958281d97707aac90e1c8a7f8ed4` / `adeb8a305f647738b765881869215cc1a48e669530ab926a3a607ebe6fb015f5` / `9cab4d8398ee9a5ea23e22e186b3e777a20e415c724041471ba0138f7f2e98a0`. Full-continuity WhatIf and the live run's independent restoration audit passed. Run `20260905T010000Z-phase3e-dev9-horse-tb-gate2` proves stock visited, admitted, started, and successfully terminated the exact rider native Mount shell. Its relationship transition was then rejected by the preexisting, intentional `MountedPairCandidate.Validate` outside-combat rule. No mount-owned scheduler lease or command was created; therefore K1-K12 are not reached, no scheduler repair cycle is consumed, and combat Mount remains a later-tranche `TODO` rather than an architecture failure.
+
+Dev.10 is one diagnostic-setup correction required by the authorized qualification order. It reuses the qualified native out-of-combat Horse Mount path before target creation, permits the existing reversible diagnostic AI leases to remain valid only for either their legacy unmounted setup state or the reference-exact mounted pair, and enters TB through the native mode transition before waiting for a natural rider turn. It must not change production relationship admission, scheduler eligibility, command routing, resources, turn state, runtime defaults, or any combat-Mount assertion. Source-order tests must prove both AI leases validate before the target is created and no direct `StartTurn` call or combat Mount input exists on the pre-mounted path. One clean package/run is the only authorized next runtime checkpoint.
+
 ## Dev.8/dev.9 attribution
 
 Audited dev.8 failed its diagnostic admission assertion because an exact native click-created rider Mount shell carried stock `CreatedByPlayer=false`. It failed before a scheduler lease or one post-admission native frame. Exact assembly inspection proves `OnClick -> CreateCastCommand -> UnitCommands.Run` does not assign that field; the shell had `AiAction==null` and exact click/cast event provenance. This is an incorrect diagnostic-origin predicate, not K4 foreign adoption, K8 non-pair effect, K9 turn deadlock, or another scheduler kill criterion.

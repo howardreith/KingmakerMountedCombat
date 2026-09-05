@@ -2,6 +2,16 @@
 
 Status: IN PROGRESS
 
+## Dev.9 runtime result and dev.10 pre-mounted setup
+
+Clean guarded-published dev.9 commit `f9082b166cd4958281d97707aac90e1c8a7f8ed4` produced package/manifest/DLL SHA-256 `adeb8a305f647738b765881869215cc1a48e669530ab926a3a607ebe6fb015f5` / `bd1c5d5f822331b5696030afea560d2847d71a0eb64d01379874b83c6f9807b9` / `5f3af2d7949dc674513cbef8297f8cfd70049d515b1c15873dfb6909b48d9bd2`, MVID `72c99d26-4420-437a-86d2-2b331b7aa69a`. Its immutable audited live run `20260905T010000Z-phase3e-dev9-horse-tb-gate2` is game `FAIL 42/2`.
+
+The run closes the native shell question: stock encountered and admitted the exact rider-owned Mount `UnitUseAbility` once, started and terminated it one frame after admission with `Success`, and retained rider current-turn identity. `NativeMountedAbilityLogic.Deliver` then reached KMC, where the existing relationship domain refused the transition because Mount remains limited to out-of-combat use. That is the intentionally deferred Tranche 7 policy, not an Option A scheduler failure; the scheduler never held a lease in this run.
+
+Dev.10 preserves that policy and all production behavior. The Horse TB diagnostic now follows the parent engine's already-qualified native out-of-combat Mount path, waits for mounted pose readiness, acquires two reversible AI leases whose only added eligible state is the reference-exact active TB rider/Horse pair, creates the disposable target only after both leases stabilize, enters turn-based mode natively, and waits for the natural rider turn. It records one rider tracker entry, no Horse tracker entry, rider initiative ownership, separate native cooldown ledgers, exact selection/current-turn identity, and absence of any combat-Mount shell before invoking the existing rider-first/mount-second sequencing.
+
+Horse evidence schema 4 distinguishes this pre-mounted setup. The external validator preserves schemas 1-3 and now recognizes a successfully terminated historical schema-3 shell after native slot removal, so dev.9's underlying game failure is not replaced by a structural mapping error. No scheduler, relationship, movement, attack, resource, RT, presentation, default-setting, or fallback production file changed. Offline dev.10 gates pass `22/Release/315/18/242/402`, with PowerShell/JSON parsers `26/0` / `7/0`; clean package identity and runtime attribution remain pending.
+
 ## Dev.8 finding and dev.9 correction
 
 Clean guarded-published dev.8 commit `35eedf9cf9f092f77c65a20ff9ea580702900032` produced package/manifest/DLL SHA-256 `bb2311b6c1da6e66ba0f22b0b9b68f2169d9e1b57b99eaec216deb6f292bc860` / `31bb9c7b87aa8afe67d83f433f22fb4afb4c09b6c29b5f5fe73e80a731676d1f` / `a7288d4548813951529a3fe835e3a0226fbbd567c1d5083f65d98507a9c172bc`, MVID `b2eee65b-c935-4043-adc5-bdf21eabc610`. Suite `20260904T211500Z-phase3e-dev8-horse-tb-suite7` / `34a702dd9f6684f3a00f0ac4e8c09b1b930e18ee1e53e26c2d7754eff1bc8086` and full-continuity WhatIf passed.

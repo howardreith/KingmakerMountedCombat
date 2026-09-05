@@ -139,6 +139,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool originalPause;
         private bool originalUnsafeExperiment;
         private bool originalPairedCommandScheduler;
+        private bool turnBasedPairInitiallyMounted;
         private UnitEntityData[] originalSelection;
         private bool started;
         private bool completed;
@@ -273,18 +274,19 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 throw new InvalidOperationException("Loaded game, selection, and exact Horse pair bodies are required.");
             }
-            if (string.Equals(request.Scenario, TurnBasedScenario, StringComparison.Ordinal) && pairAlreadyMounted)
+            if (!pairAlreadyMounted)
             {
-                throw new InvalidOperationException("Combat-Mount qualification must begin with the exact Horse pair unmounted.");
-            }
-            if (!string.Equals(request.Scenario, TurnBasedScenario, StringComparison.Ordinal) && !pairAlreadyMounted)
-            {
-                throw new InvalidOperationException("RT/presentation qualification requires the exact Horse pair already mounted.");
+                throw new InvalidOperationException(
+                    "Phase 3D Horse qualification requires the exact Horse pair already mounted through the parent native out-of-combat flow.");
             }
 
             originalPause = game.IsPaused;
             originalUnsafeExperiment = settings.EnableUnsafeMovementExperiment;
             originalPairedCommandScheduler = settings.EnablePairedCommandScheduler;
+            turnBasedPairInitiallyMounted = string.Equals(
+                request.Scenario,
+                TurnBasedScenario,
+                StringComparison.Ordinal) && pairAlreadyMounted;
             originalSelection = SelectionManager.Instance.SelectedUnits.Where(item => item != null).ToArray();
             originalEquipmentSet = rider.Body.CurrentHandEquipmentSetIndex;
             settings.EnableUnsafeMovementExperiment = true;
@@ -312,7 +314,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
             if (string.Equals(request.Scenario, TurnBasedScenario, StringComparison.Ordinal))
             {
-                step = Phase3dHorseStep.AwaitCombatMountAdjacencyReadiness;
+                BeginCombatMountHorseAiIsolation();
                 return;
             }
 
@@ -2296,7 +2298,18 @@ namespace KingmakerMountedCombat.Diagnostics
 
             observations["combatMountHorseAiIsolation"] = CaptureUnmountedHorseAiIsolation();
             observations["combatMountRiderAiIsolation"] = CaptureCombatMountRiderAiIsolation();
-            BeginTarget(TargetDistance, "tb-combat-mount");
+            observations["pairedSchedulerPreTargetSetup"] = new JObject
+            {
+                ["pairInitiallyMounted"] = turnBasedPairInitiallyMounted,
+                ["relationshipState"] = relationship.State.ToString(),
+                ["relationshipExact"] = relationship.State == RelationshipState.Mounted &&
+                    relationship.Rider == rider && relationship.Mount == horse,
+                ["targetAbsent"] = target == null,
+                ["turnBasedAbsent"] = !CombatController.IsInTurnBasedCombat(),
+                ["riderInCombat"] = rider.IsInCombat,
+                ["mountInCombat"] = horse.IsInCombat
+            };
+            BeginTarget(TargetDistance, "tb-paired-scheduler");
             step = Phase3dHorseStep.AwaitUnmountedCombat;
             stableFrames = 0;
             ResetLeafClock();
@@ -2395,7 +2408,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 Game.Instance.IsPaused = false;
             }
-            if (!IsCombatReady(false))
+            if (!IsCombatReady(turnBasedPairInitiallyMounted))
             {
                 return;
             }
@@ -2460,6 +2473,11 @@ namespace KingmakerMountedCombat.Diagnostics
             var riderHandsIdle = !rider.AreHandsBusyWithAnimation;
             var riderEquipmentIdle = equipment != null && !equipment.IsUpdateScheduledFor(rider);
             var selectionExact = selected != null && selected.Count == 1 && selected[0] == rider;
+            var exactMountedPair = relationship.State == RelationshipState.Mounted &&
+                relationship.Rider == rider && relationship.Mount == horse;
+            var relationshipAdmissionReady = turnBasedPairInitiallyMounted
+                ? exactMountedPair
+                : availability.IsVisible && availability.IsEnabled;
             if (riderTurnExact)
             {
                 combatMountRiderTurnObservedFrames++;
@@ -2532,7 +2550,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 !rider.Descriptor.State.CanAct || !rider.CombatState.CanActInCombat ||
                 !rider.Commands.Empty || !horse.Commands.Empty ||
                 !riderHandsIdle || !riderEquipmentIdle || !selectionExact ||
-                !availability.IsVisible || !availability.IsEnabled)
+                !relationshipAdmissionReady)
             {
                 stableFrames = 0;
                 return;
@@ -2540,6 +2558,28 @@ namespace KingmakerMountedCombat.Diagnostics
             stableFrames++;
             if (stableFrames < 2)
             {
+                return;
+            }
+
+            if (turnBasedPairInitiallyMounted)
+            {
+                turnSnapshotBefore = combat.CaptureUnifiedTurnSnapshot();
+                observations["pairedSchedulerMountedTurnAdmission"] = new JObject
+                {
+                    ["pairInitiallyMounted"] = true,
+                    ["relationshipExact"] = exactMountedPair,
+                    ["currentTurnRiderExact"] = turn?.Unit == rider,
+                    ["currentTurnStatus"] = turn?.Status.ToString(),
+                    ["selectionRiderExact"] = selectionExact,
+                    ["nativeCombatMountCommandPresent"] = lastNativeAbilityShell != null,
+                    ["riderCommandsIdle"] = rider.Commands.Empty,
+                    ["mountCommandsIdle"] = horse.Commands.Empty,
+                    ["unified"] = JObject.FromObject(
+                        turnSnapshotBefore,
+                        JsonSerializer.Create(JsonSettings))
+                };
+                ObserveSharedInitiativeAndTracker(turnSnapshotBefore);
+                BeginRiderPrimaryTb();
                 return;
             }
 
@@ -3492,7 +3532,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 rider.IsInCombat && horse.IsInCombat && target.IsInCombat &&
                 rider.CombatState != null && horse.CombatState != null && target.CombatState != null &&
                 rider.CombatState.Prepared && horse.CombatState.Prepared && target.CombatState.Prepared &&
-                (!requireMounted || relationship.State == RelationshipState.Mounted);
+                (!requireMounted || relationship.State == RelationshipState.Mounted &&
+                    relationship.Rider == rider && relationship.Mount == horse);
         }
 
         private bool IsExactRealTimePrimaryAdmissionReady(
@@ -4520,7 +4561,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (unmountedHorseAiLease == null)
                 {
                     if (horse?.Commands == null || rider == null || horse.Group == null ||
-                        horse.Group != rider.Group || relationship.State != RelationshipState.Unmounted ||
+                        horse.Group != rider.Group || !IsExactDiagnosticAiIsolationRelationship() ||
                         AiBackingField == null || AiBackingField.FieldType != typeof(bool))
                     {
                         throw new InvalidOperationException(
@@ -4548,7 +4589,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         unit => unit.UniqueId,
                         unit => ReferenceEquals(unit, horse) && unit.IsInState &&
                             unit.IsDirectlyControllable && unit.Group == rider.Group &&
-                            relationship.State == RelationshipState.Unmounted,
+                            IsExactDiagnosticAiIsolationRelationship(),
                         unit => unit.Commands != null && unit.Commands.Empty,
                         unit => (bool)AiBackingField.GetValue(unit),
                         unit => unit.IsAIEnabled,
@@ -4689,7 +4730,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     if (!string.Equals(request.Scenario, TurnBasedScenario, StringComparison.Ordinal) ||
                         rider?.Commands == null || horse?.Commands == null || !rider.Commands.Empty ||
                         !horse.Commands.Empty || rider.Group == null || rider.Group != horse.Group ||
-                        !rider.IsDirectlyControllable || relationship.State != RelationshipState.Unmounted ||
+                        !rider.IsDirectlyControllable || !IsExactDiagnosticAiIsolationRelationship() ||
                         rider.IsInCombat || horse.IsInCombat || target != null || selected == null ||
                         selected.Count != 1 || selected[0] != rider ||
                         unmountedHorseAiLease == null || !unmountedHorseAiLease.IsAcquired ||
@@ -4704,7 +4745,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         unit => unit.UniqueId,
                         unit => ReferenceEquals(unit, rider) && unit.IsInState &&
                             unit.IsDirectlyControllable && unit.Group == horse.Group &&
-                            relationship.State == RelationshipState.Unmounted,
+                            IsExactDiagnosticAiIsolationRelationship(),
                         unit => unit.Commands != null && unit.Commands.Empty,
                         unit => (bool)AiBackingField.GetValue(unit),
                         unit => unit.IsAIEnabled,
@@ -4758,6 +4799,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 BeginCleanup();
                 return false;
             }
+        }
+
+        private bool IsExactDiagnosticAiIsolationRelationship()
+        {
+            return relationship.State == RelationshipState.Unmounted ||
+                string.Equals(request.Scenario, TurnBasedScenario, StringComparison.Ordinal) &&
+                relationship.State == RelationshipState.Mounted &&
+                relationship.Rider == rider && relationship.Mount == horse;
         }
 
         private bool RestoreCombatMountRiderAiIsolation()
@@ -5408,7 +5457,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             var artifact = new JObject
             {
-                ["schemaVersion"] = 3,
+                ["schemaVersion"] = 4,
                 ["evidenceKind"] = EvidenceKind,
                 ["runId"] = request.RunId,
                 ["scenario"] = request.Scenario,
