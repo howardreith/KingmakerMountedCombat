@@ -93,7 +93,10 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly Stopwatch leafClock = new Stopwatch();
         private readonly List<RuntimeSubscenarioResult> results = new List<RuntimeSubscenarioResult>();
         private readonly List<string> errors = new List<string>();
+        private readonly List<TurnController> nativeTurnTraversalEndedTurns = new List<TurnController>();
         private readonly JArray rows = new JArray();
+        private readonly JArray nativeTurnTraversalRosterEvidence = new JArray();
+        private readonly JArray nativeTurnTraversalEntries = new JArray();
         private readonly JObject observations = new JObject();
 
         private Phase3dHorseStep step;
@@ -208,6 +211,18 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool modeRestored;
         private int cleanupFrame;
         private int frame;
+        private UnitEntityData[] nativeTurnTraversalRoster = new UnitEntityData[0];
+        private TurnController nativeTurnTraversalCandidate;
+        private string nativeTurnTraversalCandidatePurpose;
+        private string nativeTurnTraversalPurpose;
+        private string nativeTurnTraversalExpectedUnitId;
+        private int nativeTurnTraversalStableFrames;
+        private int nativeTurnTraversalRosterCaptureCount;
+        private int nativeTurnTraversalForceEndCount;
+        private int nativeTurnTraversalDuplicateTurnRejectCount;
+        private int nativeTurnTraversalForeignTurnRejectCount;
+        private int nativeTurnTraversalResourceMutationCount;
+        private int nativeTurnTraversalMountedHorseTurnObservedCount;
 
         internal Phase3dHorseScenarioTranche(
             RuntimeRequest request,
@@ -2430,6 +2445,15 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
+            if (!CaptureNativeTurnTraversalRoster(controller))
+            {
+                FailCurrent(
+                    "phase3d-horse-runtime-exception",
+                    "The exact initialized TB roster could not be captured for bounded native turn traversal.");
+                BeginCleanup();
+                return;
+            }
+
             // Do not synthesize a rider turn here. Exact Kingmaker TickTime owns the
             // pending m_NextUnit -> StartTurn transition and clears m_NextUnit only
             // after that native call. Calling StartTurn directly can leave the native
@@ -2732,8 +2756,13 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void AwaitNextRiderTurnForMountPrimaryTb()
         {
-            var turn = Game.Instance.TurnBasedCombatController?.CurrentTurn;
-            if (!IsStableRiderTurn(turn))
+            TurnController turn;
+            if (!TryReachExpectedNativeTurn(
+                    rider,
+                    false,
+                    "mount-primary-after-rider-only",
+                    out turn) ||
+                !IsStableRiderTurn(turn))
             {
                 stableFrames = 0;
                 return;
@@ -2847,8 +2876,13 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void AwaitNextRiderTurnForStockMeleeTb()
         {
-            var turn = Game.Instance.TurnBasedCombatController?.CurrentTurn;
-            if (!IsStableRiderTurn(turn))
+            TurnController turn;
+            if (!TryReachExpectedNativeTurn(
+                    rider,
+                    false,
+                    "ordinary-melee-after-mount-only",
+                    out turn) ||
+                !IsStableRiderTurn(turn))
             {
                 stableFrames = 0;
                 return;
@@ -2966,8 +3000,13 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void AwaitNextRiderTurnForRangedTb()
         {
-            var turn = Game.Instance.TurnBasedCombatController?.CurrentTurn;
-            if (!IsStableRiderTurn(turn))
+            TurnController turn;
+            if (!TryReachExpectedNativeTurn(
+                    rider,
+                    false,
+                    "ranged-after-melee-sequence",
+                    out turn) ||
+                !IsStableRiderTurn(turn))
             {
                 stableFrames = 0;
                 return;
@@ -3052,8 +3091,12 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void AwaitNextRiderTurnForStep()
         {
-            var turn = Game.Instance.TurnBasedCombatController?.CurrentTurn;
-            if (turn?.Unit != rider ||
+            TurnController turn;
+            if (!TryReachExpectedNativeTurn(
+                    rider,
+                    false,
+                    "five-foot-step-after-ranged",
+                    out turn) ||
                 turn.Status != TurnController.TurnStatus.Preparing && !turn.IsActing)
             {
                 stableFrames = 0;
@@ -3134,8 +3177,13 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void AwaitNextRiderTurnForOrdinaryMove()
         {
-            var turn = Game.Instance.TurnBasedCombatController?.CurrentTurn;
-            if (!IsStableRiderTurn(turn))
+            TurnController turn;
+            if (!TryReachExpectedNativeTurn(
+                    rider,
+                    false,
+                    "ordinary-move-after-five-foot-step",
+                    out turn) ||
+                !IsStableRiderTurn(turn))
             {
                 stableFrames = 0;
                 return;
@@ -3222,8 +3270,12 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void AwaitNextRiderTurnForDismount()
         {
-            var turn = Game.Instance.TurnBasedCombatController?.CurrentTurn;
-            if (turn?.Unit != rider ||
+            TurnController turn;
+            if (!TryReachExpectedNativeTurn(
+                    rider,
+                    false,
+                    "combat-dismount-after-ordinary-move",
+                    out turn) ||
                 turn.Status != TurnController.TurnStatus.Preparing && !turn.IsActing)
             {
                 stableFrames = 0;
@@ -3282,8 +3334,14 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void AwaitNextRiderTurnForUnmountedStep()
         {
-            var turn = Game.Instance.TurnBasedCombatController?.CurrentTurn;
-            if (relationship.State != RelationshipState.Unmounted || !IsStableRiderTurn(turn))
+            TurnController turn;
+            if (relationship.State != RelationshipState.Unmounted ||
+                !TryReachExpectedNativeTurn(
+                    rider,
+                    true,
+                    "unmounted-step-after-combat-dismount",
+                    out turn) ||
+                !IsStableRiderTurn(turn))
             {
                 stableFrames = 0;
                 return;
@@ -3425,8 +3483,13 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void AwaitNextRiderTurnForSpentControlDismount()
         {
-            var turn = Game.Instance.TurnBasedCombatController?.CurrentTurn;
-            if (!IsStableRiderTurn(turn))
+            TurnController turn;
+            if (!TryReachExpectedNativeTurn(
+                    rider,
+                    false,
+                    "spent-rider-control-dismount",
+                    out turn) ||
+                !IsStableRiderTurn(turn))
             {
                 stableFrames = 0;
                 return;
@@ -3461,8 +3524,13 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void AwaitHorseTurnForSpentControl()
         {
-            var turn = Game.Instance.TurnBasedCombatController?.CurrentTurn;
-            if (turn?.Unit != horse ||
+            TurnController turn;
+            if (relationship.State != RelationshipState.Unmounted ||
+                !TryReachExpectedNativeTurn(
+                    horse,
+                    true,
+                    "unmounted-horse-spent-control",
+                    out turn) ||
                 turn.Status != TurnController.TurnStatus.Preparing && !turn.IsActing ||
                 !rider.Commands.Empty || !horse.Commands.Empty)
             {
@@ -3504,8 +3572,14 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void AwaitRiderTurnForMountSpentControl()
         {
-            var turn = Game.Instance.TurnBasedCombatController?.CurrentTurn;
-            if (relationship.State != RelationshipState.Unmounted || !IsStableRiderTurn(turn))
+            TurnController turn;
+            if (relationship.State != RelationshipState.Unmounted ||
+                !TryReachExpectedNativeTurn(
+                    rider,
+                    true,
+                    "combat-mount-after-horse-spent",
+                    out turn) ||
+                !IsStableRiderTurn(turn))
             {
                 stableFrames = 0;
                 return;
@@ -3687,6 +3761,422 @@ namespace KingmakerMountedCombat.Diagnostics
             return turn?.Unit == rider &&
                 (turn.Status == TurnController.TurnStatus.Preparing || turn.IsActing) &&
                 rider.Commands.Empty && horse.Commands.Empty;
+        }
+
+        private bool CaptureNativeTurnTraversalRoster(CombatController controller)
+        {
+            if (nativeTurnTraversalRosterCaptureCount != 0)
+            {
+                return nativeTurnTraversalRoster.Length >= 3;
+            }
+            if (controller == null || target == null || targetService?.NonPairPartyAiLease == null ||
+                !targetService.NonPairPartyAiLease.IsActive ||
+                !targetService.NonPairPartyAiLease.ValidateActive())
+            {
+                return false;
+            }
+
+            var roster = controller.SortedUnits.Where(unit => unit != null).ToArray();
+            if (roster.Length < 3 ||
+                roster.Count(unit => ReferenceEquals(unit, rider)) != 1 ||
+                roster.Count(unit => ReferenceEquals(unit, horse)) != 1 ||
+                roster.Count(unit => ReferenceEquals(unit, target)) != 1 ||
+                roster.Select(unit => unit.UniqueId).Distinct(StringComparer.Ordinal).Count() != roster.Length)
+            {
+                return false;
+            }
+
+            nativeTurnTraversalRosterEvidence.Clear();
+            for (var index = 0; index < roster.Length; index++)
+            {
+                var unit = roster[index];
+                var isRider = ReferenceEquals(unit, rider);
+                var isMount = ReferenceEquals(unit, horse);
+                var isTarget = ReferenceEquals(unit, target);
+                var samePlayerParty = unit.Group != null &&
+                    ReferenceEquals(unit.Group, rider.Group) && rider.Group.IsPlayerParty;
+                var leasedNonPair = !isRider && !isMount &&
+                    targetService.NonPairPartyAiLease.OwnsExactMember(unit);
+                if (unit.IsDirectlyControllable && samePlayerParty && !isRider && !isMount &&
+                    !leasedNonPair)
+                {
+                    return false;
+                }
+
+                nativeTurnTraversalRosterEvidence.Add(new JObject
+                {
+                    ["index"] = index,
+                    ["unitId"] = unit.UniqueId,
+                    ["role"] = DescribeNativeTurnTraversalRole(unit),
+                    ["directlyControllable"] = unit.IsDirectlyControllable,
+                    ["samePlayerParty"] = samePlayerParty,
+                    ["nonPairLeaseReferenceExact"] = leasedNonPair,
+                    ["targetExact"] = isTarget
+                });
+            }
+
+            nativeTurnTraversalRoster = roster;
+            nativeTurnTraversalRosterCaptureCount++;
+            logger.Info("Captured exact native TB traversal roster: count=" + roster.Length +
+                "; units=" + string.Join(",", roster.Select(unit => unit.UniqueId).ToArray()) + ".");
+            return true;
+        }
+
+        private bool TryReachExpectedNativeTurn(
+            UnitEntityData expected,
+            bool allowOtherPairActor,
+            string purpose,
+            out TurnController turn)
+        {
+            var game = Game.Instance;
+            var controller = game?.TurnBasedCombatController;
+            turn = controller?.CurrentTurn;
+            nativeTurnTraversalPurpose = purpose;
+            nativeTurnTraversalExpectedUnitId = expected?.UniqueId;
+
+            if (cleanupStarted || expected == null ||
+                !ReferenceEquals(expected, rider) && !ReferenceEquals(expected, horse) ||
+                nativeTurnTraversalRosterCaptureCount != 1 ||
+                nativeTurnTraversalRoster.Length < 3)
+            {
+                ResetNativeTurnTraversalCandidate();
+                return false;
+            }
+            if (ReferenceEquals(turn?.Unit, expected))
+            {
+                ResetNativeTurnTraversalCandidate();
+                return true;
+            }
+            if (turn?.Unit == null)
+            {
+                ResetNativeTurnTraversalCandidate();
+                return false;
+            }
+
+            var current = turn.Unit;
+            var currentIsRider = ReferenceEquals(current, rider);
+            var currentIsMount = ReferenceEquals(current, horse);
+            var currentIsPairActor = currentIsRider || currentIsMount;
+            if (DiagnosticTurnTraversalPolicy.IsProhibitedMountedMountTurn(
+                    currentIsMount,
+                    ReferenceEquals(current, expected),
+                    relationship.State == RelationshipState.Mounted))
+            {
+                nativeTurnTraversalMountedHorseTurnObservedCount++;
+                FailCurrent(
+                    "phase3d-horse-runtime-exception",
+                    "The native controller emitted the mounted Horse as CurrentTurn.Unit while the diagnostic awaited " +
+                    purpose + ".");
+                BeginCleanup();
+                return false;
+            }
+
+            var rosterIndex = -1;
+            var rosterReferenceCount = 0;
+            for (var index = 0; index < nativeTurnTraversalRoster.Length; index++)
+            {
+                if (ReferenceEquals(nativeTurnTraversalRoster[index], current))
+                {
+                    rosterReferenceCount++;
+                    rosterIndex = index;
+                }
+            }
+            var rosterReferenceExact = rosterReferenceCount == 1;
+            var samePlayerParty = current.Group != null &&
+                ReferenceEquals(current.Group, rider.Group) && rider.Group.IsPlayerParty;
+            var directlyControllable = current.IsDirectlyControllable;
+            var pairActorPassAuthorized = currentIsPairActor && allowOtherPairActor &&
+                relationship.State == RelationshipState.Unmounted;
+            var nonPairLeaseReferenceExact = false;
+            if (!currentIsPairActor && directlyControllable && samePlayerParty)
+            {
+                var nonPairLease = targetService?.NonPairPartyAiLease;
+                nonPairLeaseReferenceExact = nonPairLease != null && nonPairLease.IsActive &&
+                    nonPairLease.OwnsExactMember(current) && nonPairLease.ValidateActive();
+            }
+
+            if (directlyControllable && samePlayerParty &&
+                (!rosterReferenceExact || currentIsPairActor && !pairActorPassAuthorized ||
+                 !currentIsPairActor && !nonPairLeaseReferenceExact))
+            {
+                nativeTurnTraversalForeignTurnRejectCount++;
+                FailCurrent(
+                    "phase3d-horse-runtime-exception",
+                    "Diagnostic native turn traversal rejected a foreign or unauthorized player-party turn: unit=" +
+                    current.UniqueId + "; purpose=" + purpose + ".");
+                BeginCleanup();
+                return false;
+            }
+
+            var equipment = game?.HandsEquipmentController;
+            var actionableTurn = turn.Status == TurnController.TurnStatus.Preparing || turn.IsActing;
+            var commandsIdle = current.Commands != null && current.Commands.Empty;
+            var handsIdle = !current.AreHandsBusyWithAnimation;
+            var equipmentIdle = equipment != null && !equipment.IsUpdateScheduledFor(current);
+            var pairWorkIdle = !combat.HasActiveCommand && !combat.HasStockAttackIntent &&
+                !combat.HasActiveGroundMovement && !combat.HasExactMountMovement;
+            var pendingNextUnitClear = GetPendingNextUnit(controller) == null;
+            var waitingForUiClear = controller != null && !(bool)controller.WaitingForUI &&
+                controller.WaitingForUI.GuardCount == 0;
+            var defaultUnpausedTurnBasedMode = game != null && game.CurrentMode == GameModeType.Default &&
+                !game.IsPaused && CombatController.IsInTurnBasedCombat();
+            var observedTurn = turn;
+            var alreadyEnded = nativeTurnTraversalEndedTurns.Any(item => ReferenceEquals(item, observedTurn));
+            if (alreadyEnded && actionableTurn)
+            {
+                nativeTurnTraversalDuplicateTurnRejectCount++;
+                FailCurrent(
+                    "phase3d-horse-runtime-exception",
+                    "Diagnostic native turn traversal encountered an already-ended turn reference as actionable: unit=" +
+                    current.UniqueId + "; purpose=" + purpose + ".");
+                BeginCleanup();
+                return false;
+            }
+
+            var identityAndReadinessExact = DiagnosticTurnTraversalPolicy.CanForceEndExactFixtureTurn(
+                true,
+                false,
+                currentIsPairActor,
+                pairActorPassAuthorized,
+                rosterReferenceExact,
+                nonPairLeaseReferenceExact,
+                directlyControllable,
+                samePlayerParty,
+                actionableTurn,
+                commandsIdle,
+                handsIdle,
+                equipmentIdle,
+                pairWorkIdle,
+                pendingNextUnitClear,
+                waitingForUiClear,
+                defaultUnpausedTurnBasedMode,
+                alreadyEnded,
+                DiagnosticTurnTraversalPolicy.RequiredStableFrames);
+            if (!identityAndReadinessExact)
+            {
+                ResetNativeTurnTraversalCandidate();
+                return false;
+            }
+
+            if (!ReferenceEquals(nativeTurnTraversalCandidate, turn) ||
+                !string.Equals(nativeTurnTraversalCandidatePurpose, purpose, StringComparison.Ordinal))
+            {
+                nativeTurnTraversalCandidate = turn;
+                nativeTurnTraversalCandidatePurpose = purpose;
+                nativeTurnTraversalStableFrames = 0;
+            }
+            nativeTurnTraversalStableFrames++;
+            if (!DiagnosticTurnTraversalPolicy.CanForceEndExactFixtureTurn(
+                    true,
+                    false,
+                    currentIsPairActor,
+                    pairActorPassAuthorized,
+                    rosterReferenceExact,
+                    nonPairLeaseReferenceExact,
+                    directlyControllable,
+                    samePlayerParty,
+                    actionableTurn,
+                    commandsIdle,
+                    handsIdle,
+                    equipmentIdle,
+                    pairWorkIdle,
+                    pendingNextUnitClear,
+                    waitingForUiClear,
+                    defaultUnpausedTurnBasedMode,
+                    alreadyEnded,
+                    nativeTurnTraversalStableFrames))
+            {
+                return false;
+            }
+
+            var combatState = current.CombatState;
+            if (combatState == null)
+            {
+                ResetNativeTurnTraversalCandidate();
+                return false;
+            }
+            var standardBefore = combatState.Cooldown.StandardAction;
+            var moveBefore = combatState.Cooldown.MoveAction;
+            var initiativeBefore = combatState.Cooldown.Initiative;
+            var stableFramesAtInput = nativeTurnTraversalStableFrames;
+            var roundAtInput = controller.RoundNumber;
+            var statusBefore = turn.Status.ToString();
+            var isActingBefore = turn.IsActing;
+            nativeTurnTraversalEndedTurns.Add(turn);
+            turn.ForceToEnd(false);
+            nativeTurnTraversalForceEndCount++;
+            var standardAfter = combatState.Cooldown.StandardAction;
+            var moveAfter = combatState.Cooldown.MoveAction;
+            var initiativeAfter = combatState.Cooldown.Initiative;
+            var resourcesUnchanged = Math.Abs(standardAfter - standardBefore) <= 0.001f &&
+                Math.Abs(moveAfter - moveBefore) <= 0.001f &&
+                Math.Abs(initiativeAfter - initiativeBefore) <= 0.001f;
+            var currentTurnReferenceRetained = ReferenceEquals(controller.CurrentTurn, turn);
+            var unitReferenceRetained = ReferenceEquals(turn.Unit, current);
+            nativeTurnTraversalEntries.Add(new JObject
+            {
+                ["sequence"] = nativeTurnTraversalForceEndCount,
+                ["purpose"] = purpose,
+                ["frame"] = Time.frameCount,
+                ["round"] = roundAtInput,
+                ["expectedUnitId"] = expected.UniqueId,
+                ["unitId"] = current.UniqueId,
+                ["role"] = DescribeNativeTurnTraversalRole(current),
+                ["rosterIndex"] = rosterIndex,
+                ["relationshipState"] = relationship.State.ToString(),
+                ["referenceExact"] = rosterReferenceExact,
+                ["nonPairLeaseReferenceExact"] = nonPairLeaseReferenceExact,
+                ["pairActorPassAuthorized"] = pairActorPassAuthorized,
+                ["directlyControllable"] = directlyControllable,
+                ["samePlayerParty"] = samePlayerParty,
+                ["statusBefore"] = statusBefore,
+                ["isActingBefore"] = isActingBefore,
+                ["commandsIdle"] = commandsIdle,
+                ["handsIdle"] = handsIdle,
+                ["equipmentIdle"] = equipmentIdle,
+                ["pairWorkIdle"] = pairWorkIdle,
+                ["pendingNextUnitClear"] = pendingNextUnitClear,
+                ["waitingForUiClear"] = waitingForUiClear,
+                ["stableFrames"] = stableFramesAtInput,
+                ["alreadyEnded"] = alreadyEnded,
+                ["forceToEndArgument"] = false,
+                ["statusAfter"] = turn.Status.ToString(),
+                ["currentTurnReferenceRetained"] = currentTurnReferenceRetained,
+                ["unitReferenceRetained"] = unitReferenceRetained,
+                ["standardBefore"] = standardBefore,
+                ["standardAfter"] = standardAfter,
+                ["moveBefore"] = moveBefore,
+                ["moveAfter"] = moveAfter,
+                ["initiativeBefore"] = initiativeBefore,
+                ["initiativeAfter"] = initiativeAfter,
+                ["resourcesUnchanged"] = resourcesUnchanged
+            });
+            logger.Info("Diagnostic native turn traversal ended exact idle fixture turn: unitId=" +
+                current.UniqueId + "; role=" + DescribeNativeTurnTraversalRole(current) +
+                "; round=" + roundAtInput + "; purpose=" + purpose + ".");
+            ResetNativeTurnTraversalCandidate();
+
+            if (!resourcesUnchanged || !currentTurnReferenceRetained || !unitReferenceRetained ||
+                turn.Status != TurnController.TurnStatus.Ending)
+            {
+                nativeTurnTraversalResourceMutationCount++;
+                FailCurrent(
+                    "phase3d-horse-runtime-exception",
+                    "Native ForceToEnd(false) violated exact diagnostic traversal postconditions for " +
+                    current.UniqueId + ".");
+                BeginCleanup();
+            }
+            return false;
+        }
+
+        private void ResetNativeTurnTraversalCandidate()
+        {
+            nativeTurnTraversalCandidate = null;
+            nativeTurnTraversalCandidatePurpose = null;
+            nativeTurnTraversalStableFrames = 0;
+        }
+
+        private string DescribeNativeTurnTraversalRole(UnitEntityData unit)
+        {
+            if (ReferenceEquals(unit, rider))
+            {
+                return "Rider";
+            }
+            if (ReferenceEquals(unit, horse))
+            {
+                return "Mount";
+            }
+            if (ReferenceEquals(unit, target))
+            {
+                return "DiagnosticTarget";
+            }
+            return unit != null && ReferenceEquals(unit.Group, rider.Group) && rider.Group.IsPlayerParty &&
+                unit.IsDirectlyControllable
+                ? "NonPairPlayerParty"
+                : "Other";
+        }
+
+        private JObject CaptureNativeTurnTraversalEvidence()
+        {
+            return new JObject
+            {
+                ["rosterCaptured"] = nativeTurnTraversalRosterCaptureCount == 1,
+                ["rosterCaptureCount"] = nativeTurnTraversalRosterCaptureCount,
+                ["roster"] = nativeTurnTraversalRosterEvidence.DeepClone(),
+                ["forceEndCallCount"] = nativeTurnTraversalForceEndCount,
+                ["duplicateTurnRejectCount"] = nativeTurnTraversalDuplicateTurnRejectCount,
+                ["foreignTurnRejectCount"] = nativeTurnTraversalForeignTurnRejectCount,
+                ["resourceMutationCount"] = nativeTurnTraversalResourceMutationCount,
+                ["mountedHorseTurnObservedCount"] = nativeTurnTraversalMountedHorseTurnObservedCount,
+                ["entries"] = nativeTurnTraversalEntries.DeepClone(),
+                ["lastProgress"] = CaptureNativeTurnTraversalProgress()
+            };
+        }
+
+        private JObject CaptureNativeTurnTraversalProgress()
+        {
+            var game = Game.Instance;
+            var controller = game?.TurnBasedCombatController;
+            var turn = controller?.CurrentTurn;
+            var current = turn?.Unit;
+            var equipment = game?.HandsEquipmentController;
+            var rosterReferenceCount = current == null
+                ? 0
+                : nativeTurnTraversalRoster.Count(unit => ReferenceEquals(unit, current));
+            var alreadyEnded = turn != null &&
+                nativeTurnTraversalEndedTurns.Any(item => ReferenceEquals(item, turn));
+            var nonPairLeaseReferenceExact = false;
+            try
+            {
+                nonPairLeaseReferenceExact = current != null && current != rider && current != horse &&
+                    targetService?.NonPairPartyAiLease != null &&
+                    targetService.NonPairPartyAiLease.IsActive &&
+                    targetService.NonPairPartyAiLease.OwnsExactMember(current);
+            }
+            catch
+            {
+                nonPairLeaseReferenceExact = false;
+            }
+            return new JObject
+            {
+                ["step"] = step.ToString(),
+                ["frame"] = Time.frameCount,
+                ["purpose"] = nativeTurnTraversalPurpose,
+                ["expectedUnitId"] = nativeTurnTraversalExpectedUnitId,
+                ["relationshipState"] = relationship.State.ToString(),
+                ["rosterCaptured"] = nativeTurnTraversalRosterCaptureCount == 1,
+                ["rosterUnitIds"] = new JArray(nativeTurnTraversalRoster.Select(unit => unit.UniqueId)),
+                ["currentTurnPresent"] = turn != null,
+                ["currentTurnUnitId"] = current?.UniqueId,
+                ["currentTurnStatus"] = turn?.Status.ToString(),
+                ["currentTurnIsActing"] = turn != null && turn.IsActing,
+                ["currentReferenceExact"] = rosterReferenceCount == 1,
+                ["currentIsRider"] = ReferenceEquals(current, rider),
+                ["currentIsHorse"] = ReferenceEquals(current, horse),
+                ["currentIsTarget"] = ReferenceEquals(current, target),
+                ["currentDirectlyControllable"] = current != null && current.IsDirectlyControllable,
+                ["currentSamePlayerParty"] = current?.Group != null &&
+                    ReferenceEquals(current.Group, rider.Group) &&
+                    rider.Group.IsPlayerParty,
+                ["currentNonPairLeaseReferenceExact"] = nonPairLeaseReferenceExact,
+                ["currentCommandsIdle"] = current?.Commands != null && current.Commands.Empty,
+                ["currentHandsIdle"] = current != null && !current.AreHandsBusyWithAnimation,
+                ["currentEquipmentIdle"] = current != null && equipment != null &&
+                    !equipment.IsUpdateScheduledFor(current),
+                ["pairWorkIdle"] = !combat.HasActiveCommand && !combat.HasStockAttackIntent &&
+                    !combat.HasActiveGroundMovement && !combat.HasExactMountMovement,
+                ["pendingNextUnitId"] = GetPendingNextUnit(controller)?.UniqueId,
+                ["pendingNextUnitClear"] = GetPendingNextUnit(controller) == null,
+                ["waitingForUi"] = controller != null && (bool)controller.WaitingForUI,
+                ["waitingForUiGuardCount"] = controller?.WaitingForUI?.GuardCount ?? -1,
+                ["candidateStableFrames"] = nativeTurnTraversalStableFrames,
+                ["alreadyEnded"] = alreadyEnded,
+                ["forceEndCallCount"] = nativeTurnTraversalForceEndCount,
+                ["duplicateTurnRejectCount"] = nativeTurnTraversalDuplicateTurnRejectCount,
+                ["foreignTurnRejectCount"] = nativeTurnTraversalForeignTurnRejectCount,
+                ["resourceMutationCount"] = nativeTurnTraversalResourceMutationCount,
+                ["mountedHorseTurnObservedCount"] = nativeTurnTraversalMountedHorseTurnObservedCount
+            };
         }
 
         private bool IsRangedOpportunityControlReady()
@@ -4125,6 +4615,19 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private JToken CaptureLeafDeadlineProgress()
         {
+            if (step == Phase3dHorseStep.AwaitNextRiderTurnForMountPrimaryTb ||
+                step == Phase3dHorseStep.AwaitNextRiderTurnForStockMeleeTb ||
+                step == Phase3dHorseStep.AwaitNextRiderTurnForRangedTb ||
+                step == Phase3dHorseStep.AwaitNextRiderTurnForStep ||
+                step == Phase3dHorseStep.AwaitNextRiderTurnForOrdinaryMove ||
+                step == Phase3dHorseStep.AwaitNextRiderTurnForDismount ||
+                step == Phase3dHorseStep.AwaitNextRiderTurnForUnmountedStep ||
+                step == Phase3dHorseStep.AwaitNextRiderTurnForSpentControlDismount ||
+                step == Phase3dHorseStep.AwaitHorseTurnForSpentControl ||
+                step == Phase3dHorseStep.AwaitRiderTurnForMountSpentControl)
+            {
+                return CaptureNativeTurnTraversalProgress();
+            }
             if (step == Phase3dHorseStep.AwaitCombatMountAdjacencyReadiness ||
                 step == Phase3dHorseStep.AwaitCombatMountAdjacencyMove)
             {
@@ -5511,6 +6014,10 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void WriteEvidence()
         {
+            if (string.Equals(request.Scenario, TurnBasedScenario, StringComparison.Ordinal))
+            {
+                observations["nativeTurnTraversal"] = CaptureNativeTurnTraversalEvidence();
+            }
             var path = Path.Combine(request.EvidenceRoot, EvidenceFileName);
             if (File.Exists(path))
             {
@@ -5518,7 +6025,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             var artifact = new JObject
             {
-                ["schemaVersion"] = 5,
+                ["schemaVersion"] = 6,
                 ["evidenceKind"] = EvidenceKind,
                 ["runId"] = request.RunId,
                 ["scenario"] = request.Scenario,

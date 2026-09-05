@@ -10528,9 +10528,49 @@ try {
                 $rowByName['unmounted-five-foot-step-control'].evidence = [ordered]@{
                     relationshipState='Unmounted';opportunity=[ordered]@{attackRules=0};stepSuppressionBefore=1;stepSuppressionAfter=1
                 }
+                $observations.nativeTurnTraversal = [ordered]@{
+                    rosterCaptured=$true;rosterCaptureCount=1
+                    roster=@(
+                        [ordered]@{index=0;unitId='target';role='DiagnosticTarget';directlyControllable=$false;samePlayerParty=$false;nonPairLeaseReferenceExact=$false;targetExact=$true},
+                        [ordered]@{index=1;unitId='rider';role='Rider';directlyControllable=$true;samePlayerParty=$true;nonPairLeaseReferenceExact=$false;targetExact=$false},
+                        [ordered]@{index=2;unitId='horse';role='Mount';directlyControllable=$true;samePlayerParty=$true;nonPairLeaseReferenceExact=$false;targetExact=$false},
+                        [ordered]@{index=3;unitId='companion-a';role='NonPairPlayerParty';directlyControllable=$true;samePlayerParty=$true;nonPairLeaseReferenceExact=$true;targetExact=$false},
+                        [ordered]@{index=4;unitId='companion-b';role='NonPairPlayerParty';directlyControllable=$true;samePlayerParty=$true;nonPairLeaseReferenceExact=$true;targetExact=$false})
+                    forceEndCallCount=2;duplicateTurnRejectCount=0;foreignTurnRejectCount=0
+                    resourceMutationCount=0;mountedHorseTurnObservedCount=0
+                    entries=@(
+                        [ordered]@{
+                            sequence=1;purpose='mount-primary-after-rider-only';frame=120;round=1
+                            expectedUnitId='rider';unitId='companion-a';role='NonPairPlayerParty';rosterIndex=3
+                            relationshipState='Mounted';referenceExact=$true;nonPairLeaseReferenceExact=$true
+                            pairActorPassAuthorized=$false;directlyControllable=$true;samePlayerParty=$true
+                            statusBefore='Preparing';isActingBefore=$false;commandsIdle=$true;handsIdle=$true
+                            equipmentIdle=$true;pairWorkIdle=$true;pendingNextUnitClear=$true;waitingForUiClear=$true
+                            stableFrames=2;alreadyEnded=$false;forceToEndArgument=$false;statusAfter='Ending'
+                            currentTurnReferenceRetained=$true;unitReferenceRetained=$true
+                            standardBefore=0.0;standardAfter=0.0;moveBefore=0.0;moveAfter=0.0
+                            initiativeBefore=0.0;initiativeAfter=0.0;resourcesUnchanged=$true
+                        },
+                        [ordered]@{
+                            sequence=2;purpose='mount-primary-after-rider-only';frame=140;round=1
+                            expectedUnitId='rider';unitId='companion-b';role='NonPairPlayerParty';rosterIndex=4
+                            relationshipState='Mounted';referenceExact=$true;nonPairLeaseReferenceExact=$true
+                            pairActorPassAuthorized=$false;directlyControllable=$true;samePlayerParty=$true
+                            statusBefore='Preparing';isActingBefore=$false;commandsIdle=$true;handsIdle=$true
+                            equipmentIdle=$true;pairWorkIdle=$true;pendingNextUnitClear=$true;waitingForUiClear=$true
+                            stableFrames=2;alreadyEnded=$false;forceToEndArgument=$false;statusAfter='Ending'
+                            currentTurnReferenceRetained=$true;unitReferenceRetained=$true
+                            standardBefore=0.0;standardAfter=0.0;moveBefore=0.0;moveAfter=0.0
+                            initiativeBefore=0.0;initiativeAfter=0.0;resourcesUnchanged=$true
+                        })
+                    lastProgress=[ordered]@{
+                        forceEndCallCount=2;duplicateTurnRejectCount=0;foreignTurnRejectCount=0
+                        resourceMutationCount=0;mountedHorseTurnObservedCount=0
+                    }
+                }
             }
             $phase3dArtifact = [ordered]@{
-                schemaVersion=$(if($phase3dScenario -ceq 'phase3d-unified-combat-tb-suite'){5}else{1})
+                schemaVersion=$(if($phase3dScenario -ceq 'phase3d-unified-combat-tb-suite'){6}else{1})
                 evidenceKind='phase3d-horse-scenario-evidence';runId=$phase3dRequest.runId
                 scenario=$phase3dRequest.scenario;branch=$phase3dRequest.branch;commit=$phase3dRequest.commit
                 productVersion=$phase3dRequest.productVersion;dllSha256=$phase3dRequest.dllSha256
@@ -10553,6 +10593,15 @@ try {
 
             if ($phase3dScenario -ceq 'phase3d-unified-combat-tb-suite') {
                 $phase3eSchedulerEvidence = $rowByName['mounted-stock-click-melee-mount-only-explicit'].evidence
+                $phase3eTraversalEvidence = $phase3dArtifact.observations.nativeTurnTraversal
+                $phase3dArtifact.schemaVersion = 5
+                $phase3dArtifact.observations.Remove('nativeTurnTraversal')
+                Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
+                $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
+                $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
+                [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+                $phase3dManifest = Read-KmcJson (Join-Path $phase3dRequest.evidenceRoot 'runtime-artifacts.json')
+                Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
                 $phase3dArtifact.schemaVersion = 4
                 $rowByName['mounted-stock-click-melee-mount-only-explicit'].evidence = [ordered]@{}
                 Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
@@ -10561,8 +10610,9 @@ try {
                 [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
                 $phase3dManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
                 Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
-                $phase3dArtifact.schemaVersion = 5
+                $phase3dArtifact.schemaVersion = 6
                 $rowByName['mounted-stock-click-melee-mount-only-explicit'].evidence = $phase3eSchedulerEvidence
+                $phase3dArtifact.observations['nativeTurnTraversal'] = $phase3eTraversalEvidence
             }
 
             if ($phase3dScenario -ceq 'phase3d-horse-presentation-suite') {
@@ -10792,6 +10842,17 @@ try {
                 Assert-TestThrows {
                     Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
                 } 'Phase 3E TB validator accepted a duplicate scheduler drive in one Unity frame.'
+
+                $rowByName['mounted-stock-click-melee-mount-only-explicit'].evidence.pairedScheduler.duplicateFrameDriveCount = 0
+                $phase3dArtifact.observations.nativeTurnTraversal.foreignTurnRejectCount = 1
+                Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
+                $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
+                $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
+                [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+                $phase3dManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+                Assert-TestThrows {
+                    Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
+                } 'Phase 3E TB validator accepted a foreign diagnostic native-turn traversal.'
             }
         }
     }
@@ -11226,6 +11287,8 @@ try {
         $settingsSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\DiagnosticSettings.cs'))
         $runtimeCombatSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeCombatScenarioEngine.cs'))
         $phase3dHorseSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\Phase3dHorseScenarioTranche.cs'))
+        $turnTraversalPolicySource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\DiagnosticTurnTraversalPolicy.cs'))
+        $nonPairPartyLeaseSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\DiagnosticNonPairPartyAiLease.cs'))
         $runtimeHostSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeAutomationHost.cs'))
         $horseEngineSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\HorseCompanionUnmountedScenarioEngine.cs'))
 
@@ -11419,7 +11482,7 @@ try {
             $phase3dHorseSource.Contains('["commandAiActionPresent"] = commandPresent && command.AiAction != null') -and
             $phase3dHorseSource.Contains('["createdByPlayer"] = command.CreatedByPlayer') -and
             $phase3dHorseSource.Contains('["aiActionPresent"] = command.AiAction != null') -and
-            $phase3dHorseSource.Contains('["schemaVersion"] = 5,') -and
+            $phase3dHorseSource.Contains('["schemaVersion"] = 6,') -and
             $phase3dHorseSource.Contains('explicitPrimaryLedgerBefore = combat.CaptureUnifiedTurnSnapshot();') -and
             $phase3dHorseSource.Contains('var pairedScheduler = combat.CapturePairedCommandSchedulerSnapshot();') -and
             $phase3dHorseSource.Contains('pairedScheduler.CleanupReason == "native terminal slot removal"') -and
@@ -11434,6 +11497,42 @@ try {
             -not $horseEngineSource.Contains('BeginPhase3dTranche(false);') -and
             -not $turnBasedAdmissionBody.Contains('StartTurn(')) `
             'Phase 3E Horse TB diagnostic lost native pre-mount setup, reversible AI isolation, natural rider-turn admission, or retained stock Mount-shell observation'
+        $traversalIndex = $phase3dHorseSource.IndexOf(
+            'private bool TryReachExpectedNativeTurn(',
+            [StringComparison]::Ordinal)
+        $traversalEndIndex = $phase3dHorseSource.IndexOf(
+            'private void ResetNativeTurnTraversalCandidate()',
+            $traversalIndex,
+            [StringComparison]::Ordinal)
+        $traversalBody = if ($traversalIndex -ge 0 -and $traversalEndIndex -gt $traversalIndex) {
+            $phase3dHorseSource.Substring($traversalIndex, $traversalEndIndex - $traversalIndex)
+        } else { '' }
+        Assert-Test ($turnTraversalPolicySource.Contains('internal const int RequiredStableFrames = 2;') -and
+            $turnTraversalPolicySource.Contains('currentIsPairActor') -and
+            $turnTraversalPolicySource.Contains('pairActorPassAuthorized') -and
+            $turnTraversalPolicySource.Contains('nonPairLeaseReferenceExact') -and
+            $turnTraversalPolicySource.Contains('!alreadyEnded') -and
+            $turnTraversalPolicySource.Contains('stableFrames >= RequiredStableFrames') -and
+            $nonPairPartyLeaseSource.Contains('public bool OwnsExactMember(UnitEntityData unit)') -and
+            $nonPairPartyLeaseSource.Contains('ReferenceEquals(expectedMembers[index], unit)') -and
+            $nonPairPartyLeaseSource.Contains('ReferenceEquals(unit, rider)') -and
+            $nonPairPartyLeaseSource.Contains('ReferenceEquals(unit, mount)') -and
+            $nonPairPartyLeaseSource.Contains('ReferenceEquals(unit.Group, group)') -and
+            $traversalBody.Contains('DiagnosticTurnTraversalPolicy.IsProhibitedMountedMountTurn(') -and
+            $traversalBody.Contains('ReferenceEquals(turn?.Unit, expected)') -and
+            $traversalBody.Contains('ReferenceEquals(current.Group, rider.Group)') -and
+            $traversalBody.Contains('nonPairLease.OwnsExactMember(current)') -and
+            $traversalBody.Contains('nativeTurnTraversalEndedTurns.Any(item => ReferenceEquals(item, observedTurn))') -and
+            $traversalBody.Contains('turn.ForceToEnd(false);') -and
+            $traversalBody.Contains('turn.Status != TurnController.TurnStatus.Ending') -and
+            $traversalBody.Contains('resourcesUnchanged') -and
+            -not $traversalBody.Contains('StartTurn(') -and
+            -not $traversalBody.Contains('ChooseNextUnit') -and
+            -not $traversalBody.Contains('.Commands.Run(') -and
+            -not $traversalBody.Contains('.Commands.Tick(') -and
+            -not [regex]::IsMatch($traversalBody, 'CurrentTurn\s*=(?!=)') -and
+            -not [regex]::IsMatch($traversalBody, 'Cooldown\.[A-Za-z]+\s*=(?!=)')) `
+            'Phase 3E diagnostic traversal lost exact roster/lease/cardinality/resource guards or acquired forbidden turn, command, selector, or cooldown ownership'
     }
 
     $resultPath = Join-Path $testRoot 'runtime-result.json'

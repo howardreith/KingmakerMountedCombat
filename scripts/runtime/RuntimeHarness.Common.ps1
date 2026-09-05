@@ -5547,7 +5547,7 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
     $phase3dSchemaVersion = if (Test-KmcExactJsonInteger $artifact.schemaVersion) {
         [long]$artifact.schemaVersion
     } else { -1L }
-    if ($phase3dSchemaVersion -notin @(1L, 2L, 3L, 4L, 5L) -or
+    if ($phase3dSchemaVersion -notin @(1L, 2L, 3L, 4L, 5L, 6L) -or
         [string]$artifact.evidenceKind -cne $kind -or [string]$artifact.status -cnotin @('PASS','FAIL') -or
         $artifact.rows -isnot [Array] -or $null -eq $artifact.observations -or
         $artifact.observations -is [Array] -or $artifact.observations -is [string] -or
@@ -6707,6 +6707,170 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
                 [string]$rules.firstPairActorId -cne $horseId -or
                 [string]$rules.lastPairActorId -cne $horseId) {
                 throw 'PASS Phase 3E TB evidence does not prove separate action ledgers and one exact Horse weapon, animation, attack, roll, and bounded damage chain.'
+            }
+        }
+
+        if ($phase3dSchemaVersion -ge 6L) {
+            $traversal = $artifact.observations.nativeTurnTraversal
+            if ($null -eq $traversal -or $traversal -is [Array] -or $traversal -is [string]) {
+                throw 'PASS Phase 3E TB evidence omitted exact diagnostic native-turn traversal.'
+            }
+            Assert-KmcExactProperties $traversal @(
+                'rosterCaptured','rosterCaptureCount','roster','forceEndCallCount',
+                'duplicateTurnRejectCount','foreignTurnRejectCount','resourceMutationCount',
+                'mountedHorseTurnObservedCount','entries','lastProgress'
+            ) 'Phase 3E diagnostic native-turn traversal'
+            foreach ($name in @('rosterCaptured')) {
+                if ($traversal.$name -isnot [bool]) {
+                    throw "Phase 3E diagnostic native-turn traversal has a non-Boolean field: $name"
+                }
+            }
+            foreach ($name in @(
+                'rosterCaptureCount','forceEndCallCount','duplicateTurnRejectCount',
+                'foreignTurnRejectCount','resourceMutationCount','mountedHorseTurnObservedCount')) {
+                if (-not (Test-KmcExactJsonInteger $traversal.$name) -or [long]$traversal.$name -lt 0L) {
+                    throw "Phase 3E diagnostic native-turn traversal has an invalid count: $name"
+                }
+            }
+            if ($traversal.rosterCaptured -ne $true -or [long]$traversal.rosterCaptureCount -ne 1L -or
+                $traversal.roster -isnot [Array] -or @($traversal.roster).Count -lt 3 -or
+                $traversal.entries -isnot [Array] -or [long]$traversal.forceEndCallCount -lt 1L -or
+                @($traversal.entries).Count -ne [long]$traversal.forceEndCallCount -or
+                [long]$traversal.duplicateTurnRejectCount -ne 0L -or
+                [long]$traversal.foreignTurnRejectCount -ne 0L -or
+                [long]$traversal.resourceMutationCount -ne 0L -or
+                [long]$traversal.mountedHorseTurnObservedCount -ne 0L -or
+                $null -eq $traversal.lastProgress -or $traversal.lastProgress -is [Array] -or
+                $traversal.lastProgress -is [string]) {
+                throw 'PASS Phase 3E TB evidence does not prove one exact, safe native-turn traversal scope.'
+            }
+
+            $rosterIds = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+            $rosterByIndex = @{}
+            $rosterRiderCount = 0
+            $rosterMountCount = 0
+            $rosterTargetCount = 0
+            foreach ($rosterEntry in @($traversal.roster)) {
+                Assert-KmcExactProperties $rosterEntry @(
+                    'index','unitId','role','directlyControllable','samePlayerParty',
+                    'nonPairLeaseReferenceExact','targetExact'
+                ) 'Phase 3E diagnostic native-turn traversal roster entry'
+                if (-not (Test-KmcExactJsonInteger $rosterEntry.index) -or [long]$rosterEntry.index -lt 0L -or
+                    [string]::IsNullOrWhiteSpace([string]$rosterEntry.unitId) -or
+                    [string]$rosterEntry.role -cnotin @('Rider','Mount','DiagnosticTarget','NonPairPlayerParty','Other') -or
+                    $rosterEntry.directlyControllable -isnot [bool] -or
+                    $rosterEntry.samePlayerParty -isnot [bool] -or
+                    $rosterEntry.nonPairLeaseReferenceExact -isnot [bool] -or
+                    $rosterEntry.targetExact -isnot [bool] -or
+                    -not $rosterIds.Add([string]$rosterEntry.unitId) -or
+                    $rosterByIndex.ContainsKey([long]$rosterEntry.index)) {
+                    throw 'Phase 3E diagnostic native-turn traversal roster entry is invalid or duplicate.'
+                }
+                $rosterByIndex[[long]$rosterEntry.index] = $rosterEntry
+                if ([string]$rosterEntry.role -ceq 'Rider') {
+                    $rosterRiderCount++
+                    if ([string]$rosterEntry.unitId -cne $riderId) { throw 'Traversal roster rider identity is inexact.' }
+                }
+                elseif ([string]$rosterEntry.role -ceq 'Mount') {
+                    $rosterMountCount++
+                    if ([string]$rosterEntry.unitId -cne $horseId) { throw 'Traversal roster mount identity is inexact.' }
+                }
+                elseif ([string]$rosterEntry.role -ceq 'DiagnosticTarget') {
+                    $rosterTargetCount++
+                    if ($rosterEntry.targetExact -ne $true) { throw 'Traversal roster target identity is inexact.' }
+                }
+                if ([string]$rosterEntry.role -ceq 'NonPairPlayerParty' -and
+                    ($rosterEntry.directlyControllable -ne $true -or
+                     $rosterEntry.samePlayerParty -ne $true -or
+                     $rosterEntry.nonPairLeaseReferenceExact -ne $true)) {
+                    throw 'Traversal roster non-pair player member is not bound to the exact AI lease.'
+                }
+            }
+            if ($rosterRiderCount -ne 1 -or $rosterMountCount -ne 1 -or $rosterTargetCount -ne 1 -or
+                $rosterByIndex.Count -ne @($traversal.roster).Count) {
+                throw 'Phase 3E diagnostic native-turn traversal roster cardinality is inexact.'
+            }
+
+            $priorRound = -1L
+            for ($index = 0; $index -lt @($traversal.entries).Count; $index++) {
+                $entry = @($traversal.entries)[$index]
+                Assert-KmcExactProperties $entry @(
+                    'sequence','purpose','frame','round','expectedUnitId','unitId','role','rosterIndex',
+                    'relationshipState','referenceExact','nonPairLeaseReferenceExact',
+                    'pairActorPassAuthorized','directlyControllable','samePlayerParty','statusBefore',
+                    'isActingBefore','commandsIdle','handsIdle','equipmentIdle','pairWorkIdle',
+                    'pendingNextUnitClear','waitingForUiClear','stableFrames','alreadyEnded',
+                    'forceToEndArgument','statusAfter','currentTurnReferenceRetained',
+                    'unitReferenceRetained','standardBefore','standardAfter','moveBefore','moveAfter',
+                    'initiativeBefore','initiativeAfter','resourcesUnchanged'
+                ) 'Phase 3E diagnostic native-turn traversal entry'
+                foreach ($integerName in @('sequence','frame','round','rosterIndex','stableFrames')) {
+                    if (-not (Test-KmcExactJsonInteger $entry.$integerName) -or [long]$entry.$integerName -lt 0L) {
+                        throw "Phase 3E diagnostic native-turn traversal entry has an invalid integer: $integerName"
+                    }
+                }
+                foreach ($booleanName in @(
+                    'referenceExact','nonPairLeaseReferenceExact','pairActorPassAuthorized',
+                    'directlyControllable','samePlayerParty','isActingBefore','commandsIdle','handsIdle',
+                    'equipmentIdle','pairWorkIdle','pendingNextUnitClear','waitingForUiClear','alreadyEnded',
+                    'forceToEndArgument','currentTurnReferenceRetained','unitReferenceRetained',
+                    'resourcesUnchanged')) {
+                    if ($entry.$booleanName -isnot [bool]) {
+                        throw "Phase 3E diagnostic native-turn traversal entry has a non-Boolean field: $booleanName"
+                    }
+                }
+                foreach ($numberName in @(
+                    'standardBefore','standardAfter','moveBefore','moveAfter','initiativeBefore','initiativeAfter')) {
+                    if (-not (Test-KmcFiniteNonnegativeJsonNumber $entry.$numberName)) {
+                        throw "Phase 3E diagnostic native-turn traversal entry has an invalid cooldown: $numberName"
+                    }
+                }
+                $rosterRecord = $rosterByIndex[[long]$entry.rosterIndex]
+                $pairRole = [string]$entry.role -cin @('Rider','Mount')
+                if ([long]$entry.sequence -ne $index + 1L -or [long]$entry.frame -lt 0L -or
+                    [long]$entry.round -lt $priorRound -or
+                    [string]::IsNullOrWhiteSpace([string]$entry.purpose) -or
+                    [string]$entry.expectedUnitId -cnotin @($riderId,$horseId) -or
+                    [string]$entry.unitId -ceq [string]$entry.expectedUnitId -or
+                    $null -eq $rosterRecord -or [string]$rosterRecord.unitId -cne [string]$entry.unitId -or
+                    [string]$rosterRecord.role -cne [string]$entry.role -or
+                    $entry.referenceExact -ne $true -or $entry.directlyControllable -ne $true -or
+                    $entry.samePlayerParty -ne $true -or
+                    [string]$entry.statusBefore -cnotin @('Preparing','Acting') -or
+                    ([string]$entry.statusBefore -ceq 'Acting') -ne [bool]$entry.isActingBefore -or
+                    $entry.commandsIdle -ne $true -or $entry.handsIdle -ne $true -or
+                    $entry.equipmentIdle -ne $true -or $entry.pairWorkIdle -ne $true -or
+                    $entry.pendingNextUnitClear -ne $true -or $entry.waitingForUiClear -ne $true -or
+                    [long]$entry.stableFrames -lt 2L -or $entry.alreadyEnded -ne $false -or
+                    $entry.forceToEndArgument -ne $false -or [string]$entry.statusAfter -cne 'Ending' -or
+                    $entry.currentTurnReferenceRetained -ne $true -or $entry.unitReferenceRetained -ne $true -or
+                    $entry.resourcesUnchanged -ne $true -or
+                    -not (Test-KmcApproximatelyEqual ([double]$entry.standardBefore) ([double]$entry.standardAfter) 0.001d) -or
+                    -not (Test-KmcApproximatelyEqual ([double]$entry.moveBefore) ([double]$entry.moveAfter) 0.001d) -or
+                    -not (Test-KmcApproximatelyEqual ([double]$entry.initiativeBefore) ([double]$entry.initiativeAfter) 0.001d) -or
+                    ($pairRole -and
+                        ($entry.pairActorPassAuthorized -ne $true -or
+                         $entry.nonPairLeaseReferenceExact -ne $false -or
+                         [string]$entry.relationshipState -cne 'Unmounted')) -or
+                    (-not $pairRole -and
+                        ([string]$entry.role -cne 'NonPairPlayerParty' -or
+                         $entry.pairActorPassAuthorized -ne $false -or
+                         $entry.nonPairLeaseReferenceExact -ne $true))) {
+                    throw 'PASS Phase 3E TB evidence contains an unsafe, reordered, duplicated, or resource-mutating diagnostic turn traversal entry.'
+                }
+                $priorRound = [long]$entry.round
+            }
+            if (-not (Test-KmcExactJsonInteger $traversal.lastProgress.forceEndCallCount) -or
+                [long]$traversal.lastProgress.forceEndCallCount -ne [long]$traversal.forceEndCallCount -or
+                -not (Test-KmcExactJsonInteger $traversal.lastProgress.duplicateTurnRejectCount) -or
+                [long]$traversal.lastProgress.duplicateTurnRejectCount -ne 0L -or
+                -not (Test-KmcExactJsonInteger $traversal.lastProgress.foreignTurnRejectCount) -or
+                [long]$traversal.lastProgress.foreignTurnRejectCount -ne 0L -or
+                -not (Test-KmcExactJsonInteger $traversal.lastProgress.resourceMutationCount) -or
+                [long]$traversal.lastProgress.resourceMutationCount -ne 0L -or
+                -not (Test-KmcExactJsonInteger $traversal.lastProgress.mountedHorseTurnObservedCount) -or
+                [long]$traversal.lastProgress.mountedHorseTurnObservedCount -ne 0L) {
+                throw 'Phase 3E diagnostic native-turn traversal summary and last progress do not reconcile.'
             }
         }
 

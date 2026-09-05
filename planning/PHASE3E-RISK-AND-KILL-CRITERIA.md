@@ -2,6 +2,12 @@
 
 Status: IN PROGRESS
 
+## Dev.11 runtime disposition and final repair-budget state
+
+Immutable audited dev.11 run `20260905T051700Z-phase3e-dev11-horse-tb-gate2` positively proves the production post-Tick seam: one exact mounted Horse candidate was skipped, unrelated native roster unit `b6628a77-4962-47a4-a17c-88d9836fc9d5` remained next, no Horse turn was emitted, and architecture fallback stayed zero. K9's dev.10 early-recursion defect is repaired. The run's timeout occurred only because the exact directly controllable unrelated unit correctly awaited player end-turn input.
+
+Dev.12 is conservatively repair cycle 2/2. It adds no production architecture and cannot affect a normal user session. The exact Horse TB diagnostic alone may send `ForceToEnd(false)` to a pre-captured, idle, directly controllable fixture roster turn after two stable frames and at most once per turn reference. The existing non-pair AI lease must own a non-pair candidate; an explicit unmounted spent-ledger transition may authorize the other pair actor. Mounted Horse, foreign, hostile, busy, duplicate, pending-next, UI-blocked, or resource-mutating cases fail closed. Ordered schema-6 evidence is mandatory. K8 remains unfired because production does not alter unrelated processing; K9 remains `IN PROGRESS` until the comprehensive run proves complete natural traversal and no stuck/duplicate/skip. Another non-isolatable K9 result exhausts the budget and triggers the authorized fallback disposition.
+
 ## Dev.10 completion defect and repair-budget state
 
 Immutable audited dev.10 `20260905T030300Z-phase3e-dev10-horse-tb-gate2` proves one narrowly attributable K9-class defect: the old `ChooseNextUnit` postfix recursively invoked the native selector before `CombatController.Tick` cleared the ended rider turn, causing stock to choose the same Horse again and KMC to enter fallback. It does not prove a scheduler-command, resource, ownership, or cleanup failure because no Horse scheduler lease existed.
@@ -45,7 +51,7 @@ The one observation checkpoint is consumed. Dev.1 proved positive exact stock en
 | K6 | Mount resource ownership/cardinality cannot remain exact. | TODO | Kill architecture; do not compensate by manual refund/charge. |
 | K7 | Rider resources are consumed or refreshed by scheduling. | TODO | Stop and repair if narrowly attributable; otherwise kill. |
 | K8 | Unrelated units' command processing changes. | TODO | Kill broad seam and restore fallback. |
-| K9 | Turn completion skips, duplicates, or deadlocks a combatant. | IN PROGRESS | Dev.10 exposed the exact early-recursion duplicate; dev.11 consumes narrow repair 1/2 and requires fresh-process proof. |
+| K9 | Turn completion skips, duplicates, or deadlocks a combatant. | IN PROGRESS | Dev.11 proves the production Horse skip and preserves unrelated order; dev.12 is final cycle 2/2 for exact diagnostic player-turn traversal and complete fresh-process proof. |
 | K10 | Fresh-process A/B results remain nondeterministic. | TODO | Kill after the bounded repeat/repair budget; do not normalize evidence. |
 | K11 | Cleanup leaves command, slot, queue, lease, turn, movement, or presentation residue. | TODO | One narrow terminal/cleanup repair permitted; repeated residue kills primary. |
 | K12 | Only a broad global `TurnController` replacement can satisfy the contract. | TODO | `PAIRED SCHEDULER PIVOT — SEPARATE-TURN FALLBACK READY`. |

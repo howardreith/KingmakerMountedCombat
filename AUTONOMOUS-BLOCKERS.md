@@ -1,5 +1,15 @@
 # Autonomous blockers
 
+## Dev.11 proves the production skip; dev.12 closes diagnostic native-turn traversal (2026-09-05T02:04:27-04:00)
+
+Status: `IN PROGRESS`.
+
+Clean guarded-published dev.11 is `b50a44cdfdf160f06f19ee48b8c5af7afc2385fa`; package ZIP/manifest/DLL SHA-256 are `4cc3fd262c06a112d5bdca92032ca0b65262623608c4ba454bc284307425a4a4` / `5ec192115aa6956f4be49e4c7b1accf137d98e02ea65286d9f131bb1f01789e9` / `4c486f8e35e8778c24b383a456c62c601e885990fd62ae1ad354794e9f8ef707`, MVID `4c9c76ec-c137-427a-bd8e-e71d61d258eb`. Suite10 and WhatIf passed.
+
+Immutable audited live `20260905T051700Z-phase3e-dev11-horse-tb-gate2` is `FAIL 52/2` after the same seven PASS rows. The exact game log proves the repaired post-Tick seam skipped the reference-exact Horse once, selected unrelated unit `b6628a77-4962-47a4-a17c-88d9836fc9d5`, emitted no native Horse turn, and entered no fallback. The failure is that the diagnostic waited for a later rider turn while this legitimate directly controllable party member remained in native `Preparing` awaiting input. No scheduler lease or Horse attack had yet been admitted.
+
+K9's dev.10 production defect is therefore repaired, but full turn-completion qualification remains `IN PROGRESS`. Dev.12 is charged conservatively as repair cycle 2/2 because it is the last bounded comprehensive Gate 2 run. Its only new behavior is diagnostic: record the exact native roster and use stock `ForceToEnd(false)` once per exact idle fixture-controlled non-desired turn. It may pass the other pair actor only while unmounted and explicitly required by the spent-ledger controls; a mounted Horse current turn is an immediate failure. Hostile, foreign, busy, non-roster, AI, command-bearing, or duplicate turn identities are never advanced. Production command/turn logic is unchanged. A repeated non-isolatable completion failure after this cycle triggers the bounded fallback disposition.
+
 ## Dev.10 proves a narrowly attributable duplicate-turn defect; dev.11 repair is offline-green (2026-09-05T00:00:10-04:00)
 
 Status: `IN PROGRESS`.

@@ -2,6 +2,20 @@
 
 Status: IN PROGRESS
 
+## Dev.12 offline gate
+
+The final bounded Gate 2 diagnostic candidate passes source `22/0`, Release build `0 warnings / 0 errors`, component `322/0`, visual/source-order `18/0`, harness/protocol `242/0`, assembly-backed contracts `402/0`, PowerShell parsing, and diff validation. Schema 6 requires one exact roster snapshot, one entry per native end-turn input, unchanged ledgers across `ForceToEnd(false)`, and zero duplicate, foreign, resource-mutation, or mounted-Horse observations. Historical evidence schemas remain accepted unchanged.
+
+No live qualification is claimed from these offline results. The next admissible evidence is one clean published dev.12 package and suite, a full-continuity WhatIf, then one fresh Horse TB process followed by an independent restoration audit before gameplay inspection.
+
+## Immutable dev.11 result and final dev.12 Gate 2 plan
+
+Dev.11 is clean published commit `b50a44cdfdf160f06f19ee48b8c5af7afc2385fa`, package `C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-phase3e-dev.11-paired-scheduler-horse-tb-gate2-diagnostic.zip`. ZIP/manifest/DLL SHA-256 are `4cc3fd262c06a112d5bdca92032ca0b65262623608c4ba454bc284307425a4a4` / `5ec192115aa6956f4be49e4c7b1accf137d98e02ea65286d9f131bb1f01789e9` / `4c486f8e35e8778c24b383a456c62c601e885990fd62ae1ad354794e9f8ef707`; MVID `4c9c76ec-c137-427a-bd8e-e71d61d258eb`. Suite10 `20260905T041800Z-phase3e-dev11-horse-tb-suite10` / `2577387f77bbf569e50a224b9acc5251be7078e92f9ec431a6785b18c5648b33` and full-continuity WhatIf passed.
+
+Live `20260905T051700Z-phase3e-dev11-horse-tb-gate2` remains immutable outer/game `FAIL 52/2`. Its independent audit passed before evidence read. Seven gameplay rows passed. The installed log then proves one exact post-Tick Horse skip with unrelated replacement `b6628a77-4962-47a4-a17c-88d9836fc9d5`, zero fallback, and no native Horse turn. That unrelated player-party unit stayed in native `Preparing`, correctly awaiting input; the scenario lacked an end-turn driver and expired before Mount Primary.
+
+Dev.12 is one final comprehensive diagnostic cycle. It must prove the roster by reference, traverse only exact idle fixture player turns through `ForceToEnd(false)`, record their natural sequence and unchanged ledgers, and fail on any mounted Horse, foreign/hostile, busy, duplicate, or resource-mutating case. One clean package, suite, full-continuity WhatIf, fresh process, and audit-before-read are required. A non-isolatable completion failure after this run triggers the bounded fallback disposition; there will be no additional piecemeal diagnostic package.
+
 ## Immutable dev.10 result and dev.11 qualification plan
 
 Dev.10 is clean commit `0b4dd1cd494a2765035477325afb1ae0e1bd3ee9`, package `C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-phase3e-dev.10-paired-scheduler-horse-tb-gate2-diagnostic.zip`. ZIP/manifest/DLL SHA-256 are `820047c137fde066f93045638c7ca27b0e27638f00e0053da681ac1146260052` / `cedab82f6ba2d95feb916b9ec32ef81d0f1242082b501c8cab9d4b6b13e13320` / `72d15e9eec52a59c07156a29a8283f4495c597ccae570bcf71f0fcd04458a06a`; MVID is `e1b39018-3f0b-4eef-9eae-0229e7056fc0`. Suite9 `20260905T020200Z-phase3e-dev10-horse-tb-suite9` / `2f73d4867ee6fcc09875b3a7491258c225eaadf391dad539989ac312e8724214` and WhatIf passed.

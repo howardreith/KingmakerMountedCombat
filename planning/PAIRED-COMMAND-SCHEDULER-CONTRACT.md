@@ -2,6 +2,22 @@
 
 Status: IN PROGRESS
 
+## Dev.11 result and dev.12 diagnostic traversal contract
+
+Clean dev.11 commit/package/suite are `b50a44cdfdf160f06f19ee48b8c5af7afc2385fa` / `4cc3fd262c06a112d5bdca92032ca0b65262623608c4ba454bc284307425a4a4` / `2577387f77bbf569e50a224b9acc5251be7078e92f9ec431a6785b18c5648b33`; full-continuity WhatIf passed. Immutable audited run `20260905T051700Z-phase3e-dev11-horse-tb-gate2` proves the exact post-`CombatController.Tick` repair skipped the mounted Horse and left the next unrelated native unit in its original order. There was no fallback and no native Horse turn. The production K9 defect found in dev.10 is repaired.
+
+The run stopped because the next unit, `b6628a77-4962-47a4-a17c-88d9836fc9d5`, was a legitimate directly controllable member of the exact five-unit combat roster and waited for player input in `Preparing`. This does not authorize another turn selector, `StartTurn`, arbitrary unit advancement, or a production patch. Dev.12 adds one diagnostic-only native end-input seam with all of these preconditions:
+
+- the roster was snapshotted by reference after native TB initialization and contains rider, Horse, and diagnostic hostile exactly once;
+- the current turn is not the desired test actor, is reference-identical to one roster entry, is actionable, and has not been ended previously through this helper;
+- the actor is directly controllable and belongs to the rider's exact player-party group;
+- a non-pair actor is reference-identical to a member of the already-active reversible `DiagnosticNonPairPartyAiLease`; the other pair actor is eligible only while unmounted and only for an explicitly declared spent-ledger control transition;
+- command container, hands, equipment, KMC pair command/movement/intent state, pending native unit, UI guard, mode, pause, and two-frame stability gates are all clear;
+- a mounted Horse current turn, hostile/foreign/non-roster unit, busy command, duplicate turn reference, or resource mutation fails closed;
+- the sole mutation is native `TurnController.ForceToEnd(false)`, once. Rider/Horse/current-unit/initiative fields are never assigned and no command is advanced.
+
+Evidence schema 6 must list the roster and every diagnostic end-turn input in observed order, bind each unit/purpose/round/role, prove exact reference/lease/readiness gates, prove unchanged Standard and Move cooldowns across the call, and retain zero duplicate, foreign, resource-mutation, or mounted-Horse observations. Historical schemas 1-5 remain immutable and valid. This is conservatively repair cycle 2/2; any further non-isolatable K9 failure reaches the bounded fallback decision.
+
 ## Dev.10 exact turn-selection defect and dev.11 contract
 
 Clean dev.10/audited run identities are `0b4dd1cd494a2765035477325afb1ae0e1bd3ee9` / `20260905T030300Z-phase3e-dev10-horse-tb-gate2`. The run passed exact pre-mounted rider initiative/tracker/UI/ledger and rider-only action ownership before emitting a native Horse turn. At the failure boundary the Horse was `CurrentTurn.Unit` in `Preparing`; no scheduler lease or Horse attack had been admitted.

@@ -161,6 +161,7 @@
     <Compile Include="Domain\UnifiedMountedTurn.cs" />
     <Compile Include="Domain\DiagnosticCombatTargetLifecycle.cs" />
     <Compile Include="Domain\DiagnosticCombatInitiativeObservation.cs" />
+    <Compile Include="Domain\DiagnosticTurnTraversalPolicy.cs" />
     <Compile Include="Domain\MountedPlayerAction.cs" />
     <Compile Include="Domain\NativeMountedControl.cs" />
     <Compile Include="Domain\MountedPlayerActionFeedbackState.cs" />

@@ -112,6 +112,27 @@ namespace KingmakerMountedCombat.Diagnostics
             }
         }
 
+        public bool OwnsExactMember(UnitEntityData unit)
+        {
+            ThrowIfDisposed();
+            if (!Acquired || lease == null || !lease.IsAcquired || unit == null ||
+                ReferenceEquals(unit, rider) || ReferenceEquals(unit, mount) ||
+                !ReferenceEquals(unit.Group, group))
+            {
+                return false;
+            }
+
+            var referenceCount = 0;
+            for (var index = 0; index < expectedMembers.Count; index++)
+            {
+                if (ReferenceEquals(expectedMembers[index], unit))
+                {
+                    referenceCount++;
+                }
+            }
+            return referenceCount == 1;
+        }
+
         public bool RestoreAndVerify()
         {
             if (lease == null || !lease.IsAcquired)

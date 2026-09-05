@@ -2,6 +2,20 @@
 
 Status: IN PROGRESS
 
+## Dev.12 offline implementation checkpoint
+
+The bounded diagnostic traversal is implemented without modifying production command or turn behavior. It captures one initialized native roster, recognizes every candidate by reference, admits only exact fixture-controlled idle player-party turns covered by the reversible AI lease (or an explicitly authorized unmounted pair-control transition), waits two stable frames, and invokes only native `TurnController.ForceToEnd(false)`. It records the exact turn reference, role, roster index, purpose, native state, readiness predicates, round/frame, before/after Standard/Move/initiative values, and terminal `Ending` state. One exact turn reference cannot be ended twice.
+
+Offline qualification passes source `22/0`, Release build `0 warnings / 0 errors`, component `322/0`, visual/source-order `18/0`, harness/protocol `242/0`, and assembly-backed contracts `402/0`; modified PowerShell files parse with zero errors and diff validation passes. Dirty DLL SHA-256/MVID are `fbb6f2b21e7b8d8b8859c3fbc4a2557ddb7066e20bfa625263f1aa7a48fe5aff` / `31b11096-443b-47bb-9d97-3ab542d244d4` and are not package identity. Runtime status remains `IN PROGRESS` pending a clean published package, full-continuity WhatIf, fresh process, and audit-before-read.
+
+## Dev.11 runtime proof and dev.12 diagnostic boundary
+
+Clean guarded-published dev.11 is `b50a44cdfdf160f06f19ee48b8c5af7afc2385fa`, version `0.1.0-phase3e-dev.11`. Package ZIP/manifest/DLL SHA-256 are `4cc3fd262c06a112d5bdca92032ca0b65262623608c4ba454bc284307425a4a4` / `5ec192115aa6956f4be49e4c7b1accf137d98e02ea65286d9f131bb1f01789e9` / `4c486f8e35e8778c24b383a456c62c601e885990fd62ae1ad354794e9f8ef707`; MVID `4c9c76ec-c137-427a-bd8e-e71d61d258eb`. Suite10 and full-continuity WhatIf passed.
+
+Immutable audited run `20260905T051700Z-phase3e-dev11-horse-tb-gate2` proves the production dev.11 repair works: after the rider ended, the exact mounted Horse was skipped once from the post-`CombatController.Tick` seam, the unrelated native unit remained next, no Horse turn was emitted, and no fallback occurred. The subsequent 30-second wait was caused by that directly controllable party member awaiting ordinary player input, not by command scheduling or turn selection.
+
+Dev.12 therefore changes diagnostics and evidence only. A pure policy plus exact Horse-suite adapter snapshots the initialized native roster and sends native `ForceToEnd(false)` at most once to an idle reference-exact fixture-controlled turn. It never invokes `StartTurn`, writes current-unit/initiative/resource state, ends a hostile or foreign turn, advances a command, or accepts a mounted Horse turn. It uses the existing reversible non-pair party AI lease and records every native end input plus before/after cooldowns. Evidence schema 6 is strict and historical schemas remain valid. No production scheduler or Phase 3D RT/presentation path is changed.
+
 ## Dev.10 turn-completion finding and dev.11 repair
 
 Clean dev.10 commit `0b4dd1cd494a2765035477325afb1ae0e1bd3ee9` produced package/manifest/DLL SHA-256 `820047c137fde066f93045638c7ca27b0e27638f00e0053da681ac1146260052` / `cedab82f6ba2d95feb916b9ec32ef81d0f1242082b501c8cab9d4b6b13e13320` / `72d15e9eec52a59c07156a29a8283f4495c597ccae570bcf71f0fcd04458a06a`, MVID `e1b39018-3f0b-4eef-9eae-0229e7056fc0`. Its suite/WhatIf passed. Immutable audited run `20260905T030300Z-phase3e-dev10-horse-tb-gate2` is `FAIL 52/2`: the pre-mounted natural rider turn and seven initial UI/initiative/ledger/rider-action rows passed, then the Horse became native `CurrentTurn.Unit` before Mount Primary admission.

@@ -71,6 +71,7 @@ namespace KingmakerMountedCombat.Tests
             HorseCompanionLifeTransitionPolicyTests.Register(runner);
             HorseCompanionProgressionPolicyTests.Register(runner);
             HorseCompanionScenarioDeadlinePolicyTests.Register(runner);
+            DiagnosticTurnTraversalPolicyTests.Register(runner);
             return runner.Complete();
         }
 

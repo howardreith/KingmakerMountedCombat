@@ -69,6 +69,7 @@
     <Compile Include="HorseCompanionLifeTransitionPolicyTests.cs" />
     <Compile Include="HorseCompanionProgressionPolicyTests.cs" />
     <Compile Include="HorseCompanionScenarioDeadlinePolicyTests.cs" />
+    <Compile Include="DiagnosticTurnTraversalPolicyTests.cs" />
     <Compile Include="TestRunner.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\DiagnosticSettings.cs">
       <Link>Shared\DiagnosticSettings.cs</Link>
@@ -163,6 +164,7 @@
     <Compile Include="..\src\KingmakerMountedCombat\Domain\HorseCompanionLifeTransitionPolicy.cs"><Link>Shared\Domain\HorseCompanionLifeTransitionPolicy.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\HorseCompanionProgressionPolicy.cs"><Link>Shared\Domain\HorseCompanionProgressionPolicy.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\HorseCompanionScenarioDeadlinePolicy.cs"><Link>Shared\Domain\HorseCompanionScenarioDeadlinePolicy.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\DiagnosticTurnTraversalPolicy.cs"><Link>Shared\Domain\DiagnosticTurnTraversalPolicy.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\TwoBonePoseSolver.cs"><Link>Shared\Domain\TwoBonePoseSolver.cs</Link></Compile>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
