@@ -17,7 +17,9 @@ Report the exact version, fixture/scenario, selection, RT/TB mode, weapon and ta
 
 ## Installation
 
-The existing fallback remains installed unchanged. The candidate's complete hashes and limitations are in [the implementation report](PHASE3F-PLAYABLE-CORE-IMPLEMENTATION.md). Its ZIP SHA-256 is `c557b9b8404f32b5e81c2d5594274a8bee80c3f604a58fdb7ca96e2e74a977dd`. All six temporary runtime transactions restored the starting installation; no game is left running.
+**Preview.4 is already installed in local UMM**, following the user's explicit request at 2026-09-05T23:00:13Z. The guard backed up the exact fallback/cache and independently verified the candidate. Foreign Mods and saves are unchanged, and no game was launched. The [current deployment record](../AUTONOMOUS-RESUME.md) contains backup/audit identities. Earlier temporary tests restored fallback; this later authorized installation is intentional.
+
+The candidate's complete hashes and limitations are in [the implementation report](PHASE3F-PLAYABLE-CORE-IMPLEMENTATION.md). Its ZIP SHA-256 is `c557b9b8404f32b5e81c2d5594274a8bee80c3f604a58fdb7ca96e2e74a977dd`. The following exact guarded commands are retained for reproducibility; no reinstall is needed now.
 
 Close Kingmaker and UMM. From host PowerShell on `codex/mounted-combat-phase3f-playable-core`, review the exact guarded replacement first (this WhatIf was verified):
 
@@ -27,7 +29,7 @@ $candidatePackage = 'C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMounted
 & $deploymentGuard -Operation Replace -PackagePath $candidatePackage -AllowDocumentationDescendant -WhatIf
 ```
 
-**Only after choosing permanent installation**, run the following in that same host session. This mission did not run these mutation commands:
+The user-authorized installation ran the following operations successfully. Future replacement should use the same guarded route from host PowerShell with Kingmaker and UMM closed:
 
 ```powershell
 & $deploymentGuard -Operation Replace -PackagePath $candidatePackage -AllowDocumentationDescendant -Confirm:$false
@@ -36,4 +38,4 @@ $candidatePackage = 'C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMounted
 
 The guard backs up the exact current KMC payload and checks foreign Mods. Never manually copy/delete the live Mods tree. Installation alone is not runtime qualification or permission to use valued saves.
 
-Steam was verified during this mission; any later runtime session must recheck its current Offline/cloud state. A correctly prepared guarded Horse/Working human review session and native pointer/visual observation remain setup gates. The four automated Phase 3F scenarios do not provide an interactive human session, and the historical Mammoth/overlay/read-only review setup does not satisfy this checklist or authorize saving in step 8. The six-run mission is closed after its repeated terminal failure; further guarded gameplay needs a separately bounded continuation. No diagnostic overlay or Primary-only script can substitute for the ordinary-input steps. Do not start an unguarded session to bypass these gates.
+Steam was verified during this mission; any later runtime session must recheck its current Offline/cloud state. A correctly prepared guarded Horse/Working human review session and native pointer/visual observation remain setup gates. The four automated Phase 3F scenarios do not provide an interactive human session, and the historical Mammoth/overlay/read-only review setup does not satisfy this checklist or authorize saving in step 8. The six-run mission is closed after its repeated terminal failure; further guarded gameplay needs a separately bounded continuation. Historical suite4/runtime admission pins fallback.1 and must not be reused against the now-installed preview.4; establish the new exact starting-state contract through approved tooling instead of silently downgrading it. No diagnostic overlay or Primary-only script can substitute for ordinary input, and no unguarded session should bypass these gates.

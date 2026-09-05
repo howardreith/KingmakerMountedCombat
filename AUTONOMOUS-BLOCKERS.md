@@ -1,5 +1,7 @@
 # Autonomous blockers
 
+Current installation update, 2026-09-05T23:00:13Z: the user explicitly authorized permanent local UMM installation. Exact preview.4 is now installed and independently verified; fallback/cache is backed up, foreign Mods and saves are unchanged, and no game is running. [Deployment record and hashes](AUTONOMOUS-RESUME.md) supersede earlier statements that fallback remains installed. Gameplay/resource/pointer/visual blockers below are unchanged; installation grants no qualification. Historical suite4/runtime admission still pins fallback.1, so a future guarded gameplay continuation must establish the exact newly installed starting-state contract without silently removing/downgrading preview.4. No harness guard was broadened for this installation.
+
 ## Current Phase 3F disposition - 2026-09-05T22:10:58Z
 
 **Partial candidate `0.1.0-phase3f-preview.4`; gameplay qualification is incomplete.** Source `207ebf249db075cae8f09ebe97f33f16663262bf`, Phase 3F branch, both experimental flags/overlay false. Implementation and clean private packaging are complete; the complete offline release gate passes. Six guarded transactions are restored exactly. The actual starting fallback/cache remains installed, foreign Mods/settings/saves are exact, and Kingmaker is closed. Steam readiness is resolved; the older absent-Steam/zero-run and preparing-preview paragraphs below are history.
