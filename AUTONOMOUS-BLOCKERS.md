@@ -2,6 +2,8 @@
 
 ## Phase 3F current blockers — 2026-09-05
 
+Resumed `2026-09-05T20:03:03Z`: the user started Steam; the existing guard now passes current-session Offline Mode/cloud checks. The previous absent-client blocker is resolved. Starting external state independently matches the earlier audit; no live transaction has yet run (0/8). The approved pointer bridge remains unavailable. Runtime continuation is active under the same bounded mission; historical closure details below remain build-specific.
+
 Disposition: partial candidate `0.1.0-phase3f-preview.2`, source `a4f54bf959d32caa871baeba3117b081362552ed`, branch `codex/mounted-combat-phase3f-playable-core`. Implemented and packaged ordinary RT/actor-local TB admission, intent lifecycle, expected target invalidation, Horse animated visual projection and distinct control art. Offline gates pass; gameplay qualification remains IN PROGRESS / NOT RUN. Historical fallback claims do not transfer.
 
 - TB resource reconciliation remains a blocker: native Prepare clears mount debit; projection consults rider Standard/restriction state and leaves rider TimeMoved/step/auto-stop side effects. Both native turn orders/two rounds and laundering boundaries need runtime proof. No arbitrary rider movement tax or wider turn-controller implementation is authorized here.

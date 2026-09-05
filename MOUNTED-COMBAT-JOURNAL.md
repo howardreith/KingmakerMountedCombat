@@ -1,5 +1,9 @@
 # Mounted Combat journal
 
+## 2026-09-05T20:03:03Z — resumed Phase 3F guarded runtime
+
+User started Steam and requested continuation. Clean local/upstream `839364ebcb70179f77c3d04e8ad928492d8439d6` on `codex/mounted-combat-phase3f-playable-core`, preview.2. Existing Steam safety guard passes PID 7700 current-session Offline/cloud evidence; the approved pointer bridge remains unavailable. Unique preserved Windows log still matches human SHA-256 `bb4dacc6e7bd85de1c3339b53394090a4f4842392448feb405d98ef5d5a315a0`. Independent full initial save/Mods audit passes exact fallback/cache/fixtures and quiescent transaction state. Evidence root `analysis-cache/phase3f-resume-20260905T2001137617443Z`; 0/8 live transactions, two reserved final fresh processes. Next: clean documentation checkpoint, separately named source-bound package with byte-identical preview.2 DLL, fresh stable suite, and named RuntimeTest helper with complete internal WhatIf. No old artifact/history changes, no unified TB or permanent deployment.
+
 ## 2026-09-05T15:15Z — Phase 3F bounded private delivery
 
 Branch `codex/mounted-combat-phase3f-playable-core`; gameplay implementation `71bb139ba2547cec0d42690d7f09af6a5e26a218`; clean binary source/current pre-closure HEAD `a4f54bf959d32caa871baeba3117b081362552ed`. Private version `0.1.0-phase3f-preview.2`, one pair, separate native turns, both experimental flags and overlay false. Completed controls/intent/expected-invalidation/Horse-position/art changes and honest remaining-to-finished roadmap. This is a partial candidate, not finished Phase 3F or Wrath parity.
