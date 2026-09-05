@@ -1,6 +1,6 @@
 # Phase 3F playable core — intake and implementation contract
 
-Status: IN PROGRESS. User mission of 2026-09-05 supersedes historical phase/branch restrictions, not runtime or proprietary-reference safeguards. One active rider/companion pair only.
+Status: bounded implementation delivered as a **partial candidate**, `0.1.0-phase3f-preview.4`, source `207ebf249db075cae8f09ebe97f33f16663262bf`. TB resource contract remains FAIL; ordinary pointer/full animation/UI/affected lifecycle acceptance remains incomplete. Six guarded transactions are restored; two final same-candidate RT runs repeat the unmounted ranged deadline and end that investigation. See [current evidence and disposition](../docs/PHASE3F-PLAYABLE-CORE-IMPLEMENTATION.md). The dated sections below preserve implementation history. User mission of 2026-09-05 supersedes historical phase/branch restrictions, not runtime or proprietary-reference safeguards. One active rider/companion pair only.
 
 ## Intake — 2026-09-05
 
