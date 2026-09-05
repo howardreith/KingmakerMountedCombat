@@ -634,6 +634,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var portrait = horse.Portrait;
             var small = portrait?.SmallPortrait;
             var saddle = horseService.MountSaddleIcon;
+            var dismountSaddle = horseService.DismountSaddleIcon;
             var horseIcon = horseService.HorseIcon;
             var mountAbility = nativeControls.MountAbility;
             var dismountAbility = nativeControls.DismountAbility;
@@ -642,6 +643,7 @@ namespace KingmakerMountedCombat.Diagnostics
             observations["smallPortrait"] = SpriteEvidence(small);
             observations["horseIdentityIcon"] = SpriteEvidence(horseIcon);
             observations["saddleIcon"] = SpriteEvidence(saddle);
+            observations["dismountSaddleIcon"] = SpriteEvidence(dismountSaddle);
             var horsePose = SupportedMountedProfiles.Horse.RiderPoseProfile;
             observations["pelvisOffset"] = PoseVectorEvidence(horsePose.PelvisPositionOffset);
             observations["mountRootPositionOffset"] = PoseVectorEvidence(
@@ -655,11 +657,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 new JObject { ["sprite"] = SpriteEvidence(small) });
             AddRow(
                 "saddle-icon",
-                saddle != null && saddle.texture != null && saddle.texture.width == 128 && saddle.texture.height == 128 &&
+                saddle != null && saddle.texture != null && saddle.texture.width == 96 && saddle.texture.height == 96 &&
+                    dismountSaddle != null && dismountSaddle.texture != null &&
+                    dismountSaddle.texture.width == 96 && dismountSaddle.texture.height == 96 &&
+                    !ReferenceEquals(saddle, dismountSaddle) && !ReferenceEquals(dismountSaddle, horseIcon) &&
                     !ReferenceEquals(saddle, horseIcon) && ReferenceEquals(mountAbility?.Icon, saddle) &&
-                    ReferenceEquals(dismountAbility?.Icon, saddle),
-                "Mount and Dismount reference the distinct original 128x128 KMC saddle icon; Horse identity retains its own art.",
-                new JObject { ["sprite"] = SpriteEvidence(saddle) });
+                    ReferenceEquals(dismountAbility?.Icon, dismountSaddle),
+                "Mount and Dismount bind distinct original 96x96 KMC saddle sprites; actual action-bar readability remains a human gate.",
+                new JObject { ["mountSprite"] = SpriteEvidence(saddle), ["dismountSprite"] = SpriteEvidence(dismountSaddle) });
             AddRow(
                 "Horse-pose-final-idle-walk-run-turn-stop",
                 relationship.State == RelationshipState.Mounted && runtime.PoseHealthy && runtime.PoseFrameApplied &&

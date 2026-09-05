@@ -1,5 +1,11 @@
 # Mounted Combat journal
 
+## 2026-09-05T15:00Z — Phase 3F package correction and runtime prerequisite
+
+Branch `codex/mounted-combat-phase3f-playable-core`; pre-correction source/local/upstream `71bb139ba2547cec0d42690d7f09af6a5e26a218` was guarded-published. Preview.1 package validates `10/0` and remains immutable. Preview.2 corrects only the stale shared-128px icon runtime assertion to the two actual original 96px native sprites, plus version identity. Complete Release/source/component/visual/harness/assembly gate passes `22/0`, Release, `333/0`, `19/0`, `243/0`, `402/0`; exact resource/guard audit `9/0`. Evidence is under `analysis-cache/phase3f-intake-20260905T1341077001555Z`.
+
+Runtime did not start (0/8). The read-only Steam check proves no existing client. A manual-only parameter family was correctly rejected by the automated harness; the named wrapper now uses exact suite artifact pins. Its long read-only WhatIf pass was stopped, not called PASS. Independent audit at `2026-09-05T14:56:33.6874031Z` proves exact initial saves/Mods and installed fallback/cache, protected fixtures and quiescent processes/locks/transactions. No permanent deployment. TB resources, pointer path, animated seat calibration and native UI remain explicit gates. Next: clean source commit/package, guarded installation WhatIf, final records and publication.
+
 ## 2026-09-05T08:17:44-04:00 - exact Phase 3E fallback installed through the UMM guard
 
 - Clean local/upstream/remote input was `d63d05579cc7dbaf72a270decbad334a8ddb992d`; package-bound commit/version remained `16ccc71cabde70398130386f0e9e9380e1110495` / `0.1.0-phase3e-fallback.1`.
