@@ -1,5 +1,17 @@
 # Mounted Combat journal
 
+## 2026-09-05T08:17:44-04:00 - exact Phase 3E fallback installed through the UMM guard
+
+- Clean local/upstream/remote input was `d63d05579cc7dbaf72a270decbad334a8ddb992d`; package-bound commit/version remained `16ccc71cabde70398130386f0e9e9380e1110495` / `0.1.0-phase3e-fallback.1`.
+- Preflight proved exact package SHA-256 `9451787c08d39ec2164d75f1c36fb4d54245e4228ff12855950fc26798be6698`, clean repository, no game/UMM process, and no runtime lock/transaction/sentinel. Exact `VerifyInstalled` then proved KMC absent.
+- The first guarded install failed closed before mutation because `Manage-KingmakerMountedCombatDeployment.ps1` had no Phase 3E branch allowlist entry. Added only `codex/mounted-combat-phase3e-paired-scheduler`; PowerShell parsing passed with zero errors and the resulting guard SHA-256 is `65ef31d00b33f3a2c97eb5603bdbae26eb862f3e10e95880758da3c10dc9c299`.
+- A second `VerifyAbsent` passed. `Install -WhatIf` validated the package `10/0`, selected only the exact KMC Mods child, and made no change. The live guarded Install then returned `installed-and-verified` without a prior-deployment backup.
+- Immutable deployment record `C:\Dev\KingmakerMountedCombatLab\runtime-state\deployment-operations\20260905T1217105917547Z-6b73a5870224448d83766fedb7afb89a.json` has SHA-256 `9e39e719c21f89d1bdb453fe09e25b02e8663fa85a9e92d81b2bfc850922f45f`. Installed Info SHA-256/version are `f137e69d163967c4d5f36e3610be4b9270ac160923b029cc131d56cb32d24018` / `0.1.0-phase3e-fallback.1`; installed/foreign inventory digests are `593e6daf0a51bed60bffb6ca254f6dfacbda694e44b2486e294c817daf920d72` / `52797e50dd92b69c0fc9fe8186bdd390e4b51a9c11333410f9256b78f0090b6d`.
+- Independent `VerifyInstalled` re-passed package `10/0` and exact inventory. No game/UMM process or runtime marker remains. KMC is intentionally installed for manual review; neither game nor save was launched or touched.
+- Exact next action is a documentation-only validation/commit/guarded publication followed by another exact `VerifyInstalled` from the clean descendant. Do not uninstall unless requested.
+
+Status: `PAIRED SCHEDULER PIVOT — SEPARATE-TURN FALLBACK READY`.
+
 ## 2026-09-05T07:00:29-04:00 - fallback package, suite, WhatIf, and independent audit complete
 
 - Guarded-published package commit is `16ccc71cabde70398130386f0e9e9380e1110495` on `codex/mounted-combat-phase3e-paired-scheduler`; version is `0.1.0-phase3e-fallback.1`. Both `EnableUnifiedMountedTurn` and `EnablePairedCommandScheduler` default false.

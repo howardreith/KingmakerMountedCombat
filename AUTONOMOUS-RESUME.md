@@ -1,5 +1,17 @@
 # Autonomous resume
 
+## Phase 3E fallback intentionally installed through UMM guard — 2026-09-05T08:17:44-04:00
+
+- Active branch is `codex/mounted-combat-phase3e-paired-scheduler`. Clean local/upstream/remote input is documentation closure `d63d05579cc7dbaf72a270decbad334a8ddb992d`; package commit remains `16ccc71cabde70398130386f0e9e9380e1110495` and version remains `0.1.0-phase3e-fallback.1`.
+- Initial exact `VerifyInstalled` proved KMC absent. The first install failed closed before mutation because the project-owned deployment guard's branch allowlist ended at Phase 3C. Only `codex/mounted-combat-phase3e-paired-scheduler` was added to that allowlist. The local guard parses with zero errors and now has SHA-256 `65ef31d00b33f3a2c97eb5603bdbae26eb862f3e10e95880758da3c10dc9c299`.
+- A second guarded `VerifyAbsent` passed. Guarded `Install -WhatIf` validated the package `10/0`, selected only `C:\Program Files (x86)\Steam\steamapps\common\Pathfinder Kingmaker\Mods\KingmakerMountedCombat`, and performed no mutation.
+- The live guarded Install then passed and independently verified the exact fallback package SHA-256 `9451787c08d39ec2164d75f1c36fb4d54245e4228ff12855950fc26798be6698`. Deployment record is `C:\Dev\KingmakerMountedCombatLab\runtime-state\deployment-operations\20260905T1217105917547Z-6b73a5870224448d83766fedb7afb89a.json`, SHA-256 `9e39e719c21f89d1bdb453fe09e25b02e8663fa85a9e92d81b2bfc850922f45f`.
+- Installed Info SHA-256/version are `f137e69d163967c4d5f36e3610be4b9270ac160923b029cc131d56cb32d24018` / `0.1.0-phase3e-fallback.1`; installed inventory digest is `593e6daf0a51bed60bffb6ca254f6dfacbda694e44b2486e294c817daf920d72`; unchanged foreign Mods inventory digest is `52797e50dd92b69c0fc9fe8186bdd390e4b51a9c11333410f9256b78f0090b6d`. No prior KMC deployment existed, so no backup was required.
+- Independent guarded `VerifyInstalled` re-passed package validation `10/0` and the exact installed inventory. Kingmaker, Wrath, UMM, and UMM Net remain closed; no runtime lock, transaction, or sentinel exists. The intentional external state is now one exact installed KMC fallback payload.
+- Exact next action: validate and guarded-publish this documentation-only deployment record, then rerun `VerifyInstalled` against the clean documentation descendant. Leave the installed package in place for the user's manual review; do not launch Kingmaker or mutate saves.
+
+Status: `PAIRED SCHEDULER PIVOT — SEPARATE-TURN FALLBACK READY`.
+
 ## Phase 3E fallback package complete; documentation closure pending — 2026-09-05T07:00:29-04:00
 
 - Active branch is `codex/mounted-combat-phase3e-paired-scheduler`. Before this documentation-only closure, local and upstream are clean and exact at package-bound guarded-published commit `16ccc71cabde70398130386f0e9e9380e1110495`.
