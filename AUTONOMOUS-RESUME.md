@@ -1,5 +1,18 @@
 # Autonomous resume
 
+## Phase 3E fallback package complete; documentation closure pending — 2026-09-05T07:00:29-04:00
+
+- Active branch is `codex/mounted-combat-phase3e-paired-scheduler`. Before this documentation-only closure, local and upstream are clean and exact at package-bound guarded-published commit `16ccc71cabde70398130386f0e9e9380e1110495`.
+- Final version is `0.1.0-phase3e-fallback.1`; startup defaults are `EnableUnifiedMountedTurn=false` and `EnablePairedCommandScheduler=false`. The accepted Phase 3C separate-turn behavior and qualified Phase 3D RT/native-control/presentation paths remain available. No unified-TB claim is made.
+- Final package is `C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-phase3e-fallback.1-separate-turn-fallback-manual-review-diagnostic.zip`. ZIP/manifest/DLL SHA-256 are `9451787c08d39ec2164d75f1c36fb4d54245e4228ff12855950fc26798be6698` / `43e783839fcb1c25c064c9f9f58934bb158f94ca6d7f81da332907789f2c0881` / `5bcc3bc61bb1677ea81037fdc5a8ebd740ff4d0753d5255e37fcc789e6407f2f`; DLL MVID is `57f442aa-fc22-4277-810b-3328300e37e7`; package validation passed `10/0`.
+- Stable suite is `20260905T095500Z-phase3e-fallback1-suite12`, path `C:\Dev\KingmakerMountedCombatLab\runtime-state\qualification-suite-snapshots\20260905T095500Z-phase3e-fallback1-suite12.json`, SHA-256 `ada2b36ecc739f2f964d37a92d321b63a5110153a5f186e7673b653a5d7700ec`. It binds the exact package/manifest/DLL/MVID and save/Mods digests.
+- Guarded WhatIf `20260905T100000Z-phase3e-fallback1-manual-review-whatif` passed exact purity without a game launch. The independent post-WhatIf audit re-proved package/suite hashes, clean local/upstream equality, no Kingmaker/Wrath/UMM/build process, and no runtime lock, transaction, or sentinel.
+- The documentation-closure rerun passes source `22/0`, component `322/0`, visual/source-order `18/0`, harness/protocol `242/0`, assembly `402/0` (`378` Kingmaker plus `24` Wrath), diff, and package `10/0`; the prior clean Release and parser gates remain authoritative. The fallback ZIP stayed byte-exact at `9451787c08d39ec2164d75f1c36fb4d54245e4228ff12855950fc26798be6698`.
+- Immutable scheduler result remains Gate 1 `140/0` plus one exact dev.12 Horse Mount Primary. K9 fired later when native `ChooseNextUnit` retained the redundant Horse after repair cycle 2/2. The compliant scheduling-shell investigation cannot affect that post-child selector boundary. Gates 2-5 remain `DEFER — EVIDENCED`.
+- Exact next action: validate this documentation-only closure, confirm the fallback ZIP remains byte-exact, commit once, publish only through the guarded feature-branch helper, and verify clean local/upstream/remote equality. Do not run another unified-TB process, alter the package, enable the scheduler by default, or begin Paladin work.
+
+Status: `PAIRED SCHEDULER PIVOT — SEPARATE-TURN FALLBACK READY`.
+
 ## Phase 3E bounded fallback implementation pending clean package — 2026-09-05T05:39:53-04:00
 
 - Active branch is `codex/mounted-combat-phase3e-paired-scheduler`; clean inherited local/upstream HEAD was guarded-published dev.12 `7e7f67f150491064725ed450d65095369a8a1953`. The intentional worktree changes only the fallback defaults/version and final disposition records. Version is `0.1.0-phase3e-fallback.1`; `EnableUnifiedMountedTurn=false` and `EnablePairedCommandScheduler=false` are both startup defaults.

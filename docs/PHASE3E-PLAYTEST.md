@@ -16,7 +16,62 @@ The terminal row failed after a later ordinary rider command was interrupted wit
 
 Rerun registration/orchestration/Phase3D/runtime-artifacts/game/request/final SHA-256 are `558b1c0b3f24167cf78445ef88453788d64c4ae428d06891501af6e8cacc75ed`, `258f0100437971492583d307900d0da79c5b35843abed5e73c1f56ff7c144a10`, `7d83d6b35e52b0f35ef417b2169483632f1802b978aef6f931bf55883562fa14`, `f0d6557ef714cac24b3460bbd27432c71f974fb74665438537a17bab8ac7a5c4`, `c57904ba7d88a45e073b65266108357b80e8ecf53e7e927ca238aa462ecb500e`, `7539c4972f05819333316fbb901ab53723940e0e90d3654082c76c3edef7ab78`, and `a381d12cde50009cf6fbc950a4dda91c9336b3bffbb4ba5094d654bbb685e3ea`.
 
-The final fallback package is a new clean `0.1.0-phase3e-fallback.1` build with both experimental gates default false. Its pre-package gate passes source `22/0`, Release, component `322/0`, visual/source-order `18/0`, harness/protocol `242/0`, assembly `402/0`, PowerShell `26/0`, JSON `7/0`, and diff. It relies on immutable accepted Phase 3C separate-turn and Phase 3D dev.17 RT/presentation/native-control evidence; no third unified-TB process is run. Its exact package identity, install commands, and focused manual checklist are appended after the clean package is produced.
+The final fallback package is a clean `0.1.0-phase3e-fallback.1` build with both experimental gates default false. Its pre-package gate passes source `22/0`, Release, component `322/0`, visual/source-order `18/0`, harness/protocol `242/0`, assembly `402/0`, PowerShell `26/0`, JSON `7/0`, and diff. It relies on immutable accepted Phase 3C separate-turn and Phase 3D dev.17 RT/presentation/native-control evidence; no third unified-TB process was run.
+
+## Final fallback package authority
+
+The package-bound clean guarded-published commit is `16ccc71cabde70398130386f0e9e9380e1110495` on `codex/mounted-combat-phase3e-paired-scheduler`.
+
+```text
+Version:           0.1.0-phase3e-fallback.1
+Package:           C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-phase3e-fallback.1-separate-turn-fallback-manual-review-diagnostic.zip
+Package SHA-256:   9451787c08d39ec2164d75f1c36fb4d54245e4228ff12855950fc26798be6698
+Manifest SHA-256:  43e783839fcb1c25c064c9f9f58934bb158f94ca6d7f81da332907789f2c0881
+DLL SHA-256:       5bcc3bc61bb1677ea81037fdc5a8ebd740ff4d0753d5255e37fcc789e6407f2f
+DLL MVID:          57f442aa-fc22-4277-810b-3328300e37e7
+Package validation:10 PASS / 0 FAIL
+```
+
+Stable suite `20260905T095500Z-phase3e-fallback1-suite12` is stored at `C:\Dev\KingmakerMountedCombatLab\runtime-state\qualification-suite-snapshots\20260905T095500Z-phase3e-fallback1-suite12.json`, SHA-256 `ada2b36ecc739f2f964d37a92d321b63a5110153a5f186e7673b653a5d7700ec`. It binds the exact package, manifest, DLL, MVID, branch, and package commit; its protected-save/Mods digests are `ddba0c041443e8bd12e3cbf5929b6b6aba296b666b26e4d8e73bb97918ecbd45` / `82f176c4cb9d8fcfcc21f84948b4fd4b8ed856a9c65dfc7836934a32e2fc61be`.
+
+Guarded manual-review WhatIf `20260905T100000Z-phase3e-fallback1-manual-review-whatif` passed source and package validation plus exact zero mutation. A separate post-WhatIf audit then rechecked clean local/upstream equality at `16ccc71cabde70398130386f0e9e9380e1110495`, the exact package and suite hashes, no Kingmaker/Wrath/UMM/build process, and no runtime lock, transaction, or sentinel residue.
+
+This package is the bounded fallback, not a unified-TB alpha. It defaults `EnableUnifiedMountedTurn=false` and `EnablePairedCommandScheduler=false`; do not enable either experimental gate for acceptance testing.
+
+## Install, verify, and uninstall
+
+Close Kingmaker and Unity Mod Manager before running these commands. Use only a disposable KMC fixture; never use a valued save.
+
+```powershell
+$deploymentGuard = 'C:\Dev\KingmakerMountedCombatLab\codex-policy\Manage-KingmakerMountedCombatDeployment.ps1'
+$fallbackPackage = 'C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-phase3e-fallback.1-separate-turn-fallback-manual-review-diagnostic.zip'
+
+# Install when KMC is absent.
+& $deploymentGuard -Operation Install -PackagePath $fallbackPackage -AllowDocumentationDescendant -Confirm:$false
+
+# Replace an existing exact KMC deployment.
+& $deploymentGuard -Operation Replace -PackagePath $fallbackPackage -AllowDocumentationDescendant -Confirm:$false
+
+# Verify the installed payload against this package.
+& $deploymentGuard -Operation VerifyInstalled -PackagePath $fallbackPackage -AllowDocumentationDescendant
+
+# Back up and uninstall only KMC, then verify absence.
+& $deploymentGuard -Operation Uninstall -Confirm:$false
+& $deploymentGuard -Operation VerifyAbsent
+```
+
+## Focused manual checklist
+
+1. Install and verify the exact package with Kingmaker/UMM closed; launch Kingmaker normally and confirm UMM reports version `0.1.0-phase3e-fallback.1`.
+2. Confirm `EnableUnifiedMountedTurn=false` and `EnablePairedCommandScheduler=false`. Leave both false for this review.
+3. In a disposable KMC fixture, Mount out of combat and confirm rider selection, portrait/action bar, camera, attachment, saddle icon, and Horse/Mammoth presentation remain healthy.
+4. Enter turn-based combat and confirm the rider and mount use separate native initiative turns and independent action ledgers. This is the accepted fallback behavior; do not expect one unified tracker entry.
+5. In real time, check ordinary adjacent and approach hostile-click melee, Rider Primary, and Mount Primary. Confirm the visible attacker, weapon/animation, target, and action cost belong to the selected actor.
+6. In real time, check Shortbow approach-to-range with no forced melee close, Crossbow reload, and Sling. Confirm only the Horse moves for mounted approach and native ammunition/reload behavior remains visible.
+7. Check native out-of-combat Mount/Dismount controls and the qualified Horse presentation. Perform the deferred unmounted Sling stock-control check separately.
+8. Exit to desktop, uninstall through the guard, and run `VerifyAbsent`.
+
+Known limitations: unified turn-based mounted combat is not qualified; combat Mount/Dismount action costs, mounted five-foot-step/AoO behavior, and broad unified TB melee/ranged sequencing remain `DEFER — EVIDENCED`; the automated unmounted Sling control remains deferred to manual review. There is no Paladin Divine Steed, persistent mounted state, automatic remount, enemy rider, additional-species, Small-rider, public-release, or `main`-merge claim.
 
 ## Dev.12 offline gate
 

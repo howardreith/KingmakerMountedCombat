@@ -12,6 +12,8 @@ The one authorized rider-owned scheduling-shell investigation is closed without 
 
 The bounded fallback therefore ships as `0.1.0-phase3e-fallback.1` with `EnableUnifiedMountedTurn=false` and `EnablePairedCommandScheduler=false` by default. It preserves the accepted Phase 3C separate turns and inherited Phase 3D RT melee/ranged, native abilities, and presentation; it makes no unified-TB claim. Paladin implementation remains unauthorized.
 
+The package-bound clean guarded-published commit is `16ccc71cabde70398130386f0e9e9380e1110495`. The final fallback ZIP is `C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-phase3e-fallback.1-separate-turn-fallback-manual-review-diagnostic.zip`; ZIP/manifest/DLL SHA-256 are `9451787c08d39ec2164d75f1c36fb4d54245e4228ff12855950fc26798be6698` / `43e783839fcb1c25c064c9f9f58934bb158f94ca6d7f81da332907789f2c0881` / `5bcc3bc61bb1677ea81037fdc5a8ebd740ff4d0753d5255e37fcc789e6407f2f`, and DLL MVID is `57f442aa-fc22-4277-810b-3328300e37e7`. Package validation is `10/0`. Stable suite `20260905T095500Z-phase3e-fallback1-suite12` / `ada2b36ecc739f2f964d37a92d321b63a5110153a5f186e7673b653a5d7700ec`, guarded WhatIf, and an independent post-WhatIf state audit pass.
+
 ## Authorization and controlling disposition
 
 Phase 3D reached a valid architecture boundary and is closed as:

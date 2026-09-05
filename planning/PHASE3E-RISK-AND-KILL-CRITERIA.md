@@ -10,6 +10,8 @@ K10 is also `FAIL` for the comprehensive same-package Gate 2 path, but is suppor
 
 K1-K8 and K11 did not fire in the qualified minimal scheduler slice. K12 is not asserted: this mission proves that the authorized pair-local scheduler and compliant rider-shell ownership boundary cannot repair native pair-aware turn selection, not that every conceivable future design must replace the complete global controller. Any future broader controller/roster architecture requires a new user decision.
 
+The bounded fallback is package-bound to clean guarded-published commit `16ccc71cabde70398130386f0e9e9380e1110495`, version `0.1.0-phase3e-fallback.1`. ZIP/manifest/DLL SHA-256 are `9451787c08d39ec2164d75f1c36fb4d54245e4228ff12855950fc26798be6698` / `43e783839fcb1c25c064c9f9f58934bb158f94ca6d7f81da332907789f2c0881` / `5bcc3bc61bb1677ea81037fdc5a8ebd740ff4d0753d5255e37fcc789e6407f2f`, MVID `57f442aa-fc22-4277-810b-3328300e37e7`. Both experimental gates default false; suite12, package validation, guarded WhatIf purity, and an independent post-WhatIf audit pass. This disposition does not authorize another repair cycle.
+
 ## Dev.11 runtime disposition and final repair-budget state
 
 Immutable audited dev.11 run `20260905T051700Z-phase3e-dev11-horse-tb-gate2` positively proves the production post-Tick seam: one exact mounted Horse candidate was skipped, unrelated native roster unit `b6628a77-4962-47a4-a17c-88d9836fc9d5` remained next, no Horse turn was emitted, and architecture fallback stayed zero. K9's dev.10 early-recursion defect is repaired. The run's timeout occurred only because the exact directly controllable unrelated unit correctly awaited player end-turn input.

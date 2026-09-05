@@ -1,5 +1,15 @@
 # Autonomous blockers
 
+## Phase 3E fallback package is complete — 2026-09-05T07:00:29-04:00
+
+Status: `PAIRED SCHEDULER PIVOT — SEPARATE-TURN FALLBACK READY`.
+
+There is no build, package, publication, external-restoration, process, lock, transaction, or protected-save blocker. Clean guarded-published package commit `16ccc71cabde70398130386f0e9e9380e1110495` produced the validated `0.1.0-phase3e-fallback.1` ZIP with SHA-256 `9451787c08d39ec2164d75f1c36fb4d54245e4228ff12855950fc26798be6698`; suite12, guarded WhatIf purity, and the independent post-WhatIf audit pass.
+
+The remaining blocker is architectural and deliberately bounded. K9 proves the pair-local command lifecycle does not supply safe pair-aware native turn completion: after an exact mount-owned command terminated and cleaned up, `ChooseNextUnit` could still retain the redundant Horse. Both repair cycles are consumed, and a compliant no-cost rider shell ends before that selector boundary. Another scheduler repair, broader roster/pending-turn ownership, or a global controller is not authorized.
+
+The installable safe disposition defaults unified mode and the paired scheduler off. It preserves accepted separate turns and the qualified Phase 3D RT/native-control/presentation paths. Operator commands and the focused checklist are in `docs/PHASE3E-PLAYTEST.md`. Further architecture work requires a new user decision; Paladin implementation remains unauthorized.
+
 ## Phase 3E final architecture blocker and bounded fallback — 2026-09-05T05:39:53-04:00
 
 Status: `PAIRED SCHEDULER PIVOT — SEPARATE-TURN FALLBACK READY`.

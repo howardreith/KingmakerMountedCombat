@@ -1,5 +1,17 @@
 # Mounted Combat journal
 
+## 2026-09-05T07:00:29-04:00 - fallback package, suite, WhatIf, and independent audit complete
+
+- Guarded-published package commit is `16ccc71cabde70398130386f0e9e9380e1110495` on `codex/mounted-combat-phase3e-paired-scheduler`; version is `0.1.0-phase3e-fallback.1`. Both `EnableUnifiedMountedTurn` and `EnablePairedCommandScheduler` default false.
+- Final package is `C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-phase3e-fallback.1-separate-turn-fallback-manual-review-diagnostic.zip`. ZIP/manifest/DLL SHA-256 are `9451787c08d39ec2164d75f1c36fb4d54245e4228ff12855950fc26798be6698` / `43e783839fcb1c25c064c9f9f58934bb158f94ca6d7f81da332907789f2c0881` / `5bcc3bc61bb1677ea81037fdc5a8ebd740ff4d0753d5255e37fcc789e6407f2f`; MVID `57f442aa-fc22-4277-810b-3328300e37e7`; package validation `10/0`.
+- Stable suite `20260905T095500Z-phase3e-fallback1-suite12` / `ada2b36ecc739f2f964d37a92d321b63a5110153a5f186e7673b653a5d7700ec` binds that exact package, manifest, DLL, MVID, branch, commit, save content `ddba0c041443e8bd12e3cbf5929b6b6aba296b666b26e4d8e73bb97918ecbd45`, and Mods `82f176c4cb9d8fcfcc21f84948b4fd4b8ed856a9c65dfc7836934a32e2fc61be`.
+- Guarded WhatIf `20260905T100000Z-phase3e-fallback1-manual-review-whatif` passed exact purity and launched no game. The independent post-WhatIf audit confirmed local/upstream equality at `16ccc71cabde70398130386f0e9e9380e1110495`, byte-exact package/suite hashes, no game/UMM/build process, and no runtime lock, transaction, or sentinel.
+- The documentation-only closure rerun passes source `22/0`, component `322/0`, visual/source-order `18/0`, harness/protocol `242/0`, assembly `402/0`, package `10/0`, and diff; the fallback ZIP remains byte-exact. The existing clean Release and parser results remain authoritative because no source, binary, JSON, or PowerShell file changed in this closure.
+- Final documentation now carries exact install/replace/verify/uninstall commands and a focused manual checklist. This does not create runtime credit: unified TB sequencing, combat Mount/Dismount, and five-foot-step/AoO remain `DEFER — EVIDENCED`; Phase 3C separate turns and inherited Phase 3D RT/native-control/presentation are the package claim.
+- Exact next action is documentation-only validation, one coherent commit, guarded publication, and final local/upstream/remote/clean verification. No further runtime or architecture cycle is authorized.
+
+Status: `PAIRED SCHEDULER PIVOT — SEPARATE-TURN FALLBACK READY`.
+
 ## 2026-09-05T05:39:53-04:00 - dev.12 fires K9; separate-turn fallback prepared
 
 - Clean guarded-published input is dev.12 `7e7f67f150491064725ed450d65095369a8a1953`, package ZIP/manifest/DLL `3c275cb83eba1a98f489ddccaa00094adf9f1b84d290a7ef86f281735fa778ed` / `af2b0aced125b28b86c2a00e8ad0fc810aa7182e2916a941427d2c9d7622fb8a` / `fbb6f2b21e7b8d8b8859c3fbc4a2557ddb7066e20bfa625263f1aa7a48fe5aff`, MVID `31b11096-443b-47bb-9d97-3ab542d244d4`. Suite11 / WhatIf passed.
