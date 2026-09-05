@@ -34,6 +34,13 @@ namespace KingmakerMountedCombat.Integration
         public double MaximumAnimatedSeatError { get; private set; }
         public Vector3 LastAnimatedSeatPosition { get; private set; }
 
+        internal double? ObserveCurrentAnimatedSeatResidual()
+        {
+            if (!animatedSaddleRequired || !IsHealthy || pelvis == null) { return null; }
+            var seat = animatedSaddle.Project(ToPose(saddleMountRoot.InverseTransformPoint(saddleSource.position)));
+            return Vector3.Distance(pelvis.position, saddleMountRoot.TransformPoint(ToUnity(seat)));
+        }
+
         public bool HasPoseResidue => baselineLease != null && (baselineLease.IsAcquired || baselineLease.IsFrameActive);
 
         public bool BaselineRestoreVerified => !baselineCaptured || (baselineLease != null && baselineLease.LastRestoreVerified);

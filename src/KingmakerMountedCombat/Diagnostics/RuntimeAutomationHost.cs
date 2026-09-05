@@ -80,6 +80,12 @@ namespace KingmakerMountedCombat.Diagnostics
 
         public string Scenario => request.Scenario;
 
+        internal bool RequiresLegacyDiagnosticOverlay =>
+            request.Scenario != Phase3dHorseScenarioTranche.RealTimeScenario &&
+            request.Scenario != Phase3dHorseScenarioTranche.PresentationScenario &&
+            request.Scenario != "mounted-mammoth-primary-hit-rt" &&
+            request.Scenario != "combat-lifecycle-suite";
+
         public string RunId => request.RunId;
 
         public bool IsCompleted => completed;

@@ -134,9 +134,11 @@ namespace KingmakerMountedCombat
                 }
                 IsEnabled = true;
                 nativeControls.SetEnabled(true);
-                playerAction.SetOverlayEnabled(settings.EnableDiagnosticOverlay || runtimeAutomation != null);
+                var overlayEnabled = settings.EnableDiagnosticOverlay ||
+                    (runtimeAutomation != null && runtimeAutomation.RequiresLegacyDiagnosticOverlay);
+                playerAction.SetOverlayEnabled(overlayEnabled);
                 logger.Info("Private-alpha services and native mounted abilities enabled; diagnostic overlay=" +
-                    (settings.EnableDiagnosticOverlay || runtimeAutomation != null) + ".");
+                    overlayEnabled + ".");
                 return true;
             }
 

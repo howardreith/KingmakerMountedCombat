@@ -788,6 +788,7 @@ namespace KingmakerMountedCombat.Integration
                 ";mountViewActiveInHierarchy=" + (currentMountView != null && currentMountView.gameObject.activeInHierarchy) +
                 ";poseLease=" + (poseAdapter != null && poseAdapter.IsConfigured) +
                 ";animatedSeatSamples=" + (poseAdapter?.AnimatedSaddleSampleCount ?? 0) +
+                ";animatedSeatObservedResidual=" + (poseAdapter?.ObserveCurrentAnimatedSeatResidual()?.ToString("R") ?? "<unavailable>") +
                 ";animatedSeatWriteResidual=" + (poseAdapter?.MaximumAnimatedSeatError ?? 0d).ToString("R") +
                 ";animatedSeatWorld=" + (poseAdapter?.LastAnimatedSeatPosition.ToString("F4") ?? "<none>") +
                 ";attachmentLease=" + riderAttachmentLease.IsAcquired +

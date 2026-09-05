@@ -238,8 +238,17 @@ function Get-KmcDirectoryManifest {
     foreach ($directory in @(Get-ChildItem -LiteralPath $fullRoot -Directory -Recurse -Force | Sort-Object FullName)) {
         $records.Add([pscustomobject]@{ kind = 'directory'; path = $directory.FullName.Substring($fullRoot.Length + 1).Replace('\', '/'); length = 0; sha256 = $null })
     }
-    foreach ($file in @(Get-ChildItem -LiteralPath $fullRoot -File -Recurse -Force | Sort-Object FullName)) {
-        $records.Add([pscustomobject]@{ kind = 'file'; path = $file.FullName.Substring($fullRoot.Length + 1).Replace('\', '/'); length = [long]$file.Length; sha256 = Get-KmcSha256 $file.FullName })
+    $files = @(Get-ChildItem -LiteralPath $fullRoot -File -Recurse -Force | Sort-Object FullName)
+    if (-not ('KingmakerMountedCombat.RuntimeTooling.InventoryHasher' -as [type])) {
+        Add-Type -Path (Join-Path $PSScriptRoot 'InventoryHasher.cs')
+    }
+    # Preserve exact enumeration, literal paths, entry ordering and canonical digest.
+    # Every byte is read anew; no timestamp/hash cache or historical-root exclusion.
+    $hashes = @([KingmakerMountedCombat.RuntimeTooling.InventoryHasher]::HashFiles(
+        [string[]]@($files | ForEach-Object { $_.FullName })))
+    for ($fileIndex=0; $fileIndex -lt $files.Count; $fileIndex++) {
+        $file = $files[$fileIndex]
+        $records.Add([pscustomobject]@{ kind = 'file'; path = $file.FullName.Substring($fullRoot.Length + 1).Replace('\', '/'); length = [long]$file.Length; sha256 = $hashes[$fileIndex] })
     }
     $ordered = @($records | Sort-Object kind, path)
     $fileRecords = @($ordered | Where-Object kind -eq 'file')

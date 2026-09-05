@@ -14,7 +14,9 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("mounted combat rejects invalid target and unavailable Standard action", RejectsInvalidContext);
             runner.Run("mounted combat reports every required player-facing admission reason", ReportsRequiredAdmissionReasons);
             runner.Run("mounted combat transaction starts exactly one child attack", PreventsDuplicateAttack);
-            runner.Run("active mounted command suppresses only exact-pair stock opportunity attacks", SuppressesOnlyExactPairOpportunityAttacks);
+            runner.Run("disabled legacy experiment retains its exact-pair opportunity isolation policy", SuppressesOnlyExactPairOpportunityAttacks);
+            runner.Run("fallback active rider command preserves genuine native opportunity emission", FallbackPreservesRiderOpportunity);
+            runner.Run("fallback active mount command preserves genuine native opportunity emission", FallbackPreservesMountOpportunity);
             runner.Run("mounted combat transaction bounds target repaths", BoundsRepaths);
             runner.Run("mounted combat transaction cancellation is idempotent", CancellationIsIdempotent);
             runner.Run("mounted combat target invalidation cancels only the exact pre-child transaction", TargetInvalidationCancelsOnlyExactPreChildTransaction);
@@ -175,28 +177,42 @@ namespace KingmakerMountedCombat.Tests
         {
             TestRunner.True(
                 MountedOpportunityIsolationPolicy.ShouldSuppressStockOpportunityAttack(
-                    true, true, true, false, true),
+                    true, true, true, false, true, true),
                 "An active exact-rider opportunity attack escaped the mounted transaction guard.");
             TestRunner.True(
                 MountedOpportunityIsolationPolicy.ShouldSuppressStockOpportunityAttack(
-                    true, true, false, true, true),
+                    true, true, false, true, true, true),
                 "An active exact-Mammoth opportunity attack escaped the mounted transaction guard.");
             TestRunner.True(
                 !MountedOpportunityIsolationPolicy.ShouldSuppressStockOpportunityAttack(
-                    true, false, true, false, true),
+                    true, false, true, false, true, true),
                 "Idle mounted rider opportunity behavior was changed.");
             TestRunner.True(
                 !MountedOpportunityIsolationPolicy.ShouldSuppressStockOpportunityAttack(
-                    false, true, true, false, true),
+                    false, true, true, false, true, true),
                 "Non-mounted rider opportunity behavior was changed.");
             TestRunner.True(
                 !MountedOpportunityIsolationPolicy.ShouldSuppressStockOpportunityAttack(
-                    true, true, false, false, true),
+                    true, true, false, false, true, true),
                 "A non-pair unit opportunity attack was suppressed.");
             TestRunner.True(
                 !MountedOpportunityIsolationPolicy.ShouldSuppressStockOpportunityAttack(
-                    true, true, true, false, false),
+                    true, true, true, false, false, true),
                 "A null-target opportunity probe was suppressed.");
+        }
+
+        private static void FallbackPreservesRiderOpportunity()
+        {
+            TestRunner.True(!MountedOpportunityIsolationPolicy.ShouldSuppressStockOpportunityAttack(
+                true, true, true, false, true, false),
+                "Separate-turn active rider command suppressed a genuine native opportunity.");
+        }
+
+        private static void FallbackPreservesMountOpportunity()
+        {
+            TestRunner.True(!MountedOpportunityIsolationPolicy.ShouldSuppressStockOpportunityAttack(
+                true, true, false, true, true, false),
+                "Separate-turn active mount command suppressed a genuine native opportunity.");
         }
 
         private static void BoundsRepaths()

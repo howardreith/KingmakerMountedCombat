@@ -91,6 +91,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly UnitEntityData horse;
         private readonly Stopwatch clock = new Stopwatch();
         private readonly Stopwatch leafClock = new Stopwatch();
+        private HorseMotionEvidenceRecorder motionEvidence;
         private readonly List<RuntimeSubscenarioResult> results = new List<RuntimeSubscenarioResult>();
         private readonly List<string> errors = new List<string>();
         private readonly List<TurnController> nativeTurnTraversalEndedTurns = new List<TurnController>();
@@ -315,10 +316,22 @@ namespace KingmakerMountedCombat.Diagnostics
             clock.Start();
             leafClock.Start();
 
+            if (!string.Equals(request.Scenario, TurnBasedScenario, StringComparison.Ordinal))
+            {
+                motionEvidence = new HorseMotionEvidenceRecorder(request.EvidenceRoot, relationship, logger);
+            }
+
             observations["riderId"] = rider.UniqueId;
             observations["horseId"] = horse.UniqueId;
             observations["initialRelationshipState"] = relationship.State.ToString();
             observations["initialTurnBased"] = CombatController.IsInTurnBasedCombat();
+            observations["phase3fActualConfiguration"] = new JObject
+            {
+                ["enableUnifiedMountedTurn"] = settings.EnableUnifiedMountedTurn,
+                ["enablePairedCommandScheduler"] = settings.EnablePairedCommandScheduler,
+                ["enableDiagnosticOverlay"] = settings.EnableDiagnosticOverlay,
+                ["overlayPresent"] = playerAction.OverlayPresent
+            };
             observations["initialSelection"] = new JArray(originalSelection.Select(item => item.UniqueId));
 
             if (string.Equals(request.Scenario, PresentationScenario, StringComparison.Ordinal))
@@ -348,6 +361,7 @@ namespace KingmakerMountedCombat.Diagnostics
             frame++;
             try
             {
+                motionEvidence?.Tick(cleanupStarted ? null : step.ToString());
                 targetService?.ObserveTargetLifeState();
                 targetService?.RefreshBidirectionalCombatMemoryLease();
                 if (!cleanupStarted && clock.Elapsed.TotalSeconds > ScenarioDeadlineSeconds)
@@ -618,6 +632,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             ruleProbe?.Dispose();
             ruleProbe = null;
+            motionEvidence?.Dispose();
             disposed = true;
         }
 
@@ -6019,6 +6034,11 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void WriteEvidence()
         {
+            if (motionEvidence != null)
+            {
+                motionEvidence.Dispose();
+                observations["phase3fMotionFrames"] = motionEvidence.Snapshot();
+            }
             if (string.Equals(request.Scenario, TurnBasedScenario, StringComparison.Ordinal))
             {
                 observations["nativeTurnTraversal"] = CaptureNativeTurnTraversalEvidence();

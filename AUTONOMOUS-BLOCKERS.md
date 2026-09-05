@@ -1,5 +1,7 @@
 # Autonomous blockers
 
+Resumed preview.3 update, `2026-09-05T20:49Z`: Steam is running and passes the existing Offline/cloud guard. The historical absent-Steam blocker below is resolved. The resumed read-only preflight was stopped before live admission and independently audited exact. A full-byte hasher repair preserves every integrity check and completes historical staging in 144.39929 seconds; ten filesystem regressions pass. Current work also preserves default native opportunities and batches bounded motion capture. Runtime remains 0/8 pending final gate/new exact package and suite; pointer bridge, native motion/UI/lifecycle acceptance and the explicit TB resource contract remain unresolved. No permanent candidate installation.
+
 ## Phase 3F current blockers — 2026-09-05
 
 Resumed `2026-09-05T20:03:03Z`: the user started Steam; the existing guard now passes current-session Offline Mode/cloud checks. The previous absent-client blocker is resolved. Starting external state independently matches the earlier audit; no live transaction has yet run (0/8). The approved pointer bridge remains unavailable. Runtime continuation is active under the same bounded mission; historical closure details below remain build-specific.

@@ -27,6 +27,9 @@ if ($componentExit -ne 0) {
 & (Join-Path $PSScriptRoot 'Test-VisualCapture.ps1')
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+& (Join-Path $PSScriptRoot 'Test-InventoryHashing.ps1')
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
 & (Join-Path $PSScriptRoot 'Test-Harness.ps1')
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 

@@ -1,5 +1,7 @@
 # Phase 3F playable core
 
+Resumed runtime checkpoint (2026-09-05): preview.3 is being prepared from parent `eb6b4ced307f48cddd09b02bcc7487ab12a4dce3`. It additionally preserves default native opportunities, honors overlay-off in the four exact guarded scenarios, and records bounded render-frame motion evidence. Ten real-filesystem regressions verify a full-byte streaming inventory optimization; the historical 125,816-file scan now takes 144.39929 seconds without reducing integrity coverage. Complete gate passes source `22/0`, Release, components `335/0`, visual `21/0`, hashing `10/0`, harness `243/0`, assembly `402/0`, resource audit `9/0`; final overlay-focused rebuild/components/visual pass `335/0` and `22/0`. Clean package/new suite and live evidence are pending. Steam is now verified. The preview.2 ledger below is retained as historical build-specific evidence until current runtime closure; it grants no preview.3 gameplay credit. TB resources and native pointer/human motion/UI acceptance remain blockers.
+
 Disposition: **Partial candidate with TB resource and runtime/native-pointer/visual blockers.** Version `0.1.0-phase3f-preview.2`, branch `codex/mounted-combat-phase3f-playable-core`. Implementation, offline checks and private packaging are complete. Gameplay qualification is NOT RUN. One active mounted pair; separate native turns remain an intermediate constraint. This is not a finished Wrath-equivalent mod.
 
 ## Exact candidate identity

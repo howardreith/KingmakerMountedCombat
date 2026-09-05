@@ -58,9 +58,10 @@ namespace KingmakerMountedCombat.Domain
             bool mountedPairCommandActive,
             bool attackerIsExactRider,
             bool attackerIsExactMount,
-            bool targetExists)
+            bool targetExists,
+            bool experimentalIsolationEnabled)
         {
-            return relationshipMounted && mountedPairCommandActive && targetExists &&
+            return experimentalIsolationEnabled && relationshipMounted && mountedPairCommandActive && targetExists &&
                 (attackerIsExactRider || attackerIsExactMount);
         }
     }

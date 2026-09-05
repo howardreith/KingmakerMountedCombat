@@ -168,6 +168,29 @@ Assert-VisualCapture ($poseAdapter.Contains('private readonly AnimatedSaddlePosi
     -not $poseAdapter.Contains('EntityData.Position =') -and
     -not $poseAdapter.Contains('saddleSource.rotation')) 'Horse animated seating leases visual pelvis position with exact source health and no mechanics or bone-quaternion inheritance'
 
+$motion = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\HorseMotionEvidenceRecorder.cs'))
+$automation = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeAutomationHost.cs'))
+Assert-VisualCapture ($composition.Contains('runtimeAutomation.RequiresLegacyDiagnosticOverlay') -and
+    -not $composition.Contains('settings.EnableDiagnosticOverlay || runtimeAutomation != null') -and
+    $automation.Contains('request.Scenario != Phase3dHorseScenarioTranche.RealTimeScenario') -and
+    $automation.Contains('request.Scenario != Phase3dHorseScenarioTranche.PresentationScenario') -and
+    $automation.Contains('request.Scenario != "mounted-mammoth-primary-hit-rt"') -and
+    $automation.Contains('request.Scenario != "combat-lifecycle-suite"')) 'exact Phase 3F runtime scenarios honor overlay-off configuration while historical overlay fixtures remain explicit'
+$tranche = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\Phase3dHorseScenarioTranche.cs'))
+Assert-VisualCapture ($motion.Contains('MaximumFrames = 64') -and
+    $motion.Contains('MaximumFramesPerPhase = 8') -and
+    $motion.Contains('clock.ElapsedMilliseconds + 200') -and
+    $motion.Contains('new MovementScreenshotCaptureCoordinator(Commit, Fail, logger)') -and
+    $motion.Contains('FileMode.CreateNew') -and
+    $motion.Contains('algorithm.ComputeHash(bytes)') -and
+    $motion.Contains('relationship.CapturePresentationObservation(false)') -and
+    $tranche.Contains('motionEvidence.Dispose();') -and
+    $tranche.Contains('observations["phase3fMotionFrames"] = motionEvidence.Snapshot();') -and
+    -not $motion.Contains('SelectedUnits') -and -not $motion.Contains('Commands.') -and
+    -not $motion.Contains('IsPaused =')) 'Horse motion evidence is bounded, hashed, after rendering, disposed and independent of gameplay driving'
+Assert-VisualCapture ($poseAdapter.Contains('internal double? ObserveCurrentAnimatedSeatResidual()') -and
+    $poseAdapter.Contains('Vector3.Distance(pelvis.position, saddleMountRoot.TransformPoint(ToUnity(seat)))')) 'render-time seat observation measures current cached source and pelvis without rewriting either'
+
 Write-Host "TOTAL PASS=$passes FAIL=$($failures.Count)"
 if ($failures.Count -ne 0) {
     exit 1

@@ -1096,7 +1096,8 @@ namespace KingmakerMountedCombat.Integration
                 HasActiveCommand,
                 attacker != null && attacker == relationship.Rider,
                 attacker != null && attacker == relationship.Mount,
-                target != null);
+                target != null,
+                settings.EnableUnifiedMountedTurn);
         }
 
         public bool TryOverrideMountTurnMovement(

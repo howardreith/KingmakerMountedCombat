@@ -4749,7 +4749,7 @@ try {
         Assert-Test (-not $patchSource.Contains('PatchExact(typeof(UnitMoveController)')) 'grounding repair introduced a global UnitMoveController patch'
     }
 
-    Invoke-HarnessTest 'active mounted command isolates exact-pair stock opportunity attacks' {
+    Invoke-HarnessTest 'legacy experimental isolation leaves default native opportunity emission intact' {
         $patchSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPatchController.cs')
         $controllerSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedCombatController.cs')
         $policySource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedCombatAction.cs')
@@ -4761,7 +4761,9 @@ try {
             $controllerSource.Contains('HasActiveCommand,') -and
             $controllerSource.Contains('attacker != null && attacker == relationship.Rider,') -and
             $controllerSource.Contains('attacker != null && attacker == relationship.Mount,')) 'opportunity isolation is not constrained to an active exact mounted-pair command'
-        Assert-Test ($policySource.Contains('(attackerIsExactRider || attackerIsExactMount)') -and
+        Assert-Test ($policySource.Contains('return experimentalIsolationEnabled && relationshipMounted') -and
+            $controllerSource -match 'target != null,\s*settings\.EnableUnifiedMountedTurn\);' -and
+            $policySource.Contains('(attackerIsExactRider || attackerIsExactMount)') -and
             -not $patchSource.Contains('PatchExact(typeof(UnitCombatState), "Disengage"')) 'opportunity isolation changed the broad engagement lifecycle instead of the exact attack emission seam'
     }
 
