@@ -1,5 +1,13 @@
 # Autonomous blockers
 
+## Dev.10 proves a narrowly attributable duplicate-turn defect; dev.11 repair is offline-green (2026-09-05T00:00:10-04:00)
+
+Status: `IN PROGRESS`.
+
+Immutable audited dev.10 run `20260905T030300Z-phase3e-dev10-horse-tb-gate2` passed the pre-mounted natural rider-turn boundary and its first seven rows, including exact rider-only attack ownership and cost. After the diagnostic ended that rider turn, Kingmaker selected the active Horse as `m_NextUnit`. The existing KMC `ChooseNextUnit` postfix tried to skip it while the ended rider `CurrentTurn` was still non-null. Installed `ChooseNextUnit` uses `CurrentTurn?.Unit ?? m_NextUnit` as its search origin, so the recursive call selected the Horse again; KMC truthfully entered fallback, and the Horse became the real native current unit. The scenario then expired at `AwaitNextRiderTurnForMountPrimaryTb`. No scheduler lease or mount attack had yet been admitted.
+
+This is the exact K9-class completion defect allowed by the bounded budget, not proof that pair-local command execution failed. Dev.11 consumes repair cycle 1 of at most 2: defer the exact skip while stock still binds the rider, then invoke the exact native `ChooseNextUnit` once from a `CombatController.Tick` postfix after stock has cleared `CurrentTurn`. Guards remain exact pair/reference/round/gate/reentry checks. There is no `CurrentTurn` write, `StartTurn`, global controller replacement, arbitrary command advancement, or setting change. Schema 5 requires positive runtime proof of the deferred/post-Tick skip plus a disposed, single-start/single-terminal/single-charge Horse scheduler lease. Offline gates pass `22/Release/316/18/242/402`; one clean package/WhatIf/live/audit cycle is next. K9 remains `IN PROGRESS`; no kill criterion has fired.
+
 ## Dev.9 proves the stock shell and hits the intentionally deferred combat-Mount policy; dev.10 is independently actionable (2026-09-04T21:52:20-04:00)
 
 Status: `IN PROGRESS`.

@@ -1,5 +1,7 @@
 # Phase 3D Mounted Stock Attack Contract
 
+Phase 3E dev.11 checkpoint (2026-09-05): dev.10 reached and passed the explicit rider-only TB attack before the exact early-recursion completion defect emitted a native Horse turn. No Horse scheduler command existed, so ordinary TB melee remains uncredited. Dev.11 changes only exact redundant-mount turn selection timing and strengthens the Horse mount-primary lease/ownership evidence. Gate 1 remains `PASS 140/0`; one clean Horse TB run must first prove the explicit mount-only action and continued turn sequence before ordinary hostile-click TB melee can receive credit.
+
 Phase 3E superseding status (2026-09-04): `IN PROGRESS`. The authorized pair-local scheduler has qualified the isolated mount-primary TB vertical slice twice (`140/0`), while the complete ordinary hostile-click TB sequence remains uncredited. Dev.8 stopped in native combat-Mount admission before a mounted relationship or scheduler lease; dev.9 corrects only the stock rider-shell provenance predicate. Phase 3D RT PASS and separate-turn fallback remain unchanged.
 
 Status: BLOCKED — CRITICAL for the required unified TB pair attack; RT contract PASS

@@ -2,6 +2,12 @@
 
 Status: IN PROGRESS
 
+## Dev.10 exact `ChooseNextUnit` frame-order finding
+
+Immutable audited dev.10 run `20260905T030300Z-phase3e-dev10-horse-tb-gate2` proves the prior mount-turn suppression call was one native frame too early. Installed `CombatController.Tick` `0x06000BD1` sets `m_NextUnitChosenThisTick=false`, ticks the current turn, calls `ChooseNextUnit` `0x06000BD2` when that turn is ended and `m_NextUnit` is null, then disposes and clears `CurrentTurn`. `ChooseNextUnit` establishes its scan origin with `CurrentTurn?.Unit ?? m_NextUnit`. Its postfix therefore still observes the ended rider as origin. Recursively calling the selector there chooses the same Horse candidate again and cannot skip it.
+
+The exact safe seam is the postfix of `CombatController.Tick`: stock has completed its disposal and `CurrentTurn == null`, while `m_NextUnit` is the exact pending Horse and `TickTime` has not started it. One guarded native `ChooseNextUnit` call now scans from that Horse, preserves its internal `m_NextUnitChosenThisTick` write, and chooses the next stock combatant. The call is allowed only for the reference-exact active paired mount and uses reentry/replacement/fallback guards. No KMC code writes `CurrentTurn`, calls `StartTurn`, calls `StartRound`, changes the roster, or processes a command at this seam. Dev.11 fresh-process proof remains pending.
+
 ## Dev.8 exact stock ability-command origin correction
 
 Immutable audited run `20260904T221700Z-phase3e-dev8-horse-tb-gate2` reached the exact natural rider turn and one accepted native Mount target click, then failed its own admission assertion because the resulting `UnitUseAbility.CreatedByPlayer` field was false. The command was nevertheless exact rider executor, exact Horse target, Move-slot resident, unqueued, non-AI, `CanStart`, in range, available, cooldown-free, and produced target-selection start/end plus cast-request deltas `1/1/1` with zero refusal. The failure occurred in the same frame as admission, before stock command enumeration; it cannot be read as a new command-start failure.
@@ -81,10 +87,10 @@ KMC's UMM update callback is not treated as a substitute for this native order. 
 |---|---:|---|---|
 | `CombatController.CurrentTurn.get` | `0x06000BBE` | UI, command eligibility, KMC observation | Returns the single native `TurnController`. |
 | `CombatController.CurrentTurn.set` | `0x06000BBF` | combat-controller lifecycle | Disposes the previous native controller; not a Phase 3E patch seam. |
-| `CombatController.Tick` | `0x06000BD1` | `GameMode.Tick` | Updates navigation grid; calls `CurrentTurn.Tick`; calls `ChooseNextUnit` when no active turn/turn ended; disposes ended turn. |
+| `CombatController.Tick` | `0x06000BD1` | `GameMode.Tick` | Updates navigation grid; calls `CurrentTurn.Tick`; calls `ChooseNextUnit` when no active turn/turn ended; then disposes and clears the ended turn. Its postfix is the first safe point to advance past an exact pending paired mount without the ended rider remaining the selector origin. |
 | `CombatController.TickTime` | `0x06000BD6` | time/combat flow | Starts the queued `m_NextUnit` after native delay or advances combat timing. |
 | `CombatController.m_NextUnit` | `0x04000652` | `ChooseNextUnit`, `TickTime`, reset/initiative changes | Stores the one pending natural combatant. `TickTime` clears it only after its own `StartTurn(m_NextUnit)` call; an unrelated direct `StartTurn` does not clear it. |
-| `CombatController.ChooseNextUnit` | `0x06000BD2` | `Tick` | Chooses from native initiative roster; Phase 3D filters only the exact active mount candidate. |
+| `CombatController.ChooseNextUnit` | `0x06000BD2` | `Tick` | Chooses from the native initiative roster using `CurrentTurn?.Unit ?? m_NextUnit` as its scan origin. The selector postfix may only defer an exact paired mount while a current turn remains bound; one post-`Tick` invocation may advance from that pending mount after the current turn clears. |
 | `CombatController.StartRound` | `0x06000BD3` | initiative advancement | Advances the native round and prepares sorted initiative participation. |
 | `CombatController.StartTurn(UnitEntityData)` | `0x06000BDA` | `TickTime` and diagnostics | Constructs one `TurnController(unit)`, performs native navigation setup, then calls `TurnController.Start`; emits a real native turn. Phase 3E must never call it for the paired mount. |
 | `CombatController.IsInTurnBasedCombat` | `0x06000BF6` | controller and command gates | Requires player combat, TB setting, and non-cutscene state; also clears weapon-change state outside TB. |

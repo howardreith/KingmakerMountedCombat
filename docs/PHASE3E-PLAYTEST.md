@@ -2,6 +2,14 @@
 
 Status: IN PROGRESS
 
+## Immutable dev.10 result and dev.11 qualification plan
+
+Dev.10 is clean commit `0b4dd1cd494a2765035477325afb1ae0e1bd3ee9`, package `C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-phase3e-dev.10-paired-scheduler-horse-tb-gate2-diagnostic.zip`. ZIP/manifest/DLL SHA-256 are `820047c137fde066f93045638c7ca27b0e27638f00e0053da681ac1146260052` / `cedab82f6ba2d95feb916b9ec32ef81d0f1242082b501c8cab9d4b6b13e13320` / `72d15e9eec52a59c07156a29a8283f4495c597ccae570bcf71f0fcd04458a06a`; MVID is `e1b39018-3f0b-4eef-9eae-0229e7056fc0`. Suite9 `20260905T020200Z-phase3e-dev10-horse-tb-suite9` / `2f73d4867ee6fcc09875b3a7491258c225eaadf391dad539989ac312e8724214` and WhatIf passed.
+
+Live `20260905T030300Z-phase3e-dev10-horse-tb-gate2` is immutable outer/game `FAIL 52/2`. The independent restoration audit passed before evidence read. The first seven rows passed, including exact rider-only melee ownership/cardinality/cost and retained mounted state. On ending that rider turn, the old immediate recursive skip selected the Horse twice from the still-bound rider origin and entered fallback; the Horse remained native current unit in `Preparing` until the next-rider-turn deadline. No Horse scheduler lease or attack occurred, so this is not a repeat of Gate 1 and does not overturn its `140/0` qualification.
+
+Dev.11 consumes the first narrow completion repair and must use one fresh clean package. Before credit, full-continuity WhatIf and independent postrun restoration audit remain mandatory. Schema 5 must prove: the exact candidate was deferred while rider turn remained bound; the exact post-`Tick` skip occurred after it cleared; no native Horse turn was emitted; a later natural rider turn admitted one Horse Standard lease; the command started within two actionable frames; drive/start/terminal/resource cardinalities were `>=1/1/1/1` with zero duplicate frame, interrupt, foreign adoption, rider cost, fallback, or residue; Horse weapon/animation/rule identity remained exact. If the run passes beyond Mount Primary, every later sequencing/ranged/step/lifecycle row is attributed normally and no historical failure is relabeled.
+
 ## Immutable dev.9 result and dev.10 test plan
 
 Dev.9 is clean guarded-published commit `f9082b166cd4958281d97707aac90e1c8a7f8ed4`, package `C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-phase3e-dev.9-paired-scheduler-horse-tb-gate2-diagnostic.zip`. ZIP/manifest/DLL SHA-256 are `adeb8a305f647738b765881869215cc1a48e669530ab926a3a607ebe6fb015f5` / `bd1c5d5f822331b5696030afea560d2847d71a0eb64d01379874b83c6f9807b9` / `5f3af2d7949dc674513cbef8297f8cfd70049d515b1c15873dfb6909b48d9bd2`; MVID is `72c99d26-4420-437a-86d2-2b331b7aa69a`. Suite `20260904T232500Z-phase3e-dev9-horse-tb-suite8` / `9cab4d8398ee9a5ea23e22e186b3e777a20e415c724041471ba0138f7f2e98a0` and full-continuity WhatIf passed.

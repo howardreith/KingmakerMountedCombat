@@ -2,6 +2,16 @@
 
 Status: IN PROGRESS
 
+## Dev.10 turn-completion finding and dev.11 repair
+
+Clean dev.10 commit `0b4dd1cd494a2765035477325afb1ae0e1bd3ee9` produced package/manifest/DLL SHA-256 `820047c137fde066f93045638c7ca27b0e27638f00e0053da681ac1146260052` / `cedab82f6ba2d95feb916b9ec32ef81d0f1242082b501c8cab9d4b6b13e13320` / `72d15e9eec52a59c07156a29a8283f4495c597ccae570bcf71f0fcd04458a06a`, MVID `e1b39018-3f0b-4eef-9eae-0229e7056fc0`. Its suite/WhatIf passed. Immutable audited run `20260905T030300Z-phase3e-dev10-horse-tb-gate2` is `FAIL 52/2`: the pre-mounted natural rider turn and seven initial UI/initiative/ledger/rider-action rows passed, then the Horse became native `CurrentTurn.Unit` before Mount Primary admission.
+
+Installed `CombatController.Tick()` (`0x06000BD1`) executes `CurrentTurn?.Tick()`, calls `ChooseNextUnit()` (`0x06000BD2`) when the turn ended and `m_NextUnit` is null, then disposes and clears `CurrentTurn`. `ChooseNextUnit` derives its search index from `CurrentTurn?.Unit ?? m_NextUnit`. The prior `ChooseNextUnit` postfix saw the exact Horse candidate but recursively invoked the same method while the ended rider was still bound. Stock consequently searched from the rider again, returned the same Horse, and the equality guard entered fallback. This fully explains the emitted native Horse turn without implicating scheduler command execution.
+
+Dev.11 preserves the same native method and changes only invocation timing. The `ChooseNextUnit` postfix records/defer-counts an exact mount candidate while any current turn remains bound. A new exact Harmony12 postfix on `CombatController.Tick()` delegates to the coordinator after stock has cleared the ended turn. If and only if `m_NextUnit` is still the reference-exact active mount that must be suppressed, the coordinator calls native `ChooseNextUnit` once under its reentry guard. It validates that the replacement differs, increments the exact post-Tick skip count, and otherwise enters the existing safe fallback. It neither assigns `CurrentTurn` nor calls `StartTurn`, `StartRound`, or any command lifecycle method.
+
+Evidence schema 5 captures the final disposed Horse lease only after native Standard-slot removal and binds it to the before/after unified ledgers. It requires one KMC command identity, one start, one terminal result, one mount Standard charge, at most one damage event, no duplicate-frame drive, no foreign adoption, zero rider cost, retained rider current identity, exact Horse weapon/animation/rule ownership, one deferred post-Tick redundant-turn skip, zero architecture fallback, and cleanup count one. Schemas 1-4 remain valid. Complete offline gates pass `22/Release/316/18/242/402`; clean package identity and runtime qualification are pending.
+
 ## Dev.9 runtime result and dev.10 pre-mounted setup
 
 Clean guarded-published dev.9 commit `f9082b166cd4958281d97707aac90e1c8a7f8ed4` produced package/manifest/DLL SHA-256 `adeb8a305f647738b765881869215cc1a48e669530ab926a3a607ebe6fb015f5` / `bd1c5d5f822331b5696030afea560d2847d71a0eb64d01379874b83c6f9807b9` / `5f3af2d7949dc674513cbef8297f8cfd70049d515b1c15873dfb6909b48d9bd2`, MVID `72c99d26-4420-437a-86d2-2b331b7aa69a`. Its immutable audited live run `20260905T010000Z-phase3e-dev9-horse-tb-gate2` is game `FAIL 42/2`.

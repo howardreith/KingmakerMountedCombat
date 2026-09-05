@@ -73,6 +73,7 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(AttackHandInfo), "CreateAnimationHandleForAttack", 0x0600265A, new[] { typeof(IEnumerable<AttackHandInfo>) }, null, nameof(PatchMethods.AttackAnimationPostfix));
                 PatchExact(typeof(IKController), "SetupIkSystem", 0x0600156C, new[] { typeof(Character) }, nameof(PatchMethods.DollRoomIkSetupPrefix));
                 PatchExact(typeof(IKController), "SetupFbbik", 0x0600156D, Type.EmptyTypes, nameof(PatchMethods.DollRoomFbbikPrefix), nameof(PatchMethods.DollRoomFbbikPostfix));
+                PatchExact(typeof(CombatController), "Tick", 0x06000BD1, Type.EmptyTypes, null, nameof(PatchMethods.CombatControllerTickPostfix));
                 PatchExact(typeof(CombatController), "ChooseNextUnit", 0x06000BD2, Type.EmptyTypes, null, nameof(PatchMethods.ChooseNextUnitPostfix));
                 PatchExact(typeof(TurnController), "Prepare", 0x06000C3C, Type.EmptyTypes, null, nameof(PatchMethods.TurnPreparePostfix));
                 PatchExact(typeof(TurnController), "ContinueActing", 0x06000C3D, Type.EmptyTypes, null, nameof(PatchMethods.ContinueActingPostfix));
@@ -83,7 +84,7 @@ namespace KingmakerMountedCombat.Integration
                     true);
                 PatchExact(trackerType, "UpdateUnits", 0x06004F0E, Type.EmptyTypes, nameof(PatchMethods.TrackerUpdatePrefix), nameof(PatchMethods.TrackerUpdatePostfix));
                 PatchExact(typeof(UnitActionController), "TickCommandTurnBased", 0x0600911D, new[] { typeof(UnitCommand) }, null, nameof(PatchMethods.TickCommandTurnBasedPostfix));
-                logger.Info("Installed thirty exact-token Harmony12 active-pair guards, unified-turn adapters, and bounded probes.");
+                logger.Info("Installed thirty-one exact-token Harmony12 active-pair guards, unified-turn adapters, and bounded probes.");
             }
             catch
             {
@@ -237,6 +238,11 @@ namespace KingmakerMountedCombat.Integration
             internal static void ChooseNextUnitPostfix(CombatController __instance)
             {
                 PatchBridge.UnifiedTurn?.HandleChooseNextUnit(__instance);
+            }
+
+            internal static void CombatControllerTickPostfix(CombatController __instance)
+            {
+                PatchBridge.UnifiedTurn?.HandleCombatControllerTickCompleted(__instance);
             }
 
             internal static void TurnPreparePostfix(TurnController __instance)

@@ -1,5 +1,7 @@
 # Exact Wrath Shared-Turn Map for Phase 3D
 
+Phase 3E turn-selection reconciliation (2026-09-05): installed Kingmaker `CombatController.Tick` `0x06000BD1` calls `ChooseNextUnit` `0x06000BD2` before disposing/clearing the ended `CurrentTurn`, and `ChooseNextUnit` searches from `CurrentTurn?.Unit ?? m_NextUnit`. Therefore an exact active-mount candidate is observed/deferred in the selector postfix and skipped only from a post-`Tick` postfix after `CurrentTurn == null`. This preserves Kingmaker's native selector and roster; it does not copy Wrath's controller, mutate the current unit, or call `StartTurn`. Dev.10 exposed the ordering defect; dev.11 runtime proof remains pending.
+
 Phase 3E reconciliation (2026-09-04): Kingmaker Gate 1 now qualifies an original pair-local Option A eligibility extension twice (`140/0`) without importing Wrath control flow. The exact Kingmaker seam is `UnitActionController.TickCommandTurnBased` `0x0600911D`; KMC leases one explicit mount-owned command while the rider remains the native principal. Wrath remains evidence only. Dev.8/dev.9 rider Mount-shell provenance work changes no conclusion in this map and does not add a Wrath dependency.
 
 Status: PASS — bounded interoperability contract

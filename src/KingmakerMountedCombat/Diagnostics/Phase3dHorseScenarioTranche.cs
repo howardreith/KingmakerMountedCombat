@@ -2747,6 +2747,7 @@ namespace KingmakerMountedCombat.Diagnostics
             SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
             outcomeBefore = combat.LastOutcome;
             ruleProbe.Arm(target, true);
+            explicitPrimaryLedgerBefore = combat.CaptureUnifiedTurnSnapshot();
             var clicked = TryNativeAbilityTargetClick(nativeControls.MountPrimaryAbility, target, "tb-mount-primary");
             if (!clicked)
             {
@@ -2768,13 +2769,69 @@ namespace KingmakerMountedCombat.Diagnostics
             var outcome = combat.LastOutcome;
             var retained = relationship.State == RelationshipState.Mounted &&
                 relationship.Rider == rider && relationship.Mount == horse;
+            var pairedScheduler = combat.CapturePairedCommandSchedulerSnapshot();
+            if (pairedScheduler.HasActiveLease)
+            {
+                return;
+            }
+
+            var ledgerAfter = combat.CaptureUnifiedTurnSnapshot();
             var evidence = CaptureOutcome(outcome, new NativeMountedAbilityActivationRecord[0]);
+            evidence["ledgerBefore"] = JObject.FromObject(
+                explicitPrimaryLedgerBefore, JsonSerializer.Create(JsonSettings));
+            evidence["ledgerAfter"] = JObject.FromObject(
+                ledgerAfter, JsonSerializer.Create(JsonSettings));
+            evidence["pairedScheduler"] = JObject.FromObject(
+                pairedScheduler, JsonSerializer.Create(JsonSettings));
+            var schedulerLifecycleExact = pairedScheduler.Enabled && !pairedScheduler.HasActiveLease &&
+                pairedScheduler.State == PairedCommandSchedulerState.Disposed.ToString() &&
+                pairedScheduler.RiderId == rider.UniqueId && pairedScheduler.MountId == horse.UniqueId &&
+                pairedScheduler.CommandType == typeof(MountedPairAttackCommand).FullName &&
+                pairedScheduler.ActionOrigin == MountedCombatActionKind.MountPrimaryNatural.ToString() &&
+                pairedScheduler.TargetId == target.UniqueId &&
+                pairedScheduler.ExpectedResourceOwnerId == horse.UniqueId &&
+                pairedScheduler.ExpectedRuleInitiatorId == horse.UniqueId &&
+                pairedScheduler.CreationFrame >= 0 &&
+                pairedScheduler.AdmissionFrame >= pairedScheduler.CreationFrame &&
+                pairedScheduler.FirstGrantFrame >= pairedScheduler.AdmissionFrame &&
+                pairedScheduler.StartObservedFrame >= pairedScheduler.FirstGrantFrame &&
+                pairedScheduler.StartObservedFrame - pairedScheduler.FirstGrantFrame <= 2 &&
+                pairedScheduler.LastDrivenFrame >= pairedScheduler.StartObservedFrame &&
+                pairedScheduler.DriveCount > 0 && pairedScheduler.StartObservationCount == 1 &&
+                pairedScheduler.TerminalObservationCount == 1 && pairedScheduler.InterruptCount == 0 &&
+                pairedScheduler.ResourceChargeObservationCount == 1 &&
+                pairedScheduler.DuplicateFrameDriveCount == 0 && pairedScheduler.CleanupCount == 1 &&
+                pairedScheduler.ForeignCommandAdoptionCount == 0 && pairedScheduler.RiderRemainedCurrent &&
+                pairedScheduler.ExactExecutorRetained && pairedScheduler.ExactSlotRetained &&
+                pairedScheduler.MountStandardAvailableBefore && !pairedScheduler.MountStandardAvailableAfter &&
+                pairedScheduler.RiderStandardAvailableBefore && pairedScheduler.RiderStandardAvailableAfter &&
+                Math.Abs(pairedScheduler.RiderStandardCooldownAfter -
+                    pairedScheduler.RiderStandardCooldownBefore) <= 0.001f &&
+                pairedScheduler.MountStandardCooldownAfter >=
+                    pairedScheduler.MountStandardCooldownBefore + 2.9f &&
+                pairedScheduler.TerminalResult == UnitCommand.ResultType.Success.ToString() &&
+                pairedScheduler.LastRejection == PairedCommandSchedulerRejection.None.ToString() &&
+                pairedScheduler.CleanupReason == "native terminal slot removal" &&
+                string.IsNullOrEmpty(pairedScheduler.FaultReason);
+            var unifiedLifecycleExact = ledgerAfter.CurrentTurnUnitId == rider.UniqueId &&
+                ledgerAfter.SharedInitiativeOwnerId == rider.UniqueId &&
+                ledgerAfter.DeferredMountTurnSkipCount >= 1 &&
+                ledgerAfter.PostTickMountTurnSkipCount >= 1 &&
+                ledgerAfter.RedundantMountTurnSkipCount >= 1 &&
+                ledgerAfter.MountCommandAdmissionCount >= 1 &&
+                ledgerAfter.ArchitectureFallbackCount == 0;
             AddRow(
                 "mounted-stock-click-melee-mount-only-explicit",
                 retained && outcome != null && outcome.Action == MountedCombatActionKind.MountPrimaryNatural &&
                     outcome.ResourceOwnerId == horse.UniqueId && ruleProbe.RiderAttackRuleCount == 0 &&
-                    ruleProbe.MountAttackRuleCount == 1,
-                "Explicit Mount Primary spent only the Horse attack ledger during the shared rider-led turn.",
+                    ruleProbe.MountAttackRuleCount == 1 && ruleProbe.PairAttackRollCount == 1 &&
+                    ruleProbe.PairDamageRuleCount <= 1 && outcome.ChildAttackStartCount == 1 &&
+                    outcome.NativeAttackRuleObserved && outcome.ActionStandardCharged &&
+                    !outcome.RiderStandardCharged && outcome.AttackWeaponIsNatural &&
+                    outcome.AttackAnimationHandleCreated && outcome.AttackAnimationActed &&
+                    outcome.AttackAnimationFinished && !outcome.AttackAnimationInterrupted &&
+                    schedulerLifecycleExact && unifiedLifecycleExact,
+                "Explicit Mount Primary completed one exact Horse-owned scheduler lease, attack, animation, rule chain, and Standard charge while the rider remained the native turn principal.",
                 evidence);
             if (!retained)
             {
@@ -5221,7 +5278,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["presentation"] = relationship.CapturePresentationObservation(),
                 ["rules"] = ruleProbe.CapturePairEvidence(),
                 ["nativeControls"] = JObject.FromObject(
-                    nativeControls.CaptureSnapshot(), JsonSerializer.Create(JsonSettings))
+                    nativeControls.CaptureSnapshot(), JsonSerializer.Create(JsonSettings)),
+                ["unified"] = JObject.FromObject(
+                    combat.CaptureUnifiedTurnSnapshot(), JsonSerializer.Create(JsonSettings)),
+                ["pairedScheduler"] = JObject.FromObject(
+                    combat.CapturePairedCommandSchedulerSnapshot(), JsonSerializer.Create(JsonSettings))
             };
         }
 
@@ -5457,7 +5518,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             var artifact = new JObject
             {
-                ["schemaVersion"] = 4,
+                ["schemaVersion"] = 5,
                 ["evidenceKind"] = EvidenceKind,
                 ["runId"] = request.RunId,
                 ["scenario"] = request.Scenario,

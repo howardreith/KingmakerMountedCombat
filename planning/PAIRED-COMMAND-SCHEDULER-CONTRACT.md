@@ -2,6 +2,16 @@
 
 Status: IN PROGRESS
 
+## Dev.10 exact turn-selection defect and dev.11 contract
+
+Clean dev.10/audited run identities are `0b4dd1cd494a2765035477325afb1ae0e1bd3ee9` / `20260905T030300Z-phase3e-dev10-horse-tb-gate2`. The run passed exact pre-mounted rider initiative/tracker/UI/ledger and rider-only action ownership before emitting a native Horse turn. At the failure boundary the Horse was `CurrentTurn.Unit` in `Preparing`; no scheduler lease or Horse attack had been admitted.
+
+Exact installed control flow establishes the defect. `CombatController.Tick` `0x06000BD1` calls `ChooseNextUnit` `0x06000BD2` before clearing the ended rider `CurrentTurn`. The selection method searches from `CurrentTurn?.Unit ?? m_NextUnit`; therefore a recursive skip inside its postfix still searches from the rider and selects the same pending Horse. The safe native seam is one delayed call after `Tick` clears `CurrentTurn`, when `m_NextUnit` is the search origin.
+
+Dev.11 permits this call only when all of the following remain true: unified mode is enabled; TB combat is active; the coordinator is not disposed or reentrant; `CurrentTurn == null`; `m_NextUnit` is the reference-exact active mount; relationship generation and round suppression policy still require that mount slot to be skipped. The exact native call must replace the candidate; otherwise existing fallback applies. The implementation does not assign current-turn state, start a turn, advance a command, or alter initiative/resources/UI. The early postfix only observes and increments a deferred count.
+
+The Horse scheduler result is schema 5. A PASS must show the rider current before/after; at least one deferred and one post-Tick exact skip; no architecture fallback; exact KMC Horse Standard command/type/origin/target/weapon; one start/terminal/resource charge; at most one drive per frame; no interrupt/foreign adoption; final `Disposed` with cleanup count one; Horse Standard spent and rider Standard unchanged; one Horse attack/roll, at most one damage, exact Horse animation; and no native Horse turn. Historical schemas 1-4 remain accepted. This consumes repair cycle 1/2 for K9; a repeated non-isolatable duplicate/skip/deadlock reaches the remaining bounded decision rather than authorizing a global controller.
+
 ## Dev.9 result and dev.10 pre-mounted Gate 2 setup contract
 
 Clean guarded-published dev.9 is commit `f9082b166cd4958281d97707aac90e1c8a7f8ed4`, version `0.1.0-phase3e-dev.9`. Package ZIP/manifest/DLL SHA-256 are `adeb8a305f647738b765881869215cc1a48e669530ab926a3a607ebe6fb015f5` / `bd1c5d5f822331b5696030afea560d2847d71a0eb64d01379874b83c6f9807b9` / `5f3af2d7949dc674513cbef8297f8cfd70049d515b1c15873dfb6909b48d9bd2`; DLL MVID is `72c99d26-4420-437a-86d2-2b331b7aa69a`. Suite `20260904T232500Z-phase3e-dev9-horse-tb-suite8` is `9cab4d8398ee9a5ea23e22e186b3e777a20e415c724041471ba0138f7f2e98a0`; full-continuity WhatIf passed. Immutable live run `20260905T010000Z-phase3e-dev9-horse-tb-gate2` is game `FAIL 42/2` and its independent audit passed before evidence read.

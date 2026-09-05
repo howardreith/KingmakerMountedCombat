@@ -1,5 +1,7 @@
 # Phase 3D Mounted Five-Foot-Step Contract
 
+Phase 3E dev.11 checkpoint (2026-09-05): dev.10 ended before the five-foot-step tranche. Dev.11 changes only exact redundant-mount initiative selection and adds no movement/AoO production behavior. All six mounted step/control rows remain `TODO` and will run only after scheduler sequencing, ordinary melee/ranged, and combat Mount/Dismount pass in order.
+
 Phase 3E superseding status (2026-09-04): `TODO`. The scheduler vertical slice does not qualify mounted five-foot-step or AoO behavior. Those six controls remain gated behind stable turn completion, sequencing, ranged, and combat Mount/Dismount. Dev.8/dev.9 changes no movement, engagement, opportunity, distance, or resource production seam.
 
 Status: DEFER — EVIDENCED

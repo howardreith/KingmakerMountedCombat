@@ -47,6 +47,8 @@ namespace KingmakerMountedCombat.Integration
         public bool PendingSplit { get; set; }
         public int PendingSplitRound { get; set; }
         public long RedundantMountTurnSkipCount { get; set; }
+        public long DeferredMountTurnSkipCount { get; set; }
+        public long PostTickMountTurnSkipCount { get; set; }
         public long MountLedgerPrepareCount { get; set; }
         public long MirroredInitiativeCount { get; set; }
         public long MountInitiativeOverrideCount { get; set; }
@@ -61,6 +63,7 @@ namespace KingmakerMountedCombat.Integration
         public string LastSplitObservation { get; set; }
         public string LastMovementObservation { get; set; }
         public string LastStepOpportunityObservation { get; set; }
+        public string LastTurnCandidateObservation { get; set; }
     }
 
     internal sealed class UnifiedMountedTurnCoordinator : IDisposable
@@ -118,6 +121,10 @@ namespace KingmakerMountedCombat.Integration
 
         internal long RedundantMountTurnSkipCount { get; private set; }
 
+        internal long DeferredMountTurnSkipCount { get; private set; }
+
+        internal long PostTickMountTurnSkipCount { get; private set; }
+
         internal long MountLedgerPrepareCount { get; private set; }
 
         internal long MirroredInitiativeCount { get; private set; }
@@ -145,6 +152,8 @@ namespace KingmakerMountedCombat.Integration
         internal string LastMovementObservation { get; private set; } = "not-observed";
 
         internal string LastStepOpportunityObservation { get; private set; } = "not-observed";
+
+        internal string LastTurnCandidateObservation { get; private set; } = "not-observed";
 
         internal void BindCombat(MountedCombatController controller)
         {
@@ -204,9 +213,37 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
 
-            var candidate = NextUnitField.GetValue(controller) as UnitEntityData;
-            if (!ShouldSuppressMount(candidate, controller.RoundNumber))
+            TryAdvancePastExactMount(controller, "choose-next-postfix");
+        }
+
+        internal void HandleCombatControllerTickCompleted(CombatController controller)
+        {
+            if (disposed || chooseNextReentry || controller == null || !Enabled ||
+                !CombatController.IsInTurnBasedCombat())
             {
+                return;
+            }
+
+            TryAdvancePastExactMount(controller, "combat-tick-postfix");
+        }
+
+        private void TryAdvancePastExactMount(CombatController controller, string source)
+        {
+            var candidate = NextUnitField.GetValue(controller) as UnitEntityData;
+            var mustSkip = ShouldSuppressMount(candidate, controller.RoundNumber);
+            if (!UnifiedMountedTurnPolicy.ShouldAdvancePastSkippedCandidate(
+                    mustSkip,
+                    controller.CurrentTurn == null))
+            {
+                if (mustSkip && controller.CurrentTurn != null)
+                {
+                    DeferredMountTurnSkipCount++;
+                    LastTurnCandidateObservation = "deferred;source=" + source +
+                        ";mount=" + candidate.UniqueId +
+                        ";current=" + (controller.CurrentTurn.Unit?.UniqueId ?? "<none>") +
+                        ";status=" + controller.CurrentTurn.Status +
+                        ";round=" + controller.RoundNumber;
+                }
                 return;
             }
 
@@ -234,9 +271,17 @@ namespace KingmakerMountedCombat.Integration
             }
 
             RedundantMountTurnSkipCount++;
+            if (string.Equals(source, "combat-tick-postfix", StringComparison.Ordinal))
+            {
+                PostTickMountTurnSkipCount++;
+            }
+            LastTurnCandidateObservation = "skipped;source=" + source +
+                ";mount=" + skipped.UniqueId +
+                ";replacement=" + (replacement?.UniqueId ?? "<none>") +
+                ";round=" + controller.RoundNumber;
             logger.Info("Unified mounted turn skipped exact redundant mount candidate: mountId=" +
                 skipped.UniqueId + "; replacementId=" + (replacement?.UniqueId ?? "<none>") +
-                "; round=" + controller.RoundNumber + ".");
+                "; round=" + controller.RoundNumber + "; source=" + source + ".");
         }
 
         internal void HandleTurnPrepared(TurnController turn)
@@ -598,6 +643,8 @@ namespace KingmakerMountedCombat.Integration
                 PendingSplit = pendingSplitMount != null,
                 PendingSplitRound = pendingSplitRound,
                 RedundantMountTurnSkipCount = RedundantMountTurnSkipCount,
+                DeferredMountTurnSkipCount = DeferredMountTurnSkipCount,
+                PostTickMountTurnSkipCount = PostTickMountTurnSkipCount,
                 MountLedgerPrepareCount = MountLedgerPrepareCount,
                 MirroredInitiativeCount = MirroredInitiativeCount,
                 MountInitiativeOverrideCount = MountInitiativeOverrideCount,
@@ -611,7 +658,8 @@ namespace KingmakerMountedCombat.Integration
                 LastInitiativeObservation = LastInitiativeObservation,
                 LastSplitObservation = LastSplitObservation,
                 LastMovementObservation = LastMovementObservation,
-                LastStepOpportunityObservation = LastStepOpportunityObservation
+                LastStepOpportunityObservation = LastStepOpportunityObservation,
+                LastTurnCandidateObservation = LastTurnCandidateObservation
             };
         }
 

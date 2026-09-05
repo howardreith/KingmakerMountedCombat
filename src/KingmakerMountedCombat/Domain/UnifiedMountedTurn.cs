@@ -26,6 +26,13 @@ namespace KingmakerMountedCombat.Domain
             return candidateIsPendingSplitMount && splitRound >= 0 && currentRound <= splitRound;
         }
 
+        public static bool ShouldAdvancePastSkippedCandidate(
+            bool candidateMustBeSkipped,
+            bool currentTurnCleared)
+        {
+            return candidateMustBeSkipped && currentTurnCleared;
+        }
+
         public static bool ShouldKeepRiderTurnOpen(
             bool unifiedTurnEnabled,
             bool relationshipMounted,

@@ -8,6 +8,7 @@ namespace KingmakerMountedCombat.Tests
         public static void Register(TestRunner runner)
         {
             runner.Run("unified turn skips only the exact active mount", SkipsOnlyExactActiveMount);
+            runner.Run("unified turn defers an exact mount skip until current turn clears", DefersSkipUntilCurrentTurnClears);
             runner.Run("unified turn defers split through the current round", DefersSplitThroughCurrentRound);
             runner.Run("unified turn remains open for an actionable mount", KeepsTurnOpenForMount);
             runner.Run("unified turn admits only exact owned mount commands", AdmitsOnlyExactMountCommand);
@@ -30,6 +31,19 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(
                 !UnifiedMountedTurnPolicy.ShouldSkipTurnCandidate(false, true, true, true, false, 2, -1),
                 "Fallback separate-turn mode skipped the mount.");
+        }
+
+        private static void DefersSkipUntilCurrentTurnClears()
+        {
+            TestRunner.True(
+                !UnifiedMountedTurnPolicy.ShouldAdvancePastSkippedCandidate(true, false),
+                "Exact mount skip advanced while the ended rider turn was still bound.");
+            TestRunner.True(
+                UnifiedMountedTurnPolicy.ShouldAdvancePastSkippedCandidate(true, true),
+                "Exact mount skip did not advance after the ended rider turn cleared.");
+            TestRunner.True(
+                !UnifiedMountedTurnPolicy.ShouldAdvancePastSkippedCandidate(false, true),
+                "An unrelated pending unit was advanced by the pair-local skip seam.");
         }
 
         private static void DefersSplitThroughCurrentRound()

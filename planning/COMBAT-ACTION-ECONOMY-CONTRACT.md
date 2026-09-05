@@ -1,5 +1,9 @@
 # Combat action economy contract
 
+## Phase 3E dev.10/dev.11 turn-completion boundary - 2026-09-05
+
+Dev.10 passed the natural pre-mounted rider turn and one exact rider-owned Standard attack, then emitted the Horse's native turn before any scheduler lease. Exact installed ordering attributes this to the old recursive mount-candidate skip running before `CombatController.Tick` cleared the ended rider turn. Dev.11's first narrow completion repair defers that exact native `ChooseNextUnit` re-invocation until the post-`Tick` cleared-turn boundary. It does not prepare a ledger, charge/refund an action, start a turn, or advance a command. Runtime credit remains pending; schema 5 must show one later Horse-owned scheduler Standard charge, unchanged rider Standard, one initialization per natural rider turn, no native Horse turn, no refresh, no fallback, and exact cleanup.
+
 ## Phase 3E scheduler status - 2026-09-04
 
 Status: `IN PROGRESS`. The stock-only Phase 3D blocker below remains historically correct. Phase 3E Gate 1 separately qualifies one mount-owned Standard attack during the rider-owned turn twice (`140/0`) through the exact pair-local eligibility seam while preserving independent rider/mount ledgers. Gate 2 sequencing, turn completion, combat Mount/Dismount, ranged movement, and five-foot step remain uncredited. Dev.8 failed before mounting because of a diagnostic stock-origin mismatch; dev.9 corrects that diagnostic only and does not change action-economy production behavior.

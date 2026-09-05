@@ -5547,7 +5547,7 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
     $phase3dSchemaVersion = if (Test-KmcExactJsonInteger $artifact.schemaVersion) {
         [long]$artifact.schemaVersion
     } else { -1L }
-    if ($phase3dSchemaVersion -notin @(1L, 2L, 3L, 4L) -or
+    if ($phase3dSchemaVersion -notin @(1L, 2L, 3L, 4L, 5L) -or
         [string]$artifact.evidenceKind -cne $kind -or [string]$artifact.status -cnotin @('PASS','FAIL') -or
         $artifact.rows -isnot [Array] -or $null -eq $artifact.observations -or
         $artifact.observations -is [Array] -or $artifact.observations -is [string] -or
@@ -6516,6 +6516,197 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
                 $null -eq $turnAdmission.unified -or $turnAdmission.unified -is [Array] -or
                 $turnAdmission.unified -is [string]) {
                 throw 'PASS Phase 3E TB evidence does not bind one exact pre-mounted pair to the natural rider turn without a combat-Mount shell.'
+            }
+        }
+
+        if ($phase3dSchemaVersion -ge 5L) {
+            $mountPrimaryEvidence = $rowMap['mounted-stock-click-melee-mount-only-explicit'].evidence
+            if ($null -eq $mountPrimaryEvidence -or $mountPrimaryEvidence -is [Array] -or
+                $mountPrimaryEvidence -is [string]) {
+                throw 'PASS Phase 3E TB evidence omitted the exact Horse mount-primary scheduler result.'
+            }
+            Assert-KmcExactProperties $mountPrimaryEvidence @(
+                'outcome','activations','relationshipState','presentation','rules','nativeControls',
+                'unified','pairedScheduler','ledgerBefore','ledgerAfter'
+            ) 'Phase 3E TB Horse mount-primary scheduler evidence'
+
+            $scheduler = $mountPrimaryEvidence.pairedScheduler
+            $unified = $mountPrimaryEvidence.unified
+            $ledgerBefore = $mountPrimaryEvidence.ledgerBefore
+            $ledgerAfter = $mountPrimaryEvidence.ledgerAfter
+            $outcome = $mountPrimaryEvidence.outcome
+            $rules = $mountPrimaryEvidence.rules
+            foreach ($objectContract in @(
+                [pscustomobject]@{Value=$scheduler;Name='scheduler'},
+                [pscustomobject]@{Value=$unified;Name='unified outcome'},
+                [pscustomobject]@{Value=$ledgerBefore;Name='ledger before'},
+                [pscustomobject]@{Value=$ledgerAfter;Name='ledger after'},
+                [pscustomobject]@{Value=$outcome;Name='outcome'},
+                [pscustomobject]@{Value=$rules;Name='rules'})) {
+                if ($null -eq $objectContract.Value -or $objectContract.Value -is [Array] -or
+                    $objectContract.Value -is [string]) {
+                    throw "Phase 3E TB Horse mount-primary $($objectContract.Name) is not an object."
+                }
+            }
+
+            Assert-KmcExactProperties $scheduler @(
+                'enabled','hasActiveLease','state','riderId','mountId','relationshipGeneration',
+                'turnIdentity','turnRound','commandIdentity','commandType','actionOrigin','targetId',
+                'weaponBlueprintId','expectedResourceOwnerId','expectedRuleInitiatorId','creationFrame',
+                'admissionFrame','firstGrantFrame','lastDrivenFrame','startObservedFrame','driveCount',
+                'startObservationCount','terminalObservationCount','interruptCount',
+                'resourceChargeObservationCount','duplicateFrameDriveCount','cleanupCount',
+                'foreignCommandAdoptionCount','riderRemainedCurrent','exactExecutorRetained',
+                'exactSlotRetained','mountStandardAvailableBefore','mountStandardAvailableAfter',
+                'riderStandardAvailableBefore','riderStandardAvailableAfter','mountStandardCooldownBefore',
+                'mountStandardCooldownAfter','riderStandardCooldownBefore','riderStandardCooldownAfter',
+                'terminalResult','lastRejection','cleanupReason','faultReason','firstObservedTurnStatus',
+                'lastObservedTurnStatus','preparingObserved','actingObserved','endingObserved'
+            ) 'Phase 3E TB Horse paired scheduler snapshot'
+            $unifiedProperties = @(
+                'enabled','relationshipState','turnBased','round','currentTurnUnitId',
+                'sharedInitiativeOwnerId','sharedInitiativeValue','sharedInitiativeBonus','rider','mount',
+                'nativeFiveFootStepEnabled','nativeFiveFootStepMeters','pendingSplit','pendingSplitRound',
+                'redundantMountTurnSkipCount','deferredMountTurnSkipCount','postTickMountTurnSkipCount',
+                'mountLedgerPrepareCount','mirroredInitiativeCount','mountInitiativeOverrideCount',
+                'trackerMountFilterCount','sharedTurnRetentionCount','stepOpportunityCandidateCount',
+                'stepOpportunitySuppressionCount','ordinaryMovementOpportunityPassThroughCount',
+                'mountCommandAdmissionCount','architectureFallbackCount','lastInitiativeObservation',
+                'lastSplitObservation','lastMovementObservation','lastStepOpportunityObservation',
+                'lastTurnCandidateObservation'
+            )
+            $ledgerProperties = @(
+                'unitId','initiative','standard','move','swift','attackOfOpportunity',
+                'hasStandard','hasMove','hasSwift'
+            )
+            foreach ($snapshotContract in @(
+                [pscustomobject]@{Value=$unified;Name='unified outcome'},
+                [pscustomobject]@{Value=$ledgerBefore;Name='ledger before'},
+                [pscustomobject]@{Value=$ledgerAfter;Name='ledger after'})) {
+                Assert-KmcExactProperties $snapshotContract.Value $unifiedProperties `
+                    "Phase 3E TB Horse $($snapshotContract.Name) snapshot"
+                Assert-KmcExactProperties $snapshotContract.Value.rider $ledgerProperties `
+                    "Phase 3E TB Horse $($snapshotContract.Name) rider ledger"
+                Assert-KmcExactProperties $snapshotContract.Value.mount $ledgerProperties `
+                    "Phase 3E TB Horse $($snapshotContract.Name) mount ledger"
+            }
+
+            foreach ($name in @(
+                'relationshipGeneration','turnRound','creationFrame','admissionFrame','firstGrantFrame',
+                'lastDrivenFrame','startObservedFrame','driveCount','startObservationCount',
+                'terminalObservationCount','interruptCount','resourceChargeObservationCount',
+                'duplicateFrameDriveCount','cleanupCount','foreignCommandAdoptionCount')) {
+                if (-not (Test-KmcExactJsonInteger $scheduler.$name)) {
+                    throw "Phase 3E TB Horse paired scheduler has a non-integer field: $name"
+                }
+            }
+            foreach ($name in @(
+                'enabled','hasActiveLease','riderRemainedCurrent','exactExecutorRetained',
+                'exactSlotRetained','mountStandardAvailableBefore','mountStandardAvailableAfter',
+                'riderStandardAvailableBefore','riderStandardAvailableAfter','preparingObserved',
+                'actingObserved','endingObserved')) {
+                if ($scheduler.$name -isnot [bool]) {
+                    throw "Phase 3E TB Horse paired scheduler has a non-Boolean field: $name"
+                }
+            }
+            foreach ($name in @(
+                'mountStandardCooldownBefore','mountStandardCooldownAfter',
+                'riderStandardCooldownBefore','riderStandardCooldownAfter')) {
+                if (-not (Test-KmcFiniteNonnegativeJsonNumber $scheduler.$name)) {
+                    throw "Phase 3E TB Horse paired scheduler has an invalid cooldown: $name"
+                }
+            }
+
+            $riderId = [string]$artifact.observations.riderId
+            $horseId = [string]$artifact.observations.horseId
+            if ($mountPrimaryEvidence.activations -isnot [Array] -or
+                @($mountPrimaryEvidence.activations).Count -ne 0 -or
+                [string]$mountPrimaryEvidence.relationshipState -cne 'Mounted' -or
+                $scheduler.enabled -ne $true -or $scheduler.hasActiveLease -ne $false -or
+                [string]$scheduler.state -cne 'Disposed' -or
+                [string]$scheduler.riderId -cne $riderId -or [string]$scheduler.mountId -cne $horseId -or
+                [long]$scheduler.relationshipGeneration -lt 1L -or
+                [string]::IsNullOrWhiteSpace([string]$scheduler.turnIdentity) -or
+                [long]$scheduler.turnRound -lt 1L -or
+                [string]::IsNullOrWhiteSpace([string]$scheduler.commandIdentity) -or
+                [string]$scheduler.commandType -cne 'KingmakerMountedCombat.Integration.MountedPairAttackCommand' -or
+                [string]$scheduler.actionOrigin -cne 'MountPrimaryNatural' -or
+                [string]$scheduler.targetId -cne [string]$outcome.targetId -or
+                [string]::IsNullOrWhiteSpace([string]$scheduler.weaponBlueprintId) -or
+                [string]$scheduler.weaponBlueprintId -cne [string]$outcome.attackWeaponBlueprintId -or
+                [string]$scheduler.expectedResourceOwnerId -cne $horseId -or
+                [string]$scheduler.expectedRuleInitiatorId -cne $horseId -or
+                [long]$scheduler.creationFrame -lt 0L -or
+                [long]$scheduler.admissionFrame -lt [long]$scheduler.creationFrame -or
+                [long]$scheduler.firstGrantFrame -lt [long]$scheduler.admissionFrame -or
+                [long]$scheduler.startObservedFrame -lt [long]$scheduler.firstGrantFrame -or
+                [long]$scheduler.startObservedFrame - [long]$scheduler.firstGrantFrame -gt 2L -or
+                [long]$scheduler.lastDrivenFrame -lt [long]$scheduler.startObservedFrame -or
+                [long]$scheduler.driveCount -lt 1L -or [long]$scheduler.startObservationCount -ne 1L -or
+                [long]$scheduler.terminalObservationCount -ne 1L -or
+                [long]$scheduler.interruptCount -ne 0L -or
+                [long]$scheduler.resourceChargeObservationCount -ne 1L -or
+                [long]$scheduler.duplicateFrameDriveCount -ne 0L -or
+                [long]$scheduler.cleanupCount -ne 1L -or
+                [long]$scheduler.foreignCommandAdoptionCount -ne 0L -or
+                $scheduler.riderRemainedCurrent -ne $true -or
+                $scheduler.exactExecutorRetained -ne $true -or $scheduler.exactSlotRetained -ne $true -or
+                $scheduler.mountStandardAvailableBefore -ne $true -or
+                $scheduler.mountStandardAvailableAfter -ne $false -or
+                $scheduler.riderStandardAvailableBefore -ne $true -or
+                $scheduler.riderStandardAvailableAfter -ne $true -or
+                -not (Test-KmcApproximatelyEqual ([double]$scheduler.riderStandardCooldownBefore) `
+                    ([double]$scheduler.riderStandardCooldownAfter) 0.001d) -or
+                [double]$scheduler.mountStandardCooldownAfter -lt
+                    ([double]$scheduler.mountStandardCooldownBefore + 2.9d) -or
+                [string]$scheduler.terminalResult -cne 'Success' -or
+                [string]$scheduler.lastRejection -cne 'None' -or
+                [string]$scheduler.cleanupReason -cne 'native terminal slot removal' -or
+                $null -ne $scheduler.faultReason -or
+                ($scheduler.preparingObserved -ne $true -and $scheduler.actingObserved -ne $true -and
+                    $scheduler.endingObserved -ne $true)) {
+                throw 'PASS Phase 3E TB evidence does not prove one exact, promptly started, mount-owned scheduler lease with one terminal result and idempotent cleanup.'
+            }
+
+            foreach ($snapshot in @($unified,$ledgerBefore,$ledgerAfter)) {
+                if ($snapshot.enabled -ne $true -or [string]$snapshot.relationshipState -cne 'Mounted' -or
+                    $snapshot.turnBased -ne $true -or [string]$snapshot.currentTurnUnitId -cne $riderId -or
+                    [string]$snapshot.sharedInitiativeOwnerId -cne $riderId -or
+                    [string]$snapshot.rider.unitId -cne $riderId -or
+                    [string]$snapshot.mount.unitId -cne $horseId -or
+                    [long]$snapshot.deferredMountTurnSkipCount -lt 1L -or
+                    [long]$snapshot.postTickMountTurnSkipCount -lt 1L -or
+                    [long]$snapshot.redundantMountTurnSkipCount -lt 1L -or
+                    [long]$snapshot.architectureFallbackCount -ne 0L -or
+                    [string]$snapshot.lastTurnCandidateObservation -cnotlike
+                        "skipped;source=combat-tick-postfix;mount=$horseId;*") {
+                    throw 'PASS Phase 3E TB evidence does not preserve the rider principal across one deferred post-Tick mount-turn skip.'
+                }
+            }
+            if ([long]$ledgerBefore.mountCommandAdmissionCount -ne 0L -or
+                [long]$unified.mountCommandAdmissionCount -lt 1L -or
+                [long]$ledgerAfter.mountCommandAdmissionCount -lt 1L -or
+                $ledgerBefore.rider.hasStandard -ne $true -or $ledgerBefore.mount.hasStandard -ne $true -or
+                $ledgerAfter.rider.hasStandard -ne $true -or $ledgerAfter.mount.hasStandard -ne $false -or
+                -not (Test-KmcApproximatelyEqual ([double]$ledgerBefore.rider.standard) `
+                    ([double]$ledgerAfter.rider.standard) 0.001d) -or
+                [double]$ledgerAfter.mount.standard -lt ([double]$ledgerBefore.mount.standard + 2.9d) -or
+                [long]$outcome.action -ne 3L -or [string]$outcome.actorId -cne $horseId -or
+                [string]$outcome.commandOwnerId -cne $horseId -or
+                [string]$outcome.resourceOwnerId -cne $horseId -or
+                [string]$outcome.result -cne 'Success' -or [long]$outcome.childAttackStartCount -ne 1L -or
+                $outcome.riderStandardCharged -ne $false -or $outcome.actionStandardCharged -ne $true -or
+                $outcome.nativeAttackRuleObserved -ne $true -or $outcome.attackWeaponIsNatural -ne $true -or
+                $outcome.attackWeaponIsRanged -ne $false -or [string]$outcome.attackWeaponSlot -cne 'AdditionalLimb' -or
+                $outcome.attackAnimationHandleCreated -ne $true -or $outcome.attackAnimationActed -ne $true -or
+                $outcome.attackAnimationFinished -ne $true -or $outcome.attackAnimationInterrupted -ne $false -or
+                [long]$rules.riderAttackRules -ne 0L -or [long]$rules.mountAttackRules -ne 1L -or
+                [long]$rules.pairNonOpportunityAttackRules -ne 1L -or
+                [long]$rules.pairOpportunityAttackRules -ne 0L -or
+                [long]$rules.pairAttackRolls -ne 1L -or [long]$rules.pairDamageRules -gt 1L -or
+                [string]$rules.firstPairActorId -cne $horseId -or
+                [string]$rules.lastPairActorId -cne $horseId) {
+                throw 'PASS Phase 3E TB evidence does not prove separate action ledgers and one exact Horse weapon, animation, attack, roll, and bounded damage chain.'
             }
         }
 

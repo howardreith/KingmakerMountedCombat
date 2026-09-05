@@ -2,6 +2,12 @@
 
 Status: IN PROGRESS
 
+## Dev.10 completion defect and repair-budget state
+
+Immutable audited dev.10 `20260905T030300Z-phase3e-dev10-horse-tb-gate2` proves one narrowly attributable K9-class defect: the old `ChooseNextUnit` postfix recursively invoked the native selector before `CombatController.Tick` cleared the ended rider turn, causing stock to choose the same Horse again and KMC to enter fallback. It does not prove a scheduler-command, resource, ownership, or cleanup failure because no Horse scheduler lease existed.
+
+Dev.11 consumes repair cycle 1 of the authorized maximum 2. It moves only the exact native re-invocation to a `CombatController.Tick` postfix, requires a cleared current turn and the exact active mount in `m_NextUnit`, preserves reentry/reference/replacement guards, and leaves all other candidates untouched. Offline gates pass `22/Release/316/18/242/402`. K9 is `IN PROGRESS`, not fired: one fresh process must prove unrelated order, later rider selection, scheduler execution, and non-stuck completion. K1-K8 and K10-K12 remain unfired. Any repeated non-isolatable turn duplication/skip/deadlock after the remaining repair allowance triggers the bounded pivot disposition; it does not authorize a global controller replacement.
+
 ## Dev.9 result and dev.10 setup risk control
 
 Clean published/package/suite identities are `f9082b166cd4958281d97707aac90e1c8a7f8ed4` / `adeb8a305f647738b765881869215cc1a48e669530ab926a3a607ebe6fb015f5` / `9cab4d8398ee9a5ea23e22e186b3e777a20e415c724041471ba0138f7f2e98a0`. Full-continuity WhatIf and the live run's independent restoration audit passed. Run `20260905T010000Z-phase3e-dev9-horse-tb-gate2` proves stock visited, admitted, started, and successfully terminated the exact rider native Mount shell. Its relationship transition was then rejected by the preexisting, intentional `MountedPairCandidate.Validate` outside-combat rule. No mount-owned scheduler lease or command was created; therefore K1-K12 are not reached, no scheduler repair cycle is consumed, and combat Mount remains a later-tranche `TODO` rather than an architecture failure.
@@ -39,7 +45,7 @@ The one observation checkpoint is consumed. Dev.1 proved positive exact stock en
 | K6 | Mount resource ownership/cardinality cannot remain exact. | TODO | Kill architecture; do not compensate by manual refund/charge. |
 | K7 | Rider resources are consumed or refreshed by scheduling. | TODO | Stop and repair if narrowly attributable; otherwise kill. |
 | K8 | Unrelated units' command processing changes. | TODO | Kill broad seam and restore fallback. |
-| K9 | Turn completion skips, duplicates, or deadlocks a combatant. | TODO | One narrow completion repair permitted; repeated failure kills primary. |
+| K9 | Turn completion skips, duplicates, or deadlocks a combatant. | IN PROGRESS | Dev.10 exposed the exact early-recursion duplicate; dev.11 consumes narrow repair 1/2 and requires fresh-process proof. |
 | K10 | Fresh-process A/B results remain nondeterministic. | TODO | Kill after the bounded repeat/repair budget; do not normalize evidence. |
 | K11 | Cleanup leaves command, slot, queue, lease, turn, movement, or presentation residue. | TODO | One narrow terminal/cleanup repair permitted; repeated residue kills primary. |
 | K12 | Only a broad global `TurnController` replacement can satisfy the contract. | TODO | `PAIRED SCHEDULER PIVOT — SEPARATE-TURN FALLBACK READY`. |

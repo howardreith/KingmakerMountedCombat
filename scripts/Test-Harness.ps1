@@ -10393,6 +10393,98 @@ try {
                 }
             }
             else {
+                $phase3eLedgerBefore = [ordered]@{
+                    enabled=$true;relationshipState='Mounted';turnBased=$true;round=2
+                    currentTurnUnitId='rider';sharedInitiativeOwnerId='rider'
+                    sharedInitiativeValue=22;sharedInitiativeBonus=2
+                    rider=[ordered]@{
+                        unitId='rider';initiative=0.0;standard=0.0;move=0.0;swift=0.0
+                        attackOfOpportunity=0.0;hasStandard=$true;hasMove=$true;hasSwift=$true
+                    }
+                    mount=[ordered]@{
+                        unitId='horse';initiative=0.0;standard=0.0;move=0.0;swift=0.0
+                        attackOfOpportunity=0.0;hasStandard=$true;hasMove=$true;hasSwift=$true
+                    }
+                    nativeFiveFootStepEnabled=$false;nativeFiveFootStepMeters=0.0
+                    pendingSplit=$false;pendingSplitRound=-1
+                    redundantMountTurnSkipCount=1;deferredMountTurnSkipCount=1;postTickMountTurnSkipCount=1
+                    mountLedgerPrepareCount=2;mirroredInitiativeCount=1;mountInitiativeOverrideCount=1
+                    trackerMountFilterCount=2;sharedTurnRetentionCount=0
+                    stepOpportunityCandidateCount=0;stepOpportunitySuppressionCount=0
+                    ordinaryMovementOpportunityPassThroughCount=0;mountCommandAdmissionCount=0
+                    architectureFallbackCount=0;lastInitiativeObservation='native-initiative-event'
+                    lastSplitObservation='not-observed';lastMovementObservation='not-observed'
+                    lastStepOpportunityObservation='not-observed'
+                    lastTurnCandidateObservation='skipped;source=combat-tick-postfix;mount=horse;replacement=target;round=1'
+                }
+                $phase3eLedgerAfter = [ordered]@{
+                    enabled=$true;relationshipState='Mounted';turnBased=$true;round=2
+                    currentTurnUnitId='rider';sharedInitiativeOwnerId='rider'
+                    sharedInitiativeValue=22;sharedInitiativeBonus=2
+                    rider=[ordered]@{
+                        unitId='rider';initiative=0.0;standard=0.0;move=0.0;swift=0.0
+                        attackOfOpportunity=0.0;hasStandard=$true;hasMove=$true;hasSwift=$true
+                    }
+                    mount=[ordered]@{
+                        unitId='horse';initiative=0.0;standard=6.0;move=0.0;swift=0.0
+                        attackOfOpportunity=0.0;hasStandard=$false;hasMove=$true;hasSwift=$true
+                    }
+                    nativeFiveFootStepEnabled=$false;nativeFiveFootStepMeters=0.0
+                    pendingSplit=$false;pendingSplitRound=-1
+                    redundantMountTurnSkipCount=1;deferredMountTurnSkipCount=1;postTickMountTurnSkipCount=1
+                    mountLedgerPrepareCount=2;mirroredInitiativeCount=1;mountInitiativeOverrideCount=1
+                    trackerMountFilterCount=2;sharedTurnRetentionCount=0
+                    stepOpportunityCandidateCount=0;stepOpportunitySuppressionCount=0
+                    ordinaryMovementOpportunityPassThroughCount=0;mountCommandAdmissionCount=1
+                    architectureFallbackCount=0;lastInitiativeObservation='native-initiative-event'
+                    lastSplitObservation='not-observed';lastMovementObservation='not-observed'
+                    lastStepOpportunityObservation='not-observed'
+                    lastTurnCandidateObservation='skipped;source=combat-tick-postfix;mount=horse;replacement=target;round=1'
+                }
+                $phase3eScheduler = [ordered]@{
+                    enabled=$true;hasActiveLease=$false;state='Disposed';riderId='rider';mountId='horse'
+                    relationshipGeneration=1;turnIdentity='turn@1234abcd';turnRound=2
+                    commandIdentity='command@5678efab'
+                    commandType='KingmakerMountedCombat.Integration.MountedPairAttackCommand'
+                    actionOrigin='MountPrimaryNatural';targetId='target';weaponBlueprintId=('7'*32)
+                    expectedResourceOwnerId='horse';expectedRuleInitiatorId='horse'
+                    creationFrame=100;admissionFrame=100;firstGrantFrame=101;lastDrivenFrame=110
+                    startObservedFrame=102;driveCount=10;startObservationCount=1;terminalObservationCount=1
+                    interruptCount=0;resourceChargeObservationCount=1;duplicateFrameDriveCount=0
+                    cleanupCount=1;foreignCommandAdoptionCount=0;riderRemainedCurrent=$true
+                    exactExecutorRetained=$true;exactSlotRetained=$true
+                    mountStandardAvailableBefore=$true;mountStandardAvailableAfter=$false
+                    riderStandardAvailableBefore=$true;riderStandardAvailableAfter=$true
+                    mountStandardCooldownBefore=0.0;mountStandardCooldownAfter=6.0
+                    riderStandardCooldownBefore=0.0;riderStandardCooldownAfter=0.0
+                    terminalResult='Success';lastRejection='None';cleanupReason='native terminal slot removal'
+                    faultReason=$null;firstObservedTurnStatus='Preparing';lastObservedTurnStatus='Preparing'
+                    preparingObserved=$true;actingObserved=$false;endingObserved=$false
+                }
+                $phase3eMountOutcome = [ordered]@{
+                    action=3;actorId='horse';commandOwnerId='horse';resourceOwnerId='horse';targetId='target'
+                    result='Success';childAttackStartCount=1;riderStandardCharged=$false;actionStandardCharged=$true
+                    nativeAttackRuleObserved=$true;attackWeaponBlueprintId=('7'*32);attackWeaponIsNatural=$true
+                    attackWeaponIsRanged=$false;attackWeaponSlot='AdditionalLimb';terminalReason='completed'
+                    attackAnimationHandleCreated=$true;attackAnimationHandleSource='stock-created'
+                    attackAnimationActionName='HorseAnimationSet_Bite';attackAnimationActionType='SpecialAttack'
+                    attackAnimationActed=$true;attackAnimationFinished=$true;attackAnimationInterrupted=$false
+                }
+                $rowByName['mounted-stock-click-melee-mount-only-explicit'].evidence = [ordered]@{
+                    outcome=$phase3eMountOutcome;activations=@();relationshipState='Mounted'
+                    presentation='relationship=Mounted;turnUnit=rider';rules=[ordered]@{
+                        riderAttackRules=0;mountAttackRules=1;riderNonOpportunityAttackRules=0
+                        mountNonOpportunityAttackRules=1;pairNonOpportunityAttackRules=1
+                        riderOpportunityAttackRules=0;mountOpportunityAttackRules=0
+                        pairOpportunityAttackRules=0;pairAttackRolls=1;pairOpportunityAttackRolls=0
+                        pairDamageRules=1;pairForcedD20=3;pairDamage=17
+                        firstPairActorId='horse';lastPairActorId='horse';lastRiderAttackType=$null
+                        lastRiderAttackDoNotProvoke=$null;attackRuleEvents=@()
+                    }
+                    nativeControls=[ordered]@{};unified=$phase3eLedgerAfter
+                    pairedScheduler=$phase3eScheduler;ledgerBefore=$phase3eLedgerBefore
+                    ledgerAfter=$phase3eLedgerAfter
+                }
                 $observations.pairedSchedulerPreTargetSetup = [ordered]@{
                     pairInitiallyMounted=$true;relationshipState='Mounted';relationshipExact=$true
                     targetAbsent=$true;turnBasedAbsent=$true;riderInCombat=$false;mountInCombat=$false
@@ -10438,7 +10530,7 @@ try {
                 }
             }
             $phase3dArtifact = [ordered]@{
-                schemaVersion=$(if($phase3dScenario -ceq 'phase3d-unified-combat-tb-suite'){4}else{1})
+                schemaVersion=$(if($phase3dScenario -ceq 'phase3d-unified-combat-tb-suite'){5}else{1})
                 evidenceKind='phase3d-horse-scenario-evidence';runId=$phase3dRequest.runId
                 scenario=$phase3dRequest.scenario;branch=$phase3dRequest.branch;commit=$phase3dRequest.commit
                 productVersion=$phase3dRequest.productVersion;dllSha256=$phase3dRequest.dllSha256
@@ -10458,6 +10550,20 @@ try {
                 [pscustomobject]@{name=$_.name;status='PASS';assertionPassCount=1;assertionFailCount=0;errors=@()}
             })
             Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
+
+            if ($phase3dScenario -ceq 'phase3d-unified-combat-tb-suite') {
+                $phase3eSchedulerEvidence = $rowByName['mounted-stock-click-melee-mount-only-explicit'].evidence
+                $phase3dArtifact.schemaVersion = 4
+                $rowByName['mounted-stock-click-melee-mount-only-explicit'].evidence = [ordered]@{}
+                Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
+                $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
+                $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
+                [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+                $phase3dManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+                Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
+                $phase3dArtifact.schemaVersion = 5
+                $rowByName['mounted-stock-click-melee-mount-only-explicit'].evidence = $phase3eSchedulerEvidence
+            }
 
             if ($phase3dScenario -ceq 'phase3d-horse-presentation-suite') {
                 $phase3dArtifact.observations.mountRootPositionOffset.y = 0.0
@@ -10675,6 +10781,17 @@ try {
                 Assert-TestThrows {
                     Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
                 } 'Phase 3E TB validator accepted pre-mounted scheduler staging without the exact relationship.'
+
+                $phase3dArtifact.observations.pairedSchedulerPreTargetSetup.relationshipExact = $true
+                $rowByName['mounted-stock-click-melee-mount-only-explicit'].evidence.pairedScheduler.duplicateFrameDriveCount = 1
+                Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
+                $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
+                $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
+                [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+                $phase3dManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+                Assert-TestThrows {
+                    Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
+                } 'Phase 3E TB validator accepted a duplicate scheduler drive in one Unity frame.'
             }
         }
     }
@@ -10954,6 +11071,8 @@ try {
             $unifiedSource.Contains('settings.EnableUnifiedMountedTurn = false;')) `
             'unified-turn coordinator lost exact initiative, ledger, five-foot-step, or fallback ownership'
         Assert-Test ($patchSource.Contains('TryRouteMountedStockAttack(__instance, cmd)') -and
+            $patchSource.Contains('PatchExact(typeof(CombatController), "Tick", 0x06000BD1') -and
+            $patchSource.Contains('PatchBridge.UnifiedTurn?.HandleCombatControllerTickCompleted(__instance);') -and
             $patchSource.Contains('PatchBridge.UnifiedTurn?.HandleChooseNextUnit(__instance);') -and
             $patchSource.Contains('PatchBridge.UnifiedTurn?.FilterTrackerSortedUnits(ref __result);') -and
             $patchSource.Contains('PatchBridge.UnifiedTurn.ShouldSuppressStepOpportunity(target)') -and
@@ -11300,7 +11419,11 @@ try {
             $phase3dHorseSource.Contains('["commandAiActionPresent"] = commandPresent && command.AiAction != null') -and
             $phase3dHorseSource.Contains('["createdByPlayer"] = command.CreatedByPlayer') -and
             $phase3dHorseSource.Contains('["aiActionPresent"] = command.AiAction != null') -and
-            $phase3dHorseSource.Contains('["schemaVersion"] = 4,') -and
+            $phase3dHorseSource.Contains('["schemaVersion"] = 5,') -and
+            $phase3dHorseSource.Contains('explicitPrimaryLedgerBefore = combat.CaptureUnifiedTurnSnapshot();') -and
+            $phase3dHorseSource.Contains('var pairedScheduler = combat.CapturePairedCommandSchedulerSnapshot();') -and
+            $phase3dHorseSource.Contains('pairedScheduler.CleanupReason == "native terminal slot removal"') -and
+            $phase3dHorseSource.Contains('ledgerAfter.PostTickMountTurnSkipCount >= 1') -and
             $phase3dHorseSource.Contains('BeginTarget(TargetDistance, "tb-paired-scheduler");') -and
             $phase3dHorseSource.Contains('if (!IsCombatReady(turnBasedPairInitiallyMounted))') -and
             $preMountedAdmissionIndex -ge 0 -and

@@ -1,5 +1,7 @@
 # Phase 3D Mounted Ranged Combat Contract
 
+Phase 3E dev.11 checkpoint (2026-09-05): dev.10 stopped at the earlier native duplicate-turn boundary, before any Phase 3E TB ranged input. The dev.11 repair touches only exact redundant-mount initiative selection and no ranged, movement, LoS, ammunition, reload, weapon, or click-routing seam. TB ranged rows remain `TODO` until the same clean Horse run passes explicit mount scheduling, ordinary melee, and then reaches them in mission order.
+
 Phase 3E superseding status (2026-09-04): `IN PROGRESS`. The pair-local command scheduler's in-range mount-primary Gate 1 is qualified, but no Phase 3E TB ranged approach, Shortbow, Crossbow/reload, Sling, LoS recovery, or no-forced-melee row has yet run. Dev.8/dev.9 affect only pre-sequencing combat-Mount diagnostic provenance. Phase 3D RT ranged PASS and separate-turn fallback remain immutable.
 
 Status: BLOCKED — CRITICAL for unified TB movement/action sequencing; RT contract PASS
