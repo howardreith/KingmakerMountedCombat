@@ -101,6 +101,9 @@
     <EmbeddedResource Include="Assets\MountSaddleIcon.png">
       <LogicalName>KingmakerMountedCombat.Assets.MountSaddleIcon.png</LogicalName>
     </EmbeddedResource>
+    <EmbeddedResource Include="Assets\DismountSaddleIcon.png">
+      <LogicalName>KingmakerMountedCombat.Assets.DismountSaddleIcon.png</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BuildIdentity.cs" />
@@ -156,6 +159,7 @@
     <Compile Include="Domain\MountedCombatSpatialPolicy.cs" />
     <Compile Include="Domain\MountedCombatTransaction.cs" />
     <Compile Include="Domain\MountedStockAttack.cs" />
+    <Compile Include="Domain\AnimatedSaddlePosition.cs" />
     <Compile Include="Domain\OptionalPublicPropertyReader.cs" />
     <Compile Include="Domain\PairedCommandScheduler.cs" />
     <Compile Include="Domain\UnifiedMountedTurn.cs" />

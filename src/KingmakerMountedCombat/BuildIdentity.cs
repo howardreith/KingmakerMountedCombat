@@ -2,6 +2,6 @@ namespace KingmakerMountedCombat
 {
     internal static class BuildIdentity
     {
-        internal const string ProductVersion = "0.1.0-phase3e-fallback.1";
+        internal const string ProductVersion = "0.1.0-phase3f-preview.1";
     }
 }

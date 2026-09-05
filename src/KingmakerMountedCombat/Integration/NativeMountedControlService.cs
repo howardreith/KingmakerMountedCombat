@@ -88,11 +88,11 @@ namespace KingmakerMountedCombat.Integration
                 { "KMC.Native.Mount.Name", "Mount Companion" },
                 { "KMC.Native.Mount.Description", "Select the rider's exact active Horse or Mammoth companion and mount it through Kingmaker Mounted Combat." },
                 { "KMC.Native.Dismount.Name", "Dismount" },
-                { "KMC.Native.Dismount.Description", "End the transient mounted relationship and restore the rider and mount through KMC's exact cleanup path." },
+                { "KMC.Native.Dismount.Description", "Get off your companion. Mounted seating is temporary and is cleared before saving or changing areas." },
                 { "KMC.Native.RiderPrimary.Name", "Rider Primary" },
-                { "KMC.Native.RiderPrimary.Description", "Make one mounted rider attack with the equipped native melee or ranged weapon. The rider owns the attack and Standard action; the mount owns any approach movement." },
+                { "KMC.Native.RiderPrimary.Description", "Make one mounted attack with your equipped melee or ranged weapon. Uses the rider's Standard action. In turn-based mode, use this on the rider's own turn. Private preview: mounted turn-based movement costs are not yet qualified." },
                 { "KMC.Native.MountPrimary.Name", "Mount Primary" },
-                { "KMC.Native.MountPrimary.Description", "Make one primary natural attack with the exact Horse or Mammoth. The mount owns the attack, command, weapon, and Standard action." }
+                { "KMC.Native.MountPrimary.Description", "Make one natural attack with your Horse or Mammoth, using its Standard action. In turn-based mode, select the companion on its own turn. You may then use its remaining legal actions. Private preview: mounted turn-based movement costs are not yet qualified." }
             };
 
         private List<BlueprintScriptableObject> blueprintList;
@@ -556,7 +556,7 @@ namespace KingmakerMountedCombat.Integration
         {
             if (combat.HasStockAttackIntent)
             {
-                combat.Cancel("native move request replaced stock attack intent");
+                combat.CancelSelectedInput("native move request replaced stock attack intent");
             }
         }
 
@@ -564,7 +564,7 @@ namespace KingmakerMountedCombat.Integration
         {
             if (combat.HasStockAttackIntent)
             {
-                combat.Cancel("native item-use request replaced stock attack intent");
+                combat.CancelSelectedInput("native item-use request replaced stock attack intent");
             }
         }
 
@@ -624,7 +624,7 @@ namespace KingmakerMountedCombat.Integration
             {
                 throw new InvalidOperationException("The exact Horse feature has no icon for native controls.");
             }
-            if (saddleIcon == null)
+            if (saddleIcon == null || horseCompanion.DismountSaddleIcon == null)
             {
                 throw new InvalidOperationException("The original KMC saddle icon is unavailable for Mount/Dismount controls.");
             }
@@ -652,7 +652,7 @@ namespace KingmakerMountedCombat.Integration
                 false,
                 true,
                 UnitCommand.CommandType.Move,
-                saddleIcon);
+                horseCompanion.DismountSaddleIcon);
             riderPrimaryAbility = CreateAbility(
                 "KMC_RiderPrimaryAbility",
                 RiderPrimaryAbilityGuid,

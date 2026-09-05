@@ -294,7 +294,7 @@ namespace KingmakerMountedCombat.Integration
 
             internal static void StopOrHoldPrefix()
             {
-                PatchBridge.Combat?.Cancel("stop or hold");
+                PatchBridge.Combat?.CancelSelectedInput("stop or hold");
                 PatchBridge.Service?.ForwardStopOrHold();
             }
 

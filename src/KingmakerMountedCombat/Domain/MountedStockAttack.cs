@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace KingmakerMountedCombat.Domain
 {
@@ -11,9 +12,47 @@ namespace KingmakerMountedCombat.Domain
         CancelInvalidIntent
     }
 
+    public enum MountedTargetTerminationDecision
+    {
+        ContinueNativeLifecycle,
+        ObserveNativeTerminal,
+        CancelExpectedInvalidation
+    }
+
+    public static class MountedTargetTerminationPolicy
+    {
+        public static MountedTargetTerminationDecision Decide(
+            bool targetValid, bool targetInState, bool stillHostile,
+            bool childReleasedAttack, bool childFinished)
+        {
+            if (childFinished) { return MountedTargetTerminationDecision.ObserveNativeTerminal; }
+            if (targetValid || targetInState && stillHostile && childReleasedAttack)
+            {
+                return MountedTargetTerminationDecision.ContinueNativeLifecycle;
+            }
+            return MountedTargetTerminationDecision.CancelExpectedInvalidation;
+        }
+    }
+
     public static class UnifiedMountedStockAttackPolicy
     {
         public const int MaximumInputFrameDelta = 1;
+
+        public static bool ContainsExactPrincipal<T>(IEnumerable<T> selection, T principal) where T : class
+        {
+            if (selection == null || principal == null) { return false; }
+            foreach (var unit in selection)
+            {
+                if (ReferenceEquals(unit, principal)) { return true; }
+            }
+            return false;
+        }
+
+        public static bool AllowsOrdinaryInput(
+            bool turnBasedCombat, bool enableUnifiedMountedTurn, bool currentTurnIsActor)
+        {
+            return !turnBasedCombat || enableUnifiedMountedTurn || currentTurnIsActor;
+        }
 
         public static bool IsExactObservedPlayerRequest(
             bool relationshipMounted,
@@ -39,7 +78,9 @@ namespace KingmakerMountedCombat.Domain
             bool riderHasStandardAction,
             bool mountHasStandardAction,
             bool riderWeaponIsRanged,
-            bool mountAlreadyInMeleeRange)
+            bool mountAlreadyInMeleeRange,
+            bool riderIsLegalActor = true,
+            bool mountIsLegalActor = true)
         {
             if (!exactMountedPair || !targetValid)
             {
@@ -49,11 +90,11 @@ namespace KingmakerMountedCombat.Domain
             {
                 return MountedStockAttackDecision.Wait;
             }
-            if (riderHasStandardAction)
+            if (riderHasStandardAction && riderIsLegalActor)
             {
                 return MountedStockAttackDecision.DispatchRider;
             }
-            if (mountHasStandardAction && (!riderWeaponIsRanged || mountAlreadyInMeleeRange))
+            if (mountHasStandardAction && mountIsLegalActor && (!riderWeaponIsRanged || mountAlreadyInMeleeRange))
             {
                 return MountedStockAttackDecision.DispatchMount;
             }
@@ -72,6 +113,45 @@ namespace KingmakerMountedCombat.Domain
         {
             return targetExists && targetInState && targetAliveAndConscious &&
                 riderHostileToTarget && riderCanAttackTarget;
+        }
+    }
+
+    /// <summary>Only admitted pointer intent owns this state. Cancellation invalidates all prior generations.</summary>
+    public sealed class MountedAttackIntent<TTarget, TTurn> where TTarget : class where TTurn : class
+    {
+        public TTarget Target { get; private set; }
+        public TTurn Turn { get; private set; }
+        public bool MountActor { get; private set; }
+        public long Generation { get; private set; }
+        public bool HasEnteredCombat { get; private set; }
+
+        public void Begin(TTarget target, TTurn turn, bool mountActor, bool inCombat)
+        {
+            Target = target ?? throw new ArgumentNullException(nameof(target));
+            Turn = turn;
+            MountActor = mountActor;
+            HasEnteredCombat = inCombat;
+            Generation++;
+        }
+
+        public bool Owns(TTarget target, long generation)
+        {
+            return Target != null && ReferenceEquals(Target, target) && Generation == generation;
+        }
+
+        public bool ObserveCombatEnded(bool inCombat)
+        {
+            HasEnteredCombat |= inCombat;
+            return Target != null && HasEnteredCombat && !inCombat;
+        }
+
+        public void Cancel()
+        {
+            Target = null;
+            Turn = null;
+            HasEnteredCombat = false;
+            MountActor = false;
+            Generation++;
         }
     }
 }

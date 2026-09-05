@@ -363,7 +363,10 @@ namespace KingmakerMountedCombat.Integration
 
         public void ForwardStopOrHold()
         {
-            if (coordinator.State == RelationshipState.Mounted)
+            var selected = SelectionManager.Instance?.SelectedUnits;
+            if (coordinator.State == RelationshipState.Mounted &&
+                (UnifiedMountedStockAttackPolicy.ContainsExactPrincipal(selected, runtime.Rider) ||
+                 UnifiedMountedStockAttackPolicy.ContainsExactPrincipal(selected, runtime.Mount)))
             {
                 runtime.CancelMountMovement();
             }

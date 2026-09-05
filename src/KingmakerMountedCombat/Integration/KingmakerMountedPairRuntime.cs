@@ -369,10 +369,10 @@ namespace KingmakerMountedCombat.Integration
             // Pilot evidence showed the animated Spine moved 0.113 world units
             // between the engine Update and LateUpdate phases, and inheriting its
             // full quaternion rolled the humanoid root by about 161 degrees every
-            // frame. Project the observed Spine point into a fixed child of the
-            // authoritative mount root instead. Parenting makes mount translation
-            // and yaw continuous without another nav agent; the static root-local
-            // point intentionally does not inherit gait-driven bone rotation.
+            // frame. Keep mechanics in a fixed authoritative-root child. The
+            // Horse pose adapter separately projects its pelvis from the current
+            // animated Chest after animation; bone motion never reaches entity
+            // position, LoS, reach, heading, selection or navigation.
             var sourceOffset = supportedProfile.UsesDiagnosticMammothOffsets
                 ? new Vector3(settings.RiderOffsetX, settings.RiderOffsetY, settings.RiderOffsetZ)
                 : ToUnity(supportedProfile.SourceAnchorOffset);
@@ -399,9 +399,15 @@ namespace KingmakerMountedCombat.Integration
             poseComponentOwned = true;
             poseBaselineRestoreVerified = false;
             poseAdapter.Configure(riderView, supportedProfile.RiderPoseProfile);
+            if (ReferenceEquals(supportedProfile, SupportedMountedProfiles.Horse))
+            {
+                poseAdapter.ConfigureAnimatedSaddle(mountView.transform, sourceAnchor,
+                    ToUnity(supportedProfile.AnimatedSeatCorrection));
+            }
             presentationConfigured = true;
             logger.Info("Rider presentation attached through an owned " + supportedProfile.DisplayName +
-                "-root position lease and exact " + supportedProfile.RiderPoseProfile.Id + " procedural pose profile.");
+                "-root mechanics lease and exact " + supportedProfile.RiderPoseProfile.Id + " procedural pose profile; animatedSeat=" +
+                ReferenceEquals(supportedProfile, SupportedMountedProfiles.Horse) + ".");
         }
 
         internal bool ReassertMountAiLeaseAfterNativeTurnBasedExit()
@@ -781,6 +787,9 @@ namespace KingmakerMountedCombat.Integration
                 ";mountViewActiveSelf=" + (currentMountView != null && currentMountView.gameObject.activeSelf) +
                 ";mountViewActiveInHierarchy=" + (currentMountView != null && currentMountView.gameObject.activeInHierarchy) +
                 ";poseLease=" + (poseAdapter != null && poseAdapter.IsConfigured) +
+                ";animatedSeatSamples=" + (poseAdapter?.AnimatedSaddleSampleCount ?? 0) +
+                ";animatedSeatWriteResidual=" + (poseAdapter?.MaximumAnimatedSeatError ?? 0d).ToString("R") +
+                ";animatedSeatWorld=" + (poseAdapter?.LastAnimatedSeatPosition.ToString("F4") ?? "<none>") +
                 ";attachmentLease=" + riderAttachmentLease.IsAcquired +
                 ";replacementReleased=" + replacementRiderViewReleaseVerified +
                 ";riderSelected=" + riderSelected +

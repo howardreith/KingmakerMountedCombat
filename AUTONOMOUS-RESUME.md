@@ -1,5 +1,25 @@
 # Autonomous resume
 
+## Phase 3F complete offline gate — 2026-09-05T14:35:00Z
+
+Status: IN PROGRESS. Branch `codex/mounted-combat-phase3f-playable-core`; pre-commit HEAD `db7eebbf27f8a05dc48febb138218f0df8ef859f`; intentional implementation worktree, `0.1.0-phase3f-preview.1`. Release/source/component/visual/harness/assembly gates pass `22/0`, Release, `333/0`, `19/0`, `243/0`, `402/0` (Kingmaker `378`, Wrath `24`). Additional native-resource/deployment audit `9/0`; PowerShell parser `27/0`, JSON `7/0`, diff PASS. First full gate failed on DLL size and a stale target-liveness assertion; both failures are preserved, icons reduced to 96px, package threshold unchanged, assertion now binds actual native child outcome. Final dirty DLL is 4,180,480 bytes, SHA-256 `4f4ebaabce444cee5351c0551004cb44d331b58db17575df36dbb9dab19523d3` (package identity pending).
+
+The exact standing fallback is now accepted by a strict three-file hash/case verifier. Staging replaces only its verified clone; original live Mods remain intact in transactional backup. Added regression proves fallback/cache/foreign-settings restoration and rejects mutated incumbent bytes. Deployment guard SHA-256 `dbba07bbcb0f01b15842a0d6cdea47ec774897884c3251c7abec74b441c12460`; original policy hash `65ef31d00b33f3a2c97eb5603bdbae26eb862f3e10e95880758da3c10dc9c299` is preserved in intake. No broad branch or installed-payload allowance was added.
+
+Starting external inventory: `analysis-cache/phase3f-intake-20260905T1341077001555Z/starting-external-inventory.json`, SHA-256 `d0b2aab4ba1171281b6cad866bc6aff80182bba05b2bce24fe27aa3557da641b`; save/Mods digests `b42a7a30ed0b9e8b75ddb2c7f2511b5b488f35ef914aa0319897cd336388e19d` / `67601f2186e5e4ffc81cff0abc4ee376322e2e269ccb3a0daa3d91c571ef950c`. Baseline/Working retain `c29d965c9ff5dc0f971659d9ae154877aa4a9a461ca220d1ce28e7c7fd9d2512` / `5eb4e0b4cbd8d60dc879a02ff71aadfde3f517304754857f0cc68d0f9a93f1c6`. No game/Mods/save mutation, 0/8 live transactions. Native pointer helper unavailable twice; TB resource and visual gates remain explicit.
+
+Exact next action: commit the coherent implementation and tests, host guarded-publish, run `scripts/Package.ps1 -ArtifactQualifier playable-core-private-preview` from clean HEAD, create a fresh suite snapshot using the existing historical authority pins, then call the named deployment guard `RuntimeTest -WhatIf` with exact package/suite/scenario identity. Do not qualify pointer behavior from integration driving or persistently replace fallback.
+
+## Phase 3F playable-core implementation — 2026-09-05
+
+Status: IN PROGRESS. User's Phase 3F mission supersedes historical continuation instructions. Branch `codex/mounted-combat-phase3f-playable-core`, inherited exact local/tracked/host-verified remote HEAD `db7eebbf27f8a05dc48febb138218f0df8ef859f`; deliberate uncommitted implementation, version `0.1.0-phase3f-preview.1`.
+
+Controls, expected target termination, Horse-only animated pelvis projection and distinct native saddle art are implemented. Both experimental flags and overlay remain false. No scheduler/roster implementation changed. Resource reconciliation is blocked by exact native reset and projected-current-actor side effects; TB costs are unqualified. See `planning/PHASE3F-PLAYABLE-CORE-CONTRACT.md` and `docs/PHASE3F-PLAYABLE-CORE-IMPLEMENTATION.md`.
+
+Preserved human log matches supplied hash, immutable intake at `analysis-cache/phase3f-intake-20260905T1341077001555Z`. Red regression `322/2`; focused repaired components `333/0`, Release/source `22/0`; native resource/host guard audit `9/0`. Two approved desktop-helper calls fail with missing native pipe. Handoff ZIP/screenshots unavailable locally. No live transaction (0/8), game process, save or Mods mutation. Actual starting installed fallback includes `.65229.cache`; restore inventory `22b580f2482c8111c1110979bfc6748b6f3ef8004bfcfd57922eeed462193687`, not KMC absence.
+
+Exact next command: run the complete Release/component/visual/harness/assembly gate with output captured under the intake evidence directory, review any failures, commit coherent implementation, guarded publish and clean package once. Then create current-state suite and execute the named deployment guard's bounded RuntimeTest WhatIf. Do not run a unified-TB suite or persistently replace fallback.
+
 ## Phase 3E fallback intentionally installed through UMM guard — 2026-09-05T08:17:44-04:00
 
 - Active branch is `codex/mounted-combat-phase3e-paired-scheduler`. Clean local/upstream/remote input is documentation closure `d63d05579cc7dbaf72a270decbad334a8ddb992d`; package commit remains `16ccc71cabde70398130386f0e9e9380e1110495` and version remains `0.1.0-phase3e-fallback.1`.

@@ -1988,6 +1988,37 @@ try {
         Assert-Test ($transactionCommonSource.Contains('if ($workingFile.LastWriteTimeUtc.Ticks -ne [long]$state.workingLastWriteTimeUtcTicks)')) 'unchanged Working restoration still rewrites an already exact timestamp'
     }
 
+    Invoke-HarnessTest 'exact Phase 3F fallback and UMM cache restore after transactional replacement' {
+        $installedLive = Join-Path $testRoot 'installed-fallback-game\Mods'
+        New-Item -ItemType Directory -Path $installedLive -Force | Out-Null
+        $fallbackPackage = Join-Path (Get-KmcLabRoot) 'artifacts\KingmakerMountedCombat-0.1.0-phase3e-fallback.1-separate-turn-fallback-manual-review-diagnostic.zip'
+        Assert-Test ((Get-KmcSha256 $fallbackPackage) -ceq '9451787c08d39ec2164d75f1c36fb4d54245e4228ff12855950fc26798be6698') 'frozen fallback package changed'
+        Expand-Archive -LiteralPath $fallbackPackage -DestinationPath $installedLive
+        $installedRoot = Join-Path $installedLive 'KingmakerMountedCombat'
+        Copy-Item -LiteralPath (Join-Path $installedRoot 'KingmakerMountedCombat.dll') -Destination (Join-Path $installedRoot 'KingmakerMountedCombat.dll.65229.cache')
+        New-Item -ItemType Directory -Path (Join-Path $installedLive 'UnrelatedMod') | Out-Null
+        [IO.File]::WriteAllText((Join-Path $installedLive 'UnrelatedMod\settings.xml'), 'foreign settings stay byte-exact')
+        $installedBefore = Get-KmcDirectoryManifest $installedLive
+        $lock = Open-KmcRuntimeLock -StateRoot $stateRoot -RunId 'installed-fallback-test'
+        $installedState = $null
+        try {
+            $installedState = Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $installedLive -PackagePath $package -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging
+            Assert-Test (-not (Test-Path -LiteralPath (Join-Path $installedRoot 'KingmakerMountedCombat.dll.65229.cache'))) 'prior UMM cache entered candidate deployment'
+            Assert-Test ([IO.File]::ReadAllText((Join-Path $installedLive 'UnrelatedMod\settings.xml')) -ceq 'foreign settings stay byte-exact') 'foreign settings changed in candidate clone'
+        }
+        finally {
+            if ($null -ne $installedState) {
+                [void](Restore-KmcModsTransaction -Lock $lock -StatePath $installedState -LiveModsRoot $installedLive -BackupRoot $backup -StagingRoot $staging)
+            }
+            Close-KmcRuntimeLock $lock
+        }
+        Assert-Test ((Get-KmcDirectoryManifest $installedLive).digest -ceq $installedBefore.digest) 'starting installation/cache/foreign settings were not restored exactly'
+        [IO.File]::AppendAllText((Join-Path $installedRoot 'Info.json'), 'changed')
+        $rejected = $false
+        try { [void](Assert-KmcPhase3fStartingInstallation -KmcRoot $installedRoot) } catch { $rejected = $true }
+        Assert-Test $rejected 'modified incumbent was accepted as the exact fallback'
+    }
+
     Invoke-HarnessTest 'case-insensitive existing KMC collision is rejected before live mutation' {
         $collisionLive = Join-Path $testRoot 'collision-game\Mods'
         New-Item -ItemType Directory -Path (Join-Path $collisionLive 'kingmakermountedcombat') -Force | Out-Null
@@ -5121,10 +5152,11 @@ try {
             $engineSource.Contains('MountedCombatSpatialPolicy.RequiresDiagnosticTargetPlacementRefresh(') -and
             $engineSource.Contains('target.Translocate(refreshedPoint, null);') -and
             $engineSource.Contains('MountedCombatSpatialPolicy.IsBoundedDiagnosticTargetDistance(')) 'combat diagnostic does not repair and revalidate exact observed actor-specific target-placement drift before evidence capture'
-        Assert-Test ($commandSource.Contains('MountedPairLivenessSnapshot.IsTargetConsciousnessAdmissible(') -and
-            $commandSource.Contains('transaction.ChildAttackStartCount)') -and
-            $commandSource.Contains('targetState != null && !targetState.IsFinallyDead') -and
-            $commandSource.Contains('attackTarget != null && attackTarget.IsInState')) 'in-flight liveness does not admit target incapacitation only after the exact child starts while preserving final-death and in-state gates'
+        Assert-Test ($commandSource.Contains('MountedTargetTerminationPolicy.Decide(') -and
+            $commandSource.Contains('childAttack.IsActed && childAttack.LastAttackRule != null') -and
+            $commandSource.Contains('!targetState.IsFinallyDead && hostile && actionActor.CanAttack(attackTarget)') -and
+            $commandSource.Contains('attackTarget != null && attackTarget.IsInState') -and
+            $commandSource.Contains('childAttack != null && childAttack.IsFinished')) 'target liveness must preserve in-state/hostility admission and native released/finished lifecycle without invented success'
         Assert-Test ($ruleProbeSource.Contains('IGlobalRulebookHandler<RuleAttackWithWeapon>') -and
             $ruleProbeSource.Contains('IGlobalRulebookHandler<RuleAttackRoll>') -and
             $ruleProbeSource.Contains('IGlobalRulebookHandler<RuleRollDice>') -and
@@ -5304,7 +5336,7 @@ try {
             $engineSource.Contains('currentTurnActingAtDispatch = currentTurn.IsActing;') -and
             $engineSource.Contains('currentTurn.Status != TurnController.TurnStatus.Preparing') -and
             $engineSource.Contains('currentTurnActingAtOutcome = currentTurn != null && currentTurn.IsActing') -and
-            $controllerSource.Contains('turn.ForceToEnd(false);') -and
+            -not $controllerSource.Contains('turn.ForceToEnd(false);') -and
             $engineSource.Contains('step = CombatEngineStep.AwaitTurnBasedRealtimeRestore;') -and
             $engineSource.Contains('game.CurrentMode != GameModeType.Default') -and
             $engineSource.Contains('DescribeTurnBasedRestoreState()') -and
@@ -5508,11 +5540,14 @@ try {
         Assert-Test ($controlSource.Contains('target.Damage = observations.TargetDamageRequested;') -and
             $controlSource.Contains('relationship.Dismount(CleanupTrigger.Exception)') -and
             $controlSource.Contains('combat.Cancel("control cleanup repeat")')) 'target-death or repeated exception cleanup does not use the bounded production seam'
-        $targetInvalidationIndex = $commandSource.IndexOf('TryInterruptForTargetInvalidationBeforeChildAttack()', [StringComparison]::Ordinal)
-        $livePairIndex = $commandSource.IndexOf('RequireLiveExactPair();', $targetInvalidationIndex, [StringComparison]::Ordinal)
-        Assert-Test ($targetInvalidationIndex -ge 0 -and $livePairIndex -gt $targetInvalidationIndex -and
-            $commandSource.Contains('transaction.CancelTargetInvalidationBeforeChildAttack(attackTarget.UniqueId)') -and
-            $commandSource.Contains('transaction.ChildAttackStartCount != 0')) 'pre-child target invalidation does not cancel before generic exact-pair fault handling'
+        $livePairIndex = $commandSource.IndexOf('RequireLiveExactPair();', [StringComparison]::Ordinal)
+        $targetInvalidationIndex = $commandSource.IndexOf('TryEndExpectedTargetInvalidation()', $livePairIndex, [StringComparison]::Ordinal)
+        Assert-Test ($livePairIndex -ge 0 -and $targetInvalidationIndex -gt $livePairIndex -and
+            $commandSource.Contains('MountedTargetTerminationPolicy.Decide(') -and
+            $commandSource.Contains('transaction.Cancel("Expected target invalidation: " + reason)') -and
+            $commandSource.Contains('childAttack.IsActed && childAttack.LastAttackRule != null') -and
+            $commandSource.Contains('childAttack.Result == ResultType.Success') -and
+            $commandSource.Contains('Exact mounted pair invariant failed:')) 'expected target invalidation lost pair validation, native terminal authority, or cancellation'
         $acceptedTargetIndex = $controlSource.IndexOf('combat.HasActivePreChildCommandForTarget(target)', [StringComparison]::Ordinal)
         $cleanupMutationIndex = $controlSource.IndexOf('relationship.Dismount(CleanupTrigger.Exception)', [StringComparison]::Ordinal)
         $targetMutationIndex = $controlSource.IndexOf('target.Damage = observations.TargetDamageRequested;', [StringComparison]::Ordinal)
@@ -11145,7 +11180,10 @@ try {
             -not $relationshipSource.Contains('HandleUnexpectedPairCommand')) `
             'continuous mounted movement can still end the relationship as an unexpected command'
         Assert-Test ($combatSource.Contains('UnifiedMountedStockAttackPolicy.IsExactObservedPlayerRequest(') -and
-            $combatSource.Contains('rider.CombatState.ManualTarget = target;') -and
+            $combatSource.Contains('principal.CombatState.ManualTarget = target;') -and
+            $combatSource.Contains('UnifiedMountedStockAttackPolicy.AllowsOrdinaryInput(') -and
+            $combatSource.Contains('UnifiedMountedStockAttackPolicy.ContainsExactPrincipal(selection, principal)') -and
+            $combatSource.Contains('stockIntent.Owns(target, generation)') -and
             $combatSource.Contains('TryDriveStockAttackIntent();') -and
             $combatSource.Contains('ResolveRiderPrimaryAction()') -and
             $combatSource.Contains('!ranged || action != MountedCombatActionKind.MountPrimaryNatural')) `

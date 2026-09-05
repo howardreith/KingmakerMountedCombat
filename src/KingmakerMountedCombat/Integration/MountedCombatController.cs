@@ -5,6 +5,7 @@ using Kingmaker;
 using Kingmaker.Controllers.Clicks.Handlers;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.GameModes;
+using Kingmaker.PubSubSystem;
 using Kingmaker.UI.Selection;
 using Kingmaker.UnitLogic.Commands;
 using Kingmaker.UnitLogic.Commands.Base;
@@ -37,8 +38,10 @@ namespace KingmakerMountedCombat.Integration
         private MountedPairAttackCommand activeCommand;
         private MountedPairAttackCommand finishedCommandPendingSweep;
         private MountedPairAttackCommand stockIntentCommand;
-        private UnitEntityData stockIntentTarget;
-        private TurnController stockIntentTurn;
+        private readonly MountedAttackIntent<UnitEntityData, TurnController> stockIntent =
+            new MountedAttackIntent<UnitEntityData, TurnController>();
+        private UnitEntityData stockIntentTarget => stockIntent.Target;
+        private TurnController stockIntentTurn => stockIntent.Turn;
         private UnitEntityData observedStockRequestUnit;
         private UnitEntityData observedStockRequestTarget;
         private int observedStockRequestFrame = -1;
@@ -503,7 +506,10 @@ namespace KingmakerMountedCombat.Integration
         internal void ObserveStockAttackRequested(UnitEntityData unit, UnitEntityData target)
         {
             if (disposed || relationship.State != RelationshipState.Mounted ||
-                unit == null || target == null || unit != relationship.Rider)
+                unit == null || target == null ||
+                unit != relationship.Rider && !(unit == relationship.Mount &&
+                    CombatController.IsInTurnBasedCombat() &&
+                    Game.Instance?.TurnBasedCombatController?.CurrentTurn?.Unit == unit))
             {
                 return;
             }
@@ -653,7 +659,8 @@ namespace KingmakerMountedCombat.Integration
             bool allowApproach = true)
         {
             NativeSingleAttackWeaponSelection mountPrimary;
-            var context = CaptureContext(action, target, out mountPrimary);
+            var ordinaryIntent = inputSurface == "stock-hostile-click" && target == stockIntentTarget;
+            var context = CaptureContext(action, target, out mountPrimary, false, ordinaryIntent);
             var availability = MountedCombatActionEvaluator.Evaluate(context);
             if (!availability.IsAllowed)
             {
@@ -769,7 +776,9 @@ namespace KingmakerMountedCombat.Integration
                 ArmedAction = MountedCombatActionKind.None;
                 ClearProjectedNativeMountTurnGroundMove();
             }
-            else if (!IsPairInCombat() && (ArmedAction != MountedCombatActionKind.None || HasActiveCommand))
+            else if (stockIntent.ObserveCombatEnded(IsPairInCombat()) ||
+                !HasStockAttackIntent && !IsPairInCombat() &&
+                (ArmedAction != MountedCombatActionKind.None || HasActiveCommand))
             {
                 Cancel("combat ended");
             }
@@ -783,9 +792,8 @@ namespace KingmakerMountedCombat.Integration
             {
                 return;
             }
-            var endingExplicitMountAction = ArmedAction == MountedCombatActionKind.MountPrimaryNatural ||
-                activeCommand?.Action == MountedCombatActionKind.MountPrimaryNatural;
             ClearStockAttackIntent(reason, true);
+            ClearObservedStockRequest();
             ArmedAction = MountedCombatActionKind.None;
             ClearProjectedNativeMountTurnGroundMove();
             overlayWorldInputGuard.Clear();
@@ -805,15 +813,6 @@ namespace KingmakerMountedCombat.Integration
             CancelRiderTurnGroundMovement();
             SweepFinishedCommand();
             relationship.Runtime.CancelMountMovement();
-            if (endingExplicitMountAction && CombatController.IsInTurnBasedCombat() &&
-                !settings.EnableUnifiedMountedTurn)
-            {
-                var turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
-                if (turn != null && turn.Unit == relationship.Mount)
-                {
-                    turn.ForceToEnd(false);
-                }
-            }
             LastFeedback = "Mounted combat cancelled: " + (string.IsNullOrWhiteSpace(reason) ? "boundary" : reason) + ".";
         }
 
@@ -831,23 +830,33 @@ namespace KingmakerMountedCombat.Integration
                 return true;
             }
 
-            if (ownerIsMount)
+            var turnBased = CombatController.IsInTurnBasedCombat();
+            var turn = turnBased ? Game.Instance?.TurnBasedCombatController?.CurrentTurn : null;
+            var selection = SelectionManager.Instance?.SelectedUnits;
+            var principal = ownerIsMount ? mount : rider;
+            if (ownerIsMount && (!turnBased || turn?.Unit != mount))
             {
-                LastFeedback = "Mounted stock attack rejected on the hidden mount surface; select the rider principal.";
+                // The native party click visits each owner separately. Consume only this pair's
+                // redundant mount request; never touch another party member's command or selection.
+                if (!turnBased && selection != null && selection.Contains(rider))
+                {
+                    return false;
+                }
+                LastFeedback = "Select the rider to attack, or use the mount on its own turn.";
                 LastRejectionCodes = new[] { MountedCombatRejectionCode.WrongActorOrSelection };
                 LastStockAttackObservation = "rejected-hidden-mount-surface";
+                ShowStockFeedback();
                 return false;
             }
 
-            var selection = SelectionManager.Instance?.SelectedUnits;
-            var exactRiderSelected = selection != null && selection.Count == 1 && selection[0] == rider;
+            var exactRiderSelected = UnifiedMountedStockAttackPolicy.ContainsExactPrincipal(selection, principal);
             var target = stockAttack.Target;
             var exactObservedRequest = UnifiedMountedStockAttackPolicy.IsExactObservedPlayerRequest(
                 true,
-                ownerIsRider,
+                ownerIsRider || ownerIsMount && turnBased && turn?.Unit == mount,
                 exactRiderSelected,
                 exactStockAttack,
-                observedStockRequestUnit == rider,
+                observedStockRequestUnit == principal,
                 observedStockRequestTarget == target,
                 Time.frameCount,
                 observedStockRequestFrame);
@@ -857,29 +866,30 @@ namespace KingmakerMountedCombat.Integration
                 LastFeedback = "Mounted stock attack rejected: no exact current native hostile-click request was observed.";
                 LastRejectionCodes = new[] { MountedCombatRejectionCode.CommandAdmissionFailure };
                 LastStockAttackObservation = "rejected-unobserved-command";
+                // AI/auto-use commands carry no native pointer provenance: do not spam the player.
                 return false;
             }
 
-            if (!settings.EnableUnifiedMountedTurn)
+            if (!UnifiedMountedStockAttackPolicy.AllowsOrdinaryInput(
+                turnBased, settings.EnableUnifiedMountedTurn, turn?.Unit == principal))
             {
-                LastFeedback = "Mounted stock attack requires the Phase 3D unified-turn controller; use explicit primaries in separate-turn fallback mode.";
+                LastFeedback = "Mounted attacks use separate turns. Select the actor whose turn is active.";
                 LastRejectionCodes = new[] { MountedCombatRejectionCode.WrongTurn };
                 LastStockAttackObservation = "rejected-separate-turn-fallback";
+                ShowStockFeedback();
                 return false;
             }
 
             Cancel("new stock hostile attack");
-            stockIntentTarget = target;
-            stockIntentTurn = CombatController.IsInTurnBasedCombat()
-                ? Game.Instance?.TurnBasedCombatController?.CurrentTurn
-                : null;
+            stockIntent.Begin(target, turn, ownerIsMount, IsPairInCombat());
             StockAttackIntentStartCount++;
-            rider.CombatState.ManualTarget = target;
+            principal.CombatState.ManualTarget = target;
             LastRejectionCodes = new MountedCombatRejectionCode[0];
             LastFeedback = "Mounted stock attack intent accepted: rider principal, " +
                 MountDisplayName + " movement authority.";
             LastStockAttackObservation = "intent-start;target=" + target.UniqueId +
                 ";ranged=" + (ResolveRiderPrimaryAction() == MountedCombatActionKind.RiderRanged) +
+                ";createdByPlayer=" + stockAttack.CreatedByPlayer + ";principal=" + principal.UniqueId +
                 ";turnBased=" + CombatController.IsInTurnBasedCombat();
             TryDriveStockAttackIntent();
             return false;
@@ -899,11 +909,12 @@ namespace KingmakerMountedCombat.Integration
                 var currentTurn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
                 if (stockIntentTurn == null || currentTurn != stockIntentTurn)
                 {
-                    ClearStockAttackIntent("shared turn ended", false);
+                    Cancel("native actor turn ended");
                     LastStockAttackObservation = "tb-intent-complete-turn-boundary";
                     return;
                 }
-                if (currentTurn.Unit != relationship.Rider ||
+                var expectedActor = stockIntent.MountActor ? relationship.Mount : relationship.Rider;
+                if (currentTurn.Unit != expectedActor ||
                     currentTurn.Status != TurnController.TurnStatus.Preparing && !currentTurn.IsActing)
                 {
                     return;
@@ -913,14 +924,27 @@ namespace KingmakerMountedCombat.Integration
             var rider = relationship.Rider;
             var mount = relationship.Mount;
             var targetState = target.Descriptor?.State;
+            var principal = stockIntent.MountActor ? mount : rider;
             var targetValid = UnifiedMountedStockAttackPolicy.IsValidTarget(
                 target != null,
                 target != null && target.IsInState,
                 targetState != null && targetState.IsConscious && !targetState.IsFinallyDead,
-                rider != null && rider.IsEnemy(target),
-                rider != null && rider.CanAttack(target));
+                principal != null && principal.IsEnemy(target),
+                principal != null && principal.CanAttack(target));
+            if (!targetValid && HasActiveCommand && ReferenceEquals(activeCommand, stockIntentCommand))
+            {
+                // Retire repetition now; the owned child's actual terminal lifecycle decides
+                // success versus expected invalidation. Released projectiles and native AoOs survive.
+                ClearStockAttackIntent("target invalidation; native child owns terminal outcome", true);
+                return;
+            }
+            // A paused click records intent without dispatching, spending or changing selection.
+            if (Game.Instance == null || Game.Instance.IsPaused)
+            {
+                return;
+            }
             var riderAction = ResolveRiderPrimaryAction();
-            var ranged = riderAction == MountedCombatActionKind.RiderRanged;
+            var ranged = !stockIntent.MountActor && riderAction == MountedCombatActionKind.RiderRanged;
             var decision = UnifiedMountedStockAttackPolicy.DecideNext(
                 relationship.State == RelationshipState.Mounted && rider != null && mount != null,
                 targetValid,
@@ -929,7 +953,9 @@ namespace KingmakerMountedCombat.Integration
                 rider != null && rider.HasStandardAction(),
                 mount != null && mount.HasStandardAction(),
                 ranged,
-                IsMountAlreadyInPrimaryRange(target));
+                IsMountAlreadyInPrimaryRange(target),
+                !turnBased || !stockIntent.MountActor,
+                !turnBased || stockIntent.MountActor || settings.EnableUnifiedMountedTurn);
 
             if (decision == MountedStockAttackDecision.Wait)
             {
@@ -943,7 +969,7 @@ namespace KingmakerMountedCombat.Integration
             }
             if (decision == MountedStockAttackDecision.CompleteTurnBasedIntent)
             {
-                ClearStockAttackIntent("shared turn resources exhausted", false);
+                ClearStockAttackIntent("native actor resources exhausted", false);
                 LastStockAttackObservation = "tb-intent-complete-resources";
                 return;
             }
@@ -958,6 +984,7 @@ namespace KingmakerMountedCombat.Integration
             var action = decision == MountedStockAttackDecision.DispatchRider
                 ? riderAction
                 : MountedCombatActionKind.MountPrimaryNatural;
+            var generation = stockIntent.Generation;
             var result = TryExecuteAction(
                 action,
                 target,
@@ -968,6 +995,12 @@ namespace KingmakerMountedCombat.Integration
             {
                 ClearStockAttackIntent("stock dispatch rejected", true);
                 LastStockAttackObservation = "intent-cancel-dispatch-rejected;action=" + action;
+                ShowStockFeedback();
+                return;
+            }
+            if (!stockIntent.Owns(target, generation))
+            {
+                Cancel("stock intent replaced during native admission");
                 return;
             }
 
@@ -1021,8 +1054,7 @@ namespace KingmakerMountedCombat.Integration
             {
                 relationship.Mount.CombatState.ManualTarget = null;
             }
-            stockIntentTarget = null;
-            stockIntentTurn = null;
+            stockIntent.Cancel();
             stockIntentCommand = null;
             if (target != null)
             {
@@ -1037,6 +1069,22 @@ namespace KingmakerMountedCombat.Integration
             observedStockRequestUnit = null;
             observedStockRequestTarget = null;
             observedStockRequestFrame = -1;
+        }
+
+        private void ShowStockFeedback()
+        {
+            var message = LastFeedback;
+            EventBus.RaiseEvent<IWarningNotificationUIHandler>(handler => handler.HandleWarning(message, true));
+        }
+
+        internal void CancelSelectedInput(string reason)
+        {
+            var selected = SelectionManager.Instance?.SelectedUnits;
+            if (UnifiedMountedStockAttackPolicy.ContainsExactPrincipal(selected, relationship.Rider) ||
+                UnifiedMountedStockAttackPolicy.ContainsExactPrincipal(selected, relationship.Mount))
+            {
+                Cancel(reason);
+            }
         }
 
         public bool ShouldSuppressStockOpportunityAttack(
@@ -1182,7 +1230,7 @@ namespace KingmakerMountedCombat.Integration
             LastGroundMoveExecutorId = command.Executor?.UniqueId;
             LastGroundMoveUsedRiderTurnAdapter = false;
             LastGroundMoveSlotRestored = false;
-            LastFeedback = "Mounted ground movement active: " + MountDisplayName + " pathfinding, rider Move accounting.";
+            LastFeedback = "Mounted ground movement active: " + MountDisplayName + " movement ledger; separate-turn costs remain unqualified.";
             logger.Info("Mounted ground movement accepted: riderId=" + relationship.Rider.UniqueId +
                 "; executorId=" + LastGroundMoveExecutorId +
                 "; turnStatus=" + (Game.Instance?.TurnBasedCombatController?.CurrentTurn?.Status.ToString() ?? "<none>") +
@@ -1299,7 +1347,8 @@ namespace KingmakerMountedCombat.Integration
             MountedCombatActionKind action,
             UnitEntityData target,
             out NativeSingleAttackWeaponSelection mountPrimary,
-            bool assumeTargetAvailable = false)
+            bool assumeTargetAvailable = false,
+            bool ordinaryIntent = false)
         {
             var rider = relationship.Rider;
             var mount = relationship.Mount;
@@ -1331,7 +1380,7 @@ namespace KingmakerMountedCombat.Integration
                 ExactMountedPair = relationship.State == RelationshipState.Mounted &&
                     rider != null && mount != null && rider.Descriptor?.Pet == mount &&
                     mount.Descriptor?.Master.Value == rider,
-                ExactRiderSelection = MountedTurnSelectionPolicy.IsExpectedActionSelection(
+                ExactRiderSelection = ordinaryIntent || MountedTurnSelectionPolicy.IsExpectedActionSelection(
                     turnBasedCombat,
                     action == MountedCombatActionKind.MountPrimaryNatural,
                     settings.EnableUnifiedMountedTurn,
@@ -1345,6 +1394,7 @@ namespace KingmakerMountedCombat.Integration
                 SupportedRiderBodyProfile = rider != null && rider.GetActivePolymorph() == null &&
                     relationship.Runtime.PoseHealthy && relationship.IsExactCapturedView(rider),
                 InCombat = IsPairInCombat(),
+                NativeHostileInitiation = ordinaryIntent && !turnBasedCombat,
                 RiderAliveAndConscious = riderState != null && riderState.IsConscious && !riderState.IsFinallyDead,
                 MountAliveAndConscious = mountState != null && mountState.IsConscious && !mountState.IsFinallyDead,
                 TargetExists = targetValid,
@@ -1368,7 +1418,8 @@ namespace KingmakerMountedCombat.Integration
                         mountPrimary.AdditionalLimbIndex,
                         mountPrimary.Weapon.Blueprint.IsNatural,
                         mountPrimary.Weapon.Blueprint.IsRanged),
-                TransactionIdle = !HasActiveCommand && !HasActiveGroundMovement && !riderTurnGroundMoveAdmissionPending,
+                TransactionIdle = (!HasActiveCommand || HasStockAttackIntent && ReferenceEquals(activeCommand, stockIntentCommand)) &&
+                    !HasActiveGroundMovement && !riderTurnGroundMoveAdmissionPending,
                 LoadingOrLifecycleBoundary = Game.Instance == null ||
                     !MountedGameModePolicy.CanAdmitMountedAction(Game.Instance.CurrentMode.ToString()),
                 PathKnownUnavailable = false,
@@ -1428,16 +1479,6 @@ namespace KingmakerMountedCombat.Integration
                 ClearStockAttackIntent("stock command terminal " + outcome.Result, true);
                 LastStockAttackObservation = "intent-cancel-terminal;action=" + command.Action +
                     ";result=" + outcome.Result;
-            }
-            if (command.Action == MountedCombatActionKind.MountPrimaryNatural &&
-                CombatController.IsInTurnBasedCombat() &&
-                !settings.EnableUnifiedMountedTurn)
-            {
-                var turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
-                if (turn != null && turn.Unit == command.ActionActor)
-                {
-                    turn.ForceToEnd(false);
-                }
             }
         }
 

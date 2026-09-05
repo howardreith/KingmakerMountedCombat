@@ -52,6 +52,11 @@ namespace KingmakerMountedCombat.Integration
         public MountedRiderPoseProfile RiderPoseProfile { get; }
 
         public bool UsesDiagnosticMammothOffsets { get; }
+
+        // Horse-only visual correction from the human-reviewed forward seat. Never a mechanics offset.
+        // Angular inheritance is deliberately zero: the Chest rest basis is not a rider orientation.
+        public PoseVector3 AnimatedSeatCorrection => UsesDiagnosticMammothOffsets
+            ? new PoseVector3(0f, 0f, 0f) : new PoseVector3(0f, 0f, -0.18f);
     }
 
     internal static class SupportedMountedProfiles

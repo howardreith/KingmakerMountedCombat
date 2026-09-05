@@ -3480,7 +3480,10 @@ function Enter-KmcModsTransaction {
     $kmcCollisions = @(Get-ChildItem -LiteralPath $fullLive -Force | Where-Object {
         [string]::Equals($_.Name, 'KingmakerMountedCombat', [StringComparison]::OrdinalIgnoreCase)
     })
-    if ($kmcCollisions.Count -ne 0) { throw 'Live Mods already contains a case-insensitive KingmakerMountedCombat entry; overlay identity is ambiguous.' }
+    if ($kmcCollisions.Count -gt 1) { throw 'Live Mods contains ambiguous case-insensitive KMC entries.' }
+    if ($kmcCollisions.Count -eq 1) {
+        [void](Assert-KmcPhase3fStartingInstallation -KmcRoot $kmcCollisions[0].FullName)
+    }
     $before = Get-KmcDirectoryManifest $fullLive
     $statePath = Get-KmcTransactionStatePath $StateRoot $runId
     if (Test-Path -LiteralPath $statePath) { throw "Run ID already has transaction state: $runId" }
@@ -3519,7 +3522,13 @@ function Enter-KmcModsTransaction {
     Assert-KmcDirectoryTreeCloneable $fullLive 'live Mods tree after cloning'
     Assert-KmcDirectoryManifestsEqual $before (Get-KmcDirectoryManifest $fullLive) 'Live Mods source after cloning'
     $stagedKmcRoot = Join-Path $ready 'KingmakerMountedCombat'
-    if (Test-Path -LiteralPath $stagedKmcRoot) { throw 'Pre-overlay clone unexpectedly contains a KingmakerMountedCombat collision.' }
+    if (Test-Path -LiteralPath $stagedKmcRoot) {
+        [void](Assert-KmcChildPath $stagedKmcRoot $stagingRun 'staged KMC replacement')
+        [void](Assert-KmcPhase3fStartingInstallation -KmcRoot $stagedKmcRoot)
+        # Only the verified staging clone is replaced. The original live tree
+        # is moved intact into its transactional backup and restored in finally.
+        Remove-Item -LiteralPath $stagedKmcRoot -Recurse -Force
+    }
     Move-Item -LiteralPath $expectedRoot -Destination $stagedKmcRoot
     $sentinel = [ordered]@{ schemaVersion=1; runId=$runId; token=[string]$Lock.Token; packageSha256=$packageHash }
     Write-KmcJsonAtomic (Join-Path $ready '.kmc-runtime-sentinel.json') $sentinel

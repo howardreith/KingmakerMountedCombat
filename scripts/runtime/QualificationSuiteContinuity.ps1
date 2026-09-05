@@ -1,5 +1,28 @@
 Set-StrictMode -Version Latest
 
+function Assert-KmcPhase3fStartingInstallation {
+    param([Parameter(Mandatory=$true)][string]$KmcRoot)
+    # Narrow standing-installation exception authorized by Phase 3F. The full
+    # suite inventory additionally pins names, bytes and timestamps for restoration.
+    $root = Get-Item -LiteralPath $KmcRoot -Force
+    if (-not $root.PSIsContainer -or $root.Name -cne 'KingmakerMountedCombat') { throw 'Existing KMC installation has ambiguous casing or type.' }
+    Assert-KmcDirectoryTreeCloneable $KmcRoot 'Phase 3F starting KMC installation'
+    $pins = @{
+        'Info.json'='f137e69d163967c4d5f36e3610be4b9270ac160923b029cc131d56cb32d24018'
+        'KingmakerMountedCombat.dll'='5bcc3bc61bb1677ea81037fdc5a8ebd740ff4d0753d5255e37fcc789e6407f2f'
+        'KingmakerMountedCombat.dll.65229.cache'='5bcc3bc61bb1677ea81037fdc5a8ebd740ff4d0753d5255e37fcc789e6407f2f'
+    }
+    $entries = @(Get-ChildItem -LiteralPath $KmcRoot -Force -Recurse)
+    if ($entries.Count -ne $pins.Count) { throw 'Existing KMC tree differs from the exact Phase 3F starting payload.' }
+    foreach ($entry in $entries) {
+        if ($entry.PSIsContainer -or $entry.Name -cnotin @($pins.Keys) -or
+            (Get-KmcSha256 $entry.FullName) -cne [string]$pins[$entry.Name]) {
+            throw 'Existing KMC bytes differ from the exact Phase 3F fallback/cache pins.'
+        }
+    }
+    return $true
+}
+
 function Assert-KmcQualificationAdmissionQuiescent {
     param(
         [Parameter(Mandatory = $true)][string]$StateRoot,
@@ -14,7 +37,9 @@ function Assert-KmcQualificationAdmissionQuiescent {
     $fullState=[IO.Path]::GetFullPath($StateRoot).TrimEnd('\')
     if (Test-Path -LiteralPath (Join-Path $fullState 'active-transaction.lock')) { throw 'Qualification admission found an active or stale runtime lock.' }
     if (Test-Path -LiteralPath (Join-Path $ModsRoot '.kmc-runtime-sentinel.json')) { throw 'Qualification admission found a live KMC sentinel.' }
-    if (Test-Path -LiteralPath (Join-Path $ModsRoot 'KingmakerMountedCombat')) { throw 'Qualification admission found a live KMC deployment.' }
+    if (Test-Path -LiteralPath (Join-Path $ModsRoot 'KingmakerMountedCombat')) {
+        [void](Assert-KmcPhase3fStartingInstallation -KmcRoot (Join-Path $ModsRoot 'KingmakerMountedCombat'))
+    }
     foreach ($folder in @('run-transactions','transactions','save-transactions','fixture-recoveries')) {
         $root=Join-Path $fullState $folder
         if (-not (Test-Path -LiteralPath $root -PathType Container)) { continue }

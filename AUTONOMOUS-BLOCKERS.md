@@ -1,5 +1,15 @@
 # Autonomous blockers
 
+## Phase 3F current blockers — 2026-09-05
+
+Status: IN PROGRESS. Ordinary RT admission, actor-local TB input, Horse animated visual projection and control art are being repaired on `codex/mounted-combat-phase3f-playable-core`. Historical fallback claims of ordinary RT/native presentation qualification do not transfer to fallback.1 or this build.
+
+- TB resource reconciliation remains a blocker: native Prepare clears mount debit; projection consults rider Standard/restriction state and leaves rider TimeMoved/step/auto-stop side effects. Both native turn orders/two rounds and laundering boundaries need runtime proof. No arbitrary rider movement tax or wider turn-controller implementation is authorized here.
+- Approved Computer Use returns native pipe unavailable (os error 2), twice. Pointer and visual gameplay acceptance remain NOT RUN / HUMAN VALIDATION PENDING; method calls may provide integration evidence only.
+- Handoff ZIP and screenshots were not found in the lab. The human log is available and hash-exact. Final package, release gate, runtime and source identity are pending.
+
+No external integrity failure is known. Installed fallback and its UMM cache remain untouched; live transaction count 0/8. Exact resume command is recorded in AUTONOMOUS-RESUME.md.
+
 ## Phase 3E fallback package is complete — 2026-09-05T07:00:29-04:00
 
 Status: `PAIRED SCHEDULER PIVOT — SEPARATE-TURN FALLBACK READY`.

@@ -19,10 +19,20 @@ namespace KingmakerMountedCombat.Integration
         private bool configured;
         private bool baselineCaptured;
         private long totalApplyTicks;
+        private readonly AnimatedSaddlePosition animatedSaddle = new AnimatedSaddlePosition();
+        private Transform saddleMountRoot;
+        private Transform saddleSource;
+        private bool animatedSaddleRequired;
 
         public bool IsConfigured => configured;
 
-        public bool IsHealthy => configured && string.IsNullOrEmpty(LastFailure) && baselineLease != null && baselineLease.IsAcquired;
+        public bool IsHealthy => configured && string.IsNullOrEmpty(LastFailure) && baselineLease != null && baselineLease.IsAcquired &&
+            (!animatedSaddleRequired || animatedSaddle.IsAcquired && saddleMountRoot != null && saddleSource != null &&
+                saddleSource.IsChildOf(saddleMountRoot));
+
+        public long AnimatedSaddleSampleCount { get; private set; }
+        public double MaximumAnimatedSeatError { get; private set; }
+        public Vector3 LastAnimatedSeatPosition { get; private set; }
 
         public bool HasPoseResidue => baselineLease != null && (baselineLease.IsAcquired || baselineLease.IsFrameActive);
 
@@ -119,6 +129,26 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
+        public void ConfigureAnimatedSaddle(Transform exactMountRoot, Transform exactSource, Vector3 anatomicalCorrection)
+        {
+            if (!configured || exactMountRoot == null || exactSource == null ||
+                !exactSource.IsChildOf(exactMountRoot))
+            {
+                throw new InvalidOperationException("Horse saddle requires the exact live mount rig.");
+            }
+            saddleMountRoot = exactMountRoot;
+            saddleSource = exactSource;
+            baselineLease.PrimeFrame(() =>
+            {
+                ApplyPose();
+                animatedSaddle.Acquire(
+                    ToPose(saddleMountRoot.InverseTransformPoint(saddleSource.position)),
+                    ToPose(saddleMountRoot.InverseTransformPoint(pelvis.position)),
+                    ToPose(anatomicalCorrection));
+            });
+            animatedSaddleRequired = true;
+        }
+
         internal static bool TryValidateSupportedSurface(
             UnitEntityView exactRiderView,
             MountedRiderPoseProfile exactProfile,
@@ -141,6 +171,10 @@ namespace KingmakerMountedCombat.Integration
             configured = false;
             enabled = false;
             baselineLease?.Restore();
+            animatedSaddle.Release();
+            animatedSaddleRequired = false;
+            saddleMountRoot = null;
+            saddleSource = null;
             riderView = null;
             profile = null;
             pelvis = null;
@@ -196,6 +230,20 @@ namespace KingmakerMountedCombat.Integration
             var pelvisRotation = pelvis.localRotation;
             pelvis.localPosition = pelvisPosition + ToUnity(profile.PelvisPositionOffset);
             pelvis.localRotation = pelvisRotation * Quaternion.Euler(ToUnity(profile.PelvisEulerOffset));
+
+            if (animatedSaddleRequired)
+            {
+                // This executes after native animation and the mechanics-only RiderMovementAgent.
+                // Project position through the root basis; never inherit the Chest rest quaternion.
+                // The seven-bone frame lease restores this visual-only pelvis write before animation.
+                if (!IsHealthy) { throw new InvalidOperationException("Owned Horse saddle frame changed."); }
+                var localSeat = animatedSaddle.Project(ToPose(saddleMountRoot.InverseTransformPoint(saddleSource.position)));
+                LastAnimatedSeatPosition = saddleMountRoot.TransformPoint(ToUnity(localSeat));
+                pelvis.position = LastAnimatedSeatPosition;
+                MaximumAnimatedSeatError = Math.Max(MaximumAnimatedSeatError,
+                    Vector3.Distance(pelvis.position, LastAnimatedSeatPosition));
+                AnimatedSaddleSampleCount++;
+            }
 
             ApplyLeg(leftLeg, profile.LeftLeg);
             ApplyLeg(rightLeg, profile.RightLeg);

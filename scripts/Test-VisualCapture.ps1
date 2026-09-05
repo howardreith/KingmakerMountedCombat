@@ -160,6 +160,14 @@ Assert-VisualCapture ([regex]::Matches($coordinator, 'Screenshot\.CapturePNG\(')
     $captureValidationIndex -ge 0 -and $captureValidationIndex -lt $captureIndex -and
     $captureRestorationIndex -gt $captureIndex) 'single screenshot call resolves and guards the gameplay camera and is bracketed by overlay validation and exact-state restoration'
 
+Assert-VisualCapture ($poseAdapter.Contains('private readonly AnimatedSaddlePosition animatedSaddle') -and
+    $poseAdapter.Contains('saddleSource.IsChildOf(saddleMountRoot)') -and
+    $poseAdapter.Contains('saddleMountRoot.InverseTransformPoint(saddleSource.position)') -and
+    $poseAdapter.Contains('pelvis.position = LastAnimatedSeatPosition;') -and
+    $poseAdapter.Contains('animatedSaddle.Release();') -and
+    -not $poseAdapter.Contains('EntityData.Position =') -and
+    -not $poseAdapter.Contains('saddleSource.rotation')) 'Horse animated seating leases visual pelvis position with exact source health and no mechanics or bone-quaternion inheritance'
+
 Write-Host "TOTAL PASS=$passes FAIL=$($failures.Count)"
 if ($failures.Count -ne 0) {
     exit 1

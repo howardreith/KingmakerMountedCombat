@@ -333,6 +333,7 @@ namespace KingmakerMountedCombat.Integration
             try
             {
                 RequireLiveExactPair();
+                if (TryEndExpectedTargetInvalidation()) { return; }
                 CreateAndValidateChildAttack();
                 riderPositionAtCommandStart = rider.Position;
                 mountPositionAtCommandStart = mount.Position;
@@ -374,11 +375,11 @@ namespace KingmakerMountedCombat.Integration
         {
             try
             {
-                if (TryInterruptForTargetInvalidationBeforeChildAttack())
+                RequireLiveExactPair();
+                if (TryEndExpectedTargetInvalidation())
                 {
                     return;
                 }
-                RequireLiveExactPair();
                 if (TimeSinceStart > MaximumElapsedSeconds)
                 {
                     throw new InvalidOperationException("Mounted pair command exceeded its bounded execution time.");
@@ -404,7 +405,11 @@ namespace KingmakerMountedCombat.Integration
                     childAttack.IsRunning &&
                     IsActed)
                 {
-                    childAttack.TurnToTarget();
+                    if (attackTarget.IsInState && attackTarget.Descriptor.State.IsConscious &&
+                        !attackTarget.Descriptor.State.IsFinallyDead)
+                    {
+                        childAttack.TurnToTarget();
+                    }
                     childAttack.Tick();
                 }
 
@@ -439,29 +444,28 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
-        private bool TryInterruptForTargetInvalidationBeforeChildAttack()
+        private bool TryEndExpectedTargetInvalidation()
         {
-            if (transaction.ChildAttackStartCount != 0 || attackTarget == null)
+            var targetState = attackTarget?.Descriptor?.State;
+            var inState = attackTarget != null && attackTarget.IsInState;
+            var hostile = inState && actionActor.IsEnemy(attackTarget);
+            var targetValid = inState && targetState != null && targetState.IsConscious &&
+                !targetState.IsFinallyDead && hostile && actionActor.CanAttack(attackTarget);
+            var decision = MountedTargetTerminationPolicy.Decide(
+                targetValid, inState, hostile,
+                childAttack != null && childAttack.IsActed && childAttack.LastAttackRule != null,
+                childAttack != null && childAttack.IsFinished);
+            if (decision != MountedTargetTerminationDecision.CancelExpectedInvalidation)
             {
+                // A terminal native child is evaluated below using its actual Result.
+                // A released shot/strike may finish its native animation after target death.
                 return false;
             }
-
-            var targetState = attackTarget.Descriptor?.State;
-            var targetInvalid = !attackTarget.IsInState || targetState == null ||
-                !targetState.IsConscious || targetState.IsFinallyDead ||
-                actionActor != null &&
-                    (!actionActor.IsEnemy(attackTarget) || !actionActor.CanAttack(attackTarget));
-            if (!targetInvalid)
-            {
-                return false;
-            }
-
-            if (!transaction.CancelTargetInvalidationBeforeChildAttack(attackTarget.UniqueId))
-            {
-                throw new InvalidOperationException(
-                    "Mounted pair transaction rejected exact pre-child target invalidation.");
-            }
-
+            var reason = !inState ? "target despawned" : !hostile ? "target hostility changed" :
+                targetState == null ? "target state unavailable" :
+                targetState.IsFinallyDead ? "target died" : !targetState.IsConscious ?
+                "target became unconscious" : "target no longer attackable";
+            transaction.Cancel("Expected target invalidation: " + reason);
             Interrupt();
             return true;
         }
@@ -740,29 +744,26 @@ namespace KingmakerMountedCombat.Integration
         {
             var riderState = rider?.Descriptor?.State;
             var mountState = mount?.Descriptor?.State;
-            var targetState = attackTarget?.Descriptor?.State;
             var liveness = new MountedPairLivenessSnapshot(
                 relationship.State == RelationshipState.Mounted,
                 relationship.Rider == rider,
                 relationship.Mount == mount,
                 Executor == actionActor,
-                attackTarget != null && attackTarget.IsInState,
+                true, // Target lifecycle is evaluated separately by TryEndExpectedTargetInvalidation.
                 rider != null && rider.IsInState,
                 mount != null && mount.IsInState,
                 riderState != null && riderState.IsConscious,
                 mountState != null && mountState.IsConscious,
-                MountedPairLivenessSnapshot.IsTargetConsciousnessAdmissible(
-                    targetState != null && targetState.IsConscious,
-                    transaction.ChildAttackStartCount),
+                true,
                 riderState != null && !riderState.IsFinallyDead,
                 mountState != null && !mountState.IsFinallyDead,
-                targetState != null && !targetState.IsFinallyDead,
-                actionActor != null && attackTarget != null && actionActor.IsEnemy(attackTarget),
-                actionActor != null && attackTarget != null && actionActor.CanAttack(attackTarget));
+                true,
+                true,
+                true);
             if (!liveness.AllPassed)
             {
                 throw new InvalidOperationException(
-                    "Exact mounted pair or target became invalid: " + liveness.FailureSummary + ".");
+                    "Exact mounted pair invariant failed: " + liveness.FailureSummary + ".");
             }
         }
 

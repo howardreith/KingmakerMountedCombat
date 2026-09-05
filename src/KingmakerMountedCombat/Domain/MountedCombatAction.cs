@@ -178,6 +178,10 @@ namespace KingmakerMountedCombat.Domain
 
         public bool InCombat { get; set; }
 
+        // Exact ordinary hostile input may initiate combat through native command/rule flow.
+        // This never writes combat flags or admits an explicit/diagnostic action out of combat.
+        public bool NativeHostileInitiation { get; set; }
+
         public bool RiderAliveAndConscious { get; set; }
 
         public bool MountAliveAndConscious { get; set; }
@@ -356,7 +360,7 @@ namespace KingmakerMountedCombat.Domain
                 reasons.Add("Combat requires the exact active Medium-humanoid/" + mountName + " profile.");
                 codes.Add(MountedCombatRejectionCode.BodyProfileUnsupported);
             }
-            if (!context.InCombat)
+            if (!context.InCombat && !context.NativeHostileInitiation)
             {
                 reasons.Add("Mounted attacks are available only in combat.");
                 codes.Add(MountedCombatRejectionCode.NotInCombat);
