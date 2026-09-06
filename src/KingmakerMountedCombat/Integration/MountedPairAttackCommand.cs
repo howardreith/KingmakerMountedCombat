@@ -169,6 +169,7 @@ namespace KingmakerMountedCombat.Integration
         private readonly MountedCombatTransaction transaction = new MountedCombatTransaction();
         private MountedPairSingleAttack childAttack;
         private UnitMoveTo delegatedMove;
+        private bool admittingDelegatedMove;
         private Vector3 targetSnapshot;
         private string retainedAttackWeaponBlueprintId;
         private bool retainedAttackWeaponIsNatural;
@@ -267,6 +268,16 @@ namespace KingmakerMountedCombat.Integration
         internal UnitEntityData Mount => mount;
 
         internal UnitEntityData ActionActor => actionActor;
+
+        public override bool CanMoveAfterStart => transaction.State == MountedCombatTransactionState.Approaching;
+
+        internal bool PreservesApproachParent(UnitCommands commands, CommandType type, bool interruptPaired)
+        {
+            return admittingDelegatedMove && !interruptPaired && type == CommandType.Standard &&
+                actionActor == mount && commands == mount.Commands && commands.Standard == this &&
+                IsStarted && !IsFinished && transaction.State == MountedCombatTransactionState.Approaching &&
+                delegatedMove != null && !delegatedMove.IsFinished && commands.Queue.Count == 0;
+        }
 
         internal MountedCombatActionKind Action => action;
 
@@ -540,7 +551,8 @@ namespace KingmakerMountedCombat.Integration
                 BeginDelegatedMove();
             }
 
-            if (TurnBased.Controllers.CombatController.IsInTurnBasedCombat())
+            if (TurnBased.Controllers.CombatController.IsInTurnBasedCombat() &&
+                Kingmaker.Game.Instance?.TurnBasedCombatController?.CurrentTurn?.Unit == rider)
             {
                 DriveDelegatedMoveOnRiderTurn();
             }
@@ -592,9 +604,13 @@ namespace KingmakerMountedCombat.Integration
             {
                 throw new InvalidOperationException("Mounted pair attack radius is unavailable.");
             }
-            if (mount.Commands == null || !mount.Commands.Empty || mount.Commands.Queue.Count != 0)
+            if (!MountedCombatSpatialPolicy.CanAdmitDelegatedMove(mount.Commands?.Raw,
+                (int)CommandType.Standard, (int)CommandType.Move, this, actionActor == mount,
+                IsStarted && !IsFinished && transaction.State == MountedCombatTransactionState.Approaching,
+                mount.Commands != null && mount.Commands.Queue.Count == 0,
+                mount.Commands?.GroupCommand == null, mount.Commands?.PreviousCommand == null))
             {
-                throw new InvalidOperationException("Mammoth command container was not empty before exact delegated movement ownership.");
+                throw new InvalidOperationException("Mount approach conflicts with an existing command or queue.");
             }
             delegatedMoveApproachRadius = childAttack.DelegatedMoveApproachRadius;
             delegatedMove = new UnitMoveTo(targetSnapshot, delegatedMoveApproachRadius)
@@ -605,9 +621,17 @@ namespace KingmakerMountedCombat.Integration
             };
             delegatedMoveStartCount++;
             delegatedMoveDrivenByStockController =
-                !TurnBased.Controllers.CombatController.IsInTurnBasedCombat();
+                !TurnBased.Controllers.CombatController.IsInTurnBasedCombat() ||
+                Kingmaker.Game.Instance?.TurnBasedCombatController?.CurrentTurn?.Unit == mount;
             mountMoveSlotRestoredAfterApproach = false;
-            mount.Commands.Run(delegatedMove);
+            // Native Run pairs Move/Standard for interruption. During this one exact
+            // admission, preserve this live approach owner while all other native
+            // admission, targeting and command callbacks continue unchanged.
+            admittingDelegatedMove = true;
+            try { mount.Commands.Run(delegatedMove); }
+            finally { admittingDelegatedMove = false; }
+            if (IsFinished || actionActor.Commands.Standard != this)
+                throw new InvalidOperationException("Attack owner was replaced during approach admission.");
             delegatedMoveExecutorId = delegatedMove.Executor?.UniqueId;
             delegatedMoveExecutorIsExactMount &= delegatedMove.Executor == mount;
             var rawMoveSlot = mount.Commands.GetCommand(UnitCommand.CommandType.Move);

@@ -29,6 +29,21 @@ namespace KingmakerMountedCombat.Domain
         // attack range. The native child attack remains the sole LoS authority.
         public const bool DelegatedPointMoveRequiresLineOfSight = false;
 
+        public static bool CanAdmitDelegatedMove<T>(T[] slots, int standardSlot, int moveSlot,
+            T parent, bool mountOwnsParent, bool parentIsLive, bool queueEmpty,
+            bool groupEmpty, bool previousEmpty) where T : class
+        {
+            if (slots == null || parent == null || !parentIsLive || !queueEmpty || !groupEmpty ||
+                !previousEmpty || standardSlot < 0 || moveSlot < 0 || standardSlot >= slots.Length ||
+                moveSlot >= slots.Length || standardSlot == moveSlot || slots[moveSlot] != null)
+                return false;
+            if (mountOwnsParent && !ReferenceEquals(slots[standardSlot], parent)) return false;
+            for (var index = 0; index < slots.Length; index++)
+                if (slots[index] != null && !(mountOwnsParent && index == standardSlot &&
+                    ReferenceEquals(slots[index], parent))) return false;
+            return true;
+        }
+
         public static float CalculateStoppingRadius(
             float mammothCorpulence,
             float targetCorpulence,

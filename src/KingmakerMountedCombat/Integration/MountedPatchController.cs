@@ -54,6 +54,8 @@ namespace KingmakerMountedCombat.Integration
 
                 PatchExact(typeof(ClickGroundHandler), "RunCommand", 0x060093DC, new[] { typeof(UnitEntityData), typeof(UnityEngine.Vector3), typeof(float?), typeof(float), typeof(float), typeof(bool) }, nameof(PatchMethods.GroundCommandPrefix), nameof(PatchMethods.GroundCommandPostfix));
                 PatchExact(typeof(UnitCommands), "Run", 0x060026B2, new[] { typeof(UnitCommand) }, nameof(PatchMethods.UnitCommandRunPrefix));
+                PatchExact(typeof(UnitCommands), "InterruptAndRemoveCommand", 0x060026BF,
+                    new[] { typeof(UnitCommand.CommandType), typeof(bool) }, nameof(PatchMethods.PairedCommandInterruptPrefix));
                 PatchExact(typeof(CombatController), "HandleCombatEnd", 0x06000BE3, Type.EmptyTypes,
                     nameof(PatchMethods.NativeCombatEndPrefix), nameof(PatchMethods.NativeCombatEndPostfix));
                 PatchExact(typeof(UnitUseAbility), "Init", 0x06002728, new[] { typeof(UnitEntityData) }, null, nameof(PatchMethods.NativeAbilityInitPostfix));
@@ -217,6 +219,12 @@ namespace KingmakerMountedCombat.Integration
             internal static void CommandInterruptPrefix(UnitCommand __instance)
             {
                 PatchBridge.Combat?.ObserveCommandInterrupt(__instance);
+            }
+
+            internal static bool PairedCommandInterruptPrefix(UnitCommands __instance, UnitCommand.CommandType type, bool interruptPaired)
+            {
+                return PatchBridge.Combat == null ||
+                    !PatchBridge.Combat.PreservesApproachParent(__instance, type, interruptPaired);
             }
 
             internal static void AnimationTickPrefix(UnitAnimationManager __instance)

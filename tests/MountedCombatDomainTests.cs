@@ -8,6 +8,7 @@ namespace KingmakerMountedCombat.Tests
     {
         public static void Register(TestRunner runner)
         {
+            runner.Run("approach admits only its exact live mount Standard and empty Move without foreign slots or queue", ApproachOwnership);
             runner.Run("mounted rider melee uses rider actor and rider resource ownership", RiderMeleeOwnership);
             runner.Run("mounted Mammoth primary uses mount actor and mount resource ownership", MountAttackOwnership);
             runner.Run("mounted ranged uses rider actor and native ranged weapon", AdmitsRangedRider);
@@ -69,6 +70,30 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("mounted pair liveness preserves every in-flight gate", PairLivenessPreservesEveryGate);
             runner.Run("mounted pair liveness reports exact changed gates", PairLivenessReportsExactFailures);
             runner.Run("mounted pair liveness admits target incapacitation only after exact child start", PairLivenessAdmitsPostAttackIncapacitation);
+        }
+
+        private static void ApproachOwnership()
+        {
+            var parent = new object();
+            var foreign = new object();
+            var slots = new object[4];
+            TestRunner.Equal(true, MountedCombatSpatialPolicy.CanAdmitDelegatedMove(slots, 1, 3, parent, false, true, true, true, true), "Rider-owned approach must admit an empty mount.");
+            slots[1] = parent;
+            TestRunner.Equal(true, MountedCombatSpatialPolicy.CanAdmitDelegatedMove(slots, 1, 3, parent, true, true, true, true, true), "Horse approach must preserve its own live Standard.");
+            TestRunner.Equal(false, MountedCombatSpatialPolicy.CanAdmitDelegatedMove(slots, 1, 3, parent, false, true, true, true, true), "Rider parent must not be owned by the mount.");
+            TestRunner.Equal(false, MountedCombatSpatialPolicy.CanAdmitDelegatedMove(slots, 1, 3, parent, true, false, true, true, true), "Finished parent cannot obtain a move.");
+            TestRunner.Equal(false, MountedCombatSpatialPolicy.CanAdmitDelegatedMove(slots, 1, 3, parent, true, true, false, true, true), "Queued foreign command must survive rejection.");
+            TestRunner.Equal(false, MountedCombatSpatialPolicy.CanAdmitDelegatedMove(slots, 1, 3, parent, true, true, true, false, true), "Group command conflicts.");
+            TestRunner.Equal(false, MountedCombatSpatialPolicy.CanAdmitDelegatedMove(slots, 1, 3, parent, true, true, true, true, false), "Paused previous command conflicts.");
+            slots[1] = foreign;
+            TestRunner.Equal(false, MountedCombatSpatialPolicy.CanAdmitDelegatedMove(slots, 1, 3, parent, true, true, true, true, true), "Foreign Standard conflicts.");
+            slots[1] = parent;
+            slots[3] = foreign;
+            TestRunner.Equal(false, MountedCombatSpatialPolicy.CanAdmitDelegatedMove(slots, 1, 3, parent, true, true, true, true, true), "Owned attack cannot replace another Move.");
+            slots[3] = null;
+            slots[0] = foreign;
+            TestRunner.Equal(false, MountedCombatSpatialPolicy.CanAdmitDelegatedMove(slots, 1, 3, parent, true, true, true, true, true), "Foreign Free command conflicts.");
+            TestRunner.Equal(foreign, slots[0], "Admission must not mutate foreign commands.");
         }
 
         private static void RiderMeleeOwnership()

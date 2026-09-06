@@ -85,6 +85,12 @@ namespace KingmakerMountedCombat.Integration
 
         public bool HasActiveCommand => activeCommand != null && !activeCommand.IsFinished;
 
+        internal bool PreservesApproachParent(UnitCommands commands, UnitCommand.CommandType type, bool interruptPaired)
+        {
+            return !disposed && relationship.State == RelationshipState.Mounted &&
+                activeCommand != null && activeCommand.PreservesApproachParent(commands, type, interruptPaired);
+        }
+
         public bool HasActiveGroundMovement => activeRiderTurnGroundMove != null && !activeRiderTurnGroundMove.IsFinished;
 
         public bool HasActiveDoorInteraction => activeDoorInteraction != null && !activeDoorInteraction.IsFinished;
