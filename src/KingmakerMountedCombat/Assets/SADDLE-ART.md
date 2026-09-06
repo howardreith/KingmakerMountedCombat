@@ -1,0 +1,7 @@
+# Original Phase 3G saddle paintings
+
+`MountSaddleIconMaster.png` and `DismountSaddleIconMaster.png` are editable original raster masters generated for KMC on 2026-09-05 using the built-in ImageGen tool. `scripts/Build-SaddleIcons.ps1` produces the embedded 96px runtime images with the existing Windows System.Drawing surface. Neither master is embedded in the DLL. The four stable native ability IDs and tooltips are independent of the art.
+
+Art direction: a three-quarter leather saddle with painted volume, antique brass edge highlights, midnight blue-black background and restrained fantasy RPG palette. No arrows, text, frame, horse or person. Mount has a high right cantle and upright near stirrup; Dismount reverses the viewpoint and swings the stirrup outward beside an unfastened strap. The user's Wrath screenshot was inspected only for broad style direction; no screenshot pixels were submitted to the generator or copied into these images. Dismount generation referenced only the original KMC Mount painting.
+
+Generation prompts specified recognizable large shapes at 48px, warm chestnut leather, a rounded cantle, modest pommel, dramatic painterly light and a luminous silhouette. The Dismount edit preserved that original painting family while changing viewpoint, stirrup and strap. Enlarged and runtime-size review remain aesthetic HUMAN VALIDATION PENDING. Simulated disabled/hover/cooldown previews are preparation; they cannot certify the actual game UI.

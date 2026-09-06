@@ -160,8 +160,9 @@ namespace KingmakerMountedCombat.Integration
             var rider = relationship.Rider;
             var exactManagedAbility = ReferenceEquals(blueprint, riderPrimaryAbility) ||
                 ReferenceEquals(blueprint, mountPrimaryAbility);
-            var casterIsExactRider = command?.Executor != null && command.Executor == rider &&
-                command.Spell?.Caster?.Unit == rider;
+            var casterIsExactRider = command?.Executor != null && command.Spell?.Caster?.Unit == command.Executor &&
+                NativeMountedControlPolicy.IsExpectedPrimaryCaster(kind, CombatController.IsInTurnBasedCombat(),
+                    settings.EnableUnifiedMountedTurn, command.Executor == rider, command.Executor == relationship.Mount);
             if (!NativeMountedControlPolicy.ShouldPreparePrimaryIntentShell(
                     kind,
                     !disposed && enabled && registered && !serializationSuspended,

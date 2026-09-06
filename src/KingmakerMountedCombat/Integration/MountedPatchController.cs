@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using Harmony12;
+using Kingmaker.Controllers;
+using Kingmaker.Controllers.Clicks;
 using Kingmaker.Controllers.Combat;
 using Kingmaker.Controllers.Clicks.Handlers;
 using Kingmaker.Controllers.Units;
@@ -174,6 +176,7 @@ namespace KingmakerMountedCombat.Integration
         {
             internal static bool GroundCommandPrefix(ref UnitEntityData unit)
             {
+                if (PointerController.SimulatingClick) { return true; }
                 if (PatchBridge.Combat != null && !PatchBridge.Combat.TryAdmitGroundCommand(unit))
                 {
                     return false;
@@ -183,11 +186,15 @@ namespace KingmakerMountedCombat.Integration
 
             internal static void GroundCommandPostfix(UnitEntityData unit)
             {
+                if (PointerController.SimulatingClick) { return; }
                 PatchBridge.Combat?.CompleteGroundCommandAdmission(unit);
             }
 
             internal static bool UnitCommandRunPrefix(UnitCommands __instance, ref UnitCommand cmd)
             {
+                // Native TB cursor prediction replaces Unit.Commands temporarily. Its fake orders
+                // must stay entirely native; routing one can cancel a real pair order or move its mount.
+                if (PointerController.SimulatingClick) { return true; }
                 if (PatchBridge.Combat != null && !PatchBridge.Combat.TryRouteMountedDoorInteraction(__instance, ref cmd))
                 {
                     return false;
@@ -294,12 +301,14 @@ namespace KingmakerMountedCombat.Integration
 
             internal static void StopOrHoldPrefix()
             {
+                if (PointerController.SimulatingClick) { return; }
                 PatchBridge.Combat?.CancelSelectedInput("stop or hold");
                 PatchBridge.Service?.ForwardStopOrHold();
             }
 
             internal static bool ContinuousMovePrefix(ref UnitEntityData executor)
             {
+                if (PointerController.SimulatingClick) { return true; }
                 if (PatchBridge.Service != null && PatchBridge.Service.IsExactActivePairUnit(executor))
                 {
                     PatchBridge.Combat?.Cancel("continuous movement replaced the active mounted combat intent");

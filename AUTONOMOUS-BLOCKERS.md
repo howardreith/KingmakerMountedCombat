@@ -1,5 +1,11 @@
 # Autonomous blockers
 
+## Active Phase 3G - 2026-09-06T00:49Z
+
+Implementation is in progress; the older Phase 3F closure does not prohibit this new user-authorized mission. Human preview.4 longbow/RT melee/group/precedence successes are preserved as reported. The old Sling fixture timeout does not establish a general unmounted ranged defect.
+
+Current gates: native TB bow/melee/Horse completion and costs; pair-local movement refresh/Standard ownership and outstanding TimeMoved/five-foot/mode side effects; paused Mount execution/cancellation; repeated-click native effects; actual Horse attack motion; lowered seat and new icon human approval. Source fixes and `338/0` components do not qualify these gameplay gates. Desktop pointer bridge is unavailable; planned observations use scripted native handlers and must be labeled accordingly. No live transactions yet, no restoration failure, actual preview.4/cache and current human saves retained.
+
 Current installation update, 2026-09-05T23:00:13Z: the user explicitly authorized permanent local UMM installation. Exact preview.4 is now installed and independently verified; fallback/cache is backed up, foreign Mods and saves are unchanged, and no game is running. [Deployment record and hashes](AUTONOMOUS-RESUME.md) supersede earlier statements that fallback remains installed. Gameplay/resource/pointer/visual blockers below are unchanged; installation grants no qualification. Historical suite4/runtime admission still pins fallback.1, so a future guarded gameplay continuation must establish the exact newly installed starting-state contract without silently removing/downgrading preview.4. No harness guard was broadened for this installation.
 
 ## Current Phase 3F disposition - 2026-09-05T22:10:58Z

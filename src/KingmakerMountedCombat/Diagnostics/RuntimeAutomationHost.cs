@@ -82,6 +82,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
         internal bool RequiresLegacyDiagnosticOverlay =>
             request.Scenario != Phase3dHorseScenarioTranche.RealTimeScenario &&
+            request.Scenario != Phase3dHorseScenarioTranche.Phase3gRealTimeScenario &&
+            request.Scenario != Phase3dHorseScenarioTranche.Phase3gTurnBasedScenario &&
             request.Scenario != Phase3dHorseScenarioTranche.PresentationScenario &&
             request.Scenario != "mounted-mammoth-primary-hit-rt" &&
             request.Scenario != "combat-lifecycle-suite";

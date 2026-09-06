@@ -142,6 +142,7 @@
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedCombatSpatialPolicy.cs"><Link>Shared\Domain\MountedCombatSpatialPolicy.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedCombatTransaction.cs"><Link>Shared\Domain\MountedCombatTransaction.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedStockAttack.cs"><Link>Shared\Domain\MountedStockAttack.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedMovePrepayment.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\OptionalPublicPropertyReader.cs"><Link>Shared\Domain\OptionalPublicPropertyReader.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\PairedCommandScheduler.cs"><Link>Shared\Domain\PairedCommandScheduler.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\UnifiedMountedTurn.cs"><Link>Shared\Domain\UnifiedMountedTurn.cs</Link></Compile>

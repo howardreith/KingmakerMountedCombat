@@ -1,5 +1,11 @@
 # Mounted Combat journal
 
+## 2026-09-06T00:49Z - Phase 3G first implementation checkpoint
+
+Continued the existing Phase 3F branch from exact clean `6d59b5f42ff5d675e390e55e64e89029c96255ec`. Verified the seven human-packet payloads and inspected its three unique still images; preserved the current preview.4 session log and full current installation/cache/saves/Mods inventories separately from historical evidence. New fixes, contracts and human baseline are in [Phase 3G implementation](docs/PHASE3G-IMPLEMENTATION.md). No runtime or visual success is claimed from this checkpoint.
+
+Red controls regressions `335/2`, repaired `337/0`; animation-tail red `336/1`; current focused source `22/0`, Release PASS, components `338/0`, new protocol mutations `12/0`. New art is original painted raster source, no Wrath pixels. A proposed lossless portrait conversion rejected non-opaque pixels and left the original portrait unchanged. Bounded native movement prepayment is implemented, but full resource reconciliation remains blocked by additional side effects and boundaries. Host approval applied exactly two named Phase 3G fixture allowances; no broad policy or threshold change. Runtime `0/8`, no process or external mutation. Next: clean preview.1 package, current-state suite, guarded WhatIf and first TB native-effect observation, then independent restoration audit before gameplay analysis.
+
 ## 2026-09-05T23:00:13Z - preview.4 installed at explicit user request
 
 Clean deployment branch `codex/mounted-combat-phase3f-playable-core`, documentation HEAD `b52acf42f01a3097e81ebcde27f788613536a319`, unchanged binary source `207ebf249db075cae8f09ebe97f33f16663262bf`. The user asked to install the delivered candidate into local UMM. Exact guard Inspect confirmed fallback.1 plus cache; guarded Replace WhatIf passed, Replace completed, and independent VerifyInstalled passed. Package validation `10/0` on each applicable call. No package rebuild, configuration change, gameplay launch or new human qualification. Live gameplay count remains 6/8.

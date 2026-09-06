@@ -219,6 +219,10 @@ namespace KingmakerMountedCombat.Integration
 
         internal void ObserveCommandInterrupt(UnitCommand command)
         {
+            if (ReferenceEquals(command, activeCommand) && !command.IsStarted)
+            {
+                activeCommand.ObservePreStartInterrupt();
+            }
             if (!ReferenceEquals(command, observedNativeMountTurnMove) ||
                 !string.Equals(LastNativeMountTurnMoveInterruptSource, "<not-interrupted>", StringComparison.Ordinal))
             {
@@ -880,8 +884,21 @@ namespace KingmakerMountedCombat.Integration
                 return false;
             }
 
+            var actionContext = ownerIsMount ? MountedCombatActionKind.MountPrimaryNatural : ResolveRiderPrimaryAction();
+            var weaponContext = principal.GetFirstWeapon();
+            var mountWeaponContext = mount.GetFirstWeapon();
+            if (target != null && target.IsInState && target.Descriptor?.State != null &&
+                target.Descriptor.State.IsConscious && !target.Descriptor.State.IsFinallyDead && principal.IsEnemy(target) &&
+                stockIntent.CanContinue(target, turn, ownerIsMount, rider, mount, weaponContext, mountWeaponContext, (int)actionContext))
+            {
+                // Consume this exact pair request before UnitCommands.Run can replace its windup/approach.
+                // The stock pointer loop still dispatches every unrelated selected party member.
+                LastStockAttackObservation = "intent-continued;target=" + target.UniqueId;
+                return false;
+            }
             Cancel("new stock hostile attack");
-            stockIntent.Begin(target, turn, ownerIsMount, IsPairInCombat());
+            stockIntent.Begin(target, turn, ownerIsMount, IsPairInCombat(),
+                rider, mount, weaponContext, mountWeaponContext, (int)actionContext);
             StockAttackIntentStartCount++;
             principal.CombatState.ManualTarget = target;
             LastRejectionCodes = new MountedCombatRejectionCode[0];
@@ -939,7 +956,9 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
             // A paused click records intent without dispatching, spending or changing selection.
-            if (Game.Instance == null || Game.Instance.IsPaused)
+            // Admission is not a gameplay tick. Native commands accept orders in ordinary Pause;
+            // only the native controller may start/tick the current actor after it can advance.
+            if (Game.Instance == null || !MountedGameModePolicy.CanQueueMountedAction(Game.Instance.CurrentMode.ToString()))
             {
                 return;
             }
@@ -1422,7 +1441,7 @@ namespace KingmakerMountedCombat.Integration
                 TransactionIdle = (!HasActiveCommand || HasStockAttackIntent && ReferenceEquals(activeCommand, stockIntentCommand)) &&
                     !HasActiveGroundMovement && !riderTurnGroundMoveAdmissionPending,
                 LoadingOrLifecycleBoundary = Game.Instance == null ||
-                    !MountedGameModePolicy.CanAdmitMountedAction(Game.Instance.CurrentMode.ToString()),
+                    !MountedGameModePolicy.CanQueueMountedAction(Game.Instance.CurrentMode.ToString()),
                 PathKnownUnavailable = false,
                 WithinSupportedRangeEnvelope = true,
                 RangeOriginConsistent = true,

@@ -124,13 +124,32 @@ namespace KingmakerMountedCombat.Domain
         public bool MountActor { get; private set; }
         public long Generation { get; private set; }
         public bool HasEnteredCombat { get; private set; }
+        private object riderContext;
+        private object mountContext;
+        private object weaponContext;
+        private object mountWeaponContext;
+        private int actionContext;
 
-        public void Begin(TTarget target, TTurn turn, bool mountActor, bool inCombat)
+        public bool CanContinue(TTarget target, TTurn turn, bool mountActor,
+            object rider = null, object mount = null, object weapon = null, object mountWeapon = null, int action = 0)
+        {
+            return Target != null && ReferenceEquals(Target, target) && ReferenceEquals(Turn, turn) &&
+                MountActor == mountActor && ReferenceEquals(riderContext, rider) && ReferenceEquals(mountContext, mount) &&
+                ReferenceEquals(weaponContext, weapon) && ReferenceEquals(mountWeaponContext, mountWeapon) && actionContext == action;
+        }
+
+        public void Begin(TTarget target, TTurn turn, bool mountActor, bool inCombat,
+            object rider = null, object mount = null, object weapon = null, object mountWeapon = null, int action = 0)
         {
             Target = target ?? throw new ArgumentNullException(nameof(target));
             Turn = turn;
             MountActor = mountActor;
             HasEnteredCombat = inCombat;
+            riderContext = rider;
+            mountContext = mount;
+            weaponContext = weapon;
+            mountWeaponContext = mountWeapon;
+            actionContext = action;
             Generation++;
         }
 
@@ -151,6 +170,8 @@ namespace KingmakerMountedCombat.Domain
             Turn = null;
             HasEnteredCombat = false;
             MountActor = false;
+            riderContext = mountContext = weaponContext = mountWeaponContext = null;
+            actionContext = 0;
             Generation++;
         }
     }

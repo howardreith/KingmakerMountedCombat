@@ -44,7 +44,7 @@ namespace KingmakerMountedCombat.Diagnostics
     /// mounted-combat observations and restores every target, equipment, mode, pause,
     /// selection, and command lease it acquires.
     /// </summary>
-    internal sealed class Phase3dHorseScenarioTranche : IDisposable
+    internal sealed partial class Phase3dHorseScenarioTranche : IDisposable
     {
         internal const string RealTimeScenario = "phase3d-unified-combat-rt-suite";
         internal const string TurnBasedScenario = "phase3d-unified-combat-tb-suite";
@@ -252,6 +252,8 @@ namespace KingmakerMountedCombat.Diagnostics
         internal static bool SupportsScenario(string scenario)
         {
             return string.Equals(scenario, RealTimeScenario, StringComparison.Ordinal) ||
+                string.Equals(scenario, Phase3gRealTimeScenario, StringComparison.Ordinal) ||
+                string.Equals(scenario, Phase3gTurnBasedScenario, StringComparison.Ordinal) ||
                 string.Equals(scenario, TurnBasedScenario, StringComparison.Ordinal) ||
                 string.Equals(scenario, PresentationScenario, StringComparison.Ordinal);
         }
@@ -338,6 +340,12 @@ namespace KingmakerMountedCombat.Diagnostics
             };
             observations["initialSelection"] = new JArray(originalSelection.Select(item => item.UniqueId));
 
+            if (IsPhase3gControls)
+            {
+                BeginPhase3gCase();
+                return;
+            }
+
             if (string.Equals(request.Scenario, PresentationScenario, StringComparison.Ordinal))
             {
                 step = Phase3dHorseStep.PresentationSettle;
@@ -365,7 +373,8 @@ namespace KingmakerMountedCombat.Diagnostics
             frame++;
             try
             {
-                motionEvidence?.Tick(cleanupStarted ? null : step.ToString());
+                motionEvidence?.Tick(cleanupStarted ? null : IsPhase3gControls
+                    ? (phase3gStage == 1 ? Phase3gRow : null) : step.ToString());
                 targetService?.ObserveTargetLifeState();
                 targetService?.RefreshBidirectionalCombatMemoryLease();
                 if (!cleanupStarted && clock.Elapsed.TotalSeconds > ScenarioDeadlineSeconds)
@@ -382,6 +391,9 @@ namespace KingmakerMountedCombat.Diagnostics
 
                 switch (step)
                 {
+                    case Phase3dHorseStep.Phase3gControls:
+                        TickPhase3gControls();
+                        break;
                     case Phase3dHorseStep.PresentationSettle:
                         ObservePresentation();
                         break;
@@ -689,11 +701,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 relationship.State == RelationshipState.Mounted && runtime.PoseHealthy && runtime.PoseFrameApplied &&
                     string.Equals(runtime.MountProfileId, SupportedMountedProfiles.Horse.Id, StringComparison.Ordinal) &&
                     Math.Abs(horsePose.PelvisPositionOffset.Y - (-0.17d)) <= 0.0001d &&
-                    Math.Abs(SupportedMountedProfiles.Horse.MountRootPositionOffset.Y - (-0.08d)) <= 0.0001d &&
+                    Math.Abs(SupportedMountedProfiles.Horse.MountRootPositionOffset.Y - (-0.16d)) <= 0.0001d &&
                     SupportedMountedProfiles.Mammoth.MountRootPositionOffset.Magnitude <= 0.0001f &&
                     runtime.PoseFootTargetClampCount == 0 &&
                     runtime.PoseMaximumSegmentLengthResidualWorldUnits <= 0.0001d,
-                "The final Horse-only profile preserves the accepted pelvis/leg pose and lowers the rider by exact mount-root-local Y=-0.08 with healthy bounded procedural pose state; visual contact remains a manual gate.",
+                "The Horse-only profile preserves horizontal placement and lowers visual seating by another 0.08m in mount-root up (total -0.16m); visual contact remains a manual gate.",
                 new JObject { ["observation"] = presentation });
             AddRow(
                 "mounted-single-rider-turn-portrait",
@@ -6060,7 +6072,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             var artifact = new JObject
             {
-                ["schemaVersion"] = IsPhase3fNativeControlScope ? 7 : 6,
+                ["schemaVersion"] = IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,
                 ["evidenceKind"] = EvidenceKind,
                 ["runId"] = request.RunId,
                 ["scenario"] = request.Scenario,
@@ -6233,6 +6245,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private enum Phase3dHorseStep
         {
+            Phase3gControls,
             PresentationSettle,
             AwaitMountedCombat,
             AwaitRiderPrimaryRt,
@@ -6416,6 +6429,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
     internal sealed class Phase3dCombatRuleProbe :
         IGlobalRulebookHandler<RuleAttackWithWeapon>,
+        IGlobalRulebookHandler<RuleAttackWithWeaponResolve>,
         IGlobalRulebookHandler<RuleAttackRoll>,
         IGlobalRulebookHandler<RuleRollDice>,
         IGlobalRulebookHandler<RuleDealDamage>,
@@ -6437,6 +6451,8 @@ namespace KingmakerMountedCombat.Diagnostics
         }
 
         internal int RiderAttackRuleCount { get; private set; }
+        internal int RiderResolvedCount { get; private set; }
+        internal int MountResolvedCount { get; private set; }
         internal int MountAttackRuleCount { get; private set; }
         internal int PairAttackRuleCount => RiderAttackRuleCount + MountAttackRuleCount;
         internal int RiderOpportunityAttackRuleCount { get; private set; }
@@ -6474,6 +6490,8 @@ namespace KingmakerMountedCombat.Diagnostics
             expectedTarget = target ?? throw new ArgumentNullException(nameof(target));
             forcePairHit = forceHit;
             RiderAttackRuleCount = 0;
+            RiderResolvedCount = 0;
+            MountResolvedCount = 0;
             MountAttackRuleCount = 0;
             RiderOpportunityAttackRuleCount = 0;
             MountOpportunityAttackRuleCount = 0;
@@ -6505,6 +6523,8 @@ namespace KingmakerMountedCombat.Diagnostics
             return new JObject
             {
                 ["riderAttackRules"] = RiderAttackRuleCount,
+                ["riderResolved"] = RiderResolvedCount,
+                ["mountResolved"] = MountResolvedCount,
                 ["mountAttackRules"] = MountAttackRuleCount,
                 ["riderNonOpportunityAttackRules"] = RiderNonOpportunityAttackRuleCount,
                 ["mountNonOpportunityAttackRules"] = MountNonOpportunityAttackRuleCount,
@@ -6598,6 +6618,15 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["attacksCount"] = evt.AttacksCount,
                 ["weaponGuid"] = evt.Weapon?.Blueprint?.AssetGuid
             });
+        }
+
+        public void OnEventAboutToTrigger(RuleAttackWithWeaponResolve evt) { }
+
+        public void OnEventDidTrigger(RuleAttackWithWeaponResolve evt)
+        {
+            if (evt?.Target != expectedTarget || evt.AttackWithWeapon.IsAttackOfOpportunity) { return; }
+            if (evt.Initiator == rider) { RiderResolvedCount++; }
+            if (evt.Initiator == mount) { MountResolvedCount++; }
         }
 
         public void OnEventAboutToTrigger(RuleAttackRoll evt)

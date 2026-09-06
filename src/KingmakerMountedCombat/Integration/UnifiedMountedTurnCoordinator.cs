@@ -85,6 +85,7 @@ namespace KingmakerMountedCombat.Integration
         private static int trackerProjectionDepth;
 
         private readonly GameMountedRelationshipService relationship;
+        private readonly MountedMovePrepayment movePrepayment = new MountedMovePrepayment();
         private readonly DiagnosticSettings settings;
         private readonly MountedPairCommandScheduler pairedCommandScheduler;
         private readonly IModLogger logger;
@@ -292,6 +293,14 @@ namespace KingmakerMountedCombat.Integration
             }
 
             var mount = relationship.Mount;
+            var controller = Game.Instance?.TurnBasedCombatController;
+            if (!settings.EnableUnifiedMountedTurn && controller != null && CombatController.IsInTurnBasedCombat() &&
+                (turn.Unit == mount && relationship.State == RelationshipState.Mounted || movePrepayment.Owns(turn.Unit)))
+            {
+                movePrepayment.ObserveEpoch(turn.Unit, controller, controller.RoundNumber, controller.RoundStartTime.Ticks);
+                var cooldown = turn.Unit.CombatState.Cooldown;
+                cooldown.MoveAction = movePrepayment.ReconcileNativePreparation(cooldown.MoveAction);
+            }
             var mountState = mount?.Descriptor?.State;
             if (!UnifiedMountedTurnPolicy.ShouldPrepareMountLedger(
                     Enabled,
@@ -534,7 +543,11 @@ namespace KingmakerMountedCombat.Integration
             var riderCooldown = relationship.Rider.CombatState.Cooldown;
             var mountCooldown = relationship.Mount.CombatState.Cooldown;
             var riderBefore = riderCooldown.MoveAction;
+            var riderStandardBefore = riderCooldown.StandardAction;
             var mountBefore = mountCooldown.MoveAction;
+            var controller = Game.Instance?.TurnBasedCombatController;
+            if (!settings.EnableUnifiedMountedTurn && controller != null)
+                movePrepayment.ObserveEpoch(relationship.Mount, controller, controller.RoundNumber, controller.RoundStartTime.Ticks);
             var physicalDeltaRequested = deltaTime;
             var nativeFiveFootStep = turn.EnabledFiveFootStep;
             var riderSpeed = relationship.Rider.CurrentSpeedMps;
@@ -548,18 +561,24 @@ namespace KingmakerMountedCombat.Integration
             try
             {
                 riderCooldown.MoveAction = mountBefore;
+                // Native Standard-to-movement conversion must consult the mount's Standard.
+                // This scoped projection never lends the rider's unused Standard to the mount.
+                riderCooldown.StandardAction = mountCooldown.StandardAction;
                 ExactTurnMovementAdapter.Tick(turn, ref riderLedgerDelta);
                 temporaryAfter = riderCooldown.MoveAction;
             }
             finally
             {
                 riderCooldown.MoveAction = riderBefore;
+                riderCooldown.StandardAction = riderStandardBefore;
             }
 
             mountCooldown.MoveAction = MountedFiveFootStepPolicy.TransferMoveCooldown(
                 riderBefore,
                 temporaryAfter,
                 mountBefore);
+            if (!settings.EnableUnifiedMountedTurn && controller != null)
+                movePrepayment.RecordPhysicalMove(mountBefore, mountCooldown.MoveAction);
             deltaTime = Math.Min(
                 physicalDeltaRequested,
                 MountedFiveFootStepPolicy.ToMountPhysicalDelta(

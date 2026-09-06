@@ -7,6 +7,9 @@ namespace KingmakerMountedCombat.Tests
     {
         public static void Register(TestRunner runner)
         {
+            runner.Run("same living target continues approach windup cooldown and released attack generation", SameTargetContinuation);
+            runner.Run("ordinary Pause admits queued orders without admitting modal UI", PausedOrderAdmission);
+            runner.Run("native round movement prepayment survives preparation once in both turn orders", MovementPrepayment);
             runner.Run("fallback defaults admit ordinary real-time melee and ranged input", FallbackRealTimeAdmission);
             runner.Run("separate turns admit only the native current actor", SeparateTurnAdmission);
             runner.Run("ordinary party selection preserves unrelated units and includes the exact principal", PartySelection);
@@ -23,6 +26,63 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("mounted ranged stock attack never pulls mount into melee", RangedDoesNotForceMountMelee);
             runner.Run("mounted stock attack waits persistently only in real time", WaitsPersistentlyOnlyInRealTime);
             runner.Run("mounted stock attack cancels invalid target exactly", CancelsInvalidTarget);
+        }
+
+        private static void MovementPrepayment()
+        {
+            var mount = new object(); var controller = new object();
+            foreach (var riderFirst in new[] { true, false })
+            {
+                var ledger = new MountedMovePrepayment();
+                for (var round = 1; round <= 2; round++)
+                {
+                    ledger.ObserveEpoch(mount, controller, round, round * 600L);
+                    if (!riderFirst) { TestRunner.Equal(0f, ledger.ReconcileNativePreparation(0f), "Mount-first native allowance changed."); }
+                    ledger.RecordPhysicalMove(0f, 0.5f);
+                    // Stop, reselection and remount of the same companion are not an epoch.
+                    ledger.ObserveEpoch(mount, controller, round, round * 600L);
+                    ledger.RecordPhysicalMove(0.5f, 1.25f);
+                    var move = riderFirst ? ledger.ReconcileNativePreparation(0f) : 1.25f;
+                    TestRunner.Equal(1.25f, move, "Native preparation replenished prepaid physical movement.");
+                    TestRunner.Equal(move, ledger.ReconcileNativePreparation(move), "Repeated observation double charged.");
+                }
+            }
+            var alreadyCharged = new MountedMovePrepayment();
+            alreadyCharged.ObserveEpoch(mount, controller, 1, 600L);
+            alreadyCharged.RecordPhysicalMove(0, 1);
+            TestRunner.Equal(3f, alreadyCharged.ReconcileNativePreparation(3f), "Native existing cost double charged.");
+        }
+
+        private static void SameTargetContinuation()
+        {
+            var intent = new MountedAttackIntent<object, object>();
+            var target = new object(); var turn = new object();
+            intent.Begin(target, turn, false, true);
+            var generation = intent.Generation;
+            foreach (var phase in new[] { "approach", "windup", "cooldown", "released" })
+            {
+                TestRunner.True(intent.CanContinue(target, turn, false), "Same target interrupted " + phase);
+                TestRunner.True(intent.Owns(target, generation), "Continuation changed generation.");
+            }
+            TestRunner.True(!intent.CanContinue(new object(), turn, false), "Retarget swallowed.");
+            TestRunner.True(!intent.CanContinue(target, new object(), false), "Wrong native turn retained.");
+            TestRunner.True(!intent.CanContinue(target, turn, true), "Wrong actor retained.");
+            intent.Cancel();
+            TestRunner.True(!intent.CanContinue(target, turn, false), "Stop retained continuation.");
+            var rider = new object(); var mount = new object(); var bow = new object(); var bite = new object();
+            intent.Begin(target, null, false, true, rider, mount, bow, bite, 2);
+            TestRunner.True(intent.CanContinue(target, null, false, rider, mount, bow, bite, 2), "Exact RT bow context rejected.");
+            TestRunner.True(!intent.CanContinue(target, null, false, rider, mount, new object(), bite, 2), "Weapon change swallowed.");
+            TestRunner.True(!intent.CanContinue(target, null, false, rider, new object(), bow, bite, 2), "Pair replacement swallowed.");
+            TestRunner.True(!intent.CanContinue(target, null, false, rider, mount, bow, bite, 1), "Action mode change swallowed.");
+        }
+
+        private static void PausedOrderAdmission()
+        {
+            TestRunner.True(MountedGameModePolicy.CanQueueMountedAction("Pause"), "Ordinary pause blocked native queue.");
+            foreach (var mode in new[] { "FullScreenUi", "EscMode", "Cutscene", "Loading", "None" })
+                TestRunner.True(!MountedGameModePolicy.CanQueueMountedAction(mode), "Modal state admitted: " + mode);
+            TestRunner.True(!MountedGameModePolicy.CanAdmitMountedAction("Pause"), "Pause advanced gameplay.");
         }
 
         private static void AnimatedSaddleFollows()

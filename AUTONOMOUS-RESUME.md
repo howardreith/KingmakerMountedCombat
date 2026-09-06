@@ -1,5 +1,15 @@
 # Autonomous resume
 
+## Phase 3G implementation checkpoint - 2026-09-06T00:49Z
+
+Active mission is the user's Phase 3G continuation on `codex/mounted-combat-phase3f-playable-core`, starting from verified clean local/upstream/remote `6d59b5f42ff5d675e390e55e64e89029c96255ec`. Preview.4 remains intentionally installed, including its human-created `.20370.cache`. No new permanent deployment is authorized. All new flags remain false. The earlier unexecuted review-setup recommendation is superseded.
+
+Implemented same-target intent continuation, simulated-pointer isolation, actor-correct Primary shell admission, pause order/execution separation, exact queued control execution checks, an RT native animation-tail guard, Horse visual seat lowering by 0.08 m, original painted Mount/Dismount icons, and partial native-epoch mount movement prepayment/Standard projection. Resource side effects and mode boundaries remain unqualified; this is not a TB playability claim. See [Phase 3G implementation](docs/PHASE3G-IMPLEMENTATION.md).
+
+Focused Release/source `22/0`, component `338/0`, new evidence-protocol mutation checks `12/0`. Runtime transactions `0/8`; first package and native-handler TB observation are next. Pointer bridge is unavailable (native pipe error 2). New appearance, attack animation and all three TB effects remain pending actual runtime/human evidence. No game is running.
+
+Immutable intake: `analysis-cache/phase3g-intake-20260905T233500Z/full-current-intake.json`, SHA `a82030112415f489303fbe8d959a4ae726564becc3e859478e3f3318ac68b6f7`; saves digest `c8b2bcc1e5922f26b7219dab6acb09dfffbdcc787eb6320d8ea81c33dbaf6b0b`, Mods digest `9142fdfcaff6c8e088a7032123ea3b0e176e2f93b1f2f47d35155a72b0a91017`. Current human log is separately preserved and identifies preview.4. The exact approved host guard change adds only `phase3g-native-controls-rt` and `phase3g-native-controls-tb`; guard SHA `cf7943150c0086db4475a5cb7abfba08115697a7402788eb23052376f87a5313`. No other guards or thresholds changed. Establish the new package-bound suite against this actual intake before WhatIf/live use.
+
 ## Current installation - user-authorized preview.4 deployment, 2026-09-05T23:00:13Z
 
 The user explicitly requested installation after the bounded mission. **Preview.4 is now intentionally installed in local Kingmaker UMM. Do not restore fallback or remove KMC as routine cleanup.** This supersedes earlier current-installation statements below; their runtime results and restoration records remain historical evidence.

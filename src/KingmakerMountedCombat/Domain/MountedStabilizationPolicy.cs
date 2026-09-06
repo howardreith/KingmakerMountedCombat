@@ -37,6 +37,12 @@ namespace KingmakerMountedCombat.Domain
         {
             return Classify(exactModeName) == MountedGameModeDisposition.PreserveWorldInteraction;
         }
+
+        public static bool CanQueueMountedAction(string exactModeName)
+        {
+            // Queue admission only. Loading, cutscene and actor validity are separate required gates.
+            return CanAdmitMountedAction(exactModeName) || string.Equals(exactModeName, "Pause", StringComparison.Ordinal);
+        }
     }
 
     public enum MountedViewAttachmentDisposition

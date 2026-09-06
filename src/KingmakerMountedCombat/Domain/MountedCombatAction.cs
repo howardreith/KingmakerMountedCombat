@@ -151,8 +151,7 @@ namespace KingmakerMountedCombat.Domain
             int completedAttackCount,
             bool hasPlannedAttack)
         {
-            return isTurnBased &&
-                isActed &&
+            return isActed &&
                 resultIsSuccess &&
                 attackRuleObserved &&
                 attackCount == 1 &&

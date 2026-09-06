@@ -48,10 +48,10 @@ namespace KingmakerMountedCombat.Integration
             return GetAvailability(false);
         }
 
-        private MountedPlayerActionAvailability GetAvailability(bool nativeMoveActionShellAdmitted)
+        private MountedPlayerActionAvailability GetAvailability(bool nativeMoveActionShellAdmitted, UnitEntityData executionCaster = null)
         {
             ThrowIfDisposed();
-            var context = CaptureContext();
+            var context = CaptureContext(executionCaster);
             context.NativeMoveActionShellAdmitted = nativeMoveActionShellAdmitted;
             var availability = MountedPlayerActionEvaluator.Evaluate(context);
             if (IsMountTargetArmed &&
@@ -160,10 +160,10 @@ namespace KingmakerMountedCombat.Integration
             bool nativeMoveActionShellAdmitted = false)
         {
             ThrowIfDisposed();
-            var availability = GetAvailability(nativeMoveActionShellAdmitted);
+            var availability = GetAvailability(nativeMoveActionShellAdmitted, nativeMoveActionShellAdmitted ? caster : null);
             var selection = SelectionManager.Instance?.SelectedUnits;
-            var exactCasterSelected = caster != null && selection != null && selection.Count == 1 &&
-                selection[0] == caster;
+            var exactCasterSelected = caster != null && (nativeMoveActionShellAdmitted ||
+                selection != null && selection.Count == 1 && selection[0] == caster);
             if (!availability.IsVisible || availability.Action != MountedPlayerActionKind.Mount)
             {
                 return new NativeMountedControlAvailability(false, false, "Mount Companion is available only while unmounted.");
@@ -180,8 +180,15 @@ namespace KingmakerMountedCombat.Integration
             bool nativeMoveActionShellAdmitted = false)
         {
             ThrowIfDisposed();
-            var availability = GetAvailability(nativeMoveActionShellAdmitted);
+            var availability = GetAvailability(nativeMoveActionShellAdmitted, nativeMoveActionShellAdmitted ? caster : null);
             var exactRider = caster != null && caster == relationship.Rider;
+            var game = Game.Instance;
+            if (game == null || game.CurrentlyLoadedArea == null ||
+                !MountedGameModePolicy.CanQueueMountedAction(game.CurrentMode.ToString()) ||
+                exactRider && IsLoadingOrCutscene(game, caster, relationship.Mount))
+            {
+                return new NativeMountedControlAvailability(true, false, "Dismount orders require the active world view.");
+            }
             if (!availability.IsVisible || availability.Action != MountedPlayerActionKind.Dismount || !exactRider)
             {
                 return new NativeMountedControlAvailability(false, false, "Dismount is available only to the exact mounted rider.");
@@ -221,11 +228,18 @@ namespace KingmakerMountedCombat.Integration
         internal bool TryExecuteNativeMount(UnitEntityData caster, UnitEntityData target)
         {
             ThrowIfDisposed();
+            if (!MountedGameModePolicy.CanAdmitMountedAction(Game.Instance?.CurrentMode.ToString())) { return false; }
             MountTargetClickCount++;
             var availability = GetNativeMountAvailability(caster, true);
             var mount = caster?.Descriptor?.Pet;
             var exactTarget = target != null && target == mount &&
                 mount.Descriptor?.Master.Value == caster && SupportedMountedProfiles.IsSupported(mount);
+            if (exactTarget && (caster.View == null || mount.View == null ||
+                !CombatMountDismountPolicy.IsAdjacent(caster.DistanceTo(mount), caster.View.Corpulence, mount.View.Corpulence)))
+            {
+                feedbackState.SetOperationFeedback("Move next to your companion before mounting.");
+                return false;
+            }
             if (!availability.IsEnabled || !exactTarget)
             {
                 var reason = !availability.IsEnabled
@@ -242,7 +256,6 @@ namespace KingmakerMountedCombat.Integration
             {
                 ClearMountTargetSelection();
                 var transition = relationship.MountRiderOn(caster, target);
-                NormalizeSelectionToRider(caster);
                 feedbackState.SetOperationFeedback(relationship.LastResult);
                 logger.Info("Native Mount Companion dispatch: riderId=" + caster.UniqueId +
                     "; mountId=" + target.UniqueId + "; succeeded=" + transition.Succeeded + ".");
@@ -265,6 +278,7 @@ namespace KingmakerMountedCombat.Integration
         internal bool TryExecuteNativeDismount(UnitEntityData caster)
         {
             ThrowIfDisposed();
+            if (!MountedGameModePolicy.CanAdmitMountedAction(Game.Instance?.CurrentMode.ToString())) { return false; }
             var availability = GetNativeDismountAvailability(caster, true);
             if (!availability.IsEnabled)
             {
@@ -276,7 +290,6 @@ namespace KingmakerMountedCombat.Integration
             {
                 ClearMountTargetSelection();
                 var transition = relationship.Dismount(CleanupTrigger.Manual);
-                NormalizeSelectionToRider(caster);
                 feedbackState.SetOperationFeedback(relationship.LastResult);
                 logger.Info("Native Dismount dispatch: riderId=" + caster.UniqueId +
                     "; succeeded=" + transition.Succeeded + ".");
@@ -514,7 +527,7 @@ namespace KingmakerMountedCombat.Integration
             disposed = true;
         }
 
-        private MountedPlayerActionContext CaptureContext()
+        private MountedPlayerActionContext CaptureContext(UnitEntityData executionCaster = null)
         {
             var state = relationship.State;
             var game = Game.Instance;
@@ -541,14 +554,14 @@ namespace KingmakerMountedCombat.Integration
             {
                 rider = relationship.Rider;
                 mount = relationship.Mount;
-                context.ExactlyOneRiderSelected = selection != null && selection.Count == 1 &&
-                    selection[0] == rider;
+                context.ExactlyOneRiderSelected = executionCaster != null ? executionCaster == rider :
+                    selection != null && selection.Count == 1 && selection[0] == rider;
             }
             else
             {
-                context.ExactlyOneRiderSelected = selection != null && selection.Count == 1 &&
+                context.ExactlyOneRiderSelected = executionCaster != null || selection != null && selection.Count == 1 &&
                     selection[0] != null;
-                rider = context.ExactlyOneRiderSelected ? selection[0] : null;
+                rider = executionCaster ?? (context.ExactlyOneRiderSelected ? selection[0] : null);
                 mount = rider?.Descriptor?.Pet;
             }
             if (!context.ExactlyOneRiderSelected)
@@ -589,7 +602,9 @@ namespace KingmakerMountedCombat.Integration
                     rider.DistanceTo(mount),
                     rider.View.Corpulence,
                     mount.View.Corpulence);
-            context.SafeGameMode = MountedGameModePolicy.CanAdmitMountedAction(game.CurrentMode.ToString());
+            context.SafeGameMode = executionCaster != null
+                ? MountedGameModePolicy.CanAdmitMountedAction(game.CurrentMode.ToString())
+                : MountedGameModePolicy.CanQueueMountedAction(game.CurrentMode.ToString());
             context.ViewsAndStockAgentsAvailable = rider.View != null && rider.View.AgentASP != null &&
                 mount?.View != null && mount.View.AgentASP != null;
             context.StockAgentsReady = context.ViewsAndStockAgentsAvailable &&

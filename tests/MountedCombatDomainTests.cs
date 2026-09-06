@@ -688,9 +688,9 @@ namespace KingmakerMountedCombat.Tests
                     true, true, true, true, 1, 1, false),
                 "An exact acted turn-based single attack lost its native Success before animation completion.");
             TestRunner.True(
-                !NativeSingleAttackTerminalPolicy.ShouldAwaitNativeAnimation(
+                NativeSingleAttackTerminalPolicy.ShouldAwaitNativeAnimation(
                     false, true, true, true, 1, 1, false),
-                "Real-time attack lifecycle was intercepted.");
+                "RT single attack interrupted its completed native clip while seeking a nonexistent next child.");
             TestRunner.True(
                 !NativeSingleAttackTerminalPolicy.ShouldAwaitNativeAnimation(
                     true, false, true, true, 1, 1, false),

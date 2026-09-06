@@ -27,6 +27,7 @@ namespace KingmakerMountedCombat.Integration
         public string TargetId { get; set; }
 
         public string Result { get; set; }
+        public string PreStartInterruptBoundary { get; set; }
 
         public int ChildAttackStartCount { get; set; }
 
@@ -740,6 +741,22 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
+        private string preStartInterruptBoundary;
+
+        internal void ObservePreStartInterrupt()
+        {
+            if (preStartInterruptBoundary != null || IsStarted || IsFinished) { return; }
+            var game = Kingmaker.Game.Instance;
+            var turn = game?.TurnBasedCombatController?.CurrentTurn;
+            preStartInterruptBoundary = "frame=" + Time.frameCount + ";turn=" + turn?.Unit?.UniqueId +
+                ";status=" + turn?.Status + ";mode=" + game?.CurrentMode + ";paused=" + game?.IsPaused +
+                ";owner=" + Executor?.UniqueId + ";standard=" + Executor?.CombatState?.Cooldown.StandardAction +
+                ";move=" + Executor?.CombatState?.Cooldown.MoveAction + ";source=" +
+                string.Join(" <- ", (new System.Diagnostics.StackTrace(1, false).GetFrames() ?? new System.Diagnostics.StackFrame[0])
+                    .Take(10).Select(frame => frame.GetMethod()?.DeclaringType?.FullName + "." + frame.GetMethod()?.Name).ToArray());
+            logger.Info("Mounted pre-start interruption: " + preStartInterruptBoundary);
+        }
+
         private void RequireLiveExactPair()
         {
             var riderState = rider?.Descriptor?.State;
@@ -845,6 +862,7 @@ namespace KingmakerMountedCombat.Integration
                         childAttack.PlannedAttack.Weapon,
                         "reload"),
                 TerminalReason = transaction.TerminalReason,
+                PreStartInterruptBoundary = preStartInterruptBoundary,
                 PairRangeSatisfiedAtStart = childAttack != null && childAttack.PairRangeSatisfiedAtNativeStart,
                 PairDistanceAtStart = childAttack?.PairDistanceAtNativeStart ?? 0f,
                 PairApproachRadiusAtStart = childAttack?.PairApproachRadius ?? 0f,
