@@ -1,4 +1,4 @@
-## Phase 3H final-candidate checkpoint - 2026-09-06 07:43 UTC
+## Phase 3H final-candidate checkpoint - 2026-09-06
 
 Runtime **6/8** completed; all six independently restored exact intake preview.7/cache/current human saves/settings. Source `5b5af63dc72758c5318d9092958b1d3bc3488e98` (preview.5). RT run `20260906-phase3h-preview5-rt-A` has 9/0 gameplay rows: native ordinary longbow plan 5, melee plan 4, Horse plan 3 all completed; explicit Primaries single; rider and Horse approach succeed; three paused-control rows succeed. Repeated clicks retained one intent. These are scripted native-handler integration, not physical pointer or native cadence comparisons. Host result FAIL: exact Phase 3H leaf names were omitted from `Get-KmcPhase3dHorseRuntimeRows`; do not waive or rewrite that historical failure.
 
