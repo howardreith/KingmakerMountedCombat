@@ -47,6 +47,8 @@ namespace KingmakerMountedCombat.Diagnostics
     internal sealed partial class Phase3dHorseScenarioTranche : IDisposable
     {
         internal const string RealTimeScenario = "phase3d-unified-combat-rt-suite";
+        internal const string UnmountedAttackControlsScenario = "unmounted-attack-controls-rt";
+        private bool IsUnmountedAttackControls => request.Scenario == UnmountedAttackControlsScenario;
         internal const string TurnBasedScenario = "phase3d-unified-combat-tb-suite";
         internal const string PresentationScenario = "phase3d-horse-presentation-suite";
         internal const string EvidenceFileName = "phase3d-horse-scenario-evidence.json";
@@ -252,6 +254,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal static bool SupportsScenario(string scenario)
         {
             return string.Equals(scenario, RealTimeScenario, StringComparison.Ordinal) ||
+                string.Equals(scenario, UnmountedAttackControlsScenario, StringComparison.Ordinal) ||
                 string.Equals(scenario, Phase3gRealTimeScenario, StringComparison.Ordinal) ||
                 string.Equals(scenario, Phase3gTurnBasedScenario, StringComparison.Ordinal) ||
                 string.Equals(scenario, "phase3h-combat-loop-rt", StringComparison.Ordinal) ||
@@ -364,6 +367,13 @@ namespace KingmakerMountedCombat.Diagnostics
             if (string.Equals(request.Scenario, TurnBasedScenario, StringComparison.Ordinal))
             {
                 BeginCombatMountHorseAiIsolation();
+                return;
+            }
+
+            if (IsUnmountedAttackControls)
+            {
+                BeginTarget(TargetDistance, "unmounted-control-dismount");
+                BeginRtCombatDismount();
                 return;
             }
 
@@ -1901,6 +1911,11 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void AwaitRtCombatDismountAdmission()
         {
+            if (IsUnmountedAttackControls)
+            {
+                Game.Instance.IsPaused = false;
+                if (!IsCombatReady(true)) { return; }
+            }
             nativeControls.Update();
             var availability = nativeControls.Evaluate(NativeMountedControlKind.Dismount, rider);
             observations["rtCombatDismountReadiness"] = CaptureRtCombatDismountState(availability);
@@ -1997,7 +2012,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
             SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
-            ruleProbe.Arm(target, true);
+            ruleProbe.Arm(target, !IsUnmountedAttackControls);
             stockNativeBefore = combat.StockAttackNativeRequestCount;
             stockIntentBefore = combat.StockAttackIntentStartCount;
             targetService.BeginExpectedAttackDispatch(target);
@@ -2130,7 +2145,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
 
             stableFrames = 0;
-            ruleProbe.Arm(target, true);
+            ruleProbe.Arm(target, !IsUnmountedAttackControls);
             stockNativeBefore = combat.StockAttackNativeRequestCount;
             stockIntentBefore = combat.StockAttackIntentStartCount;
             var expectedDispatchStarted = targetService.BeginExpectedAttackDispatch(target);

@@ -1,3 +1,15 @@
+# Active Chunk 1 checkpoint
+
+## 2026-09-06T18:05:10.249115+00:00 — Focused unmounted regression checkpoint
+
+Branch `codex/mounted-combat-phase3f-playable-core`; pre-change HEAD `cd9f1238a32e60835fe77cb73b7e7f2c0b389881`; preparing `0.1.0-chunk1-preview.11`. Production range repair remains unchanged. Preview10 native evidence: focused19/0 (`20260906-chunk1-sight-tb-A`), RT9/0 (`20260906-chunk1-regression-rt-A`), party1/0 with60 assertions (`20260906-chunk1-party-A`). Every transaction restored actual intake Mods/settings/caches/saves exactly.
+
+`20260906-chunk1-unmounted-rt-A` retained5 PASS/1 FAIL before unmounted controls. Forced criticals dealt131 damage against1 HP+128 temporaryHP before a second rider dispatch. The broad legacy validator also assumes one rule per dispatch, superseded by native UnitAttack full sequences. This is a harness dependency for sustained combat/UX (Chunk4), not evidence to change correct native planning or target safety limits. No second identical run. Reuse its two unmounted controls through stable `unmounted-attack-controls-rt`, with unchanged shared native Dismount/AI ownership/restoration assertions and natural rolls in this focused smoke. Protocol negatives cover missing row, wrong executor, foreign rules, unrestored AI and invalid Move shell. Host registration adds only that exact scenario; no protection/identity guard is relaxed.
+
+Last external restoration17:44:46.7873691UTC; game logSHA256 `e2c2fc32c2c566df7cf2d353d89ca98ff4012b1767d59576c07ac5432e79fbf1`. Full test run `analysis-cache/runtime-evidence/chunk1-20260906/unmounted-focused-gates.txt` pending at checkpoint. Next: finish tests, coherent source commit/package, fresh snapshot, focused unmounted scenario, Mammoth, then C01-C03/RT/party on the same final ZIP. No documentation commit between native runs; live identity record is `analysis-cache/runtime-evidence/chunk1-20260906/ACTIVE-RUN.json`. Human play and safe mod-absent certification remain pending.
+
+---
+
 ## Active Chunk 1 checkpoint - 2026-09-06 17:13 UTC
 
 IN PROGRESS. Branch codex/mounted-combat-phase3f-playable-core, exact source/current HEAD e82ca0397ae3e8fe9429a8818a8df32492c43f16; documentation checkpoint follows without source change. Preview.10 native run 20260906-chunk1-sight-tb-A PASS all19 focused C01-C03/movement/mixed-range and cross-control validator; complete host21/0. Trace2,835 events, no drops/errors. Full actual intake restoration PASS17:13:24 UTC, log674d489aa05a675a8b15372fba2fd6c137ebccb30898194920b5146d497c5832. No runtime/session active. Package artifacts/KingmakerMountedCombat-0.1.0-chunk1-preview.10-native-sight-controls-diagnostic.zip ZIP0299c18b887885d17ad1e381df2a5ba06bc6f3c713ec734d90d9a2d9c057086c; manifest8d2b46d59549a2c5fa77141647ad885830044d988854bd215edde8196bcd206e; DLL7ca925bce95ef1c1b2c3132ffec133df95bafbe8dd23a45a89685b8b4fb2331a / MVID897946dd-4291-493e-9d1a-4a63fbadd697. Full offline suite source22/COMPONENT345/visual23/inventory10/harness243/phase14+29/ordinary39/ASSEMBLY439 all PASS/0; package10/0. Nine native transactions completed since~13:00UTC, within8+2h campaign.

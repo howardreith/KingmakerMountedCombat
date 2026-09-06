@@ -2,15 +2,17 @@ $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'runtime\RuntimeHarness.Common.ps1')
 $passed=0
-foreach($name in @('ordinary-attack-controls-tb') + @(Get-KmcOrdinaryAttackControlCases | ForEach-Object {$_.id})) {
+foreach($name in @('ordinary-attack-controls-tb','unmounted-attack-controls-rt') + @(Get-KmcOrdinaryAttackControlCases | ForEach-Object {$_.id})) {
     if(@(Get-KmcPhase3dHorseRuntimeRows|Where-Object {$_ -ceq $name}).Count -ne 1){throw "Missing exact ordinary control row: $name"}
 }
 if(@(Get-KmcSaveBackedRuntimeScenarios|Where-Object {$_ -ceq 'ordinary-attack-controls-tb'}).Count -ne 1){throw 'Ordinary controls lack guarded fixture registration.'}
+if(@(Get-KmcSaveBackedRuntimeScenarios|Where-Object {$_ -ceq 'unmounted-attack-controls-rt'}).Count -ne 1){throw 'Unmounted controls lack guarded fixture registration.'}
 $passed++
 $kmcGuardPath=Join-Path (Get-KmcLabRoot) 'codex-policy\Manage-KingmakerMountedCombatDeployment.ps1'
 $kmcGuardCommand=Get-Command $kmcGuardPath
 $allowed=@($kmcGuardCommand.Parameters['RuntimeScenario'].Attributes | Where-Object {$_ -is [Management.Automation.ValidateSetAttribute]} | ForEach-Object ValidValues)
 if(@($allowed|Where-Object {$_ -ceq 'ordinary-attack-controls-tb'}).Count -ne 1 -or $allowed -contains 'ordinary-attack-unsafe') {throw 'Exact host scenario registration differs.'}
+if(@($allowed|Where-Object {$_ -ceq 'unmounted-attack-controls-rt'}).Count -ne 1) {throw 'Exact host unmounted scenario registration differs.'}
 $passed++
 function New-OrdinaryControlArtifact {
     # Synthetic envelopes test validation integrity; they are not gameplay evidence.

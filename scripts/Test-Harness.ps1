@@ -10662,6 +10662,38 @@ try {
                     $nativeManifest=Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
                     if ($mutation -ceq 'none') {
                         Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $nativeManifest -Status PASS -SubscenarioResults $nativeSubresults
+                        if ($phase3dScenario -ceq 'phase3d-unified-combat-rt-suite') {
+                            # Reuse the complete existing control envelope. These six validator cases
+                            # prove protocol integrity only; native gameplay still requires a live run.
+                            foreach ($unmountedMutation in @('none','missing-row','wrong-command','foreign-rule','ai-unrestored','move-shell')) {
+                                $unmountedArtifact = $nativeArtifact | ConvertTo-Json -Depth 100 | ConvertFrom-Json
+                                $unmountedRequest = $phase3dRequest | ConvertTo-Json -Depth 100 | ConvertFrom-Json
+                                $unmountedRequest.scenario = 'unmounted-attack-controls-rt'
+                                $unmountedArtifact.scenario = $unmountedRequest.scenario
+                                $unmountedArtifact.rows = @($unmountedArtifact.rows | Where-Object {
+                                    $_.name -cin @('unmounted-stock-attack-control','unmounted-ranged-control')
+                                })
+                                foreach ($control in $unmountedArtifact.rows) {
+                                    $control.evidence | Add-Member -Force -NotePropertyName commandType -NotePropertyValue 'Kingmaker.UnitLogic.Commands.UnitAttack'
+                                }
+                                if ($unmountedMutation -ceq 'missing-row') { $unmountedArtifact.rows = @($unmountedArtifact.rows | Select-Object -First 1) }
+                                if ($unmountedMutation -ceq 'wrong-command') { $unmountedArtifact.rows[0].evidence.commandType = 'KingmakerMountedCombat.Integration.MountedPairAttackCommand' }
+                                if ($unmountedMutation -ceq 'foreign-rule') { $unmountedArtifact.rows[0].evidence.rules.mountAttackRules = 1 }
+                                if ($unmountedMutation -ceq 'ai-unrestored') { $unmountedArtifact.observations.cleanup.unmountedHorseAiLeaseRestored = $false }
+                                if ($unmountedMutation -ceq 'move-shell') { $unmountedArtifact.observations.'rt-combat-dismount'.nativeShell.inMoveSlot = $false }
+                                $unmountedArtifact.subscenarioPassCount = $unmountedArtifact.rows.Count
+                                Write-KmcJsonAtomic -Path $phase3dPath -Value $unmountedArtifact
+                                $phase3dRecord.length = (Get-Item -LiteralPath $phase3dPath).Length
+                                $phase3dRecord.sha256 = Get-KmcSha256 $phase3dPath
+                                [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $unmountedRequest.runId -Scenario $unmountedRequest.scenario -Artifacts @($phase3dRecord))
+                                $unmountedManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+                                if ($unmountedMutation -ceq 'none') {
+                                    Assert-KmcPhase3dHorseScenarioEvidence -Request $unmountedRequest -Manifest $unmountedManifest -Status PASS
+                                } else {
+                                    Assert-TestThrows { Assert-KmcPhase3dHorseScenarioEvidence -Request $unmountedRequest -Manifest $unmountedManifest -Status PASS } ('Focused unmounted validator accepted ' + $unmountedMutation)
+                                }
+                            }
+                        }
                     } else {
                         Assert-TestThrows { Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $nativeManifest -Status PASS -SubscenarioResults $nativeSubresults } ('Phase 3F schema 7 accepted ' + $mutation)
                     }
