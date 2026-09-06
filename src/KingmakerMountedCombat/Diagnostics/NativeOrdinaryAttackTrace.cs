@@ -102,6 +102,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 var turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
                 var pointer = Game.Instance?.DefaultPointerController;
                 var attack = command as UnitAttack;
+                // Native Run prefixes also observe commands before InitAttacks;
+                // the stock PlannedAttack getter dereferences its private list.
+                var plannedAttack = attack != null && attack.AllAttacks.Count > 0 ? attack.PlannedAttack : null;
                 if (boundary == "start-after" && actor == rider) LastStartedRiderAttack = attack;
                 var row = new JObject {
                     ["index"] = events.Count, ["caseId"] = caseId, ["boundary"] = boundary,
@@ -139,14 +142,15 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["duplicateDispatches"] = combat.StockAttackDuplicateDispatchCount,
                     ["single"] = attack?.IsSingleAttack, ["full"] = attack?.IsFullAttack,
                     ["planned"] = attack?.AllAttacks.Count, ["completed"] = attack?.GetAttackIndex(),
-                    ["plannedWeapon"] = attack?.PlannedAttack?.Weapon?.Blueprint.AssetGuid,
-                    ["plannedWeaponRange"] = attack?.PlannedAttack?.WeaponRange,
+                    ["plannedWeapon"] = plannedAttack?.Weapon?.Blueprint.AssetGuid,
+                    ["plannedWeaponRange"] = plannedAttack?.WeaponRange,
                     ["pairApproachRadius"] = (attack as MountedPairSingleAttack)?.PairApproachRadius,
                     ["detail"] = detail
                 };
                 if (command?.Executor != null)
                 {
                     row["shouldApproach"] = command.ShouldUnitApproach;
+                    row["approachPoint"] = new JArray(command.ApproachPoint.x, command.ApproachPoint.y, command.ApproachPoint.z);
                     row["approachRadius"] = command.ApproachRadius;
                     row["enoughClose"] = command.IsUnitEnoughClose;
                     row["shouldInterrupt"] = command.ShouldBeInterrupted;
@@ -197,7 +201,7 @@ namespace KingmakerMountedCombat.Diagnostics
             { if (!__result) active?.Record("target-invalid", __instance.Executor, __instance); }
             internal static void InterruptBefore(UnitCommand __instance)
             {
-                if (!__instance.IsStarted || __instance.IsFinished) return;
+                if (__instance.IsFinished || active == null || !active.Owns(__instance.Executor)) return;
                 var stack = new StackTrace(1, false);
                 active?.Record("interrupt-request", __instance.Executor, __instance, stack.ToString());
                 var attack = __instance as UnitAttack;

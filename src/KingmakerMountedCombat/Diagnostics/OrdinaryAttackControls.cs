@@ -66,6 +66,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool ordinaryMovementDone;
         private UnitMoveTo ordinaryMove;
         private bool ordinarySetupComplete;
+        private float ordinarySetupRadius;
         private bool OrdinaryMounted => OrdinaryCurrent.Mounted;
         private bool OrdinaryPrimary => OrdinaryCurrent.Primary;
 
@@ -131,6 +132,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 ordinaryVariation = new NativeAttackFixtureVariation(rider, phase3hRapidToggle,
                     OrdinaryCurrent.Rapid, OrdinaryCurrent.Bab, OrdinaryCurrent.Haste);
                 BeginTarget(OrdinaryCurrent.Preparation == "mixed-range" ? 6f : 3.5f, OrdinaryCaseIds[ordinaryCase]);
+                var nativePlan = new UnitAttack(target);
+                nativePlan.Init(rider);
+                var origin = OrdinaryMounted ? horse : rider;
+                ordinarySetupRadius = origin.View.Corpulence + target.View.Corpulence +
+                    nativePlan.AllAttacks.Min(attack => attack.WeaponRange);
                 ruleProbe.Arm(target, false);
                 ordinaryStage = 1;
                 return;
@@ -143,7 +149,12 @@ namespace KingmakerMountedCombat.Diagnostics
                     if (!ordinarySetupComplete)
                     {
                         var mover = OrdinaryMounted ? horse : rider;
-                        var destination = FindWalkablePointNearTarget(target.Position, mover.Position, 1.5f);
+                        var destination = FindWalkablePointNearTarget(target.Position, mover.Position,
+                            ordinarySetupRadius - MountedCombatSpatialPolicy.DiagnosticRangeInset);
+                        observations["setup-" + OrdinaryCurrent.Id] = new JObject {
+                            ["radius"] = ordinarySetupRadius, ["before"] = CaptureOrdinaryLiveState(),
+                            ["targetPoint"] = new JArray(target.Position.x, target.Position.y, target.Position.z),
+                            ["destination"] = new JArray(destination.x, destination.y, destination.z) };
                         SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
                         ClickGroundHandler.MoveSelectedUnitsToPoint(destination, false);
                         ordinaryMove = mover.Commands.Move as UnitMoveTo;
@@ -166,7 +177,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     var mover = OrdinaryMounted ? horse : rider;
                     var direction = (mover.Position - target.Position).normalized;
-                    var destination = target.Position - direction * 1.5f;
+                    var destination = target.Position - direction *
+                        (ordinarySetupRadius - MountedCombatSpatialPolicy.DiagnosticRangeInset);
                     ordinaryMovement = new JObject { ["before"] = CaptureOrdinaryLiveState(),
                         ["requestedPoint"] = new JArray(destination.x, destination.y, destination.z), ["mover"] = mover.UniqueId };
                     using (var input = new NativeOrdinaryAttackInput(destination))
@@ -332,7 +344,11 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 var mover = OrdinaryMounted ? horse : rider;
                 if (!ordinaryMove.IsFinished || mover.View.AgentASP.IsReallyMoving) return;
-                if (ordinaryMove.Result != UnitCommand.ResultType.Success || mover.DistanceTo(target) > 1.7f)
+                var setup = observations["setup-" + OrdinaryCurrent.Id];
+                setup["after"] = CaptureOrdinaryLiveState();
+                setup["command"] = CaptureOrdinaryCommand(ordinaryMove);
+                setup["distance"] = mover.DistanceTo(target);
+                if (ordinaryMove.Result != UnitCommand.ResultType.Success || mover.DistanceTo(target) > ordinarySetupRadius)
                     throw new InvalidOperationException("Native setup movement did not reach legal mixed-weapon adjacency.");
                 ordinarySetupComplete = true; ordinaryMove = null; ordinaryStage = 1; ResetLeafClock(); return;
             }
