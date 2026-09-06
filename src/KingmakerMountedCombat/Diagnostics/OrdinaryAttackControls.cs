@@ -69,6 +69,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private float ordinarySetupRadius;
         private bool OrdinaryMounted => OrdinaryCurrent.Mounted;
         private bool OrdinaryPrimary => OrdinaryCurrent.Primary;
+        private bool OrdinaryMovementCase => OrdinaryCurrent.Preparation == "rider-move" || OrdinaryCurrent.Preparation == "carried-move";
 
         private void BeginOrdinaryAttackControls()
         {
@@ -100,7 +101,7 @@ namespace KingmakerMountedCombat.Diagnostics
             ordinaryMovement = null;
             ordinaryMovementDone = false;
             ordinaryMove = null;
-            ordinarySetupComplete = OrdinaryCurrent.Preparation == "mixed-range";
+            ordinarySetupComplete = OrdinaryMovementCase || OrdinaryCurrent.Preparation == "mixed-range";
             ResetLeafClock();
         }
 
@@ -131,7 +132,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!OrdinaryMounted && (!PrepareUnmountedHorseAiIsolation() || !PrepareCombatMountRiderAiIsolation())) return;
                 ordinaryVariation = new NativeAttackFixtureVariation(rider, phase3hRapidToggle,
                     OrdinaryCurrent.Rapid, OrdinaryCurrent.Bab, OrdinaryCurrent.Haste);
-                BeginTarget(OrdinaryCurrent.Preparation == "mixed-range" ? 6f : 3.5f, OrdinaryCaseIds[ordinaryCase]);
+                BeginTarget(OrdinaryMovementCase || OrdinaryCurrent.Preparation == "mixed-range" ? 6f : 3.5f, OrdinaryCaseIds[ordinaryCase]);
                 var nativePlan = new UnitAttack(target);
                 nativePlan.Init(rider);
                 var origin = OrdinaryMounted ? horse : rider;
@@ -175,11 +176,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (rider.IsMoveActionRestricted()) { TryEndPhase3gFixtureTurn(turn); return; }
                 SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
                 ordinaryTurn = turn;
-                if (!ordinaryMovementDone && (OrdinaryCurrent.Preparation == "rider-move" || OrdinaryCurrent.Preparation == "carried-move"))
+                if (!ordinaryMovementDone && OrdinaryMovementCase)
                 {
                     var mover = OrdinaryMounted ? horse : rider;
-                    var direction = (mover.Position - target.Position).normalized;
-                    var destination = FindOrdinaryControlPoint(target.Position - direction * ordinarySetupRadius, 2.1f);
+                    // Start outside melee reach and spend the native Move entering
+                    // adjacency. Crossing the target's occupied body from an already
+                    // adjacent setup imposed an unrelated narrow-ring geometry test.
+                    var destination = FindOrdinaryControlPoint(mover.Position, 2.1f);
                     ordinaryMovement = new JObject { ["before"] = CaptureOrdinaryLiveState(),
                         ["requestedPoint"] = new JArray(destination.x, destination.y, destination.z), ["mover"] = mover.UniqueId };
                     using (var input = new NativeOrdinaryAttackInput(destination))
@@ -399,19 +402,26 @@ namespace KingmakerMountedCombat.Diagnostics
             // The native ground command admits an endpoint within 0.3 m. Leave
             // 0.4 m inside weapon reach and reject occupied endpoints before input.
             var radius = ordinarySetupRadius - 0.4f;
+            var candidates = new JArray();
+            observations["endpoint-" + OrdinaryCurrent.Id] = candidates;
             for (var index = 0; index < 24; index++)
             {
                 var angle = index == 0 ? 0f : (index % 2 == 0 ? index : -index) * 15f;
                 var nearest = global::AstarPath.active.GetNearest(target.Position +
                     Quaternion.Euler(0f, angle, 0f) * direction * radius);
                 var point = nearest.clampedPosition;
-                if (nearest.node == null || !nearest.node.Walkable ||
-                    HorizontalDistance(point, target.Position) > radius + 0.05f ||
-                    HorizontalDistance(point, mover.Position) < minimumDisplacement) continue;
-                var occupied = Game.Instance.State.Units.Any(unit => unit != mover && unit.IsInState && unit.View != null &&
+                var blockers = Game.Instance.State.Units.Where(unit => unit != mover && unit.IsInState && unit.View != null &&
                     !(OrdinaryMounted && unit == rider) && HorizontalDistance(point, unit.Position) <
-                        mover.View.Corpulence + unit.View.Corpulence + 0.05f);
-                if (!occupied) return point;
+                        mover.View.Corpulence + unit.View.Corpulence + 0.05f).Select(unit => unit.UniqueId).ToArray();
+                var walkable = nearest.node != null && nearest.node.Walkable;
+                var distance = HorizontalDistance(point, target.Position);
+                var displacement = HorizontalDistance(point, mover.Position);
+                candidates.Add(new JObject { ["point"] = new JArray(point.x, point.y, point.z),
+                    ["walkable"] = walkable, ["targetDistance"] = distance, ["displacement"] = displacement,
+                    ["minimumDisplacement"] = minimumDisplacement, ["radius"] = radius,
+                    ["blockers"] = new JArray(blockers) });
+                if (walkable && distance <= radius + 0.05f && displacement >= minimumDisplacement && blockers.Length == 0)
+                    return point;
             }
             throw new InvalidOperationException("No clear native fixture endpoint exists inside the actual weapon range.");
         }
