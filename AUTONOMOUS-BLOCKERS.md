@@ -1,3 +1,17 @@
+## Current Phase 3G blockers - 2026-09-06 03:40 UTC
+
+Disposition: **partial private preview.7**, source `b8c206331f34a1aa873bfef86a37ab1066c267fc`; [current evidence and package](docs/PHASE3G-IMPLEMENTATION.md). Eight guarded transactions exhausted, all exact starting-state restorations PASS. Phase 3F preview.4/cache remains installed. No safety/integrity recovery is outstanding and no game is running.
+
+- **FAIL - explicit RT Horse Primary approach.** Native mount-owned wrapper occupies Standard; `BeginDelegatedMove` rejects `!mount.Commands.Empty`, throwing the legacy Mammoth-labelled error before attack/cost. Final RT run records initial distance 3.84622431 m, Bite radius 3.42879987 m, zero children/rules/effects/Standard charge. Ordinary in-range Horse attacks and both stationary TB Horse controls completed. Preserve exact ownership while allowing the owned wrapper; never clear unrelated commands.
+- **UNQUALIFIED - TB movement resources.** Pair-local pre-Prepare movement debit and mount Standard projection are implemented. Native time/five-foot-step/metres/limits/autostop and cross-round readiness/mode/remount effects still lack complete reconciliation and a two-round/both-order native trace. No rider Move tax or shared Standard pool. TB is not advertised as playable.
+- **FAIL - stationary rider-melee fixture gate.** Both native controls did complete and spent only rider Standard, but setup was outside the 2.2096 m weapon radius and allowed a 0.30-0.40 m approach. Keep rows FAIL; do not weaken the 0.1 m bound or confuse this with failure to deal damage.
+- **HUMAN VALIDATION PENDING - Horse motion, lower seat, original painted icons.** Native Bite handles complete, but frame coverage/framing does not establish the full visible ordinary/explicit attack and return to idle. The Horse visual seat is 0.08 m lower with horizontal placement unchanged. Actual HUD hover/disabled/cooldown and aesthetic approval were not obtained.
+- **NOT RUN - remaining native matrices.** Matched untouched one-click cadence, exhaustive cancellation/retarget/party isolation, queued invalidation and modal toggles, existing-intent mode switch, native unmounted longbow/Horse/Mammoth controls and broader lifecycle/save boundaries. Policy tests and Howie's preview.4 human successes remain separately valid. The older Sling timeout is not a blanket ranged defect.
+- **UNAVAILABLE - physical desktop pointer bridge.** Two approved bridge attempts failed with native pipe error 2. Final evidence uses scripted native handlers, not a physical pointer or fabricated actor readiness. No more bridge retries in this mission.
+
+The prior paused Mount and blanket TB attack failures are improved: paused Mount/Stop/Dismount rows PASS; all three TB attack types produce native effects on the correct actor turns. Same-target repeated clicks no longer starve the tested RT longbow/melee sequences. These improvements do not erase the blockers above.
+
+Historical entries below retain their original builds/settings and do not define the current installation or current safety state.
 # Autonomous blockers
 
 ## Active Phase 3G - 2026-09-06T00:49Z

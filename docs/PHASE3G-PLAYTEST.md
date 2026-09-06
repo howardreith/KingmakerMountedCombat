@@ -2,6 +2,8 @@
 
 Private preview, one active rider/companion pair. Keep both experimental turn flags and the diagnostic overlay **off**. No UMM window or diagnostic commands are needed during play. Separate rider and Horse turns remain; mounted TB movement costs are **not qualified**. Mounting is currently outside combat only. This checklist asks for new-build observations, not a repeat of Howie's entire accepted RTWP review.
 
+Known preview.7 failure: explicit RTWP **Mount Primary can fail when it needs an approach**, before any attack or cost. Use an already adjacent legal target for its visual check; this does not qualify the blocked approach. All three TB attack types completed in native-handler tests, but the melee stationary fixture exceeded its movement bound. Full TB movement accounting remains blocked.
+
 1. Outside combat, pause and choose **Mount Companion**, then your Horse. Nothing should mount while paused. Unpause: the rider should walk into reach and mount once. Try Stop before unpausing, then submit a fresh Mount. Try paused Dismount too.
 2. With a longbow, click one living hostile and leave it alone for several shots. Repeat against a fresh enemy while clicking that same enemy during windup and between shots. Shots should continue at native cadence. Repeat briefly with melee, including an approach. Check whole-party selection once; other members should retain their own orders.
 3. Stop, issue a ground move, and retarget a different hostile. Each new order should replace the old mounted intent. A projectile already released may still hit its old target. Explicit Primary should also replace ordinary repetition.
