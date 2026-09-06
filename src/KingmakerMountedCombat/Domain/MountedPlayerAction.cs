@@ -285,7 +285,9 @@ namespace KingmakerMountedCombat.Domain
             float mountCorpulence, out float radius)
         {
             radius = 0f;
-            if (!IsFiniteNonNegative(nativeRadius) || !IsFiniteNonNegative(riderCorpulence) ||
+            // AbilityRange.Unlimited is positive infinity in this native build.
+            // It is a ceiling to clamp, not an invalid target/body measurement.
+            if (float.IsNaN(nativeRadius) || nativeRadius < 0f || !IsFiniteNonNegative(riderCorpulence) ||
                 !IsFiniteNonNegative(mountCorpulence)) { return false; }
             // Stop just inside the execution envelope; never enlarge native permission.
             radius = Math.Min(nativeRadius, riderCorpulence + mountCorpulence +

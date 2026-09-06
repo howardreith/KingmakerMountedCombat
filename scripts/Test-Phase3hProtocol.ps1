@@ -2,6 +2,15 @@ $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'runtime\RuntimeHarness.Common.ps1')
 $passed=0
+foreach($name in @('3h-rider-longbow-ordinary','3h-rider-longbow-primary','3h-rider-melee-ordinary',
+    '3h-rider-melee-primary','3h-horse-bite-ordinary','3h-horse-bite-primary','3h-paused-dismount',
+    '3h-paused-mount-stop','3h-paused-mount-execute','3h-paused-control-failure','3h-movement-allocation-partial')) {
+    if (@(Get-KmcPhase3dHorseRuntimeRows | Where-Object { $_ -ceq $name }).Count -ne 1) {
+        throw "Exact Phase 3H leaf is missing or duplicated in native result reconciliation: $name"
+    }
+}
+if ('3h-unrecognized-test' -cin @(Get-KmcPhase3dHorseRuntimeRows)) { throw 'Unknown leaf admitted.' }
+$passed++
 function New-ControlsEvidence {
     param([bool]$TurnBased)
     $rows=@()

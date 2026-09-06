@@ -33,6 +33,11 @@ namespace KingmakerMountedCombat.Tests
                 CombatMountDismountPolicy.IsAdjacent(radius, 0.5f, 1.1f), "Native approach stops beyond execution reach.");
             TestRunner.True(CombatMountDismountPolicy.TryGetMountApproachRadius(2f, 0.5f, 1.1f, out radius) && radius == 2f,
                 "Mount approach enlarged a tighter native radius.");
+            TestRunner.True(CombatMountDismountPolicy.TryGetMountApproachRadius(float.PositiveInfinity, 0.5f, 1.1f, out radius) &&
+                radius > 3f && radius < 3.1f && CombatMountDismountPolicy.IsAdjacent(radius, 0.5f, 1.1f),
+                "Native AbilityRange.Unlimited must approach inside legal Mount adjacency.");
+            TestRunner.True(!CombatMountDismountPolicy.TryGetMountApproachRadius(float.NegativeInfinity, 0.5f, 1.1f, out radius),
+                "Negative infinite native radius admitted.");
             TestRunner.True(!CombatMountDismountPolicy.TryGetMountApproachRadius(float.NaN, 0.5f, 1.1f, out radius), "Invalid native radius admitted.");
             TestRunner.True(!CombatMountDismountPolicy.TryGetMountApproachRadius(5f, -1f, 1.1f, out radius), "Missing body radius admitted.");
         }
