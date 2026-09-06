@@ -152,8 +152,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     if (!ordinarySetupComplete)
                     {
                         var mover = OrdinaryMounted ? horse : rider;
-                        var destination = FindWalkablePointNearTarget(target.Position, mover.Position,
-                            ordinarySetupRadius - MountedCombatSpatialPolicy.DiagnosticRangeInset);
+                        var destination = FindOrdinaryControlPoint(mover.Position, 0.25f);
                         observations["setup-" + OrdinaryCurrent.Id] = new JObject {
                             ["radius"] = ordinarySetupRadius, ["before"] = CaptureOrdinaryLiveState(),
                             ["targetPoint"] = new JArray(target.Position.x, target.Position.y, target.Position.z),
@@ -180,8 +179,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     var mover = OrdinaryMounted ? horse : rider;
                     var direction = (mover.Position - target.Position).normalized;
-                    var destination = target.Position - direction *
-                        (ordinarySetupRadius - MountedCombatSpatialPolicy.DiagnosticRangeInset);
+                    var destination = FindOrdinaryControlPoint(target.Position - direction * ordinarySetupRadius, 2.1f);
                     ordinaryMovement = new JObject { ["before"] = CaptureOrdinaryLiveState(),
                         ["requestedPoint"] = new JArray(destination.x, destination.y, destination.z), ["mover"] = mover.UniqueId };
                     using (var input = new NativeOrdinaryAttackInput(destination))
@@ -389,6 +387,33 @@ namespace KingmakerMountedCombat.Diagnostics
             return new JObject { ["rider"] = CaptureOrdinaryActor(rider), ["mount"] = CaptureOrdinaryActor(horse),
                 ["relationship"] = relationship.State.ToString(), ["intentStarts"] = combat.StockAttackIntentStartCount,
                 ["duplicateDispatches"] = combat.StockAttackDuplicateDispatchCount };
+        }
+
+        private Vector3 FindOrdinaryControlPoint(Vector3 preferredOrigin, float minimumDisplacement)
+        {
+            var mover = OrdinaryMounted ? horse : rider;
+            var direction = preferredOrigin - target.Position;
+            direction.y = 0f;
+            if (direction.sqrMagnitude < 0.01f) direction = Vector3.forward;
+            direction.Normalize();
+            // The native ground command admits an endpoint within 0.3 m. Leave
+            // 0.4 m inside weapon reach and reject occupied endpoints before input.
+            var radius = ordinarySetupRadius - 0.4f;
+            for (var index = 0; index < 24; index++)
+            {
+                var angle = index == 0 ? 0f : (index % 2 == 0 ? index : -index) * 15f;
+                var nearest = global::AstarPath.active.GetNearest(target.Position +
+                    Quaternion.Euler(0f, angle, 0f) * direction * radius);
+                var point = nearest.clampedPosition;
+                if (nearest.node == null || !nearest.node.Walkable ||
+                    HorizontalDistance(point, target.Position) > radius + 0.05f ||
+                    HorizontalDistance(point, mover.Position) < minimumDisplacement) continue;
+                var occupied = Game.Instance.State.Units.Any(unit => unit != mover && unit.IsInState && unit.View != null &&
+                    !(OrdinaryMounted && unit == rider) && HorizontalDistance(point, unit.Position) <
+                        mover.View.Corpulence + unit.View.Corpulence + 0.05f);
+                if (!occupied) return point;
+            }
+            throw new InvalidOperationException("No clear native fixture endpoint exists inside the actual weapon range.");
         }
 
         private static JObject CaptureOrdinaryActor(Kingmaker.EntitySystem.Entities.UnitEntityData actor)
