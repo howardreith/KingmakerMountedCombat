@@ -12,6 +12,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("same-view attachment observes while replacement attachment cleans", ViewAttachmentClassificationIsExact);
             runner.Run("non-world UI treats stock visibility as transient while world mode remains strict", UiViewActivityIsModeScoped);
             runner.Run("native TB exit AI lease repair is exact and boundary-scoped", NativeTurnBasedExitAiLeaseRepairIsExact);
+            runner.Run("native combat end retains only the captured owned mount lease", NativeCombatEndOwnsCapturedMount);
             runner.Run("native TB exit UI lease repair is exact and post-boundary", NativeTurnBasedExitUiLeaseRepairIsExact);
             runner.Run("mounted stock pair attack is pair-local and explains explicit controls", StockAttackRejectionIsPairLocal);
             runner.Run("native TB actor selection preserves separate rider and Mammoth turns", NativeTurnSelectionPreservesActorOwnership);
@@ -89,6 +90,18 @@ namespace KingmakerMountedCombat.Tests
                 NativeTurnBasedExitAiLeaseDisposition.ReassertExactLease,
                 NativeTurnBasedExitAiLeasePolicy.Classify(true, true, false, false, true, true),
                 "The exact post-controller stock AI reset was not isolated.");
+        }
+
+        private static void NativeCombatEndOwnsCapturedMount()
+        {
+            TestRunner.True(NativeTurnBasedExitAiLeasePolicy.OwnsCompletedCombatEnd(true, true, true, true, true),
+                "Natural combat end must restore the same owned lease without a TB option toggle.");
+            for (var missing = 0; missing < 5; missing++)
+            {
+                TestRunner.True(!NativeTurnBasedExitAiLeasePolicy.OwnsCompletedCombatEnd(
+                    missing != 0, missing != 1, missing != 2, missing != 3, missing != 4),
+                    "A changed actor, controller, lease or unfinished native boundary must not be repaired.");
+            }
         }
 
         private static void NativeTurnBasedExitUiLeaseRepairIsExact()

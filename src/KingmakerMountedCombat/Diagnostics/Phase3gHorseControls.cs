@@ -91,8 +91,16 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (combat.HasActiveCommand || ruleProbe.RiderResolvedCount < ruleProbe.RiderNonOpportunityAttackRuleCount ||
                     ruleProbe.MountResolvedCount < ruleProbe.MountNonOpportunityAttackRuleCount) { return; }
                 TryLeaveCombat(target);
-                if (!targetService.DestroyAndVerify()) { return; }
-                targetService.Dispose(); targetService = null; target = null;
+                TryLeaveCombat(rider);
+                TryLeaveCombat(horse);
+                if (targetService != null)
+                {
+                    if (!targetService.DestroyAndVerify()) { return; }
+                    targetService.Dispose(); targetService = null; target = null;
+                }
+                if (turnBasedModeProbe != null) { turnBasedModeProbe.Dispose(); turnBasedModeProbe = null; }
+                if (CombatController.IsInTurnBasedCombat() || Game.Instance.TurnBasedCombatController.Initialized ||
+                    Game.Instance.Player.IsInCombat || !rider.Commands.Empty || !horse.Commands.Empty) { return; }
                 phase3gCase++;
                 BeginPhase3gCase();
                 return;
@@ -119,6 +127,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
                 if (actor.Commands == null || !actor.Commands.Empty || actor.AreHandsBusyWithAnimation ||
                     !actor.HasStandardAction() || game.HandsEquipmentController.IsUpdateScheduledFor(actor)) { return; }
+                if (phase3gCase >= 4 && (!horse.Commands.Empty || horse.AreHandsBusyWithAnimation ||
+                    !horse.HasStandardAction())) { return; }
                 SelectionManager.Instance.SelectUnit(actor.View, true, true, false);
                 var ledger = combat.CaptureUnifiedTurnSnapshot();
                 var mountAction = phase3gCase >= 4;

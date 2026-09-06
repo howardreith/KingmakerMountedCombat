@@ -109,6 +109,12 @@ namespace KingmakerMountedCombat.Domain
 
     public static class NativeTurnBasedExitAiLeasePolicy
     {
+        public static bool OwnsCompletedCombatEnd(bool exactController, bool controllerCleared,
+            bool sameCapturedMount, bool relationshipMounted, bool mountAiLeaseOwned)
+        {
+            return exactController && controllerCleared && sameCapturedMount && relationshipMounted && mountAiLeaseOwned;
+        }
+
         public static NativeTurnBasedExitAiLeaseDisposition Classify(
             bool exitDeliveryPending,
             bool relationshipMounted,

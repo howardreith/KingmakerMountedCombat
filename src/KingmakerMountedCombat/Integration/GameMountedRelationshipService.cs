@@ -452,6 +452,26 @@ namespace KingmakerMountedCombat.Integration
             NativeTurnBasedExitUiLeaseRestoreResult = "armed";
         }
 
+        internal UnitEntityData CaptureNativeCombatEndMount()
+        {
+            return coordinator.State == RelationshipState.Mounted && runtime.MountAiLeaseOwned ? runtime.Mount : null;
+        }
+
+        internal void CompleteNativeCombatEndMountLease(CombatController controller, UnitEntityData capturedMount)
+        {
+            if (!NativeTurnBasedExitAiLeasePolicy.OwnsCompletedCombatEnd(
+                controller != null && ReferenceEquals(controller, Game.Instance?.TurnBasedCombatController),
+                controller != null && !controller.Initialized,
+                capturedMount != null && ReferenceEquals(capturedMount, runtime.Mount),
+                coordinator.State == RelationshipState.Mounted, runtime.MountAiLeaseOwned)) { return; }
+
+            // Native HandleCombatEnd enables every controllable unit's AI even when the
+            // user's TB option remains enabled. Reacquire only our captured owned lease
+            // after that exact native write, before a new encounter can initialize.
+            ObserveNativeTurnBasedModeChanged(false);
+            CompleteNativeTurnBasedExitAiLeaseReassertion();
+        }
+
         private void CompleteNativeTurnBasedExitAiLeaseReassertion()
         {
             var controller = Game.Instance?.TurnBasedCombatController;
@@ -488,7 +508,7 @@ namespace KingmakerMountedCombat.Integration
             {
                 NativeTurnBasedExitAiLeaseReassertionSuccessCount++;
                 NativeTurnBasedExitAiLeaseReassertionResult = "reasserted";
-                logger.Info("Reasserted the exact owned Mammoth AI-disable lease after native TB combat-controller shutdown.");
+                logger.Info("Reasserted the exact owned mount AI-disable lease after native TB combat-controller shutdown.");
             }
             else
             {

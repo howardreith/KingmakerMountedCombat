@@ -206,6 +206,7 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.UnitLogic.Commands.UnitAttack',0x06002675,'GetAttackIndex'),
         @('Kingmaker.UnitLogic.Commands.UnitAttack',0x06002680,'OnTick'),
         @('Kingmaker.UnitLogic.Commands.UnitCommands',0x060026B2,'Run'),
+        @('TurnBased.Controllers.CombatController',0x06000BE3,'HandleCombatEnd'),
         @('Kingmaker.UnitLogic.Commands.UnitUseAbility',0x06002725,'CreateCastCommand'),
         @('Kingmaker.UnitLogic.Commands.Base.UnitCommand',0x04001A72,'CreatedByPlayer'),
         @('Kingmaker.UnitLogic.Commands.Base.UnitCommand',0x06002775,'get_AiAction'),

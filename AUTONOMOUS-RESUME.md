@@ -1,3 +1,10 @@
+## Phase 3G active checkpoint - 2026-09-06 02:15 UTC
+
+Branch `codex/mounted-combat-phase3f-playable-core`; source parent `2c4f4dae83208465a95344394249e37a237dc4d2`; preparing distinct `0.1.0-phase3g-preview.4`. Three guarded transactions used; all independently restored exact intake preview.4/cache, current saves and foreign Mods. Last audit `analysis-cache/phase3g-intake-20260905T233500Z/20260906-phase3g-preview3-tb-A-restoration.json` PASS; game closed, locks clear. No permanent new installation authorized.
+
+One stationary ordinary TB longbow native attack/effect completed on exact rider turn (miss; own Standard 0->6, mount unchanged, no movement). Overall run FAIL: next encounter exposed natural TB shutdown resetting the owned Horse AI lease, followed by bounded fixture cleanup timeout. Repair now captures/reacquires only the exact native-shutdown owned lease; fixture waits for shutdown before next target/equipment and defers restoring blocking UMM UI until cleanup completion. Focused Release/source 22/0; component 340/0; protocol 13/0. No other new gameplay PASS inferred.
+
+Next: commit/package preview.4 from clean source; create exact current-starting suite; guarded `phase3g-native-controls-rt`, independently audit restoration before evaluating evidence. Preserve final RT/TB slots. Full release gate and short Phase 3G human checklist remain required. TB resource reconciliation remains partial/unqualified.
 # Autonomous resume
 
 ## Phase 3G second implementation checkpoint - 2026-09-06T01:29Z

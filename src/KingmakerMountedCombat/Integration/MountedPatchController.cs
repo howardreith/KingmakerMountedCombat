@@ -54,6 +54,8 @@ namespace KingmakerMountedCombat.Integration
 
                 PatchExact(typeof(ClickGroundHandler), "RunCommand", 0x060093DC, new[] { typeof(UnitEntityData), typeof(UnityEngine.Vector3), typeof(float?), typeof(float), typeof(float), typeof(bool) }, nameof(PatchMethods.GroundCommandPrefix), nameof(PatchMethods.GroundCommandPostfix));
                 PatchExact(typeof(UnitCommands), "Run", 0x060026B2, new[] { typeof(UnitCommand) }, nameof(PatchMethods.UnitCommandRunPrefix));
+                PatchExact(typeof(CombatController), "HandleCombatEnd", 0x06000BE3, Type.EmptyTypes,
+                    nameof(PatchMethods.NativeCombatEndPrefix), nameof(PatchMethods.NativeCombatEndPostfix));
                 PatchExact(typeof(UnitUseAbility), "Init", 0x06002728, new[] { typeof(UnitEntityData) }, null, nameof(PatchMethods.NativeAbilityInitPostfix));
                 PatchExact(typeof(SelectionManager), "SelectUnit", 0x060034F0, new[] { typeof(UnitEntityView), typeof(bool), typeof(bool), typeof(bool) }, nameof(PatchMethods.SelectUnitPrefix));
                 PatchExact(typeof(SelectionManager), "MultiSelect", 0x060034F5, new[] { typeof(IEnumerable<UnitEntityView>), typeof(bool) }, nameof(PatchMethods.MultiSelectPrefix));
@@ -314,6 +316,16 @@ namespace KingmakerMountedCombat.Integration
                     PatchBridge.Combat?.Cancel("continuous movement replaced the active mounted combat intent");
                 }
                 return PatchBridge.Service == null || PatchBridge.Service.RouteContinuousMove(ref executor);
+            }
+
+            internal static void NativeCombatEndPrefix(out UnitEntityData __state)
+            {
+                __state = PatchBridge.Service?.CaptureNativeCombatEndMount();
+            }
+
+            internal static void NativeCombatEndPostfix(CombatController __instance, UnitEntityData __state)
+            {
+                PatchBridge.Service?.CompleteNativeCombatEndMountLease(__instance, __state);
             }
 
             internal static bool ForcePlaceAboveGroundPrefix(UnitEntityView __instance)

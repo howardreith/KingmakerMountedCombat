@@ -5919,9 +5919,6 @@ namespace KingmakerMountedCombat.Diagnostics
             catch (Exception exception) { AddCleanupError("movement", exception); }
             try { unmountedCommand?.Interrupt(); }
             catch (Exception exception) { AddCleanupError("unmounted command", exception); }
-            try { rangedWeaponLease?.Dispose(); }
-            catch (Exception exception) { AddCleanupError("ranged weapon", exception); }
-            rangedWeaponLease = null;
             try
             {
                 if (relationship.State != RelationshipState.Unmounted)
@@ -5970,6 +5967,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 modeRestored = true;
             }
             catch (Exception exception) { AddCleanupError("mode", exception); }
+            // Native equipment removal is legal only after leaving combat and restoring
+            // the mode. Never drop ownership of an item before that cleanup boundary.
+            try { rangedWeaponLease?.Dispose(); rangedWeaponLease = null; }
+            catch (Exception exception) { AddCleanupError("ranged weapon", exception); }
             settings.EnablePairedCommandScheduler = originalPairedCommandScheduler;
             settings.EnableUnsafeMovementExperiment = originalUnsafeExperiment;
         }

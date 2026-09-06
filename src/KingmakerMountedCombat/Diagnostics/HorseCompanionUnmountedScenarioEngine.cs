@@ -503,6 +503,8 @@ namespace KingmakerMountedCombat.Diagnostics
             catch (Exception exception) { errors.Add("Phase 3D tranche disposal: " + exception.Message); }
             phase3dTranche = null;
             DisposeHorseLifeStateProbe();
+            try { phase3gUmmLease?.Dispose(); phase3gUmmLease = null; }
+            catch (Exception exception) { errors.Add("Native UMM state restoration: " + exception.Message); }
             disposed = true;
         }
 
@@ -3196,8 +3198,6 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void BestEffortCleanup()
         {
-            try { phase3gUmmLease?.Dispose(); phase3gUmmLease = null; }
-            catch (Exception exception) { errors.Add("Native UMM state restoration: " + exception.Message); }
             try { combat.Cancel("horse qualification cleanup"); }
             catch (Exception exception) { errors.Add("Mounted combat cleanup: " + exception.Message); }
             if (relationship.State != RelationshipState.Unmounted)
@@ -3476,6 +3476,10 @@ namespace KingmakerMountedCombat.Diagnostics
         private void Complete()
         {
             if (completed) { return; }
+            // Restore blocking manager UI only after native mode/entity cleanup has
+            // finished; reopening it in BeginCleanup can prevent that progression.
+            try { phase3gUmmLease?.Dispose(); phase3gUmmLease = null; }
+            catch (Exception exception) { errors.Add("Native UMM state restoration: " + exception.Message); }
             if (errors.Count > failed)
             {
                 foreach (var error in errors.Skip(failed).ToArray())
