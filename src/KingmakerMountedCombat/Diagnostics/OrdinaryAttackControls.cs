@@ -7,6 +7,7 @@ using Kingmaker.Controllers.Clicks.Handlers;
 using Kingmaker.UI.Selection;
 using Kingmaker.UnitLogic.Commands;
 using Kingmaker.UnitLogic.Commands.Base;
+using Kingmaker.Visual.FogOfWar;
 using KingmakerMountedCombat.Domain;
 using Newtonsoft.Json.Linq;
 using TurnBased.Controllers;
@@ -132,9 +133,20 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!OrdinaryMounted && (!PrepareUnmountedHorseAiIsolation() || !PrepareCombatMountRiderAiIsolation())) return;
                 ordinaryVariation = new NativeAttackFixtureVariation(rider, phase3hRapidToggle,
                     OrdinaryCurrent.Rapid, OrdinaryCurrent.Bab, OrdinaryCurrent.Haste);
-                BeginTarget(OrdinaryMovementCase || OrdinaryCurrent.Preparation == "mixed-range" ? 6f : 3.5f, OrdinaryCaseIds[ordinaryCase]);
+                BeginTarget(OrdinaryMovementCase || OrdinaryCurrent.Preparation == "mixed-range" ? 6f : 3.5f,
+                    OrdinaryCaseIds[ordinaryCase], OrdinaryCurrent.Preparation == "mixed-range"
+                        ? (Vector3?)FindOrdinaryDistantTargetPoint() : null);
                 var nativePlan = new UnitAttack(target);
                 nativePlan.Init(rider);
+                if (OrdinaryCurrent.Preparation == "mixed-range")
+                {
+                    observations["distant-native-admission-" + OrdinaryCurrent.Id] = new JObject {
+                        ["target"] = new JArray(target.Position.x, target.Position.y, target.Position.z),
+                        ["range"] = nativePlan.ApproachRadius, ["distance"] = rider.DistanceTo(target),
+                        ["enoughClose"] = nativePlan.IsUnitEnoughClose, ["needLineOfSight"] = nativePlan.NeedLoS };
+                    if (!nativePlan.IsUnitEnoughClose)
+                        throw new InvalidOperationException("Distant fixture does not admit a stationary native ranged attack.");
+                }
                 var origin = OrdinaryMounted ? horse : rider;
                 // Read native weapon inventory for placement only. Do not let a
                 // previous case's recovery cooldown choose the fixture distance;
@@ -390,6 +402,21 @@ namespace KingmakerMountedCombat.Diagnostics
             return new JObject { ["rider"] = CaptureOrdinaryActor(rider), ["mount"] = CaptureOrdinaryActor(horse),
                 ["relationship"] = relationship.State.ToString(), ["intentStarts"] = combat.StockAttackIntentStartCount,
                 ["duplicateDispatches"] = combat.StockAttackDuplicateDispatchCount };
+        }
+
+        private Vector3 FindOrdinaryDistantTargetPoint()
+        {
+            var candidates = new JArray();
+            observations["distant-sight-" + OrdinaryCurrent.Id] = candidates;
+            return FindWalkablePoint(rider.Position, 6f, 0.5f, point => {
+                // Use the same installed static geometry query as UnitCommand's
+                // native sight gate, before creating the disposable target.
+                var riderBlocked = LineOfSightGeometry.Instance.HasObstacle(rider.EyePosition, point, 0);
+                var mountBlocked = LineOfSightGeometry.Instance.HasObstacle(horse.EyePosition, point, 0);
+                candidates.Add(new JObject { ["point"] = new JArray(point.x, point.y, point.z),
+                    ["riderBlocked"] = riderBlocked, ["mountBlocked"] = mountBlocked });
+                return !riderBlocked && !mountBlocked;
+            });
         }
 
         private Vector3 FindOrdinaryControlPoint(Vector3 preferredOrigin, float minimumDisplacement)

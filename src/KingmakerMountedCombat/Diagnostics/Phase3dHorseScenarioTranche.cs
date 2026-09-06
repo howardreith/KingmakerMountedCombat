@@ -755,14 +755,14 @@ namespace KingmakerMountedCombat.Diagnostics
             };
         }
 
-        private void BeginTarget(float distance, string suffix)
+        private void BeginTarget(float distance, string suffix, Vector3? position = null)
         {
             if (targetService != null)
             {
                 throw new InvalidOperationException("Phase 3D target lease is already active.");
             }
             targetService = new DiagnosticCombatTargetService(logger);
-            var point = FindWalkablePoint(rider.Position, distance, distance >= 10f ? 1.0f : 0.5f);
+            var point = position ?? FindWalkablePoint(rider.Position, distance, distance >= 10f ? 1.0f : 0.5f);
             target = targetService.Spawn(rider, horse, point, request.RunId + "-" + suffix, true, true);
             if (!targetService.PrepareForPlayerClick(target) ||
                 !targetService.QueueBidirectionalCombatMemory(rider, target))
@@ -6132,7 +6132,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
         }
 
-        private Vector3 FindWalkablePoint(Vector3 origin, float requestedDistance, float tolerance)
+        private Vector3 FindWalkablePoint(Vector3 origin, float requestedDistance, float tolerance, Func<Vector3, bool> accepts = null)
         {
             if (global::AstarPath.active == null)
             {
@@ -6155,7 +6155,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
                 var point = nearest.clampedPosition;
                 var distance = HorizontalDistance(origin, point);
-                if (distance >= 0.25f && Math.Abs(distance - requestedDistance) <= tolerance)
+                if (distance >= 0.25f && Math.Abs(distance - requestedDistance) <= tolerance && (accepts == null || accepts(point)))
                 {
                     return point;
                 }

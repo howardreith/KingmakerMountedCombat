@@ -161,7 +161,7 @@ namespace KingmakerMountedCombat.Integration
             LastNativeDistanceSatisfied = false;
             UnitEntityData target = Target;
             var origin = usesMountedRiderReach ? mount : Executor;
-            var planned = PlannedAttack;
+            var planned = AllAttacks.Count == 0 ? null : PlannedAttack;
             if (Executor == null || target?.View == null || origin?.View == null || planned == null)
             {
                 LastNativeAdmissionState = MountedPairNativeAdmissionState.Unavailable;
