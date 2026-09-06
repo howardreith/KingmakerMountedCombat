@@ -43,6 +43,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private long phase3gControlDispatches;
         private bool phase3gQueuedWithoutExecution;
         private UnitUseAbility phase3gQueuedControl;
+        private int phase3gUnpauseInputs;
 
         private string Phase3gRow => "3g-" + new[] {
             "rider-longbow-ordinary", "rider-longbow-primary", "rider-melee-ordinary",
@@ -81,6 +82,7 @@ namespace KingmakerMountedCombat.Diagnostics
             ruleProbe.Arm(target, false);
             phase3gStage = Phase3gTurnBased && phase3gCase >= 2 ? -1 : 0;
             phase3gClicks = 0;
+            phase3gUnpauseInputs = 0;
             phase3gActorBefore = null;
             phase3gAttackTurn = null;
             outcomeBefore = combat.LastOutcome;
@@ -92,6 +94,16 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (!Phase3gTurnBased && phase3gPauseStage != 8) { TickPhase3gPausedControls(); return; }
             observations["phase3gProgress"] = CapturePhase3gProgress();
+            if (phase3gStage != 3 && Game.Instance.IsPaused)
+            {
+                // The attack/positioning fixture supplies explicit native unpause input
+                // after native auto-pause. The paused-control cases above retain their
+                // separate queue-before-unpause assertions. No production code unpauses.
+                observations["phase3gLastUnpauseInput"] = CapturePhase3gProgress();
+                phase3gUnpauseInputs++;
+                Game.Instance.IsPaused = false;
+                return;
+            }
             if (phase3gStage == 3)
             {
                 // Wait for released effects before retiring this isolated target.
@@ -316,6 +328,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["actorBefore"] = phase3gActorBefore == null ? JValue.CreateNull() : JToken.FromObject(phase3gActorBefore, JsonSerializer.Create(JsonSettings)),
                 ["otherBefore"] = phase3gOtherBefore == null ? JValue.CreateNull() : JToken.FromObject(phase3gOtherBefore, JsonSerializer.Create(JsonSettings)),
                 ["mountDisplacement"] = HorizontalDistance(phase3gMovementStart, horse.Position),
+                ["paused"] = Game.Instance.IsPaused, ["mode"] = Game.Instance.CurrentMode.ToString(),
+                ["gameDeltaTime"] = Game.Instance.TimeController.GameDeltaTime,
+                ["unpauseInputs"] = phase3gUnpauseInputs,
+                ["moveStarted"] = movementCommand?.IsStarted, ["moveFinished"] = movementCommand?.IsFinished,
+                ["moveResult"] = movementCommand?.Result.ToString(), ["moveEnoughClose"] = movementCommand?.IsUnitEnoughClose,
+                ["mountAgentMoving"] = horse.View.MovementAgent.IsReallyMoving,
                 ["inputKind"] = "scripted-native-handler-integration"
             };
         }
