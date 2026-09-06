@@ -1,3 +1,13 @@
+# Active Chunk 1 completion checkpoint
+
+## 2026-09-06T19:20:29.992664+00:00 — Chunk 1 engineering PASS
+
+Branch codex/mounted-combat-phase3f-playable-core; exact source HEAD `a8745640e18ce068e412b4e360c7b0a3d46c738a`; version `0.1.0-chunk1-preview.13`; packageSHA `62ddcff6f26e02c6abb6ce80e02a14276b856caa8911a72a5f9f764042173e74`, manifestSHA `8080a6b487c5ea9b9e5fa03298b5a83d71691115f48a5ffa4e5201d212f77bac`, DLL `282f0ad326fdfcd11b8d547cecd70456fa1c90c5a8e68aebd8ab5db3fc9c3864`, MVID `330cbe32-5811-4aa8-b059-7da710ab1ce3`. C01-C03/regression32 NATIVE INTEGRATION PASS/0 FAIL on the same ZIP; COMPONENT 345/0, ASSEMBLY439/0, source 22, visual 23, inventory 10, harness 243, Phase 3G 14/Phase 3H 29, ordinary 39, package 10 all PASS. Runs: 20260906-chunk1-final-ordinary-tb-A, 20260906-chunk1-final-rt-A, 20260906-chunk1-focused-unmounted-rt-C, 20260906-chunk1-final-mammoth-rt-A, 20260906-chunk1-final-party-A. Exact source/package/native/restoration identities in docs/CHUNK1-ORDINARY-ATTACKS.md and analysis-cache/runtime-evidence/chunk1-20260906/final-qualification-index.json.
+
+All 19 campaign runtime transactions restored actual intake trees. Last audit 2026-09-06T19:20:29.3863897Z, logSHA 65af881280ebd4164bc3de5955381579b5c2dc7a3bee9e84f40bb6d8b89be1a2; no game/lock. No permanent install. Historical Single diagnosis is harness pointer mismatch; product current-weapon reach repaired; legacy auto-repeat failure retained for Chunk 4. Native allocation completion is not claimed. Human play/mod-absent remain TODO; visible Horse Bite concern unchanged. Next command: git diff --check, validate source/package, commit only final evidence documents, then guarded Push-KingmakerMountedCombat.ps1 -WhatIf and actual guarded push. Do not rebuild/repackage the qualified source or execute Chunk 2.
+
+---
+
 # Active Chunk 1 checkpoint
 
 ## 2026-09-06T18:34:44.604929+00:00 - Reuse rider AI isolation for unmounted RT controls

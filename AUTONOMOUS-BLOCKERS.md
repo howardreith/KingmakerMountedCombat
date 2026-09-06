@@ -1,3 +1,11 @@
+## Current Chunk 1 disposition — 2026-09-06T19:20:29.992664+00:00
+
+**PASS — engineering qualification** on `0.1.0-chunk1-preview.13`, source `a8745640e18ce068e412b4e360c7b0a3d46c738a`. [Exact package and 32 native cases](docs/CHUNK1-ORDINARY-ATTACKS.md). No critical blocker or restoration residue remains for this chunk. The historical TB Single gate was reproduced as a fixture pointer/prediction mismatch; current native controls pass. The separate mixed-weapon range defect is fixed and regressed.
+
+TODO: HUMAN PLAY, safe mod-absent certification, and prior visual Horse Bite concern. These were not performed or relabeled. Actor allocation/exhaustion at native preparation/refresh is the next Chunk 2 dependency; pair-aware activations follow in Chunk 3. Broad old auto-repeat validation remains DEFER — EVIDENCED for Chunk 4 because its one-rule-per-dispatch contract is obsolete; the failed artifact and assertions remain intact. All 19 new campaign transactions restored actual intake state, independently audited. Source/package identities are frozen. The campaign ACTIVE-RUN.json records the final documentation/publication HEAD and guarded push result.
+
+---
+
 ## Current Phase 3H blockers - 2026-09-06 08:10 UTC
 
 Disposition: **partial preview.6**, clean binary source `fb65cf826f5914fc29ab5035e6409685bd982c66`, host-published. [Exact package, evidence and remaining matrices](docs/PHASE3H-IMPLEMENTATION.md). Eight guarded transactions are exhausted, all independently restored to the actual user-installed Phase 3G preview.7/cache/current human saves and Mods. No integrity recovery is outstanding; no game or runtime lock remains. No permanent Phase 3H installation or new HUMAN PASS is implied.
