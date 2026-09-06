@@ -1,3 +1,4 @@
+> **Installation update, 2026-09-06 04:02 UTC:** Howie explicitly requested permanent local installation for testing. Preview.7 is now installed and verified through the guarded Replace helper; previous preview.4/cache is backed up, saves and foreign Mods/settings unchanged. Source/package identities below are unchanged. Full record: newest `AUTONOMOUS-RESUME.md` section and `analysis-cache/phase3g-install-preview7-20260906T035700Z/verified-installation.json`. Earlier statements that preview.4 remained installed describe the completed qualification campaign, before this subsequent authorization. No additional gameplay qualification or HUMAN PASS is claimed.
 # Phase 3G implementation and private candidate
 
 Disposition: partial private candidate. Native separate turns remain. TB movement/resource reconciliation is not qualified; this is not a finished Wrath-equivalent mod. Only one mounted pair is supported.

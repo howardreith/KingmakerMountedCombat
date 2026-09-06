@@ -1,3 +1,6 @@
+## Installation update - 2026-09-06 04:02 UTC
+
+At the user's explicit request, **Phase 3G preview.7 is now intentionally installed**, replacing preview.4 through the approved guard after WhatIf. Exact payload/MVID, previous-installation backup, protected saves and foreign Mods/settings independently verified. No game launched. Installation evidence: `analysis-cache/phase3g-install-preview7-20260906T035700Z/verified-installation.json`; exact identities in the newest resume record. Gameplay and visual blockers below remain; no human approval is inferred. Old runtime starting-state pins require a new authorized intake before future tests and must never trigger an automatic downgrade.
 ## Current Phase 3G blockers - 2026-09-06 03:40 UTC
 
 Disposition: **partial private preview.7**, source `b8c206331f34a1aa873bfef86a37ab1066c267fc`; [current evidence and package](docs/PHASE3G-IMPLEMENTATION.md). Eight guarded transactions exhausted, all exact starting-state restorations PASS. Phase 3F preview.4/cache remains installed. No safety/integrity recovery is outstanding and no game is running.
