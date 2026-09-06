@@ -87,6 +87,13 @@ namespace KingmakerMountedCombat.Tests
 
         private static void AnimatedSaddleFollows()
         {
+            // Measured preview.3 final-render pelvis/chest centerline. The rider's
+            // anatomical right has positive mount-root X, independently of heading.
+            var centered = new AnimatedSaddlePosition();
+            centered.Acquire(new PoseVector3(0f, 1.5024f, 0.4674f),
+                new PoseVector3(-0.1892f, 2.3625f, 0.4849f), MountedRiderPoseProfiles.HorseAnimatedSeatCorrection);
+            TestRunner.True(Math.Abs(centered.Project(new PoseVector3(0f, 1.5024f, 0.4674f)).X) < 0.002f,
+                "Measured Horse pelvis remains left of the anatomical centerline.");
             var saddle = new AnimatedSaddlePosition();
             saddle.Acquire(new PoseVector3(0, 1, 2), new PoseVector3(0, 2, 2), new PoseVector3(0, 0, -0.18f));
             // Root-relative samples: idle breathing, locomotion, rear, stop, return to idle.

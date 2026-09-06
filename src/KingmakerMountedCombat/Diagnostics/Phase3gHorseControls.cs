@@ -35,6 +35,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private ActivatableAbility phase3hRapidToggle;
         private bool phase3hRapidWasOn;
         private float phase3hStationaryRadius;
+        private int phase3hHoverFrame;
+        private TurnController phase3hHoverTurn;
         private bool Phase3hApproachCase => IsPhase3hLoop && (phase3gCase == 2 || phase3gCase == 4 || !Phase3gTurnBased && phase3gCase == 5);
         private int phase3gCase;
         private int phase3gStage;
@@ -111,6 +113,7 @@ namespace KingmakerMountedCombat.Diagnostics
             phase3gUnpauseInputs = 0;
             phase3gActorBefore = null;
             phase3gAttackTurn = null;
+            phase3hHoverTurn = null;
             outcomeBefore = combat.LastOutcome;
             step = Phase3dHorseStep.Phase3gControls;
             ResetLeafClock();
@@ -200,8 +203,26 @@ namespace KingmakerMountedCombat.Diagnostics
                     !actor.HasStandardAction() || game.HandsEquipmentController.IsUpdateScheduledFor(actor)) { return; }
                 if (phase3gCase >= 4 && (!horse.Commands.Empty || horse.AreHandsBusyWithAnimation ||
                     !horse.HasStandardAction())) { return; }
+                if (IsPhase3hLoop && Phase3gTurnBased && phase3gCase == 0 && actor.IsMoveActionRestricted())
+                {
+                    observations["phase3hRestrictedFullRoundSetup"] = CapturePhase3gProgress();
+                    // A surprise/otherwise restricted native turn is not a legal
+                    // full-round fixture. End it normally; never refresh actions.
+                    TryEndPhase3gFixtureTurn(turn);
+                    return;
+                }
                 SelectionManager.Instance.SelectUnit(actor.View, true, true, false);
                 if (IsPhase3hLoop) Game.Instance.UI.GetCameraRig().ScrollTo(horse.Position);
+                if (IsPhase3hLoop && Phase3gTurnBased && phase3gCase % 2 == 0 && !ReferenceEquals(phase3hHoverTurn, turn))
+                {
+                    // OnClick alone omits native smart-cursor attack-mode prediction.
+                    // Deliver the native hover input and allow its normal update.
+                    turn.OnHoverObjectChanged(null, target.View.gameObject);
+                    phase3hHoverTurn = turn;
+                    phase3hHoverFrame = Time.frameCount;
+                    return;
+                }
+                if (IsPhase3hLoop && Phase3gTurnBased && Time.frameCount <= phase3hHoverFrame + 2) return;
                 var ledger = combat.CaptureUnifiedTurnSnapshot();
                 var mountAction = phase3gCase >= 4;
                 phase3gActorBefore = mountAction ? ledger.Mount : ledger.Rider;
@@ -227,6 +248,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 phase3gLastClick = clock.Elapsed.TotalSeconds;
             }
             var outcome = combat.LastOutcome;
+            if (IsPhase3hLoop && Phase3gTurnBased && outcome != null && !ReferenceEquals(outcome, outcomeBefore) &&
+                outcome.TargetId == target.UniqueId && !combat.HasActiveCommand &&
+                resolved >= outcome.NativeCompletedAttackCount && resolved < expected)
+            {
+                CompletePhase3gCase(false, "Native sequence ended with fewer attacks than the legal full-round fixture expected.");
+                return;
+            }
             if (outcome != null && !ReferenceEquals(outcome, outcomeBefore) && outcome.Result != "Success" && resolved == 0)
             {
                 CompletePhase3gCase(false, "Admitted command ended before a resolved native attack: " + outcome.Result);
@@ -360,6 +388,11 @@ namespace KingmakerMountedCombat.Diagnostics
             return new JObject {
                 ["case"] = Phase3gRow, ["stage"] = phase3gStage, ["clicks"] = phase3gClicks,
                 ["turnActor"] = turn?.Unit?.UniqueId, ["turnStatus"] = turn?.Status.ToString(),
+                ["nativeFullAttackEnabled"] = turn?.EnabledFullAttack,
+                ["nativeMovementLimit"] = turn?.CurrentMovementLimit.ToString(),
+                ["actorMoveRestricted"] = Phase3gActor.IsMoveActionRestricted(),
+                ["actorFullAttackRestrictedByMove"] = Phase3gActor.CombatState.IsFullAttackRestrictedBecauseOfMoveAction,
+                ["actorStaggered"] = Phase3gActor.Descriptor.State.HasCondition(UnitCondition.Staggered),
                 ["selected"] = new JArray(SelectionManager.Instance.SelectedUnits.Select(u => u.UniqueId)),
                 ["ledger"] = JObject.FromObject(combat.CaptureUnifiedTurnSnapshot(), JsonSerializer.Create(JsonSettings)),
                 ["rules"] = ruleProbe.CapturePairEvidence(),

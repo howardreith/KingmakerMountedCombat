@@ -134,13 +134,15 @@ namespace KingmakerMountedCombat.Domain
         public static readonly PoseVector3 MediumHumanoidOnMammothMountRootPositionOffset =
             new PoseVector3(0f, 0f, 0f);
 
-        // Phase 3G applies this only through the visual animated saddle projection.
+        // Visual mount-root basis only. Preview.3 measured pelvis X=-0.1892,
+        // Chest X=0, and anatomical rider-right aligned with positive root X.
         public const float HorseSeatLoweringMetres = 0.16f;
+        public const float HorseSeatCenteringRightMetres = 0.19f;
         public static readonly PoseVector3 MediumHumanoidOnHorseMountRootPositionOffset =
             new PoseVector3(0f, -0.08f, 0f);
 
         public static readonly PoseVector3 HorseAnimatedSeatCorrection =
-            new PoseVector3(0f, -HorseSeatLoweringMetres, -0.18f);
+            new PoseVector3(HorseSeatCenteringRightMetres, -HorseSeatLoweringMetres, -0.18f);
 
         public static readonly MountedRiderPoseProfile MediumHumanoidOnMammoth = new MountedRiderPoseProfile(
             "medium-humanoid-mammoth-v1",
