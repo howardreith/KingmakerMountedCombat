@@ -43,6 +43,19 @@ namespace KingmakerMountedCombat.Integration
 
         public bool HasPoseResidue => baselineLease != null && (baselineLease.IsAcquired || baselineLease.IsFrameActive);
 
+        internal string ObserveSeatGeometry()
+        {
+            if (!animatedSaddleRequired || !IsHealthy || pelvis == null) { return "unavailable"; }
+            // Cached joints only: Chest supplies the anatomical centerline.
+            return "pelvisMountLocal=" + saddleMountRoot.InverseTransformPoint(pelvis.position).ToString("F4") +
+                ";chestMountLocal=" + saddleMountRoot.InverseTransformPoint(saddleSource.position).ToString("F4") +
+                ";anatomicalRiderRightMountLocal=" + saddleMountRoot.InverseTransformDirection(
+                    (rightLeg.Thigh.position - leftLeg.Thigh.position).normalized).ToString("F4") +
+                ";mountRightWorld=" + saddleMountRoot.right.ToString("F4") +
+                ";chestWorld=" + saddleSource.position.ToString("F4") +
+                ";chestLocalRotation=" + saddleSource.localRotation.ToString("F4");
+        }
+
         public bool BaselineRestoreVerified => !baselineCaptured || (baselineLease != null && baselineLease.LastRestoreVerified);
 
         public bool FramePoseApplied => baselineLease != null && baselineLease.IsFrameActive;

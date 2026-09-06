@@ -1,3 +1,7 @@
+## Phase 3H native sequence checkpoint - 2026-09-06 05:55 UTC
+
+Branch `codex/mounted-combat-phase3f-playable-core`: approach ownership `ed4b48994fc7d931bb7af0267ad04327338f4ab3`, native attack/movement checkpoint `a7b312ae40ac5619de61bc1c7688f50708253c86`. Preview.1 builds with source 22/0, components 345/0, Phase 3H protocol 20/0 and package 10/0. Run `20260906-phase3h-preview1-tb-A` FAIL before attack at the Rapid Shot fixture lookup; native gameplay completion is not inferred. Current preview.7/cache/save/foreign Mods restoration independently PASS at 05:48 UTC. New preview.2 fixes feat-to-toggle resolution, retains failed setup rows while continuing independent cases, and reserves later Horse motion capture capacity. A read-only cached joint observation supports the requested anatomical centering; no guessed lateral offset is applied. Detailed causes, exact identities and remaining resource/UI/visual gates are in `docs/PHASE3H-IMPLEMENTATION.md`. Runtime budget 1/8; next is exact candidate packaging and another guarded TB fixture check, then independent restoration audit.
+
 ## Current installation - user-authorized Phase 3G preview.7, 2026-09-06 04:02 UTC
 
 The user explicitly requested installation of the delivered candidate for human testing. **Phase 3G preview.7 is now intentionally installed in local Kingmaker UMM. Do not restore preview.4, fallback or KMC absence as routine cleanup.** This supersedes current-installation statements below; their qualification and restoration records remain historical.

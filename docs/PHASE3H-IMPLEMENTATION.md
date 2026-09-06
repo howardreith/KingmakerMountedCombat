@@ -2,6 +2,10 @@
 
 Status: IN PROGRESS. Separate native turns; unified turn, paired scheduler and diagnostic overlay remain false. Ordinary native full attacks supersede the previous single-only ordinary contract. Explicit Primaries remain single attacks. One active mounted pair remains the boundary.
 
+Runtime 1/8: `20260906-phase3h-preview1-tb-A`, source `a7b312ae40ac5619de61bc1c7688f50708253c86`, ZIP `609f7dd7e65b4fcaad1b323feefd35be7113a6edb6432cba26c4cc5f769a7ce8`, DLL `7c252c98f959d933ea9cb9936b364794bd1fb15b0489d32f6b4af0f74f59715c`, MVID `3f615bc5-f4de-4012-945e-e06644ac7ff5`. FAIL before attack submission: the Rapid Shot fixture's `Single` lookup found no matching element. There is no attack/full-round outcome from this run. Preview.2 resolves the native feat by its exact name/display name and obtains its toggle from its actual AddFacts references, retaining a failed fixture row while allowing independent cases to continue. The desktop capture availability probe failed with native pipe error 2; physical pointer and UI-chrome evidence remain unavailable.
+
+Independent restoration at `2026-09-06T05:48:02.6372821Z` PASS: full current saves `bddad0065064ebc166c8414e660b938fe9be2e4894c3b9916cdd972c8bf05913`, Mods including preview.7/cache `0e45b19883f5405a076df6a92ef5175282817516aafdc6f343dbbbcf2e10e835`, no game/locks. Test log separately preserved with SHA `ff75af53e368699cda13e8e1156b36fbe66e34e6ef2c161cbc25cbec7a00a86d`. Gameplay interpretation followed this audit. No permanent deployment.
+
 ## Intake and bounded implementation plan
 
 Started 2026-09-06 04:37 UTC on clean `codex/mounted-combat-phase3f-playable-core`, local/upstream/host remote `1b8469845ef32406ca5006290a7b86eeea99b726`. Actual preview.7 source `b8c206331f34a1aa873bfef86a37ab1066c267fc` remains installed with its human-created `.49723.cache`. No game was running. Current saves and foreign settings differ legitimately from installation-time snapshots and are the new preservation baseline.

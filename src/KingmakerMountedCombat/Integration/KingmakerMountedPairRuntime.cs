@@ -791,6 +791,7 @@ namespace KingmakerMountedCombat.Integration
                 ";animatedSeatObservedResidual=" + (poseAdapter?.ObserveCurrentAnimatedSeatResidual()?.ToString("R") ?? "<unavailable>") +
                 ";animatedSeatWriteResidual=" + (poseAdapter?.MaximumAnimatedSeatError ?? 0d).ToString("R") +
                 ";animatedSeatWorld=" + (poseAdapter?.LastAnimatedSeatPosition.ToString("F4") ?? "<none>") +
+                ";seatGeometry={" + (poseAdapter?.ObserveSeatGeometry() ?? "unavailable") + "}" +
                 ";attachmentLease=" + riderAttachmentLease.IsAcquired +
                 ";replacementReleased=" + replacementRiderViewReleaseVerified +
                 ";riderSelected=" + riderSelected +

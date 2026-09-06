@@ -5,6 +5,7 @@ using Kingmaker.Blueprints.Classes.Selection;
 using Kingmaker.Blueprints;
 using Kingmaker.Blueprints.Classes;
 using Kingmaker.UnitLogic.ActivatableAbilities;
+using Kingmaker.UnitLogic.FactLogic;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.Enums;
 using Kingmaker.Controllers.Clicks.Handlers;
@@ -70,7 +71,21 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 rangedWeaponLease = new Phase3dRangedWeaponLease(rider);
                 rangedWeaponLease.Acquire(WeaponCategory.Longbow);
-                if (IsPhase3hLoop) AcquirePhase3hRapidShot();
+                if (IsPhase3hLoop)
+                {
+                    try { AcquirePhase3hRapidShot(); }
+                    catch (Exception exception)
+                    {
+                        // A failed feat fixture must remain red without preventing
+                        // the independent native Primary/approach cases from running.
+                        AddRow(Phase3gRow, false, "Rapid Shot fixture unavailable: " + exception.Message,
+                            new JObject { ["fixtureFailure"] = exception.ToString() });
+                        RestorePhase3hRapidShot();
+                        phase3gCase++;
+                        BeginPhase3gCase();
+                        return;
+                    }
+                }
             }
             if (phase3gCase == 2 && rangedWeaponLease != null)
             {
@@ -372,11 +387,19 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void AcquirePhase3hRapidShot()
         {
-            var feature = ResourcesLibrary.LibraryObject.BlueprintsByAssetId.Values.OfType<BlueprintFeature>()
-                .Single(item => item.name == "RapidShot");
+            var candidates = ResourcesLibrary.LibraryObject.BlueprintsByAssetId.Values.OfType<BlueprintFeature>()
+                .Where(item => item.name == "RapidShot" || item.Name == "Rapid Shot").ToArray();
+            if (candidates.Length != 1) throw new InvalidOperationException("Expected one native Rapid Shot feat; found " + candidates.Length + ".");
+            var feature = candidates[0];
             if (rider.Descriptor.HasFact(feature)) throw new InvalidOperationException("Rapid Shot fixture requires an initially unowned feature.");
+            var toggles = feature.GetComponents<AddFacts>().SelectMany(component => component.Facts)
+                .OfType<BlueprintActivatableAbility>().ToArray();
+            if (toggles.Length != 1) throw new InvalidOperationException("Native Rapid Shot feat " + feature.AssetGuid +
+                " grants " + toggles.Length + " activatable abilities; exact fixture requires one.");
             phase3hRapidShot = rider.Descriptor.Progression.Features.AddFeature(feature);
-            phase3hRapidToggle = rider.ActivatableAbilities.Enumerable.Single(item => item.Blueprint.name == "RapidShotToggleAbility");
+            // Resolve the ability actually granted by this native feature, rather
+            // than assuming a blueprint object name from another game/version.
+            phase3hRapidToggle = rider.ActivatableAbilities.Enumerable.Single(item => ReferenceEquals(item.Blueprint, toggles[0]));
             phase3hRapidWasOn = phase3hRapidToggle.IsOn;
             phase3hRapidToggle.IsOn = true;
             observations["phase3hRapidShot"] = new JObject { ["feature"] = feature.AssetGuid,
