@@ -1,3 +1,10 @@
+# Active Chunk 1 publication checkpoint
+## 2026-09-06 19:28 UTC - Exact publication asset registration
+
+Branch codex/mounted-combat-phase3f-playable-core, documentation HEAD5d31e0a8f3f91dd53a7e2f81f2edc8048f357bd4; binary source a8745640e18ce068e412b4e360c7b0a3d46c738a/preview13 unchanged. Final native32/0 and all19 intake restorations PASS. First guarded push WhatIf stopped before publication because its historical PNG blanket ban rejected10 existing original KMC art files. No auto-review rejection or external push occurred. Verified all10 blobs unchanged from reviewed1d2b8c3c and retained exact path/SHA/git-blob inventory. Narrow host registration permits only these exact originals; all other payload/path/branch/origin/clean-tree/credential guards remain. Publication policy tests18 PASS/0 FAIL reject changed hashes, unknown/case-changed/renamed paths, foreign DLL/texture and traversal/generated roots. Updated host guardSHA de78c2ad47ecea3e04c9855714b628da59ea185dc34b98d584997e26fd34105a; original57551c6c4359b4fbb8a0c5b0ba6f0e5e50553dc62c3a88e2aaa0dc92a6f72846 preserved in campaign backup. No art or binary was edited. Next: commit this documentation checkpoint, guarded helper WhatIf then actual push; record exact remote/doc HEAD in analysis-cache/runtime-evidence/chunk1-20260906/ACTIVE-RUN.json. Read that final record before resuming, since this checkpoint precedes publication. Source/package must remain frozen; no game/lock remains.
+
+---
+
 # Active Chunk 1 completion checkpoint
 
 ## 2026-09-06T19:20:29.992664+00:00 — Chunk 1 engineering PASS

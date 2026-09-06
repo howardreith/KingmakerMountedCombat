@@ -25,6 +25,8 @@ Native contracts were verified locally: prediction 0x06000C6E, cursor mode 0x060
 
 Commands: `scripts/Test.ps1`, `scripts/Package.ps1 -ArtifactQualifier actor-isolation`, and the guarded `RuntimeTest` scenarios below. Full logs are in `analysis-cache/runtime-evidence/chunk1-20260906/`. Host registration/path checks: 15 PASS / 0 FAIL; only exact scenario entries and CURRENT.md documentation classification were added, preserving save/path/process/integrity guards.
 
+The publication helper's first WhatIf rejected ten original PNGs already in the reviewed ancestor. Its registration now permits only their exact paths and SHA-256 values, all verified unchanged from `1d2b8c3c`; the remaining payload prohibitions are preserved. Publication registration tests: 18 PASS / 0 FAIL, including changed bytes, renamed/case-changed files, foreign payloads and outside paths. Guard SHA-256 `de78c2ad47ecea3e04c9855714b628da59ea185dc34b98d584997e26fd34105a`; exact registrations and tests are retained in the local campaign evidence. This changes no source asset or packaged binary.
+
 | Evidence class | Result |
 | --- | --- |
 | COMPONENT | 345 PASS / 0 FAIL; real existing service/domain objects |
