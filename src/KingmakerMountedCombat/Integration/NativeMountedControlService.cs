@@ -87,6 +87,7 @@ namespace KingmakerMountedCombat.Integration
             new Dictionary<string, string>(StringComparer.Ordinal)
             {
                 { "KMC.Native.Mount.Name", "Mount Companion" },
+                { "KMC.Native.Empty", "" },
                 { "KMC.Native.Mount.Description", "Outside combat, select your active Horse or Mammoth. Walk into reach and mount. You can queue this order while gameplay is paused; it executes after unpausing." },
                 { "KMC.Native.Dismount.Name", "Dismount" },
                 { "KMC.Native.Dismount.Description", "Get off your companion. Mounted seating is temporary and is cleared before saving or changing areas." },
@@ -741,6 +742,8 @@ namespace KingmakerMountedCombat.Integration
             ability.CanTargetFriends = targetFriends;
             ability.CanTargetSelf = targetSelf;
             ability.SpellResistance = false;
+            ability.LocalizedDuration = NewLocalizedString("KMC.Native.Empty");
+            ability.LocalizedSavingThrow = NewLocalizedString("KMC.Native.Empty");
             ability.ActionBarAutoFillIgnored = true;
             ability.Hidden = false;
             ability.NeedEquipWeapons = false;
@@ -756,6 +759,12 @@ namespace KingmakerMountedCombat.Integration
             logic.Kind = kind;
             ability.ComponentsArray = new BlueprintComponent[] { logic };
             return ability;
+        }
+
+        internal bool IsPlayerOnlyRelationshipControl(AbilityData ability)
+        {
+            return ability?.Blueprint != null &&
+                (ReferenceEquals(ability.Blueprint, mountAbility) || ReferenceEquals(ability.Blueprint, dismountAbility));
         }
 
         private void ReconcileFacts()

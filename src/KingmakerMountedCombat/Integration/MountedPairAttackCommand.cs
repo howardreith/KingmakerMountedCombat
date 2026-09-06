@@ -30,6 +30,10 @@ namespace KingmakerMountedCombat.Integration
         public string PreStartInterruptBoundary { get; set; }
 
         public int ChildAttackStartCount { get; set; }
+        public bool SingleAttackMode { get; set; }
+        public bool NativeFullAttack { get; set; }
+        public int NativePlannedAttackCount { get; set; }
+        public int NativeCompletedAttackCount { get; set; }
 
         public int RepathCount { get; set; }
 
@@ -150,7 +154,7 @@ namespace KingmakerMountedCombat.Integration
         public bool AttackAnimationInterrupted { get; set; }
     }
 
-    internal sealed class MountedPairAttackCommand : UnitCommand
+    internal sealed class MountedPairAttackCommand : MountedPairSingleAttack
     {
         private const float TargetRepathDistance = 0.75f;
         private const float MaximumElapsedSeconds = 8.5f;
@@ -167,7 +171,9 @@ namespace KingmakerMountedCombat.Integration
         private readonly Action<MountedPairAttackCommand, MountedPairAttackOutcome> terminal;
         private readonly bool allowApproach;
         private readonly MountedCombatTransaction transaction = new MountedCombatTransaction();
-        private MountedPairSingleAttack childAttack;
+        // Compatibility name for the existing bounded evidence schema. There is
+        // now one native command/sequence, not a free child under a charging shell.
+        private MountedPairSingleAttack childAttack => this;
         private UnitMoveTo delegatedMove;
         private bool admittingDelegatedMove;
         private Vector3 targetSnapshot;
@@ -227,8 +233,9 @@ namespace KingmakerMountedCombat.Integration
             HorsePrimaryAttackAnimationAdapter horsePrimaryAttackAnimation,
             IModLogger logger,
             Action<MountedPairAttackCommand, MountedPairAttackOutcome> terminal,
-            bool allowApproach = true)
-            : base(CommandType.Standard, target)
+            bool allowApproach = true,
+            bool singleAttack = true)
+            : base(target, rider, mount, action != MountedCombatActionKind.MountPrimaryNatural, singleAttack)
         {
             this.relationship = relationship ?? throw new ArgumentNullException(nameof(relationship));
             this.rider = rider ?? throw new ArgumentNullException(nameof(rider));
@@ -260,6 +267,7 @@ namespace KingmakerMountedCombat.Integration
         }
 
         internal MountedPairSingleAttack ChildAttack => childAttack;
+        internal bool NativeSequenceStarted => transaction.ChildAttackStartCount != 0;
 
         internal UnitMoveTo DelegatedMove => delegatedMove;
 
@@ -270,6 +278,26 @@ namespace KingmakerMountedCombat.Integration
         internal UnitEntityData ActionActor => actionActor;
 
         public override bool CanMoveAfterStart => transaction.State == MountedCombatTransactionState.Approaching;
+
+        public override void Init(UnitEntityData executor)
+        {
+            base.Init(executor);
+            // Start the owned approach coordinator without moving the rider. The
+            // native weapon gate is restored/evaluated before its attack starts.
+            ApproachRadius = InfiniteRange;
+            NeedLoS = false;
+        }
+
+        internal bool OwnsApproachTick => !IsFinished && transaction.ChildAttackStartCount == 0;
+
+        internal bool ValidateNativeSequenceTarget()
+        {
+            var state = attackTarget.Descriptor?.State;
+            return Target == attackTarget && attackTarget.IsInState && state != null &&
+                state.IsConscious && !state.IsFinallyDead && actionActor.IsEnemy(attackTarget) &&
+                actionActor.CanAttack(attackTarget) &&
+                EvaluateCurrentNativeAdmission() == MountedPairNativeAdmissionState.Admitted;
+        }
 
         internal bool PreservesApproachParent(UnitCommands commands, CommandType type, bool interruptPaired)
         {
@@ -346,6 +374,7 @@ namespace KingmakerMountedCombat.Integration
             {
                 RequireLiveExactPair();
                 if (TryEndExpectedTargetInvalidation()) { return; }
+                NeedLoS = true;
                 CreateAndValidateChildAttack();
                 riderPositionAtCommandStart = rider.Position;
                 mountPositionAtCommandStart = mount.Position;
@@ -413,32 +442,14 @@ namespace KingmakerMountedCombat.Integration
                     StartChildAttack();
                 }
 
-                if (transaction.State == MountedCombatTransactionState.Attacking &&
-                    childAttack.IsRunning &&
-                    IsActed)
+                if (transaction.State == MountedCombatTransactionState.Attacking && !IsFinished)
                 {
                     if (attackTarget.IsInState && attackTarget.Descriptor.State.IsConscious &&
                         !attackTarget.Descriptor.State.IsFinallyDead)
                     {
                         childAttack.TurnToTarget();
                     }
-                    childAttack.Tick();
-                }
-
-                if (childAttack.IsFinished && transaction.State == MountedCombatTransactionState.Attacking)
-                {
-                    if (childAttack.Result == ResultType.Success)
-                    {
-                        transaction.Complete(attackTarget.UniqueId);
-                        ForceFinish(ResultType.Success);
-                    }
-                    else
-                    {
-                        transaction.Fault(
-                            "Native child attack ended with " + childAttack.Result +
-                            "; " + (childAttack.TerminalLifecycle ?? "lifecycle unavailable") + ".");
-                        ForceFinish(childAttack.Result == ResultType.Interrupt ? ResultType.Interrupt : ResultType.Fail);
-                    }
+                    base.OnTick();
                 }
             }
             catch (Exception exception)
@@ -484,7 +495,7 @@ namespace KingmakerMountedCombat.Integration
 
         protected override ResultType OnAction()
         {
-            return ResultType.None;
+            return base.OnAction();
         }
 
         protected override void OnEnded(bool raiseEvent = true)
@@ -492,10 +503,9 @@ namespace KingmakerMountedCombat.Integration
             try
             {
                 StopDelegatedMove(false);
-                if (childAttack != null && !childAttack.IsFinished)
-                {
-                    childAttack.Interrupt(false);
-                }
+                if (Result == ResultType.Success && LastAttackRule != null &&
+                    GetAttackIndex() == AllAttacks.Count && AllAttacks.Count > 0)
+                    transaction.Complete(attackTarget.UniqueId);
                 if (!transaction.IsTerminal)
                 {
                     transaction.Cancel(Result.ToString());
@@ -700,28 +710,26 @@ namespace KingmakerMountedCombat.Integration
             StopDelegatedMove(false);
             mount.ForceLookAt(attackTarget.Position);
             childAttack.TurnToTarget();
-            childAttack.OnRun();
-            childAttack.Start();
+            // UnitAttack.OnStart re-evaluates the full attack plan against the
+            // actual actor state after approach. UnitActionController observes
+            // this command's first native Act and owns its sole cooldown charge.
+            NeedLoS = true;
+            SetTimeSinceStart(0f);
+            base.OnStart();
             if (!childAttack.IsRunning || !transaction.TryStartSingleAttack(attackTarget.UniqueId))
             {
                 throw new InvalidOperationException("Native child attack did not start exactly once.");
             }
-            HasAnimation = false;
         }
 
         private void CreateAndValidateChildAttack()
         {
-            childAttack = new MountedPairSingleAttack(
-                attackTarget,
-                rider,
-                mount,
-                action != MountedCombatActionKind.MountPrimaryNatural);
-            childAttack.Init(actionActor);
             if (action == MountedCombatActionKind.MountPrimaryNatural)
             {
                 horsePrimaryAttackAnimation.SupplyExact(this, childAttack.PlannedAttack, mount);
             }
-            if (childAttack.IsFullAttack || childAttack.AllAttacks.Count != 1 || childAttack.PlannedAttack == null)
+            if (childAttack.PlannedAttack == null || childAttack.AllAttacks.Count == 0 ||
+                IsSingleAttack && (childAttack.IsFullAttack || childAttack.AllAttacks.Count != 1))
             {
                 throw new InvalidOperationException("Native child did not resolve to exactly one attack.");
             }
@@ -859,6 +867,10 @@ namespace KingmakerMountedCombat.Integration
                 TargetId = attackTarget.UniqueId,
                 Result = Result.ToString(),
                 ChildAttackStartCount = transaction.ChildAttackStartCount,
+                SingleAttackMode = IsSingleAttack,
+                NativeFullAttack = IsFullAttack,
+                NativePlannedAttackCount = AllAttacks.Count,
+                NativeCompletedAttackCount = GetAttackIndex(),
                 RepathCount = transaction.RepathCount,
                 RiderStandardCharged = IsActed && actionActor == rider,
                 ActionStandardCharged = IsActed,

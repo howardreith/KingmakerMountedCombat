@@ -254,6 +254,8 @@ namespace KingmakerMountedCombat.Diagnostics
             return string.Equals(scenario, RealTimeScenario, StringComparison.Ordinal) ||
                 string.Equals(scenario, Phase3gRealTimeScenario, StringComparison.Ordinal) ||
                 string.Equals(scenario, Phase3gTurnBasedScenario, StringComparison.Ordinal) ||
+                string.Equals(scenario, "phase3h-combat-loop-rt", StringComparison.Ordinal) ||
+                string.Equals(scenario, "phase3h-combat-loop-tb", StringComparison.Ordinal) ||
                 string.Equals(scenario, TurnBasedScenario, StringComparison.Ordinal) ||
                 string.Equals(scenario, PresentationScenario, StringComparison.Ordinal);
         }
@@ -376,7 +378,9 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 motionEvidence?.Tick(cleanupStarted ? null : IsPhase3gControls
                     ? (phase3gStage == 1 ? Phase3gRow +
-                        (horse.Commands.Standard is MountedPairAttackCommand ? "-horse" : "-rider") : null) : step.ToString());
+                        (horse.Commands.Standard is MountedPairAttackCommand horseAttack
+                            ? horseAttack.NativeSequenceStarted ? "-horse-strike-recovery" : "-horse-approach"
+                            : "-rider") : null) : step.ToString());
                 targetService?.ObserveTargetLifeState();
                 targetService?.RefreshBidirectionalCombatMemoryLease();
                 if (!cleanupStarted && clock.Elapsed.TotalSeconds > ScenarioDeadlineSeconds)
@@ -5972,6 +5976,8 @@ namespace KingmakerMountedCombat.Diagnostics
             // the mode. Never drop ownership of an item before that cleanup boundary.
             try { rangedWeaponLease?.Dispose(); rangedWeaponLease = null; }
             catch (Exception exception) { AddCleanupError("ranged weapon", exception); }
+            try { RestorePhase3hRapidShot(); }
+            catch (Exception exception) { AddCleanupError("Rapid Shot fixture feature", exception); }
             settings.EnablePairedCommandScheduler = originalPairedCommandScheduler;
             settings.EnableUnsafeMovementExperiment = originalUnsafeExperiment;
         }
@@ -6075,7 +6081,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             var artifact = new JObject
             {
-                ["schemaVersion"] = IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,
+                ["schemaVersion"] = IsPhase3hLoop ? 9 : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,
                 ["evidenceKind"] = EvidenceKind,
                 ["runId"] = request.RunId,
                 ["scenario"] = request.Scenario,

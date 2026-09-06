@@ -9,6 +9,9 @@ namespace KingmakerMountedCombat.Tests
         public static void Register(TestRunner runner)
         {
             runner.Run("approach admits only its exact live mount Standard and empty Move without foreign slots or queue", ApproachOwnership);
+            runner.Run("a complete native full attack retains recovery after its final rule", FullAttackRecovery);
+            runner.Run("mount partial movement and native Standard conversion share one allowance", MountMovementAllowance);
+            runner.Run("mounted step and forced movement retain independent actor state across Stop", MountStepState);
             runner.Run("mounted rider melee uses rider actor and rider resource ownership", RiderMeleeOwnership);
             runner.Run("mounted Mammoth primary uses mount actor and mount resource ownership", MountAttackOwnership);
             runner.Run("mounted ranged uses rider actor and native ranged weapon", AdmitsRangedRider);
@@ -94,6 +97,46 @@ namespace KingmakerMountedCombat.Tests
             slots[0] = foreign;
             TestRunner.Equal(false, MountedCombatSpatialPolicy.CanAdmitDelegatedMove(slots, 1, 3, parent, true, true, true, true, true), "Foreign Free command conflicts.");
             TestRunner.Equal(foreign, slots[0], "Admission must not mutate foreign commands.");
+        }
+
+        private static void FullAttackRecovery()
+        {
+            TestRunner.Equal(true, NativeSingleAttackTerminalPolicy.ShouldAwaitNativeAnimation(true, true, true, true, 2, 2, false), "Completed Rapid Shot must retain recovery.");
+            TestRunner.Equal(false, NativeSingleAttackTerminalPolicy.ShouldAwaitNativeAnimation(true, true, false, true, 2, 1, true), "First shot must permit native continuation.");
+            TestRunner.Equal(true, NativeSingleAttackTerminalPolicy.ShouldAwaitNativeAnimation(false, true, true, true, 4, 4, false), "RT iterative plan must retain final animation.");
+            TestRunner.Equal(false, NativeSingleAttackTerminalPolicy.ShouldAwaitNativeAnimation(false, true, true, false, 2, 2, false), "Creation alone is not effect completion.");
+        }
+
+        private static void MountMovementAllowance()
+        {
+            var state = new MountedMovementState();
+            float debit;
+            TestRunner.Equal(1f, state.Advance(1f, 5f, 2.286f, 0f, false, false, false, false, false, false, false, out debit), "First partial ground move.");
+            TestRunner.Equal(1f, debit, "One actual movement debit.");
+            TestRunner.Equal(2f, state.Advance(3f, 5f, 2.286f, debit, true, false, false, false, false, false, false, out debit), "After mount attack only its remaining Move is legal.");
+            TestRunner.Equal(0f, state.Advance(1f, 5f, 2.286f, 3f, true, false, false, false, false, false, false, out debit), "Rider input cannot lend Standard to exhausted mount.");
+            TestRunner.Equal(3f, state.Advance(3f, 5f, 2.286f, 3f, false, false, false, false, false, false, false, out debit), "Unused native mount Standard converts to second move.");
+            TestRunner.Equal(0f, state.Advance(1f, 5f, 2.286f, 6f, false, false, false, false, false, true, false, out debit), "A new endpoint request cannot reopen exhausted movement.");
+            TestRunner.Equal(6f, state.TimeMoved, "Ground/approach/control surface changes do not reset movement time.");
+        }
+
+        private static void MountStepState()
+        {
+            var state = new MountedMovementState();
+            float debit;
+            state.Advance(.2f, 5f, 2.286f, 0f, false, false, true, false, false, false, false, out debit);
+            TestRunner.Equal(0f, debit, "Native step has no ordinary Move debit.");
+            TestRunner.Equal(1f, state.MetresStepped, "Step distance uses mount speed.");
+            TestRunner.Equal(0f, state.Advance(1f, 5f, 2.286f, 0f, false, false, false, false, false, false, false, out debit), "Stop cannot change partial step into normal movement.");
+            TestRunner.Equal(true, state.StepImmune, "Only actual step displacement records immunity.");
+            var ordinary = new MountedMovementState();
+            ordinary.Advance(.1f, 5f, 2.286f, 0f, false, false, false, false, false, false, false, out debit);
+            TestRunner.Equal(0f, ordinary.Advance(.2f, 5f, 2.286f, debit, false, false, true, false, false, false, false, out debit), "Ordinary movement cannot gain a step or AoO immunity.");
+            TestRunner.Equal(false, ordinary.StepImmune, "No false step immunity.");
+            var forced = new MountedMovementState();
+            forced.Advance(.3f, 5f, 2.286f, 0f, false, false, false, false, true, false, false, out debit);
+            TestRunner.Equal(.3f, forced.TimeForced, "Forced movement side effect retained.");
+            TestRunner.Equal(0f, forced.Remaining(5f, 2.286f, 0f, false, false, false, false), "Native normal movement restriction survives forced movement.");
         }
 
         private static void RiderMeleeOwnership()

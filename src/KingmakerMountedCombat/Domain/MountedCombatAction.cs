@@ -154,7 +154,7 @@ namespace KingmakerMountedCombat.Domain
             return isActed &&
                 resultIsSuccess &&
                 attackRuleObserved &&
-                attackCount == 1 &&
+                attackCount > 0 &&
                 completedAttackCount == attackCount &&
                 !hasPlannedAttack;
         }

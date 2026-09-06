@@ -135,7 +135,7 @@ namespace KingmakerMountedCombat.Domain
             new PoseVector3(0f, 0f, 0f);
 
         // Phase 3G applies this only through the visual animated saddle projection.
-        public const float HorseSeatLoweringMetres = 0.08f;
+        public const float HorseSeatLoweringMetres = 0.16f;
         public static readonly PoseVector3 MediumHumanoidOnHorseMountRootPositionOffset =
             new PoseVector3(0f, -0.08f, 0f);
 

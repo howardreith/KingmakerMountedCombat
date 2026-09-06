@@ -56,9 +56,15 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(UnitCommands), "Run", 0x060026B2, new[] { typeof(UnitCommand) }, nameof(PatchMethods.UnitCommandRunPrefix));
                 PatchExact(typeof(UnitCommands), "InterruptAndRemoveCommand", 0x060026BF,
                     new[] { typeof(UnitCommand.CommandType), typeof(bool) }, nameof(PatchMethods.PairedCommandInterruptPrefix));
+                PatchExact(typeof(UnitCommand), "TickApproaching", 0x060027A6, Type.EmptyTypes,
+                    nameof(PatchMethods.MountedAttackApproachPrefix));
+                PatchExact(typeof(UnitAttack), "UpdateTarget", 0x06002683, Type.EmptyTypes,
+                    nameof(PatchMethods.MountedAttackTargetPrefix));
                 PatchExact(typeof(CombatController), "HandleCombatEnd", 0x06000BE3, Type.EmptyTypes,
                     nameof(PatchMethods.NativeCombatEndPrefix), nameof(PatchMethods.NativeCombatEndPostfix));
                 PatchExact(typeof(UnitUseAbility), "Init", 0x06002728, new[] { typeof(UnitEntityData) }, null, nameof(PatchMethods.NativeAbilityInitPostfix));
+                PatchExact(typeof(Kingmaker.UnitLogic.Abilities.AbilityData), "get_IsSuitableForAutoUse", 0x06002B30,
+                    Type.EmptyTypes, null, nameof(PatchMethods.RelationshipControlAutoUsePostfix));
                 PatchExact(typeof(SelectionManager), "SelectUnit", 0x060034F0, new[] { typeof(UnitEntityView), typeof(bool), typeof(bool), typeof(bool) }, nameof(PatchMethods.SelectUnitPrefix));
                 PatchExact(typeof(SelectionManager), "MultiSelect", 0x060034F5, new[] { typeof(IEnumerable<UnitEntityView>), typeof(bool) }, nameof(PatchMethods.MultiSelectPrefix));
                 PatchExact(typeof(SelectionManagerBase), "Stop", 0x060000B9, Type.EmptyTypes, nameof(PatchMethods.StopOrHoldPrefix));
@@ -82,6 +88,10 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(CombatController), "Tick", 0x06000BD1, Type.EmptyTypes, null, nameof(PatchMethods.CombatControllerTickPostfix));
                 PatchExact(typeof(CombatController), "ChooseNextUnit", 0x06000BD2, Type.EmptyTypes, null, nameof(PatchMethods.ChooseNextUnitPostfix));
                 PatchExact(typeof(TurnController), "Prepare", 0x06000C3C, Type.EmptyTypes, null, nameof(PatchMethods.TurnPreparePostfix));
+                PatchExact(typeof(TurnController), "TickMovement", 0x06000C37,
+                    new[] { typeof(float).MakeByRefType(), typeof(bool) }, null, nameof(PatchMethods.NativeMovementTickPostfix));
+                PatchExact(typeof(UnitActionController), "UpdateCooldowns", 0x06009120,
+                    new[] { typeof(UnitCommand) }, null, nameof(PatchMethods.NativeActionCostPostfix));
                 PatchExact(typeof(TurnController), "ContinueActing", 0x06000C3D, Type.EmptyTypes, null, nameof(PatchMethods.ContinueActingPostfix));
                 PatchExact(typeof(CombatController), "HandleUnitRollsInitiative", 0x06000BEE, new[] { typeof(RuleInitiativeRoll) }, nameof(PatchMethods.InitiativePrefix));
                 PatchExact(typeof(CombatController), "get_SortedUnits", 0x06000BC7, Type.EmptyTypes, null, nameof(PatchMethods.SortedUnitsPostfix));
@@ -216,6 +226,12 @@ namespace KingmakerMountedCombat.Integration
                 PatchBridge.NativeControls?.PrepareNativePrimaryIntentShell(__instance);
             }
 
+            internal static void RelationshipControlAutoUsePostfix(Kingmaker.UnitLogic.Abilities.AbilityData __instance, ref bool __result)
+            {
+                if (PatchBridge.NativeControls != null && PatchBridge.NativeControls.IsPlayerOnlyRelationshipControl(__instance))
+                    __result = false;
+            }
+
             internal static void CommandInterruptPrefix(UnitCommand __instance)
             {
                 PatchBridge.Combat?.ObserveCommandInterrupt(__instance);
@@ -225,6 +241,32 @@ namespace KingmakerMountedCombat.Integration
             {
                 return PatchBridge.Combat == null ||
                     !PatchBridge.Combat.PreservesApproachParent(__instance, type, interruptPaired);
+            }
+
+            internal static bool MountedAttackApproachPrefix(UnitCommand __instance)
+            {
+                // The pair command owns its mount Move slot and drives it through
+                // the existing native/off-executor movement paths. Running the
+                // base approach too would stop that move or start rider navigation.
+                return !(__instance is MountedPairAttackCommand);
+            }
+
+            internal static bool MountedAttackTargetPrefix(UnitAttack __instance, ref bool __result)
+            {
+                var mounted = __instance as MountedPairAttackCommand;
+                if (mounted == null) return true;
+                __result = mounted.ValidateNativeSequenceTarget();
+                return false;
+            }
+
+            internal static void NativeMovementTickPostfix(TurnController __instance)
+            {
+                if (!PointerController.SimulatingClick) PatchBridge.UnifiedTurn?.ObserveNativeMovement(__instance);
+            }
+
+            internal static void NativeActionCostPostfix(UnitCommand command)
+            {
+                if (!PointerController.SimulatingClick) PatchBridge.UnifiedTurn?.ObserveNativeActionCost(command);
             }
 
             internal static void AnimationTickPrefix(UnitAnimationManager __instance)

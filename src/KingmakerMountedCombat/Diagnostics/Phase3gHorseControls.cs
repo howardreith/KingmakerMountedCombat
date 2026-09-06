@@ -2,6 +2,9 @@ using System;
 using System.Linq;
 using Kingmaker;
 using Kingmaker.Blueprints.Classes.Selection;
+using Kingmaker.Blueprints;
+using Kingmaker.Blueprints.Classes;
+using Kingmaker.UnitLogic.ActivatableAbilities;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.Enums;
 using Kingmaker.Controllers.Clicks.Handlers;
@@ -24,8 +27,14 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         internal const string Phase3gRealTimeScenario = "phase3g-native-controls-rt";
         internal const string Phase3gTurnBasedScenario = "phase3g-native-controls-tb";
-        private bool IsPhase3gControls => request.Scenario == Phase3gRealTimeScenario || request.Scenario == Phase3gTurnBasedScenario;
-        private bool Phase3gTurnBased => request.Scenario == Phase3gTurnBasedScenario;
+        private bool IsPhase3hLoop => request.Scenario == "phase3h-combat-loop-rt" || request.Scenario == "phase3h-combat-loop-tb";
+        private bool IsPhase3gControls => IsPhase3hLoop || request.Scenario == Phase3gRealTimeScenario || request.Scenario == Phase3gTurnBasedScenario;
+        private bool Phase3gTurnBased => request.Scenario == Phase3gTurnBasedScenario || request.Scenario == "phase3h-combat-loop-tb";
+        private Feature phase3hRapidShot;
+        private ActivatableAbility phase3hRapidToggle;
+        private bool phase3hRapidWasOn;
+        private float phase3hStationaryRadius;
+        private bool Phase3hApproachCase => IsPhase3hLoop && (phase3gCase == 2 || phase3gCase == 4 || !Phase3gTurnBased && phase3gCase == 5);
         private int phase3gCase;
         private int phase3gStage;
         private double phase3gLastClick;
@@ -45,7 +54,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private UnitUseAbility phase3gQueuedControl;
         private int phase3gUnpauseInputs;
 
-        private string Phase3gRow => "3g-" + new[] {
+        private string Phase3gRow => (IsPhase3hLoop ? "3h-" : "3g-") + new[] {
             "rider-longbow-ordinary", "rider-longbow-primary", "rider-melee-ordinary",
             "rider-melee-primary", "horse-bite-ordinary", "horse-bite-primary" }[phase3gCase];
 
@@ -61,11 +70,13 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 rangedWeaponLease = new Phase3dRangedWeaponLease(rider);
                 rangedWeaponLease.Acquire(WeaponCategory.Longbow);
+                if (IsPhase3hLoop) AcquirePhase3hRapidShot();
             }
             if (phase3gCase == 2 && rangedWeaponLease != null)
             {
                 rangedWeaponLease.Dispose();
                 rangedWeaponLease = null;
+                RestorePhase3hRapidShot();
             }
             if (Phase3gTurnBased && phase3gCase == 1)
             {
@@ -77,10 +88,10 @@ namespace KingmakerMountedCombat.Diagnostics
             // Preserve the target service's 3-metre minimum spawn boundary. Its native
             // Mammoth body has substantial corpulence; stationary admission below
             // still has to satisfy the exact actor's native range and LoS checks.
-            BeginTarget(!Phase3gTurnBased && phase3gCase == 2 ? 6f : 3.5f, Phase3gRow);
+            BeginTarget(Phase3hApproachCase || !Phase3gTurnBased && phase3gCase == 2 ? 6f : 3.5f, Phase3gRow);
             // Natural hit/miss and projectile resolve events are authoritative.
             ruleProbe.Arm(target, false);
-            phase3gStage = Phase3gTurnBased && phase3gCase >= 2 ? -1 : 0;
+            phase3gStage = Phase3gTurnBased && phase3gCase >= 2 && !Phase3hApproachCase ? -1 : 0;
             phase3gClicks = 0;
             phase3gUnpauseInputs = 0;
             phase3gActorBefore = null;
@@ -132,7 +143,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (CombatController.IsInTurnBasedCombat())
                     throw new InvalidOperationException("Stationary TB setup must finish its native approach in RT first.");
                 SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
-                movementDestination = FindWalkablePointNearTarget(target.Position, horse.Position, 2.5f);
+                var probe = new MountedPairSingleAttack(target, rider, horse, phase3gCase < 4);
+                probe.Init(Phase3gActor);
+                phase3hStationaryRadius = probe.PairApproachRadius;
+                movementDestination = FindWalkablePointNearTarget(target.Position, horse.Position,
+                    IsPhase3hLoop ? phase3hStationaryRadius - MountedCombatSpatialPolicy.DiagnosticRangeInset : 2.5f);
                 ClickGroundHandler.MoveSelectedUnitsToPoint(movementDestination, false);
                 movementCommand = horse.Commands.Move as UnitMoveTo;
                 if (movementCommand == null || movementCommand.Executor != horse)
@@ -142,7 +157,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (phase3gStage == -2)
             {
                 if (!movementCommand.IsFinished || horse.View.MovementAgent.IsReallyMoving) { return; }
-                if (horse.DistanceTo(target) > 2.75f)
+                if (horse.DistanceTo(target) > (IsPhase3hLoop ? phase3hStationaryRadius : 2.75f))
                     throw new InvalidOperationException("Native fixture approach did not reach adjacent stationary placement.");
                 movementCommand = null;
                 phase3gStage = 0; ResetLeafClock(); return;
@@ -171,6 +186,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (phase3gCase >= 4 && (!horse.Commands.Empty || horse.AreHandsBusyWithAnimation ||
                     !horse.HasStandardAction())) { return; }
                 SelectionManager.Instance.SelectUnit(actor.View, true, true, false);
+                if (IsPhase3hLoop) Game.Instance.UI.GetCameraRig().ScrollTo(horse.Position);
                 var ledger = combat.CaptureUnifiedTurnSnapshot();
                 var mountAction = phase3gCase >= 4;
                 phase3gActorBefore = mountAction ? ledger.Mount : ledger.Rider;
@@ -189,8 +205,8 @@ namespace KingmakerMountedCombat.Diagnostics
             if (phase3gStage != 1) { return; }
             var ordinary = phase3gCase % 2 == 0;
             var resolved = phase3gCase >= 4 ? ruleProbe.MountResolvedCount : ruleProbe.RiderResolvedCount;
-            var expected = ordinary && !Phase3gTurnBased && phase3gCase < 4 ? 2 : 1;
-            if (ordinary && !Phase3gTurnBased && clock.Elapsed.TotalSeconds - phase3gLastClick >= 0.35 && resolved < expected)
+            var expected = IsPhase3hLoop && phase3gCase == 0 ? 2 : ordinary && !Phase3gTurnBased && phase3gCase < 4 ? 2 : 1;
+            if (ordinary && (!Phase3gTurnBased || IsPhase3hLoop) && clock.Elapsed.TotalSeconds - phase3gLastClick >= 0.35 && resolved < expected)
             {
                 ClickPhase3gAttack();
                 phase3gLastClick = clock.Elapsed.TotalSeconds;
@@ -211,9 +227,16 @@ namespace KingmakerMountedCombat.Diagnostics
                 outcome.ChildAttackStartCount == 1 && ruleProbe.PairForcedD20Count == 0 &&
                 (!Phase3gTurnBased || ReferenceEquals(nativeTurn, phase3gAttackTurn) && nativeTurn.Unit == expectedActor &&
                     actorAfter > phase3gActorBefore.Standard && Math.Abs(otherAfter - phase3gOtherBefore.Standard) < 0.001f &&
-                    HorizontalDistance(phase3gMovementStart, horse.Position) <= 0.1f &&
+                    (Phase3hApproachCase ? HorizontalDistance(phase3gMovementStart, horse.Position) >= 0.5f :
+                        HorizontalDistance(phase3gMovementStart, horse.Position) <= 0.1f) &&
                     (expectedActor == horse ? ruleProbe.RiderNonOpportunityAttackRuleCount : ruleProbe.MountNonOpportunityAttackRuleCount) == 0) &&
                 (!ordinary || combat.StockAttackIntentStartCount - phase3gIntentStarts == 1);
+            if (IsPhase3hLoop && phase3gCase == 0)
+                success &= outcome.NativeFullAttack && outcome.NativePlannedAttackCount >= 2 &&
+                    outcome.NativeCompletedAttackCount == outcome.NativePlannedAttackCount &&
+                    (!Phase3gTurnBased || rider.CombatState.Cooldown.MoveAction >= 3f);
+            if (IsPhase3hLoop && !ordinary)
+                success &= outcome.SingleAttackMode && outcome.NativePlannedAttackCount == 1;
             CompletePhase3gCase(success, "Native actor command, attack rule and effect resolved; inspect exact turn/cost/cadence evidence. Visual animation remains human review.");
         }
 
@@ -258,6 +281,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 phase3gQueuedControl.Result == (stopping ? UnitCommand.ResultType.Interrupt : UnitCommand.ResultType.Success) &&
                 (!mounting || relationship.Rider == rider && relationship.Mount == horse && relationship.Runtime.PoseHealthy);
             var row = stopping ? "3g-paused-mount-stop" : mounting ? "3g-paused-mount-execute" : "3g-paused-dismount";
+            if (IsPhase3hLoop) row = row.Replace("3g-", "3h-");
             AddRow(row, success, "Native paused queue, unpause/Stop input and exact execution outcome.", new JObject {
                 ["inputKind"] = "scripted-native-handler-integration", ["queuedBeforeExecution"] = phase3gQueuedWithoutExecution,
                 ["dispatchDelta"] = delta, ["finished"] = phase3gQueuedControl.IsFinished,
@@ -271,7 +295,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void FailPhase3gPause(string detail)
         {
-            AddRow("3g-paused-control-failure", false, detail, new JObject {
+            AddRow((IsPhase3hLoop ? "3h-" : "3g-") + "paused-control-failure", false, detail, new JObject {
                 ["stage"] = phase3gPauseStage, ["feedback"] = playerAction.LastFeedback,
                 ["relationshipState"] = relationship.State.ToString(), ["paused"] = Game.Instance.IsPaused
             });
@@ -344,6 +368,25 @@ namespace KingmakerMountedCombat.Diagnostics
             combat.Cancel("Phase 3G native Stop after case");
             phase3gStage = 3;
             ResetLeafClock();
+        }
+
+        private void AcquirePhase3hRapidShot()
+        {
+            var feature = ResourcesLibrary.LibraryObject.BlueprintsByAssetId.Values.OfType<BlueprintFeature>()
+                .Single(item => item.name == "RapidShot");
+            if (rider.Descriptor.HasFact(feature)) throw new InvalidOperationException("Rapid Shot fixture requires an initially unowned feature.");
+            phase3hRapidShot = rider.Descriptor.Progression.Features.AddFeature(feature);
+            phase3hRapidToggle = rider.ActivatableAbilities.Enumerable.Single(item => item.Blueprint.name == "RapidShotToggleAbility");
+            phase3hRapidWasOn = phase3hRapidToggle.IsOn;
+            phase3hRapidToggle.IsOn = true;
+            observations["phase3hRapidShot"] = new JObject { ["feature"] = feature.AssetGuid,
+                ["toggle"] = phase3hRapidToggle.Blueprint.AssetGuid, ["nativeToggleEnabled"] = phase3hRapidToggle.IsOn };
+        }
+
+        private void RestorePhase3hRapidShot()
+        {
+            if (phase3hRapidToggle != null) { phase3hRapidToggle.IsOn = phase3hRapidWasOn; phase3hRapidToggle = null; }
+            if (phase3hRapidShot != null) { rider.Descriptor.Progression.Features.RemoveFact(phase3hRapidShot); phase3hRapidShot = null; }
         }
     }
 }

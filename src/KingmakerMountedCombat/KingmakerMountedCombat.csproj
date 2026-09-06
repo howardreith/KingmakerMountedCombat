@@ -162,6 +162,8 @@
     <Compile Include="Domain\MountedCombatTransaction.cs" />
     <Compile Include="Domain\MountedStockAttack.cs" />
     <Compile Include="Domain\MountedMovePrepayment.cs" />
+    <Compile Include="Domain\MountedMovementState.cs" />
+    <Compile Include="Integration\MountedMovementStateAdapter.cs" />
     <Compile Include="Domain\AnimatedSaddlePosition.cs" />
     <Compile Include="Domain\OptionalPublicPropertyReader.cs" />
     <Compile Include="Domain\PairedCommandScheduler.cs" />

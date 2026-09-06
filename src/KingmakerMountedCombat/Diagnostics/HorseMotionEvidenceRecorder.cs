@@ -13,8 +13,8 @@ namespace KingmakerMountedCombat.Diagnostics
     // Observation only. The scenario owns all commands; this recorder owns only capture evidence.
     internal sealed class HorseMotionEvidenceRecorder : IDisposable
     {
-        private const int MaximumFrames = 64;
-        private const int MaximumFramesPerPhase = 8;
+        private const int MaximumFrames = 128;
+        private const int MaximumFramesPerPhase = 24;
         private readonly string evidenceRoot;
         private readonly GameMountedRelationshipService relationship;
         private readonly MovementScreenshotCaptureCoordinator captures;
@@ -49,7 +49,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (count >= MaximumFramesPerPhase) { return; }
             phaseCounts[phase] = count + 1;
             requested++;
-            nextCaptureMilliseconds = clock.ElapsedMilliseconds + 200;
+            nextCaptureMilliseconds = clock.ElapsedMilliseconds + 80;
             captures.Enqueue(phase, "horse-motion-" + requested.ToString("D3"), Time.frameCount);
             captures.Pump(Time.frameCount);
         }

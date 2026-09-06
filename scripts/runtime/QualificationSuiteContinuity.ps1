@@ -23,6 +23,15 @@ function Assert-KmcPhase3fStartingInstallation {
         }
     }
     $entries = @(Get-ChildItem -LiteralPath $KmcRoot -Force -Recurse)
+    # Phase 3H starts from the exact user-installed preview.7 and its human cache.
+    # Current save/foreign Mods/settings bytes are independently pinned per suite.
+    if ((Get-KmcSha256 (Join-Path $KmcRoot 'Info.json')) -ceq '1cc079143b82efa6fdd2342e23af98f87ab00a84ec861fa3f5c51d397c29c5f6') {
+        $pins = @{
+            'Info.json'='1cc079143b82efa6fdd2342e23af98f87ab00a84ec861fa3f5c51d397c29c5f6'
+            'KingmakerMountedCombat.dll'='6bc01b982309125963d2355983b37391f244cfea314093fe4b008ad21a241ff3'
+            'KingmakerMountedCombat.dll.49723.cache'='6bc01b982309125963d2355983b37391f244cfea314093fe4b008ad21a241ff3'
+        }
+    }
     if ($entries.Count -ne $pins.Count) { throw 'Existing KMC tree differs from the exact Phase 3F starting payload.' }
     foreach ($entry in $entries) {
         if ($entry.PSIsContainer -or $entry.Name -cnotin @($pins.Keys) -or

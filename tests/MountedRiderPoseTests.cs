@@ -256,7 +256,7 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.Equal(-0.17f, profile.PelvisPositionOffset.Y, "Horse accepted procedural pelvis calibration changed.");
             TestRunner.Equal(-0.08f, MountedRiderPoseProfiles.MediumHumanoidOnHorseMountRootPositionOffset.Y,
                 "Horse final Phase 3D mount-root vertical calibration changed.");
-            TestRunner.Equal(-0.08f, MountedRiderPoseProfiles.HorseAnimatedSeatCorrection.Y,
+            TestRunner.Equal(-0.16f, MountedRiderPoseProfiles.HorseAnimatedSeatCorrection.Y,
                 "Horse height correction must be confined to visual saddle projection.");
             TestRunner.Equal(-0.18f, MountedRiderPoseProfiles.HorseAnimatedSeatCorrection.Z,
                 "Horse height correction changed the accepted backward correction.");

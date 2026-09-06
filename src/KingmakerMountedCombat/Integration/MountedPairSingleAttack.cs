@@ -19,7 +19,9 @@ namespace KingmakerMountedCombat.Integration
         Admitted
     }
 
-    internal sealed class MountedPairSingleAttack : UnitAttack
+    // Native attack geometry/terminal adapter. The historical filename is retained;
+    // Phase 3H permits native ordinary sequences as well as explicit single attacks.
+    internal class MountedPairSingleAttack : UnitAttack
     {
         private readonly UnitEntityData rider;
         private readonly UnitEntityData mount;
@@ -32,15 +34,15 @@ namespace KingmakerMountedCombat.Integration
             UnitEntityData target,
             UnitEntityData rider,
             UnitEntityData mount,
-            bool usesMountedRiderReach)
+            bool usesMountedRiderReach,
+            bool singleAttack = true)
             : base(target)
         {
             this.rider = rider;
             this.mount = mount;
             this.usesMountedRiderReach = usesMountedRiderReach;
-            IsSingleAttack = true;
+            IsSingleAttack = singleAttack;
             CreatedByPlayer = true;
-            IgnoreCooldown();
         }
 
         public override void Init(UnitEntityData executor)
@@ -166,6 +168,7 @@ namespace KingmakerMountedCombat.Integration
 
             if (!usesMountedRiderReach)
             {
+                ApproachRadius = pairApproachRadius;
                 return EvaluateExactNativeGate();
             }
 

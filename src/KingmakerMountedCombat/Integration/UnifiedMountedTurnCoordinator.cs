@@ -85,7 +85,7 @@ namespace KingmakerMountedCombat.Integration
         private static int trackerProjectionDepth;
 
         private readonly GameMountedRelationshipService relationship;
-        private readonly MountedMovePrepayment movePrepayment = new MountedMovePrepayment();
+        private readonly MountedMovementStateAdapter movementState = new MountedMovementStateAdapter();
         private readonly DiagnosticSettings settings;
         private readonly MountedPairCommandScheduler pairedCommandScheduler;
         private readonly IModLogger logger;
@@ -295,11 +295,9 @@ namespace KingmakerMountedCombat.Integration
             var mount = relationship.Mount;
             var controller = Game.Instance?.TurnBasedCombatController;
             if (!settings.EnableUnifiedMountedTurn && controller != null && CombatController.IsInTurnBasedCombat() &&
-                (turn.Unit == mount && relationship.State == RelationshipState.Mounted || movePrepayment.Owns(turn.Unit)))
+                (turn.Unit == mount && relationship.State == RelationshipState.Mounted || movementState.Owns(turn.Unit)))
             {
-                movePrepayment.ObserveEpoch(turn.Unit, controller, controller.RoundNumber, controller.RoundStartTime.Ticks);
-                var cooldown = turn.Unit.CombatState.Cooldown;
-                cooldown.MoveAction = movePrepayment.ReconcileNativePreparation(cooldown.MoveAction);
+                movementState.Prepared(turn, mount);
             }
             var mountState = mount?.Descriptor?.State;
             if (!UnifiedMountedTurnPolicy.ShouldPrepareMountLedger(
@@ -540,59 +538,18 @@ namespace KingmakerMountedCombat.Integration
                 throw new InvalidOperationException("Exact rider and mount cooldown ledgers are required.");
             }
 
-            var riderCooldown = relationship.Rider.CombatState.Cooldown;
-            var mountCooldown = relationship.Mount.CombatState.Cooldown;
-            var riderBefore = riderCooldown.MoveAction;
-            var riderStandardBefore = riderCooldown.StandardAction;
-            var mountBefore = mountCooldown.MoveAction;
-            var controller = Game.Instance?.TurnBasedCombatController;
-            if (!settings.EnableUnifiedMountedTurn && controller != null)
-                movePrepayment.ObserveEpoch(relationship.Mount, controller, controller.RoundNumber, controller.RoundStartTime.Ticks);
-            var physicalDeltaRequested = deltaTime;
-            var nativeFiveFootStep = turn.EnabledFiveFootStep;
-            var riderSpeed = relationship.Rider.CurrentSpeedMps;
-            var mountSpeed = relationship.Mount.CurrentSpeedMps;
-            var riderLedgerDelta = MountedFiveFootStepPolicy.ToRiderLedgerDelta(
-                physicalDeltaRequested,
-                riderSpeed,
-                mountSpeed,
-                nativeFiveFootStep);
-            var temporaryAfter = mountBefore;
-            try
-            {
-                riderCooldown.MoveAction = mountBefore;
-                // Native Standard-to-movement conversion must consult the mount's Standard.
-                // This scoped projection never lends the rider's unused Standard to the mount.
-                riderCooldown.StandardAction = mountCooldown.StandardAction;
-                ExactTurnMovementAdapter.Tick(turn, ref riderLedgerDelta);
-                temporaryAfter = riderCooldown.MoveAction;
-            }
-            finally
-            {
-                riderCooldown.MoveAction = riderBefore;
-                riderCooldown.StandardAction = riderStandardBefore;
-            }
+            LastMovementObservation = movementState.TickDelegated(turn, relationship.Mount, ref deltaTime);
+        }
 
-            mountCooldown.MoveAction = MountedFiveFootStepPolicy.TransferMoveCooldown(
-                riderBefore,
-                temporaryAfter,
-                mountBefore);
-            if (!settings.EnableUnifiedMountedTurn && controller != null)
-                movePrepayment.RecordPhysicalMove(mountBefore, mountCooldown.MoveAction);
-            deltaTime = Math.Min(
-                physicalDeltaRequested,
-                MountedFiveFootStepPolicy.ToMountPhysicalDelta(
-                    riderLedgerDelta,
-                    riderSpeed,
-                    mountSpeed,
-                    nativeFiveFootStep));
-            LastMovementObservation = "riderMove=" + riderBefore.ToString("R") + "->" +
-                riderCooldown.MoveAction.ToString("R") + ";mountMove=" + mountBefore.ToString("R") +
-                "->" + mountCooldown.MoveAction.ToString("R") + ";fiveFoot=" +
-                nativeFiveFootStep + ";distance=" + turn.MetersMovedByFiveFootStep.ToString("R") +
-                ";physicalDelta=" + physicalDeltaRequested.ToString("R") + "->" + deltaTime.ToString("R") +
-                ";ledgerDelta=" + riderLedgerDelta.ToString("R") +
-                ";speed=" + riderSpeed.ToString("R") + "->" + mountSpeed.ToString("R");
+        internal void ObserveNativeMovement(TurnController turn)
+        {
+            if (!disposed && turn != null && (turn.Unit == relationship.Mount || movementState.Owns(turn.Unit)))
+                movementState.ObserveNativeMovement(turn, turn.Unit);
+        }
+
+        internal void ObserveNativeActionCost(UnitCommand command)
+        {
+            if (!disposed) movementState.ObserveAction(command);
         }
 
         internal bool ShouldSuppressStepOpportunity(UnitEntityData target)

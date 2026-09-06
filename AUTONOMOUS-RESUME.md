@@ -1,3 +1,11 @@
+## Phase 3H implementation checkpoint - 2026-09-06 05:40 UTC
+
+Active mission is Phase 3H on `codex/mounted-combat-phase3f-playable-core`. Intake HEAD/upstream/host remote were `1b8469845ef32406ca5006290a7b86eeea99b726`; approach ownership checkpoint is `ed4b48994fc7d931bb7af0267ad04327338f4ab3`. The next coherent checkpoint replaces the charging shell/free child with one native attack sequence, adds mount-owned movement state, and applies the extra visual Y correction and narrow tooltip fixes. Version `0.1.0-phase3h-preview.1`; all three flags remain false. Focused source/build 22/0, components 345/0, Phase 3H protocol 20/0. These are offline results; runtime is **0/8**, and TB refresh/step/resource qualification remains blocked. Native full attacks are now authorized; old single-only ordinary limits are historical.
+
+Actual starting installation is preview.7 **including its human-generated `.49723.cache`**, with current human saves/settings. Immutable intake/log/packet verification: `analysis-cache/runtime-evidence/phase3h-intake-20260906T0444297198055Z/`. Local human log SHA `7a839a4bd1ff0a034dce49239d0efdbe5edbcb3fdf90266461e8f8a2ca4d789d` identifies preview.7. No human game was running at intake or at 05:37 UTC. Every new test must restore this intake, never old preview.4/fallback pins. No permanent Phase 3H installation is authorized.
+
+Next: commit the tested implementation, package from clean source, establish a new package-bound current-state suite, then use the exact guarded `phase3h-combat-loop-tb` scenario and independently audit restoration before reading gameplay results. [Implementation and current limitations](docs/PHASE3H-IMPLEMENTATION.md). The approved host guard differs only by the two Phase 3H scenario names, independently verified; the allowance patch's initial WhatIf failed before mutation and is not recorded as PASS.
+
 ## Current installation - user-authorized Phase 3G preview.7, 2026-09-06 04:02 UTC
 
 The user explicitly requested installation of the delivered candidate for human testing. **Phase 3G preview.7 is now intentionally installed in local Kingmaker UMM. Do not restore preview.4, fallback or KMC absence as routine cleanup.** This supersedes current-installation statements below; their qualification and restoration records remain historical.

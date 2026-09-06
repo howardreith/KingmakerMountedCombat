@@ -695,7 +695,8 @@ namespace KingmakerMountedCombat.Integration
                     horsePrimaryAttackAnimation,
                     logger,
                     HandleCommandTerminal,
-                    allowApproach);
+                    allowApproach,
+                    !ordinaryIntent);
                 var schedulerRequired = pairedCommandScheduler.RequiresLease(action);
                 string schedulerReason;
                 if (schedulerRequired &&
