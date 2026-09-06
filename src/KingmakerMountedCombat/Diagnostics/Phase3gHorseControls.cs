@@ -66,7 +66,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 rangedWeaponLease.Dispose();
                 rangedWeaponLease = null;
             }
-            BeginTarget(Phase3gTurnBased ? 1.5f : phase3gCase == 2 ? 6f : 2.5f, Phase3gRow);
+            // Preserve the target service's 3-metre minimum spawn boundary. Its native
+            // Mammoth body has substantial corpulence; stationary admission below
+            // still has to satisfy the exact actor's native range and LoS checks.
+            BeginTarget(!Phase3gTurnBased && phase3gCase == 2 ? 6f : 3.5f, Phase3gRow);
             // Natural hit/miss and projectile resolve events are authoritative.
             ruleProbe.Arm(target, false);
             phase3gStage = 0;
@@ -102,7 +105,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (Phase3gTurnBased && !CombatController.IsInTurnBasedCombat())
                 {
                     if (turnBasedModeProbe == null) { turnBasedModeProbe = new NativeModeTransitionProbe(true); }
-                    turnBasedModeProbe.DispatchTemporaryValueIfRequired();
+                    if (!turnBasedModeProbe.TemporaryDeliveryAttempted)
+                        turnBasedModeProbe.DispatchTemporaryValueIfRequired();
                     return;
                 }
                 var actor = Phase3gActor;
@@ -156,6 +160,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 outcome.ChildAttackStartCount == 1 && ruleProbe.PairForcedD20Count == 0 &&
                 (!Phase3gTurnBased || ReferenceEquals(nativeTurn, phase3gAttackTurn) && nativeTurn.Unit == expectedActor &&
                     actorAfter > phase3gActorBefore.Standard && Math.Abs(otherAfter - phase3gOtherBefore.Standard) < 0.001f &&
+                    HorizontalDistance(phase3gMovementStart, horse.Position) <= 0.1f &&
                     (expectedActor == horse ? ruleProbe.RiderNonOpportunityAttackRuleCount : ruleProbe.MountNonOpportunityAttackRuleCount) == 0) &&
                 (!ordinary || combat.StockAttackIntentStartCount - phase3gIntentStarts == 1);
             CompletePhase3gCase(success, "Native actor command, attack rule and effect resolved; inspect exact turn/cost/cadence evidence. Visual animation remains human review.");

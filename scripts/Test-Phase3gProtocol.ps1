@@ -8,7 +8,7 @@ function New-ControlsEvidence {
     foreach($name in @('3g-rider-longbow-ordinary','3g-rider-longbow-primary','3g-rider-melee-ordinary','3g-rider-melee-primary','3g-horse-bite-ordinary','3g-horse-bite-primary')) {
         $mount=$name.StartsWith('3g-horse-');$actor=if($mount){'mount'}else{'rider'}
         $rows+=@{name=$name;status='PASS';evidence=@{
-            inputKind='scripted-native-handler-integration';intentStarts=1;turnActor=$actor
+            inputKind='scripted-native-handler-integration';intentStarts=1;turnActor=$actor;mountDisplacement=0
             actorBefore=@{standard=0};otherBefore=@{standard=0}
             ledger=@{relationshipState='Mounted';rider=@{standard=if($mount){0}else{6}};mount=@{standard=if($mount){6}else{0}}}
             rules=@{riderResolved=if($mount){0}else{2};mountResolved=if($mount){1}else{0};pairForcedD20=0}
@@ -40,6 +40,14 @@ foreach($mode in @('rt','tb')){
         $rejected=$false
         try{Assert-KmcPhase3gControlsEvidence $request $artifact PASS}catch{$rejected=$true}
         if(-not $rejected){throw "Accepted corrupt $mode $mutation evidence."}
+        $passed++
+    }
+    if($mode -eq 'tb'){
+        $artifact=New-ControlsEvidence $true
+        $artifact.rows[0].evidence.mountDisplacement=0.2
+        $rejected=$false
+        try{Assert-KmcPhase3gControlsEvidence $request $artifact PASS}catch{$rejected=$true}
+        if(-not $rejected){throw 'Accepted moving attack as stationary TB evidence.'}
         $passed++
     }
 }

@@ -39,7 +39,8 @@ function Assert-KmcPhase3gControlsEvidence {
             $actorLedger=if($mount){$e.ledger.mount}else{$e.ledger.rider}
             $otherLedger=if($mount){$e.ledger.rider}else{$e.ledger.mount}
             if($e.turnActor -cne $actor -or $actorLedger.standard -le $e.actorBefore.standard -or
-                [Math]::Abs($otherLedger.standard-$e.otherBefore.standard) -gt 0.001){throw 'TB actor turn or separate action cost mismatch.'}
+                [Math]::Abs($otherLedger.standard-$e.otherBefore.standard) -gt 0.001 -or
+                $e.mountDisplacement -gt 0.1){throw 'TB actor turn, stationary admission or separate action cost mismatch.'}
         }
     }
     if($Artifact.subscenarioPassCount -ne $pass -or $Artifact.subscenarioFailCount -ne $fail -or
