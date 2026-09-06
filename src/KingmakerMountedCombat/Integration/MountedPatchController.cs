@@ -90,6 +90,8 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(TurnController), "Prepare", 0x06000C3C, Type.EmptyTypes, null, nameof(PatchMethods.TurnPreparePostfix));
                 PatchExact(typeof(TurnController), "TickMovement", 0x06000C37,
                     new[] { typeof(float).MakeByRefType(), typeof(bool) }, null, nameof(PatchMethods.NativeMovementTickPostfix));
+                PatchExact(typeof(TurnController), "HandleUnitCommandDidEnd", 0x06000C5E,
+                    new[] { typeof(UnitCommand) }, null, nameof(PatchMethods.NativeMovementCommandEndPostfix));
                 PatchExact(typeof(UnitActionController), "UpdateCooldowns", 0x06009120,
                     new[] { typeof(UnitCommand) }, null, nameof(PatchMethods.NativeActionCostPostfix));
                 PatchExact(typeof(TurnController), "ContinueActing", 0x06000C3D, Type.EmptyTypes, null, nameof(PatchMethods.ContinueActingPostfix));
@@ -267,6 +269,12 @@ namespace KingmakerMountedCombat.Integration
             internal static void NativeActionCostPostfix(UnitCommand command)
             {
                 if (!PointerController.SimulatingClick) PatchBridge.UnifiedTurn?.ObserveNativeActionCost(command);
+            }
+
+            internal static void NativeMovementCommandEndPostfix(TurnController __instance, UnitCommand command)
+            {
+                if (!PointerController.SimulatingClick && command?.Executor == __instance.Unit)
+                    PatchBridge.UnifiedTurn?.ObserveNativeMovement(__instance);
             }
 
             internal static void AnimationTickPrefix(UnitAnimationManager __instance)

@@ -33,7 +33,7 @@ function Assert-KmcPhase3hLoopEvidence {
         if($e.inputKind -cne 'scripted-native-handler-integration' -or $resolved -lt $expected -or
             $e.lastOutcome.result -cne 'Success' -or $e.lastOutcome.actorId -cne $actor -or
             $e.lastOutcome.commandOwnerId -cne $actor -or $e.lastOutcome.resourceOwnerId -cne $actor -or
-            $e.lastOutcome.childAttackStartCount -ne 1 -or $e.rules.pairForcedD20 -ne 0 -or
+            $e.lastOutcome.childAttackStartCount -ne 1 -or $resolved -lt $e.lastOutcome.nativeCompletedAttackCount -or $e.rules.pairForcedD20 -ne 0 -or
             $e.ledger.relationshipState -cne 'Mounted') {throw 'Phase 3H row lacks exact native command/rule/effect ownership.'}
         if($row.name.EndsWith('-ordinary') -and $e.intentStarts -ne 1){throw 'Ordinary continuation restarted its generation.'}
         if($row.name -ceq '3h-rider-longbow-ordinary' -and

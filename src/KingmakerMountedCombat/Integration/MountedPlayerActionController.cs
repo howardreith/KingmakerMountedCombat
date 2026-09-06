@@ -228,7 +228,11 @@ namespace KingmakerMountedCombat.Integration
         internal bool TryExecuteNativeMount(UnitEntityData caster, UnitEntityData target)
         {
             ThrowIfDisposed();
-            if (!MountedGameModePolicy.CanAdmitMountedAction(Game.Instance?.CurrentMode.ToString())) { return false; }
+            if (!MountedGameModePolicy.CanAdmitMountedAction(Game.Instance?.CurrentMode.ToString()))
+            {
+                feedbackState.SetOperationFeedback("Mount can execute only in the active world view.");
+                return false;
+            }
             MountTargetClickCount++;
             var availability = GetNativeMountAvailability(caster, true);
             var mount = caster?.Descriptor?.Pet;

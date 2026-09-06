@@ -235,6 +235,8 @@ namespace KingmakerMountedCombat.Diagnostics
             if (resolved < expected || outcome == null || ReferenceEquals(outcome, outcomeBefore)) { return; }
             var expectedActor = phase3gCase >= 4 ? horse : rider;
             if (outcome.ActorId != expectedActor.UniqueId || outcome.Result != "Success") { return; }
+            var released = expectedActor == horse ? ruleProbe.MountNonOpportunityAttackRuleCount : ruleProbe.RiderNonOpportunityAttackRuleCount;
+            if (resolved < released) { return; } // Include every released native effect in the acceptance row.
             var actorAfter = expectedActor.CombatState.Cooldown.StandardAction;
             var otherAfter = (expectedActor == horse ? rider : horse).CombatState.Cooldown.StandardAction;
             var nativeTurn = game.TurnBasedCombatController?.CurrentTurn;

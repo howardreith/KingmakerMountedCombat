@@ -189,7 +189,8 @@ namespace KingmakerMountedCombat.Tests
             {
                 "phase3d-unified-combat-rt-suite",
                 "phase3d-unified-combat-tb-suite",
-                "phase3d-horse-presentation-suite"
+                "phase3d-horse-presentation-suite",
+                "phase3h-combat-loop-rt", "phase3h-combat-loop-tb"
             })
             {
                 var request = ValidSaveBackedRequest();

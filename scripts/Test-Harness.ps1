@@ -5165,16 +5165,17 @@ try {
             $ruleProbeSource.Contains('IGlobalRulebookHandler<RuleDealDamage>') -and
             $ruleProbeSource.Contains('subscription = EventBus.Subscribe(this);') -and
             -not $ruleProbeSource.Contains('IRulebookHandler<')) 'combat Rulebook probe is not registered through the exact global Rulebook subscriber surface'
-        Assert-Test ($commandSource.Contains('childAttack.IsRunning &&') -and
-            $commandSource.Contains('IsActed)') -and
-            $commandSource.Contains('HasAnimation = false;') -and
-            $commandSource.Contains('return ResultType.None;') -and
-            -not $commandSource.Contains('SetIsActed(true);')) 'mounted Standard wrapper bypasses the native false-to-true acted transition or ticks its child before that transition'
+        Assert-Test ($commandSource.Contains('class MountedPairAttackCommand : MountedPairSingleAttack') -and
+            $commandSource.Contains('return base.OnAction();') -and
+            $commandSource.Contains('base.OnTick();') -and
+            -not $singleAttackSource.Contains('IgnoreCooldown(') -and
+            -not $commandSource.Contains('childAttack.Tick();') -and
+            -not $commandSource.Contains('SetIsActed(true);')) 'owned native sequence must retain the native acted/cost transition without a free child or duplicate tick'
         $terminalPolicyIndex = $singleAttackSource.IndexOf('NativeSingleAttackTerminalPolicy.ShouldAwaitNativeAnimation(', [StringComparison]::Ordinal)
         $nativeAttackTickIndex = $singleAttackSource.IndexOf('base.OnTick();', $terminalPolicyIndex, [StringComparison]::Ordinal)
         Assert-Test ($terminalPolicyIndex -ge 0 -and $nativeAttackTickIndex -gt $terminalPolicyIndex -and
             $policySource.Contains('public static bool ShouldAwaitNativeAnimation(') -and
-            $policySource.Contains('attackCount == 1') -and
+            $policySource.Contains('attackCount > 0') -and
             $policySource.Contains('completedAttackCount == attackCount') -and
             $policySource.Contains('!hasPlannedAttack') -and
             $singleAttackSource.Contains('CombatController.IsInTurnBasedCombat()') -and
@@ -5548,7 +5549,8 @@ try {
             $commandSource.Contains('MountedTargetTerminationPolicy.Decide(') -and
             $commandSource.Contains('transaction.Cancel("Expected target invalidation: " + reason)') -and
             $commandSource.Contains('childAttack.IsActed && childAttack.LastAttackRule != null') -and
-            $commandSource.Contains('childAttack.Result == ResultType.Success') -and
+            $commandSource.Contains('Result == ResultType.Success && LastAttackRule != null') -and
+            $commandSource.Contains('GetAttackIndex() == AllAttacks.Count && AllAttacks.Count > 0') -and
             $commandSource.Contains('Exact mounted pair invariant failed:')) 'expected target invalidation lost pair validation, native terminal authority, or cancellation'
         $acceptedTargetIndex = $controlSource.IndexOf('combat.HasActivePreChildCommandForTarget(target)', [StringComparison]::Ordinal)
         $cleanupMutationIndex = $controlSource.IndexOf('relationship.Dismount(CleanupTrigger.Exception)', [StringComparison]::Ordinal)
@@ -9213,9 +9215,9 @@ try {
             -not $horsePrimaryAnimationSource.Contains('catch')) `
             'Horse locomotion or primary-animation repair is not exact-token, exact-context, single-native-action, or exception-transparent'
 
-        $childInitIndex = $attackCommandSource.IndexOf('childAttack.Init(actionActor);', [StringComparison]::Ordinal)
+        $childInitIndex = $attackCommandSource.IndexOf('base.Init(executor);', [StringComparison]::Ordinal)
         $directAnimationIndex = $attackCommandSource.IndexOf('horsePrimaryAttackAnimation.SupplyExact(this, childAttack.PlannedAttack, mount);', [StringComparison]::Ordinal)
-        $childValidationIndex = $attackCommandSource.IndexOf('if (childAttack.IsFullAttack || childAttack.AllAttacks.Count != 1 || childAttack.PlannedAttack == null)', [StringComparison]::Ordinal)
+        $childValidationIndex = $attackCommandSource.IndexOf('if (childAttack.PlannedAttack == null || childAttack.AllAttacks.Count == 0 ||', [StringComparison]::Ordinal)
         Assert-Test ($childInitIndex -ge 0 -and
             $directAnimationIndex -gt $childInitIndex -and
             $childValidationIndex -gt $directAnimationIndex -and
@@ -11251,7 +11253,7 @@ try {
             'native Mount/Dismount delivery can re-reject the exact Move resource already admitted by Kingmaker'
         Assert-Test ($attackSource.Contains('delegatedMove = new UnitMoveTo(targetSnapshot, delegatedMoveApproachRadius)') -and
             $attackSource.Contains('NeedLoS = MountedCombatSpatialPolicy.DelegatedPointMoveRequiresLineOfSight') -and
-            -not $attackSource.Contains('NeedLoS = true') -and
+            $attackSource.Contains('NeedLoS = true;') -and
             $spatialSource.Contains('public const bool DelegatedPointMoveRequiresLineOfSight = false;') -and
             $spatialSource.Contains('CalculateDelegatedMoveApproachRadius(') -and
             $singleAttackSource.Contains('EvaluateCurrentNativeAdmission()') -and
@@ -11565,7 +11567,7 @@ try {
             $phase3dHorseSource.Contains('["commandAiActionPresent"] = commandPresent && command.AiAction != null') -and
             $phase3dHorseSource.Contains('["createdByPlayer"] = command.CreatedByPlayer') -and
             $phase3dHorseSource.Contains('["aiActionPresent"] = command.AiAction != null') -and
-            $phase3dHorseSource.Contains('["schemaVersion"] = IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,') -and
+            $phase3dHorseSource.Contains('["schemaVersion"] = IsPhase3hLoop ? 9 : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,') -and
             $phase3dHorseSource.Contains('explicitPrimaryLedgerBefore = combat.CaptureUnifiedTurnSnapshot();') -and
             $phase3dHorseSource.Contains('var pairedScheduler = combat.CapturePairedCommandSchedulerSnapshot();') -and
             $phase3dHorseSource.Contains('pairedScheduler.CleanupReason == "native terminal slot removal"') -and

@@ -381,7 +381,11 @@ namespace KingmakerMountedCombat.Integration
             else
             {
                 DispatchRejectedCount++;
-                RaiseWarning(DescribeRefusal(kind, caster, target));
+                var refusal = kind == NativeMountedControlKind.MountCompanion || kind == NativeMountedControlKind.Dismount
+                    ? playerAction.LastFeedback : combat.LastFeedback;
+                if (string.IsNullOrWhiteSpace(refusal)) refusal = DescribeRefusal(kind, caster, target);
+                RaiseWarning(refusal);
+                logger.Info("Native mounted dispatch refusal: " + refusal);
             }
             logger.Info("Native mounted ability dispatch: kind=" + kind +
                 "; casterId=" + (caster?.UniqueId ?? "<none>") +

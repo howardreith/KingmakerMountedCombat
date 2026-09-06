@@ -654,7 +654,7 @@ namespace KingmakerMountedCombat.Integration
                 !delegatedMoveNeverQueuedOnMount || !mountQueueEmptyThroughoutApproach)
             {
                 throw new InvalidOperationException(
-                    "Exact delegated Mammoth movement did not acquire only the active Move slot.");
+                    "Exact delegated mount movement did not acquire only the active Move slot.");
             }
         }
 
@@ -731,7 +731,7 @@ namespace KingmakerMountedCombat.Integration
             if (childAttack.PlannedAttack == null || childAttack.AllAttacks.Count == 0 ||
                 IsSingleAttack && (childAttack.IsFullAttack || childAttack.AllAttacks.Count != 1))
             {
-                throw new InvalidOperationException("Native child did not resolve to exactly one attack.");
+                throw new InvalidOperationException("Native attack plan was empty or violated the explicit single-attack mode.");
             }
             if (childAttack.PlannedAttack.Weapon == null)
             {

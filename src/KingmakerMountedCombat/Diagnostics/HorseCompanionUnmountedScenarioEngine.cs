@@ -293,7 +293,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
                 originalPause = game.IsPaused;
                 if (request.Scenario == Phase3dHorseScenarioTranche.Phase3gRealTimeScenario ||
-                    request.Scenario == Phase3dHorseScenarioTranche.Phase3gTurnBasedScenario)
+                    request.Scenario == Phase3dHorseScenarioTranche.Phase3gTurnBasedScenario ||
+                    request.Scenario == "phase3h-combat-loop-rt" || request.Scenario == "phase3h-combat-loop-tb")
                 {
                     observations["phase3gUmmInitiallyOpened"] = UnityModManagerNet.UnityModManager.UI.Instance?.Opened;
                     // Explicit fixture UI input: close the manager through its native method.
@@ -1665,7 +1666,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private void AwaitMountedReady()
         {
             var runtime = relationship.Runtime;
-            if (phase3gUmmLease != null && relationship.State != RelationshipState.Mounted &&
+            if (IncludesNativeControlsUx && relationship.State != RelationshipState.Mounted &&
                 clock.Elapsed.TotalSeconds - mountedAlphaAdmissionStartedAtSeconds > 25d)
             {
                 var command = owner?.Commands?.Raw.OfType<UnitUseAbility>().FirstOrDefault();

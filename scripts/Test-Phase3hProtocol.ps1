@@ -11,7 +11,7 @@ function New-ControlsEvidence {
             inputKind='scripted-native-handler-integration';intentStarts=1;turnActor=$actor;mountDisplacement=if($name -cin @('3h-rider-melee-ordinary','3h-horse-bite-ordinary')){1}else{0}
             actorBefore=@{standard=0};otherBefore=@{standard=0}
             ledger=@{relationshipState='Mounted';rider=@{standard=if($mount){0}else{6};move=3};mount=@{standard=if($mount){6}else{0};move=0}}
-            rules=@{riderResolved=if($mount){0}else{2};mountResolved=if($mount){1}else{0};pairForcedD20=0}
+            rules=@{riderResolved=if($mount){0}elseif($name.EndsWith('-ordinary')){2}else{1};mountResolved=if(-not $mount){0}elseif($name.EndsWith('-ordinary')){2}else{1};pairForcedD20=0}
             lastOutcome=@{result='Success';actorId=$actor;commandOwnerId=$actor;resourceOwnerId=$actor;childAttackStartCount=1;singleAttackMode=$name.EndsWith('-primary');nativeFullAttack=$name.EndsWith('-ordinary');nativePlannedAttackCount=if($name.EndsWith('-ordinary')){2}else{1};nativeCompletedAttackCount=if($name.EndsWith('-ordinary')){2}else{1}}
         }}
     }
@@ -28,7 +28,7 @@ foreach($mode in @('rt','tb')){
     $artifact=New-ControlsEvidence ($mode -eq 'tb')
     Assert-KmcPhase3hLoopEvidence $request $artifact PASS
     $passed++
-    foreach($mutation in @('effect','owner','configuration','generation','missing','truncated','single','fullcost')){
+    foreach($mutation in @('effect','owner','configuration','generation','missing','truncated','single','fullcost','pending-effect')){
         $artifact=New-ControlsEvidence ($mode -eq 'tb')
         switch($mutation){
             effect {$artifact.rows[0].evidence.rules.riderResolved=0}
@@ -39,6 +39,7 @@ foreach($mode in @('rt','tb')){
             truncated {$artifact.rows[0].evidence.lastOutcome.nativeCompletedAttackCount=1}
             single {$artifact.rows[1].evidence.lastOutcome.nativePlannedAttackCount=2}
             fullcost {if($mode -eq 'tb'){$artifact.rows[0].evidence.ledger.rider.move=0}else{$artifact.rows[0].evidence.lastOutcome.nativeFullAttack=$false}}
+            pending-effect {$artifact.rows[4].evidence.rules.mountResolved=1}
         }
         $rejected=$false
         try{Assert-KmcPhase3hLoopEvidence $request $artifact PASS}catch{$rejected=$true}
