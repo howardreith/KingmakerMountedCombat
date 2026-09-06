@@ -38,12 +38,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (baseAttackBonus.HasValue) actor.Stats.BaseAttackBonus.BaseValue = baseAttackBonus.Value;
                 if (hasted)
                 {
-                    var candidates = ResourcesLibrary.LibraryObject.BlueprintsByAssetId.Values
-                        .OfType<BlueprintBuff>().Where(item => item.name.IndexOf("Haste", StringComparison.OrdinalIgnoreCase) >= 0 &&
-                            item.GetComponents<BuffExtraAttack>().Any(extra => extra.Haste && extra.Number == 1)).ToArray();
+                    var named = ResourcesLibrary.LibraryObject.BlueprintsByAssetId.Values
+                        .OfType<BlueprintBuff>().Where(item => item.name.IndexOf("Haste", StringComparison.OrdinalIgnoreCase) >= 0).ToArray();
+                    var candidates = named.Where(item => item.GetComponents<BuffExtraAttack>()
+                        .Any(extra => extra.Haste && extra.Number == 1)).ToArray();
                     if (candidates.Length != 1 || actor.Descriptor.HasFact(candidates[0]))
                         throw new InvalidOperationException("Expected one initially unowned native Haste buff; candidates=" +
-                            string.Join(";", candidates.Select(item => item.name + ":" + item.AssetGuid)));
+                            string.Join(";", named.Select(item => item.name + ":" + item.AssetGuid + ":" +
+                                string.Join(",", item.ComponentsArray.Select(component => component.GetType().FullName)))));
                     haste = actor.Buffs.AddBuff(candidates[0], actor, TimeSpan.FromMinutes(10), null);
                     if (haste == null || !actor.Descriptor.HasFact(candidates[0]))
                         throw new InvalidOperationException("Native Haste fixture application failed.");

@@ -135,8 +135,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 var nativePlan = new UnitAttack(target);
                 nativePlan.Init(rider);
                 var origin = OrdinaryMounted ? horse : rider;
+                // Read native weapon inventory for placement only. Do not let a
+                // previous case's recovery cooldown choose the fixture distance;
+                // the later measured command still plans on its own native start.
                 ordinarySetupRadius = origin.View.Corpulence + target.View.Corpulence +
-                    nativePlan.AllAttacks.Min(attack => attack.WeaponRange);
+                    nativePlan.CreateFullAttack().Min(attack => attack.WeaponRange);
                 ruleProbe.Arm(target, false);
                 ordinaryStage = 1;
                 return;

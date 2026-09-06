@@ -198,7 +198,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     // reach; distant mixed-weapon rejection has its own C03 case.
                     var nativePlan = new UnitAttack(target);
                     nativePlan.Init(rider);
-                    phase3hStationaryRadius = nativePlan.AllAttacks.Min(attack =>
+                    phase3hStationaryRadius = nativePlan.CreateFullAttack().Min(attack =>
                         horse.View.Corpulence + target.View.Corpulence + attack.WeaponRange);
                 }
                 movementDestination = FindWalkablePointNearTarget(target.Position, horse.Position,

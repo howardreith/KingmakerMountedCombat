@@ -186,6 +186,7 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.Controllers.Clicks.PointerController',0x060093B4,'set_WorldPosition'),
         @('Kingmaker.Controllers.Clicks.PointerController',0x060093C8,'UpdateSelectedClickHandler'),
         @('Kingmaker.UnitLogic.Commands.UnitAttack',0x0600267C,'InitAttacks'),
+        @('Kingmaker.UnitLogic.Commands.UnitAttack',0x0600268A,'CreateFullAttack'),
         @('Kingmaker.UnitLogic.Commands.UnitAttack',0x0600267E,'OnStart'),
         @('Kingmaker.UnitLogic.Commands.UnitAttack',0x06002681,'OnAction'),
         @('Kingmaker.UnitLogic.Commands.Base.UnitCommand',0x060027B2,'OnEnded'),
