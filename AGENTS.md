@@ -18,18 +18,15 @@ Harmony:      exact installed legacy Harmony12 compatibility surface
 
 It must never become part of, or a required dependency of, Kingmaker Buff Planner, Tabletop Added Rules, Gunslinger, Call of the Wild, Wrath of the Righteous, or another gameplay mod.
 
-## Phase history and active scope
+## Revised completion plan and active scope
 
 Phase 1 is completed historical evidence. Its final ledger is `25 PASS / 0 attributable FAIL / 0 DEFER`; Architecture B was selected, no K1-K12 criterion fired, and the frozen evidence/package identities remain authoritative. Do not rewrite, rebuild in place, relabel, or reinterpret that evidence.
 
-The active mission is the user-authorized Phase 2 master mission in `planning/MOUNTED-COMBAT-PHASE-2-MASTER-MISSION.md`, executed only on `codex/mounted-combat-phase2-alpha`. It authorizes:
+The owner's 2026-09-06 Chunk 1 mission supersedes historical Phase 2/3 scope and branch restrictions. Work on `codex/mounted-combat-phase3f-playable-core`, preserving reviewed ancestor `1d2b8c3ccad14009653af9dc6420ee9af7b2e804` and legitimate descendants. See [CURRENT.md](CURRENT.md) for exact baseline, active candidate and gates, and [Phase 3H evidence](docs/PHASE3H-IMPLEMENTATION.md) for history. The revised plan is local evidence at `C:\Dev\KingmakerMountedCombatLab\handoffs\Kingmaker_Mounted_Combat_Revised_Project_Plan.docx`.
 
-1. transient persistence/uninstall policy, native lifecycle investigation, and one player-facing Mount/Dismount action;
-2. one Medium humanoid/Mammoth presentation, UI, camera, and procedural-pose tranche;
-3. only after explicit acceptance of the exact Phase 2A visual-review build, a private melee-combat alpha with one rider basic melee attack, one explicit Mammoth natural attack, bounded action economy and movement-to-attack, lifecycle qualification, and bounded reach/AoO/charge stretch work;
-4. private diagnostic/playtest packaging and guarded branch publication.
+Chunk 1 authorizes ordinary stationary attack correctness, scoped prediction/routing/native attack and minimal allocation repairs, fixture/protocol changes, coherent commits, guarded branch publication, private packaging and temporary transactional runtime validation. Preserve the native UnitAttack-derived sequence, native planning/effects/costs, explicit single Primary, one pair and existing Horse/Mammoth profiles. Keep `EnableUnifiedMountedTurn=false`, `EnablePairedCommandScheduler=false`, `EnableDiagnosticOverlay=false`. Mount transport spends mount resources; carried motion alone adds no rider Move cost or tabletop melee restriction.
 
-Phase 2 does not authorize a public release, merge to `main`, Phase 3 implementation, persistent mounted state or automatic remount, additional mounts or rider sizes, enemy/AI riders, ranged mounted combat, mounted spellcasting, mounted feats, Cavalier content, or full Wrath parity. Do not silently expand scope.
+The seven-chunk roadmap is: ordinary attacks; actor allocations; pair-aware activations; sustained combat/UX; persistence; remaining combat features; multiple pairs/profiles/release. Only Chunk 1 is active. Do not implement the full scheduler, new content/art/profiles, persistence, feats, charge or casting here. No main merge, release or permanent installation is authorized.
 
 ## Required architecture
 
@@ -49,7 +46,7 @@ Harmony patches, UMM callbacks, and UI handlers must delegate to services. Do no
 
 ## Contract-first rule
 
-Do not write the mounted relationship implementation until `planning/ASSEMBLY-CONTRACT-MATRIX.md` and `planning/MOUNTED-SUBSYSTEM-DEPENDENCY-GRAPH.md` establish:
+Retain the established relationship architecture and historical contract evidence in `planning/ASSEMBLY-CONTRACT-MATRIX.md` and `planning/MOUNTED-SUBSYSTEM-DEPENDENCY-GRAPH.md`. Verify exact installed signatures and call order for newly touched integration boundaries, covering the relevant:
 
 - the exact Wrath responsibilities being studied;
 - the exact Kingmaker candidate hooks or their absence;
@@ -64,7 +61,7 @@ Do not write the mounted relationship implementation until `planning/ASSEMBLY-CO
 
 A guessed class name from Wrath is not a Kingmaker contract.
 
-For Phase 2, update the corresponding Phase 2 contract record before each implementation tranche. Combat production is forbidden until the exact Phase 2A review build is explicitly accepted by the user.
+For Chunk 1, reproduce matched unmounted-enabled, mounted-ordinary and mounted-Primary conditions on one exact build. Trace prediction through native mode selection, admission, start, planning, delivery, completion and costs before choosing a repair. Prediction must be read-only; execution revalidates. Do not force full mode, manufacture attacks, clear cooldowns or advance turns inside certified behavior. Two equivalent failed traces require a different hypothesis or a missing observation next. Keep historical failures intact. Native integration qualifies gameplay; component checks and assembly contracts cannot prove callback ordering. HUMAN PLAY and safe mod-absent certification may remain pending; missing mandatory native evidence means BLOCKED, not complete.
 
 ## Code and test style
 
@@ -85,8 +82,9 @@ For Phase 2, update the corresponding Phase 2 contract record before each implem
 - The harness must prove source validation and `-WhatIf` purity before live use.
 - Live `Mods` staging must be transactional, locked, recoverable, and restored exactly.
 - Only `KMC_AUTOMATION_WORKING` may be mutable. `KMC_AUTOMATION_BASELINE` and all other saves are protected.
-- The prototype must mount only a specifically validated controllable rider and larger active companion in a disposable fixture.
-- The Phase 2 relationship remains runtime-only and intentionally nonserialized. Before the accepted combat tranche it must clear or safely dismount on invalidation, combat start, save/load, area unload/transition, mode change, view detach, death/incapacitation, party removal, mod disable, exception recovery, and process exit where observable. Later combat behavior may retain a valid pair only where the accepted Phase 2 contracts and runtime evidence explicitly qualify it.
+- Use the currently qualified disposable working fixture and validated controllable pair. Native mod-absent controls require a rider/save without permanent KMC references; never strip custom content from a save.
+- Snapshot actual intake installation, caches/settings and protected saves. Never restore historical pins over newer human state. Do not launch over a human session, kill unrelated processes, hot-replace DLLs or alter foreign mods. Stop on authentication, updates, cloud conflicts or unexpected dialogs.
+- The relationship remains runtime-only and nonserialized; preserve current lifecycle cleanup and accepted combat retention contracts. Do not delete UnifiedMountedTurnCoordinator: active movement accounting still uses it with the experimental flags false.
 - Never claim runtime qualification from compilation, detached reflection, a main-menu load, or a screenshot alone.
 
 ## Wrath and asset restrictions
@@ -100,7 +98,7 @@ For Phase 2, update the corresponding Phase 2 contract record before each implem
 
 ## Git and publication
 
-- Work on `codex/mounted-combat-phase2-alpha`.
+- Work on `codex/mounted-combat-phase3f-playable-core`.
 - Commit coherent checkpoints.
 - Never reset, clean, restore, rebase, force-push, or discard unknown state.
 - Use only the project-owned guarded push helper after it passes tests.

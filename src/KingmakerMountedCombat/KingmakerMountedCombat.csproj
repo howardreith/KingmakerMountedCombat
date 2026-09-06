@@ -164,6 +164,7 @@
     <Compile Include="Domain\MountedMovePrepayment.cs" />
     <Compile Include="Domain\MountedMovementState.cs" />
     <Compile Include="Integration\MountedMovementStateAdapter.cs" />
+    <Compile Include="Diagnostics\NativeOrdinaryAttackTrace.cs" />
     <Compile Include="Domain\AnimatedSaddlePosition.cs" />
     <Compile Include="Domain\OptionalPublicPropertyReader.cs" />
     <Compile Include="Domain\PairedCommandScheduler.cs" />

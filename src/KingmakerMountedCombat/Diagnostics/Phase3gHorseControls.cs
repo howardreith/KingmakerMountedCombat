@@ -32,6 +32,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool IsPhase3gControls => IsPhase3hLoop || request.Scenario == Phase3gRealTimeScenario || request.Scenario == Phase3gTurnBasedScenario;
         private bool Phase3gTurnBased => request.Scenario == Phase3gTurnBasedScenario || request.Scenario == "phase3h-combat-loop-tb";
         private Feature phase3hRapidShot;
+        private NativeOrdinaryAttackTrace ordinaryAttackTrace;
         private ActivatableAbility phase3hRapidToggle;
         private bool phase3hRapidWasOn;
         private float phase3hStationaryRadius;
@@ -71,6 +72,11 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void BeginPhase3gCase()
         {
+            if (IsPhase3hLoop)
+            {
+                if (ordinaryAttackTrace == null) ordinaryAttackTrace = new NativeOrdinaryAttackTrace(rider, horse, combat);
+                ordinaryAttackTrace.BeginCase(Phase3gRow);
+            }
             if (phase3gCase >= 6)
             {
                 if (IsPhase3hLoop && Phase3gTurnBased)

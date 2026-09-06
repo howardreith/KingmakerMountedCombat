@@ -5978,6 +5978,12 @@ namespace KingmakerMountedCombat.Diagnostics
             catch (Exception exception) { AddCleanupError("ranged weapon", exception); }
             try { RestorePhase3hRapidShot(); }
             catch (Exception exception) { AddCleanupError("Rapid Shot fixture feature", exception); }
+            if (ordinaryAttackTrace != null)
+            {
+                observations["ordinaryAttackTrace"] = ordinaryAttackTrace.Capture();
+                ordinaryAttackTrace.Dispose();
+                ordinaryAttackTrace = null;
+            }
             settings.EnablePairedCommandScheduler = originalPairedCommandScheduler;
             settings.EnableUnsafeMovementExperiment = originalUnsafeExperiment;
         }
