@@ -256,6 +256,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 string.Equals(scenario, Phase3gTurnBasedScenario, StringComparison.Ordinal) ||
                 string.Equals(scenario, "phase3h-combat-loop-rt", StringComparison.Ordinal) ||
                 string.Equals(scenario, "phase3h-combat-loop-tb", StringComparison.Ordinal) ||
+                string.Equals(scenario, OrdinaryAttackControlsScenario, StringComparison.Ordinal) ||
                 string.Equals(scenario, TurnBasedScenario, StringComparison.Ordinal) ||
                 string.Equals(scenario, PresentationScenario, StringComparison.Ordinal);
         }
@@ -342,6 +343,11 @@ namespace KingmakerMountedCombat.Diagnostics
             };
             observations["initialSelection"] = new JArray(originalSelection.Select(item => item.UniqueId));
 
+            if (IsOrdinaryAttackControls)
+            {
+                BeginOrdinaryAttackControls();
+                return;
+            }
             if (IsPhase3gControls)
             {
                 if (Phase3gTurnBased) { BeginPhase3gCase(); }
@@ -398,7 +404,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 switch (step)
                 {
                     case Phase3dHorseStep.Phase3gControls:
-                        TickPhase3gControls();
+                        if (IsOrdinaryAttackControls) TickOrdinaryAttackControls();
+                        else TickPhase3gControls();
                         break;
                     case Phase3dHorseStep.PresentationSettle:
                         ObservePresentation();
@@ -5335,7 +5342,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (combatMountRiderAiLease == null)
                 {
                     var selected = SelectionManager.Instance?.SelectedUnits;
-                    if (!string.Equals(request.Scenario, TurnBasedScenario, StringComparison.Ordinal) ||
+                    if ((!string.Equals(request.Scenario, TurnBasedScenario, StringComparison.Ordinal) && !IsOrdinaryAttackControls) ||
                         rider?.Commands == null || horse?.Commands == null || !rider.Commands.Empty ||
                         !horse.Commands.Empty || rider.Group == null || rider.Group != horse.Group ||
                         !rider.IsDirectlyControllable || !IsExactDiagnosticAiIsolationRelationship() ||
@@ -6087,7 +6094,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             var artifact = new JObject
             {
-                ["schemaVersion"] = IsPhase3hLoop ? 9 : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,
+                ["schemaVersion"] = IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? 9 : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,
                 ["evidenceKind"] = EvidenceKind,
                 ["runId"] = request.RunId,
                 ["scenario"] = request.Scenario,

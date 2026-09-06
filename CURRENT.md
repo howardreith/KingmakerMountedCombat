@@ -12,7 +12,9 @@ Rules: one existing pair/profile; ordinary native UnitAttack sequence and native
 
 Open gates: C01 ordinary/Primary; C02 prediction purity/continuity/revalidation; C03 native Rapid Shot, BAB/haste and spent/restricted controls; applicable native regression. HUMAN PLAY pending: computer-use native pipe unavailable. Mod-absent control requires a safe native fixture without permanent KMC references. Actor allocation completion and paired activation remain later dependencies.
 
-Next experiment: observe the existing longbow fixture's native smart-cursor mode changes and simulated command geometry against matched unmounted-enabled and explicit Primary controls. Distinguish input-mode/fixture behavior from mounted routing or allocation before repairing gameplay. No full-mode override, artificial attacks or cooldown reset inside measured behavior.
+First causal trace: `20260906-chunk1-trace-tb-A`, source `665a559d94d842d16fc3ecf9cd37ab530d30a2c2`, preview.1. Native mode was already Single before mounted routing; the fixture highlighted the target while the pointer still selected ClickGroundHandler. No hostile prediction ran between hover and dispatch. Six historical leaves PASS / longbow leaf FAIL. All 239 trace observations intact. Full intake restoration PASS at 13:46:29 UTC.
+
+Next experiment: preview.2 `ordinary-attack-controls-tb` runs matched C01-B (enabled/unmounted), C01-C (mounted ordinary), C01-D (mounted Primary), using coherent temporary pointer inputs, the native prediction method and native click admission. It also measures repeated prediction and same-target continuity. Gameplay routing/planning is unchanged. No full-mode override, artificial attacks or cooldown reset is used. C03 and final native regression remain pending.
 
 Roadmap (only Chunk 1 active): ordinary attacks; actor allocations; pair-aware activations; sustained combat/UX; persistence; remaining combat features; multiple pairs/profiles/release.
 

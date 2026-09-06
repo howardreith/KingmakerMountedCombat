@@ -32,6 +32,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly JArray events = new JArray();
         private string caseId;
         private int dropped;
+        internal UnitAttack LastStartedRiderAttack { get; private set; }
 
         internal NativeOrdinaryAttackTrace(UnitEntityData rider, UnitEntityData mount, MountedCombatController combat)
         {
@@ -57,7 +58,7 @@ namespace KingmakerMountedCombat.Diagnostics
             catch { Dispose(); throw; }
         }
 
-        internal void BeginCase(string value) { caseId = value; Record("fixture-case", rider); }
+        internal void BeginCase(string value) { caseId = value; LastStartedRiderAttack = null; Record("fixture-case", rider); }
         internal JObject Capture() => new JObject { ["events"] = events.DeepClone(), ["dropped"] = dropped };
 
         public void Dispose()
@@ -70,8 +71,9 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             var method = type.GetMethods(Flags).SingleOrDefault(item => item.Name == name && item.MetadataToken == token);
             if (method == null) throw new MissingMethodException(type.FullName, name + " exact token " + token.ToString("X8"));
-            harmony.Patch(method, prefix == null ? null : new HarmonyMethod(typeof(Hooks).GetMethod(prefix, Flags)),
-                postfix == null ? null : new HarmonyMethod(typeof(Hooks).GetMethod(postfix, Flags)));
+            var before = prefix == null ? null : new HarmonyMethod(typeof(Hooks).GetMethod(prefix, Flags));
+            if (before != null) before.prioritiy = Priority.First; // Exact Harmony12 spelling.
+            harmony.Patch(method, before, postfix == null ? null : new HarmonyMethod(typeof(Hooks).GetMethod(postfix, Flags)));
         }
 
         private bool Owns(UnitEntityData actor) => actor != null && (actor == rider || actor == mount);
@@ -88,6 +90,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 var turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
                 var pointer = Game.Instance?.DefaultPointerController;
                 var attack = command as UnitAttack;
+                if (boundary == "start-after" && actor == rider) LastStartedRiderAttack = attack;
                 var row = new JObject {
                     ["index"] = events.Count, ["caseId"] = caseId, ["boundary"] = boundary,
                     ["frame"] = Time.frameCount, ["gameTime"] = Game.Instance.TimeController.GameTime.Ticks,

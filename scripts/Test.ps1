@@ -37,5 +37,7 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & (Join-Path $PSScriptRoot 'Test-Phase3hProtocol.ps1')
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+& (Join-Path $PSScriptRoot 'Test-OrdinaryAttackControls.ps1')
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 & (Join-Path $PSScriptRoot 'Test-AssemblyContracts.ps1')

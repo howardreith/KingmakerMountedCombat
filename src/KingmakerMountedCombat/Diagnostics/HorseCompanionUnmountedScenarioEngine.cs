@@ -295,7 +295,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 originalPause = game.IsPaused;
                 if (request.Scenario == Phase3dHorseScenarioTranche.Phase3gRealTimeScenario ||
                     request.Scenario == Phase3dHorseScenarioTranche.Phase3gTurnBasedScenario ||
-                    request.Scenario == "phase3h-combat-loop-rt" || request.Scenario == "phase3h-combat-loop-tb")
+                    request.Scenario == "phase3h-combat-loop-rt" || request.Scenario == "phase3h-combat-loop-tb" ||
+                    request.Scenario == Phase3dHorseScenarioTranche.OrdinaryAttackControlsScenario)
                 {
                     observations["phase3gUmmInitiallyOpened"] = UnityModManagerNet.UnityModManager.UI.Instance?.Opened;
                     // Explicit fixture UI input: close the manager through its native method.
@@ -1542,7 +1543,8 @@ namespace KingmakerMountedCombat.Diagnostics
             if (availability.IsVisible && availability.IsEnabled &&
                 availability.Action == MountedPlayerActionKind.Mount)
             {
-                if (request.Scenario == "phase3h-combat-loop-rt" || request.Scenario == "phase3h-combat-loop-tb")
+                if (request.Scenario == "phase3h-combat-loop-rt" || request.Scenario == "phase3h-combat-loop-tb" ||
+                    request.Scenario == Phase3dHorseScenarioTranche.OrdinaryAttackControlsScenario)
                 {
                     var adjacent = CombatMountDismountPolicy.IsAdjacent(owner.DistanceTo(horse),
                         owner.View.Corpulence, horse.View.Corpulence);

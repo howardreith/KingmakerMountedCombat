@@ -3643,7 +3643,7 @@ function Restore-KmcModsTransaction {
 function Get-KmcSaveBackedRuntimeScenarios {
     return @(
         'export-mounted-contracts', 'export-candidate-mount-rigs', 'observe-mount-diagnostic-availability', 'horse-native-asset-audit', 'horse-companion-blueprint-registration', 'horse-companion-unmounted-suite', 'horse-mounted-alpha-suite', 'horse-native-controls-ux-suite',
-        'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite', 'phase3d-unified-combat-tb-suite', 'phase3d-horse-presentation-suite',
+        'ordinary-attack-controls-tb', 'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite', 'phase3d-unified-combat-tb-suite', 'phase3d-horse-presentation-suite',
         'player-action-availability', 'mount-dismount-user-flow',
         'mounted-pair-create-and-clear', 'mounted-pair-double-mount-rejected', 'mounted-pair-invalid-pair-rejected',
         'mounted-pair-cleanup-idempotent', 'mounted-pair-death-cleanup', 'mounted-pair-combat-start-cleanup',
@@ -3689,7 +3689,8 @@ function Get-KmcLifecycleRuntimeRows {
 
 function Get-KmcPhase3dHorseRuntimeRows {
     return @(
-        'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite',
+        'C01-B', 'C01-C', 'C01-D',
+        'ordinary-attack-controls-tb', 'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite',
         'phase3d-unified-combat-tb-suite',
         'phase3d-horse-presentation-suite',
         'Horse-small-portrait-close-up',
@@ -4893,7 +4894,7 @@ function Assert-KmcHorseCompanionBlueprintRegistrationEvidence {
         'horse-companion-unmounted-suite',
         'horse-mounted-alpha-suite',
         'horse-native-controls-ux-suite',
-        'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite',
+        'ordinary-attack-controls-tb', 'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite',
         'phase3d-unified-combat-tb-suite',
         'phase3d-horse-presentation-suite')
     $records = @($Manifest.artifacts | Where-Object {
@@ -5533,7 +5534,7 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
     )
 
     $scenarios = @(
-        'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite',
+        'ordinary-attack-controls-tb', 'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite',
         'phase3d-unified-combat-tb-suite',
         'phase3d-horse-presentation-suite')
     $leaf = 'phase3d-horse-scenario-evidence.json'
@@ -5593,6 +5594,14 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
         throw 'Phase 3D Horse evidence createdAtUtc is invalid.'
     }
 
+    if ([string]$Request.scenario -ceq 'ordinary-attack-controls-tb') {
+        Assert-KmcOrdinaryAttackControlsEvidence -Request $Request -Artifact $artifact -Status $Status
+        $afterFile = Get-Item -LiteralPath $path -Force
+        if ($afterFile.Length -ne $beforeFile.Length -or $afterFile.LastWriteTimeUtc.Ticks -ne $beforeFile.LastWriteTimeUtc.Ticks) {
+            throw 'Ordinary attack evidence changed during validation.'
+        }
+        return
+    }
     if ($phase3dSchemaVersion -eq 9L -or [string]$Request.scenario -cin @('phase3h-combat-loop-rt','phase3h-combat-loop-tb')) {
         Assert-KmcPhase3hLoopEvidence -Request $Request -Artifact $artifact -Status $Status
         $afterFile = Get-Item -LiteralPath $path -Force
@@ -5611,7 +5620,7 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
     }
     $nativeControlScope = $phase3dSchemaVersion -eq 7L
     if ($nativeControlScope) {
-        if ([string]$Request.scenario -cnotin @('phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite','phase3d-horse-presentation-suite')) {
+        if ([string]$Request.scenario -cnotin @('ordinary-attack-controls-tb', 'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite','phase3d-horse-presentation-suite')) {
             throw 'Phase 3F native-control evidence cannot qualify a unified-TB scenario.'
         }
         $configuration = $artifact.observations.phase3fActualConfiguration
@@ -12877,4 +12886,5 @@ function New-KmcRuntimeResultV2 {
 . (Join-Path $PSScriptRoot 'QualificationSuiteContinuity.ps1')
 . (Join-Path $PSScriptRoot 'Phase3gControlsEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Phase3hLoopEvidence.ps1')
+. (Join-Path $PSScriptRoot 'OrdinaryAttackControlsEvidence.ps1')
 . (Join-Path $PSScriptRoot 'FixtureRecovery.ps1')

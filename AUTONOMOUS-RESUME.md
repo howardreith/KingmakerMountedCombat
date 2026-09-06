@@ -1,4 +1,12 @@
-## Current Phase 3H handoff - 2026-09-06 08:10 UTC
+## Active Chunk 1 checkpoint - 2026-09-06 14:00 UTC
+
+Owner-authorized revised mission is IN PROGRESS; see [CURRENT.md](CURRENT.md) and [milestone report](docs/CHUNK1-ORDINARY-ATTACKS.md). Branch `codex/mounted-combat-phase3f-playable-core`; last committed diagnostic source `665a559d94d842d16fc3ecf9cd37ab530d30a2c2`, descendant of reviewed local/remote `1d2b8c3`. Working source is preview.2 with coherent native pointer fixture input and stable C01-B/C/D comparison, still awaiting its clean commit/package/native run. No gameplay repair has been selected or applied.
+
+First run `20260906-chunk1-trace-tb-A` reproduced longbow Single before mounted routing: highlighted enemy but ClickGroundHandler, no hostile prediction between hover and click. Six leaves PASS / one FAIL; 239 trace events, zero observation errors/drops. Exact intake installation/saves restored PASS at 13:46:29 UTC; no runtime lock. Evidence root `C:\Dev\KingmakerMountedCombatLab\analysis-cache\runtime-evidence\chunk1-20260906`; native result under `runtime-evidence\20260906-chunk1-trace-tb-A`. Host source/package guard passed WhatIf; native pointer channel unavailable, so all evidence is NATIVE INTEGRATION. C03, broader regression, HUMAN PLAY and mod-absent certification remain open. Experimental flags/overlay false.
+
+Next command: run `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/Test.ps1 -SkipBuild` on preview.2 (build already PASS), resolve any contract/registration issue, commit coherent source, package with a new immutable qualifier, create a fresh suite snapshot, then invoke the existing host deployment helper `-Operation RuntimeTest -RuntimeScenario ordinary-attack-controls-tb` using exact package/suite pins. Native integration must not be claimed until the actual candidate runs. Do not apply historical Phase 3H run-budget closure to this newly authorized campaign.
+
+## Historical Phase 3H handoff - 2026-09-06 08:10 UTC
 
 **Partial private candidate delivered; runtime mission closed at 8/8 transactions.** Branch `codex/mounted-combat-phase3f-playable-core`; clean binary packaging source `fb65cf826f5914fc29ab5035e6409685bd982c66`, version `0.1.0-phase3h-preview.6`. Source was host-published and the remote SHA verified. Later documentation identity/publication is separate in `E/final-documentation-publish.txt` and the final handoff. [Implementation, exact package/hashes, acceptance ledger and guarded installation commands](docs/PHASE3H-IMPLEMENTATION.md); [short native playtest](docs/PHASE3H-PLAYTEST.md). Both experimental turn flags and the overlay remain false; one active pair and separate native turns remain explicit.
 

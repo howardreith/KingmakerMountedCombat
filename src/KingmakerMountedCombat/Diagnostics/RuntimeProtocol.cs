@@ -22,7 +22,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "horse-companion-unmounted-suite",
             "horse-mounted-alpha-suite",
             "horse-native-controls-ux-suite",
-            "phase3h-combat-loop-rt", "phase3h-combat-loop-tb", "phase3g-native-controls-rt", "phase3g-native-controls-tb", "phase3d-unified-combat-rt-suite",
+            "ordinary-attack-controls-tb", "phase3h-combat-loop-rt", "phase3h-combat-loop-tb", "phase3g-native-controls-rt", "phase3g-native-controls-tb", "phase3d-unified-combat-rt-suite",
             "phase3d-unified-combat-tb-suite",
             "phase3d-horse-presentation-suite",
             "player-action-availability",
@@ -477,6 +477,7 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         private static readonly HashSet<string> MissionScenarios = new HashSet<string>(StringComparer.Ordinal)
         {
+            "C01-B", "C01-C", "C01-D",
             "mod-load-smoke",
             "export-mounted-contracts",
             "export-candidate-mount-rigs",
@@ -486,7 +487,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "horse-companion-unmounted-suite",
             "horse-mounted-alpha-suite",
             "horse-native-controls-ux-suite",
-            "phase3h-combat-loop-rt", "phase3h-combat-loop-tb", "phase3g-native-controls-rt", "phase3g-native-controls-tb", "phase3d-unified-combat-rt-suite",
+            "ordinary-attack-controls-tb", "phase3h-combat-loop-rt", "phase3h-combat-loop-tb", "phase3g-native-controls-rt", "phase3g-native-controls-tb", "phase3d-unified-combat-rt-suite",
             "3g-rider-longbow-ordinary", "3g-rider-longbow-primary", "3g-rider-melee-ordinary", "3g-rider-melee-primary",
             "3g-horse-bite-ordinary", "3g-horse-bite-primary", "3g-paused-dismount", "3g-paused-mount-stop",
             "3g-paused-mount-execute", "3g-paused-control-failure",
