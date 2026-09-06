@@ -15,7 +15,11 @@ function New-ControlsEvidence {
             lastOutcome=@{result='Success';actorId=$actor;commandOwnerId=$actor;resourceOwnerId=$actor;childAttackStartCount=1}
         }}
     }
-    return (@{schemaVersion=8;status='PASS';subscenarioPassCount=6;subscenarioFailCount=0;errors=@();rows=$rows;observations=@{
+    if(-not $TurnBased){foreach($name in @('3g-paused-dismount','3g-paused-mount-stop','3g-paused-mount-execute')){
+        $stop=$name -ceq '3g-paused-mount-stop'
+        $rows+=@{name=$name;status='PASS';evidence=@{inputKind='scripted-native-handler-integration';queuedBeforeExecution=$true;finished=$true;acted=(!$stop);dispatchDelta=if($stop){0}else{1};result=if($stop){'Interrupt'}else{'Success'}}}
+    }}
+    return (@{schemaVersion=8;status='PASS';subscenarioPassCount=$rows.Count;subscenarioFailCount=0;errors=@();rows=$rows;observations=@{
         riderId='rider';horseId='mount';phase3fActualConfiguration=@{enableUnifiedMountedTurn=$false;enablePairedCommandScheduler=$false;enableDiagnosticOverlay=$false;overlayPresent=$false}
     }}|ConvertTo-Json -Depth 15|ConvertFrom-Json)
 }
@@ -31,7 +35,7 @@ foreach($mode in @('rt','tb')){
             owner {$artifact.rows[0].evidence.lastOutcome.resourceOwnerId='mount'}
             configuration {$artifact.observations.phase3fActualConfiguration.enableUnifiedMountedTurn=$true}
             generation {$artifact.rows[0].evidence.intentStarts=2}
-            missing {$artifact.rows=@($artifact.rows|Select-Object -Skip 1);$artifact.subscenarioPassCount=5}
+            missing {$artifact.rows=@($artifact.rows|Select-Object -Skip 1);$artifact.subscenarioPassCount--}
         }
         $rejected=$false
         try{Assert-KmcPhase3gControlsEvidence $request $artifact PASS}catch{$rejected=$true}

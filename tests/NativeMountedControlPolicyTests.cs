@@ -13,6 +13,19 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("native controls lease unified actions only to the rider principal", LeasesUnifiedActionsToRider);
             runner.Run("native primary intent shell preparation is exact and pair local", PreparesOnlyExactMountedPrimaryShell);
             runner.Run("native controls explain separate-turn primary ownership", ExplainsWrongTurn);
+            runner.Run("queued native control cleanup preserves active effects and foreign orders", PendingControlCleanup);
+        }
+
+        private static void PendingControlCleanup()
+        {
+            foreach (var kind in new[] { NativeMountedControlKind.MountCompanion, NativeMountedControlKind.Dismount })
+            {
+                TestRunner.True(NativeMountedControlPolicy.OwnsPendingControl(kind, true, false, false), "Exact queued control escaped cleanup.");
+                TestRunner.True(!NativeMountedControlPolicy.OwnsPendingControl(kind, false, false, false), "Foreign caster was consumed.");
+                TestRunner.True(!NativeMountedControlPolicy.OwnsPendingControl(kind, true, true, false), "Started native action was classified as pending.");
+                TestRunner.True(!NativeMountedControlPolicy.OwnsPendingControl(kind, true, false, true), "Terminated request could be replayed.");
+            }
+            TestRunner.True(!NativeMountedControlPolicy.OwnsPendingControl(NativeMountedControlKind.RiderPrimary, true, false, false), "Primary action entered the relationship-control queue policy.");
         }
 
         private static void LeasesUnmountedMountOnly()

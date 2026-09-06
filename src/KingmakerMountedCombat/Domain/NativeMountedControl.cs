@@ -29,6 +29,13 @@ namespace KingmakerMountedCombat.Domain
 
     public static class NativeMountedControlPolicy
     {
+        public static bool OwnsPendingControl(NativeMountedControlKind kind, bool exactCaster,
+            bool started, bool finished)
+        {
+            return exactCaster && !started && !finished &&
+                (kind == NativeMountedControlKind.MountCompanion || kind == NativeMountedControlKind.Dismount);
+        }
+
         public static bool IsExpectedPrimaryCaster(
             NativeMountedControlKind kind,
             bool turnBased,

@@ -29,3 +29,13 @@ Intake installation is preview.4 plus its legitimate `KingmakerMountedCombat.dll
 - Native `Prepare` clears actor cooldowns. Movement projection currently copies only Move and consults rider Standard/readiness. Neither is a complete pair resource contract; a guessed round counter or rider tax is forbidden.
 
 All new gameplay/visual acceptance remains NOT RUN until exact candidate evidence is recorded. Human baseline above remains HUMAN-REPORTED on preview.4.
+
+## First guarded transaction and second checkpoint
+
+Preview.1 source `e0aab35e135f95ca0c8498be6abf0110b43adefd` was clean packaged and host-published. Run `20260906-phase3g-preview1-tb-A` reached native Horse creation and submitted Mount, then expired at the 300-second host deadline before any Phase 3G attack case. It is FAIL, not evidence that the three TB attacks succeeded or failed at their requested boundary. The manager's blocking UI appears in the trace, without a causal claim about foreign Buff Planner messages. The interrupted parent also lacks a fully reconciled terminal registration/mission result; protocol rejection is retained. Independent audit at `2026-09-06T01:16:12Z` proves exact intake saves/Mods/cache restored and no process/lock.
+
+The next candidate adds a native UMM-close input under the existing reversible overlay lease for these disposable fixtures and a 25-second initial Mount deadline with exact queue/progress state. It adds native paused Dismount, Mount/Stop and Mount/unpause cases. Production pending Mount/Dismount shells are canceled through the existing lifecycle notification and before transient fact serialization/removal; started effects and foreign commands are excluded.
+
+Seating correction is confined to the animated visual projection: Horse mount-root-up `Y=-0.08`, existing `Z=-0.18`, with the historical fixed mechanics anchor unchanged at `Y=-0.08`. The preview.1 anchor adjustment was rejected during source review and is not the delivered calibration. Mammoth remains independent. Native view/motion acceptance remains pending.
+
+The original Horse large portrait was losslessly recompressed, retaining every ARGB pixel and all transparency. PNG bytes `1822711 -> 1197418`, SHA `8b7b4386de1b5adbd9f7f9f1c3728de32325b03c5f2dfc2fe6c7babf95a712e7 -> 07a86203bed11697dcf6ec30d6ad2e54bc3c0fc9ffca14ce3053fbfacc5733de`; decoded pixel SHA `80b990fec63fd32088034e240cf5184a2030df5dbb8b1b3f48f932f059ff049f`. Evidence `analysis-cache/phase3g-intake-20260905T233500Z/portrait-repack-evidence.json`. This preserves the unchanged 4 MB package DLL ceiling without changing portrait art.

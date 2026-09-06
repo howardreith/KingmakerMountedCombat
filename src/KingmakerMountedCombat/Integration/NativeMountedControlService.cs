@@ -160,7 +160,7 @@ namespace KingmakerMountedCombat.Integration
             var rider = relationship.Rider;
             var exactManagedAbility = ReferenceEquals(blueprint, riderPrimaryAbility) ||
                 ReferenceEquals(blueprint, mountPrimaryAbility);
-            var casterIsExactRider = command?.Executor != null && command.Spell?.Caster?.Unit == command.Executor &&
+            var casterIsExactActor = command?.Executor != null && command.Spell?.Caster?.Unit == command.Executor &&
                 NativeMountedControlPolicy.IsExpectedPrimaryCaster(kind, CombatController.IsInTurnBasedCombat(),
                     settings.EnableUnifiedMountedTurn, command.Executor == rider, command.Executor == relationship.Mount);
             if (!NativeMountedControlPolicy.ShouldPreparePrimaryIntentShell(
@@ -168,7 +168,7 @@ namespace KingmakerMountedCombat.Integration
                     !disposed && enabled && registered && !serializationSuspended,
                     relationship.State == RelationshipState.Mounted,
                     exactManagedAbility,
-                    casterIsExactRider))
+                    casterIsExactActor))
             {
                 return false;
             }
@@ -179,7 +179,7 @@ namespace KingmakerMountedCombat.Integration
             command.IgnoreCooldown();
             NativePrimaryShellPrepareCount++;
             LastNativePrimaryShellObservation = "kind=" + kind +
-                ";commandOwner=" + rider.UniqueId +
+                ";commandOwner=" + command.Executor.UniqueId +
                 ";target=" + (command.Target?.Unit?.UniqueId ?? "<none>") +
                 ";needLoSBefore=" + needLineOfSightBefore +
                 ";needLoSAfter=" + command.NeedLoS +
@@ -821,6 +821,7 @@ namespace KingmakerMountedCombat.Integration
 
         private void RemoveAllManagedFacts(bool cleanupSlots)
         {
+            CancelPendingNativeControls(CleanupTrigger.ModDisabled);
             foreach (var unit in CollectCandidateUnits())
             {
                 RemoveManagedFacts(unit, cleanupSlots);
@@ -828,6 +829,21 @@ namespace KingmakerMountedCombat.Integration
             if (cleanupSlots)
             {
                 observedUnits.Clear();
+            }
+        }
+
+        private void CancelPendingNativeControls(CleanupTrigger trigger)
+        {
+            foreach (var unit in CollectCandidateUnits())
+            {
+                if (unit?.Commands == null) { continue; }
+                var commands = unit.Commands.Raw.Concat(unit.Commands.Queue).OfType<UnitUseAbility>().Distinct().ToArray();
+                foreach (var command in commands)
+                {
+                    if (NativeMountedControlPolicy.OwnsPendingControl(ResolveKind(command.Spell?.Blueprint),
+                        command.Executor == unit && command.Spell?.Caster?.Unit == unit, command.IsStarted, command.IsFinished))
+                        command.Interrupt();
+                }
             }
         }
 
@@ -1286,6 +1302,7 @@ namespace KingmakerMountedCombat.Integration
             if (!subscribed)
             {
                 EventBus.Subscribe(this);
+                relationship.Dismounting += CancelPendingNativeControls;
                 subscribed = true;
             }
         }
@@ -1295,6 +1312,7 @@ namespace KingmakerMountedCombat.Integration
             if (subscribed)
             {
                 EventBus.Unsubscribe(this);
+                relationship.Dismounting -= CancelPendingNativeControls;
                 subscribed = false;
             }
         }

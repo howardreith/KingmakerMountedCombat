@@ -1,5 +1,11 @@
 # Mounted Combat journal
 
+## 2026-09-06T01:29Z - first transaction restored, bounded control repair
+
+First native-handler TB transaction on preview.1/e0aab35 failed before initial Mount completion, at the 300-second host deadline. Its incomplete terminal artifact also fails registration/subscenario reconciliation. Native attack admission/effects were NOT RUN. Independent current-intake restoration passes at 01:16:12Z: preview.4/cache, current saves and foreign Mods exact, no process or lock. Budget `1/8`.
+
+Preview.2 corrects the seating change to visual-only projection, adds pending-control lifecycle cancellation, a short paused-control flow, exact leaf names and bounded pre-Mount state capture, and reuses the native UMM overlay lease to establish the intended closed-manager fixture UI. Foreign UI log messages are observations, not proof of cause. Large portrait storage changed losslessly with every decoded ARGB pixel equal, preserving the package size limit. Focused source `22/0`, Release, components `339/0`, protocol `12/0`. Actual TB effects, attack cadence, pause execution, Horse motion and full resources still await exact-candidate qualification. No permanent new deployment.
+
 ## 2026-09-06T00:49Z - Phase 3G first implementation checkpoint
 
 Continued the existing Phase 3F branch from exact clean `6d59b5f42ff5d675e390e55e64e89029c96255ec`. Verified the seven human-packet payloads and inspected its three unique still images; preserved the current preview.4 session log and full current installation/cache/saves/Mods inventories separately from historical evidence. New fixes, contracts and human baseline are in [Phase 3G implementation](docs/PHASE3G-IMPLEMENTATION.md). No runtime or visual success is claimed from this checkpoint.

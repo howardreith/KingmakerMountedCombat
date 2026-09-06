@@ -7,6 +7,7 @@ using Kingmaker.Enums;
 using Kingmaker.Controllers.Clicks.Handlers;
 using Kingmaker.UI.Selection;
 using Kingmaker.UnitLogic.Commands.Base;
+using Kingmaker.UnitLogic.Commands;
 using Kingmaker.UnitLogic;
 using Kingmaker.TurnBasedMode;
 using KingmakerMountedCombat.Domain;
@@ -37,6 +38,11 @@ namespace KingmakerMountedCombat.Diagnostics
         private MountedActionLedgerSnapshot phase3gOtherBefore;
         private long phase3gIntentStarts;
         private Vector3 phase3gMovementStart;
+        private int phase3gPauseStage;
+        private int phase3gPauseFrame;
+        private long phase3gControlDispatches;
+        private bool phase3gQueuedWithoutExecution;
+        private UnitUseAbility phase3gQueuedControl;
 
         private string Phase3gRow => "3g-" + new[] {
             "rider-longbow-ordinary", "rider-longbow-primary", "rider-melee-ordinary",
@@ -60,7 +66,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 rangedWeaponLease.Dispose();
                 rangedWeaponLease = null;
             }
-            BeginTarget(!Phase3gTurnBased && phase3gCase == 2 ? 6f : 2.5f, Phase3gRow);
+            BeginTarget(Phase3gTurnBased ? 1.5f : phase3gCase == 2 ? 6f : 2.5f, Phase3gRow);
             // Natural hit/miss and projectile resolve events are authoritative.
             ruleProbe.Arm(target, false);
             phase3gStage = 0;
@@ -74,6 +80,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void TickPhase3gControls()
         {
+            if (!Phase3gTurnBased && phase3gPauseStage != 8) { TickPhase3gPausedControls(); return; }
             observations["phase3gProgress"] = CapturePhase3gProgress();
             if (phase3gStage == 3)
             {
@@ -152,6 +159,68 @@ namespace KingmakerMountedCombat.Diagnostics
                     (expectedActor == horse ? ruleProbe.RiderNonOpportunityAttackRuleCount : ruleProbe.MountNonOpportunityAttackRuleCount) == 0) &&
                 (!ordinary || combat.StockAttackIntentStartCount - phase3gIntentStarts == 1);
             CompletePhase3gCase(success, "Native actor command, attack rule and effect resolved; inspect exact turn/cost/cadence evidence. Visual animation remains human review.");
+        }
+
+        private void TickPhase3gPausedControls()
+        {
+            var game = Game.Instance;
+            if (phase3gPauseStage == 0 || phase3gPauseStage == 3 || phase3gPauseStage == 6)
+            {
+                if (!rider.Commands.Empty || rider.AreHandsBusyWithAnimation) { return; }
+                SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
+                game.IsPaused = true;
+                phase3gControlDispatches = nativeControls.DispatchAcceptedCount;
+                var dismount = phase3gPauseStage == 0;
+                if (!TryNativeAbilityTargetClick(dismount ? nativeControls.DismountAbility : nativeControls.MountAbility,
+                    dismount ? rider : horse, "phase3gPauseSubmission"))
+                { FailPhase3gPause("Native paused control submission refused."); return; }
+                phase3gQueuedControl = lastNativeAbilityShell;
+                phase3gPauseFrame = Time.frameCount;
+                phase3gPauseStage++;
+                ResetLeafClock(); return;
+            }
+            if (phase3gPauseStage == 1 || phase3gPauseStage == 4 || phase3gPauseStage == 7)
+            {
+                if (Time.frameCount <= phase3gPauseFrame + 2) { return; }
+                phase3gQueuedWithoutExecution = game.IsPaused && phase3gQueuedControl != null &&
+                    phase3gQueuedControl.Executor == rider && !phase3gQueuedControl.IsStarted && !phase3gQueuedControl.IsActed &&
+                    !phase3gQueuedControl.IsFinished && nativeControls.DispatchAcceptedCount == phase3gControlDispatches &&
+                    relationship.State == (phase3gPauseStage == 1 ? RelationshipState.Mounted : RelationshipState.Unmounted);
+                if (!phase3gQueuedWithoutExecution) { FailPhase3gPause("Paused native control executed early or lost its exact queue identity."); return; }
+                if (phase3gPauseStage == 4) { SelectionManager.Instance.Stop(); }
+                game.IsPaused = false;
+                phase3gPauseStage = phase3gPauseStage == 7 ? 9 : phase3gPauseStage + 1;
+                ResetLeafClock(); return;
+            }
+            var stopping = phase3gPauseStage == 5;
+            var mounting = phase3gPauseStage == 9;
+            var expectedState = mounting ? RelationshipState.Mounted : RelationshipState.Unmounted;
+            if (phase3gQueuedControl == null || !phase3gQueuedControl.IsFinished || relationship.State != expectedState) { return; }
+            var delta = nativeControls.DispatchAcceptedCount - phase3gControlDispatches;
+            var success = phase3gQueuedWithoutExecution && delta == (stopping ? 0 : 1) &&
+                phase3gQueuedControl.IsActed == !stopping &&
+                phase3gQueuedControl.Result == (stopping ? UnitCommand.ResultType.Interrupt : UnitCommand.ResultType.Success) &&
+                (!mounting || relationship.Rider == rider && relationship.Mount == horse && relationship.Runtime.PoseHealthy);
+            var row = stopping ? "3g-paused-mount-stop" : mounting ? "3g-paused-mount-execute" : "3g-paused-dismount";
+            AddRow(row, success, "Native paused queue, unpause/Stop input and exact execution outcome.", new JObject {
+                ["inputKind"] = "scripted-native-handler-integration", ["queuedBeforeExecution"] = phase3gQueuedWithoutExecution,
+                ["dispatchDelta"] = delta, ["finished"] = phase3gQueuedControl.IsFinished,
+                ["acted"] = phase3gQueuedControl.IsActed, ["result"] = phase3gQueuedControl.Result.ToString(),
+                ["relationshipState"] = relationship.State.ToString()
+            });
+            if (!success) { BeginCleanup(); return; }
+            if (mounting) { phase3gPauseStage = 8; BeginPhase3gCase(); }
+            else { phase3gPauseStage++; ResetLeafClock(); }
+        }
+
+        private void FailPhase3gPause(string detail)
+        {
+            AddRow("3g-paused-control-failure", false, detail, new JObject {
+                ["stage"] = phase3gPauseStage, ["feedback"] = playerAction.LastFeedback,
+                ["relationshipState"] = relationship.State.ToString(), ["paused"] = Game.Instance.IsPaused
+            });
+            Game.Instance.IsPaused = false;
+            BeginCleanup();
         }
 
         private bool ClickPhase3gAttack()

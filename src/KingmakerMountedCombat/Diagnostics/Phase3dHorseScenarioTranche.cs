@@ -342,7 +342,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
             if (IsPhase3gControls)
             {
-                BeginPhase3gCase();
+                if (Phase3gTurnBased) { BeginPhase3gCase(); }
+                else { step = Phase3dHorseStep.Phase3gControls; }
                 return;
             }
 
@@ -701,11 +702,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 relationship.State == RelationshipState.Mounted && runtime.PoseHealthy && runtime.PoseFrameApplied &&
                     string.Equals(runtime.MountProfileId, SupportedMountedProfiles.Horse.Id, StringComparison.Ordinal) &&
                     Math.Abs(horsePose.PelvisPositionOffset.Y - (-0.17d)) <= 0.0001d &&
-                    Math.Abs(SupportedMountedProfiles.Horse.MountRootPositionOffset.Y - (-0.16d)) <= 0.0001d &&
+                    Math.Abs(SupportedMountedProfiles.Horse.MountRootPositionOffset.Y - (-0.08d)) <= 0.0001d &&
                     SupportedMountedProfiles.Mammoth.MountRootPositionOffset.Magnitude <= 0.0001f &&
                     runtime.PoseFootTargetClampCount == 0 &&
                     runtime.PoseMaximumSegmentLengthResidualWorldUnits <= 0.0001d,
-                "The Horse-only profile preserves horizontal placement and lowers visual seating by another 0.08m in mount-root up (total -0.16m); visual contact remains a manual gate.",
+                "The Horse mechanics anchor remains -0.08m; visual-only animated projection adds 0.08m downward in mount-root up and retains the -0.18m backward correction. Visual contact remains a manual gate.",
                 new JObject { ["observation"] = presentation });
             AddRow(
                 "mounted-single-rider-turn-portrait",

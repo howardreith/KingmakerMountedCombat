@@ -1,5 +1,11 @@
 # Autonomous resume
 
+## Phase 3G second implementation checkpoint - 2026-09-06T01:29Z
+
+Runtime `1/8`, preview.1 TB A failed before initial Mount completed; no new attack row executed. All actual intake preview.4/cache/saves/Mods restored independently, no running game/locks. Trace and audit are under `analysis-cache/phase3g-intake-20260905T233500Z`, run `runtime-evidence/20260906-phase3g-preview1-tb-A`. No outcome qualification is transferred to a subsequent build.
+
+Preview.2 work corrects the eight-centimetre reduction to visual-only animated projection, preserves the fixed mechanics anchor, cancels pending native relationship controls at lifecycle cleanup, adds paused native-control cases, and closes the UMM manager via the existing reversible fixture UI lease. New initial Mount wait is bounded to 25 seconds with exact progress evidence. The original portrait is losslessly recompressed with pixel equality verified; package ceiling unchanged. Focused Release/source `22/0`, components `339/0`, new protocol `12/0`; final gate not yet run. Next: clean preview.2 package/current-intake suite, guarded TB and RT checks, restoration before gameplay analysis. First unexplained pre-Mount timeout has occurred once; a repeat ends that diagnostic branch. Three TB attacks, resources and motion remain unqualified.
+
 ## Phase 3G implementation checkpoint - 2026-09-06T00:49Z
 
 Active mission is the user's Phase 3G continuation on `codex/mounted-combat-phase3f-playable-core`, starting from verified clean local/upstream/remote `6d59b5f42ff5d675e390e55e64e89029c96255ec`. Preview.4 remains intentionally installed, including its human-created `.20370.cache`. No new permanent deployment is authorized. All new flags remain false. The earlier unexecuted review-setup recommendation is superseded.

@@ -254,8 +254,12 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.Equal(null, profile.Validate(), "Horse pose profile is invalid.");
             TestRunner.Equal("medium-humanoid-horse-v1", profile.Id, "Horse profile identity changed.");
             TestRunner.Equal(-0.17f, profile.PelvisPositionOffset.Y, "Horse accepted procedural pelvis calibration changed.");
-            TestRunner.Equal(-0.16f, MountedRiderPoseProfiles.MediumHumanoidOnHorseMountRootPositionOffset.Y,
+            TestRunner.Equal(-0.08f, MountedRiderPoseProfiles.MediumHumanoidOnHorseMountRootPositionOffset.Y,
                 "Horse final Phase 3D mount-root vertical calibration changed.");
+            TestRunner.Equal(-0.08f, MountedRiderPoseProfiles.HorseAnimatedSeatCorrection.Y,
+                "Horse height correction must be confined to visual saddle projection.");
+            TestRunner.Equal(-0.18f, MountedRiderPoseProfiles.HorseAnimatedSeatCorrection.Z,
+                "Horse height correction changed the accepted backward correction.");
             TestRunner.Equal(0f, MountedRiderPoseProfiles.MediumHumanoidOnMammothMountRootPositionOffset.Magnitude,
                 "Horse calibration changed the Mammoth mount-root position offset.");
             TestRunner.Equal(-0.15f, profile.LeftLeg.FootTargetFromThigh.X, "Horse left thigh-relative stirrup target changed.");

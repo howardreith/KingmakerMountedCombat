@@ -41,9 +41,8 @@ namespace KingmakerMountedCombat.Integration
         /// <summary>
         /// A stable mount-root-local translation applied after resolving the
         /// animated source anchor. This remains zero for the historical
-        /// Mammoth profile. Horse seat-height calibration belongs here so a
-        /// vertical product decision is not projected through an animated
-        /// humanoid pelvis bone's local axes.
+        /// Mammoth profile. This fixed mechanics anchor retains its historical
+        /// calibration; subsequent visual seating corrections use AnimatedSeatCorrection.
         /// </summary>
         public PoseVector3 MountRootPositionOffset { get; }
 
@@ -56,7 +55,7 @@ namespace KingmakerMountedCombat.Integration
         // Horse-only visual correction from the human-reviewed forward seat. Never a mechanics offset.
         // Angular inheritance is deliberately zero: the Chest rest basis is not a rider orientation.
         public PoseVector3 AnimatedSeatCorrection => UsesDiagnosticMammothOffsets
-            ? new PoseVector3(0f, 0f, 0f) : new PoseVector3(0f, 0f, -0.18f);
+            ? new PoseVector3(0f, 0f, 0f) : MountedRiderPoseProfiles.HorseAnimatedSeatCorrection;
     }
 
     internal static class SupportedMountedProfiles

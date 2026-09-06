@@ -118,6 +118,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private int passed;
         private int failed;
         private bool originalPause;
+        private MovementCaptureOverlayLease phase3gUmmLease;
         private bool originalTurnBased;
         private bool originalUnsafeExperimentSetting;
         private double nativeOverlayPolicyStartedAtSeconds;
@@ -291,6 +292,14 @@ namespace KingmakerMountedCombat.Diagnostics
                     throw new InvalidOperationException("Loaded Working game/player/selection services are unavailable.");
                 }
                 originalPause = game.IsPaused;
+                if (request.Scenario == Phase3dHorseScenarioTranche.Phase3gRealTimeScenario ||
+                    request.Scenario == Phase3dHorseScenarioTranche.Phase3gTurnBasedScenario)
+                {
+                    observations["phase3gUmmInitiallyOpened"] = UnityModManagerNet.UnityModManager.UI.Instance?.Opened;
+                    // Explicit fixture UI input: close the manager through its native method.
+                    // Reuse the existing reversible lease, restore before exit, never change mod settings.
+                    phase3gUmmLease = MovementScreenshotCaptureCoordinator.AcquireClosedUmmLease();
+                }
                 originalTurnBased = CombatController.IsInTurnBasedCombat();
                 originalUnsafeExperimentSetting = settings.EnableUnsafeMovementExperiment;
                 originalSelection = selection.SelectedUnits.Where(unit => unit != null).ToArray();
@@ -1654,6 +1663,22 @@ namespace KingmakerMountedCombat.Diagnostics
         private void AwaitMountedReady()
         {
             var runtime = relationship.Runtime;
+            if (phase3gUmmLease != null && relationship.State != RelationshipState.Mounted &&
+                clock.Elapsed.TotalSeconds - mountedAlphaAdmissionStartedAtSeconds > 25d)
+            {
+                var command = owner?.Commands?.Raw.OfType<UnitUseAbility>().FirstOrDefault();
+                observations["phase3gMountDeadline"] = new JObject {
+                    ["mode"] = Game.Instance.CurrentMode.ToString(), ["paused"] = Game.Instance.IsPaused,
+                    ["gameDeltaTime"] = Game.Instance.TimeController.GameDeltaTime,
+                    ["ummOpened"] = UnityModManagerNet.UnityModManager.UI.Instance?.Opened,
+                    ["feedback"] = playerAction.LastFeedback, ["command"] = command?.GetType().Name,
+                    ["started"] = command?.IsStarted, ["finished"] = command?.IsFinished,
+                    ["result"] = command?.Result.ToString(), ["enoughClose"] = command?.IsUnitEnoughClose,
+                    ["hasCooldown"] = command != null && owner.CombatState.HasCooldownForCommand(command)
+                };
+                Fail("target-selected-mount-admission-deadline", "Native Mount did not execute within 25 seconds; no attack cases were attempted.");
+                BeginCleanup(); return;
+            }
             if (relationship.State != RelationshipState.Mounted ||
                 runtime.PoseApplicationFrameCount < 3 || !runtime.PoseFrameApplied)
             {
@@ -3171,6 +3196,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void BestEffortCleanup()
         {
+            try { phase3gUmmLease?.Dispose(); phase3gUmmLease = null; }
+            catch (Exception exception) { errors.Add("Native UMM state restoration: " + exception.Message); }
             try { combat.Cancel("horse qualification cleanup"); }
             catch (Exception exception) { errors.Add("Mounted combat cleanup: " + exception.Message); }
             if (relationship.State != RelationshipState.Unmounted)
