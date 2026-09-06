@@ -392,6 +392,14 @@ namespace KingmakerMountedCombat.Diagnostics
             frame++;
             try
             {
+                // Explicit input for this unpaused RT fixture, including native auto-pause
+                // after combat entry. Production pause policy is never changed.
+                if (IsUnmountedAttackControls && !cleanupStarted && Game.Instance.IsPaused)
+                {
+                    observations["unmountedFixtureResumeCount"] =
+                        (observations["unmountedFixtureResumeCount"]?.Value<int>() ?? 0) + 1;
+                    Game.Instance.IsPaused = false;
+                }
                 motionEvidence?.Tick(cleanupStarted ? null : IsPhase3gControls
                     ? (phase3gStage == 1 ? Phase3gRow +
                         (horse.Commands.Standard is MountedPairAttackCommand horseAttack
@@ -1919,6 +1927,12 @@ namespace KingmakerMountedCombat.Diagnostics
             nativeControls.Update();
             var availability = nativeControls.Evaluate(NativeMountedControlKind.Dismount, rider);
             observations["rtCombatDismountReadiness"] = CaptureRtCombatDismountState(availability);
+            if (IsUnmountedAttackControls &&
+                (rider.CombatState?.CanActInCombat != true || rider.AreHandsBusyWithAnimation ||
+                 !rider.Commands.Empty || !horse.Commands.Empty))
+            {
+                return;
+            }
             if (!availability.IsEnabled)
             {
                 return;
@@ -5565,6 +5579,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["availabilityVisible"] = availability?.IsVisible,
                 ["availabilityEnabled"] = availability?.IsEnabled,
                 ["availabilityReason"] = availability?.Reason,
+                ["gamePaused"] = game.IsPaused,
+                ["riderCanActInCombat"] = rider.CombatState?.CanActInCombat,
+                ["riderInitiative"] = rider.CombatState?.Cooldown.Initiative,
+                ["riderHandsBusy"] = rider.AreHandsBusyWithAnimation,
                 ["relationshipState"] = relationship.State.ToString(),
                 ["turnBased"] = CombatController.IsInTurnBasedCombat(),
                 ["riderSelectedPrincipal"] = selected != null && selected.Count == 1 && selected[0] == rider,

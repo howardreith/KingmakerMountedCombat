@@ -10663,13 +10663,17 @@ try {
                     if ($mutation -ceq 'none') {
                         Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $nativeManifest -Status PASS -SubscenarioResults $nativeSubresults
                         if ($phase3dScenario -ceq 'phase3d-unified-combat-rt-suite') {
-                            # Reuse the complete existing control envelope. These six validator cases
+                            # Reuse the complete existing control envelope. These seven validator cases
                             # prove protocol integrity only; native gameplay still requires a live run.
-                            foreach ($unmountedMutation in @('none','missing-row','wrong-command','foreign-rule','ai-unrestored','move-shell')) {
+                            foreach ($unmountedMutation in @('none','missing-row','wrong-command','foreign-rule','ai-unrestored','move-shell','not-actionable')) {
                                 $unmountedArtifact = $nativeArtifact | ConvertTo-Json -Depth 100 | ConvertFrom-Json
                                 $unmountedRequest = $phase3dRequest | ConvertTo-Json -Depth 100 | ConvertFrom-Json
                                 $unmountedRequest.scenario = 'unmounted-attack-controls-rt'
                                 $unmountedArtifact.scenario = $unmountedRequest.scenario
+                                $unmountedArtifact.observations.rtCombatDismountReadiness | Add-Member -Force -NotePropertyName gamePaused -NotePropertyValue $false
+                                $unmountedArtifact.observations.rtCombatDismountReadiness | Add-Member -Force -NotePropertyName riderCanActInCombat -NotePropertyValue $true
+                                $unmountedArtifact.observations.rtCombatDismountReadiness | Add-Member -Force -NotePropertyName riderHandsBusy -NotePropertyValue $false
+                                $unmountedArtifact.observations.rtCombatDismountReadiness | Add-Member -Force -NotePropertyName riderInitiative -NotePropertyValue 0.0
                                 $unmountedArtifact.rows = @($unmountedArtifact.rows | Where-Object {
                                     $_.name -cin @('unmounted-stock-attack-control','unmounted-ranged-control')
                                 })
@@ -10681,6 +10685,7 @@ try {
                                 if ($unmountedMutation -ceq 'foreign-rule') { $unmountedArtifact.rows[0].evidence.rules.mountAttackRules = 1 }
                                 if ($unmountedMutation -ceq 'ai-unrestored') { $unmountedArtifact.observations.cleanup.unmountedHorseAiLeaseRestored = $false }
                                 if ($unmountedMutation -ceq 'move-shell') { $unmountedArtifact.observations.'rt-combat-dismount'.nativeShell.inMoveSlot = $false }
+                                if ($unmountedMutation -ceq 'not-actionable') { $unmountedArtifact.observations.rtCombatDismountReadiness.riderCanActInCombat = $false }
                                 $unmountedArtifact.subscenarioPassCount = $unmountedArtifact.rows.Count
                                 Write-KmcJsonAtomic -Path $phase3dPath -Value $unmountedArtifact
                                 $phase3dRecord.length = (Get-Item -LiteralPath $phase3dPath).Length

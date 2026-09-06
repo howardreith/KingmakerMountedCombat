@@ -1,4 +1,15 @@
 # Active Chunk 1 checkpoint
+## 2026-09-06 18:19 UTC - Focused RT admission readiness
+
+Branch codex/mounted-combat-phase3f-playable-core; HEAD e7701e3f6228e43a424bd327072345407ecaf4e9; preparing 0.1.0-chunk1-preview.12. Preview11 full source/component/protocol/assembly/package suite PASS (22/345/243+14+29+39/439/10; zero FAIL). Package4b5dc10a1e449f66fd1244caf14d4d88b86d25445046c1a0f0f8689181d58935; source/package manifest ef10e666e4ca725488f54fb03f75ed2b47dace11e5dbf7c55029102957554581.
+
+20260906-chunk1-focused-unmounted-rt-A FAIL 0/1: AwaitRtCombatDismount deadline before measured attacks. Native Move shell admitted once, unstarted30s, native initiative2.23866 and hands busy at admission; CanActInCombat=false. Existing readiness checked Prepared alone. Next fixture waits for actual native CanActInCombat/idle hands, explicitly resumes RT auto-pause as existing controls do, and records pause/initiative/hand state. This is a discriminating readiness experiment, not proof of a native allocation defect. Production code and safety limits unchanged. Add a protocol negative for premature admission. No identical retry.
+
+Full actual intake restoration PASS at18:15:25.3569966UTC; saves and Mods digests unchanged; lock absent; log79e41420fcb2001f53a1c2d398b03c690dd33c5d479d85001a14b9e477e7cc51. Next: Test.ps1, source commit, preview12 package/fresh snapshot; focused unmounted RT, Mammoth, exact-candidate C01-C03/RT/party. Keep HEAD fixed during native campaign and update analysis-cache/runtime-evidence/chunk1-20260906/ACTIVE-RUN.json while guards run. Human play and mod-absent remain pending.
+
+---
+
+# Active Chunk 1 checkpoint
 
 ## 2026-09-06T18:05:10.249115+00:00 — Focused unmounted regression checkpoint
 

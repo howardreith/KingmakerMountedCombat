@@ -6175,6 +6175,11 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
     }
     elseif ([string]$artifact.status -ceq 'PASS' -and [string]$Request.scenario -ceq 'unmounted-attack-controls-rt') {
         Assert-KmcUnmountedAttackControlRows -Artifact $artifact -RowMap $rowMap
+        $readiness = $artifact.observations.rtCombatDismountReadiness
+        if ($readiness.gamePaused -ne $false -or $readiness.riderCanActInCombat -ne $true -or
+            $readiness.riderHandsBusy -ne $false -or [double]$readiness.riderInitiative -gt 0.000001d) {
+            throw 'Focused unmounted control admitted Dismount before native initiative and hand readiness.'
+        }
         foreach ($row in $rowMap.Values) {
             if ([string]$row.evidence.commandType -cne 'Kingmaker.UnitLogic.Commands.UnitAttack') {
                 throw 'Focused unmounted control did not retain the exact native UnitAttack executor.'
