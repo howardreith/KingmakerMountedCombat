@@ -133,7 +133,8 @@ namespace KingmakerMountedCombat.Diagnostics
             BeginTarget(Phase3hApproachCase || !Phase3gTurnBased && phase3gCase == 2 ? 6f : 3.5f, Phase3gRow);
             // Natural hit/miss and projectile resolve events are authoritative.
             ruleProbe.Arm(target, false);
-            phase3gStage = Phase3gTurnBased && phase3gCase >= 2 && !Phase3hApproachCase ? -1 : 0;
+            phase3gStage = IsPhase3hLoop && phase3gCase == 0 ||
+                Phase3gTurnBased && phase3gCase >= 2 && !Phase3hApproachCase ? -1 : 0;
             phase3gClicks = 0;
             phase3gUnpauseInputs = 0;
             phase3gActorBefore = null;
@@ -190,6 +191,16 @@ namespace KingmakerMountedCombat.Diagnostics
                 var probe = new MountedPairSingleAttack(target, rider, horse, phase3gCase < 4);
                 probe.Init(Phase3gActor);
                 phase3hStationaryRadius = probe.PairApproachRadius;
+                if (IsPhase3hLoop && phase3gCase == 0)
+                {
+                    // The unchanged rider has a native bite after bow attacks.
+                    // Place the full-plan control within every native weapon's
+                    // reach; distant mixed-weapon rejection has its own C03 case.
+                    var nativePlan = new UnitAttack(target);
+                    nativePlan.Init(rider);
+                    phase3hStationaryRadius = nativePlan.AllAttacks.Min(attack =>
+                        horse.View.Corpulence + target.View.Corpulence + attack.WeaponRange);
+                }
                 movementDestination = FindWalkablePointNearTarget(target.Position, horse.Position,
                     IsPhase3hLoop ? phase3hStationaryRadius - MountedCombatSpatialPolicy.DiagnosticRangeInset : 2.5f);
                 ClickGroundHandler.MoveSelectedUnitsToPoint(movementDestination, false);

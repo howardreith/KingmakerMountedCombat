@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using Kingmaker.Blueprints;
 using Kingmaker.EntitySystem.Entities;
+using Kingmaker.Designers.Mechanics.Buffs;
 using Kingmaker.UnitLogic;
 using Kingmaker.UnitLogic.ActivatableAbilities;
 using Kingmaker.UnitLogic.Buffs;
@@ -38,9 +39,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (hasted)
                 {
                     var candidates = ResourcesLibrary.LibraryObject.BlueprintsByAssetId.Values
-                        .OfType<BlueprintBuff>().Where(item => item.name == "Haste").ToArray();
+                        .OfType<BlueprintBuff>().Where(item => item.name.IndexOf("Haste", StringComparison.OrdinalIgnoreCase) >= 0 &&
+                            item.GetComponents<BuffExtraAttack>().Any(extra => extra.Haste && extra.Number == 1)).ToArray();
                     if (candidates.Length != 1 || actor.Descriptor.HasFact(candidates[0]))
-                        throw new InvalidOperationException("Expected one initially unowned native Haste buff.");
+                        throw new InvalidOperationException("Expected one initially unowned native Haste buff; candidates=" +
+                            string.Join(";", candidates.Select(item => item.name + ":" + item.AssetGuid)));
                     haste = actor.Buffs.AddBuff(candidates[0], actor, TimeSpan.FromMinutes(10), null);
                     if (haste == null || !actor.Descriptor.HasFact(candidates[0]))
                         throw new InvalidOperationException("Native Haste fixture application failed.");
@@ -64,6 +67,8 @@ namespace KingmakerMountedCombat.Diagnostics
             ["actor"] = actor.UniqueId, ["babBase"] = actor.Stats.BaseAttackBonus.BaseValue,
             ["babModified"] = actor.Stats.BaseAttackBonus.ModifiedValue,
             ["rapidShot"] = rapid.IsOn, ["haste"] = haste?.Blueprint.AssetGuid,
+            ["hasteName"] = haste?.Blueprint.name,
+            ["hasteComponents"] = haste == null ? null : new JArray(haste.Blueprint.ComponentsArray.Select(item => item.GetType().FullName)),
             ["staggered"] = actor.Descriptor.State.HasCondition(UnitCondition.Staggered),
             ["weapon"] = actor.GetFirstWeapon()?.Blueprint.AssetGuid
         };

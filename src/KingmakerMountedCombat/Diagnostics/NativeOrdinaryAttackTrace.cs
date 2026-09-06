@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
@@ -30,6 +31,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly UnitEntityData mount;
         private readonly MountedCombatController combat;
         private readonly JArray events = new JArray();
+        private readonly Dictionary<UnitAttack, JObject> nativeRecoveryInterrupts = new Dictionary<UnitAttack, JObject>();
         private string caseId;
         private int dropped;
         internal UnitAttack LastStartedRiderAttack { get; private set; }
@@ -62,6 +64,14 @@ namespace KingmakerMountedCombat.Diagnostics
 
         internal void BeginCase(string value) { caseId = value; LastStartedRiderAttack = null; Record("fixture-case", rider); }
         internal JObject Capture() => new JObject { ["events"] = events.DeepClone(), ["dropped"] = dropped };
+        internal JObject NativeRecoveryInterrupt(UnitAttack command) => command != null && nativeRecoveryInterrupts.ContainsKey(command)
+            ? (JObject)nativeRecoveryInterrupts[command].DeepClone() : null;
+        internal JObject NativeRangeRejection(UnitAttack command)
+        {
+            var observation = events.OfType<JObject>().LastOrDefault(item => (string)item["boundary"] == "target-invalid" &&
+                (int?)item["command"] == Identity(command));
+            return observation == null ? null : (JObject)observation.DeepClone();
+        }
 
         public void Dispose()
         {
@@ -129,6 +139,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["duplicateDispatches"] = combat.StockAttackDuplicateDispatchCount,
                     ["single"] = attack?.IsSingleAttack, ["full"] = attack?.IsFullAttack,
                     ["planned"] = attack?.AllAttacks.Count, ["completed"] = attack?.GetAttackIndex(),
+                    ["plannedWeapon"] = attack?.PlannedAttack?.Weapon?.Blueprint.AssetGuid,
+                    ["plannedWeaponRange"] = attack?.PlannedAttack?.WeaponRange,
+                    ["pairApproachRadius"] = (attack as MountedPairSingleAttack)?.PairApproachRadius,
                     ["detail"] = detail
                 };
                 if (command?.Executor != null)
@@ -139,6 +152,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     row["shouldInterrupt"] = command.ShouldBeInterrupted;
                     if (attack?.Target != null)
                     {
+                        var origin = attack is MountedPairSingleAttack && actor == rider ? mount : actor;
+                        row["rangeOriginDistance"] = Kingmaker.Utility.GeometryUtils.MechanicsDistance(origin.Position, attack.Target.Position);
                         row["targetInState"] = attack.Target.IsInState;
                         row["targetUntargetable"] = UnitCommand.CommandTargetUntargetable(actor, attack.Target);
                         row["targetStealth"] = attack.Target.InStealthFor(actor.Group);
@@ -150,6 +165,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         ["ranged"] = item.Weapon?.Blueprint.IsRanged, ["natural"] = item.Weapon?.Blueprint.IsNatural
                     }));
                 events.Add(row);
+                if (boundary == "native-recovery-interrupt" && attack != null) nativeRecoveryInterrupts[attack] = row;
             }
             catch (Exception exception)
             {
@@ -180,7 +196,16 @@ namespace KingmakerMountedCombat.Diagnostics
             internal static void TargetAfter(UnitAttack __instance, bool __result)
             { if (!__result) active?.Record("target-invalid", __instance.Executor, __instance); }
             internal static void InterruptBefore(UnitCommand __instance)
-            { if (__instance.IsStarted && !__instance.IsFinished) active?.Record("interrupt-request", __instance.Executor, __instance, new StackTrace(1, false).ToString()); }
+            {
+                if (!__instance.IsStarted || __instance.IsFinished) return;
+                var stack = new StackTrace(1, false);
+                active?.Record("interrupt-request", __instance.Executor, __instance, stack.ToString());
+                var attack = __instance as UnitAttack;
+                if (__instance.GetType() == typeof(UnitAttack) && __instance.Result == UnitCommand.ResultType.Success &&
+                    attack.PlannedAttack == null && attack.AllAttacks.Count > 0 && attack.GetAttackIndex() == attack.AllAttacks.Count &&
+                    (stack.GetFrames() ?? new StackFrame[0]).Any(frame => frame.GetMethod().DeclaringType == typeof(UnitAttack) && frame.GetMethod().Name == "OnTick"))
+                    active?.Record("native-recovery-interrupt", __instance.Executor, __instance, stack.ToString());
+            }
             internal static void Ended(UnitCommand __instance) { active?.Record("ended", __instance.Executor, __instance); }
             internal static void CostBefore(UnitCommand command) { active?.Record("cost-before", command.Executor, command); }
             internal static void CostAfter(UnitCommand command) { active?.Record("cost-after", command.Executor, command); }

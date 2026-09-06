@@ -22,12 +22,17 @@ namespace KingmakerMountedCombat.Diagnostics
         private static readonly MethodInfo Predictions = typeof(TurnController).GetMethod("UpdateActionPredictions", Flags);
         private readonly PointerController pointer;
         private readonly UnitEntityData target;
+        private readonly Vector3 point;
         private readonly object[] saved;
         private bool disposed;
 
-        internal NativeOrdinaryAttackInput(UnitEntityData target)
+        internal NativeOrdinaryAttackInput(UnitEntityData target) : this(target,
+            target?.View != null ? target.Position : throw new ArgumentException("An exact visible fixture target is required.", nameof(target))) { }
+
+        internal NativeOrdinaryAttackInput(Vector3 point) : this(null, point) { }
+
+        private NativeOrdinaryAttackInput(UnitEntityData target, Vector3 point)
         {
-            if (target?.View == null) throw new ArgumentException("An exact visible fixture target is required.", nameof(target));
             if (Predictions == null || Predictions.MetadataToken != 0x06000C6E ||
                 PointerOn?.GetSetMethod(true)?.MetadataToken != 0x060093B2 ||
                 WorldPosition?.GetSetMethod(true)?.MetadataToken != 0x060093B4 ||
@@ -35,17 +40,19 @@ namespace KingmakerMountedCombat.Diagnostics
                 SimulatedHandler?.MetadataToken != 0x04005EAC || MouseHandler?.MetadataToken != 0x04005EAB)
                 throw new MissingMemberException("Exact native pointer prediction contract changed.");
             this.target = target;
+            this.point = point;
             pointer = Game.Instance.DefaultPointerController;
             saved = new[] { PointerOn.GetValue(pointer, null), WorldPosition.GetValue(pointer, null),
                 SimulatedPosition.GetValue(pointer), SimulatedHandler.GetValue(pointer), MouseHandler.GetValue(pointer) };
             try
             {
-                PointerOn.SetValue(pointer, target.View.gameObject, null);
-                WorldPosition.SetValue(pointer, target.Position, null);
-                SimulatedPosition.SetValue(pointer, target.Position);
+                PointerOn.SetValue(pointer, target?.View.gameObject, null);
+                WorldPosition.SetValue(pointer, point, null);
+                SimulatedPosition.SetValue(pointer, point);
                 pointer.UpdateSelectedClickHandler();
-                if (!(SimulatedHandler.GetValue(pointer) is ClickUnitHandler))
-                    throw new InvalidOperationException("Native pointer priority did not select the hostile-unit handler.");
+                var handler = SimulatedHandler.GetValue(pointer);
+                if (target != null ? !(handler is ClickUnitHandler) : !(handler is ClickGroundHandler))
+                    throw new InvalidOperationException("Native pointer priority did not select the requested fixture handler.");
             }
             catch { Dispose(); throw; }
         }
@@ -54,8 +61,9 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             var turn = Game.Instance.TurnBasedCombatController.CurrentTurn;
             if (turn == null) return;
-            turn.OnHoverObjectChanged(target.View.gameObject, null);
-            turn.OnHoverObjectChanged(null, target.View.gameObject);
+            turn.OnHoverObjectChanged(target?.View.gameObject, null);
+            if (target != null) turn.OnHoverObjectChanged(null, target.View.gameObject);
+            else turn.UpdatePredictionsOnCursorMoved();
             Predictions.Invoke(turn, null);
         }
 
@@ -64,7 +72,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var turn = Game.Instance.TurnBasedCombatController.CurrentTurn;
             if (respectNativeAdmission && button == 0 && turn != null && turn.IgnoreClick()) return false;
             var handler = (IClickEventHandler)SimulatedHandler.GetValue(pointer);
-            return handler.OnClick(target.View.gameObject, target.Position, button, false, false);
+            return handler.OnClick(target?.View.gameObject, point, button, false, false);
         }
 
         public void Dispose()

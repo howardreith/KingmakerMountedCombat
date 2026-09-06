@@ -13,21 +13,29 @@ $allowed=@($kmcGuardCommand.Parameters['RuntimeScenario'].Attributes | Where-Obj
 if(@($allowed|Where-Object {$_ -ceq 'ordinary-attack-controls-tb'}).Count -ne 1 -or $allowed -contains 'ordinary-attack-unsafe') {throw 'Exact host scenario registration differs.'}
 $passed++
 function New-OrdinaryControlArtifact {
+    # Synthetic envelopes test validation integrity; they are not gameplay evidence.
     $rows=@()
     foreach($case in @(Get-KmcOrdinaryAttackControlCases)) {
-        $full=(!$case.primary -and $case.preparation -ceq 'fresh')
+        $full=(!$case.primary -and $case.preparation -cin @('fresh','carried-move','mixed-range'))
+        $mixed=$case.preparation -ceq 'mixed-range';$ownMove=$case.preparation -ceq 'rider-move';$carried=$case.preparation -ceq 'carried-move'
         $count=if(!$full){1}elseif($case.bab -eq 6){if($case.haste){3}else{2}}elseif($case.rapid){5}else{4}
+        $completed=if($mixed){$count-1}else{$count};$commandId=$rows.Count+100
         $bonus=$(if($case.bab -eq 6){10}else{24})+$(if($case.rapid){-2}else{0})+$(if($case.haste){1}else{0})
         $rows+=@{name=$case.id;status='PASS';evidence=@{
             level='NATIVE INTEGRATION';parameters=@{mode='TB';mounted=$case.mounted;primary=$case.primary;rapidShot=$case.rapid;weapon='Longbow';bab=$case.bab;haste=$case.haste;preparation=$case.preparation}
             variation=@{rapidShot=$case.rapid;babBase=$case.bab;haste=$(if($case.haste){'native-haste'}else{$null});staggered=$case.preparation -ceq 'stale-staggered'}
             prediction=@{count=3;pure=$true;fullEnabled=$true;nativeEstimate=$count;nativeCursorCycles=1;fullAfterChoice=$false;before=@{rider=@{standard=0;move=0}};after=@{rider=@{standard=0;move=0}}};continuity=$true;repeatedRequests=3;intentStarts=1
-            nativeCommand=@{result='Success';finished=$true;executor='rider'};completed=$count;planned=$count;nativeFull=$full;nativeSingle=$case.primary
-            nativePlan=@(1..$count|ForEach-Object {@{weapon='native-longbow';penalty=0}})
-            rules=@{riderResolved=$count;mountNonOpportunityAttackRules=0;pairForcedD20=0;attackRollEvents=@(1..$count|ForEach-Object {@{actor='rider';attackBonus=$bonus;iterativePenalty=0}})}
+            nativeCommand=@{id=$commandId;result=$(if($mixed){'Interrupt'}else{'Success'});finished=$true;executor='rider'};completed=$completed;planned=$count;nativeFull=$full;nativeSingle=$case.primary
+            nativeRecovery=$null
+            nativeRangeRejection=@{command=$commandId;caseId=$case.id;targetDead=$false;targetUnconscious=$false;targetUntargetable=$false;plannedWeapon='native-bite';rangeOriginDistance=6;pairApproachRadius=2;approachRadius=1.8}
+            nativePlan=@(1..$count|ForEach-Object {$bite=$mixed -and $_ -eq $count;@{weapon=$(if($bite){'native-bite'}else{'native-longbow'});penalty=0;range=$(if($bite){1.8}else{16});ranged=(!$bite);natural=$bite}})
+            rules=@{riderResolved=$completed;mountNonOpportunityAttackRules=0;pairForcedD20=0;attackRollEvents=@(1..$completed|ForEach-Object {@{actor='rider';attackBonus=$bonus;iterativePenalty=0}});attackRuleEvents=@(1..$completed|ForEach-Object {@{weaponGuid='native-longbow'}})}
             spentStandard=@{sameNativeTurn=$true;secondAttackStarted=$false;rulesBefore=@{riderResolved=1};rulesAfter=@{riderResolved=1};before=@{rider=@{standard=6}};after=@{rider=@{standard=6;move=0}}}
-            before=@{rider=@{id='rider';standard=0;move=0};mount=@{standard=0;move=0}}
-            after=@{rider=@{standard=6;move=if($full){3}else{0}};mount=@{standard=0;move=0}}
+            before=@{rider=@{id='rider';standard=0;move=$(if($ownMove){0.5}else{0})};mount=@{standard=0;move=$(if($carried){0.5}else{0})}}
+            after=@{rider=@{standard=6;move=if($full -or $ownMove){3}else{0}};mount=@{standard=0;move=$(if($carried){0.5}else{0})}}
+            movement=@{passed=$true;sameNativeTurn=$true;displacement=3;command=@{result='Success';executor=$(if($carried){'mount'}else{'rider'})}
+                before=@{rider=@{id='rider';standard=0;move=0};mount=@{id='mount';standard=0;move=0}}
+                after=@{rider=@{standard=0;move=$(if($carried){0}else{0.5})};mount=@{standard=0;move=$(if($carried){0.5}else{0})}}}
         }}
     }
     return (@{schemaVersion=1;status='PASS';rows=$rows;subscenarioPassCount=$rows.Count;subscenarioFailCount=0;errors=@();observations=@{
@@ -38,7 +46,15 @@ function New-OrdinaryControlArtifact {
 $request=[pscustomobject]@{scenario='ordinary-attack-controls-tb'}
 Assert-KmcOrdinaryAttackControlsEvidence $request (New-OrdinaryControlArtifact) PASS
 $passed++
-foreach($mutation in @('mode','configuration','owner-cost','count','primary','prediction','prediction-data','wrong-envelope','continuity','missing','trace','native-cost','forced-roll','unmatched','bonus','restricted','spent-standard','executor','native-plan')) {
+function Set-NativeRecoveryControl($artifact) {
+    $e=$artifact.rows[0].evidence;$e.nativeCommand.result='Interrupt'
+    $e.nativeRecovery=[pscustomobject]@{boundary='native-recovery-interrupt';commandType='Kingmaker.UnitLogic.Commands.UnitAttack';command=$e.nativeCommand.id
+        caseId='C01-B';result='Success';planned=$e.planned;completed=$e.completed;plannedWeapon=$null;detail='Kingmaker.UnitLogic.Commands.UnitAttack.OnTick'}
+}
+$nativeRecovery=New-OrdinaryControlArtifact;Set-NativeRecoveryControl $nativeRecovery
+Assert-KmcOrdinaryAttackControlsEvidence $request $nativeRecovery PASS
+$passed++
+foreach($mutation in @('mode','configuration','owner-cost','count','primary','prediction','prediction-data','wrong-envelope','continuity','missing','trace','native-cost','forced-roll','unmatched','bonus','restricted','spent-standard','executor','native-plan','premature-recovery','external-stop','ranged-bite','dead-target','carried-tax','no-movement','haste-bonus','carried-plan')) {
     $a=New-OrdinaryControlArtifact
     switch($mutation) {
         mode {$a.rows[1].evidence.nativeFull=$false}
@@ -60,6 +76,14 @@ foreach($mutation in @('mode','configuration','owner-cost','count','primary','pr
         spent-standard {$a.rows[14].evidence.spentStandard.secondAttackStarted=$true}
         executor {$a.rows[1].evidence.nativeCommand.executor='mount'}
         native-plan {$a.rows[1].evidence.nativePlan=@()}
+        premature-recovery {Set-NativeRecoveryControl $a;$a.rows[0].evidence.nativeRecovery.completed--}
+        external-stop {Set-NativeRecoveryControl $a;$a.rows[0].evidence.nativeRecovery.detail='SelectionManager.Stop'}
+        ranged-bite {$a.rows[18].evidence.rules.attackRuleEvents[0].weaponGuid='native-bite'}
+        dead-target {$a.rows[18].evidence.nativeRangeRejection.targetDead=$true}
+        carried-tax {$a.rows[16].evidence.movement.after.rider.move=1}
+        no-movement {$a.rows[15].evidence.movement.displacement=0}
+        haste-bonus {foreach($index in @(7,8)){foreach($roll in $a.rows[$index].evidence.rules.attackRollEvents){$roll.attackBonus--}}}
+        carried-plan {$a.rows[16].evidence.nativePlan[0].penalty=5}
     }
     $rejected=$false
     try {Assert-KmcOrdinaryAttackControlsEvidence $request $a PASS} catch {$rejected=$true}

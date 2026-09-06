@@ -160,11 +160,18 @@ namespace KingmakerMountedCombat.Integration
         {
             LastNativeDistanceSatisfied = false;
             UnitEntityData target = Target;
-            if (Executor == null || target == null)
+            var origin = usesMountedRiderReach ? mount : Executor;
+            var planned = PlannedAttack;
+            if (Executor == null || target?.View == null || origin?.View == null || planned == null)
             {
                 LastNativeAdmissionState = MountedPairNativeAdmissionState.Unavailable;
                 return LastNativeAdmissionState;
             }
+
+            // Native sequences can change weapons (for example, bow iteratives
+            // followed by a natural bite). The next native attack owns its range;
+            // retaining the first weapon's radius would grant that bite bow reach.
+            pairApproachRadius = origin.View.Corpulence + target.View.Corpulence + planned.WeaponRange;
 
             if (!usesMountedRiderReach)
             {
