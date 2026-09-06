@@ -6180,8 +6180,25 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
             $readiness.riderHandsBusy -ne $false -or [double]$readiness.riderInitiative -gt 0.000001d) {
             throw 'Focused unmounted control admitted Dismount before native initiative and hand readiness.'
         }
+        $riderAi = $artifact.observations.unmountedRiderAiIsolation
+        $riderAiRestored = $artifact.observations.cleanup.combatMountRiderAiIsolation
+        if ($riderAi.acquired -ne $true -or $riderAi.activeValidationPassed -ne $true -or
+            [long]$riderAi.stableFrames -lt 2L -or @($riderAi.states).Count -ne 1 -or
+            [string]$riderAi.states[0].unitId -cne [string]$artifact.observations.riderId -or
+            $riderAi.states[0].commandsEmptyBefore -ne $true -or
+            $riderAi.states[0].rawAiDuring -ne $false -or $riderAi.states[0].effectiveAiDuring -ne $false -or
+            $artifact.observations.cleanup.combatMountRiderAiLeaseRestored -ne $true -or
+            $riderAiRestored.restoreVerified -ne $true -or $riderAiRestored.restored -ne $true -or
+            $riderAiRestored.acquired -ne $false -or @($riderAiRestored.states).Count -ne 1 -or
+            [string]$riderAiRestored.states[0].unitId -cne [string]$artifact.observations.riderId -or
+            $riderAiRestored.states[0].commandsEmptyAfter -ne $true -or
+            $riderAiRestored.states[0].rawAiAfter -ne $riderAi.states[0].rawAiBefore -or
+            $riderAiRestored.states[0].effectiveAiAfter -ne $riderAi.states[0].effectiveAiBefore) {
+            throw 'Focused unmounted controls did not isolate and exactly restore native rider AI.'
+        }
         foreach ($row in $rowMap.Values) {
-            if ([string]$row.evidence.commandType -cne 'Kingmaker.UnitLogic.Commands.UnitAttack') {
+            if ([string]$row.evidence.commandType -cne 'Kingmaker.UnitLogic.Commands.UnitAttack' -or
+                [long]$row.evidence.preDispatchDamageRules -ne 0L) {
                 throw 'Focused unmounted control did not retain the exact native UnitAttack executor.'
             }
         }

@@ -10663,9 +10663,9 @@ try {
                     if ($mutation -ceq 'none') {
                         Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $nativeManifest -Status PASS -SubscenarioResults $nativeSubresults
                         if ($phase3dScenario -ceq 'phase3d-unified-combat-rt-suite') {
-                            # Reuse the complete existing control envelope. These seven validator cases
+                            # Reuse the complete existing control envelope. These nine validator cases
                             # prove protocol integrity only; native gameplay still requires a live run.
-                            foreach ($unmountedMutation in @('none','missing-row','wrong-command','foreign-rule','ai-unrestored','move-shell','not-actionable')) {
+                            foreach ($unmountedMutation in @('none','missing-row','wrong-command','foreign-rule','ai-unrestored','move-shell','not-actionable','rider-ai-unrestored','setup-damage')) {
                                 $unmountedArtifact = $nativeArtifact | ConvertTo-Json -Depth 100 | ConvertFrom-Json
                                 $unmountedRequest = $phase3dRequest | ConvertTo-Json -Depth 100 | ConvertFrom-Json
                                 $unmountedRequest.scenario = 'unmounted-attack-controls-rt'
@@ -10674,11 +10674,19 @@ try {
                                 $unmountedArtifact.observations.rtCombatDismountReadiness | Add-Member -Force -NotePropertyName riderCanActInCombat -NotePropertyValue $true
                                 $unmountedArtifact.observations.rtCombatDismountReadiness | Add-Member -Force -NotePropertyName riderHandsBusy -NotePropertyValue $false
                                 $unmountedArtifact.observations.rtCombatDismountReadiness | Add-Member -Force -NotePropertyName riderInitiative -NotePropertyValue 0.0
+                                $riderAi = $unmountedArtifact.observations.unmountedHorseAiIsolation | ConvertTo-Json -Depth 20 | ConvertFrom-Json
+                                $riderAi.states[0].unitId = $unmountedArtifact.observations.riderId
+                                $riderAiRestored = $unmountedArtifact.observations.cleanup.unmountedHorseAiIsolation | ConvertTo-Json -Depth 20 | ConvertFrom-Json
+                                $riderAiRestored.states[0].unitId = $unmountedArtifact.observations.riderId
+                                $unmountedArtifact.observations | Add-Member -Force -NotePropertyName unmountedRiderAiIsolation -NotePropertyValue $riderAi
+                                $unmountedArtifact.observations.cleanup | Add-Member -Force -NotePropertyName combatMountRiderAiIsolation -NotePropertyValue $riderAiRestored
+                                $unmountedArtifact.observations.cleanup | Add-Member -Force -NotePropertyName combatMountRiderAiLeaseRestored -NotePropertyValue $true
                                 $unmountedArtifact.rows = @($unmountedArtifact.rows | Where-Object {
                                     $_.name -cin @('unmounted-stock-attack-control','unmounted-ranged-control')
                                 })
                                 foreach ($control in $unmountedArtifact.rows) {
                                     $control.evidence | Add-Member -Force -NotePropertyName commandType -NotePropertyValue 'Kingmaker.UnitLogic.Commands.UnitAttack'
+                                    $control.evidence | Add-Member -Force -NotePropertyName preDispatchDamageRules -NotePropertyValue 0
                                 }
                                 if ($unmountedMutation -ceq 'missing-row') { $unmountedArtifact.rows = @($unmountedArtifact.rows | Select-Object -First 1) }
                                 if ($unmountedMutation -ceq 'wrong-command') { $unmountedArtifact.rows[0].evidence.commandType = 'KingmakerMountedCombat.Integration.MountedPairAttackCommand' }
@@ -10686,6 +10694,8 @@ try {
                                 if ($unmountedMutation -ceq 'ai-unrestored') { $unmountedArtifact.observations.cleanup.unmountedHorseAiLeaseRestored = $false }
                                 if ($unmountedMutation -ceq 'move-shell') { $unmountedArtifact.observations.'rt-combat-dismount'.nativeShell.inMoveSlot = $false }
                                 if ($unmountedMutation -ceq 'not-actionable') { $unmountedArtifact.observations.rtCombatDismountReadiness.riderCanActInCombat = $false }
+                                if ($unmountedMutation -ceq 'rider-ai-unrestored') { $riderAiRestored.restoreVerified = $false }
+                                if ($unmountedMutation -ceq 'setup-damage') { $unmountedArtifact.rows[0].evidence.preDispatchDamageRules = 1 }
                                 $unmountedArtifact.subscenarioPassCount = $unmountedArtifact.rows.Count
                                 Write-KmcJsonAtomic -Path $phase3dPath -Value $unmountedArtifact
                                 $phase3dRecord.length = (Get-Item -LiteralPath $phase3dPath).Length

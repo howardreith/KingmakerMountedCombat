@@ -2011,10 +2011,18 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
-            targetService.Dispose();
-            targetService = null;
-            target = null;
-            unmountedPreviousTargetCleanupPassed = true;
+            if (targetService != null)
+            {
+                targetService.Dispose();
+                targetService = null;
+                target = null;
+                unmountedPreviousTargetCleanupPassed = true;
+            }
+            if (IsUnmountedAttackControls)
+            {
+                if (rider.IsInCombat || horse.IsInCombat || !PrepareCombatMountRiderAiIsolation()) { return; }
+                observations["unmountedRiderAiIsolation"] = CaptureCombatMountRiderAiIsolation();
+            }
             BeginTarget(TargetDistance, "rt-unmounted-controls");
             BeginUnmountedMeleeRt();
         }
@@ -2058,6 +2066,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["nativeRequestDelta"] = combat.StockAttackNativeRequestCount - stockNativeBefore,
                 ["intentStartDelta"] = combat.StockAttackIntentStartCount - stockIntentBefore,
                 ["rules"] = ruleProbe.CapturePairEvidence(),
+                ["preDispatchDamageRules"] = targetService.PreDispatchIncomingDamageRuleCount,
                 ["relationshipState"] = relationship.State.ToString(),
                 ["horseAiIsolation"] = CaptureUnmountedHorseAiIsolation(),
                 ["previousTargetId"] = unmountedPreviousTargetId,
@@ -2068,6 +2077,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 "unmounted-stock-attack-control",
                 relationship.State == RelationshipState.Unmounted && unmountedCommand?.GetType() == typeof(UnitAttack) &&
                     combat.StockAttackNativeRequestCount == stockNativeBefore &&
+                    (!IsUnmountedAttackControls || targetService.PreDispatchIncomingDamageRuleCount == 0) &&
                     combat.StockAttackIntentStartCount == stockIntentBefore &&
                     ruleProbe.RiderNonOpportunityAttackRuleCount >= 1 &&
                     ruleProbe.RiderOpportunityAttackRuleCount == 0 && ruleProbe.MountAttackRuleCount == 0 &&
@@ -2202,6 +2212,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["nativeRequestDelta"] = combat.StockAttackNativeRequestCount - stockNativeBefore,
                 ["intentStartDelta"] = combat.StockAttackIntentStartCount - stockIntentBefore,
                 ["rules"] = ruleProbe.CapturePairEvidence(),
+                ["preDispatchDamageRules"] = targetService.PreDispatchIncomingDamageRuleCount,
                 ["relationshipState"] = relationship.State.ToString(),
                 ["horseAiIsolation"] = CaptureUnmountedHorseAiIsolation(),
                 ["admissionReadiness"] = observations["unmountedRangedReadiness"]?.DeepClone(),
@@ -2216,6 +2227,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 relationship.State == RelationshipState.Unmounted && weapon != null && weapon.IsRanged &&
                     weapon.Category == WeaponCategory.Sling && unmountedCommand?.GetType() == typeof(UnitAttack) &&
                     combat.StockAttackNativeRequestCount == stockNativeBefore &&
+                    (!IsUnmountedAttackControls || targetService.PreDispatchIncomingDamageRuleCount == 0) &&
                     combat.StockAttackIntentStartCount == stockIntentBefore &&
                     ruleProbe.RiderNonOpportunityAttackRuleCount >= 1 &&
                     ruleProbe.RiderOpportunityAttackRuleCount == 0 && ruleProbe.MountAttackRuleCount == 0 &&
@@ -5171,6 +5183,10 @@ namespace KingmakerMountedCombat.Diagnostics
             return new JObject
             {
                 ["ready"] = ready,
+                ["preDispatchDamageRules"] = targetService?.PreDispatchIncomingDamageRuleCount,
+                ["firstIncomingDamage"] = targetService?.FirstIncomingDamage == null ? null :
+                    JObject.FromObject(targetService.FirstIncomingDamage, JsonSerializer.Create(JsonSettings)),
+                ["riderAiEnabled"] = rider.IsAIEnabled,
                 ["relationshipState"] = relationship.State.ToString(),
                 ["modeRealTime"] = !CombatController.IsInTurnBasedCombat(),
                 ["gameUnpaused"] = game != null && !game.IsPaused,
@@ -5372,7 +5388,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (combatMountRiderAiLease == null)
                 {
                     var selected = SelectionManager.Instance?.SelectedUnits;
-                    if ((!string.Equals(request.Scenario, TurnBasedScenario, StringComparison.Ordinal) && !IsOrdinaryAttackControls) ||
+                    if ((!string.Equals(request.Scenario, TurnBasedScenario, StringComparison.Ordinal) &&
+                         !IsOrdinaryAttackControls && !IsUnmountedAttackControls) ||
                         rider?.Commands == null || horse?.Commands == null || !rider.Commands.Empty ||
                         !horse.Commands.Empty || rider.Group == null || rider.Group != horse.Group ||
                         !rider.IsDirectlyControllable || !IsExactDiagnosticAiIsolationRelationship() ||

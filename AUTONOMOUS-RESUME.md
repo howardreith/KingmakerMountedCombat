@@ -1,4 +1,16 @@
 # Active Chunk 1 checkpoint
+
+## 2026-09-06T18:34:44.604929+00:00 - Reuse rider AI isolation for unmounted RT controls
+
+Branch codex/mounted-combat-phase3f-playable-core; HEAD f06ca89ddb34733715cc383d7219fb60ce4d2c45; preparing preview13. Preview12 full offline suite PASS/0 (source22, COMPONENT345, harness243, ordinary39, Phase3G14/3H29, ASSEMBLY439, package10). Package e8fbf74eff31ec666e43b59767d205ca2f4b418132199c5c77fbffb1e4bd5e42; manifest1921583fc32bbd31436417a04b780c39e0915fb9d2dcce094059b5464c9ceb4b.
+
+20260906-chunk1-focused-unmounted-rt-B:1 PASS/1 FAIL. Native Dismount admitted from initiative0/CanActInCombat=true/idle hands, accepted delivery and real Move charge; fixture resumed one pause. Unmounted melee remained exact stock UnitAttack. Ranged admission deadline30s: fresh target damaged19/dead before the measured input, rider hands busy, Horse and non-pair AI isolated. Native rider auto-attack during setup is the discriminating hypothesis; prior failure did not export first incoming actor. Reuse the existing out-of-combat rider AI lease already qualified by ordinary TB controls before creating measured targets. Record damage-before-dispatch and first incoming damage; require zero setup damage and exact rider-AI restoration. Keep all native commands, target128 durability, costs and production code unchanged.
+
+Full actual intake restoration PASS18:30:06.9086699UTC; save/Mods digests unchanged; no lock. Log35d780ef4cfe32fa558263d1f114d60d318c8e6760d91a13ac09384131f085f8. Next: focused checks/full applicable suite, coherent source/package, snapshot and discriminating unmounted run, then Mammoth/C01-C03/RT/party on same candidate. Human play and safe mod-absent remain pending. ACTIVE-RUN.json supplements this record during purity guards.
+
+---
+
+# Active Chunk 1 checkpoint
 ## 2026-09-06 18:19 UTC - Focused RT admission readiness
 
 Branch codex/mounted-combat-phase3f-playable-core; HEAD e7701e3f6228e43a424bd327072345407ecaf4e9; preparing 0.1.0-chunk1-preview.12. Preview11 full source/component/protocol/assembly/package suite PASS (22/345/243+14+29+39/439/10; zero FAIL). Package4b5dc10a1e449f66fd1244caf14d4d88b86d25445046c1a0f0f8689181d58935; source/package manifest ef10e666e4ca725488f54fb03f75ed2b47dace11e5dbf7c55029102957554581.
