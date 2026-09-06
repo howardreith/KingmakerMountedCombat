@@ -21,6 +21,18 @@ function Get-KmcOrdinaryAttackControlCases {
     return $cases
 }
 
+function Assert-KmcNativeAttackBonusEvidence($Roll) {
+    $native=$Roll.nativeCalculation
+    if($null -eq $native -or $null -eq $native.innerResult -or $null -eq $native.bab -or
+        $null -eq $native.concealment -or $null -eq $native.flanking -or $null -eq $native.shootIntoCombat -or
+        $native.playerFaction -isnot [bool] -or $native.trueDeath -isnot [bool]) {throw 'Native bonus calculation is incomplete.'}
+    $expected=[int]$native.innerResult+[int]$native.concealment+[int]$native.flanking+[int]$native.shootIntoCombat
+    if($native.playerFaction -and !$native.trueDeath) { $expected=[Math]::Max($expected,[int]$native.bab-[int]$Roll.iterativePenalty-2) }
+    if($Roll.attackBonus -ne $native.result -or $native.result -ne $expected) {
+        throw 'Delivered attack bonus differs from native target adjustments and difficulty minimum.'
+    }
+}
+
 function Assert-KmcOrdinaryAttackControlsEvidence {
     param($Request, $Artifact, [string]$Status)
     if ([string]$Request.scenario -cne 'ordinary-attack-controls-tb' -or [long]$Artifact.schemaVersion -ne 1) {
@@ -90,7 +102,8 @@ function Assert-KmcOrdinaryAttackControlsEvidence {
         }
         if($null -eq $e.variation -or $e.variation.rapidShot -ne $case.rapid -or
             ($null -ne $case.bab -and $e.variation.babBase -ne $case.bab) -or
-            $case.haste -ne (![string]::IsNullOrEmpty([string]$e.variation.haste))){throw 'Native fixture inputs differ.'}
+            $case.haste -ne (![string]::IsNullOrEmpty([string]$e.variation.haste)) -or
+            ($case.haste -and $e.variation.haste -cne '03464790f40c3c24aa684b57155f3280')){throw 'Native fixture inputs differ.'}
         if($case.preparation -ceq 'stale-staggered' -and ($e.variation.staggered -ne $true -or $e.prediction.fullEnabled -ne $true)) {
             throw 'Stale full prediction was not revalidated against native Staggered.'
         }
@@ -118,8 +131,14 @@ function Assert-KmcOrdinaryAttackControlsEvidence {
         if(@($e.nativePlan).Count -ne $e.planned -or @($e.rules.attackRollEvents).Count -ne $e.completed) {
             throw 'Native attack modifiers/plan observations are missing.'
         }
+        $rollIndex=0
         foreach($roll in $e.rules.attackRollEvents) {
             if($roll.actor -cne $e.before.rider.id -or $null -eq $roll.attackBonus -or $null -eq $roll.iterativePenalty){throw 'Native rule ownership or modifiers are absent.'}
+            $plan=$e.nativePlan[$rollIndex++]
+            if($roll.weapon -cne $plan.weapon -or $roll.ranged -ne $plan.ranged -or $roll.iterativePenalty -ne $plan.penalty) {
+                throw 'Delivered weapon or iterative penalty differs from the native plan.'
+            }
+            Assert-KmcNativeAttackBonusEvidence $roll
         }
     }
     if($pass -ne $Artifact.subscenarioPassCount -or $fail -ne $Artifact.subscenarioFailCount){throw 'Ordinary control counts differ.'}
@@ -136,9 +155,15 @@ function Assert-KmcOrdinaryAttackControlsEvidence {
                 ($baseline.nativePlan|ConvertTo-Json -Depth 8 -Compress) -cne ($mounted.nativePlan|ConvertTo-Json -Depth 8 -Compress)) {
                 throw 'Matched mounted and native plans differ.'
             }
-            $baseBonus=($baseline.rules.attackRollEvents|Measure-Object attackBonus -Maximum).Maximum
-            $mountedBonus=($mounted.rules.attackRollEvents|Measure-Object attackBonus -Maximum).Maximum
-            if($baseBonus -ne $mountedBonus){throw 'Matched native attack bonuses differ.'}
+            $baseRolls=@($baseline.rules.attackRollEvents);$mountedRolls=@($mounted.rules.attackRollEvents)
+            if($baseRolls.Count -ne $mountedRolls.Count){throw 'Matched native delivery counts differ.'}
+            for($index=0;$index -lt $baseRolls.Count;$index++) {
+                if($baseRolls[$index].nativeCalculation.innerResult -ne $mountedRolls[$index].nativeCalculation.innerResult -or
+                    $baseRolls[$index].statModifier -ne $mountedRolls[$index].statModifier -or
+                    $baseRolls[$index].secondaryBonus -ne $mountedRolls[$index].secondaryBonus) {
+                    throw 'Matched target-independent native attack inputs differ.'
+                }
+            }
         }
         foreach($control in @('B','C')) {
             $rapid=$evidence['C01-'+$control];$off=$evidence['C03-rapid-off-'+$control]
@@ -146,10 +171,10 @@ function Assert-KmcOrdinaryAttackControlsEvidence {
             if($rapid.planned -ne $off.planned+1 -or $haste.planned -ne $bab.planned+1 -or $bab.planned -ge $off.planned) {
                 throw 'Native Rapid Shot/BAB/haste attack-count controls differ.'
             }
-            $rapidBonus=($rapid.rules.attackRollEvents|Measure-Object attackBonus -Maximum).Maximum
-            $offBonus=($off.rules.attackRollEvents|Measure-Object attackBonus -Maximum).Maximum
-            $babBonus=($bab.rules.attackRollEvents|Measure-Object attackBonus -Maximum).Maximum
-            $hasteBonus=($haste.rules.attackRollEvents|Measure-Object attackBonus -Maximum).Maximum
+            $rapidBonus=($rapid.rules.attackRollEvents|Where-Object ranged|ForEach-Object {$_.nativeCalculation.innerResult}|Measure-Object -Maximum).Maximum
+            $offBonus=($off.rules.attackRollEvents|Where-Object ranged|ForEach-Object {$_.nativeCalculation.innerResult}|Measure-Object -Maximum).Maximum
+            $babBonus=($bab.rules.attackRollEvents|Where-Object ranged|ForEach-Object {$_.nativeCalculation.innerResult}|Measure-Object -Maximum).Maximum
+            $hasteBonus=($haste.rules.attackRollEvents|Where-Object ranged|ForEach-Object {$_.nativeCalculation.innerResult}|Measure-Object -Maximum).Maximum
             if($rapidBonus -ne $offBonus-2 -or $hasteBonus -ne $babBonus+1){throw 'Native Rapid Shot/haste attack modifiers differ.'}
         }
         if(($evidence['C03-carried-move-C'].nativePlan|ConvertTo-Json -Depth 8 -Compress) -cne

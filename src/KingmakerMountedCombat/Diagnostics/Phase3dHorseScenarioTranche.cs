@@ -6678,6 +6678,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 pairAttackRollEvents.Add(new JObject {
                     ["actor"] = evt.Initiator.UniqueId, ["target"] = evt.Target.UniqueId,
                     ["attackBonus"] = evt.AttackBonus, ["iterativePenalty"] = evt.AttackBonusPenalty,
+                    ["weapon"] = evt.Weapon?.Blueprint.AssetGuid, ["ranged"] = evt.Weapon?.Blueprint.IsRanged,
+                    ["nativeCalculation"] = NativeAttackBonusEvidence.Capture(evt),
                     ["statModifier"] = evt.AttackBonusRule?.AttackBonusStatModifier,
                     ["secondaryBonus"] = evt.AttackBonusRule?.SecondaryBonus,
                     ["shootIntoCombatBonus"] = evt.AttackBonusRule?.ShootIntoCombatBonus,

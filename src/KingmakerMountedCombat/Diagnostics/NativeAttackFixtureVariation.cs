@@ -40,7 +40,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     var named = ResourcesLibrary.LibraryObject.BlueprintsByAssetId.Values
                         .OfType<BlueprintBuff>().Where(item => item.name.IndexOf("Haste", StringComparison.OrdinalIgnoreCase) >= 0).ToArray();
-                    var candidates = named.Where(item => item.GetComponents<BuffExtraAttack>()
+                    var candidates = named.Where(item => item.AssetGuid == "03464790f40c3c24aa684b57155f3280" &&
+                        item.name == "HasteBuff" && item.GetComponents<BuffExtraAttack>()
                         .Any(extra => extra.Haste && extra.Number == 1)).ToArray();
                     if (candidates.Length != 1 || actor.Descriptor.HasFact(candidates[0]))
                         throw new InvalidOperationException("Expected one initially unowned native Haste buff; candidates=" +
