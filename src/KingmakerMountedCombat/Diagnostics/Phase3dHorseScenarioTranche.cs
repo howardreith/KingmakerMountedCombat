@@ -389,9 +389,10 @@ namespace KingmakerMountedCombat.Diagnostics
                             : "-rider") : null) : step.ToString());
                 targetService?.ObserveTargetLifeState();
                 targetService?.RefreshBidirectionalCombatMemoryLease();
-                if (!cleanupStarted && clock.Elapsed.TotalSeconds > ScenarioDeadlineSeconds)
+                var scenarioBudget = IsOrdinaryAttackControls ? OrdinaryScenarioDeadlineSeconds : ScenarioDeadlineSeconds;
+                if (!cleanupStarted && clock.Elapsed.TotalSeconds > scenarioBudget)
                 {
-                    FailCurrent("phase3d-horse-scenario-deadline", "Phase 3D Horse tranche exceeded 300 seconds at " + step + ".");
+                    FailCurrent("phase3d-horse-scenario-deadline", "Horse tranche exceeded its " + scenarioBudget + " second scenario budget at " + step + ".");
                     BeginCleanup();
                 }
                 else if (!cleanupStarted && leafClock.Elapsed.TotalSeconds > LeafDeadlineSeconds)
@@ -5983,6 +5984,8 @@ namespace KingmakerMountedCombat.Diagnostics
             // the mode. Never drop ownership of an item before that cleanup boundary.
             try { rangedWeaponLease?.Dispose(); rangedWeaponLease = null; }
             catch (Exception exception) { AddCleanupError("ranged weapon", exception); }
+            try { ordinaryVariation?.Dispose(); ordinaryVariation = null; }
+            catch (Exception exception) { AddCleanupError("Ordinary native stat fixture", exception); }
             try { RestorePhase3hRapidShot(); }
             catch (Exception exception) { AddCleanupError("Rapid Shot fixture feature", exception); }
             if (ordinaryAttackTrace != null)
@@ -6461,6 +6464,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly UnitEntityData mount;
         private readonly IDisposable subscription;
         private readonly JArray pairAttackRuleEvents = new JArray();
+        private readonly JArray pairAttackRollEvents = new JArray();
         private UnitEntityData expectedTarget;
         private bool forcePairHit;
         private bool disposed;
@@ -6528,6 +6532,7 @@ namespace KingmakerMountedCombat.Diagnostics
             LastRiderAttackType = null;
             LastRiderAttackDoNotProvoke = null;
             pairAttackRuleEvents.Clear();
+            pairAttackRollEvents.Clear();
             ResetOpportunityCounts();
         }
 
@@ -6563,7 +6568,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["lastPairActorId"] = LastPairAttackActorId,
                 ["lastRiderAttackType"] = LastRiderAttackType,
                 ["lastRiderAttackDoNotProvoke"] = LastRiderAttackDoNotProvoke,
-                ["attackRuleEvents"] = pairAttackRuleEvents.DeepClone()
+                ["attackRuleEvents"] = pairAttackRuleEvents.DeepClone(),
+                ["attackRollEvents"] = pairAttackRollEvents.DeepClone()
             };
         }
 
@@ -6669,6 +6675,16 @@ namespace KingmakerMountedCombat.Diagnostics
             else if (evt.Target == expectedTarget && (evt.Initiator == rider || evt.Initiator == mount))
             {
                 PairAttackRollCount++;
+                pairAttackRollEvents.Add(new JObject {
+                    ["actor"] = evt.Initiator.UniqueId, ["target"] = evt.Target.UniqueId,
+                    ["attackBonus"] = evt.AttackBonus, ["iterativePenalty"] = evt.AttackBonusPenalty,
+                    ["statModifier"] = evt.AttackBonusRule?.AttackBonusStatModifier,
+                    ["secondaryBonus"] = evt.AttackBonusRule?.SecondaryBonus,
+                    ["shootIntoCombatBonus"] = evt.AttackBonusRule?.ShootIntoCombatBonus,
+                    ["bonuses"] = evt.AttackBonusRule == null ? null : new JArray(evt.AttackBonusRule.BonusSources.Select(item => new JObject {
+                        ["bonus"] = item.Bonus, ["source"] = item.Source?.Blueprint.AssetGuid,
+                        ["sourceName"] = item.Source?.Blueprint.name }))
+                });
                 if (evt.RuleAttackWithWeapon != null && evt.RuleAttackWithWeapon.IsAttackOfOpportunity)
                 {
                     PairOpportunityAttackRollCount++;

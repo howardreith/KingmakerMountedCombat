@@ -478,6 +478,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private static readonly HashSet<string> MissionScenarios = new HashSet<string>(StringComparer.Ordinal)
         {
             "C01-B", "C01-C", "C01-D",
+            "C03-rapid-off-B", "C03-rapid-off-C", "C03-bab-B", "C03-bab-C", "C03-haste-B", "C03-haste-C",
+            "C02-restricted-B", "C02-restricted-C", "C03-single-B", "C03-single-C", "C03-spent-standard-B", "C03-spent-standard-C",
             "mod-load-smoke",
             "export-mounted-contracts",
             "export-candidate-mount-rigs",

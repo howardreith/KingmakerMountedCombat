@@ -52,6 +52,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 Patch(typeof(UnitAttack), "InitAttacks", 0x0600267C, "PlanBefore", "PlanAfter");
                 Patch(typeof(UnitAttack), "OnStart", 0x0600267E, "StartBefore", "StartAfter");
                 Patch(typeof(UnitAttack), "OnAction", 0x06002681, "DeliveryBefore", "DeliveryAfter");
+                Patch(typeof(UnitAttack), "UpdateTarget", 0x06002683, null, "TargetAfter");
+                Patch(typeof(UnitCommand), "Interrupt", 0x060027AC, "InterruptBefore", null);
                 Patch(typeof(UnitCommand), "OnEnded", 0x060027B2, null, "Ended");
                 Patch(typeof(UnitActionController), "UpdateCooldowns", 0x06009120, "CostBefore", "CostAfter");
             }
@@ -110,6 +112,16 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["executor"] = command?.Executor?.UniqueId, ["target"] = attack?.Target?.UniqueId,
                     ["createdByPlayer"] = command?.CreatedByPlayer, ["started"] = command?.IsStarted,
                     ["acted"] = command?.IsActed, ["finished"] = command?.IsFinished, ["result"] = command?.Result.ToString(),
+                    ["timeSinceStart"] = command?.TimeSinceStart,
+                    ["actorPosition"] = new JArray(actor.Position.x, actor.Position.y, actor.Position.z),
+                    ["targetPosition"] = attack?.Target == null ? null : new JArray(attack.Target.Position.x, attack.Target.Position.y, attack.Target.Position.z),
+                    ["targetDead"] = attack?.Target?.Descriptor.State.IsDead,
+                    ["targetUnconscious"] = attack?.Target?.Descriptor.State.IsUnconscious,
+                    ["targetHp"] = attack?.Target?.Stats.HitPoints.ModifiedValue,
+                    ["targetDamage"] = attack?.Target?.Damage,
+                    ["targetTemporaryHp"] = attack?.Target?.Stats.TemporaryHitPoints.ModifiedValue,
+                    ["actorCanAct"] = actor.Descriptor.State.CanAct,
+                    ["interruptPending"] = command?.InterruptAsSoonAsPossible,
                     ["commands"] = Identity(actor.Commands),
                     ["raw"] = new JArray(actor.Commands.Raw.Select(Identity)),
                     ["queue"] = new JArray(actor.Commands.Queue.Select(Identity)),
@@ -124,6 +136,13 @@ namespace KingmakerMountedCombat.Diagnostics
                     row["shouldApproach"] = command.ShouldUnitApproach;
                     row["approachRadius"] = command.ApproachRadius;
                     row["enoughClose"] = command.IsUnitEnoughClose;
+                    row["shouldInterrupt"] = command.ShouldBeInterrupted;
+                    if (attack?.Target != null)
+                    {
+                        row["targetInState"] = attack.Target.IsInState;
+                        row["targetUntargetable"] = UnitCommand.CommandTargetUntargetable(actor, attack.Target);
+                        row["targetStealth"] = attack.Target.InStealthFor(actor.Group);
+                    }
                 }
                 if (attack != null)
                     row["plan"] = new JArray(attack.AllAttacks.Select(item => new JObject {
@@ -158,6 +177,10 @@ namespace KingmakerMountedCombat.Diagnostics
             internal static void StartAfter(UnitAttack __instance) { active?.Record("start-after", __instance.Executor, __instance); }
             internal static void DeliveryBefore(UnitAttack __instance) { active?.Record("delivery-before", __instance.Executor, __instance); }
             internal static void DeliveryAfter(UnitAttack __instance) { active?.Record("delivery-after", __instance.Executor, __instance); }
+            internal static void TargetAfter(UnitAttack __instance, bool __result)
+            { if (!__result) active?.Record("target-invalid", __instance.Executor, __instance); }
+            internal static void InterruptBefore(UnitCommand __instance)
+            { if (__instance.IsStarted && !__instance.IsFinished) active?.Record("interrupt-request", __instance.Executor, __instance, new StackTrace(1, false).ToString()); }
             internal static void Ended(UnitCommand __instance) { active?.Record("ended", __instance.Executor, __instance); }
             internal static void CostBefore(UnitCommand command) { active?.Record("cost-before", command.Executor, command); }
             internal static void CostAfter(UnitCommand command) { active?.Record("cost-after", command.Executor, command); }

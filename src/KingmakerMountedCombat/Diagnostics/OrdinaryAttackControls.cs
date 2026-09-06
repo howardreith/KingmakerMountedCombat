@@ -19,7 +19,32 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         internal const string OrdinaryAttackControlsScenario = "ordinary-attack-controls-tb";
         private bool IsOrdinaryAttackControls => request.Scenario == OrdinaryAttackControlsScenario;
-        private static readonly string[] OrdinaryCaseIds = { "C01-B", "C01-C", "C01-D" };
+        private sealed class OrdinaryCase
+        {
+            internal readonly string Id;
+            internal readonly bool Mounted;
+            internal readonly bool Primary;
+            internal readonly bool Rapid;
+            internal readonly int? Bab;
+            internal readonly bool Haste;
+            internal readonly string Preparation;
+            internal OrdinaryCase(string id, bool mounted, bool primary = false, bool rapid = true,
+                int? bab = null, bool haste = false, string preparation = "fresh")
+            { Id = id; Mounted = mounted; Primary = primary; Rapid = rapid; Bab = bab; Haste = haste; Preparation = preparation; }
+            internal bool ExpectedFull => !Primary && Preparation == "fresh";
+        }
+        private static readonly OrdinaryCase[] OrdinaryCases = {
+            new OrdinaryCase("C01-B", false), new OrdinaryCase("C01-C", true), new OrdinaryCase("C01-D", true, true),
+            new OrdinaryCase("C03-rapid-off-B", false, rapid: false), new OrdinaryCase("C03-rapid-off-C", true, rapid: false),
+            new OrdinaryCase("C03-bab-B", false, rapid: false, bab: 6), new OrdinaryCase("C03-bab-C", true, rapid: false, bab: 6),
+            new OrdinaryCase("C03-haste-B", false, rapid: false, bab: 6, haste: true), new OrdinaryCase("C03-haste-C", true, rapid: false, bab: 6, haste: true),
+            new OrdinaryCase("C02-restricted-B", false, preparation: "stale-staggered"), new OrdinaryCase("C02-restricted-C", true, preparation: "stale-staggered"),
+            new OrdinaryCase("C03-single-B", false, preparation: "native-single"), new OrdinaryCase("C03-single-C", true, preparation: "native-single"),
+            new OrdinaryCase("C03-spent-standard-B", false, preparation: "spent-standard"), new OrdinaryCase("C03-spent-standard-C", true, preparation: "spent-standard")
+        };
+        private static readonly string[] OrdinaryCaseIds = OrdinaryCases.Select(item => item.Id).ToArray();
+        internal static double OrdinaryScenarioDeadlineSeconds => OrdinaryCaseIds.Length * LeafDeadlineSeconds + 60.0d;
+        private OrdinaryCase OrdinaryCurrent => OrdinaryCases[ordinaryCase];
         private int ordinaryCase;
         private int ordinaryStage;
         private bool ordinaryControlSent;
@@ -30,8 +55,12 @@ namespace KingmakerMountedCombat.Diagnostics
         private int ordinaryRepeats;
         private bool ordinaryContinuity;
         private long ordinaryIntentBefore;
-        private bool OrdinaryMounted => ordinaryCase != 0;
-        private bool OrdinaryPrimary => ordinaryCase == 2;
+        private NativeAttackFixtureVariation ordinaryVariation;
+        private JObject ordinaryVariationAtDispatch;
+        private JObject ordinarySpent;
+        private double ordinarySpentAt;
+        private bool OrdinaryMounted => OrdinaryCurrent.Mounted;
+        private bool OrdinaryPrimary => OrdinaryCurrent.Primary;
 
         private void BeginOrdinaryAttackControls()
         {
@@ -58,6 +87,8 @@ namespace KingmakerMountedCombat.Diagnostics
             ordinaryTurn = null;
             ordinaryRepeats = 0;
             ordinaryContinuity = true;
+            ordinaryVariationAtDispatch = null;
+            ordinarySpent = null;
             ResetLeafClock();
         }
 
@@ -86,6 +117,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     return;
                 }
                 if (!OrdinaryMounted && (!PrepareUnmountedHorseAiIsolation() || !PrepareCombatMountRiderAiIsolation())) return;
+                ordinaryVariation = new NativeAttackFixtureVariation(rider, phase3hRapidToggle,
+                    OrdinaryCurrent.Rapid, OrdinaryCurrent.Bab, OrdinaryCurrent.Haste);
                 BeginTarget(3.5f, OrdinaryCaseIds[ordinaryCase]);
                 ruleProbe.Arm(target, false);
                 ordinaryStage = 1;
@@ -120,16 +153,44 @@ namespace KingmakerMountedCombat.Diagnostics
                         ["before"] = beforePrediction, ["after"] = afterPrediction,
                         ["fullEnabled"] = turn.EnabledFullAttack, ["nativeEstimate"] = UnitAttack.EstimateFullAttacks(rider)
                     };
+                    if (OrdinaryCurrent.Preparation == "native-single" || OrdinaryCurrent.Preparation == "spent-standard")
+                    {
+                        var cycles = 0;
+                        while (turn.EnabledFullAttack && cycles++ < 8) { input.Click(button: 1); input.Predict(); }
+                        if (turn.EnabledFullAttack || cycles == 0)
+                            throw new InvalidOperationException("Native right-click did not choose a genuine Single action.");
+                        ordinaryPrediction["nativeCursorCycles"] = cycles;
+                        ordinaryPrediction["fullAfterChoice"] = turn.EnabledFullAttack;
+                    }
+                    if (OrdinaryCurrent.Preparation == "stale-staggered") ordinaryVariation.ApplyStaleRestriction();
+                    ordinaryVariationAtDispatch = ordinaryVariation.Capture();
                     if (!targetService.BeginExpectedAttackDispatch(target))
                         throw new InvalidOperationException("Exact ordinary control target admission failed.");
                     var clicked = OrdinaryPrimary
                         ? TryNativeAbilityTargetClick(nativeControls.RiderPrimaryAbility, target, "ordinary-primary-input")
                         : input.Click();
+                    if (!clicked && OrdinaryCurrent.Preparation == "stale-staggered")
+                    {
+                        ordinaryPrediction["staleClickRefused"] = true;
+                        ordinaryStage = 4;
+                        return;
+                    }
                     if (!clicked) { CompleteOrdinaryCase(false, "Native input admission refused."); return; }
                 }
                 ordinaryStage = 2;
                 ResetLeafClock();
                 return;
+            }
+            if (ordinaryStage == 4)
+            {
+                // A changed native condition can invalidate cached prediction. Let
+                // the normal prediction/admission callbacks reject and refresh it.
+                using (var input = new NativeOrdinaryAttackInput(target))
+                {
+                    input.Predict();
+                    if (!input.Click()) return;
+                }
+                ordinaryStage = 2; ResetLeafClock(); return;
             }
             if (ordinaryStage == 2)
             {
@@ -163,13 +224,40 @@ namespace KingmakerMountedCombat.Diagnostics
                     ruleProbe.RiderResolvedCount == nativePlan && ruleProbe.MountNonOpportunityAttackRuleCount == 0 &&
                     ruleProbe.PairForcedD20Count == 0 && ReferenceEquals(game.TurnBasedCombatController.CurrentTurn, ordinaryTurn) &&
                     (bool)ordinaryPrediction["pure"] && ordinaryContinuity &&
-                    (OrdinaryPrimary ? nativePlan == 1 && ordinaryMeasured.IsSingleAttack && !ordinaryMeasured.IsFullAttack :
-                        ordinaryMeasured.IsFullAttack && nativePlan >= 2) &&
+                    (OrdinaryCurrent.ExpectedFull ? ordinaryMeasured.IsFullAttack && nativePlan >= 2 :
+                        nativePlan == 1 && !ordinaryMeasured.IsFullAttack && ordinaryMeasured.IsSingleAttack == OrdinaryPrimary) &&
                     Math.Abs(rider.CombatState.Cooldown.StandardAction - 6f) < 0.001f &&
-                    Math.Abs(rider.CombatState.Cooldown.MoveAction - (OrdinaryPrimary ? 0f : 3f)) < 0.001f &&
+                    Math.Abs(rider.CombatState.Cooldown.MoveAction - (OrdinaryCurrent.ExpectedFull ? 3f : 0f)) < 0.001f &&
                     Math.Abs(horse.CombatState.Cooldown.StandardAction - (float)ordinaryBefore["mount"]["standard"]) < 0.001f &&
                     Math.Abs(horse.CombatState.Cooldown.MoveAction - (float)ordinaryBefore["mount"]["move"]) < 0.001f;
-                CompleteOrdinaryCase(success, "Matched native stationary plan, effects, costs and prediction continuity.");
+                if (success && OrdinaryCurrent.Preparation == "spent-standard")
+                {
+                    ordinarySpent = new JObject { ["before"] = CaptureOrdinaryLiveState(),
+                        ["rulesBefore"] = ruleProbe.CapturePairEvidence() };
+                    using (var input = new NativeOrdinaryAttackInput(target))
+                    {
+                        input.Predict();
+                        ordinarySpent["clickAccepted"] = input.Click();
+                    }
+                    ordinarySpentAt = clock.Elapsed.TotalSeconds;
+                    ordinaryStage = 5;
+                    return;
+                }
+                CompleteOrdinaryCase(success, "Native stationary plan, effects, costs and prediction continuity.");
+                return;
+            }
+            if (ordinaryStage == 5)
+            {
+                if (clock.Elapsed.TotalSeconds - ordinarySpentAt < 1.0d) return;
+                ordinarySpent["after"] = CaptureOrdinaryLiveState();
+                ordinarySpent["rulesAfter"] = ruleProbe.CapturePairEvidence();
+                ordinarySpent["sameNativeTurn"] = ReferenceEquals(game.TurnBasedCombatController.CurrentTurn, ordinaryTurn);
+                ordinarySpent["secondAttackStarted"] = !ReferenceEquals(ordinaryAttackTrace.LastStartedRiderAttack, ordinaryMeasured);
+                var success = !rider.HasStandardAction() && (bool)ordinarySpent["sameNativeTurn"] &&
+                    !(bool)ordinarySpent["secondAttackStarted"] && ruleProbe.RiderResolvedCount == 1 &&
+                    Math.Abs(rider.CombatState.Cooldown.StandardAction - 6f) < 0.001f &&
+                    Math.Abs(rider.CombatState.Cooldown.MoveAction) < 0.001f;
+                CompleteOrdinaryCase(success, "Native Standard expenditure prevents another attack in the same activation.");
                 return;
             }
             if (ordinaryStage == 3)
@@ -184,6 +272,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (turnBasedModeProbe != null) { turnBasedModeProbe.Dispose(); turnBasedModeProbe = null; }
                 if (CombatController.IsInTurnBasedCombat() || game.TurnBasedCombatController.Initialized ||
                     game.Player.IsInCombat || !rider.Commands.Empty || !horse.Commands.Empty) return;
+                ordinaryVariation.Dispose(); ordinaryVariation = null;
                 if (!OrdinaryMounted && (!RestoreCombatMountRiderAiIsolation() || !RestoreUnmountedHorseAiIsolation()))
                     throw new InvalidOperationException("Unmounted control AI isolation did not restore exactly.");
                 if (!OrdinaryMounted)
@@ -225,6 +314,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             return command == null ? JValue.CreateNull() : (JToken)new JObject {
                 ["id"] = RuntimeHelpers.GetHashCode(command), ["type"] = command.GetType().FullName,
+                ["executor"] = command.Executor?.UniqueId,
                 ["started"] = command.IsStarted, ["acted"] = command.IsActed,
                 ["finished"] = command.IsFinished, ["result"] = command.Result.ToString()
             };
@@ -234,12 +324,19 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             AddRow(OrdinaryCaseIds[ordinaryCase], success, detail, new JObject {
                 ["level"] = "NATIVE INTEGRATION", ["parameters"] = new JObject { ["mode"] = "TB", ["mounted"] = OrdinaryMounted,
-                    ["primary"] = OrdinaryPrimary, ["weapon"] = "Longbow", ["rapidShot"] = phase3hRapidToggle.IsOn },
+                    ["primary"] = OrdinaryPrimary, ["weapon"] = "Longbow", ["rapidShot"] = phase3hRapidToggle.IsOn,
+                    ["bab"] = OrdinaryCurrent.Bab, ["haste"] = OrdinaryCurrent.Haste, ["preparation"] = OrdinaryCurrent.Preparation },
+                ["variation"] = ordinaryVariationAtDispatch, ["spentStandard"] = ordinarySpent,
                 ["before"] = ordinaryBefore, ["after"] = CaptureOrdinaryLiveState(), ["prediction"] = ordinaryPrediction,
                 ["repeatedRequests"] = ordinaryRepeats, ["continuity"] = ordinaryContinuity,
                 ["intentStarts"] = combat.StockAttackIntentStartCount - ordinaryIntentBefore,
                 ["nativeCommand"] = CaptureOrdinaryCommand(ordinaryMeasured),
                 ["nativeFull"] = ordinaryMeasured?.IsFullAttack, ["nativeSingle"] = ordinaryMeasured?.IsSingleAttack,
+                ["target"] = new JObject { ["id"] = target?.UniqueId, ["dead"] = target?.Descriptor.State.IsDead,
+                    ["unconscious"] = target?.Descriptor.State.IsUnconscious, ["damage"] = target?.Damage,
+                    ["hp"] = target?.Stats.HitPoints.ModifiedValue, ["temporaryHp"] = target?.Stats.TemporaryHitPoints.ModifiedValue },
+                ["nativePlan"] = ordinaryMeasured == null ? null : new JArray(ordinaryMeasured.AllAttacks.Select(item => new JObject {
+                    ["weapon"] = item.Weapon?.Blueprint.AssetGuid, ["penalty"] = item.AttackBonusPenalty })),
                 ["planned"] = ordinaryMeasured?.AllAttacks.Count, ["completed"] = ordinaryMeasured?.GetAttackIndex(),
                 ["rules"] = ruleProbe.CapturePairEvidence()
             });

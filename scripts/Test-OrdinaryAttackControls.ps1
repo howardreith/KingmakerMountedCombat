@@ -2,7 +2,7 @@ $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'runtime\RuntimeHarness.Common.ps1')
 $passed=0
-foreach($name in @('ordinary-attack-controls-tb','C01-B','C01-C','C01-D')) {
+foreach($name in @('ordinary-attack-controls-tb') + @(Get-KmcOrdinaryAttackControlCases | ForEach-Object {$_.id})) {
     if(@(Get-KmcPhase3dHorseRuntimeRows|Where-Object {$_ -ceq $name}).Count -ne 1){throw "Missing exact ordinary control row: $name"}
 }
 if(@(Get-KmcSaveBackedRuntimeScenarios|Where-Object {$_ -ceq 'ordinary-attack-controls-tb'}).Count -ne 1){throw 'Ordinary controls lack guarded fixture registration.'}
@@ -14,18 +14,23 @@ if(@($allowed|Where-Object {$_ -ceq 'ordinary-attack-controls-tb'}).Count -ne 1 
 $passed++
 function New-OrdinaryControlArtifact {
     $rows=@()
-    foreach($id in @('C01-B','C01-C','C01-D')) {
-        $primary=$id -ceq 'C01-D';$mounted=$id -cne 'C01-B';$count=if($primary){1}else{4}
-        $rows+=@{name=$id;status='PASS';evidence=@{
-            level='NATIVE INTEGRATION';parameters=@{mode='TB';mounted=$mounted;primary=$primary;rapidShot=$true;weapon='Longbow'}
-            prediction=@{count=3;pure=$true;fullEnabled=$true;before=@{rider=@{standard=0;move=0}};after=@{rider=@{standard=0;move=0}}};continuity=$true;repeatedRequests=3;intentStarts=1
-            nativeCommand=@{result='Success';finished=$true};completed=$count;planned=$count;nativeFull=(!$primary);nativeSingle=$primary
-            rules=@{riderResolved=$count;mountNonOpportunityAttackRules=0;pairForcedD20=0}
-            before=@{rider=@{standard=0;move=0};mount=@{standard=0;move=0}}
-            after=@{rider=@{standard=6;move=if($primary){0}else{3}};mount=@{standard=0;move=0}}
+    foreach($case in @(Get-KmcOrdinaryAttackControlCases)) {
+        $full=(!$case.primary -and $case.preparation -ceq 'fresh')
+        $count=if(!$full){1}elseif($case.bab -eq 6){if($case.haste){3}else{2}}elseif($case.rapid){5}else{4}
+        $bonus=$(if($case.bab -eq 6){10}else{24})+$(if($case.rapid){-2}else{0})+$(if($case.haste){1}else{0})
+        $rows+=@{name=$case.id;status='PASS';evidence=@{
+            level='NATIVE INTEGRATION';parameters=@{mode='TB';mounted=$case.mounted;primary=$case.primary;rapidShot=$case.rapid;weapon='Longbow';bab=$case.bab;haste=$case.haste;preparation=$case.preparation}
+            variation=@{rapidShot=$case.rapid;babBase=$case.bab;haste=$(if($case.haste){'native-haste'}else{$null});staggered=$case.preparation -ceq 'stale-staggered'}
+            prediction=@{count=3;pure=$true;fullEnabled=$true;nativeEstimate=$count;nativeCursorCycles=1;fullAfterChoice=$false;before=@{rider=@{standard=0;move=0}};after=@{rider=@{standard=0;move=0}}};continuity=$true;repeatedRequests=3;intentStarts=1
+            nativeCommand=@{result='Success';finished=$true;executor='rider'};completed=$count;planned=$count;nativeFull=$full;nativeSingle=$case.primary
+            nativePlan=@(1..$count|ForEach-Object {@{weapon='native-longbow';penalty=0}})
+            rules=@{riderResolved=$count;mountNonOpportunityAttackRules=0;pairForcedD20=0;attackRollEvents=@(1..$count|ForEach-Object {@{actor='rider';attackBonus=$bonus;iterativePenalty=0}})}
+            spentStandard=@{sameNativeTurn=$true;secondAttackStarted=$false;rulesBefore=@{riderResolved=1};rulesAfter=@{riderResolved=1};before=@{rider=@{standard=6}};after=@{rider=@{standard=6;move=0}}}
+            before=@{rider=@{id='rider';standard=0;move=0};mount=@{standard=0;move=0}}
+            after=@{rider=@{standard=6;move=if($full){3}else{0}};mount=@{standard=0;move=0}}
         }}
     }
-    return (@{schemaVersion=1;status='PASS';rows=$rows;subscenarioPassCount=3;subscenarioFailCount=0;errors=@();observations=@{
+    return (@{schemaVersion=1;status='PASS';rows=$rows;subscenarioPassCount=$rows.Count;subscenarioFailCount=0;errors=@();observations=@{
         phase3fActualConfiguration=@{enableUnifiedMountedTurn=$false;enablePairedCommandScheduler=$false;enableDiagnosticOverlay=$false;overlayPresent=$false}
         ordinaryAttackTrace=@{dropped=0;events=@('simulation-before','plan-after','start-after','delivery-after','ended','cost-after')|ForEach-Object {@{boundary=$_}}}
     }} | ConvertTo-Json -Depth 16 | ConvertFrom-Json)
@@ -33,7 +38,7 @@ function New-OrdinaryControlArtifact {
 $request=[pscustomobject]@{scenario='ordinary-attack-controls-tb'}
 Assert-KmcOrdinaryAttackControlsEvidence $request (New-OrdinaryControlArtifact) PASS
 $passed++
-foreach($mutation in @('mode','configuration','owner-cost','count','primary','prediction','prediction-data','wrong-envelope','continuity','missing','trace','native-cost','forced-roll','unmatched')) {
+foreach($mutation in @('mode','configuration','owner-cost','count','primary','prediction','prediction-data','wrong-envelope','continuity','missing','trace','native-cost','forced-roll','unmatched','bonus','restricted','spent-standard','executor','native-plan')) {
     $a=New-OrdinaryControlArtifact
     switch($mutation) {
         mode {$a.rows[1].evidence.nativeFull=$false}
@@ -49,7 +54,12 @@ foreach($mutation in @('mode','configuration','owner-cost','count','primary','pr
         trace {$a.observations.ordinaryAttackTrace.dropped=1}
         native-cost {$a.rows[1].evidence.after.rider.move=0}
         forced-roll {$a.rows[1].evidence.rules.pairForcedD20=1}
-        unmatched {$a.rows[1].evidence.planned=5;$a.rows[1].evidence.completed=5;$a.rows[1].evidence.rules.riderResolved=5}
+        unmatched {$a.rows[1].evidence.nativePlan[0].penalty=5}
+        bonus {$a.rows[1].evidence.rules.attackRollEvents[0].attackBonus=99}
+        restricted {$a.rows[9].evidence.variation.staggered=$false}
+        spent-standard {$a.rows[14].evidence.spentStandard.secondAttackStarted=$true}
+        executor {$a.rows[1].evidence.nativeCommand.executor='mount'}
+        native-plan {$a.rows[1].evidence.nativePlan=@()}
     }
     $rejected=$false
     try {Assert-KmcOrdinaryAttackControlsEvidence $request $a PASS} catch {$rejected=$true}

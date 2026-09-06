@@ -166,6 +166,7 @@
     <Compile Include="Integration\MountedMovementStateAdapter.cs" />
     <Compile Include="Diagnostics\NativeOrdinaryAttackTrace.cs" />
     <Compile Include="Diagnostics\NativeOrdinaryAttackInput.cs" />
+    <Compile Include="Diagnostics\NativeAttackFixtureVariation.cs" />
     <Compile Include="Diagnostics\OrdinaryAttackControls.cs" />
     <Compile Include="Domain\AnimatedSaddlePosition.cs" />
     <Compile Include="Domain\OptionalPublicPropertyReader.cs" />
