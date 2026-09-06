@@ -988,6 +988,11 @@ namespace KingmakerMountedCombat.Integration
             }
             if (decision == MountedStockAttackDecision.CompleteTurnBasedIntent)
             {
+                if (stockIntentCommand == null)
+                {
+                    LastFeedback = "No Standard action remains for this actor's attack.";
+                    ShowStockFeedback();
+                }
                 ClearStockAttackIntent("native actor resources exhausted", false);
                 LastStockAttackObservation = "tb-intent-complete-resources";
                 return;

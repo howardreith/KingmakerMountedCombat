@@ -17,11 +17,24 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("native Move commitment preserves Dismount but cannot authorize combat Mount", AdmitsCommittedNativeMoveShell);
             runner.Run("admitted native Move shell preserves non-resource combat gates", CommittedNativeMoveShellPreservesOtherGates);
             runner.Run("combat mount adjacency includes both native corpulence radii", UsesNativeAdjacencyEnvelope);
+            runner.Run("native Mount approach stops inside its execution envelope", MountApproachMatchesExecution);
             runner.Run("player action becomes dismount while mounted", BecomesDismountWhileMounted);
             runner.Run("player action permits fault cleanup when feature disabled", PermitsFaultCleanupWhenFeatureDisabled);
             runner.Run("player action rejects double activation during transition", RejectsDoubleActivationDuringTransition);
             runner.Run("player action feedback follows an external mount transition", FeedbackFollowsExternalMountTransition);
             runner.Run("player action feedback retains an operation result while availability is stable", FeedbackRetainsStableOperationResult);
+        }
+
+        private static void MountApproachMatchesExecution()
+        {
+            float radius;
+            TestRunner.True(CombatMountDismountPolicy.TryGetMountApproachRadius(1000000f, 0.5f, 1.1f, out radius), "Mount approach unavailable.");
+            TestRunner.True(radius < 3.1f && radius > 3f &&
+                CombatMountDismountPolicy.IsAdjacent(radius, 0.5f, 1.1f), "Native approach stops beyond execution reach.");
+            TestRunner.True(CombatMountDismountPolicy.TryGetMountApproachRadius(2f, 0.5f, 1.1f, out radius) && radius == 2f,
+                "Mount approach enlarged a tighter native radius.");
+            TestRunner.True(!CombatMountDismountPolicy.TryGetMountApproachRadius(float.NaN, 0.5f, 1.1f, out radius), "Invalid native radius admitted.");
+            TestRunner.True(!CombatMountDismountPolicy.TryGetMountApproachRadius(5f, -1f, 1.1f, out radius), "Missing body radius admitted.");
         }
 
         private static void HiddenWithoutLoadedGame()

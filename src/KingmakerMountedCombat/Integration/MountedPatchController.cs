@@ -210,6 +210,7 @@ namespace KingmakerMountedCombat.Integration
 
             internal static void NativeAbilityInitPostfix(UnitUseAbility __instance)
             {
+                PatchBridge.NativeControls?.PrepareNativeMountApproach(__instance);
                 PatchBridge.NativeControls?.PrepareNativePrimaryIntentShell(__instance);
             }
 

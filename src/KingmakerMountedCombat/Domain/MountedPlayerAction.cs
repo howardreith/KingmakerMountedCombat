@@ -279,6 +279,19 @@ namespace KingmakerMountedCombat.Domain
     public static class CombatMountDismountPolicy
     {
         public const float NativeAdjacentReachMeters = 1.5f;
+        private const float ApproachStopMarginMeters = 0.05f;
+
+        public static bool TryGetMountApproachRadius(float nativeRadius, float riderCorpulence,
+            float mountCorpulence, out float radius)
+        {
+            radius = 0f;
+            if (!IsFiniteNonNegative(nativeRadius) || !IsFiniteNonNegative(riderCorpulence) ||
+                !IsFiniteNonNegative(mountCorpulence)) { return false; }
+            // Stop just inside the execution envelope; never enlarge native permission.
+            radius = Math.Min(nativeRadius, riderCorpulence + mountCorpulence +
+                NativeAdjacentReachMeters - ApproachStopMarginMeters);
+            return true;
+        }
 
         public static bool IsTurnEligible(
             bool turnBasedCombat,

@@ -68,6 +68,7 @@ namespace KingmakerMountedCombat.Integration
             typeof(BlueprintUnitFact), "m_Icon", IconFieldToken, typeof(Sprite));
         private static readonly FieldInfo LocalizedStringKeyField = ResolveField(
             typeof(LocalizedString), "m_Key", LocalizedStringKeyFieldToken, typeof(string));
+        private static readonly MethodInfo MountApproachRadiusSetter = ResolveMountApproachRadiusSetter();
 
         private readonly GameMountedRelationshipService relationship;
         private readonly MountedPlayerActionController playerAction;
@@ -86,7 +87,7 @@ namespace KingmakerMountedCombat.Integration
             new Dictionary<string, string>(StringComparer.Ordinal)
             {
                 { "KMC.Native.Mount.Name", "Mount Companion" },
-                { "KMC.Native.Mount.Description", "Select the rider's exact active Horse or Mammoth companion and mount it through Kingmaker Mounted Combat." },
+                { "KMC.Native.Mount.Description", "Outside combat, select your active Horse or Mammoth. Walk into reach and mount. You can queue this order while gameplay is paused; it executes after unpausing." },
                 { "KMC.Native.Dismount.Name", "Dismount" },
                 { "KMC.Native.Dismount.Description", "Get off your companion. Mounted seating is temporary and is cleared before saving or changing areas." },
                 { "KMC.Native.RiderPrimary.Name", "Rider Primary" },
@@ -152,6 +153,36 @@ namespace KingmakerMountedCombat.Integration
         internal long NativePrimaryShellPrepareCount { get; private set; }
 
         internal string LastNativePrimaryShellObservation { get; private set; } = "not-observed";
+
+        internal void PrepareNativeMountApproach(UnitUseAbility command)
+        {
+            if (disposed || !enabled || !registered || serializationSuspended ||
+                command == null || command.IsStarted || command.IsFinished ||
+                !ReferenceEquals(command.Spell?.Blueprint, mountAbility)) { return; }
+            var caster = command.Executor;
+            var target = command.Target?.Unit;
+            if (caster?.View == null || target?.View == null || command.Spell.Caster?.Unit != caster ||
+                target != caster.Descriptor?.Pet || target.Descriptor?.Master.Value != caster ||
+                !SupportedMountedProfiles.IsSupported(target)) { return; }
+            float radius;
+            if (CombatMountDismountPolicy.TryGetMountApproachRadius(command.ApproachRadius,
+                caster.View.Corpulence, target.View.Corpulence, out radius))
+            {
+                MountApproachRadiusSetter.Invoke(command, new object[] { radius });
+            }
+        }
+
+        private static MethodInfo ResolveMountApproachRadiusSetter()
+        {
+            var setter = typeof(UnitCommand).GetProperty("ApproachRadius")?.GetSetMethod(true);
+            if (setter == null || setter.MetadataToken != 0x06002767 || setter.IsStatic ||
+                setter.ReturnType != typeof(void) || setter.GetParameters().Length != 1 ||
+                setter.GetParameters()[0].ParameterType != typeof(float))
+            {
+                throw new InvalidOperationException("Exact native Mount approach setter is unavailable.");
+            }
+            return setter;
+        }
 
         internal bool PrepareNativePrimaryIntentShell(UnitUseAbility command)
         {
