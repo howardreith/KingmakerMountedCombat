@@ -61,4 +61,27 @@ foreach($mode in @('rt','tb')){
         $passed++
     }
 }
+$request=[pscustomobject]@{scenario='phase3h-combat-loop-tb'}
+foreach($mutation in @('none','epoch','actor','debit','rider-tax','overclaim')) {
+    $artifact=New-ControlsEvidence $true
+    $samples=@(0..3 | ForEach-Object { [pscustomobject]@{
+        actor=if($_ % 2 -eq 0){'rider'}else{'mount'};roundStartTicks=if($_ -lt 2){100}else{200}
+        inputKind='scripted-native-handler-integration';partialMovementPassed=$true;displacement=0.6;nativeMoveResult='Success'
+        mountMoveBefore=0.1;mountMoveAfter=0.4;riderMoveBefore=0;riderMoveAfter=0;riderStandardBefore=0;riderStandardAfter=0
+    }})
+    $e=[pscustomobject]@{samples=$samples;firstRound=1;lastRound=2;completeResourceQualification=$false}
+    $artifact.rows+= [pscustomobject]@{name='3h-movement-allocation-partial';status='PASS';evidence=$e}
+    $artifact.subscenarioPassCount++
+    switch($mutation) {
+        epoch {foreach($s in $samples){$s.roundStartTicks=100}}
+        actor {foreach($s in $samples){$s.actor='rider'}}
+        debit {$samples[0].mountMoveAfter=0}
+        rider-tax {$samples[0].riderMoveAfter=3}
+        overclaim {$e.completeResourceQualification=$true}
+    }
+    $rejected=$false
+    try{Assert-KmcPhase3hLoopEvidence $request $artifact PASS}catch{$rejected=$true}
+    if($rejected -eq ($mutation -eq 'none')){throw "Partial movement mutation mismatch: $mutation"}
+    $passed++
+}
 Write-Host "TOTAL Phase3H protocol PASS=$passed FAIL=0"

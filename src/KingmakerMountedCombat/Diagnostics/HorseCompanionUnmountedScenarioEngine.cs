@@ -129,6 +129,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private Feature rankFact;
         private Feature horseFeatureFact;
         private UnitMoveTo movementCommand;
+        private UnitMoveTo mountAdmissionMove;
         private UnitAttack realTimeAttack;
         private double realTimeAttackIssuedAtSeconds;
         private UnitAttack turnBasedAttack;
@@ -1541,6 +1542,32 @@ namespace KingmakerMountedCombat.Diagnostics
             if (availability.IsVisible && availability.IsEnabled &&
                 availability.Action == MountedPlayerActionKind.Mount)
             {
+                if (request.Scenario == "phase3h-combat-loop-rt" || request.Scenario == "phase3h-combat-loop-tb")
+                {
+                    var adjacent = CombatMountDismountPolicy.IsAdjacent(owner.DistanceTo(horse),
+                        owner.View.Corpulence, horse.View.Corpulence);
+                    if (!adjacent || mountAdmissionMove != null && !mountAdmissionMove.IsFinished)
+                    {
+                        if (mountAdmissionMove == null && owner.Commands.Empty && horse.Commands.Empty)
+                        {
+                            // Attack fixtures require legal Mount placement up front.
+                            // This normal unmounted move is not mounted approach evidence.
+                            mountAdmissionMove = new UnitMoveTo(horse.Position, horse.View.Corpulence + 0.5f)
+                                { CreatedByPlayer = true };
+                            owner.Commands.Run(mountAdmissionMove);
+                        }
+                        if (clock.Elapsed.TotalSeconds - mountedAlphaAdmissionStartedAtSeconds <= MountedAlphaAdmissionTimeoutSeconds)
+                            return;
+                        Fail("target-selected-mount-admission-deadline", "Native unmounted fixture movement did not reach legal Mount adjacency.");
+                        BeginCleanup();
+                        return;
+                    }
+                    observations["phase3hMountPlacement"] = new JObject {
+                        ["distance"] = owner.DistanceTo(horse), ["adjacent"] = adjacent,
+                        ["nativeMoveUsed"] = mountAdmissionMove != null,
+                        ["nativeMoveResult"] = mountAdmissionMove?.Result.ToString()
+                    };
+                }
                 BeginMountedAlpha();
                 return;
             }

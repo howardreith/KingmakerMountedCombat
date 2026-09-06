@@ -10,13 +10,29 @@ function Assert-KmcPhase3hLoopEvidence {
     }
     $required=@('3h-rider-longbow-ordinary','3h-rider-longbow-primary','3h-rider-melee-ordinary','3h-rider-melee-primary','3h-horse-bite-ordinary','3h-horse-bite-primary')
     if($Request.scenario -ceq 'phase3h-combat-loop-rt'){$required+=@('3h-paused-dismount','3h-paused-mount-stop','3h-paused-mount-execute')}
-    $allowed=@($required)+@('3h-paused-control-failure','phase3d-horse-tranche-cleanup','phase3d-horse-scenario-deadline','phase3d-horse-leaf-deadline','phase3d-horse-runtime-exception')
+    $allowed=@($required)+@('3h-movement-allocation-partial','3h-paused-control-failure','phase3d-horse-tranche-cleanup','phase3d-horse-scenario-deadline','phase3d-horse-leaf-deadline','phase3d-horse-runtime-exception')
     $names=New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
     $pass=0;$fail=0
     foreach($row in $Artifact.rows) {
         if($row.name -cnotin $allowed -or -not $names.Add([string]$row.name) -or $row.status -cnotin @('PASS','FAIL')){throw 'Invalid Phase 3H row.'}
         if($row.status -ceq 'FAIL'){$fail++;continue}
         $pass++
+        if($row.name -ceq '3h-movement-allocation-partial') {
+            $e=$row.evidence
+            if($Request.scenario -cne 'phase3h-combat-loop-tb' -or @($e.samples).Count -lt 4 -or
+                $e.lastRound -le $e.firstRound -or $e.completeResourceQualification -ne $false){throw 'Partial movement lacks native round observations or overclaims qualification.'}
+            if(@($e.samples.actor | Sort-Object -Unique).Count -ne 2 -or
+                @($e.samples.roundStartTicks | Sort-Object -Unique).Count -lt 2){throw 'Partial movement omitted an actor or native epoch.'}
+            foreach($sample in $e.samples) {
+                if($sample.inputKind -cne 'scripted-native-handler-integration' -or $sample.partialMovementPassed -ne $true -or
+                    $sample.actor -cnotin @($Artifact.observations.riderId,$Artifact.observations.horseId) -or
+                    $sample.displacement -le 0.1 -or $sample.nativeMoveResult -cne 'Success' -or
+                    $sample.mountMoveAfter + 0.001 -lt $sample.mountMoveBefore -or
+                    [Math]::Abs($sample.riderMoveAfter-$sample.riderMoveBefore) -gt 0.001 -or
+                    [Math]::Abs($sample.riderStandardAfter-$sample.riderStandardBefore) -gt 0.001){throw 'Partial movement lacks physical displacement and actor-owned costs.'}
+            }
+            continue
+        }
         if($row.name -cnotin $required){throw 'Failure-only row claimed PASS.'}
         if($row.name.StartsWith('3h-paused-')) {
             $e=$row.evidence;$stopping=$row.name -ceq '3h-paused-mount-stop'

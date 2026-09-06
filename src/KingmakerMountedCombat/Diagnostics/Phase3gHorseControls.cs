@@ -37,6 +37,12 @@ namespace KingmakerMountedCombat.Diagnostics
         private float phase3hStationaryRadius;
         private int phase3hHoverFrame;
         private TurnController phase3hHoverTurn;
+        private readonly JArray phase3hMovementSamples = new JArray();
+        private TurnController phase3hMovementTurn;
+        private int phase3hMovementFirstRound;
+        private int phase3hMovementInputs;
+        private bool phase3hMovementAuditStarted;
+        private float phase3hMovementBefore;
         private bool Phase3hApproachCase => IsPhase3hLoop && (phase3gCase == 2 || phase3gCase == 4 || !Phase3gTurnBased && phase3gCase == 5);
         private int phase3gCase;
         private int phase3gStage;
@@ -57,7 +63,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private UnitUseAbility phase3gQueuedControl;
         private int phase3gUnpauseInputs;
 
-        private string Phase3gRow => (IsPhase3hLoop ? "3h-" : "3g-") + new[] {
+        private string Phase3gRow => phase3gCase >= 6 ? "3h-movement-allocation-partial" : (IsPhase3hLoop ? "3h-" : "3g-") + new[] {
             "rider-longbow-ordinary", "rider-longbow-primary", "rider-melee-ordinary",
             "rider-melee-primary", "horse-bite-ordinary", "horse-bite-primary" }[phase3gCase];
 
@@ -65,7 +71,20 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void BeginPhase3gCase()
         {
-            if (phase3gCase >= 6) { BeginCleanup(); return; }
+            if (phase3gCase >= 6)
+            {
+                if (IsPhase3hLoop && Phase3gTurnBased)
+                {
+                    BeginTarget(6f, "3h-movement-allocation-partial");
+                    ruleProbe.Arm(target, false);
+                    phase3hMovementAuditStarted = true;
+                    phase3gStage = 0;
+                    step = Phase3dHorseStep.Phase3gControls;
+                    ResetLeafClock();
+                }
+                else BeginCleanup();
+                return;
+            }
             if (settings.EnableUnifiedMountedTurn || settings.EnablePairedCommandScheduler ||
                 settings.EnableDiagnosticOverlay || playerAction.OverlayPresent)
                 throw new InvalidOperationException("Phase 3G requires exact shipped C0 configuration.");
@@ -121,6 +140,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void TickPhase3gControls()
         {
+            if (phase3hMovementAuditStarted) { TickPhase3hMovementAudit(); return; }
             if (!Phase3gTurnBased && phase3gPauseStage != 8) { TickPhase3gPausedControls(); return; }
             observations["phase3gProgress"] = CapturePhase3gProgress();
             if (phase3gStage != 3 && Game.Instance.IsPaused)
@@ -417,6 +437,100 @@ namespace KingmakerMountedCombat.Diagnostics
             AddRow(Phase3gRow, success, detail, CapturePhase3gProgress());
             combat.Cancel("Phase 3G native Stop after case");
             phase3gStage = 3;
+            ResetLeafClock();
+        }
+
+        private void TickPhase3hMovementAudit()
+        {
+            var game = Game.Instance;
+            if (game.IsPaused) { game.IsPaused = false; return; }
+            observations["phase3hMovementSamples"] = phase3hMovementSamples;
+            if (!CombatController.IsInTurnBasedCombat())
+            {
+                if (!IsCombatReady(true)) return;
+                if (turnBasedModeProbe == null) turnBasedModeProbe = new NativeModeTransitionProbe(true);
+                if (!turnBasedModeProbe.TemporaryDeliveryAttempted) turnBasedModeProbe.DispatchTemporaryValueIfRequired();
+                return;
+            }
+            var controller = game.TurnBasedCombatController;
+            var turn = controller.CurrentTurn;
+            if (phase3gStage == 1)
+            {
+                if (movementCommand == null || !movementCommand.IsFinished || horse.View.AgentASP.IsReallyMoving) return;
+                var sample = (JObject)phase3hMovementSamples.Last;
+                var displacement = HorizontalDistance(phase3gMovementStart, horse.Position);
+                sample["mountMoveAfter"] = horse.CombatState.Cooldown.MoveAction;
+                sample["riderMoveAfter"] = rider.CombatState.Cooldown.MoveAction;
+                sample["riderStandardAfter"] = rider.CombatState.Cooldown.StandardAction;
+                sample["mountStandardAfter"] = horse.CombatState.Cooldown.StandardAction;
+                sample["displacement"] = displacement;
+                sample["nativeMoveResult"] = movementCommand.Result.ToString();
+                sample["movementAccounting"] = combat.CaptureUnifiedTurnSnapshot().LastMovementObservation;
+                sample["sameNativeTurn"] = ReferenceEquals(turn, phase3hMovementTurn);
+                var success = movementCommand.Result == UnitCommand.ResultType.Success && displacement > 0.1f &&
+                    horse.CombatState.Cooldown.MoveAction + 0.001f >= phase3hMovementBefore &&
+                    Math.Abs(rider.CombatState.Cooldown.MoveAction - (float)sample["riderMoveBefore"]) < 0.001f &&
+                    Math.Abs(rider.CombatState.Cooldown.StandardAction - (float)sample["riderStandardBefore"]) < 0.001f;
+                sample["partialMovementPassed"] = success;
+                if (!success)
+                {
+                    AddRow("3h-movement-allocation-partial", false,
+                        "Partial physical movement or actor ownership failed; this does not certify the complete allowance contract.",
+                        new JObject { ["samples"] = phase3hMovementSamples });
+                    BeginCleanup(); return;
+                }
+                phase3gStage = 2;
+                ResetLeafClock();
+            }
+            if (phase3gStage == 2)
+            {
+                if (ReferenceEquals(turn, phase3hMovementTurn)) { TryEndPhase3gFixtureTurn(turn); return; }
+                phase3gStage = 0;
+                ResetLeafClock();
+            }
+            if (turn == null || turn.Status != TurnController.TurnStatus.Preparing && !turn.IsActing) return;
+            if (phase3hMovementInputs >= 4 && controller.RoundNumber > phase3hMovementFirstRound)
+            {
+                AddRow("3h-movement-allocation-partial", true,
+                    "Four native pair-turn partial moves observed across native rounds. Full exhaustion/conversion, both initiative orders and mode/remount boundaries remain unqualified.",
+                    new JObject { ["samples"] = phase3hMovementSamples, ["firstRound"] = phase3hMovementFirstRound,
+                        ["lastRound"] = controller.RoundNumber, ["completeResourceQualification"] = false });
+                BeginCleanup(); return;
+            }
+            var actor = turn.Unit;
+            if (actor != rider && actor != horse || controller.RoundNumber == 0 || actor.IsMoveActionRestricted())
+            { TryEndPhase3gFixtureTurn(turn); return; }
+            if (!rider.Commands.Empty || !horse.Commands.Empty || actor.AreHandsBusyWithAnimation ||
+                game.HandsEquipmentController.IsUpdateScheduledFor(actor)) return;
+            if (phase3hMovementInputs == 0) phase3hMovementFirstRound = controller.RoundNumber;
+            SelectionManager.Instance.SelectUnit(actor.View, true, true, false);
+            phase3gMovementStart = horse.Position;
+            phase3hMovementBefore = horse.CombatState.Cooldown.MoveAction;
+            phase3hMovementTurn = turn;
+            phase3hMovementSamples.Add(new JObject {
+                ["actor"] = actor.UniqueId, ["round"] = controller.RoundNumber,
+                ["roundStartTicks"] = controller.RoundStartTime.Ticks,
+                ["turnIdentity"] = System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(turn),
+                ["mountMoveBefore"] = phase3hMovementBefore, ["riderMoveBefore"] = rider.CombatState.Cooldown.MoveAction,
+                ["riderStandardBefore"] = rider.CombatState.Cooldown.StandardAction,
+                ["mountStandardBefore"] = horse.CombatState.Cooldown.StandardAction,
+                ["nativeTimeMoved"] = turn.TimeMoved, ["nativeStepMetres"] = turn.MetersMovedByFiveFootStep,
+                ["nativeMovementLimit"] = turn.CurrentMovementLimit.ToString(),
+                ["inputKind"] = "scripted-native-handler-integration"
+            });
+            // Short native ground orders on alternating sides of the current
+            // position; the agent/pathfinder decides the actual displacement.
+            var direction = (target.Position - horse.Position).normalized * (phase3hMovementInputs % 2 == 0 ? 1f : -1f);
+            ClickGroundHandler.MoveSelectedUnitsToPoint(horse.Position + direction * 0.75f, false);
+            movementCommand = horse.Commands.Move as UnitMoveTo;
+            phase3hMovementInputs++;
+            if (movementCommand == null || movementCommand.Executor != horse)
+            {
+                AddRow("3h-movement-allocation-partial", false, "Native pair ground input did not acquire the exact Horse Move slot.",
+                    new JObject { ["samples"] = phase3hMovementSamples, ["feedback"] = combat.LastFeedback });
+                BeginCleanup(); return;
+            }
+            phase3gStage = 1;
             ResetLeafClock();
         }
 
