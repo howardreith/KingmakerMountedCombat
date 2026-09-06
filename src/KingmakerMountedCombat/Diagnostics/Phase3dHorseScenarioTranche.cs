@@ -375,7 +375,8 @@ namespace KingmakerMountedCombat.Diagnostics
             try
             {
                 motionEvidence?.Tick(cleanupStarted ? null : IsPhase3gControls
-                    ? (phase3gStage == 1 ? Phase3gRow : null) : step.ToString());
+                    ? (phase3gStage == 1 ? Phase3gRow +
+                        (horse.Commands.Standard is MountedPairAttackCommand ? "-horse" : "-rider") : null) : step.ToString());
                 targetService?.ObserveTargetLifeState();
                 targetService?.RefreshBidirectionalCombatMemoryLease();
                 if (!cleanupStarted && clock.Elapsed.TotalSeconds > ScenarioDeadlineSeconds)

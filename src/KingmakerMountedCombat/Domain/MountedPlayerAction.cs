@@ -208,6 +208,12 @@ namespace KingmakerMountedCombat.Domain
             {
                 reasons.Add("Mounting is blocked during loading, area transitions, and cutscenes.");
             }
+            if (context.InCombat)
+            {
+                // MountedPairCandidate currently forbids combat mounting. Native
+                // availability must not advertise a Move shell that cannot create a pair.
+                reasons.Add("Mount Companion is available only outside combat in this preview.");
+            }
             if (context.InCombat && !context.PairAdjacent)
             {
                 reasons.Add("Rider and " + mountName + " must be adjacent to mount during combat.");

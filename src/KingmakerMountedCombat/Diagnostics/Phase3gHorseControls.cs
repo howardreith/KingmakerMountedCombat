@@ -66,13 +66,20 @@ namespace KingmakerMountedCombat.Diagnostics
                 rangedWeaponLease.Dispose();
                 rangedWeaponLease = null;
             }
+            if (Phase3gTurnBased && phase3gCase == 1)
+            {
+                // Complement case 0's mounted RT -> TB entry with an encounter
+                // that starts while the native TB option is already enabled.
+                turnBasedModeProbe = new NativeModeTransitionProbe(true);
+                turnBasedModeProbe.DispatchTemporaryValueIfRequired();
+            }
             // Preserve the target service's 3-metre minimum spawn boundary. Its native
             // Mammoth body has substantial corpulence; stationary admission below
             // still has to satisfy the exact actor's native range and LoS checks.
             BeginTarget(!Phase3gTurnBased && phase3gCase == 2 ? 6f : 3.5f, Phase3gRow);
             // Natural hit/miss and projectile resolve events are authoritative.
             ruleProbe.Arm(target, false);
-            phase3gStage = 0;
+            phase3gStage = Phase3gTurnBased && phase3gCase >= 2 ? -1 : 0;
             phase3gClicks = 0;
             phase3gActorBefore = null;
             phase3gAttackTurn = null;
@@ -106,6 +113,28 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
             var game = Game.Instance;
+            if (phase3gStage == -1)
+            {
+                if (game.IsPaused) { game.IsPaused = false; return; }
+                if (!IsCombatReady(true)) { return; }
+                if (CombatController.IsInTurnBasedCombat())
+                    throw new InvalidOperationException("Stationary TB setup must finish its native approach in RT first.");
+                SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
+                movementDestination = FindWalkablePointNearTarget(target.Position, horse.Position, 2.5f);
+                ClickGroundHandler.MoveSelectedUnitsToPoint(movementDestination, false);
+                movementCommand = horse.Commands.Move as UnitMoveTo;
+                if (movementCommand == null || movementCommand.Executor != horse)
+                    throw new InvalidOperationException("Stationary fixture approach did not acquire the native Horse move.");
+                phase3gStage = -2; ResetLeafClock(); return;
+            }
+            if (phase3gStage == -2)
+            {
+                if (!movementCommand.IsFinished || horse.View.MovementAgent.IsReallyMoving) { return; }
+                if (horse.DistanceTo(target) > 2.75f)
+                    throw new InvalidOperationException("Native fixture approach did not reach adjacent stationary placement.");
+                movementCommand = null;
+                phase3gStage = 0; ResetLeafClock(); return;
+            }
             if (phase3gStage == 0)
             {
                 if (game.IsPaused) { game.IsPaused = false; return; } // Explicit fixture input, never a production unpause.
@@ -284,8 +313,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["feedback"] = combat.LastFeedback,
                 ["lastOutcome"] = combat.LastOutcome == null ? JValue.CreateNull() : JToken.FromObject(combat.LastOutcome, JsonSerializer.Create(JsonSettings)),
                 ["intentStarts"] = combat.StockAttackIntentStartCount - phase3gIntentStarts,
-                ["actorBefore"] = phase3gActorBefore == null ? JValue.CreateNull() : JToken.FromObject(phase3gActorBefore),
-                ["otherBefore"] = phase3gOtherBefore == null ? JValue.CreateNull() : JToken.FromObject(phase3gOtherBefore),
+                ["actorBefore"] = phase3gActorBefore == null ? JValue.CreateNull() : JToken.FromObject(phase3gActorBefore, JsonSerializer.Create(JsonSettings)),
+                ["otherBefore"] = phase3gOtherBefore == null ? JValue.CreateNull() : JToken.FromObject(phase3gOtherBefore, JsonSerializer.Create(JsonSettings)),
                 ["mountDisplacement"] = HorizontalDistance(phase3gMovementStart, horse.Position),
                 ["inputKind"] = "scripted-native-handler-integration"
             };

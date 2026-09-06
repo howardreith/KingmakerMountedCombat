@@ -49,6 +49,12 @@ foreach($mode in @('rt','tb')){
         try{Assert-KmcPhase3gControlsEvidence $request $artifact PASS}catch{$rejected=$true}
         if(-not $rejected){throw 'Accepted moving attack as stationary TB evidence.'}
         $passed++
+        $artifact=New-ControlsEvidence $true
+        $artifact.rows[0].evidence.actorBefore=[pscustomobject]@{'$id'='1'}
+        $rejected=$false
+        try{Assert-KmcPhase3gControlsEvidence $request $artifact PASS}catch{$rejected=$true}
+        if(-not $rejected){throw 'Accepted a missing native before ledger.'}
+        $passed++
     }
 }
 Write-Host "TOTAL Phase3G protocol PASS=$passed FAIL=0"

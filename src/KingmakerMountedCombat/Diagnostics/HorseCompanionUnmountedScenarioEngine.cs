@@ -1678,7 +1678,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["result"] = command?.Result.ToString(), ["enoughClose"] = command?.IsUnitEnoughClose,
                     ["hasCooldown"] = command != null && owner.CombatState.HasCooldownForCommand(command)
                 };
-                Fail("target-selected-mount-admission-deadline", "Native Mount did not execute within 25 seconds; no attack cases were attempted.");
+                Fail("target-selected-mount-admission-deadline", "Native Mount did not establish a mounted pair within 25 seconds; no attack cases were attempted. " +
+                    observations["phase3gMountDeadline"].ToString(Formatting.None));
                 BeginCleanup(); return;
             }
             if (relationship.State != RelationshipState.Mounted ||

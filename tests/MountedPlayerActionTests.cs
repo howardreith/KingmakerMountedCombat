@@ -11,10 +11,10 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("player action reports exact selection requirement", ReportsSelectionRequirement);
             runner.Run("player action accepts a complete eligible pair", AcceptsEligiblePair);
             runner.Run("player action reports every material pair rejection", ReportsMaterialPairRejections);
-            runner.Run("player action admits eligible combat Mount", AdmitsEligibleCombatMount);
+            runner.Run("player action reflects the domain restriction on combat Mount", RejectsUnavailableCombatMount);
             runner.Run("player action reports exact combat Mount gates", ReportsCombatMountGates);
             runner.Run("player action charges combat Dismount only on rider turn with Move", GatesCombatDismount);
-            runner.Run("admitted native Move shell is not rejected after its resource commitment", AdmitsCommittedNativeMoveShell);
+            runner.Run("native Move commitment preserves Dismount but cannot authorize combat Mount", AdmitsCommittedNativeMoveShell);
             runner.Run("admitted native Move shell preserves non-resource combat gates", CommittedNativeMoveShellPreservesOtherGates);
             runner.Run("combat mount adjacency includes both native corpulence radii", UsesNativeAdjacencyEnvelope);
             runner.Run("player action becomes dismount while mounted", BecomesDismountWhileMounted);
@@ -106,7 +106,7 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.Equal("Dismount", result.Label, "Mounted action label is unclear.");
         }
 
-        private static void AdmitsEligibleCombatMount()
+        private static void RejectsUnavailableCombatMount()
         {
             var context = EligibleContext();
             context.InCombat = true;
@@ -114,9 +114,8 @@ namespace KingmakerMountedCombat.Tests
             context.RiderHasMoveAction = true;
             context.PairAdjacent = true;
             var result = MountedPlayerActionEvaluator.Evaluate(context);
-            TestRunner.True(result.IsEnabled, "Eligible combat Mount was rejected.");
-            TestRunner.Equal(0, result.UnavailableReasons.Count,
-                "Eligible combat Mount retained a rejection reason.");
+            TestRunner.True(!result.IsEnabled && result.Feedback.Contains("outside combat"),
+                "Mount UI advertised combat admission that the relationship domain rejects.");
         }
 
         private static void ReportsCombatMountGates()
@@ -155,8 +154,8 @@ namespace KingmakerMountedCombat.Tests
             mountContext.RiderHasMoveAction = false;
             mountContext.NativeMoveActionShellAdmitted = true;
             var mount = MountedPlayerActionEvaluator.Evaluate(mountContext);
-            TestRunner.True(mount.IsEnabled,
-                "An exact native Mount shell was rejected after Kingmaker admitted its Move resource.");
+            TestRunner.True(!mount.IsEnabled && mount.Feedback.Contains("outside combat"),
+                "A native Move shell bypassed the current relationship's combat Mount restriction.");
 
             var dismountContext = EligibleContext();
             dismountContext.RelationshipState = RelationshipState.Mounted;
