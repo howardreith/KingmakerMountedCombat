@@ -165,4 +165,52 @@ foreach($mutation in @(
     if(!$rejected){throw 'Malformed paired movement measurement was accepted.'}
     $passes++
 }
+function New-PairedEnvelope {
+    $e=New-CallbackEnvelope
+    $e.schemaVersion=11
+    $e.observations.phase3fActualConfiguration | Add-Member enablePairedActivation $true
+    $activations=@();$visits=@()
+    foreach($round in 1..3) {
+        $visits+=@{actor='rider';round=$round;friendly=$true;principal=$true;mount=$false}
+        $visits+=@{actor='unrelated';round=$round;friendly=$true;principal=$false;mount=$false}
+        $visits+=@{actor='enemy';round=$round;friendly=$false;principal=$false;mount=$false}
+        $operations=@(@{kind='movement';purpose='partial';samePrincipalTurn=$true;fiveFootStep=$false;singleMove=$false
+            admitted=$true;distance=1.0;travelledDistance=1.0;nativeShiftDistance=1.0;nativeMoveCost=0.2;nativeAllowedTime=0.2
+            before=@{speedMps=5.0};riderBefore=@{move=0.0};riderAfter=@{move=0.0}})
+        if($round -eq 1) {
+            foreach($actor in @('rider','mount')) {
+                $operations+=@{kind='attack';actor=$actor;clicked=$true;result='Success';completedAttacks=1;nativeRule=$true;after=@{standard=6.0}}
+            }
+            $operations+=@{kind='movement';purpose='exhausted-rejection';samePrincipalTurn=$true;fiveFootStep=$false;singleMove=$false
+                admitted=$false;distance=0.0;travelledDistance=0.0;nativeShiftDistance=0.0;nativeMoveCost=0.0;nativeAllowedTime=0.0
+                riderBefore=@{move=0.0};riderAfter=@{move=0.0}}
+        }
+        $activations+=@{index=$round;identity=('11111111111111111111111111111111:'+ $round);round=$round
+            riderBefore=@{standard=0.0;move=0.0;canAct=$true};mountBefore=@{standard=0.0;move=0.0;canAct=$true}
+            operations=$operations;exhaustedMovementRejected=($round -eq 1);conversionAttackRejected=($round -eq 2);earlyEnd=($round -eq 3)}
+    }
+    $e.rows[0].name='P01-three-paired-activations'
+    $e.rows[0].evidence=[pscustomobject]@{level='NATIVE INTEGRATION';gameplayQualified=$true;inputKind='scripted-native-handler-integration'
+        principal='rider';firstRound=1;activations=$activations;turnVisits=$visits;errors=@()
+        refresh=@{identity='11111111111111111111111111111111:4';rider=@{standard=0.0;move=0.0;canAct=$true};mount=@{standard=0.0;move=0.0;canAct=$true}}}
+    return ($e|ConvertTo-Json -Depth 30|ConvertFrom-Json)
+}
+Assert-KmcActorAllocationEvidence $request (New-PairedEnvelope) 'PASS'
+$passes++
+foreach($mutation in @(
+    {param($e) $e.observations.actorAllocationTrace.observationErrors=19},
+    {param($e) $e.observations.actorAllocationTrace.dropped=1},
+    {param($e) $e.rows[0].evidence.activations[1].identity=$e.rows[0].evidence.activations[0].identity},
+    {param($e) $e.rows[0].evidence.turnVisits[1].actor='mount'},
+    {param($e) $e.rows[0].evidence.activations[0].operations[0].riderAfter.move=0.2},
+    {param($e) $e.rows[0].evidence.activations[1].mountBefore.standard=6.0},
+    {param($e) $e.rows[0].evidence.refresh.mount.move=6.0},
+    {param($e) $e.observations.actorAllocationTrace.events+=@($e.observations.actorAllocationTrace.events[0])}
+)) {
+    $e=New-PairedEnvelope; & $mutation $e
+    $rejected=$false
+    try {Assert-KmcActorAllocationEvidence $request $e 'PASS'} catch {$rejected=$true}
+    if(!$rejected){throw 'Incomplete or resource-violating paired loop envelope was accepted.'}
+    $passes++
+}
 Write-Host "ALLOCATION PROTOCOL PASS=$passes FAIL=0 (envelope validation only)"

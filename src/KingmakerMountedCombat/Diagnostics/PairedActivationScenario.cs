@@ -238,6 +238,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     "A measured activation lacks unrelated friendly/enemy native turns.");
             }
             var trace = allocationTrace.Capture();
+            RequirePaired((int)trace["dropped"] == 0 && (int)trace["observationErrors"] == 0,
+                "The native paired trace contains dropped events or observation errors.");
             var callbacks = ActorAllocationCallbackEvidence.Evaluate(trace,
                 allocationRoundFacts.Select(fact => (string)fact.Capture()["actor"]), allocationFirstRound);
             var evidence = new JObject { ["level"] = "NATIVE INTEGRATION", ["gameplayQualified"] = true,

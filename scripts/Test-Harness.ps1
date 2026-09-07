@@ -5007,6 +5007,12 @@ try {
         Write-KmcJsonAtomic $v2RequestPath $v2Request
     }
 
+    Invoke-HarnessTest 'paired native loop result has exactly one registered runtime row' {
+        $rows = @(Get-KmcPhase3dHorseRuntimeRows)
+        Assert-Test (@($rows | Where-Object { $_ -ceq 'P01-three-paired-activations' }).Count -eq 1) 'paired result row is missing or duplicated'
+        Assert-Test (@($rows | Where-Object { $_ -ceq 'P01-three-paired-activations-unknown' }).Count -eq 0) 'unknown paired result row was admitted'
+    }
+
     Invoke-HarnessTest 'runtime request schema accepts every exact native lifecycle row' {
         foreach ($nativeRow in @(
             'native-save-clean-dismount',
