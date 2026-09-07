@@ -1,3 +1,7 @@
+## Chunk 2 current risk - 2026-09-07T03:12:10.3719282Z
+
+IN PROGRESS: native early delegation has occurred before Horse readiness; global-round identity and post-callback reconciliation cannot yet establish a legal conserved allocation. Trace-B proves callback timing loss; it does not qualify a repair or future-action reservation. Scope may require a discriminating Chunk 3 activation dependency. Current intake restoration PASS. [Active report](../docs/CHUNK2-ACTOR-ALLOCATIONS.md).
+
 # Risk and kill criteria
 
 Status: PHASE 1 COMPLETE — PROCEED RECOMMENDED

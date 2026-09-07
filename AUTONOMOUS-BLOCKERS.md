@@ -1,3 +1,9 @@
+## Chunk 2 active disposition - 2026-09-07T03:12:10.3719282Z
+
+IN PROGRESS. Trace-B reproduces preparation callbacks observing fresh Move before the postfix reinstates delivered Horse movement. Native readiness/reservation and actor retirement remain open; no critical external blocker is proven. Both temporary runs restored real preview.13 and current saves/Mods exactly. Chunk 1 owner-reported human play is now accepted within its reported scope; the older pending text below predates it. See [active report](docs/CHUNK2-ACTOR-ALLOCATIONS.md).
+
+---
+
 ## Current Chunk 1 disposition — 2026-09-06T19:20:29.992664+00:00
 
 **PASS — engineering qualification** on `0.1.0-chunk1-preview.13`, source `a8745640e18ce068e412b4e360c7b0a3d46c738a`. [Exact package and 32 native cases](docs/CHUNK1-ORDINARY-ATTACKS.md). No critical blocker or restoration residue remains for this chunk. The historical TB Single gate was reproduced as a fixture pointer/prediction mismatch; current native controls pass. The separate mixed-weapon range defect is fixed and regressed.

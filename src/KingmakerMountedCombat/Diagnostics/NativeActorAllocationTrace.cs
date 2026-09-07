@@ -16,6 +16,8 @@ using Kingmaker.UnitLogic.Commands.Base;
 using Kingmaker.View;
 using KingmakerMountedCombat.Integration;
 using Newtonsoft.Json.Linq;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Serialization;
 using TurnBased.Controllers;
 using UnityEngine;
 
@@ -28,6 +30,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private const string HarmonyId = "KingmakerMountedCombat.Diagnostics.ActorAllocation";
         private const BindingFlags Flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
         private static NativeActorAllocationTrace active;
+        private static readonly JsonSerializer TraceSerializer = new JsonSerializer { ContractResolver = new DefaultContractResolver() };
         private readonly HarmonyInstance harmony;
         private readonly UnitEntityData rider;
         private readonly UnitEntityData mount;
@@ -111,7 +114,7 @@ namespace KingmakerMountedCombat.Diagnostics
             foreach (var field in record.GetType().GetFields(Flags))
             {
                 var value = field.GetValue(record);
-                result[field.Name] = field.Name == "Controller" ? new JValue(Id(value)) : value == null ? JValue.CreateNull() : JToken.FromObject(value);
+                result[field.Name] = field.Name == "Controller" ? new JValue(Id(value)) : value == null ? JValue.CreateNull() : JToken.FromObject(value, TraceSerializer);
             }
             return result;
         }

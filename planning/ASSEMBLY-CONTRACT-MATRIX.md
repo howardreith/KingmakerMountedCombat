@@ -1,3 +1,7 @@
+## Chunk 2 current contract - 2026-09-07T03:12:10.3719282Z
+
+Native Prepare (06000C3C) clears/reapplies acting-command costs, then calls UnitCombatState.OnNewRound (0600939D) before round/AI/fact/readiness callbacks. Trace-B reproduces zero Move at those callbacks followed by retained expenditure at the current postfix. Exact target MVID unchanged. See [Chunk 2 report](../docs/CHUNK2-ACTOR-ALLOCATIONS.md); historical contracts below remain intact.
+
 # Assembly contract matrix
 
 Round-2 follow-up pins the exact path-reuse boundary that the public graph queue does not expose. Public instance `Kingmaker.View.UnitMovementAgent.PathTo(UnitCommand,Vector3,Single,Single,UnitMovementAgentBase)` is token `0x060018A3`. Public static `Pathfinding.Util.TileHandler.LastUpdateFrame` is type token `0x020006C4`, property token `0x170005E6`, and getter token `0x060036E8`. Exact installed code suppresses a same-destination path request only when the agent's private request frame is strictly newer than `LastUpdateFrame` and `RepathNeeded` is false. `TileHandler.EndBatchLoad` advances `LastUpdateFrame` in an Astar work item after cut notification, while `AstarPath.IsAnyGraphUpdatesQueued` observes only its graph-update queue. KMC may observe Unity frame and `LastUpdateFrame`; it may not infer work-item completion from cut readiness or the graph queue, invoke `ForceUpdate`, write pathfinding internals, or relax path-quality gates.

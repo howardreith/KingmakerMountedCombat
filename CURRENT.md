@@ -12,3 +12,5 @@ Active gate: actor-owned movement/action conservation, both initiative orders an
 Separate native turns, one pair, Horse/Mammoth, native attack sequences/costs and explicit Primary remain. `EnableUnifiedMountedTurn=false`, `EnablePairedCommandScheduler=false`, `EnableDiagnosticOverlay=false`. Mount transport spends mount resources without a rider Move tax or new tabletop melee restriction. Preserve active accounting through UnifiedMountedTurnCoordinator.
 
 Temporary guarded runtime validation, private packaging, coherent commits and guarded branch publication are authorized. No permanent installation, main merge or public release. Coordinated activations are Chunk 3; content and persistence remain later milestones.
+
+Trace-B reproduced the preparation callback timing defect; matched order/control traces and the production repair remain IN PROGRESS. Real preview.13/current saves/Mods restoration is independently PASS after both runs. See the concise Chunk 2 report for exact causal observations and failures.

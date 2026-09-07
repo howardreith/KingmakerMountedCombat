@@ -28,6 +28,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private int allocationMountInitiative;
         private bool allocationInitiativeLease;
         private bool allocationDismountRequested;
+        private readonly List<UnitEntityData> allocationFixtureParty = new List<UnitEntityData>();
         private TurnController allocationTurn;
         private TurnController allocationEndedTurn;
         private UnitEntityData allocationMover;
@@ -77,6 +78,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 allocationRiderInitiative = rider.Stats.Initiative.BaseValue;
                 allocationMountInitiative = horse.Stats.Initiative.BaseValue;
                 allocationInitiativeLease = true;
+                for (var index = 0; index < rider.Group.Count; index++)
+                {
+                    var member = rider.Group[index];
+                    if (member.IsInCombat) throw new InvalidOperationException("Allocation fixture requires an idle party before encounter setup.");
+                    if (member != rider && member != horse) allocationFixtureParty.Add(member);
+                }
                 // Deterministic native roll inputs on disposable actors BEFORE
                 // encounter setup. Never rewrite a roll, active turn or readiness.
                 rider.Stats.Initiative.BaseValue = AllocationRiderFirst ? 40 : -40;
@@ -141,7 +148,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     "Three complete native rounds with deterministic pre-encounter order. This row qualifies trace coverage, not A01-A09 gameplay.",
                     new JObject { ["level"] = "NATIVE INTEGRATION", ["gameplayQualified"] = false,
                         ["firstRound"] = allocationFirstRound, ["endRound"] = controller.RoundNumber,
-                        ["order"] = new JArray(order), ["samples"] = allocationSamples, ["rounds"] = JObject.FromObject(allocationRoundActors) });
+                        ["order"] = new JArray(order), ["samples"] = allocationSamples,
+                        ["rounds"] = new JObject(allocationRoundActors.Select(entry => new JProperty(entry.Key.ToString(), new JArray(entry.Value)))) });
                 BeginCleanup(); return;
             }
             if (turn.Unit != rider && turn.Unit != horse || controller.RoundNumber == 0)
@@ -202,6 +210,17 @@ namespace KingmakerMountedCombat.Diagnostics
         private void CleanupActorAllocation()
         {
             observations["actorAllocationSamples"] = allocationSamples.DeepClone();
+            // Native encounter cleanup on the exact disposable party captured
+            // idle before setup. This runs only AFTER measured turns, and avoids
+            // restoring TB while an unrelated fixture member remains in combat.
+            foreach (var member in allocationFixtureParty)
+            {
+                if (member.IsInState && member.Group != rider.Group)
+                    throw new InvalidOperationException("Allocation cleanup party identity changed.");
+                TryLeaveCombat(member);
+            }
+            observations["allocationPartyCombatRestored"] = allocationFixtureParty.All(member => !member.IsInState || !member.IsInCombat);
+            observations["allocationPartyCleanupIds"] = new JArray(allocationFixtureParty.Select(member => member.UniqueId));
             if (allocationInitiativeLease)
             {
                 rider.Stats.Initiative.BaseValue = allocationRiderInitiative;

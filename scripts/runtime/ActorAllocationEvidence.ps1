@@ -28,6 +28,7 @@ function Assert-KmcActorAllocationEvidence {
             $trace.dropped -ne 0 -or $trace.observationErrors -ne 0 -or $trace.events.Count -eq 0 -or
             $e.firstRound -lt 1 -or $e.endRound -lt $e.firstRound+3 -or $e.samples.Count -ne 6 -or
             $e.order.Count -ne 2 -or $e.order[0] -ceq $e.order[1] -or
+            $Artifact.observations.allocationPartyCombatRestored -ne $true -or
             $Artifact.observations.allocationInitiativeRestored -ne $true) {throw 'Allocation trace lacks complete native rounds, actor identity or restoration.'}
         $rider=[string]$Artifact.observations.riderId; $mount=[string]$Artifact.observations.horseId
         $expectedOrder=if(([string]$Request.scenario).Contains('rider-first')){@($rider,$mount)}else{@($mount,$rider)}

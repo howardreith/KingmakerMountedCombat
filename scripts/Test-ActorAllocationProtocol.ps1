@@ -20,7 +20,7 @@ function New-AllocationEnvelope {
     return ([ordered]@{schemaVersion=7;subscenarioPassCount=1;subscenarioFailCount=0;errors=@()
         rows=@(@{name='T01-native-allocation-trace';status='PASS';evidence=@{level='NATIVE INTEGRATION';gameplayQualified=$false
             firstRound=1;endRound=4;samples=$samples;order=@('rider','mount');rounds=$rounds}})
-        observations=@{riderId='rider';horseId='mount';allocationInitiativeRestored=$true
+        observations=@{riderId='rider';horseId='mount';allocationInitiativeRestored=$true;allocationPartyCombatRestored=$true
             allocationFixture=@{outsideCombat=$true;endTurnInput='Game.PauseBind'}
             phase3fActualConfiguration=@{enableUnifiedMountedTurn=$false;enablePairedCommandScheduler=$false;enableDiagnosticOverlay=$false;overlayPresent=$false}
             actorAllocationTrace=@{dropped=0;observationErrors=0;events=$events}}
@@ -37,6 +37,7 @@ foreach($mutation in @(
     {param($e) $e.rows[0].evidence.endRound=3},
     {param($e) $e.rows[0].evidence.rounds.'2'=@('mount','rider')},
     {param($e) $e.observations.allocationInitiativeRestored=$false},
+    {param($e) $e.observations.allocationPartyCombatRestored=$false},
     {param($e) $e.observations.allocationFixture.outsideCombat=$false},
     {param($e) $e.observations.actorAllocationTrace.events=@($e.observations.actorAllocationTrace.events | Where-Object boundary -CNE 'clear-after')},
     {param($e) $e.observations.actorAllocationTrace.events+=@($e.observations.actorAllocationTrace.events[0])},
