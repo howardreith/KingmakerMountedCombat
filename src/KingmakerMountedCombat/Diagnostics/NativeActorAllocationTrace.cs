@@ -95,6 +95,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["timeStepped"] = nativeTurn?.TimeMovedByFiveFootStep, ["metresStepped"] = nativeTurn?.MetersMovedByFiveFootStep,
                 ["stepImmune"] = nativeTurn?.ImmuneAttackOfOpportunityOnDisengage,
                 ["movementLimit"] = nativeTurn?.CurrentMovementLimit.ToString(),
+                ["actorContextStatus"] = nativeTurn?.Status.ToString(),
                 ["remainingNativeTime"] = nativeTurn?.GetRemainingTime(),
                 ["measuredAllowedTime"] = movedTime.ContainsKey(actor) ? movedTime[actor] : 0f,
                 ["measuredRequestedTime"] = requestedTime.ContainsKey(actor) ? requestedTime[actor] : 0f,

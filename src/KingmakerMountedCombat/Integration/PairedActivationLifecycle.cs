@@ -20,6 +20,7 @@ namespace KingmakerMountedCombat.Integration
         private UnitEntityData preparingConfusionActor;
         private int splitReleaseRound = -1;
         private static readonly MethodInfo NativeEnd = ResolveMethod(typeof(TurnController), "End", 0x06000C46, Type.EmptyTypes);
+        private static readonly MethodInfo NativeStatus = ResolveMethod(typeof(TurnController), "set_Status", 0x06000C0F, new[] { typeof(TurnController.TurnStatus) });
         private static readonly MethodInfo NativeConfusionTick = ResolveMethod(typeof(UnitConfusionController), "TickOnUnit", 0x06009131, new[] { typeof(UnitEntityData) });
         private static readonly FieldInfo SurpriseContext = ResolveField(typeof(TurnController), "m_ActingInSurpriseRound", 0x0400066D);
 
@@ -111,6 +112,7 @@ namespace KingmakerMountedCombat.Integration
             partnerContext = new TurnController(activation.Partner);
             SurpriseContext.SetValue(partnerContext, Game.Instance.TurnBasedCombatController.IsActingSurpriseCommands(turn.Unit));
             partnerContext.Prepare();
+            SynchronizePartnerPhase(turn);
             logger.Info("Paired activation prepared: " + activation.Identity + ";principal=" + turn.Unit.UniqueId +
                 ";partner=" + activation.Partner.UniqueId + ";native-preparations=2.");
         }
@@ -123,6 +125,17 @@ namespace KingmakerMountedCombat.Integration
                 command != null && command.Executor == actor &&
                 (!command.IsIgnoreCooldown || command.GetType() == typeof(UnitMoveTo)) &&
                 combat != null && combat.OwnsExactPairedNativeCommand(command);
+        }
+
+        internal void SynchronizePartnerPhase(TurnController turn)
+        {
+            if (!PairedLifecycleEnabled || activation == null || partnerContext == null ||
+                !ReferenceEquals(turn, activation.Boundary) || activation.Split) return;
+            // A private native context has no Tick driver. Its phase follows the
+            // actual principal transition so native command-end processing does
+            // not return early in Preparing and omit movement cost finalization.
+            if ((turn.IsActing || turn.IsEnding) && partnerContext.Status != turn.Status)
+                NativeStatus.Invoke(partnerContext, new object[] { turn.Status });
         }
 
         internal bool HasPairedActivity(TurnController turn)
