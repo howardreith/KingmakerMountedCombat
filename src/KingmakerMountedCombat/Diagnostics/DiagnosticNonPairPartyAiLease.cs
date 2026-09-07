@@ -133,6 +133,17 @@ namespace KingmakerMountedCombat.Diagnostics
             return referenceCount == 1;
         }
 
+        internal void ReassertAfterNativeModeExit()
+        {
+            ThrowIfDisposed();
+            if (!Acquired || lease == null || !lease.IsAcquired ||
+                Kingmaker.Game.Instance.TurnBasedCombatController.Initialized ||
+                TurnBased.Controllers.CombatController.IsInTurnBasedCombat())
+                throw new InvalidOperationException("Diagnostic AI reassertion requires a completed native TB shutdown.");
+            lease.ReassertAfterNativeReset(CaptureCurrentMembers());
+            LastError = null;
+        }
+
         public bool RestoreAndVerify()
         {
             if (lease == null || !lease.IsAcquired)

@@ -173,6 +173,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 pairedModeBefore = RecordPairedTransition("native-mode-exit-before");
                 pairedModeProbe = new NativeModeTransitionProbe(false);
                 pairedModeProbe.DispatchTemporaryValue();
+                // Native HandleCombatEnd reenables every controllable actor.
+                // Reassert only this fixture's already-owned idle AI scope, in
+                // the same callback frame before RT AI can issue new commands.
+                targetService.NonPairPartyAiLease.ReassertAfterNativeModeExit();
+                observations["pairedTransitions"]["modeAiLeaseReasserted"] = targetService.NonPairPartyAiLease.ValidateActive();
                 pairedTransitionStage = 4; ResetLeafClock(); return;
             }
             if (pairedTransitionStage == 4)

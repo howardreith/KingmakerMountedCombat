@@ -11,6 +11,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("diagnostic AI lease rejects ambiguous or active-command candidates before mutation", RejectsUnsafeCandidates);
             runner.Run("diagnostic AI lease detects membership command and AI drift", DetectsActiveDrift);
             runner.Run("diagnostic AI lease restoration verifies original raw and effective state", RestorationVerifiesOriginalState);
+            runner.Run("native mode AI reset reasserts exact idle scope and preserves original restoration", ReassertsNativeReset);
         }
 
         private static void SuppressesAndRestoresExactSet()
@@ -101,6 +102,29 @@ namespace KingmakerMountedCombat.Tests
             lease.Restore(new[] { unit });
             TestRunner.True(unit.RawAi && unit.EffectiveAi && lease.LastRestoreVerified,
                 "Diagnostic AI restoration retry did not reproduce exact original state.");
+        }
+
+        private static void ReassertsNativeReset()
+        {
+            var first = new FakeUnit("first", true, true);
+            var second = new FakeUnit("second", false, false);
+            var lease = CreateLease();
+            lease.Acquire(new[] { first, second });
+            first.SetRawAi(true); second.SetRawAi(true); // Native mode shutdown.
+            lease.ReassertAfterNativeReset(new[] { first, second });
+            TestRunner.True(lease.LastActiveValidationPassed && !first.EffectiveAi && !second.EffectiveAi,
+                "Native shutdown lost exact fixture isolation.");
+            var writes = first.SetCount + second.SetCount;
+            second.CommandsEmpty = false;
+            ExpectThrows(() => lease.ReassertAfterNativeReset(new[] { first, second }),
+                "Reassertion accepted an active native command.");
+            TestRunner.Equal(writes, first.SetCount + second.SetCount, "Unsafe reassertion partially mutated the scope.");
+            second.CommandsEmpty = true;
+            ExpectThrows(() => lease.ReassertAfterNativeReset(new[] { first, new FakeUnit("second", true, true) }),
+                "Reassertion accepted replacement actor identity.");
+            lease.Restore(new[] { first, second });
+            TestRunner.True(first.RawAi && !second.RawAi && lease.LastRestoreVerified,
+                "Reassertion replaced the original mixed-state restoration snapshot.");
         }
 
         private static ScopedDiagnosticAiLease<FakeUnit> CreateLease()

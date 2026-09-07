@@ -115,6 +115,18 @@ namespace KingmakerMountedCombat.Domain
             LastActiveValidationPassed = true;
         }
 
+        public void ReassertAfterNativeReset(IEnumerable<TUnit> currentUnits)
+        {
+            RequireAcquired();
+            var current = Materialize(currentUnits);
+            // A native mode reset may restore AI. Retain the ORIGINAL snapshot;
+            // never reacquire changed membership or interrupt an existing order.
+            ValidateExactCandidates(current, states, true);
+            LastActiveValidationPassed = false;
+            foreach (var state in states) setRawAiEnabled(state.Unit, false);
+            ValidateActive(current);
+        }
+
         public void Restore(IEnumerable<TUnit> currentUnits)
         {
             if (!IsAcquired)
