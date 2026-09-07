@@ -81,12 +81,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 allocationRiderInitiative = rider.Stats.Initiative.BaseValue;
                 allocationMountInitiative = horse.Stats.Initiative.BaseValue;
                 allocationInitiativeLease = true;
-                for (var index = 0; index < rider.Group.Count; index++)
-                {
-                    var member = rider.Group[index];
-                    if (member.IsInCombat) throw new InvalidOperationException("Allocation fixture requires an idle party before encounter setup.");
-                    if (member != rider && member != horse) allocationFixtureParty.Add(member);
-                }
+                CaptureIdleFixturePartyForCleanup();
                 // Deterministic native roll inputs on disposable actors BEFORE
                 // encounter setup. Never rewrite a roll, active turn or readiness.
                 rider.Stats.Initiative.BaseValue = AllocationRiderFirst ? 40 : -40;
@@ -247,6 +242,20 @@ namespace KingmakerMountedCombat.Diagnostics
             ResetLeafClock();
         }
 
+        private void CaptureIdleFixturePartyForCleanup()
+        {
+            if (allocationFixtureParty.Count != 0)
+                throw new InvalidOperationException("Diagnostic cleanup party was already captured.");
+            for (var index = 0; index < rider.Group.Count; index++)
+            {
+                var member = rider.Group[index];
+                if (member.IsInCombat)
+                    throw new InvalidOperationException("Diagnostic fixture requires an idle party before encounter setup.");
+                if (member != rider && member != horse) allocationFixtureParty.Add(member);
+            }
+            observations["fixturePartyCapturedIdle"] = new JArray(allocationFixtureParty.Select(member => member.UniqueId));
+        }
+
         private void CleanupActorAllocation()
         {
             observations["actorAllocationSamples"] = allocationSamples.DeepClone();
@@ -255,14 +264,19 @@ namespace KingmakerMountedCombat.Diagnostics
             // Native encounter cleanup on the exact disposable party captured
             // idle before setup. This runs only AFTER measured turns, and avoids
             // restoring TB while an unrelated fixture member remains in combat.
+            observations["fixturePartyCombatBeforeCleanup"] = new JArray(allocationFixtureParty.Select(member => new JObject {
+                ["unitId"] = member.UniqueId, ["inState"] = member.IsInState, ["inCombat"] = member.IsInCombat
+            }));
             foreach (var member in allocationFixtureParty)
             {
                 if (member.IsInState && member.Group != rider.Group)
-                    throw new InvalidOperationException("Allocation cleanup party identity changed.");
+                    throw new InvalidOperationException("Diagnostic cleanup party identity changed.");
                 TryLeaveCombat(member);
             }
             observations["allocationPartyCombatRestored"] = allocationFixtureParty.All(member => !member.IsInState || !member.IsInCombat);
             observations["allocationPartyCleanupIds"] = new JArray(allocationFixtureParty.Select(member => member.UniqueId));
+            if (allocationFixtureParty.Any(member => member.IsInState && member.IsInCombat))
+                throw new InvalidOperationException("Diagnostic cleanup did not restore the exact party's idle combat state.");
             if (allocationInitiativeLease)
             {
                 rider.Stats.Initiative.BaseValue = allocationRiderInitiative;

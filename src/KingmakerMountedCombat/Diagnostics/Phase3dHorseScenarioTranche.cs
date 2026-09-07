@@ -373,6 +373,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
             if (IsUnmountedAttackControls)
             {
+                CaptureIdleFixturePartyForCleanup();
                 BeginTarget(TargetDistance, "unmounted-control-dismount");
                 BeginRtCombatDismount();
                 return;
