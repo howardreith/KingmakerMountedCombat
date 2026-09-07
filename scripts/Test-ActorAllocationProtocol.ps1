@@ -144,4 +144,25 @@ $rejected=$false
 try {Assert-KmcAllocationCallbackEvidence $pairedCallbacks $pairedCallbacks.rows[1].evidence} catch {$rejected=$true}
 if(!$rejected){throw 'Paired callback schema accepted a duplicated effect.'}
 $passes++
+# A native turn may curve away from its endpoint while consuming real action
+# time. Require the physical path and the native shifts, with unchanged cost
+# conservation and displacement tolerance; net displacement is not path length.
+$curved=[pscustomobject]@{purpose='conversion';admitted=$true;distance=3.0;travelledDistance=3.8
+    nativeShiftDistance=3.8;nativeMoveCost=0.79;nativeAllowedTime=0.79;before=@{speedMps=5.08}}
+Assert-KmcPairedMovementEvidence $curved
+$passes++
+foreach($mutation in @(
+    {param($e) $e.nativeMoveCost=0.4},
+    {param($e) $e.travelledDistance=2.5},
+    {param($e) $e.nativeShiftDistance=3.0},
+    {param($e) $e.travelledDistance=4.7;$e.nativeShiftDistance=4.7},
+    {param($e) $e.travelledDistance=$null},
+    {param($e) $e.purpose='exhausted-rejection'}
+)) {
+    $e=$curved|ConvertTo-Json -Depth 5|ConvertFrom-Json; & $mutation $e
+    $rejected=$false
+    try {Assert-KmcPairedMovementEvidence $e} catch {$rejected=$true}
+    if(!$rejected){throw 'Malformed paired movement measurement was accepted.'}
+    $passes++
+}
 Write-Host "ALLOCATION PROTOCOL PASS=$passes FAIL=0 (envelope validation only)"

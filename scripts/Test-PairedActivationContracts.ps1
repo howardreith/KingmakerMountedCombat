@@ -62,6 +62,23 @@ public static class KmcNativePatchProbe {
     patch.Invoke(harmony,new object[]{original,null,null,method});
     count++;Console.WriteLine("PASS native IL patch construction "+original.Name);
    }
+   var observer=candidate.GetType("KingmakerMountedCombat.Diagnostics.NativeActorAllocationTrace+Hooks",true);
+   var observerNames=new[]{"PhysicalTick","PhysicalMove"};
+   var nativeObserverNames=new[]{"TickMovement","Move"};
+   var nativeParameterTypes=new[]{"System.Single","UnityEngine.Vector3"};
+   var observerTokens=new[]{0x060018AA,0x060018DB};
+   for(var i=0;i<observerTokens.Length;i++) {
+    var original=native.ManifestModule.ResolveMethod(observerTokens[i]);
+    var before=observer.GetMethod(observerNames[i]+"Before",BindingFlags.Static|BindingFlags.NonPublic);
+    var after=observer.GetMethod(observerNames[i]+"After",BindingFlags.Static|BindingFlags.NonPublic);
+    if(original.Name!=nativeObserverNames[i] || original.IsStatic || original.GetParameters().Length!=1 ||
+       original.GetParameters()[0].ParameterType.FullName!=nativeParameterTypes[i] || before==null || after==null)
+     throw new InvalidOperationException("Native physical movement observation contract changed.");
+    Console.WriteLine("PASS native movement observation signature "+original.Name);
+   }
+   // These bodies call Unity ECalls which cannot be JIT-constructed in this
+   // isolated CLR. Actual patch installation is required in the native scenario.
+   Console.WriteLine("MOVEMENT OBSERVER SIGNATURE PASS=2 FAIL=0; runtime construction still required");
   } finally {harmonyType.GetMethod("UnpatchAll").Invoke(harmony,new object[]{id});}
   Console.WriteLine("PATCH CONSTRUCTION PASS="+count+" FAIL=0; no game method invoked or game file written");
  }

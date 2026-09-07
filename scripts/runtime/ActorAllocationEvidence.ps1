@@ -3,6 +3,24 @@ function Test-KmcActorAllocationScenario([string]$Scenario) {
         'actor-allocation-rider-first-unmounted-tb','actor-allocation-mount-first-unmounted-tb')
 }
 
+function Assert-KmcPairedMovementEvidence($move) {
+    foreach($field in @('distance','travelledDistance','nativeShiftDistance','nativeMoveCost','nativeAllowedTime')) {
+        $value=$move.$field
+        if($null -eq $value -or $value -is [string] -or [double]::IsNaN([double]$value) -or
+            [double]::IsInfinity([double]$value) -or [double]$value -lt 0) {throw 'Missing or invalid native movement measurement.'}
+    }
+    if($move.purpose -ceq 'exhausted-rejection') {
+        if($move.distance -ge 0.02 -or $move.travelledDistance -ge 0.02 -or $move.nativeShiftDistance -ge 0.02 -or
+            [Math]::Abs([double]$move.nativeMoveCost) -ge 0.001 -or [Math]::Abs([double]$move.nativeAllowedTime) -ge 0.001) {throw 'Exhausted movement delivered motion or cost mutation.'}
+    } elseif($move.admitted -ne $true -or $move.distance -le 0.02 -or $move.nativeMoveCost -le 0 -or
+        [Math]::Abs([double]$move.nativeMoveCost-[double]$move.nativeAllowedTime) -ge 0.02 -or
+        $move.travelledDistance -lt ([double]$move.distance-0.02) -or
+        [Math]::Abs([double]$move.travelledDistance-[double]$move.nativeShiftDistance) -ge 0.35 -or
+        $move.nativeShiftDistance -gt ([double]$move.nativeAllowedTime*[double]$move.before.speedMps+0.35)) {
+        throw 'Movement lacks measured native travel/displacement/time/cost agreement.'
+    }
+}
+
 function Assert-KmcPairedActivationEvidence($Request, $Artifact, [string]$Status) {
     if ([string]$Request.scenario -cnotin @('actor-allocation-rider-first-tb','actor-allocation-mount-first-tb') -or
         [long]$Artifact.schemaVersion -ne 11) { throw 'Paired lifecycle evidence requires the exact mounted allocation scenario and schema 11.' }
@@ -50,11 +68,7 @@ function Assert-KmcPairedActivationEvidence($Request, $Artifact, [string]$Status
             foreach($move in @($sample.operations|Where-Object kind -CEQ 'movement')) {
                 if($move.samePrincipalTurn -ne $true -or $move.fiveFootStep -ne $false -or $move.singleMove -ne $false -or
                     [Math]::Abs([double]$move.riderAfter.move-[double]$move.riderBefore.move) -gt 0.0001) {throw 'Movement has wrong activation, limits or resource owner.'}
-                if($move.purpose -ceq 'exhausted-rejection') {
-                    if($move.distance -ge 0.02 -or [Math]::Abs([double]$move.nativeMoveCost) -ge 0.001 -or [Math]::Abs([double]$move.nativeAllowedTime) -ge 0.001) {throw 'Exhausted movement delivered motion or cost mutation.'}
-                } elseif($move.admitted -ne $true -or $move.distance -le 0.02 -or $move.nativeMoveCost -le 0 -or
-                    [Math]::Abs([double]$move.nativeMoveCost-[double]$move.nativeAllowedTime) -ge 0.02 -or
-                    [Math]::Abs([double]$move.distance-[double]$move.nativeAllowedTime*[double]$move.before.speedMps) -ge 0.35) {throw 'Movement lacks measured native distance/time/cost agreement.'}
+                Assert-KmcPairedMovementEvidence $move
             }
         }
         $first=$e.activations[0];$second=$e.activations[1];$third=$e.activations[2]

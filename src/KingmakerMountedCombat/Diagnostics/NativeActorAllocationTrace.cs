@@ -39,6 +39,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly Dictionary<UnitEntityData, int> grants = new Dictionary<UnitEntityData, int>();
         private readonly Dictionary<UnitEntityData, float> movedTime = new Dictionary<UnitEntityData, float>();
         private readonly Dictionary<UnitEntityData, float> requestedTime = new Dictionary<UnitEntityData, float>();
+        private readonly Dictionary<UnitEntityData, float> travelledDistance = new Dictionary<UnitEntityData, float>();
+        private readonly Dictionary<UnitEntityData, float> nativeShiftDistance = new Dictionary<UnitEntityData, float>();
+        private UnitMovementAgent physicalMovement;
         private TurnController preparing;
         private string encounter;
         private int dropped;
@@ -67,6 +70,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 Patch(typeof(TurnController), 0x06000C5E, "CommandEndBefore", "CommandEndAfter");
                 Patch(typeof(TurnController), 0x06000C46, "TurnEndBefore", "TurnEndAfter");
                 Patch(typeof(UnitMovementAgent), 0x060018A9, "MovementBefore", "MovementAfter");
+                Patch(typeof(UnitMovementAgent), 0x060018AA, "PhysicalTickBefore", "PhysicalTickAfter");
+                Patch(typeof(UnitMovementAgentBase), 0x060018DB, "PhysicalMoveBefore", "PhysicalMoveAfter");
             }
             catch { Dispose(); throw; }
         }
@@ -99,6 +104,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["remainingNativeTime"] = nativeTurn?.GetRemainingTime(),
                 ["measuredAllowedTime"] = movedTime.ContainsKey(actor) ? movedTime[actor] : 0f,
                 ["measuredRequestedTime"] = requestedTime.ContainsKey(actor) ? requestedTime[actor] : 0f,
+                ["measuredTravelDistance"] = travelledDistance.ContainsKey(actor) ? travelledDistance[actor] : 0f,
+                ["measuredNativeShiftDistance"] = nativeShiftDistance.ContainsKey(actor) ? nativeShiftDistance[actor] : 0f,
                 ["position"] = new JArray(actor.Position.x, actor.Position.y, actor.Position.z),
                 ["retained"] = Retained(actor), ["nativeRoundHit"] = actor.CombatState.HitThisRound,
                 ["nativeRoundAttacks"] = actor.CombatState.ExecutedAttackNumber
@@ -180,6 +187,33 @@ namespace KingmakerMountedCombat.Diagnostics
         private UnitEntityData Owner(UnitCommands commands) => commands == rider.Commands ? rider : commands == mount.Commands ? mount : null;
         private static class Hooks
         {
+            internal static void PhysicalTickBefore(UnitMovementAgent __instance, out UnitMovementAgent __state)
+            {
+                __state = active?.physicalMovement;
+                if (active == null) return;
+                var actor = __instance.Unit?.EntityData;
+                active.physicalMovement = CombatController.IsInTurnBasedCombat() &&
+                    (actor == active.rider || actor == active.mount) ? __instance : null;
+            }
+            internal static void PhysicalTickAfter(UnitMovementAgent __state)
+            { if (active != null) active.physicalMovement = __state; }
+            internal static void PhysicalMoveBefore(UnitMovementAgentBase __instance, out Vector3 __state)
+            { __state = active?.physicalMovement == __instance ? __instance.transform.position : Vector3.zero; }
+            internal static void PhysicalMoveAfter(UnitMovementAgentBase __instance, Vector3 shift, Vector3 __state)
+            {
+                if (active == null || active.physicalMovement != __instance) return;
+                var actor = __instance.Unit.EntityData;
+                var delivered = __instance.transform.position - __state;
+                var distance = new Vector2(delivered.x, delivered.z).magnitude;
+                var requested = new Vector2(shift.x, shift.z).magnitude;
+                active.travelledDistance[actor] = (active.travelledDistance.ContainsKey(actor) ? active.travelledDistance[actor] : 0f) + distance;
+                active.nativeShiftDistance[actor] = (active.nativeShiftDistance.ContainsKey(actor) ? active.nativeShiftDistance[actor] : 0f) + requested;
+                // Native Move includes both the velocity shift and its final
+                // endpoint correction. Sum actual segments, never a straight
+                // line between input and destination or a guessed speed.
+                active.Record("native-movement-displacement", actor,
+                    detail: "requestedMetres=" + requested.ToString("R") + ";deliveredMetres=" + distance.ToString("R"));
+            }
             internal static void PrepareBefore(TurnController __instance) { if (active == null) return; active.preparing = __instance; active.grants[__instance.Unit] = active.GrantCount(__instance.Unit) + 1; active.Record("prepare-before", __instance.Unit); }
             internal static void PrepareAfter(TurnController __instance) { active?.Record("prepare-after", __instance.Unit); if (active != null) active.preparing = null; }
             internal static void ClearBefore(UnitCombatState.Cooldowns __instance) { if (active?.preparing?.Unit.CombatState.Cooldown == __instance) active.Record("clear-before", active.preparing.Unit); }

@@ -2,6 +2,8 @@
 
 Status: **IN PROGRESS**. [Milestone report](docs/PAIRED-ACTIVATION-MILESTONE.md).
 
+Preview.4 native run C completed its first paired activation, both native attacks/exhaustion, unrelated turns and the next fresh grant. The loop remains FAIL at the second activation's curved movement measurement; preview.5 records actual native travel. All three transactions restored actual preview.13 and current external state. Broad regression remains pending the complete loop.
+
 Intake is clean `codex/mounted-combat-phase3f-playable-core` at reviewed `45e3d276754257f4513342d5bce7626dd609d252`, containing Chunk 2 binary source `c804ba052760063f747cde83265e660916984d72`, development candidate `0.1.0-chunk2-preview.10`. Preserve all descendants. [Frozen Chunk 2 repairs, identities and outstanding gates](docs/CHUNK2-ACTOR-ALLOCATIONS.md).
 
 Implement one rider-principal activation for the supported pair mounted before encounter, with distinct native actor costs, complete exactly-once preparation, authorized partner commands and correct completion/next-actor participation. This mission supersedes historical separate-turn/scheduler restrictions. First gate: three full paired activations in each pre-pair initiative arrangement, then remaining A01-A09 and final-path A05/A10. Prior A05/A10 evidence does not qualify the new path.

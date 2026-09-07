@@ -128,9 +128,12 @@ namespace KingmakerMountedCombat.Diagnostics
             var before = pairedOperation["before"];
             var cost = (float)after["move"] - (float)before["move"];
             var elapsed = (float)after["measuredAllowedTime"] - (float)before["measuredAllowedTime"];
+            var travelled = (float)after["measuredTravelDistance"] - (float)before["measuredTravelDistance"];
+            var nativeShift = (float)after["measuredNativeShiftDistance"] - (float)before["measuredNativeShiftDistance"];
             pairedOperation["after"] = after; pairedOperation["riderAfter"] = riderAfter;
             pairedOperation["distance"] = distance; pairedOperation["nativeMoveCost"] = cost;
             pairedOperation["nativeAllowedTime"] = elapsed; pairedOperation["result"] = movementCommand?.Result.ToString();
+            pairedOperation["travelledDistance"] = travelled; pairedOperation["nativeShiftDistance"] = nativeShift;
             pairedOperation["samePrincipalTurn"] = ReferenceEquals(allocationTurn, Game.Instance.TurnBasedCombatController.CurrentTurn);
             var reject = (string)pairedOperation["purpose"] == "exhausted-rejection";
             RequirePaired((bool)pairedOperation["samePrincipalTurn"], "Movement changed the activation principal.");
@@ -138,15 +141,19 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Transport charged rider movement.");
             if (reject)
             {
-                RequirePaired(distance < 0.02f && Math.Abs(cost) < 0.001f && Math.Abs(elapsed) < 0.001f,
+                RequirePaired(distance < 0.02f && travelled < 0.02f && nativeShift < 0.02f && Math.Abs(cost) < 0.001f && Math.Abs(elapsed) < 0.001f,
                     "Exhausted movement delivered distance or refunded resources.");
                 pairedSample["exhaustedMovementRejected"] = true;
                 pairedStage = 3; return;
             }
             RequirePaired(movementCommand != null && distance > 0.02f && cost > 0f && Math.Abs(cost - elapsed) < 0.02f,
                 "Admitted movement lacks native cost/time/distance.");
-            RequirePaired(Math.Abs(distance - elapsed * (float)before["speedMps"]) < 0.35f,
-                "Delivered movement differs from native speed and measured time.");
+            // Turning interpolates the native direction vector; speed times
+            // elapsed time is an upper bound, not endpoint displacement. The
+            // physical observer measures each actual native Move segment.
+            RequirePaired(travelled >= distance - 0.02f && Math.Abs(travelled - nativeShift) < 0.35f &&
+                nativeShift <= elapsed * (float)before["speedMps"] + 0.35f,
+                "Actual travel differs from native displacement or exceeds allowed movement time.");
             pairedMoveNumber++;
             if (pairedActivationNumber == 1) { BeginPairedAttack(false); return; }
             if (pairedActivationNumber == 3)
