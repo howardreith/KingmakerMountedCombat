@@ -170,7 +170,8 @@ function Assert-KmcAllocationCallbackEvidence($Artifact, $Evidence) {
     if($Evidence.level -cne 'NATIVE INTEGRATION' -or $Evidence.passed -ne $true -or @($Evidence.errors).Count -ne 0) {
         throw 'Native callback result is not a successful measured result.'
     }
-    $coverage=@($Artifact.rows|Where-Object name -CEQ 'T01-native-allocation-trace')
+    $coverageName=if([long]$Artifact.schemaVersion -eq 11){'P01-three-paired-activations'}else{'T01-native-allocation-trace'}
+    $coverage=@($Artifact.rows|Where-Object name -CEQ $coverageName)
     if($coverage.Count -ne 1 -or $coverage[0].status -cne 'PASS'){throw 'Native callback result requires complete trace coverage.'}
     $actors=@($Artifact.observations.allocationNativeRoundFacts | ForEach-Object {[string]$_.actor})
     $restored=@($Artifact.observations.allocationNativeRoundFactsRestored)

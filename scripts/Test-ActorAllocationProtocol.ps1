@@ -132,4 +132,16 @@ foreach($mutation in @(
     if(!$rejected){throw 'Malformed conservation trace was accepted.'}
     $passes++
 }
+# The preparation contract is shared; schema 11 binds its coverage to the new
+# paired loop row without relaxing callback cardinality or effect delivery.
+$pairedCallbacks=New-CallbackEnvelope
+$pairedCallbacks.schemaVersion=11
+$pairedCallbacks.rows[0].name='P01-three-paired-activations'
+Assert-KmcAllocationCallbackEvidence $pairedCallbacks $pairedCallbacks.rows[1].evidence
+$passes++
+$pairedCallbacks.observations.actorAllocationTrace.events+=@($pairedCallbacks.observations.actorAllocationTrace.events|Where-Object boundary -CEQ 'fact-before'|Select-Object -First 1)
+$rejected=$false
+try {Assert-KmcAllocationCallbackEvidence $pairedCallbacks $pairedCallbacks.rows[1].evidence} catch {$rejected=$true}
+if(!$rejected){throw 'Paired callback schema accepted a duplicated effect.'}
+$passes++
 Write-Host "ALLOCATION PROTOCOL PASS=$passes FAIL=0 (envelope validation only)"
