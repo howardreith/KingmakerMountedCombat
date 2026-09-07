@@ -246,4 +246,75 @@ foreach($mutation in @(
     if(!$rejected){throw 'Incomplete native reaction lifecycle envelope was accepted.'}
     $passes++
 }
+function New-PairedTransitionEnvelope {
+    $e=New-PairedReactionEnvelope
+    $e.schemaVersion=13
+    $ledger=New-Object Collections.ArrayList
+    foreach($event in $e.observations.actorAllocationTrace.events){[void]$ledger.Add($event)}
+    $samples=New-Object Collections.ArrayList
+    function Add-TransitionSample([string]$kind,[long]$ticks,[int]$round,[string]$identity,[double]$standard,[double]$move,[bool]$riderGrant,[bool]$mountGrant) {
+        foreach($actor in @('rider','mount')) {
+            if($actor -ceq 'rider' -and $riderGrant -or $actor -ceq 'mount' -and $mountGrant) {
+                foreach($boundary in @('clear-after','round-state-after')) {
+                    [void]$ledger.Add(@{sequence=$ledger.Count+1;boundary=$boundary;round=$round;gameTicks=$ticks;state=@{actor=$actor}})
+                }
+            }
+        }
+        [void]$ledger.Add(@{sequence=$ledger.Count+1;boundary=$kind;round=$round;gameTicks=$ticks;state=@{actor='rider'}})
+        $sample=@{kind=$kind;frame=$ledger.Count;traceSequence=$ledger.Count;round=$round;gameTicks=$ticks;identity=$identity;currentActor='rider'}
+        foreach($actor in @('rider','mount')) {
+            $sample[$actor]=@{actor=$actor;standard=$standard;move=$move;reactions=1}
+            $sample[$actor+'Clears']=@($ledger|Where-Object {$_.state.actor -ceq $actor -and $_.boundary -ceq 'clear-after'}).Count
+            $sample[$actor+'Effects']=@($ledger|Where-Object {$_.state.actor -ceq $actor -and $_.boundary -ceq 'round-state-after'}).Count
+        }
+        [void]$samples.Add($sample)
+    }
+    [void]$ledger.Add(@{sequence=$ledger.Count+1;boundary='first-gate-sealed';round=4;gameTicks=100;state=@{actor='rider'}})
+    $e.rows[0].evidence | Add-Member traceEndSequence $ledger.Count
+    $id4='11111111111111111111111111111111:4';$id5='11111111111111111111111111111111:5'
+    Add-TransitionSample 'native-delay-input-before' 100 4 $id4 0 0 $true $true
+    Add-TransitionSample 'native-delay-existing-grant-resumed' 100 4 $id4 0 0 $false $false
+    Add-TransitionSample 'used-pair-delay-input-before' 100 4 $id4 0 0.1 $false $false
+    Add-TransitionSample 'used-pair-delay-rejected' 100 4 $id4 0 0.1 $false $false
+    Add-TransitionSample 'native-mode-exit-before' 100 4 $id4 0 0.1 $false $false
+    Add-TransitionSample 'native-mode-exit-after' 100 0 $id4 6 3 $false $false
+    Add-TransitionSample 'native-mode-next-paired-grant' 60000100 1 $id5 0 0 $true $true
+    Add-TransitionSample 'native-dismount-input-before' 60000100 1 $id5 0 0 $false $false
+    Add-TransitionSample 'native-dismount-after' 60000100 1 $id5 0 0 $false $false
+    Add-TransitionSample 'native-split-next-independent-mount-grant' 120000100 2 $id5 0 0 $false $true
+    $moves=@(
+        @{purpose='partial-stop';admitted=$true;distance=0.5;travelledDistance=0.5;nativeShiftDistance=0.5;nativeMoveCost=0.1;nativeAllowedTime=0.1
+            before=@{speedMps=5.0};pausedStopVerified=$true;stopInput=$true;riderBefore=@{move=0};riderAfter=@{move=0}},
+        @{purpose='five-foot-step';admitted=$true;distance=1.0;travelledDistance=1.0;nativeShiftDistance=1.0;nativeMoveCost=0;nativeAllowedTime=0.2
+            before=@{speedMps=5.0;stepRangeMetres=1.524};after=@{metresStepped=1.0;standard=0};fiveFootStep=$true;riderBefore=@{move=0};riderAfter=@{move=0}},
+        @{purpose='ordinary-after-step-rejected';distance=0;travelledDistance=0;nativeShiftDistance=0;nativeMoveCost=0;nativeAllowedTime=0
+            riderBefore=@{move=0};riderAfter=@{move=0}}
+    )
+    $e.rows+=@{name='P02-paired-native-transitions';status='PASS';evidence=@{level='NATIVE INTEGRATION';passed=$true
+        inputKind='scripted-native-control-integration';modeSettingRestored=$true;events=@($samples);movements=$moves}}
+    $e.observations.actorAllocationTrace.events=@($ledger)
+    $e.subscenarioPassCount=3
+    return ($e|ConvertTo-Json -Depth 35|ConvertFrom-Json)
+}
+Assert-KmcActorAllocationEvidence $request (New-PairedTransitionEnvelope) 'PASS'
+$passes++
+foreach($mutation in @(
+    {param($e) $e.rows[0].evidence.traceEndSequence=0},
+    {param($e) $e.rows[2].evidence.modeSettingRestored=$false},
+    {param($e) $e.rows[2].evidence.events[1].identity='11111111111111111111111111111111:5'},
+    {param($e) $e.rows[2].evidence.events[1].mountEffects++},
+    {param($e) $e.rows[2].evidence.events[3].mount.move=0},
+    {param($e) $e.rows[2].evidence.events[5].mount.standard=0},
+    {param($e) $e.rows[2].evidence.events[6].gameTicks=101},
+    {param($e) $e.rows[2].evidence.events[9].round=1},
+    {param($e) $e.rows[2].evidence.movements[0].pausedStopVerified=$false},
+    {param($e) $e.rows[2].evidence.movements[1].nativeMoveCost=0.1},
+    {param($e) $e.rows[2].evidence.movements[2].distance=0.5}
+)) {
+    $e=New-PairedTransitionEnvelope; & $mutation $e
+    $rejected=$false
+    try {Assert-KmcActorAllocationEvidence $request $e 'PASS'} catch {$rejected=$true}
+    if(!$rejected){throw 'Resource-violating or unbound native transition evidence was accepted.'}
+    $passes++
+}
 Write-Host "ALLOCATION PROTOCOL PASS=$passes FAIL=0 (envelope validation only)"

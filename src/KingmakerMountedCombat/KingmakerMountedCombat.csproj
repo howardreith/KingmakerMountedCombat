@@ -110,6 +110,7 @@
     <Compile Include="Domain\ActorAllocationLifetime.cs" />
     <Compile Include="Domain\PairedActivation.cs" />
     <Compile Include="Integration\PairedActivationLifecycle.cs" />
+    <Compile Include="Integration\PairedActivationTransitions.cs" />
     <Compile Include="Integration\PairedActivationTranspilers.cs" />
     <Compile Include="CompositionRoot.cs" />
     <Compile Include="Diagnostics\DiagnosticSettings.cs" />
@@ -178,6 +179,7 @@
     <Compile Include="Diagnostics\ActorAllocationCallbackEvidence.cs" />
     <Compile Include="Diagnostics\ActorAllocationScenarios.cs" />
     <Compile Include="Diagnostics\PairedActivationScenario.cs" />
+    <Compile Include="Diagnostics\PairedTransitionScenario.cs" />
     <Compile Include="Diagnostics\PairedReactionScenario.cs" />
     <Compile Include="Diagnostics\ActorAllocationConservationProbe.cs" />
     <Compile Include="Domain\AnimatedSaddlePosition.cs" />

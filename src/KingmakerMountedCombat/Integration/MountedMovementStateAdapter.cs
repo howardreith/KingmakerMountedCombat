@@ -126,6 +126,14 @@ namespace KingmakerMountedCombat.Integration
 
         internal bool Owns(UnitEntityData actor) => actor != null && allocations.ContainsKey(actor);
 
+        internal void ResetTransientStepImmunity(TurnController context)
+        {
+            if (context == null) return;
+            Allocation allocation;
+            if (allocations.TryGetValue(context.Unit, out allocation)) allocation.Movement.StepImmune = false;
+            TurnMovementProperties[4].SetValue(context, false, null);
+        }
+
         private Allocation Get(UnitEntityData mount)
         {
             MaintainLifetimes();

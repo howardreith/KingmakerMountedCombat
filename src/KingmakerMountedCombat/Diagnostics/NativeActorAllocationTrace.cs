@@ -86,6 +86,8 @@ namespace KingmakerMountedCombat.Diagnostics
             var nativeTurn = turn?.Unit == actor ? turn : combat.PairedPartnerContext?.Unit == actor ? combat.PairedPartnerContext : null;
             return new JObject {
                 ["actor"] = actor.UniqueId, ["actorObject"] = Id(actor), ["grantSequence"] = GrantCount(actor),
+                ["grantSequenceKind"] = "observed-native-Prepare-entries",
+                ["pairedGrantIdentity"] = actor == rider || actor == mount ? combat.PairedActivationIdentity : null,
                 ["standard"] = cooldown.StandardAction, ["move"] = cooldown.MoveAction, ["swift"] = cooldown.SwiftAction,
                 ["initiativeCooldown"] = cooldown.Initiative, ["initiative"] = actor.CombatState.Initiative,
                 ["reactionCooldown"] = cooldown.AttackOfOpportunity, ["reactions"] = actor.CombatState.AttackOfOpportunityCount,

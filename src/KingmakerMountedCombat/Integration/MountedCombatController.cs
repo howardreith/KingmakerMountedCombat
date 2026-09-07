@@ -534,7 +534,8 @@ namespace KingmakerMountedCombat.Integration
                 unit == null || target == null ||
                 unit != relationship.Rider && !(unit == relationship.Mount &&
                     CombatController.IsInTurnBasedCombat() &&
-                    Game.Instance?.TurnBasedCombatController?.CurrentTurn?.Unit == unit))
+                    (Game.Instance?.TurnBasedCombatController?.CurrentTurn?.Unit == unit ||
+                     unifiedTurn != null && unifiedTurn.CanAddressActor(unit, Game.Instance?.TurnBasedCombatController?.CurrentTurn))))
             {
                 return;
             }
@@ -1123,6 +1124,12 @@ namespace KingmakerMountedCombat.Integration
         {
             var message = LastFeedback;
             EventBus.RaiseEvent<IWarningNotificationUIHandler>(handler => handler.HandleWarning(message, true));
+        }
+
+        internal void RejectPairedControl(string reason)
+        {
+            LastFeedback = reason;
+            ShowStockFeedback();
         }
 
         internal void CancelSelectedInput(string reason)

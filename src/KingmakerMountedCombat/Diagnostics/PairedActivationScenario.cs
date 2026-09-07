@@ -242,6 +242,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     visits.Any(v => (int)v["round"] == round && (bool)v["friendly"] && !(bool)v["principal"]),
                     "A measured activation lacks unrelated friendly/enemy native turns.");
             }
+            allocationTrace.Record("first-gate-sealed", rider);
             var trace = allocationTrace.Capture();
             RequirePaired(pairedReactionRefreshed, "Consumed native mount reaction was not renewed at the next paired boundary.");
             RequirePaired((int)trace["dropped"] == 0 && (int)trace["observationErrors"] == 0,
@@ -251,11 +252,12 @@ namespace KingmakerMountedCombat.Diagnostics
             var evidence = new JObject { ["level"] = "NATIVE INTEGRATION", ["gameplayQualified"] = true,
                 ["inputKind"] = "scripted-native-handler-integration", ["principal"] = rider.UniqueId,
                 ["firstRound"] = allocationFirstRound, ["activations"] = pairedActivations.DeepClone(),
+                ["traceEndSequence"] = ((JArray)trace["events"]).Count,
                 ["turnVisits"] = pairedTurnVisits.DeepClone(), ["refresh"] = observations["pairedRefreshAfterEarlyEnd"].DeepClone(),
                 ["errors"] = new JArray(pairedGateErrors), ["reactions"] = pairedReactionEvidence.DeepClone() };
             AddRow("P01-three-paired-activations", pairedGateErrors.Count == 0, "Native paired movement, both actor attacks, conversion, exhaustion and early End Turn across three activations.", evidence);
             AddRow("A05-native-preparation-callbacks", (bool)callbacks["passed"], "Exact-candidate native actor preparation and callback/effect counts.", callbacks);
-            BeginCleanup();
+            BeginPairedTransitionProbe();
         }
     }
 }

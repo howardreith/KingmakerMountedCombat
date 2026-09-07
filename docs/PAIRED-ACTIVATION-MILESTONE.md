@@ -1,6 +1,6 @@
 # Combined actor-allocation and paired-activation milestone
 
-Status: **IN PROGRESS**. The three-activation movement/attack loop passes in both initiative arrangements. Consumed reactions and remaining accounting, transition and final regression gates are unqualified.
+Status: **IN PROGRESS**. The complete first gate passes in both initiative arrangements on preview.9, including consumed reactions. Remaining accounting, transition and final regression gates are unqualified.
 
 ## Authority and configuration
 
@@ -30,6 +30,8 @@ Artifacts are under lab `runtime-evidence/<runId>/`. Campaign intake, independen
 | F / preview.7, mount-first | **PASS48/0** | Three activations/fourth refresh, exact callbacks/effects, unrelated turns, no mount turn, zero errors/drops. |
 | G / same preview.7, rider-first | **PASS48/0** | Same complete loop and strict checks with opposite pre-pair initiative inputs. |
 | H / preview.8, rider-first | FAIL46/2 | Native mount reaction consumed once, ordinary debt unchanged; enemy movement interrupted after1.5021044m, cost0.365368843/time0.3653693, with resources left. Condition/navigation cause was not recorded. |
+| I / preview.9, rider-first | **PASS48/0** | Complete first gate with four native enemy movements: one real mount opportunity attack, no duplicate, ordinary debts unchanged and next native reaction refresh. |
+| J / same preview.9, mount-first | **PASS48/0** | Same complete first gate in the opposite pre-pair initiative arrangement. |
 
 F/G source `e9aad2228399feec1aa74096658c27cf89c67c15`. ZIP `KingmakerMountedCombat-0.1.0-paired-preview.7-trace-admission-diagnostic.zip`, SHA `7e2d44f2a18d3a1298dfdbdabc997342c251425d03600bdf66e21c1d16d08ff1`; DLL SHA `0ac6bad536bc362dcd2326f4eda22464d33689edb997b5cfaa60f863b476eb69`, MVID `244a78c4-4325-4c9c-b5df-ac9f9f917e5d`; suite7 SHA `f667cfd00a47b02b7ea2a94f836d2adad94752bf7859749282e36e1455ac0a8b`.
 
@@ -37,7 +39,7 @@ Each passing loop delivers partial rider-controlled transport, real rider and mo
 
 ## Restoration
 
-Fresh intake2026-09-07T12:27:02Z, host DESKTOP-SRJJ623. Actual preview.13 DLL/cache SHA `282f0ad326fdfcd11b8d547cecd70456fa1c90c5a8e68aebd8ab5db3fc9c3864`; save digest `7332daa55136ab2e7d8ad2c4c4fe496a35e0059a55a48cd07c550c1c810f1d92`; Mods digest `a4985d9881558608802427bc7758ed631830f61b4978774b3d549473fb1da58b`. **All eight A-H transactions restored these actual digests**, including saves/current settings/caches/foreign Mods. No game or live lock remains after H.
+Fresh intake2026-09-07T12:27:02Z, host DESKTOP-SRJJ623. Actual preview.13 DLL/cache SHA `282f0ad326fdfcd11b8d547cecd70456fa1c90c5a8e68aebd8ab5db3fc9c3864`; save digest `7332daa55136ab2e7d8ad2c4c4fe496a35e0059a55a48cd07c550c1c810f1d92`; Mods digest `a4985d9881558608802427bc7758ed631830f61b4978774b3d549473fb1da58b`. **All ten A-J transactions restored these actual digests**, including saves/current settings/caches/foreign Mods. No game or live lock remains after J.
 
 F audit PASS14:56:25Z, native log SHA `80ee057b589517f6288edc745333168ff852beb4160649107b32af783344ae57`; G PASS15:07:58Z, log SHA `58d68720c70d03901baf1e55c33fb1cad49c4dfed5420ca8b19653fe82fd20f6`. Every live run used completed exact-candidate repository WhatIf, guarded transaction and independent audit in finally. Initial automatic approval rejection was resolved by that direct-launch preflight; no guard weakened.
 
@@ -53,11 +55,19 @@ Prior preview.8 focused checks: components354/0, source22/0, protocol53/0, struc
 
 | Gate | Status | Remaining evidence |
 |---|---|---|
-| Three-activation loop, both arrangements | PASS | F/G on exact preview.7; repeat extended loop on current candidate. |
-| Complete first gate | IN PROGRESS | Consumed reaction, duplicate rejection, native refresh. |
+| Three-activation loop, both arrangements | PASS | F/G on preview.7; I/J extended loop on exact preview.9. |
+| Complete first gate | PASS | I/J on exact preview.9, including consumed reaction, duplicate rejection and native refresh. |
 | A01-A09 | IN PROGRESS | Stop/approach, step/restrictions, automatic completion, split/death/lifetime, TB-RT-TB debt and delayed actions. |
 | Final-path A05 | IN PROGRESS | F/G counts pass; reactions and final preparation changes require final candidate. |
 | Final A10 / ordinary controls | TODO | Full/Single/Primary, Rapid Shot, mixed reach, hover/reclick/approach, accepted RT, pause/Stop/selection, unmounted, Mammoth/party. |
 | Private candidate / guarded publication | TODO | After gameplay/regression status warrants delivery. |
 
 Same-campaign cold-load debt rebinding is later persistence work. Deleting references does not preserve unrepresented debt. Safe visible rejection protects unsupported states but does not qualify their transitions. A passing loop is an intermediate result, not completion of this milestone.
+
+Preview.9 I/J source `5468c24a2b7716442b7233becb585dd62f49ed3c`, package `KingmakerMountedCombat-0.1.0-paired-preview.9-reaction-stimulus-diagnostic.zip` SHA `7c0832cef5034f63f22a865cfb9745418f691d67ba7fa7bd5eee14185353e3b3`; DLL SHA `b38a91d5194f62ec95d63b7096a058aee17403a94b06621ae1dd030b92601d1f`, MVID `23953386-0622-4bb4-9349-a5ac25604755`. Suite9 SHA `2f1bc776c166467b3a76061d93b7bdee4cef79b62efca344f60051f01349b887`. I restoration PASS16:19:04Z / log SHA `fc6429a8078b0b2149445242c88e9d47b9182daa9f211d99b03f2853c7087a90`; J PASS16:30:18Z / log SHA `b65b49d56d9ef3a47ffef4c0988cd9db0fdd801c543133f9cda04e5b3304616b`. Both strict48/0, four rows each, zero errors/drops. This is the architectural first gate, not completion of the combined milestone.
+
+Preview.10 implementation checkpoint (native qualification IN PROGRESS): native Disable forfeits an open pair before its boundary is disposed. The next TB grant waits for both actual native readiness values and at least six native seconds after mode exit; initial RT adoption also waits a full period. Exact readiness calls in TickTime06000BD6 and initial sort lambda0600A2BE are replaced locally. End/ForceToEnd setters retain greater ACTUAL debt at the write, before state and interruption callbacks, including delayed costs; no historical high-water floor is reapplied after RT recovery. False ForceToEnd retains native semantics.
+
+An unused same-round native Delay suspends and rebinds the existing grant, skipping the already-delivered preparation/effect block while retaining native interaction/readiness processing. Either actor expenditure or step rejects Delay. Cross-round Delay remains DEFER � EVIDENCED: native HandleDelayTurn invokes additional activatable processing and disposes without End; effect timing for that composition is not yet qualified. The target guard gives visible feedback. Native removal ends the active pair before the native selector/disposal, retaining surviving mount participation while retiring actor references. Native prone readiness and transient step state now update on the sole principal lifecycle; the local prone eligibility seam admits only its live pair. These source changes still need native evidence.
+
+The existing allocation fixture now continues after its sealed first gate into P02: same-round Delay or bounded no-forward-target rejection, partial paused Stop, used-pair Delay rejection, TB-RT-TB native recovery, step/ordinary-movement restriction and dismount to the next legitimate independent mount preparation. Schema13 binds each sample to raw event sequences/counts. First-gate callback validation uses its exact seal so mode round-number resets cannot alias earlier allocations. Legacy `grantSequence` telemetry is explicitly labelled as observed Prepare entries, alongside actual paired grant identity. Focused components356/0; protocol66/0; exact patch construction10/0 and movement signatures2/0; deployment harness244/0. These are not native gameplay PASS.

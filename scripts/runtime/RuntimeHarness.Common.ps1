@@ -3703,7 +3703,7 @@ function Get-KmcPhase3dHorseRuntimeRows {
         'rider-primary-target-cancel-does-not-dismount',
         'rider-primary-rejection-does-not-dismount',
         'rider-primary-does-not-dismount-rt',
-        'P01-three-paired-activations', 'T01-native-allocation-trace', 'A05-native-preparation-callbacks', 'T02-native-exhaustion-refresh-trace', '3g-rider-longbow-ordinary', '3g-rider-longbow-primary', '3g-rider-melee-ordinary', '3g-rider-melee-primary',
+        'P01-three-paired-activations', 'P02-paired-native-transitions', 'T01-native-allocation-trace', 'A05-native-preparation-callbacks', 'T02-native-exhaustion-refresh-trace', '3g-rider-longbow-ordinary', '3g-rider-longbow-primary', '3g-rider-melee-ordinary', '3g-rider-melee-primary',
         '3g-horse-bite-ordinary', '3g-horse-bite-primary', '3g-paused-dismount', '3g-paused-mount-stop',
         '3g-paused-mount-execute', '3g-paused-control-failure',
         '3h-rider-longbow-ordinary', '3h-rider-longbow-primary', '3h-rider-melee-ordinary', '3h-rider-melee-primary',
@@ -5702,7 +5702,7 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
     $phase3dSchemaVersion = if (Test-KmcExactJsonInteger $artifact.schemaVersion) {
         [long]$artifact.schemaVersion
     } else { -1L }
-    if ($phase3dSchemaVersion -notin @(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L) -or
+    if ($phase3dSchemaVersion -notin @(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L) -or
         [string]$artifact.evidenceKind -cne $kind -or [string]$artifact.status -cnotin @('PASS','FAIL') -or
         $artifact.rows -isnot [Array] -or $null -eq $artifact.observations -or
         $artifact.observations -is [Array] -or $artifact.observations -is [string] -or

@@ -11,6 +11,8 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("pair observations and selection cannot mint grants", ObservationsAreNotGrants);
             runner.Run("split preserves actor debt and rejects further paired grants", SplitRetainsDebt);
             runner.Run("pair cannot begin next activation while either actor is unended", UnendedActorBlocksNext);
+            runner.Run("native delay resumes the existing paired grant once without a refresh", DelayResumesGrant);
+            runner.Run("pair delay rejects either actor expenditure and split cannot resume", DelayConservesParticipation);
         }
         private static void Prepare(PairedActivation<object, object> pair, object boundary)
         {
@@ -65,6 +67,37 @@ namespace KingmakerMountedCombat.Tests
             var rejected = false;
             try { pair.Begin(new object()); } catch (InvalidOperationException) { rejected = true; }
             TestRunner.Equal(true, rejected, "mount completion is required");
+        }
+        private static void DelayResumesGrant()
+        {
+            var pair = new PairedActivation<object, object>(new object(), new object());
+            var first = new object(); Prepare(pair, first);
+            var identity = pair.Identity;
+            TestRunner.Equal(true, pair.Suspend(first), "unused native delay");
+            TestRunner.Equal(false, pair.CanAddress(pair.Partner, first), "suspension closes command admission");
+            TestRunner.Equal(false, pair.Resume(first), "disposed old boundary cannot resume");
+            var resumed = new object();
+            TestRunner.Equal(true, pair.Resume(resumed), "actual later native boundary");
+            TestRunner.Equal(identity, pair.Identity, "resume is the same grant");
+            TestRunner.Equal(false, pair.BeginActorPreparation(pair.Partner, resumed), "round and resources are not prepared again");
+            TestRunner.Equal(true, pair.CanAddress(pair.Partner, resumed), "existing partner resources remain usable");
+            TestRunner.Equal(false, pair.Resume(new object()), "only the outstanding delay may resume");
+        }
+        private static void DelayConservesParticipation()
+        {
+            var pair = new PairedActivation<object, object>(new object(), new object());
+            var boundary = new object(); Prepare(pair, boundary);
+            pair.Mount.Observe(0f, 0.2f, 0f);
+            TestRunner.Equal(false, pair.Suspend(boundary), "mount motion prevents principal-only delay");
+            pair.BeginEnding(); pair.EndActor(pair.Principal); pair.EndActor(pair.Partner);
+            boundary = new object(); Prepare(pair, boundary);
+            pair.Rider.Observe(0f, 0f, 1f);
+            TestRunner.Equal(false, pair.Suspend(boundary), "rider action also prevents delay");
+            pair.BeginEnding(); pair.EndActor(pair.Principal); pair.EndActor(pair.Partner);
+            boundary = new object(); Prepare(pair, boundary);
+            TestRunner.Equal(true, pair.Suspend(boundary), "fresh boundary can delay");
+            pair.Detach();
+            TestRunner.Equal(false, pair.Resume(new object()), "dismount cannot rebind a suspended paired grant");
         }
     }
 }

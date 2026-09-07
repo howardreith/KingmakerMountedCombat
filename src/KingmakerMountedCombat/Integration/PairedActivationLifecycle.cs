@@ -19,6 +19,8 @@ namespace KingmakerMountedCombat.Integration
         private TurnController partnerContext;
         private UnitEntityData preparingConfusionActor;
         private int splitReleaseRound = -1;
+        private long pairedRenewalNotBefore;
+        private TurnController resumingContext;
         private static readonly MethodInfo NativeEnd = ResolveMethod(typeof(TurnController), "End", 0x06000C46, Type.EmptyTypes);
         private static readonly MethodInfo NativeStatus = ResolveMethod(typeof(TurnController), "set_Status", 0x06000C0F, new[] { typeof(TurnController.TurnStatus) });
         private static readonly MethodInfo NativeConfusionTick = ResolveMethod(typeof(UnitConfusionController), "TickOnUnit", 0x06009131, new[] { typeof(UnitEntityData) });
@@ -61,12 +63,23 @@ namespace KingmakerMountedCombat.Integration
             // controller roster and first native selection, including fixture TB entry.
             if (controller.CurrentTurn != null) throw new InvalidOperationException("Paired ownership cannot replace a running native turn.");
             activation = new PairedActivation<UnitEntityData, TurnController>(armedRider, armedMount);
+            // Adopting an encounter that has already run in RT cannot manufacture
+            // an immediate round/reaction grant. Native time must first advance a
+            // whole resource period, and both actors' real debt must recover.
+            pairedRenewalNotBefore = isPartyCombatStateChanged ? 0 :
+                Game.Instance.TimeController.GameTime.Ticks + TimeSpan.TicksPerSecond * 6;
             LastInitiativeObservation = "encounter-owned;identity=" + activation.EncounterId +
                 ";principal=" + armedRider.UniqueId + ";nativeCombatStart=" + isPartyCombatStateChanged;
         }
 
         internal bool SuppressPairedCandidate(CombatController.TBUnitInfo candidate)
         {
+            if (PairedLifecycleEnabled && pendingSplitMount != null)
+            {
+                if (Game.Instance.TurnBasedCombatController.RoundNumber > pendingSplitRound || !pendingSplitMount.IsInCombat)
+                    pendingSplitMount = null;
+                else if (candidate?.Unit == pendingSplitMount) return true;
+            }
             if (!PairedLifecycleEnabled || activation == null || candidate?.Unit != activation.Partner) return false;
             if (activation.Split && Game.Instance.TurnBasedCombatController.RoundNumber > splitReleaseRound)
             {
@@ -91,6 +104,13 @@ namespace KingmakerMountedCombat.Integration
             }
             if (activation.Split || turn.Unit != activation.Principal ||
                 !ReferenceEquals(Game.Instance.TurnBasedCombatController.CurrentTurn, turn)) return true;
+            if (activation.Suspended)
+            {
+                if (!activation.Resume(turn)) throw new InvalidOperationException("Invalid paired native delay resume.");
+                resumingContext = turn;
+                LastInitiativeObservation = "native-delay-resumed-existing-grant;identity=" + activation.Identity;
+                return true;
+            }
             if (!activation.Begin(turn)) return false;
             if (!activation.BeginActorPreparation(turn.Unit, turn)) return false;
             movementState.BeginGrantedPreparation(turn, activation.Identity);
@@ -100,6 +120,12 @@ namespace KingmakerMountedCombat.Integration
         private void CompletePairedPreparation(TurnController turn)
         {
             if (activation == null || activation.Split || turn == null) return;
+            if (ReferenceEquals(resumingContext, turn))
+            {
+                resumingContext = null;
+                SynchronizePartnerPhase(turn);
+                return;
+            }
             var actor = activation.State(turn.Unit);
             if (actor == null || !actor.Granted || actor.Prepared) return;
             activation.FinishActorPreparation(turn.Unit);
@@ -111,6 +137,7 @@ namespace KingmakerMountedCombat.Integration
             // callbacks. It is never Start()ed, Tick()ed, selected, or CurrentTurn.
             partnerContext = new TurnController(activation.Partner);
             SurpriseContext.SetValue(partnerContext, Game.Instance.TurnBasedCombatController.IsActingSurpriseCommands(turn.Unit));
+            RefreshPartnerNativeState();
             partnerContext.Prepare();
             SynchronizePartnerPhase(turn);
             logger.Info("Paired activation prepared: " + activation.Identity + ";principal=" + turn.Unit.UniqueId +
@@ -183,23 +210,23 @@ namespace KingmakerMountedCombat.Integration
                 (activation.Partner.Commands.IsRunning() || combat.HasActiveCommand || combat.HasActiveGroundMovement)) result = true;
         }
 
-        internal void ForfeitPairedActivation(TurnController turn)
+        internal void ForfeitPairedActivation(TurnController turn, bool setCooldowns)
         {
             if (!PairedLifecycleEnabled || activation == null || !ReferenceEquals(turn, activation.Boundary)) return;
+            if (!setCooldowns) return; // Native delay's false path is not an allocation forfeiture.
             activation.BeginEnding();
             ObservePairedCosts(turn.Unit); ObservePairedCosts(activation.Partner);
             combat.Cancel("native paired End Turn");
             if (partnerContext != null)
             {
-                var move = activation.Partner.CombatState.Cooldown.MoveAction;
                 partnerContext.ForceToEnd();
-                activation.Partner.CombatState.Cooldown.MoveAction = Math.Max(move, activation.Partner.CombatState.Cooldown.MoveAction);
             }
         }
 
         internal void FinishPairedActivation(TurnController turn)
         {
             if (!PairedLifecycleEnabled || activation == null || !ReferenceEquals(turn, activation.Boundary)) return;
+            if (activation.Rider.Ended && activation.Mount.Ended) return;
             activation.BeginEnding();
             if (partnerContext != null) NativeEnd.Invoke(partnerContext, null);
             ObservePairedCosts(activation.Principal); ObservePairedCosts(activation.Partner);
@@ -220,6 +247,7 @@ namespace KingmakerMountedCombat.Integration
 
         private void MaintainPairedLifetime()
         {
+            if (!(Game.Instance?.Player?.IsInCombat ?? false)) pendingSplitMount = null;
             if (activationSession != null && activationSession != Game.Instance?.Player ||
                 activation != null && !(Game.Instance?.Player?.IsInCombat ?? false))
             {
@@ -232,7 +260,7 @@ namespace KingmakerMountedCombat.Integration
                     movementState.RetireCompletedEncounterActor(activation.Partner);
                 }
                 DisposePartnerContext(); activation = null; activationSession = null;
-                armedRider = null; armedMount = null; splitReleaseRound = -1;
+                armedRider = null; armedMount = null; splitReleaseRound = -1; pairedRenewalNotBefore = 0; resumingContext = null;
                 if (relationship.State == RelationshipState.Mounted) ArmPairedEncounter(relationship.Rider, relationship.Mount);
             }
         }

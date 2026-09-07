@@ -50,8 +50,9 @@ public static class KmcNativePatchProbe {
   var id="KingmakerMountedCombat.LocalPatchConstruction";
   var harmony=harmonyType.GetMethod("Create").Invoke(null,new object[]{id});
   var patch=harmonyType.GetMethod("Patch");
-  var names=new[]{"PairedSelectorTranspiler","PairedPreparationTranspiler","PairedActivityTranspiler","PairedEligibilityTranspiler","PairedConfusionTranspiler"};
-  var tokens=new[]{0x06000BD2,0x06000C3C,0x06000C34,0x0600911D,0x06009131};
+  var names=new[]{"PairedSelectorTranspiler","PairedPreparationTranspiler","PairedActivityTranspiler","PairedEligibilityTranspiler","PairedConfusionTranspiler",
+   "PairedReadinessTranspiler","PairedReadinessTranspiler","PairedForfeitDebtTranspiler","PairedEndDebtTranspiler","PairedProneTranspiler"};
+  var tokens=new[]{0x06000BD2,0x06000C3C,0x06000C34,0x0600911D,0x06009131,0x06000BD6,0x0600A2BE,0x06000C47,0x06000C46,0x0600918C};
   var count=0;
   try {
    for(var i=0;i<tokens.Length;i++) {

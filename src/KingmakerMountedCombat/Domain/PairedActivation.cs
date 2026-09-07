@@ -36,7 +36,8 @@ namespace KingmakerMountedCombat.Domain
         public ActorState Mount { get; private set; }
         public bool Ending { get; private set; }
         public bool Split { get; private set; }
-        public bool Open => Rider != null && Rider.Prepared && Mount.Prepared && !Ending;
+        public bool Suspended { get; private set; }
+        public bool Open => Rider != null && Rider.Prepared && Mount.Prepared && !Ending && !Suspended;
         public string Identity => EncounterId.ToString("N") + ":" + Sequence;
 
         public PairedActivation(TActor principal, TActor partner)
@@ -57,6 +58,24 @@ namespace KingmakerMountedCombat.Domain
             Rider = new ActorState { Actor = Principal };
             Mount = new ActorState { Actor = Partner };
             Ending = false;
+            return true;
+        }
+
+        public bool Suspend(TBoundary boundary)
+        {
+            if (!CanAddress(Principal, boundary) || Rider.StandardSpent > 0f || Rider.MoveSpent > 0f ||
+                Rider.SwiftSpent > 0f || Mount.StandardSpent > 0f || Mount.MoveSpent > 0f || Mount.SwiftSpent > 0f)
+                return false;
+            Suspended = true;
+            return true;
+        }
+
+        public bool Resume(TBoundary boundary)
+        {
+            if (!Suspended || Split || Ending || boundary == null || boundaries.Contains(boundary)) return false;
+            boundaries.Add(boundary);
+            Boundary = boundary;
+            Suspended = false;
             return true;
         }
 
@@ -82,7 +101,7 @@ namespace KingmakerMountedCombat.Domain
         public bool CanAddress(TActor actor, TBoundary boundary) => Open && !Split &&
             ReferenceEquals(Boundary, boundary) && State(actor) != null && !State(actor).Ended;
 
-        public void BeginEnding() { Ending = true; }
+        public void BeginEnding() { Ending = true; Suspended = false; }
         public void EndActor(TActor actor)
         {
             var state = State(actor);

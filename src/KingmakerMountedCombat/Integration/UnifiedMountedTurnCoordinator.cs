@@ -311,7 +311,11 @@ namespace KingmakerMountedCombat.Integration
 
         internal void RetireDestroyedActor(UnitEntityData actor)
         {
-            if (!disposed) movementState.RetireDestroyedActor(actor);
+            if (!disposed)
+            {
+                BeforePairedActorRemoval(actor);
+                movementState.RetireDestroyedActor(actor);
+            }
         }
         internal void HandleTurnPrepared(TurnController turn)
         {
@@ -593,9 +597,11 @@ namespace KingmakerMountedCombat.Integration
         internal bool ShouldSuppressStepOpportunity(UnitEntityData target)
         {
             var turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
+            var enabled = PairedLifecycleEnabled ? CanAddressActor(target, turn) : Enabled;
+            var movementContext = PairedLifecycleEnabled ? partnerContext : turn;
             var ordinaryMovementAlreadyUsed = turn != null &&
-                turn.TimeMoved > turn.TimeMovedByFiveFootStep + 0.001f;
-            var exactMountedMovementCandidate = Enabled &&
+                movementContext != null && movementContext.TimeMoved > movementContext.TimeMovedByFiveFootStep + 0.001f;
+            var exactMountedMovementCandidate = enabled &&
                 relationship.State == RelationshipState.Mounted &&
                 CombatController.IsInTurnBasedCombat() &&
                 turn?.Unit == relationship.Rider &&
@@ -606,7 +612,7 @@ namespace KingmakerMountedCombat.Integration
                 StepOpportunityCandidateCount++;
             }
             var suppress = MountedFiveFootStepPolicy.ShouldSuppressDisengageOpportunity(
-                    Enabled,
+                    enabled,
                     relationship.State == RelationshipState.Mounted,
                     CombatController.IsInTurnBasedCombat(),
                     turn?.Unit == relationship.Rider,
@@ -614,7 +620,7 @@ namespace KingmakerMountedCombat.Integration
                     combat != null && combat.HasExactMountMovement,
                     turn != null && turn.EnabledFiveFootStep,
                     ordinaryMovementAlreadyUsed,
-                    turn?.MetersMovedByFiveFootStep ?? float.PositiveInfinity,
+                    movementContext?.MetersMovedByFiveFootStep ?? float.PositiveInfinity,
                     TurnController.MetersOfFiveFootStep);
             LastStepOpportunityObservation = "candidate=" + exactMountedMovementCandidate +
                 ";suppressed=" + suppress +

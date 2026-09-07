@@ -41,7 +41,7 @@ namespace KingmakerMountedCombat.Integration
         }
 
         internal static IEnumerable<CodeInstruction> Preparation(IEnumerable<CodeInstruction> source, ILGenerator generator,
-            MethodInfo partnerContext, MethodInfo confusion)
+            MethodInfo partnerContext, MethodInfo confusion, MethodInfo resume)
         {
             var code = source.ToList();
             var tail = Enumerable.Range(0, code.Count).Where(i => Token(code[i], 0x06000C29)).ToArray();
@@ -52,8 +52,14 @@ namespace KingmakerMountedCombat.Integration
             code.InsertRange(tail[0] + 1, new[] { new CodeInstruction(OpCodes.Ldarg_0),
                 new CodeInstruction(OpCodes.Call, partnerContext), new CodeInstruction(OpCodes.Brfalse, next), new CodeInstruction(OpCodes.Ret) });
             var index = confusionSite[0];
+            var resumeTail = generator.DefineLabel();
+            code[index + 1].labels.Add(resumeTail);
             code[index].opcode = OpCodes.Call; code[index].operand = confusion;
             code.Insert(index, new CodeInstruction(OpCodes.Ldarg_0));
+            // Delay re-enters the native interaction/readiness tail. Its actor
+            // grant, interruption, reactions and round/fact effects already ran.
+            code.InsertRange(0, new[] { new CodeInstruction(OpCodes.Ldarg_0),
+                new CodeInstruction(OpCodes.Call, resume), new CodeInstruction(OpCodes.Brtrue, resumeTail) });
             return code;
         }
 
@@ -70,6 +76,32 @@ namespace KingmakerMountedCombat.Integration
             // property setter does not intercept already-inlined callers.
             code.InsertRange(phases[0] + 1, new[] { new CodeInstruction(OpCodes.Ldarg_0),
                 new CodeInstruction(OpCodes.Call, phaseChanged) });
+            return code;
+        }
+
+        internal static IEnumerable<CodeInstruction> Readiness(IEnumerable<CodeInstruction> source, MethodInfo replacement)
+        {
+            var code = source.ToList();
+            var sites = Enumerable.Range(0, code.Count).Where(i => Token(code[i], 0x0600837C)).ToArray();
+            Require(sites.Length == 1, "native readiness caller");
+            code[sites[0]].opcode = OpCodes.Call; code[sites[0]].operand = replacement;
+            return code;
+        }
+
+        internal static IEnumerable<CodeInstruction> CompletionDebt(IEnumerable<CodeInstruction> source,
+            MethodInfo standard, MethodInfo move, MethodInfo swift, bool forfeit)
+        {
+            var code = source.ToList();
+            var tokens = forfeit ? new[] { 0x0600C3B7, 0x0600C3B9, 0x0600C3BB } : new[] { 0x0600C3B7, 0x0600C3B9 };
+            var replacements = new[] { standard, move, swift };
+            for (var index = 0; index < tokens.Length; index++)
+            {
+                var sites = Enumerable.Range(0, code.Count).Where(i => Token(code[i], tokens[index])).ToArray();
+                Require(sites.Length == 1, "completion native cooldown setter " + tokens[index].ToString("X8"));
+                code[sites[0]].opcode = OpCodes.Call; code[sites[0]].operand = replacements[index];
+            }
+            Require(code.Count(i => Token(i, forfeit ? 0x06000C45 : 0x06000C62)) == 1,
+                "completion state/command callback boundary");
             return code;
         }
         private static bool Token(CodeInstruction instruction, int token) => instruction.operand is MemberInfo member && member.MetadataToken == token;
