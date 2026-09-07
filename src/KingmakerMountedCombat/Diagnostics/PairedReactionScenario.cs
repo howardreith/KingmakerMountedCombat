@@ -1,5 +1,6 @@
 using System;
 using Kingmaker;
+using Kingmaker.UnitLogic;
 using Kingmaker.UnitLogic.Commands;
 using Newtonsoft.Json.Linq;
 using TurnBased.Controllers;
@@ -18,8 +19,37 @@ namespace KingmakerMountedCombat.Diagnostics
         private int pairedReactionFrame;
         private int pairedReactionRulesBefore;
         private bool pairedReactionRefreshed;
+        private bool pairedReactionTargetCondition;
         private readonly JObject pairedReactionEvidence = new JObject();
         private JObject pairedReactionOperation;
+
+        private void PreparePairedReactionTarget()
+        {
+            if (target == null || pairedReactionTargetCondition ||
+                target.Descriptor.State.HasCondition(UnitCondition.ImmuneToCombatManeuvers) ||
+                target.Descriptor.State.HasConditionImmunity(UnitCondition.ImmuneToCombatManeuvers))
+                throw new InvalidOperationException("Reaction target requires an unowned native maneuver condition slot.");
+            // Isolate repeated movement stimuli from native trip/knockdown effects
+            // on this disposable target. Native attacks, rolls, damage, reactions
+            // and resource costs still execute; this does not qualify maneuvers.
+            target.Descriptor.State.AddCondition(UnitCondition.ImmuneToCombatManeuvers);
+            pairedReactionTargetCondition = true;
+            observations["reactionTargetCondition"] = new JObject { ["actor"] = target.UniqueId,
+                ["condition"] = "ImmuneToCombatManeuvers", ["before"] = false,
+                ["applied"] = target.Descriptor.State.HasCondition(UnitCondition.ImmuneToCombatManeuvers), ["restored"] = false };
+            if (!(bool)observations["reactionTargetCondition"]["applied"])
+                throw new InvalidOperationException("Native reaction target condition was not applied.");
+        }
+
+        private void RestorePairedReactionTarget()
+        {
+            if (!pairedReactionTargetCondition) return;
+            target.Descriptor.State.RemoveCondition(UnitCondition.ImmuneToCombatManeuvers);
+            pairedReactionTargetCondition = false;
+            observations["reactionTargetCondition"]["restored"] = !target.Descriptor.State.HasCondition(UnitCondition.ImmuneToCombatManeuvers);
+            if (!(bool)observations["reactionTargetCondition"]["restored"])
+                throw new InvalidOperationException("Native reaction target condition was not restored.");
+        }
 
         private bool TickPairedReactionProbe(TurnController turn)
         {
@@ -28,11 +58,15 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 pairedReactionTurn = turn;
                 pairedReactionHome = target.Position;
-                pairedReactionAway = pairedReactionHome + (target.Position - horse.Position).normalized * 4f;
+                pairedReactionAway = FindWalkablePoint(pairedReactionHome, 4f, 0.1f,
+                    point => HorizontalDistance(point, horse.Position) > HorizontalDistance(pairedReactionHome, horse.Position) + 2f);
                 pairedReactionRulesBefore = ruleProbe.MountOpportunityAttackRuleCount;
                 pairedReactionEvidence["inputKind"] = "scripted-native-AI-command";
                 pairedReactionEvidence["nativeTurnActor"] = target.UniqueId;
                 pairedReactionEvidence["activationIdentity"] = combat.PairedActivationIdentity;
+                pairedReactionEvidence["home"] = new JArray(pairedReactionHome.x, pairedReactionHome.y, pairedReactionHome.z);
+                pairedReactionEvidence["away"] = new JArray(pairedReactionAway.x, pairedReactionAway.y, pairedReactionAway.z);
+                pairedReactionEvidence["destinationKind"] = "existing-native-navmesh-fixture-search";
                 pairedReactionEvidence["mountBefore"] = allocationTrace.Snapshot(horse);
                 pairedReactionEvidence["operations"] = new JArray();
                 observations["pairedReactionProbe"] = pairedReactionEvidence;
@@ -60,6 +94,7 @@ namespace KingmakerMountedCombat.Diagnostics
             pairedReactionOperation["result"] = pairedReactionMove.Result.ToString();
             pairedReactionOperation["mountOpportunityRules"] = ruleProbe.MountOpportunityAttackRuleCount - pairedReactionRulesBefore;
             pairedReactionOperation["rules"] = ruleProbe.CapturePairEvidence();
+            pairedReactionOperation["maneuvers"] = ruleProbe.CaptureManeuverEvidence();
             allocationTrace.Record("reaction-enemy-move-completed", target, pairedReactionMove);
             RequirePaired(distance > 3.8f && time > 0f && Math.Abs(time - cost) < 0.02f &&
                 pairedReactionMove.Result == Kingmaker.UnitLogic.Commands.Base.UnitCommand.ResultType.Success && !turn.EnabledFiveFootStep,

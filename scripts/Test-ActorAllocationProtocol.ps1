@@ -216,6 +216,7 @@ foreach($mutation in @(
 function New-PairedReactionEnvelope {
     $e=New-PairedEnvelope
     $e.schemaVersion=12
+    $e.observations | Add-Member reactionTargetCondition ([pscustomobject]@{actor='enemy';condition='ImmuneToCombatManeuvers';before=$false;applied=$true;restored=$true})
     $reaction=[pscustomobject]@{passed=$true;inputKind='scripted-native-AI-command';nativeTurnActor='enemy'
         activationIdentity='11111111111111111111111111111111:1';refreshIdentity='11111111111111111111111111111111:2'
         mountBefore=@{reactions=1};mountAfterConsumption=@{reactions=0};mountAfterRefresh=@{reactions=1;reactionCooldown=0;disengageTargets=0}
@@ -236,7 +237,8 @@ foreach($mutation in @(
     {param($e) $e.rows[0].evidence.reactions.operations[2].mountOpportunityRules=2},
     {param($e) $e.rows[0].evidence.reactions.operations[0].mountAfter.standard=0.0},
     {param($e) $e.rows[0].evidence.reactions.mountAfterRefresh.reactions=0},
-    {param($e) $e.rows[0].evidence.reactions.mountAfterRefresh.disengageTargets=1}
+    {param($e) $e.rows[0].evidence.reactions.mountAfterRefresh.disengageTargets=1},
+    {param($e) $e.observations.reactionTargetCondition.restored=$false}
 )) {
     $e=New-PairedReactionEnvelope; & $mutation $e
     $rejected=$false

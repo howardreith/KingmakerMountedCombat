@@ -58,7 +58,14 @@ function Assert-KmcPairedActivationEvidence($Request, $Artifact, [string]$Status
         if($row.name -ceq 'A05-native-preparation-callbacks') { Assert-KmcAllocationCallbackEvidence $Artifact $row.evidence;continue }
         if($row.name -cne 'P01-three-paired-activations') { throw 'Failure-only paired row claimed PASS.' }
         $e=$row.evidence;$trace=$Artifact.observations.actorAllocationTrace
-        if([long]$Artifact.schemaVersion -eq 12) { Assert-KmcPairedReactionEvidence $e.reactions }
+        if([long]$Artifact.schemaVersion -eq 12) {
+            Assert-KmcPairedReactionEvidence $e.reactions
+            $lease=$Artifact.observations.reactionTargetCondition
+            if($lease.actor -cne $e.reactions.nativeTurnActor -or $lease.condition -cne 'ImmuneToCombatManeuvers' -or
+                $lease.before -ne $false -or $lease.applied -ne $true -or $lease.restored -ne $true) {
+                throw 'Native reaction target condition lease was not acquired/restored exactly.'
+            }
+        }
         $rider=[string]$Artifact.observations.riderId;$mount=[string]$Artifact.observations.horseId
         if($e.level -cne 'NATIVE INTEGRATION' -or $e.gameplayQualified -ne $true -or
             $e.inputKind -cne 'scripted-native-handler-integration' -or $e.principal -cne $rider -or

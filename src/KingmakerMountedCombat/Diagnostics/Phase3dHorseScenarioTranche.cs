@@ -787,6 +787,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 logger, repeatedNativeSequences: IsPairedAllocation || IsPhase3hLoop && !Phase3gTurnBased);
             var point = position ?? FindWalkablePoint(rider.Position, distance, distance >= 10f ? 1.0f : 0.5f);
             target = targetService.Spawn(rider, horse, point, request.RunId + "-" + suffix, true, true);
+            if (IsPairedAllocation) PreparePairedReactionTarget();
             if (!targetService.PrepareForPlayerClick(target) ||
                 !targetService.QueueBidirectionalCombatMemory(rider, target))
             {
@@ -6023,6 +6024,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     errors.Add(message);
                 }
             }
+            try { RestorePairedReactionTarget(); }
+            catch (Exception exception) { AddCleanupError("Reaction target condition", exception); }
             TryLeaveCombat(target);
             TryLeaveCombat(horse);
             TryLeaveCombat(rider);
@@ -6518,6 +6521,7 @@ namespace KingmakerMountedCombat.Diagnostics
         IGlobalRulebookHandler<RuleAttackRoll>,
         IGlobalRulebookHandler<RuleRollDice>,
         IGlobalRulebookHandler<RuleDealDamage>,
+        IGlobalRulebookHandler<RuleCombatManeuver>,
         IDisposable
     {
         private readonly UnitEntityData rider;
@@ -6525,6 +6529,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly IDisposable subscription;
         private readonly JArray pairAttackRuleEvents = new JArray();
         private readonly JArray pairAttackRollEvents = new JArray();
+        private readonly JArray pairManeuverEvents = new JArray();
         private UnitEntityData expectedTarget;
         private bool forcePairHit;
         private bool disposed;
@@ -6593,6 +6598,7 @@ namespace KingmakerMountedCombat.Diagnostics
             LastRiderAttackDoNotProvoke = null;
             pairAttackRuleEvents.Clear();
             pairAttackRollEvents.Clear();
+            pairManeuverEvents.Clear();
             ResetOpportunityCounts();
         }
 
@@ -6603,6 +6609,18 @@ namespace KingmakerMountedCombat.Diagnostics
             OpportunityDamageRuleCount = 0;
             LastOpportunityActorId = null;
             LastOpportunityTargetId = null;
+        }
+
+        internal JArray CaptureManeuverEvidence() => (JArray)pairManeuverEvents.DeepClone();
+        public void OnEventAboutToTrigger(RuleCombatManeuver evt) { }
+        public void OnEventDidTrigger(RuleCombatManeuver evt)
+        {
+            if (evt.Target != expectedTarget || evt.Initiator != rider && evt.Initiator != mount) return;
+            pairManeuverEvents.Add(new JObject { ["frame"] = Time.frameCount, ["actor"] = evt.Initiator.UniqueId,
+                ["target"] = evt.Target.UniqueId, ["kind"] = evt.Type.ToString(),
+                ["immune"] = evt.Target.Descriptor.State.HasCondition(UnitCondition.ImmuneToCombatManeuvers),
+                ["prone"] = evt.Target.Descriptor.State.Prone.Active,
+                ["proneRequested"] = evt.Target.Descriptor.State.Prone.ShouldBeActive });
         }
 
         internal JObject CapturePairEvidence()
