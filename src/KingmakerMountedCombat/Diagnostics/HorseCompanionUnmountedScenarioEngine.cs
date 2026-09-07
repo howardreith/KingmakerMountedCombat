@@ -3324,12 +3324,15 @@ namespace KingmakerMountedCombat.Diagnostics
                     (!horse.IsInState && !Game.Instance.State.Units.Contains(horse) &&
                      !Game.Instance.Player.ControllableCharacters.Contains(horse))));
             var modeRestored = CombatController.IsInTurnBasedCombat() == originalTurnBased;
-            if (Phase3dHorseScenarioTranche.IsActorAllocationScenario(request.Scenario) && (frame - cleanupFrame) % 300 == 1)
+            if (IsPhase3dScenario && (frame - cleanupFrame) % 300 == 1)
             {
-                logger.Info("Allocation parent cleanup: target=" + targetClean + "; horse=" + horseClean +
+                logger.Info("Native parent cleanup: run=" + request.RunId + "; target=" + targetClean + "; horse=" + horseClean +
                     "; mode=" + modeRestored + "; actualTB=" + CombatController.IsInTurnBasedCombat() +
                     "; expectedTB=" + originalTurnBased + "; paused=" + Game.Instance.IsPaused +
                     "; ownerPet=" + owner?.Descriptor.Pet?.UniqueId + "; horseInState=" + horse?.IsInState +
+                    "; horseMaster=" + horse?.Descriptor.Master.Value?.UniqueId +
+                    "; horseStateListed=" + (horse != null && Game.Instance.State.Units.Contains(horse)) +
+                    "; horsePartyListed=" + (horse != null && Game.Instance.Player.ControllableCharacters.Contains(horse)) +
                     "; targetEntity=" + targetService?.TargetEntityRemoved +
                     "; targetGroup=" + targetService?.RuntimeGroupRemoved +
                     "; targetMemory=" + targetService?.CombatMemoryRemoved +
