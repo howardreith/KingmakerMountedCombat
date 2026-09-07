@@ -5702,7 +5702,7 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
     $phase3dSchemaVersion = if (Test-KmcExactJsonInteger $artifact.schemaVersion) {
         [long]$artifact.schemaVersion
     } else { -1L }
-    if ($phase3dSchemaVersion -notin @(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L, 15L) -or
+    if ($phase3dSchemaVersion -notin @(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L, 15L, 16L) -or
         [string]$artifact.evidenceKind -cne $kind -or [string]$artifact.status -cnotin @('PASS','FAIL') -or
         $artifact.rows -isnot [Array] -or $null -eq $artifact.observations -or
         $artifact.observations -is [Array] -or $artifact.observations -is [string] -or

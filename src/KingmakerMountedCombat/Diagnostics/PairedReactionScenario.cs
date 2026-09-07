@@ -1,5 +1,6 @@
 using System;
 using Kingmaker;
+using Kingmaker.EntitySystem.Entities;
 using Kingmaker.UnitLogic;
 using Kingmaker.UnitLogic.Commands;
 using Newtonsoft.Json.Linq;
@@ -20,6 +21,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private int pairedReactionRulesBefore;
         private bool pairedReactionRefreshed;
         private bool pairedReactionTargetCondition;
+        private UnitEntityData pairedReactionConditionActor;
         private readonly JObject pairedReactionEvidence = new JObject();
         private JObject pairedReactionOperation;
 
@@ -33,6 +35,7 @@ namespace KingmakerMountedCombat.Diagnostics
             // on this disposable target. Native attacks, rolls, damage, reactions
             // and resource costs still execute; this does not qualify maneuvers.
             target.Descriptor.State.AddCondition(UnitCondition.ImmuneToCombatManeuvers);
+            pairedReactionConditionActor = target;
             pairedReactionTargetCondition = true;
             observations["reactionTargetCondition"] = new JObject { ["actor"] = target.UniqueId,
                 ["condition"] = "ImmuneToCombatManeuvers", ["before"] = false,
@@ -44,11 +47,12 @@ namespace KingmakerMountedCombat.Diagnostics
         private void RestorePairedReactionTarget()
         {
             if (!pairedReactionTargetCondition) return;
-            target.Descriptor.State.RemoveCondition(UnitCondition.ImmuneToCombatManeuvers);
+            pairedReactionConditionActor.Descriptor.State.RemoveCondition(UnitCondition.ImmuneToCombatManeuvers);
             pairedReactionTargetCondition = false;
-            observations["reactionTargetCondition"]["restored"] = !target.Descriptor.State.HasCondition(UnitCondition.ImmuneToCombatManeuvers);
+            observations["reactionTargetCondition"]["restored"] = !pairedReactionConditionActor.Descriptor.State.HasCondition(UnitCondition.ImmuneToCombatManeuvers);
             if (!(bool)observations["reactionTargetCondition"]["restored"])
                 throw new InvalidOperationException("Native reaction target condition was not restored.");
+            pairedReactionConditionActor = null;
         }
 
         private bool TickPairedReactionProbe(TurnController turn)

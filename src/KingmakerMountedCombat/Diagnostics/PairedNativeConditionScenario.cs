@@ -28,7 +28,8 @@ namespace KingmakerMountedCombat.Diagnostics
             pairedTransitionsStarted = false;
             pairedNativeConditionsStarted = true;
             pairedNativeConditionEvidence = new JObject { ["level"] = "NATIVE INTEGRATION",
-                ["cases"] = new JArray(), ["policy"] = "native condition ends its actor; forced split retains spent participation" };
+                ["cases"] = new JArray(), ["modeExitAiReassertions"] = new JArray(),
+                ["policy"] = "native condition ends its actor; forced split retains spent participation" };
             observations["pairedNativeConditions"] = pairedNativeConditionEvidence;
             ResetLeafClock();
         }
@@ -53,6 +54,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 // Reuse the established ordinary-control encounter cleanup.
                 // These actors were captured idle before the first fixture.
                 if (turn != null) EndAllocationNativeTurn(turn);
+                RestorePairedReactionTarget();
                 TryLeaveCombat(target); TryLeaveCombat(rider); TryLeaveCombat(horse);
                 foreach (var member in allocationFixtureParty) TryLeaveCombat(member);
                 if (targetService != null)
@@ -72,6 +74,19 @@ namespace KingmakerMountedCombat.Diagnostics
                         (JObject)pairedNativeConditionEvidence.DeepClone());
                     BeginCleanup(); return;
                 }
+                RequirePaired(unmountedHorseAiLease?.IsAcquired == true && combatMountRiderAiLease?.IsAcquired == true,
+                    "Native condition continuation lost its exact original actor AI leases.");
+                var reassertion = new JObject { ["nativeTb"] = CombatController.IsInTurnBasedCombat(),
+                    ["controllerInitialized"] = controller.Initialized, ["actorsIdle"] = PairedTransitionActorsIdle(),
+                    ["riderBefore"] = CaptureCombatMountRiderAiIsolation(), ["mountBefore"] = CaptureUnmountedHorseAiIsolation() };
+                // Native End/Disable restores actor AI. Reassert only the same
+                // already-owned idle fixture leases, preserving original values.
+                unmountedHorseAiLease.ReassertAfterNativeReset(new[] { horse });
+                combatMountRiderAiLease.ReassertAfterNativeReset(new[] { rider });
+                reassertion["riderAfter"] = CaptureCombatMountRiderAiIsolation();
+                reassertion["mountAfter"] = CaptureUnmountedHorseAiIsolation();
+                reassertion["passed"] = unmountedHorseAiLease.LastActiveValidationPassed && combatMountRiderAiLease.LastActiveValidationPassed;
+                ((JArray)pairedNativeConditionEvidence["modeExitAiReassertions"]).Add(reassertion);
                 pairedNativeConditionMountInput = false;
                 pairedNativeConditionStage = 1; ResetLeafClock(); return;
             }

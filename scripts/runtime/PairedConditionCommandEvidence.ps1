@@ -5,6 +5,22 @@ function Assert-KmcPairedConditionCommandEvidence($Artifact, $Evidence) {
     $cases=@($Evidence.cases)
     if($Evidence.level -cne 'NATIVE INTEGRATION' -or $Evidence.passed -ne $true -or $cases.Count -ne 2 -or
         ($cases.name -join ',') -cne 'mount-do-nothing,mount-self-harm') {throw 'Native condition command coverage is incomplete.'}
+    $reassertions=@($Evidence.modeExitAiReassertions)
+    if($reassertions.Count -ne 2){throw 'Native condition fixture lacks exact mode-exit AI restoration evidence.'}
+    foreach($reset in $reassertions) {
+        if($reset.nativeTb -ne $false -or $reset.controllerInitialized -ne $false -or $reset.actorsIdle -ne $true -or $reset.passed -ne $true) {
+            throw 'AI reassertion did not use a completed native shutdown and idle actors.'
+        }
+        foreach($role in @('rider','mount')) {
+            $before=@($reset.($role+'Before').states);$after=@($reset.($role+'After').states)
+            $id=if($role -ceq 'rider'){$rider}else{$mount}
+            if($before.Count -ne 1 -or $after.Count -ne 1 -or $before[0].unitId -cne $id -or $after[0].unitId -cne $id -or
+                $before[0].rawAiBefore -ne $after[0].rawAiBefore -or $before[0].effectiveAiBefore -ne $after[0].effectiveAiBefore -or
+                $after[0].commandsEmptyDuring -ne $true -or $after[0].rawAiDuring -ne $false -or $after[0].effectiveAiDuring -ne $false) {
+                throw 'AI reassertion changed membership/original state or retained active commands.'
+            }
+        }
+    }
     $identities=New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
     for($i=0;$i -lt 2;$i++) {
         $case=$cases[$i];$stimulus=$case.stimulus

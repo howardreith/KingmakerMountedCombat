@@ -10096,6 +10096,35 @@ try {
         Assert-Test $threw 'Horse native-controls UX validator accepted a missing TB Horse animation handle'
     }
 
+    Invoke-HarnessTest 'paired condition schema reaches the strict native evidence validator' {
+        $phase3dRoot=Join-Path $runtimeEvidenceTestRoot 'paired-condition-schema'
+        New-Item -ItemType Directory -Path $phase3dRoot -Force | Out-Null
+        $phase3dRequest=[pscustomobject]@{
+            runId='paired-condition-schema';scenario='actor-allocation-rider-first-tb'
+            branch='codex/mounted-combat-phase3f-playable-core';commit=('e'*40)
+            productVersion=$currentProductVersion;dllSha256=('f'*64)
+            dllMvid='44444444-5555-6666-7777-888888888888';evidenceRoot=$phase3dRoot
+        }
+        $artifact=[ordered]@{schemaVersion=16;evidenceKind='phase3d-horse-scenario-evidence'
+            createdAtUtc=[DateTime]::UtcNow.ToString('o');status='FAIL'
+            rows=@([ordered]@{name='phase3d-horse-runtime-exception';status='FAIL';detail='Synthetic guarded failure.'})
+            observations=[ordered]@{phase3fActualConfiguration=[ordered]@{enablePairedActivation=$true
+                enableUnifiedMountedTurn=$false;enablePairedCommandScheduler=$false;enableDiagnosticOverlay=$false;overlayPresent=$false}}
+            subscenarioPassCount=0;subscenarioFailCount=1;errors=@('Synthetic guarded failure.')}
+        foreach($name in @('runId','scenario','branch','commit','productVersion','dllSha256','dllMvid')) {$artifact[$name]=$phase3dRequest.$name}
+        $path=Join-Path $phase3dRoot 'phase3d-horse-scenario-evidence.json'
+        $manifest=[pscustomobject]@{artifacts=@([pscustomobject]@{relativePath='phase3d-horse-scenario-evidence.json';kind='phase3d-horse-scenario-evidence'})}
+        [IO.File]::WriteAllText($path,($artifact|ConvertTo-Json -Depth 15),(New-Object Text.UTF8Encoding($false)))
+        Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $manifest -Status FAIL
+        foreach($schema in @(17,'16')) {
+            $artifact.schemaVersion=$schema
+            [IO.File]::WriteAllText($path,($artifact|ConvertTo-Json -Depth 15),(New-Object Text.UTF8Encoding($false)))
+            $rejected=$false
+            try { Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $manifest -Status FAIL } catch {$rejected=$true}
+            Assert-Test $rejected 'Unregistered or string-typed paired schema was admitted.'
+        }
+    }
+
     Invoke-HarnessTest 'Phase 3D Horse validator binds exact scenario rows and semantic cardinality' {
         foreach ($phase3dScenario in @(
             'phase3d-horse-presentation-suite',

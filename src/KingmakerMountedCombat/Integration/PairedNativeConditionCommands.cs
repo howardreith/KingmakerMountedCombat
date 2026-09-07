@@ -38,7 +38,7 @@ namespace KingmakerMountedCombat.Integration
                 activation.State(actor)?.Prepared == true && command != null && command.Executor == actor &&
                 !command.IsIgnoreCooldown && !command.IsFinished &&
                 nativePreparationCommands.TryGetValue(actor, out owned) && ReferenceEquals(owned, command) &&
-                (ReferenceEquals(actor.Commands.Standard, command) || actor.Commands.Queue.Contains(command));
+                (ReferenceEquals(actor.Commands.GetCommand(command.Type), command) || actor.Commands.Queue.Contains(command));
         }
 
         private bool HasNativePreparationActivity(TurnController turn)

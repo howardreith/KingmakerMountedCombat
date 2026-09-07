@@ -43,6 +43,17 @@ public static class KmcNativePatchProbe {
    if(calls!=1) throw new InvalidOperationException("Native movement cooldown convention changed.");
   }
   Console.WriteLine("NATIVE MOVE CONSTRUCTOR CONTRACT PASS=2 FAIL=0; no constructor invoked");
+  var conditionTypes=new[]{"UnitDoNothing","UnitSelfHarm"};
+  var conditionSlots=new[]{"Free","Standard"};
+  var commandType=command.GetNestedType("CommandType",BindingFlags.Public);
+  for(var i=0;i<conditionTypes.Length;i++) {
+   var type=native.GetType("Kingmaker.UnitLogic.Commands."+conditionTypes[i],true);
+   var il=type.GetConstructor(Type.EmptyTypes).GetMethodBody().GetILAsByteArray();
+   if(il.Length!=9 || il[0]!=0x02 || il[1]!=0x16+i || il[2]!=0x14 || il[3]!=0x28 ||
+      BitConverter.ToInt32(il,4)!=0x06002799 || il[8]!=0x2a || Enum.GetName(commandType,i)!=conditionSlots[i])
+    throw new InvalidOperationException("Native condition command slot contract changed.");
+  }
+  Console.WriteLine("NATIVE CONDITION SLOT CONTRACT PASS=2 FAIL=0; no constructor invoked");
   Console.WriteLine("stage: assemblies loaded");
   // Resolve the actual service's public/private native contracts, not a parallel
   // reflection inventory. This performs no game operations or instance creation.

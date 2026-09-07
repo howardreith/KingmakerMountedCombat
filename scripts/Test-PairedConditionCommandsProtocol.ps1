@@ -51,14 +51,30 @@ function New-ConditionEnvelope {
                 command=@{type='Kingmaker.UnitLogic.Commands.UnitAttack';result='Success'};after=$beforeEnd})
             nextActor='friend';nextRound=1;round=1;visits=@(@{actor='rider';round=1},@{actor='friend';round=1})}
     }
+    $resets=@()
+    for($i=0;$i-lt2;$i++) {
+        $reset=@{nativeTb=$false;controllerInitialized=$false;actorsIdle=$true;passed=$true}
+        foreach($role in @('rider','mount')) {
+            foreach($when in @('Before','After')) {
+                $reset[$role+$when]=@{states=@(@{unitId=$role;rawAiBefore=$true;effectiveAiBefore=$true
+                    commandsEmptyDuring=$true;rawAiDuring=$false;effectiveAiDuring=$false})}
+            }
+        }
+        $resets+=$reset
+    }
     return (@{artifact=@{observations=@{riderId='rider';horseId='mount';actorAllocationTrace=@{events=@($ledger)}}}
-        evidence=@{level='NATIVE INTEGRATION';passed=$true;cases=$cases}}|ConvertTo-Json -Depth 20|ConvertFrom-Json)
+        evidence=@{level='NATIVE INTEGRATION';passed=$true;cases=$cases;modeExitAiReassertions=$resets}}|ConvertTo-Json -Depth 20|ConvertFrom-Json)
 }
 $passes=0
 $d=New-ConditionEnvelope
 Assert-KmcPairedConditionCommandEvidence $d.artifact $d.evidence
 $passes++
 foreach($mutation in @(
+    {param($d) $d.evidence.modeExitAiReassertions=@()},
+    {param($d) $d.evidence.modeExitAiReassertions[0].nativeTb=$true},
+    {param($d) $d.evidence.modeExitAiReassertions[0].mountAfter.states[0].rawAiBefore=$false},
+    {param($d) $d.evidence.modeExitAiReassertions[1].riderAfter.states[0].unitId='stranger'},
+    {param($d) $d.evidence.modeExitAiReassertions[1].mountAfter.states[0].commandsEmptyDuring=$false},
     {param($d) $d.evidence.cases=@($d.evidence.cases[0])},
     {param($d) $d.evidence.cases[1].activation=$d.evidence.cases[0].activation},
     {param($d) $d.evidence.cases[0].outsideCombat=$false},
