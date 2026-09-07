@@ -1186,11 +1186,17 @@ namespace KingmakerMountedCombat.Integration
             if (!agent.IsReallyMoving || agent.Unit.IsCommandsPreventMovement ||
                 (agent.Unit.AnimationManager != null && agent.Unit.AnimationManager.IsPreventingMovement))
             {
-                return true;
+                return !settings.EnablePairedActivation;
             }
             unifiedTurn.TickMountMovement(turn, ref deltaTime);
             result = deltaTime > 0f;
-            return true;
+            // At zero remaining time use the native denial branch. Because the
+            // mount is not CurrentTurn, it cannot be charged twice there; native
+            // CanMoveInTurnBased completes/interrupts its path with the installed
+            // forced/cutscene/uninterruptible-command rules. Merely returning
+            // false movement while skipping that branch leaves a live path and
+            // an unfinished command after the actor exhausts its allocation.
+            return result || !settings.EnablePairedActivation;
         }
 
         public bool TryAdmitGroundCommand(UnitEntityData requestedUnit)

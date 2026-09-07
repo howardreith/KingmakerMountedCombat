@@ -116,8 +116,9 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (Time.frameCount <= allocationMoveFrame + 240) return;
                 allocationTrace.Record("paired-stall-stop-input", horse, movementCommand);
+                pairedOperation["stalledBeforeStop"] = allocationTrace.Snapshot(horse);
                 SelectionManager.Instance.Stop();
-                throw new InvalidOperationException("Paired movement stalled beyond the native fixture deadline.");
+                RequirePaired(false, "Paired movement stalled beyond the native fixture deadline.");
             }
             if (combat.HasActiveGroundMovement || combat.HasActiveCommand || !horse.Commands.Empty) return;
             var after = allocationTrace.Snapshot(horse);

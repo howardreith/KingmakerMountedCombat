@@ -2,7 +2,7 @@
 
 Status: **IN PROGRESS**. [Milestone report](docs/PAIRED-ACTIVATION-MILESTONE.md).
 
-Preview.4 native run C completed its first paired activation, both native attacks/exhaustion, unrelated turns and the next fresh grant. The loop remains FAIL at the second activation's curved movement measurement; preview.5 records actual native travel. All three transactions restored actual preview.13 and current external state. Broad regression remains pending the complete loop.
+Preview.5 native D completed the first paired activation and renewed the next, then converted mount Standard to movement through Move6 with measured travel/cost. The loop remains FAIL because the exhausted command stayed open. Preview.6 reuses native movement denial/completion at that boundary. All four transactions restored actual preview.13 and current external state. Broad regression remains pending the complete loop.
 
 Intake is clean `codex/mounted-combat-phase3f-playable-core` at reviewed `45e3d276754257f4513342d5bce7626dd609d252`, containing Chunk 2 binary source `c804ba052760063f747cde83265e660916984d72`, development candidate `0.1.0-chunk2-preview.10`. Preserve all descendants. [Frozen Chunk 2 repairs, identities and outstanding gates](docs/CHUNK2-ACTOR-ALLOCATIONS.md).
 
