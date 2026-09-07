@@ -22,6 +22,7 @@ namespace KingmakerMountedCombat.Integration
         private long pairedRenewalNotBefore;
         private TurnController resumingContext;
         private static readonly MethodInfo NativeEnd = ResolveMethod(typeof(TurnController), "End", 0x06000C46, Type.EmptyTypes);
+        private static readonly MethodInfo NativeContinueActing = ResolveMethod(typeof(TurnController), "ContinueActing", 0x06000C3D, Type.EmptyTypes);
         private static readonly MethodInfo NativeStatus = ResolveMethod(typeof(TurnController), "set_Status", 0x06000C0F, new[] { typeof(TurnController.TurnStatus) });
         private static readonly MethodInfo NativeConfusionTick = ResolveMethod(typeof(UnitConfusionController), "TickOnUnit", 0x06009131, new[] { typeof(UnitEntityData) });
         private static readonly FieldInfo SurpriseContext = ResolveField(typeof(TurnController), "m_ActingInSurpriseRound", 0x0400066D);
@@ -195,12 +196,13 @@ namespace KingmakerMountedCombat.Integration
 
         private bool PartnerHasAction(TurnController turn)
         {
-            if (!CanAddressActor(activation?.Partner, turn)) return false;
-            var mount = activation.Partner;
-            if (!mount.IsInCombat || !mount.IsAbleToAct() || mount.Descriptor.State.IsFinallyDead) return false;
-            if (combat.HasActiveCommand || combat.HasActiveGroundMovement || mount.Commands.IsRunning()) return true;
-            return mount.HasStandardAction() || mount.Descriptor.State.CanMove &&
-                movementState.HasGrantedMovement(mount, turn.EnabledFiveFootStep, turn.EnabledSingleActionMove);
+            if (!CanAddressActor(activation?.Partner, turn) || partnerContext == null) return false;
+            // Native continuation includes its Auto End preference, remaining
+            // action time, get-up exception and condition/AI completion policy.
+            // An unused step alone does not override native automatic completion.
+            // This runs only when the principal's native predicate would end;
+            // the private context never ticks or becomes an activation driver.
+            return (bool)NativeContinueActing.Invoke(partnerContext, null);
         }
 
         internal void ExtendPairedWaiting(TurnController turn, ref bool result)

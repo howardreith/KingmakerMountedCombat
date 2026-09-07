@@ -92,9 +92,12 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private bool FinishPairedOrdinaryAttack(UnitEntityData actor, bool full)
         {
+            // Observe terminal cost before waiting for presentation to become
+            // idle: native automatic completion may advance time in that wait.
+            if (pairedControlOperation["after"] != null) return PairedTransitionActorsIdle();
             if (pairedControlAttack == null) pairedControlAttack = actor == horse
                 ? ordinaryAttackTrace.LastStartedMountAttack : ordinaryAttackTrace.LastStartedRiderAttack;
-            if (pairedControlAttack == null || !pairedControlAttack.IsFinished || !PairedTransitionActorsIdle()) return false;
+            if (pairedControlAttack == null || !pairedControlAttack.IsFinished) return false;
             var after = RecordPairedTransition("ordinary-paired-attack-after");
             pairedControlOperation["after"] = after;
             pairedControlOperation["command"] = CaptureOrdinaryCommand(pairedControlAttack);
@@ -115,7 +118,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 (float)after[otherKey]["move"] == (float)pairedControlOperation["before"][otherKey]["move"],
                 "Ordinary paired attack did not preserve native mode, complete sequence, rules or exact actor costs.");
             RequireNoPairedRefresh((JObject)pairedControlOperation["before"], after);
-            return true;
+            return PairedTransitionActorsIdle();
         }
 
         private void TickPairedControls()
