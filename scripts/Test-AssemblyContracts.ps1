@@ -64,6 +64,8 @@ if($Target-eq'Kingmaker'){
     Assert-Contract ($null-ne$gameVersionMethod -and $gameVersionMethod.ReturnType.FullName -ceq 'System.String' -and $gameVersionMethod.GetParameters().Count -eq 0) 'GameVersion.GetVersion exact runtime version seam'
     $checks=@(
         @('Kingmaker.Controllers.Combat.UnitCombatState+Cooldowns',0x0600C3BE,'Clear'),
+        @('Kingmaker.UnitLogic.CombatAiData',0x06001E0B,'TickRound'),
+        @('Kingmaker.EntitySystem.Entities.UnitEntityData',0x0600838F,'UpdateCooldowns'),
         @('Kingmaker.Controllers.Combat.UnitCombatState',0x0600939D,'OnNewRound'),
         @('TurnBased.Controllers.TurnController',0x06000C7F,'<Prepare>b__114_0'),
         @('TurnBased.Controllers.TurnController',0x06000C80,'<Prepare>b__114_2'),

@@ -10,6 +10,7 @@ using Kingmaker.Controllers.Combat;
 using Kingmaker.Controllers.Units;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.PubSubSystem;
+using Kingmaker.UnitLogic;
 using Kingmaker.UnitLogic.Commands;
 using Kingmaker.UnitLogic.Commands.Base;
 using Kingmaker.View;
@@ -54,9 +55,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 Patch(typeof(UnitCombatState), 0x0600939D, "RoundBefore", "RoundAfter");
                 Patch(typeof(TurnController), 0x06000C7F, "RoundHandlerBefore", "RoundHandlerAfter");
                 Patch(typeof(TurnController), 0x06000C80, "ReadyHandlerBefore", "ReadyHandlerAfter");
+                Patch(typeof(CombatAiData), 0x06001E0B, "AiRoundBefore", "AiRoundAfter");
                 Patch(typeof(TurnController).GetNestedType("<>c", Flags), 0x0600A2D2, "FactBefore", "FactAfter");
                 Patch(typeof(UnitCommands), 0x060026B2, "CommandBefore", "CommandAfter");
                 Patch(typeof(UnitActionController), 0x06009120, "CostBefore", "CostAfter");
+                Patch(typeof(UnitEntityData), 0x0600838F, "ActorCostBefore", "ActorCostAfter");
                 Patch(typeof(TurnController), 0x06000C5E, "CommandEndBefore", "CommandEndAfter");
                 Patch(typeof(TurnController), 0x06000C46, "TurnEndBefore", "TurnEndAfter");
                 Patch(typeof(UnitMovementAgent), 0x060018A9, "MovementBefore", "MovementAfter");
@@ -161,12 +164,16 @@ namespace KingmakerMountedCombat.Diagnostics
             internal static void ReadyHandlerAfter(TurnController __instance, ITurnBasedModeHandler h) { active?.Record("ready-handler-after", __instance.Unit, detail: h.GetType().FullName); }
             internal static void FactBefore(ITickEachRound logic) { active?.Record("fact-before", active.preparing?.Unit, detail: logic.GetType().FullName); }
             internal static void FactAfter(ITickEachRound logic) { active?.Record("fact-after", active.preparing?.Unit, detail: logic.GetType().FullName); }
+            internal static void AiRoundBefore(CombatAiData __instance) { if (active?.preparing?.Unit.CombatState.AIData == __instance) active.Record("ai-round-before", active.preparing.Unit); }
+            internal static void AiRoundAfter(CombatAiData __instance) { if (active?.preparing?.Unit.CombatState.AIData == __instance) active.Record("ai-round-after", active.preparing.Unit); }
             internal static void CommandBefore(UnitCommands __instance, UnitCommand cmd) { active?.Record("admission-before", active.Owner(__instance), cmd); }
             internal static void CommandAfter(UnitCommands __instance, UnitCommand cmd) { active?.Record("admission-after", active.Owner(__instance), cmd); }
             internal static void CostBefore(UnitCommand command) { active?.Record("cost-before", command?.Executor, command); }
             internal static void CostAfter(UnitCommand command) { active?.Record("cost-after", command?.Executor, command); }
-            internal static void CommandEndBefore(TurnController __instance, UnitCommand command) { if (command?.Executor == __instance.Unit) active?.Record("command-end-before", __instance.Unit, command); }
-            internal static void CommandEndAfter(TurnController __instance, UnitCommand command) { if (command?.Executor == __instance.Unit) active?.Record("command-end-after", __instance.Unit, command); }
+            internal static void ActorCostBefore(UnitEntityData __instance, UnitCommand command) { active?.Record("actor-cost-before", __instance, command); }
+            internal static void ActorCostAfter(UnitEntityData __instance, UnitCommand command) { active?.Record("actor-cost-after", __instance, command); }
+            internal static void CommandEndBefore(TurnController __instance, UnitCommand command) { active?.Record("command-end-before", command?.Executor, command, __instance.Unit.UniqueId); }
+            internal static void CommandEndAfter(TurnController __instance, UnitCommand command) { active?.Record("command-end-after", command?.Executor, command, __instance.Unit.UniqueId); }
             internal static void TurnEndBefore(TurnController __instance) { active?.Record("turn-end-before", __instance.Unit); }
             internal static void TurnEndAfter(TurnController __instance) { active?.Record("turn-end-after", __instance.Unit); }
             internal static void MovementBefore(float deltaTime, out float __state) { __state = deltaTime; }

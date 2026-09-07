@@ -3324,6 +3324,17 @@ namespace KingmakerMountedCombat.Diagnostics
                     (!horse.IsInState && !Game.Instance.State.Units.Contains(horse) &&
                      !Game.Instance.Player.ControllableCharacters.Contains(horse))));
             var modeRestored = CombatController.IsInTurnBasedCombat() == originalTurnBased;
+            if (Phase3dHorseScenarioTranche.IsActorAllocationScenario(request.Scenario) && (frame - cleanupFrame) % 300 == 1)
+            {
+                logger.Info("Allocation parent cleanup: target=" + targetClean + "; horse=" + horseClean +
+                    "; mode=" + modeRestored + "; actualTB=" + CombatController.IsInTurnBasedCombat() +
+                    "; expectedTB=" + originalTurnBased + "; paused=" + Game.Instance.IsPaused +
+                    "; ownerPet=" + owner?.Descriptor.Pet?.UniqueId + "; horseInState=" + horse?.IsInState +
+                    "; targetEntity=" + targetService?.TargetEntityRemoved +
+                    "; targetGroup=" + targetService?.RuntimeGroupRemoved +
+                    "; targetMemory=" + targetService?.CombatMemoryRemoved +
+                    "; nonPairAi=" + targetService?.NonPairPartyAiLeaseRestored);
+            }
             if (!targetClean || !horseClean || !modeRestored) { return; }
 
             if (!selectionRestored)

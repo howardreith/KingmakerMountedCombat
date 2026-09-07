@@ -58,6 +58,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["currentActor"] = turn?.Unit?.UniqueId, ["turnStatus"] = turn?.Status.ToString(),
                 ["samples"] = allocationSamples, ["rider"] = allocationTrace.Snapshot(rider), ["mount"] = allocationTrace.Snapshot(horse)
             };
+            if (Time.frameCount % 300 == 0)
+                logger.Info("Allocation trace progress: stage=" + allocationStage + "; round=" + controller.RoundNumber +
+                    "; actor=" + turn?.Unit?.UniqueId + "; status=" + turn?.Status + "; samples=" + allocationSamples.Count +
+                    "; mountS=" + horse.CombatState.Cooldown.StandardAction + "; mountM=" + horse.CombatState.Cooldown.MoveAction +
+                    "; pending=" + GetPendingNextUnit(controller)?.UniqueId + "; paused=" + game.IsPaused);
             if (game.IsPaused) { game.IsPaused = false; return; }
             if (allocationStage == 0)
             {
@@ -159,7 +164,9 @@ namespace KingmakerMountedCombat.Diagnostics
             };
             allocationSamples.Add(allocationSample);
             var direction = (target.Position - allocationMover.Position).normalized * (allocationSamples.Count % 2 == 0 ? -1f : 1f);
-            var destination = FindWalkablePoint(allocationMover.Position + direction * 0.75f, 0.1f, 0.2f);
+            // Reuse the qualified native short-move endpoint. The navigation
+            // helper rejects sub-0.25m searches; the native command owns pathing.
+            var destination = allocationMover.Position + direction * 0.75f;
             allocationSample["destination"] = new JArray(destination.x, destination.y, destination.z);
             allocationTrace.Record("move-input-before", allocationMover);
             using (var input = new NativeOrdinaryAttackInput(destination))
@@ -194,6 +201,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void CleanupActorAllocation()
         {
+            observations["actorAllocationSamples"] = allocationSamples.DeepClone();
             if (allocationInitiativeLease)
             {
                 rider.Stats.Initiative.BaseValue = allocationRiderInitiative;

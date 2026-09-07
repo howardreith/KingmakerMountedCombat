@@ -3264,3 +3264,5 @@ Branch codex/mounted-combat-phase3f-playable-core, documentation HEAD 40f2d89d2b
 ## 2026-09-07T02:27:36.6499180Z — Chunk 2 native allocation trace preparation
 
 IN PROGRESS. Branch codex/mounted-combat-phase3f-playable-core, pre-checkpoint HEAD 7a9929e; diagnostic preview.1 in progress, accepted preview.13 installation untouched. Exact intake, contracts, commands, test evidence and next action: docs/CHUNK2-ACTOR-ALLOCATIONS.md and top AUTONOMOUS-RESUME.md. New trace protocol11 PASS/0 FAIL, host registration15/0, build/source22/0; full applicable suite running (trace-gates.txt). No native runtime yet; no causal gameplay claim. Owner-reported Chunk 1 human play recorded separately. Do not restore historical installation/save pins.
+
+2026-09-07T02:55:05.3025090Z Chunk 2 checkpoint: trace-A fixture FAIL, exact current installation/saves restoration PASS; next endpoint regression plus cleanup/AI/native-cost observations. See docs/CHUNK2-ACTOR-ALLOCATIONS.md.
