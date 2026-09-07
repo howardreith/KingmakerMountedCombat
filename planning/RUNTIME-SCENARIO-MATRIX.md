@@ -1,3 +1,7 @@
+## Chunk 2 current scenario pointer
+
+**BLOCKED — CRITICAL** for the allocation milestone. [The single Chunk2 acceptance ledger](../docs/CHUNK2-ACTOR-ALLOCATIONS.md#native-evidence-and-acceptance) records all A01-A10 statuses: A05 representative native preparation evidence on7, A10 final10 PASS32/0, unresolved A04 and remaining mandatory cases. All25 actual-intake restorations PASS. The frozen Phase1 scenario evidence below is unchanged.
+
 # Runtime scenario matrix
 
 Status: IN PROGRESS

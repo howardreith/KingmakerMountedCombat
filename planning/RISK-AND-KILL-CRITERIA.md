@@ -1,6 +1,8 @@
-## Chunk 2 current risk - 2026-09-07T03:12:10.3719282Z
+## Chunk 2 current risk - 2026-09-07 09:08 UTC
 
-IN PROGRESS: native early delegation has occurred before Horse readiness; global-round identity and post-callback reconciliation cannot yet establish a legal conserved allocation. Trace-B proves callback timing loss; it does not qualify a repair or future-action reservation. Scope may require a discriminating Chunk 3 activation dependency. Current intake restoration PASS. [Active report](../docs/CHUNK2-ACTOR-ALLOCATIONS.md).
+**BLOCKED — CRITICAL:** rider-first delegation still consults prior native Standard before the Horse's next preparation; a legal actor grant/reservation and continuation contract remain unproved. Numeric debit preservation alone is insufficient. A01-A09 are incomplete; A05 representative native effects/order pass on7 and A10 exact final10 passes32/0. Step/restriction/interruption, mode conversion and native relationship/session cases remain limited as listed in the [single gate ledger](../docs/CHUNK2-ACTOR-ALLOCATIONS.md).
+
+Actor reference retirement does not solve same-campaign loaded action debt; identify that later save-integration dependency rather than treating cleanup as persistence. RT durability and unmounted fixture party cleanup are regressed after preserved failed traces. All25 temporary transactions restore the actual preview13/current human state, with no historical pin rollback. No full scheduler, content expansion, permanent install or release. Historical Phase1 risk/kill results below remain unchanged.
 
 # Risk and kill criteria
 

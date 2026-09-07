@@ -1,8 +1,8 @@
-Chunk 2 update 2026-09-07T04:38:36.2818285Z: delegated movement pacing uses exact native CanMoveInTurnBased 060018A9 and typed fields 04001191/040011AC/040011AE/040011B6/040011CB; native TickMovement owns next-tick restoration. ASSEMBLY CONTRACT457/0. Native D measured cost discrepancy; preview5 runtime repair qualification pending. RuleApplyBuff06007119/required Buff FX links constrain native fact fixture. See docs/CHUNK2-ACTOR-ALLOCATIONS.md; historical contracts below remain unchanged.
+## Chunk 2 current contract - 2026-09-07 09:08 UTC
 
-## Chunk 2 current contract - 2026-09-07T03:12:10.3719282Z
+Exact Kingmaker assembly MVID07fa1e4d-8618-41b3-9b8d-faa17d3b26f7 remains authoritative. Prepare06000C3C clears/reapplies native acting-command costs, then OnNewRound0600939D precedes round/AI/fact/readiness callbacks. The narrow pair/owed-record correction at that round boundary replaces the too-late postfix; no transpiler or replay. Native7 R/S/T/U prove36 representative preparations with effects/order and correct movement floors. Pacing uses exact CanMoveInTurnBased060018A9 and fields04001191/040011AC/040011AE/040011B6/040011CB, preserving native restoration. Actor destruction/settled encounter/replacement session retire obsolete references; same-campaign debt persistence remains unqualified.
 
-Native Prepare (06000C3C) clears/reapplies acting-command costs, then calls UnitCombatState.OnNewRound (0600939D) before round/AI/fact/readiness callbacks. Trace-B reproduces zero Move at those callbacks followed by retained expenditure at the current postfix. Exact target MVID unchanged. See [Chunk 2 report](../docs/CHUNK2-ACTOR-ALLOCATIONS.md); historical contracts below remain intact.
+GetTimeToNextTurn0600837C equals initiative plus max(Standard,Move), used by native next-unit ordering/time. A04's old Standard before Horse preparation remains unresolved; global-round identity is not a grant and early preparation requires exactly-once continuation/participation. ASSEMBLY CONTRACT461/0; final A10 sourcec804ba0/preview10 PASS32/0 native cases. Native allocation proof remains frozen7; later changes concern diagnostic target durability/cleanup. [Concise contract and evidence](../docs/CHUNK2-ACTOR-ALLOCATIONS.md). Historical Phase1 contracts below remain unchanged.
 
 # Assembly contract matrix
 
