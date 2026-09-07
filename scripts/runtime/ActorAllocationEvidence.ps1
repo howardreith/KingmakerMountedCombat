@@ -103,6 +103,11 @@ function Assert-KmcAllocationCallbackEvidence($Artifact, $Evidence) {
         $restored.Count -ne $actors.Count -or @($restored|Where-Object {$_.restored -ne $true -or $_.originalDamage -ne $_.currentDamage}).Count -ne 0 -or
         (($restored.actor | Sort-Object) -join '|') -cne (($actors | Sort-Object) -join '|') -or
         @($Evidence.measurements).Count -ne $actors.Count*3) {throw 'Native fact ownership, cleanup or measurement coverage is incomplete.'}
+    $componentTypes=@($Artifact.observations.allocationNativeRoundFacts.nativeComponent|Select-Object -Unique)
+    if($componentTypes.Count -ne 1 -or $componentTypes[0] -cnotin @('Kingmaker.UnitLogic.Buffs.Components.AddEffectFastHealing','Kingmaker.UnitLogic.Mechanics.Components.AddFactContextActions')) {
+        throw 'Unknown native preparation fact component.'
+    }
+    $componentType=$componentTypes[0]
     $first=[int]$coverage[0].evidence.firstRound
     foreach($actor in $actors) {
         foreach($round in $first..($first+2)) {
@@ -110,12 +115,12 @@ function Assert-KmcAllocationCallbackEvidence($Artifact, $Evidence) {
             $sequence=0L
             foreach($boundary in @('prepare-before','clear-before','clear-after','round-state-before','round-state-after','ai-round-before','ai-round-after','fact-before','fact-after','prepare-after')) {
                 $hits=@($rows|Where-Object {$_.boundary -ceq $boundary -and
-                    (!$boundary.StartsWith('fact-') -or $_.detail -ceq 'Kingmaker.UnitLogic.Buffs.Components.AddEffectFastHealing')})
+                    (!$boundary.StartsWith('fact-') -or $_.detail -ceq $componentType)})
                 if($hits.Count -ne 1 -or [long]$hits[0].sequence -le $sequence){throw 'Native preparation callback order/count is wrong.'}
                 $sequence=[long]$hits[0].sequence
             }
-            $before=@($rows|Where-Object {$_.boundary -ceq 'fact-before' -and $_.detail -ceq 'Kingmaker.UnitLogic.Buffs.Components.AddEffectFastHealing'})[0]
-            $after=@($rows|Where-Object {$_.boundary -ceq 'fact-after' -and $_.detail -ceq 'Kingmaker.UnitLogic.Buffs.Components.AddEffectFastHealing'})[0]
+            $before=@($rows|Where-Object {$_.boundary -ceq 'fact-before' -and $_.detail -ceq $componentType})[0]
+            $after=@($rows|Where-Object {$_.boundary -ceq 'fact-after' -and $_.detail -ceq $componentType})[0]
             if([int]$before.state.damage-[int]$after.state.damage -ne 1 -or $before.callbackObject -ne $after.callbackObject) {
                 throw 'Native fast healing did not deliver exactly one observed effect.'
             }

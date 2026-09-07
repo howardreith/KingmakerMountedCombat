@@ -78,6 +78,11 @@ function New-CallbackEnvelope {
 $valid=New-CallbackEnvelope
 Assert-KmcActorAllocationEvidence $request $valid 'PASS'
 $passes++
+$feature=New-CallbackEnvelope
+foreach($fact in $feature.observations.allocationNativeRoundFacts) {$fact.nativeComponent='Kingmaker.UnitLogic.Mechanics.Components.AddFactContextActions'}
+foreach($event in $feature.observations.actorAllocationTrace.events) {$event.detail='Kingmaker.UnitLogic.Mechanics.Components.AddFactContextActions'}
+Assert-KmcActorAllocationEvidence $request $feature 'PASS'
+$passes++
 foreach($mutation in @(
     {param($e) $e.observations.actorAllocationTrace.events=@($e.observations.actorAllocationTrace.events|Where-Object boundary -CNE 'fact-after')},
     {param($e) $e.observations.actorAllocationTrace.events+=@($e.observations.actorAllocationTrace.events|Where-Object boundary -CEQ 'fact-before'|Select-Object -First 1)},

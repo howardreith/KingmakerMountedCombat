@@ -24,19 +24,19 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     var matches = rows.Where(item => (string)item["boundary"] == boundary &&
                         (!boundary.StartsWith("fact-", StringComparison.Ordinal) ||
-                         (string)item["detail"] == "Kingmaker.UnitLogic.Buffs.Components.AddEffectFastHealing")).ToArray();
+                         (string)item["detail"] == NativeAllocationRoundFactLease.ComponentType)).ToArray();
                     counts[boundary] = matches.Length;
                     if (matches.Length != 1 || (long?)matches[0]["sequence"] <= previous)
                         errors.Add(actor + ":" + round + ": missing, duplicated or unordered " + boundary);
                     else previous = (long)matches[0]["sequence"];
                 }
                 var beforeFact = rows.FirstOrDefault(item => (string)item["boundary"] == "fact-before" &&
-                    (string)item["detail"] == "Kingmaker.UnitLogic.Buffs.Components.AddEffectFastHealing");
+                    (string)item["detail"] == NativeAllocationRoundFactLease.ComponentType);
                 var afterFact = rows.FirstOrDefault(item => (string)item["boundary"] == "fact-after" &&
-                    (string)item["detail"] == "Kingmaker.UnitLogic.Buffs.Components.AddEffectFastHealing");
+                    (string)item["detail"] == NativeAllocationRoundFactLease.ComponentType);
                 var healed = beforeFact == null || afterFact == null ? -1 :
                     (int)beforeFact["state"]["damage"] - (int)afterFact["state"]["damage"];
-                if (healed != 1) errors.Add(actor + ":" + round + ": native fast healing effect was not exactly one.");
+                if (healed != 1) errors.Add(actor + ":" + round + ": native preparation healing effect was not exactly one.");
                 foreach (var boundary in new[] { "round-handler", "ready-handler" })
                 {
                     var before = rows.Where(item => (string)item["boundary"] == boundary + "-before").ToArray();
