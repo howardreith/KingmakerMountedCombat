@@ -28,8 +28,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private void BeginPairedControlProbe()
         {
             pairedControlsStarted = true;
+            pairedControlStage = -3;
             pairedControlTurn = Game.Instance.TurnBasedCombatController.CurrentTurn;
-            pairedControlBefore = RecordPairedTransition("ordinary-controls-begin");
+            pairedControlBefore = RecordPairedTransition("ordinary-controls-setup-begin");
             pairedControlEvidence = new JObject { ["level"] = "NATIVE INTEGRATION",
                 ["inputKind"] = "scripted-native-control-integration", ["operations"] = new JArray(),
                 ["before"] = pairedControlBefore.DeepClone(), ["automaticEndInputCount"] = 0 };
@@ -60,6 +61,9 @@ namespace KingmakerMountedCombat.Diagnostics
             ordinaryAttackTrace.BeginCase(actor == horse ? (full ? "paired-mount-full" : "paired-mount-single") : "paired-rider-full");
             ruleProbe.Arm(target, false);
             var context = actor == horse ? combat.PairedPartnerContext : pairedControlTurn;
+            var stationary = new UnitAttack(target);
+            stationary.Init(actor);
+            RequirePaired(stationary.IsUnitEnoughClose, "Ordinary Full/Single fixture is outside the addressed actor's native reach.");
             pairedControlOperation = new JObject { ["actor"] = actor.UniqueId, ["full"] = full,
                 ["before"] = RecordPairedTransition("ordinary-paired-attack-before"),
                 ["selectedActor"] = SelectionManager.Instance.SingleSelectedUnit?.UniqueId,
@@ -120,6 +124,35 @@ namespace KingmakerMountedCombat.Diagnostics
             var turn = game.TurnBasedCombatController.CurrentTurn;
             pairedControlEvidence["stage"] = pairedControlStage;
             if (turn?.Unit == horse) throw new InvalidOperationException("Ordinary controls produced a duplicate independent mount turn.");
+            if (pairedControlStage == -3)
+            {
+                if (!PairedSelectionReady(horse)) return;
+                pairedTransitionTurn = pairedControlTurn;
+                BeginPairedTransitionMove(1.25f, false, "ordinary-stationary-setup", true, true);
+                pairedControlStage = -2; return;
+            }
+            if (pairedControlStage == -2)
+            {
+                if (movementCommand != null && !movementCommand.IsFinished || !PairedTransitionActorsIdle()) return;
+                FinishPairedTransitionMove(false, false);
+                pairedControlEvidence["setupMovement"] = pairedTransitionMove.DeepClone();
+                pairedTransitionMoves.Remove(pairedTransitionMove);
+                EndAllocationNativeTurn(turn);
+                pairedControlStage = -1; ResetLeafClock(); return;
+            }
+            if (pairedControlStage == -1)
+            {
+                if (ReferenceEquals(turn, pairedControlTurn)) { EndAllocationNativeTurn(turn); return; }
+                if (turn == null || turn.Status != TurnController.TurnStatus.Preparing && !turn.IsActing) return;
+                if (turn.Unit != rider) { EndAllocationNativeTurn(turn); return; }
+                pairedControlTurn = turn;
+                pairedControlBefore = RecordPairedTransition("ordinary-controls-begin");
+                foreach (var actor in new[] { "rider", "mount" })
+                    RequirePaired((float)pairedControlBefore[actor]["standard"] == 0f &&
+                        (float)pairedControlBefore[actor]["move"] == 0f, "Stationary fixture did not wait for native refresh.");
+                pairedControlEvidence["before"] = pairedControlBefore.DeepClone();
+                SelectPairedControlActor(horse); pairedControlStage = 0; return;
+            }
             if (pairedControlStage == 0)
             {
                 if (!PairedSelectionReady(horse)) return;

@@ -267,12 +267,12 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool PairedTransitionActorsIdle() => rider.Commands.Empty && horse.Commands.Empty &&
             !combat.HasActiveCommand && !combat.HasActiveGroundMovement && !rider.AreHandsBusyWithAnimation && !horse.AreHandsBusyWithAnimation;
 
-        private void BeginPairedTransitionMove(float distance, bool stepMove, string purpose, bool mountInput = false)
+        private void BeginPairedTransitionMove(float distance, bool stepMove, string purpose, bool mountInput = false, bool towardTarget = false)
         {
             pairedTransitionOrigin = horse.Position;
             SelectionManager.Instance.SelectUnit((mountInput ? horse : rider).View, true, true, false);
             var inputContext = mountInput ? combat.PairedPartnerContext : pairedTransitionTurn;
-            var destination = horse.Position + (horse.Position - target.Position).normalized * distance;
+            var destination = horse.Position + (horse.Position - target.Position).normalized * (towardTarget ? -distance : distance);
             pairedTransitionMove = new JObject { ["kind"] = "movement", ["purpose"] = purpose,
                 ["before"] = allocationTrace.Snapshot(horse), ["riderBefore"] = allocationTrace.Snapshot(rider),
                 ["requestedDistance"] = distance };

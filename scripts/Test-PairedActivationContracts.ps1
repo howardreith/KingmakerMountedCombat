@@ -67,9 +67,11 @@ public static class KmcNativePatchProbe {
   var names=new[]{"PairedSelectorTranspiler","PairedPreparationTranspiler","PairedActivityTranspiler","PairedEligibilityTranspiler","PairedConfusionTranspiler",
    "PairedReadinessTranspiler","PairedReadinessTranspiler","PairedForfeitDebtTranspiler","PairedEndDebtTranspiler","PairedProneTranspiler",
    "PairedFullAttackInputTranspiler","PairedControllerInputTranspiler","PairedControllerInputTranspiler","PairedControllerInputTranspiler","PairedControllerInputTranspiler",
-   "PairedVmConstructorTranspiler","PairedVmReaderTranspiler","PairedVmReaderTranspiler","PairedVmReaderTranspiler","PairedVmReaderTranspiler","PairedVmReaderTranspiler","PairedVmReaderTranspiler","PairedVmReaderTranspiler"};
+   "PairedVmConstructorTranspiler","PairedVmReaderTranspiler","PairedVmReaderTranspiler","PairedVmReaderTranspiler","PairedVmReaderTranspiler","PairedVmReaderTranspiler","PairedVmReaderTranspiler","PairedVmReaderTranspiler",
+   "PairedPathUnitTranspiler","PairedPathSettingsTranspiler","PairedControllerInputTranspiler","PairedControllerInputTranspiler"};
   var tokens=new[]{0x06000BD2,0x06000C3C,0x06000C34,0x0600911D,0x06009131,0x06000BD6,0x0600A2BE,0x06000C47,0x06000C46,0x0600918C,
-   0x06009391,0x06000BDF,0x06000BE0,0x06000BE1,0x06003086,0x06004F2F,0x06004F29,0x06004F2A,0x06004F2B,0x06004F2C,0x06004F2D,0x06004F31,0x06004F33};
+   0x06009391,0x06000BDF,0x06000BE0,0x06000BE1,0x06003086,0x06004F2F,0x06004F29,0x06004F2A,0x06004F2B,0x06004F2C,0x06004F2D,0x06004F31,0x06004F33,
+   0x06007020,0x06007015,0x0600700F,0x06007021};
   var count=0;
   try {
    for(var i=0;i<tokens.Length;i++) {

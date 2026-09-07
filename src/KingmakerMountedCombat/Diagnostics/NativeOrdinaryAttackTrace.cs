@@ -149,6 +149,24 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["pairApproachRadius"] = (attack as MountedPairSingleAttack)?.PairApproachRadius,
                     ["detail"] = detail
                 };
+                if (boundary == "prediction-before" || boundary == "prediction-after")
+                {
+                    var input = actor == mount ? combat.PairedPartnerContext ?? turn : turn;
+                    var preview = Kingmaker.TurnBasedMode.PathVisualizer.Instance;
+                    var path = Field(preview, "m_CurrentPath") as Pathfinding.Path;
+                    var points = path?.vectorPath;
+                    row["inputContext"] = new JObject {
+                        ["actor"] = input?.Unit.UniqueId, ["fullEnabled"] = input?.EnabledFullAttack,
+                        ["fiveFootStep"] = input?.EnabledFiveFootStep, ["singleMove"] = input?.EnabledSingleActionMove,
+                        ["needPrediction"] = Field(input, "m_NeedNewPredictions")?.ToString(),
+                        ["highlighted"] = (Field(input, "m_HighlightedUnit") as UnitEntityData)?.UniqueId,
+                        ["approachRadius"] = input?.ActionsStates.ApproachRadius,
+                        ["pathPending"] = Field(preview, "m_RequestedPath") != null,
+                        ["pathPoints"] = points?.Count,
+                        ["pathEnd"] = points == null || points.Count == 0 ? null :
+                            new JArray(points[points.Count - 1].x, points[points.Count - 1].y, points[points.Count - 1].z)
+                    };
+                }
                 if (command?.Executor != null)
                 {
                     row["shouldApproach"] = command.ShouldUnitApproach;

@@ -69,6 +69,17 @@ namespace KingmakerMountedCombat.Integration
             return code;
         }
 
+        internal static IEnumerable<CodeInstruction> PathUnitReads(IEnumerable<CodeInstruction> source,
+            MethodInfo inputUnit, int expectedReads)
+        {
+            var code = source.ToList();
+            var sites = code.Where(i => Token(i, 0x06000BFA)).ToArray();
+            Require(sites.Length == expectedReads && sites.All(i => i.opcode == OpCodes.Call),
+                "native path preview global actor readers");
+            foreach (var site in sites) site.operand = inputUnit;
+            return code;
+        }
+
         internal static IEnumerable<CodeInstruction> FullAttackRestriction(IEnumerable<CodeInstruction> source,
             MethodInfo eligibleActor, MethodInfo actorContext)
         {
