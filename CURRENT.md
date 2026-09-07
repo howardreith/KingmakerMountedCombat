@@ -2,7 +2,7 @@
 
 Status: **IN PROGRESS**. [Milestone report](docs/PAIRED-ACTIVATION-MILESTONE.md).
 
-First gate PASS in both arrangements on preview.9 (I/J,96/0). Preview.13 source `73ac250c5a9612c6b66fe6b520d0bf5080f6bf81` passes P01/A05/P02 in N (49/0): Delay, Stop, mode recovery, step and split. O preview.14 passes P01/A05 mount-first, then ordinary mount click admission fails on a path preview still bound to the global rider. Preview.15 redirects those exact preview readers and fixes stationary fixture readiness through native movement/End/refresh. All fifteen transactions restored actual preview.13/current external state. Remaining A01-A09, final-path A05/A10 and publication are IN PROGRESS. This milestone is not complete.
+First gate PASS in both arrangements on preview.9 (I/J,96/0). Preview.13 source `73ac250c5a9612c6b66fe6b520d0bf5080f6bf81` passes P01/A05/P02 in N (49/0): Delay, Stop, mode recovery, step and split. O/P repeat P01/A05 mount-first but fail ordinary controls: path preview then ground-click cache lookup still address the rider. Preview.16 completes the verified selected-actor ground readers; P03 remains unqualified. All sixteen transactions restored actual preview.13/current external state. Remaining A01-A09, final-path A05/A10 and publication are IN PROGRESS. This milestone is not complete.
 
 Intake is clean `codex/mounted-combat-phase3f-playable-core` at reviewed `45e3d276754257f4513342d5bce7626dd609d252`, containing Chunk 2 binary source `c804ba052760063f747cde83265e660916984d72`, development candidate `0.1.0-chunk2-preview.10`. Preserve all descendants. [Frozen Chunk 2 repairs, identities and outstanding gates](docs/CHUNK2-ACTOR-ALLOCATIONS.md).
 

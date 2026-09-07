@@ -36,6 +36,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["before"] = pairedControlBefore.DeepClone(), ["automaticEndInputCount"] = 0 };
             observations["pairedOrdinaryControls"] = pairedControlEvidence;
             ordinaryAttackTrace = new NativeOrdinaryAttackTrace(rider, horse, combat);
+            ordinaryAttackTrace.BeginCase("paired-ordinary-stationary-setup");
             pairedAutomaticEndProbe = new NativeAutomaticEndProbe();
             SelectPairedControlActor(horse);
             ResetLeafClock();
@@ -129,6 +130,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!PairedSelectionReady(horse)) return;
                 pairedTransitionTurn = pairedControlTurn;
                 BeginPairedTransitionMove(1.25f, false, "ordinary-stationary-setup", true, true);
+                pairedControlEvidence["setupMovement"] = pairedTransitionMove;
+                RequirePaired((bool)pairedTransitionMove["clicked"] && (bool)pairedTransitionMove["admitted"],
+                    "Mount-selected native terrain click did not admit the stationary setup command.");
                 pairedControlStage = -2; return;
             }
             if (pairedControlStage == -2)
@@ -212,6 +216,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!FinishPairedOrdinaryAttack(horse, false)) return;
                 pairedTransitionTurn = pairedControlTurn;
                 BeginPairedTransitionMove(1f, false, "mount-selected-residual", true);
+                pairedControlEvidence["residualMovement"] = pairedTransitionMove;
                 pairedControlStage = 7; return;
             }
             if (pairedControlStage == 7)

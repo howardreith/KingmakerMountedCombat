@@ -119,6 +119,8 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(pathPreview, "GetDefaultVisualPathSettings", 0x06007015, Type.EmptyTypes, null, null, nameof(PatchMethods.PairedPathSettingsTranspiler));
                 PatchExact(pathPreview, "CurrentPathForUnit", 0x0600700F, null, null, null, nameof(PatchMethods.PairedControllerInputTranspiler));
                 PatchExact(pathPreview, "UpdateActionStatesFromPath", 0x06007021, null, null, null, nameof(PatchMethods.PairedControllerInputTranspiler));
+                PatchExact(typeof(ClickGroundHandler), "OnClick", 0x060093D5, null, null, null, nameof(PatchMethods.PairedPathUnitTranspiler));
+                PatchExact(typeof(ClickGroundHandler), "MoveSelectedUnitsToPoint", 0x060093DB, null, null, null, nameof(PatchMethods.PairedControllerInputTranspiler));
                 PatchExact(typeof(TurnController), "ContinueWaiting", 0x06000C3E, Type.EmptyTypes, null, nameof(PatchMethods.PairedWaitingPostfix));
                 PatchExact(typeof(TurnController), "CanDelay", 0x06000C49, Type.EmptyTypes, null, nameof(PatchMethods.PairedCanDelayPostfix));
                 PatchExact(typeof(TurnController), "DelayInitiaive", 0x06000C61, new[] { typeof(UnitEntityData) }, nameof(PatchMethods.PairedDelayPrefix));
