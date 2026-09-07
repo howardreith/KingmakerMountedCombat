@@ -24,6 +24,26 @@ namespace KingmakerMountedCombat.Diagnostics
         private JObject pairedControlOperation;
         private JObject pairedControlEvidence;
         private NativeAutomaticEndProbe pairedAutomaticEndProbe;
+        private float pairedNativeSetupRadius;
+
+        private Vector3 FindPairedControlPoint(float minimumDisplacement, string evidenceKey)
+        {
+            var plans = new JArray();
+            pairedNativeSetupRadius = float.PositiveInfinity;
+            foreach (var actor in new[] { rider, horse })
+            {
+                var native = new UnitAttack(target); native.Init(actor);
+                var ranges = native.CreateFullAttack().Select(attack => attack.WeaponRange).ToArray();
+                RequirePaired(ranges.Length > 0, "Paired stationary fixture has no native attack plan.");
+                var radius = horse.View.Corpulence + target.View.Corpulence + ranges.Min();
+                pairedNativeSetupRadius = Math.Min(pairedNativeSetupRadius, radius);
+                plans.Add(new JObject { ["actor"] = actor.UniqueId, ["weaponRanges"] = new JArray(ranges),
+                    ["minimumRadius"] = radius });
+            }
+            observations[evidenceKey + "-plans"] = plans;
+            return FindNativeAttackFixturePoint(horse, true, horse.Position, minimumDisplacement,
+                pairedNativeSetupRadius, evidenceKey);
+        }
 
         private void BeginPairedControlProbe()
         {
@@ -64,11 +84,17 @@ namespace KingmakerMountedCombat.Diagnostics
             var context = actor == horse ? combat.PairedPartnerContext : pairedControlTurn;
             var stationary = new UnitAttack(target);
             stationary.Init(actor);
-            RequirePaired(stationary.IsUnitEnoughClose, "Ordinary Full/Single fixture is outside the addressed actor's native reach.");
+            var nativeRanges = stationary.CreateFullAttack().Select(attack => attack.WeaponRange).ToArray();
+            var minimumRadius = horse.View.Corpulence + target.View.Corpulence + nativeRanges.Min();
+            var distance = HorizontalDistance(horse.Position, target.Position);
+            RequirePaired(stationary.IsUnitEnoughClose && (!full || distance <= minimumRadius),
+                "Ordinary Full/Single fixture is outside an actual planned weapon's native reach.");
             pairedControlOperation = new JObject { ["actor"] = actor.UniqueId, ["full"] = full,
                 ["before"] = RecordPairedTransition("ordinary-paired-attack-before"),
                 ["selectedActor"] = SelectionManager.Instance.SingleSelectedUnit?.UniqueId,
-                ["contextActor"] = context?.Unit.UniqueId };
+                ["contextActor"] = context?.Unit.UniqueId, ["nativeWeaponRanges"] = new JArray(nativeRanges),
+                ["nativeOriginCorpulence"] = horse.View.Corpulence, ["targetCorpulence"] = target.View.Corpulence,
+                ["minimumNativeRadius"] = minimumRadius, ["nativeOriginDistance"] = distance };
             ((JArray)pairedControlEvidence["operations"]).Add(pairedControlOperation);
             using (var input = new NativeOrdinaryAttackInput(target))
             {
@@ -132,7 +158,8 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (!PairedSelectionReady(horse)) return;
                 pairedTransitionTurn = pairedControlTurn;
-                BeginPairedTransitionMove(1.25f, false, "ordinary-stationary-setup", true, true);
+                var destination = FindPairedControlPoint(0.25f, "paired-stationary-endpoints");
+                BeginPairedTransitionMove(0f, false, "ordinary-stationary-setup", true, false, destination);
                 pairedControlEvidence["setupMovement"] = pairedTransitionMove;
                 RequirePaired((bool)pairedTransitionMove["clicked"] && (bool)pairedTransitionMove["admitted"],
                     "Mount-selected native terrain click did not admit the stationary setup command.");
@@ -142,6 +169,8 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (movementCommand != null && !movementCommand.IsFinished || !PairedTransitionActorsIdle()) return;
                 FinishPairedTransitionMove(false, false);
+                RequirePaired(HorizontalDistance(horse.Position, target.Position) <= pairedNativeSetupRadius,
+                    "Native positioning did not reach adjacency for every planned weapon.");
                 pairedControlEvidence["setupMovement"] = pairedTransitionMove.DeepClone();
                 pairedTransitionMoves.Remove(pairedTransitionMove);
                 EndAllocationNativeTurn(turn);
@@ -218,7 +247,8 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (!FinishPairedOrdinaryAttack(horse, false)) return;
                 pairedTransitionTurn = pairedControlTurn;
-                BeginPairedTransitionMove(1f, false, "mount-selected-residual", true);
+                var destination = FindPairedControlPoint(0.75f, "paired-residual-endpoints");
+                BeginPairedTransitionMove(0f, false, "mount-selected-residual", true, false, destination);
                 pairedControlEvidence["residualMovement"] = pairedTransitionMove;
                 pairedControlStage = 7; return;
             }

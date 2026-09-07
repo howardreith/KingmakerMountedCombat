@@ -27,6 +27,8 @@ function New-RestrictionFixture {
         $n=if($full){4}else{1}
         return @{actor=$actor;contextActor=$actor;selectedActor=$actor;full=$full;fullEnabled=$full;nativeFull=$full
             nativeSinglePrimary=$false;clicked=$true;hoverPure=$true;nativePlan=$n;completed=$n;nativeRules=$n
+            nativeWeaponRanges=$(if($full){@(15.24,15.24,15.24,0.6096)}else{@(0.6096)})
+            nativeOriginCorpulence=0.6;targetCorpulence=1;minimumNativeRadius=2.2096;nativeOriginDistance=1.8
             command=@{executor=$actor;result='Success';finished=$true};before=$before;after=$after}
     }
     $begin=Sample 'restrictions-begin' 'g1' 0 0 0 0 $true
@@ -80,6 +82,11 @@ foreach($mutation in @(
     {param($d) $d.evidence.automaticEndSettingRestored=$false},
     {param($d) $d.evidence.automaticEndInputCount=1},
     {param($d) $d.evidence.operations[0].nativeRules=0},
+    {param($d) $d.evidence.operations[1].nativeOriginDistance=2.53822732},
+    {param($d) $d.evidence.operations[1].nativeWeaponRanges=@(15.24,15.24,15.24)},
+    {param($d) $d.evidence.operations[1].minimumNativeRadius=16.84},
+    {param($d) $d.evidence.operations[1].nativeOriginCorpulence=-1},
+    {param($d) $d.evidence.operations[1].nativeWeaponRanges[3]=[double]::NaN},
     {param($d) $d.evidence.operations[0].after.mount.move=3},
     {param($d) $d.evidence.operations[1].selectedActor='mount'},
     {param($d) $d.evidence.operations[1].hoverPure=$false},

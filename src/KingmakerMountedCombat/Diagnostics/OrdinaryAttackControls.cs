@@ -3,6 +3,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using Kingmaker;
 using Kingmaker.Enums;
+using Kingmaker.EntitySystem.Entities;
 using Kingmaker.Controllers.Clicks.Handlers;
 using Kingmaker.UI.Selection;
 using Kingmaker.UnitLogic.Commands;
@@ -433,15 +434,22 @@ namespace KingmakerMountedCombat.Diagnostics
         private Vector3 FindOrdinaryControlPoint(Vector3 preferredOrigin, float minimumDisplacement)
         {
             var mover = OrdinaryMounted ? horse : rider;
+            return FindNativeAttackFixturePoint(mover, OrdinaryMounted, preferredOrigin, minimumDisplacement,
+                ordinarySetupRadius, "endpoint-" + OrdinaryCurrent.Id);
+        }
+
+        private Vector3 FindNativeAttackFixturePoint(UnitEntityData mover, bool mounted, Vector3 preferredOrigin,
+            float minimumDisplacement, float weaponRadius, string evidenceKey)
+        {
             var direction = preferredOrigin - target.Position;
             direction.y = 0f;
             if (direction.sqrMagnitude < 0.01f) direction = Vector3.forward;
             direction.Normalize();
             // The native ground command admits an endpoint within 0.3 m. Leave
             // 0.4 m inside weapon reach and reject occupied endpoints before input.
-            var radius = ordinarySetupRadius - 0.4f;
+            var radius = weaponRadius - 0.4f;
             var candidates = new JArray();
-            observations["endpoint-" + OrdinaryCurrent.Id] = candidates;
+            observations[evidenceKey] = candidates;
             for (var index = 0; index < 24; index++)
             {
                 var angle = index == 0 ? 0f : (index % 2 == 0 ? index : -index) * 15f;
@@ -449,7 +457,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     Quaternion.Euler(0f, angle, 0f) * direction * radius);
                 var point = nearest.clampedPosition;
                 var blockers = Game.Instance.State.Units.Where(unit => unit != mover && unit.IsInState && unit.View != null &&
-                    !(OrdinaryMounted && unit == rider) && HorizontalDistance(point, unit.Position) <
+                    !(mounted && unit == rider) && HorizontalDistance(point, unit.Position) <
                         mover.View.Corpulence + unit.View.Corpulence + 0.05f).Select(unit => unit.UniqueId).ToArray();
                 var walkable = nearest.node != null && nearest.node.Walkable;
                 var distance = HorizontalDistance(point, target.Position);

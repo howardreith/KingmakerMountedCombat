@@ -1,3 +1,20 @@
+function Assert-KmcPairedAttackFixtureReach($Operation) {
+    $ranges=@($Operation.nativeWeaponRanges)
+    if($ranges.Count -eq 0){throw 'Stationary fixture has no native weapon ranges.'}
+    foreach($value in @($ranges)+@($Operation.nativeOriginCorpulence,$Operation.targetCorpulence,
+        $Operation.minimumNativeRadius,$Operation.nativeOriginDistance)) {
+        if($null -eq $value -or $value -is [string] -or [double]::IsNaN([double]$value) -or
+            [double]::IsInfinity([double]$value) -or [double]$value -lt 0) {throw 'Invalid native fixture range.'}
+    }
+    $minimum=($ranges|Measure-Object -Minimum).Minimum
+    if([Math]::Abs([double]$Operation.minimumNativeRadius-[double]$Operation.nativeOriginCorpulence-
+        [double]$Operation.targetCorpulence-[double]$minimum) -ge 0.001 -or
+        ($Operation.full -eq $true -and ($ranges.Count -ne $Operation.nativePlan -or
+            $Operation.nativeOriginDistance -gt $Operation.minimumNativeRadius))) {
+        throw 'Full sequence fixture excludes a short-reach planned weapon.'
+    }
+}
+
 function Assert-KmcPairedNativeOrder($Artifact, $Evidence) {
     foreach($activation in @($Evidence.activations)) {
         $visits=@($Evidence.turnVisits|Where-Object round -EQ $activation.round)
@@ -54,6 +71,7 @@ function Assert-KmcPairedRestrictionEvidence($Artifact, $Evidence) {
     $samples=@($Evidence.events)
     for($i=0;$i -lt 2;$i++) {
         $op=$Evidence.operations[$i];$key=if($i -eq 0){'mount'}else{'rider'};$other=if($i -eq 0){'rider'}else{'mount'}
+        Assert-KmcPairedAttackFixtureReach $op
         $id=if($i -eq 0){$Artifact.observations.horseId}else{$Artifact.observations.riderId};$full=$i -eq 1
         if($op.actor -cne $id -or $op.contextActor -cne $id -or $op.selectedActor -cne $id -or
             $op.hoverPure -ne $true -or $op.clicked -ne $true -or $op.full -ne $full -or $op.fullEnabled -ne $full -or

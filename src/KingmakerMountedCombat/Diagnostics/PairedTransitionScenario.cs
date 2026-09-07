@@ -293,15 +293,17 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool PairedTransitionActorsIdle() => rider.Commands.Empty && horse.Commands.Empty &&
             !combat.HasActiveCommand && !combat.HasActiveGroundMovement && !rider.AreHandsBusyWithAnimation && !horse.AreHandsBusyWithAnimation;
 
-        private void BeginPairedTransitionMove(float distance, bool stepMove, string purpose, bool mountInput = false, bool towardTarget = false)
+        private void BeginPairedTransitionMove(float distance, bool stepMove, string purpose, bool mountInput = false,
+            bool towardTarget = false, Vector3? exactDestination = null)
         {
             pairedTransitionOrigin = horse.Position;
             SelectionManager.Instance.SelectUnit((mountInput ? horse : rider).View, true, true, false);
             var inputContext = mountInput ? combat.PairedPartnerContext : pairedTransitionTurn;
-            var destination = horse.Position + (horse.Position - target.Position).normalized * (towardTarget ? -distance : distance);
+            var destination = exactDestination ?? horse.Position + (horse.Position - target.Position).normalized * (towardTarget ? -distance : distance);
             pairedTransitionMove = new JObject { ["kind"] = "movement", ["purpose"] = purpose,
                 ["before"] = allocationTrace.Snapshot(horse), ["riderBefore"] = allocationTrace.Snapshot(rider),
-                ["requestedDistance"] = distance };
+                ["requestedDistance"] = HorizontalDistance(horse.Position, destination),
+                ["destination"] = new JArray(destination.x, destination.y, destination.z) };
             pairedTransitionMoves.Add(pairedTransitionMove);
             using (var input = new NativeOrdinaryAttackInput(destination))
             {

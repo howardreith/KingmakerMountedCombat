@@ -132,7 +132,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 SetPairedRestriction(UnitCondition.Staggered);
                 RecordPairedRestriction("staggered-before-move");
                 pairedTransitionTurn = turn;
-                BeginPairedTransitionMove(0.5f, false, "staggered-partial", true, true);
+                var destination = FindPairedControlPoint(0.25f, "paired-staggered-endpoints");
+                BeginPairedTransitionMove(0f, false, "staggered-partial", true, false, destination);
                 pairedRestrictionStage = 1; return;
             }
             if (pairedRestrictionStage == 1)
@@ -193,7 +194,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!combat.PairedPartnerCanGetUp) return;
                 RecordPairedRestriction("native-get-up-input-before");
                 pairedTransitionTurn = turn;
-                BeginPairedTransitionMove(0.5f, false, "native-get-up-input", true);
+                var destination = FindPairedControlPoint(0.25f, "paired-get-up-endpoints");
+                BeginPairedTransitionMove(0f, false, "native-get-up-input", true, false, destination);
                 RequirePaired((bool)pairedTransitionMove["admitted"], "Native get-up terrain input was refused.");
                 pairedRestrictionStage = 8; ResetLeafClock(); return;
             }

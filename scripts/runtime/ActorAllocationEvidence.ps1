@@ -166,6 +166,7 @@ function Assert-KmcPairedControlEvidence($Artifact, $Evidence) {
     $samples=@($Evidence.before,$Evidence.automaticRefresh,$Evidence.explicitRefresh,$Evidence.explicitEndBefore)
     for($i=0;$i -lt 3;$i++) {
         $op=$Evidence.operations[$i];$full=$i -ne 2;$actor=if($i -eq 1){$rider}else{$mount}
+        if([long]$Artifact.schemaVersion -ge 15){Assert-KmcPairedAttackFixtureReach $op}
         $key=if($i -eq 1){'rider'}else{'mount'};$other=if($i -eq 1){'mount'}else{'rider'}
         $samples+=@($op.before,$op.after)
         if($op.actor -cne $actor -or $op.contextActor -cne $actor -or $op.selectedActor -cne $actor -or
