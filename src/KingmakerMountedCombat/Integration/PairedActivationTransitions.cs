@@ -14,6 +14,10 @@ namespace KingmakerMountedCombat.Integration
             ResolveField(typeof(TurnController), "UnitCanGetUpOnCommand", 0x04000670);
         private static readonly System.Reflection.MethodInfo NativeCanGetUpValue =
             ResolveMethod(NativeCanGetUp.FieldType, "set_Value", 0x06000446, new[] { typeof(bool) });
+        private static readonly System.Reflection.MethodInfo NativeCanGetUpReader =
+            ResolveMethod(NativeCanGetUp.FieldType, "get_Value", 0x06000445, Type.EmptyTypes);
+        internal bool PartnerCanGetUp => partnerContext != null &&
+            (bool)NativeCanGetUpReader.Invoke(NativeCanGetUp.GetValue(partnerContext), null);
 
         internal bool OwnsCompletionDebt(UnitCombatState.Cooldowns cooldown)
         {

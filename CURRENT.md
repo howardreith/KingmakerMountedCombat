@@ -2,7 +2,7 @@
 
 Status: **IN PROGRESS**. [Milestone report](docs/PAIRED-ACTIVATION-MILESTONE.md).
 
-First gate PASS in both arrangements on preview.9 (I/J,96/0). Preview.13 passes P01/A05/P02 in N (49/0): Delay, Stop, mode recovery, step and split. Q preview.16 repeats P01/A05 mount-first and proves ordinary mount Full3/rider Full4 with exact native costs, then automatic completion waits incorrectly for an unused step. Preview.17 replaces the custom continuation predicate with the private actor context native operation. P03 remains unqualified. All seventeen transactions restored actual preview.13/current external state. Remaining A01-A09, final-path A05/A10 and publication are IN PROGRESS. This milestone is not complete.
+First gate PASS in both arrangements on preview.9 (I/J,96/0). R preview.17 passes P01/A05/P03/P02 mount-first (50/0): ordinary mount Full3/Single1 and rider Full4, native automatic completion, residual movement, Delay, Stop, mode recovery, step and split. Working preview.18 adds native restrictions/get-up/disabled completion, exact unrelated order and a spent-Standard mode case. All eighteen transactions restored actual human preview.13/current external state. Remaining A01-A09, final-path A05/A10 and publication are IN PROGRESS. This milestone is not complete.
 
 Intake is clean `codex/mounted-combat-phase3f-playable-core` at reviewed `45e3d276754257f4513342d5bce7626dd609d252`, containing Chunk 2 binary source `c804ba052760063f747cde83265e660916984d72`, development candidate `0.1.0-chunk2-preview.10`. Preserve all descendants. [Frozen Chunk 2 repairs, identities and outstanding gates](docs/CHUNK2-ACTOR-ALLOCATIONS.md).
 

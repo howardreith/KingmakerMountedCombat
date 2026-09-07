@@ -147,6 +147,7 @@ namespace KingmakerMountedCombat.Integration
         internal string PairedActivationIdentity => unifiedTurn.ActivationIdentity;
         internal long PairedActivationSequence => unifiedTurn.ActivationSequence;
         internal TurnController PairedPartnerContext => unifiedTurn.PartnerContext;
+        internal bool PairedPartnerCanGetUp => unifiedTurn.PartnerCanGetUp;
 
         internal MountedDoorInteractionOutcome LastDoorInteractionOutcome { get; private set; }
 

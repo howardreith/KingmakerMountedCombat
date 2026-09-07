@@ -387,4 +387,13 @@ foreach($mutation in @(
     if(!$rejected){throw ('Wrong actor, native cost or unbound ordinary control evidence was accepted: '+$mutation.ToString())}
     $passes++
 }
+foreach($factory in @('New-PairedEnvelope','New-PairedTransitionEnvelope','New-PairedControlEnvelope')) {
+    $e = & $factory
+    $e.subscenarioPassCount++
+    $rejected=$false
+    try {Assert-KmcActorAllocationEvidence $request $e 'PASS'} catch {$rejected=$true}
+    if(!$rejected){throw "Incorrect aggregate row count was accepted for $factory."}
+    $passes++
+}
 Write-Host "ALLOCATION PROTOCOL PASS=$passes FAIL=0 (envelope validation only)"
+& (Join-Path $PSScriptRoot 'Test-PairedRestrictionsProtocol.ps1')

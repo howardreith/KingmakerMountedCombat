@@ -38,10 +38,15 @@ namespace KingmakerMountedCombat.Diagnostics
             };
             if (turn != null && pairedVisitedTurns.Add(turn))
             {
+                var nativeOrder = controller.SortedUnits.Where(unit => unit != horse && unit.IsInState && unit.IsInCombat)
+                    .Select(unit => unit.UniqueId).ToArray();
+                allocationTrace.Record("turn-observed", turn.Unit, detail: "native-order=" + string.Join(",", nativeOrder));
+                var observed = (JObject)((JArray)allocationTrace.Capture()["events"]).Last;
                 pairedTurnVisits.Add(new JObject { ["actor"] = turn.Unit.UniqueId, ["round"] = controller.RoundNumber,
                     ["friendly"] = turn.Unit.Group == rider.Group, ["principal"] = turn.Unit == rider,
-                    ["mount"] = turn.Unit == horse });
-                allocationTrace.Record("turn-observed", turn.Unit);
+                    ["mount"] = turn.Unit == horse, ["nativeOrder"] = new JArray(nativeOrder),
+                    ["traceSequence"] = observed["sequence"], ["frame"] = Time.frameCount,
+                    ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks });
                 if (turn.Unit == horse) throw new InvalidOperationException("Paired mount received an independent native turn.");
             }
             if (pairedStage == 1) { FinishPairedMove(); return; }
@@ -241,6 +246,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 RequirePaired(visits.Any(v => (int)v["round"] == round && !(bool)v["friendly"]) &&
                     visits.Any(v => (int)v["round"] == round && (bool)v["friendly"] && !(bool)v["principal"]),
                     "A measured activation lacks unrelated friendly/enemy native turns.");
+                var roundVisits = visits.Where(v => (int)v["round"] == round).ToArray();
+                var expected = ((JArray)roundVisits[0]["nativeOrder"]).Values<string>().ToArray();
+                RequirePaired(expected.Length > 2 && roundVisits.Select(v => (string)v["actor"]).SequenceEqual(expected) &&
+                    roundVisits.All(v => ((JArray)v["nativeOrder"]).Values<string>().SequenceEqual(expected)),
+                    "Paired participation changed native unrelated actor order or omitted/repeated an actor.");
             }
             allocationTrace.Record("first-gate-sealed", rider);
             var trace = allocationTrace.Capture();

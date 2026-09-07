@@ -207,7 +207,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     "Native actor selection, Full/Single costs, mount movement, automatic and explicit completion.",
                     (JObject)pairedControlEvidence.DeepClone());
                 pairedControlsStarted = false;
-                BeginPairedTransitionProbe(); return;
+                BeginPairedRestrictionProbe(); return;
             }
             if (pairedControlStage == 5)
             {

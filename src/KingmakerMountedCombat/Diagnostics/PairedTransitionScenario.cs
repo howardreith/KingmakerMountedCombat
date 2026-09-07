@@ -22,6 +22,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private JObject pairedTransitionMove;
         private JObject pairedDelayBefore;
         private JObject pairedModeBefore;
+        private JObject pairedModeAttack;
         private JObject pairedSplitBefore;
         private UnitEntityData pairedDelayTarget;
         private TurnController pairedTransitionTurn;
@@ -170,6 +171,31 @@ namespace KingmakerMountedCombat.Diagnostics
                     (float)rejected["mount"]["move"] == (float)beforeReject["mount"]["move"] &&
                     (string)rejected["identity"] == (string)beforeReject["identity"], "Rejected Delay changed mount debt or grant.");
                 RequireNoPairedRefresh(beforeReject, rejected);
+                pairedPriorOutcome = combat.LastOutcome;
+                pairedModeAttack = new JObject { ["before"] = RecordPairedTransition("native-mode-standard-spend-before") };
+                observations["pairedTransitions"]["modeAttack"] = pairedModeAttack;
+                pairedModeAttack["clicked"] = TryNativeAbilityTargetClick(nativeControls.MountPrimaryAbility,
+                    target, "paired-mode-standard-spend");
+                RequirePaired((bool)pairedModeAttack["clicked"], "Native mode-debt Primary input was rejected.");
+                pairedTransitionStage = 11; ResetLeafClock(); return;
+            }
+            if (pairedTransitionStage == 11)
+            {
+                if (ReferenceEquals(pairedPriorOutcome, combat.LastOutcome) || !PairedTransitionActorsIdle()) return;
+                var outcome = combat.LastOutcome;
+                var spent = RecordPairedTransition("native-mode-standard-spend-after");
+                pairedModeAttack["after"] = spent;
+                pairedModeAttack["actor"] = outcome.ActorId;
+                pairedModeAttack["resourceOwner"] = outcome.ResourceOwnerId;
+                pairedModeAttack["result"] = outcome.Result;
+                pairedModeAttack["nativeRule"] = outcome.NativeAttackRuleObserved;
+                pairedModeAttack["completedAttacks"] = outcome.NativeCompletedAttackCount;
+                RequirePaired(outcome.ActorId == horse.UniqueId && outcome.ResourceOwnerId == horse.UniqueId &&
+                    outcome.Result == "Success" && outcome.NativeAttackRuleObserved && outcome.NativeCompletedAttackCount == 1 &&
+                    (float)spent["mount"]["standard"] == 6f && (float)spent["mount"]["move"] == 3f &&
+                    (float)spent["rider"]["standard"] == 0f && (float)spent["rider"]["move"] == 0f,
+                    "Mode transition did not begin with a real mount Standard expenditure.");
+                RequireNoPairedRefresh((JObject)pairedModeAttack["before"], spent);
                 pairedModeBefore = RecordPairedTransition("native-mode-exit-before");
                 pairedModeProbe = new NativeModeTransitionProbe(false);
                 pairedModeProbe.DispatchTemporaryValue();

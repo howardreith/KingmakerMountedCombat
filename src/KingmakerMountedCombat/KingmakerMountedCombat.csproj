@@ -183,6 +183,8 @@
     <Compile Include="Diagnostics\PairedActivationScenario.cs" />
     <Compile Include="Diagnostics\PairedTransitionScenario.cs" />
     <Compile Include="Diagnostics\PairedControlScenario.cs" />
+    <Compile Include="Diagnostics\PairedRestrictionScenario.cs" />
+    <Compile Include="Diagnostics\PairedConditionObserver.cs" />
     <Compile Include="Diagnostics\PairedReactionScenario.cs" />
     <Compile Include="Diagnostics\ActorAllocationConservationProbe.cs" />
     <Compile Include="Domain\AnimatedSaddlePosition.cs" />

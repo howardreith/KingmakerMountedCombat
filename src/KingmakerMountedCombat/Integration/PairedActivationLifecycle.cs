@@ -41,10 +41,19 @@ namespace KingmakerMountedCombat.Integration
                 relationship.Mount == activation.Partner;
         }
 
-        internal bool CanMovePairedMount(TurnController turn) => CanAddressActor(activation?.Partner, turn) &&
-            activation.Partner.IsAbleToAct() && activation.Partner.Descriptor.State.CanMove &&
-            movementState.HasGrantedMovement(activation.Partner, SelectedNativeInputContext(turn).EnabledFiveFootStep,
-                SelectedNativeInputContext(turn).EnabledSingleActionMove);
+        internal bool CanMovePairedMount(TurnController turn)
+        {
+            var mount = activation?.Partner;
+            if (!CanAddressActor(mount, turn) || !mount.IsAbleToAct()) return false;
+            var getUp = PartnerCanGetUp &&
+                mount.HasMoveAction() && mount.Descriptor.State.CanStandUp;
+            if (!mount.Descriptor.State.CanMove && !getUp) return false;
+            var input = SelectedNativeInputContext(turn);
+            // Native prone processing requires a real Move action. A remaining
+            // free step cannot pay for standing up.
+            return movementState.HasGrantedMovement(mount, !getUp && input.EnabledFiveFootStep,
+                !getUp && input.EnabledSingleActionMove);
+        }
 
         private void ArmPairedEncounter(UnitEntityData rider, UnitEntityData mount)
         {
