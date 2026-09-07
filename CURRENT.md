@@ -1,17 +1,14 @@
-# Chunk 1: Ordinary attack correctness
+# Chunk 2: Actor allocations and movement conservation
 
-Status: **PASS — engineering qualification**. [Milestone report](docs/CHUNK1-ORDINARY-ATTACKS.md); [historical Phase 3H](docs/PHASE3H-IMPLEMENTATION.md).
+Status: **IN PROGRESS**. [Milestone report](docs/CHUNK2-ACTOR-ALLOCATIONS.md).
 
-- Branch `codex/mounted-combat-phase3f-playable-core`; intake/reviewed ancestor `1d2b8c3ccad14009653af9dc6420ee9af7b2e804` preserved.
-- Final source `a8745640e18ce068e412b4e360c7b0a3d46c738a`, version `0.1.0-chunk1-preview.13`. Later documentation commits remain distinct from the packaged source.
-- Package `KingmakerMountedCombat-0.1.0-chunk1-preview.13-actor-isolation-diagnostic.zip`, SHA-256 `62ddcff6f26e02c6abb6ce80e02a14276b856caa8911a72a5f9f764042173e74`; [full identities](docs/CHUNK1-ORDINARY-ATTACKS.md#exact-candidate).
-- C01-C03 and applicable regression: 32 NATIVE INTEGRATION PASS/0 FAIL on this exact package. COMPONENT 345/0; ASSEMBLY CONTRACT 439/0; applicable build/protocol/package checks PASS. HUMAN PLAY and safe mod-absent A remain TODO.
-- All 19 engineering runtime transactions restored their actual Phase 3G preview 7 intake; final campaign audit `2026-09-06T19:20:29.3863897Z`. Subsequently, the owner explicitly requested local UMM installation. Preview 13 was installed through guarded Replace at `2026-09-06T23:25:51Z`, verified at `23:26:44Z`, and remains installed/enabled for human play. The prior deployment was backed up; all 275 saves, UMM parameters and foreign mods were verified unchanged. No game was launched or release created. [Installation record and exact-candidate checklist](docs/CHUNK1-HUMAN-PLAY.md).
+- Branch `codex/mounted-combat-phase3f-playable-core`; clean intake `aa0bdc41110923a0aae3bd1ac49322e5f2b75c02`, descendant of reviewed `b3f063337644215312de97d9736892212777ac1c`.
+- Accepted Chunk 1 source `a8745640e18ce068e412b4e360c7b0a3d46c738a`, version `0.1.0-chunk1-preview.13`. [Frozen engineering qualification and package identities](docs/CHUNK1-ORDINARY-ATTACKS.md#exact-candidate): 32 NATIVE INTEGRATION PASS / 0 FAIL; COMPONENT 345/0; ASSEMBLY CONTRACT 439/0.
+- **OWNER-REPORTED HUMAN PLAY:** preview.13 installed/enabled; TB ordinary attacks including full bow work well; Horse approach/attack works and the tested rider-to-Horse switch did not grant another move; hovering spends nothing; RT combat, controls, mounting and dismounting work well. This does not qualify exhaustive allocations, precise Rapid Shot modifiers, visible Bite recovery, formal Mounted Charge or cold load. [Installation record](docs/CHUNK1-HUMAN-PLAY.md).
+- Actual intake is preview.13. Fresh transaction snapshots protect current saves/settings/caches and foreign Mods. Historical preview.7 restoration evidence remains historical.
 
-Finding: historical native Single arose from mismatched fixture pointer/prediction state; a separate product defect reused bow reach for a later bite. Correct native input and current-weapon range admission now pass matched B/C/D and native modifier/cost controls. Prior failures remain in the journal and iteration record.
+Active gate: actor-owned movement/action conservation, both initiative orders and three native rounds, preparation callbacks, lifecycle/mode boundaries, A01-A09 plus exact-candidate Chunk 1 regression A10. Start with a compact causal native trace; retain working behavior where evidence supports it.
 
-Rules: one pair, existing Horse/Mammoth profiles, native UnitAttack sequences/costs, explicit Primary single. `EnableUnifiedMountedTurn=false`, `EnablePairedCommandScheduler=false`, `EnableDiagnosticOverlay=false`. Mount transport spends mount resources without rider Move tax or a new tabletop melee restriction. Preserve active movement accounting through UnifiedMountedTurnCoordinator.
+Separate native turns, one pair, Horse/Mammoth, native attack sequences/costs and explicit Primary remain. `EnableUnifiedMountedTurn=false`, `EnablePairedCommandScheduler=false`, `EnableDiagnosticOverlay=false`. Mount transport spends mount resources without a rider Move tax or new tabletop melee restriction. Preserve active accounting through UnifiedMountedTurnCoordinator.
 
-Open gates: HUMAN PLAY/visual Horse Bite concern and safe mod-absent certification. Guarded branch publication is recorded in the campaign ACTIVE-RUN.json and final delivery. Next development dependency is Chunk 2 native actor allocations, not another scheduling shell. No Chunk 2 implementation is included. Next experiment under its mission: observe preparation/refresh before and after native callbacks across both actor orders, retaining expenditure through complete movement exhaustion/conversion.
-
-Roadmap: ordinary attacks; actor allocations; pair-aware activations; sustained combat/UX; persistence; remaining combat features; multiple pairs/profiles/release. Only Chunk 1 execution was authorized here. Revised local plan: `C:/Dev/KingmakerMountedCombatLab/handoffs/Kingmaker_Mounted_Combat_Revised_Project_Plan.docx`.
+Temporary guarded runtime validation, private packaging, coherent commits and guarded branch publication are authorized. No permanent installation, main merge or public release. Coordinated activations are Chunk 3; content and persistence remain later milestones.

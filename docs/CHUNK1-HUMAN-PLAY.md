@@ -10,6 +10,8 @@ Automatic approval initially treated the earlier installation restriction as sti
 
 ## Focused manual checks
 
+**OWNER-REPORTED HUMAN PLAY — received with Chunk 2, preview.13:** installed and enabled; TB ordinary attacks including a full bow attack work well; Horse approach/attack works, with no extra move in the tested rider-to-Horse switch; hovering spends nothing; RT combat, controls, mounting and dismounting work well. The checklist below predates that report. Accepted observations need not be repeated as a prerequisite. Precise Rapid Shot modifiers, visible Bite recovery, exhaustive allocations, formal Mounted Charge and cold load are not inferred. [Active Chunk 2 report](CHUNK2-ACTOR-ALLOCATIONS.md).
+
 Launch normally and confirm UMM shows preview 13 enabled. Use an expendable manual-play save; keep the protected automation fixtures out of casual play. Leave unified mounted turn, paired scheduler and diagnostic overlay disabled. Use one supported rider/Horse or rider/Mammoth pair. Mount before combat so mounting's action cost does not contaminate the stationary test.
 
 1. **TB stationary ordinary attack:** on a fresh rider turn with Standard and Move available, use the normal enemy click with a longbow target already in range. Compare with an unmounted control under the same equipment, feats and action state. Expect the native full sequence for that character. Repeat with Rapid Shot off/on, and haste if available; inspect combat-log attack counts and modifiers. There is no universal five-shot expectation.

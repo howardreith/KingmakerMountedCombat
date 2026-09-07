@@ -18,7 +18,15 @@ Harmony:      exact installed legacy Harmony12 compatibility surface
 
 It must never become part of, or a required dependency of, Kingmaker Buff Planner, Tabletop Added Rules, Gunslinger, Call of the Wild, Wrath of the Righteous, or another gameplay mod.
 
-## Revised completion plan and active scope
+## Active Chunk 2 mission
+
+The owner's Chunk 2 mission supersedes the historical Chunk 1 execution limits below for actor allocations and movement conservation. Preserve reviewed `b3f063337644215312de97d9736892212777ac1c`, local intake `aa0bdc41110923a0aae3bd1ac49322e5f2b75c02` and legitimate descendants on the existing integration branch. Accepted Chunk 1 source is `a8745640e18ce068e412b4e360c7b0a3d46c738a`, preview.13. [Active report](docs/CHUNK2-ACTOR-ALLOCATIONS.md).
+
+Scoped native preparation/command/lifecycle repairs, tests, minimal fixture registration, coherent commits, guarded publication, private packages and temporary runtime transactions are authorized. Keep separate native turns, one pair, existing profiles and all three experimental flags false. Preserve working native attacks/prediction/range repair and the CRPG transport preset. No permanent installation, main merge, release, full scheduler, persistence or content expansion.
+
+Establish grant/refresh and callback order before repair, with both initiative orders over three complete native rounds and unmounted controls. Native actors charge once; corrections precede dependent callbacks; selection/global rounds/relationships cannot create entitlement. Retire records at safe encounter/session/destruction boundaries. No measured readiness/initiative/cooldown resets. Native End Turn input may exercise real boundaries. A01-A09 plus exact-candidate A10 are mandatory; missing native evidence is BLOCKED, not complete. Maintain one concise Chunk 2 report. Snapshot/restore actual preview.13 and current human state, never historical preview.7 pins. Owner-reported preview.13 human play is accepted separately without requiring repetition.
+
+## Historical Chunk 1 completion plan and scope
 
 Phase 1 is completed historical evidence. Its final ledger is `25 PASS / 0 attributable FAIL / 0 DEFER`; Architecture B was selected, no K1-K12 criterion fired, and the frozen evidence/package identities remain authoritative. Do not rewrite, rebuild in place, relabel, or reinterpret that evidence.
 
