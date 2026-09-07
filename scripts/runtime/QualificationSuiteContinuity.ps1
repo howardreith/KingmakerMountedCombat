@@ -32,6 +32,16 @@ function Assert-KmcPhase3fStartingInstallation {
             'KingmakerMountedCombat.dll.49723.cache'='6bc01b982309125963d2355983b37391f244cfea314093fe4b008ad21a241ff3'
         }
     }
+    # Chunk 2 explicitly starts from the owner's accepted preview.13 installation.
+    # Register only the independently hashed intake files, including its human
+    # loader cache. A fresh suite still pins the entire actual tree/timestamps.
+    if ((Get-KmcSha256 (Join-Path $KmcRoot 'Info.json')) -ceq '87a4abbc3d780f228b23d671255f9f01ede18842b3aaeb9adcbc66afcf2c7e43') {
+        $pins = @{
+            'Info.json'='87a4abbc3d780f228b23d671255f9f01ede18842b3aaeb9adcbc66afcf2c7e43'
+            'KingmakerMountedCombat.dll'='282f0ad326fdfcd11b8d547cecd70456fa1c90c5a8e68aebd8ab5db3fc9c3864'
+            'KingmakerMountedCombat.dll.30907.cache'='282f0ad326fdfcd11b8d547cecd70456fa1c90c5a8e68aebd8ab5db3fc9c3864'
+        }
+    }
     if ($entries.Count -ne $pins.Count) { throw 'Existing KMC tree differs from the exact Phase 3F starting payload.' }
     foreach ($entry in $entries) {
         if ($entry.PSIsContainer -or $entry.Name -cnotin @($pins.Keys) -or
