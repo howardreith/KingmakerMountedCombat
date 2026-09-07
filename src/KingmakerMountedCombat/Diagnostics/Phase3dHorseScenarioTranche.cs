@@ -253,7 +253,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         internal static bool SupportsScenario(string scenario)
         {
-            return string.Equals(scenario, RealTimeScenario, StringComparison.Ordinal) ||
+            return IsActorAllocationScenario(scenario) || string.Equals(scenario, RealTimeScenario, StringComparison.Ordinal) ||
                 string.Equals(scenario, UnmountedAttackControlsScenario, StringComparison.Ordinal) ||
                 string.Equals(scenario, Phase3gRealTimeScenario, StringComparison.Ordinal) ||
                 string.Equals(scenario, Phase3gTurnBasedScenario, StringComparison.Ordinal) ||
@@ -346,6 +346,7 @@ namespace KingmakerMountedCombat.Diagnostics
             };
             observations["initialSelection"] = new JArray(originalSelection.Select(item => item.UniqueId));
 
+            if (IsActorAllocation) { BeginActorAllocation(); return; }
             if (IsOrdinaryAttackControls)
             {
                 BeginOrdinaryAttackControls();
@@ -407,7 +408,7 @@ namespace KingmakerMountedCombat.Diagnostics
                             : "-rider") : null) : step.ToString());
                 targetService?.ObserveTargetLifeState();
                 targetService?.RefreshBidirectionalCombatMemoryLease();
-                var scenarioBudget = IsOrdinaryAttackControls ? OrdinaryScenarioDeadlineSeconds : ScenarioDeadlineSeconds;
+                var scenarioBudget = IsActorAllocation ? 600.0d : IsOrdinaryAttackControls ? OrdinaryScenarioDeadlineSeconds : ScenarioDeadlineSeconds;
                 if (!cleanupStarted && clock.Elapsed.TotalSeconds > scenarioBudget)
                 {
                     FailCurrent("phase3d-horse-scenario-deadline", "Horse tranche exceeded its " + scenarioBudget + " second scenario budget at " + step + ".");
@@ -423,7 +424,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 switch (step)
                 {
                     case Phase3dHorseStep.Phase3gControls:
-                        if (IsOrdinaryAttackControls) TickOrdinaryAttackControls();
+                        if (IsActorAllocation) TickActorAllocation();
+                        else if (IsOrdinaryAttackControls) TickOrdinaryAttackControls();
                         else TickPhase3gControls();
                         break;
                     case Phase3dHorseStep.PresentationSettle:
@@ -5389,7 +5391,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     var selected = SelectionManager.Instance?.SelectedUnits;
                     if ((!string.Equals(request.Scenario, TurnBasedScenario, StringComparison.Ordinal) &&
-                         !IsOrdinaryAttackControls && !IsUnmountedAttackControls) ||
+                         !IsActorAllocation && !IsOrdinaryAttackControls && !IsUnmountedAttackControls) ||
                         rider?.Commands == null || horse?.Commands == null || !rider.Commands.Empty ||
                         !horse.Commands.Empty || rider.Group == null || rider.Group != horse.Group ||
                         !rider.IsDirectlyControllable || !IsExactDiagnosticAiIsolationRelationship() ||
@@ -5466,7 +5468,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool IsExactDiagnosticAiIsolationRelationship()
         {
             return relationship.State == RelationshipState.Unmounted ||
-                string.Equals(request.Scenario, TurnBasedScenario, StringComparison.Ordinal) &&
+                (IsActorAllocation || string.Equals(request.Scenario, TurnBasedScenario, StringComparison.Ordinal)) &&
                 relationship.State == RelationshipState.Mounted &&
                 relationship.Rider == rider && relationship.Mount == horse;
         }
@@ -6038,6 +6040,8 @@ namespace KingmakerMountedCombat.Diagnostics
             catch (Exception exception) { AddCleanupError("Ordinary native stat fixture", exception); }
             try { RestorePhase3hRapidShot(); }
             catch (Exception exception) { AddCleanupError("Rapid Shot fixture feature", exception); }
+            try { CleanupActorAllocation(); }
+            catch (Exception exception) { AddCleanupError("Actor allocation fixture", exception); }
             if (ordinaryAttackTrace != null)
             {
                 observations["ordinaryAttackTrace"] = ordinaryAttackTrace.Capture();

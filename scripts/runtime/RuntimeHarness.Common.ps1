@@ -3643,7 +3643,7 @@ function Restore-KmcModsTransaction {
 function Get-KmcSaveBackedRuntimeScenarios {
     return @(
         'export-mounted-contracts', 'export-candidate-mount-rigs', 'observe-mount-diagnostic-availability', 'horse-native-asset-audit', 'horse-companion-blueprint-registration', 'horse-companion-unmounted-suite', 'horse-mounted-alpha-suite', 'horse-native-controls-ux-suite',
-        'ordinary-attack-controls-tb', 'unmounted-attack-controls-rt', 'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite', 'phase3d-unified-combat-tb-suite', 'phase3d-horse-presentation-suite',
+        'actor-allocation-rider-first-tb', 'actor-allocation-mount-first-tb', 'actor-allocation-rider-first-unmounted-tb', 'actor-allocation-mount-first-unmounted-tb', 'ordinary-attack-controls-tb', 'unmounted-attack-controls-rt', 'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite', 'phase3d-unified-combat-tb-suite', 'phase3d-horse-presentation-suite',
         'player-action-availability', 'mount-dismount-user-flow',
         'mounted-pair-create-and-clear', 'mounted-pair-double-mount-rejected', 'mounted-pair-invalid-pair-rejected',
         'mounted-pair-cleanup-idempotent', 'mounted-pair-death-cleanup', 'mounted-pair-combat-start-cleanup',
@@ -3693,7 +3693,7 @@ function Get-KmcPhase3dHorseRuntimeRows {
         'C03-rapid-off-B', 'C03-rapid-off-C', 'C03-bab-B', 'C03-bab-C', 'C03-haste-B', 'C03-haste-C',
         'C02-restricted-B', 'C02-restricted-C', 'C03-single-B', 'C03-single-C', 'C03-spent-standard-B', 'C03-spent-standard-C',
         'C03-rider-move-B', 'C03-carried-move-C', 'C03-mixed-range-B', 'C03-mixed-range-C',
-        'ordinary-attack-controls-tb', 'unmounted-attack-controls-rt', 'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite',
+        'actor-allocation-rider-first-tb', 'actor-allocation-mount-first-tb', 'actor-allocation-rider-first-unmounted-tb', 'actor-allocation-mount-first-unmounted-tb', 'ordinary-attack-controls-tb', 'unmounted-attack-controls-rt', 'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite',
         'phase3d-unified-combat-tb-suite',
         'phase3d-horse-presentation-suite',
         'Horse-small-portrait-close-up',
@@ -3703,7 +3703,7 @@ function Get-KmcPhase3dHorseRuntimeRows {
         'rider-primary-target-cancel-does-not-dismount',
         'rider-primary-rejection-does-not-dismount',
         'rider-primary-does-not-dismount-rt',
-        '3g-rider-longbow-ordinary', '3g-rider-longbow-primary', '3g-rider-melee-ordinary', '3g-rider-melee-primary',
+        'T01-native-allocation-trace', '3g-rider-longbow-ordinary', '3g-rider-longbow-primary', '3g-rider-melee-ordinary', '3g-rider-melee-primary',
         '3g-horse-bite-ordinary', '3g-horse-bite-primary', '3g-paused-dismount', '3g-paused-mount-stop',
         '3g-paused-mount-execute', '3g-paused-control-failure',
         '3h-rider-longbow-ordinary', '3h-rider-longbow-primary', '3h-rider-melee-ordinary', '3h-rider-melee-primary',
@@ -4897,7 +4897,7 @@ function Assert-KmcHorseCompanionBlueprintRegistrationEvidence {
         'horse-companion-unmounted-suite',
         'horse-mounted-alpha-suite',
         'horse-native-controls-ux-suite',
-        'ordinary-attack-controls-tb', 'unmounted-attack-controls-rt', 'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite',
+        'actor-allocation-rider-first-tb', 'actor-allocation-mount-first-tb', 'actor-allocation-rider-first-unmounted-tb', 'actor-allocation-mount-first-unmounted-tb', 'ordinary-attack-controls-tb', 'unmounted-attack-controls-rt', 'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite',
         'phase3d-unified-combat-tb-suite',
         'phase3d-horse-presentation-suite')
     $records = @($Manifest.artifacts | Where-Object {
@@ -5664,7 +5664,7 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
     )
 
     $scenarios = @(
-        'ordinary-attack-controls-tb', 'unmounted-attack-controls-rt', 'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite',
+        'actor-allocation-rider-first-tb', 'actor-allocation-mount-first-tb', 'actor-allocation-rider-first-unmounted-tb', 'actor-allocation-mount-first-unmounted-tb', 'ordinary-attack-controls-tb', 'unmounted-attack-controls-rt', 'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite',
         'phase3d-unified-combat-tb-suite',
         'phase3d-horse-presentation-suite')
     $leaf = 'phase3d-horse-scenario-evidence.json'
@@ -5732,6 +5732,14 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
         }
         return
     }
+    if (Test-KmcActorAllocationScenario ([string]$Request.scenario)) {
+        Assert-KmcActorAllocationEvidence -Request $Request -Artifact $artifact -Status $Status
+        $afterFile = Get-Item -LiteralPath $path -Force
+        if ($afterFile.Length -ne $beforeFile.Length -or $afterFile.LastWriteTimeUtc.Ticks -ne $beforeFile.LastWriteTimeUtc.Ticks) {
+            throw 'Actor allocation evidence changed during validation.'
+        }
+        return
+    }
     if ($phase3dSchemaVersion -eq 9L -or [string]$Request.scenario -cin @('phase3h-combat-loop-rt','phase3h-combat-loop-tb')) {
         Assert-KmcPhase3hLoopEvidence -Request $Request -Artifact $artifact -Status $Status
         $afterFile = Get-Item -LiteralPath $path -Force
@@ -5750,7 +5758,7 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
     }
     $nativeControlScope = $phase3dSchemaVersion -eq 7L
     if ($nativeControlScope) {
-        if ([string]$Request.scenario -cnotin @('ordinary-attack-controls-tb', 'unmounted-attack-controls-rt', 'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite','phase3d-horse-presentation-suite')) {
+        if ([string]$Request.scenario -cnotin @('actor-allocation-rider-first-tb', 'actor-allocation-mount-first-tb', 'actor-allocation-rider-first-unmounted-tb', 'actor-allocation-mount-first-unmounted-tb', 'ordinary-attack-controls-tb', 'unmounted-attack-controls-rt', 'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite','phase3d-horse-presentation-suite')) {
             throw 'Phase 3F native-control evidence cannot qualify a unified-TB scenario.'
         }
         $configuration = $artifact.observations.phase3fActualConfiguration
@@ -12935,4 +12943,5 @@ function New-KmcRuntimeResultV2 {
 . (Join-Path $PSScriptRoot 'Phase3gControlsEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Phase3hLoopEvidence.ps1')
 . (Join-Path $PSScriptRoot 'OrdinaryAttackControlsEvidence.ps1')
+. (Join-Path $PSScriptRoot 'ActorAllocationEvidence.ps1')
 . (Join-Path $PSScriptRoot 'FixtureRecovery.ps1')

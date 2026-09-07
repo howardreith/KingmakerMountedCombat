@@ -296,6 +296,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (request.Scenario == Phase3dHorseScenarioTranche.Phase3gRealTimeScenario ||
                     request.Scenario == Phase3dHorseScenarioTranche.Phase3gTurnBasedScenario ||
                     request.Scenario == "phase3h-combat-loop-rt" || request.Scenario == "phase3h-combat-loop-tb" ||
+                    Phase3dHorseScenarioTranche.IsActorAllocationScenario(request.Scenario) ||
                     request.Scenario == Phase3dHorseScenarioTranche.OrdinaryAttackControlsScenario ||
                     request.Scenario == Phase3dHorseScenarioTranche.UnmountedAttackControlsScenario)
                 {
@@ -348,6 +349,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 var scenarioDeadline = IncludesMountedAlpha
                     ? MountedScenarioTimeoutSeconds
                     : ScenarioTimeoutSeconds;
+                if (Phase3dHorseScenarioTranche.IsActorAllocationScenario(request.Scenario)) scenarioDeadline = 660.0d;
                 if (request.Scenario == Phase3dHorseScenarioTranche.OrdinaryAttackControlsScenario)
                     scenarioDeadline = Phase3dHorseScenarioTranche.OrdinaryScenarioDeadlineSeconds + 60.0d;
                 var lifecyclePhase = step == EngineStep.AwaitMountedLifecycleTargetRemoval ||
@@ -1547,6 +1549,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 availability.Action == MountedPlayerActionKind.Mount)
             {
                 if (request.Scenario == "phase3h-combat-loop-rt" || request.Scenario == "phase3h-combat-loop-tb" ||
+                    Phase3dHorseScenarioTranche.IsActorAllocationScenario(request.Scenario) ||
                     request.Scenario == Phase3dHorseScenarioTranche.OrdinaryAttackControlsScenario ||
                     request.Scenario == Phase3dHorseScenarioTranche.UnmountedAttackControlsScenario)
                 {

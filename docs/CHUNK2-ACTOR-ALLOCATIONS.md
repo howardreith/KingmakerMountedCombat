@@ -23,3 +23,14 @@ After a candidate is qualified: use both actor initiative orders; compare partia
 ## Checkpoint
 
 Intake: source unchanged; no runtime launched or external state mutated. Next: inspect exact installed Prepare/movement/charge contracts and build the focused allocation trace through the qualified fixture/harness.
+
+## Allocation contract inspection checkpoint
+
+IN PROGRESS. Exact installed Assembly-CSharp SHA-256 `3b6450ffec440e296e586f71c711b195aed144b28d53e1cbb29406d18fef5afb`, MVID `07fa1e4d-8618-41b3-9b8d-faa17d3b26f7`; UMM 0.28.2 and legacy Harmony12 unchanged. Native Prepare `0x06000C3C` interrupts as applicable, ticks AI, clears cooldowns (`0x0600C3BE`), reapplies acting-command costs, refreshes reactions, runs combat round state (`0x0600939D`), round handlers (`0x06000C7F`), AI round processing, each-round facts (`0x0600A2D2`), confusion, then readiness/UI handlers (`0x06000C80`). Existing allocation reconciliation is later, in the postfix. This order is ASSEMBLY CONTRACT, not proof of a runtime symptom.
+
+Native movement uses action-time units, actor CurrentSpeedMps and native MetersOfFiveFootStep; native remaining-time calculation uses 3/6 time boundaries. Command-end rounding (`0x06000C5E`) depends on the actual command and current actor. Game.PauseBind (`0x06000CB7`) invokes the normal End Turn flow including its native forfeiture; the trace does not substitute ForceToEnd(false) or edit measured readiness. Supplementary original member inventory/bounded references are local at `analysis-cache/chunk2-native/`; proprietary source is excluded from Git and packages.
+
+Diagnostic preview.1 adds read-only boundary observations and stable order/control scenario parameters to the existing guarded Horse fixture. Initiative stat inputs change only before the encounter and restore after cleanup. Production allocation and attack behavior are unchanged. `T01-native-allocation-trace` qualifies complete observation coverage only and explicitly does not close A01-A09. New protocol negatives reject missing/duplicated callbacks, wrong order, incomplete rounds, state changes during measured setup, missing restoration and false gameplay promotion.
+
+Offline checkpoint 2026-09-07T02:28:57.0813918Z: COMPONENT345/0; ASSEMBLY CONTRACT446/0 (422 Kingmaker,24 Wrath); source22, visual23, inventory10, harness243, Phase3G14, Phase3H29, ordinary39, allocation protocol11 and host registration15 all PASS/0. Initial assembly run misplaced seven new Kingmaker entries in the Wrath list (24/7); corrected only their target grouping and reran both exact assembly suites (446/0). Original failure retained in trace-gates.txt; final trace-contracts-final.txt and trace-components-final.txt are local. No gameplay assertions weakened or native success claimed. Next: immutable diagnostic package and fresh snapshot/guarded trace.
+

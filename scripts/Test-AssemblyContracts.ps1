@@ -63,6 +63,13 @@ if($Target-eq'Kingmaker'){
     $gameVersionMethod=if($null-eq$gameVersionType){$null}else{$gameVersionType.GetMethod('GetVersion',[Reflection.BindingFlags]'Public,Static')}
     Assert-Contract ($null-ne$gameVersionMethod -and $gameVersionMethod.ReturnType.FullName -ceq 'System.String' -and $gameVersionMethod.GetParameters().Count -eq 0) 'GameVersion.GetVersion exact runtime version seam'
     $checks=@(
+        @('Kingmaker.Controllers.Combat.UnitCombatState+Cooldowns',0x0600C3BE,'Clear'),
+        @('Kingmaker.Controllers.Combat.UnitCombatState',0x0600939D,'OnNewRound'),
+        @('TurnBased.Controllers.TurnController',0x06000C7F,'<Prepare>b__114_0'),
+        @('TurnBased.Controllers.TurnController',0x06000C80,'<Prepare>b__114_2'),
+        @('TurnBased.Controllers.TurnController+<>c',0x0600A2D2,'<Prepare>b__114_1'),
+        @('TurnBased.Controllers.TurnController',0x06000C46,'End'),
+        @('Kingmaker.Game',0x06000CB7,'PauseBind'),
         @('Kingmaker.Controllers.Clicks.Handlers.ClickGroundHandler',0x060093DC,'RunCommand'),@('Kingmaker.UI.Selection.SelectionManager',0x060034F0,'SelectUnit'),
         @('Kingmaker.Game',0x06000C86,'get_IsControllerMouse'),@('Kingmaker.Game',0x06000C98,'get_CurrentlyLoadedArea'),
         @('Kingmaker.Game',0x040006C6,'UI'),@('Kingmaker.UI.UIAccess',0x04001E96,'MainMenu'),
@@ -869,6 +876,7 @@ if($Target-eq'Kingmaker'){
     Assert-Contract ($assembly.ManifestModule.ModuleVersionId.ToString()-ceq'90a9869c-2792-4c7b-bfb7-5a8b33da7c82') 'Assembly-CSharp MVID'
     foreach($name in @('Kingmaker.UnitLogic.Parts.UnitPartRider','Kingmaker.UnitLogic.Parts.UnitPartSaddled','Kingmaker.Controllers.Units.SaddledUnitController')){Assert-Contract ($null-ne$assembly.GetType($name,$false)) "mounted type present: $name"}
     $checks=@(
+
         @('Kingmaker.UnitLogic.Parts.UnitPartRider',0x0600C263,'Mount'),@('Kingmaker.UnitLogic.Parts.UnitPartRider',0x0600C264,'Dismount'),
         @('TurnBased.Controllers.CombatController',0x06000E88,'ChooseNextUnit'),@('TurnBased.Controllers.CombatController',0x06000E91,'StartTurn'),
         @('TurnBased.Controllers.TurnController',0x06000F08,'Start'),@('TurnBased.Controllers.TurnController',0x06000F22,'IsAllActed'),

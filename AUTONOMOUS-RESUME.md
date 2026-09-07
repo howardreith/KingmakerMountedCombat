@@ -1,3 +1,14 @@
+# Active Chunk 2 checkpoint — 2026-09-07 02:27:36 UTC
+
+Branch `codex/mounted-combat-phase3f-playable-core`; mission-doc HEAD `7a9929e` (resolve full identity with git rev-parse HEAD), intake `aa0bdc41110923a0aae3bd1ac49322e5f2b75c02`. Preparing diagnostic `0.1.0-chunk2-preview.1`; production attack/allocation behavior unchanged. New bounded read-only callback/resource trace and four scenario parameter combinations (both orders, mounted/unmounted) are being registered through the existing Horse fixture. Native Game.PauseBind 0x06000CB7 exercises real End Turn; initiative BaseValue inputs change only outside combat and restore in cleanup. No runtime launched yet; no gameplay claims.
+
+Actual preview.13 DLL/cache `282f0ad326fdfcd11b8d547cecd70456fa1c90c5a8e68aebd8ab5db3fc9c3864` remains installed. Fresh intake 2026-09-07T02:10:36.9284568Z at `analysis-cache/runtime-evidence/chunk2-20260906/intake.json`: saves `7332daa55136ab2e7d8ad2c4c4fe496a35e0059a55a48cd07c550c1c810f1d92`; Mods `a4985d9881558608802427bc7758ed631830f61b4978774b3d549473fb1da58b`; foreign `453d57f9205743044757d8875dbec3a6ddab4048162f13844a8558ef65bc648d`; no game process/lock. Current human changes are preserved, no historical pin restoration. Exact Kingmaker/UMM/Harmony hashes match accepted target.
+
+Read only this active checkpoint and `docs/CHUNK2-ACTOR-ALLOCATIONS.md`, not the historical resume below. Native bounded reference/member inventories: `analysis-cache/chunk2-native/`. Source inspection confirms Prepare Clear/reapply, reaction reset, OnNewRound, event/fact/readiness callbacks, then existing postfix reconciliation; native proof remains TODO. Source build22/0; allocation protocol11/0; host registration15/0. Full applicable suite is running as exec session38677, log `analysis-cache/runtime-evidence/chunk2-20260906/trace-gates.txt`; later focused build must include the final AI-isolation registration. Guard changed only by adding the four exact trace names; original script saved in chunk2-native/deployment-guard-intake.ps1.
+
+Next: finish suite, build/check final diagnostics, commit coherent source, immutable package qualifier allocation-trace. Create fresh qualified suite snapshot using New-KmcQualificationSuiteSnapshot.ps1 (WhatIf then actual) with existing historical authority solely for immutable fixture continuity. Then guarded RuntimeTest actor-allocation-rider-first-tb, run `20260907-chunk2-rider-trace-A`, timeout900. Audit actual intake restoration before another run. Trace must cover three complete rounds per order; first causal discrepancy determines narrow repair. Remaining mission A01-A09/A10 implementation/qualification, private final package and guarded publication. Owner-reported Chunk 1 human checks accepted; no repeat prerequisite.
+
+---
 # Active Chunk 1 publication checkpoint
 ## 2026-09-06 19:32 UTC - Guarded publication preflight PASS
 

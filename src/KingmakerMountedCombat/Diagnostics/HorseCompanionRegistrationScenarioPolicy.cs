@@ -16,6 +16,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 string.Equals(scenario, "phase3h-combat-loop-rt", StringComparison.Ordinal) ||
                 string.Equals(scenario, "phase3h-combat-loop-tb", StringComparison.Ordinal) ||
                 string.Equals(scenario, "unmounted-attack-controls-rt", StringComparison.Ordinal) ||
+                string.Equals(scenario, "actor-allocation-rider-first-tb", StringComparison.Ordinal) ||
+                string.Equals(scenario, "actor-allocation-mount-first-tb", StringComparison.Ordinal) ||
+                string.Equals(scenario, "actor-allocation-rider-first-unmounted-tb", StringComparison.Ordinal) ||
+                string.Equals(scenario, "actor-allocation-mount-first-unmounted-tb", StringComparison.Ordinal) ||
                 string.Equals(scenario, "ordinary-attack-controls-tb", StringComparison.Ordinal) ||
                 string.Equals(scenario, "phase3d-unified-combat-tb-suite", StringComparison.Ordinal) ||
                 string.Equals(scenario, "phase3d-horse-presentation-suite", StringComparison.Ordinal);
