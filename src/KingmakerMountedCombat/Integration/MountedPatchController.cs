@@ -94,7 +94,6 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(TurnController), "ContinueWaiting", 0x06000C3E, Type.EmptyTypes, null, nameof(PatchMethods.PairedWaitingPostfix));
                 PatchExact(typeof(TurnController), "ForceToEnd", 0x06000C47, new[] { typeof(bool) }, nameof(PatchMethods.PairedForfeitPrefix));
                 PatchExact(typeof(TurnController), "End", 0x06000C46, Type.EmptyTypes, null, nameof(PatchMethods.PairedEndPostfix));
-                PatchExact(typeof(TurnController), "set_Status", 0x06000C0F, new[] { typeof(TurnController.TurnStatus) }, null, nameof(PatchMethods.PairedPhasePostfix));
                 PatchExact(typeof(UnitConfusionController), "TickOnUnit", 0x06009131, new[] { typeof(UnitEntityData) }, null, null, nameof(PatchMethods.PairedConfusionTranspiler));
                 PatchExact(typeof(UnitCombatState), "OnNewRound", 0x0600939D, Type.EmptyTypes, nameof(PatchMethods.NativeRoundStatePrefix));
                 PatchExact(typeof(TurnController), "TickMovement", 0x06000C37,
@@ -335,7 +334,7 @@ namespace KingmakerMountedCombat.Integration
                 PatchBridge.UnifiedTurn?.ExtendPairedWaiting(__instance, ref __result);
             internal static void PairedForfeitPrefix(TurnController __instance) => PatchBridge.UnifiedTurn?.ForfeitPairedActivation(__instance);
             internal static void PairedEndPostfix(TurnController __instance) => PatchBridge.UnifiedTurn?.FinishPairedActivation(__instance);
-            internal static void PairedPhasePostfix(TurnController __instance) => PatchBridge.UnifiedTurn?.SynchronizePartnerPhase(__instance);
+            internal static void PairedPhaseChanged(TurnController turn) => PatchBridge.UnifiedTurn?.SynchronizePartnerPhase(turn);
             internal static bool SkipPairedCandidate(CombatController.TBUnitInfo candidate) =>
                 PatchBridge.UnifiedTurn != null && PatchBridge.UnifiedTurn.SuppressPairedCandidate(candidate);
             internal static bool IsPartnerContext(TurnController turn) => PatchBridge.UnifiedTurn != null && PatchBridge.UnifiedTurn.IsPartnerContext(turn);
@@ -360,7 +359,7 @@ namespace KingmakerMountedCombat.Integration
             internal static IEnumerable<CodeInstruction> PairedPreparationTranspiler(IEnumerable<CodeInstruction> instructions, ILGenerator generator) =>
                 PairedActivationTranspilers.Preparation(instructions, generator, Hook(nameof(IsPartnerContext)), Hook(nameof(PairedPreparationConfusion)));
             internal static IEnumerable<CodeInstruction> PairedActivityTranspiler(IEnumerable<CodeInstruction> instructions) =>
-                PairedActivationTranspilers.PreparingActivity(instructions, Hook(nameof(PairedActivity)));
+                PairedActivationTranspilers.PreparingActivity(instructions, Hook(nameof(PairedActivity)), Hook(nameof(PairedPhaseChanged)));
 
             internal static void NativeRoundStatePrefix(UnitCombatState __instance)
             {

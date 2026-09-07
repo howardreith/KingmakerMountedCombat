@@ -122,6 +122,8 @@ namespace KingmakerMountedCombat.Diagnostics
             if (combat.HasActiveGroundMovement || combat.HasActiveCommand || !horse.Commands.Empty) return;
             var after = allocationTrace.Snapshot(horse);
             var riderAfter = allocationTrace.Snapshot(rider);
+            RequirePaired((string)after["actorContextStatus"] == "Acting",
+                "The native partner context did not enter Acting with the principal.");
             var distance = HorizontalDistance(allocationMoveOrigin, horse.Position);
             var before = pairedOperation["before"];
             var cost = (float)after["move"] - (float)before["move"];
@@ -210,6 +212,10 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (condition) return;
             pairedGateErrors.Add(failure);
+            // Flush the current operation before the outer exception path takes
+            // its artifact snapshot; the frame-start copy predates this result.
+            observations["pairedActivationGate"]["measuredActivations"] = pairedActivations.DeepClone();
+            observations["pairedActivationGate"]["errors"] = new JArray(pairedGateErrors);
             throw new InvalidOperationException(failure);
         }
 

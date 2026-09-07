@@ -157,6 +157,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["commandActor"] = command?.Executor?.UniqueId, ["started"] = command?.IsStarted,
                     ["acted"] = command?.IsActed, ["finished"] = command?.IsFinished, ["result"] = command?.Result.ToString(),
                     ["ignoreCooldown"] = command?.IsIgnoreCooldown,
+                    ["shouldApproach"] = command?.ShouldUnitApproach,
                     ["feedback"] = combat.LastFeedback
                 });
             }

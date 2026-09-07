@@ -178,6 +178,7 @@ namespace KingmakerMountedCombat.Integration
         internal void ExtendPairedWaiting(TurnController turn, ref bool result)
         {
             if (!PairedLifecycleEnabled || activation == null || !ReferenceEquals(turn, activation.Boundary)) return;
+            SynchronizePartnerPhase(turn);
             if (activation.Partner.IsInState && activation.Partner.IsAbleToAct() &&
                 (activation.Partner.Commands.IsRunning() || combat.HasActiveCommand || combat.HasActiveGroundMovement)) result = true;
         }

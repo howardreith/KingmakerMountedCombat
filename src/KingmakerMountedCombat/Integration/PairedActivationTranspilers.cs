@@ -57,12 +57,19 @@ namespace KingmakerMountedCombat.Integration
             return code;
         }
 
-        internal static IEnumerable<CodeInstruction> PreparingActivity(IEnumerable<CodeInstruction> source, MethodInfo activity)
+        internal static IEnumerable<CodeInstruction> PreparingActivity(IEnumerable<CodeInstruction> source, MethodInfo activity, MethodInfo phaseChanged)
         {
             var code = source.ToList();
             var sites = Enumerable.Range(0, code.Count).Where(i => Token(code[i], 0x06000C4D)).ToArray();
             Require(sites.Length == 1, "TurnController.Tick preparing activity");
             code[sites[0]].opcode = OpCodes.Call; code[sites[0]].operand = activity;
+            var phases = Enumerable.Range(2, code.Count - 2).Where(i => Token(code[i], 0x06000C0F) &&
+                code[i - 1].opcode == OpCodes.Ldc_I4_3 && code[i - 2].opcode == OpCodes.Ldarg_0).ToArray();
+            Require(phases.Length == 1, "TurnController.Tick native transition to Acting");
+            // Observe the actual write in the caller. Hooking the tiny native
+            // property setter does not intercept already-inlined callers.
+            code.InsertRange(phases[0] + 1, new[] { new CodeInstruction(OpCodes.Ldarg_0),
+                new CodeInstruction(OpCodes.Call, phaseChanged) });
             return code;
         }
         private static bool Token(CodeInstruction instruction, int token) => instruction.operand is MemberInfo member && member.MetadataToken == token;
