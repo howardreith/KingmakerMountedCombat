@@ -44,7 +44,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private void BeginActorAllocation()
         {
             if (settings.EnableUnifiedMountedTurn || settings.EnablePairedCommandScheduler || settings.EnableDiagnosticOverlay || playerAction.OverlayPresent)
-                throw new InvalidOperationException("Allocation qualification requires the unchanged separate-turn configuration.");
+                throw new InvalidOperationException("Allocation qualification requires all three incompatible experimental flags false.");
             allocationTrace = new NativeActorAllocationTrace(rider, horse, combat);
             allocationTrace.BeginEncounter(request.RunId + ":" + request.Scenario);
             if (IsPairedAllocation)

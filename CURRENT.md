@@ -2,7 +2,7 @@
 
 Status: **IN PROGRESS**. [Milestone report](docs/PAIRED-ACTIVATION-MILESTONE.md).
 
-Preview.6 native E completed three paired activations, native exhaustion, unrelated turns and fourth-boundary refresh. Strict qualification remains FAIL: an unregistered result row and 19 pre-initialization observer errors. Preview.7 fixes that protocol/observation boundary without changing gameplay. All five transactions restored actual preview.13 and current external state. Mount-first and broad regression remain pending.
+Preview.7 source `e9aad2228399feec1aa74096658c27cf89c67c15`: strict F mount-first and G rider-first loops PASS, 96 assertions / 0 FAIL, three activations plus fourth refresh in each, unrelated turns, exact callback/effect counts, zero observer errors/drops and no mount turn. All seven transactions restored actual preview.13/current external state. Preview.8 adds a native consumed-reaction/refresh check and keeps ordinary TB intent bound to its addressed actor. Consumed reactions, remaining A01-A09 transitions and final-path A05/A10 remain unqualified; the combined milestone is not complete.
 
 Intake is clean `codex/mounted-combat-phase3f-playable-core` at reviewed `45e3d276754257f4513342d5bce7626dd609d252`, containing Chunk 2 binary source `c804ba052760063f747cde83265e660916984d72`, development candidate `0.1.0-chunk2-preview.10`. Preserve all descendants. [Frozen Chunk 2 repairs, identities and outstanding gates](docs/CHUNK2-ACTOR-ALLOCATIONS.md).
 

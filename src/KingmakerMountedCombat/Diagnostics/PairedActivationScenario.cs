@@ -52,7 +52,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 pairedStage = 0;
             }
             if (turn == null || turn.Status != TurnController.TurnStatus.Preparing && !turn.IsActing) return;
-            if (turn.Unit != rider) { EndAllocationNativeTurn(turn); return; }
+            if (turn.Unit != rider)
+            {
+                if (TickPairedReactionProbe(turn)) return;
+                EndAllocationNativeTurn(turn); return;
+            }
             if (!rider.Commands.Empty || !horse.Commands.Empty || combat.HasActiveCommand || combat.HasActiveGroundMovement ||
                 rider.AreHandsBusyWithAnimation || horse.AreHandsBusyWithAnimation ||
                 game.HandsEquipmentController.IsUpdateScheduledFor(rider) || game.HandsEquipmentController.IsUpdateScheduledFor(horse)) return;
@@ -65,6 +69,7 @@ namespace KingmakerMountedCombat.Diagnostics
             RequirePaired((float)riderBefore["standard"] == 0f && (float)riderBefore["move"] == 0f &&
                 (float)mountBefore["standard"] == 0f && (float)mountBefore["move"] == 0f,
                 "Fresh native paired boundary must renew both actors without old expenditure.");
+            if (pairedActivationNumber == 1) VerifyPairedReactionRefresh(mountBefore);
             if (pairedActivationNumber == 3)
             {
                 observations["pairedRefreshAfterEarlyEnd"] = new JObject {
@@ -238,6 +243,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     "A measured activation lacks unrelated friendly/enemy native turns.");
             }
             var trace = allocationTrace.Capture();
+            RequirePaired(pairedReactionRefreshed, "Consumed native mount reaction was not renewed at the next paired boundary.");
             RequirePaired((int)trace["dropped"] == 0 && (int)trace["observationErrors"] == 0,
                 "The native paired trace contains dropped events or observation errors.");
             var callbacks = ActorAllocationCallbackEvidence.Evaluate(trace,
@@ -246,7 +252,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["inputKind"] = "scripted-native-handler-integration", ["principal"] = rider.UniqueId,
                 ["firstRound"] = allocationFirstRound, ["activations"] = pairedActivations.DeepClone(),
                 ["turnVisits"] = pairedTurnVisits.DeepClone(), ["refresh"] = observations["pairedRefreshAfterEarlyEnd"].DeepClone(),
-                ["errors"] = new JArray(pairedGateErrors) };
+                ["errors"] = new JArray(pairedGateErrors), ["reactions"] = pairedReactionEvidence.DeepClone() };
             AddRow("P01-three-paired-activations", pairedGateErrors.Count == 0, "Native paired movement, both actor attacks, conversion, exhaustion and early End Turn across three activations.", evidence);
             AddRow("A05-native-preparation-callbacks", (bool)callbacks["passed"], "Exact-candidate native actor preparation and callback/effect counts.", callbacks);
             BeginCleanup();

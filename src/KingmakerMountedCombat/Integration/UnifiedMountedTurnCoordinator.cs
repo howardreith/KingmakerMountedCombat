@@ -571,7 +571,11 @@ namespace KingmakerMountedCombat.Integration
 
             if (PairedLifecycleEnabled && !CanAddressActor(relationship.Mount, turn)) { deltaTime = 0f; return; }
             LastMovementObservation = movementState.TickDelegated(turn, relationship.Mount, ref deltaTime);
-            if (PairedLifecycleEnabled) movementState.CopyGrantedMovementToContext(partnerContext);
+            if (PairedLifecycleEnabled)
+            {
+                movementState.CopyGrantedMovementToContext(partnerContext);
+                ObservePairedCosts(relationship.Mount);
+            }
         }
 
         internal void ObserveNativeMovement(TurnController turn)

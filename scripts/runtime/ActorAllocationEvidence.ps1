@@ -21,9 +21,27 @@ function Assert-KmcPairedMovementEvidence($move) {
     }
 }
 
+function Assert-KmcPairedReactionEvidence($Evidence) {
+    if($null -eq $Evidence -or $Evidence.passed -ne $true -or $Evidence.inputKind -cne 'scripted-native-AI-command' -or
+        [string]::IsNullOrWhiteSpace([string]$Evidence.nativeTurnActor) -or
+        $Evidence.activationIdentity -ceq $Evidence.refreshIdentity -or @($Evidence.operations).Count -ne 4 -or
+        $Evidence.mountBefore.reactions -ne 1 -or $Evidence.mountAfterConsumption.reactions -ne 0 -or
+        $Evidence.mountAfterRefresh.reactions -ne 1 -or $Evidence.mountAfterRefresh.reactionCooldown -ne 0 -or
+        $Evidence.mountAfterRefresh.disengageTargets -ne 0) {throw 'Native reaction consumption/refresh coverage is incomplete.'}
+    foreach($move in $Evidence.operations) {
+        if($move.before.actor -cne $Evidence.nativeTurnActor -or $move.after.actor -cne $Evidence.nativeTurnActor -or
+            $move.result -cne 'Success' -or $move.distance -le 3.8 -or $move.nativeTime -le 0 -or
+            [Math]::Abs([double]$move.nativeTime-[double]$move.nativeCost) -ge 0.02 -or
+            $move.mountOpportunityRules -ne 1 -or $move.mountAfter.reactions -ne 0 -or
+            $move.mountBefore.standard -ne $move.mountAfter.standard -or $move.mountBefore.move -ne $move.mountAfter.move) {
+            throw 'Native reaction stimulus, duplicate rejection or ordinary cost conservation failed.'
+        }
+    }
+}
+
 function Assert-KmcPairedActivationEvidence($Request, $Artifact, [string]$Status) {
     if ([string]$Request.scenario -cnotin @('actor-allocation-rider-first-tb','actor-allocation-mount-first-tb') -or
-        [long]$Artifact.schemaVersion -ne 11) { throw 'Paired lifecycle evidence requires the exact mounted allocation scenario and schema 11.' }
+        [long]$Artifact.schemaVersion -notin @(11,12)) { throw 'Paired lifecycle evidence requires the exact mounted allocation scenario and schema 11 or 12.' }
     $config=$Artifact.observations.phase3fActualConfiguration
     if ($config.enablePairedActivation -ne $true) { throw 'Paired activation path was not selected.' }
     foreach($flag in @('enableUnifiedMountedTurn','enablePairedCommandScheduler','enableDiagnosticOverlay','overlayPresent')) {
@@ -40,6 +58,7 @@ function Assert-KmcPairedActivationEvidence($Request, $Artifact, [string]$Status
         if($row.name -ceq 'A05-native-preparation-callbacks') { Assert-KmcAllocationCallbackEvidence $Artifact $row.evidence;continue }
         if($row.name -cne 'P01-three-paired-activations') { throw 'Failure-only paired row claimed PASS.' }
         $e=$row.evidence;$trace=$Artifact.observations.actorAllocationTrace
+        if([long]$Artifact.schemaVersion -eq 12) { Assert-KmcPairedReactionEvidence $e.reactions }
         $rider=[string]$Artifact.observations.riderId;$mount=[string]$Artifact.observations.horseId
         if($e.level -cne 'NATIVE INTEGRATION' -or $e.gameplayQualified -ne $true -or
             $e.inputKind -cne 'scripted-native-handler-integration' -or $e.principal -cne $rider -or
@@ -91,7 +110,7 @@ function Assert-KmcPairedActivationEvidence($Request, $Artifact, [string]$Status
 
 function Assert-KmcActorAllocationEvidence {
     param($Request, $Artifact, [string]$Status)
-    if ([long]$Artifact.schemaVersion -eq 11) {
+    if ([long]$Artifact.schemaVersion -in @(11,12)) {
         Assert-KmcPairedActivationEvidence $Request $Artifact $Status
         return
     }
@@ -184,7 +203,7 @@ function Assert-KmcAllocationCallbackEvidence($Artifact, $Evidence) {
     if($Evidence.level -cne 'NATIVE INTEGRATION' -or $Evidence.passed -ne $true -or @($Evidence.errors).Count -ne 0) {
         throw 'Native callback result is not a successful measured result.'
     }
-    $coverageName=if([long]$Artifact.schemaVersion -eq 11){'P01-three-paired-activations'}else{'T01-native-allocation-trace'}
+    $coverageName=if([long]$Artifact.schemaVersion -in @(11,12)){'P01-three-paired-activations'}else{'T01-native-allocation-trace'}
     $coverage=@($Artifact.rows|Where-Object name -CEQ $coverageName)
     if($coverage.Count -ne 1 -or $coverage[0].status -cne 'PASS'){throw 'Native callback result requires complete trace coverage.'}
     $actors=@($Artifact.observations.allocationNativeRoundFacts | ForEach-Object {[string]$_.actor})

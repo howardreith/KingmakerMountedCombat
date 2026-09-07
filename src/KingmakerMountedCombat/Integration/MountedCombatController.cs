@@ -998,7 +998,7 @@ namespace KingmakerMountedCombat.Integration
                 ranged,
                 IsMountAlreadyInPrimaryRange(target),
                 !turnBased || !stockIntent.MountActor,
-                !turnBased || stockIntent.MountActor || settings.UsePairedTurnControls);
+                !turnBased || stockIntent.MountActor || settings.UseLegacyUnifiedTurn);
 
             if (decision == MountedStockAttackDecision.Wait)
             {

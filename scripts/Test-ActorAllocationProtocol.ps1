@@ -213,4 +213,35 @@ foreach($mutation in @(
     if(!$rejected){throw 'Incomplete or resource-violating paired loop envelope was accepted.'}
     $passes++
 }
+function New-PairedReactionEnvelope {
+    $e=New-PairedEnvelope
+    $e.schemaVersion=12
+    $reaction=[pscustomobject]@{passed=$true;inputKind='scripted-native-AI-command';nativeTurnActor='enemy'
+        activationIdentity='11111111111111111111111111111111:1';refreshIdentity='11111111111111111111111111111111:2'
+        mountBefore=@{reactions=1};mountAfterConsumption=@{reactions=0};mountAfterRefresh=@{reactions=1;reactionCooldown=0;disengageTargets=0}
+        operations=@()}
+    foreach($leg in 1..4) {
+        $reaction.operations+=@{leg=$leg;before=@{actor='enemy'};after=@{actor='enemy'};result='Success';distance=4.0
+            nativeTime=1.0;nativeCost=1.0;mountOpportunityRules=1
+            mountBefore=@{standard=6.0;move=3.0};mountAfter=@{standard=6.0;move=3.0;reactions=0}}
+    }
+    $e.rows[0].evidence | Add-Member reactions $reaction
+    return ($e|ConvertTo-Json -Depth 30|ConvertFrom-Json)
+}
+Assert-KmcActorAllocationEvidence $request (New-PairedReactionEnvelope) 'PASS'
+$passes++
+foreach($mutation in @(
+    {param($e) $e.rows[0].evidence.reactions=$null},
+    {param($e) $e.rows[0].evidence.reactions.operations[0].nativeCost=0.0},
+    {param($e) $e.rows[0].evidence.reactions.operations[2].mountOpportunityRules=2},
+    {param($e) $e.rows[0].evidence.reactions.operations[0].mountAfter.standard=0.0},
+    {param($e) $e.rows[0].evidence.reactions.mountAfterRefresh.reactions=0},
+    {param($e) $e.rows[0].evidence.reactions.mountAfterRefresh.disengageTargets=1}
+)) {
+    $e=New-PairedReactionEnvelope; & $mutation $e
+    $rejected=$false
+    try {Assert-KmcActorAllocationEvidence $request $e 'PASS'} catch {$rejected=$true}
+    if(!$rejected){throw 'Incomplete native reaction lifecycle envelope was accepted.'}
+    $passes++
+}
 Write-Host "ALLOCATION PROTOCOL PASS=$passes FAIL=0 (envelope validation only)"
