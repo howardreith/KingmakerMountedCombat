@@ -28,6 +28,7 @@ First-round rider delegation ran with Horse native `CanActInCombat=false`, initi
 | unmounted-rider-F | same preview.3 | PASS matched control trace: three native rounds/six moves; 46/0 assertions | PASS actual intake |
 | callback-rider-G | preview.4 / `7781827` | FAIL before measured encounter: bare diagnostic healing buff did not activate; 46/2 assertions; cleanup and zero remaining actor records observed | PASS actual intake |
 | pacing-rider-H | preview.5 / `b015977` | FAIL overall, 48/2 assertions: T01 three-round and T02 two-further-round coverage PASS; preparation fact observation FAIL because buffs use a separate timed pipeline | PASS actual intake |
+| native-facts-rider-I | preview.6 / `1ec9535` | FAIL before encounter, 46/2: template lookup incorrectly searched Unit.Logic instead of the loaded blueprint library | PASS actual intake |
 
 Full artifacts are immutable at `runtime-evidence/<run-id>/`; compact evidence/audits are at `analysis-cache/runtime-evidence/chunk2-20260906/`. C-F regress both fixture defects without changing timeouts/assertions. Preview.3 source `f52462440eba9c91bad24cfa1d52ed3a46e9fad3`, DLL `c3846c03aa4f9b8ff500e2e1a1f0e7230ee3403778f9849337de99e8c587a166`, MVID `7709dbe8-9013-4bad-8380-97089d21edea`, ZIP `17eb97977044e350d20a2576ac7e3b8ddd3ed5974dd9c7e5a1903a2be2e21d33`. These remain observation qualification, not A01-A09 passes.
 
@@ -47,7 +48,7 @@ A01-A09: TODO; A10 on exact final candidate: TODO. Both orders over three comple
 
 Full applicable preview.5 suite PASS/0: COMPONENT350, source22, ASSEMBLY CONTRACT457, allocation envelope27, visual23, inventory10, harness243, Phase3G14, Phase3H29, ordinary39. Host registration15 and exact starting-installation6 passed earlier. Preview.6 changes the diagnostic fact pipeline only; focused revalidation PASS: source22/0, COMPONENT350/0, contracts461/0, allocation protocol28/0. The initial misplaced Kingmaker contract entries caused Wrath24/7 and were corrected/rerun; original logs remain. Intake registration permits only the three exact preview.13 Info/DLL/cache hashes and keeps whole-tree fresh snapshot restoration.
 
-Next: freeze preview.6, validate native preparation feature effects in both orders and matched controls, then exact A10. Report unresolved actor-grant and mode/session cases honestly before guarded publication. Package/source identities and the active run are recorded separately in campaign `ACTIVE-RUN.json`. No permanent install, main merge or public release.
+Preview.7 resolves the native feature template through the same loaded-library lookup qualified by the Rapid Shot fixture. Only the cloned diagnostic NewRound component is applied; the original feat and attack behavior remain untouched. I's independent audit at 2026-09-07T05:27:10.1760127Z restored actual preview.13/current trees exactly. Next: freeze preview.7, validate native preparation feature effects in both orders and matched controls, then exact A10. Report unresolved actor-grant and mode/session cases honestly before guarded publication. Package/source identities and the active run are recorded separately in campaign `ACTIVE-RUN.json`. No permanent install, main merge or public release.
 
 ## Manual checks after qualification
 

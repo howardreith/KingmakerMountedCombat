@@ -34,8 +34,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 throw new InvalidOperationException("Native round fact requires a healthy disposable actor before combat.");
             this.actor = actor;
             originalDamage = actor.Damage;
-            var template = actor.Logic.Enumerable.Select(fact => fact.Blueprint).OfType<BlueprintFeature>().FirstOrDefault();
-            if (template == null) throw new InvalidOperationException("Disposable actor lacks a native feature fixture template.");
+            // Progression features are not stored in Unit.Logic. Resolve the
+            // already-qualified native template from the loaded library; only
+            // our cloned, replacement component is added to the measured actor.
+            var templates = ResourcesLibrary.LibraryObject.BlueprintsByAssetId.Values.OfType<BlueprintFeature>()
+                .Where(item => item.name == "RapidShot" || item.Name == "Rapid Shot").ToArray();
+            if (templates.Length != 1) throw new InvalidOperationException("Expected one native round fact template; found " + templates.Length + ".");
+            var template = templates[0];
             templateId = template.AssetGuid;
             blueprint = UnityEngine.Object.Instantiate(template);
             component = ScriptableObject.CreateInstance<AddFactContextActions>();
