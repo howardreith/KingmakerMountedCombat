@@ -29,12 +29,14 @@ namespace KingmakerMountedCombat.Diagnostics
         private const float MinimumPlacementDistance = 3f;
         private const float MaximumPlacementDistance = 20f;
         private const int DiagnosticDurabilityTemporaryHitPoints = 128;
+        private const int RepeatedNativeSequenceTemporaryHitPoints = 4096;
         private const string DiagnosticDurabilitySource = "KMC diagnostic target durability";
         private const string RuntimeGroupPrefix = "KMC.RuntimeHostile.";
         private static readonly FieldInfo AiBackingField = typeof(UnitEntityData).GetField(
             "m_AiEnabled",
             BindingFlags.Instance | BindingFlags.NonPublic);
         private readonly IModLogger logger;
+        private readonly int durabilityTemporaryHitPoints;
         private readonly DiagnosticCombatTargetLifecycle lifecycle = new DiagnosticCombatTargetLifecycle();
         private readonly IDisposable lifeStateSubscription;
         private BlueprintFaction runtimeFaction;
@@ -173,9 +175,11 @@ namespace KingmakerMountedCombat.Diagnostics
         public bool NonPairPartyAiLeaseRestored =>
             nonPairPartyAiLease == null || nonPairPartyAiLease.Restored;
 
-        public DiagnosticCombatTargetService(IModLogger logger)
+        public DiagnosticCombatTargetService(IModLogger logger, bool repeatedNativeSequences = false)
         {
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            durabilityTemporaryHitPoints = repeatedNativeSequences
+                ? RepeatedNativeSequenceTemporaryHitPoints : DiagnosticDurabilityTemporaryHitPoints;
             lifeStateSubscription = EventBus.Subscribe(this);
         }
 
@@ -348,8 +352,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 var bidirectionalHostility = targetTreatsRiderAsEnemy && riderTreatsTargetAsEnemy;
                 var durabilityPolicyPassed = requireDurabilityLease
                     ? TargetTemporaryHitPointsBefore == 0 &&
-                        TargetTemporaryHitPointsAfterProvisioning == DiagnosticDurabilityTemporaryHitPoints &&
-                        TargetDurabilityLeaseAmount == DiagnosticDurabilityTemporaryHitPoints &&
+                        TargetTemporaryHitPointsAfterProvisioning == durabilityTemporaryHitPoints &&
+                        TargetDurabilityLeaseAmount == durabilityTemporaryHitPoints &&
                         TargetDurabilityLeaseAcquired && !TargetDurabilityLeaseReleased
                     : TargetTemporaryHitPointsBefore == TargetTemporaryHitPointsAfterProvisioning &&
                         TargetDurabilityLeaseAmount == 0 && !TargetDurabilityLeaseAcquired &&
@@ -779,18 +783,18 @@ namespace KingmakerMountedCombat.Diagnostics
 
             TargetDurabilityLeaseReleased = false;
             targetDurabilityModifier = temporaryHitPoints.AddModifier(
-                DiagnosticDurabilityTemporaryHitPoints,
+                durabilityTemporaryHitPoints,
                 (Fact)null,
                 DiagnosticDurabilitySource,
                 ModifierDescriptor.UntypedStackable);
-            TargetDurabilityLeaseAmount = DiagnosticDurabilityTemporaryHitPoints;
+            TargetDurabilityLeaseAmount = durabilityTemporaryHitPoints;
             TargetTemporaryHitPointsAfterProvisioning = temporaryHitPoints.ModifiedValue;
             targetDurabilityLeaseActive = targetDurabilityModifier != null &&
                 targetDurabilityModifier.AppliedTo == temporaryHitPoints;
             TargetDurabilityLeaseAcquired = targetDurabilityLeaseActive &&
-                targetDurabilityModifier.ModValue == DiagnosticDurabilityTemporaryHitPoints &&
+                targetDurabilityModifier.ModValue == durabilityTemporaryHitPoints &&
                 TargetTemporaryHitPointsAfterProvisioning ==
-                    TargetTemporaryHitPointsBefore + DiagnosticDurabilityTemporaryHitPoints;
+                    TargetTemporaryHitPointsBefore + durabilityTemporaryHitPoints;
             if (!TargetDurabilityLeaseAcquired)
             {
                 throw new InvalidOperationException(

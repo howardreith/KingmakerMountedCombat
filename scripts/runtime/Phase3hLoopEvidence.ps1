@@ -1,7 +1,8 @@
 function Assert-KmcPhase3hLoopEvidence {
     param($Request,$Artifact,[AllowNull()][string]$Status)
-    if ([long]$Artifact.schemaVersion -ne 9 -or [string]$Request.scenario -cnotin @('phase3h-combat-loop-rt','phase3h-combat-loop-tb')) {
-        throw 'Phase 3H controls require exact schema 9 and named RT/TB scope.'
+    if ([long]$Artifact.schemaVersion -notin @(9,10) -or [string]$Request.scenario -cnotin @('phase3h-combat-loop-rt','phase3h-combat-loop-tb') -or
+        ([long]$Artifact.schemaVersion -eq 10 -and [string]$Request.scenario -cne 'phase3h-combat-loop-rt')) {
+        throw 'Phase 3H controls require schema 9 RT/TB or schema 10 repeated-sequence RT scope.'
     }
     $configuration=$Artifact.observations.phase3fActualConfiguration
     Assert-KmcExactProperties $configuration @('enableUnifiedMountedTurn','enablePairedCommandScheduler','enableDiagnosticOverlay','overlayPresent') 'Phase 3H configuration'
@@ -17,6 +18,22 @@ function Assert-KmcPhase3hLoopEvidence {
         if($row.name -cnotin $allowed -or -not $names.Add([string]$row.name) -or $row.status -cnotin @('PASS','FAIL')){throw 'Invalid Phase 3H row.'}
         if($row.status -ceq 'FAIL'){$fail++;continue}
         $pass++
+        if ([long]$Artifact.schemaVersion -eq 10 -and $row.name -cin @(
+            '3h-rider-longbow-ordinary','3h-rider-longbow-primary','3h-rider-melee-ordinary',
+            '3h-rider-melee-primary','3h-horse-bite-ordinary','3h-horse-bite-primary')) {
+            $targetProperty=$Artifact.observations.PSObject.Properties['target-'+$row.name]
+            if($null -eq $targetProperty){throw 'Repeated-sequence target provisioning is missing.'}
+            $target=$targetProperty.Value
+            Assert-KmcExactProperties $target @('targetId','distance','bidirectionalHostility','noLoot',
+                'durabilityLease','temporaryHitPointsBefore','temporaryHitPointsAfterProvisioning','durabilityLeaseAmount') 'Repeated-sequence target'
+            if($target.targetId -isnot [string] -or [string]::IsNullOrWhiteSpace($target.targetId) -or
+                $target.bidirectionalHostility -ne $true -or $target.noLoot -ne $true -or $target.durabilityLease -ne $true -or
+                -not (Test-KmcExactJsonInteger $target.temporaryHitPointsBefore) -or $target.temporaryHitPointsBefore -ne 0 -or
+                -not (Test-KmcExactJsonInteger $target.temporaryHitPointsAfterProvisioning) -or $target.temporaryHitPointsAfterProvisioning -ne 4096 -or
+                -not (Test-KmcExactJsonInteger $target.durabilityLeaseAmount) -or $target.durabilityLeaseAmount -ne 4096) {
+                throw 'Repeated-sequence target lacks the exact pre-encounter durability lease.'
+            }
+        }
         if($row.name -ceq '3h-movement-allocation-partial') {
             $e=$row.evidence
             if($Request.scenario -cne 'phase3h-combat-loop-tb' -or @($e.samples).Count -lt 4 -or

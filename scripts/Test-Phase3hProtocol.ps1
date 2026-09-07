@@ -93,4 +93,28 @@ foreach($mutation in @('none','epoch','actor','debit','rider-tax','overclaim')) 
     if($rejected -eq ($mutation -eq 'none')){throw "Partial movement mutation mismatch: $mutation"}
     $passed++
 }
+$request=[pscustomobject]@{scenario='phase3h-combat-loop-rt'}
+foreach($mutation in @('none','missing','small-target','existing-hp','wrong-amount','missing-lease','wrong-mode')) {
+    $artifact=New-ControlsEvidence $false
+    $artifact.schemaVersion=10
+    foreach($row in $artifact.rows | Where-Object {-not $_.name.StartsWith('3h-paused-')}) {
+        $target=[pscustomobject]@{targetId='diagnostic-'+$row.name;distance=3.5;bidirectionalHostility=$true;
+            noLoot=$true;durabilityLease=$true;temporaryHitPointsBefore=0;
+            temporaryHitPointsAfterProvisioning=4096;durabilityLeaseAmount=4096}
+        $artifact.observations | Add-Member NoteProperty ('target-'+$row.name) $target
+    }
+    $target=$artifact.observations.'target-3h-horse-bite-ordinary'
+    switch($mutation) {
+        missing {$artifact.observations.PSObject.Properties.Remove('target-3h-horse-bite-ordinary')}
+        small-target {$target.temporaryHitPointsAfterProvisioning=128}
+        existing-hp {$target.temporaryHitPointsBefore=1}
+        wrong-amount {$target.durabilityLeaseAmount=4095}
+        missing-lease {$target.durabilityLease=$false}
+        wrong-mode {$request.scenario='phase3h-combat-loop-tb'}
+    }
+    $rejected=$false
+    try{Assert-KmcPhase3hLoopEvidence $request $artifact PASS}catch{$rejected=$true}
+    if($rejected -eq ($mutation -eq 'none')){throw "Repeated-sequence durability mutation mismatch: $mutation"}
+    $passed++
+}
 Write-Host "TOTAL Phase3H protocol PASS=$passed FAIL=0"

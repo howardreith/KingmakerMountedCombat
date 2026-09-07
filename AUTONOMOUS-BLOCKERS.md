@@ -1,9 +1,10 @@
-## Chunk 2 active disposition - 2026-09-07T03:12:10.3719282Z
+## Chunk 2 active disposition - 2026-09-07 07:18 UTC
 
-IN PROGRESS. Trace-B reproduces preparation callbacks observing fresh Move before the postfix reinstates delivered Horse movement. Native readiness/reservation and actor retirement remain open; no critical external blocker is proven. Both temporary runs restored real preview.13 and current saves/Mods exactly. Chunk 1 owner-reported human play is now accepted within its reported scope; the older pending text below predates it. See [active report](docs/CHUNK2-ACTOR-ALLOCATIONS.md).
+**BLOCKED — CRITICAL** for allocation milestone completion; safe regression/publication work continues. Native R/S/T/U on preview7 each49/0 establish A05 effects/order and repaired callback floors/pacing. Rider-first early delegation still consults the prior mount Standard before its next native preparation; no exact legal early grant/reservation has been established. The old global-round key is not a grant. Remaining preparation/continuation ownership belongs at the coordinated-activation seam, not a cost reset, second bank or attack shell. A01-A09 are not complete. Same-campaign mid-combat debt persistence and native A09 conversion remain unqualified. [Concise report and gate ledger](docs/CHUNK2-ACTOR-ALLOCATIONS.md).
+
+A10 on7: V19/0; proper RT AA fails from target exhaustion after seven passing cases. Preview8 corrects only the bounded diagnostic durability lease; full local suite PASS/0 (component350, source22, assembly461, visual23, inventory10, harness243, Phase3G14, Phase3H36, ordinary39, allocation28). Initial stale source-schema assertion failure is retained. All16 completed transactions restored actual preview13/current human state. Next: freeze8, fresh snapshot/WhatIf, final A10; preserve native allocation evidence on7 separately because8's new fixture branch is RT-only. No unsafe external blocker is present. Guarded publication remains required.
 
 ---
-
 ## Current Chunk 1 disposition — 2026-09-06T19:20:29.992664+00:00
 
 **PASS — engineering qualification** on `0.1.0-chunk1-preview.13`, source `a8745640e18ce068e412b4e360c7b0a3d46c738a`. [Exact package and 32 native cases](docs/CHUNK1-ORDINARY-ATTACKS.md). No critical blocker or restoration residue remains for this chunk. The historical TB Single gate was reproduced as a fixture pointer/prediction mismatch; current native controls pass. The separate mixed-weapon range defect is fixed and regressed.

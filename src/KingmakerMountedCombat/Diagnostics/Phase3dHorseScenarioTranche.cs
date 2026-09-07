@@ -781,7 +781,8 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 throw new InvalidOperationException("Phase 3D target lease is already active.");
             }
-            targetService = new DiagnosticCombatTargetService(logger);
+            targetService = new DiagnosticCombatTargetService(
+                logger, repeatedNativeSequences: IsPhase3hLoop && !Phase3gTurnBased);
             var point = position ?? FindWalkablePoint(rider.Position, distance, distance >= 10f ? 1.0f : 0.5f);
             target = targetService.Spawn(rider, horse, point, request.RunId + "-" + suffix, true, true);
             if (!targetService.PrepareForPlayerClick(target) ||
@@ -796,7 +797,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["distance"] = rider.DistanceTo(target),
                 ["bidirectionalHostility"] = targetService.BidirectionalHostilityVerified,
                 ["noLoot"] = targetService.TargetHasNoLoot,
-                ["durabilityLease"] = targetService.TargetDurabilityLeaseAcquired
+                ["durabilityLease"] = targetService.TargetDurabilityLeaseAcquired,
+                ["temporaryHitPointsBefore"] = targetService.TargetTemporaryHitPointsBefore,
+                ["temporaryHitPointsAfterProvisioning"] = targetService.TargetTemporaryHitPointsAfterProvisioning,
+                ["durabilityLeaseAmount"] = targetService.TargetDurabilityLeaseAmount
             };
             ResetLeafClock();
         }
@@ -6151,7 +6155,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             var artifact = new JObject
             {
-                ["schemaVersion"] = IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? 9 : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,
+                ["schemaVersion"] = IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,
                 ["evidenceKind"] = EvidenceKind,
                 ["runId"] = request.RunId,
                 ["scenario"] = request.Scenario,
