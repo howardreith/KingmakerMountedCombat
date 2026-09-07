@@ -49,6 +49,15 @@ public static class KmcNativePatchProbe {
   var coordinator=candidate.GetType("KingmakerMountedCombat.Integration.UnifiedMountedTurnCoordinator",true);
   System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(coordinator.TypeHandle);
   Console.WriteLine("COORDINATOR STARTUP CONTRACT PASS=1 FAIL=0; no game instance created");
+  // L attempted Pause during TB. Native DoStartMode returns immediately for
+  // that request; asserting a paused TB game would fabricate a product contract.
+  var startMode=native.ManifestModule.ResolveMethod(0x06000CBF);
+  var pauseIl=startMode.GetMethodBody().GetILAsByteArray();
+  if(startMode.Name!="DoStartMode" || pauseIl.Length<32 || pauseIl[0x17]!=0x28 ||
+     BitConverter.ToInt32(pauseIl,0x18)!=0x06000BF6 || pauseIl[0x1c]!=0x2c ||
+     pauseIl[0x1d]!=1 || pauseIl[0x1e]!=0x2a)
+   throw new InvalidOperationException("Native TB Pause rejection contract changed.");
+  Console.WriteLine("NATIVE TB PAUSE CONTRACT PASS=1 FAIL=0; no game method invoked");
   var hooks=candidate.GetType("KingmakerMountedCombat.Integration.MountedPatchController+PatchMethods",true);
   var harmonyType=harmonyAssembly.GetType("Harmony12.HarmonyInstance",true);
   var harmonyMethod=harmonyAssembly.GetType("Harmony12.HarmonyMethod",true);

@@ -50,11 +50,13 @@ namespace KingmakerMountedCombat.Integration
                 var actor = entry.Key;
                 var cooldown = actor.CombatState?.Cooldown;
                 if (cooldown == null || actor.Commands == null) continue;
-                // Out-of-combat RT recovery may settle a record. Dismount,
-                // selection and a TB/RT toggle alone never retire it.
-                if (!actor.IsInCombat && actor.Commands.Empty && cooldown.StandardAction <= 0f &&
+                // An explicit paired grant ends with the encounter, even if
+                // actor removal already disposed its activation. Native debt
+                // remains on the actor and continues its normal RT recovery.
+                // Dismount, selection and mode conversion are not this boundary.
+                if (!actor.IsInCombat && actor.Commands.Empty && (entry.Value.GrantIdentity != null || cooldown.StandardAction <= 0f &&
                     cooldown.MoveAction <= 0f && cooldown.SwiftAction <= 0f &&
-                    (entry.Value.Prepared || entry.Value.MoveUsed <= 0f))
+                    (entry.Value.Prepared || entry.Value.MoveUsed <= 0f)))
                     settled.Add(actor);
             }
             lifetime.RetireSettledActors(settled);

@@ -190,7 +190,11 @@ function Assert-KmcPairedTransitionEvidence($Artifact, $Evidence) {
     $moves=@($Evidence.movements)
     if(($moves.purpose -join '|') -cne 'partial-stop|five-foot-step|ordinary-after-step-rejected'){throw 'Native transition movement cases changed.'}
     Assert-KmcPairedMovementEvidence $moves[0]
-    if($moves[0].pausedStopVerified -ne $true -or $moves[0].stopInput -ne $true -or $moves[0].distance -ge 2.9){throw 'Paused Stop was not a partial path interruption.'}
+    if($moves[0].nativeTbStopVerified -ne $true -or $moves[0].stopInput -ne $true -or $moves[0].distance -ge 2.9 -or
+        $moves[0].pausedAtStop -ne $false -or $moves[0].pausedAfterStop -ne $false -or
+        $null -eq $moves[0].stopBefore.move -or $moves[0].stopAfter.move -ne $moves[0].stopBefore.move) {
+        throw 'Native TB Stop lacks a partial path interruption with conserved debt; native TB rejects Pause.'
+    }
     $step=$moves[1]
     if($step.fiveFootStep -ne $true -or $step.admitted -ne $true -or $step.distance -le 0.02 -or $step.nativeAllowedTime -le 0 -or
         $step.nativeMoveCost -ne 0 -or $step.after.standard -ne 0 -or $step.after.metresStepped -le 0 -or

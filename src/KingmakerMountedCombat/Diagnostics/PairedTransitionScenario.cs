@@ -135,22 +135,29 @@ namespace KingmakerMountedCombat.Diagnostics
                         RequirePaired(movementCommand != null && !movementCommand.IsFinished, "Stop stimulus failed before partial movement.");
                         return;
                     }
+                    // Native DoStartMode deliberately rejects Pause in TB.
+                    // Exercise Stop here; real paused input is an RT contract.
                     game.IsPaused = true;
-                    pairedTransitionMove["pauseBeforeStop"] = allocationTrace.Snapshot(horse);
+                    pairedTransitionMove["stopBefore"] = allocationTrace.Snapshot(horse);
+                    pairedTransitionMove["pausedAtStop"] = game.IsPaused;
                     SelectionManager.Instance.Stop();
                     pairedTransitionMove["stopInput"] = true;
                     pairedTransitionFrame = Time.frameCount;
-                    RecordPairedTransition("paused-native-stop-input");
+                    RecordPairedTransition("native-tb-stop-input");
                     return;
                 }
                 if (Time.frameCount < pairedTransitionFrame + 3) return;
-                if ((bool?)pairedTransitionMove["pausedStopVerified"] != true)
+                if ((bool?)pairedTransitionMove["nativeTbStopVerified"] != true)
                 {
-                    var paused = allocationTrace.Snapshot(horse);
-                    RequirePaired(game.IsPaused && (float)paused["move"] == (float)pairedTransitionMove["pauseBeforeStop"]["move"],
-                        "Paused Stop changed movement debt.");
-                    pairedTransitionMove["pausedStopVerified"] = true;
-                    game.IsPaused = false;
+                    var stopped = allocationTrace.Snapshot(horse);
+                    pairedTransitionMove["stopAfter"] = stopped;
+                    pairedTransitionMove["pausedAfterStop"] = game.IsPaused;
+                    RecordPairedTransition("native-tb-stop-observed");
+                    RequirePaired(!game.IsPaused && !(bool)pairedTransitionMove["pausedAtStop"],
+                        "Native TB Pause rejection contract changed.");
+                    RequirePaired((float)stopped["move"] == (float)pairedTransitionMove["stopBefore"]["move"],
+                        "Native Stop changed movement debt.");
+                    pairedTransitionMove["nativeTbStopVerified"] = true;
                 }
                 if (!PairedTransitionActorsIdle()) return;
                 FinishPairedTransitionMove(false, false);
@@ -246,7 +253,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 observations["pairedTransitions"]["passed"] = true;
                 var trace = allocationTrace.Capture();
                 RequirePaired((int)trace["dropped"] == 0 && (int)trace["observationErrors"] == 0, "Transition observers lost native evidence.");
-                AddRow("P02-paired-native-transitions", true, "Native Delay conservation, paused partial Stop, TB-RT-TB recovery, step restriction and dismount participation.",
+                AddRow("P02-paired-native-transitions", true, "Native Delay conservation, TB partial Stop, TB-RT-TB recovery, step restriction and dismount participation.",
                     (JObject)observations["pairedTransitions"].DeepClone());
                 BeginCleanup();
             }

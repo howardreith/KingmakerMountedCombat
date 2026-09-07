@@ -284,7 +284,8 @@ function New-PairedTransitionEnvelope {
     Add-TransitionSample 'native-split-next-independent-mount-grant' 120000100 2 $id5 0 0 $false $true
     $moves=@(
         @{purpose='partial-stop';admitted=$true;distance=0.5;travelledDistance=0.5;nativeShiftDistance=0.5;nativeMoveCost=0.1;nativeAllowedTime=0.1
-            before=@{speedMps=5.0};pausedStopVerified=$true;stopInput=$true;riderBefore=@{move=0};riderAfter=@{move=0}},
+            before=@{speedMps=5.0};nativeTbStopVerified=$true;stopInput=$true;pausedAtStop=$false;pausedAfterStop=$false
+            stopBefore=@{move=0.1};stopAfter=@{move=0.1};riderBefore=@{move=0};riderAfter=@{move=0}},
         @{purpose='five-foot-step';admitted=$true;distance=1.0;travelledDistance=1.0;nativeShiftDistance=1.0;nativeMoveCost=0;nativeAllowedTime=0.2
             before=@{speedMps=5.0;stepRangeMetres=1.524};after=@{metresStepped=1.0;standard=0};fiveFootStep=$true;riderBefore=@{move=0};riderAfter=@{move=0}},
         @{purpose='ordinary-after-step-rejected';distance=0;travelledDistance=0;nativeShiftDistance=0;nativeMoveCost=0;nativeAllowedTime=0
@@ -307,7 +308,9 @@ foreach($mutation in @(
     {param($e) $e.rows[2].evidence.events[5].mount.standard=0},
     {param($e) $e.rows[2].evidence.events[6].gameTicks=101},
     {param($e) $e.rows[2].evidence.events[9].round=1},
-    {param($e) $e.rows[2].evidence.movements[0].pausedStopVerified=$false},
+    {param($e) $e.rows[2].evidence.movements[0].nativeTbStopVerified=$false},
+    {param($e) $e.rows[2].evidence.movements[0].stopAfter.move=0},
+    {param($e) $e.rows[2].evidence.movements[0].pausedAtStop=$true},
     {param($e) $e.rows[2].evidence.movements[1].nativeMoveCost=0.1},
     {param($e) $e.rows[2].evidence.movements[2].distance=0.5}
 )) {
