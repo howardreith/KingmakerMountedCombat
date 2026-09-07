@@ -860,7 +860,7 @@ namespace KingmakerMountedCombat.Integration
 
         private static FieldInfo ResolveField(Type type, string name, int token)
         {
-            var field = type.GetField(name, BindingFlags.Instance | BindingFlags.NonPublic);
+            var field = type.GetField(name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
             if (field == null || field.MetadataToken != token)
             {
                 throw new MissingFieldException(type.FullName, name + " exact token " + token.ToString("X8"));

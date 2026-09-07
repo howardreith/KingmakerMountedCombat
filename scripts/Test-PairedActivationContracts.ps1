@@ -44,6 +44,11 @@ public static class KmcNativePatchProbe {
   }
   Console.WriteLine("NATIVE MOVE CONSTRUCTOR CONTRACT PASS=2 FAIL=0; no constructor invoked");
   Console.WriteLine("stage: assemblies loaded");
+  // Resolve the actual service's public/private native contracts, not a parallel
+  // reflection inventory. This performs no game operations or instance creation.
+  var coordinator=candidate.GetType("KingmakerMountedCombat.Integration.UnifiedMountedTurnCoordinator",true);
+  System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(coordinator.TypeHandle);
+  Console.WriteLine("COORDINATOR STARTUP CONTRACT PASS=1 FAIL=0; no game instance created");
   var hooks=candidate.GetType("KingmakerMountedCombat.Integration.MountedPatchController+PatchMethods",true);
   var harmonyType=harmonyAssembly.GetType("Harmony12.HarmonyInstance",true);
   var harmonyMethod=harmonyAssembly.GetType("Harmony12.HarmonyMethod",true);

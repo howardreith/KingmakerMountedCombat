@@ -8,6 +8,8 @@ Preview.10 working changes: native mode-exit forfeiture + pair readiness callers
 
 Next: coherent preview.10 commit and package transition-diagnostic. Create suite10 and exact WhatIf rider-first run20260907-paired-K, then direct guarded launcher + Audit-PairedRestoration.ps1 in finally. Keep source clean/frozen throughout. If K fails, inspect the precise native invariant then fix; two equivalent failures need a different observation/hypothesis. Once transitions pass, broaden supported restrictions, auto completion, death, ordinary controls/selection, unmounted and final exact A05/A10. No publication yet. Do not stop at the first gate or return another plan.
 
+K update17:21:20Z: bootstrapFAIL0/1 before any load/save, source26c374cac027a85180ada378b98320cff33c0b9f preview10. Public field04000670 was invisible to shared private-only resolver. Exact class-initialization regression reproduces the failure locally; preview11 includes Public while retaining exact token checks. All eleven A-K transactions restored actual intake. No transition gameplay was executed in K. Next: preview11 build/startup checks, commit/package, suite11, exact WhatIf rider-first run20260907-paired-L, then guarded native run and independent restoration. See ACTIVE-RUN for later exact source/package/session.
+
 ---
 
 # Active Chunk 2 checkpoint
