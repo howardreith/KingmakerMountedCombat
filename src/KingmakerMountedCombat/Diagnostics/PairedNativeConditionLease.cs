@@ -41,12 +41,16 @@ namespace KingmakerMountedCombat.Diagnostics
             action = ScriptableObject.CreateInstance<PairedConditionRoundAction>();
             action.Owner = this;
             fact.SetDiagnosticRoundAction(action);
+            Evidence["factBinding"] = fact.CaptureDiagnosticBinding(action);
             subscription = EventBus.Subscribe(this);
         }
 
         internal void ApplyFromNativeFact()
         {
-            if (applied || disposed || !combat.IsPreparingPairedActor(actor)) return;
+            if (applied || disposed) return;
+            Evidence["nativeFactVisits"] = (int?)Evidence["nativeFactVisits"] + 1 ?? 1;
+            Evidence["preparingAtFact"] = combat.IsPreparingPairedActor(actor);
+            if (!combat.IsPreparingPairedActor(actor)) return;
             if (actor.Descriptor.State.HasCondition(UnitCondition.Confusion))
                 throw new InvalidOperationException("An existing condition would be overwritten by the fixture.");
             trace.Record("native-condition-fact-stimulus", actor, detail: "Confusion;D100-choice=" + choice);

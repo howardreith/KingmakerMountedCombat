@@ -48,6 +48,13 @@ namespace KingmakerMountedCombat.Diagnostics
             var controller = game.TurnBasedCombatController;
             var turn = controller.CurrentTurn;
             pairedNativeConditionEvidence["stage"] = pairedNativeConditionStage;
+            if (Time.frameCount % 120 == 0 && pairedNativeConditionStage >= 2)
+                pairedNativeConditionEvidence["lastWait"] = new JObject {
+                    ["frame"] = Time.frameCount, ["stage"] = pairedNativeConditionStage,
+                    ["turnStatus"] = turn?.Status.ToString(), ["actor"] = turn?.Unit.UniqueId,
+                    ["riderCommandsEmpty"] = rider.Commands.Empty, ["mountCommandsEmpty"] = horse.Commands.Empty,
+                    ["conditionCommand"] = CaptureOrdinaryCommand(horse.Get<UnitPartConfusion>()?.Cmd),
+                    ["relationship"] = relationship.State.ToString(), ["identity"] = combat.PairedActivationIdentity };
             if (game.IsPaused) { game.IsPaused = false; return; }
             if (pairedNativeConditionStage == 0)
             {

@@ -22,6 +22,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly int originalDamage;
         private readonly BlueprintFeature blueprint;
         private readonly AddFactContextActions component;
+        private readonly AddFactContextActions activeComponent;
         private readonly ContextActionHealTarget heal;
         private readonly string blueprintId;
         private readonly string templateId;
@@ -30,8 +31,21 @@ namespace KingmakerMountedCombat.Diagnostics
         internal void SetDiagnosticRoundAction(GameAction action)
         {
             if (disposed) throw new ObjectDisposedException(nameof(NativeAllocationRoundFactLease));
-            component.NewRound = new ActionList { Actions = action == null ? new GameAction[] { heal } : new GameAction[] { heal, action } };
+            if (activeComponent == null || !actor.Logic.Enumerable.Where(item => item.Blueprint == blueprint)
+                .SelectMany(item => item.Components).Contains(activeComponent))
+                throw new InvalidOperationException("Native round stimulus lost its exact active fact component.");
+            // Fact activation clones its GameLogicComponent. Updating the
+            // blueprint after activation does not update that actor instance.
+            activeComponent.NewRound = new ActionList { Actions = action == null ? new GameAction[] { heal } : new GameAction[] { heal, action } };
         }
+
+        internal JObject CaptureDiagnosticBinding(GameAction action) => new JObject {
+            ["actor"] = actor.UniqueId, ["blueprint"] = blueprintId,
+            ["activeComponent"] = activeComponent.GetInstanceID(), ["templateComponent"] = component.GetInstanceID(),
+            ["activeFactCount"] = actor.Logic.Enumerable.Count(item => item.Blueprint == blueprint),
+            ["actionCount"] = activeComponent.NewRound.Actions.Length,
+            ["exactActionBound"] = activeComponent.NewRound.Actions.Count(item => ReferenceEquals(item, action)) == 1
+        };
 
         internal NativeAllocationRoundFactLease(UnitEntityData actor)
         {
@@ -65,8 +79,10 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 actor.Descriptor.Damage = originalDamage + 6;
                 var context = new MechanicsContext(actor, actor.Descriptor, blueprint);
-                if (actor.Logic.AddFact(blueprint, context) == null || !actor.Logic.HasFact(blueprint))
+                var fact = actor.Logic.AddFact(blueprint, context);
+                if (fact == null || !actor.Logic.HasFact(blueprint))
                     throw new InvalidOperationException("Native preparation feature did not activate for " + actor.UniqueId);
+                activeComponent = fact.Components.OfType<AddFactContextActions>().Single();
             }
             catch { Dispose(); throw; }
         }

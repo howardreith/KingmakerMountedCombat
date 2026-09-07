@@ -24,6 +24,12 @@ function Assert-KmcPairedConditionCommandEvidence($Artifact, $Evidence) {
     $identities=New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
     for($i=0;$i -lt 2;$i++) {
         $case=$cases[$i];$stimulus=$case.stimulus
+        $binding=$stimulus.factBinding
+        if($binding.actor -cne $mount -or $binding.activeFactCount -ne 1 -or $binding.actionCount -ne 2 -or
+            $binding.activeComponent -eq $binding.templateComponent -or $binding.activeComponent -eq 0 -or
+            $binding.exactActionBound -ne $true -or $stimulus.nativeFactVisits -ne 1 -or $stimulus.preparingAtFact -ne $true) {
+            throw 'Condition stimulus did not use its exact active native round fact once during preparation.'
+        }
         $expectedType=if($i -eq 0){'Kingmaker.UnitLogic.Commands.UnitDoNothing'}else{'Kingmaker.UnitLogic.Commands.UnitSelfHarm'}
         if($case.passed -ne $true -or $case.outsideCombat -ne $true -or $case.mountedBeforeCombat -ne $true -or
             !$identities.Add([string]$case.activation) -or [string]$case.activation -cnotmatch '^[0-9a-f]{32}:[1-9][0-9]*$' -or

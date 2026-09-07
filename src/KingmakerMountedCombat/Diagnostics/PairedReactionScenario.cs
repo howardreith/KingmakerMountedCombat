@@ -22,6 +22,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool pairedReactionRefreshed;
         private bool pairedReactionTargetCondition;
         private UnitEntityData pairedReactionConditionActor;
+        private JObject pairedReactionConditionLease;
         private readonly JObject pairedReactionEvidence = new JObject();
         private JObject pairedReactionOperation;
 
@@ -37,10 +38,17 @@ namespace KingmakerMountedCombat.Diagnostics
             target.Descriptor.State.AddCondition(UnitCondition.ImmuneToCombatManeuvers);
             pairedReactionConditionActor = target;
             pairedReactionTargetCondition = true;
-            observations["reactionTargetCondition"] = new JObject { ["actor"] = target.UniqueId,
+            pairedReactionConditionLease = new JObject { ["actor"] = target.UniqueId,
                 ["condition"] = "ImmuneToCombatManeuvers", ["before"] = false,
                 ["applied"] = target.Descriptor.State.HasCondition(UnitCondition.ImmuneToCombatManeuvers), ["restored"] = false };
-            if (!(bool)observations["reactionTargetCondition"]["applied"])
+            if (observations["reactionTargetCondition"] == null)
+                observations["reactionTargetCondition"] = pairedReactionConditionLease;
+            else
+            {
+                if (observations["laterTargetConditions"] == null) observations["laterTargetConditions"] = new JArray();
+                ((JArray)observations["laterTargetConditions"]).Add(pairedReactionConditionLease);
+            }
+            if (!(bool)pairedReactionConditionLease["applied"])
                 throw new InvalidOperationException("Native reaction target condition was not applied.");
         }
 
@@ -49,8 +57,8 @@ namespace KingmakerMountedCombat.Diagnostics
             if (!pairedReactionTargetCondition) return;
             pairedReactionConditionActor.Descriptor.State.RemoveCondition(UnitCondition.ImmuneToCombatManeuvers);
             pairedReactionTargetCondition = false;
-            observations["reactionTargetCondition"]["restored"] = !pairedReactionConditionActor.Descriptor.State.HasCondition(UnitCondition.ImmuneToCombatManeuvers);
-            if (!(bool)observations["reactionTargetCondition"]["restored"])
+            pairedReactionConditionLease["restored"] = !pairedReactionConditionActor.Descriptor.State.HasCondition(UnitCondition.ImmuneToCombatManeuvers);
+            if (!(bool)pairedReactionConditionLease["restored"])
                 throw new InvalidOperationException("Native reaction target condition was not restored.");
             pairedReactionConditionActor = null;
         }
