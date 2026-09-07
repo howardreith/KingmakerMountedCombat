@@ -3339,6 +3339,13 @@ namespace KingmakerMountedCombat.Diagnostics
 
             if (!selectionRestored)
             {
+                if (Phase3dHorseScenarioTranche.IsActorAllocationScenario(request.Scenario))
+                {
+                    var remaining = combat.TrackedActorAllocations;
+                    Check(remaining == 0, "allocation-record-retirement", "The completed disposable encounter and removed Horse retain no allocation actor records.");
+                    logger.Info("Allocation retirement evidence: run=" + request.RunId + "; horse=" + horse?.UniqueId +
+                        "; horseRemoved=" + horseClean + "; remainingActorRecords=" + remaining);
+                }
                 RestoreSelection();
                 selectionRestored = true;
                 return;

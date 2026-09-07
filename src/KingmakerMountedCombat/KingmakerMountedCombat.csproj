@@ -107,6 +107,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BuildIdentity.cs" />
+    <Compile Include="Domain\ActorAllocationLifetime.cs" />
     <Compile Include="CompositionRoot.cs" />
     <Compile Include="Diagnostics\DiagnosticSettings.cs" />
     <Compile Include="Diagnostics\DiagnosticCombatTargetService.cs" />
@@ -170,6 +171,8 @@
     <Compile Include="Diagnostics\NativeAttackBonusEvidence.cs" />
     <Compile Include="Diagnostics\OrdinaryAttackControls.cs" />
     <Compile Include="Diagnostics\NativeActorAllocationTrace.cs" />
+    <Compile Include="Diagnostics\NativeAllocationRoundFactLease.cs" />
+    <Compile Include="Diagnostics\ActorAllocationCallbackEvidence.cs" />
     <Compile Include="Diagnostics\ActorAllocationScenarios.cs" />
     <Compile Include="Domain\AnimatedSaddlePosition.cs" />
     <Compile Include="Domain\OptionalPublicPropertyReader.cs" />

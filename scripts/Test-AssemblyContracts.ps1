@@ -65,6 +65,9 @@ if($Target-eq'Kingmaker'){
     $checks=@(
         @('Kingmaker.Controllers.Combat.UnitCombatState+Cooldowns',0x0600C3BE,'Clear'),
         @('Kingmaker.UnitLogic.CombatAiData',0x06001E0B,'TickRound'),
+        @('Kingmaker.UnitLogic.Buffs.Components.AddEffectFastHealing',0x06002A23,'OnNewRound'),
+        @('Kingmaker.UnitLogic.Buffs.BuffCollection',0x060029F4,'AddBuff'),
+        @('Kingmaker.UnitLogic.Buffs.Buff',0x060029E9,'Remove'),
         @('Kingmaker.EntitySystem.Entities.UnitEntityData',0x0600838F,'UpdateCooldowns'),
         @('Kingmaker.Controllers.Combat.UnitCombatState',0x0600939D,'OnNewRound'),
         @('TurnBased.Controllers.TurnController',0x06000C7F,'<Prepare>b__114_0'),

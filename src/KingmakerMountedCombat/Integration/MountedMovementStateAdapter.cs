@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using Kingmaker;
 using Kingmaker.EntitySystem.Entities;
+using Kingmaker.Controllers.Combat;
 using Kingmaker.UnitLogic.Commands.Base;
 using Kingmaker.UI.SettingsUI;
 using Kingmaker.View;
@@ -26,6 +27,74 @@ namespace KingmakerMountedCombat.Integration
             internal MountedMovementState Movement = new MountedMovementState();
         }
         private readonly Dictionary<UnitEntityData, Allocation> allocations = new Dictionary<UnitEntityData, Allocation>();
+        private readonly ActorAllocationLifetime<UnitEntityData, Allocation> lifetime;
+        private TurnController preparingTurn;
+
+        internal MountedMovementStateAdapter()
+        {
+            lifetime = new ActorAllocationLifetime<UnitEntityData, Allocation>(allocations);
+        }
+
+        internal int TrackedActorCount => allocations.Count;
+
+        internal void MaintainLifetimes()
+        {
+            var player = Game.Instance?.Player;
+            if (player == null) return;
+            if (lifetime.SynchronizeSession(player, player.GameId) != 0) preparingTurn = null;
+            if (player.IsInCombat || allocations.Count == 0) return;
+            var settled = new List<UnitEntityData>();
+            foreach (var entry in allocations)
+            {
+                var actor = entry.Key;
+                var cooldown = actor.CombatState?.Cooldown;
+                if (cooldown == null || actor.Commands == null) continue;
+                // Out-of-combat RT recovery may settle a record. Dismount,
+                // selection and a TB/RT toggle alone never retire it.
+                if (!actor.IsInCombat && actor.Commands.Empty && cooldown.StandardAction <= 0f &&
+                    cooldown.MoveAction <= 0f && cooldown.SwiftAction <= 0f &&
+                    (entry.Value.Prepared || entry.Value.MoveUsed <= 0f))
+                    settled.Add(actor);
+            }
+            lifetime.RetireSettledActors(settled);
+        }
+
+        internal void RetireDestroyedActor(UnitEntityData actor)
+        {
+            if (actor == null) return;
+            lifetime.RetireDestroyedActor(actor);
+            if (preparingTurn?.Unit == actor) preparingTurn = null;
+        }
+
+        internal void Clear()
+        {
+            preparingTurn = null;
+            lifetime.Clear();
+        }
+
+        internal void BeginPreparation(TurnController turn, UnitEntityData activeMount)
+        {
+            MaintainLifetimes();
+            preparingTurn = turn != null && CombatController.IsInTurnBasedCombat() &&
+                (turn.Unit == activeMount || Owns(turn.Unit)) ? turn : null;
+        }
+
+        internal void BeforeNativeRoundState(UnitCombatState state)
+        {
+            var turn = preparingTurn;
+            if (turn == null || state?.Unit != turn.Unit ||
+                Game.Instance?.TurnBasedCombatController?.CurrentTurn != turn ||
+                !CombatController.IsInTurnBasedCombat()) return;
+            // Exact native order: Clear -> reapply acting-command costs ->
+            // reaction fields -> OnNewRound -> round/AI/fact/readiness callbacks.
+            // Reconcile here, before the callbacks, without replaying any of them.
+            Prepared(turn, turn.Unit);
+        }
+
+        internal void EndPreparation(TurnController turn)
+        {
+            if (ReferenceEquals(preparingTurn, turn)) preparingTurn = null;
+        }
         private static readonly BindingFlags Flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
         private static readonly PropertyInfo[] TurnMovementProperties = {
             Property("TimeMoved"), Property("TimeMovedInForceMode"), Property("TimeMovedByFiveFootStep"),
@@ -38,6 +107,7 @@ namespace KingmakerMountedCombat.Integration
 
         private Allocation Get(UnitEntityData mount)
         {
+            MaintainLifetimes();
             var controller = Game.Instance.TurnBasedCombatController;
             Allocation allocation;
             if (!allocations.TryGetValue(mount, out allocation) || allocation.Controller != controller ||

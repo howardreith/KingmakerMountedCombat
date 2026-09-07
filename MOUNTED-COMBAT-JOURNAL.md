@@ -3268,3 +3268,5 @@ IN PROGRESS. Branch codex/mounted-combat-phase3f-playable-core, pre-checkpoint H
 2026-09-07T02:55:05.3025090Z Chunk 2 checkpoint: trace-A fixture FAIL, exact current installation/saves restoration PASS; next endpoint regression plus cleanup/AI/native-cost observations. See docs/CHUNK2-ACTOR-ALLOCATIONS.md.
 
 2026-09-07T03:12:10.3719282Z Chunk 2: trace-B captured three rider-first rounds/six real moves and reproduced late resource restoration before failing JSON completion. Exact intake restoration PASS. Preview.3 fixes serialization and captured-party cleanup; COMPONENT345/0, contract448/0, envelope12/0. See active report.
+
+2026-09-07 04:19 UTC | Chunk2 pre-commit f524624 | preview.4: early reconciliation before native round/AI/fact/readiness; actor lifetime boundaries; COMPONENT350/0, source22/0, contracts451/0, allocation protocol21/0. Matched preview3 C-F three-round controls all46/0, actual intake restored after each. Native repair/entitlement qualification pending. See docs/CHUNK2-ACTOR-ALLOCATIONS.md and active resume; no frozen evidence rewritten. Next: freeze candidate and guarded native callback/fact regression.

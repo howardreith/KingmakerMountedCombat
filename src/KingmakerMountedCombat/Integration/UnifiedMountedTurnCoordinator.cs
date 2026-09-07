@@ -172,6 +172,7 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
 
+            movementState.MaintainLifetimes();
             var turnBased = CombatController.IsInTurnBasedCombat();
             var controller = Game.Instance?.TurnBasedCombatController;
             if (UnifiedMountedTurnPolicy.ShouldRestoreSplitParticipation(
@@ -285,6 +286,23 @@ namespace KingmakerMountedCombat.Integration
                 "; round=" + controller.RoundNumber + "; source=" + source + ".");
         }
 
+        internal int TrackedAllocationActorCount => movementState.TrackedActorCount;
+
+        internal void HandleTurnPreparing(TurnController turn)
+        {
+            if (!disposed && !settings.EnableUnifiedMountedTurn)
+                movementState.BeginPreparation(turn, relationship.State == RelationshipState.Mounted ? relationship.Mount : null);
+        }
+
+        internal void HandleNativeRoundState(Kingmaker.Controllers.Combat.UnitCombatState state)
+        {
+            if (!disposed && !settings.EnableUnifiedMountedTurn) movementState.BeforeNativeRoundState(state);
+        }
+
+        internal void RetireDestroyedActor(UnitEntityData actor)
+        {
+            if (!disposed) movementState.RetireDestroyedActor(actor);
+        }
         internal void HandleTurnPrepared(TurnController turn)
         {
             if (disposed || turn == null)
@@ -292,13 +310,8 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
 
+            movementState.EndPreparation(turn);
             var mount = relationship.Mount;
-            var controller = Game.Instance?.TurnBasedCombatController;
-            if (!settings.EnableUnifiedMountedTurn && controller != null && CombatController.IsInTurnBasedCombat() &&
-                (turn.Unit == mount && relationship.State == RelationshipState.Mounted || movementState.Owns(turn.Unit)))
-            {
-                movementState.Prepared(turn, mount);
-            }
             var mountState = mount?.Descriptor?.State;
             if (!UnifiedMountedTurnPolicy.ShouldPrepareMountLedger(
                     Enabled,
@@ -655,6 +668,7 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
 
+            movementState.Clear();
             relationship.MountedPairActivated -= HandleMountedPairActivated;
             relationship.Dismounting -= HandleDismounting;
             combat = null;

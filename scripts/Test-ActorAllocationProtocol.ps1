@@ -49,4 +49,49 @@ foreach($mutation in @(
     if(!$rejected){throw 'Malformed allocation envelope was accepted.'}
     $passes++
 }
+function New-CallbackEnvelope {
+    $e=New-AllocationEnvelope
+    $events=@(); $sequence=0L; $measurements=@(); $facts=@(); $restored=@()
+    foreach($actor in @('rider','mount','unrelated')) {
+        $facts+=@{actor=$actor;nativeComponent='Kingmaker.UnitLogic.Buffs.Components.AddEffectFastHealing'}
+        $restored+=@{actor=$actor;restored=$true;originalDamage=0;currentDamage=0}
+        for($round=1;$round-le3;$round++) {
+            $measurements+=@{actor=$actor;round=$round}
+            foreach($boundary in @('prepare-before','clear-before','clear-after','round-state-before','round-state-after',
+                'round-handler-before','round-handler-after','ai-round-before','ai-round-after','fact-before','fact-after',
+                'ready-handler-before','ready-handler-after','prepare-after','end-turn-input-before','turn-end-before','turn-end-after','end-turn-input-after')) {
+                $sequence++
+                $events+=@{sequence=$sequence;round=$round;boundary=$boundary;callbackObject=42
+                    detail='Kingmaker.UnitLogic.Buffs.Components.AddEffectFastHealing'
+                    state=@{actor=$actor;damage=$(if($boundary-ceq'fact-after'){3}else{4});move=0.4;standard=0
+                        retained=@{Round=$round;MoveUsed=0.4;StandardUsed=$false}}}
+            }
+        }
+    }
+    $e.observations.actorAllocationTrace.events=$events
+    $e.observations | Add-Member allocationNativeRoundFacts $facts
+    $e.observations | Add-Member allocationNativeRoundFactsRestored $restored
+    $e.rows+=@{name='A05-native-preparation-callbacks';status='PASS';evidence=@{level='NATIVE INTEGRATION';passed=$true;errors=@();measurements=$measurements}}
+    $e.subscenarioPassCount=2
+    return ($e|ConvertTo-Json -Depth 25|ConvertFrom-Json)
+}
+$valid=New-CallbackEnvelope
+Assert-KmcActorAllocationEvidence $request $valid 'PASS'
+$passes++
+foreach($mutation in @(
+    {param($e) $e.observations.actorAllocationTrace.events=@($e.observations.actorAllocationTrace.events|Where-Object boundary -CNE 'fact-after')},
+    {param($e) $e.observations.actorAllocationTrace.events+=@($e.observations.actorAllocationTrace.events|Where-Object boundary -CEQ 'fact-before'|Select-Object -First 1)},
+    {param($e) ($e.observations.actorAllocationTrace.events|Where-Object boundary -CEQ 'fact-after'|Select-Object -First 1).state.damage=4},
+    {param($e) ($e.observations.actorAllocationTrace.events|Where-Object boundary -CEQ 'fact-before'|Select-Object -First 1).state.move=0},
+    {param($e) ($e.observations.actorAllocationTrace.events|Where-Object boundary -CEQ 'ready-handler-before'|Select-Object -First 1).state.retained.StandardUsed=$true},
+    {param($e) ($e.observations.actorAllocationTrace.events|Where-Object boundary -CEQ 'round-handler-after'|Select-Object -First 1).callbackObject=99},
+    {param($e) $e.observations.allocationNativeRoundFactsRestored[0].restored=$false},
+    {param($e) $e.observations.allocationNativeRoundFactsRestored[0].actor='another-actor'}
+)) {
+    $e=New-CallbackEnvelope; & $mutation $e
+    $rejected=$false
+    try {Assert-KmcActorAllocationEvidence $request $e 'PASS'} catch {$rejected=$true}
+    if(!$rejected){throw 'Malformed native callback evidence was accepted.'}
+    $passes++
+}
 Write-Host "ALLOCATION PROTOCOL PASS=$passes FAIL=0 (envelope validation only)"

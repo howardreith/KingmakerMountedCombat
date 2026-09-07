@@ -87,7 +87,8 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(IKController), "SetupFbbik", 0x0600156D, Type.EmptyTypes, nameof(PatchMethods.DollRoomFbbikPrefix), nameof(PatchMethods.DollRoomFbbikPostfix));
                 PatchExact(typeof(CombatController), "Tick", 0x06000BD1, Type.EmptyTypes, null, nameof(PatchMethods.CombatControllerTickPostfix));
                 PatchExact(typeof(CombatController), "ChooseNextUnit", 0x06000BD2, Type.EmptyTypes, null, nameof(PatchMethods.ChooseNextUnitPostfix));
-                PatchExact(typeof(TurnController), "Prepare", 0x06000C3C, Type.EmptyTypes, null, nameof(PatchMethods.TurnPreparePostfix));
+                PatchExact(typeof(TurnController), "Prepare", 0x06000C3C, Type.EmptyTypes, nameof(PatchMethods.TurnPreparePrefix), nameof(PatchMethods.TurnPreparePostfix));
+                PatchExact(typeof(UnitCombatState), "OnNewRound", 0x0600939D, Type.EmptyTypes, nameof(PatchMethods.NativeRoundStatePrefix));
                 PatchExact(typeof(TurnController), "TickMovement", 0x06000C37,
                     new[] { typeof(float).MakeByRefType(), typeof(bool) }, null, nameof(PatchMethods.NativeMovementTickPostfix));
                 PatchExact(typeof(TurnController), "HandleUnitCommandDidEnd", 0x06000C5E,
@@ -311,6 +312,16 @@ namespace KingmakerMountedCombat.Integration
             internal static void CombatControllerTickPostfix(CombatController __instance)
             {
                 PatchBridge.UnifiedTurn?.HandleCombatControllerTickCompleted(__instance);
+            }
+
+            internal static void TurnPreparePrefix(TurnController __instance)
+            {
+                PatchBridge.UnifiedTurn?.HandleTurnPreparing(__instance);
+            }
+
+            internal static void NativeRoundStatePrefix(UnitCombatState __instance)
+            {
+                PatchBridge.UnifiedTurn?.HandleNativeRoundState(__instance);
             }
 
             internal static void TurnPreparePostfix(TurnController __instance)

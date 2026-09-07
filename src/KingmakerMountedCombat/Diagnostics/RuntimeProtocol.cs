@@ -491,7 +491,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "horse-mounted-alpha-suite",
             "horse-native-controls-ux-suite",
             "actor-allocation-rider-first-tb", "actor-allocation-mount-first-tb", "actor-allocation-rider-first-unmounted-tb", "actor-allocation-mount-first-unmounted-tb", "ordinary-attack-controls-tb", "unmounted-attack-controls-rt", "phase3h-combat-loop-rt", "phase3h-combat-loop-tb", "phase3g-native-controls-rt", "phase3g-native-controls-tb", "phase3d-unified-combat-rt-suite",
-            "T01-native-allocation-trace", "3g-rider-longbow-ordinary", "3g-rider-longbow-primary", "3g-rider-melee-ordinary", "3g-rider-melee-primary",
+            "T01-native-allocation-trace", "A05-native-preparation-callbacks", "3g-rider-longbow-ordinary", "3g-rider-longbow-primary", "3g-rider-melee-ordinary", "3g-rider-melee-primary",
             "3g-horse-bite-ordinary", "3g-horse-bite-primary", "3g-paused-dismount", "3g-paused-mount-stop",
             "3g-paused-mount-execute", "3g-paused-control-failure",
             "phase3d-unified-combat-tb-suite",

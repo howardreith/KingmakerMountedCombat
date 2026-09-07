@@ -29,6 +29,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool allocationInitiativeLease;
         private bool allocationDismountRequested;
         private readonly List<UnitEntityData> allocationFixtureParty = new List<UnitEntityData>();
+        private readonly List<NativeAllocationRoundFactLease> allocationRoundFacts = new List<NativeAllocationRoundFactLease>();
         private TurnController allocationTurn;
         private TurnController allocationEndedTurn;
         private UnitEntityData allocationMover;
@@ -38,6 +39,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly Dictionary<int, List<string>> allocationRoundActors = new Dictionary<int, List<string>>();
         private Vector3 allocationMoveOrigin;
         private int allocationMoveFrame;
+        private int allocationSelectionFrame;
 
         private void BeginActorAllocation()
         {
@@ -95,6 +97,12 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["outsideCombat"] = !rider.IsInCombat && !horse.IsInCombat,
                     ["inputKind"] = "scripted-native-handler-integration", ["endTurnInput"] = "Game.PauseBind"
                 };
+                allocationRoundFacts.Add(new NativeAllocationRoundFactLease(rider));
+                allocationRoundFacts.Add(new NativeAllocationRoundFactLease(horse));
+                var unrelated = allocationFixtureParty.OrderBy(member => member.UniqueId, StringComparer.Ordinal)
+                    .FirstOrDefault(member => member.Descriptor.State.IsConscious && member.Stats.HitPoints.ModifiedValue - member.Damage > 6);
+                if (unrelated != null) allocationRoundFacts.Add(new NativeAllocationRoundFactLease(unrelated));
+                observations["allocationNativeRoundFacts"] = new JArray(allocationRoundFacts.Select(fact => fact.Capture()));
                 BeginTarget(6f, "allocation-trace");
                 ruleProbe.Arm(target, false);
                 allocationStage = 1; ResetLeafClock(); return;
@@ -131,6 +139,18 @@ namespace KingmakerMountedCombat.Diagnostics
                 allocationTrace.Record("move-complete", allocationMover, movementCommand);
                 allocationStage = 4; ResetLeafClock(); return;
             }
+            if (allocationStage == 5)
+            {
+                if (Time.frameCount < allocationSelectionFrame + 2) return;
+                if (!ReferenceEquals(turn, allocationTurn))
+                    throw new InvalidOperationException("Native turn changed during idle selection observation.");
+                allocationSample["selectionProbe"]["afterTwoFrames"] = new JArray(SelectionManager.Instance.SelectedUnits.Select(unit => unit.UniqueId));
+                allocationSample["selectionProbe"]["riderAfter"] = allocationTrace.Snapshot(rider);
+                allocationSample["selectionProbe"]["mountAfter"] = allocationTrace.Snapshot(horse);
+                allocationTrace.Record("selection-observed", turn.Unit);
+                BeginAllocationShortMove(turn);
+                return;
+            }
             if (allocationStage == 4)
             {
                 if (ReferenceEquals(turn, allocationTurn)) { EndAllocationNativeTurn(turn); return; }
@@ -150,6 +170,10 @@ namespace KingmakerMountedCombat.Diagnostics
                         ["firstRound"] = allocationFirstRound, ["endRound"] = controller.RoundNumber,
                         ["order"] = new JArray(order), ["samples"] = allocationSamples,
                         ["rounds"] = new JObject(allocationRoundActors.Select(entry => new JProperty(entry.Key.ToString(), new JArray(entry.Value)))) });
+                var callbacks = ActorAllocationCallbackEvidence.Evaluate(trace,
+                    allocationRoundFacts.Select(fact => (string)fact.Capture()["actor"]), allocationFirstRound);
+                AddRow("A05-native-preparation-callbacks", (bool)callbacks["passed"],
+                    "Native preparation order, delivered fast healing, and callback resource observations across three rounds.", callbacks);
                 BeginCleanup(); return;
             }
             if (turn.Unit != rider && turn.Unit != horse || controller.RoundNumber == 0)
@@ -171,6 +195,21 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["mountBefore"] = allocationTrace.Snapshot(horse), ["selected"] = new JArray(SelectionManager.Instance.SelectedUnits.Select(unit => unit.UniqueId))
             };
             allocationSamples.Add(allocationSample);
+            var other = turn.Unit == rider ? horse : rider;
+            SelectionManager.Instance.SelectUnit(other.View, true, true, false);
+            allocationSample["selectionProbe"] = new JObject {
+                ["requestedActor"] = other.UniqueId, ["nativeCurrentActor"] = turn.Unit.UniqueId,
+                ["immediate"] = new JArray(SelectionManager.Instance.SelectedUnits.Select(unit => unit.UniqueId)),
+                ["riderBefore"] = allocationTrace.Snapshot(rider), ["mountBefore"] = allocationTrace.Snapshot(horse)
+            };
+            allocationTrace.Record("selection-input", other);
+            allocationSelectionFrame = Time.frameCount;
+            allocationStage = 5;
+        }
+
+        private void BeginAllocationShortMove(TurnController turn)
+        {
+            SelectionManager.Instance.SelectUnit(turn.Unit.View, true, true, false);
             var direction = (target.Position - allocationMover.Position).normalized * (allocationSamples.Count % 2 == 0 ? -1f : 1f);
             // Reuse the qualified native short-move endpoint. The navigation
             // helper rejects sub-0.25m searches; the native command owns pathing.
@@ -210,6 +249,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private void CleanupActorAllocation()
         {
             observations["actorAllocationSamples"] = allocationSamples.DeepClone();
+            foreach (var fact in allocationRoundFacts) fact.Dispose();
+            observations["allocationNativeRoundFactsRestored"] = new JArray(allocationRoundFacts.Select(fact => fact.Capture()));
             // Native encounter cleanup on the exact disposable party captured
             // idle before setup. This runs only AFTER measured turns, and avoids
             // restoring TB while an unrelated fixture member remains in combat.

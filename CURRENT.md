@@ -13,4 +13,4 @@ Separate native turns, one pair, Horse/Mammoth, native attack sequences/costs an
 
 Temporary guarded runtime validation, private packaging, coherent commits and guarded branch publication are authorized. No permanent installation, main merge or public release. Coordinated activations are Chunk 3; content and persistence remain later milestones.
 
-Trace-B reproduced the preparation callback timing defect; matched order/control traces and the production repair remain IN PROGRESS. Real preview.13/current saves/Mods restoration is independently PASS after both runs. See the concise Chunk 2 report for exact causal observations and failures.
+Matched native traces C-F each cover three rounds/six moves in both initiative orders and unmounted controls, all 46/0 assertions. They confirm the preparation callback timing defect and keep entitlement semantics open. Preview.4 moves reconciliation before callbacks and adds actor-record retirement; native validation remains IN PROGRESS. Real preview.13/current saves/Mods restoration is independently PASS after all six transactions. See the concise Chunk 2 report for causal findings and exact identities.

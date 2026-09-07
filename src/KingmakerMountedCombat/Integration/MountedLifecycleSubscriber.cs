@@ -144,6 +144,7 @@ namespace KingmakerMountedCombat.Integration
 
         public void HandleUnitDestroyed(UnitEntityData entityData)
         {
+            unifiedTurn.RetireDestroyedActor(entityData);
             if (IsPairUnit(entityData)) { Cleanup(NativeLifecycleBoundary.ViewDetachedOrUnitDestroyed, "IUnitHandler.HandleUnitDestroyed", CleanupTrigger.ViewDetached); }
             else if (IsCandidatePairUnit(entityData)) { Observe(NativeLifecycleBoundary.ViewDetachedOrUnitDestroyed, "IUnitHandler.HandleUnitDestroyed(candidate pair)"); }
         }

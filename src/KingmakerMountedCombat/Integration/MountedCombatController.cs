@@ -32,6 +32,7 @@ namespace KingmakerMountedCombat.Integration
         private readonly DiagnosticSettings settings;
         private readonly HorsePrimaryAttackAnimationAdapter horsePrimaryAttackAnimation;
         private readonly UnifiedMountedTurnCoordinator unifiedTurn;
+        internal int TrackedActorAllocations => unifiedTurn.TrackedAllocationActorCount;
         private readonly MountedPairCommandScheduler pairedCommandScheduler;
         private readonly IModLogger logger;
         private readonly MountedOverlayWorldInputGuard overlayWorldInputGuard = new MountedOverlayWorldInputGuard();

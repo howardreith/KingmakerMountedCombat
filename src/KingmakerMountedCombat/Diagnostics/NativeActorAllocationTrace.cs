@@ -85,6 +85,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["reactionCooldown"] = cooldown.AttackOfOpportunity, ["reactions"] = actor.CombatState.AttackOfOpportunityCount,
                 ["disengageTargets"] = actor.CombatState.DisengageAttackTargets.Count,
                 ["prepared"] = actor.CombatState.Prepared, ["canAct"] = actor.CombatState.CanActInCombat,
+                ["timeToNextNativeTurn"] = actor.GetTimeToNextTurn(), ["damage"] = actor.Damage,
                 ["hasStandard"] = actor.HasStandardAction(), ["usedStandard"] = actor.UsedStandardAction(),
                 ["moveRestricted"] = actor.IsMoveActionRestricted(), ["speedMps"] = actor.CurrentSpeedMps,
                 ["stepRangeMetres"] = TurnController.MetersOfFiveFootStep,
@@ -119,7 +120,7 @@ namespace KingmakerMountedCombat.Diagnostics
             return result;
         }
 
-        internal void Record(string boundary, UnitEntityData actor, UnitCommand command = null, string detail = null)
+        internal void Record(string boundary, UnitEntityData actor, UnitCommand command = null, string detail = null, object callback = null)
         {
             if (actor == null || actor.Group != rider.Group) return;
             if (events.Count >= 16000) { dropped++; return; }
@@ -130,9 +131,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 events.Add(new JObject {
                     ["sequence"] = events.Count + 1, ["encounter"] = encounter, ["session"] = Id(Game.Instance.Player),
                     ["boundary"] = boundary, ["frame"] = Time.frameCount, ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks,
+                    ["simulatingClick"] = Kingmaker.Controllers.Clicks.PointerController.SimulatingClick,
                     ["controller"] = Id(controller), ["round"] = controller.RoundNumber, ["roundStartTicks"] = controller.RoundStartTime.Ticks,
                     ["turn"] = Id(turn), ["preparingTurn"] = Id(preparing), ["currentActor"] = turn?.Unit?.UniqueId,
                     ["turnStatus"] = turn?.Status.ToString(), ["state"] = Snapshot(actor), ["detail"] = detail,
+                    ["callbackObject"] = Id(callback),
                     ["command"] = Id(command), ["commandType"] = command?.GetType().FullName,
                     ["commandActor"] = command?.Executor?.UniqueId, ["started"] = command?.IsStarted,
                     ["acted"] = command?.IsActed, ["finished"] = command?.IsFinished, ["result"] = command?.Result.ToString(),
@@ -148,7 +151,10 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             var method = type?.GetMethods(Flags).SingleOrDefault(item => item.MetadataToken == token);
             if (method == null) throw new MissingMethodException(type?.FullName, token.ToString("X8"));
-            var before = new HarmonyMethod(typeof(Hooks).GetMethod(prefix, Flags)) { prioritiy = Priority.First };
+            // Observe actual native entry after the production reconciliation
+            // prefix; subsequent native round/fact/readiness callbacks are also
+            // recorded independently, with the real resources and effects.
+            var before = new HarmonyMethod(typeof(Hooks).GetMethod(prefix, Flags)) { prioritiy = prefix == "RoundBefore" ? Priority.Last : Priority.First };
             var after = new HarmonyMethod(typeof(Hooks).GetMethod(postfix, Flags)) { prioritiy = Priority.Last };
             harmony.Patch(method, before, after);
         }
@@ -161,12 +167,12 @@ namespace KingmakerMountedCombat.Diagnostics
             internal static void ClearAfter(UnitCombatState.Cooldowns __instance) { if (active?.preparing?.Unit.CombatState.Cooldown == __instance) active.Record("clear-after", active.preparing.Unit); }
             internal static void RoundBefore(UnitCombatState __instance) { active?.Record("round-state-before", __instance.Unit); }
             internal static void RoundAfter(UnitCombatState __instance) { active?.Record("round-state-after", __instance.Unit); }
-            internal static void RoundHandlerBefore(TurnController __instance, IUnitNewCombatRoundHandler handler) { active?.Record("round-handler-before", __instance.Unit, detail: handler.GetType().FullName); }
-            internal static void RoundHandlerAfter(TurnController __instance, IUnitNewCombatRoundHandler handler) { active?.Record("round-handler-after", __instance.Unit, detail: handler.GetType().FullName); }
-            internal static void ReadyHandlerBefore(TurnController __instance, ITurnBasedModeHandler h) { active?.Record("ready-handler-before", __instance.Unit, detail: h.GetType().FullName); }
-            internal static void ReadyHandlerAfter(TurnController __instance, ITurnBasedModeHandler h) { active?.Record("ready-handler-after", __instance.Unit, detail: h.GetType().FullName); }
-            internal static void FactBefore(ITickEachRound logic) { active?.Record("fact-before", active.preparing?.Unit, detail: logic.GetType().FullName); }
-            internal static void FactAfter(ITickEachRound logic) { active?.Record("fact-after", active.preparing?.Unit, detail: logic.GetType().FullName); }
+            internal static void RoundHandlerBefore(TurnController __instance, IUnitNewCombatRoundHandler handler) { active?.Record("round-handler-before", __instance.Unit, detail: handler.GetType().FullName, callback: handler); }
+            internal static void RoundHandlerAfter(TurnController __instance, IUnitNewCombatRoundHandler handler) { active?.Record("round-handler-after", __instance.Unit, detail: handler.GetType().FullName, callback: handler); }
+            internal static void ReadyHandlerBefore(TurnController __instance, ITurnBasedModeHandler h) { active?.Record("ready-handler-before", __instance.Unit, detail: h.GetType().FullName, callback: h); }
+            internal static void ReadyHandlerAfter(TurnController __instance, ITurnBasedModeHandler h) { active?.Record("ready-handler-after", __instance.Unit, detail: h.GetType().FullName, callback: h); }
+            internal static void FactBefore(ITickEachRound logic) { active?.Record("fact-before", active.preparing?.Unit, detail: logic.GetType().FullName, callback: logic); }
+            internal static void FactAfter(ITickEachRound logic) { active?.Record("fact-after", active.preparing?.Unit, detail: logic.GetType().FullName, callback: logic); }
             internal static void AiRoundBefore(CombatAiData __instance) { if (active?.preparing?.Unit.CombatState.AIData == __instance) active.Record("ai-round-before", active.preparing.Unit); }
             internal static void AiRoundAfter(CombatAiData __instance) { if (active?.preparing?.Unit.CombatState.AIData == __instance) active.Record("ai-round-after", active.preparing.Unit); }
             internal static void CommandBefore(UnitCommands __instance, UnitCommand cmd) { active?.Record("admission-before", active.Owner(__instance), cmd); }
