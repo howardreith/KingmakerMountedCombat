@@ -309,7 +309,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 originalTurnBased = CombatController.IsInTurnBasedCombat();
                 originalUnsafeExperimentSetting = settings.EnableUnsafeMovementExperiment;
                 originalPairedActivationSetting = settings.EnablePairedActivation;
-                if (Phase3dHorseScenarioTranche.IsActorAllocationScenario(request.Scenario) && !request.Scenario.Contains("unmounted"))
+                if (Phase3dHorseScenarioTranche.IsActorAllocationScenario(request.Scenario) ||
+                    request.Scenario == Phase3dHorseScenarioTranche.OrdinaryAttackControlsScenario ||
+                    request.Scenario == Phase3dHorseScenarioTranche.UnmountedAttackControlsScenario ||
+                    request.Scenario == "phase3h-combat-loop-rt")
                     settings.EnablePairedActivation = true;
                 originalSelection = selection.SelectedUnits.Where(unit => unit != null).ToArray();
                 CaptureOriginalPartyPets(game);

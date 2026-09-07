@@ -57,9 +57,9 @@ namespace KingmakerMountedCombat.Diagnostics
             catch { Dispose(); throw; }
         }
 
-        internal void Predict()
+        internal void Predict(TurnController addressedContext = null)
         {
-            var turn = Game.Instance.TurnBasedCombatController.CurrentTurn;
+            var turn = addressedContext ?? Game.Instance.TurnBasedCombatController.CurrentTurn;
             if (turn == null) return;
             turn.OnHoverObjectChanged(target?.View.gameObject, null);
             if (target != null) turn.OnHoverObjectChanged(null, target.View.gameObject);

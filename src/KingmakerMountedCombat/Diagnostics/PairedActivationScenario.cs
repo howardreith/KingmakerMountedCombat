@@ -257,7 +257,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["errors"] = new JArray(pairedGateErrors), ["reactions"] = pairedReactionEvidence.DeepClone() };
             AddRow("P01-three-paired-activations", pairedGateErrors.Count == 0, "Native paired movement, both actor attacks, conversion, exhaustion and early End Turn across three activations.", evidence);
             AddRow("A05-native-preparation-callbacks", (bool)callbacks["passed"], "Exact-candidate native actor preparation and callback/effect counts.", callbacks);
-            BeginPairedTransitionProbe();
+            BeginPairedControlProbe();
         }
     }
 }

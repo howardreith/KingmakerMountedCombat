@@ -42,7 +42,8 @@ namespace KingmakerMountedCombat.Integration
 
         internal bool CanMovePairedMount(TurnController turn) => CanAddressActor(activation?.Partner, turn) &&
             activation.Partner.IsAbleToAct() && activation.Partner.Descriptor.State.CanMove &&
-            movementState.HasGrantedMovement(activation.Partner, turn.EnabledFiveFootStep, turn.EnabledSingleActionMove);
+            movementState.HasGrantedMovement(activation.Partner, SelectedNativeInputContext(turn).EnabledFiveFootStep,
+                SelectedNativeInputContext(turn).EnabledSingleActionMove);
 
         private void ArmPairedEncounter(UnitEntityData rider, UnitEntityData mount)
         {
@@ -269,6 +270,8 @@ namespace KingmakerMountedCombat.Integration
         {
             var context = partnerContext;
             partnerContext = null;
+            pairedMovementInputContext = null;
+            lastPresentedInputContext = null;
             context?.Dispose();
         }
     }

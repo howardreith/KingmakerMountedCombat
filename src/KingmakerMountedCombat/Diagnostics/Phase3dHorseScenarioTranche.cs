@@ -6053,6 +6053,8 @@ namespace KingmakerMountedCombat.Diagnostics
             catch (Exception exception) { AddCleanupError("Rapid Shot fixture feature", exception); }
             try { CleanupActorAllocation(); }
             catch (Exception exception) { AddCleanupError("Actor allocation fixture", exception); }
+            try { pairedAutomaticEndProbe?.Dispose(); pairedAutomaticEndProbe = null; }
+            catch (Exception exception) { AddCleanupError("Automatic End input preference", exception); }
             if (ordinaryAttackTrace != null)
             {
                 observations["ordinaryAttackTrace"] = ordinaryAttackTrace.Capture();
@@ -6162,7 +6164,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             var artifact = new JObject
             {
-                ["schemaVersion"] = IsPairedAllocation ? 13 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,
+                ["schemaVersion"] = IsPairedAllocation ? 14 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,
                 ["evidenceKind"] = EvidenceKind,
                 ["runId"] = request.RunId,
                 ["scenario"] = request.Scenario,

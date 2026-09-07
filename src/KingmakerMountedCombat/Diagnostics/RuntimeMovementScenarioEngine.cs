@@ -170,6 +170,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private long evidenceSequence;
         private EngineStep step;
         private bool originalUnsafeMovementSetting;
+        private bool originalPairedActivationSetting;
         private bool settingLeaseOwned;
         private bool originalPause;
         private bool pauseLeaseOwned;
@@ -502,8 +503,17 @@ namespace KingmakerMountedCombat.Diagnostics
             var evidencePath = Path.Combine(evidenceRoot, "movement-scenario-evidence.jsonl");
             evidenceWriter = new StreamWriter(new FileStream(evidencePath, FileMode.CreateNew, FileAccess.Write, FileShare.Read), new System.Text.UTF8Encoding(false));
             originalUnsafeMovementSetting = settings.EnableUnsafeMovementExperiment;
+            originalPairedActivationSetting = settings.EnablePairedActivation;
+            if (request.Scenario == "mounted-pair-party-formation") settings.EnablePairedActivation = true;
             settings.EnableUnsafeMovementExperiment = true;
             settingLeaseOwned = true;
+            if (request.Scenario == "mounted-pair-party-formation")
+            {
+                if (settings.EnableUnifiedMountedTurn || settings.EnablePairedCommandScheduler ||
+                    settings.EnableDiagnosticOverlay || playerAction.OverlayPresent)
+                    throw new InvalidOperationException("Final party regression requires the sole paired activation authority and native controls.");
+                logger.Info("Paired regression configuration: EnablePairedActivation=true; EnableUnifiedMountedTurn=false; EnablePairedCommandScheduler=false; EnableDiagnosticOverlay=false; overlayPresent=false.");
+            }
             suiteClock.Start();
             step = EngineStep.BeginRow;
             logger.Info("Movement runtime engine started for " + request.Scenario + ".");
@@ -4149,6 +4159,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
             settings.EnableUnsafeMovementExperiment = originalUnsafeMovementSetting;
+            settings.EnablePairedActivation = originalPairedActivationSetting;
             settingLeaseOwned = false;
         }
 

@@ -91,6 +91,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private CombatEngineStep step;
         private bool originalUnsafeExperimentSetting;
         private bool originalPairedCommandSchedulerSetting;
+        private bool originalPairedActivationSetting;
         private bool settingLeaseOwned;
         private bool started;
         private bool completed;
@@ -380,12 +381,21 @@ namespace KingmakerMountedCombat.Diagnostics
             assertions = new AssertionRecorder();
             originalUnsafeExperimentSetting = settings.EnableUnsafeMovementExperiment;
             originalPairedCommandSchedulerSetting = settings.EnablePairedCommandScheduler;
+            originalPairedActivationSetting = settings.EnablePairedActivation;
+            if (currentRow == MammothPrimaryHitRealTime) settings.EnablePairedActivation = true;
             settings.EnableUnsafeMovementExperiment = true;
             if (IsTurnBasedRow && IsMammothPrimaryRow)
             {
                 settings.EnablePairedCommandScheduler = true;
             }
             settingLeaseOwned = true;
+            if (currentRow == MammothPrimaryHitRealTime)
+            {
+                if (settings.EnableUnifiedMountedTurn || settings.EnablePairedCommandScheduler ||
+                    settings.EnableDiagnosticOverlay || playerAction.OverlayPresent)
+                    throw new InvalidOperationException("Final Mammoth regression requires the sole paired activation authority and native controls.");
+                logger.Info("Paired regression configuration: EnablePairedActivation=true; EnableUnifiedMountedTurn=false; EnablePairedCommandScheduler=false; EnableDiagnosticOverlay=false; overlayPresent=false.");
+            }
             rowClock.Start();
             step = CombatEngineStep.BeginRow;
             logger.Info("Combat runtime engine started for " + currentRow + ".");
@@ -2576,6 +2586,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 settings.EnableUnsafeMovementExperiment = originalUnsafeExperimentSetting;
                 settings.EnablePairedCommandScheduler = originalPairedCommandSchedulerSetting;
+                settings.EnablePairedActivation = originalPairedActivationSetting;
                 settingLeaseOwned = false;
             }
         }

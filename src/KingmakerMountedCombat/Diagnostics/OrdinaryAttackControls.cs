@@ -56,6 +56,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private JObject ordinaryPrediction;
         private UnitAttack ordinaryMeasured;
         private TurnController ordinaryTurn;
+        private TurnController ordinarySetupTurn;
         private int ordinaryRepeats;
         private bool ordinaryContinuity;
         private long ordinaryIntentBefore;
@@ -76,7 +77,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (settings.EnableUnifiedMountedTurn || settings.EnablePairedCommandScheduler ||
                 settings.EnableDiagnosticOverlay || playerAction.OverlayPresent)
-                throw new InvalidOperationException("Ordinary attack controls require exact separate-turn C0 settings.");
+                throw new InvalidOperationException("Ordinary attack controls require all three incompatible experimental settings false.");
             rangedWeaponLease = new Phase3dRangedWeaponLease(rider);
             rangedWeaponLease.Acquire(WeaponCategory.Longbow);
             AcquirePhase3hRapidShot();
@@ -95,6 +96,7 @@ namespace KingmakerMountedCombat.Diagnostics
             ordinaryMeasured = null;
             ordinaryPrediction = null;
             ordinaryTurn = null;
+            ordinarySetupTurn = null;
             ordinaryRepeats = 0;
             ordinaryContinuity = true;
             ordinaryVariationAtDispatch = null;
@@ -131,6 +133,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     return;
                 }
                 if (!OrdinaryMounted && (!PrepareUnmountedHorseAiIsolation() || !PrepareCombatMountRiderAiIsolation())) return;
+                // Pair ownership must precede the encounter's first native grant.
+                if (turnBasedModeProbe == null) turnBasedModeProbe = new NativeModeTransitionProbe(true);
+                if (!turnBasedModeProbe.TemporaryValueIsCurrent)
+                { turnBasedModeProbe.DispatchTemporaryValueIfRequired(); return; }
                 ordinaryVariation = new NativeAttackFixtureVariation(rider, phase3hRapidToggle,
                     OrdinaryCurrent.Rapid, OrdinaryCurrent.Bab, OrdinaryCurrent.Haste);
                 BeginTarget(OrdinaryMovementCase || OrdinaryCurrent.Preparation == "mixed-range" ? 6f : 3.5f,
@@ -162,31 +168,36 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!IsCombatReady(OrdinaryMounted)) return;
                 if (!CombatController.IsInTurnBasedCombat())
                 {
-                    if (!ordinarySetupComplete)
-                    {
-                        var mover = OrdinaryMounted ? horse : rider;
-                        var destination = FindOrdinaryControlPoint(mover.Position, 0.25f);
-                        observations["setup-" + OrdinaryCurrent.Id] = new JObject {
-                            ["radius"] = ordinarySetupRadius, ["before"] = CaptureOrdinaryLiveState(),
-                            ["targetPoint"] = new JArray(target.Position.x, target.Position.y, target.Position.z),
-                            ["destination"] = new JArray(destination.x, destination.y, destination.z) };
-                        SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
-                        ClickGroundHandler.MoveSelectedUnitsToPoint(destination, false);
-                        ordinaryMove = mover.Commands.Move as UnitMoveTo;
-                        if (ordinaryMove?.Executor != mover) throw new InvalidOperationException("Native fixture positioning did not acquire the exact mover.");
-                        ordinaryStage = 7; ResetLeafClock(); return;
-                    }
-                    if (turnBasedModeProbe == null) turnBasedModeProbe = new NativeModeTransitionProbe(true);
-                    if (!turnBasedModeProbe.TemporaryDeliveryAttempted) turnBasedModeProbe.DispatchTemporaryValueIfRequired();
                     return;
                 }
                 var turn = game.TurnBasedCombatController.CurrentTurn;
                 if (turn?.Unit != rider || turn.Status != TurnController.TurnStatus.Preparing && !turn.IsActing)
                 { TryEndPhase3gFixtureTurn(turn); return; }
+                if (ReferenceEquals(turn, ordinarySetupTurn)) { TryEndPhase3gFixtureTurn(turn); return; }
                 if (!rider.Commands.Empty || !horse.Commands.Empty || rider.AreHandsBusyWithAnimation ||
                     !rider.HasStandardAction() || game.HandsEquipmentController.IsUpdateScheduledFor(rider)) return;
                 if (rider.IsMoveActionRestricted()) { TryEndPhase3gFixtureTurn(turn); return; }
                 SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
+                if (!ordinarySetupComplete)
+                {
+                    var mover = OrdinaryMounted ? horse : rider;
+                    var destination = FindOrdinaryControlPoint(mover.Position, 0.25f);
+                    observations["setup-" + OrdinaryCurrent.Id] = new JObject {
+                        ["radius"] = ordinarySetupRadius, ["before"] = CaptureOrdinaryLiveState(),
+                        ["targetPoint"] = new JArray(target.Position.x, target.Position.y, target.Position.z),
+                        ["destination"] = new JArray(destination.x, destination.y, destination.z) };
+                    using (var input = new NativeOrdinaryAttackInput(destination))
+                    {
+                        input.Predict(); var cycles = 0;
+                        while ((turn.EnabledFiveFootStep || turn.EnabledSingleActionMove) && cycles++ < 5)
+                        { input.Click(button: 1); input.Predict(); }
+                        if (!input.Click()) throw new InvalidOperationException("Native fixture positioning input was refused.");
+                    }
+                    ordinaryMove = mover.Commands.Move as UnitMoveTo;
+                    if (ordinaryMove?.Executor != mover) throw new InvalidOperationException("Native fixture positioning did not acquire the exact mover.");
+                    ordinarySetupTurn = turn;
+                    ordinaryStage = 7; ResetLeafClock(); return;
+                }
                 ordinaryTurn = turn;
                 if (!ordinaryMovementDone && OrdinaryMovementCase)
                 {

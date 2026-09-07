@@ -574,7 +574,8 @@ namespace KingmakerMountedCombat.Integration
             }
 
             if (PairedLifecycleEnabled && !CanAddressActor(relationship.Mount, turn)) { deltaTime = 0f; return; }
-            LastMovementObservation = movementState.TickDelegated(turn, relationship.Mount, ref deltaTime);
+            LastMovementObservation = movementState.TickDelegated(PairedLifecycleEnabled ? MovementInputContext(turn) : turn,
+                relationship.Mount, ref deltaTime);
             if (PairedLifecycleEnabled)
             {
                 movementState.CopyGrantedMovementToContext(partnerContext);
@@ -618,7 +619,7 @@ namespace KingmakerMountedCombat.Integration
                     turn?.Unit == relationship.Rider,
                     target != null && target == relationship.Mount,
                     combat != null && combat.HasExactMountMovement,
-                    turn != null && turn.EnabledFiveFootStep,
+                    turn != null && (PairedLifecycleEnabled ? MovementInputContext(turn) : turn).EnabledFiveFootStep,
                     ordinaryMovementAlreadyUsed,
                     movementContext?.MetersMovedByFiveFootStep ?? float.PositiveInfinity,
                     TurnController.MetersOfFiveFootStep);

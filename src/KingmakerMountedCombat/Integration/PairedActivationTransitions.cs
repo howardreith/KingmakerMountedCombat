@@ -107,6 +107,7 @@ namespace KingmakerMountedCombat.Integration
             if (!PairedLifecycleEnabled || activation == null || !ReferenceEquals(turn, activation.Boundary)) return;
             RefreshPartnerNativeState();
             movementState.ResetTransientStepImmunity(partnerContext);
+            RefreshPairedInputPresentation(turn);
         }
 
         internal bool IsPairedProneActor(UnitEntityData actor) => actor.IsCurrentUnit() ||

@@ -267,10 +267,11 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool PairedTransitionActorsIdle() => rider.Commands.Empty && horse.Commands.Empty &&
             !combat.HasActiveCommand && !combat.HasActiveGroundMovement && !rider.AreHandsBusyWithAnimation && !horse.AreHandsBusyWithAnimation;
 
-        private void BeginPairedTransitionMove(float distance, bool stepMove, string purpose)
+        private void BeginPairedTransitionMove(float distance, bool stepMove, string purpose, bool mountInput = false)
         {
             pairedTransitionOrigin = horse.Position;
-            SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
+            SelectionManager.Instance.SelectUnit((mountInput ? horse : rider).View, true, true, false);
+            var inputContext = mountInput ? combat.PairedPartnerContext : pairedTransitionTurn;
             var destination = horse.Position + (horse.Position - target.Position).normalized * distance;
             pairedTransitionMove = new JObject { ["kind"] = "movement", ["purpose"] = purpose,
                 ["before"] = allocationTrace.Snapshot(horse), ["riderBefore"] = allocationTrace.Snapshot(rider),
@@ -278,10 +279,11 @@ namespace KingmakerMountedCombat.Diagnostics
             pairedTransitionMoves.Add(pairedTransitionMove);
             using (var input = new NativeOrdinaryAttackInput(destination))
             {
-                input.Predict(); var cycles = 0;
-                while ((pairedTransitionTurn.EnabledFiveFootStep != stepMove || !stepMove && pairedTransitionTurn.EnabledSingleActionMove) && cycles++ < 5)
-                { input.Click(button: 1); input.Predict(); }
-                pairedTransitionMove["fiveFootStep"] = pairedTransitionTurn.EnabledFiveFootStep;
+                input.Predict(inputContext); var cycles = 0;
+                while ((inputContext.EnabledFiveFootStep != stepMove || !stepMove && inputContext.EnabledSingleActionMove) && cycles++ < 5)
+                { input.Click(button: 1); input.Predict(inputContext); }
+                pairedTransitionMove["fiveFootStep"] = inputContext.EnabledFiveFootStep;
+                pairedTransitionMove["selectedActor"] = SelectionManager.Instance.SingleSelectedUnit?.UniqueId;
                 pairedTransitionMove["clicked"] = input.Click();
             }
             RequirePaired((bool)pairedTransitionMove["fiveFootStep"] == stepMove, "Native movement cursor did not select the requested step policy.");

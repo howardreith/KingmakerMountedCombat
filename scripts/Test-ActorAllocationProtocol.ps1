@@ -320,4 +320,71 @@ foreach($mutation in @(
     if(!$rejected){throw 'Resource-violating or unbound native transition evidence was accepted.'}
     $passes++
 }
+function New-PairedControlEnvelope {
+    $e=New-PairedTransitionEnvelope
+    $e.schemaVersion=14
+    $ledger=New-Object Collections.ArrayList
+    foreach($event in $e.observations.actorAllocationTrace.events){[void]$ledger.Add($event)}
+    function Add-ControlSample([string]$kind,[string]$identity,[double]$riderStandard,[double]$riderMove,[double]$mountStandard,[double]$mountMove,[bool]$grant=$false) {
+        if($grant) {
+            foreach($actor in @('rider','mount')) {
+                foreach($boundary in @('clear-after','round-state-after')) {
+                    [void]$ledger.Add(@{sequence=$ledger.Count+1;boundary=$boundary;round=9;gameTicks=180000100;state=@{actor=$actor}})
+                }
+            }
+        }
+        [void]$ledger.Add(@{sequence=$ledger.Count+1;boundary=$kind;round=9;gameTicks=180000100;state=@{actor='rider'}})
+        $s=@{kind=$kind;traceSequence=$ledger.Count;gameTicks=180000100;identity=$identity
+            rider=@{actor='rider';standard=$riderStandard;move=$riderMove};mount=@{actor='mount';standard=$mountStandard;move=$mountMove}}
+        foreach($actor in @('rider','mount')) {
+            $s[$actor+'Clears']=@($ledger|Where-Object {$_.state.actor -ceq $actor -and $_.boundary -ceq 'clear-after'}).Count
+            $s[$actor+'Effects']=@($ledger|Where-Object {$_.state.actor -ceq $actor -and $_.boundary -ceq 'round-state-after'}).Count
+        }
+        return $s
+    }
+    $before=Add-ControlSample 'control-begin' 'id6' 0 0 0 0
+    $mountFull=Add-ControlSample 'mount-full-after' 'id6' 0 0 6 3
+    $riderFull=Add-ControlSample 'rider-full-after' 'id6' 6 3 6 3
+    $auto=Add-ControlSample 'auto-next' 'id7' 0 0 0 0 $true
+    $single=Add-ControlSample 'single-after' 'id7' 0 0 6 0
+    $end=Add-ControlSample 'explicit-end' 'id7' 0 0 6 0.2
+    $next=Add-ControlSample 'explicit-next' 'id8' 0 0 0 0 $true
+    $ops=@()
+    for($i=0;$i -lt 3;$i++) {
+        $actor=if($i -eq 1){'rider'}else{'mount'}
+        $ops+=@{actor=$actor;contextActor=$actor;selectedActor=$actor;hoverPure=$true;full=($i -ne 2);fullEnabled=($i -ne 2)
+            nativeFull=($i -ne 2);nativeSinglePrimary=$false;clicked=$true;nativePlan=1;completed=1;nativeRules=1
+            command=@{executor=$actor;finished=$true;result='Success'}
+            before=@($before,$mountFull,$auto)[$i];after=@($mountFull,$riderFull,$single)[$i]}
+    }
+    $e.rows+=@{name='P03-paired-ordinary-controls';status='PASS';evidence=@{
+        level='NATIVE INTEGRATION';passed=$true;inputKind='scripted-native-control-integration';automaticEndInputCount=0
+        automaticEndSettingRestored=$true;excessAttackRejected=$true;before=$before;automaticRefresh=$auto;explicitRefresh=$next
+        explicitEndBefore=$end;operations=$ops;movement=@{selectedActor='mount';fiveFootStep=$false;admitted=$true;purpose='mount-selected-residual'
+            distance=1;travelledDistance=1;nativeShiftDistance=1;nativeMoveCost=0.2;nativeAllowedTime=0.2;before=@{speedMps=5}
+            riderBefore=@{move=0};riderAfter=@{move=0}}}}
+    $e.observations.actorAllocationTrace.events=@($ledger)
+    $e.subscenarioPassCount=4
+    return ($e|ConvertTo-Json -Depth 35|ConvertFrom-Json)
+}
+Assert-KmcActorAllocationEvidence $request (New-PairedControlEnvelope) 'PASS'
+$passes++
+foreach($mutation in @(
+    {param($e) $e.rows[3].evidence.operations[0].selectedActor='rider'},
+    {param($e) $e.rows[3].evidence.operations[0].hoverPure=$false},
+    {param($e) $e.rows[3].evidence.operations[2].nativeFull=$true},
+    {param($e) $e.rows[3].evidence.operations[0].nativeRules=0},
+    {param($e) $e.rows[3].evidence.automaticEndInputCount=1},
+    {param($e) $e.rows[3].evidence.automaticRefresh.mountClears++},
+    {param($e) $e.rows[3].evidence.automaticRefresh.traceSequence=0},
+    {param($e) $e.rows[3].evidence.automaticEndSettingRestored=$false},
+    {param($e) $e.rows[3].evidence.movement.riderAfter.move=0.2},
+    {param($e) $e.rows[3].evidence.excessAttackRejected=$false}
+)) {
+    $e=New-PairedControlEnvelope; & $mutation $e
+    $rejected=$false
+    try {Assert-KmcActorAllocationEvidence $request $e 'PASS'} catch {$rejected=$true}
+    if(!$rejected){throw ('Wrong actor, native cost or unbound ordinary control evidence was accepted: '+$mutation.ToString())}
+    $passes++
+}
 Write-Host "ALLOCATION PROTOCOL PASS=$passes FAIL=0 (envelope validation only)"

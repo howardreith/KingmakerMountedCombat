@@ -35,6 +35,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private string caseId;
         private int dropped;
         internal UnitAttack LastStartedRiderAttack { get; private set; }
+        internal UnitAttack LastStartedMountAttack { get; private set; }
 
         internal NativeOrdinaryAttackTrace(UnitEntityData rider, UnitEntityData mount, MountedCombatController combat)
         {
@@ -62,7 +63,7 @@ namespace KingmakerMountedCombat.Diagnostics
             catch { Dispose(); throw; }
         }
 
-        internal void BeginCase(string value) { caseId = value; LastStartedRiderAttack = null; Record("fixture-case", rider); }
+        internal void BeginCase(string value) { caseId = value; LastStartedRiderAttack = null; LastStartedMountAttack = null; Record("fixture-case", rider); }
         internal JObject Capture() => new JObject { ["events"] = events.DeepClone(), ["dropped"] = dropped };
         internal JObject NativeRecoveryInterrupt(UnitAttack command) => command != null && nativeRecoveryInterrupts.ContainsKey(command)
             ? (JObject)nativeRecoveryInterrupts[command].DeepClone() : null;
@@ -106,6 +107,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 // the stock PlannedAttack getter dereferences its private list.
                 var plannedAttack = attack != null && attack.AllAttacks.Count > 0 ? attack.PlannedAttack : null;
                 if (boundary == "start-after" && actor == rider) LastStartedRiderAttack = attack;
+                if (boundary == "start-after" && actor == mount) LastStartedMountAttack = attack;
                 var row = new JObject {
                     ["index"] = events.Count, ["caseId"] = caseId, ["boundary"] = boundary,
                     ["frame"] = Time.frameCount, ["gameTime"] = Game.Instance.TimeController.GameTime.Ticks,

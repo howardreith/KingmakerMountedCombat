@@ -41,7 +41,7 @@ function Assert-KmcPairedReactionEvidence($Evidence) {
 
 function Assert-KmcPairedActivationEvidence($Request, $Artifact, [string]$Status) {
     if ([string]$Request.scenario -cnotin @('actor-allocation-rider-first-tb','actor-allocation-mount-first-tb') -or
-        [long]$Artifact.schemaVersion -notin @(11,12,13)) { throw 'Paired lifecycle evidence requires the exact mounted allocation scenario and schema 11, 12 or 13.' }
+        [long]$Artifact.schemaVersion -notin @(11,12,13,14)) { throw 'Paired lifecycle evidence requires the exact mounted allocation scenario and schema 11, 12, 13 or 14.' }
     $config=$Artifact.observations.phase3fActualConfiguration
     if ($config.enablePairedActivation -ne $true) { throw 'Paired activation path was not selected.' }
     foreach($flag in @('enableUnifiedMountedTurn','enablePairedCommandScheduler','enableDiagnosticOverlay','overlayPresent')) {
@@ -51,19 +51,23 @@ function Assert-KmcPairedActivationEvidence($Request, $Artifact, [string]$Status
     $pass=0;$fail=0
     foreach($row in $Artifact.rows) {
         if(!$names.Add([string]$row.name) -or $row.status -cnotin @('PASS','FAIL') -or
-            $row.name -cnotin @('P01-three-paired-activations','P02-paired-native-transitions','A05-native-preparation-callbacks','phase3d-horse-scenario-deadline','phase3d-horse-leaf-deadline','phase3d-horse-runtime-exception','phase3d-horse-tranche-cleanup')) {
+            $row.name -cnotin @('P01-three-paired-activations','P02-paired-native-transitions','P03-paired-ordinary-controls','A05-native-preparation-callbacks','phase3d-horse-scenario-deadline','phase3d-horse-leaf-deadline','phase3d-horse-runtime-exception','phase3d-horse-tranche-cleanup')) {
             throw 'Unknown, duplicate or malformed paired activation row.'
         }
         if($row.status -ceq 'FAIL') {$fail++;continue};$pass++
         if($row.name -ceq 'A05-native-preparation-callbacks') { Assert-KmcAllocationCallbackEvidence $Artifact $row.evidence;continue }
+        if($row.name -ceq 'P03-paired-ordinary-controls') {
+            if([long]$Artifact.schemaVersion -ne 14){throw 'Paired ordinary control coverage requires schema14.'}
+            Assert-KmcPairedControlEvidence $Artifact $row.evidence;continue
+        }
         if($row.name -ceq 'P02-paired-native-transitions') {
-            if([long]$Artifact.schemaVersion -ne 13){throw 'Transition coverage requires schema13.'}
+            if([long]$Artifact.schemaVersion -lt 13){throw 'Transition coverage requires schema13.'}
             Assert-KmcPairedTransitionEvidence $Artifact $row.evidence;continue
         }
         if($row.name -cne 'P01-three-paired-activations') { throw 'Failure-only paired row claimed PASS.' }
         $e=$row.evidence;$trace=$Artifact.observations.actorAllocationTrace
         $gateEvents=@($trace.events)
-        if([long]$Artifact.schemaVersion -eq 13) {
+        if([long]$Artifact.schemaVersion -ge 13) {
             $cutoff=[long]$e.traceEndSequence
             $seal=@($gateEvents|Where-Object boundary -CEQ 'first-gate-sealed')
             if($cutoff -le 0 -or $seal.Count -ne 1 -or $seal[0].sequence -ne $cutoff -or
@@ -121,20 +125,18 @@ function Assert-KmcPairedActivationEvidence($Request, $Artifact, [string]$Status
             if($state.standard -ne 0 -or $state.move -ne 0 -or $state.canAct -ne $true) {throw 'Early-end refresh failed.'}
         }
     }
-    $requiredPass=if([long]$Artifact.schemaVersion -eq 13){3}else{2}
+    $requiredPass=if([long]$Artifact.schemaVersion -eq 14){4}elseif([long]$Artifact.schemaVersion -ge 13){3}else{2}
     if($pass -ne $Artifact.subscenarioPassCount -or $fail -ne $Artifact.subscenarioFailCount -or
         ($Status -ceq 'PASS' -and ($pass -ne $requiredPass -or $fail -ne 0 -or !$names.Contains('P01-three-paired-activations') -or
-            [long]$Artifact.schemaVersion -eq 13 -and !$names.Contains('P02-paired-native-transitions') -or
+            [long]$Artifact.schemaVersion -ge 13 -and !$names.Contains('P02-paired-native-transitions') -or
+            [long]$Artifact.schemaVersion -eq 14 -and !$names.Contains('P03-paired-ordinary-controls') -or
             !$names.Contains('A05-native-preparation-callbacks') -or $Artifact.errors.Count -ne 0)) -or
         ($Status -ceq 'FAIL' -and $fail -eq 0)) {throw 'Paired activation status/counts differ.'}
 }
 
-function Assert-KmcPairedTransitionEvidence($Artifact, $Evidence) {
-    if($Evidence.level -cne 'NATIVE INTEGRATION' -or $Evidence.passed -ne $true -or
-        $Evidence.inputKind -cne 'scripted-native-control-integration' -or $Evidence.modeSettingRestored -ne $true -or
-        @($Evidence.movements).Count -ne 3) {throw 'Paired native transitions lack coverage/provenance or setting restoration.'}
+function Assert-KmcPairedNativeSamples($Artifact, $Samples) {
     $trace=@($Artifact.observations.actorAllocationTrace.events)
-    foreach($sample in $Evidence.events) {
+    foreach($sample in $Samples) {
         $hit=@($trace|Where-Object sequence -EQ $sample.traceSequence)
         if($hit.Count -ne 1 -or $hit[0].boundary -cne $sample.kind -or $hit[0].gameTicks -ne $sample.gameTicks) {throw 'Transition sample is not bound to a native trace event.'}
         foreach($actor in @('rider','mount')) {
@@ -145,6 +147,56 @@ function Assert-KmcPairedTransitionEvidence($Artifact, $Evidence) {
                 @($events|Where-Object boundary -CEQ 'round-state-after').Count -ne $sample.($actor+'Effects')) {throw 'Transition grant/effect observations differ from native trace.'}
         }
     }
+}
+
+function Assert-KmcPairedControlEvidence($Artifact, $Evidence) {
+    if($Evidence.level -cne 'NATIVE INTEGRATION' -or $Evidence.passed -ne $true -or
+        $Evidence.inputKind -cne 'scripted-native-control-integration' -or $Evidence.automaticEndInputCount -ne 0 -or
+        $Evidence.automaticEndSettingRestored -ne $true -or $Evidence.excessAttackRejected -ne $true -or
+        @($Evidence.operations).Count -ne 3) {throw 'Paired ordinary native controls lack exact coverage/provenance.'}
+    $rider=$Artifact.observations.riderId;$mount=$Artifact.observations.horseId
+    $samples=@($Evidence.before,$Evidence.automaticRefresh,$Evidence.explicitRefresh,$Evidence.explicitEndBefore)
+    for($i=0;$i -lt 3;$i++) {
+        $op=$Evidence.operations[$i];$full=$i -ne 2;$actor=if($i -eq 1){$rider}else{$mount}
+        $key=if($i -eq 1){'rider'}else{'mount'};$other=if($i -eq 1){'mount'}else{'rider'}
+        $samples+=@($op.before,$op.after)
+        if($op.actor -cne $actor -or $op.contextActor -cne $actor -or $op.selectedActor -cne $actor -or
+            $op.hoverPure -ne $true -or $op.full -ne $full -or $op.fullEnabled -ne $full -or
+            $op.nativeFull -ne $full -or $op.nativeSinglePrimary -ne $false -or $op.clicked -ne $true -or
+            $op.command.executor -cne $actor -or $op.command.finished -ne $true -or $op.command.result -cne 'Success' -or
+            $op.nativePlan -lt 1 -or (!$full -and $op.nativePlan -ne 1) -or $op.completed -ne $op.nativePlan -or
+            $op.nativeRules -ne $op.completed -or $op.after.$key.standard -ne 6 -or
+            $op.after.$key.move -ne $(if($full){3}else{0}) -or
+            $op.after.$other.standard -ne $op.before.$other.standard -or $op.after.$other.move -ne $op.before.$other.move) {
+            throw 'Ordinary paired actor selection, prediction, sequence or native cost contract failed.'
+        }
+        foreach($field in @('riderClears','mountClears','riderEffects','mountEffects')) {
+            if($op.before.$field -ne $op.after.$field){throw 'Ordinary attack input granted resources or repeated effects.'}
+        }
+    }
+    Assert-KmcPairedNativeSamples $Artifact $samples
+    for($i=1;$i -le 2;$i++) {
+        $after=if($i -eq 1){$Evidence.automaticRefresh}else{$Evidence.explicitRefresh}
+        if($after.identity -ceq $Evidence.before.identity){throw 'Next ordinary activation reused an old grant.'}
+        foreach($actor in @('rider','mount')) {
+            if($after.$actor.standard -ne 0 -or $after.$actor.move -ne 0 -or
+                $after.($actor+'Clears') -ne $Evidence.before.($actor+'Clears')+$i -or
+                $after.($actor+'Effects') -ne $Evidence.before.($actor+'Effects')+$i) {
+                throw 'Ordinary control completion failed exactly-once native renewal.'
+            }
+        }
+    }
+    if($Evidence.movement.selectedActor -cne $mount -or $Evidence.movement.fiveFootStep -ne $false -or
+        $Evidence.movement.riderBefore.move -ne $Evidence.movement.riderAfter.move) {throw 'Selected mount movement charged or selected the wrong actor.'}
+    Assert-KmcPairedMovementEvidence $Evidence.movement
+}
+
+function Assert-KmcPairedTransitionEvidence($Artifact, $Evidence) {
+    if($Evidence.level -cne 'NATIVE INTEGRATION' -or $Evidence.passed -ne $true -or
+        $Evidence.inputKind -cne 'scripted-native-control-integration' -or $Evidence.modeSettingRestored -ne $true -or
+        @($Evidence.movements).Count -ne 3) {throw 'Paired native transitions lack coverage/provenance or setting restoration.'}
+    Assert-KmcPairedNativeSamples $Artifact $Evidence.events
+    $trace=@($Artifact.observations.actorAllocationTrace.events)
     function One-PairedEvent([string]$kind) {
         $events=@($Evidence.events|Where-Object kind -CEQ $kind)
         if($events.Count -ne 1){throw "Missing or duplicated native transition: $kind"}
@@ -212,7 +264,7 @@ function Assert-KmcPairedTransitionEvidence($Artifact, $Evidence) {
 
 function Assert-KmcActorAllocationEvidence {
     param($Request, $Artifact, [string]$Status)
-    if ([long]$Artifact.schemaVersion -in @(11,12,13)) {
+    if ([long]$Artifact.schemaVersion -in @(11,12,13,14)) {
         Assert-KmcPairedActivationEvidence $Request $Artifact $Status
         return
     }
@@ -305,7 +357,7 @@ function Assert-KmcAllocationCallbackEvidence($Artifact, $Evidence) {
     if($Evidence.level -cne 'NATIVE INTEGRATION' -or $Evidence.passed -ne $true -or @($Evidence.errors).Count -ne 0) {
         throw 'Native callback result is not a successful measured result.'
     }
-    $coverageName=if([long]$Artifact.schemaVersion -in @(11,12,13)){'P01-three-paired-activations'}else{'T01-native-allocation-trace'}
+    $coverageName=if([long]$Artifact.schemaVersion -in @(11,12,13,14)){'P01-three-paired-activations'}else{'T01-native-allocation-trace'}
     $coverage=@($Artifact.rows|Where-Object name -CEQ $coverageName)
     if($coverage.Count -ne 1 -or $coverage[0].status -cne 'PASS'){throw 'Native callback result requires complete trace coverage.'}
     $actors=@($Artifact.observations.allocationNativeRoundFacts | ForEach-Object {[string]$_.actor})
@@ -322,7 +374,7 @@ function Assert-KmcAllocationCallbackEvidence($Artifact, $Evidence) {
     $componentType=$componentTypes[0]
     $first=[int]$coverage[0].evidence.firstRound
     $callbackEvents=@($Artifact.observations.actorAllocationTrace.events)
-    if([long]$Artifact.schemaVersion -eq 13) {
+    if([long]$Artifact.schemaVersion -ge 13) {
         $cutoff=[long]$coverage[0].evidence.traceEndSequence
         $seal=@($callbackEvents|Where-Object boundary -CEQ 'first-gate-sealed')
         if($cutoff -le 0 -or $seal.Count -ne 1 -or $seal[0].sequence -ne $cutoff -or

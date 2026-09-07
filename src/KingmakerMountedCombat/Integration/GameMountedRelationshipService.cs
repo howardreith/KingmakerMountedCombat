@@ -255,7 +255,7 @@ namespace KingmakerMountedCombat.Integration
             return Record(result);
         }
 
-        public bool RouteGroundCommand(ref UnitEntityData unit)
+        public bool RouteGroundCommand(ref UnitEntityData unit, bool pairedMountInput = false)
         {
             if (unit == null || coordinator.State != RelationshipState.Mounted || coordinator.ActivePair == null)
             {
@@ -268,7 +268,7 @@ namespace KingmakerMountedCombat.Integration
             if (MountedTurnSelectionPolicy.CanUseNativeMountTurnGroundCommand(
                 true,
                 CombatController.IsInTurnBasedCombat(),
-                turn?.Unit == runtime.Mount,
+                turn?.Unit == runtime.Mount || pairedMountInput,
                 unit == runtime.Mount,
                 exactMountSelection))
             {
@@ -294,14 +294,14 @@ namespace KingmakerMountedCombat.Integration
             return true;
         }
 
-        public bool NormalizeSingleSelection(ref UnitEntityView view, bool single)
+        public bool NormalizeSingleSelection(ref UnitEntityView view, bool single, bool pairedMountInput = false)
         {
             var turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
             var disposition = MountedTurnSelectionPolicy.Classify(
                 coordinator.State == RelationshipState.Mounted,
                 runtime.Mount?.View == view,
                 CombatController.IsInTurnBasedCombat(),
-                turn?.Unit == runtime.Mount);
+                turn?.Unit == runtime.Mount || pairedMountInput);
             if (disposition == MountedSelectionDisposition.ProjectMountToRider && runtime.Rider?.View != null)
             {
                 view = runtime.Rider.View;
@@ -340,7 +340,7 @@ namespace KingmakerMountedCombat.Integration
             return true;
         }
 
-        public void NormalizeMultiSelection(ref IEnumerable<UnitEntityView> views)
+        public void NormalizeMultiSelection(ref IEnumerable<UnitEntityView> views, bool pairedMountInput = false)
         {
             if (views == null || coordinator.State != RelationshipState.Mounted || runtime.Rider?.View == null || runtime.Mount?.View == null)
             {
@@ -353,7 +353,7 @@ namespace KingmakerMountedCombat.Integration
                 true,
                 true,
                 CombatController.IsInTurnBasedCombat(),
-                turn?.Unit == runtime.Mount) == MountedSelectionDisposition.PreserveNativeMountTurn;
+                turn?.Unit == runtime.Mount || pairedMountInput) == MountedSelectionDisposition.PreserveNativeMountTurn;
             foreach (var view in views)
             {
                 var effective = view == runtime.Mount.View && !preserveNativeMountTurn ? runtime.Rider.View : view;

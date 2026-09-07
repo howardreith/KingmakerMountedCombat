@@ -725,6 +725,7 @@ namespace KingmakerMountedCombat.Integration
                     return MountedCombatClickResult.HandledRejected;
                 }
                 activeCommand = command;
+                unifiedTurn.RememberPairedMovementInput();
                 LastOutcome = null;
                 LastRejectionCodes = new MountedCombatRejectionCode[0];
                 var actionActor = command.ActionActor;
@@ -1208,7 +1209,9 @@ namespace KingmakerMountedCombat.Integration
 
         public bool TryAdmitGroundCommand(UnitEntityData requestedUnit)
         {
-            if (disposed || relationship.State != RelationshipState.Mounted || requestedUnit != relationship.Rider)
+            var pairedMountInput = unifiedTurn.MaySelectPairedPartner(requestedUnit) &&
+                SelectionManager.Instance?.SingleSelectedUnit == requestedUnit;
+            if (disposed || relationship.State != RelationshipState.Mounted || requestedUnit != relationship.Rider && !pairedMountInput)
             {
                 return true;
             }
@@ -1263,6 +1266,7 @@ namespace KingmakerMountedCombat.Integration
             }
 
             riderTurnGroundMoveAdmissionPending = true;
+            unifiedTurn.RememberPairedMovementInput();
             LastRejectionCodes = new MountedCombatRejectionCode[0];
             LastFeedback = "Mounted rider-turn ground movement admitted; " + MountDisplayName + " owns pathfinding.";
             return true;
@@ -1391,6 +1395,7 @@ namespace KingmakerMountedCombat.Integration
                 HandleDoorInteractionTerminal);
             routed.NativePartnerMovement = settings.EnablePairedActivation;
             activeDoorInteraction = routed;
+            unifiedTurn.RememberPairedMovementInput();
             LastDoorInteractionOutcome = null;
             LastRejectionCodes = new MountedCombatRejectionCode[0];
             LastFeedback = "Mounted door interaction accepted: " + MountDisplayName + " approach, rider interaction.";
