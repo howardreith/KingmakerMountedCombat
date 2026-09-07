@@ -62,6 +62,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 Patch(typeof(TurnController).GetNestedType("<>c", Flags), 0x0600A2D2, "FactBefore", "FactAfter");
                 Patch(typeof(UnitCommands), 0x060026B2, "CommandBefore", "CommandAfter");
                 Patch(typeof(UnitActionController), 0x06009120, "CostBefore", "CostAfter");
+                Patch(typeof(UnitActionController), 0x0600911D, "EligibilityBefore", "EligibilityAfter");
                 Patch(typeof(UnitEntityData), 0x0600838F, "ActorCostBefore", "ActorCostAfter");
                 Patch(typeof(TurnController), 0x06000C5E, "CommandEndBefore", "CommandEndAfter");
                 Patch(typeof(TurnController), 0x06000C46, "TurnEndBefore", "TurnEndAfter");
@@ -154,6 +155,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["command"] = Id(command), ["commandType"] = command?.GetType().FullName,
                     ["commandActor"] = command?.Executor?.UniqueId, ["started"] = command?.IsStarted,
                     ["acted"] = command?.IsActed, ["finished"] = command?.IsFinished, ["result"] = command?.Result.ToString(),
+                    ["ignoreCooldown"] = command?.IsIgnoreCooldown,
                     ["feedback"] = combat.LastFeedback
                 });
             }
@@ -193,6 +195,12 @@ namespace KingmakerMountedCombat.Diagnostics
             internal static void CommandBefore(UnitCommands __instance, UnitCommand cmd) { active?.Record("admission-before", active.Owner(__instance), cmd); }
             internal static void CommandAfter(UnitCommands __instance, UnitCommand cmd) { active?.Record("admission-after", active.Owner(__instance), cmd); }
             internal static void CostBefore(UnitCommand command) { active?.Record("cost-before", command?.Executor, command); }
+            internal static void EligibilityBefore() { }
+            internal static void EligibilityAfter(UnitCommand command, bool __result)
+            {
+                if (active != null && command?.Executor == active.mount && Time.frameCount % 30 == 0)
+                    active.Record("command-eligibility", command.Executor, command, "nativeResult=" + __result);
+            }
             internal static void CostAfter(UnitCommand command) { active?.Record("cost-after", command?.Executor, command); }
             internal static void ActorCostBefore(UnitEntityData __instance, UnitCommand command) { active?.Record("actor-cost-before", __instance, command); }
             internal static void ActorCostAfter(UnitEntityData __instance, UnitCommand command) { active?.Record("actor-cost-after", __instance, command); }

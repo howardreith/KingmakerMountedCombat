@@ -67,6 +67,12 @@ namespace KingmakerMountedCombat.Integration
             if (preparingTurn?.Unit == actor) preparingTurn = null;
         }
 
+        internal void RetireCompletedEncounterActor(UnitEntityData actor)
+        {
+            if (actor != null && !(Game.Instance?.Player?.IsInCombat ?? true) &&
+                !actor.IsInCombat && actor.Commands.Empty) lifetime.RetireDestroyedActor(actor);
+        }
+
         internal void Clear()
         {
             preparingTurn = null;

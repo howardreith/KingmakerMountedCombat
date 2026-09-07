@@ -28,6 +28,21 @@ public static class KmcNativePatchProbe {
   var harmonyAssembly=Assembly.LoadFrom(Path.Combine(managed,"UnityModManager/0Harmony12.dll"));
   var native=Assembly.LoadFrom(Path.Combine(managed,"Assembly-CSharp.dll"));
   var candidate=Assembly.LoadFrom(mod);
+  // Native movement deliberately ignores the command-slot cooldown. Its real
+  // debit is made by the movement controller; this is not an attack exemption.
+  var move=native.GetType("Kingmaker.UnitLogic.Commands.UnitMoveTo",true);
+  var command=native.GetType("Kingmaker.UnitLogic.Commands.Base.UnitCommand",true);
+  var ignore=command.GetMethod("IgnoreCooldown",BindingFlags.Instance|BindingFlags.Public|BindingFlags.NonPublic);
+  var constructors=move.GetConstructors();
+  if(ignore==null || constructors.Length!=2) throw new InvalidOperationException("Native movement constructor contract changed.");
+  foreach(var constructor in constructors) {
+   var il=constructor.GetMethodBody().GetILAsByteArray();
+   var calls=0;
+   for(var offset=0;offset+4<il.Length;offset++)
+    if(il[offset]==0x28 && BitConverter.ToInt32(il,offset+1)==ignore.MetadataToken) calls++;
+   if(calls!=1) throw new InvalidOperationException("Native movement cooldown convention changed.");
+  }
+  Console.WriteLine("NATIVE MOVE CONSTRUCTOR CONTRACT PASS=2 FAIL=0; no constructor invoked");
   Console.WriteLine("stage: assemblies loaded");
   var hooks=candidate.GetType("KingmakerMountedCombat.Integration.MountedPatchController+PatchMethods",true);
   var harmonyType=harmonyAssembly.GetType("Harmony12.HarmonyInstance",true);

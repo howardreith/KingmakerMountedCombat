@@ -3,6 +3,7 @@ using System.Reflection;
 using Kingmaker;
 using Kingmaker.Controllers.Units;
 using Kingmaker.EntitySystem.Entities;
+using Kingmaker.UnitLogic.Commands;
 using Kingmaker.UnitLogic.Commands.Base;
 using KingmakerMountedCombat.Domain;
 using TurnBased.Controllers;
@@ -119,7 +120,8 @@ namespace KingmakerMountedCombat.Integration
             if (actor.IsCurrentUnit()) return true;
             var turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
             return CanAddressActor(actor, turn) && actor == activation.Partner &&
-                command != null && command.Executor == actor && !command.IsIgnoreCooldown &&
+                command != null && command.Executor == actor &&
+                (!command.IsIgnoreCooldown || command.GetType() == typeof(UnitMoveTo)) &&
                 combat != null && combat.OwnsExactPairedNativeCommand(command);
         }
 
@@ -207,6 +209,14 @@ namespace KingmakerMountedCombat.Integration
             if (activationSession != null && activationSession != Game.Instance?.Player ||
                 activation != null && !(Game.Instance?.Player?.IsInCombat ?? false))
             {
+                // Encounter participation is over. Native cooldowns continue to
+                // represent any real-time recovery; removing these supplemental
+                // references never clears or refunds those native costs.
+                if (activation != null)
+                {
+                    movementState.RetireCompletedEncounterActor(activation.Principal);
+                    movementState.RetireCompletedEncounterActor(activation.Partner);
+                }
                 DisposePartnerContext(); activation = null; activationSession = null;
                 armedRider = null; armedMount = null; splitReleaseRound = -1;
                 if (relationship.State == RelationshipState.Mounted) ArmPairedEncounter(relationship.Rider, relationship.Mount);

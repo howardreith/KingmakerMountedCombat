@@ -1285,7 +1285,7 @@ namespace KingmakerMountedCombat.Integration
             LastGroundMoveExecutorId = command.Executor?.UniqueId;
             LastGroundMoveUsedRiderTurnAdapter = false;
             LastGroundMoveSlotRestored = false;
-            LastFeedback = "Mounted ground movement active: " + MountDisplayName + " movement ledger; separate-turn costs remain unqualified.";
+            LastFeedback = "Mounted ground movement active: " + MountDisplayName + " owns movement.";
             logger.Info("Mounted ground movement accepted: riderId=" + relationship.Rider.UniqueId +
                 "; executorId=" + LastGroundMoveExecutorId +
                 "; turnStatus=" + (Game.Instance?.TurnBasedCombatController?.CurrentTurn?.Status.ToString() ?? "<none>") +
