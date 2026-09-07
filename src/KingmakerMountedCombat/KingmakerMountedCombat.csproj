@@ -174,6 +174,7 @@
     <Compile Include="Diagnostics\NativeAllocationRoundFactLease.cs" />
     <Compile Include="Diagnostics\ActorAllocationCallbackEvidence.cs" />
     <Compile Include="Diagnostics\ActorAllocationScenarios.cs" />
+    <Compile Include="Diagnostics\ActorAllocationConservationProbe.cs" />
     <Compile Include="Domain\AnimatedSaddlePosition.cs" />
     <Compile Include="Domain\OptionalPublicPropertyReader.cs" />
     <Compile Include="Domain\PairedCommandScheduler.cs" />

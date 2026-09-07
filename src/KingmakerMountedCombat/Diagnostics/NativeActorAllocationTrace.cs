@@ -89,6 +89,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["hasStandard"] = actor.HasStandardAction(), ["usedStandard"] = actor.UsedStandardAction(),
                 ["moveRestricted"] = actor.IsMoveActionRestricted(), ["speedMps"] = actor.CurrentSpeedMps,
                 ["stepRangeMetres"] = TurnController.MetersOfFiveFootStep,
+                ["agentPacing"] = AgentPacing(actor),
                 ["timeMoved"] = nativeTurn?.TimeMoved, ["timeForced"] = nativeTurn?.TimeMovedInForceMode,
                 ["timeStepped"] = nativeTurn?.TimeMovedByFiveFootStep, ["metresStepped"] = nativeTurn?.MetersMovedByFiveFootStep,
                 ["stepImmune"] = nativeTurn?.ImmuneAttackOfOpportunityOnDisengage,
@@ -100,6 +101,19 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["retained"] = Retained(actor), ["nativeRoundHit"] = actor.CombatState.HitThisRound,
                 ["nativeRoundAttacks"] = actor.CombatState.ExecutedAttackNumber
             };
+        }
+
+        private static JObject AgentPacing(UnitEntityData actor)
+        {
+            var agent = actor.View?.AgentASP;
+            if (agent == null) return null;
+            var state = new JObject();
+            foreach (var name in new[] { "m_MinSpeed", "m_SavedMinSpeed", "m_WarmupTime", "m_SlowDownTime", "m_IsInForceMode" })
+            {
+                var value = typeof(UnitMovementAgent).GetField(name, Flags).GetValue(agent);
+                state[name] = value == null ? JValue.CreateNull() : JToken.FromObject(value, TraceSerializer);
+            }
+            return state;
         }
 
         // Reflection is confined to this observer; looking up a record must not

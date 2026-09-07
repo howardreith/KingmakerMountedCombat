@@ -101,7 +101,11 @@ namespace KingmakerMountedCombat.Integration
             Property("MetersMovedByFiveFootStep"), Property("ImmuneAttackOfOpportunityOnDisengage") };
         private static readonly FieldInfo AiStepField = Field("m_AIUsedFiveFootStep");
         private static readonly FieldInfo AutoStopField = Field("m_AutoStopAfterFirstMoveAction");
-        private static readonly FieldInfo ForceModeField = typeof(UnitMovementAgent).GetField("m_IsInForceMode", Flags);
+        private static readonly FieldInfo ForceModeField = AgentField("m_IsInForceMode", 0x040011AE, typeof(bool));
+        private static readonly FieldInfo SavedMinSpeedField = AgentField("m_SavedMinSpeed", 0x040011B6, typeof(float?));
+        private static readonly FieldInfo MinSpeedField = AgentField("m_MinSpeed", 0x040011CB, typeof(float));
+        private static readonly FieldInfo WarmupField = AgentField("m_WarmupTime", 0x04001191, typeof(float));
+        private static readonly FieldInfo SlowdownField = AgentField("m_SlowDownTime", 0x040011AC, typeof(float));
 
         internal bool Owns(UnitEntityData actor) => actor != null && allocations.ContainsKey(actor);
 
@@ -177,16 +181,28 @@ namespace KingmakerMountedCombat.Integration
             var used = Math.Max(before, allocation.MoveUsed);
             float debit;
             var requested = deltaTime;
+            var agent = mount.View.AgentASP;
+            var forced = (bool)ForceModeField.GetValue(agent);
             deltaTime = allocation.Movement.Advance(deltaTime, mount.CurrentSpeedMps,
                 TurnController.MetersOfFiveFootStep, used, standardUsed, mount.IsMoveActionRestricted(),
                 inputTurn.EnabledFiveFootStep, inputTurn.EnabledSingleActionMove,
-                (bool)ForceModeField.GetValue(mount.View.AgentASP), mount.View.AgentASP.NearTheEnd,
+                forced, agent.NearTheEnd,
                 SettingsRoot.Instance.AutoStopAfterFirstMoveAction.CurrentValue, out debit);
             cooldown.MoveAction = used + debit;
             allocation.MoveUsed = allocation.Prepared ? cooldown.MoveAction : allocation.MoveUsed + debit;
             // Before Prepare only the new debit belongs to this allocation; an
             // old native Standard is not converted into a guessed fresh action.
             if (allocation.Prepared) allocation.StandardUsed |= mount.CombatState.Cooldown.StandardAction > 0f;
+            if (deltaTime > 0f && !forced)
+            {
+                // Match the native allowed-movement pacing boundary. The next
+                // native TickMovement restores the saved minimum speed. Skipping
+                // this adds warm-up/slowdown action time to delegated short paths.
+                SavedMinSpeedField.SetValue(agent, MinSpeedField.GetValue(agent));
+                MinSpeedField.SetValue(agent, 1f);
+                WarmupField.SetValue(agent, 0f);
+                SlowdownField.SetValue(agent, 0f);
+            }
             return "mountMove=" + before.ToString("R") + "->" + cooldown.MoveAction.ToString("R") +
                 ";mountTime=" + allocation.Movement.TimeMoved.ToString("R") +
                 ";mountStepMetres=" + allocation.Movement.MetresStepped.ToString("R") +
@@ -198,5 +214,12 @@ namespace KingmakerMountedCombat.Integration
             throw new MissingMemberException(typeof(TurnController).FullName, name);
         private static FieldInfo Field(string name) => typeof(TurnController).GetField(name, Flags) ??
             throw new MissingFieldException(typeof(TurnController).FullName, name);
+        private static FieldInfo AgentField(string name, int token, Type fieldType)
+        {
+            var field = typeof(UnitMovementAgent).GetField(name, Flags);
+            if (field == null || field.MetadataToken != token || field.FieldType != fieldType)
+                throw new MissingFieldException(typeof(UnitMovementAgent).FullName, name);
+            return field;
+        }
     }
 }

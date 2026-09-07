@@ -67,6 +67,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     "; mountS=" + horse.CombatState.Cooldown.StandardAction + "; mountM=" + horse.CombatState.Cooldown.MoveAction +
                     "; pending=" + GetPendingNextUnit(controller)?.UniqueId + "; paused=" + game.IsPaused);
             if (game.IsPaused) { game.IsPaused = false; return; }
+            if (allocationProbeStarted) { TickAllocationConservationProbe(); return; }
             if (allocationStage == 0)
             {
                 if (!rider.Commands.Empty || !horse.Commands.Empty || rider.AreHandsBusyWithAnimation) return;
@@ -174,7 +175,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     allocationRoundFacts.Select(fact => (string)fact.Capture()["actor"]), allocationFirstRound);
                 AddRow("A05-native-preparation-callbacks", (bool)callbacks["passed"],
                     "Native preparation order, delivered fast healing, and callback resource observations across three rounds.", callbacks);
-                BeginCleanup(); return;
+                BeginAllocationConservationProbe(); return;
             }
             if (turn.Unit != rider && turn.Unit != horse || controller.RoundNumber == 0)
             { EndAllocationNativeTurn(turn); return; }

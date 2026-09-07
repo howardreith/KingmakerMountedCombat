@@ -1,3 +1,5 @@
+Chunk 2 update 2026-09-07T04:38:36.2818285Z: delegated movement pacing uses exact native CanMoveInTurnBased 060018A9 and typed fields 04001191/040011AC/040011AE/040011B6/040011CB; native TickMovement owns next-tick restoration. ASSEMBLY CONTRACT457/0. Native D measured cost discrepancy; preview5 runtime repair qualification pending. RuleApplyBuff06007119/required Buff FX links constrain native fact fixture. See docs/CHUNK2-ACTOR-ALLOCATIONS.md; historical contracts below remain unchanged.
+
 ## Chunk 2 current contract - 2026-09-07T03:12:10.3719282Z
 
 Native Prepare (06000C3C) clears/reapplies acting-command costs, then calls UnitCombatState.OnNewRound (0600939D) before round/AI/fact/readiness callbacks. Trace-B reproduces zero Move at those callbacks followed by retained expenditure at the current postfix. Exact target MVID unchanged. See [Chunk 2 report](../docs/CHUNK2-ACTOR-ALLOCATIONS.md); historical contracts below remain intact.

@@ -1,6 +1,6 @@
 # Chunk 2: Actor allocations and movement conservation
 
-Status: **IN PROGRESS**. Integration branch `codex/mounted-combat-phase3f-playable-core`; intake `aa0bdc41110923a0aae3bd1ac49322e5f2b75c02` and reviewed `b3f063337644215312de97d9736892212777ac1c` preserved. Preview.4 moves expenditure reconciliation before native callbacks and adds actor-record retirement. Attacks and the existing global-round allocation identity remain unchanged. No Chunk 2 gameplay qualification is claimed.
+Status: **IN PROGRESS**. Integration branch `codex/mounted-combat-phase3f-playable-core`; intake `aa0bdc41110923a0aae3bd1ac49322e5f2b75c02` and reviewed `b3f063337644215312de97d9736892212777ac1c` preserved. Preview.5 retains early callback reconciliation/actor retirement and restores native pacing for delegated movement. Attacks and the existing global-round allocation identity remain unchanged. No Chunk 2 gameplay qualification is claimed.
 
 ## Owner and intake evidence
 
@@ -26,6 +26,7 @@ First-round rider delegation ran with Horse native `CanActInCombat=false`, initi
 | rider-trace-D | same preview.3 | PASS trace coverage: three native rounds/six moves; 46/0 assertions | PASS actual intake |
 | unmounted-mount-E | same preview.3 | PASS matched control trace: three native rounds/six moves; 46/0 assertions | PASS actual intake |
 | unmounted-rider-F | same preview.3 | PASS matched control trace: three native rounds/six moves; 46/0 assertions | PASS actual intake |
+| callback-rider-G | preview.4 / `7781827` | FAIL before measured encounter: bare diagnostic healing buff did not activate; 46/2 assertions; cleanup and zero remaining actor records observed | PASS actual intake |
 
 Full artifacts are immutable at `runtime-evidence/<run-id>/`; compact evidence/audits are at `analysis-cache/runtime-evidence/chunk2-20260906/`. C-F regress both fixture defects without changing timeouts/assertions. Preview.3 source `f52462440eba9c91bad24cfa1d52ed3a46e9fad3`, DLL `c3846c03aa4f9b8ff500e2e1a1f0e7230ee3403778f9849337de99e8c587a166`, MVID `7709dbe8-9013-4bad-8380-97089d21edea`, ZIP `17eb97977044e350d20a2576ac7e3b8ddd3ed5974dd9c7e5a1903a2be2e21d33`. These remain observation qualification, not A01-A09 passes.
 
@@ -33,11 +34,15 @@ Mount-first C shows rider transport after Horse End Turn; distinguishing native 
 
 ## Qualification and next action
 
+**Movement pacing finding:** D's six matched 0.75m paths at native speed 5.08m/s cost approximately .318-.319 action time under rider delegation versus .142-.143 under native Horse control. Exact `CanMoveInTurnBased` (`060018A9`) temporarily sets minimum-speed/warm-up/slowdown fields during permitted non-forced movement; the existing delegation prefix skipped those operations. Preview.5 applies the same pacing boundary, with exact typed field checks (`04001191`, `040011AC`, `040011AE`, `040011B6`, `040011CB`). Native next-tick minimum-speed restoration remains authoritative. Matched runtime regression is pending; no accounting threshold is loosened.
+
+G did not reach preparation. The bare diagnostic buff omitted native prefab-link defaults; exact Buff activation/removal dereferences those links. Preview.5 clones the qualified native buff fixture defaults, replaces its components with one native fast-healing component, uses empty valid FX links, and records the actual RuleApplyBuff admission. Cleanup also removes any partially added exact fixture fact. This is the next discriminating fixture repair, not a retroactive pass. The extended T02 trace uses bounded native ground requests and actual End Turn over two further rounds, with no resource resets; it reports observations separately from gameplay qualification.
+
 A01-A09: TODO; A10 on exact final candidate: TODO. Both orders over three complete rounds plus matched unmounted controls must establish entitlement and callback/cost semantics before the smallest production repair. `T01-native-allocation-trace` qualifies observation coverage only, with `gameplayQualified=false`. Native facts/reaction effects, exhaustion/conversion, mode/session boundaries and full regression are still required.
 
-Latest preview.4 focused gates: source22/0, COMPONENT350/0, ASSEMBLY CONTRACT451/0, allocation envelope21/0. Earlier applicable suite: visual23, inventory10, harness243, Phase3G14, Phase3H29, ordinary39, host registration15, exact starting-installation6, all PASS/0. The initial misplaced Kingmaker contract entries caused Wrath24/7 and were corrected/rerun; original logs remain. The preview.13 intake registration permits only the three exact Info/DLL/cache hashes, rejects extra files/modified bytes, and keeps whole-tree fresh snapshot restoration.
+Latest preview.5 focused gates: source22/0, COMPONENT350/0, ASSEMBLY CONTRACT457/0, allocation envelope27/0. Earlier applicable suite: visual23, inventory10, harness243, Phase3G14, Phase3H29, ordinary39, host registration15, exact starting-installation6, all PASS/0. The initial misplaced Kingmaker contract entries caused Wrath24/7 and were corrected/rerun; original logs remain. The preview.13 intake registration permits only the three exact Info/DLL/cache hashes, rejects extra files/modified bytes, and keeps whole-tree fresh snapshot restoration.
 
-Next: freeze preview.4 and validate early reconciliation with actual native fact effects, both orders and controls; then exhaustion/conversion/refresh and exact final A10. Package/source identities and the active run are recorded separately in campaign `ACTIVE-RUN.json`. No permanent install, main merge or public release.
+Next: freeze preview.5 and validate early reconciliation/pacing with actual native fact effects, both orders and controls; observe exhaustion/conversion/refresh and run exact final A10. Package/source identities and the active run are recorded separately in campaign `ACTIVE-RUN.json`. No permanent install, main merge or public release.
 
 ## Manual checks after qualification
 

@@ -94,4 +94,37 @@ foreach($mutation in @(
     if(!$rejected){throw 'Malformed native callback evidence was accepted.'}
     $passes++
 }
+function New-ConservationEnvelope {
+    $e=New-CallbackEnvelope
+    $samples=@()
+    foreach($round in 4..5) {
+        foreach($actor in @('rider','mount')) {
+            foreach($boundary in @('prepare-before','prepare-after','turn-end-before','turn-end-after')) {
+                $e.observations.actorAllocationTrace.events+=@{round=$round;boundary=$boundary;state=@{actor=$actor}}
+            }
+            $samples+=@{round=$round;actor=$actor;mover='mount';before=@{actor='mount'};after=@{actor='mount'}
+                attempts=@(@{before=@{actor='mount'};after=@{actor='mount'};clicked=$true;admitted=$true;distance=3.0
+                    riderBefore=@{actor='rider'};riderAfter=@{actor='rider'};mountBefore=@{actor='mount'};mountAfter=@{actor='mount'}})}
+        }
+    }
+    $e.rows+=@{name='T02-native-exhaustion-refresh-trace';status='PASS';evidence=@{level='NATIVE INTEGRATION';gameplayQualified=$false
+        coverageComplete=$true;inputKind='scripted-native-handler-integration';firstRound=4;endRound=6;samples=$samples}}
+    $e.subscenarioPassCount=3
+    return ($e|ConvertTo-Json -Depth 25|ConvertFrom-Json)
+}
+Assert-KmcActorAllocationEvidence $request (New-ConservationEnvelope) 'PASS'
+$passes++
+foreach($mutation in @(
+    {param($e) $e.rows[2].evidence.gameplayQualified=$true},
+    {param($e) $e.rows[2].evidence.endRound=5},
+    {param($e) $e.rows[2].evidence.samples[0].mover='rider'},
+    {param($e) $e.rows[2].evidence.samples[0].attempts[0].riderAfter.actor='mount'},
+    {param($e) $e.observations.actorAllocationTrace.events=@($e.observations.actorAllocationTrace.events|Where-Object {!($_.round -eq 5 -and $_.boundary -ceq 'turn-end-after')})}
+)) {
+    $e=New-ConservationEnvelope; & $mutation $e
+    $rejected=$false
+    try {Assert-KmcActorAllocationEvidence $request $e 'PASS'} catch {$rejected=$true}
+    if(!$rejected){throw 'Malformed conservation trace was accepted.'}
+    $passes++
+}
 Write-Host "ALLOCATION PROTOCOL PASS=$passes FAIL=0 (envelope validation only)"

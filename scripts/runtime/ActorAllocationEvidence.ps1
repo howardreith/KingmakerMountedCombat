@@ -17,11 +17,15 @@ function Assert-KmcActorAllocationEvidence {
     $names=New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
     foreach($row in $Artifact.rows) {
         if(!$names.Add([string]$row.name) -or $row.status -cnotin @('PASS','FAIL') -or
-            $row.name -cnotin @('T01-native-allocation-trace','A05-native-preparation-callbacks','phase3d-horse-scenario-deadline','phase3d-horse-leaf-deadline','phase3d-horse-runtime-exception','phase3d-horse-tranche-cleanup')) {
+            $row.name -cnotin @('T01-native-allocation-trace','A05-native-preparation-callbacks','T02-native-exhaustion-refresh-trace','phase3d-horse-scenario-deadline','phase3d-horse-leaf-deadline','phase3d-horse-runtime-exception','phase3d-horse-tranche-cleanup')) {
             throw 'Unknown, duplicate or malformed allocation trace row.'
         }
         if($row.status -ceq 'FAIL') {$fail++;continue}
         $pass++
+        if($row.name -ceq 'T02-native-exhaustion-refresh-trace') {
+            Assert-KmcAllocationConservationTrace $Request $Artifact $row.evidence
+            continue
+        }
         if($row.name -ceq 'A05-native-preparation-callbacks') {
             Assert-KmcAllocationCallbackEvidence $Artifact $row.evidence
             continue
@@ -52,9 +56,38 @@ function Assert-KmcActorAllocationEvidence {
         }
     }
     if($pass -ne $Artifact.subscenarioPassCount -or $fail -ne $Artifact.subscenarioFailCount -or
-        ($Status -ceq 'PASS' -and ($fail -ne 0 -or $pass -ne (1+[int]$names.Contains('A05-native-preparation-callbacks')) -or
+        ($Status -ceq 'PASS' -and ($fail -ne 0 -or $pass -ne (1+[int]$names.Contains('A05-native-preparation-callbacks')+[int]$names.Contains('T02-native-exhaustion-refresh-trace')) -or
             !$names.Contains('T01-native-allocation-trace') -or $Artifact.errors.Count -ne 0)) -or
         ($Status -ceq 'FAIL' -and $fail -eq 0)) {throw 'Allocation trace status/counts differ.'}
+}
+
+function Assert-KmcAllocationConservationTrace($Request, $Artifact, $Evidence) {
+    if($Evidence.level -cne 'NATIVE INTEGRATION' -or $Evidence.gameplayQualified -ne $false -or
+        $Evidence.coverageComplete -ne $true -or $Evidence.inputKind -cne 'scripted-native-handler-integration' -or
+        $Evidence.endRound -lt $Evidence.firstRound+2 -or @($Evidence.samples).Count -ne 4) {
+        throw 'Conservation trace lacks complete native coverage.'
+    }
+    $rider=[string]$Artifact.observations.riderId; $mount=[string]$Artifact.observations.horseId
+    $order=if(([string]$Request.scenario).Contains('rider-first')){@($rider,$mount)}else{@($mount,$rider)}
+    foreach($round in ([int]$Evidence.firstRound)..([int]$Evidence.firstRound+1)) {
+        $samples=@($Evidence.samples|Where-Object round -EQ $round)
+        if(($samples.actor -join '|') -cne ($order -join '|')) {throw 'Conservation trace actor order differs.'}
+        foreach($sample in $samples) {
+            $mover=if(([string]$Request.scenario).Contains('unmounted')){[string]$sample.actor}else{$mount}
+            if($sample.mover -cne $mover -or $sample.before.actor -cne $mover -or $sample.after.actor -cne $mover -or
+                @($sample.attempts).Count -lt 1 -or @($sample.attempts).Count -gt 12) {throw 'Conservation trace ownership or bounded request count differs.'}
+            foreach($attempt in $sample.attempts) {
+                if($attempt.before.actor -cne $mover -or $attempt.after.actor -cne $mover -or
+                    $attempt.clicked -isnot [bool] -or $attempt.admitted -isnot [bool] -or $attempt.distance -lt 0 -or
+                    $attempt.riderBefore.actor -cne $rider -or $attempt.riderAfter.actor -cne $rider -or
+                    $attempt.mountBefore.actor -cne $mount -or $attempt.mountAfter.actor -cne $mount) {throw 'Conservation trace request lacks native actor observations.'}
+            }
+            $events=@($Artifact.observations.actorAllocationTrace.events|Where-Object {$_.round -eq $round -and $_.state.actor -ceq $sample.actor})
+            foreach($boundary in @('prepare-before','prepare-after','turn-end-before','turn-end-after')) {
+                if(@($events|Where-Object boundary -CEQ $boundary).Count -ne 1) {throw 'Conservation trace lacks a native grant/end boundary.'}
+            }
+        }
+    }
 }
 
 function Assert-KmcAllocationCallbackEvidence($Artifact, $Evidence) {
