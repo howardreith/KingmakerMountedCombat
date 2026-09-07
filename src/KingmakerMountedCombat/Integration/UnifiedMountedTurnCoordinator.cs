@@ -66,7 +66,7 @@ namespace KingmakerMountedCombat.Integration
         public string LastTurnCandidateObservation { get; set; }
     }
 
-    internal sealed class UnifiedMountedTurnCoordinator : IDisposable
+    internal sealed partial class UnifiedMountedTurnCoordinator : IDisposable
     {
         private const int NextUnitFieldToken = 0x04000652;
         private const int ChooseNextUnitToken = 0x06000BD2;
@@ -118,7 +118,7 @@ namespace KingmakerMountedCombat.Integration
             relationship.Dismounting += HandleDismounting;
         }
 
-        internal bool Enabled => settings.EnableUnifiedMountedTurn;
+        internal bool Enabled => settings.UseLegacyUnifiedTurn;
 
         internal long RedundantMountTurnSkipCount { get; private set; }
 
@@ -173,6 +173,7 @@ namespace KingmakerMountedCombat.Integration
             }
 
             movementState.MaintainLifetimes();
+            MaintainPairedLifetime();
             var turnBased = CombatController.IsInTurnBasedCombat();
             var controller = Game.Instance?.TurnBasedCombatController;
             if (UnifiedMountedTurnPolicy.ShouldRestoreSplitParticipation(
@@ -288,15 +289,24 @@ namespace KingmakerMountedCombat.Integration
 
         internal int TrackedAllocationActorCount => movementState.TrackedActorCount;
 
-        internal void HandleTurnPreparing(TurnController turn)
+        internal bool HandleTurnPreparing(TurnController turn)
         {
-            if (!disposed && !settings.EnableUnifiedMountedTurn)
+            if (PairedLifecycleEnabled)
+            {
+                if (!BeginPairedPreparation(turn)) return false;
+                if ((activation == null || activation.State(turn.Unit) == null || activation.Split) &&
+                    (movementState.Owns(turn.Unit) || turn.Unit == relationship.Mount || turn.Unit == activation?.Partner))
+                    movementState.BeginGrantedPreparation(turn, "native:" + Guid.NewGuid().ToString("N"));
+                return true;
+            }
+            if (!disposed && !Enabled)
                 movementState.BeginPreparation(turn, relationship.State == RelationshipState.Mounted ? relationship.Mount : null);
+            return true;
         }
 
         internal void HandleNativeRoundState(Kingmaker.Controllers.Combat.UnitCombatState state)
         {
-            if (!disposed && !settings.EnableUnifiedMountedTurn) movementState.BeforeNativeRoundState(state);
+            if (!disposed && !Enabled) movementState.BeforeNativeRoundState(state);
         }
 
         internal void RetireDestroyedActor(UnitEntityData actor)
@@ -311,6 +321,7 @@ namespace KingmakerMountedCombat.Integration
             }
 
             movementState.EndPreparation(turn);
+            if (PairedLifecycleEnabled) { CompletePairedPreparation(turn); return; }
             var mount = relationship.Mount;
             var mountState = mount?.Descriptor?.State;
             if (!UnifiedMountedTurnPolicy.ShouldPrepareMountLedger(
@@ -330,6 +341,12 @@ namespace KingmakerMountedCombat.Integration
 
         internal void ExtendTurnIfMountActionable(TurnController turn, ref bool result)
         {
+            if (PairedLifecycleEnabled)
+            {
+                if (!result && turn != null && turn.IsActing && PartnerHasAction(turn))
+                { result = true; SharedTurnRetentionCount++; }
+                return;
+            }
             if (disposed || result || turn == null)
             {
                 return;
@@ -443,6 +460,7 @@ namespace KingmakerMountedCombat.Integration
 
         internal void AdmitExactMountCommand(UnitCommand command, ref bool result)
         {
+            if (PairedLifecycleEnabled) return; // Eligibility is extended inside native guards.
             if (disposed || command == null)
             {
                 return;
@@ -551,7 +569,9 @@ namespace KingmakerMountedCombat.Integration
                 throw new InvalidOperationException("Exact rider and mount cooldown ledgers are required.");
             }
 
+            if (PairedLifecycleEnabled && !CanAddressActor(relationship.Mount, turn)) { deltaTime = 0f; return; }
             LastMovementObservation = movementState.TickDelegated(turn, relationship.Mount, ref deltaTime);
+            if (PairedLifecycleEnabled) movementState.CopyGrantedMovementToContext(partnerContext);
         }
 
         internal void ObserveNativeMovement(TurnController turn)
@@ -563,6 +583,7 @@ namespace KingmakerMountedCombat.Integration
         internal void ObserveNativeActionCost(UnitCommand command)
         {
             if (!disposed) movementState.ObserveAction(command);
+            if (PairedLifecycleEnabled && command?.Executor != null) ObservePairedCosts(command.Executor);
         }
 
         internal bool ShouldSuppressStepOpportunity(UnitEntityData target)
@@ -669,6 +690,7 @@ namespace KingmakerMountedCombat.Integration
             }
 
             movementState.Clear();
+            DisposePartnerContext();
             relationship.MountedPairActivated -= HandleMountedPairActivated;
             relationship.Dismounting -= HandleDismounting;
             combat = null;
@@ -679,6 +701,7 @@ namespace KingmakerMountedCombat.Integration
 
         private void HandleMountedPairActivated(UnitEntityData rider, UnitEntityData mount)
         {
+            if (PairedLifecycleEnabled) { ArmPairedEncounter(rider, mount); return; }
             preparedRiderTurn = null;
             pendingSplitMount = null;
             pendingSplitRound = -1;
@@ -693,6 +716,7 @@ namespace KingmakerMountedCombat.Integration
 
         private void HandleDismounting(CleanupTrigger trigger)
         {
+            if (PairedLifecycleEnabled) { SplitPairedActivation(trigger); return; }
             preparedRiderTurn = null;
             if (!Enabled || !CombatController.IsInTurnBasedCombat() || relationship.Mount == null)
             {

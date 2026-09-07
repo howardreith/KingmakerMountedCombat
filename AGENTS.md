@@ -18,7 +18,13 @@ Harmony:      exact installed legacy Harmony12 compatibility surface
 
 It must never become part of, or a required dependency of, Kingmaker Buff Planner, Tabletop Added Rules, Gunslinger, Call of the Wild, Wrath of the Righteous, or another gameplay mod.
 
-## Active Chunk 2 mission
+## Active combined actor-allocation and paired-activation mission
+
+The owner's combined milestone supersedes the separate-turn and scheduler prohibitions below. Continue from reviewed `45e3d276754257f4513342d5bce7626dd609d252` / Chunk 2 source `c804ba052760063f747cde83265e660916984d72` on the existing integration branch. Implement one rider-principal activation for the exact pair mounted before combat, with complete exactly-once native preparation, partner command admission, completion and participation ownership. A single developer configuration may select this authority; incompatible legacy paths must not run alongside it. Native per-actor costs and unrelated actors remain authoritative. Mid-combat mounting remains unsupported.
+
+First prove three complete paired activations in both pre-pair initiative arrangements, then close supported A01-A09 and exact-candidate A05/A10 in this mission. Source/tests, narrow verified hooks, guarded temporary runs, coherent commits, guarded branch publication and private packaging are authorized. Preserve actual human preview.13 and current external state; no permanent installation, main merge, public release, persistence or content expansion. [Active milestone report](docs/PAIRED-ACTIVATION-MILESTONE.md).
+
+## Historical Chunk 2 mission
 
 The owner's Chunk 2 mission supersedes the historical Chunk 1 execution limits below for actor allocations and movement conservation. Preserve reviewed `b3f063337644215312de97d9736892212777ac1c`, local intake `aa0bdc41110923a0aae3bd1ac49322e5f2b75c02` and legitimate descendants on the existing integration branch. Accepted Chunk 1 source is `a8745640e18ce068e412b4e360c7b0a3d46c738a`, preview.13. [Active report](docs/CHUNK2-ACTOR-ALLOCATIONS.md).
 

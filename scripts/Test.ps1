@@ -43,3 +43,8 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 & (Join-Path $PSScriptRoot 'Test-AssemblyContracts.ps1')
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+# Native injections are constructed in a separate process and always unpatched.
+& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-PairedActivationContracts.ps1') -Configuration $Configuration
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

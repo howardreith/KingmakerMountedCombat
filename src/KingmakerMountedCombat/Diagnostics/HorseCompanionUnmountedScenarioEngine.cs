@@ -121,6 +121,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private MovementCaptureOverlayLease phase3gUmmLease;
         private bool originalTurnBased;
         private bool originalUnsafeExperimentSetting;
+        private bool originalPairedActivationSetting;
         private double nativeOverlayPolicyStartedAtSeconds;
         private UnitEntityData[] originalSelection = new UnitEntityData[0];
         private UnitEntityData owner;
@@ -307,6 +308,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
                 originalTurnBased = CombatController.IsInTurnBasedCombat();
                 originalUnsafeExperimentSetting = settings.EnableUnsafeMovementExperiment;
+                originalPairedActivationSetting = settings.EnablePairedActivation;
+                if (Phase3dHorseScenarioTranche.IsActorAllocationScenario(request.Scenario) && !request.Scenario.Contains("unmounted"))
+                    settings.EnablePairedActivation = true;
                 originalSelection = selection.SelectedUnits.Where(unit => unit != null).ToArray();
                 CaptureOriginalPartyPets(game);
                 observations["originalPause"] = originalPause;
@@ -3297,6 +3301,7 @@ namespace KingmakerMountedCombat.Diagnostics
             try { realTimeModeProbe?.Dispose(); } catch (Exception exception) { errors.Add("RT mode cleanup: " + exception.Message); }
             realTimeModeProbe = null;
             settings.EnableUnsafeMovementExperiment = originalUnsafeExperimentSetting;
+            settings.EnablePairedActivation = originalPairedActivationSetting;
             try { service.SetSelectionEnabled(true); } catch (Exception exception) { errors.Add("Ranger selection cleanup: " + exception.Message); }
         }
 

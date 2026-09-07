@@ -1,3 +1,13 @@
+# Active combined paired-activation checkpoint
+
+2026-09-07. Branch `codex/mounted-combat-phase3f-playable-core`, reviewed HEAD `45e3d276754257f4513342d5bce7626dd609d252`; implementation changes are the new `0.1.0-paired-preview.1` candidate. The combined mission supersedes the historical Chunk 2 stop below. Read `docs/PAIRED-ACTIVATION-MILESTONE.md` and campaign `analysis-cache/runtime-evidence/paired-activation-20260907/ACTIVE-RUN.json` when present for later identities.
+
+One existing service now owns rider-principal grants, complete native preparation contexts, exact partner command eligibility, native selection exclusion and completion. Focused checks: components 354/0, native contracts 437/0, patch construction 5/0, deployment harness 243/0, source 22/0. No native gameplay run yet; all gameplay gates remain TODO. Fresh actual preview.13 intake is in campaign `intake.json`; no game was launched or external state changed. No useful earlier work discarded.
+
+Next: commit this implementation, run `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Package.ps1 -ArtifactQualifier paired-loop`, snapshot current protected state with the existing suite helper, then guarded WhatIf and rider-first native loop. Use the campaign intake for independent restoration. Do not run broad acceptance before both whole-loop cases pass. Preserve delayed debt, split/mode transitions and final-path A05/A10 as unqualified until native evidence exists.
+
+---
+
 # Active Chunk 2 checkpoint
 
 2026-09-07 09:08 UTC. Branch codex/mounted-combat-phase3f-playable-core. Binary source/frozen pre-documentation HEAD c804ba052760063f747cde83265e660916984d72, version0.1.0-chunk2-preview.10. All runtime sessions are complete; no game or live lock remains. A10 final HH/II/JJ/KK/LL PASS32/0 cases,287/0 assertions. A05 native7 R/S/T/U each49/0 retains separate sourcea3f6926:36 representative preparations,5287events,0drops/errors. Local10 suite PASS/0: component350, source22, assembly461, visual23, inventory10, harness243, Phase3G14, Phase3H36, ordinary39, allocation28, package10.

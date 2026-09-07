@@ -21,6 +21,7 @@ namespace KingmakerMountedCombat.Integration
             internal object Controller;
             internal int Round;
             internal long RoundStart;
+            internal string GrantIdentity;
             internal bool Prepared;
             internal float MoveUsed;
             internal bool StandardUsed;
@@ -79,11 +80,21 @@ namespace KingmakerMountedCombat.Integration
                 (turn.Unit == activeMount || Owns(turn.Unit)) ? turn : null;
         }
 
+        internal void BeginGrantedPreparation(TurnController turn, string identity)
+        {
+            if (turn == null) return;
+            MaintainLifetimes();
+            var controller = Game.Instance.TurnBasedCombatController;
+            allocations[turn.Unit] = new Allocation { Controller = controller, Round = controller.RoundNumber,
+                RoundStart = controller.RoundStartTime.Ticks, GrantIdentity = identity };
+            preparingTurn = turn;
+        }
+
         internal void BeforeNativeRoundState(UnitCombatState state)
         {
             var turn = preparingTurn;
             if (turn == null || state?.Unit != turn.Unit ||
-                Game.Instance?.TurnBasedCombatController?.CurrentTurn != turn ||
+                Game.Instance?.TurnBasedCombatController?.CurrentTurn != turn && Get(turn.Unit).GrantIdentity == null ||
                 !CombatController.IsInTurnBasedCombat()) return;
             // Exact native order: Clear -> reapply acting-command costs ->
             // reaction fields -> OnNewRound -> round/AI/fact/readiness callbacks.
@@ -115,7 +126,8 @@ namespace KingmakerMountedCombat.Integration
             var controller = Game.Instance.TurnBasedCombatController;
             Allocation allocation;
             if (!allocations.TryGetValue(mount, out allocation) || allocation.Controller != controller ||
-                allocation.Round != controller.RoundNumber || allocation.RoundStart != controller.RoundStartTime.Ticks)
+                allocation.GrantIdentity == null &&
+                (allocation.Round != controller.RoundNumber || allocation.RoundStart != controller.RoundStartTime.Ticks))
             {
                 allocation = new Allocation { Controller = controller, Round = controller.RoundNumber,
                     RoundStart = controller.RoundStartTime.Ticks };
@@ -154,6 +166,13 @@ namespace KingmakerMountedCombat.Integration
                 turn.Unit != activeMount && !Owns(turn.Unit)) return;
             var mount = turn.Unit;
             var allocation = Get(mount);
+            if (allocation.GrantIdentity != null)
+            {
+                // Native Clear and acting-command reapplication have run once at
+                // this explicit grant. Previous grant floors must not be restored.
+                allocation.MoveUsed = mount.CombatState.Cooldown.MoveAction;
+                allocation.StandardUsed = mount.CombatState.Cooldown.StandardAction > 0f;
+            }
             // A native allocation remains authoritative. Only expenditure made
             // within this native epoch survives its later Prepare; no early refresh.
             mount.CombatState.Cooldown.MoveAction = Math.Max(mount.CombatState.Cooldown.MoveAction, allocation.MoveUsed);
@@ -208,6 +227,28 @@ namespace KingmakerMountedCombat.Integration
                 ";mountStepMetres=" + allocation.Movement.MetresStepped.ToString("R") +
                 ";nativePrepared=" + allocation.Prepared + ";round=" + allocation.Round +
                 ";physicalDelta=" + requested.ToString("R") + "->" + deltaTime.ToString("R");
+        }
+
+        internal void CopyGrantedMovementToContext(TurnController turn)
+        {
+            if (turn == null || !allocations.ContainsKey(turn.Unit)) return;
+            var state = allocations[turn.Unit].Movement;
+            TurnMovementProperties[0].SetValue(turn, state.TimeMoved, null);
+            TurnMovementProperties[1].SetValue(turn, state.TimeForced, null);
+            TurnMovementProperties[2].SetValue(turn, state.TimeStepped, null);
+            TurnMovementProperties[3].SetValue(turn, state.MetresStepped, null);
+            TurnMovementProperties[4].SetValue(turn, state.StepImmune, null);
+            AiStepField.SetValue(turn, state.AiStep);
+            AutoStopField.SetValue(turn, state.AutoStopPending);
+        }
+
+        internal bool HasGrantedMovement(UnitEntityData actor, bool step, bool singleMove)
+        {
+            Allocation allocation;
+            if (actor == null || !allocations.TryGetValue(actor, out allocation) || !allocation.Prepared) return false;
+            return allocation.Movement.Remaining(actor.CurrentSpeedMps, TurnController.MetersOfFiveFootStep,
+                Math.Max(allocation.MoveUsed, actor.CombatState.Cooldown.MoveAction),
+                allocation.StandardUsed || actor.UsedStandardAction(), actor.IsMoveActionRestricted(), step, singleMove) > 0f;
         }
 
         private static PropertyInfo Property(string name) => typeof(TurnController).GetProperty(name, Flags) ??

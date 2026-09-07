@@ -194,7 +194,7 @@ namespace KingmakerMountedCombat.Integration
                 ReferenceEquals(blueprint, mountPrimaryAbility);
             var casterIsExactActor = command?.Executor != null && command.Spell?.Caster?.Unit == command.Executor &&
                 NativeMountedControlPolicy.IsExpectedPrimaryCaster(kind, CombatController.IsInTurnBasedCombat(),
-                    settings.EnableUnifiedMountedTurn, command.Executor == rider, command.Executor == relationship.Mount);
+                    settings.UsePairedTurnControls, command.Executor == rider, command.Executor == relationship.Mount);
             if (!NativeMountedControlPolicy.ShouldPreparePrimaryIntentShell(
                     kind,
                     !disposed && enabled && registered && !serializationSuspended,
@@ -827,7 +827,7 @@ namespace KingmakerMountedCombat.Integration
             return NativeMountedControlPolicy.ShouldLease(
                 kind,
                 settings.EnableUnsafeMovementExperiment,
-                settings.EnableUnifiedMountedTurn,
+                settings.UsePairedTurnControls,
                 ownerHasSupportedMount,
                 mounted,
                 faulted,

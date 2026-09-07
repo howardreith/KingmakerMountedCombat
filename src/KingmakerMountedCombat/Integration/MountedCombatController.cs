@@ -134,6 +134,20 @@ namespace KingmakerMountedCombat.Integration
                 activeCommand.ActionActor == relationship.Mount;
         }
 
+        internal bool OwnsExactPairedNativeCommand(UnitCommand command)
+        {
+            if (command == null || command.Executor != relationship.Mount || command.IsFinished) return false;
+            var commands = relationship.Mount.Commands;
+            return ReferenceEquals(commands.GetCommand(command.Type), command) &&
+                (OwnsExactUnifiedMountCommand(command) || ReferenceEquals(command, activeRiderTurnGroundMove) ||
+                 ReferenceEquals(command, activeCommand?.DelegatedMove) || ReferenceEquals(command, activeDoorInteraction?.DelegatedMove));
+        }
+
+        internal bool PairedActivationEnabled => settings.EnablePairedActivation;
+        internal string PairedActivationIdentity => unifiedTurn.ActivationIdentity;
+        internal long PairedActivationSequence => unifiedTurn.ActivationSequence;
+        internal TurnController PairedPartnerContext => unifiedTurn.PartnerContext;
+
         internal MountedDoorInteractionOutcome LastDoorInteractionOutcome { get; private set; }
 
         internal int LastGroundMoveDriveCount { get; private set; }
@@ -583,7 +597,7 @@ namespace KingmakerMountedCombat.Integration
             var casterExpected = NativeMountedControlPolicy.IsExpectedPrimaryCaster(
                 kind,
                 turnBased,
-                settings.EnableUnifiedMountedTurn,
+                settings.UsePairedTurnControls,
                 caster != null && caster == relationship.Rider,
                 caster != null && caster == relationship.Mount);
             if (!casterExpected)
@@ -594,7 +608,7 @@ namespace KingmakerMountedCombat.Integration
                     NativeMountedControlPolicy.WrongTurnReason(
                         kind,
                         MountDisplayName,
-                        settings.EnableUnifiedMountedTurn));
+                        settings.UsePairedTurnControls));
             }
 
             NativeSingleAttackWeaponSelection ignored;
@@ -698,6 +712,7 @@ namespace KingmakerMountedCombat.Integration
                     HandleCommandTerminal,
                     allowApproach,
                     !ordinaryIntent);
+                command.NativePartnerMovement = settings.EnablePairedActivation;
                 var schedulerRequired = pairedCommandScheduler.RequiresLease(action);
                 string schedulerReason;
                 if (schedulerRequired &&
@@ -846,7 +861,8 @@ namespace KingmakerMountedCombat.Integration
             var turn = turnBased ? Game.Instance?.TurnBasedCombatController?.CurrentTurn : null;
             var selection = SelectionManager.Instance?.SelectedUnits;
             var principal = ownerIsMount ? mount : rider;
-            if (ownerIsMount && (!turnBased || turn?.Unit != mount))
+            var pairedActorTurn = settings.EnablePairedActivation && unifiedTurn.CanAddressActor(principal, turn);
+            if (ownerIsMount && (!turnBased || turn?.Unit != mount && !pairedActorTurn))
             {
                 // The native party click visits each owner separately. Consume only this pair's
                 // redundant mount request; never touch another party member's command or selection.
@@ -865,7 +881,7 @@ namespace KingmakerMountedCombat.Integration
             var target = stockAttack.Target;
             var exactObservedRequest = UnifiedMountedStockAttackPolicy.IsExactObservedPlayerRequest(
                 true,
-                ownerIsRider || ownerIsMount && turnBased && turn?.Unit == mount,
+                ownerIsRider || ownerIsMount && turnBased && (turn?.Unit == mount || pairedActorTurn),
                 exactRiderSelected,
                 exactStockAttack,
                 observedStockRequestUnit == principal,
@@ -883,7 +899,7 @@ namespace KingmakerMountedCombat.Integration
             }
 
             if (!UnifiedMountedStockAttackPolicy.AllowsOrdinaryInput(
-                turnBased, settings.EnableUnifiedMountedTurn, turn?.Unit == principal))
+                turnBased, settings.UsePairedTurnControls, turn?.Unit == principal || pairedActorTurn))
             {
                 LastFeedback = "Mounted attacks use separate turns. Select the actor whose turn is active.";
                 LastRejectionCodes = new[] { MountedCombatRejectionCode.WrongTurn };
@@ -939,7 +955,7 @@ namespace KingmakerMountedCombat.Integration
                     return;
                 }
                 var expectedActor = stockIntent.MountActor ? relationship.Mount : relationship.Rider;
-                if (currentTurn.Unit != expectedActor ||
+                if (currentTurn.Unit != expectedActor && !unifiedTurn.CanAddressActor(expectedActor, currentTurn) ||
                     currentTurn.Status != TurnController.TurnStatus.Preparing && !currentTurn.IsActing)
                 {
                     return;
@@ -982,7 +998,7 @@ namespace KingmakerMountedCombat.Integration
                 ranged,
                 IsMountAlreadyInPrimaryRange(target),
                 !turnBased || !stockIntent.MountActor,
-                !turnBased || stockIntent.MountActor || settings.EnableUnifiedMountedTurn);
+                !turnBased || stockIntent.MountActor || settings.UsePairedTurnControls);
 
             if (decision == MountedStockAttackDecision.Wait)
             {
@@ -1129,7 +1145,7 @@ namespace KingmakerMountedCombat.Integration
                 attacker != null && attacker == relationship.Rider,
                 attacker != null && attacker == relationship.Mount,
                 target != null,
-                settings.EnableUnifiedMountedTurn);
+                settings.UseLegacyUnifiedTurn);
         }
 
         public bool TryOverrideMountTurnMovement(
@@ -1205,6 +1221,12 @@ namespace KingmakerMountedCombat.Integration
             }
 
             var turn = game.TurnBasedCombatController?.CurrentTurn;
+            if (settings.EnablePairedActivation && !unifiedTurn.CanMovePairedMount(turn))
+            {
+                LastFeedback = "The mount has no movement available in this paired activation.";
+                LastRejectionCodes = new[] { MountedCombatRejectionCode.WrongActionState };
+                return false;
+            }
             if (!MountedPairTurnPolicy.CanAdmitRiderGroundMovement(
                 true,
                 true,
@@ -1354,6 +1376,7 @@ namespace KingmakerMountedCombat.Integration
                 exactDoor,
                 logger,
                 HandleDoorInteractionTerminal);
+            routed.NativePartnerMovement = settings.EnablePairedActivation;
             activeDoorInteraction = routed;
             LastDoorInteractionOutcome = null;
             LastRejectionCodes = new MountedCombatRejectionCode[0];
@@ -1396,11 +1419,13 @@ namespace KingmakerMountedCombat.Integration
             var turnBasedCombat = CombatController.IsInTurnBasedCombat();
             var actionActorTurn = MountedPairTurnPolicy.CanIssueSharedAction(
                 turnBasedCombat,
-                settings.EnableUnifiedMountedTurn,
+                settings.UsePairedTurnControls,
                 turn?.Unit == rider,
                 turn?.Unit == actionActor,
                 turn != null && turn.Status == TurnBased.Controllers.TurnController.TurnStatus.Preparing,
                 turn != null && turn.IsActing);
+            if (settings.EnablePairedActivation && turnBasedCombat)
+                actionActorTurn = unifiedTurn.CanAddressActor(actionActor, turn);
             var riderWeapon = rider?.GetFirstWeapon();
             mountPrimary = action == MountedCombatActionKind.MountPrimaryNatural
                 ? NativeSingleAttackWeaponResolver.Resolve(mount)
@@ -1416,7 +1441,7 @@ namespace KingmakerMountedCombat.Integration
                 ExactRiderSelection = ordinaryIntent || MountedTurnSelectionPolicy.IsExpectedActionSelection(
                     turnBasedCombat,
                     action == MountedCombatActionKind.MountPrimaryNatural,
-                    settings.EnableUnifiedMountedTurn,
+                    settings.UsePairedTurnControls,
                     exactRiderSelection,
                     exactMountSelection),
                 SupportedMountProfile = SupportedMountedProfiles.Resolve(mount) != null &&
@@ -1459,7 +1484,7 @@ namespace KingmakerMountedCombat.Integration
                 WithinSupportedRangeEnvelope = true,
                 RangeOriginConsistent = true,
                 CommandAdmissionReady = action != MountedCombatActionKind.MountPrimaryNatural ||
-                    !turnBasedCombat || !settings.EnableUnifiedMountedTurn ||
+                    !turnBasedCombat || !settings.UseLegacyUnifiedTurn ||
                     pairedCommandScheduler.CanRegisterCurrentPair(out _)
             };
         }
@@ -1666,6 +1691,7 @@ namespace KingmakerMountedCombat.Integration
 
         private void DriveRiderTurnGroundMovement()
         {
+            if (settings.EnablePairedActivation) return;
             var command = activeRiderTurnGroundMove;
             if (command == null || command.IsFinished || !CombatController.IsInTurnBasedCombat())
             {

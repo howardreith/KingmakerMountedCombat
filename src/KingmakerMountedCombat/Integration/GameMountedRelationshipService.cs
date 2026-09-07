@@ -112,6 +112,10 @@ namespace KingmakerMountedCombat.Integration
         public TransitionResult MountRiderOn(UnitEntityData rider, UnitEntityData mount)
         {
             ThrowIfDisposed();
+            if (settings.EnablePairedActivation && (rider?.IsInCombat == true || mount?.IsInCombat == true ||
+                Game.Instance?.Player?.IsInCombat == true))
+                return Record(new TransitionResult(false, coordinator.State, null,
+                    new[] { "Mount before combat to establish paired activation ownership." }, false, false));
             if (!settings.EnableUnsafeMovementExperiment)
             {
                 return Record(new TransitionResult(false, coordinator.State, null, new[] { "Movement experiment is disabled." }, false, false));

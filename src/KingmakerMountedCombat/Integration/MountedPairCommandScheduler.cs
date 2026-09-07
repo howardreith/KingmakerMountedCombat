@@ -94,7 +94,7 @@ namespace KingmakerMountedCombat.Integration
         internal bool RequiresLease(MountedCombatActionKind action)
         {
             return action == MountedCombatActionKind.MountPrimaryNatural &&
-                settings.EnableUnifiedMountedTurn &&
+                settings.UseLegacyUnifiedTurn &&
                 CombatController.IsInTurnBasedCombat();
         }
 
@@ -111,7 +111,7 @@ namespace KingmakerMountedCombat.Integration
                 reason = "experimental scheduler disabled";
                 return false;
             }
-            if (!settings.EnableUnifiedMountedTurn)
+            if (!settings.UseLegacyUnifiedTurn)
             {
                 reason = "unified turn disabled";
                 return false;
@@ -510,7 +510,7 @@ namespace KingmakerMountedCombat.Integration
             return new PairedCommandEligibilityContext
             {
                 SchedulerEnabled = settings.EnablePairedCommandScheduler,
-                UnifiedTurnEnabled = settings.EnableUnifiedMountedTurn,
+                UnifiedTurnEnabled = settings.UseLegacyUnifiedTurn,
                 TurnBased = CombatController.IsInTurnBasedCombat(),
                 RelationshipMounted = relationship.State == RelationshipState.Mounted,
                 PairReferencesMatch = relationship.Rider == lease.Rider &&

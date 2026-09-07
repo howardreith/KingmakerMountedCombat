@@ -47,6 +47,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 throw new InvalidOperationException("Allocation qualification requires the unchanged separate-turn configuration.");
             allocationTrace = new NativeActorAllocationTrace(rider, horse, combat);
             allocationTrace.BeginEncounter(request.RunId + ":" + request.Scenario);
+            if (IsPairedAllocation)
+            {
+                if (!settings.EnablePairedActivation) throw new InvalidOperationException("Paired activation path was not enabled before pre-combat mounting.");
+                rangedWeaponLease = new Phase3dRangedWeaponLease(rider);
+                rangedWeaponLease.Acquire(Kingmaker.Enums.WeaponCategory.Longbow);
+            }
             step = Phase3dHorseStep.Phase3gControls;
             ResetLeafClock();
         }
@@ -67,6 +73,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     "; mountS=" + horse.CombatState.Cooldown.StandardAction + "; mountM=" + horse.CombatState.Cooldown.MoveAction +
                     "; pending=" + GetPendingNextUnit(controller)?.UniqueId + "; paused=" + game.IsPaused);
             if (game.IsPaused) { game.IsPaused = false; return; }
+            if (IsPairedAllocation && allocationStage >= 2) { TickPairedActivationGate(); return; }
             if (allocationProbeStarted) { TickAllocationConservationProbe(); return; }
             if (allocationStage == 0)
             {
@@ -78,6 +85,14 @@ namespace KingmakerMountedCombat.Diagnostics
                     return;
                 }
                 if (rider.IsInCombat || horse.IsInCombat || !PrepareUnmountedHorseAiIsolation() || !PrepareCombatMountRiderAiIsolation()) return;
+                if (IsPairedAllocation)
+                {
+                    // Select TB before spawning the encounter. This fixture must
+                    // not use a mid-encounter mode conversion to fabricate grants.
+                    if (turnBasedModeProbe == null) turnBasedModeProbe = new NativeModeTransitionProbe(true);
+                    if (!turnBasedModeProbe.TemporaryValueIsCurrent)
+                    { turnBasedModeProbe.DispatchTemporaryValueIfRequired(); return; }
+                }
                 allocationRiderInitiative = rider.Stats.Initiative.BaseValue;
                 allocationMountInitiative = horse.Stats.Initiative.BaseValue;
                 allocationInitiativeLease = true;
@@ -99,7 +114,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     .FirstOrDefault(member => member.Descriptor.State.IsConscious && member.Stats.HitPoints.ModifiedValue - member.Damage > 6);
                 if (unrelated != null) allocationRoundFacts.Add(new NativeAllocationRoundFactLease(unrelated));
                 observations["allocationNativeRoundFacts"] = new JArray(allocationRoundFacts.Select(fact => fact.Capture()));
-                BeginTarget(6f, "allocation-trace");
+                BeginTarget(IsPairedAllocation ? 3.5f : 6f, "allocation-trace");
                 ruleProbe.Arm(target, false);
                 allocationStage = 1; ResetLeafClock(); return;
             }
@@ -114,6 +129,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
                 allocationStage = 2; ResetLeafClock();
             }
+            if (IsPairedAllocation) { TickPairedActivationGate(); return; }
             if (allocationStage == 3)
             {
                 var timedOut = Time.frameCount > allocationMoveFrame + 240;

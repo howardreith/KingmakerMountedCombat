@@ -3,8 +3,84 @@ function Test-KmcActorAllocationScenario([string]$Scenario) {
         'actor-allocation-rider-first-unmounted-tb','actor-allocation-mount-first-unmounted-tb')
 }
 
+function Assert-KmcPairedActivationEvidence($Request, $Artifact, [string]$Status) {
+    if ([string]$Request.scenario -cnotin @('actor-allocation-rider-first-tb','actor-allocation-mount-first-tb') -or
+        [long]$Artifact.schemaVersion -ne 11) { throw 'Paired lifecycle evidence requires the exact mounted allocation scenario and schema 11.' }
+    $config=$Artifact.observations.phase3fActualConfiguration
+    if ($config.enablePairedActivation -ne $true) { throw 'Paired activation path was not selected.' }
+    foreach($flag in @('enableUnifiedMountedTurn','enablePairedCommandScheduler','enableDiagnosticOverlay','overlayPresent')) {
+        if($config.$flag -isnot [bool] -or $config.$flag) { throw 'An incompatible experimental authority or overlay was enabled.' }
+    }
+    $names=New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
+    $pass=0;$fail=0
+    foreach($row in $Artifact.rows) {
+        if(!$names.Add([string]$row.name) -or $row.status -cnotin @('PASS','FAIL') -or
+            $row.name -cnotin @('P01-three-paired-activations','A05-native-preparation-callbacks','phase3d-horse-scenario-deadline','phase3d-horse-leaf-deadline','phase3d-horse-runtime-exception','phase3d-horse-tranche-cleanup')) {
+            throw 'Unknown, duplicate or malformed paired activation row.'
+        }
+        if($row.status -ceq 'FAIL') {$fail++;continue};$pass++
+        if($row.name -ceq 'A05-native-preparation-callbacks') { Assert-KmcAllocationCallbackEvidence $Artifact $row.evidence;continue }
+        if($row.name -cne 'P01-three-paired-activations') { throw 'Failure-only paired row claimed PASS.' }
+        $e=$row.evidence;$trace=$Artifact.observations.actorAllocationTrace
+        $rider=[string]$Artifact.observations.riderId;$mount=[string]$Artifact.observations.horseId
+        if($e.level -cne 'NATIVE INTEGRATION' -or $e.gameplayQualified -ne $true -or
+            $e.inputKind -cne 'scripted-native-handler-integration' -or $e.principal -cne $rider -or
+            @($e.activations).Count -ne 3 -or @($e.errors).Count -ne 0 -or $trace.dropped -ne 0 -or
+            $trace.observationErrors -ne 0 -or $Artifact.observations.allocationFixture.outsideCombat -ne $true -or
+            $Artifact.observations.allocationFixture.endTurnInput -cne 'Game.PauseBind' -or
+            $Artifact.observations.allocationPartyCombatRestored -ne $true -or
+            $Artifact.observations.allocationInitiativeRestored -ne $true) {throw 'Paired loop coverage, provenance or restoration is incomplete.'}
+        if(@($e.turnVisits | Where-Object actor -CEQ $mount).Count -ne 0) {throw 'Mount received a second native turn.'}
+        $identities=New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
+        foreach($sample in $e.activations) {
+            if(!$identities.Add([string]$sample.identity) -or [string]$sample.identity -cnotmatch '^[0-9a-f]{32}:[1-9][0-9]*$') {throw 'Missing or repeated activation identity.'}
+            foreach($before in @($sample.riderBefore,$sample.mountBefore)) {
+                if($before.standard -ne 0 -or $before.move -ne 0 -or $before.canAct -ne $true) {throw 'Fresh allocation retained old debt or was not natively ready.'}
+            }
+            $round=[int]$sample.round
+            foreach($actor in @($rider,$mount)) {
+                $events=@($trace.events | Where-Object {$_.round -eq $round -and $_.state.actor -ceq $actor})
+                foreach($boundary in @('prepare-before','clear-before','clear-after','round-state-before','round-state-after','prepare-after','turn-end-before','turn-end-after')) {
+                    if(@($events|Where-Object boundary -CEQ $boundary).Count -ne 1) {throw "Paired actor has missing/duplicate $boundary."}
+                }
+            }
+            $visits=@($e.turnVisits | Where-Object round -EQ $round)
+            if(@($visits|Where-Object {!$_.friendly}).Count -lt 1 -or
+                @($visits|Where-Object {$_.friendly -and !$_.principal}).Count -lt 1) {throw 'Unrelated friendly/enemy turns are missing.'}
+            foreach($move in @($sample.operations|Where-Object kind -CEQ 'movement')) {
+                if($move.samePrincipalTurn -ne $true -or $move.fiveFootStep -ne $false -or $move.singleMove -ne $false -or
+                    [Math]::Abs([double]$move.riderAfter.move-[double]$move.riderBefore.move) -gt 0.0001) {throw 'Movement has wrong activation, limits or resource owner.'}
+                if($move.purpose -ceq 'exhausted-rejection') {
+                    if($move.distance -ge 0.02 -or [Math]::Abs([double]$move.nativeMoveCost) -ge 0.001 -or [Math]::Abs([double]$move.nativeAllowedTime) -ge 0.001) {throw 'Exhausted movement delivered motion or cost mutation.'}
+                } elseif($move.admitted -ne $true -or $move.distance -le 0.02 -or $move.nativeMoveCost -le 0 -or
+                    [Math]::Abs([double]$move.nativeMoveCost-[double]$move.nativeAllowedTime) -ge 0.02 -or
+                    [Math]::Abs([double]$move.distance-[double]$move.nativeAllowedTime*[double]$move.before.speedMps) -ge 0.35) {throw 'Movement lacks measured native distance/time/cost agreement.'}
+            }
+        }
+        $first=$e.activations[0];$second=$e.activations[1];$third=$e.activations[2]
+        $attacks=@($first.operations|Where-Object kind -CEQ 'attack')
+        if(($attacks.actor -join '|') -cne (@($rider,$mount)-join '|') -or $first.exhaustedMovementRejected -ne $true -or
+            $second.conversionAttackRejected -ne $true -or $third.earlyEnd -ne $true) {throw 'Attack/exhaustion/conversion/early-end cases are incomplete.'}
+        foreach($attack in $attacks) {
+            if($attack.clicked -ne $true -or $attack.result -cne 'Success' -or $attack.completedAttacks -ne 1 -or
+                $attack.nativeRule -ne $true -or $attack.after.standard -le 0) {throw 'Paired native Primary attack did not complete and charge.'}
+        }
+        foreach($state in @($e.refresh.rider,$e.refresh.mount)) {
+            if($state.standard -ne 0 -or $state.move -ne 0 -or $state.canAct -ne $true) {throw 'Early-end refresh failed.'}
+        }
+    }
+    if($pass -ne $Artifact.subscenarioPassCount -or $fail -ne $Artifact.subscenarioFailCount -or
+        ($Status -ceq 'PASS' -and ($pass -ne 2 -or $fail -ne 0 -or !$names.Contains('P01-three-paired-activations') -or
+            !$names.Contains('A05-native-preparation-callbacks') -or $Artifact.errors.Count -ne 0)) -or
+        ($Status -ceq 'FAIL' -and $fail -eq 0)) {throw 'Paired activation status/counts differ.'}
+}
+
 function Assert-KmcActorAllocationEvidence {
     param($Request, $Artifact, [string]$Status)
+    if ([long]$Artifact.schemaVersion -eq 11) {
+        Assert-KmcPairedActivationEvidence $Request $Artifact $Status
+        return
+    }
     if (!(Test-KmcActorAllocationScenario ([string]$Request.scenario)) -or [long]$Artifact.schemaVersion -ne 7) {
         throw 'Allocation trace requires the registered separate-turn native fixture schema.'
     }

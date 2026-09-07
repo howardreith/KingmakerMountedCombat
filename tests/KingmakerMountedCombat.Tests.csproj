@@ -41,6 +41,8 @@
     <Compile Include="MountedPlayerActionTests.cs" />
     <Compile Include="MountedCombatDomainTests.cs" />
     <Compile Include="ActorAllocationLifetimeTests.cs" />
+    <Compile Include="PairedActivationTests.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\PairedActivation.cs" />
     <Compile Include="ManualReviewBoundaryGuardTests.cs" />
     <Compile Include="RuntimeSaveAuthorizationTests.cs" />
     <Compile Include="StopEarlyCaptureBoundaryTests.cs" />

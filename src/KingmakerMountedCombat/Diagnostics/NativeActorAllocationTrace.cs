@@ -77,7 +77,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             var turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
             var cooldown = actor.CombatState.Cooldown;
-            var nativeTurn = turn?.Unit == actor ? turn : null;
+            var nativeTurn = turn?.Unit == actor ? turn : combat.PairedPartnerContext?.Unit == actor ? combat.PairedPartnerContext : null;
             return new JObject {
                 ["actor"] = actor.UniqueId, ["actorObject"] = Id(actor), ["grantSequence"] = GrantCount(actor),
                 ["standard"] = cooldown.StandardAction, ["move"] = cooldown.MoveAction, ["swift"] = cooldown.SwiftAction,
@@ -136,7 +136,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         internal void Record(string boundary, UnitEntityData actor, UnitCommand command = null, string detail = null, object callback = null)
         {
-            if (actor == null || actor.Group != rider.Group) return;
+            if (actor == null || actor.Group != rider.Group && (!combat.PairedActivationEnabled || !actor.IsInCombat)) return;
             if (events.Count >= 16000) { dropped++; return; }
             try
             {
@@ -144,6 +144,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 var turn = controller.CurrentTurn;
                 events.Add(new JObject {
                     ["sequence"] = events.Count + 1, ["encounter"] = encounter, ["session"] = Id(Game.Instance.Player),
+                    ["activationIdentity"] = combat.PairedActivationIdentity,
                     ["boundary"] = boundary, ["frame"] = Time.frameCount, ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks,
                     ["simulatingClick"] = Kingmaker.Controllers.Clicks.PointerController.SimulatingClick,
                     ["controller"] = Id(controller), ["round"] = controller.RoundNumber, ["roundStartTicks"] = controller.RoundStartTime.Ticks,

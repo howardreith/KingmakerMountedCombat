@@ -40,6 +40,7 @@ namespace KingmakerMountedCombat.Integration
         private bool terminalReported;
         private bool mountMoveSlotRestored = true;
         private string terminalReason;
+        internal bool NativePartnerMovement { get; set; }
 
         public MountedDoorInteractionCommand(
             GameMountedRelationshipService relationship,
@@ -171,6 +172,7 @@ namespace KingmakerMountedCombat.Integration
 
         private void DriveDelegatedMoveOnRiderTurn()
         {
+            if (NativePartnerMovement) return;
             if (!delegatedMove.IsStarted && !delegatedMove.IsFinished)
             {
                 delegatedMove.TickApproaching();

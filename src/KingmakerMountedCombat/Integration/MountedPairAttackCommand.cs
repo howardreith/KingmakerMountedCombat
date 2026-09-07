@@ -156,6 +156,7 @@ namespace KingmakerMountedCombat.Integration
 
     internal sealed class MountedPairAttackCommand : MountedPairSingleAttack
     {
+        internal bool NativePartnerMovement { get; set; }
         private const float TargetRepathDistance = 0.75f;
         private const float MaximumElapsedSeconds = 8.5f;
 
@@ -561,7 +562,7 @@ namespace KingmakerMountedCombat.Integration
                 BeginDelegatedMove();
             }
 
-            if (TurnBased.Controllers.CombatController.IsInTurnBasedCombat() &&
+            if (!NativePartnerMovement && TurnBased.Controllers.CombatController.IsInTurnBasedCombat() &&
                 Kingmaker.Game.Instance?.TurnBasedCombatController?.CurrentTurn?.Unit == rider)
             {
                 DriveDelegatedMoveOnRiderTurn();

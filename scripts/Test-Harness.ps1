@@ -4762,7 +4762,7 @@ try {
             $controllerSource.Contains('attacker != null && attacker == relationship.Rider,') -and
             $controllerSource.Contains('attacker != null && attacker == relationship.Mount,')) 'opportunity isolation is not constrained to an active exact mounted-pair command'
         Assert-Test ($policySource.Contains('return experimentalIsolationEnabled && relationshipMounted') -and
-            $controllerSource -match 'target != null,\s*settings\.EnableUnifiedMountedTurn\);' -and
+            $controllerSource -match 'target != null,\s*settings\.UseLegacyUnifiedTurn\);' -and
             $policySource.Contains('(attackerIsExactRider || attackerIsExactMount)') -and
             -not $patchSource.Contains('PatchExact(typeof(UnitCombatState), "Disengage"')) 'opportunity isolation changed the broad engagement lifecycle instead of the exact attack emission seam'
     }
@@ -5329,7 +5329,7 @@ try {
             $spatialPolicySource.Contains('(currentUnitIsExactActor && (actorTurnIsPreparing || actorTurnIsActing))') -and
             $spatialPolicySource.Contains('unifiedMountedTurn ? currentUnitIsExactRider : currentUnitIsExactActionActor') -and
             $controllerSource.Contains('var actionActorTurn = MountedPairTurnPolicy.CanIssueSharedAction(') -and
-            $controllerSource.Contains('settings.EnableUnifiedMountedTurn,') -and
+            $controllerSource.Contains('settings.UsePairedTurnControls,') -and
             $controllerSource.Contains('turn.Status == TurnBased.Controllers.TurnController.TurnStatus.Preparing') -and
             $controllerSource.Contains('turn != null && turn.IsActing') -and
             $engineSource.Contains('MountedPairTurnPolicy.CanIssueSharedAction(') -and
@@ -11614,7 +11614,7 @@ try {
             $phase3dHorseSource.Contains('["commandAiActionPresent"] = commandPresent && command.AiAction != null') -and
             $phase3dHorseSource.Contains('["createdByPlayer"] = command.CreatedByPlayer') -and
             $phase3dHorseSource.Contains('["aiActionPresent"] = command.AiAction != null') -and
-            $phase3dHorseSource.Contains('["schemaVersion"] = IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,') -and
+            $phase3dHorseSource.Contains('["schemaVersion"] = IsPairedAllocation ? 11 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,') -and
             $phase3dHorseSource.Contains('explicitPrimaryLedgerBefore = combat.CaptureUnifiedTurnSnapshot();') -and
             $phase3dHorseSource.Contains('var pairedScheduler = combat.CapturePairedCommandSchedulerSnapshot();') -and
             $phase3dHorseSource.Contains('pairedScheduler.CleanupReason == "native terminal slot removal"') -and

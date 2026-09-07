@@ -341,6 +341,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 ["enableUnifiedMountedTurn"] = settings.EnableUnifiedMountedTurn,
                 ["enablePairedCommandScheduler"] = settings.EnablePairedCommandScheduler,
+                ["enablePairedActivation"] = settings.EnablePairedActivation,
                 ["enableDiagnosticOverlay"] = settings.EnableDiagnosticOverlay,
                 ["overlayPresent"] = playerAction.OverlayPresent
             };
@@ -783,7 +784,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 throw new InvalidOperationException("Phase 3D target lease is already active.");
             }
             targetService = new DiagnosticCombatTargetService(
-                logger, repeatedNativeSequences: IsPhase3hLoop && !Phase3gTurnBased);
+                logger, repeatedNativeSequences: IsPairedAllocation || IsPhase3hLoop && !Phase3gTurnBased);
             var point = position ?? FindWalkablePoint(rider.Position, distance, distance >= 10f ? 1.0f : 0.5f);
             target = targetService.Spawn(rider, horse, point, request.RunId + "-" + suffix, true, true);
             if (!targetService.PrepareForPlayerClick(target) ||
@@ -6156,7 +6157,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             var artifact = new JObject
             {
-                ["schemaVersion"] = IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,
+                ["schemaVersion"] = IsPairedAllocation ? 11 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,
                 ["evidenceKind"] = EvidenceKind,
                 ["runId"] = request.RunId,
                 ["scenario"] = request.Scenario,

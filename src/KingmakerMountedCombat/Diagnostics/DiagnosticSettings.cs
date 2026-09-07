@@ -22,6 +22,13 @@ namespace KingmakerMountedCombat.Diagnostics
 
         public bool EnablePairedCommandScheduler { get; set; }
 
+        // Developer-only coherent lifecycle. The two retired experimental paths
+        // are bypassed whenever this path is selected; all defaults remain false.
+        public bool EnablePairedActivation { get; set; }
+
+        internal bool UseLegacyUnifiedTurn => EnableUnifiedMountedTurn && !EnablePairedActivation;
+        internal bool UsePairedTurnControls => EnablePairedActivation || EnableUnifiedMountedTurn;
+
         public bool EnableDiagnosticOverlay { get; set; }
 
         public double MaximumAnchorResidualWorldUnits { get; set; }
