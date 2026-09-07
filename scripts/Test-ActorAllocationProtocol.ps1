@@ -397,3 +397,4 @@ foreach($factory in @('New-PairedEnvelope','New-PairedTransitionEnvelope','New-P
 }
 Write-Host "ALLOCATION PROTOCOL PASS=$passes FAIL=0 (envelope validation only)"
 & (Join-Path $PSScriptRoot 'Test-PairedRestrictionsProtocol.ps1')
+& (Join-Path $PSScriptRoot 'Test-PairedConditionCommandsProtocol.ps1')

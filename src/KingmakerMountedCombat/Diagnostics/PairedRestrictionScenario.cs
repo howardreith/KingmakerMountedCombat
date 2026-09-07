@@ -62,6 +62,8 @@ namespace KingmakerMountedCombat.Diagnostics
             sample["condition"] = pairedRestrictionCondition?.ToString();
             sample["mountAble"] = horse.IsAbleToAct();
             sample["mountCanGetUp"] = combat.PairedPartnerCanGetUp;
+            sample["mountCanStandUp"] = horse.Descriptor.State.CanStandUp;
+            sample["mountCanMove"] = horse.Descriptor.State.CanMove;
             sample["mountConditions"] = new JArray(new[] { UnitCondition.Staggered, UnitCondition.Prone, UnitCondition.Stunned }
                 .Where(condition => horse.Descriptor.State.HasCondition(condition)).Select(condition => condition.ToString()));
             ((JArray)pairedRestrictionEvidence["events"]).Add(sample);
@@ -196,6 +198,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 pairedTransitionTurn = turn;
                 var destination = FindPairedControlPoint(0.25f, "paired-get-up-endpoints");
                 BeginPairedTransitionMove(0f, false, "native-get-up-input", true, false, destination);
+                pairedRestrictionEvidence["getUpInput"] = pairedTransitionMove.DeepClone();
+                pairedRestrictionEvidence["getUpFeedback"] = combat.LastFeedback;
                 RequirePaired((bool)pairedTransitionMove["admitted"], "Native get-up terrain input was refused.");
                 pairedRestrictionStage = 8; ResetLeafClock(); return;
             }

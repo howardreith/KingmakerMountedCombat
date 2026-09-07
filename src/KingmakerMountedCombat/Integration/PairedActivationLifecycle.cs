@@ -21,6 +21,8 @@ namespace KingmakerMountedCombat.Integration
         private int splitReleaseRound = -1;
         private long pairedRenewalNotBefore;
         private TurnController resumingContext;
+        private static readonly MethodInfo NativeToEnd = ResolveMethod(typeof(TurnController), "ToEnd", 0x06000C45, Type.EmptyTypes);
+        internal static void CompleteNativeForfeitPhase(TurnController context) => NativeToEnd.Invoke(context, null);
         private static readonly MethodInfo NativeEnd = ResolveMethod(typeof(TurnController), "End", 0x06000C46, Type.EmptyTypes);
         private static readonly MethodInfo NativeContinueActing = ResolveMethod(typeof(TurnController), "ContinueActing", 0x06000C3D, Type.EmptyTypes);
         private static readonly MethodInfo NativeStatus = ResolveMethod(typeof(TurnController), "set_Status", 0x06000C0F, new[] { typeof(TurnController.TurnStatus) });
@@ -32,6 +34,10 @@ namespace KingmakerMountedCombat.Integration
         internal long ActivationSequence => activation?.Sequence ?? 0;
         internal TurnController PartnerContext => partnerContext;
         internal bool IsPartnerContext(TurnController turn) => turn != null && ReferenceEquals(partnerContext, turn);
+        internal bool IsPreparingPairedActor(UnitEntityData actor) => PairedLifecycleEnabled &&
+            activation?.Boundary == Game.Instance?.TurnBasedCombatController?.CurrentTurn &&
+            activation?.State(actor)?.Granted == true && !activation.State(actor).Prepared;
+        internal bool PairedActorEnded(UnitEntityData actor) => activation?.State(actor)?.Ended == true;
 
         internal bool CanAddressActor(UnitEntityData actor, TurnController turn)
         {
@@ -44,9 +50,13 @@ namespace KingmakerMountedCombat.Integration
         internal bool CanMovePairedMount(TurnController turn)
         {
             var mount = activation?.Partner;
-            if (!CanAddressActor(mount, turn) || !mount.IsAbleToAct()) return false;
+            if (!CanAddressActor(mount, turn)) return false;
             var getUp = PartnerCanGetUp &&
                 mount.HasMoveAction() && mount.Descriptor.State.CanStandUp;
+            // Native ContinueActing accepts its get-up state while the prone
+            // animation still prevents ordinary action. CanStandUp retains the
+            // native helpless/dazed/stunned restriction; standing costs Move.
+            if (!mount.IsAbleToAct() && !getUp) return false;
             if (!mount.Descriptor.State.CanMove && !getUp) return false;
             var input = SelectedNativeInputContext(turn);
             // Native prone processing requires a real Move action. A remaining
@@ -123,6 +133,7 @@ namespace KingmakerMountedCombat.Integration
                 return true;
             }
             if (!activation.Begin(turn)) return false;
+            nativePreparationCommands.Clear();
             if (!activation.BeginActorPreparation(turn.Unit, turn)) return false;
             movementState.BeginGrantedPreparation(turn, activation.Identity);
             return true;
@@ -159,7 +170,8 @@ namespace KingmakerMountedCombat.Integration
         {
             if (actor.IsCurrentUnit()) return true;
             var turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
-            return CanAddressActor(actor, turn) && actor == activation.Partner &&
+            return OwnsNativePreparationCommand(actor, command, turn) ||
+                CanAddressActor(actor, turn) && actor == activation.Partner &&
                 command != null && command.Executor == actor &&
                 (!command.IsIgnoreCooldown || command.GetType() == typeof(UnitMoveTo)) &&
                 combat != null && combat.OwnsExactPairedNativeCommand(command);
@@ -168,7 +180,7 @@ namespace KingmakerMountedCombat.Integration
         internal void SynchronizePartnerPhase(TurnController turn)
         {
             if (!PairedLifecycleEnabled || activation == null || partnerContext == null ||
-                !ReferenceEquals(turn, activation.Boundary) || activation.Split) return;
+                !ReferenceEquals(turn, activation.Boundary) || activation.Split && !HasNativePreparationActivity(turn)) return;
             // A private native context has no Tick driver. Its phase follows the
             // actual principal transition so native command-end processing does
             // not return early in Preparing and omit movement cost finalization.
@@ -178,7 +190,7 @@ namespace KingmakerMountedCombat.Integration
 
         internal bool HasPairedActivity(TurnController turn)
         {
-            return turn.IsActed() || CanAddressActor(activation?.Partner, turn) &&
+            return turn.IsActed() || HasNativePreparationActivity(turn) || CanAddressActor(activation?.Partner, turn) &&
                 (combat.HasActiveCommand || combat.HasActiveGroundMovement);
         }
 
@@ -205,6 +217,7 @@ namespace KingmakerMountedCombat.Integration
 
         private bool PartnerHasAction(TurnController turn)
         {
+            if (HasNativePreparationActivity(turn)) return true;
             if (!CanAddressActor(activation?.Partner, turn) || partnerContext == null) return false;
             // Native continuation includes its Auto End preference, remaining
             // action time, get-up exception and condition/AI completion policy.
@@ -218,16 +231,18 @@ namespace KingmakerMountedCombat.Integration
         {
             if (!PairedLifecycleEnabled || activation == null || !ReferenceEquals(turn, activation.Boundary)) return;
             SynchronizePartnerPhase(turn);
-            if (activation.Partner.IsInState && activation.Partner.IsAbleToAct() &&
+            if (HasNativePreparationActivity(turn) || activation.Partner.IsInState && activation.Partner.IsAbleToAct() &&
                 (activation.Partner.Commands.IsRunning() || combat.HasActiveCommand || combat.HasActiveGroundMovement)) result = true;
         }
 
         internal void ForfeitPairedActivation(TurnController turn, bool setCooldowns)
         {
             if (!PairedLifecycleEnabled || activation == null || !ReferenceEquals(turn, activation.Boundary)) return;
+            if (ReferenceEquals(turn, nativeConditionForfeitContext)) return;
             if (!setCooldowns) return; // Native delay's false path is not an allocation forfeiture.
             activation.BeginEnding();
             ObservePairedCosts(turn.Unit); ObservePairedCosts(activation.Partner);
+            InterruptNativePreparationCommands();
             combat.Cancel("native paired End Turn");
             if (partnerContext != null)
             {
@@ -235,14 +250,29 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
+        internal void EndPairedServiceParticipation()
+        {
+            if (!PairedLifecycleEnabled || activation == null) return;
+            var boundary = activation.Boundary;
+            if (boundary != null && !activation.Finalized)
+            {
+                // Disable/unload must finish the granted resources while the
+                // native actor contexts and scoped adapters are still available.
+                boundary.ForceToEnd();
+                NativeEnd.Invoke(boundary, null);
+            }
+            nativePreparationCommands.Clear();
+        }
         internal void FinishPairedActivation(TurnController turn)
         {
             if (!PairedLifecycleEnabled || activation == null || !ReferenceEquals(turn, activation.Boundary)) return;
-            if (activation.Rider.Ended && activation.Mount.Ended) return;
+            if (activation.Finalized) return;
             activation.BeginEnding();
             if (partnerContext != null) NativeEnd.Invoke(partnerContext, null);
             ObservePairedCosts(activation.Principal); ObservePairedCosts(activation.Partner);
             activation.EndActor(activation.Principal); activation.EndActor(activation.Partner);
+            activation.FinalizeActivation();
+            nativePreparationCommands.Clear();
             logger.Info("Paired activation ended: " + activation.Identity);
             DisposePartnerContext();
         }
@@ -271,6 +301,7 @@ namespace KingmakerMountedCombat.Integration
                     movementState.RetireCompletedEncounterActor(activation.Principal);
                     movementState.RetireCompletedEncounterActor(activation.Partner);
                 }
+                nativePreparationCommands.Clear();
                 DisposePartnerContext(); activation = null; activationSession = null;
                 armedRider = null; armedMount = null; splitReleaseRound = -1; pairedRenewalNotBefore = 0; resumingContext = null;
                 if (relationship.State == RelationshipState.Mounted) ArmPairedEncounter(relationship.Rider, relationship.Mount);

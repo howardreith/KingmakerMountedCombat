@@ -126,6 +126,8 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(TurnController), "DelayInitiaive", 0x06000C61, new[] { typeof(UnitEntityData) }, nameof(PatchMethods.PairedDelayPrefix));
                 PatchExact(typeof(TurnController), "ForceToEnd", 0x06000C47, new[] { typeof(bool) }, nameof(PatchMethods.PairedForfeitPrefix), null, nameof(PatchMethods.PairedForfeitDebtTranspiler));
                 PatchExact(typeof(TurnController), "End", 0x06000C46, Type.EmptyTypes, null, nameof(PatchMethods.PairedEndPostfix), nameof(PatchMethods.PairedEndDebtTranspiler));
+                PatchExact(typeof(UnitDoNothing), "OnTick", 0x060026C9, Type.EmptyTypes, null, null, nameof(PatchMethods.PairedConditionActionTranspiler));
+                PatchExact(typeof(UnitSelfHarm), "OnAction", 0x0600270C, Type.EmptyTypes, null, null, nameof(PatchMethods.PairedConditionActionTranspiler));
                 PatchExact(typeof(UnitConfusionController), "TickOnUnit", 0x06009131, new[] { typeof(UnitEntityData) }, null, null, nameof(PatchMethods.PairedConfusionTranspiler));
                 PatchExact(typeof(UnitProneController), "Tick", 0x0600918C, new[] { typeof(UnitEntityData) }, null, null, nameof(PatchMethods.PairedProneTranspiler));
                 PatchExact(typeof(UnitCombatState), "OnNewRound", 0x0600939D, Type.EmptyTypes, nameof(PatchMethods.NativeRoundStatePrefix));
@@ -260,6 +262,7 @@ namespace KingmakerMountedCombat.Integration
                 // Native TB cursor prediction replaces Unit.Commands temporarily. Its fake orders
                 // must stay entirely native; routing one can cancel a real pair order or move its mount.
                 if (PointerController.SimulatingClick) { return true; }
+                if (PatchBridge.UnifiedTurn?.AdmitNativePreparationCommand(__instance, cmd) == true) return true;
                 if (PatchBridge.Combat != null && !PatchBridge.Combat.TryRouteMountedDoorInteraction(__instance, ref cmd))
                 {
                     return false;
@@ -431,8 +434,24 @@ namespace KingmakerMountedCombat.Integration
                 PairedActivationTranspilers.ActorEligibility(instructions, Hook(nameof(PairedProneActor)), false);
             internal static IEnumerable<CodeInstruction> PairedReadinessTranspiler(IEnumerable<CodeInstruction> instructions) =>
                 PairedActivationTranspilers.Readiness(instructions, Hook(nameof(PairedReadiness)));
+            internal static bool PairedConditionActor(UnitEntityData actor, UnitCommand command) =>
+                PatchBridge.UnifiedTurn?.IsNativeConditionCommandActor(actor, command) ?? actor.IsCurrentUnit();
+            internal static void PairedConditionForfeit(TurnController context, bool setCooldowns, UnitCommand command)
+            {
+                if (PatchBridge.UnifiedTurn == null) context.ForceToEnd(setCooldowns);
+                else PatchBridge.UnifiedTurn.ForfeitNativeConditionActor(context, setCooldowns, command);
+            }
+            internal static void PairedForfeitPhase(TurnController context)
+            {
+                if (PatchBridge.UnifiedTurn?.CompleteNativeConditionForfeit(context) != true)
+                    UnifiedMountedTurnCoordinator.CompleteNativeForfeitPhase(context);
+            }
+            internal static IEnumerable<CodeInstruction> PairedConditionActionTranspiler(IEnumerable<CodeInstruction> instructions) =>
+                PairedActivationTranspilers.ActorConditionAction(instructions, Hook(nameof(PairedConditionActor)), Hook(nameof(PairedConditionForfeit)));
             internal static IEnumerable<CodeInstruction> PairedForfeitDebtTranspiler(IEnumerable<CodeInstruction> instructions) =>
-                PairedActivationTranspilers.CompletionDebt(instructions, Hook(nameof(PairedStandardEndWrite)), Hook(nameof(PairedMoveEndWrite)), Hook(nameof(PairedSwiftEndWrite)), true);
+                PairedActivationTranspilers.ActorForfeitPhase(
+                    PairedActivationTranspilers.CompletionDebt(instructions, Hook(nameof(PairedStandardEndWrite)), Hook(nameof(PairedMoveEndWrite)), Hook(nameof(PairedSwiftEndWrite)), true),
+                    Hook(nameof(PairedForfeitPhase)));
             internal static IEnumerable<CodeInstruction> PairedEndDebtTranspiler(IEnumerable<CodeInstruction> instructions) =>
                 PairedActivationTranspilers.CompletionDebt(instructions, Hook(nameof(PairedStandardEndWrite)), Hook(nameof(PairedMoveEndWrite)), Hook(nameof(PairedSwiftEndWrite)), false);
             internal static IEnumerable<CodeInstruction> PairedPreparationTranspiler(IEnumerable<CodeInstruction> instructions, ILGenerator generator) =>
@@ -569,6 +588,9 @@ namespace KingmakerMountedCombat.Integration
                 ref bool __result)
             {
                 bool result;
+                if (PatchBridge.UnifiedTurn != null &&
+                    PatchBridge.UnifiedTurn.TryMoveNativePreparationActor(__instance, ref deltaTime, out result))
+                { __result = result; return false; }
                 if (PatchBridge.Combat != null &&
                     PatchBridge.Combat.TryOverrideMountTurnMovement(__instance, ref deltaTime, out result))
                 {

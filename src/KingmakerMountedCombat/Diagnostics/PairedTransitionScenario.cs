@@ -286,7 +286,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 RequirePaired((int)trace["dropped"] == 0 && (int)trace["observationErrors"] == 0, "Transition observers lost native evidence.");
                 AddRow("P02-paired-native-transitions", true, "Native Delay conservation, TB partial Stop, TB-RT-TB recovery, step restriction and dismount participation.",
                     (JObject)observations["pairedTransitions"].DeepClone());
-                BeginCleanup();
+                BeginPairedNativeConditions();
             }
         }
 

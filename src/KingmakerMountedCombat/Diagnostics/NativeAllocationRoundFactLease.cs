@@ -26,6 +26,12 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly string blueprintId;
         private readonly string templateId;
         private bool disposed;
+        internal UnitEntityData Actor => actor;
+        internal void SetDiagnosticRoundAction(GameAction action)
+        {
+            if (disposed) throw new ObjectDisposedException(nameof(NativeAllocationRoundFactLease));
+            component.NewRound = new ActionList { Actions = action == null ? new GameAction[] { heal } : new GameAction[] { heal, action } };
+        }
 
         internal NativeAllocationRoundFactLease(UnitEntityData actor)
         {

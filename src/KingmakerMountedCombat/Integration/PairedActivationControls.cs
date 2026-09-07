@@ -31,11 +31,12 @@ namespace KingmakerMountedCombat.Integration
         }
 
         internal TurnController NativeActorActionContext(TurnController native, UnitEntityData actor) =>
-            actor != null && actor == activation?.Partner && CanAddressActor(actor, native) && partnerContext != null
+            actor != null && actor == activation?.Partner && (CanAddressActor(actor, native) || OwnsNativeConditionActorContext(actor, native)) && partnerContext != null
                 ? partnerContext : native;
 
         internal bool IsNativeActionContextActor(UnitEntityData actor) => actor.IsCurrentUnit() ||
-            CanAddressActor(actor, Game.Instance?.TurnBasedCombatController?.CurrentTurn);
+            CanAddressActor(actor, Game.Instance?.TurnBasedCombatController?.CurrentTurn) ||
+            OwnsNativeConditionActorContext(actor, Game.Instance?.TurnBasedCombatController?.CurrentTurn);
 
         internal bool ShouldRunNativeIgnoreClick(TurnController context, ref bool result)
         {

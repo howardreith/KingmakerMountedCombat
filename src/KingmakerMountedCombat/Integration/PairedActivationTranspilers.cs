@@ -104,6 +104,30 @@ namespace KingmakerMountedCombat.Integration
                 "completion state/command callback boundary");
             return code;
         }
+        internal static IEnumerable<CodeInstruction> ActorConditionAction(IEnumerable<CodeInstruction> source,
+            MethodInfo eligible, MethodInfo forfeit)
+        {
+            var code = source.ToList();
+            var current = Enumerable.Range(0, code.Count).Where(i => Token(code[i], 0x0600838E)).ToArray();
+            var end = Enumerable.Range(0, code.Count).Where(i => Token(code[i], 0x06000C47)).ToArray();
+            if (current.Length != 1 || end.Length != 1 || current[0] >= end[0] ||
+                current[0] == 0 || !Token(code[current[0]-1], 0x06002755))
+                throw new InvalidOperationException("Native condition actor/forfeit contract changed.");
+            // Preserve native argument stack, conditions, timing and action body.
+            code[end[0]].opcode = OpCodes.Call; code[end[0]].operand = forfeit;
+            code.Insert(end[0], new CodeInstruction(OpCodes.Ldarg_0));
+            code[current[0]].opcode = OpCodes.Call; code[current[0]].operand = eligible;
+            code.Insert(current[0], new CodeInstruction(OpCodes.Ldarg_0));
+            return code;
+        }
+        internal static IEnumerable<CodeInstruction> ActorForfeitPhase(IEnumerable<CodeInstruction> source, MethodInfo complete)
+        {
+            var code = source.ToList();
+            var sites = Enumerable.Range(0, code.Count).Where(i => Token(code[i], 0x06000C45)).ToArray();
+            if (sites.Length != 1) throw new InvalidOperationException("Native ForceToEnd phase contract changed.");
+            code[sites[0]].opcode = OpCodes.Call; code[sites[0]].operand = complete;
+            return code;
+        }
         private static bool Token(CodeInstruction instruction, int token) => instruction.operand is MemberInfo member && member.MetadataToken == token;
         private static void Require(bool condition, string boundary)
         {

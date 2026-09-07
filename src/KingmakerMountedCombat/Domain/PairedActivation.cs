@@ -35,6 +35,7 @@ namespace KingmakerMountedCombat.Domain
         public ActorState Rider { get; private set; }
         public ActorState Mount { get; private set; }
         public bool Ending { get; private set; }
+        public bool Finalized { get; private set; }
         public bool Split { get; private set; }
         public bool Suspended { get; private set; }
         public bool Open => Rider != null && Rider.Prepared && Mount.Prepared && !Ending && !Suspended;
@@ -50,14 +51,14 @@ namespace KingmakerMountedCombat.Domain
         public bool Begin(TBoundary boundary)
         {
             if (boundary == null || Split || boundaries.Contains(boundary)) return false;
-            if (Boundary != null && (!Rider.Ended || !Mount.Ended))
-                throw new InvalidOperationException("Previous paired activation has not ended.");
+            if (Boundary != null && !Finalized)
+                throw new InvalidOperationException("Previous paired activation has not been finalized.");
             boundaries.Add(boundary);
             Boundary = boundary;
             Sequence++;
             Rider = new ActorState { Actor = Principal };
             Mount = new ActorState { Actor = Partner };
-            Ending = false;
+            Ending = false; Finalized = false;
             return true;
         }
 
@@ -107,6 +108,15 @@ namespace KingmakerMountedCombat.Domain
             var state = State(actor);
             if (state == null || !state.Granted) return;
             state.Ended = true;
+        }
+        public bool FinalizeActivation()
+        {
+            if (Finalized) return false;
+            if (Boundary == null || Rider.Granted && !Rider.Ended || Mount.Granted && !Mount.Ended)
+                throw new InvalidOperationException("Every granted actor must end before paired finalization.");
+            BeginEnding();
+            Finalized = true;
+            return true;
         }
         public void Detach() { Split = true; }
     }

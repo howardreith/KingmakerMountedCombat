@@ -2,7 +2,7 @@
 
 Status: **IN PROGRESS**. [Milestone report](docs/PAIRED-ACTIVATION-MILESTONE.md).
 
-First gate PASS in both arrangements on preview.9 (I/J,96/0). R preview.17 passes P01/A05/P03/P02 mount-first (50/0). S preview.18 repeats rider-first P01/A05 with exact unrelated actor order, then correctly interrupts a short-reach natural tail in the ordinary Full plan: fixed-distance setup was insufficient. Working19 uses the existing native navmesh fixture with the shortest range in both plans. P04 restrictions/get-up/disabled completion and spent-Standard mode case remain unqualified. All nineteen transactions restored actual human preview.13/current external state. Remaining A01-A09, final-path A05/A10 and publication are IN PROGRESS; this milestone is not complete.
+First gate PASS in both arrangements on preview.9 (I/J,96/0). R17 passes mount-first P01/A05/P03/P02 (50/0); T19 passes rider-first P01/A05/P03, then refuses native get-up input (49/2). Working20 preserves the native get-up exception and implements exact preparation-command ownership, actor-local condition forfeiture and shared finalization. New P05 exercises native DoNothing/SelfHarm and forced split. P04/P05, spent-Standard mode, remaining A01-A09 and final A05/A10 remain unqualified. All twenty A-T transactions restored actual human preview.13/current external state. This milestone is IN PROGRESS.
 
 Intake is clean `codex/mounted-combat-phase3f-playable-core` at reviewed `45e3d276754257f4513342d5bce7626dd609d252`, containing Chunk 2 binary source `c804ba052760063f747cde83265e660916984d72`, development candidate `0.1.0-chunk2-preview.10`. Preserve all descendants. [Frozen Chunk 2 repairs, identities and outstanding gates](docs/CHUNK2-ACTOR-ALLOCATIONS.md).
 

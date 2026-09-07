@@ -700,7 +700,9 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
 
+            EndPairedServiceParticipation();
             movementState.Clear();
+            nativePreparationCommands.Clear();
             DisposePartnerContext();
             relationship.MountedPairActivated -= HandleMountedPairActivated;
             relationship.Dismounting -= HandleDismounting;

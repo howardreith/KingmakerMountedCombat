@@ -192,6 +192,7 @@ namespace KingmakerMountedCombat.Integration
 
         internal bool HandleModDisable()
         {
+            unifiedTurn.EndPairedServiceParticipation();
             return Cleanup(NativeLifecycleBoundary.ModDisable, "UnityModManager.ModEntry.OnToggle(false)/shutdown", CleanupTrigger.ModDisabled);
         }
 

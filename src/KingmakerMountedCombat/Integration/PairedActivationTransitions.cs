@@ -82,7 +82,7 @@ namespace KingmakerMountedCombat.Integration
             pendingSplitRound = -1;
             if (activation == null) return;
             var boundary = activation.Boundary;
-            if (boundary != null && !(activation.Rider.Ended && activation.Mount.Ended))
+            if (boundary != null && !activation.Finalized)
             {
                 // Native Disable disposes CurrentTurn without End. Complete the
                 // ONE paired allocation before that disposal; callbacks still see
@@ -123,7 +123,7 @@ namespace KingmakerMountedCombat.Integration
                 actor != activation.Principal && actor != activation.Partner) return;
             var pair = activation;
             var boundary = pair.Boundary;
-            if (boundary != null && !(pair.Rider.Ended && pair.Mount.Ended))
+            if (boundary != null && !pair.Finalized)
             {
                 boundary.ForceToEnd();
                 NativeEnd.Invoke(boundary, null);
@@ -136,6 +136,7 @@ namespace KingmakerMountedCombat.Integration
                 pendingSplitRound = Game.Instance?.TurnBasedCombatController?.RoundNumber ?? -1;
             }
             DisposePartnerContext();
+            nativePreparationCommands.Clear();
             activation = null; armedRider = null; armedMount = null; resumingContext = null;
             LastSplitObservation = "native-actor-removal-ended-pair;actor=" + actor.UniqueId + ";identity=" + pair.Identity;
             logger.Info(LastSplitObservation);
