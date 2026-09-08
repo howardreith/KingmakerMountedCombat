@@ -18,8 +18,6 @@ namespace KingmakerMountedCombat.Integration
         private object activationSession;
         private TurnController partnerContext;
         private UnitEntityData preparingConfusionActor;
-        private long confusionAdmissionCount;
-        internal string LastConfusionAdmission { get; private set; }
         private int splitReleaseRound = -1;
         private long pairedRenewalNotBefore;
         private TurnController resumingContext;
@@ -201,19 +199,17 @@ namespace KingmakerMountedCombat.Integration
             { controller.Tick(); return; }
             if (preparingConfusionActor != null) throw new InvalidOperationException("Nested native confusion preparation.");
             preparingConfusionActor = turn.Unit;
-            try { NativeConfusionTick.Invoke(controller, new object[] { turn.Unit }); }
+            try
+            {
+                if (IsPartnerContext(turn))
+                {
+                    if (!IsPreparingPairedActor(turn.Unit))
+                        throw new InvalidOperationException("Partner condition preparation has no pending native grant.");
+                    PairedConfusionPreparation.Prepare(turn.Unit);
+                }
+                else NativeConfusionTick.Invoke(controller, new object[] { turn.Unit });
+            }
             finally { preparingConfusionActor = null; }
-        }
-
-        internal bool IsNativeConfusionActor(UnitEntityData actor)
-        {
-            var nativeCurrent = actor.IsCurrentUnit();
-            var preparing = IsPreparingPairedActor(actor);
-            if (preparing)
-                LastConfusionAdmission = "call=" + (++confusionAdmissionCount) + ";activation=" + activation.Identity +
-                    ";actor=" + actor.UniqueId + ";nativeCurrent=" + nativeCurrent +
-                    ";lexicalActor=" + ReferenceEquals(preparingConfusionActor, actor) + ";grantedPreparation=True;accepted=True";
-            return nativeCurrent || preparing;
         }
 
         private void ObservePairedCosts(UnitEntityData actor)

@@ -2,7 +2,7 @@
 
 Status: **IN PROGRESS**. [Milestone report](docs/PAIRED-ACTIVATION-MILESTONE.md).
 
-First gate PASS in both arrangements on preview9 (I/J,96/0). Z25 passes P01/A05/P03/P04/P02 and fails P05: Confusion is active without immunity, native callback enters/exits during the mount grant, but no condition part is created. Working26 binds native condition admission to canonical granted preparation and observes the actual predicate invocation. Source through 5ab74a4 is published. All26 A-Z transactions restored actual preview13/current external state. P05/P06, paired Mammoth TB and final A05/A10 remain unqualified.
+First gate PASS in both arrangements on preview9 (I/J,96/0). AA26 passes P01/A05/P03/P04/P02; P05 confirms no native admission-predicate invocation. Installed Call of the Wild replaces Confusion TickOnUnit and returns at its own independent-current-actor guard. Working27 uses an original pair-local adapter for the native condition preparation sequence and existing native command factories; the ineffective transpiler is removed. No foreign mod or CurrentTurn mutation. All27 A-AA transactions restored actual preview13/current state. Source through 5ab74a4 is published. P05/P06, paired Mammoth TB, final A05/A10 and remaining supported cases remain unqualified.
 
 Intake is clean `codex/mounted-combat-phase3f-playable-core` at reviewed `45e3d276754257f4513342d5bce7626dd609d252`, containing Chunk 2 binary source `c804ba052760063f747cde83265e660916984d72`, development candidate `0.1.0-chunk2-preview.10`. Preserve all descendants. [Frozen Chunk 2 repairs, identities and outstanding gates](docs/CHUNK2-ACTOR-ALLOCATIONS.md).
 

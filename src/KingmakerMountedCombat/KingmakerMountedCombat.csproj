@@ -111,6 +111,7 @@
     <Compile Include="Domain\PairedActivation.cs" />
     <Compile Include="Integration\PairedActivationLifecycle.cs" />
     <Compile Include="Integration\PairedNativeConditionCommands.cs" />
+    <Compile Include="Integration\PairedConfusionPreparation.cs" />
     <Compile Include="Integration\PairedActivationControls.cs" />
     <Compile Include="Integration\PairedActivationControlTranspilers.cs" />
     <Compile Include="Integration\PairedActivationTransitions.cs" />

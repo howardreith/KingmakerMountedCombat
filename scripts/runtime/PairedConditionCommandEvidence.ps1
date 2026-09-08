@@ -68,6 +68,16 @@ function Assert-KmcPairedConditionCommandEvidence($Artifact, $Evidence) {
             $admissions.Count -ne 1 -or $admissions[0].activationIdentity -cne $case.activation -or
             $admissions[0].commandActor -cne $mount -or $admissions[0].commandType -cne $expectedType -or
             $admissions[0].ignoreCooldown -ne $false -or $admissions[0].sequence -le $stimuli[0].sequence) {throw 'Condition command lacks exact native factory admission evidence.'}
+        $adapterBefore=@($native|Where-Object {$_.boundary -ceq 'paired-confusion-adapter-before' -and $_.state.actor -ceq $mount})
+        $adapterAfter=@($native|Where-Object {$_.boundary -ceq 'paired-confusion-adapter-after' -and $_.state.actor -ceq $mount})
+        if($adapterBefore.Count -ne 1 -or $adapterAfter.Count -ne 1 -or
+            $adapterBefore[0].activationIdentity -cne $case.activation -or $adapterAfter[0].activationIdentity -cne $case.activation -or
+            $adapterBefore[0].sequence -le $stimuli[0].sequence -or $adapterBefore[0].sequence -ge $admissions[0].sequence -or
+            $adapterAfter[0].sequence -le $admissions[0].sequence -or
+            $adapterBefore[0].state.preparingPairedActor -ne $true -or $adapterAfter[0].state.preparingPairedActor -ne $true -or
+            $adapterAfter[0].state.confusionPart -ne $true -or $adapterAfter[0].state.confusionCommand -ne $case.commandAtEnd.id) {
+            throw 'Condition command lacks exactly one authoritative adapter preparation and native command.'
+        }
         foreach($actor in @($rider,$mount)) {
             foreach($boundary in @('prepare-before','clear-after','round-state-after','prepare-after','turn-end-before','turn-end-after')) {
                 if(@($native|Where-Object {$_.boundary -ceq $boundary -and $_.state.actor -ceq $actor}).Count -ne 1) {

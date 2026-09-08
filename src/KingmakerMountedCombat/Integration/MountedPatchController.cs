@@ -128,7 +128,6 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(TurnController), "End", 0x06000C46, Type.EmptyTypes, null, nameof(PatchMethods.PairedEndPostfix), nameof(PatchMethods.PairedEndDebtTranspiler));
                 PatchExact(typeof(UnitDoNothing), "OnTick", 0x060026C9, Type.EmptyTypes, null, null, nameof(PatchMethods.PairedConditionActionTranspiler));
                 PatchExact(typeof(UnitSelfHarm), "OnAction", 0x0600270C, Type.EmptyTypes, null, null, nameof(PatchMethods.PairedConditionActionTranspiler));
-                PatchExact(typeof(UnitConfusionController), "TickOnUnit", 0x06009131, new[] { typeof(UnitEntityData) }, null, null, nameof(PatchMethods.PairedConfusionTranspiler));
                 PatchExact(typeof(UnitProneController), "Tick", 0x0600918C, new[] { typeof(UnitEntityData) }, null, null, nameof(PatchMethods.PairedProneTranspiler));
                 PatchExact(typeof(UnitCombatState), "OnNewRound", 0x0600939D, Type.EmptyTypes, nameof(PatchMethods.NativeRoundStatePrefix));
                 PatchExact(typeof(TurnController), "TickMovement", 0x06000C37,
@@ -406,8 +405,6 @@ namespace KingmakerMountedCombat.Integration
                 PatchBridge.UnifiedTurn == null ? actor.IsCurrentUnit() : PatchBridge.UnifiedTurn.NativeActorEligibleForCommand(actor, command);
             internal static bool PairedActivity(TurnController turn) =>
                 PatchBridge.UnifiedTurn == null ? turn.IsActed() : PatchBridge.UnifiedTurn.HasPairedActivity(turn);
-            internal static bool PairedConfusionActor(UnitEntityData actor) =>
-                PatchBridge.UnifiedTurn == null ? actor.IsCurrentUnit() : PatchBridge.UnifiedTurn.IsNativeConfusionActor(actor);
             internal static bool PairedProneActor(UnitEntityData actor) =>
                 PatchBridge.UnifiedTurn == null ? actor.IsCurrentUnit() : PatchBridge.UnifiedTurn.IsPairedProneActor(actor);
             internal static float PairedReadiness(UnitEntityData actor) =>
@@ -428,8 +425,6 @@ namespace KingmakerMountedCombat.Integration
                 PairedActivationTranspilers.Selector(instructions, Hook(nameof(SkipPairedCandidate)));
             internal static IEnumerable<CodeInstruction> PairedEligibilityTranspiler(IEnumerable<CodeInstruction> instructions) =>
                 PairedActivationTranspilers.ActorEligibility(instructions, Hook(nameof(PairedActorEligible)), true);
-            internal static IEnumerable<CodeInstruction> PairedConfusionTranspiler(IEnumerable<CodeInstruction> instructions) =>
-                PairedActivationTranspilers.ActorEligibility(instructions, Hook(nameof(PairedConfusionActor)), false);
             internal static IEnumerable<CodeInstruction> PairedProneTranspiler(IEnumerable<CodeInstruction> instructions) =>
                 PairedActivationTranspilers.ActorEligibility(instructions, Hook(nameof(PairedProneActor)), false);
             internal static IEnumerable<CodeInstruction> PairedReadinessTranspiler(IEnumerable<CodeInstruction> instructions) =>

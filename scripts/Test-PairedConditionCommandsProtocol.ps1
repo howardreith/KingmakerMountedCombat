@@ -32,8 +32,12 @@ function New-ConditionEnvelope {
         $stimulusEvent=Event 'native-condition-fact-stimulus' 'mount' $id
         $type=if($i-eq0){'Kingmaker.UnitLogic.Commands.UnitDoNothing'}else{'Kingmaker.UnitLogic.Commands.UnitSelfHarm'}
         $commandId=900+$i
+        $adapterBefore=Event 'paired-confusion-adapter-before' 'mount' $id
+        $adapterBefore.state.preparingPairedActor=$true
         $admit=Event 'admission-after' 'mount' $id
         $admit.command=$commandId;$admit.commandActor='mount';$admit.commandType=$type
+        $adapterAfter=Event 'paired-confusion-adapter-after' 'mount' $id
+        $adapterAfter.state.preparingPairedActor=$true;$adapterAfter.state.confusionPart=$true;$adapterAfter.state.confusionCommand=$commandId
         foreach($actor in @('rider','mount')) { [void](Event 'prepare-after' $actor $id) }
         $admission=Sample 'condition-admission' $id 0 0 0 0
         $ended=Sample 'condition-ended' $id 0 0 6 3
@@ -72,6 +76,9 @@ $d=New-ConditionEnvelope
 Assert-KmcPairedConditionCommandEvidence $d.artifact $d.evidence
 $passes++
 foreach($mutation in @(
+    {param($d) ($d.artifact.observations.actorAllocationTrace.events|Where-Object boundary -CEQ 'paired-confusion-adapter-before'|Select-Object -First 1).boundary='observation'},
+    {param($d) ($d.artifact.observations.actorAllocationTrace.events|Where-Object boundary -CEQ 'paired-confusion-adapter-after'|Select-Object -First 1).state.preparingPairedActor=$false},
+    {param($d) ($d.artifact.observations.actorAllocationTrace.events|Where-Object boundary -CEQ 'paired-confusion-adapter-after'|Select-Object -First 1).state.confusionCommand=42},
     {param($d) $d.evidence.cases[0].stimulus.factBinding.exactActionBound=$false},
     {param($d) $d.evidence.cases[0].stimulus.factBinding.activeComponent=12},
     {param($d) $d.evidence.cases[0].stimulus.factBinding.activeFactCount=2},

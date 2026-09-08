@@ -72,6 +72,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 Patch(typeof(TurnController), 0x06000C46, "TurnEndBefore", "TurnEndAfter");
                 Patch(typeof(CombatController), 0x06000BE6, "RemoveUnitBefore", "RemoveUnitAfter");
                 Patch(typeof(UnitConfusionController), 0x06009131, "ConfusionBefore", "ConfusionAfter");
+                Patch(typeof(PairedConfusionPreparation), typeof(PairedConfusionPreparation).GetMethod("Prepare", Flags).MetadataToken,
+                    "PairedConfusionBefore", "PairedConfusionAfter");
                 Patch(typeof(UnitMovementAgent), 0x060018A9, "MovementBefore", "MovementAfter");
                 Patch(typeof(UnitMovementAgent), 0x060018AA, "PhysicalTickBefore", "PhysicalTickAfter");
                 Patch(typeof(UnitMovementAgentBase), 0x060018DB, "PhysicalMoveBefore", "PhysicalMoveAfter");
@@ -264,9 +266,13 @@ namespace KingmakerMountedCombat.Diagnostics
             internal static void TurnEndAfter(TurnController __instance) { active?.Record("turn-end-after", __instance.Unit); }
             internal static void RemoveUnitBefore(UnitEntityData unit) { active?.Record("remove-unit-before", unit); }
             internal static void ConfusionBefore(UnitEntityData unit)
-            { if (active?.preparing != null) active.Record("native-confusion-before", unit, null, active.combat.LastConfusionAdmission); }
+            { if (active?.preparing != null) active.Record("native-confusion-before", unit); }
             internal static void ConfusionAfter(UnitEntityData unit)
-            { if (active?.preparing != null) active.Record("native-confusion-after", unit, null, active.combat.LastConfusionAdmission); }
+            { if (active?.preparing != null) active.Record("native-confusion-after", unit); }
+            internal static void PairedConfusionBefore(UnitEntityData actor)
+            { active?.Record("paired-confusion-adapter-before", actor); }
+            internal static void PairedConfusionAfter(UnitEntityData actor)
+            { active?.Record("paired-confusion-adapter-after", actor); }
             internal static void RemoveUnitAfter(UnitEntityData unit) { active?.Record("remove-unit-after", unit); }
             internal static void MovementBefore(float deltaTime, out float __state) { __state = deltaTime; }
             internal static void MovementAfter(UnitMovementAgent __instance, float deltaTime, bool __result, float __state)
