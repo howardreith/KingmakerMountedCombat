@@ -65,7 +65,42 @@ function Assert-KmcPairedConditionCommandEvidence($Artifact, $Evidence) {
         # The native Prepare prefix observes the entry before production reserves
         # its new identity. Bound the complete interval, then bind admission to
         # that identity; do not relabel this earlier observation as a grant.
-        $native=@($trace|Where-Object {$_.sequence -gt $case.beforeEncounter.traceSequence -and $_.sequence -le $case.afterEnd.traceSequence})
+        $interval=@($trace|Where-Object {$_.sequence -gt $case.beforeEncounter.traceSequence -and $_.sequence -le $case.afterEnd.traceSequence})
+        $completed=@($interval|Where-Object {$_.boundary -ceq 'turn-end-after' -and $_.state.actor -cin @($rider,$mount)})
+        if($completed.Count -ne 2 -or @($completed|Where-Object {$_.state.actor -ceq $rider}).Count -ne 1 -or
+            @($completed|Where-Object {$_.state.actor -ceq $mount}).Count -ne 1 -or
+            @($completed|Where-Object {$_.sequence -le $case.beforeEndInput.traceSequence -or $_.activationIdentity -cne $case.activation}).Count -ne 0) {
+            throw 'Condition allocation lacks exactly one native End per granted actor.'
+        }
+        $completionSequence=($completed|Measure-Object sequence -Maximum).Maximum
+        $native=@($interval|Where-Object {$_.sequence -le $completionSequence})
+        # A forced split can make the mount the next native actor in a later
+        # round. Its new independent preparation belongs after the settled pair.
+        # Require that second boundary explicitly instead of counting it twice
+        # against the old grant or ignoring callbacks after its native End.
+        $nextPreparation=@($interval|Where-Object {$_.sequence -gt $completionSequence -and
+            $_.state.actor -cin @($rider,$mount) -and $_.boundary -cin @('prepare-before','clear-after','round-state-after','prepare-after')})
+        $mountNext=$case.nextActor -ceq $mount
+        if($mountNext) {
+            $mountEnd=@($completed|Where-Object {$_.state.actor -ceq $mount})[0]
+            if($case.nextRound -le $case.round -or $nextPreparation.Count -ne 4 -or
+                $nextPreparation[0].boundary -cne 'prepare-before' -or $nextPreparation[1].boundary -cne 'clear-after' -or
+                $nextPreparation[2].boundary -cne 'round-state-after' -or $nextPreparation[3].boundary -cne 'prepare-after' -or
+                @($nextPreparation|Where-Object {$_.state.actor -cne $mount -or $_.round -ne $case.nextRound}).Count -ne 0 -or
+                $nextPreparation[0].gameTicks-$mountEnd.gameTicks -lt [Math]::Max($mountEnd.state.standard,$mountEnd.state.move)*[TimeSpan]::TicksPerSecond -or
+                $nextPreparation[0].state.standard -ne 0 -or $nextPreparation[0].state.move -ne 0 -or
+                $nextPreparation[0].state.timeToNextNativeTurn -ne 0) {
+                throw 'Split mount renewal lacks a later round, elapsed native debt and exactly one new preparation.'
+            }
+        } elseif($nextPreparation.Count -ne 0) {throw 'Unrelated successor replayed a paired actor preparation.'}
+        foreach($actor in @('rider','mount')) {
+            $renewal=if($actor -ceq 'mount' -and $mountNext){1}else{0}
+            foreach($count in @('Clears','Effects')) {
+                if($case.afterEnd.($actor+$count) -ne $case.beforeEndInput.($actor+$count)+$renewal) {
+                    throw 'Split successor callback counts do not match its actual new participation.'
+                }
+            }
+        }
         $stimuli=@($native|Where-Object {$_.boundary -ceq 'native-condition-fact-stimulus' -and $_.state.actor -ceq $mount})
         $admissions=@($native|Where-Object {$_.boundary -ceq 'admission-after' -and $_.command -eq $case.commandAtEnd.id})
         if($stimuli.Count -ne 1 -or $stimuli[0].frame -ne $stimulus.frame -or $stimuli[0].gameTicks -ne $stimulus.gameTicks -or

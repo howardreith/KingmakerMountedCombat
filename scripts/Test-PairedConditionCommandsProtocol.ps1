@@ -4,11 +4,12 @@ $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'runtime/ActorAllocationEvidence.ps1')
 # These synthetic envelopes test rejection rules, not native gameplay.
-function New-ConditionEnvelope {
+function New-ConditionEnvelope([switch]$NativeMountSuccessor) {
     $ledger=New-Object Collections.ArrayList
+    $clockState=@{offset=0L}
     function Event([string]$boundary,[string]$actor,[string]$identity) {
         $n=$ledger.Count+1
-        $e=@{sequence=$n;boundary=$boundary;frame=$n;gameTicks=100*$n;activationIdentity=$identity;state=@{actor=$actor}
+        $e=@{sequence=$n;boundary=$boundary;frame=$n;gameTicks=$clockState.offset+100*$n;round=1;activationIdentity=$identity;state=@{actor=$actor}
             command=0;commandActor=$null;commandType=$null;ignoreCooldown=$false}
         [void]$ledger.Add($e); return $e
     }
@@ -55,7 +56,16 @@ function New-ConditionEnvelope {
             $end.state.standard=if($actor -ceq 'mount' -and $kind -ceq 'turn-end-before'){$terminalStandard}else{6}
             $end.state.move=3
         } }
-        $afterEnd=Sample 'after-end' $id 6 3 6 3 'friend'
+        if($NativeMountSuccessor) {
+            $clockState.offset+=6*[TimeSpan]::TicksPerSecond
+            foreach($kind in @('prepare-before','clear-after','round-state-after','prepare-after')) {
+                $renewal=Event $kind 'mount' $id;$renewal.round=2
+                $renewal.state.standard=0;$renewal.state.move=0;$renewal.state.timeToNextNativeTurn=0
+            }
+        }
+        $nextActor=if($NativeMountSuccessor){'mount'}else{'friend'}
+        $nextRound=if($NativeMountSuccessor){2}else{1}
+        $afterEnd=Sample 'after-end' $id 6 3 6 3 $nextActor
         $command=@{id=$commandId;type=$type;executor='mount';finished=$true;result='Success'}
         $cases+=@{name=$(if($i-eq0){'mount-do-nothing'}else{'mount-self-harm'});passed=$true;outsideCombat=$true;mountedBeforeCombat=$true;activation=$id
             stimulus=@{inputKind='native-round-fact-condition-stimulus';actor='mount';activation=$id;conditionApplications=1;choiceOverrides=1;choice=30+30*$i
@@ -69,7 +79,7 @@ function New-ConditionEnvelope {
             operations=@(@{actor='rider';full=$false;hoverPure=$true;clicked=$true;nativeFull=$false;nativeSinglePrimary=$false;nativePlan=1;completed=1;nativeRules=1
                 command=@{id=1200+$i;type='Kingmaker.UnitLogic.Commands.UnitAttack';result='Success'};before=$split;after=$beforeEnd
                 traceCase='paired-rider-single';verified=$true;ruleObservationFrame=$beforeEnd.frame;nativeRecovery=$null})
-            nextActor='friend';nextRound=1;round=1;visits=@(@{actor='rider';round=1},@{actor='friend';round=1})}
+            nextActor=$nextActor;nextRound=$nextRound;round=1;visits=@(@{actor='rider';round=1},@{actor=$nextActor;round=$nextRound})}
     }
     $resets=@()
     for($i=0;$i-lt2;$i++) {
@@ -89,6 +99,25 @@ $passes=0
 $d=New-ConditionEnvelope
 Assert-KmcPairedConditionCommandEvidence $d.artifact $d.evidence
 $passes++
+$d=New-ConditionEnvelope -NativeMountSuccessor
+Assert-KmcPairedConditionCommandEvidence $d.artifact $d.evidence;$passes++
+foreach($mutation in @(
+    {param($d) $d.evidence.cases[0].nextRound=1},
+    {param($d) ($d.artifact.observations.actorAllocationTrace.events|Where-Object {$_.round -eq 2 -and $_.boundary -ceq 'prepare-before'}|Select-Object -First 1).gameTicks=1},
+    {param($d) ($d.artifact.observations.actorAllocationTrace.events|Where-Object {$_.round -eq 2 -and $_.boundary -ceq 'prepare-before'}|Select-Object -First 1).state.timeToNextNativeTurn=3},
+    {param($d) ($d.artifact.observations.actorAllocationTrace.events|Where-Object {$_.round -eq 2 -and $_.boundary -ceq 'prepare-before'}|Select-Object -First 1).state.standard=6},
+    {param($d) ($d.artifact.observations.actorAllocationTrace.events|Where-Object {$_.round -eq 2 -and $_.boundary -ceq 'clear-after'}|Select-Object -First 1).round=1},
+    {param($d) ($d.artifact.observations.actorAllocationTrace.events|Where-Object {$_.round -eq 2 -and $_.boundary -ceq 'clear-after'}|Select-Object -First 1).boundary='observed-only'},
+    {param($d) ($d.artifact.observations.actorAllocationTrace.events|Where-Object {$_.round -eq 2 -and $_.boundary -ceq 'prepare-after'}|Select-Object -First 1).state.actor='rider'},
+    {param($d) $d.evidence.cases[0].afterEnd.mountClears--},
+    {param($d) $d.evidence.cases[0].afterEnd.riderEffects++},
+    {param($d) $d.evidence.cases[0].nextActor='friend'},
+    {param($d) $d.artifact.observations.actorAllocationTrace.events+=($d.artifact.observations.actorAllocationTrace.events|Where-Object {$_.round -eq 2 -and $_.boundary -ceq 'prepare-before'}|Select-Object -First 1)}
+)) {
+    $d=New-ConditionEnvelope -NativeMountSuccessor;& $mutation $d;$rejected=$false
+    try {Assert-KmcPairedConditionCommandEvidence $d.artifact $d.evidence} catch {$rejected=$true}
+    if(!$rejected){throw "Split successor evidence mutation was accepted: $mutation"};$passes++
+}
 foreach($mutation in @(
     {param($d) $d.evidence.cases[1].ended.mount.standard=6},
     {param($d) ($d.artifact.observations.actorAllocationTrace.events|Where-Object {$_.boundary -ceq 'actor-cost-after' -and $_.command -eq 901}).state.standard=6},
