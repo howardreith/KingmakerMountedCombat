@@ -2,7 +2,7 @@
 
 Status: **IN PROGRESS**. [Milestone report](docs/PAIRED-ACTIVATION-MILESTONE.md).
 
-First gate PASS in both arrangements on preview.9 (I/J,96/0). R17 passes mount-first P01/A05/P03/P02; U20 and V21 add native P04 and spent-Standard mode evidence. W22 passes P01/A05/P03, then its get-up command completes without needing movement and P04 times out. Working23 requires a real native get-up approach and adds the native mount-death/removal probe. P05/P06, remaining A01-A09 and final A05/A10 remain unqualified. All twenty-three A-W transactions restored actual human preview.13/current external state. Source through ab7799c is published on the integration branch.
+First gate PASS in both arrangements on preview.9 (I/J,96/0). R17 passes mount-first P01/A05/P03/P02; U20/V21 add P04 and spent-Standard mode evidence. X23 repeats P01/A05, then P03 setup fails because its0.271m endpoint is already within native arrival range. Working24 applies a1m minimum to paired fixture endpoint search and records native arrival geometry; travel/cost requirements are unchanged. P05/P06, remaining A01-A09 and final A05/A10 remain unqualified. All24A-X transactions restored actual preview.13/current external state. Source throughab7799c is published.
 
 Intake is clean `codex/mounted-combat-phase3f-playable-core` at reviewed `45e3d276754257f4513342d5bce7626dd609d252`, containing Chunk 2 binary source `c804ba052760063f747cde83265e660916984d72`, development candidate `0.1.0-chunk2-preview.10`. Preserve all descendants. [Frozen Chunk 2 repairs, identities and outstanding gates](docs/CHUNK2-ACTOR-ALLOCATIONS.md).
 

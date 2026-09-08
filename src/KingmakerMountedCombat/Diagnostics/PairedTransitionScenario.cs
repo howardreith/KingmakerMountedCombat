@@ -317,6 +317,12 @@ namespace KingmakerMountedCombat.Diagnostics
             RequirePaired((bool)pairedTransitionMove["fiveFootStep"] == stepMove, "Native movement cursor did not select the requested step policy.");
             movementCommand = horse.Commands.Move as UnitMoveTo;
             pairedTransitionMove["admitted"] = movementCommand != null;
+            if (movementCommand != null)
+            {
+                pairedTransitionMove["nativeEnoughCloseAtAdmission"] = movementCommand.IsUnitEnoughClose;
+                pairedTransitionMove["nativeApproachRadius"] = movementCommand.ApproachRadius;
+                pairedTransitionMove["nativeApproachDistance"] = HorizontalDistance(horse.Position, movementCommand.ApproachPoint);
+            }
             pairedTransitionFrame = Time.frameCount;
             RecordPairedTransition("transition-move-input"); ResetLeafClock();
         }
@@ -340,7 +346,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     "Native step restriction allowed ordinary movement or changed debt.");
             else
             {
-                RequirePaired(movementCommand != null && distance > 0.02f && time > 0f && travelled >= distance - 0.02f &&
+                RequirePaired(movementCommand != null && !(bool)pairedTransitionMove["nativeEnoughCloseAtAdmission"] &&
+                    distance > 0.02f && time > 0f && travelled >= distance - 0.02f &&
                     Math.Abs(travelled - nativeShift) < 0.35f && nativeShift <= time * (float)before["speedMps"] + 0.35f,
                     "Transition movement lacks actual native travel/time measurements.");
                 RequirePaired(stepMove ? cost == 0f && (float)after["metresStepped"] > 0f &&

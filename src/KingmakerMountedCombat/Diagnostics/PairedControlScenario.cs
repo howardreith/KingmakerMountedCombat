@@ -41,7 +41,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["minimumRadius"] = radius });
             }
             observations[evidenceKey + "-plans"] = plans;
-            return FindNativeAttackFixturePoint(horse, true, horse.Position, minimumDisplacement,
+            // These probes require actual travel. A point inside the native
+            // arrival radius can produce same-frame Success without any movement.
+            return FindNativeAttackFixturePoint(horse, true, horse.Position, Math.Max(1f, minimumDisplacement),
                 pairedNativeSetupRadius, evidenceKey);
         }
 
