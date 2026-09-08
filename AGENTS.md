@@ -18,7 +18,13 @@ Harmony:      exact installed legacy Harmony12 compatibility surface
 
 It must never become part of, or a required dependency of, Kingmaker Buff Planner, Tabletop Added Rules, Gunslinger, Call of the Wild, Wrath of the Righteous, or another gameplay mod.
 
-## Active combined actor-allocation and paired-activation mission
+## Active Chunk 4: sustained play and core safety
+
+The owner's Chunk 4 mission supersedes the completed milestone and historical stop instructions below. Start from reviewed documentation `e6d89bff8c44ecbc21104b733703be9401c3671e` and qualified gameplay source `ec5d44e6eddc9839d273176b345f7c9701520450` on the existing integration branch. Preserve actual installed preview.37 and current human data; preview.13 is a separate backup, never the restoration target.
+
+Finish focused native Charge identification/reproduction and safe mounted rejection first, then sustained ordinary RT/TB combat, independent incoming targeting, native rider incapacitation/death, supported traversal/session cleanup and exact-candidate final regression. Use paired activation true, both legacy authorities and overlay false. Keep one pre-combat Horse/Mammoth pair and distinct native budgets. Narrow fixes, existing-harness scenarios, guarded temporary runs, coherent commits/publication and private packaging are authorized. No permanent installation, human-save edits, main merge, release, persistence, full Charge or content expansion. Maintain one [Chunk 4 report](docs/CHUNK4-PLAYABILITY.md); visual/input gaps remain explicit. Completed paired evidence is the accepted baseline, not this mission's deliverable.
+
+## Historical combined actor-allocation and paired-activation mission
 
 The owner's combined milestone supersedes the separate-turn and scheduler prohibitions below. Continue from reviewed `45e3d276754257f4513342d5bce7626dd609d252` / Chunk 2 source `c804ba052760063f747cde83265e660916984d72` on the existing integration branch. Implement one rider-principal activation for the exact pair mounted before combat, with complete exactly-once native preparation, partner command admission, completion and participation ownership. A single developer configuration may select this authority; incompatible legacy paths must not run alongside it. Native per-actor costs and unrelated actors remain authoritative. Mid-combat mounting remains unsupported.
 

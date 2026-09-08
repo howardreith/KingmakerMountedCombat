@@ -1,3 +1,8 @@
+# Chunk 4: sustained play and core safety
+
+**IN PROGRESS**, new mission authorized 2026-09-08. Start from documentation `e6d89bff8c44ecbc21104b733703be9401c3671e` / qualified source `ec5d44e6eddc9839d273176b345f7c9701520450`; actual preview.37 installation and current human state are the restoration target. [Active gates and evidence](docs/CHUNK4-PLAYABILITY.md). Charge identification/reproduction and safe handling come first, followed by sustained combat, independent targeting, native rider death, supported traversal/session cleanup and exact final regression. Paired activation true; legacy authorities/overlay false. Historical reconciliation stop instructions are superseded. No permanent installation or Chunk 5 implementation.
+
+---
 # Combined actor-allocation and paired-activation milestone
 
 Status: **PASS for the supported pre-combat pair**. [Implementation, evidence, limits and private checklist](docs/PAIRED-ACTIVATION-MILESTONE.md).

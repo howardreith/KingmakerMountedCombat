@@ -242,6 +242,7 @@
     <Compile Include="Integration\RiderMovementAgent.cs" />
     <Compile Include="Logging\IModLogger.cs" />
     <Compile Include="Logging\UmmLogger.cs" />
+    <Compile Include="Diagnostics\Chunk4ChargeScenario.cs" />
     <Compile Include="Main.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

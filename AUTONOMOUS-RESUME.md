@@ -1,3 +1,10 @@
+# Active Chunk 4 checkpoint — 2026-09-08
+
+**IN PROGRESS**. Branch `codex/mounted-combat-phase3f-playable-core`; intake HEAD `e6d89bff8c44ecbc21104b733703be9401c3671e`, clean before this mission. Qualified source `ec5d44e6eddc9839d273176b345f7c9701520450`; actual installed `0.1.0-paired-preview.37`, DLL/cache `20080fdcf83c7628611c3f6354a3e47c3065e2b25998a9c01b39a69796ed57bb`. No game process at intake. Preserve current saves/settings/foreign Mods and separate preview.13 backup. New native runs 0. [Active report](docs/CHUNK4-PLAYABILITY.md).
+
+Next: inspect exact Charge admission/execution contracts, register focused existing-harness Charge cases and exact current starting-installation pins with negative tests; build a diagnostic candidate, snapshot actual state, prove WhatIf purity and run the focused RT/TB reproductions. Do not run a broad historical campaign first. Do not obey the historical reconcile-then-stop instruction below.
+
+---
 # Combined paired-activation reconciliation — 2026-09-08
 
 **PASS for the supported pre-combat pair.** Intake branch `codex/mounted-combat-phase3f-playable-core`, exact HEAD and verified remote `aeb56f9e787bd633639de849a34ef108070501cf`; tested source `ec5d44e6eddc9839d273176b345f7c9701520450`, `0.1.0-paired-preview.37`. Reviewed `45e3d276754257f4513342d5bce7626dd609d252` and Chunk 2 source `c804ba052760063f747cde83265e660916984d72` are ancestors. The implementation, first gate, supported A01-A09, final A05/A10 and private package are already qualified; do not restart the historical preview.35 work below. [Current result, exact identities and remaining limits](docs/PAIRED-ACTIVATION-MILESTONE.md).

@@ -42,7 +42,16 @@ function Assert-KmcPhase3fStartingInstallation {
             'KingmakerMountedCombat.dll.30907.cache'='282f0ad326fdfcd11b8d547cecd70456fa1c90c5a8e68aebd8ab5db3fc9c3864'
         }
     }
-    if ($entries.Count -ne $pins.Count) { throw 'Existing KMC tree differs from the exact Phase 3F starting payload.' }
+    # Chunk 4 preserves the actual owner-installed preview.37 and its human cache.
+    # This exact registration grants no authority to restore an older intake.
+    if ((Get-KmcSha256 (Join-Path $KmcRoot 'Info.json')) -ceq '0b9710862ae437570d7da779066bcb8a89b01279dcade9dd30b35d50709b20dd') {
+        $pins = @{
+            'Info.json'='0b9710862ae437570d7da779066bcb8a89b01279dcade9dd30b35d50709b20dd'
+            'KingmakerMountedCombat.dll'='20080fdcf83c7628611c3f6354a3e47c3065e2b25998a9c01b39a69796ed57bb'
+            'KingmakerMountedCombat.dll.27018.cache'='20080fdcf83c7628611c3f6354a3e47c3065e2b25998a9c01b39a69796ed57bb'
+        }
+    }
+    if ($entries.Count -ne $pins.Count) { throw 'Existing KMC tree differs from the exact registered starting payload.' }
     foreach ($entry in $entries) {
         if ($entry.PSIsContainer -or $entry.Name -cnotin @($pins.Keys) -or
             (Get-KmcSha256 $entry.FullName) -cne [string]$pins[$entry.Name]) {

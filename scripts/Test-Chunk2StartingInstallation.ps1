@@ -9,7 +9,8 @@ $installed=Join-Path $intake.requestedLayout.kingmakerModsRoot 'KingmakerMounted
 $testParent=Assert-KmcChildPath (Join-Path $repo ('obj/starting-installation-tests/'+[Guid]::NewGuid().ToString('N'))) (Join-Path $repo 'obj') 'test parent'
 $clone=Join-Path $testParent 'KingmakerMountedCombat'
 [void][IO.Directory]::CreateDirectory($clone)
-$leaves=@('Info.json','KingmakerMountedCombat.dll','KingmakerMountedCombat.dll.30907.cache')
+[void](Assert-KmcPhase3fStartingInstallation $installed)
+$leaves=@(Get-ChildItem -LiteralPath $installed -File -Force | ForEach-Object Name)
 foreach($leaf in $leaves){[IO.File]::Copy((Join-Path $installed $leaf),(Join-Path $clone $leaf),$false)}
 [void](Assert-KmcPhase3fStartingInstallation $clone)
 $passes=1
@@ -28,4 +29,4 @@ $rejected=$false;try{[void](Assert-KmcPhase3fStartingInstallation $clone)}catch{
 if(!$rejected){throw 'Extra starting-installation file was accepted.'};$passes++
 [IO.File]::Delete($extra)
 [void](Assert-KmcPhase3fStartingInstallation $installed);$passes++
-Write-Host "CHUNK 2 STARTING INSTALLATION PASS=$passes FAIL=0; live bytes were read only."
+Write-Host "REGISTERED STARTING INSTALLATION PASS=$passes FAIL=0; live bytes were read only."

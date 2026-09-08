@@ -253,7 +253,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         internal static bool SupportsScenario(string scenario)
         {
-            return IsActorAllocationScenario(scenario) || string.Equals(scenario, RealTimeScenario, StringComparison.Ordinal) ||
+            return IsChunk4ChargeScenario(scenario) || IsActorAllocationScenario(scenario) || string.Equals(scenario, RealTimeScenario, StringComparison.Ordinal) ||
                 string.Equals(scenario, UnmountedAttackControlsScenario, StringComparison.Ordinal) ||
                 string.Equals(scenario, Phase3gRealTimeScenario, StringComparison.Ordinal) ||
                 string.Equals(scenario, Phase3gTurnBasedScenario, StringComparison.Ordinal) ||
@@ -347,6 +347,7 @@ namespace KingmakerMountedCombat.Diagnostics
             };
             observations["initialSelection"] = new JArray(originalSelection.Select(item => item.UniqueId));
 
+            if (IsChunk4Charge) { BeginChunk4Charge(); return; }
             if (IsActorAllocation) { BeginActorAllocation(); return; }
             if (IsOrdinaryAttackControls)
             {
@@ -426,7 +427,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 switch (step)
                 {
                     case Phase3dHorseStep.Phase3gControls:
-                        if (IsActorAllocation) TickActorAllocation();
+                        if (IsChunk4Charge) TickChunk4Charge();
+                        else if (IsActorAllocation) TickActorAllocation();
                         else if (IsOrdinaryAttackControls) TickOrdinaryAttackControls();
                         else TickPhase3gControls();
                         break;
@@ -784,7 +786,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 throw new InvalidOperationException("Phase 3D target lease is already active.");
             }
             targetService = new DiagnosticCombatTargetService(
-                logger, repeatedNativeSequences: IsPairedAllocation || IsPhase3hLoop && !Phase3gTurnBased);
+                logger, repeatedNativeSequences: IsChunk4Charge || IsPairedAllocation || IsPhase3hLoop && !Phase3gTurnBased);
             var point = position ?? FindWalkablePoint(rider.Position, distance, distance >= 10f ? 1.0f : 0.5f);
             target = targetService.Spawn(rider, horse, point, request.RunId + "-" + suffix, true, true);
             if (IsPairedAllocation) PreparePairedReactionTarget();
@@ -5398,7 +5400,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     var selected = SelectionManager.Instance?.SelectedUnits;
                     if ((!string.Equals(request.Scenario, TurnBasedScenario, StringComparison.Ordinal) &&
-                         !IsActorAllocation && !IsOrdinaryAttackControls && !IsUnmountedAttackControls) ||
+                         !IsActorAllocation && !IsOrdinaryAttackControls && !IsUnmountedAttackControls && !IsChunk4Charge) ||
                         rider?.Commands == null || horse?.Commands == null || !rider.Commands.Empty ||
                         !horse.Commands.Empty || rider.Group == null || rider.Group != horse.Group ||
                         !rider.IsDirectlyControllable || !IsExactDiagnosticAiIsolationRelationship() ||
@@ -5475,7 +5477,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool IsExactDiagnosticAiIsolationRelationship()
         {
             return relationship.State == RelationshipState.Unmounted ||
-                (IsActorAllocation || string.Equals(request.Scenario, TurnBasedScenario, StringComparison.Ordinal)) &&
+                (IsChunk4Charge || IsActorAllocation || string.Equals(request.Scenario, TurnBasedScenario, StringComparison.Ordinal)) &&
                 relationship.State == RelationshipState.Mounted &&
                 relationship.Rider == rider && relationship.Mount == horse;
         }
@@ -6189,7 +6191,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             var artifact = new JObject
             {
-                ["schemaVersion"] = IsPairedAllocation ? 17 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,
+                ["schemaVersion"] = IsChunk4Charge ? 18 : IsPairedAllocation ? 17 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,
                 ["evidenceKind"] = EvidenceKind,
                 ["runId"] = request.RunId,
                 ["scenario"] = request.Scenario,

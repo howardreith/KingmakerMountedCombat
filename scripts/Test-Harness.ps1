@@ -4819,7 +4819,10 @@ try {
                 Sort-Object FullName |
                 ForEach-Object { [IO.File]::ReadAllText($_.FullName) }) -join "`n"
         $patchSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPatchController.cs'))
-        Assert-Test (-not $productionSource.Contains('AbilityCustomCharge') -and
+        # Native identity inspection and safe refusal are authorized in Chunk 4.
+        # This scope guard still forbids manufacturing Charge execution/state;
+        # the new native scenarios, not this source inventory, qualify behavior.
+        Assert-Test (-not $productionSource.Contains('new AbilityCustomCharge') -and
             -not $productionSource.Contains('IsCharge = true') -and
             -not $productionSource.Contains('ChargeBuff') -and
             -not $productionSource.Contains('IsCharging = true') -and
@@ -11688,7 +11691,7 @@ try {
             $phase3dHorseSource.Contains('["commandAiActionPresent"] = commandPresent && command.AiAction != null') -and
             $phase3dHorseSource.Contains('["createdByPlayer"] = command.CreatedByPlayer') -and
             $phase3dHorseSource.Contains('["aiActionPresent"] = command.AiAction != null') -and
-            $phase3dHorseSource.Contains('["schemaVersion"] = IsPairedAllocation ? 17 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,') -and
+            $phase3dHorseSource.Contains('["schemaVersion"] = IsChunk4Charge ? 18 : IsPairedAllocation ? 17 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,') -and
             $phase3dHorseSource.Contains('explicitPrimaryLedgerBefore = combat.CaptureUnifiedTurnSnapshot();') -and
             $phase3dHorseSource.Contains('var pairedScheduler = combat.CapturePairedCommandSchedulerSnapshot();') -and
             $phase3dHorseSource.Contains('pairedScheduler.CleanupReason == "native terminal slot removal"') -and

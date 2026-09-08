@@ -1,3 +1,8 @@
+# Active Chunk 4 gates — 2026-09-08
+
+IN PROGRESS. New Charge, sustained combat, targeting, native rider-death, traversal/session and final regression evidence is required; historical paired-milestone completion remains accepted. Focused Charge diagnostic candidate is implemented; no Charge safety or feature PASS yet. No external integrity blocker, runtime run or permanent installation. Current preview.37 and newer human state are protected. [Active gate ledger](docs/CHUNK4-PLAYABILITY.md). Historical stop instructions below are superseded by the owner's new mission.
+
+---
 ## Combined milestone disposition — 2026-09-08
 
 **PASS for the supported pre-combat pair** on preview.37/source `ec5d44e6eddc9839d273176b345f7c9701520450`, qualification documentation `aeb56f9e787bd633639de849a34ef108070501cf`. Complete paired grant/preparation, command admission, completion and participation ownership resolve the historical Chunk 2 dependency below. Both first gates, supported A01-A09, final 36-sample A05, 32-case/287-assertion A10 and Mammoth TB are qualified. [Evidence and bounded unqualified states](docs/PAIRED-ACTIVATION-MILESTONE.md).
