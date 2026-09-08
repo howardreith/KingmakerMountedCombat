@@ -107,6 +107,21 @@ function Assert-KmcExactProperties {
     }
 }
 
+function Assert-KmcMountedRuntimeConfiguration {
+    param($Configuration, [bool]$PairedActivation, [string]$Description)
+    $disabled=@('enableUnifiedMountedTurn','enablePairedCommandScheduler','enableDiagnosticOverlay','overlayPresent')
+    Assert-KmcExactProperties $Configuration @($disabled+'enablePairedActivation') $Description
+    foreach($name in $disabled) {
+        if($Configuration.$name -isnot [bool] -or $Configuration.$name -ne $false) {
+            throw "$Description requires the legacy authorities and overlay off: $name"
+        }
+    }
+    if($Configuration.enablePairedActivation -isnot [bool] -or
+        $Configuration.enablePairedActivation -ne $PairedActivation) {
+        throw "$Description does not identify the exact requested activation configuration."
+    }
+}
+
 function Assert-KmcJsonObjectMembersUnique {
     param(
         [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Json,
@@ -5762,12 +5777,11 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
             throw 'Phase 3F native-control evidence cannot qualify a unified-TB scenario.'
         }
         $configuration = $artifact.observations.phase3fActualConfiguration
-        Assert-KmcExactProperties $configuration @('enableUnifiedMountedTurn','enablePairedCommandScheduler','enableDiagnosticOverlay','overlayPresent') 'Phase 3F actual configuration'
-        foreach ($name in @('enableUnifiedMountedTurn','enablePairedCommandScheduler','enableDiagnosticOverlay','overlayPresent')) {
-            if ($configuration.$name -isnot [bool] -or $configuration.$name -ne $false) {
-                throw "Phase 3F native-control evidence requires actual false configuration: $name"
-            }
-        }
+        $pairedConfiguration=[string]$Request.scenario -cin @('actor-allocation-rider-first-tb',
+            'actor-allocation-mount-first-tb','actor-allocation-rider-first-unmounted-tb',
+            'actor-allocation-mount-first-unmounted-tb','ordinary-attack-controls-tb',
+            'unmounted-attack-controls-rt','phase3h-combat-loop-rt')
+        Assert-KmcMountedRuntimeConfiguration $configuration $pairedConfiguration 'Phase 3F actual configuration'
     }
 
     $failureRows = @(

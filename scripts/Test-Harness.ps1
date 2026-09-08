@@ -10666,10 +10666,10 @@ try {
             Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
 
             if ($phase3dScenario -cne 'phase3d-unified-combat-tb-suite') {
-                foreach ($mutation in @('none','unified-enabled','overlay-present','missing-required-row')) {
+                foreach ($mutation in @('none','unified-enabled','overlay-present','paired-path','paired-type','paired-missing','missing-required-row')) {
                     $nativeArtifact = $phase3dArtifact | ConvertTo-Json -Depth 100 | ConvertFrom-Json
                     $nativeArtifact.schemaVersion = 7
-                    $nativeConfig = [pscustomobject]@{enableUnifiedMountedTurn=$false;enablePairedCommandScheduler=$false;enableDiagnosticOverlay=$false;overlayPresent=$false}
+                    $nativeConfig = [pscustomobject]@{enablePairedActivation=$false;enableUnifiedMountedTurn=$false;enablePairedCommandScheduler=$false;enableDiagnosticOverlay=$false;overlayPresent=$false}
                     $nativeArtifact.observations | Add-Member -NotePropertyName phase3fActualConfiguration -NotePropertyValue $nativeConfig
                     if ($phase3dScenario -ceq 'phase3d-unified-combat-rt-suite') {
                         $sharedRows = @('rider-primary-after-shared-turn-transition-does-not-dismount',
@@ -10685,6 +10685,9 @@ try {
                     }
                     if ($mutation -ceq 'unified-enabled') { $nativeConfig.enableUnifiedMountedTurn = $true }
                     if ($mutation -ceq 'overlay-present') { $nativeConfig.overlayPresent = $true }
+                    if ($mutation -ceq 'paired-path') { $nativeConfig.enablePairedActivation = $true }
+                    if ($mutation -ceq 'paired-type') { $nativeConfig.enablePairedActivation = 'false' }
+                    if ($mutation -ceq 'paired-missing') { $nativeConfig.PSObject.Properties.Remove('enablePairedActivation') }
                     if ($mutation -ceq 'missing-required-row') { $nativeArtifact.rows = @($nativeArtifact.rows | Select-Object -Skip 1) }
                     $nativeArtifact.subscenarioPassCount = $nativeArtifact.rows.Count
                     $nativeSubresults = @($nativeArtifact.rows | ForEach-Object {
@@ -10698,13 +10701,17 @@ try {
                     if ($mutation -ceq 'none') {
                         Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $nativeManifest -Status PASS -SubscenarioResults $nativeSubresults
                         if ($phase3dScenario -ceq 'phase3d-unified-combat-rt-suite') {
-                            # Reuse the complete existing control envelope. These nine validator cases
+                            # Reuse the complete existing control envelope. These validator cases
                             # prove protocol integrity only; native gameplay still requires a live run.
-                            foreach ($unmountedMutation in @('none','missing-row','wrong-command','foreign-rule','ai-unrestored','move-shell','not-actionable','rider-ai-unrestored','setup-damage')) {
+                            foreach ($unmountedMutation in @('none','paired-path','paired-type','paired-missing','missing-row','wrong-command','foreign-rule','ai-unrestored','move-shell','not-actionable','rider-ai-unrestored','setup-damage')) {
                                 $unmountedArtifact = $nativeArtifact | ConvertTo-Json -Depth 100 | ConvertFrom-Json
                                 $unmountedRequest = $phase3dRequest | ConvertTo-Json -Depth 100 | ConvertFrom-Json
                                 $unmountedRequest.scenario = 'unmounted-attack-controls-rt'
                                 $unmountedArtifact.scenario = $unmountedRequest.scenario
+                                $unmountedArtifact.observations.phase3fActualConfiguration.enablePairedActivation = $true
+                                if ($unmountedMutation -ceq 'paired-path') { $unmountedArtifact.observations.phase3fActualConfiguration.enablePairedActivation = $false }
+                                if ($unmountedMutation -ceq 'paired-type') { $unmountedArtifact.observations.phase3fActualConfiguration.enablePairedActivation = 'true' }
+                                if ($unmountedMutation -ceq 'paired-missing') { $unmountedArtifact.observations.phase3fActualConfiguration.PSObject.Properties.Remove('enablePairedActivation') }
                                 $unmountedArtifact.observations.rtCombatDismountReadiness | Add-Member -Force -NotePropertyName gamePaused -NotePropertyValue $false
                                 $unmountedArtifact.observations.rtCombatDismountReadiness | Add-Member -Force -NotePropertyName riderCanActInCombat -NotePropertyValue $true
                                 $unmountedArtifact.observations.rtCombatDismountReadiness | Add-Member -Force -NotePropertyName riderHandsBusy -NotePropertyValue $false

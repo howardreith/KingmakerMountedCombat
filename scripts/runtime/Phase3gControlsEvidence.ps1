@@ -4,10 +4,7 @@ function Assert-KmcPhase3gControlsEvidence {
         throw 'Phase 3G controls require exact schema 8 and named RT/TB scope.'
     }
     $configuration=$Artifact.observations.phase3fActualConfiguration
-    Assert-KmcExactProperties $configuration @('enableUnifiedMountedTurn','enablePairedCommandScheduler','enableDiagnosticOverlay','overlayPresent') 'Phase 3G configuration'
-    foreach($name in @('enableUnifiedMountedTurn','enablePairedCommandScheduler','enableDiagnosticOverlay','overlayPresent')) {
-        if($configuration.$name -isnot [bool] -or $configuration.$name -ne $false){throw 'Phase 3G configuration differs from shipped C0.'}
-    }
+    Assert-KmcMountedRuntimeConfiguration $configuration $false 'Historical Phase 3G configuration'
     $required=@('3g-rider-longbow-ordinary','3g-rider-longbow-primary','3g-rider-melee-ordinary','3g-rider-melee-primary','3g-horse-bite-ordinary','3g-horse-bite-primary')
     if($Request.scenario -ceq 'phase3g-native-controls-rt'){$required+=@('3g-paused-dismount','3g-paused-mount-stop','3g-paused-mount-execute')}
     $allowed=@($required)+@('3g-paused-control-failure','phase3d-horse-tranche-cleanup','phase3d-horse-scenario-deadline','phase3d-horse-leaf-deadline','phase3d-horse-runtime-exception')

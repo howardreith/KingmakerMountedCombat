@@ -44,7 +44,7 @@ function New-OrdinaryControlArtifact {
         }}
     }
     return (@{schemaVersion=1;status='PASS';rows=$rows;subscenarioPassCount=$rows.Count;subscenarioFailCount=0;errors=@();observations=@{
-        phase3fActualConfiguration=@{enableUnifiedMountedTurn=$false;enablePairedCommandScheduler=$false;enableDiagnosticOverlay=$false;overlayPresent=$false}
+        phase3fActualConfiguration=@{enablePairedActivation=$true;enableUnifiedMountedTurn=$false;enablePairedCommandScheduler=$false;enableDiagnosticOverlay=$false;overlayPresent=$false}
         ordinaryAttackTrace=@{dropped=0;events=@('simulation-before','plan-after','start-after','delivery-after','ended','cost-after')|ForEach-Object {@{boundary=$_}}}
     }} | ConvertTo-Json -Depth 16 | ConvertFrom-Json)
 }
@@ -67,11 +67,14 @@ function Set-NativeRecoveryControl($artifact) {
 $nativeRecovery=New-OrdinaryControlArtifact;Set-NativeRecoveryControl $nativeRecovery
 Assert-KmcOrdinaryAttackControlsEvidence $request $nativeRecovery PASS
 $passed++
-foreach($mutation in @('mode','configuration','owner-cost','count','primary','prediction','prediction-data','wrong-envelope','continuity','missing','trace','native-cost','forced-roll','unmatched','bonus','restricted','spent-standard','executor','native-plan','premature-recovery','external-stop','ranged-bite','dead-target','carried-tax','no-movement','haste-bonus','carried-plan','inner-result','native-floor','roll-weapon','roll-penalty','golem-haste')) {
+foreach($mutation in @('paired-path','paired-type','paired-missing','mode','configuration','owner-cost','count','primary','prediction','prediction-data','wrong-envelope','continuity','missing','trace','native-cost','forced-roll','unmatched','bonus','restricted','spent-standard','executor','native-plan','premature-recovery','external-stop','ranged-bite','dead-target','carried-tax','no-movement','haste-bonus','carried-plan','inner-result','native-floor','roll-weapon','roll-penalty','golem-haste')) {
     $a=New-OrdinaryControlArtifact
     switch($mutation) {
         mode {$a.rows[1].evidence.nativeFull=$false}
         configuration {$a.observations.phase3fActualConfiguration.enableUnifiedMountedTurn=$true}
+        paired-path {$a.observations.phase3fActualConfiguration.enablePairedActivation=$false}
+        paired-type {$a.observations.phase3fActualConfiguration.enablePairedActivation='true'}
+        paired-missing {$a.observations.phase3fActualConfiguration.PSObject.Properties.Remove('enablePairedActivation')}
         owner-cost {$a.rows[1].evidence.after.mount.standard=6}
         count {$a.rows[0].evidence.completed=1}
         primary {$a.rows[2].evidence.planned=2}

@@ -20,7 +20,7 @@ function New-ControlsEvidence {
         $rows+=@{name=$name;status='PASS';evidence=@{inputKind='scripted-native-handler-integration';queuedBeforeExecution=$true;finished=$true;acted=(!$stop);dispatchDelta=if($stop){0}else{1};result=if($stop){'Interrupt'}else{'Success'}}}
     }}
     return (@{schemaVersion=8;status='PASS';subscenarioPassCount=$rows.Count;subscenarioFailCount=0;errors=@();rows=$rows;observations=@{
-        riderId='rider';horseId='mount';phase3fActualConfiguration=@{enableUnifiedMountedTurn=$false;enablePairedCommandScheduler=$false;enableDiagnosticOverlay=$false;overlayPresent=$false}
+        riderId='rider';horseId='mount';phase3fActualConfiguration=@{enablePairedActivation=$false;enableUnifiedMountedTurn=$false;enablePairedCommandScheduler=$false;enableDiagnosticOverlay=$false;overlayPresent=$false}
     }}|ConvertTo-Json -Depth 15|ConvertFrom-Json)
 }
 foreach($mode in @('rt','tb')){
@@ -28,12 +28,15 @@ foreach($mode in @('rt','tb')){
     $artifact=New-ControlsEvidence ($mode -eq 'tb')
     Assert-KmcPhase3gControlsEvidence $request $artifact PASS
     $passed++
-    foreach($mutation in @('effect','owner','configuration','generation','missing')){
+    foreach($mutation in @('effect','owner','configuration','paired-path','paired-type','paired-missing','generation','missing')){
         $artifact=New-ControlsEvidence ($mode -eq 'tb')
         switch($mutation){
             effect {$artifact.rows[0].evidence.rules.riderResolved=0}
             owner {$artifact.rows[0].evidence.lastOutcome.resourceOwnerId='mount'}
             configuration {$artifact.observations.phase3fActualConfiguration.enableUnifiedMountedTurn=$true}
+            paired-path {$artifact.observations.phase3fActualConfiguration.enablePairedActivation=$true}
+            paired-type {$artifact.observations.phase3fActualConfiguration.enablePairedActivation='false'}
+            paired-missing {$artifact.observations.phase3fActualConfiguration.PSObject.Properties.Remove('enablePairedActivation')}
             generation {$artifact.rows[0].evidence.intentStarts=2}
             missing {$artifact.rows=@($artifact.rows|Select-Object -Skip 1);$artifact.subscenarioPassCount--}
         }

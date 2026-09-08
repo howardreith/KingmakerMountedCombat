@@ -39,9 +39,7 @@ function Assert-KmcOrdinaryAttackControlsEvidence {
         throw 'Ordinary attack controls require the exact stable scenario and evidence schema.'
     }
     $configuration=$Artifact.observations.phase3fActualConfiguration
-    foreach($flag in @('enableUnifiedMountedTurn','enablePairedCommandScheduler','enableDiagnosticOverlay','overlayPresent')) {
-        if($configuration.$flag -ne $false){throw 'Ordinary controls changed the required C0 configuration.'}
-    }
+    Assert-KmcMountedRuntimeConfiguration $configuration $true 'Ordinary controls configuration'
     $cases=@(Get-KmcOrdinaryAttackControlCases)
     $names=New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
     $pass=0; $fail=0
