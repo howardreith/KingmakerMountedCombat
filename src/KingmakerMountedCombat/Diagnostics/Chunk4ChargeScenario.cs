@@ -9,6 +9,7 @@ using Kingmaker.UnitLogic.Abilities.Components;
 using Kingmaker.UnitLogic.Commands;
 using Kingmaker.UnitLogic.Commands.Base;
 using Kingmaker.Utility;
+using Kingmaker.View;
 using KingmakerMountedCombat.Domain;
 using Newtonsoft.Json.Linq;
 using TurnBased.Controllers;
@@ -93,7 +94,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 chunk4ChargeAbility = matches[0].Data;
                 if (turnBasedModeProbe == null) turnBasedModeProbe = new NativeModeTransitionProbe(Chunk4ChargeTb);
                 if (!turnBasedModeProbe.TemporaryValueIsCurrent) { turnBasedModeProbe.DispatchTemporaryValueIfRequired(); return; }
-                BeginTarget(9f, Chunk4ChargeId);
+                BeginTarget(9f, Chunk4ChargeId, FindChunk4ChargeTargetPoint());
                 ruleProbe.Arm(target, false);
                 ordinaryAttackTrace.BeginCase(Chunk4ChargeId);
                 chunk4ChargeStage = 1;
@@ -118,6 +119,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["nativeCanTarget"] = chunk4ChargeAbility.CanTarget(nativeTarget),
                     ["nativeAvailable"] = chunk4ChargeAbility.IsAvailableForCast,
                     ["nativeReason"] = chunk4ChargeAbility.GetUnavailableReason(),
+                    ["nativeGeometry"] = CaptureChunk4ChargeGeometry(),
                     ["relationship"] = relationship.State.ToString(), ["turn"] = turn?.Unit?.UniqueId
                 };
                 observations["before-" + Chunk4ChargeId] = chunk4ChargeBefore;
@@ -216,6 +218,45 @@ namespace KingmakerMountedCombat.Diagnostics
                 chunk4ChargeCase++; chunk4ChargeStage = 0; chunk4ChargeControlSent = false; chunk4ChargeCommand = null;
                 ResetLeafClock();
             }
+        }
+
+        private Vector3 FindChunk4ChargeTargetPoint()
+        {
+            // Choose the disposable target before combat/measurement. A walkable
+            // endpoint alone does not prove the native straight Charge route.
+            return FindWalkablePoint(rider.Position, 9f, 0.5f, point =>
+                ObstacleAnalyzer.TraceAlongNavmesh(rider.Position, point) == point &&
+                !Chunk4ChargeLandingBlocked(point, 0.5f));
+        }
+
+        private bool Chunk4ChargeLandingBlocked(Vector3 point, float targetCorpulence)
+        {
+            var separation = rider.GetFirstWeapon() == null ? 0f : rider.View.Corpulence +
+                targetCorpulence + rider.GetFirstWeapon().AttackRange.Meters;
+            var landing = point.To2D() - (point - rider.Position).To2D().normalized * separation;
+            return Game.Instance.State.AwakeUnits.Any(actor => actor != rider && actor != target &&
+                actor.View && !actor.View.MovementAgent.AvoidanceDisabled &&
+                (landing - actor.Position.To2D()).magnitude < (rider.View.Corpulence + actor.View.Corpulence) * 0.8f);
+        }
+
+        private JObject CaptureChunk4ChargeGeometry()
+        {
+            var logic = chunk4ChargeAbility.Blueprint.GetComponent<AbilityCustomCharge>();
+            var endpoint = ObstacleAnalyzer.TraceAlongNavmesh(rider.Position, target.Position);
+            return new JObject {
+                ["customCanTarget"] = logic.CanTarget(rider, new TargetWrapper(target)),
+                ["distance3D"] = (target.Position - rider.Position).magnitude,
+                ["minimumRange"] = logic.GetMinRangeMeters(rider, target),
+                ["maximumRange"] = rider.CombatSpeedMps * 6f,
+                ["targetPosition"] = CapturePosition(target.Position),
+                ["traceEndpoint"] = CapturePosition(endpoint),
+                ["straightRoute"] = endpoint == target.Position,
+                ["landingBlocked"] = Chunk4ChargeLandingBlocked(target.Position, target.View.Corpulence),
+                ["casterAvoidanceDisabled"] = rider.View.MovementAgent.AvoidanceDisabled,
+                ["casterCorpulence"] = rider.View.Corpulence,
+                ["targetCorpulence"] = target.View.Corpulence,
+                ["nativeTimeMoved"] = Game.Instance.TurnBasedCombatController.CurrentTurn?.TimeMoved
+            };
         }
     }
 }

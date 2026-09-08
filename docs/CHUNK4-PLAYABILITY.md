@@ -19,11 +19,19 @@ Test `EnablePairedActivation=true`, `EnableUnifiedMountedTurn=false`, `EnablePai
 | C4-VISUAL | TODO | Unobstructed mounted/unmounted Horse strike/recovery, seated motion/countdown/selection; capture availability and HUMAN PLAY recorded separately. |
 | C4-FINAL | TODO | All new supported cases on exact final candidate/configuration, paired full-round gate, final A05/A10, Horse/Mammoth, mandatory offline/package/deployment checks. |
 
-Owner-reported missing feature: actual mounted Charge does not work. Its failure mode is not yet established. Ordinary approach-and-attack is not Charge. Safe rejection will not close full Charge; that remains Chunk 6. Mounted persistence/cold-load debt belongs to Chunk 5, which is not authorized for implementation here. Mid-combat mounting, cross-round Delay and conservative mode switching retain their documented limits.
+Owner-reported missing feature: actual mounted Charge does not work. New RT run A confirms unsafe acceptance: Standard action spent, with no observed movement or attack. Ordinary approach-and-attack is not Charge. Safe rejection will not close full Charge; that remains Chunk 6. Mounted persistence/cold-load debt belongs to Chunk 5, which is not authorized for implementation here. Mid-combat mounting, cross-round Delay and conservative mode switching retain their documented limits.
 
 ## Evidence and delivery
 
-COMPONENT, ASSEMBLY CONTRACT, NATIVE INTEGRATION and HUMAN PLAY remain separate. New native runs: **0**. No retained preview.37 result is counted as a new Chunk 4 scenario. Source/package identities, exact test counts, restoration receipts and targeted manual checklist will be recorded here as gates execute.
+COMPONENT, ASSEMBLY CONTRACT, NATIVE INTEGRATION and HUMAN PLAY remain separate. New native runs: **1**. No retained preview.37 result is counted as a new Chunk 4 scenario.
+
+### New Charge reproduction A
+
+`20260908-chunk4-A`, `chunk4-charge-safety-rt`, source `0724bda0c1bd82a993c71e9387380012a2426da0`, preview.2: **31 PASS / 2 FAIL** assertions; **0 PASS / 2 FAIL** new Charge rows. Actual native identity is `ChargeAbility`, blueprint `c78506dd0e14f7c45a599990e4e65038`, logic `Kingmaker.UnitLogic.Abilities.Components.AbilityCustomCharge`, installed game MVID `07fa1e4d-8618-41b3-9b8d-faa17d3b26f7`.
+
+Mounted native targeting and availability were true. Paused native selected-ability input admitted a command, which started, acted and finished Success. Observed rider Standard reached 5.9851346; rider/mount displacement, rider Move and attack-rule count were zero. Hover was pure. This is a reproduced safety defect; frame sampling alone does not establish the exact custom-delivery failure. Unmounted input failed native target eligibility before creating a command; this is an unresolved fixture control, not an unmounted gameplay failure. Preview.3 adds native straight-route/landing placement and Charge callback observations before the TB reproduction. No gameplay repair yet.
+
+ZIP `KingmakerMountedCombat-0.1.0-chunk4-preview.2-charge-observation-diagnostic.zip` SHA256 `bb6e4067a7b419eea8ee9a74704b32c41bf98f7e8be6d0ca007bd68dbdd960ee`; DLL `f65fa3778aa052f75b0ab345e21882394e49a57c40dfdbd77fd17dc13d42f231`, MVID `cc2d38bb-b0d5-4c25-8a10-3beceee4b487`. Native evidence is under `runtime-evidence/20260908-chunk4-A`. Independent `analysis-cache/chunk4-native/20260908-chunk4-A-restoration.json`: **PASS**, actual preview.37/complete Mods and saves match intake, UMM Params unchanged, no game/lock remains. Desktop inspection is pending after a Steam app capture approval timeout; no desktop input was sent and no human approval is inferred.
 
 ### Prelaunch protocol correction — 2026-09-08
 

@@ -55,6 +55,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 Patch(typeof(UnitAttack), "InitAttacks", 0x0600267C, "PlanBefore", "PlanAfter");
                 Patch(typeof(UnitAttack), "OnStart", 0x0600267E, "StartBefore", "StartAfter");
                 Patch(typeof(UnitAttack), "OnAction", 0x06002681, "DeliveryBefore", "DeliveryAfter");
+                Patch(typeof(UnitUseAbility), "OnStart", 0x0600272D, "AbilityStartBefore", "AbilityStartAfter");
+                Patch(typeof(UnitUseAbility), "OnAction", 0x06002737, "AbilityActionBefore", "AbilityActionAfter");
                 Patch(typeof(UnitAttack), "UpdateTarget", 0x06002683, null, "TargetAfter");
                 Patch(typeof(UnitCommand), "Interrupt", 0x060027AC, "InterruptBefore", null);
                 Patch(typeof(UnitCommand), "OnEnded", 0x060027B2, null, "Ended");
@@ -197,8 +199,22 @@ namespace KingmakerMountedCombat.Diagnostics
             }
         }
 
+        private void RecordCharge(string boundary, UnitUseAbility command)
+        {
+            if (command?.Spell?.Blueprint.AssetGuid != "c78506dd0e14f7c45a599990e4e65038") return;
+            Record(boundary, command.Executor, command, "nativeCharge=" + command.Spell.Blueprint.AssetGuid +
+                ";canMove=" + command.Executor.Descriptor.State.CanMove +
+                ";charging=" + command.Executor.Descriptor.State.IsCharging +
+                ";agentCharging=" + command.Executor.View.AgentASP.IsCharging +
+                ";reallyMoving=" + command.Executor.View.AgentASP.IsReallyMoving);
+        }
+
         private static class Hooks
         {
+            internal static void AbilityStartBefore(UnitUseAbility __instance) { active?.RecordCharge("charge-start-before", __instance); }
+            internal static void AbilityStartAfter(UnitUseAbility __instance) { active?.RecordCharge("charge-start-after", __instance); }
+            internal static void AbilityActionBefore(UnitUseAbility __instance) { active?.RecordCharge("charge-action-before", __instance); }
+            internal static void AbilityActionAfter(UnitUseAbility __instance) { active?.RecordCharge("charge-action-after", __instance); }
             internal static void PredictionBefore(TurnController __instance) { active?.Record("prediction-before", __instance.Unit); }
             internal static void PredictionAfter(TurnController __instance) { active?.Record("prediction-after", __instance.Unit); }
             internal static void ModeBefore(TurnController __instance, int mode, bool force)
