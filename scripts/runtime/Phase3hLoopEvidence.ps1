@@ -5,7 +5,13 @@ function Assert-KmcPhase3hLoopEvidence {
         throw 'Phase 3H controls require schema 9 RT/TB or schema 10 repeated-sequence RT scope.'
     }
     $configuration=$Artifact.observations.phase3fActualConfiguration
-    Assert-KmcExactProperties $configuration @('enableUnifiedMountedTurn','enablePairedCommandScheduler','enableDiagnosticOverlay','overlayPresent') 'Phase 3H configuration'
+    Assert-KmcExactProperties $configuration @('enableUnifiedMountedTurn','enablePairedCommandScheduler','enablePairedActivation','enableDiagnosticOverlay','overlayPresent') 'Phase 3H configuration'
+    # The accepted RT regression exercises the new configuration. The historical
+    # TB fixture remains separate and does not qualify the paired activation path.
+    if ($configuration.enablePairedActivation -isnot [bool] -or
+        $configuration.enablePairedActivation -ne ($Request.scenario -ceq 'phase3h-combat-loop-rt')) {
+        throw 'Phase 3H does not identify the exact requested activation configuration.'
+    }
     foreach($name in @('enableUnifiedMountedTurn','enablePairedCommandScheduler','enableDiagnosticOverlay','overlayPresent')) {
         if($configuration.$name -isnot [bool] -or $configuration.$name -ne $false){throw 'Phase 3H configuration differs from shipped C0.'}
     }
