@@ -136,6 +136,21 @@ namespace KingmakerMountedCombat.Diagnostics
             pairedControlOperation["nativeRules"] = actor == horse ? ruleProbe.MountNonOpportunityAttackRuleCount : ruleProbe.RiderResolvedCount;
             var actorKey = actor == horse ? "mount" : "rider";
             var otherKey = actor == horse ? "rider" : "mount";
+            var completionObservation = new JObject {
+                ["frame"] = Time.frameCount, ["identity"] = combat.PairedActivationIdentity,
+                ["actor"] = actor.UniqueId, ["commandActor"] = pairedControlAttack.Executor?.UniqueId,
+                ["command"] = pairedControlOperation["command"].DeepClone(),
+                ["requestedFull"] = full, ["nativeFull"] = pairedControlAttack.IsFullAttack,
+                ["nativeSinglePrimary"] = pairedControlAttack.IsSingleAttack,
+                ["planned"] = pairedControlAttack.AllAttacks.Count, ["completed"] = pairedControlAttack.GetAttackIndex(),
+                ["rules"] = pairedControlOperation["nativeRules"], ["round"] = Game.Instance.TurnBasedCombatController.RoundNumber,
+                ["actorBeforeStandard"] = pairedControlOperation["before"][actorKey]["standard"],
+                ["actorBeforeMove"] = pairedControlOperation["before"][actorKey]["move"],
+                ["actorAfterStandard"] = after[actorKey]["standard"], ["actorAfterMove"] = after[actorKey]["move"],
+                ["otherBeforeStandard"] = pairedControlOperation["before"][otherKey]["standard"],
+                ["otherBeforeMove"] = pairedControlOperation["before"][otherKey]["move"],
+                ["otherAfterStandard"] = after[otherKey]["standard"], ["otherAfterMove"] = after[otherKey]["move"] };
+            pairedControlOperation["completionObservation"] = completionObservation;
             RequirePaired(pairedControlAttack.Executor == actor && pairedControlAttack.Result == UnitCommand.ResultType.Success &&
                 pairedControlAttack.IsFullAttack == full && !pairedControlAttack.IsSingleAttack &&
                 pairedControlAttack.GetAttackIndex() == pairedControlAttack.AllAttacks.Count &&
@@ -144,7 +159,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 (float)after[actorKey]["standard"] == 6f && (float)after[actorKey]["move"] == (full ? 3f : 0f) &&
                 (float)after[otherKey]["standard"] == (float)pairedControlOperation["before"][otherKey]["standard"] &&
                 (float)after[otherKey]["move"] == (float)pairedControlOperation["before"][otherKey]["move"],
-                "Ordinary paired attack did not preserve native mode, complete sequence, rules or exact actor costs.");
+                "Ordinary paired attack did not preserve native mode, complete sequence, rules or exact actor costs. observed=" +
+                completionObservation.ToString(Newtonsoft.Json.Formatting.None));
             RequireNoPairedRefresh((JObject)pairedControlOperation["before"], after);
             return PairedTransitionActorsIdle();
         }

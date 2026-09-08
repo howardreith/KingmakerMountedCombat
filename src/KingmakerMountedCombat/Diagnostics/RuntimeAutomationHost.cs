@@ -8,6 +8,7 @@ using System.Security.Cryptography;
 using System.Text;
 using KingmakerMountedCombat.Logging;
 using KingmakerMountedCombat.Integration;
+using KingmakerMountedCombat.Domain;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
 using UnityEngine;
@@ -426,13 +427,15 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     return;
                 }
-                if (!IsManualReview && elapsedSeconds > 300.0d)
+                var hostDeadline = HorseCompanionScenarioDeadlinePolicy.HostDeadlineSeconds(
+                    Phase3dHorseScenarioTranche.IsActorAllocationScenario(request.Scenario));
+                if (!IsManualReview && elapsedSeconds > hostDeadline)
                 {
                     if (IsLoadingProcessActive())
                     {
                         return;
                     }
-                    Complete("FAIL", new[] { "Runtime automation exceeded the bounded 300-second in-process deadline." });
+                    Complete("FAIL", new[] { "Runtime automation exceeded the bounded " + hostDeadline + "-second in-process deadline." });
                     return;
                 }
 

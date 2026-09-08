@@ -356,7 +356,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 var scenarioDeadline = IncludesMountedAlpha
                     ? MountedScenarioTimeoutSeconds
                     : ScenarioTimeoutSeconds;
-                if (Phase3dHorseScenarioTranche.IsActorAllocationScenario(request.Scenario)) scenarioDeadline = 660.0d;
+                if (Phase3dHorseScenarioTranche.IsActorAllocationScenario(request.Scenario))
+                    scenarioDeadline = HorseCompanionScenarioDeadlinePolicy.AllocationScenarioSeconds;
                 if (request.Scenario == Phase3dHorseScenarioTranche.OrdinaryAttackControlsScenario)
                     scenarioDeadline = Phase3dHorseScenarioTranche.OrdinaryScenarioDeadlineSeconds + 60.0d;
                 var lifecyclePhase = step == EngineStep.AwaitMountedLifecycleTargetRemoval ||

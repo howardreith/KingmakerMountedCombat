@@ -7,6 +7,24 @@ namespace KingmakerMountedCombat.Tests
         public static void Register(TestRunner runner)
         {
             runner.Run("horse companion lifecycle deadline is independently bounded", LifecycleDeadlineIsIndependentAndBounded);
+            runner.Run("allocation host leaves cleanup time while retaining scenario and leaf bounds", AllocationHostDeadline);
+        }
+
+        private static void AllocationHostDeadline()
+        {
+            var normal = HorseCompanionScenarioDeadlinePolicy.HostDeadlineSeconds(false);
+            var allocation = HorseCompanionScenarioDeadlinePolicy.HostDeadlineSeconds(true);
+            TestRunner.Equal(HorseCompanionDeadlineKind.Scenario,
+                HorseCompanionScenarioDeadlinePolicy.Evaluate(301, normal, false, -1, 30), "ordinary host retains its bound");
+            TestRunner.Equal(HorseCompanionDeadlineKind.None,
+                HorseCompanionScenarioDeadlinePolicy.Evaluate(661, allocation, false, -1, 30), "allocation host permits cleanup after engine deadline");
+            TestRunner.Equal(HorseCompanionDeadlineKind.Scenario,
+                HorseCompanionScenarioDeadlinePolicy.Evaluate(661, HorseCompanionScenarioDeadlinePolicy.AllocationScenarioSeconds, false, -1, 30),
+                "gameplay aggregate deadline remains bounded");
+            TestRunner.Equal(HorseCompanionDeadlineKind.Scenario,
+                HorseCompanionScenarioDeadlinePolicy.Evaluate(721, allocation, false, -1, 30), "host cleanup allowance also expires");
+            TestRunner.Equal(HorseCompanionDeadlineKind.Lifecycle,
+                HorseCompanionScenarioDeadlinePolicy.Evaluate(661, allocation, true, 630, 30), "longer host cannot extend a leaf deadline");
         }
 
         private static void LifecycleDeadlineIsIndependentAndBounded()

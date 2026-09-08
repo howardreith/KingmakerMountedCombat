@@ -678,7 +678,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 return;
             }
-            if (!completed)
+            if (!completed || cleanupError)
             {
                 BestEffortCleanup();
             }
@@ -6098,6 +6098,23 @@ namespace KingmakerMountedCombat.Diagnostics
                 !unmountedHorseAiLeaseRestored || !combatMountRiderAiLeaseRestored ||
                 relationship.State != RelationshipState.Unmounted)
             {
+                observations["cleanupPending"] = new JObject {
+                    ["frame"] = frame, ["elapsedSeconds"] = leafClock.Elapsed.TotalSeconds,
+                    ["targetClean"] = targetCleanupComplete, ["modePreferenceRestored"] = modeRestored,
+                    ["nativeTurnBased"] = CombatController.IsInTurnBasedCombat(),
+                    ["mountAiRestored"] = unmountedHorseAiLeaseRestored,
+                    ["riderAiRestored"] = combatMountRiderAiLeaseRestored,
+                    ["relationship"] = relationship.State.ToString(),
+                    ["mountCommandsEmpty"] = horse.Commands.Empty, ["riderCommandsEmpty"] = rider.Commands.Empty,
+                    ["mountControllable"] = horse.IsDirectlyControllable, ["riderControllable"] = rider.IsDirectlyControllable };
+                if (IsPairedAllocation && leafClock.Elapsed.TotalSeconds > LeafDeadlineSeconds)
+                {
+                    cleanupError = true;
+                    AddRow("phase3d-horse-tranche-cleanup-deadline", false,
+                        "Paired scenario cleanup remains incomplete after its bounded wait.", observations["cleanupPending"]);
+                    WriteEvidence();
+                    completed = true;
+                }
                 return;
             }
 
