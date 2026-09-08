@@ -36,6 +36,9 @@ function Assert-KmcPairedConditionCommandEvidence($Artifact, $Evidence) {
             $stimulus.inputKind -cne 'native-round-fact-condition-stimulus' -or $stimulus.actor -cne $mount -or
             $stimulus.activation -cne $case.activation -or $stimulus.conditionApplications -ne 1 -or $stimulus.choiceOverrides -ne 1 -or
             $stimulus.conditionActiveAfterApplication -ne $true -or $stimulus.conditionImmuneAfterApplication -ne $false -or
+            $stimulus.nativePartAbsentBefore -ne $true -or $stimulus.nativePartCreated -ne $true -or $stimulus.nativePartRemoved -ne $true -or
+            $stimulus.directControlBefore -ne $true -or $stimulus.directControlAfter -ne $true -or
+            $stimulus.directControlRestored -ne $true -or $stimulus.cleanupResourcesUnchanged -ne $true -or
             $stimulus.choice -ne (30+30*$i) -or $stimulus.nativeSelfDamageRules -ne $i -or $stimulus.ownedConditionRestored -ne $true -or
             $stimulus.before.standard -ne 0 -or $stimulus.before.move -ne 0 -or
             ($i -eq 1 -and $stimulus.nativeSelfDamage -le 0)) {throw 'Native condition stimulus, grant or restoration differs.'}
@@ -90,9 +93,27 @@ function Assert-KmcPairedConditionCommandEvidence($Artifact, $Evidence) {
         $op=$ops[0]
         if($op.actor -cne $rider -or $op.full -ne $false -or $op.hoverPure -ne $true -or $op.clicked -ne $true -or
             $op.nativeFull -ne $false -or $op.nativeSinglePrimary -ne $false -or $op.nativePlan -ne 1 -or $op.completed -ne 1 -or
-            $op.nativeRules -ne 1 -or $op.command.result -cne 'Success' -or $op.command.type -cne 'Kingmaker.UnitLogic.Commands.UnitAttack' -or
+            $op.nativeRules -ne 1 -or $op.command.type -cne 'Kingmaker.UnitLogic.Commands.UnitAttack' -or
+            $op.traceCase -cne 'paired-rider-single' -or $op.verified -ne $true -or $op.ruleObservationFrame -lt $op.after.frame -or
             $op.after.rider.standard -ne 6 -or $op.after.rider.move -ne 0 -or $op.after.mount.standard -ne 6 -or $op.after.mount.move -ne 3) {
             throw 'Forced split did not retain native principal attack and spent mount resources.'
+        }
+        if($op.command.result -cne 'Success') {
+            $recovery=$op.nativeRecovery
+            if($op.command.result -cne 'Interrupt' -or $null -eq $recovery -or
+                $recovery.boundary -cne 'native-recovery-interrupt' -or $recovery.commandType -cne 'Kingmaker.UnitLogic.Commands.UnitAttack' -or
+                $recovery.command -ne $op.command.id -or $recovery.caseId -cne $op.traceCase -or $recovery.result -cne 'Success' -or
+                $recovery.planned -ne 1 -or $recovery.completed -ne 1 -or $null -ne $recovery.plannedWeapon -or
+                $recovery.actor -cne $rider -or $recovery.frame -lt $op.before.frame -or $recovery.frame -gt $op.after.frame -or
+                !$recovery.detail.Contains('Kingmaker.UnitLogic.Commands.UnitAttack.OnTick')) {
+                throw 'Unproven or premature interruption cannot qualify the native principal continuation.'
+            }
+            $observed=@($Artifact.observations.ordinaryAttackTrace.events | Where-Object {
+                $_.boundary -ceq 'native-recovery-interrupt' -and $_.command -eq $op.command.id -and $_.frame -eq $recovery.frame
+            })
+            if($observed.Count -ne 1 -or ($observed[0]|ConvertTo-Json -Depth 25 -Compress) -cne ($recovery|ConvertTo-Json -Depth 25 -Compress)) {
+                throw 'Native principal recovery lacks its exact independent trace observation.'
+            }
         }
         if([string]::IsNullOrWhiteSpace([string]$case.nextActor) -or $case.nextActor -ceq $rider -or
             $case.afterEnd.currentActor -cne $case.nextActor -or

@@ -50,11 +50,14 @@ function New-ConditionEnvelope {
             stimulus=@{inputKind='native-round-fact-condition-stimulus';actor='mount';activation=$id;conditionApplications=1;choiceOverrides=1;choice=30+30*$i
                 nativeSelfDamageRules=$i;nativeSelfDamage=3*$i;ownedConditionRestored=$true;before=@{standard=0;move=0};frame=$stimulusEvent.frame;gameTicks=$stimulusEvent.gameTicks
                 conditionActiveAfterApplication=$true;conditionImmuneAfterApplication=$false
+                nativePartAbsentBefore=$true;nativePartCreated=$true;nativePartRemoved=$true;directControlBefore=$true
+                directControlAfter=$true;directControlRestored=$true;cleanupResourcesUnchanged=$true
                 nativeFactVisits=1;preparingAtFact=$true;factBinding=@{actor='mount';activeFactCount=1;actionCount=2;activeComponent=11;templateComponent=12;exactActionBound=$true}}
             beforeEncounter=$before;admission=$admission;ended=$ended;forcedSplit=$split;beforeEndInput=$beforeEnd;afterEnd=$afterEnd
             samePrincipal=$true;mountEnded=$true;riderEnded=$false;relationshipAfter='Unmounted';commandAtAdmission=$command;commandAtEnd=$command
             operations=@(@{actor='rider';full=$false;hoverPure=$true;clicked=$true;nativeFull=$false;nativeSinglePrimary=$false;nativePlan=1;completed=1;nativeRules=1
-                command=@{type='Kingmaker.UnitLogic.Commands.UnitAttack';result='Success'};after=$beforeEnd})
+                command=@{id=1200+$i;type='Kingmaker.UnitLogic.Commands.UnitAttack';result='Success'};before=$split;after=$beforeEnd
+                traceCase='paired-rider-single';verified=$true;ruleObservationFrame=$beforeEnd.frame;nativeRecovery=$null})
             nextActor='friend';nextRound=1;round=1;visits=@(@{actor='rider';round=1},@{actor='friend';round=1})}
     }
     $resets=@()
@@ -68,7 +71,7 @@ function New-ConditionEnvelope {
         }
         $resets+=$reset
     }
-    return (@{artifact=@{observations=@{riderId='rider';horseId='mount';actorAllocationTrace=@{events=@($ledger)}}}
+    return (@{artifact=@{observations=@{riderId='rider';horseId='mount';actorAllocationTrace=@{events=@($ledger)};ordinaryAttackTrace=@{events=@()}}}
         evidence=@{level='NATIVE INTEGRATION';passed=$true;cases=$cases;modeExitAiReassertions=$resets}}|ConvertTo-Json -Depth 20|ConvertFrom-Json)
 }
 $passes=0
@@ -76,6 +79,12 @@ $d=New-ConditionEnvelope
 Assert-KmcPairedConditionCommandEvidence $d.artifact $d.evidence
 $passes++
 foreach($mutation in @(
+    {param($d) $d.evidence.cases[0].stimulus.nativePartAbsentBefore=$false},
+    {param($d) $d.evidence.cases[0].stimulus.nativePartRemoved=$false},
+    {param($d) $d.evidence.cases[0].stimulus.directControlRestored=$false},
+    {param($d) $d.evidence.cases[0].stimulus.cleanupResourcesUnchanged=$false},
+    {param($d) $d.evidence.cases[0].operations[0].command.result='Interrupt'},
+    {param($d) $d.evidence.cases[0].operations[0].ruleObservationFrame=0},
     {param($d) ($d.artifact.observations.actorAllocationTrace.events|Where-Object boundary -CEQ 'paired-confusion-adapter-before'|Select-Object -First 1).boundary='observation'},
     {param($d) ($d.artifact.observations.actorAllocationTrace.events|Where-Object boundary -CEQ 'paired-confusion-adapter-after'|Select-Object -First 1).state.preparingPairedActor=$false},
     {param($d) ($d.artifact.observations.actorAllocationTrace.events|Where-Object boundary -CEQ 'paired-confusion-adapter-after'|Select-Object -First 1).state.confusionCommand=42},
@@ -118,6 +127,31 @@ foreach($mutation in @(
     $rejected=$false
     try {Assert-KmcPairedConditionCommandEvidence $d.artifact $d.evidence} catch {$rejected=$true}
     if(!$rejected){throw "Condition evidence mutation was accepted: $mutation"}
+    $passes++
+}
+function Set-NativeRecoveryEnvelope($d) {
+    $op=$d.evidence.cases[0].operations[0]
+    $op.command.result='Interrupt'
+    $recovery=[pscustomobject]@{boundary='native-recovery-interrupt';commandType='Kingmaker.UnitLogic.Commands.UnitAttack'
+        command=$op.command.id;caseId=$op.traceCase;result='Success';planned=1;completed=1;plannedWeapon=$null
+        actor='rider';frame=$op.after.frame;detail='Kingmaker.UnitLogic.Commands.UnitAttack.OnTick'}
+    $op.nativeRecovery=$recovery
+    $d.artifact.observations.ordinaryAttackTrace.events=@($recovery)
+}
+$d=New-ConditionEnvelope; Set-NativeRecoveryEnvelope $d
+Assert-KmcPairedConditionCommandEvidence $d.artifact $d.evidence; $passes++
+foreach($mutation in @(
+    {param($d) $d.evidence.cases[0].operations[0].nativeRecovery.completed=0},
+    {param($d) $d.evidence.cases[0].operations[0].nativeRecovery.result='Interrupt'},
+    {param($d) $d.evidence.cases[0].operations[0].nativeRecovery.detail='fixture interrupt'},
+    {param($d) $d.evidence.cases[0].operations[0].nativeRecovery.actor='mount'},
+    {param($d) $d.artifact.observations.ordinaryAttackTrace.events=@()},
+    {param($d) $d.evidence.cases[0].operations[0].nativeRules=0}
+)) {
+    $d=New-ConditionEnvelope; Set-NativeRecoveryEnvelope $d; & $mutation $d
+    $rejected=$false
+    try { Assert-KmcPairedConditionCommandEvidence $d.artifact $d.evidence } catch { $rejected=$true }
+    if(!$rejected){throw "Unproved recovery was accepted: $mutation"}
     $passes++
 }
 Write-Host "PAIRED CONDITION COMMAND PROTOCOL PASS=$passes FAIL=0 (envelope validation only)"

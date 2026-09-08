@@ -1,4 +1,5 @@
 using System;
+using KingmakerMountedCombat.Domain;
 using System.Linq;
 using System.Reflection;
 using Kingmaker;
@@ -81,7 +82,9 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void BeginPairedOrdinaryAttack(UnitEntityData actor, bool full)
         {
-            ordinaryAttackTrace.BeginCase(actor == horse ? (full ? "paired-mount-full" : "paired-mount-single") : "paired-rider-full");
+            var traceCase = actor == horse ? (full ? "paired-mount-full" : "paired-mount-single") :
+                (full ? "paired-rider-full" : "paired-rider-single");
+            ordinaryAttackTrace.BeginCase(traceCase);
             ruleProbe.Arm(target, false);
             var context = actor == horse ? combat.PairedPartnerContext : pairedControlTurn;
             var stationary = new UnitAttack(target);
@@ -91,7 +94,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var distance = HorizontalDistance(horse.Position, target.Position);
             RequirePaired(stationary.IsUnitEnoughClose && (!full || distance <= minimumRadius),
                 "Ordinary Full/Single fixture is outside an actual planned weapon's native reach.");
-            pairedControlOperation = new JObject { ["actor"] = actor.UniqueId, ["full"] = full,
+            pairedControlOperation = new JObject { ["actor"] = actor.UniqueId, ["full"] = full, ["traceCase"] = traceCase,
                 ["before"] = RecordPairedTransition("ordinary-paired-attack-before"),
                 ["selectedActor"] = SelectionManager.Instance.SingleSelectedUnit?.UniqueId,
                 ["contextActor"] = context?.Unit.UniqueId, ["nativeWeaponRanges"] = new JArray(nativeRanges),
@@ -122,18 +125,32 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             // Observe terminal cost before waiting for presentation to become
             // idle: native automatic completion may advance time in that wait.
-            if (pairedControlOperation["after"] != null) return PairedTransitionActorsIdle();
+            if ((bool?)pairedControlOperation["verified"] == true) return PairedTransitionActorsIdle();
             if (pairedControlAttack == null) pairedControlAttack = actor == horse
                 ? ordinaryAttackTrace.LastStartedMountAttack : ordinaryAttackTrace.LastStartedRiderAttack;
             if (pairedControlAttack == null || !pairedControlAttack.IsFinished) return false;
-            var after = RecordPairedTransition("ordinary-paired-attack-after");
-            pairedControlOperation["after"] = after;
+            if (pairedControlOperation["after"] == null)
+            {
+                pairedControlOperation["after"] = RecordPairedTransition("ordinary-paired-attack-after");
+                pairedControlOperation["rulesAtCommandEnd"] = actor == horse ? ruleProbe.MountNonOpportunityAttackRuleCount : ruleProbe.RiderResolvedCount;
+            }
+            var after = (JObject)pairedControlOperation["after"];
+            var nativeStock = pairedControlAttack.GetType() == typeof(UnitAttack);
+            // The accepted ordinary fixture waits for actual projectile rules.
+            // Keep the terminal cost observation while native recovery/delivery
+            // continues; dispatch completion is not a resolved hit.
+            var rules = actor == horse ? ruleProbe.MountNonOpportunityAttackRuleCount : ruleProbe.RiderResolvedCount;
+            if (nativeStock && (actor.AreHandsBusyWithAnimation || rules < pairedControlAttack.GetAttackIndex())) return false;
+            var recovery = nativeStock && relationship.State == RelationshipState.Unmounted
+                ? ordinaryAttackTrace.NativeRecoveryInterrupt(pairedControlAttack) : null;
+            pairedControlOperation["nativeRecovery"] = recovery;
+            pairedControlOperation["ruleObservationFrame"] = Time.frameCount;
             pairedControlOperation["command"] = CaptureOrdinaryCommand(pairedControlAttack);
             pairedControlOperation["nativePlan"] = pairedControlAttack.AllAttacks.Count;
             pairedControlOperation["completed"] = pairedControlAttack.GetAttackIndex();
             pairedControlOperation["nativeFull"] = pairedControlAttack.IsFullAttack;
             pairedControlOperation["nativeSinglePrimary"] = pairedControlAttack.IsSingleAttack;
-            pairedControlOperation["nativeRules"] = actor == horse ? ruleProbe.MountNonOpportunityAttackRuleCount : ruleProbe.RiderResolvedCount;
+            pairedControlOperation["nativeRules"] = rules;
             var actorKey = actor == horse ? "mount" : "rider";
             var otherKey = actor == horse ? "rider" : "mount";
             var completionObservation = new JObject {
@@ -151,7 +168,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["otherBeforeMove"] = pairedControlOperation["before"][otherKey]["move"],
                 ["otherAfterStandard"] = after[otherKey]["standard"], ["otherAfterMove"] = after[otherKey]["move"] };
             pairedControlOperation["completionObservation"] = completionObservation;
-            RequirePaired(pairedControlAttack.Executor == actor && pairedControlAttack.Result == UnitCommand.ResultType.Success &&
+            RequirePaired(pairedControlAttack.Executor == actor &&
+                (pairedControlAttack.Result == UnitCommand.ResultType.Success ||
+                    pairedControlAttack.Result == UnitCommand.ResultType.Interrupt && recovery != null) &&
                 pairedControlAttack.IsFullAttack == full && !pairedControlAttack.IsSingleAttack &&
                 pairedControlAttack.GetAttackIndex() == pairedControlAttack.AllAttacks.Count &&
                 (int)pairedControlOperation["nativeRules"] == pairedControlAttack.GetAttackIndex() &&
@@ -162,6 +181,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Ordinary paired attack did not preserve native mode, complete sequence, rules or exact actor costs. observed=" +
                 completionObservation.ToString(Newtonsoft.Json.Formatting.None));
             RequireNoPairedRefresh((JObject)pairedControlOperation["before"], after);
+            pairedControlOperation["verified"] = true;
             return PairedTransitionActorsIdle();
         }
 

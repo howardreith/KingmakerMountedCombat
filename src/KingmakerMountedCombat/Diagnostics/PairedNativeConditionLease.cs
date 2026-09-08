@@ -7,6 +7,7 @@ using Kingmaker.RuleSystem.Rules;
 using Kingmaker.RuleSystem.Rules.Damage;
 using Kingmaker.UnitLogic;
 using Kingmaker.UnitLogic.Mechanics.Actions;
+using Kingmaker.UnitLogic.Parts;
 using KingmakerMountedCombat.Integration;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
@@ -28,15 +29,21 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly int choice;
         private bool applied;
         private bool disposed;
+        private UnitPartConfusion ownedPart;
+        private readonly bool originalDirectControl;
         internal readonly JObject Evidence = new JObject { ["inputKind"] = "native-round-fact-condition-stimulus",
             ["conditionApplications"] = 0, ["choiceOverrides"] = 0, ["nativeSelfDamageRules"] = 0 };
 
         internal PairedNativeConditionLease(UnitEntityData actor, MountedCombatController combat,
             NativeActorAllocationTrace trace, NativeAllocationRoundFactLease fact, int choice)
         {
-            if (actor.IsInCombat || actor.Descriptor.State.HasCondition(UnitCondition.Confusion) || fact.Actor != actor)
+            if (actor.IsInCombat || actor.Descriptor.State.HasCondition(UnitCondition.Confusion) ||
+                actor.Get<UnitPartConfusion>() != null || fact.Actor != actor)
                 throw new InvalidOperationException("Condition fixture requires its idle disposable actor and exact native round fact.");
             this.actor = actor; this.combat = combat; this.trace = trace; this.fact = fact; this.choice = choice;
+            originalDirectControl = actor.IsDirectlyControllable;
+            Evidence["nativePartAbsentBefore"] = true;
+            Evidence["directControlBefore"] = originalDirectControl;
             Evidence["actor"] = actor.UniqueId; Evidence["choice"] = choice;
             action = ScriptableObject.CreateInstance<PairedConditionRoundAction>();
             action.Owner = this;
@@ -71,6 +78,9 @@ namespace KingmakerMountedCombat.Diagnostics
             if (!applied || disposed || !combat.IsPreparingPairedActor(actor) || evt.Initiator != actor ||
                 evt.DiceFormula.Rolls != 1 || evt.DiceFormula.Dice != DiceType.D100) return;
             if ((int)Evidence["choiceOverrides"] != 0) throw new InvalidOperationException("Duplicate native condition choice in one grant.");
+            ownedPart = actor.Get<UnitPartConfusion>();
+            if (ownedPart == null) throw new InvalidOperationException("Native condition choice has no native condition part.");
+            Evidence["nativePartCreated"] = true;
             evt.Override(choice); Evidence["choiceOverrides"] = 1;
         }
         public void OnEventDidTrigger(RuleRollDice evt) { }
@@ -87,6 +97,24 @@ namespace KingmakerMountedCombat.Diagnostics
             fact.SetDiagnosticRoundAction(null);
             subscription.Dispose();
             if (applied) actor.Descriptor.State.RemoveCondition(UnitCondition.Confusion);
+            if (ownedPart != null)
+            {
+                if (!ReferenceEquals(actor.Get<UnitPartConfusion>(), ownedPart) ||
+                    actor.Descriptor.State.HasCondition(UnitCondition.Confusion) || actor.Descriptor.State.HasCondition(UnitCondition.AttackNearest))
+                    throw new InvalidOperationException("Native condition cleanup no longer owns the exact disposable part.");
+                var cooldown = actor.CombatState.Cooldown;
+                var standard = cooldown.StandardAction; var move = cooldown.MoveAction; var swift = cooldown.SwiftAction;
+                // Undo only the native part created by this fixture's condition.
+                // Native OnRemove releases its retained control and command;
+                // no game tick, grant, readiness or cooldown is manufactured.
+                actor.Remove<UnitPartConfusion>();
+                Evidence["nativePartRemoved"] = actor.Get<UnitPartConfusion>() == null;
+                Evidence["cleanupResourcesUnchanged"] = standard == cooldown.StandardAction && move == cooldown.MoveAction && swift == cooldown.SwiftAction;
+                if (!(bool)Evidence["cleanupResourcesUnchanged"])
+                    throw new InvalidOperationException("Native condition fixture cleanup changed actor expenditure.");
+            }
+            Evidence["directControlAfter"] = actor.IsDirectlyControllable;
+            Evidence["directControlRestored"] = actor.IsDirectlyControllable == originalDirectControl;
             Evidence["ownedConditionRestored"] = !actor.Descriptor.State.HasCondition(UnitCondition.Confusion);
             UnityEngine.Object.Destroy(action); disposed = true;
         }
