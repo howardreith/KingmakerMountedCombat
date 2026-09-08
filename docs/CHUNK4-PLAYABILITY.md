@@ -24,3 +24,7 @@ Owner-reported missing feature: actual mounted Charge does not work. Its failure
 ## Evidence and delivery
 
 COMPONENT, ASSEMBLY CONTRACT, NATIVE INTEGRATION and HUMAN PLAY remain separate. New native runs: **0**. No retained preview.37 result is counted as a new Chunk 4 scenario. Source/package identities, exact test counts, restoration receipts and targeted manual checklist will be recorded here as gates execute.
+
+### Prelaunch protocol correction — 2026-09-08
+
+The focused game-envelope regression reproduced missing C4 leaf registration (364 PASS / 1 FAIL); preview.2 registers both native Charge leaves and passes 365/0 components and 22/0 Charge protocol checks. Preview.1 was packaged but never launched; its read-only WhatIf is superseded. The final preview.1 harness check passed 247/0. No external write or gameplay evidence exists yet. Preview.2 is a fixture/protocol correction only; it preserves gameplay and the full safety contract.

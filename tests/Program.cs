@@ -26,6 +26,21 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("request accepts horse native-controls UX suite", RequestAcceptsHorseNativeControlsUxSuite);
             runner.Run("request accepts Phase 3D Horse suites", RequestAcceptsPhase3dHorseSuites);
             runner.Run("registration audit accepts exact Horse parent scenarios", RegistrationAuditAcceptsExactHorseParentScenarios);
+            runner.Run("Chunk 4 Charge envelopes retain every native row", () =>
+            {
+                foreach (var scenario in new[] { "chunk4-charge-safety-rt", "chunk4-charge-safety-tb" })
+                {
+                    var request = ValidSaveBackedRequest();
+                    request.Scenario = scenario;
+                    TestRunner.Equal(0, request.Validate().Count, "Charge request rejected.");
+                    TestRunner.True(HorseCompanionRegistrationScenarioPolicy.SupportsScenario(scenario), "Charge registration rejected.");
+                }
+                foreach (var name in new[] { "C4-CHARGE-mounted-rider", "C4-CHARGE-unmounted-rider" })
+                {
+                    var result = new RuntimeSubscenarioResult { Name = name, Status = "PASS", AssertionPassCount = 1, Errors = new string[0] };
+                    TestRunner.Equal(0, result.Validate().Count, "Native Charge result was lost at serialization: " + name);
+                }
+            });
             runner.Run("request accepts private-alpha human-play combat rows", RequestAcceptsHumanPlayCombatRows);
             runner.Run("request requires exact qualification-suite identity", RequestRequiresQualificationSuiteIdentity);
             runner.Run("request accepts read-only manual visual review", RequestAcceptsReadOnlyManualReview);

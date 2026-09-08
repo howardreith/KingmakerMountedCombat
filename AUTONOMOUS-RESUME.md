@@ -1,3 +1,10 @@
+# Chunk 4 exact prelaunch continuation — 2026-09-08
+
+Branch `codex/mounted-combat-phase3f-playable-core`; HEAD `67457538a7f139d8074a9427f6aa588ea7f350d3`, with own preview.2 row-registration correction pending commit. No newer/unknown work at intake. Gameplay remains accepted ec5 source. Preview.1 diagnostic package/source retained, no game launched. Existing read-only WhatIf process PID 11356, exec session 63147, started 2026-09-08T20:01:54.844Z, is superseded by the corrected candidate; it is still scanning historical trees. Do not run it live. Cancellation via Stop-Process returned an OS NullReferenceException, not a safety-review refusal. Next: finish/stop that exact owned read-only helper; commit/package preview.2, create a fresh suite snapshot with current preview.37 intake, exact WhatIf then guarded new native Charge RT/TB. See `analysis-cache/chunk4-native/ACTIVE-RUN.json`, scripts and logs. No production Charge fix yet, no native Charge or Chunk 4 PASS.
+
+Checks: source22/0, build PASS, components365/0, protocol22/0, harness247/0 before row correction, installation6/0. Intake saves `bc345a41d72f5c1538c9a5dcefc577202b0eb8279adbf1fa958cd63fb643519d`, Mods `02aa64faba191ca51d80c2c35f521f2d6ef65c77911f86b3fb0e144a1d6c7878`; UMM Params bytes backed up under `analysis-cache/chunk4-native`. No active runtime lock or game. Do not restore preview.13.
+
+---
 # Active Chunk 4 checkpoint — 2026-09-08
 
 **IN PROGRESS**. Branch `codex/mounted-combat-phase3f-playable-core`; intake HEAD `e6d89bff8c44ecbc21104b733703be9401c3671e`, clean before this mission. Qualified source `ec5d44e6eddc9839d273176b345f7c9701520450`; actual installed `0.1.0-paired-preview.37`, DLL/cache `20080fdcf83c7628611c3f6354a3e47c3065e2b25998a9c01b39a69796ed57bb`. No game process at intake. Preserve current saves/settings/foreign Mods and separate preview.13 backup. New native runs 0. [Active report](docs/CHUNK4-PLAYABILITY.md).
