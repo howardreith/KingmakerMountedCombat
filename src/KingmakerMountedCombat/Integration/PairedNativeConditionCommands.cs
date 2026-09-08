@@ -20,9 +20,10 @@ namespace KingmakerMountedCombat.Integration
 
         internal bool AdmitNativePreparationCommand(UnitCommands commands, UnitCommand command)
         {
-            var actor = preparingConfusionActor;
-            if (!PairedLifecycleEnabled || activation == null || actor == null || command == null ||
-                commands != actor.Commands || activation.State(actor)?.Granted != true ||
+            if (!PairedLifecycleEnabled || activation == null || commands == null || command == null) return false;
+            var actor = ReferenceEquals(commands, activation.Principal.Commands) ? activation.Principal :
+                ReferenceEquals(commands, activation.Partner.Commands) ? activation.Partner : null;
+            if (actor == null || !IsPreparingPairedActor(actor) ||
                 command.IsIgnoreCooldown || !ReferenceEquals(actor.Get<UnitPartConfusion>()?.Cmd, command)) return false;
             nativePreparationCommands[actor] = command;
             logger.Info("Paired native preparation command: " + activation.Identity + ";actor=" + actor.UniqueId +
@@ -53,7 +54,7 @@ namespace KingmakerMountedCombat.Integration
         private bool OwnsNativeConditionActorContext(UnitEntityData actor, TurnController turn)
         {
             if (!PairedLifecycleEnabled || activation == null || actor == null || !ReferenceEquals(turn, activation.Boundary)) return false;
-            if (ReferenceEquals(actor, preparingConfusionActor) && activation.State(actor)?.Granted == true) return true;
+            if (activation.IsPreparingActor(actor, turn)) return true;
             UnitCommand command;
             return nativePreparationCommands.TryGetValue(actor, out command) && OwnsNativePreparationCommand(actor, command, turn);
         }

@@ -18,6 +18,8 @@ namespace KingmakerMountedCombat.Integration
         private object activationSession;
         private TurnController partnerContext;
         private UnitEntityData preparingConfusionActor;
+        private long confusionAdmissionCount;
+        internal string LastConfusionAdmission { get; private set; }
         private int splitReleaseRound = -1;
         private long pairedRenewalNotBefore;
         private TurnController resumingContext;
@@ -35,8 +37,7 @@ namespace KingmakerMountedCombat.Integration
         internal TurnController PartnerContext => partnerContext;
         internal bool IsPartnerContext(TurnController turn) => turn != null && ReferenceEquals(partnerContext, turn);
         internal bool IsPreparingPairedActor(UnitEntityData actor) => PairedLifecycleEnabled &&
-            activation?.Boundary == Game.Instance?.TurnBasedCombatController?.CurrentTurn &&
-            activation?.State(actor)?.Granted == true && !activation.State(actor).Prepared;
+            activation?.IsPreparingActor(actor, Game.Instance?.TurnBasedCombatController?.CurrentTurn) == true;
         internal bool PairedActorEnded(UnitEntityData actor) => activation?.State(actor)?.Ended == true;
 
         internal bool CanAddressActor(UnitEntityData actor, TurnController turn)
@@ -204,8 +205,16 @@ namespace KingmakerMountedCombat.Integration
             finally { preparingConfusionActor = null; }
         }
 
-        internal bool IsNativeConfusionActor(UnitEntityData actor) => actor.IsCurrentUnit() ||
-            PairedLifecycleEnabled && preparingConfusionActor == actor;
+        internal bool IsNativeConfusionActor(UnitEntityData actor)
+        {
+            var nativeCurrent = actor.IsCurrentUnit();
+            var preparing = IsPreparingPairedActor(actor);
+            if (preparing)
+                LastConfusionAdmission = "call=" + (++confusionAdmissionCount) + ";activation=" + activation.Identity +
+                    ";actor=" + actor.UniqueId + ";nativeCurrent=" + nativeCurrent +
+                    ";lexicalActor=" + ReferenceEquals(preparingConfusionActor, actor) + ";grantedPreparation=True;accepted=True";
+            return nativeCurrent || preparing;
+        }
 
         private void ObservePairedCosts(UnitEntityData actor)
         {

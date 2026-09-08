@@ -2,7 +2,7 @@
 
 Status: **IN PROGRESS**. [Milestone report](docs/PAIRED-ACTIVATION-MILESTONE.md).
 
-First gate PASS in both arrangements on preview9 (I/J,96/0). Y24 passes P01/A05/P03/P04/P02 and fails P05: native fact application1, native confusion roll0/command null. Working25 observes actual condition and native callback entry/exit; the existing Mammoth TB fixture now observes natural rider preparation/renewal. P05/P06, remaining supported A01-A09 and final A05/A10 remain unqualified. All25A-Y transactions restored actual preview13/current external state. Source throughab7799c is published.
+First gate PASS in both arrangements on preview9 (I/J,96/0). Z25 passes P01/A05/P03/P04/P02 and fails P05: Confusion is active without immunity, native callback enters/exits during the mount grant, but no condition part is created. Working26 binds native condition admission to canonical granted preparation and observes the actual predicate invocation. Source through 5ab74a4 is published. All26 A-Z transactions restored actual preview13/current external state. P05/P06, paired Mammoth TB and final A05/A10 remain unqualified.
 
 Intake is clean `codex/mounted-combat-phase3f-playable-core` at reviewed `45e3d276754257f4513342d5bce7626dd609d252`, containing Chunk 2 binary source `c804ba052760063f747cde83265e660916984d72`, development candidate `0.1.0-chunk2-preview.10`. Preserve all descendants. [Frozen Chunk 2 repairs, identities and outstanding gates](docs/CHUNK2-ACTOR-ALLOCATIONS.md).
 

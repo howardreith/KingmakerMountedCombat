@@ -99,6 +99,15 @@ namespace KingmakerMountedCombat.Domain
         public ActorState State(TActor actor) => ReferenceEquals(actor, Principal) ? Rider :
             ReferenceEquals(actor, Partner) ? Mount : null;
 
+        // Native effects may remove control or split the relationship during
+        // preparation. The already reserved actor grant still owns that work.
+        public bool IsPreparingActor(TActor actor, TBoundary boundary)
+        {
+            var state = State(actor);
+            return ReferenceEquals(Boundary, boundary) && state != null && state.Granted &&
+                !state.Prepared && !state.Ended && !Ending && !Finalized && !Suspended;
+        }
+
         public bool CanAddress(TActor actor, TBoundary boundary) => Open && !Split &&
             ReferenceEquals(Boundary, boundary) && State(actor) != null && !State(actor).Ended;
 

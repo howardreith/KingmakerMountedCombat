@@ -264,9 +264,9 @@ namespace KingmakerMountedCombat.Diagnostics
             internal static void TurnEndAfter(TurnController __instance) { active?.Record("turn-end-after", __instance.Unit); }
             internal static void RemoveUnitBefore(UnitEntityData unit) { active?.Record("remove-unit-before", unit); }
             internal static void ConfusionBefore(UnitEntityData unit)
-            { if (active?.preparing != null) active.Record("native-confusion-before", unit); }
+            { if (active?.preparing != null) active.Record("native-confusion-before", unit, null, active.combat.LastConfusionAdmission); }
             internal static void ConfusionAfter(UnitEntityData unit)
-            { if (active?.preparing != null) active.Record("native-confusion-after", unit); }
+            { if (active?.preparing != null) active.Record("native-confusion-after", unit, null, active.combat.LastConfusionAdmission); }
             internal static void RemoveUnitAfter(UnitEntityData unit) { active?.Record("remove-unit-after", unit); }
             internal static void MovementBefore(float deltaTime, out float __state) { __state = deltaTime; }
             internal static void MovementAfter(UnitMovementAgent __instance, float deltaTime, bool __result, float __state)

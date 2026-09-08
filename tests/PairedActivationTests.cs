@@ -15,6 +15,8 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("partial preparation retirement grants no missing partner resources", PartialPreparationRetirement);
             runner.Run("native delay resumes the existing paired grant once without a refresh", DelayResumesGrant);
             runner.Run("pair delay rejects either actor expenditure and split cannot resume", DelayConservesParticipation);
+            runner.Run("native preparation effects require the exact pending actor grant", PreparationEffectOwnership);
+            runner.Run("split retains pending native effects but cannot grant another preparation", SplitDuringPreparation);
         }
         private static void Prepare(PairedActivation<object, object> pair, object boundary)
         {
@@ -24,6 +26,39 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.Equal(false, pair.Open, "partner must also prepare");
             TestRunner.Equal(true, pair.BeginActorPreparation(pair.Partner, boundary), "mount grant");
             pair.FinishActorPreparation(pair.Partner);
+        }
+        private static void PreparationEffectOwnership()
+        {
+            var pair = new PairedActivation<object, object>(new object(), new object());
+            var boundary = new object(); pair.Begin(boundary);
+            TestRunner.Equal(false, pair.IsPreparingActor(pair.Partner, boundary), "ungranted actor has no effect admission");
+            pair.BeginActorPreparation(pair.Principal, boundary);
+            TestRunner.Equal(true, pair.IsPreparingActor(pair.Principal, boundary), "pending native rider preparation");
+            TestRunner.Equal(false, pair.IsPreparingActor(pair.Principal, new object()), "foreign boundary is not ownership");
+            TestRunner.Equal(false, pair.IsPreparingActor(new object(), boundary), "foreign actor is not ownership");
+            pair.FinishActorPreparation(pair.Principal);
+            pair.BeginActorPreparation(pair.Partner, boundary);
+            TestRunner.Equal(false, pair.IsPreparingActor(pair.Principal, boundary), "completed effects cannot replay");
+            TestRunner.Equal(true, pair.IsPreparingActor(pair.Partner, boundary), "principal completion retains partner effects");
+            pair.EndActor(pair.Partner);
+            TestRunner.Equal(false, pair.IsPreparingActor(pair.Partner, boundary), "actor forfeit closes preparation admission");
+        }
+        private static void SplitDuringPreparation()
+        {
+            var pair = new PairedActivation<object, object>(new object(), new object());
+            var boundary = new object(); pair.Begin(boundary);
+            pair.BeginActorPreparation(pair.Principal, boundary);
+            pair.FinishActorPreparation(pair.Principal);
+            pair.BeginActorPreparation(pair.Partner, boundary);
+            var identity = pair.Identity;
+            pair.Detach();
+            TestRunner.Equal(true, pair.IsPreparingActor(pair.Partner, boundary), "native effect control loss retains granted work");
+            pair.FinishActorPreparation(pair.Partner);
+            TestRunner.Equal(false, pair.IsPreparingActor(pair.Partner, boundary), "effect completion is once only");
+            TestRunner.Equal(false, pair.CanAddress(pair.Partner, boundary), "split does not enable ordinary partner input");
+            TestRunner.Equal(false, pair.BeginActorPreparation(pair.Partner, boundary), "split cannot repeat preparation");
+            TestRunner.Equal(false, pair.Begin(new object()), "split cannot create a new paired grant");
+            TestRunner.Equal(identity, pair.Identity, "split preserves the original grant identity");
         }
         private static void ThreeActivations()
         {
