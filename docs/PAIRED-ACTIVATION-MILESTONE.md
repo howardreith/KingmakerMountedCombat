@@ -1,6 +1,6 @@
 # Combined actor-allocation and paired-activation milestone
 
-Status: **IN PROGRESS**. The first loop passes in both initiative arrangements. The native condition adapter reaches command completion and forced split; its continuation fixture is being corrected. P05/P06, paired Mammoth TB, remaining supported accounting/transition cases and final A05/A10 are not complete.
+Status: **IN PROGRESS**. The first loop passes in both initiative arrangements. Both native condition continuations pass on preview30; its death fixture is being corrected for actual damage scaling. P06, paired Mammoth TB, remaining supported accounting/transition cases and final A05/A10 are not complete.
 
 ## Authority and configuration
 
@@ -31,6 +31,7 @@ Raw runs: `runtime-evidence/20260907-paired-<letter>/`. Exact package manifests,
 | AB27 | FAIL | Native DoNothing admission, mount actor-end and forced split; rider continuation assertion fails. Host300-second deadline interrupts cleanup before detailed export. |
 | AC28 | FAIL | P01/A05/P03/P04/P02 pass. Detailed failure proves completed native recovery interruption plus premature rule sampling; cleanup retains the fixture-created control part. |
 | AD29 | FAIL | P01/A05/P03/P04/P02 and complete DoNothing continuation pass. SelfHarm succeeds and damages its actor once, but the assertion finds Standard12 before native End. |
+| AE30 | FAIL overall | P01/A05/P03/P04/P02/P05 pass, including independent strict P05 validation. P06 requests27 native damage but receives5; mount remains conscious and the leaf times out. |
 
 First-gate source `5468c24a2b7716442b7233becb585dd62f49ed3c`, ZIP SHA `7c0832cef5034f63f22a865cfb9745418f691d67ba7fa7bd5eee14185353e3b3`. Both arrangements demonstrate actual rider-requested partial transport, charged rider/mount Primary actions, mount exhaustion/refusal, fresh residual movement, Standard conversion followed by attack refusal, early End and once-only renewal. Each run has nine actor/round callback samples (rider, mount, unrelated friend over three rounds), one clear/effect/AI/heal and ordered callbacks, zero drops/errors. Four real enemy movement legs consume one mount reaction, reject a duplicate and prove next-preparation renewal. No independent mount activation occurs.
 
@@ -44,6 +45,8 @@ Preview29 reuses the accepted ordinary fixture's recovery provenance and waits f
 
 AD SelfHarm245268480 in identitybcb3530dbdb4465299d5cfffe71ec5e6:1 succeeds, deals5 native self-damage and ends only the mount. Its exact actor-cost event4390/4391 at15341 changes Standard6 to12 with Move3 unchanged. Installed SelfHarm.OnAction0600270C calls ForceToEnd06000C47 before the actual Standard charge; native End06000C46 later writes6. The paired maximum-debt adapter incorrectly preserves that temporary forfeit-plus-charge total. Working30 records only the observed Standard contribution of the exact owned SelfHarm forfeiture and settles it once at native End, retaining native End's floor and any additional debt. It leaves the action cost callback untouched. Strict protocol requires native6-to12 charge and12-to6 final settlement, rejects missing/duplicate cost and End events, and still requires the full rider continuation. Two domain service tests cover once-only settlement, additional debt and new-grant isolation. Exceptional fixture cleanup now releases its exact condition control before AI restoration. Full P05 remains unqualified until native30 passes.
 
+AE30 independently qualifies both condition continuations on source2514243ff5f33f2315b5206576bd1ae9df5aa4f8, ZIP9e35dd1daf13a7f201e9d3e663035a2e6264061acca1c6eac35c26fca1ad64af, DLL8f2b26550984f7c1dcb712f9efaea129321464e10d95b2012284c57f6325345e/MVIDfb9a27b5-f027-40ce-8a6d-26b768f72b2b. Each rider resolves one rule; SelfHarm retains native Standard12 through continuation and settles to6 at one native End. P06 then reaches real partial movement and mount Primary6/3, but its27-point enemy damage stimulus delivers only5, leaving the mount conscious. No native death/removal is qualified by subsequent cleanup. Installed ApplyDifficultyModifiers060073FF reads GameDifficulty.DamageToParty06000CFB and truncates the scaled damage. Working31 sizes only the stimulus through that actual multiplier, records the native damage before/after difficulty, and rejects insufficient damage or changed settings. Native IsDead, one life event, conserved costs and correct unrelated selection remain mandatory. Native31 is pending.
+
 The allocation host now allows720seconds around its existing660-second engine. Native leaves remain30seconds. Failed cleanup after30seconds exports a failed ledger, returns to parent cleanup and retries best-effort cleanup on disposal. AC demonstrates failure evidence survives; this does not qualify local cleanup or weaken external restoration.
 
 ## Remaining acceptance
@@ -52,10 +55,10 @@ The allocation host now allows720seconds around its existing660-second engine. N
 |---|---|---|
 | First loop, both arrangements | PASS | I/J establishes architecture; later runs preserve the loop. |
 | A01 exhaustion / A02 residual / A03 conversion / A04 refresh | IN PROGRESS | Core P01/P03 pass; reconcile supported catalog on exact final candidate. |
-| A05 complete callbacks | IN PROGRESS | Final candidate, both arrangements and unmounted control; complete P05 condition composition. |
+| A05 complete callbacks | IN PROGRESS | Final candidate, both arrangements and unmounted control; P05 condition composition passes on30. |
 | A06 Stop/approach/interruption | IN PROGRESS | Native Stop passes; remaining approach/interruption cases. |
 | A07 step/restrictions | IN PROGRESS | Step, staggered, get-up, disabled completion and reaction evidence present; final-path reconciliation required. |
-| A08 lifecycle | IN PROGRESS | Split/record retirement have bounded evidence; P05 full forced-split continuation and P06 death/removal pending. |
+| A08 lifecycle | IN PROGRESS | Split/record retirement and P05 forced-split continuation pass; P06 death/removal pending. |
 | A09 mode/debt | IN PROGRESS | Partial and spent-Standard TB-RT-TB evidence present; broader supported transition review remains. |
 | A10 final regression | TODO | Exact final candidate: ordinary TB19, accepted phase3h RT9, unmounted RT2, Mammoth RT1, party1; also paired Mammoth TB. |
 | Private testing candidate / final publication | TODO | Deliver when gameplay/regression status warrants testing. |
@@ -66,6 +69,6 @@ Cross-round Delay is **DEFER — EVIDENCED**: its native activatable processing/
 
 ## Checks and external restoration
 
-Working30: build/source22/0, components364/0, native patch construction30/0, condition factory/adapter observer contracts1/0 each, movement signatures2/0, death/removal and native condition observer1/0 each; new native SelfHarm/End contract1/0, allocation82/0, restrictions41/0, conditions55/0, death18/0. Full harness28 safety245/0 remains the latest complete run. Mammoth focused/outer protocol18/0 is component evidence. These checks do not substitute for native gameplay or final regression.
+Working31: build/source22/0, components364/0, native patch construction30/0, condition factory/adapter observer contracts1/0 each, movement signatures2/0, death/removal and native condition observer1/0 each; new native SelfHarm/End contract1/0, allocation82/0, restrictions41/0, conditions55/0, death26/0; native enemy damage difficulty contract1/0. Full harness28 safety245/0 remains the latest complete run. Mammoth focused/outer protocol18/0 is component evidence. These checks do not substitute for native gameplay or final regression.
 
-All30 A-AD transactions independently restore actual intake: owner preview13 DLL/cache SHA `282f0ad326fdfcd11b8d547cecd70456fa1c90c5a8e68aebd8ab5db3fc9c3864`; protected save digest `7332daa55136ab2e7d8ad2c4c4fe496a35e0059a55a48cd07c550c1c810f1d92`; Mods digest `a4985d9881558608802427bc7758ed631830f61b4978774b3d549473fb1da58b`. Latest AD audit2026-09-08T03:37:21.308Z, copied native log SHA `c41c7ac98d712c521995ca54087023e72162248682e3781f313284e9231ad1c0`. Only disposable KMC_AUTOMATION_WORKING is mutable. No game/lock remains at this checkpoint; no permanent installation. Guarded publication is verified through `aac8826654eb6c1f3a81766bedceeb5a4420f67f`; newer descendants await publication.
+All31 A-AE transactions independently restore actual intake: owner preview13 DLL/cache SHA `282f0ad326fdfcd11b8d547cecd70456fa1c90c5a8e68aebd8ab5db3fc9c3864`; protected save digest `7332daa55136ab2e7d8ad2c4c4fe496a35e0059a55a48cd07c550c1c810f1d92`; Mods digest `a4985d9881558608802427bc7758ed631830f61b4978774b3d549473fb1da58b`. Latest AE audit2026-09-08T04:05:31.006Z, copied native log SHA `981bf710a0aa1cc03935312e1391d3ff439cda26a5e283b3da01a333c1575067`. Only disposable KMC_AUTOMATION_WORKING is mutable. No game/lock remains at this checkpoint; no permanent installation. Guarded publication is verified through `2514243ff5f33f2315b5206576bd1ae9df5aa4f8`; newer descendants await publication.

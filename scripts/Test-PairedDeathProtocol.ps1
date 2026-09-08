@@ -38,6 +38,9 @@ function New-DeathEnvelope {
     $after=Sample 'next-actor' '' 6 3 'friend'
     $e=@{level='NATIVE INTEGRATION';passed=$true;mountedBeforeCombat=$true;inputKind='labelled-native-damage-effect-stimulus'
         damageDispatches=1;targetActor='mount';sourceActor='enemy';nativeDamage=100;mountDead=$true;relationshipAfter='Unmounted'
+        lethalDamageThreshold=99;hitPointsBefore=80;constitutionBefore=18;temporaryHitPointsBefore=0
+        damageToPartyBefore=0.2;damageToPartyAfter=0.2;requestedDamage=500;nativeDamageBeforeDifficulty=500
+        sourceIsPlayersEnemy=$true;sourceIsPlayerFaction=$false
         riderDamageBefore=0;riderDamageAfter=0;beforeEncounter=$beforeEncounter;beforeMovement=$beforeMovement;beforeAttack=$beforeAttack
         beforeDamage=$beforeDamage;afterDamageDispatch=$returned;afterRemoval=$after
         nativeUnrelatedOrderBefore=@('friend','enemy');expectedNextActor='friend'
@@ -51,6 +54,14 @@ function New-DeathEnvelope {
 $passes=0
 $d=New-DeathEnvelope;Assert-KmcPairedDeathEvidence $d.artifact $d.evidence;$passes++
 foreach($mutate in @(
+    {param($d) $d.evidence.nativeDamage=98},
+    {param($d) $d.evidence.requestedDamage=100},
+    {param($d) $d.evidence.nativeDamageBeforeDifficulty=99},
+    {param($d) $d.evidence.damageToPartyAfter=1},
+    {param($d) $d.evidence.sourceIsPlayerFaction=$true},
+    {param($d) $d.evidence.damageToPartyBefore=0},
+    {param($d) $d.evidence.hitPointsBefore=100},
+    {param($d) $d.evidence.mountDead=$false},
     {param($d) $d.evidence.expectedNextActor='enemy'},
     {param($d) $d.evidence.damageDispatches=0},
     {param($d) $d.evidence.nativeDamage=0},

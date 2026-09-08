@@ -6,6 +6,15 @@ function Assert-KmcPairedDeathEvidence($Artifact, $Evidence) {
         $after.currentActor -cne $e.expectedNextActor -or $order -ccontains $rider -or $order -ccontains $mount) {
         throw 'Native death changed the next unrelated actor order.'
     }
+    if($e.lethalDamageThreshold -le 0 -or $e.lethalDamageThreshold -ne $e.hitPointsBefore+$e.constitutionBefore+$e.temporaryHitPointsBefore+1 -or
+        $e.damageToPartyBefore -le 0 -or
+        [double]::IsInfinity([double]$e.damageToPartyBefore) -or [double]::IsNaN([double]$e.damageToPartyBefore) -or
+        $e.damageToPartyAfter -ne $e.damageToPartyBefore -or
+        $e.sourceIsPlayersEnemy -ne $true -or $e.sourceIsPlayerFaction -ne $false -or
+        $e.requestedDamage -ne [Math]::Ceiling(($e.lethalDamageThreshold+1.0)/$e.damageToPartyBefore) -or
+        $e.nativeDamageBeforeDifficulty -ne $e.requestedDamage -or $e.nativeDamage -lt $e.lethalDamageThreshold) {
+        throw 'Death stimulus lacks lethal native damage through the unchanged difficulty multiplier.'
+    }
     if($e.level -cne 'NATIVE INTEGRATION' -or $e.passed -ne $true -or $e.mountedBeforeCombat -ne $true -or
         $e.inputKind -cne 'labelled-native-damage-effect-stimulus' -or $e.damageDispatches -ne 1 -or
         $e.targetActor -cne $mount -or $e.sourceActor -ceq $rider -or $e.sourceActor -ceq $mount -or

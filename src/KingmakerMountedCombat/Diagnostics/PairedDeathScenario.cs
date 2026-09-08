@@ -107,6 +107,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (ReferenceEquals(outcome, pairedDeathPriorOutcome) || combat.HasActiveCommand || !PairedTransitionActorsIdle()) return;
                 var before = RecordPairedTransition("death-before-native-damage");
                 pairedDeathEvidence["beforeDamage"] = before;
+                var nativeOrder = controller.SortedUnits.ToList();
+                pairedDeathEvidence["nativeSortedOrderBefore"] = new JArray(nativeOrder.Select(unit => unit.UniqueId));
+                pairedDeathEvidence["nativePrincipalIndex"] = nativeOrder.IndexOf(rider);
                 var unrelatedOrder = controller.SortedUnits.Where(unit => unit != rider && unit != horse &&
                     unit.IsInState && unit.IsInCombat && !unit.Descriptor.State.IsDead).Select(unit => unit.UniqueId).ToArray();
                 RequirePaired(unrelatedOrder.Length > 0, "Death fixture has no unrelated native successor.");
@@ -123,16 +126,35 @@ namespace KingmakerMountedCombat.Diagnostics
                     "Death stimulus must follow real mount expenditure in the same paired grant.");
                 var lethal = horse.Stats.HitPoints.ModifiedValue + horse.Stats.Constitution.ModifiedValue +
                     horse.Stats.TemporaryHitPoints.ModifiedValue + 1;
-                pairedDeathEvidence["requestedDamage"] = lethal;
+                var difficulty = game.Player.Difficulty.DamageToParty;
+                RequirePaired(target.IsPlayersEnemy && !target.IsPlayerFaction && difficulty > 0f && !float.IsInfinity(difficulty),
+                    "Death fixture requires its native enemy and a positive finite damage multiplier.");
+                // Native ApplyDifficultyModifiers truncates enemy damage after
+                // multiplying by DamageToParty. Size the stimulus, retaining the
+                // installed difficulty and the real damage/life-state pipeline.
+                var requested = checked((int)Math.Ceiling((lethal + 1d) / difficulty));
+                pairedDeathEvidence["lethalDamageThreshold"] = lethal;
+                pairedDeathEvidence["hitPointsBefore"] = horse.Stats.HitPoints.ModifiedValue;
+                pairedDeathEvidence["constitutionBefore"] = horse.Stats.Constitution.ModifiedValue;
+                pairedDeathEvidence["temporaryHitPointsBefore"] = horse.Stats.TemporaryHitPoints.ModifiedValue;
+                pairedDeathEvidence["damageToPartyBefore"] = difficulty;
+                pairedDeathEvidence["requestedDamage"] = requested;
+                pairedDeathEvidence["sourceIsPlayersEnemy"] = target.IsPlayersEnemy;
+                pairedDeathEvidence["sourceIsPlayerFaction"] = target.IsPlayerFaction;
                 pairedDeathEvidence["sourceActor"] = target.UniqueId;
                 pairedDeathEvidence["targetActor"] = horse.UniqueId;
                 pairedDeathEvidence["riderDamageBefore"] = rider.Damage;
                 pairedDeathEvidence["damageDispatches"] = 1;
                 allocationTrace.Record("death-native-damage-dispatch", horse);
                 var damage = Rulebook.Trigger(new RuleDealDamage(target, horse,
-                    new DamageBundle(new DirectDamage(new DiceFormula(0, DiceType.Zero), lethal))));
+                    new DamageBundle(new DirectDamage(new DiceFormula(0, DiceType.Zero), requested))));
                 pairedDeathEvidence["nativeDamage"] = damage.Damage;
+                pairedDeathEvidence["nativeDamageBeforeDifficulty"] = damage.DamageBeforeDifficulty;
+                pairedDeathEvidence["damageToPartyAfter"] = game.Player.Difficulty.DamageToParty;
                 pairedDeathEvidence["afterDamageDispatch"] = RecordPairedTransition("death-native-damage-returned");
+                RequirePaired(damage.DamageBeforeDifficulty == requested && damage.Damage >= lethal &&
+                    game.Player.Difficulty.DamageToParty == difficulty,
+                    "Death fixture did not deliver lethal native damage through the unchanged difficulty multiplier.");
                 pairedDeathStage = 4; ResetLeafClock(); return;
             }
             if (pairedDeathStage == 4)

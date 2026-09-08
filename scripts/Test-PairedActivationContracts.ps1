@@ -61,6 +61,13 @@ public static class KmcNativePatchProbe {
      nativeEnd[0xb]!=0x6f || BitConverter.ToInt32(nativeEnd,0xc)!=0x0600C3B7)
    throw new InvalidOperationException("Native SelfHarm forfeiture and End normalization contract changed.");
   Console.WriteLine("NATIVE CONDITION END SETTLEMENT CONTRACT PASS=1 FAIL=0; no game method invoked");
+  var damageDifficulty=native.ManifestModule.ResolveMethod(0x060073ff).GetMethodBody().GetILAsByteArray();
+  var difficultyGetter=native.ManifestModule.ResolveMethod(0x06000cfb);
+  if(difficultyGetter.DeclaringType.FullName!="Kingmaker.GameDifficulty" || difficultyGetter.Name!="get_DamageToParty" ||
+     damageDifficulty.Length!=0x58 || damageDifficulty[0x37]!=0x6f || BitConverter.ToInt32(damageDifficulty,0x38)!=0x06000cfb ||
+     damageDifficulty[0x4e]!=0x5a || damageDifficulty[0x4f]!=0x69)
+   throw new InvalidOperationException("Native enemy damage difficulty/truncation contract changed.");
+  Console.WriteLine("NATIVE DAMAGE DIFFICULTY CONTRACT PASS=1 FAIL=0; no game method invoked");
   Console.WriteLine("stage: assemblies loaded");
   // Resolve the actual service's public/private native contracts, not a parallel
   // reflection inventory. This performs no game operations or instance creation.
