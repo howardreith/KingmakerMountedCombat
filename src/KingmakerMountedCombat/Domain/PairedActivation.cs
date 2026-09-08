@@ -16,6 +16,27 @@ namespace KingmakerMountedCombat.Domain
             public float StandardSpent { get; private set; }
             public float MoveSpent { get; private set; }
             public float SwiftSpent { get; private set; }
+            private bool nativeForfeitRecorded;
+            private bool nativeForfeitSettled;
+            private float nativeForfeitStandardAdded;
+
+            public void RecordNativeStandardForfeit(float before, float after)
+            {
+                if (!Granted || !Prepared || !Ended || nativeForfeitRecorded || after < before)
+                    throw new InvalidOperationException("Native condition forfeiture requires one ended actor grant.");
+                nativeForfeitRecorded = true;
+                nativeForfeitStandardAdded = after - before;
+            }
+
+            public float SettleNativeStandardForfeit(float current, float nativeEnd)
+            {
+                if (!Ended || !nativeForfeitRecorded || nativeForfeitSettled) return Math.Max(current, nativeEnd);
+                nativeForfeitSettled = true;
+                // SelfHarm forfeits before its later native Standard charge.
+                // Native End normalizes that temporary total. Remove only the
+                // observed forfeiture contribution, retaining any other debt.
+                return Math.Max(nativeEnd, current - nativeForfeitStandardAdded);
+            }
 
             public void Observe(float standard, float move, float swift)
             {

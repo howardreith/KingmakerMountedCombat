@@ -31,6 +31,7 @@ function Assert-KmcPairedConditionCommandEvidence($Artifact, $Evidence) {
             throw 'Condition stimulus did not use its exact active native round fact once during preparation.'
         }
         $expectedType=if($i -eq 0){'Kingmaker.UnitLogic.Commands.UnitDoNothing'}else{'Kingmaker.UnitLogic.Commands.UnitSelfHarm'}
+        $nativeTerminalStandard=6+6*$i
         if($case.passed -ne $true -or $case.outsideCombat -ne $true -or $case.mountedBeforeCombat -ne $true -or
             !$identities.Add([string]$case.activation) -or [string]$case.activation -cnotmatch '^[0-9a-f]{32}:[1-9][0-9]*$' -or
             $stimulus.inputKind -cne 'native-round-fact-condition-stimulus' -or $stimulus.actor -cne $mount -or
@@ -55,7 +56,7 @@ function Assert-KmcPairedConditionCommandEvidence($Artifact, $Evidence) {
         }
         if($case.samePrincipal -ne $true -or $case.mountEnded -ne $true -or $case.riderEnded -ne $false -or
             $case.relationshipAfter -cne 'Unmounted' -or
-            $case.ended.mount.standard -ne 6 -or $case.ended.mount.move -ne 3 -or
+            $case.ended.mount.standard -ne $nativeTerminalStandard -or $case.ended.mount.move -ne 3 -or
             $case.ended.rider.standard -ne 0 -or $case.ended.rider.move -ne 0 -or
             $case.commandAtAdmission.type -cne $expectedType -or $case.commandAtAdmission.executor -cne $mount -or
             $case.commandAtEnd.id -ne $case.commandAtAdmission.id -or $case.commandAtEnd.type -cne $expectedType -or
@@ -88,6 +89,21 @@ function Assert-KmcPairedConditionCommandEvidence($Artifact, $Evidence) {
                 }
             }
         }
+        $costBefore=@($native|Where-Object {$_.boundary -ceq 'actor-cost-before' -and $_.command -eq $case.commandAtEnd.id})
+        $costAfter=@($native|Where-Object {$_.boundary -ceq 'actor-cost-after' -and $_.command -eq $case.commandAtEnd.id})
+        $endBefore=@($native|Where-Object {$_.boundary -ceq 'turn-end-before' -and $_.state.actor -ceq $mount})
+        $endAfter=@($native|Where-Object {$_.boundary -ceq 'turn-end-after' -and $_.state.actor -ceq $mount})
+        if($costBefore.Count -ne 1 -or $costAfter.Count -ne 1 -or
+            $costBefore[0].state.actor -cne $mount -or $costAfter[0].state.actor -cne $mount -or
+            $costBefore[0].commandType -cne $expectedType -or $costAfter[0].commandType -cne $expectedType -or
+            $costBefore[0].state.standard -ne 6 -or $costAfter[0].state.standard -ne $nativeTerminalStandard -or
+            $costBefore[0].state.move -ne 3 -or $costAfter[0].state.move -ne 3 -or
+            $costAfter[0].sequence -le $costBefore[0].sequence -or $costAfter[0].sequence -ge $case.ended.traceSequence -or
+            $endBefore[0].sequence -le $case.beforeEndInput.traceSequence -or
+            $endBefore[0].state.standard -ne $nativeTerminalStandard -or $endAfter[0].state.standard -ne 6 -or
+            $endBefore[0].state.move -ne 3 -or $endAfter[0].state.move -ne 3) {
+            throw 'Native condition action charge or final forfeiture settlement differs.'
+        }
         $ops=@($case.operations)
         if($ops.Count -ne 1){throw 'Principal continuation attack is missing.'}
         $op=$ops[0]
@@ -95,7 +111,7 @@ function Assert-KmcPairedConditionCommandEvidence($Artifact, $Evidence) {
             $op.nativeFull -ne $false -or $op.nativeSinglePrimary -ne $false -or $op.nativePlan -ne 1 -or $op.completed -ne 1 -or
             $op.nativeRules -ne 1 -or $op.command.type -cne 'Kingmaker.UnitLogic.Commands.UnitAttack' -or
             $op.traceCase -cne 'paired-rider-single' -or $op.verified -ne $true -or $op.ruleObservationFrame -lt $op.after.frame -or
-            $op.after.rider.standard -ne 6 -or $op.after.rider.move -ne 0 -or $op.after.mount.standard -ne 6 -or $op.after.mount.move -ne 3) {
+            $op.after.rider.standard -ne 6 -or $op.after.rider.move -ne 0 -or $op.after.mount.standard -ne $nativeTerminalStandard -or $op.after.mount.move -ne 3) {
             throw 'Forced split did not retain native principal attack and spent mount resources.'
         }
         if($op.command.result -cne 'Success') {

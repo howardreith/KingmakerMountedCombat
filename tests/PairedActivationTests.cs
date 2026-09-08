@@ -17,6 +17,8 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("pair delay rejects either actor expenditure and split cannot resume", DelayConservesParticipation);
             runner.Run("native preparation effects require the exact pending actor grant", PreparationEffectOwnership);
             runner.Run("split retains pending native effects but cannot grant another preparation", SplitDuringPreparation);
+            runner.Run("native condition End settles only its observed forfeiture once", NativeForfeitSettlement);
+            runner.Run("native condition settlement preserves other debt and new grants carry no settlement", NativeForfeitConservation);
         }
         private static void Prepare(PairedActivation<object, object> pair, object boundary)
         {
@@ -26,6 +28,32 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.Equal(false, pair.Open, "partner must also prepare");
             TestRunner.Equal(true, pair.BeginActorPreparation(pair.Partner, boundary), "mount grant");
             pair.FinishActorPreparation(pair.Partner);
+        }
+        private static void NativeForfeitSettlement()
+        {
+            var pair = new PairedActivation<object, object>(new object(), new object());
+            var boundary = new object(); Prepare(pair, boundary);
+            TestRunner.Equal(12f, pair.Mount.SettleNativeStandardForfeit(12f, 6f), "ordinary debt has no normalization credit");
+            pair.EndActor(pair.Partner);
+            pair.Mount.RecordNativeStandardForfeit(0f, 6f);
+            pair.Mount.Observe(12f, 3f, 6f);
+            TestRunner.Equal(6f, pair.Mount.SettleNativeStandardForfeit(12f, 6f), "native SelfHarm transient total settles at End");
+            TestRunner.Equal(12f, pair.Mount.SettleNativeStandardForfeit(12f, 6f), "settlement cannot be replayed");
+            TestRunner.Equal(12f, pair.Mount.StandardSpent, "original native cost observations remain evidence");
+            TestRunner.Equal(true, pair.CanAddress(pair.Principal, boundary), "partner settlement cannot end principal input");
+        }
+        private static void NativeForfeitConservation()
+        {
+            var pair = new PairedActivation<object, object>(new object(), new object());
+            Prepare(pair, new object()); pair.EndActor(pair.Partner);
+            pair.Mount.RecordNativeStandardForfeit(2f, 6f);
+            TestRunner.Equal(14f, pair.Mount.SettleNativeStandardForfeit(18f, 6f), "remove only the observed four-unit forfeiture");
+            var rejected = false;
+            try { pair.Mount.RecordNativeStandardForfeit(0f, 6f); } catch (InvalidOperationException) { rejected = true; }
+            TestRunner.Equal(true, rejected, "a second forfeiture cannot add another settlement");
+            pair.EndActor(pair.Principal); pair.FinalizeActivation();
+            Prepare(pair, new object()); pair.EndActor(pair.Partner);
+            TestRunner.Equal(12f, pair.Mount.SettleNativeStandardForfeit(12f, 6f), "new grant cannot reuse prior settlement");
         }
         private static void PreparationEffectOwnership()
         {

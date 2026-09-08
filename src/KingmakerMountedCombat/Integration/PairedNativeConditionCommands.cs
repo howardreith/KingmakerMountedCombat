@@ -70,7 +70,13 @@ namespace KingmakerMountedCombat.Integration
             if (context == null || nativeConditionForfeitContext != null)
                 throw new InvalidOperationException("Native condition actor completion has no unique granted context.");
             nativeConditionForfeitContext = context;
-            try { context.ForceToEnd(setCooldowns); }
+            var standardBefore = actor.CombatState.Cooldown.StandardAction;
+            try
+            {
+                context.ForceToEnd(setCooldowns);
+                if (setCooldowns && command.GetType() == typeof(UnitSelfHarm))
+                    activation.State(actor).RecordNativeStandardForfeit(standardBefore, actor.CombatState.Cooldown.StandardAction);
+            }
             finally { nativeConditionForfeitContext = null; }
         }
 

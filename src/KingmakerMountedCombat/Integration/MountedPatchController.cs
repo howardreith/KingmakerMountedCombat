@@ -411,6 +411,8 @@ namespace KingmakerMountedCombat.Integration
                 PatchBridge.UnifiedTurn == null ? actor.GetTimeToNextTurn() : PatchBridge.UnifiedTurn.PairedNativeReadiness(actor);
             internal static void PairedStandardEndWrite(UnitCombatState.Cooldowns cooldown, float value) =>
                 cooldown.StandardAction = PatchBridge.UnifiedTurn?.NativeCompletionValue(cooldown, cooldown.StandardAction, value) ?? value;
+            internal static void PairedStandardFinalWrite(UnitCombatState.Cooldowns cooldown, float value) =>
+                cooldown.StandardAction = PatchBridge.UnifiedTurn?.NativeFinalStandardValue(cooldown, cooldown.StandardAction, value) ?? value;
             internal static void PairedMoveEndWrite(UnitCombatState.Cooldowns cooldown, float value) =>
                 cooldown.MoveAction = PatchBridge.UnifiedTurn?.NativeCompletionValue(cooldown, cooldown.MoveAction, value) ?? value;
             internal static void PairedSwiftEndWrite(UnitCombatState.Cooldowns cooldown, float value) =>
@@ -448,7 +450,7 @@ namespace KingmakerMountedCombat.Integration
                     PairedActivationTranspilers.CompletionDebt(instructions, Hook(nameof(PairedStandardEndWrite)), Hook(nameof(PairedMoveEndWrite)), Hook(nameof(PairedSwiftEndWrite)), true),
                     Hook(nameof(PairedForfeitPhase)));
             internal static IEnumerable<CodeInstruction> PairedEndDebtTranspiler(IEnumerable<CodeInstruction> instructions) =>
-                PairedActivationTranspilers.CompletionDebt(instructions, Hook(nameof(PairedStandardEndWrite)), Hook(nameof(PairedMoveEndWrite)), Hook(nameof(PairedSwiftEndWrite)), false);
+                PairedActivationTranspilers.CompletionDebt(instructions, Hook(nameof(PairedStandardFinalWrite)), Hook(nameof(PairedMoveEndWrite)), Hook(nameof(PairedSwiftEndWrite)), false);
             internal static IEnumerable<CodeInstruction> PairedPreparationTranspiler(IEnumerable<CodeInstruction> instructions, ILGenerator generator) =>
                 PairedActivationTranspilers.Preparation(instructions, generator, Hook(nameof(IsPartnerContext)), Hook(nameof(PairedPreparationConfusion)), Hook(nameof(IsPairedResume)));
             internal static IEnumerable<CodeInstruction> PairedActivityTranspiler(IEnumerable<CodeInstruction> instructions, ILGenerator generator) =>

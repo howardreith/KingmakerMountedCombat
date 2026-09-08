@@ -164,7 +164,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 pairedNativeConditionSample["riderEnded"] = combat.PairedActorEnded(rider);
                 RequirePaired(pairedNativeConditionCommand.Result == UnitCommand.ResultType.Success &&
                     (bool)pairedNativeConditionSample["samePrincipal"] && combat.PairedActorEnded(horse) && !combat.PairedActorEnded(rider) &&
-                    (float)ended["mount"]["standard"] == 6f && (float)ended["mount"]["move"] == 3f &&
+                    (float)ended["mount"]["standard"] == 6f + 6f * pairedNativeConditionCase && (float)ended["mount"]["move"] == 3f &&
                     (float)ended["rider"]["standard"] == 0f && (float)ended["rider"]["move"] == 0f &&
                     (int)pairedNativeConditionLease.Evidence["choiceOverrides"] == 1 &&
                     (int)pairedNativeConditionLease.Evidence["nativeSelfDamageRules"] == pairedNativeConditionCase,

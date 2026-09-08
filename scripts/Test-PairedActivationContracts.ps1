@@ -54,6 +54,13 @@ public static class KmcNativePatchProbe {
     throw new InvalidOperationException("Native condition command slot contract changed.");
   }
   Console.WriteLine("NATIVE CONDITION SLOT CONTRACT PASS=2 FAIL=0; no constructor invoked");
+  var selfHarm=native.ManifestModule.ResolveMethod(0x0600270C).GetMethodBody().GetILAsByteArray();
+  var nativeEnd=native.ManifestModule.ResolveMethod(0x06000C46).GetMethodBody().GetILAsByteArray();
+  if(selfHarm.Length!=0x76 || selfHarm[0x6f]!=0x6f || BitConverter.ToInt32(selfHarm,0x70)!=0x06000C47 ||
+     selfHarm[0x74]!=0x19 || nativeEnd[6]!=0x22 || BitConverter.ToSingle(nativeEnd,7)!=6f ||
+     nativeEnd[0xb]!=0x6f || BitConverter.ToInt32(nativeEnd,0xc)!=0x0600C3B7)
+   throw new InvalidOperationException("Native SelfHarm forfeiture and End normalization contract changed.");
+  Console.WriteLine("NATIVE CONDITION END SETTLEMENT CONTRACT PASS=1 FAIL=0; no game method invoked");
   Console.WriteLine("stage: assemblies loaded");
   // Resolve the actual service's public/private native contracts, not a parallel
   // reflection inventory. This performs no game operations or instance creation.

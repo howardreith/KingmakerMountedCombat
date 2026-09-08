@@ -29,6 +29,13 @@ namespace KingmakerMountedCombat.Integration
         internal float NativeCompletionValue(UnitCombatState.Cooldowns cooldown, float current, float native) =>
             OwnsCompletionDebt(cooldown) ? Math.Max(current, native) : native;
 
+        internal float NativeFinalStandardValue(UnitCombatState.Cooldowns cooldown, float current, float native)
+        {
+            if (!OwnsCompletionDebt(cooldown)) return native;
+            var state = ReferenceEquals(cooldown, activation.Principal.CombatState.Cooldown) ? activation.Rider : activation.Mount;
+            return state.SettleNativeStandardForfeit(current, native);
+        }
+
         internal bool IsPairedResume(TurnController turn) => PairedLifecycleEnabled && ReferenceEquals(resumingContext, turn);
 
         internal bool CanDelayPaired(TurnController turn)

@@ -6006,6 +6006,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
             }
             catch (Exception exception) { AddCleanupError("relationship", exception); }
+            // Release the exact condition fixture's retained native control
+            // before asking the owned AI leases to verify control restoration.
+            try { CleanupPairedNativeCondition(); }
+            catch (Exception exception) { AddCleanupError("Paired native command condition fixture", exception); }
             if (!RestoreUnmountedHorseAiIsolation())
             {
                 cleanupError = true;
@@ -6053,8 +6057,6 @@ namespace KingmakerMountedCombat.Diagnostics
             catch (Exception exception) { AddCleanupError("Rapid Shot fixture feature", exception); }
             try { CleanupPairedRestrictions(); }
             catch (Exception exception) { AddCleanupError("Paired condition fixture", exception); }
-            try { CleanupPairedNativeCondition(); }
-            catch (Exception exception) { AddCleanupError("Paired native command condition fixture", exception); }
             try { CleanupPairedDeathProbe(); }
             catch (Exception exception) { AddCleanupError("Paired native death observer", exception); }
             try { CleanupActorAllocation(); }

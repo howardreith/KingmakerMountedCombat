@@ -40,10 +40,21 @@ function New-ConditionEnvelope {
         $adapterAfter.state.preparingPairedActor=$true;$adapterAfter.state.confusionPart=$true;$adapterAfter.state.confusionCommand=$commandId
         foreach($actor in @('rider','mount')) { [void](Event 'prepare-after' $actor $id) }
         $admission=Sample 'condition-admission' $id 0 0 0 0
-        $ended=Sample 'condition-ended' $id 0 0 6 3
-        $split=Sample 'condition-split' $id 0 0 6 3
-        $beforeEnd=Sample 'before-end' $id 6 0 6 3
-        foreach($actor in @('rider','mount')) { foreach($kind in @('turn-end-before','turn-end-after')) { [void](Event $kind $actor $id) } }
+        $terminalStandard=6+6*$i
+        foreach($kind in @('actor-cost-before','actor-cost-after')) {
+            $cost=Event $kind 'mount' $id
+            $cost.command=$commandId; $cost.commandType=$type
+            $cost.state.standard=if($kind -ceq 'actor-cost-before'){6}else{$terminalStandard}
+            $cost.state.move=3
+        }
+        $ended=Sample 'condition-ended' $id 0 0 $terminalStandard 3
+        $split=Sample 'condition-split' $id 0 0 $terminalStandard 3
+        $beforeEnd=Sample 'before-end' $id 6 0 $terminalStandard 3
+        foreach($actor in @('rider','mount')) { foreach($kind in @('turn-end-before','turn-end-after')) {
+            $end=Event $kind $actor $id
+            $end.state.standard=if($actor -ceq 'mount' -and $kind -ceq 'turn-end-before'){$terminalStandard}else{6}
+            $end.state.move=3
+        } }
         $afterEnd=Sample 'after-end' $id 6 3 6 3 'friend'
         $command=@{id=$commandId;type=$type;executor='mount';finished=$true;result='Success'}
         $cases+=@{name=$(if($i-eq0){'mount-do-nothing'}else{'mount-self-harm'});passed=$true;outsideCombat=$true;mountedBeforeCombat=$true;activation=$id
@@ -79,6 +90,10 @@ $d=New-ConditionEnvelope
 Assert-KmcPairedConditionCommandEvidence $d.artifact $d.evidence
 $passes++
 foreach($mutation in @(
+    {param($d) $d.evidence.cases[1].ended.mount.standard=6},
+    {param($d) ($d.artifact.observations.actorAllocationTrace.events|Where-Object {$_.boundary -ceq 'actor-cost-after' -and $_.command -eq 901}).state.standard=6},
+    {param($d) ($d.artifact.observations.actorAllocationTrace.events|Where-Object {$_.boundary -ceq 'turn-end-after' -and $_.activationIdentity -ceq $d.evidence.cases[1].activation -and $_.state.actor -ceq 'mount'}).state.standard=12},
+    {param($d) ($d.artifact.observations.actorAllocationTrace.events|Where-Object {$_.boundary -ceq 'turn-end-after' -and $_.activationIdentity -ceq $d.evidence.cases[1].activation -and $_.state.actor -ceq 'mount'}).state.standard=0},
     {param($d) $d.evidence.cases[0].stimulus.nativePartAbsentBefore=$false},
     {param($d) $d.evidence.cases[0].stimulus.nativePartRemoved=$false},
     {param($d) $d.evidence.cases[0].stimulus.directControlRestored=$false},
