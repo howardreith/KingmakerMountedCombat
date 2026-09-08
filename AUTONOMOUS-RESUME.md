@@ -1,4 +1,16 @@
-# Combined paired-activation checkpoint
+# Combined paired-activation reconciliation — 2026-09-08
+
+**PASS for the supported pre-combat pair.** Intake branch `codex/mounted-combat-phase3f-playable-core`, exact HEAD and verified remote `aeb56f9e787bd633639de849a34ef108070501cf`; tested source `ec5d44e6eddc9839d273176b345f7c9701520450`, `0.1.0-paired-preview.37`. Reviewed `45e3d276754257f4513342d5bce7626dd609d252` and Chunk 2 source `c804ba052760063f747cde83265e660916984d72` are ancestors. The implementation, first gate, supported A01-A09, final A05/A10 and private package are already qualified; do not restart the historical preview.35 work below. [Current result, exact identities and remaining limits](docs/PAIRED-ACTIVATION-MILESTONE.md).
+
+Read-only reconciliation preserves the exact tested ZIP `2215156d43679913ee134c563f704cee37ce564ab70dc50d7009781250ee3738` and DLL `20080fdcf83c7628611c3f6354a3e47c3065e2b25998a9c01b39a69796ed57bb`. All 56 campaign restoration receipts retain PASS. A later 18:29 UTC deployment already installed preview.37 and separately backed up preview.13; current saves and foreign settings differ from the historical campaign intake and must remain untouched. Current UMM parameters match the retained receipt; no game/lock remains. No new runtime transaction, build, installation or gameplay qualification is performed by reconciliation.
+
+Checks: `Test-RuntimeResult.ps1` on each retained AU-BD result, **29 PASS / 0 FAIL each across ten results**; seven retained identity hashes match; three preview.13 backup files match; `scripts/Validate-Source.ps1` **22/0**; `git diff --check` PASS. Receipt paths below retain the exact current inventories and validation logs. The original full-test log hash still matches the qualified final report; no gameplay code changed.
+
+Next command: read `C:/Dev/KingmakerMountedCombatLab/analysis-cache/runtime-evidence/paired-activation-20260907/ACTIVE-RUN.json` for the final documentation/publication receipt and `analysis-cache/paired-activation-native/reconciliation37-20260908-evidence.json` for stored-result revalidation. Finish only the documentation checkpoint if its receipt is pending. Otherwise provide the private candidate/checklist already in the report; do not repackage, rerun a completed campaign or restore historical preview.13 over newer external state. Persistence/cold-load debt and listed unsupported transitions remain unqualified.
+
+---
+
+# Historical combined paired-activation checkpoint
 
 2026-09-08. Branch codex/mounted-combat-phase3f-playable-core; precommit HEAD/remote b96464da2947ff7c0cf1b5f104ed16c070c15886. Script-only shared configuration correction in RuntimeHarness.Common/Phase3G/H/ordinary validators plus protocol/harness fixtures. Exact five Boolean fields, oldflags/overlayfalse, newflagtrue for current accepted ordinary/RT/unmounted scopes; historical scopes separately false. No gameplay/fixture C#, version or DLL change. Harness245/0 after fixing the old unmounted synthetic flag; protocolsordinary42/phase3g20/phase3h42. Full preserved AO/AP/AQ native-result strict revalidation39/0 each. Receipts under analysis-cache/paired-activation-native/*35-*shared-config*.txt.
 

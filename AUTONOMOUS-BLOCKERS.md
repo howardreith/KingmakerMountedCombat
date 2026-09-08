@@ -1,4 +1,12 @@
-## Chunk 2 disposition - 2026-09-07 09:08 UTC
+## Combined milestone disposition — 2026-09-08
+
+**PASS for the supported pre-combat pair** on preview.37/source `ec5d44e6eddc9839d273176b345f7c9701520450`, qualification documentation `aeb56f9e787bd633639de849a34ef108070501cf`. Complete paired grant/preparation, command admission, completion and participation ownership resolve the historical Chunk 2 dependency below. Both first gates, supported A01-A09, final 36-sample A05, 32-case/287-assertion A10 and Mammoth TB are qualified. [Evidence and bounded unqualified states](docs/PAIRED-ACTIVATION-MILESTONE.md).
+
+No critical blocker remains for that supported scope. Full mounted save restoration/cold-load debt, cross-round Delay and the report's other unqualified transitions remain explicit; cleanup or safe rejection does not qualify them. Later external deployment has already installed preview.37 with preview.13 separately backed up. Preserve current saves, settings, caches and foreign Mods; the campaign's historical intake is not authority to overwrite newer state. Reconciliation adds no runtime transaction or human-play claim.
+
+---
+
+## Historical Chunk 2 disposition - 2026-09-07 09:08 UTC
 
 **BLOCKED — CRITICAL** for allocation milestone completion. Early preparation callback floors, native movement pacing and explicit actor-record lifetime are implemented. A10 final preview10/sourcec804ba0 passes32/0 cases (287/0 assertions); representative A05 on frozen7 passes36 preparations across both mounted/unmounted orders. A04 still reproduces rider-first pre-Prepare stale Standard and partial movement/stall. No legal future reservation or complete grant/preparation/continuation contract has been proved; A01-A09 are incomplete. [One report, causal evidence and gate ledger](docs/CHUNK2-ACTOR-ALLOCATIONS.md).
 
