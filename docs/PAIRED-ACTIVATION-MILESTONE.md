@@ -1,6 +1,6 @@
 # Combined actor-allocation and paired-activation milestone
 
-Status: **IN PROGRESS**. Both preview32 native tranches pass strict revalidation, including condition continuation and real mount death. Paired Mammoth TB, remaining supported-case reconciliation and final unmounted A05/A10 remain open.
+Status: **IN PROGRESS**. Preview32 qualifies both paired tranches and both unmounted A05 controls. Mammoth TB fails at fixture startup; working33 corrects the overlay exclusion. Remaining supported-case reconciliation and final33 A05/A10 stay open.
 
 ## Authority and configuration
 
@@ -49,6 +49,9 @@ AE30 independently qualifies both condition continuations on source2514243ff5f33
 
 The allocation host now allows720seconds around its existing660-second engine. Native leaves remain30seconds. Failed cleanup after30seconds exports a failed ledger, returns to parent cleanup and retries best-effort cleanup on disposal. AC demonstrates failure evidence survives; this does not qualify local cleanup or weaken external restoration.
 
+AI/AJ32 unmounted controls native3/0 and outer PASS, with9 callback measurements each,4183/4162 trace events and zero drops/errors. Together AG/AH/AI/AJ demonstrate36 A05 measurements on exact DLL11baaf3e. Script-only source9e641180d96e14dbdcfafe56c8239f4a9a1583df repackages the same DLL/Info bytes as ZIP8b275f4410e7b9893a65408f6079feed6e0c3ff0c5b50b0a43994b934179fdcb (manifest42e0599f36077453921b7426f0f6ed6b54ea8aabaac91c9530bf804312ff8780); the local payload-equivalence receipt proves both entries. Full local32 checks pass: source22, components364, visual23, inventory10, harness245, assembly437+24, patches30, ordinary39, allocation82, restrictions41, conditions67, death32 and Mammoth18, all0 failures.
+
+AK32 does not reach gameplay: its game result fails the sole-authority guard, and the startup log records diagnostic overlay=True. RuntimeAutomationHost excluded Mammoth RT from legacy overlay startup but omitted Mammoth TB. Its incomplete startup record then fails the strict outer field set; schema57 already supports pairedActivation, so no schema weakening is needed. Working33 adds the missing TB exclusion and increments the candidate version; native gameplay services and guards remain unchanged. Its build/source22/0, components364/0, patches30/0 and Mammoth protocol18/0 pass. The existing guarded native Mammoth scenario exercises this regression. DLL987cea52697f24740c156751f8e8aebe745ad1543c5faaf8298dfc317203e276/MVID80ce234d-3e56-45f5-85d6-67b68ec06086 is a new binary; final33 A05/A10 remains mandatory.
 ## Remaining acceptance
 
 | Gate | Status | Remaining evidence |
@@ -71,4 +74,4 @@ Cross-round Delay is **DEFER — EVIDENCED**: its native activatable processing/
 
 Working32: build/source22/0, components364/0, native patch construction30/0, condition factory/adapter observer contracts1/0 each, movement signatures2/0, death/removal and native condition observer1/0 each; new native SelfHarm/End contract1/0, allocation82/0, restrictions41/0, conditions67/0, death32/0; native enemy damage difficulty contract1/0. Full harness28 safety245/0 remains the latest complete run. Mammoth focused/outer protocol18/0 is component evidence. These checks do not substitute for native gameplay or final regression.
 
-All34 A-AH transactions independently restore actual intake: owner preview13 DLL/cache SHA `282f0ad326fdfcd11b8d547cecd70456fa1c90c5a8e68aebd8ab5db3fc9c3864`; protected save digest `7332daa55136ab2e7d8ad2c4c4fe496a35e0059a55a48cd07c550c1c810f1d92`; Mods digest `a4985d9881558608802427bc7758ed631830f61b4978774b3d549473fb1da58b`. Latest AH audit2026-09-08T05:10:53.964Z, copied native log SHA `1054c2e1da0ead7f3f2b3ce1a24b6aa17550cf66c5d46aaf1e221f13d5fd0269`. Only disposable KMC_AUTOMATION_WORKING is mutable. No game/lock remains at this checkpoint; no permanent installation. Guarded direct-helper publication is verified through `bec0534c4ef94dd6001f315eaf8c1b4a4fab20ea`; newer descendants await publication.
+All37 A-AK transactions independently restore actual intake: owner preview13 DLL/cache SHA `282f0ad326fdfcd11b8d547cecd70456fa1c90c5a8e68aebd8ab5db3fc9c3864`; protected save digest `7332daa55136ab2e7d8ad2c4c4fe496a35e0059a55a48cd07c550c1c810f1d92`; Mods digest `a4985d9881558608802427bc7758ed631830f61b4978774b3d549473fb1da58b`. Latest AK audit2026-09-08T06:08:19.221Z, copied native log SHA `fb8263df57f517226bd71e295f2ede697f41f25cb0fe2726979f7e472aa8cd9a`. Only disposable KMC_AUTOMATION_WORKING is mutable. No game/lock remains at this checkpoint; no permanent installation. Guarded direct-helper publication is verified through `9e641180d96e14dbdcfafe56c8239f4a9a1583df`; newer descendants await publication.

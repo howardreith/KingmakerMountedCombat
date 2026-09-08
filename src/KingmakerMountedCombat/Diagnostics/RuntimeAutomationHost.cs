@@ -87,6 +87,7 @@ namespace KingmakerMountedCombat.Diagnostics
             request.Scenario != Phase3dHorseScenarioTranche.Phase3gTurnBasedScenario &&
             request.Scenario != Phase3dHorseScenarioTranche.PresentationScenario &&
             request.Scenario != "mounted-mammoth-primary-hit-rt" &&
+            request.Scenario != "mounted-mammoth-primary-hit-tb" &&
             request.Scenario != "mounted-pair-party-formation" &&
             request.Scenario != "combat-lifecycle-suite";
 
