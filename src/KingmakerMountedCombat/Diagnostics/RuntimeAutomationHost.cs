@@ -429,7 +429,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     return;
                 }
                 var hostDeadline = HorseCompanionScenarioDeadlinePolicy.HostDeadlineSeconds(
-                    Phase3dHorseScenarioTranche.IsActorAllocationScenario(request.Scenario));
+                    Phase3dHorseScenarioTranche.IsActorAllocationScenario(request.Scenario),
+                    request.Scenario == Phase3dHorseScenarioTranche.OrdinaryAttackControlsScenario
+                        ? Phase3dHorseScenarioTranche.OrdinaryScenarioDeadlineSeconds : 0.0);
                 if (!IsManualReview && elapsedSeconds > hostDeadline)
                 {
                     if (IsLoadingProcessActive())

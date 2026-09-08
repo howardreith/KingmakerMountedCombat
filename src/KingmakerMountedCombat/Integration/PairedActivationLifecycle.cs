@@ -309,8 +309,13 @@ namespace KingmakerMountedCombat.Integration
                 nativePreparationCommands.Clear();
                 DisposePartnerContext(); activation = null; activationSession = null;
                 armedRider = null; armedMount = null; splitReleaseRound = -1; pairedRenewalNotBefore = 0; resumingContext = null;
-                if (relationship.State == RelationshipState.Mounted) ArmPairedEncounter(relationship.Rider, relationship.Mount);
             }
+            // Native removal can already have retired activation ownership while
+            // the relationship survives combat exit. Arm the next encounter even
+            // then; ArmPairedEncounter requires both actors and the party outside
+            // combat and never prepares actors or writes native resources.
+            if (activation == null && relationship.State == RelationshipState.Mounted)
+                ArmPairedEncounter(relationship.Rider, relationship.Mount);
         }
 
         private void DisposePartnerContext()

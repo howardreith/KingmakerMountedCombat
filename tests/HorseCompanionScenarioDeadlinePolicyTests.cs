@@ -14,6 +14,10 @@ namespace KingmakerMountedCombat.Tests
         {
             var normal = HorseCompanionScenarioDeadlinePolicy.HostDeadlineSeconds(false);
             var allocation = HorseCompanionScenarioDeadlinePolicy.HostDeadlineSeconds(true);
+            var ordinaryCatalog = HorseCompanionScenarioDeadlinePolicy.HostDeadlineSeconds(false, 630);
+            TestRunner.Equal(690.0, ordinaryCatalog, "explicit ordinary catalog retains aggregate bound plus cleanup");
+            TestRunner.Equal(HorseCompanionDeadlineKind.Scenario,
+                HorseCompanionScenarioDeadlinePolicy.Evaluate(691, ordinaryCatalog, false, -1, 30), "ordinary catalog host remains bounded");
             TestRunner.Equal(HorseCompanionDeadlineKind.Scenario,
                 HorseCompanionScenarioDeadlinePolicy.Evaluate(301, normal, false, -1, 30), "ordinary host retains its bound");
             TestRunner.Equal(HorseCompanionDeadlineKind.None,

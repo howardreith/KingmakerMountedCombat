@@ -172,8 +172,30 @@ namespace KingmakerMountedCombat.Diagnostics
                     return;
                 }
                 var turn = game.TurnBasedCombatController.CurrentTurn;
+                if (OrdinaryMounted && settings.EnablePairedActivation && turn?.Unit == horse)
+                    throw new InvalidOperationException("Mounted ordinary encounter received an independent mount turn.");
                 if (turn?.Unit != rider || turn.Status != TurnController.TurnStatus.Preparing && !turn.IsActing)
                 { TryEndPhase3gFixtureTurn(turn); return; }
+                if (OrdinaryMounted && settings.EnablePairedActivation)
+                {
+                    var identity = combat.PairedActivationIdentity;
+                    if (string.IsNullOrEmpty(identity) || combat.PairedPartnerContext?.Unit != horse ||
+                        !rider.CombatState.Prepared || !horse.CombatState.Prepared)
+                        throw new InvalidOperationException("Mounted ordinary encounter lacks complete paired native preparation.");
+                    var key = "paired-encounter-" + OrdinaryCurrent.Id;
+                    if (observations[key] == null)
+                    {
+                        var encounter = identity.Split(':')[0];
+                        if (observations.Properties().Any(p => p.Name.StartsWith("paired-encounter-", StringComparison.Ordinal) &&
+                            (string)p.Value["encounter"] == encounter))
+                            throw new InvalidOperationException("A new ordinary encounter reused earlier activation ownership.");
+                        observations[key] = new JObject { ["encounter"] = encounter, ["identity"] = identity,
+                            ["frame"] = Time.frameCount, ["principal"] = turn.Unit.UniqueId,
+                            ["partner"] = combat.PairedPartnerContext.Unit.UniqueId,
+                            ["riderPrepared"] = rider.CombatState.Prepared, ["mountPrepared"] = horse.CombatState.Prepared,
+                            ["state"] = CaptureOrdinaryLiveState() };
+                    }
+                }
                 if (ReferenceEquals(turn, ordinarySetupTurn)) { TryEndPhase3gFixtureTurn(turn); return; }
                 if (!rider.Commands.Empty || !horse.Commands.Empty || rider.AreHandsBusyWithAnimation ||
                     !rider.HasStandardAction() || game.HandsEquipmentController.IsUpdateScheduledFor(rider)) return;

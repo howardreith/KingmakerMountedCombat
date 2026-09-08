@@ -16,8 +16,9 @@ namespace KingmakerMountedCombat.Domain
     internal static class HorseCompanionScenarioDeadlinePolicy
     {
         internal const double AllocationScenarioSeconds = 660.0;
-        internal static double HostDeadlineSeconds(bool actorAllocation) =>
-            actorAllocation ? AllocationScenarioSeconds + 60.0 : 300.0;
+        internal static double HostDeadlineSeconds(bool actorAllocation, double aggregateScenarioSeconds = 0.0) =>
+            Math.Max(actorAllocation ? AllocationScenarioSeconds + 60.0 : 300.0,
+                aggregateScenarioSeconds + 60.0);
 
         internal static HorseCompanionDeadlineKind Evaluate(
             double scenarioElapsedSeconds,
