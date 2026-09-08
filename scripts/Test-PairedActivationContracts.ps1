@@ -126,6 +126,18 @@ public static class KmcNativePatchProbe {
    if(deathIl.Length!=16 || deathIl[10]!=0x28 || BitConverter.ToInt32(deathIl,11)!=0x06000BE6)
     throw new InvalidOperationException("Native death no longer calls RemoveUnit at the verified boundary.");
    Console.WriteLine("NATIVE DEATH REMOVAL CONTRACT PASS=1 FAIL=0; runtime observer construction still required");
+   var leaveIl=native.ManifestModule.ResolveMethod(0x0600939F).GetMethodBody().GetILAsByteArray();
+   var clearMethod=native.ManifestModule.ResolveMethod(0x060093A4);
+   var clearIl=clearMethod.GetMethodBody().GetILAsByteArray();
+   var leaveHandlerIl=native.ManifestModule.ResolveMethod(0x06000BF1).GetMethodBody().GetILAsByteArray();
+   if(leaveIl[0x38]!=0x28 || BitConverter.ToInt32(leaveIl,0x39)!=0x060093A4 ||
+      clearIl[6]!=0x6f || BitConverter.ToInt32(clearIl,7)!=0x0600C3BE ||
+      leaveHandlerIl.Length!=16 || leaveHandlerIl[10]!=0x28 || BitConverter.ToInt32(leaveHandlerIl,11)!=0x06000BE6)
+    throw new InvalidOperationException("Native death leave/clear/removal sequence changed.");
+   patch.Invoke(harmony,new object[]{clearMethod,
+    Activator.CreateInstance(harmonyMethod,new object[]{observer.GetMethod("CombatClearBefore",BindingFlags.Static|BindingFlags.NonPublic)}),
+    Activator.CreateInstance(harmonyMethod,new object[]{observer.GetMethod("CombatClearAfter",BindingFlags.Static|BindingFlags.NonPublic)}),null});
+   Console.WriteLine("NATIVE DEATH COMBAT CLEAR CONTRACT PASS=1 FAIL=0; observer constructed without gameplay execution");
    var confusionTick=native.ManifestModule.ResolveMethod(0x06009131);
    if(confusionTick.Name!="TickOnUnit" || confusionTick.GetParameters().Length!=1 ||
       confusionTick.GetParameters()[0].Name!="unit" ||

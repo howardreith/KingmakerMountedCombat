@@ -54,11 +54,28 @@ function Assert-KmcPairedDeathEvidence($Artifact, $Evidence) {
     }
     $removeBefore=@($native|Where-Object {$_.boundary -ceq 'remove-unit-before' -and $_.state.actor -ceq $mount})
     $removeAfter=@($native|Where-Object {$_.boundary -ceq 'remove-unit-after' -and $_.state.actor -ceq $mount})
-    if($removeBefore.Count -ne 1 -or $removeAfter.Count -ne 1 -or
+    # Installed death first leaves combat (native combat-state Clear), then
+    # delivers both leave-combat and death notifications to RemoveUnit. The
+    # first removal finalizes the grant; the second must be idempotent.
+    $clearBefore=@($native|Where-Object {$_.boundary -ceq 'combat-clear-before' -and $_.state.actor -ceq $mount})
+    $clearAfter=@($native|Where-Object {$_.boundary -ceq 'combat-clear-after' -and $_.state.actor -ceq $mount})
+    if($clearBefore.Count -ne 1 -or $clearAfter.Count -ne 1 -or
+        $clearBefore[0].sequence -le $before.traceSequence -or $clearAfter[0].sequence -le $clearBefore[0].sequence -or
+        $clearBefore[0].activationIdentity -cne $before.identity -or $clearAfter[0].activationIdentity -cne $before.identity -or
+        $clearBefore[0].state.standard -ne 6 -or $clearBefore[0].state.move -ne 3 -or
+        $clearAfter[0].state.standard -ne 0 -or $clearAfter[0].state.move -ne 0 -or
+        $clearAfter[0].state.prepared -ne $false) {throw 'Native death combat-state clearing provenance differs.'}
+    if($removeBefore.Count -ne 2 -or $removeAfter.Count -ne 2 -or
         $removeBefore[0].sequence -le $before.traceSequence -or $removeAfter[0].sequence -le $removeBefore[0].sequence -or
-        $removeBefore[0].state.standard -ne 6 -or $removeBefore[0].state.move -ne 3 -or
+        $removeBefore[0].sequence -le $clearAfter[0].sequence -or $removeBefore[0].activationIdentity -cne $before.identity -or
+        $removeBefore[0].state.standard -ne 0 -or $removeBefore[0].state.move -ne 0 -or
         $removeAfter[0].state.standard -ne 6 -or $removeAfter[0].state.move -ne 3 -or
         ![string]::IsNullOrWhiteSpace([string]$removeAfter[0].activationIdentity)) {throw 'Native removal boundary refunded debt or retained the activation.'}
+    if($removeBefore[1].sequence -le $removeAfter[0].sequence -or $removeAfter[1].sequence -le $removeBefore[1].sequence -or
+        $removeBefore[1].state.standard -ne 6 -or $removeBefore[1].state.move -ne 3 -or
+        $removeAfter[1].state.standard -ne 6 -or $removeAfter[1].state.move -ne 3 -or
+        ![string]::IsNullOrWhiteSpace([string]$removeBefore[1].activationIdentity) -or
+        ![string]::IsNullOrWhiteSpace([string]$removeAfter[1].activationIdentity)) {throw 'Repeated native death removal changed settled participation or debt.'}
     foreach($actor in @($rider,$mount)) {
         $ended=@($native|Where-Object {$_.boundary -ceq 'turn-end-after' -and $_.state.actor -ceq $actor})[0]
         if($ended.sequence -le $removeBefore[0].sequence -or $ended.sequence -ge $removeAfter[0].sequence) {

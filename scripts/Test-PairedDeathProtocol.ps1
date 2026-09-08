@@ -9,7 +9,7 @@ function New-DeathEnvelope {
     $identity=('a'*32)+':1'
     function Event([string]$kind,[string]$actor,[string]$grant=$identity) {
         $n=$ledger.Count+1
-        $event=@{sequence=$n;boundary=$kind;frame=$n;gameTicks=100*$n;activationIdentity=$grant;state=@{actor=$actor;standard=6;move=3}}
+        $event=@{sequence=$n;boundary=$kind;frame=$n;gameTicks=100*$n;activationIdentity=$grant;state=@{actor=$actor;standard=6;move=3;prepared=$true}}
         [void]$ledger.Add($event);return $event
     }
     function Sample([string]$kind,[string]$grant,[double]$ms=0,[double]$mm=0,[string]$current='rider') {
@@ -29,10 +29,14 @@ function New-DeathEnvelope {
     $beforeMovement=Sample 'before-movement' $identity
     $beforeAttack=Sample 'before-attack' $identity 0 0.1
     $beforeDamage=Sample 'before-damage' $identity 6 3
-    [void](Event 'remove-unit-before' 'mount')
+    [void](Event 'combat-clear-before' 'mount')
+    $cleared=Event 'combat-clear-after' 'mount';$cleared.state.standard=0;$cleared.state.move=0;$cleared.state.prepared=$false
+    $removing=Event 'remove-unit-before' 'mount';$removing.state.standard=0;$removing.state.move=0
     foreach($actor in @('rider','mount')) {
         foreach($boundary in @('turn-end-before','turn-end-after')) {[void](Event $boundary $actor)}
     }
+    [void](Event 'remove-unit-after' 'mount' '')
+    [void](Event 'remove-unit-before' 'mount' '')
     [void](Event 'remove-unit-after' 'mount' '')
     $returned=Sample 'damage-returned' '' 6 3
     $after=Sample 'next-actor' '' 6 3 'friend'
@@ -74,8 +78,14 @@ foreach($mutate in @(
     {param($d) $d.evidence.movement.nativeMoveCost=0},
     {param($d) $d.evidence.nativeLifeEvents.events=@()},
     {param($d) $d.evidence.nativeLifeEvents.events[0].actor='rider'},
-    {param($d) ($d.artifact.observations.actorAllocationTrace.events|Where-Object boundary -CEQ 'remove-unit-after').state.standard=0},
-    {param($d) ($d.artifact.observations.actorAllocationTrace.events|Where-Object boundary -CEQ 'remove-unit-before').boundary='observed-only'},
+    {param($d) @($d.artifact.observations.actorAllocationTrace.events|Where-Object boundary -CEQ 'remove-unit-after')[0].state.standard=0},
+    {param($d) @($d.artifact.observations.actorAllocationTrace.events|Where-Object boundary -CEQ 'remove-unit-before')[0].boundary='observed-only'},
+    {param($d) @($d.artifact.observations.actorAllocationTrace.events|Where-Object boundary -CEQ 'remove-unit-after')[1].state.standard=0},
+    {param($d) @($d.artifact.observations.actorAllocationTrace.events|Where-Object boundary -CEQ 'remove-unit-before')[1].activationIdentity=$d.evidence.beforeDamage.identity},
+    {param($d) ($d.artifact.observations.actorAllocationTrace.events|Where-Object boundary -CEQ 'combat-clear-before').state.move=0},
+    {param($d) ($d.artifact.observations.actorAllocationTrace.events|Where-Object boundary -CEQ 'combat-clear-after').state.prepared=$true},
+    {param($d) ($d.artifact.observations.actorAllocationTrace.events|Where-Object boundary -CEQ 'combat-clear-after').sequence=999},
+    {param($d) ($d.artifact.observations.actorAllocationTrace.events|Where-Object boundary -CEQ 'combat-clear-after').boundary='observed-only'},
     {param($d) ($d.artifact.observations.actorAllocationTrace.events|Where-Object {$_.boundary -ceq 'turn-end-after' -and $_.state.actor -ceq 'mount'}).sequence=999},
     {param($d) $d.evidence.afterRemoval.mountEffects++},
     {param($d) $d.artifact.observations.actorAllocationTrace.events+=($d.artifact.observations.actorAllocationTrace.events|Where-Object boundary -CEQ 'prepare-after'|Select-Object -First 1)}

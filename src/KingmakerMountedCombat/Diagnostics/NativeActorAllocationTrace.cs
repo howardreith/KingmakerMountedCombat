@@ -59,6 +59,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 Patch(typeof(TurnController), 0x06000C3C, "PrepareBefore", "PrepareAfter");
                 Patch(typeof(UnitCombatState.Cooldowns), 0x0600C3BE, "ClearBefore", "ClearAfter");
+                Patch(typeof(UnitCombatState), 0x060093A4, "CombatClearBefore", "CombatClearAfter");
                 Patch(typeof(UnitCombatState), 0x0600939D, "RoundBefore", "RoundAfter");
                 Patch(typeof(TurnController), 0x06000C7F, "RoundHandlerBefore", "RoundHandlerAfter");
                 Patch(typeof(TurnController), 0x06000C80, "ReadyHandlerBefore", "ReadyHandlerAfter");
@@ -238,6 +239,8 @@ namespace KingmakerMountedCombat.Diagnostics
             internal static void PrepareAfter(TurnController __instance) { active?.Record("prepare-after", __instance.Unit); if (active != null) active.preparing = null; }
             internal static void ClearBefore(UnitCombatState.Cooldowns __instance) { if (active?.preparing?.Unit.CombatState.Cooldown == __instance) active.Record("clear-before", active.preparing.Unit); }
             internal static void ClearAfter(UnitCombatState.Cooldowns __instance) { if (active?.preparing?.Unit.CombatState.Cooldown == __instance) active.Record("clear-after", active.preparing.Unit); }
+            internal static void CombatClearBefore(UnitCombatState __instance) { active?.Record("combat-clear-before", __instance.Unit); }
+            internal static void CombatClearAfter(UnitCombatState __instance) { active?.Record("combat-clear-after", __instance.Unit); }
             internal static void RoundBefore(UnitCombatState __instance) { active?.Record("round-state-before", __instance.Unit); }
             internal static void RoundAfter(UnitCombatState __instance) { active?.Record("round-state-after", __instance.Unit); }
             internal static void RoundHandlerBefore(TurnController __instance, IUnitNewCombatRoundHandler handler) { active?.Record("round-handler-before", __instance.Unit, detail: handler.GetType().FullName, callback: handler); }
