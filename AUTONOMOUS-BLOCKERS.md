@@ -1,7 +1,6 @@
-# Active Chunk 4 gates — 2026-09-08
+# Active Chunk 4 gates - 2026-09-08
 
-IN PROGRESS. New Charge, sustained combat, targeting, native rider-death, traversal/session and final regression evidence is required; historical paired-milestone completion remains accepted. Focused Charge diagnostic candidate is implemented; no Charge safety or feature PASS yet. No external integrity blocker, runtime run or permanent installation. Current preview.37 and newer human state are protected. [Active gate ledger](docs/CHUNK4-PLAYABILITY.md). Historical stop instructions below are superseded by the owner's new mission.
-
+IN PROGRESS. Mounted native Charge unsafe expenditure is reproduced in RT and TB. Preview.4 implements exact pair-local early rejection and new recovery checks; native qualification remains open. Unmounted Charge target setup failed twice with different observations; the next fixture measures origin projection and uses a native setup walk. All sustained combat, independent targeting, native rider-death, traversal/session and exact final regression gates remain TODO. Both actual runtime restorations PASS; no external integrity blocker or permanent install. [Active ledger](docs/CHUNK4-PLAYABILITY.md). Historical mission stop instructions below are superseded.
 ---
 ## Combined milestone disposition — 2026-09-08
 

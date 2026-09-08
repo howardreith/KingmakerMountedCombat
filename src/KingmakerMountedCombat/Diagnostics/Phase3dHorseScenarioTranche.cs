@@ -6071,6 +6071,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 ordinaryAttackTrace.Dispose();
                 ordinaryAttackTrace = null;
             }
+            try { chunk4ChargeWarnings?.Dispose(); chunk4ChargeWarnings = null; }
+            catch (Exception exception) { AddCleanupError("Charge native warning observer", exception); }
             settings.EnablePairedCommandScheduler = originalPairedCommandScheduler;
             settings.EnableUnsafeMovementExperiment = originalUnsafeExperiment;
         }

@@ -22,13 +22,36 @@ function Assert-KmcChunk4ChargeEvidence {
             $e.mode -cne $mode -or $e.mounted -ne $mounted -or $e.hoverPure -ne $true -or @($e.identity).Count -ne 1 -or
             $e.identity[0].logic -cne 'Kingmaker.UnitLogic.Abilities.Components.AbilityCustomCharge' -or
             $e.identity[0].assemblyMvid -cne '07fa1e4d-8618-41b3-9b8d-faa17d3b26f7' -or
-            $e.identity[0].blueprint -cnotmatch '^[0-9a-f]{32}$' -or @($e.samples).Count -lt 1 -or
+            $e.identity[0].blueprint -cne 'c78506dd0e14f7c45a599990e4e65038' -or @($e.samples).Count -lt 1 -or
             $e.rules.pairForcedD20 -ne 0) {throw 'Charge identity, input, observation or native-roll evidence missing.'}
         if ($mounted) {
+            foreach($name in @('maximumRiderStandard','maximumRiderMove','maximumMountStandard','maximumMountMove','riderDistance','mountDistance')) {
+                if (!(Test-KmcFiniteNonnegativeJsonNumber $e.$name)) {throw 'Charge safety measurement must be finite and nonnegative.'}
+            }
             if ($e.safeRejected -ne $true -or $e.observedCharging -ne $false -or
                 $e.riderDistance -ge 0.01 -or $e.mountDistance -ge 0.01 -or
-                $e.maximumRiderStandard -ge 0.001 -or $e.maximumRiderMove -ge 0.001 -or $e.rules.riderAttackRules -ne 0) {
+                $e.maximumRiderStandard -ge 0.001 -or $e.maximumRiderMove -ge 0.001 -or
+                $e.maximumMountStandard -ge 0.001 -or $e.maximumMountMove -ge 0.001 -or $e.rules.riderAttackRules -ne 0 -or
+                $e.before.nativeCanTarget -ne $false -or $e.before.nativeAvailable -ne $false -or
+                $e.before.nativeGeometry.customCanTarget -ne $true -or
+                $e.feedback -cne 'Charge is not yet supported while mounted.' -or
+                $e.before.nativeReason -cne $e.feedback -or @($e.nativeWarnings).Count -lt 4) {
                 throw 'Mounted Charge started movement, delivery or expenditure.'
+            }
+            foreach($warning in $e.nativeWarnings) {
+                if($warning.text -cne $e.feedback -or $warning.addToLog -ne $true) {throw 'Native Charge warning missing.'}
+            }
+            $recovery=$e.recovery; $queue=$recovery.liveQueue; $attack=$recovery.ordinaryAttack
+            if($recovery.completed -ne $true -or $recovery.moveDistance -le 0.5 -or
+                $recovery.afterMove.rider.move -ge 0.001 -or $queue.queuedRejectedBeforeInit -ne $true -or
+                $queue.queuePure -ne $true -or $queue.executionPure -ne $true -or $queue.clickPure -ne $true -or
+                $queue.preparedStartRejected -ne $true -or $queue.clickRejected -ne $true -or
+                $queue.sameLiveAttack -ne $true -or $queue.warnings -ne 3 -or
+                $attack.complete -ne $true -or $attack.isCharge -ne $false -or $attack.planned -lt 1 -or
+                $attack.completed -ne $attack.planned -or $attack.maximumRiderStandard -le 0 -or
+                $attack.rules.riderResolved -lt 1 -or $attack.rules.pairForcedD20 -ne 0 -or
+                ($mode -ceq 'TB' -and ($recovery.nativeEndInput -ne $true -or [string]::IsNullOrWhiteSpace($recovery.nextUnrelatedActor)))) {
+                throw 'Charge rejection did not preserve a queued/live legal command and native recovery.'
             }
         } elseif ($e.nativeChargeCompleted -ne $true -or $e.riderDistance -le 1 -or
             $e.maximumRiderStandard -le 0 -or $e.rules.riderResolved -le 0) {

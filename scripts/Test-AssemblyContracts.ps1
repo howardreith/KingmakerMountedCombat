@@ -509,6 +509,27 @@ if($Target-eq'Kingmaker'){
         $ruleAttackRollIsHit[0].ReturnType.FullName-ceq'System.Boolean' -and $ruleAttackRollIsHit[0].GetParameters().Count-eq0) `
         'RuleAttackRoll.IsHit exact public instance Boolean signature'
     $nativeAbilityClick=@(Find-Token 'Kingmaker.Controllers.Clicks.Handlers.ClickWithSelectedAbilityHandler' 0x060093F6)
+    $chargeHookSignatures=@(
+        @('Kingmaker.Controllers.Clicks.Handlers.ClickWithSelectedAbilityHandler',0x060093F6,'OnClick','System.Boolean','UnityEngine.GameObject,UnityEngine.Vector3,System.Int32,System.Boolean,System.Boolean','gameObject,worldPosition,button,simulate,muteEvents'),
+        @('Kingmaker.UnitLogic.Abilities.AbilityData',0x06002B49,'get_IsAvailableForCast','System.Boolean','',''),
+        @('Kingmaker.UnitLogic.Abilities.AbilityData',0x06002B63,'CanTarget','System.Boolean','Kingmaker.Utility.TargetWrapper','target'),
+        @('Kingmaker.UnitLogic.Abilities.AbilityData',0x06002B66,'GetUnavailableReason','System.String','',''),
+        @('Kingmaker.UnitLogic.Commands.UnitCommands',0x060026B3,'Run','System.Void','Kingmaker.UnitLogic.Commands.Base.UnitCommand,System.Boolean,System.Boolean','cmd,fromQueue,doNotClearQueue'),
+        @('Kingmaker.UnitLogic.Commands.UnitCommands',0x060026B8,'AddToQueueInternal','System.Void','Kingmaker.UnitLogic.Commands.Base.UnitCommand,System.Boolean','cmd,first'),
+        @('Kingmaker.UnitLogic.Commands.Base.UnitCommand',0x060027A5,'Start','System.Void','',''),
+        @('Kingmaker.UnitLogic.Commands.Base.UnitCommand',0x060027A6,'TickApproaching','System.Void','',''),
+        @('Kingmaker.UnitLogic.Commands.Base.UnitCommand',0x060027A7,'Tick','System.Void','','')
+    )
+    foreach($signature in $chargeHookSignatures) {
+        $members=@(Find-Token $signature[0] $signature[1]); $matches=$members.Count-eq1
+        if($matches) {
+            $method=$members[0]; $parameters=@($method.GetParameters())
+            $matches=$method.Name-ceq$signature[2] -and $method.ReturnType.FullName-ceq$signature[3] -and
+                (($parameters|ForEach-Object {$_.ParameterType.FullName}) -join ',')-ceq$signature[4] -and
+                (($parameters|ForEach-Object {$_.Name}) -join ',')-ceq$signature[5]
+        }
+        Assert-Contract $matches ('Charge safety exact signature {0}.{1} {2:X8}' -f $signature[0],$signature[2],$signature[1])
+    }
     $createCastCommand=@(Find-Token 'Kingmaker.UnitLogic.Commands.UnitUseAbility' 0x06002725)
     $runCommand=@(Find-Token 'Kingmaker.UnitLogic.Commands.UnitCommands' 0x060026B2)
     $unitCommandConstructor=@(Find-Token 'Kingmaker.UnitLogic.Commands.Base.UnitCommand' 0x06002799)

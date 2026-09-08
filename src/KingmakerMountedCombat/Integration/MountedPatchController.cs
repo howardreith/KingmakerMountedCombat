@@ -37,6 +37,7 @@ namespace KingmakerMountedCombat.Integration
             PatchBridge.Service = service ?? throw new ArgumentNullException(nameof(service));
             PatchBridge.PlayerAction = playerAction ?? throw new ArgumentNullException(nameof(playerAction));
             PatchBridge.Combat = combat ?? throw new ArgumentNullException(nameof(combat));
+            PatchBridge.ChargeSafety = new MountedChargeSafetyService(service, combat.RejectPairedControl);
             PatchBridge.UnifiedTurn = unifiedTurn ?? throw new ArgumentNullException(nameof(unifiedTurn));
             PatchBridge.NativeControls = nativeControls ?? throw new ArgumentNullException(nameof(nativeControls));
             PatchBridge.Animation = animation ?? throw new ArgumentNullException(nameof(animation));
@@ -55,6 +56,21 @@ namespace KingmakerMountedCombat.Integration
 
                 PatchExact(typeof(ClickGroundHandler), "RunCommand", 0x060093DC, new[] { typeof(UnitEntityData), typeof(UnityEngine.Vector3), typeof(float?), typeof(float), typeof(float), typeof(bool) }, nameof(PatchMethods.GroundCommandPrefix), nameof(PatchMethods.GroundCommandPostfix));
                 PatchExact(typeof(UnitCommands), "Run", 0x060026B2, new[] { typeof(UnitCommand) }, nameof(PatchMethods.UnitCommandRunPrefix));
+                PatchExact(typeof(UnitCommands), "Run", 0x060026B3,
+                    new[] { typeof(UnitCommand), typeof(bool), typeof(bool) }, nameof(PatchMethods.ChargeAdmissionPrefix));
+                PatchExact(typeof(UnitCommands), "AddToQueueInternal", 0x060026B8,
+                    new[] { typeof(UnitCommand), typeof(bool) }, nameof(PatchMethods.ChargeAdmissionPrefix));
+                PatchExact(typeof(UnitCommand), "Start", 0x060027A5, Type.EmptyTypes, nameof(PatchMethods.ChargeExecutionPrefix));
+                PatchExact(typeof(UnitCommand), "Tick", 0x060027A7, Type.EmptyTypes, nameof(PatchMethods.ChargeExecutionPrefix));
+                PatchExact(typeof(ClickWithSelectedAbilityHandler), "OnClick", 0x060093F6,
+                    new[] { typeof(UnityEngine.GameObject), typeof(UnityEngine.Vector3), typeof(int), typeof(bool), typeof(bool) },
+                    nameof(PatchMethods.ChargeClickPrefix));
+                PatchExact(typeof(Kingmaker.UnitLogic.Abilities.AbilityData), "get_IsAvailableForCast", 0x06002B49,
+                    Type.EmptyTypes, nameof(PatchMethods.ChargeAvailabilityPrefix));
+                PatchExact(typeof(Kingmaker.UnitLogic.Abilities.AbilityData), "CanTarget", 0x06002B63,
+                    new[] { typeof(Kingmaker.Utility.TargetWrapper) }, nameof(PatchMethods.ChargeAvailabilityPrefix));
+                PatchExact(typeof(Kingmaker.UnitLogic.Abilities.AbilityData), "GetUnavailableReason", 0x06002B66,
+                    Type.EmptyTypes, nameof(PatchMethods.ChargeReasonPrefix));
                 PatchExact(typeof(UnitCommands), "InterruptAndRemoveCommand", 0x060026BF,
                     new[] { typeof(UnitCommand.CommandType), typeof(bool) }, nameof(PatchMethods.PairedCommandInterruptPrefix));
                 PatchExact(typeof(UnitCommand), "TickApproaching", 0x060027A6, Type.EmptyTypes,
@@ -180,6 +196,7 @@ namespace KingmakerMountedCombat.Integration
             PatchBridge.Service = null;
             PatchBridge.PlayerAction = null;
             PatchBridge.Combat = null;
+            PatchBridge.ChargeSafety = null;
             PatchBridge.UnifiedTurn = null;
             PatchBridge.NativeControls = null;
             PatchBridge.Animation = null;
@@ -225,6 +242,7 @@ namespace KingmakerMountedCombat.Integration
 
         private static class PatchBridge
         {
+            internal static MountedChargeSafetyService ChargeSafety;
             internal static GameMountedRelationshipService Service;
             internal static MountedPlayerActionController PlayerAction;
             internal static MountedCombatController Combat;
@@ -239,6 +257,36 @@ namespace KingmakerMountedCombat.Integration
 
         private static class PatchMethods
         {
+            internal static bool ChargeAvailabilityPrefix(Kingmaker.UnitLogic.Abilities.AbilityData __instance, ref bool __result)
+            {
+                if (PatchBridge.ChargeSafety?.RejectionReason(__instance) == null) return true;
+                __result = false;
+                return false;
+            }
+
+            internal static bool ChargeReasonPrefix(Kingmaker.UnitLogic.Abilities.AbilityData __instance, ref string __result)
+            {
+                var reason = PatchBridge.ChargeSafety?.RejectionReason(__instance);
+                if (reason == null) return true;
+                __result = reason;
+                return false;
+            }
+
+            internal static bool ChargeClickPrefix(ClickWithSelectedAbilityHandler __instance, int button,
+                bool simulate, bool muteEvents, ref bool __result)
+            {
+                if (button != 0 || PatchBridge.ChargeSafety == null ||
+                    PatchBridge.ChargeSafety.AllowClick(__instance.Ability, simulate, muteEvents)) return true;
+                __result = false;
+                return false;
+            }
+
+            internal static bool ChargeAdmissionPrefix(UnitCommand cmd) =>
+                PatchBridge.ChargeSafety == null || PatchBridge.ChargeSafety.AllowAdmission(cmd);
+
+            internal static bool ChargeExecutionPrefix(UnitCommand __instance) =>
+                PatchBridge.ChargeSafety == null || PatchBridge.ChargeSafety.AllowExecution(__instance);
+
             internal static bool GroundCommandPrefix(ref UnitEntityData unit)
             {
                 if (PointerController.SimulatingClick) { return true; }
@@ -298,6 +346,7 @@ namespace KingmakerMountedCombat.Integration
 
             internal static bool MountedAttackApproachPrefix(UnitCommand __instance)
             {
+                if (!ChargeExecutionPrefix(__instance)) return false;
                 // The pair command owns its mount Move slot and drives it through
                 // the existing native/off-executor movement paths. Running the
                 // base approach too would stop that move or start rider navigation.

@@ -1,3 +1,7 @@
+## Chunk 4 active risks
+
+IN PROGRESS. Actual mounted Charge spends without observed transport in both native modes; the exact early guard still needs new runtime qualification. Unmounted Charge fixture placement, sustained cadence, incoming targeting, actual rider death, supported traversal and cleanup bounds are open gates. A/B restored current preview.37 and protected state exactly. Full Charge remains a missing Chunk 6 feature, and persistence remains Chunk 5. [Active evidence](../docs/CHUNK4-PLAYABILITY.md). Historical risk decisions below are unchanged.
+
 ## Chunk 2 current risk - 2026-09-07 09:08 UTC
 
 **BLOCKED — CRITICAL:** rider-first delegation still consults prior native Standard before the Horse's next preparation; a legal actor grant/reservation and continuation contract remain unproved. Numeric debit preservation alone is insufficient. A01-A09 are incomplete; A05 representative native effects/order pass on7 and A10 exact final10 passes32/0. Step/restriction/interruption, mode conversion and native relationship/session cases remain limited as listed in the [single gate ledger](../docs/CHUNK2-ACTOR-ALLOCATIONS.md).

@@ -63,6 +63,8 @@
     <Compile Include="UnifiedMountedTurnPolicyTests.cs" />
     <Compile Include="PairedCommandSchedulerTests.cs" />
     <Compile Include="MountedStockAttackPolicyTests.cs" />
+    <Compile Include="MountedChargeSafetyTests.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedChargeSafetyPolicy.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\AnimatedSaddlePosition.cs" />
     <Compile Include="OptionalPublicPropertyReaderTests.cs" />
     <Compile Include="ReactiveBooleanValueReaderTests.cs" />

@@ -327,13 +327,13 @@ namespace KingmakerMountedCombat.Diagnostics
             private readonly object original;
             private readonly string persisted;
             internal bool Restored { get; private set; }
-            internal NativeAutomaticEndProbe()
+            internal NativeAutomaticEndProbe(bool temporary = true)
             {
                 if (cache?.MetadataToken != 0x04002275 || cache.FieldType != typeof(bool?) ||
                     cache.Module.ModuleVersionId != new Guid("07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"))
                     throw new MissingMemberException("Native automatic-End setting contract changed.");
                 original = cache.GetValue(setting); persisted = setting.GetSavedValueString();
-                cache.SetValue(setting, (bool?)true);
+                cache.SetValue(setting, (bool?)temporary);
             }
             public void Dispose()
             {
