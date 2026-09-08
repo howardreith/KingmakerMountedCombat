@@ -30,6 +30,33 @@ namespace KingmakerMountedCombat.Integration
         private static readonly FieldInfo SurpriseContext = ResolveField(typeof(TurnController), "m_ActingInSurpriseRound", 0x0400066D);
 
         internal bool PairedLifecycleEnabled => !disposed && settings.EnablePairedActivation;
+        internal bool CanConfigurePairedActivation => !disposed &&
+            relationship.State == RelationshipState.Unmounted &&
+            Game.Instance?.Player?.IsInCombat != true &&
+            Game.Instance?.TurnBasedCombatController?.Initialized != true &&
+            activation == null && partnerContext == null && pendingSplitMount == null;
+        internal string PairedConfigurationFeedback { get; private set; }
+
+        internal bool TryConfigurePairedActivation(bool enabled)
+        {
+            if (enabled == settings.EnablePairedActivation) return true;
+            if (!CanConfigurePairedActivation)
+            {
+                PairedConfigurationFeedback = "Configure paired activation outside combat while dismounted.";
+                return false;
+            }
+            if (enabled && (settings.EnableUnifiedMountedTurn || settings.EnablePairedCommandScheduler))
+            {
+                PairedConfigurationFeedback = "Disable both legacy turn experiments before enabling paired activation.";
+                return false;
+            }
+            // Configuration selects the next pre-combat relationship policy. It
+            // never retires a live allocation, prepares an actor or changes debt.
+            settings.EnablePairedActivation = enabled;
+            PairedConfigurationFeedback = enabled ? "Paired activation enabled for pre-combat mounting." : "Paired activation disabled.";
+            logger.Info(PairedConfigurationFeedback);
+            return true;
+        }
         internal string ActivationIdentity => activation?.Identity;
         internal long ActivationSequence => activation?.Sequence ?? 0;
         internal TurnController PartnerContext => partnerContext;

@@ -144,6 +144,7 @@ namespace KingmakerMountedCombat.Integration
         }
 
         internal bool PairedActivationEnabled => settings.EnablePairedActivation;
+        internal bool TryConfigurePairedActivation(bool enabled) => unifiedTurn.TryConfigurePairedActivation(enabled);
         internal string PairedActivationIdentity => unifiedTurn.ActivationIdentity;
         internal long PairedActivationSequence => unifiedTurn.ActivationSequence;
         internal bool IsPreparingPairedActor(UnitEntityData actor) => unifiedTurn.IsPreparingPairedActor(actor);

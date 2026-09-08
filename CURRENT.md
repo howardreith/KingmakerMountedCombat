@@ -2,7 +2,7 @@
 
 Status: **IN PROGRESS**. [Milestone report](docs/PAIRED-ACTIVATION-MILESTONE.md).
 
-First gate PASS on preview9 in both arrangements. Preview35 AO ordinary19, AP acceptedRT9 and AQ unmountedRT2 pass natively. AP/AQ original outer FAILs identify obsolete configuration schemas; shared strict configuration validation now requires the exact five fields and intended new-flag value. Full preserved AO/AP/AQ revalidation39/0 each; harness245/0, protocols42/20/42. No C#/version/DLL change (fd386fad/MVID11633cee). All43 A-AQ restored actual preview13/current state. Next: script-only commit/repackage with exact payload proof, final MammothRT/party/MammothTB, all4 final A05 and final checks/report. Milestone remains IN PROGRESS.
+First gate PASS in both arrangements. Preview35 completes accepted A10: AO-AS,32 cases/287 assertions; original AP/AQ configuration-schema failures remain preserved beside strict corrected revalidation. All45 transactions restore actual human preview13/current state. Preview36 exposes the previously automation-only flag in the existing developer panel, with service guards against mounted/combat/legacy-authority changes and native rejection probes. Build,364 component checks and30 patch constructions PASS; DLL797bb473/MVIDad4145fe. Next: guarded final36 allocation runs, A05/A10 and Mammoth TB, final checks/report/private candidate/publication. No permanent installation.
 
 Intake is clean `codex/mounted-combat-phase3f-playable-core` at reviewed `45e3d276754257f4513342d5bce7626dd609d252`, containing Chunk 2 binary source `c804ba052760063f747cde83265e660916984d72`, development candidate `0.1.0-chunk2-preview.10`. Preserve all descendants. [Frozen Chunk 2 repairs, identities and outstanding gates](docs/CHUNK2-ACTOR-ALLOCATIONS.md).
 

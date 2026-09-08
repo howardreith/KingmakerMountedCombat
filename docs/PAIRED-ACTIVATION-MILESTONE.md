@@ -1,6 +1,6 @@
 # Combined actor-allocation and paired-activation milestone
 
-Status: **IN PROGRESS**. Preview32 qualifies both paired tranches and both unmounted A05 controls. Mammoth TB fails at fixture startup; working33 corrects the overlay exclusion. Remaining supported-case reconciliation and final33 A05/A10 stay open.
+Status: **IN PROGRESS**. Preview35 completes accepted A10 (AO-AS,32 cases/287 assertions). Preview36 adds safe access to the developer configuration; its final allocation/A05/A10 and Mammoth TB qualification remains open. Historical results below retain their actual binary identities.
 
 ## Authority and configuration
 
@@ -61,6 +61,8 @@ AO35 ordinary TB strict/native PASS19 accepted cases (parent21/0,64 assertions),
 AQ35 unmounted RT native2/0 (parent4/0,47 assertions) and actual restoration PASS. Its original outer FAIL is the same new-field mismatch in the shared schema7 configuration check, not the secondary Horse registration error. The audited Phase3F/G/H and ordinary consumers now share exact five-field/Boolean validation with the intended flag value for each named scope; ordinary and accepted RT/unmounted require the new flag true, historical scopes remain explicitly separate. Native cost/effect/row/cardinality assertions are unchanged. Expanded configuration negatives pass; harness245/0, ordinary42/0, historical phase3g20/0, phase3h42/0. Full preserved AO/AP/AQ Test-RuntimeGameResult validation39/0 each. Original AP/AQ outer FAILs remain immutable. Only scripts/docs change; preview35 Info/DLL remain identical. Sourceb96464d/packagea24076bb already proved byte-equivalent to source65b4374/package1d9103ff; the next script-only package requires the same proof. Final35 A05 and Mammoth/party gates remain open.
 
 ## Remaining acceptance
+
+AR35 Mammoth RT PASS1/0,62 assertions; AS35 party PASS1/0,60 assertions. All45 transactions restore actual intake. AT35 Mammoth TB WhatIf proves purity but was not launched: final review found the new flag had no human-accessible control. Preview36 exposes it in the existing developer panel through the activation service. Changes are rejected while mounted, in combat, or while participation remains owned; enabling also rejects either legacy authority. Configuration never prepares, retires or changes actor resources. Native fixtures use this same configuration entry point, and the paired loop records rejected changes before combat mounting completes and after actual partial movement. Build/source22, components364, patches30 and serializer3 pass. Preview35 DLLfd386fad remains historical; new DLL797bb473fd89a1602158f5427e41536b02c656e05cdfaf364c3bd654c7c8519b/MVIDad4145fe-5fc4-4e4b-9920-782de3235b4d requires final native evidence.
 
 | Gate | Status | Remaining evidence |
 |---|---|---|

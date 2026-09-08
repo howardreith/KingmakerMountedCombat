@@ -50,6 +50,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (IsPairedAllocation)
             {
                 if (!settings.EnablePairedActivation) throw new InvalidOperationException("Paired activation path was not enabled before pre-combat mounting.");
+                VerifyPairedConfigurationRejection("mounted-before-combat");
                 rangedWeaponLease = new Phase3dRangedWeaponLease(rider);
                 rangedWeaponLease.Acquire(Kingmaker.Enums.WeaponCategory.Longbow);
             }

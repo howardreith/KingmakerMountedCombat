@@ -21,6 +21,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private MountedPairAttackOutcome pairedPriorOutcome;
         private readonly JArray pairedActivations = new JArray();
         private readonly JArray pairedTurnVisits = new JArray();
+        private readonly JArray pairedConfigurationRejections = new JArray();
         private readonly HashSet<TurnController> pairedVisitedTurns = new HashSet<TurnController>();
         private JObject pairedSample;
         private JObject pairedOperation;
@@ -165,6 +166,8 @@ namespace KingmakerMountedCombat.Diagnostics
             RequirePaired(travelled >= distance - 0.02f && Math.Abs(travelled - nativeShift) < 0.35f &&
                 nativeShift <= elapsed * (float)before["speedMps"] + 0.35f,
                 "Actual travel differs from native displacement or exceeds allowed movement time.");
+            if (pairedActivationNumber == 1 && pairedMoveNumber == 0)
+                VerifyPairedConfigurationRejection("live-grant-after-partial-movement");
             pairedMoveNumber++;
             if (pairedActivationNumber == 1) { BeginPairedAttack(false); return; }
             if (pairedActivationNumber == 3)
@@ -180,6 +183,31 @@ namespace KingmakerMountedCombat.Diagnostics
             pairedSample["conversionAttackRejected"] = !accepted && ReferenceEquals(previous, combat.LastOutcome) && !combat.HasActiveCommand;
             RequirePaired((bool)pairedSample["conversionAttackRejected"], "Converted Standard admitted an unaffordable mount attack.");
             pairedStage = 3;
+        }
+
+        private void VerifyPairedConfigurationRejection(string boundary)
+        {
+            var riderBefore = allocationTrace.Snapshot(rider);
+            var mountBefore = allocationTrace.Snapshot(horse);
+            var identity = combat.PairedActivationIdentity;
+            var context = combat.PairedPartnerContext;
+            var turn = Game.Instance.TurnBasedCombatController.CurrentTurn;
+            allocationTrace.Record("paired-configuration-before", rider, detail: boundary);
+            var accepted = combat.TryConfigurePairedActivation(false);
+            var riderAfter = allocationTrace.Snapshot(rider);
+            var mountAfter = allocationTrace.Snapshot(horse);
+            allocationTrace.Record("paired-configuration-after", rider, detail: boundary);
+            var unchanged = settings.EnablePairedActivation && identity == combat.PairedActivationIdentity &&
+                ReferenceEquals(context, combat.PairedPartnerContext) &&
+                ReferenceEquals(turn, Game.Instance.TurnBasedCombatController.CurrentTurn) &&
+                JToken.DeepEquals(riderBefore, riderAfter) && JToken.DeepEquals(mountBefore, mountAfter);
+            pairedConfigurationRejections.Add(new JObject {
+                ["boundary"] = boundary, ["frame"] = Time.frameCount, ["accepted"] = accepted,
+                ["unchanged"] = unchanged, ["identity"] = identity,
+                ["riderBefore"] = riderBefore, ["riderAfter"] = riderAfter,
+                ["mountBefore"] = mountBefore, ["mountAfter"] = mountAfter });
+            observations["pairedConfigurationRejections"] = pairedConfigurationRejections;
+            RequirePaired(!accepted && unchanged, "Developer configuration changed mounted participation or native resources.");
         }
 
         private void BeginPairedAttack(bool mountActor)

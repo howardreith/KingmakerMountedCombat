@@ -504,7 +504,8 @@ namespace KingmakerMountedCombat.Diagnostics
             evidenceWriter = new StreamWriter(new FileStream(evidencePath, FileMode.CreateNew, FileAccess.Write, FileShare.Read), new System.Text.UTF8Encoding(false));
             originalUnsafeMovementSetting = settings.EnableUnsafeMovementExperiment;
             originalPairedActivationSetting = settings.EnablePairedActivation;
-            if (request.Scenario == "mounted-pair-party-formation") settings.EnablePairedActivation = true;
+            if (request.Scenario == "mounted-pair-party-formation" && !combat.TryConfigurePairedActivation(true))
+                throw new InvalidOperationException("Paired developer configuration was rejected before party fixture setup.");
             settings.EnableUnsafeMovementExperiment = true;
             settingLeaseOwned = true;
             if (request.Scenario == "mounted-pair-party-formation")

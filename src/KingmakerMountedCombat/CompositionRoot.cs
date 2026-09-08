@@ -226,10 +226,21 @@ namespace KingmakerMountedCombat
             ThrowIfDisposed();
             GUILayout.Label("Phase 2 private-alpha presentation work. The mounted relationship is transient and is cleaned before save/load/area boundaries.");
             settings.EnableUnsafeMovementExperiment = GUILayout.Toggle(settings.EnableUnsafeMovementExperiment, "Enable private-alpha mounted player action");
+            var configurationEnabled = GUI.enabled;
+            GUI.enabled = configurationEnabled && unifiedTurn.CanConfigurePairedActivation;
+            var pairedActivation = GUILayout.Toggle(settings.EnablePairedActivation, "Enable paired activation prototype (before mounting)");
+            if (pairedActivation != settings.EnablePairedActivation) unifiedTurn.TryConfigurePairedActivation(pairedActivation);
+            GUI.enabled = configurationEnabled;
+            if (!unifiedTurn.CanConfigurePairedActivation)
+                GUILayout.Label("Configure paired activation outside combat while dismounted.");
+            if (!string.IsNullOrEmpty(unifiedTurn.PairedConfigurationFeedback))
+                GUILayout.Label(unifiedTurn.PairedConfigurationFeedback);
+            GUI.enabled = configurationEnabled && !settings.EnablePairedActivation;
             settings.EnableUnifiedMountedTurn = GUILayout.Toggle(settings.EnableUnifiedMountedTurn, "Enable Phase 3D unified mounted turn (fallback: Phase 3C separate turns)");
             settings.EnablePairedCommandScheduler = GUILayout.Toggle(
                 settings.EnablePairedCommandScheduler,
                 "Enable experimental Phase 3E paired-command scheduler");
+            GUI.enabled = configurationEnabled;
             var diagnosticOverlay = GUILayout.Toggle(settings.EnableDiagnosticOverlay, "Show diagnostic mounted-control overlay");
             if (diagnosticOverlay != settings.EnableDiagnosticOverlay)
             {

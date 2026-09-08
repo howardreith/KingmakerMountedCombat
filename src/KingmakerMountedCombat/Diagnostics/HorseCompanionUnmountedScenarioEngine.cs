@@ -313,7 +313,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     request.Scenario == Phase3dHorseScenarioTranche.OrdinaryAttackControlsScenario ||
                     request.Scenario == Phase3dHorseScenarioTranche.UnmountedAttackControlsScenario ||
                     request.Scenario == "phase3h-combat-loop-rt")
-                    settings.EnablePairedActivation = true;
+                    if (!combat.TryConfigurePairedActivation(true))
+                        throw new InvalidOperationException("Paired developer configuration was rejected before fixture setup.");
                 originalSelection = selection.SelectedUnits.Where(unit => unit != null).ToArray();
                 CaptureOriginalPartyPets(game);
                 observations["originalPause"] = originalPause;

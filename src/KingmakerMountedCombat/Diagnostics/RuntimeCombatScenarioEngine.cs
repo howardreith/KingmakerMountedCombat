@@ -383,7 +383,8 @@ namespace KingmakerMountedCombat.Diagnostics
             originalUnsafeExperimentSetting = settings.EnableUnsafeMovementExperiment;
             originalPairedCommandSchedulerSetting = settings.EnablePairedCommandScheduler;
             originalPairedActivationSetting = settings.EnablePairedActivation;
-            if (IsMammothPrimaryRow) settings.EnablePairedActivation = true;
+            if (IsMammothPrimaryRow && !combat.TryConfigurePairedActivation(true))
+                throw new InvalidOperationException("Paired developer configuration was rejected before Mammoth fixture setup.");
             settings.EnableUnsafeMovementExperiment = true;
 
             settingLeaseOwned = true;
