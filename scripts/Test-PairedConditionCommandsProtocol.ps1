@@ -45,6 +45,7 @@ function New-ConditionEnvelope {
         $cases+=@{name=$(if($i-eq0){'mount-do-nothing'}else{'mount-self-harm'});passed=$true;outsideCombat=$true;mountedBeforeCombat=$true;activation=$id
             stimulus=@{inputKind='native-round-fact-condition-stimulus';actor='mount';activation=$id;conditionApplications=1;choiceOverrides=1;choice=30+30*$i
                 nativeSelfDamageRules=$i;nativeSelfDamage=3*$i;ownedConditionRestored=$true;before=@{standard=0;move=0};frame=$stimulusEvent.frame;gameTicks=$stimulusEvent.gameTicks
+                conditionActiveAfterApplication=$true;conditionImmuneAfterApplication=$false
                 nativeFactVisits=1;preparingAtFact=$true;factBinding=@{actor='mount';activeFactCount=1;actionCount=2;activeComponent=11;templateComponent=12;exactActionBound=$true}}
             beforeEncounter=$before;admission=$admission;ended=$ended;forcedSplit=$split;beforeEndInput=$beforeEnd;afterEnd=$afterEnd
             samePrincipal=$true;mountEnded=$true;riderEnded=$false;relationshipAfter='Unmounted';commandAtAdmission=$command;commandAtEnd=$command
@@ -75,6 +76,8 @@ foreach($mutation in @(
     {param($d) $d.evidence.cases[0].stimulus.factBinding.activeComponent=12},
     {param($d) $d.evidence.cases[0].stimulus.factBinding.activeFactCount=2},
     {param($d) $d.evidence.cases[0].stimulus.nativeFactVisits=0},
+    {param($d) $d.evidence.cases[0].stimulus.conditionActiveAfterApplication=$false},
+    {param($d) $d.evidence.cases[0].stimulus.conditionImmuneAfterApplication=$true},
     {param($d) $d.evidence.cases[0].stimulus.preparingAtFact=$false},
     {param($d) $d.evidence.modeExitAiReassertions=@()},
     {param($d) $d.evidence.modeExitAiReassertions[0].nativeTb=$true},

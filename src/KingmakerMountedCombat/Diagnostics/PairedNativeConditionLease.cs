@@ -60,6 +60,11 @@ namespace KingmakerMountedCombat.Diagnostics
             Evidence["before"] = trace.Snapshot(actor);
             actor.Descriptor.State.AddCondition(UnitCondition.Confusion);
             applied = true; Evidence["conditionApplications"] = 1;
+            Evidence["conditionActiveAfterApplication"] = actor.Descriptor.State.HasCondition(UnitCondition.Confusion);
+            Evidence["conditionImmuneAfterApplication"] = actor.Descriptor.State.HasConditionImmunity(UnitCondition.Confusion);
+            trace.Record("native-condition-fact-applied", actor);
+            if (!(bool)Evidence["conditionActiveAfterApplication"])
+                throw new InvalidOperationException("Native condition stimulus did not become active on its exact disposable actor.");
         }
         public void OnEventAboutToTrigger(RuleRollDice evt)
         {

@@ -5387,7 +5387,7 @@ try {
             $engineSource.Contains('realTimePersistedUnchanged;')) 'combat rows do not lease exact native mode and camera state, observe a bounded Default-mode TB-to-RT checkpoint before relationship cleanup, admit the exact turn principal and action actor, and restore every captured lease after cleanup'
         Assert-Test ($engineSource.Contains('CleanupTimeoutSeconds = 10.0d') -and
             $engineSource.Contains('rowClock.Elapsed.TotalSeconds - cleanupStartedAtSeconds < CleanupTimeoutSeconds')) 'combat cleanup does not retain an independent bounded drain after a row deadline'
-        Assert-Test ($engineSource.Contains('SchemaVersion = UsesDistinctSharedTurnPrincipal') -and
+        Assert-Test ($engineSource.Contains('SchemaVersion = UsesPairedMammothActivation ? 57 : UsesDistinctSharedTurnPrincipal') -and
             $engineSource.Contains('? 56') -and
             $engineSource.Contains(': IsHumanPlayRow') -and
             $engineSource.Contains('? (IsTurnBasedRow ? 52 : 48)') -and

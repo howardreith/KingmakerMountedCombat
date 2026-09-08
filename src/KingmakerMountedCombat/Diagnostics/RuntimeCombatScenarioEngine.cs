@@ -19,6 +19,7 @@ using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Integration;
 using KingmakerMountedCombat.Logging;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using Newtonsoft.Json.Serialization;
 using TurnBased.Controllers;
 using UnityEngine;
@@ -31,7 +32,7 @@ namespace KingmakerMountedCombat.Diagnostics
     /// real time or one exact native rider turn, entered through the real ClickUnitHandler
     /// Harmony seam.
     /// </summary>
-    internal sealed class RuntimeCombatScenarioEngine : IDisposable
+    internal sealed partial class RuntimeCombatScenarioEngine : IDisposable
     {
         internal const string EvidenceFileName = "combat-scenario-evidence.jsonl";
         private const string RiderHitRealTime = "mounted-rider-melee-hit-rt";
@@ -356,7 +357,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private string ExpectedActorRole => IsMammothPrimaryRow ? "mount" : "rider";
 
         private bool UsesDistinctSharedTurnPrincipal =>
-            IsTurnBasedRow && IsMammothPrimaryRow && settings.EnableUnifiedMountedTurn;
+            IsTurnBasedRow && IsMammothPrimaryRow && (settings.EnableUnifiedMountedTurn || settings.EnablePairedActivation);
 
         private UnitEntityData TurnPrincipal => UsesDistinctSharedTurnPrincipal ? rider : AttackActor;
 
@@ -382,14 +383,11 @@ namespace KingmakerMountedCombat.Diagnostics
             originalUnsafeExperimentSetting = settings.EnableUnsafeMovementExperiment;
             originalPairedCommandSchedulerSetting = settings.EnablePairedCommandScheduler;
             originalPairedActivationSetting = settings.EnablePairedActivation;
-            if (currentRow == MammothPrimaryHitRealTime) settings.EnablePairedActivation = true;
+            if (IsMammothPrimaryRow) settings.EnablePairedActivation = true;
             settings.EnableUnsafeMovementExperiment = true;
-            if (IsTurnBasedRow && IsMammothPrimaryRow)
-            {
-                settings.EnablePairedCommandScheduler = true;
-            }
+
             settingLeaseOwned = true;
-            if (currentRow == MammothPrimaryHitRealTime)
+            if (IsMammothPrimaryRow)
             {
                 if (settings.EnableUnifiedMountedTurn || settings.EnablePairedCommandScheduler ||
                     settings.EnableDiagnosticOverlay || playerAction.OverlayPresent)
@@ -490,6 +488,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         public void Dispose()
         {
+            CleanupPairedMammothObservation();
             if (disposed)
             {
                 return;
@@ -656,6 +655,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     return;
                 }
             }
+            BeginPairedMammothObservation();
             var mounted = relationship.MountAutomationPair();
             assertions.Check(mounted.Succeeded && relationship.State == RelationshipState.Mounted,
                 "Exact automation pair mounted for combat: " + FormatTransitionErrors(mounted) + ".");
@@ -780,6 +780,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 game.IsPaused = false;
             }
+            if (UsesPairedMammothActivation && !ObservePairedMammothPrincipal()) return;
             var gameUnpaused = !game.IsPaused;
             unpausedForRealTime = !IsTurnBasedRow && gameUnpaused;
             var combatMemoryLeaseHealthy = targetService != null &&
@@ -844,7 +845,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     return;
                 }
-                if (!nativeActionActorTurnStarted)
+                if (!UsesPairedMammothActivation && !nativeActionActorTurnStarted)
                 {
                     if (IsMammothPrimaryRow && combat.ArmedAction != AttackAction)
                     {
@@ -1355,6 +1356,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void ObserveOutcome()
         {
+            if (pairedMammothAwaitingRenewal) { TickPairedMammothRenewal(); return; }
             if (targetService == null || !targetService.RefreshBidirectionalCombatMemoryLease())
             {
                 assertions.Fail("Exact bidirectional combat-memory lease was lost before native attack completion.");
@@ -1408,7 +1410,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
 
             outcome = combat.LastOutcome;
-            pairedSchedulerAtOutcome = UsesDistinctSharedTurnPrincipal
+            pairedSchedulerAtOutcome = UsesLegacyMammothScheduler
                 ? combat.CapturePairedCommandSchedulerSnapshot()
                 : null;
             riderStandardAfter = rider.CombatState.Cooldown.StandardAction;
@@ -1520,7 +1522,7 @@ namespace KingmakerMountedCombat.Diagnostics
             assertions.Check(string.Equals(ruleProbe.LastInitiatorId, AttackActor.UniqueId, StringComparison.Ordinal) &&
                     string.Equals(ruleProbe.LastTargetId, targetId, StringComparison.Ordinal),
                 "Rulebook identities remained the exact action actor and diagnostic target.");
-            if (UsesDistinctSharedTurnPrincipal)
+            if (UsesLegacyMammothScheduler)
             {
                 var scheduler = pairedSchedulerAtOutcome;
                 assertions.Check(scheduler != null && scheduler.Enabled &&
@@ -1640,7 +1642,8 @@ namespace KingmakerMountedCombat.Diagnostics
             poseProfileAtOutcome = relationship.Runtime.PoseProfileId;
             poseHealthyAtOutcome = relationship.Runtime.PoseHealthy && relationship.Runtime.PoseFrameApplied;
 
-            BeginCleanup();
+            if (UsesPairedMammothActivation && assertions.FailureCount == 0) BeginPairedMammothRenewal();
+            else BeginCleanup();
         }
 
         private void ObserveMovementToAttackRuntime()
@@ -1834,6 +1837,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void BeginCleanup()
         {
+            CleanupPairedMammothObservation();
             if (step == CombatEngineStep.AwaitTurnBasedRealtimeRestore ||
                 step == CombatEngineStep.AwaitCleanupFrame || completed)
             {
@@ -2079,7 +2083,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var selected = SelectionManager.Instance?.SelectedUnits;
             var record = new CombatEvidenceRecord
             {
-                SchemaVersion = UsesDistinctSharedTurnPrincipal
+                SchemaVersion = UsesPairedMammothActivation ? 57 : UsesDistinctSharedTurnPrincipal
                     ? 56
                     : IsHumanPlayRow
                     ? (IsTurnBasedRow ? 52 : 48)
@@ -2207,7 +2211,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         relationship.NativeTurnBasedExitUiLeaseRestoreMutationCount,
                         relationship.NativeTurnBasedExitUiLeaseRestoreSuccessCount,
                         relationship.NativeTurnBasedExitUiLeaseRestoreResult,
-                        UsesDistinctSharedTurnPrincipal,
+                        settings.EnableUnifiedMountedTurn,
                         ExpectedTurnPrincipalRole,
                         ExpectedActorRole,
                         nativeActionActorTurnStarted,
@@ -2251,7 +2255,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     MountMoveAfter = mountMoveAfter
                 },
                 Command = CombatCommandEvidence.From(outcome),
-                PairedScheduler = UsesDistinctSharedTurnPrincipal
+                PairedActivation = UsesPairedMammothActivation ? (JObject)pairedMammothEvidence.DeepClone() : null,
+                PairedScheduler = UsesLegacyMammothScheduler
                     ? CombatPairedSchedulerEvidence.From(
                         pairedSchedulerAtOutcome,
                         combat.CapturePairedCommandSchedulerSnapshot())
@@ -2877,6 +2882,8 @@ namespace KingmakerMountedCombat.Diagnostics
             public CombatCommandEvidence Command { get; set; }
             [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
             public CombatPairedSchedulerEvidence PairedScheduler { get; set; }
+            [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            public JObject PairedActivation { get; set; }
             public CombatRuleEvidence Rules { get; set; }
             public CombatMovementEvidence Movement { get; set; }
             [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]

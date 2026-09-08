@@ -35,6 +35,7 @@ function Assert-KmcPairedConditionCommandEvidence($Artifact, $Evidence) {
             !$identities.Add([string]$case.activation) -or [string]$case.activation -cnotmatch '^[0-9a-f]{32}:[1-9][0-9]*$' -or
             $stimulus.inputKind -cne 'native-round-fact-condition-stimulus' -or $stimulus.actor -cne $mount -or
             $stimulus.activation -cne $case.activation -or $stimulus.conditionApplications -ne 1 -or $stimulus.choiceOverrides -ne 1 -or
+            $stimulus.conditionActiveAfterApplication -ne $true -or $stimulus.conditionImmuneAfterApplication -ne $false -or
             $stimulus.choice -ne (30+30*$i) -or $stimulus.nativeSelfDamageRules -ne $i -or $stimulus.ownedConditionRestored -ne $true -or
             $stimulus.before.standard -ne 0 -or $stimulus.before.move -ne 0 -or
             ($i -eq 1 -and $stimulus.nativeSelfDamage -le 0)) {throw 'Native condition stimulus, grant or restoration differs.'}

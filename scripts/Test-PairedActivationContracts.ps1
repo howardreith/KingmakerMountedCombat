@@ -105,6 +105,14 @@ public static class KmcNativePatchProbe {
    if(deathIl.Length!=16 || deathIl[10]!=0x28 || BitConverter.ToInt32(deathIl,11)!=0x06000BE6)
     throw new InvalidOperationException("Native death no longer calls RemoveUnit at the verified boundary.");
    Console.WriteLine("NATIVE DEATH REMOVAL CONTRACT PASS=1 FAIL=0; runtime observer construction still required");
+   var confusionTick=native.ManifestModule.ResolveMethod(0x06009131);
+   if(confusionTick.Name!="TickOnUnit" || confusionTick.GetParameters().Length!=1 ||
+      confusionTick.GetParameters()[0].Name!="unit" ||
+      confusionTick.GetParameters()[0].ParameterType.FullName!="Kingmaker.EntitySystem.Entities.UnitEntityData" ||
+      observer.GetMethod("ConfusionBefore",BindingFlags.Static|BindingFlags.NonPublic)==null ||
+      observer.GetMethod("ConfusionAfter",BindingFlags.Static|BindingFlags.NonPublic)==null)
+    throw new InvalidOperationException("Native confusion observer contract changed.");
+   Console.WriteLine("NATIVE CONFUSION OBSERVER CONTRACT PASS=1 FAIL=0; runtime construction still required");
    var observerNames=new[]{"PhysicalTick","PhysicalMove"};
    var nativeObserverNames=new[]{"TickMovement","Move"};
    var nativeParameterTypes=new[]{"System.Single","UnityEngine.Vector3"};

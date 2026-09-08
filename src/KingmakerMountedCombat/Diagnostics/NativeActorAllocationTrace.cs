@@ -13,6 +13,7 @@ using Kingmaker.PubSubSystem;
 using Kingmaker.UnitLogic;
 using Kingmaker.UnitLogic.Commands;
 using Kingmaker.UnitLogic.Commands.Base;
+using Kingmaker.UnitLogic.Parts;
 using Kingmaker.View;
 using KingmakerMountedCombat.Integration;
 using Newtonsoft.Json.Linq;
@@ -70,6 +71,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 Patch(typeof(TurnController), 0x06000C5E, "CommandEndBefore", "CommandEndAfter");
                 Patch(typeof(TurnController), 0x06000C46, "TurnEndBefore", "TurnEndAfter");
                 Patch(typeof(CombatController), 0x06000BE6, "RemoveUnitBefore", "RemoveUnitAfter");
+                Patch(typeof(UnitConfusionController), 0x06009131, "ConfusionBefore", "ConfusionAfter");
                 Patch(typeof(UnitMovementAgent), 0x060018A9, "MovementBefore", "MovementAfter");
                 Patch(typeof(UnitMovementAgent), 0x060018AA, "PhysicalTickBefore", "PhysicalTickAfter");
                 Patch(typeof(UnitMovementAgentBase), 0x060018DB, "PhysicalMoveBefore", "PhysicalMoveAfter");
@@ -84,6 +86,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             var turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
             var cooldown = actor.CombatState.Cooldown;
+            var confusion = actor.Get<UnitPartConfusion>();
             var nativeTurn = turn?.Unit == actor ? turn : combat.PairedPartnerContext?.Unit == actor ? combat.PairedPartnerContext : null;
             return new JObject {
                 ["actor"] = actor.UniqueId, ["actorObject"] = Id(actor), ["grantSequence"] = GrantCount(actor),
@@ -94,6 +97,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["reactionCooldown"] = cooldown.AttackOfOpportunity, ["reactions"] = actor.CombatState.AttackOfOpportunityCount,
                 ["disengageTargets"] = actor.CombatState.DisengageAttackTargets.Count,
                 ["prepared"] = actor.CombatState.Prepared, ["canAct"] = actor.CombatState.CanActInCombat,
+                ["confused"] = actor.Descriptor.State.HasCondition(UnitCondition.Confusion),
+                ["confusionImmune"] = actor.Descriptor.State.HasConditionImmunity(UnitCondition.Confusion),
+                ["confusionPart"] = confusion != null,
+                ["confusionState"] = confusion?.State.ToString(),
+                ["confusionRoundTicks"] = confusion?.RoundStartTime.Ticks,
+                ["confusionCommand"] = confusion?.Cmd == null ? 0 : RuntimeHelpers.GetHashCode(confusion.Cmd),
+                ["preparingPairedActor"] = combat.IsPreparingPairedActor(actor),
                 ["prone"] = actor.Descriptor.State.Prone.Active,
                 ["proneRequested"] = actor.Descriptor.State.Prone.ShouldBeActive,
                 ["maneuverImmune"] = actor.Descriptor.State.HasCondition(Kingmaker.UnitLogic.UnitCondition.ImmuneToCombatManeuvers),
@@ -253,6 +263,10 @@ namespace KingmakerMountedCombat.Diagnostics
             internal static void TurnEndBefore(TurnController __instance) { active?.Record("turn-end-before", __instance.Unit); }
             internal static void TurnEndAfter(TurnController __instance) { active?.Record("turn-end-after", __instance.Unit); }
             internal static void RemoveUnitBefore(UnitEntityData unit) { active?.Record("remove-unit-before", unit); }
+            internal static void ConfusionBefore(UnitEntityData unit)
+            { if (active?.preparing != null) active.Record("native-confusion-before", unit); }
+            internal static void ConfusionAfter(UnitEntityData unit)
+            { if (active?.preparing != null) active.Record("native-confusion-after", unit); }
             internal static void RemoveUnitAfter(UnitEntityData unit) { active?.Record("remove-unit-after", unit); }
             internal static void MovementBefore(float deltaTime, out float __state) { __state = deltaTime; }
             internal static void MovementAfter(UnitMovementAgent __instance, float deltaTime, bool __result, float __state)
