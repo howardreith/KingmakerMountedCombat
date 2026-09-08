@@ -2211,6 +2211,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         relationship.NativeTurnBasedExitUiLeaseRestoreMutationCount,
                         relationship.NativeTurnBasedExitUiLeaseRestoreSuccessCount,
                         relationship.NativeTurnBasedExitUiLeaseRestoreResult,
+                        UsesDistinctSharedTurnPrincipal,
                         settings.EnableUnifiedMountedTurn,
                         ExpectedTurnPrincipalRole,
                         ExpectedActorRole,
@@ -3366,6 +3367,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 int riderUiLeaseRestoreMutationCount,
                 int riderUiLeaseRestoreSuccessCount,
                 string riderUiLeaseRestoreResult,
+                bool includeSharedTurnEvidence,
                 bool unifiedMountedTurn,
                 string expectedTurnPrincipal,
                 string expectedActionActor,
@@ -3418,13 +3420,13 @@ namespace KingmakerMountedCombat.Diagnostics
                     CurrentTurnUnitIdAtOutcome = currentTurnUnitIdAtOutcome,
                     CurrentTurnActingAtOutcome = currentTurnActingAtOutcome,
                     ActionActorTurnEndedAfterCommand = actionActorTurnEndedAfterCommand,
-                    UnifiedMountedTurn = unifiedMountedTurn ? (bool?)true : null,
-                    ExpectedTurnPrincipal = unifiedMountedTurn ? expectedTurnPrincipal : null,
-                    ExpectedActionActor = unifiedMountedTurn ? expectedActionActor : null,
-                    NativeTurnPrincipalStarted = unifiedMountedTurn
+                    UnifiedMountedTurn = includeSharedTurnEvidence ? (bool?)unifiedMountedTurn : null,
+                    ExpectedTurnPrincipal = includeSharedTurnEvidence ? expectedTurnPrincipal : null,
+                    ExpectedActionActor = includeSharedTurnEvidence ? expectedActionActor : null,
+                    NativeTurnPrincipalStarted = includeSharedTurnEvidence
                         ? (bool?)nativeTurnPrincipalStarted
                         : null,
-                    ActionActorSharedTurnAdmitted = unifiedMountedTurn
+                    ActionActorSharedTurnAdmitted = includeSharedTurnEvidence
                         ? (bool?)actionActorSharedTurnAdmitted
                         : null,
                     RestoreDeliveryCompleted = restoreDeliveryCompleted,

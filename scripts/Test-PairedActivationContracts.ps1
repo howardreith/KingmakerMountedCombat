@@ -28,6 +28,34 @@ public static class KmcNativePatchProbe {
   var harmonyAssembly=Assembly.LoadFrom(Path.Combine(managed,"UnityModManager/0Harmony12.dll"));
   var native=Assembly.LoadFrom(Path.Combine(managed,"Assembly-CSharp.dll"));
   var candidate=Assembly.LoadFrom(mod);
+  // Exercise the actual evidence builder/serializer: the new paired authority
+  // must report its principal even while the incompatible legacy flag is false.
+  var turnEvidence=candidate.GetType("KingmakerMountedCombat.Diagnostics.RuntimeCombatScenarioEngine+TurnBasedCombatEvidence",true);
+  var capture=turnEvidence.GetMethod("Capture",BindingFlags.Public|BindingFlags.Static);
+  var json=Assembly.LoadFrom(Path.Combine(managed,"Newtonsoft.Json.dll"));
+  var serialize=json.GetType("Newtonsoft.Json.JsonConvert",true).GetMethod("SerializeObject",new[]{typeof(object)});
+  for(var mode=0;mode<3;mode++) {
+   var parameters=capture.GetParameters(); var values=new object[parameters.Length];
+   for(var i=0;i<parameters.Length;i++) {
+    var p=parameters[i];
+    values[i]=p.ParameterType.IsValueType ? Activator.CreateInstance(p.ParameterType) : null;
+    if(p.Name=="includeSharedTurnEvidence") values[i]=mode!=2;
+    if(p.Name=="unifiedMountedTurn") values[i]=mode==1;
+    if(p.Name=="expectedTurnPrincipal") values[i]="rider";
+    if(p.Name=="expectedActionActor") values[i]="mount";
+    if(p.Name=="nativeTurnPrincipalStarted" || p.Name=="actionActorSharedTurnAdmitted") values[i]=true;
+   }
+   var captured=capture.Invoke(null,values);
+   var serialized=(string)serialize.Invoke(null,new[]{captured});
+   foreach(var name in new[]{"UnifiedMountedTurn","ExpectedTurnPrincipal","ExpectedActionActor","NativeTurnPrincipalStarted","ActionActorSharedTurnAdmitted"}) {
+    var value=turnEvidence.GetProperty(name).GetValue(captured,null);
+    if((value!=null)!=(mode!=2) || serialized.Contains("\""+name+"\":")!=(mode!=2))
+     throw new InvalidOperationException("Turn principal evidence was omitted or invented for mode "+mode+": "+name);
+   }
+   if(mode!=2 && (bool)turnEvidence.GetProperty("UnifiedMountedTurn").GetValue(captured,null)!=(mode==1))
+    throw new InvalidOperationException("Turn evidence changed the observed legacy configuration.");
+  }
+  Console.WriteLine("TURN PRINCIPAL EVIDENCE SERIALIZATION PASS=3 FAIL=0; original evidence builder, no game operation");
   // Native movement deliberately ignores the command-slot cooldown. Its real
   // debit is made by the movement controller; this is not an attack exemption.
   var move=native.GetType("Kingmaker.UnitLogic.Commands.UnitMoveTo",true);
