@@ -188,6 +188,7 @@
     <Compile Include="Diagnostics\PairedConditionObserver.cs" />
     <Compile Include="Diagnostics\PairedNativeConditionLease.cs" />
     <Compile Include="Diagnostics\PairedNativeConditionScenario.cs" />
+    <Compile Include="Diagnostics\PairedDeathScenario.cs" />
     <Compile Include="Diagnostics\PairedReactionScenario.cs" />
     <Compile Include="Diagnostics\ActorAllocationConservationProbe.cs" />
     <Compile Include="Domain\AnimatedSaddlePosition.cs" />

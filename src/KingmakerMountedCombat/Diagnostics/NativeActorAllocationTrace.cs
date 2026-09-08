@@ -69,6 +69,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 Patch(typeof(UnitEntityData), 0x0600838F, "ActorCostBefore", "ActorCostAfter");
                 Patch(typeof(TurnController), 0x06000C5E, "CommandEndBefore", "CommandEndAfter");
                 Patch(typeof(TurnController), 0x06000C46, "TurnEndBefore", "TurnEndAfter");
+                Patch(typeof(CombatController), 0x06000BE6, "RemoveUnitBefore", "RemoveUnitAfter");
                 Patch(typeof(UnitMovementAgent), 0x060018A9, "MovementBefore", "MovementAfter");
                 Patch(typeof(UnitMovementAgent), 0x060018AA, "PhysicalTickBefore", "PhysicalTickAfter");
                 Patch(typeof(UnitMovementAgentBase), 0x060018DB, "PhysicalMoveBefore", "PhysicalMoveAfter");
@@ -251,6 +252,8 @@ namespace KingmakerMountedCombat.Diagnostics
             internal static void CommandEndAfter(TurnController __instance, UnitCommand command) { active?.Record("command-end-after", command?.Executor, command, __instance.Unit.UniqueId); }
             internal static void TurnEndBefore(TurnController __instance) { active?.Record("turn-end-before", __instance.Unit); }
             internal static void TurnEndAfter(TurnController __instance) { active?.Record("turn-end-after", __instance.Unit); }
+            internal static void RemoveUnitBefore(UnitEntityData unit) { active?.Record("remove-unit-before", unit); }
+            internal static void RemoveUnitAfter(UnitEntityData unit) { active?.Record("remove-unit-after", unit); }
             internal static void MovementBefore(float deltaTime, out float __state) { __state = deltaTime; }
             internal static void MovementAfter(UnitMovementAgent __instance, float deltaTime, bool __result, float __state)
             {

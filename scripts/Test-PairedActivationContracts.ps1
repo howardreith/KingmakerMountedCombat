@@ -95,6 +95,16 @@ public static class KmcNativePatchProbe {
     count++;Console.WriteLine("PASS native IL patch construction "+original.Name);
    }
    var observer=candidate.GetType("KingmakerMountedCombat.Diagnostics.NativeActorAllocationTrace+Hooks",true);
+   var removal=native.ManifestModule.ResolveMethod(0x06000BE6);
+   if(removal.Name!="RemoveUnit" || removal.GetParameters().Length!=1 || removal.GetParameters()[0].Name!="unit" ||
+      removal.GetParameters()[0].ParameterType.FullName!="Kingmaker.EntitySystem.Entities.UnitEntityData" ||
+      observer.GetMethod("RemoveUnitBefore",BindingFlags.Static|BindingFlags.NonPublic)==null ||
+      observer.GetMethod("RemoveUnitAfter",BindingFlags.Static|BindingFlags.NonPublic)==null)
+    throw new InvalidOperationException("Native removal observation signature changed.");
+   var deathIl=native.ManifestModule.ResolveMethod(0x06000BF2).GetMethodBody().GetILAsByteArray();
+   if(deathIl.Length!=16 || deathIl[10]!=0x28 || BitConverter.ToInt32(deathIl,11)!=0x06000BE6)
+    throw new InvalidOperationException("Native death no longer calls RemoveUnit at the verified boundary.");
+   Console.WriteLine("NATIVE DEATH REMOVAL CONTRACT PASS=1 FAIL=0; runtime observer construction still required");
    var observerNames=new[]{"PhysicalTick","PhysicalMove"};
    var nativeObserverNames=new[]{"TickMovement","Move"};
    var nativeParameterTypes=new[]{"System.Single","UnityEngine.Vector3"};

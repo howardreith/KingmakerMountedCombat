@@ -196,11 +196,19 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!combat.PairedPartnerCanGetUp) return;
                 RecordPairedRestriction("native-get-up-input-before");
                 pairedTransitionTurn = turn;
-                var destination = FindPairedControlPoint(0.25f, "paired-get-up-endpoints");
+                // A nearby projected click can finish natively without needing
+                // movement, leaving the actor prone. Require a real approach.
+                var destination = FindPairedControlPoint(1f, "paired-get-up-endpoints");
                 BeginPairedTransitionMove(0f, false, "native-get-up-input", true, false, destination);
+                pairedTransitionMove["nativeEnoughCloseAtAdmission"] = movementCommand?.IsUnitEnoughClose;
+                pairedTransitionMove["nativeApproachRadius"] = movementCommand?.ApproachRadius;
+                pairedTransitionMove["nativeApproachDistance"] = movementCommand == null ? (float?)null :
+                    HorizontalDistance(horse.Position, movementCommand.ApproachPoint);
                 pairedRestrictionEvidence["getUpInput"] = pairedTransitionMove.DeepClone();
                 pairedRestrictionEvidence["getUpFeedback"] = combat.LastFeedback;
                 RequirePaired((bool)pairedTransitionMove["admitted"], "Native get-up terrain input was refused.");
+                RequirePaired(!movementCommand.IsUnitEnoughClose,
+                    "Get-up stimulus already satisfies the native movement destination.");
                 pairedRestrictionStage = 8; ResetLeafClock(); return;
             }
             if (pairedRestrictionStage == 8)

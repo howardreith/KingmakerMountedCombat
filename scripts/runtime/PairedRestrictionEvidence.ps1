@@ -114,6 +114,9 @@ function Assert-KmcPairedRestrictionEvidence($Artifact, $Evidence) {
     Unchanged-RestrictionGrant $getUpBefore $getUpAfter
     $getUp=@($Evidence.nativeConditionEvents.events|Where-Object kind -CEQ 'native-get-up')
     $move=$moves[2]
+    if([long]$Artifact.schemaVersion -ge 17 -and
+        ($move.nativeEnoughCloseAtAdmission -ne $false -or
+         $move.nativeApproachDistance -le $move.nativeApproachRadius)) {throw 'Get-up stimulus did not require native movement.'}
     if($getUp.Count -ne 1 -or $getUp[0].actor -cne $Artifact.observations.horseId -or
         $getUp[0].frame -lt $getUpBefore.frame -or $getUp[0].frame -gt $getUpAfter.frame -or
         $getUpBefore.mount.prone -ne $true -or $getUpBefore.mountCanGetUp -ne $true -or $getUpAfter.mount.prone -ne $false -or

@@ -72,6 +72,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     "; actor=" + turn?.Unit?.UniqueId + "; status=" + turn?.Status + "; samples=" + allocationSamples.Count +
                     "; mountS=" + horse.CombatState.Cooldown.StandardAction + "; mountM=" + horse.CombatState.Cooldown.MoveAction +
                     "; pending=" + GetPendingNextUnit(controller)?.UniqueId + "; paused=" + game.IsPaused);
+            if (pairedDeathStarted) { TickPairedDeathProbe(); return; }
             if (pairedNativeConditionsStarted) { TickPairedNativeConditions(); return; }
             if (pairedTransitionsStarted) { TickPairedTransitions(); return; }
             if (pairedRestrictionsStarted) { TickPairedRestrictions(); return; }

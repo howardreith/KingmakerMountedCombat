@@ -79,7 +79,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     AddRow("P05-paired-native-condition-commands", true,
                         "Native DoNothing/SelfHarm retain their exact grant through forced split, debit one actor and preserve principal input and subsequent participation.",
                         (JObject)pairedNativeConditionEvidence.DeepClone());
-                    BeginCleanup(); return;
+                    BeginPairedDeathProbe(); return;
                 }
                 RequirePaired(unmountedHorseAiLease?.IsAcquired == true && combatMountRiderAiLease?.IsAcquired == true,
                     "Native condition continuation lost its exact original actor AI leases.");

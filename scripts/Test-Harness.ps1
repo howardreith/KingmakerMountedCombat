@@ -10105,7 +10105,7 @@ try {
             productVersion=$currentProductVersion;dllSha256=('f'*64)
             dllMvid='44444444-5555-6666-7777-888888888888';evidenceRoot=$phase3dRoot
         }
-        $artifact=[ordered]@{schemaVersion=16;evidenceKind='phase3d-horse-scenario-evidence'
+        $artifact=[ordered]@{schemaVersion=17;evidenceKind='phase3d-horse-scenario-evidence'
             createdAtUtc=[DateTime]::UtcNow.ToString('o');status='FAIL'
             rows=@([ordered]@{name='phase3d-horse-runtime-exception';status='FAIL';detail='Synthetic guarded failure.'})
             observations=[ordered]@{phase3fActualConfiguration=[ordered]@{enablePairedActivation=$true
@@ -10116,7 +10116,7 @@ try {
         $manifest=[pscustomobject]@{artifacts=@([pscustomobject]@{relativePath='phase3d-horse-scenario-evidence.json';kind='phase3d-horse-scenario-evidence'})}
         [IO.File]::WriteAllText($path,($artifact|ConvertTo-Json -Depth 15),(New-Object Text.UTF8Encoding($false)))
         Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $manifest -Status FAIL
-        foreach($schema in @(17,'16')) {
+        foreach($schema in @(18,'17')) {
             $artifact.schemaVersion=$schema
             [IO.File]::WriteAllText($path,($artifact|ConvertTo-Json -Depth 15),(New-Object Text.UTF8Encoding($false)))
             $rejected=$false
@@ -11649,7 +11649,7 @@ try {
             $phase3dHorseSource.Contains('["commandAiActionPresent"] = commandPresent && command.AiAction != null') -and
             $phase3dHorseSource.Contains('["createdByPlayer"] = command.CreatedByPlayer') -and
             $phase3dHorseSource.Contains('["aiActionPresent"] = command.AiAction != null') -and
-            $phase3dHorseSource.Contains('["schemaVersion"] = IsPairedAllocation ? 16 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,') -and
+            $phase3dHorseSource.Contains('["schemaVersion"] = IsPairedAllocation ? 17 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,') -and
             $phase3dHorseSource.Contains('explicitPrimaryLedgerBefore = combat.CaptureUnifiedTurnSnapshot();') -and
             $phase3dHorseSource.Contains('var pairedScheduler = combat.CapturePairedCommandSchedulerSnapshot();') -and
             $phase3dHorseSource.Contains('pairedScheduler.CleanupReason == "native terminal slot removal"') -and

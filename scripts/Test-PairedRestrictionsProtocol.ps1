@@ -63,8 +63,8 @@ function New-RestrictionFixture {
         @{purpose='staggered-standard-rejects-move';fiveFootStep=$false;distance=0;travelledDistance=0;nativeShiftDistance=0
             nativeMoveCost=0;nativeAllowedTime=0;after=$rejectMove.mount;riderBefore=$attackAfter.rider;riderAfter=$rejectMove.rider},
         @{purpose='native-get-up-input';admitted=$true;distance=0;travelledDistance=0;nativeShiftDistance=0;nativeMoveCost=3
-            nativeAllowedTime=0;before=$upBefore.mount})
-    $data=@{artifact=@{observations=@{riderId='rider';horseId='mount';actorAllocationTrace=@{events=@($ledger)};ordinaryAttackTrace=@{events=@()}}}
+            nativeAllowedTime=0;before=$upBefore.mount;nativeEnoughCloseAtAdmission=$false;nativeApproachDistance=1.2;nativeApproachRadius=0.3})
+    $data=@{artifact=@{schemaVersion=17;observations=@{riderId='rider';horseId='mount';actorAllocationTrace=@{events=@($ledger)};ordinaryAttackTrace=@{events=@()}}}
         evidence=@{level='NATIVE INTEGRATION';passed=$true;inputKind='scripted-native-control-integration';ownedConditionRestored=$true
             automaticEndSettingRestored=$true;automaticEndInputCount=0;events=@($samples)
             operations=@((Attack 'mount' $false $attackBefore $attackAfter),(Attack 'rider' $true $fullBefore $fullAfter));movements=$moves
@@ -78,6 +78,8 @@ Assert-KmcPairedRestrictionEvidence $valid.artifact $valid.evidence
 Assert-KmcPairedSpentModeEvidence $valid.artifact $valid.transition $valid.mode
 $passes+=2
 foreach($mutation in @(
+    {param($d) $d.evidence.movements[2].nativeEnoughCloseAtAdmission=$true},
+    {param($d) $d.evidence.movements[2].nativeApproachDistance=0.2},
     {param($d) $d.evidence.ownedConditionRestored=$false},
     {param($d) $d.evidence.automaticEndSettingRestored=$false},
     {param($d) $d.evidence.automaticEndInputCount=1},
