@@ -61,6 +61,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Isolated packaged assembly inspection failed.' }
     $identity = $identityJson | ConvertFrom-Json
     if ([string]$identity.name -cne 'KingmakerMountedCombat' -or [string]$identity.version -cne $expectedAssemblyVersion) { throw 'Packaged DLL assembly identity is not exact.' }
+    if ([string]$identity.informationalVersion -cne $expectedProductVersion) { throw 'Packaged DLL product version does not match the candidate.' }
     if ([string]$identity.targetFramework -cne '.NETFramework,Version=v4.7') { throw 'Packaged DLL does not target exact .NET Framework 4.7.' }
     $allowedReferences = @('mscorlib','System','System.Core','Assembly-CSharp','Assembly-CSharp-firstpass','UnityEngine','UnityEngine.CoreModule','UnityEngine.IMGUIModule','UnityEngine.AnimationModule','UnityEngine.ImageConversionModule','UnityModManager','Newtonsoft.Json','0Harmony12')
     $references = @($identity.references | Sort-Object)
@@ -82,7 +83,7 @@ finally {
     }
 }
 
-Write-Host 'TOTAL PASS=10 FAIL=0'
+Write-Host 'TOTAL PASS=11 FAIL=0'
 Write-Host "PACKAGE=$resolvedPackage"
 Write-Host "SHA256=$($result.packageSha256)"
 if ($PassThru) { return $result }

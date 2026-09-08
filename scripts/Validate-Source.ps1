@@ -105,7 +105,7 @@ if ($failures.Count -gt 0) {
     foreach ($failure in $failures) {
         Write-Host "  $failure"
     }
-    exit 1
+    throw ('Source validation failed: ' + ($failures -join '; '))
 }
 
 Write-Host "TOTAL PASS=$passes FAIL=0"

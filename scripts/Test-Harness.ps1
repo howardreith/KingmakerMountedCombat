@@ -1834,6 +1834,38 @@ New-Item -ItemType Directory -Path $testRoot | Out-Null
 try {
     $emptyRoot = Join-Path $testRoot 'empty-root'
     New-Item -ItemType Directory -Path $emptyRoot -Force | Out-Null
+    Invoke-HarnessTest 'source validation failure terminates a calling script' {
+        $source = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'Validate-Source.ps1')
+        $tokens=$null; $parseErrors=$null
+        $ast=[Management.Automation.Language.Parser]::ParseInput($source,[ref]$tokens,[ref]$parseErrors)
+        $failure=@($ast.FindAll({param($node) $node -is [Management.Automation.Language.IfStatementAst] -and
+            $node.Clauses[0].Item1.Extent.Text -ceq '$failures.Count -gt 0'},$true))
+        Assert-Test ($parseErrors.Count -eq 0 -and $failure.Count -eq 1) 'source validation failure boundary changed'
+        $probe=Join-Path $testRoot 'source-validation-failure.ps1'
+        [IO.File]::WriteAllText($probe, $failure[0].Extent.Text)
+        $failures=@('intentional mismatch'); $passes=0
+        # Invoke the actual failure branch from a child script, as build/package/
+        # runtime do. A child exit code alone must not let the caller continue.
+        Assert-TestThrows { & $probe } 'source failure returned to its caller instead of terminating'
+    }
+
+    Invoke-HarnessTest 'packaged DLL requires the exact compiled product version' {
+        $source=Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'Validate-Package.ps1')
+        $tokens=$null; $parseErrors=$null
+        $ast=[Management.Automation.Language.Parser]::ParseInput($source,[ref]$tokens,[ref]$parseErrors)
+        $check=@($ast.FindAll({param($node) $node -is [Management.Automation.Language.IfStatementAst] -and
+            $node.Clauses[0].Item1.Extent.Text -like '*identity.informationalVersion*'},$true))
+        Assert-Test ($parseErrors.Count -eq 0 -and $check.Count -eq 1) 'compiled package version boundary changed'
+        $validate=[scriptblock]::Create($check[0].Extent.Text)
+        $expectedProductVersion=$currentProductVersion
+        $identity=[pscustomobject]@{informationalVersion='stale-build'}
+        Assert-TestThrows { & $validate } 'package admitted stale compiled identity'
+        $identity.informationalVersion=$null
+        Assert-TestThrows { & $validate } 'package admitted absent compiled identity'
+        $identity.informationalVersion=$currentProductVersion
+        & $validate
+    }
+
     Invoke-HarnessTest 'tree manifest represents an empty root' {
         $emptyManifest = Get-KmcDirectoryManifest $emptyRoot
         Assert-Test ($emptyManifest.fileCount -eq 0 -and $emptyManifest.directoryCount -eq 0 -and $emptyManifest.totalBytes -eq 0) 'empty tree totals are not exact'
