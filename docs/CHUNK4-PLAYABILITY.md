@@ -23,7 +23,7 @@ Owner-reported missing feature: actual mounted Charge does not work. New RT run 
 
 ## Evidence and delivery
 
-COMPONENT, ASSEMBLY CONTRACT, NATIVE INTEGRATION and HUMAN PLAY remain separate. New native runs: **2**. No retained preview.37 result is counted as a new Chunk 4 scenario.
+COMPONENT, ASSEMBLY CONTRACT, NATIVE INTEGRATION and HUMAN PLAY remain separate. New native runs: **3**. No retained preview.37 result is counted as a new Chunk 4 scenario.
 
 ### New Charge reproduction A
 
@@ -44,3 +44,11 @@ Preview.4 implements original pair-local Charge policy and a stateless native ad
 ### Prelaunch protocol correction — 2026-09-08
 
 The focused game-envelope regression reproduced missing C4 leaf registration (364 PASS / 1 FAIL); preview.2 registers both native Charge leaves and passes 365/0 components and 22/0 Charge protocol checks. Preview.1 was packaged but never launched; its read-only WhatIf is superseded. The final preview.1 harness check passed 247/0. That prelaunch correction preceded runs A/B and did not change gameplay.
+
+### New guard execution C and query compatibility correction
+
+`20260908-chunk4-C`, RT, source `91be8d15544d4344279f52eb0aca88bcb77c1ad7`, preview.4: game envelope **47 PASS / 0 FAIL**, two Charge rows PASS; strict outer validation **FAIL** because the mounted `CanTarget` query remained true. This is not a qualified Charge gate. Actual mounted input and native queue/Start attempts rejected with native warning events, no costs or movement, and a completed legal transport/ordinary attack/Stop recovery. Unmounted Charge moved 7.30533743 metres, spent Standard (observed maximum 5.988988), and completed one native Charge attack and damage rule without forced rolls. Its native setup walk succeeded; this run did not reproduce an off-navmesh origin.
+
+Local read-only inspection found the installed Call of the Wild `AbilityData__CanTarget__Patch.Prefix` replaces the query and returns false. Preview.5 applies the pair-local restriction to the final query result, preserving other actors and abilities. No foreign mod is changed or required. New schema19 retains the two original controls and adds mounted Horse, unrelated native Charge, and real unmounted-queue/Mount/promotion controls, with native admission observations and subsequent recovery. Schema18 remains historical and cannot prove those added cases. COMPONENT **369/0**, Charge evidence protocol **68/0**, harness **247/0**, source **22/0**, build PASS; gameplay qualification remains open.
+
+C ZIP SHA256 `035fb45153c2ba7ec3ffce990ff76244f512eb1c9deb37f8ffcca0258f8f8301`, DLL `edd91cd8dd5f6179cc7bd40f26eec9eb401d63ec8c3e6aca3a33c721373d8b46`, MVID `284a62cc-5782-45e4-ad91-40aef125aa5e`. Restoration **PASS** at `2026-09-08T23:21:22.6041348Z`; complete actual saves and Mods match intake, lock absent. The launcher also emitted a secondary registration reconciliation error after the stricter Charge assertion failed; the immutable game evidence and original orchestration error preserve the cause.

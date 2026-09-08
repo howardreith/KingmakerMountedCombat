@@ -3705,6 +3705,7 @@ function Get-KmcLifecycleRuntimeRows {
 function Get-KmcPhase3dHorseRuntimeRows {
     return @(
         'C4-CHARGE-mounted-rider', 'C4-CHARGE-unmounted-rider',
+        'C4-CHARGE-mounted-mount', 'C4-CHARGE-unrelated-actor', 'C4-CHARGE-queued-state-change',
         'C01-B', 'C01-C', 'C01-D',
         'C03-rapid-off-B', 'C03-rapid-off-C', 'C03-bab-B', 'C03-bab-C', 'C03-haste-B', 'C03-haste-C',
         'C02-restricted-B', 'C02-restricted-C', 'C03-single-B', 'C03-single-C', 'C03-spent-standard-B', 'C03-spent-standard-C',
@@ -5718,7 +5719,7 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
     $phase3dSchemaVersion = if (Test-KmcExactJsonInteger $artifact.schemaVersion) {
         [long]$artifact.schemaVersion
     } else { -1L }
-    if ($phase3dSchemaVersion -notin @(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L, 15L, 16L, 17L, 18L) -or
+    if ($phase3dSchemaVersion -notin @(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L) -or
         [string]$artifact.evidenceKind -cne $kind -or [string]$artifact.status -cnotin @('PASS','FAIL') -or
         $artifact.rows -isnot [Array] -or $null -eq $artifact.observations -or
         $artifact.observations -is [Array] -or $artifact.observations -is [string] -or
@@ -5740,7 +5741,7 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
         throw 'Phase 3D Horse evidence createdAtUtc is invalid.'
     }
 
-    if ($phase3dSchemaVersion -eq 18L -or [string]$Request.scenario -cin @('chunk4-charge-safety-rt','chunk4-charge-safety-tb')) {
+    if ($phase3dSchemaVersion -in @(18L,19L) -or [string]$Request.scenario -cin @('chunk4-charge-safety-rt','chunk4-charge-safety-tb')) {
         Assert-KmcChunk4ChargeEvidence -Request $Request -Artifact $artifact -Status $Status
         $afterFile = Get-Item -LiteralPath $path -Force
         if ($afterFile.Length -ne $beforeFile.Length -or $afterFile.LastWriteTimeUtc.Ticks -ne $beforeFile.LastWriteTimeUtc.Ticks) {

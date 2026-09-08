@@ -17,7 +17,7 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         private ChargeWarningObserver chunk4ChargeWarnings;
         private JObject chunk4ChargeSafetyEvidence;
-        private readonly JObject chunk4ChargeRecovery = new JObject();
+        private JObject chunk4ChargeRecovery;
         private int chunk4RecoveryStage;
         private Vector3 chunk4RecoveryOrigin;
         private UnitMoveTo chunk4RecoveryMove;
@@ -27,8 +27,13 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void BeginChunk4ChargeRecovery(JObject safety)
         {
+            chunk4ChargeRecovery = new JObject();
+            chunk4RecoveryStage = 0;
+            chunk4RecoveryMove = null;
+            chunk4RecoveryAttack = null;
+            chunk4RecoveryMaximumStandard = 0;
             chunk4ChargeSafetyEvidence = safety;
-            observations["chargeRecovery"] = safety;
+            observations["chargeRecovery-" + Chunk4ChargeId] = safety;
             safety["recovery"] = chunk4ChargeRecovery;
             chunk4ChargeRecovery["inputKind"] = "scripted-native-handler-and-command-boundaries";
             chunk4ChargeRecovery["before"] = CaptureOrdinaryLiveState();

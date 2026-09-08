@@ -244,6 +244,7 @@
     <Compile Include="Logging\UmmLogger.cs" />
     <Compile Include="Diagnostics\Chunk4ChargeScenario.cs" />
     <Compile Include="Diagnostics\Chunk4ChargeRecovery.cs" />
+    <Compile Include="Diagnostics\Chunk4ChargeTransition.cs" />
     <Compile Include="Domain\MountedChargeSafetyPolicy.cs" />
     <Compile Include="Integration\MountedChargeSafetyService.cs" />
     <Compile Include="Main.cs" />

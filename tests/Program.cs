@@ -35,7 +35,7 @@ namespace KingmakerMountedCombat.Tests
                     TestRunner.Equal(0, request.Validate().Count, "Charge request rejected.");
                     TestRunner.True(HorseCompanionRegistrationScenarioPolicy.SupportsScenario(scenario), "Charge registration rejected.");
                 }
-                foreach (var name in new[] { "C4-CHARGE-mounted-rider", "C4-CHARGE-unmounted-rider" })
+                foreach (var name in new[] { "C4-CHARGE-mounted-rider", "C4-CHARGE-unmounted-rider", "C4-CHARGE-mounted-mount", "C4-CHARGE-unrelated-actor", "C4-CHARGE-queued-state-change" })
                 {
                     var result = new RuntimeSubscenarioResult { Name = name, Status = "PASS", AssertionPassCount = 1, Errors = new string[0] };
                     TestRunner.Equal(0, result.Validate().Count, "Native Charge result was lost at serialization: " + name);

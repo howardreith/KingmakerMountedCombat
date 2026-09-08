@@ -68,7 +68,7 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(Kingmaker.UnitLogic.Abilities.AbilityData), "get_IsAvailableForCast", 0x06002B49,
                     Type.EmptyTypes, nameof(PatchMethods.ChargeAvailabilityPrefix));
                 PatchExact(typeof(Kingmaker.UnitLogic.Abilities.AbilityData), "CanTarget", 0x06002B63,
-                    new[] { typeof(Kingmaker.Utility.TargetWrapper) }, nameof(PatchMethods.ChargeAvailabilityPrefix));
+                    new[] { typeof(Kingmaker.Utility.TargetWrapper) }, null, nameof(PatchMethods.ChargeTargetPostfix));
                 PatchExact(typeof(Kingmaker.UnitLogic.Abilities.AbilityData), "GetUnavailableReason", 0x06002B66,
                     Type.EmptyTypes, nameof(PatchMethods.ChargeReasonPrefix));
                 PatchExact(typeof(UnitCommands), "InterruptAndRemoveCommand", 0x060026BF,
@@ -257,6 +257,13 @@ namespace KingmakerMountedCombat.Integration
 
         private static class PatchMethods
         {
+            internal static void ChargeTargetPostfix(Kingmaker.UnitLogic.Abilities.AbilityData __instance, ref bool __result)
+            {
+                // The installed native-target extension replaces this method in
+                // a prefix. Restrict only the affected Charge's final result.
+                if (PatchBridge.ChargeSafety?.RejectionReason(__instance) != null) __result = false;
+            }
+
             internal static bool ChargeAvailabilityPrefix(Kingmaker.UnitLogic.Abilities.AbilityData __instance, ref bool __result)
             {
                 if (PatchBridge.ChargeSafety?.RejectionReason(__instance) == null) return true;

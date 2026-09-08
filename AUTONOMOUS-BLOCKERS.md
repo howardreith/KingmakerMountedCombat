@@ -1,6 +1,6 @@
 # Active Chunk 4 gates - 2026-09-08
 
-IN PROGRESS. Mounted native Charge unsafe expenditure is reproduced in RT and TB. Preview.4 implements exact pair-local early rejection and new recovery checks; native qualification remains open. Unmounted Charge target setup failed twice with different observations; the next fixture measures origin projection and uses a native setup walk. All sustained combat, independent targeting, native rider-death, traversal/session and exact final regression gates remain TODO. Both actual runtime restorations PASS; no external integrity blocker or permanent install. [Active ledger](docs/CHUNK4-PLAYABILITY.md). Historical mission stop instructions below are superseded.
+IN PROGRESS. Native unsafe Charge expenditure was reproduced in RT/TB. New RT C observed safe rejection/recovery and a genuine unmounted Charge, but strict validation failed the mounted CanTarget query. Preview.5 corrects final query compatibility and adds native Horse/unrelated/queued-relationship-transition controls; all await new RT/TB qualification. Remaining sustained combat, incoming targeting, native rider death, traversal/session and exact final regressions remain TODO. All three actual restorations PASS; no external integrity blocker or permanent install. [Active ledger](docs/CHUNK4-PLAYABILITY.md). Historical stop instructions are superseded.
 ---
 ## Combined milestone disposition — 2026-09-08
 

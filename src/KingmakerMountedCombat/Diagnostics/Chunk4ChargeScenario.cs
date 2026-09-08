@@ -24,8 +24,17 @@ namespace KingmakerMountedCombat.Diagnostics
             scenario == "chunk4-charge-safety-rt" || scenario == "chunk4-charge-safety-tb";
         private bool IsChunk4Charge => IsChunk4ChargeScenario(request.Scenario);
         private bool Chunk4ChargeTb => request.Scenario.EndsWith("-tb", StringComparison.Ordinal);
-        private bool Chunk4ChargeMounted => chunk4ChargeCase == 0;
-        private string Chunk4ChargeId => Chunk4ChargeMounted ? "C4-CHARGE-mounted-rider" : "C4-CHARGE-unmounted-rider";
+        private bool Chunk4ChargeMounted => chunk4ChargeCase == 0 || chunk4ChargeCase == 2;
+        private bool Chunk4ChargePairMounted => chunk4ChargeCase == 0 || chunk4ChargeCase == 2 || chunk4ChargeCase == 3;
+        private string Chunk4ChargeId => new[] { "C4-CHARGE-mounted-rider", "C4-CHARGE-unmounted-rider",
+            "C4-CHARGE-mounted-mount", "C4-CHARGE-unrelated-actor", "C4-CHARGE-queued-state-change", "C4-CHARGE-cleanup" }[chunk4ChargeCase];
+        private UnitEntityData chunk4ChargeActor;
+        private UnitAttack Chunk4ChargeAttack => chunk4ChargeActor == horse
+            ? ordinaryAttackTrace.LastStartedMountAttack : ordinaryAttackTrace.LastStartedRiderAttack;
+        private int chunk4ChargeWarningStart;
+        private Vector3 chunk4ChargeActorOrigin;
+        private float chunk4ChargeActorDistance;
+        private float chunk4ChargeActorStandard;
         private int chunk4ChargeCase;
         private int chunk4ChargeStage;
         private bool chunk4ChargeControlSent;
@@ -56,6 +65,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 settings.EnablePairedCommandScheduler || settings.EnableDiagnosticOverlay || playerAction.OverlayPresent)
                 throw new InvalidOperationException("Chunk 4 requires the accepted paired configuration.");
             CaptureIdleFixturePartyForCleanup();
+            chunk4ChargeActor = rider;
             ordinaryAttackTrace = new NativeOrdinaryAttackTrace(rider, horse, combat);
             chunk4ChargeWarnings = new ChargeWarningObserver();
             if (Chunk4ChargeTb) pairedAutomaticEndProbe = new NativeAutomaticEndProbe(false);
@@ -63,6 +73,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 .Concat(new[] { horse }).Where(actor => actor != null).Distinct().Select(actor => new JObject {
                     ["id"] = actor.UniqueId, ["isRider"] = actor == rider, ["isMount"] = actor == horse,
                     ["weapon"] = actor.GetFirstWeapon()?.Blueprint.AssetGuid,
+                    ["ranged"] = actor.GetFirstWeapon()?.Blueprint.IsRanged,
                     ["nativeChargeFacts"] = new JArray(actor.Descriptor.Abilities.Enumerable.Where(fact =>
                         fact.Blueprint.GetComponent<AbilityCustomCharge>()?.GetType() == typeof(AbilityCustomCharge))
                         .Select(fact => fact.Blueprint.AssetGuid))
@@ -77,6 +88,11 @@ namespace KingmakerMountedCombat.Diagnostics
             var game = Game.Instance;
             var controller = game.TurnBasedCombatController;
             var turn = controller.CurrentTurn;
+            if (chunk4ChargeCase == 4 && chunk4ChargeStage != 3)
+            {
+                if (chunk4ChargeStage == 4) TickChunk4ChargeRecovery(); else TickChunk4QueuedChargeTransition();
+                return;
+            }
             observations["chunk4ChargeProgress"] = new JObject {
                 ["case"] = Chunk4ChargeId, ["stage"] = chunk4ChargeStage,
                 ["rider"] = CaptureOrdinaryActor(rider), ["mount"] = CaptureOrdinaryActor(horse),
@@ -87,20 +103,23 @@ namespace KingmakerMountedCombat.Diagnostics
             if (game.IsPaused) { game.IsPaused = false; return; }
             if (chunk4ChargeStage == 0)
             {
-                if (chunk4ChargeCase == 2) { observations["ordinaryTrace"] = ordinaryAttackTrace.Capture(); BeginCleanup(); return; }
+                if (chunk4ChargeCase == 5) { observations["ordinaryTrace"] = ordinaryAttackTrace.Capture(); BeginCleanup(); return; }
                 if (!rider.Commands.Empty || !horse.Commands.Empty || rider.AreHandsBusyWithAnimation) return;
                 SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
-                if ((relationship.State == RelationshipState.Mounted) != Chunk4ChargeMounted)
+                if ((relationship.State == RelationshipState.Mounted) != Chunk4ChargePairMounted)
                 {
                     if (!chunk4ChargeControlSent)
-                        chunk4ChargeControlSent = TryNativeAbilityTargetClick(nativeControls.DismountAbility, rider,
-                            "chunk4-charge-control-dismount");
+                        chunk4ChargeControlSent = TryNativeAbilityTargetClick(
+                            Chunk4ChargePairMounted ? nativeControls.MountAbility : nativeControls.DismountAbility,
+                            Chunk4ChargePairMounted ? horse : rider, "chunk4-charge-relationship-" + Chunk4ChargeId);
                     return;
                 }
                 if (rider.IsInCombat || horse.IsInCombat || !PrepareUnmountedHorseAiIsolation() ||
                     !PrepareCombatMountRiderAiIsolation()) return;
+                if (!PrepareChunk4ChargeActor()) return;
+                SelectionManager.Instance.SelectUnit(chunk4ChargeActor.View, true, true, false);
                 if (!Chunk4ChargeMounted && !PrepareChunk4UnmountedChargeOrigin()) return;
-                var matches = rider.Descriptor.Abilities.Enumerable.Where(fact =>
+                var matches = chunk4ChargeActor.Descriptor.Abilities.Enumerable.Where(fact =>
                     fact.Blueprint.GetComponent<AbilityCustomCharge>()?.GetType() == typeof(AbilityCustomCharge)).ToArray();
                 observations["chargeIdentity"] = new JArray(matches.Select(fact => new JObject {
                     ["blueprint"] = fact.Blueprint.AssetGuid, ["assetName"] = fact.Blueprint.name,
@@ -120,20 +139,24 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (chunk4ChargeStage == 1)
             {
-                if (!IsCombatReady(Chunk4ChargeMounted)) return;
+                if (!IsCombatReady(Chunk4ChargePairMounted)) return;
                 if (Chunk4ChargeTb)
                 {
-                    if (Chunk4ChargeMounted && turn?.Unit == horse)
+                    if (Chunk4ChargePairMounted && turn?.Unit == horse)
                         throw new InvalidOperationException("Independent mount turn in paired Charge fixture.");
-                    if (turn?.Unit != rider || turn.Status != TurnController.TurnStatus.Preparing && !turn.IsActing)
+                    if (turn?.Unit != (Chunk4ChargeMounted ? rider : chunk4ChargeActor) ||
+                        turn.Status != TurnController.TurnStatus.Preparing && !turn.IsActing)
                     { TryEndPhase3gFixtureTurn(turn); return; }
                 }
                 if (!rider.Commands.Empty || !horse.Commands.Empty || rider.AreHandsBusyWithAnimation ||
-                    !rider.CombatState.Prepared || !rider.CombatState.CanActInCombat ||
-                    rider.CombatState.Cooldown.StandardAction > 0.001f || rider.CombatState.Cooldown.MoveAction > 0.001f) return;
+                    !rider.CombatState.Prepared ||
+                    !chunk4ChargeActor.CombatState.Prepared || !chunk4ChargeActor.CombatState.CanActInCombat ||
+                    chunk4ChargeActor.CombatState.Cooldown.StandardAction > 0.001f ||
+                    chunk4ChargeActor.CombatState.Cooldown.MoveAction > 0.001f) return;
                 var nativeTarget = new TargetWrapper(target);
                 chunk4ChargeBefore = new JObject {
                     ["rider"] = CaptureOrdinaryActor(rider), ["mount"] = CaptureOrdinaryActor(horse),
+                    ["actor"] = CaptureOrdinaryActor(chunk4ChargeActor),
                     ["nativeCanTarget"] = chunk4ChargeAbility.CanTarget(nativeTarget),
                     ["nativeAvailable"] = chunk4ChargeAbility.IsAvailableForCast,
                     ["nativeReason"] = chunk4ChargeAbility.GetUnavailableReason(),
@@ -147,6 +170,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 game.IsPaused = true;
                 handler.SetAbility(chunk4ChargeAbility);
                 var beforeHover = CaptureOrdinaryLiveState();
+                var beforeHoverActor = CaptureOrdinaryActor(chunk4ChargeActor);
                 var warningsBeforeHover = chunk4ChargeWarnings.Count;
                 for (var index = 0; index < 3; index++)
                 {
@@ -154,11 +178,13 @@ namespace KingmakerMountedCombat.Diagnostics
                     handler.GetTarget(target.View.gameObject, target.Position, chunk4ChargeAbility);
                 }
                 chunk4ChargeHoverPure = JToken.DeepEquals(beforeHover, CaptureOrdinaryLiveState()) &&
+                    JToken.DeepEquals(beforeHoverActor, CaptureOrdinaryActor(chunk4ChargeActor)) &&
                     warningsBeforeHover == chunk4ChargeWarnings.Count;
+                chunk4ChargeWarningStart = chunk4ChargeWarnings.Count;
                 if (!targetService.BeginExpectedAttackDispatch(target))
                     throw new InvalidOperationException("Charge fixture lost its native target before input.");
                 chunk4ChargeClicked = handler.OnClick(target.View.gameObject, target.Position, 0, false, false);
-                chunk4ChargeCommand = rider.Commands.Raw.Concat(rider.Commands.Queue).OfType<UnitUseAbility>()
+                chunk4ChargeCommand = chunk4ChargeActor.Commands.Raw.Concat(chunk4ChargeActor.Commands.Queue).OfType<UnitUseAbility>()
                     .FirstOrDefault(command => ReferenceEquals(command.Spell, chunk4ChargeAbility));
                 observations["paused-" + Chunk4ChargeId] = new JObject {
                     ["before"] = beforeHover, ["after"] = CaptureOrdinaryLiveState(),
@@ -166,6 +192,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 };
                 chunk4ChargeRiderOrigin = rider.Position;
                 chunk4ChargeMountOrigin = horse.Position;
+                chunk4ChargeActorOrigin = chunk4ChargeActor.Position;
+                chunk4ChargeActorDistance = chunk4ChargeActorStandard = 0;
                 chunk4ChargeStarted = game.TimeController.GameTime.TotalSeconds;
                 chunk4ChargeLastSample = -1;
                 chunk4ChargeRiderDistance = chunk4ChargeMountDistance = 0;
@@ -186,37 +214,50 @@ namespace KingmakerMountedCombat.Diagnostics
                 chunk4ChargeMaxMove = Math.Max(chunk4ChargeMaxMove, rider.CombatState.Cooldown.MoveAction);
                 chunk4ChargeMaxMountStandard = Math.Max(chunk4ChargeMaxMountStandard, horse.CombatState.Cooldown.StandardAction);
                 chunk4ChargeMaxMountMove = Math.Max(chunk4ChargeMaxMountMove, horse.CombatState.Cooldown.MoveAction);
-                chunk4ChargeObservedCharging |= rider.Descriptor.State.IsCharging || rider.View.AgentASP.IsCharging;
+                chunk4ChargeActorDistance = Math.Max(chunk4ChargeActorDistance, HorizontalDistance(chunk4ChargeActor.Position, chunk4ChargeActorOrigin));
+                chunk4ChargeActorStandard = Math.Max(chunk4ChargeActorStandard, chunk4ChargeActor.CombatState.Cooldown.StandardAction);
+                chunk4ChargeObservedCharging |= chunk4ChargeActor.Descriptor.State.IsCharging || chunk4ChargeActor.View.AgentASP.IsCharging;
                 if (elapsed - chunk4ChargeLastSample >= 0.1)
                 {
                     chunk4ChargeLastSample = elapsed;
                     chunk4ChargeSamples.Add(new JObject {
                         ["nativeSeconds"] = elapsed, ["rider"] = CaptureOrdinaryActor(rider),
-                        ["mount"] = CaptureOrdinaryActor(horse), ["charging"] = rider.Descriptor.State.IsCharging,
+                        ["mount"] = CaptureOrdinaryActor(horse), ["actor"] = CaptureOrdinaryActor(chunk4ChargeActor),
+                        ["charging"] = chunk4ChargeActor.Descriptor.State.IsCharging,
                         ["shell"] = CaptureNativeAbilityShell(chunk4ChargeCommand),
-                        ["attack"] = CaptureOrdinaryCommand(ordinaryAttackTrace.LastStartedRiderAttack),
-                        ["chargeAttack"] = ordinaryAttackTrace.LastStartedRiderAttack?.IsCharge
+                        ["attack"] = CaptureOrdinaryCommand(Chunk4ChargeAttack),
+                        ["chargeAttack"] = Chunk4ChargeAttack?.IsCharge
                     });
                 }
                 if (leafClock.Elapsed.TotalSeconds < 12 && (chunk4ChargeCommand != null && !chunk4ChargeCommand.IsFinished ||
                     !Chunk4ChargeMounted && (ruleProbe.RiderResolvedCount == 0 ||
-                        ordinaryAttackTrace.LastStartedRiderAttack?.IsFinished != true))) return;
+                        Chunk4ChargeAttack?.IsFinished != true))) return;
                 if (leafClock.Elapsed.TotalSeconds < 1) return;
                 var rejected = chunk4ChargeCommand == null || !chunk4ChargeCommand.IsActed && chunk4ChargeCommand.IsFinished;
                 var safe = rejected && !chunk4ChargeObservedCharging && chunk4ChargeRiderDistance < 0.01f &&
                     chunk4ChargeMountDistance < 0.01f && chunk4ChargeMaxStandard < 0.001f && chunk4ChargeMaxMove < 0.001f &&
                     chunk4ChargeMaxMountStandard < 0.001f && chunk4ChargeMaxMountMove < 0.001f &&
-                    ruleProbe.RiderNonOpportunityAttackRuleCount == 0 && chunk4ChargeHoverPure &&
-                    chunk4ChargeWarnings.Count > 0 && combat.LastFeedback == MountedChargeSafetyPolicy.Feedback &&
+                    ruleProbe.RiderNonOpportunityAttackRuleCount == 0 && ruleProbe.MountNonOpportunityAttackRuleCount == 0 &&
+                    chunk4ChargeHoverPure && chunk4ChargeWarnings.Count == chunk4ChargeWarningStart + 1 &&
+                    !(bool)chunk4ChargeBefore["nativeCanTarget"] && !(bool)chunk4ChargeBefore["nativeAvailable"] &&
+                    (string)chunk4ChargeBefore["nativeReason"] == MountedChargeSafetyPolicy.Feedback &&
+                    combat.LastFeedback == MountedChargeSafetyPolicy.Feedback &&
                     (bool)chunk4ChargeBefore["nativeGeometry"]["customCanTarget"];
-                var nativeCharge = ruleProbe.RiderResolvedCount > 0 && ordinaryAttackTrace.LastStartedRiderAttack?.IsCharge == true &&
-                    ordinaryAttackTrace.LastStartedRiderAttack.IsFinished &&
+                var nativeCharge = ruleProbe.RiderResolvedCount > 0 && Chunk4ChargeAttack?.IsCharge == true &&
+                    Chunk4ChargeAttack.IsFinished &&
                     ruleProbe.RiderResolvedCount == ruleProbe.RiderNonOpportunityAttackRuleCount &&
                     (bool)chunk4ChargeBefore["nativeCanTarget"] && (bool)chunk4ChargeBefore["nativeAvailable"] &&
-                    chunk4ChargeRiderDistance > 1f && chunk4ChargeMaxStandard > 0;
+                    chunk4ChargeActorDistance > 1f && chunk4ChargeActorStandard > 0 &&
+                    chunk4ChargeWarnings.Count == chunk4ChargeWarningStart;
                 var evidence = new JObject {
                     ["level"] = "NATIVE INTEGRATION", ["inputKind"] = "scripted-native-handler-integration",
                     ["mode"] = Chunk4ChargeTb ? "TB" : "RT", ["mounted"] = Chunk4ChargeMounted,
+                    ["actorId"] = chunk4ChargeActor.UniqueId, ["actorIsRider"] = chunk4ChargeActor == rider,
+                    ["actorIsMount"] = chunk4ChargeActor == horse,
+                    ["pairMounted"] = relationship.State == RelationshipState.Mounted,
+                    ["actorDistance"] = chunk4ChargeActorDistance, ["maximumActorStandard"] = chunk4ChargeActorStandard,
+                    ["nativeWarnings"] = chunk4ChargeWarnings.Capture(),
+                    ["warningDelta"] = chunk4ChargeWarnings.Count - chunk4ChargeWarningStart,
                     ["identity"] = observations["chargeIdentity"].DeepClone(), ["before"] = chunk4ChargeBefore,
                     ["clicked"] = chunk4ChargeClicked, ["hoverPure"] = chunk4ChargeHoverPure,
                     ["safeRejected"] = safe, ["nativeChargeCompleted"] = nativeCharge,
@@ -227,7 +268,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["observedCharging"] = chunk4ChargeObservedCharging, ["samples"] = chunk4ChargeSamples.DeepClone(),
                     ["rules"] = ruleProbe.CapturePairEvidence(), ["after"] = CaptureOrdinaryLiveState()
                 };
-                if (Chunk4ChargeMounted && safe) { BeginChunk4ChargeRecovery(evidence); return; }
+                if (chunk4ChargeCase == 0 && safe) { BeginChunk4ChargeRecovery(evidence); return; }
                 AddRow(Chunk4ChargeId, chunk4ChargeHoverPure && (Chunk4ChargeMounted ? safe : nativeCharge),
                     Chunk4ChargeMounted ? "Mounted native Charge must reject before approach, delivery or costs." :
                         "Unmounted native Charge retains movement, charge attack and genuine cost.", evidence);
@@ -240,6 +281,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (combat.HasActiveCommand || ruleProbe.RiderResolvedCount < ruleProbe.RiderNonOpportunityAttackRuleCount) return;
                 TryLeaveCombat(target); TryLeaveCombat(rider); TryLeaveCombat(horse);
+                TryLeaveCombat(chunk4ChargeActor);
                 if (targetService != null)
                 {
                     if (!targetService.DestroyAndVerify()) return;
@@ -252,6 +294,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     throw new InvalidOperationException("Charge fixture AI restoration failed.");
                 combatMountRiderAiLease = null; unmountedHorseAiLease = null; unmountedHorseAiSettleRequested = false;
                 chunk4ChargeCase++; chunk4ChargeStage = 0; chunk4ChargeControlSent = false; chunk4ChargeCommand = null;
+                chunk4ChargePlacementMove = null; chunk4ChargePlacementReady = false;
                 ResetLeafClock();
             }
         }
@@ -262,16 +305,16 @@ namespace KingmakerMountedCombat.Diagnostics
             // endpoint alone does not prove the native straight Charge route.
             var attempts = new JArray();
             observations["chargePlacement-" + Chunk4ChargeId] = new JObject {
-                ["origin"] = CapturePosition(rider.Position),
-                ["nativeOriginProjection"] = CapturePosition(ObstacleAnalyzer.TraceAlongNavmesh(rider.Position, rider.Position)),
+                ["origin"] = CapturePosition(chunk4ChargeActor.Position),
+                ["nativeOriginProjection"] = CapturePosition(ObstacleAnalyzer.TraceAlongNavmesh(chunk4ChargeActor.Position, chunk4ChargeActor.Position)),
                 ["attempts"] = attempts
             };
-            return FindWalkablePoint(rider.Position, 9f, 0.5f, point => {
-                var endpoint = ObstacleAnalyzer.TraceAlongNavmesh(rider.Position, point);
+            return FindWalkablePoint(chunk4ChargeActor.Position, 9f, 0.5f, point => {
+                var endpoint = ObstacleAnalyzer.TraceAlongNavmesh(chunk4ChargeActor.Position, point);
                 var blocked = Chunk4ChargeLandingBlocked(point, 0.5f);
                 attempts.Add(new JObject { ["point"] = CapturePosition(point),
                     ["nativeTrace"] = CapturePosition(endpoint), ["landingBlockedEstimate"] = blocked });
-                return endpoint == point && (rider.View.MovementAgent.AvoidanceDisabled || !blocked);
+                return endpoint == point && (chunk4ChargeActor.View.MovementAgent.AvoidanceDisabled || !blocked);
             });
         }
 
@@ -280,31 +323,31 @@ namespace KingmakerMountedCombat.Diagnostics
             if (chunk4ChargePlacementReady) return true;
             if (chunk4ChargePlacementMove == null)
             {
-                chunk4ChargePlacementOrigin = rider.Position;
-                var destination = FindWalkablePoint(rider.Position, 2.5f, 0.5f, point =>
+                chunk4ChargePlacementOrigin = chunk4ChargeActor.Position;
+                var destination = FindWalkablePoint(chunk4ChargeActor.Position, 2.5f, 0.5f, point =>
                     HorizontalDistance(ObstacleAnalyzer.TraceAlongNavmesh(point, point), point) < 0.001f);
-                observations["unmountedChargeOriginWalk"] = new JObject {
+                observations["originWalk-" + Chunk4ChargeId] = new JObject {
                     ["before"] = CaptureOrdinaryLiveState(),
-                    ["nativeOriginProjection"] = CapturePosition(ObstacleAnalyzer.TraceAlongNavmesh(rider.Position, rider.Position)),
+                    ["nativeOriginProjection"] = CapturePosition(ObstacleAnalyzer.TraceAlongNavmesh(chunk4ChargeActor.Position, chunk4ChargeActor.Position)),
                     ["destination"] = CapturePosition(destination)
                 };
                 Game.Instance.SelectedAbilityHandler.SetAbility(null);
-                SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
+                SelectionManager.Instance.SelectUnit(chunk4ChargeActor.View, true, true, false);
                 ClickGroundHandler.MoveSelectedUnitsToPoint(destination, false);
-                chunk4ChargePlacementMove = rider.Commands.Move as UnitMoveTo;
-                if (chunk4ChargePlacementMove?.Executor != rider)
+                chunk4ChargePlacementMove = chunk4ChargeActor.Commands.Move as UnitMoveTo;
+                if (chunk4ChargePlacementMove?.Executor != chunk4ChargeActor)
                     throw new InvalidOperationException("Unmounted Charge setup did not admit a native origin walk.");
                 ResetLeafClock(); return false;
             }
-            if (!chunk4ChargePlacementMove.IsFinished || rider.View.AgentASP.IsReallyMoving) return false;
-            var projection = ObstacleAnalyzer.TraceAlongNavmesh(rider.Position, rider.Position);
-            var evidence = (JObject)observations["unmountedChargeOriginWalk"];
+            if (!chunk4ChargePlacementMove.IsFinished || chunk4ChargeActor.View.AgentASP.IsReallyMoving) return false;
+            var projection = ObstacleAnalyzer.TraceAlongNavmesh(chunk4ChargeActor.Position, chunk4ChargeActor.Position);
+            var evidence = (JObject)observations["originWalk-" + Chunk4ChargeId];
             evidence["after"] = CaptureOrdinaryLiveState();
             evidence["nativeOriginProjectionAfter"] = CapturePosition(projection);
             evidence["command"] = CaptureOrdinaryCommand(chunk4ChargePlacementMove);
-            evidence["distance"] = HorizontalDistance(rider.Position, chunk4ChargePlacementOrigin);
+            evidence["distance"] = HorizontalDistance(chunk4ChargeActor.Position, chunk4ChargePlacementOrigin);
             if (chunk4ChargePlacementMove.Result != UnitCommand.ResultType.Success ||
-                (float)evidence["distance"] < 0.5f || HorizontalDistance(projection, rider.Position) > 0.01f)
+                (float)evidence["distance"] < 0.5f || HorizontalDistance(projection, chunk4ChargeActor.Position) > 0.01f)
                 throw new InvalidOperationException("Native unmounted origin walk did not establish Charge's exact navmesh start contract.");
             chunk4ChargePlacementReady = true;
             ResetLeafClock(); return true;
@@ -312,29 +355,29 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private bool Chunk4ChargeLandingBlocked(Vector3 point, float targetCorpulence)
         {
-            var separation = rider.GetFirstWeapon() == null ? 0f : rider.View.Corpulence +
-                targetCorpulence + rider.GetFirstWeapon().AttackRange.Meters;
-            var landing = point.To2D() - (point - rider.Position).To2D().normalized * separation;
-            return Game.Instance.State.AwakeUnits.Any(actor => actor != rider && actor != target &&
+            var separation = chunk4ChargeActor.GetFirstWeapon() == null ? 0f : chunk4ChargeActor.View.Corpulence +
+                targetCorpulence + chunk4ChargeActor.GetFirstWeapon().AttackRange.Meters;
+            var landing = point.To2D() - (point - chunk4ChargeActor.Position).To2D().normalized * separation;
+            return Game.Instance.State.AwakeUnits.Any(actor => actor != chunk4ChargeActor && actor != target &&
                 actor.View && !actor.View.MovementAgent.AvoidanceDisabled &&
-                (landing - actor.Position.To2D()).magnitude < (rider.View.Corpulence + actor.View.Corpulence) * 0.8f);
+                (landing - actor.Position.To2D()).magnitude < (chunk4ChargeActor.View.Corpulence + actor.View.Corpulence) * 0.8f);
         }
 
         private JObject CaptureChunk4ChargeGeometry()
         {
             var logic = chunk4ChargeAbility.Blueprint.GetComponent<AbilityCustomCharge>();
-            var endpoint = ObstacleAnalyzer.TraceAlongNavmesh(rider.Position, target.Position);
+            var endpoint = ObstacleAnalyzer.TraceAlongNavmesh(chunk4ChargeActor.Position, target.Position);
             return new JObject {
-                ["customCanTarget"] = logic.CanTarget(rider, new TargetWrapper(target)),
-                ["distance3D"] = (target.Position - rider.Position).magnitude,
-                ["minimumRange"] = logic.GetMinRangeMeters(rider, target),
-                ["maximumRange"] = rider.CombatSpeedMps * 6f,
+                ["customCanTarget"] = logic.CanTarget(chunk4ChargeActor, new TargetWrapper(target)),
+                ["distance3D"] = (target.Position - chunk4ChargeActor.Position).magnitude,
+                ["minimumRange"] = logic.GetMinRangeMeters(chunk4ChargeActor, target),
+                ["maximumRange"] = chunk4ChargeActor.CombatSpeedMps * 6f,
                 ["targetPosition"] = CapturePosition(target.Position),
                 ["traceEndpoint"] = CapturePosition(endpoint),
                 ["straightRoute"] = endpoint == target.Position,
                 ["landingBlocked"] = Chunk4ChargeLandingBlocked(target.Position, target.View.Corpulence),
-                ["casterAvoidanceDisabled"] = rider.View.MovementAgent.AvoidanceDisabled,
-                ["casterCorpulence"] = rider.View.Corpulence,
+                ["casterAvoidanceDisabled"] = chunk4ChargeActor.View.MovementAgent.AvoidanceDisabled,
+                ["casterCorpulence"] = chunk4ChargeActor.View.Corpulence,
                 ["targetCorpulence"] = target.View.Corpulence,
                 ["nativeTimeMoved"] = Game.Instance.TurnBasedCombatController.CurrentTurn?.TimeMoved
             };

@@ -52,6 +52,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 Patch(typeof(PointerController), "SimulateClick", 0x060093C7, "SimulationBefore", "SimulationAfter");
                 Patch(typeof(ClickUnitHandler), "OnClick", 0x060093ED, "ClickBefore", "ClickAfter");
                 Patch(typeof(UnitCommands), "Run", 0x060026B2, "RunBefore", "RunAfter");
+                Patch(typeof(UnitCommands), "Run", 0x060026B3, "PrivateRunBefore", "PrivateRunAfter");
                 Patch(typeof(UnitAttack), "InitAttacks", 0x0600267C, "PlanBefore", "PlanAfter");
                 Patch(typeof(UnitAttack), "OnStart", 0x0600267E, "StartBefore", "StartAfter");
                 Patch(typeof(UnitAttack), "OnAction", 0x06002681, "DeliveryBefore", "DeliveryAfter");
@@ -67,6 +68,10 @@ namespace KingmakerMountedCombat.Diagnostics
 
         internal void BeginCase(string value) { caseId = value; LastStartedRiderAttack = null; LastStartedMountAttack = null; Record("fixture-case", rider); }
         internal JObject Capture() => new JObject { ["events"] = events.DeepClone(), ["dropped"] = dropped };
+        internal JArray CaptureAdmission(UnitCommand command) => new JArray(events.OfType<JObject>().Where(item =>
+            (int?)item["command"] == Identity(command) &&
+            ((string)item["boundary"] == "private-run-before" || (string)item["boundary"] == "private-run-after"))
+            .Select(item => item.DeepClone()));
         internal JObject NativeRecoveryInterrupt(UnitAttack command) => command != null && nativeRecoveryInterrupts.ContainsKey(command)
             ? (JObject)nativeRecoveryInterrupts[command].DeepClone() : null;
         internal JObject NativeRangeRejection(UnitAttack command)
@@ -227,6 +232,8 @@ namespace KingmakerMountedCombat.Diagnostics
             internal static void ClickAfter() { active?.Record("hostile-handler-after", Game.Instance.TurnBasedCombatController.CurrentTurn?.Unit ?? active.rider); }
             internal static void RunBefore(UnitCommands __instance, UnitCommand cmd) { active?.Record("run-before", active.Owner(__instance), cmd); }
             internal static void RunAfter(UnitCommands __instance, UnitCommand cmd) { active?.Record("run-after", active.Owner(__instance), cmd); }
+            internal static void PrivateRunBefore(UnitCommands __instance, UnitCommand cmd) { active?.Record("private-run-before", active.Owner(__instance), cmd); }
+            internal static void PrivateRunAfter(UnitCommands __instance, UnitCommand cmd) { active?.Record("private-run-after", active.Owner(__instance), cmd); }
             internal static void PlanBefore(UnitAttack __instance) { active?.Record("plan-before", __instance.Executor, __instance); }
             internal static void PlanAfter(UnitAttack __instance) { active?.Record("plan-after", __instance.Executor, __instance); }
             internal static void StartBefore(UnitAttack __instance) { active?.Record("start-before", __instance.Executor, __instance); }
