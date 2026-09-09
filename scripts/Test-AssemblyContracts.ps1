@@ -32,6 +32,20 @@ function Test-MethodIlContainsToken([Reflection.MethodBase]$Method,[int]$Token){
     return $false
 }
 if($Target-eq'Kingmaker'){
+    # Read-only Chunk 4 resource observations; these checks do not qualify cleanup.
+    $eventBusType=$assembly.GetType('Kingmaker.PubSubSystem.EventBus',$true)
+    $globalSubscribers=$eventBusType.GetField('GlobalSubscribers',[Reflection.BindingFlags]'Public,NonPublic,Static')
+    Assert-Contract ($globalSubscribers.MetadataToken -eq 0x04004C2F) 'resource snapshot exact global subscriber field'
+    $listenerField=$globalSubscribers.FieldType.GetField('m_Listeners',[Reflection.BindingFlags]'Public,NonPublic,Instance')
+    Assert-Contract ($listenerField.MetadataToken -eq 0x04004C39) 'resource snapshot exact pooled listener field'
+    $dictionaryField=$listenerField.FieldType.GetField('m_Dictionary',[Reflection.BindingFlags]'Public,NonPublic,Instance')
+    Assert-Contract ($dictionaryField.MetadataToken -eq 0x04004C34 -and
+        @($dictionaryField.FieldType.GetInterfaces()|Where-Object FullName -ceq 'System.Collections.IDictionary').Count -eq 1) 'resource snapshot exact backing dictionary enumeration surface'
+    $subscriberListType=$listenerField.FieldType.GetGenericArguments()[1]
+    foreach($expected in @(@('Executing',0x04004C3B),@('List',0x04004C3C))) {
+        $field=$subscriberListType.GetField($expected[0],[Reflection.BindingFlags]'Public,NonPublic,Instance')
+        Assert-Contract ($field.MetadataToken -eq $expected[1]) ('resource snapshot exact list field '+$expected[0])
+    }
     Assert-Contract ((Get-FileHash -Algorithm SHA256 -LiteralPath $assemblyPath).Hash.ToLowerInvariant()-ceq'3b6450ffec440e296e586f71c711b195aed144b28d53e1cbb29406d18fef5afb') 'Assembly-CSharp SHA-256'
     Assert-Contract ($assembly.ManifestModule.ModuleVersionId.ToString()-ceq'07fa1e4d-8618-41b3-9b8d-faa17d3b26f7') 'Assembly-CSharp MVID'
     $firstpassPath=Join-Path $managed 'Assembly-CSharp-firstpass.dll'

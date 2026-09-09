@@ -33,10 +33,12 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly Func<string> relationshipState;
         private readonly JArray events = new JArray();
         private readonly Dictionary<UnitAttack, JObject> nativeRecoveryInterrupts = new Dictionary<UnitAttack, JObject>();
+        private readonly List<UnitAttack> startedAttacks = new List<UnitAttack>();
         private string caseId;
         private int dropped;
         internal UnitAttack LastStartedRiderAttack { get; private set; }
         internal UnitAttack LastStartedMountAttack { get; private set; }
+        internal IReadOnlyList<UnitAttack> StartedAttacks => startedAttacks;
 
         internal NativeOrdinaryAttackTrace(UnitEntityData rider, UnitEntityData mount, MountedCombatController combat,
             Func<string> relationshipState = null)
@@ -70,8 +72,10 @@ namespace KingmakerMountedCombat.Diagnostics
             catch { Dispose(); throw; }
         }
 
-        internal void BeginCase(string value) { caseId = value; LastStartedRiderAttack = null; LastStartedMountAttack = null; Record("fixture-case", rider); }
+        internal void BeginCase(string value) { caseId = value; LastStartedRiderAttack = null; LastStartedMountAttack = null; startedAttacks.Clear(); Record("fixture-case", rider); }
         internal JObject Capture() => new JObject { ["events"] = events.DeepClone(), ["dropped"] = dropped };
+        internal JArray CaptureCaseEvents(string value) => new JArray(events.OfType<JObject>()
+            .Where(item => (string)item["caseId"] == value).Select(item => item.DeepClone()));
         internal JArray CaptureAdmission(UnitCommand command) => new JArray(events.OfType<JObject>().Where(item =>
             (int?)item["command"] == Identity(command) &&
             ((string)item["boundary"] == "private-run-before" || (string)item["boundary"] == "private-run-after"))
@@ -129,6 +133,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 var plannedAttack = attack != null && attack.AllAttacks.Count > 0 ? attack.PlannedAttack : null;
                 if (boundary == "start-after" && actor == rider) LastStartedRiderAttack = attack;
                 if (boundary == "start-after" && actor == mount) LastStartedMountAttack = attack;
+                if (boundary == "start-after" && attack != null && !startedAttacks.Contains(attack)) startedAttacks.Add(attack);
                 var row = new JObject {
                     ["index"] = events.Count, ["caseId"] = caseId, ["boundary"] = boundary,
                     ["frame"] = Time.frameCount, ["gameTime"] = Game.Instance.TimeController.GameTime.Ticks,

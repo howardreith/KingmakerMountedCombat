@@ -1,4 +1,13 @@
-# Active Chunk 4 checkpoint - 2026-09-09T01:07Z
+# Active Chunk 4 checkpoint - 2026-09-09T01:35Z
+
+IN PROGRESS. Branch `codex/mounted-combat-phase3f-playable-core`; exact HEAD `ff2bd4c2fda5c262be21b7e172b145f22de59c5a`, own pending preview.7 sustained diagnostics/protocol changes. Charge E/F preview.6 remains PASS; remaining Chunk 4 gates are mandatory. Current source build PASS, COMPONENT370/0, new sustained protocol90/0, Charge protocol86/0, source22/0, harness247/0, Kingmaker contracts451/0. Subscription reader's initial IDictionary assumption failed a new local contract (449/1); verified pooled backing dictionary04004C34 fixes the diagnostic only. No new sustained native qualification is claimed.
+
+Four RT conditions per melee/ranged root observe three complete native rider routines, eligible mount delivery, repeated same-target input, real cadence, independent costs, immutable initial target durability and Stop/projectile settlement. TB root varies six successive paired activations, actor-first order, Full exhaustion, partner remaining work and early End. Actual paired configuration is required. No production attack/scheduler changes. Read-only native ability/death-flag/subscription inventory supports later incoming targeting/death/session gates.
+
+No game or runtime transaction is active. All A-F actual-intake restorations PASS; preview.37 remains installed and preview.13 separate. Next exact action: review/commit this preview.7 checkpoint, Package.ps1 -ArtifactQualifier sustained-observation, create suite7 using actual current installation, prove WhatIf purity, then new G chunk4-sustained-melee-rt / H chunk4-sustained-ranged-rt / I chunk4-sustained-tb through owned guarded launcher and independent audit. Freeze source/bin/docs during packaging and runtime. Update analysis-cache/chunk4-native/ACTIVE-RUN.json with exact commit/package/suite/execution identities before starting. Continue later lifecycle/targeting/death/traversal/session/final gates; never stop at the Charge gate or these initial sustained cases.
+
+---
+# Earlier focused Charge checkpoint - 2026-09-09T01:07Z
 
 IN PROGRESS. Branch `codex/mounted-combat-phase3f-playable-core`, exact HEAD `a2f89b3a397e54cc94c05d09088f6f96cec0c5af`; guarded remote5422849. Focused Charge safety PASS on preview.6; new E RT/F TB each50/0 assertions,5 native rowsPASS, strictruntimePASS. Exact pairedtrue/oldauthoritiesfalse/overlayfalse. [One active report](docs/CHUNK4-PLAYABILITY.md). No full Charge or human approval inferred. Continue automatically through all later gates.
 

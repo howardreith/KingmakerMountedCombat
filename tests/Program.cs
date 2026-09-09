@@ -41,6 +41,28 @@ namespace KingmakerMountedCombat.Tests
                     TestRunner.Equal(0, result.Validate().Count, "Native Charge result was lost at serialization: " + name);
                 }
             });
+            runner.Run("Chunk 4 sustained native envelopes retain each parameterized case", () =>
+            {
+                foreach (var scenario in new[] { "chunk4-sustained-melee-rt", "chunk4-sustained-ranged-rt", "chunk4-sustained-tb" })
+                {
+                    var request = ValidSaveBackedRequest(); request.Scenario = scenario;
+                    TestRunner.Equal(0, request.Validate().Count, "Sustained request rejected.");
+                    TestRunner.True(HorseCompanionRegistrationScenarioPolicy.SupportsScenario(scenario), "Sustained Horse registration rejected.");
+                }
+                foreach (var weapon in new[] { "melee", "ranged" })
+                    foreach (var input in new[] { "adjacent-held", "adjacent-repeat", "approach-held", "approach-repeat" })
+                    {
+                        var result = new RuntimeSubscenarioResult { Name = "C4-SUSTAINED-" + weapon + "-" + input,
+                            Status = "PASS", AssertionPassCount = 1, Errors = new string[0] };
+                        TestRunner.Equal(0, result.Validate().Count, "Sustained RT native leaf was lost at serialization.");
+                    }
+                foreach (var input in new[] { "rider-first", "mount-first", "rider-exhausted", "mount-exhausted", "early-end", "after-early-end" })
+                {
+                    var result = new RuntimeSubscenarioResult { Name = "C4-SUSTAINED-TB-" + input,
+                        Status = "PASS", AssertionPassCount = 1, Errors = new string[0] };
+                    TestRunner.Equal(0, result.Validate().Count, "Sustained TB native leaf was lost at serialization.");
+                }
+            });
             runner.Run("request accepts private-alpha human-play combat rows", RequestAcceptsHumanPlayCombatRows);
             runner.Run("request requires exact qualification-suite identity", RequestRequiresQualificationSuiteIdentity);
             runner.Run("request accepts read-only manual visual review", RequestAcceptsReadOnlyManualReview);

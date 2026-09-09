@@ -16,6 +16,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 string.Equals(scenario, "phase3h-combat-loop-rt", StringComparison.Ordinal) ||
                 string.Equals(scenario, "phase3h-combat-loop-tb", StringComparison.Ordinal) ||
                 string.Equals(scenario, "unmounted-attack-controls-rt", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk4-sustained-melee-rt", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk4-sustained-ranged-rt", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk4-sustained-tb", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk4-charge-safety-rt", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk4-charge-safety-tb", StringComparison.Ordinal) ||
                 string.Equals(scenario, "actor-allocation-rider-first-tb", StringComparison.Ordinal) ||

@@ -243,6 +243,10 @@
     <Compile Include="Logging\IModLogger.cs" />
     <Compile Include="Logging\UmmLogger.cs" />
     <Compile Include="Diagnostics\Chunk4ChargeScenario.cs" />
+    <Compile Include="Diagnostics\Chunk4SustainedScenario.cs" />
+    <Compile Include="Diagnostics\Chunk4PairedPlayScenario.cs" />
+    <Compile Include="Diagnostics\Chunk4NativeEffectInventory.cs" />
+    <Compile Include="Diagnostics\Chunk4SubscriptionSnapshot.cs" />
     <Compile Include="Diagnostics\Chunk4ChargeRecovery.cs" />
     <Compile Include="Diagnostics\Chunk4ChargeTransition.cs" />
     <Compile Include="Domain\MountedChargeSafetyPolicy.cs" />
