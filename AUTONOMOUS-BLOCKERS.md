@@ -1,6 +1,7 @@
-# Active Chunk 4 gates - 2026-09-08
+# Active Chunk 4 gates - 2026-09-09
 
-IN PROGRESS. Native unsafe Charge expenditure was reproduced in RT/TB. New RT C observed safe rejection/recovery and a genuine unmounted Charge, but strict validation failed the mounted CanTarget query. Preview.5 corrects final query compatibility and adds native Horse/unrelated/queued-relationship-transition controls; all await new RT/TB qualification. Remaining sustained combat, incoming targeting, native rider death, traversal/session and exact final regressions remain TODO. All three actual restorations PASS; no external integrity blocker or permanent install. [Active ledger](docs/CHUNK4-PLAYABILITY.md). Historical stop instructions are superseded.
+IN PROGRESS. Unsafe mounted Charge expenditure reproduced in RT/TB. Preview.5 native D TB passed all five functional controls and recovery, but strict validation failed its assumed queue-rejection timing. Preview.6 adds relationship and both actors' before/after native approach observations; exact RT/TB qualification remains open. Remaining sustained combat, incoming targeting, actual native rider death, traversal/session and final regressions remain TODO. All four actual restorations PASS, current preview.37 retained, no external integrity blocker or permanent installation. [Active ledger](docs/CHUNK4-PLAYABILITY.md). Historical stop instructions are superseded.
+
 ---
 ## Combined milestone disposition — 2026-09-08
 

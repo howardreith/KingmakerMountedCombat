@@ -23,7 +23,7 @@ Owner-reported missing feature: actual mounted Charge does not work. New RT run 
 
 ## Evidence and delivery
 
-COMPONENT, ASSEMBLY CONTRACT, NATIVE INTEGRATION and HUMAN PLAY remain separate. New native runs: **3**. No retained preview.37 result is counted as a new Chunk 4 scenario.
+COMPONENT, ASSEMBLY CONTRACT, NATIVE INTEGRATION and HUMAN PLAY remain separate. New native runs: **4**. No retained preview.37 result is counted as a new Chunk 4 scenario.
 
 ### New Charge reproduction A
 
@@ -52,3 +52,11 @@ The focused game-envelope regression reproduced missing C4 leaf registration (36
 Local read-only inspection found the installed Call of the Wild `AbilityData__CanTarget__Patch.Prefix` replaces the query and returns false. Preview.5 applies the pair-local restriction to the final query result, preserving other actors and abilities. No foreign mod is changed or required. New schema19 retains the two original controls and adds mounted Horse, unrelated native Charge, and real unmounted-queue/Mount/promotion controls, with native admission observations and subsequent recovery. Schema18 remains historical and cannot prove those added cases. COMPONENT **369/0**, Charge evidence protocol **68/0**, harness **247/0**, source **22/0**, build PASS; gameplay qualification remains open.
 
 C ZIP SHA256 `035fb45153c2ba7ec3ffce990ff76244f512eb1c9deb37f8ffcca0258f8f8301`, DLL `edd91cd8dd5f6179cc7bd40f26eec9eb401d63ec8c3e6aca3a33c721373d8b46`, MVID `284a62cc-5782-45e4-ad91-40aef125aa5e`. Restoration **PASS** at `2026-09-08T23:21:22.6041348Z`; complete actual saves and Mods match intake, lock absent. The launcher also emitted a secondary registration reconciliation error after the stricter Charge assertion failed; the immutable game evidence and original orchestration error preserve the cause.
+
+### Native TB controls D and queued execution observation
+
+`20260908-chunk4-D`, TB, source `5422849f55ca1b7841d0a3745e739c2b177e3299`, preview.5: game **50 PASS / 0 FAIL**, five Charge rows PASS; strict outer validation **FAIL** because it required queue promotion itself to finish rejection. Mounted rider and Horse queries/input rejected without pair expenditure or motion. Unmounted and unrelated native Charge completed (7.1997056 and 7.24902773 metres); the unrelated control retained the mounted pair. Legal recovery and explicit End reached unrelated actors.
+
+The real unmounted queued Charge crossed a successful native Mount. Private Run left it unstarted/unacted on frame 9457; `TickApproaching` rejected it on frame 9458 with Standard/Move zero, before start/charging/attack, and native Interrupt completed it. Its subsequent move/ordinary attack/Stop/End recovery succeeded. Relationship state at the earlier admission was not captured, so this is incomplete boundary evidence. Preview.6 adds that observation and paired before/after approach snapshots, requiring a mounted, unstarted/unacted rejection with unchanged costs and positions for both actors. Historical schema19 and D's failure remain intact; schema20 corrects the timing assumption without weakening expenditure or movement checks. Production gameplay is unchanged from preview.5.
+
+D ZIP SHA256 `cb260b3723e246f8684939268c81f54ef10d6b14bd8519314905ea7519a39b89`, DLL `db2bb0a298634bc66bdb8f84e55f1f5cae3fb806b62145c4343c5dcf412891d4`, MVID `3ba5b234-669d-45e7-bdf6-3c6a4f60a35b`. Actual restoration **PASS** at `2026-09-09T00:05:59.7229776Z`, complete intake saves/Mods and UMM Params unchanged, no lock. Retained log SHA256 `a7945a5ef92be30324bcfc3ad4c29873e0cbcc6e97a550beddfaa3cfa5d9aa0c`. Guarded branch publication verified remote source `5422849`; no permanent installation or release. Preview.6 COMPONENT **369/0**, Charge protocol **86/0**, harness **247/0**, source **22/0**, build PASS. New RT/TB execution remains next; all later Chunk 4 gates are still open.

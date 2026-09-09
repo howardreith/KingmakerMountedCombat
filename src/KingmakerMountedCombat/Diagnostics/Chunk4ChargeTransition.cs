@@ -43,7 +43,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 ruleProbe.Dispose();
                 // The probe labels its first actor 'rider'; actorId in each row
                 // preserves the actual caster, while pair budgets stay separate.
-                ordinaryAttackTrace = new NativeOrdinaryAttackTrace(actor == horse ? rider : actor, horse, combat);
+                ordinaryAttackTrace = new NativeOrdinaryAttackTrace(actor == horse ? rider : actor, horse, combat,
+                    () => relationship.State.ToString());
                 ruleProbe = new Phase3dCombatRuleProbe(actor == horse ? rider : actor, horse);
                 chunk4ChargeActor = actor;
             }
@@ -127,6 +128,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 chunk4ChargeTransition["mount"] = CaptureNativeAbilityShell(chunk4QueuedMount);
                 chunk4ChargeTransition["charge"] = CaptureNativeAbilityShell(chunk4QueuedCharge);
                 chunk4ChargeTransition["admission"] = ordinaryAttackTrace.CaptureAdmission(chunk4QueuedCharge);
+                chunk4ChargeTransition["approachExecution"] = ordinaryAttackTrace.CaptureChargeApproach(chunk4QueuedCharge);
                 if (!chunk4QueuedCharge.IsFinished) return;
                 var admission = ordinaryAttackTrace.CaptureAdmission(chunk4QueuedCharge);
                 var rejected = !chunk4QueuedCharge.IsStarted && !chunk4QueuedCharge.IsActed &&
@@ -137,16 +139,21 @@ namespace KingmakerMountedCombat.Diagnostics
                     (float)admission[0]["standard"] == (float)admission[1]["standard"] &&
                     (float)admission[0]["move"] == (float)admission[1]["move"] &&
                     JToken.DeepEquals(admission[0]["actorPosition"], admission[1]["actorPosition"]);
+                var approach = ordinaryAttackTrace.CaptureChargeApproach(chunk4QueuedCharge);
+                var rejectedAtBoundary = Chunk4ChargeRejectionPair(admission);
+                for (var index = 0; index + 1 < approach.Count; index += 2)
+                    rejectedAtBoundary |= Chunk4ChargeRejectionPair(new JArray(approach[index].DeepClone(), approach[index + 1].DeepClone()));
                 chunk4ChargeTransition["mountSucceeded"] = chunk4QueuedMount.IsActed && chunk4QueuedMount.IsFinished &&
                     chunk4QueuedMount.Result == Kingmaker.UnitLogic.Commands.Base.UnitCommand.ResultType.Success &&
                     relationship.State == RelationshipState.Mounted;
                 chunk4ChargeTransition["combatBeforeMount"] = chunk4CombatBeforeMount;
                 chunk4ChargeTransition["rejectedBeforeStart"] = rejected;
                 chunk4ChargeTransition["admissionCostsAndPositionPure"] = costsPure;
+                chunk4ChargeTransition["executionRejectedWhileMounted"] = rejectedAtBoundary;
                 chunk4ChargeTransition["chargingObserved"] = chunk4QueuedCharging;
                 chunk4ChargeTransition["rulesBeforeRecovery"] = ruleProbe.CapturePairEvidence();
                 chunk4ChargeTransition["warningDelta"] = chunk4ChargeWarnings.Count - chunk4ChargeWarningStart;
-                if (!(bool)chunk4ChargeTransition["mountSucceeded"] || chunk4CombatBeforeMount || !rejected || !costsPure ||
+                if (!(bool)chunk4ChargeTransition["mountSucceeded"] || chunk4CombatBeforeMount || !rejected || !costsPure || !rejectedAtBoundary ||
                     chunk4QueuedCharging || ruleProbe.RiderNonOpportunityAttackRuleCount != 0 ||
                     ruleProbe.MountNonOpportunityAttackRuleCount != 0 || chunk4ChargeWarnings.Count != chunk4ChargeWarningStart + 1)
                     throw new InvalidOperationException("Queued Charge crossed the real Mount transition unsafely or lacked ordered evidence.");
@@ -164,6 +171,19 @@ namespace KingmakerMountedCombat.Diagnostics
             chunk4ChargeTransition["inputKind"] = "native-mount-handler-and-native-queue-promotion";
             chunk4ChargeTransition["blueprint"] = chunk4ChargeAbility.Blueprint.AssetGuid;
             BeginChunk4ChargeRecovery(chunk4ChargeTransition);
+        }
+
+        private static bool Chunk4ChargeRejectionPair(JArray pair)
+        {
+            if (pair.Count != 2) return false;
+            var before = pair[0]; var after = pair[1];
+            return (string)before["relationship"] == "Mounted" && (string)after["relationship"] == "Mounted" &&
+                (int)before["command"] == (int)after["command"] && (int)before["frame"] == (int)after["frame"] &&
+                (bool?)before["started"] == false && (bool?)before["acted"] == false && (bool?)before["finished"] == false &&
+                (bool?)after["started"] == false && (bool?)after["acted"] == false && (bool?)after["finished"] == true &&
+                (bool?)before["charging"] == false && (bool?)after["charging"] == false &&
+                new[] { "standard", "move", "mountStandard", "mountMove", "actorPosition", "mountPosition" }
+                    .All(name => JToken.DeepEquals(before[name], after[name]));
         }
     }
 }

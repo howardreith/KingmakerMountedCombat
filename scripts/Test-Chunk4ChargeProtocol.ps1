@@ -3,7 +3,7 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'runtime/RuntimeHarness.Common.ps1')
 $passed=0
 function New-ChargeEnvelope {
-    param([string]$Mode,[int]$Schema=19)
+    param([string]$Mode,[int]$Schema=20)
     # Synthetic envelopes exercise evidence validation only, never gameplay.
     $rows=@()
     foreach($mounted in @($true,$false)) {
@@ -25,7 +25,7 @@ function New-ChargeEnvelope {
                 ordinaryAttack=@{complete=$true;isCharge=$false;planned=2;completed=2;maximumRiderStandard=6;rules=@{riderResolved=2;pairForcedD20=0}}}
         }}
     }
-    if($Schema -eq 19) {
+    if($Schema -ge 19) {
         $mount=($rows[0]|ConvertTo-Json -Depth 20|ConvertFrom-Json)
         $mount.name='C4-CHARGE-mounted-mount';$mount.evidence.actorId='mount';$mount.evidence.actorIsRider=$false
         $mount.evidence.actorIsMount=$true;$mount.evidence.before.actor.id='mount';$rows+=@($mount)
@@ -42,6 +42,19 @@ function New-ChargeEnvelope {
                 @{boundary='private-run-after';command=42;started=$false;acted=$false;finished=$true;standard=0;move=0;actorPosition=@(1,2,3)})
             recovery=$rows[0].evidence.recovery
         }})
+        if($Schema -eq 20) {
+            $queued=$rows[4].evidence
+            foreach($boundary in $queued.admission) {
+                $boundary.relationship='Unmounted';$boundary.charging=$false;$boundary.frame=10
+                $boundary.mountStandard=0;$boundary.mountMove=0;$boundary.mountPosition=@(3,2,1)
+            }
+            $queued.admission[1].finished=$false
+            $queued.executionRejectedWhileMounted=$true
+            $queued.charge=@{started=$false;acted=$false;finished=$true;queued=$false;contained=$false}
+            $queued.approachExecution=@(
+                @{boundary='charge-approach-before';relationship='Mounted';command=42;frame=11;started=$false;acted=$false;finished=$false;charging=$false;standard=0;move=0;mountStandard=0;mountMove=0;actorPosition=@(1,3,3);mountPosition=@(3,2,1)},
+                @{boundary='charge-approach-after';relationship='Mounted';command=42;frame=11;started=$false;acted=$false;finished=$true;charging=$false;standard=0;move=0;mountStandard=0;mountMove=0;actorPosition=@(1,3,3);mountPosition=@(3,2,1)})
+        }
     }
     return (@{schemaVersion=$Schema;status='PASS';subscenarioPassCount=$rows.Count;subscenarioFailCount=0;errors=@();rows=$rows
         observations=@{phase3fActualConfiguration=@{enableUnifiedMountedTurn=$false;enablePairedCommandScheduler=$false;enablePairedActivation=$true;enableDiagnosticOverlay=$false;overlayPresent=$false}}} | ConvertTo-Json -Depth 20 | ConvertFrom-Json)
@@ -52,6 +65,7 @@ foreach($mode in @('RT','TB')) {
     $artifact=New-ChargeEnvelope $mode
     Assert-KmcChunk4ChargeEvidence $request $artifact 'PASS';$passed++
     Assert-KmcChunk4ChargeEvidence $request (New-ChargeEnvelope $mode 18) 'PASS';$passed++
+    Assert-KmcChunk4ChargeEvidence $request (New-ChargeEnvelope $mode 19) 'PASS';$passed++
     foreach($mutation in @(
         {$args[0].observations.phase3fActualConfiguration.enablePairedActivation=$false},
         {$args[0].rows[0].evidence.maximumRiderMove=0.01},
@@ -83,6 +97,14 @@ foreach($mode in @('RT','TB')) {
         {$args[0].rows[4].evidence.admission[1].move=3},
         {$args[0].rows[4].evidence.admission[1].actorPosition[0]=2},
         {$args[0].rows[4].evidence.recovery.ordinaryAttack.complete=$false},
+        {$args[0].rows[4].evidence.approachExecution=@()},
+        {$args[0].rows[4].evidence.approachExecution[0].relationship='Unmounted'},
+        {$args[0].rows[4].evidence.approachExecution[1].charging=$true},
+        {$args[0].rows[4].evidence.approachExecution[1].mountMove=3},
+        {$args[0].rows[4].evidence.approachExecution[1].actorPosition[0]=2},
+        {$args[0].rows[4].evidence.approachExecution[1].started=$true},
+        {$args[0].rows[4].evidence.approachExecution[1].finished=$false},
+        {$args[0].rows[4].evidence.charge.contained=$true},
         {$args[0].rows=@($args[0].rows[0..3]);$args[0].subscenarioPassCount=4},
         {$args[0].rows=@($args[0].rows[0]);$args[0].subscenarioPassCount=1}
     )) {

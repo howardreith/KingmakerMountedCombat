@@ -30,6 +30,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly UnitEntityData rider;
         private readonly UnitEntityData mount;
         private readonly MountedCombatController combat;
+        private readonly Func<string> relationshipState;
         private readonly JArray events = new JArray();
         private readonly Dictionary<UnitAttack, JObject> nativeRecoveryInterrupts = new Dictionary<UnitAttack, JObject>();
         private string caseId;
@@ -37,12 +38,14 @@ namespace KingmakerMountedCombat.Diagnostics
         internal UnitAttack LastStartedRiderAttack { get; private set; }
         internal UnitAttack LastStartedMountAttack { get; private set; }
 
-        internal NativeOrdinaryAttackTrace(UnitEntityData rider, UnitEntityData mount, MountedCombatController combat)
+        internal NativeOrdinaryAttackTrace(UnitEntityData rider, UnitEntityData mount, MountedCombatController combat,
+            Func<string> relationshipState = null)
         {
             if (active != null) throw new InvalidOperationException("An ordinary attack trace is already active.");
             this.rider = rider;
             this.mount = mount;
             this.combat = combat;
+            this.relationshipState = relationshipState;
             harmony = HarmonyInstance.Create(HarmonyId);
             active = this;
             try
@@ -53,6 +56,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 Patch(typeof(ClickUnitHandler), "OnClick", 0x060093ED, "ClickBefore", "ClickAfter");
                 Patch(typeof(UnitCommands), "Run", 0x060026B2, "RunBefore", "RunAfter");
                 Patch(typeof(UnitCommands), "Run", 0x060026B3, "PrivateRunBefore", "PrivateRunAfter");
+                Patch(typeof(UnitCommand), "TickApproaching", 0x060027A6, "ChargeApproachBefore", "ChargeApproachAfter");
                 Patch(typeof(UnitAttack), "InitAttacks", 0x0600267C, "PlanBefore", "PlanAfter");
                 Patch(typeof(UnitAttack), "OnStart", 0x0600267E, "StartBefore", "StartAfter");
                 Patch(typeof(UnitAttack), "OnAction", 0x06002681, "DeliveryBefore", "DeliveryAfter");
@@ -72,6 +76,16 @@ namespace KingmakerMountedCombat.Diagnostics
             (int?)item["command"] == Identity(command) &&
             ((string)item["boundary"] == "private-run-before" || (string)item["boundary"] == "private-run-after"))
             .Select(item => item.DeepClone()));
+        internal JArray CaptureChargeApproach(UnitCommand command) => new JArray(events.OfType<JObject>().Where(item =>
+            (int?)item["command"] == Identity(command) &&
+            ((string)item["boundary"] == "charge-approach-before" || (string)item["boundary"] == "charge-approach-after"))
+            .Select(item => item.DeepClone()));
+        private void RecordChargeApproach(string boundary, UnitCommand command)
+        {
+            var ability = command as UnitUseAbility;
+            if (ability?.Spell?.Blueprint.AssetGuid == Domain.MountedChargeSafetyPolicy.ChargeBlueprintId)
+                Record(boundary, ability.Executor, ability);
+        }
         internal JObject NativeRecoveryInterrupt(UnitAttack command) => command != null && nativeRecoveryInterrupts.ContainsKey(command)
             ? (JObject)nativeRecoveryInterrupts[command].DeepClone() : null;
         internal JObject NativeRangeRejection(UnitAttack command)
@@ -129,6 +143,11 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["simulationHandler"] = Field(pointer, "m_SimulateClickHandler")?.GetType().FullName,
                     ["standard"] = actor.CombatState.Cooldown.StandardAction,
                     ["move"] = actor.CombatState.Cooldown.MoveAction,
+                    ["relationship"] = relationshipState?.Invoke(),
+                    ["charging"] = actor.Descriptor.State.IsCharging || actor.View.AgentASP.IsCharging,
+                    ["mountStandard"] = mount.CombatState.Cooldown.StandardAction,
+                    ["mountMove"] = mount.CombatState.Cooldown.MoveAction,
+                    ["mountPosition"] = new JArray(mount.Position.x, mount.Position.y, mount.Position.z),
                     ["restrictedByMove"] = actor.CombatState.IsFullAttackRestrictedBecauseOfMoveAction,
                     ["command"] = Identity(command), ["commandType"] = command?.GetType().FullName,
                     ["executor"] = command?.Executor?.UniqueId, ["target"] = attack?.Target?.UniqueId,
@@ -234,6 +253,8 @@ namespace KingmakerMountedCombat.Diagnostics
             internal static void RunAfter(UnitCommands __instance, UnitCommand cmd) { active?.Record("run-after", active.Owner(__instance), cmd); }
             internal static void PrivateRunBefore(UnitCommands __instance, UnitCommand cmd) { active?.Record("private-run-before", active.Owner(__instance), cmd); }
             internal static void PrivateRunAfter(UnitCommands __instance, UnitCommand cmd) { active?.Record("private-run-after", active.Owner(__instance), cmd); }
+            internal static void ChargeApproachBefore(UnitCommand __instance) { active?.RecordChargeApproach("charge-approach-before", __instance); }
+            internal static void ChargeApproachAfter(UnitCommand __instance) { active?.RecordChargeApproach("charge-approach-after", __instance); }
             internal static void PlanBefore(UnitAttack __instance) { active?.Record("plan-before", __instance.Executor, __instance); }
             internal static void PlanAfter(UnitAttack __instance) { active?.Record("plan-after", __instance.Executor, __instance); }
             internal static void StartBefore(UnitAttack __instance) { active?.Record("start-before", __instance.Executor, __instance); }

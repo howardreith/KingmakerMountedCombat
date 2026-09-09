@@ -66,7 +66,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 throw new InvalidOperationException("Chunk 4 requires the accepted paired configuration.");
             CaptureIdleFixturePartyForCleanup();
             chunk4ChargeActor = rider;
-            ordinaryAttackTrace = new NativeOrdinaryAttackTrace(rider, horse, combat);
+            ordinaryAttackTrace = new NativeOrdinaryAttackTrace(rider, horse, combat, () => relationship.State.ToString());
             chunk4ChargeWarnings = new ChargeWarningObserver();
             if (Chunk4ChargeTb) pairedAutomaticEndProbe = new NativeAutomaticEndProbe(false);
             observations["chargeActors"] = new JArray(Game.Instance.Player.PartyCharacters.Select(reference => reference.Value)
