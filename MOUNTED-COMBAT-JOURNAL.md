@@ -1,3 +1,11 @@
+## Chunk 4 V/W and parent-probe diagnostic - 2026-09-09 20:28 UTC
+
+Branch codex/mounted-combat-phase3f-playable-core; source11 79ccc8c9d81f9dba9b0b3a7f453f84e540d88fd5, candidate0.1.0-chunk4-preview.12. V native/outerPASS48/0 closes artifact parsing failure; W FAIL3/1 before gameplay identifies missing area-control Horse registration. Two real-policy tests reproduce area/obstruction omissions374/2, then exact repair. Build12/source22/0PASS; full tests in analysis-cache/chunk4-native/tests12.txt.
+
+Parent preliminary Horse forced20 probe survives child handoff in source. V Horse saves23/stat3 suspect despite emittedPASS; unmodified Horse dice not credited. Candidate12 adds native parent-counter observations and C4-FIXTURE-parent-probe-retired, intentionally retaining the suspect lifetime for one focused reproduction. Next X unmounted-area, then minimal disposal repair/new candidate/incoming/life reruns. No speculative gameplay/scheduler change.
+
+All23 transactions independently restored actual preview.37/data; W receipt2026-09-09T20:23:51.3007580Z, no game/lock. Exact package11/log identities in docs/CHUNK4-PLAYABILITY.md. T captures black; visual/physical/HUMAN checks pending. ACTIVE-RUN.json holds evolving identities/commands. No persistence implementation/permanent install/main merge/release.
+
 ## Chunk 4 new sustained evidence and preview.8 checkpoint — 2026-09-09T03:13:35Z
 
 Branch codex/mounted-combat-phase3f-playable-core; HEAD b915102eb74883ee15a83d05ff312f6b138b29c1, pending own preview.8. Native G melee39/0 PASS, H ranged47/2 FAIL after two adjacent PASS, I TB47/2 FAIL after two ordered activation PASS. H native OnTick range rejection after bow3/plan4 at10.201m cancels repetition; no deadline extension or native reach/plan alteration justified. I observes rider6/3 unchanged and mount6/0 after a successful residual move, before service terminal sweep; add the missing terminal/movement-context observation rather than infer a budget defect or free step. All nine actual preview.37 restorations PASS, Params and full saves/Mods unchanged; no human installation change.

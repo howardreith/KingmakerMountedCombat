@@ -26,6 +26,17 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("request accepts horse native-controls UX suite", RequestAcceptsHorseNativeControlsUxSuite);
             runner.Run("request accepts Phase 3D Horse suites", RequestAcceptsPhase3dHorseSuites);
             runner.Run("registration audit accepts exact Horse parent scenarios", RegistrationAuditAcceptsExactHorseParentScenarios);
+            foreach (var scenario in new[] { "chunk4-targeting-area-unmounted-rt", "chunk4-obstruction-ranged-rt" })
+            {
+                var exactScenario = scenario;
+                runner.Run("Chunk 4 focused registration: " + exactScenario, () =>
+                {
+                    var request = ValidSaveBackedRequest(); request.Scenario = exactScenario;
+                    TestRunner.Equal(0, request.Validate().Count, "Focused request rejected: " + exactScenario);
+                    TestRunner.True(HorseCompanionRegistrationScenarioPolicy.SupportsScenario(exactScenario),
+                        "Focused Horse registration missing: " + exactScenario);
+                });
+            }
             runner.Run("Chunk 4 Charge envelopes retain every native row", () =>
             {
                 foreach (var scenario in new[] { "chunk4-charge-safety-rt", "chunk4-charge-safety-tb" })

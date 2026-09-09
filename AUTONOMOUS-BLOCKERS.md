@@ -1,6 +1,6 @@
-# Active Chunk 4 - candidate11, 2026-09-09
+# Active Chunk 4 - candidate12, 2026-09-09
 
-IN PROGRESS. Published preview.10/source d8c8c28d8909a12aa28d4b36bc8a7d4167f33fb7 newly passes T's seven ranged interruption cases52/0. U's3 native targeting rows48/0 report PASS, but artifact validation FAILS on type/Type metadata names. Candidate0.1.0-chunk4-preview.11 fixes that serialization defect with a real-service component regression. All21 transactions restored actual human preview.37/data. Next guarded mounted/unmounted area tests, actual rider death/incapacitation and mount-death, supported traversal/session/visual checks and exact-final regression. [One report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent installation or Chunk5 implementation.
+IN PROGRESS. Published preview.11/source79ccc8c9d81f9dba9b0b3a7f453f84e540d88fd5 fixes U's metadata collision; V emits native/outerPASS48/0. W fails before gameplay on missing Horse audit registration. Candidate12 fixes exact area/obstruction registrations after two real-policy test failures and adds a native parent-probe lifetime assertion. A setup probe may force Horse d20s during child scenarios; unmodified Horse rolls need that focused check and repair/rerun. All23 transactions restored actual preview.37/data. [One report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). Rider death and remaining Chunk4 gates stay open. No permanent installation or Chunk5 implementation.
 ---
 ## Combined milestone disposition — 2026-09-08
 

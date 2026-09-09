@@ -210,6 +210,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly JArray stockLifecycleAttacks = new JArray();
         private readonly JArray directDamageTimeline = new JArray();
         private Phase3dHorseScenarioTranche phase3dTranche;
+        private JObject phase3dSetupRuleProbeAtEntry;
 
         public HorseCompanionUnmountedScenarioEngine(
             RuntimeRequest request,
@@ -1835,6 +1836,9 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 throw new InvalidOperationException("Phase 3D Horse tranche was already created.");
             }
+            phase3dSetupRuleProbeAtEntry = CaptureSetupRuleProbeBoundary();
+            logger.Info("Native setup rule-probe handoff: scenario=" + request.Scenario +
+                "; state=" + phase3dSetupRuleProbeAtEntry.ToString(Formatting.None) + ".");
             phase3dTranche = new Phase3dHorseScenarioTranche(
                 request,
                 relationship,
@@ -1849,6 +1853,12 @@ namespace KingmakerMountedCombat.Diagnostics
             phase3dTranche.Start(pairAlreadyMounted);
             step = EngineStep.AwaitPhase3dTranche;
         }
+
+        private JObject CaptureSetupRuleProbeBoundary() => new JObject {
+            ["present"] = ruleProbe != null,
+            ["forcedD20"] = ruleProbe?.ForcedD20,
+            ["forcedD20Count"] = ruleProbe?.ForcedD20Count ?? 0
+        };
 
         private void AwaitPhase3dTranche()
         {
@@ -1866,6 +1876,19 @@ namespace KingmakerMountedCombat.Diagnostics
             foreach (var error in phase3dTranche.Errors)
             {
                 Fail("phase3d-tranche-" + failed, error);
+            }
+            if (Phase3dHorseScenarioTranche.IsChunk4ChargeScenario(request.Scenario) ||
+                Phase3dHorseScenarioTranche.IsChunk4PlayScenario(request.Scenario) ||
+                Phase3dHorseScenarioTranche.IsChunk4CoreScenario(request.Scenario))
+            {
+                var after = CaptureSetupRuleProbeBoundary();
+                var detail = "Native parent setup probe must be retired before Chunk 4; entry=" +
+                    phase3dSetupRuleProbeAtEntry.ToString(Formatting.None) + "; exit=" +
+                    after.ToString(Formatting.None) + "; observedOverrideDelta=" +
+                    ((int)after["forcedD20Count"] - (int)phase3dSetupRuleProbeAtEntry["forcedD20Count"]) + ".";
+                logger.Info(detail);
+                Check(!(bool)phase3dSetupRuleProbeAtEntry["present"] && ruleProbe == null,
+                    "C4-FIXTURE-parent-probe-retired", detail);
             }
             phase3dTranche.Dispose();
             phase3dTranche = null;
