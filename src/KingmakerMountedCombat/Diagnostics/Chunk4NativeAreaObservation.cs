@@ -33,7 +33,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (value == null) return JValue.CreateNull();
             if (--remaining < 0 || depth > 12) throw new InvalidOperationException("Area action metadata exceeds the bounded fixture inventory.");
             var blueprint = value as BlueprintScriptableObject;
-            if (blueprint != null) return new JObject { ["type"] = value.GetType().FullName, ["blueprint"] = blueprint.AssetGuid };
+            if (!ReferenceEquals(blueprint, null)) return new JObject { ["type"] = value.GetType().FullName, ["blueprint"] = blueprint.AssetGuid };
             if (value is bool || value is int || value is float || value is string) return JToken.FromObject(value);
             if (value.GetType().IsEnum) return new JValue(value.ToString());
             if (value is Array array)
@@ -46,12 +46,16 @@ namespace KingmakerMountedCombat.Diagnostics
             // Only the small action/condition metadata graph is followed. Unity
             // objects, private assets, textures and serialized stores are excluded.
             if (!(value is ActionList) && !(value is ConditionsChecker) && !(value is Element)) return result;
+            // Native actions can declare "Type". Keep their fields separate from
+            // our type discriminator for case-insensitive artifact consumers.
+            var fields = new JObject();
+            result["fields"] = fields;
             foreach (var field in value.GetType().GetFields(BindingFlags.Instance | BindingFlags.Public))
             {
                 var child = field.GetValue(value);
                 if (child == null || child is ActionList || child is ConditionsChecker || child is Element || child is Array ||
                     child is BlueprintScriptableObject || child is bool || child is int || child is float || child is string || child.GetType().IsEnum)
-                    result[field.Name] = CaptureElement(child, depth + 1, ref remaining);
+                    fields[field.Name] = CaptureElement(child, depth + 1, ref remaining);
             }
             return result;
         }

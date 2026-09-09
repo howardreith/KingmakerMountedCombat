@@ -41,6 +41,8 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & (Join-Path $PSScriptRoot 'Test-Chunk4PlayProtocol.ps1')
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-Chunk4AreaMetadata.ps1') -Configuration $Configuration
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & (Join-Path $PSScriptRoot 'Test-Chunk4ArtifactProtocol.ps1')
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & (Join-Path $PSScriptRoot 'Test-Chunk4ExtendedProtocol.ps1')

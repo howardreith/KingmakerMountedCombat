@@ -1,7 +1,6 @@
-# Active Chunk 4 - resumed 2026-09-09
+# Active Chunk 4 - candidate11, 2026-09-09
 
-IN PROGRESS. The owner resumed work after published checkpoint `82adc7fc127cd1ea59aec499bb1de7445e8adac9`. Saved diagnostics have been reviewed and applied as candidate `0.1.0-chunk4-preview.10`; actual build/package/native qualification is pending. Source9 results remain accepted within their scope. First resolve S's moving-target fixture, O's native life/encounter-exit observation and P's actual area callback attribution, then remaining supported controls/traversal/session gates and exact-final regression. Preserve actual human preview.37 and newer data. [One report](docs/CHUNK4-PLAYABILITY.md) and [exact resume record](AUTONOMOUS-RESUME.md). No permanent installation or Chunk5 implementation.
-
+IN PROGRESS. Published preview.10/source d8c8c28d8909a12aa28d4b36bc8a7d4167f33fb7 newly passes T's seven ranged interruption cases52/0. U's3 native targeting rows48/0 report PASS, but artifact validation FAILS on type/Type metadata names. Candidate0.1.0-chunk4-preview.11 fixes that serialization defect with a real-service component regression. All21 transactions restored actual human preview.37/data. Next guarded mounted/unmounted area tests, actual rider death/incapacitation and mount-death, supported traversal/session/visual checks and exact-final regression. [One report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent installation or Chunk5 implementation.
 ---
 # Combined actor-allocation and paired-activation milestone
 
