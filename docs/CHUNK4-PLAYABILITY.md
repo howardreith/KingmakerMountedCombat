@@ -10,8 +10,8 @@ Test `EnablePairedActivation=true`, `EnableUnifiedMountedTurn=false`, `EnablePai
 
 | Gate | Status | New evidence required |
 |---|---|---|
-| C4-CHARGE | IN PROGRESS | Identify exact native Charge; mounted RT/TB attempts, early safe rejection if unsupported, paused/queued execution revalidation and recovery; unmounted/unrelated and ordinary approach controls. |
-| C4-SUSTAINED | TODO | RT one-order versus repeated input over at least three routines; rider melee/ranged/mount, approach and lifecycle interruptions; several varied TB paired activations. |
+| C4-CHARGE | PASS | New E/RT and F/TB on preview.6: five native cases per mode, early mounted rejection, paused/queued execution revalidation, legal recovery and unmounted/unrelated controls. Full Charge remains unsupported. Repeat on the final candidate. |
+| C4-SUSTAINED | IN PROGRESS | RT one-order versus repeated input over at least three routines; rider melee/ranged/mount, approach and lifecycle interruptions; several varied TB paired activations. Native fixtures drafted; no sustained qualification yet. |
 | C4-TARGETING | TODO | Native independent inspection/heal/hostile targeting and area effect once per eligible actor. |
 | C4-DEATH | TODO | Actual native rider incapacitation/death, including live command interruption and unrelated successor; mount-death regression. |
 | C4-TRAVERSAL | TODO | Door, blocked/narrow route, slope/turn, party movement and supported cleanup boundary. |
@@ -23,7 +23,17 @@ Owner-reported missing feature: actual mounted Charge does not work. New RT run 
 
 ## Evidence and delivery
 
-COMPONENT, ASSEMBLY CONTRACT, NATIVE INTEGRATION and HUMAN PLAY remain separate. New native runs: **4**. No retained preview.37 result is counted as a new Chunk 4 scenario.
+COMPONENT, ASSEMBLY CONTRACT, NATIVE INTEGRATION and HUMAN PLAY remain separate. New native runs: **6**. No retained preview.37 result is counted as a new Chunk 4 scenario.
+
+### Focused Charge safety result E/F
+
+**PASS** on source `a2f89b3a397e54cc94c05d09088f6f96cec0c5af`, `0.1.0-chunk4-preview.6`. New `20260908-chunk4-E` RT and `20260908-chunk4-F` TB each passed **50 assertions / 0 failures**, five native Charge rows, strict artifact and restored-result validation. Exact observed configuration: paired activation true; both incompatible authorities, overlay setting and actual overlay false.
+
+Both modes reject mounted rider and Horse Charge before movement, native start, charging state or action costs, with the native warning. Hover/paused input is pure; queue admission, prepared Start and actual selected-ability input leave a live ordinary attack intact. Legal mount transport, a complete ordinary native attack and Stop recover; TB explicit End reaches unrelated actors. Real queued Charge is admitted while Unmounted (E frame 9579; F 9126), then rejected before approach while Mounted on the next frame, with both actors' costs and positions unchanged across the rejection callback. This directly resolves D's missing relationship observation.
+
+Native unmounted Charge completed 7.320791 metres RT / 7.19619465 TB; unrelated Charge completed 7.314227 RT / 7.24936152 TB while the pair remained mounted. Each retained real native Charge delivery and expenditure. No refunds, forced attacks or resource resets were used. This qualifies **safe rejection**, not the owner-reported missing Charge feature or HUMAN PLAY.
+
+Private ZIP `KingmakerMountedCombat-0.1.0-chunk4-preview.6-charge-safety-diagnostic.zip` SHA256 `b36dc2a7f6a2f2a082231bc0b64c501383121e5eb55b45a4b190433290bee93e`; manifest `09d25cc5232baab5811a0d33aadb4b8c4252d0972698d7befde2115c06f74e36`; DLL `3dc9e031662c17e0b6bf9e5af79713b0f4f33e133359bbc15a7133bb246ef593`, MVID `4820bd9d-2372-4a88-8808-04cbf8191bc4`. Suite6 SHA256 `5f2eb2352c0271e2d4b60d7423e63ccb56d035973fa3b391ba0400ef2406e6af`; guarded WhatIf purity PASS. All six actual-intake restorations PASS. E at `2026-09-09T00:50:58.5685160Z`, F at `2026-09-09T01:04:00.7172621Z`; full saves/Mods and UMM Params unchanged, no game/lock. Retained log hashes: E `ffe8ecab72ba43ca8005b78447a745360ed59a737f8425c83dd6f394d5952c8a`, F `701a211372a012bf15fa4ebfcd7febb99ab1cbd6101095d9f94285b13b95a32c`. Evidence/independent receipts remain under the matching `runtime-evidence` and `analysis-cache/chunk4-native` paths. The private candidate is temporary-only; Chunk 4's remaining gates continue below.
 
 ### New Charge reproduction A
 
