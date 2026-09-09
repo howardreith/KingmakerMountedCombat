@@ -23,6 +23,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 string.Equals(scenario, "chunk4-targeting-mount-rt", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk4-horse-strike-comparison-rt", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk4-ranged-native-control-rt", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk4-interrupt-melee-rt", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk4-interrupt-ranged-rt", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk4-inspection-rt", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk4-session-rt", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk4-session-tb", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk4-sustained-melee-rt", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk4-sustained-ranged-rt", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk4-sustained-tb", StringComparison.Ordinal) ||

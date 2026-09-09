@@ -296,6 +296,8 @@ namespace KingmakerMountedCombat.Integration
         private bool nativeSequenceTick;
         private bool nativeMeleeTailRangeRejected;
         internal bool NativeRangedTailTermination { get; private set; }
+        internal bool NativeSequenceTickActive => nativeSequenceTick;
+        internal bool NativeMeleeTailRangeRejected => nativeMeleeTailRangeRejected;
 
         internal bool ValidateNativeSequenceTarget()
         {
@@ -330,7 +332,7 @@ namespace KingmakerMountedCombat.Integration
                 AllAttacks.Take(completed).All(item => item.Weapon.Blueprint.IsRanged),
                 AllAttacks.Skip(completed).All(item => !item.Weapon.Blueprint.IsRanged &&
                     distance > bodyRadius + item.WeaponRange + MountedCombatSpatialPolicy.RangeTolerance),
-                actionActor.HasLOS(attackTarget) && AllAttacks.Take(completed).All(item =>
+                NativeCommandLineOfSightClear && AllAttacks.Take(completed).All(item =>
                     distance <= bodyRadius + item.WeaponRange));
         }
 

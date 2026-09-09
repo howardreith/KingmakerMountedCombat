@@ -248,6 +248,9 @@
     <Compile Include="Diagnostics\Chunk4HorseStrikeScenario.cs" />
     <Compile Include="Diagnostics\Chunk4IncomingScenario.cs" />
     <Compile Include="Diagnostics\Chunk4NativeRangedControl.cs" />
+    <Compile Include="Diagnostics\Chunk4InterruptScenario.cs" />
+    <Compile Include="Diagnostics\Chunk4InspectionScenario.cs" />
+    <Compile Include="Diagnostics\Chunk4SessionScenario.cs" />
     <Compile Include="Domain\MountedRangedRoutineCompletionPolicy.cs" />
     <Compile Include="Diagnostics\Chunk4SustainedScenario.cs" />
     <Compile Include="Diagnostics\Chunk4PairedPlayScenario.cs" />

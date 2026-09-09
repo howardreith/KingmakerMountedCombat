@@ -147,7 +147,8 @@ function New-RangedTailEnvelope {
         foreach($routine in @($row.evidence.routines|Where-Object {$_.actor -ceq 'rider'})){
             $routine.planned=3;$routine.command.result='Interrupt'
             $range=@{boundary='target-invalid';command=$routine.command.id;completed=2;targetDead=$false;targetUnconscious=$false;targetInState=$true;
-                rangeOriginDistance=10;pairApproachRadius=2;mountCorpulence=1;targetCorpulence=1;nativeActorLoS=$true;
+                rangeOriginDistance=10;pairApproachRadius=2;mountCorpulence=1;targetCorpulence=1;nativeActorLoS=$false;nativeCommandLoS=$true;
+                nativeSequenceTick=$true;nativeMeleeTailRangeRejected=$true;
                 plan=@(@{ranged=$true;weaponRange=15},@{ranged=$true;weaponRange=15},@{ranged=$false;weaponRange=.6})}
             $routine|Add-Member -NotePropertyName nativeRangedTailTermination -NotePropertyValue $true
             $routine|Add-Member -NotePropertyName nativeRangeRejection -NotePropertyValue ($range|ConvertTo-Json -Depth 8|ConvertFrom-Json)
@@ -166,7 +167,9 @@ foreach($mutate in @(
     {param($e) $e.rows[2].evidence.routines[0].nativeRangeRejection.plan[0].ranged=$false},
     {param($e) $e.rows[2].evidence.routines[0].nativeRangeRejection.command=-1},
     {param($e) $e.rows[2].evidence.nativeFullRiderRoutines=3},
-    {param($e) $e.rows[2].evidence.routines[0].nativeRangeRejection.nativeActorLoS=$false},
+    {param($e) $e.rows[2].evidence.routines[0].nativeRangeRejection.nativeCommandLoS=$false},
+    {param($e) $e.rows[2].evidence.routines[0].nativeRangeRejection.nativeSequenceTick=$false},
+    {param($e) $e.rows[2].evidence.routines[0].nativeRangeRejection.nativeMeleeTailRangeRejected=$false},
     {param($e) $e.rows[2].evidence.routines[0].nativeRangeRejection.plan[2].weaponRange=15},
     {param($e) $e.rows[2].evidence.routines[0].nativeRangeRejection.plan[0].weaponRange=1},
     {param($e) $e.rows[2].evidence.nativeTrace=@($e.rows[2].evidence.nativeTrace|Where-Object {$_.boundary -cne 'target-invalid'})},

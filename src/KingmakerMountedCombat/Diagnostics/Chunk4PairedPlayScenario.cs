@@ -219,7 +219,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (chunk4PairedPlayActivation == 3)
                 {
                     SelectionManager.Instance.SelectUnit(horse.View, true, true, false);
-                    var direction = horse.Position - target.Position; direction.y = 0f; direction.Normalize();
+                    // A paid lateral step preserves both actors' melee reach for
+                    // the following mount-exhausted control. An outward step can
+                    // leave only the Horse's longer natural reach in range.
+                    var radial = horse.Position - target.Position; radial.y = 0f;
+                    var direction = Vector3.Cross(Vector3.up, radial).normalized;
                     chunk4PairedPlayAction = new JObject { ["kind"] = "partner-move-after-rider-exhaustion", ["before"] = CaptureOrdinaryLiveState() };
                     ((JArray)chunk4PairedPlaySample["operations"]).Add(chunk4PairedPlayAction);
                     using (var input = new NativeOrdinaryAttackInput(horse.Position + direction * 0.75f))

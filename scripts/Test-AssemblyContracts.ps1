@@ -34,6 +34,21 @@ function Test-MethodIlContainsToken([Reflection.MethodBase]$Method,[int]$Token){
 if($Target-eq'Kingmaker'){
     # New native incoming/life observations. Token/hash contracts are not native execution proof.
     foreach($expected in @(
+        @('Kingmaker.UnitLogic.Commands.Base.UnitCommand',0x06002784,'get_IsUnitEnoughClose'),
+        @('Kingmaker.UnitLogic.Commands.Base.UnitCommand',0x0600276C,'get_NeedLoS'),
+        @('Kingmaker.UnitLogic.Commands.Base.UnitCommand',0x06002781,'get_ApproachPoint'),
+        @('Kingmaker.UnitLogic.Commands.Base.UnitCommand',0x060027A9,'GetTargetLOSObjectId'),
+        @('Kingmaker.UnitLogic.Commands.Base.UnitCommand',0x060027AC,'Interrupt'),
+        @('Kingmaker.Visual.FogOfWar.LineOfSightGeometry',0x04000C43,'Instance'),
+        @('Kingmaker.Visual.FogOfWar.LineOfSightGeometry',0x0600121A,'HasObstacle'),
+        @('Kingmaker.EntitySystem.Entities.UnitEntityData',0x06008302,'get_EyePosition'),
+        @('Kingmaker.EntitySystem.Entities.UnitEntityData',0x0600834F,'HasLOS'),
+        @('Kingmaker.UI.ServiceWindow.CharacterScreen.CharacterScreenController',0x04003140,'m_CurrentCharacter'),
+        @('Kingmaker.UI.ServiceWindow.ServiceWindowController',0x06004768,'OnHotKeyShowChracterScreen'),
+        @('Kingmaker.UI.ServiceWindow.ServiceWindowTabs',0x0600477A,'Hide'),
+        @('Kingmaker.UI.ServiceWindow.FullScreenTabsWindow',0x060046D0,'get_ScreenIndex'),
+        @('Kingmaker.UI.Group.GroupController',0x06003F29,'SelectUnit'),
+        @('Kingmaker.UI.Group.GroupController',0x06003F22,'GetCurrentCharacter'),
         @('Kingmaker.Controllers.Units.UnitLifeController',0x06009162,'TickOnUnit'),
         @('Kingmaker.Controllers.Units.UnitLifeController',0x06009168,'OnUnitDeath'),
         @('Kingmaker.RuleSystem.Rules.Damage.RuleHealDamage',0x0600740B,'OnTrigger'),
@@ -56,6 +71,12 @@ if($Target-eq'Kingmaker'){
         $member=@(Find-Token $expected[0] $expected[1])
         Assert-Contract ($member.Count-eq1 -and $member[0].Name-ceq$expected[2]) ('Chunk 4 native boundary '+$expected[0]+'.'+$expected[2])
     }
+    $nativeEnough=@(Find-Token 'Kingmaker.UnitLogic.Commands.Base.UnitCommand' 0x06002784)[0]
+    foreach($dependency in @(0x0600276C,0x06002781,0x060027A9,0x06008302,0x0600121A)){
+        Assert-Contract (Test-MethodIlContainsToken $nativeEnough $dependency) ('native command visibility dependency '+$dependency.ToString('X8'))
+    }
+    $nativeInterrupt=@(Find-Token 'Kingmaker.UnitLogic.Commands.Base.UnitCommand' 0x060027AC)[0]
+    Assert-Contract (Test-MethodIlContainsToken $nativeInterrupt 0x060027B2) 'native Interrupt synchronously calls OnEnded'
     # Read-only Chunk 4 resource observations; these checks do not qualify cleanup.
     $eventBusType=$assembly.GetType('Kingmaker.PubSubSystem.EventBus',$true)
     $globalSubscribers=$eventBusType.GetField('GlobalSubscribers',[Reflection.BindingFlags]'Public,NonPublic,Static')

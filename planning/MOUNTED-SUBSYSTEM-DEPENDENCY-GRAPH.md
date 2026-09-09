@@ -105,3 +105,5 @@ This keeps non-mounted paths on their original code.
 - F1 doorway, selection, and formation each pass twice in fresh processes under unchanged gates. Overall: 25 PASS, 0 attributable FAIL, 0 deferred.
 - Presentation is `MECHANICALLY VIABLE, NEW ANIMATION/POSE WORK REQUIRED`. No K1–K12 kill criterion fired, and no K13 exists. Final A/B/C/D scores are 41/71/77/89; Architecture B is selected.
 - Final status is `PHASE 1 COMPLETE — PROCEED RECOMMENDED`. The graph and tested seams support Architecture B within the recorded claim limits. Phase 2 still requires a separate mission and authorization.
+
+Chunk4 preview9: native command geometry -> scoped ranged terminal classification -> existing RT ordinary intent; native Interrupt -> synchronous terminal cleanup. New inspection/flight/session diagnostics observe existing native UI, Rulebook, EventBus and lifecycle boundaries; no production dependency on diagnostics or Wrath. See ASSEMBLY-CONTRACT-MATRIX.md and docs/CHUNK4-PLAYABILITY.md for exact evidence/open gates.

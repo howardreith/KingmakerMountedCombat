@@ -90,7 +90,8 @@ function Assert-KmcChunk4SustainedRow {
                     $routine.completed -lt 1 -or $routine.completed -ge $routine.planned -or $null -eq $range -or
                     $range.boundary -cne 'target-invalid' -or $range.command -ne $command.id -or $range.completed -ne $routine.completed -or
                     $range.targetDead -ne $false -or $range.targetUnconscious -ne $false -or $range.targetInState -ne $true -or
-                    $range.nativeActorLoS -ne $true -or $range.mountCorpulence -lt 0 -or $range.targetCorpulence -lt 0 -or
+                    $range.nativeCommandLoS -ne $true -or $range.nativeSequenceTick -ne $true -or
+                    $range.nativeMeleeTailRangeRejected -ne $true -or $range.mountCorpulence -lt 0 -or $range.targetCorpulence -lt 0 -or
                     $range.rangeOriginDistance -le $range.pairApproachRadius -or @($range.plan).Count -ne $routine.planned){throw 'Ranged tail termination lacks its exact native range observation.'}
                 if(@($events|Where-Object {$_.boundary -ceq 'target-invalid' -and $_.completed -eq $routine.completed}).Count -lt 1){throw 'Ranged termination lacks a native UpdateTarget rejection event.'}
                 for($i=0;$i -lt $range.plan.Count;$i++){

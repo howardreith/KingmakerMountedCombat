@@ -181,6 +181,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["plannedWeapon"] = plannedAttack?.Weapon?.Blueprint.AssetGuid,
                     ["plannedWeaponRange"] = plannedAttack?.WeaponRange,
                     ["pairApproachRadius"] = (attack as MountedPairSingleAttack)?.PairApproachRadius,
+                    ["nativeCommandLoS"] = (attack as MountedPairSingleAttack)?.NativeCommandLineOfSightClear,
+                    ["nativeNeedLoS"] = attack?.NeedLoS,
+                    ["nativeSequenceTick"] = (attack as MountedPairAttackCommand)?.NativeSequenceTickActive,
+                    ["nativeMeleeTailRangeRejected"] = (attack as MountedPairAttackCommand)?.NativeMeleeTailRangeRejected,
                     ["detail"] = detail, ["spellBlueprint"] = (command as UnitUseAbility)?.Spell?.Blueprint.AssetGuid
                 };
                 if (boundary == "prediction-before" || boundary == "prediction-after")

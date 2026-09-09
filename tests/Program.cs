@@ -103,7 +103,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("Chunk 4 core native requests and leaves remain serializable", () =>
             {
                 foreach (var scenario in new[] { "chunk4-rider-incapacitation-tb", "chunk4-rider-death-tb", "chunk4-mount-death-tb",
-                    "chunk4-targeting-rider-rt", "chunk4-targeting-mount-rt", "chunk4-horse-strike-comparison-rt", "chunk4-ranged-native-control-rt" })
+                    "chunk4-targeting-rider-rt", "chunk4-targeting-mount-rt", "chunk4-horse-strike-comparison-rt", "chunk4-ranged-native-control-rt", "chunk4-interrupt-melee-rt", "chunk4-interrupt-ranged-rt", "chunk4-inspection-rt", "chunk4-session-rt", "chunk4-session-tb" })
                 {
                     var request = ValidSaveBackedRequest(); request.Scenario = scenario;
                     TestRunner.Equal(0, request.Validate().Count, "Core request rejected: " + scenario);
@@ -111,7 +111,7 @@ namespace KingmakerMountedCombat.Tests
                 }
                 foreach (var name in new[] { "C4-LIFE-rider-incapacitation", "C4-LIFE-rider-death-live-command", "C4-LIFE-mount-death-live-command",
                     "C4-TARGETING-rider-heal", "C4-TARGETING-rider-hostile", "C4-TARGETING-mount-heal", "C4-TARGETING-mount-hostile", "C4-TARGETING-area-both",
-                    "C4-HORSE-mounted-three-primaries", "C4-HORSE-unmounted-strike-recovery", "C4-RANGED-native-mixed-range" })
+                    "C4-HORSE-mounted-three-primaries", "C4-HORSE-unmounted-strike-recovery", "C4-RANGED-native-mixed-range", "C4-INTERRUPT-melee-pause-resume", "C4-INTERRUPT-melee-pause-stop-recover", "C4-INTERRUPT-melee-moving-target", "C4-INTERRUPT-melee-retarget-windup", "C4-INTERRUPT-melee-target-death-windup", "C4-INTERRUPT-melee-target-death-midroutine", "C4-INTERRUPT-ranged-pause-resume", "C4-INTERRUPT-ranged-pause-stop-recover", "C4-INTERRUPT-ranged-moving-target", "C4-INTERRUPT-ranged-retarget-windup", "C4-INTERRUPT-ranged-retarget-inflight", "C4-INTERRUPT-ranged-target-death-windup", "C4-INTERRUPT-ranged-target-death-inflight", "C4-INSPECTION-rider", "C4-INSPECTION-mount", "C4-SESSION-RT-1", "C4-SESSION-RT-2", "C4-SESSION-RT-3", "C4-SESSION-TB-1", "C4-SESSION-TB-2", "C4-SESSION-TB-3" })
                 {
                     var result = new RuntimeSubscenarioResult { Name = name, Status = "PASS", AssertionPassCount = 1, Errors = new string[0] };
                     TestRunner.Equal(0, result.Validate().Count, "Core native leaf missing: " + name);

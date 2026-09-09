@@ -354,6 +354,9 @@ namespace KingmakerMountedCombat.Diagnostics
             if (IsChunk4Incoming) { BeginChunk4Incoming(); return; }
             if (IsChunk4HorseStrike) { BeginChunk4HorseStrike(); return; }
             if (IsChunk4NativeRanged) { BeginChunk4NativeRanged(); return; }
+            if (IsChunk4Interrupt) { BeginChunk4Interrupt(); return; }
+            if (IsChunk4Inspection) { BeginChunk4Inspection(); return; }
+            if (IsChunk4Session) { BeginChunk4Session(); return; }
             if (IsActorAllocation) { BeginActorAllocation(); return; }
             if (IsOrdinaryAttackControls)
             {
@@ -440,6 +443,9 @@ namespace KingmakerMountedCombat.Diagnostics
                         else if (IsChunk4Incoming) TickChunk4Incoming();
                         else if (IsChunk4HorseStrike) TickChunk4HorseStrike();
                         else if (IsChunk4NativeRanged) TickChunk4NativeRanged();
+                        else if (IsChunk4Interrupt) TickChunk4Interrupt();
+                        else if (IsChunk4Inspection) TickChunk4Inspection();
+                        else if (IsChunk4Session) TickChunk4Session();
                         else if (IsActorAllocation) TickActorAllocation();
                         else if (IsOrdinaryAttackControls) TickOrdinaryAttackControls();
                         else TickPhase3gControls();
@@ -6049,7 +6055,7 @@ namespace KingmakerMountedCombat.Diagnostics
             TryLeaveCombat(target);
             TryLeaveCombat(horse);
             TryLeaveCombat(rider);
-            try { targetCleanupComplete = targetService == null || targetService.DestroyAndVerify(); }
+            try { targetCleanupComplete = CleanupChunk4InterruptOtherTarget() && (targetService == null || targetService.DestroyAndVerify()); }
             catch (Exception exception) { AddCleanupError("target", exception); }
             try
             {
@@ -6075,6 +6081,8 @@ namespace KingmakerMountedCombat.Diagnostics
             catch (Exception exception) { AddCleanupError("Paired native death observer", exception); }
             try { CleanupChunk4IncomingArea(); CleanupChunk4NativeLife(); }
             catch (Exception exception) { AddCleanupError("Chunk 4 native effect observers", exception); }
+            try { CleanupChunk4Inspection(); }
+            catch (Exception exception) { AddCleanupError("Chunk 4 native character window", exception); }
             try { CleanupActorAllocation(); }
             catch (Exception exception) { AddCleanupError("Actor allocation fixture", exception); }
             try { pairedAutomaticEndProbe?.Dispose(); pairedAutomaticEndProbe = null; }
@@ -6207,7 +6215,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             var artifact = new JObject
             {
-                ["schemaVersion"] = IsChunk4Core ? 22 : IsChunk4Play ? 21 : IsChunk4Charge ? 20 : IsPairedAllocation ? 17 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,
+                ["schemaVersion"] = IsChunk4Extended ? 23 : IsChunk4Core ? 22 : IsChunk4Play ? 21 : IsChunk4Charge ? 20 : IsPairedAllocation ? 17 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,
                 ["evidenceKind"] = EvidenceKind,
                 ["runId"] = request.RunId,
                 ["scenario"] = request.Scenario,

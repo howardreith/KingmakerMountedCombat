@@ -4,6 +4,7 @@ using System.Linq;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.UnitLogic.Commands;
 using Kingmaker.Utility;
+using Kingmaker.Visual.FogOfWar;
 using KingmakerMountedCombat.Domain;
 using TurnBased.Controllers;
 
@@ -112,6 +113,12 @@ namespace KingmakerMountedCombat.Integration
         }
 
         internal float PairApproachRadius => pairApproachRadius;
+
+        // Match UnitCommand.IsUnitEnoughClose's visibility authority. HasLOS(Unit)
+        // reads a different sight cache and is not the native command predicate.
+        internal bool NativeCommandLineOfSightClear => Executor?.View != null &&
+            (!NeedLoS || LineOfSightGeometry.Instance != null &&
+                !LineOfSightGeometry.Instance.HasObstacle(Executor.EyePosition, ApproachPoint, GetTargetLOSObjectId()));
 
         internal float DelegatedMoveApproachRadius
         {
