@@ -243,6 +243,12 @@
     <Compile Include="Logging\IModLogger.cs" />
     <Compile Include="Logging\UmmLogger.cs" />
     <Compile Include="Diagnostics\Chunk4ChargeScenario.cs" />
+    <Compile Include="Diagnostics\Chunk4IncomingRuleObserver.cs" />
+    <Compile Include="Diagnostics\Chunk4NativeLifeScenario.cs" />
+    <Compile Include="Diagnostics\Chunk4HorseStrikeScenario.cs" />
+    <Compile Include="Diagnostics\Chunk4IncomingScenario.cs" />
+    <Compile Include="Diagnostics\Chunk4NativeRangedControl.cs" />
+    <Compile Include="Domain\MountedRangedRoutineCompletionPolicy.cs" />
     <Compile Include="Diagnostics\Chunk4SustainedScenario.cs" />
     <Compile Include="Diagnostics\Chunk4PairedPlayScenario.cs" />
     <Compile Include="Diagnostics\Chunk4NativeEffectInventory.cs" />

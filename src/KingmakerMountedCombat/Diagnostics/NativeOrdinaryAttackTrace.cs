@@ -29,6 +29,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly HarmonyInstance harmony;
         private readonly UnitEntityData rider;
         private readonly UnitEntityData mount;
+        private readonly UnitEntityData additionalActor;
         private readonly MountedCombatController combat;
         private readonly Func<string> relationshipState;
         private readonly JArray events = new JArray();
@@ -41,11 +42,12 @@ namespace KingmakerMountedCombat.Diagnostics
         internal IReadOnlyList<UnitAttack> StartedAttacks => startedAttacks;
 
         internal NativeOrdinaryAttackTrace(UnitEntityData rider, UnitEntityData mount, MountedCombatController combat,
-            Func<string> relationshipState = null)
+            Func<string> relationshipState = null, UnitEntityData additionalActor = null)
         {
             if (active != null) throw new InvalidOperationException("An ordinary attack trace is already active.");
             this.rider = rider;
             this.mount = mount;
+            this.additionalActor = additionalActor;
             this.combat = combat;
             this.relationshipState = relationshipState;
             harmony = HarmonyInstance.Create(HarmonyId);
@@ -114,8 +116,9 @@ namespace KingmakerMountedCombat.Diagnostics
             harmony.Patch(method, before, postfix == null ? null : new HarmonyMethod(typeof(Hooks).GetMethod(postfix, Flags)));
         }
 
-        private bool Owns(UnitEntityData actor) => actor != null && (actor == rider || actor == mount);
-        private UnitEntityData Owner(UnitCommands commands) => commands == rider.Commands ? rider : commands == mount.Commands ? mount : null;
+        private bool Owns(UnitEntityData actor) => actor != null && (actor == rider || actor == mount || actor == additionalActor);
+        private UnitEntityData Owner(UnitCommands commands) => commands == rider.Commands ? rider : commands == mount.Commands ? mount :
+            commands == additionalActor?.Commands ? additionalActor : null;
         private static int Identity(object value) => value == null ? 0 : RuntimeHelpers.GetHashCode(value);
         private static object Field(object value, string name) => value?.GetType().GetField(name, Flags)?.GetValue(value);
 
@@ -178,7 +181,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["plannedWeapon"] = plannedAttack?.Weapon?.Blueprint.AssetGuid,
                     ["plannedWeaponRange"] = plannedAttack?.WeaponRange,
                     ["pairApproachRadius"] = (attack as MountedPairSingleAttack)?.PairApproachRadius,
-                    ["detail"] = detail
+                    ["detail"] = detail, ["spellBlueprint"] = (command as UnitUseAbility)?.Spell?.Blueprint.AssetGuid
                 };
                 if (boundary == "prediction-before" || boundary == "prediction-after")
                 {
@@ -212,11 +215,14 @@ namespace KingmakerMountedCombat.Diagnostics
                         row["targetInState"] = attack.Target.IsInState;
                         row["targetUntargetable"] = UnitCommand.CommandTargetUntargetable(actor, attack.Target);
                         row["targetStealth"] = attack.Target.InStealthFor(actor.Group);
+                        row["mountCorpulence"] = mount.View?.Corpulence;
+                        row["targetCorpulence"] = attack.Target.View?.Corpulence;
+                        row["nativeActorLoS"] = actor.View != null && attack.Target.View != null && attack.Target.IsInState && actor.HasLOS(attack.Target);
                     }
                 }
                 if (attack != null)
                     row["plan"] = new JArray(attack.AllAttacks.Select(item => new JObject {
-                        ["weapon"] = item.Weapon?.Blueprint.AssetGuid, ["penalty"] = item.AttackBonusPenalty,
+                        ["weapon"] = item.Weapon?.Blueprint.AssetGuid, ["penalty"] = item.AttackBonusPenalty, ["weaponRange"] = item.WeaponRange,
                         ["ranged"] = item.Weapon?.Blueprint.IsRanged, ["natural"] = item.Weapon?.Blueprint.IsNatural
                     }));
                 events.Add(row);

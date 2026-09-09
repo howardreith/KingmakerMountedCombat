@@ -1,6 +1,6 @@
 # Active Chunk 4 gates - 2026-09-09
 
-IN PROGRESS. Focused Charge safety PASS on preview.6/sourcea2f89b3: new E RT/F TB each50/0 assertions,five native rows and strictvalidationPASS. Actual unmounted/unrelated Charge remains functional; safe mounted rejection does not implement full Charge. Sustained combat is now active; incoming targeting, native rider death, traversal/session/visual checks and exact final regressions remain open. All six actual restorations PASS; actual preview.37 retained, no external integrity blocker or permanent install. [Active ledger](docs/CHUNK4-PLAYABILITY.md). Historical stop instructions are superseded.
+IN PROGRESS. Focused Charge safety PASS on preview.6/sourcea2f89b3: new E RT/F TB each50/0 assertions,five native rows and strictvalidationPASS. Actual unmounted/unrelated Charge remains functional; safe mounted rejection does not implement full Charge. G melee sustained PASS; H ranged repeat failure and I TB movement observation are pending preview.8 native reruns; incoming targeting, native rider death, traversal/session/visual checks and exact final regressions remain open. All nine actual restorations PASS; actual preview.37 retained, no external integrity blocker or permanent install. [Active ledger](docs/CHUNK4-PLAYABILITY.md). Historical stop instructions are superseded.
 
 ---
 ## Combined milestone disposition — 2026-09-08

@@ -218,12 +218,25 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (chunk4PairedPlayOperation < 2) { chunk4PairedPlayStage = 4; ResetLeafClock(); return; }
                 if (chunk4PairedPlayActivation == 3)
                 {
-                    SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
+                    SelectionManager.Instance.SelectUnit(horse.View, true, true, false);
                     var direction = horse.Position - target.Position; direction.y = 0f; direction.Normalize();
                     chunk4PairedPlayAction = new JObject { ["kind"] = "partner-move-after-rider-exhaustion", ["before"] = CaptureOrdinaryLiveState() };
                     ((JArray)chunk4PairedPlaySample["operations"]).Add(chunk4PairedPlayAction);
                     using (var input = new NativeOrdinaryAttackInput(horse.Position + direction * 0.75f))
-                    { input.Predict(); if (!input.Click()) throw new InvalidOperationException("Partner move after rider exhaustion was rejected."); }
+                    {
+                        input.Predict(); var cycles = 0;
+                        while ((chunk4PairedPlayPartner.EnabledFiveFootStep || chunk4PairedPlayPartner.EnabledSingleActionMove) && cycles++ < 8)
+                        { input.Click(button: 1); input.Predict(); }
+                        chunk4PairedPlayAction["movementInput"] = new JObject {
+                            ["selectedActor"] = SelectionManager.Instance.SingleSelectedUnit.UniqueId,
+                            ["partnerFiveFootStep"] = chunk4PairedPlayPartner.EnabledFiveFootStep,
+                            ["partnerSingleMove"] = chunk4PairedPlayPartner.EnabledSingleActionMove,
+                            ["riderFiveFootStep"] = turn.EnabledFiveFootStep,
+                            ["partnerStepMetresBefore"] = chunk4PairedPlayPartner.MetersMovedByFiveFootStep,
+                            ["observationBefore"] = combat.CaptureUnifiedTurnSnapshot().LastMovementObservation };
+                        if (chunk4PairedPlayPartner.EnabledFiveFootStep || chunk4PairedPlayPartner.EnabledSingleActionMove || !input.Click())
+                            throw new InvalidOperationException("Partner paid move after rider exhaustion was not selected through native controls.");
+                    }
                     chunk4PairedPlayMove = horse.Commands.Move as UnitMoveTo;
                     if (chunk4PairedPlayMove?.Executor != horse) throw new InvalidOperationException("Partner residual move lost its native owner.");
                     chunk4PairedPlayStage = 7; ResetLeafClock(); return;
@@ -232,7 +245,12 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (chunk4PairedPlayStage == 7)
             {
-                if (!chunk4PairedPlayMove.IsFinished || !Chunk4PairedPlayIdle) return;
+                chunk4PairedPlayAction["movementProgress"] = new JObject {
+                    ["observation"] = combat.CaptureUnifiedTurnSnapshot().LastMovementObservation,
+                    ["partnerStepMetres"] = chunk4PairedPlayPartner.MetersMovedByFiveFootStep,
+                    ["partnerTimeMoved"] = chunk4PairedPlayPartner.TimeMoved,
+                    ["groundResult"] = combat.LastGroundMoveResult, ["slotsRestored"] = combat.LastGroundMoveSlotRestored };
+                if (!chunk4PairedPlayMove.IsFinished || !Chunk4PairedPlayIdle || combat.LastGroundMoveResult == null || !combat.LastGroundMoveSlotRestored) return;
                 var after = CaptureOrdinaryLiveState(); var before = chunk4PairedPlayAction["before"];
                 chunk4PairedPlayAction["after"] = after; chunk4PairedPlayAction["command"] = CaptureOrdinaryCommand(chunk4PairedPlayMove);
                 if (chunk4PairedPlayMove.Result != UnitCommand.ResultType.Success || (float)after["mount"]["move"] <= 0f ||

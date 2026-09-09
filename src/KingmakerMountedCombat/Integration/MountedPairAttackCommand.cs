@@ -11,6 +11,7 @@ using Kingmaker.Visual.Animation.Kingmaker.Actions;
 using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Logging;
 using UnityEngine;
+using TurnBased.Controllers;
 
 namespace KingmakerMountedCombat.Integration
 {
@@ -27,6 +28,7 @@ namespace KingmakerMountedCombat.Integration
         public string TargetId { get; set; }
 
         public string Result { get; set; }
+        public bool NativeRangedTailTermination { get; set; }
         public string PreStartInterruptBoundary { get; set; }
 
         public int ChildAttackStartCount { get; set; }
@@ -291,13 +293,45 @@ namespace KingmakerMountedCombat.Integration
 
         internal bool OwnsApproachTick => !IsFinished && transaction.ChildAttackStartCount == 0;
 
+        private bool nativeSequenceTick;
+        private bool nativeMeleeTailRangeRejected;
+        internal bool NativeRangedTailTermination { get; private set; }
+
         internal bool ValidateNativeSequenceTarget()
         {
             var state = attackTarget.Descriptor?.State;
-            return Target == attackTarget && attackTarget.IsInState && state != null &&
+            var targetValid = Target == attackTarget && attackTarget.IsInState && state != null &&
                 state.IsConscious && !state.IsFinallyDead && actionActor.IsEnemy(attackTarget) &&
-                actionActor.CanAttack(attackTarget) &&
-                EvaluateCurrentNativeAdmission() == MountedPairNativeAdmissionState.Admitted;
+                actionActor.CanAttack(attackTarget);
+            var admission = targetValid ? EvaluateCurrentNativeAdmission() : MountedPairNativeAdmissionState.Unavailable;
+            // Observe the existing native UpdateTarget rejection. Only a rejection
+            // inside this native tick can classify its synchronous terminal event;
+            // a later Stop/retarget cannot reuse an earlier range observation.
+            if (nativeSequenceTick && admission == MountedPairNativeAdmissionState.OutsidePairRange)
+                nativeMeleeTailRangeRejected = true;
+            return targetValid && admission == MountedPairNativeAdmissionState.Admitted;
+        }
+
+        private bool IsNativeRangedTailTermination()
+        {
+            if (mount?.View == null || attackTarget?.View == null || actionActor == null) return false;
+            var completed = GetAttackIndex();
+            var state = attackTarget.Descriptor?.State;
+            var targetValid = Target == attackTarget && attackTarget.IsInState && state != null &&
+                state.IsConscious && !state.IsFinallyDead && actionActor.IsEnemy(attackTarget) && actionActor.CanAttack(attackTarget) &&
+                actionActor.Descriptor.State.IsConscious && actionActor.Descriptor.State.CanAct;
+            var distance = mount.DistanceTo(attackTarget);
+            var bodyRadius = mount.View.Corpulence + attackTarget.View.Corpulence;
+            return MountedRangedRoutineCompletionPolicy.CanRetainIntent(
+                CombatController.IsInTurnBasedCombat(), action == MountedCombatActionKind.RiderRanged &&
+                    IsFullAttack && !IsSingleAttack && IsActed && LastAttackRule != null,
+                nativeSequenceTick && nativeMeleeTailRangeRejected, Result == ResultType.Interrupt,
+                targetValid, AllAttacks.Count, completed,
+                AllAttacks.Take(completed).All(item => item.Weapon.Blueprint.IsRanged),
+                AllAttacks.Skip(completed).All(item => !item.Weapon.Blueprint.IsRanged &&
+                    distance > bodyRadius + item.WeaponRange + MountedCombatSpatialPolicy.RangeTolerance),
+                actionActor.HasLOS(attackTarget) && AllAttacks.Take(completed).All(item =>
+                    distance <= bodyRadius + item.WeaponRange));
         }
 
         internal bool PreservesApproachParent(UnitCommands commands, CommandType type, bool interruptPaired)
@@ -450,7 +484,10 @@ namespace KingmakerMountedCombat.Integration
                     {
                         childAttack.TurnToTarget();
                     }
-                    base.OnTick();
+                    nativeSequenceTick = true;
+                    nativeMeleeTailRangeRejected = false;
+                    try { base.OnTick(); }
+                    finally { nativeSequenceTick = false; }
                 }
             }
             catch (Exception exception)
@@ -503,6 +540,7 @@ namespace KingmakerMountedCombat.Integration
         {
             try
             {
+                NativeRangedTailTermination = nativeSequenceTick && nativeMeleeTailRangeRejected && IsNativeRangedTailTermination();
                 StopDelegatedMove(false);
                 if (Result == ResultType.Success && LastAttackRule != null &&
                     GetAttackIndex() == AllAttacks.Count && AllAttacks.Count > 0)
@@ -867,6 +905,7 @@ namespace KingmakerMountedCombat.Integration
                 ResourceOwnerId = actionActor.UniqueId,
                 TargetId = attackTarget.UniqueId,
                 Result = Result.ToString(),
+                NativeRangedTailTermination = NativeRangedTailTermination,
                 ChildAttackStartCount = transaction.ChildAttackStartCount,
                 SingleAttackMode = IsSingleAttack,
                 NativeFullAttack = IsFullAttack,

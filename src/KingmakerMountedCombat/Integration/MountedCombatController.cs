@@ -1545,6 +1545,7 @@ namespace KingmakerMountedCombat.Integration
             }
             LastFeedback = outcome.Result == UnitCommand.ResultType.Success.ToString()
                 ? "Mounted pair attack completed."
+                : outcome.NativeRangedTailTermination ? "Ranged attacks completed; remaining melee attacks are out of reach."
                 : DescribeTerminalFailure(outcome);
             logger.Info("Mounted combat command terminal: action=" + command.Action +
                 "; result=" + outcome.Result +
@@ -1553,7 +1554,7 @@ namespace KingmakerMountedCombat.Integration
                 "; repaths=" + outcome.RepathCount +
                 "; rejectionCodes=" + string.Join(",", LastRejectionCodes.Select(code => code.ToString()).ToArray()) +
                 "; feedback=" + LastFeedback);
-            if (stockIntentOwned &&
+            if (stockIntentOwned && !outcome.NativeRangedTailTermination &&
                 !string.Equals(outcome.Result, UnitCommand.ResultType.Success.ToString(), StringComparison.Ordinal))
             {
                 ClearStockAttackIntent("stock command terminal " + outcome.Result, true);

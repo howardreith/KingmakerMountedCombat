@@ -36,7 +36,7 @@ function New-PlayEnvelope {
                 rules=@{pairForcedD20=0;riderNonOpportunityAttackRules=6;riderResolved=6;mountNonOpportunityAttackRules=6;mountResolved=6};
                 samples=$samples;riderStartPeriods=@(6.02,6.03);before=(New-PlayState);afterStop=(New-PlayState);
                 target='target';targetProvisioning=@{targetId='target';durabilityLeaseAmount=4096;temporaryHitPointsAfterProvisioning=4096};
-                clicks=$clicks;routines=$routines;nativeTrace=$events;completeRiderRoutines=3;beforeStop=(New-PlayState 0.1 0 0.2 0);
+                clicks=$clicks;routines=$routines;nativeTrace=$events;completeRiderRoutines=3;nativeFullRiderRoutines=3;nativeRangedTailRiderRoutines=0;beforeStop=(New-PlayState 0.1 0 0.2 0);
                 afterStopInput=(New-PlayState 0.1 0 0.2 0);mountDistance=3;weapon=$weapon;maximumNativeFrameStep=0.02;
                 cadenceComparison=@{observedFrameTolerance=0.06}}}
         }
@@ -137,5 +137,44 @@ foreach($root in @('chunk4-sustained-melee-rt','chunk4-sustained-ranged-rt','chu
         if(!$rejected){throw "Invalid sustained evidence accepted: $root mutation $index."}
         $passed++;$index++
     }
+}
+# Native ranged plans keep their ineligible melee tail; only the observed native
+# range terminal can complete the ranged portion for repetition accounting.
+function New-RangedTailEnvelope {
+    $e=New-PlayEnvelope 'chunk4-sustained-ranged-rt'
+    foreach($row in @($e.rows|Where-Object {$_.name.Contains('-approach-')})){
+        $row.evidence.nativeFullRiderRoutines=0;$row.evidence.nativeRangedTailRiderRoutines=3
+        foreach($routine in @($row.evidence.routines|Where-Object {$_.actor -ceq 'rider'})){
+            $routine.planned=3;$routine.command.result='Interrupt'
+            $range=@{boundary='target-invalid';command=$routine.command.id;completed=2;targetDead=$false;targetUnconscious=$false;targetInState=$true;
+                rangeOriginDistance=10;pairApproachRadius=2;mountCorpulence=1;targetCorpulence=1;nativeActorLoS=$true;
+                plan=@(@{ranged=$true;weaponRange=15},@{ranged=$true;weaponRange=15},@{ranged=$false;weaponRange=.6})}
+            $routine|Add-Member -NotePropertyName nativeRangedTailTermination -NotePropertyValue $true
+            $routine|Add-Member -NotePropertyName nativeRangeRejection -NotePropertyValue ($range|ConvertTo-Json -Depth 8|ConvertFrom-Json)
+            $row.evidence.nativeTrace+=@($routine.nativeRangeRejection)
+        }
+    }
+    return $e
+}
+$tailRequest=@{scenario='chunk4-sustained-ranged-rt'}
+Assert-KmcChunk4PlayEvidence $tailRequest (New-RangedTailEnvelope) 'PASS';$passed++
+foreach($mutate in @(
+    {param($e) $e.rows[2].evidence.routines[0].nativeRangeRejection.targetDead=$true},
+    {param($e) $e.rows[2].evidence.routines[0].nativeRangeRejection.targetInState=$false},
+    {param($e) $e.rows[2].evidence.routines[0].nativeRangeRejection.rangeOriginDistance=1},
+    {param($e) $e.rows[2].evidence.routines[0].nativeRangeRejection.plan[2].ranged=$true},
+    {param($e) $e.rows[2].evidence.routines[0].nativeRangeRejection.plan[0].ranged=$false},
+    {param($e) $e.rows[2].evidence.routines[0].nativeRangeRejection.command=-1},
+    {param($e) $e.rows[2].evidence.nativeFullRiderRoutines=3},
+    {param($e) $e.rows[2].evidence.routines[0].nativeRangeRejection.nativeActorLoS=$false},
+    {param($e) $e.rows[2].evidence.routines[0].nativeRangeRejection.plan[2].weaponRange=15},
+    {param($e) $e.rows[2].evidence.routines[0].nativeRangeRejection.plan[0].weaponRange=1},
+    {param($e) $e.rows[2].evidence.nativeTrace=@($e.rows[2].evidence.nativeTrace|Where-Object {$_.boundary -cne 'target-invalid'})},
+    {param($e) $e.rows[2].evidence.routines[0].command.result='Fail'},
+    {param($e) $e.rows[2].evidence.routines[0].nativeRangedTailTermination=$false}
+)){
+    $e=New-RangedTailEnvelope;& $mutate $e;$rejected=$false
+    try{Assert-KmcChunk4PlayEvidence $tailRequest $e 'PASS'}catch{$rejected=$true}
+    if(!$rejected){throw 'Invalid ranged native-tail evidence accepted.'};$passed++
 }
 Write-Host "CHUNK 4 PLAY PROTOCOL PASS=$passed FAIL=0"

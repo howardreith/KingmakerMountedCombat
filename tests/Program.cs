@@ -100,7 +100,25 @@ namespace KingmakerMountedCombat.Tests
             UnifiedMountedTurnPolicyTests.Register(runner);
             PairedCommandSchedulerTests.Register(runner);
             MountedStockAttackPolicyTests.Register(runner);
+            runner.Run("Chunk 4 core native requests and leaves remain serializable", () =>
+            {
+                foreach (var scenario in new[] { "chunk4-rider-incapacitation-tb", "chunk4-rider-death-tb", "chunk4-mount-death-tb",
+                    "chunk4-targeting-rider-rt", "chunk4-targeting-mount-rt", "chunk4-horse-strike-comparison-rt", "chunk4-ranged-native-control-rt" })
+                {
+                    var request = ValidSaveBackedRequest(); request.Scenario = scenario;
+                    TestRunner.Equal(0, request.Validate().Count, "Core request rejected: " + scenario);
+                    TestRunner.True(HorseCompanionRegistrationScenarioPolicy.SupportsScenario(scenario), "Core registration missing.");
+                }
+                foreach (var name in new[] { "C4-LIFE-rider-incapacitation", "C4-LIFE-rider-death-live-command", "C4-LIFE-mount-death-live-command",
+                    "C4-TARGETING-rider-heal", "C4-TARGETING-rider-hostile", "C4-TARGETING-mount-heal", "C4-TARGETING-mount-hostile", "C4-TARGETING-area-both",
+                    "C4-HORSE-mounted-three-primaries", "C4-HORSE-unmounted-strike-recovery", "C4-RANGED-native-mixed-range" })
+                {
+                    var result = new RuntimeSubscenarioResult { Name = name, Status = "PASS", AssertionPassCount = 1, Errors = new string[0] };
+                    TestRunner.Equal(0, result.Validate().Count, "Core native leaf missing: " + name);
+                }
+            });
             MountedChargeSafetyTests.Register(runner);
+            MountedRangedRoutineCompletionTests.Register(runner);
             OptionalPublicPropertyReaderTests.Register(runner);
             ReactiveBooleanValueReaderTests.Register(runner);
             StopEarlyCaptureBoundaryTests.Register(runner);

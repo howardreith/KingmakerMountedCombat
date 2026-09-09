@@ -66,7 +66,7 @@ function Assert-KmcChunk4SustainedRow {
             (@($click.clocksBefore)-join ',') -cne (@($click.clocksAfter)-join ',')){throw 'Repeated input changed its native command, windup clock or costs.'}
     }
     $seen=New-Object 'Collections.Generic.HashSet[int]'
-    $complete=0;$riderDelivered=0;$mountDelivered=0
+    $complete=0;$riderDelivered=0;$mountDelivered=0;$fullRider=0;$tailRider=0
     foreach($routine in $e.routines){
         $command=$routine.command
         if(!$seen.Add([int]$command.id) -or $routine.actor -cnotin @($rider,$mount) -or $command.executor -cne $routine.actor -or
@@ -83,11 +83,29 @@ function Assert-KmcChunk4SustainedRow {
                 $costBefore[0].frame -ne $costAfter[0].frame -or $costAfter[0].standard -le $costBefore[0].standard){throw 'Delivered routine lacks one genuine native expenditure callback.'}
         }elseif($costBefore.Count -ne 0 -or $costAfter.Count -ne 0 -or $command.acted -ne $false){throw 'Unacted stopped routine spent native actions.'}
         if($routine.completedObserved -eq $true){
-            if($routine.completed -ne $routine.planned -or $command.result -cne 'Success'){throw 'Incomplete interrupted routine was counted as complete.'}
-            if($routine.actor -ceq $rider){$complete++}
+            $tail=$null -ne $routine.PSObject.Properties['nativeRangedTailTermination'] -and $routine.nativeRangedTailTermination -eq $true
+            if($tail){
+                $range=$routine.nativeRangeRejection
+                if($Weapon -cne 'ranged' -or $routine.actor -cne $rider -or $command.result -cne 'Interrupt' -or
+                    $routine.completed -lt 1 -or $routine.completed -ge $routine.planned -or $null -eq $range -or
+                    $range.boundary -cne 'target-invalid' -or $range.command -ne $command.id -or $range.completed -ne $routine.completed -or
+                    $range.targetDead -ne $false -or $range.targetUnconscious -ne $false -or $range.targetInState -ne $true -or
+                    $range.nativeActorLoS -ne $true -or $range.mountCorpulence -lt 0 -or $range.targetCorpulence -lt 0 -or
+                    $range.rangeOriginDistance -le $range.pairApproachRadius -or @($range.plan).Count -ne $routine.planned){throw 'Ranged tail termination lacks its exact native range observation.'}
+                if(@($events|Where-Object {$_.boundary -ceq 'target-invalid' -and $_.completed -eq $routine.completed}).Count -lt 1){throw 'Ranged termination lacks a native UpdateTarget rejection event.'}
+                for($i=0;$i -lt $range.plan.Count;$i++){
+                    if($range.plan[$i].ranged -ne ($i -lt $routine.completed)){throw 'Ranged termination skipped an eligible ranged attack or misclassified its prefix.'}
+                    $radius=$range.mountCorpulence+$range.targetCorpulence+$range.plan[$i].weaponRange
+                    if(($i -lt $routine.completed -and $range.rangeOriginDistance -gt $radius) -or
+                        ($i -ge $routine.completed -and $range.rangeOriginDistance -le $radius)){throw 'Ranged terminal changed an individual native weapon reach.'}
+                }
+            }elseif($routine.completed -ne $routine.planned -or $command.result -cne 'Success'){throw 'Incomplete interrupted routine was counted as complete.'}
+            if($routine.actor -ceq $rider){$complete++;if($tail){$tailRider++}else{$fullRider++}}
         }
         if($routine.actor -ceq $rider){$riderDelivered+=$routine.completed}else{$mountDelivered+=$routine.completed}
     }
+    if($null -ne $e.PSObject.Properties['nativeFullRiderRoutines'] -and
+        ($e.nativeFullRiderRoutines -ne $fullRider -or $e.nativeRangedTailRiderRoutines -ne $tailRider)){throw 'Full native plans were conflated with ranged-tail terminals.'}
     if($complete -lt 3 -or $complete -ne $e.completeRiderRoutines -or
         $riderDelivered -ne $e.rules.riderNonOpportunityAttackRules -or $riderDelivered -ne $e.rules.riderResolved -or
         $mountDelivered -ne $e.rules.mountNonOpportunityAttackRules -or $mountDelivered -ne $e.rules.mountResolved){throw 'Sustained native plans, deliveries and projectile resolutions disagree.'}

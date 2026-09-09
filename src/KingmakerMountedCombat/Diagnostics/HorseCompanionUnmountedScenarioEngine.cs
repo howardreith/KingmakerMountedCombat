@@ -299,6 +299,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     request.Scenario == "phase3h-combat-loop-rt" || request.Scenario == "phase3h-combat-loop-tb" ||
                     Phase3dHorseScenarioTranche.IsChunk4ChargeScenario(request.Scenario) ||
                     Phase3dHorseScenarioTranche.IsChunk4PlayScenario(request.Scenario) ||
+                    Phase3dHorseScenarioTranche.IsChunk4CoreScenario(request.Scenario) ||
                     Phase3dHorseScenarioTranche.IsActorAllocationScenario(request.Scenario) ||
                     request.Scenario == Phase3dHorseScenarioTranche.OrdinaryAttackControlsScenario ||
                     request.Scenario == Phase3dHorseScenarioTranche.UnmountedAttackControlsScenario)
@@ -313,6 +314,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 originalPairedActivationSetting = settings.EnablePairedActivation;
                 if (Phase3dHorseScenarioTranche.IsChunk4ChargeScenario(request.Scenario) ||
                     Phase3dHorseScenarioTranche.IsChunk4PlayScenario(request.Scenario) ||
+                    Phase3dHorseScenarioTranche.IsChunk4CoreScenario(request.Scenario) ||
                     Phase3dHorseScenarioTranche.IsActorAllocationScenario(request.Scenario) ||
                     request.Scenario == Phase3dHorseScenarioTranche.OrdinaryAttackControlsScenario ||
                     request.Scenario == Phase3dHorseScenarioTranche.UnmountedAttackControlsScenario ||
@@ -1564,6 +1566,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (request.Scenario == "phase3h-combat-loop-rt" || request.Scenario == "phase3h-combat-loop-tb" ||
                     Phase3dHorseScenarioTranche.IsChunk4ChargeScenario(request.Scenario) ||
                     Phase3dHorseScenarioTranche.IsChunk4PlayScenario(request.Scenario) ||
+                    Phase3dHorseScenarioTranche.IsChunk4CoreScenario(request.Scenario) ||
                     Phase3dHorseScenarioTranche.IsActorAllocationScenario(request.Scenario) ||
                     request.Scenario == Phase3dHorseScenarioTranche.OrdinaryAttackControlsScenario ||
                     request.Scenario == Phase3dHorseScenarioTranche.UnmountedAttackControlsScenario)

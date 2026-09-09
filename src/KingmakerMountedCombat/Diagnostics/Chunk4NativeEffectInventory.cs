@@ -23,6 +23,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["actors"] = new JArray(Game.Instance.Player.PartyCharacters.Select(reference => reference.Value)
                     .Concat(new[] { rider, mount }).Where(actor => actor != null).Distinct().Select(actor => new JObject {
                         ["id"] = actor.UniqueId, ["blueprint"] = actor.Blueprint.AssetGuid,
+                        ["mainCharacter"] = actor == Game.Instance.Player.MainCharacter.Value,
                         ["rider"] = actor == rider, ["mount"] = actor == mount,
                         ["essential"] = actor.Descriptor.IsEssentialForGame,
                         ["immortality"] = (bool)actor.Descriptor.State.Immortality,

@@ -32,6 +32,30 @@ function Test-MethodIlContainsToken([Reflection.MethodBase]$Method,[int]$Token){
     return $false
 }
 if($Target-eq'Kingmaker'){
+    # New native incoming/life observations. Token/hash contracts are not native execution proof.
+    foreach($expected in @(
+        @('Kingmaker.Controllers.Units.UnitLifeController',0x06009162,'TickOnUnit'),
+        @('Kingmaker.Controllers.Units.UnitLifeController',0x06009168,'OnUnitDeath'),
+        @('Kingmaker.RuleSystem.Rules.Damage.RuleHealDamage',0x0600740B,'OnTrigger'),
+        @('Kingmaker.RuleSystem.Rules.RuleSavingThrow',0x0600731C,'OnTrigger'),
+        @('Kingmaker.RuleSystem.Rules.RuleAttackWithWeaponResolve',0x060071A4,'OnTrigger'),
+        @('Kingmaker.UnitLogic.UnitDescriptor',0x06001EE2,'get_Spellbooks'),
+        @('Kingmaker.UnitLogic.Spellbook',0x06001E79,'GetAllMemorizedSpells'),
+        @('Kingmaker.UnitLogic.SpellSlot',0x04001544,'Spell'),
+        @('Kingmaker.UnitLogic.SpellSlot',0x04001545,'Available'),
+        @('Kingmaker.UnitLogic.Abilities.Components.AbilityEffectStickyTouch',0x04001CE4,'TouchDeliveryAbility'),
+        @('Kingmaker.UnitLogic.Mechanics.Actions.ContextActionSpawnAreaEffect',0x040018B9,'AreaEffect'),
+        @('Kingmaker.EntitySystem.Entities.AreaEffectEntityData',0x060082AB,'get_Blueprint'),
+        @('Kingmaker.EntitySystem.Entities.AreaEffectEntityData',0x060082AC,'get_UnitsInside'),
+        @('Kingmaker.EntitySystem.Entities.AreaEffectEntityData',0x060082AE,'get_Context'),
+        @('Kingmaker.EntitySystem.PersistentState',0x04005339,'AreaEffects'),
+        @('Kingmaker.UnitLogic.Commands.UnitAttack',0x06002680,'OnTick'),
+        @('Kingmaker.UnitLogic.Commands.UnitAttack',0x06002682,'TryStartNextAttack'),
+        @('Kingmaker.UnitLogic.Commands.UnitAttack',0x06002683,'UpdateTarget')
+    )) {
+        $member=@(Find-Token $expected[0] $expected[1])
+        Assert-Contract ($member.Count-eq1 -and $member[0].Name-ceq$expected[2]) ('Chunk 4 native boundary '+$expected[0]+'.'+$expected[2])
+    }
     # Read-only Chunk 4 resource observations; these checks do not qualify cleanup.
     $eventBusType=$assembly.GetType('Kingmaker.PubSubSystem.EventBus',$true)
     $globalSubscribers=$eventBusType.GetField('GlobalSubscribers',[Reflection.BindingFlags]'Public,NonPublic,Static')

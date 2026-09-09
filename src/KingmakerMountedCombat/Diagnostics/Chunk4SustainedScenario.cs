@@ -13,7 +13,8 @@ using UnityEngine;
 
 namespace KingmakerMountedCombat.Diagnostics
 {
-    // A native routine means the entire command's own plan and recovery.
+    // Full native plans remain intact. An observed out-of-reach melee tail is
+    // recorded separately from full-plan completion in a ranged routine.
     internal sealed partial class Phase3dHorseScenarioTranche
     {
         internal static bool IsChunk4SustainedScenario(string scenario) =>
@@ -232,9 +233,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 evidence["lastTimeSinceStart"] = command.TimeSinceStart;
                 evidence["command"] = CaptureOrdinaryCommand(command);
                 evidence["planned"] = command.AllAttacks.Count; evidence["completed"] = command.GetAttackIndex();
+                var rangedTail = (command as KingmakerMountedCombat.Integration.MountedPairAttackCommand)?.NativeRangedTailTermination == true;
+                evidence["nativeRangedTailTermination"] = rangedTail;
+                evidence["nativeRangeRejection"] = rangedTail ? ordinaryAttackTrace.NativeRangeRejection(command) : null;
                 if (!(bool)evidence["completedObserved"] && command.IsFinished && command.AllAttacks.Count > 0 &&
-                    command.GetAttackIndex() == command.AllAttacks.Count &&
-                    (command.Result == UnitCommand.ResultType.Success || ordinaryAttackTrace.NativeRecoveryInterrupt(command) != null))
+                    (rangedTail || command.GetAttackIndex() == command.AllAttacks.Count &&
+                    (command.Result == UnitCommand.ResultType.Success || ordinaryAttackTrace.NativeRecoveryInterrupt(command) != null)))
                 {
                     evidence["completedObserved"] = true; evidence["finishedAt"] = now;
                     if (command.Executor == rider) { chunk4SustainedCompleted++; ResetLeafClock(); }
@@ -262,6 +266,10 @@ namespace KingmakerMountedCombat.Diagnostics
             chunk4SustainedEvidence["duplicateDispatches"] = combat.StockAttackDuplicateDispatchCount - chunk4SustainedDuplicateBefore;
             chunk4SustainedEvidence["mountDistance"] = HorizontalDistance(horse.Position, chunk4SustainedMountOrigin);
             chunk4SustainedEvidence["completeRiderRoutines"] = chunk4SustainedCompleted;
+            chunk4SustainedEvidence["nativeFullRiderRoutines"] = chunk4Routines.Keys.Count(command => command.Executor == rider &&
+                command.IsFinished && command.GetAttackIndex() == command.AllAttacks.Count && command.Result == UnitCommand.ResultType.Success);
+            chunk4SustainedEvidence["nativeRangedTailRiderRoutines"] = chunk4Routines.Keys.Count(command => command.Executor == rider &&
+                (command as KingmakerMountedCombat.Integration.MountedPairAttackCommand)?.NativeRangedTailTermination == true);
             chunk4SustainedEvidence["nativeTrace"] = ordinaryAttackTrace.CaptureCaseEvents(Chunk4SustainedId);
             var plans = chunk4Routines.Keys.Where(command => command.Executor == rider).Sum(command => command.GetAttackIndex());
             var mountPlans = chunk4Routines.Keys.Where(command => command.Executor == horse).Sum(command => command.GetAttackIndex());
@@ -294,7 +302,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     periods.Average() >= heldPeriods.Min() - frameTolerance &&
                     JToken.DeepEquals(held["weapon"], chunk4SustainedEvidence["weapon"]);
             }
-            AddRow(Chunk4SustainedId, passed, "Three complete native routines with native cadence, pure repeated input, delivery accounting and Stop settlement.", chunk4SustainedEvidence);
+            AddRow(Chunk4SustainedId, passed, "Three native routines with separately recorded full-plan/ranged-tail terminals, native cadence, pure repeated input, delivery accounting and Stop settlement.", chunk4SustainedEvidence);
             chunk4SustainedStage = 4; ResetLeafClock();
         }
     }

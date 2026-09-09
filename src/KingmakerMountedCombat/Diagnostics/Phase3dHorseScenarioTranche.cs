@@ -253,7 +253,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         internal static bool SupportsScenario(string scenario)
         {
-            return IsChunk4ChargeScenario(scenario) || IsChunk4PlayScenario(scenario) || IsActorAllocationScenario(scenario) || string.Equals(scenario, RealTimeScenario, StringComparison.Ordinal) ||
+            return IsChunk4ChargeScenario(scenario) || IsChunk4PlayScenario(scenario) || IsChunk4CoreScenario(scenario) || IsActorAllocationScenario(scenario) || string.Equals(scenario, RealTimeScenario, StringComparison.Ordinal) ||
                 string.Equals(scenario, UnmountedAttackControlsScenario, StringComparison.Ordinal) ||
                 string.Equals(scenario, Phase3gRealTimeScenario, StringComparison.Ordinal) ||
                 string.Equals(scenario, Phase3gTurnBasedScenario, StringComparison.Ordinal) ||
@@ -350,6 +350,10 @@ namespace KingmakerMountedCombat.Diagnostics
             if (IsChunk4Charge) { BeginChunk4Charge(); return; }
             if (IsChunk4Sustained) { BeginChunk4Sustained(); return; }
             if (IsChunk4PairedPlay) { BeginChunk4PairedPlay(); return; }
+            if (IsChunk4NativeLife) { BeginChunk4NativeLife(); return; }
+            if (IsChunk4Incoming) { BeginChunk4Incoming(); return; }
+            if (IsChunk4HorseStrike) { BeginChunk4HorseStrike(); return; }
+            if (IsChunk4NativeRanged) { BeginChunk4NativeRanged(); return; }
             if (IsActorAllocation) { BeginActorAllocation(); return; }
             if (IsOrdinaryAttackControls)
             {
@@ -406,7 +410,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         (observations["unmountedFixtureResumeCount"]?.Value<int>() ?? 0) + 1;
                     Game.Instance.IsPaused = false;
                 }
-                motionEvidence?.Tick(cleanupStarted ? null : IsPhase3gControls
+                motionEvidence?.Tick(cleanupStarted ? null : IsChunk4HorseStrike ? Chunk4HorseCapturePhase : IsPhase3gControls
                     ? (phase3gStage == 1 ? Phase3gRow +
                         (horse.Commands.Standard is MountedPairAttackCommand horseAttack
                             ? horseAttack.NativeSequenceStarted ? "-horse-strike-recovery" : "-horse-approach"
@@ -432,6 +436,10 @@ namespace KingmakerMountedCombat.Diagnostics
                         if (IsChunk4Charge) TickChunk4Charge();
                         else if (IsChunk4Sustained) TickChunk4Sustained();
                         else if (IsChunk4PairedPlay) TickChunk4PairedPlay();
+                        else if (IsChunk4NativeLife) TickChunk4NativeLife();
+                        else if (IsChunk4Incoming) TickChunk4Incoming();
+                        else if (IsChunk4HorseStrike) TickChunk4HorseStrike();
+                        else if (IsChunk4NativeRanged) TickChunk4NativeRanged();
                         else if (IsActorAllocation) TickActorAllocation();
                         else if (IsOrdinaryAttackControls) TickOrdinaryAttackControls();
                         else TickPhase3gControls();
@@ -790,7 +798,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 throw new InvalidOperationException("Phase 3D target lease is already active.");
             }
             targetService = new DiagnosticCombatTargetService(
-                logger, repeatedNativeSequences: IsChunk4Charge || IsChunk4Play || IsPairedAllocation || IsPhase3hLoop && !Phase3gTurnBased);
+                logger, repeatedNativeSequences: IsChunk4Charge || IsChunk4Play || IsChunk4Core || IsPairedAllocation || IsPhase3hLoop && !Phase3gTurnBased);
             var point = position ?? FindWalkablePoint(rider.Position, distance, distance >= 10f ? 1.0f : 0.5f);
             target = targetService.Spawn(rider, horse, point, request.RunId + "-" + suffix, true, true);
             if (IsPairedAllocation) PreparePairedReactionTarget();
@@ -5404,7 +5412,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     var selected = SelectionManager.Instance?.SelectedUnits;
                     if ((!string.Equals(request.Scenario, TurnBasedScenario, StringComparison.Ordinal) &&
-                         !IsActorAllocation && !IsOrdinaryAttackControls && !IsUnmountedAttackControls && !IsChunk4Charge && !IsChunk4Play) ||
+                         !IsActorAllocation && !IsOrdinaryAttackControls && !IsUnmountedAttackControls && !IsChunk4Charge && !IsChunk4Play && !IsChunk4Core) ||
                         rider?.Commands == null || horse?.Commands == null || !rider.Commands.Empty ||
                         !horse.Commands.Empty || rider.Group == null || rider.Group != horse.Group ||
                         !rider.IsDirectlyControllable || !IsExactDiagnosticAiIsolationRelationship() ||
@@ -5481,7 +5489,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool IsExactDiagnosticAiIsolationRelationship()
         {
             return relationship.State == RelationshipState.Unmounted ||
-                (IsChunk4Charge || IsChunk4Play || IsActorAllocation || string.Equals(request.Scenario, TurnBasedScenario, StringComparison.Ordinal)) &&
+                (IsChunk4Charge || IsChunk4Play || IsChunk4Core || IsActorAllocation || string.Equals(request.Scenario, TurnBasedScenario, StringComparison.Ordinal)) &&
                 relationship.State == RelationshipState.Mounted &&
                 relationship.Rider == rider && relationship.Mount == horse;
         }
@@ -6065,6 +6073,8 @@ namespace KingmakerMountedCombat.Diagnostics
             catch (Exception exception) { AddCleanupError("Paired condition fixture", exception); }
             try { CleanupPairedDeathProbe(); }
             catch (Exception exception) { AddCleanupError("Paired native death observer", exception); }
+            try { CleanupChunk4IncomingArea(); CleanupChunk4NativeLife(); }
+            catch (Exception exception) { AddCleanupError("Chunk 4 native effect observers", exception); }
             try { CleanupActorAllocation(); }
             catch (Exception exception) { AddCleanupError("Actor allocation fixture", exception); }
             try { pairedAutomaticEndProbe?.Dispose(); pairedAutomaticEndProbe = null; }
@@ -6197,7 +6207,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             var artifact = new JObject
             {
-                ["schemaVersion"] = IsChunk4Play ? 21 : IsChunk4Charge ? 20 : IsPairedAllocation ? 17 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,
+                ["schemaVersion"] = IsChunk4Core ? 22 : IsChunk4Play ? 21 : IsChunk4Charge ? 20 : IsPairedAllocation ? 17 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,
                 ["evidenceKind"] = EvidenceKind,
                 ["runId"] = request.RunId,
                 ["scenario"] = request.Scenario,
