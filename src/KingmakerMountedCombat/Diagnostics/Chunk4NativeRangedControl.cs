@@ -18,7 +18,7 @@ namespace KingmakerMountedCombat.Diagnostics
             IsChunk4IncomingScenario(scenario) || scenario == "chunk4-horse-strike-comparison-rt" || scenario == "chunk4-ranged-native-control-rt" ||
             IsChunk4ExtendedScenario(scenario);
         internal static bool IsChunk4ExtendedScenario(string scenario) => IsChunk4InterruptScenario(scenario) ||
-            IsChunk4SessionScenario(scenario) || scenario == "chunk4-inspection-rt";
+            IsChunk4SessionScenario(scenario) || scenario == "chunk4-inspection-rt" || scenario == "chunk4-obstruction-ranged-rt";
         private bool IsChunk4Extended => IsChunk4ExtendedScenario(request.Scenario);
         private bool IsChunk4Core => IsChunk4CoreScenario(request.Scenario);
         private int chunk4NativeRangedStage;

@@ -1,6 +1,6 @@
-# Active Chunk 4 â€” checkpoint at the owner's request, 2026-09-09
+# Active Chunk 4 - resumed 2026-09-09
 
-IN PROGRESS. Runtime work is stopped for now; Chunk 4 is unfinished. Tested gameplay remains preview.9/source `10c72ef56a201f51c43508ccd842917a2348078c`. New sustained ranged M, six TB cases N, mount targeting Q and six melee interruption cases R PASS. O incapacitation fixture, P area attribution and S ranged moving-target remain FAIL/open; later mandatory native gates and exact-final regression remain unqualified. All19 transactions restored actual preview.37/human data, independently rechecked at 11:51Z with no game/lock. Prepared next diagnostics are preserved locally, unapplied. [One report](docs/CHUNK4-PLAYABILITY.md) and [exact resumption point](AUTONOMOUS-RESUME.md). No permanent install, public release or Chunk5 implementation. Resume when the owner requests continuation.
+IN PROGRESS. The owner resumed work after published checkpoint `82adc7fc127cd1ea59aec499bb1de7445e8adac9`. Saved diagnostics have been reviewed and applied as candidate `0.1.0-chunk4-preview.10`; actual build/package/native qualification is pending. Source9 results remain accepted within their scope. First resolve S's moving-target fixture, O's native life/encounter-exit observation and P's actual area callback attribution, then remaining supported controls/traversal/session gates and exact-final regression. Preserve actual human preview.37 and newer data. [One report](docs/CHUNK4-PLAYABILITY.md) and [exact resume record](AUTONOMOUS-RESUME.md). No permanent installation or Chunk5 implementation.
 
 ---
 ## Combined milestone disposition — 2026-09-08

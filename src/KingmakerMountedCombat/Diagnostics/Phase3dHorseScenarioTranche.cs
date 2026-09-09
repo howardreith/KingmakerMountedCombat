@@ -353,6 +353,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (IsChunk4NativeLife) { BeginChunk4NativeLife(); return; }
             if (IsChunk4Incoming) { BeginChunk4Incoming(); return; }
             if (IsChunk4HorseStrike) { BeginChunk4HorseStrike(); return; }
+            if (IsChunk4Obstruction) { BeginChunk4Obstruction(); return; }
             if (IsChunk4NativeRanged) { BeginChunk4NativeRanged(); return; }
             if (IsChunk4Interrupt) { BeginChunk4Interrupt(); return; }
             if (IsChunk4Inspection) { BeginChunk4Inspection(); return; }
@@ -442,6 +443,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         else if (IsChunk4NativeLife) TickChunk4NativeLife();
                         else if (IsChunk4Incoming) TickChunk4Incoming();
                         else if (IsChunk4HorseStrike) TickChunk4HorseStrike();
+                        else if (IsChunk4Obstruction) TickChunk4Obstruction();
                         else if (IsChunk4NativeRanged) TickChunk4NativeRanged();
                         else if (IsChunk4Interrupt) TickChunk4Interrupt();
                         else if (IsChunk4Inspection) TickChunk4Inspection();

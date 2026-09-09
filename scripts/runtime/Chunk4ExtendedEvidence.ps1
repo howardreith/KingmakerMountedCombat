@@ -1,10 +1,11 @@
 function Test-KmcChunk4ExtendedScenario {
     param([string]$Scenario)
-    return $Scenario -cin @('chunk4-interrupt-melee-rt','chunk4-interrupt-ranged-rt','chunk4-inspection-rt','chunk4-session-rt','chunk4-session-tb')
+    return $Scenario -cin @('chunk4-obstruction-ranged-rt','chunk4-interrupt-melee-rt','chunk4-interrupt-ranged-rt','chunk4-inspection-rt','chunk4-session-rt','chunk4-session-tb')
 }
 function Get-KmcChunk4ExtendedLeaves {
     param([string]$Scenario)
     if(!(Test-KmcChunk4ExtendedScenario $Scenario)){throw 'Unregistered extended Chunk 4 scenario.'}
+    if($Scenario -ceq 'chunk4-obstruction-ranged-rt'){return @('C4-OBSTRUCTION-ranged-native-geometry')}
     if($Scenario -ceq 'chunk4-inspection-rt'){return @('C4-INSPECTION-rider','C4-INSPECTION-mount')}
     if($Scenario.StartsWith('chunk4-session-')){$mode=if($Scenario.EndsWith('-tb')){'TB'}else{'RT'};return @(1..3|ForEach-Object {"C4-SESSION-$mode-$_"})}
     $weapon=if($Scenario -ceq 'chunk4-interrupt-ranged-rt'){'ranged'}else{'melee'}
@@ -27,6 +28,7 @@ function Assert-KmcChunk4ExtendedEvidence {
         if($row.name -cin $failureOnly -or $e.level -cne 'NATIVE INTEGRATION' -or $e.caseId -cne $row.name){throw 'Extended PASS lacks native identity.'}
         if($row.name.StartsWith('C4-INSPECTION-')){Assert-KmcChunk4InspectionRow $e}
         elseif($row.name.StartsWith('C4-SESSION-')){Assert-KmcChunk4SessionRow $e $Artifact.observations.chunk4SessionSubscriptionsBefore}
+        elseif($row.name -ceq 'C4-OBSTRUCTION-ranged-native-geometry'){Assert-KmcChunk4ObstructionRow $e}
         else{Assert-KmcChunk4InterruptRow $e}
     }
     if($Artifact.subscenarioPassCount -ne $pass -or $Artifact.subscenarioFailCount -ne $fail){throw 'Extended native row totals disagree.'}
@@ -98,6 +100,19 @@ function Assert-KmcChunk4InterruptRow {
         }elseif($e.legalCompletion.id -ne $e.beforeStimulus.firstCommand.id){throw 'Pause restarted the native windup.'}
     }
     if($e.kind -ceq 'moving-target' -and ($e.targetMoved -lt 1 -or $e.targetMove.result -cne 'Success' -or $e.targetMove.executor -cne $e.target)){throw 'Moving target did not complete a real native move.'}
+    if($e.kind -ceq 'moving-target' -and $e.ranged){
+        $path=$e.targetPath
+        if($path.accepted -ne $true -or $path.error -ne $false -or $path.direct -lt 2.5 -or $path.direct -gt 3.5 -or
+            $path.length -lt $path.direct-.01 -or $path.length -gt $path.direct*1.5+.5 -or $path.endpointError -gt .3 -or
+            @($path.samples).Count -lt 2 -or @($path.samples).Count -gt 128 -or $path.before.target.id -cne $e.target -or
+            $path.before.rider.id -cne $e.before.live.rider.id -or $path.before.mount.id -cne $e.before.live.mount.id -or
+            ($path.before|ConvertTo-Json -Depth 30 -Compress) -cne ($path.after|ConvertTo-Json -Depth 30 -Compress)){
+            throw 'Ranged moving-target setup lacks a bounded native path with unchanged actor state.'
+        }
+        foreach($sample in $path.samples){
+            if($sample.blocked -ne $false -or $sample.distance -gt $path.radius-.5){throw 'Ranged moving-target path crosses obstruction or leaves native reach.'}
+        }
+    }
     if($e.kind.StartsWith('target-death-')){
         if($e.damageDispatches -ne 1 -or $e.nativeDamage -le 0 -or $e.beforeStimulus.target.dead -ne $false -or
             $e.after.target.dead -ne $true -or $e.targetLifeTransitions -lt 1){throw 'Target death lacks actual native effect and life transition.'}
@@ -151,4 +166,55 @@ function Assert-KmcChunk4SessionRow {
     $after=@($e.subscriptionsAfter.entries|ForEach-Object {"$($_.interface):$($_.type):$($_.identity)"}|Sort-Object)
     if($e.recordsAfter -ne 0 -or $e.subscriptionsAfter.executing -ne $false -or $before.Count -lt 1 -or
         ($before -join "`n") -cne ($after -join "`n")){throw 'Repeated session retained or lost an owned native subscription.'}
+}
+
+function Assert-KmcChunk4ObstructionRow {
+    param($e)
+    $rider=$e.before.live.rider.id;$mount=$e.before.live.mount.id
+    if($e.caseId -cne 'C4-OBSTRUCTION-ranged-native-geometry' -or $e.mode -cne 'RT' -or $e.inputKind -cne 'native-pointer-prediction-and-click' -or
+        $e.initialQueryPure -ne $true -or $e.inputAccepted -isnot [bool] -or $e.before.live.relationship -cne 'Mounted' -or
+        $rider -ceq $mount -or $e.before.sight.actor -cne $rider -or $e.before.sight.target -cne $e.before.target.id -or
+        $e.before.sight.needLoS -ne $true -or $e.before.sight.blocked -ne $true -or $e.before.sight.enoughClose -ne $false -or
+        $e.before.sight.weapon -cne 'd5947b9cb1500c040b026bf6b4b57fa7' -or $e.before.mountCorpulence -le 0 -or
+        $e.observationSeconds -le 0 -or $e.blockedFrames -lt 1 -or $e.sampleDrops -ne 0 -or
+        @($e.samples).Count -lt 1 -or @($e.samples).Count -gt 512 -or @($e.candidates).Count -lt 1 -or @($e.candidates).Count -gt 32){
+        throw 'Obstruction lacks a bounded actual native command visibility failure.'
+    }
+    Assert-KmcChunk4SameCosts $e.before.live $e.afterInput.live
+    Assert-KmcChunk4SameCosts $e.beforeStop.live $e.afterStopInput.live
+    Assert-KmcChunk4SameCosts $e.recoveryBeforeStop.live $e.recoveryAfterStopInput.live
+    $previousFrame=-1;$previousSeconds=[double]::NegativeInfinity;$blocked=0
+    foreach($sample in @($e.samples)){
+        if(!(Test-KmcExactJsonInteger $sample.frame) -or $sample.frame -le $previousFrame -or
+            $sample.gameSeconds -le $previousSeconds -or $sample.sight.blocked -isnot [bool] -or
+            $sample.sight.actor -cne $rider -or $sample.sight.target -cne $e.before.target.id){throw 'Obstruction samples do not describe distinct native actor/target frames.'}
+        if($sample.sight.blocked){$blocked++};$previousFrame=$sample.frame;$previousSeconds=$sample.gameSeconds
+    }
+    if($blocked -lt 1 -or $e.blockedFrames -lt $blocked){throw 'Obstruction has no actual blocked sample.'}
+    foreach($state in @($e.before,$e.afterInput,$e.beforeStop,$e.afterStopInput,$e.recoveryBefore,$e.recoveryBeforeStop,$e.recoveryAfterStopInput,$e.after)+@($e.samples)){
+        if($state.live.relationship -cne 'Mounted' -or $state.live.rider.id -cne $rider -or $state.live.mount.id -cne $mount -or
+            $state.live.rider.move -ne $e.before.live.rider.move -or $state.mountCorpulence -ne $e.before.mountCorpulence -or
+            $state.mountAgentEnabled -ne $true -or $state.avoidanceDisabled -ne $false -or
+            $state.target.conscious -ne $true -or $state.target.dead -ne $false){throw 'Obstruction changed native footprint, collision, target life or rider transport costs.'}
+    }
+    foreach($delivery in @($e.blockedTrace|Where-Object {$_.actor -ceq $rider -and $_.boundary -ceq 'delivery-before'})){
+        if($delivery.nativeCommandLoS -ne $true -or $delivery.target -cne $e.before.target.id){throw 'Rider delivered through a native obstruction or changed the original target.'}
+    }
+    if($e.recoveryBefore.sight.blocked -ne $false -or $e.recoveryBefore.target.id -ceq $e.before.target.id -or
+        $e.recoveryTarget -cne $e.recoveryBefore.target.id -or $e.after.intent -ne $false -or
+        $e.after.activeCommand -ne $false -or $e.after.groundMovement -ne $false){throw 'Obstruction lacks a distinct clear recovery and completed Stop cleanup.'}
+    Assert-KmcChunk4ResolvedRules $e.rulesAfter
+    Assert-KmcChunk4NativeRoutine $e.recoveryCommand $e.recoveryCompleted $e.recoveryPlan $e.recoveryTrace $rider $e.recoveryNativeRangeTail
+    if($e.recoveryNativeRangeTail){
+        $r=$e.recoveryRangeRejection
+        if($e.recoveryCommand.result -cne 'Interrupt' -or $r.command -ne $e.recoveryCommand.id -or
+            $r.nativeCommandLoS -ne $true -or $r.nativeSequenceTick -ne $true -or $r.nativeMeleeTailRangeRejected -ne $true -or
+            $r.targetDead -ne $false -or $r.targetUnconscious -ne $false -or $r.targetInState -ne $true -or
+            $r.completed -ne $e.recoveryCompleted -or @($r.plan).Count -ne $e.recoveryPlan -or $r.completed -ge $r.plan.Count){throw 'Obstruction recovery lacks its actual native range-tail rejection.'}
+        for($i=0;$i -lt $r.plan.Count;$i++){
+            $radius=$r.mountCorpulence+$r.targetCorpulence+$r.plan[$i].weaponRange
+            if($r.plan[$i].ranged -ne ($i -lt $r.completed) -or ($i -lt $r.completed -and $r.rangeOriginDistance -gt $radius) -or
+                ($i -ge $r.completed -and $r.rangeOriginDistance -le $radius+.05)){throw 'Obstruction recovery skipped a native eligible weapon range.'}
+        }
+    }
 }

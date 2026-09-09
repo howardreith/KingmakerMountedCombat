@@ -62,6 +62,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         public static IReadOnlyList<string> SelectRows(string scenario)
         {
+            if (scenario == "chunk4-area-cleanup") return new[] { "native-area-clean-dismount" };
             if (string.Equals(scenario, "boundary-suite", StringComparison.Ordinal))
             {
                 return (string[])Phase1Rows.Clone();

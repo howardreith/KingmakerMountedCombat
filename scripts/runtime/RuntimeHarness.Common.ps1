@@ -3658,7 +3658,7 @@ function Restore-KmcModsTransaction {
 function Get-KmcSaveBackedRuntimeScenarios {
     return @(
         'export-mounted-contracts', 'export-candidate-mount-rigs', 'observe-mount-diagnostic-availability', 'horse-native-asset-audit', 'horse-companion-blueprint-registration', 'horse-companion-unmounted-suite', 'horse-mounted-alpha-suite', 'horse-native-controls-ux-suite',
-        'chunk4-rider-incapacitation-tb', 'chunk4-rider-death-tb', 'chunk4-mount-death-tb', 'chunk4-targeting-rider-rt', 'chunk4-targeting-mount-rt', 'chunk4-horse-strike-comparison-rt', 'chunk4-ranged-native-control-rt', 'chunk4-interrupt-melee-rt', 'chunk4-interrupt-ranged-rt', 'chunk4-inspection-rt', 'chunk4-session-rt', 'chunk4-session-tb', 'chunk4-sustained-melee-rt', 'chunk4-sustained-ranged-rt', 'chunk4-sustained-tb', 'chunk4-charge-safety-rt', 'chunk4-charge-safety-tb', 'actor-allocation-rider-first-tb', 'actor-allocation-mount-first-tb', 'actor-allocation-rider-first-unmounted-tb', 'actor-allocation-mount-first-unmounted-tb', 'ordinary-attack-controls-tb', 'unmounted-attack-controls-rt', 'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite', 'phase3d-unified-combat-tb-suite', 'phase3d-horse-presentation-suite',
+        'chunk4-rider-incapacitation-tb', 'chunk4-rider-death-tb', 'chunk4-mount-death-tb', 'chunk4-targeting-rider-rt', 'chunk4-targeting-mount-rt', 'chunk4-horse-strike-comparison-rt', 'chunk4-targeting-area-unmounted-rt', 'chunk4-obstruction-ranged-rt', 'chunk4-ranged-native-control-rt', 'chunk4-interrupt-melee-rt', 'chunk4-interrupt-ranged-rt', 'chunk4-inspection-rt', 'chunk4-session-rt', 'chunk4-session-tb', 'chunk4-sustained-melee-rt', 'chunk4-sustained-ranged-rt', 'chunk4-sustained-tb', 'chunk4-charge-safety-rt', 'chunk4-charge-safety-tb', 'actor-allocation-rider-first-tb', 'actor-allocation-mount-first-tb', 'actor-allocation-rider-first-unmounted-tb', 'actor-allocation-mount-first-unmounted-tb', 'ordinary-attack-controls-tb', 'unmounted-attack-controls-rt', 'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite', 'phase3d-unified-combat-tb-suite', 'phase3d-horse-presentation-suite',
         'player-action-availability', 'mount-dismount-user-flow',
         'mounted-pair-create-and-clear', 'mounted-pair-double-mount-rejected', 'mounted-pair-invalid-pair-rejected',
         'mounted-pair-cleanup-idempotent', 'mounted-pair-death-cleanup', 'mounted-pair-combat-start-cleanup',
@@ -3676,7 +3676,7 @@ function Get-KmcSaveBackedRuntimeScenarios {
         'native-save-clean-dismount', 'native-area-clean-dismount', 'native-mode-transition-cleanup',
         'presentation-residue-and-uninstall-safety', 'pose-idle', 'pose-walk-run', 'pose-turn-stop',
         'pose-doorway-formation', 'pose-equipment-variants', 'ui-selection-portrait-actionbar',
-        'camera-follow-and-command-routing', 'movement-suite', 'boundary-suite', 'presentation-suite',
+        'camera-follow-and-command-routing', 'chunk4-traversal-core', 'chunk4-traversal-slope', 'chunk4-area-cleanup', 'movement-suite', 'boundary-suite', 'presentation-suite',
         'mounted-rider-melee-hit-rt', 'mounted-rider-melee-hit-tb', 'mounted-rider-melee-miss-rt',
         'mounted-mammoth-primary-hit-rt', 'mounted-mammoth-primary-hit-tb',
         'mounted-rider-melee-move-to-attack-rt', 'mounted-rider-melee-move-to-attack-tb',
@@ -3711,10 +3711,10 @@ function Get-KmcPhase3dHorseRuntimeRows {
         'C4-TARGETING-rider-hostile',
         'C4-TARGETING-mount-heal',
         'C4-TARGETING-mount-hostile',
-        'C4-TARGETING-area-both',
+        'C4-TARGETING-area-unmounted', 'C4-TARGETING-area-both',
         'C4-HORSE-mounted-three-primaries',
         'C4-HORSE-unmounted-strike-recovery',
-        'C4-RANGED-native-mixed-range', 'C4-INTERRUPT-melee-pause-resume', 'C4-INTERRUPT-melee-pause-stop-recover', 'C4-INTERRUPT-melee-moving-target', 'C4-INTERRUPT-melee-retarget-windup', 'C4-INTERRUPT-melee-target-death-windup', 'C4-INTERRUPT-melee-target-death-midroutine', 'C4-INTERRUPT-ranged-pause-resume', 'C4-INTERRUPT-ranged-pause-stop-recover', 'C4-INTERRUPT-ranged-moving-target', 'C4-INTERRUPT-ranged-retarget-windup', 'C4-INTERRUPT-ranged-retarget-inflight', 'C4-INTERRUPT-ranged-target-death-windup', 'C4-INTERRUPT-ranged-target-death-inflight', 'C4-INSPECTION-rider', 'C4-INSPECTION-mount', 'C4-SESSION-RT-1', 'C4-SESSION-RT-2', 'C4-SESSION-RT-3', 'C4-SESSION-TB-1', 'C4-SESSION-TB-2', 'C4-SESSION-TB-3',
+        'C4-OBSTRUCTION-ranged-native-geometry', 'C4-RANGED-native-mixed-range', 'C4-INTERRUPT-melee-pause-resume', 'C4-INTERRUPT-melee-pause-stop-recover', 'C4-INTERRUPT-melee-moving-target', 'C4-INTERRUPT-melee-retarget-windup', 'C4-INTERRUPT-melee-target-death-windup', 'C4-INTERRUPT-melee-target-death-midroutine', 'C4-INTERRUPT-ranged-pause-resume', 'C4-INTERRUPT-ranged-pause-stop-recover', 'C4-INTERRUPT-ranged-moving-target', 'C4-INTERRUPT-ranged-retarget-windup', 'C4-INTERRUPT-ranged-retarget-inflight', 'C4-INTERRUPT-ranged-target-death-windup', 'C4-INTERRUPT-ranged-target-death-inflight', 'C4-INSPECTION-rider', 'C4-INSPECTION-mount', 'C4-SESSION-RT-1', 'C4-SESSION-RT-2', 'C4-SESSION-RT-3', 'C4-SESSION-TB-1', 'C4-SESSION-TB-2', 'C4-SESSION-TB-3',
         'C4-SUSTAINED-melee-adjacent-held',
         'C4-SUSTAINED-melee-adjacent-repeat',
         'C4-SUSTAINED-melee-approach-held',
@@ -3735,7 +3735,7 @@ function Get-KmcPhase3dHorseRuntimeRows {
         'C03-rapid-off-B', 'C03-rapid-off-C', 'C03-bab-B', 'C03-bab-C', 'C03-haste-B', 'C03-haste-C',
         'C02-restricted-B', 'C02-restricted-C', 'C03-single-B', 'C03-single-C', 'C03-spent-standard-B', 'C03-spent-standard-C',
         'C03-rider-move-B', 'C03-carried-move-C', 'C03-mixed-range-B', 'C03-mixed-range-C',
-        'chunk4-rider-incapacitation-tb', 'chunk4-rider-death-tb', 'chunk4-mount-death-tb', 'chunk4-targeting-rider-rt', 'chunk4-targeting-mount-rt', 'chunk4-horse-strike-comparison-rt', 'chunk4-ranged-native-control-rt', 'chunk4-interrupt-melee-rt', 'chunk4-interrupt-ranged-rt', 'chunk4-inspection-rt', 'chunk4-session-rt', 'chunk4-session-tb', 'chunk4-sustained-melee-rt', 'chunk4-sustained-ranged-rt', 'chunk4-sustained-tb', 'chunk4-charge-safety-rt', 'chunk4-charge-safety-tb', 'actor-allocation-rider-first-tb', 'actor-allocation-mount-first-tb', 'actor-allocation-rider-first-unmounted-tb', 'actor-allocation-mount-first-unmounted-tb', 'ordinary-attack-controls-tb', 'unmounted-attack-controls-rt', 'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite',
+        'chunk4-rider-incapacitation-tb', 'chunk4-rider-death-tb', 'chunk4-mount-death-tb', 'chunk4-targeting-rider-rt', 'chunk4-targeting-mount-rt', 'chunk4-horse-strike-comparison-rt', 'chunk4-targeting-area-unmounted-rt', 'chunk4-obstruction-ranged-rt', 'chunk4-ranged-native-control-rt', 'chunk4-interrupt-melee-rt', 'chunk4-interrupt-ranged-rt', 'chunk4-inspection-rt', 'chunk4-session-rt', 'chunk4-session-tb', 'chunk4-sustained-melee-rt', 'chunk4-sustained-ranged-rt', 'chunk4-sustained-tb', 'chunk4-charge-safety-rt', 'chunk4-charge-safety-tb', 'actor-allocation-rider-first-tb', 'actor-allocation-mount-first-tb', 'actor-allocation-rider-first-unmounted-tb', 'actor-allocation-mount-first-unmounted-tb', 'ordinary-attack-controls-tb', 'unmounted-attack-controls-rt', 'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite',
         'phase3d-unified-combat-tb-suite',
         'phase3d-horse-presentation-suite',
         'Horse-small-portrait-close-up',
@@ -3912,7 +3912,7 @@ function Get-KmcMovementRuntimeRows {
 
 function Test-KmcMovementRuntimeScenario {
     param([AllowNull()][string]$Scenario)
-    return [string]$Scenario -ceq 'movement-suite' -or [string]$Scenario -ceq 'presentation-suite' -or
+    return (Test-KmcChunk4TraversalScenario $Scenario) -or [string]$Scenario -ceq 'movement-suite' -or [string]$Scenario -ceq 'presentation-suite' -or
         [string]$Scenario -ceq 'mounted-distance-door-interaction' -or
         @(Get-KmcMovementRuntimeRows | Where-Object { $_ -ceq [string]$Scenario }).Count -eq 1 -or
         @(Get-KmcPresentationRuntimeRows | Where-Object { $_ -ceq [string]$Scenario }).Count -eq 1
@@ -3951,7 +3951,7 @@ function Get-KmcNativeLifecycleBoundaryRuntimeRows {
 
 function Test-KmcBoundaryRuntimeScenario {
     param([AllowNull()][string]$Scenario)
-    return [string]$Scenario -ceq 'boundary-suite' -or
+    return [string]$Scenario -ceq 'chunk4-area-cleanup' -or [string]$Scenario -ceq 'boundary-suite' -or
         @(Get-KmcBoundaryRuntimeRows | Where-Object { $_ -ceq [string]$Scenario }).Count -eq 1 -or
         @(Get-KmcNativeLifecycleBoundaryRuntimeRows | Where-Object { $_ -ceq [string]$Scenario }).Count -eq 1
 }
@@ -4939,7 +4939,7 @@ function Assert-KmcHorseCompanionBlueprintRegistrationEvidence {
         'horse-companion-unmounted-suite',
         'horse-mounted-alpha-suite',
         'horse-native-controls-ux-suite',
-        'chunk4-rider-incapacitation-tb', 'chunk4-rider-death-tb', 'chunk4-mount-death-tb', 'chunk4-targeting-rider-rt', 'chunk4-targeting-mount-rt', 'chunk4-horse-strike-comparison-rt', 'chunk4-ranged-native-control-rt', 'chunk4-interrupt-melee-rt', 'chunk4-interrupt-ranged-rt', 'chunk4-inspection-rt', 'chunk4-session-rt', 'chunk4-session-tb', 'chunk4-sustained-melee-rt', 'chunk4-sustained-ranged-rt', 'chunk4-sustained-tb', 'chunk4-charge-safety-rt', 'chunk4-charge-safety-tb', 'actor-allocation-rider-first-tb', 'actor-allocation-mount-first-tb', 'actor-allocation-rider-first-unmounted-tb', 'actor-allocation-mount-first-unmounted-tb', 'ordinary-attack-controls-tb', 'unmounted-attack-controls-rt', 'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite',
+        'chunk4-rider-incapacitation-tb', 'chunk4-rider-death-tb', 'chunk4-mount-death-tb', 'chunk4-targeting-rider-rt', 'chunk4-targeting-mount-rt', 'chunk4-horse-strike-comparison-rt', 'chunk4-targeting-area-unmounted-rt', 'chunk4-obstruction-ranged-rt', 'chunk4-ranged-native-control-rt', 'chunk4-interrupt-melee-rt', 'chunk4-interrupt-ranged-rt', 'chunk4-inspection-rt', 'chunk4-session-rt', 'chunk4-session-tb', 'chunk4-sustained-melee-rt', 'chunk4-sustained-ranged-rt', 'chunk4-sustained-tb', 'chunk4-charge-safety-rt', 'chunk4-charge-safety-tb', 'actor-allocation-rider-first-tb', 'actor-allocation-mount-first-tb', 'actor-allocation-rider-first-unmounted-tb', 'actor-allocation-mount-first-unmounted-tb', 'ordinary-attack-controls-tb', 'unmounted-attack-controls-rt', 'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite',
         'phase3d-unified-combat-tb-suite',
         'phase3d-horse-presentation-suite')
     $records = @($Manifest.artifacts | Where-Object {
@@ -5706,7 +5706,7 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
     )
 
     $scenarios = @(
-        'chunk4-rider-incapacitation-tb', 'chunk4-rider-death-tb', 'chunk4-mount-death-tb', 'chunk4-targeting-rider-rt', 'chunk4-targeting-mount-rt', 'chunk4-horse-strike-comparison-rt', 'chunk4-ranged-native-control-rt', 'chunk4-interrupt-melee-rt', 'chunk4-interrupt-ranged-rt', 'chunk4-inspection-rt', 'chunk4-session-rt', 'chunk4-session-tb', 'chunk4-sustained-melee-rt', 'chunk4-sustained-ranged-rt', 'chunk4-sustained-tb', 'chunk4-charge-safety-rt', 'chunk4-charge-safety-tb', 'actor-allocation-rider-first-tb', 'actor-allocation-mount-first-tb', 'actor-allocation-rider-first-unmounted-tb', 'actor-allocation-mount-first-unmounted-tb', 'ordinary-attack-controls-tb', 'unmounted-attack-controls-rt', 'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite',
+        'chunk4-rider-incapacitation-tb', 'chunk4-rider-death-tb', 'chunk4-mount-death-tb', 'chunk4-targeting-rider-rt', 'chunk4-targeting-mount-rt', 'chunk4-horse-strike-comparison-rt', 'chunk4-targeting-area-unmounted-rt', 'chunk4-obstruction-ranged-rt', 'chunk4-ranged-native-control-rt', 'chunk4-interrupt-melee-rt', 'chunk4-interrupt-ranged-rt', 'chunk4-inspection-rt', 'chunk4-session-rt', 'chunk4-session-tb', 'chunk4-sustained-melee-rt', 'chunk4-sustained-ranged-rt', 'chunk4-sustained-tb', 'chunk4-charge-safety-rt', 'chunk4-charge-safety-tb', 'actor-allocation-rider-first-tb', 'actor-allocation-mount-first-tb', 'actor-allocation-rider-first-unmounted-tb', 'actor-allocation-mount-first-unmounted-tb', 'ordinary-attack-controls-tb', 'unmounted-attack-controls-rt', 'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite',
         'phase3d-unified-combat-tb-suite',
         'phase3d-horse-presentation-suite')
     $leaf = 'phase3d-horse-scenario-evidence.json'
@@ -5782,7 +5782,7 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
         }
         return
     }
-    if ($phase3dSchemaVersion -eq 21L -or [string]$Request.scenario -cin @('chunk4-rider-incapacitation-tb', 'chunk4-rider-death-tb', 'chunk4-mount-death-tb', 'chunk4-targeting-rider-rt', 'chunk4-targeting-mount-rt', 'chunk4-horse-strike-comparison-rt', 'chunk4-ranged-native-control-rt', 'chunk4-interrupt-melee-rt', 'chunk4-interrupt-ranged-rt', 'chunk4-inspection-rt', 'chunk4-session-rt', 'chunk4-session-tb', 'chunk4-sustained-melee-rt','chunk4-sustained-ranged-rt','chunk4-sustained-tb')) {
+    if ($phase3dSchemaVersion -eq 21L -or [string]$Request.scenario -cin @('chunk4-rider-incapacitation-tb', 'chunk4-rider-death-tb', 'chunk4-mount-death-tb', 'chunk4-targeting-rider-rt', 'chunk4-targeting-mount-rt', 'chunk4-horse-strike-comparison-rt', 'chunk4-targeting-area-unmounted-rt', 'chunk4-obstruction-ranged-rt', 'chunk4-ranged-native-control-rt', 'chunk4-interrupt-melee-rt', 'chunk4-interrupt-ranged-rt', 'chunk4-inspection-rt', 'chunk4-session-rt', 'chunk4-session-tb', 'chunk4-sustained-melee-rt','chunk4-sustained-ranged-rt','chunk4-sustained-tb')) {
         Assert-KmcChunk4PlayEvidence -Request $Request -Artifact $artifact -Status $Status
         $afterFile = Get-Item -LiteralPath $path -Force
         if ($afterFile.Length -ne $beforeFile.Length -or $afterFile.LastWriteTimeUtc.Ticks -ne $beforeFile.LastWriteTimeUtc.Ticks) {
@@ -5832,11 +5832,11 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
     }
     $nativeControlScope = $phase3dSchemaVersion -eq 7L
     if ($nativeControlScope) {
-        if ([string]$Request.scenario -cnotin @('chunk4-rider-incapacitation-tb', 'chunk4-rider-death-tb', 'chunk4-mount-death-tb', 'chunk4-targeting-rider-rt', 'chunk4-targeting-mount-rt', 'chunk4-horse-strike-comparison-rt', 'chunk4-ranged-native-control-rt', 'chunk4-interrupt-melee-rt', 'chunk4-interrupt-ranged-rt', 'chunk4-inspection-rt', 'chunk4-session-rt', 'chunk4-session-tb', 'chunk4-sustained-melee-rt', 'chunk4-sustained-ranged-rt', 'chunk4-sustained-tb', 'chunk4-charge-safety-rt', 'chunk4-charge-safety-tb', 'actor-allocation-rider-first-tb', 'actor-allocation-mount-first-tb', 'actor-allocation-rider-first-unmounted-tb', 'actor-allocation-mount-first-unmounted-tb', 'ordinary-attack-controls-tb', 'unmounted-attack-controls-rt', 'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite','phase3d-horse-presentation-suite')) {
+        if ([string]$Request.scenario -cnotin @('chunk4-rider-incapacitation-tb', 'chunk4-rider-death-tb', 'chunk4-mount-death-tb', 'chunk4-targeting-rider-rt', 'chunk4-targeting-mount-rt', 'chunk4-horse-strike-comparison-rt', 'chunk4-targeting-area-unmounted-rt', 'chunk4-obstruction-ranged-rt', 'chunk4-ranged-native-control-rt', 'chunk4-interrupt-melee-rt', 'chunk4-interrupt-ranged-rt', 'chunk4-inspection-rt', 'chunk4-session-rt', 'chunk4-session-tb', 'chunk4-sustained-melee-rt', 'chunk4-sustained-ranged-rt', 'chunk4-sustained-tb', 'chunk4-charge-safety-rt', 'chunk4-charge-safety-tb', 'actor-allocation-rider-first-tb', 'actor-allocation-mount-first-tb', 'actor-allocation-rider-first-unmounted-tb', 'actor-allocation-mount-first-unmounted-tb', 'ordinary-attack-controls-tb', 'unmounted-attack-controls-rt', 'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite','phase3d-horse-presentation-suite')) {
             throw 'Phase 3F native-control evidence cannot qualify a unified-TB scenario.'
         }
         $configuration = $artifact.observations.phase3fActualConfiguration
-        $pairedConfiguration=[string]$Request.scenario -cin @('chunk4-rider-incapacitation-tb', 'chunk4-rider-death-tb', 'chunk4-mount-death-tb', 'chunk4-targeting-rider-rt', 'chunk4-targeting-mount-rt', 'chunk4-horse-strike-comparison-rt', 'chunk4-ranged-native-control-rt', 'chunk4-interrupt-melee-rt', 'chunk4-interrupt-ranged-rt', 'chunk4-inspection-rt', 'chunk4-session-rt', 'chunk4-session-tb', 'chunk4-sustained-melee-rt', 'chunk4-sustained-ranged-rt', 'chunk4-sustained-tb', 'chunk4-charge-safety-rt', 'chunk4-charge-safety-tb', 'actor-allocation-rider-first-tb',
+        $pairedConfiguration=[string]$Request.scenario -cin @('chunk4-rider-incapacitation-tb', 'chunk4-rider-death-tb', 'chunk4-mount-death-tb', 'chunk4-targeting-rider-rt', 'chunk4-targeting-mount-rt', 'chunk4-horse-strike-comparison-rt', 'chunk4-targeting-area-unmounted-rt', 'chunk4-obstruction-ranged-rt', 'chunk4-ranged-native-control-rt', 'chunk4-interrupt-melee-rt', 'chunk4-interrupt-ranged-rt', 'chunk4-inspection-rt', 'chunk4-session-rt', 'chunk4-session-tb', 'chunk4-sustained-melee-rt', 'chunk4-sustained-ranged-rt', 'chunk4-sustained-tb', 'chunk4-charge-safety-rt', 'chunk4-charge-safety-tb', 'actor-allocation-rider-first-tb',
             'actor-allocation-mount-first-tb','actor-allocation-rider-first-unmounted-tb',
             'actor-allocation-mount-first-unmounted-tb','ordinary-attack-controls-tb',
             'unmounted-attack-controls-rt','phase3h-combat-loop-rt')
@@ -8259,11 +8259,17 @@ function Assert-KmcBoundaryEvidenceRecord {
         [Parameter(Mandatory = $true)][long]$ExpectedSequence,
         [Parameter(Mandatory = $true)][string[]]$ExpectedRows
     )
-    Assert-KmcExactProperties $Record @(
+    $kmcBoundaryFields = @(
         'schemaVersion','artifactKind','runId','scenario','row','phase','utcTimestamp','branch','commit','productVersion',
         'dllSha256','dllMvid','sequence','rowIndex','frame','executed','suppressed','rowStatus','assertionPassCount',
         'assertionFailCount','triggerScope','workingIdentity','authorization','loading','relationship','cleanup','freshWorld',
-        'nativeLifecycle','nativeMode','modDisable','recordErrors') 'boundary evidence record'
+        'nativeLifecycle','nativeMode','modDisable','recordErrors')
+    if($Request.scenario -ceq 'chunk4-area-cleanup') {
+        $kmcBoundaryFields += 'pairedConfiguration'
+        Assert-KmcChunk4PairedConfiguration $Record.pairedConfiguration -AllowIntake:($Record.phase -ceq 'row-start' -or
+            $Record.phase -ceq 'row-result' -and $Record.rowStatus -ceq 'FAIL')
+    }
+    Assert-KmcExactProperties $Record $kmcBoundaryFields 'boundary evidence record'
     if (-not (Test-KmcExactJsonInteger $Record.schemaVersion) -or [long]$Record.schemaVersion -ne 2L -or
         $Record.artifactKind -isnot [string] -or [string]$Record.artifactKind -cne 'boundary-scenario-evidence') {
         throw 'Boundary evidence schemaVersion or artifactKind is not exact.'
@@ -8684,7 +8690,7 @@ function Assert-KmcBoundaryScenarioEvidence {
     if ($artifacts.Count -eq 0) { return }
     if ($artifacts.Count -ne 1 -or [string]$artifacts[0].kind -cne 'boundary-evidence') { throw 'Boundary JSONL manifest identity is not exact.' }
     if (-not $isBoundary) { throw 'Boundary JSONL is present for a non-boundary runtime scenario.' }
-    [string[]]$expectedRows = if ([string]$Request.scenario -ceq 'boundary-suite') { @(Get-KmcBoundaryRuntimeRows) } else { @([string]$Request.scenario) }
+    [string[]]$expectedRows = if ([string]$Request.scenario -ceq 'chunk4-area-cleanup') { @('native-area-clean-dismount') } elseif ([string]$Request.scenario -ceq 'boundary-suite') { @(Get-KmcBoundaryRuntimeRows) } else { @([string]$Request.scenario) }
     $path = Assert-KmcChildPath (Join-Path $evidenceRoot 'boundary-scenario-evidence.jsonl') $evidenceRoot 'boundary scenario evidence'
     Assert-KmcNotReparsePoint $path 'boundary scenario evidence'
     Assert-KmcNotHardLink $path 'boundary scenario evidence'
@@ -9640,6 +9646,18 @@ function Assert-KmcMovementScenarioRecord {
         [Parameter(Mandatory = $true)]$Manifest
     )
     $common = @('schemaVersion','runId','scenario','row','branch','commit','productVersion','dllSha256','dllMvid','sequence','utcTimestamp','kind')
+    if(Test-KmcChunk4TraversalScenario $Request.scenario) {
+        $common += 'pairedConfiguration'
+        Assert-KmcChunk4PairedConfiguration $Record.pairedConfiguration
+        if($Record.kind -ceq 'movement-row-result' -and $Record.row -ceq 'mounted-pair-slope') {
+            $common += 'nativeSlope'
+            if($Record.status -ceq 'PASS') {Assert-KmcChunk4NativeSlope $Record.nativeSlope}
+        }
+        if($Record.kind -ceq 'movement-row-result' -and $Record.row -ceq 'mounted-distance-door-interaction') {
+            $common += 'nativeBlockedDoor'
+            if($Record.status -ceq 'PASS') {Assert-KmcChunk4BlockedDoor $Record.nativeBlockedDoor}
+        }
+    }
     if ($Record.kind -isnot [string] -or [string]$Record.kind -cnotin @('path-probe','door-traversal-readiness','navigation-path-replacement','movement-row-result')) { throw 'Movement scenario evidence kind is invalid.' }
     if ([string]$Record.kind -ceq 'path-probe') {
         Assert-KmcExactProperties $Record ($common + @('requested','endpoint','pathLength','accepted','strictDoor')) 'movement path-probe record'
@@ -10102,6 +10120,7 @@ function Assert-KmcMovementScenarioRecord {
         $expectedWaypointCount = switch ([string]$Record.row) {
             'mounted-pair-doorway' { if ($Record.doorApproachSkipped) { 2L } else { 3L }; break }
             'mounted-distance-door-interaction' { 1L; break }
+            'mounted-pair-slope' { 1L; break }
             'mounted-pair-open-ground' { 1L; break }
             'mounted-pair-stop-start' { 2L; break }
             'mounted-pair-turns-and-corners' { 3L; break }
@@ -10364,6 +10383,7 @@ function Assert-KmcMovementScenarioRecord {
                 else { @('door-control','door-control','door-mounted','door-mounted','dismounted') }
                 break
             }
+            'mounted-pair-slope' { @('mounted-idle','moving','dismounted'); break }
             'mounted-pair-open-ground' { @('mounted-idle','moving','stopped','dismounted'); break }
             'mounted-pair-stop-start' { @('mounted-idle','moving','stopped','restarted','dismounted'); break }
             'mounted-pair-turns-and-corners' { @('mounted-idle','moving','corner','corner','dismounted'); break }
@@ -10431,7 +10451,7 @@ function Assert-KmcMovementScenarioEvidence {
     if ($scenarioArtifacts.Count -gt 1 -or ($scenarioArtifacts.Count -eq 1 -and [string]$scenarioArtifacts[0].kind -cne 'scenario-evidence')) { throw 'Movement scenario-evidence manifest identity is not exact.' }
     if (-not $isMovement -or ($telemetryArtifacts.Count -eq 0 -and $scenarioArtifacts.Count -eq 0)) { return }
 
-    [string[]]$expectedRows = if ([string]$Request.scenario -ceq 'movement-suite') {
+    [string[]]$expectedRows = if (Test-KmcChunk4TraversalScenario $Request.scenario) { @(Get-KmcChunk4TraversalRows $Request.scenario) } elseif ([string]$Request.scenario -ceq 'movement-suite') {
         @(Get-KmcMovementRuntimeRows)
     } elseif ([string]$Request.scenario -ceq 'presentation-suite') {
         @(Get-KmcPresentationRuntimeRows)
@@ -12960,7 +12980,7 @@ function New-KmcRuntimeResultV2 {
     }
     else {
         $fallbackName = if (@(Get-KmcSaveBackedRuntimeScenarios | Where-Object { $_ -ceq [string]$Request.scenario }).Count -eq 1 -and
-            [string]$Request.scenario -notin @('fixture-intake','lifecycle-suite','combat-lifecycle-suite','movement-suite','boundary-suite','presentation-suite')) {
+            [string]$Request.scenario -notin @('fixture-intake','lifecycle-suite','combat-lifecycle-suite','chunk4-traversal-core','chunk4-traversal-slope','chunk4-area-cleanup','movement-suite','boundary-suite','presentation-suite')) {
             [string]$Request.scenario
         } else { 'observe-mount-diagnostic-availability' }
         $fallbackErrors = if (@($Errors).Count -eq 0) { @('Runtime game result was unavailable or invalid.') } else { @($Errors) }
@@ -13031,3 +13051,5 @@ function New-KmcRuntimeResultV2 {
 
 . (Join-Path $PSScriptRoot 'Chunk4CoreEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk4ExtendedEvidence.ps1')
+
+. (Join-Path $PSScriptRoot 'Chunk4TraversalEvidence.ps1')

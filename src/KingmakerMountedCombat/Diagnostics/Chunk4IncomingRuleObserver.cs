@@ -106,7 +106,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (!Pair(evt.Initiator)) return;
             var item = Record("saving-throw", evt, evt.Initiator, evt.Initiator);
-            item["type"] = evt.Type.ToString(); item["dc"] = evt.DifficultyClass; item["stat"] = evt.StatValue;
+            item["nativeSource"] = Chunk4NativeAreaObservation.CaptureSaveSource(evt); item["type"] = evt.Type.ToString(); item["dc"] = evt.DifficultyClass; item["stat"] = evt.StatValue;
             item["roll"] = evt.RollResult; item["passed"] = evt.IsPassed; item["autoPass"] = evt.AutoPass;
             item["evasion"] = evt.Evasion; item["improvedEvasion"] = evt.ImprovedEvasion;
         }

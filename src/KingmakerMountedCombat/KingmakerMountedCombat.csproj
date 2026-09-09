@@ -244,6 +244,10 @@
     <Compile Include="Logging\UmmLogger.cs" />
     <Compile Include="Diagnostics\Chunk4ChargeScenario.cs" />
     <Compile Include="Diagnostics\Chunk4IncomingRuleObserver.cs" />
+    <Compile Include="Diagnostics\Chunk4NativeAreaObservation.cs" />
+    <Compile Include="Diagnostics\Chunk4ObstructionScenario.cs" />
+    <Compile Include="Diagnostics\Chunk4TraversalScenario.cs" />
+    <Compile Include="Diagnostics\Chunk4BlockedDoorScenario.cs" />
     <Compile Include="Diagnostics\Chunk4NativeLifeScenario.cs" />
     <Compile Include="Diagnostics\Chunk4HorseStrikeScenario.cs" />
     <Compile Include="Diagnostics\Chunk4IncomingScenario.cs" />

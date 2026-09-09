@@ -21,12 +21,14 @@ namespace KingmakerMountedCombat.Diagnostics
     internal sealed partial class Phase3dHorseScenarioTranche
     {
         internal static bool IsChunk4IncomingScenario(string scenario) =>
-            scenario == "chunk4-targeting-rider-rt" || scenario == "chunk4-targeting-mount-rt";
+            scenario == "chunk4-targeting-rider-rt" || scenario == "chunk4-targeting-mount-rt" || scenario == "chunk4-targeting-area-unmounted-rt";
         private bool IsChunk4Incoming => IsChunk4IncomingScenario(request.Scenario);
+        private bool Chunk4IncomingUnmountedArea => request.Scenario == "chunk4-targeting-area-unmounted-rt";
+        private string Chunk4AreaId => Chunk4IncomingUnmountedArea ? "C4-TARGETING-area-unmounted" : "C4-TARGETING-area-both";
         private bool Chunk4IncomingMount => request.Scenario == "chunk4-targeting-mount-rt";
         private UnitEntityData Chunk4IncomingSubject => Chunk4IncomingMount ? horse : rider;
         private UnitEntityData Chunk4IncomingOther => Chunk4IncomingMount ? rider : horse;
-        private string Chunk4IncomingId => "C4-TARGETING-" + (Chunk4IncomingMount ? "mount" : "rider");
+        private string Chunk4IncomingId => Chunk4IncomingUnmountedArea ? Chunk4AreaId : "C4-TARGETING-" + (Chunk4IncomingMount ? "mount" : "rider");
         private int chunk4IncomingStage;
         private bool chunk4IncomingMountSent;
         private UnitEntityData chunk4Caster;
@@ -61,6 +63,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 var spawn = chunk4AreaSlot.Spell.Blueprint.GetComponents<AbilityEffectRunAction>()
                     .SelectMany(component => component.Actions.Actions).OfType<ContextActionSpawnAreaEffect>().Single();
                 chunk4AreaBlueprint = spawn.AreaEffect.AssetGuid;
+                observations["chunk4AreaDefinition"] = Chunk4NativeAreaObservation.CaptureDefinition(spawn.AreaEffect);
             }
             chunk4IncomingEvidence = new JObject { ["level"] = "NATIVE INTEGRATION", ["caseId"] = Chunk4IncomingId,
                 ["mode"] = "RT", ["subject"] = Chunk4IncomingSubject.UniqueId, ["other"] = Chunk4IncomingOther.UniqueId,
@@ -80,6 +83,7 @@ namespace KingmakerMountedCombat.Diagnostics
             ["pair"] = CaptureOrdinaryLiveState(), ["casterStandard"] = chunk4Caster.CombatState.Cooldown.StandardAction,
             ["casterMove"] = chunk4Caster.CombatState.Cooldown.MoveAction, ["casterPosition"] = Chunk4IncomingPosition(chunk4Caster),
             ["subjectDamage"] = Chunk4IncomingSubject.Damage, ["otherDamage"] = Chunk4IncomingOther.Damage,
+            ["riderReflex"] = rider.Stats.SaveReflex.ModifiedValue, ["mountReflex"] = horse.Stats.SaveReflex.ModifiedValue,
             ["healSlotAvailable"] = chunk4HealSlot.Available, ["areaSlotAvailable"] = chunk4AreaSlot?.Available,
             ["subjectLife"] = Chunk4IncomingSubject.Descriptor.State.LifeState.ToString(),
             ["otherLife"] = Chunk4IncomingOther.Descriptor.State.LifeState.ToString(),
@@ -121,11 +125,13 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (!Chunk4PairedPlayIdle) return;
                 SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
-                if (relationship.State != RelationshipState.Mounted)
+                if (!Chunk4IncomingUnmountedArea && relationship.State != RelationshipState.Mounted)
                 {
                     if (!chunk4IncomingMountSent) chunk4IncomingMountSent = TryNativeAbilityTargetClick(nativeControls.MountAbility, horse, "chunk4-incoming-mount");
                     return;
                 }
+                if (Chunk4IncomingUnmountedArea && relationship.State != RelationshipState.Unmounted)
+                    throw new InvalidOperationException("Area control must remain unmounted before native combat.");
                 if (rider.IsInCombat || horse.IsInCombat || !PrepareUnmountedHorseAiIsolation() || !PrepareCombatMountRiderAiIsolation()) return;
                 if (turnBasedModeProbe == null) turnBasedModeProbe = new NativeModeTransitionProbe(false);
                 if (!turnBasedModeProbe.TemporaryValueIsCurrent) { turnBasedModeProbe.DispatchTemporaryValueIfRequired(); return; }
@@ -135,6 +141,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (chunk4IncomingStage == 1)
             {
                 if (!IsCombatReady(true) || CombatController.IsInTurnBasedCombat() || !Chunk4CasterReady || !Chunk4PairedPlayIdle) return;
+                if (Chunk4IncomingUnmountedArea) { chunk4IncomingStage = 5; ResetLeafClock(); return; }
                 var subject = Chunk4IncomingSubject;
                 var difficulty = game.Player.Difficulty.DamageToParty;
                 if (subject.Damage != 0 || subject.Stats.TemporaryHitPoints.ModifiedValue != 0 ||
@@ -204,7 +211,8 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (!Chunk4CasterReady || !Chunk4PairedPlayIdle) return;
                 chunk4AreasBefore = game.State.AreaEffects.Select(area => area.UniqueId).ToArray();
-                ordinaryAttackTrace.BeginCase("C4-TARGETING-area-both");
+                chunk4IncomingEvidence["beforeArea"] = CaptureChunk4IncomingState();
+                ordinaryAttackTrace.BeginCase(Chunk4AreaId);
                 chunk4IncomingEvidence["areaClick"] = ClickChunk4IncomingAbility(chunk4AreaSlot.Spell, horse);
                 if (!(bool)chunk4IncomingEvidence["areaClick"]["clicked"] || !(bool)chunk4IncomingEvidence["areaClick"]["queryPure"])
                     throw new InvalidOperationException("Native Entangle targeting was not admitted with pure prediction.");
@@ -220,30 +228,47 @@ namespace KingmakerMountedCombat.Diagnostics
                 var saves = Chunk4IncomingEvents("saving-throw");
                 if (!chunk4Area.UnitsInside.Contains(rider) || !chunk4Area.UnitsInside.Contains(horse) ||
                     saves.All(item => (string)item["actor"] != rider.UniqueId) || saves.All(item => (string)item["actor"] != horse.UniqueId)) return;
-                var first = new[] { rider, horse }.Select(actor => saves.First(item => (string)item["actor"] == actor.UniqueId)).ToArray();
+                var entries = saves.Where(item => (string)item["nativeSource"]?["area"] == chunk4Area.UniqueId &&
+                    item["nativeSource"]?["callbacks"] is JArray callbacks && callbacks.Count == 1 &&
+                    (string)callbacks[0]["kind"] == "unit-enter" && (string)callbacks[0]["token"] == "06002ccd").ToArray();
+                chunk4IncomingEvidence["areaObservedSources"] = new JArray(saves);
+                if (saves.Any(item => (string)item["nativeSource"]?["area"] != chunk4Area.UniqueId ||
+                    !(item["nativeSource"]?["callbacks"] is JArray callbacks) || callbacks.Count != 1 ||
+                    (string)callbacks[0]["kind"] != "unit-enter" && (string)callbacks[0]["kind"] != "round"))
+                    throw new InvalidOperationException("Area save lacks its exact native entry/round source; phase cannot be inferred from timestamp alone.");
+                if (new[] { rider, horse }.Any(actor => entries.Count(item => (string)item["actor"] == actor.UniqueId) != 1))
+                    throw new InvalidOperationException("Native area entry did not resolve exactly once per independent actor.");
+                var first = new[] { rider, horse }.Select(actor => entries.Single(item => (string)item["actor"] == actor.UniqueId)).ToArray();
+                if (saves.GroupBy(item => (string)item["actor"] + ":" + (string)item["nativeSource"]["callbacks"][0]["token"] + ":" + (long)item["gameTicks"])
+                    .Any(group => group.Count() != 1))
+                    throw new InvalidOperationException("One native area callback duplicated an actor's saving throw.");
                 if (first.Any(item => (string)item["type"] != "Reflex" || (int)item["dc"] <= 0 ||
-                    saves.Count(other => (string)other["actor"] == (string)item["actor"] && (long)other["gameTicks"] == (long)item["gameTicks"]) != 1) ||
-                    chunk4AreaSlot.Available || Chunk4IncomingSubject.Damage != (int)chunk4IncomingEvidence["afterHeal"]["subjectDamage"] ||
-                    Chunk4IncomingOther.Damage != (int)chunk4IncomingEvidence["afterHeal"]["otherDamage"])
+                    entries.Count(other => (string)other["actor"] == (string)item["actor"]) != 1) ||
+                    chunk4AreaSlot.Available || Chunk4IncomingSubject.Damage != (int)chunk4IncomingEvidence["beforeArea"]["subjectDamage"] ||
+                    Chunk4IncomingOther.Damage != (int)chunk4IncomingEvidence["beforeArea"]["otherDamage"])
                     throw new InvalidOperationException("Native area effect duplicated an actor's first save, spent no slot or unexpectedly changed health.");
-                chunk4IncomingEvidence["area"] = new JObject { ["level"] = "NATIVE INTEGRATION", ["mode"] = "RT", ["caseId"] = "C4-TARGETING-area-both",
+                chunk4IncomingEvidence["area"] = new JObject { ["level"] = "NATIVE INTEGRATION", ["mode"] = "RT", ["caseId"] = Chunk4AreaId, ["mounted"] = !Chunk4IncomingUnmountedArea,
                     ["entity"] = chunk4Area.UniqueId, ["blueprint"] = chunk4Area.Blueprint.AssetGuid,
                     ["caster"] = chunk4Area.Context.MaybeCaster.UniqueId, ["unitsInside"] = new JArray(chunk4Area.UnitsInside.Select(unit => unit.UniqueId)),
                     ["firstSaves"] = new JArray(first), ["allSaves"] = new JArray(saves), ["state"] = CaptureChunk4IncomingState(),
-                    ["nativeTrace"] = ordinaryAttackTrace.CaptureCaseEvents("C4-TARGETING-area-both"),
+                    ["ruleDrops"] = chunk4IncomingObserver.Capture()["dropped"],
+                    ["before"] = chunk4IncomingEvidence["beforeArea"].DeepClone(),
+                    ["definition"] = observations["chunk4AreaDefinition"].DeepClone(),
+                    ["nativeTrace"] = ordinaryAttackTrace.CaptureCaseEvents(Chunk4AreaId),
                     ["components"] = new JArray(chunk4Area.Blueprint.ComponentsArray.Select(component => component.GetType().FullName)) };
-                AddRow("C4-TARGETING-area-both", true, "One actual native Entangle area independently included both actors and resolved their own first Reflex saves once.", (JObject)chunk4IncomingEvidence["area"].DeepClone());
+                AddRow(Chunk4AreaId, true, "One native area resolved an entry Reflex save once per actor; separately identified native round callbacks remain native behavior.", (JObject)chunk4IncomingEvidence["area"].DeepClone());
                 chunk4Area.Destroy(); chunk4IncomingStage = 7; ResetLeafClock(); return;
             }
             if (chunk4IncomingStage == 7)
             {
                 if (chunk4Area.IsInState || game.State.AreaEffects.Contains(chunk4Area)) return;
                 chunk4IncomingEvidence["ownedAreaRemoved"] = true; chunk4Area = null;
+                if (Chunk4IncomingUnmountedArea) { BeginCleanup(); return; }
                 chunk4IncomingStage = 8; ResetLeafClock(); return;
             }
             if (chunk4IncomingStage == 8)
             {
-                if (relationship.State != RelationshipState.Mounted)
+                if (!Chunk4IncomingUnmountedArea && relationship.State != RelationshipState.Mounted)
                     throw new InvalidOperationException("Incoming hostile targeting lost the mounted condition before its native order.");
                 if (!Chunk4CasterReady || !Chunk4PairedPlayIdle || !target.Commands.Empty || target.AreHandsBusyWithAnimation ||
                     !target.CombatState.CanActInCombat || target.CombatState.Cooldown.StandardAction > .001f || target.CombatState.Cooldown.MoveAction > .001f) return;

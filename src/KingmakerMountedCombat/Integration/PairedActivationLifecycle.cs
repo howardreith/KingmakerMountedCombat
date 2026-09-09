@@ -58,6 +58,8 @@ namespace KingmakerMountedCombat.Integration
             return true;
         }
         internal string ActivationIdentity => activation?.Identity;
+        internal bool ActivationSplit => activation?.Split == true;
+        internal bool ActivationFinalized => activation?.Finalized == true;
         internal long ActivationSequence => activation?.Sequence ?? 0;
         internal TurnController PartnerContext => partnerContext;
         internal bool IsPartnerContext(TurnController turn) => turn != null && ReferenceEquals(partnerContext, turn);

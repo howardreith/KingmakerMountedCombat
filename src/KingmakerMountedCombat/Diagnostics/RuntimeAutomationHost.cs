@@ -89,7 +89,10 @@ namespace KingmakerMountedCombat.Diagnostics
             request.Scenario != "mounted-mammoth-primary-hit-rt" &&
             request.Scenario != "mounted-mammoth-primary-hit-tb" &&
             request.Scenario != "mounted-pair-party-formation" &&
-            request.Scenario != "combat-lifecycle-suite";
+            request.Scenario != "combat-lifecycle-suite" &&
+            request.Scenario != "chunk4-area-cleanup" &&
+            request.Scenario != "chunk4-traversal-core" &&
+            request.Scenario != "chunk4-traversal-slope";
 
         public string RunId => request.RunId;
 
@@ -631,7 +634,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (boundaryEngine == null)
                 {
                     boundaryEngine = new RuntimeBoundaryScenarioEngine(request, relationship, lifecycle, saveAuthorization,
-                        fixtureLoader, playerAction, diagnosticSettings, registeredToggle, logger);
+                        fixtureLoader, playerAction, combat, diagnosticSettings, registeredToggle, logger);
                     boundaryEngine.Start();
                 }
                 boundaryEngine.Update();

@@ -41,9 +41,11 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & (Join-Path $PSScriptRoot 'Test-Chunk4PlayProtocol.ps1')
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-& (Join-Path $PSScriptRoot 'Test-Chunk4CoreProtocol.ps1')
+& (Join-Path $PSScriptRoot 'Test-Chunk4ArtifactProtocol.ps1')
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & (Join-Path $PSScriptRoot 'Test-Chunk4ExtendedProtocol.ps1')
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+& (Join-Path $PSScriptRoot 'Test-Chunk4TraversalProtocol.ps1')
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & (Join-Path $PSScriptRoot 'Test-Chunk4ChargeProtocol.ps1')
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

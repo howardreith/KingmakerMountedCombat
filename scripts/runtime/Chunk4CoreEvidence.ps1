@@ -1,7 +1,7 @@
 function Test-KmcChunk4CoreScenario {
     param([string]$Scenario)
     return $Scenario -cin @('chunk4-rider-incapacitation-tb','chunk4-rider-death-tb','chunk4-mount-death-tb',
-        'chunk4-targeting-rider-rt','chunk4-targeting-mount-rt','chunk4-horse-strike-comparison-rt','chunk4-ranged-native-control-rt')
+        'chunk4-targeting-area-unmounted-rt','chunk4-targeting-rider-rt','chunk4-targeting-mount-rt','chunk4-horse-strike-comparison-rt','chunk4-ranged-native-control-rt')
 }
 function Get-KmcChunk4CoreLeaves {
     param([string]$Scenario)
@@ -10,6 +10,7 @@ function Get-KmcChunk4CoreLeaves {
         'chunk4-rider-death-tb' {return @('C4-LIFE-rider-death-live-command')}
         'chunk4-mount-death-tb' {return @('C4-LIFE-mount-death-live-command')}
         'chunk4-targeting-rider-rt' {return @('C4-TARGETING-rider-heal','C4-TARGETING-area-both','C4-TARGETING-rider-hostile')}
+        'chunk4-targeting-area-unmounted-rt' {return @('C4-TARGETING-area-unmounted')}
         'chunk4-targeting-mount-rt' {return @('C4-TARGETING-mount-heal','C4-TARGETING-mount-hostile')}
         'chunk4-horse-strike-comparison-rt' {return @('C4-HORSE-mounted-three-primaries','C4-HORSE-unmounted-strike-recovery')}
         'chunk4-ranged-native-control-rt' {return @('C4-RANGED-native-mixed-range')}
@@ -32,7 +33,7 @@ function Assert-KmcChunk4CoreEvidence {
         elseif($row.name.StartsWith('C4-HORSE-')){Assert-KmcChunk4HorseRow $e}
         elseif($row.name -ceq 'C4-RANGED-native-mixed-range'){Assert-KmcChunk4NativeRangedRow $e}
         elseif($row.name.EndsWith('-heal')){Assert-KmcChunk4HealRow $e}
-        elseif($row.name -ceq 'C4-TARGETING-area-both'){Assert-KmcChunk4AreaRow $e}
+        elseif($row.name -cin @('C4-TARGETING-area-both','C4-TARGETING-area-unmounted')){Assert-KmcChunk4AreaRow $e}
         else{Assert-KmcChunk4HostileRow $e}
     }
     if($Artifact.subscenarioPassCount -ne $pass -or $Artifact.subscenarioFailCount -ne $fail){throw 'Core result counts disagree with native rows.'}
@@ -58,7 +59,7 @@ function Assert-KmcChunk4LifeRow {
         $e.beforeDamage.live.relationship -cne 'Mounted' -or $e.beforeDamage.pairCommand -ne $true -or
         $e.liveCommandBefore.started -ne $true -or $e.liveCommandBefore.finished -ne $false -or
         $e.finalLife.live.relationship -cne 'Unmounted' -or $e.finalLife.attachmentResidue -ne $false -or
-        $e.finalLife.attachmentRestoreVerified -ne $true -or $null -ne $e.finalLife.privatePartner -or $null -ne $e.finalLife.identity -or
+        $e.finalLife.attachmentRestoreVerified -ne $true -or $null -ne $e.finalLife.privatePartner -or
         $e.finalLife.pairCommand -ne $false -or $e.finalLife.pairIntent -ne $false -or $e.finalLife.pairMovement -ne $false -or
         $e.finalLife.$survivor.conscious -ne $true -or $e.finalLife.$survivor.inState -ne $true -or
         $e.finalLife.$survivor.enabledRenderers -lt 1 -or $e.finalLife.$survivor.damage -ne $e.beforeDamage.$survivor.damage){throw 'Native rider/mount life stimulus or independent cleanup is incomplete.'}
@@ -69,6 +70,29 @@ function Assert-KmcChunk4LifeRow {
     if(@($e.nativeLifeEvents.events|Where-Object {$_.kind -ceq 'native-life-state' -and $_.actor -ceq $e.subject}).Count -lt 1 -or
         $e.nativeRules.dropped -ne 0 -or @($e.nativeRules.events|Where-Object {$_.kind -ceq 'damage-after' -and $_.target -ceq $e.subject -and $_.damage -gt 0}).Count -ne 1){throw 'Life PASS lacks actual native damage and life callbacks.'}
     foreach($actor in @('rider','mount')){if(@($e.finalLife.live.$actor.raw|Where-Object {$null -ne $_}).Count -ne 0 -or @($e.finalLife.live.$actor.queue).Count -ne 0){throw 'Native life cleanup retained a pair command.'}}
+    foreach($life in @($e.afterCleanup,$e.finalLife)) {
+        if($null -eq $life -or $life.split -isnot [bool] -or $life.finalized -isnot [bool] -or
+            $life.riderEnded -isnot [bool] -or $life.mountEnded -isnot [bool] -or
+            $life.live.relationship -cne 'Unmounted' -or $life.pairCommand -ne $false -or $null -ne $life.privatePartner -or
+            $null -ne $life.identity -and (!$life.split -or $life.identity -cne $e.beforeDamage.identity) -or
+            $life.riderGrants -ne $e.beforeDamage.riderGrants -or $life.mountGrants -ne $e.beforeDamage.mountGrants) {
+            throw 'Life cleanup retained active/new pair ownership or issued another actor grant.'
+        }
+    }
+    $exit=$e.nativeEncounterExit
+    if($null -eq $exit -or $null -ne $exit.identity -or $null -ne $exit.privatePartner -or $exit.actorRecords -ne 0 -or
+        $exit.playerCombat -ne $false -or $exit.riderCombat -ne $false -or $exit.mountCombat -ne $false -or
+        $exit.tbActive -ne $false -or $exit.tbInitialized -ne $false -or $exit.live.relationship -cne 'Unmounted' -or
+        $exit.attachmentResidue -ne $false -or $exit.attachmentRestoreVerified -ne $true -or $exit.pairCommand -ne $false -or
+        $exit.pairIntent -ne $false -or $exit.pairMovement -ne $false -or $exit.$subject.conscious -ne $false -or
+        $exit.$subject.dead -ne (!$e.incapacitation) -or $exit.$survivor.conscious -ne $true -or $exit.$survivor.enabledRenderers -lt 1 -or
+        $exit.$survivor.damage -ne $e.beforeDamage.$survivor.damage) {throw 'Native encounter exit did not retire the split accounting state or preserve the life result.'}
+    foreach($actor in @('rider','mount')) {
+        if(@($exit.live.$actor.raw|Where-Object {$null -ne $_}).Count -ne 0 -or @($exit.live.$actor.queue).Count -ne 0){throw 'Native encounter exit retained a pair command.'}
+    }
+    if($e.enemyDamageDispatches -ne 1 -or $e.enemyNativeDamage -le 0 -or $e.enemyLifeTransitions -lt 1 -or
+        $e.enemyBeforeDamage.id -cne $e.enemyAfterDeath.id -or $e.enemyBeforeDamage.conscious -ne $true -or $e.enemyAfterDeath.dead -ne $true -or
+        [string]::IsNullOrWhiteSpace($e.enemyDamageSource) -or $e.enemyDamageSource -ceq $e.subject) {throw 'Life retirement lacks an actual labelled native enemy defeat.'}
 }
 function Assert-KmcChunk4SpellCost {
     param($Trace,[string]$Caster,[string]$Blueprint)
@@ -96,17 +120,48 @@ function Assert-KmcChunk4HealRow {
 function Assert-KmcChunk4AreaRow {
     param($e)
     $rider=$e.state.pair.rider.id;$mount=$e.state.pair.mount.id
-    if($e.mode -cne 'RT' -or $e.state.pair.relationship -cne 'Mounted' -or [string]::IsNullOrEmpty($e.entity) -or [string]::IsNullOrEmpty($e.blueprint) -or
-        $rider -ceq $mount -or $e.caster -cin @($rider,$mount) -or $e.state.areaSlotAvailable -ne $false -or
-        $rider -cnotin $e.unitsInside -or $mount -cnotin $e.unitsInside -or @($e.firstSaves).Count -ne 2){throw 'One native area did not include both independent actors.'}
+    $mounted=$e.caseId -ceq 'C4-TARGETING-area-both'
+    $relationship=if($mounted){'Mounted'}else{'Unmounted'}
+    if($e.caseId -cnotin @('C4-TARGETING-area-both','C4-TARGETING-area-unmounted') -or $e.mounted -ne $mounted -or
+        $e.mode -cne 'RT' -or $e.state.pair.relationship -cne $relationship -or $e.before.pair.relationship -cne $relationship -or
+        [string]::IsNullOrEmpty($e.entity) -or $e.blueprint -cne 'bcb6329cefc66da41b011299a43cc681' -or
+        [string]::IsNullOrEmpty($rider) -or [string]::IsNullOrEmpty($mount) -or $rider -ceq $mount -or
+        $e.caster -cin @($rider,$mount) -or $e.state.areaSlotAvailable -ne $false -or $e.before.areaSlotAvailable -ne $true -or
+        $e.state.subjectDamage -ne $e.before.subjectDamage -or $e.state.otherDamage -ne $e.before.otherDamage -or
+        @($e.unitsInside|Where-Object {$_ -ceq $rider}).Count -ne 1 -or @($e.unitsInside|Where-Object {$_ -ceq $mount}).Count -ne 1 -or
+        @($e.firstSaves).Count -ne 2 -or @($e.allSaves).Count -lt 2 -or @($e.definition).Count -lt 1 -or $e.ruleDrops -ne 0){throw 'One native area did not independently include both actors with native slot expenditure.'}
+    foreach($definition in $e.definition){
+        if($definition.type -cne 'Kingmaker.UnitLogic.Abilities.Components.AreaEffects.AbilityAreaEffectRunAction' -or
+            $null -eq $definition.unitEnter -or $null -eq $definition.round){throw 'Native area action metadata is missing.'}
+    }
+    $identities=New-Object 'Collections.Generic.HashSet[long]'
+    $callbacks=New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
+    foreach($save in $e.allSaves){
+        $source=$save.nativeSource
+        if($save.kind -cne 'saving-throw' -or $save.actor -cnotin @($rider,$mount) -or $save.target -cne $save.actor -or
+            !(Test-KmcExactJsonInteger $save.identity) -or !$identities.Add([long]$save.identity) -or
+            !(Test-KmcExactJsonInteger $save.frame) -or !(Test-KmcExactJsonInteger $save.gameTicks) -or
+            $save.type -cne 'Reflex' -or $save.dc -le 0 -or $save.passed -isnot [bool] -or
+            !(Test-KmcExactJsonInteger $save.stat) -or !(Test-KmcExactJsonInteger $save.roll) -or
+            $source.area -cne $e.entity -or $source.areaBlueprint -cne $e.blueprint -or $source.caster -cne $e.caster -or
+            $source.actorInside -ne $true -or @($source.callbacks).Count -ne 1){throw 'Native saving throw lacks exact independent actor and area identity.'}
+        $callback=$source.callbacks[0]
+        $token=if($callback.kind -ceq 'unit-enter'){'06002ccd'}elseif($callback.kind -ceq 'round'){'06002cd0'}else{''}
+        if($token -ceq '' -or $callback.token -cne $token -or $callback.assemblyMvid -cne '07fa1e4d-8618-41b3-9b8d-faa17d3b26f7' -or
+            !$callbacks.Add($save.actor+':'+$token+':'+[string]$save.gameTicks)){throw 'Native area duplicated an actor callback or lacks its exact local callback contract.'}
+    }
     foreach($actor in @($rider,$mount)){
-        $save=@($e.firstSaves|Where-Object {$_.actor -ceq $actor})
-        if($save.Count -ne 1 -or $save[0].type -cne 'Reflex' -or $save[0].dc -le 0 -or $save[0].passed -isnot [bool] -or
-            !(Test-KmcExactJsonInteger $save[0].stat) -or !(Test-KmcExactJsonInteger $save[0].roll) -or
-            @($e.allSaves|Where-Object {$_.actor -ceq $actor -and $_.gameTicks -eq $save[0].gameTicks}).Count -ne 1){throw 'Native area duplicated or omitted an actor defense/save.'}
+        $entry=@($e.allSaves|Where-Object {$_.actor -ceq $actor -and $_.nativeSource.callbacks[0].kind -ceq 'unit-enter'})
+        $first=@($e.firstSaves|Where-Object {$_.actor -ceq $actor})
+        $stat=if($actor -ceq $rider){$e.before.riderReflex}else{$e.before.mountReflex}
+        if($entry.Count -ne 1 -or $first.Count -ne 1 -or !(Test-KmcExactJsonInteger $stat) -or $first[0].stat -ne $stat -or
+            (ConvertTo-Json $entry[0] -Depth 12 -Compress) -cne (ConvertTo-Json $first[0] -Depth 12 -Compress)){
+            throw 'Native area omitted or duplicated an entry save, or used the wrong actor defense.'
+        }
     }
     Assert-KmcChunk4SpellCost $e.nativeTrace $e.caster '0fd00984a2c0e0a429cf1a911b4ec5ca'
 }
+
 function Assert-KmcChunk4HostileRow {
     param($e)
     $cmd=$e.hostileCommand

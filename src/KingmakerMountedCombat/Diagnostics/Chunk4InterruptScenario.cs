@@ -8,6 +8,7 @@ using Kingmaker.RuleSystem.Rules.Damage;
 using Kingmaker.UI.Selection;
 using Kingmaker.UnitLogic.Commands;
 using Kingmaker.UnitLogic.Commands.Base;
+using Kingmaker.Visual.FogOfWar;
 using KingmakerMountedCombat.Domain;
 using Newtonsoft.Json.Linq;
 using TurnBased.Controllers;
@@ -41,6 +42,11 @@ namespace KingmakerMountedCombat.Diagnostics
         private double chunk4InterruptPausedAt;
         private Vector3 chunk4InterruptTargetOrigin;
         private int chunk4InterruptFirstAttackCount;
+        private int chunk4MovingPathCandidate;
+        private bool chunk4MovingPathPending;
+        private string chunk4MovingPathError;
+        private Vector3? chunk4MovingPathEndpoint;
+        private readonly JArray chunk4MovingPathCandidates = new JArray();
         private bool Chunk4InterruptDeath => Chunk4InterruptKind.StartsWith("target-death-", StringComparison.Ordinal);
         private bool Chunk4InterruptRetarget => Chunk4InterruptKind.StartsWith("retarget-", StringComparison.Ordinal);
 
@@ -142,6 +148,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     horse.CombatState.Cooldown.StandardAction > 0.001f || horse.CombatState.Cooldown.MoveAction > 0.001f ||
                     !rider.CombatState.CanActInCombat || !horse.CombatState.CanActInCombat ||
                     game.HandsEquipmentController.IsUpdateScheduledFor(rider) || game.HandsEquipmentController.IsUpdateScheduledFor(horse)) return;
+                if (Chunk4InterruptRanged && Chunk4InterruptKind == "moving-target" && !PrepareChunk4MovingTargetPath()) return;
                 ordinaryAttackTrace.BeginCase(Chunk4InterruptId); chunk4IncomingObserver.BeginCase(Chunk4InterruptId);
                 chunk4InterruptEvidence["before"] = CaptureChunk4InterruptState();
                 chunk4InterruptEvidence["rulesBefore"] = chunk4IncomingObserver.Capture();
@@ -161,7 +168,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     if (!combat.HasActiveCommand && !combat.HasStockAttackIntent) return;
                     chunk4InterruptTargetOrigin = target.Position;
-                    var point = FindWalkablePointAwayFromTarget(target.Position, horse.Position, 3f);
+                    var point = Chunk4InterruptRanged ? chunk4MovingPathEndpoint.Value :
+                        FindWalkablePointAwayFromTarget(target.Position, horse.Position, 3f);
                     chunk4InterruptTargetMove = new UnitMoveTo(point) { CreatedByPlayer = true };
                     chunk4InterruptEvidence["beforeStimulus"] = CaptureChunk4InterruptState();
                     chunk4InterruptEvidence["targetMoveDestination"] = new JArray(point.x, point.y, point.z);
@@ -294,6 +302,81 @@ namespace KingmakerMountedCombat.Diagnostics
                 chunk4InterruptFirst = null; chunk4InterruptEvidence = null; ResetLeafClock();
             }
         }
+
+        private bool PrepareChunk4MovingTargetPath()
+        {
+            if (chunk4MovingPathError != null) throw new InvalidOperationException(chunk4MovingPathError);
+            if (chunk4MovingPathEndpoint.HasValue) return true;
+            if (chunk4MovingPathPending) return false;
+            if (chunk4MovingPathCandidate == 16)
+                throw new InvalidOperationException("No bounded clear native target path exists for the moving-target case.");
+            // S selected a walkable endpoint whose native route detoured behind
+            // geometry. Qualify a clear short route before measurement; the
+            // separate obstruction case retains native visibility cancellation.
+            var index = chunk4MovingPathCandidate++;
+            var direction = target.Position - horse.Position; direction.y = 0f; direction.Normalize();
+            var nearest = global::AstarPath.active.GetNearest(target.Position +
+                Quaternion.Euler(0f, 90f + index * 22.5f, 0f) * direction * 3f);
+            var requested = nearest.clampedPosition;
+            var candidate = new JObject { ["index"] = index, ["requested"] = Chunk4MovingPoint(requested),
+                ["walkable"] = nearest.node != null && nearest.node.Walkable, ["accepted"] = false };
+            chunk4MovingPathCandidates.Add(candidate);
+            chunk4InterruptEvidence["targetPathCandidates"] = chunk4MovingPathCandidates;
+            if (!(bool)candidate["walkable"]) return false;
+            var subject = target;
+            var before = new JObject { ["rider"] = CaptureOrdinaryActor(rider), ["mount"] = CaptureOrdinaryActor(horse),
+                ["target"] = CaptureOrdinaryActor(subject) };
+            var sight = new Chunk4NativeSightProbe(subject, rider).CaptureSight();
+            var approach = (JArray)sight["point"];
+            var offset = new Vector3((float)approach[0], (float)approach[1], (float)approach[2]) - subject.Position;
+            chunk4MovingPathPending = true;
+            var path = subject.View.AgentASP.FindPath(requested, result => {
+                if (disposed || completed || !ReferenceEquals(subject, target) || chunk4InterruptStage != 1) return;
+                chunk4MovingPathPending = false;
+                candidate["error"] = result == null || result.error;
+                if (result == null || result.error || result.vectorPath == null || result.vectorPath.Count < 2) return;
+                var points = result.vectorPath;
+                var endpoint = points[points.Count - 1];
+                var direct = HorizontalDistance(subject.Position, endpoint);
+                var length = 0f;
+                var samples = new JArray();
+                for (var segment = 1; segment < points.Count; segment++)
+                {
+                    var distance = Vector3.Distance(points[segment - 1], points[segment]); length += distance;
+                    var count = Math.Max(1, (int)Math.Ceiling(distance / 0.25f));
+                    if (samples.Count + count + 1 > 128) { candidate["sampleLimit"] = true; return; }
+                    for (var sample = 0; sample <= count; sample++)
+                    {
+                        var point = Vector3.Lerp(points[segment - 1], points[segment], (float)sample / count);
+                        samples.Add(new JObject { ["point"] = Chunk4MovingPoint(point),
+                            ["blocked"] = LineOfSightGeometry.Instance.HasObstacle(rider.EyePosition, point + offset, (int)sight["targetLosObjectId"]),
+                            ["distance"] = HorizontalDistance(horse.Position, point) });
+                    }
+                }
+                var after = new JObject { ["rider"] = CaptureOrdinaryActor(rider), ["mount"] = CaptureOrdinaryActor(horse),
+                    ["target"] = CaptureOrdinaryActor(subject) };
+                candidate["before"] = before; candidate["after"] = after;
+                candidate["direct"] = direct; candidate["length"] = length;
+                candidate["endpointError"] = HorizontalDistance(requested, endpoint);
+                candidate["radius"] = sight["radius"]; candidate["samples"] = samples;
+                candidate["endpoint"] = Chunk4MovingPoint(endpoint);
+                if (!JToken.DeepEquals(before, after))
+                {
+                    chunk4MovingPathError = "Native fixture path probing changed actor commands, positions or costs.";
+                    return;
+                }
+                if (direct < 2.5f || direct > 3.5f || length > direct * 1.5f + 0.5f ||
+                    (float)candidate["endpointError"] > 0.3f || samples.OfType<JObject>().Any(sample =>
+                        (bool)sample["blocked"] || (float)sample["distance"] > (float)sight["radius"] - 0.5f)) return;
+                candidate["accepted"] = true;
+                chunk4MovingPathEndpoint = endpoint;
+                chunk4InterruptEvidence["targetPath"] = candidate;
+            });
+            if (path == null) { chunk4MovingPathPending = false; candidate["pendingNativePath"] = true; }
+            return false;
+        }
+
+        private static JArray Chunk4MovingPoint(Vector3 point) => new JArray(point.x, point.y, point.z);
 
         private void KillChunk4InterruptTarget()
         {

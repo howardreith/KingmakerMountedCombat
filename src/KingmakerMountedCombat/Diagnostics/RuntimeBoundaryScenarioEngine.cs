@@ -16,6 +16,7 @@ using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Integration;
 using KingmakerMountedCombat.Logging;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using Newtonsoft.Json.Serialization;
 using UnityEngine;
 
@@ -50,6 +51,10 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly WorkingFixtureLoader fixtureLoader;
         private readonly MountedPlayerActionController playerAction;
         private readonly DiagnosticSettings settings;
+        private readonly MountedCombatController combat;
+        private bool originalPairedActivation;
+        private bool chunk4PairedConfigurationOwned;
+        private bool IsChunk4Area => request.Scenario == "chunk4-area-cleanup";
         private readonly Func<bool, bool> registeredToggle;
         private readonly IModLogger logger;
         private readonly List<RuntimeSubscenarioResult> results = new List<RuntimeSubscenarioResult>();
@@ -128,6 +133,7 @@ namespace KingmakerMountedCombat.Diagnostics
             RuntimeSaveAuthorization saveAuthorization,
             WorkingFixtureLoader fixtureLoader,
             MountedPlayerActionController playerAction,
+            MountedCombatController combat,
             DiagnosticSettings settings,
             Func<bool, bool> registeredToggle,
             IModLogger logger)
@@ -139,6 +145,7 @@ namespace KingmakerMountedCombat.Diagnostics
             this.fixtureLoader = fixtureLoader ?? throw new ArgumentNullException(nameof(fixtureLoader));
             this.playerAction = playerAction ?? throw new ArgumentNullException(nameof(playerAction));
             this.settings = settings ?? throw new ArgumentNullException(nameof(settings));
+            this.combat = combat ?? throw new ArgumentNullException(nameof(combat));
             this.registeredToggle = registeredToggle ?? throw new ArgumentNullException(nameof(registeredToggle));
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
             evidencePath = Path.Combine(request.EvidenceRoot, BoundaryScenarioEvidenceContract.EvidenceFileName);
@@ -200,6 +207,7 @@ namespace KingmakerMountedCombat.Diagnostics
             currentWorkingIdentityAuthority = postInitialLoadWorkingIdentity;
 
             originalUnsafeExperimentSetting = settings.EnableUnsafeMovementExperiment;
+            originalPairedActivation = settings.EnablePairedActivation;
             evidenceSequenceGuard = new BoundaryEvidenceSequenceGuard(selectedRows);
             evidenceJournal = new BoundaryEvidenceJournal(evidencePath);
             suiteClock.Start();
@@ -454,6 +462,13 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (!settingLeaseOwned)
             {
+                if (IsChunk4Area)
+                {
+                    if (settings.EnableUnifiedMountedTurn || settings.EnablePairedCommandScheduler || settings.EnableDiagnosticOverlay || playerAction.OverlayPresent ||
+                        !combat.TryConfigurePairedActivation(true))
+                        throw new InvalidOperationException("Chunk 4 area boundary requires the sole paired authority without an overlay.");
+                    chunk4PairedConfigurationOwned = true;
+                }
                 settings.EnableUnsafeMovementExperiment = true;
                 settingLeaseOwned = true;
             }
@@ -1738,6 +1753,12 @@ namespace KingmakerMountedCombat.Diagnostics
                     CurrentNativeDeliveries()),
                 NativeMode = nativeModeEvidence ?? NativeModeProbeEvidence.NotExecuted(),
                 ModDisable = modDisableEvidence ?? ModDisableProbeEvidence.NotExecuted(),
+                PairedConfiguration = IsChunk4Area ? new JObject {
+                    ["enablePairedActivation"] = settings.EnablePairedActivation,
+                    ["enableUnifiedMountedTurn"] = settings.EnableUnifiedMountedTurn,
+                    ["enablePairedCommandScheduler"] = settings.EnablePairedCommandScheduler,
+                    ["enableDiagnosticOverlay"] = settings.EnableDiagnosticOverlay,
+                    ["overlayPresent"] = playerAction.OverlayPresent } : null,
                 RecordErrors = recordErrors == null ? new string[0] : recordErrors.ToArray()
             };
         }
@@ -2242,6 +2263,12 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 return;
             }
+            if (chunk4PairedConfigurationOwned)
+            {
+                if (!combat.TryConfigurePairedActivation(originalPairedActivation))
+                    throw new InvalidOperationException("Chunk 4 area boundary could not restore its developer configuration.");
+                chunk4PairedConfigurationOwned = false;
+            }
             settings.EnableUnsafeMovementExperiment = originalUnsafeExperimentSetting;
             settingLeaseOwned = false;
         }
@@ -2320,6 +2347,8 @@ namespace KingmakerMountedCombat.Diagnostics
             public NativeLifecycleEvidence NativeLifecycle { get; set; }
             public NativeModeProbeEvidence NativeMode { get; set; }
             public ModDisableProbeEvidence ModDisable { get; set; }
+            [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            public JObject PairedConfiguration { get; set; }
             public IReadOnlyList<string> RecordErrors { get; set; }
         }
 

@@ -31,7 +31,7 @@ namespace KingmakerMountedCombat.Diagnostics
     /// this type never invokes a save API and changes only movement, selection,
     /// pause, and the explicitly scoped mounted relationship.
     /// </summary>
-    internal sealed class RuntimeMovementScenarioEngine : IDisposable
+    internal sealed partial class RuntimeMovementScenarioEngine : IDisposable
     {
         // The host has a 300-second monotonic deadline and the launcher allows
         // another bounded exit/restoration window. Eight rows can legitimately
@@ -504,11 +504,11 @@ namespace KingmakerMountedCombat.Diagnostics
             evidenceWriter = new StreamWriter(new FileStream(evidencePath, FileMode.CreateNew, FileAccess.Write, FileShare.Read), new System.Text.UTF8Encoding(false));
             originalUnsafeMovementSetting = settings.EnableUnsafeMovementExperiment;
             originalPairedActivationSetting = settings.EnablePairedActivation;
-            if (request.Scenario == "mounted-pair-party-formation" && !combat.TryConfigurePairedActivation(true))
+            if ((request.Scenario == "mounted-pair-party-formation" || IsChunk4Traversal) && !combat.TryConfigurePairedActivation(true))
                 throw new InvalidOperationException("Paired developer configuration was rejected before party fixture setup.");
             settings.EnableUnsafeMovementExperiment = true;
             settingLeaseOwned = true;
-            if (request.Scenario == "mounted-pair-party-formation")
+            if ((request.Scenario == "mounted-pair-party-formation" || IsChunk4Traversal))
             {
                 if (settings.EnableUnifiedMountedTurn || settings.EnablePairedCommandScheduler ||
                     settings.EnableDiagnosticOverlay || playerAction.OverlayPresent)
@@ -741,6 +741,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ObservePose();
             }
 
+            if (currentRow == Chunk4SlopeRow) { AdvanceChunk4Slope(); return; }
             if (string.Equals(currentRow, "mounted-pair-open-ground", StringComparison.Ordinal))
             {
                 AdvanceOpenGround();
@@ -970,6 +971,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void AdvanceDistanceDoorInteraction()
         {
+            if (rowPhase == 101) { if (!PollChunk4BlockedDoor()) return; rowPhase = 102; }
             if (rowPhase == 0)
             {
                 DoorCandidate candidate;
@@ -1056,6 +1058,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     return;
                 }
 
+                if (IsChunk4Traversal) { rowPhase = 101; return; }
+            }
+            if (rowPhase == 1 || rowPhase == 102)
+            {
                 doorInteractionRiderStart = rider.Position;
                 doorInteractionMountStart = mount.Position;
                 var clickAccepted = new ClickMapObjectHandler().OnClick(
@@ -2560,6 +2566,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     probeCallbackReason = "candidate " + FormatPosition(requested) + " path detour was " + probePathLength.ToString("0.00", CultureInfo.InvariantCulture);
                 }
+                else if (currentRow == Chunk4SlopeRow && !Chunk4PathContainsSlope(path.vectorPath))
+                {
+                    probeCallbackReason = "Native path has less than half a metre of elevation; not a slope candidate.";
+                }
                 else if (probeDoorStrict && selectedDoor != null && !PathCrossesSelectedDoor(path.vectorPath))
                 {
                     probeCallbackReason = "candidate " + FormatPosition(requested) + " path did not cross the selected open StandardDoor plane within the bounded aperture proxy";
@@ -2653,6 +2663,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
+            ObserveChunk4Slope();
             var position = mount.Position;
             var distance = PlanarDistance(position, navigationDestination);
             if (string.Equals(currentRow, "pose-walk-run", StringComparison.Ordinal) && mount.View.AgentASP.IsReallyMoving)
@@ -4249,6 +4260,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 { "sequence", evidenceSequence++ },
                 { "utcTimestamp", DateTimeOffset.UtcNow.ToString("o", CultureInfo.InvariantCulture) }
             };
+            if (IsChunk4Traversal) record["pairedConfiguration"] = CaptureChunk4TraversalConfiguration();
+            if (IsChunk4Traversal && currentRow == "mounted-distance-door-interaction" && (string)payload["kind"] == "movement-row-result") record["nativeBlockedDoor"] = chunk4BlockedDoorEvidence;
+            if (currentRow == Chunk4SlopeRow && (string)payload["kind"] == "movement-row-result") record["nativeSlope"] = CaptureChunk4Slope();
             foreach (var property in payload.Properties())
             {
                 if (record.Property(property.Name) != null)
@@ -4546,6 +4560,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private static IReadOnlyList<string> SelectRows(string scenario)
         {
+            var chunk4Rows = SelectChunk4TraversalRows(scenario);
+            if (chunk4Rows != null) return chunk4Rows;
             if (string.Equals(scenario, "movement-suite", StringComparison.Ordinal))
             {
                 return SuiteRows;
@@ -4688,6 +4704,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 return row;
             }
+            if (row == Chunk4SlopeRow) return "slope";
             throw new InvalidOperationException("Screenshot row is outside the fixed movement allowlist.");
         }
 
