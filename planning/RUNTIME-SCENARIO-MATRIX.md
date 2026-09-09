@@ -1,3 +1,6 @@
+## Active Chunk 4 scenario checkpoint â€” 2026-09-09
+
+IN PROGRESS. Nineteen new native transactions Aâ€“S and exact candidate identities are recorded in [the single Chunk 4 ledger](../docs/CHUNK4-PLAYABILITY.md#new-native-evidence). M sustained ranged, N six paired TB cases, Q mount incoming targeting and R six melee interruption cases PASS; O/P/S retain FAIL/open gates. Full native rider death, area attribution, ranged projectile/retarget/death, supported traversal/session cases and exact-final paired/A05/A10 Horse/Mammoth regression remain required. Owner requested a stopping checkpoint; all19 actual preview.37 restorations PASS. Historical matrices below are retained evidence, not current gate status.
 ## Chunk 2 current scenario pointer
 
 **BLOCKED — CRITICAL** for the allocation milestone. [The single Chunk2 acceptance ledger](../docs/CHUNK2-ACTOR-ALLOCATIONS.md#native-evidence-and-acceptance) records all A01-A10 statuses: A05 representative native preparation evidence on7, A10 final10 PASS32/0, unresolved A04 and remaining mandatory cases. All25 actual-intake restorations PASS. The frozen Phase1 scenario evidence below is unchanged.

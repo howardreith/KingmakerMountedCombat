@@ -1,7 +1,6 @@
-## Chunk 4 active boundary
+## Chunk 4 active boundary â€” 2026-09-09 checkpoint
 
-IN PROGRESS. Current pair membership and exact native Charge identity feed a stateless safety policy; pure native queries and thin click/command hooks reject before expenditure. Native actor budgets, ordinary attack routing, movement and paired preparation remain their own authorities. New native A/B failures and pending guard/recovery qualification are in [the active report](../docs/CHUNK4-PLAYABILITY.md). Historical phase dependencies below retain their original scope.
-
+IN PROGRESS; paused at owner request. Exact Charge identity feeds stateless pair-local safety; native budgets/preparation, movement and ordinary attack routing remain separate authorities. M/N newly verify the native command-visibility correction and distinct actor budgets. R verifies ordinary melee interruption/life-target handling; Q verifies independent mount targeting. S introduces actual native visibility loss, requiring a matched cancellation/recovery observation before any repair. Draft area callback attribution, unmounted control and native life-exit observations remain unapplied local diagnostics. They do not change area effects or the scheduler. [One current report](../docs/CHUNK4-PLAYABILITY.md). Historical dependencies below retain their original scope.
 ## Chunk 2 current dependencies
 
 IN PROGRESS. Native preparation adapters delegate retained-expenditure correction to the movement accounting adapter; record lifetime remains a separate domain boundary. Native movement/attack commands retain charging authority. The unresolved edge is legitimate actor grant/preparation to exactly-once continuation and later native participation, not another resource bank or attack shell. A05 native7 and A10 final10 have separate identities; the overall gate remains BLOCKED — CRITICAL. [Current contract and evidence](../docs/CHUNK2-ACTOR-ALLOCATIONS.md). Historical Phase1 graph below is unchanged.

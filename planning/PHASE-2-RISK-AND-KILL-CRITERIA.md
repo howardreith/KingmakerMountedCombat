@@ -1,3 +1,8 @@
+## Active Chunk 4 checkpoint â€” 2026-09-09
+
+IN PROGRESS; owner requested a commit/push stopping point. New sustained ranged/TB and melee interruption evidence passes, but rider death, independent area attribution, ranged moving-target visibility/recovery, remaining projectile cases and supported traversal/session bounds remain open. S lost actual native command visibility after one delivered shot; do not bypass native invalidation or broaden ranged-tail continuation to hide this case. O's split-identity fixture and P's entry/round attribution require new evidence. All19 temporary runs restored actual preview.37/human state. No critical external-state blocker is present; no mission completion is claimed. [Current evidence and next gates](../docs/CHUNK4-PLAYABILITY.md).
+
+Historical phase risk dispositions below retain their original scope.
 # Phase 2 risk and kill criteria
 
 Status: `PASS`

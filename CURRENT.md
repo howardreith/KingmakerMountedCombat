@@ -1,6 +1,6 @@
-# Active Chunk 4 — sustained play and core safety
+# Active Chunk 4 â€” checkpoint at the owner's request, 2026-09-09
 
-IN PROGRESS. Actual preview.37/current human state remains the restoration target; all12 new A-L temporary transactions restored exactly. Charge E/F and sustained melee G pass; native mixed-range J passes one routine. K ranged visibility mismatch and L TB next-control positioning retain FAIL; focused preview.9 correction/fixtures are pending new native evidence. Continue independent targeting, actual native rider death, supported traversal/session/visual checks and exact-final regressions. [Active report](docs/CHUNK4-PLAYABILITY.md) and [exact next action](AUTONOMOUS-RESUME.md). Historical stop instructions are superseded; no permanent install or Chunk5 implementation. No external integrity blocker is present.
+IN PROGRESS. Runtime work is stopped for now; Chunk 4 is unfinished. Tested gameplay remains preview.9/source `10c72ef56a201f51c43508ccd842917a2348078c`. New sustained ranged M, six TB cases N, mount targeting Q and six melee interruption cases R PASS. O incapacitation fixture, P area attribution and S ranged moving-target remain FAIL/open; later mandatory native gates and exact-final regression remain unqualified. All19 transactions restored actual preview.37/human data, independently rechecked at 11:51Z with no game/lock. Prepared next diagnostics are preserved locally, unapplied. [One report](docs/CHUNK4-PLAYABILITY.md) and [exact resumption point](AUTONOMOUS-RESUME.md). No permanent install, public release or Chunk5 implementation. Resume when the owner requests continuation.
 
 ---
 # Combined actor-allocation and paired-activation milestone
