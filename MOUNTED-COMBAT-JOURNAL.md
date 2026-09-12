@@ -1,3 +1,9 @@
+## Chunk4 Y native handoff PASS and readiness correction - 2026-09-12 16:35 UTC
+
+Source13 fb7ed91a65786386f61a82d91430ec07978806c9 nativeY FAIL46/2. Dismount and C4-FIXTURE-parent-probe-retired PASS (absent/count0 at entry/exit). Unmounted control then hits30s stage1 timeout because IsCombatReady(true) still requiresMounted; no spell spent, actor costs0, commands empty. Candidate14 uses the correct unmounted argument with explicit relationship retention and native preparation unchanged; adds read-only readiness diagnostics. Build/source22/0PASS, tests14.txt ongoing.
+
+All25 external restorationsPASS; Y audit2026-09-12T16:33:46.8017933Z, logd622f39ef05e70f983f046dedfc2b809e234d321a43427542dda7d63399e47bd, actual human37/data unchanged, no game/lock. Next checked commit/private package/newsuite, Z unmounted-area, AA mounted-rider targeting, AB actual riderdeath. ACTIVE-RUN.json holds exact evolving identities. No gameplay/scheduler change, human-save edit, permanent deployment or Chunk5 implementation.
+
 ## Chunk4 resumption and native fixture repair - 2026-09-12 16:13 UTC
 
 Owner explicitly resumed after weekly capacity replenished. Repo clean at source12 e069e8ffd1e94d2fc89b58301941d85e819318fe. X completed September9 FAIL45/3 and restored; current full auditPASS at2026-09-12T16:11:12.9067141Z, all24 transactions, actual preview.37/data unchanged and no game/lock. X logSHAebcf2da7ab9a2960c46eac1191ece6554c0b626af404927dbed1674ca52680d5.

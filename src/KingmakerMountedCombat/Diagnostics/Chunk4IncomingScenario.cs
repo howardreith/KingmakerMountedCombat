@@ -119,6 +119,14 @@ namespace KingmakerMountedCombat.Diagnostics
             var game = Game.Instance;
             chunk4IncomingEvidence["progress"] = new JObject { ["stage"] = chunk4IncomingStage,
                 ["state"] = CaptureChunk4IncomingState(), ["rules"] = chunk4IncomingObserver.Capture(),
+                ["nativeReadiness"] = new JObject {
+                    ["requireMounted"] = !Chunk4IncomingUnmountedArea,
+                    ["combatReady"] = IsCombatReady(!Chunk4IncomingUnmountedArea),
+                    ["casterReady"] = Chunk4CasterReady, ["pairIdle"] = Chunk4PairedPlayIdle,
+                    ["riderInCombat"] = rider.IsInCombat, ["mountInCombat"] = horse.IsInCombat,
+                    ["targetInCombat"] = target?.IsInCombat,
+                    ["riderPrepared"] = rider.CombatState.Prepared, ["mountPrepared"] = horse.CombatState.Prepared,
+                    ["targetPrepared"] = target?.CombatState.Prepared },
                 ["nativeAbilityCommands"] = new JArray(chunk4Caster.Commands.Raw.Concat(chunk4Caster.Commands.Queue)
                     .OfType<UnitUseAbility>().Distinct().Select(CaptureNativeAbilityShell)) };
             if (chunk4IncomingStage != 3 && game.IsPaused) { game.IsPaused = false; return; }
@@ -145,7 +153,9 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (chunk4IncomingStage == 1)
             {
-                if (!IsCombatReady(true) || CombatController.IsInTurnBasedCombat() || !Chunk4CasterReady || !Chunk4PairedPlayIdle) return;
+                if (Chunk4IncomingUnmountedArea && relationship.State != RelationshipState.Unmounted)
+                    throw new InvalidOperationException("Area control lost its native unmounted setup before combat readiness.");
+                if (!IsCombatReady(!Chunk4IncomingUnmountedArea) || CombatController.IsInTurnBasedCombat() || !Chunk4CasterReady || !Chunk4PairedPlayIdle) return;
                 if (Chunk4IncomingUnmountedArea) { chunk4IncomingStage = 5; ResetLeafClock(); return; }
                 var subject = Chunk4IncomingSubject;
                 var difficulty = game.Player.Difficulty.DamageToParty;

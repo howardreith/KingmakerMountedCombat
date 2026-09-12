@@ -1,12 +1,12 @@
 # Chunk 4: sustained play and core safety
 
-**IN PROGRESS, 2026-09-12.** Published preview.12/sourcee069e8f reproduces X's retained parent Horse20 probe and missing unmounted setup. Candidate13 retires that probe and uses native Dismount; new incoming/life qualification follows. All24 transactions restored actual preview.37/data, independently rechecked at resumption. Existing emitted PASS counts do not qualify unmodified Horse rolls while the parent probe was active.
+**IN PROGRESS, 2026-09-12.** Source13 fb7ed91 newly proves native Dismount and setup-probe retirement. Y then fails at a mounted-only readiness requirement while Unmounted; candidate14 corrects that fixture argument without changing native preparation. All25 transactions restored actual preview.37/data. New targeting, actual rider death and remaining gates are still open.
 
 Reviewed baseline documentation `e6d89bff8c44ecbc21104b733703be9401c3671e` and gameplay `ec5d44e6eddc9839d273176b345f7c9701520450` retain their scope in the [completed paired milestone](PAIRED-ACTIVATION-MILESTONE.md). No preview.37 human approval is inferred. Test configuration is paired activation **true**, unified turn/scheduler/overlay **false**; one pre-combat Horse/Mammoth pair, rider-principal activation, distinct native budgets and current-weapon reach. Mid-combat mounting, cross-round Delay and conservative mode switching remain limitations. Persistence is Chunk 5; full Charge and advanced features are Chunk 6. Neither next implementation is started.
 
 ## New native evidence
 
-**24 new transactions A-X**, distinct from retained preview.37 qualification. Original failures remain intact. Earlier details remain in [the journal](../MOUNTED-COMBAT-JOURNAL.md) and report history.
+**25 new transactions A-Y**, distinct from retained preview.37 qualification. Original failures remain intact. Earlier details remain in [the journal](../MOUNTED-COMBAT-JOURNAL.md) and report history.
 
 | Runs | Candidate | Native assertions | New scope and result |
 |---|---|---|---|
@@ -27,6 +27,7 @@ Reviewed baseline documentation `e6d89bff8c44ecbc21104b733703be9401c3671e` and g
 | V | preview.11 79ccc8c | native/outer48/0 | Three rows emit PASS; rider heal3, ownAC24 hostile Hit/ArmorAC and1 wound; entry/round attribution, with Horse-roll isolation caveat below |
 | W | preview.11 | 3/1 | Unmounted area FAIL before gameplay: missing exact Horse audit registration; no area result |
 | X | preview.12 e069e8f | 45/3 | Native fixture FAIL before area cast: still Mounted; parent probe present/armed20 with count544 at handoff and exit, delta0 |
+| Y | preview.13 fb7ed91 | 46/2 | Native Dismount and parent-probe retirement PASS; fixture FAIL at mounted-only readiness while Unmounted, before casting |
 
 Stable roots are `chunk4-charge-safety-{rt,tb}`, `chunk4-sustained-{melee-rt,ranged-rt,tb}`, `chunk4-ranged-native-control-rt`, `chunk4-rider-incapacitation-tb`, `chunk4-targeting-{rider,mount}-rt` and `chunk4-interrupt-{melee,ranged}-rt`. Evidence and independent receipts remain outside Git/packages at `runtime-evidence/20260908-chunk4-{A..S}` and `analysis-cache/chunk4-native`.
 
@@ -80,3 +81,11 @@ Frozen source12 e069e8ffd1e94d2fc89b58301941d85e819318fe package KingmakerMounte
 X restored through the guard2026-09-09T20:49:27Z. Delayed independent audit2026-09-12T16:11:12.9067141Z confirms current full saves/Mods/Params still match the actual intake digests above, with no game/lock. The unmodified X log (last writeSeptember9) has SHAebcf2da7ab9a2960c46eac1191ece6554c0b626af404927dbed1674ca52680d5. All24 restoration auditsPASS. The historical preview.13 backup remains separate from the new Chunk4-preview.13 private candidate.
 
 Candidate13 actual offline checks PASS: build/source22/0, component376/0, metadata2/0, harness247/0, play106/0, outer45/0, extended277/0, traversal74/0, Charge86/0; Kingmaker contracts538/0, read-only Wrath24/0, patch construction30/0. Full Test.ps1 exited0. New native repair qualification remains pending.
+
+**Y / candidate14:** native Dismount succeeds and the parent setup probe is absent at both child boundaries (no forced value, count0). Stage1 then times out after30s because IsCombatReady(true) requires Mounted. At failure the pair is Unmounted, all actor/caster Standard/Move costs0, commands empty and native prepared spell slots available. Candidate14 selects the proper requireMounted argument only for the unmounted control, explicitly retains its Unmounted state and leaves native combat/preparation checks intact; read-only readiness fields improve diagnosis. No threshold, cooldown or gameplay policy changed. Fresh native controls remain required.
+
+Source13 fb7ed91a65786386f61a82d91430ec07978806c9 private package KingmakerMountedCombat-0.1.0-chunk4-preview.13-native-probe-retirement-diagnostic.zip: ZIPd0d4f835201a669689e5d76480dc3e475393040233f16f459838f17377ffa9cb; manifest9dba4f3f1c9883bfdd14ca3acb07682e0cb03c5fe9ada7126cc1a0bbb3196126; DLLd528fb1bc32d220ffa55aa0430b2a48e86f2a54efa893c9be1e29a5e729f8edf/MVID2848897e-5bd4-4761-aa40-7698a6e2d94f. Suite20260912-chunk4-suite13 SHA37be922f5bd2bfdd6653b4cc86f549a5731382d18678823c855e6a3d40894ca9; package11/0PASS and guarded publication verified.
+
+Y artifacts runtime-evidence/20260912-chunk4-Y; logSHAd622f39ef05e70f983f046dedfc2b809e234d321a43427542dda7d63399e47bd. Independent restoration2026-09-12T16:33:46.8017933Z PASS, all25 runs; full saves/Mods/Params match actual intake digests above, no remaining game/lock.
+
+Candidate14 actual offline checks PASS: build/source22/0, component376/0, metadata2/0, harness247/0, play106/0, core226/0, obstruction82/0, outer45/0, extended277/0, traversal74/0, Charge86/0; Kingmaker538/0, read-only Wrath24/0 and patch construction30/0. Full Test.ps1 exited0. Native readiness repair qualification remains pending.

@@ -1,6 +1,6 @@
-# Active Chunk 4 - candidate13, 2026-09-12
+# Active Chunk 4 - candidate14, 2026-09-12
 
-IN PROGRESS. Published preview.12/sourcee069e8ffd1e94d2fc89b58301941d85e819318fe newly reproduces X's two fixture failures: the parent Horse20 probe remains armed at handoff, and the unmounted-area control has not dismounted. Candidate13 disposes that probe at handoff and uses existing native Dismount input. The lifetime regression remains. All24 transactions restored actual preview.37/data; a fresh read-only audit on2026-09-12 confirms unchanged full saves/Mods/Params and no game/lock. New targeting reruns and actual rider death are next; other Chunk4 gates remain open. [One report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent deployment or Chunk5 implementation.
+IN PROGRESS. Published source13 fb7ed91a65786386f61a82d91430ec07978806c9 newly proves native Dismount and parent-probe retirement in Y. Y then FAIL46/2 at the incoming fixture's mounted-only readiness check while Unmounted, before any spell expenditure. Candidate14 selects the correct relationship requirement and records native readiness without changing combat preparation. All25 transactions restored actual preview.37/data, last audit2026-09-12T16:33:46.8017933Z. Next unmounted/mounted area controls, actual rider death and remaining Chunk4 gates. [One report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent deployment or Chunk5 implementation.
 ---
 # Combined actor-allocation and paired-activation milestone
 
