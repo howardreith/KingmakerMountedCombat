@@ -1836,6 +1836,10 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 throw new InvalidOperationException("Phase 3D Horse tranche was already created.");
             }
+            // Preliminary attack diagnostics end here. The child owns its own
+            // observers and must receive native rolls without the setup override.
+            ruleProbe?.Dispose();
+            ruleProbe = null;
             phase3dSetupRuleProbeAtEntry = CaptureSetupRuleProbeBoundary();
             logger.Info("Native setup rule-probe handoff: scenario=" + request.Scenario +
                 "; state=" + phase3dSetupRuleProbeAtEntry.ToString(Formatting.None) + ".");

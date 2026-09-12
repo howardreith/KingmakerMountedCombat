@@ -1,3 +1,9 @@
+## Chunk4 resumption and native fixture repair - 2026-09-12 16:13 UTC
+
+Owner explicitly resumed after weekly capacity replenished. Repo clean at source12 e069e8ffd1e94d2fc89b58301941d85e819318fe. X completed September9 FAIL45/3 and restored; current full auditPASS at2026-09-12T16:11:12.9067141Z, all24 transactions, actual preview.37/data unchanged and no game/lock. X logSHAebcf2da7ab9a2960c46eac1191ece6554c0b626af404927dbed1674ca52680d5.
+
+Actual native X probe present/armed20/count544 at entry and exit (delta0); control aborted before area cast because no Dismount. Do not claim it directly measured a forced area save. Candidate0.1.0-chunk4-preview.13 disposes/clears parent probe at handoff, keeps C4-FIXTURE-parent-probe-retired, and prepares unmounted area through existing native Dismount. Build/source22/0PASS; full tests13.txt underway. No gameplay/scheduler change. Next checked commit/direct guarded push/private package/fresh actual suite, mounted/unmounted incoming reruns, actual rider death/incapacitation and mount-death, remaining Chunk4 gates. Exact evolving identities/commands in ACTIVE-RUN.json; history/report retained.
+
 ## Chunk 4 V/W and parent-probe diagnostic - 2026-09-09 20:28 UTC
 
 Branch codex/mounted-combat-phase3f-playable-core; source11 79ccc8c9d81f9dba9b0b3a7f453f84e540d88fd5, candidate0.1.0-chunk4-preview.12. V native/outerPASS48/0 closes artifact parsing failure; W FAIL3/1 before gameplay identifies missing area-control Horse registration. Two real-policy tests reproduce area/obstruction omissions374/2, then exact repair. Build12/source22/0PASS; full tests in analysis-cache/chunk4-native/tests12.txt.

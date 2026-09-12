@@ -31,6 +31,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private string Chunk4IncomingId => Chunk4IncomingUnmountedArea ? Chunk4AreaId : "C4-TARGETING-" + (Chunk4IncomingMount ? "mount" : "rider");
         private int chunk4IncomingStage;
         private bool chunk4IncomingMountSent;
+        private bool chunk4IncomingDismountSent;
         private UnitEntityData chunk4Caster;
         private SpellSlot chunk4HealSlot;
         private SpellSlot chunk4AreaSlot;
@@ -131,7 +132,11 @@ namespace KingmakerMountedCombat.Diagnostics
                     return;
                 }
                 if (Chunk4IncomingUnmountedArea && relationship.State != RelationshipState.Unmounted)
-                    throw new InvalidOperationException("Area control must remain unmounted before native combat.");
+                {
+                    if (!chunk4IncomingDismountSent)
+                        chunk4IncomingDismountSent = TryNativeAbilityTargetClick(nativeControls.DismountAbility, rider, "chunk4-incoming-dismount");
+                    return;
+                }
                 if (rider.IsInCombat || horse.IsInCombat || !PrepareUnmountedHorseAiIsolation() || !PrepareCombatMountRiderAiIsolation()) return;
                 if (turnBasedModeProbe == null) turnBasedModeProbe = new NativeModeTransitionProbe(false);
                 if (!turnBasedModeProbe.TemporaryValueIsCurrent) { turnBasedModeProbe.DispatchTemporaryValueIfRequired(); return; }
