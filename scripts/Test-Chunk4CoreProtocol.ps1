@@ -36,7 +36,7 @@ function New-CoreEnvelope([string]$root) {
                 nativeLifeEvents=@{events=@(@{kind='native-life-state';actor=$subject;lifeState=$(if($incap){'Unconscious'}else{'Dead'});frame=15})};nativeRules=@{dropped=0;events=@(@{kind='damage-after';target=$subject;damage=130})}}
             $e.afterCleanup=New-CoreLifeState $subject $incap $true
             $e.successorOrderBefore=@('other1','other2','mount')|Where-Object {$_ -cne $subject}
-            $e.allocationSequenceBeforeDamage=0;$e.allocationTrace=@{dropped=0;observationErrors=@();events=@()}
+            $e.allocationSequenceBeforeDamage=0;$e.allocationTrace=@{dropped=0;observationErrors=0;events=@()}
             $e.successorTurns=@(0..1|ForEach-Object {
                 $state=New-CoreLifeState $subject $incap $true;$state.currentActor='other'+($_+1);$state.frame=20+10*$_
                 @{actor=$state.currentActor;round=2;frame=(20+10*$_);turn=(11+$_);survivor=$false;endInput=($_ -eq 0);state=$state}
@@ -282,6 +282,12 @@ $survivorMutations=@(
     {param($e) $e.allocationSequenceBeforeDamage=$null},
     {param($e) $e.allocationTrace.dropped=1},
     {param($e) $e.allocationTrace.observationErrors=@('failed')},
+    {param($e) $e.allocationTrace.observationErrors=1},
+    {param($e) $e.allocationTrace.observationErrors=-1},
+    {param($e) $e.allocationTrace.observationErrors=$null},
+    {param($e) $e.allocationTrace.observationErrors='0'},
+    {param($e) $e.allocationTrace.observationErrors=0.5},
+    {param($e) $e.allocationTrace.observationErrors=@()},
     {param($e) $e.allocationTrace.events=@($e.allocationTrace.events[0])},
     {param($e) $e.allocationTrace.events+=@($e.allocationTrace.events[0])},
     {param($e) $e.allocationTrace.events[0].state.actor='rider'},

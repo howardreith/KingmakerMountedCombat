@@ -1,6 +1,6 @@
-# Active Chunk 4 - candidate18, 2026-09-13 UTC
+# Active Chunk 4 - candidate19, 2026-09-13 UTC
 
-IN PROGRESS. Native AE on published source17 5699d391ccaa7ae66005cf6a9f1c9a3ede956d93 proved actual rider Dead/FinallyDead from native damage, then failed fixture expectations for the surviving Horse's real round3 preparation, final-death AI context and selection. No scheduler defect is established. Candidate18 records the complete cyclic native successor order, requires exactly one independent new-round survivor Prepare, and handles only the observed dead subject's control/selection changes. All31 transactions independently restored actual preview.37/data; latest AE audit2026-09-13T03:09:24.5535056Z PASS. Next focused nativeAF rider-death, then remaining new/final gates. [One report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent deployment or Chunk5 implementation.
+IN PROGRESS. Native AF on source18 2bc7a2144d4dc91a54cf336e5595dd90286bf6f2 passed47/0 host assertions and1/0 child: real persistent rider death, two unrelated turns, native encounter exit/zero records and exact AI/selection restoration. The outer validator wrongly treated the trace's zero error counter as an array; its original FAIL is retained. Candidate19 corrects that exact schema check and adds malformed-counter tests, without gameplay changes. All32 transactions independently restored actual preview.37/data; latest2026-09-13T04:30:39.9067297Z. Next focused nativeAG rider-death with the corrected validator, then remaining new/final gates. [One report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent deployment or Chunk5 implementation.
 ---
 ## Combined milestone disposition — 2026-09-08
 

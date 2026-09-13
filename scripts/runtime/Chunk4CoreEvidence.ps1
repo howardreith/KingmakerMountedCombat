@@ -148,7 +148,8 @@ function Assert-KmcChunk4LifeSuccessors {
     })
     if((ConvertTo-Json -InputObject $expected -Compress) -cne (ConvertTo-Json -InputObject @($e.successorOrderBefore) -Compress) -or
         !(Test-KmcExactJsonInteger $e.allocationSequenceBeforeDamage) -or $e.allocationSequenceBeforeDamage -lt 0 -or
-        $e.allocationTrace.dropped -ne 0 -or @($e.allocationTrace.observationErrors).Count -ne 0){throw 'Life successors lack exact native order or allocation observations.'}
+        !(Test-KmcExactJsonInteger $e.allocationTrace.dropped) -or $e.allocationTrace.dropped -ne 0 -or
+        !(Test-KmcExactJsonInteger $e.allocationTrace.observationErrors) -or $e.allocationTrace.observationErrors -ne 0){throw 'Life successors lack exact native order or allocation observations.'}
     $turns=@($e.successorTurns);$unrelated=@();$survivorCount=0;$previousFrame=$e.beforeDamage.frame
     if($turns.Count -lt 2 -or $turns.Count -gt $expected.Count){throw 'Life successor observations are missing or excessive.'}
     foreach($index in 0..($turns.Count-1)){
