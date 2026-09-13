@@ -1,6 +1,6 @@
 # Chunk 4: sustained play and core safety
 
-**IN PROGRESS - 2026-09-13 UTC.** Thirty-four new guarded transactions restored the actual human preview.37 installation and data. Persistent rider death has passed complete native mechanics in AF/AG; their outer validators failed. AH exposed a fixture expectation that ignored the already granted mount's same-round exclusion. Candidate21 corrects that expectation. Fresh complete validation and the remaining gates are pending.
+**IN PROGRESS - 2026-09-13 UTC.** Thirty-six new guarded transactions restored the actual human preview.37 installation and data. AI passed persistent native rider death end to end on preview.21. AJ incapacitation reached native encounter cleanup and recovery but failed a premature readiness check; preview.22 adds bounded native readiness observation. Remaining gates and exact-final regression are pending.
 
 Reviewed documentation e6d89bff8c44ecbc21104b733703be9401c3671e and qualified gameplay ec5d44e6eddc9839d273176b345f7c9701520450 retain their scope in the [paired milestone](PAIRED-ACTIVATION-MILESTONE.md). Preview.13 human feedback remains separate; no preview.37/new-candidate human approval is inferred.
 
@@ -18,6 +18,8 @@ All runs use paired activation true, unified turn/scheduler/overlay false. These
 | chunk4-targeting-mount-rt; Q | preview.9,47/0 native heal/hostile target controls; exact-final repetition remains required. |
 | chunk4-rider-death-tb; AF/AG | preview.18/19, each native47/0 and child1/0. Actual119 damage caused persistent rider Dead/FinallyDead; live command interrupted, two unrelated turns, real enemy defeat, native exit/zero records, exact AI/selection/policy restoration, no resurrection. Outer failures were counter shape and incorrectly requiring enemy End input. |
 | same root; AH | preview.20,native46/2,child0/1, outer valid FAIL. Native rider death/cleanup and unchanged grants2/2 observed. Enemy6261 -> d79 6444 in round2 correctly skipped the already granted Horse's later slot. Fixture expected Horse there and stopped before native encounter exit. |
+| chunk4-rider-death-tb; AI | preview.21,native47/0,child1/0,outerPASS. Actual119 damage/FinallyDead persisted; live Horse Primary interrupted, rider's spent attack retained, grants2/2, unrelated d79/enemy turns, native enemy defeat/exit/zero records and exact AI/selection/policy restoration. |
+| chunk4-rider-incapacitation-tb; AJ | preview.21,native46/2,child0/1,outerFAIL. Actual105/Unconscious, live rider command interrupted, two unrelated turns, native exit/zero records, automatic recovery to92 wounds. At0.255 game seconds after exit, commands/context/attachment remained clear but native animation/equipment readiness was unfinished. |
 
 Fixture repairs follow reproduced failures. X proved the parent preliminary Horse D20 override leaked into child scenarios; preview.13 retires it before handoff. Y/Z/AA and later runs prove absence. Earlier Chunk4 Horse-roll evidence retains that limitation and cannot replace final clean qualification. The historical paired milestone is not reopened.
 
@@ -25,28 +27,30 @@ Death testing uses actual RuleDealDamage and native life controllers. The persis
 
 Preview.21 keeps the raw native roster and accounts for the accepted participation rule: a mount's later slot in the same round is already consumed by its paired grant; its earlier slot after native round wrap remains eligible. Exact paired ownership/grants are required, all unrelated order checks remain, and any unexpected mount preparation/grant still fails. No new gameplay patch, scheduler redesign or extra native hook was added for these fixture failures.
 
+Preview.22 records both native hands-busy/equipment-update flags. It immediately rejects renewed commands, pair ownership or encounter state and keeps verifying the native life result while waiting for readiness under the unchanged30-second leaf deadline. Final PASS requires both actors ready and a finite bounded elapsed measurement. AJ did not distinguish which readiness flag remained active; fresh native observation is required. No readiness, cooldown, animation or life state is forced.
+
 ## Identities and evidence categories
 
-Branch: codex/mounted-combat-phase3f-playable-core. AH source20: 279bf722d880e1b3b395822fd3291cc88f65f34e. AG source19: dd3e91ec4ec00722c66de5a7da6f5be74970ca31. AF source18: 2bc7a2144d4dc91a54cf336e5595dd90286bf6f2. Z/AA source14: f12e0433c51190960b77def625c7cd31b4c196ca.
+Branch: codex/mounted-combat-phase3f-playable-core. AI/AJ source21: 4a95964f5c2b2748546dcc22df229979325b2f37. Earlier source/package identities remain in the journal and Git.
 
 | Latest native-tested package | Identity |
 |---|---|
-| Private ZIP20 | KingmakerMountedCombat-0.1.0-chunk4-preview.20-native-turn-completion-diagnostic.zip |
-| ZIP / manifest SHA256 | 189aa31af9ff06363bd0792dc9e9c5405141b7b591699b43e9f475528a95fed3 / 720b5ab331f2b344a3c7c0714697a0e85637ff5cea0d52d44a94c20df1d634e5 |
-| DLL SHA256 / MVID | d77136f710df0c0d50fdbb01ad773c4afc101060bcd568846be78837d2796c0e / 2d1ad245-dbee-44cb-b030-c4f3c4a5764a |
-| Suite20 / WhatIf20 SHA256 | ae4b7721ec3f3539d6891d296cb29689350033eea56a464745ed648734c219ba / b314a3a4525f7e48767ca696da689f393a0333ff11ea284bfccbd97ec18aa09b |
+| Private ZIP21 | KingmakerMountedCombat-0.1.0-chunk4-preview.21-native-participation-order-diagnostic.zip |
+| ZIP / manifest SHA256 | 9a692967432183bd97586ee07aa54e962ab8c556dbcd04d043f959975116ab4b / cc427aa8d17939245a6fc179268eb80cb2d10aab006d4fc2bd3e1cbd4ce59222 |
+| DLL SHA256 / MVID | 65fea024d7c7394398ac4503b414ea7330ec01b52897e5656f641108df47d8d1 / 274e4bfa-56bf-4d96-ab34-cde8fa6e8923 |
+| Suite21 / WhatIf21 SHA256 | 2ad03e09376f80d53886fbfee88c4dc7583cce119d3bd689d9b8bf33c0fee3a3 / 4996a49ffa5d3307f36bd6030d8c8c2eb23657a343039e88ab5eb62b98f08f39 |
 
-COMPONENT: full21 checks PASS: real components376/0, metadata2/0, harness247/0, core355/0, play106/0, extended277/0, obstruction82/0, traversal74/0, outer45/0, Charge86/0; build/source22/0 and package11/0 checks passed. tests21.txt SHA256f7c448ef6454a46b205dbdf972a8c10d3de4549b5ab89280484d19d571eba83a. The new positive first failed the old validator. Parser fixtures do not certify gameplay.
+COMPONENT: full22 checks PASS: real components376/0, metadata2/0, harness247/0, core375/0, play106/0, extended277/0, obstruction82/0, traversal74/0, outer45/0, Charge86/0; build/source22/0 and package11/0 checks passed. tests22.txt SHA256970fef56a70d01a9023ad8fb3a2025c0abd253cbfc31dd778110d620e14ab1b1. The new unready-recovery case first failed the old validator. Parser fixtures do not certify gameplay.
 
 ASSEMBLY CONTRACT: Kingmaker546/0, read-only Wrath24/0, detached hook construction30/0 plus observers. Exact Kingmaker SHA2563b6450ffec440e296e586f71c711b195aed144b28d53e1cbb29406d18fef5afb, MVID07fa1e4d-8618-41b3-9b8d-faa17d3b26f7; .NET4.7/C#7.3/Harmony12. Native ChooseNextUnit06000BD2, End06000C46, SetLifeState06009164 and return-to-conscious Tick0600918E/MakeUnitConscious06009191 are locally identified. Contracts do not substitute for native execution.
 
-NATIVE INTEGRATION: outstanding are fresh complete rider-death validation, incapacitation, mount-death regression, final incoming targeting, inspection/Horse strike mechanics, obstruction/door/narrow route/slope/turn/party/area cleanup, RT/TB encounter cycles and bounded records/subscriptions/logs. Then run every new gate on the final candidate and both paired full-round orders, final A05, accepted A10 and Horse/Mammoth regression. Evidence resides outside Git/packages in runtime-evidence/20260908-chunk4-A..S, 20260909-chunk4-T..X, 20260912-chunk4-Y..AB and 20260913-chunk4-AC..AH.
+NATIVE INTEGRATION: outstanding are fresh incapacitation, mount-death regression, final incoming targeting, inspection/Horse strike mechanics, obstruction/door/narrow route/slope/turn/party/area cleanup, RT/TB encounter cycles and bounded records/subscriptions/logs. Then run every new gate on the final candidate and both paired full-round orders, final A05, accepted A10 and Horse/Mammoth regression. Evidence resides outside Git/packages in runtime-evidence/20260908-chunk4-A..S, 20260909-chunk4-T..X, 20260912-chunk4-Y..AB and 20260913-chunk4-AC..AJ.
 
 HUMAN PLAY: pending. Inspected native PNGs were black. The existing Windows tool found the guarded game window, but game-state capture's app approval timed out; no image or physical input resulted. No replacement desktop automation was built. Renderer counts or animation handles are not visual approval.
 
 ## Restoration and targeted manual checks
 
-All34 independent restoration receipts PASS; latest AH2026-09-13T06:14:26.3241309Z, no game/lock. Saves SHA256bc345a41d72f5c1538c9a5dcefc577202b0eb8279adbf1fa958cd63fb643519d; full Mods02aa64faba191ca51d80c2c35f521f2d6ef65c77911f86b3fb0e144a1d6c7878; UMM Paramsdd22dc5aad012f0bca721de37d888a9163e9e759c44f7fa705e3355302be7e1e. Human preview.37 DLL/cache remain20080fdcf83c7628611c3f6354a3e47c3065e2b25998a9c01b39a69796ed57bb. Human campaigns, immutable KMC_AUTOMATION_BASELINE and the separate historical preview.13 backup are preserved. No permanent deployment, foreign-mod change, main merge or public release occurred.
+All36 independent restoration receipts PASS; latest AJ2026-09-13T07:30:44.7708061Z, no game/lock. Saves SHA256bc345a41d72f5c1538c9a5dcefc577202b0eb8279adbf1fa958cd63fb643519d; full Mods02aa64faba191ca51d80c2c35f521f2d6ef65c77911f86b3fb0e144a1d6c7878; UMM Paramsdd22dc5aad012f0bca721de37d888a9163e9e759c44f7fa705e3355302be7e1e. Human preview.37 DLL/cache remain20080fdcf83c7628611c3f6354a3e47c3065e2b25998a9c01b39a69796ed57bb. Human campaigns, immutable KMC_AUTOMATION_BASELINE and the separate historical preview.13 backup are preserved. No permanent deployment, foreign-mod change, main merge or public release occurred.
 
 Through a guarded disposable session:
 

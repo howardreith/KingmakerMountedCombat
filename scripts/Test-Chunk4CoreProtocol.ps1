@@ -16,8 +16,8 @@ function New-CoreLifeState($subject,$incap,$after) {
         attachmentResidue=$true;attachmentRestoreVerified=$false;split=$false;finalized=$false;riderEnded=$false;mountEnded=$false;
         currentActor='rider';riderGrants=2;mountGrants=2;actorRecords=2;playerCombat=$true;riderCombat=$true;mountCombat=$true;tbActive=$true;tbInitialized=$true;
         frame=10;gameTicks=10000000;round=2;
-        rider=@{id='rider';conscious=$true;dead=$false;finallyDead=$false;damage=0;hp=103;characterLevel=11;nonLethalDamage=0;inState=$true;enabledRenderers=1};
-        mount=@{id='mount';conscious=$true;dead=$false;finallyDead=$false;damage=0;hp=103;characterLevel=11;nonLethalDamage=0;inState=$true;enabledRenderers=1}}
+        rider=@{id='rider';conscious=$true;dead=$false;finallyDead=$false;damage=0;hp=103;characterLevel=11;nonLethalDamage=0;inState=$true;enabledRenderers=1;handsBusyAnimation=$false;handsUpdateScheduled=$false};
+        mount=@{id='mount';conscious=$true;dead=$false;finallyDead=$false;damage=0;hp=103;characterLevel=11;nonLethalDamage=0;inState=$true;enabledRenderers=1;handsBusyAnimation=$false;handsUpdateScheduled=$false}}
     if($after){$state.live.relationship='Unmounted';$state.split=$true;$state.privatePartner=$null;$state.pairCommand=$false;
         $state.attachmentResidue=$false;$state.attachmentRestoreVerified=$true;$state[$subject].conscious=$false;$state[$subject].dead=(!$incap);$state[$subject].damage=130}
     return $state
@@ -58,6 +58,7 @@ function New-CoreEnvelope([string]$root) {
             $e.nativeEncounterExit.frame=45
             $e.afterPolicyRestore=$e.nativeEncounterExit|ConvertTo-Json -Depth 12|ConvertFrom-Json
             $e.afterPolicyRestore.frame=50;$e.afterPolicyRestore.gameTicks=15000000
+            $e.postExitReadinessElapsedSeconds=.5
             $beforePolicy=@{riseAfterCombat=@{raw=$null;value=$true;persisted='1'};deathDoor=@{raw=$false;value=$false;persisted='0'};
                 trueDeath=$false;deathDoorCondition=$false;damageToParty=.2}
             $effectivePolicy=$beforePolicy|ConvertTo-Json -Depth 8|ConvertFrom-Json
@@ -391,3 +392,29 @@ $changed.rows[0].evidence.sameRoundMountExcluded=$true;$rejected=$false
 try{Assert-KmcChunk4CoreEvidence @{scenario=$root} $changed 'PASS'}catch{$rejected=$true}
 if(!$rejected){throw 'Next-round survivor was incorrectly treated as an already consumed native slot.'};$passed++
 Write-Host "COMPONENT with consumed mount-slot fixture TOTAL PASS=$passed FAIL=0"
+
+# Native recovery can leave hands or equipment busy after the life/encounter
+# state has settled. PASS still requires actual native readiness within the leaf.
+$readinessRoot='chunk4-rider-incapacitation-tb'
+$settled=New-CoreEnvelope $readinessRoot
+$settled.rows[0].evidence.nativeEncounterExit.rider.handsBusyAnimation=$true
+$settled.rows[0].evidence.nativeEncounterExit.mount.handsUpdateScheduled=$true
+$settled.rows[0].evidence.postExitReadinessElapsedSeconds=1.7
+Assert-KmcChunk4CoreEvidence @{scenario=$readinessRoot} $settled 'PASS';$passed++
+foreach($actor in @('rider','mount')){
+    foreach($flag in @('handsBusyAnimation','handsUpdateScheduled')){
+        foreach($value in @($true,$null,'false')){
+            $changed=New-CoreEnvelope $readinessRoot;$changed.rows[0].evidence.afterPolicyRestore.$actor.$flag=$value
+            $rejected=$false
+            try{Assert-KmcChunk4CoreEvidence @{scenario=$readinessRoot} $changed 'PASS'}catch{$rejected=$true}
+            if(!$rejected){throw "Unready native recovery accepted: $actor.$flag=$value"};$passed++
+        }
+    }
+}
+foreach($elapsed in @($null,-1,30.01,[double]::NaN,[double]::PositiveInfinity,'0.5',$true)){
+    $changed=New-CoreEnvelope $readinessRoot;$changed.rows[0].evidence.postExitReadinessElapsedSeconds=$elapsed
+    $rejected=$false
+    try{Assert-KmcChunk4CoreEvidence @{scenario=$readinessRoot} $changed 'PASS'}catch{$rejected=$true}
+    if(!$rejected){throw "Unbounded native recovery readiness accepted: $elapsed"};$passed++
+}
+Write-Host "COMPONENT with native recovery-readiness fixture TOTAL PASS=$passed FAIL=0"

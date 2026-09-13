@@ -1,6 +1,6 @@
-# Active Chunk 4 - candidate21, 2026-09-13 UTC
+# Active Chunk 4 - candidate22, 2026-09-13 UTC
 
-IN PROGRESS. AH on source20 279bf722d880e1b3b395822fd3291cc88f65f34e failed its fixture's raw successor-order expectation: the already granted Horse correctly skipped its later native slot in the same round, preserving grants2/2 while two unrelated actors proceeded. Candidate21 accounts for that accepted participation rule and retains the Horse's next-round slot. No gameplay/scheduler repair. All34 transactions independently restored actual preview.37/data; latest2026-09-13T06:14:26.3241309Z. Next nativeAI rider-death, then the remaining new/final gates. [One report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent deployment or Chunk5 implementation.
+IN PROGRESS. Source21 4a95964f5c2b2748546dcc22df229979325b2f37 passed native rider death in AI (47/0, child1/0, outerPASS). AJ incapacitation reached native105 damage, live-command interruption, two unrelated turns, native exit/zero records and native recovery to92 wounds, then failed a premature animation/equipment readiness assertion. Candidate22 records exact readiness and waits within the unchanged30-second leaf while command/ownership assertions remain immediate. No gameplay repair. All36 transactions independently restored actual preview.37/data; latest2026-09-13T07:30:44.7708061Z. Next nativeAK incapacitation on22, then mount death and remaining new/final gates. [One report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent deployment or Chunk5 implementation.
 ---
 ## Combined milestone disposition — 2026-09-08
 

@@ -137,6 +137,18 @@ function Assert-KmcChunk4LifeRow {
     }
     if($e.afterPolicyRestore.gameTicks-$e.nativeEncounterExit.gameTicks -lt 2500000 -or
         $e.afterPolicyRestore.frame -le $e.nativeEncounterExit.frame){throw 'Native death policy restoration lacks subsequent native simulation observation.'}
+    foreach($actor in @('rider','mount')){
+        foreach($flag in @('handsBusyAnimation','handsUpdateScheduled')){
+            if($e.afterPolicyRestore.$actor.$flag -isnot [bool] -or $e.afterPolicyRestore.$actor.$flag){
+                throw 'Native life recovery has not finished its actual hands/equipment readiness.'
+            }
+        }
+    }
+    $elapsed=$e.postExitReadinessElapsedSeconds
+    if($null -eq $elapsed -or $elapsed -is [string] -or $elapsed -is [bool] -or
+        [double]::IsNaN([double]$elapsed) -or [double]::IsInfinity([double]$elapsed) -or $elapsed -lt 0 -or $elapsed -gt 30){
+        throw 'Native life recovery exceeded the unchanged 30-second leaf deadline.'
+    }
     if($e.enemyDamageDispatches -ne 1 -or $e.enemyNativeDamage -le 0 -or $e.enemyLifeTransitions -lt 1 -or
         $e.enemyBeforeDamage.id -cne $e.enemyAfterDeath.id -or $e.enemyBeforeDamage.conscious -ne $true -or $e.enemyAfterDeath.dead -ne $true -or
         [string]::IsNullOrWhiteSpace($e.enemyDamageSource) -or $e.enemyDamageSource -ceq $e.subject) {throw 'Life retirement lacks an actual labelled native enemy defeat.'}

@@ -93,6 +93,8 @@ namespace KingmakerMountedCombat.Diagnostics
             ["id"] = actor.UniqueId, ["inState"] = actor.IsInState,
             ["inGame"] = actor.IsInGame, ["directlyControllable"] = actor.IsDirectlyControllable,
             ["commandsEmpty"] = actor.Commands.Empty, ["effectiveAiEnabled"] = actor.IsAIEnabled,
+            ["handsBusyAnimation"] = actor.AreHandsBusyWithAnimation,
+            ["handsUpdateScheduled"] = Game.Instance.HandsEquipmentController.IsUpdateScheduledFor(actor),
             ["lifeState"] = actor.Descriptor.State.LifeState.ToString(), ["conscious"] = actor.Descriptor.State.IsConscious,
             ["dead"] = actor.Descriptor.State.IsDead, ["finallyDead"] = actor.Descriptor.State.IsFinallyDead,
             ["damage"] = actor.Damage, ["hp"] = actor.Stats.HitPoints.ModifiedValue,
@@ -363,9 +365,21 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (game.TimeController.GameTime.Ticks - (long)chunk4LifeEvidence["nativeEncounterExit"]["gameTicks"] < TimeSpan.TicksPerSecond / 4) return;
                 VerifyChunk4NativeLifeExit();
                 if (game.Player.IsInCombat || controller.Initialized || combat.TrackedActorAllocations != 0 ||
-                    combat.PairedActivationIdentity != null || combat.PairedPartnerContext != null || !Chunk4PairedPlayIdle ||
+                    combat.PairedActivationIdentity != null || combat.PairedPartnerContext != null ||
+                    combat.HasActiveCommand || combat.HasStockAttackIntent || combat.HasActiveGroundMovement ||
+                    !rider.Commands.Empty || !horse.Commands.Empty ||
                     relationship.State != RelationshipState.Unmounted || relationship.Runtime.HasPresentationAttachmentResidue)
                     throw new InvalidOperationException("Restoring native difficulty revived pair ownership or encounter state.");
+                // Native recovery may still be animating or updating equipment.
+                // Preserve every ownership/command assertion above and the existing
+                // 30-second leaf deadline; observe readiness without advancing it.
+                chunk4LifeEvidence["postExitReadinessElapsedSeconds"] = leafClock.Elapsed.TotalSeconds;
+                if (!Chunk4PairedPlayIdle)
+                {
+                    if (chunk4LifeEvidence["postExitReadinessFirstPending"] == null)
+                        chunk4LifeEvidence["postExitReadinessFirstPending"] = CaptureChunk4LifeState();
+                    return;
+                }
                 chunk4LifeEvidence["afterPolicyRestore"] = CaptureChunk4LifeState();
                 chunk4LifeEvidence["nativeLifeEvents"] = chunk4LifeObserver.Capture();
                 chunk4LifeEvidence["nativeRules"] = chunk4IncomingObserver.Capture();
