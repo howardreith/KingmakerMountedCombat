@@ -210,6 +210,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly JArray stockLifecycleAttacks = new JArray();
         private readonly JArray directDamageTimeline = new JArray();
         private Phase3dHorseScenarioTranche phase3dTranche;
+        private UnitEntityData phase3dNativeFinalDeathSubject;
         private JObject phase3dSetupRuleProbeAtEntry;
 
         public HorseCompanionUnmountedScenarioEngine(
@@ -1877,6 +1878,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 results.Add(result);
             }
             observations["phase3dTranche"] = phase3dTranche.EvidenceSummary;
+            phase3dNativeFinalDeathSubject = phase3dTranche.NativeLifeFinalDeathSubject;
             foreach (var error in phase3dTranche.Errors)
             {
                 Fail("phase3d-tranche-" + failed, error);
@@ -3402,9 +3404,13 @@ namespace KingmakerMountedCombat.Diagnostics
 
             Game.Instance.IsPaused = originalPause;
             var selection = SelectionManager.Instance.SelectedUnits;
-            var expectedSelection = originalSelection.Where(unit => unit != null && unit.IsInState).ToArray();
+            var expectedSelection = NativeFixtureSelectionRestoration.Expected(originalSelection, phase3dNativeFinalDeathSubject);
             var selectionExact = selection.Count == expectedSelection.Length &&
                 expectedSelection.All(unit => selection.Contains(unit));
+            if (phase3dNativeFinalDeathSubject != null)
+                logger.Info("Native final-death fixture selection: excluded=" + phase3dNativeFinalDeathSubject.UniqueId +
+                    "; expected=" + string.Join(",", expectedSelection.Select(unit => unit.UniqueId)) +
+                    "; actual=" + string.Join(",", selection.Select(unit => unit.UniqueId)) + "; exact=" + selectionExact + ".");
             var unrelatedPetsExact = OriginalPartyPetsMatch();
             var selectionSnapshot = service.CaptureSnapshot();
             var attackOwnerAiClean = unmountedAttackOwnerAiLease == null ||
@@ -3507,7 +3513,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var manager = SelectionManager.Instance;
             if (manager == null) { return; }
             manager.MultiSelect(
-                originalSelection.Where(unit => unit != null && unit.IsInState && unit.View != null)
+                NativeFixtureSelectionRestoration.Expected(originalSelection, phase3dNativeFinalDeathSubject).Where(unit => unit.View != null)
                     .Select(unit => unit.View),
                 false);
         }

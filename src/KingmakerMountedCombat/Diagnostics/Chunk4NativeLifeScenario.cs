@@ -34,6 +34,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private TurnController chunk4LifeTurn;
         private TurnController chunk4LifeUnrelatedTurn;
         private int chunk4LifeUnrelatedCount;
+        private int chunk4LifeSurvivorTurns;
+        private JObject chunk4LifeCurrentSuccessor;
         private int chunk4LifeRiderGrants;
         private int chunk4LifeMountGrants;
         private JObject chunk4LifeEvidence;
@@ -50,7 +52,7 @@ namespace KingmakerMountedCombat.Diagnostics
             chunk4LifeEvidence = new JObject { ["level"] = "NATIVE INTEGRATION", ["caseId"] = Chunk4LifeId, ["mode"] = "TB",
                 ["inputKind"] = "native-primary-controls-and-labelled-native-damage-effect", ["damageDispatches"] = 0,
                 ["incapacitation"] = Chunk4LifeIncapacitation, ["subject"] = Chunk4LifeSubject.UniqueId,
-                ["survivor"] = Chunk4LifeSurvivor.UniqueId, ["unrelatedTurns"] = new JArray() };
+                ["survivor"] = Chunk4LifeSurvivor.UniqueId, ["unrelatedTurns"] = new JArray(), ["successorTurns"] = new JArray() };
             observations["chunk4NativeLife"] = chunk4LifeEvidence;
             chunk4DeathPolicy = new NativeDeathPolicyLease(Chunk4LifePermanent);
             chunk4LifeEvidence["nativeDeathPolicy"] = chunk4DeathPolicy.Capture();
@@ -212,9 +214,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 chunk4LifeEvidence["unrelatedOrderBefore"] = new JArray(Enumerable.Range(1, roster.Length - 1)
                     .Select(offset => roster[(principalIndex + offset) % roster.Length])
                     .Where(unit => unit != rider && unit != horse).Select(unit => unit.UniqueId));
+                chunk4LifeEvidence["successorOrderBefore"] = new JArray(Enumerable.Range(1, roster.Length - 1)
+                    .Select(offset => roster[(principalIndex + offset) % roster.Length])
+                    .Where(unit => unit != subject).Select(unit => unit.UniqueId));
                 if (((JArray)chunk4LifeEvidence["unrelatedOrderBefore"]).Count < 2)
                     throw new InvalidOperationException("Life fixture lacks two unrelated native successor actors.");
                 chunk4LifeRiderGrants = allocationTrace.GrantCount(rider); chunk4LifeMountGrants = allocationTrace.GrantCount(horse);
+                chunk4LifeEvidence["allocationSequenceBeforeDamage"] = (int?)allocationTrace.Capture()["events"].Last?["sequence"] ?? 0;
                 chunk4LifeEvidence["source"] = target.UniqueId; chunk4LifeEvidence["requestedDamage"] = requested;
                 chunk4LifeEvidence["damageToParty"] = difficulty; chunk4LifeEvidence["deathThreshold"] = deathThreshold;
                 chunk4LifeEvidence["damageDispatches"] = 1;
@@ -266,22 +272,44 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (Chunk4LifeIncapacitation ? Chunk4LifeSubject.Descriptor.State.IsConscious || Chunk4LifeSubject.Descriptor.State.IsDead :
                     !Chunk4LifeSubject.Descriptor.State.IsDead || Chunk4LifePermanent && !Chunk4LifeSubject.Descriptor.State.IsFinallyDead)
                     throw new InvalidOperationException("The native life result changed before unrelated turn completion.");
-                if (allocationTrace.GrantCount(rider) != chunk4LifeRiderGrants || allocationTrace.GrantCount(horse) != chunk4LifeMountGrants ||
-                    combat.PairedPartnerContext != null || combat.PairedActivationIdentity != null &&
-                        (!combat.PairedActivationSplit || combat.PairedActivationIdentity != (string)chunk4LifeEvidence["beforeDamage"]["identity"]))
-                    throw new InvalidOperationException("Native life cleanup issued a duplicate pair grant or private context.");
                 if (turn == null) return;
                 if (!ReferenceEquals(turn, chunk4LifeUnrelatedTurn))
                 {
-                    if (turn.Unit == rider || turn.Unit == horse ||
-                        (string)chunk4LifeEvidence["unrelatedOrderBefore"][chunk4LifeUnrelatedCount] != turn.Unit.UniqueId)
-                        throw new InvalidOperationException("Native life cleanup did not proceed through unrelated actors from its actual order.");
+                    var successors = (JArray)chunk4LifeEvidence["successorTurns"];
+                    var expected = (JArray)chunk4LifeEvidence["successorOrderBefore"];
+                    if (successors.Count >= expected.Count || (string)expected[successors.Count] != turn.Unit.UniqueId || turn.Unit == Chunk4LifeSubject)
+                        throw new InvalidOperationException("Native life cleanup changed the actual cyclic successor order.");
                     chunk4LifeUnrelatedTurn = turn;
-                    ((JArray)chunk4LifeEvidence["unrelatedTurns"]).Add(new JObject { ["actor"] = turn.Unit.UniqueId,
-                        ["round"] = controller.RoundNumber, ["frame"] = Time.frameCount });
-                    chunk4LifeUnrelatedCount++; ResetLeafClock();
+                    chunk4LifeCurrentSuccessor = new JObject { ["actor"] = turn.Unit.UniqueId, ["round"] = controller.RoundNumber,
+                        ["frame"] = Time.frameCount, ["turn"] = System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(turn), ["survivor"] = turn.Unit == Chunk4LifeSurvivor,
+                        ["endInput"] = false, ["state"] = CaptureChunk4LifeState() };
+                    successors.Add(chunk4LifeCurrentSuccessor);
+                    if (turn.Unit == Chunk4LifeSurvivor)
+                    {
+                        if (++chunk4LifeSurvivorTurns != 1 || controller.RoundNumber <= (int)chunk4LifeEvidence["beforeDamage"]["round"])
+                            throw new InvalidOperationException("The survivor received an extra turn without a new native round.");
+                    }
+                    else
+                    {
+                        if ((string)chunk4LifeEvidence["unrelatedOrderBefore"][chunk4LifeUnrelatedCount] != turn.Unit.UniqueId)
+                            throw new InvalidOperationException("Native life cleanup changed unrelated participation.");
+                        ((JArray)chunk4LifeEvidence["unrelatedTurns"]).Add(new JObject { ["actor"] = turn.Unit.UniqueId,
+                            ["round"] = controller.RoundNumber, ["frame"] = Time.frameCount });
+                        chunk4LifeUnrelatedCount++;
+                    }
+                    ResetLeafClock();
                 }
-                if (chunk4LifeUnrelatedCount < 2) { TryEndPhase3gFixtureTurn(turn); return; }
+                if (allocationTrace.GrantCount(rider) != chunk4LifeRiderGrants + (Chunk4LifeMount ? chunk4LifeSurvivorTurns : 0) ||
+                    allocationTrace.GrantCount(horse) != chunk4LifeMountGrants + (Chunk4LifeMount ? 0 : chunk4LifeSurvivorTurns) ||
+                    combat.PairedPartnerContext != null || combat.PairedActivationIdentity != null &&
+                        (!combat.PairedActivationSplit || combat.PairedActivationIdentity != (string)chunk4LifeEvidence["beforeDamage"]["identity"]))
+                    throw new InvalidOperationException("Native life cleanup issued an unsolicited preparation or private context.");
+                if (chunk4LifeUnrelatedCount < 2)
+                {
+                    TryEndPhase3gFixtureTurn(turn);
+                    if (ReferenceEquals(phase3gEndedTurn, turn)) chunk4LifeCurrentSuccessor["endInput"] = true;
+                    return;
+                }
                 if (Chunk4LifeIncapacitation ? Chunk4LifeSubject.Descriptor.State.IsConscious || Chunk4LifeSubject.Descriptor.State.IsDead :
                     !Chunk4LifeSubject.Descriptor.State.IsDead)
                     throw new InvalidOperationException("The observed native life result did not persist through unrelated turns.");
@@ -339,6 +367,26 @@ namespace KingmakerMountedCombat.Diagnostics
                 observations["ordinaryTrace"] = ordinaryAttackTrace.Capture();
                 AddRow(Chunk4LifeId, true, "Native damage interrupted a live pair command; independent costs, unrelated turns, native death/recovery policy and encounter retirement were preserved.", chunk4LifeEvidence);
                 BeginCleanup();
+            }
+        }
+
+        // Only the exact native damage/life event authorizes this fixture's
+        // changed control/selection expectation. Other actors keep their contract.
+        internal UnitEntityData NativeLifeFinalDeathSubject
+        {
+            get
+            {
+                if (!IsChunk4NativeLife || Chunk4LifeIncapacitation || chunk4LifeEvidence == null ||
+                    (int?)chunk4LifeEvidence["damageDispatches"] != 1 || ((int?)chunk4LifeEvidence["nativeDamage"] ?? 0) <= 0) return null;
+                var subject = Chunk4LifeSubject;
+                if (!subject.IsInState || !subject.Descriptor.State.IsDead || !subject.Descriptor.State.IsFinallyDead ||
+                    subject.Descriptor.State.IsConscious || subject.IsDirectlyControllable) return null;
+                var observed = chunk4LifeObserver?.Capture() ?? chunk4LifeEvidence["nativeLifeEvents"] as JObject;
+                var events = observed?["events"] as JArray;
+                return events != null && events.OfType<JObject>().Any(item => (string)item["kind"] == "native-life-state" &&
+                    (string)item["actor"] == subject.UniqueId && (string)item["lifeState"] == "Dead" &&
+                    item["nativeSource"] is JArray sources && sources.OfType<JObject>().Any(source => (string)source["token"] == "06009164" &&
+                        (string)source["assemblyMvid"] == "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7")) ? subject : null;
             }
         }
 

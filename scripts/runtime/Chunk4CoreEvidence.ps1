@@ -84,13 +84,19 @@ function Assert-KmcChunk4LifeRow {
         $_.lifeState -ceq $(if($e.incapacitation){'Unconscious'}else{'Dead'}) -and $_.frame -le $e.unrelatedTurns[0].frame}).Count -ne 1 -or
         $e.nativeRules.dropped -ne 0 -or @($e.nativeRules.events|Where-Object {$_.kind -ceq 'damage-after' -and $_.target -ceq $e.subject -and $_.damage -gt 0}).Count -ne 1){throw 'Life PASS lacks actual native damage and life callbacks.'}
     foreach($actor in @('rider','mount')){if(@($e.finalLife.live.$actor.raw|Where-Object {$null -ne $_}).Count -ne 0 -or @($e.finalLife.live.$actor.queue).Count -ne 0){throw 'Native life cleanup retained a pair command.'}}
-    foreach($life in @($e.afterCleanup,$e.finalLife)) {
+    $survivorGrants=Assert-KmcChunk4LifeSuccessors $e $roster $principal $subject $survivor
+    $finalRiderGrants=$e.beforeDamage.riderGrants+$(if($survivor -ceq 'rider'){$survivorGrants}else{0})
+    $finalMountGrants=$e.beforeDamage.mountGrants+$(if($survivor -ceq 'mount'){$survivorGrants}else{0})
+    foreach($key in @('afterCleanup','finalLife')) {
+        $life=$e.$key
+        $expectedRider=if($key -ceq 'finalLife'){$finalRiderGrants}else{$e.beforeDamage.riderGrants}
+        $expectedMount=if($key -ceq 'finalLife'){$finalMountGrants}else{$e.beforeDamage.mountGrants}
         if($null -eq $life -or $life.split -isnot [bool] -or $life.finalized -isnot [bool] -or
             $life.riderEnded -isnot [bool] -or $life.mountEnded -isnot [bool] -or
             $life.live.relationship -cne 'Unmounted' -or $life.pairCommand -ne $false -or $null -ne $life.privatePartner -or
             ($null -ne $life.identity -and (!$life.split -or $life.identity -cne $e.beforeDamage.identity)) -or
-            $life.riderGrants -ne $e.beforeDamage.riderGrants -or $life.mountGrants -ne $e.beforeDamage.mountGrants) {
-            throw 'Life cleanup retained active/new pair ownership or issued another actor grant.'
+            $life.riderGrants -ne $expectedRider -or $life.mountGrants -ne $expectedMount) {
+            throw 'Life cleanup retained active/new pair ownership or issued an unsolicited actor preparation.'
         }
     }
     Assert-KmcChunk4DeathPolicy $e
@@ -118,7 +124,7 @@ function Assert-KmcChunk4LifeRow {
         $exit.attachmentResidue -ne $false -or $exit.attachmentRestoreVerified -ne $true -or $exit.pairCommand -ne $false -or
         $exit.pairIntent -ne $false -or $exit.pairMovement -ne $false -or $exit.$subject.conscious -ne $e.nativeRecoveryExpected -or
         $exit.$subject.dead -ne (!$e.nativeRecoveryExpected) -or $exit.$subject.finallyDead -ne (!$e.nativeRecoveryExpected) -or
-        $exit.riderGrants -ne $e.beforeDamage.riderGrants -or $exit.mountGrants -ne $e.beforeDamage.mountGrants -or
+        $exit.riderGrants -ne $finalRiderGrants -or $exit.mountGrants -ne $finalMountGrants -or
         $exit.$survivor.conscious -ne $true -or $exit.$survivor.inState -ne $true -or $exit.$survivor.enabledRenderers -lt 1 -or
         $exit.$survivor.damage -ne $e.beforeDamage.$survivor.damage) {throw 'Native encounter exit did not retire the split accounting state or preserve the life result.'}
     foreach($actor in @('rider','mount')) {
@@ -134,6 +140,58 @@ function Assert-KmcChunk4LifeRow {
     if($e.enemyDamageDispatches -ne 1 -or $e.enemyNativeDamage -le 0 -or $e.enemyLifeTransitions -lt 1 -or
         $e.enemyBeforeDamage.id -cne $e.enemyAfterDeath.id -or $e.enemyBeforeDamage.conscious -ne $true -or $e.enemyAfterDeath.dead -ne $true -or
         [string]::IsNullOrWhiteSpace($e.enemyDamageSource) -or $e.enemyDamageSource -ceq $e.subject) {throw 'Life retirement lacks an actual labelled native enemy defeat.'}
+}
+function Assert-KmcChunk4LifeSuccessors {
+    param($e,[string[]]$Roster,[int]$Principal,[string]$Subject,[string]$Survivor)
+    $expected=@(for($offset=1;$offset -lt $Roster.Count;$offset++){
+        $actor=$Roster[($Principal+$offset)%$Roster.Count];if($actor -cne $e.subject){$actor}
+    })
+    if((ConvertTo-Json -InputObject $expected -Compress) -cne (ConvertTo-Json -InputObject @($e.successorOrderBefore) -Compress) -or
+        !(Test-KmcExactJsonInteger $e.allocationSequenceBeforeDamage) -or $e.allocationSequenceBeforeDamage -lt 0 -or
+        $e.allocationTrace.dropped -ne 0 -or @($e.allocationTrace.observationErrors).Count -ne 0){throw 'Life successors lack exact native order or allocation observations.'}
+    $turns=@($e.successorTurns);$unrelated=@();$survivorCount=0;$previousFrame=$e.beforeDamage.frame
+    if($turns.Count -lt 2 -or $turns.Count -gt $expected.Count){throw 'Life successor observations are missing or excessive.'}
+    foreach($index in 0..($turns.Count-1)){
+        $turn=$turns[$index];$state=$turn.state;$isSurvivor=$turn.actor -ceq $e.survivor
+        if($turn.actor -cne $expected[$index] -or $turn.survivor -isnot [bool] -or $turn.survivor -ne $isSurvivor -or
+            !(Test-KmcExactJsonInteger $turn.turn) -or $turn.turn -eq 0 -or $turn.frame -le $previousFrame -or
+            $state.currentActor -cne $turn.actor -or $state.frame -ne $turn.frame -or $state.round -ne $turn.round -or
+            $state.live.relationship -cne 'Unmounted' -or $null -ne $state.privatePartner -or $state.pairCommand -ne $false -or
+            ($null -ne $state.identity -and (!$state.split -or $state.identity -cne $e.beforeDamage.identity)) -or
+            $state.$Subject.conscious -ne $false -or $state.$Subject.dead -ne (!$e.incapacitation) -or
+            $state.$Subject.finallyDead -ne $e.finalLife.$Subject.finallyDead -or $state.$Survivor.conscious -ne $true){throw 'Life successor changed native participation, condition or pair ownership.'}
+        $previousFrame=$turn.frame
+        if($isSurvivor){
+            $survivorCount++
+            if($survivorCount -ne 1 -or $turn.round -le $e.beforeDamage.round){throw 'Survivor received another turn without a new native round.'}
+        }else{$unrelated+=@($turn)}
+        $expectedRider=$e.beforeDamage.riderGrants+$(if($Survivor -ceq 'rider'){$survivorCount}else{0})
+        $expectedMount=$e.beforeDamage.mountGrants+$(if($Survivor -ceq 'mount'){$survivorCount}else{0})
+        if($state.riderGrants -ne $expectedRider -or $state.mountGrants -ne $expectedMount -or
+            $turn.endInput -isnot [bool] -or $turn.endInput -ne ($index -lt $turns.Count-1)){throw 'Native successor preparation or ordinary End input was lost or duplicated.'}
+    }
+    if($unrelated.Count -ne 2 -or $turns[-1].survivor){throw 'Life successor sequence did not finish at the second unrelated native actor.'}
+    for($index=0;$index -lt 2;$index++){
+        foreach($field in @('actor','round','frame')){if($unrelated[$index].$field -cne $e.unrelatedTurns[$index].$field){throw 'Unrelated turn evidence disagrees with the complete native successor sequence.'}}
+    }
+    $preparations=@($e.allocationTrace.events|Where-Object {($_.boundary -cin @('prepare-before','prepare-after')) -and
+        $_.sequence -gt $e.allocationSequenceBeforeDamage -and $_.state.actor -cin @($e.subject,$e.survivor)})
+    if($preparations.Count -ne 2*$survivorCount){throw 'Life cleanup has an unsolicited, missing or duplicate pair-actor preparation callback.'}
+    if($survivorCount -eq 1){
+        $turn=@($turns|Where-Object survivor)[0]
+        for($index=0;$index -lt 2;$index++){
+            $p=$preparations[$index];$boundary=if($index -eq 0){'prepare-before'}else{'prepare-after'}
+            if($p.boundary -cne $boundary -or $p.state.actor -cne $e.survivor -or $p.currentActor -cne $e.survivor -or
+                $p.turn -ne $turn.turn -or $p.preparingTurn -ne $turn.turn -or $p.round -ne $turn.round -or
+                $p.frame -lt $e.beforeDamage.frame -or $p.frame -gt $turn.frame -or
+                $p.simulatingClick -ne $false -or $null -ne $p.activationIdentity -or $null -ne $p.state.pairedGrantIdentity -or
+                $p.state.grantSequence -ne ($e.beforeDamage.($Survivor+'Grants')+1) -or $p.state.prepared -ne $true -or $p.state.canAct -ne $true){
+                throw 'Survivor refresh was not one actual independent native Prepare in its recorded new round.'
+            }
+        }
+        if($preparations[0].sequence -ge $preparations[1].sequence){throw 'Native survivor Prepare callbacks are out of order.'}
+    }
+    return $survivorCount
 }
 function Assert-KmcChunk4DeathPolicy {
     param($e)

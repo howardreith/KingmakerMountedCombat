@@ -15,7 +15,7 @@ function New-CoreLifeState($subject,$incap,$after) {
     $state=@{live=(New-CoreState);identity='activation';privatePartner='mount';pairCommand=$true;pairIntent=$false;pairMovement=$false;
         attachmentResidue=$true;attachmentRestoreVerified=$false;split=$false;finalized=$false;riderEnded=$false;mountEnded=$false;
         currentActor='rider';riderGrants=2;mountGrants=2;actorRecords=2;playerCombat=$true;riderCombat=$true;mountCombat=$true;tbActive=$true;tbInitialized=$true;
-        frame=10;gameTicks=10000000;
+        frame=10;gameTicks=10000000;round=2;
         rider=@{id='rider';conscious=$true;dead=$false;finallyDead=$false;damage=0;hp=103;characterLevel=11;nonLethalDamage=0;inState=$true;enabledRenderers=1};
         mount=@{id='mount';conscious=$true;dead=$false;finallyDead=$false;damage=0;hp=103;characterLevel=11;nonLethalDamage=0;inState=$true;enabledRenderers=1}}
     if($after){$state.live.relationship='Unmounted';$state.split=$true;$state.privatePartner=$null;$state.pairCommand=$false;
@@ -31,16 +31,22 @@ function New-CoreEnvelope([string]$root) {
             $incap=$id -eq 'C4-LIFE-rider-incapacitation'
             $e.mode='TB';$e+=@{subject=$subject;survivor=$other;incapacitation=$incap;damageDispatches=1;nativeDamage=130;
                 beforeDamage=(New-CoreLifeState $subject $incap $false);finalLife=(New-CoreLifeState $subject $incap $true);
-                liveCommandBefore=@{started=$true;finished=$false};unrelatedTurns=@(@{actor='other1';frame=20},@{actor='other2';frame=30});unrelatedOrderBefore=@('other1','other2');
+                liveCommandBefore=@{started=$true;finished=$false};unrelatedTurns=@(@{actor='other1';frame=20;round=2},@{actor='other2';frame=30;round=2});unrelatedOrderBefore=@('other1','other2');
                 eligibleRosterBeforeDamage=@('other2','mount','rider','other1');principalRosterIndex=2;
                 nativeLifeEvents=@{events=@(@{kind='native-life-state';actor=$subject;lifeState=$(if($incap){'Unconscious'}else{'Dead'});frame=15})};nativeRules=@{dropped=0;events=@(@{kind='damage-after';target=$subject;damage=130})}}
             $e.afterCleanup=New-CoreLifeState $subject $incap $true
+            $e.successorOrderBefore=@('other1','other2','mount')|Where-Object {$_ -cne $subject}
+            $e.allocationSequenceBeforeDamage=0;$e.allocationTrace=@{dropped=0;observationErrors=@();events=@()}
+            $e.successorTurns=@(0..1|ForEach-Object {
+                $state=New-CoreLifeState $subject $incap $true;$state.currentActor='other'+($_+1);$state.frame=20+10*$_
+                @{actor=$state.currentActor;round=2;frame=(20+10*$_);turn=(11+$_);survivor=$false;endInput=($_ -eq 0);state=$state}
+            })
             $e.nativeEncounterExit=New-CoreLifeState $subject $incap $true
             $e.nativeEncounterExit.identity=$null;$e.nativeEncounterExit.actorRecords=0
             foreach($flag in @('playerCombat','riderCombat','mountCombat','tbActive','tbInitialized')){$e.nativeEncounterExit[$flag]=$false}
             $permanent=$id -ceq 'C4-LIFE-rider-death-live-command'
             $e.nativeRecoveryExpected=!$permanent
-            foreach($state in @($e.afterCleanup,$e.finalLife,$e.nativeEncounterExit)){$state[$subject].finallyDead=$permanent}
+            foreach($state in (@($e.afterCleanup,$e.finalLife,$e.nativeEncounterExit)+@($e.successorTurns|ForEach-Object {$_.state}))){$state[$subject].finallyDead=$permanent}
             if(!$permanent){
                 $e.nativeEncounterExit[$subject].conscious=$true;$e.nativeEncounterExit[$subject].dead=$false;$e.nativeEncounterExit[$subject].damage=92
                 $source=@(@{type='Kingmaker.Controllers.Units.UnitReturnToConsciousController';method='Tick';token='0600918e';assemblyMvid='07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'},
@@ -103,6 +109,21 @@ function New-CoreEnvelope([string]$root) {
     return (@{schemaVersion=22;status='PASS';rows=$rows;errors=@();subscenarioPassCount=$rows.Count;subscenarioFailCount=0;
         observations=@{phase3fActualConfiguration=@{enablePairedActivation=$true;enableUnifiedMountedTurn=$false;enablePairedCommandScheduler=$false;enableDiagnosticOverlay=$false;overlayPresent=$false};
             ordinaryAttackTrace=@{dropped=0;events=@()}}}|ConvertTo-Json -Depth 30|ConvertFrom-Json)
+}
+function Add-CoreNativeSurvivorTurn($envelope) {
+    $e=$envelope.rows[0].evidence
+    $e.eligibleRosterBeforeDamage=@('mount','other2','rider','other1');$e.principalRosterIndex=2
+    $e.successorOrderBefore=@('other1','mount','other2')
+    $turn=$e.successorTurns[0]|ConvertTo-Json -Depth 15|ConvertFrom-Json
+    $turn.actor='mount';$turn.survivor=$true;$turn.frame=25;$turn.round=3;$turn.turn=13;$turn.endInput=$true
+    $turn.state.currentActor='mount';$turn.state.mountGrants=3;$turn.state.round=3;$turn.state.frame=25
+    $e.successorTurns=@($e.successorTurns[0],$turn,$e.successorTurns[1]);$e.successorTurns[2].state.mountGrants=3
+    $e.successorTurns[2].round=3;$e.successorTurns[2].state.round=3;$e.unrelatedTurns[1].round=3
+    foreach($state in @($e.finalLife,$e.nativeEncounterExit,$e.afterPolicyRestore)){$state.mountGrants=3}
+    $e.allocationTrace.events=@(0..1|ForEach-Object {
+        [pscustomobject]@{sequence=($_+1);boundary=$(if($_ -eq 0){'prepare-before'}else{'prepare-after'});round=3;frame=24;turn=13;preparingTurn=13;currentActor='mount';activationIdentity=$null;simulatingClick=$false;
+            state=[pscustomobject]@{actor='mount';grantSequence=3;pairedGrantIdentity=$null;prepared=$true;canAct=$true}}
+    })
 }
 foreach($root in @('chunk4-rider-incapacitation-tb','chunk4-rider-death-tb','chunk4-mount-death-tb','chunk4-targeting-rider-rt',
     'chunk4-targeting-area-unmounted-rt','chunk4-targeting-mount-rt','chunk4-horse-strike-comparison-rt','chunk4-ranged-native-control-rt')){
@@ -235,3 +256,54 @@ foreach($root in @('chunk4-rider-incapacitation-tb','chunk4-rider-death-tb','chu
     }
 }
 Write-Host "COMPONENT parser-only TOTAL PASS=$passed FAIL=0"
+
+# Native AE crossed a real round boundary through the surviving Horse before
+# the second unrelated actor. Parser fixtures retain strict callback accounting.
+$root='chunk4-rider-death-tb';$native=New-CoreEnvelope $root;Add-CoreNativeSurvivorTurn $native
+Assert-KmcChunk4CoreEvidence @{scenario=$root} $native 'PASS';$passed++
+$survivorMutations=@(
+    {param($e) $e.successorOrderBefore=@('other1','other2','mount')},
+    {param($e) $e.successorTurns[1].actor='rider'},
+    {param($e) $e.successorTurns[1].survivor=$false},
+    {param($e) $e.successorTurns[1].round=2;$e.successorTurns[1].state.round=2},
+    {param($e) $e.successorTurns[1].state.mountGrants=2},
+    {param($e) $e.successorTurns[1].state.riderGrants=3},
+    {param($e) $e.successorTurns[1].state.privatePartner='rider'},
+    {param($e) $e.successorTurns[1].state.identity='new-pair'},
+    {param($e) $e.successorTurns[1].endInput=$false},
+    {param($e) $e.successorTurns[1].turn=0},
+    {param($e) $e.successorTurns[1].state.rider.conscious=$true},
+    {param($e) $e.successorTurns[1].state.rider.finallyDead=$false},
+    {param($e) $e.successorTurns[1].frame=20},
+    {param($e) $e.unrelatedTurns[1].round=2},
+    {param($e) $e.finalLife.mountGrants=2},
+    {param($e) $e.afterPolicyRestore.mountGrants=4},
+    {param($e) $e.allocationSequenceBeforeDamage=2},
+    {param($e) $e.allocationSequenceBeforeDamage=$null},
+    {param($e) $e.allocationTrace.dropped=1},
+    {param($e) $e.allocationTrace.observationErrors=@('failed')},
+    {param($e) $e.allocationTrace.events=@($e.allocationTrace.events[0])},
+    {param($e) $e.allocationTrace.events+=@($e.allocationTrace.events[0])},
+    {param($e) $e.allocationTrace.events[0].state.actor='rider'},
+    {param($e) $e.allocationTrace.events[0].currentActor='rider'},
+    {param($e) $e.allocationTrace.events[0].boundary='prepare-after'},
+    {param($e) $e.allocationTrace.events[0].sequence=3},
+    {param($e) $e.allocationTrace.events[0].turn=14},
+    {param($e) $e.allocationTrace.events[0].preparingTurn=14},
+    {param($e) $e.allocationTrace.events[0].round=2},
+    {param($e) $e.allocationTrace.events[0].frame=9},
+    {param($e) $e.allocationTrace.events[0].frame=26},
+    {param($e) $e.allocationTrace.events[0].simulatingClick=$true},
+    {param($e) $e.allocationTrace.events[0].activationIdentity='new-pair'},
+    {param($e) $e.allocationTrace.events[0].state.pairedGrantIdentity='activation'},
+    {param($e) $e.allocationTrace.events[0].state.grantSequence=4},
+    {param($e) $e.allocationTrace.events[0].state.prepared=$false},
+    {param($e) $e.allocationTrace.events[0].state.canAct=$false}
+)
+foreach($mutation in $survivorMutations){
+    $changed=New-CoreEnvelope $root;Add-CoreNativeSurvivorTurn $changed
+    & $mutation $changed.rows[0].evidence;$rejected=$false
+    try{Assert-KmcChunk4CoreEvidence @{scenario=$root} $changed 'PASS'}catch{$rejected=$true}
+    if(!$rejected){throw "Invalid survivor preparation envelope accepted: $mutation"};$passed++
+}
+Write-Host "COMPONENT with native survivor-order fixture TOTAL PASS=$passed FAIL=0"

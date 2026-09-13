@@ -5280,7 +5280,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     unmountedHorseAiLease = new ScopedDiagnosticAiLease<UnitEntityData>(
                         unit => unit.UniqueId,
                         unit => ReferenceEquals(unit, horse) && unit.IsInState &&
-                            unit.IsDirectlyControllable && unit.Group == rider.Group &&
+                            (unit.IsDirectlyControllable || cleanupStarted && ReferenceEquals(unit, NativeLifeFinalDeathSubject)) && unit.Group == rider.Group &&
                             IsExactDiagnosticAiIsolationRelationship(),
                         unit => unit.Commands != null && unit.Commands.Empty,
                         unit => (bool)AiBackingField.GetValue(unit),
@@ -5437,7 +5437,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     combatMountRiderAiLease = new ScopedDiagnosticAiLease<UnitEntityData>(
                         unit => unit.UniqueId,
                         unit => ReferenceEquals(unit, rider) && unit.IsInState &&
-                            unit.IsDirectlyControllable && unit.Group == horse.Group &&
+                            (unit.IsDirectlyControllable || cleanupStarted && ReferenceEquals(unit, NativeLifeFinalDeathSubject)) && unit.Group == horse.Group &&
                             IsExactDiagnosticAiIsolationRelationship(),
                         unit => unit.Commands != null && unit.Commands.Empty,
                         unit => (bool)AiBackingField.GetValue(unit),
@@ -6174,7 +6174,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             RestoreSelection();
             var selected = SelectionManager.Instance.SelectedUnits;
-            var expectedSelection = originalSelection.Where(item => item != null && item.IsInState).ToArray();
+            var expectedSelection = NativeFixtureSelectionRestoration.Expected(originalSelection, NativeLifeFinalDeathSubject);
             var selectionRestored = selected.Count == expectedSelection.Length &&
                 expectedSelection.All(item => selected.Contains(item));
             var cleanupPassed = selectionRestored &&
@@ -6187,6 +6187,9 @@ namespace KingmakerMountedCombat.Diagnostics
             observations["cleanup"] = new JObject
             {
                 ["selectionRestored"] = selectionRestored,
+                ["nativeFinalDeathSelectionExclusion"] = NativeLifeFinalDeathSubject?.UniqueId,
+                ["expectedSelection"] = new JArray(expectedSelection.Select(unit => unit.UniqueId)),
+                ["actualSelection"] = new JArray(selected.Select(unit => unit.UniqueId)),
                 ["equipmentSetRestored"] = rider.Body.CurrentHandEquipmentSetIndex == originalEquipmentSet,
                 ["settingRestored"] = settings.EnableUnsafeMovementExperiment == originalUnsafeExperiment,
                 ["pairedSchedulerSettingRestored"] =
@@ -6348,7 +6351,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private void RestoreSelection()
         {
             SelectionManager.Instance.MultiSelect(
-                originalSelection.Where(item => item != null && item.IsInState && item.View != null)
+                NativeFixtureSelectionRestoration.Expected(originalSelection, NativeLifeFinalDeathSubject).Where(item => item.View != null)
                     .Select(item => item.View),
                 false);
         }

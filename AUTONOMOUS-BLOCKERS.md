@@ -1,6 +1,6 @@
-# Active Chunk 4 - candidate17, 2026-09-13 UTC
+# Active Chunk 4 - candidate18, 2026-09-13 UTC
 
-IN PROGRESS. Source16 36256190ec1a49568451a63fccbcd123a4a901c6: AD reached native rider removal and Unmounted/Death, then hit the host300-second deadline without exporting its child evidence. No persistent-death qualification. Candidate17 extends the existing30-second cleanup failure export to native-life roots and records actual actor/AI state; no gameplay change or assertion relaxation. All30 transactions independently restored actual preview.37/data, latest2026-09-13T02:38:12.6361125Z. Next nativeAE rider-death with these missing observations, then remaining new/final gates. [One report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent deployment or Chunk5 implementation.
+IN PROGRESS. Native AE on published source17 5699d391ccaa7ae66005cf6a9f1c9a3ede956d93 proved actual rider Dead/FinallyDead from native damage, then failed fixture expectations for the surviving Horse's real round3 preparation, final-death AI context and selection. No scheduler defect is established. Candidate18 records the complete cyclic native successor order, requires exactly one independent new-round survivor Prepare, and handles only the observed dead subject's control/selection changes. All31 transactions independently restored actual preview.37/data; latest AE audit2026-09-13T03:09:24.5535056Z PASS. Next focused nativeAF rider-death, then remaining new/final gates. [One report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent deployment or Chunk5 implementation.
 ---
 ## Combined milestone disposition — 2026-09-08
 
