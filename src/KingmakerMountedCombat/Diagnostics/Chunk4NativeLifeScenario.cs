@@ -191,8 +191,19 @@ namespace KingmakerMountedCombat.Diagnostics
                     throw new InvalidOperationException("Native difficulty leaves no safe incapacitation window below death.");
                 chunk4LifeEvidence["beforeDamage"] = CaptureChunk4LifeState();
                 chunk4LifeEvidence["liveCommandBefore"] = CaptureOrdinaryCommand(chunk4LifeLive);
-                chunk4LifeEvidence["unrelatedOrderBefore"] = new JArray(controller.SortedUnits.Where(unit => unit != rider && unit != horse && unit.IsInState &&
-                    unit.IsInCombat && !unit.Descriptor.State.IsDead).Select(unit => unit.UniqueId));
+                var roster = controller.SortedUnits.Where(unit => unit != null && unit.IsInState &&
+                    unit.IsInCombat && !unit.Descriptor.State.IsDead).ToArray();
+                var principalIndex = Array.FindIndex(roster, unit => ReferenceEquals(unit, turn.Unit));
+                if (principalIndex < 0 || roster.Count(unit => unit == rider) != 1 || roster.Count(unit => unit == horse) != 1 ||
+                    roster.Select(unit => unit.UniqueId).Distinct(StringComparer.Ordinal).Count() != roster.Length)
+                    throw new InvalidOperationException("Life fixture lacks its exact native roster and current principal.");
+                chunk4LifeEvidence["eligibleRosterBeforeDamage"] = new JArray(roster.Select(unit => unit.UniqueId));
+                chunk4LifeEvidence["principalRosterIndex"] = principalIndex;
+                // Native ChooseNextUnit advances from the current actor and wraps.
+                // The roster's first entry is not necessarily the next turn.
+                chunk4LifeEvidence["unrelatedOrderBefore"] = new JArray(Enumerable.Range(1, roster.Length - 1)
+                    .Select(offset => roster[(principalIndex + offset) % roster.Length])
+                    .Where(unit => unit != rider && unit != horse).Select(unit => unit.UniqueId));
                 if (((JArray)chunk4LifeEvidence["unrelatedOrderBefore"]).Count < 2)
                     throw new InvalidOperationException("Life fixture lacks two unrelated native successor actors.");
                 chunk4LifeRiderGrants = allocationTrace.GrantCount(rider); chunk4LifeMountGrants = allocationTrace.GrantCount(horse);

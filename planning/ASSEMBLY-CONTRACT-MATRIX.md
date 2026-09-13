@@ -1,3 +1,8 @@
+## Chunk4 native death successor contract - 2026-09-13
+
+Exact Kingmaker MVID07fa1e4d-8618-41b3-9b8d-faa17d3b26f7. SortedUnits06000BC7 returns roster order; ChooseNextUnit06000BD2 advances after the current actor with wrap. RemoveUnit06000BE6 chooses the successor before removing the current actor; HandleUnitDeath06000BF2 invokes that path. Local bounded inspection and AB's actual Prepare/Remove/End trace show Main following rider in round2, consistent with the prior native round, while the fixture expected the raw roster head. Candidate15 corrects only that fixture and pins the pre-damage eligible roster/current index in evidence validation. Full unrelated progression and encounter retirement still require a fresh native run; no scheduler repair is justified by AB.
+
+AB newly reached native rider LifeState Dead/IsDeadtrue/IsFinallyDeadfalse after actual119 damage, interrupted the live Horse command and restored attachment/private context. Preserve this exact native death-policy result. Z/AA independently attribute actual mounted/unmounted area saves to entry06002CCD and round06002CD0 with separate rider/Horse defenses and retired setup override. See the single Chunk4 report for results, limitations and restoration identities.
 ## Chunk 4 resumed candidate10 contracts - 2026-09-09
 
 ASSEMBLY CONTRACT: exact installed Kingmaker checks538/0 (Wrath readonly24/0), not native qualification. Candidate10 observes actual AreaEffectContextData.Entity via ElementsContext.GetData, native unit-entry06002CCD versus round06002CD0 frames, exact area/caster/actor identities and independent defenses. It observes the original split activation until actual native encounter exit rather than demanding premature identity deletion. P/O native reruns remain required.

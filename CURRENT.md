@@ -1,6 +1,6 @@
-# Active Chunk 4 - candidate14, 2026-09-12
+# Active Chunk 4 - candidate15, 2026-09-13 UTC
 
-IN PROGRESS. Published source13 fb7ed91a65786386f61a82d91430ec07978806c9 newly proves native Dismount and parent-probe retirement in Y. Y then FAIL46/2 at the incoming fixture's mounted-only readiness check while Unmounted, before any spell expenditure. Candidate14 selects the correct relationship requirement and records native readiness without changing combat preparation. All25 transactions restored actual preview.37/data, last audit2026-09-12T16:33:46.8017933Z. Next unmounted/mounted area controls, actual rider death and remaining Chunk4 gates. [One report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent deployment or Chunk5 implementation.
+IN PROGRESS. Source14 f12e0433c51190960b77def625c7cd31b4c196ca newly passes unmounted area Z47/0 and mounted rider targeting AA49/0. AB46/2 reaches actual native rider Dead state119, interrupts the live Horse command and clears attachment/context, then fails the fixture's expected unrelated order. Candidate15 derives that order cyclically from the native current principal and strengthens the validator; no scheduler change. All28 transactions restored actual preview.37/data, latest audit2026-09-13T00:43:12.4964978Z. Next fresh native rider-death, remaining new gates, exact-final regressions. [One report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent deployment or Chunk5 implementation.
 ---
 # Combined actor-allocation and paired-activation milestone
 

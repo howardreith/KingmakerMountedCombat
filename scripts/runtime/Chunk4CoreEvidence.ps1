@@ -65,6 +65,19 @@ function Assert-KmcChunk4LifeRow {
         $e.finalLife.$survivor.enabledRenderers -lt 1 -or $e.finalLife.$survivor.damage -ne $e.beforeDamage.$survivor.damage){throw 'Native rider/mount life stimulus or independent cleanup is incomplete.'}
     if($e.incapacitation -ne ($e.caseId -ceq 'C4-LIFE-rider-incapacitation') -or $e.finalLife.$subject.conscious -ne $false -or
         $e.finalLife.$subject.dead -ne (!$e.incapacitation)){throw 'Actual native life result was absent, changed or resurrected.'}
+    $roster=@($e.eligibleRosterBeforeDamage);$principal=$e.principalRosterIndex
+    $ids=New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
+    foreach($id in $roster){if([string]::IsNullOrWhiteSpace($id) -or !$ids.Add([string]$id)){throw 'Life fixture roster is empty or duplicated.'}}
+    if($roster.Count -lt 4 -or !(Test-KmcExactJsonInteger $principal) -or $principal -lt 0 -or $principal -ge $roster.Count -or
+        $roster[$principal] -cne $e.beforeDamage.currentActor -or $e.beforeDamage.currentActor -cne $e.beforeDamage.rider.id -or
+        !$ids.Contains([string]$e.subject) -or !$ids.Contains([string]$e.survivor)){throw 'Life fixture lacks its exact native roster and rider principal.'}
+    $expected=@(for($offset=1;$offset -lt $roster.Count;$offset++){
+        $actor=$roster[($principal+$offset)%$roster.Count]
+        if($actor -cnotin @($e.subject,$e.survivor)){$actor}
+    })
+    if((ConvertTo-Json -InputObject $expected -Compress) -cne (ConvertTo-Json -InputObject @($e.unrelatedOrderBefore) -Compress)){
+        throw 'Life fixture expected order does not follow the current actor through the native cyclic roster.'
+    }
     if(@($e.unrelatedTurns).Count -ne 2 -or $e.unrelatedTurns[0].actor -ceq $e.unrelatedTurns[1].actor){throw 'Life cleanup lacks two distinct unrelated native turns.'}
     for($i=0;$i -lt 2;$i++){if($e.unrelatedTurns[$i].actor -cne $e.unrelatedOrderBefore[$i] -or $e.unrelatedTurns[$i].actor -cin @($e.subject,$e.survivor)){throw 'Life cleanup changed unrelated native participation.'}}
     if(@($e.nativeLifeEvents.events|Where-Object {$_.kind -ceq 'native-life-state' -and $_.actor -ceq $e.subject}).Count -lt 1 -or

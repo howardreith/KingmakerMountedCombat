@@ -14,7 +14,7 @@ function New-CoreCost($caster,$spell) {
 function New-CoreLifeState($subject,$incap,$after) {
     $state=@{live=(New-CoreState);identity='activation';privatePartner='mount';pairCommand=$true;pairIntent=$false;pairMovement=$false;
         attachmentResidue=$true;attachmentRestoreVerified=$false;split=$false;finalized=$false;riderEnded=$false;mountEnded=$false;
-        riderGrants=2;mountGrants=2;actorRecords=2;playerCombat=$true;riderCombat=$true;mountCombat=$true;tbActive=$true;tbInitialized=$true;
+        currentActor='rider';riderGrants=2;mountGrants=2;actorRecords=2;playerCombat=$true;riderCombat=$true;mountCombat=$true;tbActive=$true;tbInitialized=$true;
         rider=@{id='rider';conscious=$true;dead=$false;damage=0;inState=$true;enabledRenderers=1};
         mount=@{id='mount';conscious=$true;dead=$false;damage=0;inState=$true;enabledRenderers=1}}
     if($after){$state.live.relationship='Unmounted';$state.split=$true;$state.privatePartner=$null;$state.pairCommand=$false;
@@ -31,6 +31,7 @@ function New-CoreEnvelope([string]$root) {
             $e.mode='TB';$e+=@{subject=$subject;survivor=$other;incapacitation=$incap;damageDispatches=1;nativeDamage=130;
                 beforeDamage=(New-CoreLifeState $subject $incap $false);finalLife=(New-CoreLifeState $subject $incap $true);
                 liveCommandBefore=@{started=$true;finished=$false};unrelatedTurns=@(@{actor='other1'},@{actor='other2'});unrelatedOrderBefore=@('other1','other2');
+                eligibleRosterBeforeDamage=@('other2','mount','rider','other1');principalRosterIndex=2;
                 nativeLifeEvents=@{events=@(@{kind='native-life-state';actor=$subject})};nativeRules=@{dropped=0;events=@(@{kind='damage-after';target=$subject;damage=130})}}
             $e.afterCleanup=New-CoreLifeState $subject $incap $true
             $e.nativeEncounterExit=New-CoreLifeState $subject $incap $true
@@ -102,6 +103,12 @@ foreach($root in @('chunk4-rider-incapacitation-tb','chunk4-rider-death-tb','chu
     foreach($row in $native.rows){
         $case=$row.name
         if($case.StartsWith('C4-LIFE-')){
+            $mutations+=@(
+                {param($e) $life=$e.rows[0].evidence;$life.unrelatedOrderBefore=@('other2','other1');$life.unrelatedTurns[0].actor='other2';$life.unrelatedTurns[1].actor='other1'},
+                {param($e) $e.rows[0].evidence.eligibleRosterBeforeDamage=@()},
+                {param($e) $e.rows[0].evidence.principalRosterIndex=0},
+                {param($e) $e.rows[0].evidence.eligibleRosterBeforeDamage[0]='mount'}
+            )
             $mutations+=@({param($e) $e.rows[0].evidence.nativeDamage=0},{param($e) $e.rows[0].evidence.liveCommandBefore.finished=$true},
                 {param($e) $e.rows[0].evidence.finalLife.privatePartner='stale'},{param($e) $e.rows[0].evidence.unrelatedTurns[1].actor='mount'},
                 {param($e) $e.rows[0].evidence.nativeLifeEvents.events=@()},{param($e) $e.rows[0].evidence.nativeRules.events=@()},
