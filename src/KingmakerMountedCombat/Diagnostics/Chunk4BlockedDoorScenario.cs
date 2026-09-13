@@ -122,6 +122,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (elapsed < 2d || !chunk4BlockedDoorMove.IsFinished && elapsed < 30d) return false;
                 if ((double)state["farDistance"] <= 1.25d)
                     throw new InvalidOperationException("The real closed-door order found a traversable route; this is not blocked-route evidence.");
+                // Completion can fall between periodic samples. Keep the actual
+                // terminal observation before Stop without duplicating a frame.
+                if (chunk4BlockedDoorSamples.Count == 0 ||
+                    (int)chunk4BlockedDoorSamples[chunk4BlockedDoorSamples.Count - 1]["frame"] != Time.frameCount)
+                {
+                    if (chunk4BlockedDoorSamples.Count >= 512) throw new InvalidOperationException("Blocked-door observation exceeded its sample bound.");
+                    chunk4BlockedDoorSamples.Add(state);
+                }
                 chunk4BlockedDoorEvidence["beforeStop"] = state;
                 chunk4BlockedDoorEvidence["elapsed"] = elapsed;
                 chunk4BlockedDoorEvidence["samples"] = chunk4BlockedDoorSamples.DeepClone();

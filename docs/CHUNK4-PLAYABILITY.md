@@ -1,6 +1,6 @@
 # Chunk 4: sustained play and core safety
 
-**IN PROGRESS - 2026-09-13 UTC.** All51 guarded transactions restored actual human preview.37/data. AY on27 passed native traversal257/0 with completed closing, clean cuts and unchanged synchronization bounds; outer validation rejected rounded clip-length evidence. Candidate28 preserves exact precision, pending qualification. Horse visual, slope/area/session and exact-final regression remain open.
+**IN PROGRESS - 2026-09-13 UTC.** All51 guarded transactions restored actual human preview.37/data. AY on27 passed native traversal257/0 with completed closing, clean cuts and unchanged synchronization bounds; outer validation rejected rounded clip-length evidence. Candidate28 preserves exact precision. Before native replay, component inspection found the terminal command state missing from periodic samples;29 retains that actual observation. Native29 qualification is pending. Horse visual, slope/area/session and exact-final regression remain open.
 
 Reviewed documentation e6d89bff8c44ecbc21104b733703be9401c3671e and qualified gameplay ec5d44e6eddc9839d273176b345f7c9701520450 retain their accepted scope in the [paired milestone](PAIRED-ACTIVATION-MILESTONE.md). Preview.13 human feedback remains separate; no preview.37 or candidate human approval is inferred. All Chunk4 runs use paired activation true and unified turn/scheduler/overlay false.
 
@@ -46,6 +46,10 @@ AW explains the remaining fault: native UnitMoveController.Tick06009183 skips Ti
 
 AX also exposes a fixture timing error: native StandardDoor.Open06001AA6 flips state immediately and runs its AnimationClipPlayable backward; GetState=false does not mean the obstacle has finished moving. Preview.27 reads the exact private playable/graph fields, waits for time<=0, native cut/graph readiness and a subsequent ready frame under the unchanged30-second bound. It records initial/ready playback and measurement times. Both native and outer checks reject cut updates or unfinished animation during measurement. No door animation, navigation graph, collision, footprint, command cost or gameplay behavior is forced.
 AY proves the native readiness correction but exposes evidence precision loss. Preview.28 exports the native clip-length float as double, preserving its exact value alongside playback time. The installed JSON serializer reproduces the old mismatch and corrected round trip; strict admission and collision checks remain unchanged. Focused107/0/build/source22/0 pass; Full28 PASS exit0: components377/0, harness248/0, core375/0, play106/0, metadata2/0, extended277/0, obstruction106/0, traversal107/0, outer45/0, Charge86/0, Kingmaker555/0, read-only Wrath24/0, detached construction30/0 plus observers/movement entry1/0. Source22/0/buildPASS; tests28 SHA25629fdac80f9a7618fe234e17a30147674c4d94e6b20fa50ea4156eaa3d1a3016a.
+
+A component check using the actual JSON round trip then exposed a second AY evidence gap: periodic samples ended at4266, while the actual command completed at4270 before Stop. Preview.29 includes that final native observation without duplicating a frame or changing the512 cap. The strict validator passes the corrected in-memory envelope; original AY remains FAIL and native29 is required. No native28 run was made. Initial failed scratch checks are identified in the journal; they are not qualification evidence.
+
+Full29 PASS exit0: components377/0, harness248/0, core375/0, play106/0, metadata2/0, extended277/0, obstruction106/0, traversal108/0, outer45/0, Charge86/0, Kingmaker555/0, read-only Wrath24/0, detached constructions30/0 plus observers/movement entry1/0; source22/0/buildPASS. Tests29 SHA256176eb8bc7149411b512c1286cf5e2f1a51cc249667af446c2f24ee220440fa0b.
 
 ## Identities and qualification
 

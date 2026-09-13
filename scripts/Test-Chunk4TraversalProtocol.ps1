@@ -145,4 +145,8 @@ $kmcPrecise.closing.initial.time=1.3666666746139526
 $kmcPrecise.closing.initial.clipLength=1.3666666746139526
 $kmcPrecise.closing.ready.clipLength=1.3666666746139526
 Assert-KmcChunk4BlockedDoor $kmcPrecise; $kmcPass++
+$kmcTerminal=New-BlockedEnvelope
+foreach($kmcSample in $kmcTerminal.samples){$kmcSample.moveStarted=$false;$kmcSample.moveFinished=$false}
+$kmcTerminal.samples=@($kmcTerminal.samples)+@($kmcTerminal.beforeStop)
+Assert-KmcChunk4BlockedDoor $kmcTerminal; $kmcPass++
 Write-Output "CHUNK 4 TRAVERSAL COMPONENT PASS=$kmcPass FAIL=0"

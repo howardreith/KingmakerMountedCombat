@@ -1,6 +1,6 @@
-# Active Chunk 4 - candidate28, 2026-09-13 UTC
+# Active Chunk 4 - candidate29, 2026-09-13 UTC
 
-IN PROGRESS. Published source27 7d65a091a33afd7746aa850d42aec283fd9f5eb0: AY native traversal257/0, all closing/cut/collision/synchronization checks passed; outerFAIL because float clip-length serialization rounded below the double playback time. Candidate28 preserves the exact native value as double; no readiness threshold or gameplay change. All51 transactions independently restored human37/data. Build/source22/0 and focused traversal107/0 PASS; full28 checks PASS; next commit/private package/guarded publication/suite/WhatIf and uniqueAZ traversal. Continue missing Horse visual, slope/area/session and exact-final combat gates. [Report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent installation or Chunk5 implementation.
+IN PROGRESS. Published source28 861d3946e17e35d298de8b91229cff09b13cadcc; no native28 run. AY on27 passed native257/0 but failed outer validation. Retained-envelope component inspection additionally found terminal command completion at4270 after the last periodic sample4266. Candidate29 keeps that actual final sample, preserving the512 cap, frame uniqueness and strict validator;28 already preserves exact clip-length precision. All51 native transactions restored human37/data; WhatIf28 also passed with no mutation. Focused108/0/build/source22/0 PASS; full29 checks PASS; next commit/package/publication/suite/WhatIf and uniqueAZ native traversal. [Report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). Continue remaining Chunk4 gates; no permanent install or Chunk5 implementation.
 ---
 ## Combined milestone disposition — 2026-09-08
 
