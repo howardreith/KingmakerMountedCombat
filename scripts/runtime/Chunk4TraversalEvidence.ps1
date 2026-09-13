@@ -65,7 +65,7 @@ function Assert-KmcChunk4SlopeDiscovery {
         if($kmcSurface.nodePresent) {Assert-KmcChunk4SlopePoint $kmcSurface.clamped}
     }
     foreach($kmcProbe in $Value.probes) {
-        Assert-KmcExactProperties $kmcProbe @('frame','requested','endpoint','points','minimumY','maximumY','pathError','accepted','reason') 'Slope native path probe'
+        Assert-KmcExactProperties $kmcProbe @('frame','requested','endpoint','points','minimumY','maximumY','pathError','accepted','reason','ground') 'Slope native path probe'
         if(!(Test-KmcExactJsonInteger $kmcProbe.frame) -or $kmcProbe.frame -lt 0 -or
             !(Test-KmcExactJsonInteger $kmcProbe.points) -or $kmcProbe.points -lt 0 -or $kmcProbe.accepted -isnot [bool] -or
             ($null -ne $kmcProbe.reason -and $kmcProbe.reason -isnot [string])) {throw 'Slope path probe has invalid native observation types.'}
@@ -78,9 +78,28 @@ function Assert-KmcChunk4SlopeDiscovery {
             }
             if($kmcProbe.minimumY -gt $kmcProbe.maximumY) {throw 'Slope path height extent is reversed.'}
         } elseif($null -ne $kmcProbe.endpoint -or $null -ne $kmcProbe.minimumY -or $null -ne $kmcProbe.maximumY) {throw 'Absent native path cannot report geometry.'}
+        if($null -ne $kmcProbe.ground) {Assert-KmcChunk4SlopeGround $kmcProbe.ground}
         if($kmcProbe.accepted -and ($kmcProbe.pathError -ne $false -or $null -ne $kmcProbe.reason -or
-            $kmcProbe.points -lt 2 -or [double]$kmcProbe.maximumY-[double]$kmcProbe.minimumY -lt 0.5)) {throw 'Accepted slope probe lacks a real eligible native path.'}
+            $kmcProbe.points -lt 2 -or $null -eq $kmcProbe.ground -or $kmcProbe.ground.heightChange -lt 0.5)) {throw 'Accepted slope probe lacks a real eligible native ground projection.'}
     }
+}
+function Assert-KmcChunk4SlopeGround {
+    param($Value)
+    Assert-KmcExactProperties $Value @('method','flyHeight','minimumY','maximumY','heightChange','samples') 'Slope native ground projection'
+    if($Value.method -cne 'UnitMovementAgentBase.Move/060018DD' -or $Value.samples -isnot [array] -or
+        $Value.samples.Count -lt 2 -or $Value.samples.Count -gt 512) {throw 'Slope needs bounded native ground projection observations.'}
+    foreach($kmcName in @('flyHeight','minimumY','maximumY','heightChange')) {
+        if(!(Test-KmcJsonNumber $Value.$kmcName) -or [double]::IsNaN([double]$Value.$kmcName) -or
+            [double]::IsInfinity([double]$Value.$kmcName)) {throw 'Slope ground extent must use finite native numbers.'}
+    }
+    $kmcMin=[double]::PositiveInfinity; $kmcMax=[double]::NegativeInfinity
+    foreach($kmcPoint in $Value.samples) {
+        Assert-KmcChunk4SlopePoint $kmcPoint
+        $kmcMin=[Math]::Min($kmcMin,[double]$kmcPoint[1]); $kmcMax=[Math]::Max($kmcMax,[double]$kmcPoint[1])
+    }
+    if([Math]::Abs([double]$Value.minimumY-$kmcMin) -gt 0.000001 -or
+        [Math]::Abs([double]$Value.maximumY-$kmcMax) -gt 0.000001 -or
+        [Math]::Abs([double]$Value.heightChange-($kmcMax-$kmcMin)) -gt 0.000001) {throw 'Slope ground extent does not reconcile to native projections.'}
 }
 function Assert-KmcChunk4SlopePoint {
     param($Value)

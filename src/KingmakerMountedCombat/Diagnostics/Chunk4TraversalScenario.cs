@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Kingmaker.View;
 using KingmakerMountedCombat.Domain;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
@@ -15,6 +16,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly JArray chunk4SlopeSamples = new JArray();
         private readonly JArray chunk4SlopeSurfaces = new JArray();
         private readonly JArray chunk4SlopeProbes = new JArray();
+        private JObject chunk4SlopeGroundProbe;
         private float chunk4SlopeMinimum;
         private float chunk4SlopeMaximum;
         private int chunk4SlopeDropped;
@@ -59,8 +61,41 @@ namespace KingmakerMountedCombat.Diagnostics
             }
         }
 
-        private static bool Chunk4PathContainsSlope(IList<Vector3> points) => points != null && points.Count >= 2 &&
-            points.Max(point => point.y) - points.Min(point => point.y) >= 0.5f;
+        private bool Chunk4PathContainsSlope(IList<Vector3> points)
+        {
+            // This area's navmesh is a horizontal plane. Reuse the exact native
+            // ground projection for candidate selection; actual movement still
+            // has to satisfy the independent half-metre traversal assertion.
+            var ground = mount.Position;
+            var minimum = (double)ground.y;
+            var maximum = minimum;
+            var flyHeight = mount.FlyHeight;
+            var samples = new JArray { Chunk4SlopePoint(ground) };
+            for (var index = 1; index < points.Count; index++)
+            {
+                var shift = points[index] - ground;
+                shift.y = 0f;
+                var steps = Mathf.CeilToInt(shift.magnitude / 0.25f);
+                if (steps == 0) continue;
+                if (samples.Count + steps > 512) throw new InvalidOperationException("Native slope ground projection exceeded its bound.");
+                shift /= steps;
+                for (var stepIndex = 0; stepIndex < steps; stepIndex++)
+                {
+                    // The static overload returns a physics-derived point. It
+                    // does not apply it to the actor or alter the native path.
+                    ground = UnitMovementAgentBase.Move(ground, shift, flyHeight);
+                    if (float.IsNaN(ground.x) || float.IsNaN(ground.y) || float.IsNaN(ground.z) ||
+                        float.IsInfinity(ground.x) || float.IsInfinity(ground.y) || float.IsInfinity(ground.z))
+                        throw new InvalidOperationException("Native slope ground projection was not finite.");
+                    minimum = Math.Min(minimum, ground.y); maximum = Math.Max(maximum, ground.y);
+                    samples.Add(Chunk4SlopePoint(ground));
+                }
+            }
+            chunk4SlopeGroundProbe = new JObject { ["method"] = "UnitMovementAgentBase.Move/060018DD",
+                ["flyHeight"] = (double)flyHeight, ["minimumY"] = minimum, ["maximumY"] = maximum,
+                ["heightChange"] = maximum - minimum, ["samples"] = samples };
+            return maximum - minimum >= 0.5d;
+        }
 
         // Read-only observations distinguish a flat fixture from rejected native
         // paths. These queries do not select destinations or change navigation.
@@ -92,7 +127,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["points"] = points?.Count ?? 0, ["minimumY"] = hasPoints ? (double?)points.Min(point => point.y) : null,
                 ["maximumY"] = hasPoints ? (double?)points.Max(point => point.y) : null,
                 ["pathError"] = path == null ? (bool?)null : path.error,
-                ["accepted"] = probeCallbackAccepted, ["reason"] = probeCallbackReason });
+                ["accepted"] = probeCallbackAccepted, ["reason"] = probeCallbackReason,
+                ["ground"] = chunk4SlopeGroundProbe?.DeepClone() });
         }
 
         private static JArray Chunk4SlopePoint(Vector3 point) => new JArray((double)point.x, (double)point.y, (double)point.z);

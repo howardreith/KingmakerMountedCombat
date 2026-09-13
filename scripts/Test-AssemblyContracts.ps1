@@ -986,6 +986,12 @@ if($Target-eq'Kingmaker'){
         $slopeNode.MetadataToken-eq0x040025B9 -and $slopeNode.FieldType.FullName-ceq'Pathfinding.GraphNode' -and
         $slopeClamped.MetadataToken-eq0x040025BB -and $slopeClamped.FieldType.FullName-ceq'UnityEngine.Vector3' -and
         $slopeWalkable.MetadataToken-eq0x170005A3 -and $slopeWalkable.PropertyType.FullName-ceq'System.Boolean') 'native slope surface observation contracts'
+    $slopeGround=@(Find-Token 'Kingmaker.View.UnitMovementAgentBase' 0x060018DD)
+    Assert-Contract ($slopeGround.Count-eq1 -and $slopeGround[0].IsPublic -and $slopeGround[0].IsStatic -and
+        $slopeGround[0].Name-ceq'Move' -and $slopeGround[0].ReturnType.FullName-ceq'UnityEngine.Vector3' -and
+        (($slopeGround[0].GetParameters()|ForEach-Object {$_.ParameterType.FullName}) -join ',') -ceq 'UnityEngine.Vector3,UnityEngine.Vector3,System.Single' -and
+        (Test-MethodIlContainsToken $slopeGround[0] 0x0A000E07) -and (Test-MethodIlContainsToken $slopeGround[0] 0x0A000EBC) -and
+        !(Test-MethodIlContainsToken $slopeGround[0] 0x0A0001BA)) 'native static ground projection returns physics-derived height without applying a transform'
     Assert-Contract ($clickMapObject.Count-eq1 -and $clickMapObject[0] -is [Reflection.MethodInfo] -and
         $clickMapObject[0].IsPublic -and -not $clickMapObject[0].IsStatic -and
         $clickMapObject[0].ReturnType.FullName-ceq'System.Boolean' -and

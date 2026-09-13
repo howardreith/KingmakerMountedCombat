@@ -2533,6 +2533,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
             probeCallbackAccepted = false;
             probePathLength = 0.0d;
+            chunk4SlopeGroundProbe = null;
             if (path == null)
             {
                 probeCallbackReason = "candidate " + FormatPosition(requested) + " returned a null path";
@@ -2573,7 +2574,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
                 else if (currentRow == Chunk4SlopeRow && !Chunk4PathContainsSlope(path.vectorPath))
                 {
-                    probeCallbackReason = "Native path has less than half a metre of elevation; not a slope candidate.";
+                    probeCallbackReason = "Native ground projection has less than half a metre of elevation; not a slope candidate.";
                 }
                 else if (probeDoorStrict && selectedDoor != null && !PathCrossesSelectedDoor(path.vectorPath))
                 {

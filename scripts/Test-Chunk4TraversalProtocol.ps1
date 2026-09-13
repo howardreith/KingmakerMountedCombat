@@ -22,8 +22,11 @@ function New-SlopeEnvelope {
     # Parser envelope only, never native evidence.
     return (@{startY=2; riderMoveBefore=0; minimumY=2; maximumY=2.75; heightChange=.75; dropped=0;
         discovery=@{surfaces=@(@{frame=1;requested=@(0,2,0);nodePresent=$true;walkable=$true;clamped=@(0,2,0)});
-            probes=@(@{frame=2;requested=@(0,2,5);endpoint=@(0,2.75,5);points=3;minimumY=2;maximumY=2.75;
-                pathError=$false;accepted=$true;reason=$null})};
+            # A flat navmesh plane does not describe native physical ground height.
+            probes=@(@{frame=2;requested=@(0,2,5);endpoint=@(0,2.431,5);points=3;minimumY=2;maximumY=2.431;
+                pathError=$false;accepted=$true;reason=$null;
+                ground=@{method='UnitMovementAgentBase.Move/060018DD';flyHeight=0;minimumY=2;maximumY=2.75;heightChange=.75;
+                    samples=@(@(0,2,0),@(0,2.25,1),@(0,2.75,2))}})};
         samples=@(@{frame=1;position=@(0,2,0);stockAgentEnabled=$true;avoidanceDisabled=$false;corpulence=1.8;riderMove=0},
             @{frame=2;position=@(0,2.25,1);stockAgentEnabled=$true;avoidanceDisabled=$false;corpulence=1.8;riderMove=0},
             @{frame=3;position=@(0,2.75,2);stockAgentEnabled=$true;avoidanceDisabled=$false;corpulence=1.8;riderMove=0})} | ConvertTo-Json -Depth 8 | ConvertFrom-Json)
@@ -74,6 +77,16 @@ Reject-Slope {param($e) $e.discovery.probes[0].accepted='true'}
 Reject-Slope {param($e) $e.discovery.probes[0].pathError='false'}
 Reject-Slope {param($e) $e.discovery.probes[0].frame='2'}
 Reject-Slope {param($e) $e.discovery.probes[0].reason=3}
+Reject-Slope {param($e) $e.discovery.probes[0].ground=$null}
+Reject-Slope {param($e) $e.discovery.probes[0].ground.method='custom-physics'}
+Reject-Slope {param($e) $e.discovery.probes[0].ground.flyHeight='0'}
+Reject-Slope {param($e) $e.discovery.probes[0].ground.samples=@($e.discovery.probes[0].ground.samples[0])*513}
+Reject-Slope {param($e) $e.discovery.probes[0].ground.samples[1][1]=[double]::NaN}
+Reject-Slope {param($e) $e.discovery.probes[0].ground.minimumY=1}
+Reject-Slope {param($e) $e.discovery.probes[0].ground.maximumY=3}
+Reject-Slope {param($e) $e.discovery.probes[0].ground.heightChange=1}
+Reject-Slope {param($e) $e.discovery.probes[0].maximumY=3; $e.discovery.probes[0].ground.samples=@(@(0,2,0),@(0,2,1));
+    $e.discovery.probes[0].ground.minimumY=2; $e.discovery.probes[0].ground.maximumY=2; $e.discovery.probes[0].ground.heightChange=0}
 foreach($kmcField in @('enablePairedActivation','enableUnifiedMountedTurn','enablePairedCommandScheduler','enableDiagnosticOverlay','overlayPresent')) {
     $kmcConfig=@{enablePairedActivation=$true;enableUnifiedMountedTurn=$false;enablePairedCommandScheduler=$false;enableDiagnosticOverlay=$false;overlayPresent=$false}
     Assert-KmcChunk4PairedConfiguration ([pscustomobject]$kmcConfig); $kmcPass++
