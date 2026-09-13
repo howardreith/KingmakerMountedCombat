@@ -6137,11 +6137,23 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["relationship"] = relationship.State.ToString(),
                     ["mountCommandsEmpty"] = horse.Commands.Empty, ["riderCommandsEmpty"] = rider.Commands.Empty,
                     ["mountControllable"] = horse.IsDirectlyControllable, ["riderControllable"] = rider.IsDirectlyControllable };
-                if (IsPairedAllocation && leafClock.Elapsed.TotalSeconds > LeafDeadlineSeconds)
+                if ((IsPairedAllocation || IsChunk4NativeLife) && leafClock.Elapsed.TotalSeconds > LeafDeadlineSeconds)
                 {
                     cleanupError = true;
+                    if (IsChunk4NativeLife)
+                    {
+                        // Allocation observers have already been disposed here.
+                        observations["chunk4LifeCleanupState"] = new JObject {
+                            ["rider"] = CaptureChunk4LifeActor(rider), ["mount"] = CaptureChunk4LifeActor(horse),
+                            ["sameNativeGroup"] = rider.Group == horse.Group,
+                            ["identity"] = combat.PairedActivationIdentity, ["actorRecords"] = combat.TrackedActorAllocations,
+                            ["privatePartner"] = combat.PairedPartnerContext?.Unit.UniqueId
+                        };
+                        observations["chunk4LifeRiderAiCleanup"] = CaptureCombatMountRiderAiIsolation();
+                        observations["chunk4LifeMountAiCleanup"] = CaptureUnmountedHorseAiIsolation();
+                    }
                     AddRow("phase3d-horse-tranche-cleanup-deadline", false,
-                        "Paired scenario cleanup remains incomplete after its bounded wait.", observations["cleanupPending"]);
+                        "Paired or native-life scenario cleanup remains incomplete after its bounded wait.", observations["cleanupPending"]);
                     WriteEvidence();
                     completed = true;
                 }

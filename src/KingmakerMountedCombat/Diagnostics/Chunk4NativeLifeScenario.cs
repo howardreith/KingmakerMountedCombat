@@ -89,6 +89,8 @@ namespace KingmakerMountedCombat.Diagnostics
         };
         private static JObject CaptureChunk4LifeActor(UnitEntityData actor) => new JObject {
             ["id"] = actor.UniqueId, ["inState"] = actor.IsInState,
+            ["inGame"] = actor.IsInGame, ["directlyControllable"] = actor.IsDirectlyControllable,
+            ["commandsEmpty"] = actor.Commands.Empty, ["effectiveAiEnabled"] = actor.IsAIEnabled,
             ["lifeState"] = actor.Descriptor.State.LifeState.ToString(), ["conscious"] = actor.Descriptor.State.IsConscious,
             ["dead"] = actor.Descriptor.State.IsDead, ["finallyDead"] = actor.Descriptor.State.IsFinallyDead,
             ["damage"] = actor.Damage, ["hp"] = actor.Stats.HitPoints.ModifiedValue,

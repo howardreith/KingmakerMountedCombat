@@ -1,6 +1,6 @@
 # Chunk 4: sustained play and core safety
 
-**IN PROGRESS - 2026-09-13 UTC.** Twenty-nine new guarded transactions restored the actual human preview.37 installation and data. New targeting controls pass on preview.14. Preview.15 newly passed death cleanup, both unrelated turns and native encounter retirement, then failed an incorrect fixture expectation: the native difficulty policy recovered the nonfinal rider. Preview.16 selects native persistent death in the disposable rider-death fixture and requires exact native attribution for allowed recovery. It has no native qualification yet.
+**IN PROGRESS - 2026-09-13 UTC.** Thirty new guarded transactions restored the actual human preview.37 installation and data. New targeting controls pass on preview.14. Preview.15 passed nonfinal death cleanup, both unrelated turns and native encounter retirement before native recovery. Preview.16's persistent-death attempt timed out after native rider removal, without exporting the child evidence. Preview.17 extends the existing bounded cleanup failure export to these new life scenarios. Persistent rider death remains unqualified; no gameplay repair is inferred.
 
 The reviewed documentation e6d89bff8c44ecbc21104b733703be9401c3671e and qualified gameplay ec5d44e6eddc9839d273176b345f7c9701520450 retain their scope in the [paired milestone](PAIRED-ACTIVATION-MILESTONE.md). Earlier preview.13 human feedback remains separate. No preview.37 or new-candidate human approval is inferred.
 
@@ -14,6 +14,7 @@ These are actual game runs, not retained-result revalidation. All used paired ac
 | 20260912-chunk4-AA | same | 49/0 | PASS rider native heal, area affecting both mounted actors, and hostile native attack against rider defenses |
 | 20260912-chunk4-AB | same | 46/2 | FAIL complete rider-death gate at expected unrelated order; actual Dead state, live-command interruption and attachment/context cleanup observed |
 | 20260913-chunk4-AC | preview.15 / 751efec | 46/2 | FAIL no-recovery expectation; both unrelated turns and actual encounter exit/zero records passed before native difficulty recovery |
+| 20260913-chunk4-AD | preview.16 / 3625619 | host14/1, outer0/1 | FAIL300-second host deadline; child artifact absent. Counts cover registration/timeout, not death qualification |
 
 Z's entry totals were rider12/Horse11 against DC16. AA's entry totals were rider28/Horse22; separately identified native round callbacks produced rider26/Horse7. Each callback resolved once per eligible actor using its own Reflex stat. Both actors were inside the same actual area entity. This explains why entry and round saves can share a frame without being duplicate delivery.
 
@@ -23,6 +24,8 @@ AB applied one native RuleDealDamage: requested595, actual119 at unchanged Damag
 
 AC repeated actual119 native damage and preserved Dead state through Main frame6240 and hostile frame6364, with grants2/2 unchanged. Native encounter exit cleared both actors' combat state, TB initialization, actor records and private context. At frame6367 the rider recovered from119 to92 wounds under actual TrueDeath=false. Local assembly inspection identifies the native return-to-conscious controller and its HP-minus-level health rule. This is not evidence of KMC resurrection. Persistent native rider death remains open.
 
+AD's log shows native rider removal, Horse Primary Interrupt and Unmounted/Death. The host stopped at300.005 seconds; detailed child life/finality/turn/cleanup evidence was missing and the outer validator rejected the missing named root. The existing30-second cleanup export covered paired-allocation fixtures only. Preview.17 includes native-life fixtures in that same FAIL path and captures actual actor/control/AI state, so the next attempt can identify the blocking condition without weakening cleanup assertions.
+
 ## Changes and their causes
 
 - **Mounted Charge remains an owner-reported missing feature.** A/B reproduced unsafe acceptance of actual native Charge blueprint c78506dd0e14f7c45a599990e4e65038 / AbilityCustomCharge. The scoped policy now rejects mounted Charge before approach/start/expenditure, with player feedback, and revalidates queued execution. E/F each passed50/0 with native unmounted/unrelated controls and subsequent legal work. Full mounted Charge remains Chunk6; exact-final repetition is still required.
@@ -31,20 +34,20 @@ AC repeated actual119 native damage and preserved Dead state through Main frame6
 - **Incoming fixtures:** missing exact registration, missing native Dismount, an incorrect mounted-only readiness argument, and type/Type diagnostic JSON collision were separately reproduced and repaired. No incoming gameplay targeting policy was changed.
 - **Death fixtures:** preview.15 fixed AB's roster-head assumption using the actual cyclic native order. AC passed that boundary. Preview.16 temporarily selects native true death without Death's Door for the persistent rider-death case, preserves/restores exact setting caches and saved values, and changes no native life flags or gameplay cleanup. Nonfinal cases retain their native policy and require one correctly timed recovery from the exact native controller, the native health result, zero pair ownership and subsequent simulation after policy restoration. The validator also rejects premature/duplicate recovery, false finality and changed settings.
 
-Earlier results and package checkpoints remain in [the journal](../MOUNTED-COMBAT-JOURNAL.md) and Git history. Evidence directories are outside Git/packages: runtime-evidence/20260908-chunk4-A..S, 20260909-chunk4-T..X, 20260912-chunk4-Y..AB and 20260913-chunk4-AC. Original failed artifacts remain failures.
+Earlier results and package checkpoints remain in [the journal](../MOUNTED-COMBAT-JOURNAL.md) and Git history. Evidence directories are outside Git/packages: runtime-evidence/20260908-chunk4-A..S, 20260909-chunk4-T..X, 20260912-chunk4-Y..AB and 20260913-chunk4-AC..AD. Original failed artifacts remain failures.
 
 ## Identities and evidence categories
 
-Branch: codex/mounted-combat-phase3f-playable-core. AC source: 751efecc374e97961403f6053deeaf9808db82cd, product0.1.0-chunk4-preview.15. Z/AA/AB source: f12e0433c51190960b77def625c7cd31b4c196ca.
+Branch: codex/mounted-combat-phase3f-playable-core. AD source: 36256190ec1a49568451a63fccbcd123a4a901c6, product0.1.0-chunk4-preview.16. AC source: 751efecc374e97961403f6053deeaf9808db82cd. Z/AA/AB source: f12e0433c51190960b77def625c7cd31b4c196ca.
 
 | Item | Identity |
 |---|---|
-| Private package15 | KingmakerMountedCombat-0.1.0-chunk4-preview.15-native-life-order-diagnostic.zip |
-| ZIP / manifest SHA256 | e2cc017e4a1204f6d734cb5451db27f5813d7e165fef142f550e8fa58902abcc / 02957b6c350cff01f919377a719d6b22e0f4131678746d75296a49935a0b2b1a |
-| DLL SHA256 / MVID | 04371f14aced4ad9ca86380e18197abc84612c86af2282960722b4225cc189cf / fef500c9-8e1e-4729-87b9-69b73e9f4b0b |
-| Suite15 SHA256 | 2fc0467d44f8cfc129e5974bea3e814d411090264d4d9f67d54d92e349579ea1 |
+| Private package16 | KingmakerMountedCombat-0.1.0-chunk4-preview.16-native-life-policy-diagnostic.zip |
+| ZIP / manifest SHA256 | f117da75b438043f13f51c32027d7d6e9c58c17b9cec10ce3a5cf801f44fdaa2 / e7458ef50e683b7d3f43bfe766ccb29d17d6051e5629167fb0e4913644cc7628 |
+| DLL SHA256 / MVID | b2866bef5c163ac98406fcb95465b39b84f5f91707c4ae5c278f134847eb1025 / 3b6d791b-9e7b-4080-9c3e-ef2e66912f19 |
+| Suite16 SHA256 | 486427f6eac742125644c04acc99e84a1ba9facb4eb70107809d4181a3a2a0ac |
 
-COMPONENT: source15 real-service components376/0, native metadata2/0, harness247/0, core protocol238/0, play106/0, extended277/0, traversal74/0, obstruction82/0, outer artifact45/0 and Charge86/0. Build/source22/0 and package11/0 pass. Full tests15.txt PASS, SHA2563b28996ab9f8ede9ddbcf0aeccaf09b30f3598ab4d40ba7b0b93bb5a64bb13de. Preview.16 builds and its expanded parser cases pass281/0 after reproducing the old failure. Full preview.16 checks PASS (tests16.txt SHA25680f00c0be82bab6a5e03d1b202d6854b1571e0be149abb77f0efaba793c5aa98); exact Kingmaker contracts546/0. Private packaging and native qualification follow; parser envelopes never certify gameplay.
+COMPONENT: source15 real-service components376/0, native metadata2/0, harness247/0, core protocol238/0, play106/0, extended277/0, traversal74/0, obstruction82/0, outer artifact45/0 and Charge86/0. Build/source22/0 and package11/0 pass. Full tests15.txt PASS, SHA2563b28996ab9f8ede9ddbcf0aeccaf09b30f3598ab4d40ba7b0b93bb5a64bb13de. Preview.16 builds and its expanded parser cases pass281/0 after reproducing the old failure. Full preview.16 checks PASS (tests16.txt SHA25680f00c0be82bab6a5e03d1b202d6854b1571e0be149abb77f0efaba793c5aa98); exact Kingmaker contracts546/0. Preview.17 final build/checks also PASS (tests17-final.txt SHA256211356b414f5c80a1c34127c09a0486a7d47d05b4c8ed710794270a251c7ce21), counts unchanged. Its private packaging/native observation follow; parser envelopes never certify gameplay.
 
 ASSEMBLY CONTRACT: Kingmaker538/0, read-only Wrath24/0 and detached patch construction30/0 plus observers on source14. Exact Kingmaker SHA2563b6450ffec440e296e586f71c711b195aed144b28d53e1cbb29406d18fef5afb, MVID07fa1e4d-8618-41b3-9b8d-faa17d3b26f7; .NET4.7/C#7.3/Harmony12. Native ordering: SortedUnits06000BC7, ChooseNextUnit06000BD2, RemoveUnit06000BE6, HandleUnitDeath06000BF2. Contracts do not substitute for native execution.
 
@@ -56,7 +59,7 @@ HUMAN PLAY: pending. Prior native PNGs inspected were black. The existing Window
 
 ## Restoration and manual checklist
 
-All29 transactions have independent restoration receipts, latest AC at2026-09-13T01:31:28.4791508Z, no game/lock. Full saves SHA256bc345a41d72f5c1538c9a5dcefc577202b0eb8279adbf1fa958cd63fb643519d; full Mods02aa64faba191ca51d80c2c35f521f2d6ef65c77911f86b3fb0e144a1d6c7878; UMM Paramsdd22dc5aad012f0bca721de37d888a9163e9e759c44f7fa705e3355302be7e1e. Human preview.37 DLL/cache remain20080fdcf83c7628611c3f6354a3e47c3065e2b25998a9c01b39a69796ed57bb. Protected campaigns, KMC_AUTOMATION_BASELINE and the separate historical preview.13 backup are preserved. No permanent candidate installation, foreign-mod change, main merge or public release occurred.
+All30 transactions have independent restoration receipts, latest AD at2026-09-13T02:38:12.6361125Z, no game/lock. Full saves SHA256bc345a41d72f5c1538c9a5dcefc577202b0eb8279adbf1fa958cd63fb643519d; full Mods02aa64faba191ca51d80c2c35f521f2d6ef65c77911f86b3fb0e144a1d6c7878; UMM Paramsdd22dc5aad012f0bca721de37d888a9163e9e759c44f7fa705e3355302be7e1e. Human preview.37 DLL/cache remain20080fdcf83c7628611c3f6354a3e47c3065e2b25998a9c01b39a69796ed57bb. Protected campaigns, KMC_AUTOMATION_BASELINE and the separate historical preview.13 backup are preserved. No permanent candidate installation, foreign-mod change, main merge or public release occurred.
 
 Targeted manual checks, through a guarded disposable session:
 

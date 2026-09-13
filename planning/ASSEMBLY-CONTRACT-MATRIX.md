@@ -1,3 +1,6 @@
+## Native final-death control and AI getters - 2026-09-13
+
+Exact Kingmaker MVID07fa1e4d-8618-41b3-9b8d-faa17d3b26f7. UnitEntityData.IsDirectlyControllable06008328 rejects IsFinallyDead outside capital-specific control rules. IsAIEnabled06008329 returns true for an actor that is not directly controllable; otherwise it combines raw m_AiEnabled040054BA with native CompanionsAI. Setter0600832A only writes the raw field. These contracts explain why a diagnostic lease's original effective/control state may become inappropriate after real final death; native evidence of the actual failing state remains required before any repair. Candidate17 only preserves that missing failure evidence. No global AI or gameplay death policy is changed.
 ## Chunk4 native death and recovery policy - 2026-09-13
 
 Exact installed Kingmaker MVID07fa1e4d-8618-41b3-9b8d-faa17d3b26f7. TrueDeath06000CF9 is the inverse of SettingsRoot.DeadCompanionsRiseAfterCombat04007CB5; DeathDoorCondition06000CF8 reads DeathDoor04007CB4. SettingsEntityBool.m_Cached04002275 is nullable bool. The diagnostic lease alters only these caches in the disposable persistent-rider-death case and restores their exact original values without persisted-setting writes or callbacks.

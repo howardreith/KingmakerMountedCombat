@@ -1,6 +1,6 @@
-# Active Chunk 4 - candidate16, 2026-09-13 UTC
+# Active Chunk 4 - candidate17, 2026-09-13 UTC
 
-IN PROGRESS. Published source15 751efecc374e97961403f6053deeaf9808db82cd: AC46/2 passed both unrelated turns and native encounter exit with zero records/context, then failed because native TrueDeath=false recovered the nonfinal rider. Candidate16 uses a temporary native difficulty cache lease for persistent rider death and attributes allowed recovery to the native controller; no gameplay death or scheduler change. All29 transactions restored actual preview.37/data, latest audit2026-09-13T01:31:28.4791508Z. Next guarded native rider-death, remaining new gates and exact-final regressions. [One report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent deployment or Chunk5 implementation.
+IN PROGRESS. Source16 36256190ec1a49568451a63fccbcd123a4a901c6: AD reached native rider removal and Unmounted/Death, then hit the host300-second deadline without exporting its child evidence. No persistent-death qualification. Candidate17 extends the existing30-second cleanup failure export to native-life roots and records actual actor/AI state; no gameplay change or assertion relaxation. All30 transactions independently restored actual preview.37/data, latest2026-09-13T02:38:12.6361125Z. Next nativeAE rider-death with these missing observations, then remaining new/final gates. [One report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent deployment or Chunk5 implementation.
 ---
 ## Combined milestone disposition — 2026-09-08
 
