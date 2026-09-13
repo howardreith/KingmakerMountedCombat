@@ -2727,7 +2727,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     navigationCommand != null &&
                     ReferenceEquals(currentCommandAtReplacement, navigationCommand);
                 var tileFrameAttributedRefresh =
-                    string.Equals(currentRow, "mounted-distance-door-interaction", StringComparison.Ordinal) &&
+                    (string.Equals(currentRow, "mounted-distance-door-interaction", StringComparison.Ordinal) ||
+                     string.Equals(currentRow, "mounted-pair-doorway", StringComparison.Ordinal)) &&
                     previousPathFirstObservedNotNewerThanTileUpdateFrame &&
                     replacementObservedFrame > tileHandlerLastUpdateFrame &&
                     astarPathAtReplacement != null &&
@@ -2883,6 +2884,8 @@ namespace KingmakerMountedCombat.Diagnostics
             navigationStage = NavigationStage.Complete;
         }
 
+        private MovementSynchronizationSample rowFirstPhaseViolation;
+
         private void ObserveSynchronization()
         {
             var agent = relationship.Runtime.MovementAgent;
@@ -2891,6 +2894,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
             rowSynchronizationObservationCount++;
+            if (rowFirstPhaseViolation == null) rowFirstPhaseViolation = agent.FirstPhaseViolation;
             rowMaximumPreCorrectionResidual = Math.Max(rowMaximumPreCorrectionResidual, agent.MaximumPreCorrectionPositionResidualWorldUnits);
             rowMaximumInitialConfigurationResidual = Math.Max(rowMaximumInitialConfigurationResidual,
                 agent.MaximumInitialConfigurationPreCorrectionPositionResidualWorldUnits);
@@ -4261,6 +4265,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 { "utcTimestamp", DateTimeOffset.UtcNow.ToString("o", CultureInfo.InvariantCulture) }
             };
             if (IsChunk4Traversal) record["pairedConfiguration"] = CaptureChunk4TraversalConfiguration();
+            if (IsChunk4Traversal && (string)payload["kind"] == "movement-row-result")
+                record["firstPhaseViolation"] = rowFirstPhaseViolation == null ? JValue.CreateNull() : JToken.FromObject(rowFirstPhaseViolation, serializer);
             if (IsChunk4Traversal && currentRow == "mounted-distance-door-interaction" && (string)payload["kind"] == "movement-row-result") record["nativeBlockedDoor"] = chunk4BlockedDoorEvidence;
             if (currentRow == Chunk4SlopeRow && (string)payload["kind"] == "movement-row-result") record["nativeSlope"] = CaptureChunk4Slope();
             foreach (var property in payload.Properties())
@@ -4277,6 +4283,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void ResetRowMetrics()
         {
+            rowFirstPhaseViolation = null;
             if (mountSpeedLeaseOwned || equipmentSetLeaseOwned || cameraFollowerLeaseOwned)
             {
                 throw new InvalidOperationException("A prior presentation observation lease remained active at row reset.");

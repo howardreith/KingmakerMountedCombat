@@ -7,6 +7,8 @@ using Kingmaker.UnitLogic.Commands.Base;
 using KingmakerMountedCombat.Domain;
 using Newtonsoft.Json.Linq;
 using TurnBased.Controllers;
+using Kingmaker.View;
+using UnityEngine;
 
 namespace KingmakerMountedCombat.Diagnostics
 {
@@ -21,6 +23,10 @@ namespace KingmakerMountedCombat.Diagnostics
         private UnitAttack chunk4HorseAttack;
         private JObject chunk4HorseEvidence;
         private JObject chunk4HorseRoutine;
+        private CameraRig chunk4HorseCamera;
+        private Vector3 chunk4HorseOriginalCameraTarget;
+        private Quaternion chunk4HorseOriginalCameraRotation;
+        private bool chunk4HorseCameraOwned;
         private bool Chunk4HorseMounted => chunk4HorseCase == 0;
         private string Chunk4HorseId => Chunk4HorseMounted ? "C4-HORSE-mounted-three-primaries" : "C4-HORSE-unmounted-strike-recovery";
         // Passed to the existing camera recorder by the parent Tick. No second capture system.
@@ -86,7 +92,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (chunk4HorseSetupMove.Result != UnitCommand.ResultType.Success) throw new InvalidOperationException("Horse comparison native positioning failed.");
                 // The native camera is otherwise left at the fixture's intake
                 // point, cropping the strike after ordinary positioning.
-                game.UI.GetCameraRig().ScrollTo(horse.Position);
+                FrameChunk4HorseCamera();
                 chunk4HorseStage = 2; ResetLeafClock(); return;
             }
             if (chunk4HorseStage == 2)
@@ -160,6 +166,42 @@ namespace KingmakerMountedCombat.Diagnostics
                 chunk4HorseCase++; chunk4HorseCompleted = 0; chunk4HorseStage = 0;
                 chunk4HorseControlSent = false; chunk4HorseSetupMove = null; ResetLeafClock();
             }
+        }
+
+        private void FrameChunk4HorseCamera()
+        {
+            var rig = Game.Instance.UI.GetCameraRig();
+            if (!chunk4HorseCameraOwned)
+            {
+                var rotation = rig.transform.rotation;
+                if (Quaternion.Angle(rotation, Quaternion.Euler(0f, rotation.eulerAngles.y, 0f)) > 0.001f)
+                    throw new InvalidOperationException("Horse capture cannot restore a camera with non-yaw rotation through native SetRotation.");
+                chunk4HorseCamera = rig;
+                chunk4HorseOriginalCameraRotation = rotation;
+                chunk4HorseOriginalCameraTarget = rig.GetPosition();
+                chunk4HorseCameraOwned = true;
+                rig.SetRotation(rotation.eulerAngles.y + 180f);
+            }
+            if (rig != chunk4HorseCamera) throw new InvalidOperationException("Horse capture camera identity changed while leased.");
+            rig.ScrollTo(horse.Position);
+            observations["chunk4HorseCamera"] = new JObject { ["originalYaw"] = chunk4HorseOriginalCameraRotation.eulerAngles.y,
+                ["captureYaw"] = rig.transform.eulerAngles.y, ["restored"] = false };
+        }
+
+        private void CleanupChunk4HorseCamera()
+        {
+            if (!chunk4HorseCameraOwned) return;
+            if (chunk4HorseCamera == null) throw new InvalidOperationException("Horse capture camera was destroyed before restoration.");
+            chunk4HorseCamera.SetRotation(chunk4HorseOriginalCameraRotation.eulerAngles.y);
+            chunk4HorseCamera.ScrollTo(chunk4HorseOriginalCameraTarget);
+            if (Quaternion.Angle(chunk4HorseCamera.transform.rotation, chunk4HorseOriginalCameraRotation) > 0.001f ||
+                Vector3.Distance(chunk4HorseCamera.GetPosition(), chunk4HorseOriginalCameraTarget) > 0.000001f)
+                throw new InvalidOperationException("Horse capture native camera restoration differs from intake.");
+            var evidence = observations["chunk4HorseCamera"] as JObject ?? new JObject();
+            evidence["restored"] = true;
+            observations["chunk4HorseCamera"] = evidence;
+            chunk4HorseCameraOwned = false;
+            chunk4HorseCamera = null;
         }
     }
 }

@@ -9649,6 +9649,12 @@ function Assert-KmcMovementScenarioRecord {
     if(Test-KmcChunk4TraversalScenario $Request.scenario) {
         $common += 'pairedConfiguration'
         Assert-KmcChunk4PairedConfiguration $Record.pairedConfiguration
+        if($Record.kind -ceq 'movement-row-result') {
+            $common += 'firstPhaseViolation'
+            if($Record.status -ceq 'PASS' -and $null -ne $Record.firstPhaseViolation) {
+                throw 'PASS Chunk4 traversal retained a synchronization phase violation.'
+            }
+        }
         if($Record.kind -ceq 'movement-row-result' -and $Record.row -ceq 'mounted-pair-slope') {
             $common += 'nativeSlope'
             if($Record.status -ceq 'PASS') {Assert-KmcChunk4NativeSlope $Record.nativeSlope}
@@ -10536,7 +10542,7 @@ function Assert-KmcMovementScenarioEvidence {
                 }
             }
             $rowUnattributedPathReplacements = @($rowPathReplacements | Where-Object {
-                [string]$rowRecord.row -cne 'mounted-distance-door-interaction' -or
+                [string]$rowRecord.row -cnotin @('mounted-distance-door-interaction','mounted-pair-doorway') -or
                 $_.previousPathFirstObservedNotNewerThanTileUpdateFrame -ne $true -or
                 [long]$_.replacementObservedFrame -le [long]$_.tileHandlerLastUpdateFrame -or
                 $_.astarPathPresent -ne $true -or $_.astarGraphUpdatesQueued -ne $false -or

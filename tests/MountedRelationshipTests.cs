@@ -40,6 +40,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("movement synchronization telemetry preserves pre and post correction residuals", MovementSynchronizationTelemetryPreservesPreAndPostResiduals);
             runner.Run("movement synchronization telemetry separates update phases and corrections", MovementSynchronizationTelemetrySeparatesPhasesAndCorrections);
             runner.Run("movement synchronization telemetry rejects noncontiguous samples", MovementSynchronizationTelemetryRejectsNoncontiguousSamples);
+            runner.Run("movement telemetry retains the first native-phase fault after recovery", MovementSynchronizationRetainsFirstPhaseFault);
             runner.Run("movement synchronization qualification excludes initial placement", MovementSynchronizationQualificationExcludesInitialPlacement);
             runner.Run("movement synchronization qualification gates calibrated phases", MovementSynchronizationQualificationGatesCalibratedPhases);
             runner.Run("movement synchronization qualification bounds callback cadence", MovementSynchronizationQualificationBoundsCallbackCadence);
@@ -387,6 +388,32 @@ namespace KingmakerMountedCombat.Tests
 
             TestRunner.True(rejected, "Noncontiguous synchronization sample was accepted.");
             TestRunner.Equal(0L, accumulator.SampleCount, "Rejected synchronization sample mutated the accumulator.");
+        }
+
+        private static void MovementSynchronizationRetainsFirstPhaseFault()
+        {
+            var tracker = new MovementYawPhaseTracker();
+            var accumulator = new MovementSynchronizationTelemetryAccumulator();
+            Action<long, MovementSynchronizationPhase, double, double> observe = (frame, phase, authority, entity) =>
+                accumulator.Observe(new MovementSynchronizationSample(accumulator.SampleCount, phase, 0.0d,
+                    tracker.Observe(frame, phase, authority, authority, authority, entity, 0.10d), 0.0d, 0.0d, 0.0d, 0.0d));
+            observe(0L, MovementSynchronizationPhase.InitialConfiguration, 0.0d, 0.0d);
+            observe(1L, MovementSynchronizationPhase.Update, 0.0d, 0.0d);
+            observe(1L, MovementSynchronizationPhase.LateUpdate, 8.0d, 0.0d);
+            observe(2L, MovementSynchronizationPhase.Update, 8.0d, 8.0d);
+            TestRunner.True(accumulator.FirstPhaseViolation == null, "Permitted lag or real recovery was recorded as a fault.");
+            observe(3L, MovementSynchronizationPhase.LateUpdate, 16.0d, 8.0d);
+            var first = accumulator.FirstPhaseViolation;
+            TestRunner.True(first != null && first.Yaw.PhaseLagViolation, "Actual stale-reference violation was not retained.");
+            TestRunner.Equal(3L, first.Yaw.Frame, "First fault lost its native frame.");
+            observe(4L, MovementSynchronizationPhase.Update, 16.0d, 16.0d);
+            TestRunner.True(!accumulator.LatestYawObservation.PhaseLagViolation && ReferenceEquals(first, accumulator.FirstPhaseViolation),
+                "Subsequent valid state erased or relabeled the first fault.");
+            observe(5L, MovementSynchronizationPhase.LateUpdate, 24.0d, 16.0d);
+            TestRunner.True(ReferenceEquals(first, accumulator.FirstPhaseViolation), "A later fault replaced the first observation.");
+            TestRunner.Equal(2L, accumulator.PhaseLagViolationCount, "Bounded fault capture changed aggregate violations.");
+            TestRunner.True(new MovementSynchronizationTelemetryAccumulator().FirstPhaseViolation == null,
+                "A new telemetry lifetime inherited old fault state.");
         }
 
         private static void MovementSynchronizationQualificationExcludesInitialPlacement()

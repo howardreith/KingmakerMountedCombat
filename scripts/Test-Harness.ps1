@@ -7840,6 +7840,52 @@ try {
         try { Assert-KmcMovementScenarioEvidence -Request $doorRequest -Manifest $unattributedManifest -Status 'PASS' -SubscenarioResults @($doorSubresult) } catch { $threw = $true }
         Assert-Test $threw 'PASS distance-door evidence accepted excessive healthy but non-frame-attributed path replacements'
     }
+    Invoke-HarnessTest 'doorway attributes only retained healthy paths spanning a native tile update' {
+        $doorRow = 'mounted-pair-doorway'
+        $doorRequest = [pscustomobject][ordered]@{
+            runId='doorway-path-refresh-test';scenario=$doorRow;branch=$v2Request.branch;commit=$v2Request.commit
+            productVersion=$v2Request.productVersion;dllSha256=$v2Request.dllSha256;dllMvid=$v2Request.dllMvid
+            evidenceRoot=(Join-Path $runtimeEvidenceTestRoot 'doorway-path-refresh-test')
+        }
+        $doorSubresult = [pscustomobject][ordered]@{name=$doorRow;status='PASS';assertionPassCount=20;assertionFailCount=0;errors=@()}
+        $telemetry = @((New-TestMovementTelemetryRecord $doorRequest $doorRow 0))
+        foreach ($mutation in @('none','stale-tile','lost-command','path-error','repath-needed','queued-graph','missing-astar')) {
+            $records = New-Object 'Collections.Generic.List[object]'
+            $records.Add((New-TestMovementPathProbeRecord $doorRequest $doorRow 0 'DoorNear' $false))
+            $records.Add((New-TestMovementPathProbeRecord $doorRequest $doorRow 1 'DoorFar' $true))
+            $records.Add((New-TestMovementPathProbeRecord $doorRequest $doorRow 2 'DoorNear' $true))
+            for ($index = 1; $index -le 7; $index++) {
+                $replacement = New-TestMovementPathReplacementRecord $doorRequest ($index + 2)
+                $replacement.row = $doorRow
+                $replacement.replacementIndex = $index
+                $replacement.previousPathId = 7 + $index
+                $replacement.newPathId = 8 + $index
+                $replacement.previousPathFirstObservedFrame = 100 + 10 * $index
+                $replacement.tileHandlerLastUpdateFrame = $replacement.previousPathFirstObservedFrame
+                $replacement.replacementObservedFrame = $replacement.tileHandlerLastUpdateFrame + 2
+                switch ($mutation) {
+                    'stale-tile' { $replacement.tileHandlerLastUpdateFrame--; $replacement.previousPathFirstObservedNotNewerThanTileUpdateFrame=$false }
+                    'lost-command' { $replacement.commandReferenceRetained=$false }
+                    'path-error' { $replacement.pathError=$true }
+                    'repath-needed' { $replacement.agentRepathNeeded=$true }
+                    'queued-graph' { $replacement.astarGraphUpdatesQueued=$true }
+                    'missing-astar' { $replacement.astarPathPresent=$false }
+                }
+                $records.Add($replacement)
+            }
+            $rowRecord = New-TestMovementRowRecord $doorRequest $doorRow 10
+            $rowRecord.unexpectedRepathCount = 7
+            $records.Add($rowRecord)
+            [void](Write-TestMovementEvidence $doorRequest.evidenceRoot $doorRequest $telemetry $records.ToArray())
+            $manifest = Read-KmcJson (Join-Path $doorRequest.evidenceRoot 'runtime-artifacts.json')
+            if ($mutation -ceq 'none') {
+                Assert-KmcMovementScenarioEvidence -Request $doorRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($doorSubresult)
+            }
+            else {
+                Assert-TestThrows { Assert-KmcMovementScenarioEvidence -Request $doorRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($doorSubresult) } "Doorway accepted excessive unattributed paths: $mutation"
+            }
+        }
+    }
     Invoke-HarnessTest 'PASS movement telemetry requires exact row-aware pause and game-mode coherence' {
         $pauseRow = 'mounted-pair-pause-unpause'
         $pauseRequest = [pscustomobject][ordered]@{

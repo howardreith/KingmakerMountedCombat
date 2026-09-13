@@ -101,6 +101,8 @@ namespace KingmakerMountedCombat.Integration
 
         public MovementYawPhaseObservation LatestYawObservation => telemetry.LatestYawObservation;
 
+        public MovementSynchronizationSample FirstPhaseViolation => telemetry.FirstPhaseViolation;
+
         public MovementPositionPhaseObservation LatestPositionObservation => telemetry.LatestPositionObservation;
 
         public double MaximumCalibratedViewCurrentPositionResidualWorldUnits => telemetry.MaximumCalibratedViewCurrentPositionResidualWorldUnits;

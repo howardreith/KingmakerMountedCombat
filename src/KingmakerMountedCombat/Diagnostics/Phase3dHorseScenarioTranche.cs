@@ -6085,6 +6085,8 @@ namespace KingmakerMountedCombat.Diagnostics
             catch (Exception exception) { AddCleanupError("Chunk 4 native effect observers", exception); }
             try { CleanupChunk4Inspection(); }
             catch (Exception exception) { AddCleanupError("Chunk 4 native character window", exception); }
+            try { CleanupChunk4HorseCamera(); }
+            catch (Exception exception) { AddCleanupError("Chunk 4 Horse camera", exception); }
             try { CleanupActorAllocation(); }
             catch (Exception exception) { AddCleanupError("Actor allocation fixture", exception); }
             try { pairedAutomaticEndProbe?.Dispose(); pairedAutomaticEndProbe = null; }
