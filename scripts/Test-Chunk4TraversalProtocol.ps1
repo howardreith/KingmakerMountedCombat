@@ -139,4 +139,10 @@ Reject-Blocked {param($e) $e.before.doorAnimationTime=-.1}
 Reject-Blocked {param($e) $e.samples[1].doorAnimationTime=.1}
 Reject-Blocked {param($e) $e.samples[1].doorAnimationTime=[double]::NaN}
 Reject-Blocked {param($e) $e.samples[1].doorAnimationTime='0'}
+Reject-Blocked {param($e) $e.closing.initial.time=1.3666666746139526; $e.closing.initial.clipLength=1.36666667; $e.closing.ready.clipLength=1.36666667}
+$kmcPrecise=New-BlockedEnvelope
+$kmcPrecise.closing.initial.time=1.3666666746139526
+$kmcPrecise.closing.initial.clipLength=1.3666666746139526
+$kmcPrecise.closing.ready.clipLength=1.3666666746139526
+Assert-KmcChunk4BlockedDoor $kmcPrecise; $kmcPass++
 Write-Output "CHUNK 4 TRAVERSAL COMPONENT PASS=$kmcPass FAIL=0"

@@ -1,6 +1,6 @@
-# Active Chunk 4 - candidate27, 2026-09-13 UTC
+# Active Chunk 4 - candidate28, 2026-09-13 UTC
 
-IN PROGRESS. Published source26 fadc828664c9236b537178632ceb24c2b0338361: AX native traversal257/0 proves the movement hook and unchanged synchronization bounds, but outer validation FAIL because the blocked-door fixture admitted a still-closing door. Candidate27 observes the exact native backward animation endpoint and subsequent graph readiness before measurement; collision assertions remain strict. All50 transactions independently restored actual human37/data. Build/source22/0 and focused traversal105/0 PASS; full27 checks PASS; next commit/private package/guarded publication/suite/WhatIf, then unique AY focused traversal. Continue supported traversal/session and exact-final gates. [Report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent deployment or Chunk5 implementation.
+IN PROGRESS. Published source27 7d65a091a33afd7746aa850d42aec283fd9f5eb0: AY native traversal257/0, all closing/cut/collision/synchronization checks passed; outerFAIL because float clip-length serialization rounded below the double playback time. Candidate28 preserves the exact native value as double; no readiness threshold or gameplay change. All51 transactions independently restored human37/data. Build/source22/0 and focused traversal107/0 PASS; full28 checks PASS; next commit/private package/guarded publication/suite/WhatIf and uniqueAZ traversal. Continue missing Horse visual, slope/area/session and exact-final combat gates. [Report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent installation or Chunk5 implementation.
 ---
 ## Combined milestone disposition — 2026-09-08
 

@@ -48,7 +48,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 time > 0d && !graph.IsPlaying())
                 throw new InvalidOperationException("The native door is not completing its ordinary backward closing animation.");
             return new JObject { ["frame"] = Time.frameCount, ["time"] = time, ["speed"] = speed,
-                ["clipLength"] = length, ["graphPlaying"] = graph.IsPlaying() };
+                ["clipLength"] = (double)length, ["graphPlaying"] = graph.IsPlaying() };
         }
 
         private JObject CaptureChunk4BlockedDoor() => new JObject {
