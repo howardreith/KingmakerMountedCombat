@@ -28,7 +28,8 @@ function New-ObstructionEnvelope([bool]$Tail){
             plan=@(@{ranged=$true;weaponRange=15.24},@{ranged=$true;weaponRange=15.24},@{ranged=$true;weaponRange=15.24},@{ranged=$false;weaponRange=.6096})}}
     return (@{schemaVersion=23;status='PASS';rows=@(@{name=$e.caseId;status='PASS';evidence=$e});errors=@();subscenarioPassCount=1;subscenarioFailCount=0;
         observations=@{phase3fActualConfiguration=@{enablePairedActivation=$true;enableUnifiedMountedTurn=$false;enablePairedCommandScheduler=$false;
-            enableDiagnosticOverlay=$false;overlayPresent=$false};ordinaryAttackTrace=@{dropped=0;events=@()}}}|ConvertTo-Json -Depth 30|ConvertFrom-Json)
+            enableDiagnosticOverlay=$false;overlayPresent=$false};ordinaryAttackTrace=@{dropped=0;events=@()};
+            cleanup=@{chunk4OtherTargetReleased=$true;playerInCombat=$false;nativeTurnBased=$false;nativeControllerInitialized=$false}}}|ConvertTo-Json -Depth 30|ConvertFrom-Json)
 }
 $request=@{scenario='chunk4-obstruction-ranged-rt'}
 foreach($tail in @($false,$true)){
@@ -64,6 +65,17 @@ foreach($tail in @($false,$true)){
         $changed=New-ObstructionEnvelope $tail;& $mutation $changed.rows[0].evidence;$rejected=$false
         try{Assert-KmcChunk4ExtendedEvidence $request $changed 'PASS'}catch{$rejected=$true}
         if(!$rejected){throw 'Invalid native obstruction evidence was accepted by parser.'};$passed++
+    }
+    foreach($field in @('chunk4OtherTargetReleased','playerInCombat','nativeTurnBased','nativeControllerInitialized')){
+        foreach($invalid in @('opposite','missing','string')){
+            $changed=New-ObstructionEnvelope $tail
+            if($invalid -ceq 'missing'){$changed.observations.cleanup.PSObject.Properties.Remove($field)}
+            elseif($invalid -ceq 'string'){$changed.observations.cleanup.$field='false'}
+            else{$changed.observations.cleanup.$field=-not $changed.observations.cleanup.$field}
+            $rejected=$false
+            try{Assert-KmcChunk4ExtendedEvidence $request $changed 'PASS'}catch{$rejected=$true}
+            if(!$rejected){throw "Incomplete obstruction cleanup was accepted: $field / $invalid"};$passed++
+        }
     }
 }
 Write-Output "COMPONENT parser-only TOTAL PASS=$passed FAIL=0"

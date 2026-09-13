@@ -6113,9 +6113,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     RestoreCombatMountRiderAiIsolation();
                 }
-                if (!targetCleanupComplete && targetService != null)
+                if (!targetCleanupComplete)
                 {
-                    targetCleanupComplete = targetService.DestroyAndVerify();
+                    // A second target can need another Unity destruction tick.
+                    // Preserve the reverse lease order on every poll, not only
+                    // on the first cleanup attempt.
+                    targetCleanupComplete = CleanupChunk4InterruptOtherTarget() &&
+                        (targetService == null || targetService.DestroyAndVerify());
                 }
                 Game.Instance?.EntityDestroyer?.Tick();
             }
@@ -6124,20 +6128,26 @@ namespace KingmakerMountedCombat.Diagnostics
                 AddCleanupError("cleanup poll", exception);
             }
 
-            if (frame <= cleanupFrame || !targetCleanupComplete || !modeRestored ||
+            var obstructionEncounterPending = IsChunk4Obstruction &&
+                (Game.Instance.Player.IsInCombat || Game.Instance.TurnBasedCombatController.Initialized ||
+                 CombatController.IsInTurnBasedCombat());
+            if (frame <= cleanupFrame || !targetCleanupComplete || !modeRestored || obstructionEncounterPending ||
                 !unmountedHorseAiLeaseRestored || !combatMountRiderAiLeaseRestored ||
                 relationship.State != RelationshipState.Unmounted)
             {
                 observations["cleanupPending"] = new JObject {
                     ["frame"] = frame, ["elapsedSeconds"] = leafClock.Elapsed.TotalSeconds,
                     ["targetClean"] = targetCleanupComplete, ["modePreferenceRestored"] = modeRestored,
+                    ["chunk4OtherTargetReleased"] = chunk4InterruptOtherService == null && chunk4InterruptOtherTarget == null,
+                    ["playerInCombat"] = Game.Instance.Player.IsInCombat,
+                    ["nativeControllerInitialized"] = Game.Instance.TurnBasedCombatController.Initialized,
                     ["nativeTurnBased"] = CombatController.IsInTurnBasedCombat(),
                     ["mountAiRestored"] = unmountedHorseAiLeaseRestored,
                     ["riderAiRestored"] = combatMountRiderAiLeaseRestored,
                     ["relationship"] = relationship.State.ToString(),
                     ["mountCommandsEmpty"] = horse.Commands.Empty, ["riderCommandsEmpty"] = rider.Commands.Empty,
                     ["mountControllable"] = horse.IsDirectlyControllable, ["riderControllable"] = rider.IsDirectlyControllable };
-                if ((IsPairedAllocation || IsChunk4NativeLife) && leafClock.Elapsed.TotalSeconds > LeafDeadlineSeconds)
+                if ((IsPairedAllocation || IsChunk4NativeLife || IsChunk4Obstruction) && leafClock.Elapsed.TotalSeconds > LeafDeadlineSeconds)
                 {
                     cleanupError = true;
                     if (IsChunk4NativeLife)
@@ -6153,7 +6163,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         observations["chunk4LifeMountAiCleanup"] = CaptureUnmountedHorseAiIsolation();
                     }
                     AddRow("phase3d-horse-tranche-cleanup-deadline", false,
-                        "Paired or native-life scenario cleanup remains incomplete after its bounded wait.", observations["cleanupPending"]);
+                        "Native fixture cleanup remains incomplete after its bounded wait.", observations["cleanupPending"]);
                     WriteEvidence();
                     completed = true;
                 }
@@ -6183,6 +6193,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 settings.EnableUnsafeMovementExperiment == originalUnsafeExperiment &&
                 relationship.State == RelationshipState.Unmounted &&
                 (targetService == null || targetCleanupComplete) && modeRestored &&
+                chunk4InterruptOtherService == null && chunk4InterruptOtherTarget == null &&
                 unmountedHorseAiLeaseRestored && combatMountRiderAiLeaseRestored && !cleanupError;
             observations["cleanup"] = new JObject
             {
@@ -6196,6 +6207,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     settings.EnablePairedCommandScheduler == originalPairedCommandScheduler,
                 ["relationshipState"] = relationship.State.ToString(),
                 ["targetClean"] = targetCleanupComplete,
+                ["chunk4OtherTargetReleased"] = chunk4InterruptOtherService == null && chunk4InterruptOtherTarget == null,
+                ["playerInCombat"] = Game.Instance.Player.IsInCombat,
+                ["nativeTurnBased"] = CombatController.IsInTurnBasedCombat(),
+                ["nativeControllerInitialized"] = Game.Instance.TurnBasedCombatController.Initialized,
                 ["modeRestored"] = modeRestored,
                 ["unmountedHorseAiLeaseRestored"] = unmountedHorseAiLeaseRestored,
                 ["unmountedHorseAiIsolation"] = CaptureUnmountedHorseAiIsolation(),

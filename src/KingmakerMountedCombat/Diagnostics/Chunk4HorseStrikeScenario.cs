@@ -24,7 +24,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool Chunk4HorseMounted => chunk4HorseCase == 0;
         private string Chunk4HorseId => Chunk4HorseMounted ? "C4-HORSE-mounted-three-primaries" : "C4-HORSE-unmounted-strike-recovery";
         // Passed to the existing camera recorder by the parent Tick. No second capture system.
-        private string Chunk4HorseCapturePhase => chunk4HorseStage != 3 ? null : Chunk4HorseId +
+        private string Chunk4HorseCapturePhase => (chunk4HorseStage == 2 && chunk4HorseCompleted > 0 || chunk4HorseStage == 4)
+            ? Chunk4HorseId + "-horse-recovery" : chunk4HorseStage != 3 ? null : Chunk4HorseId +
             (chunk4HorseAttack == null || !chunk4HorseAttack.IsStarted ? "-horse-approach" :
                 chunk4HorseAttack.GetAttackIndex() == 0 ? "-horse-strike" : "-horse-recovery");
 
@@ -83,7 +84,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
                 if (!chunk4HorseSetupMove.IsFinished || !Chunk4PairedPlayIdle) return;
                 if (chunk4HorseSetupMove.Result != UnitCommand.ResultType.Success) throw new InvalidOperationException("Horse comparison native positioning failed.");
-                chunk4HorseStage = 2; ResetLeafClock();
+                // The native camera is otherwise left at the fixture's intake
+                // point, cropping the strike after ordinary positioning.
+                game.UI.GetCameraRig().ScrollTo(horse.Position);
+                chunk4HorseStage = 2; ResetLeafClock(); return;
             }
             if (chunk4HorseStage == 2)
             {

@@ -19,7 +19,7 @@ function Assert-KmcChunk4ExtendedEvidence {
     if($Artifact.schemaVersion -ne 23 -or !(Test-KmcChunk4ExtendedScenario $Request.scenario)){throw 'Extended Chunk 4 requires schema23 and an exact registered root.'}
     Assert-KmcMountedRuntimeConfiguration $Artifact.observations.phase3fActualConfiguration $true 'Chunk 4 extended configuration'
     $required=@(Get-KmcChunk4ExtendedLeaves $Request.scenario)
-    $failureOnly=@('phase3d-horse-tranche-cleanup','phase3d-horse-scenario-deadline','phase3d-horse-leaf-deadline','phase3d-horse-runtime-exception')
+    $failureOnly=@('phase3d-horse-tranche-cleanup','phase3d-horse-tranche-cleanup-deadline','phase3d-horse-scenario-deadline','phase3d-horse-leaf-deadline','phase3d-horse-runtime-exception')
     $names=New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal);$pass=0;$fail=0
     foreach($row in $Artifact.rows){
         if($row.name -cnotin ($required+$failureOnly) -or !$names.Add([string]$row.name) -or $row.status -cnotin @('PASS','FAIL')){throw 'Invalid or duplicate extended row.'}
@@ -38,6 +38,13 @@ function Assert-KmcChunk4ExtendedEvidence {
         $trace=$Artifact.observations.ordinaryAttackTrace
         if($trace.dropped -ne 0 -or @($trace.events|Where-Object {$_.PSObject.Properties['observationError']}).Count -ne 0){throw 'Extended native observations dropped or failed.'}
         if($Request.scenario -ceq 'chunk4-inspection-rt' -and $Artifact.observations.chunk4InspectionClosed -ne $true){throw 'Inspection did not close its owned window.'}
+        if($Request.scenario -ceq 'chunk4-obstruction-ranged-rt'){
+            $cleanup=$Artifact.observations.cleanup
+            foreach($field in @('chunk4OtherTargetReleased','playerInCombat','nativeTurnBased','nativeControllerInitialized')){
+                $expected=$field -ceq 'chunk4OtherTargetReleased'
+                if($cleanup.$field -isnot [bool] -or $cleanup.$field -ne $expected){throw 'Obstruction returned before both target leases and the native encounter ended.'}
+            }
+        }
     }
 }
 function Assert-KmcChunk4SameCosts {

@@ -292,6 +292,7 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.Controllers.Rest.CameraController+CameraUnitFollower',0x0400908B,'m_Unit'),
         @('Kingmaker.Controllers.Rest.CameraController+CameraUnitFollower',0x0600C2FB,'Follow'),
         @('Kingmaker.View.CameraRig',0x0600173B,'GetPosition'),
+        @('Kingmaker.View.CameraRig',0x0600172E,'ScrollTo'),
         @('Kingmaker.Items.UnitBody',0x06007C07,'get_CurrentHandEquipmentSetIndex'),
         @('Kingmaker.Items.UnitBody',0x06007C08,'set_CurrentHandEquipmentSetIndex'),
         @('Kingmaker.Items.UnitBody',0x06007C09,'get_HandsEquipmentSets'),
