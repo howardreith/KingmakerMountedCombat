@@ -2885,6 +2885,8 @@ namespace KingmakerMountedCombat.Diagnostics
         }
 
         private MovementSynchronizationSample rowFirstPhaseViolation;
+        private long rowNativeMovementControllerUpdates;
+        private long rowNativeMovingTicks;
 
         private void ObserveSynchronization()
         {
@@ -2895,6 +2897,8 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             rowSynchronizationObservationCount++;
             if (rowFirstPhaseViolation == null) rowFirstPhaseViolation = agent.FirstPhaseViolation;
+            rowNativeMovementControllerUpdates = agent.NativeMovementControllerUpdateCount;
+            rowNativeMovingTicks = agent.NativeMovingTickCount;
             rowMaximumPreCorrectionResidual = Math.Max(rowMaximumPreCorrectionResidual, agent.MaximumPreCorrectionPositionResidualWorldUnits);
             rowMaximumInitialConfigurationResidual = Math.Max(rowMaximumInitialConfigurationResidual,
                 agent.MaximumInitialConfigurationPreCorrectionPositionResidualWorldUnits);
@@ -4266,7 +4270,11 @@ namespace KingmakerMountedCombat.Diagnostics
             };
             if (IsChunk4Traversal) record["pairedConfiguration"] = CaptureChunk4TraversalConfiguration();
             if (IsChunk4Traversal && (string)payload["kind"] == "movement-row-result")
+            {
                 record["firstPhaseViolation"] = rowFirstPhaseViolation == null ? JValue.CreateNull() : JToken.FromObject(rowFirstPhaseViolation, serializer);
+                record["nativeMovementControllerUpdates"] = rowNativeMovementControllerUpdates;
+                record["nativeMovingTicks"] = rowNativeMovingTicks;
+            }
             if (IsChunk4Traversal && currentRow == "mounted-distance-door-interaction" && (string)payload["kind"] == "movement-row-result") record["nativeBlockedDoor"] = chunk4BlockedDoorEvidence;
             if (currentRow == Chunk4SlopeRow && (string)payload["kind"] == "movement-row-result") record["nativeSlope"] = CaptureChunk4Slope();
             foreach (var property in payload.Properties())
@@ -4284,6 +4292,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private void ResetRowMetrics()
         {
             rowFirstPhaseViolation = null;
+            rowNativeMovementControllerUpdates = 0L;
+            rowNativeMovingTicks = 0L;
             if (mountSpeedLeaseOwned || equipmentSetLeaseOwned || cameraFollowerLeaseOwned)
             {
                 throw new InvalidOperationException("A prior presentation observation lease remained active at row reset.");

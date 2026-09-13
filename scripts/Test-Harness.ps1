@@ -4778,7 +4778,15 @@ try {
         Assert-Test ($patchSource.Contains('!PatchBridge.Service.TrySuppressRiderGroundPlacement(__instance)')) 'grounding prefix does not delegate its exact-instance decision to the relationship service'
         Assert-Test ($serviceSource.Contains('MountedRiderGroundingPolicy.ShouldSuppress(') -and $serviceSource.Contains('RiderGroundPlacementSuppressionCount++;')) 'relationship service does not apply and count the exact active-rider policy'
         Assert-Test ($engineSource.Contains('rider.View.ForcePlaceAboveGround();') -and $engineSource.Contains('suppressionCountAfter == suppressionCountBefore + 1L')) 'camera qualification does not deterministically exercise the exact grounding repair'
-        Assert-Test (-not $patchSource.Contains('PatchExact(typeof(UnitMoveController)')) 'grounding repair introduced a global UnitMoveController patch'
+        # Chunk4 AW requires an entry observation even when native TickMovement
+        # is skipped. Permit only that exact, pair-guarded entry hook; this is a
+        # source contract, not evidence of gameplay or callback delivery.
+        Assert-Test (([regex]::Matches($patchSource,'PatchExact\(typeof\(UnitMoveController\)')).Count -eq 1 -and
+            $patchSource.Contains('PatchExact(typeof(UnitMoveController), "Tick", 0x06009183, Type.EmptyTypes, nameof(PatchMethods.NativeMovementUpdatePrefix));') -and
+            $patchSource.Contains('NativeMovementUpdatePrefix() => PatchBridge.Service?.BeginNativeMovementUpdate();') -and
+            $serviceSource.Contains('if (disposed || coordinator.State != RelationshipState.Mounted ||') -and
+            $serviceSource.Contains('!runtime.IsExactCapturedView(runtime.Rider) || !runtime.IsExactCapturedView(runtime.Mount)) return;') -and
+            $serviceSource.Contains('runtime.MovementAgent?.BeginNativeMovementUpdate();')) 'movement entry hook escaped its exact pair/view contract'
     }
 
     Invoke-HarnessTest 'legacy experimental isolation leaves default native opportunity emission intact' {

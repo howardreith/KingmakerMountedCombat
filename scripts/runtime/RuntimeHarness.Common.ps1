@@ -9636,6 +9636,18 @@ function Assert-KmcMovementTelemetryRecord {
     }
 }
 
+function Assert-KmcChunk4MovementUpdates {
+    param([Parameter(Mandatory=$true)]$Record, [bool]$RequireComplete)
+    foreach($nativeField in @('nativeMovementControllerUpdates','nativeMovingTicks')) {
+        if(-not (Test-KmcExactJsonInteger $Record.$nativeField) -or [long]$Record.$nativeField -lt 0) {
+            throw ('Invalid native traversal count: '+$nativeField)
+        }
+    }
+    if($RequireComplete -and ($Record.nativeMovementControllerUpdates -le $Record.nativeMovingTicks -or $Record.nativeMovingTicks -le 0)) {
+        throw 'PASS Chunk4 traversal lacks native movement entry observations beyond moving-only callbacks.'
+    }
+}
+
 function Assert-KmcMovementScenarioRecord {
     param(
         [Parameter(Mandatory = $true)]$Record,
@@ -9650,10 +9662,11 @@ function Assert-KmcMovementScenarioRecord {
         $common += 'pairedConfiguration'
         Assert-KmcChunk4PairedConfiguration $Record.pairedConfiguration
         if($Record.kind -ceq 'movement-row-result') {
-            $common += 'firstPhaseViolation'
+            $common += @('firstPhaseViolation','nativeMovementControllerUpdates','nativeMovingTicks')
             if($Record.status -ceq 'PASS' -and $null -ne $Record.firstPhaseViolation) {
                 throw 'PASS Chunk4 traversal retained a synchronization phase violation.'
             }
+            Assert-KmcChunk4MovementUpdates $Record ($Record.status -ceq 'PASS')
         }
         if($Record.kind -ceq 'movement-row-result' -and $Record.row -ceq 'mounted-pair-slope') {
             $common += 'nativeSlope'

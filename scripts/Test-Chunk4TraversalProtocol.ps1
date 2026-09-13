@@ -3,6 +3,21 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'runtime/RuntimeHarness.Common.ps1')
 
 $kmcPass=0
+Assert-KmcChunk4MovementUpdates ([pscustomobject]@{nativeMovementControllerUpdates=10;nativeMovingTicks=8}) $true; $kmcPass++
+Assert-KmcChunk4MovementUpdates ([pscustomobject]@{nativeMovementControllerUpdates=0;nativeMovingTicks=0}) $false; $kmcPass++
+foreach($kmcField in @('nativeMovementControllerUpdates','nativeMovingTicks')) {
+    foreach($kmcValue in @(-1,'8',1.5,$null)) {
+        $kmcRecord=[pscustomobject]@{nativeMovementControllerUpdates=10;nativeMovingTicks=8}
+        $kmcRecord.$kmcField=$kmcValue
+        $kmcRejected=$false; try {Assert-KmcChunk4MovementUpdates $kmcRecord $true} catch {$kmcRejected=$true}
+        if(!$kmcRejected){throw ('Invalid native movement callback count accepted: '+$kmcField)}; $kmcPass++
+    }
+}
+foreach($kmcCounts in @(@(0,0),@(8,8),@(7,8),@(10,0))) {
+    $kmcRecord=[pscustomobject]@{nativeMovementControllerUpdates=$kmcCounts[0];nativeMovingTicks=$kmcCounts[1]}
+    $kmcRejected=$false; try {Assert-KmcChunk4MovementUpdates $kmcRecord $true} catch {$kmcRejected=$true}
+    if(!$kmcRejected){throw 'Missing native standing/moving update coverage accepted.'}; $kmcPass++
+}
 function New-SlopeEnvelope {
     # Parser envelope only, never native evidence.
     return (@{startY=2; riderMoveBefore=0; minimumY=2; maximumY=2.75; heightChange=.75; dropped=0;

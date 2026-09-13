@@ -410,6 +410,13 @@ namespace KingmakerMountedCombat.Integration
                 coordinator.State == RelationshipState.Unmounted;
         }
 
+        internal void BeginNativeMovementUpdate()
+        {
+            if (disposed || coordinator.State != RelationshipState.Mounted ||
+                !runtime.IsExactCapturedView(runtime.Rider) || !runtime.IsExactCapturedView(runtime.Mount)) return;
+            runtime.MovementAgent?.BeginNativeMovementUpdate();
+        }
+
         public void ValidateActivePair()
         {
             if (cleanupRetryRequired || coordinator.State == RelationshipState.Faulted)

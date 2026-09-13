@@ -1,6 +1,6 @@
-# Active Chunk 4 - candidate25, 2026-09-13 UTC
+# Active Chunk 4 - candidate26, 2026-09-13 UTC
 
-IN PROGRESS. Source24 982232553b3dfc4be470a03824b764bf3ada9206 passed obstruction AT47/0 and Horse mechanics AU48/0. Horse images remain wall-occluded. Traversal AV197/6 exposed doorway path attribution and two synchronization faults; turns/corners passed. Candidate25 adds first-fault retention, scoped native doorway refresh attribution and an exactly restored opposite camera angle. All48 transactions independently restored actual preview.37/data. Full25 checks PASS. Complete package/WhatIf, then focused traversal AW; inspect its new fault evidence before further repair. Continue remaining traversal/session and exact-final gates. [One report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent deployment or Chunk5 implementation.
+IN PROGRESS. Published source25 737f79fef87d0874dfa04689ae72d1ee82b4ce3e: AW traversal199/4, doorway62/0 and turns76/0 passed; door/party each retained a yaw fault. First-fault observations show a missing current-frame rider movement callback during final native turning. Candidate26 synchronizes the exact active pair once at native movement-controller entry, retaining native movement and all residual/cadence gates. All49 transactions independently restored actual human37/data. Full26 checks PASS; next commit/package/guarded publication/suite/WhatIf, then AX focused traversal. Native construction of the new hook remains required in Unity. Continue missing traversal/session and exact-final gates. [Report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent deployment or Chunk5 implementation.
 ---
 ## Combined milestone disposition — 2026-09-08
 

@@ -131,6 +131,17 @@ public static class KmcNativePatchProbe {
   System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(conditionAdapter.TypeHandle);
   Console.WriteLine("NATIVE CONDITION ADAPTER FACTORY CONTRACT PASS=1 FAIL=0; no actor or game method invoked");
   try {
+   var movementOriginal=native.ManifestModule.ResolveMethod(0x06009183);
+   var movementHook=hooks.GetMethod("NativeMovementUpdatePrefix",BindingFlags.Static|BindingFlags.NonPublic);
+   var movementIl=movementOriginal.GetMethodBody().GetILAsByteArray();
+   if(movementOriginal.Name!="Tick" || movementOriginal.GetParameters().Length!=0 ||
+      movementHook==null || movementHook.ReturnType!=typeof(void) || movementHook.GetParameters().Length!=0 ||
+      movementIl[0x124]!=0x6f || BitConverter.ToInt32(movementIl,0x125)!=0x060018D9 ||
+      movementIl[0x2e2]!=0x6f || BitConverter.ToInt32(movementIl,0x2e3)!=0x06008366)
+    throw new InvalidOperationException("Native movement entry/rotation contract changed.");
+   // This target's native Unity ECalls cannot be JIT-compiled by desktop CLR.
+   // Actual hook construction and callback delivery remain required in Unity.
+   Console.WriteLine("MOVEMENT ENTRY CONTRACT PASS=1 FAIL=0; native construction/delivery required in Unity");
    for(var i=0;i<tokens.Length;i++) {
     var original=native.ManifestModule.ResolveMethod(tokens[i]);
     var hook=hooks.GetMethod(names[i],BindingFlags.Static|BindingFlags.NonPublic);
