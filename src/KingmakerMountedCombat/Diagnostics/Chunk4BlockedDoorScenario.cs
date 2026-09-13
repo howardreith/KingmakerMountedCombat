@@ -1,10 +1,14 @@
 using System;
+using System.Reflection;
 using Kingmaker;
 using Kingmaker.Controllers.Clicks.Handlers;
 using Kingmaker.UI.Selection;
 using Kingmaker.UnitLogic.Commands.Base;
+using Kingmaker.View.MapObjects;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
+using UnityEngine.Animations;
+using UnityEngine.Playables;
 
 namespace KingmakerMountedCombat.Diagnostics
 {
@@ -19,12 +23,40 @@ namespace KingmakerMountedCombat.Diagnostics
         private double chunk4BlockedDoorSampleAt;
         private JObject chunk4BlockedDoorEvidence;
         private readonly JArray chunk4BlockedDoorSamples = new JArray();
+        private JObject chunk4DoorClosingInitial;
+        private double chunk4DoorClosingStarted;
+        private int chunk4DoorSettledFrame = -1;
+        private int chunk4DoorClosingObservations;
+
+        private JObject CaptureChunk4DoorPlayback()
+        {
+            var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            var playableField = typeof(StandardDoor).GetField("m_Playable", flags);
+            var graphField = typeof(StandardDoor).GetField("m_Graph", flags);
+            if (playableField == null || playableField.MetadataToken != 0x040012CE ||
+                graphField == null || graphField.MetadataToken != 0x040012CD)
+                throw new InvalidOperationException("Native StandardDoor playback observation contract changed.");
+            var playable = (AnimationClipPlayable)playableField.GetValue(selectedDoor);
+            var graph = (PlayableGraph)graphField.GetValue(selectedDoor);
+            if (!playable.IsValid() || !graph.IsValid() || selectedDoor.ObstacleAnimation == null)
+                throw new InvalidOperationException("The selected native door has no valid closing animation.");
+            var time = playable.GetTime();
+            var speed = playable.GetSpeed();
+            var length = selectedDoor.ObstacleAnimation.length;
+            if (double.IsNaN(time) || double.IsInfinity(time) || speed != -1d ||
+                float.IsNaN(length) || float.IsInfinity(length) || length <= 0f ||
+                time > 0d && !graph.IsPlaying())
+                throw new InvalidOperationException("The native door is not completing its ordinary backward closing animation.");
+            return new JObject { ["frame"] = Time.frameCount, ["time"] = time, ["speed"] = speed,
+                ["clipLength"] = length, ["graphPlaying"] = graph.IsPlaying() };
+        }
 
         private JObject CaptureChunk4BlockedDoor() => new JObject {
             ["frame"] = Time.frameCount, ["position"] = new JArray(mount.Position.x,mount.Position.y,mount.Position.z),
             ["riderPosition"] = new JArray(rider.Position.x,rider.Position.y,rider.Position.z),
             ["farDistance"] = PlanarDistance(mount.Position,doorFarPoint), ["homeDistance"] = PlanarDistance(mount.Position,chunk4BlockedDoorHome),
             ["doorOpen"] = selectedDoor.GetState(), ["cutEnabled"] = distanceDoorNavmeshCut?.enabled,
+            ["doorAnimationTime"] = CaptureChunk4DoorPlayback()["time"],
             ["cutNeedsUpdate"] = distanceDoorNavmeshCut?.RequiresUpdate(), ["reallyMoving"] = mount.View.AgentASP.IsReallyMoving,
             ["agentEnabled"] = mount.View.AgentASP.enabled, ["avoidanceDisabled"] = mount.View.AgentASP.AvoidanceDisabled,
             ["corpulence"] = mount.View.Corpulence, ["riderMove"] = rider.CombatState.Cooldown.MoveAction,
@@ -42,11 +74,26 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (distanceDoorNavmeshCut == null || !distanceDoorNavmeshCut.enabled || selectedDoor.GetState())
                     throw new InvalidOperationException("Blocked route requires the actual closed door and active native cut.");
-                if (distanceDoorNavmeshCut.RequiresUpdate() || AstarPath.active.IsAnyGraphUpdatesQueued ||
-                    Time.frameCount <= Pathfinding.Util.TileHandler.LastUpdateFrame) return false;
+                if (chunk4DoorClosingInitial == null || suiteClock.Elapsed.TotalSeconds - chunk4DoorClosingStarted > 30d)
+                    throw new InvalidOperationException("Native closed-door preparation did not settle within its bounded observation.");
+                var playback = CaptureChunk4DoorPlayback();
+                chunk4DoorClosingObservations++;
+                if ((double)playback["time"] > 0d || distanceDoorNavmeshCut.RequiresUpdate() ||
+                    AstarPath.active.IsAnyGraphUpdatesQueued || Time.frameCount <= Pathfinding.Util.TileHandler.LastUpdateFrame)
+                {
+                    chunk4DoorSettledFrame = -1;
+                    return false;
+                }
+                // State flips before the backward clip finishes. Observe its endpoint
+                // and a subsequent native frame, including all resulting tile work.
+                if (chunk4DoorSettledFrame < 0) { chunk4DoorSettledFrame = Time.frameCount; return false; }
+                if (Time.frameCount <= chunk4DoorSettledFrame) return false;
                 chunk4BlockedDoorHome = mount.Position;
                 chunk4BlockedDoorEvidence = new JObject { ["level"] = "NATIVE INTEGRATION",
                     ["caseId"] = "C4-TRAVERSAL-closed-door-stop-return", ["rider"] = rider.UniqueId, ["mount"] = mount.UniqueId,
+                    ["closing"] = new JObject { ["initial"] = chunk4DoorClosingInitial, ["ready"] = playback,
+                        ["settledFrame"] = chunk4DoorSettledFrame, ["observations"] = chunk4DoorClosingObservations,
+                        ["elapsed"] = suiteClock.Elapsed.TotalSeconds - chunk4DoorClosingStarted },
                     ["before"] = CaptureChunk4BlockedDoor(),
                     ["destination"] = new JArray(doorFarPoint.x,doorFarPoint.y,doorFarPoint.z) };
                 ClickGroundHandler.MoveSelectedUnitsToPoint(doorFarPoint, false);
@@ -62,7 +109,8 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 var elapsed = suiteClock.Elapsed.TotalSeconds - chunk4BlockedDoorStarted;
                 var state = CaptureChunk4BlockedDoor();
-                if ((bool)state["doorOpen"] || !(bool)state["agentEnabled"] || (bool)state["avoidanceDisabled"] ||
+                if ((bool)state["doorOpen"] || !(bool)state["cutEnabled"] || (bool)state["cutNeedsUpdate"] ||
+                    (double)state["doorAnimationTime"] > 0d || !(bool)state["agentEnabled"] || (bool)state["avoidanceDisabled"] ||
                     !JToken.DeepEquals(state["corpulence"], chunk4BlockedDoorEvidence["before"]["corpulence"]))
                     throw new InvalidOperationException("Closed-door route changed native collision or its actual door state.");
                 if (suiteClock.Elapsed.TotalSeconds - chunk4BlockedDoorSampleAt >= 0.1d)

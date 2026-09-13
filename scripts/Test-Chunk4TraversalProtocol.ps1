@@ -71,13 +71,15 @@ Assert-KmcChunk4PairedConfiguration ([pscustomobject]@{enablePairedActivation=$f
 if((Get-KmcChunk4TraversalRows 'chunk4-traversal-core') -join ',' -cne 'mounted-distance-door-interaction,mounted-pair-doorway,mounted-pair-turns-and-corners,mounted-pair-party-formation'){throw 'Core traversal order changed.'}; $kmcPass++
 if((Get-KmcChunk4TraversalRows 'chunk4-traversal-slope') -cne 'mounted-pair-slope'){throw 'Slope traversal row changed.'}; $kmcPass++
 function New-BlockedState([int]$Frame,[double]$X) {
-    return @{frame=$Frame;position=@($X,0,0);riderPosition=@($X,1,0);farDistance=(10-$X);homeDistance=$X;
+    return @{frame=($Frame+3);position=@($X,0,0);riderPosition=@($X,1,0);farDistance=(10-$X);homeDistance=$X;doorAnimationTime=-0.01;
         doorOpen=$false;cutEnabled=$true;cutNeedsUpdate=$false;reallyMoving=$false;agentEnabled=$true;avoidanceDisabled=$false;
         corpulence=1.8;riderMove=0;mountMove=0;riderStandard=0;mountStandard=0;moveStarted=$true;moveFinished=$true;moveResult='Success';
         pathError=$false;pathPoints=2;pathState='Complete'}
 }
 function New-BlockedEnvelope {
     return (@{level='NATIVE INTEGRATION';caseId='C4-TRAVERSAL-closed-door-stop-return';rider='rider';mount='mount';
+        closing=@{initial=@{frame=1;time=2;speed=-1;clipLength=2;graphPlaying=$true};
+            ready=@{frame=3;time=-0.01;speed=-1;clipLength=2;graphPlaying=$true};settledFrame=2;observations=3;elapsed=2.01};
         before=(New-BlockedState 0 0);destination=@(10,0,0);moveType='Kingmaker.UnitLogic.Commands.UnitMoveTo';moveExecutor='mount';
         beforeStop=(New-BlockedState 3 4);elapsed=3;samples=@((New-BlockedState 1 2),(New-BlockedState 2 4));
         afterStopInput=(New-BlockedState 3 4);afterStop=(New-BlockedState 4 4);afterReturn=(New-BlockedState 5 0);returnResult='Success'} |
@@ -100,7 +102,7 @@ Reject-Blocked {param($e) $e.elapsed=1}
 Reject-Blocked {param($e) $e.destination[1]=[double]::PositiveInfinity}
 Reject-Blocked {param($e) $e.destination=@(10,0)}
 Reject-Blocked {param($e) $e.samples=@()}
-Reject-Blocked {param($e) $e.samples[1].frame=1}
+Reject-Blocked {param($e) $e.samples[1].frame=$e.samples[0].frame}
 Reject-Blocked {param($e) $e.samples[1].doorOpen=$true}
 Reject-Blocked {param($e) $e.samples[1].doorOpen='false'}
 Reject-Blocked {param($e) $e.samples[1].cutEnabled=$false}
@@ -120,4 +122,21 @@ Reject-Blocked {param($e) $e.beforeStop.position[0]=9;$e.beforeStop.farDistance=
 Reject-Blocked {param($e) $e.afterStop.reallyMoving=$true}
 Reject-Blocked {param($e) $e.afterReturn.position[0]=4;$e.afterReturn.farDistance=6;$e.afterReturn.homeDistance=4}
 Reject-Blocked {param($e) $e.afterStopInput.mountMove=.1}
+Reject-Blocked {param($e) $e.closing.initial.time=[double]::NaN}
+Reject-Blocked {param($e) $e.closing.initial.time=-1}
+Reject-Blocked {param($e) $e.closing.initial.time=3}
+Reject-Blocked {param($e) $e.closing.initial.speed=1}
+Reject-Blocked {param($e) $e.closing.initial.graphPlaying=$false}
+Reject-Blocked {param($e) $e.closing.ready.time=.2; $e.before.doorAnimationTime=.2}
+Reject-Blocked {param($e) $e.closing.ready.clipLength=3}
+Reject-Blocked {param($e) $e.closing.ready.frame=2}
+Reject-Blocked {param($e) $e.closing.settledFrame=3}
+Reject-Blocked {param($e) $e.closing.observations=1}
+Reject-Blocked {param($e) $e.closing.observations='3'}
+Reject-Blocked {param($e) $e.closing.elapsed=31}
+Reject-Blocked {param($e) $e.closing.elapsed=[double]::PositiveInfinity}
+Reject-Blocked {param($e) $e.before.doorAnimationTime=-.1}
+Reject-Blocked {param($e) $e.samples[1].doorAnimationTime=.1}
+Reject-Blocked {param($e) $e.samples[1].doorAnimationTime=[double]::NaN}
+Reject-Blocked {param($e) $e.samples[1].doorAnimationTime='0'}
 Write-Output "CHUNK 4 TRAVERSAL COMPONENT PASS=$kmcPass FAIL=0"

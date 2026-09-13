@@ -950,6 +950,21 @@ if($Target-eq'Kingmaker'){
     $doorInteract=@(Find-Token 'Kingmaker.View.MapObjects.StandardDoor' 0x060019ED)
     $doorCanInteract=@(Find-Token 'Kingmaker.View.MapObjects.StandardDoor' 0x060019F0)
     $doorState=@(Find-Token 'Kingmaker.View.MapObjects.StandardDoor' 0x06001AA7)
+    $doorPlayable=@(Find-Token 'Kingmaker.View.MapObjects.StandardDoor' 0x040012CE)
+    $doorGraph=@(Find-Token 'Kingmaker.View.MapObjects.StandardDoor' 0x040012CD)
+    $doorClip=@(Find-Token 'Kingmaker.View.MapObjects.StandardDoor' 0x040012CF)
+    $doorOpen=@(Find-Token 'Kingmaker.View.MapObjects.StandardDoor' 0x06001AA6)
+    Assert-Contract ($doorPlayable.Count-eq1 -and $doorPlayable[0].IsPrivate -and
+        $doorPlayable[0].Name-ceq'm_Playable' -and $doorPlayable[0].FieldType.FullName-ceq'UnityEngine.Animations.AnimationClipPlayable' -and
+        $doorGraph.Count-eq1 -and $doorGraph[0].IsPrivate -and $doorGraph[0].Name-ceq'm_Graph' -and
+        $doorGraph[0].FieldType.FullName-ceq'UnityEngine.Playables.PlayableGraph' -and
+        $doorClip.Count-eq1 -and $doorClip[0].IsPublic -and $doorClip[0].Name-ceq'ObstacleAnimation' -and
+        $doorClip[0].FieldType.FullName-ceq'UnityEngine.AnimationClip') 'native door closing playback observation fields'
+    Assert-Contract ($doorOpen.Count-eq1 -and $doorOpen[0].Name-ceq'Open' -and
+        (Test-MethodIlContainsToken $doorOpen[0] 0x2B00023C) -and
+        (Test-MethodIlContainsToken $doorOpen[0] 0x2B000222) -and
+        (Test-MethodIlContainsToken $doorOpen[0] 0x2B00023B) -and
+        (Test-MethodIlContainsToken $doorOpen[0] 0x04007545)) 'native door toggles state alongside backward playable speed/time control'
     $navmeshCutType=$firstpass.GetType('Pathfinding.NavmeshCut',$false)
     $navmeshCutRequiresUpdate=if($null-eq$navmeshCutType){$null}else{$navmeshCutType.GetMethod('RequiresUpdate',[Reflection.BindingFlags]'Public,Instance')}
     $tileHandlerHelperType=$firstpass.GetType('Pathfinding.TileHandlerHelper',$false)

@@ -52,7 +52,7 @@ function Assert-KmcChunk4NativeSlope {
 }
 function Assert-KmcChunk4BlockedDoor {
     param($Value)
-    Assert-KmcExactProperties $Value @('level','caseId','rider','mount','before','destination','moveType','moveExecutor',
+    Assert-KmcExactProperties $Value @('level','caseId','rider','mount','closing','before','destination','moveType','moveExecutor',
         'beforeStop','elapsed','samples','afterStopInput','afterStop','afterReturn','returnResult') 'Chunk 4 blocked door'
     if($Value.level -cne 'NATIVE INTEGRATION' -or $Value.caseId -cne 'C4-TRAVERSAL-closed-door-stop-return' -or
         [string]::IsNullOrWhiteSpace($Value.rider) -or [string]::IsNullOrWhiteSpace($Value.mount) -or $Value.rider -ceq $Value.mount -or
@@ -64,9 +64,26 @@ function Assert-KmcChunk4BlockedDoor {
     foreach($kmcNumber in $Value.destination) {
         if(!(Test-KmcJsonNumber $kmcNumber) -or [double]::IsNaN([double]$kmcNumber) -or [double]::IsInfinity([double]$kmcNumber)) {throw 'Blocked-door destination must be finite native geometry.'}
     }
+    Assert-KmcExactProperties $Value.closing @('initial','ready','settledFrame','observations','elapsed') 'Chunk 4 native door closing'
+    foreach($kmcPlayback in @($Value.closing.initial,$Value.closing.ready)) {
+        Assert-KmcExactProperties $kmcPlayback @('frame','time','speed','clipLength','graphPlaying') 'Native door playback'
+        if(!(Test-KmcExactJsonInteger $kmcPlayback.frame) -or $kmcPlayback.frame -lt 0 -or $kmcPlayback.graphPlaying -isnot [bool]) {throw 'Door playback requires actual native frame and graph observations.'}
+        foreach($kmcField in @('time','speed','clipLength')) {
+            if(!(Test-KmcJsonNumber $kmcPlayback.$kmcField) -or [double]::IsNaN([double]$kmcPlayback.$kmcField) -or [double]::IsInfinity([double]$kmcPlayback.$kmcField)) {throw 'Door playback observations must be finite numbers.'}
+        }
+        if($kmcPlayback.speed -ne -1 -or $kmcPlayback.clipLength -le 0 -or ($kmcPlayback.time -gt 0 -and !$kmcPlayback.graphPlaying)) {throw 'Door did not follow its native closing animation.'}
+    }
+    $kmcClosing=$Value.closing
+    if(!(Test-KmcExactJsonInteger $kmcClosing.settledFrame) -or !(Test-KmcExactJsonInteger $kmcClosing.observations) -or
+        $kmcClosing.observations -lt 2 -or !(Test-KmcJsonNumber $kmcClosing.elapsed) -or [double]::IsNaN([double]$kmcClosing.elapsed) -or
+        [double]::IsInfinity([double]$kmcClosing.elapsed) -or $kmcClosing.elapsed -le 0 -or $kmcClosing.elapsed -gt 30 -or
+        $kmcClosing.initial.time -lt 0 -or $kmcClosing.initial.time -gt $kmcClosing.initial.clipLength -or
+        $kmcClosing.ready.time -gt 0 -or $kmcClosing.ready.clipLength -ne $kmcClosing.initial.clipLength -or
+        $kmcClosing.settledFrame -lt $kmcClosing.initial.frame -or $kmcClosing.ready.frame -le $kmcClosing.settledFrame -or
+        $kmcClosing.ready.frame -ne $Value.before.frame -or $kmcClosing.ready.time -ne $Value.before.doorAnimationTime) {throw 'Blocked route began before native door closing and graph readiness were observed.'}
     $kmcFrames=-1L; $kmcCommandObserved=$false
     foreach($kmcState in @($Value.before)+@($Value.samples)+@($Value.beforeStop,$Value.afterStopInput,$Value.afterStop,$Value.afterReturn)) {
-        Assert-KmcExactProperties $kmcState @('frame','position','riderPosition','farDistance','homeDistance','doorOpen','cutEnabled','cutNeedsUpdate',
+        Assert-KmcExactProperties $kmcState @('frame','position','riderPosition','farDistance','homeDistance','doorOpen','doorAnimationTime','cutEnabled','cutNeedsUpdate',
             'reallyMoving','agentEnabled','avoidanceDisabled','corpulence','riderMove','mountMove','riderStandard','mountStandard',
             'moveStarted','moveFinished','moveResult','pathError','pathPoints','pathState') 'Chunk 4 blocked-door native state'
         foreach($kmcPosition in @('position','riderPosition')) {
@@ -84,6 +101,8 @@ function Assert-KmcChunk4BlockedDoor {
         }
         if($null -ne $kmcState.pathPoints -and (!(Test-KmcExactJsonInteger $kmcState.pathPoints) -or $kmcState.pathPoints -lt 0)) {throw 'Blocked-route path point count is invalid.'}
         if($kmcState.doorOpen -or !$kmcState.cutEnabled -or $kmcState.cutNeedsUpdate -or !$kmcState.agentEnabled -or $kmcState.avoidanceDisabled) {throw 'Blocked route changed door/collision state or measured an unready cut.'}
+        if(!(Test-KmcJsonNumber $kmcState.doorAnimationTime) -or [double]::IsNaN([double]$kmcState.doorAnimationTime) -or
+            [double]::IsInfinity([double]$kmcState.doorAnimationTime) -or $kmcState.doorAnimationTime -gt 0) {throw 'Blocked route measured an unfinished native closing animation.'}
         foreach($kmcField in @('farDistance','homeDistance','corpulence','riderMove','mountMove','riderStandard','mountStandard')) {
             if(!(Test-KmcJsonNumber $kmcState.$kmcField) -or [double]::IsNaN([double]$kmcState.$kmcField) -or
                 [double]::IsInfinity([double]$kmcState.$kmcField) -or $kmcState.$kmcField -lt 0) {throw 'Blocked-route distances and costs must be finite nonnegative numbers.'}

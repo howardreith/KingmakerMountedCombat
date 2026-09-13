@@ -1009,6 +1009,11 @@ namespace KingmakerMountedCombat.Diagnostics
                     return;
                 }
                 selectedDoor.Interact(rider);
+                if (IsChunk4Traversal)
+                {
+                    chunk4DoorClosingInitial = CaptureChunk4DoorPlayback();
+                    chunk4DoorClosingStarted = suiteClock.Elapsed.TotalSeconds;
+                }
                 rowPhase = 1;
                 return;
             }
