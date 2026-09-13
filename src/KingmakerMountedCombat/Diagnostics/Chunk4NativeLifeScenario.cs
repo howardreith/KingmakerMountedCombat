@@ -207,6 +207,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (principalIndex < 0 || roster.Count(unit => unit == rider) != 1 || roster.Count(unit => unit == horse) != 1 ||
                     roster.Select(unit => unit.UniqueId).Distinct(StringComparer.Ordinal).Count() != roster.Length)
                     throw new InvalidOperationException("Life fixture lacks its exact native roster and current principal.");
+                var mountIndex = Array.IndexOf(roster, horse);
                 chunk4LifeEvidence["eligibleRosterBeforeDamage"] = new JArray(roster.Select(unit => unit.UniqueId));
                 chunk4LifeEvidence["principalRosterIndex"] = principalIndex;
                 // Native ChooseNextUnit advances from the current actor and wraps.
@@ -216,7 +217,12 @@ namespace KingmakerMountedCombat.Diagnostics
                     .Where(unit => unit != rider && unit != horse).Select(unit => unit.UniqueId));
                 chunk4LifeEvidence["successorOrderBefore"] = new JArray(Enumerable.Range(1, roster.Length - 1)
                     .Select(offset => roster[(principalIndex + offset) % roster.Length])
-                    .Where(unit => unit != subject).Select(unit => unit.UniqueId));
+                    // The mount's paired grant already consumed its later native
+                    // slot in this round. Existing participation exclusion ends
+                    // at native round wrap, so an earlier roster slot is retained.
+                    .Where(unit => unit != subject && (unit != horse || mountIndex < principalIndex))
+                    .Select(unit => unit.UniqueId));
+                chunk4LifeEvidence["sameRoundMountExcluded"] = subject == rider && mountIndex > principalIndex;
                 if (((JArray)chunk4LifeEvidence["unrelatedOrderBefore"]).Count < 2)
                     throw new InvalidOperationException("Life fixture lacks two unrelated native successor actors.");
                 chunk4LifeRiderGrants = allocationTrace.GrantCount(rider); chunk4LifeMountGrants = allocationTrace.GrantCount(horse);

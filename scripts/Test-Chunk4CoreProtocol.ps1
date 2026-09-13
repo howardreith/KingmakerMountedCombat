@@ -36,6 +36,7 @@ function New-CoreEnvelope([string]$root) {
                 nativeLifeEvents=@{events=@(@{kind='native-life-state';actor=$subject;lifeState=$(if($incap){'Unconscious'}else{'Dead'});frame=15})};nativeRules=@{dropped=0;events=@(@{kind='damage-after';target=$subject;damage=130})}}
             $e.afterCleanup=New-CoreLifeState $subject $incap $true
             $e.successorOrderBefore=@('other1','other2','mount')|Where-Object {$_ -cne $subject}
+            $e.sameRoundMountExcluded=$false
             $e.allocationSequenceBeforeDamage=0;$e.allocationTrace=@{dropped=0;observationErrors=0;events=(New-CoreNativeTurnEnd 'other1' 11 2 25 1)}
             $e.successorTurns=@(0..1|ForEach-Object {
                 $state=New-CoreLifeState $subject $incap $true;$state.currentActor='other'+($_+1);$state.frame=20+10*$_
@@ -363,3 +364,30 @@ foreach($mutation in $enemyEndMutations){
     if(!$rejected){throw "Invalid native enemy ending accepted: $mutation"};$passed++
 }
 Write-Host "COMPONENT with native enemy-turn fixture TOTAL PASS=$passed FAIL=0"
+
+# AH confirmed the accepted same-round mount exclusion after native rider death.
+# The survivor keeps its next-round eligibility and cannot receive another grant.
+$native=New-CoreEnvelope $root
+$life=$native.rows[0].evidence;$life.eligibleRosterBeforeDamage=@('other2','rider','mount','other1')
+$life.principalRosterIndex=1;$life.successorOrderBefore=@('other1','other2');$life.sameRoundMountExcluded=$true
+Assert-KmcChunk4CoreEvidence @{scenario=$root} $native 'PASS';$passed++
+$sameRoundMutations=@(
+    {param($e) $e.sameRoundMountExcluded=$false},
+    {param($e) $e.beforeDamage.privatePartner=$null},
+    {param($e) $e.beforeDamage.identity=$null},
+    {param($e) $e.beforeDamage.mountGrants=0},
+    {param($e) $e.successorOrderBefore=@('mount','other1','other2')},
+    {param($e) $e.allocationTrace.events+=@([pscustomobject]@{boundary='prepare-before';sequence=3;state=[pscustomobject]@{actor='mount'}})},
+    {param($e) $e.successorTurns[1].state.mountGrants=3}
+)
+foreach($mutation in $sameRoundMutations){
+    $changed=$native|ConvertTo-Json -Depth 30|ConvertFrom-Json
+    & $mutation $changed.rows[0].evidence;$rejected=$false
+    try{Assert-KmcChunk4CoreEvidence @{scenario=$root} $changed 'PASS'}catch{$rejected=$true}
+    if(!$rejected){throw "Invalid same-round mount participation accepted: $mutation"};$passed++
+}
+$changed=New-CoreEnvelope $root;Add-CoreNativeSurvivorTurn $changed
+$changed.rows[0].evidence.sameRoundMountExcluded=$true;$rejected=$false
+try{Assert-KmcChunk4CoreEvidence @{scenario=$root} $changed 'PASS'}catch{$rejected=$true}
+if(!$rejected){throw 'Next-round survivor was incorrectly treated as an already consumed native slot.'};$passed++
+Write-Host "COMPONENT with consumed mount-slot fixture TOTAL PASS=$passed FAIL=0"

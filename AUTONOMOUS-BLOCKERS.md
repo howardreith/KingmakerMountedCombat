@@ -1,6 +1,6 @@
-# Active Chunk 4 - candidate20, 2026-09-13 UTC
+# Active Chunk 4 - candidate21, 2026-09-13 UTC
 
-IN PROGRESS. Native AG on source19 dd3e91ec4ec00722c66de5a7da6f5be74970ca31 again passed47/0 host and1/0 child assertions for persistent rider death/cleanup. Its first unrelated actor was the native enemy, which correctly ended automatically; the outer validator wrongly required player End input. Candidate20 requires exact native Ending/Ended callbacks for completed successors and player End only for controllable fixture actors. All33 transactions independently restored actual preview.37/data; latest2026-09-13T05:20:28.7095659Z. Next focused nativeAH rider-death, then remaining new/final gates. [One report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No gameplay repair, permanent deployment or Chunk5 implementation.
+IN PROGRESS. AH on source20 279bf722d880e1b3b395822fd3291cc88f65f34e failed its fixture's raw successor-order expectation: the already granted Horse correctly skipped its later native slot in the same round, preserving grants2/2 while two unrelated actors proceeded. Candidate21 accounts for that accepted participation rule and retains the Horse's next-round slot. No gameplay/scheduler repair. All34 transactions independently restored actual preview.37/data; latest2026-09-13T06:14:26.3241309Z. Next nativeAI rider-death, then the remaining new/final gates. [One report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent deployment or Chunk5 implementation.
 ---
 ## Combined milestone disposition — 2026-09-08
 

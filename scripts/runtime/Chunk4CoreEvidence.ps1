@@ -143,8 +143,16 @@ function Assert-KmcChunk4LifeRow {
 }
 function Assert-KmcChunk4LifeSuccessors {
     param($e,[string[]]$Roster,[int]$Principal,[string]$Subject,[string]$Survivor)
+    $mountIndex=[Array]::IndexOf($Roster,[string]$e.beforeDamage.mount.id)
+    $sameRoundMountExcluded=$Subject -ceq 'rider' -and $mountIndex -gt $Principal
+    if($e.sameRoundMountExcluded -isnot [bool] -or $e.sameRoundMountExcluded -ne $sameRoundMountExcluded -or
+        ($sameRoundMountExcluded -and ($e.beforeDamage.privatePartner -cne $e.beforeDamage.mount.id -or
+            [string]::IsNullOrWhiteSpace($e.beforeDamage.identity) -or $e.beforeDamage.mountGrants -lt 1))){
+        throw 'Life successor exclusion does not match the already granted mount slot in the current native round.'
+    }
     $expected=@(for($offset=1;$offset -lt $Roster.Count;$offset++){
-        $actor=$Roster[($Principal+$offset)%$Roster.Count];if($actor -cne $e.subject){$actor}
+        $actor=$Roster[($Principal+$offset)%$Roster.Count]
+        if($actor -cne $e.subject -and ($actor -cne $e.beforeDamage.mount.id -or $mountIndex -lt $Principal)){$actor}
     })
     if((ConvertTo-Json -InputObject $expected -Compress) -cne (ConvertTo-Json -InputObject @($e.successorOrderBefore) -Compress) -or
         !(Test-KmcExactJsonInteger $e.allocationSequenceBeforeDamage) -or $e.allocationSequenceBeforeDamage -lt 0 -or
