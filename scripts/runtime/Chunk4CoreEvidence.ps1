@@ -168,8 +168,14 @@ function Assert-KmcChunk4LifeSuccessors {
         }else{$unrelated+=@($turn)}
         $expectedRider=$e.beforeDamage.riderGrants+$(if($Survivor -ceq 'rider'){$survivorCount}else{0})
         $expectedMount=$e.beforeDamage.mountGrants+$(if($Survivor -ceq 'mount'){$survivorCount}else{0})
+        $isEnemy=$turn.actor -ceq $e.enemyBeforeDamage.id
         if($state.riderGrants -ne $expectedRider -or $state.mountGrants -ne $expectedMount -or
-            $turn.endInput -isnot [bool] -or $turn.endInput -ne ($index -lt $turns.Count-1)){throw 'Native successor preparation or ordinary End input was lost or duplicated.'}
+            $turn.endInput -isnot [bool] -or $turn.endInput -ne ($index -lt $turns.Count-1 -and !$isEnemy)){throw 'Native successor preparation or ordinary End input was lost or duplicated.'}
+        if($index -lt $turns.Count-1){
+            if($isEnemy -and ($e.source -cne $turn.actor -or $e.enemyBeforeDamage.directlyControllable -ne $false -or
+                $e.enemyBeforeDamage.effectiveAiEnabled -ne $true)){throw 'Automatic successor ending lacks the exact native enemy and control state.'}
+            Assert-KmcChunk4SuccessorEnd $e $turn $turns[$index+1]
+        }
     }
     if($unrelated.Count -ne 2 -or $turns[-1].survivor){throw 'Life successor sequence did not finish at the second unrelated native actor.'}
     for($index=0;$index -lt 2;$index++){
@@ -193,6 +199,23 @@ function Assert-KmcChunk4LifeSuccessors {
         if($preparations[0].sequence -ge $preparations[1].sequence){throw 'Native survivor Prepare callbacks are out of order.'}
     }
     return $survivorCount
+}
+function Assert-KmcChunk4SuccessorEnd {
+    param($e,$Turn,$Next)
+    $ends=@($e.allocationTrace.events|Where-Object {($_.boundary -cin @('turn-end-before','turn-end-after')) -and
+        $_.sequence -gt $e.allocationSequenceBeforeDamage -and $_.state.actor -ceq $Turn.actor -and
+        $_.frame -ge $Turn.frame -and $_.frame -lt $Next.frame})
+    if($ends.Count -ne 2){throw 'A completed successor lacks exactly one native turn-ending callback pair.'}
+    for($index=0;$index -lt 2;$index++){
+        $p=$ends[$index];$boundary=if($index -eq 0){'turn-end-before'}else{'turn-end-after'}
+        $status=if($index -eq 0){'Ending'}else{'Ended'}
+        if($p.boundary -cne $boundary -or $p.turnStatus -cne $status -or $p.currentActor -cne $Turn.actor -or
+            $p.turn -ne $Turn.turn -or $p.round -ne $Turn.round -or $p.simulatingClick -ne $false -or
+            ($null -ne $p.activationIdentity -and $p.activationIdentity -cne $e.beforeDamage.identity)){
+            throw 'Native successor ending changed actor, turn, round or pair ownership.'
+        }
+    }
+    if($ends[0].sequence -ge $ends[1].sequence -or $ends[0].frame -gt $ends[1].frame){throw 'Native successor ending callbacks are out of order.'}
 }
 function Assert-KmcChunk4DeathPolicy {
     param($e)

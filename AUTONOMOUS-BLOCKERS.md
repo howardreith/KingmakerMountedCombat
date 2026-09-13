@@ -1,6 +1,6 @@
-# Active Chunk 4 - candidate19, 2026-09-13 UTC
+# Active Chunk 4 - candidate20, 2026-09-13 UTC
 
-IN PROGRESS. Native AF on source18 2bc7a2144d4dc91a54cf336e5595dd90286bf6f2 passed47/0 host assertions and1/0 child: real persistent rider death, two unrelated turns, native encounter exit/zero records and exact AI/selection restoration. The outer validator wrongly treated the trace's zero error counter as an array; its original FAIL is retained. Candidate19 corrects that exact schema check and adds malformed-counter tests, without gameplay changes. All32 transactions independently restored actual preview.37/data; latest2026-09-13T04:30:39.9067297Z. Next focused nativeAG rider-death with the corrected validator, then remaining new/final gates. [One report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent deployment or Chunk5 implementation.
+IN PROGRESS. Native AG on source19 dd3e91ec4ec00722c66de5a7da6f5be74970ca31 again passed47/0 host and1/0 child assertions for persistent rider death/cleanup. Its first unrelated actor was the native enemy, which correctly ended automatically; the outer validator wrongly required player End input. Candidate20 requires exact native Ending/Ended callbacks for completed successors and player End only for controllable fixture actors. All33 transactions independently restored actual preview.37/data; latest2026-09-13T05:20:28.7095659Z. Next focused nativeAH rider-death, then remaining new/final gates. [One report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No gameplay repair, permanent deployment or Chunk5 implementation.
 ---
 ## Combined milestone disposition — 2026-09-08
 

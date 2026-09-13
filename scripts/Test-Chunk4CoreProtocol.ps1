@@ -36,7 +36,7 @@ function New-CoreEnvelope([string]$root) {
                 nativeLifeEvents=@{events=@(@{kind='native-life-state';actor=$subject;lifeState=$(if($incap){'Unconscious'}else{'Dead'});frame=15})};nativeRules=@{dropped=0;events=@(@{kind='damage-after';target=$subject;damage=130})}}
             $e.afterCleanup=New-CoreLifeState $subject $incap $true
             $e.successorOrderBefore=@('other1','other2','mount')|Where-Object {$_ -cne $subject}
-            $e.allocationSequenceBeforeDamage=0;$e.allocationTrace=@{dropped=0;observationErrors=0;events=@()}
+            $e.allocationSequenceBeforeDamage=0;$e.allocationTrace=@{dropped=0;observationErrors=0;events=(New-CoreNativeTurnEnd 'other1' 11 2 25 1)}
             $e.successorTurns=@(0..1|ForEach-Object {
                 $state=New-CoreLifeState $subject $incap $true;$state.currentActor='other'+($_+1);$state.frame=20+10*$_
                 @{actor=$state.currentActor;round=2;frame=(20+10*$_);turn=(11+$_);survivor=$false;endInput=($_ -eq 0);state=$state}
@@ -120,10 +120,26 @@ function Add-CoreNativeSurvivorTurn($envelope) {
     $e.successorTurns=@($e.successorTurns[0],$turn,$e.successorTurns[1]);$e.successorTurns[2].state.mountGrants=3
     $e.successorTurns[2].round=3;$e.successorTurns[2].state.round=3;$e.unrelatedTurns[1].round=3
     foreach($state in @($e.finalLife,$e.nativeEncounterExit,$e.afterPolicyRestore)){$state.mountGrants=3}
-    $e.allocationTrace.events=@(0..1|ForEach-Object {
-        [pscustomobject]@{sequence=($_+1);boundary=$(if($_ -eq 0){'prepare-before'}else{'prepare-after'});round=3;frame=24;turn=13;preparingTurn=13;currentActor='mount';activationIdentity=$null;simulatingClick=$false;
+    $e.allocationTrace.events=@(New-CoreNativeTurnEnd 'other1' 11 2 22 1)+@(0..1|ForEach-Object {
+        [pscustomobject]@{sequence=($_+3);boundary=$(if($_ -eq 0){'prepare-before'}else{'prepare-after'});round=3;frame=24;turn=13;preparingTurn=13;currentActor='mount';activationIdentity=$null;simulatingClick=$false;
             state=[pscustomobject]@{actor='mount';grantSequence=3;pairedGrantIdentity=$null;prepared=$true;canAct=$true}}
+    })+@(New-CoreNativeTurnEnd 'mount' 13 3 27 5)
+}
+function New-CoreNativeTurnEnd($actor,$turn,$round,$frame,$sequence) {
+    return @(0..1|ForEach-Object {
+        [pscustomobject]@{sequence=($sequence+$_);boundary=$(if($_ -eq 0){'turn-end-before'}else{'turn-end-after'});
+            round=$round;frame=$frame;turn=$turn;currentActor=$actor;activationIdentity=$null;simulatingClick=$false;
+            turnStatus=$(if($_ -eq 0){'Ending'}else{'Ended'});state=[pscustomobject]@{actor=$actor}}
     })
+}
+function Add-CoreNativeEnemyTurn($envelope) {
+    $e=$envelope.rows[0].evidence
+    $e|Add-Member -NotePropertyName source -NotePropertyValue 'other1' -Force
+    $e.enemyBeforeDamage.id='other1';$e.enemyAfterDeath.id='other1';$e.enemyDamageSource='other2'
+    $e.enemyBeforeDamage|Add-Member -NotePropertyName directlyControllable -NotePropertyValue $false -Force
+    $e.enemyBeforeDamage|Add-Member -NotePropertyName effectiveAiEnabled -NotePropertyValue $true -Force
+    $e.successorTurns[0].endInput=$false
+    $e.allocationTrace.events=New-CoreNativeTurnEnd 'other1' 11 2 25 1
 }
 foreach($root in @('chunk4-rider-incapacitation-tb','chunk4-rider-death-tb','chunk4-mount-death-tb','chunk4-targeting-rider-rt',
     'chunk4-targeting-area-unmounted-rt','chunk4-targeting-mount-rt','chunk4-horse-strike-comparison-rt','chunk4-ranged-native-control-rt')){
@@ -288,23 +304,23 @@ $survivorMutations=@(
     {param($e) $e.allocationTrace.observationErrors='0'},
     {param($e) $e.allocationTrace.observationErrors=0.5},
     {param($e) $e.allocationTrace.observationErrors=@()},
-    {param($e) $e.allocationTrace.events=@($e.allocationTrace.events[0])},
-    {param($e) $e.allocationTrace.events+=@($e.allocationTrace.events[0])},
-    {param($e) $e.allocationTrace.events[0].state.actor='rider'},
-    {param($e) $e.allocationTrace.events[0].currentActor='rider'},
-    {param($e) $e.allocationTrace.events[0].boundary='prepare-after'},
-    {param($e) $e.allocationTrace.events[0].sequence=3},
-    {param($e) $e.allocationTrace.events[0].turn=14},
-    {param($e) $e.allocationTrace.events[0].preparingTurn=14},
-    {param($e) $e.allocationTrace.events[0].round=2},
-    {param($e) $e.allocationTrace.events[0].frame=9},
-    {param($e) $e.allocationTrace.events[0].frame=26},
-    {param($e) $e.allocationTrace.events[0].simulatingClick=$true},
-    {param($e) $e.allocationTrace.events[0].activationIdentity='new-pair'},
-    {param($e) $e.allocationTrace.events[0].state.pairedGrantIdentity='activation'},
-    {param($e) $e.allocationTrace.events[0].state.grantSequence=4},
-    {param($e) $e.allocationTrace.events[0].state.prepared=$false},
-    {param($e) $e.allocationTrace.events[0].state.canAct=$false}
+    {param($e) $e.allocationTrace.events=@($e.allocationTrace.events[2])},
+    {param($e) $e.allocationTrace.events+=@($e.allocationTrace.events[2])},
+    {param($e) $e.allocationTrace.events[2].state.actor='rider'},
+    {param($e) $e.allocationTrace.events[2].currentActor='rider'},
+    {param($e) $e.allocationTrace.events[2].boundary='prepare-after'},
+    {param($e) $e.allocationTrace.events[2].sequence=5},
+    {param($e) $e.allocationTrace.events[2].turn=14},
+    {param($e) $e.allocationTrace.events[2].preparingTurn=14},
+    {param($e) $e.allocationTrace.events[2].round=2},
+    {param($e) $e.allocationTrace.events[2].frame=9},
+    {param($e) $e.allocationTrace.events[2].frame=26},
+    {param($e) $e.allocationTrace.events[2].simulatingClick=$true},
+    {param($e) $e.allocationTrace.events[2].activationIdentity='new-pair'},
+    {param($e) $e.allocationTrace.events[2].state.pairedGrantIdentity='activation'},
+    {param($e) $e.allocationTrace.events[2].state.grantSequence=4},
+    {param($e) $e.allocationTrace.events[2].state.prepared=$false},
+    {param($e) $e.allocationTrace.events[2].state.canAct=$false}
 )
 foreach($mutation in $survivorMutations){
     $changed=New-CoreEnvelope $root;Add-CoreNativeSurvivorTurn $changed
@@ -313,3 +329,37 @@ foreach($mutation in $survivorMutations){
     if(!$rejected){throw "Invalid survivor preparation envelope accepted: $mutation"};$passed++
 }
 Write-Host "COMPONENT with native survivor-order fixture TOTAL PASS=$passed FAIL=0"
+
+# AG's first unrelated actor was the native enemy, whose turn ended without
+# player input. Its actual TurnController ending callbacks remain required.
+$native=New-CoreEnvelope $root;Add-CoreNativeEnemyTurn $native
+Assert-KmcChunk4CoreEvidence @{scenario=$root} $native 'PASS';$passed++
+$enemyEndMutations=@(
+    {param($e) $e.successorTurns[0].endInput=$true},
+    {param($e) $e.enemyBeforeDamage.directlyControllable=$true},
+    {param($e) $e.enemyBeforeDamage.effectiveAiEnabled=$false},
+    {param($e) $e.source='rider'},
+    {param($e) $e.enemyBeforeDamage.id='wrong-actor'},
+    {param($e) $e.allocationTrace.events=@()},
+    {param($e) $e.allocationTrace.events+=@($e.allocationTrace.events[0])},
+    {param($e) $e.allocationTrace.events[0].state.actor='rider'},
+    {param($e) $e.allocationTrace.events[0].currentActor='rider'},
+    {param($e) $e.allocationTrace.events[0].turn=99},
+    {param($e) $e.allocationTrace.events[0].round=3},
+    {param($e) $e.allocationTrace.events[0].turnStatus='Acting'},
+    {param($e) $e.allocationTrace.events[1].turnStatus='Ending'},
+    {param($e) $e.allocationTrace.events[0].boundary='turn-end-after'},
+    {param($e) $e.allocationTrace.events[0].sequence=3},
+    {param($e) $e.allocationTrace.events[0].frame=19},
+    {param($e) $e.allocationTrace.events[1].frame=31},
+    {param($e) $e.allocationTrace.events[0].frame=29},
+    {param($e) $e.allocationTrace.events[0].simulatingClick=$true},
+    {param($e) $e.allocationTrace.events[0].activationIdentity='new-pair'}
+)
+foreach($mutation in $enemyEndMutations){
+    $changed=New-CoreEnvelope $root;Add-CoreNativeEnemyTurn $changed
+    & $mutation $changed.rows[0].evidence;$rejected=$false
+    try{Assert-KmcChunk4CoreEvidence @{scenario=$root} $changed 'PASS'}catch{$rejected=$true}
+    if(!$rejected){throw "Invalid native enemy ending accepted: $mutation"};$passed++
+}
+Write-Host "COMPONENT with native enemy-turn fixture TOTAL PASS=$passed FAIL=0"
