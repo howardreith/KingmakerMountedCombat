@@ -80,32 +80,84 @@ function Assert-KmcChunk4LifeRow {
     }
     if(@($e.unrelatedTurns).Count -ne 2 -or $e.unrelatedTurns[0].actor -ceq $e.unrelatedTurns[1].actor){throw 'Life cleanup lacks two distinct unrelated native turns.'}
     for($i=0;$i -lt 2;$i++){if($e.unrelatedTurns[$i].actor -cne $e.unrelatedOrderBefore[$i] -or $e.unrelatedTurns[$i].actor -cin @($e.subject,$e.survivor)){throw 'Life cleanup changed unrelated native participation.'}}
-    if(@($e.nativeLifeEvents.events|Where-Object {$_.kind -ceq 'native-life-state' -and $_.actor -ceq $e.subject}).Count -lt 1 -or
+    if(@($e.nativeLifeEvents.events|Where-Object {$_.kind -ceq 'native-life-state' -and $_.actor -ceq $e.subject -and
+        $_.lifeState -ceq $(if($e.incapacitation){'Unconscious'}else{'Dead'}) -and $_.frame -le $e.unrelatedTurns[0].frame}).Count -ne 1 -or
         $e.nativeRules.dropped -ne 0 -or @($e.nativeRules.events|Where-Object {$_.kind -ceq 'damage-after' -and $_.target -ceq $e.subject -and $_.damage -gt 0}).Count -ne 1){throw 'Life PASS lacks actual native damage and life callbacks.'}
     foreach($actor in @('rider','mount')){if(@($e.finalLife.live.$actor.raw|Where-Object {$null -ne $_}).Count -ne 0 -or @($e.finalLife.live.$actor.queue).Count -ne 0){throw 'Native life cleanup retained a pair command.'}}
     foreach($life in @($e.afterCleanup,$e.finalLife)) {
         if($null -eq $life -or $life.split -isnot [bool] -or $life.finalized -isnot [bool] -or
             $life.riderEnded -isnot [bool] -or $life.mountEnded -isnot [bool] -or
             $life.live.relationship -cne 'Unmounted' -or $life.pairCommand -ne $false -or $null -ne $life.privatePartner -or
-            $null -ne $life.identity -and (!$life.split -or $life.identity -cne $e.beforeDamage.identity) -or
+            ($null -ne $life.identity -and (!$life.split -or $life.identity -cne $e.beforeDamage.identity)) -or
             $life.riderGrants -ne $e.beforeDamage.riderGrants -or $life.mountGrants -ne $e.beforeDamage.mountGrants) {
             throw 'Life cleanup retained active/new pair ownership or issued another actor grant.'
         }
     }
-    $exit=$e.nativeEncounterExit
+    Assert-KmcChunk4DeathPolicy $e
+    if($e.nativeRecoveryExpected -isnot [bool] -or $e.finalLife.$subject.finallyDead -isnot [bool] -or
+        $e.nativeRecoveryExpected -eq $e.finalLife.$subject.finallyDead -or
+        ($e.incapacitation -and $e.finalLife.$subject.finallyDead) -or
+        ($e.caseId -ceq 'C4-LIFE-rider-death-live-command' -and !$e.finalLife.$subject.finallyDead)){throw 'Life result does not establish its exact native finality and recovery policy.'}
+    $returns=@($e.nativeLifeEvents.events|Where-Object {$_.kind -ceq 'native-life-state' -and $_.actor -ceq $e.subject -and $_.lifeState -ceq 'Conscious'})
+    if(!$e.nativeRecoveryExpected -and $returns.Count -ne 0){throw 'Permanent native rider death was resurrected.'}
+    if($e.nativeRecoveryExpected){
+        if($returns.Count -ne 1 -or $returns[0].frame -le $e.unrelatedTurns[1].frame -or
+            $returns[0].frame -gt $e.nativeEncounterExit.frame){throw 'Native recovery is missing, duplicated or occurred before unrelated turns completed.'}
+        foreach($method in @(
+            @('0600918e','Tick','Kingmaker.Controllers.Units.UnitReturnToConsciousController'),
+            @('06009191','MakeUnitConscious','Kingmaker.Controllers.Units.UnitReturnToConsciousController'),
+            @('06009164','SetLifeState','Kingmaker.Controllers.Units.UnitLifeController'))){
+            if(@($returns[0].nativeSource|Where-Object {$_.token -ceq $method[0] -and $_.method -ceq $method[1] -and $_.type -ceq $method[2] -and
+                $_.assemblyMvid -ceq '07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'}).Count -ne 1){throw 'Life recovery lacks its exact native controller call source.'}
+        }
+    }
+    foreach($exit in @($e.nativeEncounterExit,$e.afterPolicyRestore)){
     if($null -eq $exit -or $null -ne $exit.identity -or $null -ne $exit.privatePartner -or $exit.actorRecords -ne 0 -or
         $exit.playerCombat -ne $false -or $exit.riderCombat -ne $false -or $exit.mountCombat -ne $false -or
         $exit.tbActive -ne $false -or $exit.tbInitialized -ne $false -or $exit.live.relationship -cne 'Unmounted' -or
         $exit.attachmentResidue -ne $false -or $exit.attachmentRestoreVerified -ne $true -or $exit.pairCommand -ne $false -or
-        $exit.pairIntent -ne $false -or $exit.pairMovement -ne $false -or $exit.$subject.conscious -ne $false -or
-        $exit.$subject.dead -ne (!$e.incapacitation) -or $exit.$survivor.conscious -ne $true -or $exit.$survivor.enabledRenderers -lt 1 -or
+        $exit.pairIntent -ne $false -or $exit.pairMovement -ne $false -or $exit.$subject.conscious -ne $e.nativeRecoveryExpected -or
+        $exit.$subject.dead -ne (!$e.nativeRecoveryExpected) -or $exit.$subject.finallyDead -ne (!$e.nativeRecoveryExpected) -or
+        $exit.riderGrants -ne $e.beforeDamage.riderGrants -or $exit.mountGrants -ne $e.beforeDamage.mountGrants -or
+        $exit.$survivor.conscious -ne $true -or $exit.$survivor.inState -ne $true -or $exit.$survivor.enabledRenderers -lt 1 -or
         $exit.$survivor.damage -ne $e.beforeDamage.$survivor.damage) {throw 'Native encounter exit did not retire the split accounting state or preserve the life result.'}
     foreach($actor in @('rider','mount')) {
         if(@($exit.live.$actor.raw|Where-Object {$null -ne $_}).Count -ne 0 -or @($exit.live.$actor.queue).Count -ne 0){throw 'Native encounter exit retained a pair command.'}
     }
+    if($e.nativeRecoveryExpected){
+        $expectedDamage=[Math]::Max(0,$exit.$subject.hp-[Math]::Max(1,$exit.$subject.characterLevel)-$exit.$subject.nonLethalDamage)
+        if($exit.$subject.damage -ne $expectedDamage -or $returns[0].damage -ne $expectedDamage){throw 'Automatic recovery did not retain the native health result.'}
+    }elseif($exit.$subject.damage -ne $e.finalLife.$subject.damage){throw 'Permanent native death damage was rewritten.'}
+    }
+    if($e.afterPolicyRestore.gameTicks-$e.nativeEncounterExit.gameTicks -lt 2500000 -or
+        $e.afterPolicyRestore.frame -le $e.nativeEncounterExit.frame){throw 'Native death policy restoration lacks subsequent native simulation observation.'}
     if($e.enemyDamageDispatches -ne 1 -or $e.enemyNativeDamage -le 0 -or $e.enemyLifeTransitions -lt 1 -or
         $e.enemyBeforeDamage.id -cne $e.enemyAfterDeath.id -or $e.enemyBeforeDamage.conscious -ne $true -or $e.enemyAfterDeath.dead -ne $true -or
         [string]::IsNullOrWhiteSpace($e.enemyDamageSource) -or $e.enemyDamageSource -ceq $e.subject) {throw 'Life retirement lacks an actual labelled native enemy defeat.'}
+}
+function Assert-KmcChunk4DeathPolicy {
+    param($e)
+    $policy=$e.nativeDeathPolicy;$permanent=$e.caseId -ceq 'C4-LIFE-rider-death-live-command'
+    if($policy.permanentDeathFixture -ne $permanent -or $policy.restoration.restored -ne $true -or
+        (ConvertTo-Json $policy.before -Depth 8 -Compress) -cne (ConvertTo-Json $policy.restoration.state -Depth 8 -Compress)){
+        throw 'Life fixture did not preserve and restore the actual native difficulty settings.'
+    }
+    foreach($state in @($policy.before,$policy.effective,$policy.restoration.state)){
+        if($state.trueDeath -isnot [bool] -or $state.deathDoorCondition -isnot [bool] -or
+            $state.riseAfterCombat.value -isnot [bool] -or $state.deathDoor.value -isnot [bool] -or
+            $state.trueDeath -eq $state.riseAfterCombat.value -or $state.deathDoorCondition -ne $state.deathDoor.value -or
+            $state.damageToParty -le 0 -or $state.damageToParty -ne $policy.before.damageToParty){throw 'Native death difficulty identities or unchanged damage multiplier are absent.'}
+        foreach($setting in @('riseAfterCombat','deathDoor')){
+            if($state.$setting.persisted -cne $policy.before.$setting.persisted -or
+                ($null -ne $state.$setting.raw -and $state.$setting.raw -isnot [bool])){throw 'Life fixture changed persisted difficulty or lost cached-setting evidence.'}
+        }
+    }
+    if($permanent){
+        if($policy.effective.trueDeath -ne $true -or $policy.effective.deathDoorCondition -ne $false -or
+            $policy.effective.riseAfterCombat.raw -ne $false -or $policy.effective.deathDoor.raw -ne $false){throw 'Persistent rider death did not select the native true-death policy.'}
+    }elseif($policy.effective.trueDeath -ne $policy.before.trueDeath -or $policy.effective.deathDoorCondition -ne $policy.before.deathDoorCondition){
+        throw 'Nonfinal life fixture changed the actual native death policy.'
+    }
 }
 function Assert-KmcChunk4SpellCost {
     param($Trace,[string]$Caster,[string]$Blueprint)

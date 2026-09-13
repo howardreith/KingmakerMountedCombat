@@ -15,8 +15,9 @@ function New-CoreLifeState($subject,$incap,$after) {
     $state=@{live=(New-CoreState);identity='activation';privatePartner='mount';pairCommand=$true;pairIntent=$false;pairMovement=$false;
         attachmentResidue=$true;attachmentRestoreVerified=$false;split=$false;finalized=$false;riderEnded=$false;mountEnded=$false;
         currentActor='rider';riderGrants=2;mountGrants=2;actorRecords=2;playerCombat=$true;riderCombat=$true;mountCombat=$true;tbActive=$true;tbInitialized=$true;
-        rider=@{id='rider';conscious=$true;dead=$false;damage=0;inState=$true;enabledRenderers=1};
-        mount=@{id='mount';conscious=$true;dead=$false;damage=0;inState=$true;enabledRenderers=1}}
+        frame=10;gameTicks=10000000;
+        rider=@{id='rider';conscious=$true;dead=$false;finallyDead=$false;damage=0;hp=103;characterLevel=11;nonLethalDamage=0;inState=$true;enabledRenderers=1};
+        mount=@{id='mount';conscious=$true;dead=$false;finallyDead=$false;damage=0;hp=103;characterLevel=11;nonLethalDamage=0;inState=$true;enabledRenderers=1}}
     if($after){$state.live.relationship='Unmounted';$state.split=$true;$state.privatePartner=$null;$state.pairCommand=$false;
         $state.attachmentResidue=$false;$state.attachmentRestoreVerified=$true;$state[$subject].conscious=$false;$state[$subject].dead=(!$incap);$state[$subject].damage=130}
     return $state
@@ -30,13 +31,31 @@ function New-CoreEnvelope([string]$root) {
             $incap=$id -eq 'C4-LIFE-rider-incapacitation'
             $e.mode='TB';$e+=@{subject=$subject;survivor=$other;incapacitation=$incap;damageDispatches=1;nativeDamage=130;
                 beforeDamage=(New-CoreLifeState $subject $incap $false);finalLife=(New-CoreLifeState $subject $incap $true);
-                liveCommandBefore=@{started=$true;finished=$false};unrelatedTurns=@(@{actor='other1'},@{actor='other2'});unrelatedOrderBefore=@('other1','other2');
+                liveCommandBefore=@{started=$true;finished=$false};unrelatedTurns=@(@{actor='other1';frame=20},@{actor='other2';frame=30});unrelatedOrderBefore=@('other1','other2');
                 eligibleRosterBeforeDamage=@('other2','mount','rider','other1');principalRosterIndex=2;
-                nativeLifeEvents=@{events=@(@{kind='native-life-state';actor=$subject})};nativeRules=@{dropped=0;events=@(@{kind='damage-after';target=$subject;damage=130})}}
+                nativeLifeEvents=@{events=@(@{kind='native-life-state';actor=$subject;lifeState=$(if($incap){'Unconscious'}else{'Dead'});frame=15})};nativeRules=@{dropped=0;events=@(@{kind='damage-after';target=$subject;damage=130})}}
             $e.afterCleanup=New-CoreLifeState $subject $incap $true
             $e.nativeEncounterExit=New-CoreLifeState $subject $incap $true
             $e.nativeEncounterExit.identity=$null;$e.nativeEncounterExit.actorRecords=0
             foreach($flag in @('playerCombat','riderCombat','mountCombat','tbActive','tbInitialized')){$e.nativeEncounterExit[$flag]=$false}
+            $permanent=$id -ceq 'C4-LIFE-rider-death-live-command'
+            $e.nativeRecoveryExpected=!$permanent
+            foreach($state in @($e.afterCleanup,$e.finalLife,$e.nativeEncounterExit)){$state[$subject].finallyDead=$permanent}
+            if(!$permanent){
+                $e.nativeEncounterExit[$subject].conscious=$true;$e.nativeEncounterExit[$subject].dead=$false;$e.nativeEncounterExit[$subject].damage=92
+                $source=@(@{type='Kingmaker.Controllers.Units.UnitReturnToConsciousController';method='Tick';token='0600918e';assemblyMvid='07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'},
+                    @{type='Kingmaker.Controllers.Units.UnitReturnToConsciousController';method='MakeUnitConscious';token='06009191';assemblyMvid='07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'},
+                    @{type='Kingmaker.Controllers.Units.UnitLifeController';method='SetLifeState';token='06009164';assemblyMvid='07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'})
+                $e.nativeLifeEvents.events+=@(@{kind='native-life-state';actor=$subject;lifeState='Conscious';frame=40;damage=92;nativeSource=$source})
+            }
+            $e.nativeEncounterExit.frame=45
+            $e.afterPolicyRestore=$e.nativeEncounterExit|ConvertTo-Json -Depth 12|ConvertFrom-Json
+            $e.afterPolicyRestore.frame=50;$e.afterPolicyRestore.gameTicks=15000000
+            $beforePolicy=@{riseAfterCombat=@{raw=$null;value=$true;persisted='1'};deathDoor=@{raw=$false;value=$false;persisted='0'};
+                trueDeath=$false;deathDoorCondition=$false;damageToParty=.2}
+            $effectivePolicy=$beforePolicy|ConvertTo-Json -Depth 8|ConvertFrom-Json
+            if($permanent){$effectivePolicy.riseAfterCombat.raw=$false;$effectivePolicy.riseAfterCombat.value=$false;$effectivePolicy.trueDeath=$true}
+            $e.nativeDeathPolicy=@{permanentDeathFixture=$permanent;before=$beforePolicy;effective=$effectivePolicy;restoration=@{restored=$true;state=$beforePolicy}}
             $e.enemyDamageDispatches=1;$e.enemyNativeDamage=100;$e.enemyLifeTransitions=1;$e.enemyDamageSource='other1'
             $e.enemyBeforeDamage=@{id='enemy';conscious=$true};$e.enemyAfterDeath=@{id='enemy';dead=$true}
         }elseif($id.StartsWith('C4-HORSE-')){
@@ -109,6 +128,34 @@ foreach($root in @('chunk4-rider-incapacitation-tb','chunk4-rider-death-tb','chu
                 {param($e) $e.rows[0].evidence.principalRosterIndex=0},
                 {param($e) $e.rows[0].evidence.eligibleRosterBeforeDamage[0]='mount'}
             )
+            $mutations+=@(
+                {param($e) $e.rows[0].evidence.nativeDeathPolicy.restoration.restored=$false},
+                {param($e) $e.rows[0].evidence.nativeDeathPolicy.restoration.state.riseAfterCombat.raw=$true},
+                {param($e) $e.rows[0].evidence.nativeDeathPolicy.effective.riseAfterCombat.persisted='changed'},
+                {param($e) $e.rows[0].evidence.nativeDeathPolicy.effective.damageToParty=1},
+                {param($e) $e.rows[0].evidence.nativeDeathPolicy.permanentDeathFixture=!$e.rows[0].evidence.nativeDeathPolicy.permanentDeathFixture},
+                {param($e) $e.rows[0].evidence.nativeRecoveryExpected=!$e.rows[0].evidence.nativeRecoveryExpected},
+                {param($e) $e.rows[0].evidence.afterPolicyRestore.actorRecords=1},
+                {param($e) $e.rows[0].evidence.afterPolicyRestore.gameTicks=$e.rows[0].evidence.nativeEncounterExit.gameTicks}
+            )
+            if($case -ceq 'C4-LIFE-rider-death-live-command'){
+                $mutations+=@(
+                    {param($e) $e.rows[0].evidence.finalLife.rider.finallyDead=$false},
+                    {param($e) $e.rows[0].evidence.afterPolicyRestore.rider.finallyDead=$false},
+                    {param($e) $e.rows[0].evidence.nativeLifeEvents.events+=@([pscustomobject]@{kind='native-life-state';actor='rider';lifeState='Conscious'})}
+                )
+            }else{
+                $mutations+=@(
+                    {param($e) $e.rows[0].evidence.nativeLifeEvents.events[1].nativeSource=@()},
+                    {param($e) $e.rows[0].evidence.nativeLifeEvents.events[1].nativeSource[0].assemblyMvid='wrong'},
+                    {param($e) $e.rows[0].evidence.nativeLifeEvents.events[1].nativeSource[0].token='06009191'},
+                    {param($e) $e.rows[0].evidence.nativeLifeEvents.events[1].frame=20},
+                    {param($e) $e.rows[0].evidence.nativeLifeEvents.events[1].actor='other1'},
+                    {param($e) $e.rows[0].evidence.nativeLifeEvents.events[1].damage=0},
+                    {param($e) $e.rows[0].evidence.nativeLifeEvents.events+=@($e.rows[0].evidence.nativeLifeEvents.events[1])},
+                    {param($e) $s=if($e.rows[0].evidence.subject -ceq 'mount'){'mount'}else{'rider'};$e.rows[0].evidence.afterPolicyRestore.$s.damage=0}
+                )
+            }
             $mutations+=@({param($e) $e.rows[0].evidence.nativeDamage=0},{param($e) $e.rows[0].evidence.liveCommandBefore.finished=$true},
                 {param($e) $e.rows[0].evidence.finalLife.privatePartner='stale'},{param($e) $e.rows[0].evidence.unrelatedTurns[1].actor='mount'},
                 {param($e) $e.rows[0].evidence.nativeLifeEvents.events=@()},{param($e) $e.rows[0].evidence.nativeRules.events=@()},
@@ -184,7 +231,7 @@ foreach($root in @('chunk4-rider-incapacitation-tb','chunk4-rider-death-tb','chu
     foreach($mutation in $mutations){
         $changed=New-CoreEnvelope $root; & $mutation $changed; $rejected=$false
         try{Assert-KmcChunk4CoreEvidence $request $changed 'PASS'}catch{$rejected=$true}
-        if(!$rejected){throw "Invalid core envelope accepted for $root"};$passed++
+        if(!$rejected){throw "Invalid core envelope accepted for ${root}: $mutation"};$passed++
     }
 }
 Write-Host "COMPONENT parser-only TOTAL PASS=$passed FAIL=0"

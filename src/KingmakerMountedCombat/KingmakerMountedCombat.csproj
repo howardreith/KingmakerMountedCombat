@@ -249,6 +249,7 @@
     <Compile Include="Diagnostics\Chunk4TraversalScenario.cs" />
     <Compile Include="Diagnostics\Chunk4BlockedDoorScenario.cs" />
     <Compile Include="Diagnostics\Chunk4NativeLifeScenario.cs" />
+    <Compile Include="Diagnostics\NativeDeathPolicyLease.cs" />
     <Compile Include="Diagnostics\Chunk4HorseStrikeScenario.cs" />
     <Compile Include="Diagnostics\Chunk4IncomingScenario.cs" />
     <Compile Include="Diagnostics\Chunk4NativeRangedControl.cs" />

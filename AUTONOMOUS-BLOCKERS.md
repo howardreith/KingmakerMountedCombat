@@ -1,6 +1,6 @@
-# Active Chunk 4 - candidate15, 2026-09-13 UTC
+# Active Chunk 4 - candidate16, 2026-09-13 UTC
 
-IN PROGRESS. Source14 f12e0433c51190960b77def625c7cd31b4c196ca newly passes unmounted area Z47/0 and mounted rider targeting AA49/0. AB46/2 reaches actual native rider Dead state119, interrupts the live Horse command and clears attachment/context, then fails the fixture's expected unrelated order. Candidate15 derives that order cyclically from the native current principal and strengthens the validator; no scheduler change. All28 transactions restored actual preview.37/data, latest audit2026-09-13T00:43:12.4964978Z. Next fresh native rider-death, remaining new gates, exact-final regressions. [One report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent deployment or Chunk5 implementation.
+IN PROGRESS. Published source15 751efecc374e97961403f6053deeaf9808db82cd: AC46/2 passed both unrelated turns and native encounter exit with zero records/context, then failed because native TrueDeath=false recovered the nonfinal rider. Candidate16 uses a temporary native difficulty cache lease for persistent rider death and attributes allowed recovery to the native controller; no gameplay death or scheduler change. All29 transactions restored actual preview.37/data, latest audit2026-09-13T01:31:28.4791508Z. Next guarded native rider-death, remaining new gates and exact-final regressions. [One report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent deployment or Chunk5 implementation.
 ---
 ## Combined milestone disposition — 2026-09-08
 

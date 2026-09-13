@@ -21,6 +21,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool IsChunk4NativeLife => IsChunk4NativeLifeScenario(request.Scenario);
         private bool Chunk4LifeIncapacitation => request.Scenario == "chunk4-rider-incapacitation-tb";
         private bool Chunk4LifeMount => request.Scenario == "chunk4-mount-death-tb";
+        private bool Chunk4LifePermanent => !Chunk4LifeMount && !Chunk4LifeIncapacitation;
         private UnitEntityData Chunk4LifeSubject => Chunk4LifeMount ? horse : rider;
         private UnitEntityData Chunk4LifeSurvivor => Chunk4LifeMount ? rider : horse;
         private string Chunk4LifeId => Chunk4LifeIncapacitation ? "C4-LIFE-rider-incapacitation" :
@@ -38,6 +39,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private JObject chunk4LifeEvidence;
         private PairedConditionObserver chunk4LifeObserver;
         private Chunk4IncomingRuleObserver chunk4IncomingObserver;
+        private NativeDeathPolicyLease chunk4DeathPolicy;
 
         private void BeginChunk4NativeLife()
         {
@@ -50,6 +52,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["incapacitation"] = Chunk4LifeIncapacitation, ["subject"] = Chunk4LifeSubject.UniqueId,
                 ["survivor"] = Chunk4LifeSurvivor.UniqueId, ["unrelatedTurns"] = new JArray() };
             observations["chunk4NativeLife"] = chunk4LifeEvidence;
+            chunk4DeathPolicy = new NativeDeathPolicyLease(Chunk4LifePermanent);
+            chunk4LifeEvidence["nativeDeathPolicy"] = chunk4DeathPolicy.Capture();
             observations["chunk4NativeEffectInventory"] = Chunk4NativeEffectInventory.Capture(rider, horse);
             if (!Chunk4LifeSubject.Descriptor.State.IsConscious || Chunk4LifeSubject.Descriptor.IsEssentialForGame ||
                 Chunk4LifeSubject == Game.Instance.Player.MainCharacter.Value ||
@@ -58,7 +62,7 @@ namespace KingmakerMountedCombat.Diagnostics
             ordinaryAttackTrace = new NativeOrdinaryAttackTrace(rider, horse, combat, () => relationship.State.ToString());
             allocationTrace = new NativeActorAllocationTrace(rider, horse, combat);
             allocationTrace.BeginEncounter(Chunk4LifeId);
-            chunk4LifeObserver = new PairedConditionObserver(rider, horse);
+            chunk4LifeObserver = new PairedConditionObserver(rider, horse, true);
             chunk4IncomingObserver = new Chunk4IncomingRuleObserver(rider, horse);
             chunk4IncomingObserver.BeginCase(Chunk4LifeId);
             pairedAutomaticEndProbe = new NativeAutomaticEndProbe(false);
@@ -81,13 +85,14 @@ namespace KingmakerMountedCombat.Diagnostics
             ["rider"] = CaptureChunk4LifeActor(rider), ["mount"] = CaptureChunk4LifeActor(horse),
             ["riderGrants"] = allocationTrace.GrantCount(rider), ["mountGrants"] = allocationTrace.GrantCount(horse),
             ["currentActor"] = Game.Instance.TurnBasedCombatController.CurrentTurn?.Unit.UniqueId,
-            ["frame"] = Time.frameCount
+            ["frame"] = Time.frameCount, ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks
         };
         private static JObject CaptureChunk4LifeActor(UnitEntityData actor) => new JObject {
             ["id"] = actor.UniqueId, ["inState"] = actor.IsInState,
             ["lifeState"] = actor.Descriptor.State.LifeState.ToString(), ["conscious"] = actor.Descriptor.State.IsConscious,
             ["dead"] = actor.Descriptor.State.IsDead, ["finallyDead"] = actor.Descriptor.State.IsFinallyDead,
             ["damage"] = actor.Damage, ["hp"] = actor.Stats.HitPoints.ModifiedValue,
+            ["characterLevel"] = actor.Descriptor.Progression.CharacterLevel, ["nonLethalDamage"] = actor.DamageNonLethal,
             ["temporaryHp"] = actor.Stats.TemporaryHitPoints.ModifiedValue, ["constitution"] = actor.Stats.Constitution.ModifiedValue,
             ["activeView"] = actor.View != null && actor.View.gameObject.activeInHierarchy,
             ["enabledRenderers"] = actor.View == null ? 0 : actor.View.GetComponentsInChildren<Renderer>(true)
@@ -100,6 +105,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var game = Game.Instance; var controller = game.TurnBasedCombatController; var turn = controller.CurrentTurn;
             chunk4LifeEvidence["stage"] = chunk4LifeStage;
             chunk4LifeEvidence["progress"] = CaptureChunk4LifeState();
+            if (chunk4LifeStage < 10) chunk4DeathPolicy.VerifyEffective();
             if (game.IsPaused) { game.IsPaused = false; return; }
             if (chunk4LifeStage == 0)
             {
@@ -227,6 +233,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!reached || relationship.State != RelationshipState.Unmounted || combat.PairedPartnerContext != null ||
                     combat.PairedActivationIdentity != null && !combat.PairedActivationSplit || combat.HasActiveCommand || combat.HasStockAttackIntent || combat.HasActiveGroundMovement ||
                     !rider.Commands.Empty || !horse.Commands.Empty || !chunk4IncomingObserver.AllAttacksResolved) return;
+                if (Chunk4LifePermanent && !subject.Descriptor.State.IsFinallyDead)
+                    throw new InvalidOperationException("Native damage did not produce permanent rider death under the selected native policy.");
                 if (turn == null) return;
                 if (ReferenceEquals(turn, chunk4LifeTurn))
                 {
@@ -253,6 +261,9 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (chunk4LifeStage == 7)
             {
+                if (Chunk4LifeIncapacitation ? Chunk4LifeSubject.Descriptor.State.IsConscious || Chunk4LifeSubject.Descriptor.State.IsDead :
+                    !Chunk4LifeSubject.Descriptor.State.IsDead || Chunk4LifePermanent && !Chunk4LifeSubject.Descriptor.State.IsFinallyDead)
+                    throw new InvalidOperationException("The native life result changed before unrelated turn completion.");
                 if (allocationTrace.GrantCount(rider) != chunk4LifeRiderGrants || allocationTrace.GrantCount(horse) != chunk4LifeMountGrants ||
                     combat.PairedPartnerContext != null || combat.PairedActivationIdentity != null &&
                         (!combat.PairedActivationSplit || combat.PairedActivationIdentity != (string)chunk4LifeEvidence["beforeDamage"]["identity"]))
@@ -273,6 +284,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     !Chunk4LifeSubject.Descriptor.State.IsDead)
                     throw new InvalidOperationException("The observed native life result did not persist through unrelated turns.");
                 chunk4LifeEvidence["finalLife"] = CaptureChunk4LifeState();
+                chunk4LifeEvidence["nativeRecoveryExpected"] = !Chunk4LifeSubject.Descriptor.State.IsFinallyDead;
                 chunk4LifeStage = 8; ResetLeafClock(); return;
             }
             if (chunk4LifeStage == 8)
@@ -301,23 +313,72 @@ namespace KingmakerMountedCombat.Diagnostics
                     rider.IsInCombat || horse.IsInCombat || CombatController.IsInTurnBasedCombat() || controller.Initialized ||
                     combat.PairedActivationIdentity != null || combat.PairedPartnerContext != null || combat.TrackedActorAllocations != 0 ||
                     !rider.Commands.Empty || !horse.Commands.Empty || !chunk4IncomingObserver.AllAttacksResolved) return;
+                if ((bool)chunk4LifeEvidence["nativeRecoveryExpected"] && !Chunk4LifeSubject.Descriptor.State.IsConscious) return;
+                VerifyChunk4NativeLifeExit();
                 chunk4LifeEvidence["nativeEncounterExit"] = CaptureChunk4LifeState();
                 chunk4LifeEvidence["enemyAfterDeath"] = CaptureChunk4LifeActor(target);
                 chunk4LifeEvidence["enemyLifeTransitions"] = targetService.LifeTransitionCount;
-                if (Chunk4LifeIncapacitation ? Chunk4LifeSubject.Descriptor.State.IsConscious || Chunk4LifeSubject.Descriptor.State.IsDead :
-                    !Chunk4LifeSubject.Descriptor.State.IsDead)
-                    throw new InvalidOperationException("Native encounter completion changed the real subject life result.");
+                chunk4DeathPolicy.Dispose();
+                chunk4LifeEvidence["nativeDeathPolicy"] = chunk4DeathPolicy.Capture();
+                chunk4LifeStage = 10; ResetLeafClock(); return;
+            }
+            if (chunk4LifeStage == 10)
+            {
+                if (game.TimeController.GameTime.Ticks - (long)chunk4LifeEvidence["nativeEncounterExit"]["gameTicks"] < TimeSpan.TicksPerSecond / 4) return;
+                VerifyChunk4NativeLifeExit();
+                if (game.Player.IsInCombat || controller.Initialized || combat.TrackedActorAllocations != 0 ||
+                    combat.PairedActivationIdentity != null || combat.PairedPartnerContext != null || !Chunk4PairedPlayIdle ||
+                    relationship.State != RelationshipState.Unmounted || relationship.Runtime.HasPresentationAttachmentResidue)
+                    throw new InvalidOperationException("Restoring native difficulty revived pair ownership or encounter state.");
+                chunk4LifeEvidence["afterPolicyRestore"] = CaptureChunk4LifeState();
                 chunk4LifeEvidence["nativeLifeEvents"] = chunk4LifeObserver.Capture();
                 chunk4LifeEvidence["nativeRules"] = chunk4IncomingObserver.Capture();
                 chunk4LifeEvidence["allocationTrace"] = allocationTrace.Capture();
                 observations["ordinaryTrace"] = ordinaryAttackTrace.Capture();
-                AddRow(Chunk4LifeId, true, "Native damage interrupted a live pair command; life state, independent costs and unrelated turn progression were retained.", chunk4LifeEvidence);
+                AddRow(Chunk4LifeId, true, "Native damage interrupted a live pair command; independent costs, unrelated turns, native death/recovery policy and encounter retirement were preserved.", chunk4LifeEvidence);
                 BeginCleanup();
             }
         }
 
+        private void VerifyChunk4NativeLifeExit()
+        {
+            var subject = Chunk4LifeSubject;
+            var recovered = (bool)chunk4LifeEvidence["nativeRecoveryExpected"];
+            var events = (JArray)chunk4LifeObserver.Capture()["events"];
+            var returns = events.OfType<JObject>().Where(item => (string)item["kind"] == "native-life-state" &&
+                (string)item["actor"] == subject.UniqueId && (string)item["lifeState"] == "Conscious").ToArray();
+            if (!recovered)
+            {
+                if (!subject.Descriptor.State.IsDead || !subject.Descriptor.State.IsFinallyDead || returns.Length != 0)
+                    throw new InvalidOperationException("Native permanent death was lost or the rider was resurrected.");
+            }
+            else
+            {
+                var expectedDamage = Math.Max(0, subject.Stats.HitPoints.ModifiedValue -
+                    Math.Max(1, subject.Descriptor.Progression.CharacterLevel) - subject.DamageNonLethal);
+                if (!subject.Descriptor.State.IsConscious || subject.Descriptor.State.IsDead || subject.Descriptor.State.IsFinallyDead ||
+                    subject.Damage != expectedDamage || returns.Length != 1 ||
+                    (int)returns[0]["frame"] <= (int)chunk4LifeEvidence["unrelatedTurns"][1]["frame"])
+                    throw new InvalidOperationException("Nonfinal life result lacks exactly one correctly timed native recovery and health result.");
+                var source = returns[0]["nativeSource"].OfType<JObject>().ToArray();
+                foreach (var token in new[] { "0600918e", "06009191", "06009164" })
+                    if (!source.Any(item => (string)item["token"] == token &&
+                        (string)item["assemblyMvid"] == "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"))
+                        throw new InvalidOperationException("Recovery was not attributed to the exact native automatic recovery controller.");
+            }
+            var survivor = CaptureChunk4LifeActor(Chunk4LifeSurvivor);
+            if (!(bool)survivor["conscious"] || !(bool)survivor["inState"] || (int)survivor["enabledRenderers"] < 1 ||
+                (int)survivor["damage"] != (int)chunk4LifeEvidence["beforeDamage"][Chunk4LifeMount ? "rider" : "mount"]["damage"])
+                throw new InvalidOperationException("Native encounter completion changed or hid the independent survivor.");
+        }
+
         private void CleanupChunk4NativeLife()
         {
+            if (chunk4DeathPolicy != null)
+            {
+                try { chunk4DeathPolicy.Dispose(); }
+                finally { chunk4LifeEvidence["nativeDeathPolicy"] = chunk4DeathPolicy.Capture(); }
+            }
             if (chunk4LifeObserver != null) { chunk4LifeEvidence["nativeLifeEvents"] = chunk4LifeObserver.Capture(); chunk4LifeObserver.Dispose(); chunk4LifeObserver = null; }
             if (chunk4IncomingObserver != null) { observations["chunk4IncomingRules"] = chunk4IncomingObserver.Capture(); chunk4IncomingObserver.Dispose(); chunk4IncomingObserver = null; }
         }

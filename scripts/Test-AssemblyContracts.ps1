@@ -34,6 +34,14 @@ function Test-MethodIlContainsToken([Reflection.MethodBase]$Method,[int]$Token){
 if($Target-eq'Kingmaker'){
     # New native incoming/life observations. Token/hash contracts are not native execution proof.
     foreach($expected in @(
+        @('Kingmaker.GameDifficulty',0x06000CF9,'get_TrueDeath'),
+        @('Kingmaker.GameDifficulty',0x06000CF8,'get_DeathDoorCondition'),
+        @('Kingmaker.UI.SettingsUI.SettingsRoot+SettingsListScreen',0x04007CB5,'DeadCompanionsRiseAfterCombat'),
+        @('Kingmaker.UI.SettingsUI.SettingsRoot+SettingsListScreen',0x04007CB4,'DeathDoor'),
+        @('Kingmaker.Controllers.Units.UnitReturnToConsciousController',0x0600918E,'Tick'),
+        @('Kingmaker.Controllers.Units.UnitReturnToConsciousController',0x06009191,'MakeUnitConscious'),
+        @('Kingmaker.Controllers.Units.UnitLifeController',0x06009163,'ForceUnitConscious'),
+        @('Kingmaker.Controllers.Units.UnitLifeController',0x06009164,'SetLifeState'),
         @('Kingmaker.UnitLogic.Abilities.Components.AreaEffects.AbilityAreaEffectRunAction',0x06002CCD,'OnUnitEnter'),
         @('Kingmaker.UnitLogic.Abilities.Components.AreaEffects.AbilityAreaEffectRunAction',0x06002CCE,'OnUnitExit'),
         @('Kingmaker.UnitLogic.Abilities.Components.AreaEffects.AbilityAreaEffectRunAction',0x06002CCF,'OnUnitMove'),
