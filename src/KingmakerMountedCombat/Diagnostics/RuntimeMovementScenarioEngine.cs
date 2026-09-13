@@ -2586,6 +2586,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     probeCallbackReason = null;
                 }
             }
+            ObserveChunk4SlopeProbe(requested, path);
             probeCallbackReady = true;
         }
 

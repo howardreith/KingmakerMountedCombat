@@ -975,6 +975,17 @@ if($Target-eq'Kingmaker'){
     $astarPathType=$firstpass.GetType('AstarPath',$false)
     $astarPathActive=if($null-eq$astarPathType){$null}else{$astarPathType.GetField('active',[Reflection.BindingFlags]'Public,Static')}
     $astarGraphUpdatesQueued=if($null-eq$astarPathType){$null}else{$astarPathType.GetProperty('IsAnyGraphUpdatesQueued',[Reflection.BindingFlags]'Public,Instance')}
+    $slopeNearest=@($astarPathType.GetMethods([Reflection.BindingFlags]'Public,Instance')|Where-Object MetadataToken -eq 0x0600054E)
+    $slopeNearestType=$firstpass.GetType('Pathfinding.NNInfo',$true)
+    $slopeNode=$slopeNearestType.GetField('node',[Reflection.BindingFlags]'Public,Instance')
+    $slopeClamped=$slopeNearestType.GetField('clampedPosition',[Reflection.BindingFlags]'Public,Instance')
+    $slopeWalkable=$firstpass.GetType('Pathfinding.GraphNode',$true).GetProperty('Walkable',[Reflection.BindingFlags]'Public,Instance')
+    Assert-Contract ($slopeNearest.Count-eq1 -and $slopeNearest[0].Name-ceq'GetNearest' -and
+        $slopeNearest[0].GetParameters().Count-eq1 -and $slopeNearest[0].GetParameters()[0].ParameterType.FullName-ceq'UnityEngine.Vector3' -and
+        $slopeNearest[0].ReturnType.FullName-ceq'Pathfinding.NNInfo' -and
+        $slopeNode.MetadataToken-eq0x040025B9 -and $slopeNode.FieldType.FullName-ceq'Pathfinding.GraphNode' -and
+        $slopeClamped.MetadataToken-eq0x040025BB -and $slopeClamped.FieldType.FullName-ceq'UnityEngine.Vector3' -and
+        $slopeWalkable.MetadataToken-eq0x170005A3 -and $slopeWalkable.PropertyType.FullName-ceq'System.Boolean') 'native slope surface observation contracts'
     Assert-Contract ($clickMapObject.Count-eq1 -and $clickMapObject[0] -is [Reflection.MethodInfo] -and
         $clickMapObject[0].IsPublic -and -not $clickMapObject[0].IsStatic -and
         $clickMapObject[0].ReturnType.FullName-ceq'System.Boolean' -and

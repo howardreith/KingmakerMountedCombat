@@ -1,3 +1,7 @@
+## Chunk 4 native slope observation - 2026-09-13
+
+Exact installed Kingmaker `UnitMovementAgent.FindPath` token `060018A8` preserves the stock seeker, actor clearance and native RT/TB path modifiers. Firstpass `AstarPath.GetNearest(Vector3)` is `0600054E`; returned `NNInfo.node` is `040025B9`, `clampedPosition` is `040025BB`, and `GraphNode.Walkable` is `170005A3`. Candidate 30 uses these read-only surfaces to explain BB's rejected slope candidates. It observes 72 nearest-node queries (the existing 24 radial positions at intake height and +/-4 metres) and at most 24 actual path callbacks. Query results do not alter the candidate list, paths, graph, actor position or collision. These contracts do not prove a usable slope exists in this fixture; actual native geometry and traversal remain required.
+
 ## Native final-death control and AI getters - 2026-09-13
 
 Exact Kingmaker MVID07fa1e4d-8618-41b3-9b8d-faa17d3b26f7. UnitEntityData.IsDirectlyControllable06008328 rejects IsFinallyDead outside capital-specific control rules. IsAIEnabled06008329 returns true for an actor that is not directly controllable; otherwise it combines raw m_AiEnabled040054BA with native CompanionsAI. Setter0600832A only writes the raw field. These contracts explain why a diagnostic lease's original effective/control state may become inappropriate after real final death; native evidence of the actual failing state remains required before any repair. Candidate17 only preserves that missing failure evidence. No global AI or gameplay death policy is changed.

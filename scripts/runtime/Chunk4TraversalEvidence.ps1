@@ -23,7 +23,8 @@ function Assert-KmcChunk4PairedConfiguration {
 }
 function Assert-KmcChunk4NativeSlope {
     param($Value)
-    Assert-KmcExactProperties $Value @('startY','riderMoveBefore','minimumY','maximumY','heightChange','dropped','samples') 'Chunk 4 native slope'
+    Assert-KmcExactProperties $Value @('startY','riderMoveBefore','minimumY','maximumY','heightChange','dropped','samples','discovery') 'Chunk 4 native slope'
+    Assert-KmcChunk4SlopeDiscovery $Value.discovery
     foreach($kmcName in @('startY','riderMoveBefore','minimumY','maximumY','heightChange')) {
         if(!(Test-KmcJsonNumber $Value.$kmcName) -or [double]::IsNaN([double]$Value.$kmcName) -or [double]::IsInfinity([double]$Value.$kmcName)) { throw 'Slope values must be finite JSON numbers.' }
     }
@@ -49,6 +50,44 @@ function Assert-KmcChunk4NativeSlope {
     if($kmcMax-$kmcMin -lt 0.5 -or [Math]::Abs([double]$Value.minimumY-$kmcMin) -gt 0.000001 -or
         [Math]::Abs([double]$Value.maximumY-$kmcMax) -gt 0.000001 -or
         [Math]::Abs([double]$Value.heightChange-($kmcMax-$kmcMin)) -gt 0.000001) { throw 'Slope extent must reconcile to at least half a metre of actual native motion.' }
+}
+function Assert-KmcChunk4SlopeDiscovery {
+    param($Value)
+    Assert-KmcExactProperties $Value @('surfaces','probes') 'Slope native discovery'
+    if($Value.surfaces -isnot [array] -or $Value.surfaces.Count -lt 1 -or $Value.surfaces.Count -gt 72 -or
+        $Value.probes -isnot [array] -or $Value.probes.Count -lt 1 -or $Value.probes.Count -gt 24) {throw 'Slope discovery exceeded its bounded native observations.'}
+    foreach($kmcSurface in $Value.surfaces) {
+        Assert-KmcExactProperties $kmcSurface @('frame','requested','nodePresent','walkable','clamped') 'Slope native surface'
+        if(!(Test-KmcExactJsonInteger $kmcSurface.frame) -or $kmcSurface.frame -lt 0 -or $kmcSurface.nodePresent -isnot [bool] -or
+            ($kmcSurface.nodePresent -and $kmcSurface.walkable -isnot [bool]) -or
+            (!$kmcSurface.nodePresent -and ($null -ne $kmcSurface.walkable -or $null -ne $kmcSurface.clamped))) {throw 'Slope surface lacks exact native node observations.'}
+        Assert-KmcChunk4SlopePoint $kmcSurface.requested
+        if($kmcSurface.nodePresent) {Assert-KmcChunk4SlopePoint $kmcSurface.clamped}
+    }
+    foreach($kmcProbe in $Value.probes) {
+        Assert-KmcExactProperties $kmcProbe @('frame','requested','endpoint','points','minimumY','maximumY','pathError','accepted','reason') 'Slope native path probe'
+        if(!(Test-KmcExactJsonInteger $kmcProbe.frame) -or $kmcProbe.frame -lt 0 -or
+            !(Test-KmcExactJsonInteger $kmcProbe.points) -or $kmcProbe.points -lt 0 -or $kmcProbe.accepted -isnot [bool] -or
+            ($null -ne $kmcProbe.reason -and $kmcProbe.reason -isnot [string])) {throw 'Slope path probe has invalid native observation types.'}
+        Assert-KmcNullableJsonBoolean $kmcProbe.pathError 'Slope native path error'
+        Assert-KmcChunk4SlopePoint $kmcProbe.requested
+        if($kmcProbe.points -gt 0) {
+            Assert-KmcChunk4SlopePoint $kmcProbe.endpoint
+            foreach($kmcNumber in @($kmcProbe.minimumY,$kmcProbe.maximumY)) {
+                if(!(Test-KmcJsonNumber $kmcNumber) -or [double]::IsNaN([double]$kmcNumber) -or [double]::IsInfinity([double]$kmcNumber)) {throw 'Slope path heights must be finite native numbers.'}
+            }
+            if($kmcProbe.minimumY -gt $kmcProbe.maximumY) {throw 'Slope path height extent is reversed.'}
+        } elseif($null -ne $kmcProbe.endpoint -or $null -ne $kmcProbe.minimumY -or $null -ne $kmcProbe.maximumY) {throw 'Absent native path cannot report geometry.'}
+        if($kmcProbe.accepted -and ($kmcProbe.pathError -ne $false -or $null -ne $kmcProbe.reason -or
+            $kmcProbe.points -lt 2 -or [double]$kmcProbe.maximumY-[double]$kmcProbe.minimumY -lt 0.5)) {throw 'Accepted slope probe lacks a real eligible native path.'}
+    }
+}
+function Assert-KmcChunk4SlopePoint {
+    param($Value)
+    if($Value -isnot [array] -or $Value.Count -ne 3) {throw 'Native slope point must have three coordinates.'}
+    foreach($kmcNumber in $Value) {
+        if(!(Test-KmcJsonNumber $kmcNumber) -or [double]::IsNaN([double]$kmcNumber) -or [double]::IsInfinity([double]$kmcNumber)) {throw 'Native slope coordinates must be finite JSON numbers.'}
+    }
 }
 function Assert-KmcChunk4BlockedDoor {
     param($Value)

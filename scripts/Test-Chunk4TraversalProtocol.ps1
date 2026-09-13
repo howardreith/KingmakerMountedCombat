@@ -21,6 +21,9 @@ foreach($kmcCounts in @(@(0,0),@(8,8),@(7,8),@(10,0))) {
 function New-SlopeEnvelope {
     # Parser envelope only, never native evidence.
     return (@{startY=2; riderMoveBefore=0; minimumY=2; maximumY=2.75; heightChange=.75; dropped=0;
+        discovery=@{surfaces=@(@{frame=1;requested=@(0,2,0);nodePresent=$true;walkable=$true;clamped=@(0,2,0)});
+            probes=@(@{frame=2;requested=@(0,2,5);endpoint=@(0,2.75,5);points=3;minimumY=2;maximumY=2.75;
+                pathError=$false;accepted=$true;reason=$null})};
         samples=@(@{frame=1;position=@(0,2,0);stockAgentEnabled=$true;avoidanceDisabled=$false;corpulence=1.8;riderMove=0},
             @{frame=2;position=@(0,2.25,1);stockAgentEnabled=$true;avoidanceDisabled=$false;corpulence=1.8;riderMove=0},
             @{frame=3;position=@(0,2.75,2);stockAgentEnabled=$true;avoidanceDisabled=$false;corpulence=1.8;riderMove=0})} | ConvertTo-Json -Depth 8 | ConvertFrom-Json)
@@ -57,6 +60,20 @@ Reject-Slope {param($e) $e.samples[1].riderMove=-1}
 Reject-Slope {param($e) $e.riderMoveBefore=-1}
 Reject-Slope {param($e) $e.samples[1].position[1]=2; $e.samples[2].position[1]=2.2; $e.maximumY=2.2; $e.heightChange=.2}
 Reject-Slope {param($e) $e.samples[1] | Add-Member -NotePropertyName ghost -NotePropertyValue $true}
+Reject-Slope {param($e) $e.discovery.surfaces=@()}
+Reject-Slope {param($e) $e.discovery.surfaces=@($e.discovery.surfaces[0])*73}
+Reject-Slope {param($e) $e.discovery.probes=@($e.discovery.probes[0])*25}
+Reject-Slope {param($e) $e.discovery.surfaces[0].requested[1]='2'}
+Reject-Slope {param($e) $e.discovery.surfaces[0].nodePresent='true'}
+Reject-Slope {param($e) $e.discovery.surfaces[0].walkable=$null}
+Reject-Slope {param($e) $e.discovery.surfaces[0].clamped=@(0,2)}
+Reject-Slope {param($e) $e.discovery.probes[0].minimumY=[double]::NaN}
+Reject-Slope {param($e) $e.discovery.probes[0].maximumY=1}
+Reject-Slope {param($e) $e.discovery.probes[0].points=-1}
+Reject-Slope {param($e) $e.discovery.probes[0].accepted='true'}
+Reject-Slope {param($e) $e.discovery.probes[0].pathError='false'}
+Reject-Slope {param($e) $e.discovery.probes[0].frame='2'}
+Reject-Slope {param($e) $e.discovery.probes[0].reason=3}
 foreach($kmcField in @('enablePairedActivation','enableUnifiedMountedTurn','enablePairedCommandScheduler','enableDiagnosticOverlay','overlayPresent')) {
     $kmcConfig=@{enablePairedActivation=$true;enableUnifiedMountedTurn=$false;enablePairedCommandScheduler=$false;enableDiagnosticOverlay=$false;overlayPresent=$false}
     Assert-KmcChunk4PairedConfiguration ([pscustomobject]$kmcConfig); $kmcPass++

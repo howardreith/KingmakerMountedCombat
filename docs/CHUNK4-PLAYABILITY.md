@@ -1,7 +1,6 @@
 # Chunk 4: sustained play and core safety
 
-**IN PROGRESS - 2026-09-13 UTC.** All51 guarded transactions restored actual human preview.37/data. AY on27 passed native traversal257/0 with completed closing, clean cuts and unchanged synchronization bounds; outer validation rejected rounded clip-length evidence. Candidate28 preserves exact precision. Before native replay, component inspection found the terminal command state missing from periodic samples;29 retains that actual observation. Native29 qualification is pending. Horse visual, slope/area/session and exact-final regression remain open.
-
+**IN PROGRESS - 2026-09-13 UTC.** All 54 guarded transactions independently restored actual human preview.37/data. Source 29 core traversal AZ passed 257/0 native and outer; Horse comparison BA passed 48/0 with 60 real scene frames and resolved foreground-wall occlusion. Slope BB failed before movement because all bounded path candidates were rejected. Candidate 30 adds read-only native surface/path observations, with unchanged route selection and qualification thresholds. Slope, area/session and exact-final regression remain open; HUD/physical input/HUMAN PLAY remain pending. Earlier failures below retain their scope; chronological detail is in the journal.
 Reviewed documentation e6d89bff8c44ecbc21104b733703be9401c3671e and qualified gameplay ec5d44e6eddc9839d273176b345f7c9701520450 retain their accepted scope in the [paired milestone](PAIRED-ACTIVATION-MILESTONE.md). Preview.13 human feedback remains separate; no preview.37 or candidate human approval is inferred. All Chunk4 runs use paired activation true and unified turn/scheduler/overlay false.
 
 ## New native evidence
@@ -27,6 +26,10 @@ Reviewed documentation e6d89bff8c44ecbc21104b733703be9401c3671e and qualified ga
 | chunk4-traversal-core; AX | preview.26,257/0 native,outerFAIL. Door59/0, doorway62/0, turns76/0, party60/0; actual movement-entry callbacks and unchanged .10 position/yaw gates pass with zero phase faults. The closed-door measurement contained five samples requiring native cut updates; this is not an overall traversal pass. |
 | chunk4-traversal-core; AY | preview.27,257/0 native,outerFAIL. Closing completed in1.6049411sec/105 observations; all21 blocked samples cut-ready, return Success/home0.047209m, zero phase/recovery faults. Float clipLength1.36666667 rounded below initial double time1.3666666746139526. |
 
+| chunk4-traversal-core; AZ | preview.29, 257/0 native and outer PASS. Door 59/0, doorway 62/0, turns 76/0, party 60/0; zero phase/recovery faults under unchanged .10 bounds. Native closing completed, all 22 blocked samples cut-ready, actual terminal state retained, return Success/home .0481 m. |
+| chunk4-horse-strike-comparison-rt; BA | preview.29, 48/0 native/outer, 2/0 rows. Three mounted Primaries 1/1/1; unmounted routine 3/3/3. Sixty actual PNGs/no errors; opposite camera yaw removes wall occlusion and restores. Viewed samples retain seated/visible rider and separate dismounted actor. Rear angle limits subtle unmounted bite review; HUD/physical/HUMAN PLAY pending. |
+| chunk4-traversal-slope; BB | preview.29, 20/1 native/outer FAIL before any movement. All 24 candidates rejected; reasons alone cannot distinguish native surface availability from path filtering. Preview.30 records bounded read-only surface/path observations; native retest required. |
+
 ## Repairs and evidence limits
 
 Changes follow reproduced defects. X exposed a parent Horse D20 override leaking into children; preview.13 retires it before handoff, and later runs prove absence. Earlier affected Horse-roll evidence cannot replace final clean qualification. The historical paired milestone is not reopened.
@@ -51,27 +54,29 @@ A component check using the actual JSON round trip then exposed a second AY evid
 
 Full29 PASS exit0: components377/0, harness248/0, core375/0, play106/0, metadata2/0, extended277/0, obstruction106/0, traversal108/0, outer45/0, Charge86/0, Kingmaker555/0, read-only Wrath24/0, detached constructions30/0 plus observers/movement entry1/0; source22/0/buildPASS. Tests29 SHA256176eb8bc7149411b512c1286cf5e2f1a51cc249667af446c2f24ee220440fa0b.
 
+Full 30 PASS (exit 0): components 377/0, harness 248/0, core 375/0, play 106/0, area metadata 2/0, extended 277/0, obstruction 106/0, traversal 122/0, outer 45/0, Charge 86/0, Kingmaker 556/0, read-only Wrath 24/0, detached constructions 30/0 plus observers/movement entry 1/0. Build/source 22/0 PASS. Tests SHA256 a47c30423f9bd7e3fa20bb93da96a64afc08d5f1782f2bdeea47f3954de777ba.
+
 ## Identities and qualification
 
 Branch: codex/mounted-combat-phase3f-playable-core. AI source21:4a95964f5c2b2748546dcc22df229979325b2f37. AK-AP source22:b9899facb6f3c19df59d42962ee47e4a0febb28b. AQ-AS source23:816fa8816bd70ed06477ccd7f704c6d6de759a9b. AT-AV source24:982232553b3dfc4be470a03824b764bf3ada9206. AW source25:737f79fef87d0874dfa04689ae72d1ee82b4ce3e. AX source26:fadc828664c9236b537178632ceb24c2b0338361. AY source27:7d65a091a33afd7746aa850d42aec283fd9f5eb0. Earlier identities remain in the journal and Git.
 
 | Latest native-tested package | Identity |
 |---|---|
-| Private ZIP27 | KingmakerMountedCombat-0.1.0-chunk4-preview.27-native-door-readiness-diagnostic.zip |
-| ZIP / manifest SHA256 | cf28da7829a709f3d95f87b2f1c38433ede22ade5f8678578a35ffd608423499 / 4a84b8b9a2ce055c9a42145ed940d3ca965cadc2a35fdbe6ac47b7ba869ce4d9 |
-| DLL SHA256 / MVID | ec0df38e43a9818f2575041055281f9b52728db0a45bdcdc83e0fee3b8380766 / 0af7a04f-911c-401d-9df3-9e722f921eb2 |
-| Suite27 / WhatIf27 SHA256 | 959b903149d97eb4bca5121d2e0654c3c9e8ca29e925cc49164fea77ba9c5b4a / 191b0df8271a9d4170df2b33da8526332583faf8fb7202bc496dbdd41b80731e |
+| Private ZIP29 / source | KingmakerMountedCombat-0.1.0-chunk4-preview.29-terminal-route-observation-diagnostic.zip / 8fac4b529129486a09669cd3914179a64c371215 |
+| ZIP / manifest SHA256 | 34760c764d05ebaf9c513f253c21013a8a4f4fed44874d4b62000f506c9d4e7a / ac6c0e9f81522ada6ddb7ee85b51bc9f0817c95309ab82d395c2129176a43f35 |
+| DLL SHA256 / MVID | 2278cecbc3e45ef446724db887b838830fb1694efe39550d824cda02eca0cd88 / f8a6216d-6461-44ac-a422-5e97729a2eea |
+| Suite29 / WhatIf29 SHA256 | a0c3bae91989a23d3c16f37604d0b176d7bc1ff2c775e3cd278cee4138449044 / 951960c89b679745e324d52ca31400c5c2fb2c22be45bb7174148644c39ddf53 |
 
 COMPONENT: full26 PASS: components377/0, harness248/0, core375/0, play106/0, metadata2/0, extended277/0, obstruction106/0, traversal88/0, outer45/0, Charge86/0, source22/0/buildPASS. Tests SHA256011c837a79d7069506833e538a53be203d95ffaf1d38fa9fe670d059e01378cb. Private26 package11/0. Candidate27 focused traversal105/0/source22/0/buildPASS; Full27 PASS exit0: components377/0, harness248/0, core375/0, play106/0, metadata2/0, extended277/0, obstruction106/0, traversal105/0, outer45/0, Charge86/0, Kingmaker555/0, read-only Wrath24/0, detached construction30/0 plus observers and movement entry contract1/0. Source22/0/buildPASS; tests27 SHA2566a0d445fb447873c7a6841e40bcb8b337ca3df0d7dae8667ee72a00a00725959. Parser envelopes do not certify gameplay. Earlier complete counts and failures remain in the journal.
 ASSEMBLY CONTRACT: candidate26 Kingmaker553/0, including native UI/camera contracts, plus movement-entry contract1/0; read-only Wrath24/0 and detached hook construction30/0 plus observers. Exact Kingmaker SHA2563b6450ffec440e296e586f71c711b195aed144b28d53e1cbb29406d18fef5afb, MVID07fa1e4d-8618-41b3-9b8d-faa17d3b26f7; .NET4.7/C#7.3/Harmony12. Local contracts do not replace native execution.
 
-NATIVE INTEGRATION: obstruction AT passed; doorway repair passed AW and synchronization passed AX; native closing now passed AY; complete traversal remains unqualified because its evidence rounded clip length, with supported slope/area cleanup, RT/TB encounter cycles and bounded records/subscriptions/logs. Repeat the Horse comparison with proper framing. Then repeat new gates on the final candidate plus both paired full-round orders, final A05, accepted A10 and Horse/Mammoth regression. Evidence is outside Git/packages under runtime-evidence/20260908-chunk4-A..S,20260909-chunk4-T..X,20260912-chunk4-Y..AB and20260913-chunk4-AC..AY.
+NATIVE INTEGRATION: obstruction AT passed; doorway repair passed AW and synchronization passed AX; native closing now passed AY; complete core traversal subsequently passed AZ on preview.29; slope BB remains unqualified, with supported slope/area cleanup, RT/TB encounter cycles and bounded records/subscriptions/logs. Horse BA now has useful framing, with the visual limits stated above. Then repeat new gates on the final candidate plus both paired full-round orders, final A05, accepted A10 and Horse/Mammoth regression. Evidence is outside Git/packages under runtime-evidence/20260908-chunk4-A..S,20260909-chunk4-T..X,20260912-chunk4-Y..AB and20260913-chunk4-AC..AY.
 
 HUMAN PLAY: pending. Earlier native PNGs were black; AR/AU now provide actual scene images; AU centers the actors but a wall obscures them. The existing desktop tool previously found the guarded game window, but capture approval timed out; no desktop image or physical input resulted. During AY the refreshed desktop capture also failed twice with SetIsBorderRequired: No such interface supported (0x80004002); no image/input resulted. Native camera capture continues. HUD/countdown and seated strike/recovery remain unqualified. Active renderers, native window bindings and animation handles are not visual approval.
 
 ## Restoration and targeted manual checks
 
-All51 independent restoration receipts PASS; latest AY2026-09-13T20:29:29.4696249Z, no game/lock. Saves SHA256bc345a41d72f5c1538c9a5dcefc577202b0eb8279adbf1fa958cd63fb643519d; full Mods02aa64faba191ca51d80c2c35f521f2d6ef65c77911f86b3fb0e144a1d6c7878; UMM Paramsdd22dc5aad012f0bca721de37d888a9163e9e759c44f7fa705e3355302be7e1e. Human preview.37 DLL/cache remain20080fdcf83c7628611c3f6354a3e47c3065e2b25998a9c01b39a69796ed57bb. Human campaigns, immutable KMC_AUTOMATION_BASELINE and separate historical preview.13 backup are preserved. No permanent deployment, foreign-mod change, main merge or public release occurred.
+All 54 independent restoration receipts PASS; latest BB 2026-09-13T22:25:25.2646116Z, no game/lock. Saves SHA256bc345a41d72f5c1538c9a5dcefc577202b0eb8279adbf1fa958cd63fb643519d; full Mods02aa64faba191ca51d80c2c35f521f2d6ef65c77911f86b3fb0e144a1d6c7878; UMM Paramsdd22dc5aad012f0bca721de37d888a9163e9e759c44f7fa705e3355302be7e1e. Human preview.37 DLL/cache remain20080fdcf83c7628611c3f6354a3e47c3065e2b25998a9c01b39a69796ed57bb. Human campaigns, immutable KMC_AUTOMATION_BASELINE and separate historical preview.13 backup are preserved. No permanent deployment, foreign-mod change, main merge or public release occurred.
 
 Through a guarded disposable session:
 
