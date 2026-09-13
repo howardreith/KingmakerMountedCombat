@@ -1,6 +1,6 @@
-# Active Chunk 4 - candidate22, 2026-09-13 UTC
+# Active Chunk 4 - candidate23, 2026-09-13 UTC
 
-IN PROGRESS. Source21 4a95964f5c2b2748546dcc22df229979325b2f37 passed native rider death in AI (47/0, child1/0, outerPASS). AJ incapacitation reached native105 damage, live-command interruption, two unrelated turns, native exit/zero records and native recovery to92 wounds, then failed a premature animation/equipment readiness assertion. Candidate22 records exact readiness and waits within the unchanged30-second leaf while command/ownership assertions remain immediate. No gameplay repair. All36 transactions independently restored actual preview.37/data; latest2026-09-13T07:30:44.7708061Z. Next nativeAK incapacitation on22, then mount death and remaining new/final gates. [One report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent deployment or Chunk5 implementation.
+IN PROGRESS. Published source22 b9899facb6f3c19df59d42962ee47e4a0febb28b passed native incapacitation, mount death and independent incoming targeting (AK-AO); source21 AI passed persistent rider death. AP inspected both actors correctly but its fixture called the wrong close method and hit the unchanged30-second deadline. Candidate23 uses the exact native close-button path; no gameplay UI patch. All42 temporary transactions independently restored actual preview.37/data, latest2026-09-13T14:49:45.1230832Z. Next nativeAQ inspection, then strike/obstruction/traversal/session and exact-final new/paired/A05/A10 regressions. [One report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). Visual/physical checks pending; no permanent deployment or Chunk5 implementation.
 ---
 ## Combined milestone disposition — 2026-09-08
 

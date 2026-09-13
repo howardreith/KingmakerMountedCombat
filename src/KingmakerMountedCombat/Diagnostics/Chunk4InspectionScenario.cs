@@ -38,12 +38,12 @@ namespace KingmakerMountedCombat.Diagnostics
             var flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
             chunk4CharacterBinding = typeof(CharacterScreenController).GetField("m_CurrentCharacter", flags);
             chunk4CharacterOpen = typeof(ServiceWindowController).GetMethod("OnHotKeyShowChracterScreen", flags);
-            chunk4CharacterClose = typeof(ServiceWindowTabs).GetMethod("Hide", flags);
+            chunk4CharacterClose = typeof(FullScreenTabsWindow).GetMethod("OnButtonClose", flags);
             chunk4CharacterScreenIndex = typeof(FullScreenTabsWindow).GetProperty("ScreenIndex", flags);
             if (chunk4CharacterBinding?.MetadataToken != 0x04003140 ||
                 chunk4CharacterOpen?.MetadataToken != 0x06004768 ||
                 typeof(GroupController).GetMethod("SelectUnit", flags)?.MetadataToken != 0x06003F29 ||
-                chunk4CharacterClose?.MetadataToken != 0x0600477A ||
+                chunk4CharacterClose?.MetadataToken != 0x060046DD ||
                 chunk4CharacterScreenIndex?.GetGetMethod(true)?.MetadataToken != 0x060046D0)
                 throw new MissingMemberException("Exact installed character-sheet inspection contract changed.");
             step = Phase3dHorseStep.Phase3gControls; ResetLeafClock();

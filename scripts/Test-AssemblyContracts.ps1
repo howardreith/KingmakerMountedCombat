@@ -78,6 +78,9 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.UI.ServiceWindow.CharacterScreen.CharacterScreenController',0x04003140,'m_CurrentCharacter'),
         @('Kingmaker.UI.ServiceWindow.ServiceWindowController',0x06004768,'OnHotKeyShowChracterScreen'),
         @('Kingmaker.UI.ServiceWindow.ServiceWindowTabs',0x0600477A,'Hide'),
+        @('Kingmaker.UI.ServiceWindow.FullScreenTabsWindow',0x060046DD,'OnButtonClose'),
+        @('Kingmaker.UI.ServiceWindow.FullScreenTabsWindow',0x060046E0,'OnHotKeyEscPressed'),
+        @('Kingmaker.UI.ServiceWindow.UIWindow',0x060048A2,'Show'),
         @('Kingmaker.UI.ServiceWindow.FullScreenTabsWindow',0x060046D0,'get_ScreenIndex'),
         @('Kingmaker.UI.Group.GroupController',0x06003F29,'SelectUnit'),
         @('Kingmaker.UI.Group.GroupController',0x06003F22,'GetCurrentCharacter'),
@@ -103,6 +106,10 @@ if($Target-eq'Kingmaker'){
         $member=@(Find-Token $expected[0] $expected[1])
         Assert-Contract ($member.Count-eq1 -and $member[0].Name-ceq$expected[2]) ('Chunk 4 native boundary '+$expected[0]+'.'+$expected[2])
     }
+    $nativeInspectionClose=@(Find-Token 'Kingmaker.UI.ServiceWindow.FullScreenTabsWindow' 0x060046DD)[0]
+    $nativeInspectionEscape=@(Find-Token 'Kingmaker.UI.ServiceWindow.FullScreenTabsWindow' 0x060046E0)[0]
+    Assert-Contract (Test-MethodIlContainsToken $nativeInspectionClose 0x060046E0) 'native character close button delegates to Escape handler'
+    Assert-Contract (Test-MethodIlContainsToken $nativeInspectionEscape 0x060048A2) 'native character Escape handler delegates to window Show'
     $nativeEnough=@(Find-Token 'Kingmaker.UnitLogic.Commands.Base.UnitCommand' 0x06002784)[0]
     foreach($dependency in @(0x0600276C,0x06002781,0x060027A9,0x06008302,0x0600121A)){
         Assert-Contract (Test-MethodIlContainsToken $nativeEnough $dependency) ('native command visibility dependency '+$dependency.ToString('X8'))
