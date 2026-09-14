@@ -1,6 +1,9 @@
-# Active Chunk 4 - candidate 32, 2026-09-14 UTC
+# Active Chunk 4 - owner-requested stopping checkpoint, 2026-09-14 UTC
 
-IN PROGRESS. Published source31 `dd442f024172bcdcaeb7499709486b0f589a1851`. BD measured nearby paths as physically level and failed before movement (20/1). BE passed47/0 native area checks but failed the outer validator: its pre-mutation row-start allowance grouped PowerShell boolean operators incorrectly. Candidate32 fixes that grouping, adds a full boundary-envelope regression, and uses farther slope candidates inside the existing33m limit. All movement/cost/cleanup assertions remain. Full32/build PASS; all57 native transactions restored actual human preview.37/data. Next private package/guarded publication/fresh suite, then new slope and area runs, RT/TB session cycles and exact-final combat regression. [Report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent deployment or Chunk5 implementation.
+IN PROGRESS, paused at the owner's request. Published gameplay/test source `751f164817c76a56129b46552ff32224fc1f5776`, private `0.1.0-chunk4-preview.32`. BG passed same-area native reload/cleanup, 47/0 native and outer. BF slope search failed before movement, 20/1; BH RT session setup timed out at Phase3gControls before any cycle, 46/2. Full32 checks/build/package passed. All 60 transactions independently restored actual human preview.37, saves, full Mods and settings; no game or lock remains. This checkpoint updates documentation only, with no new package or installation.
+
+Next after the owner resumes: inspect BH's setup timeout, use a different physical slope fixture location, then finish RT/TB session cycles and exact-final new cases plus paired full-round/A05/A10/Horse/Mammoth regression. Do not replay the level Dwarf_1 paths or weaken deadlines. [Report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). Chunk4 is incomplete; no Chunk5 implementation.
+
 ---
 ## Combined milestone disposition — 2026-09-08
 
