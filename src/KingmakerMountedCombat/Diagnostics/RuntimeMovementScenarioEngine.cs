@@ -4016,7 +4016,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 PlanarNormalized(forward - right)
             };
             var candidates = new List<Vector3>();
-            var distances = preferLocalCandidates
+            // BD measured the nearby 5/8/11 metre routes as physically level.
+            // The slope fixture alone searches farther inside the existing
+            // 33 metre endpoint limit; all native path/motion checks still apply.
+            var distances = currentRow == Chunk4SlopeRow
+                ? new[] { 32.0f, 22.0f, MaximumRadialDistance }
+                : preferLocalCandidates
                 ? MovementRadialDistanceOrder.CreateLocalFirst(MinimumRadialDistance, 8.0f, MaximumRadialDistance)
                 : new[] { MaximumRadialDistance, 8.0f, MinimumRadialDistance };
             foreach (var distance in distances)

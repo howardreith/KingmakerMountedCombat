@@ -7478,6 +7478,36 @@ try {
                 "native boundary accepted a failed native cleanup delivery: $nativeRow"
         }
     }
+    Invoke-HarnessTest 'Chunk 4 area accepts pre-mutation intake and requires paired authority throughout measurement' {
+        $nativeRow = 'native-area-clean-dismount'
+        $nativeRequest = [pscustomobject][ordered]@{
+            schemaVersion=2;runId='chunk4-boundary-configuration';scenario='chunk4-area-cleanup';branch=$v2Request.branch;commit=$v2Request.commit
+            productVersion=$v2Request.productVersion;dllSha256=$v2Request.dllSha256;dllMvid=$v2Request.dllMvid
+            transactionToken=$v2Request.transactionToken;evidenceRoot=(Join-Path $runtimeEvidenceTestRoot 'chunk4-boundary-configuration')
+            fixture=$v2Fixture;qualificationSuite=$v2Request.qualificationSuite
+        }
+        $nativeSubresult = [pscustomobject][ordered]@{name=$nativeRow;status='PASS';assertionPassCount=12;assertionFailCount=0;errors=@()}
+        $nativeRecords = @(New-TestBoundaryPassRecords $nativeRequest @($nativeRow))
+        foreach ($record in $nativeRecords) {
+            $record['pairedConfiguration'] = [ordered]@{
+                enablePairedActivation=($record.phase -cne 'row-start');enableUnifiedMountedTurn=$false
+                enablePairedCommandScheduler=$false;enableDiagnosticOverlay=$false;overlayPresent=$false
+            }
+        }
+        [void](Write-TestBoundaryEvidence $nativeRequest.evidenceRoot $nativeRequest $nativeRecords)
+        $manifest = Read-KmcJson (Join-Path $nativeRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcBoundaryScenarioEvidence -Request $nativeRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($nativeSubresult)
+        foreach ($phase in @('mounted','pre-boundary','cleanup-latch','loading-start','loading-stop','fresh-world','row-result')) {
+            $mutated = $nativeRecords | ConvertTo-Json -Depth 30 | ConvertFrom-Json
+            @($mutated | Where-Object phase -ceq $phase)[0].pairedConfiguration.enablePairedActivation = $false
+            Assert-TestBoundaryEvidenceRejected $nativeRequest $mutated @($nativeSubresult) ('Unpaired measured phase accepted: ' + $phase)
+        }
+        foreach ($flag in @('enableUnifiedMountedTurn','enablePairedCommandScheduler','enableDiagnosticOverlay','overlayPresent')) {
+            $mutated = $nativeRecords | ConvertTo-Json -Depth 30 | ConvertFrom-Json
+            $mutated[0].pairedConfiguration.$flag = $true
+            Assert-TestBoundaryEvidenceRejected $nativeRequest $mutated @($nativeSubresult) ('Incompatible intake authority accepted: ' + $flag)
+        }
+    }
     Invoke-HarnessTest 'PASS boundary scenario rejects missing and unmanifested evidence' {
         $records = New-TestBoundaryPassRecords $boundaryRequest @($boundaryRow)
         $path = Join-Path $boundaryRequest.evidenceRoot 'boundary-scenario-evidence.jsonl'

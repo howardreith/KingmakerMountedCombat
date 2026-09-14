@@ -1,6 +1,6 @@
-# Active Chunk 4 - candidate 31, 2026-09-13 UTC
+# Active Chunk 4 - candidate 32, 2026-09-14 UTC
 
-IN PROGRESS. Published source 30 `064272b3804b561341766a73572cb90c2c2a69f9`. BC reproduced the slope-fixture failure: all 72 navmesh observations share one height plane and all 24 path callbacks were rejected. Candidate 31 uses the exact native physics-based ground projection for candidate selection; actual half-metre movement, collision, footprint, costs and all existing path/deadline gates remain mandatory. Full checks/build PASS, including traversal 131/0 and Kingmaker contracts 557/0. All 55 native transactions restored human preview.37/data. Next: commit/private package/guarded push/fresh suite and focused native slope, then remaining Chunk 4 gates. [Report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent deployment or Chunk 5 implementation.
+IN PROGRESS. Published source31 `dd442f024172bcdcaeb7499709486b0f589a1851`. BD measured nearby paths as physically level and failed before movement (20/1). BE passed47/0 native area checks but failed the outer validator: its pre-mutation row-start allowance grouped PowerShell boolean operators incorrectly. Candidate32 fixes that grouping, adds a full boundary-envelope regression, and uses farther slope candidates inside the existing33m limit. All movement/cost/cleanup assertions remain. Full32/build PASS; all57 native transactions restored actual human preview.37/data. Next private package/guarded publication/fresh suite, then new slope and area runs, RT/TB session cycles and exact-final combat regression. [Report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent deployment or Chunk5 implementation.
 ---
 ## Combined milestone disposition — 2026-09-08
 

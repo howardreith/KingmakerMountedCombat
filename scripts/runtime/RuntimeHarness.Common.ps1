@@ -8267,7 +8267,7 @@ function Assert-KmcBoundaryEvidenceRecord {
     if($Request.scenario -ceq 'chunk4-area-cleanup') {
         $kmcBoundaryFields += 'pairedConfiguration'
         Assert-KmcChunk4PairedConfiguration $Record.pairedConfiguration -AllowIntake:($Record.phase -ceq 'row-start' -or
-            $Record.phase -ceq 'row-result' -and $Record.rowStatus -ceq 'FAIL')
+            ($Record.phase -ceq 'row-result' -and $Record.rowStatus -ceq 'FAIL'))
     }
     Assert-KmcExactProperties $Record $kmcBoundaryFields 'boundary evidence record'
     if (-not (Test-KmcExactJsonInteger $Record.schemaVersion) -or [long]$Record.schemaVersion -ne 2L -or
