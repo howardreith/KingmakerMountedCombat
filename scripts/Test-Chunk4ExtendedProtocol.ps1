@@ -28,6 +28,15 @@ function New-ExtendedSessionState([bool]$exit,[bool]$dismounted) {
         targetLife=@{id='target';dead=$exit};records=0;privatePartner=$null;attachmentResidue=(!$dismounted);attachmentRestored=$dismounted;poseRestored=$dismounted}
     if($dismounted){$s.live.relationship='Unmounted'};return $s
 }
+function New-ExtendedTbSessionState([string]$spent) {
+    $s=New-ExtendedSessionState $false $false
+    $s.identity='paired-session';$s.currentActor='rider';$s.privatePartner='mount'
+    foreach($actor in @('rider','mount')){
+        $s.live.$actor.standard=if($actor -cin @($spent.Split(','))){6}else{0}
+        $s.live.$actor.move=if($actor -cin @($spent.Split(','))){3}else{0}
+    }
+    return $s
+}
 function New-ExtendedEnvelope([string]$root) {
     $rows=@()
     foreach($id in @(Get-KmcChunk4ExtendedLeaves $root)){
@@ -48,6 +57,18 @@ function New-ExtendedEnvelope([string]$root) {
                 subscriptionsAfter=(New-ExtendedSubscriptions);recordsAfter=0;
                 setupMovement=@{executor='mount';finished=$true;result='Success';pairIdle=$true;commandRemoved=$true;riderMove=0;
                     groundResult=$(if($mode -ceq 'TB'){'Success'}else{$null});groundSlotRestored=($mode -ceq 'TB')}}
+            if($mode -ceq 'TB'){
+                $first=$e.selectedFirst;$second=if($first -ceq 'rider'){'mount'}else{'rider'}
+                $e.beforeOrdinary=New-ExtendedTbSessionState ''
+                $e.ordinaryOrders=@(
+                    @{actor=$first;selected=$first;contextActor=$first;selectionFrame=1;inputFrame=4;completedFrame=6;accepted=$true;
+                        commandId=$(if($first -ceq 'rider'){1}else{2});before=(New-ExtendedTbSessionState '');
+                        afterPrediction=(New-ExtendedTbSessionState '');afterRoutine=(New-ExtendedTbSessionState $first)},
+                    @{actor=$second;selected=$second;contextActor=$second;selectionFrame=10;inputFrame=13;completedFrame=15;accepted=$true;
+                        commandId=$(if($second -ceq 'rider'){1}else{2});before=(New-ExtendedTbSessionState $first);
+                        afterPrediction=(New-ExtendedTbSessionState $first);afterRoutine=(New-ExtendedTbSessionState 'rider,mount')})
+                $e.beforeStop=New-ExtendedTbSessionState 'rider,mount';$e.afterStopInput=New-ExtendedTbSessionState 'rider,mount'
+            }
         }else{
             $ranged=$root -ceq 'chunk4-interrupt-ranged-rt';$weapon=if($ranged){'ranged'}else{'melee'};$kind=$id.Substring(('C4-INTERRUPT-'+$weapon+'-').Length)
             $firstId=if($kind -ceq 'pause-resume'){1}else{2};$other=$kind.StartsWith('retarget-') -or $kind.StartsWith('target-death-')
@@ -119,7 +140,23 @@ foreach($root in @('chunk4-interrupt-melee-rt','chunk4-interrupt-ranged-rt','chu
                 {param($e,$i) $e.rows[$i].evidence.setupMovement.riderMove=1})
             if($root.EndsWith('-tb')){$mutations+=@(
                 {param($e,$i) $e.rows[$i].evidence.setupMovement.groundResult=$null},
-                {param($e,$i) $e.rows[$i].evidence.setupMovement.groundSlotRestored=$false})}
+                {param($e,$i) $e.rows[$i].evidence.setupMovement.groundSlotRestored=$false},
+                {param($e,$i) $e.rows[$i].evidence.ordinaryOrders=@($e.rows[$i].evidence.ordinaryOrders[0])},
+                {param($e,$i) $e.rows[$i].evidence.ordinaryOrders[1].actor=$e.rows[$i].evidence.ordinaryOrders[0].actor},
+                {param($e,$i) $e.rows[$i].evidence.ordinaryOrders[0].selected='wrong'},
+                {param($e,$i) $e.rows[$i].evidence.ordinaryOrders[1].contextActor='wrong'},
+                {param($e,$i) $e.rows[$i].evidence.ordinaryOrders[0].inputFrame=2},
+                {param($e,$i) $e.rows[$i].evidence.ordinaryOrders[0].completedFrame=0},
+                {param($e,$i) $e.rows[$i].evidence.ordinaryOrders[1].selectionFrame=5},
+                {param($e,$i) $e.rows[$i].evidence.ordinaryOrders[1].accepted=$false},
+                {param($e,$i) $e.rows[$i].evidence.ordinaryOrders[1].commandId=99},
+                {param($e,$i) $e.rows[$i].evidence.ordinaryOrders[0].afterPrediction.live.rider.standard=1},
+                {param($e,$i) $e.rows[$i].evidence.ordinaryOrders[1].before.identity='new-grant'},
+                {param($e,$i) $e.rows[$i].evidence.ordinaryOrders[1].afterRoutine.currentActor='mount'},
+                {param($e,$i) $e.rows[$i].evidence.ordinaryOrders[0].afterRoutine.privatePartner=$null},
+                {param($e,$i) $row=$e.rows[$i].evidence;$actor=$row.ordinaryOrders[1].actor;$row.ordinaryOrders[0].afterRoutine.live.$actor.standard=1},
+                {param($e,$i) $row=$e.rows[$i].evidence;$actor=$row.ordinaryOrders[0].actor;$row.ordinaryOrders[1].before.live.$actor.standard=0},
+                {param($e,$i) $e.rows[$i].evidence.beforeStop.live.rider.standard=0})}
             $mutations+=@({param($e,$i) $e.rows[$i].evidence.mountedBeforeCombat=$false}, {param($e,$i) $e.rows[$i].evidence.selectedFirst='wrong'},
                 {param($e,$i) $e.rows[$i].evidence.riderCompleted=1}, {param($e,$i) $e.rows[$i].evidence.mountCompleted=0},
                 {param($e,$i) $e.rows[$i].evidence.nativeDamage=0}, {param($e,$i) $e.rows[$i].evidence.nativeEncounterExit.playerCombat=$true},

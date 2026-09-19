@@ -1,8 +1,8 @@
-# Active Chunk 4 - candidate34, 2026-09-19 UTC
+# Active Chunk 4 - candidate35, 2026-09-19 UTC
 
-IN PROGRESS. Published source33 `a024d6bb1759e57001aae361bb71559369a105dd` fixes the RT session fixture's wait for TB-only retirement fields. Candidate34 adds one exact native hub location to the slope fixture, preserving initial Working verification, campaign/actor identities, actual loading and all movement/collision/cost/deadline checks. Full34/build PASS; new native execution remains pending.
+IN PROGRESS. Published source34 `7ab1ac939a75c4abd296a005fe025605cbf75587` now has new native RT-session BJ49/0 and slope BL50/0 PASS. TB session BK46/2 FAIL exposed a diagnostic assumption: paired TB ordinary input addresses one actor, so waiting for both routines after one click stalls the fixture. Candidate35 issues both actors' ordinary inputs through settled selection and native prediction within the same paired activation. No production scheduler, costs, modes or deadlines changed. Full35/build PASS; new TB native proof remains required.
 
-BI aborted before deployment because no Steam client was running. Independent preflight audit verified unchanged preview.37, full saves/Mods/Params; native transaction count remains60, no game or lock. Owner was asked to open Steam in its usual offline state and leave Kingmaker closed. Complete the private package/publication, then only after host readiness run focused RT/TB sessions and slope before exact-final regression. [Report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent deployment or Chunk5 implementation.
+All63 completed native transactions independently restored actual preview.37 and protected data. The owner opened Steam and existing safety checks passed. No game/lock remains at this checkpoint. Next: private package/guarded publication and fresh suite35, then unique focused TB session BM, RT/slope and exact-final new/accepted regression. [Report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). Human/physical-input checks remain pending; no permanent deployment or Chunk5 implementation.
 
 ## Historical stopping checkpoint - 2026-09-14
 

@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using Kingmaker;
+using Kingmaker.EntitySystem.Entities;
 using Kingmaker.RuleSystem;
 using Kingmaker.RuleSystem.Rules.Damage;
 using Kingmaker.UI.Selection;
@@ -22,6 +23,10 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool chunk4SessionControlSent;
         private UnitMoveTo chunk4SessionSetupMove;
         private TurnController chunk4SessionSetupTurn;
+        private TurnController chunk4SessionOrdinaryTurn;
+        private TurnController chunk4SessionOrdinaryPartner;
+        private UnitEntityData chunk4SessionOrderActor;
+        private int chunk4SessionSelectionFrame;
         private JObject chunk4SessionEvidence;
         private JObject chunk4SessionSubscriptions;
         private string Chunk4SessionId => "C4-SESSION-" + (Chunk4SessionTb ? "TB-" : "RT-") + (chunk4SessionCycle + 1);
@@ -53,12 +58,41 @@ namespace KingmakerMountedCombat.Diagnostics
             ["poseRestored"] = relationship.Runtime.PoseBaselineRestoreVerified
         };
 
+        private void SelectChunk4SessionTbActor(UnitEntityData actor)
+        {
+            Game.Instance.SelectedAbilityHandler.SetAbility(null);
+            SelectionManager.Instance.SelectUnit(actor.View, true, true, false);
+            chunk4SessionOrderActor = actor;
+            chunk4SessionSelectionFrame = UnityEngine.Time.frameCount;
+            chunk4SessionStage = 9;
+        }
+
+        private void ValidateChunk4SessionRoutine(UnitAttack command)
+        {
+            if (!command.IsActed || command.GetAttackIndex() < 1 || command.GetAttackIndex() != command.AllAttacks.Count ||
+                command.Result != UnitCommand.ResultType.Success && ordinaryAttackTrace.NativeRecoveryInterrupt(command) == null)
+                throw new InvalidOperationException("Session ordinary order did not complete its real native attack routine.");
+        }
+
+        private static void AssertChunk4SessionCosts(JToken before, JToken after, string actor)
+        {
+            foreach (var cost in new[] { "standard", "move", "swift" })
+                if (!JToken.DeepEquals(before["live"][actor][cost], after["live"][actor][cost]))
+                    throw new InvalidOperationException("Session actor handoff changed a genuine " + actor + " cost.");
+        }
+
         private void TickChunk4Session()
         {
             var game = Game.Instance; var turn = game.TurnBasedCombatController.CurrentTurn;
             observations["chunk4SessionProgress"] = new JObject { ["cycle"] = chunk4SessionCycle, ["stage"] = chunk4SessionStage,
                 ["state"] = CaptureChunk4SessionState(), ["current"] = chunk4SessionEvidence };
             if (game.IsPaused) { game.IsPaused = false; return; }
+            if (Chunk4SessionTb && (chunk4SessionStage == 4 || chunk4SessionStage == 9) &&
+                (!ReferenceEquals(turn, chunk4SessionOrdinaryTurn) || turn?.Unit != rider ||
+                    !ReferenceEquals(combat.PairedPartnerContext, chunk4SessionOrdinaryPartner) ||
+                    combat.PairedPartnerContext?.Unit != horse || string.IsNullOrEmpty(combat.PairedActivationIdentity) ||
+                    (string)chunk4SessionEvidence["beforeOrdinary"]["identity"] != combat.PairedActivationIdentity))
+                throw new InvalidOperationException("Session ordinary actor orders changed paired activation or partner ownership.");
             if (chunk4SessionStage == 0)
             {
                 if (chunk4SessionCycle == 3) { BeginCleanup(); return; }
@@ -136,6 +170,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 chunk4SessionEvidence["selectedFirst"] = selected.UniqueId;
                 chunk4SessionEvidence["beforeOrdinary"] = CaptureChunk4SessionState();
                 chunk4SessionEvidence["rulesBefore"] = chunk4IncomingObserver.Capture();
+                if (Chunk4SessionTb)
+                {
+                    chunk4SessionOrdinaryTurn = turn; chunk4SessionOrdinaryPartner = combat.PairedPartnerContext;
+                    chunk4SessionEvidence["ordinaryOrders"] = new JArray();
+                    SelectChunk4SessionTbActor(selected); ResetLeafClock(); return;
+                }
                 if (!targetService.BeginExpectedAttackDispatch(target)) throw new InvalidOperationException("Session target cannot accept its ordinary native order.");
                 using (var input = new NativeOrdinaryAttackInput(target))
                 {
@@ -149,11 +189,28 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!target.Descriptor.State.IsConscious) throw new InvalidOperationException("Session target died before the measured ordinary pair routines.");
                 var riderAttack = ordinaryAttackTrace.StartedAttacks.FirstOrDefault(command => command.Executor == rider && command.IsFinished);
                 var mountAttack = ordinaryAttackTrace.StartedAttacks.FirstOrDefault(command => command.Executor == horse && command.IsFinished);
+                if (Chunk4SessionTb)
+                {
+                    // Paired TB ordinary input addresses the selected actor. Its
+                    // partner receives a separate native order in the same activation.
+                    var completed = chunk4SessionOrderActor == rider ? riderAttack : mountAttack;
+                    if (completed == null || !chunk4IncomingObserver.AllAttacksResolved || !Chunk4PairedPlayIdle) return;
+                    ValidateChunk4SessionRoutine(completed);
+                    var orders = (JArray)chunk4SessionEvidence["ordinaryOrders"];
+                    var order = (JObject)orders.Last;
+                    order["commandId"] = CaptureOrdinaryCommand(completed)["id"];
+                    order["completedFrame"] = UnityEngine.Time.frameCount;
+                    order["afterRoutine"] = CaptureChunk4SessionState();
+                    AssertChunk4SessionCosts(order["before"], order["afterRoutine"], chunk4SessionOrderActor == rider ? "mount" : "rider");
+                    if (orders.Count == 1)
+                    {
+                        SelectChunk4SessionTbActor(chunk4SessionOrderActor == rider ? horse : rider);
+                        return; // Both orders share the unchanged 30-second leaf clock.
+                    }
+                }
                 if (riderAttack == null || mountAttack == null || !chunk4IncomingObserver.AllAttacksResolved) return;
                 foreach (var command in new[] { riderAttack, mountAttack })
-                    if (!command.IsActed || command.GetAttackIndex() < 1 || command.GetAttackIndex() != command.AllAttacks.Count ||
-                        command.Result != UnitCommand.ResultType.Success && ordinaryAttackTrace.NativeRecoveryInterrupt(command) == null)
-                        throw new InvalidOperationException("Session ordinary order did not complete both real native attack routines.");
+                    ValidateChunk4SessionRoutine(command);
                 if (ruleProbe.PairForcedD20Count != 0) throw new InvalidOperationException("Session observed a forced attack result.");
                 chunk4SessionEvidence["riderRoutine"] = CaptureOrdinaryCommand(riderAttack);
                 chunk4SessionEvidence["mountRoutine"] = CaptureOrdinaryCommand(mountAttack);
@@ -166,6 +223,33 @@ namespace KingmakerMountedCombat.Diagnostics
                     if (!JToken.DeepEquals(chunk4SessionEvidence["beforeStop"]["live"][actor][cost], chunk4SessionEvidence["afterStopInput"]["live"][actor][cost]))
                         throw new InvalidOperationException("Session Stop changed a genuine native actor cost.");
                 chunk4SessionStage = 5; ResetLeafClock(); return;
+            }
+            if (chunk4SessionStage == 9)
+            {
+                if (UnityEngine.Time.frameCount < chunk4SessionSelectionFrame + 3 || !Chunk4PairedPlayIdle) return;
+                var actor = chunk4SessionOrderActor;
+                if (SelectionManager.Instance.SingleSelectedUnit != actor)
+                    throw new InvalidOperationException("Session native TB actor selection did not settle.");
+                var orders = (JArray)chunk4SessionEvidence["ordinaryOrders"];
+                var before = CaptureChunk4SessionState();
+                var previous = orders.Count == 0 ? chunk4SessionEvidence["beforeOrdinary"] : orders.Last["afterRoutine"];
+                foreach (var name in new[] { "rider", "mount" }) AssertChunk4SessionCosts(previous, before, name);
+                var context = actor == horse ? chunk4SessionOrdinaryPartner : chunk4SessionOrdinaryTurn;
+                var order = new JObject { ["actor"] = actor.UniqueId, ["selected"] = SelectionManager.Instance.SingleSelectedUnit.UniqueId,
+                    ["contextActor"] = context.Unit.UniqueId, ["selectionFrame"] = chunk4SessionSelectionFrame,
+                    ["inputFrame"] = UnityEngine.Time.frameCount, ["before"] = before };
+                if (!targetService.BeginExpectedAttackDispatch(target)) throw new InvalidOperationException("Session TB target rejected its ordinary order.");
+                using (var input = new NativeOrdinaryAttackInput(target))
+                {
+                    input.Predict(context); input.Predict(context);
+                    order["afterPrediction"] = CaptureChunk4SessionState();
+                    if (!JToken.DeepEquals(before["live"], order["afterPrediction"]["live"]))
+                        throw new InvalidOperationException("Session TB prediction changed live commands, positions or costs.");
+                    order["accepted"] = input.Click();
+                }
+                orders.Add(order);
+                if (!(bool)order["accepted"]) throw new InvalidOperationException("Session legal native TB actor order was rejected.");
+                chunk4SessionStage = 4; return;
             }
             if (chunk4SessionStage == 5)
             {

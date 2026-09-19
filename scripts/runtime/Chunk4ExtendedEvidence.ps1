@@ -164,6 +164,33 @@ function Assert-KmcChunk4SessionRow {
     Assert-KmcChunk4NativeRoutine $e.riderRoutine $e.riderCompleted $e.riderPlan $e.nativeTrace $e.beforeOrdinary.live.rider.id
     Assert-KmcChunk4NativeRoutine $e.mountRoutine $e.mountCompleted $e.mountPlan $e.nativeTrace $e.beforeOrdinary.live.mount.id
     $selected=if($e.cycle -eq 2){$e.beforeOrdinary.live.mount.id}else{$e.beforeOrdinary.live.rider.id}
+    if($e.mode -ceq 'TB'){
+        $orders=@($e.ordinaryOrders)
+        $first=if($e.cycle -eq 2){'mount'}else{'rider'};$second=if($first -ceq 'rider'){'mount'}else{'rider'}
+        if($orders.Count -ne 2 -or [string]::IsNullOrWhiteSpace($e.beforeOrdinary.identity)){throw 'TB session needs two ordinary actor orders in one real paired activation.'}
+        $previous=$e.beforeOrdinary
+        for($index=0;$index -lt 2;$index++){
+            $actor=if($index -eq 0){$first}else{$second};$other=if($actor -ceq 'rider'){'mount'}else{'rider'}
+            $order=$orders[$index];$actorId=$e.beforeOrdinary.live.$actor.id
+            $routine=if($actor -ceq 'rider'){$e.riderRoutine}else{$e.mountRoutine}
+            if($order.actor -cne $actorId -or $order.selected -cne $actorId -or $order.contextActor -cne $actorId -or
+                !(Test-KmcExactJsonInteger $order.selectionFrame) -or !(Test-KmcExactJsonInteger $order.inputFrame) -or
+                !(Test-KmcExactJsonInteger $order.completedFrame) -or $order.completedFrame -le $order.inputFrame -or
+                ($index -eq 1 -and $order.selectionFrame -lt $orders[0].completedFrame) -or
+                $order.inputFrame -lt $order.selectionFrame+3 -or $order.accepted -ne $true -or $order.commandId -ne $routine.id){throw 'TB session ordinary order lost settled selection, complete handoff, native context or real command identity.'}
+            foreach($state in @($order.before,$order.afterPrediction,$order.afterRoutine)){
+                if($state.identity -cne $e.beforeOrdinary.identity -or $state.currentActor -cne $e.beforeOrdinary.live.rider.id -or
+                    $state.privatePartner -cne $e.beforeOrdinary.live.mount.id -or $state.tbActive -ne $true -or $state.tbInitialized -ne $true){throw 'TB session actor handoff changed paired ownership or native activation.'}
+            }
+            Assert-KmcChunk4SameCosts $previous.live $order.before.live
+            Assert-KmcChunk4SameCosts $order.before.live $order.afterPrediction.live
+            foreach($cost in @('standard','move','swift')){
+                if($order.before.live.$other.$cost -ne $order.afterRoutine.live.$other.$cost){throw 'TB session ordinary routine spent or refunded its partner budget.'}
+            }
+            $previous=$order.afterRoutine
+        }
+        Assert-KmcChunk4SameCosts $previous.live $e.beforeStop.live
+    }
     if($e.selectedFirst -cne $selected -or $e.beforeOrdinary.live.relationship -cne 'Mounted' -or
         $e.beforeDeath.playerCombat -ne $true -or $e.damageDispatches -ne 1 -or $e.nativeDamage -le 0 -or $e.nativeLifeTransitions -lt 1 -or
         $e.nativeEncounterExit.targetLife.dead -ne $true){throw 'Session did not exercise ordinary selection and actual native enemy death.'}
