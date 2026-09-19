@@ -106,10 +106,20 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (chunk4SessionStage == 2)
             {
-                if (!chunk4SessionSetupMove.IsFinished || !Chunk4PairedPlayIdle || combat.LastGroundMoveResult == null || !combat.LastGroundMoveSlotRestored) return;
+                var movement = new JObject { ["executor"] = chunk4SessionSetupMove.Executor?.UniqueId,
+                    ["finished"] = chunk4SessionSetupMove.IsFinished, ["result"] = chunk4SessionSetupMove.Result.ToString(),
+                    ["pairIdle"] = Chunk4PairedPlayIdle, ["commandRemoved"] = !horse.Commands.Contains(chunk4SessionSetupMove),
+                    ["riderMove"] = rider.CombatState.Cooldown.MoveAction,
+                    ["groundResult"] = combat.LastGroundMoveResult, ["groundSlotRestored"] = combat.LastGroundMoveSlotRestored };
+                observations["chunk4SessionSetupMovement"] = movement;
+                if (!chunk4SessionSetupMove.IsFinished || !Chunk4PairedPlayIdle || horse.Commands.Contains(chunk4SessionSetupMove)) return;
+                // RT executes and retires the ordinary native Move command directly.
+                // The rider-turn adapter's terminal fields are populated only in TB.
+                if (Chunk4SessionTb && (combat.LastGroundMoveResult == null || !combat.LastGroundMoveSlotRestored)) return;
                 if (chunk4SessionSetupMove.Result != UnitCommand.ResultType.Success || rider.CombatState.Cooldown.MoveAction > 0.001f)
                     throw new InvalidOperationException("Session setup movement failed or taxed the rider.");
                 if (Chunk4SessionTb && ReferenceEquals(turn, chunk4SessionSetupTurn)) { TryEndPhase3gFixtureTurn(turn); return; }
+                chunk4SessionEvidence["setupMovement"] = movement.DeepClone();
                 chunk4SessionStage = 3; ResetLeafClock(); return;
             }
             if (chunk4SessionStage == 3)

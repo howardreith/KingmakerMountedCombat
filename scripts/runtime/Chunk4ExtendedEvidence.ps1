@@ -154,6 +154,11 @@ function Assert-KmcChunk4SessionRow {
     param($e,$SubscriptionsBefore)
     if($e.mode -cnotin @('RT','TB') -or $e.cycle -lt 1 -or $e.cycle -gt 3 -or $e.caseId -cne "C4-SESSION-$($e.mode)-$($e.cycle)" -or
         $e.inputKind -cne 'native-mount-ordinary-pointer-combat-exit-dismount' -or $e.mountedBeforeCombat -ne $true){throw 'Session lacks exact ordinary pre-combat cycle identity.'}
+    $move=$e.setupMovement
+    if($move.executor -cne $e.beforeOrdinary.live.mount.id -or $move.finished -ne $true -or $move.result -cne 'Success' -or
+        $move.pairIdle -ne $true -or $move.commandRemoved -ne $true -or
+        !(Test-KmcFiniteNonnegativeJsonNumber $move.riderMove) -or [double]$move.riderMove -gt .001){throw 'Session setup lacks completed native mount movement, empty slots or rider cost preservation.'}
+    if($e.mode -ceq 'TB' -and ($move.groundResult -cne 'Success' -or $move.groundSlotRestored -ne $true)){throw 'TB session setup lacks native rider-turn movement retirement.'}
     Assert-KmcChunk4ResolvedRules $e.rulesAfter
     Assert-KmcChunk4SameCosts $e.beforeStop.live $e.afterStopInput.live
     Assert-KmcChunk4NativeRoutine $e.riderRoutine $e.riderCompleted $e.riderPlan $e.nativeTrace $e.beforeOrdinary.live.rider.id

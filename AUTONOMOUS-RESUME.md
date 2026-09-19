@@ -1,4 +1,12 @@
-# Chunk 4 resume - stopped safely at owner request, 2026-09-14 UTC
+# Chunk 4 resume - active again, 2026-09-19 UTC
+
+Owner resumed from exact local/remote `6847e93184cf34ab30885a9357565f60c2b2488d`, clean at intake. Fresh `analysis-cache/chunk4-native/intake-resume-20260919.json` and immutable Params copy match prior saves/Mods/Params; no game or lock. Use `Audit-Restoration33.ps1` for future runs against this fresh intake, never rerun old audits. Actual human preview.37 remains installed.
+
+Candidate33 corrects a diagnostic-only BH cause: `TryAdmitGroundCommand` returns for RT before arming the rider-turn adapter; `LastGroundMoveResult`/`LastGroundMoveSlotRestored` are TB-only completion fields. The RT fixture waited for them after native slots had emptied. It now observes exact UnitMoveTo completion, successful result, mount ownership, idle pair, command removal and zero rider Move cost; TB still requires its adapter terminal evidence. A durable movement snapshot makes each predicate observable. No production path/cost/clock change. New envelope regression first rejects the missing validation, then319/0 PASS; Release build/source and full tests33 PASS, exit0. Native RT and TB reruns required; BH remains FAIL.
+
+Next inspect local ACTIVE-RUN.json, finish full checks/commit/private package/fresh suite for33, then unique `20260919-chunk4-BI` / `chunk4-session-rt` and TB. No candidate33 native evidence exists at this entry. Retained WhatIf30 covers unchanged transaction/admission/WhatIf functions; only the pure extended evidence validator changed since32. Do not relabel parser tests as gameplay. Exact live session/payload/next command stays in ACTIVE-RUN. Historical stopping record and accepted identities follow.
+
+## Previous stopping checkpoint - 2026-09-14
 
 IN PROGRESS. Branch `codex/mounted-combat-phase3f-playable-core`; published source32 `751f164817c76a56129b46552ff32224fc1f5776`, version `0.1.0-chunk4-preview.32`. The owner requested a stopping point and push with 3% weekly capacity remaining. BH finished, restoration was independently audited, and no further native run or implementation was started. This is a documentation-only checkpoint; it does not change the tested payload. See [the single report](docs/CHUNK4-PLAYABILITY.md) and journal for earlier accepted results and original failures.
 

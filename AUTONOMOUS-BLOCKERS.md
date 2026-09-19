@@ -1,4 +1,8 @@
-# Active Chunk 4 - owner-requested stopping checkpoint, 2026-09-14 UTC
+# Active Chunk 4 - resumed, 2026-09-19 UTC
+
+IN PROGRESS. Owner resumed from published6847e93. BH's RT fixture incorrectly waited for TB-only terminal bookkeeping; candidate33 fixes that diagnostic predicate and adds strict native command/slot/cost evidence. Focused319/0/build PASS; new native RT/TB session evidence remains required. No production gameplay change. Fresh actual human intake matches previous saves/Mods/Params, with preview.37 installed and no runtime active. Slope needs a different physical location; exact-final regression and HUMAN PLAY/HUD/physical input remain open. Chunk5 is roadmap only.
+
+## Historical stopping checkpoint - 2026-09-14
 
 IN PROGRESS, paused at the owner's request. Published gameplay/test source `751f164817c76a56129b46552ff32224fc1f5776`, private `0.1.0-chunk4-preview.32`. BG passed same-area native reload/cleanup, 47/0 native and outer. BF slope search failed before movement, 20/1; BH RT session setup timed out at Phase3gControls before any cycle, 46/2. Full32 checks/build/package passed. All 60 transactions independently restored actual human preview.37, saves, full Mods and settings; no game or lock remains. This checkpoint updates documentation only, with no new package or installation.
 

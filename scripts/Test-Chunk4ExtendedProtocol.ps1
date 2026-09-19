@@ -45,7 +45,9 @@ function New-ExtendedEnvelope([string]$root) {
                 nativeTrace=@((New-ExtendedTrace 1 'rider' 'target')+(New-ExtendedTrace 2 'mount' 'target'));rulesAfter=(New-ExtendedRules);
                 damageDispatches=1;nativeDamage=50;nativeLifeTransitions=1;nativeEncounterExit=(New-ExtendedSessionState $true $false);
                 afterDismount=(New-ExtendedSessionState $true $true);settledAfter=(New-ExtendedSessionState $true $true);
-                subscriptionsAfter=(New-ExtendedSubscriptions);recordsAfter=0}
+                subscriptionsAfter=(New-ExtendedSubscriptions);recordsAfter=0;
+                setupMovement=@{executor='mount';finished=$true;result='Success';pairIdle=$true;commandRemoved=$true;riderMove=0;
+                    groundResult=$(if($mode -ceq 'TB'){'Success'}else{$null});groundSlotRestored=($mode -ceq 'TB')}}
         }else{
             $ranged=$root -ceq 'chunk4-interrupt-ranged-rt';$weapon=if($ranged){'ranged'}else{'melee'};$kind=$id.Substring(('C4-INTERRUPT-'+$weapon+'-').Length)
             $firstId=if($kind -ceq 'pause-resume'){1}else{2};$other=$kind.StartsWith('retarget-') -or $kind.StartsWith('target-death-')
@@ -109,6 +111,15 @@ foreach($root in @('chunk4-interrupt-melee-rt','chunk4-interrupt-ranged-rt','chu
                 {param($e,$i) $e.rows[$i].evidence.shown=$false}, {param($e,$i) $e.rows[$i].evidence.screenIndex=0},
                 {param($e,$i) $e.rows[$i].evidence.after.rider.move=1}, {param($e,$i) $e.observations.chunk4InspectionClosed=$false})
         }elseif($id.StartsWith('C4-SESSION-')){
+            $mutations+=@({param($e,$i) $e.rows[$i].evidence.setupMovement.finished=$false},
+                {param($e,$i) $e.rows[$i].evidence.setupMovement.result='Interrupt'},
+                {param($e,$i) $e.rows[$i].evidence.setupMovement.executor='rider'},
+                {param($e,$i) $e.rows[$i].evidence.setupMovement.commandRemoved=$false},
+                {param($e,$i) $e.rows[$i].evidence.setupMovement.pairIdle=$false},
+                {param($e,$i) $e.rows[$i].evidence.setupMovement.riderMove=1})
+            if($root.EndsWith('-tb')){$mutations+=@(
+                {param($e,$i) $e.rows[$i].evidence.setupMovement.groundResult=$null},
+                {param($e,$i) $e.rows[$i].evidence.setupMovement.groundSlotRestored=$false})}
             $mutations+=@({param($e,$i) $e.rows[$i].evidence.mountedBeforeCombat=$false}, {param($e,$i) $e.rows[$i].evidence.selectedFirst='wrong'},
                 {param($e,$i) $e.rows[$i].evidence.riderCompleted=1}, {param($e,$i) $e.rows[$i].evidence.mountCompleted=0},
                 {param($e,$i) $e.rows[$i].evidence.nativeDamage=0}, {param($e,$i) $e.rows[$i].evidence.nativeEncounterExit.playerCombat=$true},
