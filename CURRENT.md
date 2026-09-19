@@ -1,8 +1,8 @@
-# Active Chunk 4 - resumed, 2026-09-19 UTC
+# Active Chunk 4 - candidate34, 2026-09-19 UTC
 
-IN PROGRESS. Owner resumed from published checkpoint `6847e93184cf34ab30885a9357565f60c2b2488d`; no newer local or remote work. Fresh actual saves, Mods and UMM settings match prior intake, with human preview.37 intact. Candidate33 corrects BH's diagnostic RT setup wait for TB-only terminal fields, retaining actual native command/slot/cost checks and unchanged deadlines. Full33 checks/build PASS, including extended319/0; new native session runs pending. No gameplay or scheduler change. All60 completed native transactions remain restored.
+IN PROGRESS. Published source33 `a024d6bb1759e57001aae361bb71559369a105dd` fixes the RT session fixture's wait for TB-only retirement fields. Candidate34 adds one exact native hub location to the slope fixture, preserving initial Working verification, campaign/actor identities, actual loading and all movement/collision/cost/deadline checks. Full34/build PASS; new native execution remains pending.
 
-Next qualify the corrected RT/TB session fixture, then a different physical slope location and exact-final new cases plus paired full-round/A05/A10/Horse/Mammoth regression. BG's source32 same-area cleanup47/0 and prior scoped results retain their actual scope. Do not replay level Dwarf_1 paths or weaken deadlines. [Report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). Chunk4 is incomplete; no Chunk5 implementation.
+BI aborted before deployment because no Steam client was running. Independent preflight audit verified unchanged preview.37, full saves/Mods/Params; native transaction count remains60, no game or lock. Owner was asked to open Steam in its usual offline state and leave Kingmaker closed. Complete the private package/publication, then only after host readiness run focused RT/TB sessions and slope before exact-final regression. [Report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent deployment or Chunk5 implementation.
 
 ---
 # Combined actor-allocation and paired-activation milestone

@@ -1,6 +1,8 @@
-# Active Chunk 4 - resumed, 2026-09-19 UTC
+# Active Chunk 4 - candidate34, 2026-09-19 UTC
 
-IN PROGRESS. Owner resumed from published6847e93. BH's RT fixture incorrectly waited for TB-only terminal bookkeeping; candidate33 fixes that diagnostic predicate and adds strict native command/slot/cost evidence. Focused319/0/build PASS; new native RT/TB session evidence remains required. No production gameplay change. Fresh actual human intake matches previous saves/Mods/Params, with preview.37 installed and no runtime active. Slope needs a different physical location; exact-final regression and HUMAN PLAY/HUD/physical input remain open. Chunk5 is roadmap only.
+IN PROGRESS. Published source33 `a024d6bb1759e57001aae361bb71559369a105dd` fixes the RT session fixture's wait for TB-only retirement fields. Candidate34 adds one exact native hub location to the slope fixture, preserving initial Working verification, campaign/actor identities, actual loading and all movement/collision/cost/deadline checks. Full34/build PASS; new native execution remains pending.
+
+BI aborted before deployment because no Steam client was running. Independent preflight audit verified unchanged preview.37, full saves/Mods/Params; native transaction count remains60, no game or lock. Owner was asked to open Steam in its usual offline state and leave Kingmaker closed. Complete the private package/publication, then only after host readiness run focused RT/TB sessions and slope before exact-final regression. [Report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent deployment or Chunk5 implementation.
 
 ## Historical stopping checkpoint - 2026-09-14
 

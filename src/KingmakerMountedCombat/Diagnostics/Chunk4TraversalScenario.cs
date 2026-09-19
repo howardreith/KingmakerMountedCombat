@@ -148,6 +148,7 @@ namespace KingmakerMountedCombat.Diagnostics
         }
 
         private JObject CaptureChunk4Slope() => new JObject { ["startY"] = chunk4SlopeStartY,
+            ["location"] = slopeLocation.DeepClone(),
             ["riderMoveBefore"] = chunk4SlopeRiderMove, ["minimumY"] = chunk4SlopeMinimum,
             ["maximumY"] = chunk4SlopeMaximum, ["heightChange"] = chunk4SlopeMaximum - chunk4SlopeMinimum,
             ["discovery"] = new JObject { ["surfaces"] = chunk4SlopeSurfaces.DeepClone(), ["probes"] = chunk4SlopeProbes.DeepClone() },

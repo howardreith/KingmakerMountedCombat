@@ -23,7 +23,8 @@ function Assert-KmcChunk4PairedConfiguration {
 }
 function Assert-KmcChunk4NativeSlope {
     param($Value)
-    Assert-KmcExactProperties $Value @('startY','riderMoveBefore','minimumY','maximumY','heightChange','dropped','samples','discovery') 'Chunk 4 native slope'
+    Assert-KmcExactProperties $Value @('startY','riderMoveBefore','minimumY','maximumY','heightChange','dropped','samples','discovery','location') 'Chunk 4 native slope'
+    Assert-KmcChunk4SlopeLocation $Value.location
     Assert-KmcChunk4SlopeDiscovery $Value.discovery
     foreach($kmcName in @('startY','riderMoveBefore','minimumY','maximumY','heightChange')) {
         if(!(Test-KmcJsonNumber $Value.$kmcName) -or [double]::IsNaN([double]$Value.$kmcName) -or [double]::IsInfinity([double]$Value.$kmcName)) { throw 'Slope values must be finite JSON numbers.' }
@@ -50,6 +51,28 @@ function Assert-KmcChunk4NativeSlope {
     if($kmcMax-$kmcMin -lt 0.5 -or [Math]::Abs([double]$Value.minimumY-$kmcMin) -gt 0.000001 -or
         [Math]::Abs([double]$Value.maximumY-$kmcMax) -gt 0.000001 -or
         [Math]::Abs([double]$Value.heightChange-($kmcMax-$kmcMin)) -gt 0.000001) { throw 'Slope extent must reconcile to at least half a metre of actual native motion.' }
+}
+function Assert-KmcChunk4SlopeLocation {
+    param($Value)
+    Assert-KmcExactProperties $Value @('method','entry','autoSave','dispatches','loadingFrames','stableFrames','status','failure','before','after') 'Native slope location'
+    if($Value.method -cne 'Game.LoadArea/06000CC9' -or $Value.entry -cne '104849f5f7ea36748aeeb036551047a9' -or
+        $Value.autoSave -cne 'None' -or $Value.status -cne 'ready' -or $null -ne $Value.failure){throw 'Slope location did not use the exact native entry without autosave.'}
+    foreach($name in @('dispatches','loadingFrames','stableFrames')){
+        if(!(Test-KmcExactJsonInteger $Value.$name)){throw 'Native slope location counts must be exact integers.'}
+    }
+    if($Value.dispatches -ne 1 -or $Value.loadingFrames -lt 1 -or $Value.stableFrames -ne 10){throw 'Slope location requires one actual load and ten stable native world frames.'}
+    foreach($state in @($Value.before,$Value.after)){
+        Assert-KmcExactProperties $state @('game','main','rider','mount','area','mode','combat','relationship','viewsReady') 'Slope location identity'
+        foreach($name in @('game','main','rider','mount','area')){
+            if($state.$name -isnot [string] -or [string]::IsNullOrWhiteSpace($state.$name)){throw 'Slope location identity is missing.'}
+        }
+        if($state.rider -ceq $state.mount -or $state.mode -cne 'Default' -or $state.relationship -cne 'Unmounted' -or
+            $state.combat -isnot [bool] -or $state.combat -or $state.viewsReady -isnot [bool] -or !$state.viewsReady){throw 'Slope location must preserve an idle unmounted pair with actual native views.'}
+    }
+    if($Value.before.area -cne '9d1278a2f599b2a4daab53abdfe88d2e' -or $Value.after.area -cne 'fd1b6fa9f788ca24e86bd922a10da080'){throw 'Slope location used an unexpected source or destination area.'}
+    foreach($name in @('game','main','rider','mount')){
+        if($Value.before.$name -cne $Value.after.$name){throw 'Native slope loading changed campaign or actor identity.'}
+    }
 }
 function Assert-KmcChunk4SlopeDiscovery {
     param($Value)

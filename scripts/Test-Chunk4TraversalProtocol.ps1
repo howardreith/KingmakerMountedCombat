@@ -21,6 +21,10 @@ foreach($kmcCounts in @(@(0,0),@(8,8),@(7,8),@(10,0))) {
 function New-SlopeEnvelope {
     # Parser envelope only, never native evidence.
     return (@{startY=2; riderMoveBefore=0; minimumY=2; maximumY=2.75; heightChange=.75; dropped=0;
+        location=@{method='Game.LoadArea/06000CC9';entry='104849f5f7ea36748aeeb036551047a9';autoSave='None';dispatches=1;
+            loadingFrames=2;stableFrames=10;status='ready';failure=$null;
+            before=@{game='working';main='rider';rider='rider';mount='mount';area='9d1278a2f599b2a4daab53abdfe88d2e';mode='Default';combat=$false;relationship='Unmounted';viewsReady=$true};
+            after=@{game='working';main='rider';rider='rider';mount='mount';area='fd1b6fa9f788ca24e86bd922a10da080';mode='Default';combat=$false;relationship='Unmounted';viewsReady=$true}};
         discovery=@{surfaces=@(@{frame=1;requested=@(0,2,0);nodePresent=$true;walkable=$true;clamped=@(0,2,0)});
             # A flat navmesh plane does not describe native physical ground height.
             probes=@(@{frame=2;requested=@(0,2,5);endpoint=@(0,2.431,5);points=3;minimumY=2;maximumY=2.431;
@@ -40,6 +44,24 @@ function Reject-Slope([scriptblock]$Change) {
     $script:kmcPass++
 }
 Assert-KmcChunk4NativeSlope (New-SlopeEnvelope); $kmcPass++
+Reject-Slope {param($e) $e.location.entry='f774de83bb5fee442a5633679e5fef32'}
+Reject-Slope {param($e) $e.location.method='teleport'}
+Reject-Slope {param($e) $e.location.autoSave='AfterEntry'}
+Reject-Slope {param($e) $e.location.dispatches=2}
+Reject-Slope {param($e) $e.location.loadingFrames=0}
+Reject-Slope {param($e) $e.location.stableFrames=9}
+Reject-Slope {param($e) $e.location.status='loading'}
+Reject-Slope {param($e) $e.location.failure='failed'}
+Reject-Slope {param($e) $e.location.before.area=$e.location.after.area}
+Reject-Slope {param($e) $e.location.after.area=$e.location.before.area}
+Reject-Slope {param($e) $e.location.after.game='another campaign'}
+Reject-Slope {param($e) $e.location.after.main='another actor'}
+Reject-Slope {param($e) $e.location.after.rider='another actor'}
+Reject-Slope {param($e) $e.location.after.mount='another actor'}
+Reject-Slope {param($e) $e.location.after.viewsReady=$false}
+Reject-Slope {param($e) $e.location.after.combat=$true}
+Reject-Slope {param($e) $e.location.after.mode='Dialog'}
+Reject-Slope {param($e) $e.location.after.relationship='Mounted'}
 Reject-Slope {param($e) $e.heightChange=.5}
 Reject-Slope {param($e) $e.maximumY=3}
 Reject-Slope {param($e) $e.minimumY=1}

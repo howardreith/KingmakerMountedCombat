@@ -29,7 +29,8 @@ namespace KingmakerMountedCombat.Diagnostics
     /// Frame-driven, save-independent-in-process executor for the eight Phase 1
     /// movement rows. The containing harness owns fixture and Mods restoration;
     /// this type never invokes a save API and changes only movement, selection,
-    /// pause, and the explicitly scoped mounted relationship.
+    /// pause, and the explicitly scoped mounted relationship. The Chunk 4 slope
+    /// fixture also loads one exact native area with autosave disabled.
     /// </summary>
     internal sealed partial class RuntimeMovementScenarioEngine : IDisposable
     {
@@ -566,6 +567,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     case EngineStep.BeginRow:
                         BeginRow();
                         break;
+                    case EngineStep.PrepareSlopeLocation:
+                        AdvanceSlopeLocation();
+                        break;
                     case EngineStep.ExecuteRow:
                         AdvanceCurrentRow();
                         break;
@@ -677,6 +681,17 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
+            if (currentRow == Chunk4SlopeRow)
+            {
+                step = EngineStep.PrepareSlopeLocation;
+                AdvanceSlopeLocation();
+                return;
+            }
+            BeginPreparedMovementRow();
+        }
+
+        private void BeginPreparedMovementRow()
+        {
             string pairError;
             if (!relationship.TryResolveAutomationPair(out rider, out mount, out pairError))
             {
@@ -4756,6 +4771,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private enum EngineStep
         {
             BeginRow,
+            PrepareSlopeLocation,
             ExecuteRow,
             AwaitPreCleanupCaptures,
             AwaitCleanupFrame,

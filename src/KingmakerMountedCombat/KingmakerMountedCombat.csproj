@@ -247,6 +247,7 @@
     <Compile Include="Diagnostics\Chunk4NativeAreaObservation.cs" />
     <Compile Include="Diagnostics\Chunk4ObstructionScenario.cs" />
     <Compile Include="Diagnostics\Chunk4TraversalScenario.cs" />
+    <Compile Include="Diagnostics\Chunk4SlopeLocation.cs" />
     <Compile Include="Diagnostics\Chunk4BlockedDoorScenario.cs" />
     <Compile Include="Diagnostics\Chunk4NativeLifeScenario.cs" />
     <Compile Include="Diagnostics\NativeDeathPolicyLease.cs" />
