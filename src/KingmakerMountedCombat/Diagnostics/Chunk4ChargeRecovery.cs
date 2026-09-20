@@ -68,8 +68,19 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 game.SelectedAbilityHandler.SetAbility(null);
                 SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
-                var destination = FindWalkablePoint(horse.Position, 2.5f, 0.5f, point =>
-                    HorizontalDistance(point, target.Position) < HorizontalDistance(horse.Position, target.Position));
+                var candidates = new JArray();
+                chunk4ChargeRecovery["moveDestinationSearch"] = candidates;
+                var destination = FindWalkablePoint(horse.Position, 2.5f, 0.5f, point => {
+                    var footprint = NativeGroundMovementObservation.CaptureFootprint(horse, point);
+                    var towardTarget = HorizontalDistance(point, target.Position) < HorizontalDistance(horse.Position, target.Position);
+                    // FA reproduces the native edge interruption while unmounted
+                    // as well. Qualify recovery on a real interior destination;
+                    // retain the original failed route and all arrival assertions.
+                    var eligible = towardTarget && ((JArray)footprint["probes"]).All(probe => (float)probe["residual"] < 0.001f);
+                    candidates.Add(new JObject { ["point"] = CapturePosition(point), ["towardTarget"] = towardTarget,
+                        ["footprint"] = footprint, ["eligible"] = eligible });
+                    return eligible;
+                });
                 // Observe the real endpoint and native obstacles before input.
                 // Do not reinterpret an Interrupt as successful legal movement.
                 chunk4ChargeRecovery["moveDestination"] = CapturePosition(destination);

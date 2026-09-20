@@ -1,6 +1,6 @@
 ## Active Chunk 4 checkpoint - 2026-09-20 UTC
 
-EZ50 ground comparison46/4 FAIL proves native rider clearance after Dismount; mounted arrival interruption repeats. Opposite native stopping residuals leave setup origins.06215m apart/.06m gate, so unmounted measurement remains pending.51 targets the actual first origin, with unchanged native movement/matching requirements. Next FA; all102 native transactions plus EX prelaunch restored. Exact evidence and remaining gates: [single report](../docs/CHUNK4-PLAYABILITY.md). No HUMAN PLAY or persistence claim.
+FA51 native/outer46/4 FAIL now records matched mounted/unmounted native endpoint interruptions at the same navmesh edge. A later automatic attack prevents finalizing the unmounted row.52 reasserts existing post-Dismount fixture AI isolation and uses full-footprint interior Charge recovery destinations, preserving all limits and native results. Next FB comparison and FC/FD Charge. All103 native transactions plus EX prelaunch restored. Exact evidence and remaining gates: [single report](../docs/CHUNK4-PLAYABILITY.md). No HUMAN PLAY or persistence claim.
 
 ## Chunk 2 current scenario pointer
 

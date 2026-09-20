@@ -98,6 +98,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (!IsCombatReady(Chunk4GroundMounted) || CombatController.IsInTurnBasedCombat() || !Chunk4PairedPlayIdle ||
                     !rider.CombatState.CanActInCombat || !horse.CombatState.CanActInCombat) return;
+                if (!ValidateUnmountedHorseAiIsolation() || !ValidateCombatMountRiderAiIsolation()) return;
                 chunk4GroundMove = BeginChunk4GroundInput(Chunk4GroundMounted ? rider : horse, horse, Chunk4GroundPositioningOrigin, Chunk4GroundId + "-positioning");
                 chunk4GroundStage = 2; ResetLeafClock(); return;
             }
@@ -105,6 +106,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (!chunk4GroundMove.IsFinished || !Chunk4PairedPlayIdle || !rider.CombatState.CanActInCombat ||
                     !horse.CombatState.CanActInCombat) return;
+                if (!ValidateUnmountedHorseAiIsolation() || !ValidateCombatMountRiderAiIsolation()) return;
                 var setup = new JObject { ["command"] = CaptureOrdinaryCommand(chunk4GroundMove), ["actual"] = CapturePosition(horse.Position),
                     ["requested"] = CapturePosition(Chunk4GroundPositioningOrigin), ["residual"] = HorizontalDistance(horse.Position, Chunk4GroundPositioningOrigin),
                     ["trace"] = ordinaryAttackTrace.CaptureCaseEvents(Chunk4GroundId + "-positioning") };
@@ -125,6 +127,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["originMatchDistance"] = match, ["originTolerance"] = MountedCombatSpatialPolicy.DiagnosticPlacementTolerance,
                     ["originFootprint"] = NativeGroundMovementObservation.CaptureFootprint(horse, chunk4GroundStart),
                     ["destinationFootprint"] = NativeGroundMovementObservation.CaptureFootprint(horse, Chunk4GroundDestination),
+                    ["horseAiIsolation"] = CaptureUnmountedHorseAiIsolation(),
                     ["riderCanAct"] = rider.CombatState.CanActInCombat, ["mountCanAct"] = horse.CombatState.CanActInCombat,
                     ["selected"] = (Chunk4GroundMounted ? rider : horse).UniqueId, ["samples"] = new JArray() };
                 observations[Chunk4GroundId] = chunk4GroundEvidence;
@@ -164,6 +167,16 @@ namespace KingmakerMountedCombat.Diagnostics
                     if (!chunk4GroundControlSent) chunk4GroundControlSent = TryNativeAbilityTargetClick(nativeControls.DismountAbility, rider, "ground-comparison-dismount");
                     return;
                 }
+                // Dismount restores the relationship's earlier AI snapshot. The
+                // diagnostic lease was acquired while mounted, so reassert its
+                // existing snapshot only at this empty native command boundary.
+                var aiIsolation = new JObject { ["rawBefore"] = (bool)AiBackingField.GetValue(horse),
+                    ["effectiveBefore"] = horse.IsAIEnabled };
+                unmountedHorseAiLease.ReassertAfterNativeReset(new[] { horse });
+                aiIsolation["rawAfter"] = (bool)AiBackingField.GetValue(horse);
+                aiIsolation["effectiveAfter"] = horse.IsAIEnabled;
+                aiIsolation["lease"] = CaptureUnmountedHorseAiIsolation();
+                observations["groundDismountAiIsolation"] = aiIsolation;
                 // The native rider is a real obstacle after Dismount. Move it
                 // away through ordinary controls before measuring the Horse.
                 var away = FindChunk4GroundRiderClearance();

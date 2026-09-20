@@ -1,8 +1,8 @@
-# Active Chunk 4 - native control positioning51, 2026-09-20 UTC
+# Active Chunk 4 - native edge control and recovery fixture52, 2026-09-20 UTC
 
-IN PROGRESS. Published source50 d6bbb2bb20268086bba3bd6a28a0086893d7f1ed newly proves native rider clearance after actual Dismount. The mounted ground failure remains; the unmounted setup reaches its point but two opposite native stopping residuals leave origins.06215m apart, exceeding.06m. Candidate51 targets the observed mounted start for the control, retaining both native movement and the unchanged matching gate. Unmounted attribution remains pending; no gameplay repair.
+IN PROGRESS. FA on published source51 c7c2998b2e4c5aca9c30afdaa43d07a7f74fb493 reproduces the same native endpoint interruption while unmounted, with matched origins and the full Horse footprint. The wrapper remains FAIL because a later automatic attack outlasts its observation capacity.52 reasserts the existing diagnostic AI lease after Dismount and selects full-footprint interior destinations for Charge recovery. Native movement and every result/cost/arrival bound stay unchanged.
 
-All102 native transactions and EX prelaunch restored actual preview37/human data. Next: commit/package/guarded publication/suite51, unchanged-guard proof/exact request validation, then unused FA ground comparison. Continue required exact-final Chunk4 and paired/A05/A10/Horse/Mammoth gates after attribution. [Report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent installation or Chunk5 work.
+All103 native transactions plus EX prelaunch restored actual preview37/human data. Next: publish/package/snapshot52, FB focused comparison and FC/FD Charge; then all required exact-final Chunk4 and paired/A05/A10/Horse/Mammoth gates. [Report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent installation or Chunk5 work.
 
 ---
 ## Combined milestone disposition — 2026-09-08
