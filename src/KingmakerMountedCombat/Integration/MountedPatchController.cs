@@ -790,7 +790,8 @@ namespace KingmakerMountedCombat.Integration
             {
                 if (__state)
                 {
-                    PatchBridge.Persistence?.SelectLoad(saveInfo);
+                    if (PatchBridge.Persistence != null)
+                        __result = PatchBridge.Persistence.WrapLoadRoutine(__result, saveInfo);
                     __result = NativePersistenceIsolation.WrapReadOnlyLoad(__result, saveInfo.FolderName);
                 }
             }

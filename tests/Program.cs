@@ -103,6 +103,7 @@ namespace KingmakerMountedCombat.Tests
             });
             RuntimeSaveAuthorizationTests.Register(runner);
             ScopedEnumeratorTests.Register(runner);
+            NativeLoadWorldTests.Register(runner);
             PersistenceSaveAuthorizationTests.Register(runner);
             WorkingFixtureLoadWatchdogTests.Register(runner);
             SustainedRoutineProgressTests.Register(runner);

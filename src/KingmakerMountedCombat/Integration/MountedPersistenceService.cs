@@ -19,6 +19,8 @@ namespace KingmakerMountedCombat.Integration
         private readonly DiagnosticSettings settings;
         private readonly IModLogger logger;
         private SaveScope activeSave;
+        private long loadSequence;
+        private LoadScope restoreLoad;
         private MountedSaveReadResult loaded;
         private string selectedCampaign;
         private bool presentationPending;
@@ -143,13 +145,48 @@ namespace KingmakerMountedCombat.Integration
             };
         }
 
-        internal void SelectLoad(SaveInfo save)
+        internal IEnumerator<object> WrapLoadRoutine(IEnumerator<object> routine, SaveInfo save)
         {
-            // Called for each authorized native load, before the old world is
-            // disposed. A queued load invalidates all pending prior-world work.
+            var scope = new LoadScope { Sequence = ++loadSequence };
+            // Queueing B invalidates unfinished restoration of A immediately.
+            restoreLoad?.World.Close();
+            restoreLoad = null;
             presentationPending = false;
             restoredActors.Clear();
             loaded = null;
+            return new ScopedEnumerator<object>(TrackNativeLoad(routine, scope), () =>
+            {
+                if (scope.Sequence != loadSequence) return;
+                restoreLoad = scope;
+                scope.World.Begin(Game.Instance?.Player);
+                SelectLoad(save);
+            }, () =>
+            {
+                if (scope.Sequence != loadSequence) { scope.World.Close(); return; }
+                if (!scope.World.NativeCompleted)
+                {
+                    scope.World.Close();
+                    presentationPending = false;
+                    restoredActors.Clear();
+                    loaded = null;
+                    Report("Native load was canceled or failed; unfinished mounted restoration discarded.");
+                }
+            });
+        }
+
+        private IEnumerator<object> TrackNativeLoad(IEnumerator<object> routine, LoadScope scope)
+        {
+            using (routine)
+            {
+                while (routine.MoveNext()) yield return routine.Current;
+            }
+            // A failing native Dispose cannot turn an abandoned load into a
+            // completed presentation scope.
+            if (scope.Sequence == loadSequence) scope.World.Complete(Game.Instance?.Player);
+        }
+
+        private void SelectLoad(SaveInfo save)
+        {
             selectedCampaign = save.GameId;
             loaded = NativeMountedSaveStorage.Read(save.Saver);
             if (loaded.Kind == MountedSaveReadKind.Current &&
@@ -164,8 +201,11 @@ namespace KingmakerMountedCombat.Integration
         internal void RestoreActorAfterPostLoad(UnitEntityData unit)
         {
             var data = loaded?.Data;
-            if (!Enabled || data == null || !data.Mounted || unit == null ||
-                Game.Instance?.Player?.GameId != selectedCampaign) return;
+            if (!Enabled || data == null || !data.Mounted || unit == null || restoreLoad == null ||
+                restoreLoad.Sequence != loadSequence || !restoreLoad.World.TryBind(Game.Instance?.Player)) return;
+            // SaveManager publishes GameId only AFTER PlayerState.PostLoad. The
+            // selected archive/header and newly deserialized world own this phase;
+            // the published campaign is checked before presentation/admission.
             var saved = unit.UniqueId == data.Rider.Id ? data.Rider :
                 unit.UniqueId == data.Mount.Id ? data.Mount : null;
             if (saved == null) return;
@@ -190,13 +230,16 @@ namespace KingmakerMountedCombat.Integration
 
         internal void Update()
         {
-            if (!Enabled || !presentationPending || SaveSuspended ||
+            if (!Enabled || !presentationPending || SaveSuspended || restoreLoad == null ||
+                !restoreLoad.World.CanPresent(Game.Instance?.Player) ||
                 Game.Instance?.CurrentlyLoadedArea == null || LoadingProcess.Instance.IsLoadingInProcess) return;
             var game = Game.Instance;
             if (game.CurrentMode != Kingmaker.GameModes.GameModeType.Default) return;
             presentationPending = false;
+            restoreLoad.World.Close();
             var data = loaded.Data;
-            if (game.Player.GameId != data.CampaignId || game.CurrentlyLoadedArea.AssetGuidThreadSafe != data.AreaId)
+            if (game.Player.GameId != selectedCampaign || game.Player.GameId != data.CampaignId ||
+                game.CurrentlyLoadedArea.AssetGuidThreadSafe != data.AreaId)
             {
                 Report("Loaded world changed before mounted restoration; source metadata remains intact.");
                 return;
@@ -213,7 +256,8 @@ namespace KingmakerMountedCombat.Integration
                 !restoredActors.TryGetValue(data.Rider.Id, out var restoredRider) || riders[0] != restoredRider ||
                 !restoredActors.TryGetValue(data.Mount.Id, out var restoredMount) || mounts[0] != restoredMount)
             {
-                Report("Saved pair did not resolve to two uniquely restored native actors; relationship remains unmounted.");
+                Report("Saved pair did not resolve to two uniquely restored native actors; rider=" + riders.Length +
+                    "; mount=" + mounts.Length + "; early=" + restoredActors.Count + "; relationship remains unmounted.");
                 return;
             }
             var result = relationship.RestoreSavedPair(riders[0], mounts[0], data.ProfileId);
@@ -228,6 +272,12 @@ namespace KingmakerMountedCombat.Integration
         }
 
         private void Report(string feedback) { Feedback = feedback; logger.Info(feedback); }
+
+        private sealed class LoadScope
+        {
+            internal long Sequence;
+            internal readonly NativeLoadWorld<Player> World = new NativeLoadWorld<Player>();
+        }
 
         private sealed class SaveScope
         {

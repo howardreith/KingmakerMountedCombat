@@ -280,6 +280,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["riderCombat"] = rider?.IsInCombat, ["mountCombat"] = mount?.IsInCombat,
                     ["riderCanAct"] = rider?.CombatState.CanActInCombat,
                     ["targetCombat"] = targetService?.Target?.IsInCombat, ["targetId"] = targetService?.TargetId },
+                ["persistence"] = new JObject { ["semantics"] = persistence.SemanticRestoreCount,
+                    ["presentation"] = persistence.PresentationRestoreCount, ["feedback"] = persistence.Feedback },
                 ["detail"] = detail
             };
             File.AppendAllText(evidence, row.ToString(Formatting.None) + Environment.NewLine);
