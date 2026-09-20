@@ -48,6 +48,13 @@ public static class KmcPersistenceContractProbe
         var native=Assembly.LoadFrom(Path.Combine(managed,"Assembly-CSharp.dll"));
         var candidate=Assembly.LoadFrom(candidatePath);
         Check(native.ManifestModule.ModuleVersionId==new Guid("07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"),"exact Kingmaker persistence MVID");
+        var hp=native.GetType("Kingmaker.EntitySystem.Stats.CharacterStats",true).GetField("HitPoints");
+        var hpBase=native.GetType("Kingmaker.EntitySystem.Stats.ModifiableValue",true)
+            .GetField("m_BaseValue",BindingFlags.Instance|BindingFlags.NonPublic);
+        Check(hp!=null && hpBase!=null && hpBase.FieldType==typeof(int) &&
+            Attribute.IsDefined(hp,Type.GetType("Newtonsoft.Json.JsonPropertyAttribute, Newtonsoft.Json",true)) &&
+            Attribute.IsDefined(hpBase,Type.GetType("Newtonsoft.Json.JsonPropertyAttribute, Newtonsoft.Json",true)),
+            "native fixture HP and base value are native JSON members, not supplemental mod state");
         var harmonyAssembly=Assembly.LoadFrom(Path.Combine(managed,"UnityModManager/0Harmony12.dll"));
         var harmonyType=harmonyAssembly.GetType("Harmony12.HarmonyInstance",true);
         const string id="KingmakerMountedCombat.PersistenceDetachedTest";

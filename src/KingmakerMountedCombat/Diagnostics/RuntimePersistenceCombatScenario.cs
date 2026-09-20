@@ -105,6 +105,8 @@ namespace KingmakerMountedCombat.Diagnostics
                         .Single(u => u.IsEnemy(rider) && u.IsInCombat);
                     Check(combatTarget.Faction != null && MountedSaveData.HexId(combatTarget.Faction.AssetGuid),
                         "P02-loaded-enemy-has-native-faction");
+                    Check(combatTarget.Stats.HitPoints.BaseValue == 256 && combatTarget.Descriptor.State.IsConscious,
+                        "P02-native-target-health-survived-without-cold-provision");
                     savedBoundary = turn; savedSequence = combat.PairedActivationSequence; savedRound = data.Combat.Round;
                     controls.Update(); beforeControls = controls.CaptureSnapshot();
                     Check(beforeControls.ExactFactCount == 3 && beforeControls.DuplicateFactCount == 0 &&

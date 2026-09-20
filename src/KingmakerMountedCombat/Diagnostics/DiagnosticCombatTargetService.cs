@@ -309,6 +309,19 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
                 LifeImmediatelyAfterCreation = DiagnosticTargetLifeSnapshot.Capture(target);
                 LastObservedLife = LifeImmediatelyAfterCreation;
+                if (persistenceFixture)
+                {
+                    if (requireDurabilityLease || target.Damage != 0 || !target.Descriptor.State.IsConscious)
+                        throw new InvalidOperationException("Persistence target requires a fresh healthy native entity, without a transient durability lease.");
+                    // Stock companion blueprints spawn at one HP without a master.
+                    // Native CharacterStats.HitPoints and ModifiableValue.m_BaseValue
+                    // are serialized. Provision this disposable enemy once; a cold
+                    // process resolves its saved health and never repairs it.
+                    target.Stats.HitPoints.BaseValue = 256;
+                    if (target.Stats.HitPoints.ModifiedValue < 256)
+                        throw new InvalidOperationException("Native persistence target HP provision did not take effect.");
+                    logger.Info("Persistence fixture native HP provisioned once: target=" + target.UniqueId + "; base=256.");
+                }
                 AcquireTargetDurabilityLease(target, requireDurabilityLease);
                 targetSleeplessBefore = target.Sleepless;
                 target.Sleepless = true;

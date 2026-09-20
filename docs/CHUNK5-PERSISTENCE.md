@@ -30,6 +30,7 @@ A persistence-specific run-owned root/campaign/native-type/leaf/hash contract pr
 | P02-save-B, preview.9/sourcec06098e, PID16516 | PASS26/0 + outer PASS; partial transport, real Manual write, same-session movement/attack and two later paired activations |
 | P02-load-A, same preview.9, PID16172 | PASS20/0 + outer PASS; four actor records, saved grant/round/remainder, controls once, movement/attack and two later paired activations |
 | P02-rider-save-A, preview.10/sourceaeb8e27, PID15396 | FAIL24/1 after write and mount movement; Primary target rejected as not a valid living target; no cold run |
+| P02-rider-save-B, preview.11/sourceabb9afc, PID4040 | FAIL24/1; target had1 HP and was unconscious after2 native damage, so rejection was correct; no cold run |
 
 Earlier P01 failures and exact historical identities remain in the journal and immutable lab evidence. P01-save-D archive SHA256 `84ffb91c85fe10b0ccacc92befe9a1e4fd2be88e639f197f79bf9bd678c83270`; P02-save-B archive SHA256 `e65a6d5ca94596c4d7f68e5e6b945a6022ea6a6c50dc6f8f86b6247697787439`, under its owned `runtime-staging/persistence-20260920-chunk5-P02-save-B/Saved Games/Manual_300_KMC_P01.zks`. The cold process reads those bytes and supplies no missing gameplay state. At round1/grant1, mount Move0.17698051 and rider Standard/Move0 survive; grants2/3 refresh normally. Source PID16516 exited and fully restored intake21:54:15.0066094Z; cold process started22:00:52.1487984Z.
 
@@ -54,7 +55,7 @@ Build/source22/0, package11/0 and installed-assembly/storage contracts30/0 PASS.
 
 Paired activation=true; both legacy authorities and overlay=false. Full Charge remains Chunk6; safe rejection is not its completion. Every mandatory row must pass on the final frozen candidate. Visual/physical-input review is separate.
 
-Preview.10 extends only the reusable native P02 fixture/protocol with exact checkpoint parameters and unrelated-turn-order/rejected-work assertions. Component413/0, fixture25/0, harness254/0, native contract30/0 and source22/0 checks pass. No native preview.10 result exists yet; the frozen preview.9 checkpoint above remains authoritative.
+Preview.10 adds exact P02 checkpoint parameters and unrelated-turn-order/rejected-work assertions. Components413/0, fixture25/0 and harness254/0 pass. Preview.11's life observation explains the failed Primary cases: the stock companion blueprint produces a one-HP enemy without a master. Preview.12 provisions native HP BaseValue256 only at owned enemy creation, with no temporary modifier, blueprint edit or cold-process repair. CharacterStats.HitPoints and ModifiableValue.m_BaseValue are verified native JSON members; metadata duplicates no health state. Source22/0 and native contracts31/0 pass. Native12 qualification remains pending; preview9 remains the passed partial cold slice.
 
 ## Human restoration, removal and manual review
 
