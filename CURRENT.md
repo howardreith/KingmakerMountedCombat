@@ -1,8 +1,8 @@
-# Active Chunk 4 - interruption fixture54, 2026-09-20 UTC
+# Chunk 4 native qualification - 2026-09-20 UTC
 
-IN PROGRESS. Published source53 f639cf7ddd4506a43b2898190b85a201cc33d7b3 passes Charge RT/TB, sustained melee/ranged RT and TB, and obstruction. FI preserves a failed native target move after the rider completed4/4;54 extends existing native path qualification to the melee target and checks its full footprint. No gameplay change. Full54 checks pass; focused native evidence is pending.
+**PASS for native engineering gates; TODO for targeted visual/physical-input and HUMAN PLAY checks.** Tested source `429377d707a9976be65639e0c27954d8b4ff3717`, private `0.1.0-chunk4-preview.54`, on `codex/mounted-combat-phase3f-playable-core`. All 31 new exact-candidate roots and outer validators pass: 20 required Chunk 4 roots, fresh Horse capture, paired full-round/A05/A10 and Horse/Mammoth regression. Required paired configuration was measured. [Single report, identities and manual checklist](docs/CHUNK4-PLAYABILITY.md).
 
-All111 native transactions plus EX prelaunch restored actual humanpreview37/data. Fresh actual WhatIf53 passes; live preflight falls from707.6 to14.7seconds. Next: package/publish/snapshot54, focused interruptions, Charge and all exact-candidate final gates. [Report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent deployment or Chunk5 implementation.
+All 142 native transactions plus the separately recorded EX prelaunch attempt restored actual intake. Human preview.37, protected campaigns/BASELINE, settings/caches/foreign Mods and separate preview.13 backup are preserved. No game/transaction remains; Steam is left open. No permanent deployment, main merge or release. Full mounted Charge remains missing for Chunk 6. Chunk 5 persistence is the next roadmap step only; its implementation is not authorized by this mission.
 
 ---
 # Combined actor-allocation and paired-activation milestone

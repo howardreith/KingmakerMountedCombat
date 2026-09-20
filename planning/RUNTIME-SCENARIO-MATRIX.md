@@ -1,6 +1,6 @@
-## Active Chunk 4 checkpoint - 2026-09-20 UTC
+## Chunk 4 native qualification - 2026-09-20 UTC
 
-FC-FH53 pass Charge, sustained RT/TB and obstruction. FI48/2 FAIL: target native movement, after rider4/4 Success.54 qualifies target path/full footprint and preserves failure diagnostics; native evidence pending. All111 native transactions plus EX restored. Focused interruptions then Charge and exact-final31 roots. [Single report](../docs/CHUNK4-PLAYABILITY.md). HUD/physical input/HUMAN PLAY pending; persistence remains roadmap only.
+PASS: 31 new native roots and outer validators on preview.54/source `429377d707a9976be65639e0c27954d8b4ff3717`, required paired configuration. Twenty new mechanics roots plus fresh Horse capture and ten final paired/A05/A10/Horse/Mammoth regressions; exact stable IDs and counts are in the [single report](../docs/CHUNK4-PLAYABILITY.md). All 142 native transactions plus EX prelaunch restored actual intake. Visual/physical-input and HUMAN PLAY checks remain TODO. Persistence is roadmap only. Historical matrices below retain their original scope.
 
 ## Chunk 2 current scenario pointer
 
