@@ -68,6 +68,38 @@ namespace KingmakerMountedCombat.Diagnostics
             ["target"] = subject == null ? null : CaptureChunk4LifeActor(subject)
         };
 
+        private Vector3 FindChunk4ObstructedTargetPoint()
+        {
+            if (global::AstarPath.active == null)
+                throw new InvalidOperationException("Obstruction fixture requires the active native navigation graph.");
+            var origin = rider.Position;
+            var eye = rider.EyePosition;
+            chunk4ObstructionEvidence["searchOrigin"] = new JArray(origin.x, origin.y, origin.z);
+            chunk4ObstructionEvidence["searchEye"] = new JArray(eye.x, eye.y, eye.z);
+            // Mount approach can finish at different positions. One yaw-relative
+            // ring need not intersect obstructed geometry from the actual origin.
+            // Search only native walkable points; the spawned target must still
+            // pass the exact UnitAttack visibility predicate before any input.
+            foreach (var radius in new[] { 12f, 14f, 16f })
+            {
+                for (var index = 0; index < 32; index++)
+                {
+                    var direction = Quaternion.Euler(0f, index * 11.25f, 0f) * Vector3.forward;
+                    var nearest = global::AstarPath.active.GetNearest(origin + direction * radius);
+                    if (nearest.node == null || !nearest.node.Walkable) continue;
+                    var point = nearest.clampedPosition;
+                    var distance = HorizontalDistance(origin, point);
+                    if (Math.Abs(distance - radius) > 0.5f) continue;
+                    var blocked = LineOfSightGeometry.Instance.HasObstacle(eye, point + Vector3.up, 0);
+                    ((JArray)chunk4ObstructionEvidence["candidates"]).Add(new JObject {
+                        ["radius"] = radius, ["directionIndex"] = index, ["distance"] = distance,
+                        ["point"] = new JArray(point.x, point.y, point.z), ["blocked"] = blocked });
+                    if (blocked) return point;
+                }
+            }
+            throw new InvalidOperationException("No native obstruction was found in the bounded 12/14/16m fixture search.");
+        }
+
         private void TickChunk4Obstruction()
         {
             var game = Game.Instance; var now = game.TimeController.GameTime.TotalSeconds;
@@ -86,12 +118,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (rider.IsInCombat || horse.IsInCombat || !PrepareUnmountedHorseAiIsolation() || !PrepareCombatMountRiderAiIsolation()) return;
                 if (turnBasedModeProbe == null) turnBasedModeProbe = new NativeModeTransitionProbe(false);
                 if (!turnBasedModeProbe.TemporaryValueIsCurrent) { turnBasedModeProbe.DispatchTemporaryValueIfRequired(); return; }
-                var point = FindWalkablePoint(rider.Position, 12f, 0.5f, candidate => {
-                    var blocked = LineOfSightGeometry.Instance.HasObstacle(rider.EyePosition, candidate + Vector3.up, 0);
-                    ((JArray)chunk4ObstructionEvidence["candidates"]).Add(new JObject {
-                        ["point"] = new JArray(candidate.x,candidate.y,candidate.z), ["blocked"] = blocked });
-                    return blocked;
-                });
+                var point = FindChunk4ObstructedTargetPoint();
                 BeginTarget(12f, Chunk4ObstructionId, point); ruleProbe.Arm(target, false);
                 chunk4ObstructionStage = 1; ResetLeafClock(); return;
             }
