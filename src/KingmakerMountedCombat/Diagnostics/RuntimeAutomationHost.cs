@@ -294,6 +294,15 @@ namespace KingmakerMountedCombat.Diagnostics
                 awake);
         }
 
+        internal static void ReapplyDeclaredPersistenceMode()
+        {
+            var host = active;
+            if (host?.persistenceMode == null || host.completed ||
+                host.request.Scenario != "persistence-p02-save" && host.request.Scenario != "persistence-p02-load") return;
+            if (host.persistenceMode.ReapplyTemporaryCacheAfterNativeRefresh())
+                host.logger.Info("P02 declared TB configuration cache reapplied after native settings refresh; no persisted setting or gameplay state written.");
+        }
+
         internal static void ObserveNativeTurnBasedCommandEligibility(
             Kingmaker.UnitLogic.Commands.Base.UnitCommand command,
             bool stockEligible)
@@ -510,6 +519,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     // Test configuration only, chosen before reading the selected archive.
                     persistenceMode = new NativeModeTransitionProbe(true);
                     persistenceMode.DispatchTemporaryValueIfRequired();
+                    logger.Info("P02 declared TB configuration before native load: " + persistenceMode.CurrentValue + ".");
                 }
                 fixtureLoaderStarted = true;
                 fixtureLoader.Start();

@@ -133,6 +133,12 @@ public static class KmcPersistenceContractProbe
             }
             Check(gateChanges==1 && gateCount==originalOps.Count,
                 "native area/game-over/dialog/cutscene/encounter/dual-companion gates and branches retained");
+            var settingsRefresh=native.GetType("Kingmaker.UI.SettingsUI.SettingsRoot",true)
+                .GetMethod("HandleSettingsUpdated",BindingFlags.Public|BindingFlags.Static);
+            Check(settingsRefresh!=null && settingsRefresh.MetadataToken==0x0600346B &&
+                settingsRefresh.GetParameters().Length==0,"exact native boolean cache refresh seam");
+            isolation.GetMethod("SettingsRefreshPostfix",BindingFlags.Static|BindingFlags.NonPublic).Invoke(null,null);
+            Check(true,"unbound persistence cache callback leaves ordinary configuration untouched");
             var nativeSaver=native.GetType("Kingmaker.EntitySystem.Persistence.ZipSaver",true);
             patch.Invoke(null,new object[]{harmony,nativeSaver,"SaveJson",0x06008063,new[]{typeof(string),typeof(string)},"LoadHeaderJsonPrefix",null});
             patch.Invoke(null,new object[]{harmony,nativeSaver,"Save",0x06008068,Type.EmptyTypes,"LoadHeaderCommitPrefix",null});

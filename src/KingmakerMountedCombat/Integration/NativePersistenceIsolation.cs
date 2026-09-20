@@ -35,6 +35,12 @@ namespace KingmakerMountedCombat.Integration
         {
             if (typeof(SaveManager).Assembly.ManifestModule.ModuleVersionId != ExpectedMvid)
                 throw new InvalidOperationException("Persistence isolation requires the exact installed Kingmaker assembly.");
+            var settingsRefresh = typeof(Kingmaker.UI.SettingsUI.SettingsRoot).GetMethod("HandleSettingsUpdated",
+                BindingFlags.Public | BindingFlags.Static);
+            if (settingsRefresh == null || settingsRefresh.MetadataToken != 0x0600346B)
+                throw new InvalidOperationException("Native settings cache refresh contract changed.");
+            harmony.Patch(settingsRefresh, null, new HarmonyMethod(typeof(NativePersistenceIsolation).GetMethod(
+                "SettingsRefreshPostfix", BindingFlags.NonPublic | BindingFlags.Static)), null);
             Patch(harmony, typeof(SaveManager), "get_SavePath", 0x0600800C, Type.EmptyTypes, "SavePathPrefix", null);
             Patch(harmony, typeof(SaveManager), "UpdateSaveListAsync", 0x0600800E, Type.EmptyTypes, null, "SaveRootTranspiler");
             Patch(harmony, typeof(SaveManager), "PrepareSave", 0x06008025, new[] { typeof(SaveInfo) }, null, "SaveRootTranspiler");
@@ -74,6 +80,11 @@ namespace KingmakerMountedCombat.Integration
             {
                 throw new InvalidOperationException("Persistence patch construction failed: " + type.FullName + "." + name, exception);
             }
+        }
+
+        private static void SettingsRefreshPostfix()
+        {
+            if (authority != null) RuntimeAutomationHost.ReapplyDeclaredPersistenceMode();
         }
 
         private static bool SavePathPrefix(ref string __result)

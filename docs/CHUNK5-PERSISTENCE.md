@@ -43,6 +43,8 @@ Development preview.8 implements schema2 combat metadata and schema1 migration i
 
 Build/source22/0, components412/0, data42/0 and exact installed-assembly/storage contracts28/0 PASS. Current DLL `7ca90b3355deb500d6574f5e66e4dfbec1d00309fd87397095c3eb387bff6550`, MVID `745d9a95-1e1f-42be-935e-e938491483e3`; no preview.8 package/native run. These checks do not establish P02. Next is the smallest real partial-movement save/cold load. The existing diagnostic target's unregistered runtime faction cannot qualify a cold archive; the P02 fixture must use a validated native faction and no cold-process fixture reattachment.
 
+P02-save-A on preview.8/source2712f15031de24c316f5cd7a42d5664c93f6f8ca failed5/1 before movement or saving (native PID16968, stage1 deadline). The native party/target entered combat and the game clock advanced, but no native turn was measured. No archive write occurred. Normal exit, installed human DLL2203a68c... restored, run state restored21:39:41.3798572Z and outer validation completed21:39:47.8743691Z; no game/lock remains. Native factiond75c5993785785d468211d9a1a3c87a6 was resolved without modifying it. Local assembly inspection identifies SettingsRoot.HandleSettingsUpdated0600346B dropping boolean caches; the current hypothesis is that this reset invalidated the pre-load cached TB configuration. Preview.9 reasserts only the declared P02 temporary cache after that native reset, with no persisted settings or gameplay-state write. Add native TB setting/controller/status/roster observations; qualify this hypothesis in P02-save-B. Production persistence semantics are unchanged from the preview.8 attempt.
+
 ## Required final qualification
 
 | Scenario | Required behavior | Status |
