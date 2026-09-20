@@ -4,7 +4,7 @@
 
 Scope: one pre-combat Horse or Mammoth pair, rider-principal activation, separate native budgets. Actual tested configuration: `EnablePairedActivation=true`, `EnableUnifiedMountedTurn=false`, `EnablePairedCommandScheduler=false`, `EnableDiagnosticOverlay=false`. The [paired milestone](PAIRED-ACTIVATION-MILESTONE.md) is accepted baseline engineering evidence. Earlier preview.13 human feedback retains its scope; no preview.37 or candidate human approval is inferred.
 
-The owner subsequently accepted this scope and authorized default-branch merge, alpha publication and local UMM installation on September 20. The qualified payload stays unchanged. Qualification restoration statements below describe the completed temporary campaign; the authorized alpha installation is a separate delivery. [Alpha setup and checklist](ALPHA-PLAYTEST.md).
+The owner subsequently accepted this scope and authorized default-branch merge, alpha publication and local UMM installation on September 20. The qualified payload stays unchanged. Local UMM installation completed at 2026-09-20T15:53:37.1343622Z with actual preview.37 backed up and protected saves/settings/foreign Mods unchanged. Preview.54 is now the human installation. Qualification restoration statements below describe the earlier temporary campaign, not the new installation target. [Alpha setup and checklist](ALPHA-PLAYTEST.md).
 
 ## New native execution
 
