@@ -56,5 +56,25 @@ if($p02.descriptor.sha256-cne$hash){throw 'P02 actual archive identity changed'}
 $result.scenario='unrecognized-save';Write-KmcJsonAtomic $resultPath $result
 Must-Reject {Get-KmcPersistenceSource $sourceId $hash $fixture} 'Unrecognized save scenario admitted'
 if((Get-KmcSha256 $path)-cne$hash){throw 'Read-only source inspection mutated archive'};$passes++
+$snapshot=[pscustomobject]@{Rider=[pscustomobject]@{Id='r';Standard=0};Mount=[pscustomobject]@{Standard=0;Move=0.5};Combat=[pscustomobject]@{
+    Round=1;Current=[pscustomobject]@{ActorId='r'};Paired=[pscustomobject]@{Activation=[pscustomobject]@{Sequence=1;Ending=$false}}}}
+foreach($case in @('partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end')){
+    $snapshot.Rider.Standard=if($case-cin @('rider-spent','exhausted','explicit-end')){6}else{0}
+    $snapshot.Mount.Standard=if($case-cin @('between-partner-orders','exhausted','explicit-end')){6}else{0}
+    $snapshot.Mount.Move=if($snapshot.Mount.Standard-gt0){3}else{0.5}
+    $snapshot.Combat.Paired.Activation.Ending=$case-ceq'explicit-end'
+    Assert-KmcP02Snapshot $snapshot $case;$passes++
+    $sequence=$snapshot.Combat.Paired.Activation.Sequence
+    $snapshot.Combat.Paired.Activation.Sequence=0
+    Must-Reject {Assert-KmcP02Snapshot $snapshot $case} 'Checkpoint accepted missing participation'
+    $snapshot.Combat.Paired.Activation.Sequence=$sequence
+}
+$snapshot.Combat.Paired.Activation.Ending=$false
+Must-Reject {Assert-KmcP02Snapshot $snapshot 'explicit-end'} 'Explicit End accepted a fresh participation fallback'
+$snapshot.Rider.Standard=0;$snapshot.Mount.Standard=0;$snapshot.Mount.Move=0.5
+Must-Reject {Assert-KmcP02Snapshot $snapshot 'rider-spent'} 'Spent-rider fixture accepted restored Standard'
+$snapshot.Mount.Standard=6;$snapshot.Mount.Move=0
+Must-Reject {Assert-KmcP02Snapshot $snapshot 'between-partner-orders'} 'Spent mount accepted refunded movement'
+Must-Reject {Assert-KmcP02Snapshot $snapshot 'unknown'} 'Unknown checkpoint accepted'
 Write-Host "PERSISTENCE OWNED FIXTURE PASS=$passes FAIL=0"
 # Preserve only owned synthetic evidence in ignored obj; no external fixture touched.

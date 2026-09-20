@@ -5086,6 +5086,33 @@ try {
         Write-KmcJsonAtomic $v2RequestPath $v2Request
     }
 
+    Invoke-HarnessTest 'P02 checkpoints are bounded parameters and do not relax fixture authority' {
+        try {
+            $v2Request.scenario='persistence-p02-save'
+            foreach($case in @('partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end')){
+                $v2Request['persistenceCase']=$case
+                Write-KmcJsonAtomic $v2RequestPath $v2Request
+                & (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath
+            }
+            foreach($case in @('../human','','unknown')){
+                $v2Request.persistenceCase=$case
+                Write-KmcJsonAtomic $v2RequestPath $v2Request
+                $rejected=$false
+                try{& (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath}catch{$rejected=$true}
+                Assert-Test $rejected 'unknown P02 checkpoint was admitted'
+            }
+            $v2Request.persistenceCase='rider-spent';$v2Request.scenario='mounted-pair-create-and-clear'
+            Write-KmcJsonAtomic $v2RequestPath $v2Request
+            $rejected=$false
+            try{& (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath}catch{$rejected=$true}
+            Assert-Test $rejected 'checkpoint leaked into an old strict scenario'
+        }finally{
+            $v2Request.Remove('persistenceCase')
+            $v2Request.scenario='mounted-pair-create-and-clear'
+            Write-KmcJsonAtomic $v2RequestPath $v2Request
+        }
+    }
+
     Invoke-HarnessTest 'runtime request reader admits exact ground comparison and rejects unknown variants' {
         try {
             $v2Request.scenario = 'chunk4-ground-arrival-rt'

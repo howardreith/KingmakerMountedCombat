@@ -125,6 +125,7 @@ namespace KingmakerMountedCombat.Diagnostics
         public RuntimeFixtureIdentity Fixture { get; set; }
 
         public RuntimeSaveDescriptor PersistenceLoad { get; set; }
+        public string PersistenceCase { get; set; }
 
         public RuntimeQualificationSuiteIdentity QualificationSuite { get; set; }
 
@@ -240,6 +241,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private void ValidateLegacyNoSaveRequest(List<string> errors)
         {
             if (PersistenceLoad != null) errors.Add("No-save requests cannot select an archive.");
+            if (PersistenceCase != null) errors.Add("No-save requests cannot select a persistence case.");
             if (SaveAccessAllowed)
             {
                 errors.Add("Schema v1 never authorizes save access.");
@@ -268,6 +270,10 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void ValidateSaveBackedRequest(List<string> errors)
         {
+            if (PersistenceCase != null &&
+                (Scenario != "persistence-p02-save" && Scenario != "persistence-p02-load" ||
+                Array.IndexOf(new[] { "partial-movement", "rider-spent", "between-partner-orders", "exhausted", "explicit-end" }, PersistenceCase) < 0))
+                errors.Add("Persistence case is outside the exact P02 checkpoint contract.");
             if (Scenario == "persistence-p01-load" || Scenario == "persistence-p02-load")
             {
                 if (PersistenceLoad == null) errors.Add("Cold loading requires its actual owned archive identity.");

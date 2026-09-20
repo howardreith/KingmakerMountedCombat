@@ -89,9 +89,12 @@ if ($schemaVersion -eq 1) {
     Assert-KmcExactProperties $request @($commonRequired + @('saveAccessAllowed','saveName')) 'runtime request v1'
 }
 elseif ($schemaVersion -eq 2) {
-    $extra=@(if($request.scenario -cin @('persistence-p01-load','persistence-p02-load')){'persistenceLoad'})
+    $hasPersistenceCase=@($request.PSObject.Properties.Name)-ccontains'persistenceCase'
+    if($hasPersistenceCase-and($request.scenario-cnotin @('persistence-p02-save','persistence-p02-load')-or
+        $request.persistenceCase-cnotin @('partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end'))){throw 'Persistence case is outside the exact P02 checkpoint contract.'}
+    $extra=@(if($request.scenario -cin @('persistence-p01-load','persistence-p02-load')){'persistenceLoad'}; if($hasPersistenceCase){'persistenceCase'})
     Assert-KmcExactProperties $request @($commonRequired + @('fixture','qualificationSuite') + $extra) 'runtime request v2'
-    if($extra.Count -gt 0){
+    if($request.scenario -cin @('persistence-p01-load','persistence-p02-load')){
         $d=$request.persistenceLoad
         Assert-KmcExactProperties $d @('internalName','fileName','sha256','length','lastWriteTimeUtcTicks','gameId','gameName','area') 'cold archive descriptor'
         if($d.internalName-cne'KMC_P01'-or$d.fileName-cne'Manual_300_KMC_P01.zks'-or$d.sha256-cnotmatch'^[0-9a-f]{64}$'-or

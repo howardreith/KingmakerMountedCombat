@@ -271,7 +271,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var row = new JObject
             {
                 ["runId"] = request.RunId, ["scenario"] = request.Scenario, ["processId"] = Process.GetCurrentProcess().Id,
-                ["kind"] = kind, ["stage"] = stage, ["time"] = DateTimeOffset.UtcNow.ToString("o"),
+                ["kind"] = kind, ["checkpoint"] = CombatCase ? Checkpoint : null, ["stage"] = stage, ["time"] = DateTimeOffset.UtcNow.ToString("o"),
                 ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks, ["source"] = request.Commit,
                 ["dll"] = request.DllSha256, ["relationship"] = relationship.State.ToString(),
                 ["rider"] = rider == null ? null : JObject.FromObject(MountedPersistenceService.CaptureActor(rider), MountedSaveCodec.CreateSerializer()),

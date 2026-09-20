@@ -53,6 +53,8 @@ Build/source22/0, package11/0 and installed-assembly/storage contracts30/0 PASS.
 
 Paired activation=true; both legacy authorities and overlay=false. Full Charge remains Chunk6; safe rejection is not its completion. Every mandatory row must pass on the final frozen candidate. Visual/physical-input review is separate.
 
+Preview.10 extends only the reusable native P02 fixture/protocol with exact checkpoint parameters and unrelated-turn-order/rejected-work assertions. Component413/0, fixture25/0, harness254/0, native contract30/0 and source22/0 checks pass. No native preview.10 result exists yet; the frozen preview.9 checkpoint above remains authoritative.
+
 ## Human restoration, removal and manual review
 
 Actual human preview.54 DLL `2203a68ca13dfebd1fc52be7c15521f3c2503c98cd53a891dd210ba0611019e9`, protected saves/settings/caches/foreign Mods were restored after each completed transaction. Latest native PID16172 completed22:01:41.8719489Z; full restoration22:01:57.2221102Z. No game/transaction remains. Separate preview.37/preview.13 backups are retained. Recheck actual intake before each transaction; historical pins are not rollback authority.

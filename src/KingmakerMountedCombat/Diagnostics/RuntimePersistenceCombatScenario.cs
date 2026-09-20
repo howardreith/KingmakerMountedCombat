@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Kingmaker;
@@ -12,6 +13,7 @@ using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Integration;
 using Newtonsoft.Json.Linq;
 using TurnBased.Controllers;
+using UnityEngine;
 
 namespace KingmakerMountedCombat.Diagnostics
 {
@@ -20,9 +22,18 @@ namespace KingmakerMountedCombat.Diagnostics
         private UnitEntityData combatTarget;
         private TurnController savedBoundary;
         private TurnController endedBoundary;
+        private TurnController observedTurn;
+        private readonly List<string> turnVisits = new List<string>();
         private long savedSequence;
+        private int savedRound;
         private int laterActivations;
         private float moveBeforeContinuation;
+        private UnitEntityData attackActor;
+        private string attackKind;
+        private SavedNativeActor rejectedRider;
+        private SavedNativeActor rejectedMount;
+        private int rejectedFrame;
+        private string Checkpoint => request.PersistenceCase ?? "partial-movement";
 
         private bool PairIdle => rider.Commands.Empty && mount.Commands.Empty &&
             !rider.AreHandsBusyWithAnimation && !mount.AreHandsBusyWithAnimation &&
@@ -30,6 +41,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private JObject CombatObservation() => new JObject
         {
+            ["checkpoint"] = Checkpoint,
             ["round"] = Game.Instance.TurnBasedCombatController.RoundNumber,
             ["current"] = Game.Instance.TurnBasedCombatController.CurrentTurn?.Unit.UniqueId,
             ["turn"] = Game.Instance.TurnBasedCombatController.CurrentTurn == null ? null :
@@ -44,13 +56,18 @@ namespace KingmakerMountedCombat.Diagnostics
         private void AdvanceCombat()
         {
             if (clock.Elapsed.TotalSeconds > 150)
-                throw new InvalidOperationException("P02 partial-movement stage timed out: " + stage + "; " + persistence.Feedback);
+                throw new InvalidOperationException("P02 " + Checkpoint + " stage timed out: " + stage + "; " + persistence.Feedback);
             var game = Game.Instance;
             if (LoadingProcess.Instance.IsLoadingInProcess || persistence.CombatRestorationPending) return;
             if (targetService != null && stage > 0 && !targetService.RefreshBidirectionalCombatMemoryLease())
                 throw new InvalidOperationException("Owned native combat memory lease was lost.");
             if (game.IsPaused) { game.IsPaused = false; return; }
             var turn = game.TurnBasedCombatController.CurrentTurn;
+            if (rider != null && turn != null && !ReferenceEquals(turn, observedTurn))
+            {
+                observedTurn = turn;
+                turnVisits.Add(game.TurnBasedCombatController.RoundNumber + "|" + turn.Unit.UniqueId);
+            }
             if (stage == 0)
             {
                 Check(settings.EnablePairedActivation && !settings.EnableUnifiedMountedTurn &&
@@ -67,25 +84,33 @@ namespace KingmakerMountedCombat.Diagnostics
                     Check(persistence.SemanticRestoreCount == data.Combat.Actors.Length &&
                         persistence.PresentationRestoreCount == 1 && controls.NativeCastRequestCount == 0,
                         "P02-no-replayed-mount-or-missing-early-actors");
-                    Check(LegitimateContinuation(data.Rider, MountedPersistenceService.CaptureActor(rider), 0) &&
-                        LegitimateContinuation(data.Mount, MountedPersistenceService.CaptureActor(mount), 0),
-                        "P02-exact-saved-native-remainder");
-                    Check(turn?.Unit == rider && game.TurnBasedCombatController.RoundNumber == data.Combat.Round &&
+                    var elapsed = Checkpoint == "explicit-end" ?
+                        (game.TimeController.GameTime.Ticks - data.GameTimeTicks) / (double)TimeSpan.TicksPerSecond : 0;
+                    Check(data.Combat.Actors.All(a => LegitimateContinuation(a.Native,
+                        MountedPersistenceService.CaptureActor(game.State.Units.Single(u => u.UniqueId == a.Native.Id)), elapsed)),
+                        "P02-exact-saved-native-remainder-for-every-actor");
+                    Check((turn?.Unit == rider || Checkpoint == "explicit-end") &&
+                        game.TurnBasedCombatController.RoundNumber == data.Combat.Round &&
                         combat.PairedActivationIdentity == data.Combat.Paired.Activation.EncounterId + ":" +
                             data.Combat.Paired.Activation.Sequence, "P02-same-round-boundary-and-grant");
-                    var movement = data.Combat.Allocations.Single(a => a.ActorId == mount.UniqueId).Movement;
-                    Check(combat.PairedPartnerContext != null &&
-                        Math.Abs(combat.PairedPartnerContext.TimeMoved - movement.TimeMoved) < 0.001f &&
-                        rider.CombatState.Cooldown.StandardAction == 0 && mount.CombatState.Cooldown.MoveAction > 0,
-                        "P02-partial-transport-commitment-and-rider-standard-retained");
+                    ValidateCheckpoint(data);
+                    if (Checkpoint != "explicit-end")
+                    {
+                        var movement = data.Combat.Allocations.Single(a => a.ActorId == mount.UniqueId).Movement;
+                        Check(combat.PairedPartnerContext != null &&
+                            Math.Abs(combat.PairedPartnerContext.TimeMoved - movement.TimeMoved) < 0.001f,
+                            "P02-saved-transport-commitment-retained");
+                    }
                     combatTarget = data.Combat.Actors.Select(a => game.State.Units.Single(u => u.UniqueId == a.Native.Id))
                         .Single(u => u.IsEnemy(rider) && u.IsInCombat);
                     Check(combatTarget.Faction != null && MountedSaveData.HexId(combatTarget.Faction.AssetGuid),
                         "P02-loaded-enemy-has-native-faction");
-                    savedBoundary = turn; savedSequence = combat.PairedActivationSequence;
+                    savedBoundary = turn; savedSequence = combat.PairedActivationSequence; savedRound = data.Combat.Round;
                     controls.Update(); beforeControls = controls.CaptureSnapshot();
+                    Check(beforeControls.ExactFactCount == 3 && beforeControls.DuplicateFactCount == 0 &&
+                        beforeControls.ManagedHotbarSlotCount == data.Slots.Length, "P02-cold-controls-once");
                     Write("initial", CombatObservation());
-                    stage = 6; return;
+                    ContinueSavedCheckpoint(); return;
                 }
                 UnitEntityData selectedRider; UnitEntityData selectedMount; string error;
                 if (!relationship.TryResolveAutomationPair(out selectedRider, out selectedMount, out error))
@@ -98,7 +123,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 combatTarget = targetService.Spawn(rider, mount, FindDestination(7f), request.RunId, true, false, true);
                 Check(targetService.PrepareForPlayerClick(combatTarget) &&
                     targetService.QueueBidirectionalCombatMemory(rider, combatTarget), "P02-native-fixture-combat-request");
-                Write("initial"); stage = 1; return;
+                Write("initial", CombatObservation()); stage = 1; return;
             }
             if (stage == 1)
             {
@@ -109,6 +134,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     rider.CombatState.Cooldown.StandardAction == 0 && mount.CombatState.Cooldown.MoveAction == 0,
                     "P02-fresh-native-paired-boundary");
                 savedBoundary = turn; savedSequence = combat.PairedActivationSequence;
+                savedRound = game.TurnBasedCombatController.RoundNumber;
                 BeginCombatMovement(0.75f, "partial-movement-dispatched");
                 stage = 2; return;
             }
@@ -121,17 +147,32 @@ namespace KingmakerMountedCombat.Diagnostics
                     rider.CombatState.Cooldown.StandardAction == 0 && rider.CombatState.Cooldown.MoveAction == 0 &&
                     ReferenceEquals(savedBoundary, turn), "P02-partial-mount-work-leaves-rider-standard-and-mount-remainder");
                 Write("partial-movement-completed", CombatObservation());
+                if (Checkpoint == "partial-movement") stage = 3;
+                else if (Checkpoint == "explicit-end") stage = 22;
+                else if (Checkpoint == "between-partner-orders")
+                { BeginCombatAttack(mount, "setup-mount-attack"); stage = 21; }
+                else { BeginCombatAttack(rider, "setup-rider-attack"); stage = 20; }
+                return;
+            }
+            if (stage == 20 || stage == 21)
+            {
+                if (!FinishCombatAttack()) return;
+                if (stage == 20 && Checkpoint == "exhausted")
+                { BeginCombatAttack(mount, "setup-mount-attack"); stage = 21; return; }
                 stage = 3; return;
             }
-            if (stage == 3)
+            if (stage == 22)
             {
-                if (!game.SaveManager.IsSaveAllowed()) return;
-                var descriptor = game.SaveManager.CreateNewSave("KMC_P01");
-                Check(descriptor.Type == SaveInfo.SaveType.Manual && descriptor.Name == "KMC_P01",
-                    "P02-real-native-manual-descriptor");
-                game.SaveGame(descriptor, () => callback = true);
-                stage = 4; return;
+                EndFixtureTurn(turn);
+                if (!ReferenceEquals(endedBoundary, turn)) return;
+                Check(turn.IsEnding && rider.CombatState.Cooldown.StandardAction == 6 &&
+                    mount.CombatState.Cooldown.StandardAction == 6, "P02-native-explicit-End-forfeited-both-actors");
+                Write("explicit-end-requested", CombatObservation());
+                // The native queue/iterator selects the actual snapshot phase.
+                // Do not freeze or assign a synthetic Ending state.
+                RequestCombatSave(); return;
             }
+            if (stage == 3) { RequestCombatSave(); return; }
             if (stage == 4)
             {
                 if (!callback) return;
@@ -139,12 +180,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (save == null || save.OperationState != SaveInfo.StateType.None || !save.HasFileOnDisk) return;
                 var read = NativeMountedSaveStorage.Read(save.Saver);
                 Check(read.Kind == MountedSaveReadKind.Current && read.Data.Combat != null &&
-                    read.Data.Combat.Paired.Activation.Sequence == savedSequence &&
-                    read.Data.Combat.Current.ActorId == rider.UniqueId, "P02-actual-archive-contains-combat-grant");
-                Check(ReferenceEquals(savedBoundary, turn) && combat.PairedActivationSequence == savedSequence &&
-                    relationship.State == RelationshipState.Mounted &&
-                    LegitimateContinuation(read.Data.Rider, MountedPersistenceService.CaptureActor(rider), 0) &&
-                    LegitimateContinuation(read.Data.Mount, MountedPersistenceService.CaptureActor(mount), 0),
+                    read.Data.Combat.Paired.Activation.Sequence == savedSequence,
+                    "P02-actual-archive-contains-combat-grant");
+                ValidateCheckpoint(read.Data);
+                var elapsed = (game.TimeController.GameTime.Ticks - read.Data.GameTimeTicks) / (double)TimeSpan.TicksPerSecond;
+                Check((ReferenceEquals(savedBoundary, turn) || Checkpoint == "explicit-end") &&
+                    combat.PairedActivationSequence == savedSequence && relationship.State == RelationshipState.Mounted &&
+                    read.Data.Combat.Actors.All(a => LegitimateContinuation(a.Native,
+                        MountedPersistenceService.CaptureActor(game.State.Units.Single(u => u.UniqueId == a.Native.Id)), elapsed)),
                     "P02-save-does-not-end-refresh-or-tax-live-actors");
                 var control = controls.CaptureSnapshot();
                 Check(control.ExactFactCount == beforeControls.ExactFactCount && control.DuplicateFactCount == 0 &&
@@ -155,7 +198,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["nativeType"] = save.Type.ToString(), ["nativeCallback"] = callback,
                     ["operation"] = save.OperationState.ToString(),
                     ["snapshot"] = JObject.FromObject(read.Data, MountedSaveCodec.CreateSerializer()) });
-                stage = 6; return;
+                ContinueSavedCheckpoint(); return;
             }
             if (stage == 6)
             {
@@ -174,25 +217,27 @@ namespace KingmakerMountedCombat.Diagnostics
                     rider.CombatState.Cooldown.MoveAction == 0 && ReferenceEquals(savedBoundary, turn),
                     "P02-continuation-consumes-more-mount-work-without-rider-tax");
                 Write("movement-completed", CombatObservation());
-                ruleProbe = new MountedCombatRuleProbe();
-                ruleProbe.Arm(rider, mount, rider, combatTarget);
-                if (targetService != null)
-                    Check(targetService.PrepareForPlayerClick(combatTarget) &&
-                        targetService.BeginExpectedAttackDispatch(combatTarget), "P02-native-target-attack-admission");
-                SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
-                using (var input = new NativeOrdinaryAttackInput(combatTarget))
-                    Check(input.Click(), "P02-ordinary-rider-attack-input");
-                Write("attack-dispatched", CombatObservation()); stage = 8; return;
+                BeginCombatAttack(Checkpoint == "rider-spent" ? mount : rider, "attack");
+                stage = 8; return;
             }
             if (stage == 8)
             {
-                if (ruleProbe.AttackRuleCount < 1 || ruleProbe.AttackRollCount < 1 || !PairIdle) return;
-                Check(ruleProbe.LastInitiatorId == rider.UniqueId && ruleProbe.LastTargetId == combatTarget.UniqueId &&
-                    ruleProbe.UnexpectedPairAttackCount == 0 && rider.CombatState.Cooldown.StandardAction > 0,
-                    "P02-ordinary-attack-spends-native-standard");
-                Write("attack-delivered", new JObject { ["rules"] = ruleProbe.AttackRuleCount,
-                    ["rolls"] = ruleProbe.AttackRollCount, ["combat"] = CombatObservation() });
+                if (!FinishCombatAttack()) return;
+                if (Checkpoint == "rider-spent") { BeginRejectedWork(); return; }
                 stage = 9; return;
+            }
+            if (stage == 31)
+            {
+                if (Time.frameCount < rejectedFrame + 8 || !PairIdle || move != null && !move.IsFinished) return;
+                Check(GeometryUtils.MechanicsDistance(origin, mount.Position) < 0.02f &&
+                    LegitimateContinuation(rejectedRider, MountedPersistenceService.CaptureActor(rider), 0) &&
+                    LegitimateContinuation(rejectedMount, MountedPersistenceService.CaptureActor(mount), 0),
+                    "P02-exhausted-movement-delivers-no-distance-or-refund");
+                Write("spent-work-rejected", CombatObservation());
+                if (Checkpoint == "between-partner-orders")
+                { BeginCombatAttack(rider, "attack"); stage = 8; }
+                else stage = 9;
+                return;
             }
             if (stage == 9)
             {
@@ -209,12 +254,124 @@ namespace KingmakerMountedCombat.Diagnostics
                 laterActivations++; savedBoundary = turn;
                 Write("next-paired-activation", CombatObservation());
                 if (laterActivations < 2) { EndFixtureTurn(turn); return; }
-                Write("usable-continuation-complete", CombatObservation());
+                var expected = game.TurnBasedCombatController.SortedUnits.Where(u => u != mount).Select(u => u.UniqueId).ToArray();
+                var prefix = (savedRound + 1) + "|";
+                Check(turnVisits.Where(v => v.StartsWith(prefix, StringComparison.Ordinal)).Select(v => v.Substring(prefix.Length))
+                    .SequenceEqual(expected), "P02-unrelated-turn-order-and-exactly-once-participation");
+                var final = CombatObservation(); final["turnVisits"] = new JArray(turnVisits);
+                Write("usable-continuation-complete", final);
                 Dispose();
                 Result = new RuntimeSubscenarioResult { Name = request.Scenario, Status = "PASS",
                     AssertionPassCount = passed, AssertionFailCount = 0, Errors = new string[0] };
                 Completed = true;
             }
+        }
+
+        private void ValidateCheckpoint(MountedSaveData data)
+        {
+            var saved = data.Combat;
+            Check(saved?.Paired?.Activation != null && saved.Round >= 1 && saved.Paired.Activation.Sequence >= 1,
+                "P02-snapshot-has-native-round-and-participation");
+            var riderSpent = data.Rider.Standard > 0;
+            var mountSpent = data.Mount.Standard > 0;
+            var valid = Checkpoint == "partial-movement" ? !riderSpent && !mountSpent && data.Mount.Move > 0 && data.Mount.Move < 3 :
+                Checkpoint == "rider-spent" ? riderSpent && !mountSpent && data.Mount.Move > 0 && data.Mount.Move < 3 :
+                Checkpoint == "between-partner-orders" ? !riderSpent && mountSpent && data.Mount.Move >= 3 :
+                Checkpoint == "exhausted" ? riderSpent && mountSpent && data.Mount.Move >= 3 :
+                saved.Paired.Activation.Ending && riderSpent && mountSpent;
+            Check(valid && (Checkpoint == "explicit-end" || saved.Current?.ActorId == data.Rider.Id),
+                "P02-actual-snapshot-matches-" + Checkpoint);
+        }
+
+        private void RequestCombatSave()
+        {
+            var game = Game.Instance;
+            if (!game.SaveManager.IsSaveAllowed()) return;
+            var descriptor = game.SaveManager.CreateNewSave("KMC_P01");
+            Check(descriptor.Type == SaveInfo.SaveType.Manual && descriptor.Name == "KMC_P01",
+                "P02-real-native-manual-descriptor");
+            game.SaveGame(descriptor, () => callback = true);
+            stage = 4;
+        }
+
+        private void ContinueSavedCheckpoint()
+        {
+            if (Checkpoint == "partial-movement" || Checkpoint == "rider-spent") { stage = 6; return; }
+            BeginRejectedWork();
+        }
+
+        private void BeginCombatAttack(UnitEntityData actor, string kind)
+        {
+            attackActor = actor; attackKind = kind;
+            if (ruleProbe == null) ruleProbe = new MountedCombatRuleProbe();
+            ruleProbe.Arm(rider, mount, actor, combatTarget);
+            if (targetService != null)
+                Check(targetService.PrepareForPlayerClick(combatTarget) &&
+                    targetService.BeginExpectedAttackDispatch(combatTarget), "P02-native-target-attack-admission");
+            if (actor == mount) Check(TryPrimaryInput(true), "P02-native-mount-primary-input");
+            else
+            {
+                SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
+                Game.Instance.DefaultPointerController.ClearPointerMode();
+                using (var input = new NativeOrdinaryAttackInput(combatTarget))
+                    Check(input.Click(), "P02-ordinary-rider-attack-input");
+            }
+            Write(kind + "-dispatched", CombatObservation());
+        }
+
+        private bool FinishCombatAttack()
+        {
+            if (ruleProbe.AttackRuleCount < 1 || ruleProbe.AttackRollCount < 1 || !PairIdle) return false;
+            Check(ruleProbe.LastInitiatorId == attackActor.UniqueId && ruleProbe.LastTargetId == combatTarget.UniqueId &&
+                ruleProbe.UnexpectedPairAttackCount == 0 && attackActor.CombatState.Cooldown.StandardAction > 0,
+                "P02-native-attack-spends-only-its-actor-standard");
+            Write(attackKind + "-delivered", new JObject { ["rules"] = ruleProbe.AttackRuleCount,
+                ["rolls"] = ruleProbe.AttackRollCount, ["actor"] = attackActor.UniqueId, ["combat"] = CombatObservation() });
+            return true;
+        }
+
+        private bool TryPrimaryInput(bool mountActor)
+        {
+            controls.Update();
+            SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
+            var blueprint = mountActor ? controls.MountPrimaryAbility : controls.RiderPrimaryAbility;
+            var ability = rider.Descriptor.Abilities.GetAbility(blueprint)?.Data;
+            var handler = Game.Instance.SelectedAbilityHandler;
+            if (ability == null || handler == null || combatTarget?.View == null)
+                throw new InvalidOperationException("P02 native Primary input lacks a saved actor/control/target.");
+            try
+            {
+                handler.SetAbility(ability);
+                handler.GetPriority(combatTarget.View.gameObject, combatTarget.Position);
+                return handler.OnClick(combatTarget.View.gameObject, combatTarget.Position, 0, false, false);
+            }
+            finally { handler.DropAbility(); }
+        }
+
+        private void BeginRejectedWork()
+        {
+            rejectedRider = MountedPersistenceService.CaptureActor(rider);
+            rejectedMount = MountedPersistenceService.CaptureActor(mount);
+            var before = controls.CaptureSnapshot().DispatchAcceptedCount;
+            if (rejectedRider.Standard > 0) Check(!TryPrimaryInput(false), "P02-spent-rider-standard-rejected");
+            if (rejectedMount.Standard > 0) Check(!TryPrimaryInput(true), "P02-spent-mount-standard-rejected");
+            Check(controls.CaptureSnapshot().DispatchAcceptedCount == before && PairIdle,
+                "P02-spent-attack-admission-created-no-native-work");
+            if (Checkpoint == "explicit-end")
+            {
+                Check(combat.PairedActivationSequence == savedSequence &&
+                    LegitimateContinuation(rejectedRider, MountedPersistenceService.CaptureActor(rider), 0) &&
+                    LegitimateContinuation(rejectedMount, MountedPersistenceService.CaptureActor(mount), 0),
+                    "P02-ended-actors-do-not-regain-work");
+                Write("spent-work-rejected", CombatObservation()); stage = 9; return;
+            }
+            SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
+            Game.Instance.DefaultPointerController.ClearPointerMode();
+            origin = mount.Position;
+            using (var input = new NativeOrdinaryAttackInput(FindDestination(0.75f)))
+            { input.Predict(); input.Click(); }
+            move = mount.Commands.Move as UnitMoveTo;
+            rejectedFrame = Time.frameCount; stage = 31;
         }
 
         private void BeginCombatMovement(float distance, string kind)
@@ -237,7 +394,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void EndFixtureTurn(TurnController turn)
         {
-            if (ReferenceEquals(turn, endedBoundary) || !turn.Unit.IsDirectlyControllable ||
+            if (turn == null || ReferenceEquals(turn, endedBoundary) || !turn.Unit.IsDirectlyControllable ||
                 turn.Unit.Group != rider.Group || !turn.Unit.Commands.Empty ||
                 turn.Unit.AreHandsBusyWithAnimation || !turn.CanEndTurnAndNoActing() ||
                 Game.Instance.TurnBasedCombatController.WaitingForUI) return;

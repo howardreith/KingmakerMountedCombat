@@ -37,6 +37,7 @@ param(
     [string]$PackagePath,
     [ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$PersistenceSourceRunId,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPersistenceSourceSha256,
+    [ValidateSet('partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end')][string]$PersistenceCase,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPackageSha256,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPackageManifestSha256,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedDllSha256,
@@ -68,6 +69,7 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'RuntimeHarness.Common.ps1')
 . (Join-Path $PSScriptRoot 'PersistenceProfileProtection.ps1')
 . (Join-Path $PSScriptRoot 'PersistenceSaveFixtures.ps1')
+if($PSBoundParameters.ContainsKey('PersistenceCase') -and $Scenario -cnotin @('persistence-p02-save','persistence-p02-load')) { throw 'PersistenceCase is restricted to the P02 scenario.' }
 $requestedWhatIf=[bool]$WhatIfPreference
 $WhatIfPreference=$false
 $repoRoot=Get-KmcRepositoryRoot
@@ -260,6 +262,7 @@ try{
         transactionToken=[string]$lock.Token
         evidenceRoot=$evidenceRoot
     }
+    if($PSBoundParameters.ContainsKey('PersistenceCase')) { $request['persistenceCase']=$PersistenceCase }
     if($isSaveBacked){
         $request['fixture']=$fixturePayload
         $request['qualificationSuite']=[ordered]@{suiteId=$ExpectedQualificationSuiteId;snapshotSha256=$ExpectedQualificationSuiteSnapshotSha256}

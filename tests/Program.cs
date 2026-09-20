@@ -101,6 +101,22 @@ namespace KingmakerMountedCombat.Tests
                 request.Fixture.Working.InternalName = "KMC_arbitrary";
                 TestRunner.True(request.Validate().Count > 0, "Display prefix authorized an arbitrary fixture.");
             });
+            runner.Run("P02 accepts only bounded checkpoint parameters", () =>
+            {
+                foreach (var name in new[] { "partial-movement", "rider-spent", "between-partner-orders", "exhausted", "explicit-end" })
+                {
+                    var request = ValidSaveBackedRequest(); request.Scenario = "persistence-p02-save"; request.PersistenceCase = name;
+                    TestRunner.Equal(0, request.Validate().Count, "P02 checkpoint rejected.");
+                    request.Scenario = "mounted-pair-create-and-clear";
+                    TestRunner.True(request.Validate().Count > 0, "Checkpoint leaked to an unrelated scenario.");
+                }
+                var invalid = ValidSaveBackedRequest(); invalid.Scenario = "persistence-p02-save"; invalid.PersistenceCase = "../human";
+                TestRunner.True(invalid.Validate().Count > 0, "Unrecognized checkpoint accepted.");
+                invalid.PersistenceCase = "";
+                TestRunner.True(invalid.Validate().Count > 0, "Empty checkpoint accepted.");
+                invalid.PersistenceCase = "rider-spent"; invalid.Fixture = null;
+                TestRunner.True(invalid.Validate().Count > 0, "Checkpoint bypassed fixture authority.");
+            });
             RuntimeSaveAuthorizationTests.Register(runner);
             ScopedEnumeratorTests.Register(runner);
             NativeLoadWorldTests.Register(runner);
