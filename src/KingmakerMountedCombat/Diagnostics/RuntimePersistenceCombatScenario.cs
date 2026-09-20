@@ -326,7 +326,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 ruleProbe.UnexpectedPairAttackCount == 0 && attackActor.CombatState.Cooldown.StandardAction > 0,
                 "P02-native-attack-spends-only-its-actor-standard");
             Write(attackKind + "-delivered", new JObject { ["rules"] = ruleProbe.AttackRuleCount,
-                ["rolls"] = ruleProbe.AttackRollCount, ["actor"] = attackActor.UniqueId, ["combat"] = CombatObservation() });
+                ["rolls"] = ruleProbe.AttackRollCount, ["actor"] = attackActor.UniqueId,
+                ["damage"] = ruleProbe.TotalDamage, ["hit"] = ruleProbe.LastAttackHit, ["combat"] = CombatObservation() });
             return true;
         }
 

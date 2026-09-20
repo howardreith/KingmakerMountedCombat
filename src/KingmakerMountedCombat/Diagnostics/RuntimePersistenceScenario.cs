@@ -268,6 +268,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void Write(string kind, JObject detail = null)
         {
+            var observedTarget = CombatCase ? combatTarget : targetService?.Target;
+            var targetLife = DiagnosticTargetLifeSnapshot.Capture(observedTarget);
             var row = new JObject
             {
                 ["runId"] = request.RunId, ["scenario"] = request.Scenario, ["processId"] = Process.GetCurrentProcess().Id,
@@ -287,7 +289,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["tbRoster"] = new JArray(Game.Instance.TurnBasedCombatController.SortedUnits.Select(u => u.UniqueId)),
                     ["riderCombat"] = rider?.IsInCombat, ["mountCombat"] = mount?.IsInCombat,
                     ["riderCanAct"] = rider?.CombatState.CanActInCombat,
-                    ["targetCombat"] = targetService?.Target?.IsInCombat, ["targetId"] = targetService?.TargetId },
+                    ["targetCombat"] = observedTarget?.IsInCombat, ["targetId"] = observedTarget?.UniqueId,
+                    ["targetLife"] = targetLife == null ? null : JObject.FromObject(targetLife, MountedSaveCodec.CreateSerializer()) },
                 ["persistence"] = new JObject { ["semantics"] = persistence.SemanticRestoreCount,
                     ["presentation"] = persistence.PresentationRestoreCount, ["feedback"] = persistence.Feedback },
                 ["detail"] = detail

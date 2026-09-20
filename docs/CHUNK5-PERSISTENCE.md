@@ -29,6 +29,7 @@ A persistence-specific run-owned root/campaign/native-type/leaf/hash contract pr
 | P02-save-A, preview.8/source2712f15 | FAIL5/1 before movement/write; native settings refresh discarded the declared temporary TB cache |
 | P02-save-B, preview.9/sourcec06098e, PID16516 | PASS26/0 + outer PASS; partial transport, real Manual write, same-session movement/attack and two later paired activations |
 | P02-load-A, same preview.9, PID16172 | PASS20/0 + outer PASS; four actor records, saved grant/round/remainder, controls once, movement/attack and two later paired activations |
+| P02-rider-save-A, preview.10/sourceaeb8e27, PID15396 | FAIL24/1 after write and mount movement; Primary target rejected as not a valid living target; no cold run |
 
 Earlier P01 failures and exact historical identities remain in the journal and immutable lab evidence. P01-save-D archive SHA256 `84ffb91c85fe10b0ccacc92befe9a1e4fd2be88e639f197f79bf9bd678c83270`; P02-save-B archive SHA256 `e65a6d5ca94596c4d7f68e5e6b945a6022ea6a6c50dc6f8f86b6247697787439`, under its owned `runtime-staging/persistence-20260920-chunk5-P02-save-B/Saved Games/Manual_300_KMC_P01.zks`. The cold process reads those bytes and supplies no missing gameplay state. At round1/grant1, mount Move0.17698051 and rider Standard/Move0 survive; grants2/3 refresh normally. Source PID16516 exited and fully restored intake21:54:15.0066094Z; cold process started22:00:52.1487984Z.
 
