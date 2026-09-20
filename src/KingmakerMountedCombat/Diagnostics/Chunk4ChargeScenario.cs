@@ -100,7 +100,16 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["samples"] = chunk4ChargeSamples, ["shell"] = CaptureNativeAbilityShell(chunk4ChargeCommand)
             };
             if (chunk4ChargeStage == 4) { TickChunk4ChargeRecovery(); return; }
-            if (game.IsPaused) { game.IsPaused = false; return; }
+            if (game.IsPaused && !(chunk4ChargeStage == 1 && chunk4ChargePauseRequestFrame >= 0) && chunk4ChargeStage != 5)
+            { game.IsPaused = false; return; }
+            if (chunk4ChargeStage == 5)
+            {
+                if (!FinishChunk4ChargePausedHold(chunk4ChargePausedInput)) return;
+                if (chunk4ChargeCommand != null && (chunk4ChargeCommand.IsStarted || chunk4ChargeCommand.IsActed))
+                    throw new InvalidOperationException("Native Charge executed while its input was held in Pause.");
+                game.IsPaused = false;
+                chunk4ChargeStage = 2; ResetLeafClock(); return;
+            }
             if (chunk4ChargeStage == 0)
             {
                 if (chunk4ChargeCase == 5) { observations["ordinaryTrace"] = ordinaryAttackTrace.Capture(); BeginCleanup(); return; }
@@ -139,20 +148,26 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (chunk4ChargeStage == 1)
             {
-                if (!IsCombatReady(Chunk4ChargePairMounted)) return;
-                if (Chunk4ChargeTb)
+                if (chunk4ChargePauseRequestFrame < 0)
                 {
-                    if (Chunk4ChargePairMounted && turn?.Unit == horse)
-                        throw new InvalidOperationException("Independent mount turn in paired Charge fixture.");
-                    if (turn?.Unit != (Chunk4ChargeMounted ? rider : chunk4ChargeActor) ||
-                        turn.Status != TurnController.TurnStatus.Preparing && !turn.IsActing)
-                    { TryEndPhase3gFixtureTurn(turn); return; }
+                    if (!IsCombatReady(Chunk4ChargePairMounted)) return;
+                    if (Chunk4ChargeTb)
+                    {
+                        if (Chunk4ChargePairMounted && turn?.Unit == horse)
+                            throw new InvalidOperationException("Independent mount turn in paired Charge fixture.");
+                        if (turn?.Unit != (Chunk4ChargeMounted ? rider : chunk4ChargeActor) ||
+                            turn.Status != TurnController.TurnStatus.Preparing && !turn.IsActing)
+                        { TryEndPhase3gFixtureTurn(turn); return; }
+                    }
+                    if (!rider.Commands.Empty || !horse.Commands.Empty || rider.AreHandsBusyWithAnimation ||
+                        !rider.CombatState.Prepared ||
+                        !chunk4ChargeActor.CombatState.Prepared || !chunk4ChargeActor.CombatState.CanActInCombat ||
+                        chunk4ChargeActor.CombatState.Cooldown.StandardAction > 0.001f ||
+                        chunk4ChargeActor.CombatState.Cooldown.MoveAction > 0.001f) return;
                 }
-                if (!rider.Commands.Empty || !horse.Commands.Empty || rider.AreHandsBusyWithAnimation ||
-                    !rider.CombatState.Prepared ||
-                    !chunk4ChargeActor.CombatState.Prepared || !chunk4ChargeActor.CombatState.CanActInCombat ||
-                    chunk4ChargeActor.CombatState.Cooldown.StandardAction > 0.001f ||
-                    chunk4ChargeActor.CombatState.Cooldown.MoveAction > 0.001f) return;
+                if (!AwaitChunk4ChargePause(ref chunk4ChargePauseRequestFrame)) return;
+                chunk4ChargePausedInput = BeginChunk4ChargePausedInput(chunk4ChargePauseRequestFrame);
+                observations["actualPause-" + Chunk4ChargeId] = chunk4ChargePausedInput;
                 var nativeTarget = new TargetWrapper(target);
                 chunk4ChargeBefore = new JObject {
                     ["rider"] = CaptureOrdinaryActor(rider), ["mount"] = CaptureOrdinaryActor(horse),
@@ -167,7 +182,6 @@ namespace KingmakerMountedCombat.Diagnostics
                 // Hover through the actual selected-ability handler while paused.
                 // No command or native budget is fabricated by this fixture.
                 var handler = game.SelectedAbilityHandler;
-                game.IsPaused = true;
                 handler.SetAbility(chunk4ChargeAbility);
                 var beforeHover = CaptureOrdinaryLiveState();
                 var beforeHoverActor = CaptureOrdinaryActor(chunk4ChargeActor);
@@ -186,6 +200,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 chunk4ChargeClicked = handler.OnClick(target.View.gameObject, target.Position, 0, false, false);
                 chunk4ChargeCommand = chunk4ChargeActor.Commands.Raw.Concat(chunk4ChargeActor.Commands.Queue).OfType<UnitUseAbility>()
                     .FirstOrDefault(command => ReferenceEquals(command.Spell, chunk4ChargeAbility));
+                ObserveChunk4ChargePausedInput(chunk4ChargePausedInput);
                 observations["paused-" + Chunk4ChargeId] = new JObject {
                     ["before"] = beforeHover, ["after"] = CaptureOrdinaryLiveState(),
                     ["shell"] = CaptureNativeAbilityShell(chunk4ChargeCommand), ["clicked"] = chunk4ChargeClicked
@@ -201,7 +216,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 chunk4ChargeMaxMountStandard = chunk4ChargeMaxMountMove = 0;
                 chunk4ChargeObservedCharging = false;
                 chunk4ChargeSamples.Clear();
-                chunk4ChargeStage = 2;
+                chunk4ChargeStage = 5;
                 ResetLeafClock();
                 return;
             }
@@ -266,6 +281,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["maximumRiderStandard"] = chunk4ChargeMaxStandard, ["maximumRiderMove"] = chunk4ChargeMaxMove,
                     ["maximumMountStandard"] = chunk4ChargeMaxMountStandard, ["maximumMountMove"] = chunk4ChargeMaxMountMove,
                     ["observedCharging"] = chunk4ChargeObservedCharging, ["samples"] = chunk4ChargeSamples.DeepClone(),
+                    ["pausedInput"] = chunk4ChargePausedInput.DeepClone(),
                     ["rules"] = ruleProbe.CapturePairEvidence(), ["after"] = CaptureOrdinaryLiveState()
                 };
                 if (chunk4ChargeCase == 0 && safe) { BeginChunk4ChargeRecovery(evidence); return; }
@@ -295,6 +311,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 combatMountRiderAiLease = null; unmountedHorseAiLease = null; unmountedHorseAiSettleRequested = false;
                 chunk4ChargeCase++; chunk4ChargeStage = 0; chunk4ChargeControlSent = false; chunk4ChargeCommand = null;
                 chunk4ChargePlacementMove = null; chunk4ChargePlacementReady = false;
+                chunk4ChargePauseRequestFrame = -1; chunk4ChargePausedInput = null;
                 ResetLeafClock();
             }
         }

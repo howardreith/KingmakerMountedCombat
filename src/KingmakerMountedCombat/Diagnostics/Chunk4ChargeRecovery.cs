@@ -32,6 +32,7 @@ namespace KingmakerMountedCombat.Diagnostics
             chunk4RecoveryMove = null;
             chunk4RecoveryAttack = null;
             chunk4RecoveryMaximumStandard = 0;
+            chunk4RecoveryPauseRequestFrame = -1; chunk4RecoveryPausedInput = null;
             chunk4ChargeSafetyEvidence = safety;
             observations["chargeRecovery-" + Chunk4ChargeId] = safety;
             safety["recovery"] = chunk4ChargeRecovery;
@@ -49,7 +50,18 @@ namespace KingmakerMountedCombat.Diagnostics
             var turn = game.TurnBasedCombatController.CurrentTurn;
             chunk4ChargeRecovery["stage"] = chunk4RecoveryStage;
             chunk4RecoveryMaximumStandard = Math.Max(chunk4RecoveryMaximumStandard, rider.CombatState.Cooldown.StandardAction);
-            if (game.IsPaused) { game.IsPaused = false; return; }
+            if (game.IsPaused && !(chunk4RecoveryStage == 2 && chunk4RecoveryPauseRequestFrame >= 0) && chunk4RecoveryStage != 6)
+            { game.IsPaused = false; return; }
+            if (chunk4RecoveryStage == 6)
+            {
+                if (!FinishChunk4ChargePausedHold(chunk4RecoveryPausedInput)) return;
+                if (chunk4RecoveryAttack.IsFinished ||
+                    !JToken.DeepEquals(chunk4ChargeRecovery["liveQueue"]["after"], CaptureOrdinaryLiveState()))
+                    throw new InvalidOperationException("Paused Charge queue input advanced or replaced the legal live attack.");
+                chunk4ChargeRecovery["liveQueue"]["pausedInput"] = chunk4RecoveryPausedInput.DeepClone();
+                game.IsPaused = false;
+                chunk4RecoveryStage = 3; ResetLeafClock(); return;
+            }
             if (chunk4RecoveryStage == 0)
             {
                 game.SelectedAbilityHandler.SetAbility(null);
@@ -91,7 +103,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (chunk4RecoveryAttack == null) return;
                 if (chunk4RecoveryAttack.IsFinished || rider.Commands.Standard == null)
                     throw new InvalidOperationException("Charge queue control missed the live ordinary attack window.");
-                game.IsPaused = true;
+                if (!AwaitChunk4ChargePause(ref chunk4RecoveryPauseRequestFrame)) return;
+                chunk4RecoveryPausedInput = BeginChunk4ChargePausedInput(chunk4RecoveryPauseRequestFrame);
+                observations["actualQueuePause-" + Chunk4ChargeId] = chunk4RecoveryPausedInput;
                 var before = CaptureOrdinaryLiveState();
                 var warningBefore = chunk4ChargeWarnings.Count;
                 var queued = new UnitUseAbility(chunk4ChargeAbility, new TargetWrapper(target));
@@ -107,7 +121,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 var clicked = game.SelectedAbilityHandler.OnClick(target.View.gameObject, target.Position, 0, false, false);
                 var clickPure = JToken.DeepEquals(before, CaptureOrdinaryLiveState());
                 game.SelectedAbilityHandler.SetAbility(null);
+                ObserveChunk4ChargePausedInput(chunk4RecoveryPausedInput);
                 chunk4ChargeRecovery["liveQueue"] = new JObject {
+                    ["pausedInput"] = chunk4RecoveryPausedInput,
                     ["before"] = before, ["after"] = CaptureOrdinaryLiveState(),
                     ["nativeQueueApi"] = "UnitCommands.AddToQueue -> AddToQueueInternal",
                     ["queuedRejectedBeforeInit"] = queued.Executor == null && !queued.IsStarted && !queued.IsActed,
@@ -121,8 +137,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     !prepared.IsFinished || prepared.IsStarted || prepared.IsActed || chunk4RecoveryAttack.IsFinished ||
                     chunk4ChargeWarnings.Count - warningBefore != 3)
                     throw new InvalidOperationException("Rejected Charge disturbed a legal live command or lacked native feedback.");
-                game.IsPaused = false;
-                chunk4RecoveryStage = 3; ResetLeafClock(); return;
+                chunk4RecoveryStage = 6; return;
             }
             if (chunk4RecoveryStage == 3)
             {

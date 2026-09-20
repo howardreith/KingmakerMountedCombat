@@ -86,7 +86,6 @@ namespace KingmakerMountedCombat.Diagnostics
                 // No hostile exists during the native Mount approach. Queue the
                 // legal unmounted Charge synchronously at real Mount delivery,
                 // before the relationship changes. Native perception stays active.
-                game.IsPaused = true;
                 chunk4ChargeTransition["mountInput"] = CaptureOrdinaryLiveState();
                 ordinaryAttackTrace.BeginCase(Chunk4ChargeId);
                 chunk4QueuedMountWindow = new DiagnosticQueuedMountWindow(nativeControls, rider, horse,
@@ -101,7 +100,6 @@ namespace KingmakerMountedCombat.Diagnostics
                 chunk4QueuedMount = lastNativeAbilityShell;
                 if (chunk4QueuedMount == null || chunk4QueuedMount.IsActed || relationship.State != RelationshipState.Unmounted)
                     throw new InvalidOperationException("Queued transition missed the genuine pre-Mount command window.");
-                game.IsPaused = false;
                 chunk4ChargeTransitionStage = 1; ResetLeafClock(); return;
             }
             if (chunk4ChargeTransitionStage == 1)
@@ -195,47 +193,43 @@ namespace KingmakerMountedCombat.Diagnostics
                 context.Ability != chunk4QueuedMount.Spell || context.Caster != rider || context.MainTarget?.Unit != horse ||
                 context.AbilityBlueprint != nativeControls.MountAbility || target != null)
                 throw new InvalidOperationException("Queued fixture did not reach the real unmounted Mount delivery boundary.");
-            var pausedBefore = game.IsPaused;
-            game.IsPaused = true;
-            try
-            {
-                chunk4ChargeTransition["queueFrame"] = Time.frameCount;
-                chunk4ChargeTransition["queuePaused"] = game.IsPaused;
-                chunk4ChargeTransition["queueBoundary"] = "NativeMountedControlService.TryDispatch:MountCompanion:before";
-                targetService = new DiagnosticCombatTargetService(logger, repeatedNativeSequences: true);
-                target = targetService.Spawn(rider, horse, FindChunk4ChargeTargetPoint(),
-                    request.RunId + "-queued-charge-transition", true, true);
-                if (!targetService.PrepareForPlayerClick(target))
-                    throw new InvalidOperationException("Queued Charge target visibility lease failed.");
-                var available = chunk4ChargeAbility.IsAvailableForCast;
-                var canTarget = chunk4ChargeAbility.CanTarget(new Kingmaker.Utility.TargetWrapper(target));
-                chunk4ChargeTransition["before"] = CaptureOrdinaryLiveState();
-                chunk4ChargeTransition["availableWhileUnmounted"] = available;
-                chunk4ChargeTransition["canTargetWhileUnmounted"] = canTarget;
-                if (!available || !canTarget || rider.IsInCombat || horse.IsInCombat)
-                    throw new InvalidOperationException("Queued transition must start with a legal unmounted Charge before combat.");
-                var beforeQueue = CaptureOrdinaryActor(rider);
-                chunk4ChargeTransition["pairBeforeQueue"] = CaptureOrdinaryLiveState();
-                chunk4QueuedCharge = new UnitUseAbility(chunk4ChargeAbility, new Kingmaker.Utility.TargetWrapper(target));
-                var queue = typeof(UnitCommands).GetMethods(BindingFlags.NonPublic | BindingFlags.Instance)
-                    .Single(method => method.Name == "AddToQueueInternal" && method.MetadataToken == 0x060026B8);
-                queue.Invoke(rider.Commands, new object[] { chunk4QueuedCharge, false });
-                chunk4ChargeTransition["queuedWhileUnmounted"] = rider.Commands.Queue.Contains(chunk4QueuedCharge) &&
-                    chunk4QueuedCharge.Executor == rider && !chunk4QueuedCharge.IsStarted && !chunk4QueuedCharge.IsActed;
-                chunk4ChargeTransition["nativeQueueApi"] = "UnitCommands.AddToQueueInternal060026B8";
-                chunk4ChargeTransition["beforeQueue"] = beforeQueue;
-                chunk4ChargeTransition["afterQueue"] = CaptureOrdinaryActor(rider);
-                var pairAfterQueue = CaptureOrdinaryLiveState();
-                chunk4ChargeTransition["pairAfterQueue"] = pairAfterQueue;
-                chunk4ChargeTransition["pausedQueueCostsPure"] =
-                    new[] { "rider", "mount" }.All(actor => new[] { "standard", "move", "swift", "position" }
-                        .All(field => JToken.DeepEquals(chunk4ChargeTransition["pairBeforeQueue"][actor][field], pairAfterQueue[actor][field])));
-                if (!(bool)chunk4ChargeTransition["queuedWhileUnmounted"] || !(bool)chunk4ChargeTransition["pausedQueueCostsPure"])
-                    throw new InvalidOperationException("Native unmounted Charge did not queue without expenditure.");
-                chunk4ChargeWarningStart = chunk4ChargeWarnings.Count;
-                ruleProbe.Arm(target, false);
-            }
-            finally { game.IsPaused = pausedBefore; }
+            if (game.IsPaused)
+                throw new InvalidOperationException("Native Mount delivery unexpectedly ran inside Pause mode.");
+            chunk4ChargeTransition["queueFrame"] = Time.frameCount;
+            chunk4ChargeTransition["queuePaused"] = game.IsPaused;
+            chunk4ChargeTransition["queueBoundary"] = "NativeMountedControlService.TryDispatch:MountCompanion:before";
+            targetService = new DiagnosticCombatTargetService(logger, repeatedNativeSequences: true);
+            target = targetService.Spawn(rider, horse, FindChunk4ChargeTargetPoint(),
+                request.RunId + "-queued-charge-transition", true, true);
+            if (!targetService.PrepareForPlayerClick(target))
+                throw new InvalidOperationException("Queued Charge target visibility lease failed.");
+            var available = chunk4ChargeAbility.IsAvailableForCast;
+            var canTarget = chunk4ChargeAbility.CanTarget(new Kingmaker.Utility.TargetWrapper(target));
+            chunk4ChargeTransition["before"] = CaptureOrdinaryLiveState();
+            chunk4ChargeTransition["availableWhileUnmounted"] = available;
+            chunk4ChargeTransition["canTargetWhileUnmounted"] = canTarget;
+            if (!available || !canTarget || rider.IsInCombat || horse.IsInCombat)
+                throw new InvalidOperationException("Queued transition must start with a legal unmounted Charge before combat.");
+            var beforeQueue = CaptureOrdinaryActor(rider);
+            chunk4ChargeTransition["pairBeforeQueue"] = CaptureOrdinaryLiveState();
+            chunk4QueuedCharge = new UnitUseAbility(chunk4ChargeAbility, new Kingmaker.Utility.TargetWrapper(target));
+            var queue = typeof(UnitCommands).GetMethods(BindingFlags.NonPublic | BindingFlags.Instance)
+                .Single(method => method.Name == "AddToQueueInternal" && method.MetadataToken == 0x060026B8);
+            queue.Invoke(rider.Commands, new object[] { chunk4QueuedCharge, false });
+            chunk4ChargeTransition["queuedWhileUnmounted"] = rider.Commands.Queue.Contains(chunk4QueuedCharge) &&
+                chunk4QueuedCharge.Executor == rider && !chunk4QueuedCharge.IsStarted && !chunk4QueuedCharge.IsActed;
+            chunk4ChargeTransition["nativeQueueApi"] = "UnitCommands.AddToQueueInternal060026B8";
+            chunk4ChargeTransition["beforeQueue"] = beforeQueue;
+            chunk4ChargeTransition["afterQueue"] = CaptureOrdinaryActor(rider);
+            var pairAfterQueue = CaptureOrdinaryLiveState();
+            chunk4ChargeTransition["pairAfterQueue"] = pairAfterQueue;
+            chunk4ChargeTransition["queueCostsAndPositionsPure"] =
+                new[] { "rider", "mount" }.All(actor => new[] { "standard", "move", "swift", "position" }
+                    .All(field => JToken.DeepEquals(chunk4ChargeTransition["pairBeforeQueue"][actor][field], pairAfterQueue[actor][field])));
+            if (!(bool)chunk4ChargeTransition["queuedWhileUnmounted"] || !(bool)chunk4ChargeTransition["queueCostsAndPositionsPure"])
+                throw new InvalidOperationException("Native unmounted Charge did not queue without expenditure.");
+            chunk4ChargeWarningStart = chunk4ChargeWarnings.Count;
+            ruleProbe.Arm(target, false);
         }
 
         private static bool Chunk4ChargeRejectionPair(JArray pair)
