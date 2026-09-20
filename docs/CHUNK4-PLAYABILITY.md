@@ -4,6 +4,8 @@
 
 Scope: one pre-combat Horse or Mammoth pair, rider-principal activation, separate native budgets. Actual tested configuration: `EnablePairedActivation=true`, `EnableUnifiedMountedTurn=false`, `EnablePairedCommandScheduler=false`, `EnableDiagnosticOverlay=false`. The [paired milestone](PAIRED-ACTIVATION-MILESTONE.md) is accepted baseline engineering evidence. Earlier preview.13 human feedback retains its scope; no preview.37 or candidate human approval is inferred.
 
+The owner subsequently accepted this scope and authorized default-branch merge, alpha publication and local UMM installation on September 20. The qualified payload stays unchanged. Qualification restoration statements below describe the completed temporary campaign; the authorized alpha installation is a separate delivery. [Alpha setup and checklist](ALPHA-PLAYTEST.md).
+
 ## New native execution
 
 Every row is a new execution on this exact candidate. GH-HB comprise 20 required new scenario roots plus fresh Horse capture; HC-HL are final regressions. Counts are native assertions and independent outer-validator assertions, not summed as separate gameplay cases. Run IDs are `20260920-chunk4-<Run>` under `C:/Dev/KingmakerMountedCombatLab/runtime-evidence/`.

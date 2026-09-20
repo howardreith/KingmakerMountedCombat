@@ -1,3 +1,12 @@
+# Authorized alpha delivery - 2026-09-20 UTC
+
+IN PROGRESS. The owner accepted the Chunk 4 scope and explicitly authorized commit, merge to the default branch, an alpha release and local UMM installation. These instructions supersede the qualification mission's historical delivery restrictions. Distribute the exact tested preview.54 ZIP/DLL without rebuilding; main is the verified default branch. Preserve the existing integration history with a merge commit, use the guarded branch publication and deployment helpers, and retain current human data/foreign Mods and a full preview.37 backup.
+
+Native engineering remains PASS on source `429377d707a9976be65639e0c27954d8b4ff3717`; visual/physical-input/HUMAN PLAY checks remain TODO. [Alpha setup and checklist](docs/ALPHA-PLAYTEST.md), [qualification](docs/CHUNK4-PLAYABILITY.md). The paired-activation option must be enabled in UMM before mounting each game process; it is session-only. No Chunk 5 implementation or new gameplay change is part of release delivery. Local delivery evidence is under `analysis-cache/chunk4-alpha54/`.
+
+Next: commit these delivery instructions, prove the deployment helper's WhatIf purity, back up and replace only the KMC installation, verify protected external state, then commit the receipt summary, publish/merge and create the alpha prerelease. GitHub connector merge access works; CLI authentication for release upload needs renewal and the owner has been asked while independent work continues.
+
+---
 # Chunk 4 native qualification - 2026-09-20 UTC
 
 **PASS for native engineering gates; TODO for targeted visual/physical-input and HUMAN PLAY checks.** Tested source `429377d707a9976be65639e0c27954d8b4ff3717`, private `0.1.0-chunk4-preview.54`, on `codex/mounted-combat-phase3f-playable-core`. All 31 new exact-candidate roots and outer validators pass: 20 required Chunk 4 roots, fresh Horse capture, paired full-round/A05/A10 and Horse/Mammoth regression. Required paired configuration was measured. [Single report, identities and manual checklist](docs/CHUNK4-PLAYABILITY.md).
