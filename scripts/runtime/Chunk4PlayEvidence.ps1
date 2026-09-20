@@ -1,7 +1,10 @@
 function Assert-KmcChunk4PlayEvidence {
     param($Request,$Artifact,[AllowNull()][string]$Status)
     $roots=@('chunk4-sustained-melee-rt','chunk4-sustained-ranged-rt','chunk4-sustained-tb')
-    if($Artifact.schemaVersion -ne 21 -or $Request.scenario -cnotin $roots){throw 'Sustained play requires exact schema21 and a registered root.'}
+    if(!(Test-KmcExactJsonInteger $Artifact.schemaVersion) -or $Artifact.schemaVersion -notin @(21,27) -or
+        $Request.scenario -cnotin $roots -or ($Artifact.schemaVersion -eq 27 -and $Request.scenario -ceq 'chunk4-sustained-tb')){
+        throw 'Sustained play requires schema21, or schema27 RT cadence, and a registered root.'
+    }
     Assert-KmcMountedRuntimeConfiguration $Artifact.observations.phase3fActualConfiguration $true 'Chunk 4 sustained configuration'
     $tb=$Request.scenario -ceq 'chunk4-sustained-tb'
     if($tb){
@@ -66,7 +69,7 @@ function Assert-KmcChunk4SustainedRow {
             (@($click.clocksBefore)-join ',') -cne (@($click.clocksAfter)-join ',')){throw 'Repeated input changed its native command, windup clock or costs.'}
     }
     $seen=New-Object 'Collections.Generic.HashSet[int]'
-    $complete=0;$riderDelivered=0;$mountDelivered=0;$fullRider=0;$tailRider=0
+    $complete=0;$riderDelivered=0;$mountDelivered=0;$fullRider=0;$tailRider=0;$fullMount=0
     foreach($routine in $e.routines){
         $command=$routine.command
         if(!$seen.Add([int]$command.id) -or $routine.actor -cnotin @($rider,$mount) -or $command.executor -cne $routine.actor -or
@@ -101,7 +104,7 @@ function Assert-KmcChunk4SustainedRow {
                         ($i -ge $routine.completed -and $range.rangeOriginDistance -le $radius)){throw 'Ranged terminal changed an individual native weapon reach.'}
                 }
             }elseif($routine.completed -ne $routine.planned -or $command.result -cne 'Success'){throw 'Incomplete interrupted routine was counted as complete.'}
-            if($routine.actor -ceq $rider){$complete++;if($tail){$tailRider++}else{$fullRider++}}
+            if($routine.actor -ceq $rider){$complete++;if($tail){$tailRider++}else{$fullRider++}}else{$fullMount++}
         }
         if($routine.actor -ceq $rider){$riderDelivered+=$routine.completed}else{$mountDelivered+=$routine.completed}
     }
@@ -119,6 +122,12 @@ function Assert-KmcChunk4SustainedRow {
         }
     }
     if($approach -and $e.mountDistance -le 0.5){throw 'Approach case did not move the real mount.'}
+    if($Artifact.schemaVersion -eq 27){
+        if(!(Test-KmcExactJsonInteger $e.completeMountRoutines) -or $e.completeMountRoutines -ne $fullMount){
+            throw 'Reported completed mount routines disagree with native full-plan successes.'
+        }
+        if($Weapon -ceq 'melee'){Assert-KmcChunk4MountCadenceRow $Row $Artifact $fullMount}
+    }
     if($repeat){
         $heldName=$Row.name.Replace('-repeat','-held')
         $held=@($Artifact.rows|Where-Object {$_.name -ceq $heldName -and $_.status -ceq 'PASS'})
@@ -127,6 +136,38 @@ function Assert-KmcChunk4SustainedRow {
         $tolerance=2*[Math]::Max([double]$held[0].evidence.maximumNativeFrameStep,[double]$e.maximumNativeFrameStep)+0.02
         if($tolerance -gt 0.25 -or [Math]::Abs($e.cadenceComparison.observedFrameTolerance-$tolerance) -gt 0.000000001 -or
             ($repeatPeriods|Measure-Object -Average).Average -lt ($heldPeriods|Measure-Object -Minimum).Minimum-$tolerance){throw 'Repeated input accelerated cadence or the measured frame variation cannot resolve the comparison.'}
+    }
+}
+
+function Assert-KmcChunk4MountCadenceRow {
+    param($Row,$Artifact,[int]$CompleteMountRoutines)
+    $e=$Row.evidence
+    $periods=@($e.mountStartPeriods)
+    if($CompleteMountRoutines -lt 3 -or [string]::IsNullOrEmpty($e.mountWeapon) -or $periods.Count -ne 2){
+        throw 'Melee cadence requires three complete native mount routines with the current weapon.'
+    }
+    $starts=@($e.nativeTrace|Where-Object {$_.boundary -ceq 'start-after' -and $_.actor -ceq $e.before.mount.id})
+    if($starts.Count -lt 3){throw 'Mount cadence lacks three native start boundaries.'}
+    for($i=0;$i -lt 3;$i++){
+        if(!(Test-KmcExactJsonInteger $starts[$i].gameTime) -or $starts[$i].gameTime -lt 0){throw 'Mount start lacks native game time ticks.'}
+    }
+    for($i=0;$i -lt 2;$i++){
+        $nativePeriod=([long]$starts[$i+1].gameTime-[long]$starts[$i].gameTime)/[double][TimeSpan]::TicksPerSecond
+        if(!(Test-KmcFiniteNonnegativeJsonNumber $periods[$i]) -or $periods[$i] -le 0 -or
+            [Math]::Abs($periods[$i]-$nativePeriod) -gt 0.000000001){throw 'Mount period is not bound to its native start times.'}
+    }
+    if($Row.name.EndsWith('-repeat')){
+        $held=@($Artifact.rows|Where-Object {$_.name -ceq $Row.name.Replace('-repeat','-held') -and $_.status -ceq 'PASS'})
+        if($held.Count -ne 1 -or $held[0].evidence.mountWeapon -cne $e.mountWeapon){throw 'Mount repeat lacks its same-weapon held control.'}
+        foreach($frameStep in @($e.maximumNativeFrameStep,$held[0].evidence.maximumNativeFrameStep)){
+            if(!(Test-KmcFiniteNonnegativeJsonNumber $frameStep)){throw 'Mount cadence lacks measured native frame variation.'}
+        }
+        $tolerance=2*[Math]::Max([double]$held[0].evidence.maximumNativeFrameStep,[double]$e.maximumNativeFrameStep)+0.02
+        if(!(Test-KmcFiniteNonnegativeJsonNumber $e.mountCadenceComparison.observedFrameTolerance) -or $tolerance -gt 0.25 -or
+            [Math]::Abs($e.mountCadenceComparison.observedFrameTolerance-$tolerance) -gt 0.000000001 -or
+            ($periods|Measure-Object -Average).Average -lt ($held[0].evidence.mountStartPeriods|Measure-Object -Minimum).Minimum-$tolerance){
+            throw 'Repeated input accelerated mount cadence or measured frame variation cannot resolve the comparison.'
+        }
     }
 }
 

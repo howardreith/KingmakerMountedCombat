@@ -45,6 +45,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private Vector3 chunk4SustainedMountOrigin;
 
         private static double Chunk4NativeSeconds => Game.Instance.TimeController.GameTime.TotalSeconds;
+        private int Chunk4CompleteMountRoutines => chunk4Routines.Keys.Count(command => command.Executor == horse &&
+            command.IsFinished && command.AllAttacks.Count > 0 && command.GetAttackIndex() == command.AllAttacks.Count &&
+            command.Result == UnitCommand.ResultType.Success);
 
         private void BeginChunk4Sustained()
         {
@@ -72,6 +75,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["case"] = chunk4SustainedCase < 4 ? Chunk4SustainedId : "cleanup",
                 ["stage"] = chunk4SustainedStage, ["state"] = CaptureOrdinaryLiveState(),
                 ["routineCount"] = chunk4Routines.Count, ["completeRiderRoutines"] = chunk4SustainedCompleted,
+                ["completeMountRoutines"] = Chunk4CompleteMountRoutines,
                 ["currentEvidence"] = chunk4SustainedEvidence
             };
             if (chunk4SustainedStage == 0)
@@ -99,6 +103,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 chunk4SustainedEvidence = new JObject {
                     ["level"] = "NATIVE INTEGRATION", ["mode"] = "RT", ["caseId"] = Chunk4SustainedId,
                     ["weapon"] = weapon.Blueprint.AssetGuid, ["ranged"] = weapon.Blueprint.IsRanged,
+                    ["mountWeapon"] = horse.GetFirstWeapon()?.Blueprint.AssetGuid,
                     ["repeat"] = Chunk4SustainedRepeat, ["approach"] = Chunk4SustainedApproach,
                     ["target"] = target.UniqueId, ["targetProvisioning"] = observations["target-" + Chunk4SustainedId].DeepClone(),
                     ["inputKind"] = "scripted-native-pointer-prediction-and-click", ["maximumNativeFrameStep"] = 0d
@@ -161,7 +166,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (target.Stats.TemporaryHitPoints.ModifiedValue > chunk4SustainedTemporaryHp)
                     throw new InvalidOperationException("Sustained target gained durability during measurement.");
                 chunk4SustainedTemporaryHp = target.Stats.TemporaryHitPoints.ModifiedValue;
-                if (chunk4SustainedCompleted >= 3)
+                if (chunk4SustainedCompleted >= 3 && (Chunk4SustainedRanged || Chunk4CompleteMountRoutines >= 3))
                 {
                     chunk4SustainedEvidence["beforeStop"] = CaptureOrdinaryLiveState();
                     chunk4SustainedEvidence["stopFrame"] = Time.frameCount;
@@ -266,6 +271,7 @@ namespace KingmakerMountedCombat.Diagnostics
             chunk4SustainedEvidence["duplicateDispatches"] = combat.StockAttackDuplicateDispatchCount - chunk4SustainedDuplicateBefore;
             chunk4SustainedEvidence["mountDistance"] = HorizontalDistance(horse.Position, chunk4SustainedMountOrigin);
             chunk4SustainedEvidence["completeRiderRoutines"] = chunk4SustainedCompleted;
+            chunk4SustainedEvidence["completeMountRoutines"] = Chunk4CompleteMountRoutines;
             chunk4SustainedEvidence["nativeFullRiderRoutines"] = chunk4Routines.Keys.Count(command => command.Executor == rider &&
                 command.IsFinished && command.GetAttackIndex() == command.AllAttacks.Count && command.Result == UnitCommand.ResultType.Success);
             chunk4SustainedEvidence["nativeRangedTailRiderRoutines"] = chunk4Routines.Keys.Count(command => command.Executor == rider &&
@@ -274,6 +280,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var plans = chunk4Routines.Keys.Where(command => command.Executor == rider).Sum(command => command.GetAttackIndex());
             var mountPlans = chunk4Routines.Keys.Where(command => command.Executor == horse).Sum(command => command.GetAttackIndex());
             var passed = chunk4SustainedCompleted >= 3 && plans == ruleProbe.RiderNonOpportunityAttackRuleCount &&
+                (Chunk4SustainedRanged || Chunk4CompleteMountRoutines >= 3) &&
                 ruleProbe.RiderResolvedCount == plans && ruleProbe.PairForcedD20Count == 0 &&
                 mountPlans == ruleProbe.MountNonOpportunityAttackRuleCount && ruleProbe.MountResolvedCount == mountPlans &&
                 combat.StockAttackIntentStartCount - chunk4SustainedIntentBefore == 1 &&
@@ -286,6 +293,13 @@ namespace KingmakerMountedCombat.Diagnostics
             var periods = starts.Skip(1).Select((evt, index) =>
                 ((long)evt["gameTime"] - (long)starts[index]["gameTime"]) / (double)TimeSpan.TicksPerSecond).Take(2).ToArray();
             chunk4SustainedEvidence["riderStartPeriods"] = new JArray(periods);
+            var mountStarts = ((JArray)chunk4SustainedEvidence["nativeTrace"]).OfType<JObject>().Where(evt =>
+                (string)evt["boundary"] == "start-after" && (string)evt["actor"] == horse.UniqueId).ToArray();
+            var mountPeriods = mountStarts.Skip(1).Select((evt, index) =>
+                ((long)evt["gameTime"] - (long)mountStarts[index]["gameTime"]) / (double)TimeSpan.TicksPerSecond).Take(2).ToArray();
+            chunk4SustainedEvidence["mountStartPeriods"] = new JArray(mountPeriods);
+            passed &= Chunk4SustainedRanged || mountPeriods.Length == 2 && mountPeriods.All(period => period > 0d) &&
+                !string.IsNullOrEmpty((string)chunk4SustainedEvidence["mountWeapon"]);
             if (Chunk4SustainedRepeat)
             {
                 var heldName = Chunk4SustainedId.Replace("-repeat", "-held");
@@ -301,8 +315,20 @@ namespace KingmakerMountedCombat.Diagnostics
                 passed &= periods.Length == 2 && heldPeriods.Length == 2 && frameTolerance <= 0.25d &&
                     periods.Average() >= heldPeriods.Min() - frameTolerance &&
                     JToken.DeepEquals(held["weapon"], chunk4SustainedEvidence["weapon"]);
+                if (!Chunk4SustainedRanged)
+                {
+                    var heldMountPeriods = ((JArray)held["mountStartPeriods"]).Select(period => (double)period).ToArray();
+                    chunk4SustainedEvidence["mountCadenceComparison"] = new JObject {
+                        ["heldCase"] = heldName, ["heldPeriods"] = new JArray(heldMountPeriods),
+                        ["repeatPeriods"] = new JArray(mountPeriods), ["observedFrameTolerance"] = frameTolerance,
+                        ["sameWeapon"] = JToken.DeepEquals(held["mountWeapon"], chunk4SustainedEvidence["mountWeapon"])
+                    };
+                    passed &= mountPeriods.Length == 2 && heldMountPeriods.Length == 2 && frameTolerance <= 0.25d &&
+                        mountPeriods.Average() >= heldMountPeriods.Min() - frameTolerance &&
+                        JToken.DeepEquals(held["mountWeapon"], chunk4SustainedEvidence["mountWeapon"]);
+                }
             }
-            AddRow(Chunk4SustainedId, passed, "Three native routines with separately recorded full-plan/ranged-tail terminals, native cadence, pure repeated input, delivery accounting and Stop settlement.", chunk4SustainedEvidence);
+            AddRow(Chunk4SustainedId, passed, "Three rider routines and, for melee, three complete mount routines; native cadence, pure repeated input, delivery accounting and Stop settlement.", chunk4SustainedEvidence);
             chunk4SustainedStage = 4; ResetLeafClock();
         }
     }

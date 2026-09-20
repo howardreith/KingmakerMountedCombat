@@ -1,8 +1,8 @@
-# Active Chunk 4 - native movement observation, 2026-09-20 UTC
+# Active Chunk 4 - sustained mount cadence, 2026-09-20 UTC
 
-IN PROGRESS. Published source41 `4115ec6ea8149e48b48952b21cca3f44df3a3257` passes CE obstruction47/0. CF Charge RT rejects mounted Charge safely but fails its legal recovery movement assertion: native CompleteMovement interrupts at .459m from the destination (arrival radius .3m), after2.429463m actual travel with rider Move0. No later Charge controls run. All83 native transactions restored actual human pairedpreview37 and protected data.
+IN PROGRESS. Published source42 `db22b424d0df01baca5cdf63e563e21af86c3fc3` passes Charge RT/TB, obstruction and sustained rider melee/ranged (CG-CK). CJ measures three rider routines but only two complete Horse routines per case. Candidate `0.1.0-chunk4-preview.43` extends melee measurement to three complete native routines from each actor and checks mount cadence under held/repeated input. No gameplay timing or modes change. CF41's native movement interruption remains unexplained; the later passing route differs.
 
-Candidate `0.1.0-chunk4-preview.42` adds read-only path-end, native radius/position and destination-occupancy observations. It does not accept Interrupt as Success or change gameplay/fixture selection. Full local checks pass; the cause remains unresolved pending focused RT evidence. Package/publish/fresh suite42, then CG RT Charge with added observations before any broad campaign. [Report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent installation or Chunk5 work.
+All88 native transactions restored actual human pairedpreview37 and protected data. Next: package/publish43 and fresh suite, focused sustained melee first, then exact-final Charge RT/TB and the remaining new gates/regression. [Report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent installation or Chunk5 implementation.
 
 ---
 ## Combined milestone disposition — 2026-09-08

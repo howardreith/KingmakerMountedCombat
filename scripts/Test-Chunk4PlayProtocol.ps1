@@ -180,4 +180,67 @@ foreach($mutate in @(
     try{Assert-KmcChunk4PlayEvidence $tailRequest $e 'PASS'}catch{$rejected=$true}
     if(!$rejected){throw 'Invalid ranged native-tail evidence accepted.'};$passed++
 }
+# Schema27 also measures the eligible mount over three completed routines.
+# These are parser envelopes; actual cadence still requires native execution.
+function New-MountCadenceEnvelope {
+    param([string]$Root='chunk4-sustained-melee-rt')
+    $e=New-PlayEnvelope $Root;$e.schemaVersion=27
+    foreach($row in $e.rows){
+        $row.evidence|Add-Member -NotePropertyName completeMountRoutines -NotePropertyValue 3
+        $row.evidence|Add-Member -NotePropertyName mountWeapon -NotePropertyValue 'horse-natural'
+        $row.evidence|Add-Member -NotePropertyName mountStartPeriods -NotePropertyValue @(6.02,6.03)
+        $row.evidence|Add-Member -NotePropertyName mountCadenceComparison -NotePropertyValue ([pscustomobject]@{observedFrameTolerance=0.06})
+        $starts=@($row.evidence.nativeTrace|Where-Object {$_.boundary -ceq 'start-after' -and $_.actor -ceq 'mount'})
+        for($i=0;$i -lt $starts.Count;$i++){
+            $starts[$i]|Add-Member -NotePropertyName gameTime -NotePropertyValue ([long]@(0,60200000,120500000)[$i])
+        }
+    }
+    return $e
+}
+$mountRequest=@{scenario='chunk4-sustained-melee-rt'}
+Assert-KmcChunk4PlayEvidence $mountRequest (New-MountCadenceEnvelope) 'PASS';$passed++
+# A third started but stopped mount routine must not close the coverage gate.
+$two=New-MountCadenceEnvelope
+$row=$two.rows[0].evidence;$last=@($row.routines|Where-Object {$_.actor -ceq 'mount'})[-1]
+$last.completed=0;$last.completedObserved=$false;$last.command.acted=$false;$last.command.result='Interrupt'
+$row.nativeTrace=@($row.nativeTrace|Where-Object {$_.command -ne $last.command.id -or $_.boundary -ceq 'start-after'})
+$row.rules.mountNonOpportunityAttackRules=4;$row.rules.mountResolved=4;$row.completeMountRoutines=2
+$legacy=$two|ConvertTo-Json -Depth 40|ConvertFrom-Json;$legacy.schemaVersion=21
+Assert-KmcChunk4PlayEvidence $mountRequest $legacy 'PASS';$passed++
+$rejected=$false
+try{Assert-KmcChunk4PlayEvidence $mountRequest $two 'PASS'}catch{$rejected=$true}
+if(!$rejected){throw 'Two completed mount routines closed the three-routine cadence gate.'};$passed++
+foreach($mutate in @(
+    {param($e) $e.rows[0].evidence.completeMountRoutines=2},
+    {param($e) $e.rows[0].evidence.completeMountRoutines='3'},
+    {param($e) $e.rows[0].evidence.PSObject.Properties.Remove('completeMountRoutines')},
+    {param($e) $e.rows[0].evidence.mountWeapon=''},
+    {param($e) $e.rows[1].evidence.mountWeapon='different-natural-weapon'},
+    {param($e) $e.rows[0].evidence.mountStartPeriods=@(6.02)},
+    {param($e) $e.rows[0].evidence.mountStartPeriods=@(0,6.03)},
+    {param($e) $e.rows[0].evidence.mountStartPeriods=@('6.02',6.03)},
+    {param($e) $e.rows[0].evidence.mountStartPeriods=@(6.02,6.04)},
+    {param($e) $e.rows[1].evidence.mountCadenceComparison.observedFrameTolerance=1},
+    {param($e) @($e.rows[0].evidence.nativeTrace|Where-Object {$_.boundary -ceq 'start-after' -and $_.actor -ceq 'mount'})[0].PSObject.Properties.Remove('gameTime')},
+    {param($e)
+        $e.rows[1].evidence.mountStartPeriods=@(5,5)
+        $starts=@($e.rows[1].evidence.nativeTrace|Where-Object {$_.boundary -ceq 'start-after' -and $_.actor -ceq 'mount'})
+        for($i=0;$i -lt $starts.Count;$i++){$starts[$i].gameTime=[long]($i*50000000)}
+    }
+)){
+    $e=New-MountCadenceEnvelope;& $mutate $e;$rejected=$false
+    try{Assert-KmcChunk4PlayEvidence $mountRequest $e 'PASS'}catch{$rejected=$true}
+    if(!$rejected){throw 'Incomplete or accelerated native mount cadence was accepted.'};$passed++
+}
+$ranged=New-MountCadenceEnvelope 'chunk4-sustained-ranged-rt'
+foreach($row in $ranged.rows){
+    $row.evidence.routines=@($row.evidence.routines|Where-Object {$_.actor -ceq 'rider'})
+    $row.evidence.nativeTrace=@($row.evidence.nativeTrace|Where-Object {$_.actor -ceq 'rider'})
+    $row.evidence.rules.mountNonOpportunityAttackRules=0;$row.evidence.rules.mountResolved=0
+    $row.evidence.completeMountRoutines=0;$row.evidence.mountStartPeriods=@()
+}
+Assert-KmcChunk4PlayEvidence @{scenario='chunk4-sustained-ranged-rt'} $ranged 'PASS';$passed++
+$tb=New-PlayEnvelope 'chunk4-sustained-tb';$tb.schemaVersion=27;$rejected=$false
+try{Assert-KmcChunk4PlayEvidence @{scenario='chunk4-sustained-tb'} $tb 'PASS'}catch{$rejected=$true}
+if(!$rejected){throw 'RT cadence schema was accepted for TB activation evidence.'};$passed++
 Write-Host "CHUNK 4 PLAY PROTOCOL PASS=$passed FAIL=0"
