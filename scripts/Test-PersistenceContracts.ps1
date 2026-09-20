@@ -91,6 +91,48 @@ public static class KmcPersistenceContractProbe
                 if(operandMember.Module==native.ManifestModule && operandMember.MetadataToken==0x06001BC7) retained++;
             }
             Check(replaced==2 && retained==0,"both exact native descriptor path branches are rewritten");
+            foreach (var adapterName in new[]{"NativeCombatActorPersistence","NativeTurnPersistence","NativeCombatTurnPersistence"})
+            {
+                var adapter=candidate.GetType("KingmakerMountedCombat.Integration."+adapterName,true);
+                System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(adapter.TypeHandle);
+                Check(true,"exact native field/signature bindings: "+adapterName);
+            }
+            var saveGate=native.ManifestModule.ResolveMethod(0x06008028);
+            var saveInstructions=(System.Collections.IEnumerable)read.Invoke(null,new object[]{saveGate,null});
+            var saveLegacy=(System.Collections.IList)Activator.CreateInstance(listType);
+            var originalOps=new System.Collections.Generic.List<object>();
+            var originalOperands=new System.Collections.Generic.List<object>();
+            foreach(var instruction in saveInstructions)
+            {
+                var type=instruction.GetType();
+                var op=type.GetField("opcode").GetValue(instruction);
+                var operand=type.GetField("operand").GetValue(instruction);
+                originalOps.Add(op); originalOperands.Add(operand);
+                saveLegacy.Add(Activator.CreateInstance(legacyInstruction,new[]{op,operand}));
+            }
+            var persistencePatches=candidate.GetType("KingmakerMountedCombat.Integration.MountedPatchController",true)
+                .GetNestedType("PatchMethods",BindingFlags.NonPublic);
+            var gateResult=(System.Collections.IEnumerable)persistencePatches.GetMethod("CombatSaveAdmissionTranspiler",
+                BindingFlags.NonPublic|BindingFlags.Static).Invoke(null,new object[]{saveLegacy});
+            int gateCount=0,gateChanges=0;
+            foreach(var instruction in gateResult)
+            {
+                var op=legacyInstruction.GetField("opcode").GetValue(instruction);
+                var operand=legacyInstruction.GetField("operand").GetValue(instruction);
+                var oldMethod=originalOperands[gateCount] as MethodInfo;
+                if(oldMethod!=null && oldMethod.Module==native.ManifestModule && oldMethod.MetadataToken==0x06000DBF)
+                {
+                    var changed=operand as MethodInfo;
+                    Check(changed!=null && changed.Name=="CombatBlocksSave" &&
+                        op.Equals(System.Reflection.Emit.OpCodes.Call),"only native combat predicate delegates to persistence");
+                    gateChanges++;
+                }
+                else if(!Equals(op,originalOps[gateCount]) || !Equals(operand,originalOperands[gateCount]))
+                    throw new InvalidOperationException("An unrelated native save predicate changed.");
+                gateCount++;
+            }
+            Check(gateChanges==1 && gateCount==originalOps.Count,
+                "native area/game-over/dialog/cutscene/encounter/dual-companion gates and branches retained");
             var nativeSaver=native.GetType("Kingmaker.EntitySystem.Persistence.ZipSaver",true);
             patch.Invoke(null,new object[]{harmony,nativeSaver,"SaveJson",0x06008063,new[]{typeof(string),typeof(string)},"LoadHeaderJsonPrefix",null});
             patch.Invoke(null,new object[]{harmony,nativeSaver,"Save",0x06008068,Type.EmptyTypes,"LoadHeaderCommitPrefix",null});

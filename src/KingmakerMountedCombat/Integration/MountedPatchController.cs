@@ -92,6 +92,7 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(SaveManager).Assembly.GetType("Kingmaker.EntitySystem.Persistence.ZipSaver", true),
                     "SaveJson", 0x06008063, new[] { typeof(string), typeof(string) }, nameof(PatchMethods.NativeSaveHeaderPrefix));
                 PatchExact(typeof(UnitEntityData), "PostLoad", 0x0600835E, Type.EmptyTypes, null, nameof(PatchMethods.ActorPostLoadPostfix));
+                PatchExact(typeof(SaveManager), "IsSaveAllowed", 0x06008028, Type.EmptyTypes, null, null, nameof(PatchMethods.CombatSaveAdmissionTranspiler));
                 PatchExact(typeof(SaveManager), "SaveRoutine", 0x06008029, new[] { typeof(SaveInfo), typeof(bool) }, nameof(PatchMethods.SavePrefix), nameof(PatchMethods.SavePostfix));
                 PatchExact(typeof(SaveManager), "LoadRoutine", 0x0600802C, new[] { typeof(SaveInfo), typeof(bool) }, nameof(PatchMethods.LoadPrefix), nameof(PatchMethods.LoadPostfix));
                 PatchExact(typeof(UnitEntityView), "ForcePlaceAboveGround", 0x06001848, Type.EmptyTypes, nameof(PatchMethods.ForcePlaceAboveGroundPrefix));
@@ -108,9 +109,9 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(AttackHandInfo), "CreateAnimationHandleForAttack", 0x0600265A, new[] { typeof(IEnumerable<AttackHandInfo>) }, null, nameof(PatchMethods.AttackAnimationPostfix));
                 PatchExact(typeof(IKController), "SetupIkSystem", 0x0600156C, new[] { typeof(Character) }, nameof(PatchMethods.DollRoomIkSetupPrefix));
                 PatchExact(typeof(IKController), "SetupFbbik", 0x0600156D, Type.EmptyTypes, nameof(PatchMethods.DollRoomFbbikPrefix), nameof(PatchMethods.DollRoomFbbikPostfix));
-                PatchExact(typeof(CombatController), "Tick", 0x06000BD1, Type.EmptyTypes, null, nameof(PatchMethods.CombatControllerTickPostfix));
+                PatchExact(typeof(CombatController), "Tick", 0x06000BD1, Type.EmptyTypes, nameof(PatchMethods.CombatControllerTickPrefix), nameof(PatchMethods.CombatControllerTickPostfix));
                 PatchExact(typeof(CombatController), "ChooseNextUnit", 0x06000BD2, Type.EmptyTypes, null, nameof(PatchMethods.ChooseNextUnitPostfix), nameof(PatchMethods.PairedSelectorTranspiler));
-                PatchExact(typeof(CombatController), "HandleCombatStart", 0x06000BE2, new[] { typeof(bool) }, nameof(PatchMethods.PairedEncounterPrefix));
+                PatchExact(typeof(CombatController), "HandleCombatStart", 0x06000BE2, new[] { typeof(bool) }, nameof(PatchMethods.PairedEncounterPrefix), nameof(PatchMethods.PairedEncounterPostfix));
                 PatchExact(typeof(CombatController), "Disable", 0x06000BEA, Type.EmptyTypes, nameof(PatchMethods.PairedModeExitPrefix));
                 PatchExact(typeof(CombatController), "RemoveUnit", 0x06000BE6, new[] { typeof(UnitEntityData) }, nameof(PatchMethods.PairedActorRemovalPrefix));
                 PatchExact(typeof(CombatController), "TickTime", 0x06000BD6, Type.EmptyTypes, null, null, nameof(PatchMethods.PairedReadinessTranspiler));
@@ -298,7 +299,8 @@ namespace KingmakerMountedCombat.Integration
             }
 
             internal static bool ChargeAdmissionPrefix(UnitCommand cmd) =>
-                PatchBridge.ChargeSafety == null || PatchBridge.ChargeSafety.AllowAdmission(cmd);
+                PatchBridge.Persistence?.CombatRestorationPending != true &&
+                (PatchBridge.ChargeSafety == null || PatchBridge.ChargeSafety.AllowAdmission(cmd));
 
             internal static bool ChargeExecutionPrefix(UnitCommand __instance) =>
                 PatchBridge.ChargeSafety == null || PatchBridge.ChargeSafety.AllowExecution(__instance);
@@ -324,6 +326,7 @@ namespace KingmakerMountedCombat.Integration
 
             internal static bool UnitCommandRunPrefix(UnitCommands __instance, ref UnitCommand cmd)
             {
+                if (PatchBridge.Persistence?.CombatRestorationPending == true) return false;
                 // Native TB cursor prediction replaces Unit.Commands temporarily. Its fake orders
                 // must stay entirely native; routing one can cancel a real pair order or move its mount.
                 if (PointerController.SimulatingClick) { return true; }
@@ -431,17 +434,29 @@ namespace KingmakerMountedCombat.Integration
                 PatchBridge.UnifiedTurn?.HandleCombatControllerTickCompleted(__instance);
             }
 
-            internal static bool TurnPreparePrefix(TurnController __instance)
+            internal static bool TurnPreparePrefix(TurnController __instance, out bool __state)
             {
-                return PatchBridge.UnifiedTurn == null || PatchBridge.UnifiedTurn.HandleTurnPreparing(__instance);
+                __state = PatchBridge.Persistence?.CombatRestorationPending != true &&
+                    (PatchBridge.UnifiedTurn == null || PatchBridge.UnifiedTurn.HandleTurnPreparing(__instance));
+                return __state;
             }
 
-            internal static void PairedEncounterPrefix(CombatController __instance, bool isPartyCombatStateChanged) =>
-                PatchBridge.UnifiedTurn?.BeginNativeEncounter(__instance, isPartyCombatStateChanged);
+            internal static bool PairedEncounterPrefix(CombatController __instance, bool isPartyCombatStateChanged)
+            {
+                if (PatchBridge.Persistence?.BeforeCombatStart() == false) return false;
+                if (PatchBridge.Persistence?.CombatRestorationPending != true)
+                    PatchBridge.UnifiedTurn?.BeginNativeEncounter(__instance, isPartyCombatStateChanged);
+                return true;
+            }
+            internal static void PairedEncounterPostfix() => PatchBridge.Persistence?.TryRestoreCombat();
+            internal static bool CombatControllerTickPrefix() => PatchBridge.Persistence?.BeforeCombatTick() ?? true;
             internal static void PairedWaitingPostfix(TurnController __instance, ref bool __result) =>
                 PatchBridge.UnifiedTurn?.ExtendPairedWaiting(__instance, ref __result);
             internal static void PairedForfeitPrefix(TurnController __instance, bool setCooldowns) => PatchBridge.UnifiedTurn?.ForfeitPairedActivation(__instance, setCooldowns);
-            internal static void PairedModeExitPrefix(CombatController __instance) => PatchBridge.UnifiedTurn?.BeforeNativeModeExit(__instance);
+            internal static void PairedModeExitPrefix(CombatController __instance)
+            {
+                if (PatchBridge.Persistence?.LoadingWorld != true) PatchBridge.UnifiedTurn?.BeforeNativeModeExit(__instance);
+            }
             internal static void PairedActorRemovalPrefix(UnitEntityData unit) => PatchBridge.UnifiedTurn?.BeforePairedActorRemoval(unit);
             internal static void PairedTickPrefix(TurnController __instance) => PatchBridge.UnifiedTurn?.TickPairedNativeState(__instance);
             internal static bool PairedInputPredictionPrefix(TurnController __instance) =>
@@ -544,9 +559,9 @@ namespace KingmakerMountedCombat.Integration
                 PatchBridge.UnifiedTurn?.HandleNativeRoundState(__instance);
             }
 
-            internal static void TurnPreparePostfix(TurnController __instance)
+            internal static void TurnPreparePostfix(TurnController __instance, bool __state)
             {
-                PatchBridge.UnifiedTurn?.HandleTurnPrepared(__instance);
+                if (__state) PatchBridge.UnifiedTurn?.HandleTurnPrepared(__instance);
             }
 
             internal static void ContinueActingPostfix(TurnController __instance, ref bool __result)
@@ -730,6 +745,30 @@ namespace KingmakerMountedCombat.Integration
                     unit != null && game?.State?.AwakeUnits != null && game.State.AwakeUnits.Contains(unit));
             }
 
+            internal static IEnumerable<CodeInstruction> CombatSaveAdmissionTranspiler(IEnumerable<CodeInstruction> instructions)
+            {
+                var getter = typeof(Kingmaker.Player).GetProperty("IsInCombat").GetGetMethod();
+                if (getter.MetadataToken != 0x06000DBF) throw new MissingMethodException("Native combat save predicate differs.");
+                var replacement = typeof(PatchMethods).GetMethod(nameof(CombatBlocksSave), BindingFlags.Static | BindingFlags.NonPublic);
+                var count = 0;
+                var result = new List<CodeInstruction>();
+                foreach (var instruction in instructions)
+                {
+                    if (Equals(instruction.operand, getter))
+                    {
+                        instruction.opcode = OpCodes.Call;
+                        instruction.operand = replacement;
+                        count++;
+                    }
+                    result.Add(instruction);
+                }
+                if (count != 1) throw new InvalidOperationException("Expected exactly one native combat save gate.");
+                return result;
+            }
+
+            internal static bool CombatBlocksSave(Kingmaker.Player player) =>
+                PatchBridge.Persistence?.NativeCombatBlocksSave(player) ?? player.IsInCombat;
+
             internal static bool SavePrefix(SaveManager __instance, SaveInfo saveInfo, bool forceAuto,
                 ref IEnumerator<object> __result, out bool __state)
             {
@@ -763,7 +802,7 @@ namespace KingmakerMountedCombat.Integration
                 __state = false;
                 RuntimeAutomationHost.ObserveLoadRequest();
                 if (!AuthorizeSaveBoundary(RuntimeSaveOperation.Load, __instance, saveInfo, ref __result)) return false;
-                if (!GuardNativeBoundary(NativeLifecycleBoundary.LoadStart, CleanupTrigger.LoadRequested, "SaveManager.LoadRoutine Harmony12 prefix"))
+                if (PatchBridge.Persistence == null && !GuardNativeBoundary(NativeLifecycleBoundary.LoadStart, CleanupTrigger.LoadRequested, "SaveManager.LoadRoutine Harmony12 prefix"))
                 {
                     PatchBridge.SaveAuthorization?.ReportBoundaryFailure(RuntimeSaveOperation.Load, "relationship service reported residue");
                     __result = EmptyRoutine();

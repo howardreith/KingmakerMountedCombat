@@ -115,8 +115,15 @@
     <Compile Include="Integration\PairedActivationLifecycle.cs" />
     <Compile Include="Integration\NativePersistenceIsolation.cs" />
     <Compile Include="Integration\MountedSaveData.cs" />
+    <Compile Include="Integration\SavedCombatData.cs" />
+    <Compile Include="Integration\NativeCombatActorPersistence.cs" />
+    <Compile Include="Integration\NativeTurnPersistence.cs" />
+    <Compile Include="Integration\MountedMovementPersistence.cs" />
+    <Compile Include="Integration\PairedActivationPersistence.cs" />
+    <Compile Include="Integration\NativeCombatTurnPersistence.cs" />
     <Compile Include="Integration\NativeMountedSaveStorage.cs" />
     <Compile Include="Integration\MountedPersistenceService.cs" />
+    <Compile Include="Integration\MountedCombatPersistenceService.cs" />
     <Compile Include="Integration\PairedNativeConditionCommands.cs" />
     <Compile Include="Integration\PairedConfusionPreparation.cs" />
     <Compile Include="Integration\PairedActivationControls.cs" />

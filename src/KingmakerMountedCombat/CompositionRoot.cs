@@ -67,7 +67,7 @@ namespace KingmakerMountedCombat
                     settings,
                     lifecycleLedger,
                     logger);
-                persistence = new MountedPersistenceService(relationship, nativeControls, settings, logger);
+                persistence = new MountedPersistenceService(relationship, nativeControls, unifiedTurn, settings, logger);
                 patches = new MountedPatchController(relationship, playerAction, combat, unifiedTurn, nativeControls, persistence, animation, dollRoomIk, saveAuthorization, lifecycleLedger, logger);
                 runtimeAutomation = RuntimeAutomationHost.CreateFromCommandLine(
                     logger,
@@ -224,7 +224,7 @@ namespace KingmakerMountedCombat
                 return;
             }
 
-            if (persistence.SaveSuspended) return;
+            if (persistence.SaveSuspended || persistence.CombatRestorationPending) return;
             combat.Update();
             unifiedTurn.Update();
             relationship.ValidateActivePair();

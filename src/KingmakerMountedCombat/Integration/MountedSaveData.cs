@@ -13,7 +13,7 @@ namespace KingmakerMountedCombat.Integration
     // the game's polymorphic object serializer for this extension.
     internal sealed class MountedSaveData
     {
-        internal const int CurrentSchema = 1;
+        internal const int CurrentSchema = 2;
         internal const string ArchiveMember = "kmc-mounted-state";
         internal const string PairedPolicy = "rider-principal-distinct-native-v1";
         internal const string Rules = "crpg-transport-v1";
@@ -28,6 +28,7 @@ namespace KingmakerMountedCombat.Integration
         public SavedNativeActor Rider { get; set; }
         public SavedNativeActor Mount { get; set; }
         public SavedMountedSlot[] Slots { get; set; }
+        public SavedCombatData Combat { get; set; }
 
         internal void Validate()
         {
@@ -45,6 +46,13 @@ namespace KingmakerMountedCombat.Integration
             }
             else if (Rider != null || Mount != null || ProfileId != null)
                 throw new InvalidDataException("Unmounted relationship contains a pair.");
+            if (Combat != null)
+            {
+                Combat.Validate(GameTimeTicks);
+                if (Mounted && (!SameActorDebt(Rider, Combat.Actors.SingleOrDefault(a => a.Native.Id == Rider.Id)?.Native) ||
+                    !SameActorDebt(Mount, Combat.Actors.SingleOrDefault(a => a.Native.Id == Mount.Id)?.Native)))
+                    throw new InvalidDataException("Pair and combat actor snapshots disagree.");
+            }
             if (Slots == null || Slots.Length > 128) throw new InvalidDataException("Owned control slots are not bounded.");
             var seen = new HashSet<string>(StringComparer.Ordinal);
             foreach (var slot in Slots)
@@ -54,6 +62,11 @@ namespace KingmakerMountedCombat.Integration
                     throw new InvalidDataException("Invalid or duplicate owned control slot.");
             }
         }
+
+        private static bool SameActorDebt(SavedNativeActor first, SavedNativeActor second) => second != null &&
+            first.Id == second.Id && first.Standard == second.Standard && first.Move == second.Move &&
+            first.Swift == second.Swift && first.Initiative == second.Initiative && first.Reaction == second.Reaction &&
+            first.ReactionsRemaining == second.ReactionsRemaining && first.LastSurpriseTicks == second.LastSurpriseTicks;
 
         internal static bool HexId(string value) => value != null && value.Length == 32 &&
             value.All(c => c >= '0' && c <= '9' || c >= 'a' && c <= 'f');
@@ -156,14 +169,23 @@ namespace KingmakerMountedCombat.Integration
                         "Mounted metadata uses a newer schema; original data is preserved.");
                 switch (schema)
                 {
+                    case 1:
+                        // Schema 1's outside-combat format has no combat member.
+                        // Migration is in memory only; the selected archive is not rewritten.
+                        RequireFields(root, "SchemaVersion", "CampaignId", "AreaId", "GameTimeTicks", "Policy",
+                            "RulesId", "Mounted", "ProfileId", "Rider", "Mount", "Slots");
+                        root["SchemaVersion"] = MountedSaveData.CurrentSchema;
+                        root.Add("Combat", JValue.CreateNull());
+                        goto case MountedSaveData.CurrentSchema;
                     case MountedSaveData.CurrentSchema:
                         VerifyCurrentShape(root);
                         MountedSaveData data;
-                        using (var reader = new JsonTextReader(new StringReader(json)))
+                        using (var reader = root.CreateReader())
                             data = CreateSerializer().Deserialize<MountedSaveData>(reader);
                         if (data == null) throw new InvalidDataException("Mounted metadata was empty.");
                         data.Validate();
-                        return new MountedSaveReadResult(MountedSaveReadKind.Current, data, json, null);
+                        return new MountedSaveReadResult(MountedSaveReadKind.Current, data, json,
+                            schema == 1 ? "Historical mounted metadata migrated in memory; source archive unchanged." : null);
                     default:
                         throw new InvalidDataException("Unsupported historical mounted schema.");
                 }
@@ -176,37 +198,50 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
-        private static void VerifyCurrentShape(JObject root)
+        private static readonly HashSet<Type> ModelTypes = new HashSet<Type>
         {
-            RequireFields(root, "SchemaVersion", "CampaignId", "AreaId", "GameTimeTicks", "Policy",
-                "RulesId", "Mounted", "ProfileId", "Rider", "Mount", "Slots");
-            if (root["CampaignId"].Type != JTokenType.String || root["AreaId"].Type != JTokenType.String ||
-                root["Policy"].Type != JTokenType.String || root["RulesId"].Type != JTokenType.String ||
-                (root["ProfileId"].Type != JTokenType.Null && root["ProfileId"].Type != JTokenType.String) ||
-                root["Mounted"].Type != JTokenType.Boolean || root["GameTimeTicks"].Type != JTokenType.Integer ||
-                root["Slots"].Type != JTokenType.Array)
-                throw new InvalidDataException("Mounted metadata has an incorrect primitive type.");
-            foreach (var name in new[] { "Rider", "Mount" })
+            typeof(MountedSaveData), typeof(SavedNativeActor), typeof(SavedMountedSlot), typeof(SavedCombatData),
+            typeof(SavedCombatActor), typeof(SavedAiAction), typeof(SavedEngagement), typeof(SavedRosterActor),
+            typeof(SavedMovementValues), typeof(SavedTurnContext), typeof(SavedMovementAllocation),
+            typeof(SavedPairedState), typeof(SavedActivation), typeof(SavedParticipation)
+        };
+
+        private static void VerifyCurrentShape(JObject root) => VerifyShape(root, typeof(MountedSaveData));
+
+        private static void VerifyShape(JToken token, Type expected)
+        {
+            if (token == null) throw new InvalidDataException("Missing metadata value.");
+            var nullable = Nullable.GetUnderlyingType(expected);
+            if (token.Type == JTokenType.Null)
             {
-                if (root[name].Type == JTokenType.Null) continue;
-                var actor = root[name] as JObject;
-                RequireFields(actor, "Id", "Standard", "Move", "Swift", "Initiative", "Reaction",
-                    "ReactionsRemaining", "LastSurpriseTicks");
-                if (actor["Id"].Type != JTokenType.String || actor["ReactionsRemaining"].Type != JTokenType.Integer ||
-                    actor["LastSurpriseTicks"].Type != JTokenType.Integer)
-                    throw new InvalidDataException("Saved actor has an incorrect primitive type.");
-                foreach (var debt in new[] { "Standard", "Move", "Swift", "Initiative", "Reaction" })
-                    if (actor[debt].Type != JTokenType.Integer && actor[debt].Type != JTokenType.Float)
-                        throw new InvalidDataException("Saved action debt must be numeric.");
+                if (expected.IsValueType && nullable == null)
+                    throw new InvalidDataException("A required primitive is null.");
+                return;
             }
-            foreach (var token in (JArray)root["Slots"])
+            if (nullable != null) expected = nullable;
+            var valid = expected == typeof(string) ? token.Type == JTokenType.String :
+                expected == typeof(bool) ? token.Type == JTokenType.Boolean :
+                expected == typeof(int) || expected == typeof(long) ? token.Type == JTokenType.Integer :
+                expected == typeof(float) ? token.Type == JTokenType.Integer || token.Type == JTokenType.Float : false;
+            if (expected == typeof(string) || expected == typeof(bool) || expected == typeof(int) ||
+                expected == typeof(long) || expected == typeof(float))
             {
-                var slot = token as JObject;
-                RequireFields(slot, "ActorId", "Index", "Kind");
-                if (slot["ActorId"].Type != JTokenType.String || slot["Index"].Type != JTokenType.Integer ||
-                    slot["Kind"].Type != JTokenType.Integer)
-                    throw new InvalidDataException("Saved control binding has an incorrect primitive type.");
+                if (!valid) throw new InvalidDataException("Metadata has an incorrect primitive type.");
+                return;
             }
+            if (expected.IsArray)
+            {
+                if (!(token is JArray array)) throw new InvalidDataException("Metadata collection is not an array.");
+                foreach (var item in array) VerifyShape(item, expected.GetElementType());
+                return;
+            }
+            // Only this compile-time set of primitive DTOs can be constructed.
+            // No type/member name supplied by save data participates in reflection.
+            if (!ModelTypes.Contains(expected)) throw new InvalidDataException("Unknown metadata model.");
+            var value = token as JObject;
+            var properties = expected.GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+            RequireFields(value, properties.Select(p => p.Name).ToArray());
+            foreach (var property in properties) VerifyShape(value[property.Name], property.PropertyType);
         }
 
         private static void RequireFields(JObject value, params string[] fields)

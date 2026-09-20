@@ -12,7 +12,7 @@ namespace KingmakerMountedCombat.Integration
 {
     // Game-thread serialization/rehydration service. Archive metadata never owns
     // an actor, command, view or scheduler object across a world boundary.
-    internal sealed class MountedPersistenceService
+    internal sealed partial class MountedPersistenceService
     {
         private readonly GameMountedRelationshipService relationship;
         private readonly NativeMountedControlService controls;
@@ -36,10 +36,12 @@ namespace KingmakerMountedCombat.Integration
         internal MountedSaveData LoadedData => loaded?.Data;
 
         internal MountedPersistenceService(GameMountedRelationshipService relationship,
-            NativeMountedControlService controls, DiagnosticSettings settings, IModLogger logger)
+            NativeMountedControlService controls, UnifiedMountedTurnCoordinator unifiedTurn,
+            DiagnosticSettings settings, IModLogger logger)
         {
             this.relationship = relationship;
             this.controls = controls;
+            this.unifiedTurn = unifiedTurn;
             this.settings = settings;
             this.logger = logger;
         }
@@ -109,10 +111,7 @@ namespace KingmakerMountedCombat.Integration
             var mounted = Enabled && relationship.State == RelationshipState.Mounted;
             if (mounted && (!settings.EnablePairedActivation || settings.EnableUnifiedMountedTurn || settings.EnablePairedCommandScheduler))
                 throw new InvalidOperationException("Mounted saving requires the qualified paired policy.");
-            // Combat rehydration is added after the first native cold round trip.
-            // Never emit incomplete combat metadata during this development slice.
-            if (mounted && game.Player.IsInCombat)
-                throw new InvalidOperationException("Combat persistence is not implemented by this development slice.");
+            var combat = Enabled && game.Player.IsInCombat ? CaptureCombat() : null;
             return new MountedSaveData
             {
                 SchemaVersion = MountedSaveData.CurrentSchema,
@@ -125,7 +124,8 @@ namespace KingmakerMountedCombat.Integration
                 ProfileId = mounted ? relationship.Runtime.MountProfileId : null,
                 Rider = mounted ? CaptureActor(relationship.Rider) : null,
                 Mount = mounted ? CaptureActor(relationship.Mount) : null,
-                Slots = controls.CapturePersistentSlots()
+                Slots = controls.CapturePersistentSlots(),
+                Combat = combat
             };
         }
 
@@ -159,6 +159,7 @@ namespace KingmakerMountedCombat.Integration
                 if (scope.Sequence != loadSequence) return;
                 restoreLoad = scope;
                 scope.World.Begin(Game.Instance?.Player);
+                BeginLoadHousekeeping();
                 SelectLoad(save);
             }, () =>
             {
@@ -201,13 +202,14 @@ namespace KingmakerMountedCombat.Integration
         internal void RestoreActorAfterPostLoad(UnitEntityData unit)
         {
             var data = loaded?.Data;
-            if (!Enabled || data == null || !data.Mounted || unit == null || restoreLoad == null ||
+            if (!Enabled || data == null || (!data.Mounted && data.Combat == null) || unit == null || restoreLoad == null ||
                 restoreLoad.Sequence != loadSequence || !restoreLoad.World.TryBind(Game.Instance?.Player)) return;
             // SaveManager publishes GameId only AFTER PlayerState.PostLoad. The
             // selected archive/header and newly deserialized world own this phase;
             // the published campaign is checked before presentation/admission.
-            var saved = unit.UniqueId == data.Rider.Id ? data.Rider :
-                unit.UniqueId == data.Mount.Id ? data.Mount : null;
+            var combatActor = data.Combat?.Actors.SingleOrDefault(a => a.Native.Id == unit.UniqueId);
+            var saved = combatActor?.Native ?? (unit.UniqueId == data.Rider?.Id ? data.Rider :
+                unit.UniqueId == data.Mount?.Id ? data.Mount : null);
             if (saved == null) return;
             if (restoredActors.TryGetValue(unit.UniqueId, out var prior))
             {
@@ -215,14 +217,8 @@ namespace KingmakerMountedCombat.Integration
                     throw new InvalidOperationException("Loaded mounted actor ID is not unique.");
                 return;
             }
-            var state = unit.CombatState;
-            state.Cooldown.StandardAction = saved.Standard;
-            state.Cooldown.MoveAction = saved.Move;
-            state.Cooldown.SwiftAction = saved.Swift;
-            state.Cooldown.Initiative = saved.Initiative;
-            state.Cooldown.AttackOfOpportunity = saved.Reaction;
-            state.AttackOfOpportunityCount = saved.ReactionsRemaining;
-            state.LastSurpriseActionTime = TimeSpan.FromTicks(saved.LastSurpriseTicks);
+            if (combatActor != null) NativeCombatActorPersistence.RestoreActor(unit, combatActor, data.GameTimeTicks);
+            else NativeCombatActorPersistence.RestoreDebt(unit, saved);
             restoredActors.Add(unit.UniqueId, unit);
             SemanticRestoreCount++;
             logger.Info("Mounted native actor current debt restored after PostLoad: " + unit.UniqueId + ".");
@@ -230,6 +226,8 @@ namespace KingmakerMountedCombat.Integration
 
         internal void Update()
         {
+            TryRestoreCombat();
+            if (CombatRestorationPending) return;
             if (!Enabled || !presentationPending || SaveSuspended || restoreLoad == null ||
                 !restoreLoad.World.CanPresent(Game.Instance?.Player) ||
                 Game.Instance?.CurrentlyLoadedArea == null || LoadingProcess.Instance.IsLoadingInProcess) return;
