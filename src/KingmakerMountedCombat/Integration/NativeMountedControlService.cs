@@ -428,27 +428,19 @@ namespace KingmakerMountedCombat.Integration
 
         internal IEnumerator<object> WrapSaveRoutine(IEnumerator<object> inner)
         {
-            if (inner == null)
-            {
-                EndSaveSerializationScope();
-                yield break;
-            }
-
-            try
-            {
-                while (inner.MoveNext())
+            var ownsScope = false;
+            return new ScopedEnumerator<object>(inner,
+                () =>
                 {
-                    yield return inner.Current;
-                }
-            }
-            finally
-            {
-                var disposable = inner as IDisposable;
-                disposable?.Dispose();
-                EndSaveSerializationScope();
-            }
+                    if (disposed || serializationSuspended)
+                        throw new InvalidOperationException("Mounted control save scope is unavailable.");
+                    // Set before acquisition so a partial hotbar/fact failure rolls back.
+                    ownsScope = true;
+                    if (!BeginSaveSerializationScope())
+                        throw new InvalidOperationException("Mounted control save scope could not start.");
+                },
+                () => { if (ownsScope) EndSaveSerializationScope(); });
         }
-
         internal NativeMountedControlSnapshot CaptureSnapshot()
         {
             var units = CollectCandidateUnits();
@@ -944,11 +936,14 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
             serializationSuspended = false;
-            if (enabled && !disposed)
+            try
             {
-                Update();
+                if (enabled && !disposed) Update();
             }
-            ClearSerializationHotbarLeases(true);
+            finally
+            {
+                ClearSerializationHotbarLeases(true);
+            }
             logger.Info("Native mounted control save-serialization suspension ended; current runtime facts were rebuilt without saved residue.");
         }
 

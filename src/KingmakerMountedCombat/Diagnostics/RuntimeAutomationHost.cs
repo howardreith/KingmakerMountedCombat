@@ -59,6 +59,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private int loadRequestCount;
         private IDisposable saveAuthorizationLease;
         private WorkingFixtureLoader fixtureLoader;
+        private PersistenceIsolationBootstrap persistenceBootstrap;
         private bool fixtureLoaderStarted;
         private bool fixtureIdentityVerified;
         private bool fixtureScenarioCompleted;
@@ -82,6 +83,7 @@ namespace KingmakerMountedCombat.Diagnostics
         public string Scenario => request.Scenario;
 
         internal bool RequiresLegacyDiagnosticOverlay =>
+            request.Scenario != PersistenceIsolationBootstrap.Scenario &&
             request.Scenario != Phase3dHorseScenarioTranche.RealTimeScenario &&
             request.Scenario != Phase3dHorseScenarioTranche.Phase3gRealTimeScenario &&
             request.Scenario != Phase3dHorseScenarioTranche.Phase3gTurnBasedScenario &&
@@ -490,6 +492,12 @@ namespace KingmakerMountedCombat.Diagnostics
 
             if (!fixtureLoaderStarted)
             {
+                if (persistenceBootstrap != null)
+                {
+                    if (!persistenceBootstrap.TryPrepare()) return;
+                    saveAuthorizationLease.Dispose();
+                    saveAuthorizationLease = saveAuthorization.Activate(request.Fixture, persistenceBootstrap.SaveRoot, false);
+                }
                 fixtureLoaderStarted = true;
                 fixtureLoader.Start();
                 return;
@@ -649,7 +657,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 CollectEngineErrors(boundaryEngine.Errors, "Boundary");
                 boundaryEngine = null;
             }
-            else if (string.Equals(request.Scenario, "fixture-intake", StringComparison.Ordinal))
+            else if (string.Equals(request.Scenario, "fixture-intake", StringComparison.Ordinal) || request.Scenario == PersistenceIsolationBootstrap.Scenario)
             {
                 subscenarioResults = new[]
                 {
@@ -782,6 +790,14 @@ namespace KingmakerMountedCombat.Diagnostics
             // already-transactional Working header; every SaveRoutine request stays denied.
             saveAuthorizationLease = saveAuthorization.Activate(request.Fixture, game.SaveManager.SavePath, false);
             fixtureLoader = new WorkingFixtureLoader(request, logger);
+            if (request.Scenario == PersistenceIsolationBootstrap.Scenario)
+            {
+                diagnosticSettings.EnablePairedActivation = true;
+                diagnosticSettings.EnableUnifiedMountedTurn = false;
+                diagnosticSettings.EnablePairedCommandScheduler = false;
+                diagnosticSettings.EnableDiagnosticOverlay = false;
+                persistenceBootstrap = new PersistenceIsolationBootstrap(request);
+            }
         }
 
         private RuntimeSubscenarioResult EvaluateMountedContracts()
@@ -795,6 +811,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Exact SaveManager.LoadZipSave(string) seam is unavailable.", ref passed, ref failed);
             AssertRuntime(errors, typeof(Kingmaker.Controllers.Units.UnitMoveController).GetMethod("Tick", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic) != null,
                 "Exact Kingmaker unit-movement controller seam is unavailable.", ref passed, ref failed);
+            if (persistenceBootstrap != null)
+                AssertRuntime(errors, persistenceBootstrap.VerifyLoaded(fixtureLoader.WorkingPath),
+                    "Isolated save/stash root, exact loaded archive or source bytes changed.", ref passed, ref failed);
             return BuildSubscenario("export-mounted-contracts", passed, failed, errors);
         }
 

@@ -1,3 +1,12 @@
+# Chunk 5 persistence - 2026-09-20
+
+IN PROGRESS. Active mission: save-scoped relationships and legitimate action/turn continuity across actual saves and cold loads. [Single report](docs/CHUNK5-PERSISTENCE.md). Historical Chunk 4 native engineering is accepted; human visual/HUD/physical-input acceptance remains TODO.
+
+Branch `codex/mounted-combat-phase3f-playable-core`; intake HEAD `50ebd9be905eeb1fb375c33580fb405bc829f799` descends from reviewed `8a297fa019ff205f50fd7b911b6f6e03d46fbb1a` and source `429377d707a9976be65639e0c27954d8b4ff3717`. Clean main intake `1b4feaff6793272661bc4d45620c67d7a373e846` had the same tree; switched back without resetting history. Host `DESKTOP-SRJJ623`; actual installed preview.54 DLL SHA256 `2203a68ca13dfebd1fc52be7c15521f3c2503c98cd53a891dd210ba0611019e9`. No game process observed. No external state changed or runtime transaction begun. Preview.37/preview.13 backups remain historical.
+
+Current development candidate: `0.1.0-chunk5-preview.1`. Source/component/harness/focused contracts PASS 22/401/250/15, each with zero failures; no native Chunk 5 run yet. Next: commit/package the isolated bootstrap, create a fresh actual-state suite and prove WhatIf purity, then run guarded `persistence-isolation`. Continue to real P01 saving/cold loading after isolation is proven. Paired=true, unified/scheduler/overlay=false. No permanent installation, main merge or release. Local command sandbox setup currently fails; individually reviewed commands work. First resume command: `git status --short`, then read this report and the latest journal entry.
+
+---
 # Owner-approved alpha delivery - 2026-09-20 UTC
 
 **PASS - exact preview.54 installed for the owner's alpha test.** The owner accepted Chunk 4 and authorized committing, merging into default branch `main`, publishing an alpha prerelease and installing it locally. These instructions supersede historical delivery restrictions. The tested source remains `429377d707a9976be65639e0c27954d8b4ff3717`; the qualified ZIP/DLL is unchanged. [Setup and manual checklist](docs/ALPHA-PLAYTEST.md), [qualification](docs/CHUNK4-PLAYABILITY.md).

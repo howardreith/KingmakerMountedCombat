@@ -93,7 +93,17 @@ namespace KingmakerMountedCombat.Tests
             ActorAllocationLifetimeTests.Register(runner);
             PairedActivationTests.Register(runner);
             ManualReviewBoundaryGuardTests.Register(runner);
+            runner.Run("persistence isolation accepts only the qualified disposable fixture", () =>
+            {
+                var request = ValidSaveBackedRequest();
+                request.Scenario = "persistence-isolation";
+                TestRunner.Equal(0, request.Validate().Count, "Isolated bootstrap request rejected.");
+                request.Fixture.Working.InternalName = "KMC_arbitrary";
+                TestRunner.True(request.Validate().Count > 0, "Display prefix authorized an arbitrary fixture.");
+            });
             RuntimeSaveAuthorizationTests.Register(runner);
+            ScopedEnumeratorTests.Register(runner);
+            PersistenceSaveAuthorizationTests.Register(runner);
             WorkingFixtureLoadWatchdogTests.Register(runner);
             SustainedRoutineProgressTests.Register(runner);
             BoundaryFailureDrainTests.Register(runner);

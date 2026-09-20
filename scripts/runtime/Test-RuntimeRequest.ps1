@@ -122,7 +122,7 @@ $missionScenarios = @(
     'mounted-rider-melee-combat-end-rt', 'mounted-rider-melee-combat-end-tb',
     'mounted-rider-melee-human-play-path-rt', 'mounted-rider-melee-human-play-path-tb'
 )
-$aggregateScenarios = @('fixture-intake','lifecycle-suite','combat-lifecycle-suite','chunk4-traversal-core','chunk4-traversal-slope','chunk4-area-cleanup','movement-suite','boundary-suite','presentation-suite','combat-core-control-suite')
+$aggregateScenarios = @('fixture-intake','persistence-isolation','lifecycle-suite','combat-lifecycle-suite','chunk4-traversal-core','chunk4-traversal-slope','chunk4-area-cleanup','movement-suite','boundary-suite','presentation-suite','combat-core-control-suite')
 $interactiveScenarios = @('manual-visual-review')
 
 if ([string]$request.runId -cnotmatch '^[A-Za-z0-9._-]{1,120}$') { throw 'Runtime request runId is invalid.' }

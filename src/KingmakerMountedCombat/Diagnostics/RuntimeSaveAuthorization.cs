@@ -7,7 +7,8 @@ namespace KingmakerMountedCombat.Diagnostics
     internal enum RuntimeSaveOperation
     {
         Load,
-        Write
+        Write,
+        Delete
     }
 
     internal sealed class RuntimeSaveTarget
@@ -277,6 +278,8 @@ namespace KingmakerMountedCombat.Diagnostics
             string observedSaveRoot,
             bool ignoreWorkingWritePolicy)
         {
+            if (operation != RuntimeSaveOperation.Load && operation != RuntimeSaveOperation.Write)
+                return "Blocked unsupported strict-mode save operation.";
             if (target == null)
             {
                 return "Blocked " + OperationName(operation) + ": SaveInfo was null.";

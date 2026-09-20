@@ -722,44 +722,36 @@ namespace KingmakerMountedCombat.Integration
                     unit != null && game?.State?.AwakeUnits != null && game.State.AwakeUnits.Contains(unit));
             }
 
-            internal static bool SavePrefix(SaveManager __instance, SaveInfo saveInfo, bool forceAuto, ref IEnumerator<object> __result)
+            internal static bool SavePrefix(SaveManager __instance, SaveInfo saveInfo, bool forceAuto,
+                ref IEnumerator<object> __result, out bool __state)
             {
+                __state = false;
                 RuntimeAutomationHost.ObserveSaveRequest();
+                bool suppressed;
+                var authorized = AuthorizeSaveBoundary(RuntimeSaveOperation.Write, __instance, saveInfo, ref __result, out suppressed);
+                if (!authorized && !suppressed) return false;
+                // Retain the explicitly armed historical suppression probe. An
+                // unauthorized request must not dismount or change live controls.
                 if (!GuardNativeBoundary(NativeLifecycleBoundary.SaveRequest, CleanupTrigger.SaveRequested, "SaveManager.SaveRoutine Harmony12 prefix"))
                 {
                     PatchBridge.SaveAuthorization?.ReportBoundaryFailure(RuntimeSaveOperation.Write, "relationship service reported residue");
                     __result = EmptyRoutine();
                     return false;
                 }
-
-                if (!AuthorizeSaveBoundary(RuntimeSaveOperation.Write, __instance, saveInfo, ref __result))
-                {
-                    return false;
-                }
-                if (PatchBridge.NativeControls != null &&
-                    !PatchBridge.NativeControls.BeginSaveSerializationScope())
-                {
-                    PatchBridge.SaveAuthorization?.ReportBoundaryFailure(
-                        RuntimeSaveOperation.Write,
-                        "native mounted-control serialization scope could not start");
-                    __result = EmptyRoutine();
-                    return false;
-                }
-                return true;
+                __state = authorized;
+                return authorized;
             }
 
-            internal static void SavePostfix(ref IEnumerator<object> __result)
+            internal static void SavePostfix(ref IEnumerator<object> __result, bool __state)
             {
-                if (PatchBridge.NativeControls != null &&
-                    PatchBridge.NativeControls.SerializationSuspended)
-                {
+                if (__state && PatchBridge.NativeControls != null && __result != null)
                     __result = PatchBridge.NativeControls.WrapSaveRoutine(__result);
-                }
             }
 
             internal static bool LoadPrefix(SaveManager __instance, SaveInfo saveInfo, bool isSmokeTest, ref IEnumerator<object> __result)
             {
                 RuntimeAutomationHost.ObserveLoadRequest();
+                if (!AuthorizeSaveBoundary(RuntimeSaveOperation.Load, __instance, saveInfo, ref __result)) return false;
                 if (!GuardNativeBoundary(NativeLifecycleBoundary.LoadStart, CleanupTrigger.LoadRequested, "SaveManager.LoadRoutine Harmony12 prefix"))
                 {
                     PatchBridge.SaveAuthorization?.ReportBoundaryFailure(RuntimeSaveOperation.Load, "relationship service reported residue");
@@ -767,7 +759,7 @@ namespace KingmakerMountedCombat.Integration
                     return false;
                 }
 
-                return AuthorizeSaveBoundary(RuntimeSaveOperation.Load, __instance, saveInfo, ref __result);
+                return true;
             }
 
             private static bool GuardNativeBoundary(NativeLifecycleBoundary boundary, CleanupTrigger trigger, string source)
@@ -800,6 +792,13 @@ namespace KingmakerMountedCombat.Integration
 
             private static bool AuthorizeSaveBoundary(RuntimeSaveOperation operation, SaveManager saveManager, SaveInfo saveInfo, ref IEnumerator<object> result)
             {
+                bool suppressed;
+                return AuthorizeSaveBoundary(operation, saveManager, saveInfo, ref result, out suppressed);
+            }
+
+            private static bool AuthorizeSaveBoundary(RuntimeSaveOperation operation, SaveManager saveManager, SaveInfo saveInfo, ref IEnumerator<object> result, out bool suppressed)
+            {
+                suppressed = false;
                 var authorization = PatchBridge.SaveAuthorization;
                 if (authorization == null || !authorization.IsActive)
                 {
@@ -843,6 +842,7 @@ namespace KingmakerMountedCombat.Integration
                 }
                 else
                 {
+                    suppressed = true;
                     PatchBridge.Logger?.Warning("Expected runtime save serialization suppression: " + decision.Reason);
                 }
                 result = EmptyRoutine();

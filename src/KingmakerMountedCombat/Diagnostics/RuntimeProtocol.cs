@@ -72,6 +72,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "ui-selection-portrait-actionbar",
             "camera-follow-and-command-routing",
             "fixture-intake",
+            "persistence-isolation",
             "lifecycle-suite",
             "combat-lifecycle-suite",
             "chunk4-traversal-core", "chunk4-traversal-slope", "chunk4-area-cleanup", "movement-suite",

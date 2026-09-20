@@ -45,6 +45,10 @@
     <Compile Include="..\src\KingmakerMountedCombat\Domain\PairedActivation.cs" />
     <Compile Include="ManualReviewBoundaryGuardTests.cs" />
     <Compile Include="RuntimeSaveAuthorizationTests.cs" />
+    <Compile Include="PersistenceSaveAuthorizationTests.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\PersistenceSaveAuthorization.cs" />
+    <Compile Include="ScopedEnumeratorTests.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\ScopedEnumerator.cs" />
     <Compile Include="StopEarlyCaptureBoundaryTests.cs" />
     <Compile Include="WorkingFixtureLoadWatchdogTests.cs" />
     <Compile Include="SustainedRoutineProgressTests.cs" />

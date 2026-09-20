@@ -1,3 +1,8 @@
+# Active Chunk 5 - 2026-09-20
+
+IN PROGRESS. No critical hard stop is proven. The isolated bootstrap and safe offline guard/storage checks are implemented; real isolated native writes, P01 cold round trip and all persistence/gameplay gates remain TODO. See [the single report](docs/CHUNK5-PERSISTENCE.md). Human preview.54 is the current intake, not historical preview.37/preview.13. No game was launched, save modified or candidate installed. Normal sandbox setup fails; individually reviewed bounded commands work.
+
+---
 # Owner-approved alpha delivery - 2026-09-20 UTC
 
 **PASS - exact preview.54 installed for the owner's alpha test.** The owner accepted Chunk 4 and authorized committing, merging into default branch `main`, publishing an alpha prerelease and installing it locally. These instructions supersede historical delivery restrictions. The tested source remains `429377d707a9976be65639e0c27954d8b4ff3717`; the qualified ZIP/DLL is unchanged. [Setup and manual checklist](docs/ALPHA-PLAYTEST.md), [qualification](docs/CHUNK4-PLAYABILITY.md).

@@ -109,7 +109,9 @@
     <Compile Include="BuildIdentity.cs" />
     <Compile Include="Domain\ActorAllocationLifetime.cs" />
     <Compile Include="Domain\PairedActivation.cs" />
+    <Compile Include="Domain\ScopedEnumerator.cs" />
     <Compile Include="Integration\PairedActivationLifecycle.cs" />
+    <Compile Include="Integration\NativePersistenceIsolation.cs" />
     <Compile Include="Integration\PairedNativeConditionCommands.cs" />
     <Compile Include="Integration\PairedConfusionPreparation.cs" />
     <Compile Include="Integration\PairedActivationControls.cs" />
@@ -157,6 +159,8 @@
     <Compile Include="Diagnostics\WorkingFixtureLoadWatchdog.cs" />
     <Compile Include="Diagnostics\WorkingFixtureLoader.cs" />
     <Compile Include="Diagnostics\RuntimeSaveAuthorization.cs" />
+    <Compile Include="Diagnostics\PersistenceSaveAuthorization.cs" />
+    <Compile Include="Diagnostics\PersistenceIsolationBootstrap.cs" />
     <Compile Include="Domain\CleanupTrigger.cs" />
     <Compile Include="Domain\AvoidanceRestorationExpectation.cs" />
     <Compile Include="Domain\CommandRouting.cs" />

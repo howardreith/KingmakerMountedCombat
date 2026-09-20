@@ -16,7 +16,7 @@ param(
         'mounted-pair-stop-start','mounted-pair-turns-and-corners','mounted-pair-doorway','mounted-distance-door-interaction','mounted-pair-selection',
         'mounted-pair-party-formation','mounted-pair-pause-unpause','mounted-pair-destination-cancel',
         'mounted-pair-turn-based-entry-cleanup','mounted-pair-realtime-entry-cleanup','mounted-pair-save-safety',
-        'mounted-pair-load-safety','mounted-pair-area-transition-safety','fixture-intake','lifecycle-suite','combat-lifecycle-suite',
+        'mounted-pair-load-safety','mounted-pair-area-transition-safety','fixture-intake','persistence-isolation','lifecycle-suite','combat-lifecycle-suite',
         'native-save-clean-dismount','native-area-clean-dismount','native-mode-transition-cleanup',
         'presentation-residue-and-uninstall-safety','pose-idle','pose-walk-run','pose-turn-stop',
         'pose-doorway-formation','pose-equipment-variants','ui-selection-portrait-actionbar',
@@ -290,6 +290,27 @@ try{
             -After (Get-KmcSaveMetadataInventory $saveRoot) `
             -Description 'runtime immediate pre-save-transaction metadata'
         [void](Enter-KmcWorkingSaveTransaction -Lock $lock -Pair $lockedPair -SaveRoot $saveRoot -StateRoot $runtimeState -BackupRoot $runtimeBackups -StagingRoot $runtimeStaging -Scenario $Scenario)
+        if($Scenario -ceq 'persistence-isolation'){
+            $profileRoot=Assert-KmcChildPath (Join-Path $runtimeStaging ('persistence-'+$actualRunId)) $runtimeStaging 'owned persistence profile'
+            if(Test-Path -LiteralPath $profileRoot){throw 'Persistence profile already exists; refusing ambiguous ownership.'}
+            [void][IO.Directory]::CreateDirectory($profileRoot)
+            $isolatedSaves=Join-Path $profileRoot 'Saved Games'
+            [void][IO.Directory]::CreateDirectory($isolatedSaves)
+            [void][IO.Directory]::CreateDirectory((Join-Path $profileRoot 'Areas'))
+            $copiedFixture=Join-Path $isolatedSaves ([string]$lockedPair.working.fileName)
+            Assert-KmcNotReparsePoint $lockedWorkingPath 'persistence fixture source'
+            Assert-KmcNotHardLink $lockedWorkingPath 'persistence fixture source'
+            Copy-Item -LiteralPath $lockedWorkingPath -Destination $copiedFixture
+            [IO.File]::SetLastWriteTimeUtc($copiedFixture,([IO.File]::GetLastWriteTimeUtc($lockedWorkingPath)))
+            if((Get-KmcSha256 $copiedFixture)-cne[string]$fixturePayload.working.sha256){
+                throw 'Copied persistence fixture bytes differ from the admitted Working fixture.'
+            }
+            Write-KmcJsonAtomic (Join-Path $profileRoot 'owner.json') ([ordered]@{
+                runId=$actualRunId;transactionToken=[string]$lock.Token;scenario=$Scenario
+                sourceSha256=[string]$fixturePayload.working.sha256;saveRoot=$isolatedSaves
+            })
+        }
+
     }
     [void](Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $liveMods -PackagePath $PackagePath -StateRoot $runtimeState -BackupRoot $runtimeBackups -StagingRoot $runtimeStaging)
     Write-KmcJsonAtomic $requestPath $request

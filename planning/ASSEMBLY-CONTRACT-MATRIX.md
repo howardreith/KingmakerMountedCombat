@@ -210,3 +210,21 @@ Same exact Kingmaker SHA/MVID. UnitMoveController.Tick06009183 branches at IL010
 ## Chunk4 native door closing readiness - candidate27
 
 Same exact Kingmaker SHA/MVID. StandardDoor.Open06001AA6 sets AnimationClipPlayable m_Playable040012CE speed to -1 when closing, clamps its initial time to the public ObstacleAnimation040012CF length, plays m_Graph040012CD and flips persistent State immediately. OnDataSetted06001AA4 maps closed state to time0. Thus GetState=false and one clean NavmeshCut sample cannot establish completed closing. AX is NEW NATIVE INTEGRATION evidence: initially ready cut became dirty in five blocked-route samples. Diagnostic27 reads exact playable/graph fields only and waits for the native endpoint and subsequent graph readiness under the existing30-second bound. No SetTime, SetSpeed, Evaluate, ForceUpdate or collision mutation is introduced. Initial/ready playback and all measured times are exported; strict native/outer cut checks remain. Exact fields and native IL use are covered by assembly contracts; this does not certify native27 until AY. Local bounded IL: analysis-cache/chunk4-native/native-door-closing27.txt, excluded from Git/packages. Separately AX proves actual26 movement-entry construction/callbacks with zero phase/recovery violations; final combat regression is still open.
+
+## Chunk 5 persistence contracts - 2026-09-20
+
+ASSEMBLY CONTRACT, not native gameplay qualification. Exact Kingmaker MVID `07fa1e4d-8618-41b3-9b8d-faa17d3b26f7`; original summaries only. Bounded local evidence and probe logs: `analysis-cache/chunk5-persistence`.
+
+| Boundary | Exact member/token | Observation / proposed use |
+|---|---|---|
+| Native request vs enumeration | SaveManager.SaveRoutine `06008029`; iterator MoveNext `0600BEF3` | Creation precedes waiting, new descriptor, screenshot, entity shutdown and worker serialization; do not snapshot after cleanup. |
+| Root / enumeration | get_SavePath `0600800C`; UpdateSaveListAsync `0600800E`; m_UpdateTask `04005410` | Refresh independently resets path; wait for an existing scan before isolated re-enumeration. |
+| Native descriptor allocation | PrepareSave `06008025` | Two direct persistent-data path branches; both exact IL replacements verified offline. Unity construction remains native-only. |
+| Atomic owned member | ISaver.SaveJson `06007FAE`; ISaver.Save `06007FB3`; ZipSaver.Save `06008068` | Actual owned archive probe: metadata is in memory until Save; clone/header update/rename preserve it. No finalized archive rewrite is needed. |
+| Worker / overwrite | SerializeAndSaveThread `0600802A` | Native worker serializes entities, commits a new slot, then replaces the requested slot. Actual completion evidence must include replacement. |
+| Selected-save load | LoadRoutine `0600802C`; iterator MoveNext `0600BF00` | Load increments header and clears stash before entity restoration; bootstrap isolates the stash and suppresses only its native header write. |
+| Stash | AreaDataStash.get_Folder `06007F83` | Every stash operation resolves this cached getter; isolated native proof pending. |
+| Cloud | SteamSavesReplicator Initialize/Pull/Register/Delete `0600804B/06008043/06008042/06008044`; SavesStorageAccess.Upload `06008250` | Isolated-process suppression supplements existing offline cloud safeguards; never changes account settings. |
+| TB rebuild | CombatController.OnAreaDidLoad / HandleCombatStart / TurnController.Prepare | Loaded views alone are too late to infer allocation identity. Resolve semantic rebind before renewed native preparation; implementation pending. |
+
+Focused offline contracts: 15 PASS / 0 FAIL, including real native archive I/O on owned synthetic data and denied save/load callback ordering. No native save transaction, cold load or resource continuity PASS is claimed.
